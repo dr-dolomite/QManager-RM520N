@@ -153,14 +153,9 @@ const data = {
       icon: Map,
     },
     {
-      title: "TTL Settings",
+      title: "TTL & MTU Settings",
       url: "/local-network/ttl-settings",
       icon: TimerIcon,
-    },
-    {
-      title: "MTU Settings",
-      url: "/local-network/mtu-settings",
-      icon: RulerIcon,
     },
   ],
   monitoring: [
