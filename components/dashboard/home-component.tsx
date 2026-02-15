@@ -19,6 +19,7 @@ const HomeComponent = () => {
       <div className="grid gap-4 @xl/main:col-span-3 @5xl/main:col-span-3 col-span-1 *:data-[slot=card]:from-primary/5 *:data-[slot=card]:to-card dark:*:data-[slot=card]:bg-card *:data-[slot=card]:bg-linear-to-t *:data-[slot=card]:shadow-xs">
         <NetworkStatusComponent
           data={data?.network ?? null}
+          connectivity={data?.connectivity ?? null}
           modemReachable={data?.modem_reachable ?? false}
           isLoading={isLoading}
           isStale={isStale}

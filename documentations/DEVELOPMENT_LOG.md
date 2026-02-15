@@ -2,7 +2,7 @@
 
 **Project:** QManager — Custom GUI for Quectel RM551E-GL 5G Modem  
 **Platform:** OpenWRT (Embedded Linux)  
-**Last Updated:** February 15, 2026 (Connectivity architecture)
+**Last Updated:** February 15, 2026 (Phase 1–2 connectivity, connection uptime fix)
 
 ---
 
@@ -449,7 +449,8 @@ The poller maps the AT+QENG `state` field to `service_status` as follows:
 | **4G Primary Status** | `lte-status.tsx` | ✅ **DONE** | `data.lte` — band, EARFCN, PCI, RSRP, RSRQ, RSSI, SINR |
 | **5G Primary Status** | `nr-status.tsx` | ✅ **DONE** | `data.nr` — band, ARFCN, PCI, RSRP, RSRQ, SINR, SCS |
 | **Device Information** | `device-status.tsx` | ✅ **DONE** | `data.device` — firmware, build date, manufacturer, IMEI, IMSI, ICCID, phone, LTE category, MIMO |
-| **Device Metrics** | `device-metrics.tsx` | ✅ **DONE** | `data.device` (temp, CPU, memory, uptime) + `data.traffic` (live traffic, data usage) |
+| **Device Metrics** | `device-metrics.tsx` | ✅ **DONE** | `data.device` (temp, CPU, memory, uptime) + `data.traffic` (live traffic, data usage). Uptimes read directly from poll data (no client-side 1s tick — minutes are the smallest displayed unit). |
+| **Internet Badge** | `network-status.tsx` | ✅ **DONE** | `data.connectivity.internet_available` — three-state badge (green/red/gray for true/false/null). Replaced placeholder `hasInternet = isServiceActive`. |
 | **Live Latency** | `live-latency.tsx` | ❌ Pending | `data.connectivity` — latency_ms, latency_history, jitter, packet_loss (from unified ping daemon via poller merge) |
 | **Recent Activities** | `recent-activities.tsx` | ❌ Hardcoded | Separate implementation (event log) |
 | **Signal History** | `signal-history.tsx` | ❌ Mock data | `data.lte.rsrp/sinr` + `data.nr.rsrp/sinr` (accumulated client-side) |
@@ -510,6 +511,7 @@ All shell scripts need executable permission:
 ```bash
 chmod +x /usr/bin/qcmd
 chmod +x /usr/bin/qmanager_poller
+chmod +x /usr/bin/qmanager_ping
 chmod +x /usr/bin/qmanager_logread
 chmod +x /usr/lib/qmanager/qlog.sh
 chmod +x /etc/init.d/qmanager
@@ -622,6 +624,12 @@ Parsers that grep for patterns like `"servingcell"` would match the echo line `A
 
 **Solution:** `NOCONN` now maps to `service_status: "idle"` internally, `lte_state: "connected"`, and signal values are parsed normally. `determine_service_status()` then upgrades `idle` to `connected`/`optimal` based on actual RSRP. Only `SEARCH` triggers an early return (no signal values available).
 
+### Uptime Display: Minutes, Not Seconds
+
+**Problem:** The 1-second client-side tick (`setInterval` incrementing `displayDevUptime` and `displayConnUptime`) drifted out of sync with the 2-second poll cycle. Device uptime and connection uptime would visually jump backwards when a fresh poll arrived with a lower value than the interpolated one.
+
+**Solution:** Removed seconds from the display entirely. `formatUptime()` now shows `0m` for sub-minute, `Xh Ym` otherwise. Minutes is the smallest unit. This eliminated 6 `useState` calls, 1 `useEffect` with `setInterval`, and the render-time sync logic from `device-metrics.tsx`. Uptime values now update naturally every 2 seconds with the poll cycle.
+
 ### Exit Code Convention in qcmd
 
 | Exit Code | Meaning |
@@ -656,21 +664,22 @@ This allows callers to distinguish lock contention from modem failures.
 
 ### Connectivity & Watchcat (See: `documentations/CONNECTIVITY_ARCHITECTURE.md`)
 
-9. **Build `qmanager_ping`** — Unified ping daemon. Single/dual-target ICMP, atomic JSON writes, RTT + reachable + streak counts + history ring buffer. BusyBox compatible.
-10. **Integrate ping data into poller** — Poller reads `/tmp/qmanager_ping.json`, merges `connectivity` section into `qmanager_status.json`.
-11. **Wire Internet badge** — Replace `hasInternet = isServiceActive` with `data?.connectivity?.internet_available` in `network-status.tsx`.
-12. **Build Live Latency component** — Renders `connectivity.latency_ms` (big number), `connectivity.latency_history` (sparkline), secondary stats.
-13. **Build `qmanager_watchcat`** — State machine daemon. MONITOR→SUSPECT→RECOVERY→COOLDOWN→LOCKED. Reads ping data, executes tiered recovery (ifup → AT+CFUN → reboot). Token-bucket bootloop protection.
-14. **Wire watchcat state to UI** — Optional status indicator showing watchcat state, failure count, last recovery action.
-15. **Rename watchcat lock** — `/tmp/qmanager.lock` (from old Watchcat Architecture Guide) → `/tmp/qmanager_watchcat.lock` to prevent collision with serial port lock at `/var/lock/qmanager.lock`.
-16. **Update init script** — Extend `/etc/init.d/qmanager` with three procd instances (ping, poller, watchcat).
+9. ~~**Build `qmanager_ping`**~~ ✅ Done — Unified ping daemon. Dual-target ICMP (8.8.8.8 + 1.1.1.1), hysteresis (3 fail / 2 recover), 60-sample ring buffer, atomic JSON writes. BusyBox compatible.
+10. ~~**Integrate ping data into poller**~~ ✅ Done — `read_ping_data()` reads `/tmp/qmanager_ping.json`, staleness check (10s threshold), merges `connectivity` section into `qmanager_status.json`.
+11. ~~**Wire Internet badge**~~ ✅ Done — Three-state badge in `network-status.tsx`: green (true), red (false), gray (null/unknown). Replaced placeholder `hasInternet = isServiceActive`.
+12. ~~**Update init script**~~ ✅ Done — Multi-instance procd: ping (instance 1), poller (instance 2), watchcat placeholder (instance 3, commented out).
+13. ~~**Fix connection uptime**~~ ✅ Done — `update_conn_uptime()` now keyed off `conn_internet_available` (ping daemon) instead of `service_status` (modem registration). Three-state: `true` → count, `false` → reset, `null` → hold. Also added to scan path so timer stays accurate during AT+QSCAN.
+14. **Build Live Latency component** — Renders `connectivity.latency_ms` (big number), `connectivity.latency_history` (sparkline), secondary stats.
+15. **Build `qmanager_watchcat`** — State machine daemon. MONITOR→SUSPECT→RECOVERY→COOLDOWN→LOCKED. Reads ping data, executes tiered recovery (ifup → AT+CFUN → reboot). Token-bucket bootloop protection.
+16. **Wire watchcat state to UI** — Optional status indicator showing watchcat state, failure count, last recovery action.
+17. **Rename watchcat lock** — `/tmp/qmanager.lock` (from old Watchcat Architecture Guide) → `/tmp/qmanager_watchcat.lock` to prevent collision with serial port lock at `/var/lock/qmanager.lock`.
 
 ### Other Backend Improvements
 
-17. **Error recovery testing** — SIM ejection, modem unresponsive, `sms_tool` crash, stale lock scenarios.
-18. **Long command support** — Verify `AT+QSCAN` flag-based coordination between poller and Cell Scanner page.
-19. **NR MIMO layers** — Currently only LTE MIMO is fetched. May need a separate command for NR MIMO (investigate `AT+QNWCFG="nr_mimo_layers"` or similar).
-20. **TA-based cell distance** — ✅ Done. Root cause: `parse_time_advance()` used `rev` (not available on BusyBox) to extract the last CSV field. Replaced with `awk -F',' '{print $NF}'`. Also removed `else` branches that were resetting the other technology's TA when calling with single-technology data.
+18. **Error recovery testing** — SIM ejection, modem unresponsive, `sms_tool` crash, stale lock scenarios.
+19. **Long command support** — Verify `AT+QSCAN` flag-based coordination between poller and Cell Scanner page.
+20. **NR MIMO layers** — Currently only LTE MIMO is fetched. May need a separate command for NR MIMO (investigate `AT+QNWCFG="nr_mimo_layers"` or similar).
+21. **TA-based cell distance** — ✅ Done. Root cause: `parse_time_advance()` used `rev` (not available on BusyBox) to extract the last CSV field. Replaced with `awk -F',' '{print $NF}'`. Also removed `else` branches that were resetting the other technology's TA when calling with single-technology data.
 
 ---
 

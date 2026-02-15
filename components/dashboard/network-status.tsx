@@ -22,10 +22,15 @@ import {
 } from "react-icons/md";
 import { FaCheck, FaXmark } from "react-icons/fa6";
 
-import type { NetworkStatus, ServiceStatus } from "@/types/modem-status";
+import type {
+  NetworkStatus,
+  ConnectivityStatus,
+  ServiceStatus,
+} from "@/types/modem-status";
 
 interface NetworkStatusComponentProps {
   data: NetworkStatus | null;
+  connectivity: ConnectivityStatus | null;
   modemReachable: boolean;
   isLoading: boolean;
   isStale: boolean;
@@ -155,6 +160,7 @@ const serviceColorMap: Record<
 
 const NetworkStatusComponent = ({
   data,
+  connectivity,
   modemReachable,
   isLoading,
   isStale,
@@ -183,8 +189,9 @@ const NetworkStatusComponent = ({
   // Whether we have a real network (LTE/5G), not fallback 3G
   const hasNetwork = networkDisplay.hasNetwork;
 
-  // Internet status — placeholder for now, user will handle later
-  const hasInternet = isServiceActive;
+  // Internet status — driven by ping daemon via connectivity data
+  // true = reachable, false = unreachable, null = ping daemon not running / unknown
+  const internetAvailable = connectivity?.internet_available ?? null;
 
   return (
     <Card className="@container/card">
@@ -228,17 +235,25 @@ const NetworkStatusComponent = ({
                 {radioOn ? "Radio On" : "Radio Off"}
               </Badge>
 
-              {/* Internet status */}
+              {/* Internet status — green/red/gray based on ping daemon */}
               <Badge
                 variant="outline"
                 className={
-                  hasInternet
+                  internetAvailable === true
                     ? "bg-green-500/20 text-green-500 hover:bg-green-500/30 border border-green-300/50 backdrop-blur-sm"
-                    : "bg-red-500/20 text-red-500 hover:bg-red-500/30 border border-red-300/50 backdrop-blur-sm"
+                    : internetAvailable === false
+                      ? "bg-red-500/20 text-red-500 hover:bg-red-500/30 border border-red-300/50 backdrop-blur-sm"
+                      : "bg-muted/50 text-muted-foreground hover:bg-muted/70 border border-muted-foreground/30 backdrop-blur-sm"
                 }
               >
                 <TbCloudFilled
-                  className={hasInternet ? "text-green-500" : "text-red-500"}
+                  className={
+                    internetAvailable === true
+                      ? "text-green-500"
+                      : internetAvailable === false
+                        ? "text-red-500"
+                        : "text-muted-foreground"
+                  }
                 />
                 Internet
               </Badge>

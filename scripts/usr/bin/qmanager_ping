@@ -1,0 +1,292 @@
+#!/bin/sh
+# =============================================================================
+# qmanager_ping — QManager Unified Ping Daemon
+# =============================================================================
+# The SINGLE source of internet reachability and latency data.
+# All consumers (poller, watchcat, frontend) read from this daemon's output.
+# This daemon NEVER touches the modem serial port.
+#
+# Output: /tmp/qmanager_ping.json (atomic writes)
+# History: /tmp/qmanager_ping_history (flat-file ring buffer)
+#
+# Consumers:
+#   - Poller:   reads ping.json → merges "connectivity" into status.json
+#   - Watchcat: reads ping.json → streak_fail drives recovery decisions
+#   - Frontend: reads via status.json (merged by poller)
+#
+# Install location: /usr/bin/qmanager_ping
+# Dependencies: ping (busybox), awk, grep, date, tail, mv
+# =============================================================================
+
+# --- Logging -----------------------------------------------------------------
+. /usr/lib/qmanager/qlog.sh 2>/dev/null || {
+    qlog_init() { :; }
+    qlog_debug() { :; }
+    qlog_info() { :; }
+    qlog_warn() { :; }
+    qlog_error() { :; }
+    qlog_state_change() { :; }
+}
+qlog_init "ping"
+
+# --- Configuration -----------------------------------------------------------
+# Defaults — overridable via UCI (/etc/config/qmanager) when implemented
+PING_TARGET_1="${PING_TARGET_1:-8.8.8.8}"
+PING_TARGET_2="${PING_TARGET_2:-1.1.1.1}"
+PING_INTERVAL="${PING_INTERVAL:-2}"
+FAIL_THRESHOLD="${FAIL_THRESHOLD:-3}"
+RECOVER_THRESHOLD="${RECOVER_THRESHOLD:-2}"
+HISTORY_SIZE="${HISTORY_SIZE:-60}"
+PING_TIMEOUT=2          # BusyBox ping -W timeout in seconds
+
+# --- File Paths --------------------------------------------------------------
+CACHE_FILE="/tmp/qmanager_ping.json"
+CACHE_TMP="/tmp/qmanager_ping.json.tmp"
+HISTORY_FILE="/tmp/qmanager_ping_history"
+RECOVERY_FLAG="/tmp/qmanager_recovery_active"
+
+# --- State Variables ---------------------------------------------------------
+streak_success=0
+streak_fail=0
+reachable="true"
+prev_reachable="true"
+target_index=0
+target_count=2
+
+# =============================================================================
+# HELPERS
+# =============================================================================
+
+# --- Execute a single ping against a target ----------------------------------
+# Returns: 0 = success (RTT written to stdout), 1 = failure
+do_ping() {
+    local target="$1"
+    local result
+
+    result=$(ping -c1 -W"$PING_TIMEOUT" "$target" 2>/dev/null)
+
+    if [ $? -eq 0 ]; then
+        # Extract RTT from "time=34.2 ms" (BusyBox format)
+        local rtt
+        rtt=$(printf '%s\n' "$result" | grep -o 'time=[0-9.]*' | cut -d= -f2)
+
+        if [ -n "$rtt" ]; then
+            echo "$rtt"
+            return 0
+        fi
+    fi
+
+    return 1
+}
+
+# --- Select next ping target (alternates between targets) --------------------
+get_target() {
+    if [ "$target_index" -eq 0 ]; then
+        echo "$PING_TARGET_1"
+    else
+        echo "$PING_TARGET_2"
+    fi
+    target_index=$(( (target_index + 1) % target_count ))
+}
+
+# --- Compute stats from history file -----------------------------------------
+# Outputs: min avg max jitter (space-separated)
+compute_stats() {
+    if [ ! -s "$HISTORY_FILE" ]; then
+        echo "0 0 0 0"
+        return
+    fi
+
+    awk '
+        /^[0-9]/ {
+            n++
+            sum += $1
+            if (n == 1 || $1 < min) min = $1
+            if (n == 1 || $1 > max) max = $1
+            if (n > 1) {
+                d = $1 - prev
+                if (d < 0) d = -d
+                jsum += d
+            }
+            prev = $1
+        }
+        END {
+            if (n > 0)
+                printf "%.1f %.1f %.1f %.1f", min, sum/n, max, (n>1 ? jsum/(n-1) : 0)
+            else
+                print "0 0 0 0"
+        }
+    ' "$HISTORY_FILE"
+}
+
+# --- Build JSON array from history file --------------------------------------
+build_history_json() {
+    if [ ! -s "$HISTORY_FILE" ]; then
+        echo "[]"
+        return
+    fi
+
+    awk '
+        BEGIN { printf "[" }
+        NR > 1 { printf "," }
+        /^[0-9]/ { printf "%.1f", $1 }
+        /^null/ { printf "null" }
+        END { printf "]" }
+    ' "$HISTORY_FILE"
+}
+
+# --- Calculate packet loss percentage from history ---------------------------
+compute_loss_pct() {
+    if [ ! -s "$HISTORY_FILE" ]; then
+        echo "0"
+        return
+    fi
+
+    awk '
+        { total++ }
+        /^null/ { lost++ }
+        END {
+            if (total > 0)
+                printf "%d", (lost * 100 / total)
+            else
+                print "0"
+        }
+    ' "$HISTORY_FILE"
+}
+
+# --- Write the JSON cache atomically ----------------------------------------
+write_cache() {
+    local rtt="$1"  # "34.2" or "null"
+    local active_target="$2"
+
+    local timestamp
+    timestamp=$(date +%s)
+
+    # Compute stats
+    local stats min_rtt avg_rtt max_rtt jitter
+    stats=$(compute_stats)
+    min_rtt=$(echo "$stats" | awk '{print $1}')
+    avg_rtt=$(echo "$stats" | awk '{print $2}')
+    max_rtt=$(echo "$stats" | awk '{print $3}')
+    jitter=$(echo "$stats" | awk '{print $4}')
+
+    local history_json
+    history_json=$(build_history_json)
+
+    local loss_pct
+    loss_pct=$(compute_loss_pct)
+
+    local during_recovery="false"
+    [ -f "$RECOVERY_FLAG" ] && during_recovery="true"
+
+    # Null-safe: if no successful pings yet, stats are null
+    local json_min json_avg json_max json_jitter
+    if [ "$min_rtt" = "0" ] && [ "$avg_rtt" = "0" ] && [ "$streak_success" -eq 0 ] && [ "$streak_fail" -gt 0 ]; then
+        json_min="null"
+        json_avg="null"
+        json_max="null"
+        json_jitter="null"
+    else
+        json_min="$min_rtt"
+        json_avg="$avg_rtt"
+        json_max="$max_rtt"
+        json_jitter="$jitter"
+    fi
+
+    cat > "$CACHE_TMP" <<EOF
+{
+  "timestamp": ${timestamp},
+  "targets": ["${PING_TARGET_1}", "${PING_TARGET_2}"],
+  "interval_sec": ${PING_INTERVAL},
+  "last_rtt_ms": ${rtt},
+  "avg_rtt_ms": ${json_avg},
+  "min_rtt_ms": ${json_min},
+  "max_rtt_ms": ${json_max},
+  "jitter_ms": ${json_jitter},
+  "packet_loss_pct": ${loss_pct},
+  "reachable": ${reachable},
+  "streak_success": ${streak_success},
+  "streak_fail": ${streak_fail},
+  "during_recovery": ${during_recovery},
+  "history": ${history_json}
+}
+EOF
+
+    mv "$CACHE_TMP" "$CACHE_FILE"
+}
+
+# =============================================================================
+# MAIN LOOP
+# =============================================================================
+
+main() {
+    qlog_info "========================================"
+    qlog_info "QManager Ping Daemon starting"
+    qlog_info "Targets: ${PING_TARGET_1}, ${PING_TARGET_2}"
+    qlog_info "Interval: ${PING_INTERVAL}s, Fail threshold: ${FAIL_THRESHOLD}, Recover threshold: ${RECOVER_THRESHOLD}"
+    qlog_info "History size: ${HISTORY_SIZE}, Timeout: ${PING_TIMEOUT}s"
+    qlog_info "========================================"
+
+    # Clean up stale files from previous run
+    rm -f "$CACHE_TMP"
+    : > "$HISTORY_FILE"  # Start with empty history
+
+    while true; do
+        local target
+        target=$(get_target)
+
+        local rtt
+        rtt=$(do_ping "$target")
+
+        if [ $? -eq 0 ] && [ -n "$rtt" ]; then
+            # --- Ping succeeded ---
+            streak_success=$((streak_success + 1))
+            streak_fail=0
+
+            qlog_debug "PING OK: ${target} rtt=${rtt}ms (streak_success=${streak_success})"
+
+            # Flip reachable back to true after sustained success
+            if [ "$reachable" = "false" ] && [ "$streak_success" -ge "$RECOVER_THRESHOLD" ]; then
+                prev_reachable="$reachable"
+                reachable="true"
+                qlog_state_change "reachable" "false" "true"
+            fi
+
+            # Append to history ring buffer
+            echo "$rtt" >> "$HISTORY_FILE"
+        else
+            # --- Ping failed ---
+            rtt="null"
+            streak_fail=$((streak_fail + 1))
+            streak_success=0
+
+            qlog_debug "PING FAIL: ${target} (streak_fail=${streak_fail})"
+
+            # Only mark unreachable after sustained failure
+            if [ "$reachable" = "true" ] && [ "$streak_fail" -ge "$FAIL_THRESHOLD" ]; then
+                prev_reachable="$reachable"
+                reachable="false"
+                qlog_state_change "reachable" "true" "false"
+                qlog_warn "Internet unreachable after ${FAIL_THRESHOLD} consecutive failures"
+            fi
+
+            # Append null to history
+            echo "null" >> "$HISTORY_FILE"
+        fi
+
+        # Trim history to max size
+        local line_count
+        line_count=$(wc -l < "$HISTORY_FILE" 2>/dev/null)
+        if [ "${line_count:-0}" -gt "$HISTORY_SIZE" ]; then
+            tail -n "$HISTORY_SIZE" "$HISTORY_FILE" > "${HISTORY_FILE}.tmp"
+            mv "${HISTORY_FILE}.tmp" "$HISTORY_FILE"
+        fi
+
+        # Write JSON cache
+        write_cache "$rtt" "$target"
+
+        sleep "$PING_INTERVAL"
+    done
+}
+
+main "$@"

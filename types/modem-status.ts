@@ -30,6 +30,8 @@ export interface ModemStatus {
   device: DeviceStatus;
   /** Live traffic metrics */
   traffic: TrafficStatus;
+  /** Internet connectivity and latency (from ping daemon) */
+  connectivity: ConnectivityStatus;
 }
 
 // --- Enums & Unions ----------------------------------------------------------
@@ -38,13 +40,15 @@ export type SystemState =
   | "normal"
   | "degraded"
   | "scan_in_progress"
+  | "recovery_in_progress"
   | "initializing";
 
 export type ErrorCode =
   | "modem_timeout"
   | "sim_not_inserted"
   | "command_error"
-  | "poller_not_started";
+  | "poller_not_started"
+  | "ping_daemon_missing";
 
 export type ServiceStatus =
   | "optimal"
@@ -224,6 +228,85 @@ export function getSignalQuality(
   return "poor";
 }
 
+export type ConnectivityState =
+  | "connected"
+  | "degraded"
+  | "disconnected"
+  | "recovery"
+  | "unknown";
+
+export interface ConnectivityStatus {
+  /** Whether internet is reachable based on ping results. null = ping daemon not running. */
+  internet_available: boolean | null;
+  /** Derived connectivity status */
+  status: ConnectivityState;
+  /** Most recent RTT in milliseconds. null if last ping failed. */
+  latency_ms: number | null;
+  /** Rolling average RTT from history window */
+  avg_latency_ms: number | null;
+  /** Minimum RTT in history window */
+  min_latency_ms: number | null;
+  /** Maximum RTT in history window */
+  max_latency_ms: number | null;
+  /** Average inter-packet RTT variation */
+  jitter_ms: number | null;
+  /** Percentage of failed pings in history window (0-100) */
+  packet_loss_pct: number;
+  /** Currently active ping target IP */
+  ping_target: string;
+  /** Ring buffer of last N RTT values. null entries = failed pings. */
+  latency_history: (number | null)[];
+  /** Seconds between history samples */
+  history_interval_sec: number;
+  /** Maximum entries in history array */
+  history_size: number;
+  /** Whether watchcat recovery is currently active */
+  during_recovery: boolean;
+}
+
+// --- Connectivity Utility Functions ------------------------------------------
+
+/** Latency quality thresholds (ms) — lower is better */
+export const LATENCY_THRESHOLDS = {
+  excellent: 30,
+  good: 60,
+  fair: 100,
+  poor: Infinity,
+} as const;
+
+/**
+ * Categorizes a latency value into a quality level.
+ * Lower latency = better quality.
+ */
+export function getLatencyQuality(
+  latencyMs: number | null
+): "excellent" | "good" | "fair" | "poor" | "none" {
+  if (latencyMs === null || latencyMs === undefined) return "none";
+  if (latencyMs <= LATENCY_THRESHOLDS.excellent) return "excellent";
+  if (latencyMs <= LATENCY_THRESHOLDS.good) return "good";
+  if (latencyMs <= LATENCY_THRESHOLDS.fair) return "fair";
+  return "poor";
+}
+
+/**
+ * Formats a latency value for display.
+ * e.g., 34.2 → "34ms", null → "-"
+ */
+export function formatLatency(latencyMs: number | null): string {
+  if (latencyMs === null || latencyMs === undefined) return "-";
+  if (latencyMs < 1) return "< 1ms";
+  return `${Math.round(latencyMs)}ms`;
+}
+
+/**
+ * Formats jitter for display.
+ * e.g., 4.8 → "4.8ms"
+ */
+export function formatJitter(jitterMs: number | null): string {
+  if (jitterMs === null || jitterMs === undefined) return "-";
+  return `${jitterMs.toFixed(1)}ms`;
+}
+
 // --- Formatting Utilities ----------------------------------------------------
 
 /**
@@ -301,22 +384,20 @@ export function formatDistance(km: number | null): string {
 }
 
 /**
- * Formats seconds into a human-readable uptime string.
- * e.g., 45910 → "12h 45m 10s"
+ * Formats seconds into a human-readable uptime string (no seconds shown).
+ * e.g., 45910 → "12h 45m", 30 → "0m", 3661 → "1h 1m"
  */
 export function formatUptime(seconds: number): string {
-  if (seconds <= 0) return "0s";
+  if (seconds <= 0) return "0m";
 
   const days = Math.floor(seconds / 86400);
   const hours = Math.floor((seconds % 86400) / 3600);
   const minutes = Math.floor((seconds % 3600) / 60);
-  const secs = seconds % 60;
 
   const parts: string[] = [];
   if (days > 0) parts.push(`${days}d`);
   if (hours > 0) parts.push(`${hours}h`);
-  if (minutes > 0) parts.push(`${minutes}m`);
-  if (secs > 0 || parts.length === 0) parts.push(`${secs}s`);
+  parts.push(`${minutes}m`);
 
   return parts.join(" ");
 }

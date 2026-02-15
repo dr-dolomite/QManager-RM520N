@@ -98,6 +98,24 @@ prev_cpu_total=0
 total_rx_bytes=0
 total_tx_bytes=0
 
+# Connectivity (from ping daemon)
+conn_internet_available="null"
+conn_status="unknown"
+conn_latency="null"
+conn_avg_latency="null"
+conn_min_latency="null"
+conn_max_latency="null"
+conn_jitter="null"
+conn_packet_loss=0
+conn_ping_target=""
+conn_history="[]"
+conn_history_interval=2
+conn_history_size=60
+conn_during_recovery="false"
+
+# History size constant (must match ping daemon)
+CONN_HISTORY_SIZE=60
+
 # Connection uptime tracking
 conn_uptime_seconds=0
 conn_start_time=0
@@ -594,18 +612,30 @@ update_proc_metrics() {
 }
 
 # --- Connection Uptime -------------------------------------------------------
+# Tracks how long the modem has had internet connectivity (based on ping daemon).
+# Starts counting when conn_internet_available becomes "true", resets on "false".
+# Holds steady (no reset) when ping data is unavailable ("null") — avoids
+# resetting the timer just because the ping daemon hasn't started yet.
 update_conn_uptime() {
-    if [ "$service_status" = "connected" ] || [ "$service_status" = "optimal" ]; then
+    if [ "$conn_internet_available" = "true" ]; then
+        # Internet is reachable — start or continue counting
         if [ "$conn_start_time" -eq 0 ] 2>/dev/null; then
             conn_start_time=$(date +%s)
+            qlog_debug "Connection uptime timer started"
         fi
         local now
         now=$(date +%s)
         conn_uptime_seconds=$((now - conn_start_time))
-    else
+    elif [ "$conn_internet_available" = "false" ]; then
+        # Internet confirmed down — reset timer
+        if [ "$conn_start_time" -gt 0 ] 2>/dev/null; then
+            qlog_info "Connection uptime timer reset (internet lost after ${conn_uptime_seconds}s)"
+        fi
         conn_start_time=0
         conn_uptime_seconds=0
     fi
+    # If conn_internet_available is "null" (ping daemon not running / stale),
+    # leave timer as-is — don't reset, don't count up.
 }
 
 # =============================================================================
@@ -828,6 +858,105 @@ determine_service_status() {
 }
 
 # =============================================================================
+# CONNECTIVITY DATA (from ping daemon — no modem lock needed)
+# =============================================================================
+
+PING_CACHE="/tmp/qmanager_ping.json"
+PING_STALE_THRESHOLD=10  # seconds before ping data is considered stale
+
+read_ping_data() {
+    # Reset to defaults if ping file missing or stale
+    if [ ! -f "$PING_CACHE" ]; then
+        conn_internet_available="null"
+        conn_status="unknown"
+        conn_latency="null"
+        conn_avg_latency="null"
+        conn_min_latency="null"
+        conn_max_latency="null"
+        conn_jitter="null"
+        conn_packet_loss=0
+        conn_ping_target=""
+        conn_history="[]"
+        conn_during_recovery="false"
+        return
+    fi
+
+    # Check staleness (ping daemon may have crashed)
+    local ping_ts now age
+    ping_ts=$(grep '"timestamp"' "$PING_CACHE" 2>/dev/null | grep -o '[0-9]*')
+    now=$(date +%s)
+
+    if [ -n "$ping_ts" ]; then
+        age=$((now - ping_ts))
+        if [ "$age" -gt "$PING_STALE_THRESHOLD" ]; then
+            qlog_warn "Ping data stale (age=${age}s), marking unknown"
+            conn_internet_available="null"
+            conn_status="unknown"
+            conn_latency="null"
+            conn_avg_latency="null"
+            conn_min_latency="null"
+            conn_max_latency="null"
+            conn_jitter="null"
+            conn_packet_loss=0
+            conn_history="[]"
+            conn_during_recovery="false"
+            return
+        fi
+    fi
+
+    # Extract fields from ping JSON using grep/awk (no jq on BusyBox)
+    # Helper: extract a JSON value by key. Handles numbers, booleans, null, and strings.
+    _pval() {
+        local key="$1"
+        grep "\"${key}\"" "$PING_CACHE" 2>/dev/null | \
+            sed 's/.*: *//; s/,$//' | tr -d ' \r' | head -1
+    }
+
+    conn_internet_available=$(_pval "reachable")
+    conn_latency=$(_pval "last_rtt_ms")
+    conn_avg_latency=$(_pval "avg_rtt_ms")
+    conn_min_latency=$(_pval "min_rtt_ms")
+    conn_max_latency=$(_pval "max_rtt_ms")
+    conn_jitter=$(_pval "jitter_ms")
+    conn_packet_loss=$(_pval "packet_loss_pct")
+    conn_during_recovery=$(_pval "during_recovery")
+    conn_history_interval=$(_pval "interval_sec")
+
+    # Extract first target from the targets array
+    conn_ping_target=$(grep '"targets"' "$PING_CACHE" 2>/dev/null | \
+        grep -o '"[0-9.]*"' | head -1 | tr -d '"')
+
+    # Extract the history array (entire line from [ to ])
+    conn_history=$(awk '/"history"/{found=1} found{line=line $0} /\]/{if(found){print line; exit}}' "$PING_CACHE" 2>/dev/null | \
+        sed 's/.*"history": *//' | tr -d ' \r')
+    [ -z "$conn_history" ] && conn_history="[]"
+
+    # Derive connectivity status from ping data + modem state
+    if [ "$conn_during_recovery" = "true" ]; then
+        conn_status="recovery"
+    elif [ "$conn_internet_available" = "true" ]; then
+        local loss="${conn_packet_loss:-0}"
+        if [ "$loss" -ge 10 ] 2>/dev/null; then
+            conn_status="degraded"
+        else
+            conn_status="connected"
+        fi
+    elif [ "$conn_internet_available" = "false" ]; then
+        conn_status="disconnected"
+    else
+        conn_status="unknown"
+    fi
+
+    # Sanitize: ensure numeric fields are valid
+    case "$conn_packet_loss" in
+        *[!0-9]*|'') conn_packet_loss=0 ;;
+    esac
+    case "$conn_history_interval" in
+        *[!0-9]*|'') conn_history_interval=2 ;;
+    esac
+}
+
+# =============================================================================
 # JSON CACHE WRITER
 # =============================================================================
 
@@ -922,6 +1051,21 @@ write_cache() {
     "tx_bytes_per_sec": ${tx_bytes_per_sec:-0},
     "total_rx_bytes": ${total_rx_bytes:-0},
     "total_tx_bytes": ${total_tx_bytes:-0}
+  },
+  "connectivity": {
+    "internet_available": ${conn_internet_available:-null},
+    "status": "${conn_status}",
+    "latency_ms": ${conn_latency:-null},
+    "avg_latency_ms": ${conn_avg_latency:-null},
+    "min_latency_ms": ${conn_min_latency:-null},
+    "max_latency_ms": ${conn_max_latency:-null},
+    "jitter_ms": ${conn_jitter:-null},
+    "packet_loss_pct": ${conn_packet_loss:-0},
+    "ping_target": "${conn_ping_target}",
+    "latency_history": ${conn_history:-[]},
+    "history_interval_sec": ${conn_history_interval:-2},
+    "history_size": ${CONN_HISTORY_SIZE:-60},
+    "during_recovery": ${conn_during_recovery:-false}
   }
 }
 JSONEOF
@@ -940,6 +1084,8 @@ poll_cycle() {
         fi
         system_state="scan_in_progress"
         update_proc_metrics
+        read_ping_data
+        update_conn_uptime
         write_cache
         return
     fi
@@ -957,6 +1103,7 @@ poll_cycle() {
     fi
 
     update_proc_metrics
+    read_ping_data
     update_conn_uptime
     determine_service_status
     write_cache

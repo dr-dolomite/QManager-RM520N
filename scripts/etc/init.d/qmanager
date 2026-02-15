@@ -2,7 +2,13 @@
 # =============================================================================
 # qmanager — OpenWRT Init Script (procd)
 # =============================================================================
-# Manages the QManager poller daemon lifecycle.
+# Manages all QManager daemon lifecycles:
+#   1. qmanager_ping     — Unified ping daemon (internet reachability + latency)
+#   2. qmanager_poller   — Modem data poller (AT commands + system metrics)
+#   3. qmanager_watchcat  — Connection health watchdog (future)
+#
+# Each daemon runs as a separate procd instance with independent respawn.
+# Startup order matters: ping → poller → watchcat
 #
 # Usage:
 #   /etc/init.d/qmanager start|stop|restart|enable|disable
@@ -13,9 +19,6 @@
 START=99
 STOP=10
 USE_PROCD=1
-
-PROG=/usr/bin/qmanager_poller
-PIDFILE=/var/run/qmanager.pid
 
 start_service() {
     # Ensure required directories exist
@@ -39,20 +42,46 @@ EOF
     local log_level
     log_level=$(cat /etc/qmanager/log_level 2>/dev/null || echo "INFO")
 
-    procd_open_instance
-    procd_set_param command "$PROG"
+    # -----------------------------------------------------------------
+    # Instance 1: Ping Daemon (starts first — no dependencies)
+    # -----------------------------------------------------------------
+    procd_open_instance "ping"
+    procd_set_param command /usr/bin/qmanager_ping
     procd_set_param env QLOG_LEVEL="$log_level"
     procd_set_param stdout 1
     procd_set_param stderr 1
-    procd_set_param respawn 3600 5 5    # Respawn: threshold=3600s, timeout=5s, retry=5
-    procd_set_param pidfile "$PIDFILE"
+    procd_set_param respawn 3600 5 5
     procd_close_instance
+
+    # -----------------------------------------------------------------
+    # Instance 2: Poller Daemon (reads ping data for connectivity section)
+    # -----------------------------------------------------------------
+    procd_open_instance "poller"
+    procd_set_param command /usr/bin/qmanager_poller
+    procd_set_param env QLOG_LEVEL="$log_level"
+    procd_set_param stdout 1
+    procd_set_param stderr 1
+    procd_set_param respawn 3600 5 5
+    procd_close_instance
+
+    # -----------------------------------------------------------------
+    # Instance 3: Watchcat Daemon (future — uncomment when implemented)
+    # -----------------------------------------------------------------
+    # procd_open_instance "watchcat"
+    # procd_set_param command /usr/bin/qmanager_watchcat
+    # procd_set_param env QLOG_LEVEL="$log_level"
+    # procd_set_param stdout 1
+    # procd_set_param stderr 1
+    # procd_set_param respawn 3600 5 5
+    # procd_close_instance
 }
 
 stop_service() {
     # Clean up state files
     rm -f /tmp/qmanager_long_running
     rm -f /var/lock/qmanager.pid
+    rm -f /tmp/qmanager_recovery_active
+    # Note: Ping cache and history are left for post-mortem debugging
     # Note: Logs in /tmp/qmanager.log are preserved for post-mortem debugging
 }
 
