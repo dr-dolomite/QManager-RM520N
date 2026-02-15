@@ -16,7 +16,6 @@ import { useRecentActivities } from "@/hooks/use-recent-activities";
 
 import {
   Empty,
-  EmptyContent,
   EmptyDescription,
   EmptyHeader,
   EmptyMedia,
@@ -130,6 +129,7 @@ const RecentActivitiesComponent = () => {
                   event={event}
                 />
               ))
+              
           )}
     
         </div>
