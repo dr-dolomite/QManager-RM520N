@@ -16,9 +16,6 @@ import type { ProfileSummary } from "@/types/sim-profile";
 // =============================================================================
 // CustomProfileViewComponent — Profile List Card
 // =============================================================================
-// Shows either the ProfileTable (if profiles exist) or the EmptyState.
-// All data and actions come from the parent via props (lifted from hook).
-// =============================================================================
 
 interface CustomProfileViewProps {
   profiles: ProfileSummary[];
@@ -27,6 +24,7 @@ interface CustomProfileViewProps {
   error: string | null;
   onEdit: (id: string) => void;
   onDelete: (id: string) => Promise<boolean>;
+  onActivate: (id: string) => void;
   onRefresh: () => void;
 }
 
@@ -37,6 +35,7 @@ const CustomProfileViewComponent = ({
   error,
   onEdit,
   onDelete,
+  onActivate,
   onRefresh,
 }: CustomProfileViewProps) => {
   if (isLoading) {
@@ -78,6 +77,7 @@ const CustomProfileViewComponent = ({
           activeProfileId={activeProfileId}
           onEdit={onEdit}
           onDelete={onDelete}
+          onActivate={onActivate}
         />
       </CardContent>
     </Card>

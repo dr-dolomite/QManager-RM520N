@@ -1,0 +1,706 @@
+#!/bin/sh
+# =============================================================================
+# qmanager_profile_apply — Detached Profile Application Script
+# =============================================================================
+# Spawned as a detached process by apply.sh CGI. Applies a saved profile's
+# settings to the modem and system, one step at a time, with progress
+# tracking via a JSON state file.
+#
+# Usage:
+#   qmanager_profile_apply <profile_id>
+#
+# State file: /tmp/qmanager_profile_state.json
+# PID file:   /tmp/qmanager_profile_apply.pid
+#
+# Architecture: CUSTOM_SIM_PROFILE_ARCHITECTURE_v2.md §5.2, §7
+# Dependencies: qcmd, qlog.sh, profile_mgr.sh
+# Install location: /usr/bin/qmanager_profile_apply
+# =============================================================================
+
+# --- Logging -----------------------------------------------------------------
+. /usr/lib/qmanager/qlog.sh 2>/dev/null || {
+    qlog_init() { :; }
+    qlog_debug() { :; }
+    qlog_info() { :; }
+    qlog_warn() { :; }
+    qlog_error() { :; }
+}
+qlog_init "profile_apply"
+
+# --- Source profile manager library ------------------------------------------
+. /usr/lib/qmanager/profile_mgr.sh
+
+# --- Configuration -----------------------------------------------------------
+STATE_FILE="/tmp/qmanager_profile_state.json"
+PID_FILE="/tmp/qmanager_profile_apply.pid"
+TTL_FILE="/etc/firewall.user.ttl"
+TTL_INIT="/etc/init.d/quecmanager_ttl"
+
+# Sip-don't-gulp gap between AT commands (seconds)
+CMD_GAP=0.3
+# Max seconds to wait for modem to come back after AT+CFUN=1,1
+REBOOT_TIMEOUT=60
+
+# --- Validate arguments ------------------------------------------------------
+PROFILE_ID="$1"
+
+if [ -z "$PROFILE_ID" ]; then
+    qlog_error "No profile ID provided"
+    exit 1
+fi
+
+# --- Singleton enforcement via PID file --------------------------------------
+if [ -f "$PID_FILE" ]; then
+    OLD_PID=$(cat "$PID_FILE" 2>/dev/null)
+    if [ -n "$OLD_PID" ] && kill -0 "$OLD_PID" 2>/dev/null; then
+        qlog_warn "Apply already running (PID: $OLD_PID)"
+        exit 1
+    fi
+    rm -f "$PID_FILE"
+fi
+echo $$ > "$PID_FILE"
+
+# --- Cleanup trap: always remove PID file on exit ----------------------------
+cleanup() {
+    rm -f "$PID_FILE"
+}
+trap cleanup EXIT INT TERM
+
+# --- Helper: strip command echo + response prefix from sms_tool output -------
+# sms_tool returns: "AT+CMD\r\nRESPONSE\r\nOK"
+# We want only the content between the first line and the trailing OK/ERROR.
+strip_at_response() {
+    printf '%s' "$1" | sed '1d' | sed '/^OK$/d' | sed '/^ERROR$/d' | tr -d '\r'
+}
+
+# --- Helper: Execute AT command via qcmd, return stripped response -----------
+run_at() {
+    local cmd="$1"
+    local raw
+    raw=$(qcmd "$cmd" 2>/dev/null)
+    local rc=$?
+    if [ $rc -ne 0 ] || [ -z "$raw" ]; then
+        qlog_warn "AT command failed: $cmd (rc=$rc)"
+        return 1
+    fi
+    # Check for ERROR in response
+    case "$raw" in
+        *ERROR*)
+            qlog_warn "AT command returned ERROR: $cmd"
+            return 1
+            ;;
+    esac
+    strip_at_response "$raw"
+}
+
+# =============================================================================
+# State File Management
+# =============================================================================
+# We build the state JSON manually (no jq on BusyBox).
+# Steps are defined in order and tracked via shell arrays (simulated).
+
+# Step names and display labels
+STEP_NAMES="apn network_mode lte_bands nsa_nr_bands sa_nr_bands ttl_hl imei"
+STEP_COUNT=7
+
+# Step statuses (initialized to "pending")
+step_status_apn="pending"
+step_status_network_mode="pending"
+step_status_lte_bands="pending"
+step_status_nsa_nr_bands="pending"
+step_status_sa_nr_bands="pending"
+step_status_ttl_hl="pending"
+step_status_imei="pending"
+
+# Step details
+step_detail_apn=""
+step_detail_network_mode=""
+step_detail_lte_bands=""
+step_detail_nsa_nr_bands=""
+step_detail_sa_nr_bands=""
+step_detail_ttl_hl=""
+step_detail_imei=""
+
+# Global state
+apply_status="applying"
+apply_current_step=0
+apply_requires_reboot="false"
+apply_error="null"
+apply_started_at=$(date +%s)
+apply_profile_name=""
+
+# Counters for final status
+steps_done=0
+steps_failed=0
+steps_skipped=0
+
+# --- Write the state file (atomic mv) ----------------------------------------
+write_state() {
+    local tmp="${STATE_FILE}.tmp"
+    local esc_name
+    esc_name=$(_json_str_escape "$apply_profile_name")
+    local esc_error
+    if [ "$apply_error" = "null" ]; then
+        esc_error="null"
+    else
+        esc_error="\"$(_json_str_escape "$apply_error")\""
+    fi
+
+    cat > "$tmp" << STATE_EOF
+{
+  "status": "${apply_status}",
+  "profile_id": "${PROFILE_ID}",
+  "profile_name": "${esc_name}",
+  "started_at": ${apply_started_at},
+  "current_step": ${apply_current_step},
+  "total_steps": ${STEP_COUNT},
+  "steps": [
+    {"name":"apn","status":"${step_status_apn}","detail":"$(_json_str_escape "$step_detail_apn")"},
+    {"name":"network_mode","status":"${step_status_network_mode}","detail":"$(_json_str_escape "$step_detail_network_mode")"},
+    {"name":"lte_bands","status":"${step_status_lte_bands}","detail":"$(_json_str_escape "$step_detail_lte_bands")"},
+    {"name":"nsa_nr_bands","status":"${step_status_nsa_nr_bands}","detail":"$(_json_str_escape "$step_detail_nsa_nr_bands")"},
+    {"name":"sa_nr_bands","status":"${step_status_sa_nr_bands}","detail":"$(_json_str_escape "$step_detail_sa_nr_bands")"},
+    {"name":"ttl_hl","status":"${step_status_ttl_hl}","detail":"$(_json_str_escape "$step_detail_ttl_hl")"},
+    {"name":"imei","status":"${step_status_imei}","detail":"$(_json_str_escape "$step_detail_imei")"}
+  ],
+  "requires_reboot": ${apply_requires_reboot},
+  "error": ${esc_error}
+}
+STATE_EOF
+    mv "$tmp" "$STATE_FILE"
+}
+
+# --- Step lifecycle helpers ---------------------------------------------------
+mark_step_running() {
+    local step="$1"
+    local detail="$2"
+    eval "step_status_${step}=\"running\""
+    eval "step_detail_${step}=\"\$detail\""
+    apply_current_step=$((apply_current_step + 1))
+    write_state
+}
+
+mark_step_done() {
+    local step="$1"
+    local detail="$2"
+    eval "step_status_${step}=\"done\""
+    eval "step_detail_${step}=\"\$detail\""
+    steps_done=$((steps_done + 1))
+    write_state
+}
+
+mark_step_failed() {
+    local step="$1"
+    local detail="$2"
+    eval "step_status_${step}=\"failed\""
+    eval "step_detail_${step}=\"\$detail\""
+    steps_failed=$((steps_failed + 1))
+    write_state
+}
+
+mark_step_skipped() {
+    local step="$1"
+    local detail="$2"
+    eval "step_status_${step}=\"skipped\""
+    eval "step_detail_${step}=\"\$detail\""
+    steps_skipped=$((steps_skipped + 1))
+    apply_current_step=$((apply_current_step + 1))
+    write_state
+}
+
+# =============================================================================
+# Load Profile
+# =============================================================================
+qlog_info "Starting profile apply: $PROFILE_ID"
+
+profile_json=$(profile_get "$PROFILE_ID")
+if [ -z "$profile_json" ]; then
+    qlog_error "Profile not found: $PROFILE_ID"
+    apply_status="failed"
+    apply_error="Profile not found"
+    write_state
+    exit 1
+fi
+
+# Extract settings from the profile JSON
+# NOTE: _json_extract returns the FIRST match per key.
+# "name" appears twice (profile name + APN name), so we use a special
+# extraction for the APN name: collapse JSON to one line, then use
+# context-aware sed to find "name" inside the "apn" block.
+p_name=$(_json_extract "$profile_json" "name")
+apply_profile_name="$p_name"
+
+# Collapse JSON to single line for context-aware nested extraction
+_flat_json=$(printf '%s' "$profile_json" | tr -d '\n\r')
+p_apn_name=$(printf '%s' "$_flat_json" | sed -n 's/.*"apn"[^}]*"name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')
+
+# These keys are unique (no duplicates) — _json_extract works fine
+p_apn_cid=$(_json_extract_raw "$profile_json" "cid")
+p_pdp_type=$(_json_extract "$profile_json" "pdp_type")
+p_auth_type=$(_json_extract_raw "$profile_json" "auth_type")
+p_username=$(_json_extract "$profile_json" "username")
+p_password=$(_json_extract "$profile_json" "password")
+p_imei=$(_json_extract "$profile_json" "imei")
+p_ttl=$(_json_extract_raw "$profile_json" "ttl")
+p_hl=$(_json_extract_raw "$profile_json" "hl")
+p_network_mode=$(_json_extract "$profile_json" "network_mode")
+p_lte_bands=$(_json_extract "$profile_json" "lte_bands")
+p_nsa_nr_bands=$(_json_extract "$profile_json" "nsa_nr_bands")
+p_sa_nr_bands=$(_json_extract "$profile_json" "sa_nr_bands")
+p_band_lock=$(_json_extract_raw "$profile_json" "band_lock_enabled")
+
+# Defaults
+[ -z "$p_apn_cid" ] || [ "$p_apn_cid" = "null" ] && p_apn_cid=1
+[ -z "$p_auth_type" ] || [ "$p_auth_type" = "null" ] && p_auth_type=0
+[ -z "$p_ttl" ] || [ "$p_ttl" = "null" ] && p_ttl=0
+[ -z "$p_hl" ] || [ "$p_hl" = "null" ] && p_hl=0
+[ -z "$p_network_mode" ] && p_network_mode="AUTO"
+[ -z "$p_band_lock" ] && p_band_lock="false"
+
+qlog_info "Applying profile: $p_name (APN=$p_apn_name, mode=$p_network_mode, band_lock=$p_band_lock)"
+
+# Write initial state
+write_state
+
+# =============================================================================
+# Step 1: APN
+# =============================================================================
+apply_apn() {
+    mark_step_running "apn" "Checking APN configuration..."
+
+    # Read current APN for this CID
+    local cgdcont_resp
+    cgdcont_resp=$(run_at "AT+CGDCONT?")
+    if [ $? -ne 0 ]; then
+        mark_step_failed "apn" "Failed to read current APN"
+        return
+    fi
+
+    # Parse current APN for the target CID
+    # Response format: +CGDCONT: <cid>,"<pdp_type>","<apn>",...
+    local current_apn
+    current_apn=$(printf '%s' "$cgdcont_resp" | grep "+CGDCONT: ${p_apn_cid}," | sed -n 's/.*,"\([^"]*\)".*/\1/p' | head -1)
+
+    # Skip if APN hasn't changed and no auth needed
+    if [ "$current_apn" = "$p_apn_name" ] && [ "$p_auth_type" -eq 0 ] 2>/dev/null; then
+        mark_step_skipped "apn" "APN already set to ${p_apn_name} (CID ${p_apn_cid})"
+        return
+    fi
+
+    # Set APN
+    local pdp="${p_pdp_type:-IPV4V6}"
+    local at_cmd="AT+CGDCONT=${p_apn_cid},\"${pdp}\",\"${p_apn_name}\""
+    mark_step_running "apn" "Setting APN to ${p_apn_name} (CID ${p_apn_cid})..."
+
+    local resp
+    resp=$(run_at "$at_cmd")
+    if [ $? -ne 0 ]; then
+        mark_step_failed "apn" "Failed to set APN"
+        return
+    fi
+
+    sleep "$CMD_GAP"
+
+    # Set auth if needed
+    if [ "$p_auth_type" -gt 0 ] 2>/dev/null; then
+        local auth_cmd="AT+QAUTH=${p_apn_cid},${p_auth_type},\"${p_username}\",\"${p_password}\""
+        resp=$(run_at "$auth_cmd")
+        if [ $? -ne 0 ]; then
+            mark_step_failed "apn" "APN set but auth configuration failed"
+            return
+        fi
+        sleep "$CMD_GAP"
+    fi
+
+    mark_step_done "apn" "Set APN to ${p_apn_name} (CID ${p_apn_cid})"
+}
+
+# =============================================================================
+# Step 2: Network Mode
+# =============================================================================
+apply_network_mode() {
+    mark_step_running "network_mode" "Checking network mode..."
+
+    # Read current mode
+    local mode_resp
+    mode_resp=$(run_at 'AT+QNWPREFCFG="mode_pref"')
+    if [ $? -ne 0 ]; then
+        mark_step_failed "network_mode" "Failed to read current mode"
+        return
+    fi
+
+    # Parse: +QNWPREFCFG: "mode_pref",AUTO
+    local current_mode
+    current_mode=$(printf '%s' "$mode_resp" | sed -n 's/.*"mode_pref",\(.*\)/\1/p' | tr -d ' \r')
+
+    local target_mode
+    target_mode=$(mode_to_at "$p_network_mode")
+
+    if [ "$current_mode" = "$target_mode" ]; then
+        mark_step_skipped "network_mode" "Already set to $p_network_mode"
+        return
+    fi
+
+    mark_step_running "network_mode" "Setting mode to ${p_network_mode}..."
+
+    local resp
+    resp=$(run_at "AT+QNWPREFCFG=\"mode_pref\",${target_mode}")
+    if [ $? -ne 0 ]; then
+        mark_step_failed "network_mode" "Failed to set network mode"
+        return
+    fi
+
+    sleep "$CMD_GAP"
+    mark_step_done "network_mode" "Set mode to $p_network_mode"
+}
+
+# =============================================================================
+# Step 3: LTE Band Lock
+# =============================================================================
+apply_lte_bands() {
+    mark_step_running "lte_bands" "Checking LTE bands..."
+
+    local target_bands
+
+    if [ "$p_band_lock" = "true" ] && [ -n "$p_lte_bands" ]; then
+        target_bands="$p_lte_bands"
+    else
+        # Unlock all: query policy_band for full supported list
+        local policy_resp
+        policy_resp=$(run_at 'AT+QNWPREFCFG="policy_band"')
+        if [ $? -ne 0 ]; then
+            mark_step_failed "lte_bands" "Failed to query supported bands"
+            return
+        fi
+        target_bands=$(printf '%s' "$policy_resp" | grep '"lte_band"' | sed -n 's/.*"lte_band",\(.*\)/\1/p' | tr -d ' \r')
+    fi
+
+    if [ -z "$target_bands" ]; then
+        mark_step_skipped "lte_bands" "No target bands resolved"
+        return
+    fi
+
+    # Read current bands
+    local current_resp
+    current_resp=$(run_at 'AT+QNWPREFCFG="lte_band"')
+    local current_bands
+    current_bands=$(printf '%s' "$current_resp" | sed -n 's/.*"lte_band",\(.*\)/\1/p' | tr -d ' \r')
+
+    if [ "$current_bands" = "$target_bands" ]; then
+        mark_step_skipped "lte_bands" "LTE bands already correct"
+        return
+    fi
+
+    mark_step_running "lte_bands" "Setting LTE bands..."
+
+    local resp
+    resp=$(run_at "AT+QNWPREFCFG=\"lte_band\",${target_bands}")
+    if [ $? -ne 0 ]; then
+        mark_step_failed "lte_bands" "Failed to set LTE bands"
+        return
+    fi
+
+    sleep "$CMD_GAP"
+    mark_step_done "lte_bands" "Set LTE bands to ${target_bands}"
+}
+
+# =============================================================================
+# Step 4a: NSA NR Band Lock
+# =============================================================================
+apply_nsa_nr_bands() {
+    mark_step_running "nsa_nr_bands" "Checking NSA NR bands..."
+
+    local target_bands
+
+    if [ "$p_band_lock" = "true" ] && [ -n "$p_nsa_nr_bands" ]; then
+        target_bands="$p_nsa_nr_bands"
+    else
+        local policy_resp
+        policy_resp=$(run_at 'AT+QNWPREFCFG="policy_band"')
+        if [ $? -ne 0 ]; then
+            mark_step_failed "nsa_nr_bands" "Failed to query supported bands"
+            return
+        fi
+        target_bands=$(printf '%s' "$policy_resp" | grep '"nsa_nr5g_band"' | sed -n 's/.*"nsa_nr5g_band",\(.*\)/\1/p' | tr -d ' \r')
+    fi
+
+    if [ -z "$target_bands" ]; then
+        mark_step_skipped "nsa_nr_bands" "No NSA NR bands to set"
+        return
+    fi
+
+    local current_resp
+    current_resp=$(run_at 'AT+QNWPREFCFG="nsa_nr5g_band"')
+    local current_bands
+    current_bands=$(printf '%s' "$current_resp" | sed -n 's/.*"nsa_nr5g_band",\(.*\)/\1/p' | tr -d ' \r')
+
+    if [ "$current_bands" = "$target_bands" ]; then
+        mark_step_skipped "nsa_nr_bands" "NSA NR bands already correct"
+        return
+    fi
+
+    mark_step_running "nsa_nr_bands" "Setting NSA NR bands..."
+
+    local resp
+    resp=$(run_at "AT+QNWPREFCFG=\"nsa_nr5g_band\",${target_bands}")
+    if [ $? -ne 0 ]; then
+        mark_step_failed "nsa_nr_bands" "Failed to set NSA NR bands"
+        return
+    fi
+
+    sleep "$CMD_GAP"
+    mark_step_done "nsa_nr_bands" "Set NSA NR bands to ${target_bands}"
+}
+
+# =============================================================================
+# Step 4b: SA NR Band Lock
+# =============================================================================
+apply_sa_nr_bands() {
+    mark_step_running "sa_nr_bands" "Checking SA NR bands..."
+
+    local target_bands
+
+    if [ "$p_band_lock" = "true" ] && [ -n "$p_sa_nr_bands" ]; then
+        target_bands="$p_sa_nr_bands"
+    else
+        local policy_resp
+        policy_resp=$(run_at 'AT+QNWPREFCFG="policy_band"')
+        if [ $? -ne 0 ]; then
+            mark_step_failed "sa_nr_bands" "Failed to query supported bands"
+            return
+        fi
+        target_bands=$(printf '%s' "$policy_resp" | grep '"nr5g_band"' | sed -n 's/.*"nr5g_band",\(.*\)/\1/p' | tr -d ' \r')
+    fi
+
+    if [ -z "$target_bands" ]; then
+        mark_step_skipped "sa_nr_bands" "No SA NR bands to set"
+        return
+    fi
+
+    local current_resp
+    current_resp=$(run_at 'AT+QNWPREFCFG="nr5g_band"')
+    local current_bands
+    current_bands=$(printf '%s' "$current_resp" | sed -n 's/.*"nr5g_band",\(.*\)/\1/p' | tr -d ' \r')
+
+    if [ "$current_bands" = "$target_bands" ]; then
+        mark_step_skipped "sa_nr_bands" "SA NR bands already correct"
+        return
+    fi
+
+    mark_step_running "sa_nr_bands" "Setting SA NR bands..."
+
+    local resp
+    resp=$(run_at "AT+QNWPREFCFG=\"nr5g_band\",${target_bands}")
+    if [ $? -ne 0 ]; then
+        mark_step_failed "sa_nr_bands" "Failed to set SA NR bands"
+        return
+    fi
+
+    sleep "$CMD_GAP"
+    mark_step_done "sa_nr_bands" "Set SA NR bands to ${target_bands}"
+}
+
+# =============================================================================
+# Step 5: TTL / HL (system-level, no modem lock needed)
+# =============================================================================
+apply_ttl_hl() {
+    mark_step_running "ttl_hl" "Checking TTL/HL settings..."
+
+    # Read current values from the firewall rules file
+    local current_ttl="" current_hl=""
+    if [ -s "$TTL_FILE" ]; then
+        current_ttl=$(grep 'iptables.*--ttl-set' "$TTL_FILE" 2>/dev/null | awk '{for(i=1;i<=NF;i++){if($i=="--ttl-set"){print $(i+1)}}}' | head -1)
+        current_hl=$(grep 'ip6tables.*--hl-set' "$TTL_FILE" 2>/dev/null | awk '{for(i=1;i<=NF;i++){if($i=="--hl-set"){print $(i+1)}}}' | head -1)
+    fi
+
+    # Normalize empties to 0 for comparison
+    [ -z "$current_ttl" ] && current_ttl=0
+    [ -z "$current_hl" ] && current_hl=0
+    local new_ttl="${p_ttl:-0}"
+    local new_hl="${p_hl:-0}"
+
+    if [ "$current_ttl" = "$new_ttl" ] && [ "$current_hl" = "$new_hl" ]; then
+        mark_step_skipped "ttl_hl" "TTL/HL unchanged (TTL=$new_ttl, HL=$new_hl)"
+        return
+    fi
+
+    mark_step_running "ttl_hl" "Applying TTL=$new_ttl, HL=$new_hl..."
+
+    # Clear existing rules
+    if [ "$current_ttl" -gt 0 ] 2>/dev/null; then
+        iptables -t mangle -D POSTROUTING -o rmnet+ -j TTL --ttl-set "$current_ttl" 2>/dev/null
+    fi
+    if [ "$current_hl" -gt 0 ] 2>/dev/null; then
+        ip6tables -t mangle -D POSTROUTING -o rmnet+ -j HL --hl-set "$current_hl" 2>/dev/null
+    fi
+
+    # Write new rules file
+    > "$TTL_FILE"
+    if [ "$new_ttl" -gt 0 ] 2>/dev/null; then
+        echo "iptables -t mangle -A POSTROUTING -o rmnet+ -j TTL --ttl-set $new_ttl" >> "$TTL_FILE"
+        iptables -t mangle -A POSTROUTING -o rmnet+ -j TTL --ttl-set "$new_ttl"
+    fi
+    if [ "$new_hl" -gt 0 ] 2>/dev/null; then
+        echo "ip6tables -t mangle -A POSTROUTING -o rmnet+ -j HL --hl-set $new_hl" >> "$TTL_FILE"
+        ip6tables -t mangle -A POSTROUTING -o rmnet+ -j HL --hl-set "$new_hl"
+    fi
+
+    # Manage init.d script for boot persistence
+    if [ "$new_ttl" -gt 0 ] 2>/dev/null || [ "$new_hl" -gt 0 ] 2>/dev/null; then
+        # Ensure init.d script exists
+        if [ ! -f "$TTL_INIT" ]; then
+            cat > "$TTL_INIT" << 'INITEOF'
+#!/bin/sh /etc/rc.common
+# QManager TTL/HL persistence
+START=99
+
+start() {
+    sleep 5
+    [ -f /etc/firewall.user.ttl ] && . /etc/firewall.user.ttl
+}
+
+stop() {
+    :
+}
+INITEOF
+            chmod +x "$TTL_INIT"
+            "$TTL_INIT" enable 2>/dev/null
+        fi
+    else
+        # No TTL/HL rules — disable init script
+        if [ -f "$TTL_INIT" ]; then
+            "$TTL_INIT" disable 2>/dev/null
+        fi
+    fi
+
+    mark_step_done "ttl_hl" "Applied TTL=$new_ttl, HL=$new_hl"
+}
+
+# =============================================================================
+# Step 6: IMEI (most disruptive — last)
+# =============================================================================
+apply_imei() {
+    mark_step_running "imei" "Checking IMEI..."
+
+    # Skip if no IMEI specified in profile
+    if [ -z "$p_imei" ]; then
+        mark_step_skipped "imei" "No IMEI specified in profile"
+        return
+    fi
+
+    # Read current IMEI
+    local current_imei
+    current_imei=$(run_at "AT+CGSN")
+    if [ $? -ne 0 ]; then
+        mark_step_failed "imei" "Failed to read current IMEI"
+        return
+    fi
+    # Clean up the response (just the 15-digit IMEI)
+    current_imei=$(printf '%s' "$current_imei" | grep -o '[0-9]\{15\}' | head -1)
+
+    if [ "$current_imei" = "$p_imei" ]; then
+        mark_step_skipped "imei" "IMEI already set to $p_imei"
+        return
+    fi
+
+    mark_step_running "imei" "Writing IMEI ${p_imei}..."
+
+    # Write new IMEI to modem NVM
+    local resp
+    resp=$(run_at "AT+EGMR=1,7,\"${p_imei}\"")
+    if [ $? -ne 0 ]; then
+        mark_step_failed "imei" "Failed to write IMEI"
+        return
+    fi
+
+    sleep "$CMD_GAP"
+
+    # Trigger modem reboot to apply IMEI
+    apply_requires_reboot="true"
+    mark_step_running "imei" "Rebooting modem to apply new IMEI..."
+    write_state
+
+    run_at "AT+CFUN=1,1" 2>/dev/null
+    # After CFUN=1,1 the modem goes offline — serial commands will fail
+
+    # Wait for modem to come back
+    local waited=0
+    local modem_back=0
+    while [ "$waited" -lt "$REBOOT_TIMEOUT" ]; do
+        sleep 2
+        waited=$((waited + 2))
+        local check
+        check=$(qcmd "AT" 2>/dev/null)
+        case "$check" in
+            *OK*)
+                modem_back=1
+                break
+                ;;
+        esac
+    done
+
+    if [ "$modem_back" -eq 0 ]; then
+        mark_step_failed "imei" "Modem did not respond after reboot (waited ${REBOOT_TIMEOUT}s)"
+        return
+    fi
+
+    sleep 1
+
+    # Verify new IMEI
+    local verify_imei
+    verify_imei=$(run_at "AT+CGSN")
+    verify_imei=$(printf '%s' "$verify_imei" | grep -o '[0-9]\{15\}' | head -1)
+
+    if [ "$verify_imei" = "$p_imei" ]; then
+        mark_step_done "imei" "IMEI changed to $p_imei (modem rebooted)"
+    else
+        mark_step_failed "imei" "IMEI verify failed: expected $p_imei, got $verify_imei"
+    fi
+}
+
+# =============================================================================
+# EXECUTE ALL STEPS (ordered by impact: least disruptive first)
+# =============================================================================
+apply_apn
+sleep "$CMD_GAP"
+
+apply_network_mode
+sleep "$CMD_GAP"
+
+apply_lte_bands
+sleep "$CMD_GAP"
+
+apply_nsa_nr_bands
+sleep "$CMD_GAP"
+
+apply_sa_nr_bands
+sleep "$CMD_GAP"
+
+apply_ttl_hl
+# No CMD_GAP — TTL doesn't use modem
+
+apply_imei
+
+# =============================================================================
+# FINALIZE
+# =============================================================================
+
+# Determine final status
+if [ "$steps_failed" -gt 0 ] && [ "$steps_done" -gt 0 ]; then
+    apply_status="partial"
+    apply_error="$steps_failed step(s) failed, $steps_done succeeded"
+elif [ "$steps_failed" -gt 0 ]; then
+    apply_status="failed"
+    apply_error="All steps failed"
+else
+    apply_status="complete"
+fi
+
+write_state
+
+# Set active profile on success or partial success
+if [ "$apply_status" = "complete" ] || [ "$apply_status" = "partial" ]; then
+    set_active_profile "$PROFILE_ID"
+fi
+
+qlog_info "Profile apply finished: status=$apply_status (done=$steps_done, failed=$steps_failed, skipped=$steps_skipped)"

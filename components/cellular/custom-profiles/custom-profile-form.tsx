@@ -31,8 +31,9 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Spinner } from "@/components/ui/spinner";
+import { DownloadIcon } from "lucide-react";
 
-import type { SimProfile } from "@/types/sim-profile";
+import type { SimProfile, CurrentModemSettings } from "@/types/sim-profile";
 import type { ProfileFormData } from "@/hooks/use-sim-profiles";
 import {
   NETWORK_MODE_LABELS,
@@ -46,17 +47,15 @@ import {
 // =============================================================================
 // CustomProfileFormComponent — Create / Edit SIM Profile Form
 // =============================================================================
-// Handles both create (no editingProfile) and edit (editingProfile provided).
-// Sends flat key format expected by profile_mgr.sh save endpoint.
-// =============================================================================
 
 interface CustomProfileFormProps {
-  /** Profile to edit, or null for create mode */
   editingProfile?: SimProfile | null;
-  /** Called on successful save. Receives the new/updated profile ID. */
   onSave: (data: ProfileFormData) => Promise<string | null>;
-  /** Called when user cancels edit mode */
   onCancel?: () => void;
+  /** Current modem settings for pre-fill (from useCurrentSettings) */
+  currentSettings?: CurrentModemSettings | null;
+  /** Callback to trigger loading current modem settings */
+  onLoadCurrentSettings?: () => void;
 }
 
 const DEFAULT_FORM_STATE: ProfileFormData = {
@@ -79,9 +78,6 @@ const DEFAULT_FORM_STATE: ProfileFormData = {
   band_lock_enabled: false,
 };
 
-/**
- * Convert a full SimProfile (nested JSON from backend) to flat ProfileFormData.
- */
 function profileToFormData(profile: SimProfile): ProfileFormData {
   const s = profile.settings;
   return {
@@ -105,10 +101,30 @@ function profileToFormData(profile: SimProfile): ProfileFormData {
   };
 }
 
+/**
+ * Convert modem AT mode value to our NetworkModePreference enum.
+ */
+function atModeToFormMode(atMode: string): string {
+  switch (atMode) {
+    case "AUTO":
+      return "AUTO";
+    case "LTE":
+      return "LTE_ONLY";
+    case "NR5G":
+      return "NR_ONLY";
+    case "LTE:NR5G":
+      return "LTE_NR";
+    default:
+      return "AUTO";
+  }
+}
+
 const CustomProfileFormComponent = ({
   editingProfile,
   onSave,
   onCancel,
+  currentSettings,
+  onLoadCurrentSettings,
 }: CustomProfileFormProps) => {
   const [form, setForm] = useState<ProfileFormData>(DEFAULT_FORM_STATE);
   const [isSaving, setIsSaving] = useState(false);
@@ -126,12 +142,40 @@ const CustomProfileFormComponent = ({
     }
   }, [editingProfile]);
 
+  // Pre-fill from current modem settings when loaded (create mode only)
+  useEffect(() => {
+    if (currentSettings && !isEditing) {
+      setForm((prev) => ({
+        ...prev,
+        imei: currentSettings.imei || prev.imei,
+        network_mode: currentSettings.network_mode
+          ? atModeToFormMode(currentSettings.network_mode)
+          : prev.network_mode,
+        lte_bands: currentSettings.lte_bands || prev.lte_bands,
+        nsa_nr_bands: currentSettings.nsa_nr_bands || prev.nsa_nr_bands,
+        sa_nr_bands: currentSettings.sa_nr_bands || prev.sa_nr_bands,
+        // Pre-fill APN from CID 1 if available
+        ...(currentSettings.apn_profiles?.length > 0
+          ? (() => {
+              const primary =
+                currentSettings.apn_profiles.find((a) => a.cid === 1) ||
+                currentSettings.apn_profiles[0];
+              return {
+                cid: primary.cid,
+                apn_name: primary.apn || "",
+                pdp_type: primary.pdp_type || "IPV4V6",
+              };
+            })()
+          : {}),
+      }));
+    }
+  }, [currentSettings, isEditing]);
+
   const updateField = <K extends keyof ProfileFormData>(
     key: K,
     value: ProfileFormData[K]
   ) => {
     setForm((prev) => ({ ...prev, [key]: value }));
-    // Clear field error on change
     if (errors[key]) {
       setErrors((prev) => {
         const next = { ...prev };
@@ -141,9 +185,6 @@ const CustomProfileFormComponent = ({
     }
   };
 
-  // ---------------------------------------------------------------------------
-  // Client-side validation (mirrors profile_mgr.sh validation)
-  // ---------------------------------------------------------------------------
   const validate = (): boolean => {
     const newErrors: Record<string, string> = {};
 
@@ -182,9 +223,6 @@ const CustomProfileFormComponent = ({
     return Object.keys(newErrors).length === 0;
   };
 
-  // ---------------------------------------------------------------------------
-  // Submit
-  // ---------------------------------------------------------------------------
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSuccessMsg(null);
@@ -197,10 +235,11 @@ const CustomProfileFormComponent = ({
 
     if (result) {
       setSuccessMsg(
-        isEditing ? "Profile updated successfully." : "Profile created successfully."
+        isEditing
+          ? "Profile updated successfully."
+          : "Profile created successfully."
       );
       if (!isEditing) {
-        // Reset form on create
         setForm(DEFAULT_FORM_STATE);
       }
     }
@@ -219,14 +258,29 @@ const CustomProfileFormComponent = ({
   return (
     <Card className="@container/card">
       <CardHeader>
-        <CardTitle>
-          {isEditing ? "Edit Profile" : "Create Custom SIM Profile"}
-        </CardTitle>
-        <CardDescription>
-          {isEditing
-            ? `Editing "${editingProfile?.name}". Update the fields below.`
-            : "Fill out the form below to create a custom SIM profile."}
-        </CardDescription>
+        <div className="flex items-start justify-between">
+          <div>
+            <CardTitle>
+              {isEditing ? "Edit Profile" : "Create Custom SIM Profile"}
+            </CardTitle>
+            <CardDescription>
+              {isEditing
+                ? `Editing "${editingProfile?.name}". Update the fields below.`
+                : "Fill out the form below to create a custom SIM profile."}
+            </CardDescription>
+          </div>
+          {!isEditing && onLoadCurrentSettings && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={onLoadCurrentSettings}
+            >
+              <DownloadIcon className="mr-1.5 h-3.5 w-3.5" />
+              Load Current
+            </Button>
+          )}
+        </div>
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit} className="grid gap-4">
@@ -275,7 +329,6 @@ const CustomProfileFormComponent = ({
 
               <FieldSeparator>APN Settings</FieldSeparator>
 
-              {/* --- APN Settings --- */}
               <div className="grid grid-cols-1 @md/card:grid-cols-3 gap-4">
                 <Field>
                   <FieldLabel htmlFor="apnName">APN Name</FieldLabel>
@@ -376,7 +429,6 @@ const CustomProfileFormComponent = ({
 
               <FieldSeparator>Device Settings</FieldSeparator>
 
-              {/* --- Device Settings --- */}
               <Field>
                 <FieldLabel htmlFor="imei">Preferred IMEI</FieldLabel>
                 <Input
@@ -449,7 +501,6 @@ const CustomProfileFormComponent = ({
 
               <FieldSeparator>Band Locking</FieldSeparator>
 
-              {/* --- Band Locking --- */}
               <Field orientation="horizontal">
                 <div className="flex items-center justify-between">
                   <div>
@@ -477,7 +528,11 @@ const CustomProfileFormComponent = ({
                     <Input
                       id="lteBands"
                       type="text"
-                      placeholder="e.g., 1:3:7:28:40"
+                      placeholder={
+                        currentSettings?.supported_lte_bands
+                          ? `Supported: ${currentSettings.supported_lte_bands}`
+                          : "e.g., 1:3:7:28:40"
+                      }
                       value={form.lte_bands}
                       onChange={(e) =>
                         updateField("lte_bands", e.target.value)
@@ -488,6 +543,9 @@ const CustomProfileFormComponent = ({
                     )}
                     <FieldDescription>
                       Colon-separated band numbers.
+                      {currentSettings?.supported_lte_bands && (
+                        <> Hardware supports: {currentSettings.supported_lte_bands}</>
+                      )}
                     </FieldDescription>
                   </Field>
                   <div className="grid grid-cols-1 @md/card:grid-cols-2 gap-4">
@@ -498,7 +556,11 @@ const CustomProfileFormComponent = ({
                       <Input
                         id="nsaNrBands"
                         type="text"
-                        placeholder="e.g., 41:78"
+                        placeholder={
+                          currentSettings?.supported_nsa_nr_bands
+                            ? `Supported: ${currentSettings.supported_nsa_nr_bands}`
+                            : "e.g., 41:78"
+                        }
                         value={form.nsa_nr_bands}
                         onChange={(e) =>
                           updateField("nsa_nr_bands", e.target.value)
@@ -515,7 +577,11 @@ const CustomProfileFormComponent = ({
                       <Input
                         id="saNrBands"
                         type="text"
-                        placeholder="e.g., 41:78"
+                        placeholder={
+                          currentSettings?.supported_sa_nr_bands
+                            ? `Supported: ${currentSettings.supported_sa_nr_bands}`
+                            : "e.g., 41:78"
+                        }
                         value={form.sa_nr_bands}
                         onChange={(e) =>
                           updateField("sa_nr_bands", e.target.value)
