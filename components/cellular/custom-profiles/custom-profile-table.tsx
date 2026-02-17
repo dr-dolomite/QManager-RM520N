@@ -174,7 +174,7 @@ export function ProfileTable({
         ),
       },
     ],
-    [activeProfileId, onEdit, onActivate, onDelete]
+    [activeProfileId, onEdit, onActivate]
   );
 
   const table = useReactTable({
