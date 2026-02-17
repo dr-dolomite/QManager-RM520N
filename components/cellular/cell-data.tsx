@@ -163,9 +163,7 @@ const CellDataComponent = ({
           <Separator />
           <div className="flex items-center justify-between">
             <p className="text-sm font-semibold text-muted-foreground">ISP</p>
-            <p className="text-sm font-semibold">
-              {network?.carrier || "-"}
-            </p>
+            <p className="text-sm font-semibold">{network?.carrier || "-"}</p>
           </div>
 
           {/* APN */}
@@ -175,9 +173,7 @@ const CellDataComponent = ({
               Access Point Name (APN)
             </p>
             <div className="flex items-center gap-1.5">
-              <p className="text-sm font-semibold">
-                {network?.apn || "-"}
-              </p>
+              <p className="text-sm font-semibold">{network?.apn || "-"}</p>
               <Button
                 variant="link"
                 size="sm"
@@ -213,10 +209,21 @@ const CellDataComponent = ({
                     <TbInfoCircleFilled className="w-5 h-5 text-blue-500" />
                   </TooltipTrigger>
                   <TooltipContent>
-                    <p>
-                      {cellIdLabel} ID: {formatNumericField(enodebId)} / Sector:{" "}
-                      {formatNumericField(sectorId)}
-                    </p>
+                    <div className="grid">
+                      <p>
+                        {cellIdLabel} ID:{" "}
+                        <span className="font-semibold">
+                          {formatNumericField(enodebId)}
+                        </span>
+                      </p>
+
+                      <p>
+                        Sector:{" "}
+                        <span className="font-semibold">
+                          {formatNumericField(sectorId)}
+                        </span>
+                      </p>
+                    </div>
                   </TooltipContent>
                 </Tooltip>
               ) : null}
@@ -239,13 +246,14 @@ const CellDataComponent = ({
                     <TbInfoCircleFilled className="w-5 h-5 text-blue-500" />
                   </TooltipTrigger>
                   <TooltipContent>
-                    <p>Hex: 0x{decToHex(tac)}</p>
+                    <p>
+                      Hex:{" "}
+                      <span className="font-semibold">0x{decToHex(tac)}</span>
+                    </p>
                   </TooltipContent>
                 </Tooltip>
               ) : null}
-              <p className="text-sm font-semibold">
-                {formatNumericField(tac)}
-              </p>
+              <p className="text-sm font-semibold">{formatNumericField(tac)}</p>
             </div>
           </div>
 
@@ -291,9 +299,7 @@ const CellDataComponent = ({
             <p className="text-sm font-semibold text-muted-foreground">
               Active MIMO
             </p>
-            <p className="text-sm font-semibold">
-              {device?.mimo || "-"}
-            </p>
+            <p className="text-sm font-semibold">{device?.mimo || "-"}</p>
           </div>
 
           {/* WAN IPv4 */}
@@ -325,9 +331,7 @@ const CellDataComponent = ({
                 </Tooltip>
               ) : null}
               <p className="text-sm font-semibold font-mono">
-                {network?.wan_ipv6
-                  ? truncateIpv6(network.wan_ipv6)
-                  : "-"}
+                {network?.wan_ipv6 ? truncateIpv6(network.wan_ipv6) : "-"}
               </p>
             </div>
           </div>

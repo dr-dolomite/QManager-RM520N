@@ -26,6 +26,14 @@ import {
   RSRQ_THRESHOLDS,
   SINR_THRESHOLDS,
 } from "@/types/modem-status";
+import {
+  getDLFrequency,
+  getULFrequency,
+  formatFrequency,
+  getBandName,
+  getDuplexMode,
+} from "@/lib/earfcn";
+import { TbCircleArrowDownFilled, TbCircleArrowUpFilled } from "react-icons/tb";
 
 // =============================================================================
 // Props
@@ -42,7 +50,7 @@ interface ActiveBandsComponentProps {
 
 /** Quality level → tailwind color class for progress bar indicator */
 function qualityColor(
-  quality: "excellent" | "good" | "fair" | "poor" | "none"
+  quality: "excellent" | "good" | "fair" | "poor" | "none",
 ): string {
   switch (quality) {
     case "excellent":
@@ -94,7 +102,7 @@ function SignalRow({
       <p className="text-sm font-semibold text-muted-foreground">{label}</p>
       <div className="flex items-center">
         <Progress className="w-24 mr-2" value={progress} />
-        <p className={`text-sm ml-2 font-bold w-20 text-right ${qualityColor(quality)}`}>
+        <p className="text-sm ml-2 font-bold w-20 text-right">
           {fmtSignal(value, unit)}
         </p>
       </div>
@@ -166,8 +174,8 @@ const ActiveBandsComponent = ({
       <CardHeader>
         <CardTitle>Active Cellular Bands</CardTitle>
         <CardDescription>
-          {components.length} active carrier{components.length !== 1 ? "s" : ""}.
-          {" "}Expand each band for detailed signal metrics.
+          {components.length} active carrier{components.length !== 1 ? "s" : ""}
+          . Expand each band for detailed signal metrics.
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -183,24 +191,27 @@ const ActiveBandsComponent = ({
             const sinrQuality = getSignalQuality(cc.sinr, SINR_THRESHOLDS);
 
             return (
-              <AccordionItem key={`${cc.band}-${cc.pci}-${idx}`} value={`item-${idx}`}>
+              <AccordionItem
+                key={`${cc.band}-${cc.pci}-${idx}`}
+                value={`item-${idx}`}
+              >
                 <AccordionTrigger className="font-bold">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <Badge className={`text-xs rounded-full ${techBadgeClass(cc.technology)}`}>
-                      {cc.technology}
-                    </Badge>
-                    <p className="text-sm font-bold">{cc.band}</p>
                     <Badge
-                      variant={cc.type === "PCC" ? "default" : "secondary"}
-                      className="text-xs"
+                      className={`text-xs rounded-full ${techBadgeClass(cc.technology)}`}
                     >
-                      {cc.type}
+                      {cc.type} {getDuplexMode(cc.band, cc.technology)}
                     </Badge>
-                    {cc.bandwidth_mhz > 0 && (
-                      <span className="text-xs text-muted-foreground">
-                        {cc.bandwidth_mhz} MHz
-                      </span>
-                    )}
+                    <div className="flex items-center gap-1.5">
+                      <p className="text-sm font-bold">
+                        {cc.technology} {cc.band}
+                      </p>
+                      <span className="text-sm text-muted-foreground">–</span>
+                      <p className="text-sm">
+                        {/* Show E/U/FRCN */}
+                        {cc.earfcn}
+                      </p>
+                    </div>
                   </div>
                 </AccordionTrigger>
                 <AccordionContent className="grid gap-1.5 text-base">
@@ -231,12 +242,34 @@ const ActiveBandsComponent = ({
                   )}
                   {/* Static info */}
                   <InfoRow
-                    label="Bandwidth"
-                    value={cc.bandwidth_mhz > 0 ? `${cc.bandwidth_mhz} MHz` : "-"}
+                    label="Band Name"
+                    value={getBandName(cc.band, cc.technology)}
                   />
                   <InfoRow
-                    label={cc.technology === "NR" ? "ARFCN" : "EARFCN"}
-                    value={cc.earfcn !== null ? String(cc.earfcn) : "-"}
+                    label="UL Frequency"
+                    value={
+                      cc.earfcn !== null
+                        ? formatFrequency(
+                            getULFrequency(cc.earfcn, cc.technology, cc.band),
+                          )
+                        : "-"
+                    }
+                  />
+                  <InfoRow
+                    label="DL Frequency"
+                    value={
+                      cc.earfcn !== null
+                        ? formatFrequency(
+                            getDLFrequency(cc.earfcn, cc.technology),
+                          )
+                        : "-"
+                    }
+                  />
+                  <InfoRow
+                    label="Bandwidth"
+                    value={
+                      cc.bandwidth_mhz > 0 ? `${cc.bandwidth_mhz} MHz` : "-"
+                    }
                   />
                   <InfoRow
                     label="PCI"
