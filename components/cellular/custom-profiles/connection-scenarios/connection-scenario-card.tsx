@@ -36,7 +36,6 @@ import {
   inputToBands,
   bandsToInput,
 } from "@/types/connection-scenario";
-import type { ScenarioConfig } from "@/types/connection-scenario";
 
 // =============================================================================
 // Constants
@@ -172,7 +171,10 @@ const ConnectionScenariosCard = () => {
   const [editSaNrBands, setEditSaNrBands] = useState("");
 
   // --- Derived ---------------------------------------------------------------
-  const scenarios = [...DEFAULT_SCENARIOS, ...customScenarios];
+  const scenarios = useMemo(
+    () => [...DEFAULT_SCENARIOS, ...customScenarios],
+    [customScenarios],
+  );
   const selectedScenario = scenarios.find((s) => s.id === selectedId);
   const isSelectedActive = selectedId === activeScenarioId;
 
