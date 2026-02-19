@@ -26,6 +26,16 @@ start_service() {
     mkdir -p /etc/qmanager
     mkdir -p /usr/lib/qmanager
 
+    # Ensure all /usr/bin scripts are executable
+    for f in /usr/bin/qmanager_*; do
+        [ -f "$f" ] && chmod +x "$f"
+    done
+
+    # Ensure all CGI scripts are executable
+    for f in /www/cgi-bin/quecmanager/*.sh /www/cgi-bin/quecmanager/*/*.sh; do
+        [ -f "$f" ] && chmod +x "$f"
+    done
+
     # Create default long commands list if it doesn't exist
     if [ ! -f /etc/qmanager/long_commands.list ]; then
         cat > /etc/qmanager/long_commands.list << 'EOF'
