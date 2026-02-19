@@ -44,6 +44,8 @@ interface BandSettingsProps {
   onToggleFailover: (enabled: boolean) => Promise<boolean>;
   /** True while initial data is loading */
   isLoading: boolean;
+  /** True when a Connection Scenario controls bands — disables failover toggle */
+  isScenarioControlled?: boolean;
 }
 
 /**
@@ -99,6 +101,7 @@ const BandSettingsComponent = ({
   carrierComponents,
   onToggleFailover,
   isLoading,
+  isScenarioControlled = false,
 }: BandSettingsProps) => {
   // --- Derive active bands from carrier_components --------------------------
   const activeLte = getActiveBandDisplay(carrierComponents, "LTE");
@@ -196,6 +199,7 @@ const BandSettingsComponent = ({
                     id="band-failover"
                     checked={failover.enabled}
                     onCheckedChange={handleFailoverToggle}
+                    disabled={isScenarioControlled}
                   />
                   <Label htmlFor="band-failover">
                     {failover.enabled ? "Enabled" : "Disabled"}

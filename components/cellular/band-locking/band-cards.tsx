@@ -13,7 +13,8 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { RotateCcwIcon } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { LockIcon, LockOpenIcon, RotateCcwIcon, ShieldIcon } from "lucide-react";
 import { toast } from "sonner";
 import { formatBandName, type BandCategory } from "@/types/band-locking";
 
@@ -46,6 +47,8 @@ interface BandCardsProps {
   isLoading: boolean;
   /** Error from the hook (shared) */
   error: string | null;
+  /** True when a Connection Scenario controls bands — disables all interactions */
+  disabled?: boolean;
 }
 
 const BandCardsComponent = ({
@@ -59,6 +62,7 @@ const BandCardsComponent = ({
   isLocking,
   isLoading,
   error,
+  disabled = false,
 }: BandCardsProps) => {
   // --- Local checkbox state (number set for O(1) lookup) --------------------
   const [checkedBands, setCheckedBands] = useState<Set<number>>(
@@ -180,11 +184,43 @@ const BandCardsComponent = ({
     );
   }
 
+  // Combined disable flag: scenario-controlled OR mid-lock
+  const isDisabled = disabled || isLocking;
+
   return (
-    <Card className="@container/card">
+    <Card className={`@container/card${disabled ? " opacity-60" : ""}`}>
       <CardHeader>
-        <CardTitle>{title}</CardTitle>
-        <CardDescription>{description}</CardDescription>
+        <div className="flex items-center justify-between">
+          <div>
+            <CardTitle>{title}</CardTitle>
+            <CardDescription>{description}</CardDescription>
+          </div>
+          {disabled ? (
+            <Badge
+              variant="outline"
+              className="bg-blue-500/20 text-blue-500 border-blue-300/50"
+            >
+              <ShieldIcon className="mr-1 h-3 w-3" />
+              Scenario Controlled
+            </Badge>
+          ) : isAllUnlocked ? (
+            <Badge
+              variant="outline"
+              className="bg-emerald-500/20 text-emerald-500 border-emerald-300/50"
+            >
+              <LockOpenIcon className="mr-1 h-3 w-3" />
+              All Unlocked
+            </Badge>
+          ) : (
+            <Badge
+              variant="outline"
+              className="bg-amber-500/20 text-amber-500 border-amber-300/50"
+            >
+              <LockIcon className="mr-1 h-3 w-3" />
+              {currentLockedBands.length} / {supportedBands.length} Bands
+            </Badge>
+          )}
+        </div>
       </CardHeader>
 
       <CardContent>
@@ -196,12 +232,12 @@ const BandCardsComponent = ({
                 id={`${bandCategory}-${band}`}
                 checked={checkedBands.has(band)}
                 onCheckedChange={() => handleCheckboxChange(band)}
-                disabled={isLocking}
+                disabled={isDisabled}
                 className="hover:cursor-pointer"
               />
               <Label
                 htmlFor={`${bandCategory}-${band}`}
-                className="cursor-pointer"
+                className={disabled ? "cursor-default" : "cursor-pointer"}
               >
                 {formatBandName(bandCategory, band)}
               </Label>
@@ -214,7 +250,7 @@ const BandCardsComponent = ({
         <div className="flex items-center gap-x-2">
           <Button
             onClick={handleLock}
-            disabled={isLocking || noneSelected || !hasChanges}
+            disabled={isDisabled || noneSelected || !hasChanges}
           >
             {isLocking ? "Applying…" : "Lock Selected Bands"}
           </Button>
@@ -222,7 +258,7 @@ const BandCardsComponent = ({
             variant="outline"
             size="icon"
             onClick={handleUnlockAll}
-            disabled={isLocking || isAllUnlocked}
+            disabled={isDisabled || isAllUnlocked}
             title="Unlock all bands (reset)"
           >
             <RotateCcwIcon />
@@ -233,14 +269,14 @@ const BandCardsComponent = ({
           <Button
             variant="outline"
             onClick={handleSelectAll}
-            disabled={isLocking}
+            disabled={isDisabled}
           >
             Select All
           </Button>
           <Button
             variant="outline"
             onClick={handleSelectNone}
-            disabled={isLocking}
+            disabled={isDisabled}
           >
             Clear
           </Button>
