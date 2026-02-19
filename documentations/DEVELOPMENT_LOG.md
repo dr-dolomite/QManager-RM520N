@@ -1094,4 +1094,77 @@ Lock success (failover_armed: true) → clear activated flag → start polling
 
 ---
 
+## 11. Tower Locking — jq Boolean Handling Bug Fix
+
+**Date:** February 19, 2026
+
+### Problem
+
+Tower locking status badges ("Failover Status" and "Schedule Locking Status") permanently displayed "Unknown" on the Settings card. The failover toggle was also stuck enabled — disabling it appeared to work but reverted on page reload.
+
+### Root Cause: jq `// empty` Swallows Boolean `false`
+
+jq's alternative operator (`//`) treats **both** `null` and `false` as falsy. This means:
+
+```sh
+# User sends: {"persist": false}
+echo '{"persist": false}' | jq -r '.persist // empty'
+# Output: (nothing) — false is treated as falsy, falls through to "empty"
+```
+
+Every CGI endpoint that parsed boolean fields from POST bodies used this pattern. The result: **boolean `false` could never be written to the config file**. Settings like persist, failover enabled, and schedule enabled could be turned ON but never OFF.
+
+This caused a cascade:
+1. `settings.sh` couldn't write `failover.enabled = false` → config always had `true`
+2. `status.sh` read the stale `true` from config → frontend received incorrect state
+3. Frontend badges showed "Unknown" because the state never matched expected values
+
+### Fix Applied
+
+Replaced all `// empty` patterns on boolean fields with `has()` + `tostring`:
+
+```sh
+# Before (BROKEN for false):
+PERSIST=$(printf '%s' "$POST_DATA" | jq -r '.persist // empty')
+
+# After (correct):
+PERSIST=$(printf '%s' "$POST_DATA" | jq -r 'if has("persist") then (.persist | tostring) else "unset" end')
+```
+
+The sentinel `"unset"` distinguishes "field not in POST body" (use current value) from `"false"` (explicitly set to false). Downstream `--argjson` in response construction correctly converts the string `"false"` back to JSON boolean `false`.
+
+Also replaced `// false` read patterns (which worked by coincidence) with direct field access for consistency:
+
+```sh
+# Before (fragile — false // false always returns alternative):
+fo_val=$(jq -r '.failover.enabled // false' "$config")
+
+# After (direct, predictable):
+fo_val=$(jq -r '.failover.enabled' "$config")
+```
+
+### Files Modified
+
+| File | Change | Severity |
+|------|--------|----------|
+| `scripts/cgi/quecmanager/tower/settings.sh` | `// empty` → `has()` + `tostring` for persist, failover_enabled, failover_threshold | Critical |
+| `scripts/cgi/quecmanager/tower/schedule.sh` | `// empty` → `has()` + `tostring` for enabled | Moderate |
+| `scripts/cgi/quecmanager/tower/status.sh` | `// false` → direct `.failover.enabled` access | Low (consistency) |
+| `scripts/cgi/quecmanager/tower/failover_status.sh` | `// false` → direct `.failover.enabled` access | Low (consistency) |
+| `components/cellular/tower-locking/tower-locking.tsx` | Silent `if (config)` guards → early-return with toast error | Low (UX polish) |
+
+### Lesson Learned
+
+**Never use jq's `//` (alternative) operator when the value can legitimately be `false`.** The operator is designed for null-coalescing, but it treats `false` identically to `null`. This is a jq design choice documented in the jq manual but easy to miss. The `has()` + `tostring` pattern is the safe approach for any field that carries boolean semantics.
+
+Affected pattern summary for future reference:
+
+| Pattern | Safe for strings? | Safe for booleans? | Safe for numbers? |
+|---------|-------------------|--------------------|-----------|
+| `.field // empty` | ✅ | ❌ `false` produces empty | ❌ `0` produces empty |
+| `.field // "default"` | ✅ | ❌ `false` hits default | ❌ `0` hits default |
+| `if has("field") then (.field \| tostring) else "unset" end` | ✅ | ✅ | ✅ |
+
+---
+
 *End of Development Log*

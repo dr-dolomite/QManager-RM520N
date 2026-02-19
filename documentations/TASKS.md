@@ -163,6 +163,40 @@ Per-category (LTE, NSA NR5G, SA NR5G) band lock management with failover safety 
 - Init script auto-fixes permissions: `chmod +x` on all `qmanager_*` binaries and CGI scripts at startup.
 - Connection Scenarios override: when non-Balanced scenario active, all band locking controls disabled (frontend-only gating, no backend cross-dependencies).
 
+### Tower Locking (`/cellular/settings/tower-locking`) — ✅ COMPLETE
+
+Per-cell tower lock management for LTE (up to 3 EARFCN+PCI pairs) and NR-SA (single PCI+ARFCN+SCS+Band), with persistence control, failover safety, and cron-based scheduling.
+
+| Component | File | Status | Notes |
+|-----------|------|--------|-------|
+| **Tower Settings Card** | `tower-settings.tsx` | ✅ Done | Persist/failover toggles, failover threshold, signal quality badge (RSRP→%), active PCell info from status.json, failover/schedule status badges. |
+| **LTE Locking Card** | `lte-locking.tsx` | ✅ Done | Enable toggle → lock/unlock. 3 EARFCN+PCI input pairs. "Use Current" button. Validation (EARFCN: numeric, PCI: 0–503). |
+| **NR-SA Locking Card** | `nr-sa-locking.tsx` | ✅ Done | Enable toggle → lock/unlock. PCI+ARFCN+SCS+Band fields. SCS dropdown (kHz values). NSA mode gating (disabled when 5G-NSA). |
+| **Schedule Card** | `schedule-locking.tsx` | ✅ Done | Enable toggle, time pickers, day-of-week toggles. Cron-managed via `qmanager_tower_schedule`. |
+| **Page Coordinator** | `tower-locking.tsx` | ✅ Done | Owns `useTowerLocking` + `useModemStatus`. Distributes props to all 4 cards. Toast error on null config guard. |
+
+**Backend:**
+
+| File | Purpose | Status |
+|------|---------|--------|
+| `tower_lock_mgr.sh` | Config CRUD library + AT command builders/parsers + `calc_signal_quality()` | ✅ Done |
+| `tower/status.sh` | GET — modem lock state + config + failover flags (3 AT reads + file reads) | ✅ Done |
+| `tower/lock.sh` | POST — apply/clear LTE or NR-SA lock, update config, spawn failover watcher | ✅ Done |
+| `tower/settings.sh` | POST — update persist (+ AT save_ctrl) and failover config | ✅ Done |
+| `tower/schedule.sh` | POST — update schedule config + manage crontab entries | ✅ Done |
+| `tower/failover_status.sh` | GET — lightweight flag + PID check (no modem) | ✅ Done |
+| `qmanager_tower_failover` | One-shot watcher: sleep 15s, AT+QENG RSRP check, clear locks if below threshold | ✅ Done |
+| `qmanager_tower_schedule` | Cron-callable script with `apply`/`clear` modes | ✅ Done |
+
+**Types & Hooks:**
+
+| File | Purpose | Status |
+|------|---------|--------|
+| `types/tower-locking.ts` | All interfaces, API response types, `rsrpToQualityPercent()`, `qualityLevel()`, SCS options | ✅ Done |
+| `hooks/use-tower-locking.ts` | Fetch status on mount, lock/unlock actions, settings/schedule update, failover status polling | ✅ Done |
+
+**Bug fix (Feb 19, 2026):** jq `// empty` boolean handling — see DEVELOPMENT_LOG.md §11. Critical: `settings.sh` and `schedule.sh` couldn't write boolean `false` to config (persist, failover enabled, schedule enabled). Also cleaned `// false` patterns in `status.sh` and `failover_status.sh` for consistency. Added toast error feedback in coordinator null guards.
+
 ---
 
 ## Remaining Work
@@ -176,6 +210,7 @@ Per-category (LTE, NSA NR5G, SA NR5G) band lock management with failover safety 
 | 3 | **Cell Scanner Page** | ⬜ TODO | Dedicated endpoint for `AT+QSCAN` with progress indicator and long-command flag coordination. |
 | 4 | **Band Locking** | ✅ Done | Full 3-phase backend (lock, failover, CGI) + 2-phase frontend (types/hook, UI wiring). See below. |
 | 5 | **APN Management** | ⬜ TODO | Write-path CGI endpoints for APN CRUD. |
+| 6 | **Tower Locking** | ✅ Done | 4-card UI + full backend (library, 6 CGI endpoints, failover watcher, schedule script). jq boolean bug fixed. See DEVELOPMENT_LOG.md §11. |
 
 ### Watchcat & Recovery
 
@@ -225,6 +260,7 @@ Per-category (LTE, NSA NR5G, SA NR5G) band lock management with failover safety 
 - ~~Band Locking~~ ✅ — 3-phase backend: `lock.sh` (per-category AT+QNWPREFCFG), `qmanager_band_failover` (one-shot watcher, AT+QCAINFO signal check, policy_band reset), `failover_status.sh` (lightweight flag polling). 2-phase frontend: `types/band-locking.ts` + `use-band-locking.ts` hook (with failover status polling), `band-locking.tsx` coordinator + `band-cards.tsx` (checkbox grid) + `band-settings.tsx` (failover toggle, active bands/ARFCNs). Connection Scenarios integration: non-Balanced disables all controls with info banner.
 - ~~Connection Scenarios → Band Locking integration~~ ✅ — Frontend-only gating. `useConnectionScenarios()` imported in band-locking coordinator. `isScenarioControlled` derived from `activeScenarioId !== "balanced"`. Alert banner, per-card "Scenario Controlled" badge, `opacity-60` dimming, disabled controls. No backend changes.
 - ~~setsid removal~~ ✅ — Replaced `setsid` (not available on BusyBox) with POSIX subshell `( cmd ) >/dev/null 2>&1 &` across all 3 scripts: `lock.sh`, `speedtest_start.sh`, `profiles/apply.sh`. Init script now auto-`chmod +x` all qmanager binaries and CGI scripts at startup.
+- ~~Tower Locking~~ ✅ — 4-card UI (settings, LTE lock, NR-SA lock, schedule). Backend: `tower_lock_mgr.sh` library, 6 CGI endpoints under `tower/`, `qmanager_tower_failover` one-shot watcher, `qmanager_tower_schedule` cron script. Frontend: `types/tower-locking.ts` + `use-tower-locking.ts` hook. Bug fix: jq `// empty` swallows boolean `false` — replaced with `has()` + `tostring` across all tower CGI endpoints.
 
 </details>
 
