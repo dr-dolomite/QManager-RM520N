@@ -64,6 +64,7 @@ const TowerLockingComponent = () => {
             modemData={modemData}
             isLoading={tower.isLoading}
             isLocking={tower.isLteLocking}
+            isWatcherRunning={tower.isWatcherRunning}
             onLock={(cells) => tower.lockLte(cells)}
             onUnlock={() => tower.unlockLte()}
           />
@@ -81,6 +82,7 @@ const TowerLockingComponent = () => {
             networkType={modemData?.network?.type ?? ""}
             isLoading={tower.isLoading}
             isLocking={tower.isNrLocking}
+            isWatcherRunning={tower.isWatcherRunning}
             onLock={(cell) => tower.lockNrSa(cell)}
             onUnlock={() => tower.unlockNrSa()}
           />

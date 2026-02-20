@@ -81,6 +81,9 @@ export interface UseTowerLockingReturn {
   /** Update schedule configuration and manage cron entries. */
   updateSchedule: (schedule: TowerScheduleConfig) => Promise<boolean>;
 
+  /** True while the failover watcher is running (anti-spam guard) */
+  isWatcherRunning: boolean;
+
   /** Manually refresh all tower lock state. */
   refresh: () => void;
 }
@@ -230,11 +233,19 @@ export function useTowerLocking(): UseTowerLockingReturn {
   // ---------------------------------------------------------------------------
   // Generic lock/unlock helper
   // ---------------------------------------------------------------------------
+  const isWatcherRunning = failoverState?.watcher_running ?? false;
+
   const sendLockRequest = useCallback(
     async (
       body: Record<string, unknown>,
       setLocking: (v: boolean) => void
     ): Promise<boolean> => {
+      // Anti-spam: block lock/unlock while failover watcher is still running
+      if (failoverState?.watcher_running) {
+        setError("Please wait — failover check is still in progress");
+        return false;
+      }
+
       setError(null);
       setLocking(true);
 
@@ -285,7 +296,7 @@ export function useTowerLocking(): UseTowerLockingReturn {
         }
       }
     },
-    [fetchStatus, startFailoverPolling]
+    [fetchStatus, startFailoverPolling, failoverState?.watcher_running]
   );
 
   // ---------------------------------------------------------------------------
@@ -463,6 +474,7 @@ export function useTowerLocking(): UseTowerLockingReturn {
     isLoading,
     isLteLocking,
     isNrLocking,
+    isWatcherRunning,
     error,
     lockLte,
     unlockLte,

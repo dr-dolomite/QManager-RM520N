@@ -49,6 +49,7 @@ interface LTELockingProps {
   modemData: ModemStatus | null;
   isLoading: boolean;
   isLocking: boolean;
+  isWatcherRunning: boolean;
   onLock: (cells: LteLockCell[]) => Promise<boolean>;
   onUnlock: () => Promise<boolean>;
 }
@@ -59,6 +60,7 @@ const LTELockingComponent = ({
   modemData,
   isLoading,
   isLocking,
+  isWatcherRunning,
   onLock,
   onUnlock,
 }: LTELockingProps) => {
@@ -116,6 +118,12 @@ const LTELockingComponent = ({
   };
 
   const handleToggle = (checked: boolean) => {
+    if (isWatcherRunning) {
+      toast.warning("Failover check in progress", {
+        description: "Please wait for the failover watcher to finish before toggling the lock.",
+      });
+      return;
+    }
     if (checked) {
       const cells = buildCells();
       if (cells.length === 0) {
@@ -244,7 +252,7 @@ const LTELockingComponent = ({
                   id="lte-tower-locking"
                   checked={isEnabled}
                   onCheckedChange={handleToggle}
-                  disabled={isLocking}
+                  disabled={isLocking || isWatcherRunning}
                 />
                 <Label htmlFor="lte-tower-locking">
                   {isEnabled ? "Enabled" : "Disabled"}

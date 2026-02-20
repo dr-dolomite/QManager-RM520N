@@ -58,6 +58,7 @@ interface NRSALockingProps {
   networkType: NetworkType | string;
   isLoading: boolean;
   isLocking: boolean;
+  isWatcherRunning: boolean;
   onLock: (cell: NrSaLockCell) => Promise<boolean>;
   onUnlock: () => Promise<boolean>;
 }
@@ -79,6 +80,7 @@ const NRSALockingComponent = ({
   networkType,
   isLoading,
   isLocking,
+  isWatcherRunning,
   onLock,
   onUnlock,
 }: NRSALockingProps) => {
@@ -110,9 +112,15 @@ const NRSALockingComponent = ({
   const isNsaMode = networkType === "5G-NSA";
   const isLteOnly = networkType === "LTE";
   const isCardDisabled = isNsaMode || isLteOnly;
-  const isDisabled = isCardDisabled || isLocking;
+  const isDisabled = isCardDisabled || isLocking || isWatcherRunning;
 
   const handleToggle = (checked: boolean) => {
+    if (isWatcherRunning) {
+      toast.warning("Failover check in progress", {
+        description: "Please wait for the failover watcher to finish before toggling the lock.",
+      });
+      return;
+    }
     if (checked) {
       const parsedArfcn = parseInt(arfcn, 10);
       const parsedPci = parseInt(pci, 10);
