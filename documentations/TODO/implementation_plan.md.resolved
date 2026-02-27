@@ -1,59 +1,55 @@
-# Neighbour Cell Scanner Implementation Plan
+# Converting Tower Lock Failover to a Persistent Daemon
 
-## Goal Description
-Implement the new Neighbour Cell Scanner feature. The feature requires a new backend pipeline (using OpenWRT shell scripts and CGI) to query the Quectel RM551E-GL 5G modem for LTE and 5G neighbour cells via AT commands (`AT+QENG="neighbourcell"` and `AT+QNWCFG="nr5g_meas_info"`). Once the backend makes the data available in a JSON file via a status endpoint, the frontend needs to be connected to trigger the scan, poll for status, and display the results without making major UI changes to the existing [NeighbourCellScanner](file:///d:/Projects/QM%20PROJECT/QManager/components/cellular/cell-scanner/neighbourcell/neighbour-scanner.tsx#84-116) component.
+You are correct. The argument for making Tower Locking failover a continuous background daemon instead of a one-shot watcher is conceptually sound and actually very practical for a mobile/portable router scenario.
 
-## Architecture
+## The Logic Behind Making it a Daemon
+Your reasoning is spot-on:
+1.  **Band Locking Flexibility**: If you lock a band (e.g., Band 1 + Band 3) and drive away, the modem can simply drop the connection on the old tower and reconnect to a *new* tower that also broadcasts Band 1 or Band 3. As long as the new location has the locked bands, the connection survives. Therefore, continuous failover monitoring for band locking is less critical after the initial lock succeeds.
+2.  **Tower Locking Specificity**: A tower lock is tied to a specific Physical Cell ID (PCI) and Frequency (EARFCN/ARFCN). **Towers don't move.** If you lock to a tower and then travel out of its physical reception range, the modem will *never* find that exact PCI+EARFCN combination again. It will indefinitely try to connect to a ghost tower and result in a permanent loss of service until manually unlocked.
 
-We will follow the established `QManager` singleton background worker pattern:
-1. **Frontend Hook** invokes `neighbour_scan_start.sh` via POST.
-2. **CGI Endpoint** spawn `qmanager_neighbour_scanner` daemon in a subshell, records its PID, and returns `{"success": true}` immediately.
-3. **Worker Daemon** uses [qcmd](file:///d:/Projects/QM%20PROJECT/QManager/scripts/usr/bin/qcmd) to run the AT commands, process raw output to TSV, build JSON via `jq`, and writes to `/tmp/qmanager_neighbour_scan_result.json`. (To prevent Flash write cycles, we only write to `/tmp/`).
-4. **Frontend Hook** polls `neighbour_scan_status.sh` every 1 second until the daemon PID terminates, then reads the JSON result and sets the state.
+Therefore, having a persistent daemon that continuously monitors the signal strength of the *locked cell* and automatically drops the lock if the signal falls below a threshold (or drops completely) is the correct architectural approach for a mobile environment.
 
 ## Proposed Changes
 
-### Backend Scripts (Ash)
+### 1. [scripts/usr/bin/qmanager_tower_failover](file:///d:/Projects/QM%20PROJECT/QManager/scripts/usr/bin/qmanager_tower_failover) (The Daemon)
+Currently, this is a one-shot script that waits 20 seconds, checks the signal once, fails over if needed, and then `exit 0`.
+We need to refactor it into an infinite loop:
+*   [MODIFY] [scripts/usr/bin/qmanager_tower_failover](file:///d:/Projects/QM%20PROJECT/QManager/scripts/usr/bin/qmanager_tower_failover)
+    *   Change the logic to run in a `while true` loop.
+    *   **Initial Settle Delay**: Keep the initial 20-30 second delay when it first starts (to allow the modem to apply the lock).
+    *   **Polling Loop**: Inside the loop, sleep for a defined interval (e.g., 30-60 seconds to minimize CPU and AT command contention on the single serial pipe).
+    *   **Signal Check**: Query `AT+QENG="servingcell"`.
+    *   **Failover Condition**: If the RSRP drops below the threshold, OR if the modem reports it is disconnected (No Service / Limited Service) for multiple consecutive checks, execute the unlock commands (`tower_unlock_lte` / `tower_unlock_nr`).
+    *   **Exit Condition**: Once failover is triggered and the lock is released, rewrite the config (`enabled=false`), write the UI activation flag, and *then* the daemon should exit (it doesn't need to run when no lock is active).
 
-#### [NEW] /usr/bin/qmanager_neighbour_scanner
-- A backend daemon similar to `qmanager_cell_scanner`.
-- It will execute two main commands:
-  - `AT+QENG="neighbourcell"` -> extracts LTE intra/inter cells (`earfcn`, `PCID`, `RSRP`, `RSRQ`, `SINR`, `RSSI`).
-  - `AT+QNWCFG="nr5g_meas_info", 1` followed by `AT+QNWCFG="nr5g_meas_info"` -> extracts 5G cells (`ARFCN`, `PCI`, `RSRP`, `RSRQ`).
-- Since neighbour cells do not expose MCC/MNC directly, operator mapping will be skipped.
-- Converts the comma-separated AT output into TSV format and then calls `jq` to assemble an array of unified objects representing `NeighbourCellResult`s. Output is stored in `/tmp/qmanager_neighbour_scan_result.json`.
+### 2. [scripts/cgi/quecmanager/tower/lock.sh](file:///d:/Projects/QM%20PROJECT/QManager/scripts/cgi/quecmanager/tower/lock.sh)
+This script spawns the failover watcher. Since we are refactoring the watcher into a persistent daemon, we must ensure proper process management.
+*   [MODIFY] [scripts/cgi/quecmanager/tower/lock.sh](file:///d:/Projects/QM%20PROJECT/QManager/scripts/cgi/quecmanager/tower/lock.sh)
+    *   Before spawning [qmanager_tower_failover](file:///d:/Projects/QM%20PROJECT/QManager/scripts/usr/bin/qmanager_tower_failover), explicitly check for and kill any existing instances (read the PID file, send `kill`). This ensures we don't end up with multiple polling loops fighting over the single `sms_tool` AT command pipe.
+    *   Spawn the new daemon cleanly in the background.
 
-#### [NEW] /www/cgi-bin/quecmanager/at_cmd/neighbour_scan_start.sh
-- Enforces single-instance scanning. Checks if `/tmp/qmanager_neighbour_scan.pid` exists and process is running.
-- Spawns `/usr/bin/qmanager_neighbour_scanner` in the background `( ... ) </dev/null >/dev/null 2>&1 &` to detach from uhttpd's lifecycle.
-- Returns JSON success indicating the process has started.
+### 3. [scripts/cgi/quecmanager/tower/settings.sh](file:///d:/Projects/QM%20PROJECT/QManager/scripts/cgi/quecmanager/tower/settings.sh)
+When failover is toggled *off* via the settings, the daemon must be killed immediately.
+*   [MODIFY] [scripts/cgi/quecmanager/tower/settings.sh](file:///d:/Projects/QM%20PROJECT/QManager/scripts/cgi/quecmanager/tower/settings.sh)
+    *   If `failover.enabled = false` is received, lookup the `qmanager_tower_failover.pid` and kill the daemon process to stop polling.
 
-#### [NEW] /www/cgi-bin/quecmanager/at_cmd/neighbour_scan_status.sh
-- Checks if the PID file exists and the process is alive.
-- If alive, returns `{"status": "running"}`.
-- If not alive but `RESULT_FILE` exists, returns `{"status": "complete", "result": [...]}`.
-- If error file exists, returns `{"status": "error", "message": "..."}`.
+### 4. Boot/Startup Integration (Optional but recommended)
+If the router reboots and Tower Lock is saved as `enabled=true` with `failover=true` in the config, a startup script (or [tower_lock_mgr.sh](file:///d:/Projects/QM%20PROJECT/QManager/scripts/usr/lib/qmanager/tower_lock_mgr.sh) init) needs to ensure the failover daemon is started on boot. *Note: We need to verify if QManager already re-applies locks on boot.*
 
-### Frontend Components (Next.js)
-
-#### [NEW] hooks/use-neighbour-scanner.ts
-- Hook to manage the scan lifecycle, similar to `useSpeedtest`.
-- Exposes `startScan()`, `status` (`idle`, `running`, `complete`, `error`), and `results`.
-
-#### [MODIFY] components/cellular/cell-scanner/neighbourcell/neighbour-scanner.tsx
-- Integrate `useNeighbourScanner` to replace the static `mockNeighbourResults`.
-- Tie the "Start New Scan" button to `startScan()`.
-- Implement basic skeleton/loading UI inside the `CardContent` using existing UI patterns for seamless UX while scanning.
-- Wire up the CSV download button based on `results`.
+## System Constraints & Considerations
+*   **The Single Pipe**: `sms_tool` is single-channel. If the backend CGI (e.g., the Next.js UI polling for status) and the daemon both try to query the modem at the exact same millisecond, one will fail.
+    *   **Mitigation**: The daemon should be resilient. If `qcmd` fails (rc != 0), it shouldn't immediately trigger a failover. It should treat it as a "timeout/busy" and retry on the next loop, only triggering failover if the signal is *verifiably* bad over 2 or 3 consecutive successful checks, or if it continuously fails to get a response for an extended period (meaning the modem is locked up).
 
 ## Verification Plan
+1. **Automated Tests**:
+   - N/A for shell scripts in this environment, but we can verify syntax and basic execution logic using `sh -n`.
+2. **Manual Verification**:
+   - **Start Daemon**: Apply a tower lock with failover enabled. Verify via `ps` that [qmanager_tower_failover](file:///d:/Projects/QM%20PROJECT/QManager/scripts/usr/bin/qmanager_tower_failover) is running persistently.
+   - **Polling Behavior**: Read the system logs (`logread` or custom qlog) to verify the daemon is checking the signal every X seconds without crashing the single-pipe `sms_tool`.
+   - **Simulate Good Signal**: Ensure the lock remains active indefinitely as long as the signal is good.
+   - **Simulate Bad Signal/Disconnection**: Artificially lower the signal (e.g., by changing the threshold to a ridiculously high number, or moving the modem). Verify the daemon detects the drop, clears the locks, updates the config, writes the flag file, and exits clean.
+   - **Toggle Settings**: Disable failover in the UI settings while a lock is active. Verify the daemon process is killed immediately.
+   - **Multiple Locks**: Apply a lock, then immediately apply a different lock. Verify the old daemon is killed and exactly one new daemon is spawned.
 
-### Automated/Unit Tests
-- N/A - The project heavily relies on end-to-end device integration.
-
-### Manual Verification
-1. Open the UI, click "Start New Scan". 
-2. Verify via SSH `logread` that `/usr/bin/qmanager_neighbour_scanner` launches and executes AT commands correctly.
-3. Check using `cat /tmp/qmanager_neighbour_scan_result.json` if standard output from the daemon produces the expected parsed format.
-4. Verify the polling completes and UI renders the parsed data gracefully.
-5. Click the "Download" button to verify correct CSV extraction.
+---
+Let me know if you approve this approach and if you have preferences for the polling interval (e.g., check signal every 30 seconds, 60 seconds?) and the retry logic (e.g., failover after 1 bad reading, or require 2 consecutive bad readings to prevent false positives?).

@@ -29,12 +29,7 @@ import { Input } from "@/components/ui/input";
 import { Loader2, Crosshair } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 
-import {
-  Field,
-  FieldGroup,
-  FieldLabel,
-  FieldSet,
-} from "@/components/ui/field";
+import { Field, FieldGroup, FieldLabel, FieldSet } from "@/components/ui/field";
 
 import type {
   TowerLockConfig,
@@ -120,7 +115,8 @@ const LTELockingComponent = ({
   const handleToggle = (checked: boolean) => {
     if (isWatcherRunning) {
       toast.warning("Failover check in progress", {
-        description: "Please wait for the failover watcher to finish before toggling the lock.",
+        description:
+          "Please wait for the failover watcher to finish before toggling the lock.",
       });
       return;
     }
@@ -273,13 +269,11 @@ const LTELockingComponent = ({
                           <FieldLabel htmlFor="earfcn1">E/ARFCN</FieldLabel>
                           <Button
                             type="button"
-                            variant="ghost"
                             size="sm"
-                            className="h-6 px-2 text-xs text-muted-foreground hover:text-foreground"
+                            className="h-6 px-2 text-xs"
                             onClick={handleUseCurrent}
                             disabled={isLocking || !hasActiveLteCell}
                           >
-                            <Crosshair className="w-3 h-3 mr-1" />
                             Use Current
                           </Button>
                         </div>

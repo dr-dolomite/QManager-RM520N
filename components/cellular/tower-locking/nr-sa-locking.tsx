@@ -36,12 +36,7 @@ import { Input } from "@/components/ui/input";
 import { Loader2, Crosshair } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 
-import {
-  Field,
-  FieldGroup,
-  FieldLabel,
-  FieldSet,
-} from "@/components/ui/field";
+import { Field, FieldGroup, FieldLabel, FieldSet } from "@/components/ui/field";
 
 import type {
   TowerLockConfig,
@@ -117,7 +112,8 @@ const NRSALockingComponent = ({
   const handleToggle = (checked: boolean) => {
     if (isWatcherRunning) {
       toast.warning("Failover check in progress", {
-        description: "Please wait for the failover watcher to finish before toggling the lock.",
+        description:
+          "Please wait for the failover watcher to finish before toggling the lock.",
       });
       return;
     }
@@ -237,9 +233,7 @@ const NRSALockingComponent = ({
 
   return (
     <>
-      <Card
-        className={`@container/card ${isCardDisabled ? "opacity-60" : ""}`}
-      >
+      <Card className={`@container/card ${isCardDisabled ? "opacity-60" : ""}`}>
         <CardHeader>
           <CardTitle>NR-SA Tower Locking</CardTitle>
           <CardDescription>
@@ -287,13 +281,11 @@ const NRSALockingComponent = ({
                           <FieldLabel htmlFor="nrarfcn1">NR ARFCN</FieldLabel>
                           <Button
                             type="button"
-                            variant="ghost"
                             size="sm"
-                            className="h-6 px-2 text-xs text-muted-foreground hover:text-foreground"
+                            className="h-6 px-2 text-xs"
                             onClick={handleUseCurrent}
                             disabled={isDisabled || !hasActiveNrCell}
                           >
-                            <Crosshair className="w-3 h-3 mr-1" />
                             Use Current
                           </Button>
                         </div>
@@ -369,7 +361,8 @@ const NRSALockingComponent = ({
             <AlertDialogDescription>
               This will lock your modem to NR ARFCN {pendingCell?.arfcn}, PCI{" "}
               {pendingCell?.pci} (Band {pendingCell?.band}). The modem will only
-              connect to this tower and may briefly disconnect during the switch.
+              connect to this tower and may briefly disconnect during the
+              switch.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
