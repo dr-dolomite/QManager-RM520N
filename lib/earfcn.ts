@@ -7,7 +7,7 @@
 
 // --- LTE Band Table (3GPP TS 36.101) ----------------------------------------
 
-interface LTEBandEntry {
+export interface LTEBandEntry {
   band: number;
   /** Common / marketing name for the band */
   name: string;
@@ -25,7 +25,7 @@ interface LTEBandEntry {
   duplexType: "FDD" | "TDD" | "SDL";
 }
 
-const LTE_BANDS: LTEBandEntry[] = [
+export const LTE_BANDS: LTEBandEntry[] = [
   // FDD
   { band: 1,  name: "IMT 2100",       dlLow: 2110, ulLow: 1920, earfcnOffset: 0,     earfcnRange: [0, 599],       spacing: 0.1, duplexType: "FDD" },
   { band: 2,  name: "PCS 1900",       dlLow: 1930, ulLow: 1850, earfcnOffset: 600,   earfcnRange: [600, 1199],    spacing: 0.1, duplexType: "FDD" },
@@ -62,7 +62,7 @@ const LTE_BANDS: LTEBandEntry[] = [
 
 // --- NR Band Table (3GPP TS 38.104) ------------------------------------------
 
-interface NRBandEntry {
+export interface NRBandEntry {
   band: number;
   name: string;
   /** UL low edge in MHz (same as DL low for TDD) */
@@ -74,7 +74,7 @@ interface NRBandEntry {
   nrarfcnRange: [number, number];
 }
 
-const NR_BANDS: NRBandEntry[] = [
+export const NR_BANDS: NRBandEntry[] = [
   // FDD (FR1)
   { band: 1,  name: "IMT 2100",         ulLow: 1920,  dlLow: 2110,  duplexType: "FDD", nrarfcnRange: [422000, 434000] },
   { band: 2,  name: "PCS 1900",         ulLow: 1850,  dlLow: 1930,  duplexType: "FDD", nrarfcnRange: [386000, 398000] },
@@ -200,7 +200,7 @@ export function lteULFrequency(earfcn: number): number | null {
  *   Range 2 (600000–2016666): F = 3000       + 0.015 × (N_REF − 600000)
  *   Range 3 (2016667–3279165):F = 24250.08   + 0.060 × (N_REF − 2016667)
  */
-function nrArfcnToFrequency(nrarfcn: number): number | null {
+export function nrArfcnToFrequency(nrarfcn: number): number | null {
   if (nrarfcn >= 0 && nrarfcn <= 599999) {
     return nrarfcn * 0.005;
   } else if (nrarfcn >= 600000 && nrarfcn <= 2016666) {
@@ -331,4 +331,26 @@ export function formatFrequency(freqMHz: number | null): string {
   }
   const formatted = freqMHz % 1 === 0 ? freqMHz.toFixed(0) : freqMHz.toFixed(1);
   return `${formatted} MHz`;
+}
+
+// --- Batch Matching (used by frequency calculator) ----------------------------
+
+/**
+ * Find ALL LTE bands whose EARFCN range contains the given value.
+ * Unlike findLTEBand which returns only the first match, this returns every
+ * matching band — useful for showing "possible operating bands".
+ */
+export function findAllMatchingLTEBands(earfcn: number): LTEBandEntry[] {
+  return LTE_BANDS.filter(
+    (b) => earfcn >= b.earfcnRange[0] && earfcn <= b.earfcnRange[1]
+  );
+}
+
+/**
+ * Find ALL NR bands whose NR-ARFCN range contains the given value.
+ */
+export function findAllMatchingNRBands(nrarfcn: number): NRBandEntry[] {
+  return NR_BANDS.filter(
+    (b) => nrarfcn >= b.nrarfcnRange[0] && nrarfcn <= b.nrarfcnRange[1]
+  );
 }
