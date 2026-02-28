@@ -401,10 +401,16 @@ export function useTowerLocking(): UseTowerLockingReturn {
             : prev
         );
 
-        // Also update failoverState.enabled to match (prevents badge desync)
+        // Also update failoverState to match (prevents badge desync).
+        // When disabling failover, the backend kills the watcher daemon,
+        // so clear watcher_running too.
         setFailoverState((prev) =>
           prev
-            ? { ...prev, enabled: failover.enabled }
+            ? {
+                ...prev,
+                enabled: failover.enabled,
+                ...(failover.enabled ? {} : { watcher_running: false }),
+              }
             : { enabled: failover.enabled, activated: false, watcher_running: false }
         );
 
