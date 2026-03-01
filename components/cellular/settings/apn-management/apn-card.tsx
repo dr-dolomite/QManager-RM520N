@@ -249,6 +249,7 @@ const APNSettingsCard = ({
                         {profiles?.map((p) => (
                           <SelectItem key={p.cid} value={String(p.cid)}>
                             CID {p.cid} - {p.apn || "(empty)"}
+                            {p.cid === activeCid ? " (Data)" : ""}
                           </SelectItem>
                         ))}
                       </SelectContent>
