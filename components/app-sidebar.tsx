@@ -193,7 +193,7 @@ const data = {
     },
     {
       title: "Logs",
-      url: "#",
+      url: "/monitoring/logs",
       icon: LogsIcon,
     },
   ],

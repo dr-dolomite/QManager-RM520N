@@ -1,0 +1,112 @@
+#!/bin/sh /etc/rc.common
+# =============================================================================
+# qmanager_eth_link — Init Script for Ethernet Link Speed Limit Persistence
+# =============================================================================
+# Applies the configured ethernet link speed limit at boot using ethtool.
+# Reads the limit from UCI (quecmanager.eth_link.speed_limit) and sets the
+# advertise mode accordingly.
+#
+# Non-procd: runs once at boot and exits.
+#
+# Usage:
+#   /etc/init.d/qmanager_eth_link start|enable|disable
+#
+# Install location: /etc/init.d/qmanager_eth_link
+# =============================================================================
+
+START=99
+STOP=10
+
+ETH_INTERFACE="eth0"
+
+# Build hex advertise mask from ethtool's "Supported link modes" output.
+# Maps mode names to bit positions (linux/ethtool.h), splits into hi/lo
+# 32-bit halves so awk handles bit 47+ (2500baseT/Full) correctly.
+get_supported_advertise_hex() {
+    ethtool "$ETH_INTERFACE" 2>/dev/null | \
+        sed -n '/Supported link modes:/,/Supported pause frame use:/p' | \
+        sed '1s/.*Supported link modes:[[:space:]]*//' | \
+        sed '/Supported pause frame use:/d' | \
+        tr -s ' \t\n' '\n' | \
+        awk '
+        BEGIN {
+            b["10baseT/Half"]=0;       b["10baseT/Full"]=1
+            b["100baseT/Half"]=2;      b["100baseT/Full"]=3
+            b["1000baseT/Half"]=4;     b["1000baseT/Full"]=5
+            b["10000baseT/Full"]=12;   b["2500baseX/Full"]=15
+            b["1000baseKX/Full"]=17
+            b["10000baseKX4/Full"]=18; b["10000baseKR/Full"]=19
+            b["40000baseKR4/Full"]=23; b["40000baseCR4/Full"]=24
+            b["40000baseSR4/Full"]=25; b["40000baseLR4/Full"]=26
+            b["25000baseCR/Full"]=31
+            b["25000baseKR/Full"]=32;  b["25000baseSR/Full"]=33
+            b["50000baseCR2/Full"]=34; b["50000baseKR2/Full"]=35
+            b["100000baseKR4/Full"]=36; b["100000baseSR4/Full"]=37
+            b["100000baseCR4/Full"]=38
+            b["1000baseX/Full"]=41
+            b["10000baseCR/Full"]=42;  b["10000baseSR/Full"]=43
+            b["10000baseLR/Full"]=44;  b["10000baseLRM/Full"]=45
+            b["10000baseER/Full"]=46
+            b["2500baseT/Full"]=47;    b["5000baseT/Full"]=48
+            lo = 0; hi = 0
+        }
+        {
+            gsub(/^[[:space:]]+|[[:space:]]+$/, "")
+            if ($0 in b) {
+                bit = b[$0]
+                if (bit < 32) lo += 2^bit
+                else hi += 2^(bit-32)
+            }
+        }
+        END {
+            if (hi > 0) printf "0x%x%08x\n", hi, lo
+            else if (lo > 0) printf "0x%x\n", lo
+        }'
+}
+
+start() {
+    # Guard: ethtool must be available
+    command -v ethtool >/dev/null 2>&1 || return 1
+
+    # Guard: interface must exist
+    [ -d "/sys/class/net/$ETH_INTERFACE" ] || return 1
+
+    # Read configured speed limit from UCI
+    limit=$(uci get quecmanager.eth_link.speed_limit 2>/dev/null)
+
+    # Wait for interface to be ready
+    sleep 2
+
+    # Apply speed limit
+    case "$limit" in
+        "10")   ethtool -s "$ETH_INTERFACE" advertise 0x003 autoneg on 2>/dev/null ;;
+        "100")  ethtool -s "$ETH_INTERFACE" advertise 0x00f autoneg on 2>/dev/null ;;
+        "1000") ethtool -s "$ETH_INTERFACE" advertise 0x02f autoneg on 2>/dev/null ;;
+        *)
+            advertise=$(get_supported_advertise_hex)
+            if [ -n "$advertise" ]; then
+                ethtool -s "$ETH_INTERFACE" advertise "$advertise" autoneg on 2>/dev/null
+            else
+                ethtool -s "$ETH_INTERFACE" autoneg on 2>/dev/null
+            fi
+            ;;
+    esac
+
+    ethtool -r "$ETH_INTERFACE" 2>/dev/null
+
+    logger -t qmanager_eth_link "Applied speed limit: ${limit:-auto}"
+}
+
+stop() {
+    # Reset to auto on stop — advertise all supported modes
+    if command -v ethtool >/dev/null 2>&1; then
+        advertise=$(get_supported_advertise_hex)
+        if [ -n "$advertise" ]; then
+            ethtool -s "$ETH_INTERFACE" advertise "$advertise" autoneg on 2>/dev/null
+        else
+            ethtool -s "$ETH_INTERFACE" autoneg on 2>/dev/null
+        fi
+        ethtool -r "$ETH_INTERFACE" 2>/dev/null
+        logger -t qmanager_eth_link "Reset to auto speed"
+    fi
+}
