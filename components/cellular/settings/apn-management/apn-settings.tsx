@@ -4,10 +4,20 @@ import React from "react";
 import APNSettingsCard from "./apn-card";
 import MBNCard from "./mbn-card";
 import { useApnSettings } from "@/hooks/use-apn-settings";
+import { useMbnSettings } from "@/hooks/use-mbn-settings";
 
 const APNSettingsComponent = () => {
   const { profiles, activeCid, isLoading, isSaving, error, saveApn, refresh } =
     useApnSettings();
+
+  const {
+    profiles: mbnProfiles,
+    autoSel,
+    isLoading: mbnLoading,
+    isSaving: mbnSaving,
+    saveMbn,
+    rebootDevice,
+  } = useMbnSettings();
 
   return (
     <div className="@container/main mx-auto p-2">
@@ -27,7 +37,14 @@ const APNSettingsComponent = () => {
           isSaving={isSaving}
           onSave={saveApn}
         />
-        <MBNCard />
+        <MBNCard
+          profiles={mbnProfiles}
+          autoSel={autoSel}
+          isLoading={mbnLoading}
+          isSaving={mbnSaving}
+          onSave={saveMbn}
+          onReboot={rebootDevice}
+        />
       </div>
     </div>
   );
