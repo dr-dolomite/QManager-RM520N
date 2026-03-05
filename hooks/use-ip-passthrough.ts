@@ -5,6 +5,7 @@ import type {
   PassthroughMode,
   UsbMode,
   DnsProxy,
+  IpptNat,
   IpPassthroughSettingsResponse,
   IpPassthroughSaveRequest,
   IpPassthroughSaveResponse,
@@ -13,7 +14,9 @@ import type {
 // =============================================================================
 // useIpPassthrough — Fetch & Save Hook for IP Passthrough Settings
 // =============================================================================
-// Fetches current IPPT configuration on mount and exposes save/reboot actions.
+// Fetches current IPPT configuration on mount and exposes a saveSettings action.
+// Applying settings triggers an immediate device reboot — no separate reboot
+// action is needed.
 //
 // Backend endpoint:
 //   GET/POST /cgi-bin/quecmanager/network/ip_passthrough.sh
@@ -24,6 +27,7 @@ const CGI_ENDPOINT = "/cgi-bin/quecmanager/network/ip_passthrough.sh";
 export interface IpPassthroughApplyData {
   passthrough_mode: PassthroughMode;
   target_mac: string;
+  ippt_nat: IpptNat;
   usb_mode: UsbMode;
   dns_proxy: DnsProxy;
 }
@@ -31,8 +35,10 @@ export interface IpPassthroughApplyData {
 export interface UseIpPassthroughReturn {
   /** Current passthrough mode (null before first fetch) */
   passthroughMode: PassthroughMode | null;
-  /** Target device MAC — empty string when disabled (null before first fetch) */
+  /** Target device MAC — empty string when disabled/unconfigured (null before first fetch) */
   targetMac: string | null;
+  /** IPPT NAT mode (null before first fetch) */
+  ipptNat: IpptNat | null;
   /** Current USB modem protocol (null before first fetch) */
   usbMode: UsbMode | null;
   /** DNS offloading state (null before first fetch) */
@@ -45,10 +51,12 @@ export interface UseIpPassthroughReturn {
   isSaving: boolean;
   /** Error message if fetch or save failed */
   error: string | null;
-  /** Apply all IP Passthrough settings. Returns true on success. */
+  /**
+   * Apply all IP Passthrough settings. The backend will apply AT commands
+   * and immediately trigger a device reboot. Returns true if the request
+   * was accepted (reboot will follow).
+   */
   saveSettings: (data: IpPassthroughApplyData) => Promise<boolean>;
-  /** Trigger device reboot. Returns true if command was sent. */
-  rebootDevice: () => Promise<boolean>;
   /** Re-fetch settings */
   refresh: () => void;
 }
@@ -57,6 +65,7 @@ export function useIpPassthrough(): UseIpPassthroughReturn {
   const [passthroughMode, setPassthroughMode] =
     useState<PassthroughMode | null>(null);
   const [targetMac, setTargetMac] = useState<string | null>(null);
+  const [ipptNat, setIpptNat] = useState<IpptNat | null>(null);
   const [usbMode, setUsbMode] = useState<UsbMode | null>(null);
   const [dnsProxy, setDnsProxy] = useState<DnsProxy | null>(null);
   const [clientMac, setClientMac] = useState<string | null>(null);
@@ -96,6 +105,7 @@ export function useIpPassthrough(): UseIpPassthroughReturn {
 
       setPassthroughMode(data.passthrough_mode);
       setTargetMac(data.target_mac);
+      setIpptNat(data.ippt_nat);
       setUsbMode(data.usb_mode);
       setDnsProxy(data.dns_proxy);
       setClientMac(data.client_mac);
@@ -119,7 +129,7 @@ export function useIpPassthrough(): UseIpPassthroughReturn {
   }, [fetchSettings]);
 
   // ---------------------------------------------------------------------------
-  // Apply all IP Passthrough settings
+  // Apply all IP Passthrough settings (backend reboots immediately after)
   // ---------------------------------------------------------------------------
   const saveSettings = useCallback(
     async (data: IpPassthroughApplyData): Promise<boolean> => {
@@ -131,6 +141,7 @@ export function useIpPassthrough(): UseIpPassthroughReturn {
           action: "apply",
           passthrough_mode: data.passthrough_mode,
           target_mac: data.target_mac,
+          ippt_nat: data.ippt_nat,
           usb_mode: data.usb_mode,
           dns_proxy: data.dns_proxy,
         };
@@ -153,8 +164,6 @@ export function useIpPassthrough(): UseIpPassthroughReturn {
           return false;
         }
 
-        // Silent re-fetch to sync local state (no skeleton)
-        await fetchSettings(true);
         return true;
       } catch (err) {
         if (!mountedRef.current) return false;
@@ -168,34 +177,13 @@ export function useIpPassthrough(): UseIpPassthroughReturn {
         }
       }
     },
-    [fetchSettings]
+    []
   );
-
-  // ---------------------------------------------------------------------------
-  // Reboot device (called from reboot dialog, separate from save)
-  // ---------------------------------------------------------------------------
-  const rebootDevice = useCallback(async (): Promise<boolean> => {
-    try {
-      const resp = await fetch(CGI_ENDPOINT, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "reboot" } satisfies IpPassthroughSaveRequest),
-      });
-
-      if (!resp.ok) {
-        throw new Error(`HTTP ${resp.status}: ${resp.statusText}`);
-      }
-
-      const data: IpPassthroughSaveResponse = await resp.json();
-      return data.success;
-    } catch {
-      return false;
-    }
-  }, []);
 
   return {
     passthroughMode,
     targetMac,
+    ipptNat,
     usbMode,
     dnsProxy,
     clientMac,
@@ -203,7 +191,6 @@ export function useIpPassthrough(): UseIpPassthroughReturn {
     isSaving,
     error,
     saveSettings,
-    rebootDevice,
     refresh: fetchSettings,
   };
 }

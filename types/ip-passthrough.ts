@@ -16,6 +16,9 @@ export type UsbMode = "0" | "1" | "2" | "3";
 /** DNS offloading via DHCPV4DNS */
 export type DnsProxy = "enabled" | "disabled";
 
+/** IPPT NAT mode: 0=WithoutNAT (public IP only to passthrough device), 1=WithNAT */
+export type IpptNat = "0" | "1";
+
 // --- API Responses -----------------------------------------------------------
 
 /** Response from GET /cgi-bin/quecmanager/network/ip_passthrough.sh */
@@ -23,8 +26,10 @@ export interface IpPassthroughSettingsResponse {
   success: boolean;
   /** Current passthrough mode */
   passthrough_mode: PassthroughMode;
-  /** Target device MAC — empty string when mode is disabled */
+  /** Target device MAC/hostname — empty string when mode is disabled or no filter set */
   target_mac: string;
+  /** IPPT NAT working mode: 0=WithoutNAT, 1=WithNAT */
+  ippt_nat: IpptNat;
   /** Current USB modem protocol index */
   usb_mode: UsbMode;
   /** DNS offloading status */
@@ -38,16 +43,14 @@ export interface IpPassthroughSettingsResponse {
 
 /** POST body for /cgi-bin/quecmanager/network/ip_passthrough.sh */
 export interface IpPassthroughSaveRequest {
-  /** "apply" to write settings, "reboot" to restart the device */
-  action: "apply" | "reboot";
-  /** Required when action is "apply" */
-  passthrough_mode?: PassthroughMode;
+  /** Only "apply" — settings are applied and reboot is triggered in one shot */
+  action: "apply";
+  passthrough_mode: PassthroughMode;
   /** Required when passthrough_mode is "eth" or "usb" */
-  target_mac?: string;
-  /** Required when action is "apply" */
-  usb_mode?: UsbMode;
-  /** Required when action is "apply" */
-  dns_proxy?: DnsProxy;
+  target_mac: string;
+  ippt_nat: IpptNat;
+  usb_mode: UsbMode;
+  dns_proxy: DnsProxy;
 }
 
 /** Response from POST /cgi-bin/quecmanager/network/ip_passthrough.sh */
@@ -55,6 +58,4 @@ export interface IpPassthroughSaveResponse {
   success: boolean;
   error?: string;
   detail?: string;
-  /** True after action="apply" — signals frontend to show reboot dialog */
-  reboot_required?: boolean;
 }

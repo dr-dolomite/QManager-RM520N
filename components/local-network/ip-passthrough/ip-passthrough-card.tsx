@@ -35,15 +35,38 @@ import {
 import { Loader2, RotateCcwIcon } from "lucide-react";
 
 import { useIpPassthrough } from "@/hooks/use-ip-passthrough";
-import type { PassthroughMode, UsbMode, DnsProxy } from "@/types/ip-passthrough";
+import type {
+  PassthroughMode,
+  DnsProxy,
+  IpptNat,
+  UsbMode,
+} from "@/types/ip-passthrough";
 
 // MAC source: "client" = use client_mac from server, "manual" = text input
 type MacSource = "client" | "manual";
+
+// Local-only types — descriptive strings avoid Radix Select "0"-as-falsy bug
+type NatMode = "nat-on" | "nat-off";
+type UsbModeLocal = "rmnet" | "ecm" | "mbim" | "rndis";
+
+const USB_MODE_TO_API: Record<UsbModeLocal, string> = {
+  rmnet: "0",
+  ecm: "1",
+  mbim: "2",
+  rndis: "3",
+};
+const USB_MODE_FROM_API: Record<string, UsbModeLocal> = {
+  "0": "rmnet",
+  "1": "ecm",
+  "2": "mbim",
+  "3": "rndis",
+};
 
 const IPPassthroughCard = () => {
   const {
     passthroughMode,
     targetMac,
+    ipptNat,
     usbMode,
     dnsProxy,
     clientMac,
@@ -51,38 +74,46 @@ const IPPassthroughCard = () => {
     isSaving,
     error,
     saveSettings,
-    rebootDevice,
   } = useIpPassthrough();
 
-  // Local form state
+  // Local form state — NatMode and UsbModeLocal use descriptive strings to
+  // avoid Radix Select treating "0" as falsy and showing the placeholder
   const [localMode, setLocalMode] = useState<PassthroughMode>("disabled");
   const [localMacSource, setLocalMacSource] = useState<MacSource>("client");
   const [localMacInput, setLocalMacInput] = useState<string>("");
-  const [localUsbMode, setLocalUsbMode] = useState<UsbMode>("1");
+  const [localIpptNat, setLocalIpptNat] = useState<NatMode>("nat-off");
+  const [localUsbMode, setLocalUsbMode] = useState<UsbModeLocal>("ecm");
   const [localDnsProxy, setLocalDnsProxy] = useState<DnsProxy>("disabled");
 
-  // Reboot dialog state
-  const [showRebootDialog, setShowRebootDialog] = useState(false);
-  const [isRebooting, setIsRebooting] = useState(false);
+  // Pre-save confirmation dialog
+  const [showConfirmDialog, setShowConfirmDialog] = useState(false);
 
-  // Sync form state when data arrives from server
+  // Sync form state when server data arrives
   useEffect(() => {
     if (passthroughMode !== null) setLocalMode(passthroughMode);
-    if (usbMode !== null) setLocalUsbMode(usbMode);
+    if (ipptNat !== null) setLocalIpptNat(ipptNat === "1" ? "nat-on" : "nat-off");
+    if (usbMode !== null) setLocalUsbMode(USB_MODE_FROM_API[usbMode] ?? "ecm");
     if (dnsProxy !== null) setLocalDnsProxy(dnsProxy);
 
-    if (targetMac !== null && passthroughMode !== "disabled") {
-      // If the stored MAC matches the client MAC, default to "client" source
-      if (clientMac && targetMac === clientMac) {
+    // Initialise MAC source only when mode is active
+    if (
+      passthroughMode !== null &&
+      passthroughMode !== "disabled" &&
+      targetMac !== null
+    ) {
+      if (targetMac === "") {
+        // Passthrough active but no IPPT_info set — default to "client" source
         setLocalMacSource("client");
-      } else if (targetMac !== "") {
+        setLocalMacInput("");
+      } else if (clientMac && targetMac === clientMac) {
+        // Stored MAC matches this device
+        setLocalMacSource("client");
+      } else {
         setLocalMacSource("manual");
         setLocalMacInput(targetMac);
-      } else {
-        setLocalMacSource("client");
       }
     }
-  }, [passthroughMode, targetMac, usbMode, dnsProxy, clientMac]);
+  }, [passthroughMode, targetMac, ipptNat, usbMode, dnsProxy, clientMac]);
 
   // Resolved MAC to send to backend
   const resolvedMac =
@@ -90,15 +121,15 @@ const IPPassthroughCard = () => {
 
   const macRequired = localMode !== "disabled";
   const macValid =
-    !macRequired ||
-    /^[0-9A-Fa-f]{2}(:[0-9A-Fa-f]{2}){5}$/.test(resolvedMac);
+    !macRequired || /^[0-9A-Fa-f]{2}(:[0-9A-Fa-f]{2}){5}$/.test(resolvedMac);
 
-  const syncFromServer = () => {
+  const resetToServer = () => {
     if (passthroughMode !== null) setLocalMode(passthroughMode);
-    if (usbMode !== null) setLocalUsbMode(usbMode);
+    if (ipptNat !== null) setLocalIpptNat(ipptNat === "1" ? "nat-on" : "nat-off");
+    if (usbMode !== null) setLocalUsbMode(USB_MODE_FROM_API[usbMode] ?? "ecm");
     if (dnsProxy !== null) setLocalDnsProxy(dnsProxy);
 
-    if (targetMac !== null && passthroughMode !== "disabled") {
+    if (passthroughMode !== "disabled" && targetMac) {
       if (clientMac && targetMac === clientMac) {
         setLocalMacSource("client");
       } else if (targetMac !== "") {
@@ -106,6 +137,7 @@ const IPPassthroughCard = () => {
         setLocalMacInput(targetMac);
       } else {
         setLocalMacSource("client");
+        setLocalMacInput("");
       }
     } else {
       setLocalMacSource("client");
@@ -113,46 +145,42 @@ const IPPassthroughCard = () => {
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  // Step 1: validate → open confirm dialog
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
     if (macRequired && resolvedMac === "") {
       toast.error("A target device MAC address is required");
       return;
     }
-
     if (!macValid) {
       toast.error("Enter a valid MAC address (XX:XX:XX:XX:XX:XX)");
       return;
     }
 
+    setShowConfirmDialog(true);
+  };
+
+  // Step 2: user confirmed → apply + reboot
+  const handleConfirmedApply = async () => {
+    setShowConfirmDialog(false);
+
     const success = await saveSettings({
       passthrough_mode: localMode,
       target_mac: macRequired ? resolvedMac : "",
-      usb_mode: localUsbMode,
+      ippt_nat: (localIpptNat === "nat-on" ? "1" : "0") as IpptNat,
+      usb_mode: USB_MODE_TO_API[localUsbMode] as UsbMode,
       dns_proxy: localDnsProxy,
     });
 
     if (success) {
-      toast.success("Settings saved — reboot required to apply");
-      setShowRebootDialog(true);
+      toast.success("Settings applied — device is rebooting…");
     } else {
       toast.error("Failed to save IP Passthrough settings");
     }
   };
 
-  const handleReboot = async () => {
-    setIsRebooting(true);
-    const sent = await rebootDevice();
-    if (sent) {
-      toast.success("Device is rebooting…");
-    } else {
-      toast.error("Failed to send reboot command");
-      setIsRebooting(false);
-    }
-  };
-
-  // Format MAC input: strip non-hex, uppercase, insert colons
+  // Format MAC input: strip non-hex, uppercase, insert colons every 2 chars
   const handleMacInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const raw = e.target.value.replace(/[^0-9A-Fa-f]/g, "").toUpperCase();
     const formatted = raw.match(/.{1,2}/g)?.join(":") ?? raw;
@@ -184,9 +212,15 @@ const IPPassthroughCard = () => {
             </div>
             <div className="grid xl:grid-cols-2 grid-cols-1 gap-4">
               <div className="space-y-2">
+                <Skeleton className="h-4 w-28" />
+                <Skeleton className="h-9 w-full" />
+              </div>
+              <div className="space-y-2">
                 <Skeleton className="h-4 w-36" />
                 <Skeleton className="h-9 w-full" />
               </div>
+            </div>
+            <div className="grid xl:grid-cols-2 grid-cols-1 gap-4">
               <div className="space-y-2">
                 <Skeleton className="h-4 w-28" />
                 <Skeleton className="h-9 w-full" />
@@ -212,9 +246,7 @@ const IPPassthroughCard = () => {
         </CardDescription>
       </CardHeader>
       <CardContent>
-        {error && (
-          <p className="text-sm text-destructive mb-4">{error}</p>
-        )}
+        {error && <p className="text-sm text-destructive mb-4">{error}</p>}
         <form className="grid gap-4" onSubmit={handleSubmit}>
           <div className="w-full">
             <FieldSet>
@@ -301,7 +333,10 @@ const IPPassthroughCard = () => {
                                 initial={{ opacity: 0, y: -10 }}
                                 animate={{ opacity: 1, y: 0 }}
                                 exit={{ opacity: 0, y: -10 }}
-                                transition={{ duration: 0.3, ease: "easeInOut" }}
+                                transition={{
+                                  duration: 0.3,
+                                  ease: "easeInOut",
+                                }}
                               >
                                 <Input
                                   placeholder="XX:XX:XX:XX:XX:XX"
@@ -312,7 +347,8 @@ const IPPassthroughCard = () => {
                                   disabled={isSaving}
                                 />
                                 <p className="text-xs text-muted-foreground mt-1">
-                                  Only this specific device will receive the WAN IP.
+                                  Only this specific device will receive the WAN
+                                  IP.
                                 </p>
                               </motion.div>
                             )}
@@ -324,27 +360,49 @@ const IPPassthroughCard = () => {
                 </div>
 
                 <div className="grid xl:grid-cols-2 grid-cols-1 grid-flow-row gap-4">
-                  {/* Field 3: USB Modem Protocol */}
+                  {/* Field 3: IPPT NAT Mode */}
+                  <Field>
+                    <FieldLabel>NAT Mode</FieldLabel>
+                    <Select
+                      value={localIpptNat}
+                      onValueChange={(v) => setLocalIpptNat(v as NatMode)}
+                      disabled={isSaving}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select NAT Mode" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="nat-on">
+                          With NAT (Recommended)
+                        </SelectItem>
+                        <SelectItem value="nat-off">Without NAT</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </Field>
+
+                  {/* Field 4: USB Modem Protocol */}
                   <Field>
                     <FieldLabel>USB Connection Mode</FieldLabel>
                     <Select
                       value={localUsbMode}
-                      onValueChange={(v) => setLocalUsbMode(v as UsbMode)}
+                      onValueChange={(v) => setLocalUsbMode(v as UsbModeLocal)}
                       disabled={isSaving}
                     >
                       <SelectTrigger>
                         <SelectValue placeholder="Choose USB Modem Protocol" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="0">RMNET (QMI)</SelectItem>
-                        <SelectItem value="1">ECM (Universal)</SelectItem>
-                        <SelectItem value="2">MBIM (Windows)</SelectItem>
-                        <SelectItem value="3">RNDIS (Legacy)</SelectItem>
+                        <SelectItem value="rmnet">RMNET (QMI)</SelectItem>
+                        <SelectItem value="ecm">ECM (Universal)</SelectItem>
+                        <SelectItem value="mbim">MBIM (Windows)</SelectItem>
+                        <SelectItem value="rndis">RNDIS (Legacy)</SelectItem>
                       </SelectContent>
                     </Select>
                   </Field>
+                </div>
 
-                  {/* Field 4: DNS Offloading */}
+                <div className="grid xl:grid-cols-2 grid-cols-1 grid-flow-row gap-4">
+                  {/* Field 5: DNS Offloading */}
                   <Field>
                     <FieldLabel>DNS Offloading</FieldLabel>
                     <Select
@@ -376,7 +434,7 @@ const IPPassthroughCard = () => {
               {isSaving ? (
                 <>
                   <Loader2 className="h-4 w-4 animate-spin" />
-                  Saving…
+                  Applying…
                 </>
               ) : (
                 "Save Settings"
@@ -385,7 +443,7 @@ const IPPassthroughCard = () => {
             <Button
               type="button"
               variant="outline"
-              onClick={syncFromServer}
+              onClick={resetToServer}
               disabled={isSaving}
             >
               <RotateCcwIcon />
@@ -393,29 +451,38 @@ const IPPassthroughCard = () => {
           </div>
         </form>
 
-        {/* Reboot confirmation dialog */}
-        <AlertDialog open={showRebootDialog} onOpenChange={setShowRebootDialog}>
+        {/* Pre-save confirmation dialog */}
+        <AlertDialog
+          open={showConfirmDialog}
+          onOpenChange={setShowConfirmDialog}
+        >
           <AlertDialogContent>
             <AlertDialogHeader>
-              <AlertDialogTitle>Reboot Required</AlertDialogTitle>
-              <AlertDialogDescription>
-                IP Passthrough changes require a device reboot to take effect.
-                Would you like to reboot now?
+              <AlertDialogTitle>
+                Device Will Reboot Immediately
+              </AlertDialogTitle>
+              <AlertDialogDescription asChild>
+                <div className="space-y-3 text-sm text-muted-foreground">
+                  <p>
+                    Applying these changes will save the configuration and
+                    immediately reboot the device.
+                  </p>
+                  {localMode !== "disabled" && (
+                    <p className="font-medium text-foreground">
+                      Once IP Passthrough is active, the local gateway
+                      (192.168.224.1) will no longer be reachable. Make sure you
+                      have an active Tailscale connection or another out-of-band
+                      method to access the device after reboot.
+                    </p>
+                  )}
+                  <p>This action is stored and will persist across reboots.</p>
+                </div>
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
-              <AlertDialogCancel disabled={isRebooting}>
-                Reboot Later
-              </AlertDialogCancel>
-              <AlertDialogAction disabled={isRebooting} onClick={handleReboot}>
-                {isRebooting ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    Rebooting…
-                  </>
-                ) : (
-                  "Reboot Now"
-                )}
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction onClick={handleConfirmedApply}>
+                Apply &amp; Reboot
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>

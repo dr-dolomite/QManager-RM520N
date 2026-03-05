@@ -2,13 +2,14 @@
 # =============================================================================
 # ip_passthrough.sh — CGI Endpoint: IP Passthrough (IPPT) Settings (GET + POST)
 # =============================================================================
-# GET:  Reads current passthrough mode (MPDN_RULE), USB modem protocol
-#       (QCFG usbnet), and DNS offloading (DHCPV4DNS).
-# POST: Applies all settings via AT commands and schedules a reboot via the
-#       action discriminator pattern.
+# GET:  Reads current passthrough mode (MPDN_RULE), NAT mode (IPPT_NAT),
+#       USB modem protocol (QCFG usbnet), and DNS offloading (DHCPV4DNS).
+# POST: Validates, applies all AT commands, then immediately reboots.
+#       No separate reboot action — apply and reboot happen in one shot.
 #
 # AT commands used (GET):
-#   AT+QMAP="MPDN_RULE"   -> Passthrough mode + target MAC (rule 0)
+#   AT+QMAP="MPDN_RULE"   -> Passthrough mode + IPPT_info for rule 0
+#   AT+QMAP="IPPT_NAT"    -> NAT mode (0=WithoutNAT, 1=WithNAT)
 #   AT+QCFG="usbnet"      -> USB modem protocol (0=rmnet,1=ecm,2=mbim,3=rndis)
 #   AT+QMAP="DHCPV4DNS"   -> DNS offloading status (enable/disable)
 #
@@ -17,10 +18,15 @@
 #   AT+QMAPWAC=1                      -> WAC reset (only when disabling)
 #   AT+QMAP="MPDN_rule",0,1,0,1,1,"<mac>" -> Enable ETH passthrough
 #   AT+QMAP="MPDN_rule",0,1,0,3,1,"<mac>" -> Enable USB passthrough
+#   AT+QMAP="IPPT_NAT",<0|1>         -> Set NAT mode
 #   AT+QCFG="usbnet",<0-3>           -> Set USB modem protocol
 #   AT+QMAP="DHCPV4DNS","enable|disable" -> Set DNS offloading
 #
-# Reboot is handled via action=reboot (separate POST), not QPOWD.
+# MPDN_RULE field layout (comma-separated after +QMAP: prefix):
+#   $1="MPDN_rule"  $2=rule_num  $3=profileID  $4=VLAN_ID
+#   $5=IPPT_mode    $6=auto_connect  [$7=IPPT_info (MAC/hostname, quoted)]
+#
+# IPPT_mode values: 0=disabled, 1=ETH, 2=WiFi, 3=USB-ECM/RNDIS, 4=Any
 #
 # Endpoint: GET/POST /cgi-bin/quecmanager/network/ip_passthrough.sh
 # Install location: /www/cgi-bin/quecmanager/network/ip_passthrough.sh
@@ -84,7 +90,9 @@ validate_mac() {
 if [ "$REQUEST_METHOD" = "GET" ]; then
     qlog_info "Fetching IP Passthrough settings"
 
-    # --- 1. Passthrough mode + MAC from MPDN_RULE ---
+    # --- 1. Passthrough mode + IPPT_info from MPDN_RULE ---
+    # Field layout (awk -F','): $1="MPDN_rule" $2=rule_num $3=profileID
+    #   $4=VLAN_ID $5=IPPT_mode $6=auto_connect [$7=IPPT_info]
     passthrough_mode="disabled"
     target_mac=""
 
@@ -92,19 +100,23 @@ if [ "$REQUEST_METHOD" = "GET" ]; then
     sleep "$CMD_GAP"
 
     if [ -n "$mpdn_resp" ]; then
-        # Grab the line for rule index 0
+        # Grab line for rule 0
         rule0=$(printf '%s' "$mpdn_resp" | grep '"MPDN_rule",0,')
 
         if [ -n "$rule0" ]; then
-            case "$rule0" in
-                *'MPDN_rule",0,1,0,1,1'*)
+            # Extract IPPT_mode (field 5) — use +0 to avoid gsub field-rebuild bug in BusyBox awk
+            ippt_mode=$(printf '%s' "$rule0" | awk -F',' '{print $5+0}')
+
+            case "$ippt_mode" in
+                1)
                     passthrough_mode="eth"
-                    # MAC is the last comma-separated field, strip quotes
-                    target_mac=$(printf '%s' "$rule0" | awk -F',' '{gsub(/"/, "", $NF); print $NF}')
+                    # IPPT_info is field 7 (quoted MAC) — only present when NF >= 7
+                    target_mac=$(printf '%s' "$rule0" | awk -F',' 'NF>=7 {gsub(/"/, "", $7); print $7}')
                     ;;
-                *'MPDN_rule",0,1,0,3,1'*)
+                3)
                     passthrough_mode="usb"
-                    target_mac=$(printf '%s' "$rule0" | awk -F',' '{gsub(/"/, "", $NF); print $NF}')
+                    # IPPT_info is field 7 (quoted MAC/hostname) — only present when NF >= 7
+                    target_mac=$(printf '%s' "$rule0" | awk -F',' 'NF>=7 {gsub(/"/, "", $7); print $7}')
                     ;;
                 *)
                     passthrough_mode="disabled"
@@ -114,23 +126,39 @@ if [ "$REQUEST_METHOD" = "GET" ]; then
         fi
     fi
 
-    qlog_debug "MPDN_RULE: mode=$passthrough_mode mac=$target_mac"
+    qlog_debug "MPDN_RULE: ippt_mode=$ippt_mode mode=$passthrough_mode mac=$target_mac"
 
-    # --- 2. USB modem protocol from QCFG usbnet ---
+    # --- 2. IPPT NAT mode ---
+    ippt_nat="0"
+
+    nat_resp=$(run_at 'AT+QMAP="IPPT_NAT"')
+    sleep "$CMD_GAP"
+
+    if [ -n "$nat_resp" ]; then
+        # +QMAP: "IPPT_NAT",<0|1> — pattern-match to skip empty lines
+        nat_val=$(printf '%s' "$nat_resp" | awk -F',' '/IPPT_NAT/{print $2+0; exit}')
+        case "$nat_val" in
+            0|1) ippt_nat="$nat_val" ;;
+        esac
+    fi
+
+    qlog_debug "IPPT_NAT: $ippt_nat"
+
+    # --- 3. USB modem protocol from QCFG usbnet ---
     usb_mode="1"
 
     usbnet_resp=$(run_at 'AT+QCFG="usbnet"')
     sleep "$CMD_GAP"
 
     if [ -n "$usbnet_resp" ]; then
-        # +QCFG: "usbnet",<mode>
-        usb_mode=$(printf '%s' "$usbnet_resp" | awk -F',' '{gsub(/[^0-9]/, "", $2); print $2}')
+        # +QCFG: "usbnet",<mode> — pattern-match to skip empty lines
+        usb_mode=$(printf '%s' "$usbnet_resp" | awk -F',' '/usbnet/{print $2+0; exit}')
         [ -z "$usb_mode" ] && usb_mode="1"
     fi
 
     qlog_debug "usbnet mode=$usb_mode"
 
-    # --- 3. DNS offloading from DHCPV4DNS ---
+    # --- 4. DNS offloading from DHCPV4DNS ---
     dns_proxy="disabled"
 
     dhcp_resp=$(run_at 'AT+QMAP="DHCPV4DNS"')
@@ -146,7 +174,7 @@ if [ "$REQUEST_METHOD" = "GET" ]; then
 
     qlog_debug "DHCPV4DNS: dns_proxy=$dns_proxy"
 
-    # --- 4. Client MAC from ARP (for "This Device" option) ---
+    # --- 5. Client MAC from ARP (for "This Device" option) ---
     client_mac=""
     if [ -n "$REMOTE_ADDR" ]; then
         client_mac=$(awk -v ip="$REMOTE_ADDR" '$1==ip{print $4; exit}' /proc/net/arp 2>/dev/null)
@@ -157,11 +185,12 @@ if [ "$REQUEST_METHOD" = "GET" ]; then
         esac
     fi
 
-    qlog_info "GET complete: mode=$passthrough_mode usb=$usb_mode dns=$dns_proxy client_mac=$client_mac"
+    qlog_info "GET: mode=$passthrough_mode nat=$ippt_nat usb=$usb_mode dns=$dns_proxy client=$client_mac"
 
     jq -n \
         --arg mode "$passthrough_mode" \
         --arg mac "$target_mac" \
+        --arg nat "$ippt_nat" \
         --arg usb "$usb_mode" \
         --arg dns "$dns_proxy" \
         --arg client "$client_mac" \
@@ -169,6 +198,7 @@ if [ "$REQUEST_METHOD" = "GET" ]; then
             success: true,
             passthrough_mode: $mode,
             target_mac: $mac,
+            ippt_nat: $nat,
             usb_mode: $usb,
             dns_proxy: $dns,
             client_mac: $client
@@ -177,7 +207,7 @@ if [ "$REQUEST_METHOD" = "GET" ]; then
 fi
 
 # =============================================================================
-# POST — Apply settings or trigger reboot
+# POST — Apply all settings and immediately reboot
 # =============================================================================
 if [ "$REQUEST_METHOD" = "POST" ]; then
 
@@ -198,15 +228,16 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
     fi
 
     # -------------------------------------------------------------------------
-    # action: apply — Write all IP Passthrough settings via AT commands
+    # action: apply — Write all settings then reboot immediately
     # -------------------------------------------------------------------------
     if [ "$ACTION" = "apply" ]; then
         PASSTHROUGH_MODE=$(printf '%s' "$POST_DATA" | jq -r '.passthrough_mode // empty')
         TARGET_MAC=$(printf '%s' "$POST_DATA" | jq -r '.target_mac // empty')
+        IPPT_NAT=$(printf '%s' "$POST_DATA" | jq -r '.ippt_nat // empty')
         USB_MODE=$(printf '%s' "$POST_DATA" | jq -r '.usb_mode // empty')
         DNS_PROXY=$(printf '%s' "$POST_DATA" | jq -r '.dns_proxy // empty')
 
-        qlog_info "Apply: mode=$PASSTHROUGH_MODE mac=$TARGET_MAC usb=$USB_MODE dns=$DNS_PROXY"
+        qlog_info "Apply: mode=$PASSTHROUGH_MODE mac=$TARGET_MAC nat=$IPPT_NAT usb=$USB_MODE dns=$DNS_PROXY"
 
         # --- Validate passthrough_mode ---
         case "$PASSTHROUGH_MODE" in
@@ -228,6 +259,15 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
                 exit 0
             fi
         fi
+
+        # --- Validate ippt_nat ---
+        case "$IPPT_NAT" in
+            0|1) ;;
+            *)
+                echo '{"success":false,"error":"invalid_ippt_nat","detail":"ippt_nat must be 0 (WithoutNAT) or 1 (WithNAT)"}'
+                exit 0
+                ;;
+        esac
 
         # --- Validate usb_mode ---
         case "$USB_MODE" in
@@ -291,7 +331,19 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
 
         sleep "$CMD_GAP"
 
-        # --- Step 2: Apply USB modem protocol ---
+        # --- Step 2: Apply IPPT_NAT mode ---
+        result=$(qcmd "AT+QMAP=\"IPPT_NAT\",${IPPT_NAT}" 2>/dev/null)
+        case "$result" in
+            *ERROR*)
+                qlog_error "IPPT_NAT failed: $result"
+                echo '{"success":false,"error":"ippt_nat_failed","detail":"Failed to set IPPT NAT mode"}'
+                exit 0
+                ;;
+        esac
+
+        sleep "$CMD_GAP"
+
+        # --- Step 3: Apply USB modem protocol ---
         result=$(qcmd "AT+QCFG=\"usbnet\",${USB_MODE}" 2>/dev/null)
         case "$result" in
             *ERROR*)
@@ -303,7 +355,7 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
 
         sleep "$CMD_GAP"
 
-        # --- Step 3: Apply DNS offloading ---
+        # --- Step 4: Apply DNS offloading ---
         case "$DNS_PROXY" in
             enabled)  dns_cmd='AT+QMAP="DHCPV4DNS","enable"' ;;
             disabled) dns_cmd='AT+QMAP="DHCPV4DNS","disable"' ;;
@@ -318,27 +370,18 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
                 ;;
         esac
 
-        qlog_info "All settings applied successfully (reboot required)"
-        jq -n '{"success":true,"reboot_required":true}'
-        exit 0
-    fi
+        qlog_info "All settings applied — rebooting now"
 
-    # -------------------------------------------------------------------------
-    # action: reboot — Trigger device reboot
-    # -------------------------------------------------------------------------
-    if [ "$ACTION" = "reboot" ]; then
-        qlog_info "Device reboot requested via IP Passthrough settings"
-
-        # Return response BEFORE rebooting
+        # Return response BEFORE rebooting so HTTP is flushed
         jq -n '{"success":true}'
 
-        # Schedule reboot with delay to ensure HTTP response is flushed
-        ( sleep 1 && reboot ) &
+        # Reboot with short delay to ensure response is sent
+        ( sleep 2 && reboot ) &
         exit 0
     fi
 
     # --- Unknown action ---
-    echo '{"success":false,"error":"invalid_action","detail":"action must be apply or reboot"}'
+    echo '{"success":false,"error":"invalid_action","detail":"action must be apply"}'
     exit 0
 fi
 
