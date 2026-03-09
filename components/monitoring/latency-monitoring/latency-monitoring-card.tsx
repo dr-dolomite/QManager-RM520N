@@ -80,8 +80,8 @@ const EMPTY_MESSAGES: Record<ViewMode, string> = {
   daily: "No daily data available.",
 };
 
-/** Max entries shown in the table for real-time view */
-const REALTIME_TABLE_LIMIT = 6;
+/** Max entries shown in the chart and table for real-time view */
+const REALTIME_LIMIT = 10;
 
 // =============================================================================
 // Helper Functions
@@ -214,7 +214,7 @@ export function useLatencyMonitoring() {
   const chartData = useMemo<ChartDataPoint[]>(() => {
     switch (viewMode) {
       case "realtime":
-        return realtimeData.map((d) => ({
+        return realtimeData.slice(-REALTIME_LIMIT).map((d) => ({
           timestamp: d.timestamp,
           latency: d.latency,
           packet_loss: d.packet_loss,
@@ -247,7 +247,7 @@ export function useLatencyMonitoring() {
     let entries: PingEntry[];
     if (isRealtime) {
       // Take the most recent N entries
-      entries = realtimeData.slice(-REALTIME_TABLE_LIMIT);
+      entries = realtimeData.slice(-REALTIME_LIMIT);
     } else {
       const source =
         viewMode === "hourly"
@@ -347,7 +347,7 @@ const LatencyMonitoringCard = ({
               tickLine={false}
               axisLine={false}
               tickMargin={8}
-              minTickGap={32}
+              minTickGap={16}
               tickFormatter={(value) => {
                 const date = new Date(value);
                 if (viewMode === "realtime") {
@@ -371,15 +371,17 @@ const LatencyMonitoringCard = ({
               content={
                 <ChartTooltipContent
                   className="w-[180px]"
-                  labelFormatter={(value) => {
+                  labelFormatter={(_value, payload) => {
+                    const ts = payload?.[0]?.payload?.timestamp;
+                    if (!ts) return "";
                     if (viewMode === "daily") {
-                      return new Date(value).toLocaleDateString("en-US", {
+                      return new Date(ts).toLocaleDateString("en-US", {
                         month: "short",
                         day: "numeric",
                         year: "numeric",
                       });
                     }
-                    return new Date(value).toLocaleString("en-US", {
+                    return new Date(ts).toLocaleString("en-US", {
                       month: "short",
                       day: "numeric",
                       hour: "2-digit",
