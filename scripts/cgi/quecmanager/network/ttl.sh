@@ -31,10 +31,6 @@ cgi_handle_options
 TTL_FILE="/etc/firewall.user.ttl"
 TTL_INIT="/etc/init.d/qmanager_ttl"
 
-# --- HTTP Headers ------------------------------------------------------------
-
-# --- Handle CORS preflight ---------------------------------------------------
-
 # --- Helper: parse current values from the firewall rules file ----------------
 get_current_values() {
     local ttl=0 hl=0

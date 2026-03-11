@@ -18,10 +18,6 @@ qlog_init "cgi_terminal"
 cgi_headers
 cgi_handle_options
 
-# --- HTTP Headers ------------------------------------------------------------
-
-# --- Handle CORS preflight ---------------------------------------------------
-
 # --- Validate method ---------------------------------------------------------
 if [ "$REQUEST_METHOD" != "POST" ]; then
     cgi_error "method_not_allowed" "Use POST"

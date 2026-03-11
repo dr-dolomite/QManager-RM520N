@@ -54,7 +54,7 @@ cgi_read_post() {
     if [ -n "$CONTENT_LENGTH" ] && [ "$CONTENT_LENGTH" -gt 0 ] 2>/dev/null; then
         POST_DATA=$(dd bs=1 count="$CONTENT_LENGTH" 2>/dev/null)
     else
-        echo '{"success":false,"error":"no_body","detail":"POST body is empty"}'
+        cgi_error "no_body" "POST body is empty"
         exit 0
     fi
 }
@@ -91,7 +91,7 @@ cgi_error() {
 # ---------------------------------------------------------------------------
 cgi_reboot_response() {
     echo '{"success":true}'
-    ( sleep 1 && reboot ) &
+    ( ( sleep 1 && reboot ) </dev/null >/dev/null 2>&1 & )
     exit 0
 }
 

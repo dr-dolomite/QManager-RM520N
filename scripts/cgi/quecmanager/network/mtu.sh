@@ -28,10 +28,6 @@ cgi_handle_options
 MTU_FIREWALL_FILE="/etc/firewall.user.mtu"
 NETWORK_INTERFACE="rmnet_data0"
 
-# --- HTTP Headers ------------------------------------------------------------
-
-# --- Handle CORS preflight ---------------------------------------------------
-
 # --- Helper: get current MTU from the primary interface ----------------------
 get_current_mtu() {
     ip link show "$NETWORK_INTERFACE" 2>/dev/null \

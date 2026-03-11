@@ -28,10 +28,6 @@ cgi_handle_options
 STATE_FILE="/tmp/qmanager_profile_state.json"
 APPLY_BIN="/usr/bin/qmanager_profile_apply"
 
-# --- HTTP Headers ------------------------------------------------------------
-
-# --- Handle CORS preflight ---------------------------------------------------
-
 # --- Validate method ---------------------------------------------------------
 if [ "$REQUEST_METHOD" != "POST" ]; then
     cgi_error "method_not_allowed" "Use POST"

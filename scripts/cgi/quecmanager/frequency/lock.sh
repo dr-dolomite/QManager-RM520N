@@ -27,10 +27,6 @@ cgi_handle_options
 # --- Load tower lock library (for tower_read_lte_lock / tower_read_nr_lock) --
 . /usr/lib/qmanager/tower_lock_mgr.sh 2>/dev/null
 
-# --- HTTP Headers ------------------------------------------------------------
-
-# --- Handle CORS preflight ---------------------------------------------------
-
 # --- Validate method ---------------------------------------------------------
 if [ "$REQUEST_METHOD" != "POST" ]; then
     cgi_error "method_not_allowed" "Use POST"
@@ -145,6 +141,7 @@ if [ "$LOCK_TYPE" = "lte" ]; then
         echo '{"success":true,"type":"lte","action":"unlock"}'
     else
         cgi_error "invalid_action" "action must be lock or unlock"
+        exit 0
     fi
 
 # =============================================================================
@@ -248,8 +245,10 @@ elif [ "$LOCK_TYPE" = "nr" ]; then
         echo '{"success":true,"type":"nr","action":"unlock"}'
     else
         cgi_error "invalid_action" "action must be lock or unlock"
+        exit 0
     fi
 
 else
     cgi_error "invalid_type" "type must be lte or nr"
+    exit 0
 fi

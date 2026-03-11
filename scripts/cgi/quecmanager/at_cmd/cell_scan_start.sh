@@ -25,10 +25,6 @@ ERROR_FILE="/tmp/qmanager_cell_scan_error"
 SCANNER_BIN="/usr/bin/qmanager_cell_scanner"
 LONG_FLAG="/tmp/qmanager_long_running"
 
-# --- HTTP Headers ------------------------------------------------------------
-
-# --- Handle CORS preflight ---------------------------------------------------
-
 # --- Validate method ---------------------------------------------------------
 if [ "$REQUEST_METHOD" != "POST" ]; then
     cgi_error "method_not_allowed" "Use POST"

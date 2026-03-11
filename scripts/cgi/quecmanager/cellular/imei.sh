@@ -30,10 +30,6 @@ BACKUP_CONFIG="/etc/qmanager/imei_backup.json"
 CHECK_PENDING="/etc/qmanager/imei_check_pending"
 CMD_GAP=0.2
 
-# --- HTTP Headers ------------------------------------------------------------
-
-# --- Handle CORS preflight ---------------------------------------------------
-
 # =============================================================================
 # GET — Fetch current IMEI and backup configuration
 # =============================================================================

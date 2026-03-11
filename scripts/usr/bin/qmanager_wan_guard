@@ -37,7 +37,6 @@ qlog_init "wan_guard"
 SETTLE_TIME=10
 WAN_INTERFACES="wan wan2 wan3 wan4"
 
-# --- Helper: strip command echo + OK/ERROR from sms_tool output --------------
 # --- Settle: wait for modem AT interface readiness ---------------------------
 qlog_info "Settling ${SETTLE_TIME}s for modem AT readiness"
 wait_modem_ready "$SETTLE_TIME"

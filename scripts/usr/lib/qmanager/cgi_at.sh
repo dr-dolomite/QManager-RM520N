@@ -14,7 +14,7 @@ command -v qlog_warn >/dev/null 2>&1 || qlog_warn() { :; }
 # response, then print the payload on stdout.
 # ---------------------------------------------------------------------------
 strip_at_response() {
-    printf '%s' "$1" | tr -d '\r' | sed '1d' | sed '/^OK$/d' | sed '/^ERROR$/d'
+    printf '%s' "$1" | tr -d '\r' | sed -e '1d' -e '/^OK$/d' -e '/^ERROR$/d'
 }
 
 # ---------------------------------------------------------------------------

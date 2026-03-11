@@ -23,10 +23,6 @@ qlog_init "cgi_dns"
 cgi_headers
 cgi_handle_options
 
-# --- HTTP Headers ------------------------------------------------------------
-
-# --- Handle CORS preflight ---------------------------------------------------
-
 # --- Helper: determine NIC from MPDN_RULE ------------------------------------
 # Parses AT+QMAP="MPDN_RULE" response.
 # Fields: "MPDN_rule", index, enabled, pdnIndex, interfaceType, ipType

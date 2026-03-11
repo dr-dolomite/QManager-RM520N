@@ -28,10 +28,6 @@ cgi_headers
 # --- Configuration -----------------------------------------------------------
 CMD_GAP=0.2   # Gap between AT commands (seconds)
 
-# --- HTTP Headers ------------------------------------------------------------
-
-# --- Handle CORS preflight ---------------------------------------------------
-
 qlog_info "Querying current modem settings for profile form"
 
 # --- 1. APN profiles from AT+CGDCONT? ----------------------------------------

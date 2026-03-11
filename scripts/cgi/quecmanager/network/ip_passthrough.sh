@@ -44,10 +44,6 @@ CMD_GAP=0.2
 IPPT_CONFIG="/etc/qmanager/ippt_config.json"
 POLLER_CACHE="/tmp/qmanager_status.json"
 
-# --- HTTP Headers ------------------------------------------------------------
-
-# --- Handle CORS preflight ---------------------------------------------------
-
 # --- Helper: Validate MAC address (XX:XX:XX:XX:XX:XX) -----------------------
 validate_mac() {
     case "$1" in

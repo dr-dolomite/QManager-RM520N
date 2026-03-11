@@ -19,9 +19,5 @@ cgi_headers
 # --- Source profile manager library ------------------------------------------
 . /usr/lib/qmanager/profile_mgr.sh
 
-# --- HTTP Headers ------------------------------------------------------------
-
-# --- Handle CORS preflight ---------------------------------------------------
-
 # --- Serve profile list ------------------------------------------------------
 profile_list

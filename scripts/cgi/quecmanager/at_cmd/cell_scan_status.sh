@@ -21,9 +21,9 @@ PID_FILE="/tmp/qmanager_cell_scan.pid"
 RESULT_FILE="/tmp/qmanager_cell_scan_result.json"
 ERROR_FILE="/tmp/qmanager_cell_scan_error"
 
-# --- HTTP Headers ------------------------------------------------------------
-
-# --- Handle CORS preflight ---------------------------------------------------
+qlog_init "cgi_cell_scan_status"
+cgi_headers
+cgi_handle_options
 
 # --- Check: scanner process running? -----------------------------------------
 if [ -f "$PID_FILE" ]; then

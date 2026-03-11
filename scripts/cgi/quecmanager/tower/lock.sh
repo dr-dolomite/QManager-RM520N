@@ -29,10 +29,6 @@ cgi_handle_options
 # --- Load library ------------------------------------------------------------
 . /usr/lib/qmanager/tower_lock_mgr.sh 2>/dev/null
 
-# --- HTTP Headers ------------------------------------------------------------
-
-# --- Handle CORS preflight ---------------------------------------------------
-
 # --- Validate method ---------------------------------------------------------
 if [ "$REQUEST_METHOD" != "POST" ]; then
     cgi_error "method_not_allowed" "Use POST"
@@ -98,13 +94,13 @@ if [ "$LOCK_TYPE" = "lte" ]; then
         for val in $c1_earfcn $c2_earfcn $c3_earfcn; do
             [ -z "$val" ] && continue
             case "$val" in
-                *[!0-9]*) echo '{"success":false,"error":"invalid_earfcn","detail":"EARFCN must be numeric"}'; exit 0 ;;
+                *[!0-9]*) cgi_error "invalid_earfcn" "EARFCN must be numeric"; exit 0 ;;
             esac
         done
         for val in $c1_pci $c2_pci $c3_pci; do
             [ -z "$val" ] && continue
             case "$val" in
-                *[!0-9]*) echo '{"success":false,"error":"invalid_pci","detail":"PCI must be numeric"}'; exit 0 ;;
+                *[!0-9]*) cgi_error "invalid_pci" "PCI must be numeric"; exit 0 ;;
             esac
             if [ "$val" -gt 503 ]; then
                 cgi_error "invalid_pci" "PCI must be 0-503"
@@ -180,6 +176,7 @@ if [ "$LOCK_TYPE" = "lte" ]; then
         echo '{"success":true,"type":"lte","action":"unlock"}'
     else
         cgi_error "invalid_action" "action must be lock or unlock"
+        exit 0
     fi
 
 # =============================================================================
@@ -275,8 +272,10 @@ elif [ "$LOCK_TYPE" = "nr_sa" ]; then
         echo '{"success":true,"type":"nr_sa","action":"unlock"}'
     else
         cgi_error "invalid_action" "action must be lock or unlock"
+        exit 0
     fi
 
 else
     cgi_error "invalid_type" "type must be lte or nr_sa"
+    exit 0
 fi

@@ -21,9 +21,9 @@
 STATE_FILE="/tmp/qmanager_profile_state.json"
 PID_FILE="/tmp/qmanager_profile_apply.pid"
 
-# --- HTTP Headers ------------------------------------------------------------
-
-# --- Handle CORS preflight ---------------------------------------------------
+qlog_init "cgi_apply_status"
+cgi_headers
+cgi_handle_options
 
 # --- Case 1: No state file — nothing has been applied yet --------------------
 if [ ! -f "$STATE_FILE" ]; then

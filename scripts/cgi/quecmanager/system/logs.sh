@@ -25,10 +25,6 @@
 qlog_init "cgi_logs"
 cgi_headers
 
-# --- HTTP Headers ------------------------------------------------------------
-
-# --- Handle CORS preflight ---------------------------------------------------
-
 # --- Constants ---------------------------------------------------------------
 LOG_FILE="/tmp/qmanager.log"
 MAX_ROTATED=2

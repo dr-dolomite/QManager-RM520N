@@ -21,9 +21,9 @@
 SCENARIOS_DIR="/etc/qmanager/scenarios"
 ACTIVE_SCENARIO_FILE="/etc/qmanager/active_scenario"
 
-# --- HTTP Headers ------------------------------------------------------------
-
-# --- Handle CORS preflight ---------------------------------------------------
+qlog_init "cgi_scenario_list"
+cgi_headers
+cgi_handle_options
 
 # --- Read active scenario ----------------------------------------------------
 ACTIVE_ID=""

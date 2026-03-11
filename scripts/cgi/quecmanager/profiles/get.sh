@@ -19,10 +19,6 @@ cgi_headers
 # --- Source profile manager library ------------------------------------------
 . /usr/lib/qmanager/profile_mgr.sh
 
-# --- HTTP Headers ------------------------------------------------------------
-
-# --- Handle CORS preflight ---------------------------------------------------
-
 # --- Extract profile ID from query string ------------------------------------
 # QUERY_STRING format: id=p_1707900000_abc
 PROFILE_ID=$(echo "$QUERY_STRING" | sed -n 's/.*id=\([^&]*\).*/\1/p')

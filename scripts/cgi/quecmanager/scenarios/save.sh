@@ -33,9 +33,9 @@
 SCENARIOS_DIR="/etc/qmanager/scenarios"
 MAX_SCENARIOS=20
 
-# --- HTTP Headers ------------------------------------------------------------
-
-# --- Handle CORS preflight ---------------------------------------------------
+qlog_init "cgi_scenario_save"
+cgi_headers
+cgi_handle_options
 
 # --- Validate method ---------------------------------------------------------
 if [ "$REQUEST_METHOD" != "POST" ]; then

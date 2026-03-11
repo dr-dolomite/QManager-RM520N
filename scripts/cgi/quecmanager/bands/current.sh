@@ -35,10 +35,6 @@ cgi_headers
 FAILOVER_ENABLED_FILE="/etc/qmanager/band_failover_enabled"
 FAILOVER_ACTIVATED_FLAG="/tmp/qmanager_band_failover"
 
-# --- HTTP Headers ------------------------------------------------------------
-
-# --- Handle CORS preflight ---------------------------------------------------
-
 # --- Query modem for current band configuration ------------------------------
 qlog_info "Querying ue_capability_band"
 

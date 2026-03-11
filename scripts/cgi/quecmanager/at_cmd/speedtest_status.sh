@@ -23,9 +23,9 @@ PID_FILE="/tmp/qmanager_speedtest.pid"
 OUTPUT_FILE="/tmp/qmanager_speedtest_output"
 RESULT_FILE="/tmp/qmanager_speedtest_result.json"
 
-# --- HTTP Headers ------------------------------------------------------------
-
-# --- Handle CORS preflight ---------------------------------------------------
+qlog_init "cgi_speedtest_status"
+cgi_headers
+cgi_handle_options
 
 # =============================================================================
 # HELPERS

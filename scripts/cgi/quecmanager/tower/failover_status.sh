@@ -16,9 +16,9 @@ TOWER_CONFIG_FILE="/etc/qmanager/tower_lock.json"
 FAILOVER_ACTIVATED_FLAG="/tmp/qmanager_tower_failover"
 WATCHER_PID_FILE="/tmp/qmanager_tower_failover.pid"
 
-# --- HTTP Headers ------------------------------------------------------------
-
-# --- Handle CORS preflight ---------------------------------------------------
+qlog_init "cgi_tower_failover_status"
+cgi_headers
+cgi_handle_options
 
 # --- Read failover enabled from config (flash) ------------------------------
 # NOTE: Do not use `// false` — jq's alternative operator treats `false` as

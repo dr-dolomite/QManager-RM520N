@@ -22,9 +22,9 @@ FAILOVER_ENABLED_FILE="/etc/qmanager/band_failover_enabled"
 FAILOVER_ACTIVATED_FLAG="/tmp/qmanager_band_failover"
 WATCHER_PID_FILE="/tmp/qmanager_band_failover.pid"
 
-# --- HTTP Headers ------------------------------------------------------------
-
-# --- Handle CORS preflight ---------------------------------------------------
+qlog_init "cgi_band_failover_status"
+cgi_headers
+cgi_handle_options
 
 # --- Read failover enabled flag (persistent, flash) --------------------------
 enabled="false"

@@ -68,9 +68,6 @@ cleanup() {
 }
 trap cleanup EXIT INT TERM
 
-# --- Helper: strip command echo + response prefix from sms_tool output -------
-# sms_tool returns: "AT+CMD\r\nRESPONSE\r\nOK"
-# We want only the content between the first line and the trailing OK/ERROR.
 # =============================================================================
 # State File Management
 # =============================================================================

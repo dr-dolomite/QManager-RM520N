@@ -32,10 +32,6 @@ qlog_init "cgi_ethernet"
 cgi_headers
 cgi_handle_options
 
-# --- HTTP Headers ------------------------------------------------------------
-
-# --- Handle CORS preflight ---------------------------------------------------
-
 ETH_INTERFACE="eth0"
 
 # --- Helper: ensure UCI section exists ----------------------------------------

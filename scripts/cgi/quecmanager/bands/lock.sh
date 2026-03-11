@@ -29,10 +29,6 @@ FAILOVER_ACTIVATED_FLAG="/tmp/qmanager_band_failover"
 FAILOVER_PID_FILE="/tmp/qmanager_band_failover.pid"
 FAILOVER_SCRIPT="/usr/bin/qmanager_band_failover"
 
-# --- HTTP Headers ------------------------------------------------------------
-
-# --- Handle CORS preflight ---------------------------------------------------
-
 # --- Validate method ---------------------------------------------------------
 if [ "$REQUEST_METHOD" != "POST" ]; then
     cgi_error "method_not_allowed" "Use POST"

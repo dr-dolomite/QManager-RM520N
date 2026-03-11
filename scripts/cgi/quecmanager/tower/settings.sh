@@ -22,10 +22,6 @@ cgi_handle_options
 # --- Load library ------------------------------------------------------------
 . /usr/lib/qmanager/tower_lock_mgr.sh 2>/dev/null
 
-# --- HTTP Headers ------------------------------------------------------------
-
-# --- Handle CORS preflight ---------------------------------------------------
-
 # --- Validate method ---------------------------------------------------------
 if [ "$REQUEST_METHOD" != "POST" ]; then
     cgi_error "method_not_allowed" "Use POST"

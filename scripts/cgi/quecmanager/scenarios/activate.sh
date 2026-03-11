@@ -29,10 +29,6 @@ cgi_handle_options
 # --- Configuration -----------------------------------------------------------
 ACTIVE_SCENARIO_FILE="/etc/qmanager/active_scenario"
 
-# --- HTTP Headers ------------------------------------------------------------
-
-# --- Handle CORS preflight ---------------------------------------------------
-
 # --- Validate method ---------------------------------------------------------
 if [ "$REQUEST_METHOD" != "POST" ]; then
     cgi_error "method_not_allowed" "Use POST"

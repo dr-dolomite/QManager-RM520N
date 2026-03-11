@@ -173,13 +173,13 @@ profile_save() {
     existing_id=$(printf '%s' "$input" | jq -r '.id // empty')
 
     # APN settings — frontend sends these as flat keys
-    apn_cid=$(printf '%s' "$input" | jq -r '.cid // empty | tostring')
+    apn_cid=$(printf '%s' "$input" | jq -r '(.cid) | if . == null then empty else tostring end')
     apn_name=$(printf '%s' "$input" | jq -r '.apn_name // empty')
     apn_pdp_type=$(printf '%s' "$input" | jq -r '.pdp_type // empty')
 
     imei=$(printf '%s' "$input" | jq -r '.imei // empty')
-    ttl=$(printf '%s' "$input" | jq -r '.ttl // empty | tostring')
-    hl=$(printf '%s' "$input" | jq -r '.hl // empty | tostring')
+    ttl=$(printf '%s' "$input" | jq -r '(.ttl) | if . == null then empty else tostring end')
+    hl=$(printf '%s' "$input" | jq -r '(.hl) | if . == null then empty else tostring end')
     # --- Apply defaults for optional fields ---
     [ -z "$apn_cid" ] && apn_cid=1
     [ -z "$apn_pdp_type" ] && apn_pdp_type="IPV4V6"
@@ -226,7 +226,7 @@ profile_save() {
     if [ -n "$existing_id" ] && [ -f "$PROFILE_DIR/${existing_id}.json" ]; then
         # UPDATE: preserve ID and created_at
         id="$existing_id"
-        created_at=$(jq -r '.created_at // empty | tostring' "$PROFILE_DIR/${id}.json" 2>/dev/null)
+        created_at=$(jq -r '(.created_at) | if . == null then empty else tostring end' "$PROFILE_DIR/${id}.json" 2>/dev/null)
         [ -z "$created_at" ] && created_at="$updated_at"
         qlog_info "Updating profile: $id ($name)" 2>/dev/null
     else
@@ -277,7 +277,12 @@ profile_save() {
                 ttl: $ttl,
                 hl: $hl
             }
-        }' > "$tmp_file"
+        }' > "$tmp_file" || {
+        qlog_error "jq failed writing profile: $id" 2>/dev/null
+        rm -f "$tmp_file"
+        printf '{"success":false,"error":"write_failed","detail":"Failed to generate profile JSON"}\n'
+        return 1
+    }
 
     # Atomic replace
     mv "$tmp_file" "$final_file"
@@ -402,5 +407,9 @@ profile_check_lock() {
 # Returns 0 on success, 1 if already locked.
 profile_acquire_lock() {
     profile_check_lock || return 1
-    echo $$ > "$PROFILE_APPLY_PID_FILE"
+    echo $$ > "$PROFILE_APPLY_PID_FILE" || {
+        qlog_error "Failed to write PID file" 2>/dev/null
+        return 1
+    }
+    return 0
 }

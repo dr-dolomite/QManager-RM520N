@@ -30,10 +30,6 @@ RESULT_FILE="/tmp/qmanager_speedtest_result.json"
 ERROR_FILE="/tmp/qmanager_speedtest_error"
 WRAPPER_SCRIPT="/tmp/qmanager_speedtest_run.sh"
 
-# --- HTTP Headers ------------------------------------------------------------
-
-# --- Handle CORS preflight ---------------------------------------------------
-
 # --- Validate method ---------------------------------------------------------
 if [ "$REQUEST_METHOD" != "POST" ]; then
     cgi_error "method_not_allowed" "Use POST"

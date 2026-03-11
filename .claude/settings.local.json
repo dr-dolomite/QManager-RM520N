@@ -28,7 +28,8 @@
       "Bash(sh -n scripts/usr/lib/qmanager/profile_mgr.sh)",
       "Bash(sh -n scripts/cgi/quecmanager/profiles/apply.sh)",
       "Bash(sh -n scripts/usr/bin/qmanager_profile_apply)",
-      "Bash(sh -n scripts/usr/lib/qmanager/qlog.sh)"
+      "Bash(sh -n scripts/usr/lib/qmanager/qlog.sh)",
+      "Bash(sh -n:*)"
     ]
   }
 }

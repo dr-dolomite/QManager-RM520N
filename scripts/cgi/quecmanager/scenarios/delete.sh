@@ -17,9 +17,9 @@
 SCENARIOS_DIR="/etc/qmanager/scenarios"
 ACTIVE_SCENARIO_FILE="/etc/qmanager/active_scenario"
 
-# --- HTTP Headers ------------------------------------------------------------
-
-# --- Handle CORS preflight ---------------------------------------------------
+qlog_init "cgi_scenario_delete"
+cgi_headers
+cgi_handle_options
 
 # --- Validate method ---------------------------------------------------------
 if [ "$REQUEST_METHOD" != "POST" ]; then
