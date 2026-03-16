@@ -1,4 +1,3 @@
-import React from "react";
 import SystemLogsCard from "./system-logs-card";
 
 const SystemLogsComponent = () => {

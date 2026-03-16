@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, type ReactNode } from "react";
 
 import {
   Card,
@@ -87,7 +87,7 @@ function formatEventDateTime(timestamp: number) {
 interface EventsTableProps {
   events: NetworkEvent[];
   isLoading: boolean;
-  emptyIcon: React.ReactNode;
+  emptyIcon: ReactNode;
   emptyMessage: string;
   totalCount: number;
   lastUpdate: Date | null;
@@ -106,7 +106,7 @@ function EventsTable({
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead className="hidden md:table-cell">Event Type</TableHead>
+            <TableHead className="hidden @md/card:table-cell">Event Type</TableHead>
             <TableHead>Message</TableHead>
             <TableHead>Date & Time</TableHead>
           </TableRow>
@@ -115,7 +115,7 @@ function EventsTable({
           {isLoading && events.length === 0 ? (
             Array.from({ length: 5 }).map((_, i) => (
               <TableRow key={i}>
-                <TableCell className="hidden md:table-cell">
+                <TableCell className="hidden @md/card:table-cell">
                   <Skeleton className="h-4 w-20" />
                 </TableCell>
                 <TableCell>
@@ -143,7 +143,7 @@ function EventsTable({
               const label = EVENT_LABELS[event.type] ?? event.type;
               return (
                 <TableRow key={`${event.timestamp}-${event.type}-${index}`}>
-                  <TableCell className="font-medium hidden md:table-cell">
+                  <TableCell className="font-medium hidden @md/card:table-cell">
                     <div className="flex items-center gap-2">
                       <SeverityIcon severity={event.severity} />
                       <span className="text-xs text-muted-foreground">
@@ -272,16 +272,16 @@ const NetworkEventsCard = () => {
                   <TabsList>
                     <TabsTrigger value="all">All</TabsTrigger>
                     <TabsTrigger value="bandChanges">
-                      <span className="hidden md:inline">Band Changes</span>
-                      <Radio className="md:hidden" />
+                      <span className="hidden @sm/card:inline">Band Changes</span>
+                      <Radio className="@sm/card:hidden" />
                     </TabsTrigger>
                     <TabsTrigger value="networkMode">
-                      <span className="hidden md:inline">Network Mode</span>
-                      <Signal className="md:hidden" />
+                      <span className="hidden @sm/card:inline">Network Mode</span>
+                      <Signal className="@sm/card:hidden" />
                     </TabsTrigger>
                     <TabsTrigger value="dataConnection">
-                      <span className="hidden md:inline">Data Connection</span>
-                      <Wifi className="md:hidden" />
+                      <span className="hidden @sm/card:inline">Data Connection</span>
+                      <Wifi className="@sm/card:hidden" />
                     </TabsTrigger>
                   </TabsList>
                   <div className="ml-auto flex items-center gap-2">

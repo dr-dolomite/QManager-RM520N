@@ -296,7 +296,7 @@ const LatencyMonitoringCard = ({
 
   return (
     <Card>
-      <CardHeader className="flex flex-col items-stretch border-b !p-0 sm:flex-row">
+      <CardHeader className="flex flex-col items-stretch border-b p-0 sm:flex-row">
         <div className="flex flex-1 flex-col justify-center gap-1 px-6 pt-4 pb-3 sm:py-6">
           <CardTitle>Internet Quality Monitor</CardTitle>
           <CardDescription>{VIEW_INFO[viewMode]}</CardDescription>
@@ -307,6 +307,7 @@ const LatencyMonitoringCard = ({
               key={key}
               type="button"
               aria-pressed={activeChart === key}
+              aria-label={`Show ${chartConfig[key].label} chart`}
               data-active={activeChart === key}
               className="data-[active=true]:bg-muted/50 relative z-30 flex flex-1 flex-col justify-center gap-1 border-t px-6 py-4 text-left even:border-l sm:border-t-0 sm:border-l sm:px-8 sm:py-6"
               onClick={() => setActiveChart(key)}
@@ -372,7 +373,7 @@ const LatencyMonitoringCard = ({
             <ChartTooltip
               content={
                 <ChartTooltipContent
-                  className="w-[180px]"
+                  className="min-w-[180px] w-auto"
                   labelFormatter={(_value, payload) => {
                     const ts = payload?.[0]?.payload?.timestamp;
                     if (!ts) return "";

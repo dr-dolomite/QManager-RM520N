@@ -1,4 +1,3 @@
-import React from "react";
 import NetworkEventsCard from "./network-events-card";
 
 const NetworkEventsComponent = () => {
@@ -7,8 +6,8 @@ const NetworkEventsComponent = () => {
       <div className="mb-6">
         <h1 className="text-3xl font-bold mb-2">Network Events</h1>
         <p className="text-muted-foreground">
-          Monitor and analyze network events to identify potential issues and
-          optimize performance.
+          Band changes, connection drops, signal transitions, and other
+          cellular events logged by the poller.
         </p>
       </div>
       <div className="grid grid-cols-1 @xl/main:grid-cols-2 grid-flow-row gap-4">

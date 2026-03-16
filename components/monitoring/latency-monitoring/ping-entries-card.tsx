@@ -60,10 +60,10 @@ const PingEntriesCard = ({
 }: PingEntriesCardProps) => {
   const [sortOrder, setSortOrder] = useState<SortOrder>("newest");
 
-  const sortedEntries = useMemo(() => {
-    const copy = [...entries];
-    return sortOrder === "newest" ? copy.reverse() : copy;
-  }, [entries, sortOrder]);
+  const sortedEntries = useMemo(
+    () => (sortOrder === "newest" ? entries.toReversed() : entries),
+    [entries, sortOrder],
+  );
 
   return (
     <Card>

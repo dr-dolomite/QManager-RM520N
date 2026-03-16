@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useCallback, useRef, useEffect } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { toast } from "sonner";
 
 import {
@@ -261,12 +261,16 @@ const SystemLogsCard = () => {
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
-            <div className="flex flex-wrap gap-2">
-              <Skeleton className="h-9 w-32" />
-              <Skeleton className="h-9 w-36" />
-              <Skeleton className="h-9 w-48" />
-              <Skeleton className="h-9 w-20" />
-              <Skeleton className="h-9 w-9" />
+            <div className="grid gap-2">
+              <div className="grid grid-cols-2 @md/card:flex gap-2">
+                <Skeleton className="h-9" />
+                <Skeleton className="h-9" />
+                <Skeleton className="h-9 col-span-2 @md/card:flex-1" />
+              </div>
+              <div className="flex gap-2">
+                <Skeleton className="h-9 w-20" />
+                <Skeleton className="h-9 w-9" />
+              </div>
             </div>
             {Array.from({ length: 8 }).map((_, i) => (
               <Skeleton key={i} className="h-8 w-full" />
@@ -291,98 +295,99 @@ const SystemLogsCard = () => {
         </CardHeader>
         <CardContent>
           {/* Toolbar */}
-          <div className="flex flex-wrap items-center gap-2 mb-4">
-            {/* Level filter */}
-            <Select value={level} onValueChange={setLevel}>
-              <SelectTrigger className="w-36">
-                <SelectValue placeholder="All Levels" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Levels</SelectItem>
-                <SelectItem value="DEBUG">DEBUG</SelectItem>
-                <SelectItem value="INFO">INFO</SelectItem>
-                <SelectItem value="WARN">WARN</SelectItem>
-                <SelectItem value="ERROR">ERROR</SelectItem>
-              </SelectContent>
-            </Select>
+          <div className="grid gap-2 mb-4">
+            {/* Row 1: Filters */}
+            <div className="grid grid-cols-2 @md/card:flex @md/card:flex-wrap items-center gap-2">
+              <Select value={level} onValueChange={setLevel}>
+                <SelectTrigger>
+                  <SelectValue placeholder="All Levels" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Levels</SelectItem>
+                  <SelectItem value="DEBUG">DEBUG</SelectItem>
+                  <SelectItem value="INFO">INFO</SelectItem>
+                  <SelectItem value="WARN">WARN</SelectItem>
+                  <SelectItem value="ERROR">ERROR</SelectItem>
+                </SelectContent>
+              </Select>
 
-            {/* Component filter */}
-            <Select value={component} onValueChange={setComponent}>
-              <SelectTrigger className="w-40">
-                <SelectValue placeholder="All Components" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Components</SelectItem>
-                {availableComponents.map((c) => (
-                  <SelectItem key={c} value={c}>
-                    {c}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              <Select value={component} onValueChange={setComponent}>
+                <SelectTrigger>
+                  <SelectValue placeholder="All Components" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Components</SelectItem>
+                  {availableComponents.map((c) => (
+                    <SelectItem key={c} value={c}>
+                      {c}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
 
-            {/* Search input */}
-            <div className="relative flex-1 min-w-48">
-              <label htmlFor="log-search" className="sr-only">
-                Search logs
-              </label>
-              <SearchIcon className="absolute left-2.5 top-2.5 size-4 text-muted-foreground" />
-              <Input
-                id="log-search"
-                placeholder="Search logs..."
-                value={searchInput}
-                onChange={(e) => handleSearchChange(e.target.value)}
-                className="pl-8"
-              />
+              <div className="relative col-span-2 @md/card:flex-1 @md/card:min-w-48">
+                <label htmlFor="log-search" className="sr-only">
+                  Search logs
+                </label>
+                <SearchIcon className="absolute left-2.5 top-2.5 size-4 text-muted-foreground" />
+                <Input
+                  id="log-search"
+                  placeholder="Search logs..."
+                  value={searchInput}
+                  onChange={(e) => handleSearchChange(e.target.value)}
+                  className="pl-8"
+                />
+              </div>
             </div>
 
-            {/* Lines limit */}
-            <Select value={lines} onValueChange={setLines}>
-              <SelectTrigger className="w-24">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="50">50</SelectItem>
-                <SelectItem value="100">100</SelectItem>
-                <SelectItem value="200">200</SelectItem>
-                <SelectItem value="500">500</SelectItem>
-              </SelectContent>
-            </Select>
+            {/* Row 2: Options + Actions */}
+            <div className="flex flex-wrap items-center gap-2">
+              <Select value={lines} onValueChange={setLines}>
+                <SelectTrigger className="w-auto min-w-20">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="50">50</SelectItem>
+                  <SelectItem value="100">100</SelectItem>
+                  <SelectItem value="200">200</SelectItem>
+                  <SelectItem value="500">500</SelectItem>
+                </SelectContent>
+              </Select>
 
-            {/* Include rotated switch */}
-            <div className="flex items-center gap-2">
-              <Switch
-                id="include-rotated"
-                checked={includeRotated}
-                onCheckedChange={setIncludeRotated}
-              />
-              <label
-                htmlFor="include-rotated"
-                className="text-sm text-muted-foreground whitespace-nowrap"
-              >
-                Include archived
-              </label>
+              <div className="flex items-center gap-2">
+                <Switch
+                  id="include-rotated"
+                  checked={includeRotated}
+                  onCheckedChange={setIncludeRotated}
+                />
+                <label
+                  htmlFor="include-rotated"
+                  className="text-sm text-muted-foreground whitespace-nowrap"
+                >
+                  Include archived
+                </label>
+              </div>
+
+              <div className="ml-auto flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="icon"
+                  aria-label="Refresh system logs"
+                  onClick={() => fetchLogs()}
+                >
+                  <RefreshCcwIcon className="size-4" />
+                </Button>
+
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={() => setShowClearDialog(true)}
+                >
+                  <Trash2Icon className="size-4 mr-1" />
+                  Clear
+                </Button>
+              </div>
             </div>
-
-            {/* Refresh button */}
-            <Button
-              variant="outline"
-              size="icon"
-              aria-label="Refresh system logs"
-              onClick={() => fetchLogs()}
-            >
-              <RefreshCcwIcon className="size-4" />
-            </Button>
-
-            {/* Clear button */}
-            <Button
-              variant="destructive"
-              size="sm"
-              onClick={() => setShowClearDialog(true)}
-            >
-              <Trash2Icon className="size-4 mr-1" />
-              Clear
-            </Button>
           </div>
 
           {/* Log table */}
@@ -392,7 +397,7 @@ const SystemLogsCard = () => {
                 <TableRow>
                   <TableHead className="w-44">Timestamp</TableHead>
                   <TableHead className="w-20">Level</TableHead>
-                  <TableHead className="w-32 hidden md:table-cell">
+                  <TableHead className="w-32 hidden @md/card:table-cell">
                     Component
                   </TableHead>
                   <TableHead>Message</TableHead>
@@ -424,12 +429,12 @@ const SystemLogsCard = () => {
                           {entry.level}
                         </Badge>
                       </TableCell>
-                      <TableCell className="hidden md:table-cell">
+                      <TableCell className="hidden @md/card:table-cell">
                         <code className="text-xs bg-muted px-1.5 py-0.5 rounded">
                           {entry.component}
                         </code>
                       </TableCell>
-                      <TableCell className="max-w-lg break-words text-sm">
+                      <TableCell className="wrap-break-word text-sm">
                         {entry.message}
                       </TableCell>
                     </TableRow>
