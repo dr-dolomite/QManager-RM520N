@@ -19,19 +19,9 @@ export interface WatchdogSettings {
   max_reboots_per_hour: number;
 }
 
-export interface WatchdogSavePayload {
+export type WatchdogSavePayload = WatchdogSettings & {
   action: "save_settings";
-  enabled: boolean;
-  max_failures: number;
-  check_interval: number;
-  cooldown: number;
-  tier1_enabled: boolean;
-  tier2_enabled: boolean;
-  tier3_enabled: boolean;
-  tier4_enabled: boolean;
-  backup_sim_slot: number | null;
-  max_reboots_per_hour: number;
-}
+};
 
 export interface WatchdogLiveStatus {
   timestamp: number;

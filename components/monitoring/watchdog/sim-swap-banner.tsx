@@ -50,13 +50,13 @@ export function SimSwapBanner() {
     <div className="px-2 lg:px-6">
       <Alert className="mb-2">
         <RefreshCcwIcon className="size-4" />
-        <AlertDescription className="flex items-center justify-between gap-4 flex-wrap">
+        <AlertDescription className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <span>
             {hasMatchingProfile ? (
               <>
                 New SIM card detected. Profile{" "}
-                <strong>{simSwap.matching_profile_name}</strong> matches this
-                SIM.
+                <strong className="break-all">{simSwap.matching_profile_name}</strong>{" "}
+                matches this SIM.
               </>
             ) : (
               <>New SIM card detected. No matching profile found.</>

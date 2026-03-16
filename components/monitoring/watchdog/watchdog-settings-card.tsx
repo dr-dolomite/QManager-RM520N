@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { toast } from "sonner";
 import {
   Card,
@@ -27,18 +27,28 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Loader2, AlertTriangleIcon, InfoIcon } from "lucide-react";
 import type {
-  WatchdogSettings,
   WatchdogSavePayload,
   UseWatchdogSettingsReturn,
 } from "@/hooks/use-watchdog-settings";
+import { Separator } from "@/components/ui/separator";
 
 type WatchdogSettingsCardProps = Pick<
   UseWatchdogSettingsReturn,
-  "settings" | "autoDisabled" | "isLoading" | "isSaving" | "error" | "saveSettings"
+  | "settings"
+  | "autoDisabled"
+  | "isLoading"
+  | "isSaving"
+  | "error"
+  | "saveSettings"
 >;
 
 export function WatchdogSettingsCard({
@@ -49,35 +59,87 @@ export function WatchdogSettingsCard({
   error,
   saveSettings,
 }: WatchdogSettingsCardProps) {
-  // --- Local form state ---
-  const [isEnabled, setIsEnabled] = useState(false);
-  const [maxFailures, setMaxFailures] = useState("5");
-  const [checkInterval, setCheckInterval] = useState("10");
-  const [cooldown, setCooldown] = useState("60");
-  const [tier1Enabled, setTier1Enabled] = useState(true);
-  const [tier2Enabled, setTier2Enabled] = useState(true);
-  const [tier3Enabled, setTier3Enabled] = useState(false);
-  const [tier4Enabled, setTier4Enabled] = useState(true);
-  const [backupSimSlot, setBackupSimSlot] = useState<string>("");
-  const [maxRebootsPerHour, setMaxRebootsPerHour] = useState("3");
+  // Loading skeleton
+  if (isLoading) {
+    return (
+      <Card className="@container/card">
+        <CardHeader>
+          <CardTitle>Watchdog Settings</CardTitle>
+          <CardDescription>
+            Configure connection health monitoring and recovery.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid gap-4">
+            <Skeleton className="h-8 w-48" />
+            <div className="grid grid-cols-1 @sm/card:grid-cols-2 gap-4">
+              <Skeleton className="h-16 w-full" />
+              <Skeleton className="h-16 w-full" />
+              <Skeleton className="h-16 w-full" />
+            </div>
+            <Skeleton className="h-5 w-32 mt-2" />
+            <Skeleton className="h-7 w-44" />
+            <Skeleton className="h-7 w-44" />
+            <Skeleton className="h-7 w-44" />
+            <Skeleton className="h-7 w-44" />
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
 
-  // Sync from server
-  useEffect(() => {
-    if (settings) {
-      setIsEnabled(settings.enabled);
-      setMaxFailures(String(settings.max_failures));
-      setCheckInterval(String(settings.check_interval));
-      setCooldown(String(settings.cooldown));
-      setTier1Enabled(settings.tier1_enabled);
-      setTier2Enabled(settings.tier2_enabled);
-      setTier3Enabled(settings.tier3_enabled);
-      setTier4Enabled(settings.tier4_enabled);
-      setBackupSimSlot(
-        settings.backup_sim_slot != null ? String(settings.backup_sim_slot) : ""
-      );
-      setMaxRebootsPerHour(String(settings.max_reboots_per_hour));
-    }
-  }, [settings]);
+  // Key-based remount: when settings change (initial load or post-save re-fetch),
+  // the form reinitializes with fresh values from useState defaults.
+  const formKey = settings
+    ? `${settings.enabled}-${settings.max_failures}-${settings.check_interval}-${settings.cooldown}-${settings.backup_sim_slot}`
+    : "empty";
+
+  return (
+    <WatchdogSettingsForm
+      key={formKey}
+      settings={settings}
+      autoDisabled={autoDisabled}
+      isSaving={isSaving}
+      error={error}
+      saveSettings={saveSettings}
+    />
+  );
+}
+
+function WatchdogSettingsForm({
+  settings,
+  autoDisabled,
+  isSaving,
+  error,
+  saveSettings,
+}: Omit<WatchdogSettingsCardProps, "isLoading">) {
+  // --- Local form state (initialized from settings prop) ---
+  const [isEnabled, setIsEnabled] = useState(settings?.enabled ?? false);
+  const [maxFailures, setMaxFailures] = useState(
+    String(settings?.max_failures ?? 5),
+  );
+  const [checkInterval, setCheckInterval] = useState(
+    String(settings?.check_interval ?? 10),
+  );
+  const [cooldown, setCooldown] = useState(String(settings?.cooldown ?? 60));
+  const [tier1Enabled, setTier1Enabled] = useState(
+    settings?.tier1_enabled ?? true,
+  );
+  const [tier2Enabled, setTier2Enabled] = useState(
+    settings?.tier2_enabled ?? true,
+  );
+  const [tier3Enabled, setTier3Enabled] = useState(
+    settings?.tier3_enabled ?? false,
+  );
+  const [tier4Enabled, setTier4Enabled] = useState(
+    settings?.tier4_enabled ?? true,
+  );
+  const [backupSimSlot, setBackupSimSlot] = useState<string>(
+    settings?.backup_sim_slot != null ? String(settings.backup_sim_slot) : "",
+  );
+  const [maxRebootsPerHour, setMaxRebootsPerHour] = useState(
+    String(settings?.max_reboots_per_hour ?? 3),
+  );
 
   // --- Validation ---
   const maxFailuresError =
@@ -90,9 +152,7 @@ export function WatchdogSettingsCard({
 
   const cooldownError =
     cooldown &&
-    (isNaN(Number(cooldown)) ||
-      Number(cooldown) < 10 ||
-      Number(cooldown) > 300)
+    (isNaN(Number(cooldown)) || Number(cooldown) < 10 || Number(cooldown) > 300)
       ? "Must be 10\u2013300 seconds"
       : null;
 
@@ -185,34 +245,8 @@ export function WatchdogSettingsCard({
       maxRebootsPerHour,
       saveSettings,
       error,
-    ]
+    ],
   );
-
-  // --- Loading skeleton ---
-  if (isLoading) {
-    return (
-      <Card className="@container/card">
-        <CardHeader>
-          <CardTitle>Watchdog Settings</CardTitle>
-          <CardDescription>
-            Configure connection health monitoring and recovery.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid gap-4">
-            <Skeleton className="h-8 w-56" />
-            <Skeleton className="h-10 w-full max-w-sm" />
-            <Skeleton className="h-10 w-full max-w-sm" />
-            <Skeleton className="h-10 w-full max-w-sm" />
-            <Skeleton className="h-8 w-48" />
-            <Skeleton className="h-8 w-48" />
-            <Skeleton className="h-8 w-48" />
-            <Skeleton className="h-8 w-48" />
-          </div>
-        </CardContent>
-      </Card>
-    );
-  }
 
   return (
     <Card className="@container/card">
@@ -227,9 +261,8 @@ export function WatchdogSettingsCard({
           <Alert variant="destructive" className="mb-4">
             <AlertTriangleIcon className="size-4" />
             <AlertDescription>
-              Watchdog was automatically disabled after exceeding the reboot
-              limit. Re-enable it below if the connectivity issue has been
-              resolved.
+              Watchdog disabled itself after too many reboots in one hour.
+              Re-enable it below once your connection is stable.
             </AlertDescription>
           </Alert>
         )}
@@ -249,179 +282,97 @@ export function WatchdogSettingsCard({
                 />
               </Field>
 
-              {/* Max Failures */}
-              <Field>
-                <FieldLabel htmlFor="max-failures">
-                  Failure Threshold
-                </FieldLabel>
-                <Input
-                  id="max-failures"
-                  type="number"
-                  min="1"
-                  max="20"
-                  placeholder="5"
-                  className="max-w-sm"
-                  value={maxFailures}
-                  onChange={(e) => setMaxFailures(e.target.value)}
-                  disabled={!isEnabled}
-                  aria-invalid={!!maxFailuresError}
-                  aria-describedby={
-                    maxFailuresError ? "max-failures-error" : "max-failures-desc"
-                  }
-                />
-                {maxFailuresError ? (
-                  <FieldError id="max-failures-error">
-                    {maxFailuresError}
-                  </FieldError>
-                ) : (
-                  <FieldDescription id="max-failures-desc">
-                    Consecutive ping failures before triggering recovery.
-                  </FieldDescription>
-                )}
-              </Field>
-
-              {/* Check Interval */}
-              <Field>
-                <FieldLabel htmlFor="check-interval">Check Interval</FieldLabel>
-                <Select
-                  value={checkInterval}
-                  onValueChange={setCheckInterval}
-                  disabled={!isEnabled}
-                >
-                  <SelectTrigger id="check-interval" className="max-w-sm">
-                    <SelectValue placeholder="Select interval" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="5">5 seconds</SelectItem>
-                    <SelectItem value="10">10 seconds</SelectItem>
-                    <SelectItem value="15">15 seconds</SelectItem>
-                    <SelectItem value="30">30 seconds</SelectItem>
-                  </SelectContent>
-                </Select>
-                <FieldDescription>
-                  How often the watchdog checks ping data.
-                </FieldDescription>
-              </Field>
-
-              {/* Cooldown */}
-              <Field>
-                <FieldLabel htmlFor="cooldown">
-                  Cooldown Period (seconds)
-                </FieldLabel>
-                <Input
-                  id="cooldown"
-                  type="number"
-                  min="10"
-                  max="300"
-                  placeholder="60"
-                  className="max-w-sm"
-                  value={cooldown}
-                  onChange={(e) => setCooldown(e.target.value)}
-                  disabled={!isEnabled}
-                  aria-invalid={!!cooldownError}
-                  aria-describedby={
-                    cooldownError ? "cooldown-error" : "cooldown-desc"
-                  }
-                />
-                {cooldownError ? (
-                  <FieldError id="cooldown-error">{cooldownError}</FieldError>
-                ) : (
-                  <FieldDescription id="cooldown-desc">
-                    Grace period after a recovery action before checking again.
-                  </FieldDescription>
-                )}
-              </Field>
-
-              {/* Recovery Tiers */}
-              <div className="pt-2">
-                <h3 className="text-sm font-semibold mb-1">Recovery Tiers</h3>
-                <p className="text-xs text-muted-foreground mb-3">
-                  Actions are tried in order from least to most disruptive.
-                </p>
-              </div>
-
-              <Field orientation="horizontal" className="w-fit">
-                <FieldLabel htmlFor="tier1-enabled">
-                  Tier 1: WAN Restart
-                </FieldLabel>
-                <Switch
-                  id="tier1-enabled"
-                  checked={tier1Enabled}
-                  onCheckedChange={setTier1Enabled}
-                  disabled={!isEnabled}
-                />
-              </Field>
-
-              <Field orientation="horizontal" className="w-fit">
-                <FieldLabel htmlFor="tier2-enabled">
-                  Tier 2: Radio Toggle
-                </FieldLabel>
-                <Switch
-                  id="tier2-enabled"
-                  checked={tier2Enabled}
-                  onCheckedChange={setTier2Enabled}
-                  disabled={!isEnabled}
-                />
-              </Field>
-              {tier2Enabled && (
-                <div className="flex items-start gap-2 text-xs text-muted-foreground ml-1">
-                  <InfoIcon className="size-3 mt-0.5 shrink-0" />
-                  <span>
-                    Automatically skipped when tower lock is active to preserve
-                    your locked cells.
-                  </span>
-                </div>
-              )}
-
-              <Field orientation="horizontal" className="w-fit">
-                <FieldLabel htmlFor="tier3-enabled">
-                  Tier 3: SIM Failover
-                </FieldLabel>
-                <Switch
-                  id="tier3-enabled"
-                  checked={tier3Enabled}
-                  onCheckedChange={setTier3Enabled}
-                  disabled={!isEnabled}
-                />
-              </Field>
-              {tier3Enabled && (
+              <div className="grid grid-cols-1 @sm/card:grid-cols-2 gap-4">
+                {/* Max Failures */}
                 <Field>
-                  <FieldLabel htmlFor="backup-sim-slot">
-                    Backup SIM Slot
+                  <FieldLabel htmlFor="max-failures">
+                    Failure Threshold
+                  </FieldLabel>
+                  <Input
+                    id="max-failures"
+                    type="number"
+                    min="1"
+                    max="20"
+                    placeholder="5"
+                    className="max-w-sm"
+                    value={maxFailures}
+                    onChange={(e) => setMaxFailures(e.target.value)}
+                    disabled={!isEnabled}
+                    aria-invalid={!!maxFailuresError}
+                    aria-describedby={
+                      maxFailuresError
+                        ? "max-failures-error"
+                        : "max-failures-desc"
+                    }
+                  />
+                  {maxFailuresError ? (
+                    <FieldError id="max-failures-error">
+                      {maxFailuresError}
+                    </FieldError>
+                  ) : (
+                    <FieldDescription id="max-failures-desc">
+                      How many failed connectivity checks in a row before
+                      recovery begins.
+                    </FieldDescription>
+                  )}
+                </Field>
+
+                {/* Check Interval */}
+                <Field>
+                  <FieldLabel htmlFor="check-interval">
+                    Check Interval
                   </FieldLabel>
                   <Select
-                    value={backupSimSlot}
-                    onValueChange={setBackupSimSlot}
+                    value={checkInterval}
+                    onValueChange={setCheckInterval}
                     disabled={!isEnabled}
                   >
-                    <SelectTrigger id="backup-sim-slot" className="max-w-sm">
-                      <SelectValue placeholder="Select slot" />
+                    <SelectTrigger id="check-interval" className="max-w-sm">
+                      <SelectValue placeholder="Select interval" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="1">Slot 1</SelectItem>
-                      <SelectItem value="2">Slot 2</SelectItem>
+                      <SelectItem value="5">5 seconds</SelectItem>
+                      <SelectItem value="10">10 seconds</SelectItem>
+                      <SelectItem value="15">15 seconds</SelectItem>
+                      <SelectItem value="30">30 seconds</SelectItem>
                     </SelectContent>
                   </Select>
                   <FieldDescription>
-                    The SIM slot to switch to when the primary SIM loses
-                    connectivity. Must differ from the current active slot.
+                    How often the watchdog checks your internet connection.
                   </FieldDescription>
                 </Field>
-              )}
 
-              <Field orientation="horizontal" className="w-fit">
-                <FieldLabel htmlFor="tier4-enabled">
-                  Tier 4: System Reboot
-                </FieldLabel>
-                <Switch
-                  id="tier4-enabled"
-                  checked={tier4Enabled}
-                  onCheckedChange={setTier4Enabled}
-                  disabled={!isEnabled}
-                />
-              </Field>
-              {tier4Enabled && (
-                <>
+                {/* Cooldown */}
+                <Field>
+                  <FieldLabel htmlFor="cooldown">
+                    Cooldown Period (seconds)
+                  </FieldLabel>
+                  <Input
+                    id="cooldown"
+                    type="number"
+                    min="10"
+                    max="300"
+                    placeholder="60"
+                    className="max-w-sm"
+                    value={cooldown}
+                    onChange={(e) => setCooldown(e.target.value)}
+                    disabled={!isEnabled}
+                    aria-invalid={!!cooldownError}
+                    aria-describedby={
+                      cooldownError ? "cooldown-error" : "cooldown-desc"
+                    }
+                  />
+                  {cooldownError ? (
+                    <FieldError id="cooldown-error">{cooldownError}</FieldError>
+                  ) : (
+                    <FieldDescription id="cooldown-desc">
+                      Wait time after each recovery step before checking
+                      connectivity again.
+                    </FieldDescription>
+                  )}
+                </Field>
+
+                {tier4Enabled && (
                   <Field>
                     <FieldLabel htmlFor="max-reboots">
                       Max Reboots Per Hour
@@ -449,13 +400,113 @@ export function WatchdogSettingsCard({
                       </FieldError>
                     ) : (
                       <FieldDescription id="max-reboots-desc">
-                        The watchdog disables itself permanently if this limit is
-                        exceeded, preventing reboot loops.
+                        Safety limit. The watchdog disables itself if this many
+                        reboots happen in one hour.
                       </FieldDescription>
                     )}
                   </Field>
-                </>
-              )}
+                )}
+
+                <div aria-live="polite">
+                  {tier3Enabled && (
+                    <Field>
+                      <FieldLabel htmlFor="backup-sim-slot">
+                        Backup SIM Slot
+                      </FieldLabel>
+                      <Select
+                        value={backupSimSlot}
+                        onValueChange={setBackupSimSlot}
+                        disabled={!isEnabled}
+                      >
+                        <SelectTrigger
+                          id="backup-sim-slot"
+                          className="max-w-sm"
+                        >
+                          <SelectValue placeholder="Select slot" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="1">Slot 1</SelectItem>
+                          <SelectItem value="2">Slot 2</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FieldDescription>
+                        The SIM slot to switch to when the primary SIM loses
+                        connectivity. Must differ from the current active slot.
+                      </FieldDescription>
+                    </Field>
+                  )}
+                </div>
+              </div>
+
+              <Separator />
+              <div className="grid gap-2">
+                <CardTitle>Recovery Steps</CardTitle>
+                <CardDescription>
+                  Tried in order, from gentlest to most disruptive.
+                </CardDescription>
+              </div>
+
+              <div className="grid grid-cols-1 @sm/card:grid-cols-2 gap-4">
+                <Field orientation="horizontal" className="w-fit">
+                  <FieldLabel htmlFor="tier1-enabled">
+                    Restart Network Interface
+                  </FieldLabel>
+                  <Switch
+                    id="tier1-enabled"
+                    checked={tier1Enabled}
+                    onCheckedChange={setTier1Enabled}
+                    disabled={!isEnabled}
+                  />
+                </Field>
+
+                <Field orientation="horizontal" className="w-fit">
+                  <div className="flex items-center justify-center gap-x-2">
+                    <Tooltip>
+                      <TooltipTrigger>
+                        <InfoIcon className="size-4" />
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>
+                          Automatically skipped when tower lock is active <br />{" "}
+                          to preserve your locked cells.
+                        </p>
+                      </TooltipContent>
+                    </Tooltip>
+                    <FieldLabel htmlFor="tier2-enabled">
+                      Restart Modem Radio
+                    </FieldLabel>
+                    <Switch
+                      id="tier2-enabled"
+                      checked={tier2Enabled}
+                      onCheckedChange={setTier2Enabled}
+                      disabled={!isEnabled}
+                      aria-describedby={tier2Enabled ? "tier2-note" : undefined}
+                    />
+                  </div>
+                </Field>
+
+                <Field orientation="horizontal" className="w-fit">
+                  <FieldLabel htmlFor="tier3-enabled">
+                    Switch to Backup SIM
+                  </FieldLabel>
+                  <Switch
+                    id="tier3-enabled"
+                    checked={tier3Enabled}
+                    onCheckedChange={setTier3Enabled}
+                    disabled={!isEnabled}
+                  />
+                </Field>
+
+                <Field orientation="horizontal" className="w-fit">
+                  <FieldLabel htmlFor="tier4-enabled">Reboot Device</FieldLabel>
+                  <Switch
+                    id="tier4-enabled"
+                    checked={tier4Enabled}
+                    onCheckedChange={setTier4Enabled}
+                    disabled={!isEnabled}
+                  />
+                </Field>
+              </div>
 
               {/* Save Button */}
               <div className="flex items-center gap-2 pt-2">

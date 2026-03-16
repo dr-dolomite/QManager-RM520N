@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback } from "react";
+import { useCallback, useState } from "react";
 import { toast } from "sonner";
 import {
   Card,
@@ -9,11 +9,22 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Skeleton } from "@/components/ui/skeleton";
-import { DogIcon, Loader2, InfoIcon } from "lucide-react";
+import { DogIcon, InfoIcon, Loader2 } from "lucide-react";
 import { useModemStatus } from "@/hooks/use-modem-status";
 import { formatTimeAgo } from "@/types/modem-status";
 import type { WatchcatState } from "@/types/modem-status";
@@ -31,13 +42,13 @@ const STATE_BADGE_CONFIG: Record<
     className: "bg-success text-success-foreground border-success",
   },
   suspect: {
-    label: "Suspect",
+    label: "Detecting Issue",
     className: "bg-warning text-warning-foreground border-warning",
   },
   recovery: {
     label: "Recovering",
     className:
-      "bg-destructive text-destructive-foreground border-destructive animate-pulse",
+      "bg-destructive text-destructive-foreground border-destructive animate-pulse motion-reduce:animate-none",
   },
   cooldown: {
     label: "Cooldown",
@@ -55,25 +66,31 @@ const STATE_BADGE_CONFIG: Record<
 
 const TIER_LABELS: Record<number, string> = {
   0: "\u2014",
-  1: "Tier 1 \u2014 WAN Restart",
-  2: "Tier 2 \u2014 Radio Toggle",
-  3: "Tier 3 \u2014 SIM Failover",
-  4: "Tier 4 \u2014 System Reboot",
+  1: "Restart Network Interface",
+  2: "Restart Modem Radio",
+  3: "Switch to Backup SIM",
+  4: "Reboot Device",
 };
 
 export function WatchdogStatusCard({ revertSim }: WatchdogStatusCardProps) {
   const { data: modemStatus, isLoading } = useModemStatus({
     pollInterval: 5000,
   });
+  const [isReverting, setIsReverting] = useState(false);
 
   const handleRevertSim = useCallback(async () => {
-    const success = await revertSim();
-    if (success) {
-      toast.success(
-        "SIM revert requested. The watchdog will process this shortly."
-      );
-    } else {
-      toast.error("Failed to request SIM revert");
+    setIsReverting(true);
+    try {
+      const success = await revertSim();
+      if (success) {
+        toast.success(
+          "SIM revert requested. The watchdog will process this shortly."
+        );
+      } else {
+        toast.error("Failed to request SIM revert");
+      }
+    } finally {
+      setIsReverting(false);
     }
   }, [revertSim]);
 
@@ -125,6 +142,49 @@ export function WatchdogStatusCard({ revertSim }: WatchdogStatusCardProps) {
   const badge = STATE_BADGE_CONFIG[stateKey] || STATE_BADGE_CONFIG.disabled;
   const tierLabel = TIER_LABELS[watchcat.current_tier] || TIER_LABELS[0];
 
+  const statusRows: { label: string; value: React.ReactNode }[] = [
+    { label: "Current Step", value: tierLabel },
+    {
+      label: "Failed Checks",
+      value: <span className="font-mono">{watchcat.failure_count}</span>,
+    },
+    ...(watchcat.cooldown_remaining > 0
+      ? [
+          {
+            label: "Cooldown",
+            value: (
+              <span className="font-mono">
+                {watchcat.cooldown_remaining}s remaining
+              </span>
+            ),
+          },
+        ]
+      : []),
+    {
+      label: "Total Recoveries",
+      value: <span className="font-mono">{watchcat.total_recoveries}</span>,
+    },
+    {
+      label: "Reboots This Hour",
+      value: <span className="font-mono">{watchcat.reboots_this_hour}</span>,
+    },
+    ...(watchcat.last_recovery_time != null
+      ? [
+          {
+            label: "Last Recovery",
+            value: (
+              <span>
+                {TIER_LABELS[watchcat.last_recovery_tier ?? 0]}{" "}
+                <span className="text-muted-foreground">
+                  ({formatTimeAgo(watchcat.last_recovery_time)})
+                </span>
+              </span>
+            ),
+          },
+        ]
+      : []),
+  ];
+
   return (
     <Card className="@container/card">
       <CardHeader>
@@ -138,41 +198,15 @@ export function WatchdogStatusCard({ revertSim }: WatchdogStatusCardProps) {
       </CardHeader>
       <CardContent>
         <div className="space-y-3">
-          {/* Status rows */}
-          <div className="grid grid-cols-2 gap-y-2 text-sm">
-            <span className="text-muted-foreground">Current Tier</span>
-            <span className="font-medium">{tierLabel}</span>
-
-            <span className="text-muted-foreground">Failure Count</span>
-            <span className="font-mono">{watchcat.failure_count}</span>
-
-            {watchcat.cooldown_remaining > 0 && (
-              <>
-                <span className="text-muted-foreground">Cooldown</span>
-                <span className="font-mono">
-                  {watchcat.cooldown_remaining}s remaining
-                </span>
-              </>
-            )}
-
-            <span className="text-muted-foreground">Total Recoveries</span>
-            <span className="font-mono">{watchcat.total_recoveries}</span>
-
-            <span className="text-muted-foreground">Reboots This Hour</span>
-            <span className="font-mono">{watchcat.reboots_this_hour}</span>
-
-            {watchcat.last_recovery_time != null && (
-              <>
-                <span className="text-muted-foreground">Last Recovery</span>
-                <span>
-                  {TIER_LABELS[watchcat.last_recovery_tier ?? 0]}{" "}
-                  <span className="text-muted-foreground">
-                    ({formatTimeAgo(watchcat.last_recovery_time)})
-                  </span>
-                </span>
-              </>
-            )}
-          </div>
+          {/* Status rows — data-driven for clean conditional rendering */}
+          <dl className="grid grid-cols-[auto_1fr] @xs/card:grid-cols-2 gap-x-4 gap-y-2 text-sm">
+            {statusRows.map((row) => (
+              <div key={row.label} className="contents">
+                <dt className="text-muted-foreground">{row.label}</dt>
+                <dd className="font-medium">{row.value}</dd>
+              </div>
+            ))}
+          </dl>
 
           {/* SIM Failover section */}
           {simFailover?.active && (
@@ -187,13 +221,44 @@ export function WatchdogStatusCard({ revertSim }: WatchdogStatusCardProps) {
                   . Original SIM was in slot {simFailover.original_slot}.
                 </AlertDescription>
               </Alert>
-              <Button
-                variant="destructive"
-                size="sm"
-                onClick={handleRevertSim}
-              >
-                Revert to Original SIM
-              </Button>
+
+              {/* H1: Confirmation dialog for destructive SIM revert */}
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    disabled={isReverting}
+                  >
+                    {isReverting ? (
+                      <>
+                        <Loader2 className="size-4 animate-spin" />
+                        Reverting…
+                      </>
+                    ) : (
+                      "Revert to Original SIM"
+                    )}
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>
+                      Revert to Original SIM?
+                    </AlertDialogTitle>
+                    <AlertDialogDescription>
+                      This will switch back to SIM slot{" "}
+                      {simFailover.original_slot}. Your internet will briefly
+                      disconnect while the modem reconnects.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction onClick={handleRevertSim}>
+                      Revert SIM
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
             </div>
           )}
         </div>
