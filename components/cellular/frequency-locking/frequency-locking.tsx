@@ -1,6 +1,5 @@
 "use client";
 
-import React from "react";
 import LteFreqLockingComponent from "./lte-freq-locking";
 import NrFreqLockingComponent from "./nr-freq-locking";
 import { useFrequencyLocking } from "@/hooks/use-frequency-locking";
@@ -24,18 +23,22 @@ const FrequencyLockingComponent = () => {
           modemData={modemData}
           isLoading={freqLock.isLoading}
           isLocking={freqLock.isLteLocking}
+          error={freqLock.error}
           towerLockActive={freqLock.towerLockLteActive}
           onLock={(earfcns) => freqLock.lockLte(earfcns)}
           onUnlock={() => freqLock.unlockLte()}
+          onRefresh={freqLock.refresh}
         />
         <NrFreqLockingComponent
           modemState={freqLock.modemState}
           modemData={modemData}
           isLoading={freqLock.isLoading}
           isLocking={freqLock.isNrLocking}
+          error={freqLock.error}
           towerLockActive={freqLock.towerLockNrActive}
           onLock={(entries) => freqLock.lockNr(entries)}
           onUnlock={() => freqLock.unlockNr()}
+          onRefresh={freqLock.refresh}
         />
       </div>
     </div>

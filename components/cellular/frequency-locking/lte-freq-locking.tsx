@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { toast } from "sonner";
 
 import {
@@ -30,7 +30,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Loader2 } from "lucide-react";
+import { AlertCircleIcon, Loader2 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { TbInfoCircleFilled, TbAlertTriangleFilled } from "react-icons/tb";
 
@@ -39,15 +39,18 @@ import { Field, FieldGroup, FieldLabel, FieldSet } from "@/components/ui/field";
 import type { FreqLockModemState } from "@/types/frequency-locking";
 import type { ModemStatus } from "@/types/modem-status";
 import { findAllMatchingLTEBands, type LTEBandEntry } from "@/lib/earfcn";
+import { BandMatchDisplay } from "./band-match-display";
 
 interface LteFreqLockingProps {
   modemState: FreqLockModemState | null;
   modemData: ModemStatus | null;
   isLoading: boolean;
   isLocking: boolean;
+  error: string | null;
   towerLockActive: boolean;
   onLock: (earfcns: number[]) => Promise<boolean>;
   onUnlock: () => Promise<boolean>;
+  onRefresh: () => void;
 }
 
 const LteFreqLockingComponent = ({
@@ -55,9 +58,11 @@ const LteFreqLockingComponent = ({
   modemData,
   isLoading,
   isLocking,
+  error,
   towerLockActive,
   onLock,
   onUnlock,
+  onRefresh,
 }: LteFreqLockingProps) => {
   // Local form state for the 2 EARFCN inputs
   const [earfcn1, setEarfcn1] = useState("");
@@ -205,10 +210,40 @@ const LteFreqLockingComponent = ({
     );
   }
 
+  // --- Error state (fetch failed, no data) ----------------------------------
+  if (error && !modemState) {
+    return (
+      <Card className="@container/card">
+        <CardHeader>
+          <CardTitle>LTE Frequency Locking</CardTitle>
+          <CardDescription>
+            Lock to specific LTE channel frequencies.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div
+            role="alert"
+            className="flex flex-col items-center gap-3 py-8 text-center"
+          >
+            <AlertCircleIcon className="size-8 text-destructive" />
+            <div className="space-y-1">
+              <p className="text-sm font-medium">Failed to load frequency lock status</p>
+              <p className="text-xs text-muted-foreground">{error}</p>
+            </div>
+            <Button variant="outline" size="sm" onClick={onRefresh}>
+              Retry
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
   return (
     <>
       <Card
-        className={`@container/card ${towerLockActive ? "opacity-60" : ""}`}
+        className="@container/card"
+        aria-disabled={towerLockActive || undefined}
       >
         <CardHeader>
           <CardTitle>LTE Frequency Locking</CardTitle>
@@ -228,11 +263,9 @@ const LteFreqLockingComponent = ({
                 </p>
               </div>
             ) : (
-              <div className="flex items-start gap-2 p-2 rounded-md bg-amber-500/10 border border-amber-500/30 text-amber-600 dark:text-amber-400 text-sm">
+              <div className="flex items-start gap-2 p-2 rounded-md bg-warning/10 border border-warning/30 text-warning text-sm">
                 <TbAlertTriangleFilled className="size-5 mt-0.5 shrink-0" />
-                <div>
-                  <p className="font-semibold">Experimental Feature</p>
-                </div>
+                <p className="font-semibold">Experimental Feature</p>
               </div>
             )}
 
@@ -287,8 +320,8 @@ const LteFreqLockingComponent = ({
                         <FieldLabel htmlFor="freq-earfcn1">Channel (EARFCN)</FieldLabel>
                         <Button
                           type="button"
+                          variant="outline"
                           size="sm"
-                          className="h-6 px-2 text-xs"
                           onClick={handleUseCurrent}
                           disabled={isDisabled || !hasActiveLteCell}
                         >
@@ -299,8 +332,7 @@ const LteFreqLockingComponent = ({
                         id="freq-earfcn1"
                         type="text"
                         placeholder="Enter EARFCN"
-                        className="max-w-sm"
-                        value={earfcn1}
+                                                value={earfcn1}
                         onChange={(e) => setEarfcn1(e.target.value)}
                         disabled={isDisabled}
                       />
@@ -308,6 +340,8 @@ const LteFreqLockingComponent = ({
                         bands={matchedBands1}
                         hasInput={earfcn1.length > 0}
                         supportedBands={supportedBands}
+                        prefix="B"
+                        noMatchLabel="this channel"
                       />
                     </Field>
 
@@ -320,8 +354,7 @@ const LteFreqLockingComponent = ({
                         id="freq-earfcn2"
                         type="text"
                         placeholder="Enter EARFCN 2"
-                        className="max-w-sm"
-                        value={earfcn2}
+                                                value={earfcn2}
                         onChange={(e) => setEarfcn2(e.target.value)}
                         disabled={isDisabled}
                       />
@@ -329,6 +362,8 @@ const LteFreqLockingComponent = ({
                         bands={matchedBands2}
                         hasInput={earfcn2.length > 0}
                         supportedBands={supportedBands}
+                        prefix="B"
+                        noMatchLabel="this channel"
                       />
                     </Field>
                   </FieldGroup>
@@ -426,44 +461,5 @@ const LteFreqLockingComponent = ({
     </>
   );
 };
-
-/** Inline band match display below an EARFCN input */
-function BandMatchDisplay({
-  bands,
-  hasInput,
-  supportedBands,
-}: {
-  bands: LTEBandEntry[];
-  hasInput: boolean;
-  supportedBands: number[];
-}) {
-  if (!hasInput) return null;
-
-  if (bands.length === 0) {
-    return (
-      <p className="text-xs text-destructive mt-1">
-        No matching bands found for this channel
-      </p>
-    );
-  }
-
-  return (
-    <p className="text-xs text-muted-foreground mt-1">
-      Possible bands:{" "}
-      {bands.map((b, i) => {
-        const isSupported =
-          supportedBands.length === 0 || supportedBands.includes(b.band);
-        return (
-          <span key={b.band}>
-            {i > 0 && ", "}
-            <span className={isSupported ? "" : "text-destructive font-medium"}>
-              B{b.band} ({b.name}){!isSupported && " — unsupported"}
-            </span>
-          </span>
-        );
-      })}
-    </p>
-  );
-}
 
 export default LteFreqLockingComponent;
