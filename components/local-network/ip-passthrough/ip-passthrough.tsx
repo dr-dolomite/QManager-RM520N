@@ -1,4 +1,3 @@
-import React from "react";
 import IPPassthroughCard from "./ip-passthrough-card";
 
 const IPPassthroughComponent = () => {
@@ -9,8 +8,8 @@ const IPPassthroughComponent = () => {
           IP Passthrough Settings (IPPT)
         </h1>
         <p className="text-muted-foreground">
-          Configure and manage IP Passthrough settings for your network devices,
-          allowing seamless integration and connectivity.
+          Assign the modem&apos;s public IP directly to a connected device,
+          bypassing the router&apos;s NAT layer.
         </p>
       </div>
       <div className="grid grid-cols-1 @xl/main:grid-cols-2 grid-flow-row gap-4">

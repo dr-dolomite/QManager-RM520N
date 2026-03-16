@@ -53,6 +53,7 @@ const EthernetStatusCard = () => {
   const ringsRef = useRef<HTMLDivElement>(null);
   const ethernetRef = useRef<HTMLDivElement>(null);
   const mountedRef = useRef(true);
+  const hasDataRef = useRef(false);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -75,6 +76,7 @@ const EthernetStatusCard = () => {
       if (!mountedRef.current) return;
 
       if (data.success) {
+        hasDataRef.current = true;
         setError(null);
         setStatus({
           link_status: data.link_status,
@@ -86,7 +88,7 @@ const EthernetStatusCard = () => {
       }
     } catch {
       // Only surface errors when we have no data to show
-      if (mountedRef.current && !status) {
+      if (mountedRef.current && !hasDataRef.current) {
         setError("Unable to reach device");
       }
     } finally {
@@ -94,7 +96,7 @@ const EthernetStatusCard = () => {
         setIsLoading(false);
       }
     }
-  }, [status]);
+  }, []);
 
   useEffect(() => {
     fetchStatus();
@@ -219,9 +221,9 @@ const EthernetStatusCard = () => {
         <CardContent>
           <div className="grid space-y-6">
             <div className="flex items-center justify-between">
-              <Skeleton className="size-20 @xs/card:size-32 rounded-full" />
-              <Skeleton className="size-16 @xs/card:size-24 rounded-full" />
-              <Skeleton className="size-20 @xs/card:size-32 rounded-full" />
+              <Skeleton className="size-16 @xs/card:size-32 rounded-full" />
+              <Skeleton className="size-12 @xs/card:size-24 rounded-full" />
+              <Skeleton className="size-16 @xs/card:size-32 rounded-full" />
             </div>
             <div className="grid gap-2 w-full">
               <Skeleton className="h-5 w-full" />
@@ -299,7 +301,7 @@ const EthernetStatusCard = () => {
           >
             <div
               ref={deviceRef}
-              className="size-20 @xs/card:size-32 bg-primary/15 rounded-full p-4 flex items-center justify-center"
+              className="size-16 @xs/card:size-24 bg-primary/15 rounded-full p-3 @xs/card:p-4 flex items-center justify-center"
             >
               <Image
                 src={deviceIcon}
@@ -311,22 +313,22 @@ const EthernetStatusCard = () => {
 
             <div
               ref={ringsRef}
-              className="relative flex items-center justify-center size-16 @xs/card:size-24"
+              className="relative flex items-center justify-center size-12 @xs/card:size-24"
             >
               {/* Outer rings - pulsating when connected, static when disconnected */}
               <div
-                className={`absolute rounded-full size-16 @xs/card:size-24 ${ringColors.outer} ${
+                className={`absolute rounded-full size-12 @xs/card:size-24 ${ringColors.outer} ${
                   isConnected ? "animate-pulse-ring" : ""
                 }`}
               />
               <div
-                className={`absolute rounded-full size-11 @xs/card:size-16 ${ringColors.mid} ${
+                className={`absolute rounded-full size-9 @xs/card:size-16 ${ringColors.mid} ${
                   isConnected ? "animate-pulse-ring" : ""
                 }`}
                 style={isConnected ? { animationDelay: "0.3s" } : undefined}
               />
               <div
-                className={`absolute rounded-full size-8 @xs/card:size-12 ${ringColors.inner} ${
+                className={`absolute rounded-full size-6 @xs/card:size-12 ${ringColors.inner} ${
                   isConnected ? "animate-pulse-ring" : ""
                 }`}
                 style={isConnected ? { animationDelay: "0.6s" } : undefined}
@@ -339,7 +341,7 @@ const EthernetStatusCard = () => {
 
             <div
               ref={ethernetRef}
-              className={`size-20 @xs/card:size-32 rounded-full p-4 @xs/card:p-6 flex items-center justify-center ${
+              className={`size-16 @xs/card:size-24 rounded-full p-3 @xs/card:p-6 flex items-center justify-center ${
                 isConnected ? "bg-primary" : "bg-muted-foreground/50"
               }`}
             >
