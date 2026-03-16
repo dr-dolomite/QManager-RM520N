@@ -51,14 +51,6 @@ type TailscaleConnectionCardProps = Omit<UseTailscaleReturn, "refresh"> & {
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
-function formatBytes(bytes: number): string {
-  if (bytes === 0) return "0 B";
-  const units = ["B", "KB", "MB", "GB", "TB"];
-  const i = Math.floor(Math.log(bytes) / Math.log(1024));
-  const val = bytes / Math.pow(1024, i);
-  return `${val < 10 ? val.toFixed(1) : Math.round(val)} ${units[i]}`;
-}
-
 function trimDNS(dns: string): string {
   return dns?.replace(/\.$/, "") || "";
 }
@@ -98,8 +90,8 @@ export function TailscaleConnectionCard({
             Manage your Tailscale VPN connection.
           </CardDescription>
         </CardHeader>
-        <CardContent>
-          <div className="grid gap-3">
+        <CardContent aria-live="polite">
+          <div className="grid gap-2">
             <Skeleton className="h-6 w-28" />
             {Array.from({ length: 5 }).map((_, i) => (
               <Skeleton key={i} className="h-5 w-full" />
@@ -121,7 +113,7 @@ export function TailscaleConnectionCard({
             Manage your Tailscale VPN connection.
           </CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent aria-live="polite">
           <Alert variant="destructive">
             <AlertCircle className="size-4" />
             <AlertTitle>Failed to load Tailscale status</AlertTitle>
@@ -148,7 +140,7 @@ export function TailscaleConnectionCard({
             Manage your Tailscale VPN connection.
           </CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent aria-live="polite">
           <div className="flex flex-col items-center justify-center py-6 gap-4">
             <PackageIcon className="size-10 text-muted-foreground" />
             <div className="text-center space-y-1.5">
@@ -162,13 +154,25 @@ export function TailscaleConnectionCard({
             <button
               type="button"
               className="bg-muted px-4 py-2.5 rounded-md text-xs font-mono text-muted-foreground select-all max-w-full overflow-x-auto text-left cursor-pointer hover:bg-muted/80 transition-colors"
-              onClick={() => {
+              onClick={async () => {
                 const cmd =
                   status.install_hint ||
                   "opkg update && opkg install luci-app-tailscale";
-                navigator.clipboard.writeText(cmd).then(() => {
+                try {
+                  await navigator.clipboard.writeText(cmd);
                   toast.success("Copied to clipboard");
-                });
+                } catch {
+                  // Fallback for older browsers / non-HTTPS contexts
+                  const textarea = document.createElement("textarea");
+                  textarea.value = cmd;
+                  textarea.style.position = "fixed";
+                  textarea.style.opacity = "0";
+                  document.body.appendChild(textarea);
+                  textarea.select();
+                  document.execCommand("copy");
+                  document.body.removeChild(textarea);
+                  toast.success("Copied to clipboard");
+                }
               }}
               title="Click to copy"
             >
@@ -185,6 +189,20 @@ export function TailscaleConnectionCard({
     );
   }
 
+  // --- Stale data warning (poll failed but we have previous data) ------------
+  const staleWarning = error && status && (
+    <Alert variant="destructive">
+      <AlertCircle className="size-4" />
+      <AlertDescription className="flex items-center justify-between">
+        <span className="text-xs">{error}</span>
+        <Button variant="outline" size="sm" onClick={() => refresh()}>
+          <RefreshCcwIcon className="size-3.5" />
+          Retry
+        </Button>
+      </AlertDescription>
+    </Alert>
+  );
+
   // --- From here, Tailscale IS installed -------------------------------------
   const version = status?.version;
   const backendState = status?.backend_state || "";
@@ -192,7 +210,9 @@ export function TailscaleConnectionCard({
   const bootEnabled = status?.enabled_on_boot ?? false;
   const self = status?.self;
   const tailnet = status?.tailnet;
-  const health = status?.health || [];
+  const health = (status?.health || []).filter(
+    (msg) => !msg.includes("--accept-routes"),
+  );
   const authUrl = status?.auth_url;
 
   // Boot toggle handler
@@ -233,12 +253,13 @@ export function TailscaleConnectionCard({
         <CardHeader>
           <CardTitle>Tailscale Connection</CardTitle>
           <CardDescription>
-            {version ? `Tailscale v${version} · ` : ""}Manage your Tailscale
-            VPN connection.
+            {version ? `Tailscale v${version} · ` : ""}Manage your Tailscale VPN
+            connection.
           </CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent aria-live="polite">
           <div className="grid gap-2">
+            {staleWarning}
             <div className="flex items-center justify-between">
               <p className="text-sm font-semibold text-muted-foreground">
                 Service
@@ -249,7 +270,7 @@ export function TailscaleConnectionCard({
             </div>
             {bootToggle}
             <Separator />
-            <div className="pt-2">
+            <div className="pt-1">
               <Button
                 onClick={async () => {
                   const success = await startService();
@@ -284,12 +305,13 @@ export function TailscaleConnectionCard({
         <CardHeader>
           <CardTitle>Tailscale Connection</CardTitle>
           <CardDescription>
-            {version ? `Tailscale v${version} · ` : ""}Manage your Tailscale
-            VPN connection.
+            {version ? `Tailscale v${version} · ` : ""}Manage your Tailscale VPN
+            connection.
           </CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent aria-live="polite">
           <div className="grid gap-2">
+            {staleWarning}
             <div className="flex items-center justify-between">
               <p className="text-sm font-semibold text-muted-foreground">
                 Status
@@ -312,7 +334,7 @@ export function TailscaleConnectionCard({
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => window.open(authUrl, "_blank")}
+                      onClick={() => window.open(authUrl, "_blank", "noopener,noreferrer")}
                     >
                       <ExternalLinkIcon className="size-3.5" />
                       Open Login Page
@@ -326,7 +348,7 @@ export function TailscaleConnectionCard({
             ) : (
               <>
                 <Separator />
-                <div className="pt-2">
+                <div className="pt-1">
                   <Button
                     onClick={async () => {
                       const success = await connect();
@@ -401,7 +423,7 @@ export function TailscaleConnectionCard({
             {
               label: "IPv6",
               value: (
-                <span className="font-mono text-xs break-all">{ipv6}</span>
+                <span className="font-mono break-all">{ipv6}</span>
               ),
             },
           ]
@@ -410,22 +432,16 @@ export function TailscaleConnectionCard({
         ? [
             {
               label: "DNS Name",
-              value: (
-                <span className="text-xs break-all">{dnsName}</span>
-              ),
+              value: <span className="break-all">{dnsName}</span>,
             },
           ]
         : []),
-      ...(tailnet?.name
-        ? [{ label: "Tailnet", value: tailnet.name }]
-        : []),
+      ...(tailnet?.name ? [{ label: "Tailnet", value: tailnet.name }] : []),
       ...(magicSuffix
         ? [
             {
               label: "MagicDNS",
-              value: (
-                <span className="text-xs font-mono">{magicSuffix}</span>
-              ),
+              value: <span className="font-mono">{magicSuffix}</span>,
             },
           ]
         : []),
@@ -437,15 +453,6 @@ export function TailscaleConnectionCard({
             },
           ]
         : []),
-      {
-        label: "Traffic",
-        value: (
-          <span className="font-mono text-xs">
-            ↑ {formatBytes(self?.tx_bytes ?? 0)} ↓{" "}
-            {formatBytes(self?.rx_bytes ?? 0)}
-          </span>
-        ),
-      },
     ];
 
     return (
@@ -453,12 +460,35 @@ export function TailscaleConnectionCard({
         <CardHeader>
           <CardTitle>Tailscale Connection</CardTitle>
           <CardDescription>
-            {version ? `Tailscale v${version} · ` : ""}Manage your Tailscale
-            VPN connection.
+            {version ? `Tailscale v${version} · ` : ""}Manage your Tailscale VPN
+            connection.
           </CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent aria-live="polite">
           <div className="grid gap-2">
+            {staleWarning}
+            {/* Boot toggle */}
+            {bootToggle}
+            {/* Health warnings */}
+            {health.length > 0 && (
+              <>
+                <Separator />
+                <Alert variant="destructive">
+                  <AlertTriangleIcon className="size-4" />
+                  <AlertTitle>Health Warnings</AlertTitle>
+                  <AlertDescription>
+                    <ul className="list-disc pl-4 text-xs space-y-1">
+                      {health.map((msg, i) => (
+                        <li key={i}>{msg}</li>
+                      ))}
+                    </ul>
+                  </AlertDescription>
+                </Alert>
+              </>
+            )}
+
+            <Separator />
+
             {/* Status badge */}
             <div className="flex items-center justify-between">
               <p className="text-sm font-semibold text-muted-foreground">
@@ -477,33 +507,12 @@ export function TailscaleConnectionCard({
                   <p className="text-sm font-semibold text-muted-foreground shrink-0">
                     {row.label}
                   </p>
-                  <p className="text-sm font-semibold text-right">
+                  <p className="text-sm font-semibold text-right min-w-0 break-all">
                     {row.value}
                   </p>
                 </div>
               </React.Fragment>
             ))}
-
-            {/* Boot toggle */}
-            {bootToggle}
-
-            {/* Health warnings */}
-            {health.length > 0 && (
-              <>
-                <Separator />
-                <Alert variant="destructive">
-                  <AlertTriangleIcon className="size-4" />
-                  <AlertTitle>Health Warnings</AlertTitle>
-                  <AlertDescription>
-                    <ul className="list-disc pl-4 text-xs space-y-1">
-                      {health.map((msg, i) => (
-                        <li key={i}>{msg}</li>
-                      ))}
-                    </ul>
-                  </AlertDescription>
-                </Alert>
-              </>
-            )}
 
             {/* Actions */}
             <Separator />
@@ -543,9 +552,7 @@ export function TailscaleConnectionCard({
                 </AlertDialogTrigger>
                 <AlertDialogContent>
                   <AlertDialogHeader>
-                    <AlertDialogTitle>
-                      Logout from Tailscale?
-                    </AlertDialogTitle>
+                    <AlertDialogTitle>Logout from Tailscale?</AlertDialogTitle>
                     <AlertDialogDescription>
                       This will remove this device from your Tailscale network.
                       You will need to re-authenticate to reconnect.
@@ -585,8 +592,9 @@ export function TailscaleConnectionCard({
           connection.
         </CardDescription>
       </CardHeader>
-      <CardContent>
+      <CardContent aria-live="polite">
         <div className="grid gap-2">
+          {staleWarning}
           <div className="flex items-center justify-between">
             <p className="text-sm font-semibold text-muted-foreground">
               Status
@@ -603,9 +611,7 @@ export function TailscaleConnectionCard({
             <Button
               onClick={async () => {
                 const success = await connect();
-                if (success) {
-                  toast.success("Connecting to Tailscale…");
-                } else {
+                if (!success) {
                   toast.error("Failed to connect");
                 }
               }}
@@ -635,8 +641,8 @@ export function TailscaleConnectionCard({
                 <AlertDialogHeader>
                   <AlertDialogTitle>Logout from Tailscale?</AlertDialogTitle>
                   <AlertDialogDescription>
-                    This will remove this device from your Tailscale network. You
-                    will need to re-authenticate to reconnect.
+                    This will remove this device from your Tailscale network.
+                    You will need to re-authenticate to reconnect.
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>

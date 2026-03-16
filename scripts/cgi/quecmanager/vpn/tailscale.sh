@@ -155,9 +155,7 @@ if [ "$REQUEST_METHOD" = "GET" ]; then
         tailscale_ips: [(.Self.TailscaleIPs // [])[] | tostring],
         online: (.Self.Online // false),
         os: (.Self.OS // ""),
-        relay: (.Self.Relay // ""),
-        rx_bytes: (.Self.RxBytes // 0),
-        tx_bytes: (.Self.TxBytes // 0)
+        relay: (.Self.Relay // "")
     }' 2>/dev/null) || self_json='{}'
 
     # Build tailnet object from .CurrentTailnet
@@ -176,8 +174,6 @@ if [ "$REQUEST_METHOD" = "GET" ]; then
             os: (.OS // ""),
             online: (.Online // false),
             last_seen: (.LastSeen // ""),
-            rx_bytes: (.RxBytes // 0),
-            tx_bytes: (.TxBytes // 0),
             relay: (.Relay // ""),
             exit_node: (.ExitNode // false)
         }

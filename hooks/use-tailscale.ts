@@ -26,8 +26,6 @@ export interface TailscaleSelf {
   online: boolean;
   os: string;
   relay: string;
-  rx_bytes: number;
-  tx_bytes: number;
 }
 
 export interface TailscaleTailnet {
@@ -43,8 +41,6 @@ export interface TailscalePeer {
   os: string;
   online: boolean;
   last_seen: string;
-  rx_bytes: number;
-  tx_bytes: number;
   relay: string;
   exit_node: boolean;
 }

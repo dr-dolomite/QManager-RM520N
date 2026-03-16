@@ -20,6 +20,7 @@ const TailscaleComponent = () => {
         <TailscalePeersCard
           status={hookData.status}
           isLoading={hookData.isLoading}
+          error={hookData.error}
         />
       </div>
     </div>

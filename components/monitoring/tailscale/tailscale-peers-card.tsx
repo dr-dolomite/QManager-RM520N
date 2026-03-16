@@ -20,7 +20,7 @@ import {
 
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { UsersIcon, ShieldIcon } from "lucide-react";
+import { UsersIcon, ShieldIcon, AlertCircle } from "lucide-react";
 import type { TailscaleStatus, TailscalePeer } from "@/hooks/use-tailscale";
 
 // =============================================================================
@@ -30,6 +30,7 @@ import type { TailscaleStatus, TailscalePeer } from "@/hooks/use-tailscale";
 interface TailscalePeersCardProps {
   status: TailscaleStatus | null;
   isLoading: boolean;
+  error?: string | null;
 }
 
 function formatLastSeen(lastSeen: string, online: boolean): string {
@@ -71,6 +72,7 @@ function capitalizeOS(os: string): string {
 export function TailscalePeersCard({
   status,
   isLoading,
+  error,
 }: TailscalePeersCardProps) {
   const isConnected = status?.backend_state === "Running";
   const peers: TailscalePeer[] = (isConnected && status?.peers) || [];
@@ -106,6 +108,28 @@ export function TailscalePeersCard({
                 </div>
               ))}
             </div>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  // --- Error state (fetch failed, no data) ------------------------------------
+  if (!isLoading && error && !status) {
+    return (
+      <Card className="@container/card">
+        <CardHeader>
+          <CardTitle>Network Peers</CardTitle>
+          <CardDescription>
+            Devices on your Tailscale network.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-col items-center justify-center py-8 gap-3">
+            <AlertCircle className="size-10 text-destructive" />
+            <p className="text-sm text-muted-foreground text-center">
+              Failed to load peer data.
+            </p>
           </div>
         </CardContent>
       </Card>
@@ -162,24 +186,26 @@ export function TailscalePeersCard({
               </TableRow>
             </TableHeader>
             <TableBody aria-live="polite">
-              {peers.map((peer) => (
-                <TableRow key={peer.dns_name || peer.hostname}>
-                  <TableCell>
-                    <div>
-                      <span className="font-medium text-sm">
-                        {peer.hostname || "Unknown"}
-                      </span>
-                      {peer.exit_node && (
-                        <Badge
-                          variant="outline"
-                          className="ml-2 text-xs"
-                        >
-                          <ShieldIcon className="size-3 mr-1" />
-                          Exit Node
-                        </Badge>
-                      )}
+              {peers.map((peer, i) => (
+                <TableRow key={`${peer.hostname}-${peer.tailscale_ips?.[0] ?? i}`}>
+                  <TableCell className="max-w-48">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-medium text-sm truncate">
+                          {peer.hostname || "Unknown"}
+                        </span>
+                        {peer.exit_node && (
+                          <Badge
+                            variant="outline"
+                            className="text-xs shrink-0"
+                          >
+                            <ShieldIcon className="size-3 mr-1" />
+                            Exit Node
+                          </Badge>
+                        )}
+                      </div>
                       {peer.dns_name && (
-                        <span className="block text-xs text-muted-foreground truncate max-w-48">
+                        <span className="block text-xs text-muted-foreground truncate">
                           {peer.dns_name.replace(/\.$/, "")}
                         </span>
                       )}
