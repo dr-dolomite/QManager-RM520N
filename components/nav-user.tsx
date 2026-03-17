@@ -4,12 +4,16 @@ import { useState } from "react";
 import {
   ChevronsUpDown,
   KeyRound,
+  Loader2,
   LogOut,
   Moon,
+  Power,
   Sun,
 } from "lucide-react";
+import { toast } from "sonner";
 import { useTheme } from "next-themes";
 import { logout } from "@/hooks/use-auth";
+import { authFetch } from "@/lib/auth-fetch";
 
 import {
   Avatar,
@@ -25,6 +29,16 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import {
   SidebarMenu,
   SidebarMenuButton,
@@ -44,6 +58,25 @@ export function NavUser({
   const { isMobile } = useSidebar();
   const { theme, setTheme } = useTheme();
   const [passwordDialogOpen, setPasswordDialogOpen] = useState(false);
+  const [rebootDialogOpen, setRebootDialogOpen] = useState(false);
+  const [rebooting, setRebooting] = useState(false);
+
+  const handleReboot = async (e: React.MouseEvent) => {
+    e.preventDefault(); // Keep dialog open to show rebooting state
+    setRebooting(true);
+    try {
+      const res = await authFetch("/cgi-bin/quecmanager/system/reboot.sh", {
+        method: "POST",
+      });
+      if (!res.ok) {
+        toast.error("Reboot failed — restart the device manually");
+        setRebooting(false);
+        return;
+      }
+    } catch {
+      // Connection drop is expected — device is going down
+    }
+  };
 
   const initials =
     user.name
@@ -112,6 +145,13 @@ export function NavUser({
                 </DropdownMenuItem>
               </DropdownMenuGroup>
               <DropdownMenuSeparator />
+              <DropdownMenuItem
+                variant="destructive"
+                onClick={() => setRebootDialogOpen(true)}
+              >
+                <Power />
+                Reboot Device
+              </DropdownMenuItem>
               <DropdownMenuItem onClick={() => logout()}>
                 <LogOut />
                 Log out
@@ -124,6 +164,39 @@ export function NavUser({
         open={passwordDialogOpen}
         onOpenChange={setPasswordDialogOpen}
       />
+      <AlertDialog open={rebootDialogOpen} onOpenChange={(open) => {
+        if (!rebooting) setRebootDialogOpen(open);
+      }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Reboot Device</AlertDialogTitle>
+            <AlertDialogDescription aria-live="polite">
+              {rebooting
+                ? "The device is restarting and will be unreachable for about 30–60 seconds. Refresh this page once it comes back online."
+                : "The device will restart and all network connections will drop until it comes back online."}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={rebooting}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              disabled={rebooting}
+              onClick={handleReboot}
+            >
+              {rebooting ? (
+                <>
+                  <Loader2 className="size-4 animate-spin" />
+                  Rebooting...
+                </>
+              ) : (
+                "Reboot Now"
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }

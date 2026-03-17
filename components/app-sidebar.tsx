@@ -20,7 +20,8 @@ import {
   TimerIcon,
   User2Icon,
   HeartIcon,
-  ScanIcon
+  ScanIcon,
+  SettingsIcon,
 } from "lucide-react";
 
 import QManagerLogo from "@/public/qmanager-logo.svg";
@@ -58,6 +59,11 @@ const data = {
     },
   ],
   navSecondary: [
+    {
+      title: "System Settings",
+      url: "/system-settings",
+      icon: SettingsIcon,
+    },
     {
       title: "About Device",
       url: "/about-device",

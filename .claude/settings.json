@@ -4,7 +4,8 @@
       "Read(//d/Projects/**)",
       "Bash(for dir:*)",
       "Bash(do echo:*)",
-      "Read(//d/Projects/QM PROJECT/QManager/**)"
+      "Read(//d/Projects/QM PROJECT/QManager/**)",
+      "Bash(bash .claude/check-crlf.sh \"scripts/www/cgi-bin/quecmanager/system/reboot.sh\")"
     ]
   }
 }

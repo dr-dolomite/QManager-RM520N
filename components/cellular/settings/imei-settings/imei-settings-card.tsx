@@ -96,7 +96,8 @@ const IMEISettingsCard = ({
     }
   };
 
-  const handleReboot = async () => {
+  const handleReboot = async (e: React.MouseEvent) => {
+    e.preventDefault(); // Keep dialog open to show rebooting state
     setIsRebooting(true);
     const sent = await onReboot();
     if (sent) {
@@ -231,7 +232,9 @@ const IMEISettingsCard = ({
         </form>
 
         {/* Reboot confirmation dialog */}
-        <AlertDialog open={showRebootDialog} onOpenChange={setShowRebootDialog}>
+        <AlertDialog open={showRebootDialog} onOpenChange={(open) => {
+          if (!isRebooting) setShowRebootDialog(open);
+        }}>
           <AlertDialogContent>
             <AlertDialogHeader>
               <AlertDialogTitle>Reboot Required</AlertDialogTitle>

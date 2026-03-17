@@ -42,3 +42,4 @@ next-env.d.ts
 
 # install
 qmanager_install
+/*.tar.gz
