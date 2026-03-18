@@ -51,7 +51,6 @@ const ScheduledOperationsCard = ({
   saveScheduledReboot,
   saveLowPower,
 }: ScheduledOperationsCardProps) => {
-
   // ─── Scheduled Reboot local state ──────────────────────────────────────────
   const [rebootEnabled, setRebootEnabled] = useState(false);
   const [rebootTime, setRebootTime] = useState("04:00");
@@ -395,9 +394,9 @@ const ScheduledOperationsCard = ({
               </TooltipTrigger>
               <TooltipContent>
                 <p>
-                  Disables the modem radio during the scheduled window.
-                  Watchdog, email alerts, and network events are
-                  automatically suspended for the duration.
+                  Disables the modem radio during the scheduled window. <br />
+                  Watchdog, email alerts, and network events are automatically <br />
+                  suspended for the duration.
                 </p>
               </TooltipContent>
             </Tooltip>

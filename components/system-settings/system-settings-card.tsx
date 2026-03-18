@@ -40,7 +40,12 @@ import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Loader2, AlertTriangleIcon, Check, ChevronsUpDown } from "lucide-react";
+import {
+  Loader2,
+  AlertTriangleIcon,
+  Check,
+  ChevronsUpDown,
+} from "lucide-react";
 import { TbInfoCircleFilled } from "react-icons/tb";
 
 import type {
@@ -205,9 +210,7 @@ function SystemSettingsForm({
       setWanGuardSaving(false);
 
       if (success) {
-        toast.success(
-          checked ? "WAN Guard enabled" : "WAN Guard disabled",
-        );
+        toast.success(checked ? "WAN Guard enabled" : "WAN Guard disabled");
       } else {
         // Revert on failure
         setWanGuardEnabled(!checked);
@@ -218,16 +221,13 @@ function SystemSettingsForm({
   );
 
   // --- Timezone change handler ---
-  const handleTimezoneChange = useCallback(
-    (selectedZonename: string) => {
-      const entry = TIMEZONES.find((tz) => tz.zonename === selectedZonename);
-      if (entry) {
-        setZonename(entry.zonename);
-        setTimezone(entry.timezone);
-      }
-    },
-    [],
-  );
+  const handleTimezoneChange = useCallback((selectedZonename: string) => {
+    const entry = TIMEZONES.find((tz) => tz.zonename === selectedZonename);
+    if (entry) {
+      setZonename(entry.zonename);
+      setTimezone(entry.timezone);
+    }
+  }, []);
 
   // --- Save handler (items 2-4) ---
   const handleSave = useCallback(async () => {
@@ -291,9 +291,9 @@ function SystemSettingsForm({
                 </TooltipTrigger>
                 <TooltipContent>
                   <p>
-                    Checks WAN interface profiles at boot and disables any
-                    that don&apos;t have an active data connection, preventing
-                    unnecessary CPU usage.
+                    Checks WAN interface profiles at boot and disables <br />{" "}
+                    any that don&apos;t have an active data connection, <br />{" "}
+                    preventing unnecessary CPU usage.
                   </p>
                 </TooltipContent>
               </Tooltip>
@@ -320,7 +320,10 @@ function SystemSettingsForm({
             <p className="font-semibold text-muted-foreground text-sm">
               Temperature Unit
             </p>
-            <Select value={tempUnit} onValueChange={(v) => setTempUnit(v as "celsius" | "fahrenheit")}>
+            <Select
+              value={tempUnit}
+              onValueChange={(v) => setTempUnit(v as "celsius" | "fahrenheit")}
+            >
               <SelectTrigger className="w-36" aria-label="Temperature unit">
                 <SelectValue />
               </SelectTrigger>
@@ -337,7 +340,10 @@ function SystemSettingsForm({
             <p className="font-semibold text-muted-foreground text-sm">
               Distance Unit
             </p>
-            <Select value={distanceUnit} onValueChange={(v) => setDistanceUnit(v as "km" | "miles")}>
+            <Select
+              value={distanceUnit}
+              onValueChange={(v) => setDistanceUnit(v as "km" | "miles")}
+            >
               <SelectTrigger className="w-36" aria-label="Distance unit">
                 <SelectValue />
               </SelectTrigger>
@@ -363,7 +369,8 @@ function SystemSettingsForm({
                   className="w-52 @sm/card:w-64 justify-between font-normal"
                 >
                   <span className="truncate">
-                    {TIMEZONES.find((tz) => tz.zonename === zonename)?.label ?? "Select timezone"}
+                    {TIMEZONES.find((tz) => tz.zonename === zonename)?.label ??
+                      "Select timezone"}
                   </span>
                   <ChevronsUpDown className="ml-2 size-4 shrink-0 opacity-50" />
                 </Button>
@@ -386,7 +393,9 @@ function SystemSettingsForm({
                           <Check
                             className={cn(
                               "mr-2 size-4",
-                              zonename === tz.zonename ? "opacity-100" : "opacity-0",
+                              zonename === tz.zonename
+                                ? "opacity-100"
+                                : "opacity-0",
                             )}
                           />
                           {tz.label}
@@ -402,11 +411,7 @@ function SystemSettingsForm({
           {/* ── Save Button ───────────────────────────────────────── */}
           <Separator />
           <div className="flex justify-end">
-            <Button
-              onClick={handleSave}
-              disabled={!canSave}
-              className="w-fit"
-            >
+            <Button onClick={handleSave} disabled={!canSave} className="w-fit">
               {isSaving ? (
                 <>
                   <Loader2 className="size-4 animate-spin" />
