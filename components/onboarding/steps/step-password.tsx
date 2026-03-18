@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { EyeIcon, EyeOffIcon } from "lucide-react";
 import { setupPassword } from "@/hooks/use-auth";
+import { authFetch } from "@/lib/auth-fetch";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Field, FieldDescription, FieldGroup, FieldLabel, FieldError } from "@/components/ui/field";
@@ -80,7 +81,18 @@ export function StepPassword({ onSuccess, onLoadingChange, onSubmitRef }: StepPa
       const result = await setupPassword(password, confirm);
       if (result.success) {
         const name = displayName.trim();
-        if (name) localStorage.setItem("qm_display_name", name);
+        if (name) {
+          // Save display name as device hostname
+          try {
+            await authFetch("/cgi-bin/quecmanager/system/settings.sh", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ action: "save_settings", hostname: name }),
+            });
+          } catch {
+            // Non-fatal — hostname save is best-effort during onboarding
+          }
+        }
         onSuccess();
       } else {
         setError(result.error || "Setup failed. Please try again.");

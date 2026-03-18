@@ -72,6 +72,10 @@ if [ "$REQUEST_METHOD" = "GET" ]; then
     temp_unit=$(uci_get temp_unit "celsius")
     distance_unit=$(uci_get distance_unit "km")
 
+    # --- Hostname (display name) ---
+    hostname=$(uci -q get system.@system[0].hostname 2>/dev/null)
+    [ -z "$hostname" ] && hostname="OpenWrt"
+
     # --- Timezone ---
     timezone=$(uci -q get system.@system[0].timezone 2>/dev/null)
     [ -z "$timezone" ] && timezone="UTC0"
@@ -95,6 +99,7 @@ if [ "$REQUEST_METHOD" = "GET" ]; then
 
     jq -n \
         --argjson wan_guard "$wan_guard_enabled" \
+        --arg hostname "$hostname" \
         --arg temp_unit "$temp_unit" \
         --arg distance_unit "$distance_unit" \
         --arg timezone "$timezone" \
@@ -110,6 +115,7 @@ if [ "$REQUEST_METHOD" = "GET" ]; then
             success: true,
             settings: {
                 wan_guard_enabled: $wan_guard,
+                hostname: $hostname,
                 temp_unit: $temp_unit,
                 distance_unit: $distance_unit,
                 timezone: $timezone,
@@ -160,6 +166,14 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
                 true)  /etc/init.d/qmanager_wan_guard enable 2>/dev/null ;;
                 false) /etc/init.d/qmanager_wan_guard disable 2>/dev/null ;;
             esac
+        fi
+
+        # --- Hostname (display name) ---
+        val=$(printf '%s' "$POST_DATA" | jq -r '.hostname // empty')
+        if [ -n "$val" ]; then
+            uci set system.@system[0].hostname="$val"
+            # Apply immediately so /proc/sys/kernel/hostname reflects the change
+            echo "$val" > /proc/sys/kernel/hostname 2>/dev/null
         fi
 
         # --- Temperature unit ---

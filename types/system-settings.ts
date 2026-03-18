@@ -4,6 +4,7 @@
 
 export interface SystemSettings {
   wan_guard_enabled: boolean;
+  hostname: string; // Device hostname, used as display name
   temp_unit: "celsius" | "fahrenheit";
   distance_unit: "km" | "miles";
   timezone: string; // POSIX TZ string, e.g. "EST5EDT,M3.2.0,M11.1.0"

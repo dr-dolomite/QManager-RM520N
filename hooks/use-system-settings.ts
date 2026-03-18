@@ -24,11 +24,12 @@ const CGI_ENDPOINT = "/cgi-bin/quecmanager/system/settings.sh";
 
 export interface SaveSettingsPayload {
   action: "save_settings";
-  wan_guard_enabled: boolean;
-  temp_unit: "celsius" | "fahrenheit";
-  distance_unit: "km" | "miles";
-  timezone: string;
-  zonename: string;
+  wan_guard_enabled?: boolean;
+  hostname?: string;
+  temp_unit?: "celsius" | "fahrenheit";
+  distance_unit?: "km" | "miles";
+  timezone?: string;
+  zonename?: string;
 }
 
 export interface SaveScheduledRebootPayload {

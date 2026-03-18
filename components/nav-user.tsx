@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   ChevronsUpDown,
   KeyRound,
@@ -69,15 +69,24 @@ export function NavUser({
   const { isMobile } = useSidebar();
   const { theme, setTheme } = useTheme();
 
-  // --- Local overrides (from localStorage) ---
-  const [displayName, setDisplayName] = useState<string>(() => {
-    if (typeof window === "undefined") return user.name;
-    return localStorage.getItem("qm_display_name") || user.name;
-  });
+  // --- Display name from device hostname ---
+  const [displayName, setDisplayName] = useState<string>(user.name);
   const [avatarSrc, setAvatarSrc] = useState<string>(() => {
     if (typeof window === "undefined") return user.avatar;
     return localStorage.getItem("qm_display_avatar") || user.avatar;
   });
+
+  // Fetch hostname from system settings on mount
+  useEffect(() => {
+    authFetch("/cgi-bin/quecmanager/system/settings.sh")
+      .then((r) => r.json())
+      .then((json) => {
+        if (json.success && json.settings?.hostname) {
+          setDisplayName(json.settings.hostname);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   // --- Dialog state ---
   const [passwordDialogOpen, setPasswordDialogOpen] = useState(false);
@@ -114,14 +123,32 @@ export function NavUser({
     e.target.value = "";
   };
 
-  // --- Name save ---
-  const handleNameSave = () => {
+  // --- Name save (updates device hostname) ---
+  const [savingName, setSavingName] = useState(false);
+
+  const handleNameSave = async () => {
     const name = nameInput.trim();
     if (!name) return;
-    localStorage.setItem("qm_display_name", name);
-    setDisplayName(name);
-    setNameDialogOpen(false);
-    toast.success("Display name updated.");
+    setSavingName(true);
+    try {
+      const resp = await authFetch("/cgi-bin/quecmanager/system/settings.sh", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "save_settings", hostname: name }),
+      });
+      const json = await resp.json();
+      if (!json.success) {
+        toast.error("Failed to update display name.");
+        return;
+      }
+      setDisplayName(name);
+      setNameDialogOpen(false);
+      toast.success("Display name updated.");
+    } catch {
+      toast.error("Failed to update display name.");
+    } finally {
+      setSavingName(false);
+    }
   };
 
   // --- Reboot ---
@@ -291,9 +318,16 @@ export function NavUser({
             </Button>
             <Button
               onClick={handleNameSave}
-              disabled={!nameInput.trim() || nameInput.trim() === displayName}
+              disabled={!nameInput.trim() || nameInput.trim() === displayName || savingName}
             >
-              Save
+              {savingName ? (
+                <>
+                  <Loader2 className="size-4 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                "Save"
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>

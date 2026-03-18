@@ -77,44 +77,50 @@ const EmailAlertsLogCard = ({ refreshKey }: EmailAlertsLogCardProps) => {
   // ---------------------------------------------------------------------------
   // Fetch log entries
   // ---------------------------------------------------------------------------
-  const fetchLog = useCallback(async (mode: "initial" | "refresh" | "silent" = "initial") => {
-    // Cancel any in-flight request
-    abortRef.current?.abort();
-    const controller = new AbortController();
-    abortRef.current = controller;
+  const fetchLog = useCallback(
+    async (mode: "initial" | "refresh" | "silent" = "initial") => {
+      // Cancel any in-flight request
+      abortRef.current?.abort();
+      const controller = new AbortController();
+      abortRef.current = controller;
 
-    if (mode === "initial") setIsLoading(true);
-    if (mode === "refresh") setIsRefreshing(true);
-    setFetchError(null);
+      if (mode === "initial") setIsLoading(true);
+      if (mode === "refresh") setIsRefreshing(true);
+      setFetchError(null);
 
-    try {
-      const resp = await authFetch(CGI_ENDPOINT, { signal: controller.signal });
-      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      try {
+        const resp = await authFetch(CGI_ENDPOINT, {
+          signal: controller.signal,
+        });
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
 
-      const data: EmailLogResponse = await resp.json();
-      if (controller.signal.aborted) return;
+        const data: EmailLogResponse = await resp.json();
+        if (controller.signal.aborted) return;
 
-      if (data.success) {
-        setEntries(data.entries);
-        setTotal(data.total);
-        setLastFetched(new Date());
-      } else {
-        const msg = data.error || "Failed to load email log";
+        if (data.success) {
+          setEntries(data.entries);
+          setTotal(data.total);
+          setLastFetched(new Date());
+        } else {
+          const msg = data.error || "Failed to load email log";
+          setFetchError(msg);
+          if (mode !== "silent") toast.error(msg);
+        }
+      } catch (err) {
+        if (controller.signal.aborted) return;
+        const msg =
+          err instanceof Error ? err.message : "Failed to load email alert log";
         setFetchError(msg);
         if (mode !== "silent") toast.error(msg);
+      } finally {
+        if (!controller.signal.aborted) {
+          setIsLoading(false);
+          setIsRefreshing(false);
+        }
       }
-    } catch (err) {
-      if (controller.signal.aborted) return;
-      const msg = err instanceof Error ? err.message : "Failed to load email alert log";
-      setFetchError(msg);
-      if (mode !== "silent") toast.error(msg);
-    } finally {
-      if (!controller.signal.aborted) {
-        setIsLoading(false);
-        setIsRefreshing(false);
-      }
-    }
-  }, []);
+    },
+    [],
+  );
 
   useEffect(() => {
     fetchLog("initial");
@@ -211,7 +217,9 @@ const EmailAlertsLogCard = ({ refreshKey }: EmailAlertsLogCardProps) => {
             disabled={isRefreshing}
             onClick={() => fetchLog("refresh")}
           >
-            <RefreshCcwIcon className={cn("size-4", isRefreshing && "animate-spin")} />
+            <RefreshCcwIcon
+              className={cn("size-4", isRefreshing && "animate-spin")}
+            />
           </Button>
         </div>
       </CardHeader>
@@ -220,9 +228,13 @@ const EmailAlertsLogCard = ({ refreshKey }: EmailAlertsLogCardProps) => {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead scope="col" className="whitespace-nowrap">Timestamp</TableHead>
+                <TableHead scope="col" className="whitespace-nowrap">
+                  Timestamp
+                </TableHead>
                 <TableHead scope="col">Trigger</TableHead>
-                <TableHead scope="col" className="w-20">Status</TableHead>
+                <TableHead scope="col" className="w-20">
+                  Status
+                </TableHead>
                 <TableHead scope="col" className="hidden @md/card:table-cell">
                   Recipient
                 </TableHead>
@@ -237,13 +249,15 @@ const EmailAlertsLogCard = ({ refreshKey }: EmailAlertsLogCardProps) => {
                       <p className="text-sm text-muted-foreground">
                         No alerts sent yet
                       </p>
-                      <p className="text-xs text-muted-foreground/70 max-w-xs text-center">
-                        Alerts appear here when your connection drops past the
-                        configured threshold. 
-                        <br />
-                        Use Send Test Email to verify your
-                        setup.
-                      </p>
+                      <div className="grid gap-1">
+                        <p className="text-xs text-muted-foreground/70 ">
+                          Alerts appear here when your connection drops past the
+                          configured threshold.
+                        </p>
+                        <p className="text-xs text-muted-foreground/70">
+                          Use Send Test Email to verify your setup.
+                        </p>
+                      </div>
                     </div>
                   </TableCell>
                 </TableRow>
@@ -253,7 +267,11 @@ const EmailAlertsLogCard = ({ refreshKey }: EmailAlertsLogCardProps) => {
                     key={`${entry.timestamp}-${index}`}
                     initial={{ opacity: 0, x: -8 }}
                     animate={{ opacity: 1, x: 0 }}
-                    transition={{ duration: 0.2, delay: Math.min(index * 0.04, 0.4), ease: "easeOut" }}
+                    transition={{
+                      duration: 0.2,
+                      delay: Math.min(index * 0.04, 0.4),
+                      ease: "easeOut",
+                    }}
                   >
                     <TableCell className="font-mono text-xs whitespace-nowrap">
                       {entry.timestamp}
