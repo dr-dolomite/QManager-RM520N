@@ -5,8 +5,11 @@ import { CheckIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 // =============================================================================
-// StepDone — Onboarding step 6: completion screen
+// StepDone — Onboarding step 6: completion screen + confetti
 // =============================================================================
+
+// Brand-derived confetti colors (primary blue-indigo palette)
+const CONFETTI_COLORS = ["#4f46e5", "#6366f1", "#818cf8", "#a5b4fc", "#c7d2fe", "#e0e7ff"];
 
 export function StepDone() {
   const prefersReducedMotion =
@@ -18,9 +21,57 @@ export function StepDone() {
 
   useEffect(() => {
     if (prefersReducedMotion) return;
-    // Brief delay so the animation plays after the step transition
     const timer = setTimeout(() => setShow(true), 80);
     return () => clearTimeout(timer);
+  }, [prefersReducedMotion]);
+
+  // Confetti burst on mount
+  useEffect(() => {
+    if (prefersReducedMotion) return;
+
+    let cancelled = false;
+
+    const fire = async () => {
+      const confetti = (await import("canvas-confetti")).default;
+      if (cancelled) return;
+
+      // Center burst
+      confetti({
+        particleCount: 70,
+        spread: 55,
+        origin: { x: 0.5, y: 0.45 },
+        colors: CONFETTI_COLORS,
+        scalar: 0.85,
+        gravity: 1.1,
+      });
+
+      // Side bursts after a short delay
+      setTimeout(() => {
+        if (cancelled) return;
+        confetti({
+          particleCount: 30,
+          spread: 50,
+          angle: 65,
+          origin: { x: 0.15, y: 0.5 },
+          colors: CONFETTI_COLORS,
+          scalar: 0.8,
+        });
+        confetti({
+          particleCount: 30,
+          spread: 50,
+          angle: 115,
+          origin: { x: 0.85, y: 0.5 },
+          colors: CONFETTI_COLORS,
+          scalar: 0.8,
+        });
+      }, 180);
+    };
+
+    const timer = setTimeout(fire, 300);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
   }, [prefersReducedMotion]);
 
   useEffect(() => {

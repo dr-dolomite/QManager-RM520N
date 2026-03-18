@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { motion } from "motion/react";
 import { FolderOpenIcon, WrenchIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { authFetch } from "@/lib/auth-fetch";
@@ -248,10 +249,12 @@ function ChoiceCard({
   description,
 }: ChoiceCardProps) {
   return (
-    <button
+    <motion.button
       type="button"
       aria-pressed={selected}
       onClick={onClick}
+      whileTap={{ scale: 0.97 }}
+      transition={{ type: "spring", stiffness: 600, damping: 30 }}
       className={cn(
         "flex flex-col items-start gap-2 rounded-xl border p-4 text-left transition-colors duration-150",
         "hover:border-primary/50 hover:bg-primary/5",
@@ -262,7 +265,7 @@ function ChoiceCard({
     >
       <span
         className={cn(
-          "rounded-lg p-2 transition-colors",
+          "rounded-lg p-2 transition-colors duration-150",
           selected
             ? "bg-primary/15 text-primary"
             : "bg-muted text-muted-foreground"
@@ -276,6 +279,6 @@ function ChoiceCard({
           {description}
         </span>
       </div>
-    </button>
+    </motion.button>
   );
 }

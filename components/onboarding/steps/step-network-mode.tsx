@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { motion } from "motion/react";
 import {
   RefreshCwIcon,
   SignalIcon,
@@ -135,12 +136,14 @@ export function StepNetworkMode({
         {NETWORK_OPTIONS.map((option) => {
           const isSelected = selectedMode === option.id;
           return (
-            <button
+            <motion.button
               key={option.id}
               type="button"
               role="radio"
               aria-checked={isSelected}
               onClick={() => handleModeSelect(option.id)}
+              whileTap={{ scale: 0.97 }}
+              transition={{ type: "spring", stiffness: 600, damping: 30 }}
               className={cn(
                 "flex items-center gap-4 rounded-lg border px-4 py-3.5 text-left",
                 "transition-colors duration-150",
@@ -175,7 +178,7 @@ export function StepNetworkMode({
                     : "border-muted-foreground/40"
                 )}
               />
-            </button>
+            </motion.button>
           );
         })}
       </div>
@@ -194,12 +197,14 @@ export function StepNetworkMode({
             {NR5G_ARCH_OPTIONS.map((arch) => {
               const isSelected = nr5gMode === arch.id;
               return (
-                <button
+                <motion.button
                   key={arch.id}
                   type="button"
                   role="radio"
                   aria-checked={isSelected}
                   onClick={() => handleArchSelect(arch.id)}
+                  whileTap={{ scale: 0.97 }}
+                  transition={{ type: "spring", stiffness: 600, damping: 30 }}
                   className={cn(
                     "flex items-center gap-3 rounded-lg border px-3 py-2.5 text-left",
                     "transition-colors duration-150",
@@ -218,7 +223,7 @@ export function StepNetworkMode({
                     <span className="text-sm font-medium leading-snug">{arch.label}</span>
                     <span className="text-xs text-muted-foreground">{arch.description}</span>
                   </div>
-                </button>
+                </motion.button>
               );
             })}
           </div>

@@ -1,14 +1,27 @@
 "use client";
 
+import { motion } from "motion/react";
+
 // =============================================================================
-// StepWelcome — Onboarding step 1: brand intro
+// StepWelcome — Onboarding step 1: brand intro, staggered entrance
 // =============================================================================
+
+const STAGGER = 0.09;
+const EASE = [0.25, 1, 0.5, 1] as const;
+
+function fadeUp(i: number) {
+  return {
+    initial: { opacity: 0, y: 10 },
+    animate: { opacity: 1, y: 0 },
+    transition: { duration: 0.38, delay: i * STAGGER, ease: EASE },
+  };
+}
 
 export function StepWelcome() {
   return (
     <div className="flex flex-col gap-7">
-      {/* Brand lockup — logo inline with name, not stacked above heading */}
-      <div className="flex items-center gap-3">
+      {/* Brand lockup */}
+      <motion.div {...fadeUp(0)} className="flex items-center gap-3">
         <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 p-1.5">
           <img
             src="/qmanager-logo.svg"
@@ -20,10 +33,10 @@ export function StepWelcome() {
         <span className="text-sm font-semibold tracking-tight text-muted-foreground">
           QManager
         </span>
-      </div>
+      </motion.div>
 
-      {/* Main message — left-aligned for more designed feel */}
-      <div className="flex flex-col gap-3">
+      {/* Main message */}
+      <motion.div {...fadeUp(1)} className="flex flex-col gap-3">
         <h1 className="text-2xl font-semibold tracking-tight leading-tight">
           Your modem,<br />intelligently managed.
         </h1>
@@ -31,15 +44,18 @@ export function StepWelcome() {
           Let&apos;s get you set up in a few quick steps. Only your password is
           required — everything else is optional and adjustable anytime.
         </p>
-      </div>
+      </motion.div>
 
-      {/* Step preview — helps users know what to expect */}
-      <div className="flex flex-col gap-1.5 border-l-2 border-border pl-4">
+      {/* Step preview */}
+      <motion.div
+        {...fadeUp(2)}
+        className="flex flex-col gap-1.5 border-l-2 border-border pl-4"
+      >
         <StepPreviewItem label="Password" required />
         <StepPreviewItem label="Network mode" />
         <StepPreviewItem label="APN or SIM profile" />
         <StepPreviewItem label="Band preferences" />
-      </div>
+      </motion.div>
     </div>
   );
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { motion } from "motion/react";
 import { cn } from "@/lib/utils";
 import { authFetch } from "@/lib/auth-fetch";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -86,12 +87,14 @@ function BandPresetSection({
       <p className="text-sm font-medium">{title}</p>
       <div role="radiogroup" aria-label={title} className="flex flex-col gap-1.5">
         {options.map((opt) => (
-          <button
+          <motion.button
             key={opt.id}
             type="button"
             role="radio"
             aria-checked={selectedPreset === opt.id}
             onClick={() => onPresetChange(opt.id)}
+            whileTap={{ scale: 0.97 }}
+            transition={{ type: "spring", stiffness: 600, damping: 30 }}
             className={cn(
               "flex items-start gap-3 rounded-lg border px-3 py-2.5 text-left transition-colors duration-150",
               "hover:border-primary/50 hover:bg-primary/5",
@@ -116,7 +119,7 @@ function BandPresetSection({
                 </span>
               )}
             </div>
-          </button>
+          </motion.button>
         ))}
       </div>
 
