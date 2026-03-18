@@ -13,7 +13,6 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { CardSimIcon } from "lucide-react";
 
-import { TbCloudFilled } from "react-icons/tb";
 import {
   MdOutline5G,
   Md4gMobiledata,
@@ -246,15 +245,6 @@ const NetworkStatusComponent = ({
                       : "bg-muted/50 text-muted-foreground hover:bg-muted/70 border-muted-foreground/30"
                 }
               >
-                <TbCloudFilled
-                  className={
-                    internetAvailable === true
-                      ? "text-success"
-                      : internetAvailable === false
-                        ? "text-destructive"
-                        : "text-muted-foreground"
-                  }
-                />
                 {/* Sonar ping — only when online */}
                 {internetAvailable === true ? (
                   <span className="relative flex size-2 shrink-0">

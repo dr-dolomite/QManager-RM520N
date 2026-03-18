@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import {
   ChevronsUpDown,
   KeyRound,
@@ -9,6 +9,8 @@ import {
   Moon,
   Power,
   Sun,
+  Camera,
+  Pencil,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useTheme } from "next-themes";
@@ -40,6 +42,15 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
@@ -57,12 +68,65 @@ export function NavUser({
 }) {
   const { isMobile } = useSidebar();
   const { theme, setTheme } = useTheme();
+
+  // --- Local overrides (from localStorage) ---
+  const [displayName, setDisplayName] = useState<string>(() => {
+    if (typeof window === "undefined") return user.name;
+    return localStorage.getItem("qm_display_name") || user.name;
+  });
+  const [avatarSrc, setAvatarSrc] = useState<string>(() => {
+    if (typeof window === "undefined") return user.avatar;
+    return localStorage.getItem("qm_display_avatar") || user.avatar;
+  });
+
+  // --- Dialog state ---
   const [passwordDialogOpen, setPasswordDialogOpen] = useState(false);
+  const [nameDialogOpen, setNameDialogOpen] = useState(false);
   const [rebootDialogOpen, setRebootDialogOpen] = useState(false);
   const [rebooting, setRebooting] = useState(false);
 
+  // --- Name edit state ---
+  const [nameInput, setNameInput] = useState(displayName);
+
+  // --- Avatar upload ---
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleAvatarClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      toast.error("Please select an image file.");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const base64 = reader.result as string;
+      localStorage.setItem("qm_display_avatar", base64);
+      setAvatarSrc(base64);
+      toast.success("Profile photo updated.");
+    };
+    reader.readAsDataURL(file);
+    // Reset so same file can be re-selected
+    e.target.value = "";
+  };
+
+  // --- Name save ---
+  const handleNameSave = () => {
+    const name = nameInput.trim();
+    if (!name) return;
+    localStorage.setItem("qm_display_name", name);
+    setDisplayName(name);
+    setNameDialogOpen(false);
+    toast.success("Display name updated.");
+  };
+
+  // --- Reboot ---
   const handleReboot = async (e: React.MouseEvent) => {
-    e.preventDefault(); // Keep dialog open to show rebooting state
+    e.preventDefault();
     setRebooting(true);
     try {
       const res = await authFetch("/cgi-bin/quecmanager/system/reboot.sh", {
@@ -79,7 +143,7 @@ export function NavUser({
   };
 
   const initials =
-    user.name
+    displayName
       .split(/[-_ ]+/)
       .slice(0, 2)
       .map((w) => w[0]?.toUpperCase() ?? "")
@@ -87,6 +151,15 @@ export function NavUser({
 
   return (
     <>
+      {/* Hidden file input for avatar upload */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={handleFileChange}
+      />
+
       <SidebarMenu>
         <SidebarMenuItem>
           <DropdownMenu>
@@ -96,13 +169,13 @@ export function NavUser({
                 className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
               >
                 <Avatar className="h-8 w-8 rounded-lg">
-                  <AvatarImage src={user.avatar} alt={user.name} />
+                  <AvatarImage src={avatarSrc} alt={displayName} />
                   <AvatarFallback className="rounded-lg">
                     {initials}
                   </AvatarFallback>
                 </Avatar>
                 <div className="grid flex-1 text-left text-sm leading-tight">
-                  <span className="truncate font-medium">{user.name}</span>
+                  <span className="truncate font-medium">{displayName}</span>
                 </div>
                 <ChevronsUpDown className="ml-auto size-4" />
               </SidebarMenuButton>
@@ -115,19 +188,39 @@ export function NavUser({
             >
               <DropdownMenuLabel className="p-0 font-normal">
                 <div className="flex items-center gap-2 px-1 py-1.5 text-left text-sm">
-                  <Avatar className="h-8 w-8 rounded-lg">
-                    <AvatarImage src={user.avatar} alt={user.name} />
-                    <AvatarFallback className="rounded-lg">
-                      {initials}
-                    </AvatarFallback>
-                  </Avatar>
+                  {/* Clickable avatar with camera overlay */}
+                  <button
+                    type="button"
+                    onClick={handleAvatarClick}
+                    className="relative group shrink-0 rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    aria-label="Change profile photo"
+                  >
+                    <Avatar className="h-8 w-8 rounded-lg">
+                      <AvatarImage src={avatarSrc} alt={displayName} />
+                      <AvatarFallback className="rounded-lg">
+                        {initials}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="absolute inset-0 rounded-lg bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                      <Camera className="size-3.5 text-white" />
+                    </div>
+                  </button>
                   <div className="grid flex-1 text-left text-sm leading-tight">
-                    <span className="truncate font-medium">{user.name}</span>
+                    <span className="truncate font-medium">{displayName}</span>
                   </div>
                 </div>
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
               <DropdownMenuGroup>
+                <DropdownMenuItem
+                  onClick={() => {
+                    setNameInput(displayName);
+                    setNameDialogOpen(true);
+                  }}
+                >
+                  <Pencil />
+                  Change Display Name
+                </DropdownMenuItem>
                 <DropdownMenuItem
                   onClick={() => setPasswordDialogOpen(true)}
                 >
@@ -160,10 +253,52 @@ export function NavUser({
           </DropdownMenu>
         </SidebarMenuItem>
       </SidebarMenu>
+
+      {/* Change Display Name dialog */}
+      <Dialog
+        open={nameDialogOpen}
+        onOpenChange={(open) => {
+          setNameDialogOpen(open);
+          if (!open) setNameInput(displayName);
+        }}
+      >
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Change Display Name</DialogTitle>
+          </DialogHeader>
+          <div className="py-2">
+            <Input
+              value={nameInput}
+              onChange={(e) => setNameInput(e.target.value)}
+              placeholder="Your name"
+              autoFocus
+              onKeyDown={(e) => {
+                if (e.key === "Enter") handleNameSave();
+              }}
+            />
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setNameDialogOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleNameSave}
+              disabled={!nameInput.trim() || nameInput.trim() === displayName}
+            >
+              Save
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <ChangePasswordDialog
         open={passwordDialogOpen}
         onOpenChange={setPasswordDialogOpen}
       />
+
       <AlertDialog open={rebootDialogOpen} onOpenChange={(open) => {
         if (!rebooting) setRebootDialogOpen(open);
       }}>

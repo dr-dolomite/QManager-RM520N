@@ -78,7 +78,7 @@ const HomeComponent = () => {
           initial="hidden"
           animate="visible"
         >
-          <motion.div variants={itemVariants}>
+          <motion.div variants={itemVariants} className="h-full *:data-[slot=card]:h-full">
             <DeviceMetricsComponent
               deviceData={data?.device ?? null}
               trafficData={data?.traffic ?? null}
@@ -87,13 +87,13 @@ const HomeComponent = () => {
               isLoading={isLoading}
             />
           </motion.div>
-          <motion.div variants={itemVariants}>
+          <motion.div variants={itemVariants} className="h-full *:data-[slot=card]:h-full">
             <LiveLatencyComponent
               connectivity={data?.connectivity ?? null}
               isLoading={isLoading}
             />
           </motion.div>
-          <motion.div variants={itemVariants}>
+          <motion.div variants={itemVariants} className="h-full *:data-[slot=card]:h-full">
             <RecentActivitiesComponent />
           </motion.div>
         </motion.div>
