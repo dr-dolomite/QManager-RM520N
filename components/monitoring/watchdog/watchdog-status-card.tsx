@@ -39,32 +39,32 @@ interface WatchdogStatusCardProps {
 
 const STATE_BADGE_CONFIG: Record<
   WatchcatState,
-  { label: string; className: string }
+  { label: string; variant: "success" | "warning" | "destructive" | "info" | "secondary"; className?: string }
 > = {
   monitor: {
     label: "Monitoring",
-    className: "bg-success text-success-foreground border-success",
+    variant: "success",
   },
   suspect: {
     label: "Detecting Issue",
-    className: "bg-warning text-warning-foreground border-warning",
+    variant: "warning",
   },
   recovery: {
     label: "Recovering",
-    className:
-      "bg-destructive text-destructive-foreground border-destructive animate-pulse motion-reduce:animate-none",
+    variant: "destructive",
+    className: "animate-pulse motion-reduce:animate-none",
   },
   cooldown: {
     label: "Cooldown",
-    className: "bg-info text-info-foreground border-info",
+    variant: "info",
   },
   locked: {
     label: "Locked",
-    className: "bg-muted text-muted-foreground border-border",
+    variant: "secondary",
   },
   disabled: {
     label: "Disabled",
-    className: "bg-muted text-muted-foreground border-border",
+    variant: "secondary",
   },
 };
 
@@ -238,7 +238,7 @@ export function WatchdogStatusCard({
                 exit={{ opacity: 0, scale: 0.88 }}
                 transition={{ duration: 0.18, type: "spring", stiffness: 400, damping: 24 }}
               >
-                <Badge className={badge.className}>{badge.label}</Badge>
+                <Badge variant={badge.variant} className={badge.className}>{badge.label}</Badge>
               </motion.div>
             </AnimatePresence>
           </div>

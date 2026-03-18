@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useRef, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { toast } from "sonner";
 import { authFetch } from "@/lib/auth-fetch";
 
@@ -31,6 +31,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { RefreshCcwIcon, Clock, MailIcon, AlertCircle } from "lucide-react";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
+import { cn } from "@/lib/utils";
 
 // =============================================================================
 // EmailAlertsLogCard — Self-contained log of sent/failed email alerts
@@ -60,31 +61,38 @@ const EmailAlertsLogCard = ({ refreshKey }: EmailAlertsLogCardProps) => {
   const [entries, setEntries] = useState<EmailLogEntry[]>([]);
   const [total, setTotal] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [lastFetched, setLastFetched] = useState<Date | null>(null);
 
-  const mountedRef = useRef(true);
+  // AbortController for clean fetch cancellation on unmount
+  const abortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
-    mountedRef.current = true;
     return () => {
-      mountedRef.current = false;
+      abortRef.current?.abort();
     };
   }, []);
 
   // ---------------------------------------------------------------------------
   // Fetch log entries
   // ---------------------------------------------------------------------------
-  const fetchLog = useCallback(async (silent = false) => {
-    if (!silent) setIsLoading(true);
+  const fetchLog = useCallback(async (mode: "initial" | "refresh" | "silent" = "initial") => {
+    // Cancel any in-flight request
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+
+    if (mode === "initial") setIsLoading(true);
+    if (mode === "refresh") setIsRefreshing(true);
     setFetchError(null);
 
     try {
-      const resp = await authFetch(CGI_ENDPOINT);
+      const resp = await authFetch(CGI_ENDPOINT, { signal: controller.signal });
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
 
       const data: EmailLogResponse = await resp.json();
-      if (!mountedRef.current) return;
+      if (controller.signal.aborted) return;
 
       if (data.success) {
         setEntries(data.entries);
@@ -93,27 +101,29 @@ const EmailAlertsLogCard = ({ refreshKey }: EmailAlertsLogCardProps) => {
       } else {
         const msg = data.error || "Failed to load email log";
         setFetchError(msg);
-        if (!silent) toast.error(msg);
+        if (mode !== "silent") toast.error(msg);
       }
     } catch (err) {
-      if (mountedRef.current) {
-        const msg = err instanceof Error ? err.message : "Failed to load email alert log";
-        setFetchError(msg);
-        if (!silent) toast.error(msg);
-      }
+      if (controller.signal.aborted) return;
+      const msg = err instanceof Error ? err.message : "Failed to load email alert log";
+      setFetchError(msg);
+      if (mode !== "silent") toast.error(msg);
     } finally {
-      if (mountedRef.current && !silent) setIsLoading(false);
+      if (!controller.signal.aborted) {
+        setIsLoading(false);
+        setIsRefreshing(false);
+      }
     }
   }, []);
 
   useEffect(() => {
-    fetchLog();
+    fetchLog("initial");
   }, [fetchLog]);
 
   // Re-fetch when parent signals a refresh (e.g. after sending a test email)
   useEffect(() => {
     if (refreshKey) {
-      fetchLog(true);
+      fetchLog("silent");
     }
   }, [refreshKey, fetchLog]);
 
@@ -165,12 +175,13 @@ const EmailAlertsLogCard = ({ refreshKey }: EmailAlertsLogCardProps) => {
           <Alert variant="destructive">
             <AlertCircle className="size-4" />
             <AlertTitle>Failed to load alert log</AlertTitle>
-            <AlertDescription className="flex items-center justify-between">
-              <span>{fetchError}</span>
+            <AlertDescription>
+              <p>{fetchError}</p>
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => fetchLog()}
+                className="mt-2"
+                onClick={() => fetchLog("initial")}
               >
                 <RefreshCcwIcon className="size-3.5" />
                 Retry
@@ -197,21 +208,22 @@ const EmailAlertsLogCard = ({ refreshKey }: EmailAlertsLogCardProps) => {
             variant="outline"
             size="icon"
             aria-label="Refresh alert log"
-            onClick={() => fetchLog()}
+            disabled={isRefreshing}
+            onClick={() => fetchLog("refresh")}
           >
-            <RefreshCcwIcon className="size-4" />
+            <RefreshCcwIcon className={cn("size-4", isRefreshing && "animate-spin")} />
           </Button>
         </div>
       </CardHeader>
       <CardContent>
-        <div className="rounded-md border">
+        <div className="rounded-md border overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="w-44">Timestamp</TableHead>
-                <TableHead>Trigger</TableHead>
-                <TableHead className="w-20">Status</TableHead>
-                <TableHead className="hidden @md/card:table-cell">
+                <TableHead scope="col" className="whitespace-nowrap">Timestamp</TableHead>
+                <TableHead scope="col">Trigger</TableHead>
+                <TableHead scope="col" className="w-20">Status</TableHead>
+                <TableHead scope="col" className="hidden @md/card:table-cell">
                   Recipient
                 </TableHead>
               </TableRow>
@@ -221,13 +233,15 @@ const EmailAlertsLogCard = ({ refreshKey }: EmailAlertsLogCardProps) => {
                 <TableRow>
                   <TableCell colSpan={4} className="text-center py-8">
                     <div className="flex flex-col items-center gap-2">
-                      <MailIcon className="h-8 w-8 text-muted-foreground" />
+                      <MailIcon className="size-8 text-muted-foreground" />
                       <p className="text-sm text-muted-foreground">
                         No alerts sent yet
                       </p>
                       <p className="text-xs text-muted-foreground/70 max-w-xs text-center">
                         Alerts appear here when your connection drops past the
-                        configured threshold. Use Send Test Email to verify your
+                        configured threshold. 
+                        <br />
+                        Use Send Test Email to verify your
                         setup.
                       </p>
                     </div>
@@ -244,28 +258,23 @@ const EmailAlertsLogCard = ({ refreshKey }: EmailAlertsLogCardProps) => {
                     <TableCell className="font-mono text-xs whitespace-nowrap">
                       {entry.timestamp}
                     </TableCell>
-                    <TableCell className="text-sm">
-                      {entry.trigger}
-                      <span className="block text-xs text-muted-foreground @md/card:hidden">
+                    <TableCell className="text-sm min-w-0">
+                      <span className="block truncate">{entry.trigger}</span>
+                      <span className="block text-xs text-muted-foreground truncate @md/card:hidden">
                         {entry.recipient}
                       </span>
                     </TableCell>
                     <TableCell>
                       <Badge
                         variant={
-                          entry.status === "sent" ? "default" : "destructive"
-                        }
-                        className={
-                          entry.status === "sent"
-                            ? "bg-success text-success-foreground border-success"
-                            : ""
+                          entry.status === "sent" ? "success" : "destructive"
                         }
                       >
                         {entry.status === "sent" ? "Sent" : "Failed"}
                       </Badge>
                     </TableCell>
                     <TableCell className="hidden @md/card:table-cell text-sm text-muted-foreground">
-                      {entry.recipient}
+                      <span className="block truncate">{entry.recipient}</span>
                     </TableCell>
                   </MotionTableRow>
                 ))
@@ -275,14 +284,14 @@ const EmailAlertsLogCard = ({ refreshKey }: EmailAlertsLogCardProps) => {
         </div>
       </CardContent>
       {entries.length > 0 && (
-        <CardFooter className="flex justify-between items-center">
+        <CardFooter className="flex flex-col gap-1 @xs/card:flex-row @xs/card:justify-between @xs/card:items-center">
           <div className="text-xs text-muted-foreground">
             Showing <strong>{entries.length}</strong> of{" "}
             <strong>{total}</strong> entries
           </div>
           {lastFetched && (
             <div className="flex items-center gap-1 text-xs text-muted-foreground">
-              <Clock className="size-3" />
+              <Clock className="size-3 shrink-0" />
               Last updated: {lastFetched.toLocaleTimeString()}
             </div>
           )}

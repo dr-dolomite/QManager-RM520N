@@ -87,29 +87,18 @@ interface LogsResponse {
 
 const getLevelBadgeVariant = (
   level: string
-): "default" | "secondary" | "destructive" | "outline" => {
+): "default" | "secondary" | "destructive" | "warning" | "info" => {
   switch (level) {
     case "ERROR":
       return "destructive";
     case "WARN":
-      return "outline";
+      return "warning";
     case "INFO":
-      return "default";
+      return "info";
     case "DEBUG":
       return "secondary";
     default:
       return "secondary";
-  }
-};
-
-const getLevelBadgeClass = (level: string) => {
-  switch (level) {
-    case "WARN":
-      return "border-warning text-warning";
-    case "INFO":
-      return "bg-info text-info-foreground border-info";
-    default:
-      return "";
   }
 };
 
@@ -434,7 +423,6 @@ const SystemLogsCard = () => {
                       <TableCell>
                         <Badge
                           variant={getLevelBadgeVariant(entry.level)}
-                          className={getLevelBadgeClass(entry.level)}
                         >
                           {entry.level}
                         </Badge>

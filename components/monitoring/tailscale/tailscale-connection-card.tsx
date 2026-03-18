@@ -495,7 +495,7 @@ export function TailscaleConnectionCard({
               <p className="text-sm font-semibold text-muted-foreground">
                 Status
               </p>
-              <Badge className="bg-success text-success-foreground border-success">
+              <Badge variant="success">
                 Connected
               </Badge>
             </div>

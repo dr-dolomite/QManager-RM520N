@@ -383,8 +383,7 @@ const EthernetStatusCard = () => {
                 Link Status
               </p>
               <Badge
-                variant={isConnected ? "default" : "destructive"}
-                className={isConnected ? "bg-success hover:bg-success text-success-foreground" : ""}
+                variant={isConnected ? "success" : "destructive"}
               >
                 {isConnected ? "Connected" : "Disconnected"}
               </Badge>

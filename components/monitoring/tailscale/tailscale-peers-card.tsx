@@ -227,12 +227,7 @@ export function TailscalePeersCard({
                   </TableCell>
                   <TableCell>
                     <Badge
-                      variant={peer.online ? "default" : "secondary"}
-                      className={
-                        peer.online
-                          ? "bg-success text-success-foreground border-success"
-                          : ""
-                      }
+                      variant={peer.online ? "success" : "secondary"}
                     >
                       {peer.online ? "Online" : "Offline"}
                     </Badge>

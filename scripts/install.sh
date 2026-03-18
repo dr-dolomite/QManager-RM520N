@@ -51,9 +51,9 @@ SRC_FRONTEND="$INSTALL_DIR/out"
 SRC_SCRIPTS="$INSTALL_DIR/scripts"
 
 # Required packages
-REQUIRED_PACKAGES="jq"
+REQUIRED_PACKAGES="jq sms-tool"
 # Optional packages (installed if available, non-fatal if missing)
-OPTIONAL_PACKAGES="msmtp tailscale ethtool"
+OPTIONAL_PACKAGES="msmtp ethtool ookla-speedtest"
 
 # --- Colors & Icons ----------------------------------------------------------
 
@@ -91,6 +91,15 @@ error() { printf "    ${RED}${ICO_ERR}${NC}  %s\n" "$1"; }
 die() {
     error "$1"
     exit 1
+}
+
+# Get the binary name for a package (handles pkg name != binary name)
+pkg_binary() {
+    case "$1" in
+        ookla-speedtest) echo "speedtest" ;;
+        sms-tool)        echo "sms_tool" ;;
+        *)               echo "$1" ;;
+    esac
 }
 
 # Count files in a directory (POSIX-safe)
@@ -203,7 +212,7 @@ install_packages() {
 
     # Install required packages (fatal if missing)
     for pkg in $REQUIRED_PACKAGES; do
-        if command -v "$pkg" >/dev/null 2>&1; then
+        if command -v "$(pkg_binary "$pkg")" >/dev/null 2>&1; then
             info "$pkg is already installed"
         else
             if run_with_spinner "Installing $pkg" opkg install "$pkg"; then
@@ -216,7 +225,7 @@ install_packages() {
 
     # Install optional packages (non-fatal)
     for pkg in $OPTIONAL_PACKAGES; do
-        if command -v "$pkg" >/dev/null 2>&1; then
+        if command -v "$(pkg_binary "$pkg")" >/dev/null 2>&1; then
             info "$pkg is already installed"
         else
             if run_with_spinner "Installing $pkg (optional)" opkg install "$pkg"; then
@@ -604,6 +613,10 @@ uninstall() {
 
     printf "\n"
     info "QManager has been uninstalled"
+
+    printf "  Rebooting in 5 seconds — press Ctrl+C to cancel...\n\n"
+    sleep 5
+    reboot
 }
 
 # --- Version Check -----------------------------------------------------------
@@ -648,7 +661,7 @@ print_summary() {
     printf "\n"
     printf "  ${DIM}Packages:${NC}\n"
     for pkg in $REQUIRED_PACKAGES $OPTIONAL_PACKAGES; do
-        if command -v "$pkg" >/dev/null 2>&1; then
+        if command -v "$(pkg_binary "$pkg")" >/dev/null 2>&1; then
             printf "    ${GREEN}${ICO_OK}${NC}  %-12s installed\n" "$pkg"
         else
             printf "    ${YELLOW}${ICO_WARN}${NC}  %-12s missing\n" "$pkg"
@@ -802,6 +815,10 @@ main() {
     fi
 
     print_summary
+
+    printf "  Rebooting in 5 seconds — press Ctrl+C to cancel...\n\n"
+    sleep 5
+    reboot
 }
 
 main "$@"
