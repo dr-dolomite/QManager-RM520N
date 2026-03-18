@@ -55,6 +55,7 @@ app/                            # Next.js App Router
 │   ├── watchdog/               # Watchdog settings
 │   ├── logs/                   # System logs
 │   └── tailscale/              # Tailscale VPN
+├── system-settings/            # System settings & scheduled ops
 ├── about-device/               # Device information
 └── support/                    # Support & links
 
@@ -68,13 +69,15 @@ components/
 ├── nav-localNetwork.tsx        # Local network nav section
 ├── nav-monitoring.tsx          # Monitoring nav section
 ├── nav-secondary.tsx           # Secondary nav (About, Support, Donate)
-├── nav-user.tsx                # User menu (change password, logout)
+├── nav-system.tsx              # System nav section
+├── nav-user.tsx                # User menu (change password, theme, reboot, logout)
 ├── donate-dialog.tsx           # Ko-fi/PayPal donation dialog
 ├── auth/                       # Login form, setup form
 ├── cellular/                   # Cellular components (57 files)
 ├── dashboard/                  # Dashboard cards
 ├── local-network/              # Network components
 ├── monitoring/                 # Monitoring components
+├── system-settings/            # System settings & scheduled ops
 ├── about-device/               # About page components
 └── support/                    # Support page components
 

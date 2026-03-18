@@ -27,7 +27,6 @@
 #   --uninstall        Remove QManager completely
 #   --help             Show this help
 #
-# Install location: included in archive root
 # =============================================================================
 
 set -e
@@ -56,24 +55,38 @@ REQUIRED_PACKAGES="jq"
 # Optional packages (installed if available, non-fatal if missing)
 OPTIONAL_PACKAGES="msmtp tailscale ethtool"
 
-# Colors (if terminal supports them)
+# --- Colors & Icons ----------------------------------------------------------
+
 if [ -t 1 ]; then
     RED='\033[0;31m'
     GREEN='\033[0;32m'
     YELLOW='\033[1;33m'
     BLUE='\033[0;34m'
+    CYAN='\033[0;36m'
     BOLD='\033[1m'
+    DIM='\033[2m'
     NC='\033[0m'
 else
-    RED='' GREEN='' YELLOW='' BLUE='' BOLD='' NC=''
+    RED='' GREEN='' YELLOW='' BLUE='' CYAN='' BOLD='' DIM='' NC=''
 fi
+
+ICO_OK='✓'
+ICO_WARN='⚠'
+ICO_ERR='✗'
+ICO_STEP='▶'
+
+# --- Progress Tracking -------------------------------------------------------
+
+# TOTAL_STEPS is calculated dynamically in main() based on active flags.
+# Each function that calls step() counts as one step.
+TOTAL_STEPS=9
+CURRENT_STEP=0
 
 # --- Helper Functions --------------------------------------------------------
 
-info()  { printf "${GREEN}[+]${NC} %s\n" "$1"; }
-warn()  { printf "${YELLOW}[!]${NC} %s\n" "$1"; }
-error() { printf "${RED}[x]${NC} %s\n" "$1"; }
-step()  { printf "${BLUE}[*]${NC} ${BOLD}%s${NC}\n" "$1"; }
+info()  { printf "    ${GREEN}${ICO_OK}${NC}  %s\n" "$1"; }
+warn()  { printf "    ${YELLOW}${ICO_WARN}${NC}  %s\n" "$1"; }
+error() { printf "    ${RED}${ICO_ERR}${NC}  %s\n" "$1"; }
 
 die() {
     error "$1"
@@ -83,6 +96,67 @@ die() {
 # Count files in a directory (POSIX-safe)
 count_files() {
     find "$1" -type f 2>/dev/null | wc -l | tr -d ' '
+}
+
+# Draw a Unicode block progress bar.
+# Args: current, total, [width=20]
+_draw_bar() {
+    local curr="$1" tot="$2" w="${3:-20}"
+    local fill=$(( curr * w / tot ))
+    local bar="" i=0
+    while [ "$i" -lt "$w" ]; do
+        if [ "$i" -lt "$fill" ]; then
+            bar="${bar}█"
+        else
+            bar="${bar}░"
+        fi
+        i=$(( i + 1 ))
+    done
+    printf "%s" "$bar"
+}
+
+# Print a step header with progress bar.
+step() {
+    CURRENT_STEP=$(( CURRENT_STEP + 1 ))
+    local pct=$(( CURRENT_STEP * 100 / TOTAL_STEPS ))
+    printf "\n"
+    if [ -t 1 ]; then
+        printf "  ${DIM}[%s  %3d%%  Step %d/%d]${NC}\n" \
+            "$(_draw_bar "$CURRENT_STEP" "$TOTAL_STEPS")" \
+            "$pct" "$CURRENT_STEP" "$TOTAL_STEPS"
+    fi
+    printf "  ${BLUE}${BOLD}${ICO_STEP}${NC}${BOLD} %s${NC}\n" "$1"
+}
+
+# Run a command with a rotating spinner (TTY only).
+# Usage: run_with_spinner "label" cmd [args...]
+run_with_spinner() {
+    local label="$1"; shift
+    local i=0 rc=0 f
+
+    # No spinner when not a TTY — just run silently
+    if [ ! -t 1 ]; then
+        "$@" >/dev/null 2>&1 || rc=$?
+        return "$rc"
+    fi
+
+    "$@" >/tmp/qm_spin_out 2>&1 &
+    local cpid=$!
+
+    while kill -0 "$cpid" 2>/dev/null; do
+        case $(( i % 3 )) in
+            0) f='|' ;; 1) f='/' ;; *) f='-' ;;
+        esac
+        printf "\r    ${CYAN}%s${NC}  %s " "$f" "$label"
+        i=$(( i + 1 ))
+        sleep 1
+    done
+
+    wait "$cpid"
+    rc=$?
+    printf "\r\033[2K"
+    rm -f /tmp/qm_spin_out
+    return "$rc"
 }
 
 # --- Pre-flight Checks -------------------------------------------------------
@@ -121,9 +195,9 @@ preflight() {
 install_packages() {
     step "Installing required packages"
 
-    # Update package lists
-    info "Updating opkg package lists..."
-    if ! opkg update >/dev/null 2>&1; then
+    if run_with_spinner "Updating package lists" opkg update; then
+        info "Package lists updated"
+    else
         warn "opkg update failed — will try installing from cache"
     fi
 
@@ -132,8 +206,7 @@ install_packages() {
         if command -v "$pkg" >/dev/null 2>&1; then
             info "$pkg is already installed"
         else
-            info "Installing $pkg..."
-            if opkg install "$pkg" >/dev/null 2>&1; then
+            if run_with_spinner "Installing $pkg" opkg install "$pkg"; then
                 info "$pkg installed successfully"
             else
                 die "Failed to install required package: $pkg"
@@ -146,12 +219,11 @@ install_packages() {
         if command -v "$pkg" >/dev/null 2>&1; then
             info "$pkg is already installed"
         else
-            info "Installing $pkg (optional)..."
-            if opkg install "$pkg" >/dev/null 2>&1; then
+            if run_with_spinner "Installing $pkg (optional)" opkg install "$pkg"; then
                 info "$pkg installed successfully"
             else
                 warn "$pkg not available — feature will be disabled"
-                warn "  You can install it later: opkg install $pkg"
+                warn "  Install later with: opkg install $pkg"
             fi
         fi
     done
@@ -188,7 +260,6 @@ stop_services() {
         killall "$proc" 2>/dev/null || true
     done
 
-    # Brief pause for processes to exit
     sleep 1
     info "All services stopped"
 }
@@ -235,7 +306,7 @@ backup_originals() {
 # --- Install Frontend --------------------------------------------------------
 
 install_frontend() {
-    step "Installing frontend to $WWW_ROOT"
+    step "Installing frontend"
 
     local file_count
     file_count=$(count_files "$SRC_FRONTEND")
@@ -278,15 +349,15 @@ install_backend() {
     # --- Daemons and utilities ---
     info "Installing daemons to $BIN_DIR"
 
-    local fname bin_count
+    local fname bin_count=0
     if [ -d "$SRC_SCRIPTS/usr/bin" ]; then
         for f in "$SRC_SCRIPTS/usr/bin"/*; do
             [ -f "$f" ] || continue
             fname=$(basename "$f")
             cp "$f" "$BIN_DIR/$fname"
             chmod +x "$BIN_DIR/$fname"
+            bin_count=$(( bin_count + 1 ))
         done
-        bin_count=$(count_files "$SRC_SCRIPTS/usr/bin")
         info "  $bin_count daemon/utility files installed"
     fi
 
@@ -313,15 +384,15 @@ install_backend() {
     # --- Init.d services ---
     info "Installing init.d services to $INITD_DIR"
 
-    local initd_count
+    local initd_count=0
     if [ -d "$SRC_SCRIPTS/etc/init.d" ]; then
         for f in "$SRC_SCRIPTS/etc/init.d"/*; do
             [ -f "$f" ] || continue
             fname=$(basename "$f")
             cp "$f" "$INITD_DIR/$fname"
             chmod +x "$INITD_DIR/$fname"
+            initd_count=$(( initd_count + 1 ))
         done
-        initd_count=$(count_files "$SRC_SCRIPTS/etc/init.d")
         info "  $initd_count init.d scripts installed"
     fi
 
@@ -434,14 +505,37 @@ start_services() {
     fi
 }
 
-# --- Uninstall ---------------------------------------------------------------
+# --- Uninstall (via --uninstall flag) ----------------------------------------
+# For a richer uninstall experience use the standalone uninstall.sh script.
 
 uninstall() {
     step "Uninstalling QManager"
 
-    # Stop and disable services
-    stop_services
+    # Stop services (inline — stop_services() also calls step(), so we inline here)
+    info "Stopping services"
+    if [ -x "$INITD_DIR/qmanager" ]; then
+        "$INITD_DIR/qmanager" stop 2>/dev/null || true
+    fi
+    for svc in qmanager_eth_link qmanager_mtu qmanager_imei_check \
+               qmanager_wan_guard qmanager_tower_failover qmanager_ttl \
+               qmanager_low_power_check; do
+        if [ -x "$INITD_DIR/$svc" ]; then
+            "$INITD_DIR/$svc" stop 2>/dev/null || true
+        fi
+    done
+    for proc in qmanager_poller qmanager_ping qmanager_watchcat \
+                qmanager_band_failover qmanager_tower_failover \
+                qmanager_tower_schedule qmanager_cell_scanner \
+                qmanager_neighbour_scanner qmanager_mtu_apply \
+                qmanager_profile_apply qmanager_imei_check \
+                qmanager_wan_guard qmanager_low_power \
+                qmanager_low_power_check qmanager_scheduled_reboot; do
+        killall "$proc" 2>/dev/null || true
+    done
+    sleep 1
+    info "All services stopped"
 
+    # Disable and remove init.d services
     for svc in qmanager qmanager_eth_link qmanager_ttl qmanager_mtu \
                qmanager_wan_guard qmanager_imei_check qmanager_tower_failover \
                qmanager_low_power_check; do
@@ -465,6 +559,13 @@ uninstall() {
     rm -rf "$CGI_DIR"
     info "Removed $CGI_DIR"
 
+    # Remove UCI config
+    if uci -q get quecmanager >/dev/null 2>&1; then
+        uci -q delete quecmanager 2>/dev/null || true
+        uci commit 2>/dev/null || true
+        info "Removed UCI config"
+    fi
+
     # Remove frontend and restore original index.html
     for dir in _next dashboard cellular monitoring local-network \
                login about-device support system-settings; do
@@ -472,7 +573,6 @@ uninstall() {
     done
     rm -f "$WWW_ROOT/index.html" "$WWW_ROOT/404.html" "$WWW_ROOT/favicon.ico"
 
-    # Restore original index.html if backup exists
     if [ -f "$BACKUP_DIR/index.html.orig" ]; then
         cp "$BACKUP_DIR/index.html.orig" "$WWW_ROOT/index.html"
         info "Restored original index.html from backup"
@@ -480,8 +580,7 @@ uninstall() {
     info "Removed frontend files"
 
     # Remove runtime state
-    rm -f /tmp/qmanager_*.json
-    rm -f /tmp/qmanager.log*
+    rm -f /tmp/qmanager_*.json /tmp/qmanager.log* 2>/dev/null || true
     rm -rf "$SESSION_DIR"
     info "Removed runtime state from /tmp"
 
@@ -523,32 +622,36 @@ check_existing() {
 
 print_summary() {
     printf "\n"
-    printf "${BOLD}========================================${NC}\n"
-    printf "${BOLD}  QManager v%s — Installation Complete${NC}\n" "$VERSION"
-    printf "${BOLD}========================================${NC}\n"
+    if [ -t 1 ]; then
+        printf "  [%s  100%%  Complete]\n" \
+            "$(_draw_bar "$TOTAL_STEPS" "$TOTAL_STEPS")"
+    fi
     printf "\n"
+    printf "  ╔══════════════════════════════════════╗\n"
+    printf "  ║  %-34s  ║\n" "QManager v$VERSION — Installed!"
+    printf "  ╚══════════════════════════════════════╝\n\n"
 
     if [ "$DO_FRONTEND" = "1" ]; then
-        printf "  Frontend:    %s\n" "$WWW_ROOT"
+        printf "  ${DIM}Frontend:  ${NC}%s\n" "$WWW_ROOT"
     fi
     if [ "$DO_BACKEND" = "1" ]; then
-        printf "  CGI:         %s\n" "$CGI_DIR"
-        printf "  Libraries:   %s\n" "$LIB_DIR"
-        printf "  Daemons:     %s/qmanager_*\n" "$BIN_DIR"
-        printf "  Init.d:      %s/qmanager*\n" "$INITD_DIR"
-        printf "  Config:      %s\n" "$CONF_DIR"
-        printf "  Backups:     %s\n" "$BACKUP_DIR"
-        printf "  Logs:        /tmp/qmanager.log\n"
-        printf "  Status:      /tmp/qmanager_status.json\n"
+        printf "  ${DIM}CGI:       ${NC}%s\n" "$CGI_DIR"
+        printf "  ${DIM}Libraries: ${NC}%s\n" "$LIB_DIR"
+        printf "  ${DIM}Daemons:   ${NC}%s/qmanager_*\n" "$BIN_DIR"
+        printf "  ${DIM}Init.d:    ${NC}%s/qmanager*\n" "$INITD_DIR"
+        printf "  ${DIM}Config:    ${NC}%s\n" "$CONF_DIR"
+        printf "  ${DIM}Backups:   ${NC}%s\n" "$BACKUP_DIR"
+        printf "  ${DIM}Logs:      ${NC}/tmp/qmanager.log\n"
+        printf "  ${DIM}Status:    ${NC}/tmp/qmanager_status.json\n"
     fi
 
     printf "\n"
-    printf "  Packages:\n"
+    printf "  ${DIM}Packages:${NC}\n"
     for pkg in $REQUIRED_PACKAGES $OPTIONAL_PACKAGES; do
         if command -v "$pkg" >/dev/null 2>&1; then
-            printf "    %-12s ${GREEN}installed${NC}\n" "$pkg"
+            printf "    ${GREEN}${ICO_OK}${NC}  %-12s installed\n" "$pkg"
         else
-            printf "    %-12s ${YELLOW}missing${NC}\n" "$pkg"
+            printf "    ${YELLOW}${ICO_WARN}${NC}  %-12s missing\n" "$pkg"
         fi
     done
 
@@ -557,9 +660,7 @@ print_summary() {
     # Detect device IP
     local device_ip
     device_ip=$(uci get network.lan.ipaddr 2>/dev/null || echo "192.168.1.1")
-
-    printf "  Open in browser: ${BOLD}http://%s${NC}\n" "$device_ip"
-    printf "\n"
+    printf "  Open in browser:  ${BOLD}http://%s${NC}\n\n" "$device_ip"
 
     if [ ! -f "$CONF_DIR/shadow" ]; then
         info "First-time setup: you will be prompted to create a password"
@@ -585,17 +686,16 @@ usage() {
     printf "  --no-start         Don't start services after install\n"
     printf "  --skip-packages    Skip opkg package installation\n"
     printf "  --uninstall        Remove QManager completely\n"
-    printf "  --help             Show this help\n"
-    printf "\n"
+    printf "  --help             Show this help\n\n"
     printf "Expected archive layout:\n"
     printf "  qmanager_install/\n"
     printf "    ├── install.sh        (this script)\n"
     printf "    ├── out/              (frontend build)\n"
-    printf "    └── scripts/          (backend scripts)\n"
-    printf "\n"
+    printf "    └── scripts/          (backend scripts)\n\n"
     printf "Example:\n"
     printf "  cd /tmp && tar xzf qmanager.tar.gz\n"
-    printf "  cd qmanager_install && sh install.sh\n"
+    printf "  cd qmanager_install && sh install.sh\n\n"
+    printf "For a standalone uninstall: sh uninstall.sh --help\n\n"
 }
 
 # --- Main --------------------------------------------------------------------
@@ -645,15 +745,33 @@ main() {
         shift
     done
 
+    # Header banner
     printf "\n"
-    printf "${BOLD}QManager Installer v%s${NC}\n" "$VERSION"
-    printf "========================================\n\n"
+    printf "  ╔══════════════════════════════════════╗\n"
+    printf "  ║  ${BOLD}%-34s${NC}  ║\n" "QManager · Installation Script"
+    printf "  ╠══════════════════════════════════════╣\n"
+    printf "  ║  ${DIM}%-34s${NC}  ║\n" "Version: v$VERSION"
+    printf "  ╚══════════════════════════════════════╝\n"
 
-    # Handle uninstall
+    # Handle uninstall path (2 steps: preflight + uninstall)
     if [ "$DO_UNINSTALL" = "1" ]; then
+        TOTAL_STEPS=2
         preflight
         uninstall
         exit 0
+    fi
+
+    # Calculate total steps for the selected install mode
+    TOTAL_STEPS=1                                    # preflight always
+    [ "$DO_PACKAGES" = "1" ]  && TOTAL_STEPS=$(( TOTAL_STEPS + 1 ))  # install_packages
+    TOTAL_STEPS=$(( TOTAL_STEPS + 1 ))               # stop_services always
+    if [ "$DO_FRONTEND" = "1" ]; then
+        TOTAL_STEPS=$(( TOTAL_STEPS + 2 ))           # backup_originals + install_frontend
+    fi
+    if [ "$DO_BACKEND" = "1" ]; then
+        TOTAL_STEPS=$(( TOTAL_STEPS + 2 ))           # install_backend + fix_line_endings
+        [ "$DO_ENABLE" = "1" ] && TOTAL_STEPS=$(( TOTAL_STEPS + 1 ))  # enable_services
+        [ "$DO_START"  = "1" ] && TOTAL_STEPS=$(( TOTAL_STEPS + 1 ))  # start_services
     fi
 
     # Normal install flow

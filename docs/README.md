@@ -78,6 +78,7 @@ The `out/` directory contains the complete frontend — deploy it to the OpenWRT
 - **Latency Monitoring** — Real-time ping with 24-hour history and aggregated views
 - **Cell Scanner** — Active and neighbor cell scanning with frequency calculator
 - **Network Settings** — Ethernet link speed, TTL/HL, MTU, DNS, IP passthrough
+- **System Settings** — WAN Guard toggle, unit preferences (temp/distance), timezone, scheduled reboot, low power mode
 - **Tailscale VPN** — Status monitoring and management
 - **Dark/Light Mode** — Full theme support with OKLCH colors
 
@@ -100,10 +101,10 @@ QManager/
 ├── constants/              # Static data (MNO presets, event labels)
 ├── public/                 # Static assets (logo SVG)
 ├── scripts/                # Backend shell scripts
-│   ├── etc/init.d/         # Init.d services (7)
-│   ├── usr/bin/            # Daemons & utilities (14)
+│   ├── etc/init.d/         # Init.d services (8)
+│   ├── usr/bin/            # Daemons & utilities (18)
 │   ├── usr/lib/qmanager/   # Shared libraries (10)
-│   └── www/cgi-bin/        # CGI endpoints (58 scripts)
+│   └── www/cgi-bin/        # CGI endpoints (60 scripts)
 └── docs/                   # This documentation
 ```
 

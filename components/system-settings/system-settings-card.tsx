@@ -40,36 +40,39 @@ import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Loader2, AlertTriangleIcon, Settings, Check, ChevronsUpDown } from "lucide-react";
+import { Loader2, AlertTriangleIcon, Check, ChevronsUpDown } from "lucide-react";
 import { TbInfoCircleFilled } from "react-icons/tb";
 
-import {
-  useSystemSettings,
-  type SaveSettingsPayload,
+import type {
+  UseSystemSettingsReturn,
+  SaveSettingsPayload,
 } from "@/hooks/use-system-settings";
 import { TIMEZONES } from "@/types/system-settings";
 import { cn } from "@/lib/utils";
 
 // ─── Component ──────────────────────────────────────────────────────────────
 
-export default function SystemSettingsCard() {
-  const { settings, isLoading, isSaving, error, saveSettings } =
-    useSystemSettings();
+type SystemSettingsCardProps = Pick<
+  UseSystemSettingsReturn,
+  "settings" | "isLoading" | "isSaving" | "error" | "saveSettings"
+>;
 
+export default function SystemSettingsCard({
+  settings,
+  isLoading,
+  isSaving,
+  error,
+  saveSettings,
+}: SystemSettingsCardProps) {
   // --- Loading skeleton ---
   if (isLoading) {
     return (
       <Card className="@container/card">
         <CardHeader>
-          <div className="space-y-1">
-            <CardTitle className="flex items-center gap-2">
-              <Settings className="h-5 w-5 text-muted-foreground" />
-              System Settings
-            </CardTitle>
-            <CardDescription>
-              Configure device preferences and display options.
-            </CardDescription>
-          </div>
+          <CardTitle>System Settings</CardTitle>
+          <CardDescription>
+            Configure device preferences and display options.
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="grid gap-2">
@@ -108,15 +111,10 @@ export default function SystemSettingsCard() {
     return (
       <Card className="@container/card">
         <CardHeader>
-          <div className="space-y-1">
-            <CardTitle className="flex items-center gap-2">
-              <Settings className="h-5 w-5 text-muted-foreground" />
-              System Settings
-            </CardTitle>
-            <CardDescription>
-              Configure device preferences and display options.
-            </CardDescription>
-          </div>
+          <CardTitle>System Settings</CardTitle>
+          <CardDescription>
+            Configure device preferences and display options.
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <Alert variant="destructive">
@@ -148,7 +146,7 @@ export default function SystemSettingsCard() {
 // ─── Form (remounts on settings change for clean state reset) ───────────────
 
 interface SystemSettingsFormProps {
-  settings: ReturnType<typeof useSystemSettings>["settings"];
+  settings: UseSystemSettingsReturn["settings"];
   isSaving: boolean;
   error: string | null;
   saveSettings: (payload: SaveSettingsPayload) => Promise<boolean>;
@@ -198,10 +196,10 @@ function SystemSettingsForm({
       const success = await saveSettings({
         action: "save_settings",
         wan_guard_enabled: checked,
-        temp_unit: settings?.temp_unit ?? tempUnit,
-        distance_unit: settings?.distance_unit ?? distanceUnit,
-        timezone: settings?.timezone ?? timezone,
-        zonename: settings?.zonename ?? zonename,
+        temp_unit: settings?.temp_unit ?? "celsius",
+        distance_unit: settings?.distance_unit ?? "km",
+        timezone: settings?.timezone ?? "UTC0",
+        zonename: settings?.zonename ?? "UTC",
       });
 
       setWanGuardSaving(false);
@@ -216,7 +214,7 @@ function SystemSettingsForm({
         toast.error("Failed to update WAN Guard");
       }
     },
-    [saveSettings, settings, tempUnit, distanceUnit, timezone, zonename],
+    [saveSettings, settings],
   );
 
   // --- Timezone change handler ---
@@ -263,15 +261,10 @@ function SystemSettingsForm({
   return (
     <Card className="@container/card">
       <CardHeader>
-        <div className="space-y-1">
-          <CardTitle className="flex items-center gap-2">
-            <Settings className="h-5 w-5 text-muted-foreground" />
-            System Settings
-          </CardTitle>
-          <CardDescription>
-            Configure device preferences and display options.
-          </CardDescription>
-        </div>
+        <CardTitle>System Settings</CardTitle>
+        <CardDescription>
+          Configure device preferences and display options.
+        </CardDescription>
       </CardHeader>
       <CardContent>
         {error && (
@@ -298,8 +291,9 @@ function SystemSettingsForm({
                 </TooltipTrigger>
                 <TooltipContent>
                   <p>
-                    Prevents phantom WAN interfaces from consuming CPU by
-                    disabling profiles with no active CID at boot.
+                    Checks WAN interface profiles at boot and disables any
+                    that don&apos;t have an active data connection, preventing
+                    unnecessary CPU usage.
                   </p>
                 </TooltipContent>
               </Tooltip>

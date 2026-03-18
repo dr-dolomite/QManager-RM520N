@@ -204,8 +204,8 @@ export function useSystemSettings(): UseSystemSettingsReturn {
 // =============================================================================
 // useUnitPreferences — Lightweight hook for dashboard unit display
 // =============================================================================
-// Fetches unit preferences once and caches them. Used by device-metrics.tsx
-// to display temperature in °F and distance in miles when configured.
+// Fetches unit preferences on mount. Used by device-metrics.tsx to display
+// temperature in °F and distance in miles when configured.
 // =============================================================================
 
 interface UnitPreferences {
@@ -213,40 +213,29 @@ interface UnitPreferences {
   distanceUnit: "km" | "miles";
 }
 
-let cachedPrefs: UnitPreferences | null = null;
-let fetchPromise: Promise<void> | null = null;
-
 export function useUnitPreferences(): UnitPreferences | null {
-  const [prefs, setPrefs] = useState<UnitPreferences | null>(cachedPrefs);
+  const [prefs, setPrefs] = useState<UnitPreferences | null>(null);
 
   useEffect(() => {
-    if (cachedPrefs) {
-      setPrefs(cachedPrefs);
-      return;
-    }
+    let cancelled = false;
 
-    if (!fetchPromise) {
-      fetchPromise = authFetch(CGI_ENDPOINT)
-        .then((r) => r.json())
-        .then((json: SystemSettingsResponse) => {
-          if (json.success && json.settings) {
-            cachedPrefs = {
-              tempUnit: json.settings.temp_unit || "celsius",
-              distanceUnit: json.settings.distance_unit || "km",
-            };
-          }
-        })
-        .catch(() => {
-          // Fallback to defaults on error
-        })
-        .finally(() => {
-          fetchPromise = null;
-        });
-    }
+    authFetch(CGI_ENDPOINT)
+      .then((r) => r.json())
+      .then((json: SystemSettingsResponse) => {
+        if (!cancelled && json.success && json.settings) {
+          setPrefs({
+            tempUnit: json.settings.temp_unit || "celsius",
+            distanceUnit: json.settings.distance_unit || "km",
+          });
+        }
+      })
+      .catch(() => {
+        // Fallback to defaults on error
+      });
 
-    fetchPromise.then(() => {
-      setPrefs(cachedPrefs);
-    });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   return prefs;

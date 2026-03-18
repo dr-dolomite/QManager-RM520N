@@ -20,20 +20,37 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
 import { Toggle } from "@/components/ui/toggle";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { TbInfoCircleFilled } from "react-icons/tb";
-import { CircleIcon } from "lucide-react";
+import { AlertTriangleIcon, CircleIcon } from "lucide-react";
 
-import {
-  useSystemSettings,
-  type SaveScheduledRebootPayload,
-  type SaveLowPowerPayload,
+import type {
+  UseSystemSettingsReturn,
+  SaveScheduledRebootPayload,
+  SaveLowPowerPayload,
 } from "@/hooks/use-system-settings";
 import type { ScheduleConfig, LowPowerConfig } from "@/types/system-settings";
 import { DAY_LABELS } from "@/types/system-settings";
 
-const ScheduledOperationsCard = () => {
-  const { scheduledReboot, lowPower, saveScheduledReboot, saveLowPower } =
-    useSystemSettings();
+type ScheduledOperationsCardProps = Pick<
+  UseSystemSettingsReturn,
+  | "scheduledReboot"
+  | "lowPower"
+  | "isLoading"
+  | "error"
+  | "saveScheduledReboot"
+  | "saveLowPower"
+>;
+
+const ScheduledOperationsCard = ({
+  scheduledReboot,
+  lowPower,
+  isLoading,
+  error,
+  saveScheduledReboot,
+  saveLowPower,
+}: ScheduledOperationsCardProps) => {
 
   // ─── Scheduled Reboot local state ──────────────────────────────────────────
   const [rebootEnabled, setRebootEnabled] = useState(false);
@@ -119,7 +136,7 @@ const ScheduledOperationsCard = () => {
     });
     if (!success) {
       setRebootEnabled(!checked);
-      toast.warning("Failed to update schedule");
+      toast.warning("Failed to update reboot schedule");
     }
   };
 
@@ -170,7 +187,7 @@ const ScheduledOperationsCard = () => {
     });
     if (!success) {
       setLpEnabled(!checked);
-      toast.warning("Failed to update schedule");
+      toast.warning("Failed to update low power schedule");
     }
   };
 
@@ -221,15 +238,80 @@ const ScheduledOperationsCard = () => {
   // Render
   // ===========================================================================
 
-  return (
-    <Card className="@container/card">
-      <CardHeader>
-        <div className="space-y-1">
+  if (isLoading) {
+    return (
+      <Card className="@container/card">
+        <CardHeader>
           <CardTitle>Scheduled Operations</CardTitle>
           <CardDescription>
             Set up automated system tasks on a schedule.
           </CardDescription>
-        </div>
+        </CardHeader>
+        <CardContent>
+          <div className="grid gap-2">
+            <Skeleton className="h-5 w-36" />
+            <Separator />
+            <div className="flex items-center justify-between">
+              <Skeleton className="h-5 w-44" />
+              <Skeleton className="h-6 w-28" />
+            </div>
+            <Separator />
+            <div className="flex items-center justify-between">
+              <Skeleton className="h-5 w-24" />
+              <Skeleton className="h-8 w-32" />
+            </div>
+            <Separator />
+            <Skeleton className="h-9 w-full" />
+            <Separator className="my-4" />
+            <Skeleton className="h-5 w-32" />
+            <Separator />
+            <div className="flex items-center justify-between">
+              <Skeleton className="h-5 w-40" />
+              <Skeleton className="h-6 w-28" />
+            </div>
+            <Separator />
+            <div className="flex items-center justify-between">
+              <Skeleton className="h-5 w-24" />
+              <Skeleton className="h-8 w-32" />
+            </div>
+            <div className="flex items-center justify-between">
+              <Skeleton className="h-5 w-20" />
+              <Skeleton className="h-8 w-32" />
+            </div>
+            <Separator />
+            <Skeleton className="h-9 w-full" />
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (error && !scheduledReboot && !lowPower) {
+    return (
+      <Card className="@container/card">
+        <CardHeader>
+          <CardTitle>Scheduled Operations</CardTitle>
+          <CardDescription>
+            Set up automated system tasks on a schedule.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Alert variant="destructive">
+            <AlertTriangleIcon className="size-4" />
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <Card className="@container/card">
+      <CardHeader>
+        <CardTitle>Scheduled Operations</CardTitle>
+        <CardDescription>
+          Set up automated system tasks on a schedule.
+        </CardDescription>
       </CardHeader>
       <CardContent>
         <div className="grid gap-2">
@@ -313,8 +395,8 @@ const ScheduledOperationsCard = () => {
               </TooltipTrigger>
               <TooltipContent>
                 <p>
-                  During low power mode, the modem enters airplane mode
-                  (AT+CFUN=0). Watchdog, email alerts, and network events are
+                  Disables the modem radio during the scheduled window.
+                  Watchdog, email alerts, and network events are
                   automatically suspended for the duration.
                 </p>
               </TooltipContent>

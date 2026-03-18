@@ -11,7 +11,8 @@
       "Bash(bunx shadcn@latest add command --overwrite)",
       "Bash(bunx --bun shadcn@latest add popover --overwrite)",
       "Bash(bunx --bun shadcn@latest add popover)",
-      "Bash(bash .claude/check-crlf.sh scripts/install.sh)"
+      "Bash(bash .claude/check-crlf.sh scripts/install.sh)",
+      "Bash(bash .claude/check-crlf.sh scripts/install.sh scripts/uninstall.sh)"
     ]
   }
 }

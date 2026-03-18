@@ -549,6 +549,8 @@ All auth endpoints set `_SKIP_AUTH=1`.
 | `qmanager_pci_state.json` | poller (events) | SCC PCI tracking |
 | `qmanager_email_log.json` | poller (email) | Email log NDJSON |
 | `qmanager_email_reload` | CGI | Trigger file for config reload |
+| `qmanager_low_power_active` | low_power | Low power mode flag (timestamp; suppresses events + alerts) |
+| `qmanager_watchcat.lock` | low_power | Watchdog pause lock (forces LOCKED state) |
 | `qmanager_sessions/` | CGI (auth) | Session files |
 | `qmanager.log` | all (qlog) | Centralized log file |
 
@@ -565,10 +567,26 @@ All auth endpoints set `_SKIP_AUTH=1`.
 | `msmtprc` | Gmail SMTP config (chmod 600) |
 | `imei_check_pending` | Flag for boot-time IMEI check |
 
+### UCI Configuration
+
+| Key | Values | Purpose |
+|-----|--------|---------|
+| `quecmanager.settings.temp_unit` | `celsius`, `fahrenheit` | Dashboard temperature display |
+| `quecmanager.settings.distance_unit` | `km`, `miles` | Dashboard distance display |
+| `quecmanager.settings.sched_reboot_enabled` | `0`, `1` | Scheduled reboot on/off |
+| `quecmanager.settings.sched_reboot_time` | `HH:MM` | Scheduled reboot time |
+| `quecmanager.settings.sched_reboot_days` | `0,1,...,6` | Scheduled reboot days (0=Sun) |
+| `quecmanager.settings.low_power_enabled` | `0`, `1` | Low power mode on/off |
+| `quecmanager.settings.low_power_start` | `HH:MM` | Low power window start |
+| `quecmanager.settings.low_power_end` | `HH:MM` | Low power window end |
+| `quecmanager.settings.low_power_days` | `0,1,...,6` | Low power days (0=Sun) |
+| `system.@system[0].timezone` | POSIX TZ string | System timezone |
+| `system.@system[0].zonename` | IANA zone name | System timezone display name |
+
 ### Firewall Rules
 
 | File | Owner | Purpose |
-|------|-------|---------|
+|-----|--------|---------|
 | `/etc/firewall.user.ttl` | ttl.sh, apn.sh, profile_apply | TTL/HL iptables rules |
 | `/etc/firewall.user.mtu` | mtu.sh | MTU `ip link set` rules |
 
