@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
+import { toast } from "sonner";
 import { authFetch } from "@/lib/auth-fetch";
 import type { CellScanResult } from "@/components/cellular/cell-scanner/scan-result";
 
@@ -104,12 +105,19 @@ export function useCellScanner(): UseCellScannerReturn {
           }
           break;
 
-        case "complete":
+        case "complete": {
+          const cells = data.results ?? [];
           setStatus("complete");
-          setResults(data.results ?? []);
+          setResults(cells);
           setError(null);
           finishScan();
+          if (cells.length > 0) {
+            toast.success("Scan complete", {
+              description: `${cells.length} ${cells.length === 1 ? "cell" : "cells"} found`,
+            });
+          }
           break;
+        }
 
         case "error":
           setStatus("error");

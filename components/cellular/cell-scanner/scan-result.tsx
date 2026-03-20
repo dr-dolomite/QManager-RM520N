@@ -43,6 +43,7 @@ import {
 
 const MotionTableRow = motion.create(TableRow);
 import { Badge } from "@/components/ui/badge";
+import { SignalBadge, NetworkTypeBadge } from "./signal-badges";
 import {
   Tooltip,
   TooltipContent,
@@ -70,29 +71,6 @@ interface ScanResultViewProps {
   onLockCell?: (cell: CellScanResult) => void;
 }
 
-const getSignalBadge = (strength: number) => {
-  if (strength >= -85)
-    return (
-      <Badge className="bg-success/15 text-success hover:bg-success/20 border-success/30">
-        Good
-      </Badge>
-    );
-  if (strength >= -100)
-    return (
-      <Badge className="bg-warning/15 text-warning hover:bg-warning/20 border-warning/30">
-        Fair
-      </Badge>
-    );
-  return (
-    <Badge className="bg-destructive/15 text-destructive hover:bg-destructive/20 border-destructive/30">
-      Bad
-    </Badge>
-  );
-};
-
-const getNetworkTypeBadge = (type: string) => {
-  return <Badge variant="default">{type}</Badge>;
-};
 
 const createColumns = (
   onLockCell?: (cell: CellScanResult) => void,
@@ -101,7 +79,7 @@ const createColumns = (
     accessorKey: "networkType",
     header: () => <div>Network</div>,
     cell: ({ row }) => (
-      <div>{getNetworkTypeBadge(row.getValue("networkType"))}</div>
+      <div><NetworkTypeBadge type={row.getValue("networkType")} /></div>
     ),
   },
   {
@@ -199,7 +177,7 @@ const createColumns = (
       const strength = row.getValue("signalStrength") as number;
       return (
         <div className="flex items-center gap-2">
-          {getSignalBadge(strength)}
+          <SignalBadge strength={strength} />
           <span className="font-semibold">{strength} dBm</span>
         </div>
       );
@@ -243,6 +221,18 @@ const NARROW_HIDDEN: VisibilityState = {
   earfcn: false,
 };
 const NARROW_BREAKPOINT = 640;
+
+const COLUMN_LABELS: Record<string, string> = {
+  networkType: "Network",
+  provider: "Provider",
+  band: "Band",
+  earfcn: "EARFCN",
+  pci: "PCI",
+  cellID: "Cell ID",
+  tac: "TAC",
+  bandwidth: "Bandwidth",
+  signalStrength: "Signal",
+};
 
 const ScanResultView = ({ data, onLockCell }: ScanResultViewProps) => {
   const containerRef = React.useRef<HTMLDivElement>(null);
@@ -318,13 +308,12 @@ const ScanResultView = ({ data, onLockCell }: ScanResultViewProps) => {
                 return (
                   <DropdownMenuCheckboxItem
                     key={column.id}
-                    className="capitalize"
                     checked={column.getIsVisible()}
                     onCheckedChange={(value) =>
                       column.toggleVisibility(!!value)
                     }
                   >
-                    {column.id}
+                    {COLUMN_LABELS[column.id] ?? column.id}
                   </DropdownMenuCheckboxItem>
                 );
               })}
@@ -385,8 +374,14 @@ const ScanResultView = ({ data, onLockCell }: ScanResultViewProps) => {
       </div>
       <div className="flex items-center justify-end space-x-2 py-4">
         <div className="text-muted-foreground flex-1 text-sm">
-          {table.getFilteredRowModel().rows.length}{" "}
-          {table.getFilteredRowModel().rows.length === 1 ? "cell" : "cells"} found
+          {(() => {
+            const filtered = table.getFilteredRowModel().rows.length;
+            const total = data.length;
+            const label = filtered === 1 ? "cell" : "cells";
+            return filtered < total
+              ? `${filtered} of ${total} ${label}`
+              : `${total} ${label} found`;
+          })()}
         </div>
         <div className="space-x-2">
           <Button

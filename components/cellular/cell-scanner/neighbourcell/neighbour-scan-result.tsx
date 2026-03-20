@@ -37,6 +37,7 @@ import { motion } from "motion/react";
 
 const MotionTableRow = motion.create(TableRow);
 import { Badge } from "@/components/ui/badge";
+import { SignalBadge, NetworkTypeBadge } from "../signal-badges";
 
 export interface NeighbourCellResult {
   id: string;
@@ -55,29 +56,6 @@ interface NeighbourScanResultViewProps {
   onLockCell?: (cell: NeighbourCellResult) => void;
 }
 
-const getSignalBadge = (strength: number) => {
-  if (strength >= -85)
-    return (
-      <Badge className="bg-success/15 text-success hover:bg-success/20 border-success/30">
-        Good
-      </Badge>
-    );
-  if (strength >= -100)
-    return (
-      <Badge className="bg-warning/15 text-warning hover:bg-warning/20 border-warning/30">
-        Fair
-      </Badge>
-    );
-  return (
-    <Badge className="bg-destructive/15 text-destructive hover:bg-destructive/20 border-destructive/30">
-      Bad
-    </Badge>
-  );
-};
-
-const getNetworkTypeBadge = (type: string) => {
-  return <Badge variant="default">{type}</Badge>;
-};
 
 function getColumns(
   onLockCell?: (cell: NeighbourCellResult) => void,
@@ -88,7 +66,7 @@ function getColumns(
       header: () => <div className="pl-4">Network</div>,
       cell: ({ row }) => (
         <div className="pl-4">
-          {getNetworkTypeBadge(row.getValue("networkType"))}
+          <NetworkTypeBadge type={row.getValue("networkType")} />
         </div>
       ),
     },
@@ -145,7 +123,7 @@ function getColumns(
         }
         return (
           <div className="flex items-center gap-2">
-            {getSignalBadge(strength)}
+            <SignalBadge strength={strength} />
             <span className="font-semibold">{strength} dBm</span>
           </div>
         );
