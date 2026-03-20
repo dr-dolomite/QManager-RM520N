@@ -31,7 +31,7 @@ LONG_FLAG="/tmp/qmanager_long_running"
 PID_FILE="/var/lock/qmanager.pid"
 
 SHORT_TIMEOUT=3        # seconds for normal AT commands
-LONG_TIMEOUT=240       # seconds for AT+QSCAN and similar
+LONG_TIMEOUT=240       # seconds for AT+QSCAN and similar (passed to sms_tool -t)
 LOCK_WAIT_SHORT=5      # seconds to wait for lock (normal commands)
 LOCK_WAIT_LONG=10      # seconds to wait for lock (long commands)
 
@@ -158,7 +158,12 @@ if is_long_command "$COMMAND"; then
                 exit 2
             fi
             echo $$ > "$PID_FILE"
-            timeout "$LONG_TIMEOUT" sms_tool at "$COMMAND" 2>/dev/null
+
+            # Warm-up: flush residual serial buffer data + confirm modem responsive
+            sms_tool at "AT" > /dev/null 2>&1 || exit 3
+
+            # Real command with explicit native timeout (sms_tool -t)
+            sms_tool -t "$LONG_TIMEOUT" at "$COMMAND" 2>/dev/null
             cmd_rc=$?
             rm -f "$PID_FILE"
             exit $cmd_rc
@@ -168,21 +173,28 @@ if is_long_command "$COMMAND"; then
 
     rm -f "$LONG_FLAG"
 
-    if [ $exit_code -eq 2 ]; then
-        qlog_lock "timeout" "long command: ${COMMAND}"
-        output_result "" "modem_busy"
-        exit 1
-    fi
-
-    if [ $exit_code -ne 0 ]; then
-        qlog_error "Long command timeout: ${COMMAND} (exit=${exit_code})"
-        output_result "" "command_timeout"
-        exit 1
-    fi
-
-    qlog_info "Long command completed: ${COMMAND}"
-    qlog_at_cmd "$COMMAND" "$result" "$exit_code"
-    output_result "$result" ""
+    case $exit_code in
+        0)
+            qlog_info "Long command completed: ${COMMAND}"
+            qlog_at_cmd "$COMMAND" "$result" "$exit_code"
+            output_result "$result" ""
+            ;;
+        2)
+            qlog_lock "timeout" "long command: ${COMMAND}"
+            output_result "" "modem_busy"
+            exit 1
+            ;;
+        3)
+            qlog_error "Modem warm-up failed before: ${COMMAND}"
+            output_result "" "modem_not_ready"
+            exit 1
+            ;;
+        *)
+            qlog_error "Long command failed: ${COMMAND} (sms_tool exit=${exit_code})"
+            output_result "" "command_failed"
+            exit 1
+            ;;
+    esac
 
 elif [ -f "$LONG_FLAG" ]; then
     # =========================================================================
