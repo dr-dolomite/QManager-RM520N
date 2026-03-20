@@ -19,7 +19,7 @@ import { useCellScanner } from "@/hooks/use-cell-scanner";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { downloadCSV } from "@/lib/download-csv";
-import { ScannerSkeleton } from "./scanner-skeleton";
+import { ScanningView } from "./scanning-view";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -54,7 +54,7 @@ const CELL_SCAN_CSV_HEADER =
   "Network,Provider,MCC,MNC,Band,EARFCN,PCI,Cell ID,TAC,Bandwidth,Signal (dBm)";
 
 const FullScannerComponent = () => {
-  const { status, results, error, startScan } = useCellScanner();
+  const { status, results, error, elapsedSeconds, startScan } = useCellScanner();
   const [lockTarget, setLockTarget] = useState<CellScanResult | null>(null);
   const [isLocking, setIsLocking] = useState(false);
 
@@ -148,7 +148,7 @@ const FullScannerComponent = () => {
             {hasScanResults ? (
               <ScanResultView data={results} onLockCell={handleLockCell} />
             ) : isScanning ? (
-              <ScannerSkeleton />
+              <ScanningView elapsedSeconds={elapsedSeconds} />
             ) : status === "error" ? (
               <div className="flex flex-col items-center justify-center py-16 text-center gap-3">
                 <p className="text-destructive text-sm">
