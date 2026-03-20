@@ -6,6 +6,8 @@ import type { CellScanResult } from "@/components/cellular/cell-scanner/scan-res
 
 // Poll interval while a scan is running (ms)
 const SCAN_POLL_INTERVAL = 2000;
+// sessionStorage key for persisting scan start time across navigations
+const SCAN_START_KEY = "qm_cell_scan_start";
 
 type ScanStatus = "idle" | "running" | "complete" | "error";
 
@@ -19,6 +21,7 @@ interface UseCellScannerReturn {
   status: ScanStatus;
   results: CellScanResult[];
   error: string | null;
+  elapsedSeconds: number;
   startScan: () => Promise<void>;
 }
 
@@ -26,7 +29,53 @@ export function useCellScanner(): UseCellScannerReturn {
   const [status, setStatus] = useState<ScanStatus>("idle");
   const [results, setResults] = useState<CellScanResult[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // Ref to always hold the latest pollStatus for use in setInterval callbacks,
+  // avoiding stale closures when pollStatus is recreated by useCallback.
+  const pollStatusRef = useRef<() => Promise<void>>(null!);
+
+  // --- Helpers: interval management ------------------------------------------
+  const stopPolling = useCallback(() => {
+    if (pollRef.current) {
+      clearInterval(pollRef.current);
+      pollRef.current = null;
+    }
+  }, []);
+
+  const stopTimer = useCallback(() => {
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+  }, []);
+
+  const startTimer = useCallback(
+    (startTime: number) => {
+      stopTimer();
+      setElapsedSeconds(Math.floor((Date.now() - startTime) / 1000));
+      timerRef.current = setInterval(() => {
+        setElapsedSeconds(Math.floor((Date.now() - startTime) / 1000));
+      }, 1000);
+    },
+    [stopTimer],
+  );
+
+  const finishScan = useCallback(() => {
+    stopPolling();
+    stopTimer();
+    sessionStorage.removeItem(SCAN_START_KEY);
+  }, [stopPolling, stopTimer]);
+
+  /** Start polling using the ref-based callback to avoid stale closures. */
+  const ensurePolling = useCallback(() => {
+    if (pollRef.current) return; // already polling
+    pollRef.current = setInterval(
+      () => pollStatusRef.current(),
+      SCAN_POLL_INTERVAL,
+    );
+  }, []);
 
   // --- Poll for scan status --------------------------------------------------
   const pollStatus = useCallback(async () => {
@@ -41,45 +90,49 @@ export function useCellScanner(): UseCellScannerReturn {
       switch (data.status) {
         case "running":
           setStatus("running");
+          // Fix: if we detect a running scan but have no polling interval
+          // (mount-time detection), start one via the ref-based callback.
+          ensurePolling();
+          // If we detect a running scan but have no timer, restore it
+          if (!timerRef.current) {
+            const stored = sessionStorage.getItem(SCAN_START_KEY);
+            const startTime = stored ? Number(stored) : Date.now();
+            if (!stored) {
+              sessionStorage.setItem(SCAN_START_KEY, String(startTime));
+            }
+            startTimer(startTime);
+          }
           break;
 
         case "complete":
           setStatus("complete");
           setResults(data.results ?? []);
           setError(null);
-          // Stop polling
-          if (pollRef.current) {
-            clearInterval(pollRef.current);
-            pollRef.current = null;
-          }
+          finishScan();
           break;
 
         case "error":
           setStatus("error");
           setError(data.message ?? "Scan failed");
-          // Stop polling
-          if (pollRef.current) {
-            clearInterval(pollRef.current);
-            pollRef.current = null;
-          }
+          finishScan();
           break;
 
         default:
-          // "idle" — scan might have finished between start and first poll
-          // If we were running, this means the process died without writing results
+          // "idle" — no scan running, no results
+          // If we had a polling interval, the scan process died silently
           if (pollRef.current) {
             setStatus("idle");
-            if (pollRef.current) {
-              clearInterval(pollRef.current);
-              pollRef.current = null;
-            }
+            finishScan();
           }
           break;
       }
     } catch {
       // Network error during poll — keep retrying
     }
-  }, []);
+  }, [ensurePolling, finishScan, startTimer]);
+
+  // Keep the ref in sync so interval callbacks always use the latest pollStatus
+  pollStatusRef.current = pollStatus;
 
   // --- Start a new scan ------------------------------------------------------
   const startScan = useCallback(async () => {
@@ -97,7 +150,6 @@ export function useCellScanner(): UseCellScannerReturn {
 
       if (!data.success) {
         if (data.error === "already_running") {
-          // A scan is already in progress — just start polling
           setStatus("running");
         } else {
           setStatus("error");
@@ -106,27 +158,43 @@ export function useCellScanner(): UseCellScannerReturn {
         }
       }
 
-      // Begin polling for results
-      if (pollRef.current) clearInterval(pollRef.current);
-      pollRef.current = setInterval(pollStatus, SCAN_POLL_INTERVAL);
+      // Store scan start time for elapsed timer persistence
+      const startTime = Date.now();
+      sessionStorage.setItem(SCAN_START_KEY, String(startTime));
+      startTimer(startTime);
+
+      // Begin polling for results via ref-based callback
+      stopPolling();
+      pollRef.current = setInterval(
+        () => pollStatusRef.current(),
+        SCAN_POLL_INTERVAL,
+      );
     } catch {
       setStatus("error");
       setError("Failed to connect to scanner");
     }
-  }, [pollStatus]);
+  }, [startTimer, stopPolling]);
 
   // --- Check for existing results on mount -----------------------------------
   useEffect(() => {
-    // On mount, check if there are already results or a running scan
     pollStatus();
-    // Cleanup on unmount
     return () => {
-      if (pollRef.current) {
-        clearInterval(pollRef.current);
-        pollRef.current = null;
-      }
+      stopPolling();
+      stopTimer();
     };
-  }, [pollStatus]);
+  }, [pollStatus, stopPolling, stopTimer]);
 
-  return { status, results, error, startScan };
+  // --- beforeunload guard while scanning -------------------------------------
+  useEffect(() => {
+    if (status !== "running") return;
+
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+    };
+
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [status]);
+
+  return { status, results, error, elapsedSeconds, startScan };
 }
