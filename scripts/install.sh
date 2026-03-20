@@ -223,19 +223,39 @@ install_packages() {
         fi
     done
 
-    # Install optional packages (non-fatal)
+    # Install optional packages (ask user first)
+    printf "\n"
+    info "Optional packages available:"
     for pkg in $OPTIONAL_PACKAGES; do
-        if command -v "$(pkg_binary "$pkg")" >/dev/null 2>&1; then
-            info "$pkg is already installed"
-        else
-            if run_with_spinner "Installing $pkg (optional)" opkg install "$pkg"; then
-                info "$pkg installed successfully"
-            else
-                warn "$pkg not available — feature will be disabled"
-                warn "  Install later with: opkg install $pkg"
-            fi
-        fi
+        case "$pkg" in
+            msmtp)           printf "    %-18s — email alerts\n" "$pkg" ;;
+            ethtool)         printf "    %-18s — ethernet link speed control\n" "$pkg" ;;
+            ookla-speedtest) printf "    %-18s — speed test\n" "$pkg" ;;
+            *)               printf "    %-18s\n" "$pkg" ;;
+        esac
     done
+    printf "\n  Install optional packages? [Y/n] "
+    read -r answer
+    case "$answer" in
+        n|N|no|NO)
+            info "Skipping optional packages"
+            info "  Install later with: opkg install <package>"
+            ;;
+        *)
+            for pkg in $OPTIONAL_PACKAGES; do
+                if command -v "$(pkg_binary "$pkg")" >/dev/null 2>&1; then
+                    info "$pkg is already installed"
+                else
+                    if run_with_spinner "Installing $pkg" opkg install "$pkg"; then
+                        info "$pkg installed successfully"
+                    else
+                        warn "$pkg not available — feature will be disabled"
+                        warn "  Install later with: opkg install $pkg"
+                    fi
+                fi
+            done
+            ;;
+    esac
 }
 
 # --- Stop Running Services ---------------------------------------------------

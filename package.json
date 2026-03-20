@@ -6,7 +6,8 @@
     "dev": "bun --bun next dev",
     "build": "bun --bun next build",
     "start": "bun --bun next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "package": "bun --bun next build && bash build.sh"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
