@@ -114,7 +114,7 @@ t2_secondary_dns=""
 t2_wan_ipv4=""
 t2_wan_ipv6=""
 t2_mimo=""
-t2_cfun=1
+t1_cfun=1
 
 # Tier 1 data (updated every cycle)
 lte_state="unknown"
@@ -638,15 +638,6 @@ append_ping_history() {
 poll_tier2() {
     local result
 
-    # CFUN — standalone query (compound commands timeout in CFUN=0)
-    local cfun_result
-    cfun_result=$(qcmd 'AT+CFUN?' 2>/dev/null)
-    if [ -n "$cfun_result" ]; then
-        local cfun_val
-        cfun_val=$(printf '%s\n' "$cfun_result" | grep '+CFUN:' | head -1 | tr -d '\r' | awk -F': ' '{print $2}' | tr -d ' ')
-        [ -n "$cfun_val" ] && t2_cfun="$cfun_val"
-    fi
-
     # Compound AT: status queries in one call.
     # CPIN? is last — it can ERROR when SIM is absent; placing it last
     # ensures earlier responses (QTEMP, COPS, QUIMSLOT, CNUM) are preserved
@@ -1023,7 +1014,7 @@ write_cache() {
         --arg system_state "$system_state" \
         --argjson modem_reachable "$modem_reachable" \
         --argjson errors "$errors_json" \
-        --argjson cfun "${t2_cfun:-1}" \
+        --argjson cfun "${t1_cfun:-1}" \
         --arg net_type "${network_type:-LTE}" \
         --argjson sim_slot "${t2_sim_slot:-1}" \
         --arg carrier "$t2_carrier" \
@@ -1261,6 +1252,16 @@ poll_cycle() {
 
     # Tier 1 (AT commands — may block if modem is unresponsive)
     poll_serving_cell
+    sleep "$SIP_DELAY"
+
+    # CFUN — standalone query every cycle (compound commands timeout in CFUN=0)
+    local cfun_result
+    cfun_result=$(qcmd 'AT+CFUN?' 2>/dev/null)
+    if [ -n "$cfun_result" ]; then
+        local cfun_val
+        cfun_val=$(printf '%s\n' "$cfun_result" | grep '+CFUN:' | head -1 | tr -d '\r' | awk -F': ' '{print $2}' | tr -d ' ')
+        [ -n "$cfun_val" ] && t1_cfun="$cfun_val"
+    fi
     sleep "$SIP_DELAY"
 
     # Tier 1.5 (per-antenna signal history + watchcat state)

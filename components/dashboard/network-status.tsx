@@ -18,6 +18,7 @@ import {
   Md4gMobiledata,
   Md4gPlusMobiledata,
   Md3gMobiledata,
+  MdEnergySavingsLeaf,
 } from "react-icons/md";
 import { FaCheck, FaXmark } from "react-icons/fa6";
 
@@ -297,30 +298,40 @@ const NetworkStatusComponent = ({
               <div className="relative">
                 <div
                   className={`rounded-full size-36 flex items-center justify-center p-2 ${
-                    hasNetwork ? "bg-primary" : "bg-muted"
+                    isAirplaneMode
+                      ? "bg-success/15"
+                      : hasNetwork
+                        ? "bg-primary"
+                        : "bg-muted"
                   }`}
                 >
-                  {networkDisplay.icon}
-                </div>
-                {/* Status badge overlay — check when 4G/5G, X when 3G fallback */}
-                <div
-                  className={`absolute top-1 right-4 size-6 rounded-full flex items-center justify-center shadow-md ${
-                    hasNetwork ? "bg-success" : "bg-destructive"
-                  }`}
-                >
-                  {hasNetwork ? (
-                    <FaCheck className="size-4 text-success-foreground" />
+                  {isAirplaneMode ? (
+                    <MdEnergySavingsLeaf className="size-full text-success" />
                   ) : (
-                    <FaXmark className="size-4 text-destructive-foreground" />
+                    networkDisplay.icon
                   )}
                 </div>
+                {/* Status badge overlay — check when 4G/5G, X when 3G fallback, hidden in airplane mode */}
+                {!isAirplaneMode && (
+                  <div
+                    className={`absolute top-1 right-4 size-6 rounded-full flex items-center justify-center shadow-md ${
+                      hasNetwork ? "bg-success" : "bg-destructive"
+                    }`}
+                  >
+                    {hasNetwork ? (
+                      <FaCheck className="size-4 text-success-foreground" />
+                    ) : (
+                      <FaXmark className="size-4 text-destructive-foreground" />
+                    )}
+                  </div>
+                )}
               </div>
               <div className="grid gap-0.5 text-center">
                 <h3 className="text-base font-semibold leading-none">
-                  {networkDisplay.label}
+                  {isAirplaneMode ? "Low Power" : networkDisplay.label}
                 </h3>
                 <p className="text-muted-foreground text-sm">
-                  {networkDisplay.sublabel}
+                  {isAirplaneMode ? "Radio Off" : networkDisplay.sublabel}
                 </p>
               </div>
             </div>
@@ -347,17 +358,19 @@ const NetworkStatusComponent = ({
                     <CardSimIcon className="size-full text-primary" />
                   )}
                 </div>
-                <div
-                  className={`absolute top-1 right-4 size-6 rounded-full flex items-center justify-center shadow-md ${
-                    isServiceActive ? "bg-success" : "bg-destructive"
-                  }`}
-                >
-                  {isServiceActive ? (
-                    <FaCheck className="size-4 text-success-foreground" />
-                  ) : (
-                    <FaXmark className="size-4 text-destructive-foreground" />
-                  )}
-                </div>
+                {!isAirplaneMode && (
+                  <div
+                    className={`absolute top-1 right-4 size-6 rounded-full flex items-center justify-center shadow-md ${
+                      isServiceActive ? "bg-success" : "bg-destructive"
+                    }`}
+                  >
+                    {isServiceActive ? (
+                      <FaCheck className="size-4 text-success-foreground" />
+                    ) : (
+                      <FaXmark className="size-4 text-destructive-foreground" />
+                    )}
+                  </div>
+                )}
               </div>
               <div className="grid gap-0.5 text-center">
                 <h3 className="text-base font-semibold leading-none">
@@ -414,8 +427,12 @@ const NetworkStatusComponent = ({
                 />
               </div>
               <div className="grid gap-0.5 text-center">
-                <h3 className="text-base font-semibold leading-none">Service</h3>
-                <p className="text-muted-foreground text-sm">{serviceLabel}</p>
+                <h3 className="text-base font-semibold leading-none">
+                  {isAirplaneMode ? "Standby" : "Service"}
+                </h3>
+                <p className="text-muted-foreground text-sm">
+                  {isAirplaneMode ? "Radio Off" : serviceLabel}
+                </p>
               </div>
             </div>
           )}

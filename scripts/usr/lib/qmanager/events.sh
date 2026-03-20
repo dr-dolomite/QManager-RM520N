@@ -68,7 +68,7 @@ snapshot_event_state() {
     prev_ev_nr_ca_active="$t2_nr_ca_active"
     prev_ev_nr_ca_count="$t2_nr_ca_count"
     prev_ev_service_status="$service_status"
-    prev_ev_cfun="$t2_cfun"
+    prev_ev_cfun="$t1_cfun"
     prev_ev_carrier_components="$t2_carrier_components"
 }
 
@@ -234,10 +234,10 @@ detect_events() {
     fi
 
     # --- Airplane mode (CFUN transition) ---
-    if [ "$t2_cfun" != "$prev_ev_cfun" ]; then
-        if [ "$prev_ev_cfun" = "1" ] && { [ "$t2_cfun" = "0" ] || [ "$t2_cfun" = "4" ]; }; then
-            append_event "airplane_mode" "Airplane mode enabled (CFUN=$t2_cfun)" "warning"
-        elif { [ "$prev_ev_cfun" = "0" ] || [ "$prev_ev_cfun" = "4" ]; } && [ "$t2_cfun" = "1" ]; then
+    if [ "$t1_cfun" != "$prev_ev_cfun" ]; then
+        if [ "$prev_ev_cfun" = "1" ] && { [ "$t1_cfun" = "0" ] || [ "$t1_cfun" = "4" ]; }; then
+            append_event "airplane_mode" "Airplane mode enabled (CFUN=$t1_cfun)" "warning"
+        elif { [ "$prev_ev_cfun" = "0" ] || [ "$prev_ev_cfun" = "4" ]; } && [ "$t1_cfun" = "1" ]; then
             append_event "airplane_mode" "Airplane mode disabled" "info"
         fi
     fi
