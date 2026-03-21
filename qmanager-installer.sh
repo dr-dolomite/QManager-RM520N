@@ -26,6 +26,7 @@ else
 fi
 
 ARCHIVE_PATH="/tmp/qmanager.tar.gz"
+EXPECTED_SHA256="421442cb14054fe79773965595024a30863ddfd9e8af70fe72c3390a5e88b134"
 EXTRACT_DIR="/tmp/qmanager_install"
 
 # Device paths (must match install.sh / uninstall.sh)
@@ -134,6 +135,21 @@ do_install() {
     local size
     size=$(du -k "$ARCHIVE_PATH" 2>/dev/null | awk '{print $1 "K"}')
     info "Downloaded qmanager.tar.gz ($size)"
+
+    # Verify integrity
+    local actual_sha256
+    actual_sha256=$(sha256sum "$ARCHIVE_PATH" 2>/dev/null | awk '{print $1}')
+    if [ -z "$actual_sha256" ]; then
+        warn "sha256sum not available — skipping integrity check"
+    elif [ "$actual_sha256" != "$EXPECTED_SHA256" ]; then
+        err "SHA-256 mismatch!"
+        err "  Expected: $EXPECTED_SHA256"
+        err "  Got:      $actual_sha256"
+        rm -f "$ARCHIVE_PATH"
+        die "Archive integrity check failed — download may be corrupt or tampered"
+    else
+        info "SHA-256 verified"
+    fi
 
     # Extract
     step "Extracting archive..."
