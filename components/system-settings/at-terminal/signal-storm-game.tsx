@@ -5,18 +5,21 @@ import { SignalStormEngine, type GamePalette, type GameCallbacks } from "./signa
 
 function readPalette(el: HTMLElement): GamePalette {
   const style = getComputedStyle(el);
-  const get = (prop: string) => style.getPropertyValue(prop).trim();
+  const get = (prop: string, fallback: string) => {
+    const val = style.getPropertyValue(prop).trim();
+    return val || fallback;
+  };
   return {
-    player: get("--success"),
-    beam: get("--success"),
-    enemy: get("--destructive"),
-    jammer: get("--warning"),
-    powerUp: get("--primary"),
-    shield: get("--info"),
-    spread: get("--chart-6"),
-    text: get("--foreground"),
-    textMuted: get("--muted-foreground"),
-    background: get("--card"),
+    player: get("--success", "#4ade80"),
+    beam: get("--success", "#4ade80"),
+    enemy: get("--destructive", "#ef4444"),
+    jammer: get("--warning", "#eab308"),
+    powerUp: get("--primary", "#6366f1"),
+    shield: get("--info", "#06b6d4"),
+    spread: get("--chart-6", "#f97316"),
+    text: get("--foreground", "#0a0a0a"),
+    textMuted: get("--muted-foreground", "#737373"),
+    background: get("--card", "#ffffff"),
   };
 }
 

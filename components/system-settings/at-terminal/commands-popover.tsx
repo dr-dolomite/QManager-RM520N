@@ -153,7 +153,7 @@ export default function CommandsPopover({
                     <span className="font-medium flex-1 min-w-0 truncate">
                       {preset.label}
                     </span>
-                    <span className="font-mono text-xs text-muted-foreground truncate max-w-[8rem]">
+                    <span className="font-mono text-xs text-muted-foreground truncate max-w-32">
                       {preset.command}
                     </span>
                   </CommandItem>
@@ -175,7 +175,7 @@ export default function CommandsPopover({
                       <span className="font-medium flex-1 min-w-0 truncate">
                         {preset.label}
                       </span>
-                      <span className="font-mono text-xs text-muted-foreground truncate max-w-[8rem]">
+                      <span className="font-mono text-xs text-muted-foreground truncate max-w-32">
                         {preset.command}
                       </span>
                     </CommandItem>
@@ -206,7 +206,7 @@ export default function CommandsPopover({
         <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle>Manage Custom Commands</DialogTitle>
-            <DialogDescription className="sr-only">
+            <DialogDescription>
               Add and remove custom AT command presets.
             </DialogDescription>
           </DialogHeader>
@@ -250,6 +250,7 @@ export default function CommandsPopover({
           <div className="flex gap-2">
             <Input
               placeholder="Command name"
+              aria-label="Command name"
               value={newLabel}
               onChange={(e) => {
                 setNewLabel(e.target.value);
@@ -259,6 +260,7 @@ export default function CommandsPopover({
             />
             <Input
               placeholder="AT+..."
+              aria-label="AT command"
               value={newCommand}
               onChange={(e) => {
                 setNewCommand(e.target.value);

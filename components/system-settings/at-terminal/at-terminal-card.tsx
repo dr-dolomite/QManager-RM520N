@@ -182,10 +182,13 @@ export default function ATTerminalCard() {
             status: "error",
           });
         }
-      } catch {
+      } catch (err) {
         appendEntry({
           command,
-          response: "Failed to reach modem",
+          response:
+            err instanceof TypeError
+              ? "Network error — could not reach modem backend"
+              : "Unexpected error — check backend logs",
           status: "error",
         });
       } finally {
@@ -407,13 +410,17 @@ export default function ATTerminalCard() {
           <InputGroupInput
             ref={inputRef}
             value={input}
-            onChange={(e) => setInput(e.target.value)}
+            onChange={(e) => {
+              setInput(e.target.value);
+              setSuggestionIndex(0);
+            }}
             onKeyDown={handleKeyDown}
             placeholder="AT+COPS?"
             disabled={inputDisabled}
             className="font-mono text-sm"
             autoComplete="off"
             spellCheck={false}
+            maxLength={256}
           />
           <InputGroupButton
             type="submit"
