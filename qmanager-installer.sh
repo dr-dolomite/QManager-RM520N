@@ -20,12 +20,12 @@ GITHUB_REPO="dr-dolomite/QManager"
 QMANAGER_VERSION="${QMANAGER_VERSION:-latest}"
 
 if [ "$QMANAGER_VERSION" = "latest" ]; then
-    DOWNLOAD_URL="https://github.com/${GITHUB_REPO}/releases/latest/download/qmanager.zip"
+    DOWNLOAD_URL="https://github.com/${GITHUB_REPO}/releases/latest/download/qmanager.tar.gz"
 else
-    DOWNLOAD_URL="https://github.com/${GITHUB_REPO}/releases/download/${QMANAGER_VERSION}/qmanager.zip"
+    DOWNLOAD_URL="https://github.com/${GITHUB_REPO}/releases/download/${QMANAGER_VERSION}/qmanager.tar.gz"
 fi
 
-ARCHIVE_PATH="/tmp/qmanager.zip"
+ARCHIVE_PATH="/tmp/qmanager.tar.gz"
 EXTRACT_DIR="/tmp/qmanager_install"
 
 # Device paths (must match install.sh / uninstall.sh)
@@ -133,20 +133,12 @@ do_install() {
 
     local size
     size=$(du -k "$ARCHIVE_PATH" 2>/dev/null | awk '{print $1 "K"}')
-    info "Downloaded qmanager.zip ($size)"
+    info "Downloaded qmanager.tar.gz ($size)"
 
     # Extract
     step "Extracting archive..."
     rm -rf "$EXTRACT_DIR"
-
-    # Check for unzip
-    if ! command -v unzip >/dev/null 2>&1; then
-        warn "unzip not found — attempting to install..."
-        opkg update >/dev/null 2>&1 || true
-        opkg install unzip >/dev/null 2>&1 || die "Failed to install unzip (opkg install unzip)"
-    fi
-
-    unzip -q -o "$ARCHIVE_PATH" -d /tmp/ 2>/dev/null || die "Extraction failed — archive may be corrupt"
+    tar xzf "$ARCHIVE_PATH" -C /tmp/ 2>/dev/null || die "Extraction failed — archive may be corrupt"
     [ -d "$EXTRACT_DIR" ] || die "Extraction failed — $EXTRACT_DIR not found"
     info "Extracted to $EXTRACT_DIR"
 
@@ -365,7 +357,7 @@ do_download_only() {
         info "Downloaded to $ARCHIVE_PATH ($size)"
         printf "\n"
         printf "  To install later:\n\n"
-        printf "     unzip -o %s -d /tmp/\n" "$ARCHIVE_PATH"
+        printf "     tar xzf %s -C /tmp/\n" "$ARCHIVE_PATH"
         printf "     sh %s/install.sh\n\n" "$EXTRACT_DIR"
     else
         die "Download failed"
