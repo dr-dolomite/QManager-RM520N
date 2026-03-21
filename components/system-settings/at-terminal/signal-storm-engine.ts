@@ -40,9 +40,11 @@ interface Beam extends Entity {
 
 interface Enemy extends Entity {
   dy: number;
+  dx: number;
   hp: number;
-  type: "interference" | "jammer";
+  type: "interference" | "jammer" | "swerver";
   lastShot: number;
+  swerveTimer: number;
 }
 
 interface EnemyBeam extends Entity {
@@ -102,6 +104,12 @@ const SPAWN_INTERVAL_DECREASE = 150;
 const SPAWN_MIN_INTERVAL = 500;
 const JAMMER_WAVE_THRESHOLD = 3;
 const JAMMER_SPAWN_CHANCE = 0.2;
+const SWERVER_WAVE_THRESHOLD = 2;
+const SWERVER_SPAWN_CHANCE = 0.25;
+const SWERVER_FALL_SPEED = 50;
+const SWERVER_AMPLITUDE = 60;
+const SWERVER_FREQUENCY = 3;
+const SCORE_SWERVER = 15;
 const POWERUP_DROP_RATE = 0.1;
 const WAVE_DURATION = 30;
 const SCORE_INTERFERENCE = 10;
@@ -179,6 +187,24 @@ const SPRITE_JAMMER: number[][] = [
   [0,0,0,0,1,0,0,0,0,1,0,0,0,0],
   [0,0,0,0,0,1,0,0,1,0,0,0,0,0],
 ];
+
+// Swerver enemy — 10x10 → 20x20 rendered
+// A diamond/dart shape that looks agile and evasive
+const SPRITE_SWERVER: number[][] = [
+  [0,0,0,0,1,1,0,0,0,0],
+  [0,0,0,1,1,1,1,0,0,0],
+  [0,0,1,1,3,3,1,1,0,0],
+  [0,1,1,1,1,1,1,1,1,0],
+  [1,1,2,1,1,1,1,2,1,1],
+  [1,1,2,1,1,1,1,2,1,1],
+  [0,1,1,1,1,1,1,1,1,0],
+  [0,0,1,1,0,0,1,1,0,0],
+  [0,0,0,1,0,0,1,0,0,0],
+  [0,0,0,0,1,1,0,0,0,0],
+];
+
+const SWERVER_W = 20;
+const SWERVER_H = 20;
 
 // Rapid-fire power-up icon — 7x7 → 14x14 rendered (lightning bolt)
 const SPRITE_PU_RAPID: number[][] = [
@@ -377,6 +403,7 @@ export class SignalStormEngine {
   private spritePlayer!: OffscreenCanvas;
   private spriteMeteor!: OffscreenCanvas;
   private spriteJammer!: OffscreenCanvas;
+  private spriteSwerver!: OffscreenCanvas;
   private spritePuRapid!: OffscreenCanvas;
   private spritePuShield!: OffscreenCanvas;
   private spritePuSpread!: OffscreenCanvas;
@@ -497,6 +524,7 @@ export class SignalStormEngine {
     this.spritePlayer = preRenderSprite(SPRITE_PLAYER, this.palette.player, s);
     this.spriteMeteor = preRenderSprite(SPRITE_METEOR, this.palette.enemy, s);
     this.spriteJammer = preRenderSprite(SPRITE_JAMMER, this.palette.jammer, s);
+    this.spriteSwerver = preRenderSprite(SPRITE_SWERVER, this.palette.shield, s);
     this.spritePuRapid = preRenderSprite(SPRITE_PU_RAPID, this.palette.powerUp, s);
     this.spritePuShield = preRenderSprite(SPRITE_PU_SHIELD, this.palette.shield, s);
     this.spritePuSpread = preRenderSprite(SPRITE_PU_SPREAD, this.palette.spread, s);
@@ -573,6 +601,14 @@ export class SignalStormEngine {
       e.y += e.dy * dt;
       if (e.y > this.height) e.active = false;
 
+      if (e.type === "swerver") {
+        // Weave left-right using sine wave
+        e.swerveTimer += dt * SWERVER_FREQUENCY;
+        e.x += Math.cos(e.swerveTimer) * SWERVER_AMPLITUDE * dt * SWERVER_FREQUENCY;
+        // Clamp to canvas
+        e.x = Math.max(0, Math.min(e.x, this.width - e.width));
+      }
+
       if (e.type === "jammer" && timestamp - e.lastShot >= JAMMER_SHOOT_INTERVAL) {
         e.lastShot = timestamp;
         this.fireEnemyBeam(e);
@@ -596,11 +632,15 @@ export class SignalStormEngine {
           if (e.hp <= 0) {
             e.active = false;
             this.score +=
-              e.type === "jammer" ? SCORE_JAMMER : SCORE_INTERFERENCE;
+              e.type === "jammer" ? SCORE_JAMMER
+                : e.type === "swerver" ? SCORE_SWERVER
+                : SCORE_INTERFERENCE;
             this.spawnParticles(
               e.x + e.width / 2,
               e.y + e.height / 2,
-              e.type === "jammer" ? this.palette.jammer : this.palette.enemy
+              e.type === "jammer" ? this.palette.jammer
+                : e.type === "swerver" ? this.palette.shield
+                : this.palette.enemy
             );
             if (Math.random() < POWERUP_DROP_RATE) {
               this.spawnPowerUp(e.x + e.width / 2, e.y + e.height / 2);
@@ -758,11 +798,32 @@ export class SignalStormEngine {
   }
 
   private spawnEnemy(timestamp: number): void {
-    const x = Math.random() * (this.width - JAMMER_W);
+    const roll = Math.random();
+    const isSwerver =
+      this.wave >= SWERVER_WAVE_THRESHOLD && roll < SWERVER_SPAWN_CHANCE;
     const isJammer =
-      this.wave >= JAMMER_WAVE_THRESHOLD && Math.random() < JAMMER_SPAWN_CHANCE;
+      !isSwerver &&
+      this.wave >= JAMMER_WAVE_THRESHOLD &&
+      roll < SWERVER_SPAWN_CHANCE + JAMMER_SPAWN_CHANCE;
 
-    if (isJammer) {
+    if (isSwerver) {
+      const x = Math.random() * (this.width - SWERVER_W);
+      const fallSpeed = SWERVER_FALL_SPEED + (this.wave - 1) * 5;
+      this.enemies.push({
+        x,
+        y: -SWERVER_H,
+        width: SWERVER_W,
+        height: SWERVER_H,
+        active: true,
+        dy: fallSpeed,
+        dx: 0,
+        hp: 1,
+        type: "swerver",
+        lastShot: 0,
+        swerveTimer: Math.random() * Math.PI * 2,
+      });
+    } else if (isJammer) {
+      const x = Math.random() * (this.width - JAMMER_W);
       const fallSpeed = JAMMER_FALL_SPEED + (this.wave - 1) * 4;
       this.enemies.push({
         x,
@@ -771,11 +832,14 @@ export class SignalStormEngine {
         height: JAMMER_H,
         active: true,
         dy: fallSpeed,
+        dx: 0,
         hp: 2,
         type: "jammer",
         lastShot: timestamp,
+        swerveTimer: 0,
       });
     } else {
+      const x = Math.random() * (this.width - ENEMY_W);
       const fallSpeed = ENEMY_BASE_FALL_SPEED + (this.wave - 1) * 8;
       this.enemies.push({
         x,
@@ -784,9 +848,11 @@ export class SignalStormEngine {
         height: ENEMY_H,
         active: true,
         dy: fallSpeed,
+        dx: 0,
         hp: 1,
         type: "interference",
         lastShot: 0,
+        swerveTimer: 0,
       });
     }
   }
@@ -860,8 +926,8 @@ export class SignalStormEngine {
   private spawnBoss(): void {
     const tier = (((this.wave / BOSS_WAVE_INTERVAL) - 1) % 5 + 1) as 1 | 2 | 3 | 4 | 5;
     const cycleNumber = Math.floor((this.wave - 1) / 25);
-    const baseHp = [0, 15, 20, 25, 18, 30][tier];
-    const hp = baseHp + cycleNumber * 10;
+    const baseHp = [0, 8, 12, 14, 10, 18][tier];
+    const hp = baseHp + cycleNumber * 6;
 
     // Determine boss dimensions from sprite at full scale
     const spriteWidths  = [0, 40, 36, 48, 32, 44];
@@ -883,7 +949,7 @@ export class SignalStormEngine {
       shootTimer: 0,
       patternPhase: 0,
       targetX: this.width / 2 - w / 2,
-      dx: tier === 4 ? 250 : (tier === 3 ? 30 : 0),
+      dx: tier === 4 ? 140 : (tier === 3 ? 25 : 0),
     };
   }
 
@@ -910,12 +976,12 @@ export class SignalStormEngine {
 
     if (boss.tier === 1) {
       // Smooth sine-wave left-right
-      boss.x = centerX + Math.sin(boss.moveTimer * 1.5) * (this.width * 0.35);
+      boss.x = centerX + Math.sin(boss.moveTimer * 0.8) * (this.width * 0.3);
 
     } else if (boss.tier === 2) {
       // Dash to random X positions
       const diff = boss.targetX - boss.x;
-      const step = 180 * dt;
+      const step = 100 * dt;
       if (Math.abs(diff) <= step) {
         boss.x = boss.targetX;
         boss.targetX = Math.random() * (this.width - boss.width);
@@ -968,7 +1034,7 @@ export class SignalStormEngine {
 
     // ── Shooting ──
     boss.shootTimer += dt;
-    const shootIntervals = [0, 1.5, 2.0, 2.5, 1.0, 1.5];
+    const shootIntervals = [0, 2.5, 3.0, 3.5, 2.0, 2.5];
     if (boss.shootTimer >= shootIntervals[boss.tier]) {
       boss.shootTimer = 0;
       this.bossShoot(boss);
@@ -1032,21 +1098,21 @@ export class SignalStormEngine {
 
     if (effectiveTier === 1) {
       // Single beam from center
-      fireBeam(bCx, 180);
+      fireBeam(bCx, 120);
 
     } else if (effectiveTier === 2) {
       // 3 spread beams — we simulate angle via horizontal x offset at distance
-      fireBeam(bCx, 160);
+      fireBeam(bCx, 110);
       // Left angled: spawn offset left, same dy
-      fireBeam(bCx - 20, 160);
+      fireBeam(bCx - 20, 110);
       // Right angled: spawn offset right
-      fireBeam(bCx + 20, 160);
+      fireBeam(bCx + 20, 110);
 
     } else if (effectiveTier === 3) {
       // 5 evenly-spaced beams across boss width
       const step = boss.width / 4;
       for (let i = 0; i <= 4; i++) {
-        fireBeam(boss.x + step * i, 120);
+        fireBeam(boss.x + step * i, 90);
       }
 
     } else if (effectiveTier === 4) {
@@ -1061,7 +1127,7 @@ export class SignalStormEngine {
       // Clamp xRatio to avoid extreme offsets
       const xOff = Math.max(-60, Math.min(60, xRatio * 60));
       void angle;
-      fireBeam(bCx + xOff, 220);
+      fireBeam(bCx + xOff, 150);
     }
   }
 
@@ -1267,7 +1333,10 @@ export class SignalStormEngine {
 
   private drawEnemy(e: Enemy): void {
     const { ctx } = this;
-    const sprite = e.type === "jammer" ? this.spriteJammer : this.spriteMeteor;
+    const sprite =
+      e.type === "jammer" ? this.spriteJammer
+        : e.type === "swerver" ? this.spriteSwerver
+        : this.spriteMeteor;
     ctx.drawImage(sprite, e.x, e.y);
 
     // Damage flash: if jammer has taken 1 hit (hp=1 of 2), flash briefly
