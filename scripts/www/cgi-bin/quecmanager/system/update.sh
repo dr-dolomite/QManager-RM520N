@@ -21,7 +21,8 @@ cgi_handle_options
 
 # --- Configuration -----------------------------------------------------------
 
-GITHUB_REPO="iamromulan/quecmanager"
+GITHUB_REPO="dr-dolomite/QManager"
+DOWNLOAD_BRANCH="development-home"
 VERSION_FILE="/etc/qmanager/VERSION"
 UPDATES_DIR="/etc/qmanager/updates"
 STATUS_FILE="/tmp/qmanager_update.json"
@@ -109,9 +110,15 @@ EOF
     [ -n "$a_pre" ] && [ -z "$b_pre" ] && return 2
     [ -z "$a_pre" ] && [ -z "$b_pre" ] && return 1
 
-    # Both have pre-release — lexical
-    [ "$a_pre" \> "$b_pre" ] && return 0
-    [ "$a_pre" \< "$b_pre" ] && return 2
+    # Both have pre-release — lexical comparison (POSIX: sort, no \> \< in [ ])
+    if [ "$a_pre" != "$b_pre" ]; then
+        _lesser=$(printf '%s\n%s\n' "$a_pre" "$b_pre" | sort | head -1)
+        if [ "$_lesser" = "$a_pre" ]; then
+            return 2  # a_pre is lexically lesser → a is older
+        else
+            return 0  # b_pre is lexically lesser → a is newer
+        fi
+    fi
     return 1
 }
 
@@ -138,10 +145,10 @@ if [ "$REQUEST_METHOD" = "GET" ]; then
     current_version=$(get_current_version)
     include_prerelease=$(uci_update_get include_prerelease "1")
 
-    # Rollback availability
+    # Rollback availability — previous version stored locally after each update
     rollback_available="false"
     rollback_version=""
-    if [ -f "$UPDATES_DIR/previous.tar.gz" ] && [ -f "$UPDATES_DIR/previous_version" ]; then
+    if [ -f "$UPDATES_DIR/previous_version" ]; then
         rollback_available="true"
         rollback_version=$(cat "$UPDATES_DIR/previous_version" 2>/dev/null)
     fi
@@ -177,7 +184,7 @@ if [ "$REQUEST_METHOD" = "GET" ]; then
         wait_msg="Rate limit reached. Try again later."
         if [ -n "$reset_ts" ]; then
             now_ts=$(date +%s 2>/dev/null)
-            if [ -n "$now_ts" ] && [ "$reset_ts" -gt "$now_ts" ] 2>/dev/null; then
+            if [ -n "$now_ts" ] && [ -n "$reset_ts" ] && [ "$reset_ts" -gt "$now_ts" ] 2>/dev/null; then
                 wait_mins=$(( (reset_ts - now_ts + 59) / 60 ))
                 wait_msg="Rate limit reached. Try again in ${wait_mins} minute(s)."
             fi
@@ -210,16 +217,16 @@ if [ "$REQUEST_METHOD" = "GET" ]; then
         release_filter='[ .[] | select(.prerelease == false) ] | .[0]'
     fi
 
-    # Extract release info
+    # Extract release info (version + changelog from API, download from raw branch)
     latest_tag=$(echo "$api_response" | jq -r "$release_filter | .tag_name // empty")
     changelog=$(echo "$api_response" | jq -r "$release_filter | .body // empty")
-    download_url=$(echo "$api_response" | jq -r "$release_filter | .assets[] | select(.name == \"qmanager.tar.gz\") | .browser_download_url // empty")
-    download_size_bytes=$(echo "$api_response" | jq -r "$release_filter | .assets[] | select(.name == \"qmanager.tar.gz\") | .size // empty")
 
-    download_size=""
-    if [ -n "$download_size_bytes" ] && [ "$download_size_bytes" -gt 0 ] 2>/dev/null; then
-        download_size=$(awk "BEGIN { printf \"%.1f MB\", $download_size_bytes / 1048576 }")
+    # Download URL points to raw branch archive (release asset redirects fail on OpenWRT)
+    download_url=""
+    if [ -n "$latest_tag" ]; then
+        download_url="https://github.com/${GITHUB_REPO}/raw/refs/heads/${DOWNLOAD_BRANCH}/qmanager-build/qmanager.tar.gz"
     fi
+    download_size=""
 
     update_available="false"
     if [ -n "$latest_tag" ]; then
@@ -303,14 +310,15 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
     if [ "$ACTION" = "rollback" ]; then
         check_lock
 
-        if [ ! -f "$UPDATES_DIR/previous.tar.gz" ]; then
+        if [ ! -f "$UPDATES_DIR/previous_version" ]; then
             cgi_error "no_rollback" "No previous version available for rollback"
             exit 0
         fi
 
         rollback_version=$(cat "$UPDATES_DIR/previous_version" 2>/dev/null)
+        rollback_url="https://github.com/${GITHUB_REPO}/raw/refs/heads/${DOWNLOAD_BRANCH}/qmanager-build/qmanager.tar.gz.old"
         jq -n --arg v "$rollback_version" '{"success":true,"status":"starting","version":$v}'
-        ( "$UPDATER" rollback </dev/null >>/tmp/qmanager_update.log 2>&1 & )
+        ( "$UPDATER" rollback "$rollback_url" "$rollback_version" </dev/null >>/tmp/qmanager_update.log 2>&1 & )
         exit 0
     fi
 

@@ -10,14 +10,15 @@
 #   sh /tmp/qmanager-installer.sh
 #
 # Environment variables:
-#   QMANAGER_VERSION  Release tag to download (default: latest)
+#   QMANAGER_BRANCH   Git branch to download from (default: development-home)
 #
 # ==============================================================================
 
 # --- Configuration -----------------------------------------------------------
 
 GITHUB_REPO="dr-dolomite/QManager"
-QMANAGER_VERSION="${QMANAGER_VERSION:-latest}"
+QMANAGER_BRANCH="${QMANAGER_BRANCH:-development-home}"
+DOWNLOAD_URL="https://github.com/${GITHUB_REPO}/raw/refs/heads/${QMANAGER_BRANCH}/qmanager-build/qmanager.tar.gz"
 ARCHIVE_PATH="/tmp/qmanager.tar.gz"
 EXPECTED_SHA256="421442cb14054fe79773965595024a30863ddfd9e8af70fe72c3390a5e88b134"
 EXTRACT_DIR="/tmp/qmanager_install"
@@ -72,24 +73,8 @@ is_installed() {
     [ -d "$LIB_DIR" ] || [ -f "$INITD_DIR/qmanager" ] || [ -d "$CGI_DIR" ]
 }
 
-# --- Download Helpers --------------------------------------------------------
+# --- Download Helper ---------------------------------------------------------
 
-# Download a URL to stdout (for API calls)
-fetch_to_stdout() {
-    local url="$1"
-    if command -v uclient-fetch >/dev/null 2>&1; then
-        uclient-fetch -q -O - "$url" 2>/dev/null && return 0
-    fi
-    if command -v wget >/dev/null 2>&1; then
-        wget -q -O - "$url" 2>/dev/null && return 0
-    fi
-    if command -v curl >/dev/null 2>&1; then
-        curl -fsSL "$url" 2>/dev/null && return 0
-    fi
-    return 1
-}
-
-# Download a URL to a file
 download_archive() {
     local url="$1" dest="$2"
 
@@ -114,33 +99,6 @@ download_archive() {
     return 1
 }
 
-# Resolve the latest release tag (includes pre-releases) via GitHub API.
-# GitHub's /releases/latest only returns non-pre-releases, so we query
-# the full releases list and grab the first tag.
-resolve_download_url() {
-    if [ "$QMANAGER_VERSION" != "latest" ]; then
-        echo "https://github.com/${GITHUB_REPO}/releases/download/${QMANAGER_VERSION}/qmanager.tar.gz"
-        return 0
-    fi
-
-    local api_url="https://api.github.com/repos/${GITHUB_REPO}/releases?per_page=1"
-    local response tag
-
-    response=$(fetch_to_stdout "$api_url") || true
-    tag=$(echo "$response" | grep '"tag_name"' | head -1 | sed 's/.*"tag_name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/')
-
-    if [ -n "$tag" ]; then
-        info "Latest release: $tag"
-        echo "https://github.com/${GITHUB_REPO}/releases/download/${tag}/qmanager.tar.gz"
-        return 0
-    fi
-
-    # Fallback: try the /releases/latest redirect (works for non-pre-releases)
-    warn "Could not resolve latest tag via API — trying direct URL"
-    echo "https://github.com/${GITHUB_REPO}/releases/latest/download/qmanager.tar.gz"
-    return 0
-}
-
 # ==============================================================================
 # Option 1 — Install
 # ==============================================================================
@@ -157,17 +115,12 @@ do_install() {
         case "$ans" in y|Y|yes|YES) ;; *) printf "\n  Aborted.\n\n"; return ;; esac
     fi
 
-    # Resolve download URL
-    step "Resolving latest release..."
-    local download_url
-    download_url=$(resolve_download_url)
-
     # Download
     step "Downloading QManager..."
-    printf "     %s\n" "$download_url"
+    printf "     %s\n" "$DOWNLOAD_URL"
 
     rm -f "$ARCHIVE_PATH"
-    if ! download_archive "$download_url" "$ARCHIVE_PATH"; then
+    if ! download_archive "$DOWNLOAD_URL" "$ARCHIVE_PATH"; then
         printf "\n"
         die "Download failed. Ensure HTTPS is available (opkg install wget-ssl)"
     fi
@@ -214,13 +167,6 @@ do_install() {
     rm -f "$ARCHIVE_PATH"
     rm -rf "$EXTRACT_DIR"
     info "Temporary files removed"
-
-    # Show version info
-    if [ "$QMANAGER_VERSION" = "latest" ]; then
-        info "Installed from latest release"
-    else
-        info "Installed from release $QMANAGER_VERSION"
-    fi
 }
 
 # ==============================================================================
@@ -399,15 +345,11 @@ do_uninstall() {
 
 do_download_only() {
     printf "\n"
-    step "Resolving latest release..."
-    local download_url
-    download_url=$(resolve_download_url)
-
     step "Downloading QManager..."
-    printf "     %s\n" "$download_url"
+    printf "     %s\n" "$DOWNLOAD_URL"
 
     rm -f "$ARCHIVE_PATH"
-    if ! download_archive "$download_url" "$ARCHIVE_PATH"; then
+    if ! download_archive "$DOWNLOAD_URL" "$ARCHIVE_PATH"; then
         printf "\n"
         die "Download failed. Ensure HTTPS is available (opkg install wget-ssl)"
     fi

@@ -6,7 +6,7 @@
 #
 # Usage:
 #   qmanager_update install <download_url> <version> [download_size]
-#   qmanager_update rollback
+#   qmanager_update rollback <rollback_url> <rollback_version>
 # =============================================================================
 
 LOG_FILE="/tmp/qmanager_update.log"
@@ -86,7 +86,8 @@ if [ "$MODE" = "install" ]; then
 
     # Validate URL origin (prevent SSRF)
     case "$URL" in
-        https://github.com/iamromulan/quecmanager/releases/download/*/qmanager.tar.gz) ;;
+        https://github.com/dr-dolomite/QManager/raw/*/qmanager-build/qmanager.tar.gz) ;;
+        https://github.com/dr-dolomite/QManager/raw/*/qmanager-build/qmanager.tar.gz.old) ;;
         *) die "Invalid download URL" ;;
     esac
 
@@ -113,21 +114,17 @@ if [ "$MODE" = "install" ]; then
     fi
     log "Archive verified"
 
-    # 3. Rotate archives safely
+    # 3. Save current version for rollback tracking
     write_status "installing" "Installing update..." "$VERSION" ""
     current_ver=$(get_current_version)
     mkdir -p "$UPDATES_DIR"
-
-    if [ -f "$UPDATES_DIR/current.tar.gz" ]; then
-        mv "$UPDATES_DIR/current.tar.gz" "$UPDATES_DIR/previous.tar.gz"
-        echo "$current_ver" > "$UPDATES_DIR/previous_version"
-    fi
-    mv "$download_path" "$UPDATES_DIR/current.tar.gz"
-    log "Archives rotated (previous=$current_ver)"
+    echo "$current_ver" > "$UPDATES_DIR/previous_version"
+    log "Saved previous version ($current_ver) for rollback"
 
     # 4. Extract and install
     rm -rf /tmp/qmanager_install
-    tar xzf "$UPDATES_DIR/current.tar.gz" -C /tmp/
+    tar xzf "$download_path" -C /tmp/
+    rm -f "$download_path"
     cd /tmp/qmanager_install || die "Extraction failed — /tmp/qmanager_install not found"
 
     log "Running install.sh --skip-packages --no-reboot"
@@ -151,27 +148,53 @@ fi
 # ROLLBACK mode
 # =============================================================================
 if [ "$MODE" = "rollback" ]; then
-    VERSION=$(cat "$UPDATES_DIR/previous_version" 2>/dev/null)
+    URL="$2"
+    VERSION="$3"
 
-    if [ ! -f "$UPDATES_DIR/previous.tar.gz" ]; then
-        die "No previous version available for rollback"
+    if [ -z "$URL" ] || [ -z "$VERSION" ]; then
+        die "Rollback requires URL and version arguments"
     fi
 
+    # Validate URL origin (prevent SSRF)
+    case "$URL" in
+        https://github.com/dr-dolomite/QManager/raw/*/qmanager-build/qmanager.tar.gz.old) ;;
+        *) die "Invalid rollback URL" ;;
+    esac
+
+    # 1. Download rollback archive
+    write_status "downloading" "Downloading previous version..." "$VERSION" ""
+    log "Downloading rollback archive $URL"
+    download_path="/tmp/qmanager_rollback.tar.gz"
+    rm -f "$download_path"
+
+    if ! http_download "$URL" "$download_path"; then
+        die "Rollback download failed. Check your internet connection."
+    fi
+    log "Rollback download complete"
+
+    # 2. Verify archive integrity
+    if ! tar tzf "$download_path" >/dev/null 2>&1; then
+        rm -f "$download_path"
+        die "Rollback archive is corrupt."
+    fi
+
+    if ! tar tzf "$download_path" | grep -q "install.sh"; then
+        rm -f "$download_path"
+        die "Invalid rollback package — missing install.sh."
+    fi
+    log "Rollback archive verified"
+
+    # 3. Save current version so the next rollback can swap back
     write_status "installing" "Restoring previous version..." "$VERSION" ""
-
-    # Swap archives: current <-> previous
     current_ver=$(get_current_version)
-    tmp_swap="/tmp/qmanager_swap.tar.gz"
-
-    mv "$UPDATES_DIR/current.tar.gz" "$tmp_swap"
-    mv "$UPDATES_DIR/previous.tar.gz" "$UPDATES_DIR/current.tar.gz"
-    mv "$tmp_swap" "$UPDATES_DIR/previous.tar.gz"
+    mkdir -p "$UPDATES_DIR"
     echo "$current_ver" > "$UPDATES_DIR/previous_version"
-    log "Archives swapped (rolling back to $VERSION, previous=$current_ver)"
+    log "Saved current version ($current_ver) before rollback"
 
-    # Extract and install
+    # 4. Extract and install
     rm -rf /tmp/qmanager_install
-    tar xzf "$UPDATES_DIR/current.tar.gz" -C /tmp/
+    tar xzf "$download_path" -C /tmp/
+    rm -f "$download_path"
     cd /tmp/qmanager_install || die "Extraction failed"
 
     log "Running install.sh --skip-packages --no-reboot"
@@ -180,7 +203,7 @@ if [ "$MODE" = "rollback" ]; then
     fi
     log "Rollback install complete"
 
-    # Cleanup and reboot
+    # 5. Cleanup and reboot
     rm -rf /tmp/qmanager_install
     write_status "rebooting" "Rebooting device..." "$VERSION" ""
     log "Rebooting"
