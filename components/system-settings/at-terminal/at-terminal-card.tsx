@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback, type FormEvent } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo, type FormEvent } from "react";
 import {
   TerminalIcon,
   TriangleAlertIcon,
@@ -18,6 +18,7 @@ import {
   InputGroupText,
 } from "@/components/ui/input-group";
 import { authFetch } from "@/lib/auth-fetch";
+import CommandsPopover from "@/components/system-settings/at-terminal/commands-popover";
 
 // --- Types ---
 
@@ -108,6 +109,24 @@ export default function ATTerminalCard() {
   const [isLoading, setIsLoading] = useState(false);
   const [warning, setWarning] = useState<Warning | null>(null);
   const [lastCommand, setLastCommand] = useState("");
+  const [suggestionIndex, setSuggestionIndex] = useState(0);
+
+  const suggestions = useMemo(() => {
+    if (!input.trim()) return [];
+    const seen = new Set<string>();
+    return history
+      .slice()
+      .reverse()
+      .filter((e) => {
+        if (e.status === "blocked") return false;
+        const cmd = e.command.toUpperCase();
+        if (seen.has(cmd) || !cmd.startsWith(input.trim().toUpperCase()))
+          return false;
+        seen.add(cmd);
+        return true;
+      })
+      .map((e) => e.command);
+  }, [history, input]);
 
   const historyEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -245,14 +264,29 @@ export default function ATTerminalCard() {
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLInputElement>) => {
-      if (e.key === "ArrowUp" && (input === "" || e.currentTarget.selectionStart === 0)) {
+      if (e.key === "Tab") {
+        if (suggestions.length > 0) {
+          e.preventDefault();
+          setInput(suggestions[suggestionIndex]);
+          setSuggestionIndex((prev) => (prev + 1) % suggestions.length);
+        }
+        return;
+      }
+
+      if (
+        e.key === "ArrowUp" &&
+        (input === "" || e.currentTarget.selectionStart === 0)
+      ) {
         e.preventDefault();
         if (lastCommand) {
           setInput(lastCommand);
         }
+        return;
       }
+
+      setSuggestionIndex(0);
     },
-    [input, lastCommand],
+    [input, lastCommand, suggestions, suggestionIndex],
   );
 
   const isEmpty = history.length === 0;
@@ -267,6 +301,7 @@ export default function ATTerminalCard() {
           AT Terminal
         </span>
         <div className="ml-auto flex gap-1">
+          <CommandsPopover onSelect={setInput} inputRef={inputRef} />
           <Button
             variant="ghost"
             size="xs"
@@ -306,6 +341,18 @@ export default function ATTerminalCard() {
           </div>
         )}
       </div>
+
+      {/* Suggestion hint */}
+      {suggestions.length > 0 && !warning && (
+        <div className="flex items-center gap-1.5 px-4 pb-1.5">
+          <span className="font-mono text-sm text-muted-foreground/40 italic">
+            {suggestions[suggestionIndex % suggestions.length]}
+          </span>
+          <kbd className="rounded bg-muted px-1 py-0.5 text-[9px] text-muted-foreground/35">
+            Tab
+          </kbd>
+        </div>
+      )}
 
       {/* Warning banner */}
       {warning && (
