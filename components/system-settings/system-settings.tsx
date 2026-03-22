@@ -1,13 +1,11 @@
 "use client";
 
 import { useSystemSettings } from "@/hooks/use-system-settings";
-import { useBandwidthSettings } from "@/hooks/use-bandwidth-settings";
 import SystemSettingsCard from "@/components/system-settings/system-settings-card";
 import ScheduledOperationsCard from "@/components/system-settings/scheduled-operations-card";
 
 const SystemSettings = () => {
   const hookData = useSystemSettings();
-  const bandwidth = useBandwidthSettings();
 
   return (
     <div className="@container/main mx-auto p-2">
@@ -16,7 +14,7 @@ const SystemSettings = () => {
       </div>
       <div className="grid grid-cols-1 @3xl/main:grid-cols-2 grid-flow-row gap-4">
         <SystemSettingsCard {...hookData} />
-        <ScheduledOperationsCard {...hookData} bandwidth={bandwidth} />
+        <ScheduledOperationsCard {...hookData} />
       </div>
     </div>
   );

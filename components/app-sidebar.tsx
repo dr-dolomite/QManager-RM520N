@@ -63,6 +63,12 @@ const data = {
       title: "System Settings",
       url: "/system-settings",
       icon: SettingsIcon,
+      items: [
+        {
+          title: "Bandwidth Monitor",
+          url: "/system-settings/bandwidth-monitor",
+        },
+      ],
     },
     {
       title: "AT Terminal",
