@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { motion } from "motion/react";
+import { EyeIcon, EyeOffIcon } from "lucide-react";
 import { useLogin } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
 import {
@@ -21,6 +22,7 @@ export default function LoginComponent() {
   const { status, login } = useLogin();
 
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [retryAfter, setRetryAfter] = useState(0);
@@ -110,16 +112,30 @@ export default function LoginComponent() {
 
           <Field>
             <FieldLabel htmlFor="password">Password</FieldLabel>
-            <Input
-              id="password"
-              type="password"
-              placeholder="Enter your password"
-              autoComplete="current-password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              disabled={isSubmitting}
-            />
+            <div className="relative">
+              <Input
+                id="password"
+                type={showPassword ? "text" : "password"}
+                placeholder="Enter your password"
+                autoComplete="current-password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                disabled={isSubmitting}
+                className="pr-10"
+              />
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                className="absolute right-1 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                onClick={() => setShowPassword((v) => !v)}
+                tabIndex={-1}
+                aria-label={showPassword ? "Hide password" : "Show password"}
+              >
+                {showPassword ? <EyeOffIcon className="size-4" /> : <EyeIcon className="size-4" />}
+              </Button>
+            </div>
           </Field>
 
           {error && (

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useState } from "react";
+import { EyeIcon, EyeOffIcon } from "lucide-react";
 import { changePassword } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
 import {
@@ -27,6 +28,9 @@ export function ChangePasswordDialog({
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -34,6 +38,9 @@ export function ChangePasswordDialog({
     setCurrentPassword("");
     setNewPassword("");
     setConfirmPassword("");
+    setShowCurrentPassword(false);
+    setShowNewPassword(false);
+    setShowConfirmPassword(false);
     setError("");
     setIsSubmitting(false);
   }, []);
@@ -90,41 +97,83 @@ export function ChangePasswordDialog({
               <FieldLabel htmlFor="current-password">
                 Current Password
               </FieldLabel>
-              <Input
-                id="current-password"
-                type="password"
-                autoComplete="current-password"
-                value={currentPassword}
-                onChange={(e) => setCurrentPassword(e.target.value)}
-                required
-                disabled={isSubmitting}
-              />
+              <div className="relative">
+                <Input
+                  id="current-password"
+                  type={showCurrentPassword ? "text" : "password"}
+                  autoComplete="current-password"
+                  value={currentPassword}
+                  onChange={(e) => setCurrentPassword(e.target.value)}
+                  required
+                  disabled={isSubmitting}
+                  className="pr-10"
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  className="absolute right-1 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  onClick={() => setShowCurrentPassword((v) => !v)}
+                  tabIndex={-1}
+                  aria-label={showCurrentPassword ? "Hide password" : "Show password"}
+                >
+                  {showCurrentPassword ? <EyeOffIcon className="size-4" /> : <EyeIcon className="size-4" />}
+                </Button>
+              </div>
             </Field>
             <Field>
               <FieldLabel htmlFor="new-password">New Password</FieldLabel>
-              <Input
-                id="new-password"
-                type="password"
-                autoComplete="new-password"
-                value={newPassword}
-                onChange={(e) => setNewPassword(e.target.value)}
-                required
-                disabled={isSubmitting}
-              />
+              <div className="relative">
+                <Input
+                  id="new-password"
+                  type={showNewPassword ? "text" : "password"}
+                  autoComplete="new-password"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  required
+                  disabled={isSubmitting}
+                  className="pr-10"
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  className="absolute right-1 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  onClick={() => setShowNewPassword((v) => !v)}
+                  tabIndex={-1}
+                  aria-label={showNewPassword ? "Hide password" : "Show password"}
+                >
+                  {showNewPassword ? <EyeOffIcon className="size-4" /> : <EyeIcon className="size-4" />}
+                </Button>
+              </div>
             </Field>
             <Field>
               <FieldLabel htmlFor="confirm-new-password">
                 Confirm New Password
               </FieldLabel>
-              <Input
-                id="confirm-new-password"
-                type="password"
-                autoComplete="new-password"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                required
-                disabled={isSubmitting}
-              />
+              <div className="relative">
+                <Input
+                  id="confirm-new-password"
+                  type={showConfirmPassword ? "text" : "password"}
+                  autoComplete="new-password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  required
+                  disabled={isSubmitting}
+                  className="pr-10"
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  className="absolute right-1 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  onClick={() => setShowConfirmPassword((v) => !v)}
+                  tabIndex={-1}
+                  aria-label={showConfirmPassword ? "Hide password" : "Show password"}
+                >
+                  {showConfirmPassword ? <EyeOffIcon className="size-4" /> : <EyeIcon className="size-4" />}
+                </Button>
+              </div>
             </Field>
             {error && (
               <p role="alert" className="text-sm text-destructive">
