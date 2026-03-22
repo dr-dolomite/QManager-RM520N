@@ -250,6 +250,10 @@ remove_backend() {
         rm -f "$f"
         bin_count=$(( bin_count + 1 ))
     done
+    if [ -f "$BIN_DIR/bridge_traffic_monitor_rm551" ]; then
+        rm -f "$BIN_DIR/bridge_traffic_monitor_rm551"
+        bin_count=$(( bin_count + 1 ))
+    fi
     info "Removed $bin_count binary/daemon file(s) from $BIN_DIR"
 
     # Remove shared libraries
@@ -321,10 +325,17 @@ remove_frontend() {
     done
     info "Removed $removed_dirs frontend director(ies) from $WWW_ROOT"
 
-    # Remove root-level QManager files
+    # Remove root-level QManager files (HTML + public assets)
     rm -f "$WWW_ROOT/index.html" \
           "$WWW_ROOT/404.html" \
-          "$WWW_ROOT/favicon.ico"
+          "$WWW_ROOT/favicon.ico" \
+          "$WWW_ROOT/qmanager-logo.svg" \
+          "$WWW_ROOT/device-icon.svg" \
+          "$WWW_ROOT/device-icon-1.svg" \
+          "$WWW_ROOT/discord-qr.svg" \
+          "$WWW_ROOT/file.svg" \
+          "$WWW_ROOT/globe.svg" \
+          "$WWW_ROOT/window.svg"
 
     # Restore the original OpenWRT/LuCI index.html from backup
     if [ -f "$BACKUP_DIR/index.html.orig" ]; then

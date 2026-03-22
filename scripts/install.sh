@@ -350,10 +350,14 @@ install_frontend() {
         rm -rf "$WWW_ROOT/$dir"
     done
 
-    # Remove old QManager root HTML files
+    # Remove old QManager root files (HTML + public assets)
     rm -f "$WWW_ROOT/index.html"
     rm -f "$WWW_ROOT/404.html"
     rm -f "$WWW_ROOT/favicon.ico"
+    rm -f "$WWW_ROOT/qmanager-logo.svg"
+    rm -f "$WWW_ROOT/device-icon.svg" "$WWW_ROOT/device-icon-1.svg"
+    rm -f "$WWW_ROOT/discord-qr.svg"
+    rm -f "$WWW_ROOT/file.svg" "$WWW_ROOT/globe.svg" "$WWW_ROOT/window.svg"
 
     # Copy new frontend
     cp -r "$SRC_FRONTEND"/* "$WWW_ROOT/"
@@ -589,6 +593,7 @@ uninstall() {
     # Remove daemons
     rm -f "$BIN_DIR/qcmd"
     rm -f "$BIN_DIR"/qmanager_*
+    rm -f "$BIN_DIR/bridge_traffic_monitor_rm551"
     info "Removed daemons from $BIN_DIR"
 
     # Remove libraries
@@ -612,12 +617,21 @@ uninstall() {
         rm -rf "$WWW_ROOT/$dir"
     done
     rm -f "$WWW_ROOT/index.html" "$WWW_ROOT/404.html" "$WWW_ROOT/favicon.ico"
+    rm -f "$WWW_ROOT/qmanager-logo.svg" "$WWW_ROOT/device-icon.svg" \
+          "$WWW_ROOT/device-icon-1.svg" "$WWW_ROOT/discord-qr.svg" \
+          "$WWW_ROOT/file.svg" "$WWW_ROOT/globe.svg" "$WWW_ROOT/window.svg"
 
     if [ -f "$BACKUP_DIR/index.html.orig" ]; then
         cp "$BACKUP_DIR/index.html.orig" "$WWW_ROOT/index.html"
         info "Restored original index.html from backup"
     fi
     info "Removed frontend files"
+
+    # Remove firewall rules
+    rm -f /etc/firewall.user.ttl /etc/firewall.user.mtu 2>/dev/null || true
+
+    # Remove bandwidth SSL certs
+    rm -rf /etc/qmanager/bandwidth_certs 2>/dev/null || true
 
     # Remove runtime state
     rm -f /tmp/qmanager_*.json /tmp/qmanager.log* 2>/dev/null || true
@@ -634,9 +648,6 @@ uninstall() {
         crontab -l 2>/dev/null | grep -v qmanager | crontab - 2>/dev/null || true
         info "Removed cron jobs"
     fi
-
-    # Remove firewall rules
-    rm -f /etc/firewall.user.ttl /etc/firewall.user.mtu 2>/dev/null || true
 
     # Ask about config
     if [ -d "$CONF_DIR" ]; then

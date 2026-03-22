@@ -260,6 +260,7 @@ do_uninstall() {
     # --- 3. Remove backend ---
     step "Removing backend files..."
     rm -f "$BIN_DIR/qcmd"
+    rm -f "$BIN_DIR/bridge_traffic_monitor_rm551"
     for f in "$BIN_DIR"/qmanager_*; do
         [ -f "$f" ] && rm -f "$f"
     done
@@ -274,6 +275,9 @@ do_uninstall() {
         [ -d "$WWW_ROOT/$dir" ] && rm -rf "$WWW_ROOT/$dir"
     done
     rm -f "$WWW_ROOT/index.html" "$WWW_ROOT/404.html" "$WWW_ROOT/favicon.ico"
+    rm -f "$WWW_ROOT/qmanager-logo.svg" "$WWW_ROOT/device-icon.svg" \
+          "$WWW_ROOT/device-icon-1.svg" "$WWW_ROOT/discord-qr.svg" \
+          "$WWW_ROOT/file.svg" "$WWW_ROOT/globe.svg" "$WWW_ROOT/window.svg"
 
     # Restore original index.html from backup
     if [ -f "$BACKUP_DIR/index.html.orig" ]; then
