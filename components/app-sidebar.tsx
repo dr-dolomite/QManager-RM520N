@@ -188,6 +188,10 @@ const data = {
           title: "TTL & MTU Settings",
           url: "/local-network/ttl-settings",
         },
+        {
+          title: "Video Optimizer",
+          url: "/local-network/video-optimizer",
+        },
       ],
     },
   ],
