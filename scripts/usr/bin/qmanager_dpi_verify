@@ -1,0 +1,151 @@
+#!/bin/sh
+# qmanager_dpi_verify — Before/after video throttle bypass speed test
+# Spawned by CGI, writes results to /tmp/qmanager_dpi_verify.json
+
+. /usr/lib/qmanager/qlog.sh
+. /usr/lib/qmanager/dpi_helper.sh
+
+qlog_init "dpi_verify"
+
+# Verify full curl is available (BusyBox curl lacks --connect-to)
+if ! curl --help 2>&1 | grep -q "connect-to"; then
+    printf '{"success":false,"status":"error","error":"Full curl package required. Run: opkg install curl"}' \
+        > /tmp/qmanager_dpi_verify.json
+    exit 1
+fi
+
+RESULT_FILE="/tmp/qmanager_dpi_verify.json"
+PID_FILE="/tmp/qmanager_dpi_verify.pid"
+TEST_DURATION=10
+
+# Write current PID
+echo $$ > "$PID_FILE"
+
+# Write status helper
+write_status() {
+    local status="$1"
+    printf '{"success":true,"status":"%s"}' "$status" > "$RESULT_FILE"
+}
+
+# Measure download speed (returns Mbps)
+# Uses curl to download from a fast server with SNI set to a video hostname
+# This isolates SNI-based throttling from other factors
+measure_speed() {
+    local speed_bytes
+    speed_bytes=$(curl -s -o /dev/null \
+        --connect-to "googlevideo.com:443:speed.cloudflare.com:443" \
+        --max-time "$TEST_DURATION" \
+        -w "%{speed_download}" \
+        "https://googlevideo.com/__down?bytes=100000000" 2>/dev/null)
+
+    if [ -z "$speed_bytes" ] || [ "$speed_bytes" = "0" ] || [ "$speed_bytes" = "0.000" ]; then
+        echo "0"
+        return 1
+    fi
+
+    # Convert bytes/sec to Mbps (bytes * 8 / 1000000)
+    echo "$speed_bytes" | awk '{printf "%.1f", $1 * 8 / 1000000}'
+}
+
+# Determine if speed indicates throttling
+is_throttled() {
+    local speed="$1"
+    echo "$speed" | awk '{exit ($1 < 4.0) ? 0 : 1}'
+}
+
+cleanup() {
+    rm -f "$PID_FILE"
+}
+trap cleanup EXIT INT TERM
+
+qlog_info "Starting verification test"
+write_status "running"
+
+# Phase 1: Test WITH bypass active (current state, less disruptive first)
+qlog_info "Phase 1: Testing with bypass active"
+was_running=$(dpi_get_status)
+if [ "$was_running" != "running" ]; then
+    # Start it temporarily for the "with" test
+    dpi_insert_rules
+    /etc/init.d/qmanager_dpi start
+    sleep 2
+fi
+
+speed_with=$(measure_speed)
+if [ "$speed_with" = "0" ]; then
+    qlog_error "Failed to measure speed with bypass"
+    jq -n \
+        --argjson success true \
+        --arg status "error" \
+        --arg error "Could not reach test server. Check internet connection." \
+        '{success: $success, status: $status, error: $error}' > "$RESULT_FILE"
+    exit 1
+fi
+
+# Phase 2: Test WITHOUT bypass (temporarily disable)
+qlog_info "Phase 2: Testing without bypass (temporarily disabled)"
+/etc/init.d/qmanager_dpi stop
+dpi_remove_rules
+sleep 1
+
+speed_without=$(measure_speed)
+if [ "$speed_without" = "0" ]; then
+    qlog_error "Failed to measure speed without bypass"
+    # Restore bypass before exiting
+    if [ "$was_running" = "running" ]; then
+        /etc/init.d/qmanager_dpi start
+    fi
+    jq -n \
+        --argjson success true \
+        --arg status "error" \
+        --arg error "Could not reach test server during baseline test." \
+        '{success: $success, status: $status, error: $error}' > "$RESULT_FILE"
+    exit 1
+fi
+
+# Phase 3: Restore bypass
+qlog_info "Phase 3: Restoring bypass"
+if [ "$was_running" = "running" ]; then
+    /etc/init.d/qmanager_dpi start
+fi
+
+# Calculate results
+throttled_without=$(is_throttled "$speed_without" && echo "true" || echo "false")
+throttled_with=$(is_throttled "$speed_with" && echo "true" || echo "false")
+
+improvement="1.0x"
+if [ "$speed_without" != "0" ]; then
+    improvement=$(echo "$speed_with $speed_without" | awk '{
+        if ($2 > 0) printf "%.1fx", $1 / $2
+        else print "N/A"
+    }')
+fi
+
+qlog_info "Verification complete: without=${speed_without}Mbps with=${speed_with}Mbps improvement=${improvement}"
+
+# Write final results
+jq -n \
+    --argjson success true \
+    --arg status "complete" \
+    --arg timestamp "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+    --argjson speed_without "$speed_without" \
+    --argjson throttled_without "$throttled_without" \
+    --argjson speed_with "$speed_with" \
+    --argjson throttled_with "$throttled_with" \
+    --arg improvement "$improvement" \
+    '{
+        success: $success,
+        status: $status,
+        timestamp: $timestamp,
+        without_bypass: {
+            speed_mbps: $speed_without,
+            throttled: $throttled_without
+        },
+        with_bypass: {
+            speed_mbps: $speed_with,
+            throttled: $throttled_with
+        },
+        improvement: $improvement
+    }' > "$RESULT_FILE"
+
+exit 0
