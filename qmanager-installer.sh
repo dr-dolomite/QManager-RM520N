@@ -10,17 +10,16 @@
 #   sh /tmp/qmanager-installer.sh
 #
 # Environment variables:
-#   QMANAGER_BRANCH   Git branch to download from (default: development-home)
+#   QMANAGER_VERSION  Pin a specific release version (default: latest)
 #
 # ==============================================================================
 
 # --- Configuration -----------------------------------------------------------
 
 GITHUB_REPO="dr-dolomite/QManager"
-QMANAGER_BRANCH="${QMANAGER_BRANCH:-development-home}"
-DOWNLOAD_URL="https://github.com/${GITHUB_REPO}/raw/refs/heads/${QMANAGER_BRANCH}/qmanager-build/qmanager.tar.gz"
+GITHUB_API="https://api.github.com/repos/${GITHUB_REPO}/releases"
 ARCHIVE_PATH="/tmp/qmanager.tar.gz"
-EXPECTED_SHA256="5d0b0c674eb70b91fa04104a6637c10c8e020805b74717838111b35ef82affeb"
+CHECKSUM_PATH="/tmp/qmanager_sha256sum.txt"
 EXTRACT_DIR="/tmp/qmanager_install"
 
 # Device paths (must match install.sh / uninstall.sh)
@@ -99,6 +98,30 @@ download_archive() {
     return 1
 }
 
+# --- GitHub API Helper -------------------------------------------------------
+
+fetch_release_info() {
+    local api_url="$1" tmp_file="/tmp/qm_installer_api.json"
+    rm -f "$tmp_file"
+
+    if ! download_archive "$api_url" "$tmp_file"; then
+        return 1
+    fi
+
+    # Parse with jsonfilter (stock OpenWRT) or jq (if available)
+    if command -v jsonfilter >/dev/null 2>&1; then
+        RELEASE_TAG=$(jsonfilter -i "$tmp_file" -e '@.tag_name' 2>/dev/null)
+    elif command -v jq >/dev/null 2>&1; then
+        RELEASE_TAG=$(jq -r '.tag_name // empty' "$tmp_file" 2>/dev/null)
+    else
+        # Fallback: grep for tag_name in JSON (fragile but works in a pinch)
+        RELEASE_TAG=$(grep -o '"tag_name"[[:space:]]*:[[:space:]]*"[^"]*"' "$tmp_file" | head -1 | cut -d'"' -f4)
+    fi
+
+    rm -f "$tmp_file"
+    [ -n "$RELEASE_TAG" ]
+}
+
 # ==============================================================================
 # Option 1 — Install
 # ==============================================================================
@@ -115,12 +138,40 @@ do_install() {
         case "$ans" in y|Y|yes|YES) ;; *) printf "\n  Aborted.\n\n"; return ;; esac
     fi
 
-    # Download
-    step "Downloading QManager..."
-    printf "     %s\n" "$DOWNLOAD_URL"
+    # Deprecation warning for QMANAGER_BRANCH
+    if [ -n "${QMANAGER_BRANCH:-}" ]; then
+        warn "QMANAGER_BRANCH is deprecated and will be ignored."
+        warn "Use QMANAGER_VERSION to pin a specific release instead."
+    fi
+
+    # Resolve release version
+    step "Checking latest release..."
+    RELEASE_TAG=""
+
+    if [ -n "${QMANAGER_VERSION:-}" ]; then
+        info "Pinned version: $QMANAGER_VERSION"
+        if ! fetch_release_info "${GITHUB_API}/tags/${QMANAGER_VERSION}"; then
+            die "Release $QMANAGER_VERSION not found on GitHub"
+        fi
+    else
+        if ! fetch_release_info "${GITHUB_API}/latest"; then
+            die "Could not fetch latest release from GitHub. Check your internet connection."
+        fi
+    fi
+
+    info "Release: $RELEASE_TAG"
+
+    # Construct download URLs from stable release pattern
+    local base_url="https://github.com/${GITHUB_REPO}/releases/download/${RELEASE_TAG}"
+    local tarball_url="${base_url}/qmanager.tar.gz"
+    local checksum_url="${base_url}/sha256sum.txt"
+
+    # Download tarball
+    step "Downloading QManager ${RELEASE_TAG}..."
+    printf "     %s\n" "$tarball_url"
 
     rm -f "$ARCHIVE_PATH"
-    if ! download_archive "$DOWNLOAD_URL" "$ARCHIVE_PATH"; then
+    if ! download_archive "$tarball_url" "$ARCHIVE_PATH"; then
         printf "\n"
         die "Download failed. Ensure HTTPS is available (opkg install wget-ssl)"
     fi
@@ -130,20 +181,28 @@ do_install() {
     size=$(du -k "$ARCHIVE_PATH" 2>/dev/null | awk '{print $1 "K"}')
     info "Downloaded qmanager.tar.gz ($size)"
 
-    # Verify integrity
-    local actual_sha256
-    actual_sha256=$(sha256sum "$ARCHIVE_PATH" 2>/dev/null | awk '{print $1}')
-    if [ -z "$actual_sha256" ]; then
-        warn "sha256sum not available — skipping integrity check"
-    elif [ "$actual_sha256" != "$EXPECTED_SHA256" ]; then
-        err "SHA-256 mismatch!"
-        err "  Expected: $EXPECTED_SHA256"
-        err "  Got:      $actual_sha256"
-        rm -f "$ARCHIVE_PATH"
-        die "Archive integrity check failed — download may be corrupt or tampered"
+    # Download and verify checksum
+    rm -f "$CHECKSUM_PATH"
+    if download_archive "$checksum_url" "$CHECKSUM_PATH" && [ -s "$CHECKSUM_PATH" ]; then
+        local expected_sha256 actual_sha256
+        expected_sha256=$(awk '{print $1}' "$CHECKSUM_PATH")
+        actual_sha256=$(sha256sum "$ARCHIVE_PATH" 2>/dev/null | awk '{print $1}')
+
+        if [ -z "$actual_sha256" ]; then
+            warn "sha256sum not available — skipping integrity check"
+        elif [ "$actual_sha256" != "$expected_sha256" ]; then
+            err "SHA-256 mismatch!"
+            err "  Expected: $expected_sha256"
+            err "  Got:      $actual_sha256"
+            rm -f "$ARCHIVE_PATH" "$CHECKSUM_PATH"
+            die "Archive integrity check failed — download may be corrupt or tampered"
+        else
+            info "SHA-256 verified"
+        fi
     else
-        info "SHA-256 verified"
+        warn "Checksum file not available — skipping integrity check"
     fi
+    rm -f "$CHECKSUM_PATH"
 
     # Extract
     step "Extracting archive..."
@@ -360,11 +419,29 @@ do_uninstall() {
 
 do_download_only() {
     printf "\n"
-    step "Downloading QManager..."
-    printf "     %s\n" "$DOWNLOAD_URL"
+
+    # Resolve release version
+    step "Checking latest release..."
+    RELEASE_TAG=""
+
+    if [ -n "${QMANAGER_VERSION:-}" ]; then
+        info "Pinned version: $QMANAGER_VERSION"
+        if ! fetch_release_info "${GITHUB_API}/tags/${QMANAGER_VERSION}"; then
+            die "Release $QMANAGER_VERSION not found on GitHub"
+        fi
+    else
+        if ! fetch_release_info "${GITHUB_API}/latest"; then
+            die "Could not fetch latest release from GitHub. Check your internet connection."
+        fi
+    fi
+
+    local tarball_url="https://github.com/${GITHUB_REPO}/releases/download/${RELEASE_TAG}/qmanager.tar.gz"
+
+    step "Downloading QManager ${RELEASE_TAG}..."
+    printf "     %s\n" "$tarball_url"
 
     rm -f "$ARCHIVE_PATH"
-    if ! download_archive "$DOWNLOAD_URL" "$ARCHIVE_PATH"; then
+    if ! download_archive "$tarball_url" "$ARCHIVE_PATH"; then
         printf "\n"
         die "Download failed. Ensure HTTPS is available (opkg install wget-ssl)"
     fi
