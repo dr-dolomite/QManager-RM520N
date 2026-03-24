@@ -273,7 +273,8 @@ stop_services() {
     # Stop auxiliary services
     for svc in qmanager_eth_link qmanager_mtu qmanager_imei_check \
                qmanager_wan_guard qmanager_watchcat qmanager_tower_failover \
-               qmanager_ttl qmanager_low_power_check qmanager_bandwidth; do
+               qmanager_ttl qmanager_low_power_check qmanager_bandwidth \
+               qmanager_dpi; do
         if [ -x "$INITD_DIR/$svc" ]; then
             "$INITD_DIR/$svc" stop 2>/dev/null || true
         fi
@@ -288,7 +289,7 @@ stop_services() {
                 qmanager_wan_guard qmanager_low_power \
                 qmanager_low_power_check qmanager_scheduled_reboot \
                 qmanager_update qmanager_auto_update \
-                bridge_traffic_monitor_rm551 websocat; do
+                bridge_traffic_monitor_rm551 websocat nfqws; do
         killall "$proc" 2>/dev/null || true
     done
 
@@ -425,6 +426,19 @@ install_backend() {
     mkdir -p "$SESSION_DIR"
     mkdir -p /var/lock
 
+    # --- Config files (deploy new, don't overwrite existing) ---
+    if [ -d "$SRC_SCRIPTS/etc/qmanager" ]; then
+        for f in "$SRC_SCRIPTS/etc/qmanager"/*; do
+            [ -f "$f" ] || continue
+            fname=$(basename "$f")
+            # Don't overwrite user-modified config files
+            if [ ! -f "$CONF_DIR/$fname" ]; then
+                cp "$f" "$CONF_DIR/$fname"
+                info "  Deployed config: $fname"
+            fi
+        done
+    fi
+
     # --- Create UCI config file if missing ---
     [ -f /etc/config/quecmanager ] || touch /etc/config/quecmanager
 
@@ -487,7 +501,7 @@ enable_services() {
     done
 
     # UCI-gated / optional services — only enable if previously enabled
-    for svc in qmanager_tower_failover qmanager_watchcat qmanager_bandwidth; do
+    for svc in qmanager_tower_failover qmanager_watchcat qmanager_bandwidth qmanager_dpi; do
         if [ -x "$INITD_DIR/$svc" ]; then
             local was_enabled=0
             for _rc in /etc/rc.d/*"$svc"*; do
@@ -547,7 +561,8 @@ uninstall() {
     fi
     for svc in qmanager_eth_link qmanager_mtu qmanager_imei_check \
                qmanager_wan_guard qmanager_watchcat qmanager_tower_failover \
-               qmanager_ttl qmanager_low_power_check qmanager_bandwidth; do
+               qmanager_ttl qmanager_low_power_check qmanager_bandwidth \
+               qmanager_dpi; do
         if [ -x "$INITD_DIR/$svc" ]; then
             "$INITD_DIR/$svc" stop 2>/dev/null || true
         fi
@@ -560,7 +575,7 @@ uninstall() {
                 qmanager_wan_guard qmanager_low_power \
                 qmanager_low_power_check qmanager_scheduled_reboot \
                 qmanager_update qmanager_auto_update \
-                bridge_traffic_monitor_rm551 websocat; do
+                bridge_traffic_monitor_rm551 websocat nfqws; do
         killall "$proc" 2>/dev/null || true
     done
     sleep 1
@@ -570,7 +585,7 @@ uninstall() {
     for svc in qmanager qmanager_eth_link qmanager_ttl qmanager_mtu \
                qmanager_wan_guard qmanager_watchcat qmanager_imei_check \
                qmanager_tower_failover qmanager_low_power_check \
-               qmanager_bandwidth; do
+               qmanager_bandwidth qmanager_dpi; do
         if [ -x "$INITD_DIR/$svc" ]; then
             "$INITD_DIR/$svc" disable 2>/dev/null || true
             rm -f "$INITD_DIR/$svc"
@@ -582,6 +597,7 @@ uninstall() {
     rm -f "$BIN_DIR/qcmd"
     rm -f "$BIN_DIR"/qmanager_*
     rm -f "$BIN_DIR/bridge_traffic_monitor_rm551"
+    rm -f "$BIN_DIR/nfqws"
     info "Removed daemons from $BIN_DIR"
 
     # Remove libraries

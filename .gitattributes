@@ -1,6 +1,7 @@
 # Shell scripts must use LF line endings (deployed to Linux/OpenWRT)
 scripts/**/*.sh text eol=lf
 scripts/etc/init.d/* text eol=lf
+scripts/etc/qmanager/* text eol=lf
 scripts/usr/bin/* text eol=lf
 scripts/usr/bin/bridge_traffic_monitor_rm551 binary
 qmanager-installer.sh text eol=lf
