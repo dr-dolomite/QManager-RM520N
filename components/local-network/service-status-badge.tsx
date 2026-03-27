@@ -1,4 +1,5 @@
 import { Badge } from "@/components/ui/badge";
+import { CheckCircle2Icon, MinusCircleIcon } from "lucide-react";
 
 export function ServiceStatusBadge({
   status,
@@ -13,7 +14,7 @@ export function ServiceStatusBadge({
         variant="outline"
         className="border-success/30 bg-success/10 text-success"
       >
-        <span className="mr-1.5 h-1.5 w-1.5 rounded-full bg-success" />
+        <CheckCircle2Icon className="h-3 w-3" />
         Active
       </Badge>
     );
@@ -23,7 +24,7 @@ export function ServiceStatusBadge({
       variant="outline"
       className="border-muted-foreground/30 bg-muted/50 text-muted-foreground"
     >
-      <span className="mr-1.5 h-1.5 w-1.5 rounded-full bg-muted-foreground" />
+      <MinusCircleIcon className="h-3 w-3" />
       {installed ? "Inactive" : "Not Installed"}
     </Badge>
   );

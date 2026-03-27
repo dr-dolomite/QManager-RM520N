@@ -8,6 +8,7 @@ _DPI_HELPER_LOADED=1
 NFQWS_BIN="/usr/bin/nfqws"
 NFQWS_PID="/var/run/nfqws.pid"
 DPI_HOSTLIST="/etc/qmanager/video_domains.txt"
+DPI_HOSTLIST_DEFAULT="/etc/qmanager/video_domains_default.txt"
 DPI_QUEUE_NUM=200
 # Auto-detect cellular interface from default route, fallback to rmnet_data0
 DPI_INTERFACE=$(ip route 2>/dev/null | awk '/^default/{print $5; exit}')

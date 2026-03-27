@@ -34,7 +34,7 @@ import {
 } from "lucide-react";
 import { TbAlertTriangleFilled } from "react-icons/tb";
 import { useVideoOptimizer } from "@/hooks/use-video-optimizer";
-import { ServiceStatusBadge } from "./service-status-badge";
+import { ServiceStatusBadge } from "../service-status-badge";
 
 function VideoOptimizerSkeleton() {
   return (
@@ -68,10 +68,7 @@ function ServiceStats({
         { label: "Packets Processed", value: packets.toLocaleString() },
         { label: "Domains Protected", value: domains.toString() },
       ].map((stat) => (
-        <div
-          key={stat.label}
-          className="rounded-lg bg-muted/50 p-3"
-        >
+        <div key={stat.label} className="rounded-lg bg-muted/50 p-3">
           <div className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
             {stat.label}
           </div>
@@ -314,18 +311,20 @@ function VideoOptimizerForm({
       if (success) {
         markSaved();
         toast.success(
-          isEnabled ? "Video Optimizer enabled" : "Video Optimizer disabled"
+          isEnabled ? "Video Optimizer enabled" : "Video Optimizer disabled",
         );
         onSaved?.();
       } else {
         toast.error(error || "Failed to save settings");
       }
     },
-    [isEnabled, saveSettings, markSaved, error, onSaved]
+    [isEnabled, saveSettings, markSaved, error, onSaved],
   );
 
   const canEnable =
-    settings?.binary_installed && settings?.kernel_module_loaded && !otherActive;
+    settings?.binary_installed &&
+    settings?.kernel_module_loaded &&
+    !otherActive;
   // Allow toggling OFF even when canEnable is false (e.g., other feature is active)
   const canToggle = canEnable || settings?.enabled;
   const isRunning = settings?.status === "running";
@@ -336,29 +335,14 @@ function VideoOptimizerForm({
         <CardTitle>Video Optimizer</CardTitle>
         <CardDescription>
           Bypass carrier video throttling on cellular connections using DPI
-          evasion. Targets known video CDN hostnames only.
+          evasion. Some carriers (e.g., T-Mobile) may detect DPI evasion and
+          de-prioritize your connection.
         </CardDescription>
-        {settings && (
-          <CardAction>
-            <ServiceStatusBadge status={settings.status} installed={settings.binary_installed} />
-          </CardAction>
-        )}
       </CardHeader>
       <CardContent>
         <Alert className="border-warning/30 bg-warning/10 text-warning mb-4">
           <TbAlertTriangleFilled />
-          <AlertTitle className="text-warning">
-            Experimental Feature
-          </AlertTitle>
-        </Alert>
-
-        <Alert className="border-info/30 bg-info/10 text-info mb-4">
-          <Info />
-          <AlertDescription className="text-info">
-            Some carriers (e.g., T-Mobile) may detect DPI evasion and
-            de-prioritize your connection. Use the verification test to confirm
-            it works on your carrier without side effects.
-          </AlertDescription>
+          <AlertTitle className="text-warning">Experimental Feature</AlertTitle>
         </Alert>
 
         {!settings?.binary_installed && (
@@ -386,7 +370,8 @@ function VideoOptimizerForm({
                   {installResult.message}
                   {installResult.detail && (
                     <span className="text-muted-foreground">
-                      {" "}({installResult.detail})
+                      {" "}
+                      ({installResult.detail})
                     </span>
                   )}
                 </AlertDescription>
@@ -432,8 +417,8 @@ function VideoOptimizerForm({
             <AlertTriangle className="h-4 w-4" />
             <AlertDescription>
               Required kernel module not found. Run{" "}
-              <code className="text-xs">opkg install kmod-nft-queue</code>{" "}
-              on the device.
+              <code className="text-xs">opkg install kmod-nft-queue</code> on
+              the device.
             </AlertDescription>
           </Alert>
         )}
@@ -450,8 +435,9 @@ function VideoOptimizerForm({
 
         <form className="grid gap-4" onSubmit={handleSave}>
           <FieldSet>
+            <Separator />
             <FieldGroup>
-              <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
                 <Field orientation="horizontal" className="w-fit">
                   <FieldLabel htmlFor="dpi-enabled">
                     Enable Video Optimizer
@@ -464,9 +450,14 @@ function VideoOptimizerForm({
                     aria-label="Enable Video Optimizer"
                   />
                 </Field>
-                <FieldDescription>
-                  Apply DPI evasion to video traffic on the cellular interface
-                </FieldDescription>
+                {settings && (
+                  <CardAction>
+                    <ServiceStatusBadge
+                      status={settings.status}
+                      installed={settings.binary_installed}
+                    />
+                  </CardAction>
+                )}
               </div>
 
               {isRunning && settings && (

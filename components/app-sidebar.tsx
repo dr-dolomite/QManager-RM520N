@@ -189,8 +189,12 @@ const data = {
           url: "/local-network/ttl-settings",
         },
         {
-          title: "DPI Settings",
-          url: "/local-network/dpi-masking",
+          title: "Video Optimizer",
+          url: "/local-network/video-optimizer",
+        },
+        {
+          title: "Traffic Masquerade",
+          url: "/local-network/traffic-masquerade",
         },
       ],
     },

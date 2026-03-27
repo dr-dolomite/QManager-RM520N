@@ -65,6 +65,12 @@ export interface TrafficMasqueradeResponse extends TrafficMasqueradeSettings {
   success: boolean;
 }
 
+export interface HostlistResponse {
+  success: boolean;
+  domains: string[];
+  count: number;
+}
+
 export interface MasqueradeTestResult {
   status: "idle" | "running" | "complete" | "error";
   injected?: boolean;

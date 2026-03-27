@@ -25,16 +25,11 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { SaveButton, useSaveFlash } from "@/components/ui/save-button";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
-import {
-  AlertTriangle,
-  CheckCircle2,
-  Info,
-  Loader2,
-  Zap,
-} from "lucide-react";
+import { AlertTriangle, CheckCircle2, Info, Loader2, Zap } from "lucide-react";
+import Link from "next/link";
 import { TbAlertTriangleFilled } from "react-icons/tb";
 import { useTrafficMasquerade } from "@/hooks/use-traffic-masquerade";
-import { ServiceStatusBadge } from "./service-status-badge";
+import { ServiceStatusBadge } from "../service-status-badge";
 
 function MasqueradeSkeleton() {
   return (
@@ -125,15 +120,13 @@ function TrafficMasqueradeForm({
 
   const [isEnabled, setIsEnabled] = useState(settings?.enabled ?? false);
   const [sniDomain, setSniDomain] = useState(
-    settings?.sni_domain || "speedtest.net"
+    settings?.sni_domain || "speedtest.net",
   );
   const { saved, markSaved } = useSaveFlash();
 
   const isDirty = useMemo(() => {
     if (!settings) return false;
-    return (
-      isEnabled !== settings.enabled || sniDomain !== settings.sni_domain
-    );
+    return isEnabled !== settings.enabled || sniDomain !== settings.sni_domain;
   }, [settings, isEnabled, sniDomain]);
 
   const sniError = useMemo(() => {
@@ -156,18 +149,20 @@ function TrafficMasqueradeForm({
         toast.success(
           isEnabled
             ? "Traffic Masquerade enabled"
-            : "Traffic Masquerade disabled"
+            : "Traffic Masquerade disabled",
         );
         onSaved?.();
       } else {
         toast.error(error || "Failed to save settings");
       }
     },
-    [isEnabled, sniDomain, sniError, saveSettings, markSaved, error, onSaved]
+    [isEnabled, sniDomain, sniError, saveSettings, markSaved, error, onSaved],
   );
 
   const canEnable =
-    settings?.binary_installed && settings?.kernel_module_loaded && !otherActive;
+    settings?.binary_installed &&
+    settings?.kernel_module_loaded &&
+    !otherActive;
   const canToggle = canEnable || settings?.enabled;
   const isRunning = settings?.status === "running";
 
@@ -176,38 +171,30 @@ function TrafficMasqueradeForm({
       <CardHeader>
         <CardTitle>Traffic Masquerade</CardTitle>
         <CardDescription>
-          Make HTTPS traffic appear as a whitelisted service to carrier DPI
-          by injecting fake TLS handshakes with a spoofed domain.
+          Make HTTPS traffic appear as a whitelisted service to carrier DPI by
+          injecting fake TLS handshakes with a spoofed domain. This sends fake
+          Some carriers may detect this behavior and de-prioritize your
+          connection.
         </CardDescription>
-        {settings && (
-          <CardAction>
-            <ServiceStatusBadge status={settings.status} installed={settings.binary_installed} />
-          </CardAction>
-        )}
       </CardHeader>
       <CardContent>
         <Alert className="border-warning/30 bg-warning/10 text-warning mb-4">
           <TbAlertTriangleFilled />
-          <AlertTitle className="text-warning">
-            Experimental Feature
-          </AlertTitle>
-        </Alert>
-
-        <Alert className="border-info/30 bg-info/10 text-info mb-4">
-          <Info />
-          <AlertDescription className="text-info">
-            This sends fake TLS handshakes with a spoofed domain name. Some
-            carriers may detect this behavior and de-prioritize your connection.
-            Use at your own risk.
-          </AlertDescription>
+          <AlertTitle className="text-warning">Experimental Feature</AlertTitle>
         </Alert>
 
         {!settings?.binary_installed && (
           <Alert className="mb-4">
             <AlertTriangle className="h-4 w-4" />
             <AlertDescription>
-              Requires the <code>nfqws</code> binary. Install it from the Video
-              Optimizer card.
+              Requires the <code>nfqws</code> binary. Install it from the{" "}
+              <Link
+                href="/local-network/video-optimizer"
+                className="underline underline-offset-4"
+              >
+                Video Optimizer
+              </Link>{" "}
+              page.
             </AlertDescription>
           </Alert>
         )}
@@ -235,8 +222,9 @@ function TrafficMasqueradeForm({
 
         <form className="grid gap-4" onSubmit={handleSave}>
           <FieldSet>
+            <Separator />
             <FieldGroup>
-              <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
                 <Field orientation="horizontal" className="w-fit">
                   <FieldLabel htmlFor="masq-enabled">
                     Enable Traffic Masquerade
@@ -249,16 +237,18 @@ function TrafficMasqueradeForm({
                     aria-label="Enable Traffic Masquerade"
                   />
                 </Field>
-                <FieldDescription>
-                  Inject fake TLS handshakes to masquerade traffic as a
-                  whitelisted service
-                </FieldDescription>
+                {settings && (
+                  <CardAction>
+                    <ServiceStatusBadge
+                      status={settings.status}
+                      installed={settings.binary_installed}
+                    />
+                  </CardAction>
+                )}
               </div>
 
               <Field>
-                <FieldLabel htmlFor="sni-domain">
-                  Masquerade Domain
-                </FieldLabel>
+                <FieldLabel htmlFor="sni-domain">Masquerade Domain</FieldLabel>
                 <Input
                   id="sni-domain"
                   type="text"

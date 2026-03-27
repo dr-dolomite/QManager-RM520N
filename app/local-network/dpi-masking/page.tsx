@@ -1,7 +1,5 @@
-import DPISettingsComponent from "@/components/local-network/dpi-masking/dpi-settings";
+import { redirect } from "next/navigation";
 
-const DPISettingsPage = () => {
-  return <DPISettingsComponent />;
-};
-
-export default DPISettingsPage;
+export default function DPIMaskingPage() {
+  redirect("/local-network/video-optimizer");
+}
