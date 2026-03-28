@@ -112,13 +112,3 @@ dpi_get_domain_count() {
         echo "0"
     fi
 }
-
-# Check if required shared libraries are present
-dpi_check_libs() {
-    for lib in libnetfilter_queue libnfnetlink libmnl; do
-        if ! find /usr/lib -name "${lib}*" -type f 2>/dev/null | grep -q .; then
-            return 1
-        fi
-    done
-    return 0
-}

@@ -47,7 +47,6 @@
 - **Mutual exclusion**: Backend enforces in `save`/`save_masquerade` — enabling one disables the other in UCI. Init.d `start_service()` checks masquerade first, then VO (if/elif)
 - **Video Optimizer mode**: NFQUEUE queue 200, `bypass` flag; TCP SNI split (`--dpi-desync=split2`) + QUIC desync (`--dpi-desync-udplen-increment`), filtered by `--hostlist`
 - **Traffic Masquerade mode**: same queue 200; fake TLS ClientHello with spoofed SNI (default: `speedtest.net`) using `--dpi-desync=fake --dpi-desync-fake-tls-mod=sni=<domain> --dpi-desync-fooling=badseq`, applies to all traffic (no hostlist)
-- **Masquerade helper**: `masq_helper.sh` — thin wrappers around `dpi_helper.sh` functions for CGI readability
 - **Status isolation**: CGI GET handlers gate live stats (status/uptime/packets) on UCI `enabled` flag — prevents cross-contamination since both modes share the same process/counters
 - **Verification**: `qmanager_dpi_verify` — curl with `--connect-to` SNI spoofing against speed.cloudflare.com
 - **Kernel support**: `dpi_check_kmod()` checks `/proc/config.gz` for `CONFIG_NETFILTER_NETLINK_QUEUE=y` (built-in) before trying lsmod/modprobe

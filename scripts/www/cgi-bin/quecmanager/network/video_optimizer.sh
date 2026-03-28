@@ -1,7 +1,6 @@
 #!/bin/sh
 . /usr/lib/qmanager/cgi_base.sh
 . /usr/lib/qmanager/dpi_helper.sh
-. /usr/lib/qmanager/masq_helper.sh
 
 qlog_init "cgi_video_optimizer"
 cgi_headers
@@ -11,7 +10,6 @@ DPI_VERIFY_RESULT="/tmp/qmanager_dpi_verify.json"
 DPI_VERIFY_PID="/tmp/qmanager_dpi_verify.pid"
 DPI_INSTALL_RESULT="/tmp/qmanager_dpi_install.json"
 DPI_INSTALL_PID="/tmp/qmanager_dpi_install.pid"
-RELOAD_FLAG="/tmp/qmanager_dpi_reload"
 
 # Ensure UCI section exists with defaults
 ensure_dpi_config() {
@@ -86,9 +84,9 @@ GET)
         # Only report live stats when masquerade is the active mode —
         # VO and masq share a single nfqws process/PID/counters
         if [ "$masq_enabled" = "1" ]; then
-            masq_status=$(masq_get_status)
-            masq_uptime=$(masq_get_uptime)
-            masq_packets=$(masq_get_packet_count)
+            masq_status=$(dpi_get_status)
+            masq_uptime=$(dpi_get_uptime)
+            masq_packets=$(dpi_get_packet_count)
         else
             masq_status="stopped"
             masq_uptime="0s"
@@ -239,15 +237,15 @@ POST)
         # Quick injection test: read counter, make HTTPS request, read counter again
         # Must verify masquerade specifically is enabled — VO shares the same process
         masq_test_enabled=$(uci -q get quecmanager.traffic_masquerade.enabled)
-        if [ "$masq_test_enabled" != "1" ] || [ "$(masq_get_status)" != "running" ]; then
+        if [ "$masq_test_enabled" != "1" ] || [ "$(dpi_get_status)" != "running" ]; then
             printf '{"success":false,"error":"Traffic Masquerade is not running. Enable it first."}'
             exit 0
         fi
 
-        count_before=$(masq_get_packet_count)
+        count_before=$(dpi_get_packet_count)
         curl -4 -so /dev/null --max-time 5 "https://speed.cloudflare.com/__down?bytes=1000" 2>/dev/null
         sleep 1
-        count_after=$(masq_get_packet_count)
+        count_after=$(dpi_get_packet_count)
 
         injected=$((count_after - count_before))
         if [ "$injected" -gt 0 ]; then

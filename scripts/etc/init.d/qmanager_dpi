@@ -10,7 +10,6 @@ USE_PROCD=1
 
 . /usr/lib/qmanager/qlog.sh
 . /usr/lib/qmanager/dpi_helper.sh
-# masq_helper.sh not needed — both modes share dpi_helper's queue/rules/PID
 
 qlog_init "qmanager_dpi"
 

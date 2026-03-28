@@ -340,10 +340,20 @@ function VideoOptimizerForm({
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <Alert className="border-warning/30 bg-warning/10 text-warning mb-4">
-          <TbAlertTriangleFilled />
-          <AlertTitle className="text-warning">Experimental Feature</AlertTitle>
-        </Alert>
+        {otherActive ? (
+          <Alert className="border-warning/30 bg-warning/10 text-warning mb-4">
+            <TbAlertTriangleFilled />
+            <AlertDescription className="text-warning">
+              Traffic Masquerade is currently active. Disable it first before
+              enabling Video Optimizer.
+            </AlertDescription>
+          </Alert>
+        ) : (
+          <Alert className="border-warning/30 bg-warning/10 text-warning mb-4">
+            <TbAlertTriangleFilled />
+            <AlertTitle className="text-warning">Experimental Feature</AlertTitle>
+          </Alert>
+        )}
 
         {!settings?.binary_installed && (
           <div className="mb-4 space-y-3">
@@ -419,16 +429,6 @@ function VideoOptimizerForm({
               Required kernel module not found. Run{" "}
               <code className="text-xs">opkg install kmod-nft-queue</code> on
               the device.
-            </AlertDescription>
-          </Alert>
-        )}
-
-        {otherActive && (
-          <Alert className="mb-4">
-            <AlertTriangle className="h-4 w-4" />
-            <AlertDescription>
-              Traffic Masquerade is currently active. Disable it first before
-              enabling Video Optimizer.
             </AlertDescription>
           </Alert>
         )}
