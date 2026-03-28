@@ -4,7 +4,6 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import {
   Card,
-  CardAction,
   CardContent,
   CardDescription,
   CardHeader,
@@ -39,10 +38,7 @@ import { useCdnHostlist } from "@/hooks/use-cdn-hostlist";
 
 const DOMAIN_REGEX = /^[a-zA-Z0-9]([a-zA-Z0-9._-]*[a-zA-Z0-9])?$/;
 
-function validateDomain(
-  value: string,
-  existing: string[]
-): string | null {
+function validateDomain(value: string, existing: string[]): string | null {
   const trimmed = value.trim();
   if (!trimmed) return "Domain is required";
   if (!DOMAIN_REGEX.test(trimmed)) return "Invalid domain format";
@@ -93,13 +89,13 @@ export default function CdnHostlistCard() {
   const isDirty = useMemo(() => {
     if (editDomains.length !== domains.length) return true;
     const sortedEdit = [...editDomains].sort((a, b) =>
-      a.toLowerCase().localeCompare(b.toLowerCase())
+      a.toLowerCase().localeCompare(b.toLowerCase()),
     );
     const sortedSaved = [...domains].sort((a, b) =>
-      a.toLowerCase().localeCompare(b.toLowerCase())
+      a.toLowerCase().localeCompare(b.toLowerCase()),
     );
     return sortedEdit.some(
-      (d, i) => d.toLowerCase() !== sortedSaved[i].toLowerCase()
+      (d, i) => d.toLowerCase() !== sortedSaved[i].toLowerCase(),
     );
   }, [editDomains, domains]);
 
@@ -126,7 +122,7 @@ export default function CdnHostlistCard() {
         handleAddDomain();
       }
     },
-    [handleAddDomain]
+    [handleAddDomain],
   );
 
   const handleSave = useCallback(async () => {
@@ -187,20 +183,14 @@ export default function CdnHostlistCard() {
   return (
     <Card className="@container/card">
       <CardHeader>
-        <div className="flex items-center justify-between">
-          <div className="space-y-1">
-            <CardTitle>CDN Hostname List</CardTitle>
-            <CardDescription>
-              Hostnames targeted for DPI evasion — video CDN domains that will
-              have their TLS handshakes modified
-            </CardDescription>
-          </div>
-          <CardAction>
-            <Badge variant="secondary">{editDomains.length}</Badge>
-          </CardAction>
-        </div>
+        <CardTitle>CDN Hostname List</CardTitle>
+        <CardDescription>
+          Hostnames targeted for DPI evasion — video CDN domains that will have
+          their TLS handshakes modified
+        </CardDescription>
       </CardHeader>
       <CardContent className="grid gap-4">
+        <Badge >{editDomains.length} domains</Badge>
         <div className="space-y-1.5">
           <InputGroup>
             <InputGroupInput
@@ -234,7 +224,7 @@ export default function CdnHostlistCard() {
           )}
         </div>
 
-        <div className="max-h-[400px] overflow-y-auto rounded-md border">
+        <div className="max-h-100 overflow-y-auto rounded-md border">
           {editDomains.length === 0 ? (
             <div className="flex items-center justify-center py-8 text-sm text-muted-foreground">
               No domains configured
@@ -305,8 +295,8 @@ export default function CdnHostlistCard() {
               <AlertDialogHeader>
                 <AlertDialogTitle>Restore Default Hostnames?</AlertDialogTitle>
                 <AlertDialogDescription>
-                  This will replace the current list with the factory default CDN
-                  hostnames. Any custom domains you added will be removed.
+                  This will replace the current list with the factory default
+                  CDN hostnames. Any custom domains you added will be removed.
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>

@@ -12,8 +12,6 @@ import {
 } from "@/components/ui/card";
 import {
   Field,
-  FieldDescription,
-  FieldError,
   FieldGroup,
   FieldLabel,
   FieldSet,
@@ -23,9 +21,8 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { SaveButton, useSaveFlash } from "@/components/ui/save-button";
-import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
-import { AlertTriangle, CheckCircle2, Info, Loader2, Zap } from "lucide-react";
+import { AlertTriangle } from "lucide-react";
 import Link from "next/link";
 import { TbAlertTriangleFilled } from "react-icons/tb";
 import { useTrafficMasquerade } from "@/hooks/use-traffic-masquerade";
@@ -116,7 +113,7 @@ function TrafficMasqueradeForm({
   otherActive: boolean;
   onSaved?: () => void;
 }) {
-  const { settings, isSaving, error, saveSettings, testResult, runTest } = hook;
+  const { settings, isSaving, error, saveSettings } = hook;
 
   const [isEnabled, setIsEnabled] = useState(settings?.enabled ?? false);
   const [sniDomain, setSniDomain] = useState(
@@ -262,14 +259,6 @@ function TrafficMasqueradeForm({
                     sniError && isEnabled ? "sni-error" : "sni-desc"
                   }
                 />
-                {sniError && isEnabled ? (
-                  <FieldError id="sni-error">{sniError}</FieldError>
-                ) : (
-                  <FieldDescription id="sni-desc">
-                    Carriers typically whitelist speedtest domains to ensure
-                    accurate speed tests
-                  </FieldDescription>
-                )}
               </Field>
 
               {isRunning && settings && (
@@ -295,73 +284,6 @@ function TrafficMasqueradeForm({
                         </div>
                       </div>
                     ))}
-                  </div>
-                </>
-              )}
-
-              {isRunning && (
-                <>
-                  <Separator />
-                  <div className="space-y-3">
-                    <div>
-                      <h4 className="text-sm font-medium">Test Injection</h4>
-                      <p className="text-xs text-muted-foreground">
-                        Make an HTTPS request and verify packets are being
-                        intercepted
-                      </p>
-                    </div>
-
-                    {testResult.status === "complete" && (
-                      <Alert
-                        className={
-                          testResult.injected
-                            ? "border-success/30 bg-success/5 text-success"
-                            : "border-destructive/30 bg-destructive/10 text-destructive"
-                        }
-                      >
-                        {testResult.injected ? (
-                          <CheckCircle2 />
-                        ) : (
-                          <AlertTriangle />
-                        )}
-                        <AlertDescription
-                          className={
-                            testResult.injected
-                              ? "text-success"
-                              : "text-destructive"
-                          }
-                        >
-                          {testResult.message}
-                        </AlertDescription>
-                      </Alert>
-                    )}
-
-                    {testResult.status === "error" && testResult.error && (
-                      <Alert variant="destructive">
-                        <AlertTriangle className="h-4 w-4" />
-                        <AlertDescription>{testResult.error}</AlertDescription>
-                      </Alert>
-                    )}
-
-                    <Button
-                      type="button"
-                      variant="outline"
-                      className="w-full"
-                      onClick={runTest}
-                      disabled={testResult.status === "running"}
-                    >
-                      {testResult.status === "running" ? (
-                        <>
-                          <Loader2 className="animate-spin" />
-                          Testing...
-                        </>
-                      ) : (
-                        <>
-                          <Zap />
-                          Test Injection
-                        </>
-                      )}
-                    </Button>
                   </div>
                 </>
               )}

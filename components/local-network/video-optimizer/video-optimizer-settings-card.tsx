@@ -468,17 +468,17 @@ function VideoOptimizerForm({
                     packets={settings.packets_processed}
                     domains={settings.domains_loaded}
                   />
+
+                  <Separator />
+
+                  <VerificationDisplay
+                    verifyResult={verifyResult}
+                    onRunTest={runVerification}
+                    isRunning={verifyResult.status === "running"}
+                    serviceRunning={isRunning}
+                  />
                 </>
               )}
-
-              <Separator />
-
-              <VerificationDisplay
-                verifyResult={verifyResult}
-                onRunTest={runVerification}
-                isRunning={verifyResult.status === "running"}
-                serviceRunning={isRunning}
-              />
 
               <Separator />
 
