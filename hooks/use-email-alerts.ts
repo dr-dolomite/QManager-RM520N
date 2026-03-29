@@ -37,6 +37,7 @@ export interface EmailAlertsSavePayload {
 
 export interface UseEmailAlertsReturn {
   settings: EmailAlertsSettings | null;
+  msmtpInstalled: boolean;
   isLoading: boolean;
   isSaving: boolean;
   isSendingTest: boolean;
@@ -50,6 +51,7 @@ export interface UseEmailAlertsReturn {
 
 export function useEmailAlerts(): UseEmailAlertsReturn {
   const [settings, setSettings] = useState<EmailAlertsSettings | null>(null);
+  const [msmtpInstalled, setMsmtpInstalled] = useState(true);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isSendingTest, setIsSendingTest] = useState(false);
@@ -85,6 +87,7 @@ export function useEmailAlerts(): UseEmailAlertsReturn {
         return;
       }
 
+      setMsmtpInstalled(json.msmtp_installed !== false);
       setSettings(json.settings);
     } catch (err) {
       if (!mountedRef.current) return;
@@ -179,6 +182,7 @@ export function useEmailAlerts(): UseEmailAlertsReturn {
 
   return {
     settings,
+    msmtpInstalled,
     isLoading,
     isSaving,
     isSendingTest,

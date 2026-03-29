@@ -17,7 +17,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { SaveButton, useSaveFlash } from "@/components/ui/save-button";
 import { Separator } from "@/components/ui/separator";
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle, PackageIcon, RefreshCcwIcon } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { TbAlertTriangleFilled } from "react-icons/tb";
 import { useTrafficMasquerade } from "@/hooks/use-traffic-masquerade";
@@ -78,6 +79,44 @@ export default function TrafficMasqueradeSettingsCard({
               </button>
             </AlertDescription>
           </Alert>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  // Not installed state — nfqws binary missing
+  if (settings && !settings.binary_installed) {
+    return (
+      <Card className="@container/card">
+        <CardHeader>
+          <CardTitle>Traffic Masquerade</CardTitle>
+          <CardDescription>
+            Make HTTPS traffic appear as a whitelisted service to carrier DPI.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-col items-center justify-center py-6 gap-4">
+            <PackageIcon className="size-10 text-muted-foreground" />
+            <div className="text-center space-y-1.5">
+              <p className="text-sm font-medium">
+                The <code>nfqws</code> binary is not installed on this device.
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Install it from the{" "}
+                <Link
+                  href="/local-network/video-optimizer"
+                  className="underline underline-offset-2"
+                >
+                  Video Optimizer
+                </Link>{" "}
+                page, then check again.
+              </p>
+            </div>
+            <Button variant="outline" size="sm" onClick={() => refresh()}>
+              <RefreshCcwIcon className="size-3.5" />
+              Check Again
+            </Button>
+          </div>
         </CardContent>
       </Card>
     );
@@ -187,25 +226,7 @@ function TrafficMasqueradeForm({
           </Alert>
         )}
 
-        {!settings?.binary_installed && (
-          <Alert className="mb-4">
-            <AlertTriangle className="h-4 w-4" />
-            <AlertDescription>
-              <p>
-                Requires the <code>nfqws</code> binary. Install it from the{" "}
-                <Link
-                  href="/local-network/video-optimizer"
-                  className="underline underline-offset-4"
-                >
-                  Video Optimizer
-                </Link>{" "}
-                page.
-              </p>
-            </AlertDescription>
-          </Alert>
-        )}
-
-        {settings?.binary_installed && !settings?.kernel_module_loaded && (
+        {!settings?.kernel_module_loaded && (
           <Alert className="mb-4">
             <AlertTriangle className="h-4 w-4" />
             <AlertDescription>

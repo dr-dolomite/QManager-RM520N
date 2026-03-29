@@ -24,7 +24,7 @@ import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Loader2, EyeIcon, EyeOffIcon, SendIcon, AlertCircle, RefreshCcwIcon } from "lucide-react";
+import { Loader2, EyeIcon, EyeOffIcon, SendIcon, AlertCircle, RefreshCcwIcon, PackageIcon } from "lucide-react";
 import { SaveButton, useSaveFlash } from "@/components/ui/save-button";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import {
@@ -46,6 +46,7 @@ interface EmailAlertsSettingsCardProps {
 const EmailAlertsSettingsCard = ({ onTestEmailSent }: EmailAlertsSettingsCardProps) => {
   const {
     settings,
+    msmtpInstalled,
     isLoading,
     isSaving,
     isSendingTest,
@@ -215,6 +216,61 @@ const EmailAlertsSettingsCard = ({ onTestEmailSent }: EmailAlertsSettingsCardPro
               </Button>
             </AlertDescription>
           </Alert>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  // --- Not installed state — msmtp missing -----------------------------------
+  if (!msmtpInstalled) {
+    return (
+      <Card className="@container/card">
+        <CardHeader>
+          <CardTitle>Email Alert Settings</CardTitle>
+          <CardDescription>
+            Sends via Gmail SMTP using an app password.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-col items-center justify-center py-6 gap-4">
+            <PackageIcon className="size-10 text-muted-foreground" />
+            <div className="text-center space-y-1.5">
+              <p className="text-sm font-medium">
+                <code>msmtp</code> is not installed on this device.
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Install it via the terminal, then check again.
+              </p>
+            </div>
+            <button
+              type="button"
+              className="bg-muted px-4 py-2.5 rounded-md text-xs font-mono text-muted-foreground select-all max-w-full overflow-x-auto text-left cursor-pointer hover:bg-muted/80 transition-colors"
+              onClick={async () => {
+                const cmd = "opkg update && opkg install msmtp";
+                try {
+                  await navigator.clipboard.writeText(cmd);
+                  toast.success("Copied to clipboard");
+                } catch {
+                  const textarea = document.createElement("textarea");
+                  textarea.value = cmd;
+                  textarea.style.position = "fixed";
+                  textarea.style.opacity = "0";
+                  document.body.appendChild(textarea);
+                  textarea.select();
+                  document.execCommand("copy");
+                  document.body.removeChild(textarea);
+                  toast.success("Copied to clipboard");
+                }
+              }}
+              title="Click to copy"
+            >
+              opkg update &amp;&amp; opkg install msmtp
+            </button>
+            <Button variant="outline" size="sm" onClick={() => refresh()}>
+              <RefreshCcwIcon className="size-3.5" />
+              Check Again
+            </Button>
+          </div>
         </CardContent>
       </Card>
     );

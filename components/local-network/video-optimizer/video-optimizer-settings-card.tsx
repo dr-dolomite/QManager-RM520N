@@ -23,6 +23,8 @@ import {
   CheckCircle2,
   Download,
   Loader2,
+  PackageIcon,
+  RefreshCcwIcon,
   Zap,
 } from "lucide-react";
 import { TbAlertTriangleFilled } from "react-icons/tb";
@@ -223,6 +225,8 @@ export default function VideoOptimizerSettingsCard({
 }: VideoOptimizerSettingsCardProps) {
   const { settings, isLoading, error, refresh } = hook;
 
+  const { installResult, runInstall } = hook;
+
   if (isLoading) return <VideoOptimizerSkeleton />;
 
   // H4: Error state — fetch failed, no settings to show
@@ -250,6 +254,104 @@ export default function VideoOptimizerSettingsCard({
               </button>
             </AlertDescription>
           </Alert>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  // Not installed state — nfqws binary missing
+  if (settings && !settings.binary_installed) {
+    return (
+      <Card className="@container/card">
+        <CardHeader>
+          <CardTitle>Video Optimizer</CardTitle>
+          <CardDescription>
+            Bypass carrier video throttling on cellular connections using DPI
+            evasion.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-col items-center justify-center py-6 gap-4">
+            <PackageIcon className="size-10 text-muted-foreground" />
+            <div className="text-center space-y-1.5">
+              <p className="text-sm font-medium">
+                The <code>nfqws</code> binary is not installed on this device.
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Download it automatically from the{" "}
+                <a
+                  href="https://github.com/bol-van/zapret"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="underline underline-offset-2"
+                >
+                  zapret
+                </a>{" "}
+                project.
+              </p>
+            </div>
+
+            {installResult.status === "complete" && (
+              <Alert className="border-success/30 bg-success/5">
+                <CheckCircle2 className="text-success" />
+                <AlertDescription className="text-success">
+                  <p>
+                    {installResult.message}
+                    {installResult.detail && (
+                      <span className="text-muted-foreground">
+                        {" "}
+                        ({installResult.detail})
+                      </span>
+                    )}
+                  </p>
+                </AlertDescription>
+              </Alert>
+            )}
+
+            {installResult.status === "error" && (
+              <Alert variant="destructive">
+                <AlertTriangle className="h-4 w-4" />
+                <AlertDescription>
+                  <p>
+                    {installResult.message}
+                    {installResult.detail && (
+                      <span className="block text-xs mt-1 opacity-80">
+                        {installResult.detail}
+                      </span>
+                    )}
+                  </p>
+                </AlertDescription>
+              </Alert>
+            )}
+
+            <div className="flex items-center gap-2">
+              <Button
+                onClick={runInstall}
+                disabled={installResult.status === "running"}
+              >
+                {installResult.status === "running" ? (
+                  <>
+                    <Loader2 className="animate-spin" />
+                    {installResult.message || "Installing..."}
+                  </>
+                ) : (
+                  <>
+                    <Download />
+                    Install nfqws
+                  </>
+                )}
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => refresh()}
+                disabled={installResult.status === "running"}
+              >
+                <RefreshCcwIcon className="size-3.5" />
+                Check Again
+              </Button>
+            </div>
+          </div>
         </CardContent>
       </Card>
     );
@@ -285,8 +387,6 @@ function VideoOptimizerForm({
     saveSettings,
     verifyResult,
     runVerification,
-    installResult,
-    runInstall,
   } = hook;
 
   const [isEnabled, setIsEnabled] = useState(settings?.enabled ?? false);
@@ -350,78 +450,7 @@ function VideoOptimizerForm({
           </Alert>
         )}
 
-        {!settings?.binary_installed && (
-          <div className="mb-4 space-y-3">
-            <Alert>
-              <Download className="h-4 w-4" />
-              <AlertDescription>
-                <p>
-                  Video Optimizer requires the <code>nfqws</code> binary from
-                  the{" "}
-                  <a
-                    href="https://github.com/bol-van/zapret"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="underline"
-                  >
-                    zapret
-                  </a>{" "}
-                  project. Click below to download and install it
-                  automatically.
-                </p>
-              </AlertDescription>
-            </Alert>
-
-            {installResult.status === "complete" && (
-              <Alert className="border-success/30 bg-success/5">
-                <CheckCircle2 className="text-success" />
-                <AlertDescription className="text-success">
-                  {installResult.message}
-                  {installResult.detail && (
-                    <span className="text-muted-foreground">
-                      {" "}
-                      ({installResult.detail})
-                    </span>
-                  )}
-                </AlertDescription>
-              </Alert>
-            )}
-
-            {installResult.status === "error" && (
-              <Alert variant="destructive">
-                <AlertTriangle className="h-4 w-4" />
-                <AlertDescription>
-                  {installResult.message}
-                  {installResult.detail && (
-                    <span className="block text-xs mt-1 opacity-80">
-                      {installResult.detail}
-                    </span>
-                  )}
-                </AlertDescription>
-              </Alert>
-            )}
-
-            <Button
-              className="w-full"
-              onClick={runInstall}
-              disabled={installResult.status === "running"}
-            >
-              {installResult.status === "running" ? (
-                <>
-                  <Loader2 className="animate-spin" />
-                  {installResult.message || "Installing..."}
-                </>
-              ) : (
-                <>
-                  <Download />
-                  Install nfqws from zapret
-                </>
-              )}
-            </Button>
-          </div>
-        )}
-
-        {settings?.binary_installed && !settings?.kernel_module_loaded && (
+        {!settings?.kernel_module_loaded && (
           <Alert className="mb-4">
             <AlertTriangle className="h-4 w-4" />
             <AlertDescription>

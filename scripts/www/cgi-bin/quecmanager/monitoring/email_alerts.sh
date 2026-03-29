@@ -30,6 +30,13 @@ RELOAD_FLAG="/tmp/qmanager_email_reload"
 if [ "$REQUEST_METHOD" = "GET" ]; then
     qlog_info "Fetching email alert settings"
 
+    # Check if msmtp is installed
+    if command -v msmtp >/dev/null 2>&1; then
+        msmtp_installed="true"
+    else
+        msmtp_installed="false"
+    fi
+
     if [ -f "$CONFIG" ]; then
         enabled=$(jq -r '(.enabled) | if . == null then "false" else tostring end' "$CONFIG" 2>/dev/null)
         sender_email=$(jq -r '.sender_email // ""' "$CONFIG" 2>/dev/null)
@@ -43,8 +50,10 @@ if [ "$REQUEST_METHOD" = "GET" ]; then
             --arg recipient_email "$recipient_email" \
             --arg app_password "$app_password" \
             --argjson threshold_minutes "$threshold_minutes" \
+            --argjson msmtp_installed "$msmtp_installed" \
             '{
                 success: true,
+                msmtp_installed: $msmtp_installed,
                 settings: {
                     enabled: $enabled,
                     sender_email: $sender_email,
@@ -55,7 +64,7 @@ if [ "$REQUEST_METHOD" = "GET" ]; then
             }'
     else
         # No config yet — return defaults
-        echo '{"success":true,"settings":{"enabled":false,"sender_email":"","recipient_email":"","app_password":"","threshold_minutes":5}}'
+        printf '{"success":true,"msmtp_installed":%s,"settings":{"enabled":false,"sender_email":"","recipient_email":"","app_password":"","threshold_minutes":5}}' "$msmtp_installed"
     fi
     exit 0
 fi
