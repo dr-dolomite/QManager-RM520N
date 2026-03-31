@@ -1,9 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import {
   Card,
+  CardAction,
   CardContent,
   CardDescription,
   CardHeader,
@@ -31,9 +32,29 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { FieldError } from "@/components/ui/field";
 import { Separator } from "@/components/ui/separator";
-import { AlertTriangle, Loader2, Plus, RotateCcw, X } from "lucide-react";
+import {
+  AlertTriangle,
+  ArrowDownAZIcon,
+  ArrowUpAZIcon,
+  Download,
+  Loader2,
+  MoreVerticalIcon,
+  Plus,
+  RefreshCcwIcon,
+  RotateCcw,
+  SparklesIcon,
+  Upload,
+  X,
+} from "lucide-react";
 import { useCdnHostlist } from "@/hooks/use-cdn-hostlist";
 
 const DOMAIN_REGEX = /^[a-zA-Z0-9]([a-zA-Z0-9._-]*[a-zA-Z0-9])?$/;
@@ -68,6 +89,7 @@ function HostlistSkeleton() {
 export default function CdnHostlistCard() {
   const {
     domains,
+    defaultDomains,
     isLoading,
     isSaving,
     isRestoring,
@@ -80,11 +102,19 @@ export default function CdnHostlistCard() {
   const [editDomains, setEditDomains] = useState<string[]>([]);
   const [newDomain, setNewDomain] = useState("");
   const [validationError, setValidationError] = useState<string | null>(null);
+  const [sortAsc, setSortAsc] = useState<boolean | null>(null);
   const { saved, markSaved } = useSaveFlash();
+  const importRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     setEditDomains(domains);
   }, [domains]);
+
+  // Build a set of lowercase default domains for O(1) lookup
+  const defaultSet = useMemo(
+    () => new Set(defaultDomains.map((d) => d.toLowerCase())),
+    [defaultDomains],
+  );
 
   const isDirty = useMemo(() => {
     if (editDomains.length !== domains.length) return true;
@@ -99,6 +129,21 @@ export default function CdnHostlistCard() {
     );
   }, [editDomains, domains]);
 
+  // Sorted view of domains for display
+  const displayDomains = useMemo(() => {
+    if (sortAsc === null) return editDomains.map((d, i) => ({ domain: d, originalIndex: i }));
+    const indexed = editDomains.map((d, i) => ({ domain: d, originalIndex: i }));
+    return indexed.sort((a, b) => {
+      const cmp = a.domain.toLowerCase().localeCompare(b.domain.toLowerCase());
+      return sortAsc ? cmp : -cmp;
+    });
+  }, [editDomains, sortAsc]);
+
+  const customCount = useMemo(
+    () => editDomains.filter((d) => !defaultSet.has(d.toLowerCase())).length,
+    [editDomains, defaultSet],
+  );
+
   const handleAddDomain = useCallback(() => {
     const trimmed = newDomain.trim();
     const err = validateDomain(trimmed, editDomains);
@@ -111,8 +156,8 @@ export default function CdnHostlistCard() {
     setValidationError(null);
   }, [newDomain, editDomains]);
 
-  const handleRemoveDomain = useCallback((index: number) => {
-    setEditDomains((prev) => prev.filter((_, i) => i !== index));
+  const handleRemoveDomain = useCallback((originalIndex: number) => {
+    setEditDomains((prev) => prev.filter((_, i) => i !== originalIndex));
   }, []);
 
   const handleKeyDown = useCallback(
@@ -149,6 +194,68 @@ export default function CdnHostlistCard() {
     }
   }, [restoreDefaults, error]);
 
+  // --- Export: download current edit list as .txt ---
+  const handleExport = useCallback(() => {
+    const content = editDomains.join("\n") + "\n";
+    const blob = new Blob([content], { type: "text/plain" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "video_domains.txt";
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success(`Exported ${editDomains.length} domains`);
+  }, [editDomains]);
+
+  // --- Import: read .txt file and merge ---
+  const handleImport = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        const text = ev.target?.result;
+        if (typeof text !== "string") return;
+
+        const imported = text
+          .split(/\r?\n/)
+          .map((line) => line.trim())
+          .filter((line) => line && !line.startsWith("#"));
+
+        // Merge: add only domains not already in the list
+        const existingLower = new Set(
+          editDomains.map((d) => d.toLowerCase()),
+        );
+        const newOnes = imported.filter(
+          (d) => !existingLower.has(d.toLowerCase()),
+        );
+
+        if (newOnes.length === 0) {
+          toast.info("No new domains to import — all already in list");
+        } else {
+          setEditDomains((prev) => [...prev, ...newOnes]);
+          toast.success(
+            `Imported ${newOnes.length} new domain${newOnes.length > 1 ? "s" : ""}`,
+          );
+        }
+      };
+      reader.readAsText(file);
+
+      // Reset input so the same file can be re-imported
+      e.target.value = "";
+    },
+    [editDomains],
+  );
+
+  const toggleSort = useCallback(() => {
+    setSortAsc((prev) => {
+      if (prev === null) return true;
+      if (prev === true) return false;
+      return null;
+    });
+  }, []);
+
   if (isLoading) return <HostlistSkeleton />;
 
   if (error && domains.length === 0) {
@@ -161,18 +268,15 @@ export default function CdnHostlistCard() {
             have their TLS handshakes modified
           </CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent aria-live="polite">
           <Alert variant="destructive">
-            <AlertTriangle className="h-4 w-4" />
-            <AlertDescription>
-              Failed to load hostname list.{" "}
-              <button
-                type="button"
-                className="underline underline-offset-4"
-                onClick={() => refresh()}
-              >
+            <AlertTriangle className="size-4" />
+            <AlertDescription className="flex items-center justify-between">
+              <span>Failed to load hostname list.</span>
+              <Button variant="outline" size="sm" onClick={() => refresh()}>
+                <RefreshCcwIcon className="size-3.5" />
                 Retry
-              </button>
+              </Button>
             </AlertDescription>
           </Alert>
         </CardContent>
@@ -189,8 +293,79 @@ export default function CdnHostlistCard() {
           their TLS handshakes modified
         </CardDescription>
       </CardHeader>
-      <CardContent className="grid gap-4">
-        <Badge >{editDomains.length} domains</Badge>
+      <CardContent className="grid gap-4" aria-live="polite">
+        {/* Toolbar: count badges + sort + menu */}
+        <div className="flex items-center gap-2">
+          <Badge>{editDomains.length} domains</Badge>
+          {customCount > 0 && (
+            <Badge
+              variant="outline"
+              className="bg-info/15 text-info border-info/30"
+            >
+              <SparklesIcon className="size-3" />
+              {customCount} custom
+            </Badge>
+          )}
+          <div className="flex-1" />
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="size-8"
+            onClick={toggleSort}
+            aria-label={
+              sortAsc === null
+                ? "Sort alphabetically"
+                : sortAsc
+                  ? "Sort Z to A"
+                  : "Clear sort"
+            }
+          >
+            {sortAsc === false ? (
+              <ArrowUpAZIcon className="size-4" />
+            ) : (
+              <ArrowDownAZIcon className="size-4" />
+            )}
+          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="size-8"
+                aria-label="Hostlist options"
+              >
+                <MoreVerticalIcon className="size-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={handleExport}>
+                <Download className="size-4" />
+                Export list
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => importRef.current?.click()}>
+                <Upload className="size-4" />
+                Import list
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={handleReset} disabled={!isDirty}>
+                <RotateCcw className="size-4" />
+                Discard changes
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          {/* Hidden file input for import */}
+          <input
+            ref={importRef}
+            type="file"
+            accept=".txt,.csv,text/plain"
+            className="hidden"
+            onChange={handleImport}
+          />
+        </div>
+
+        {/* Add domain input */}
         <div className="space-y-1.5">
           <InputGroup>
             <InputGroupInput
@@ -215,7 +390,7 @@ export default function CdnHostlistCard() {
                 onClick={handleAddDomain}
                 aria-label="Add domain"
               >
-                <Plus className="h-4 w-4" />
+                <Plus className="size-4" />
               </InputGroupButton>
             </InputGroupAddon>
           </InputGroup>
@@ -224,35 +399,48 @@ export default function CdnHostlistCard() {
           )}
         </div>
 
+        {/* Domain list */}
         <div className="max-h-100 overflow-y-auto rounded-md border">
-          {editDomains.length === 0 ? (
+          {displayDomains.length === 0 ? (
             <div className="flex items-center justify-center py-8 text-sm text-muted-foreground">
               No domains configured
             </div>
           ) : (
-            editDomains.map((domain, index) => (
-              <div
-                key={`${domain}-${index}`}
-                className="flex items-center justify-between px-3 py-2 text-sm even:bg-muted/30"
-              >
-                <span className="truncate">{domain}</span>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="h-6 w-6 shrink-0 text-muted-foreground hover:text-destructive"
-                  onClick={() => handleRemoveDomain(index)}
-                  aria-label={`Remove ${domain}`}
+            displayDomains.map(({ domain, originalIndex }) => {
+              const isCustom = !defaultSet.has(domain.toLowerCase());
+              return (
+                <div
+                  key={`${domain}-${originalIndex}`}
+                  className="flex items-center justify-between px-3 py-2 text-sm even:bg-muted/30"
                 >
-                  <X className="h-3.5 w-3.5" />
-                </Button>
-              </div>
-            ))
+                  <span className="flex items-center gap-2 truncate">
+                    <span className="truncate">{domain}</span>
+                    {isCustom && (
+                      <SparklesIcon
+                        className="size-3 shrink-0 text-info"
+                        aria-label="Custom domain"
+                      />
+                    )}
+                  </span>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="size-6 shrink-0 text-muted-foreground hover:text-destructive"
+                    onClick={() => handleRemoveDomain(originalIndex)}
+                    aria-label={`Remove ${domain}`}
+                  >
+                    <X className="size-3.5" />
+                  </Button>
+                </div>
+              );
+            })
           )}
         </div>
 
         <Separator />
 
+        {/* Actions */}
         <div className="flex items-center gap-2">
           <SaveButton
             type="button"
@@ -261,16 +449,6 @@ export default function CdnHostlistCard() {
             disabled={!isDirty}
             onClick={handleSave}
           />
-          <Button
-            type="button"
-            variant="outline"
-            size="icon"
-            disabled={!isDirty || isSaving}
-            onClick={handleReset}
-            aria-label="Discard changes"
-          >
-            <RotateCcw className="h-4 w-4" />
-          </Button>
 
           <div className="flex-1" />
 
@@ -283,7 +461,7 @@ export default function CdnHostlistCard() {
               >
                 {isRestoring ? (
                   <>
-                    <Loader2 className="h-4 w-4 animate-spin" />
+                    <Loader2 className="size-4 animate-spin" />
                     Restoring...
                   </>
                 ) : (
@@ -301,7 +479,10 @@ export default function CdnHostlistCard() {
               </AlertDialogHeader>
               <AlertDialogFooter>
                 <AlertDialogCancel>Cancel</AlertDialogCancel>
-                <AlertDialogAction onClick={handleRestoreDefaults}>
+                <AlertDialogAction
+                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                  onClick={handleRestoreDefaults}
+                >
                   Restore Defaults
                 </AlertDialogAction>
               </AlertDialogFooter>

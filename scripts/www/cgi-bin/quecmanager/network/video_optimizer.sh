@@ -70,9 +70,14 @@ GET)
         else
             domains='[]'
         fi
+        if [ -f "$DPI_HOSTLIST_DEFAULT" ]; then
+            default_domains=$(grep -v '^[[:space:]]*#' "$DPI_HOSTLIST_DEFAULT" | grep -v '^[[:space:]]*$' | jq -R . | jq -s .)
+        else
+            default_domains='[]'
+        fi
         count=$(echo "$domains" | jq 'length')
-        jq -n --argjson domains "$domains" --argjson count "$count" \
-            '{"success":true,"domains":$domains,"count":$count}'
+        jq -n --argjson domains "$domains" --argjson default_domains "$default_domains" --argjson count "$count" \
+            '{"success":true,"domains":$domains,"default_domains":$default_domains,"count":$count}'
         exit 0
     fi
 

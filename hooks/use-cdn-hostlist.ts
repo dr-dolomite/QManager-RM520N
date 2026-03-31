@@ -8,6 +8,7 @@ const API_URL = "/cgi-bin/quecmanager/network/video_optimizer.sh";
 
 export function useCdnHostlist() {
   const [domains, setDomains] = useState<string[]>([]);
+  const [defaultDomains, setDefaultDomains] = useState<string[]>([]);
   const [count, setCount] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -39,6 +40,7 @@ export function useCdnHostlist() {
       }
 
       setDomains(data.domains);
+      setDefaultDomains(data.default_domains ?? []);
       setCount(data.count);
     } catch (err) {
       if (!mountedRef.current) return;
@@ -125,6 +127,7 @@ export function useCdnHostlist() {
 
   return {
     domains,
+    defaultDomains,
     count,
     isLoading,
     isSaving,

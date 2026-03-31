@@ -71,6 +71,7 @@ export interface TrafficMasqueradeResponse extends TrafficMasqueradeSettings {
 export interface HostlistResponse {
   success: boolean;
   domains: string[];
+  default_domains: string[];
   count: number;
 }
 
