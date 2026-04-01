@@ -640,13 +640,19 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
     # action: uninstall — remove netbird from the device
     # -------------------------------------------------------------------------
     if [ "$ACTION" = "uninstall" ]; then
-        # Safety: refuse if daemon is still running
-        if is_daemon_running; then
-            cgi_error "service_running" "Stop the NetBird service before uninstalling"
-            exit 0
-        fi
-
         qlog_info "Uninstalling NetBird"
+
+        # Stop service if running
+        if is_daemon_running; then
+            qlog_info "Stopping NetBird daemon before uninstall"
+            netbird down >/dev/null 2>&1
+            if [ -x /etc/init.d/netbird ]; then
+                /etc/init.d/netbird stop >/dev/null 2>&1
+            else
+                netbird service stop >/dev/null 2>&1
+            fi
+            sleep 1
+        fi
 
         # Disable boot entry if init script exists
         [ -x /etc/init.d/netbird ] && /etc/init.d/netbird disable >/dev/null 2>&1
@@ -655,7 +661,7 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
         vpn_fw_remove_zone "netbird"
 
         # Remove packages
-        opkg remove netbird 2>/dev/null
+        opkg remove netbird >/dev/null 2>&1
 
         # Clean up state files
         rm -rf /var/lib/netbird/

@@ -498,13 +498,20 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
     # action: uninstall — remove tailscale packages from the device
     # -------------------------------------------------------------------------
     if [ "$ACTION" = "uninstall" ]; then
-        # Safety: refuse if daemon is still running
-        if is_daemon_running; then
-            cgi_error "service_running" "Stop the Tailscale service before uninstalling"
-            exit 0
-        fi
-
         qlog_info "Uninstalling Tailscale packages"
+
+        # Stop service if running
+        if is_daemon_running; then
+            qlog_info "Stopping Tailscale daemon before uninstall"
+            kill_stale_ts_up
+            tailscale down >/dev/null 2>&1
+            if [ -x /etc/init.d/tailscale ]; then
+                /etc/init.d/tailscale stop >/dev/null 2>&1
+            else
+                killall tailscaled 2>/dev/null
+            fi
+            sleep 1
+        fi
 
         # Disable boot entry if init script exists
         [ -x /etc/init.d/tailscale ] && /etc/init.d/tailscale disable >/dev/null 2>&1
@@ -513,7 +520,7 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
         vpn_fw_remove_zone "tailscale"
 
         # Remove packages
-        opkg remove tailscale tailscaled 2>/dev/null
+        opkg remove tailscale tailscaled >/dev/null 2>&1
 
         # Clean up state files
         rm -rf /var/lib/tailscale/
