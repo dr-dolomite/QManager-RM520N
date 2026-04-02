@@ -92,6 +92,42 @@ export function NetBirdConnectionCard({
     }, 2000);
   };
 
+  // Reboot confirmation dialog (shown after successful uninstall)
+  // Defined before early returns so it renders in all states including "Not Installed"
+  const rebootDialog = (
+    <AlertDialog open={showRebootDialog} onOpenChange={(open) => {
+      if (!isRebooting) setShowRebootDialog(open);
+    }}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Reboot Required</AlertDialogTitle>
+          <AlertDialogDescription>
+            NetBird has been removed. A reboot is recommended to clean up
+            firewall rules and other artifacts. Would you like to reboot now?
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel disabled={isRebooting}>
+            Reboot Later
+          </AlertDialogCancel>
+          <AlertDialogAction
+            disabled={isRebooting}
+            onClick={handleReboot}
+          >
+            {isRebooting ? (
+              <>
+                <Loader2 className="size-4 animate-spin" />
+                Rebooting…
+              </>
+            ) : (
+              "Reboot Now"
+            )}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
+
   // --- Loading skeleton ------------------------------------------------------
   if (isLoading) {
     return (
@@ -228,6 +264,7 @@ export function NetBirdConnectionCard({
 
             <CopyableCommand command={installCmd} />
           </div>
+          {rebootDialog}
         </CardContent>
       </Card>
     );
@@ -345,41 +382,6 @@ export function NetBirdConnectionCard({
         </AlertDialog>
       </div>
     </>
-  );
-
-  // Reboot confirmation dialog (shown after successful uninstall)
-  const rebootDialog = (
-    <AlertDialog open={showRebootDialog} onOpenChange={(open) => {
-      if (!isRebooting) setShowRebootDialog(open);
-    }}>
-      <AlertDialogContent>
-        <AlertDialogHeader>
-          <AlertDialogTitle>Reboot Required</AlertDialogTitle>
-          <AlertDialogDescription>
-            NetBird has been removed. A reboot is recommended to clean up
-            firewall rules and other artifacts. Would you like to reboot now?
-          </AlertDialogDescription>
-        </AlertDialogHeader>
-        <AlertDialogFooter>
-          <AlertDialogCancel disabled={isRebooting}>
-            Reboot Later
-          </AlertDialogCancel>
-          <AlertDialogAction
-            disabled={isRebooting}
-            onClick={handleReboot}
-          >
-            {isRebooting ? (
-              <>
-                <Loader2 className="size-4 animate-spin" />
-                Rebooting…
-              </>
-            ) : (
-              "Reboot Now"
-            )}
-          </AlertDialogAction>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
   );
 
   // Setup key input (reused in disconnected / needs-connect states)
