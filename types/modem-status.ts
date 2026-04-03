@@ -376,6 +376,17 @@ export interface SimSwapStatus {
 // --- Per-Antenna Signal Data -------------------------------------------------
 
 /**
+ * Metadata for each of the 4 antenna ports (ANT0–ANT3).
+ * Shared across antenna-statistics, antenna-alignment, and any future per-port UI.
+ */
+export const ANTENNA_PORTS = [
+  { name: "Main", rx: "PRX", description: "Main transmit/receive antenna (ANT0)" },
+  { name: "Diversity", rx: "DRX", description: "Diversity / receive antenna (ANT1)" },
+  { name: "MIMO 3", rx: "RX2", description: "MIMO spatial stream 1 (ANT2)" },
+  { name: "MIMO 4", rx: "RX3", description: "MIMO spatial stream 2 (ANT3)" },
+] as const;
+
+/**
  * Per-antenna signal values from AT+QRSRP, AT+QRSRQ, AT+QSINR.
  * Each array has 4 elements [ant0, ant1, ant2, ant3].
  * null entries indicate inactive/unavailable antenna ports (sentinel -32768).

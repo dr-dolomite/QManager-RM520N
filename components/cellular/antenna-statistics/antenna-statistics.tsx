@@ -20,6 +20,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { useModemStatus } from "@/hooks/use-modem-status";
 import {
+  ANTENNA_PORTS,
   getSignalQuality,
   signalToProgress,
   RSRP_THRESHOLDS,
@@ -27,17 +28,6 @@ import {
   SINR_THRESHOLDS,
 } from "@/types/modem-status";
 import type { SignalPerAntenna } from "@/types/modem-status";
-
-// =============================================================================
-// Constants
-// =============================================================================
-
-const ANTENNA_LABELS = [
-  { name: "Main", rx: "PRX" },
-  { name: "Diversity", rx: "DRX" },
-  { name: "MIMO 3", rx: "RX2" },
-  { name: "MIMO 4", rx: "RX3" },
-] as const;
 
 const QUALITY_BAR_COLORS: Record<string, string> = {
   excellent: "bg-success",
@@ -225,7 +215,7 @@ function TechCard({
             visible: { transition: { staggerChildren: 0.05 } },
           }}
         >
-          {ANTENNA_LABELS.map((ant, i) => (
+          {ANTENNA_PORTS.map((ant, i) => (
             <motion.div
               key={ant.rx}
               className={i === 0 ? "pb-3" : "py-3"}

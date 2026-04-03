@@ -111,6 +111,10 @@ const data = {
           title: "Antenna Statistics",
           url: "/cellular/antenna-statistics",
         },
+        {
+          title: "Antenna Alignment",
+          url: "/cellular/antenna-alignment",
+        }
       ],
     },
     {
