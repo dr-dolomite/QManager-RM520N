@@ -78,10 +78,10 @@ rm -f /lib/systemd/system/multi-user.target.wants/qmanager.target
 systemctl daemon-reload
 info "Removed systemd units and boot symlinks"
 
-# --- Remove daemons ---
-rm -f "$BIN_DIR/qcmd" "$BIN_DIR/qcmd_test"
+# --- Remove daemons and bundled binaries ---
+rm -f "$BIN_DIR/qcmd" "$BIN_DIR/qcmd_test" "$BIN_DIR/sms_tool"
 rm -f "$BIN_DIR"/qmanager_*
-info "Removed daemons from $BIN_DIR"
+info "Removed daemons and binaries from $BIN_DIR"
 
 # --- Remove libraries ---
 rm -rf "$LIB_DIR"

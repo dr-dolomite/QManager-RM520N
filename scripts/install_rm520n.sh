@@ -15,6 +15,10 @@
 #     usr/lib/qmanager/     — Shared shell libraries
 #     www/cgi-bin/          — CGI API endpoints
 #     usrdata/simpleadmin/  — lighttpd config
+#   dependencies/           — Bundled binaries and packages
+#     sms_tool              — Static ARM binary (AT command transport)
+#     jq.ipk                — JSON processor (Entware package)
+#     dropbear_*.ipk        — SSH server (Entware package)
 #   install_rm520n.sh       — This script
 #
 # Usage:
@@ -27,7 +31,7 @@
 #   --backend-only     Only install backend scripts
 #   --no-enable        Don't enable systemd services
 #   --no-start         Don't start services after install
-#   --skip-packages    Skip Entware package installation
+#   --skip-packages    Skip dependency installation
 #   --no-reboot        Don't reboot after installation
 #   --help             Show this help
 #
@@ -69,14 +73,13 @@ LIGHTTPD_CONF="/usrdata/simpleadmin/lighttpd.conf"
 # Source directories (relative to INSTALL_DIR)
 SRC_FRONTEND="$INSTALL_DIR/out"
 SRC_SCRIPTS="$INSTALL_DIR/scripts"
-
-# Required packages (Entware)
-REQUIRED_PACKAGES="jq coreutils-timeout"
-# Optional packages
-OPTIONAL_PACKAGES="msmtp"
+SRC_DEPS="$INSTALL_DIR/dependencies"
 
 # Entware opkg path
 OPKG="/opt/bin/opkg"
+
+# Optional packages (not bundled — installed from Entware if available)
+OPTIONAL_PACKAGES="msmtp"
 
 # --- Colors & Icons ----------------------------------------------------------
 
@@ -140,40 +143,72 @@ preflight() {
     info "Pre-flight checks passed"
 }
 
-# --- Install Required Packages (Entware) ------------------------------------
+# --- Install Dependencies ----------------------------------------------------
 
-install_packages() {
-    step "Installing required packages (Entware)"
+install_dependencies() {
+    step "Installing bundled dependencies"
 
-    if [ ! -x "$OPKG" ]; then
-        warn "Entware opkg not found at $OPKG — skipping package installation"
-        warn "Install Entware first, then run: $OPKG install $REQUIRED_PACKAGES"
-        return 0
+    # --- sms_tool (static ARM binary — direct copy) ---
+    if [ -f "$SRC_DEPS/sms_tool" ]; then
+        cp "$SRC_DEPS/sms_tool" "$BIN_DIR/sms_tool"
+        chmod +x "$BIN_DIR/sms_tool"
+        info "sms_tool installed to $BIN_DIR/sms_tool"
+    elif command -v sms_tool >/dev/null 2>&1; then
+        info "sms_tool already installed (not bundled)"
+    else
+        die "sms_tool not found in $SRC_DEPS and not installed on device"
     fi
 
-    "$OPKG" update >/dev/null 2>&1 || warn "opkg update failed — trying from cache"
-
-    for pkg in $REQUIRED_PACKAGES; do
-        if command -v "$pkg" >/dev/null 2>&1; then
-            info "$pkg is already installed"
+    # --- Bundled .ipk packages (Entware) ---
+    if [ ! -x "$OPKG" ]; then
+        warn "Entware opkg not found at $OPKG — skipping .ipk installation"
+        warn "Manually install jq and coreutils-timeout if not present"
+    else
+        # jq
+        if command -v jq >/dev/null 2>&1; then
+            info "jq is already installed"
+        elif ls "$SRC_DEPS"/jq*.ipk >/dev/null 2>&1; then
+            "$OPKG" install "$SRC_DEPS"/jq*.ipk >/dev/null 2>&1 \
+                && info "jq installed from bundled package" \
+                || die "Failed to install jq from bundled package"
         else
-            if "$OPKG" install "$pkg" >/dev/null 2>&1; then
-                info "$pkg installed"
+            "$OPKG" install jq >/dev/null 2>&1 \
+                && info "jq installed from Entware" \
+                || die "Failed to install jq"
+        fi
+
+        # coreutils-timeout
+        if command -v timeout >/dev/null 2>&1; then
+            info "timeout is already installed"
+        else
+            "$OPKG" install coreutils-timeout >/dev/null 2>&1 \
+                && info "coreutils-timeout installed from Entware" \
+                || warn "coreutils-timeout not available — some commands may hang without timeout safety"
+        fi
+
+        # dropbear (SSH server)
+        if command -v dropbear >/dev/null 2>&1; then
+            info "dropbear is already installed"
+        elif ls "$SRC_DEPS"/dropbear*.ipk >/dev/null 2>&1; then
+            "$OPKG" install "$SRC_DEPS"/dropbear*.ipk >/dev/null 2>&1 \
+                && info "dropbear installed from bundled package" \
+                || warn "dropbear install failed (optional — SSH server)"
+        else
+            info "dropbear not bundled and not installed (optional)"
+        fi
+    fi
+
+    # --- Optional packages (from Entware, not bundled) ---
+    if [ -x "$OPKG" ]; then
+        for pkg in $OPTIONAL_PACKAGES; do
+            if command -v "$pkg" >/dev/null 2>&1; then
+                info "$pkg is already installed"
             else
-                die "Failed to install required package: $pkg"
+                "$OPKG" install "$pkg" >/dev/null 2>&1 && info "$pkg installed" \
+                    || warn "$pkg not available (optional)"
             fi
-        fi
-    done
-
-    # Optional packages
-    for pkg in $OPTIONAL_PACKAGES; do
-        if command -v "$pkg" >/dev/null 2>&1; then
-            info "$pkg is already installed"
-        else
-            "$OPKG" install "$pkg" >/dev/null 2>&1 && info "$pkg installed" \
-                || warn "$pkg not available (optional)"
-        fi
-    done
+        done
+    fi
 }
 
 # --- Stop Running Services ---------------------------------------------------
@@ -566,7 +601,7 @@ usage() {
     printf "  --backend-only     Only install backend scripts\n"
     printf "  --no-enable        Don't enable systemd services\n"
     printf "  --no-start         Don't start services after install\n"
-    printf "  --skip-packages    Skip Entware package installation\n"
+    printf "  --skip-packages    Skip dependency installation\n"
     printf "  --no-reboot        Don't reboot after installation\n"
     printf "  --help             Show this help\n\n"
 }
@@ -608,7 +643,7 @@ main() {
 
     preflight
 
-    [ "$DO_PACKAGES" = "1" ] && install_packages
+    [ "$DO_PACKAGES" = "1" ] && install_dependencies
     stop_services
 
     if [ "$DO_FRONTEND" = "1" ]; then
