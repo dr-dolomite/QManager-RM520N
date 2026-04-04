@@ -1,5 +1,8 @@
 #!/bin/sh
 . /usr/lib/qmanager/cgi_base.sh
+. /usr/lib/qmanager/config.sh
+. /usr/lib/qmanager/platform.sh
+. /usr/lib/qmanager/system_config.sh
 # =============================================================================
 # settings.sh — CGI Endpoint: System Settings (GET + POST)
 # =============================================================================
@@ -7,7 +10,7 @@
 #        scheduled reboot, low-power mode).
 # POST: Saves settings, scheduled reboot config, or low-power config.
 #
-# Config: UCI quecmanager.settings.* + system.@system[0].timezone/zonename
+# Config: /etc/qmanager/qmanager.conf (settings section)
 # Cron:   qmanager_scheduled_reboot, qmanager_low_power markers
 #
 # Endpoint: GET/POST /cgi-bin/quecmanager/system/settings.sh
@@ -19,29 +22,6 @@ cgi_headers
 cgi_handle_options
 
 # --- Helpers -----------------------------------------------------------------
-
-# Ensure UCI section exists with defaults
-ensure_settings_config() {
-    uci -q get quecmanager.settings >/dev/null 2>&1 && return
-    uci set quecmanager.settings=settings
-    uci set quecmanager.settings.temp_unit=celsius
-    uci set quecmanager.settings.distance_unit=km
-    uci set quecmanager.settings.sched_reboot_enabled=0
-    uci set quecmanager.settings.sched_reboot_time=04:00
-    uci set quecmanager.settings.sched_reboot_days=0,1,2,3,4,5,6
-    uci set quecmanager.settings.low_power_enabled=0
-    uci set quecmanager.settings.low_power_start=23:00
-    uci set quecmanager.settings.low_power_end=06:00
-    uci set quecmanager.settings.low_power_days=0,1,2,3,4,5,6
-    uci commit quecmanager
-}
-
-# Read a UCI value with fallback
-uci_get() {
-    local val
-    val=$(uci -q get "quecmanager.settings.$1" 2>/dev/null)
-    if [ -z "$val" ]; then echo "$2"; else echo "$val"; fi
-}
 
 # Strip leading zero from a time component (handle "00" -> "0", not empty)
 strip_leading_zero() {
@@ -56,45 +36,38 @@ strip_leading_zero() {
 # =============================================================================
 if [ "$REQUEST_METHOD" = "GET" ]; then
     qlog_info "Fetching system settings"
-    ensure_settings_config
+    qm_config_init
 
     # --- WAN Guard status ---
+    # Not ported to RM520N-GL; always report false
     wan_guard_enabled="false"
-    if [ -x /etc/init.d/qmanager_wan_guard ]; then
-        if ls /etc/rc.d/S99qmanager_wan_guard 2>/dev/null >/dev/null; then
-            wan_guard_enabled="true"
-        fi
-    fi
 
     # --- SMS tool device override ---
-    sms_tool_device=$(uci_get sms_tool_device "")
+    sms_tool_device=$(qm_config_get settings sms_tool_device "")
 
     # --- Unit preferences ---
-    temp_unit=$(uci_get temp_unit "celsius")
-    distance_unit=$(uci_get distance_unit "km")
+    temp_unit=$(qm_config_get settings temp_unit "celsius")
+    distance_unit=$(qm_config_get settings distance_unit "km")
 
     # --- Hostname (display name) ---
-    hostname=$(uci -q get system.@system[0].hostname 2>/dev/null)
-    [ -z "$hostname" ] && hostname="OpenWrt"
+    hostname=$(sys_get_hostname)
 
     # --- Timezone ---
-    timezone=$(uci -q get system.@system[0].timezone 2>/dev/null)
-    [ -z "$timezone" ] && timezone="UTC0"
-    zonename=$(uci -q get system.@system[0].zonename 2>/dev/null)
-    [ -z "$zonename" ] && zonename="UTC"
+    timezone=$(sys_get_timezone)
+    zonename=$(sys_get_zonename)
 
     # --- Scheduled reboot ---
-    sched_enabled=$(uci_get sched_reboot_enabled "0")
-    sched_time=$(uci_get sched_reboot_time "04:00")
-    sched_days_raw=$(uci_get sched_reboot_days "0,1,2,3,4,5,6")
+    sched_enabled=$(qm_config_get settings sched_reboot_enabled "0")
+    sched_time=$(qm_config_get settings sched_reboot_time "04:00")
+    sched_days_raw=$(qm_config_get settings sched_reboot_days "0,1,2,3,4,5,6")
     sched_days_json=$(printf '%s' "$sched_days_raw" | jq -Rc 'split(",") | map(tonumber)' 2>/dev/null)
     [ -z "$sched_days_json" ] && sched_days_json="[0,1,2,3,4,5,6]"
 
     # --- Low power ---
-    lp_enabled=$(uci_get low_power_enabled "0")
-    lp_start=$(uci_get low_power_start "23:00")
-    lp_end=$(uci_get low_power_end "06:00")
-    lp_days_raw=$(uci_get low_power_days "0,1,2,3,4,5,6")
+    lp_enabled=$(qm_config_get settings low_power_enabled "0")
+    lp_start=$(qm_config_get settings low_power_start "23:00")
+    lp_end=$(qm_config_get settings low_power_end "06:00")
+    lp_days_raw=$(qm_config_get settings low_power_days "0,1,2,3,4,5,6")
     lp_days_json=$(printf '%s' "$lp_days_raw" | jq -Rc 'split(",") | map(tonumber)' 2>/dev/null)
     [ -z "$lp_days_json" ] && lp_days_json="[0,1,2,3,4,5,6]"
 
@@ -158,32 +131,25 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
     # -------------------------------------------------------------------------
     if [ "$ACTION" = "save_settings" ]; then
         qlog_info "Saving system settings"
-        ensure_settings_config
+        qm_config_init
 
         val=""
 
         # --- WAN Guard toggle ---
-        val=$(printf '%s' "$POST_DATA" | jq -r 'if has("wan_guard_enabled") then (.wan_guard_enabled | tostring) else "" end')
-        if [ -n "$val" ]; then
-            case "$val" in
-                true)  /etc/init.d/qmanager_wan_guard enable 2>/dev/null ;;
-                false) /etc/init.d/qmanager_wan_guard disable 2>/dev/null ;;
-            esac
-        fi
+        # Not ported to RM520N-GL; silently ignore
+        # val=$(printf '%s' "$POST_DATA" | jq -r 'if has("wan_guard_enabled") then (.wan_guard_enabled | tostring) else "" end')
 
         # --- Hostname (display name) ---
         val=$(printf '%s' "$POST_DATA" | jq -r '.hostname // empty')
         if [ -n "$val" ]; then
-            uci set system.@system[0].hostname="$val"
-            # Apply immediately so /proc/sys/kernel/hostname reflects the change
-            echo "$val" > /proc/sys/kernel/hostname 2>/dev/null
+            sys_set_hostname "$val"
         fi
 
         # --- Temperature unit ---
         val=$(printf '%s' "$POST_DATA" | jq -r '.temp_unit // empty')
         if [ -n "$val" ]; then
             case "$val" in
-                celsius|fahrenheit) uci set quecmanager.settings.temp_unit="$val" ;;
+                celsius|fahrenheit) qm_config_set settings temp_unit "$val" ;;
                 *)
                     cgi_error "invalid_temp_unit" "temp_unit must be 'celsius' or 'fahrenheit'"
                     exit 0
@@ -195,7 +161,7 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
         val=$(printf '%s' "$POST_DATA" | jq -r '.distance_unit // empty')
         if [ -n "$val" ]; then
             case "$val" in
-                km|miles) uci set quecmanager.settings.distance_unit="$val" ;;
+                km|miles) qm_config_set settings distance_unit "$val" ;;
                 *)
                     cgi_error "invalid_distance_unit" "distance_unit must be 'km' or 'miles'"
                     exit 0
@@ -205,13 +171,9 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
 
         # --- Timezone ---
         val=$(printf '%s' "$POST_DATA" | jq -r '.timezone // empty')
+        zn=$(printf '%s' "$POST_DATA" | jq -r '.zonename // empty')
         if [ -n "$val" ]; then
-            uci set system.@system[0].timezone="$val"
-        fi
-
-        val=$(printf '%s' "$POST_DATA" | jq -r '.zonename // empty')
-        if [ -n "$val" ]; then
-            uci set system.@system[0].zonename="$val"
+            sys_set_timezone "$val" "$zn"
         fi
 
         # --- SMS tool device override ---
@@ -221,18 +183,14 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
         if [ "$_has_sms_dev" = "yes" ]; then
             val=$(printf '%s' "$POST_DATA" | jq -r '.sms_tool_device')
             case "$val" in
-                /dev/smd7) uci set quecmanager.settings.sms_tool_device="$val" ;;
-                ""|null)   uci -q delete quecmanager.settings.sms_tool_device 2>/dev/null ;;
+                /dev/smd7|/dev/ttyOUT2) qm_config_set settings sms_tool_device "$val" ;;
+                ""|null)                qm_config_set settings sms_tool_device "" ;;
                 *)
-                    cgi_error "invalid_sms_tool_device" "sms_tool_device must be '/dev/smd7' or empty"
+                    cgi_error "invalid_sms_tool_device" "sms_tool_device must be '/dev/smd7', '/dev/ttyOUT2', or empty"
                     exit 0
                     ;;
             esac
         fi
-
-        # Commit changes
-        uci commit quecmanager
-        uci commit system
 
         qlog_info "System settings saved"
         echo '{"success":true}'
@@ -244,7 +202,7 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
     # -------------------------------------------------------------------------
     if [ "$ACTION" = "save_scheduled_reboot" ]; then
         qlog_info "Saving scheduled reboot settings"
-        ensure_settings_config
+        qm_config_init
 
         # Parse fields
         ENABLED=$(printf '%s' "$POST_DATA" | jq -r 'if has("enabled") then (.enabled | tostring) else "" end')
@@ -290,14 +248,13 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
         [ -z "$SCHED_TIME" ] && SCHED_TIME="04:00"
         [ -z "$DAYS_RAW" ] && DAYS_RAW="0,1,2,3,4,5,6"
 
-        # Write to UCI
+        # Write to config
         case "$ENABLED" in
-            true)  uci set quecmanager.settings.sched_reboot_enabled=1 ;;
-            false) uci set quecmanager.settings.sched_reboot_enabled=0 ;;
+            true)  qm_config_set settings sched_reboot_enabled 1 ;;
+            false) qm_config_set settings sched_reboot_enabled 0 ;;
         esac
-        uci set quecmanager.settings.sched_reboot_time="$SCHED_TIME"
-        uci set quecmanager.settings.sched_reboot_days="$DAYS_RAW"
-        uci commit quecmanager
+        qm_config_set settings sched_reboot_time "$SCHED_TIME"
+        qm_config_set settings sched_reboot_days "$DAYS_RAW"
 
         # --- Manage crontab ---
         CRON_MARKER="qmanager_scheduled_reboot"
@@ -344,7 +301,7 @@ ${sched_min} ${sched_hour} * * ${DAYS_RAW} ${SCHEDULE_SCRIPT}  # ${CRON_MARKER}"
     # -------------------------------------------------------------------------
     if [ "$ACTION" = "save_low_power" ]; then
         qlog_info "Saving low power settings"
-        ensure_settings_config
+        qm_config_init
 
         # Parse fields
         ENABLED=$(printf '%s' "$POST_DATA" | jq -r 'if has("enabled") then (.enabled | tostring) else "" end')
@@ -397,15 +354,14 @@ ${sched_min} ${sched_hour} * * ${DAYS_RAW} ${SCHEDULE_SCRIPT}  # ${CRON_MARKER}"
         [ -z "$END_TIME" ] && END_TIME="06:00"
         [ -z "$DAYS_RAW" ] && DAYS_RAW="0,1,2,3,4,5,6"
 
-        # Write to UCI
+        # Write to config
         case "$ENABLED" in
-            true)  uci set quecmanager.settings.low_power_enabled=1 ;;
-            false) uci set quecmanager.settings.low_power_enabled=0 ;;
+            true)  qm_config_set settings low_power_enabled 1 ;;
+            false) qm_config_set settings low_power_enabled 0 ;;
         esac
-        uci set quecmanager.settings.low_power_start="$START_TIME"
-        uci set quecmanager.settings.low_power_end="$END_TIME"
-        uci set quecmanager.settings.low_power_days="$DAYS_RAW"
-        uci commit quecmanager
+        qm_config_set settings low_power_start "$START_TIME"
+        qm_config_set settings low_power_end "$END_TIME"
+        qm_config_set settings low_power_days "$DAYS_RAW"
 
         # --- Manage crontab ---
         CRON_MARKER="qmanager_low_power"
@@ -434,7 +390,7 @@ ${end_min} ${end_hour} * * 0,1,2,3,4,5,6 ${LP_SCRIPT} exit  # ${CRON_MARKER}"
             qlog_info "Low power cron installed: enter=${START_TIME} exit=${END_TIME} days=${DAYS_RAW}"
 
             # Enable boot-time checker
-            /etc/init.d/qmanager_low_power_check enable 2>/dev/null
+            svc_enable qmanager_low_power_check
         else
             if [ -n "$cleaned_cron" ]; then
                 printf '%s\n' "$cleaned_cron" | crontab -
@@ -444,7 +400,7 @@ ${end_min} ${end_hour} * * 0,1,2,3,4,5,6 ${LP_SCRIPT} exit  # ${CRON_MARKER}"
             qlog_info "Low power cron entries removed"
 
             # Disable boot-time checker
-            /etc/init.d/qmanager_low_power_check disable 2>/dev/null
+            svc_disable qmanager_low_power_check
 
             # If currently in low-power mode, restore CFUN=1 immediately
             if [ -f /tmp/qmanager_low_power_active ]; then
