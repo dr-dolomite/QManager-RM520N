@@ -271,10 +271,9 @@ stop_services() {
     fi
 
     # Stop auxiliary services
-    for svc in qmanager_eth_link qmanager_mtu qmanager_imei_check \
-               qmanager_wan_guard qmanager_watchcat qmanager_tower_failover \
-               qmanager_ttl qmanager_low_power_check qmanager_bandwidth \
-               qmanager_dpi; do
+    for svc in qmanager_mtu qmanager_imei_check \
+               qmanager_watchcat qmanager_tower_failover \
+               qmanager_ttl; do
         if [ -x "$INITD_DIR/$svc" ]; then
             "$INITD_DIR/$svc" stop 2>/dev/null || true
         fi
@@ -286,10 +285,8 @@ stop_services() {
                 qmanager_tower_schedule qmanager_cell_scanner \
                 qmanager_neighbour_scanner qmanager_mtu_apply \
                 qmanager_profile_apply qmanager_imei_check \
-                qmanager_wan_guard qmanager_low_power \
-                qmanager_low_power_check qmanager_scheduled_reboot \
-                qmanager_update qmanager_auto_update \
-                bridge_traffic_monitor_rm551 websocat nfqws; do
+                qmanager_scheduled_reboot \
+                qmanager_update qmanager_auto_update; do
         killall "$proc" 2>/dev/null || true
     done
 
@@ -585,9 +582,8 @@ enable_services() {
     fi
 
     # Auxiliary services (always enabled)
-    for svc in qmanager_eth_link qmanager_ttl qmanager_mtu \
-               qmanager_imei_check qmanager_wan_guard \
-               qmanager_low_power_check; do
+    for svc in qmanager_ttl qmanager_mtu \
+               qmanager_imei_check; do
         if [ -x "$INITD_DIR/$svc" ]; then
             "$INITD_DIR/$svc" enable
             info "Enabled $svc"
@@ -595,7 +591,7 @@ enable_services() {
     done
 
     # UCI-gated / optional services — only enable if previously enabled
-    for svc in qmanager_tower_failover qmanager_watchcat qmanager_bandwidth qmanager_dpi; do
+    for svc in qmanager_tower_failover qmanager_watchcat; do
         if [ -x "$INITD_DIR/$svc" ]; then
             local was_enabled=0
             for _rc in /etc/rc.d/*"$svc"*; do
