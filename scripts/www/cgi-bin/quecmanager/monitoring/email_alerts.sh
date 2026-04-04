@@ -24,6 +24,13 @@ CONFIG="/etc/qmanager/email_alerts.json"
 MSMTP_CONFIG="/etc/qmanager/msmtprc"
 RELOAD_FLAG="/tmp/qmanager_email_reload"
 
+# Detect package manager (Entware on RM520N-GL, system opkg on OpenWRT)
+if [ -x /opt/bin/opkg ]; then
+    OPKG="/opt/bin/opkg"
+else
+    OPKG="opkg"
+fi
+
 # =============================================================================
 # GET — Fetch current settings
 # =============================================================================
@@ -110,14 +117,14 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
             trap 'rm -f "$MSMTP_INSTALL_PID"' EXIT
 
             printf '{"success":true,"status":"running","message":"Updating package lists..."}' > "$MSMTP_INSTALL_RESULT"
-            if ! opkg update >/dev/null 2>&1; then
-                printf '{"success":false,"status":"error","message":"Failed to update package lists","detail":"Check internet connection and opkg feeds"}' > "$MSMTP_INSTALL_RESULT"
+            if ! $OPKG update >/dev/null 2>&1; then
+                printf '{"success":false,"status":"error","message":"Failed to update package lists","detail":"Check internet connection and package manager feeds"}' > "$MSMTP_INSTALL_RESULT"
                 exit 1
             fi
 
             printf '{"success":true,"status":"running","message":"Installing msmtp..."}' > "$MSMTP_INSTALL_RESULT"
-            if ! opkg install msmtp >/dev/null 2>&1; then
-                printf '{"success":false,"status":"error","message":"opkg install failed","detail":"Package may not be available for this architecture"}' > "$MSMTP_INSTALL_RESULT"
+            if ! $OPKG install msmtp >/dev/null 2>&1; then
+                printf '{"success":false,"status":"error","message":"Package manager install failed","detail":"Package may not be available for this architecture"}' > "$MSMTP_INSTALL_RESULT"
                 exit 1
             fi
 
@@ -270,14 +277,14 @@ MSMTPEOF
         qlog_info "Uninstalling msmtp package"
 
         # Remove package
-        opkg remove msmtp 2>/dev/null
+        $OPKG remove msmtp 2>/dev/null
 
         # Clean up generated msmtp config
         rm -f "$MSMTP_CONFIG"
 
         # Verify removal
         if command -v msmtp >/dev/null 2>&1; then
-            qlog_error "msmtp binary still present after opkg remove"
+            qlog_error "msmtp binary still present after package manager remove"
             cgi_error "uninstall_failed" "Failed to remove msmtp package"
             exit 0
         fi
