@@ -1,5 +1,6 @@
 #!/bin/sh
 . /usr/lib/qmanager/cgi_base.sh
+. /usr/lib/qmanager/platform.sh
 # =============================================================================
 # lock.sh — CGI Endpoint: Apply/Clear Tower Lock
 # =============================================================================
@@ -185,7 +186,7 @@ if [ "$LOCK_TYPE" = "lte" ]; then
         else
             # No other lock — disable failover fully
             tower_config_update '.failover.enabled = false'
-            /etc/init.d/qmanager_tower_failover disable 2>/dev/null
+            svc_disable qmanager_tower_failover
             qlog_info "No active locks — failover stopped and disabled"
         fi
 
@@ -297,7 +298,7 @@ elif [ "$LOCK_TYPE" = "nr_sa" ]; then
         else
             # No other lock — disable failover fully
             tower_config_update '.failover.enabled = false'
-            /etc/init.d/qmanager_tower_failover disable 2>/dev/null
+            svc_disable qmanager_tower_failover
             qlog_info "No active locks — failover stopped and disabled"
         fi
 

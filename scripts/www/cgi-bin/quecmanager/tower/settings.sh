@@ -1,5 +1,6 @@
 #!/bin/sh
 . /usr/lib/qmanager/cgi_base.sh
+. /usr/lib/qmanager/platform.sh
 # =============================================================================
 # settings.sh — CGI Endpoint: Update Tower Lock Settings
 # =============================================================================
@@ -131,8 +132,8 @@ fi
 if [ "$FO_ENABLED" = "false" ] && [ "$current_fo_enabled" = "true" ]; then
     tower_kill_failover_watcher
     rm -f "$TOWER_FAILOVER_FLAG"
-    /etc/init.d/qmanager_tower_failover disable 2>/dev/null
-    qlog_info "Failover disabled — killed daemon, disabled init.d"
+    svc_disable qmanager_tower_failover
+    qlog_info "Failover disabled — killed daemon, disabled service"
 fi
 
 # --- Response ----------------------------------------------------------------

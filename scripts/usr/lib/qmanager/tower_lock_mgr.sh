@@ -28,6 +28,8 @@
 #   calc_signal_quality <rsrp>    → Returns 0-100 integer
 # =============================================================================
 
+[ -f /usr/lib/qmanager/platform.sh ] && . /usr/lib/qmanager/platform.sh
+
 [ -n "$_TOWER_LOCK_MGR_LOADED" ] && return 0
 _TOWER_LOCK_MGR_LOADED=1
 
@@ -389,9 +391,9 @@ calc_signal_quality() {
 # Failover Watcher Management
 # =============================================================================
 
-# Kill any running failover watcher (delegates to init.d)
+# Kill any running failover watcher (delegates to platform svc)
 tower_kill_failover_watcher() {
-    /etc/init.d/qmanager_tower_failover stop 2>/dev/null
+    svc_stop qmanager_tower_failover
 }
 
 # Spawn failover watcher if enabled (delegates to init.d)
@@ -406,12 +408,12 @@ tower_spawn_failover_watcher() {
         return 0
     fi
 
-    # Stop any existing watcher, then start fresh via init.d
-    /etc/init.d/qmanager_tower_failover stop 2>/dev/null
-    /etc/init.d/qmanager_tower_failover start 2>/dev/null
+    # Stop any existing watcher, then start fresh via platform svc
+    svc_stop qmanager_tower_failover
+    svc_start qmanager_tower_failover
 
-    # Enable for boot auto-start (creates /etc/rc.d symlink, shows in LuCI)
-    /etc/init.d/qmanager_tower_failover enable 2>/dev/null
+    # Enable for boot auto-start
+    svc_enable qmanager_tower_failover
 
     # Verify daemon actually started (PID file written immediately on spawn)
     sleep 1
