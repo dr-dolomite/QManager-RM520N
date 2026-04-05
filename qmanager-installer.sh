@@ -5,7 +5,7 @@
 # https://github.com/dr-dolomite/QManager-RM520N
 #
 # Usage:
-#   wget -O /tmp/qmanager-installer.sh \
+#   /opt/bin/wget -O /tmp/qmanager-installer.sh \
 #     https://github.com/dr-dolomite/QManager-RM520N/raw/refs/heads/main/qmanager-installer.sh && \
 #     bash /tmp/qmanager-installer.sh
 #
@@ -78,14 +78,19 @@ is_installed() {
 download_file() {
     local url="$1" dest="$2"
 
-    # wget (full or BusyBox)
-    if command -v wget >/dev/null 2>&1; then
-        wget -q -O "$dest" "$url" 2>/dev/null && return 0
+    # Entware wget (has SSL support — BusyBox wget does not)
+    if [ -x /opt/bin/wget ]; then
+        /opt/bin/wget -q -O "$dest" "$url" 2>/dev/null && return 0
     fi
 
     # curl (if available)
     if command -v curl >/dev/null 2>&1; then
         curl -fsSL -o "$dest" "$url" 2>/dev/null && return 0
+    fi
+
+    # Fallback: system wget (may fail on HTTPS)
+    if command -v wget >/dev/null 2>&1; then
+        wget -q -O "$dest" "$url" 2>/dev/null && return 0
     fi
 
     return 1

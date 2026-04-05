@@ -73,7 +73,7 @@ Follow the prompts to install **SimpleAdmin and Entware**. This sets up the web 
 ADB or SSH into the modem and run:
 
 ```sh
-wget -O /tmp/qmanager-installer.sh \
+/opt/bin/wget -O /tmp/qmanager-installer.sh \
   https://github.com/dr-dolomite/QManager-RM520N/raw/refs/heads/main/qmanager-installer.sh && \
   bash /tmp/qmanager-installer.sh
 ```
