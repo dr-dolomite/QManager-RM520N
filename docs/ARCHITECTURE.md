@@ -260,7 +260,46 @@ Abort immediately if `CFUN=0` fails (modem may be in an inconsistent state).
 
 ## Custom SIM Profiles
 
-Profiles store a complete modem configuration (APN + TTL/HL + optional IMEI) that can be saved and applied as a unit.
+Profiles store a complete modem configuration (APN + TTL/HL + optional IMEI) that can be saved and applied as a unit. Each profile is bound to a SIM card by ICCID and is automatically applied whenever that SIM is detected.
+
+### Auto-Apply on ICCID Match
+
+Profiles are automatically applied whenever the SIM's ICCID matches a saved profile. The `auto_apply_profile()` function in `profile_mgr.sh` scans `/etc/qmanager/profiles/` for a profile whose `sim_iccid` matches the current SIM. If found, it sets the profile as active and spawns `qmanager_profile_apply` in the background. If no match is found, any stale active profile marker is cleared.
+
+The apply script (`qmanager_profile_apply`) compares current modem state against the profile's desired settings and only changes what has drifted, making it a no-op when everything already matches.
+
+**Trigger points:**
+
+| Trigger | Caller Tag | Location | When |
+|---------|-----------|----------|------|
+| Boot | `boot` | `qmanager_poller` `collect_boot_data()` | After ICCID read + SIM swap detection |
+| Manual SIM switch | `sim_switch` | `cellular/settings.sh` | After CFUN=1 restore in SIM slot procedure |
+| Watchdog Tier 3 failover | `watchdog` | `qmanager_watchcat` cooldown handler | After SIM failover confirmed with connectivity |
+| Watchdog SIM revert | `watchdog_revert` | `qmanager_watchcat` `sim_failover_fallback()` | After reverting to original SIM |
+
+**Flow:**
+
+```
+Trigger (boot/SIM switch/watchdog)
+    │
+    ▼
+auto_apply_profile(iccid, caller)
+    │
+    ├── find_profile_by_iccid(iccid)
+    │       scans /etc/qmanager/profiles/p_*.json
+    │       matches .sim_iccid field
+    │
+    ├── [Match found] → set_active_profile(id)
+    │       │
+    │       └── spawn: qmanager_profile_apply <id>  (double-fork, background)
+    │               │
+    │               ├── Step 1: APN (AT+CGDCONT, skip if unchanged)
+    │               ├── Step 2: TTL/HL (iptables, skip if unchanged)
+    │               └── Step 3: IMEI (AT+EGMR + reboot, skip if unchanged)
+    │
+    └── [No match] → clear_active_profile()
+            removes /etc/qmanager/active_profile
+```
 
 ### Apply Workflow (3 Steps)
 

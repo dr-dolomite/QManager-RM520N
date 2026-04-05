@@ -39,6 +39,7 @@ The RM520N-GL is a fundamentally different platform: it runs its own Linux OS in
 - [Watchdog Services](#watchdog-services)
 - [VPN (Tailscale)](#vpn-tailscale)
 - [Porting Strategy Summary](#porting-strategy-summary)
+- [Custom SIM Profiles — Auto-Apply on ICCID Match](#custom-sim-profiles--auto-apply-on-iccid-match)
 - [Appendix: AT Commands Unique to RM520N-GL](#appendix-at-commands-unique-to-rm520n-gl)
 
 ---
@@ -836,6 +837,61 @@ The following features have been removed from the `dev-rm520` branch and are not
 | Custom DNS | Depends on UCI network config — no equivalent on RM520N-GL |
 | WAN Interface Guard | OpenWRT netifd-specific (ifdown/uci network) — no netifd on RM520N-GL |
 | Low Power Mode (daemons) | Daemon scripts removed; cron/config management retained in settings CGI |
+
+---
+
+## Custom SIM Profiles — Auto-Apply on ICCID Match
+
+Custom SIM Profiles are automatically applied whenever the modem's current SIM ICCID matches a saved profile. This replaces the previous manual-only "Apply" workflow. The apply script (`qmanager_profile_apply`) compares current modem state against the profile's desired settings and only changes what has drifted, making auto-apply a no-op when nothing has changed.
+
+### Key Files
+
+| File | Purpose |
+|------|---------|
+| `/usr/lib/qmanager/profile_mgr.sh` | Library: `find_profile_by_iccid()`, `auto_apply_profile()`, CRUD, lock management |
+| `/usr/bin/qmanager_profile_apply` | Daemon: 3-step apply (APN, TTL/HL, IMEI) — spawned in background |
+| `/etc/qmanager/profiles/p_*.json` | Profile storage (one file per profile, includes `sim_iccid` field) |
+| `/etc/qmanager/active_profile` | Plain text file containing the active profile ID |
+| `/tmp/qmanager_profile_apply.pid` | PID file for apply singleton lock |
+| `/tmp/qmanager_profile_state.json` | Apply progress (frontend polls this) |
+
+### Auto-Apply Functions
+
+**`find_profile_by_iccid(iccid)`** scans all profile files in `/etc/qmanager/profiles/` and returns the ID of the first profile whose `.sim_iccid` matches the given ICCID.
+
+**`auto_apply_profile(iccid, caller)`** orchestrates the full auto-apply flow:
+
+1. Calls `find_profile_by_iccid()` to search for a matching profile
+2. If found: calls `set_active_profile()` to write the profile ID to `/etc/qmanager/active_profile`, then spawns `qmanager_profile_apply` via double-fork (`( cmd </dev/null >/dev/null 2>&1 & )`)
+3. If not found: calls `clear_active_profile()` to remove any stale active marker
+4. The `caller` argument (`boot`, `sim_switch`, `watchdog`, `watchdog_revert`) is logged for debugging
+
+### Trigger Points
+
+| Trigger | Caller Tag | Source File | When |
+|---------|-----------|-------------|------|
+| Boot | `boot` | `qmanager_poller` `collect_boot_data()` | After ICCID read + SIM swap detection |
+| Manual SIM switch | `sim_switch` | `cellular/settings.sh` | After CFUN=1 restore completes |
+| Watchdog Tier 3 failover | `watchdog` | `qmanager_watchcat` cooldown handler | After SIM failover confirmed with connectivity |
+| Watchdog SIM revert | `watchdog_revert` | `qmanager_watchcat` `sim_failover_fallback()` | After reverting to original SIM |
+
+### RM520N-GL Platform Considerations
+
+**`fs.protected_regular` handling:** The profile apply PID file (`/tmp/qmanager_profile_apply.pid`) and state file (`/tmp/qmanager_profile_state.json`) are pre-created with `www-data` ownership by `qmanager_setup` at boot. This prevents the scenario where a root-context boot-time auto-apply creates these files first, blocking later CGI access from `www-data`.
+
+**PID checks use `/proc/$pid`:** The `profile_check_lock()` function and the watchcat's profile-apply-running check both use `[ -d "/proc/$pid" ]` instead of `kill -0`, because `www-data` (CGI) cannot send signals to root-owned processes due to EPERM. The `/proc` check works cross-user.
+
+**Poller sources `profile_mgr.sh` at startup** with a no-op fallback if the file is missing:
+
+```bash
+. /usr/lib/qmanager/profile_mgr.sh 2>/dev/null || {
+    auto_apply_profile() { :; }
+}
+```
+
+This ensures the poller continues working even if `profile_mgr.sh` is deleted or corrupted — the auto-apply call in `collect_boot_data()` becomes a silent no-op.
+
+**Watchcat and settings.sh** source `profile_mgr.sh` conditionally (`[ -f ... ] && .`). The watchcat sources it at startup alongside other libraries; `settings.sh` sources it inline at the point of use (inside the SIM switch handler).
 
 ---
 

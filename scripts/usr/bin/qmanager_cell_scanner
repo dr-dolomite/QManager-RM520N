@@ -31,6 +31,7 @@ ERROR_FILE="/tmp/qmanager_cell_scan_error"
 RAW_FILE="/tmp/qmanager_cell_scan_raw.tmp"
 PARSED_FILE="/tmp/qmanager_cell_scan_parsed.tmp"
 OPERATOR_LIST="/www/cgi-bin/quecmanager/operator-list.json"
+[ ! -f "$OPERATOR_LIST" ] && OPERATOR_LIST="/usrdata/simpleadmin/www/cgi-bin/quecmanager/operator-list.json"
 
 # --- Cleanup on exit ---------------------------------------------------------
 cleanup() {
@@ -198,8 +199,8 @@ fi
 if [ -f "$OPERATOR_LIST" ]; then
     OPERATOR_ARG="--slurpfile operators $OPERATOR_LIST"
 else
-    qlog_warn "Operator list not found at $OPERATOR_LIST — provider names will be 'Unknown'"
-    OPERATOR_ARG=""
+    qlog_warn "Operator list not found — provider names will show MCC/MNC"
+    OPERATOR_ARG="--argjson operators []"
 fi
 
 # Build the final JSON array

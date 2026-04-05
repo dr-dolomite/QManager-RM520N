@@ -168,6 +168,61 @@ flock_wait() {
     return $?
 }
 
+# --- Helper: Long AT Command via Direct Device I/O --------------------------
+# sms_tool has a hardcoded ~5s read timeout which is too short for commands
+# like AT+QSCAN (up to 180s). This function bypasses sms_tool and uses direct
+# PTY I/O with a background reader — same pattern as SimpleAdmin's atcmd helper.
+#
+# Usage: _run_long_at <command> <timeout_seconds> <device>
+# Returns: 0 = OK received, 1 = ERROR received, 4 = timeout (no OK/ERROR)
+# Stdout: raw modem response
+# -----------------------------------------------------------------------------
+_run_long_at() {
+    local cmd="$1"
+    local max_secs="$2"
+    local dev="$3"
+    local tmpfile="/tmp/qmanager_long_at_$$.tmp"
+
+    rm -f "$tmpfile"
+    : > "$tmpfile"
+
+    # Send command to modem via PTY
+    printf '%s\r' "$cmd" > "$dev"
+
+    # Background reader — captures all modem output to temp file
+    cat "$dev" > "$tmpfile" 2>/dev/null &
+    local reader_pid=$!
+
+    # Poll for OK/ERROR with wall-clock timeout
+    local elapsed=0
+    while [ "$elapsed" -lt "$max_secs" ]; do
+        sleep 1
+        elapsed=$((elapsed + 1))
+        if grep -qe 'OK' -e 'ERROR' "$tmpfile" 2>/dev/null; then
+            # Brief pause to capture any trailing output after OK
+            sleep 0.5
+            break
+        fi
+    done
+
+    # Stop the reader
+    kill "$reader_pid" 2>/dev/null
+    wait "$reader_pid" 2>/dev/null
+
+    # Read results and determine exit code
+    local output=""
+    [ -s "$tmpfile" ] && output=$(cat "$tmpfile")
+    rm -f "$tmpfile"
+
+    printf '%s' "$output"
+
+    case "$output" in
+        *OK*)    return 0 ;;
+        *ERROR*) return 1 ;;
+        *)       return 4 ;;  # Timeout — no OK or ERROR received
+    esac
+}
+
 # =============================================================================
 # EXECUTION
 #
@@ -192,8 +247,9 @@ if is_long_command "$COMMAND"; then
             # Warm-up: flush residual serial buffer data + confirm modem responsive
             sms_tool $SMS_TOOL_ARGS at "AT" > /dev/null 2>&1 || { rm -f "$PID_FILE"; exit 3; }
 
-            # Real command with outer safety timeout
-            timeout "$LONG_SAFETY_TIMEOUT" sms_tool $SMS_TOOL_ARGS at "$COMMAND" 2>/dev/null
+            # Real command via direct device I/O (sms_tool's 5s timeout is too
+            # short for long commands like AT+QSCAN which take up to 180s)
+            _run_long_at "$COMMAND" "$LONG_TIMEOUT" "$_sms_dev"
             cmd_rc=$?
             rm -f "$PID_FILE"
             exit $cmd_rc
@@ -209,6 +265,12 @@ if is_long_command "$COMMAND"; then
             qlog_at_cmd "$COMMAND" "$result" "$exit_code"
             output_result "$result" ""
             ;;
+        1)
+            qlog_error "Long command returned ERROR: ${COMMAND}"
+            qlog_at_cmd "$COMMAND" "$result" "$exit_code"
+            output_result "" "command_failed"
+            exit 1
+            ;;
         2)
             qlog_error "Lock acquisition failed for: ${COMMAND}"
             output_result "" "modem_busy"
@@ -219,8 +281,8 @@ if is_long_command "$COMMAND"; then
             output_result "" "modem_not_ready"
             exit 1
             ;;
-        143)
-            qlog_error "Long command killed by safety timeout: ${COMMAND}"
+        4)
+            qlog_error "Long command timed out (no OK/ERROR in ${LONG_TIMEOUT}s): ${COMMAND}"
             output_result "" "command_timeout"
             exit 1
             ;;
