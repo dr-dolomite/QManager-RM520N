@@ -35,30 +35,16 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { Separator } from "@/components/ui/separator";
-import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
-import {
   AlertTriangleIcon,
   Check,
   ChevronsUpDown,
-  LoaderCircle,
 } from "lucide-react";
 import { SaveButton, useSaveFlash } from "@/components/ui/save-button";
 import { motion, type Variants } from "motion/react";
-import { TbInfoCircleFilled } from "react-icons/tb";
 
 import type {
   UseSystemSettingsReturn,
@@ -200,16 +186,7 @@ function SystemSettingsForm({
   const [timezone, setTimezone] = useState(settings?.timezone ?? "UTC0");
   const [tzOpen, setTzOpen] = useState(false);
 
-  // SMS Tool Port toggle state (saves immediately + requires reboot)
-  const [smsToolSmd7, setSmsToolSmd7] = useState(
-    (settings?.sms_tool_device ?? "") === "/dev/smd7",
-  );
-  const [showSmsPortDialog, setShowSmsPortDialog] = useState(false);
-  const [pendingSmsPortValue, setPendingSmsPortValue] = useState(false);
-  const [smsPortSaving, setSmsPortSaving] = useState(false);
-  const [isRebooting, setIsRebooting] = useState(false);
-
-  // --- Dirty check (only for items 2-4, not WAN Guard or SMS port) ---
+  // --- Dirty check ---
   const isDirty = useMemo(() => {
     if (!settings) return false;
     return (
@@ -220,49 +197,6 @@ function SystemSettingsForm({
   }, [settings, tempUnit, distanceUnit, zonename]);
 
   const canSave = isDirty && !isSaving;
-
-  // --- SMS Tool Port toggle: show confirmation dialog ---
-  const handleSmsPortToggle = useCallback((checked: boolean) => {
-    setPendingSmsPortValue(checked);
-    setShowSmsPortDialog(true);
-  }, []);
-
-  // --- SMS Tool Port: save setting then optionally reboot ---
-  const confirmSmsPortChange = useCallback(
-    async (rebootNow: boolean) => {
-      setSmsPortSaving(true);
-      const deviceValue = pendingSmsPortValue ? "/dev/smd7" : "";
-
-      const success = await saveSettings({
-        action: "save_settings",
-        sms_tool_device: deviceValue,
-      });
-
-      if (success) {
-        setSmsToolSmd7(pendingSmsPortValue);
-        if (rebootNow) {
-          setIsRebooting(true);
-          fetch("/cgi-bin/quecmanager/system/reboot.sh", {
-            method: "POST",
-          }).catch(() => {});
-          setTimeout(() => {
-            sessionStorage.setItem("qm_rebooting", "1");
-            document.cookie = "qm_logged_in=; Path=/; Max-Age=0";
-            window.location.href = "/reboot/";
-          }, 2000);
-        } else {
-          toast.success("SMS tool port updated — reboot required");
-          setShowSmsPortDialog(false);
-          setSmsPortSaving(false);
-        }
-      } else {
-        toast.error("Failed to update SMS tool port");
-        setSmsPortSaving(false);
-        setShowSmsPortDialog(false);
-      }
-    },
-    [pendingSmsPortValue, saveSettings],
-  );
 
   // --- Timezone change handler ---
   const handleTimezoneChange = useCallback((selectedZonename: string) => {
@@ -324,45 +258,6 @@ function SystemSettingsForm({
           initial="hidden"
           animate="visible"
         >
-          {/* ── SMS Tool Port ────────────────────────────────────── */}
-          <Separator />
-          <motion.div variants={itemVariants} className="flex items-center justify-between">
-            <div className="flex items-center gap-1.5">
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <button
-                    type="button"
-                    className="inline-flex"
-                    aria-label="SMS tool port info"
-                  >
-                    <TbInfoCircleFilled className="size-5 text-info" />
-                  </button>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>
-                    Use /dev/smd7 instead of the default /dev/smd11 for
-                    <br />
-                    AT command and SMS communication. Requires a reboot.
-                  </p>
-                </TooltipContent>
-              </Tooltip>
-              <p className="font-semibold text-muted-foreground text-sm">
-                SMS Tool Port (smd7)
-              </p>
-            </div>
-            <div className="flex items-center space-x-2">
-              <Switch
-                id="sms-tool-smd7"
-                checked={smsToolSmd7}
-                onCheckedChange={handleSmsPortToggle}
-                disabled={smsPortSaving || isRebooting}
-              />
-              <Label htmlFor="sms-tool-smd7">
-                {smsToolSmd7 ? "smd7" : "Default"}
-              </Label>
-            </div>
-          </motion.div>
-
           {/* ── Temperature Unit ──────────────────────────────────── */}
           <Separator />
           <motion.div variants={itemVariants} className="flex items-center justify-between">
@@ -470,60 +365,6 @@ function SystemSettingsForm({
         </motion.div>
       </CardContent>
 
-      {/* ── SMS Tool Port Reboot Confirmation Dialog ─────────── */}
-      <AlertDialog
-        open={showSmsPortDialog}
-        onOpenChange={(open) => {
-          if (!smsPortSaving && !isRebooting) setShowSmsPortDialog(open);
-        }}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Reboot Required</AlertDialogTitle>
-            <AlertDialogDescription>
-              Changing the SMS tool port to{" "}
-              <strong>{pendingSmsPortValue ? "/dev/smd7" : "default (smd11)"}</strong>{" "}
-              requires a device reboot to take effect. Would you like to reboot
-              now?
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={smsPortSaving || isRebooting}>
-              Cancel
-            </AlertDialogCancel>
-            <Button
-              variant="outline"
-              disabled={smsPortSaving || isRebooting}
-              onClick={() => confirmSmsPortChange(false)}
-            >
-              {smsPortSaving ? (
-                <>
-                  <LoaderCircle className="size-4 animate-spin" />
-                  Saving...
-                </>
-              ) : (
-                "Reboot Later"
-              )}
-            </Button>
-            <AlertDialogAction
-              disabled={smsPortSaving || isRebooting}
-              onClick={(e) => {
-                e.preventDefault();
-                confirmSmsPortChange(true);
-              }}
-            >
-              {isRebooting ? (
-                <>
-                  <LoaderCircle className="size-4 animate-spin" />
-                  Rebooting...
-                </>
-              ) : (
-                "Save & Reboot"
-              )}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </Card>
   );
 }

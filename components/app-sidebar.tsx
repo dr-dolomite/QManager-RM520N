@@ -210,10 +210,10 @@ const data = {
           title: "Latency Monitor",
           url: "/monitoring/latency",
         },
-        {
-          title: "Email Alerts",
-          url: "/monitoring/email-alerts",
-        },
+        // {
+        //   title: "Email Alerts",
+        //   url: "/monitoring/email-alerts",
+        // },
       ],
     },
     {

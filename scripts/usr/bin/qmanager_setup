@@ -15,7 +15,7 @@ fi
 rm -f /usr/.qm_rw_test
 
 # Ensure required directories exist
-mkdir -p /var/lock /etc/qmanager /usr/lib/qmanager /tmp/quecmanager
+mkdir -p /var/lock /etc/qmanager /usr/lib/qmanager /tmp/quecmanager /var/spool/cron/crontabs
 
 # Shared /tmp files — owned by www-data so CGI scripts can open them.
 # Root (daemons) can still open because root owns the /tmp directory.

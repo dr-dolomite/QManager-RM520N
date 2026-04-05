@@ -138,8 +138,20 @@ export function useSystemSettings(): UseSystemSettingsReturn {
           return false;
         }
 
-        // Silent re-fetch to sync all state
-        await fetchSettings(true);
+        // Use response data directly when available (avoids re-fetch race),
+        // fall back to silent re-fetch for actions that don't return full state.
+        if (json.scheduled_reboot) {
+          setScheduledReboot(json.scheduled_reboot);
+        } else if (json.low_power) {
+          // Future: setLowPower(json.low_power) when low power hook exists
+        }
+
+        // Re-fetch for save_settings (preferences) which doesn't return
+        // schedule data — and to sync any other state we didn't capture above.
+        if (payload.action === "save_settings") {
+          await fetchSettings(true);
+        }
+
         return true;
       } catch (err) {
         if (!mountedRef.current) return false;

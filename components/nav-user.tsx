@@ -155,12 +155,16 @@ export function NavUser({
   };
 
   // --- Reboot (optimistic) ---
-  // Fire the reboot request and redirect to the countdown page.
-  // The backend flushes its response then reboots after 1s — the countdown
-  // page handles polling for device readiness and redirects to login.
+  // Navigate to the countdown page FIRST, then fire the reboot request.
+  // This ensures the /reboot/ page loads from cache/memory before the
+  // device goes offline. The backend delays reboot by 1s after responding.
   const handleReboot = async (e: React.MouseEvent) => {
     e.preventDefault();
     setRebooting(true);
+
+    // Prepare session state for the countdown page
+    sessionStorage.setItem("qm_rebooting", "1");
+    document.cookie = "qm_logged_in=; Path=/; Max-Age=0";
 
     // Fire-and-forget: send the reboot POST, don't await the response.
     fetch("/cgi-bin/quecmanager/system/reboot.sh", {
@@ -169,12 +173,8 @@ export function NavUser({
       body: JSON.stringify({ action: "reboot" }),
     }).catch(() => {});
 
-    // Clear session and redirect to countdown page.
-    setTimeout(() => {
-      sessionStorage.setItem("qm_rebooting", "1");
-      document.cookie = "qm_logged_in=; Path=/; Max-Age=0";
-      window.location.href = "/reboot/";
-    }, 2000);
+    // Navigate to countdown page immediately
+    window.location.href = "/reboot/";
   };
 
   const handleReconnect = async (e: React.MouseEvent) => {

@@ -53,14 +53,17 @@ sys_get_zonename() {
 }
 
 # Set timezone (persists to config + applies live)
-# Args: $1 = POSIX TZ string, $2 = zone name (optional display name)
+# Args: $1 = POSIX TZ string, $2 = zone name (IANA, e.g., "Asia/Manila")
 sys_set_timezone() {
     local tz="$1" zn="${2:-}"
     [ -z "$tz" ] && return 1
     qm_config_set settings timezone "$tz"
     [ -n "$zn" ] && qm_config_set settings zonename "$zn"
-    # Apply to running system via TZ environment
+    # Apply to running system: symlink /etc/localtime (standard Linux)
+    if [ -n "$zn" ] && [ -f "/usr/share/zoneinfo/$zn" ]; then
+        ln -sf "/usr/share/zoneinfo/$zn" /etc/localtime 2>/dev/null
+    fi
+    # Also export TZ for the current process and /etc/TZ as fallback
     export TZ="$tz"
-    # Try to set /etc/TZ for daemons (common on embedded Linux)
     echo "$tz" > /etc/TZ 2>/dev/null
 }
