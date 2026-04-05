@@ -71,7 +71,7 @@ QManager requires the [Quectel RGMII Toolkit](https://github.com/iamromulan/quec
 If you haven't installed the toolkit yet, ADB into your modem and run:
 
 ```sh
-cd /tmp && wget -O RMxxx_rgmii_toolkit.sh \
+cd /tmp && curl -fsSL -o RMxxx_rgmii_toolkit.sh \
   https://raw.githubusercontent.com/iamromulan/quectel-rgmii-toolkit/SDXLEMUR/RMxxx_rgmii_toolkit.sh && \
   chmod +x RMxxx_rgmii_toolkit.sh && ./RMxxx_rgmii_toolkit.sh && cd /
 ```
@@ -85,7 +85,7 @@ Follow the prompts to install SimpleAdmin and Entware. Once that's done, you're 
 1. ADB or SSH into the modem and run:
 
 ```sh
-/opt/bin/wget -O /tmp/qmanager-installer.sh \
+curl -fsSL -o /tmp/qmanager-installer.sh \
   https://github.com/dr-dolomite/QManager-RM520N/raw/refs/heads/main/qmanager-installer.sh && \
   bash /tmp/qmanager-installer.sh
 ```
