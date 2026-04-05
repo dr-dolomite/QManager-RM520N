@@ -23,6 +23,7 @@ export const EVENT_LABELS: Record<NetworkEventType, string> = {
   profile_applied: "Profile Applied",
   profile_failed: "Profile Failed",
   profile_deactivated: "Profile Deactivated",
+  tower_failover: "Tower Lock Failover",
 };
 
 /** Tab categories used by the monitoring Network Events card */
@@ -52,4 +53,5 @@ export const EVENT_TAB_CATEGORIES: Record<NetworkEventType, EventTabCategory> =
     profile_applied: "dataConnection",
     profile_failed: "dataConnection",
     profile_deactivated: "dataConnection",
+    tower_failover: "dataConnection",
   };

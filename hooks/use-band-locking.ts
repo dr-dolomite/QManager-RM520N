@@ -76,6 +76,7 @@ export function useBandLocking(): UseBandLockingReturn {
   const [failover, setFailover] = useState<FailoverState>({
     enabled: false,
     activated: false,
+    watcher_running: false,
   });
   const [isLoading, setIsLoading] = useState(true);
   const [lockingCategory, setLockingCategory] = useState<BandCategory | null>(
@@ -172,8 +173,11 @@ export function useBandLocking(): UseBandLockingReturn {
         const data: FailoverStatusResponse = await resp.json();
         if (!mountedRef.current) return;
 
-        // Watcher still running — keep polling
-        if (data.watcher_running) return;
+        // Watcher still running — update state to show "Monitoring", keep polling
+        if (data.watcher_running) {
+          setFailover({ enabled: data.enabled, activated: data.activated, watcher_running: true });
+          return;
+        }
 
         // Watcher finished — stop polling and update state
         if (failoverPollRef.current) {
@@ -181,7 +185,7 @@ export function useBandLocking(): UseBandLockingReturn {
           failoverPollRef.current = null;
         }
 
-        setFailover({ enabled: data.enabled, activated: data.activated });
+        setFailover({ enabled: data.enabled, activated: data.activated, watcher_running: false });
 
         // If failover activated, bands were reset — re-fetch to get new values
         if (data.activated) {

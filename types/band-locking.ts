@@ -47,6 +47,8 @@ export interface FailoverState {
   enabled: boolean;
   /** Whether failover has fired and overrode the user's lock */
   activated: boolean;
+  /** Whether the failover watcher daemon is currently monitoring */
+  watcher_running: boolean;
 }
 
 /** Response from GET /cgi-bin/quecmanager/bands/current.sh */

@@ -22,6 +22,7 @@ import {
   TriangleAlertIcon,
   CheckCircle2Icon,
   MinusCircleIcon,
+  Loader2Icon,
 } from "lucide-react";
 import { toast } from "sonner";
 import type { FailoverState } from "@/types/band-locking";
@@ -142,6 +143,18 @@ const BandSettingsComponent = ({
         >
           <TriangleAlertIcon className="h-3 w-3" />
           Fallback Active
+        </Badge>
+      );
+    }
+
+    if (failover.watcher_running) {
+      return (
+        <Badge
+          variant="outline"
+          className="bg-info/15 text-info hover:bg-info/20 border-info/30"
+        >
+          <Loader2Icon className="h-3 w-3 animate-spin" />
+          Monitoring
         </Badge>
       );
     }

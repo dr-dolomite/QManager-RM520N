@@ -32,6 +32,9 @@ qlog_init "tower_failover"
 # --- Load tower lock library -------------------------------------------------
 [ -f /usr/lib/qmanager/tower_lock_mgr.sh ] && . /usr/lib/qmanager/tower_lock_mgr.sh 2>/dev/null
 
+# --- Load events library (for append_event) ----------------------------------
+[ -f /usr/lib/qmanager/events.sh ] && . /usr/lib/qmanager/events.sh 2>/dev/null
+
 # --- Constants ---------------------------------------------------------------
 PID_FILE="/tmp/qmanager_tower_failover.pid"
 FLAG_FILE="/tmp/qmanager_tower_failover"
@@ -135,6 +138,7 @@ while true; do
                 tower_config_update '.lte.enabled = false | .nr_sa.enabled = false'
                 echo "activated" > "$FLAG_FILE"
                 qlog_warn "FAILOVER COMPLETE — locks cleared"
+                append_event "tower_failover" "Tower locks cleared — signal quality ${quality}% below ${threshold}% threshold" "warning"
             else
                 qlog_error "FAILOVER FAILED — retrying in 5s"
                 sleep 5
@@ -144,6 +148,7 @@ while true; do
                 tower_config_update '.lte.enabled = false | .nr_sa.enabled = false'
                 echo "activated" > "$FLAG_FILE"
                 qlog_warn "FAILOVER COMPLETE (retry)"
+                append_event "tower_failover" "Tower locks cleared after retry — signal quality ${quality}% below ${threshold}% threshold" "warning"
             fi
 
             # Re-apply custom MTU after interface bounce

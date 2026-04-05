@@ -53,11 +53,12 @@ The RM520N-GL is a fundamentally different platform: it runs its own Linux OS in
 | **AT primary port** | `/dev/smd7` (claimed by `port_bridge` at boot — must kill) |
 | **AT secondary port** | `/dev/smd11` (free, immediately available) |
 | **AT bridge devices** | `/dev/ttyOUT` (smd11), `/dev/ttyOUT2` (smd7) |
-| **AT tools** | `microcom` (production), `atcmd`/`atcmd11` (interactive) |
+| **AT tools** | `sms_tool` via `qcmd` (production), `microcom` (interactive), `atcmd`/`atcmd11` (legacy) |
 | **Web server** | lighttpd (Entware, HTTPS on 443) |
 | **Config storage** | `/usrdata/` (persistent, writable) |
 | **LAN config** | `/etc/data/mobileap_cfg.xml` (xmlstarlet) |
-| **Root filesystem** | Read-only by default (`mount -o remount,rw /` to modify) |
+| **Root filesystem** | ubifs (`ubi0:rootfs`), boots read-only (`mount -o remount,rw /`); `sync` before reboot |
+| **`/etc/`** | tmpfs — **volatile** (lost on reboot); exception: `/etc/qmanager/` is on rootfs |
 | **Persistent partition** | `/usrdata/` |
 | **Package manager** | Entware opkg at `/opt` (bind-mounted from `/usrdata/opt`) |
 | **Firewall** | iptables (direct rules, no framework like fw4) |
@@ -76,15 +77,15 @@ This table maps every major subsystem between the current QManager target (RM551
 | **Init** | procd + rc.d | systemd | Rewrite all init.d scripts as `.service` units |
 | **Package mgr** | opkg (built-in) | Entware opkg at `/opt` | Different package names, install paths |
 | **Root FS** | Writable (SquashFS + overlay) | Read-only (remount required) | Must stage writes, prefer `/usrdata/` |
-| **AT transport** | `sms_tool` via USB CDC ACM | socat PTY bridge via internal SMD | Replace `qcmd` wrapper entirely |
+| **AT transport** | `sms_tool` via USB CDC ACM | `sms_tool` (bundled static ARM binary) via socat PTY bridge on internal SMD | `qcmd` wrapper rewritten for flock + ttyOUT2 |
 | **AT device** | USB device (host-side) | `/dev/smd7`, `/dev/smd11` (internal) | No USB enumeration dependency |
-| **AT locking** | Implicit (single `sms_tool` call) | **None** (must add `flock`) | Critical: concurrent AT = garbage |
+| **AT locking** | Implicit (single `sms_tool` call) | `flock` in `qcmd` (read-only FD for `fs.protected_regular`) | Implemented: `qcmd` serializes all access |
 | **Web server** | uhttpd (built-in) | lighttpd (Entware) | Different CGI config, auth mechanism |
 | **Firewall** | nftables (fw4) | iptables (direct) | Rewrite all firewall rules |
 | **TTL interface** | `wwan0` | `rmnet+` (wildcard) | Update interface names in rules |
 | **CGI shell** | `/bin/sh` (BusyBox ash) | `/bin/bash` | More features available; decide on POSIX compat |
 | **Config system** | UCI (`/etc/config/`) | Files in `/usrdata/` + XML for LAN | Replace all `uci` calls |
-| **Persistent storage** | `/overlay/`, `/etc/` | `/usrdata/` | Different backup/restore paths |
+| **Persistent storage** | `/overlay/`, `/etc/` | `/usrdata/`, rootfs (`/lib/systemd/`, `/etc/qmanager/`). `/etc/` itself is tmpfs (volatile). | Different backup/restore paths |
 | **Auth** | Cookie-based multi-session | HTTP Basic Auth (`.htpasswd`) | Different auth middleware |
 | **LAN config** | UCI network config | XML (`mobileap_cfg.xml`) via xmlstarlet | Completely different API |
 | **Compound AT** | Semicolon batching via `qcmd` | Supported, but needs serialization | Add `flock` around compound commands |
@@ -342,35 +343,20 @@ multi-user.target
 
 ### Porting Considerations: AT Transport
 
-This is the highest-risk area of the port. The entire QManager backend depends on `qcmd` (a wrapper around `sms_tool`), which does not exist on the RM520N-GL.
+This was the highest-risk area of the port. The entire QManager backend communicates through `qcmd`, which originally wrapped `sms_tool` over USB on OpenWRT.
 
-#### 1. Replace `qcmd` with a new AT wrapper
+#### 1. `qcmd` — RM520N-GL Variant (COMPLETE)
 
-Create a `qcmd`-compatible wrapper that uses `microcom` internally:
+The RM520N-GL `qcmd` (`scripts/usr/bin/qcmd`) uses `sms_tool` targeting the smd7 PTY bridge (`/dev/ttyOUT2`) with `flock` serialization. The interface contract is identical to the RM551E variant -- all callers work without modification.
 
-```bash
-#!/bin/bash
-# /usr/bin/qcmd — AT command wrapper for RM520N-GL
-# Drop-in replacement for OpenWRT's qcmd (sms_tool wrapper)
+Key design decisions:
+- **`sms_tool` on `/dev/ttyOUT2`** (smd7), not microcom on ttyOUT (smd11). sms_tool has timing issues on ttyOUT but works reliably on ttyOUT2.
+- **`sms_tool` is bundled** as a static ARM binary in `dependencies/sms_tool` -- installed by the install script, no internet required.
+- **`flock` with read-only FD** (`9<"$LOCK_FILE"`) to avoid `fs.protected_regular` issues (see Known Platform Quirks).
+- **Device override:** Write a device path to `/etc/qmanager/at_device` to change the default.
+- **Long command detection:** Commands matching patterns in `/etc/qmanager/long_commands.list` get extended timeouts (240s) and block other callers immediately.
 
-DEVICE="/dev/ttyOUT"    # smd11 bridge (primary)
-LOCK="/var/lock/at_smd11.lock"
-TIMEOUT_MS=2000
-
-command="$*"
-[ -z "$command" ] && { echo "Usage: qcmd <AT command>"; exit 1; }
-
-# Serialize access — NO built-in locking on this platform
-exec 9>"$LOCK"
-flock -w 5 9 || { echo "ERROR: AT port busy (lock timeout)"; exit 1; }
-
-result=$(echo -en "${command}\r\n" | microcom -t "$TIMEOUT_MS" "$DEVICE" 2>/dev/null)
-
-exec 9>&-
-echo "$result"
-```
-
-> **CRITICAL: `flock` is mandatory.** Unlike the RM551E (where `sms_tool` implicitly serializes access), the RM520N-GL's PTY bridge has no locking. Concurrent AT commands from the poller, CGI scripts, and user terminal will interleave on the wire, producing corrupt responses. Every AT access must go through a single locked wrapper.
+> **CRITICAL: `flock` is mandatory.** Unlike the RM551E (where `sms_tool` implicitly serializes access), the RM520N-GL's PTY bridge has no locking. Concurrent AT commands from the poller, CGI scripts, and user terminal will interleave on the wire, producing corrupt responses. Every AT access must go through the single locked `qcmd` wrapper.
 
 #### 2. Compound AT command support
 
@@ -429,37 +415,62 @@ The `qcmd` wrapper should accept an optional timeout parameter or use command-sp
 ### Filesystem Layout
 
 ```
-/                           ← Read-only root (remount-rw for changes)
+/                           ← ubifs (ubi0:rootfs), boots read-only (assert=read-only)
+│                             mount -o remount,rw / before writes, sync after
 ├── bin/
-│   └── bash                ← Native bash (not BusyBox)
+│   ├── bash                ← Native bash (not BusyBox)
+│   ├── systemctl           ← systemd control (NOTE: /bin/, not /usr/bin/)
+│   ├── ln                  ← Used by svc_enable (full path: /bin/ln)
+│   └── rm                  ← Used by svc_disable (full path: /bin/rm)
+├── sbin/
+│   └── reboot              ← Symlink to /bin/systemctl
 ├── dev/
 │   ├── smd7                ← Primary AT channel (raw SMD)
 │   ├── smd11               ← Secondary AT channel (raw SMD)
 │   ├── ttyIN, ttyOUT       ← socat PTY pair for smd11
 │   └── ttyIN2, ttyOUT2     ← socat PTY pair for smd7
-├── etc/
-│   └── data/
-│       └── mobileap_cfg.xml  ← LAN/DHCP config (xmlstarlet)
+├── etc/                    ← tmpfs — VOLATILE, lost on reboot
+│   ├── data/
+│   │   └── mobileap_cfg.xml  ← LAN/DHCP config (xmlstarlet)
+│   └── qmanager/           ← ON rootfs (ubifs), persists despite /etc/ being tmpfs
+├── lib/
+│   └── systemd/system/     ← ON rootfs — service files and symlinks PERSIST
+│       └── multi-user.target.wants/  ← Boot symlinks (svc_enable/svc_disable)
 ├── opt/ → /usrdata/opt     ← Entware (bind mount)
-│   ├── bin/                ← Entware binaries
+│   ├── bin/                ← Entware binaries (incl. sudo)
 │   ├── sbin/               ← Entware system binaries
 │   └── etc/lighttpd/       ← Web server config
 ├── usr/
-│   └── bin/
-│       ├── port_bridge     ← Qualcomm USB-AT bridge (killed at boot)
-│       ├── socat-armel-static  ← Static socat binary
-│       ├── atcmd            ← AT tool for smd7
-│       └── atcmd11          ← AT tool for smd11
+│   ├── bin/
+│   │   ├── port_bridge     ← Qualcomm USB-AT bridge (killed at boot)
+│   │   ├── socat-armel-static  ← Static socat binary
+│   │   ├── atcmd            ← AT tool for smd7
+│   │   └── atcmd11          ← AT tool for smd11
+│   └── sbin/
+│       ├── iptables         ← Firewall (NOTE: /usr/sbin/, not in sudo secure_path)
+│       └── ip6tables        ← IPv6 firewall
 ├── usrdata/                ← Persistent writable partition
 │   ├── opt/                ← Entware installation
 │   ├── simplefirewall/     ← TTL value, firewall scripts
-│   ├── tailscale/          ← Tailscale state
-│   └── ...                 ← QManager config would go here
-└── tmp/                    ← Tmpfs (volatile)
+│   └── ...
+└── tmp/                    ← Tmpfs (volatile, always writable)
     └── watchcat.json       ← Watchdog state
 ```
 
-**Key difference from OpenWRT:** On OpenWRT, `/etc/config/` (UCI) is the canonical config store and survives reboots via the overlay filesystem. On the RM520N-GL, the root FS is read-only. All persistent data must live under `/usrdata/`. QManager's config directory should be `/usrdata/qmanager/` instead of `/etc/qmanager/`.
+#### Filesystem Persistence Model
+
+| Mount point | Type | Persists? | Notes |
+|-------------|------|-----------|-------|
+| `/` (rootfs) | ubifs (`ubi0:rootfs`) | **Yes** | Boots with `assert=read-only`; `mount -o remount,rw /` before writes |
+| `/lib/systemd/system/` | On rootfs | **Yes** | Service files and boot symlinks survive reboots |
+| `/etc/` | tmpfs | **No** | Volatile — lost on reboot |
+| `/etc/qmanager/` | On rootfs (ubifs) | **Yes** | Exception: resides on rootfs despite `/etc/` being tmpfs |
+| `/usrdata/` | Persistent partition | **Yes** | Primary writable storage for config, Entware, etc. |
+| `/tmp/` | tmpfs | **No** | Always writable, volatile |
+
+> **WARNING:** Always run `sync` after writing to the rootfs before rebooting. ubifs writes may not flush to NAND immediately, and data written just before reboot can be lost.
+
+**Key difference from OpenWRT:** On OpenWRT, `/etc/config/` (UCI) is the canonical config store and survives reboots via the overlay filesystem. On the RM520N-GL, `/etc/` is tmpfs (volatile). QManager's config directory is `/etc/qmanager/` which persists because it resides on the ubifs rootfs, not the tmpfs overlay. Bulk persistent data lives under `/usrdata/`.
 
 ### Service Hierarchy
 
@@ -518,13 +529,25 @@ The RM520N-GL uses lighttpd (from Entware) instead of OpenWRT's uhttpd. Key conf
 | Reverse proxy | Not used | `/console` → ttyd on 127.0.0.1:8080 |
 | Process user | root (typically) | `www-data:dialout` |
 
-**Process permissions:** lighttpd runs as `www-data:dialout`. The `dialout` group grants access to serial devices (`/dev/ttyOUT`, `/dev/ttyOUT2`). For operations requiring root (iptables, service management), a sudoers rule allows:
+**Process permissions:** lighttpd runs as `www-data:dialout`. The `dialout` group grants access to serial devices (`/dev/ttyOUT`, `/dev/ttyOUT2`). For operations requiring root (iptables, service management), sudoers rules in `/opt/etc/sudoers.d/qmanager` allow specific commands:
 
 ```
-www-data ALL = (root) NOPASSWD: /usr/sbin/iptables, /usr/sbin/iptables-restore, ...
+# Service control (platform.sh svc_* functions)
+www-data ALL=(root) NOPASSWD: /bin/systemctl start *, /bin/systemctl stop *, /bin/systemctl restart *, /bin/systemctl is-active *
+
+# Boot persistence (symlink-based — systemctl enable doesn't work)
+www-data ALL=(root) NOPASSWD: /bin/ln -sf /lib/systemd/system/qmanager*.service ...
+www-data ALL=(root) NOPASSWD: /bin/rm -f /lib/systemd/system/multi-user.target.wants/qmanager*.service
+
+# Firewall, reboot, crontab
+www-data ALL=(root) NOPASSWD: /usr/sbin/iptables, /usr/sbin/iptables-restore, /usr/sbin/ip6tables, /usr/sbin/ip6tables-restore
+www-data ALL=(root) NOPASSWD: /sbin/reboot
+www-data ALL=(root) NOPASSWD: /usr/bin/crontab
 ```
 
-QManager's scripts that call `iptables`, `service`, `reboot`, etc., will need `sudo` prefixes when running under lighttpd's `www-data` user.
+> **WARNING: Entware sudo `secure_path` restriction.** Entware's sudo has a restricted `secure_path` that does NOT include `/sbin/` or `/usr/sbin/`. All `$_SUDO` commands in `platform.sh` **must use full absolute paths** — bare command names (`systemctl`, `reboot`, `iptables`) will fail silently from CGI context. Key paths: `systemctl` is at `/bin/systemctl` (not `/usr/bin/systemctl`), `reboot` is at `/sbin/reboot`, `iptables` is at `/usr/sbin/iptables`. The `$_SYSTEMCTL` variable in `platform.sh` centralizes the systemctl path.
+
+QManager's `platform.sh` provides wrapper functions (`svc_start`, `svc_stop`, `run_iptables`, `run_reboot`, etc.) that add `$_SUDO` with the correct full paths automatically. CGI scripts should use these wrappers, never bare commands.
 
 ### CGI AT Command Execution
 
@@ -776,19 +799,19 @@ The RM520N-GL already has Tailscale support, making the port of QManager's Tails
 
 ### Phase 1: AT Transport Layer ✅ COMPLETE
 
-Delivered `qcmd_rm520n` (microcom + flock serialization), `sms_rm520n.sh` (SMS CGI), and `qcmd_test_rm520n` (smoke tests).
+Delivered `qcmd` (sms_tool + flock serialization on `/dev/ttyOUT2`), `sms.sh` (SMS CGI), and `qcmd_test` (smoke tests). Source files use deployment names directly (no `_rm520n` suffix).
 
 ### Phase 2: Init System & Config Migration ✅ COMPLETE
 
-Delivered 9 systemd unit files, `config.sh` (UCI replacement library with JSON config at `/etc/qmanager/qmanager.conf`), `qmanager_setup` one-shot, and daemon UCI removal.
+Delivered 8 systemd service files (installed to `/lib/systemd/system/`, no intermediate `qmanager.target`), `config.sh` (UCI replacement library with JSON config at `/etc/qmanager/qmanager.conf`), `qmanager_setup` one-shot (remounts rootfs rw at boot), and daemon UCI removal.
 
 ### Phase 3: CGI & Script Migration ✅ COMPLETE
 
-All UCI, `/etc/init.d/`, `ifdown`/`ifup`, and procd patterns removed from CGI scripts, library scripts, and daemon scripts. Created `platform.sh` (systemd service control abstraction with sudo for www-data), `system_config.sh` (hostname/timezone via standard Linux APIs). Watchcat Tier 1 recovery migrated from `ifdown`/`ifup` to `AT+COPS=2`/`AT+COPS=0`.
+All UCI, `/etc/init.d/`, `ifdown`/`ifup`, and procd patterns removed from CGI scripts, library scripts, and daemon scripts. Created `platform.sh` (systemd service control abstraction with sudo for www-data, `svc_enable`/`svc_disable` via symlinks, `pid_alive()` for cross-user PID checks), `system_config.sh` (hostname/timezone via standard Linux APIs). Watchcat Tier 1 recovery migrated from `ifdown`/`ifup` to `AT+COPS=2`/`AT+COPS=0`. `cgi_base.sh` sources `platform.sh`, making `pid_alive` available to all CGI scripts.
 
 ### Phase 4: Web Server, Auth & Deployment ✅ COMPLETE
 
-Delivered lighttpd config (no HTTP Basic Auth — QManager's cookie-based sessions pass through), sudoers rules for `www-data`, `install_rm520n.sh` and `uninstall_rm520n.sh` (systemd + Entware), TLS cert management, and Web Console nav entry. Build script updated to include RM520N-GL files in tarball.
+Delivered lighttpd config (no HTTP Basic Auth -- QManager's cookie-based sessions pass through), sudoers rules for `www-data`, `install_rm520n.sh` and `uninstall_rm520n.sh` (systemd + Entware), TLS cert management, and Web Console nav entry. Build script updated to produce RM520N-GL-only tarball with bundled dependencies (`dependencies/` folder: `sms_tool`, `jq.ipk`, `dropbear.ipk`). Install is fully offline-capable.
 
 ### Phase 5: Final Cleanup ✅ COMPLETE
 

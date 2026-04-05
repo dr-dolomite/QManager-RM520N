@@ -91,7 +91,14 @@ if [ -f "$FAILOVER_ACTIVATED_FLAG" ]; then
     failover_activated="true"
 fi
 
+watcher_running="false"
+WATCHER_PID_FILE="/tmp/qmanager_band_failover.pid"
+if [ -f "$WATCHER_PID_FILE" ]; then
+    watcher_pid=$(cat "$WATCHER_PID_FILE" 2>/dev/null | tr -d ' \n\r')
+    pid_alive "$watcher_pid" && watcher_running="true"
+fi
+
 # --- Response ----------------------------------------------------------------
 jq -n --arg lte "$lte_bands" --arg nsa "$nsa_nr5g_bands" --arg sa "$sa_nr5g_bands" \
-    --argjson fe "$failover_enabled" --argjson fa "$failover_activated" \
-    '{"success":true,"current":{"lte_bands":$lte,"nsa_nr5g_bands":$nsa,"sa_nr5g_bands":$sa},"failover":{"enabled":$fe,"activated":$fa}}'
+    --argjson fe "$failover_enabled" --argjson fa "$failover_activated" --argjson wr "$watcher_running" \
+    '{"success":true,"current":{"lte_bands":$lte,"nsa_nr5g_bands":$nsa,"sa_nr5g_bands":$sa},"failover":{"enabled":$fe,"activated":$fa,"watcher_running":$wr}}'

@@ -2,7 +2,7 @@
 # Install location: /opt/etc/sudoers.d/qmanager (Entware) or /etc/sudoers.d/qmanager
 
 # Service control (used by platform.sh svc_* functions)
-www-data ALL=(root) NOPASSWD: /usr/bin/systemctl start *, /usr/bin/systemctl stop *, /usr/bin/systemctl restart *, /usr/bin/systemctl is-active *
+www-data ALL=(root) NOPASSWD: /bin/systemctl start *, /bin/systemctl stop *, /bin/systemctl restart *, /bin/systemctl is-active *
 
 # Boot persistence (symlink-based — systemctl enable doesn't work on RM520N-GL)
 www-data ALL=(root) NOPASSWD: /bin/ln -sf /lib/systemd/system/qmanager*.service /lib/systemd/system/multi-user.target.wants/qmanager*.service

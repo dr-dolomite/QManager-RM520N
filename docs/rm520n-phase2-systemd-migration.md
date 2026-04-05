@@ -1,5 +1,7 @@
 # Phase 2: Systemd Migration Plan — RM520N-GL Port
 
+> **NOTE (2026-04-05):** This is a historical planning document. Key changes since this was written: (1) `qmanager.target` was dropped -- services are symlinked directly into `multi-user.target.wants/` (SimpleAdmin's proven pattern); (2) service files install to `/lib/systemd/system/` (persistent rootfs), not `/etc/systemd/system/` (tmpfs); (3) `systemctl enable/disable` does not work for boot persistence -- `platform.sh` uses symlink creation/removal instead. See `docs/rm520n-gl-architecture.md` for current state.
+
 This document covers converting QManager's 11 procd/rc.d init scripts and their associated daemons to systemd service units for the RM520N-GL port. Phase 1 (qcmd replacement with microcom + flock) is assumed complete. Phase 3 (CGI endpoint UCI migration) is a separate effort, but UCI reads inside daemon scripts are addressed here because services cannot start without their config.
 
 The RM520N-GL runs vanilla Linux with systemd, uses `/bin/bash` (not BusyBox ash), and accesses AT commands through the socat PTY bridge at `/dev/ttyOUT2`. All QManager scripts install to `/usr/bin/`, shared libraries to `/usr/lib/qmanager/`, and config files to `/etc/qmanager/` (writable partition on this device).

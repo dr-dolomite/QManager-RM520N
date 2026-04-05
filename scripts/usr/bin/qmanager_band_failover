@@ -1,16 +1,16 @@
 #!/bin/sh
 # =============================================================================
-# qmanager_band_failover — One-Shot Band Failover Watcher
+# qmanager_band_failover — Band Failover Polling Watcher
 # =============================================================================
 # Spawned by lock.sh (via double-fork) after a band lock operation when failover
-# is enabled. NOT a persistent daemon — runs once and exits.
+# is enabled. Monitors signal over 30 seconds and reverts if no carrier found.
 #
 # Lifecycle:
 #   1. Writes PID file for singleton tracking
 #   2. Sleeps 5 seconds (allows modem to settle after band change)
-#   3. Queries AT+QCAINFO via qcmd to check signal (lightweight, ~200ms)
-#   4. Checks response strictly for real carrier data (lines starting with ^+QCAINFO:)
-#   5. If response has no carrier data (no signal):
+#   3. Polls AT+QCAINFO every 5 seconds for up to 25 more seconds (5 checks)
+#   4. If ANY check finds carrier data → signal OK, exit (no failover)
+#   5. If ALL checks find no carrier data:
 #      a. Reads supported bands from status.json (cached at boot from policy_band)
 #      b. Resets all three band types to supported bands (unlock all)
 #      c. Writes activation flag for the UI
@@ -41,7 +41,9 @@ qlog_init "band_failover"
 PID_FILE="/tmp/qmanager_band_failover.pid"
 ACTIVATED_FLAG="/tmp/qmanager_band_failover"
 STATUS_CACHE="/tmp/qmanager_status.json"
-SETTLE_DELAY=5   # seconds to wait after band lock before checking
+SETTLE_DELAY=5   # seconds to wait after band lock before first check
+CHECK_INTERVAL=5 # seconds between checks
+MAX_CHECKS=5     # number of checks after settle (total monitoring: 5 + 5*5 = 30s)
 
 # --- Write PID file ----------------------------------------------------------
 echo $$ > "$PID_FILE"
@@ -51,27 +53,35 @@ cleanup() {
 }
 trap cleanup EXIT INT TERM
 
-qlog_info "Failover watcher started (PID=$$), waiting ${SETTLE_DELAY}s for modem to settle"
+qlog_info "Failover watcher started (PID=$$), settling ${SETTLE_DELAY}s then monitoring ${MAX_CHECKS}x${CHECK_INTERVAL}s"
 
 # --- Wait for modem to settle ------------------------------------------------
 sleep "$SETTLE_DELAY"
 
-# --- Check signal via AT+QCAINFO ---------------------------------------------
-# AT+QCAINFO is lightweight (~200ms) and gives a real-time signal check.
-# If the response contains no "+QCAINFO:" lines, the modem has no signal.
-# This is more reliable than reading status.json which may be stale.
+# --- Poll signal via AT+QCAINFO over monitoring window ----------------------
+# Check every CHECK_INTERVAL seconds, up to MAX_CHECKS times.
+# If ANY check finds carrier data, signal is OK — exit immediately.
+# If ALL checks fail, trigger failover.
 
-qcainfo_result=$(qcmd 'AT+QCAINFO' 2>/dev/null)
-qcainfo_rc=$?
+check=0
+while [ "$check" -lt "$MAX_CHECKS" ]; do
+    check=$((check + 1))
 
-if [ $qcainfo_rc -ne 0 ]; then
-    qlog_warn "AT+QCAINFO failed (rc=$qcainfo_rc) — modem may be unreachable, triggering failover"
-elif printf '%s\n' "$qcainfo_result" | grep -q '^+QCAINFO:'; then
-    qlog_info "Signal OK after band lock (QCAINFO has carrier data) — no failover needed"
-    exit 0
-else
-    qlog_warn "AT+QCAINFO returned no carrier data — no signal, triggering failover"
-fi
+    qcainfo_result=$(qcmd 'AT+QCAINFO' 2>/dev/null)
+    qcainfo_rc=$?
+
+    if [ $qcainfo_rc -eq 0 ] && printf '%s\n' "$qcainfo_result" | grep -q '^+QCAINFO:'; then
+        qlog_info "Signal OK (check ${check}/${MAX_CHECKS}, QCAINFO has carrier data) — no failover needed"
+        exit 0
+    fi
+
+    qlog_debug "No carrier data (check ${check}/${MAX_CHECKS})"
+
+    # Don't sleep after the last check
+    [ "$check" -lt "$MAX_CHECKS" ] && sleep "$CHECK_INTERVAL"
+done
+
+qlog_warn "No carrier data after ${MAX_CHECKS} checks over ~30s — triggering failover"
 
 # --- Failover: Read supported bands from status.json cache -------------------
 # Supported bands live under .device.supported_*_bands in status.json.

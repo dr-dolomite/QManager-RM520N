@@ -25,19 +25,22 @@ _svc_unit() {
     printf '%s' "$1" | sed 's/_/-/g'
 }
 
+# Full paths — Entware sudo's secure_path doesn't include /sbin or /usr/sbin
+_SYSTEMCTL="/bin/systemctl"
+
 # Start a service
 svc_start() {
-    $_SUDO systemctl start "$(_svc_unit "$1")" 2>/dev/null
+    $_SUDO $_SYSTEMCTL start "$(_svc_unit "$1")" 2>/dev/null
 }
 
 # Stop a service
 svc_stop() {
-    $_SUDO systemctl stop "$(_svc_unit "$1")" 2>/dev/null
+    $_SUDO $_SYSTEMCTL stop "$(_svc_unit "$1")" 2>/dev/null
 }
 
 # Restart a service
 svc_restart() {
-    $_SUDO systemctl restart "$(_svc_unit "$1")" 2>/dev/null
+    $_SUDO $_SYSTEMCTL restart "$(_svc_unit "$1")" 2>/dev/null
 }
 
 # Enable a service (start on boot via symlink — SimpleAdmin pattern)
@@ -48,13 +51,13 @@ _UNIT_DIR="/lib/systemd/system"
 
 svc_enable() {
     local unit="$(_svc_unit "$1").service"
-    $_SUDO ln -sf "$_UNIT_DIR/$unit" "$_WANTS_DIR/$unit" 2>/dev/null
+    $_SUDO /bin/ln -sf "$_UNIT_DIR/$unit" "$_WANTS_DIR/$unit" 2>/dev/null
 }
 
 # Disable a service (remove boot symlink)
 svc_disable() {
     local unit="$(_svc_unit "$1").service"
-    $_SUDO rm -f "$_WANTS_DIR/$unit" 2>/dev/null
+    $_SUDO /bin/rm -f "$_WANTS_DIR/$unit" 2>/dev/null
 }
 
 # Check if a service is enabled (boot symlink exists)
@@ -65,20 +68,20 @@ svc_is_enabled() {
 
 # Check if a service is currently running
 svc_is_running() {
-    $_SUDO systemctl is-active "$(_svc_unit "$1")" >/dev/null 2>&1
+    $_SUDO $_SYSTEMCTL is-active "$(_svc_unit "$1")" >/dev/null 2>&1
 }
 
 # Privileged command helpers — add sudo prefix for www-data context
 run_iptables() {
-    $_SUDO iptables "$@"
+    $_SUDO /usr/sbin/iptables "$@"
 }
 
 run_ip6tables() {
-    $_SUDO ip6tables "$@"
+    $_SUDO /usr/sbin/ip6tables "$@"
 }
 
 run_reboot() {
-    $_SUDO reboot "$@"
+    $_SUDO /sbin/reboot "$@"
 }
 
 # Check if a process is alive by PID — works cross-user (unlike kill -0).

@@ -504,7 +504,8 @@ export type NetworkEventType =
   | "airplane_mode"       // Airplane mode enabled/disabled (CFUN changed)
   | "profile_applied"     // Custom SIM Profile applied (complete or partial)
   | "profile_failed"      // Custom SIM Profile apply failed (all steps)
-  | "profile_deactivated"; // Custom SIM Profile deactivated by user
+  | "profile_deactivated" // Custom SIM Profile deactivated by user
+  | "tower_failover";     // Tower lock failover activated (signal below threshold)
 
 /** Severity level for UI icon coloring */
 export type EventSeverity = "info" | "warning" | "error";
