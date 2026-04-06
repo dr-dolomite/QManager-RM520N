@@ -52,20 +52,24 @@ LIB_DIR="/usr/lib/qmanager"
 BIN_DIR="/usr/bin"
 SYSTEMD_DIR="/lib/systemd/system"
 WANTS_DIR="/lib/systemd/system/multi-user.target.wants"
-# Detect Entware vs system sudo
-if [ -f /opt/etc/sudoers ]; then
-    SUDOERS_DIR="/opt/etc/sudoers.d"
-    SUDOERS_CONF="/opt/etc/sudoers"
-    SUDO_BIN="/opt/bin/sudo"
-elif [ -f /etc/sudoers ]; then
-    SUDOERS_DIR="/etc/sudoers.d"
-    SUDOERS_CONF="/etc/sudoers"
-    SUDO_BIN="/usr/bin/sudo"
-else
-    SUDOERS_DIR=""
-    SUDOERS_CONF=""
-    SUDO_BIN=""
-fi
+# Detect Entware vs system sudo (called as function — must re-evaluate
+# after install_dependencies installs sudo on a fresh modem)
+detect_sudo() {
+    if [ -f /opt/etc/sudoers ]; then
+        SUDOERS_DIR="/opt/etc/sudoers.d"
+        SUDOERS_CONF="/opt/etc/sudoers"
+        SUDO_BIN="/opt/bin/sudo"
+    elif [ -f /etc/sudoers ]; then
+        SUDOERS_DIR="/etc/sudoers.d"
+        SUDOERS_CONF="/etc/sudoers"
+        SUDO_BIN="/usr/bin/sudo"
+    else
+        SUDOERS_DIR=""
+        SUDOERS_CONF=""
+        SUDO_BIN=""
+    fi
+}
+detect_sudo
 CONF_DIR="/etc/qmanager"
 CERT_DIR="/usrdata/qmanager/certs"
 SESSION_DIR="/tmp/qmanager_sessions"
@@ -313,15 +317,21 @@ RCEOF
 
     # --- Entware packages (requires opkg to be available) ---------------------
     if [ -x "$OPKG" ]; then
-        # lighttpd (web server)
+        # lighttpd (web server + required modules)
+        "$OPKG" update >/dev/null 2>&1
         if [ -x /opt/sbin/lighttpd ]; then
             info "lighttpd is already installed"
         else
-            "$OPKG" update >/dev/null 2>&1
-            "$OPKG" install lighttpd lighttpd-mod-openssl >/dev/null 2>&1 \
-                && info "lighttpd + mod_openssl installed from Entware" \
+            "$OPKG" install lighttpd >/dev/null 2>&1 \
+                && info "lighttpd installed from Entware" \
                 || die "Failed to install lighttpd from Entware"
         fi
+        # Install required modules (Entware packages them ALL separately)
+        for mod in lighttpd-mod-cgi lighttpd-mod-openssl lighttpd-mod-redirect lighttpd-mod-proxy; do
+            "$OPKG" install "$mod" >/dev/null 2>&1 \
+                && info "$mod installed" \
+                || warn "$mod not available"
+        done
 
         # sudo (privilege escalation for CGI)
         if command -v sudo >/dev/null 2>&1; then
@@ -522,7 +532,8 @@ install_backend() {
         info "Systemd units installed to $SYSTEMD_DIR"
     fi
 
-    # --- Sudoers ---
+    # --- Sudoers (re-detect after install_dependencies may have installed sudo) ---
+    detect_sudo
     if [ -f "$SRC_SCRIPTS/etc/sudoers.d/qmanager" ] && [ -n "$SUDOERS_DIR" ]; then
         mkdir -p "$SUDOERS_DIR"
         # Ensure sudoers includes the drop-in directory
