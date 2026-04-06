@@ -21,8 +21,9 @@ info()  { printf "  ${GREEN}✓${NC}  %s\n" "$1"; }
 warn()  { printf "  ${YELLOW}⚠${NC}  %s\n" "$1"; }
 error() { printf "  ${RED}✗${NC}  %s\n" "$1"; }
 
-WWW_ROOT="/usrdata/simpleadmin/www"
-CGI_DIR="/usrdata/simpleadmin/www/cgi-bin/quecmanager"
+QMANAGER_ROOT="/usrdata/qmanager"
+WWW_ROOT="/usrdata/qmanager/www"
+CGI_DIR="/usrdata/qmanager/www/cgi-bin/quecmanager"
 LIB_DIR="/usr/lib/qmanager"
 BIN_DIR="/usr/bin"
 SYSTEMD_DIR="/lib/systemd/system"
@@ -37,7 +38,7 @@ elif [ -d /etc/sudoers.d ]; then
 else
     SUDOERS_FILE=""
 fi
-LIGHTTPD_CONF="/usrdata/simpleadmin/lighttpd.conf"
+LIGHTTPD_CONF="/usrdata/qmanager/lighttpd.conf"
 
 PURGE=0
 [ "$1" = "--purge" ] && PURGE=1
@@ -72,9 +73,7 @@ sleep 1
 info "Killed lingering processes"
 
 # --- Remove systemd unit files and boot symlinks ---
-# Remove from /lib/systemd/system/ (current location)
 rm -f "$SYSTEMD_DIR"/qmanager*.service "$SYSTEMD_DIR"/qmanager*.target
-# Remove direct symlinks from multi-user.target.wants
 rm -f /lib/systemd/system/multi-user.target.wants/qmanager*.service
 rm -f /lib/systemd/system/multi-user.target.wants/qmanager.target
 # Clean up old /etc/systemd/system/ location from previous installs
@@ -84,7 +83,7 @@ systemctl daemon-reload
 info "Removed systemd units and boot symlinks"
 
 # --- Remove daemons and bundled binaries ---
-rm -f "$BIN_DIR/qcmd" "$BIN_DIR/qcmd_test" "$BIN_DIR/sms_tool"
+rm -f "$BIN_DIR/qcmd" "$BIN_DIR/qcmd_test" "$BIN_DIR/atcli_smd11"
 rm -f "$BIN_DIR"/qmanager_*
 info "Removed daemons and binaries from $BIN_DIR"
 
@@ -104,35 +103,28 @@ else
     info "No sudoers rules to remove"
 fi
 
-# --- Remove frontend (restore SimpleAdmin backup if available) ---
-for item in "$WWW_ROOT"/*; do
-    name=$(basename "$item")
-    case "$name" in
-        cgi-bin|*.bak) continue ;;
-        *) rm -rf "$item" ;;
-    esac
-done
+# --- Remove QManager web root and lighttpd config ---
+rm -rf "$WWW_ROOT"
+rm -f "$LIGHTTPD_CONF" "${LIGHTTPD_CONF}.bak"
+info "Removed frontend and lighttpd config"
 
-if [ -f "$WWW_ROOT/index.html.bak" ]; then
-    mv "$WWW_ROOT/index.html.bak" "$WWW_ROOT/index.html"
-    info "Restored SimpleAdmin index.html from backup"
-fi
-info "Removed frontend files"
-
-# --- Restore SimpleAdmin lighttpd config if backed up ---
-if [ -f "${LIGHTTPD_CONF}.simpleadmin.bak" ]; then
-    mv "${LIGHTTPD_CONF}.simpleadmin.bak" "$LIGHTTPD_CONF"
-    systemctl restart lighttpd 2>/dev/null || true
-    info "Restored SimpleAdmin lighttpd config"
+# --- Remove lighttpd service override (restore Entware default if exists) ---
+if [ -f "$SYSTEMD_DIR/lighttpd.service" ]; then
+    rm -f "$SYSTEMD_DIR/lighttpd.service"
+    rm -f /lib/systemd/system/multi-user.target.wants/lighttpd.service
+    systemctl daemon-reload
+    info "Removed QManager lighttpd.service"
 fi
 
 # --- Remove TLS certs ---
 rm -rf "$CERT_DIR"
 info "Removed QManager TLS certs"
 
+# --- Clean up empty QManager root ---
+rmdir "$QMANAGER_ROOT" 2>/dev/null || true
+
 # --- Remove firewall rules ---
 rm -f /etc/firewall.user.ttl /etc/firewall.user.mtu 2>/dev/null || true
-# Remove live iptables rules added by qmanager_setup
 if command -v iptables >/dev/null 2>&1; then
     iptables -D INPUT -i lo -p tcp --dport 80 -j ACCEPT 2>/dev/null || true
     iptables -D INPUT -i lo -p tcp --dport 443 -j ACCEPT 2>/dev/null || true

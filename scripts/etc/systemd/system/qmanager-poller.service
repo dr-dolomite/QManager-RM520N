@@ -1,11 +1,12 @@
 # /lib/systemd/system/qmanager-poller.service
 [Unit]
 Description=QManager Modem Data Poller
-After=socat-smd7-from-ttyIN2.service qmanager-setup.service qmanager-ping.service
+After=qmanager-setup.service qmanager-ping.service
 Wants=qmanager-ping.service
 
 [Service]
 Type=simple
+ExecStartPre=/bin/sh -c '[ -e /dev/smd11 ] || { echo "AT device /dev/smd11 not found"; exit 1; }'
 ExecStart=/usr/bin/qmanager_poller
 EnvironmentFile=-/etc/qmanager/environment
 Restart=on-failure

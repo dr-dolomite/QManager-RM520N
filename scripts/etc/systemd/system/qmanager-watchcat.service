@@ -1,7 +1,7 @@
 # /lib/systemd/system/qmanager-watchcat.service
 [Unit]
 Description=QManager Connection Health Watchdog
-After=qmanager-poller.service socat-smd7-from-ttyIN2.service
+After=qmanager-poller.service
 Wants=qmanager-poller.service
 
 [Service]

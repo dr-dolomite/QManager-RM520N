@@ -42,8 +42,8 @@ if [ "$REQUEST_METHOD" = "GET" ]; then
     # Not ported to RM520N-GL; always report false
     wan_guard_enabled="false"
 
-    # --- SMS tool device override ---
-    sms_tool_device=$(qm_config_get settings sms_tool_device "")
+    # --- AT device (informational — atcli_smd11 hardcodes /dev/smd11) ---
+    sms_tool_device="/dev/smd11"
 
     # --- Unit preferences ---
     temp_unit=$(qm_config_get settings temp_unit "celsius")
@@ -176,21 +176,7 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
             sys_set_timezone "$val" "$zn"
         fi
 
-        # --- SMS tool device override ---
-        # Two-step: check if field exists, then read value.
-        # Empty string is a valid "disable" value, so [ -n ] would skip it.
-        _has_sms_dev=$(printf '%s' "$POST_DATA" | jq -r 'if has("sms_tool_device") then "yes" else "no" end')
-        if [ "$_has_sms_dev" = "yes" ]; then
-            val=$(printf '%s' "$POST_DATA" | jq -r '.sms_tool_device')
-            case "$val" in
-                /dev/smd7|/dev/ttyOUT2) qm_config_set settings sms_tool_device "$val" ;;
-                ""|null)                qm_config_set settings sms_tool_device "" ;;
-                *)
-                    cgi_error "invalid_sms_tool_device" "sms_tool_device must be '/dev/smd7', '/dev/ttyOUT2', or empty"
-                    exit 0
-                    ;;
-            esac
-        fi
+        # AT device is hardcoded to /dev/smd11 via atcli_smd11 — no override needed
 
         qlog_info "System settings saved"
         echo '{"success":true}'

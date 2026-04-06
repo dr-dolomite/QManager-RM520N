@@ -1,7 +1,7 @@
 # /lib/systemd/system/qmanager-tower-failover.service
 [Unit]
 Description=QManager Tower Lock Failover Daemon
-After=qmanager-poller.service socat-smd7-from-ttyIN2.service
+After=qmanager-poller.service
 Wants=qmanager-poller.service
 
 [Service]

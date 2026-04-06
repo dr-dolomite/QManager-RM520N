@@ -1,7 +1,7 @@
 # /lib/systemd/system/qmanager-imei-check.service
 [Unit]
 Description=QManager IMEI Rejection Check (One-Shot)
-After=socat-smd7-from-ttyIN2.service qmanager-setup.service
+After=qmanager-setup.service
 
 [Service]
 Type=oneshot

@@ -148,24 +148,73 @@ preflight() {
 # --- Install Dependencies ----------------------------------------------------
 
 install_dependencies() {
-    step "Installing bundled dependencies"
+    step "Installing dependencies"
 
-    # --- sms_tool (static ARM binary — direct copy) ---
-    if [ -f "$SRC_DEPS/sms_tool" ]; then
-        cp "$SRC_DEPS/sms_tool" "$BIN_DIR/sms_tool"
-        chmod +x "$BIN_DIR/sms_tool"
-        info "sms_tool installed to $BIN_DIR/sms_tool"
-    elif command -v sms_tool >/dev/null 2>&1; then
-        info "sms_tool already installed (not bundled)"
+    # --- System users & groups ------------------------------------------------
+    # Create www-data user/group if missing (lighttpd runs as www-data:dialout)
+    if ! getent group dialout >/dev/null 2>&1; then
+        addgroup dialout 2>/dev/null || groupadd dialout 2>/dev/null || true
+        info "Created group: dialout"
+    fi
+    if ! getent group www-data >/dev/null 2>&1; then
+        addgroup www-data 2>/dev/null || groupadd www-data 2>/dev/null || true
+        info "Created group: www-data"
+    fi
+    if ! id www-data >/dev/null 2>&1; then
+        adduser -S -H -D -G www-data www-data 2>/dev/null || \
+        useradd -r -M -s /sbin/nologin -g www-data www-data 2>/dev/null || true
+        info "Created user: www-data"
+    fi
+    addgroup www-data dialout 2>/dev/null || usermod -aG dialout www-data 2>/dev/null || true
+
+    # --- atcli_smd11 (AT command transport — direct /dev/smd11 access) --------
+    if [ -f "$SRC_DEPS/atcli_smd11" ]; then
+        cp "$SRC_DEPS/atcli_smd11" "$BIN_DIR/atcli_smd11"
+        chmod 755 "$BIN_DIR/atcli_smd11"
+        info "atcli_smd11 installed to $BIN_DIR/atcli_smd11"
+    elif [ -x "$BIN_DIR/atcli_smd11" ]; then
+        info "atcli_smd11 already installed"
     else
-        die "sms_tool not found in $SRC_DEPS and not installed on device"
+        die "atcli_smd11 not found in $SRC_DEPS and not installed on device"
     fi
 
-    # --- Bundled .ipk packages (Entware) ---
-    if [ ! -x "$OPKG" ]; then
-        warn "Entware opkg not found at $OPKG — skipping .ipk installation"
-        warn "Manually install jq and coreutils-timeout if not present"
+    # --- Ensure /dev/smd11 is not locked by socat-at-bridge -------------------
+    for svc in socat-smd11 socat-smd11-to-ttyIN socat-smd11-from-ttyIN; do
+        if systemctl is-active "$svc" >/dev/null 2>&1; then
+            systemctl stop "$svc" 2>/dev/null
+            rm -f "$WANTS_DIR/${svc}.service"
+            info "Stopped conflicting service: $svc"
+        fi
+    done
+    if [ -e /dev/smd11 ]; then
+        info "AT device /dev/smd11 is available"
     else
+        warn "/dev/smd11 not found — AT commands will not work until modem is ready"
+    fi
+
+    # --- Entware packages -----------------------------------------------------
+    if [ ! -x "$OPKG" ]; then
+        warn "Entware opkg not found at $OPKG — skipping package installation"
+        warn "Manually install lighttpd, jq, sudo, and coreutils-timeout"
+    else
+        # lighttpd (web server)
+        if [ -x /opt/sbin/lighttpd ]; then
+            info "lighttpd is already installed"
+        else
+            "$OPKG" update >/dev/null 2>&1
+            "$OPKG" install lighttpd lighttpd-mod-openssl >/dev/null 2>&1 \
+                && info "lighttpd + mod_openssl installed from Entware" \
+                || die "Failed to install lighttpd from Entware"
+        fi
+
+        # sudo (privilege escalation for CGI)
+        if command -v sudo >/dev/null 2>&1; then
+            info "sudo is already installed"
+        else
+            "$OPKG" install sudo >/dev/null 2>&1 \
+                && info "sudo installed from Entware" \
+                || warn "sudo not available — CGI privilege escalation will not work"
+        fi
         # jq
         if command -v jq >/dev/null 2>&1; then
             info "jq is already installed"
@@ -247,25 +296,17 @@ backup_originals() {
 
     mkdir -p "$BACKUP_DIR"
 
-    # Backup SimpleAdmin's original index.html (first install only)
-    if [ ! -f "$WWW_ROOT/index.html.bak" ] && [ -f "$WWW_ROOT/index.html" ]; then
-        if ! grep -q "QManager" "$WWW_ROOT/index.html" 2>/dev/null; then
-            cp "$WWW_ROOT/index.html" "$WWW_ROOT/index.html.bak"
-            info "Backed up SimpleAdmin index.html → index.html.bak"
-        fi
-    fi
-
-    # Backup existing lighttpd config (if not already QManager's)
-    if [ -f "$LIGHTTPD_CONF" ] && ! grep -q "QManager" "$LIGHTTPD_CONF" 2>/dev/null; then
-        cp "$LIGHTTPD_CONF" "${LIGHTTPD_CONF}.bak"
-        info "Backed up existing lighttpd.conf"
-    fi
-
-    # Backup existing QManager auth
+    # Backup existing QManager auth (preserves password across upgrades)
     if [ -f "$CONF_DIR/auth.json" ]; then
         local ts; ts=$(date +%Y%m%d_%H%M%S)
         cp "$CONF_DIR/auth.json" "$BACKUP_DIR/auth.json.$ts" 2>/dev/null || true
         info "Backed up auth config"
+    fi
+
+    # Backup existing lighttpd config (if upgrading)
+    if [ -f "$LIGHTTPD_CONF" ]; then
+        cp "$LIGHTTPD_CONF" "${LIGHTTPD_CONF}.bak"
+        info "Backed up existing lighttpd.conf"
     fi
 
     info "Backups complete"
@@ -276,34 +317,25 @@ backup_originals() {
 install_frontend() {
     step "Installing frontend"
 
+    # Create web root if it doesn't exist (independent install — no SimpleAdmin)
+    mkdir -p "$WWW_ROOT"
+    mkdir -p "$WWW_ROOT/cgi-bin"
+
     local file_count
     file_count=$(count_files "$SRC_FRONTEND")
     info "Deploying $file_count frontend files to $WWW_ROOT"
 
-    # Clean www root — preserve cgi-bin and backup files
+    # Clean www root — preserve cgi-bin
     for item in "$WWW_ROOT"/*; do
         name=$(basename "$item")
         case "$name" in
-            cgi-bin|*.bak) continue ;;
+            cgi-bin) continue ;;
             *) rm -rf "$item" ;;
         esac
     done
 
     # Copy new frontend
     cp -r "$SRC_FRONTEND"/* "$WWW_ROOT/"
-
-    # Remove SimpleAdmin CGI scripts (keep only quecmanager/ subdirectory)
-    if [ -d "$WWW_ROOT/cgi-bin" ]; then
-        local sa_removed=0
-        for item in "$WWW_ROOT/cgi-bin"/*; do
-            name=$(basename "$item")
-            case "$name" in
-                quecmanager) continue ;;
-                *) rm -rf "$item"; sa_removed=$(( sa_removed + 1 )) ;;
-            esac
-        done
-        [ "$sa_removed" -gt 0 ] && info "Removed $sa_removed SimpleAdmin CGI scripts"
-    fi
 
     info "Frontend installed ($file_count files)"
 }
@@ -575,24 +607,33 @@ start_services() {
     # Run setup oneshot first (creates lock files, session dirs, iptables rules)
     systemctl start qmanager-setup 2>/dev/null || true
 
-    # Start always-on services directly (no target — SimpleAdmin pattern)
+    # Start always-on services with verification
     for svc in qmanager-ping qmanager-poller qmanager-ttl qmanager-mtu qmanager-imei-check; do
         systemctl start "$svc" 2>/dev/null || true
     done
     sleep 2
 
-    # Verify
-    if systemctl is-active qmanager-poller >/dev/null 2>&1; then
-        info "Poller is running"
-    else
-        warn "Poller does not appear to be running — check: journalctl -u qmanager-poller"
+    # Verify critical services
+    local svc_errors=0
+    for svc in lighttpd qmanager-setup qmanager-ping qmanager-poller; do
+        if systemctl is-active "$svc" >/dev/null 2>&1; then
+            info "$svc is running"
+        else
+            warn "$svc is NOT running — check: journalctl -u $svc"
+            svc_errors=$((svc_errors + 1))
+        fi
+    done
+
+    # Verify AT device access
+    if [ -x "$BIN_DIR/atcli_smd11" ] && [ -e /dev/smd11 ]; then
+        if timeout 3 "$BIN_DIR/atcli_smd11" "AT" >/dev/null 2>&1; then
+            info "AT device responds (atcli_smd11 → /dev/smd11)"
+        else
+            warn "AT device not responding — modem may not be ready yet"
+        fi
     fi
 
-    if systemctl is-active qmanager-ping >/dev/null 2>&1; then
-        info "Ping daemon is running"
-    else
-        warn "Ping daemon does not appear to be running"
-    fi
+    [ "$svc_errors" -gt 0 ] && warn "$svc_errors service(s) failed to start"
 }
 
 # --- SSH Setup (Optional) ----------------------------------------------------

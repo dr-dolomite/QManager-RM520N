@@ -66,10 +66,9 @@ The RM520N-GL is a fundamentally different platform: it runs its own Linux OS in
 | **SoC / Kernel** | Qualcomm SDXLEMUR, Linux 5.4.180, ARMv7l (32-bit) |
 | **Init system** | systemd |
 | **Shell** | `/bin/bash` (native, not BusyBox) |
-| **AT primary port** | `/dev/smd7` (claimed by `port_bridge` at boot — must kill) |
-| **AT secondary port** | `/dev/smd11` (free, immediately available) |
-| **AT bridge devices** | `/dev/ttyOUT` (smd11), `/dev/ttyOUT2` (smd7) |
-| **AT tools** | `sms_tool` via `qcmd` (production), `microcom` (interactive), `atcmd`/`atcmd11` (legacy) |
+| **AT port (QManager)** | `/dev/smd11` (direct access via `atcli_smd11`, no socat needed) |
+| **AT port (legacy)** | `/dev/smd7` (claimed by `port_bridge` at boot — used by socat-at-bridge if installed) |
+| **AT tools** | `atcli_smd11` via `qcmd` (production), `microcom` (interactive), `atcmd`/`atcmd11` (legacy socat) |
 | **Web server** | lighttpd (Entware, HTTPS on 443) |
 | **Config storage** | `/usrdata/` (persistent, writable) |
 | **LAN config** | `/etc/data/mobileap_cfg.xml` (xmlstarlet) |
