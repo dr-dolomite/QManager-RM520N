@@ -10,15 +10,30 @@ The RM520N-GL is a fundamentally different platform: it runs its own Linux OS in
 
 - [Quick Reference](#quick-reference)
 - [Platform Comparison](#platform-comparison)
+- [SimpleAdmin RGMII Toolkit Foundation](#simpleadmin-rgmii-toolkit-foundation)
+  - [Toolkit Overview](#toolkit-overview)
+  - [Installation Flow](#installation-flow)
+  - [Entware Bootstrapping](#entware-bootstrapping)
+  - [Lighttpd Web Server Configuration](#lighttpd-web-server-configuration)
+  - [HTTPS Certificate and Authentication](#https-certificate-and-authentication)
+  - [Console and TTY Architecture (ttyd)](#console-and-tty-architecture-ttyd)
+  - [SimpleFirewall Subsystem](#simplefirewall-subsystem)
+  - [TTL Override Mechanism](#ttl-override-mechanism)
+  - [SimpleUpdate System](#simpleupdate-system)
+  - [Complete Boot Sequence](#complete-boot-sequence)
 - [Known Platform Quirks](#known-platform-quirks)
   - [`fs.protected_regular=1` — Sticky Directory File Protection](#fsprotected_regular1--sticky-directory-file-protection)
   - [`systemctl enable` Does Not Work for Boot Startup](#systemctl-enable-does-not-work-for-boot-startup)
 - [AT Command Transport Layer](#at-command-transport-layer)
   - [Physical Layer: SMD Ports](#physical-layer-smd-ports)
   - [PTY Bridge Architecture](#pty-bridge-architecture)
+  - [Socat PTY Parameters Explained](#socat-pty-parameters-explained)
   - [Data Flow Diagram](#data-flow-diagram)
   - [AT Command Tools](#at-command-tools)
+  - [QManager qcmd Integration](#qmanager-qcmd-integration)
   - [Systemd Service Dependency Graph](#systemd-service-dependency-graph)
+  - [Socat-AT-Bridge Installation](#socat-at-bridge-installation)
+  - [Troubleshooting: AT Bridge](#troubleshooting-at-bridge)
   - [Porting Considerations: AT Transport](#porting-considerations-at-transport)
 - [System Architecture](#system-architecture)
   - [Platform Specs](#platform-specs)
@@ -91,6 +106,483 @@ This table maps every major subsystem between the current QManager target (RM551
 | **LAN config** | UCI network config | XML (`mobileap_cfg.xml`) via xmlstarlet | Completely different API |
 | **Compound AT** | Semicolon batching via `qcmd` | Supported, but needs serialization | Add `flock` around compound commands |
 | **`fs.protected_regular`** | Not set (typical) | `=1` (kernel default) | All shared `/tmp` files must be `www-data`-owned; see [Known Platform Quirks](#known-platform-quirks) |
+
+---
+
+## SimpleAdmin RGMII Toolkit Foundation
+
+QManager on the RM520N-GL builds on top of the **SimpleAdmin** web panel, originally created by the [quectel-rgmii-toolkit](https://github.com/iamromulan/quectel-rgmii-toolkit) project. Understanding this foundation is essential because QManager reuses its Entware installation, lighttpd web server, socat-at-bridge, firewall infrastructure, and systemd service patterns. The toolkit source is preserved in `simpleadmin-source/` for reference.
+
+### Toolkit Overview
+
+The `RMxxx_rgmii_toolkit.sh` master installer script is the entry point for all RM520N-GL setup. It validates the hardware is ARMv7l (32-bit ARM) and provides an interactive menu to install components:
+
+| Component | Installer Script | Purpose |
+|-----------|-----------------|---------|
+| **Entware** | `installentware.sh` / inline | Package manager (`/opt` bind-mounted from `/usrdata/opt`) |
+| **SimpleAdmin** | `update_simpleadmin.sh` | Web panel (lighttpd + CGI + ttyd console) |
+| **socat-at-bridge** | `update_socat-at-bridge.sh` | Virtual TTY bridge for AT commands |
+| **SimpleFirewall** | `update_simplefirewall.sh` | iptables port blocking + TTL override |
+| **SimpleUpdate** | Bundled with toolkit | Automatic component updater daemon |
+| **SSH (Dropbear)** | `update_sshd.sh` | SSH server for remote access |
+| **Tailscale** | `update_tailscale.sh` | VPN client (optional) |
+
+Each component has a `.rev` file for version tracking (e.g., `/usrdata/simpleadmin/.rev`, `/usrdata/socat-at-bridge/.rev`).
+
+### Installation Flow
+
+The toolkit installs SimpleAdmin through a multi-stage process. Each stage is idempotent — re-running updates rather than duplicates.
+
+#### Stage 1: Entware Bootstrap (`ensure_entware_installed()`)
+
+1. **Remount root filesystem read-write:** `mount -o remount,rw /`
+2. **Install opkg:** Downloads from `http://bin.entware.net/armv7sf-k3.2/installer/` if `/opt/bin/opkg` is missing
+3. **Bootstrap Entware:** `opkg update && opkg install entware-opt`
+4. **System integration:**
+   - Links `/opt/etc/passwd`, `/opt/etc/group`, `/opt/etc/shadow` etc. from `/etc/`
+   - Creates `/opt/tmp` (mode 777)
+   - Installs `shadow-login`, `shadow-passwd`, `shadow-useradd`
+5. **Root user setup:**
+   - Creates `/usrdata/root` home directory
+   - Writes `/usrdata/root/.profile` with PATH including `/opt/bin:/opt/sbin`
+   - Modifies `/opt/etc/passwd` to point root home to `/usrdata/root`
+   - Replaces `/bin/login` with symlink to `/opt/bin/login`
+   - Prompts for root password
+6. **Utility installation:** `opkg install mc htop dfc lsof` + symlinks to `/bin/`
+7. **Systemd mount units:**
+   - Creates `/lib/systemd/system/opt.mount` to bind `/usrdata/opt` → `/opt`
+   - Creates `/lib/systemd/system/rc.unslung.service` to start Entware init.d services at boot
+   - Enables both services
+
+#### Stage 2: SimpleAdmin Components (`install_simple_admin()`)
+
+Installs dependencies in order, then the web panel:
+
+1. **socat-at-bridge** — via `update_socat-at-bridge.sh` (see [Socat-AT-Bridge Installation](#socat-at-bridge-installation))
+2. **SimpleFirewall** — via `update_simplefirewall.sh`
+3. **Admin password** — installs `htpasswd` from Entware, creates `/opt/etc/.htpasswd`
+4. **SimpleAdmin content** — via `update_simpleadmin.sh`:
+   - Downloads web panel files to `/usrdata/simpleadmin/`
+   - Installs lighttpd + required modules via Entware opkg
+   - Generates self-signed HTTPS certificate
+   - Installs ttyd terminal server binary
+   - Creates and enables systemd services for lighttpd and ttyd
+   - Remounts root filesystem read-only when done
+
+### Entware Bootstrapping
+
+Entware provides the package management layer on the RM520N-GL. It is the equivalent of OpenWRT's built-in opkg but installed as an overlay.
+
+**Target architecture:** `armv7sf-k3.2` (soft float, kernel 3.2+, glibc 2.27)
+
+**Mount architecture:**
+```
+/usrdata/opt/          (persistent partition, survives reboots)
+    ↓ bind mount via opt.mount
+/opt/                  (standard Entware path)
+    ├── bin/           (user binaries: opkg, curl, sudo, mc, htop, etc.)
+    ├── sbin/          (system binaries: lighttpd, dropbear)
+    ├── etc/           (config: opkg.conf, .htpasswd, lighttpd/, sudoers.d/)
+    ├── lib/           (shared libraries for Entware packages)
+    ├── var/run/       (runtime files: lighttpd.pid)
+    └── tmp/           (Entware temp, mode 777)
+```
+
+**Boot mount units:**
+- `opt.mount` — systemd `.mount` unit that bind-mounts `/usrdata/opt` → `/opt`
+- `rc.unslung.service` — runs `/opt/etc/init.d/rc.unslung start` after mount, initializing any Entware services with init.d scripts
+
+**Critical symlinks created during install:**
+```
+/bin/opkg    → /opt/bin/opkg
+/bin/mc      → /opt/bin/mc
+/bin/htop    → /opt/bin/htop
+/bin/login   → /opt/bin/login     (replaces stock login with shadow-login)
+/usr/bin/passwd  → /opt/bin/passwd
+/usr/bin/useradd → /opt/bin/useradd
+```
+
+### Lighttpd Web Server Configuration
+
+Lighttpd serves both SimpleAdmin's original web panel and QManager's replacement frontend. Understanding its configuration is essential because QManager reuses it.
+
+**Configuration file:** `/usrdata/simpleadmin/lighttpd.conf`
+**Binary:** `/opt/sbin/lighttpd` (from Entware)
+**Service:** `/lib/systemd/system/lighttpd.service`
+
+#### Service Definition
+
+```ini
+[Unit]
+Description=Lighttpd Daemon
+After=network.target opt.mount         # /opt must be mounted (lighttpd binary is there)
+
+[Service]
+Type=simple
+PIDFile=/opt/var/run/lighttpd.pid
+ExecStartPre=/opt/sbin/lighttpd -tt -f /usrdata/simpleadmin/lighttpd.conf   # syntax check
+ExecStart=/opt/sbin/lighttpd -D -f /usrdata/simpleadmin/lighttpd.conf       # foreground daemon
+ExecReload=/bin/kill -USR1 $MAINPID                                          # graceful reload
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
+```
+
+#### Server Configuration
+
+```apache
+server.username  = "www-data"            # Process runs as www-data
+server.groupname = "dialout"             # dialout group grants access to /dev/ttyOUT*
+server.port      = 80                    # HTTP port (redirected to HTTPS)
+server.document-root = "/usrdata/simpleadmin/www"
+index-file.names = ( "index.html" )
+```
+
+**Loaded modules:**
+```apache
+server.modules = (
+    "mod_redirect",        # HTTP → HTTPS redirect
+    "mod_cgi",             # CGI script execution
+    "mod_proxy",           # Reverse proxy (for ttyd console)
+    "mod_openssl",         # HTTPS/TLS
+    "mod_authn_file",      # HTTP Basic Auth via htpasswd file
+)
+```
+
+#### HTTP → HTTPS Redirect
+
+```apache
+$HTTP["scheme"] == "http" {
+    url.redirect = ("" => "https://${url.authority}${url.path}${qsa}")
+}
+```
+
+All HTTP requests are automatically redirected to HTTPS. Query strings are preserved (`${qsa}`).
+
+#### CGI Script Handling
+
+```apache
+$HTTP["url"] =~ "/cgi-bin/" {
+    cgi.assign = ( "" => "" )
+}
+```
+
+All files in `/cgi-bin/` are treated as executable CGI scripts. The empty `cgi.assign` value means the script's shebang line (`#!/bin/bash`) determines the interpreter. Scripts must have execute permission (`chmod +x`).
+
+CGI scripts run as `www-data:dialout` (lighttpd's process user). This grants:
+- Direct read/write access to `/dev/ttyOUT` and `/dev/ttyOUT2` (serial devices in dialout group)
+- No root access — elevated operations require sudo (see [Authentication and Sudo](#https-certificate-and-authentication))
+
+#### Console Reverse Proxy (ttyd)
+
+```apache
+$HTTP["url"] =~ "(^/console)" {
+    proxy.header = (
+        "map-urlpath" => ( "/console" => "/" ),
+        "upgrade" => "enable"                     # WebSocket upgrade for interactive terminal
+    )
+    proxy.server = ( "" => ("" => ( "host" => "127.0.0.1", "port" => 8080 )))
+}
+```
+
+The `/console` URL path is proxied to ttyd running on `127.0.0.1:8080`. WebSocket upgrade is enabled for the interactive terminal session. ttyd itself is bound to localhost only — external access goes through lighttpd's auth layer.
+
+### HTTPS Certificate and Authentication
+
+#### Self-Signed Certificate Generation
+
+During installation, the toolkit generates a self-signed TLS certificate:
+
+```bash
+openssl req -new -newkey rsa:2048 -days 3650 -nodes -x509 \
+    -subj "/C=US/ST=MI/L=Romulus/O=RMIITools/CN=localhost" \
+    -keyout /usrdata/simpleadmin/server.key \
+    -out /usrdata/simpleadmin/server.crt
+```
+
+- **RSA 2048-bit** key, **10-year** validity
+- Self-signed (browsers will show a certificate warning)
+- Stored on persistent partition (`/usrdata/simpleadmin/`)
+
+#### SSL Configuration
+
+```apache
+$SERVER["socket"] == "0.0.0.0:443" {
+    ssl.engine    = "enable"
+    ssl.privkey   = "/usrdata/simpleadmin/server.key"
+    ssl.pemfile   = "/usrdata/simpleadmin/server.crt"
+    ssl.openssl.ssl-conf-cmd = ("MinProtocol" => "TLSv1.2")
+}
+```
+
+TLS 1.2+ is enforced. ACME ALPN challenge support exists for potential Let's Encrypt integration.
+
+#### SimpleAdmin HTTP Basic Auth
+
+SimpleAdmin's **original** auth uses HTTP Basic Authentication:
+
+```apache
+auth.backend = "htpasswd"
+auth.backend.htpasswd.userfile = "/opt/etc/.htpasswd"
+
+$SERVER["socket"] == "0.0.0.0:443" {
+    auth.require = ( "/" => (
+        "method"  => "basic",
+        "realm"   => "Authorized users only",
+        "require" => "valid-user"
+    ))
+}
+```
+
+- Credential file: `/opt/etc/.htpasswd` (username:bcrypt_hash format)
+- Created during install via the `simplepasswd` command (wrapper around `htpasswd`)
+- Auth scope: All HTTPS requests (the entire `"/"` path)
+- Auth method: HTTP Basic (browser shows username/password dialog)
+
+> **NOTE (QManager):** QManager does **NOT** use SimpleAdmin's HTTP Basic Auth. When QManager's lighttpd.conf is deployed, the `auth.require` block is removed because QManager implements its own cookie-based session authentication at the application level. The `mod_authn_file` module may still be loaded but has no active `auth.require` directives.
+
+#### Sudo for Elevated CGI Operations
+
+Since lighttpd runs as `www-data`, CGI scripts need sudo for privileged operations. SimpleAdmin's original sudoers file (`/opt/etc/sudoers.d/www-data`):
+
+```bash
+www-data ALL = (root) NOPASSWD: /usr/sbin/iptables, /usr/sbin/ip6tables, \
+    /usrdata/simplefirewall/ttl-override, /bin/echo, /bin/cat
+```
+
+QManager extends this with its own sudoers file (`/opt/etc/sudoers.d/qmanager`) covering systemctl, reboot, crontab, ln, rm, and iptables-restore — all with full absolute paths due to Entware's `secure_path` restriction (see [Web Server: lighttpd](#web-server-lighttpd)).
+
+### Console and TTY Architecture (ttyd)
+
+ttyd provides a browser-accessible terminal through lighttpd's reverse proxy.
+
+**Binary:** `/usrdata/simpleadmin/console/ttyd` (ARM EABI, ttyd v1.7.7)
+**Service:** `/lib/systemd/system/ttyd.service`
+
+```ini
+[Unit]
+Description=TTYD Service
+After=network.target
+
+[Service]
+Type=simple
+ExecStartPre=/bin/sleep 5                    # Wait for other services to stabilize
+ExecStart=/usrdata/simpleadmin/console/ttyd \
+    -i 127.0.0.1 -p 8080 \                  # Localhost only (proxied via lighttpd)
+    -t 'theme={"foreground":"white","background":"black"}' \
+    -t fontSize=25 --writable \
+    /usrdata/simpleadmin/console/ttyd.bash   # Shell script to execute
+Restart=on-failure
+```
+
+**Shell wrapper** (`ttyd.bash`): Executes `/usrdata/simpleadmin/console/menu/start_menu.sh`
+
+**Start menu** (`start_menu.sh`): Interactive color-coded menu with nested submenus:
+
+```
+┌─────────────────────────────────────┐
+│   Welcome to Simple Console Menu     │
+├─────────────────────────────────────┤
+│ 1. Apps Menu                         │
+│    ├── File Browser (mc)             │
+│    ├── Disk Space (dfc)              │
+│    ├── Task Manager (htop)           │
+│    └── Speed Tests                   │
+│ 2. Settings Menu                     │
+│    ├── LAN Settings                  │
+│    ├── Firewall/TTL Settings         │
+│    ├── Change Admin Password         │
+│    └── Change Root Password          │
+│ 3. Toolkit Menu                      │
+│    ├── Run Stable Toolkit            │
+│    └── Run Dev Toolkit               │
+│ 4. Exit (Root Shell)                 │
+└─────────────────────────────────────┘
+```
+
+**Console login profile** (`/usrdata/simpleadmin/console/.profile`): Sets PATH to include `/opt/bin:/opt/sbin:/usrdata/root/bin` and auto-launches the start menu. This applies to both ttyd sessions and SSH logins.
+
+> **GOTCHA:** The auto-menu breaks SCP file transfer (WinSCP hangs). Fix: set WinSCP shell to `/bin/bash --norc --noprofile`. See [Development Access](#development-access).
+
+**Access flow:**
+```
+Browser → https://<modem-ip>/console
+    → lighttpd (port 443, HTTPS + auth)
+        → mod_proxy (WebSocket upgrade enabled)
+            → ttyd (127.0.0.1:8080, localhost only)
+                → /usrdata/simpleadmin/console/ttyd.bash
+                    → start_menu.sh (interactive menu)
+```
+
+### SimpleFirewall Subsystem
+
+SimpleFirewall provides basic iptables port blocking to restrict web UI access to trusted interfaces.
+
+**Script:** `/usrdata/simplefirewall/simplefirewall.sh`
+**Service:** `/lib/systemd/system/simplefirewall.service` (Type=oneshot, RemainAfterExit=yes)
+
+```bash
+#!/bin/bash
+PORTS=("80" "443")  # Configurable via toolkit menu
+
+# Allow on trusted interfaces
+for port in "${PORTS[@]}"; do
+    iptables -A INPUT -i bridge0 -p tcp --dport $port -j ACCEPT     # LAN bridge
+    iptables -A INPUT -i eth0 -p tcp --dport $port -j ACCEPT        # Physical Ethernet
+    iptables -A INPUT -i tailscale0 -p tcp --dport $port -j ACCEPT  # VPN (if installed)
+done
+
+# Block on all others (cellular, external)
+for port in "${PORTS[@]}"; do
+    iptables -A INPUT -p tcp --dport $port -j DROP
+done
+```
+
+**Effect:** Web UI (ports 80/443) is only accessible from the LAN bridge, Ethernet, and Tailscale VPN interfaces. Cellular-side access is blocked.
+
+The `PORTS` array is user-configurable through the toolkit's console menu or the `sfirewall_settings.sh` script.
+
+### TTL Override Mechanism
+
+TTL (Time To Live) override modifies outgoing IP packet headers to disguise tethered traffic on cellular networks.
+
+**Script:** `/usrdata/simplefirewall/ttl-override` (start/stop/restart)
+**Config:** `/usrdata/simplefirewall/ttlvalue` (plain text integer, `0` = disabled)
+**Service:** `/lib/systemd/system/ttl-override.service`
+
+```ini
+[Unit]
+Description=TTL Override
+After=ql-netd.service          # Wait for cellular interfaces to exist
+DefaultDependencies=no
+
+[Service]
+Type=oneshot
+ExecStart=/usrdata/simplefirewall/ttl-override start
+User=root
+```
+
+**TTL override script logic:**
+
+```bash
+case "$1" in
+start)
+    if (( $TTLVALUE > 0 )); then
+        # IPv4: Set TTL on all outgoing rmnet interfaces
+        iptables -t mangle -I POSTROUTING -o rmnet+ -j TTL --ttl-set ${TTLVALUE}
+        # IPv6: Set Hop Limit on all outgoing rmnet interfaces
+        ip6tables -t mangle -I POSTROUTING -o rmnet+ -j HL --hl-set ${TTLVALUE}
+    fi
+    ;;
+stop)
+    # Remove rules (silently ignore if not present)
+    iptables -t mangle -D POSTROUTING -o rmnet+ -j TTL --ttl-set ${TTLVALUE} &>/dev/null || true
+    ip6tables -t mangle -D POSTROUTING -o rmnet+ -j HL --hl-set ${TTLVALUE} &>/dev/null || true
+    ;;
+esac
+```
+
+The `rmnet+` wildcard matches all cellular data interfaces (multiple PDN support). Common TTL values: `64` (Linux default), `65` (common bypass), `128` (Windows default).
+
+**Web UI integration:** The `set_ttl` CGI script stops the service, updates `/usrdata/simplefirewall/ttlvalue`, calls `ttl_script.sh`, then restarts the service. The `get_ttl_status` CGI script reads iptables mangle rules and returns JSON:
+
+```json
+{ "isEnabled": true, "ttl": 65 }
+```
+
+### SimpleUpdate System
+
+The toolkit includes a self-updating daemon that can automatically update all components.
+
+**Daemon:** `/usrdata/simpleupdates/simpleupdate`
+**Config:** `/usrdata/simpleupdates/simpleupdate.conf`
+**Service:** `/lib/systemd/system/simpleupdated.service`
+
+```ini
+[Unit]
+Description=Simple Update Daemon
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/usrdata/simpleupdates/simpleupdate d    # 'd' = daemon mode
+```
+
+**Configuration options:**
+
+```bash
+CONF_ENABLED=yes               # Enable/disable updates
+CHECK_AT_BOOT=yes              # Check immediately on startup
+UPDATE_FREQUENCY=daily         # daily, weekly, monthly, or none
+SCHEDULED_TIME=03:00           # 24-hour format (UTC)
+WEEKLY_DAY=Mon                 # For weekly checks
+MONTHLY_DATE=15                # For monthly checks
+```
+
+**Version tracking:** Each component has a `.rev` file containing an integer revision number:
+
+| Component | Rev File | Update Script |
+|-----------|----------|---------------|
+| SimpleAdmin | `/usrdata/simpleadmin/.rev` | `update_simpleadmin.sh` |
+| socat-at-bridge | `/usrdata/socat-at-bridge/.rev` | `update_socat-at-bridge.sh` |
+| SimpleFirewall | `/usrdata/simplefirewall/.rev` | `update_simplefirewall.sh` |
+| SSH | `/usrdata/sshd/.rev` | `update_sshd.sh` |
+
+**Update check flow:**
+1. Daemon reads local `.rev` file
+2. Downloads remote `.rev` from GitHub
+3. If `remote_rev > local_rev`, runs the component's update script
+4. Each update script: stops services → downloads files → sets permissions → creates systemd units → starts services
+5. Logs to `/tmp/simpleupdate.log` (trimmed to last 100 lines)
+
+### Complete Boot Sequence
+
+This is the full systemd boot order showing how all SimpleAdmin components start:
+
+```
+Kernel boot → initrd → basic.target
+    │
+    ├── ql-netd.service                    (Qualcomm network daemon — modem ready)
+    │
+    ├── opt.mount                          (Bind mount /usrdata/opt → /opt)
+    │   └── start-opt-mount.service        (Ensure mount succeeds)
+    │
+    ├── rc.unslung.service                 (Entware init.d: /opt/etc/init.d/rc.unslung start)
+    │
+    ├── network.target                     (Network interfaces up)
+    │
+    └── multi-user.target
+        │
+        ├── socat-killsmd7bridge.service   (oneshot: kill port_bridge on smd7)
+        │
+        ├── socat-smd11.service            (socat PTY: /dev/ttyIN + /dev/ttyOUT)
+        │   ├── socat-smd11-to-ttyIN       (cat /dev/smd11 > /dev/ttyIN)
+        │   └── socat-smd11-from-ttyIN     (cat /dev/ttyIN > /dev/smd11)
+        │
+        ├── socat-smd7.service             (socat PTY: /dev/ttyIN2 + /dev/ttyOUT2)
+        │   ├── socat-smd7-to-ttyIN2       (cat /dev/smd7 > /dev/ttyIN2)
+        │   └── socat-smd7-from-ttyIN2     (cat /dev/ttyIN2 > /dev/smd7)
+        │
+        ├── simplefirewall.service         (oneshot: iptables port blocking rules)
+        ├── ttl-override.service           (oneshot: iptables TTL rules on rmnet+)
+        │
+        ├── lighttpd.service               (HTTPS web server, After=opt.mount)
+        ├── ttyd.service                   (Web terminal, 5s startup delay)
+        │
+        ├── simpleupdated.service          (Update daemon)
+        │
+        ├── qmanager-setup.service         (oneshot: remount rw, pre-create /tmp files)
+        ├── qmanager-ping.service          (After=socat-smd7-from-ttyIN2)
+        ├── qmanager-poller.service        (After=socat-smd7-from-ttyIN2, ping, setup)
+        ├── qmanager-imei-check.service    (After=socat-smd7-from-ttyIN2, setup)
+        ├── qmanager-tower-failover        (After=poller, socat-smd7-from-ttyIN2)
+        └── qmanager-watchcat.service      (After=poller, socat-smd7-from-ttyIN2)
+```
+
+**Critical path for AT commands:** `ql-netd` → `socat-killsmd7bridge` → `socat-smd7` → `socat-smd7-{to,from}-ttyIN2` → QManager services. Any failure in this chain means AT commands are unavailable.
+
+**Critical path for web UI:** `opt.mount` → `rc.unslung` → `lighttpd` (+ `ttyd` for console). If `/opt` fails to mount, lighttpd binary is inaccessible.
 
 ---
 
@@ -235,6 +727,31 @@ Key design details:
 
 > **WARNING:** This architecture means 7 processes (1 socat + 2 cats per channel, plus `killsmd7bridge`) must be running for AT commands to work. If any `cat` process dies, that direction of the bridge goes silent. The `BindsTo=` systemd directive handles automatic restart.
 
+### Socat PTY Parameters Explained
+
+The socat command line used by each bridge service:
+
+```bash
+/usrdata/socat-at-bridge/socat-armel-static -d -d \
+    pty,link=/dev/ttyIN2,raw,echo=0,group=20,perm=660 \
+    pty,link=/dev/ttyOUT2,raw,echo=1,group=20,perm=660
+```
+
+| Parameter | Meaning |
+|-----------|---------|
+| `-d -d` | Dual debug verbosity (logged to journal) |
+| `pty` | Create a pseudo-terminal pair (master + slave) |
+| `link=/dev/ttyIN2` | Create a symlink at this path to the PTY slave device |
+| `raw` | Raw mode — no line discipline, no buffering, all bytes passed immediately. Critical because AT commands use `\r` (carriage return) not `\n` as line terminator |
+| `echo=0` (IN side) | Disable local echo — prevents command echo from being looped back to the modem |
+| `echo=1` (OUT side) | Enable echo — allows callers to see what they wrote (useful for interactive debugging) |
+| `group=20` | Set PTY device group to GID 20 (dialout) — allows `www-data:dialout` (lighttpd) to access |
+| `perm=660` | Permissions `rw-rw----` — owner and group can read/write, others cannot |
+
+**Binary:** `/usrdata/socat-at-bridge/socat-armel-static` — statically linked ARM EABI binary (no shared library dependencies). Downloaded from the toolkit repository during installation.
+
+**Process model:** socat runs continuously (`Restart=always`, `RestartSec=1s`). Each `ExecStartPost` includes `sleep 2s` to ensure the PTY device files exist before dependent `cat` bridge services start.
+
 ### Data Flow Diagram
 
 Complete round-trip for an AT command sent via smd11:
@@ -297,6 +814,29 @@ atcmd11 'AT+CSQ'
 - **No file locking** — concurrent calls produce garbage
 - **ANSI color codes in output** — must be stripped with `awk '{ gsub(/\x1B\[[0-9;]*[mG]/, "") }1'`
 
+**atcmd internals:** Before sending, the script configures the TTY device with raw terminal settings:
+
+```bash
+stty -F /dev/ttyOUT cs8 115200 ignbrk -brkint -icrnl -imaxbel \
+    -opost -onlcr -isig -icanon -iexten -echo -echoe -echok \
+    -echoctl -echoke noflsh -ixon -crtscts
+```
+
+Then sends the command and reads the response:
+
+```bash
+echo -e "AT+CGMM\r" > /dev/ttyOUT           # Write with carriage return
+tmpfile=$(mktemp)
+cat /dev/ttyOUT > "$tmpfile" &               # Background reader
+CAT_PID=$!
+while ! grep -qe "OK" -e "ERROR" "$tmpfile"; do
+    sleep 1                                   # Poll every 1 second
+done
+kill $CAT_PID                                 # Kill reader when done
+```
+
+Both `atcmd` and `atcmd11` target `/dev/ttyOUT` (smd11 channel). They are functionally identical — `atcmd11` is an alias.
+
 > **WARNING:** The existing `user_atcommand` CGI script uses `atcmd` with a quoting bug: `'$x'` (single quotes) prevents variable expansion, so the actual AT command is never sent. This endpoint is effectively broken.
 
 ### Systemd Service Dependency Graph
@@ -341,6 +881,188 @@ multi-user.target
 **Critical dependency:** `After=ql-netd.service` — Qualcomm's network daemon (`ql-netd`) must be running before the AT bridge starts. `ql-netd` manages the cellular data path and initializes the baseband. Starting the AT bridge before `ql-netd` can cause SMD read failures or stale responses.
 
 **`BindsTo=` semantics:** If the parent socat service stops or fails, all child `cat` bridge services are automatically stopped too. Combined with `Restart=always` on the socat service, this provides automatic recovery of the entire bridge stack.
+
+### QManager qcmd Integration
+
+QManager uses `qcmd` as the single serialized entry point for all AT commands. Understanding how it interacts with the socat bridge is critical for debugging.
+
+**Architecture:**
+
+```
+┌────────────────────────────────────────────────────────────┐
+│  All QManager AT Callers                                    │
+│  ├─ qmanager-poller (every 30s)                            │
+│  ├─ QManager web UI CGI scripts                            │
+│  ├─ qmanager-tower-failover (on demand)                    │
+│  ├─ qmanager-watchcat (periodic pings)                     │
+│  └─ qmanager-imei-check (at boot)                          │
+│       ↓                                                    │
+│  qcmd "AT+COMMAND"   [unified interface]                   │
+│       ↓                                                    │
+│  /tmp/qmanager_at.lock   [flock-based serialization]       │
+│       ↓                                                    │
+│  sms_tool -d /dev/ttyOUT2 at "AT+COMMAND"                  │
+│       ↓                                                    │
+│  /dev/ttyOUT2 → socat PTY → /dev/smd7 → modem             │
+└────────────────────────────────────────────────────────────┘
+```
+
+#### flock Serialization
+
+Lock file: `/tmp/qmanager_at.lock` (pre-created by `qmanager_setup` with 666 permissions and `www-data` ownership — required for `fs.protected_regular`).
+
+```bash
+# Read-only FD (9<) to avoid O_CREAT — mandatory on RM520N-GL
+( flock_wait 9 "$LOCK_WAIT_SHORT"; sms_tool -d /dev/ttyOUT2 at "$CMD"; ) 9<"$LOCK_FILE"
+```
+
+Lock wait strategy: custom `flock_wait()` function polls `flock -x -n` every 1 second up to the timeout, rather than using `flock -w` (which may not be available in all BusyBox versions).
+
+Default timeouts: `LOCK_WAIT_SHORT=5s` (normal commands), `LOCK_WAIT_LONG=10s` (long commands).
+
+#### Short vs Long Command Paths
+
+| Path | Commands | Timeout | Mechanism |
+|------|----------|---------|-----------|
+| **Short** | `AT+CSQ`, `AT+CGMM`, most commands | 3s | `timeout 3 sms_tool -d /dev/ttyOUT2 at "$CMD"` |
+| **Long** | `AT+QSCAN`, `AT+QSCANFREQ` | 240s | Direct PTY I/O with polling (bypasses sms_tool) |
+
+**Why long commands bypass sms_tool:** `sms_tool` has a hardcoded read timeout of ~5 seconds, insufficient for `AT+QSCAN` (30-180s). For long commands, `qcmd` writes directly to the PTY and uses a background `cat` reader with a polling loop:
+
+```bash
+_run_long_at() {
+    printf '%s\r' "$CMD" > /dev/ttyIN2          # Write directly to PTY input
+    cat /dev/ttyOUT2 > "$tmpfile" &              # Background reader (no timeout)
+    CAT_PID=$!
+    # Poll for OK/ERROR every 1s, up to 240s
+    while ! grep -qe "OK" -e "ERROR" "$tmpfile"; do
+        sleep 1
+        elapsed=$((elapsed + 1))
+        [ "$elapsed" -ge 240 ] && break
+    done
+    kill "$CAT_PID" 2>/dev/null
+}
+```
+
+A flag file `/tmp/qmanager_long_running` is created while a long command is active, allowing other callers to detect and back off.
+
+#### Exit Codes
+
+| Code | Meaning |
+|------|---------|
+| 0 | Success (response contains OK) |
+| 1 | Command returned ERROR |
+| 2 | Lock timeout (modem busy — another qcmd is running) |
+| 3 | Modem not ready (AT device not found) |
+| 4 | Command timeout (no response within timeout period) |
+
+#### Stale Lock Recovery
+
+Each `qcmd` invocation records its PID in `/tmp/qmanager_at.pid`. If a subsequent call finds the lock held but the recorded PID no longer exists (`kill -0` check fails or `/proc/$pid` not found), the lock is treated as stale and cleaned up. This handles crashed `sms_tool` processes.
+
+#### Boot Dependencies
+
+All QManager services declare `After=socat-smd7-from-ttyIN2.service` to ensure the smd7 bridge is fully operational before any AT commands are attempted:
+
+```
+socat-smd7-from-ttyIN2.service (bridge ready)
+    ↓
+qmanager-setup.service (pre-create /tmp files, oneshot)
+    ↓
+qmanager-ping.service
+    ↓
+qmanager-poller.service → qmanager-tower-failover.service
+                        → qmanager-watchcat.service
+```
+
+### Socat-AT-Bridge Installation
+
+The bridge is installed by `update_socat-at-bridge.sh`, called during both fresh installs and updates.
+
+**Installation flow:**
+
+1. **Stop and remove existing services:**
+   ```bash
+   systemctl stop socat-smd11 socat-smd11-to-ttyIN socat-smd11-from-ttyIN
+   systemctl stop socat-smd7 socat-smd7-to-ttyIN2 socat-smd7-from-ttyIN2
+   systemctl stop socat-killsmd7bridge
+   rm /lib/systemd/system/socat-*.service
+   systemctl daemon-reload
+   rm -rf /usrdata/socat-at-bridge
+   ```
+
+2. **Download components to `/usrdata/socat-at-bridge/`:**
+   - `socat-armel-static` — Static ARM socat binary
+   - `killsmd7bridge` — port_bridge cleanup script
+   - `atcmd`, `atcmd11` — Interactive AT command wrappers
+   - All systemd unit files to `systemd_units/` subdirectory
+
+3. **Set permissions and create symlinks:**
+   ```bash
+   chmod +x socat-armel-static killsmd7bridge atcmd atcmd11
+   ln -sf /usrdata/socat-at-bridge/atcmd /bin
+   ln -sf /usrdata/socat-at-bridge/atcmd11 /bin
+   ```
+
+4. **Install systemd units:**
+   ```bash
+   cp /usrdata/socat-at-bridge/systemd_units/*.service /lib/systemd/system/
+   # Create direct symlinks (systemctl enable doesn't work — see Known Quirks)
+   ln -sf /lib/systemd/system/socat-killsmd7bridge.service /lib/systemd/system/multi-user.target.wants/
+   ln -sf /lib/systemd/system/socat-smd11.service /lib/systemd/system/multi-user.target.wants/
+   # ... (repeat for all 7 services)
+   ```
+
+5. **Start services in dependency order:**
+   ```bash
+   systemctl daemon-reload
+   systemctl start socat-smd11         # Create PTY pair for smd11
+   sleep 2s
+   systemctl start socat-smd11-to-ttyIN socat-smd11-from-ttyIN
+   systemctl start socat-killsmd7bridge  # Kill port_bridge
+   sleep 1s
+   systemctl start socat-smd7          # Create PTY pair for smd7
+   sleep 2s
+   systemctl start socat-smd7-to-ttyIN2 socat-smd7-from-ttyIN2
+   ```
+
+**The `killsmd7bridge` script:**
+
+```bash
+#!/bin/bash
+pkill -f "/usr/bin/port_bridge smd7 at_usb2 1"
+```
+
+One-shot: kills the Qualcomm `port_bridge` process that claims smd7 at boot. Must run before `socat-smd7.service` attempts to use `/dev/smd7`. The `port_bridge` process does not respawn after being killed.
+
+**Verification after install:**
+```bash
+ls -la /dev/ttyIN2 /dev/ttyOUT2 /dev/ttyIN /dev/ttyOUT   # PTY devices exist
+systemctl status socat-smd7 socat-smd7-from-ttyIN2         # Services active
+echo -e "AT\r" | microcom -t 500 /dev/ttyOUT2              # AT command works
+```
+
+### Troubleshooting: AT Bridge
+
+| Symptom | Diagnosis | Fix |
+|---------|-----------|-----|
+| `ERROR: AT device /dev/ttyOUT2 not found` | socat-smd7 not running | `systemctl status socat-smd7` → `systemctl restart socat-smd7` |
+| AT commands hang (timeout) | Bridge cat processes died | `systemctl restart socat-smd7-from-ttyIN2 socat-smd7-to-ttyIN2` |
+| `/dev/ttyIN2` doesn't exist | port_bridge still holds smd7 | `ps aux \| grep port_bridge` → `/usrdata/socat-at-bridge/killsmd7bridge` → restart socat-smd7 |
+| `qcmd` returns `modem_busy` repeatedly | Stale lock from crashed sms_tool | `pkill -9 sms_tool; rm /tmp/qmanager_at.pid` |
+| Modem not responsive at all | Baseband not initialized | Check `systemctl status ql-netd` — may need modem reboot |
+| Permission denied on `/tmp/qmanager_at.lock` | fs.protected_regular blocking www-data | `chown www-data:www-data /tmp/qmanager_at.lock; chmod 666 /tmp/qmanager_at.lock` |
+
+**Performance characteristics:**
+
+| Command Type | Typical Latency | Notes |
+|--------------|----------------|-------|
+| Simple query (`AT`, `AT+CSQ`) | 50-100ms | Fastest possible round-trip |
+| Status query (`AT+QENG`) | 100-500ms | Varies with network state |
+| SMS operations | 200ms-2s | Depends on network |
+| Cell scan (`AT+QSCAN`) | 30-180s | Full frequency sweep |
+
+**Resource overhead:** The entire bridge stack (2 socat processes + 4 cat processes) uses ~5 MB RAM and <1% CPU at idle. The `cat` processes block on read and consume no CPU until data arrives.
 
 ### Porting Considerations: AT Transport
 

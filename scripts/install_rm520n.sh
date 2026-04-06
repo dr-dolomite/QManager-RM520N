@@ -14,9 +14,9 @@
 #     usr/bin/              — Daemons and utilities
 #     usr/lib/qmanager/     — Shared shell libraries
 #     www/cgi-bin/          — CGI API endpoints
-#     usrdata/simpleadmin/  — lighttpd config
+#     usrdata/qmanager/     — lighttpd config
 #   dependencies/           — Bundled binaries and packages
-#     sms_tool              — Static ARM binary (AT command transport)
+#     atcli_smd11           — ARM binary (AT command transport via /dev/smd11)
 #     jq.ipk                — JSON processor (Entware package)
 #     dropbear_*.ipk        — SSH server (Entware package)
 #   install_rm520n.sh       — This script
@@ -45,8 +45,9 @@ VERSION="v0.1.1"
 INSTALL_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 # Destinations
-WWW_ROOT="/usrdata/simpleadmin/www"
-CGI_DIR="/usrdata/simpleadmin/www/cgi-bin/quecmanager"
+QMANAGER_ROOT="/usrdata/qmanager"
+WWW_ROOT="/usrdata/qmanager/www"
+CGI_DIR="/usrdata/qmanager/www/cgi-bin/quecmanager"
 LIB_DIR="/usr/lib/qmanager"
 BIN_DIR="/usr/bin"
 SYSTEMD_DIR="/lib/systemd/system"
@@ -69,7 +70,7 @@ CONF_DIR="/etc/qmanager"
 CERT_DIR="/usrdata/qmanager/certs"
 SESSION_DIR="/tmp/qmanager_sessions"
 BACKUP_DIR="/etc/qmanager/backups"
-LIGHTTPD_CONF="/usrdata/simpleadmin/lighttpd.conf"
+LIGHTTPD_CONF="/usrdata/qmanager/lighttpd.conf"
 
 # Source directories (relative to INSTALL_DIR)
 SRC_FRONTEND="$INSTALL_DIR/out"
@@ -254,10 +255,10 @@ backup_originals() {
         fi
     fi
 
-    # Backup SimpleAdmin lighttpd config
+    # Backup existing lighttpd config (if not already QManager's)
     if [ -f "$LIGHTTPD_CONF" ] && ! grep -q "QManager" "$LIGHTTPD_CONF" 2>/dev/null; then
-        cp "$LIGHTTPD_CONF" "${LIGHTTPD_CONF}.simpleadmin.bak"
-        info "Backed up SimpleAdmin lighttpd.conf"
+        cp "$LIGHTTPD_CONF" "${LIGHTTPD_CONF}.bak"
+        info "Backed up existing lighttpd.conf"
     fi
 
     # Backup existing QManager auth
@@ -362,10 +363,10 @@ install_backend() {
 
         # Install lighttpd service file — ensures correct config path is used.
         # Entware's default service may point to /opt/etc/lighttpd/lighttpd.conf
-        # instead of /usrdata/simpleadmin/lighttpd.conf where QManager's config lives.
+        # instead of /usrdata/qmanager/lighttpd.conf where QManager's config lives.
         if [ -f "$SRC_SCRIPTS/etc/systemd/system/lighttpd.service" ]; then
             cp "$SRC_SCRIPTS/etc/systemd/system/lighttpd.service" "$SYSTEMD_DIR/lighttpd.service"
-            info "lighttpd.service installed (config: /usrdata/simpleadmin/lighttpd.conf)"
+            info "lighttpd.service installed (config: /usrdata/qmanager/lighttpd.conf)"
         fi
         sync
 
@@ -391,25 +392,20 @@ install_backend() {
     fi
 
     # --- lighttpd config ---
-    if [ -f "$SRC_SCRIPTS/usrdata/simpleadmin/lighttpd.conf" ]; then
-        cp "$SRC_SCRIPTS/usrdata/simpleadmin/lighttpd.conf" "$LIGHTTPD_CONF"
+    mkdir -p "$QMANAGER_ROOT"
+    if [ -f "$SRC_SCRIPTS/usrdata/qmanager/lighttpd.conf" ]; then
+        cp "$SRC_SCRIPTS/usrdata/qmanager/lighttpd.conf" "$LIGHTTPD_CONF"
         info "lighttpd config installed"
     fi
 
-    # --- TLS certificates (copy from SimpleAdmin if QManager doesn't have its own) ---
+    # --- TLS certificates ---
     mkdir -p "$CERT_DIR"
     if [ ! -f "$CERT_DIR/server.key" ]; then
-        if [ -f /usrdata/simpleadmin/server.key ]; then
-            cp /usrdata/simpleadmin/server.key "$CERT_DIR/server.key"
-            cp /usrdata/simpleadmin/server.crt "$CERT_DIR/server.crt"
-            info "TLS certs copied from SimpleAdmin"
-        else
-            # Generate self-signed cert if none exist
-            openssl req -x509 -newkey rsa:2048 -keyout "$CERT_DIR/server.key" \
-                -out "$CERT_DIR/server.crt" -days 3650 -nodes \
-                -subj "/CN=QManager" 2>/dev/null
-            info "Generated self-signed TLS certificate"
-        fi
+        # Generate self-signed cert if none exist
+        openssl req -x509 -newkey rsa:2048 -keyout "$CERT_DIR/server.key" \
+            -out "$CERT_DIR/server.crt" -days 3650 -nodes \
+            -subj "/CN=QManager" 2>/dev/null
+        info "Generated self-signed TLS certificate"
     else
         info "TLS certs already exist"
     fi

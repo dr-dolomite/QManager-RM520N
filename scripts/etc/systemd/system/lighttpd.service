@@ -7,8 +7,8 @@ After=network.target opt.mount
 [Service]
 Type=simple
 PIDFile=/opt/var/run/lighttpd.pid
-ExecStartPre=/opt/sbin/lighttpd -tt -f /usrdata/simpleadmin/lighttpd.conf
-ExecStart=/opt/sbin/lighttpd -D -f /usrdata/simpleadmin/lighttpd.conf
+ExecStartPre=/opt/sbin/lighttpd -tt -f /usrdata/qmanager/lighttpd.conf
+ExecStart=/opt/sbin/lighttpd -D -f /usrdata/qmanager/lighttpd.conf
 ExecReload=/bin/kill -USR1 $MAINPID
 Restart=on-failure
 

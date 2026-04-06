@@ -1,26 +1,24 @@
 #!/bin/sh
 # =============================================================================
-# qcmd — QManager Gatekeeper (RM520N-GL Variant)
+# qcmd — QManager AT Command Gatekeeper (RM520N-GL)
 # =============================================================================
 # The SINGLE entry point for ALL modem communication on the RM520N-GL.
-# Uses flock to serialize access to the modem's AT channel via socat PTY bridge.
+# Uses flock to serialize access to /dev/smd11 via atcli_smd11.
 #
-# This is the RM520N-GL variant of qcmd. It uses sms_tool targeting the
-# socat-at-bridge PTY device (/dev/ttyOUT2 for smd7). The interface contract
-# is identical to the RM551E variant — all callers work without modification.
+# atcli_smd11 accesses /dev/smd11 directly — no socat-at-bridge needed.
+# This eliminates the 7-service socat dependency chain entirely.
 #
-# Why ttyOUT2 (smd7) and not ttyOUT (smd11):
-#   - sms_tool works reliably on ttyOUT2 but has timing issues on ttyOUT
-#   - smd7 requires killsmd7bridge to have run at boot (standard with RGMII toolkit)
-#   - ttyOUT (smd11) can still be used via microcom for other purposes
+# Key behavior: atcli_smd11 always exits 0 (even on ERROR response).
+# Error detection is done by parsing the response text for OK/ERROR.
+# Long commands (AT+QSCAN etc.) are handled natively — atcli_smd11 waits
+# for the modem to finish (tested: 1m+ for cell scans). No workarounds needed.
 #
 # Usage:
 #   qcmd "AT+COMMAND"          → Execute AT command, return raw result
 #   qcmd -j "AT+COMMAND"       → Execute AT command, return JSON-wrapped result
 #
 # Install location: /usr/bin/qcmd
-# Dependencies: sms_tool (static ARM binary), flock, timeout, jq (for -j mode)
-# Prerequisite: socat-at-bridge must be running (provides /dev/ttyOUT2)
+# Dependencies: atcli_smd11 (ARM binary), flock, timeout, jq (for -j mode)
 # =============================================================================
 
 # --- Logging -----------------------------------------------------------------
@@ -43,8 +41,8 @@ LONG_FLAG="/tmp/qmanager_long_running"
 PID_FILE="/tmp/qmanager_at.pid"
 
 SHORT_TIMEOUT=3        # seconds for normal AT commands
-LONG_TIMEOUT=240       # seconds for AT+QSCAN and similar
-LONG_SAFETY_TIMEOUT=260 # outer timeout safety net (20s beyond LONG_TIMEOUT)
+LONG_TIMEOUT=240       # seconds for AT+QSCAN and similar (safety net only —
+                       # atcli_smd11 waits natively, this prevents infinite hangs)
 LOCK_WAIT_SHORT=5      # seconds to wait for lock (normal commands)
 LOCK_WAIT_LONG=10      # seconds to wait for lock (long commands)
 
@@ -54,20 +52,19 @@ LOCK_WAIT_LONG=10      # seconds to wait for lock (long commands)
 [ ! -f "$PID_FILE" ] && touch "$PID_FILE" 2>/dev/null
 chmod 666 "$LOCK_FILE" "$PID_FILE" 2>/dev/null
 
-# --- AT device configuration (RM520N-GL: socat PTY bridge) -------------------
-# Default: /dev/ttyOUT2 (smd7 via socat bridge, requires killsmd7bridge at boot)
-# Override: write device path to /etc/qmanager/at_device (e.g. /dev/ttyOUT)
-_DEFAULT_DEV="/dev/ttyOUT2"
-_sms_dev="$_DEFAULT_DEV"
-if [ -f /etc/qmanager/at_device ]; then
-    _dev=$(cat /etc/qmanager/at_device 2>/dev/null)
-    [ -n "$_dev" ] && _sms_dev="$_dev"
-fi
-SMS_TOOL_ARGS="-d $_sms_dev"
+# --- AT device configuration (RM520N-GL: atcli_smd11 direct) -----------------
+# atcli_smd11 accesses /dev/smd11 directly — no socat bridge needed.
+# The device is hardcoded in the binary. We only verify it exists.
+AT_CLI="/usr/bin/atcli_smd11"
+AT_DEVICE="/dev/smd11"
 
-# Verify AT device exists (socat-at-bridge must be running)
-if [ ! -e "$_sms_dev" ]; then
-    echo "ERROR: AT device $_sms_dev not found. Is socat-at-bridge running?" >&2
+if [ ! -x "$AT_CLI" ]; then
+    echo "ERROR: $AT_CLI not found or not executable" >&2
+    exit 1
+fi
+
+if [ ! -e "$AT_DEVICE" ]; then
+    echo "ERROR: AT device $AT_DEVICE not found" >&2
     exit 1
 fi
 
@@ -168,71 +165,21 @@ flock_wait() {
     return $?
 }
 
-# --- Helper: Long AT Command via Direct Device I/O --------------------------
-# sms_tool has a hardcoded ~5s read timeout which is too short for commands
-# like AT+QSCAN (up to 180s). This function bypasses sms_tool and uses direct
-# PTY I/O with a background reader — same pattern as SimpleAdmin's atcmd helper.
-#
-# Usage: _run_long_at <command> <timeout_seconds> <device>
-# Returns: 0 = OK received, 1 = ERROR received, 4 = timeout (no OK/ERROR)
-# Stdout: raw modem response
-# -----------------------------------------------------------------------------
-_run_long_at() {
-    local cmd="$1"
-    local max_secs="$2"
-    local dev="$3"
-    local tmpfile="/tmp/qmanager_long_at_$$.tmp"
-
-    rm -f "$tmpfile"
-    : > "$tmpfile"
-
-    # Send command to modem via PTY
-    printf '%s\r' "$cmd" > "$dev"
-
-    # Background reader — captures all modem output to temp file
-    cat "$dev" > "$tmpfile" 2>/dev/null &
-    local reader_pid=$!
-
-    # Poll for OK/ERROR with wall-clock timeout
-    local elapsed=0
-    while [ "$elapsed" -lt "$max_secs" ]; do
-        sleep 1
-        elapsed=$((elapsed + 1))
-        if grep -qe 'OK' -e 'ERROR' "$tmpfile" 2>/dev/null; then
-            # Brief pause to capture any trailing output after OK
-            sleep 0.5
-            break
-        fi
-    done
-
-    # Stop the reader
-    kill "$reader_pid" 2>/dev/null
-    wait "$reader_pid" 2>/dev/null
-
-    # Read results and determine exit code
-    local output=""
-    [ -s "$tmpfile" ] && output=$(cat "$tmpfile")
-    rm -f "$tmpfile"
-
-    printf '%s' "$output"
-
-    case "$output" in
-        *OK*)    return 0 ;;
-        *ERROR*) return 1 ;;
-        *)       return 4 ;;  # Timeout — no OK or ERROR received
-    esac
-}
-
 # =============================================================================
 # EXECUTION
 #
 # Uses subshell + FD 9 redirect: ( flock 9; ...; ) 9<"$LOCK_FILE"
 # Lock is auto-released when the subshell exits.
+#
+# atcli_smd11 always exits 0 — error detection is done by parsing the
+# response text for OK/ERROR markers.
 # =============================================================================
 
 if is_long_command "$COMMAND"; then
     # =========================================================================
     # LONG COMMAND PATH
+    # atcli_smd11 handles long commands natively (no timeout workaround needed).
+    # The outer timeout is a safety net only — prevents infinite hangs.
     # =========================================================================
     qlog_info "Long command started: ${COMMAND}"
     echo "$COMMAND" > "$LONG_FLAG"
@@ -244,45 +191,49 @@ if is_long_command "$COMMAND"; then
             fi
             echo $$ > "$PID_FILE"
 
-            # Warm-up: flush residual serial buffer data + confirm modem responsive
-            sms_tool $SMS_TOOL_ARGS at "AT" > /dev/null 2>&1 || { rm -f "$PID_FILE"; exit 3; }
-
-            # Real command via direct device I/O (sms_tool's 5s timeout is too
-            # short for long commands like AT+QSCAN which take up to 180s)
-            _run_long_at "$COMMAND" "$LONG_TIMEOUT" "$_sms_dev"
+            timeout "$LONG_TIMEOUT" "$AT_CLI" "$COMMAND" 2>/dev/null
             cmd_rc=$?
             rm -f "$PID_FILE"
-            exit $cmd_rc
+
+            # timeout(1) returns 124 when it kills the child
+            [ "$cmd_rc" -eq 124 ] && exit 4
+            exit 0
         ) 9<"$LOCK_FILE"
     )
     exit_code=$?
 
     rm -f "$LONG_FLAG"
 
+    # atcli_smd11 always exits 0 — detect errors from response text
     case $exit_code in
         0)
-            qlog_info "Long command completed: ${COMMAND}"
-            qlog_at_cmd "$COMMAND" "$result" "$exit_code"
-            output_result "$result" ""
-            ;;
-        1)
-            qlog_error "Long command returned ERROR: ${COMMAND}"
-            qlog_at_cmd "$COMMAND" "$result" "$exit_code"
-            output_result "" "command_failed"
-            exit 1
+            case "$result" in
+                *ERROR*)
+                    qlog_error "Long command returned ERROR: ${COMMAND}"
+                    qlog_at_cmd "$COMMAND" "$result" "1"
+                    output_result "" "command_failed"
+                    exit 1
+                    ;;
+                *OK*)
+                    qlog_info "Long command completed: ${COMMAND}"
+                    qlog_at_cmd "$COMMAND" "$result" "0"
+                    output_result "$result" ""
+                    ;;
+                *)
+                    # No OK or ERROR — likely empty/malformed response
+                    qlog_error "Long command: no OK/ERROR in response: ${COMMAND}"
+                    output_result "" "command_failed"
+                    exit 1
+                    ;;
+            esac
             ;;
         2)
             qlog_error "Lock acquisition failed for: ${COMMAND}"
             output_result "" "modem_busy"
             exit 1
             ;;
-        3)
-            qlog_error "Modem warm-up failed before: ${COMMAND}"
-            output_result "" "modem_not_ready"
-            exit 1
-            ;;
         4)
-            qlog_error "Long command timed out (no OK/ERROR in ${LONG_TIMEOUT}s): ${COMMAND}"
+            qlog_error "Long command timed out (${LONG_TIMEOUT}s safety limit): ${COMMAND}"
             output_result "" "command_timeout"
             exit 1
             ;;
@@ -311,10 +262,11 @@ else
                 exit 2
             fi
             echo $$ > "$PID_FILE"
-            timeout "$SHORT_TIMEOUT" sms_tool $SMS_TOOL_ARGS at "$COMMAND" 2>/dev/null
+            timeout "$SHORT_TIMEOUT" "$AT_CLI" "$COMMAND" 2>/dev/null
             cmd_rc=$?
             rm -f "$PID_FILE"
-            exit $cmd_rc
+            [ "$cmd_rc" -eq 124 ] && exit 4
+            exit 0
         ) 9<"$LOCK_FILE"
     )
     exit_code=$?
@@ -330,10 +282,11 @@ else
                         exit 2
                     fi
                     echo $$ > "$PID_FILE"
-                    timeout "$SHORT_TIMEOUT" sms_tool $SMS_TOOL_ARGS at "$COMMAND" 2>/dev/null
+                    timeout "$SHORT_TIMEOUT" "$AT_CLI" "$COMMAND" 2>/dev/null
                     cmd_rc=$?
                     rm -f "$PID_FILE"
-                    exit $cmd_rc
+                    [ "$cmd_rc" -eq 124 ] && exit 4
+                    exit 0
                 ) 9<"$LOCK_FILE"
             )
             exit_code=$?
@@ -346,13 +299,22 @@ else
         fi
     fi
 
-    qlog_at_cmd "$COMMAND" "$result" "$exit_code"
-
-    if [ $exit_code -ne 0 ]; then
-        qlog_error "Short command timeout: ${COMMAND} (exit=${exit_code})"
+    if [ $exit_code -eq 4 ]; then
+        qlog_error "Short command timed out: ${COMMAND}"
         output_result "" "command_timeout"
         exit 1
     fi
+
+    qlog_at_cmd "$COMMAND" "$result" "$exit_code"
+
+    # atcli_smd11 always exits 0 — detect errors from response text
+    case "$result" in
+        *ERROR*)
+            qlog_error "Command returned ERROR: ${COMMAND}"
+            output_result "" "command_failed"
+            exit 1
+            ;;
+    esac
 
     output_result "$result" ""
 fi

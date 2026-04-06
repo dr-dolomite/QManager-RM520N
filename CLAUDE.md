@@ -81,9 +81,19 @@ Key platform differences from RM551E (current target):
 | Package manager | opkg (system) | Entware opkg at `/opt` (bind-mounted from `/usrdata/opt`) |
 | LAN config | UCI (`network.*`) | `/etc/data/mobileap_cfg.xml` via xmlstarlet |
 
-**Architecture reference:** Full details in `docs/rm520n-gl-architecture.md`
+**Architecture reference:** Full details in `docs/rm520n-gl-architecture.md` — includes SimpleAdmin RGMII toolkit foundation, socat-at-bridge deep dive, Entware bootstrapping, lighttpd configuration, boot sequences, and troubleshooting.
 
-**Source reference:** `simpleadmin-source/` contains the original RM520N-GL admin panel that this work builds upon.
+**Source reference:** `simpleadmin-source/` contains the original RM520N-GL admin panel (iamromulan/quectel-rgmii-toolkit) that this work builds upon. QManager reuses its Entware installation, lighttpd web server, socat-at-bridge, and systemd service patterns.
+
+### SimpleAdmin Foundation
+
+QManager runs on top of the SimpleAdmin infrastructure installed by the RGMII toolkit:
+- **Entware** at `/opt` (bind-mounted from `/usrdata/opt`) provides packages: lighttpd, sudo, xmlstarlet, curl
+- **lighttpd** runs as `www-data:dialout` — the `dialout` group grants access to AT serial devices (`/dev/ttyOUT*`)
+- **SimpleAdmin auth** uses HTTP Basic Auth (`.htpasswd`) — QManager replaces this with its own cookie-based session auth
+- **socat-at-bridge** creates virtual TTY pairs (`/dev/ttyIN2`↔`/dev/ttyOUT2` for smd7, `/dev/ttyIN`↔`/dev/ttyOUT` for smd11) via 7 systemd services
+- **`systemctl enable` does not work** — all boot persistence uses direct symlinks into `/lib/systemd/system/multi-user.target.wants/` (via `svc_enable`/`svc_disable` in `platform.sh`)
+- **SimpleUpdate** daemon can auto-update toolkit components — QManager's install script manages its own lifecycle separately
 
 ## Removed/Deferred Features (dev-rm520 Branch)
 
