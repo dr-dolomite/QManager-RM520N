@@ -19,6 +19,13 @@ mkdir -p /var/lock /etc/qmanager /usr/lib/qmanager /tmp/quecmanager /var/spool/c
 # CGI (www-data) writes cron entries for root — needs write access to spool dir
 chmod 777 /var/spool/cron/crontabs
 
+# AT device permissions — www-data (via dialout group) needs read/write access
+# /dev/smd11 defaults to crw------- root:root; must open it to dialout group
+if [ -e /dev/smd11 ]; then
+    chown root:dialout /dev/smd11
+    chmod 660 /dev/smd11
+fi
+
 # Shared /tmp files — owned by www-data so CGI scripts can open them.
 # Root (daemons) can still open because root owns the /tmp directory.
 # CRITICAL: fs.protected_regular=1 on RM520N-GL means O_CREAT in sticky /tmp
@@ -44,9 +51,8 @@ for f in /usr/bin/qmanager_*; do
     [ -f "$f" ] && chmod +x "$f"
 done
 
-# Make all CGI scripts executable — detect correct path
-CGI_DIR="/usrdata/simpleadmin/www/cgi-bin/quecmanager"
-[ ! -d "$CGI_DIR" ] && CGI_DIR="/www/cgi-bin/quecmanager"
+# Make all CGI scripts executable
+CGI_DIR="/usrdata/qmanager/www/cgi-bin/quecmanager"
 for f in "$CGI_DIR"/*.sh "$CGI_DIR"/*/*.sh; do
     [ -f "$f" ] && chmod +x "$f"
 done

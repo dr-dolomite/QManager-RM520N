@@ -709,6 +709,13 @@ enable_services() {
 start_services() {
     step "Starting QManager services"
 
+    # AT device permissions — www-data (dialout group) needs read/write on /dev/smd11
+    if [ -e /dev/smd11 ]; then
+        chown root:dialout /dev/smd11
+        chmod 660 /dev/smd11
+        info "Set /dev/smd11 permissions for dialout group"
+    fi
+
     # iptables rules — allow access to web UI and SSH
     # Default RM520N-GL firewall drops non-bridge/eth traffic; replaces simplefirewall
     if ! iptables -C INPUT -i lo -p tcp --dport 80 -j ACCEPT 2>/dev/null; then
@@ -764,7 +771,9 @@ start_services() {
         fi
     fi
 
-    [ "$svc_errors" -gt 0 ] && warn "$svc_errors service(s) failed to start"
+    if [ "$svc_errors" -gt 0 ]; then
+        warn "$svc_errors service(s) failed to start"
+    fi
 }
 
 # --- SSH Setup (Optional) ----------------------------------------------------
