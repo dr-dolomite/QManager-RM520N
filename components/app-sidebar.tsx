@@ -18,7 +18,6 @@ import {
   SettingsIcon,
   TerminalIcon,
   DownloadIcon,
-  PackageOpenIcon,
   TerminalSquareIcon,
 } from "lucide-react";
 
@@ -211,10 +210,10 @@ const data = {
           title: "Latency Monitor",
           url: "/monitoring/latency",
         },
-        // {
-        //   title: "Email Alerts",
-        //   url: "/monitoring/email-alerts",
-        // },
+        {
+          title: "Email Alerts",
+          url: "/monitoring/email-alerts",
+        },
       ],
     },
     {
