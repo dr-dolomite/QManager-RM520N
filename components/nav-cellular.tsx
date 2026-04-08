@@ -41,13 +41,22 @@ export function NavCellular({
   const pathname = rawPathname.endsWith('/') && rawPathname !== '/' ? rawPathname.slice(0, -1) : rawPathname
   const [openItems, setOpenItems] = React.useState<Record<string, boolean>>({})
 
+  // Check if the current path matches the item or any of its declared sub-items.
+  // Uses sub-item URLs instead of prefix matching to avoid false positives
+  // (e.g., "/cellular" matching "/cellular/settings" which belongs to a different nav item).
+  const isItemActive = React.useCallback((item: typeof cellular[number]) => {
+    if (pathname === item.url) return true
+    if (item.items?.some((sub) => pathname === sub.url || pathname.startsWith(sub.url + "/"))) return true
+    return false
+  }, [pathname])
+
   React.useEffect(() => {
     const states: Record<string, boolean> = {}
     cellular.forEach((item) => {
-      states[item.title] = pathname === item.url || (!!item.items?.length && pathname.startsWith(item.url + "/"))
+      states[item.title] = isItemActive(item)
     })
     setOpenItems(states)
-  }, [pathname, cellular])
+  }, [pathname, cellular, isItemActive])
 
   return (
     <SidebarGroup>
@@ -56,7 +65,7 @@ export function NavCellular({
       </SidebarGroupLabel>
       <SidebarMenu>
         {cellular.map((item) => {
-          const isParentOrChildActive = pathname === item.url || (!!item.items?.length && pathname.startsWith(item.url + "/"))
+          const isParentOrChildActive = isItemActive(item)
 
           return (
           <Collapsible
