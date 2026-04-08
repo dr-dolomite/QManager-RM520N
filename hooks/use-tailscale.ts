@@ -349,7 +349,7 @@ export function useTailscale(): UseTailscaleReturn {
   );
 
   // ---------------------------------------------------------------------------
-  // Install via opkg
+  // Install via helper script
   // ---------------------------------------------------------------------------
   const stopInstallPolling = useCallback(() => {
     if (installPollRef.current) {

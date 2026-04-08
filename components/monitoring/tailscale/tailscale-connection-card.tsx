@@ -96,9 +96,12 @@ export function TailscaleConnectionCard({
   const handleReboot = (e: React.MouseEvent) => {
     e.preventDefault();
     setIsRebooting(true);
-    fetch("/cgi-bin/quecmanager/system/reboot.sh", { method: "POST" }).catch(
-      () => {}
-    );
+    fetch("/cgi-bin/quecmanager/system/reboot.sh", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "reboot" }),
+      keepalive: true,
+    }).catch(() => {});
     setTimeout(() => {
       sessionStorage.setItem("qm_rebooting", "1");
       document.cookie = "qm_logged_in=; Path=/; Max-Age=0";
