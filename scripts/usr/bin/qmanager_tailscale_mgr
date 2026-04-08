@@ -107,6 +107,8 @@ do_install() {
     # Verify
     sleep 1
     if [ -f "$TAILSCALE_DIR/tailscale" ] && [ -f "$TAILSCALE_DIR/tailscaled" ]; then
+        # Restart firewall so tailscale0 becomes a trusted interface
+        /bin/systemctl restart qmanager-firewall 2>/dev/null || true
         write_progress '{"success":true,"status":"complete","message":"Tailscale v'"$TAILSCALE_VERSION"' installed successfully"}'
     else
         write_progress '{"success":false,"status":"error","message":"Install completed but binaries not found"}'

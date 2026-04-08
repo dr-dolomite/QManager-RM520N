@@ -73,21 +73,6 @@ ts_cmd() {
     $_SUDO "$TAILSCALE_BIN" "$@"
 }
 
-# --- Helper: add iptables rules for tailscale0 interface ---------------------
-ensure_firewall() {
-    # Allow HTTP/HTTPS/SSH on tailscale0 (matches qmanager_setup pattern)
-    for port in 80 443 22; do
-        run_iptables -C INPUT -i tailscale0 -p tcp --dport "$port" -j ACCEPT 2>/dev/null || \
-            run_iptables -A INPUT -i tailscale0 -p tcp --dport "$port" -j ACCEPT 2>/dev/null
-    done
-}
-
-# --- Helper: remove iptables rules for tailscale0 interface ------------------
-remove_firewall() {
-    for port in 80 443 22; do
-        run_iptables -D INPUT -i tailscale0 -p tcp --dport "$port" -j ACCEPT 2>/dev/null || true
-    done
-}
 
 # =============================================================================
 # GET — Fetch installation status, daemon state, connection info, peers
@@ -334,7 +319,6 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
                 state=$(jq -r 'select(.BackendState == "Running") | .BackendState' "$TS_UP_OUTPUT" 2>/dev/null | head -1)
                 if [ "$state" = "Running" ]; then
                     rm -f "$AUTH_URL_FILE" "$TS_UP_PID_FILE"
-                    ensure_firewall
                     qlog_info "Tailscale already authenticated"
                     jq -n '{"success": true, "already_authenticated": true}'
                     exit 0
@@ -408,7 +392,6 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
         svc_start "tailscaled"
         sleep 1
         if is_daemon_running; then
-            ensure_firewall
             qlog_info "Tailscale daemon started"
             cgi_success
         else
@@ -475,10 +458,10 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
         # Send response before removing firewall (avoids killing HTTP connection)
         cgi_success
 
-        # Remove firewall rules and uninstall in background AFTER response
+        # Uninstall in background AFTER response, then restart firewall to drop tailscale0
         (
-            remove_firewall
             $_SUDO /usr/bin/qmanager_tailscale_mgr uninstall
+            svc_restart "qmanager-firewall"
         ) </dev/null >/dev/null 2>&1 &
 
         qlog_info "Tailscale uninstall started"
