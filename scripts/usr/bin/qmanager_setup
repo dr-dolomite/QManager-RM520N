@@ -76,6 +76,14 @@ if command -v iptables >/dev/null 2>&1; then
         iptables -C INPUT -i eth0 -p tcp --dport "$port" -j ACCEPT 2>/dev/null || \
             iptables -A INPUT -i eth0 -p tcp --dport "$port" -j ACCEPT
     done
+
+    # VPN access — if Tailscale is installed, allow same ports on tailscale0
+    if [ -x /usrdata/tailscale/tailscale ]; then
+        for port in 80 443 22; do
+            iptables -C INPUT -i tailscale0 -p tcp --dport "$port" -j ACCEPT 2>/dev/null || \
+                iptables -A INPUT -i tailscale0 -p tcp --dport "$port" -j ACCEPT
+        done
+    fi
 fi
 
 # Create default long_commands.list if missing
