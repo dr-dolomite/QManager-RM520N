@@ -1,0 +1,6 @@
+# Tailscale daemon configuration — sourced by tailscaled.service
+# Port for incoming VPN packets (WireGuard). Remote nodes auto-discover this.
+PORT="41641"
+
+# Extra flags for tailscaled (e.g., --verbose=1 for debug logging)
+FLAGS=""
