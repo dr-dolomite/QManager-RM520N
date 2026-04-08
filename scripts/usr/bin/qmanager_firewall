@@ -1,0 +1,66 @@
+#!/bin/sh
+# qmanager_firewall — Port firewall for QManager web UI
+# Restricts HTTP/HTTPS access to trusted interfaces only.
+# Replaces SimpleAdmin's simplefirewall as a QManager-managed service.
+#
+# Usage: qmanager_firewall {start|stop|restart}
+#
+# Protected ports: 80 (HTTP), 443 (HTTPS)
+# Trusted interfaces: lo, bridge0, eth0, tailscale0 (if installed)
+# SSH (22) is intentionally NOT blocked — emergency access must remain open.
+#
+# Service: qmanager-firewall.service (Type=oneshot, RemainAfterExit=yes)
+
+# Protected ports — web UI only
+PORTS="80 443"
+
+# Trusted interfaces — always allowed
+TRUSTED="lo bridge0 eth0"
+
+# Dynamic trust — add tailscale0 if Tailscale is installed
+if [ -x /usrdata/tailscale/tailscale ]; then
+    TRUSTED="$TRUSTED tailscale0"
+fi
+
+do_start() {
+    # Allow protected ports on trusted interfaces
+    for iface in $TRUSTED; do
+        for port in $PORTS; do
+            iptables -C INPUT -i "$iface" -p tcp --dport "$port" -j ACCEPT 2>/dev/null || \
+                iptables -A INPUT -i "$iface" -p tcp --dport "$port" -j ACCEPT
+        done
+    done
+
+    # Block protected ports on all other interfaces (cellular, etc.)
+    for port in $PORTS; do
+        iptables -C INPUT -p tcp --dport "$port" -j DROP 2>/dev/null || \
+            iptables -A INPUT -p tcp --dport "$port" -j DROP
+    done
+}
+
+do_stop() {
+    # Remove DROP rules
+    for port in $PORTS; do
+        iptables -D INPUT -p tcp --dport "$port" -j DROP 2>/dev/null || true
+    done
+
+    # Remove ACCEPT rules
+    for iface in $TRUSTED; do
+        for port in $PORTS; do
+            iptables -D INPUT -i "$iface" -p tcp --dport "$port" -j ACCEPT 2>/dev/null || true
+        done
+    done
+}
+
+case "${1:-}" in
+    start)   do_start ;;
+    stop)    do_stop ;;
+    restart)
+        do_stop
+        do_start
+        ;;
+    *)
+        echo "Usage: qmanager_firewall {start|stop|restart}" >&2
+        exit 1
+        ;;
+esac
