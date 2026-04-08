@@ -3,15 +3,16 @@
 # =============================================================================
 # sms.sh — CGI Endpoint: SMS Center (RM520N-GL)
 # =============================================================================
-# GET:  Returns all received SMS messages and storage status via AT commands.
+# GET:  Returns all received SMS messages and storage status.
 # POST: Sends, deletes individual, or deletes all SMS messages.
 #
-# All modem communication goes through qcmd (flock-serialized atcli_smd11
-# on /dev/smd11). No direct device access.
+# Uses sms_tool for SMS operations (handles multi-part message reassembly)
+# and qcmd for AT commands (storage status). All device access is
+# flock-serialized via /tmp/qmanager_at.lock to prevent conflicts.
 #
 # POST body: { "action": "send"|"delete"|"delete_all", ... }
 #   action=send:       { "action":"send", "phone":"...", "message":"..." }
-#   action=delete:     { "action":"delete", "index": <number> }
+#   action=delete:     { "action":"delete", "indexes": [n, ...] }
 #   action=delete_all: { "action":"delete_all" }
 #
 # Endpoint: GET/POST /cgi-bin/quecmanager/cellular/sms.sh
@@ -22,6 +23,32 @@
 qlog_init "cgi_sms"
 cgi_headers
 cgi_handle_options
+
+# --- Config ------------------------------------------------------------------
+SMS_TOOL="/usr/bin/sms_tool"
+AT_DEVICE="/dev/smd11"
+LOCK_FILE="/tmp/qmanager_at.lock"
+
+# --- flock with timeout (BusyBox compatible) ---------------------------------
+# BusyBox flock lacks -w (timeout). Polls with -n (non-blocking) in a loop.
+# Usage: flock_wait <fd> <timeout_seconds>
+# Returns: 0 = lock acquired, 1 = timed out
+flock_wait() {
+    _fd="$1"; _wait="$2"; _elapsed=0
+    while [ "$_elapsed" -lt "$_wait" ]; do
+        if flock -x -n "$_fd" 2>/dev/null; then return 0; fi
+        sleep 1
+        _elapsed=$((_elapsed + 1))
+    done
+    flock -x -n "$_fd" 2>/dev/null
+}
+
+# --- Locked sms_tool wrapper -------------------------------------------------
+# Runs sms_tool under the same flock that qcmd uses, preventing simultaneous
+# /dev/smd11 access. Suppresses stderr (tcsetattr warnings on smd devices).
+sms_locked() {
+    (flock_wait 9 10 || exit 2; "$SMS_TOOL" -d "$AT_DEVICE" "$@" 2>/dev/null) 9<"$LOCK_FILE"
+}
 
 # --- MCC to country calling code lookup --------------------------------------
 # Maps the SIM's MCC (first 3 digits of IMSI) to ITU-T calling code.
@@ -235,7 +262,7 @@ mcc_to_calling_code() {
 }
 
 # --- Normalize phone number --------------------------------------------------
-# 1. Strip leading "+" (AT+CMGS requires no + prefix)
+# 1. Strip leading "+" (sms_tool send requires no + prefix)
 # 2. If starts with "0" (local format), detect country from SIM's MCC
 #    and replace leading 0 with the country calling code
 normalize_phone() {
@@ -272,55 +299,46 @@ normalize_phone() {
 if [ "$REQUEST_METHOD" = "GET" ]; then
     qlog_info "Fetching SMS inbox and status"
 
-    # 1. Ensure text mode
-    qcmd "AT+CMGF=1" >/dev/null 2>&1
+    # 1. Fetch raw messages via sms_tool (handles PDU decoding + multi-part info)
+    raw_json=$(sms_locked recv -j)
+    sms_rc=$?
 
-    # 2. List all messages via AT+CMGL
-    raw_list=$(qcmd 'AT+CMGL="ALL"' 2>/dev/null)
+    if [ "$sms_rc" -eq 2 ]; then
+        qlog_error "SMS recv: could not acquire lock"
+        jq -n '{"success":false,"error":"modem_busy","detail":"Could not acquire AT lock"}'
+        exit 0
+    fi
 
-    # 3. Parse +CMGL response into JSON array
-    # Format: +CMGL: <index>,<stat>,<sender>,,<timestamp>\r\n<body>
-    messages=$(printf '%s' "$raw_list" | awk '
-    BEGIN { printf "["; first=1 }
-    /^\+CMGL:/ {
-        if (!first) printf ","
-        first=0
-        # Extract fields from +CMGL line
-        line = $0
-        sub(/^\+CMGL: */, "", line)
-        # Split by comma — index, stat, sender, alpha, timestamp
-        n = split(line, f, ",")
-        idx = f[1] + 0
-        gsub(/"/, "", f[2]); stat = f[2]
-        gsub(/"/, "", f[3]); sender = f[3]
-        # Timestamp is in fields 5 and possibly 6 (date,time)
-        gsub(/"/, "", f[5]); ts = f[5]
-        if (n >= 6) { gsub(/"/, "", f[6]); ts = ts "," f[6] }
-        # Next line is the message body
-        getline body
-        # Escape JSON special chars in body and sender
-        gsub(/\\/, "\\\\", body)
-        gsub(/"/, "\\\"", body)
-        gsub(/\t/, "\\t", body)
-        gsub(/\\/, "\\\\", sender)
-        gsub(/"/, "\\\"", sender)
-        printf "{\"index\":%d,\"status\":\"%s\",\"sender\":\"%s\",\"timestamp\":\"%s\",\"content\":\"%s\"}", idx, stat, sender, ts, body
-    }
-    END { printf "]" }
-    ')
+    # 2. Merge multi-part messages by reference, collect indexes for deletion
+    # Single-part messages (total=1) stay individual; multi-part are grouped
+    # by reference number, sorted by part, and content concatenated.
+    messages=$(printf '%s' "$raw_json" | jq -c '
+        [
+            # Single-part messages — each stands alone
+            (.msg // [] | map(select(.total <= 1)) | .[] |
+                {indexes: [.index], sender, timestamp, content}),
+            # Multi-part messages — group by reference, merge content
+            (.msg // [] | map(select(.total > 1)) | group_by(.reference) | .[] |
+                sort_by(.part) |
+                {
+                    indexes: [.[].index],
+                    sender: .[0].sender,
+                    timestamp: .[0].timestamp,
+                    content: ([.[].content] | join(""))
+                })
+        ]
+    ' 2>/dev/null)
+    [ -z "$messages" ] || printf '%s' "$messages" | jq empty 2>/dev/null || messages="[]"
     [ -z "$messages" ] && messages="[]"
-    # Validate JSON
-    printf '%s' "$messages" | jq empty 2>/dev/null || messages="[]"
 
-    # 4. Get storage status via AT+CPMS?
+    # 3. Get storage status via AT+CPMS?
     cpms_raw=$(qcmd "AT+CPMS?" 2>/dev/null)
-    # Parse: +CPMS: "ME",used,total,"ME",used,total,"ME",used,total
-    storage_used=$(printf '%s' "$cpms_raw" | grep '+CPMS:' | awk -F',' '{gsub(/[^0-9]/, "", $2); print $2}')
-    storage_total=$(printf '%s' "$cpms_raw" | grep '+CPMS:' | awk -F',' '{gsub(/[^0-9]/, "", $3); print $3}')
+    storage_used=$(printf '%s' "$cpms_raw" | tr -d '\r' | grep '+CPMS:' | awk -F',' '{gsub(/[^0-9]/, "", $2); print $2}')
+    storage_total=$(printf '%s' "$cpms_raw" | tr -d '\r' | grep '+CPMS:' | awk -F',' '{gsub(/[^0-9]/, "", $3); print $3}')
     [ -z "$storage_used" ] && storage_used=0
     [ -z "$storage_total" ] && storage_total=0
 
-    # 5. Build JSON response
+    # 4. Build JSON response
     jq -n \
         --argjson messages "$messages" \
         --argjson used "$storage_used" \
@@ -350,11 +368,6 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
     fi
 
     # --- action: send --------------------------------------------------------
-    # SMS sending via AT+CMGS is a two-step interaction:
-    #   1. Send AT+CMGS="<number>" — modem responds with ">" prompt
-    #   2. Send message body followed by Ctrl-Z (0x1A) — modem sends the SMS
-    # Since atcli_smd11 handles this internally when the command contains
-    # the full sequence, we write directly to /dev/smd11 with flock protection.
     if [ "$ACTION" = "send" ]; then
         RAW_PHONE=$(printf '%s' "$POST_DATA" | jq -r '.phone // empty')
         MESSAGE=$(printf '%s' "$POST_DATA" | jq -r '.message // empty')
@@ -373,34 +386,7 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
 
         qlog_info "Sending SMS to $PHONE (raw: $RAW_PHONE)"
 
-        # Set text mode first
-        qcmd "AT+CMGF=1" >/dev/null 2>&1
-
-        # Send SMS via direct /dev/smd11 with flock (AT+CMGS is interactive)
-        LOCK_FILE="/tmp/qmanager_at.lock"
-        sms_result=$(
-            (
-                flock -x -w 10 9 || exit 2
-                # Send AT+CMGS command
-                printf 'AT+CMGS="%s"\r' "$PHONE" > /dev/smd11
-                sleep 0.5
-                # Send message body + Ctrl-Z
-                printf '%s\x1A' "$MESSAGE" > /dev/smd11
-                # Read response (wait for OK or ERROR, up to 30s)
-                timeout 30 cat /dev/smd11 &
-                reader_pid=$!
-                tmpfile="/tmp/qmanager_sms_send_$$.tmp"
-                : > "$tmpfile"
-                elapsed=0
-                while [ "$elapsed" -lt 30 ]; do
-                    sleep 1
-                    elapsed=$((elapsed + 1))
-                    kill -0 "$reader_pid" 2>/dev/null || break
-                done
-                kill "$reader_pid" 2>/dev/null
-                wait "$reader_pid" 2>/dev/null
-            ) 9<"$LOCK_FILE" 2>/dev/null
-        )
+        result=$(sms_locked send "$PHONE" "$MESSAGE")
         sms_rc=$?
 
         if [ "$sms_rc" -eq 2 ]; then
@@ -409,15 +395,13 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
             exit 0
         fi
 
-        # Verify SMS was sent by checking CMGS response
-        # A successful send returns +CMGS: <mr> then OK
-        verify=$(qcmd "AT" 2>/dev/null)
-        if echo "$verify" | grep -q "OK"; then
+        if [ "$sms_rc" -eq 0 ]; then
             qlog_info "SMS sent successfully to $PHONE"
             cgi_success
         else
-            qlog_error "SMS send may have failed to $PHONE"
-            jq -n '{"success":false,"error":"send_uncertain","detail":"SMS command sent but could not verify delivery"}'
+            qlog_error "SMS send failed to $PHONE (rc=$sms_rc): $result"
+            jq -n --arg detail "$result" \
+                '{"success":false,"error":"send_failed","detail":$detail}'
         fi
         exit 0
     fi
@@ -438,10 +422,9 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
         idx_tmp="/tmp/qmanager_sms_idx.tmp"
         printf '%s' "$INDEXES_JSON" | jq -r '.[]' > "$idx_tmp"
         while read -r idx; do
-            result=$(qcmd "AT+CMGD=$idx" 2>&1)
-            rc=$?
-            if [ $rc -ne 0 ]; then
-                qlog_warn "Failed to delete index $idx: $result"
+            sms_locked delete "$idx"
+            if [ $? -ne 0 ]; then
+                qlog_warn "Failed to delete index $idx"
                 fail_count=$((fail_count + 1))
             fi
         done < "$idx_tmp"
@@ -462,10 +445,9 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
     if [ "$ACTION" = "delete_all" ]; then
         qlog_info "Deleting all SMS messages"
         result=$(qcmd "AT+CMGD=1,4" 2>&1)
-        rc=$?
 
-        if [ $rc -ne 0 ]; then
-            qlog_error "SMS delete all failed (rc=$rc): $result"
+        if echo "$result" | grep -q "ERROR"; then
+            qlog_error "SMS delete all failed: $result"
             jq -n --arg detail "$result" \
                 '{"success":false,"error":"delete_all_failed","detail":$detail}'
             exit 0

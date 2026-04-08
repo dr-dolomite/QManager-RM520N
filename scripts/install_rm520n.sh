@@ -17,6 +17,7 @@
 #     usrdata/qmanager/     — lighttpd config
 #   dependencies/           — Bundled binaries and packages
 #     atcli_smd11           — ARM binary (AT command transport via /dev/smd11)
+#     sms_tool              — ARM binary (SMS send/recv/delete via /dev/smd11)
 #     jq.ipk                — JSON processor (Entware package)
 #     dropbear_*.ipk        — SSH server (Entware package)
 #   install_rm520n.sh       — This script
@@ -180,6 +181,17 @@ install_dependencies() {
         info "atcli_smd11 already installed"
     else
         die "atcli_smd11 not found in $SRC_DEPS and not installed on device"
+    fi
+
+    # --- sms_tool (SMS send/recv/delete — handles multi-part reassembly) ------
+    if [ -f "$SRC_DEPS/sms_tool" ]; then
+        cp "$SRC_DEPS/sms_tool" "$BIN_DIR/sms_tool"
+        chmod 755 "$BIN_DIR/sms_tool"
+        info "sms_tool installed to $BIN_DIR/sms_tool"
+    elif [ -x "$BIN_DIR/sms_tool" ]; then
+        info "sms_tool already installed"
+    else
+        warn "sms_tool not found — SMS features will not work"
     fi
 
     # --- Ensure /dev/smd11 is not locked by socat-at-bridge -------------------

@@ -65,7 +65,8 @@ Key platform differences from RM551E (current target):
 - Handles long commands natively (AT+QSCAN waited 1m+ in testing) — no `_run_long_at()` workaround
 - Always exits 0 — error detection by parsing response text for OK/ERROR
 - `qcmd` uses `flock` with read-only FD (`9<`) for serialization (handles `fs.protected_regular=1`)
-- SMS operations use AT commands (`AT+CMGL`, `AT+CMGS`, `AT+CMGD`) through `qcmd`, not `sms_tool` subcommands
+- SMS operations use `sms_tool` (bundled ARM binary) for recv/send/delete — handles multi-part message reassembly natively. Wrapped with same `flock` as `qcmd` for serialization. Suppress stderr (`2>/dev/null`) for harmless `tcsetattr` warnings on smd devices.
+- BusyBox `flock` lacks `-w` (timeout) — use `flock -x -n` in a polling loop (see `flock_wait()` in `qcmd` and `sms.sh`)
 - `pid_alive()` in `platform.sh` replaces `kill -0` for cross-user PID checks (www-data checking root PIDs)
 - `cgi_base.sh` sources `platform.sh`, making `pid_alive` available to all CGI scripts
 
@@ -91,9 +92,12 @@ Key platform differences from RM551E (current target):
 
 QManager installs independently — no SimpleAdmin or RGMII toolkit required:
 - **Own directory:** `/usrdata/qmanager/` (web root, lighttpd config, TLS certs)
-- **Installs lighttpd** from Entware if not present, with own config at `/usrdata/qmanager/lighttpd.conf`
+- **Bootstraps Entware** from `bin.entware.net` if not present (creates `opt.mount`, `start-opt-mount.service`, `rc.unslung.service`)
+- **Installs lighttpd + modules** from Entware (`lighttpd-mod-cgi`, `lighttpd-mod-openssl`, `lighttpd-mod-redirect`, `lighttpd-mod-proxy`)
 - **Creates `www-data:dialout`** user/group if missing — `dialout` grants access to `/dev/smd11`
 - **AT transport:** `atcli_smd11` accesses `/dev/smd11` directly — no socat-at-bridge needed
+- **`/dev/smd11` permissions:** defaults to `crw------- root:root` — `qmanager_setup` sets `chmod 660` + `chown root:dialout` at every boot
+- **CGI PATH:** lighttpd CGI has minimal PATH excluding `/opt/bin` — `cgi_base.sh` exports full PATH and installer symlinks `jq` to `/usr/bin/`
 - **Cookie-based session auth** at CGI layer (no HTTP Basic Auth, no `.htpasswd`)
 - **`systemctl enable` does not work** — all boot persistence uses direct symlinks into `/lib/systemd/system/multi-user.target.wants/` (via `svc_enable`/`svc_disable` in `platform.sh`)
 - **Installer stops socat-smd11** services if running (atcli_smd11 requires smd11 unlocked)

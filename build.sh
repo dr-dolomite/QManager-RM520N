@@ -45,7 +45,7 @@ step "Copying bundled dependencies..."
 if [ -d "$DEPS_DIR" ]; then
   cp -r "$DEPS_DIR" "$INSTALL_DIR/dependencies"
 else
-  fail "'dependencies/' not found — atcli_smd11, jq.ipk, dropbear.ipk are required"
+  fail "'dependencies/' not found — atcli_smd11, sms_tool, jq.ipk, dropbear.ipk are required"
 fi
 
 step "Creating qmanager.tar.gz..."

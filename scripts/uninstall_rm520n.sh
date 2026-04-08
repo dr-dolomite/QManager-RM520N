@@ -83,7 +83,7 @@ systemctl daemon-reload
 info "Removed systemd units and boot symlinks"
 
 # --- Remove daemons and bundled binaries ---
-rm -f "$BIN_DIR/qcmd" "$BIN_DIR/qcmd_test" "$BIN_DIR/atcli_smd11"
+rm -f "$BIN_DIR/qcmd" "$BIN_DIR/qcmd_test" "$BIN_DIR/atcli_smd11" "$BIN_DIR/sms_tool"
 rm -f "$BIN_DIR"/qmanager_*
 info "Removed daemons and binaries from $BIN_DIR"
 
