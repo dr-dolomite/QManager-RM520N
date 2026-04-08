@@ -1,0 +1,173 @@
+#!/bin/sh
+# qmanager_tailscale_mgr — Privileged Tailscale install/uninstall helper
+# Called by www-data CGI via sudo. Whitelisted in /etc/sudoers.d/qmanager.
+#
+# Usage:
+#   qmanager_tailscale_mgr install          Download + install Tailscale ARM binary
+#   qmanager_tailscale_mgr uninstall        Remove binaries, units, state
+#   qmanager_tailscale_mgr ensure_units     Copy systemd units (idempotent)
+#
+# Install writes JSON progress to /tmp/qmanager_tailscale_install.json
+# for the CGI to poll via install_status action.
+
+set -e
+
+TAILSCALE_VERSION="1.92.5"
+TAILSCALE_DIR="/usrdata/tailscale"
+TAILSCALE_SYSD_DIR="/usrdata/tailscale/systemd"
+SYSTEMD_DIR="/lib/systemd/system"
+WANTS_DIR="/lib/systemd/system/multi-user.target.wants"
+INSTALL_RESULT="/tmp/qmanager_tailscale_install.json"
+INSTALL_PID="/tmp/qmanager_tailscale_install.pid"
+DOWNLOAD_URL="https://pkgs.tailscale.com/stable/tailscale_${TAILSCALE_VERSION}_arm.tgz"
+
+write_progress() {
+    printf '%s' "$1" > "$INSTALL_RESULT"
+}
+
+do_install() {
+    echo $$ > "$INSTALL_PID"
+    trap 'rm -f "$INSTALL_PID"' EXIT
+
+    # Remount root filesystem read-write (RM520N-GL default is read-only)
+    mount -o remount,rw / 2>/dev/null || true
+
+    write_progress '{"success":true,"status":"running","message":"Creating directories..."}'
+    mkdir -p "$TAILSCALE_DIR" "$TAILSCALE_SYSD_DIR"
+
+    # Download ARM binary
+    write_progress '{"success":true,"status":"running","message":"Downloading Tailscale v'"$TAILSCALE_VERSION"'..."}'
+    cd /tmp
+    rm -f "tailscale_${TAILSCALE_VERSION}_arm.tgz"
+
+    if ! curl -fSL -o "tailscale_${TAILSCALE_VERSION}_arm.tgz" "$DOWNLOAD_URL" 2>/dev/null; then
+        # Fallback to wget if curl fails
+        if ! wget -q -O "tailscale_${TAILSCALE_VERSION}_arm.tgz" "$DOWNLOAD_URL" 2>/dev/null; then
+            write_progress '{"success":false,"status":"error","message":"Failed to download Tailscale","detail":"Check internet connection. URL: '"$DOWNLOAD_URL"'"}'
+            mount -o remount,ro / 2>/dev/null || true
+            return 1
+        fi
+    fi
+
+    # Extract
+    write_progress '{"success":true,"status":"running","message":"Extracting binary..."}'
+    tar -xzf "tailscale_${TAILSCALE_VERSION}_arm.tgz" -C /tmp/
+    rm -f "tailscale_${TAILSCALE_VERSION}_arm.tgz"
+
+    EXTRACT_DIR="/tmp/tailscale_${TAILSCALE_VERSION}_arm"
+    if [ ! -f "$EXTRACT_DIR/tailscale" ] || [ ! -f "$EXTRACT_DIR/tailscaled" ]; then
+        write_progress '{"success":false,"status":"error","message":"Extraction failed — binaries not found in archive"}'
+        rm -rf "$EXTRACT_DIR"
+        mount -o remount,ro / 2>/dev/null || true
+        return 1
+    fi
+
+    # Install binaries
+    write_progress '{"success":true,"status":"running","message":"Installing binaries..."}'
+    mv "$EXTRACT_DIR/tailscale" "$EXTRACT_DIR/tailscaled" "$TAILSCALE_DIR/"
+    chmod +x "$TAILSCALE_DIR/tailscale" "$TAILSCALE_DIR/tailscaled"
+    rm -rf "$EXTRACT_DIR"
+
+    # Symlink CLI to PATH
+    mkdir -p /usrdata/root/bin
+    ln -sf "$TAILSCALE_DIR/tailscale" /usrdata/root/bin/tailscale
+
+    # Copy systemd units from QManager source (installed by QManager installer)
+    # If QManager systemd source files exist, use them; otherwise create defaults
+    if [ -f "$TAILSCALE_SYSD_DIR/tailscaled.service" ]; then
+        cp -f "$TAILSCALE_SYSD_DIR/tailscaled.service" "$SYSTEMD_DIR/"
+    elif [ -f /usr/lib/qmanager/tailscaled.service ]; then
+        cp -f /usr/lib/qmanager/tailscaled.service "$SYSTEMD_DIR/"
+        cp -f /usr/lib/qmanager/tailscaled.service "$TAILSCALE_SYSD_DIR/"
+    fi
+
+    if [ ! -f "$TAILSCALE_SYSD_DIR/tailscaled.defaults" ]; then
+        printf 'PORT="41641"\nFLAGS=""\n' > "$TAILSCALE_SYSD_DIR/tailscaled.defaults"
+    fi
+
+    # Ensure systemd unit exists
+    if [ ! -f "$SYSTEMD_DIR/tailscaled.service" ]; then
+        write_progress '{"success":false,"status":"error","message":"Systemd unit not found after install","detail":"tailscaled.service missing from '"$SYSTEMD_DIR"'"}'
+        mount -o remount,ro / 2>/dev/null || true
+        return 1
+    fi
+
+    # Enable on boot (symlink pattern — systemctl enable doesn't work on RM520N-GL)
+    ln -sf "$SYSTEMD_DIR/tailscaled.service" "$WANTS_DIR/tailscaled.service"
+
+    # Strip Windows line endings from systemd unit (safety for Windows-built tarballs)
+    sed -i 's/\r$//' "$SYSTEMD_DIR/tailscaled.service" 2>/dev/null || true
+    sed -i 's/\r$//' "$TAILSCALE_SYSD_DIR/tailscaled.defaults" 2>/dev/null || true
+
+    # Reload and start
+    write_progress '{"success":true,"status":"running","message":"Starting Tailscale daemon..."}'
+    /bin/systemctl daemon-reload
+    /bin/systemctl start tailscaled 2>/dev/null
+
+    # Verify
+    sleep 1
+    if [ -f "$TAILSCALE_DIR/tailscale" ] && [ -f "$TAILSCALE_DIR/tailscaled" ]; then
+        write_progress '{"success":true,"status":"complete","message":"Tailscale v'"$TAILSCALE_VERSION"' installed successfully"}'
+    else
+        write_progress '{"success":false,"status":"error","message":"Install completed but binaries not found"}'
+    fi
+
+    mount -o remount,ro / 2>/dev/null || true
+}
+
+do_uninstall() {
+    mount -o remount,rw / 2>/dev/null || true
+
+    # Stop daemon if running
+    /bin/systemctl stop tailscaled 2>/dev/null || true
+
+    # Remove boot symlink
+    rm -f "$WANTS_DIR/tailscaled.service"
+
+    # Remove systemd unit from system dir
+    rm -f "$SYSTEMD_DIR/tailscaled.service"
+    /bin/systemctl daemon-reload 2>/dev/null || true
+
+    # Remove binaries and state
+    rm -rf "$TAILSCALE_DIR"
+
+    # Remove CLI symlink
+    rm -f /usrdata/root/bin/tailscale
+
+    # Clean up temp files
+    rm -f /tmp/qmanager_tailscale_auth_url \
+          /tmp/qmanager_tailscale_up_output \
+          /tmp/qmanager_tailscale_up_pid \
+          /tmp/qmanager_tailscale_install.json \
+          /tmp/qmanager_tailscale_install.pid
+
+    mount -o remount,ro / 2>/dev/null || true
+}
+
+do_ensure_units() {
+    # Copy QManager-bundled systemd units to /usrdata/tailscale/systemd/
+    # Called by installer to pre-stage units before Tailscale is installed.
+    mount -o remount,rw / 2>/dev/null || true
+    mkdir -p "$TAILSCALE_SYSD_DIR"
+
+    for f in tailscaled.service tailscaled.defaults; do
+        src="/usr/lib/qmanager/$f"
+        if [ -f "$src" ]; then
+            cp -f "$src" "$TAILSCALE_SYSD_DIR/$f"
+            sed -i 's/\r$//' "$TAILSCALE_SYSD_DIR/$f" 2>/dev/null || true
+        fi
+    done
+
+    mount -o remount,ro / 2>/dev/null || true
+}
+
+# --- Main dispatch ---
+case "${1:-}" in
+    install)     do_install ;;
+    uninstall)   do_uninstall ;;
+    ensure_units) do_ensure_units ;;
+    *)
+        echo "Usage: qmanager_tailscale_mgr {install|uninstall|ensure_units}" >&2
+        exit 1
+        ;;
+esac
