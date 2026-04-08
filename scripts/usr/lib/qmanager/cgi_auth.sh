@@ -242,6 +242,34 @@ qm_clear_attempts() {
 }
 
 # ---------------------------------------------------------------------------
+# SSH (root) password management
+# ---------------------------------------------------------------------------
+
+# Set the system root password for SSH access.
+# Pipes password to the privileged helper via sudo (password never in args).
+# Returns 0 on success, 1 on failure.
+qm_set_ssh_password() {
+    _ssh_pw="$1"
+    [ -z "$_ssh_pw" ] && return 1
+
+    # Source platform.sh for $_SUDO if not already loaded
+    if [ -z "$_PLATFORM_LOADED" ]; then
+        . /usr/lib/qmanager/platform.sh
+    fi
+
+    _result=$(printf '%s\n' "$_ssh_pw" | $_SUDO /usr/bin/qmanager_set_ssh_password 2>/dev/null)
+    _rc=$?
+
+    if [ "$_rc" -eq 0 ]; then
+        qlog_info "SSH root password updated"
+        return 0
+    else
+        qlog_error "SSH password update failed: $_result"
+        return 1
+    fi
+}
+
+# ---------------------------------------------------------------------------
 # Auth enforcement — called by cgi_base.sh on every request
 # ---------------------------------------------------------------------------
 

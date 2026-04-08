@@ -867,10 +867,11 @@ SSHEOF
         fi
     fi
 
-    # Set root password if not already set
+    # SSH root password is set automatically during QManager onboarding
+    # (first-time setup syncs the web UI password to the system root password).
+    # It can also be changed later from System Settings > SSH Password.
     if grep -q '^root:[*!]:' /etc/shadow 2>/dev/null || grep -q '^root::' /etc/shadow 2>/dev/null; then
-        printf "\n  ${BOLD}Set a root password for SSH login:${NC}\n"
-        passwd root
+        info "Root password will be set during QManager onboarding"
     fi
 
     info "SSH setup complete — connect via: ssh root@192.168.225.1"

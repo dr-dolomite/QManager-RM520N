@@ -16,3 +16,6 @@ www-data ALL=(root) NOPASSWD: /sbin/reboot
 
 # Crontab management (used by scheduled reboot, low power, auto-update)
 www-data ALL=(root) NOPASSWD: /usr/bin/crontab
+
+# SSH password management (reads password from stdin, updates /etc/shadow)
+www-data ALL=(root) NOPASSWD: /usr/bin/qmanager_set_ssh_password

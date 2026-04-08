@@ -62,6 +62,10 @@ if is_setup_required; then
     fi
 
     qm_save_password "$_password"
+
+    # Also set SSH root password (best-effort — non-fatal if it fails)
+    qm_set_ssh_password "$_password" 2>/dev/null || qlog_warn "SSH password sync skipped"
+
     qlog_info "First-time password configured"
 
     _token=$(qm_create_session)

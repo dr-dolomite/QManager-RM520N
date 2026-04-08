@@ -6,6 +6,7 @@ const CHECK_ENDPOINT = "/cgi-bin/quecmanager/auth/check.sh";
 const LOGIN_ENDPOINT = "/cgi-bin/quecmanager/auth/login.sh";
 const LOGOUT_ENDPOINT = "/cgi-bin/quecmanager/auth/logout.sh";
 const PASSWORD_ENDPOINT = "/cgi-bin/quecmanager/auth/password.sh";
+const SSH_PASSWORD_ENDPOINT = "/cgi-bin/quecmanager/auth/ssh_password.sh";
 
 // ---------------------------------------------------------------------------
 // Cookie helpers
@@ -190,6 +191,40 @@ export async function changePassword(
     return {
       success: false,
       error: data.detail || data.error || "Password change failed",
+    };
+  } catch {
+    return { success: false, error: "Connection failed" };
+  }
+}
+
+// ---------------------------------------------------------------------------
+// SSH password management
+// ---------------------------------------------------------------------------
+
+export async function changeSSHPassword(
+  currentPassword: string,
+  newPassword: string,
+  confirmPassword: string
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const resp = await fetch(SSH_PASSWORD_ENDPOINT, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        current_password: currentPassword,
+        new_password: newPassword,
+        confirm_password: confirmPassword,
+      }),
+    });
+    const data = await resp.json();
+
+    if (data.success) {
+      return { success: true };
+    }
+
+    return {
+      success: false,
+      error: data.detail || data.error || "SSH password change failed",
     };
   } catch {
     return { success: false, error: "Connection failed" };
