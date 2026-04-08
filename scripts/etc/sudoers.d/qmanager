@@ -28,3 +28,6 @@ www-data ALL=(root) NOPASSWD: /usrdata/tailscale/tailscaled --version
 # Tailscale boot persistence (symlink-based)
 www-data ALL=(root) NOPASSWD: /bin/ln -sf /lib/systemd/system/tailscaled.service /lib/systemd/system/multi-user.target.wants/tailscaled.service
 www-data ALL=(root) NOPASSWD: /bin/rm -f /lib/systemd/system/multi-user.target.wants/tailscaled.service
+
+# Web console management
+www-data ALL=(root) NOPASSWD: /usr/bin/qmanager_console_mgr
