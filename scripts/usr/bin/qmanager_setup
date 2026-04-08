@@ -60,32 +60,6 @@ done
 # Secure auth config
 [ -f /etc/qmanager/auth.json ] && chmod 600 /etc/qmanager/auth.json
 
-# iptables rules — allow access to web UI and SSH
-# Default RM520N-GL firewall drops non-bridge/eth traffic; replaces simplefirewall
-if command -v iptables >/dev/null 2>&1; then
-    # Loopback — CGI scripts need localhost access to lighttpd
-    iptables -C INPUT -i lo -p tcp --dport 80 -j ACCEPT 2>/dev/null || \
-        iptables -I INPUT 1 -i lo -p tcp --dport 80 -j ACCEPT
-    iptables -C INPUT -i lo -p tcp --dport 443 -j ACCEPT 2>/dev/null || \
-        iptables -I INPUT 1 -i lo -p tcp --dport 443 -j ACCEPT
-
-    # External access — HTTP, HTTPS, SSH on LAN interfaces (bridge0, eth0)
-    for port in 80 443 22; do
-        iptables -C INPUT -i bridge0 -p tcp --dport "$port" -j ACCEPT 2>/dev/null || \
-            iptables -A INPUT -i bridge0 -p tcp --dport "$port" -j ACCEPT
-        iptables -C INPUT -i eth0 -p tcp --dport "$port" -j ACCEPT 2>/dev/null || \
-            iptables -A INPUT -i eth0 -p tcp --dport "$port" -j ACCEPT
-    done
-
-    # VPN access — if Tailscale is installed, allow same ports on tailscale0
-    if [ -x /usrdata/tailscale/tailscale ]; then
-        for port in 80 443 22; do
-            iptables -C INPUT -i tailscale0 -p tcp --dport "$port" -j ACCEPT 2>/dev/null || \
-                iptables -A INPUT -i tailscale0 -p tcp --dport "$port" -j ACCEPT
-        done
-    fi
-fi
-
 # Create default long_commands.list if missing
 if [ ! -f /etc/qmanager/long_commands.list ]; then
     cat > /etc/qmanager/long_commands.list << 'EOF'
