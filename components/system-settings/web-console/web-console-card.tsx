@@ -19,6 +19,17 @@ import { Button } from "@/components/ui/button";
 import { useWebConsole, type ConnectionState } from "@/hooks/use-web-console";
 
 // =============================================================================
+// Constants
+// =============================================================================
+
+const XTERM_THEME = {
+  foreground: "#e4e4e7",
+  background: "#09090b",
+  cursor: "#e4e4e7",
+  selectionBackground: "#e4e4e740",
+};
+
+// =============================================================================
 // StatusBar — bottom strip showing connection state
 // =============================================================================
 
@@ -34,7 +45,7 @@ function StatusBar({ connectionState, onReconnect }: StatusBarProps) {
   const isDisconnected = connectionState === "disconnected";
 
   return (
-    <div className="bg-muted flex items-center gap-2 border-t px-3 py-1.5">
+    <div className="bg-muted/50 flex items-center gap-2 border-t px-3 py-1.5">
       {/* State indicator */}
       {isConnecting && (
         <>
@@ -54,15 +65,17 @@ function StatusBar({ connectionState, onReconnect }: StatusBarProps) {
         <>
           <span className="bg-destructive size-2 rounded-full" />
           <span className="text-muted-foreground text-xs">Disconnected</span>
-          <Button
-            variant="ghost"
-            size="xs"
-            className="ml-1"
-            onClick={onReconnect}
-          >
-            <RefreshCwIcon />
-            Reconnect
-          </Button>
+          <div className="ml-auto">
+            <Button
+              variant="ghost"
+              size="xs"
+              className="h-5 text-xs"
+              onClick={onReconnect}
+            >
+              <RefreshCwIcon />
+              Reconnect
+            </Button>
+          </div>
         </>
       )}
     </div>
@@ -98,12 +111,8 @@ export default function WebConsoleCard() {
 
     // Create terminal
     const terminal = new Terminal({
-      theme: {
-        foreground: "#e4e4e7",
-        background: "#09090b",
-        cursor: "#e4e4e7",
-        selectionBackground: "#e4e4e740",
-      },
+      theme: XTERM_THEME,
+      allowTransparency: true,
       fontSize: 14,
       fontFamily: "monospace",
       cursorBlink: true,
@@ -149,7 +158,9 @@ export default function WebConsoleCard() {
 
   const toggleFullscreen = useCallback(() => {
     setIsFullscreen((prev) => !prev);
-    // Re-fit after layout settles
+  }, []);
+
+  useEffect(() => {
     requestAnimationFrame(() => {
       try {
         fitAddonRef.current?.fit();
@@ -157,7 +168,7 @@ export default function WebConsoleCard() {
         // Non-fatal
       }
     });
-  }, []);
+  }, [isFullscreen]);
 
   // ── Clear ────────────────────────────────────────────────────────────────
 
@@ -191,6 +202,7 @@ export default function WebConsoleCard() {
           </Button>
           <Button variant="ghost" size="xs" onClick={toggleFullscreen}>
             {isFullscreen ? <MinimizeIcon /> : <MaximizeIcon />}
+            {isFullscreen ? "Exit" : "Fullscreen"}
           </Button>
         </div>
       </div>
@@ -202,7 +214,7 @@ export default function WebConsoleCard() {
           ref={containerRef}
           className="flex-1 min-h-0"
           style={{
-            background: "#09090b",
+            background: XTERM_THEME.background,
             display: isUnavailable ? "none" : undefined,
           }}
         />
