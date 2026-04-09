@@ -173,13 +173,16 @@ _ea_send_recovery_email() {
     local html
     html=$(_ea_build_recovery_html "$start_time" "$dur_text" "$_ea_threshold_minutes")
 
-    # Send with retry — DNS may not be ready immediately after recovery.
-    # Recovery emails fire at the moment connectivity returns, but the DNS
-    # resolver often needs a few more seconds to stabilize.
+    # Send with retry — DNS and SMTP are not ready immediately after recovery.
+    # Wait for the connection to stabilize before the first send attempt.
     local trigger_text="Connection recovered (down ${dur_text})"
     local attempt=0
     local max_attempts=3
-    local retry_delay=10
+    local retry_delay=15
+    local stabilize_delay=30
+
+    qlog_info "Email alerts: waiting ${stabilize_delay}s for connection to stabilize..."
+    sleep "$stabilize_delay"
 
     while [ "$attempt" -lt "$max_attempts" ]; do
         attempt=$((attempt + 1))
