@@ -76,6 +76,10 @@ A new built-in firewall service replaces SimpleAdmin's `simplefirewall`, protect
 - **Fixed `/usrdata/tailscale/` directory permissions** — directories created by the Tailscale helper now have `755` permissions so www-data (CGI) can check binary existence. Previously `mkdir -p` defaulted to `700` (root-only), causing the frontend to always show "not installed."
 - **Fixed `tailscale up --json` output buffering** — the `--json` flag's output is fully buffered on RM520N-GL (no `stdbuf` available) and never flushes to file. Switched to interactive mode with grep-based URL parsing.
 - **Fixed cellular sidebar nav highlighting** — "Cellular Information" no longer stays highlighted when navigating to other cellular sections like Settings. Active state now checks declared sub-item URLs instead of prefix matching.
+- **Fixed poller logging silently failing** — `/tmp/qmanager.log` was owned by www-data, blocking root (poller) from writing due to `fs.protected_regular=1`. Now pre-created as root-owned with mode 666. This also fixed email alerts never triggering (poller couldn't track downtime state).
+- **Fixed msmtp returning rc=1 on successful sends** — msmtp's `logfile` directive caused it to report failure when it couldn't write to `/tmp/msmtp.log` (same ownership issue). Removed the logfile directive from generated msmtprc — QManager has its own logging.
+- **Fixed msmtp binary not found in poller context** — the poller runs without `/opt/bin` in PATH. Now detects `/opt/bin/msmtp` explicitly at library load time.
+- **Added 30s stabilization delay for recovery emails** — after cellular radio recovery, DNS/SMTP need time to stabilize. Previously all 3 retry attempts fired too quickly and failed.
 
 ---
 
