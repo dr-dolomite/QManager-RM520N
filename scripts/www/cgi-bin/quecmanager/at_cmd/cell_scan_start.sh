@@ -8,7 +8,7 @@
 #
 # Endpoint: POST /cgi-bin/quecmanager/at_cmd/cell_scan_start.sh
 # Response: {"success": true}
-#       or: {"success": false, "error": "already_running|modem_busy"}
+#       or: {"success": false, "error": "already_running|start_failed"}
 #
 # Install location: /www/cgi-bin/quecmanager/at_cmd/cell_scan_start.sh
 # =============================================================================
@@ -23,7 +23,6 @@ PID_FILE="/tmp/qmanager_cell_scan.pid"
 RESULT_FILE="/tmp/qmanager_cell_scan_result.json"
 ERROR_FILE="/tmp/qmanager_cell_scan_error"
 SCANNER_BIN="/usr/bin/qmanager_cell_scanner"
-LONG_FLAG="/tmp/qmanager_long_running"
 
 # --- Validate method ---------------------------------------------------------
 if [ "$REQUEST_METHOD" != "POST" ]; then
@@ -42,14 +41,6 @@ if [ -f "$PID_FILE" ]; then
     # Stale PID file — clean up
     qlog_info "Cleaning stale cell scan PID file (PID: $OLD_PID)"
     rm -f "$PID_FILE"
-fi
-
-# --- Check: modem already busy with another long command? --------------------
-if [ -f "$LONG_FLAG" ]; then
-    CURRENT_CMD=$(cat "$LONG_FLAG" 2>/dev/null)
-    qlog_warn "Modem busy with long command: $CURRENT_CMD"
-    cgi_error "modem_busy" "Modem is busy with another long command"
-    exit 0
 fi
 
 # --- Clean up previous results -----------------------------------------------
