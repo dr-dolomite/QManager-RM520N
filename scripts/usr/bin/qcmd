@@ -10,15 +10,15 @@
 #
 # Key behavior: atcli_smd11 always exits 0 (even on ERROR response).
 # Error detection is done by parsing the response text for OK/ERROR.
-# Long commands (AT+QSCAN etc.) are handled natively — atcli_smd11 waits
-# for the modem to finish (tested: 1m+ for cell scans). No workarounds needed.
+# Long commands (AT+QSCAN etc.) are handled natively by atcli_smd11 —
+# it waits for the modem to finish (tested: 1m+ for cell scans).
 #
 # Usage:
 #   qcmd "AT+COMMAND"          → Execute AT command, return raw result
 #   qcmd -j "AT+COMMAND"       → Execute AT command, return JSON-wrapped result
 #
 # Install location: /usr/bin/qcmd
-# Dependencies: atcli_smd11 (ARM binary), flock, timeout, jq (for -j mode)
+# Dependencies: atcli_smd11 (ARM binary), flock, jq (for -j mode)
 # =============================================================================
 
 # --- Logging -----------------------------------------------------------------
@@ -37,24 +37,16 @@ qlog_init "qcmd"
 
 # --- Configuration -----------------------------------------------------------
 LOCK_FILE="/tmp/qmanager_at.lock"
-LONG_FLAG="/tmp/qmanager_long_running"
-PID_FILE="/tmp/qmanager_at.pid"
 
-SHORT_TIMEOUT=3        # seconds for normal AT commands
-LONG_TIMEOUT=240       # seconds for AT+QSCAN and similar (safety net only —
-                       # atcli_smd11 waits natively, this prevents infinite hangs)
 LOCK_WAIT_SHORT=5      # seconds to wait for lock (normal commands)
 LOCK_WAIT_LONG=10      # seconds to wait for lock (long commands)
 
-# Ensure lock/pid files exist and are accessible by both root and www-data.
-# The poller (root) and CGI scripts (www-data) share these files via flock.
+# Ensure lock file exists and is accessible by both root and www-data.
+# The poller (root) and CGI scripts (www-data) share this file via flock.
 [ ! -f "$LOCK_FILE" ] && touch "$LOCK_FILE" 2>/dev/null
-[ ! -f "$PID_FILE" ] && touch "$PID_FILE" 2>/dev/null
-chmod 666 "$LOCK_FILE" "$PID_FILE" 2>/dev/null
+chmod 666 "$LOCK_FILE" 2>/dev/null
 
-# --- AT device configuration (RM520N-GL: atcli_smd11 direct) -----------------
-# atcli_smd11 accesses /dev/smd11 directly — no socat bridge needed.
-# The device is hardcoded in the binary. We only verify it exists.
+# --- AT device configuration -------------------------------------------------
 AT_CLI="/usr/bin/atcli_smd11"
 AT_DEVICE="/dev/smd11"
 
@@ -87,82 +79,55 @@ qlog_debug "Command received: ${COMMAND}"
 
 # --- Helper: JSON Output -----------------------------------------------------
 output_result() {
-    local raw="$1"
-    local err="$2"
+    _raw="$1"
+    _err="$2"
 
     if [ "$JSON_MODE" -eq 1 ]; then
-        if [ -n "$err" ]; then
-            jq -n --arg error "$err" --arg command "$COMMAND" \
+        if [ -n "$_err" ]; then
+            jq -n --arg error "$_err" --arg command "$COMMAND" \
                 '{success: false, error: $error, command: $command}'
         else
-            jq -n --arg response "$raw" --arg command "$COMMAND" \
+            jq -n --arg response "$_raw" --arg command "$COMMAND" \
                 '{success: true, response: $response, command: $command}'
         fi
     else
-        if [ -n "$err" ]; then
-            echo "ERROR: $err" >&2
+        if [ -n "$_err" ]; then
+            echo "ERROR: $_err" >&2
             exit 1
         else
-            echo "$raw"
+            echo "$_raw"
         fi
     fi
 }
 
 # --- Helper: Command Classification -----------------------------------------
 is_long_command() {
-    local cmd="$1"
-
-    if [ -f /etc/qmanager/long_commands.list ]; then
-        while IFS= read -r pattern; do
-            case "$pattern" in
-                '#'*|'') continue ;;
-            esac
-            case "$cmd" in
-                *"$pattern"*) return 0 ;;
-            esac
-        done < /etc/qmanager/long_commands.list
-    fi
-
-    case "$cmd" in
+    case "$1" in
         *QSCAN*|*QSCANFREQ*|*QFOTADL*) return 0 ;;
         *) return 1 ;;
     esac
 }
 
-# --- Helper: Stale Lock Recovery ---------------------------------------------
-check_stale_lock() {
-    if [ -f "$PID_FILE" ]; then
-        local old_pid
-        old_pid=$(cat "$PID_FILE" 2>/dev/null)
-        if [ -n "$old_pid" ] && ! kill -0 "$old_pid" 2>/dev/null; then
-            qlog_lock "stale_recovery" "$old_pid"
-            rm -f "$PID_FILE"
-            return 0
-        fi
-    fi
-    return 1
-}
-
 # --- Helper: flock with timeout ----------------------------------------------
 # Usage: flock_wait <fd> <timeout_seconds>
 # Returns: 0 = lock acquired, 1 = timed out
+# BusyBox flock lacks -w, so we poll with -x -n in a loop.
 # -----------------------------------------------------------------------------
 flock_wait() {
-    local fd="$1"
-    local wait_secs="$2"
-    local elapsed=0
+    _fd="$1"
+    _wait="$2"
+    _elapsed=0
 
-    while [ "$elapsed" -lt "$wait_secs" ]; do
-        if flock -x -n "$fd" 2>/dev/null; then
+    while [ "$_elapsed" -lt "$_wait" ]; do
+        if flock -x -n "$_fd" 2>/dev/null; then
             return 0
         fi
         sleep 1
-        elapsed=$((elapsed + 1))
+        _elapsed=$((_elapsed + 1))
     done
 
     # One final try
-    flock -x -n "$fd" 2>/dev/null
-    return $?
+    flock -x -n "$_fd" 2>/dev/null
 }
 
 # =============================================================================
@@ -173,148 +138,59 @@ flock_wait() {
 #
 # atcli_smd11 always exits 0 — error detection is done by parsing the
 # response text for OK/ERROR markers.
+#
+# atcli_smd11 handles command timeouts natively (tested: 1m+ for QSCAN).
+# No external timeout wrapper needed.
 # =============================================================================
 
+# Select lock wait time based on command type
 if is_long_command "$COMMAND"; then
-    # =========================================================================
-    # LONG COMMAND PATH
-    # atcli_smd11 handles long commands natively (no timeout workaround needed).
-    # The outer timeout is a safety net only — prevents infinite hangs.
-    # =========================================================================
-    qlog_info "Long command started: ${COMMAND}"
-    echo "$COMMAND" > "$LONG_FLAG"
-
-    result=$(
-        (
-            if ! flock_wait 9 "$LOCK_WAIT_LONG"; then
-                exit 2
-            fi
-            echo $$ > "$PID_FILE"
-
-            timeout "$LONG_TIMEOUT" "$AT_CLI" "$COMMAND" 2>/dev/null
-            cmd_rc=$?
-            rm -f "$PID_FILE"
-
-            # timeout(1) returns 124 when it kills the child
-            [ "$cmd_rc" -eq 124 ] && exit 4
-            exit 0
-        ) 9<"$LOCK_FILE"
-    )
-    exit_code=$?
-
-    rm -f "$LONG_FLAG"
-
-    # atcli_smd11 always exits 0 — detect errors from response text
-    case $exit_code in
-        0)
-            case "$result" in
-                *ERROR*)
-                    qlog_error "Long command returned ERROR: ${COMMAND}"
-                    qlog_at_cmd "$COMMAND" "$result" "1"
-                    output_result "" "command_failed"
-                    exit 1
-                    ;;
-                *OK*)
-                    qlog_info "Long command completed: ${COMMAND}"
-                    qlog_at_cmd "$COMMAND" "$result" "0"
-                    output_result "$result" ""
-                    ;;
-                *)
-                    # No OK or ERROR — likely empty/malformed response
-                    qlog_error "Long command: no OK/ERROR in response: ${COMMAND}"
-                    output_result "" "command_failed"
-                    exit 1
-                    ;;
-            esac
-            ;;
-        2)
-            qlog_error "Lock acquisition failed for: ${COMMAND}"
-            output_result "" "modem_busy"
-            exit 1
-            ;;
-        4)
-            qlog_error "Long command timed out (${LONG_TIMEOUT}s safety limit): ${COMMAND}"
-            output_result "" "command_timeout"
-            exit 1
-            ;;
-        *)
-            qlog_error "Long command failed: ${COMMAND} (exit=${exit_code})"
-            output_result "" "command_failed"
-            exit 1
-            ;;
-    esac
-
-elif [ -f "$LONG_FLAG" ]; then
-    # =========================================================================
-    # LONG COMMAND IN PROGRESS — Reject immediately
-    # =========================================================================
-    qlog_lock "blocked" "$(cat "$LONG_FLAG" 2>/dev/null)"
-    output_result "" "scan_in_progress"
-    exit 1
-
+    LOCK_WAIT="$LOCK_WAIT_LONG"
+    qlog_info "Long command: ${COMMAND}"
 else
-    # =========================================================================
-    # SHORT COMMAND PATH
-    # =========================================================================
-    result=$(
-        (
-            if ! flock_wait 9 "$LOCK_WAIT_SHORT"; then
-                exit 2
-            fi
-            echo $$ > "$PID_FILE"
-            timeout "$SHORT_TIMEOUT" "$AT_CLI" "$COMMAND" 2>/dev/null
-            cmd_rc=$?
-            rm -f "$PID_FILE"
-            [ "$cmd_rc" -eq 124 ] && exit 4
-            exit 0
-        ) 9<"$LOCK_FILE"
-    )
-    exit_code=$?
+    LOCK_WAIT="$LOCK_WAIT_SHORT"
+fi
 
-    # Lock failed — try stale recovery and retry once
-    if [ $exit_code -eq 2 ]; then
-        qlog_lock "timeout" "short command: ${COMMAND}"
-
-        if check_stale_lock; then
-            result=$(
-                (
-                    if ! flock_wait 9 2; then
-                        exit 2
-                    fi
-                    echo $$ > "$PID_FILE"
-                    timeout "$SHORT_TIMEOUT" "$AT_CLI" "$COMMAND" 2>/dev/null
-                    cmd_rc=$?
-                    rm -f "$PID_FILE"
-                    [ "$cmd_rc" -eq 124 ] && exit 4
-                    exit 0
-                ) 9<"$LOCK_FILE"
-            )
-            exit_code=$?
+# Execute with flock serialization
+result=$(
+    (
+        if ! flock_wait 9 "$LOCK_WAIT"; then
+            exit 2
         fi
+        "$AT_CLI" "$COMMAND" 2>/dev/null
+    ) 9<"$LOCK_FILE"
+)
+exit_code=$?
 
-        if [ $exit_code -eq 2 ]; then
-            qlog_error "Lock acquisition failed for: ${COMMAND}"
-            output_result "" "modem_busy"
-            exit 1
-        fi
-    fi
+# Handle lock failure
+if [ $exit_code -eq 2 ]; then
+    qlog_error "Lock acquisition failed for: ${COMMAND}"
+    output_result "" "modem_busy"
+    exit 1
+fi
 
-    if [ $exit_code -eq 4 ]; then
-        qlog_error "Short command timed out: ${COMMAND}"
-        output_result "" "command_timeout"
+qlog_at_cmd "$COMMAND" "$result" "$exit_code"
+
+# atcli_smd11 always exits 0 — detect errors from response text
+case "$result" in
+    *ERROR*)
+        qlog_error "Command returned ERROR: ${COMMAND}"
+        output_result "" "command_failed"
         exit 1
-    fi
-
-    qlog_at_cmd "$COMMAND" "$result" "$exit_code"
-
-    # atcli_smd11 always exits 0 — detect errors from response text
-    case "$result" in
-        *ERROR*)
-            qlog_error "Command returned ERROR: ${COMMAND}"
+        ;;
+    *OK*)
+        output_result "$result" ""
+        ;;
+    *)
+        # No OK or ERROR — likely empty/malformed response
+        if [ -z "$result" ]; then
+            qlog_error "Empty response for: ${COMMAND}"
             output_result "" "command_failed"
             exit 1
-            ;;
-    esac
-
-    output_result "$result" ""
-fi
+        fi
+        # Some commands return data without OK (e.g., compound queries
+        # where individual responses are present but no trailing OK).
+        # Pass through — let the caller decide.
+        output_result "$result" ""
+        ;;
+esac
