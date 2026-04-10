@@ -1,4 +1,4 @@
-# 🚀 QManager RM520N BETA v0.1.4 (Draft)
+# 🚀 QManager RM520N BETA v0.1.4
 
 **SMS alerts, new Rust-based AT transport, onboarding accuracy, and install reliability** — QManager can now SMS you when your connection goes down, so you get notified even while your data link is offline. `atcli_smd11` is a modern Rust reimplementation with cross-modem support, the onboarding band picker shows only the bands your modem actually supports, cell distance readings no longer lie when there's no signal, and the installer survives a read-only rootfs when enabling SSH.
 
