@@ -114,9 +114,9 @@ if [ "$MODE" = "install" ]; then
         die "Downloaded file is corrupt. Please try again."
     fi
 
-    if ! tar tzf "$download_path" | grep -q "install.sh"; then
+    if ! tar tzf "$download_path" | grep -q "install_rm520n.sh"; then
         rm -f "$download_path"
-        die "Invalid update package — missing install.sh."
+        die "Invalid update package — missing install_rm520n.sh."
     fi
     log "Archive verified"
 
@@ -133,8 +133,8 @@ if [ "$MODE" = "install" ]; then
     rm -f "$download_path"
     cd /tmp/qmanager_install || die "Extraction failed — /tmp/qmanager_install not found"
 
-    log "Running install.sh --skip-packages --no-reboot"
-    if ! sh install.sh --skip-packages --no-reboot >> "$LOG_FILE" 2>&1; then
+    log "Running install_rm520n.sh --skip-packages --no-reboot"
+    if ! sh install_rm520n.sh --skip-packages --no-reboot >> "$LOG_FILE" 2>&1; then
         die "Installation failed. Check /tmp/qmanager_update.log for details."
     fi
     log "Install complete"
@@ -183,9 +183,9 @@ if [ "$MODE" = "download" ]; then
         die "Downloaded file is corrupt. Please try again."
     fi
 
-    if ! tar tzf "$STAGED_TARBALL" | grep -q "install.sh"; then
+    if ! tar tzf "$STAGED_TARBALL" | grep -q "install_rm520n.sh"; then
         rm -f "$STAGED_TARBALL"
-        die "Invalid update package — missing install.sh."
+        die "Invalid update package — missing install_rm520n.sh."
     fi
     log "Archive integrity verified"
 
@@ -253,8 +253,8 @@ if [ "$MODE" = "install_staged" ]; then
     rm -f "$STAGED_TARBALL" "$STAGED_VERSION"
     cd /tmp/qmanager_install || die "Extraction failed — /tmp/qmanager_install not found"
 
-    log "Running install.sh --skip-packages --no-reboot"
-    if ! sh install.sh --skip-packages --no-reboot >> "$LOG_FILE" 2>&1; then
+    log "Running install_rm520n.sh --skip-packages --no-reboot"
+    if ! sh install_rm520n.sh --skip-packages --no-reboot >> "$LOG_FILE" 2>&1; then
         die "Installation failed. Check /tmp/qmanager_update.log for details."
     fi
     log "Install complete"
@@ -304,9 +304,9 @@ if [ "$MODE" = "rollback" ]; then
         die "Rollback archive is corrupt."
     fi
 
-    if ! tar tzf "$download_path" | grep -q "install.sh"; then
+    if ! tar tzf "$download_path" | grep -q "install_rm520n.sh"; then
         rm -f "$download_path"
-        die "Invalid rollback package — missing install.sh."
+        die "Invalid rollback package — missing install_rm520n.sh."
     fi
     log "Rollback archive verified"
 
@@ -323,8 +323,8 @@ if [ "$MODE" = "rollback" ]; then
     rm -f "$download_path"
     cd /tmp/qmanager_install || die "Extraction failed"
 
-    log "Running install.sh --skip-packages --no-reboot"
-    if ! sh install.sh --skip-packages --no-reboot >> "$LOG_FILE" 2>&1; then
+    log "Running install_rm520n.sh --skip-packages --no-reboot"
+    if ! sh install_rm520n.sh --skip-packages --no-reboot >> "$LOG_FILE" 2>&1; then
         die "Rollback installation failed. Check /tmp/qmanager_update.log"
     fi
     log "Rollback install complete"
