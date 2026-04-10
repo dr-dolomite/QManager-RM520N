@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Kbd, KbdGroup } from "@/components/ui/kbd";
 import { useWebConsole, type ConnectionState } from "@/hooks/use-web-console";
 
 // =============================================================================
@@ -190,6 +191,27 @@ export default function WebConsoleCard() {
         <span className="text-muted-foreground text-sm font-medium">
           Web Console
         </span>
+
+        {/* Keyboard shortcut hints — hidden on narrow viewports */}
+        <div className="ml-4 hidden items-center gap-3 lg:flex">
+          <span className="text-muted-foreground flex items-center gap-1.5 text-xs">
+            Copy
+            <KbdGroup>
+              <Kbd>Ctrl</Kbd>
+              <Kbd>Shift</Kbd>
+              <Kbd>C</Kbd>
+            </KbdGroup>
+          </span>
+          <span className="text-muted-foreground flex items-center gap-1.5 text-xs">
+            Paste
+            <KbdGroup>
+              <Kbd>Ctrl</Kbd>
+              <Kbd>Shift</Kbd>
+              <Kbd>V</Kbd>
+            </KbdGroup>
+          </span>
+        </div>
+
         <div className="ml-auto flex gap-1">
           <Button
             variant="ghost"

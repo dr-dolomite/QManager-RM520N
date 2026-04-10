@@ -1,179 +1,381 @@
-#!/bin/sh
+#!/bin/bash
+# =============================================================================
 # qmanager_tailscale_mgr — Privileged Tailscale install/uninstall helper
+# =============================================================================
 # Called by www-data CGI via sudo. Whitelisted in /etc/sudoers.d/qmanager.
 #
 # Usage:
-#   qmanager_tailscale_mgr install          Download + install Tailscale ARM binary
-#   qmanager_tailscale_mgr uninstall        Remove binaries, units, state
-#   qmanager_tailscale_mgr ensure_units     Copy systemd units (idempotent)
+#   qmanager_tailscale_mgr install        Download + install Tailscale ARM binary
+#   qmanager_tailscale_mgr uninstall      Remove binaries, units, state
+#   qmanager_tailscale_mgr ensure_units   Stage systemd units (called by installer)
 #
-# Install writes JSON progress to /tmp/qmanager_tailscale_install.json
-# for the CGI to poll via install_status action.
+# Install flow (rgmii-toolkit-aligned, validated 2026-04-10):
+#   Two-layer execution — this wrapper writes an inner script and a temporary
+#   systemd oneshot unit, then fires the unit and exits. The inner script runs
+#   detached under systemd, independent of the caller's process lifetime.
+#
+#   Hardcoded version 1.92.5 and arch 'arm' — no CDN scraping, no version
+#   detection, no timeout gymnastics. The old detect_latest_version() call
+#   without a timeout was the root cause of the install-hangs bug.
+#
+#   Download lands in /usrdata/ (persistent partition) not /tmp. Systemd units
+#   come from /usr/lib/qmanager/ (staged by the QManager installer).
+#
+# Progress reporting:
+#   /tmp/qmanager_tailscale_install.json   — JSON status file polled by CGI
+#   /tmp/qmanager_tailscale_install.pid    — Live install PID for concurrency
+#   /tmp/qmanager_tailscale_install.log    — Inner script stdout/stderr
+# =============================================================================
 
-set -e
-
-TAILSCALE_FALLBACK_VERSION="1.92.5"
+TAILSCALE_VERSION="1.92.5"
+TAILSCALE_ARCH="arm"
 TAILSCALE_DIR="/usrdata/tailscale"
 TAILSCALE_SYSD_DIR="/usrdata/tailscale/systemd"
 SYSTEMD_DIR="/lib/systemd/system"
 WANTS_DIR="/lib/systemd/system/multi-user.target.wants"
+
 INSTALL_RESULT="/tmp/qmanager_tailscale_install.json"
 INSTALL_PID="/tmp/qmanager_tailscale_install.pid"
+LOG_FILE="/tmp/qmanager_tailscale_install.log"
 
-# Detect latest stable ARM version from Tailscale CDN, fallback to known-good
-detect_latest_version() {
-    local latest
-    latest=$(curl -fsSL https://pkgs.tailscale.com/stable/ 2>/dev/null \
-        | grep -o 'tailscale_[0-9.]*_arm\.tgz' \
-        | sort -t_ -k2 -V \
-        | tail -1 \
-        | sed 's/tailscale_\(.*\)_arm\.tgz/\1/')
-    if [ -n "$latest" ]; then
-        printf '%s' "$latest"
-    else
-        printf '%s' "$TAILSCALE_FALLBACK_VERSION"
-    fi
-}
+INNER_SCRIPT="/tmp/qmanager_tailscale_install_inner.sh"
+TEMP_SERVICE_NAME="qmanager_tailscale_install.service"
+TEMP_SERVICE_FILE="$SYSTEMD_DIR/$TEMP_SERVICE_NAME"
 
-write_progress() {
+# --- Helpers ----------------------------------------------------------------
+
+write_status() {
     printf '%s' "$1" > "$INSTALL_RESULT"
 }
 
+# Check if a PID is alive. Used to detect concurrent install attempts.
+pid_is_alive() {
+    [ -n "$1" ] && [ "$1" != "0" ] && kill -0 "$1" 2>/dev/null
+}
+
+# =============================================================================
+# do_install — stage inner script, launch via temp systemd oneshot, return
+# =============================================================================
 do_install() {
-    echo $$ > "$INSTALL_PID"
-    trap 'rm -f "$INSTALL_PID"' EXIT
-
-    # Remount root filesystem read-write (RM520N-GL default is read-only)
-    mount -o remount,rw / 2>/dev/null || true
-
-    write_progress '{"success":true,"status":"running","message":"Detecting latest Tailscale version..."}'
-    TAILSCALE_VERSION=$(detect_latest_version)
-    DOWNLOAD_URL="https://pkgs.tailscale.com/stable/tailscale_${TAILSCALE_VERSION}_arm.tgz"
-
-    write_progress '{"success":true,"status":"running","message":"Creating directories..."}'
-    mkdir -p "$TAILSCALE_DIR" "$TAILSCALE_SYSD_DIR"
-    # www-data (CGI) needs read+execute to check binaries and traverse directories
-    chmod 755 "$TAILSCALE_DIR" "$TAILSCALE_SYSD_DIR"
-
-    # Download ARM binary
-    write_progress '{"success":true,"status":"running","message":"Downloading Tailscale v'"$TAILSCALE_VERSION"'..."}'
-    cd /tmp
-    rm -f "tailscale_${TAILSCALE_VERSION}_arm.tgz"
-
-    if ! curl -fSL -o "tailscale_${TAILSCALE_VERSION}_arm.tgz" "$DOWNLOAD_URL" 2>/dev/null; then
-        # Fallback to wget if curl fails
-        if ! wget -q -O "tailscale_${TAILSCALE_VERSION}_arm.tgz" "$DOWNLOAD_URL" 2>/dev/null; then
-            write_progress '{"success":false,"status":"error","message":"Failed to download Tailscale v'"$TAILSCALE_VERSION"'","detail":"Check internet connection. URL: '"$DOWNLOAD_URL"'"}'
-            sync
-            mount -o remount,ro / 2>/dev/null || true
+    # --- Concurrency guard ---
+    if [ -f "$INSTALL_PID" ]; then
+        existing=$(cat "$INSTALL_PID" 2>/dev/null | tr -d ' \n\r')
+        if pid_is_alive "$existing"; then
+            write_status '{"success":false,"status":"error","message":"Installation already in progress"}'
+            echo "ERROR: installation already in progress (PID $existing)" >&2
             return 1
         fi
     fi
 
-    # Extract
-    write_progress '{"success":true,"status":"running","message":"Extracting binary..."}'
-    tar -xzf "tailscale_${TAILSCALE_VERSION}_arm.tgz" -C /tmp/
-    rm -f "tailscale_${TAILSCALE_VERSION}_arm.tgz"
+    # Remount rootfs read-write — needed to write the temp unit file and,
+    # later inside the inner script, the live systemd unit.
+    mount -o remount,rw / 2>/dev/null || true
 
-    EXTRACT_DIR="/tmp/tailscale_${TAILSCALE_VERSION}_arm"
-    if [ ! -f "$EXTRACT_DIR/tailscale" ] || [ ! -f "$EXTRACT_DIR/tailscaled" ]; then
-        write_progress '{"success":false,"status":"error","message":"Extraction failed — binaries not found in archive"}'
-        rm -rf "$EXTRACT_DIR"
-        sync
-        mount -o remount,ro / 2>/dev/null || true
-        return 1
-    fi
+    # Write initial status. The wrapper owns the PID file until the inner
+    # script takes over (see MainPID polling below).
+    echo $$ > "$INSTALL_PID"
+    write_status '{"success":true,"status":"running","message":"Starting Tailscale install..."}'
 
-    # Install binaries
-    write_progress '{"success":true,"status":"running","message":"Installing binaries..."}'
-    mv "$EXTRACT_DIR/tailscale" "$EXTRACT_DIR/tailscaled" "$TAILSCALE_DIR/"
-    chmod +x "$TAILSCALE_DIR/tailscale" "$TAILSCALE_DIR/tailscaled"
-    rm -rf "$EXTRACT_DIR"
+    # Clean up stale temp install artifacts from prior runs.
+    rm -f "$TEMP_SERVICE_FILE" "$INNER_SCRIPT"
+    : > "$LOG_FILE"
 
-    # Symlink CLI to PATH
+    # --- Write the inner install script -------------------------------------
+    # Quoted heredoc — inner ${VAR} references expand at runtime, not now.
+    cat > "$INNER_SCRIPT" <<'INNER_EOF'
+#!/bin/bash
+# -----------------------------------------------------------------------------
+# Inner install script — runs under qmanager_tailscale_install.service
+# -----------------------------------------------------------------------------
+
+export HOME=/usrdata/root
+export PATH=/bin:/sbin:/usr/bin:/usr/sbin:/opt/bin:/opt/sbin:/usrdata/root/bin
+
+TAILSCALE_VERSION="1.92.5"
+TAILSCALE_ARCH="arm"
+TAILSCALE_TARBALL="tailscale_${TAILSCALE_VERSION}_${TAILSCALE_ARCH}.tgz"
+TAILSCALE_URL="https://pkgs.tailscale.com/stable/${TAILSCALE_TARBALL}"
+TAILSCALE_EXTRACT_DIR="tailscale_${TAILSCALE_VERSION}_${TAILSCALE_ARCH}"
+TAILSCALE_DIR="/usrdata/tailscale"
+TAILSCALE_SYSD_DIR="/usrdata/tailscale/systemd"
+SYSTEMD_DIR="/lib/systemd/system"
+WANTS_DIR="/lib/systemd/system/multi-user.target.wants"
+QM_BUNDLED_UNIT="/usr/lib/qmanager/tailscaled.service"
+QM_BUNDLED_DEFAULTS="/usr/lib/qmanager/tailscaled.defaults"
+STATUS_FILE="/tmp/qmanager_tailscale_install.json"
+INSTALL_PID="/tmp/qmanager_tailscale_install.pid"
+LOG_FILE="/tmp/qmanager_tailscale_install.log"
+
+# Redirect own output to log file — more portable than systemd StandardOutput=append:
+exec >> "$LOG_FILE" 2>&1
+
+remount_rw() { mount -o remount,rw / 2>/dev/null || true; }
+remount_ro() { sync; mount -o remount,ro / 2>/dev/null || true; }
+write_status() { printf '%s' "$1" > "$STATUS_FILE"; }
+
+# Ensure the PID file is cleaned up no matter how we exit (success, error, kill).
+trap 'rm -f "$INSTALL_PID"; remount_ro' EXIT
+
+# Claim the PID file as the inner script — this is the process the CGI's
+# pid_alive check tracks for the full install lifetime.
+echo $$ > "$INSTALL_PID"
+
+echo "=== qmanager_tailscale_mgr — install started ==="
+echo "Version: $TAILSCALE_VERSION"
+echo "Arch:    $TAILSCALE_ARCH"
+echo "URL:     $TAILSCALE_URL"
+echo "Target:  $TAILSCALE_DIR"
+echo
+
+remount_rw
+
+# -----------------------------------------------------------------------------
+# Update path — if already installed, run `tailscale update` and exit
+# -----------------------------------------------------------------------------
+if [ -f "$TAILSCALE_DIR/tailscale" ]; then
+    echo "Tailscale already installed — running update..."
+    write_status '{"success":true,"status":"running","message":"Updating Tailscale..."}'
+
     mkdir -p /usrdata/root/bin
     ln -sf "$TAILSCALE_DIR/tailscale" /usrdata/root/bin/tailscale
+    ln -sf "$TAILSCALE_DIR/tailscale" /usr/bin/tailscale
 
-    # Copy systemd units from QManager source (installed by QManager installer)
-    # If QManager systemd source files exist, use them; otherwise create defaults
-    if [ -f "$TAILSCALE_SYSD_DIR/tailscaled.service" ]; then
-        cp -f "$TAILSCALE_SYSD_DIR/tailscaled.service" "$SYSTEMD_DIR/"
-    elif [ -f /usr/lib/qmanager/tailscaled.service ]; then
-        cp -f /usr/lib/qmanager/tailscaled.service "$SYSTEMD_DIR/"
-        cp -f /usr/lib/qmanager/tailscaled.service "$TAILSCALE_SYSD_DIR/"
-    fi
+    mkdir -p /tmp/cache
+    ln -sf /tmp/cache ~/.cache
 
-    if [ ! -f "$TAILSCALE_SYSD_DIR/tailscaled.defaults" ]; then
-        printf 'PORT="41641"\nFLAGS=""\n' > "$TAILSCALE_SYSD_DIR/tailscaled.defaults"
-    fi
+    echo y | "$TAILSCALE_DIR/tailscale" update
 
-    # Ensure systemd unit exists
-    if [ ! -f "$SYSTEMD_DIR/tailscaled.service" ]; then
-        write_progress '{"success":false,"status":"error","message":"Systemd unit not found after install","detail":"tailscaled.service missing from '"$SYSTEMD_DIR"'"}'
-        sync
-        mount -o remount,ro / 2>/dev/null || true
-        return 1
-    fi
+    write_status '{"success":true,"status":"complete","message":"Tailscale updated"}'
+    echo "=== update complete ==="
+    exit 0
+fi
 
-    # Enable on boot (symlink pattern — systemctl enable doesn't work on RM520N-GL)
-    ln -sf "$SYSTEMD_DIR/tailscaled.service" "$WANTS_DIR/tailscaled.service"
+# -----------------------------------------------------------------------------
+# Fresh install
+# -----------------------------------------------------------------------------
+write_status '{"success":true,"status":"running","message":"Installing Tailscale v'"$TAILSCALE_VERSION"'..."}'
 
-    # Strip Windows line endings from systemd unit (safety for Windows-built tarballs)
-    sed -i 's/\r$//' "$SYSTEMD_DIR/tailscaled.service" 2>/dev/null || true
-    sed -i 's/\r$//' "$TAILSCALE_SYSD_DIR/tailscaled.defaults" 2>/dev/null || true
+echo "Creating directories..."
+mkdir -p "$TAILSCALE_DIR" "$TAILSCALE_SYSD_DIR"
+# www-data (CGI) needs traverse+read on these to detect the binary later.
+chmod 755 "$TAILSCALE_DIR" "$TAILSCALE_SYSD_DIR"
 
-    # Reload and start
-    write_progress '{"success":true,"status":"running","message":"Starting Tailscale daemon..."}'
-    /bin/systemctl daemon-reload
-    /bin/systemctl start tailscaled 2>/dev/null
+echo "Downloading $TAILSCALE_TARBALL..."
+cd /usrdata || { write_status '{"success":false,"status":"error","message":"Cannot cd /usrdata"}'; exit 1; }
+rm -f "$TAILSCALE_TARBALL"
+rm -rf "$TAILSCALE_EXTRACT_DIR"
 
-    # Verify
-    sleep 1
-    if [ -f "$TAILSCALE_DIR/tailscale" ] && [ -f "$TAILSCALE_DIR/tailscaled" ]; then
-        # Restart firewall so tailscale0 becomes a trusted interface
-        /bin/systemctl restart qmanager-firewall 2>/dev/null || true
-        write_progress '{"success":true,"status":"complete","message":"Tailscale v'"$TAILSCALE_VERSION"' installed successfully"}'
-    else
-        write_progress '{"success":false,"status":"error","message":"Install completed but binaries not found"}'
-    fi
+# Bare curl -O matches rgmii-toolkit — no timeouts, no flags, no fallback.
+# This is the proven pattern that doesn't hang.
+if ! curl -O "$TAILSCALE_URL"; then
+    write_status '{"success":false,"status":"error","message":"Failed to download Tailscale v'"$TAILSCALE_VERSION"'","detail":"curl failed — check internet connection"}'
+    exit 1
+fi
 
-    sync
-    mount -o remount,ro / 2>/dev/null || true
+if [ ! -f "$TAILSCALE_TARBALL" ]; then
+    write_status '{"success":false,"status":"error","message":"Downloaded tarball not found"}'
+    exit 1
+fi
+
+echo "Extracting..."
+tar -xzf "$TAILSCALE_TARBALL"
+rm -f "$TAILSCALE_TARBALL"
+
+if [ ! -d "$TAILSCALE_EXTRACT_DIR" ]; then
+    write_status '{"success":false,"status":"error","message":"Extraction failed — no extract dir"}'
+    exit 1
+fi
+
+cd "/usrdata/$TAILSCALE_EXTRACT_DIR" || exit 1
+if [ ! -f tailscale ] || [ ! -f tailscaled ]; then
+    write_status '{"success":false,"status":"error","message":"Extracted archive missing binaries"}'
+    cd /usrdata || true
+    rm -rf "$TAILSCALE_EXTRACT_DIR"
+    exit 1
+fi
+
+mv tailscale tailscaled "$TAILSCALE_DIR/"
+cd /usrdata || exit 1
+rm -rf "$TAILSCALE_EXTRACT_DIR"
+
+echo "Setting permissions..."
+chmod +x "$TAILSCALE_DIR/tailscale" "$TAILSCALE_DIR/tailscaled"
+
+# -----------------------------------------------------------------------------
+# Install systemd units (bundled-first, inline fallback)
+# -----------------------------------------------------------------------------
+echo "Installing systemd units..."
+if [ -f "$QM_BUNDLED_UNIT" ]; then
+    echo "  using bundled unit from $QM_BUNDLED_UNIT"
+    cp -f "$QM_BUNDLED_UNIT" "$TAILSCALE_SYSD_DIR/tailscaled.service"
+else
+    echo "  bundled unit missing — writing inline fallback"
+    cat > "$TAILSCALE_SYSD_DIR/tailscaled.service" <<'UNITEOF'
+[Unit]
+Description=Tailscale node agent
+Documentation=https://tailscale.com/kb/
+Wants=network-pre.target
+After=network-pre.target NetworkManager.service systemd-resolved.service
+
+[Service]
+EnvironmentFile=/usrdata/tailscale/systemd/tailscaled.defaults
+ExecStartPre=/usrdata/tailscale/tailscaled --cleanup
+ExecStart=/usrdata/tailscale/tailscaled --statedir=/usrdata/tailscale/ --port=${PORT} $FLAGS
+ExecStartPost=/bin/chmod 755 /usrdata/tailscale
+ExecStopPost=/usrdata/tailscale/tailscaled --cleanup
+Restart=on-failure
+RestartSec=5s
+Type=notify
+
+[Install]
+WantedBy=multi-user.target
+UNITEOF
+fi
+
+if [ -f "$QM_BUNDLED_DEFAULTS" ]; then
+    echo "  using bundled defaults from $QM_BUNDLED_DEFAULTS"
+    cp -f "$QM_BUNDLED_DEFAULTS" "$TAILSCALE_SYSD_DIR/tailscaled.defaults"
+else
+    echo "  bundled defaults missing — writing minimal defaults"
+    printf 'PORT="41641"\nFLAGS=""\n' > "$TAILSCALE_SYSD_DIR/tailscaled.defaults"
+fi
+
+# Strip Windows line endings (installer bundles may have CRLF).
+sed -i 's/\r$//' "$TAILSCALE_SYSD_DIR/tailscaled.service"
+sed -i 's/\r$//' "$TAILSCALE_SYSD_DIR/tailscaled.defaults"
+
+# Copy to /lib/systemd/system/ and link into wants.
+cp -f "$TAILSCALE_SYSD_DIR/tailscaled.service" "$SYSTEMD_DIR/tailscaled.service"
+ln -sf "$SYSTEMD_DIR/tailscaled.service" "$WANTS_DIR/tailscaled.service"
+
+# -----------------------------------------------------------------------------
+# Start daemon
+# -----------------------------------------------------------------------------
+write_status '{"success":true,"status":"running","message":"Starting Tailscale daemon..."}'
+systemctl daemon-reload
+sleep 2
+
+echo "Starting tailscaled..."
+systemctl start tailscaled
+
+# -----------------------------------------------------------------------------
+# CLI symlinks — BOTH required
+#   /usrdata/root/bin/tailscale — matches rgmii-toolkit convention
+#   /usr/bin/tailscale           — QManager's default root PATH includes this
+# -----------------------------------------------------------------------------
+mkdir -p /usrdata/root/bin
+ln -sf /usrdata/tailscale/tailscale /usrdata/root/bin/tailscale
+ln -sf /usrdata/tailscale/tailscale /usr/bin/tailscale
+
+cd / || true
+
+# -----------------------------------------------------------------------------
+# Restart firewall so tailscale0 becomes a trusted interface (preserves the
+# behavior of the old production script — qmanager-firewall trusts tailscale0
+# when Tailscale is installed).
+# -----------------------------------------------------------------------------
+systemctl restart qmanager-firewall 2>/dev/null || true
+
+# -----------------------------------------------------------------------------
+# Finalize
+# -----------------------------------------------------------------------------
+if [ -x "$TAILSCALE_DIR/tailscale" ] && [ -x "$TAILSCALE_DIR/tailscaled" ]; then
+    write_status '{"success":true,"status":"complete","message":"Tailscale v'"$TAILSCALE_VERSION"' installed successfully"}'
+    echo "=== Tailscale v${TAILSCALE_VERSION} installed successfully ==="
+else
+    write_status '{"success":false,"status":"error","message":"Install completed but binaries not found"}'
+    echo "=== ERROR: binaries not found after install ==="
+fi
+
+# EXIT trap handles: rm -f INSTALL_PID + sync + remount ro
+exit 0
+INNER_EOF
+
+    chmod +x "$INNER_SCRIPT"
+
+    # --- Write the temporary oneshot systemd unit ---------------------------
+    # Unquoted heredoc — $INNER_SCRIPT expands now.
+    cat > "$TEMP_SERVICE_FILE" <<EOF
+[Unit]
+Description=QManager Tailscale install — temporary oneshot
+DefaultDependencies=no
+
+[Service]
+Type=oneshot
+ExecStart=/bin/bash $INNER_SCRIPT
+RemainAfterExit=no
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+    # --- Launch and hand off PID tracking -----------------------------------
+    systemctl daemon-reload
+    systemctl start "$TEMP_SERVICE_NAME"
+
+    # Capture the systemd MainPID of the oneshot so the CGI's pid_alive check
+    # tracks the actual install process. Poll for up to 3 seconds — the inner
+    # script takes over the PID file on its own, but this bridges the wrapper
+    # hand-off window so the CGI never sees a stale/missing PID.
+    main_pid=""
+    for _ in 1 2 3; do
+        sleep 1
+        main_pid=$(systemctl show -p MainPID "$TEMP_SERVICE_NAME" 2>/dev/null | cut -d= -f2 | tr -d ' \n\r')
+        if pid_is_alive "$main_pid"; then
+            echo "$main_pid" > "$INSTALL_PID"
+            break
+        fi
+    done
+
+    # Wrapper exits here. The inner script keeps running under systemd, owns
+    # the PID file via its own trap, and writes the final status JSON.
+    return 0
 }
 
+# =============================================================================
+# do_uninstall — stop daemon, remove binaries, units, symlinks, temp files
+# =============================================================================
 do_uninstall() {
     mount -o remount,rw / 2>/dev/null || true
 
-    # Stop daemon if running
-    /bin/systemctl stop tailscaled 2>/dev/null || true
+    # Stop daemon if running.
+    systemctl stop tailscaled 2>/dev/null || true
 
-    # Remove boot symlink
+    # Remove boot symlink and live systemd unit.
     rm -f "$WANTS_DIR/tailscaled.service"
-
-    # Remove systemd unit from system dir
     rm -f "$SYSTEMD_DIR/tailscaled.service"
-    /bin/systemctl daemon-reload 2>/dev/null || true
+    systemctl daemon-reload 2>/dev/null || true
 
-    # Remove binaries and state
+    # Remove the temporary install unit too, in case a prior install left it.
+    rm -f "$TEMP_SERVICE_FILE"
+    systemctl daemon-reload 2>/dev/null || true
+
+    # Remove binaries, state, and staging directory.
     rm -rf "$TAILSCALE_DIR"
 
-    # Remove CLI symlink
+    # Remove BOTH CLI symlinks — matches the install-time symlinks.
     rm -f /usrdata/root/bin/tailscale
+    rm -f /usr/bin/tailscale
 
-    # Clean up temp files
+    # Clean up runtime temp files.
     rm -f /tmp/qmanager_tailscale_auth_url \
           /tmp/qmanager_tailscale_up_output \
           /tmp/qmanager_tailscale_up_pid \
-          /tmp/qmanager_tailscale_install.json \
-          /tmp/qmanager_tailscale_install.pid
+          "$INSTALL_RESULT" \
+          "$INSTALL_PID" \
+          "$LOG_FILE" \
+          "$INNER_SCRIPT"
 
     sync
     mount -o remount,ro / 2>/dev/null || true
 }
 
+# =============================================================================
+# do_ensure_units — stage bundled systemd units into /usrdata/tailscale/systemd/
+# Called by the QManager installer before Tailscale itself is installed, so the
+# units are in the staging dir even on a fresh install.
+# =============================================================================
 do_ensure_units() {
-    # Copy QManager-bundled systemd units to /usrdata/tailscale/systemd/
-    # Called by installer to pre-stage units before Tailscale is installed.
     mount -o remount,rw / 2>/dev/null || true
     mkdir -p "$TAILSCALE_SYSD_DIR"
 
@@ -189,10 +391,12 @@ do_ensure_units() {
     mount -o remount,ro / 2>/dev/null || true
 }
 
-# --- Main dispatch ---
+# =============================================================================
+# Main dispatch
+# =============================================================================
 case "${1:-}" in
-    install)     do_install ;;
-    uninstall)   do_uninstall ;;
+    install)      do_install ;;
+    uninstall)    do_uninstall ;;
     ensure_units) do_ensure_units ;;
     *)
         echo "Usage: qmanager_tailscale_mgr {install|uninstall|ensure_units}" >&2
