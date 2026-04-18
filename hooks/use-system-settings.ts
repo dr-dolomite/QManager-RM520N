@@ -38,6 +38,11 @@ export interface SaveScheduledRebootPayload {
   days: number[];
 }
 
+export interface SaveSecurityPayload {
+  action: "save_security";
+  session_max_age: number;
+}
+
 export interface UseSystemSettingsReturn {
   settings: SystemSettings | null;
   scheduledReboot: ScheduleConfig | null;
@@ -46,6 +51,7 @@ export interface UseSystemSettingsReturn {
   error: string | null;
   saveSettings: (payload: SaveSettingsPayload) => Promise<boolean>;
   saveScheduledReboot: (payload: SaveScheduledRebootPayload) => Promise<boolean>;
+  saveSecuritySettings: (payload: SaveSecurityPayload) => Promise<boolean>;
   refresh: () => void;
 }
 
@@ -114,7 +120,8 @@ export function useSystemSettings(): UseSystemSettingsReturn {
     async (
       payload:
         | SaveSettingsPayload
-        | SaveScheduledRebootPayload,
+        | SaveScheduledRebootPayload
+        | SaveSecurityPayload,
     ): Promise<boolean> => {
       setError(null);
       setIsSaving(true);
@@ -146,9 +153,8 @@ export function useSystemSettings(): UseSystemSettingsReturn {
           // Future: setLowPower(json.low_power) when low power hook exists
         }
 
-        // Re-fetch for save_settings (preferences) which doesn't return
-        // schedule data — and to sync any other state we didn't capture above.
-        if (payload.action === "save_settings") {
+        // Re-fetch for save_settings and save_security to sync returned state.
+        if (payload.action === "save_settings" || payload.action === "save_security") {
           await fetchSettings(true);
         }
 
@@ -181,6 +187,11 @@ export function useSystemSettings(): UseSystemSettingsReturn {
     [postAction],
   );
 
+  const saveSecuritySettings = useCallback(
+    (payload: SaveSecurityPayload) => postAction(payload),
+    [postAction],
+  );
+
   return {
     settings,
     scheduledReboot,
@@ -189,6 +200,7 @@ export function useSystemSettings(): UseSystemSettingsReturn {
     error,
     saveSettings,
     saveScheduledReboot,
+    saveSecuritySettings,
     refresh: fetchSettings,
   };
 }

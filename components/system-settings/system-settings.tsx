@@ -4,6 +4,7 @@ import { useSystemSettings } from "@/hooks/use-system-settings";
 import SystemSettingsCard from "@/components/system-settings/system-settings-card";
 import ScheduledOperationsCard from "@/components/system-settings/scheduled-operations-card";
 import SSHPasswordCard from "@/components/system-settings/ssh-password-card";
+import SecurityCard from "@/components/system-settings/security-card";
 
 const SystemSettings = () => {
   const hookData = useSystemSettings();
@@ -17,6 +18,7 @@ const SystemSettings = () => {
         <SystemSettingsCard {...hookData} />
         <ScheduledOperationsCard {...hookData} />
         <SSHPasswordCard />
+        <SecurityCard {...hookData} />
       </div>
     </div>
   );

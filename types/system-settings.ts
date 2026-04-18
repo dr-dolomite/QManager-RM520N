@@ -9,6 +9,7 @@ export interface SystemSettings {
   timezone: string; // POSIX TZ string, e.g. "EST5EDT,M3.2.0,M11.1.0"
   zonename: string; // IANA zone name, e.g. "America/New_York"
   sms_tool_device: string; // "" = default (smd11), "/dev/smd7" = alternate
+  session_max_age: number; // Session timeout in seconds; 0 = never expire
 }
 
 export interface ScheduleConfig {
