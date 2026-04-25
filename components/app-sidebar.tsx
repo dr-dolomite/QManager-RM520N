@@ -190,9 +190,17 @@ const data = {
   localNetwork: [
     {
       title: "Settings",
-      url: "/local-network/ip-passthrough",
+      url: "/local-network/lan-settings",
       icon: Settings2,
       items: [
+        {
+          title: "LAN / DHCP",
+          url: "/local-network/lan-settings",
+        },
+        {
+          title: "IP Passthrough",
+          url: "/local-network/ip-passthrough",
+        },
         {
           title: "TTL & MTU Settings",
           url: "/local-network/ttl-settings",
