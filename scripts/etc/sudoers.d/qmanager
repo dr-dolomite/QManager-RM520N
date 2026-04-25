@@ -31,3 +31,6 @@ www-data ALL=(root) NOPASSWD: /bin/rm -f /lib/systemd/system/multi-user.target.w
 
 # Web console management
 www-data ALL=(root) NOPASSWD: /usr/bin/qmanager_console_mgr
+
+# LAN/DHCP XML management
+www-data ALL=(root) NOPASSWD: /usr/bin/qmanager_lan_config_mgr
