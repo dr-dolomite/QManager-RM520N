@@ -10,11 +10,11 @@
 [ -n "$_CGI_AUTH_LOADED" ] && return 0
 _CGI_AUTH_LOADED=1
 
+. /usr/lib/qmanager/config.sh 2>/dev/null
+
 AUTH_CONFIG="/etc/qmanager/auth.json"
 SESSIONS_DIR="/tmp/qmanager_sessions"
 ATTEMPTS_FILE="/tmp/qmanager_auth_attempts.json"
-
-SESSION_MAX_AGE=3600  # 1 hour
 
 # Cookie names
 COOKIE_SESSION="qm_session"
@@ -104,8 +104,12 @@ qm_get_cookie() {
 # Emit Set-Cookie headers for both session and indicator cookies
 # Usage: qm_set_session_cookies <token>
 qm_set_session_cookies() {
-    echo "Set-Cookie: ${COOKIE_SESSION}=${1}; HttpOnly; SameSite=Strict; Path=/; Max-Age=${SESSION_MAX_AGE}"
-    echo "Set-Cookie: ${COOKIE_INDICATOR}=1; SameSite=Strict; Path=/; Max-Age=${SESSION_MAX_AGE}"
+    _sc_max_age=$(qm_config_get settings session_max_age "3600" 2>/dev/null)
+    [ -z "$_sc_max_age" ] && _sc_max_age="3600"
+    # 0 = never expire — use browser maximum (400 days)
+    [ "$_sc_max_age" = "0" ] && _sc_max_age="34560000"
+    echo "Set-Cookie: ${COOKIE_SESSION}=${1}; HttpOnly; SameSite=Strict; Path=/; Max-Age=${_sc_max_age}"
+    echo "Set-Cookie: ${COOKIE_INDICATOR}=1; SameSite=Strict; Path=/; Max-Age=${_sc_max_age}"
 }
 
 # Emit Set-Cookie headers that clear both cookies
@@ -148,12 +152,18 @@ qm_validate_session() {
     _created=$(cat "$_session_file" 2>/dev/null)
     [ -z "$_created" ] && return 1
 
-    _now=$(date +%s)
-    _age=$(( _now - _created ))
-    [ "$_age" -gt "$SESSION_MAX_AGE" ] && {
-        rm -f "$_session_file"
-        return 1
-    }
+    _vs_max_age=$(qm_config_get settings session_max_age "3600" 2>/dev/null)
+    [ -z "$_vs_max_age" ] && _vs_max_age="3600"
+
+    # 0 = never expire — skip age check
+    if [ "$_vs_max_age" != "0" ]; then
+        _now=$(date +%s)
+        _age=$(( _now - _created ))
+        [ "$_age" -gt "$_vs_max_age" ] && {
+            rm -f "$_session_file"
+            return 1
+        }
+    fi
 
     return 0
 }
@@ -169,13 +179,16 @@ qm_destroy_session() {
 # Clean up expired sessions (called on login)
 qm_cleanup_sessions() {
     [ ! -d "$SESSIONS_DIR" ] && return
+    _cs_max_age=$(qm_config_get settings session_max_age "3600" 2>/dev/null)
+    [ -z "$_cs_max_age" ] && _cs_max_age="3600"
+    [ "$_cs_max_age" = "0" ] && return
     _now=$(date +%s)
     for _f in "${SESSIONS_DIR}"/*; do
         [ ! -f "$_f" ] && continue
         _created=$(cat "$_f" 2>/dev/null)
         [ -z "$_created" ] && { rm -f "$_f"; continue; }
         _age=$(( _now - _created ))
-        [ "$_age" -gt "$SESSION_MAX_AGE" ] && rm -f "$_f"
+        [ "$_age" -gt "$_cs_max_age" ] && rm -f "$_f"
     done
 }
 
