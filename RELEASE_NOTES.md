@@ -8,6 +8,8 @@
 
 ## 🛠️ Improvements
 
+- **Changing the APN now takes effect immediately and preserves TTL/HL hotspot-bypass rules.** QManager forces the modem to re-establish its data connection after an APN change, so the new APN is used right away instead of waiting for the next network cycle. If you've set a TTL/HL preset (e.g. for carrier hotspot bypass), those rules are automatically re-applied once the connection is back — no need to re-enter them just because you changed APN.
+
 - **IPv6 addresses no longer overflow the Cellular Information card on mobile.** WAN IPv6, Primary DNS, and Secondary DNS values now wrap cleanly inside the card on narrow screens instead of running off the right edge. Addresses are also displayed in their standard compressed form (RFC 5952), so a value like `2607:fb91:0000:0000:0000:425d:28b3:2230` shows as `2607:fb91::425d:28b3:2230`. The full uncompressed address is still available in the info-icon tooltip.
 
 - **Secondary DNS shows a clean value on dual-stack (IPv4+IPv6) networks.** On carriers that hand out both an IPv4 and IPv6 data context (e.g. T-Mobile US), the Secondary DNS field could appear as a long garbled string with two addresses fused together (e.g. `10.177.0.34253.0.151.106.0.0…`). The poller now correctly separates the two records before reading the DNS fields, so a single, valid DNS server is shown.
