@@ -1,30 +1,18 @@
-# 🚀 QManager RM520N BETA v0.1.9
+# 🚀 QManager RM520N BETA v0.1.10-draft
 
 > One-click OTA from **System Settings → Software Update** if you're on v0.1.5 or newer. SSH/ADB is not required.
 
-## ✨ New Features
-
-- **Enable Tailscale SSH from the UI.** A new toggle in the Tailscale Connection card lets you turn on Tailscale's built-in SSH server with one click. Access is controlled entirely by your Tailscale admin-panel ACL policy — no changes to the device's existing SSH. A confirmation prompt reminds you to review your ACLs before enabling. The setting sticks across reconnects and reboots.
-
-- **System Health now shows load averages.** A new row beneath CPU Usage displays the 1-minute, 5-minute, and 15-minute load averages. On the single-core RM520N-GL, these give a clearer picture of sustained load than a single CPU % snapshot — the bar turns yellow or red when the device is under pressure, and an info icon explains what the three numbers mean.
-
-- **Data Used counter now survives reboots.** Previously, the counter reset every time the modem restarted or the data session re-attached — making it unreliable for tracking usage over days. QManager now maintains its own running total independently of the modem session. A new **Reset** button on the Device Metrics card lets you zero it on demand, handy for tracking usage within a billing window.
-
 ## 🛠️ Improvements
 
-- **Live Traffic fixed on x5x-class modems (RM501, RM502, RG502Q).** The traffic display was looking at the wrong network interface on these platforms and showing zeroed counters. It now auto-detects the active interface correctly each time.
+- **IPv6 addresses no longer overflow the Cellular Information card on mobile.** WAN IPv6, Primary DNS, and Secondary DNS values now wrap cleanly inside the card on narrow screens instead of running off the right edge. Addresses are also displayed in their standard compressed form (RFC 5952), so a value like `2607:fb91:0000:0000:0000:425d:28b3:2230` shows as `2607:fb91::425d:28b3:2230`. The full uncompressed address is still available in the info-icon tooltip.
 
-- **Connectivity status no longer gets stuck on "Offline."** On certain device variants, the connectivity check was reading from a fixed interface that wasn't active — so it always appeared offline even when internet was working. The check now uses HTTP probes to Cloudflare and Google, which is the correct and reliable signal.
+- **Secondary DNS shows a clean value on dual-stack (IPv4+IPv6) networks.** On carriers that hand out both an IPv4 and IPv6 data context (e.g. T-Mobile US), the Secondary DNS field could appear as a long garbled string with two addresses fused together (e.g. `10.177.0.34253.0.151.106.0.0…`). The poller now correctly separates the two records before reading the DNS fields, so a single, valid DNS server is shown.
 
-- **OTA upgrades no longer abort on non-standard device variants.** Users on variant firmware IDs (e.g. `RM520FGL_VA`) were seeing "Installation aborted by user" during upgrade — even though they hadn't cancelled anything. The installer now handles non-interactive environments correctly and proceeds with a warning instead of exiting.
-
-- **LAN Gateway now displays correctly on all variants.** On some devices (notably RM501-class), the LAN Gateway field was occasionally stuck on `-`. It's now fetched once at startup by the background poller and cached, so it loads instantly and renders correctly across all supported models.
-
-- **Modem access fixed on older Quectel platforms (RM502Q-AE, RG502Q).** A permissions issue on X55-family devices could silently prevent the web server from communicating with the modem, causing AT commands to fail. The installer now uses multiple fallback methods to ensure access is set up correctly, and removes any conflicting rules from third-party tools.
+- **The dashboard updates immediately when you switch SIM slots.** Previously, the ISP name and SIM card details shown on the dashboard could remain stuck on the old SIM's values for up to ~30 seconds after a slot swap — long enough that the "SIM Mismatch" badge on the Custom Profiles page could falsely flag a perfectly-matched profile as mismatched. The dashboard now catches up within a couple of seconds, before the profile page has a chance to show a false mismatch.
 
 ## 📥 Installation
 
-### Upgrading from v0.1.8
+### Upgrading from v0.1.9
 
 **System Settings → Software Update.** Click Download, then Install. No SSH/ADB needed. All settings preserved.
 

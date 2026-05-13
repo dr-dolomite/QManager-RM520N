@@ -32,6 +32,10 @@
 CACHE_FILE="/tmp/qmanager_status.json"
 CACHE_TMP="/tmp/qmanager_status.json.tmp"
 LONG_FLAG="/tmp/qmanager_long_running"
+# Touched by external triggers (e.g. SIM-slot-change CGI) to pull the warm
+# refresh into the next cycle instead of waiting up to ~30s for the normal
+# Tier 2 cadence to land.
+TIER2_REFRESH_FLAG="/tmp/qmanager_tier2_refresh"
 POLL_INTERVAL=2        # seconds between Tier 1 cycles
 TIER1_5_EVERY=5        # Tier 1.5 (per-antenna signal) runs every N cycles (10s)
 TIER2_EVERY=15         # Tier 2 runs every N cycles
@@ -1015,6 +1019,30 @@ collect_boot_data() {
     log_info "Boot data: LTE_BANDS=$boot_supported_lte_bands NSA_BANDS=$boot_supported_nsa_nr5g_bands SA_BANDS=$boot_supported_sa_nr5g_bands"
     log_info "Boot data: IPPT mode=$boot_ippt_mode nat=$boot_ippt_nat usb=$boot_ippt_usbnet dns=$boot_ippt_dhcpv4dns"
     log_info "Boot data: LAN ip=$boot_lan_ip gateway=$boot_lan_gateway"
+}
+
+# =============================================================================
+# read_sim_identity — Re-read SIM-bound identifiers (IMSI, ICCID)
+# =============================================================================
+# Called from the Tier 2 force-refresh path after a user-initiated SIM slot
+# swap. Only refreshes fields that actually change with the SIM card —
+# leaves IMEI / model / firmware / capability alone (those are modem-bound
+# and a SIM swap can't affect them).
+#
+# Response shape differs from collect_boot_data's compound read. Standalone CIMI
+# returns a single bare 15-digit number (no IMEI prefix line to disambiguate),
+# so we use `head -1` instead of `sed -n '2p'`.
+# =============================================================================
+read_sim_identity() {
+    local result new_imsi new_iccid
+    result=$(qcmd 'AT+CIMI;+QCCID' 2>/dev/null)
+    [ -z "$result" ] && return 0
+
+    new_imsi=$(printf '%s\n' "$result" | tr -d '\r' | grep -x '[0-9]\{15\}' | head -1)
+    new_iccid=$(printf '%s\n' "$result" | grep '+QCCID:' | sed 's/+QCCID: //g' | tr -d '\r ')
+
+    [ -n "$new_imsi" ] && boot_imsi="$new_imsi"
+    [ -n "$new_iccid" ] && boot_iccid="$new_iccid"
 }
 
 # =============================================================================
@@ -2083,9 +2111,17 @@ poll_cycle() {
     fi
 
     # Tier 2 (warm data + SIM state + CFUN)
-    if [ $((cycle_count % TIER2_EVERY)) -eq 0 ]; then
+    # Honor the on-demand refresh flag so a SIM-slot change picks up the
+    # new carrier name within ~2s instead of up to ~30s.
+    force_tier2=false
+    if [ -f "$TIER2_REFRESH_FLAG" ]; then
+        force_tier2=true
+        rm -f "$TIER2_REFRESH_FLAG"
+    fi
+    if [ "$force_tier2" = "true" ] || [ $((cycle_count % TIER2_EVERY)) -eq 0 ]; then
         poll_tier2
         read_sim_state
+        [ "$force_tier2" = "true" ] && read_sim_identity
 
         # CFUN — standalone query (compound commands timeout in CFUN=0).
         # Cadence is Tier 2 because airplane-mode toggles are user-driven and rare.
