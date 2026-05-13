@@ -786,6 +786,14 @@ parse_qsinr() {
 #   +CGCONTRDP: 1,5,"SMARTBRO","10.110.61.83",,"10.151.151.44","10.151.151.48"
 #   +CGCONTRDP: 2,6,"ims","36.4.216.0...",...
 #
+# Dual-stack (IPv4v6) profiles return TWO +CGCONTRDP records for the same
+# context — one IPv4, one IPv6. Some firmwares emit them with bare CR
+# separators (no LF), so the records collapse onto a single line for
+# line-oriented tools and fields from both records get glued together
+# (e.g. secondary_dns ends up as "10.177.0.34253.0.151.106..."). The
+# normalization below converts every CR to LF up front so each record sits
+# on its own line regardless of what the modem emits.
+#
 # Populates: t2_apn, t2_primary_dns, t2_secondary_dns
 # -----------------------------------------------------------------------------
 parse_cgcontrdp() {
@@ -795,9 +803,14 @@ parse_cgcontrdp() {
     t2_primary_dns=""
     t2_secondary_dns=""
 
-    # Get +CGCONTRDP lines, exclude IMS profile (case-insensitive)
+    # Normalize line endings: convert all CR to LF so each +CGCONTRDP
+    # record lives on its own line (handles CRLF, bare CR, and mixed).
+    local normalized
+    normalized=$(printf '%s' "$raw" | tr '\r' '\n' | sed '/^$/d')
+
+    # First non-IMS +CGCONTRDP record
     local data_line
-    data_line=$(printf '%s\n' "$raw" | grep '^+CGCONTRDP:' | grep -iv '"ims"' | head -1)
+    data_line=$(printf '%s\n' "$normalized" | grep '^+CGCONTRDP:' | grep -iv '"ims"' | head -1)
 
     if [ -z "$data_line" ]; then
         qlog_debug "parse_cgcontrdp: no non-IMS CGCONTRDP line found"
@@ -805,7 +818,7 @@ parse_cgcontrdp() {
     fi
 
     local csv
-    csv=$(printf '%s' "$data_line" | sed 's/+CGCONTRDP: //g' | tr -d '\r')
+    csv=$(printf '%s' "$data_line" | sed 's/^+CGCONTRDP: //')
 
     # Field 3: APN (quoted)
     t2_apn=$(printf '%s' "$csv" | cut -d',' -f3 | tr -d '"' | tr -d ' ')
