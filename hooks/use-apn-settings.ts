@@ -121,8 +121,10 @@ export function useApnSettings(): UseApnSettingsReturn {
           return false;
         }
 
-        // APN change briefly disrupts data connection — wait for recovery
-        await new Promise((resolve) => setTimeout(resolve, 3000));
+        // AT+COPS=0 inside the CGI kicks off reattach; bearer comes back over
+        // the next ~5–15s depending on signal. Wait briefly before the silent
+        // refetch — too short and we'll show the old +CGPADDR/+QMAP state.
+        await new Promise((resolve) => setTimeout(resolve, 5000));
 
         // Re-fetch to show actual modem state (silent — no skeleton)
         await fetchApn(true);
