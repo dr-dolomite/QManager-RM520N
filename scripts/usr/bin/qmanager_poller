@@ -680,47 +680,60 @@ update_data_used() {
     # Step 0: lazy-load from disk on first call
     if [ "$du_loaded" = "false" ]; then
         if [ -f "$DATA_USED_FILE" ]; then
-            local _jv
-            _jv=$(jq -r '
-                (.accumulated_rx_bytes  // 0 | tostring) + " " +
-                (.accumulated_tx_bytes  // 0 | tostring) + " " +
-                (.selected_counter      // ""           ) + " " +
-                (.prev_qgdcnt_tx        // 0 | tostring) + " " +
-                (.prev_qgdcnt_rx        // 0 | tostring) + " " +
-                (.prev_qgdnrcnt_tx      // 0 | tostring) + " " +
-                (.prev_qgdnrcnt_rx      // 0 | tostring) + " " +
-                (.prev_ipa_rx           // 0 | tostring) + " " +
-                (.prev_ipa_tx           // 0 | tostring) + " " +
-                (.last_update_ts        // 0 | tostring) + " " +
-                (.last_reset_ts         // 0 | tostring) + " " +
-                (.divergence_count      // 0 | tostring) + " " +
-                (.modem_reset_count     // 0 | tostring) + " " +
-                (.mode_transition_count // 0 | tostring) + " " +
-                (.orientation           // "tx,rx"      ) + " " +
-                (.orientation_calibrated // false | tostring) + " " +
-                (.orientation_attempts  // 0 | tostring)
-            ' "$DATA_USED_FILE" 2>/dev/null)
-            if [ -n "$_jv" ]; then
-                du_accumulated_rx=$(    printf '%s' "$_jv" | awk '{print $1}')
-                du_accumulated_tx=$(    printf '%s' "$_jv" | awk '{print $2}')
-                du_selected_counter=$(  printf '%s' "$_jv" | awk '{print $3}')
-                du_prev_qgdcnt_tx=$(    printf '%s' "$_jv" | awk '{print $4}')
-                du_prev_qgdcnt_rx=$(    printf '%s' "$_jv" | awk '{print $5}')
-                du_prev_qgdnrcnt_tx=$(  printf '%s' "$_jv" | awk '{print $6}')
-                du_prev_qgdnrcnt_rx=$(  printf '%s' "$_jv" | awk '{print $7}')
-                du_prev_ipa_rx=$(       printf '%s' "$_jv" | awk '{print $8}')
-                du_prev_ipa_tx=$(       printf '%s' "$_jv" | awk '{print $9}')
-                du_last_update_ts=$(    printf '%s' "$_jv" | awk '{print $10}')
-                du_last_reset_ts=$(     printf '%s' "$_jv" | awk '{print $11}')
-                du_divergence_count=$(  printf '%s' "$_jv" | awk '{print $12}')
-                du_modem_reset_count=$( printf '%s' "$_jv" | awk '{print $13}')
-                du_mode_transition_count=$(printf '%s' "$_jv" | awk '{print $14}')
-                du_orientation=$(       printf '%s' "$_jv" | awk '{print $15}')
-                du_orientation_calibrated=$(printf '%s' "$_jv" | awk '{print $16}')
-                du_orientation_attempts=$(printf '%s' "$_jv" | awk '{print $17}')
+            # Schema-version check — if older than current, discard state.
+            # Healing path for v0.1.9 users carrying corrupted negative
+            # accumulator values from the BusyBox-sh 32-bit overflow bug.
+            local _on_disk_schema
+            _on_disk_schema=$(jq -r '.schema // 0' "$DATA_USED_FILE" 2>/dev/null)
+            if [ "${_on_disk_schema:-0}" -lt "$DATA_USED_SCHEMA" ]; then
+                qlog_info "data_used: schema v${_on_disk_schema} < v${DATA_USED_SCHEMA}; resetting state"
+                rm -f "$DATA_USED_FILE"
+                # Fall through to "no file" branch below — clean slate.
+            else
+                local _jv
+                _jv=$(jq -r '
+                    (.accumulated_rx_bytes  // 0 | tostring) + " " +
+                    (.accumulated_tx_bytes  // 0 | tostring) + " " +
+                    (.selected_counter      // ""           ) + " " +
+                    (.prev_qgdcnt_tx        // 0 | tostring) + " " +
+                    (.prev_qgdcnt_rx        // 0 | tostring) + " " +
+                    (.prev_qgdnrcnt_tx      // 0 | tostring) + " " +
+                    (.prev_qgdnrcnt_rx      // 0 | tostring) + " " +
+                    (.prev_ipa_rx           // 0 | tostring) + " " +
+                    (.prev_ipa_tx           // 0 | tostring) + " " +
+                    (.last_update_ts        // 0 | tostring) + " " +
+                    (.last_reset_ts         // 0 | tostring) + " " +
+                    (.divergence_count      // 0 | tostring) + " " +
+                    (.modem_reset_count     // 0 | tostring) + " " +
+                    (.mode_transition_count // 0 | tostring) + " " +
+                    (.orientation           // "tx,rx"      ) + " " +
+                    (.orientation_calibrated // false | tostring) + " " +
+                    (.orientation_attempts  // 0 | tostring)
+                ' "$DATA_USED_FILE" 2>/dev/null)
+                if [ -n "$_jv" ]; then
+                    du_accumulated_rx=$(    printf '%s' "$_jv" | awk '{print $1}')
+                    du_accumulated_tx=$(    printf '%s' "$_jv" | awk '{print $2}')
+                    du_selected_counter=$(  printf '%s' "$_jv" | awk '{print $3}')
+                    du_prev_qgdcnt_tx=$(    printf '%s' "$_jv" | awk '{print $4}')
+                    du_prev_qgdcnt_rx=$(    printf '%s' "$_jv" | awk '{print $5}')
+                    du_prev_qgdnrcnt_tx=$(  printf '%s' "$_jv" | awk '{print $6}')
+                    du_prev_qgdnrcnt_rx=$(  printf '%s' "$_jv" | awk '{print $7}')
+                    du_prev_ipa_rx=$(       printf '%s' "$_jv" | awk '{print $8}')
+                    du_prev_ipa_tx=$(       printf '%s' "$_jv" | awk '{print $9}')
+                    du_last_update_ts=$(    printf '%s' "$_jv" | awk '{print $10}')
+                    du_last_reset_ts=$(     printf '%s' "$_jv" | awk '{print $11}')
+                    du_divergence_count=$(  printf '%s' "$_jv" | awk '{print $12}')
+                    du_modem_reset_count=$( printf '%s' "$_jv" | awk '{print $13}')
+                    du_mode_transition_count=$(printf '%s' "$_jv" | awk '{print $14}')
+                    du_orientation=$(       printf '%s' "$_jv" | awk '{print $15}')
+                    du_orientation_calibrated=$(printf '%s' "$_jv" | awk '{print $16}')
+                    du_orientation_attempts=$(printf '%s' "$_jv" | awk '{print $17}')
+                fi
             fi
-        else
-            # No file yet — create directory; zeroed state already set at init
+        fi
+        # Re-check file existence — if the schema-mismatch branch deleted it,
+        # we want the same initialization as a true fresh install.
+        if [ ! -f "$DATA_USED_FILE" ]; then
             mkdir -p /usrdata/qmanager 2>/dev/null
         fi
         du_loaded=true
