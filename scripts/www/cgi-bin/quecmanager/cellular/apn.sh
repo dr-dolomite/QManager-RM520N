@@ -177,17 +177,25 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
     # and a transient COPS=0 ERROR doesn't mean the modem won't reattach. Log
     # and continue; the hook's post-save refetch will surface the real state.
     result=$(qcmd 'AT+COPS=2' 2>/dev/null)
-    case "$result" in
-        *ERROR*) qlog_warn "AT+COPS=2 returned ERROR (may already be detached): $result" ;;
-        *)       qlog_info "AT+COPS=2 OK (detached)" ;;
-    esac
+    if [ -z "$result" ]; then
+        qlog_warn "AT+COPS=2 returned empty (AT interface unresponsive or locked)"
+    else
+        case "$result" in
+            *ERROR*) qlog_warn "AT+COPS=2 returned ERROR (may already be detached): $result" ;;
+            *)       qlog_info "AT+COPS=2 OK (detached)" ;;
+        esac
+    fi
     sleep 2
 
     result=$(qcmd 'AT+COPS=0' 2>/dev/null)
-    case "$result" in
-        *ERROR*) qlog_warn "AT+COPS=0 returned ERROR (reattach may be delayed): $result" ;;
-        *)       qlog_info "AT+COPS=0 OK (reattach requested)" ;;
-    esac
+    if [ -z "$result" ]; then
+        qlog_warn "AT+COPS=0 returned empty (AT interface unresponsive or locked)"
+    else
+        case "$result" in
+            *ERROR*) qlog_warn "AT+COPS=0 returned ERROR (reattach may be delayed): $result" ;;
+            *)       qlog_info "AT+COPS=0 OK (reattach requested)" ;;
+        esac
+    fi
     sleep 2
 
     # --- Step 3: Re-apply TTL/HL after bearer refresh ---
@@ -207,9 +215,11 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
             qlog_warn "TTL/HL apply or persist failed (TTL=$TTL HL=$HL); rules may be partial"
         fi
     else
-        set -- $(ttl_state_read_persisted)
-        persisted_ttl="${1:-0}"
-        persisted_hl="${2:-0}"
+        read -r persisted_ttl persisted_hl <<EOF
+$(ttl_state_read_persisted)
+EOF
+        persisted_ttl="${persisted_ttl:-0}"
+        persisted_hl="${persisted_hl:-0}"
         if [ "$persisted_ttl" -gt 0 ] || [ "$persisted_hl" -gt 0 ]; then
             qlog_info "Re-applying persisted TTL=$persisted_ttl HL=$persisted_hl after APN change"
             if ttl_state_apply "$persisted_ttl" "$persisted_hl"; then
