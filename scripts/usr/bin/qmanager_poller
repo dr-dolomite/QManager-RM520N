@@ -676,6 +676,151 @@ write_data_used_state() {
         }' > "$DATA_USED_TMP" && mv "$DATA_USED_TMP" "$DATA_USED_FILE"
 }
 
+# -----------------------------------------------------------------------------
+# calibrate_orientation — one-shot AT-counter field-order detection
+# -----------------------------------------------------------------------------
+# Reads QGDNRCNT + /proc/net/dev rmnet_ipa0, drives a 1 MB cellular download,
+# reads again. Whichever AT field grew in lockstep with the kernel's RX delta
+# is the receive field. The result is persisted in $du_orientation +
+# $du_orientation_calibrated for use by update_data_used.
+#
+# Guards:
+#   - Skips entirely if conn_internet_available != "true".
+#   - Skips entirely if attempts already hit the cap (locks to default).
+#   - Aborts cleanly if curl reports < 900 KB downloaded.
+#   - Aborts cleanly if IPA RX delta < 900 KB (download didn't hit cellular).
+#   - Aborts cleanly if IPA TX delta > 100 KB (concurrent upload muddied signal).
+#   - Aborts cleanly if AT field deltas don't show a dominant direction.
+#
+# Caller is responsible for checking $du_orientation_calibrated; we just
+# attempt one calibration per call and update state accordingly.
+# -----------------------------------------------------------------------------
+calibrate_orientation() {
+    # Cap check — freeze at default once attempts exhausted.
+    if [ "$du_orientation_attempts" -ge "$DATA_USED_MAX_CALIBRATION_ATTEMPTS" ]; then
+        if [ "$du_orientation_calibrated" = "false" ]; then
+            du_orientation_calibrated=true
+            qlog_warn "data_used: orientation calibration gave up after ${DATA_USED_MAX_CALIBRATION_ATTEMPTS} attempts; locking to default ${du_orientation}"
+            append_event "data_calibration_failed" \
+                "Data counter orientation calibration failed after ${DATA_USED_MAX_CALIBRATION_ATTEMPTS} attempts; using default (${du_orientation})" \
+                "warning"
+        fi
+        return 0
+    fi
+
+    # Connectivity guard — don't curl into the void.
+    if [ "$conn_internet_available" != "true" ]; then
+        return 0
+    fi
+
+    du_orientation_attempts=$((du_orientation_attempts + 1))
+    qlog_info "data_used: calibration attempt ${du_orientation_attempts}/${DATA_USED_MAX_CALIBRATION_ATTEMPTS}"
+
+    # Snapshot AT + IPA before download.
+    local _pre_at _pre_at_f1 _pre_at_f2
+    _pre_at=$(qcmd_exec 'AT+QGDNRCNT?')
+    _pre_at=$(printf '%s\n' "$_pre_at" | \
+        sed -n 's/^+QGDNRCNT:[[:space:]]*\([0-9]*\),\([0-9]*\).*/\1 \2/p' | head -1)
+    if [ -z "$_pre_at" ]; then
+        qlog_warn "data_used: calibration pre-read failed (AT)"
+        return 0
+    fi
+    _pre_at_f1=$(printf '%s' "$_pre_at" | awk '{print $1}')
+    _pre_at_f2=$(printf '%s' "$_pre_at" | awk '{print $2}')
+
+    local _pre_ipa_rx _pre_ipa_tx _dev_line
+    _dev_line=$(grep "rmnet_ipa0:" /proc/net/dev 2>/dev/null)
+    if [ -z "$_dev_line" ]; then
+        qlog_warn "data_used: calibration pre-read failed (IPA)"
+        return 0
+    fi
+    _pre_ipa_rx=$(printf '%s\n' "$_dev_line" | awk '{print $2}')
+    _pre_ipa_tx=$(printf '%s\n' "$_dev_line" | awk '{print $10}')
+
+    # Drive the calibration download.
+    local _curl_bytes
+    _curl_bytes=$(curl -sS --max-time 8 -o /dev/null \
+        -w '%{size_download}' \
+        "$DATA_USED_CALIBRATION_URL" 2>/dev/null)
+    if [ -z "$_curl_bytes" ] || [ "$_curl_bytes" -lt 900000 ]; then
+        qlog_warn "data_used: calibration curl reported only ${_curl_bytes:-0} bytes; retrying next tick"
+        return 0
+    fi
+
+    # Let the kernel rmnet counter settle.
+    sleep 1
+
+    # Snapshot AT + IPA after.
+    local _post_at _post_at_f1 _post_at_f2
+    _post_at=$(qcmd_exec 'AT+QGDNRCNT?')
+    _post_at=$(printf '%s\n' "$_post_at" | \
+        sed -n 's/^+QGDNRCNT:[[:space:]]*\([0-9]*\),\([0-9]*\).*/\1 \2/p' | head -1)
+    if [ -z "$_post_at" ]; then
+        qlog_warn "data_used: calibration post-read failed (AT)"
+        return 0
+    fi
+    _post_at_f1=$(printf '%s' "$_post_at" | awk '{print $1}')
+    _post_at_f2=$(printf '%s' "$_post_at" | awk '{print $2}')
+
+    local _post_ipa_rx _post_ipa_tx
+    _dev_line=$(grep "rmnet_ipa0:" /proc/net/dev 2>/dev/null)
+    if [ -z "$_dev_line" ]; then
+        qlog_warn "data_used: calibration post-read failed (IPA)"
+        return 0
+    fi
+    _post_ipa_rx=$(printf '%s\n' "$_dev_line" | awk '{print $2}')
+    _post_ipa_tx=$(printf '%s\n' "$_dev_line" | awk '{print $10}')
+
+    # Compute deltas. Bash 64-bit arithmetic — safe.
+    local _d_ipa_rx _d_ipa_tx _d_at_f1 _d_at_f2
+    _d_ipa_rx=$((_post_ipa_rx - _pre_ipa_rx))
+    _d_ipa_tx=$((_post_ipa_tx - _pre_ipa_tx))
+    _d_at_f1=$((_post_at_f1 - _pre_at_f1))
+    _d_at_f2=$((_post_at_f2 - _pre_at_f2))
+
+    # Sanity guards.
+    if [ "$_d_ipa_rx" -lt 900000 ]; then
+        qlog_warn "data_used: calibration IPA RX delta only ${_d_ipa_rx} bytes; download didn't hit cellular?"
+        return 0
+    fi
+    if [ "$_d_ipa_tx" -gt 100000 ]; then
+        qlog_warn "data_used: calibration IPA TX delta ${_d_ipa_tx} bytes too large; concurrent upload muddied signal"
+        return 0
+    fi
+
+    # Dominant-direction check on AT fields.
+    if [ "$_d_at_f1" -le 0 ] && [ "$_d_at_f2" -le 0 ]; then
+        qlog_warn "data_used: calibration AT counter did not advance"
+        return 0
+    fi
+
+    # Decide orientation by proximity to ipa_rx_delta.
+    # The AT field whose delta is CLOSER to ipa_rx_delta is the RX field.
+    local _diff_f1_rx _diff_f2_rx
+    if [ "$_d_at_f1" -ge "$_d_ipa_rx" ]; then
+        _diff_f1_rx=$((_d_at_f1 - _d_ipa_rx))
+    else
+        _diff_f1_rx=$((_d_ipa_rx - _d_at_f1))
+    fi
+    if [ "$_d_at_f2" -ge "$_d_ipa_rx" ]; then
+        _diff_f2_rx=$((_d_at_f2 - _d_ipa_rx))
+    else
+        _diff_f2_rx=$((_d_ipa_rx - _d_at_f2))
+    fi
+
+    if [ "$_diff_f2_rx" -lt "$_diff_f1_rx" ]; then
+        du_orientation="tx,rx"   # field 1 = TX, field 2 = RX (Quectel-public)
+    else
+        du_orientation="rx,tx"   # field 1 = RX, field 2 = TX (user's firmware)
+    fi
+    du_orientation_calibrated=true
+
+    qlog_info "data_used: orientation locked to '${du_orientation}' (ipa_rx_d=${_d_ipa_rx} at_f1_d=${_d_at_f1} at_f2_d=${_d_at_f2})"
+    append_event "data_calibration_done" \
+        "Data counter calibrated — 1 MB used to detect field order (${du_orientation})" \
+        "info"
+}
+
 update_data_used() {
     # Step 0: lazy-load from disk on first call
     if [ "$du_loaded" = "false" ]; then
