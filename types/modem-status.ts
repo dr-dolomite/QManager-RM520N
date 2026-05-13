@@ -257,7 +257,8 @@ export interface TrafficStatus {
 
 /**
  * Persistent data-usage counter maintained by the poller across modem reboots
- * and interface flaps. Sourced from AT+QGDCNT / AT+QGDNRCNT.
+ * and interface flaps. Sourced from AT+QGDNRCNT with a per-install orientation
+ * calibration that detects the firmware-specific field order.
  * Served by /cgi-bin/quecmanager/network/data_used.sh
  */
 export interface DataUsedBlock {
@@ -267,7 +268,7 @@ export interface DataUsedBlock {
   accumulated_tx_bytes: number;
   /**
    * Which AT counter the poller is currently using.
-   * "qgdcnt" = LTE, "qgdnrcnt" = 5G SA/NSA, "" = not yet selected.
+   * Always "qgdnrcnt" since v0.1.10 — preserved for backward compatibility.
    */
   selected_counter: string;
   /** Unix epoch (seconds) of the last poller write to this block */
@@ -281,8 +282,29 @@ export interface DataUsedBlock {
   divergence_count: number;
   /** Number of times the modem has been reset since the last user reset */
   modem_reset_count: number;
-  /** Number of LTE↔5G mode transitions since the last user reset */
+  /**
+   * Number of LTE↔5G mode transitions. Always 0 since v0.1.10 — preserved
+   * for backward compatibility with the v0.1.9 schema.
+   */
   mode_transition_count: number;
+  /**
+   * Field order the poller uses to parse +QGDNRCNT responses.
+   * "tx,rx" (Quectel-public default) or "rx,tx" (some firmware variants).
+   * Locked by a one-time download calibration on first install / reset.
+   */
+  orientation: "tx,rx" | "rx,tx";
+  /**
+   * True once the calibration has successfully detected (or given up and
+   * defaulted) the field order. Until true, the poller may be using the
+   * default "tx,rx" orientation which is correct for most firmwares.
+   */
+  orientation_calibrated: boolean;
+  /**
+   * Number of calibration attempts so far. Capped server-side at 10; past
+   * the cap the poller freezes at the default orientation and emits a
+   * `data_calibration_failed` event.
+   */
+  orientation_attempts: number;
   /**
    * True when the poller has not updated this block recently (cache is stale).
    * CGI sets this flag when the on-disk file is older than expected.
@@ -672,6 +694,12 @@ export function formatBitsPerSec(bitsPerSec: number): string {
  * e.g., 1073741824 → "1.0 GB"
  */
 export function formatBytes(bytes: number): string {
+  // Defense in depth — a negative value would slip through every magnitude
+  // branch below and render as raw "-12345 B". Clamp to 0 so any future
+  // counter wrap (or fresh post-reset state) renders cleanly. See the
+  // BusyBox-sh overflow fix in qmanager_poller for the original case that
+  // produced negatives in v0.1.9.
+  if (bytes < 0) return "0 B";
   if (bytes >= 1_073_741_824) {
     return `${(bytes / 1_073_741_824).toFixed(1)} GB`;
   }
