@@ -889,8 +889,20 @@ update_data_used() {
         du_accumulated_rx=0
         du_accumulated_tx=0
         du_last_reset_ts=$(date +%s)
+        # Also clear orientation calibration — user expects a "full reset",
+        # and the calibration will re-run automatically next time we have
+        # connectivity (cheap one-time 1 MB).
+        du_orientation_calibrated=false
+        du_orientation_attempts=0
         rm -f "$DATA_USED_RESET_FLAG"
-        qlog_info "data_used: user reset triggered"
+        qlog_info "data_used: user reset triggered (counters zeroed + orientation cleared)"
+    fi
+
+    # Step 1b: run orientation calibration if not yet done.
+    # calibrate_orientation handles its own guards (connectivity, attempt cap)
+    # and is cheap (~50 ms) when those guards short-circuit it.
+    if [ "$du_orientation_calibrated" = "false" ]; then
+        calibrate_orientation
     fi
 
     # Step 2: always use QGDNRCNT — empirically validated as the universal
