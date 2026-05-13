@@ -12,6 +12,8 @@
 
 - **Secondary DNS shows a clean value on dual-stack (IPv4+IPv6) networks.** On carriers that hand out both an IPv4 and IPv6 data context (e.g. T-Mobile US), the Secondary DNS field could appear as a long garbled string with two addresses fused together (e.g. `10.177.0.34253.0.151.106.0.0…`). The poller now correctly separates the two records before reading the DNS fields, so a single, valid DNS server is shown.
 
+- **Recent Activities on the dashboard now shows the last 6 events instead of 5**, making better use of the available card space.
+
 - **The dashboard updates immediately when you switch SIM slots.** Previously, the ISP name and SIM card details shown on the dashboard could remain stuck on the old SIM's values for up to ~30 seconds after a slot swap — long enough that the "SIM Mismatch" badge on the Custom Profiles page could falsely flag a perfectly-matched profile as mismatched. The dashboard now catches up within a couple of seconds, before the profile page has a chance to show a false mismatch.
 
 ## 📥 Installation

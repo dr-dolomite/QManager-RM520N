@@ -94,8 +94,9 @@ const RecentActivitiesComponent = () => {
       <CardContent>
         <div className="grid gap-3">
           {isLoading ? (
-            // Loading state: show 5 skeleton rows (matches max visible)
+            // Loading state: show 6 skeleton rows (matches max visible)
             <>
+              <EventSkeleton />
               <EventSkeleton />
               <EventSkeleton />
               <EventSkeleton />
@@ -118,14 +119,14 @@ const RecentActivitiesComponent = () => {
               </EmptyHeader>
             </Empty>
           ) : (
-            // Event list (newest first, max 5 visible) — stagger in on mount
+            // Event list (newest first, max 6 visible) — stagger in on mount
             <motion.div
               className="grid gap-3"
               variants={listVariants}
               initial="hidden"
               animate="visible"
             >
-              {events.slice(0, 5).map((event, i) => (
+              {events.slice(0, 6).map((event, i) => (
                 <EventRow
                   key={`${event.timestamp}-${event.type}-${i}`}
                   event={event}
