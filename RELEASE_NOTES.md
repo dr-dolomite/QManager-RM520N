@@ -2,6 +2,10 @@
 
 > One-click OTA from **System Settings → Software Update** if you're on v0.1.5 or newer. SSH/ADB is not required.
 
+## 🐛 Fixes
+
+- **Data Used counter no longer reports negative or swapped upload/download values.** Two bugs combined to produce screenshots like "Download 271.9 MB / Upload -772994965 B" on 5G-SA users in v0.1.9: the `+QGDNRCNT` AT counter returns its fields in a firmware-specific order (some Quectel firmwares ship it reversed vs `+QGDCNT`), and the poller's shell arithmetic was wrapping at 2.15 GB on BusyBox `sh`. Both are fixed: the poller now runs under bash for 64-bit arithmetic, and on first run (or after a counter reset) it performs a one-time **1 MB calibration download** to detect the correct field order and locks it for the lifetime of the install. The calibration emits an event to the dashboard's event log so the metered-data cost is transparent. Existing users will see their counter reset to zero on upgrade — this is intentional and heals any corrupted accumulated values from v0.1.9.
+
 ## 🛠️ Improvements
 
 - **IPv6 addresses no longer overflow the Cellular Information card on mobile.** WAN IPv6, Primary DNS, and Secondary DNS values now wrap cleanly inside the card on narrow screens instead of running off the right edge. Addresses are also displayed in their standard compressed form (RFC 5952), so a value like `2607:fb91:0000:0000:0000:425d:28b3:2230` shows as `2607:fb91::425d:28b3:2230`. The full uncompressed address is still available in the info-icon tooltip.

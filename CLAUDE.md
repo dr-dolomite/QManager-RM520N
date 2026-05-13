@@ -180,6 +180,10 @@ The following features have been **completely removed** from the `dev-rm520` bra
 - **Radio mode detection**: `detectRadioMode()` inspects all 4 antennas for valid LTE/NR data and returns `"lte"`, `"nr"`, or `"endc"`
 - **Best recommendation**: Appears after 2+ slots recorded; composite score = 60% RSRP + 40% SINR (primary antenna, NR preferred over LTE in EN-DC mode)
 
+### Data Usage Counter (Bug 1 + Bug 2 fix in v0.1.10)
+
+The persistent data-usage counter in `qmanager_poller` (`/usrdata/qmanager/data_used.json`) uses `AT+QGDNRCNT` as the single source of truth across LTE, NSA, and SA — empirically verified to track all RAT traffic identically on `RM520NGLAAR03A03M4G`. **Field order in `+QGDNRCNT` is firmware-specific**: Quectel-public docs say `<TX>,<RX>` (which AAR03A03 follows), but at least one user-reported firmware returns the fields reversed. The poller resolves this at runtime with a one-time **active calibration**: it drives a 1 MB curl download to `speed.cloudflare.com/__down?bytes=1048576`, snapshots the AT counter + `/proc/net/dev rmnet_ipa0` before and after, and locks `du_orientation` to whichever AT field grew in lockstep with the kernel's RX delta. The orientation is persisted to `data_used.json` and never re-evaluated except on user-triggered reset. Calibration is gated on `conn_internet_available == "true"` and capped at 10 attempts; past the cap, it freezes at the Quectel-public default `"tx,rx"` and emits a `data_calibration_failed` event. **The poller's shebang must remain `#!/bin/bash`** — BusyBox `sh` uses 32-bit signed `long` for `$(( ))` and `-lt`, which wraps the cumulative accumulator to negative once it crosses 2.15 GB. Bash 3.2 on this platform uses 64-bit `intmax_t`. The same constraint applies to any other script accumulating byte volumes across reboots.
+
 ## Shared Constants
 
 - **`ANTENNA_PORTS`** (`types/modem-status.ts`): Canonical metadata for 4 antenna ports (Main/PRX, Diversity/DRX, MIMO 3/RX2, MIMO 4/RX3). Used by `antenna-statistics` and `antenna-alignment`. Any new per-antenna UI must import from here — do not duplicate port definitions.
