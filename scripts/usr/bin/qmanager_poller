@@ -2069,6 +2069,9 @@ write_cache() {
         --argjson du_div            "${du_divergence_count:-0}" \
         --argjson du_modem_rst      "${du_modem_reset_count:-0}" \
         --argjson du_mode_xn        "${du_mode_transition_count:-0}" \
+        --arg     du_orient         "$du_orientation" \
+        --argjson du_orient_cal     "$du_orientation_calibrated" \
+        --argjson du_orient_att     "$du_orientation_attempts" \
         '{
             timestamp: $timestamp,
             system_state: $system_state,
@@ -2146,7 +2149,10 @@ write_cache() {
                 last_reset_ts:        $du_last_rst,
                 divergence_count:     $du_div,
                 modem_reset_count:    $du_modem_rst,
-                mode_transition_count: $du_mode_xn
+                mode_transition_count: $du_mode_xn,
+                orientation:          $du_orient,
+                orientation_calibrated: $du_orient_cal,
+                orientation_attempts: $du_orient_att
             },
             connectivity: {
                 internet_available: $inet, status: $conn_st,
