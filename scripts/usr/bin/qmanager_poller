@@ -893,13 +893,12 @@ update_data_used() {
         qlog_info "data_used: user reset triggered"
     fi
 
-    # Step 2: pick counter from network_type
-    local du_active
-    case "$network_type" in
-        LTE)          du_active="qgdcnt"   ;;
-        5G-SA|5G-NSA) du_active="qgdnrcnt" ;;
-        *)            return 0 ;;
-    esac
+    # Step 2: always use QGDNRCNT — empirically validated as the universal
+    # counter on RM520NGLAAR03A03M4G across LTE / NSA / SA. The legacy
+    # QGDCNT branch and mode-transition rebase logic were removed in v0.1.10
+    # after probe data showed both AT counters report identical bytes on
+    # this firmware family.
+    local du_active="qgdnrcnt"
 
     # Step 3: read /proc/net/dev rmnet_ipa0
     local ipa_rx
@@ -917,57 +916,56 @@ update_data_used() {
     ipa_rx="${ipa_rx:-0}"
     ipa_tx="${ipa_tx:-0}"
 
-    # Step 3b: read the AT counter for the active mode
+    # Step 3b: read the AT counter
     local _at_resp
-    if [ "$du_active" = "qgdcnt" ]; then
-        _at_resp=$(qcmd_exec 'AT+QGDCNT?')
-    else
-        _at_resp=$(qcmd_exec 'AT+QGDNRCNT?')
-    fi
+    _at_resp=$(qcmd_exec 'AT+QGDNRCNT?')
 
-    # Parse: +QGDCNT: <tx>,<rx>  or  +QGDNRCNT: <tx>,<rx>
+    # Parse: +QGDNRCNT: <f1>,<f2>  (orientation applied at Step 3c)
     local _parsed
     _parsed=$(printf '%s\n' "$_at_resp" | \
-        sed -n 's/^+QGD[A-Z]*CNT:[[:space:]]*\([0-9]*\),\([0-9]*\).*/\1 \2/p' | \
+        sed -n 's/^+QGDNRCNT:[[:space:]]*\([0-9]*\),\([0-9]*\).*/\1 \2/p' | \
         head -1)
     if [ -z "$_parsed" ]; then
         # AT failure — leave all state untouched; next tick will retry
         return 0
     fi
 
+    local _f1 _f2
+    _f1=$(printf '%s' "$_parsed" | awk '{print $1}')
+    _f2=$(printf '%s' "$_parsed" | awk '{print $2}')
+
+    # Step 3c: apply orientation. The default "tx,rx" matches Quectel-public
+    # docs and is what most firmwares return. The "rx,tx" branch is needed
+    # for firmware variants that ship QGDNRCNT with the fields swapped (e.g.
+    # the user-reported case behind the v0.1.9 negative-byte bug).
     local current_tx
     local current_rx
-    current_tx=$(printf '%s' "$_parsed" | awk '{print $1}')
-    current_rx=$(printf '%s' "$_parsed" | awk '{print $2}')
+    if [ "$du_orientation" = "rx,tx" ]; then
+        current_rx="$_f1"
+        current_tx="$_f2"
+    else
+        current_tx="$_f1"
+        current_rx="$_f2"
+    fi
 
-    # Step 4: mode transition handling — rebase, no accumulation this tick
-    if [ "$du_active" != "$du_selected_counter" ]; then
-        qlog_info "data_used: counter changed ${du_selected_counter} -> ${du_active}"
-        du_selected_counter="$du_active"
-        du_mode_transition_count=$((du_mode_transition_count + 1))
-        if [ "$du_active" = "qgdcnt" ]; then
-            du_prev_qgdcnt_tx="$current_tx"
-            du_prev_qgdcnt_rx="$current_rx"
-        else
-            du_prev_qgdnrcnt_tx="$current_tx"
-            du_prev_qgdnrcnt_rx="$current_rx"
-        fi
+    # First-time initialization — rebase, no accumulation this tick.
+    # Catches a fresh install or post-schema-migration state where
+    # prev_qgdnrcnt_* is still 0 but the modem counter is non-zero.
+    if [ "$du_prev_qgdnrcnt_tx" = "0" ] && [ "$du_prev_qgdnrcnt_rx" = "0" ]; then
+        du_prev_qgdnrcnt_tx="$current_tx"
+        du_prev_qgdnrcnt_rx="$current_rx"
         du_prev_ipa_rx="$ipa_rx"
         du_prev_ipa_tx="$ipa_tx"
+        du_selected_counter="$du_active"
         write_data_used_state
         return 0
     fi
 
-    # Step 5: pick prev for active counter
+    # Step 5: delta vs prev
     local prev_tx
     local prev_rx
-    if [ "$du_active" = "qgdcnt" ]; then
-        prev_tx="$du_prev_qgdcnt_tx"
-        prev_rx="$du_prev_qgdcnt_rx"
-    else
-        prev_tx="$du_prev_qgdnrcnt_tx"
-        prev_rx="$du_prev_qgdnrcnt_rx"
-    fi
+    prev_tx="$du_prev_qgdnrcnt_tx"
+    prev_rx="$du_prev_qgdnrcnt_rx"
 
     local delta_tx
     local delta_rx
@@ -1008,15 +1006,11 @@ update_data_used() {
     fi
 
     # Step 8: update prev_* for next tick
-    if [ "$du_active" = "qgdcnt" ]; then
-        du_prev_qgdcnt_tx="$current_tx"
-        du_prev_qgdcnt_rx="$current_rx"
-    else
-        du_prev_qgdnrcnt_tx="$current_tx"
-        du_prev_qgdnrcnt_rx="$current_rx"
-    fi
+    du_prev_qgdnrcnt_tx="$current_tx"
+    du_prev_qgdnrcnt_rx="$current_rx"
     du_prev_ipa_rx="$ipa_rx"
     du_prev_ipa_tx="$ipa_tx"
+    du_selected_counter="$du_active"
     du_last_update_ts=$(date +%s)
     write_data_used_state
 }
