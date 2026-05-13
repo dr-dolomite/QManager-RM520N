@@ -71,6 +71,12 @@ DATA_USED_DIVERGENCE_MIN=100000    # bytes; only run divergence check when the
                                     # IPA delta this tick is at least 100KB.
                                     # Smaller windows are too noisy for per-
                                     # tick comparison and produce false warns.
+DATA_USED_MAX_CALIBRATION_ATTEMPTS=10  # after this, freeze at default
+                                       # orientation and emit a warn event
+DATA_USED_CALIBRATION_SIZE=1048576     # 1 MB — small enough to be cheap on
+                                       # metered links, large enough to swamp
+                                       # tick-noise on the orientation signal
+DATA_USED_CALIBRATION_URL="https://speed.cloudflare.com/__down?bytes=${DATA_USED_CALIBRATION_SIZE}"
 DATA_USED_SCHEMA=2
 
 # --- State Variables ---------------------------------------------------------
@@ -225,6 +231,16 @@ du_last_reset_ts=0
 du_divergence_count=0
 du_modem_reset_count=0
 du_mode_transition_count=0
+
+# Orientation calibration state (Bug 1 fix)
+# orientation: "tx,rx" (Quectel-public default) | "rx,tx" (user's firmware)
+# orientation_calibrated: locked once a download probe successfully maps
+#   AT-counter fields to /proc/net/dev rmnet_ipa0 directions.
+# orientation_attempts: capped at MAX_CALIBRATION_ATTEMPTS to prevent
+#   curl-spamming a metered link if the modem is flapping.
+du_orientation="tx,rx"
+du_orientation_calibrated=false
+du_orientation_attempts=0
 
 # Connectivity (from ping daemon)
 conn_internet_available="null"
@@ -635,22 +651,28 @@ write_data_used_state() {
         --argjson div_cnt    "$du_divergence_count" \
         --argjson modem_rst  "$du_modem_reset_count" \
         --argjson mode_xn    "$du_mode_transition_count" \
+        --arg     orient     "$du_orientation" \
+        --argjson orient_cal "$du_orientation_calibrated" \
+        --argjson orient_att "$du_orientation_attempts" \
         '{
-            schema:               $schema,
-            accumulated_rx_bytes: $acc_rx,
-            accumulated_tx_bytes: $acc_tx,
-            selected_counter:     $sel,
-            prev_qgdcnt_tx:       $prev_gd_tx,
-            prev_qgdcnt_rx:       $prev_gd_rx,
-            prev_qgdnrcnt_tx:     $prev_nr_tx,
-            prev_qgdnrcnt_rx:     $prev_nr_rx,
-            prev_ipa_rx:          $prev_i_rx,
-            prev_ipa_tx:          $prev_i_tx,
-            last_update_ts:       $last_upd,
-            last_reset_ts:        $last_rst,
-            divergence_count:     $div_cnt,
-            modem_reset_count:    $modem_rst,
-            mode_transition_count:$mode_xn
+            schema:                $schema,
+            accumulated_rx_bytes:  $acc_rx,
+            accumulated_tx_bytes:  $acc_tx,
+            selected_counter:      $sel,
+            prev_qgdcnt_tx:        $prev_gd_tx,
+            prev_qgdcnt_rx:        $prev_gd_rx,
+            prev_qgdnrcnt_tx:      $prev_nr_tx,
+            prev_qgdnrcnt_rx:      $prev_nr_rx,
+            prev_ipa_rx:           $prev_i_rx,
+            prev_ipa_tx:           $prev_i_tx,
+            last_update_ts:        $last_upd,
+            last_reset_ts:         $last_rst,
+            divergence_count:      $div_cnt,
+            modem_reset_count:     $modem_rst,
+            mode_transition_count: $mode_xn,
+            orientation:           $orient,
+            orientation_calibrated: $orient_cal,
+            orientation_attempts:  $orient_att
         }' > "$DATA_USED_TMP" && mv "$DATA_USED_TMP" "$DATA_USED_FILE"
 }
 
@@ -673,7 +695,10 @@ update_data_used() {
                 (.last_reset_ts         // 0 | tostring) + " " +
                 (.divergence_count      // 0 | tostring) + " " +
                 (.modem_reset_count     // 0 | tostring) + " " +
-                (.mode_transition_count // 0 | tostring)
+                (.mode_transition_count // 0 | tostring) + " " +
+                (.orientation           // "tx,rx"      ) + " " +
+                (.orientation_calibrated // false | tostring) + " " +
+                (.orientation_attempts  // 0 | tostring)
             ' "$DATA_USED_FILE" 2>/dev/null)
             if [ -n "$_jv" ]; then
                 du_accumulated_rx=$(    printf '%s' "$_jv" | awk '{print $1}')
@@ -690,6 +715,9 @@ update_data_used() {
                 du_divergence_count=$(  printf '%s' "$_jv" | awk '{print $12}')
                 du_modem_reset_count=$( printf '%s' "$_jv" | awk '{print $13}')
                 du_mode_transition_count=$(printf '%s' "$_jv" | awk '{print $14}')
+                du_orientation=$(       printf '%s' "$_jv" | awk '{print $15}')
+                du_orientation_calibrated=$(printf '%s' "$_jv" | awk '{print $16}')
+                du_orientation_attempts=$(printf '%s' "$_jv" | awk '{print $17}')
             fi
         else
             # No file yet — create directory; zeroed state already set at init
