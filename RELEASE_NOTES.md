@@ -1,4 +1,6 @@
-# 🚀 QManager RM520N BETA v0.1.10-draft
+# 🚀 QManager RM520N BETA v0.1.10
+
+Fixes the negative and swapped Data Used totals that 5G-SA users were seeing on v0.1.9, makes APN changes take effect immediately instead of waiting for the next network cycle, and tidies up how IPv6 and dual-stack DNS values render on mobile. The dashboard also catches up faster after a SIM-slot swap, so the Custom Profiles page no longer briefly flashes a false "SIM Mismatch" badge while it waits.
 
 > One-click OTA from **System Settings → Software Update** if you're on v0.1.5 or newer. SSH/ADB is not required.
 
