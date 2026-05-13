@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 # =============================================================================
 # qmanager_poller — QManager Background Poller Daemon
 # =============================================================================
@@ -71,7 +71,7 @@ DATA_USED_DIVERGENCE_MIN=100000    # bytes; only run divergence check when the
                                     # IPA delta this tick is at least 100KB.
                                     # Smaller windows are too noisy for per-
                                     # tick comparison and produce false warns.
-DATA_USED_SCHEMA=1
+DATA_USED_SCHEMA=2
 
 # --- State Variables ---------------------------------------------------------
 cycle_count=0
