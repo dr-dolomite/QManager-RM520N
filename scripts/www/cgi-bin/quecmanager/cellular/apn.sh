@@ -17,7 +17,10 @@
 #   AT+QMAP="WWAN"     -> Fallback: confirm WAN-connected CID
 #
 # AT commands used (POST):
-#   AT+CGDCONT=<cid>,"<pdp_type>","<apn>"  -> Set APN for a CID
+#   AT+CGDCONT=<cid>,"<pdp_type>","<apn>"  -> Set APN for a CID (writes NVM)
+#   AT+COPS=2                              -> Deregister from network
+#   AT+COPS=0                              -> Auto-select operator (reattach,
+#                                             forces new bearer with new APN)
 #
 # Endpoint: GET/POST /cgi-bin/quecmanager/cellular/apn.sh
 # Install location: /www/cgi-bin/quecmanager/cellular/apn.sh
@@ -165,23 +168,55 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
             ;;
     esac
 
-    # --- Step 2: Apply TTL/HL if explicitly provided (0 = disable custom values) ---
+    # --- Step 2: Force bearer refresh so AT+CGDCONT takes effect immediately ---
+    # AT+CGDCONT updates the PDP context in NVM, but the live bearer keeps using
+    # the old APN until the next attach. COPS=2 (deregister) + COPS=0 (auto-select)
+    # forces the modem to re-establish a bearer using the new APN.
+    #
+    # Both commands are best-effort: COPS=2 returns ERROR if already detached,
+    # and a transient COPS=0 ERROR doesn't mean the modem won't reattach. Log
+    # and continue; the hook's post-save refetch will surface the real state.
+    result=$(qcmd 'AT+COPS=2' 2>/dev/null)
+    case "$result" in
+        *ERROR*) qlog_warn "AT+COPS=2 returned ERROR (may already be detached): $result" ;;
+        *)       qlog_info "AT+COPS=2 OK (detached)" ;;
+    esac
+    sleep 2
+
+    result=$(qcmd 'AT+COPS=0' 2>/dev/null)
+    case "$result" in
+        *ERROR*) qlog_warn "AT+COPS=0 returned ERROR (reattach may be delayed): $result" ;;
+        *)       qlog_info "AT+COPS=0 OK (reattach requested)" ;;
+    esac
+    sleep 2
+
+    # --- Step 3: Re-apply TTL/HL after bearer refresh ---
+    # Two scenarios:
+    #   (a) Request included ttl/hl: persist + apply those.
+    #   (b) Request omitted ttl/hl but persisted state exists: re-apply persisted
+    #       values so the new bearer comes up with the user's hotspot-bypass rules
+    #       intact. iptables chain rules survive interface flaps, so this is
+    #       belt-and-suspenders — but it costs nothing (ttl_state_apply is
+    #       idempotent thanks to its drain loop) and matches the documented
+    #       intent of "TTL is re-applied after APN change".
     if [ "$has_ttl" = "true" ] || [ "$has_hl" = "true" ]; then
-        qlog_info "Applying TTL=$TTL, HL=$HL"
-
-        # Compare to live state — only re-apply if values actually changed
-        set -- $(ttl_state_read_live)
-        current_ttl="${1:-0}"
-        current_hl="${2:-0}"
-
-        if [ "$current_ttl" != "$TTL" ] || [ "$current_hl" != "$HL" ]; then
-            if ttl_state_apply "$TTL" "$HL" && ttl_state_write_persisted "$TTL" "$HL"; then
-                qlog_info "TTL/HL applied: TTL=$TTL HL=$HL"
-            else
-                qlog_warn "TTL/HL apply or persist failed (TTL=$TTL HL=$HL); rules may be partial"
-            fi
+        qlog_info "Applying TTL=$TTL, HL=$HL from request"
+        if ttl_state_apply "$TTL" "$HL" && ttl_state_write_persisted "$TTL" "$HL"; then
+            qlog_info "TTL/HL applied: TTL=$TTL HL=$HL"
         else
-            qlog_info "TTL/HL unchanged (TTL=$TTL, HL=$HL)"
+            qlog_warn "TTL/HL apply or persist failed (TTL=$TTL HL=$HL); rules may be partial"
+        fi
+    else
+        set -- $(ttl_state_read_persisted)
+        persisted_ttl="${1:-0}"
+        persisted_hl="${2:-0}"
+        if [ "$persisted_ttl" -gt 0 ] || [ "$persisted_hl" -gt 0 ]; then
+            qlog_info "Re-applying persisted TTL=$persisted_ttl HL=$persisted_hl after APN change"
+            if ttl_state_apply "$persisted_ttl" "$persisted_hl"; then
+                qlog_info "TTL/HL re-applied from persisted state"
+            else
+                qlog_warn "TTL/HL re-apply failed; rules may be partial"
+            fi
         fi
     fi
 
