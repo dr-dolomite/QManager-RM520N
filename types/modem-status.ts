@@ -256,20 +256,18 @@ export interface TrafficStatus {
 }
 
 /**
- * Persistent data-usage counter maintained by the poller across modem reboots
- * and interface flaps. Sourced from AT+QGDNRCNT with a per-install orientation
- * calibration that detects the firmware-specific field order.
+ * Persistent data-usage counter maintained by the poller across modem
+ * reboots and interface flaps. Sourced from the kernel rmnet interface
+ * byte counters (/proc/net/dev) — the kernel labels rx/tx identically on
+ * every firmware, so no AT-counter orientation calibration is needed.
  * Served by /cgi-bin/quecmanager/network/data_used.sh
  */
 export interface DataUsedBlock {
-  /** Cumulative received bytes (persisted across reboots) */
+  /** Cumulative received bytes (download), persisted across reboots */
   accumulated_rx_bytes: number;
-  /** Cumulative transmitted bytes (persisted across reboots) */
+  /** Cumulative transmitted bytes (upload), persisted across reboots */
   accumulated_tx_bytes: number;
-  /**
-   * Which AT counter the poller is currently using.
-   * Always "qgdnrcnt" since v0.1.10 — preserved for backward compatibility.
-   */
+  /** Counter source — the kernel interface name (e.g. "rmnet_ipa0"). */
   selected_counter: string;
   /** Unix epoch (seconds) of the last poller write to this block */
   last_update_ts: number;
@@ -278,36 +276,15 @@ export interface DataUsedBlock {
    * 0 means never reset (fresh install).
    */
   last_reset_ts: number;
-  /** Number of times the poller detected a counter divergence */
-  divergence_count: number;
-  /** Number of times the modem has been reset since the last user reset */
+  /**
+   * Times the kernel interface counter reset (modem reboot / interface
+   * re-creation) since the last user reset. Each reset rebases the
+   * baseline without accumulating the in-flight bytes.
+   */
   modem_reset_count: number;
   /**
-   * Number of LTE↔5G mode transitions. Always 0 since v0.1.10 — preserved
-   * for backward compatibility with the v0.1.9 schema.
-   */
-  mode_transition_count: number;
-  /**
-   * Field order the poller uses to parse +QGDNRCNT responses.
-   * "tx,rx" (Quectel-public default) or "rx,tx" (some firmware variants).
-   * Locked by a one-time download calibration on first install / reset.
-   */
-  orientation: "tx,rx" | "rx,tx";
-  /**
-   * True once the calibration has successfully detected (or given up and
-   * defaulted) the field order. Until true, the poller may be using the
-   * default "tx,rx" orientation which is correct for most firmwares.
-   */
-  orientation_calibrated: boolean;
-  /**
-   * Number of calibration attempts so far. Capped server-side at 10; past
-   * the cap the poller freezes at the default orientation and emits a
-   * `data_calibration_failed` event.
-   */
-  orientation_attempts: number;
-  /**
-   * True when the poller has not updated this block recently (cache is stale).
-   * CGI sets this flag when the on-disk file is older than expected.
+   * True when the poller has not updated this block recently (cache is
+   * stale). CGI sets this when the on-disk file is older than expected.
    */
   stale: boolean;
 }

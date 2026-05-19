@@ -41,9 +41,7 @@ if [ ! -f "$STATUS_FILE" ]; then
         "selected_counter": "",
         "last_update_ts": 0,
         "last_reset_ts": 0,
-        "divergence_count": 0,
         "modem_reset_count": 0,
-        "mode_transition_count": 0,
         "stale": true
     }'
     exit 0
@@ -70,9 +68,7 @@ if [ -z "$data_used" ]; then
         "selected_counter": "",
         "last_update_ts": 0,
         "last_reset_ts": 0,
-        "divergence_count": 0,
         "modem_reset_count": 0,
-        "mode_transition_count": 0,
         "stale": $stale
     }'
     exit 0
