@@ -27,6 +27,27 @@ UPDATES_DIR="/etc/qmanager/updates"
 # Forward-compat: load shared semver helpers if available
 [ -f /usr/lib/qmanager/semver.sh ] && . /usr/lib/qmanager/semver.sh
 
+# Downloader abstraction (curl/wget auto-detect). The inline fallback keeps OTA
+# working if the library is somehow absent (e.g. a partial install).
+if [ -f /usr/lib/qmanager/downloader.sh ]; then
+    . /usr/lib/qmanager/downloader.sh
+else
+    export PATH="/opt/bin:/opt/sbin:/usr/bin:/usr/sbin:/bin:/sbin:$PATH"
+    qm_download() {
+        local url="$1" dest="$2" timeout="${3:-120}" rc
+        if command -v curl >/dev/null 2>&1; then
+            curl -fSL --max-time "$timeout" -o "$dest" "$url"
+        elif command -v wget >/dev/null 2>&1; then
+            wget -q -T "$timeout" -O "$dest" "$url"
+        else
+            return 1
+        fi
+        rc=$?
+        [ "$rc" -ne 0 ] && rm -f "$dest"
+        return "$rc"
+    }
+fi
+
 # --- Helpers -----------------------------------------------------------------
 
 log() { printf '[%s] %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$1" >> "$LOG_FILE"; }
@@ -53,12 +74,12 @@ get_current_version() {
 
 http_download() {
     local url="$1" dest="$2" timeout="${3:-120}"
-    # curl is the only supported transport (TLS, redirects, fail-on-4xx/5xx).
-    if ! command -v curl >/dev/null 2>&1; then
-        log "ERROR: curl not found — cannot download $url"
+    # Transport is curl or wget, whichever the device has (see downloader.sh).
+    if ! qm_download "$url" "$dest" "$timeout"; then
+        log "ERROR: download failed for $url (no curl/wget, or network error)"
         return 1
     fi
-    curl -fSL --max-time "$timeout" -o "$dest" "$url"
+    return 0
 }
 
 # Validate a tarball URL against the GitHub origin whitelist.

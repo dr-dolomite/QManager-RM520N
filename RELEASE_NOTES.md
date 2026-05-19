@@ -10,7 +10,7 @@ _Nothing yet for this release._
 
 ## 🛠️ Improvements (v0.1.11)
 
-_Nothing yet for this release._
+- **`curl` is no longer required to install or update QManager.** The installer and the OTA updater now auto-detect whichever downloader your modem has — `curl` or `wget` — and use it. `curl` is still preferred when both are present, but it is never force-installed. This unblocks fresh installs on firmwares that ship `wget` only (common on x5x/x6x modems like the RM502/RM520/RM521).
 
 ## 🐛 Fixes (v0.1.11)
 
@@ -32,7 +32,7 @@ curl -fsSL -o /tmp/qmanager-installer.sh \
   bash /tmp/qmanager-installer.sh
 ```
 
-If your modem has `wget` but not `curl` (common on x5x/x6x firmwares like RM502/RM520/RM521), just use `wget` to fetch the installer — preflight auto-installs `curl` from Entware so future OTA updates work (Entware must already be bootstrapped):
+If your modem has `wget` but not `curl` (common on x5x/x6x firmwares like RM502/RM520/RM521), just use `wget` instead — QManager auto-detects whichever downloader is available, so `curl` is no longer required at install time or for OTA updates:
 
 ```sh
 wget -O /tmp/qmanager-installer.sh \

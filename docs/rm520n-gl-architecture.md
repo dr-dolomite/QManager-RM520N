@@ -145,7 +145,7 @@ This section consolidates everything an automation author needs to know about th
 | `ip` | iproute2 5.10.0 | `/opt/sbin/ip` | From Entware. |
 | `iptables` | **1.8.4 legacy** | `/usr/sbin/iptables` | Legacy backend (xtables, not nftables). `nft` is **not** installed. |
 | `conntrack` | netfilter | `/usr/sbin/conntrack` | Useful for clearing stuck connections during failover. `conntrack_max=12288` — small NAT table. |
-| `curl` | 8.12.0 / OpenSSL 1.1.1l | `/usr/bin/curl` | Full TLS. **All HTTP transport in QManager uses curl** — see CLAUDE.md note about wget/uclient-fetch removal. |
+| `curl` | 8.12.0 / OpenSSL 1.1.1l | `/usr/bin/curl` | Full TLS. Preferred HTTP downloader, but **not required** — the install/OTA pipeline auto-detects `curl` or `wget` via `/usr/lib/qmanager/downloader.sh`. |
 | `openssl` | 1.1.1l (system); 3.5.5 (Entware `libopenssl`) | `/usr/bin/openssl` | Two versions coexist — prefer system `/usr/bin/openssl` for scripts unless a 3.x feature is needed. |
 | `dropbear` | 2024.86 | Entware | SSH server. No `sftp-server` — use `scp -O` (legacy mode) for transfers. |
 | `lighttpd` | 1.4.82 | `/opt/sbin/lighttpd` | Modules: `mod_cgi`, `mod_dirlisting`, `mod_h2`, `mod_openssl`, `mod_proxy` confirmed loaded. |
@@ -1365,7 +1365,7 @@ Packages available via Entware that QManager depends on or could use:
 | `lighttpd` | Web server | Replaces uhttpd |
 | `sudo` | Privilege escalation for CGI | `www-data` needs root for iptables |
 | `xmlstarlet` | LAN config editing | Parses `mobileap_cfg.xml` |
-| `curl` | HTTP client (full, not BusyBox) | Already available |
+| `curl` | HTTP client (full, not BusyBox) | Preferred but not required — install/OTA auto-detects `curl` or `wget` |
 | `openssh` | SSH server | Already available |
 | `jq` | JSON processing | Check for regex/oniguruma support |
 

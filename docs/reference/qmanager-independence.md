@@ -189,17 +189,25 @@ PID tracking spans the full install lifetime to keep the CGI's `pid_alive` concu
 - **`UCI_GATED_SERVICES`**: Controls which services are only re-enabled if their `multi-user.target.wants/` symlink existed before the upgrade.
 - **Watchdog suppression**: The watchcat lock `/tmp/qmanager_watchcat.lock` is touched before stopping services and released via an `EXIT` trap, suppressing the watchdog during the install window.
 - **Shared semver library**: `/usr/lib/qmanager/semver.sh` — sourced by both `update.sh` CGI and `qmanager_auto_update`.
+- **Shared downloader library**: `/usr/lib/qmanager/downloader.sh` — sourced by `update.sh` CGI, `qmanager_update` (OTA worker), and `qmanager_auto_update` (cron). The two worker/cron scripts source it *guarded*, with an inline fallback so they still run if the lib is missing. See "HTTP transport & installer resilience" below — note the 3-copy maintenance hazard.
 - **v0.1.4 → v0.1.5 requires ADB/SSH**: v0.1.4's CGI has no sudo and v0.1.4's sudoers has no `qmanager_update` rule, so OTA cannot self-update from v0.1.4. From v0.1.5 onward, OTA works via the UI.
 
 ---
 
 ## HTTP transport & installer resilience
 
-- **All network I/O uses `curl` only.** This applies to: installer bootstrap, OTA updater, auto-update cron, GitHub API calls, public-IP probe, ttyd/speedtest downloads, and Entware bootstrap.
-- `wget` and `uclient-fetch` fallbacks were removed in 2026-05:
-  - BusyBox wget on Quectel x5x/x6x platforms lacks TLS support.
-  - Entware wget would add ~5 MB to the install footprint.
-- The installer runs a preflight check and **fails fast** if `curl` is missing.
+- **`curl` is NOT a hard requirement.** The install and OTA pipeline auto-detect whichever HTTP downloader the device has — `curl` or `wget` — and use it. `curl` is preferred when both are present, but it is **never force-installed**.
+- **Shared downloader library**: `/usr/lib/qmanager/downloader.sh` (POSIX sh) is the canonical implementation. Functions:
+  - `qm_downloader()` — echoes `curl`, `wget`, or `""` (empty if neither). Non-network presence detection only; curl preferred.
+  - `qm_https_ok()` — **advisory** HTTPS probe. Warn-only — it never gates a download.
+  - `qm_download <url> <dest> [timeout]` — downloads; removes `<dest>` on failure.
+  - `qm_download_headers <url> <body> <hdr> [timeout]` — downloads and captures response headers (used for GitHub rate-limit detection).
+  - Sourcing the lib also exports an Entware-inclusive `PATH`.
+- **Detection is non-network**: it checks tool presence and curl-preference only. The HTTPS probe (`qm_https_ok`) is advisory — the installer preflight *warns* if it cannot confirm `wget` does HTTPS, but **never aborts**. The real download is the authoritative test.
+- **opkg bootstrap uses plain HTTP** (`bin.entware.net`), so even a TLS-less BusyBox `wget` can fetch it.
+- **`qm_download_headers` portability**: GNU `wget` uses `-S` for full headers; BusyBox `wget` has no header-dump option, so the function falls back to harvesting the HTTP status line from stderr. Coarse rate-limit detection still works — only the precise reset time is lost.
+- **ELF sanity check**: `install_rm520n.sh` verifies the downloaded opkg binary's ELF magic bytes, because `wget` (unlike `curl -f`) writes HTTP error pages to disk on a 4xx/5xx.
+- **Maintenance hazard — three copies of the detection logic.** The canonical `downloader.sh` lib, plus inline copies in `qmanager-installer.sh` (bash) and `install_rm520n.sh` (sh). The inline copies exist because the install scripts run *before* the lib is on disk. **Bug fixes must be applied to all three.** The inline copies carry a comment pointing at the canonical lib.
 - **`opkg update` failure is handled gracefully**: all Entware package installs are skipped with clear warnings, but the rest of the install (scripts, frontend, systemd units) continues normally.
 
 ---
