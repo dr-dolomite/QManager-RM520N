@@ -121,6 +121,10 @@ All status badges use `variant="outline"` with semantic color classes and `size-
 
 QManager targets the Quectel RM520N-GL modem, which runs **vanilla Linux internally** (SDXLEMUR SoC, ARMv7l, kernel 5.4.210) — NOT OpenWRT on an external host. The `dev-rm520` branch carried this work; it is now the mainline target.
 
+### Live Device Access
+
+A live RM520N-GL is reachable over SSH — **probe it whenever you can verify an architecture claim or assumption directly instead of guessing.** Credentials are in `.env` (`MODEM_IP`, `MODEM_SSH_USER`, `MODEM_SSH_PASSWORD`) — gitignored, local-only. Connect with the POSH-SSH PowerShell module (`New-SSHSession` / `Invoke-SSHCommand`). The device is the source of truth for platform facts; docs drift.
+
 ### System Differences
 
 The table below contrasts RM520N-GL against the legacy RM551E (OpenWRT) target — useful when porting or reading older code.
