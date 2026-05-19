@@ -1,28 +1,16 @@
-# 🚀 QManager RM520N BETA v0.1.10
+# 🚀 QManager RM520N BETA v0.1.11-draft
 
-Fixes the negative and swapped Data Used totals that 5G-SA users were seeing on v0.1.9, makes APN changes take effect immediately instead of waiting for the next network cycle, and tidies up how IPv6 and dual-stack DNS values render on mobile. The dashboard also catches up faster after a SIM-slot swap, so the Custom Profiles page no longer briefly flashes a false "SIM Mismatch" badge while it waits.
+Fixes the Data Used counter showing swapped or inaccurate upload/download totals on certain modem firmwares — QManager now reads the device's traffic figures straight from the Linux kernel instead of a firmware-specific modem counter, so the numbers are correct on every modem.
 
 > One-click OTA from **System Settings → Software Update** if you're on v0.1.5 or newer. SSH/ADB is not required.
 
-## 🐛 Fixes
+## 🐛 Fixes (v0.1.11)
 
-- **Data Used counter no longer reports negative or swapped upload/download values.** Two bugs combined to produce screenshots like "Download 271.9 MB / Upload -772994965 B" on 5G-SA users in v0.1.9: the `+QGDNRCNT` AT counter returns its fields in a firmware-specific order (some Quectel firmwares ship it reversed vs `+QGDCNT`), and the poller's shell arithmetic was wrapping at 2.15 GB on BusyBox `sh`. Both are fixed: the poller now runs under bash for 64-bit arithmetic, and on first run (or after a counter reset) it performs a one-time **1 MB calibration download** to detect the correct field order and locks it for the lifetime of the install. The calibration emits an event to the dashboard's event log so the metered-data cost is transparent. Existing users will see their counter reset to zero on upgrade — this is intentional and heals any corrupted accumulated values from v0.1.9.
-
-## 🛠️ Improvements
-
-- **Changing the APN now takes effect immediately and preserves TTL/HL hotspot-bypass rules.** QManager forces the modem to re-establish its data connection after an APN change, so the new APN is used right away instead of waiting for the next network cycle. If you've set a TTL/HL preset (e.g. for carrier hotspot bypass), those rules are automatically re-applied once the connection is back — no need to re-enter them just because you changed APN.
-
-- **IPv6 addresses no longer overflow the Cellular Information card on mobile.** WAN IPv6, Primary DNS, and Secondary DNS values now wrap cleanly inside the card on narrow screens instead of running off the right edge. Addresses are also displayed in their standard compressed form (RFC 5952), so a value like `2607:fb91:0000:0000:0000:425d:28b3:2230` shows as `2607:fb91::425d:28b3:2230`. The full uncompressed address is still available in the info-icon tooltip.
-
-- **Secondary DNS shows a clean value on dual-stack (IPv4+IPv6) networks.** On carriers that hand out both an IPv4 and IPv6 data context (e.g. T-Mobile US), the Secondary DNS field could appear as a long garbled string with two addresses fused together (e.g. `10.177.0.34253.0.151.106.0.0…`). The poller now correctly separates the two records before reading the DNS fields, so a single, valid DNS server is shown.
-
-- **Recent Activities on the dashboard now shows the last 6 events instead of 5**, making better use of the available card space.
-
-- **The dashboard updates immediately when you switch SIM slots.** Previously, the ISP name and SIM card details shown on the dashboard could remain stuck on the old SIM's values for up to ~30 seconds after a slot swap — long enough that the "SIM Mismatch" badge on the Custom Profiles page could falsely flag a perfectly-matched profile as mismatched. The dashboard now catches up within a couple of seconds, before the profile page has a chance to show a false mismatch.
+- **Data Used counter is now accurate on every modem firmware.** Some users still saw swapped or wrong upload/download totals — on certain modems the "uploaded" figure showed tens of gigabytes while "downloaded" showed almost nothing, or the two were simply reversed. The cause: QManager read the modem's `+QGDNRCNT` AT counter, whose two fields appear in a firmware-specific order, then ran a one-time calibration download to guess which field was upload and which was download. That guess was unreliable — it failed outright on x55-based modems (the RM502 series) and mis-fired on some RM520N-GL firmware builds, after which it locked itself to the wrong answer for the life of the install. QManager now skips the modem counter entirely and reads the byte totals straight from the Linux kernel's own network-interface statistics, where download and upload are labelled identically on every firmware — there is nothing left to guess. The throwaway calibration download has been removed as well. Your counter resets to zero on upgrade — this is intentional and clears any incorrect totals carried over from the old method.
 
 ## 📥 Installation
 
-### Upgrading from v0.1.9
+### Upgrading from v0.1.10
 
 **System Settings → Software Update.** Click Download, then Install. No SSH/ADB needed. All settings preserved.
 
