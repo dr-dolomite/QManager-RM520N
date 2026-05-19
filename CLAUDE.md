@@ -16,6 +16,54 @@ When reporting findings, diagnoses, root causes, or explaining how something wor
 
 This applies to all output that explains *what's happening* or *why* — bug investigations, debug session reports, audit findings, design rationale, and any "I traced this and found..." moments.
 
+## Change Workflow
+
+Every code-change request in this repo follows a tier-routed, 6-phase flow. Opus orchestrates; Sonnet subagents do the work. The user holds the approval gate. This flow is the project default for code changes and supersedes the generic brainstorming / writing-plans / verification skills; test-driven development still applies inside Phase 4 wherever tests exist.
+
+**Signal each phase transition** with a header so the user always knows where we are: `**[Phase 1 — Triage]**`, `**[Phase 2 — Plan]**`, `**[Phase 3 — Approval]**`, `**[Phase 4 — Execute]**`, `**[Phase 5 — Validation]**`, `**[Phase 6 — Docs & Close]**`.
+
+### The 6 Phases
+
+1. **Triage & Findings (Opus):** Classify the request into Tier 0–4 by blast radius. If the change touches the installer, systemd units, sudoers, `/usrdata/` layout, or the OTA pipeline, dispatch `installer-safety-auditor` as a read-only Phase 1 gate. Synthesize findings.
+2. **Plan (Opus orchestrates, Sonnet pre-flight):** For Tier 2+, dispatch builder agents on Sonnet in parallel (`ui-builder`, `cgi-endpoint-builder`). They return scaffolding + design notes, NOT committed code. Opus synthesizes into ONE plan: tier, agent roster, file list, build order, risks, post-flight validator list.
+3. **Approval Gate (user):** Plan changes here are cheap; later changes are not.
+4. **Execute (Sonnet workers):** Bottom-up for cross-layer work: poller → CGI → hook → component → alerts. Parallel where files are independent; sequential where there's data dependency.
+5. **Post-Flight Validation (parallel Sonnet, ONE message):** Fire every applicable validator in a single message. Loop failures back to Phase 4 — but after **2 failed validation rounds**, stop and surface to the user instead of looping further.
+6. **Docs & Close (Sonnet `docs-writer`):** Update `docs/` and CLAUDE.md as needed. Report summary + git status.
+
+### Tier Routing
+
+| Tier | Scope | Flow |
+|------|-------|------|
+| 0 | Typos, comments, copy edits, version bumps | Direct edit, no agents, no plan |
+| 1 | Single existing file in one layer | Skip Phase 2–3. Implement + the layer's validator + maybe docs |
+| 2 | New feature, single layer | Full flow; pre-flight is the layer's builder only |
+| 3 | Cross-layer feature (CGI + hook + component, or a poller field consumed across layers) | Full flow; Phase 1 gate runs only if the change also touches installer/systemd/sudoers/OTA |
+| 4 | Installer / systemd / sudoers / `/usrdata/` layout / OTA pipeline | Full flow with `installer-safety-auditor` as a hard Phase 1 gate before code is written |
+
+Bug fixes match the tier of the *fix*, not the bug. Pure refactors with no behavior change drop one tier (validators still run; builders don't).
+
+### Agent Roster
+
+All agents are defined in `.claude/agents/` and run on Sonnet.
+
+- **Gate (Phase 1, read-only):** `installer-safety-auditor` — audits installer/systemd/sudoers/OTA changes; can halt work before code is written.
+- **Builders (Phase 2):** `ui-builder` (frontend pages/cards), `cgi-endpoint-builder` (backend CGI shell endpoints).
+- **Validators (Phase 5, parallel):** `busybox-portability-checker` (shebang, line endings, BusyBox applet limits, 32-bit arithmetic), `installer-safety-auditor` (verify mode, for installer/systemd/OTA changes).
+- **Closing (Phase 6):** `docs-writer`.
+
+### Hard Rules
+
+- **Tier is decided once, up-front.** If tempted to skip a validator mid-flow, re-triage rather than skip.
+- **Post-flight validators always go out in a single parallel message.** Never serially.
+- **`docs-writer` is the closing bracket.** If it doesn't run on Tier 2+, the change isn't done.
+- **Sonnet workers don't see the orchestrator's conversation.** Each dispatch is a self-contained brief with file paths, schemas, and the relevant CLAUDE.md sections inlined.
+- **The Phase 1 gate fails loud.** `installer-safety-auditor` can halt work before code is written. This is cheap; rework is not.
+
+### Skip Phrases
+
+User can short-circuit by saying "just do it" / "skip the plan" / "tier 0 it" — Opus drops to direct execution. Otherwise the flow is the default.
+
 ## Design Context
 
 ### Users
@@ -119,7 +167,7 @@ Detailed operational notes for individual features live in `docs/reference/`. Re
 
 - **Discord Bot** (`discord-bot/`, deployed as `/usr/bin/qmanager_discord`) — `docs/reference/discord-bot.md`
 - **Antenna Alignment** (`/cellular/antenna-alignment`) — `docs/reference/antenna-alignment.md`
-- **Data Usage Counter** (`AT+QGDNRCNT`, calibration, `du_orientation`) — `docs/reference/data-usage-counter.md`
+- **Data Usage Counter** (kernel `/proc/net/dev`-sourced, schema v3, `modem_reset_count`) — `docs/reference/data-usage-counter.md`
 
 ## Shared Constants
 
