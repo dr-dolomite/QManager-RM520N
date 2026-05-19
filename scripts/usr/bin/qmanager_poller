@@ -679,6 +679,9 @@ update_data_used() {
         du_modem_reset_count=0
         rm -f "$DATA_USED_RESET_FLAG"
         qlog_info "data_used: user reset triggered (counters zeroed)"
+        # Persist the zeroed state now so an early return (e.g. interface
+        # absent) or a crash before Step 6 cannot resurrect the old counters.
+        write_data_used_state
     fi
 
     # Step 2: read the kernel cellular-interface byte counters.
@@ -707,7 +710,7 @@ update_data_used() {
     if [ "$du_prev_ipa_rx" = "0" ] && [ "$du_prev_ipa_tx" = "0" ]; then
         du_prev_ipa_rx="$ipa_rx"
         du_prev_ipa_tx="$ipa_tx"
-        du_selected_counter="rmnet_ipa0"
+        du_selected_counter="$NETWORK_IFACE"
         du_last_update_ts=$(date +%s)
         write_data_used_state
         return 0
@@ -733,7 +736,7 @@ update_data_used() {
     # Step 6: persist for the next tick.
     du_prev_ipa_rx="$ipa_rx"
     du_prev_ipa_tx="$ipa_tx"
-    du_selected_counter="rmnet_ipa0"
+    du_selected_counter="$NETWORK_IFACE"
     du_last_update_ts=$(date +%s)
     write_data_used_state
 }
