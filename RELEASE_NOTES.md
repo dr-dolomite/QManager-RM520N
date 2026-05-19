@@ -4,6 +4,14 @@ Fixes the Data Used counter showing swapped or inaccurate upload/download totals
 
 > One-click OTA from **System Settings → Software Update** if you're on v0.1.5 or newer. SSH/ADB is not required.
 
+## ✨ New Features (v0.1.11)
+
+_Nothing yet for this release._
+
+## 🛠️ Improvements (v0.1.11)
+
+_Nothing yet for this release._
+
 ## 🐛 Fixes (v0.1.11)
 
 - **Data Used counter is now accurate on every modem firmware.** Some users still saw swapped or wrong upload/download totals — on certain modems the "uploaded" figure showed tens of gigabytes while "downloaded" showed almost nothing, or the two were simply reversed. The cause: QManager read the modem's `+QGDNRCNT` AT counter, whose two fields appear in a firmware-specific order, then ran a one-time calibration download to guess which field was upload and which was download. That guess was unreliable — it failed outright on x55-based modems (the RM502 series) and mis-fired on some RM520N-GL firmware builds, after which it locked itself to the wrong answer for the life of the install. QManager now skips the modem counter entirely and reads the byte totals straight from the Linux kernel's own network-interface statistics, where download and upload are labelled identically on every firmware — there is nothing left to guess. The throwaway calibration download has been removed as well. Your counter resets to zero on upgrade — this is intentional and clears any incorrect totals carried over from the old method.
