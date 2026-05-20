@@ -161,7 +161,6 @@ The following features have been **completely removed** from the `dev-rm520` bra
 | Video Optimizer / Traffic Masquerade (DPI) | nftables dependency, nfqws ARM32 not validated | CGI, hooks, components, types, dpi_helper.sh, installer |
 | Bandwidth Monitor | ARM64 binary not portable, websocat dependency | CGI, hooks, components, types, binary, systemd units |
 | Ethernet Status & Link Speed | Different NIC architecture (RGMII vs USB), ethtool differences | CGI, components, ethtool_helper.sh |
-| Custom DNS | UCI network dependency, no equivalent on RM520N-GL | CGI, hooks, components |
 | WAN Interface Guard | OpenWRT netifd-specific (ifdown/uci network) | Daemon, init.d script |
 | Low Power Mode (daemons) | Daemon scripts removed; cron/config management retained in settings.sh | qmanager_low_power, qmanager_low_power_check |
 
@@ -169,9 +168,10 @@ The following features have been **completely removed** from the `dev-rm520` bra
 
 Detailed operational notes for individual features live in `docs/reference/`. Read the relevant file only when working on that feature:
 
-- **Discord Bot** (`discord-bot/`, deployed as `/usr/bin/qmanager_discord`) — `docs/reference/discord-bot.md`
 - **Antenna Alignment** (`/cellular/antenna-alignment`) — `docs/reference/antenna-alignment.md`
+- **Custom DNS** (`/local-network/custom-dns`, dnsmasq upstream override via sentinel block in `/etc/data/dnsmasq.conf`) — `docs/reference/custom-dns.md`
 - **Data Usage Counter** (kernel `/proc/net/dev`-sourced, schema v3, `modem_reset_count`) — `docs/reference/data-usage-counter.md`
+- **Discord Bot** (`discord-bot/`, deployed as `/usr/bin/qmanager_discord`) — `docs/reference/discord-bot.md`
 - **WAN Profile Management** (`cellular/apn.sh`, 6 PDP contexts, AT-only, per-context `AT+CGACT` cycle) — `docs/reference/wan-profile-management.md`
 
 ## Shared Constants
