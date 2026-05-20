@@ -44,6 +44,6 @@ www-data ALL=(root) NOPASSWD: /usr/bin/qmanager_ethernet_apply
 # Custom DNS management (dnsmasq config atomic swap + reload)
 # Note: chown's "radio:radio" argument has the colon backslash-escaped because
 # sudoers treats ':' as the user:group separator in any token unless escaped.
-www-data ALL=(root) NOPASSWD: /bin/mv /etc/data/dnsmasq.conf.qmanager.new /etc/data/dnsmasq.conf
+www-data ALL=(root) NOPASSWD: /bin/mv /etc/data/qmanager/dnsmasq.conf.new /etc/data/dnsmasq.conf
 www-data ALL=(root) NOPASSWD: /bin/chown radio\:radio /etc/data/dnsmasq.conf
 www-data ALL=(root) NOPASSWD: /usr/bin/killall -HUP dnsmasq

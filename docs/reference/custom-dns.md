@@ -14,7 +14,8 @@ The feature ships on the `dev-rm520` mainline. Earlier `CLAUDE.md` listed Custom
 | HTTP methods | `GET` (read state), `POST` (`action=save`, `action=clear`) |
 | Install path on device | `/www/cgi-bin/quecmanager/network/custom_dns.sh` |
 | Config injection target | `/etc/data/dnsmasq.conf` (persistent UBIFS, owner `radio:radio`) |
-| Staging file | `/etc/data/dnsmasq.conf.qmanager.new` |
+| Staging file | `/etc/data/qmanager/dnsmasq.conf.new` (in a www-data-owned subdir, same UBI volume as dest) |
+| Staging dir | `/etc/data/qmanager/` (mode `0700`, owner `www-data:www-data`, created by installer) |
 | Sentinel | `# QMANAGER-CUSTOM-DNS-BEGIN v1` ... `# QMANAGER-CUSTOM-DNS-END v1` |
 | Reload | `killall -HUP dnsmasq` (no process restart) |
 | Mode gate (XML) | `<DNSMode>` in `/etc/data/mobileap_cfg.xml` must equal `PROXY` |
@@ -111,12 +112,14 @@ The `v1` version tag on each sentinel lets a future schema co-exist with an old 
 ```
 strip existing sentinel block from /etc/data/dnsmasq.conf
 append new block (if enabled=true)
-write candidate to /etc/data/dnsmasq.conf.qmanager.new
-dnsmasq --test --conf-file=/etc/data/dnsmasq.conf.qmanager.new
-sudo /bin/mv /etc/data/dnsmasq.conf.qmanager.new /etc/data/dnsmasq.conf
+write candidate to /etc/data/qmanager/dnsmasq.conf.new          (www-data-writable; same UBI volume as dest)
+dnsmasq --test --conf-file=/etc/data/qmanager/dnsmasq.conf.new
+sudo /bin/mv /etc/data/qmanager/dnsmasq.conf.new /etc/data/dnsmasq.conf   (atomic rename within /dev/ubi2_0)
 sudo /bin/chown radio:radio /etc/data/dnsmasq.conf
 sudo /usr/bin/killall -HUP dnsmasq
 ```
+
+The staging file lives inside `/etc/data/qmanager/`, a `www-data`-owned directory mode `0700` created by `install_rm520n.sh`. This is required because `/etc/data/` itself is owned by `radio:radio` mode `0755`, so `www-data` cannot create new files there. The staging dir must be on the same UBI volume (`/dev/ubi2_0`) as the destination so `mv` is a real atomic `rename(2)`, not a cross-filesystem copy+unlink that could leave a torn `dnsmasq.conf` if interrupted.
 
 If `dnsmasq --test` rejects the candidate, the staging file is removed and the live config is untouched. If `mv` succeeds but `chown` fails, the save is allowed to proceed (logged as a warning) — the file still works, but QCMAP's future `sed -i` rewrites of `dhcp-option-force` lines may break if it cannot write the file. If `killall -HUP` fails, the new config is on disk but not live; the response reports this so the user can reboot to apply.
 
@@ -125,7 +128,7 @@ If `dnsmasq --test` rejects the candidate, the staging file is removed and the l
 The CGI runs as `www-data`. Three NOPASSWD entries gate the apply pipeline (`scripts/etc/sudoers.d/qmanager`):
 
 ```
-www-data ALL=(root) NOPASSWD: /bin/mv /etc/data/dnsmasq.conf.qmanager.new /etc/data/dnsmasq.conf
+www-data ALL=(root) NOPASSWD: /bin/mv /etc/data/qmanager/dnsmasq.conf.new /etc/data/dnsmasq.conf
 www-data ALL=(root) NOPASSWD: /bin/chown radio\:radio /etc/data/dnsmasq.conf
 www-data ALL=(root) NOPASSWD: /usr/bin/killall -HUP dnsmasq
 ```
@@ -237,6 +240,37 @@ End-to-end validation on the live RM520N-GL (SSH credentials in `.env`):
 ---
 
 ## Known Gotchas & Lessons Learned
+
+### Staging dir must be writable by www-data, on the same UBI volume as the destination
+
+`/etc/data/` is owned by `radio:radio` mode `0755`, so `www-data` cannot create files there directly. The first release staged at `/etc/data/dnsmasq.conf.qmanager.new` and granted sudo rules for `mv`/`chown`/`HUP` on that path, but never for the *creation* of the staging file itself. Every CGI invocation through lighttpd hit `EACCES` on the shell redirect (`{ ... } > "$STAGING_FILE"`) and returned `failed to write staging config file`.
+
+The fix introduced a dedicated staging directory `/etc/data/qmanager/` owned by `www-data:www-data` mode `0700`, created idempotently in `install_backend()` via:
+
+```sh
+install -d -o www-data -g www-data -m 0700 /etc/data/qmanager
+```
+
+This keeps the staging file on the same UBI volume (`/dev/ubi2_0`) as `/etc/data/dnsmasq.conf`, preserving the atomic-rename guarantee that `sudo mv` depends on. Cross-filesystem staging (e.g. `/tmp` tmpfs) would silently downgrade `mv` to copy+unlink and break the atomicity invariant.
+
+### Always validate CGI under the actual www-data privilege context
+
+The above EACCES bug shipped because Phase 5 validation was run as `root` over SSH (`_SKIP_AUTH=1 ... custom_dns.sh`), which created the staging file as root and bypassed the permission gap. `www-data` permission issues on file creation are invisible from a root shell.
+
+Correct validation paths (any of these reproduce the real privilege context):
+
+```sh
+# A. Direct invocation under www-data's identity
+sudo -u www-data env _SKIP_AUTH=1 REQUEST_METHOD=POST CONTENT_LENGTH=$(...) \
+    /usrdata/qmanager/www/cgi-bin/quecmanager/network/custom_dns.sh < payload.json
+
+# B. Real HTTP through lighttpd (requires an authenticated session cookie)
+curl -sk -X POST -b /tmp/qmanager.cookie \
+    https://192.168.225.1/cgi-bin/quecmanager/network/custom_dns.sh \
+    --data-binary @payload.json
+```
+
+Path A is fastest for shell-loop debugging and exercises the exact uid/gid/groups that lighttpd's CGI workers run under. Path B additionally exercises lighttpd's environment-stripping and request parsing. For any new CGI endpoint, Phase 5 must include at least Path A — root-shell validation alone is not validation.
 
 ### Sudoers colon-escape gotcha
 

@@ -36,7 +36,7 @@ cgi_handle_options
 
 # --- Constants ----------------------------------------------------------------
 DNSMASQ_CONF="/etc/data/dnsmasq.conf"
-STAGING_FILE="/etc/data/dnsmasq.conf.qmanager.new"
+STAGING_FILE="/etc/data/qmanager/dnsmasq.conf.new"
 MOBILEAP_XML="/etc/data/mobileap_cfg.xml"
 SENTINEL_BEGIN="# QMANAGER-CUSTOM-DNS-BEGIN v1"
 SENTINEL_END="# QMANAGER-CUSTOM-DNS-END v1"

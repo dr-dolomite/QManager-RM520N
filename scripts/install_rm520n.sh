@@ -1023,6 +1023,12 @@ install_backend() {
     mkdir -p "$CONF_DIR/profiles"
     chown -R www-data:www-data "$CONF_DIR"
 
+    # Custom DNS needs a www-data-owned staging dir on /dev/ubi2_0 (same volume
+    # as /etc/data/dnsmasq.conf) so the CGI can write the candidate config and
+    # the final rename into place stays atomic. install -d self-heals owner/mode
+    # on re-run, so this is safe on upgrade.
+    install -d -o www-data -g www-data -m 0700 /etc/data/qmanager
+
     # --- Migrate legacy TTL state file (one-time, non-fatal) -----------------
     # Old path: /etc/firewall.user.ttl (root-owned, unwritable by www-data CGI)
     # New path: /etc/qmanager/ttl_state (www-data-owned via CONF_DIR chown above)
