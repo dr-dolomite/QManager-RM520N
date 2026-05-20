@@ -9,5 +9,6 @@ Detailed operational notes extracted from `CLAUDE.md` to keep the always-loaded 
 | [discord-bot.md](discord-bot.md) | The Discord bot (`discord-bot/`, `qmanager_discord`) |
 | [antenna-alignment.md](antenna-alignment.md) | The antenna alignment tool (`/cellular/antenna-alignment`) |
 | [data-usage-counter.md](data-usage-counter.md) | The persistent data-usage counter (kernel `/proc/net/dev`-sourced, schema v3) |
+| [wan-profile-management.md](wan-profile-management.md) | WAN Profile / APN management (`cellular/apn.sh`, 6 PDP contexts, AT-only) |
 
 For broader architecture, see `../rm520n-gl-architecture.md` and `../ARCHITECTURE.md`.

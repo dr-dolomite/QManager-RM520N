@@ -172,6 +172,7 @@ Detailed operational notes for individual features live in `docs/reference/`. Re
 - **Discord Bot** (`discord-bot/`, deployed as `/usr/bin/qmanager_discord`) — `docs/reference/discord-bot.md`
 - **Antenna Alignment** (`/cellular/antenna-alignment`) — `docs/reference/antenna-alignment.md`
 - **Data Usage Counter** (kernel `/proc/net/dev`-sourced, schema v3, `modem_reset_count`) — `docs/reference/data-usage-counter.md`
+- **WAN Profile Management** (`cellular/apn.sh`, 6 PDP contexts, AT-only, per-context `AT+CGACT` cycle) — `docs/reference/wan-profile-management.md`
 
 ## Shared Constants
 

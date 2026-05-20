@@ -373,39 +373,120 @@ Start speed test, check results, and check if speedtest binary is available.
 
 ### GET/POST `/cellular/apn.sh`
 
-**GET Response:**
+WAN Profile Management. AT-only on the RM520N-GL — every field is sourced from
+AT commands through `qcmd`; there is no Casa RDB or wmmd daemon. The endpoint
+exposes 6 WAN profile slots, one per PDP context CID (1-6). See
+`docs/reference/wan-profile-management.md` for the full subsystem reference.
+
+**GET (list all 6 slots):**
+
+Iterates CIDs 1-6 and builds each slot from `AT+CGDCONT?` (APN, PDP type),
+`AT+CGACT?` (activation state), `AT+QICSGP=<cid>` (auth type, username, password
+presence), and — for active contexts only — `AT+CGCONTRDP=<cid>` (IP, gateway,
+DNS). Profile names come from a sidecar file. Undefined CIDs (usually 4-6) are
+emitted as empty slots.
+
 ```json
 {
   "success": true,
+  "max_profiles": 6,
+  "data_source": "at",
   "profiles": [
     {
-      "cid": 1,
+      "index": 1,
+      "name": "T-Mobile",
       "apn": "fast.t-mobile.com",
-      "pdp_type": "IPV4V6",
-      "is_data": true
+      "pdp_type": "ipv4v6",
+      "auth_type": "none",
+      "username": "",
+      "has_password": false,
+      "mtu": null,
+      "enabled": true,
+      "default_route": false,
+      "ip_passthrough": false,
+      "modem_profile": 1,
+      "apn_type": "",
+      "vlan_index": "",
+      "status_ipv4": "up",
+      "status_ipv6": "",
+      "connect_progress": "connected",
+      "ipv4_address": "10.0.0.1",
+      "ipv4_gateway": "10.0.0.2",
+      "dns1": "8.8.8.8",
+      "dns2": "8.8.4.4",
+      "ipv6_address": "",
+      "mtu_negotiated": null,
+      "interface": "",
+      "pdp_error": ""
     }
-  ],
-  "active_cid": 1
+  ]
 }
 ```
 
-**POST Request (create/update):**
+- `data_source`: always `"at"` on this modem. The field exists so the frontend can hide wmmd/Casa-only controls (Default Route, IP Passthrough, VLAN mapping).
+- `pdp_type`: `"ipv4"` | `"ipv6"` | `"ipv4v6"` (AT `IP`/`IPV6`/`IPV4V6` mapped to lowercase).
+- `auth_type`: `"none"` | `"pap"` | `"chap"`.
+- `has_password`: `true` when a PDP password is stored. The password itself is **never** emitted.
+- `enabled`: PDP context activation state from `AT+CGACT?` (state `1` = active).
+- `apn_type`: `"ims"` or `"emergency"` for the carrier's IMS (VoLTE) and SOS contexts (usually CIDs 2/3) — the UI locks those slots read-only. Empty for normal data profiles.
+- `mtu` / `mtu_negotiated`: always `null`. RM520N-GL AT has no reliable per-context MTU read or write, and `AT+CGCONTRDP` on this firmware returns no MTU field.
+- `connect_progress`: `"connected"` (has an IP) | `"connecting"` (enabled, no IP yet) | `"disconnected"`.
+
+**POST `save` (write a profile):**
+
 ```json
 {
-  "action": "set",
-  "cid": 1,
+  "action": "save",
+  "index": 1,
+  "name": "T-Mobile",
   "apn": "fast.t-mobile.com",
-  "pdp_type": "IPV4V6"
+  "pdp_type": "ipv4v6",
+  "auth_type": "none",
+  "username": "",
+  "password": ""
 }
 ```
 
-**POST Request (delete):**
+Detaches the radio with `AT+COPS=2`, writes APN + PDP type via `AT+CGDCONT`,
+writes auth via `AT+QICSGP` (`AT+CGAUTH` is unsupported on RM520N-GL
+firmware), persists `name` to the sidecar, then re-attaches with `AT+COPS=0`
+so the modem sends a fresh Attach Request carrying the new APN. The full
+attach cycle is required because the default EPS bearer's APN is a contract
+field set at attach time — `AT+CGACT` alone cannot change it. The cellular
+WAN drops briefly (~5-10s) during the cycle; SSH and the CGI HTTP path are
+on LAN/Wi-Fi and are not affected. See
+`docs/reference/wan-profile-management.md` for the full rationale.
+
+- `index`: required, 1-6 (the PDP context CID).
+- `apn`: required. `apn`/`username`/`password` may not contain a double-quote.
+- `pdp_type`: required, one of `ipv4` / `ipv6` / `ipv4v6`.
+- `auth_type`: `none` (default) / `pap` / `chap`. With `none`, stored credentials are cleared.
+- `password`: optional. A blank password on a PAP/CHAP save **keeps** the existing stored secret.
+- `mtu`: optional. A non-default MTU is logged and ignored (no per-context MTU write exists). It is never reported as a successful write.
+
+**POST `toggle` (activate/deactivate a context):**
+
 ```json
 {
-  "action": "delete",
-  "cid": 3
+  "action": "toggle",
+  "index": 1,
+  "enabled": false
 }
 ```
+
+Activates (`true`) or deactivates (`false`) one PDP context via `AT+CGACT`.
+
+**Error codes:**
+
+| Code | Meaning |
+|------|---------|
+| `invalid_index` | `index` missing or not 1-6 |
+| `invalid_action` | `action` not `save` or `toggle` |
+| `missing_fields` | Required field absent (`apn` for save, `enabled` for toggle) |
+| `invalid_pdp_type` | `pdp_type` not `ipv4`/`ipv6`/`ipv4v6` |
+| `invalid_value` | APN/username/password contains a double-quote |
+| `cops_detach_failed` / `cgdcont_failed` / `qicsgp_failed` / `cops_attach_failed` / `cgact_failed` | The underlying AT command failed. On `cgdcont_failed` / `qicsgp_failed` during save, `apn.sh` runs a best-effort `AT+COPS=0` so the modem does not stay detached |
+| `parse_failed` | GET could not assemble the profile list |
 
 ### GET/POST `/cellular/mbn.sh`
 

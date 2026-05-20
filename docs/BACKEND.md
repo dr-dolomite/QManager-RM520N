@@ -923,7 +923,7 @@ For request/response schemas, see `API-REFERENCE.md`.
 
 | Script | Method | Description |
 |--------|--------|-------------|
-| `cellular/apn.sh` | GET/POST | Read or write APN settings (`AT+CGDCONT`) |
+| `cellular/apn.sh` | GET/POST | WAN Profile Management — list/save/toggle 6 PDP contexts (AT-only). See `docs/reference/wan-profile-management.md` |
 | `cellular/fplmn.sh` | GET/POST | Read or manage FPLMN (forbidden PLMN) list |
 | `cellular/imei.sh` | GET/POST | Read or change IMEI (`AT+EGMR`) |
 | `cellular/mbn.sh` | GET/POST | Read or select MBN profile |
