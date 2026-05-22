@@ -142,15 +142,12 @@ const ConnectionScenariosCard = ({
   // --- SIM Profile override check ------------------------------------------
   // When an active Custom SIM Profile binds a NON-Balanced scenario, that
   // profile owns scenario activation: the Activate button is disabled on
-  // every card and a banner explains why. A Balanced binding doesn't gate
-  // anything — but we still populate profileGate so the "Active via X" badge
-  // renders on the Balanced card (informational: the profile will re-apply
-  // Balanced on its next apply, so any session-level override is temporary).
+  // every card and a banner explains why. A Balanced binding is treated as
+  // "no opinion" and doesn't gate anything (no profileGate populated).
   // Edit/Delete of *custom* scenarios is intentionally NOT gated.
   const { activeProfileId, getProfile } = useSimProfiles();
   const [profileGate, setProfileGate] = useState<{
     profileName: string;
-    boundScenarioId: string;
   } | null>(null);
 
   useEffect(() => {
@@ -159,13 +156,10 @@ const ConnectionScenariosCard = ({
     (async () => {
       const profile = await getProfile(activeProfileId);
       if (cancelled) return;
-      // null and "" both mean "no binding"
+      // null and "" both mean "no binding"; "balanced" is treated identically.
       const boundId = profile?.settings.scenario_id || "";
-      if (profile && boundId) {
-        setProfileGate({
-          profileName: profile.name,
-          boundScenarioId: boundId,
-        });
+      if (profile && boundId && boundId !== "balanced") {
+        setProfileGate({ profileName: profile.name });
       } else {
         setProfileGate(null);
       }
@@ -175,11 +169,7 @@ const ConnectionScenariosCard = ({
     };
   }, [activeProfileId, getProfile]);
 
-  // Gate (banner + disabled activate) only when bound to a NON-Balanced
-  // scenario. The badge on the bound scenario card uses profileGate directly,
-  // so it still appears for Balanced bindings.
-  const isProfileControlled =
-    profileGate !== null && profileGate.boundScenarioId !== "balanced";
+  const isProfileControlled = profileGate !== null;
 
   // Convert backend StoredScenario[] → UI Scenario[] (add icon, pattern, isDefault)
   const customScenarios: Scenario[] = useMemo(
@@ -451,11 +441,6 @@ const ConnectionScenariosCard = ({
                     isSelected={selectedId === scenario.id}
                     onSelect={handleSelect}
                     onDelete={handleDeleteScenario}
-                    profileBoundName={
-                      profileGate?.boundScenarioId === scenario.id
-                        ? profileGate.profileName
-                        : undefined
-                    }
                   />
                 </motion.div>
               ))}

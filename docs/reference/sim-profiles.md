@@ -145,8 +145,8 @@ globally — a profile that only sets APN gates only the APN page.
 |----------------------|---------------|-------------|
 | `settings.apn.name` non-empty | APN Management page | Banner + `<fieldset disabled>` over the form |
 | `settings.ttl > 0` or `settings.hl > 0` | TTL/HL Settings card (existing — predates the scenario feature) | Banner + disabled inputs |
-| `settings.scenario_id` set to `gaming` / `streaming` / `custom-*` | Connection Scenarios page **and** Band Locking page | Scenarios: "Activate" buttons disabled; bound scenario shows "Active via {profile.name}". Band Locking: full disable. |
-| `settings.scenario_id == "balanced"` | (nothing — Balanced is treated as "no opinion") | The bound scenario card (Balanced) still shows the "Active via {profile.name}" badge as an informational marker, but no banner appears and Activate buttons stay enabled across all scenarios. |
+| `settings.scenario_id` set to `gaming` / `streaming` / `custom-*` | Connection Scenarios page **and** Band Locking page | Scenarios: banner + "Activate" buttons disabled (with tooltip on hover explaining why). Band Locking: full disable. |
+| `settings.scenario_id == "balanced"` | (nothing — Balanced is treated as "no opinion") | No banner, no disabled controls. The binding is only visible from the SIM Profile form. |
 | `settings.scenario_id == ""` or null | (nothing) | Pre-binding profiles or legacy data. |
 | `settings.imei` non-empty | (no UI gate — applied only at profile-apply time) | n/a |
 

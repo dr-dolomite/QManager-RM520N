@@ -1,9 +1,8 @@
 import React, { useState } from "react";
 import { motion } from "motion/react";
-import { Trash2, LinkIcon } from "lucide-react";
+import { Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { AbstractPattern } from "./abstract-pattern";
-import { Badge } from "@/components/ui/badge";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -33,10 +32,6 @@ interface ScenarioItemProps {
   isSelected: boolean;
   onSelect: (id: string) => void;
   onDelete?: (id: string) => void;
-  /** If set, this scenario is bound to the named Custom SIM Profile and the
-   *  card should render an "Active via {profileName}" badge. Only the
-   *  scenario whose id matches the profile's scenario_id receives this. */
-  profileBoundName?: string;
 }
 
 // Map gradient to matching ring color
@@ -62,7 +57,6 @@ export const ScenarioItem = ({
   isSelected,
   onSelect,
   onDelete,
-  profileBoundName,
 }: ScenarioItemProps) => {
   const Icon = scenario.icon;
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
@@ -118,16 +112,6 @@ export const ScenarioItem = ({
                 <span className="px-2 py-0.5 bg-white/25 backdrop-blur-sm rounded-full text-xs font-medium">
                   Active
                 </span>
-              )}
-              {profileBoundName && (
-                <Badge
-                  variant="outline"
-                  className="bg-info/15 text-info hover:bg-info/20 border-info/30"
-                  title={`Activated by the ${profileBoundName} Custom SIM Profile`}
-                >
-                  <LinkIcon className="size-3" />
-                  Active via {profileBoundName}
-                </Badge>
               )}
             </div>
             {isCustom && (
