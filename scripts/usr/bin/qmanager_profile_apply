@@ -12,13 +12,15 @@
 # State file: /tmp/qmanager_profile_state.json
 # PID file:   /tmp/qmanager_profile_apply.pid
 #
-# Apply steps (3 total):
-#   1. APN     — AT+CGDCONT (no modem reboot)
-#   2. TTL/HL  — iptables/ip6tables (no modem lock needed)
-#   3. IMEI    — AT+EGMR + AT+CFUN=1,1 reboot (most disruptive, last)
+# Apply steps (4 total):
+#   1. APN      — AT+CGDCONT (no modem reboot)
+#   2. TTL/HL   — iptables/ip6tables (no modem lock needed)
+#   3. Scenario — AT+QNWPREFCFG mode_pref + optional band locks (skipped if
+#                 no scenario_id bound to the profile)
+#   4. IMEI     — AT+EGMR + AT+CFUN=1,1 reboot (most disruptive, last)
 #
-# NOTE: Band locking and network mode are NOT part of SIM Profiles.
-# They will be owned by the Connection Scenarios feature.
+# Step order rationale: scenario MUST come before IMEI because AT+CFUN=1,1
+# reboots the modem and would discard any radio config applied after it.
 #
 # Architecture: CUSTOM_SIM_PROFILE_ARCHITECTURE_v2.md §5.2, §7
 # Dependencies: qcmd, qlog.sh, profile_mgr.sh
@@ -45,9 +47,10 @@ MAX_EVENTS=50
 }
 
 # --- Source profile manager library ------------------------------------------
-[ -f /usr/lib/qmanager/profile_mgr.sh ] && . /usr/lib/qmanager/profile_mgr.sh
-[ -f /usr/lib/qmanager/platform.sh ] && . /usr/lib/qmanager/platform.sh
-[ -f /usr/lib/qmanager/ttl_state.sh ] && . /usr/lib/qmanager/ttl_state.sh
+[ -f /usr/lib/qmanager/profile_mgr.sh ]   && . /usr/lib/qmanager/profile_mgr.sh
+[ -f /usr/lib/qmanager/platform.sh ]      && . /usr/lib/qmanager/platform.sh
+[ -f /usr/lib/qmanager/ttl_state.sh ]     && . /usr/lib/qmanager/ttl_state.sh
+[ -f /usr/lib/qmanager/scenario_mgr.sh ]  && . /usr/lib/qmanager/scenario_mgr.sh
 
 # --- Configuration -----------------------------------------------------------
 STATE_FILE="/tmp/qmanager_profile_state.json"
@@ -81,18 +84,20 @@ trap cleanup EXIT INT TERM
 # State File Management
 # =============================================================================
 
-# Step names (3 steps after band/mode removal)
-STEP_NAMES="apn ttl_hl imei"
-STEP_COUNT=3
+# Step names (4 steps: scenario inserted between ttl_hl and imei)
+STEP_NAMES="apn ttl_hl scenario imei"
+STEP_COUNT=4
 
 # Step statuses (initialized to "pending")
 step_status_apn="pending"
 step_status_ttl_hl="pending"
+step_status_scenario="pending"
 step_status_imei="pending"
 
 # Step details
 step_detail_apn=""
 step_detail_ttl_hl=""
+step_detail_scenario=""
 step_detail_imei=""
 
 # Global state
@@ -129,8 +134,10 @@ write_state() {
         --arg s1_detail    "$step_detail_apn" \
         --arg s2_status    "$step_status_ttl_hl" \
         --arg s2_detail    "$step_detail_ttl_hl" \
-        --arg s3_status    "$step_status_imei" \
-        --arg s3_detail    "$step_detail_imei" \
+        --arg s3_status    "$step_status_scenario" \
+        --arg s3_detail    "$step_detail_scenario" \
+        --arg s4_status    "$step_status_imei" \
+        --arg s4_detail    "$step_detail_imei" \
         --argjson reboot   "$apply_requires_reboot" \
         --arg err          "$err_val" \
         '{
@@ -141,9 +148,10 @@ write_state() {
             current_step: $cur_step,
             total_steps: $total,
             steps: [
-                {name: "apn",    status: $s1_status, detail: $s1_detail},
-                {name: "ttl_hl", status: $s2_status, detail: $s2_detail},
-                {name: "imei",   status: $s3_status, detail: $s3_detail}
+                {name: "apn",      status: $s1_status, detail: $s1_detail},
+                {name: "ttl_hl",   status: $s2_status, detail: $s2_detail},
+                {name: "scenario", status: $s3_status, detail: $s3_detail},
+                {name: "imei",     status: $s4_status, detail: $s4_detail}
             ],
             requires_reboot: $reboot,
             error: (if $err == "null" then null else $err end)
@@ -220,6 +228,7 @@ p_pdp_type=$(printf '%s' "$profile_json" | jq -r '.settings.apn.pdp_type // empt
 p_imei=$(printf '%s' "$profile_json" | jq -r '.settings.imei // empty')
 p_ttl=$(printf '%s' "$profile_json" | jq -r '.settings.ttl // empty | tostring')
 p_hl=$(printf '%s' "$profile_json" | jq -r '.settings.hl // empty | tostring')
+p_scenario_id=$(printf '%s' "$profile_json" | jq -r '.settings.scenario_id // empty')
 
 # Defaults
 [ -z "$p_apn_cid" ] && p_apn_cid=1
@@ -304,7 +313,79 @@ apply_ttl_hl() {
 }
 
 # =============================================================================
-# Step 3: IMEI (most disruptive — last)
+# Step 3: Scenario (radio mode + optional band locks)
+# =============================================================================
+apply_scenario() {
+    mark_step_running "scenario" "Checking scenario binding..."
+
+    # No scenario bound — skip cleanly
+    if [ -z "$p_scenario_id" ]; then
+        mark_step_skipped "scenario" "No scenario bound"
+        return
+    fi
+
+    case "$p_scenario_id" in
+        balanced|gaming|streaming)
+            # Built-in scenario — scenario_apply resolves mode internally
+            mark_step_running "scenario" "Applying scenario: $p_scenario_id..."
+            if scenario_apply "$p_scenario_id"; then
+                if [ -n "$_scenario_apply_failed" ]; then
+                    # mode_pref succeeded but band lock(s) failed (partial)
+                    scenario_set_active "$p_scenario_id"
+                    mark_step_failed "scenario" "Partial: band lock failed for: $_scenario_apply_failed"
+                else
+                    scenario_set_active "$p_scenario_id"
+                    mark_step_done "scenario" "Scenario $p_scenario_id applied"
+                fi
+            else
+                mark_step_failed "scenario" "Failed to apply scenario $p_scenario_id (mode_pref AT error)"
+            fi
+            ;;
+        custom-*)
+            # Custom scenario — must look up config from disk
+            mark_step_running "scenario" "Looking up custom scenario: $p_scenario_id..."
+            local sc_json
+            sc_json=$(scenario_lookup_custom "$p_scenario_id")
+            if [ $? -ne 0 ] || [ -z "$sc_json" ]; then
+                mark_step_skipped "scenario" "Scenario $p_scenario_id no longer exists"
+                return
+            fi
+
+            # Parse mode and bands from the stored scenario JSON
+            local sc_mode sc_lte sc_nsa sc_sa
+            sc_mode=$(printf '%s' "$sc_json" | jq -r '.config.atModeValue // empty')
+            sc_lte=$(printf '%s' "$sc_json"  | jq -r '.config.lte_bands // empty')
+            sc_nsa=$(printf '%s' "$sc_json"  | jq -r '.config.nsa_nr_bands // empty')
+            sc_sa=$(printf '%s' "$sc_json"   | jq -r '.config.sa_nr_bands // empty')
+
+            if [ -z "$sc_mode" ]; then
+                mark_step_failed "scenario" "Custom scenario $p_scenario_id has no mode configured"
+                return
+            fi
+
+            mark_step_running "scenario" "Applying custom scenario: $p_scenario_id (mode=$sc_mode)..."
+            if scenario_apply "$p_scenario_id" "$sc_mode" "$sc_lte" "$sc_nsa" "$sc_sa"; then
+                if [ -n "$_scenario_apply_failed" ]; then
+                    scenario_set_active "$p_scenario_id"
+                    mark_step_failed "scenario" "Partial: band lock failed for: $_scenario_apply_failed"
+                else
+                    scenario_set_active "$p_scenario_id"
+                    mark_step_done "scenario" "Custom scenario $p_scenario_id applied"
+                fi
+            else
+                mark_step_failed "scenario" "Failed to apply custom scenario $p_scenario_id (mode_pref AT error)"
+            fi
+            ;;
+        *)
+            # scenario_id value is unrecognized — treat as a soft skip so
+            # IMEI still runs. This guards against stale data from old profiles.
+            mark_step_skipped "scenario" "Unrecognized scenario_id: $p_scenario_id"
+            ;;
+    esac
+}
+
+# =============================================================================
+# Step 4: IMEI (most disruptive — last)
 # =============================================================================
 apply_imei() {
     mark_step_running "imei" "Checking IMEI..."
@@ -398,6 +479,9 @@ sleep "$CMD_GAP"
 
 apply_ttl_hl
 # No CMD_GAP — TTL doesn't use modem
+
+apply_scenario
+sleep "$CMD_GAP"
 
 apply_imei
 

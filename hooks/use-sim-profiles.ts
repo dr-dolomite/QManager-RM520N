@@ -66,6 +66,12 @@ export interface ProfileFormData {
   imei: string;
   ttl: number;
   hl: number;
+  /**
+   * Connection Scenario binding. Empty string = no scenario (profile won't
+   * manage radio config). Valid IDs: "balanced" | "gaming" | "streaming" |
+   * "custom-<ts>". Sent to backend as the `scenario_id` JSON field.
+   */
+  scenario_id: string;
 }
 
 export function useSimProfiles(): UseSimProfilesReturn {

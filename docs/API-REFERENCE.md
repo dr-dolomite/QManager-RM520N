@@ -717,6 +717,25 @@ Full profile details including APN, TTL/HL, and optional IMEI.
 
 Create or update a profile.
 
+**POST Request:**
+```json
+{
+  "id": "p_1715000000_abc12",
+  "name": "T-Mobile Gaming",
+  "mno": "T-Mobile",
+  "sim_iccid": "8901260...",
+  "settings": {
+    "apn": { "cid": 1, "name": "fast.t-mobile.com", "pdp_type": "IPV4V6" },
+    "imei": "",
+    "ttl": 65,
+    "hl": 65,
+    "scenario_id": "gaming"
+  }
+}
+```
+
+`scenario_id` is optional. Valid values: `""` (no binding), `balanced`, `gaming`, `streaming`, or a `custom-<timestamp>` ID that exists at `/etc/qmanager/scenarios/<id>.json`. The server validates against this enum and returns an `invalid_scenario_id` error otherwise.
+
 ### POST `/profiles/delete.sh`
 
 ```json
@@ -725,7 +744,7 @@ Create or update a profile.
 
 ### POST `/profiles/apply.sh`
 
-Start the 3-step async apply process.
+Start the 4-step async apply process (`apn` → `ttl_hl` → `scenario` → `imei`).
 
 ```json
 { "id": "abc123" }
@@ -735,15 +754,24 @@ Start the 3-step async apply process.
 
 ```json
 {
-  "success": true,
-  "status": "running",
-  "step": 2,
-  "total_steps": 3,
-  "message": "Applying TTL/HL settings..."
+  "status": "applying",
+  "profile_id": "p_1715000000_abc12",
+  "profile_name": "T-Mobile Gaming",
+  "started_at": 1715000000,
+  "current_step": 3,
+  "total_steps": 4,
+  "steps": [
+    { "name": "apn",      "status": "done",     "detail": "APN updated to fast.t-mobile.com" },
+    { "name": "ttl_hl",   "status": "done",     "detail": "TTL/HL applied" },
+    { "name": "scenario", "status": "running",  "detail": "Applying scenario: gaming..." },
+    { "name": "imei",     "status": "pending",  "detail": "" }
+  ],
+  "requires_reboot": false,
+  "error": null
 }
 ```
 
-Status values: `"idle"`, `"running"`, `"complete"`, `"error"`
+Per-step `status` values: `pending`, `running`, `done`, `skipped`, `failed`. The top-level `status` is `applying` while in progress, then `complete` or `failed`. A dangling `scenario_id` produces a scenario step with status `skipped` and detail `"Scenario <id> no longer exists"`.
 
 ### POST `/profiles/deactivate.sh`
 
@@ -771,7 +799,36 @@ Delete a scenario.
 
 ### POST `/scenarios/activate.sh`
 
-Activate a scenario (applies it as a profile).
+Activate a scenario. Applies network mode (`AT+QNWPREFCFG="mode_pref",...`) and, for custom scenarios, optional LTE / NSA-NR / SA-NR band locks.
+
+**POST Request (built-in):**
+```json
+{ "id": "gaming" }
+```
+
+**POST Request (custom):**
+```json
+{
+  "id": "custom-1715000000",
+  "mode": "NR5G",
+  "lte_bands": "1:3:28",
+  "nsa_nr_bands": "",
+  "sa_nr_bands": "78"
+}
+```
+`mode` is required for `custom-*` IDs (valid: `AUTO`, `LTE`, `NR5G`, `LTE:NR5G`). Band fields are optional; values must contain only digits and colons.
+
+**Error responses:**
+
+| `error` value | Cause |
+|---------------|-------|
+| `profile_managed` | The active SIM profile binds a scenario via `settings.scenario_id`. The CGI does not touch the modem — the user must edit the profile to change scenarios. Defense-in-depth against stale frontends bypassing the UI gate. |
+| `no_id` | Missing `id` field |
+| `invalid_id` | Unknown scenario ID (not built-in, not a known custom) |
+| `no_mode` | Custom scenario request missing `mode` |
+| `invalid_mode` | `mode` not in `{AUTO, LTE, NR5G, LTE:NR5G}` |
+| `invalid_bands` | Band field contains non-digit/non-colon characters |
+| `modem_error` | `AT+QNWPREFCFG="mode_pref",...` failed |
 
 ### GET `/scenarios/active.sh`
 

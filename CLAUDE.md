@@ -173,6 +173,7 @@ Detailed operational notes for individual features live in `docs/reference/`. Re
 - **Data Usage Counter** (kernel `/proc/net/dev`-sourced, schema v3, `modem_reset_count`) — `docs/reference/data-usage-counter.md`
 - **Discord Bot** (`discord-bot/`, deployed as `/usr/bin/qmanager_discord`) — `docs/reference/discord-bot.md`
 - **WAN Profile Management** (`cellular/apn.sh`, 6 PDP contexts, AT-only, per-context `AT+CGACT` cycle) — `docs/reference/wan-profile-management.md`
+- **Custom SIM Profiles** (4-step apply `apn → ttl_hl → scenario → imei`; `settings.scenario_id` binds a Connection Scenario; active profile gates APN / TTL/HL / Scenarios / Band Locking pages; `profile_managed` CGI guard) — `docs/reference/sim-profiles.md`
 
 ## Shared Constants
 

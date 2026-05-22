@@ -264,7 +264,9 @@ Abort immediately if `CFUN=0` fails (modem may be in an inconsistent state).
 
 ## Custom SIM Profiles
 
-Profiles store a complete modem configuration (APN + TTL/HL + optional IMEI) that can be saved and applied as a unit. Each profile is bound to a SIM card by ICCID and is automatically applied whenever that SIM is detected.
+Profiles store a complete modem configuration (APN + TTL/HL + optional Connection Scenario + optional IMEI) that can be saved and applied as a unit. Each profile is bound to a SIM card by ICCID and is automatically applied whenever that SIM is detected.
+
+See [`reference/sim-profiles.md`](reference/sim-profiles.md) for the full profile JSON schema, the gate matrix, and how the `scenario_id` binding works (reference-by-id semantics, defense-in-depth `profile_managed` guard).
 
 ### Auto-Apply on ICCID Match
 
@@ -297,21 +299,25 @@ auto_apply_profile(iccid, caller)
     │       │
     │       └── spawn: qmanager_profile_apply <id>  (double-fork, background)
     │               │
-    │               ├── Step 1: APN (AT+CGDCONT, skip if unchanged)
-    │               ├── Step 2: TTL/HL (iptables, skip if unchanged)
-    │               └── Step 3: IMEI (AT+EGMR + reboot, skip if unchanged)
+    │               ├── Step 1: APN      (AT+CGDCONT + attach cycle, skip if unchanged)
+    │               ├── Step 2: TTL/HL   (iptables, skip if unchanged)
+    │               ├── Step 3: Scenario (AT+QNWPREFCFG via scenario_apply, skip if scenario_id empty)
+    │               └── Step 4: IMEI     (AT+EGMR + AT+CFUN=1,1 reboot, skip if unchanged)
     │
     └── [No match] → clear_active_profile()
             removes /etc/qmanager/active_profile
 ```
 
-### Apply Workflow (3 Steps)
+### Apply Workflow (4 Steps)
 
 ```
-Step 1: APN        → AT+CGDCONT (set PDP context)
+Step 1: APN        → AT+CGDCONT + full attach cycle (set PDP context)
 Step 2: TTL/HL     → Write /etc/firewall.user.ttl + apply iptables
-Step 3: IMEI       → AT+EGMR=1,7,"<IMEI>" + reboot (only if IMEI changed)
+Step 3: Scenario   → scenario_apply (AT+QNWPREFCFG mode + optional band locks; only if scenario_id is set)
+Step 4: IMEI       → AT+EGMR=1,7,"<IMEI>" + AT+CFUN=1,1 reboot (only if IMEI changed)
 ```
+
+Scenario MUST precede IMEI: `AT+CFUN=1,1` reboots the radio, and any pending `AT+QNWPREFCFG` writes done after it would be lost. Order is enforced in `qmanager_profile_apply` (`STEP_NAMES="apn ttl_hl scenario imei"`).
 
 The apply process runs asynchronously via `qmanager_profile_apply` daemon. The frontend polls `/profiles/apply_status.sh` for progress updates.
 
@@ -322,6 +328,9 @@ The apply process runs asynchronously via `qmanager_profile_apply` daemon. The f
 | What | Where | Format |
 |------|-------|--------|
 | SIM profiles | `/etc/qmanager/profiles/<id>.json` | JSON |
+| Active SIM profile marker | `/etc/qmanager/active_profile` | Plain text (profile ID) |
+| Connection scenarios (custom) | `/etc/qmanager/scenarios/<id>.json` | JSON |
+| Active scenario marker | `/etc/qmanager/active_scenario` | Plain text (scenario ID) |
 | Tower lock config | `/etc/qmanager/tower_lock.json` | JSON |
 | Band lock config | `/etc/qmanager/band_lock.json` | JSON |
 | IMEI backup config | `/etc/qmanager/imei_backup.json` | JSON |

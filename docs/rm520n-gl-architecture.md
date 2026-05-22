@@ -1685,7 +1685,8 @@ Custom SIM Profiles are automatically applied whenever the modem's current SIM I
 | File | Purpose |
 |------|---------|
 | `/usr/lib/qmanager/profile_mgr.sh` | Library: `find_profile_by_iccid()`, `auto_apply_profile()`, CRUD, lock management |
-| `/usr/bin/qmanager_profile_apply` | Daemon: 3-step apply (APN, TTL/HL, IMEI) — spawned in background |
+| `/usr/lib/qmanager/scenario_mgr.sh` | Library: `scenario_apply()`, `scenario_set_active()`, `scenario_lookup_custom()` — used by both `scenarios/activate.sh` and `qmanager_profile_apply` step 3 |
+| `/usr/bin/qmanager_profile_apply` | Daemon: 4-step apply (APN, TTL/HL, Scenario, IMEI) — spawned in background. Scenario MUST precede IMEI because `AT+CFUN=1,1` would wipe `AT+QNWPREFCFG` writes. See [reference/sim-profiles.md](reference/sim-profiles.md) for the binding semantics and gate matrix. |
 | `/etc/qmanager/profiles/p_*.json` | Profile storage (one file per profile, includes `sim_iccid` field) |
 | `/etc/qmanager/active_profile` | Plain text file containing the active profile ID |
 | `/tmp/qmanager_profile_apply.pid` | PID file for apply singleton lock |

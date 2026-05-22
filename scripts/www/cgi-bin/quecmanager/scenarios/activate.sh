@@ -17,6 +17,10 @@
 #               "nsa_nr_bands":"41:78","sa_nr_bands":"41:78"}
 #   Empty/missing band fields → AT command skipped (leave current setting).
 #
+# Guard: If the active SIM profile has a scenario_id binding, this endpoint
+#   returns a profile_managed error and does NOT touch the modem. The frontend
+#   is expected to gate the UI; this is defense-in-depth.
+#
 # Endpoint: POST /cgi-bin/quecmanager/scenarios/activate.sh
 # Install location: /www/cgi-bin/quecmanager/scenarios/activate.sh
 # =============================================================================
@@ -26,8 +30,9 @@ qlog_init "cgi_scenario_activate"
 cgi_headers
 cgi_handle_options
 
-# --- Configuration -----------------------------------------------------------
-ACTIVE_SCENARIO_FILE="/etc/qmanager/active_scenario"
+# --- Source libraries --------------------------------------------------------
+. /usr/lib/qmanager/scenario_mgr.sh
+. /usr/lib/qmanager/profile_mgr.sh
 
 # --- Validate method ---------------------------------------------------------
 if [ "$REQUEST_METHOD" != "POST" ]; then
@@ -46,46 +51,28 @@ if [ -z "$SCENARIO_ID" ]; then
     exit 0
 fi
 
-# --- Helper: send AT command via qcmd, check response ------------------------
-send_at() {
-    local cmd="$1"
-    local label="$2"
-
-    local result
-    result=$(qcmd "$cmd" 2>/dev/null)
-    local rc=$?
-
-    if [ $rc -ne 0 ] || [ -z "$result" ]; then
-        qlog_error "$label: AT command failed (rc=$rc): $cmd"
-        return 1
+# --- Profile-managed guard ---------------------------------------------------
+# If the active SIM profile has a scenario_id bound to it, the user cannot
+# activate scenarios independently — the profile owns radio config.
+ACTIVE_PROFILE_ID=$(get_active_profile)
+if [ -n "$ACTIVE_PROFILE_ID" ]; then
+    BOUND_SCENARIO=$(jq -r '.settings.scenario_id // empty' \
+        "/etc/qmanager/profiles/${ACTIVE_PROFILE_ID}.json" 2>/dev/null)
+    if [ -n "$BOUND_SCENARIO" ]; then
+        cgi_error "profile_managed" "Scenarios are managed by the active SIM profile"
+        exit 0
     fi
+fi
 
-    case "$result" in
-        *ERROR*)
-            qlog_error "$label: AT returned ERROR: $cmd -> $result"
-            return 1
-            ;;
-    esac
-
-    qlog_info "$label: OK"
-    return 0
-}
-
-# --- Map scenario ID to AT commands ------------------------------------------
+# --- Validate scenario ID and parse custom fields ----------------------------
 AT_MODE=""
 LTE_BANDS=""
 NSA_NR_BANDS=""
 SA_NR_BANDS=""
 
 case "$SCENARIO_ID" in
-    balanced)
-        AT_MODE="AUTO"
-        ;;
-    gaming)
-        AT_MODE="NR5G"
-        ;;
-    streaming)
-        AT_MODE="LTE:NR5G"
+    balanced|gaming|streaming)
+        # Built-in: no extra fields needed — scenario_apply resolves mode
         ;;
     custom-*)
         # Custom scenario: read config from POST body
@@ -127,44 +114,19 @@ esac
 
 qlog_info "Activating scenario: $SCENARIO_ID (mode=$AT_MODE, lte=$LTE_BANDS, nsa=$NSA_NR_BANDS, sa=$SA_NR_BANDS)"
 
-# --- Step 1: Set network mode ------------------------------------------------
-FAILED=""
-
-if ! send_at "AT+QNWPREFCFG=\"mode_pref\",${AT_MODE}" "mode_pref"; then
+# --- Apply via library -------------------------------------------------------
+if ! scenario_apply "$SCENARIO_ID" "$AT_MODE" "$LTE_BANDS" "$NSA_NR_BANDS" "$SA_NR_BANDS"; then
     cgi_error "modem_error" "Failed to set network mode"
     exit 0
 fi
 
-# --- Step 2: Set band locks (custom scenarios only, skip empty) ---------------
-if [ -n "$LTE_BANDS" ]; then
-    sleep 0.2
-    if ! send_at "AT+QNWPREFCFG=\"lte_band\",${LTE_BANDS}" "lte_band"; then
-        FAILED="lte_band"
-    fi
-fi
-
-if [ -n "$NSA_NR_BANDS" ]; then
-    sleep 0.2
-    if ! send_at "AT+QNWPREFCFG=\"nsa_nr5g_band\",${NSA_NR_BANDS}" "nsa_nr5g_band"; then
-        FAILED="${FAILED:+$FAILED,}nsa_nr5g_band"
-    fi
-fi
-
-if [ -n "$SA_NR_BANDS" ]; then
-    sleep 0.2
-    if ! send_at "AT+QNWPREFCFG=\"nr5g_band\",${SA_NR_BANDS}" "nr5g_band"; then
-        FAILED="${FAILED:+$FAILED,}nr5g_band"
-    fi
-fi
-
 # --- Persist active scenario to flash ----------------------------------------
-mkdir -p "$(dirname "$ACTIVE_SCENARIO_FILE")" 2>/dev/null
-printf '%s' "$SCENARIO_ID" > "$ACTIVE_SCENARIO_FILE"
+scenario_set_active "$SCENARIO_ID"
 
-# --- Response -----------------------------------------------------------------
-if [ -n "$FAILED" ]; then
-    qlog_warn "Scenario activated with partial band lock failure: $FAILED"
-    jq -n --arg id "$SCENARIO_ID" --arg detail "Band lock failed for: $FAILED" \
+# --- Response ----------------------------------------------------------------
+if [ -n "$_scenario_apply_failed" ]; then
+    qlog_warn "Scenario activated with partial band lock failure: $_scenario_apply_failed"
+    jq -n --arg id "$SCENARIO_ID" --arg detail "Band lock failed for: $_scenario_apply_failed" \
         '{"success":true,"id":$id,"warning":"partial_band_lock","detail":$detail}'
 else
     qlog_info "Scenario activated: $SCENARIO_ID"

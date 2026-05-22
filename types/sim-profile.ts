@@ -42,6 +42,15 @@ export interface ProfileSettings {
   ttl: number;
   /** IPv6 Hop Limit value (0-255). 0 = don't set. */
   hl: number;
+  /**
+   * Connection Scenario ID this profile binds to. When set, applying the
+   * profile also activates this scenario (network mode + band locks), and the
+   * standalone Scenarios / Band Locking pages are gated while the profile is
+   * active. Empty string or null = profile does not manage radio config.
+   *
+   * Valid values: "" | "balanced" | "gaming" | "streaming" | "custom-<ts>"
+   */
+  scenario_id: string | null;
 }
 
 /** APN connection settings */

@@ -1,11 +1,13 @@
 "use client";
 
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import BandCardsComponent from "./band-cards";
 import BandSettingsComponent from "./band-settings";
 import { useBandLocking } from "@/hooks/use-band-locking";
 import { useModemStatus } from "@/hooks/use-modem-status";
 import { useConnectionScenarios } from "@/hooks/use-connection-scenarios";
+import { useSimProfiles } from "@/hooks/use-sim-profiles";
+import { ProfileOverrideAlert } from "@/components/cellular/custom-profiles/profile-override-alert";
 import {
   parseBandString,
   getBandsForCategory,
@@ -72,8 +74,41 @@ const BandLockingComponent = () => {
     isLoading: scenariosLoading,
   } = useConnectionScenarios();
 
+  // --- SIM Profile override check -------------------------------------------
+  // When a Custom SIM Profile is active AND it binds a scenario_id, the
+  // profile owns radio config. This is a stricter gate than the scenario
+  // override below: even Balanced + a bound profile disables manual bands.
+  const { activeProfileId, getProfile } = useSimProfiles();
+  const [profileGate, setProfileGate] = useState<{
+    profileName: string;
+  } | null>(null);
+
+  useEffect(() => {
+    if (!activeProfileId) return;
+    let cancelled = false;
+    (async () => {
+      const profile = await getProfile(activeProfileId);
+      if (cancelled) return;
+      const boundId = profile?.settings.scenario_id || "";
+      if (profile && boundId) {
+        setProfileGate({ profileName: profile.name });
+      } else {
+        setProfileGate(null);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [activeProfileId, getProfile]);
+
+  const isProfileControlled = profileGate !== null;
+
   // --- Scenario override check ----------------------------------------------
   const isScenarioControlled = activeScenarioId !== "balanced";
+
+  // Final disabled state — profile gate trumps scenario gate (and is shown
+  // first when both apply, since profile is the higher-level owner)
+  const isLocked = isProfileControlled || isScenarioControlled;
 
   const activeScenarioName = useMemo(() => {
     if (!isScenarioControlled) return "";
@@ -111,8 +146,16 @@ const BandLockingComponent = () => {
         </p>
       </div>
 
-      {/* Scenario override banner */}
-      {isScenarioControlled && !isPageLoading && (
+      {/* Profile override banner — takes priority when both gates apply */}
+      {isProfileControlled && profileGate && !isPageLoading && (
+        <ProfileOverrideAlert
+          profileName={profileGate.profileName}
+          controls="Band locking"
+        />
+      )}
+
+      {/* Scenario override banner — shown only when there's no profile gate */}
+      {!isProfileControlled && isScenarioControlled && !isPageLoading && (
         <Alert className="mb-4">
           <InfoIcon className="size-4" />
           <AlertDescription>
@@ -131,7 +174,7 @@ const BandLockingComponent = () => {
           carrierComponents={carrierComponents}
           onToggleFailover={toggleFailover}
           isLoading={isPageLoading}
-          isScenarioControlled={isScenarioControlled}
+          isScenarioControlled={isLocked}
         />
         {BAND_CARDS.map(({ category, title, description }) => (
           <BandCardsComponent
@@ -150,7 +193,7 @@ const BandLockingComponent = () => {
             isLocking={lockingCategory === category}
             isLoading={isPageLoading}
             error={error}
-            disabled={isScenarioControlled}
+            disabled={isLocked}
           />
         ))}
       </div>

@@ -176,8 +176,34 @@ controls that have no AT equivalent: **Default Route**, **IP Passthrough**, and
 
 ---
 
+## APN gating by active SIM Profile
+
+When a Custom SIM Profile is active and its `settings.apn.name` is non-empty,
+the APN Management page becomes read-only — the profile owns the APN
+configuration for the bound SIM, and the user must edit the profile (not the
+APN page) to change it.
+
+- **Gate condition:** active profile exists and `settings.apn.name` is a
+  non-empty string. CID, PDP type, or auth settings alone do not trigger the
+  gate — only the APN name.
+- **UI behavior:** the page renders the standard banner from
+  `components/cellular/custom-profiles/profile-override-alert.tsx` and wraps
+  the form in `<fieldset disabled>` so every input and the save button are
+  inert.
+- **Independent of other gates:** this gate fires regardless of whether the
+  profile also binds a scenario or TTL/HL — see the gate matrix in
+  [sim-profiles.md](sim-profiles.md) for the full picture.
+
+The gate is purely a frontend concern; `cellular/apn.sh` itself does not yet
+emit a `profile_managed` error for APN POSTs (unlike `scenarios/activate.sh`).
+A power user who bypasses the UI can still write the APN, but the next
+profile apply will reconcile back to the profile's value.
+
+---
+
 ## Related
 
+- [sim-profiles.md](sim-profiles.md) — Custom SIM Profiles, including the full gate matrix and how the APN field is applied as step 1 of the 4-step apply pipeline.
 - [at-command-transport.md](at-command-transport.md) — how AT commands reach the modem (`qcmd`, `atcli_smd11`, `flock`).
 - `docs/API-REFERENCE.md` § `/cellular/apn.sh` — full request/response contract.
 - `docs/BACKEND.md` — CGI endpoint inventory.

@@ -31,6 +31,8 @@ import { AddScenarioItem } from "./add-scenario-item";
 import { ActiveConfigCard } from "./active-config-card";
 import { ScenarioItem, Scenario } from "./scenario-item";
 import { useConnectionScenarios } from "@/hooks/use-connection-scenarios";
+import { useSimProfiles } from "@/hooks/use-sim-profiles";
+import { ProfileOverrideAlert } from "@/components/cellular/custom-profiles/profile-override-alert";
 import {
   NETWORK_MODE_OPTIONS,
   modeValueToLabel,
@@ -116,7 +118,17 @@ const DEFAULT_SCENARIOS: Scenario[] = [
 // Main Component
 // =============================================================================
 
-const ConnectionScenariosCard = () => {
+interface ConnectionScenariosCardProps {
+  /** If true on mount, open the "New Scenario" dialog automatically. Used by
+   *  the deep-link from the SIM Profile form's "Create new custom scenario…"
+   *  Select item. After successful create, a special toast prompts the user
+   *  to return to their profile and select the new scenario. */
+  autoOpenAddDialog?: boolean;
+}
+
+const ConnectionScenariosCard = ({
+  autoOpenAddDialog,
+}: ConnectionScenariosCardProps = {}) => {
   const {
     activeScenarioId,
     customScenarios: storedScenarios,
@@ -126,6 +138,42 @@ const ConnectionScenariosCard = () => {
     saveCustomScenario,
     deleteCustomScenario,
   } = useConnectionScenarios();
+
+  // --- SIM Profile override check ------------------------------------------
+  // When an active Custom SIM Profile has a bound scenario_id, that profile
+  // owns scenario activation. The Activate button is disabled on every
+  // scenario card and a banner explains why. Edit/Delete of *custom* scenarios
+  // is intentionally NOT gated — users may legitimately edit a scenario
+  // definition while a profile is active.
+  const { activeProfileId, getProfile } = useSimProfiles();
+  const [profileGate, setProfileGate] = useState<{
+    profileName: string;
+    boundScenarioId: string;
+  } | null>(null);
+
+  useEffect(() => {
+    if (!activeProfileId) return;
+    let cancelled = false;
+    (async () => {
+      const profile = await getProfile(activeProfileId);
+      if (cancelled) return;
+      // null and "" both mean "no binding"
+      const boundId = profile?.settings.scenario_id || "";
+      if (profile && boundId) {
+        setProfileGate({
+          profileName: profile.name,
+          boundScenarioId: boundId,
+        });
+      } else {
+        setProfileGate(null);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [activeProfileId, getProfile]);
+
+  const isProfileControlled = profileGate !== null;
 
   // Convert backend StoredScenario[] → UI Scenario[] (add icon, pattern, isDefault)
   const customScenarios: Scenario[] = useMemo(
@@ -150,6 +198,21 @@ const ConnectionScenariosCard = () => {
   // --- Dialog state ----------------------------------------------------------
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
+
+  // Deep-link flag — remembers if the user arrived via ?action=create so we
+  // can show a tailored toast after the scenario is created. Latches once at
+  // mount; we don't re-open the dialog if the user dismisses it.
+  const [arrivedFromProfileForm, setArrivedFromProfileForm] = useState(
+    !!autoOpenAddDialog,
+  );
+
+  useEffect(() => {
+    if (autoOpenAddDialog) {
+      setShowAddDialog(true);
+    }
+    // Only auto-open on mount; ignore subsequent prop changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Add form state
   const [addName, setAddName] = useState("");
@@ -200,6 +263,9 @@ const ConnectionScenariosCard = () => {
   const handleActivate = useCallback(async () => {
     if (!selectedScenario || isActivating) return;
     if (selectedId === activeScenarioId) return;
+    // Belt-and-braces: even though the button is disabled, never let an
+    // activation through while the profile owns radio config.
+    if (isProfileControlled) return;
 
     const success = await activateScenario(selectedId, selectedScenario.config);
 
@@ -216,6 +282,7 @@ const ConnectionScenariosCard = () => {
     activeScenarioId,
     isActivating,
     activateScenario,
+    isProfileControlled,
   ]);
 
   // ---------------------------------------------------------------------------
@@ -248,7 +315,15 @@ const ConnectionScenariosCard = () => {
       setSelectedId(newId);
       setShowAddDialog(false);
       resetAddForm();
-      toast.success("Scenario created successfully.");
+      if (arrivedFromProfileForm) {
+        toast.success(
+          "Scenario created. Return to your profile and select it.",
+        );
+        // One-shot — subsequent creates show the normal toast.
+        setArrivedFromProfileForm(false);
+      } else {
+        toast.success("Scenario created successfully.");
+      }
     } else {
       toast.error("Failed to create scenario.");
     }
@@ -331,6 +406,16 @@ const ConnectionScenariosCard = () => {
   // ---------------------------------------------------------------------------
   return (
     <div className="grid gap-y-6">
+      {/* Profile override banner — shown when a Custom SIM Profile owns
+          scenario activation. Edit/Delete remain enabled; only Activate
+          is restricted. */}
+      {isProfileControlled && profileGate && !isLoading && (
+        <ProfileOverrideAlert
+          profileName={profileGate.profileName}
+          controls="Scenario activation"
+        />
+      )}
+
       {/* Row 1: Scenario Profile Cards */}
       <div className="col-span-full grid grid-cols-2 @3xl/main:grid-cols-4 gap-4">
         {isLoading ? (
@@ -360,6 +445,11 @@ const ConnectionScenariosCard = () => {
                     isSelected={selectedId === scenario.id}
                     onSelect={handleSelect}
                     onDelete={handleDeleteScenario}
+                    profileBoundName={
+                      profileGate?.boundScenarioId === scenario.id
+                        ? profileGate.profileName
+                        : undefined
+                    }
                   />
                 </motion.div>
               ))}
@@ -402,6 +492,8 @@ const ConnectionScenariosCard = () => {
             isActivating={isActivating}
             onEdit={handleOpenEditDialog}
             onActivate={handleActivate}
+            activateDisabled={isProfileControlled}
+            activeProfileName={profileGate?.profileName}
           />
         )}
       </div>
