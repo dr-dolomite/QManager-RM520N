@@ -6,7 +6,9 @@ Fixes the Data Used counter showing swapped or inaccurate upload/download totals
 
 ## ✨ New Features (v0.1.11)
 
-_Nothing yet for this release._
+- **Custom SIM Profiles can now bind to a Connection Scenario.** In the SIM Profile form you pick a built-in scenario (Balanced / Gaming / Streaming) or one of your custom scenarios, and applying the profile then also applies that scenario's network mode and band locks alongside APN, TTL/HL, and IMEI. The scenario step runs before the IMEI step (which reboots the modem) so radio config is already in place before the restart, and it re-applies on every profile activation — SIM switch, boot, watchdog recovery, or manual apply. New profiles default to Balanced (AUTO mode, no band lock); this is effectively a no-op on a stock modem but lets the profile reassert AUTO if you've previously switched to Gaming or Streaming through the Scenarios page. When a profile binds a non-Balanced scenario, the Connection Scenarios and Band Locking pages become read-only while that profile is active — the binding can only be changed by editing the profile. Balanced leaves both pages freely editable.
+
+- **"Create new custom scenario…" shortcut from the SIM Profile form.** The Connection Scenario picker in the profile form has a "+ Create new custom scenario…" option that deep-links to the Scenarios page and auto-opens the create dialog. If your profile form has unsaved changes, a confirm dialog asks before navigating away. After you save the new scenario, return to the profile form to select it.
 
 ## 🛠️ Improvements (v0.1.11)
 
