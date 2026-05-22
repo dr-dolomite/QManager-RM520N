@@ -1,36 +1,38 @@
-# 🚀 QManager RM520N BETA v0.1.11-draft
+# 🚀 QManager RM520N BETA v0.1.11
 
-Fixes the Data Used counter showing swapped or inaccurate upload/download totals on certain modem firmwares — QManager now reads the device's traffic figures straight from the Linux kernel instead of a firmware-specific modem counter, so the numbers are correct on every modem.
+Data Used counter swapped or inaccurate on your modem? Fixed — QManager now reads traffic totals straight from the Linux kernel, so the numbers are always correct regardless of firmware version.
 
-> One-click OTA from **System Settings → Software Update** if you're on v0.1.5 or newer. SSH/ADB is not required.
+> One-click OTA from **System Settings → Software Update** if you're on v0.1.5 or newer.
 
-## ✨ New Features (v0.1.11)
+## ✨ New Features
 
-- **Custom SIM Profiles can now bind to a Connection Scenario.** In the SIM Profile form you pick a built-in scenario (Balanced / Gaming / Streaming) or one of your custom scenarios, and applying the profile then also applies that scenario's network mode and band locks alongside APN, TTL/HL, and IMEI. The scenario step runs before the IMEI step (which reboots the modem) so radio config is already in place before the restart, and it re-applies on every profile activation — SIM switch, boot, watchdog recovery, or manual apply. New profiles default to Balanced (AUTO mode, no band lock); this is effectively a no-op on a stock modem but lets the profile reassert AUTO if you've previously switched to Gaming or Streaming through the Scenarios page. When a profile binds a non-Balanced scenario, the Connection Scenarios and Band Locking pages become read-only while that profile is active — the binding can only be changed by editing the profile. Balanced leaves both pages freely editable.
+- **SIM Profiles can now lock in a Connection Scenario.** Pick Balanced, Gaming, Streaming, or one of your custom scenarios in the profile form — when the profile activates (on SIM switch, boot, watchdog recovery, or manual apply), it applies the scenario's network mode and band locks alongside APN, TTL/HL, and IMEI. New profiles default to Balanced, which leaves your modem's current settings untouched. When a non-Balanced scenario is bound, the Connection Scenarios and Band Locking pages become read-only while that profile is active.
 
-- **"Create new custom scenario…" shortcut from the SIM Profile form.** The Connection Scenario picker in the profile form has a "+ Create new custom scenario…" option that deep-links to the Scenarios page and auto-opens the create dialog. If your profile form has unsaved changes, a confirm dialog asks before navigating away. After you save the new scenario, return to the profile form to select it.
+- **"+ Create new custom scenario" shortcut in the profile form.** The scenario picker now links directly to the Scenarios page and auto-opens the create dialog. If you have unsaved changes, you'll be asked before navigating away.
 
-## 🛠️ Improvements (v0.1.11)
+- **Custom DNS — override the upstream resolver for all LAN devices.** Under **Local Network → Custom DNS**, set up to 4 upstream servers (IPv4 or IPv6) — Cloudflare, Google, your own resolver, etc. Changes apply instantly with no reboot and no DHCP lease disruption. An "Ignore carrier DNS" toggle prevents the carrier's assigned resolvers from mixing in with your custom ones. Requires the modem's DNS Mode to be set to Proxy (the page will tell you if it isn't).
 
-- **Watchdog Tier 1 recovery action renamed from "Restart Network Interface" to "Re-register to Network"** to accurately reflect what it does — the action uses `AT+COPS=2` (deregister) then `AT+COPS=0` (re-register) to force a fresh cell registration.
+## 🛠️ Improvements
 
-- **`curl` is no longer required to install or update QManager.** The installer and the OTA updater now auto-detect whichever downloader your modem has — `curl` or `wget` — and use it. `curl` is still preferred when both are present, but it is never force-installed. This unblocks fresh installs on firmwares that ship `wget` only (common on x5x/x6x modems like the RM502/RM520/RM521).
+- **Watchdog Tier 1 renamed: "Re-register to Network"** — better reflects what actually happens (`AT+COPS=2` deregister → `AT+COPS=0` re-register).
 
-- **Tailscale SSH toggle behavior clarified.** QManager treats its SSH toggle as the source of truth and re-applies it on every reconnect, so the setting survives `tailscale up --reset`. If you carried a Tailscale install over from SimpleAdmin / the RGMII Toolkit, or you change SSH state via the `tailscale` CLI, the GUI won't see that change — and the next reconnect from the GUI will reset SSH back to whatever the toggle remembers. To resync after an out-of-band change, toggle the switch off and on in the GUI once.
+- **`curl` is no longer required to install or update QManager.** The installer auto-detects `curl` or `wget` and uses whichever is available. This unblocks fresh installs on firmwares that ship only `wget` (common on RM502/RM520/RM521).
 
-## 🐛 Fixes (v0.1.11)
+- **Tailscale SSH toggle is the source of truth.** QManager re-applies the toggle on every reconnect, so it survives `tailscale up --reset`. If you change SSH state via the CLI or carried over a Tailscale install from SimpleAdmin/RGMII Toolkit, the GUI won't see that change until you toggle the switch off and back on once.
 
-- **Data Used counter is now accurate on every modem firmware.** Some users still saw swapped or wrong upload/download totals — on certain modems the "uploaded" figure showed tens of gigabytes while "downloaded" showed almost nothing, or the two were simply reversed. The cause: QManager read the modem's `+QGDNRCNT` AT counter, whose two fields appear in a firmware-specific order, then ran a one-time calibration download to guess which field was upload and which was download. That guess was unreliable — it failed outright on x55-based modems (the RM502 series) and mis-fired on some RM520N-GL firmware builds, after which it locked itself to the wrong answer for the life of the install. QManager now skips the modem counter entirely and reads the byte totals straight from the Linux kernel's own network-interface statistics, where download and upload are labelled identically on every firmware — there is nothing left to guess. The throwaway calibration download has been removed as well. Your counter resets to zero on upgrade — this is intentional and clears any incorrect totals carried over from the old method.
+## 🐛 Fixes
+
+- **Data Used counter now shows correct upload/download on every firmware.** Some users saw swapped totals or a counter stuck near zero — caused by QManager relying on the modem's `+QGDNRCNT` AT command, which returns fields in a firmware-specific order that a one-time calibration download tried (and often failed) to detect. QManager now reads byte totals straight from the kernel's network interface stats, where the labels are consistent everywhere. The calibration download has been removed. **Your counter resets to zero on upgrade** — this clears any incorrect totals from the old method.
 
 ## 📥 Installation
 
 ### Upgrading from v0.1.10
 
-**System Settings → Software Update.** Click Download, then Install. No SSH/ADB needed. All settings preserved.
+**System Settings → Software Update** → Download → Install. No SSH/ADB needed. All settings preserved.
 
 ### Fresh Install
 
-ADB or SSH into the modem and run:
+SSH or ADB into the modem and run:
 
 ```sh
 curl -fsSL -o /tmp/qmanager-installer.sh \
@@ -38,7 +40,7 @@ curl -fsSL -o /tmp/qmanager-installer.sh \
   bash /tmp/qmanager-installer.sh
 ```
 
-If your modem has `wget` but not `curl` (common on x5x/x6x firmwares like RM502/RM520/RM521), just use `wget` instead — QManager auto-detects whichever downloader is available, so `curl` is no longer required at install time or for OTA updates:
+No `curl`? Use `wget` — the installer works either way:
 
 ```sh
 wget -O /tmp/qmanager-installer.sh \
@@ -50,8 +52,7 @@ wget -O /tmp/qmanager-installer.sh \
 
 Bug reports and feature requests welcome on [GitHub Issues](https://github.com/dr-dolomite/QManager-RM520N/issues).
 
-Like what's new? QManager is built and maintained for free — if these updates have made your setup a little better, you can show your support via [Wise](https://wise.com/pay/business/blackcatdev?currency=USD) or [PayPal](https://paypal.me/iamrusss). Every bit helps keep this project alive and growing. [GitHub Sponsors](https://github.com/sponsors/dr-dolomite) is also an option if that works better for you.
-
+Like what's new? QManager is built and maintained for free — if these updates have made your setup a little better, you can show your support via [Wise](https://wise.com/pay/business/blackcatdev?currency=USD) or [PayPal](https://paypal.me/iamrusss). Every bit helps keep this project alive. [GitHub Sponsors](https://github.com/sponsors/dr-dolomite) works too.
 
 **License:** MIT + Commons Clause — **Happy connecting!**
 
