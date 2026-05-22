@@ -75,9 +75,11 @@ const BandLockingComponent = () => {
   } = useConnectionScenarios();
 
   // --- SIM Profile override check -------------------------------------------
-  // When a Custom SIM Profile is active AND it binds a scenario_id, the
-  // profile owns radio config. This is a stricter gate than the scenario
-  // override below: even Balanced + a bound profile disables manual bands.
+  // When a Custom SIM Profile binds a NON-Balanced scenario_id, the profile
+  // owns radio config and band controls are disabled. A Balanced binding is
+  // treated as "no opinion" and leaves bands freely editable — the user can
+  // still lock bands manually, and the profile will re-apply Balanced (AUTO
+  // mode, bands unchanged) on its next activation.
   const { activeProfileId, getProfile } = useSimProfiles();
   const [profileGate, setProfileGate] = useState<{
     profileName: string;
@@ -90,7 +92,7 @@ const BandLockingComponent = () => {
       const profile = await getProfile(activeProfileId);
       if (cancelled) return;
       const boundId = profile?.settings.scenario_id || "";
-      if (profile && boundId) {
+      if (profile && boundId && boundId !== "balanced") {
         setProfileGate({ profileName: profile.name });
       } else {
         setProfileGate(null);

@@ -78,11 +78,6 @@ interface CustomProfileFormProps {
 // intercepted in onValueChange and NEVER written to form state.
 const CREATE_SCENARIO_SENTINEL = "__create__";
 
-// Sentinel for the "None — don't manage radio" option. Radix Select forbids
-// empty-string values on Select.Item, so we use a sentinel in the UI and map
-// it to/from "" when reading/writing form state.
-const NONE_SCENARIO_SENTINEL = "__none__";
-
 // Built-in scenario ids — kept in lockstep with DEFAULT_SCENARIOS from
 // types/connection-scenario.ts. Used to detect "unknown id" fallbacks.
 const BUILTIN_SCENARIO_IDS = ["balanced", "gaming", "streaming"] as const;
@@ -97,7 +92,7 @@ const DEFAULT_FORM_STATE: ProfileFormData = {
   imei: "",
   ttl: 64,
   hl: 64,
-  scenario_id: "",
+  scenario_id: "balanced",
 };
 
 function profileToFormData(profile: SimProfile): ProfileFormData {
@@ -112,8 +107,11 @@ function profileToFormData(profile: SimProfile): ProfileFormData {
     imei: s.imei,
     ttl: s.ttl,
     hl: s.hl,
-    // Older profile JSONs may not have scenario_id — treat null as "no binding"
-    scenario_id: s.scenario_id || "",
+    // Older profile JSONs may lack scenario_id (null/empty) — show Balanced.
+    // This auto-migrates legacy profiles to a Balanced binding on next save,
+    // which is a no-op for users on stock modems (Balanced sets mode=AUTO,
+    // the modem default).
+    scenario_id: s.scenario_id || "balanced",
   };
 }
 
@@ -256,10 +254,7 @@ const CustomProfileFormComponent = ({
       }
       return;
     }
-    // Map the "None" UI sentinel back to "" (the backend's empty-string
-    // representation of "no binding"; equivalent to null on read).
-    const next = value === NONE_SCENARIO_SENTINEL ? "" : value;
-    updateField("scenario_id", next);
+    updateField("scenario_id", value);
   };
 
   // Detect "unknown id" — user selected a custom scenario that has since been
@@ -511,24 +506,13 @@ const CustomProfileFormComponent = ({
                   Connection Scenario
                 </FieldLabel>
                 <Select
-                  value={
-                    form.scenario_id === ""
-                      ? NONE_SCENARIO_SENTINEL
-                      : form.scenario_id
-                  }
+                  value={form.scenario_id || "balanced"}
                   onValueChange={handleScenarioChange}
                 >
                   <SelectTrigger id="scenarioBinding">
-                    <SelectValue placeholder="(None — don't manage radio)" />
+                    <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {/* None — explicit unbind (sentinel mapped to "" on save) */}
-                    <SelectItem value={NONE_SCENARIO_SENTINEL}>
-                      (None — don&apos;t manage radio)
-                    </SelectItem>
-
-                    <SelectSeparator />
-
                     {/* Built-in scenarios */}
                     <SelectGroup>
                       <SelectLabel>Built-in</SelectLabel>
@@ -570,9 +554,11 @@ const CustomProfileFormComponent = ({
                   </SelectContent>
                 </Select>
                 <FieldDescription>
-                  When set, this profile will apply the scenario&apos;s network
-                  mode and band locks. The Scenarios and Band Locking pages
-                  will be disabled while the profile is active.
+                  The profile applies this scenario&apos;s network mode and
+                  band locks on activation. Balanced (AUTO mode, no band
+                  lock) leaves the Scenarios and Band Locking pages freely
+                  editable; any other binding disables them while the
+                  profile is active.
                 </FieldDescription>
               </Field>
 

@@ -140,11 +140,13 @@ const ConnectionScenariosCard = ({
   } = useConnectionScenarios();
 
   // --- SIM Profile override check ------------------------------------------
-  // When an active Custom SIM Profile has a bound scenario_id, that profile
-  // owns scenario activation. The Activate button is disabled on every
-  // scenario card and a banner explains why. Edit/Delete of *custom* scenarios
-  // is intentionally NOT gated — users may legitimately edit a scenario
-  // definition while a profile is active.
+  // When an active Custom SIM Profile binds a NON-Balanced scenario, that
+  // profile owns scenario activation: the Activate button is disabled on
+  // every card and a banner explains why. A Balanced binding doesn't gate
+  // anything — but we still populate profileGate so the "Active via X" badge
+  // renders on the Balanced card (informational: the profile will re-apply
+  // Balanced on its next apply, so any session-level override is temporary).
+  // Edit/Delete of *custom* scenarios is intentionally NOT gated.
   const { activeProfileId, getProfile } = useSimProfiles();
   const [profileGate, setProfileGate] = useState<{
     profileName: string;
@@ -173,7 +175,11 @@ const ConnectionScenariosCard = ({
     };
   }, [activeProfileId, getProfile]);
 
-  const isProfileControlled = profileGate !== null;
+  // Gate (banner + disabled activate) only when bound to a NON-Balanced
+  // scenario. The badge on the bound scenario card uses profileGate directly,
+  // so it still appears for Balanced bindings.
+  const isProfileControlled =
+    profileGate !== null && profileGate.boundScenarioId !== "balanced";
 
   // Convert backend StoredScenario[] → UI Scenario[] (add icon, pattern, isDefault)
   const customScenarios: Scenario[] = useMemo(

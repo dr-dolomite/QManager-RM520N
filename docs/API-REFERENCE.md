@@ -822,7 +822,7 @@ Activate a scenario. Applies network mode (`AT+QNWPREFCFG="mode_pref",...`) and,
 
 | `error` value | Cause |
 |---------------|-------|
-| `profile_managed` | The active SIM profile binds a scenario via `settings.scenario_id`. The CGI does not touch the modem — the user must edit the profile to change scenarios. Defense-in-depth against stale frontends bypassing the UI gate. |
+| `profile_managed` | The active SIM profile binds a non-Balanced scenario via `settings.scenario_id` (`gaming`, `streaming`, or a `custom-*` ID). The CGI does not touch the modem — the user must edit the profile to change scenarios. Defense-in-depth against stale frontends bypassing the UI gate. A `"balanced"` binding is deliberately allowed through, since Balanced is treated as "no opinion." |
 | `no_id` | Missing `id` field |
 | `invalid_id` | Unknown scenario ID (not built-in, not a known custom) |
 | `no_mode` | Custom scenario request missing `mode` |

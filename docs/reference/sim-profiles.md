@@ -55,13 +55,15 @@ points (boot, SIM switch, watchdog) and are still current.
 
 ### `settings.scenario_id`
 
-The `scenario_id` field is the profile's optional binding to a Connection
-Scenario. It encodes a **reference**, not a copy.
+The `scenario_id` field is the profile's binding to a Connection Scenario.
+It encodes a **reference**, not a copy. New profiles created via the
+frontend default to `"balanced"`.
 
 | Value | Meaning |
 |-------|---------|
-| `""` (empty) | No binding. The scenario step is skipped at apply time. |
-| `"balanced"` / `"gaming"` / `"streaming"` | Built-in scenario. `scenario_apply` resolves the mode (`AUTO` / `NR5G` / `LTE:NR5G`) and sends `AT+QNWPREFCFG="mode_pref",<mode>`. Built-ins never carry band locks — the user controls those via the Band Locking page when no profile is bound. |
+| `""` (empty) | Legacy value — present only on profile JSONs saved before scenario binding shipped. The scenario step is skipped at apply time. The frontend no longer emits this; loading such a profile in the form auto-migrates the display to Balanced, which is persisted on next save. |
+| `"balanced"` | Built-in Balanced scenario. `scenario_apply` sends `AT+QNWPREFCFG="mode_pref",AUTO`. Treated as "no opinion" for UI gating purposes — see [Gate matrix](#gate-matrix) below. |
+| `"gaming"` / `"streaming"` | Built-in scenario. `scenario_apply` resolves the mode (`NR5G` / `LTE:NR5G`) and sends `AT+QNWPREFCFG="mode_pref",<mode>`. Built-ins never carry band locks. |
 | `"custom-<timestamp>"` | Custom scenario stored at `/etc/qmanager/scenarios/<id>.json`. The apply step looks up the JSON, reads `mode_pref` and the optional `lte_bands` / `nsa_nr_bands` / `nr5g_band` strings, and applies them. |
 
 > ℹ️ NOTE: Because `scenario_id` is a reference, **editing the referenced
@@ -74,6 +76,17 @@ Scenario. It encodes a **reference**, not a copy.
 `profile_save` validates `scenario_id` against the same enum: empty, the three
 built-in names, or a `custom-*` ID that exists on disk. Anything else is
 rejected.
+
+#### Why Balanced is treated as "no opinion"
+
+All three built-in scenarios leave band fields empty; only `mode_pref` differs.
+Balanced sets `mode_pref=AUTO`, which is the modem's factory default — so a
+Balanced binding is effectively a no-op on a stock modem. Binding a profile to
+Balanced therefore expresses *"this profile doesn't care about radio config,"*
+which is why the Connection Scenarios and Band Locking pages stay editable
+when bound to Balanced (the user can override freely; the profile will
+re-apply Balanced on next activation, but that's a no-op against a modem
+that's already on AUTO).
 
 ---
 
@@ -132,7 +145,9 @@ globally — a profile that only sets APN gates only the APN page.
 |----------------------|---------------|-------------|
 | `settings.apn.name` non-empty | APN Management page | Banner + `<fieldset disabled>` over the form |
 | `settings.ttl > 0` or `settings.hl > 0` | TTL/HL Settings card (existing — predates the scenario feature) | Banner + disabled inputs |
-| `settings.scenario_id` non-empty | Connection Scenarios page **and** Band Locking page | Scenarios: "Activate" buttons disabled; bound scenario shows "Active via {profile.name}". Band Locking: full disable. |
+| `settings.scenario_id` set to `gaming` / `streaming` / `custom-*` | Connection Scenarios page **and** Band Locking page | Scenarios: "Activate" buttons disabled; bound scenario shows "Active via {profile.name}". Band Locking: full disable. |
+| `settings.scenario_id == "balanced"` | (nothing — Balanced is treated as "no opinion") | The bound scenario card (Balanced) still shows the "Active via {profile.name}" badge as an informational marker, but no banner appears and Activate buttons stay enabled across all scenarios. |
+| `settings.scenario_id == ""` or null | (nothing) | Pre-binding profiles or legacy data. |
 | `settings.imei` non-empty | (no UI gate — applied only at profile-apply time) | n/a |
 
 The reusable banner component is
@@ -143,7 +158,7 @@ The reusable banner component is
 The frontend gates exist for UX, but a stale browser tab could still POST to
 `scenarios/activate.sh` or `bands/lock.sh`. To prevent that desyncing the
 modem, `scenarios/activate.sh` reads the active profile's `scenario_id` and,
-if non-empty, returns:
+if it's set to anything other than `""` or `"balanced"`, returns:
 
 ```json
 { "success": false, "error": "profile_managed",
@@ -151,19 +166,21 @@ if non-empty, returns:
 ```
 
 …without touching the modem. The frontend treats `profile_managed` as a
-"refresh your view" signal rather than a real error.
+"refresh your view" signal rather than a real error. The Balanced case is
+deliberately allowed through — see [Why Balanced is treated as "no opinion"](#why-balanced-is-treated-as-no-opinion).
 
 ---
 
 ## Creating the binding from the SIM Profile form
 
-The Connection Scenario Select in
-`components/cellular/custom-profiles/custom-profile-form.tsx` uses two
-sentinel option values:
+New profiles default to `scenario_id = "balanced"`. The user picks any
+built-in or custom scenario from the Select; there's no "None" option —
+Balanced is the de-facto no-op value.
+
+The Select uses one sentinel option value:
 
 | Sentinel | Meaning |
 |----------|---------|
-| `__none__` | Maps to `scenario_id = ""` (no binding). |
 | `__create__` | "+ Create new custom scenario…" — deep-links to `/cellular/custom-profiles/connection-scenarios?action=create`, which auto-opens the create-scenario dialog. If the profile form is dirty, an AlertDialog prompts the user to discard changes before navigating. |
 
 The destination page wraps `useSearchParams()` in `<Suspense>` (Next.js

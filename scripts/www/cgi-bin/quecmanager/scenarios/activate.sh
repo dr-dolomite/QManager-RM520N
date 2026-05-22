@@ -52,13 +52,16 @@ if [ -z "$SCENARIO_ID" ]; then
 fi
 
 # --- Profile-managed guard ---------------------------------------------------
-# If the active SIM profile has a scenario_id bound to it, the user cannot
+# If the active SIM profile binds a non-Balanced scenario_id, the user cannot
 # activate scenarios independently — the profile owns radio config.
+# A "balanced" binding is treated as "no opinion" (same as no binding); the
+# user may still pick any scenario freely. The profile will re-assert Balanced
+# on its next apply, so any override is session-level only.
 ACTIVE_PROFILE_ID=$(get_active_profile)
 if [ -n "$ACTIVE_PROFILE_ID" ]; then
     BOUND_SCENARIO=$(jq -r '.settings.scenario_id // empty' \
         "/etc/qmanager/profiles/${ACTIVE_PROFILE_ID}.json" 2>/dev/null)
-    if [ -n "$BOUND_SCENARIO" ]; then
+    if [ -n "$BOUND_SCENARIO" ] && [ "$BOUND_SCENARIO" != "balanced" ]; then
         cgi_error "profile_managed" "Scenarios are managed by the active SIM profile"
         exit 0
     fi

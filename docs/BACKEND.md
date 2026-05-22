@@ -998,7 +998,7 @@ For request/response schemas, see `API-REFERENCE.md`.
 
 | Script | Method | Description |
 |--------|--------|-------------|
-| `scenarios/activate.sh` | POST | Apply a connection scenario (band lock + network mode). Returns `profile_managed` error without touching the modem if the active SIM profile has a non-empty `settings.scenario_id` (defense-in-depth for stale frontends). |
+| `scenarios/activate.sh` | POST | Apply a connection scenario (band lock + network mode). Returns `profile_managed` error without touching the modem if the active SIM profile binds a non-Balanced scenario via `settings.scenario_id` (defense-in-depth for stale frontends). A `"balanced"` binding is allowed through — Balanced is treated as "no opinion" both on the UI gates and at this guard. |
 | `scenarios/active.sh` | GET | Return currently active scenario ID |
 | `scenarios/delete.sh` | POST | Delete a scenario |
 | `scenarios/list.sh` | GET | Return all saved scenarios |
