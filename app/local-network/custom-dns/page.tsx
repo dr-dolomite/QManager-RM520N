@@ -10,7 +10,9 @@ const CustomDnsPage = () => {
           queries.
         </p>
       </div>
-      <CustomDnsCard />
+      <div className="grid gap-4 @4xl:grid-cols-2">
+        <CustomDnsCard />
+      </div>
     </div>
   );
 };

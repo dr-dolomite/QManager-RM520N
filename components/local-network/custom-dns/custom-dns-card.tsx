@@ -24,6 +24,7 @@ import {
 
 import {
   Card,
+  CardAction,
   CardContent,
   CardDescription,
   CardHeader,
@@ -41,6 +42,7 @@ import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { MetaPanel, MetaPair } from "@/components/ui/meta-panel";
 import { SaveButton, useSaveFlash } from "@/components/ui/save-button";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -311,15 +313,14 @@ const CustomDnsCard = () => {
             Override the carrier-provided resolver dnsmasq forwards to. LAN
             clients keep querying the modem; only the upstream changes.
           </CardDescription>
+          <CardAction>
+            <Skeleton className="h-6 w-32 rounded-md" />
+          </CardAction>
         </CardHeader>
         <CardContent>
           <div className="grid gap-6">
-            {/* Status strip */}
-            <div className="flex flex-wrap items-center gap-2">
-              <Skeleton className="h-4 w-44" />
-              <Skeleton className="h-4 w-32" />
-              <Skeleton className="h-6 w-24" />
-            </div>
+            {/* MetaPanel — current upstream readout */}
+            <Skeleton className="h-[68px] w-full rounded-md" />
             {/* Switch row */}
             <div className="flex items-center justify-between gap-4">
               <Skeleton className="h-4 w-56" />
@@ -380,8 +381,6 @@ const CustomDnsCard = () => {
   };
 
   const currentUpstream = settings?.currentUpstream ?? [];
-  const currentUpstreamLabel =
-    currentUpstream.length > 0 ? currentUpstream.join(", ") : "—";
 
   return (
     <div className="grid gap-4">
@@ -407,6 +406,7 @@ const CustomDnsCard = () => {
             Override the carrier-provided resolver dnsmasq forwards to. LAN
             clients keep querying the modem; only the upstream changes.
           </CardDescription>
+          <CardAction>{renderStatusBadge()}</CardAction>
           {passthroughBypass && (
             <p className="mt-2 text-sm text-muted-foreground">
               IP Passthrough is bypassing dnsmasq; this setting only affects
@@ -433,16 +433,30 @@ const CustomDnsCard = () => {
           )}
 
           <form className="grid gap-6" onSubmit={handleSubmit}>
-            {/* Zone 1: Status strip */}
-            <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-              <span className="text-sm text-muted-foreground">
-                Currently forwarding to
-              </span>
-              <span className="font-mono text-sm text-foreground tabular-nums">
-                {currentUpstreamLabel}
-              </span>
-              {renderStatusBadge()}
-            </div>
+            {/* Zone 1: Current upstream readout. Hidden when unavailable —
+                the Alert above the card already explains the state, so an
+                additional "—" panel would be redundant noise. */}
+            {available && (
+              <MetaPanel title="Currently forwarding">
+                <div className="mt-2 grid grid-cols-1 gap-x-3 gap-y-1 @sm:grid-cols-2">
+                  {currentUpstream.length > 0 ? (
+                    currentUpstream.map((ip, i) => (
+                      <MetaPair
+                        key={`${ip}-${i}`}
+                        label={
+                          currentUpstream.length === 1
+                            ? "Resolver"
+                            : `Resolver ${i + 1}`
+                        }
+                        value={ip}
+                      />
+                    ))
+                  ) : (
+                    <MetaPair label="Resolver" value="—" />
+                  )}
+                </div>
+              </MetaPanel>
+            )}
 
             {/* Zone 2: Controls */}
             <FieldSet>
