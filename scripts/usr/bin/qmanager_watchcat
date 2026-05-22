@@ -285,8 +285,8 @@ wait_for_modem() {
 # =============================================================================
 
 execute_tier1() {
-    qlog_info "TIER 1: Network deregister/reregister (AT+COPS)"
-    append_event "watchcat_recovery" "Watchcat: network deregister/reregister (Tier 1)" "warning"
+    qlog_info "TIER 1: Re-register to network (AT+COPS)"
+    append_event "watchcat_recovery" "Watchcat: re-register to network (Tier 1)" "warning"
 
     touch "$RECOVERY_FLAG"
     qcmd 'AT+COPS=2' 2>/dev/null

@@ -91,7 +91,7 @@ const STATE_BADGE_CONFIG: Record<
 
 const TIER_LABELS: Record<number, string> = {
   0: "\u2014",
-  1: "Restart Network Interface",
+  1: "Re-register to Network",
   2: "Restart Modem Radio",
   3: "Switch to Backup SIM",
   4: "Reboot Device",

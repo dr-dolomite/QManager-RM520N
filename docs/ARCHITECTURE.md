@@ -244,10 +244,10 @@ MONITOR ──(failures)──► SUSPECT ──(confirmed)──► RECOVERY �
                                                      └──► LOCKED ─────────────┘
                                                            (manual reset)
 
-Tier 1: ifup wan          (restart interface)
-Tier 2: CFUN toggle       (reset modem radio — SKIPPED if tower lock active)
-Tier 3: SIM failover      (switch SIM slot using Golden Rule sequence)
-Tier 4: Full reboot       (max 3/hour via token bucket, auto-disables permanently)
+Tier 1: Re-register to Network  (AT+COPS=2/0 — deregister then reregister)
+Tier 2: CFUN toggle             (reset modem radio — SKIPPED if tower lock active)
+Tier 3: SIM failover            (switch SIM slot using Golden Rule sequence)
+Tier 4: Full reboot             (max 3/hour via token bucket, auto-disables permanently)
 ```
 
 ### SIM Swap Procedure (Golden Rule)

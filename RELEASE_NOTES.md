@@ -10,6 +10,8 @@ _Nothing yet for this release._
 
 ## 🛠️ Improvements (v0.1.11)
 
+- **Watchdog Tier 1 recovery action renamed from "Restart Network Interface" to "Re-register to Network"** to accurately reflect what it does — the action uses `AT+COPS=2` (deregister) then `AT+COPS=0` (re-register) to force a fresh cell registration. No Linux network interface is touched.
+
 - **`curl` is no longer required to install or update QManager.** The installer and the OTA updater now auto-detect whichever downloader your modem has — `curl` or `wget` — and use it. `curl` is still preferred when both are present, but it is never force-installed. This unblocks fresh installs on firmwares that ship `wget` only (common on x5x/x6x modems like the RM502/RM520/RM521).
 
 ## 🐛 Fixes (v0.1.11)

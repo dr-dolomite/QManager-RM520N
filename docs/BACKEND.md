@@ -546,12 +546,12 @@ MONITOR -> SUSPECT -> RECOVERY -> COOLDOWN -> MONITOR
 
 **Escalation tiers:**
 
-| Tier | Action | Guard |
-|------|--------|-------|
-| 1 | Network deregister/reregister (`AT+COPS=2/0`) | Enabled by default |
-| 2 | Radio toggle (`AT+CFUN=0/1`) | Skipped if tower lock active |
-| 3 | SIM failover (`AT+QUIMSLOT`) | Disabled by default; Golden Rule sequence |
-| 4 | System reboot | Token bucket: max N/hour; auto-disables if limit hit |
+| Tier | UI Label | Action | Guard |
+|------|----------|--------|-------|
+| 1 | Re-register to Network | Network deregister/reregister (`AT+COPS=2/0`) | Enabled by default |
+| 2 | CFUN Toggle | Radio toggle (`AT+CFUN=0/1`) | Skipped if tower lock active |
+| 3 | SIM Failover | SIM failover (`AT+QUIMSLOT`) | Disabled by default; Golden Rule sequence |
+| 4 | Reboot | System reboot | Token bucket: max N/hour; auto-disables if limit hit |
 
 LOCKED state: set by touching `/tmp/qmanager_watchcat.lock`. Watchcat sleeps until the file is removed. The update worker and installer touch this file during OTA operations.
 
