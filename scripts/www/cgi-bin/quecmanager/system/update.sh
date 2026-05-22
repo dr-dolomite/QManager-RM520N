@@ -2,6 +2,7 @@
 . /usr/lib/qmanager/cgi_base.sh
 . /usr/lib/qmanager/config.sh
 . /usr/lib/qmanager/semver.sh
+. /usr/lib/qmanager/downloader.sh
 # =============================================================================
 # update.sh — CGI Endpoint: Software Update (GET + POST)
 # =============================================================================
@@ -73,14 +74,12 @@ check_lock() {
 }
 
 # Fetch URL to a file, capturing HTTP headers for rate-limit detection.
-# curl is the sole transport (TLS + -D header capture).
+# Transport is curl or wget, whichever the device has (see downloader.sh).
+# Header format differs between the two — the rate-limit parsing below uses
+# case-insensitive grep so it works with either.
 http_api_fetch() {
     local url="$1" out_file="$2" header_file="$3" timeout="${4:-15}"
-
-    if ! command -v curl >/dev/null 2>&1; then
-        return 1
-    fi
-    curl -sL --max-time "$timeout" -o "$out_file" -D "$header_file" "$url"
+    qm_download_headers "$url" "$out_file" "$header_file" "$timeout"
 }
 
 # =============================================================================

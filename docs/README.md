@@ -76,8 +76,8 @@ The `out/` directory contains the complete frontend — deploy it to the OpenWRT
 - **Live Signal Monitoring** — Real-time RSRP, RSRQ, SINR with per-antenna values and historical charts
 - **Band & Tower Locking** — Lock specific LTE/NR bands, frequencies, or cell towers (PCI)
 - **APN Management** — Create, edit, and switch APN profiles with MNO presets
-- **Custom SIM Profiles** — Save and apply multi-step configurations (APN + TTL + IMEI)
-- **Connection Watchdog** — 4-tier auto-recovery: ifup, CFUN toggle, SIM failover, reboot
+- **Custom SIM Profiles** — Save and apply multi-step configurations (APN + TTL/HL + Connection Scenario + IMEI), bound to a SIM by ICCID
+- **Connection Watchdog** — 4-tier auto-recovery: Re-register to Network, CFUN toggle, SIM failover, reboot
 - **Email Alerts** — Downtime notifications via Gmail SMTP on recovery
 - **Latency Monitoring** — Real-time ping with 24-hour history and aggregated views
 - **Cell Scanner** — Active and neighbor cell scanning with frequency calculator

@@ -256,19 +256,18 @@ export interface TrafficStatus {
 }
 
 /**
- * Persistent data-usage counter maintained by the poller across modem reboots
- * and interface flaps. Sourced from AT+QGDCNT / AT+QGDNRCNT.
+ * Persistent data-usage counter maintained by the poller across modem
+ * reboots and interface flaps. Sourced from the kernel rmnet interface
+ * byte counters (/proc/net/dev) — the kernel labels rx/tx identically on
+ * every firmware, so no AT-counter orientation calibration is needed.
  * Served by /cgi-bin/quecmanager/network/data_used.sh
  */
 export interface DataUsedBlock {
-  /** Cumulative received bytes (persisted across reboots) */
+  /** Cumulative received bytes (download), persisted across reboots */
   accumulated_rx_bytes: number;
-  /** Cumulative transmitted bytes (persisted across reboots) */
+  /** Cumulative transmitted bytes (upload), persisted across reboots */
   accumulated_tx_bytes: number;
-  /**
-   * Which AT counter the poller is currently using.
-   * "qgdcnt" = LTE, "qgdnrcnt" = 5G SA/NSA, "" = not yet selected.
-   */
+  /** Counter source — the kernel interface name (e.g. "rmnet_ipa0"). */
   selected_counter: string;
   /** Unix epoch (seconds) of the last poller write to this block */
   last_update_ts: number;
@@ -277,15 +276,15 @@ export interface DataUsedBlock {
    * 0 means never reset (fresh install).
    */
   last_reset_ts: number;
-  /** Number of times the poller detected a counter divergence */
-  divergence_count: number;
-  /** Number of times the modem has been reset since the last user reset */
-  modem_reset_count: number;
-  /** Number of LTE↔5G mode transitions since the last user reset */
-  mode_transition_count: number;
   /**
-   * True when the poller has not updated this block recently (cache is stale).
-   * CGI sets this flag when the on-disk file is older than expected.
+   * Times the kernel interface counter reset (modem reboot / interface
+   * re-creation) since the last user reset. Each reset rebases the
+   * baseline without accumulating the in-flight bytes.
+   */
+  modem_reset_count: number;
+  /**
+   * True when the poller has not updated this block recently (cache is
+   * stale). CGI sets this when the on-disk file is older than expected.
    */
   stale: boolean;
 }
@@ -672,6 +671,12 @@ export function formatBitsPerSec(bitsPerSec: number): string {
  * e.g., 1073741824 → "1.0 GB"
  */
 export function formatBytes(bytes: number): string {
+  // Defense in depth — a negative value would slip through every magnitude
+  // branch below and render as raw "-12345 B". Clamp to 0 so any future
+  // counter wrap (or fresh post-reset state) renders cleanly. See the
+  // BusyBox-sh overflow fix in qmanager_poller for the original case that
+  // produced negatives in v0.1.9.
+  if (bytes < 0) return "0 B";
   if (bytes >= 1_073_741_824) {
     return `${(bytes / 1_073_741_824).toFixed(1)} GB`;
   }

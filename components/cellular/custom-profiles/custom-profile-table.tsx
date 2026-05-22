@@ -2,9 +2,8 @@
 
 import * as React from "react";
 import { motion } from "motion/react";
-import { TriangleAlertIcon } from "lucide-react";
+import { CheckCircle2Icon, TriangleAlertIcon } from "lucide-react";
 import {
-  TbCircleCheckFilled,
   TbDotsVertical,
   TbEdit,
   TbPlayerPlay,
@@ -49,8 +48,15 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
-import type { ProfileSummary } from "@/types/sim-profile";
+import type { ProfileApplyState, ProfileSummary } from "@/types/sim-profile";
 import { formatProfileDate } from "@/types/sim-profile";
+
+/** Short clock-time formatter for the "Applied at" row breadcrumb. */
+const formatAppliedTime = (ts: number) =>
+  new Date(ts * 1000).toLocaleTimeString(undefined, {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 
 // =============================================================================
 // ProfileTable — Displays saved SIM profiles with actions
@@ -67,6 +73,8 @@ interface ProfileTableProps {
   onActivate?: (id: string) => void;
   onDeactivate?: () => void;
   currentIccid?: string | null;
+  /** Most recent terminal apply state — surfaces "Applied at HH:MM" on the matching row */
+  lastApplyState?: ProfileApplyState | null;
 }
 
 export function ProfileTable({
@@ -77,6 +85,7 @@ export function ProfileTable({
   onActivate,
   onDeactivate,
   currentIccid,
+  lastApplyState,
 }: ProfileTableProps) {
   const [deleteTarget, setDeleteTarget] = React.useState<ProfileSummary | null>(
     null
@@ -115,40 +124,73 @@ export function ProfileTable({
         header: "Status",
         cell: ({ row }) => {
           const isActive = row.original.id === activeProfileId;
+          const appliedHere =
+            lastApplyState &&
+            lastApplyState.profile_id === row.original.id &&
+            ["complete", "partial", "failed"].includes(lastApplyState.status)
+              ? lastApplyState
+              : null;
+
+          // Audit line below the badge — visible on whichever row received the
+          // most recent apply, regardless of whether it's the active profile.
+          const auditLine = appliedHere ? (
+            <div
+              className={`text-xs mt-1 ${
+                appliedHere.status === "failed"
+                  ? "text-destructive"
+                  : appliedHere.status === "partial"
+                  ? "text-warning"
+                  : "text-muted-foreground"
+              }`}
+            >
+              {appliedHere.status === "complete"
+                ? "Applied"
+                : appliedHere.status === "partial"
+                ? "Partial apply"
+                : "Apply failed"}{" "}
+              at {formatAppliedTime(appliedHere.started_at)}
+            </div>
+          ) : null;
+
+          let badge: React.ReactNode;
           if (isActive) {
             const profileIccid = row.original.sim_iccid;
             const isMismatch =
               profileIccid && currentIccid && profileIccid !== currentIccid;
 
-            if (isMismatch) {
-              return (
-                <Badge
-                  variant="outline"
-                  className="px-1.5 bg-warning/15 text-warning hover:bg-warning/20 border-warning/30"
-                >
-                  <TriangleAlertIcon className="size-3" />
-                  SIM Mismatch
-                </Badge>
-              );
-            }
-
-            return (
+            badge = isMismatch ? (
               <Badge
                 variant="outline"
-                className="px-1.5 text-blue-600 border-blue-200 bg-blue-50 dark:bg-blue-950 dark:border-blue-800"
+                className="px-1.5 bg-warning/15 text-warning hover:bg-warning/20 border-warning/30"
               >
-                <TbCircleCheckFilled className="fill-blue-500 dark:fill-blue-400" />
+                <TriangleAlertIcon className="size-3" />
+                SIM Mismatch
+              </Badge>
+            ) : (
+              <Badge
+                variant="outline"
+                className="px-1.5 bg-success/15 text-success hover:bg-success/20 border-success/30"
+              >
+                <CheckCircle2Icon className="size-3" />
                 Active
               </Badge>
             );
+          } else {
+            badge = (
+              <Badge
+                variant="outline"
+                className="px-1.5 bg-muted/50 text-muted-foreground border-muted-foreground/30"
+              >
+                Inactive
+              </Badge>
+            );
           }
+
           return (
-            <Badge
-              variant="outline"
-              className="px-1.5 text-muted-foreground"
-            >
-              Inactive
-            </Badge>
+            <div>
+              {badge}
+              {auditLine}
+            </div>
           );
         },
       },
@@ -208,7 +250,7 @@ export function ProfileTable({
         ),
       },
     ],
-    [activeProfileId, onEdit, onActivate, onDeactivate, currentIccid]
+    [activeProfileId, onEdit, onActivate, onDeactivate, currentIccid, lastApplyState]
   );
 
   const table = useReactTable({

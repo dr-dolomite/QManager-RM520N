@@ -373,39 +373,120 @@ Start speed test, check results, and check if speedtest binary is available.
 
 ### GET/POST `/cellular/apn.sh`
 
-**GET Response:**
+WAN Profile Management. AT-only on the RM520N-GL — every field is sourced from
+AT commands through `qcmd`; there is no Casa RDB or wmmd daemon. The endpoint
+exposes 6 WAN profile slots, one per PDP context CID (1-6). See
+`docs/reference/wan-profile-management.md` for the full subsystem reference.
+
+**GET (list all 6 slots):**
+
+Iterates CIDs 1-6 and builds each slot from `AT+CGDCONT?` (APN, PDP type),
+`AT+CGACT?` (activation state), `AT+QICSGP=<cid>` (auth type, username, password
+presence), and — for active contexts only — `AT+CGCONTRDP=<cid>` (IP, gateway,
+DNS). Profile names come from a sidecar file. Undefined CIDs (usually 4-6) are
+emitted as empty slots.
+
 ```json
 {
   "success": true,
+  "max_profiles": 6,
+  "data_source": "at",
   "profiles": [
     {
-      "cid": 1,
+      "index": 1,
+      "name": "T-Mobile",
       "apn": "fast.t-mobile.com",
-      "pdp_type": "IPV4V6",
-      "is_data": true
+      "pdp_type": "ipv4v6",
+      "auth_type": "none",
+      "username": "",
+      "has_password": false,
+      "mtu": null,
+      "enabled": true,
+      "default_route": false,
+      "ip_passthrough": false,
+      "modem_profile": 1,
+      "apn_type": "",
+      "vlan_index": "",
+      "status_ipv4": "up",
+      "status_ipv6": "",
+      "connect_progress": "connected",
+      "ipv4_address": "10.0.0.1",
+      "ipv4_gateway": "10.0.0.2",
+      "dns1": "8.8.8.8",
+      "dns2": "8.8.4.4",
+      "ipv6_address": "",
+      "mtu_negotiated": null,
+      "interface": "",
+      "pdp_error": ""
     }
-  ],
-  "active_cid": 1
+  ]
 }
 ```
 
-**POST Request (create/update):**
+- `data_source`: always `"at"` on this modem. The field exists so the frontend can hide wmmd/Casa-only controls (Default Route, IP Passthrough, VLAN mapping).
+- `pdp_type`: `"ipv4"` | `"ipv6"` | `"ipv4v6"` (AT `IP`/`IPV6`/`IPV4V6` mapped to lowercase).
+- `auth_type`: `"none"` | `"pap"` | `"chap"`.
+- `has_password`: `true` when a PDP password is stored. The password itself is **never** emitted.
+- `enabled`: PDP context activation state from `AT+CGACT?` (state `1` = active).
+- `apn_type`: `"ims"` or `"emergency"` for the carrier's IMS (VoLTE) and SOS contexts (usually CIDs 2/3) — the UI locks those slots read-only. Empty for normal data profiles.
+- `mtu` / `mtu_negotiated`: always `null`. RM520N-GL AT has no reliable per-context MTU read or write, and `AT+CGCONTRDP` on this firmware returns no MTU field.
+- `connect_progress`: `"connected"` (has an IP) | `"connecting"` (enabled, no IP yet) | `"disconnected"`.
+
+**POST `save` (write a profile):**
+
 ```json
 {
-  "action": "set",
-  "cid": 1,
+  "action": "save",
+  "index": 1,
+  "name": "T-Mobile",
   "apn": "fast.t-mobile.com",
-  "pdp_type": "IPV4V6"
+  "pdp_type": "ipv4v6",
+  "auth_type": "none",
+  "username": "",
+  "password": ""
 }
 ```
 
-**POST Request (delete):**
+Detaches the radio with `AT+COPS=2`, writes APN + PDP type via `AT+CGDCONT`,
+writes auth via `AT+QICSGP` (`AT+CGAUTH` is unsupported on RM520N-GL
+firmware), persists `name` to the sidecar, then re-attaches with `AT+COPS=0`
+so the modem sends a fresh Attach Request carrying the new APN. The full
+attach cycle is required because the default EPS bearer's APN is a contract
+field set at attach time — `AT+CGACT` alone cannot change it. The cellular
+WAN drops briefly (~5-10s) during the cycle; SSH and the CGI HTTP path are
+on LAN/Wi-Fi and are not affected. See
+`docs/reference/wan-profile-management.md` for the full rationale.
+
+- `index`: required, 1-6 (the PDP context CID).
+- `apn`: required. `apn`/`username`/`password` may not contain a double-quote.
+- `pdp_type`: required, one of `ipv4` / `ipv6` / `ipv4v6`.
+- `auth_type`: `none` (default) / `pap` / `chap`. With `none`, stored credentials are cleared.
+- `password`: optional. A blank password on a PAP/CHAP save **keeps** the existing stored secret.
+- `mtu`: optional. A non-default MTU is logged and ignored (no per-context MTU write exists). It is never reported as a successful write.
+
+**POST `toggle` (activate/deactivate a context):**
+
 ```json
 {
-  "action": "delete",
-  "cid": 3
+  "action": "toggle",
+  "index": 1,
+  "enabled": false
 }
 ```
+
+Activates (`true`) or deactivates (`false`) one PDP context via `AT+CGACT`.
+
+**Error codes:**
+
+| Code | Meaning |
+|------|---------|
+| `invalid_index` | `index` missing or not 1-6 |
+| `invalid_action` | `action` not `save` or `toggle` |
+| `missing_fields` | Required field absent (`apn` for save, `enabled` for toggle) |
+| `invalid_pdp_type` | `pdp_type` not `ipv4`/`ipv6`/`ipv4v6` |
+| `invalid_value` | APN/username/password contains a double-quote |
+| `cops_detach_failed` / `cgdcont_failed` / `qicsgp_failed` / `cops_attach_failed` / `cgact_failed` | The underlying AT command failed. On `cgdcont_failed` / `qicsgp_failed` during save, `apn.sh` runs a best-effort `AT+COPS=0` so the modem does not stay detached |
+| `parse_failed` | GET could not assemble the profile list |
 
 ### GET/POST `/cellular/mbn.sh`
 
@@ -636,6 +717,25 @@ Full profile details including APN, TTL/HL, and optional IMEI.
 
 Create or update a profile.
 
+**POST Request:**
+```json
+{
+  "id": "p_1715000000_abc12",
+  "name": "T-Mobile Gaming",
+  "mno": "T-Mobile",
+  "sim_iccid": "8901260...",
+  "settings": {
+    "apn": { "cid": 1, "name": "fast.t-mobile.com", "pdp_type": "IPV4V6" },
+    "imei": "",
+    "ttl": 65,
+    "hl": 65,
+    "scenario_id": "gaming"
+  }
+}
+```
+
+`scenario_id` is optional. Valid values: `""` (no binding), `balanced`, `gaming`, `streaming`, or a `custom-<timestamp>` ID that exists at `/etc/qmanager/scenarios/<id>.json`. The server validates against this enum and returns an `invalid_scenario_id` error otherwise.
+
 ### POST `/profiles/delete.sh`
 
 ```json
@@ -644,7 +744,7 @@ Create or update a profile.
 
 ### POST `/profiles/apply.sh`
 
-Start the 3-step async apply process.
+Start the 4-step async apply process (`apn` → `ttl_hl` → `scenario` → `imei`).
 
 ```json
 { "id": "abc123" }
@@ -654,15 +754,24 @@ Start the 3-step async apply process.
 
 ```json
 {
-  "success": true,
-  "status": "running",
-  "step": 2,
-  "total_steps": 3,
-  "message": "Applying TTL/HL settings..."
+  "status": "applying",
+  "profile_id": "p_1715000000_abc12",
+  "profile_name": "T-Mobile Gaming",
+  "started_at": 1715000000,
+  "current_step": 3,
+  "total_steps": 4,
+  "steps": [
+    { "name": "apn",      "status": "done",     "detail": "APN updated to fast.t-mobile.com" },
+    { "name": "ttl_hl",   "status": "done",     "detail": "TTL/HL applied" },
+    { "name": "scenario", "status": "running",  "detail": "Applying scenario: gaming..." },
+    { "name": "imei",     "status": "pending",  "detail": "" }
+  ],
+  "requires_reboot": false,
+  "error": null
 }
 ```
 
-Status values: `"idle"`, `"running"`, `"complete"`, `"error"`
+Per-step `status` values: `pending`, `running`, `done`, `skipped`, `failed`. The top-level `status` is `applying` while in progress, then `complete` or `failed`. A dangling `scenario_id` produces a scenario step with status `skipped` and detail `"Scenario <id> no longer exists"`.
 
 ### POST `/profiles/deactivate.sh`
 
@@ -690,7 +799,36 @@ Delete a scenario.
 
 ### POST `/scenarios/activate.sh`
 
-Activate a scenario (applies it as a profile).
+Activate a scenario. Applies network mode (`AT+QNWPREFCFG="mode_pref",...`) and, for custom scenarios, optional LTE / NSA-NR / SA-NR band locks.
+
+**POST Request (built-in):**
+```json
+{ "id": "gaming" }
+```
+
+**POST Request (custom):**
+```json
+{
+  "id": "custom-1715000000",
+  "mode": "NR5G",
+  "lte_bands": "1:3:28",
+  "nsa_nr_bands": "",
+  "sa_nr_bands": "78"
+}
+```
+`mode` is required for `custom-*` IDs (valid: `AUTO`, `LTE`, `NR5G`, `LTE:NR5G`). Band fields are optional; values must contain only digits and colons.
+
+**Error responses:**
+
+| `error` value | Cause |
+|---------------|-------|
+| `profile_managed` | The active SIM profile binds a non-Balanced scenario via `settings.scenario_id` (`gaming`, `streaming`, or a `custom-*` ID). The CGI does not touch the modem — the user must edit the profile to change scenarios. Defense-in-depth against stale frontends bypassing the UI gate. A `"balanced"` binding is deliberately allowed through, since Balanced is treated as "no opinion." |
+| `no_id` | Missing `id` field |
+| `invalid_id` | Unknown scenario ID (not built-in, not a known custom) |
+| `no_mode` | Custom scenario request missing `mode` |
+| `invalid_mode` | `mode` not in `{AUTO, LTE, NR5G, LTE:NR5G}` |
+| `invalid_bands` | Band field contains non-digit/non-colon characters |
+| `modem_error` | `AT+QNWPREFCFG="mode_pref",...` failed |
 
 ### GET `/scenarios/active.sh`
 

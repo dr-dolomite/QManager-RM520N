@@ -15,6 +15,13 @@ interface ActiveConfigCardProps {
   isActivating?: boolean;
   onEdit?: () => void;
   onActivate?: () => void;
+  /** When true, hide/disable the Activate button — radio config is profile-
+   *  owned. Passed in by ConnectionScenariosCard when a Custom SIM Profile
+   *  with a bound scenario_id is active. */
+  activateDisabled?: boolean;
+  /** Display name of the active profile, used for the disabled-Activate
+   *  tooltip. Only meaningful when activateDisabled is true. */
+  activeProfileName?: string;
 }
 
 export const ActiveConfigCard = ({
@@ -23,6 +30,8 @@ export const ActiveConfigCard = ({
   isActivating,
   onEdit,
   onActivate,
+  activateDisabled,
+  activeProfileName,
 }: ActiveConfigCardProps) => {
   if (!scenario) return null;
   const Icon = scenario.icon;
@@ -82,6 +91,12 @@ export const ActiveConfigCard = ({
                 size="sm"
                 onClick={onActivate}
                 className="gap-1.5"
+                disabled={activateDisabled}
+                title={
+                  activateDisabled && activeProfileName
+                    ? `Scenario activation is managed by the ${activeProfileName} Custom SIM Profile.`
+                    : undefined
+                }
               >
                 Activate
               </Button>

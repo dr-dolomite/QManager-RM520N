@@ -18,6 +18,27 @@
 [ -f /usr/lib/qmanager/config.sh ] && . /usr/lib/qmanager/config.sh
 [ -f /usr/lib/qmanager/semver.sh ] && . /usr/lib/qmanager/semver.sh
 
+# Downloader abstraction (curl/wget auto-detect). Inline fallback in case the
+# library is absent — cron runs with a sparse PATH, so resolve /opt/bin too.
+if [ -f /usr/lib/qmanager/downloader.sh ]; then
+    . /usr/lib/qmanager/downloader.sh
+else
+    export PATH="/opt/bin:/opt/sbin:/usr/bin:/usr/sbin:/bin:/sbin:$PATH"
+    qm_download() {
+        local rc
+        if command -v curl >/dev/null 2>&1; then
+            curl -fSL --max-time "${3:-120}" -o "$2" "$1"
+        elif command -v wget >/dev/null 2>&1; then
+            wget -q -T "${3:-120}" -O "$2" "$1"
+        else
+            return 1
+        fi
+        rc=$?
+        [ "$rc" -ne 0 ] && rm -f "$2"
+        return "$rc"
+    }
+fi
+
 qlog_init "auto_update"
 
 # --- Configuration -----------------------------------------------------------
@@ -52,12 +73,12 @@ tmp_body="/tmp/qm_auto_update_body.json"
 rm -f "$tmp_body"
 
 fetched=0
-if command -v curl >/dev/null 2>&1; then
-    curl -sL --max-time 15 -o "$tmp_body" "$api_url" 2>/dev/null && fetched=1
+if qm_download "$api_url" "$tmp_body" 15 2>/dev/null && [ -s "$tmp_body" ]; then
+    fetched=1
 fi
 
-if [ "$fetched" != "1" ] || [ ! -s "$tmp_body" ]; then
-    qlog_warn "Failed to fetch releases from GitHub (curl missing or network down)"
+if [ "$fetched" != "1" ]; then
+    qlog_warn "Failed to fetch releases from GitHub (no curl/wget, or network down)"
     rm -f "$tmp_body"
     exit 1
 fi

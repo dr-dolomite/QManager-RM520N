@@ -336,7 +336,21 @@ SIM profile CRUD library. No persistent process. Sourced by CGI scripts and `qma
 | `profile_check_lock` | Check if apply process is running; clean stale PID; sets `_profile_lock_pid` |
 | `profile_acquire_lock` | Check + write PID to `PROFILE_APPLY_PID_FILE`; rc=1 if locked |
 
-Profile JSON schema: `{id, name, mno, sim_iccid, created_at, updated_at, settings: {apn: {cid, name, pdp_type}, imei, ttl, hl}}`.
+Profile JSON schema: `{id, name, mno, sim_iccid, created_at, updated_at, settings: {apn: {cid, name, pdp_type}, imei, ttl, hl, scenario_id}}`.
+
+`settings.scenario_id` is optional (`""` = no binding). Valid values: `""`, `balanced`, `gaming`, `streaming`, or a `custom-<timestamp>` ID that exists at `/etc/qmanager/scenarios/<id>.json`. `profile_save` validates the field against this enum and rejects unknown values. See [`reference/sim-profiles.md`](reference/sim-profiles.md) for the binding semantics, gate matrix, and apply pipeline.
+
+### 4.9a `scenario_mgr.sh`
+
+Connection Scenario apply library. Sourced by `scenarios/activate.sh` and `qmanager_profile_apply`. Custom scenarios are stored at `/etc/qmanager/scenarios/<id>.json`; the active scenario ID is written to `/etc/qmanager/active_scenario`.
+
+| Function | Description |
+|----------|-------------|
+| `scenario_get_active` | Print the currently active scenario ID, or empty if none |
+| `scenario_set_active <id>` | Write active scenario ID atomically via `tmp` + `mv` |
+| `scenario_clear_active` | Remove the active scenario marker |
+| `scenario_lookup_custom <id>` | For a `custom-*` ID, print the stored JSON; rc=1 if missing |
+| `scenario_apply <id> [mode] [lte_bands] [nsa_nr_bands] [sa_nr_bands]` | Apply mode pref + optional band locks via `AT+QNWPREFCFG`. Built-ins (`balanced`/`gaming`/`streaming`) ignore the extra args and use hardcoded modes. Custom scenarios require `mode`. Returns 0 if `mode_pref` succeeded; sets `_scenario_apply_failed` to a comma-separated list of failed band sub-steps for partial-success detection. |
 
 ### 4.10 `qlog.sh`
 
@@ -546,12 +560,12 @@ MONITOR -> SUSPECT -> RECOVERY -> COOLDOWN -> MONITOR
 
 **Escalation tiers:**
 
-| Tier | Action | Guard |
-|------|--------|-------|
-| 1 | Network deregister/reregister (`AT+COPS=2/0`) | Enabled by default |
-| 2 | Radio toggle (`AT+CFUN=0/1`) | Skipped if tower lock active |
-| 3 | SIM failover (`AT+QUIMSLOT`) | Disabled by default; Golden Rule sequence |
-| 4 | System reboot | Token bucket: max N/hour; auto-disables if limit hit |
+| Tier | UI Label | Action | Guard |
+|------|----------|--------|-------|
+| 1 | Re-register to Network | Network deregister/reregister (`AT+COPS=2/0`) | Enabled by default |
+| 2 | CFUN Toggle | Radio toggle (`AT+CFUN=0/1`) | Skipped if tower lock active |
+| 3 | SIM Failover | SIM failover (`AT+QUIMSLOT`) | Disabled by default; Golden Rule sequence |
+| 4 | Reboot | System reboot | Token bucket: max N/hour; auto-disables if limit hit |
 
 LOCKED state: set by touching `/tmp/qmanager_watchcat.lock`. Watchcat sleeps until the file is removed. The update worker and installer touch this file during OTA operations.
 
@@ -599,12 +613,15 @@ Applies and removes tower lock on a time schedule. Reads `tower_lock.json` secti
 **Location:** `/usr/bin/qmanager_profile_apply`
 **State files:** `/tmp/qmanager_profile_state.json`, `/tmp/qmanager_profile_apply.pid`
 
-Detached process spawned by `profiles/apply.sh`. Applies a saved profile to the modem in three steps:
-1. APN -- `AT+CGDCONT` (non-disruptive)
+Detached process spawned by `profiles/apply.sh`. Applies a saved profile to the modem in four steps (`STEP_NAMES="apn ttl_hl scenario imei"`):
+1. APN -- `AT+CGDCONT` + full attach cycle (see [`reference/wan-profile-management.md`](reference/wan-profile-management.md))
 2. TTL/HL -- iptables rules via `ttl_state_apply`
-3. IMEI -- `AT+EGMR` + `AT+CFUN=1,1` soft reboot (most disruptive, applied last)
+3. Scenario -- `scenario_apply` from `scenario_mgr.sh`; skipped if `settings.scenario_id` is empty; marks `skipped` with detail `"Scenario <id> no longer exists"` for a dangling custom reference
+4. IMEI -- `AT+EGMR` + `AT+CFUN=1,1` soft reboot (most disruptive, applied last)
 
-State JSON tracks current step, total steps, and status (`idle`/`running`/`done`/`error`). Polled by `profiles/apply_status.sh`. Singleton via PID file; `profile_check_lock()` guards against concurrent runs.
+Scenario MUST precede IMEI: `AT+CFUN=1,1` reboots the radio, so any `AT+QNWPREFCFG` writes after it would be lost.
+
+State JSON tracks current step, total steps (4), and per-step status (`pending`/`running`/`done`/`skipped`/`failed`). Polled by `profiles/apply_status.sh`. Singleton via PID file; `profile_check_lock()` guards against concurrent runs.
 
 ### 5.3 Boot Oneshots
 
@@ -923,7 +940,7 @@ For request/response schemas, see `API-REFERENCE.md`.
 
 | Script | Method | Description |
 |--------|--------|-------------|
-| `cellular/apn.sh` | GET/POST | Read or write APN settings (`AT+CGDCONT`) |
+| `cellular/apn.sh` | GET/POST | WAN Profile Management — list/save/toggle 6 PDP contexts (AT-only). See `docs/reference/wan-profile-management.md` |
 | `cellular/fplmn.sh` | GET/POST | Read or manage FPLMN (forbidden PLMN) list |
 | `cellular/imei.sh` | GET/POST | Read or change IMEI (`AT+EGMR`) |
 | `cellular/mbn.sh` | GET/POST | Read or select MBN profile |
@@ -981,7 +998,7 @@ For request/response schemas, see `API-REFERENCE.md`.
 
 | Script | Method | Description |
 |--------|--------|-------------|
-| `scenarios/activate.sh` | POST | Apply a connection scenario (band lock + network mode) |
+| `scenarios/activate.sh` | POST | Apply a connection scenario (band lock + network mode). Returns `profile_managed` error without touching the modem if the active SIM profile binds a non-Balanced scenario via `settings.scenario_id` (defense-in-depth for stale frontends). A `"balanced"` binding is allowed through — Balanced is treated as "no opinion" both on the UI gates and at this guard. |
 | `scenarios/active.sh` | GET | Return currently active scenario ID |
 | `scenarios/delete.sh` | POST | Delete a scenario |
 | `scenarios/list.sh` | GET | Return all saved scenarios |
@@ -1084,6 +1101,8 @@ Lives on the rootfs (read-only by default). `qmanager_setup` calls `mount -o rem
 | `/etc/qmanager/updates/previous_version` | Previous version string for rollback support |
 | `/etc/qmanager/active_profile` | Active profile ID (plain text) |
 | `/etc/qmanager/profiles/` | Profile JSON files (`p_<ts>_<hex>.json`) |
+| `/etc/qmanager/active_scenario` | Active scenario ID (plain text) — written by `scenario_set_active` |
+| `/etc/qmanager/scenarios/` | Custom scenario JSON files (`custom-<ts>.json`) |
 | `/etc/qmanager/tower_lock.json` | Tower lock config (lte, nr_sa, persist, failover, schedule) |
 | `/etc/qmanager/email_alerts.json` | Email alert config (enabled, sender, recipient, threshold) |
 | `/etc/qmanager/msmtprc` | msmtp config (generated on save; no `logfile` directive) |

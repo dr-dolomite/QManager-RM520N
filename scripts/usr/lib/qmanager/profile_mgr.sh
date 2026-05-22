@@ -167,7 +167,7 @@ profile_save() {
     # --- Extract all fields from input JSON ---
     local name mno sim_iccid
     local apn_cid apn_name apn_pdp_type
-    local imei ttl hl
+    local imei ttl hl scenario_id
     local existing_id
 
     name=$(printf '%s' "$input" | jq -r '.name // empty')
@@ -183,6 +183,8 @@ profile_save() {
     imei=$(printf '%s' "$input" | jq -r '.imei // empty')
     ttl=$(printf '%s' "$input" | jq -r '(.ttl) | if . == null then empty else tostring end')
     hl=$(printf '%s' "$input" | jq -r '(.hl) | if . == null then empty else tostring end')
+    # scenario_id is optional — empty string means "no binding"
+    scenario_id=$(printf '%s' "$input" | jq -r '.scenario_id // empty')
     # --- Apply defaults for optional fields ---
     [ -z "$apn_cid" ] && apn_cid=1
     [ -z "$apn_pdp_type" ] && apn_pdp_type="IPV4V6"
@@ -215,6 +217,15 @@ profile_save() {
     if ! _validate_ttl_hl "$hl"; then
         errors="${errors}HL must be 0-255. "
     fi
+
+    # scenario_id: empty (no binding), built-in name, or custom-<timestamp>
+    case "$scenario_id" in
+        ''|balanced|gaming|streaming) ;;
+        custom-*)                     ;;
+        *)
+            errors="${errors}Invalid scenario_id. "
+            ;;
+    esac
 
     if [ -n "$errors" ]; then
         jq -n --arg detail "$errors" \
@@ -263,6 +274,7 @@ profile_save() {
         --arg imei "$imei" \
         --argjson ttl "$ttl" \
         --argjson hl "$hl" \
+        --arg scenario_id "$scenario_id" \
         '{
             id: $id,
             name: $name,
@@ -278,7 +290,8 @@ profile_save() {
                 },
                 imei: $imei,
                 ttl: $ttl,
-                hl: $hl
+                hl: $hl,
+                scenario_id: $scenario_id
             }
         }' > "$tmp_file" || {
         qlog_error "jq failed writing profile: $id" 2>/dev/null

@@ -455,7 +455,7 @@ function WatchdogSettingsForm({
               <div className="grid grid-cols-1 @sm/card:grid-cols-2 gap-4">
                 <Field orientation="horizontal" className="w-fit">
                   <FieldLabel htmlFor="tier1-enabled">
-                    Restart Network Interface
+                    Re-register to Network
                   </FieldLabel>
                   <Switch
                     id="tier1-enabled"

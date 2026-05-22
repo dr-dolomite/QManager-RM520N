@@ -330,6 +330,9 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
                         . /usr/lib/qmanager/profile_mgr.sh 2>/dev/null
                         auto_apply_profile "$_new_iccid" "sim_switch"
                     fi
+                    # Nudge the poller to refresh warm fields (carrier name,
+                    # SIM slot, APN, phone number) on its next ~2s tick.
+                    touch /tmp/qmanager_tier2_refresh 2>/dev/null || true
                     ;;
             esac
         fi

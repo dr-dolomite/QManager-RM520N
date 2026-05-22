@@ -266,6 +266,41 @@ detect_modem_firmware() {
     printf '%s' "$(printf '%s' "$model" | tr '[:lower:]' '[:upper:]')"
 }
 
+# --- Download Helper ---------------------------------------------------------
+#
+# curl/wget auto-detection — mirrors scripts/usr/lib/qmanager/downloader.sh.
+# Inlined because the installer runs before that library is on disk. curl is
+# preferred; wget is a first-class fallback so curl need not be force-installed.
+
+_DL_TOOL=""
+
+dl_resolve() {
+    if [ -z "$_DL_TOOL" ]; then
+        if command -v curl >/dev/null 2>&1; then
+            _DL_TOOL="curl"
+        elif command -v wget >/dev/null 2>&1; then
+            _DL_TOOL="wget"
+        else
+            _DL_TOOL="none"
+        fi
+    fi
+    [ "$_DL_TOOL" != "none" ]
+}
+
+# dl_get <url> <dest> — download url to dest; dest is removed on failure so a
+# partial file or an HTTP error page is never left behind as a "success".
+dl_get() {
+    local url="$1" dest="$2" rc
+    dl_resolve || return 1
+    case "$_DL_TOOL" in
+        curl) curl -fsSL -o "$dest" "$url" ;;
+        wget) wget -q -T 60 -O "$dest" "$url" ;;
+    esac
+    rc=$?
+    [ "$rc" -ne 0 ] && rm -f "$dest"
+    return "$rc"
+}
+
 # --- Pre-flight Checks -------------------------------------------------------
 
 preflight() {
@@ -275,26 +310,19 @@ preflight() {
         die "This script must be run as root"
     fi
 
-    # Hard requirement: curl with TLS. If missing but Entware is already
-    # bootstrapped, self-heal by installing curl via opkg so users who fetched
-    # this script with wget can still complete the install.
-    if ! command -v curl >/dev/null 2>&1; then
-        if [ -x /opt/bin/opkg ]; then
-            warn "curl not found — installing from Entware"
-            /opt/bin/opkg update >/dev/null 2>&1 || true
-            if /opt/bin/opkg install curl >/dev/null 2>&1; then
-                [ -x /opt/bin/curl ] && ln -sf /opt/bin/curl /usr/bin/curl 2>/dev/null
-                hash -r 2>/dev/null || true
-                if command -v curl >/dev/null 2>&1; then
-                    info "curl installed from Entware"
-                else
-                    die "curl install via Entware succeeded but curl still not on PATH. Aborting."
-                fi
-            else
-                die "curl is required but not found, and 'opkg install curl' failed. Aborting."
-            fi
-        else
-            die "curl is required but not found, and Entware is not installed. Install curl first (e.g. via Entware) and re-run."
+    # A downloader is required for fetching Entware, GitHub releases, etc.
+    # curl is preferred; wget is accepted as a first-class fallback so curl no
+    # longer has to be force-installed. The downloads themselves are the real
+    # TLS test — here we only confirm a tool exists and warn (never abort) if
+    # HTTPS looks unreachable with the selected tool.
+    if ! dl_resolve; then
+        die "No downloader found. Install 'curl' or 'wget' and re-run."
+    fi
+    info "Using '$_DL_TOOL' to download files"
+    if [ "$_DL_TOOL" = "wget" ]; then
+        if ! wget -q -T 8 -O /dev/null https://api.github.com/ 2>/dev/null; then
+            warn "Could not confirm HTTPS works with wget — if downloads fail,"
+            warn "your wget may lack TLS support; install curl or a TLS-capable wget."
         fi
     fi
 
@@ -561,11 +589,21 @@ SVCEOF
         done
         chmod 777 /opt/tmp
 
-        # Download opkg binary and config (curl-only — BusyBox wget lacks TLS)
-        curl -fsSL -o /opt/bin/opkg "$ENTWARE_URL/opkg" \
+        # Download opkg binary and config. ENTWARE_URL is plain HTTP, so any
+        # downloader works here — including a TLS-less BusyBox wget.
+        dl_get "$ENTWARE_URL/opkg" /opt/bin/opkg \
             || die "Failed to download opkg from $ENTWARE_URL"
+        # wget (unlike curl -f) writes HTTP error pages to the output file on a
+        # 4xx/5xx. Verify the download is a real ELF binary before trusting it:
+        # the first 4 bytes of every ELF file are 0x7F 'E' 'L' 'F', so the
+        # literal "ELF" appears in the first 4 bytes (an HTML/JSON error page
+        # never does). head + grep only — no od dependency.
+        if ! head -c4 /opt/bin/opkg 2>/dev/null | grep -q 'ELF'; then
+            rm -f /opt/bin/opkg
+            die "Downloaded opkg is not a valid binary (server error or bad mirror?)"
+        fi
         chmod 755 /opt/bin/opkg
-        curl -fsSL -o /opt/etc/opkg.conf "$ENTWARE_URL/opkg.conf" \
+        dl_get "$ENTWARE_URL/opkg.conf" /opt/etc/opkg.conf \
             || die "Failed to download opkg.conf from $ENTWARE_URL"
         info "Downloaded opkg package manager"
 
@@ -704,7 +742,7 @@ RCEOF
         SPEEDTEST_URL="https://install.speedtest.net/app/cli/ookla-speedtest-1.2.0-linux-armhf.tgz"
         SPEEDTEST_DIR="/usrdata/root/bin"
         mkdir -p "$SPEEDTEST_DIR"
-        if curl -fsSL "$SPEEDTEST_URL" -o /tmp/speedtest.tgz 2>/dev/null; then
+        if dl_get "$SPEEDTEST_URL" /tmp/speedtest.tgz 2>/dev/null; then
             tar -xzf /tmp/speedtest.tgz -C "$SPEEDTEST_DIR" speedtest 2>/dev/null
             rm -f /tmp/speedtest.tgz "$SPEEDTEST_DIR/speedtest.md"
             chmod +x "$SPEEDTEST_DIR/speedtest"
@@ -984,6 +1022,12 @@ install_backend() {
     addgroup www-data dialout 2>/dev/null || true
     mkdir -p "$CONF_DIR/profiles"
     chown -R www-data:www-data "$CONF_DIR"
+
+    # Custom DNS needs a www-data-owned staging dir on /dev/ubi2_0 (same volume
+    # as /etc/data/dnsmasq.conf) so the CGI can write the candidate config and
+    # the final rename into place stays atomic. install -d self-heals owner/mode
+    # on re-run, so this is safe on upgrade.
+    install -d -o www-data -g www-data -m 0700 /etc/data/qmanager
 
     # --- Migrate legacy TTL state file (one-time, non-fatal) -----------------
     # Old path: /etc/firewall.user.ttl (root-owned, unwritable by www-data CGI)

@@ -4,7 +4,7 @@
 # Quectel Modem Manager
 # https://github.com/dr-dolomite/QManager-RM520N
 #
-# Usage:
+# Usage (use whichever downloader your modem has — curl or wget both work):
 #   curl -fsSL -o /tmp/qmanager-installer.sh \
 #     https://github.com/dr-dolomite/QManager-RM520N/raw/refs/heads/main/qmanager-installer.sh && \
 #     bash /tmp/qmanager-installer.sh
@@ -75,17 +75,37 @@ is_installed() {
 
 # --- Download Helper ---------------------------------------------------------
 
-download_file() {
-    local url="$1" dest="$2"
+# curl/wget auto-detection — mirrors scripts/usr/lib/qmanager/downloader.sh.
+# This bootstrap runs before that library is on disk, so the logic is inlined.
+# curl is preferred; wget is a first-class fallback so curl need not be
+# pre-installed. The download itself is the authoritative TLS test.
+_DL_TOOL=""
 
-    # curl is required (native on RM520N-GL with TLS support).
-    # No fallback downloader — BusyBox lacks TLS, and Entware isn't
-    # available this early in the bootstrap.
-    if command -v curl >/dev/null 2>&1; then
-        curl -fsSL -o "$dest" "$url" 2>/dev/null && return 0
+resolve_downloader() {
+    if [ -z "$_DL_TOOL" ]; then
+        if command -v curl >/dev/null 2>&1; then
+            _DL_TOOL="curl"
+        elif command -v wget >/dev/null 2>&1; then
+            _DL_TOOL="wget"
+        else
+            _DL_TOOL="none"
+        fi
     fi
+    [ "$_DL_TOOL" != "none" ]
+}
 
-    return 1
+download_file() {
+    local url="$1" dest="$2" rc
+
+    resolve_downloader || return 1
+
+    case "$_DL_TOOL" in
+        curl) curl -fsSL -o "$dest" "$url" 2>/dev/null ;;
+        wget) wget -q -T 60 -O "$dest" "$url" 2>/dev/null ;;
+    esac
+    rc=$?
+    [ "$rc" -ne 0 ] && rm -f "$dest"
+    return "$rc"
 }
 
 # --- GitHub API Helper -------------------------------------------------------

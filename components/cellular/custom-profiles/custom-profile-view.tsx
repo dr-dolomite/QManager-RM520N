@@ -11,7 +11,7 @@ import {
 import { ProfileTable } from "@/components/cellular/custom-profiles/custom-profile-table";
 import EmptyProfileViewComponent from "@/components/cellular/custom-profiles/empty-profile";
 import { Skeleton } from "@/components/ui/skeleton";
-import type { ProfileSummary } from "@/types/sim-profile";
+import type { ProfileApplyState, ProfileSummary } from "@/types/sim-profile";
 
 // =============================================================================
 // CustomProfileViewComponent — Profile List Card
@@ -28,6 +28,8 @@ interface CustomProfileViewProps {
   onDeactivate: () => void;
   onRefresh: () => void;
   currentIccid?: string | null;
+  /** Most recent terminal apply state — used to surface "Applied at HH:MM" on the row */
+  lastApplyState?: ProfileApplyState | null;
 }
 
 const CustomProfileViewComponent = ({
@@ -41,6 +43,7 @@ const CustomProfileViewComponent = ({
   onDeactivate,
   onRefresh,
   currentIccid,
+  lastApplyState,
 }: CustomProfileViewProps) => {
   if (isLoading) {
     return (
@@ -84,6 +87,7 @@ const CustomProfileViewComponent = ({
           onActivate={onActivate}
           onDeactivate={onDeactivate}
           currentIccid={currentIccid}
+          lastApplyState={lastApplyState}
         />
       </CardContent>
     </Card>

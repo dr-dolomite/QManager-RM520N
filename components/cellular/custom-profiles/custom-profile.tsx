@@ -46,12 +46,7 @@ const CustomProfileComponent = () => {
     refresh,
   } = useSimProfiles();
 
-  const {
-    applyState,
-    applyProfile,
-    reset: resetApply,
-    error: applyError,
-  } = useProfileApply();
+  const { applyState, applyProfile, error: applyError } = useProfileApply();
 
   const { settings: currentSettings, refresh: refreshCurrentSettings } =
     useCurrentSettings(false);
@@ -148,10 +143,16 @@ const CustomProfileComponent = () => {
 
   const handleApplyProgressClose = useCallback(() => {
     setShowApplyProgress(false);
-    resetApply();
-    // Refresh profile list to pick up new active profile
+    // Intentionally NOT calling resetApply() — leaving applyState in memory so
+    // the table row can show "Applied at HH:MM" until the next activation
+    // (which clears it via applyProfile's own setApplyState(null)).
     refresh();
-  }, [resetApply, refresh]);
+  }, [refresh]);
+
+  const handleRetry = useCallback(async () => {
+    if (!applyState?.profile_id) return;
+    await applyProfile(applyState.profile_id);
+  }, [applyState, applyProfile]);
 
   // ---------------------------------------------------------------------------
   // Handle Deactivate: show confirmation → clear active marker
@@ -177,7 +178,7 @@ const CustomProfileComponent = () => {
   return (
     <div className="@container/main mx-auto p-2">
       <div className="mb-6">
-        <h1 className="text-3xl font-bold mb-2">Custom SIM Profile</h1>
+        <h1 className="text-3xl font-bold mb-2">Custom SIM Profiles</h1>
         <p className="text-muted-foreground">
           Bundle APN, IMEI, and TTL/HL settings into one-click profiles.
         </p>
@@ -201,6 +202,7 @@ const CustomProfileComponent = () => {
           onDeactivate={handleDeactivateRequest}
           onRefresh={refresh}
           currentIccid={currentIccid}
+          lastApplyState={applyState}
         />
       </div>
 
@@ -261,6 +263,7 @@ const CustomProfileComponent = () => {
         onClose={handleApplyProgressClose}
         applyState={applyState}
         error={applyError}
+        onRetry={handleRetry}
       />
     </div>
   );

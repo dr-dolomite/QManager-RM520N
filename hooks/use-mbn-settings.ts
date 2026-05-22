@@ -13,7 +13,7 @@ import type {
 // useMbnSettings — One-Shot MBN Fetch & Save Hook
 // =============================================================================
 // Fetches MBN auto-select status and profile list on mount.
-// Provides saveMbn for applying changes and rebootDevice for triggering reboot.
+// Provides saveMbn for applying changes.
 //
 // Backend endpoint:
 //   GET/POST /cgi-bin/quecmanager/cellular/mbn.sh
@@ -34,8 +34,6 @@ export interface UseMbnSettingsReturn {
   error: string | null;
   /** Apply MBN changes. Returns true on success. */
   saveMbn: (request: MbnSaveRequest) => Promise<boolean>;
-  /** Trigger device reboot. Returns true if command was sent. */
-  rebootDevice: () => Promise<boolean>;
   /** Re-fetch MBN data from the modem */
   refresh: () => void;
 }
@@ -141,28 +139,6 @@ export function useMbnSettings(): UseMbnSettingsReturn {
     [fetchMbn]
   );
 
-  // ---------------------------------------------------------------------------
-  // Reboot device (separate from save — called from reboot dialog)
-  // ---------------------------------------------------------------------------
-  const rebootDevice = useCallback(async (): Promise<boolean> => {
-    try {
-      const resp = await authFetch(CGI_ENDPOINT, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "reboot" }),
-      });
-
-      if (!resp.ok) {
-        throw new Error(`HTTP ${resp.status}: ${resp.statusText}`);
-      }
-
-      const data: MbnSaveResponse = await resp.json();
-      return data.success;
-    } catch {
-      return false;
-    }
-  }, []);
-
   return {
     profiles,
     autoSel,
@@ -170,7 +146,6 @@ export function useMbnSettings(): UseMbnSettingsReturn {
     isSaving,
     error,
     saveMbn,
-    rebootDevice,
     refresh: fetchMbn,
   };
 }

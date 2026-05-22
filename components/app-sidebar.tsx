@@ -208,6 +208,10 @@ const data = {
           title: "TTL & MTU Settings",
           url: "/local-network/ttl-settings",
         },
+        {
+          title: "Custom DNS",
+          url: "/local-network/custom-dns",
+        },
       ],
     },
   ],

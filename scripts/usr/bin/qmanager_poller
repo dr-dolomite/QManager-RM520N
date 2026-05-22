@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 # =============================================================================
 # qmanager_poller — QManager Background Poller Daemon
 # =============================================================================
@@ -32,6 +32,10 @@
 CACHE_FILE="/tmp/qmanager_status.json"
 CACHE_TMP="/tmp/qmanager_status.json.tmp"
 LONG_FLAG="/tmp/qmanager_long_running"
+# Touched by external triggers (e.g. SIM-slot-change CGI) to pull the warm
+# refresh into the next cycle instead of waiting up to ~30s for the normal
+# Tier 2 cadence to land.
+TIER2_REFRESH_FLAG="/tmp/qmanager_tier2_refresh"
 POLL_INTERVAL=2        # seconds between Tier 1 cycles
 TIER1_5_EVERY=5        # Tier 1.5 (per-antenna signal) runs every N cycles (10s)
 TIER2_EVERY=15         # Tier 2 runs every N cycles
@@ -57,17 +61,13 @@ PING_HISTORY_MAX=8640  # 24h at 10s intervals
 DATA_USED_FILE="/usrdata/qmanager/data_used.json"
 DATA_USED_TMP="/usrdata/qmanager/data_used.json.tmp"
 DATA_USED_RESET_FLAG="/tmp/qmanager_data_used_reset"
-DATA_USED_DIVERGENCE_PCT=15        # warn threshold (%) — looser than 5% because
-                                    # IPA and AT counters are read ~80ms apart
-                                    # within a tick; per-tick deltas during
-                                    # bursty traffic can legitimately differ
-                                    # by 5–10%. NSA undercounting (the case we
-                                    # actually want to catch) shows ~50%.
-DATA_USED_DIVERGENCE_MIN=100000    # bytes; only run divergence check when the
-                                    # IPA delta this tick is at least 100KB.
-                                    # Smaller windows are too noisy for per-
-                                    # tick comparison and produce false warns.
-DATA_USED_SCHEMA=1
+# data_used is sourced directly from the kernel rmnet interface byte
+# counters (/proc/net/dev). The kernel labels rx/tx identically on every
+# modem firmware, so no AT-counter orientation calibration is needed.
+# Schema 3 retires the AT-counter / orientation state from schema 2.
+DATA_USED_SCHEMA=3
+# Kernel network-stats virtual file. Overridable for the test harness.
+: "${DATA_USED_PROC_DEV:=/proc/net/dev}"
 
 # --- State Variables ---------------------------------------------------------
 cycle_count=0
@@ -205,22 +205,17 @@ prev_cpu_total=0
 total_rx_bytes=0
 total_tx_bytes=0
 
-# data_used in-memory mirror — initialized from file on first call
+# data_used in-memory mirror — initialized from file on first call.
+# Sourced from the kernel rmnet interface; no AT counter, no orientation.
 du_loaded=false
 du_accumulated_rx=0
 du_accumulated_tx=0
 du_selected_counter=""
-du_prev_qgdcnt_tx=0
-du_prev_qgdcnt_rx=0
-du_prev_qgdnrcnt_tx=0
-du_prev_qgdnrcnt_rx=0
 du_prev_ipa_rx=0
 du_prev_ipa_tx=0
 du_last_update_ts=0
 du_last_reset_ts=0
-du_divergence_count=0
 du_modem_reset_count=0
-du_mode_transition_count=0
 
 # Connectivity (from ping daemon)
 conn_internet_available="null"
@@ -607,226 +602,141 @@ update_conn_uptime() {
 # =============================================================================
 # PERSISTENT DATA USED COUNTER (Tier 1)
 # =============================================================================
-# Tracks cumulative rx/tx bytes across modem resets and reboots using both
-# AT+QGDCNT (LTE) and AT+QGDNRCNT (5G) modem-side counters, cross-checked
-# against the kernel rmnet_ipa0 interface for divergence detection.
-# State is persisted atomically to DATA_USED_FILE each tick.
+# Tracks cumulative rx/tx bytes across modem reboots using the kernel
+# rmnet interface counters from /proc/net/dev. State persists atomically
+# to DATA_USED_FILE each tick.
 
-# Write current du_* state to DATA_USED_FILE atomically.
 write_data_used_state() {
     mkdir -p /usrdata/qmanager 2>/dev/null
     jq -n \
-        --argjson schema     "$DATA_USED_SCHEMA" \
-        --argjson acc_rx     "$du_accumulated_rx" \
-        --argjson acc_tx     "$du_accumulated_tx" \
-        --arg     sel        "$du_selected_counter" \
-        --argjson prev_gd_tx "$du_prev_qgdcnt_tx" \
-        --argjson prev_gd_rx "$du_prev_qgdcnt_rx" \
-        --argjson prev_nr_tx "$du_prev_qgdnrcnt_tx" \
-        --argjson prev_nr_rx "$du_prev_qgdnrcnt_rx" \
-        --argjson prev_i_rx  "$du_prev_ipa_rx" \
-        --argjson prev_i_tx  "$du_prev_ipa_tx" \
-        --argjson last_upd   "$du_last_update_ts" \
-        --argjson last_rst   "$du_last_reset_ts" \
-        --argjson div_cnt    "$du_divergence_count" \
-        --argjson modem_rst  "$du_modem_reset_count" \
-        --argjson mode_xn    "$du_mode_transition_count" \
+        --argjson schema    "$DATA_USED_SCHEMA" \
+        --argjson acc_rx    "$du_accumulated_rx" \
+        --argjson acc_tx    "$du_accumulated_tx" \
+        --arg     sel       "$du_selected_counter" \
+        --argjson prev_i_rx "$du_prev_ipa_rx" \
+        --argjson prev_i_tx "$du_prev_ipa_tx" \
+        --argjson last_upd  "$du_last_update_ts" \
+        --argjson last_rst  "$du_last_reset_ts" \
+        --argjson modem_rst "$du_modem_reset_count" \
         '{
             schema:               $schema,
             accumulated_rx_bytes: $acc_rx,
             accumulated_tx_bytes: $acc_tx,
             selected_counter:     $sel,
-            prev_qgdcnt_tx:       $prev_gd_tx,
-            prev_qgdcnt_rx:       $prev_gd_rx,
-            prev_qgdnrcnt_tx:     $prev_nr_tx,
-            prev_qgdnrcnt_rx:     $prev_nr_rx,
             prev_ipa_rx:          $prev_i_rx,
             prev_ipa_tx:          $prev_i_tx,
             last_update_ts:       $last_upd,
             last_reset_ts:        $last_rst,
-            divergence_count:     $div_cnt,
-            modem_reset_count:    $modem_rst,
-            mode_transition_count:$mode_xn
+            modem_reset_count:    $modem_rst
         }' > "$DATA_USED_TMP" && mv "$DATA_USED_TMP" "$DATA_USED_FILE"
 }
 
 update_data_used() {
-    # Step 0: lazy-load from disk on first call
+    # Step 0: lazy-load persisted state on the first call.
     if [ "$du_loaded" = "false" ]; then
         if [ -f "$DATA_USED_FILE" ]; then
-            local _jv
-            _jv=$(jq -r '
-                (.accumulated_rx_bytes  // 0 | tostring) + " " +
-                (.accumulated_tx_bytes  // 0 | tostring) + " " +
-                (.selected_counter      // ""           ) + " " +
-                (.prev_qgdcnt_tx        // 0 | tostring) + " " +
-                (.prev_qgdcnt_rx        // 0 | tostring) + " " +
-                (.prev_qgdnrcnt_tx      // 0 | tostring) + " " +
-                (.prev_qgdnrcnt_rx      // 0 | tostring) + " " +
-                (.prev_ipa_rx           // 0 | tostring) + " " +
-                (.prev_ipa_tx           // 0 | tostring) + " " +
-                (.last_update_ts        // 0 | tostring) + " " +
-                (.last_reset_ts         // 0 | tostring) + " " +
-                (.divergence_count      // 0 | tostring) + " " +
-                (.modem_reset_count     // 0 | tostring) + " " +
-                (.mode_transition_count // 0 | tostring)
-            ' "$DATA_USED_FILE" 2>/dev/null)
-            if [ -n "$_jv" ]; then
-                du_accumulated_rx=$(    printf '%s' "$_jv" | awk '{print $1}')
-                du_accumulated_tx=$(    printf '%s' "$_jv" | awk '{print $2}')
-                du_selected_counter=$(  printf '%s' "$_jv" | awk '{print $3}')
-                du_prev_qgdcnt_tx=$(    printf '%s' "$_jv" | awk '{print $4}')
-                du_prev_qgdcnt_rx=$(    printf '%s' "$_jv" | awk '{print $5}')
-                du_prev_qgdnrcnt_tx=$(  printf '%s' "$_jv" | awk '{print $6}')
-                du_prev_qgdnrcnt_rx=$(  printf '%s' "$_jv" | awk '{print $7}')
-                du_prev_ipa_rx=$(       printf '%s' "$_jv" | awk '{print $8}')
-                du_prev_ipa_tx=$(       printf '%s' "$_jv" | awk '{print $9}')
-                du_last_update_ts=$(    printf '%s' "$_jv" | awk '{print $10}')
-                du_last_reset_ts=$(     printf '%s' "$_jv" | awk '{print $11}')
-                du_divergence_count=$(  printf '%s' "$_jv" | awk '{print $12}')
-                du_modem_reset_count=$( printf '%s' "$_jv" | awk '{print $13}')
-                du_mode_transition_count=$(printf '%s' "$_jv" | awk '{print $14}')
+            # Schema check — anything older than the current schema is
+            # discarded (heals corrupted AT-counter state from schema 2).
+            local _on_disk_schema
+            _on_disk_schema=$(jq -r '.schema // 0' "$DATA_USED_FILE" 2>/dev/null)
+            if [ "${_on_disk_schema:-0}" -lt "$DATA_USED_SCHEMA" ]; then
+                qlog_info "data_used: schema v${_on_disk_schema:-0} < v${DATA_USED_SCHEMA}; resetting state"
+                rm -f "$DATA_USED_FILE"
+            else
+                local _jv
+                _jv=$(jq -r '
+                    (.accumulated_rx_bytes // 0 | tostring) + " " +
+                    (.accumulated_tx_bytes // 0 | tostring) + " " +
+                    (.prev_ipa_rx          // 0 | tostring) + " " +
+                    (.prev_ipa_tx          // 0 | tostring) + " " +
+                    (.last_update_ts       // 0 | tostring) + " " +
+                    (.last_reset_ts        // 0 | tostring) + " " +
+                    (.modem_reset_count    // 0 | tostring)
+                ' "$DATA_USED_FILE" 2>/dev/null)
+                if [ -n "$_jv" ]; then
+                    du_accumulated_rx=$(   printf '%s' "$_jv" | awk '{print $1}')
+                    du_accumulated_tx=$(   printf '%s' "$_jv" | awk '{print $2}')
+                    du_prev_ipa_rx=$(      printf '%s' "$_jv" | awk '{print $3}')
+                    du_prev_ipa_tx=$(      printf '%s' "$_jv" | awk '{print $4}')
+                    du_last_update_ts=$(   printf '%s' "$_jv" | awk '{print $5}')
+                    du_last_reset_ts=$(    printf '%s' "$_jv" | awk '{print $6}')
+                    du_modem_reset_count=$(printf '%s' "$_jv" | awk '{print $7}')
+                fi
             fi
-        else
-            # No file yet — create directory; zeroed state already set at init
+        fi
+        if [ ! -f "$DATA_USED_FILE" ]; then
             mkdir -p /usrdata/qmanager 2>/dev/null
         fi
         du_loaded=true
     fi
 
-    # Step 1: honor user reset flag
+    # Step 1: honor the user reset flag — zero the accumulators but keep
+    # the kernel baseline so the next tick accrues only post-reset bytes.
     if [ -f "$DATA_USED_RESET_FLAG" ]; then
         du_accumulated_rx=0
         du_accumulated_tx=0
         du_last_reset_ts=$(date +%s)
+        du_modem_reset_count=0
         rm -f "$DATA_USED_RESET_FLAG"
-        qlog_info "data_used: user reset triggered"
+        qlog_info "data_used: user reset triggered (counters zeroed)"
+        # Persist the zeroed state now so an early return (e.g. interface
+        # absent) or a crash before Step 6 cannot resurrect the old counters.
+        write_data_used_state
     fi
 
-    # Step 2: pick counter from network_type
-    local du_active
-    case "$network_type" in
-        LTE)          du_active="qgdcnt"   ;;
-        5G-SA|5G-NSA) du_active="qgdnrcnt" ;;
-        *)            return 0 ;;
-    esac
-
-    # Step 3: read /proc/net/dev rmnet_ipa0
-    local ipa_rx
-    local ipa_tx
-    ipa_rx=0
-    ipa_tx=0
-    if [ -f /proc/net/dev ]; then
-        local _dev_line
-        _dev_line=$(grep "rmnet_ipa0:" /proc/net/dev 2>/dev/null)
-        if [ -n "$_dev_line" ]; then
-            ipa_rx=$(printf '%s\n' "$_dev_line" | awk '{print $2}')
-            ipa_tx=$(printf '%s\n' "$_dev_line" | awk '{print $10}')
-        fi
-    fi
-    ipa_rx="${ipa_rx:-0}"
-    ipa_tx="${ipa_tx:-0}"
-
-    # Step 3b: read the AT counter for the active mode
-    local _at_resp
-    if [ "$du_active" = "qgdcnt" ]; then
-        _at_resp=$(qcmd_exec 'AT+QGDCNT?')
-    else
-        _at_resp=$(qcmd_exec 'AT+QGDNRCNT?')
-    fi
-
-    # Parse: +QGDCNT: <tx>,<rx>  or  +QGDNRCNT: <tx>,<rx>
-    local _parsed
-    _parsed=$(printf '%s\n' "$_at_resp" | \
-        sed -n 's/^+QGD[A-Z]*CNT:[[:space:]]*\([0-9]*\),\([0-9]*\).*/\1 \2/p' | \
-        head -1)
-    if [ -z "$_parsed" ]; then
-        # AT failure — leave all state untouched; next tick will retry
+    # Step 2: read the kernel cellular-interface byte counters.
+    # /proc/net/dev is a kernel virtual file: after the "iface:" token,
+    # field 2 is rx_bytes (download) and field 10 is tx_bytes (upload).
+    # This column layout is fixed by the Linux kernel and identical on
+    # every modem firmware — unlike the AT counter it replaces.
+    local _dev_line ipa_rx ipa_tx
+    _dev_line=$(grep "${NETWORK_IFACE}:" "$DATA_USED_PROC_DEV" 2>/dev/null)
+    if [ -z "$_dev_line" ]; then
+        qlog_warn "data_used: ${NETWORK_IFACE} not found in ${DATA_USED_PROC_DEV}; skipping tick"
         return 0
     fi
+    ipa_rx=$(printf '%s\n' "$_dev_line" | awk '{print $2}')
+    ipa_tx=$(printf '%s\n' "$_dev_line" | awk '{print $10}')
 
-    local current_tx
-    local current_rx
-    current_tx=$(printf '%s' "$_parsed" | awk '{print $1}')
-    current_rx=$(printf '%s' "$_parsed" | awk '{print $2}')
+    # Numeric guard — a malformed line must not poison the accumulator.
+    case "$ipa_rx" in ''|*[!0-9]*)
+        qlog_warn "data_used: non-numeric rx '${ipa_rx}'; skipping tick"; return 0 ;;
+    esac
+    case "$ipa_tx" in ''|*[!0-9]*)
+        qlog_warn "data_used: non-numeric tx '${ipa_tx}'; skipping tick"; return 0 ;;
+    esac
 
-    # Step 4: mode transition handling — rebase, no accumulation this tick
-    if [ "$du_active" != "$du_selected_counter" ]; then
-        qlog_info "data_used: counter changed ${du_selected_counter} -> ${du_active}"
-        du_selected_counter="$du_active"
-        du_mode_transition_count=$((du_mode_transition_count + 1))
-        if [ "$du_active" = "qgdcnt" ]; then
-            du_prev_qgdcnt_tx="$current_tx"
-            du_prev_qgdcnt_rx="$current_rx"
-        else
-            du_prev_qgdnrcnt_tx="$current_tx"
-            du_prev_qgdnrcnt_rx="$current_rx"
-        fi
+    # Step 3: first-time baseline — cannot accumulate without a prev sample.
+    if [ "$du_prev_ipa_rx" = "0" ] && [ "$du_prev_ipa_tx" = "0" ]; then
         du_prev_ipa_rx="$ipa_rx"
         du_prev_ipa_tx="$ipa_tx"
+        du_selected_counter="$NETWORK_IFACE"
+        du_last_update_ts=$(date +%s)
         write_data_used_state
         return 0
     fi
 
-    # Step 5: pick prev for active counter
-    local prev_tx
-    local prev_rx
-    if [ "$du_active" = "qgdcnt" ]; then
-        prev_tx="$du_prev_qgdcnt_tx"
-        prev_rx="$du_prev_qgdcnt_rx"
-    else
-        prev_tx="$du_prev_qgdnrcnt_tx"
-        prev_rx="$du_prev_qgdnrcnt_rx"
-    fi
+    # Step 4: delta vs the previous tick.
+    local delta_rx delta_tx
+    delta_rx=$((ipa_rx - du_prev_ipa_rx))
+    delta_tx=$((ipa_tx - du_prev_ipa_tx))
 
-    local delta_tx
-    local delta_rx
-    delta_tx=$((current_tx - prev_tx))
-    delta_rx=$((current_rx - prev_rx))
-
-    # Step 6: counter reset detection (negative delta — modem cleared its counter)
-    if [ "$delta_tx" -lt 0 ] || [ "$delta_rx" -lt 0 ]; then
-        qlog_info "data_used: modem-side reset detected (delta_rx=${delta_rx} delta_tx=${delta_tx})"
+    # Step 5: counter-reset detection. The kernel rmnet counter zeroes on
+    # a modem reboot or interface re-creation, so a negative delta means
+    # the baseline is stale. Rebase without accumulating — the bytes moved
+    # while the modem was rebooting are not measurable.
+    if [ "$delta_rx" -lt 0 ] || [ "$delta_tx" -lt 0 ]; then
+        qlog_info "data_used: ${NETWORK_IFACE} counter reset detected (delta_rx=${delta_rx} delta_tx=${delta_tx}); rebasing"
         du_modem_reset_count=$((du_modem_reset_count + 1))
-        # Rebase only — no accumulation this tick
     else
         du_accumulated_rx=$((du_accumulated_rx + delta_rx))
         du_accumulated_tx=$((du_accumulated_tx + delta_tx))
-
-        # Step 7: divergence check vs IPA kernel counter
-        local ipa_drx
-        local ipa_dtx
-        ipa_drx=$((ipa_rx - du_prev_ipa_rx))
-        ipa_dtx=$((ipa_tx - du_prev_ipa_tx))
-        if [ "$ipa_drx" -lt 0 ]; then ipa_drx=0; fi
-        if [ "$ipa_dtx" -lt 0 ]; then ipa_dtx=0; fi
-        local ipa_total
-        local at_total
-        ipa_total=$((ipa_drx + ipa_dtx))
-        at_total=$((delta_rx + delta_tx))
-        if [ "$ipa_total" -gt "$DATA_USED_DIVERGENCE_MIN" ]; then
-            local _diff
-            _diff=$((at_total - ipa_total))
-            if [ "$_diff" -lt 0 ]; then _diff=$((-_diff)); fi
-            local _pct
-            _pct=$((_diff * 100 / ipa_total))
-            if [ "$_pct" -gt "$DATA_USED_DIVERGENCE_PCT" ]; then
-                qlog_warn "data_used divergence at=${at_total}B ipa=${ipa_total}B (${_pct}%) mode=${network_type} counter=${du_active}"
-                du_divergence_count=$((du_divergence_count + 1))
-            fi
-        fi
     fi
 
-    # Step 8: update prev_* for next tick
-    if [ "$du_active" = "qgdcnt" ]; then
-        du_prev_qgdcnt_tx="$current_tx"
-        du_prev_qgdcnt_rx="$current_rx"
-    else
-        du_prev_qgdnrcnt_tx="$current_tx"
-        du_prev_qgdnrcnt_rx="$current_rx"
-    fi
+    # Step 6: persist for the next tick.
     du_prev_ipa_rx="$ipa_rx"
     du_prev_ipa_tx="$ipa_tx"
+    du_selected_counter="$NETWORK_IFACE"
     du_last_update_ts=$(date +%s)
     write_data_used_state
 }
@@ -1015,6 +925,30 @@ collect_boot_data() {
     log_info "Boot data: LTE_BANDS=$boot_supported_lte_bands NSA_BANDS=$boot_supported_nsa_nr5g_bands SA_BANDS=$boot_supported_sa_nr5g_bands"
     log_info "Boot data: IPPT mode=$boot_ippt_mode nat=$boot_ippt_nat usb=$boot_ippt_usbnet dns=$boot_ippt_dhcpv4dns"
     log_info "Boot data: LAN ip=$boot_lan_ip gateway=$boot_lan_gateway"
+}
+
+# =============================================================================
+# read_sim_identity — Re-read SIM-bound identifiers (IMSI, ICCID)
+# =============================================================================
+# Called from the Tier 2 force-refresh path after a user-initiated SIM slot
+# swap. Only refreshes fields that actually change with the SIM card —
+# leaves IMEI / model / firmware / capability alone (those are modem-bound
+# and a SIM swap can't affect them).
+#
+# Response shape differs from collect_boot_data's compound read. Standalone CIMI
+# returns a single bare 15-digit number (no IMEI prefix line to disambiguate),
+# so we use `head -1` instead of `sed -n '2p'`.
+# =============================================================================
+read_sim_identity() {
+    local result new_imsi new_iccid
+    result=$(qcmd 'AT+CIMI;+QCCID' 2>/dev/null)
+    [ -z "$result" ] && return 0
+
+    new_imsi=$(printf '%s\n' "$result" | tr -d '\r' | grep -x '[0-9]\{15\}' | head -1)
+    new_iccid=$(printf '%s\n' "$result" | grep '+QCCID:' | sed 's/+QCCID: //g' | tr -d '\r ')
+
+    [ -n "$new_imsi" ] && boot_imsi="$new_imsi"
+    [ -n "$new_iccid" ] && boot_iccid="$new_iccid"
 }
 
 # =============================================================================
@@ -1841,14 +1775,12 @@ write_cache() {
         --argjson sh_st_total_kb    "${sh_storage_total_kb:-null}" \
         --argjson sh_st_used_kb     "${sh_storage_used_kb:-null}" \
         --argjson sh_st_avail_kb    "${sh_storage_avail_kb:-null}" \
-        --argjson du_acc_rx         "${du_accumulated_rx:-0}" \
-        --argjson du_acc_tx         "${du_accumulated_tx:-0}" \
-        --arg     du_sel            "${du_selected_counter:-}" \
-        --argjson du_last_upd       "${du_last_update_ts:-0}" \
-        --argjson du_last_rst       "${du_last_reset_ts:-0}" \
-        --argjson du_div            "${du_divergence_count:-0}" \
-        --argjson du_modem_rst      "${du_modem_reset_count:-0}" \
-        --argjson du_mode_xn        "${du_mode_transition_count:-0}" \
+        --argjson du_acc_rx    "${du_accumulated_rx:-0}" \
+        --argjson du_acc_tx    "${du_accumulated_tx:-0}" \
+        --arg     du_sel       "${du_selected_counter:-}" \
+        --argjson du_last_upd  "${du_last_update_ts:-0}" \
+        --argjson du_last_rst  "${du_last_reset_ts:-0}" \
+        --argjson du_modem_rst "${du_modem_reset_count:-0}" \
         '{
             timestamp: $timestamp,
             system_state: $system_state,
@@ -1924,9 +1856,7 @@ write_cache() {
                 selected_counter:     $du_sel,
                 last_update_ts:       $du_last_upd,
                 last_reset_ts:        $du_last_rst,
-                divergence_count:     $du_div,
-                modem_reset_count:    $du_modem_rst,
-                mode_transition_count: $du_mode_xn
+                modem_reset_count:    $du_modem_rst
             },
             connectivity: {
                 internet_available: $inet, status: $conn_st,
@@ -2083,9 +2013,17 @@ poll_cycle() {
     fi
 
     # Tier 2 (warm data + SIM state + CFUN)
-    if [ $((cycle_count % TIER2_EVERY)) -eq 0 ]; then
+    # Honor the on-demand refresh flag so a SIM-slot change picks up the
+    # new carrier name within ~2s instead of up to ~30s.
+    force_tier2=false
+    if [ -f "$TIER2_REFRESH_FLAG" ]; then
+        force_tier2=true
+        rm -f "$TIER2_REFRESH_FLAG"
+    fi
+    if [ "$force_tier2" = "true" ] || [ $((cycle_count % TIER2_EVERY)) -eq 0 ]; then
         poll_tier2
         read_sim_state
+        [ "$force_tier2" = "true" ] && read_sim_identity
 
         # CFUN — standalone query (compound commands timeout in CFUN=0).
         # Cadence is Tier 2 because airplane-mode toggles are user-driven and rare.

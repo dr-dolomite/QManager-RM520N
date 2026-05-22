@@ -1,36 +1,38 @@
-# 🚀 QManager RM520N BETA v0.1.9
+# 🚀 QManager RM520N BETA v0.1.11
 
-> One-click OTA from **System Settings → Software Update** if you're on v0.1.5 or newer. SSH/ADB is not required.
+Data Used counter swapped or inaccurate on your modem? Fixed — QManager now reads traffic totals straight from the Linux kernel, so the numbers are always correct regardless of firmware version.
+
+> One-click OTA from **System Settings → Software Update** if you're on v0.1.5 or newer.
 
 ## ✨ New Features
 
-- **Enable Tailscale SSH from the UI.** A new toggle in the Tailscale Connection card lets you turn on Tailscale's built-in SSH server with one click. Access is controlled entirely by your Tailscale admin-panel ACL policy — no changes to the device's existing SSH. A confirmation prompt reminds you to review your ACLs before enabling. The setting sticks across reconnects and reboots.
+- **SIM Profiles can now lock in a Connection Scenario.** Pick Balanced, Gaming, Streaming, or one of your custom scenarios in the profile form — when the profile activates (on SIM switch, boot, watchdog recovery, or manual apply), it applies the scenario's network mode and band locks alongside APN, TTL/HL, and IMEI. New profiles default to Balanced, which leaves your modem's current settings untouched. When a non-Balanced scenario is bound, the Connection Scenarios and Band Locking pages become read-only while that profile is active.
 
-- **System Health now shows load averages.** A new row beneath CPU Usage displays the 1-minute, 5-minute, and 15-minute load averages. On the single-core RM520N-GL, these give a clearer picture of sustained load than a single CPU % snapshot — the bar turns yellow or red when the device is under pressure, and an info icon explains what the three numbers mean.
+- **"+ Create new custom scenario" shortcut in the profile form.** The scenario picker now links directly to the Scenarios page and auto-opens the create dialog. If you have unsaved changes, you'll be asked before navigating away.
 
-- **Data Used counter now survives reboots.** Previously, the counter reset every time the modem restarted or the data session re-attached — making it unreliable for tracking usage over days. QManager now maintains its own running total independently of the modem session. A new **Reset** button on the Device Metrics card lets you zero it on demand, handy for tracking usage within a billing window.
+- **Custom DNS — override the upstream resolver for all LAN devices.** Under **Local Network → Custom DNS**, set up to 4 upstream servers (IPv4 or IPv6) — Cloudflare, Google, your own resolver, etc. Changes apply instantly with no reboot and no DHCP lease disruption. An "Ignore carrier DNS" toggle prevents the carrier's assigned resolvers from mixing in with your custom ones. Requires the modem's DNS Mode to be set to Proxy (the page will tell you if it isn't).
 
 ## 🛠️ Improvements
 
-- **Live Traffic fixed on x5x-class modems (RM501, RM502, RG502Q).** The traffic display was looking at the wrong network interface on these platforms and showing zeroed counters. It now auto-detects the active interface correctly each time.
+- **Watchdog Tier 1 renamed: "Re-register to Network"** — better reflects what actually happens (`AT+COPS=2` deregister → `AT+COPS=0` re-register).
 
-- **Connectivity status no longer gets stuck on "Offline."** On certain device variants, the connectivity check was reading from a fixed interface that wasn't active — so it always appeared offline even when internet was working. The check now uses HTTP probes to Cloudflare and Google, which is the correct and reliable signal.
+- **`curl` is no longer required to install or update QManager.** The installer auto-detects `curl` or `wget` and uses whichever is available. This unblocks fresh installs on firmwares that ship only `wget` (common on RM502/RM520/RM521).
 
-- **OTA upgrades no longer abort on non-standard device variants.** Users on variant firmware IDs (e.g. `RM520FGL_VA`) were seeing "Installation aborted by user" during upgrade — even though they hadn't cancelled anything. The installer now handles non-interactive environments correctly and proceeds with a warning instead of exiting.
+- **Tailscale SSH toggle is the source of truth.** QManager re-applies the toggle on every reconnect, so it survives `tailscale up --reset`. If you change SSH state via the CLI or carried over a Tailscale install from SimpleAdmin/RGMII Toolkit, the GUI won't see that change until you toggle the switch off and back on once.
 
-- **LAN Gateway now displays correctly on all variants.** On some devices (notably RM501-class), the LAN Gateway field was occasionally stuck on `-`. It's now fetched once at startup by the background poller and cached, so it loads instantly and renders correctly across all supported models.
+## 🐛 Fixes
 
-- **Modem access fixed on older Quectel platforms (RM502Q-AE, RG502Q).** A permissions issue on X55-family devices could silently prevent the web server from communicating with the modem, causing AT commands to fail. The installer now uses multiple fallback methods to ensure access is set up correctly, and removes any conflicting rules from third-party tools.
+- **Data Used counter now shows correct upload/download on every firmware.** Some users saw swapped totals or a counter stuck near zero — caused by QManager relying on the modem's `+QGDNRCNT` AT command, which returns fields in a firmware-specific order that a one-time calibration download tried (and often failed) to detect. QManager now reads byte totals straight from the kernel's network interface stats, where the labels are consistent everywhere. The calibration download has been removed. **Your counter resets to zero on upgrade** — this clears any incorrect totals from the old method.
 
 ## 📥 Installation
 
-### Upgrading from v0.1.8
+### Upgrading from v0.1.10
 
-**System Settings → Software Update.** Click Download, then Install. No SSH/ADB needed. All settings preserved.
+**System Settings → Software Update** → Download → Install. No SSH/ADB needed. All settings preserved.
 
 ### Fresh Install
 
-ADB or SSH into the modem and run:
+SSH or ADB into the modem and run:
 
 ```sh
 curl -fsSL -o /tmp/qmanager-installer.sh \
@@ -38,7 +40,7 @@ curl -fsSL -o /tmp/qmanager-installer.sh \
   bash /tmp/qmanager-installer.sh
 ```
 
-If your modem has `wget` but not `curl` (common on x5x/x6x firmwares like RM502/RM520/RM521), just use `wget` to fetch the installer — preflight auto-installs `curl` from Entware so future OTA updates work (Entware must already be bootstrapped):
+No `curl`? Use `wget` — the installer works either way:
 
 ```sh
 wget -O /tmp/qmanager-installer.sh \
@@ -50,8 +52,7 @@ wget -O /tmp/qmanager-installer.sh \
 
 Bug reports and feature requests welcome on [GitHub Issues](https://github.com/dr-dolomite/QManager-RM520N/issues).
 
-Like what's new? QManager is built and maintained for free — if these updates have made your setup a little better, you can show your support via [Wise](https://wise.com/pay/business/blackcatdev?currency=USD) or [PayPal](https://paypal.me/iamrusss). Every bit helps keep this project alive and growing. [GitHub Sponsors](https://github.com/sponsors/dr-dolomite) is also an option if that works better for you.
-
+Like what's new? QManager is built and maintained for free — if these updates have made your setup a little better, you can show your support via [Wise](https://wise.com/pay/business/blackcatdev?currency=USD) or [PayPal](https://paypal.me/iamrusss). Every bit helps keep this project alive. [GitHub Sponsors](https://github.com/sponsors/dr-dolomite) works too.
 
 **License:** MIT + Commons Clause — **Happy connecting!**
 
