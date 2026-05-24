@@ -69,6 +69,7 @@ export interface UseSoftwareUpdateReturn {
   downloadUpdate: (version?: string) => Promise<void>;
   installStaged: () => Promise<void>;
   installUpdate: () => Promise<void>;
+  installVersion: (version: string) => Promise<void>;
   togglePrerelease: (enabled: boolean) => Promise<void>;
   saveAutoUpdate: (enabled: boolean, time: string) => Promise<void>;
 }
@@ -298,6 +299,108 @@ export function useSoftwareUpdate(): UseSoftwareUpdateReturn {
     }
   }, [startPolling]);
 
+  // ---------------------------------------------------------------------------
+  // Chained poller — used by installVersion to fuse the two-step flow into one
+  // click. Both phases write to the same /tmp/qmanager_update.json, so a single
+  // setInterval can watch the download phase, fire install_staged once it sees
+  // status:"ready", then keep polling through installing → rebooting.
+  // ---------------------------------------------------------------------------
+  const startChainedPolling = useCallback((version: string) => {
+    if (pollRef.current) clearInterval(pollRef.current);
+    let installPosted = false;
+
+    pollRef.current = setInterval(async () => {
+      try {
+        const resp = await authFetch(`${CGI_ENDPOINT}?action=status`);
+        if (!resp.ok) return;
+
+        const json = await resp.json();
+        if (!mountedRef.current) return;
+
+        // Map the raw status into the stepper's UpdateStatus shape. Download
+        // sub-phases ("downloading", "verifying") collapse to step 0; once we
+        // post install_staged below, the next tick reports "installing" and
+        // the stepper advances.
+        if (json.status === "downloading" || json.status === "verifying") {
+          setUpdateStatus({ status: "downloading", message: json.message, version, size: json.size });
+        } else if (json.status === "installing" || json.status === "rebooting" || json.status === "error") {
+          setUpdateStatus(json as UpdateStatus);
+        }
+
+        // Chain step: when the download reports ready, fire install_staged once.
+        if (json.status === "ready" && !installPosted) {
+          installPosted = true;
+          setUpdateStatus({ status: "installing", message: "Installing update...", version });
+          await authFetch(CGI_ENDPOINT, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ action: "install_staged" }),
+          });
+          return; // next tick will pick up the installing/rebooting status
+        }
+
+        if (json.status === "rebooting") {
+          if (pollRef.current) clearInterval(pollRef.current);
+          pollRef.current = null;
+          sessionStorage.setItem("qm_rebooting", "1");
+          document.cookie = "qm_logged_in=; Path=/; Max-Age=0";
+          window.location.href = "/reboot/";
+        }
+
+        if (json.status === "error") {
+          if (pollRef.current) clearInterval(pollRef.current);
+          pollRef.current = null;
+          setIsUpdating(false);
+          setError(json.message || "Install failed");
+        }
+      } catch {
+        // Network blink — if we've already posted install_staged, the device is
+        // likely rebooting. Mirror startPolling's behavior and redirect.
+        if (installPosted) {
+          if (pollRef.current) clearInterval(pollRef.current);
+          pollRef.current = null;
+          sessionStorage.setItem("qm_rebooting", "1");
+          document.cookie = "qm_logged_in=; Path=/; Max-Age=0";
+          window.location.href = "/reboot/";
+        }
+      }
+    }, POLL_INTERVAL);
+  }, []);
+
+  // ---------------------------------------------------------------------------
+  // installVersion — one-click chained install for a specific version. Used by
+  // Version Management. Backend uses the same two endpoints as the main flow
+  // (download → install_staged); the chain happens in the poller above.
+  // ---------------------------------------------------------------------------
+  const installVersion = useCallback(async (version: string) => {
+    if (!version) return;
+
+    setError(null);
+    setIsUpdating(true);
+    setUpdateStatus({ status: "downloading", version });
+
+    try {
+      const resp = await authFetch(CGI_ENDPOINT, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "download", version }),
+      });
+
+      const json = await resp.json();
+      if (!json.success) {
+        setError(json.detail || json.error || "Failed to start install");
+        setIsUpdating(false);
+        return;
+      }
+
+      startChainedPolling(version);
+    } catch (err) {
+      if (!mountedRef.current) return;
+      setError(err instanceof Error ? err.message : "Failed to start install");
+      setIsUpdating(false);
+    }
+  }, [startChainedPolling]);
+
   const installUpdate = useCallback(async () => {
     if (!updateInfo?.download_url || !updateInfo?.latest_version) return;
 
@@ -389,6 +492,7 @@ export function useSoftwareUpdate(): UseSoftwareUpdateReturn {
     downloadUpdate,
     installStaged,
     installUpdate,
+    installVersion,
     togglePrerelease,
     saveAutoUpdate,
   };

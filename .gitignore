@@ -58,3 +58,6 @@ RELEASE_NOTE.md
 
 # Health check directory
 /health-checks/
+
+# Investigation scratch (probe scripts, raw logs)
+/scratch/

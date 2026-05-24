@@ -44,7 +44,7 @@ interface UpdatePreferencesCardProps {
   isLoading: boolean;
   isUpdating: boolean;
   isDownloading: boolean;
-  downloadUpdate: (version: string) => Promise<void>;
+  installVersion: (version: string) => Promise<void>;
   togglePrerelease: (enabled: boolean) => Promise<void>;
   saveAutoUpdate: (enabled: boolean, time: string) => Promise<void>;
 }
@@ -68,7 +68,7 @@ export function UpdatePreferencesCard({
   isLoading,
   isUpdating,
   isDownloading,
-  downloadUpdate,
+  installVersion,
   togglePrerelease,
   saveAutoUpdate,
 }: UpdatePreferencesCardProps) {
@@ -109,11 +109,11 @@ export function UpdatePreferencesCard({
     setShowInstallDialog(false);
     if (!selectedVersion) return;
     try {
-      await downloadUpdate(selectedVersion);
+      await installVersion(selectedVersion);
     } catch {
-      toast.error("Failed to start download");
+      toast.error("Failed to start installation");
     }
-  }, [selectedVersion, downloadUpdate]);
+  }, [selectedVersion, installVersion]);
 
   const handleAutoUpdateToggle = useCallback(
     async (checked: boolean) => {

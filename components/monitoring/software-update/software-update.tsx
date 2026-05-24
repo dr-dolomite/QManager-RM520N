@@ -351,7 +351,7 @@ const SoftwareUpdateComponent = () => {
           isLoading={isLoading}
           isUpdating={isUpdating}
           isDownloading={isDownloading}
-          downloadUpdate={hookData.downloadUpdate}
+          installVersion={hookData.installVersion}
           togglePrerelease={hookData.togglePrerelease}
           saveAutoUpdate={hookData.saveAutoUpdate}
         />
