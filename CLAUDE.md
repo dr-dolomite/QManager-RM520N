@@ -159,9 +159,6 @@ The following features have been **completely removed** from the `dev-rm520` bra
 |---------|--------|-----------------|
 | VPN Management (NetBird only) | Third-party binary, fw4/mwan3 dependencies | CGI, hooks, components for NetBird |
 | Video Optimizer / Traffic Masquerade (DPI) | nftables dependency, nfqws ARM32 not validated | CGI, hooks, components, types, dpi_helper.sh, installer |
-| Bandwidth Monitor | ARM64 binary not portable, websocat dependency | CGI, hooks, components, types, binary, systemd units |
-| Ethernet Status & Link Speed | Different NIC architecture (RGMII vs USB), ethtool differences | CGI, components, ethtool_helper.sh |
-| WAN Interface Guard | OpenWRT netifd-specific (ifdown/uci network) | Daemon, init.d script |
 | Low Power Mode (daemons) | Daemon scripts removed; cron/config management retained in settings.sh | qmanager_low_power, qmanager_low_power_check |
 
 ## Feature-Specific Notes
@@ -171,6 +168,8 @@ Detailed operational notes for individual features live in `docs/reference/`. Re
 - **Antenna Alignment** (`/cellular/antenna-alignment`) — `docs/reference/antenna-alignment.md`
 - **Custom DNS** (`/local-network/custom-dns`, dnsmasq upstream override via sentinel block in `/etc/data/dnsmasq.conf`) — `docs/reference/custom-dns.md`
 - **Data Usage Counter** (kernel `/proc/net/dev`-sourced, schema v3, `modem_reset_count`) — `docs/reference/data-usage-counter.md`
+- **Ethernet Status & Link Speed** (`/local-network/ethernet`, Realtek RTL8125B 2.5GbE on `eth0` via `r8125` driver; reads link state from sysfs, speed/duplex from `ethtool`; speed limit applied via `qmanager_ethernet_apply` root helper; lib at `scripts/usr/lib/qmanager/ethtool_helper.sh`)
+- **Live Traffic** (`qmanager_traffic` daemon, 1 Hz `/proc/net/dev` reader; `at_cmd/fetch_traffic.sh` CGI; consumed by dashboard Device Metrics card via `useTrafficStream` hook)
 - **Discord Bot** (`discord-bot/`, deployed as `/usr/bin/qmanager_discord`) — `docs/reference/discord-bot.md`
 - **WAN Profile Management** (`cellular/apn.sh`, 6 PDP contexts, AT-only, per-context `AT+CGACT` cycle) — `docs/reference/wan-profile-management.md`
 - **Custom SIM Profiles** (4-step apply `apn → ttl_hl → scenario → imei`; `settings.scenario_id` binds a Connection Scenario; active profile gates APN / TTL/HL / Scenarios / Band Locking pages; `profile_managed` CGI guard) — `docs/reference/sim-profiles.md`
