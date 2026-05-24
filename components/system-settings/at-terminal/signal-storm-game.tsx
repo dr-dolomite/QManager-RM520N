@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useCallback } from "react";
 import { SignalStormEngine, type GamePalette, type GameCallbacks } from "./signal-storm-engine";
+import { GAME_LABELS } from "./signal-storm-labels";
 
 function readPalette(el: HTMLElement): GamePalette {
   const style = getComputedStyle(el);
@@ -40,6 +41,10 @@ export default function SignalStormGame({ onExit }: { onExit: () => void }) {
     const palette = readPalette(wrapper);
     const callbacks: GameCallbacks = { onExit };
 
+    // Dispose any prior engine (defensive — strict-mode double-mount safety).
+    engineRef.current?.dispose?.();
+    engineRef.current = null;
+
     const observer = new ResizeObserver((entries) => {
       for (const entry of entries) {
         const { width, height } = entry.contentRect;
@@ -48,7 +53,7 @@ export default function SignalStormGame({ onExit }: { onExit: () => void }) {
         if (engineRef.current) {
           engineRef.current.resize(width, height);
         } else {
-          engineRef.current = new SignalStormEngine(ctx, width, height, palette, callbacks);
+          engineRef.current = new SignalStormEngine(ctx, width, height, palette, callbacks, GAME_LABELS);
         }
       }
     });
@@ -64,6 +69,8 @@ export default function SignalStormGame({ onExit }: { onExit: () => void }) {
     wrapperRef.current?.focus();
 
     return () => {
+      engineRef.current?.dispose?.();
+      engineRef.current = null;
       cancelAnimationFrame(animFrameRef.current);
       observer.disconnect();
     };

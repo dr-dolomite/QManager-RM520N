@@ -430,7 +430,7 @@ export default function ATTerminalCard() {
             className="font-mono text-sm"
             autoComplete="off"
             spellCheck={false}
-            maxLength={256}
+            maxLength={4096}
           />
           <InputGroupButton
             type="submit"
