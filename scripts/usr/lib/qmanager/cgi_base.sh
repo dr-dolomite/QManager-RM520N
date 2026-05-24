@@ -125,14 +125,34 @@ cgi_error() {
 
 # ---------------------------------------------------------------------------
 # Reboot After Response
-# Emit success JSON, then schedule an async reboot so the HTTP response
-# flushes to the client before the device goes down.
+# Emit success JSON, then schedule an async reboot. The async block waits up
+# to QM_REBOOT_ACK_TIMEOUT seconds for the static /reboot/ page to confirm it
+# has loaded (touches /tmp/qmanager_reboot_ack via update.sh action=reboot_ack)
+# so lighttpd doesn't die mid-serve. A closed tab or non-UI caller still
+# reboots after the timeout — the wait is bounded and cannot hang.
+# Tunable via env: QM_REBOOT_ACK_TIMEOUT, QM_REBOOT_POST_ACK_DELAY.
 # ---------------------------------------------------------------------------
+: "${QM_REBOOT_ACK_TIMEOUT:=20}"
+: "${QM_REBOOT_POST_ACK_DELAY:=1}"
+
 cgi_reboot_response() {
     echo '{"success":true}'
     _reboot_cmd="reboot"
     command -v run_reboot >/dev/null 2>&1 && _reboot_cmd="run_reboot"
-    ( ( sleep 1 && $_reboot_cmd ) </dev/null >/dev/null 2>&1 & )
+    (
+        rm -f /tmp/qmanager_reboot_ack 2>/dev/null
+        i=0
+        while [ "$i" -lt "$QM_REBOOT_ACK_TIMEOUT" ]; do
+            if [ -f /tmp/qmanager_reboot_ack ]; then
+                rm -f /tmp/qmanager_reboot_ack 2>/dev/null
+                break
+            fi
+            sleep 1
+            i=$((i + 1))
+        done
+        sleep "$QM_REBOOT_POST_ACK_DELAY"
+        $_reboot_cmd
+    ) </dev/null >/dev/null 2>&1 &
     exit 0
 }
 

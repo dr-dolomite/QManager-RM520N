@@ -16,7 +16,10 @@ INSTALL_LOG="/tmp/qmanager_install.log"
 STATUS_FILE="/tmp/qmanager_update.json"
 PID_FILE="/tmp/qmanager_update.pid"
 REBOOT_ACK_FILE="/tmp/qmanager_reboot_ack"
-REBOOT_ACK_TIMEOUT=12
+# 20s gives the cold-cache /reboot/ page time to download bundles, hydrate,
+# and fire reboot_ack before the worker proceeds. Matches the CGI default in
+# cgi_base.sh ($QM_REBOOT_ACK_TIMEOUT) so every reboot path shares one budget.
+REBOOT_ACK_TIMEOUT=20
 VERSION_FILE="/etc/qmanager/VERSION"
 PENDING_FILE="/etc/qmanager/VERSION.pending"
 UPDATES_DIR="/etc/qmanager/updates"
