@@ -2065,6 +2065,17 @@ main() {
     qlog_info "Log level: ${QLOG_LEVEL:-INFO}"
     qlog_info "========================================"
 
+    # Resolve counter orientation from SoC once at startup.
+    orientation=$(detect_orientation_from_soc)
+    if [ "$orientation" = "reversed" ]; then
+        orientation_dl_field=10
+        orientation_ul_field=2
+    else
+        orientation_dl_field=2
+        orientation_ul_field=10
+    fi
+    qlog_info "data_used: counter orientation = ${orientation} (DL=field${orientation_dl_field}, UL=field${orientation_ul_field})"
+
     collect_boot_data
     update_proc_metrics
     update_system_health
