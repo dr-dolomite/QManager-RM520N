@@ -599,34 +599,28 @@ update_conn_uptime() {
 
 write_data_used_state() {
     mkdir -p /usrdata/qmanager 2>/dev/null
-    local _hist_sw_json
-    if [ "$orientation_history_swapped" = "true" ]; then
-        _hist_sw_json=true
-    else
-        _hist_sw_json=false
-    fi
     jq -n \
         --argjson schema    "$DATA_USED_SCHEMA" \
         --argjson acc_rx    "$du_accumulated_rx" \
         --argjson acc_tx    "$du_accumulated_tx" \
         --arg     sel       "$du_selected_counter" \
+        --arg     orient    "$orientation" \
         --argjson prev_i_rx "$du_prev_ipa_rx" \
         --argjson prev_i_tx "$du_prev_ipa_tx" \
         --argjson last_upd  "$du_last_update_ts" \
         --argjson last_rst  "$du_last_reset_ts" \
         --argjson modem_rst "$du_modem_reset_count" \
-        --argjson hist_sw   "$_hist_sw_json" \
         '{
             schema:               $schema,
             accumulated_rx_bytes: $acc_rx,
             accumulated_tx_bytes: $acc_tx,
             selected_counter:     $sel,
+            orientation:          $orient,
             prev_ipa_rx:          $prev_i_rx,
             prev_ipa_tx:          $prev_i_tx,
             last_update_ts:       $last_upd,
             last_reset_ts:        $last_rst,
-            modem_reset_count:    $modem_rst,
-            orientation_history_swapped: $hist_sw
+            modem_reset_count:    $modem_rst
         }' > "$DATA_USED_TMP" && mv "$DATA_USED_TMP" "$DATA_USED_FILE"
 }
 
