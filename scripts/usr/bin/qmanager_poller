@@ -61,13 +61,30 @@ PING_HISTORY_MAX=8640  # 24h at 10s intervals
 DATA_USED_FILE="/usrdata/qmanager/data_used.json"
 DATA_USED_TMP="/usrdata/qmanager/data_used.json.tmp"
 DATA_USED_RESET_FLAG="/tmp/qmanager_data_used_reset"
-# data_used is sourced directly from the kernel rmnet interface byte
-# counters (/proc/net/dev). The kernel labels rx/tx identically on every
-# modem firmware, so no AT-counter orientation calibration is needed.
-# Schema 3 retires the AT-counter / orientation state from schema 2.
-DATA_USED_SCHEMA=3
+# data_used is sourced from the kernel rmnet interface byte counters
+# (/proc/net/dev). The kernel labels rx/tx, but on some Quectel IPA driver
+# builds (notably RM502Q-AE SDX55) the fast-path forwarding writes download
+# bytes into the tx field and vice versa. A per-boot orientation probe
+# disambiguates which raw field carries downloads; see
+# start_orientation_probe() below.
+#
+# Schema 4 treats accumulated_rx_bytes / accumulated_tx_bytes as semantic
+# download/upload regardless of which raw field they came from, and adds
+# orientation_history_swapped as a one-shot v3→v4 migration sentinel.
+DATA_USED_SCHEMA=4
 # Kernel network-stats virtual file. Overridable for the test harness.
 : "${DATA_USED_PROC_DEV:=/proc/net/dev}"
+
+# --- Orientation detection (Tier 1) -----------------------------------------
+# Async 5 MB Cloudflare probe at first WAN-up; re-probes on counter-reset
+# events (modem reattach). Falls back to RM520N defaults on probe failure
+# (field 2=DL, field 10=UL — matches Quectel spec; correct on most firmware).
+ORIENTATION_STATE_FILE="/tmp/qmanager_orientation_state"
+ORIENTATION_PROBE_URL="https://speed.cloudflare.com/__down?bytes=5242880"
+ORIENTATION_PROBE_TIMEOUT=90        # seconds; 5 MB at 500 Kbps takes ~80s
+ORIENTATION_PROBE_PIDFILE="/tmp/qmanager_orientation_probe.pid"
+ORIENTATION_MIN_DELTA=1048576       # 1 MB minimum total delta to classify
+ORIENTATION_RATIO=5                 # 5:1 ratio threshold for clear classification
 
 # --- State Variables ---------------------------------------------------------
 cycle_count=0
@@ -206,7 +223,10 @@ total_rx_bytes=0
 total_tx_bytes=0
 
 # data_used in-memory mirror — initialized from file on first call.
-# Sourced from the kernel rmnet interface; no AT counter, no orientation.
+# accumulated_rx is always the DOWNLOAD bucket and accumulated_tx the UPLOAD
+# bucket; orientation detection picks which raw /proc/net/dev field feeds
+# each. Schema v4 persists orientation_history_swapped to prevent
+# double-migration on subsequent boots.
 du_loaded=false
 du_accumulated_rx=0
 du_accumulated_tx=0
@@ -216,6 +236,14 @@ du_prev_ipa_tx=0
 du_last_update_ts=0
 du_last_reset_ts=0
 du_modem_reset_count=0
+
+# Orientation detection state. orientation_history_swapped is the only
+# field persisted to data_used.json; the rest are reset each boot.
+orientation_state="pending"           # pending|detected_normal|detected_reversed|fallback
+orientation_dl_field=2                # /proc/net/dev field carrying download bytes
+orientation_ul_field=10               # /proc/net/dev field carrying upload bytes
+orientation_probe_attempted=false     # one probe per state-transition to pending
+orientation_history_swapped=false     # persisted: v3→v4 accumulator swap already done
 
 # Connectivity (from ping daemon)
 conn_internet_available="null"
@@ -438,8 +466,10 @@ update_proc_metrics() {
         local dev_line
         dev_line=$(grep "${NETWORK_IFACE}:" /proc/net/dev 2>/dev/null)
         if [ -n "$dev_line" ]; then
-            rx_bytes=$(echo "$dev_line" | awk '{print $2}')
-            tx_bytes=$(echo "$dev_line" | awk '{print $10}')
+            # Use orientation-detected field numbers so live rates inherit the
+            # same DL/UL semantics as the cumulative data_used counter.
+            rx_bytes=$(echo "$dev_line" | awk -v f="$orientation_dl_field" '{print $f}')
+            tx_bytes=$(echo "$dev_line" | awk -v f="$orientation_ul_field" '{print $f}')
         fi
     fi
 
@@ -600,6 +630,128 @@ update_conn_uptime() {
 }
 
 # =============================================================================
+# ORIENTATION DETECTION
+# =============================================================================
+# Empirically determines which /proc/net/dev field carries download bytes by
+# running a known-direction 5 MB Cloudflare probe in a backgrounded subshell.
+# Result is written to ORIENTATION_STATE_FILE; the poll loop reads it on the
+# next tick. Falls back to RM520N defaults (field 2=DL, field 10=UL) on probe
+# failure. Re-probes on counter-reset events (modem reattach).
+
+start_orientation_probe() {
+    # Only one probe in flight at a time — bail if pidfile points at a live PID.
+    if [ -f "$ORIENTATION_PROBE_PIDFILE" ]; then
+        local _existing_pid
+        _existing_pid=$(cat "$ORIENTATION_PROBE_PIDFILE" 2>/dev/null)
+        if [ -n "$_existing_pid" ] && kill -0 "$_existing_pid" 2>/dev/null; then
+            return 0
+        fi
+        rm -f "$ORIENTATION_PROBE_PIDFILE"
+    fi
+
+    # Need a viable WAN — skip silently if the interface is missing.
+    if [ ! -d "/sys/class/net/${NETWORK_IFACE}" ]; then
+        return 0
+    fi
+
+    qlog_info "orientation: probe starting (5 MB download via cloudflare)"
+    orientation_probe_attempted=true
+    # Clear any stale verdict file from a previous probe so apply_orientation_result
+    # waits for THIS probe's verdict instead of consuming an old one.
+    rm -f "$ORIENTATION_STATE_FILE" "${ORIENTATION_STATE_FILE}.tmp"
+
+    # Subshell owns its pidfile lifecycle — writes $BASHPID at entry,
+    # removes at exit. The parent does NOT write to the pidfile, which
+    # avoids a race where a fast-failure subshell finishes and deletes
+    # the pidfile before the parent's "echo $!" lands a now-stale PID.
+    # $BASHPID gives the subshell's own PID (bash 4+); $$ in a subshell
+    # returns the parent's PID and would be wrong here.
+    (
+        echo $BASHPID > "$ORIENTATION_PROBE_PIDFILE"
+        local _pre_rx _pre_tx _post_rx _post_tx _d_rx _d_tx _total _verdict _line
+        _line=$(grep "${NETWORK_IFACE}:" "$DATA_USED_PROC_DEV" 2>/dev/null)
+        _pre_rx=$(printf '%s\n' "$_line" | awk '{print $2}')
+        _pre_tx=$(printf '%s\n' "$_line" | awk '{print $10}')
+        case "$_pre_rx" in ''|*[!0-9]*) _pre_rx=0 ;; esac
+        case "$_pre_tx" in ''|*[!0-9]*) _pre_tx=0 ;; esac
+
+        if curl -s -o /dev/null -m "$ORIENTATION_PROBE_TIMEOUT" "$ORIENTATION_PROBE_URL"; then
+            _line=$(grep "${NETWORK_IFACE}:" "$DATA_USED_PROC_DEV" 2>/dev/null)
+            _post_rx=$(printf '%s\n' "$_line" | awk '{print $2}')
+            _post_tx=$(printf '%s\n' "$_line" | awk '{print $10}')
+            case "$_post_rx" in ''|*[!0-9]*) _post_rx=0 ;; esac
+            case "$_post_tx" in ''|*[!0-9]*) _post_tx=0 ;; esac
+            _d_rx=$((_post_rx - _pre_rx))
+            _d_tx=$((_post_tx - _pre_tx))
+            _total=$((_d_rx + _d_tx))
+            # Require a believably-asymmetric magnitude gap, not just a sign,
+            # so probe noise / concurrent traffic / captive portals can't
+            # accidentally classify orientation.
+            if [ "$_total" -lt "$ORIENTATION_MIN_DELTA" ]; then
+                _verdict="fallback:total=${_total}_below_${ORIENTATION_MIN_DELTA}"
+            elif [ "$_d_rx" -lt 0 ] || [ "$_d_tx" -lt 0 ]; then
+                _verdict="fallback:negative_delta_drx=${_d_rx}_dtx=${_d_tx}"
+            elif [ $((_d_rx)) -gt $((_d_tx * ORIENTATION_RATIO)) ]; then
+                _verdict="normal:drx=${_d_rx}_dtx=${_d_tx}"
+            elif [ $((_d_tx)) -gt $((_d_rx * ORIENTATION_RATIO)) ]; then
+                _verdict="reversed:drx=${_d_rx}_dtx=${_d_tx}"
+            else
+                _verdict="fallback:inconclusive_drx=${_d_rx}_dtx=${_d_tx}"
+            fi
+        else
+            _verdict="fallback:curl_failed"
+        fi
+        printf '%s\n' "$_verdict" > "${ORIENTATION_STATE_FILE}.tmp" \
+            && mv "${ORIENTATION_STATE_FILE}.tmp" "$ORIENTATION_STATE_FILE"
+        rm -f "$ORIENTATION_PROBE_PIDFILE"
+    ) &
+}
+
+apply_orientation_result() {
+    # Read sentinel file written by the backgrounded probe; transition state.
+    # No-op if state isn't pending, or the probe hasn't written its verdict yet.
+    [ "$orientation_state" != "pending" ] && return 0
+    [ ! -f "$ORIENTATION_STATE_FILE" ] && return 0
+    local _verdict
+    _verdict=$(cat "$ORIENTATION_STATE_FILE" 2>/dev/null)
+    rm -f "$ORIENTATION_STATE_FILE"
+    case "$_verdict" in
+        normal:*)
+            orientation_dl_field=2
+            orientation_ul_field=10
+            orientation_state="detected_normal"
+            qlog_info "orientation: detected NORMAL (${_verdict})"
+            ;;
+        reversed:*)
+            orientation_dl_field=10
+            orientation_ul_field=2
+            orientation_state="detected_reversed"
+            qlog_info "orientation: detected REVERSED (${_verdict}); swapping DL/UL field assignments"
+            # Schema v4 migration: one-time swap of persisted accumulators if
+            # an existing install had been logging into the wrong buckets.
+            # Guarded by orientation_history_swapped so subsequent reboots
+            # that re-detect reversed don't keep flipping the data.
+            if [ "$orientation_history_swapped" != "true" ] && [ "$du_loaded" = "true" ]; then
+                local _tmp
+                _tmp="$du_accumulated_rx"
+                du_accumulated_rx="$du_accumulated_tx"
+                du_accumulated_tx="$_tmp"
+                _tmp="$du_prev_ipa_rx"
+                du_prev_ipa_rx="$du_prev_ipa_tx"
+                du_prev_ipa_tx="$_tmp"
+                orientation_history_swapped=true
+                qlog_info "orientation: swapped persisted accumulators (schema v4 migration)"
+                write_data_used_state
+            fi
+            ;;
+        fallback:*)
+            orientation_state="fallback"
+            qlog_info "orientation: probe failed/inconclusive — using defaults (${_verdict})"
+            ;;
+    esac
+}
+
+# =============================================================================
 # PERSISTENT DATA USED COUNTER (Tier 1)
 # =============================================================================
 # Tracks cumulative rx/tx bytes across modem reboots using the kernel
@@ -608,6 +760,12 @@ update_conn_uptime() {
 
 write_data_used_state() {
     mkdir -p /usrdata/qmanager 2>/dev/null
+    local _hist_sw_json
+    if [ "$orientation_history_swapped" = "true" ]; then
+        _hist_sw_json=true
+    else
+        _hist_sw_json=false
+    fi
     jq -n \
         --argjson schema    "$DATA_USED_SCHEMA" \
         --argjson acc_rx    "$du_accumulated_rx" \
@@ -618,6 +776,7 @@ write_data_used_state() {
         --argjson last_upd  "$du_last_update_ts" \
         --argjson last_rst  "$du_last_reset_ts" \
         --argjson modem_rst "$du_modem_reset_count" \
+        --argjson hist_sw   "$_hist_sw_json" \
         '{
             schema:               $schema,
             accumulated_rx_bytes: $acc_rx,
@@ -627,7 +786,8 @@ write_data_used_state() {
             prev_ipa_tx:          $prev_i_tx,
             last_update_ts:       $last_upd,
             last_reset_ts:        $last_rst,
-            modem_reset_count:    $modem_rst
+            modem_reset_count:    $modem_rst,
+            orientation_history_swapped: $hist_sw
         }' > "$DATA_USED_TMP" && mv "$DATA_USED_TMP" "$DATA_USED_FILE"
 }
 
@@ -635,12 +795,16 @@ update_data_used() {
     # Step 0: lazy-load persisted state on the first call.
     if [ "$du_loaded" = "false" ]; then
         if [ -f "$DATA_USED_FILE" ]; then
-            # Schema check — anything older than the current schema is
-            # discarded (heals corrupted AT-counter state from schema 2).
+            # Schema policy:
+            #   < v3  → reset (pre-Schema-3 AT-counter state is incompatible)
+            #   = v3  → migrate in-place to v4 (preserve accumulators; flag
+            #           history as un-swapped so orientation detection can
+            #           fix it on first reversed verdict)
+            #   = v4  → load directly, including orientation_history_swapped
             local _on_disk_schema
             _on_disk_schema=$(jq -r '.schema // 0' "$DATA_USED_FILE" 2>/dev/null)
-            if [ "${_on_disk_schema:-0}" -lt "$DATA_USED_SCHEMA" ]; then
-                qlog_info "data_used: schema v${_on_disk_schema:-0} < v${DATA_USED_SCHEMA}; resetting state"
+            if [ "${_on_disk_schema:-0}" -lt 3 ]; then
+                qlog_info "data_used: schema v${_on_disk_schema:-0} too old; resetting state"
                 rm -f "$DATA_USED_FILE"
             else
                 local _jv
@@ -651,16 +815,22 @@ update_data_used() {
                     (.prev_ipa_tx          // 0 | tostring) + " " +
                     (.last_update_ts       // 0 | tostring) + " " +
                     (.last_reset_ts        // 0 | tostring) + " " +
-                    (.modem_reset_count    // 0 | tostring)
+                    (.modem_reset_count    // 0 | tostring) + " " +
+                    (.orientation_history_swapped // false | tostring)
                 ' "$DATA_USED_FILE" 2>/dev/null)
                 if [ -n "$_jv" ]; then
-                    du_accumulated_rx=$(   printf '%s' "$_jv" | awk '{print $1}')
-                    du_accumulated_tx=$(   printf '%s' "$_jv" | awk '{print $2}')
-                    du_prev_ipa_rx=$(      printf '%s' "$_jv" | awk '{print $3}')
-                    du_prev_ipa_tx=$(      printf '%s' "$_jv" | awk '{print $4}')
-                    du_last_update_ts=$(   printf '%s' "$_jv" | awk '{print $5}')
-                    du_last_reset_ts=$(    printf '%s' "$_jv" | awk '{print $6}')
-                    du_modem_reset_count=$(printf '%s' "$_jv" | awk '{print $7}')
+                    du_accumulated_rx=$(        printf '%s' "$_jv" | awk '{print $1}')
+                    du_accumulated_tx=$(        printf '%s' "$_jv" | awk '{print $2}')
+                    du_prev_ipa_rx=$(           printf '%s' "$_jv" | awk '{print $3}')
+                    du_prev_ipa_tx=$(           printf '%s' "$_jv" | awk '{print $4}')
+                    du_last_update_ts=$(        printf '%s' "$_jv" | awk '{print $5}')
+                    du_last_reset_ts=$(         printf '%s' "$_jv" | awk '{print $6}')
+                    du_modem_reset_count=$(     printf '%s' "$_jv" | awk '{print $7}')
+                    orientation_history_swapped=$(printf '%s' "$_jv" | awk '{print $8}')
+                fi
+                if [ "${_on_disk_schema:-0}" -lt "$DATA_USED_SCHEMA" ]; then
+                    qlog_info "data_used: migrated schema v${_on_disk_schema:-0} → v${DATA_USED_SCHEMA} (preserving accumulators)"
+                    write_data_used_state
                 fi
             fi
         fi
@@ -668,6 +838,16 @@ update_data_used() {
             mkdir -p /usrdata/qmanager 2>/dev/null
         fi
         du_loaded=true
+    fi
+
+    # Step 0.5: orientation orchestration. On pending state, spawn one probe
+    # per attempt-cycle; pick up the result file on subsequent ticks. A
+    # counter-reset event (Step 5 below) resets these to trigger a re-probe.
+    if [ "$orientation_state" = "pending" ]; then
+        if [ "$orientation_probe_attempted" = "false" ]; then
+            start_orientation_probe
+        fi
+        apply_orientation_result
     fi
 
     # Step 1: honor the user reset flag — zero the accumulators but keep
@@ -686,17 +866,20 @@ update_data_used() {
 
     # Step 2: read the kernel cellular-interface byte counters.
     # /proc/net/dev is a kernel virtual file: after the "iface:" token,
-    # field 2 is rx_bytes (download) and field 10 is tx_bytes (upload).
-    # This column layout is fixed by the Linux kernel and identical on
-    # every modem firmware — unlike the AT counter it replaces.
+    # field 2 holds one direction's byte total and field 10 the other.
+    # Orientation detection (Step 0.5) determines which is download vs upload
+    # via $orientation_dl_field / $orientation_ul_field. Defaults (2/10)
+    # match Quectel spec; orientation flips them on firmwares (notably
+    # RM502Q-AE SDX55) where the IPA driver swaps fast-path attribution.
+    # ipa_rx is always the DOWNLOAD bytes; ipa_tx is always the UPLOAD bytes.
     local _dev_line ipa_rx ipa_tx
     _dev_line=$(grep "${NETWORK_IFACE}:" "$DATA_USED_PROC_DEV" 2>/dev/null)
     if [ -z "$_dev_line" ]; then
         qlog_warn "data_used: ${NETWORK_IFACE} not found in ${DATA_USED_PROC_DEV}; skipping tick"
         return 0
     fi
-    ipa_rx=$(printf '%s\n' "$_dev_line" | awk '{print $2}')
-    ipa_tx=$(printf '%s\n' "$_dev_line" | awk '{print $10}')
+    ipa_rx=$(printf '%s\n' "$_dev_line" | awk -v f="$orientation_dl_field" '{print $f}')
+    ipa_tx=$(printf '%s\n' "$_dev_line" | awk -v f="$orientation_ul_field" '{print $f}')
 
     # Numeric guard — a malformed line must not poison the accumulator.
     case "$ipa_rx" in ''|*[!0-9]*)
@@ -728,6 +911,11 @@ update_data_used() {
     if [ "$delta_rx" -lt 0 ] || [ "$delta_tx" -lt 0 ]; then
         qlog_info "data_used: ${NETWORK_IFACE} counter reset detected (delta_rx=${delta_rx} delta_tx=${delta_tx}); rebasing"
         du_modem_reset_count=$((du_modem_reset_count + 1))
+        # Option B retry: a reset event is the modem reattaching, which is a
+        # natural moment for the IPA driver to have re-initialized. Flip
+        # state to pending so the next tick spawns a fresh orientation probe.
+        orientation_state="pending"
+        orientation_probe_attempted=false
     else
         du_accumulated_rx=$((du_accumulated_rx + delta_rx))
         du_accumulated_tx=$((du_accumulated_tx + delta_tx))
@@ -1781,6 +1969,7 @@ write_cache() {
         --argjson du_last_upd  "${du_last_update_ts:-0}" \
         --argjson du_last_rst  "${du_last_reset_ts:-0}" \
         --argjson du_modem_rst "${du_modem_reset_count:-0}" \
+        --arg     du_orient    "${orientation_state:-pending}" \
         '{
             timestamp: $timestamp,
             system_state: $system_state,
@@ -1856,7 +2045,8 @@ write_cache() {
                 selected_counter:     $du_sel,
                 last_update_ts:       $du_last_upd,
                 last_reset_ts:        $du_last_rst,
-                modem_reset_count:    $du_modem_rst
+                modem_reset_count:    $du_modem_rst,
+                orientation_state:    $du_orient
             },
             connectivity: {
                 internet_available: $inet, status: $conn_st,

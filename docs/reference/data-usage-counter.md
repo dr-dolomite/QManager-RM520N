@@ -1,28 +1,28 @@
 # Data Usage Counter
 
-> The persistent data-usage counter reads directly from the kernel's `/proc/net/dev` byte counters for the cellular interface. No AT command, no orientation calibration, no firmware-specific field order to guess.
+> The persistent data-usage counter reads directly from the kernel's `/proc/net/dev` byte counters for the cellular interface. Schema v4 adds per-boot **dynamic orientation detection** — an empirical probe that confirms whether field 2 carries downloads or uploads on the current firmware, rather than trusting the kernel column layout blindly.
 
-Kernel-sourced design landed in v0.1.11 (schema v3). Prior AT+QGDNRCNT-based design was retired.
+Kernel-sourced design landed in v0.1.11 (schema v3). Schema v4 added per-boot orientation detection after we discovered the SDX55 IPA driver attributes fast-path bytes to the swapped column under certain build configurations. See [`data-counter-platform-matrix.md`](./data-counter-platform-matrix.md) for the cross-SoC evidence.
 
 ---
 
 ## Source of truth: /proc/net/dev
 
-The persistent data-usage counter lives in `qmanager_poller` and is stored at `/usrdata/qmanager/data_used.json`. It reads `rx_bytes` (field 2) and `tx_bytes` (field 10) directly from `/proc/net/dev` for `$NETWORK_IFACE` — `rmnet_ipa0` on RM520N-GL, `wwan0` on RM551E.
+The persistent data-usage counter lives in `qmanager_poller` and is stored at `/usrdata/qmanager/data_used.json`. It reads two byte fields from `/proc/net/dev` for `$NETWORK_IFACE` — `rmnet_ipa0` on RM520N-GL, `wwan0` on RM551E.
 
-The `/proc/net/dev` column layout is defined by the Linux kernel and is identical across all firmware versions: after the `iface:` token, field 2 is always RX bytes and field 10 is always TX bytes. There is no firmware-specific field ordering to resolve, so the orientation-calibration step that existed in the prior design was unnecessary and has been removed entirely.
+By convention the kernel layout puts RX bytes at field 2 and TX bytes at field 10. This holds for slow-path traffic on every probed device. **It does not always hold for fast-path (IPA-offloaded) traffic** — some SDX55 driver builds attribute offloaded bytes to the swapped column. Schema v4 detects orientation empirically per boot rather than assuming the convention.
 
 ---
 
-## Schema v3
+## Schema v4
 
-On first run of the new poller, any existing `data_used.json` at schema v2 is discarded. The counter re-baselines cleanly from the current kernel counters. This auto-heals modems whose old orientation calibration had mis-fired (swapping TX/RX or under-counting).
+Schema v4 keeps the v3 storage model and adds orientation state. **Migration is in-place** — existing v3 accumulators are preserved across the upgrade; the v3-to-v2 discard behavior remains.
 
-**`data_used.json` persisted fields (schema v3):**
+**`data_used.json` persisted fields (schema v4):**
 
 | Field | Description |
 |-------|-------------|
-| `schema` | `3` — version guard; v2 files are discarded on startup |
+| `schema` | `4` — version guard; v2 files are discarded on startup, v3 files are upgraded in place |
 | `accumulated_rx_bytes` | Running total of RX bytes since last user-triggered reset |
 | `accumulated_tx_bytes` | Running total of TX bytes since last user-triggered reset |
 | `selected_counter` | The kernel interface name used as source (e.g. `rmnet_ipa0`) |
@@ -31,8 +31,40 @@ On first run of the new poller, any existing `data_used.json` at schema v2 is di
 | `modem_reset_count` | How many times a negative kernel delta was detected (modem reboots) |
 | `prev_ipa_rx` | Last raw kernel RX value — baseline for next delta computation |
 | `prev_ipa_tx` | Last raw kernel TX value — baseline for next delta computation |
+| `orientation_state` | `pending` \| `detected_normal` \| `detected_reversed` \| `fallback` |
+| `orientation_history_swapped` | Boolean. Set true the one time accumulators were swapped to correct a reversed verdict; prevents re-swap on subsequent reversed re-detections |
 
-**CGI response additions:** the `data_used` block in `fetch_data.sh` output also includes `stale: true` when the file mtime is stale. The `orientation`, `orientation_calibrated`, `orientation_attempts`, `divergence_count`, and `mode_transition_count` fields from schema v2 are gone; do not reference them.
+**CGI response additions:** the `data_used` block in `fetch_data.sh` output includes `stale: true` when the file mtime is stale, and surfaces `orientation_state` for diagnostics. The legacy v2 fields (`orientation`, `orientation_calibrated`, `orientation_attempts`, `divergence_count`, `mode_transition_count`) remain gone; do not reference them.
+
+---
+
+## Orientation detection
+
+### State machine
+
+```
+pending ──probe──► detected_normal     (field 2 = DL, field 10 = UL)
+        ──probe──► detected_reversed   (field 2 = UL, field 10 = DL)
+        ──probe──► fallback            (probe inconclusive; use defaults: field 2 = DL)
+```
+
+`fallback` behaves identically to `detected_normal` for accumulation; the distinct state exists so diagnostics can tell "we tried and gave up" apart from "we confirmed normal".
+
+### Probe spec
+
+- **Trigger:** runs once at the first WAN-up after service start (Option A), and re-runs on any counter-reset event — PDN re-establish or modem reboot (Option B). **No periodic probes.**
+- **Payload:** 5 MB minimum download from Cloudflare.
+- **Timeout:** 90 seconds total.
+- **Classification thresholds:** requires at least 1 MB total delta across the two candidate fields AND at least a 5:1 ratio between them. Below either threshold, the verdict is `fallback`.
+- **Concurrency:** runs in a backgrounded subshell. The subshell owns the pidfile lifecycle via `$BASHPID` (not the parent's `$$`) — this avoids a parent-vs-subshell race on fast-failure paths where the parent could otherwise tear down the pidfile while the subshell is still using it.
+
+### Schema v3 → v4 in-place migration
+
+On upgrade, the poller leaves `accumulated_rx_bytes` and `accumulated_tx_bytes` untouched. The first orientation probe then runs as if from a fresh boot. **If — and only if — the first verdict is `detected_reversed` and `orientation_history_swapped` is false**, the accumulators are swapped once and the flag is set. Subsequent boots that re-detect `reversed` won't re-swap; the historical totals are only realigned a single time.
+
+### Boot-window caveat
+
+Between service start and the first orientation verdict (up to 90 seconds), accumulation runs against the default orientation. If the live firmware turns out to be `reversed`, bytes that flowed during that probe window are labeled with the wrong direction. The mislabeled volume is at most a few minutes of traffic vs lifetime totals measured in GB — **negligible in practice** — but worth knowing about when interpreting `orientation_state == "detected_reversed"` on a long-uptime device.
 
 ---
 

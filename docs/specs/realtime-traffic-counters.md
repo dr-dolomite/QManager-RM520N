@@ -1,8 +1,10 @@
 # Real-Time Cellular Traffic Counters
 
+> **Status: Superseded — Live Traffic feature removed in the 2026-05-24 release.** The `qmanager_traffic` daemon, `fetch_traffic.sh` CGI, `useTrafficStream` hook, and Device Metrics Live Traffic row are all gone. The IPA hardware fast path makes per-second `/proc/net/dev` deltas systematically blind to forwarded LAN→WAN traffic, so the daemon's per-tick reads could only see on-modem-originated bytes — a structural limitation, not a fixable bug. See [`../reference/data-counter-platform-matrix.md`](../reference/data-counter-platform-matrix.md) for the full why. Cumulative Data Used (now schema v4 with dynamic orientation detection) continues to work because IPA flushes catch up over time even when per-tick reads miss them.
+
 **Date:** 2026-05-08
 **Branch:** development
-**Status:** Design — pending plan + implementation
+**Status:** Design — superseded
 
 ## Context
 

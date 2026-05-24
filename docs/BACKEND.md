@@ -534,19 +534,6 @@ Network interface for traffic stats is auto-detected: `rmnet_ipa0` on RM520N-GL 
 
 The CGI reader (`/cgi-bin/quecmanager/system/modem-subsys.sh`) is now a thin `jq` extractor: it reshapes `system_health` into the historical response schema, falls back to an all-null shape if the cache is missing or older than 30s, and never re-implements live computation. Per-request cost dropped from ~80–120ms to ~15–25ms.
 
-#### `qmanager_traffic`
-
-**Location:** `/usr/bin/qmanager_traffic`
-**State files:** `/tmp/qmanager_traffic.json` (atomic write per tick)
-
-1 Hz cellular traffic counter daemon. Reads `/proc/net/dev` every second for the active rmnet interface and emits a slim JSON snapshot consumed by the Device Metrics card via `fetch_traffic.sh` and `useTrafficStream`. Decoupled from `qmanager_poller` so the dashboard's Live Traffic and Data Used rows update at 1 s without waiting on the AT-bound 2 s tier. Never touches `/dev/smd11` and acquires no AT lock.
-
-**Iface selection (per tick):** prefers `$NETWORK_IFACE` (default `rmnet_ipa0`), falls back to `rmnet_data0`, emits `iface=null` with zeroed counters if neither is present in `/proc/net/dev`. Selection is by `/proc/net/dev` presence, not `/sys/class/net/<iface>/operstate` — Quectel rmnet drivers leave `operstate` at `unknown` even when actively passing traffic, so an operstate gate would never select an iface on this platform. This mirrors the approach in `qmanager_poller`'s traffic stats path.
-
-**Counter-reset handling:** a negative delta (modem subsystem restart re-created the iface) emits one zero tick and reseeds the baseline. No negative speeds ever surface to the UI.
-
-**Footprint (measured on RM520N-GL, single-core ARMv7, 30 s sample):** ~0.4 % CPU, ~14 MB RSS — about ¼ of `qmanager_poller`. Dominated by the per-tick `awk` + `jq` + `mv`.
-
 #### `qmanager_ping`
 
 **Location:** `/usr/bin/qmanager_ping`
@@ -781,8 +768,7 @@ OTA update worker. See §12 for full pipeline description. Called via `sudo -n` 
 | `qmanager-imei-check.service` | oneshot | `/usr/bin/qmanager_imei_check` | Post-boot IMEI restore; guarded by `ExecStartPre` condition checks |
 | `qmanager-mtu.service` | simple | `/usr/bin/qmanager_mtu_apply` | MTU persistence; `ConditionPathExists=/etc/firewall.user.mtu` |
 | `qmanager-ping.service` | simple | `/usr/bin/qmanager_ping` | Ping daemon; required by poller |
-| `qmanager-poller.service` | simple | `/usr/bin/qmanager_poller` | Main data poller; guards `/dev/smd11` in `ExecStartPre` |
-| `qmanager-traffic.service` | simple | `/usr/bin/qmanager_traffic` | 1 Hz `/proc/net/dev` reader for Live Traffic + Data Used; no AT access |
+| `qmanager-poller.service` | simple | `/usr/bin/qmanager_poller` | Main data poller; guards `/dev/smd11` in `ExecStartPre`; sources Data Used (schema v4, with per-boot orientation detection) from `/proc/net/dev` at the 2 s Tier 1 cadence |
 | `qmanager-setup.service` | oneshot (RemainAfterExit) | `/usr/bin/qmanager_setup` | Permission setup; before ping and poller |
 | `qmanager-tower-failover.service` | simple | `/usr/bin/qmanager_tower_failover` | Tower lock failover; guarded by config check in `ExecStartPre` |
 | `qmanager-ttl.service` | oneshot (RemainAfterExit) | inline sh | TTL/HL rule persistence; `ConditionPathExists=/etc/qmanager/ttl_state` |
@@ -791,7 +777,7 @@ OTA update worker. See §12 for full pipeline description. Called via `sudo -n` 
 
 **`tailscaled.service`** is staged in `/usr/lib/qmanager/tailscaled.service` (source: `scripts/etc/systemd/system/tailscaled.service`). It is only copied to `/lib/systemd/system/` when the user installs Tailscale via `qmanager_tailscale_mgr install`. `ExecStartPost=/bin/chmod 755 /usrdata/tailscale` restores directory permissions after tailscaled resets them to 700.
 
-**Service ordering:** `qmanager-firewall` -> `qmanager-setup` -> `qmanager-ping` -> `qmanager-poller` -> `qmanager-watchcat`. `qmanager-traffic` runs in parallel with the others (`After=network.target qmanager-setup.service` only — no AT-device dependency).
+**Service ordering:** `qmanager-firewall` -> `qmanager-setup` -> `qmanager-ping` -> `qmanager-poller` -> `qmanager-watchcat`.
 
 ---
 
@@ -951,7 +937,6 @@ For request/response schemas, see `API-REFERENCE.md`.
 | `at_cmd/fetch_events.sh` | GET | Return recent events as JSON array |
 | `at_cmd/fetch_ping_history.sh` | GET | Return ping history data for latency chart |
 | `at_cmd/fetch_signal_history.sh` | GET | Return signal history data for RSRP/SINR chart |
-| `at_cmd/fetch_traffic.sh` | GET | Return current `qmanager_traffic` snapshot (`/tmp/qmanager_traffic.json`) with stale flag; polled at 1 Hz by `useTrafficStream` |
 | `at_cmd/neighbour_scan_start.sh` | POST | Spawn `qmanager_neighbour_scanner`; return PID |
 | `at_cmd/neighbour_scan_status.sh` | GET | Poll neighbour scan progress and results |
 | `at_cmd/send_command.sh` | POST | Send arbitrary AT command via `qcmd`; returns raw response |
@@ -1085,7 +1070,6 @@ Cleared on every reboot (tmpfs). Files pre-created by `qmanager_setup` are marke
 | `/tmp/qmanager_status.json` | root | qmanager_poller | Main modem status cache; polled by frontend |
 | `/tmp/qmanager_ping.json` | root | qmanager_ping | Current ping state (available, latency, streaks) |
 | `/tmp/qmanager_ping_history` | root | qmanager_ping | Raw latency history (flat ring buffer) |
-| `/tmp/qmanager_traffic.json` | root | qmanager_traffic | 1 Hz cellular traffic snapshot (iface, totals, byte rates) |
 | `/tmp/qmanager_signal_history.json` | root | qmanager_poller | Signal history NDJSON for chart |
 | `/tmp/qmanager_events.json` | root | qmanager_poller / qmanager_watchcat | Recent activity events NDJSON |
 | `/tmp/qmanager_pci_state.json` | root | qmanager_poller | SCC PCI state for handoff detection |

@@ -1,5 +1,7 @@
 # Live Latency Graph Update — Implementation Plan
 
+> **Status: Superseded — Live Traffic feature removed in the 2026-05-24 release.** This plan touches the same Device Metrics card surface that hosted the now-removed Live Traffic row. The latency-graph polish itself may still be partly relevant, but anything that depends on `useTrafficStream` or the `qmanager_traffic` daemon no longer applies. See [`../reference/data-counter-platform-matrix.md`](../reference/data-counter-platform-matrix.md).
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Polish the Live Latency card on the Home dashboard — remove the X-axis time labels, expand the chart from 5 to 10 plotted points, and tie the data refresh cadence to the user's Connection Sensitivity profile (daemon interval + small buffer).

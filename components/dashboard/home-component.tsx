@@ -4,7 +4,6 @@ import React from "react";
 import { motion, type Variants } from "motion/react";
 import { cn } from "@/lib/utils";
 import { useModemStatus } from "@/hooks/use-modem-status";
-import { useTrafficStream } from "@/hooks/use-traffic-stream";
 import { useAboutDevice } from "@/hooks/use-about-device";
 import NetworkStatusComponent from "./network-status";
 import DeviceStatus from "./device-status";
@@ -36,7 +35,6 @@ const itemVariants: Variants = {
 const HomeComponent = () => {
   const [pollInterval, setPollInterval] = React.useState<number>(DEFAULT_POLL_MS);
   const { data, isLoading, isStale, error } = useModemStatus({ pollInterval });
-  const { data: trafficStream } = useTrafficStream();
   const { data: aboutDevice } = useAboutDevice();
 
   // Tie poll cadence to the ping daemon's write interval (Connection Sensitivity).
@@ -137,7 +135,6 @@ const HomeComponent = () => {
             <DeviceMetricsComponent
               deviceData={data?.device ?? null}
               trafficData={data?.traffic ?? null}
-              trafficStream={trafficStream}
               lteData={data?.lte ?? null}
               nrData={data?.nr ?? null}
               isLoading={isLoading}

@@ -145,7 +145,6 @@ Auth endpoints use `_SKIP_AUTH=1` to bypass the automatic auth check in `cgi_bas
 | `/tmp/qmanager_ping_history.json` | poller | NDJSON | 24h ping history (10s samples, max 8640 lines) |
 | `/tmp/qmanager_events.json` | poller | NDJSON | Network events (max 50 entries) |
 | `/tmp/qmanager_ping.json` | ping daemon | JSON | Current ping result |
-| `/tmp/qmanager_traffic.json` | traffic daemon | JSON | 1 Hz `/proc/net/dev` snapshot (Live Traffic + Data Used) |
 | `/tmp/qmanager_watchcat.json` | watchcat | JSON | Watchdog state machine |
 | `/tmp/qmanager_profile_state.json` | profile_apply | JSON | Profile apply progress |
 | `/tmp/qmanager_pci_state.json` | poller (events) | JSON | SCC PCI tracking |
@@ -168,9 +167,6 @@ init.d/qmanager (procd)
 
 init.d/qmanager (procd)
   └── qmanager_ping (ping daemon, runs forever)
-
-systemd/qmanager-traffic.service
-  └── qmanager_traffic (1 Hz /proc/net/dev reader, runs forever; no AT access)
 
 init.d/qmanager_eth_link (non-procd, one-shot)
   └── applies persisted ethernet link speed on boot

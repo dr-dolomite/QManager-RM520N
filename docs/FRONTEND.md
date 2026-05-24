@@ -97,7 +97,7 @@ constants/                      # Static configuration data
 |-------|-----------|-------------|
 | `/` | Redirect | → `/dashboard` |
 | `/login` | LoginForm | Authentication (login or first-time setup) |
-| `/dashboard` | HomeComponent | Real-time signal, traffic, device status |
+| `/dashboard` | HomeComponent | Real-time signal and device status |
 | `/cellular` | CellularInformation | Cellular info cards |
 | `/cellular/settings` | CellularSettings | Mode, roaming, AMBR settings |
 | `/cellular/settings/apn-management` | APNSettings | APN profile CRUD |
@@ -181,14 +181,6 @@ Fetches ping history for latency charts.
 - **Endpoint**: `GET /cgi-bin/quecmanager/at_cmd/fetch_ping_history.sh`
 - **Returns**: `PingHistoryEntry[]`
 - **Tabs**: Real Time (last 10 samples), Hourly, 12h, Daily
-
-#### `useTrafficStream(options?)`
-
-1 Hz live traffic counter. Decoupled from `useModemStatus` so the dashboard's Live Traffic row updates faster than the AT-bound 2 s tier.
-
-- **Endpoint**: `GET /cgi-bin/quecmanager/at_cmd/fetch_traffic.sh`
-- **Returns**: `TrafficStream` — `{ iface, rx_bytes_per_sec, tx_bytes_per_sec, total_rx_bytes, total_tx_bytes, ts, stale }`
-- **Stale detection**: CGI sets `stale: true` when `/tmp/qmanager_traffic.json` is older than 5 s (daemon not running)
 
 #### `useDataUsed(options?)`
 

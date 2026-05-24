@@ -8,7 +8,7 @@
 
 ## TL;DR
 
-Both probed Quectel 5G modems show **the kernel `rmnet_ipa0` counter is accurate and per-second responsive** — the existing Schema v3 design (kernel-sourced, no AT counter) is mechanically correct on both platforms. The "kernel under-reports because IPA bypasses it" theory is fully disproven.
+Both probed Quectel 5G modems show **the kernel `rmnet_ipa0` counter is accurate cumulatively** — the existing kernel-sourced design is mechanically correct on both platforms for lifetime/cumulative accounting. The "kernel under-reports because IPA bypasses it" theory is disproven for cumulative totals, but with a critical scope caveat: see [What this debunks](#what-this-debunks) and [Why Live Traffic was removed](#why-live-traffic-was-removed) below. IPA fast-path forwarded traffic is invisible to per-second reads even though it accumulates correctly over time.
 
 However, the two SoCs disagree on **AT counter semantics** in ways that would break any naive "use AT counter for cumulative" alternative:
 
@@ -156,8 +156,9 @@ Several plausible-sounding hypotheses turned out to be false:
 
 | Hypothesis | Verdict | Evidence |
 |---|---|---|
-| IPA hardware path bypasses `/proc/net/dev` on SDX55 | ❌ False | Controlled 50 MiB download grew rx_bytes by 55.6 MB on SDX55, 54.9 MB on SDX65 |
-| Kernel rx/tx labels are reversed on SDX55 firmware | ❌ False | Same controlled test on both — rx grew during download, tx grew during upload, exactly as labeled |
+| IPA hardware path bypasses `/proc/net/dev` on SDX55 — for **on-modem-originated traffic** | ❌ False | Controlled 50 MiB download grew rx_bytes by 55.6 MB on SDX55, 54.9 MB on SDX65 |
+| IPA hardware path bypasses `/proc/net/dev` — for **forwarded LAN→WAN fast-path traffic** | ⚠️ **True for per-tick reads, false for cumulative** | The original probes only tested on-modem `curl` (slow path). LAN-client traffic that takes the IPA fast path is forwarded in silicon and is invisible to per-second `/proc/net/dev` deltas — but it does accumulate via IPA notifications, so lifetime totals stay accurate. See [Why Live Traffic was removed](#why-live-traffic-was-removed). |
+| Kernel rx/tx labels are reversed on SDX55 firmware | ⚠️ **True on some IPA driver builds** | The slow-path test showed correct labels, but later evidence on production traffic showed some SDX55 IPA builds attribute fast-path bytes to the swapped column. Schema v4 now probes orientation per boot to handle this empirically. See [Dynamic orientation detection](#dynamic-orientation-detection). |
 | IPA batches updates and only flushes during sustained flows | ❌ False | 60-second per-second sampling on both devices showed continuous tiny deltas during idle keepalive |
 | `QGDNRCNT` field order matches Quectel docs (`TX,RX`) on all firmware | ❌ False | SDX55 firmware reverses it; SDX65 matches docs. Per-firmware lookup is mandatory. |
 | "Always sum `QGDCNT + QGDNRCNT`" is a portable formula | ❌ False | Works on SDX55 (independent counters). Double-counts on SDX65 (mirrored counters). |
@@ -167,10 +168,39 @@ Several plausible-sounding hypotheses turned out to be false:
 ## What's confirmed
 
 1. **`rmnet_ipa0` is the correct aggregate WAN counter** on Quectel internal-Linux builds across both SoC generations. The `rmnet_dataN` children are per-PDN demuxed views that should not be used for whole-WAN totals.
-2. **Kernel rx/tx labels match user-facing semantics on both probed firmwares.** Field 2 = download, field 10 = upload — universal so far.
-3. **Per-second live updates work on both SoCs.** No batch-flush latency.
-4. **Schema v3's kernel-only approach is mechanically sound** on the probed devices. The known weakness (counter zeroing on interface re-creation) is unchanged, but is not a per-SoC issue.
+2. **Kernel rx/tx labels match user-facing semantics for slow-path traffic on both probed firmwares.** Field 2 = download, field 10 = upload — verified on every on-modem probe. Fast-path orientation is detected empirically per boot (see [Dynamic orientation detection](#dynamic-orientation-detection)) because it varies across IPA driver builds.
+3. **Per-second live updates work on both SoCs — for on-modem-originated traffic only.** Forwarded LAN→WAN fast-path traffic does not show up in per-tick `/proc/net/dev` deltas on either SoC. See [Why Live Traffic was removed](#why-live-traffic-was-removed).
+4. **The kernel-only cumulative approach is mechanically sound** on the probed devices. The known weakness (counter zeroing on interface re-creation) is unchanged, but is not a per-SoC issue.
 5. **The kernel counter and AT counter agree closely on SDX65** when measured over the same window (~322 KB drift over ~55 MB, attributable to signaling/control bytes that rmnet_ipa0 sees but the PS-data AT counter doesn't).
+
+### Scoping caveat
+
+Conclusions 2 and 3 above were originally written off probes that exercised only **on-modem-originated** traffic (`curl` running on the modem itself). On-modem traffic always traverses the kernel slow path, so it was always going to be visible to `/proc/net/dev`. The probes did not exercise **forwarded LAN→WAN traffic**, which is the dominant case in production deployments and is where the IPA fast path actually kicks in. The corrections in [What this debunks](#what-this-debunks) and the two new sections below carry the load of that updated understanding.
+
+---
+
+## Why Live Traffic was removed
+
+The `qmanager_traffic` daemon (1 Hz `/proc/net/dev` reader, separate systemd unit, consumed by a `useTrafficStream` hook on the Device Metrics card) was removed in mid-2026.
+
+**Root cause:** Quectel modems route LAN-to-WAN traffic through an IPA (IP Accelerator) hardware fast path. Once a flow is offloaded, the kernel netdev driver receives **accumulated** byte updates from IPA but does not see them per-packet. Concretely:
+
+- Lifetime totals on `rmnet_ipa0` stay correct because IPA periodically flushes counters into the netdev stats.
+- Per-tick deltas (the difference between two `/proc/net/dev` reads taken a second apart) are systematically missing the fast-path bytes between flushes.
+
+The daemon could only see traffic originated **on** the modem — on-device speedtest runs, the modem's own background HTTP fetches, etc. It was structurally blind to actual user traffic from LAN clients, which is the only traffic anyone cares about watching live. Empirical confirmation on both RM502Q-AE (SDX55) and RM520N-GL (SDX65).
+
+The Data Used cumulative counter (sourced from the same fields, sampled at the poller's 2 s Tier 1 cadence) is unaffected — cumulative reads catch the IPA flushes; per-second deltas don't. The per-second daemon added complexity, a parallel data path, and a permanent ~14 MB RSS daemon without delivering accuracy for the dominant traffic case.
+
+---
+
+## Dynamic orientation detection
+
+Schema v4 of the Data Used counter (see [`data-usage-counter.md`](./data-usage-counter.md)) introduces per-boot orientation detection. Instead of trusting that field 2 = RX on every IPA driver build, the poller runs a controlled 5 MB Cloudflare download probe at first WAN-up and on each counter-reset event, then classifies the orientation as `detected_normal`, `detected_reversed`, or `fallback`.
+
+This sidesteps the per-SoC × per-firmware-revision orientation lookup table this matrix was originally building toward. Rather than maintain a static table that grows every time a new firmware ships, the device tells us empirically which orientation it's using right now. The cost is a one-time 5 MB probe per boot and the brief boot-window caveat documented in `data-usage-counter.md`.
+
+If you find a device where the probe consistently returns `fallback` (low total delta, low ratio between fields), capture the probe environment and add it to the SoC × counter matrix above — that's a signal IPA flushes weren't reaching the netdev during the probe window at all, which is a different class of bug.
 
 ---
 

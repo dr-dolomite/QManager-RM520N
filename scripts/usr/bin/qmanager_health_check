@@ -199,8 +199,6 @@ _test_catalog_pending() {
         {id:"cfg.cgi_path_opt",   category:"configuration", label:"lighttpd CGI PATH includes /opt/bin", status:"pending", duration_ms:0, detail:""},
         {id:"data_used.fresh",    category:"configuration", label:"data_used.json fresh (mtime < 60s)",  status:"pending", duration_ms:0, detail:""},
 
-        {id:"svc.traffic",        category:"services",       label:"qmanager-traffic.service",            status:"pending", duration_ms:0, detail:""},
-
         {id:"data_used.divergence_low", category:"network",  label:"data_used divergence count low",      status:"pending", duration_ms:0, detail:""}
     ]'
 }
@@ -484,7 +482,6 @@ t_svc_console()   { _svc_check qmanager-console.service 1; }
 t_svc_setup()     { _svc_check qmanager-setup.service 1; }
 t_svc_lighttpd()  { _svc_check lighttpd.service 1; }
 t_svc_tailscaled(){ _svc_check tailscaled.service 0; }
-t_svc_traffic()   { _svc_check qmanager-traffic.service 1; }
 
 t_net_dns() {
     # Bound the test to 5s — nslookup against unreachable DNS can stall 30s+
@@ -686,7 +683,7 @@ _collect_system_info() {
 _collect_services() {
     local dir="$1"
     mkdir -p "$dir"
-    local units="qmanager-firewall.service qmanager-poller.service qmanager-console.service qmanager-setup.service qmanager-traffic.service lighttpd.service tailscaled.service qmanager-tailscale-watchdog.service"
+    local units="qmanager-firewall.service qmanager-poller.service qmanager-console.service qmanager-setup.service lighttpd.service tailscaled.service qmanager-tailscale-watchdog.service"
     for u in $units; do
         {
             echo "# systemctl status $u"
@@ -849,7 +846,6 @@ _run_test svc.console         services     "qmanager-console.service"           
 _run_test svc.setup           services     "qmanager-setup.service"                t_svc_setup
 _run_test svc.lighttpd        services     "lighttpd.service"                      t_svc_lighttpd
 _run_test svc.tailscaled      services     "tailscaled.service (optional)"         t_svc_tailscaled
-_run_test svc.traffic         services     "qmanager-traffic.service"              t_svc_traffic
 
 _run_test net.dns             network      "DNS resolves install.speedtest.net"    t_net_dns
 _run_test net.ping            network      "IPv4 reachability (1.1.1.1)"           t_net_ping

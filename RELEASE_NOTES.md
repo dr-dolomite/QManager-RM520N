@@ -6,6 +6,8 @@
 
 - **Software Update no longer leaves the reboot page stuck on a blank screen.** On a fresh browser or slow connection, the OTA worker was rebooting the modem before the countdown page had finished loading its assets, so lighttpd died mid-serve and the page got stranded. The handshake that coordinates "wait for the reboot page to be ready" now gives the page more time to settle, and every reboot path in QManager (IPPT, Carrier Profile, System Reboot, Tailscale, OTA) shares the same coordination logic — the device only reboots once the countdown page has confirmed it's loaded.
 
+- **Version Management Install button now actually installs.** Under **System Settings → Software Update → Update Preferences → Version Management**, clicking Install used to silently stop after downloading — the tarball was staged on the device but no install ever followed, so reinstalls and rollbacks just looked like nothing happened. The button now runs the full download → install → reboot sequence in one click, with the same progress stepper as the main Update flow. Works the same for upgrades, reinstalls of the current version (handy for repairing a broken install), and rollbacks to older releases.
+
 ---
 
 # 🚀 QManager RM520N BETA v0.1.11

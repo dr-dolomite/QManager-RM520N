@@ -1,5 +1,7 @@
 # Real-Time Cellular Traffic Counters Implementation Plan
 
+> **Status: Superseded — Live Traffic feature removed in the 2026-05-24 release.** Kept as a historical record of the implementation that shipped and was later removed. The `qmanager_traffic` daemon, `fetch_traffic.sh` CGI, and `useTrafficStream` hook no longer exist. See [`../reference/data-counter-platform-matrix.md`](../reference/data-counter-platform-matrix.md) for why per-second `/proc/net/dev` reads cannot see IPA fast-path forwarded traffic.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Add a "Data Used" cumulative-totals row above "Live Traffic" in the Device Metrics card, and make the live speed update at 1 Hz end-to-end via a new `/proc/net/dev` side-channel daemon.

@@ -289,29 +289,6 @@ export interface DataUsedBlock {
   stale: boolean;
 }
 
-/**
- * Live cellular traffic stream from `qmanager_traffic` daemon.
- * Sourced from `/proc/net/dev` at 1 Hz, independent of the 2 s poller cache.
- * `iface` is `null` when neither rmnet candidate is up.
- * `stale` is set by the CGI when the on-disk file is older than 5 s.
- */
-export interface TrafficStream {
-  /** Unix epoch seconds when the daemon wrote this snapshot */
-  ts: number;
-  /** Active cellular interface name, or null when none is up */
-  iface: string | null;
-  /** Cumulative RX bytes since interface bringup (modem boot) */
-  total_rx_bytes: number;
-  /** Cumulative TX bytes since interface bringup (modem boot) */
-  total_tx_bytes: number;
-  /** Current download speed in bytes/sec, computed from a 1 s delta */
-  rx_bytes_per_sec: number;
-  /** Current upload speed in bytes/sec, computed from a 1 s delta */
-  tx_bytes_per_sec: number;
-  /** True when the on-disk file is older than 5 s (daemon stuck or stopped) */
-  stale?: boolean;
-}
-
 // --- Utility Types -----------------------------------------------------------
 
 /** Signal quality thresholds for UI indicators */

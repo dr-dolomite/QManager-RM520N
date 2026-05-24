@@ -35,7 +35,6 @@ import {
 import type {
   DeviceStatus,
   TrafficStatus,
-  TrafficStream,
   LteStatus,
   NrStatus,
 } from "@/types/modem-status";
@@ -54,7 +53,6 @@ import { useDataUsed } from "@/hooks/use-data-used";
 interface DeviceMetricsComponentProps {
   deviceData: DeviceStatus | null;
   trafficData: TrafficStatus | null;
-  trafficStream: TrafficStream | null;
   lteData: LteStatus | null;
   nrData: NrStatus | null;
   isLoading: boolean;
@@ -69,7 +67,6 @@ const CPU_DANGER = 90; // percentage
 const DeviceMetricsComponent = ({
   deviceData,
   trafficData,
-  trafficStream,
   lteData,
   nrData,
   isLoading,
@@ -85,21 +82,12 @@ const DeviceMetricsComponent = ({
   const displayDevUptime = deviceData?.uptime_seconds ?? 0;
   const displayConnUptime = deviceData?.conn_uptime_seconds ?? 0;
 
-  // Prefer the 1 Hz stream daemon; fall back to the 2 s poller cache when
-  // the stream daemon is missing, stale, or has no bound iface. The stream
-  // emits explicit 0s when iface is null, so a `??` chain alone would never
-  // fall through — gate on iface presence and freshness instead.
-  const streamUsable =
-    trafficStream != null &&
-    trafficStream.iface != null &&
-    !trafficStream.stale;
-
-  const rxSpeed = streamUsable
-    ? trafficStream.rx_bytes_per_sec
-    : trafficData?.rx_bytes_per_sec ?? 0;
-  const txSpeed = streamUsable
-    ? trafficStream.tx_bytes_per_sec
-    : trafficData?.tx_bytes_per_sec ?? 0;
+  // Live speed sourced from the 2 s poller cache. The previous 1 Hz live
+  // traffic daemon was removed because IPA hardware offload bypasses
+  // /proc/net/dev for forwarded LAN traffic — the daemon could only see
+  // on-modem traffic and was misleading when read at sub-poller cadence.
+  const rxSpeed = trafficData?.rx_bytes_per_sec ?? 0;
+  const txSpeed = trafficData?.tx_bytes_per_sec ?? 0;
 
   const isTempHigh = temp !== null && temp >= TEMP_WARN;
   const isCpuHigh = cpu !== null && cpu >= CPU_WARN;

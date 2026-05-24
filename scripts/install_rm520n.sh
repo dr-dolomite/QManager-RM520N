@@ -1468,7 +1468,7 @@ start_services() {
     systemctl start qmanager-setup 2>/dev/null || true
 
     # Start always-on services with verification
-    for svc in qmanager-cfun-fix qmanager-ping qmanager-poller qmanager-traffic qmanager-ttl qmanager-mtu qmanager-imei-check; do
+    for svc in qmanager-cfun-fix qmanager-ping qmanager-poller qmanager-ttl qmanager-mtu qmanager-imei-check; do
         systemctl start "$svc" 2>/dev/null || true
     done
 
@@ -1490,7 +1490,7 @@ start_services() {
 
     # Verify critical services
     local svc_errors=0
-    for svc in qmanager-firewall lighttpd qmanager-setup qmanager-ping qmanager-poller qmanager-traffic; do
+    for svc in qmanager-firewall lighttpd qmanager-setup qmanager-ping qmanager-poller; do
         if systemctl is-active "$svc" >/dev/null 2>&1; then
             info "$svc is running"
         else
