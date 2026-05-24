@@ -55,6 +55,9 @@ run_tick() {
         du_prev_ipa_rx=0; du_prev_ipa_tx=0
         du_last_update_ts=0; du_last_reset_ts=0
         du_modem_reset_count=0
+        orientation_state="detected_normal"
+        orientation_dl_field=2
+        orientation_ul_field=10
         . "$work/fn_write.sh"
         . "$work/fn_update.sh"
         update_data_used
@@ -166,6 +169,66 @@ jq -n '{schema:3, accumulated_rx_bytes:4242, accumulated_tx_bytes:2121,
 run_tick "$proc" "$state"
 arx=$(jq -r '.accumulated_rx_bytes' "$state")
 [ "$arx" = "4242" ] && ok "accumulator untouched when interface absent" || bad "accumulator changed ($arx)"
+
+# --- Test 7: SoC detection — SDX6X returns normal ---------------------
+section "detect_orientation_from_soc maps SDX6X to normal"
+qv="$work/quectel_sdx6x"
+cat > "$qv" <<'EOF'
+Project Rev      : RM520NGLAAR03A03M4G_A0.303
+Branch Name      : SDX6X
+EOF
+result=$(
+    awk '/^detect_orientation_from_soc\(\)/,/^\}/' "$POLLER" > "$work/fn_det.sh"
+    (
+        set +eu
+        . "$work/fn_det.sh"
+        QUECTEL_VERSION_FILE="$qv" detect_orientation_from_soc
+    )
+)
+[ "$result" = "normal" ] && ok "SDX6X -> normal" || bad "SDX6X gave '$result'"
+
+# --- Test 8: SoC detection — SDX55 returns reversed -------------------
+section "detect_orientation_from_soc maps SDX55 to reversed"
+qv="$work/quectel_sdx55"
+cat > "$qv" <<'EOF'
+Project Rev      : RM502QAEAAR13A04M4G_01.200
+Branch Name      : SDX55
+EOF
+result=$(
+    (
+        set +eu
+        . "$work/fn_det.sh"
+        QUECTEL_VERSION_FILE="$qv" detect_orientation_from_soc
+    )
+)
+[ "$result" = "reversed" ] && ok "SDX55 -> reversed" || bad "SDX55 gave '$result'"
+
+# --- Test 9: SoC detection — unknown branch falls back to normal ------
+section "detect_orientation_from_soc unknown branch -> normal"
+qv="$work/quectel_unknown"
+cat > "$qv" <<'EOF'
+Project Rev      : XXX
+Branch Name      : SDX99
+EOF
+result=$(
+    (
+        set +eu
+        . "$work/fn_det.sh"
+        QUECTEL_VERSION_FILE="$qv" detect_orientation_from_soc
+    )
+)
+[ "$result" = "normal" ] && ok "unknown SoC -> normal" || bad "unknown gave '$result'"
+
+# --- Test 10: SoC detection — missing file -> normal ------------------
+section "detect_orientation_from_soc missing file -> normal"
+result=$(
+    (
+        set +eu
+        . "$work/fn_det.sh"
+        QUECTEL_VERSION_FILE="/nonexistent/path/version" detect_orientation_from_soc
+    )
+)
+[ "$result" = "normal" ] && ok "missing file -> normal" || bad "missing gave '$result'"
 
 # --- Summary ----------------------------------------------------------
 printf '\n%d passed, %d failed\n' "$pass_count" "$fail_count"

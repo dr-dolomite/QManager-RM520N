@@ -46,6 +46,25 @@ if [ -f /etc/quectel-project-version ]; then
 else
     NETWORK_IFACE="wwan0"        # RM551E on OpenWRT
 fi
+# Path to the Quectel firmware version file. Overridable for the test harness.
+: "${QUECTEL_VERSION_FILE:=/etc/quectel-project-version}"
+
+# detect_orientation_from_soc — read Branch Name from $QUECTEL_VERSION_FILE
+# and return the expected /proc/net/dev field orientation for this SoC.
+# SDX55 hardware uses reversed IPA fast-path routing (tx=DL, rx=UL).
+# All other known SoCs (SDX6X) and unknown/missing files default to normal
+# (rx=DL, tx=UL — matches Quectel spec).
+# Output: "reversed" | "normal" (printed to stdout)
+detect_orientation_from_soc() {
+    local branch
+    branch=$(grep -m1 "^Branch Name" "${QUECTEL_VERSION_FILE}" 2>/dev/null \
+             | awk -F': *' '{print $2}' | tr -d '[:space:]')
+    case "$branch" in
+        SDX55) echo "reversed" ;;
+        *)     echo "normal"   ;;
+    esac
+}
+
 SIP_DELAY=0.1          # Delay between AT commands (seconds)
 LONG_FLAG_MAX_AGE=300  # seconds; auto-clear stale long-running flags
 
