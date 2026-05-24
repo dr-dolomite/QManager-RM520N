@@ -194,8 +194,29 @@ PATH is exported at source time to include `/opt/bin:/opt/sbin:/usr/bin:/usr/sbi
 | `cgi_method_not_allowed` | Emit 405 JSON and exit |
 | `cgi_success` | Emit `{"success":true}` |
 | `cgi_error <code> <detail>` | Emit `{"success":false,"error":$code,"detail":$detail}` |
-| `cgi_reboot_response` | Emit success, schedule async reboot via subshell sleep+reboot |
+| `cgi_reboot_response` | Emit success, then async-wait for `/tmp/qmanager_reboot_ack` (up to `$QM_REBOOT_ACK_TIMEOUT`s, default 20) before issuing reboot via `run_reboot`. See [§4.3.1 Reboot Ack Handshake](#431-reboot-ack-handshake). |
 | `serve_ndjson_as_array <file>` | Serve an NDJSON file as a JSON array; emits `[]` if missing |
+
+#### 4.3.1 Reboot Ack Handshake
+
+Any CGI endpoint that triggers a reboot must call `cgi_reboot_response` — never inline `( sleep N && reboot )`. The helper coordinates with the static `/reboot/` page so the device only reboots **after** the countdown UI is in browser memory; otherwise lighttpd dies mid-serve and the user gets a connection-reset error instead of a countdown.
+
+The contract:
+
+1. CGI emits `{"success":true}` and forks a background block that polls `/tmp/qmanager_reboot_ack` once a second.
+2. Frontend redirects to `/reboot/` on save success (see the [Reboot Navigation Pattern](FRONTEND.md#reboot-navigation-pattern) in FRONTEND.md).
+3. The `/reboot/` page (`components/reboot/reboot-countdown.tsx`) fires `GET /cgi-bin/quecmanager/system/update.sh?action=reboot_ack` on mount, which creates `/tmp/qmanager_reboot_ack`.
+4. The CGI background block sees the ack file, removes it, sleeps `$QM_REBOOT_POST_ACK_DELAY` seconds, then calls `run_reboot`.
+5. If the user closed the tab or a non-UI caller invoked the endpoint, the wait is bounded — the reboot fires after `$QM_REBOOT_ACK_TIMEOUT` seconds regardless. The contract cannot hang.
+
+Tunables (export before sourcing or before the call):
+
+| Variable | Default | Purpose |
+|----------|---------|---------|
+| `QM_REBOOT_ACK_TIMEOUT` | `20` | Max seconds to wait for the ack file before forcing reboot. Matches the OTA worker's `REBOOT_ACK_TIMEOUT` in `qmanager_update` so every reboot path shares one budget. |
+| `QM_REBOOT_POST_ACK_DELAY` | `1` | Grace seconds after ack is received, before `run_reboot` runs. Lets the browser finish painting the countdown's initial frame. |
+
+The OTA worker (`qmanager_update`) is **not** a CGI and reaches reboot via its own ack-wait loop using the same file. Both paths use the same 20s budget so user expectations match wherever the reboot was triggered.
 
 ### 4.4 `config.sh`
 
@@ -458,6 +479,17 @@ TTL rules target `rmnet+` interface in `mangle POSTROUTING`. Replaces the legacy
 | `ttl_state_write_persisted <ttl> <hl>` | Atomic write to state file; removes file if both are 0 |
 | `ttl_state_apply <ttl> <hl>` | Delete old rules, insert new rules; skips insert if value is 0 |
 | `ttl_state_clear` | Apply 0 0 and remove state file |
+
+### 4.16 `ethtool_helper.sh`
+
+Ethernet PHY helpers for `network/ethernet.sh`. Wraps `ethtool` output parsing into reusable functions. Guards against double-sourcing via `_ETHTOOL_HELPER_LOADED`.
+
+| Function | Description |
+|----------|-------------|
+| `get_supported_advertise_hex` | Parse `ethtool $ETH_INTERFACE` supported link modes into a bitmask hex string (for `ethtool --change advertise`) |
+| `supports_2500` | Returns `true` if `eth0` advertises `2500baseT/Full`; `false` otherwise |
+
+Caller must set `ETH_INTERFACE` before sourcing (default `eth0` in `ethernet.sh`).
 
 ---
 
@@ -909,7 +941,7 @@ For request/response schemas, see `API-REFERENCE.md`.
 | `auth/password.sh` | POST | Change web UI password (and SSH password via `qm_set_ssh_password`) |
 | `auth/ssh_password.sh` | POST | Change root SSH password only |
 
-#### `at_cmd/` (13 scripts)
+#### `at_cmd/` (14 scripts)
 
 | Script | Method | Description |
 |--------|--------|-------------|
@@ -919,6 +951,7 @@ For request/response schemas, see `API-REFERENCE.md`.
 | `at_cmd/fetch_events.sh` | GET | Return recent events as JSON array |
 | `at_cmd/fetch_ping_history.sh` | GET | Return ping history data for latency chart |
 | `at_cmd/fetch_signal_history.sh` | GET | Return signal history data for RSRP/SINR chart |
+| `at_cmd/fetch_traffic.sh` | GET | Return current `qmanager_traffic` snapshot (`/tmp/qmanager_traffic.json`) with stale flag; polled at 1 Hz by `useTrafficStream` |
 | `at_cmd/neighbour_scan_start.sh` | POST | Spawn `qmanager_neighbour_scanner`; return PID |
 | `at_cmd/neighbour_scan_status.sh` | GET | Poll neighbour scan progress and results |
 | `at_cmd/send_command.sh` | POST | Send arbitrary AT command via `qcmd`; returns raw response |
@@ -973,10 +1006,14 @@ For request/response schemas, see `API-REFERENCE.md`.
 | `monitoring/sms_alerts.sh` | GET/POST | Read or write SMS alert config; POST test send |
 | `monitoring/watchdog.sh` | GET/POST | Read or write watchcat config; start/stop watchcat service |
 
-#### `network/` (3 scripts)
+#### `network/` (7 scripts)
 
 | Script | Method | Description |
 |--------|--------|-------------|
+| `network/custom_dns.sh` | GET/POST | Read or write dnsmasq upstream DNS override via sentinel block in `/etc/data/dnsmasq.conf`. See `docs/reference/custom-dns.md` |
+| `network/data_used.sh` | GET | Return `.data_used` block from poller status cache with stale flag; polled at 2 Hz by `useDataUsed` |
+| `network/data_used_reset.sh` | POST | Write reset flag consumed by poller on next tick; counter drops to ~0 within 4–5 s |
+| `network/ethernet.sh` | GET/POST | Read RTL8125B link state (sysfs + `ethtool`) and apply speed limit via `qmanager_ethernet_apply` root helper; uses `ethtool_helper.sh` |
 | `network/ip_passthrough.sh` | GET/POST | Read or configure IP passthrough (`AT+QMAP`, `AT+QCFG="usbnet"`) |
 | `network/mtu.sh` | GET/POST | Read or write custom MTU setting |
 | `network/ttl.sh` | GET/POST | Read or write TTL/HL override rules via `ttl_state.sh` |
@@ -1004,11 +1041,12 @@ For request/response schemas, see `API-REFERENCE.md`.
 | `scenarios/list.sh` | GET | Return all saved scenarios |
 | `scenarios/save.sh` | POST | Create or update a scenario |
 
-#### `system/` (4 scripts)
+#### `system/` (5 scripts)
 
 | Script | Method | Description |
 |--------|--------|-------------|
 | `system/logs.sh` | GET | Return QManager log file contents |
+| `system/modem-subsys.sh` | GET | Return modem subsystem health (state, crash count, coredump flag) by reshaping the `system_health` block from the poller status cache; thin `jq` extractor — never re-computes live data |
 | `system/reboot.sh` | POST | Initiate system reboot via `cgi_reboot_response` |
 | `system/settings.sh` | GET/POST | Read or write system settings (hostname, timezone, scheduled reboot, low-power schedule, auto-update) |
 | `system/update.sh` | GET/POST | OTA update: check version, download, install, rollback; spawns `qmanager_update` via sudo |
@@ -1029,7 +1067,7 @@ For request/response schemas, see `API-REFERENCE.md`.
 |--------|--------|-------------|
 | `vpn/tailscale.sh` | GET/POST | Tailscale VPN: install, uninstall, status, `tailscale up` |
 
-**Total: 63 CGI scripts.**
+**Total: 69 CGI scripts.**
 
 ---
 
@@ -1369,6 +1407,8 @@ file scripts/usr/bin/qmanager_setup
 
 **Forgetting `sudo -n` in CGI invocations.** CGI runs as www-data. Any call to a root-required binary (iptables, systemctl, reboot, chown) without `sudo -n` will silently fail or produce a permission error that is hard to diagnose. Always use the `platform.sh` wrappers (`run_iptables`, `svc_*`, `run_reboot`) from CGI context.
 
+**Inlining `( sleep N && reboot )` in a CGI script.** Two failure modes, both silent: (1) bare `reboot` runs as www-data and fails with "Failed to talk to init daemon" because systemd's private bus rejects unprivileged callers; (2) even if you wrap it in `run_reboot`, the fixed sleep races the `/reboot/` page — lighttpd is killed mid-serve and the user sees a connection-reset instead of the countdown. Always use `cgi_reboot_response` (see [§4.3.1](#431-reboot-ack-handshake)); it uses the sudo-aware `run_reboot` and waits for the page's ack file before pulling the plug.
+
 **Trying to `systemctl enable` on RM520N-GL.** `systemctl enable` is a no-op on this platform because unit files are on the read-only rootfs where the command cannot write symlinks. Always use `svc_enable` / `svc_disable` from `platform.sh`, which writes the symlinks directly via `sudo /bin/ln -sf` and `sudo /bin/rm -f`.
 
 **Writing to `/tmp/qmanager_*.json` from CGI without pre-creation.** If a CGI script creates a `/tmp` file that a root daemon will later overwrite, root will be blocked by `fs.protected_regular=1`. Pre-create the file in `qmanager_setup` with `www-data` ownership and mode 666 (or `root:root` mode 666 if root writes it primarily). See `qmanager_setup` for the full list of pre-created files.
@@ -1427,7 +1467,7 @@ These quirks are easy to miss when porting code from a typical GNU/Linux box. Ev
 
 ## 15. See Also
 
-- `API-REFERENCE.md` -- CGI request/response schemas for all 63 endpoints
+- `API-REFERENCE.md` -- CGI request/response schemas for all 69 endpoints
 - `DEPLOYMENT.md` -- Install and update operational flow; installer behaviour; upgrade/rollback procedures
 - `docs/rm520n-gl-architecture.md` -- Platform internals: Entware bootstrap, lighttpd configuration, boot sequences, `/usrdata/` partition layout, troubleshooting
 - `ARCHITECTURE.md` -- System overview: component diagram, data flow, frontend/backend boundary
