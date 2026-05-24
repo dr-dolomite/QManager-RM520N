@@ -45,7 +45,7 @@ run_tick() {
         qlog_warn()  { :; }
         qlog_error() { :; }
         NETWORK_IFACE="rmnet_ipa0"
-        DATA_USED_SCHEMA=3
+        DATA_USED_SCHEMA=5
         DATA_USED_PROC_DEV="$proc_dev"
         DATA_USED_FILE="$state_file"
         DATA_USED_TMP="${state_file}.tmp"
@@ -56,7 +56,7 @@ run_tick() {
         du_prev_ipa_rx=0; du_prev_ipa_tx=0
         du_last_update_ts=0; du_last_reset_ts=0
         du_modem_reset_count=0
-        orientation_state="detected_normal"
+        orientation="normal"
         orientation_dl_field=2
         orientation_ul_field=10
         . "$work/fn_write.sh"
@@ -91,7 +91,7 @@ if [ -f "$state" ]; then
         || bad "accumulators not 0 (rx=$arx tx=$atx)"
     [ "$prx" = "200000" ] && ok "prev_ipa_rx baselined to current kernel value" \
         || bad "prev_ipa_rx wrong ($prx)"
-    [ "$sch" = "3" ] && ok "schema written as 3" || bad "schema wrong ($sch)"
+    [ "$sch" = "5" ] && ok "schema written as 5" || bad "schema wrong ($sch)"
     [ "$sel" = "rmnet_ipa0" ] && ok "selected_counter is rmnet_ipa0" \
         || bad "selected_counter wrong ($sel)"
 else
@@ -101,8 +101,9 @@ fi
 # --- Test 2: accumulation — delta added to the running total -----------
 section "second tick accumulates the kernel delta"
 proc="$work/proc2"; state="$work/state2.json"
-jq -n '{schema:3, accumulated_rx_bytes:1000, accumulated_tx_bytes:500,
-        selected_counter:"rmnet_ipa0", prev_ipa_rx:200000, prev_ipa_tx:80000,
+jq -n '{schema:5, accumulated_rx_bytes:1000, accumulated_tx_bytes:500,
+        selected_counter:"rmnet_ipa0", orientation:"normal",
+        prev_ipa_rx:200000, prev_ipa_tx:80000,
         last_update_ts:1, last_reset_ts:0, modem_reset_count:0}' > "$state"
 make_proc "$proc" 205000 80200
 run_tick "$proc" "$state"
@@ -114,8 +115,9 @@ atx=$(jq -r '.accumulated_tx_bytes' "$state")
 # --- Test 3: counter reset — rebase, no accumulation -------------------
 section "negative delta triggers rebase, not accumulation"
 proc="$work/proc3"; state="$work/state3.json"
-jq -n '{schema:3, accumulated_rx_bytes:9000000, accumulated_tx_bytes:3000000,
-        selected_counter:"rmnet_ipa0", prev_ipa_rx:9000000, prev_ipa_tx:8000000,
+jq -n '{schema:5, accumulated_rx_bytes:9000000, accumulated_tx_bytes:3000000,
+        selected_counter:"rmnet_ipa0", orientation:"normal",
+        prev_ipa_rx:9000000, prev_ipa_tx:8000000,
         last_update_ts:1, last_reset_ts:0, modem_reset_count:2}' > "$state"
 make_proc "$proc" 100 50
 run_tick "$proc" "$state"
@@ -129,8 +131,9 @@ prx=$(jq -r '.prev_ipa_rx' "$state")
 # --- Test 4: user reset flag — accumulators zeroed --------------------
 section "user reset flag zeroes the accumulators"
 proc="$work/proc4"; state="$work/state4.json"; flag="$work/reset4"
-jq -n '{schema:3, accumulated_rx_bytes:5000, accumulated_tx_bytes:3000,
-        selected_counter:"rmnet_ipa0", prev_ipa_rx:200000, prev_ipa_tx:80000,
+jq -n '{schema:5, accumulated_rx_bytes:5000, accumulated_tx_bytes:3000,
+        selected_counter:"rmnet_ipa0", orientation:"normal",
+        prev_ipa_rx:200000, prev_ipa_tx:80000,
         last_update_ts:1, last_reset_ts:0, modem_reset_count:7}' > "$state"
 touch "$flag"
 make_proc "$proc" 200100 80050
@@ -154,7 +157,7 @@ run_tick "$proc" "$state"
 arx=$(jq -r '.accumulated_rx_bytes' "$state")
 sch=$(jq -r '.schema' "$state")
 [ "$arx" = "0" ] && ok "old-schema accumulator discarded" || bad "stale accumulator survived ($arx)"
-[ "$sch" = "3" ] && ok "rewritten at schema 3" || bad "schema not migrated ($sch)"
+[ "$sch" = "5" ] && ok "rewritten at schema 5" || bad "schema not migrated ($sch)"
 
 # --- Test 6: missing interface — tick skipped, state untouched --------
 section "missing interface skips the tick safely"
@@ -164,8 +167,9 @@ Inter-|   Receive                                                |  Transmit
  face |bytes
     lo: 1000 10 0 0 0 0 0 0 1000 10 0 0 0 0 0 0
 EOF
-jq -n '{schema:3, accumulated_rx_bytes:4242, accumulated_tx_bytes:2121,
-        selected_counter:"rmnet_ipa0", prev_ipa_rx:200000, prev_ipa_tx:80000,
+jq -n '{schema:5, accumulated_rx_bytes:4242, accumulated_tx_bytes:2121,
+        selected_counter:"rmnet_ipa0", orientation:"normal",
+        prev_ipa_rx:200000, prev_ipa_tx:80000,
         last_update_ts:1, last_reset_ts:0, modem_reset_count:0}' > "$state"
 run_tick "$proc" "$state"
 arx=$(jq -r '.accumulated_rx_bytes' "$state")
@@ -229,6 +233,59 @@ result=$(
     )
 )
 [ "$result" = "normal" ] && ok "missing file -> normal" || bad "missing gave '$result'"
+
+# --- Test 11: v3 -> v5 upgrade resets accumulators --------------------
+section "v3 fixture triggers reset on first load"
+proc="$work/proc11"; state="$work/state11.json"
+jq -n '{schema:3, accumulated_rx_bytes:123456789, accumulated_tx_bytes:987654321,
+        selected_counter:"rmnet_ipa0", prev_ipa_rx:200000, prev_ipa_tx:80000,
+        last_update_ts:1, last_reset_ts:0, modem_reset_count:0}' > "$state"
+make_proc "$proc" 200000 80000
+run_tick "$proc" "$state"
+arx=$(jq -r '.accumulated_rx_bytes' "$state")
+atx=$(jq -r '.accumulated_tx_bytes' "$state")
+sch=$(jq -r '.schema' "$state")
+lrt=$(jq -r '.last_reset_ts' "$state")
+[ "$arx" = "0" ] && ok "v3 rx reset to 0"  || bad "v3 rx not reset ($arx)"
+[ "$atx" = "0" ] && ok "v3 tx reset to 0"  || bad "v3 tx not reset ($atx)"
+[ "$sch" = "5" ] && ok "rewritten at v5"   || bad "schema wrong ($sch)"
+[ "$lrt" != "0" ] && ok "last_reset_ts stamped on v3 upgrade" || bad "last_reset_ts not set"
+
+# --- Test 12: v4 -> v5 upgrade resets accumulators --------------------
+section "v4 fixture (with orientation_state/history fields) triggers reset"
+proc="$work/proc12"; state="$work/state12.json"
+jq -n '{schema:4, accumulated_rx_bytes:55555555, accumulated_tx_bytes:11111111,
+        selected_counter:"rmnet_ipa0", prev_ipa_rx:200000, prev_ipa_tx:80000,
+        last_update_ts:1, last_reset_ts:0, modem_reset_count:3,
+        orientation_state:"detected_reversed", orientation_history_swapped:true}' > "$state"
+make_proc "$proc" 200000 80000
+run_tick "$proc" "$state"
+arx=$(jq -r '.accumulated_rx_bytes' "$state")
+atx=$(jq -r '.accumulated_tx_bytes' "$state")
+sch=$(jq -r '.schema' "$state")
+hist=$(jq -r '.orientation_history_swapped // "absent"' "$state")
+ost=$(jq -r '.orientation_state // "absent"' "$state")
+ori=$(jq -r '.orientation' "$state")
+[ "$arx" = "0" ] && ok "v4 rx reset to 0"  || bad "v4 rx not reset ($arx)"
+[ "$atx" = "0" ] && ok "v4 tx reset to 0"  || bad "v4 tx not reset ($atx)"
+[ "$sch" = "5" ] && ok "rewritten at v5"   || bad "schema wrong ($sch)"
+[ "$hist" = "absent" ] && ok "orientation_history_swapped dropped" || bad "v4 field survived ($hist)"
+[ "$ost" = "absent" ]  && ok "orientation_state dropped"           || bad "v4 field survived ($ost)"
+[ "$ori" = "normal" ]  && ok "v5 orientation set to normal"        || bad "orientation wrong ($ori)"
+
+# --- Test 13: v5 fixture loads directly without reset -----------------
+section "v5 fixture loads and accumulates without reset"
+proc="$work/proc13"; state="$work/state13.json"
+jq -n '{schema:5, accumulated_rx_bytes:7777, accumulated_tx_bytes:3333,
+        selected_counter:"rmnet_ipa0", orientation:"normal",
+        prev_ipa_rx:200000, prev_ipa_tx:80000,
+        last_update_ts:1, last_reset_ts:0, modem_reset_count:0}' > "$state"
+make_proc "$proc" 201000 80100
+run_tick "$proc" "$state"
+arx=$(jq -r '.accumulated_rx_bytes' "$state")
+atx=$(jq -r '.accumulated_tx_bytes' "$state")
+[ "$arx" = "8777" ] && ok "v5 rx accrues 1000-byte delta on existing total" || bad "v5 rx wrong ($arx)"
+[ "$atx" = "3433" ] && ok "v5 tx accrues 100-byte delta on existing total"  || bad "v5 tx wrong ($atx)"
 
 # --- Summary ----------------------------------------------------------
 printf '\n%d passed, %d failed\n' "$pass_count" "$fail_count"
