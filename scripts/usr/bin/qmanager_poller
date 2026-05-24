@@ -83,9 +83,7 @@ DATA_USED_RESET_FLAG="/tmp/qmanager_data_used_reset"
 # data_used is sourced from the kernel rmnet interface byte counters
 # (/proc/net/dev). The kernel labels rx/tx, but on some Quectel IPA driver
 # builds (notably RM502Q-AE SDX55) the fast-path forwarding writes download
-# bytes into the tx field and vice versa. A per-boot orientation probe
-# disambiguates which raw field carries downloads; see
-# start_orientation_probe() below.
+# bytes into the tx field and vice versa.
 #
 # Schema 5: counter orientation is determined once at startup from the
 # SoC Branch Name in /etc/quectel-project-version (see
@@ -95,17 +93,6 @@ DATA_USED_RESET_FLAG="/tmp/qmanager_data_used_reset"
 DATA_USED_SCHEMA=5
 # Kernel network-stats virtual file. Overridable for the test harness.
 : "${DATA_USED_PROC_DEV:=/proc/net/dev}"
-
-# --- Orientation detection (Tier 1) -----------------------------------------
-# Async 5 MB Cloudflare probe at first WAN-up; re-probes on counter-reset
-# events (modem reattach). Falls back to RM520N defaults on probe failure
-# (field 2=DL, field 10=UL — matches Quectel spec; correct on most firmware).
-ORIENTATION_STATE_FILE="/tmp/qmanager_orientation_state"
-ORIENTATION_PROBE_URL="https://speed.cloudflare.com/__down?bytes=5242880"
-ORIENTATION_PROBE_TIMEOUT=90        # seconds; 5 MB at 500 Kbps takes ~80s
-ORIENTATION_PROBE_PIDFILE="/tmp/qmanager_orientation_probe.pid"
-ORIENTATION_MIN_DELTA=1048576       # 1 MB minimum total delta to classify
-ORIENTATION_RATIO=5                 # 5:1 ratio threshold for clear classification
 
 # --- State Variables ---------------------------------------------------------
 cycle_count=0
@@ -602,127 +589,6 @@ update_conn_uptime() {
     # leave timer as-is — don't reset, don't count up.
 }
 
-# =============================================================================
-# ORIENTATION DETECTION
-# =============================================================================
-# Empirically determines which /proc/net/dev field carries download bytes by
-# running a known-direction 5 MB Cloudflare probe in a backgrounded subshell.
-# Result is written to ORIENTATION_STATE_FILE; the poll loop reads it on the
-# next tick. Falls back to RM520N defaults (field 2=DL, field 10=UL) on probe
-# failure. Re-probes on counter-reset events (modem reattach).
-
-start_orientation_probe() {
-    # Only one probe in flight at a time — bail if pidfile points at a live PID.
-    if [ -f "$ORIENTATION_PROBE_PIDFILE" ]; then
-        local _existing_pid
-        _existing_pid=$(cat "$ORIENTATION_PROBE_PIDFILE" 2>/dev/null)
-        if [ -n "$_existing_pid" ] && kill -0 "$_existing_pid" 2>/dev/null; then
-            return 0
-        fi
-        rm -f "$ORIENTATION_PROBE_PIDFILE"
-    fi
-
-    # Need a viable WAN — skip silently if the interface is missing.
-    if [ ! -d "/sys/class/net/${NETWORK_IFACE}" ]; then
-        return 0
-    fi
-
-    qlog_info "orientation: probe starting (5 MB download via cloudflare)"
-    orientation_probe_attempted=true
-    # Clear any stale verdict file from a previous probe so apply_orientation_result
-    # waits for THIS probe's verdict instead of consuming an old one.
-    rm -f "$ORIENTATION_STATE_FILE" "${ORIENTATION_STATE_FILE}.tmp"
-
-    # Subshell owns its pidfile lifecycle — writes $BASHPID at entry,
-    # removes at exit. The parent does NOT write to the pidfile, which
-    # avoids a race where a fast-failure subshell finishes and deletes
-    # the pidfile before the parent's "echo $!" lands a now-stale PID.
-    # $BASHPID gives the subshell's own PID (bash 4+); $$ in a subshell
-    # returns the parent's PID and would be wrong here.
-    (
-        echo $BASHPID > "$ORIENTATION_PROBE_PIDFILE"
-        local _pre_rx _pre_tx _post_rx _post_tx _d_rx _d_tx _total _verdict _line
-        _line=$(grep "${NETWORK_IFACE}:" "$DATA_USED_PROC_DEV" 2>/dev/null)
-        _pre_rx=$(printf '%s\n' "$_line" | awk '{print $2}')
-        _pre_tx=$(printf '%s\n' "$_line" | awk '{print $10}')
-        case "$_pre_rx" in ''|*[!0-9]*) _pre_rx=0 ;; esac
-        case "$_pre_tx" in ''|*[!0-9]*) _pre_tx=0 ;; esac
-
-        if curl -s -o /dev/null -m "$ORIENTATION_PROBE_TIMEOUT" "$ORIENTATION_PROBE_URL"; then
-            _line=$(grep "${NETWORK_IFACE}:" "$DATA_USED_PROC_DEV" 2>/dev/null)
-            _post_rx=$(printf '%s\n' "$_line" | awk '{print $2}')
-            _post_tx=$(printf '%s\n' "$_line" | awk '{print $10}')
-            case "$_post_rx" in ''|*[!0-9]*) _post_rx=0 ;; esac
-            case "$_post_tx" in ''|*[!0-9]*) _post_tx=0 ;; esac
-            _d_rx=$((_post_rx - _pre_rx))
-            _d_tx=$((_post_tx - _pre_tx))
-            _total=$((_d_rx + _d_tx))
-            # Require a believably-asymmetric magnitude gap, not just a sign,
-            # so probe noise / concurrent traffic / captive portals can't
-            # accidentally classify orientation.
-            if [ "$_total" -lt "$ORIENTATION_MIN_DELTA" ]; then
-                _verdict="fallback:total=${_total}_below_${ORIENTATION_MIN_DELTA}"
-            elif [ "$_d_rx" -lt 0 ] || [ "$_d_tx" -lt 0 ]; then
-                _verdict="fallback:negative_delta_drx=${_d_rx}_dtx=${_d_tx}"
-            elif [ $((_d_rx)) -gt $((_d_tx * ORIENTATION_RATIO)) ]; then
-                _verdict="normal:drx=${_d_rx}_dtx=${_d_tx}"
-            elif [ $((_d_tx)) -gt $((_d_rx * ORIENTATION_RATIO)) ]; then
-                _verdict="reversed:drx=${_d_rx}_dtx=${_d_tx}"
-            else
-                _verdict="fallback:inconclusive_drx=${_d_rx}_dtx=${_d_tx}"
-            fi
-        else
-            _verdict="fallback:curl_failed"
-        fi
-        printf '%s\n' "$_verdict" > "${ORIENTATION_STATE_FILE}.tmp" \
-            && mv "${ORIENTATION_STATE_FILE}.tmp" "$ORIENTATION_STATE_FILE"
-        rm -f "$ORIENTATION_PROBE_PIDFILE"
-    ) &
-}
-
-apply_orientation_result() {
-    # Read sentinel file written by the backgrounded probe; transition state.
-    # No-op if state isn't pending, or the probe hasn't written its verdict yet.
-    [ "$orientation_state" != "pending" ] && return 0
-    [ ! -f "$ORIENTATION_STATE_FILE" ] && return 0
-    local _verdict
-    _verdict=$(cat "$ORIENTATION_STATE_FILE" 2>/dev/null)
-    rm -f "$ORIENTATION_STATE_FILE"
-    case "$_verdict" in
-        normal:*)
-            orientation_dl_field=2
-            orientation_ul_field=10
-            orientation_state="detected_normal"
-            qlog_info "orientation: detected NORMAL (${_verdict})"
-            ;;
-        reversed:*)
-            orientation_dl_field=10
-            orientation_ul_field=2
-            orientation_state="detected_reversed"
-            qlog_info "orientation: detected REVERSED (${_verdict}); swapping DL/UL field assignments"
-            # Schema v4 migration: one-time swap of persisted accumulators if
-            # an existing install had been logging into the wrong buckets.
-            # Guarded by orientation_history_swapped so subsequent reboots
-            # that re-detect reversed don't keep flipping the data.
-            if [ "$orientation_history_swapped" != "true" ] && [ "$du_loaded" = "true" ]; then
-                local _tmp
-                _tmp="$du_accumulated_rx"
-                du_accumulated_rx="$du_accumulated_tx"
-                du_accumulated_tx="$_tmp"
-                _tmp="$du_prev_ipa_rx"
-                du_prev_ipa_rx="$du_prev_ipa_tx"
-                du_prev_ipa_tx="$_tmp"
-                orientation_history_swapped=true
-                qlog_info "orientation: swapped persisted accumulators (schema v4 migration)"
-                write_data_used_state
-            fi
-            ;;
-        fallback:*)
-            orientation_state="fallback"
-            qlog_info "orientation: probe failed/inconclusive — using defaults (${_verdict})"
-            ;;
-    esac
-}
 
 # =============================================================================
 # PERSISTENT DATA USED COUNTER (Tier 1)
@@ -813,16 +679,6 @@ update_data_used() {
         du_loaded=true
     fi
 
-    # Step 0.5: orientation orchestration. On pending state, spawn one probe
-    # per attempt-cycle; pick up the result file on subsequent ticks. A
-    # counter-reset event (Step 5 below) resets these to trigger a re-probe.
-    if [ "$orientation_state" = "pending" ]; then
-        if [ "$orientation_probe_attempted" = "false" ]; then
-            start_orientation_probe
-        fi
-        apply_orientation_result
-    fi
-
     # Step 1: honor the user reset flag — zero the accumulators but keep
     # the kernel baseline so the next tick accrues only post-reset bytes.
     if [ -f "$DATA_USED_RESET_FLAG" ]; then
@@ -884,11 +740,6 @@ update_data_used() {
     if [ "$delta_rx" -lt 0 ] || [ "$delta_tx" -lt 0 ]; then
         qlog_info "data_used: ${NETWORK_IFACE} counter reset detected (delta_rx=${delta_rx} delta_tx=${delta_tx}); rebasing"
         du_modem_reset_count=$((du_modem_reset_count + 1))
-        # Option B retry: a reset event is the modem reattaching, which is a
-        # natural moment for the IPA driver to have re-initialized. Flip
-        # state to pending so the next tick spawns a fresh orientation probe.
-        orientation_state="pending"
-        orientation_probe_attempted=false
     else
         du_accumulated_rx=$((du_accumulated_rx + delta_rx))
         du_accumulated_tx=$((du_accumulated_tx + delta_tx))
