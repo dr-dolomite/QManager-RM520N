@@ -47,6 +47,7 @@ import {
 } from "@/types/modem-status";
 import { useUnitPreferences } from "@/hooks/use-system-settings";
 import { useDataUsed } from "@/hooks/use-data-used";
+import { useModemSubsys } from "@/hooks/use-modem-subsys";
 
 interface DeviceMetricsComponentProps {
   deviceData: DeviceStatus | null;
@@ -88,6 +89,12 @@ const DeviceMetricsComponent = ({
     isResetting,
     resetCounter,
   } = useDataUsed();
+
+  // /usrdata partition usage — sourced from the poller cache via modem-subsys
+  const { data: subsysData } = useModemSubsys();
+  const storageTotalKb = subsysData?.storage?.total_kb ?? 0;
+  const storageUsedKb = subsysData?.storage?.used_kb ?? 0;
+  const storagePct = storageTotalKb > 0 ? (storageUsedKb / storageTotalKb) * 100 : 0;
 
   const [resetDialogOpen, setResetDialogOpen] = useState(false);
 
@@ -196,6 +203,24 @@ const DeviceMetricsComponent = ({
             </div>
             {memTotal > 0 && (
               <MetricBar value={memPct} max={100} warnAt={70} dangerAt={90} />
+            )}
+          </div>
+
+          {/* Storage (/usrdata partition) */}
+          <Separator />
+          <div className="flex flex-col gap-1.5">
+            <div className="flex items-center justify-between">
+              <p className="font-semibold text-muted-foreground text-sm">
+                Storage
+              </p>
+              <p className="font-semibold text-sm tabular-nums">
+                {storageTotalKb > 0
+                  ? `${formatBytes(storageUsedKb * 1024)} / ${formatBytes(storageTotalKb * 1024)}`
+                  : "-"}
+              </p>
+            </div>
+            {storageTotalKb > 0 && (
+              <MetricBar value={storagePct} max={100} warnAt={80} dangerAt={95} />
             )}
           </div>
 

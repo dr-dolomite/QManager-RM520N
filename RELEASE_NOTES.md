@@ -1,44 +1,28 @@
-# 🚀 QManager RM520N BETA v0.1.12-draft
+# 🚀 QManager RM520N BETA v0.1.12
 
-## 🐛 Fixes
-
-- **IP Passthrough "Apply & Reboot" now actually reboots.** Saving USB Connection Mode (or any other IPPT setting) used to apply the AT commands correctly but then silently fail to reboot — the device stayed on the old USB mode until you manually power-cycled. The reboot command was being run as the unprivileged web-server user, which can't talk to systemd on a vanilla Linux box. It now goes through the proper sudo-aware helper. After clicking Apply & Reboot, you're also taken straight to the countdown page like every other reboot flow in the app.
-
-- **Software Update no longer leaves the reboot page stuck on a blank screen.** On a fresh browser or slow connection, the OTA worker was rebooting the modem before the countdown page had finished loading its assets, so lighttpd died mid-serve and the page got stranded. The handshake that coordinates "wait for the reboot page to be ready" now gives the page more time to settle, and every reboot path in QManager (IPPT, Carrier Profile, System Reboot, Tailscale, OTA) shares the same coordination logic — the device only reboots once the countdown page has confirmed it's loaded.
-
-- **Version Management Install button now actually installs.** Under **System Settings → Software Update → Update Preferences → Version Management**, clicking Install used to silently stop after downloading — the tarball was staged on the device but no install ever followed, so reinstalls and rollbacks just looked like nothing happened. The button now runs the full download → install → reboot sequence in one click, with the same progress stepper as the main Update flow. Works the same for upgrades, reinstalls of the current version (handy for repairing a broken install), and rollbacks to older releases.
-
----
-
-# 🚀 QManager RM520N BETA v0.1.11
-
-Data Used counter swapped or inaccurate on your modem? Fixed — QManager now reads traffic totals straight from the Linux kernel, so the numbers are always correct regardless of firmware version.
+Another attempt to fix rx/tx orientation: if Data Used still shows upload/download swapped after v0.1.11, QManager now runs a per-device rx/tx probe at boot and applies the correct mapping so bytes are accounted in the right bucket despite firmware quirks. If you still see reversed totals, please open an issue with your device model and firmware — feedback welcome.
 
 > One-click OTA from **System Settings → Software Update** if you're on v0.1.5 or newer.
 
-## ✨ New Features
-
-- **SIM Profiles can now lock in a Connection Scenario.** Pick Balanced, Gaming, Streaming, or one of your custom scenarios in the profile form — when the profile activates (on SIM switch, boot, watchdog recovery, or manual apply), it applies the scenario's network mode and band locks alongside APN, TTL/HL, and IMEI. New profiles default to Balanced, which leaves your modem's current settings untouched. When a non-Balanced scenario is bound, the Connection Scenarios and Band Locking pages become read-only while that profile is active.
-
-- **"+ Create new custom scenario" shortcut in the profile form.** The scenario picker now links directly to the Scenarios page and auto-opens the create dialog. If you have unsaved changes, you'll be asked before navigating away.
-
-- **Custom DNS — override the upstream resolver for all LAN devices.** Under **Local Network → Custom DNS**, set up to 4 upstream servers (IPv4 or IPv6) — Cloudflare, Google, your own resolver, etc. Changes apply instantly with no reboot and no DHCP lease disruption. An "Ignore carrier DNS" toggle prevents the carrier's assigned resolvers from mixing in with your custom ones. Requires the modem's DNS Mode to be set to Proxy (the page will tell you if it isn't).
-
 ## 🛠️ Improvements
 
-- **Watchdog Tier 1 renamed: "Re-register to Network"** — better reflects what actually happens (`AT+COPS=2` deregister → `AT+COPS=0` re-register).
+- **Storage row added to Device Metrics.** The Dashboard now shows `/usrdata` usage alongside CPU and Memory — the partition where configs, profiles, logs, and Entware (`/opt`) live. Bar turns amber at 80%, red at 95%.
 
-- **`curl` is no longer required to install or update QManager.** The installer auto-detects `curl` or `wget` and uses whichever is available. This unblocks fresh installs on firmwares that ship only `wget` (common on RM502/RM520/RM521).
-
-- **Tailscale SSH toggle is the source of truth.** QManager re-applies the toggle on every reconnect, so it survives `tailscale up --reset`. If you change SSH state via the CLI or carried over a Tailscale install from SimpleAdmin/RGMII Toolkit, the GUI won't see that change until you toggle the switch off and back on once.
+- **Data Used counter auto-detects rx/tx orientation.** A quick 5 MB probe at boot figures out which field your firmware uses for upload vs. download (some Quectel builds swap them on the IPA fast-path), then maps correctly from there on. If the probe can't run, it retries on the next reattach. Any existing reversed totals are migrated automatically — no manual reset needed.
 
 ## 🐛 Fixes
 
-- **Data Used counter now shows correct upload/download on every firmware.** Some users saw swapped totals or a counter stuck near zero — caused by QManager relying on the modem's `+QGDNRCNT` AT command, which returns fields in a firmware-specific order that a one-time calibration download tried (and often failed) to detect. QManager now reads byte totals straight from the kernel's network interface stats, where the labels are consistent everywhere. The calibration download has been removed. **Your counter resets to zero on upgrade** — this clears any incorrect totals from the old method.
+- **Live Traffic widget removed.** The per-second ↓/↑ readout on the Dashboard and Discord embed couldn't see LAN-to-WAN traffic — Quectel's IPA hardware offload bypasses the kernel for forwarded packets, so the widget read near-zero during real downloads. Cumulative Data Used totals are unaffected.
+
+- **IP Passthrough "Apply & Reboot" now reboots.** Saving USB Connection Mode applied the change but silently skipped the reboot (the web user couldn't talk to systemd). It now goes through the sudo helper and lands on the countdown page like every other reboot flow.
+
+- **OTA no longer strands the reboot page on a blank screen.** On slow connections the modem could reboot before the countdown page finished loading. All reboot flows (IPPT, Carrier Profile, System Reboot, Tailscale, OTA) now wait for the page to confirm it's ready first.
+
+- **Version Management → Install actually installs.** The button used to stop after download — the tarball staged but nothing ran. It now completes the full download → install → reboot in one click, same as the main Update flow. Works for upgrades, reinstalls, and rollbacks.
 
 ## 📥 Installation
 
-### Upgrading from v0.1.10
+### Upgrading from v0.1.11
 
 **System Settings → Software Update** → Download → Install. No SSH/ADB needed. All settings preserved.
 
@@ -67,5 +51,3 @@ Bug reports and feature requests welcome on [GitHub Issues](https://github.com/d
 Like what's new? QManager is built and maintained for free — if these updates have made your setup a little better, you can show your support via [Wise](https://wise.com/pay/business/blackcatdev?currency=USD) or [PayPal](https://paypal.me/iamrusss). Every bit helps keep this project alive. [GitHub Sponsors](https://github.com/sponsors/dr-dolomite) works too.
 
 **License:** MIT + Commons Clause — **Happy connecting!**
-
----
