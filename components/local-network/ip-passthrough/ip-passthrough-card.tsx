@@ -167,12 +167,18 @@ const IPPassthroughCard = () => {
       dns_proxy: localDnsProxy,
     });
 
-    if (success) {
-      markSaved();
-      toast.success("Settings applied — device is rebooting…");
-    } else {
+    if (!success) {
       toast.error("Failed to save IP Passthrough settings");
+      return;
     }
+
+    markSaved();
+    // Hand off to the countdown page. The backend (cgi_reboot_response) is
+    // waiting on /tmp/qmanager_reboot_ack — the /reboot/ page touches it on
+    // mount, so the device reboots only after the page is in browser memory.
+    sessionStorage.setItem("qm_rebooting", "1");
+    document.cookie = "qm_logged_in=; Path=/; Max-Age=0";
+    window.location.href = "/reboot/";
   };
 
   // Format MAC input: strip non-hex, uppercase, insert colons every 2 chars

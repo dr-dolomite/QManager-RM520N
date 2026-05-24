@@ -280,12 +280,10 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
             qlog_warn "Failed to write ippt_config.json (non-fatal)"
         fi
 
-        # Return response BEFORE rebooting so HTTP is flushed
-        cgi_success
-
-        # Reboot with short delay to ensure response is sent
-        ( ( sleep 2 && reboot ) </dev/null >/dev/null 2>&1 & )
-        exit 0
+        # Coordinated reboot — emits success JSON, waits for /reboot/ page ack
+        # (via /tmp/qmanager_reboot_ack), then issues reboot via sudo-aware helper.
+        # See cgi_reboot_response() in cgi_base.sh.
+        cgi_reboot_response
     fi
 
     # --- Unknown action ---
