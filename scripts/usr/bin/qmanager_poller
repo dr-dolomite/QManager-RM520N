@@ -1786,7 +1786,7 @@ write_cache() {
         --argjson du_last_upd  "${du_last_update_ts:-0}" \
         --argjson du_last_rst  "${du_last_reset_ts:-0}" \
         --argjson du_modem_rst "${du_modem_reset_count:-0}" \
-        --arg     du_orient    "${orientation_state:-pending}" \
+        --arg     du_orient    "${orientation:-normal}" \
         '{
             timestamp: $timestamp,
             system_state: $system_state,
@@ -1859,7 +1859,7 @@ write_cache() {
                 last_update_ts:       $du_last_upd,
                 last_reset_ts:        $du_last_rst,
                 modem_reset_count:    $du_modem_rst,
-                orientation_state:    $du_orient
+                orientation:          $du_orient
             },
             connectivity: {
                 internet_available: $inet, status: $conn_st,
