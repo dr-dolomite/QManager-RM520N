@@ -221,9 +221,8 @@ prev_cpu_total=0
 
 # data_used in-memory mirror — initialized from file on first call.
 # accumulated_rx is always the DOWNLOAD bucket and accumulated_tx the UPLOAD
-# bucket; orientation detection picks which raw /proc/net/dev field feeds
-# each. Schema v4 persists orientation_history_swapped to prevent
-# double-migration on subsequent boots.
+# bucket; the SoC-based orientation map (see detect_orientation_from_soc)
+# picks which raw /proc/net/dev field feeds each.
 du_loaded=false
 du_accumulated_rx=0
 du_accumulated_tx=0
