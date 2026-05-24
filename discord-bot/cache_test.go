@@ -188,10 +188,6 @@ func TestReadStatus_NewPollerFields(t *testing.T) {
 			"supported_nsa_nr5g_bands": "1,2,3,5,7,8,12,20,25,28,38,40,41,48,66,71,77,78",
 			"supported_sa_nr5g_bands":  "1,2,3,5,7,8,12,20,25,28,38,40,41,48,66,71,77,78,79",
 		},
-		"traffic": map[string]any{
-			"rx_bytes_per_sec": 1500000,
-			"tx_bytes_per_sec": 250000,
-		},
 		"watchcat": map[string]any{
 			"enabled":            true,
 			"state":              "monitoring",
@@ -251,10 +247,6 @@ func TestReadStatus_NewPollerFields(t *testing.T) {
 	}
 	if s.MIMO != "4x4" {
 		t.Errorf("MIMO=%q, want 4x4", s.MIMO)
-	}
-	// Traffic
-	if s.RxRate == "" || s.TxRate == "" {
-		t.Errorf("Rx/Tx rate empty: %q / %q", s.RxRate, s.TxRate)
 	}
 	// Watchcat
 	if s.WatchcatState != "monitoring" || s.WatchcatTier != "2" {

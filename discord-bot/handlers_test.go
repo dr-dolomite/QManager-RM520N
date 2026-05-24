@@ -114,17 +114,12 @@ func TestBuildStatusEmbed_Title(t *testing.T) {
 func TestBuildStatusEmbed_PillRow_Up(t *testing.T) {
 	s := makeStatus("true", "true", "LTE")
 	s.ConnLatency = "23"
-	s.RxRate = "1500000"
-	s.TxRate = "250000"
 	embed := buildStatusEmbed(s)
 	if !strings.Contains(embed.Description, "Internet up") {
 		t.Errorf("description=%q", embed.Description)
 	}
 	if !strings.Contains(embed.Description, "23 ms") {
 		t.Errorf("description missing latency: %q", embed.Description)
-	}
-	if !strings.Contains(embed.Description, "MB/s") {
-		t.Errorf("description missing throughput: %q", embed.Description)
 	}
 }
 
@@ -492,7 +487,7 @@ func TestEmbedForSource_Unknown(t *testing.T) {
 }
 
 func TestRawSliceFor(t *testing.T) {
-	rawJSON := []byte(`{"network":{"type":"5G"},"lte":{"band":"B3"},"nr":{"band":"n78"},"connectivity":{"latency_ms":15},"device":{"model":"RM520"},"watchcat":{"state":"idle"},"signal_per_antenna":{"nr_rsrp":[1]},"traffic":{"rx_bytes_per_sec":100}}`)
+	rawJSON := []byte(`{"network":{"type":"5G"},"lte":{"band":"B3"},"nr":{"band":"n78"},"connectivity":{"latency_ms":15},"device":{"model":"RM520"},"watchcat":{"state":"idle"},"signal_per_antenna":{"nr_rsrp":[1]}}`)
 	cases := []struct {
 		source      string
 		mustHave    []string

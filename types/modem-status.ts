@@ -28,8 +28,6 @@ export interface ModemStatus {
   nr: NrStatus;
   /** Device hardware and identity info */
   device: DeviceStatus;
-  /** Live traffic metrics */
-  traffic: TrafficStatus;
   /** Internet connectivity and latency (from ping daemon) */
   connectivity: ConnectivityStatus;
   /** Per-antenna signal values (from AT+QRSRP/QRSRQ/QSINR, Tier 1.5) */
@@ -242,17 +240,6 @@ export interface DeviceStatus {
   supported_nsa_nr5g_bands: string;
   /** Hardware-supported SA NR5G bands, colon-delimited (boot-only) */
   supported_sa_nr5g_bands: string;
-}
-
-export interface TrafficStatus {
-  /** Current download speed in bytes/second */
-  rx_bytes_per_sec: number;
-  /** Current upload speed in bytes/second */
-  tx_bytes_per_sec: number;
-  /** Total downloaded bytes since boot */
-  total_rx_bytes: number;
-  /** Total uploaded bytes since boot */
-  total_tx_bytes: number;
 }
 
 /**
@@ -610,24 +597,8 @@ export interface NetworkEvent {
 // --- Formatting Utilities ----------------------------------------------------
 
 /**
- * Formats bytes per second into a human-readable string.
- * e.g., 1562500 → "12.5 Mbps"
- */
-export function formatBytesPerSec(bytesPerSec: number): string {
-  const bitsPerSec = bytesPerSec * 8;
-  if (bitsPerSec >= 1_000_000) {
-    return `${(bitsPerSec / 1_000_000).toFixed(1)} Mbps`;
-  }
-  if (bitsPerSec >= 1_000) {
-    return `${(bitsPerSec / 1_000).toFixed(0)} Kbps`;
-  }
-  return `${bitsPerSec} bps`;
-}
-
-/**
  * Formats bits per second into a human-readable string.
- * Unlike formatBytesPerSec (which takes bytes and converts to bits),
- * this takes raw bits per second directly (e.g., from WebSocket bandwidth data).
+ * Takes raw bits per second directly (e.g., from WebSocket bandwidth data).
  * e.g., 12500000 → "12.5 Mbps"
  */
 export function formatBitsPerSec(bitsPerSec: number): string {

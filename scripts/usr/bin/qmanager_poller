@@ -207,20 +207,9 @@ modem_reachable=true
 # Error tracking
 errors=""
 
-# Traffic tracking
-prev_rx_bytes=0
-prev_tx_bytes=0
-prev_traffic_ts=0
-rx_bytes_per_sec=0
-tx_bytes_per_sec=0
-
 # CPU tracking (from /proc/stat)
 prev_cpu_idle=0
 prev_cpu_total=0
-
-# Data usage tracking
-total_rx_bytes=0
-total_tx_bytes=0
 
 # data_used in-memory mirror — initialized from file on first call.
 # accumulated_rx is always the DOWNLOAD bucket and accumulated_tx the UPLOAD
@@ -457,43 +446,6 @@ update_proc_metrics() {
     # --- Uptime ---
     uptime_seconds=$(cat /proc/uptime 2>/dev/null | cut -d' ' -f1 | cut -d'.' -f1)
     uptime_seconds="${uptime_seconds:-0}"
-
-    # --- Traffic ---
-    local rx_bytes=0
-    local tx_bytes=0
-
-    if [ -f /proc/net/dev ]; then
-        local dev_line
-        dev_line=$(grep "${NETWORK_IFACE}:" /proc/net/dev 2>/dev/null)
-        if [ -n "$dev_line" ]; then
-            # Use orientation-detected field numbers so live rates inherit the
-            # same DL/UL semantics as the cumulative data_used counter.
-            rx_bytes=$(echo "$dev_line" | awk -v f="$orientation_dl_field" '{print $f}')
-            tx_bytes=$(echo "$dev_line" | awk -v f="$orientation_ul_field" '{print $f}')
-        fi
-    fi
-
-    # Calculate bytes per second using actual elapsed wall time. Dividing by
-    # POLL_INTERVAL would inflate rates ~30x after any blocking event (e.g.
-    # an alert send). Floor at 1 to guard against clock skew.
-    local now_ts
-    now_ts=$(date +%s)
-    if [ "$prev_rx_bytes" -gt 0 ] 2>/dev/null && [ "$prev_traffic_ts" -gt 0 ] 2>/dev/null; then
-        local elapsed
-        elapsed=$((now_ts - prev_traffic_ts))
-        [ "$elapsed" -lt 1 ] && elapsed=1
-        rx_bytes_per_sec=$(( (rx_bytes - prev_rx_bytes) / elapsed ))
-        tx_bytes_per_sec=$(( (tx_bytes - prev_tx_bytes) / elapsed ))
-
-        [ "$rx_bytes_per_sec" -lt 0 ] 2>/dev/null && rx_bytes_per_sec=0
-        [ "$tx_bytes_per_sec" -lt 0 ] 2>/dev/null && tx_bytes_per_sec=0
-    fi
-
-    prev_rx_bytes=$rx_bytes
-    prev_tx_bytes=$tx_bytes
-    prev_traffic_ts=$now_ts
-    total_rx_bytes=$rx_bytes
-    total_tx_bytes=$tx_bytes
 
     cpu_usage="${cpu_usage:-0}"
 }
@@ -1907,10 +1859,6 @@ write_cache() {
         --arg ippt_dns  "$boot_ippt_dhcpv4dns" \
         --arg lan_ip    "$boot_lan_ip" \
         --arg lan_gw    "$boot_lan_gateway" \
-        --argjson rx_rate "${rx_bytes_per_sec:-0}" \
-        --argjson tx_rate "${tx_bytes_per_sec:-0}" \
-        --argjson rx_total "${total_rx_bytes:-0}" \
-        --argjson tx_total "${total_tx_bytes:-0}" \
         --argjson inet "${conn_internet_available:-null}" \
         --arg conn_st "$conn_status" \
         --argjson lat "${conn_latency:-null}" \
@@ -2034,10 +1982,6 @@ write_cache() {
                 ippt_nat: $ippt_nat,
                 ippt_usbnet: $ippt_usb,
                 ippt_dhcpv4dns: $ippt_dns
-            },
-            traffic: {
-                rx_bytes_per_sec: $rx_rate, tx_bytes_per_sec: $tx_rate,
-                total_rx_bytes: $rx_total, total_tx_bytes: $tx_total
             },
             data_used: {
                 accumulated_rx_bytes: $du_acc_rx,

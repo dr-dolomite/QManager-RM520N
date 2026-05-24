@@ -48,8 +48,7 @@ else
     "firmware": "", "build_date": "", "manufacturer": "", "model": "",
     "imei": "", "imsi": "", "iccid": "", "phone_number": "",
     "lte_category": "", "mimo": ""
-  },
-  "traffic": { "rx_bytes_per_sec": 0, "tx_bytes_per_sec": 0, "total_rx_bytes": 0, "total_tx_bytes": 0 }
+  }
 }
 FALLBACK
 fi

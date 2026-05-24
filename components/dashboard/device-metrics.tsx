@@ -34,13 +34,11 @@ import {
 
 import type {
   DeviceStatus,
-  TrafficStatus,
   LteStatus,
   NrStatus,
 } from "@/types/modem-status";
 import {
   formatBytes,
-  formatBytesPerSec,
   formatUptime,
   calculateLteDistance,
   calculateNrDistance,
@@ -52,7 +50,6 @@ import { useDataUsed } from "@/hooks/use-data-used";
 
 interface DeviceMetricsComponentProps {
   deviceData: DeviceStatus | null;
-  trafficData: TrafficStatus | null;
   lteData: LteStatus | null;
   nrData: NrStatus | null;
   isLoading: boolean;
@@ -66,7 +63,6 @@ const CPU_DANGER = 90; // percentage
 
 const DeviceMetricsComponent = ({
   deviceData,
-  trafficData,
   lteData,
   nrData,
   isLoading,
@@ -81,13 +77,6 @@ const DeviceMetricsComponent = ({
   // so no need for 1-second client-side interpolation)
   const displayDevUptime = deviceData?.uptime_seconds ?? 0;
   const displayConnUptime = deviceData?.conn_uptime_seconds ?? 0;
-
-  // Live speed sourced from the 2 s poller cache. The previous 1 Hz live
-  // traffic daemon was removed because IPA hardware offload bypasses
-  // /proc/net/dev for forwarded LAN traffic — the daemon could only see
-  // on-modem traffic and was misleading when read at sub-poller cadence.
-  const rxSpeed = trafficData?.rx_bytes_per_sec ?? 0;
-  const txSpeed = trafficData?.tx_bytes_per_sec ?? 0;
 
   const isTempHigh = temp !== null && temp >= TEMP_WARN;
   const isCpuHigh = cpu !== null && cpu >= CPU_WARN;
@@ -258,28 +247,6 @@ const DeviceMetricsComponent = ({
                 <TbCircleArrowUpFilled className="text-purple-500 size-5 shrink-0" />
                 <p className="font-semibold text-sm tabular-nums">
                   {formatBytes(dataUsed?.accumulated_tx_bytes ?? 0)}
-                </p>
-              </div>
-            </div>
-          </div>
-
-          {/* Live Traffic */}
-          <Separator />
-          <div className="flex items-center justify-between">
-            <p className="font-semibold text-muted-foreground text-sm">
-              Live Traffic
-            </p>
-            <div className="flex items-center gap-x-2">
-              <div className="flex items-center gap-1">
-                <TbCircleArrowDownFilled className="text-info size-5" />
-                <p className="font-semibold text-sm tabular-nums">
-                  {formatBytesPerSec(rxSpeed)}
-                </p>
-              </div>
-              <div className="flex items-center gap-1">
-                <TbCircleArrowUpFilled className="text-purple-500 size-5" />
-                <p className="font-semibold text-sm tabular-nums">
-                  {formatBytesPerSec(txSpeed)}
                 </p>
               </div>
             </div>

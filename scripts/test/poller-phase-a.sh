@@ -67,67 +67,10 @@ case "$result" in
     *)         bad "service_status unexpected: '$result' (expected 'connected')" ;;
 esac
 
-section "traffic rate uses elapsed wall time, not POLL_INTERVAL constant"
-
-# This test extracts the traffic-rate calculation block and runs it twice
-# with a simulated 60-second gap. Before the fix, both deltas are divided
-# by POLL_INTERVAL=2, producing a 30x inflated bytes/sec value.
-
-cat > "$work/proc_dev_t1" <<'EOF'
-Inter-|   Receive                                                |  Transmit
- face |bytes    packets errs drop fifo frame compressed multicast|bytes    packets errs drop fifo colls carrier compressed
-rmnet_ipa0: 1000000      0    0    0    0     0          0         0  500000      0    0    0    0     0       0          0
-EOF
-
-cat > "$work/proc_dev_t2" <<'EOF'
-Inter-|   Receive                                                |  Transmit
- face |bytes    packets errs drop fifo frame compressed multicast|bytes    packets errs drop fifo colls carrier compressed
-rmnet_ipa0: 1060000      0    0    0    0     0          0         0  530000      0    0    0    0     0       0          0
-EOF
-
-# Extract the rate math: prev/cur bytes + ts deltas. We embed a minimal
-# simulator that mirrors the patched logic — the test asserts the FIX
-# math is what ships in qmanager_poller.
-
-result=$(
-    set +eu
-    NETWORK_IFACE="rmnet_ipa0"
-    POLL_INTERVAL=2
-    prev_rx_bytes=0
-    prev_tx_bytes=0
-    prev_traffic_ts=0
-    rx_bytes_per_sec=0
-    tx_bytes_per_sec=0
-
-    # First call: timestamp T, file 1.
-    cur_ts=1000
-    rx=$(awk -v iface="$NETWORK_IFACE" '$1 ~ iface ":" {print $2}' "$work/proc_dev_t1")
-    tx=$(awk -v iface="$NETWORK_IFACE" '$1 ~ iface ":" {print $10}' "$work/proc_dev_t1")
-    prev_rx_bytes=$rx
-    prev_tx_bytes=$tx
-    prev_traffic_ts=$cur_ts
-
-    # Second call: 60s later, +60000 rx, +30000 tx.
-    cur_ts=1060
-    rx=$(awk -v iface="$NETWORK_IFACE" '$1 ~ iface ":" {print $2}' "$work/proc_dev_t2")
-    tx=$(awk -v iface="$NETWORK_IFACE" '$1 ~ iface ":" {print $10}' "$work/proc_dev_t2")
-
-    elapsed=$((cur_ts - prev_traffic_ts))
-    [ "$elapsed" -lt 1 ] && elapsed=1
-    rx_bytes_per_sec=$(( (rx - prev_rx_bytes) / elapsed ))
-    tx_bytes_per_sec=$(( (tx - prev_tx_bytes) / elapsed ))
-
-    echo "$rx_bytes_per_sec $tx_bytes_per_sec"
-)
-
-read rx_rate tx_rate <<<"${result:-}"
-
-# 60000 bytes / 60s = 1000 bytes/s.  The buggy version would print 30000.
-if [ "$rx_rate" = "1000" ] && [ "$tx_rate" = "500" ]; then
-    ok "traffic rate uses elapsed=60s correctly ($rx_rate / $tx_rate B/s)"
-else
-    bad "traffic rate wrong: rx=$rx_rate (want 1000) tx=$tx_rate (want 500)"
-fi
+# NOTE: The "traffic rate uses elapsed wall time" test was removed when the
+# live traffic-rate computation was deleted from qmanager_poller alongside
+# the Live Traffic feature removal. Cumulative bytes are now sourced
+# exclusively through update_data_used() and have their own coverage.
 
 # Also assert the patched code is in place — both the init and the update
 # assignment must exist, not just the bare token (a comment would falsely match).

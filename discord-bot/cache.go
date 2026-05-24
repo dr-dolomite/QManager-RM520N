@@ -68,10 +68,6 @@ type ModemStatus struct {
 	SupportedNsaBands string
 	SupportedSaBands  string
 
-	// Traffic
-	RxRate string
-	TxRate string
-
 	// Watchcat
 	WatchcatEnabled  string
 	WatchcatState    string
@@ -121,7 +117,6 @@ type pollerCache struct {
 	SignalPerAntenna   pollerAntennas `json:"signal_per_antenna"`
 	Device             pollerDevice   `json:"device"`
 	Connectivity       pollerConn     `json:"connectivity"`
-	Traffic            pollerTraffic  `json:"traffic"`
 	Watchcat           pollerWatchcat `json:"watchcat"`
 }
 
@@ -228,11 +223,6 @@ type pollerConn struct {
 	DuringRecovery    *bool    `json:"during_recovery"`
 }
 
-type pollerTraffic struct {
-	RxBytesPerSec *int64 `json:"rx_bytes_per_sec"`
-	TxBytesPerSec *int64 `json:"tx_bytes_per_sec"`
-}
-
 type pollerWatchcat struct {
 	Enabled          bool   `json:"enabled"`
 	State            string `json:"state"`
@@ -313,8 +303,6 @@ func mapPollerToStatus(p *pollerCache) *ModemStatus {
 		ConnPacketLoss:        floatPtrFmt(p.Connectivity.PacketLossPct, "%.1f"),
 		PingTarget:            p.Connectivity.PingTarget,
 		DuringRecovery:        boolPtrStr(p.Connectivity.DuringRecovery),
-		RxRate:                int64PtrStr(p.Traffic.RxBytesPerSec),
-		TxRate:                int64PtrStr(p.Traffic.TxBytesPerSec),
 		WatchcatEnabled:       boolStr(p.Watchcat.Enabled),
 		WatchcatState:         p.Watchcat.State,
 		WatchcatTier:          intPtrStr(p.Watchcat.CurrentTier),

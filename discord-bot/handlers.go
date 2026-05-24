@@ -306,16 +306,6 @@ func buildStatusDescription(s *ModemStatus) string {
 	if s.ConnLatency != "" {
 		parts = append(parts, s.ConnLatency+" ms")
 	}
-	if s.RxRate != "" {
-		if rx, err := strconv.ParseInt(s.RxRate, 10, 64); err == nil {
-			parts = append(parts, "↓ "+formatBytes(rx))
-		}
-	}
-	if s.TxRate != "" {
-		if tx, err := strconv.ParseInt(s.TxRate, 10, 64); err == nil {
-			parts = append(parts, "↑ "+formatBytes(tx))
-		}
-	}
 	return strings.Join(parts, " · ")
 }
 

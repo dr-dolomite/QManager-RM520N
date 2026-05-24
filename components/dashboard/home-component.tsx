@@ -134,7 +134,6 @@ const HomeComponent = () => {
           <motion.div variants={itemVariants} className="h-full *:data-[slot=card]:h-full">
             <DeviceMetricsComponent
               deviceData={data?.device ?? null}
-              trafficData={data?.traffic ?? null}
               lteData={data?.lte ?? null}
               nrData={data?.nr ?? null}
               isLoading={isLoading}
