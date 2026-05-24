@@ -1,3 +1,13 @@
+# 🚀 QManager RM520N BETA v0.1.12-draft
+
+## 🐛 Fixes
+
+- **IP Passthrough "Apply & Reboot" now actually reboots.** Saving USB Connection Mode (or any other IPPT setting) used to apply the AT commands correctly but then silently fail to reboot — the device stayed on the old USB mode until you manually power-cycled. The reboot command was being run as the unprivileged web-server user, which can't talk to systemd on a vanilla Linux box. It now goes through the proper sudo-aware helper. After clicking Apply & Reboot, you're also taken straight to the countdown page like every other reboot flow in the app.
+
+- **Software Update no longer leaves the reboot page stuck on a blank screen.** On a fresh browser or slow connection, the OTA worker was rebooting the modem before the countdown page had finished loading its assets, so lighttpd died mid-serve and the page got stranded. The handshake that coordinates "wait for the reboot page to be ready" now gives the page more time to settle, and every reboot path in QManager (IPPT, Carrier Profile, System Reboot, Tailscale, OTA) shares the same coordination logic — the device only reboots once the countdown page has confirmed it's loaded.
+
+---
+
 # 🚀 QManager RM520N BETA v0.1.11
 
 Data Used counter swapped or inaccurate on your modem? Fixed — QManager now reads traffic totals straight from the Linux kernel, so the numbers are always correct regardless of firmware version.
