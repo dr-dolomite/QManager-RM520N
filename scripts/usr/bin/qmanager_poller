@@ -87,10 +87,12 @@ DATA_USED_RESET_FLAG="/tmp/qmanager_data_used_reset"
 # disambiguates which raw field carries downloads; see
 # start_orientation_probe() below.
 #
-# Schema 4 treats accumulated_rx_bytes / accumulated_tx_bytes as semantic
-# download/upload regardless of which raw field they came from, and adds
-# orientation_history_swapped as a one-shot v3→v4 migration sentinel.
-DATA_USED_SCHEMA=4
+# Schema 5: counter orientation is determined once at startup from the
+# SoC Branch Name in /etc/quectel-project-version (see
+# detect_orientation_from_soc above). v3/v4 -> v5 upgrade resets
+# accumulators to avoid mixing probe-era totals with the static-orientation
+# regime.
+DATA_USED_SCHEMA=5
 # Kernel network-stats virtual file. Overridable for the test harness.
 : "${DATA_USED_PROC_DEV:=/proc/net/dev}"
 
@@ -245,13 +247,13 @@ du_last_update_ts=0
 du_last_reset_ts=0
 du_modem_reset_count=0
 
-# Orientation detection state. orientation_history_swapped is the only
-# field persisted to data_used.json; the rest are reset each boot.
-orientation_state="pending"           # pending|detected_normal|detected_reversed|fallback
+# Counter orientation. Set once at startup by main() via
+# detect_orientation_from_soc; persisted into data_used.json for
+# diagnostics but always re-derived from the SoC each startup (the SoC
+# does not change at runtime).
+orientation="normal"                  # normal|reversed
 orientation_dl_field=2                # /proc/net/dev field carrying download bytes
 orientation_ul_field=10               # /proc/net/dev field carrying upload bytes
-orientation_probe_attempted=false     # one probe per state-transition to pending
-orientation_history_swapped=false     # persisted: v3→v4 accumulator swap already done
 
 # Connectivity (from ping daemon)
 conn_internet_available="null"
