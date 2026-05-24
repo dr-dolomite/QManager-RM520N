@@ -167,7 +167,7 @@ Detailed operational notes for individual features live in `docs/reference/`. Re
 
 - **Antenna Alignment** (`/cellular/antenna-alignment`) — `docs/reference/antenna-alignment.md`
 - **Custom DNS** (`/local-network/custom-dns`, dnsmasq upstream override via sentinel block in `/etc/data/dnsmasq.conf`) — `docs/reference/custom-dns.md`
-- **Data Usage Counter** (kernel `/proc/net/dev`-sourced, schema v4 with per-boot dynamic orientation detection via 5 MB probe, `modem_reset_count`, `orientation_state`) — `docs/reference/data-usage-counter.md`
+- **Data Usage Counter** (kernel `/proc/net/dev`-sourced, schema v5 with static SoC-based orientation map from `/etc/quectel-project-version`, `modem_reset_count`, `orientation`) — `docs/reference/data-usage-counter.md`
 - **Ethernet Status & Link Speed** (`/local-network/ethernet`, Realtek RTL8125B 2.5GbE on `eth0` via `r8125` driver; reads link state from sysfs, speed/duplex from `ethtool`; speed limit applied via `qmanager_ethernet_apply` root helper; lib at `scripts/usr/lib/qmanager/ethtool_helper.sh`)
 - **Discord Bot** (`discord-bot/`, deployed as `/usr/bin/qmanager_discord`) — `docs/reference/discord-bot.md`
 - **WAN Profile Management** (`cellular/apn.sh`, 6 PDP contexts, AT-only, per-context `AT+CGACT` cycle) — `docs/reference/wan-profile-management.md`
