@@ -31,6 +31,7 @@ fi
 # Extract the two functions under test.
 awk '/^write_data_used_state\(\)/,/^\}/' "$POLLER" > "$work/fn_write.sh"
 awk '/^update_data_used\(\)/,/^\}/'      "$POLLER" > "$work/fn_update.sh"
+awk '/^detect_orientation_from_soc\(\)/,/^\}/' "$POLLER" > "$work/fn_det.sh"
 
 # run_tick — invokes update_data_used once in an isolated subshell.
 # Args: <proc_dev_file> <state_file> [reset_flag_file]
@@ -178,7 +179,6 @@ Project Rev      : RM520NGLAAR03A03M4G_A0.303
 Branch Name      : SDX6X
 EOF
 result=$(
-    awk '/^detect_orientation_from_soc\(\)/,/^\}/' "$POLLER" > "$work/fn_det.sh"
     (
         set +eu
         . "$work/fn_det.sh"
