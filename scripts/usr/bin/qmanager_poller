@@ -693,10 +693,10 @@ update_data_used() {
     # Step 2: read the kernel cellular-interface byte counters.
     # /proc/net/dev is a kernel virtual file: after the "iface:" token,
     # field 2 holds one direction's byte total and field 10 the other.
-    # Orientation detection (Step 0.5) determines which is download vs upload
-    # via $orientation_dl_field / $orientation_ul_field. Defaults (2/10)
-    # match Quectel spec; orientation flips them on firmwares (notably
-    # RM502Q-AE SDX55) where the IPA driver swaps fast-path attribution.
+    # main() resolves orientation from the SoC at startup via
+    # detect_orientation_from_soc and sets $orientation_dl_field /
+    # $orientation_ul_field. Defaults (2/10) match Quectel spec; SDX55
+    # firmwares flip them because the IPA driver swaps fast-path attribution.
     # ipa_rx is always the DOWNLOAD bytes; ipa_tx is always the UPLOAD bytes.
     local _dev_line ipa_rx ipa_tx
     _dev_line=$(grep "${NETWORK_IFACE}:" "$DATA_USED_PROC_DEV" 2>/dev/null)
