@@ -628,17 +628,27 @@ update_data_used() {
     # Step 0: lazy-load persisted state on the first call.
     if [ "$du_loaded" = "false" ]; then
         if [ -f "$DATA_USED_FILE" ]; then
-            # Schema policy:
-            #   < v3  → reset (pre-Schema-3 AT-counter state is incompatible)
-            #   = v3  → migrate in-place to v4 (preserve accumulators; flag
-            #           history as un-swapped so orientation detection can
-            #           fix it on first reversed verdict)
-            #   = v4  → load directly, including orientation_history_swapped
+            # Schema policy (v5):
+            #   < v3  -> discard (pre-Schema-3 state is incompatible)
+            #   v3/v4 -> RESET accumulators on upgrade; historic totals
+            #            may have been recorded against a probe misverdict
+            #            and must not be carried into the static regime
+            #   = v5  -> load directly
             local _on_disk_schema
             _on_disk_schema=$(jq -r '.schema // 0' "$DATA_USED_FILE" 2>/dev/null)
             if [ "${_on_disk_schema:-0}" -lt 3 ]; then
                 qlog_info "data_used: schema v${_on_disk_schema:-0} too old; resetting state"
                 rm -f "$DATA_USED_FILE"
+            elif [ "${_on_disk_schema:-0}" -lt 5 ]; then
+                qlog_info "data_used: schema v${_on_disk_schema:-0} -> v5 migration; counters reset (orientation now static)"
+                du_accumulated_rx=0
+                du_accumulated_tx=0
+                du_prev_ipa_rx=0
+                du_prev_ipa_tx=0
+                du_last_update_ts=0
+                du_last_reset_ts=$(date +%s)
+                du_modem_reset_count=0
+                write_data_used_state
             else
                 local _jv
                 _jv=$(jq -r '
@@ -648,22 +658,16 @@ update_data_used() {
                     (.prev_ipa_tx          // 0 | tostring) + " " +
                     (.last_update_ts       // 0 | tostring) + " " +
                     (.last_reset_ts        // 0 | tostring) + " " +
-                    (.modem_reset_count    // 0 | tostring) + " " +
-                    (.orientation_history_swapped // false | tostring)
+                    (.modem_reset_count    // 0 | tostring)
                 ' "$DATA_USED_FILE" 2>/dev/null)
                 if [ -n "$_jv" ]; then
-                    du_accumulated_rx=$(        printf '%s' "$_jv" | awk '{print $1}')
-                    du_accumulated_tx=$(        printf '%s' "$_jv" | awk '{print $2}')
-                    du_prev_ipa_rx=$(           printf '%s' "$_jv" | awk '{print $3}')
-                    du_prev_ipa_tx=$(           printf '%s' "$_jv" | awk '{print $4}')
-                    du_last_update_ts=$(        printf '%s' "$_jv" | awk '{print $5}')
-                    du_last_reset_ts=$(         printf '%s' "$_jv" | awk '{print $6}')
-                    du_modem_reset_count=$(     printf '%s' "$_jv" | awk '{print $7}')
-                    orientation_history_swapped=$(printf '%s' "$_jv" | awk '{print $8}')
-                fi
-                if [ "${_on_disk_schema:-0}" -lt "$DATA_USED_SCHEMA" ]; then
-                    qlog_info "data_used: migrated schema v${_on_disk_schema:-0} → v${DATA_USED_SCHEMA} (preserving accumulators)"
-                    write_data_used_state
+                    du_accumulated_rx=$(   printf '%s' "$_jv" | awk '{print $1}')
+                    du_accumulated_tx=$(   printf '%s' "$_jv" | awk '{print $2}')
+                    du_prev_ipa_rx=$(      printf '%s' "$_jv" | awk '{print $3}')
+                    du_prev_ipa_tx=$(      printf '%s' "$_jv" | awk '{print $4}')
+                    du_last_update_ts=$(   printf '%s' "$_jv" | awk '{print $5}')
+                    du_last_reset_ts=$(    printf '%s' "$_jv" | awk '{print $6}')
+                    du_modem_reset_count=$(printf '%s' "$_jv" | awk '{print $7}')
                 fi
             fi
         fi
