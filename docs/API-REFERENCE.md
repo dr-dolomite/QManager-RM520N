@@ -1018,8 +1018,8 @@ System preferences, scheduled reboot, and low power mode.
 
 - `temp_unit`: `"celsius"` or `"fahrenheit"`
 - `distance_unit`: `"km"` or `"miles"`
-- `wan_guard_enabled`: toggles init.d symlink (enable/disable)
-- `timezone`/`zonename`: written to UCI `system.@system[0]`
+- `wan_guard_enabled`: accepted in the payload but **not ported to the RM520N-GL** — the handler silently ignores it
+- `timezone`/`zonename`: applied via the `sys_set_timezone` helper (system config lib), not UCI
 
 **POST (save_scheduled_reboot):**
 
@@ -1034,7 +1034,7 @@ System preferences, scheduled reboot, and low power mode.
 
 - `days`: array of integers 0-6 (0=Sunday, 6=Saturday)
 - Manages cron entries for `/usr/bin/qmanager_scheduled_reboot`
-- Config persisted in UCI `quecmanager.settings.sched_reboot_*`
+- Config persisted in the JSON config store via `qm_config_set settings sched_reboot_*` (`/etc/qmanager/`, no UCI)
 
 **POST (save_low_power):**
 
@@ -1050,7 +1050,7 @@ System preferences, scheduled reboot, and low power mode.
 
 - Creates two cron entries: `enter` at start_time on selected days, `exit` at end_time on all 7 days
 - Exit cron fires on all days to handle overnight windows (e.g., 23:00-06:00) — no-ops if flag absent
-- Enables/disables `qmanager_low_power_check` init.d (boot-time window check)
+- Enables/disables the `qmanager_low_power_check` systemd service via `svc_enable`/`svc_disable` (boot-time window check); persistence is a `multi-user.target.wants/` symlink, since `systemctl enable` does not work on this platform
 - Disabling while active immediately triggers `qmanager_low_power exit` (restores CFUN=1)
 
 ### POST `/system/reboot.sh`

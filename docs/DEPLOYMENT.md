@@ -251,7 +251,7 @@ cat /etc/qmanager/VERSION
 
 ## Line Ending Enforcement
 
-**Critical:** All shell scripts must have LF line endings. CRLF breaks scripts silently on OpenWRT.
+**Critical:** All shell scripts must have LF line endings. CRLF breaks scripts silently on the RM520N-GL (the `#!/bin/sh` BusyBox `ash` interpreter treats a trailing `\r` as part of the command).
 
 ### Prevention
 
@@ -323,9 +323,13 @@ ls -la /etc/qmanager/shadow
 ### Service Won't Start
 
 ```bash
-# Check init.d script
-/etc/init.d/qmanager start
-cat /tmp/qmanager.log
+# Check service status and logs (systemd — units in /lib/systemd/system/)
+systemctl status qmanager-poller
+journalctl -u qmanager-poller --no-pager | tail -50
+
+# Start it manually (boot persistence is a multi-user.target.wants/ symlink;
+# `systemctl enable` does NOT work on this platform)
+systemctl start qmanager-poller
 
 # Verify dependencies
 which jq        # Required
@@ -372,7 +376,7 @@ The installer is idempotent — re-running updates rather than duplicates. It ha
 - Stopping existing services (filesystem-driven scan of `/lib/systemd/system/qmanager-*.service`, batched into a single `systemctl stop` call so systemd shuts them down in parallel; long-running daemons set `TimeoutStopSec=10` so a wedged service caps the wait at 10s instead of systemd's 90s default)
 - Removing orphaned daemons/units/libs not present in the current source tree (`cleanup_legacy_scripts`)
 - Removing conflicting packages (`socat`, `socat-at-bridge`) even with `--skip-packages`
-- Re-enabling services (UCI-gated services only re-enabled if their `multi-user.target.wants/` symlink existed pre-upgrade)
+- Re-enabling services (symlink-gated: services are only re-enabled if their `multi-user.target.wants/` symlink existed pre-upgrade — no UCI involved on this platform)
 - AT stack health check (3× `qcmd 'ATI'` retries, warn-only) and poller health check after completion
 
 ---
@@ -497,7 +501,7 @@ QManager runs directly on the modem's internal Linux OS — no external OpenWRT 
 
 | Concern | Value |
 |---------|-------|
-| Platform | Quectel RM520N-GL (SDXLEMUR, ARMv7l, kernel 5.4.180) |
+| Platform | Quectel RM520N-GL (SDXLEMUR, ARMv7l, kernel 5.4.210) |
 | Init system | systemd (units in `/lib/systemd/system/`) |
 | Root filesystem | Read-only by default (`mount -o remount,rw /` when needed) |
 | Persistent storage | `/usrdata/` partition |

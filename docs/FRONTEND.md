@@ -14,9 +14,9 @@ This document covers the frontend architecture, component patterns, hooks, routi
 | Tailwind CSS | v4 | Utility-first styling |
 | shadcn/ui | Latest | Headless UI components (Radix UI) |
 | Recharts | 2.15.4 | Signal and latency charting |
-| React Hook Form | 7.69.0 | Form state management |
-| Zod | 4.2.1 | Schema validation |
-| Motion | 12.34.3 | Animations |
+| React Hook Form | 7.71.2 | Form state management |
+| Zod | 4.3.6 | Schema validation |
+| Motion | 12.38.0 | Animations |
 | @dnd-kit | 6.3/10.0 | Drag-and-drop (sortable lists) |
 | @tanstack/react-table | 8.21.3 | Data tables |
 | Lucide React | 0.562.0 | Icons |

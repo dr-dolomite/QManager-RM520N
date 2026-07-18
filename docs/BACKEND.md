@@ -1,11 +1,13 @@
 # QManager Backend Reference
 
-**Target platforms:** QManager targets the broader Quectel ARMv7-on-modem ecosystem, not a single SKU. Two SoC families are in scope:
+**Target platform:** QManager ships for a single target — the Quectel RM520N-GL, X62 silicon on the SDXLEMUR (5G Modem-RF System) SoC, ARMv7l Cortex-A7. There is no multi-SKU product matrix; where the firmware or SoC stepping varies underneath, QManager detects it at runtime and adapts defensively rather than shipping per-model builds.
 
-- **SDXLEMUR (5G Modem-RF System)** — X62 silicon (RM520N-GL, the dev device for this branch) and X65 silicon (RM521F). The SoC codename `SDXLEMUR` reported by `/proc/cpuinfo` covers both; firmware is built from the SDX65 SDK regardless (`LE.UM.6.3.6.r1-02600-SDX65.0` on the dev device), which is why the OEM build string mentions `SDX65` even on the X62 part.
-- **SDXPRAIRIE** — X55 silicon (RG502Q-EA, RM502Q-AE). Quirks unique to this family are called out where they differ (notably `/dev/smd11` re-creation timing, see [§8 udev Rules](#8-udev-rules)).
+Two firmware facts are worth knowing up front, because both routinely trip people up:
 
-Probe data in this document was collected on an RM520N-GL (X62, SDXLEMUR, ARMv7l Cortex-A7 single-core, kernel `5.4.210-perf`, glibc 2.31, distro `qti-distro-nogplv3-perf` `LE.UM.6.3.6.r1-02600-SDX65.0`, 178 MB RAM, ~91 MB zram swap, `/tmp` 89 MB tmpfs). PRAIRIE devices report different OEM strings but share the same Quectel userspace conventions (BusyBox-1.31 toolchain, bash 3.2, systemd 244, Entware armv7sf-k3.2). Where this doc says "the platform", read it as "this Quectel-on-modem userspace stack" unless a SDK-specific note is called out.
+- **The OEM build string says `SDX65`, but the part is X62.** `/proc/cpuinfo` reports the SoC codename `SDXLEMUR`, while the firmware is built from the SDX65 SDK — so the OEM build string reads `LE.UM.6.3.6.r1-02600-SDX65.0` even though the RM520N-GL is the X62 part. The `SDX65` is an SDK artifact, not the silicon.
+- **Model-specific behavior keys off `/etc/quectel-project-version`, not hardcoded assumptions.** This sentinel file is present on the RM520N-GL. Its presence (or absence) is what QManager branches on: the poller uses it to select the traffic-stats interface (`rmnet_ipa0`), the data-usage counter uses it to pick the correct byte-orientation map, and the installer uses it for firmware detection. This is defensive runtime detection, not multi-product support.
+
+Probe data in this document was collected on the RM520N-GL (X62, SDXLEMUR, ARMv7l Cortex-A7 single-core, kernel `5.4.210-perf`, glibc 2.31, distro `qti-distro-nogplv3-perf` `LE.UM.6.3.6.r1-02600-SDX65.0`, 178 MB RAM, ~91 MB zram swap, `/tmp` 89 MB tmpfs). Where this doc says "the platform", read it as "the RM520N-GL's on-modem Quectel userspace stack" (BusyBox-1.31 toolchain, bash 3.2, systemd 244, Entware armv7sf-k3.2).
 This document is a developer reference for the shell-script backend. It covers every library, daemon, unit file, sudoers rule, udev rule, CGI endpoint, and file path that exists in this codebase. It does not cover frontend React code, installer operational flow, or platform internals.
 
 ---
@@ -516,7 +518,7 @@ Main data collection daemon. Sources `qlog.sh`, `parse_at.sh`, `events.sh`, `ema
 | Tier 2 (warm) | Every 15 cycles (~30s) | `AT+QTEMP`, `AT+COPS?`, `AT+CPIN?`, `AT+QUIMSLOT?`, `AT+QCAINFO`, `AT+QNWCFG="lte_time_advance"`, `AT+QNWCFG="nr5g_time_advance"`, `AT+QNWCFG="lte_mimo_layers"`, `AT+QNWCFG="nr5g_mimo_layers"`, `AT+CGCONTRDP`, `AT+QMAP="WWAN"` |
 | Boot-only | Once at startup | `AT+CVERSION`, `AT+CGSN`, `AT+CIMI`, `AT+QCCID`, `AT+CNUM`, `AT+QGETCAPABILITY`, `AT+QNWPREFCFG="policy_band"`, IPPT parsers |
 
-Network interface for traffic stats is auto-detected: `rmnet_ipa0` on RM520N-GL (presence of `/etc/quectel-project-version`), `wwan0` on other platforms.
+Network interface for traffic stats is auto-detected from the presence of `/etc/quectel-project-version`: `rmnet_ipa0` on the RM520N-GL. The `else` branch falls back to `wwan0` — a legacy holdover from the RM551E/OpenWRT lineage that the sentinel-file check bypasses on this platform.
 
 **System Health collection (`update_system_health()`):** Runs every Tier 1 cycle. Cheap reads only — no AT commands, no extra forks beyond `awk`/`grep`/`df`. Emits a top-level `system_health` block in the cache so the `system/modem-subsys.sh` CGI can serve it as a thin reader. Sources:
 

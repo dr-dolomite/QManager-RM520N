@@ -1,360 +1,120 @@
-# QManager Design System
+# QManager Design System (Developer Reference)
 
-This document defines the visual language, component library, theming system, and UI conventions used throughout QManager.
+> ⚠️ **The authoritative visual design system is the root [`DESIGN.md`](../DESIGN.md).**
+> Product strategy, users, and principles live in the root [`PRODUCT.md`](../PRODUCT.md).
+> `DESIGN.md` carries the verified OKLCH tokens, typography truth, motion system, component
+> rules, and the named Do's/Don'ts. **On any conflict, `DESIGN.md` wins.** This file used to
+> duplicate all of that; it has been trimmed to the practical, developer-facing scaffolding
+> that `DESIGN.md` does not carry (the shadcn/ui setup, the component inventory, concrete
+> responsive recipes, and the theming mechanism).
 
----
-
-## Design Philosophy
-
-QManager targets **hobbyist power users** and **field technicians** managing cellular modems. The interface must balance information density (signal metrics, carrier data) with clarity and approachability.
-
-### Principles
-
-1. **Data clarity first** — Signal metrics, latency, and network status are the core experience. Use color, spacing, and hierarchy for scannable numbers.
-2. **Progressive disclosure** — Essential info upfront, advanced controls accessible but not overwhelming.
-3. **Confidence through feedback** — Every action has clear visual feedback: loading states, success toasts, error messages.
-4. **Consistent and systematic** — shadcn/ui components and design tokens used uniformly.
-5. **Responsive and resilient** — Works on desktop monitors and tablets. Handles loading, empty, and error states.
-
-### Aesthetic Direction
-
-- **Visual tone:** Clean and modern with purposeful density where data matters
-- **References:** Apple System Preferences (clarity), Vercel/Linear (typography, whitespace), Grafana (data density), UniFi (network UX)
-- **Anti-references:** Avoid raw terminal aesthetics, cluttered legacy tools, or overly playful styling
+Read `DESIGN.md` first. Come here for the wiring: which components exist, how the responsive
+recipes are written, and how dark mode is implemented.
 
 ---
 
-## Color System (OKLCH)
+## Where the visual truth lives
 
-QManager uses OKLCH (Oklab Lightness, Chroma, Hue) for perceptually uniform colors. Both light and dark modes are first-class citizens.
+Everything below is documented in full (with values, rationale, and named rules) in `DESIGN.md`.
+Do not re-document it here; point to it.
 
-### Light Mode
+| Topic | Authority |
+|-------|-----------|
+| OKLCH color tokens (light + dark), functional colors, chart ramp, signal-quality ramp | `DESIGN.md` §2 Colors |
+| Typography (Euclid Circular B, the mono/Manrope status, weight discipline) | `DESIGN.md` §3 Typography |
+| Radius (`0.65rem` base) and spacing scale | `DESIGN.md` frontmatter (`rounded`, `spacing`) |
+| Elevation, shadows, tonal layering | `DESIGN.md` §4 Elevation |
+| Motion system (durations, springs, reduced-motion, presets) | `DESIGN.md` §4a Motion System |
+| Buttons, badges, cards, inputs, dialogs, the signature components | `DESIGN.md` §5 Components |
+| Do's and Don'ts | `DESIGN.md` §6 |
 
-| Token | OKLCH Value | Usage |
-|-------|-------------|-------|
-| `--background` | `oklch(1 0 0)` | Page background (white) |
-| `--foreground` | `oklch(0.141 0.005 285.823)` | Primary text (near black) |
-| `--card` | `oklch(1 0 0)` | Card backgrounds |
-| `--primary` | `oklch(0.488 0.243 264.376)` | Primary actions, links (blue) |
-| `--primary-foreground` | `oklch(0.97 0.014 254.604)` | Text on primary bg |
-| `--secondary` | `oklch(0.967 0.001 286.375)` | Secondary backgrounds |
-| `--muted` | `oklch(0.967 0.001 286.375)` | Muted backgrounds |
-| `--muted-foreground` | `oklch(0.552 0.016 285.938)` | Secondary text |
-| `--accent` | `oklch(0.967 0.001 286.375)` | Accent backgrounds |
-| `--destructive` | `oklch(0.577 0.245 27.325)` | Destructive actions (red) |
-| `--success` | `oklch(0.59 0.18 149)` | Success indicators (green) |
-| `--warning` | `oklch(0.75 0.18 75)` | Warning indicators (amber) |
-| `--info` | `oklch(0.62 0.19 255)` | Info indicators (blue) |
-| `--border` | `oklch(0.92 0.004 286.32)` | Borders and dividers |
-| `--input` | `oklch(0.92 0.004 286.32)` | Input borders |
-| `--ring` | `oklch(0.708 0 0)` | Focus rings |
-
-### Dark Mode
-
-| Token | OKLCH Value | Change from Light |
-|-------|-------------|-------------------|
-| `--background` | `oklch(0.141 0.005 285.823)` | Charcoal |
-| `--foreground` | `oklch(0.985 0 0)` | Near white |
-| `--card` | `oklch(0.21 0.006 285.885)` | Elevated dark |
-| `--secondary` | `oklch(0.274 0.006 286.033)` | Darker neutral |
-| `--muted-foreground` | `oklch(0.705 0.015 286.067)` | Lighter secondary text |
-| `--destructive` | `oklch(0.704 0.191 22.216)` | Brighter red for contrast |
-| `--success` | `oklch(0.65 0.17 149)` | Brighter green |
-| `--warning` | `oklch(0.80 0.16 75)` | Brighter amber |
-| `--info` | `oklch(0.68 0.17 255)` | Brighter blue |
-| `--border` | `oklch(1 0 0 / 10%)` | Subtle white border |
-| `--input` | `oklch(1 0 0 / 15%)` | Slightly more visible |
-
-### Semantic Color Usage
-
-| Purpose | Class | Token |
-|---------|-------|-------|
-| Primary buttons/links | `bg-primary text-primary-foreground` | `--primary` |
-| Destructive actions | `bg-destructive text-destructive-foreground` | `--destructive` |
-| Success indicators | `bg-success text-success-foreground` | `--success` |
-| Warning indicators | `bg-warning text-warning-foreground` | `--warning` |
-| Info indicators | `bg-info text-info-foreground` | `--info` |
-| Muted/secondary text | `text-muted-foreground` | `--muted-foreground` |
-| Card surfaces | `bg-card text-card-foreground` | `--card` |
-
-**Important:** Use semantic tokens (`text-info`, `bg-success`) instead of raw Tailwind colors (`text-blue-500`, `bg-green-500`).
-
-### Chart Colors
-
-Six chart colors are defined for Recharts visualizations:
-
-| Token | OKLCH | Visual |
-|-------|-------|--------|
-| `--chart-1` | `oklch(0.809 0.105 251.813)` | Light blue |
-| `--chart-2` | `oklch(0.623 0.214 259.815)` | Medium blue |
-| `--chart-3` | `oklch(0.546 0.245 262.881)` | Deep blue |
-| `--chart-4` | `oklch(0.488 0.243 264.376)` | Primary blue |
-| `--chart-5` | `oklch(0.424 0.199 265.638)` | Dark blue |
-| `--chart-6` | `oklch(0.705 0.213 47.604)` | Orange (contrast) |
-
----
-
-## Typography
-
-### Primary: Euclid Circular B
-
-Clean, geometric, professional typeface loaded locally as WOFF2 files.
-
-| Weight | File | Usage |
-|--------|------|-------|
-| 300 (Light) | `EuclidCircularB-Light.woff2` | Decorative headings |
-| 400 (Regular) | `EuclidCircularB-Regular.woff2` | Body text, inputs |
-| 400 (Italic) | `EuclidCircularB-Italic.woff2` | Emphasis |
-| 500 (Medium) | `EuclidCircularB-Medium.woff2` | Subheadings, labels |
-| 600 (SemiBold) | `EuclidCircularB-SemiBold.woff2` | Card titles |
-| 700 (Bold) | `EuclidCircularB-Bold.woff2` | Page titles |
-
-CSS Variable: `--font-euclid`
-Tailwind: `font-sans` (mapped via `@theme inline`)
-
-### Secondary: Manrope
-
-Google Font, used as fallback. Clean geometric style that pairs well with Euclid.
-
-### Monospace: Geist Mono
-
-System monospace, used for code, AT commands, and technical values.
-
-CSS Variable: `--font-geist-mono`
-Tailwind: `font-mono`
-
----
-
-## Spacing & Radius
-
-| Token | Value | Usage |
-|-------|-------|-------|
-| `--radius` | `0.65rem` | Base border radius |
-| `--radius-sm` | `calc(0.65rem - 4px)` | Small elements, badges |
-| `--radius-md` | `calc(0.65rem - 2px)` | Inputs, buttons |
-| `--radius-lg` | `0.65rem` | Cards, dialogs |
-| `--radius-xl` | `calc(0.65rem + 4px)` | Large containers |
-
-The radius is softly rounded — not pill-shaped, not sharp-cornered.
+> ℹ️ NOTE: Two claims in the older version of this file were **wrong** and are corrected in
+> `DESIGN.md`: (1) **Status badges use the outline-plus-tint pattern**
+> (`variant="outline"` + `bg-{role}/15 text-{role} hover:bg-{role}/20 border-{role}/30` + `size-3`
+> icon), *not* solid `variant="default"`/`variant="destructive"` fills. (2) **Manrope is loaded but
+> not bound** to any CSS variable, and **no monospace font is actually loaded** (`--font-geist-mono`
+> is referenced but resolves to the inherited UI font, a known gap). See `DESIGN.md` §3.
 
 ---
 
 ## Component Library
 
-### shadcn/ui Configuration
+### shadcn/ui configuration
+
+QManager is built on shadcn/ui (`components.json`), new-york style, lucide icons, Tailwind v4 with
+CSS variables. Build on these primitives first; only write a custom component for a genuine gap.
 
 ```json
 {
   "style": "new-york",
   "rsc": true,
-  "tailwind": {
-    "baseColor": "zinc",
-    "cssVariables": true
-  },
-  "iconLibrary": "lucide"
+  "tsx": true,
+  "tailwind": { "baseColor": "zinc", "cssVariables": true },
+  "iconLibrary": "lucide",
+  "registries": { "@magicui": "https://magicui.design/r/{name}.json" }
 }
 ```
 
-### Available Components (42)
+The `@magicui` registry is wired in `components.json`, so MagicUI components can be pulled with the
+shadcn CLI alongside the standard registry.
 
-**Layout:** `card`, `separator`, `aspect-ratio`, `sidebar`, `scroll-area`, `resizable`
+### Primitives location
 
-**Navigation:** `breadcrumb`, `navigation-menu`, `menubar`, `tabs`
+All primitives live in `components/ui/`. That directory is the live inventory — run
+`ls components/ui` rather than trusting a frozen list here (the previous hardcoded count drifted).
+It currently holds the standard shadcn set (button, card, dialog, popover, tooltip, select,
+dropdown-menu, tabs, table, badge, alert, alert-dialog, sheet, sidebar, breadcrumb, sonner, etc.)
+plus the custom/non-standard components below.
 
-**Forms:** `button`, `input`, `label`, `select`, `checkbox`, `radio-group`, `switch`, `toggle`, `toggle-group`, `slider`, `input-otp`, `form` (React Hook Form integration)
+### Custom components (repo-specific)
 
-**Data Display:** `table`, `badge`, `avatar`, `progress`, `chart` (Recharts wrapper)
+These are not vanilla shadcn primitives; they are QManager additions a developer needs to know:
 
-**Feedback:** `alert`, `alert-dialog`, `dialog`, `popover`, `tooltip`, `hover-card`, `sonner` (toasts)
+| Component | Purpose |
+|-----------|---------|
+| `save-button.tsx` | The mandated save control (idle / "Saving…" / "Saved!" flash via `useSaveFlash`). Every save action uses it. |
+| `copyable-command.tsx` | Mono command string with a copy affordance (machine-voice surface). |
+| `empty.tsx` | Empty-state primitive (icon + title + one-line description). The third of the three states. |
+| `field.tsx` | Labeled read-only value display (label + value). |
+| `input-group.tsx` | Input with prefix/suffix adornments. |
+| `kbd.tsx` | Keyboard-shortcut key rendering. |
+| `metric-bar.tsx` | Quality-tinted linear signal/metric fill bar (data-viz fill, per the Loader-and-Dots Rule). |
+| `meta-panel.tsx` | Grid-laid attribute readouts (`MetaPair`) for device/detail panels. |
+| `spinner.tsx` | Shared spinner primitive. |
+| `animated-beam.tsx`, `animated-list.tsx` | MagicUI-derived motion helpers for signal-beam / list transitions. |
 
-**Menus:** `dropdown-menu`, `context-menu`, `command` (cmdk search)
-
-**Content:** `accordion`, `collapsible`, `carousel`, `drawer` (vaul)
-
-**Custom:**
-- `animated-beam` — Signal beam animation
-- `animated-list` — Animated list transitions
-- `empty.tsx` — Empty state with icon and message
-- `field.tsx` — Labeled field display (label + value)
-- `input-group.tsx` — Input with prefix/suffix
-- `kbd.tsx` — Keyboard shortcut display
-
-### MagicUI Registry
-
-Additional components available from MagicUI (`@magicui` registry in `components.json`).
-
----
-
-## UI Patterns
-
-### Card Layout
-
-The standard settings card:
-
-```tsx
-<Card>
-  <CardHeader>
-    <CardTitle>Feature Name</CardTitle>
-    <CardDescription>What this does in plain language</CardDescription>
-  </CardHeader>
-  <CardContent className="space-y-4">
-    {/* Form fields or data display */}
-  </CardContent>
-  <CardFooter className="flex justify-end gap-2">
-    <Button variant="outline" onClick={reset}>Reset</Button>
-    <Button onClick={save} disabled={isSaving}>
-      {isSaving ? "Saving..." : "Save Changes"}
-    </Button>
-  </CardFooter>
-</Card>
-```
-
-### Three-State Pattern
-
-Every data component must handle loading, error, and empty states:
-
-```tsx
-// Loading
-<Card>
-  <CardContent className="p-6">
-    <Skeleton className="h-4 w-full" />
-    <Skeleton className="h-4 w-3/4 mt-2" />
-  </CardContent>
-</Card>
-
-// Error
-<Alert variant="destructive">
-  <AlertDescription>{error.message}</AlertDescription>
-</Alert>
-
-// Empty
-<Empty
-  icon={InboxIcon}
-  title="No data available"
-  description="Data will appear once the modem is connected"
-/>
-```
-
-### Signal Quality Indicators
-
-Use consistent color mapping for signal quality:
-
-| Quality | Color | RSRP | RSRQ | SINR |
-|---------|-------|------|------|------|
-| Excellent | `text-success` | >= -80 | >= -5 | >= 20 |
-| Good | `text-info` | >= -100 | >= -10 | >= 13 |
-| Fair | `text-warning` | >= -110 | >= -15 | >= 0 |
-| Poor | `text-destructive` | < -110 | < -15 | < 0 |
-
-### Toast Notifications
-
-Use `sonner` for all user feedback:
-
-```tsx
-import { toast } from "sonner";
-
-// Success
-toast.success("Settings saved successfully");
-
-// Error
-toast.error("Failed to save settings", {
-  description: error.message
-});
-```
-
-### Reboot Dialog
-
-For operations requiring a device reboot:
-
-```tsx
-<Dialog open={showRebootDialog}>
-  <DialogContent>
-    <DialogHeader>
-      <DialogTitle>Reboot Required</DialogTitle>
-      <DialogDescription>
-        Changes have been saved. A reboot is required to apply them.
-      </DialogDescription>
-    </DialogHeader>
-    <DialogFooter>
-      <Button variant="outline" onClick={dismiss}>Later</Button>
-      <Button variant="destructive" onClick={reboot}>Reboot Now</Button>
-    </DialogFooter>
-  </DialogContent>
-</Dialog>
-```
-
-### Badge Variants
-
-Use badges for status indicators:
-
-```tsx
-// Connected state
-<Badge variant="default" className="bg-success">Connected</Badge>
-
-// Warning state
-<Badge variant="default" className="bg-warning">Degraded</Badge>
-
-// Error state
-<Badge variant="destructive">Error</Badge>
-
-// Inactive/unknown
-<Badge variant="secondary">Unknown</Badge>
-```
+For where these are consumed (pages, hooks, routing), see [FRONTEND.md](FRONTEND.md).
 
 ---
 
-## Sidebar Design
+## Responsive Recipes
 
-The sidebar uses the `inset` variant with a header, content sections, and user footer:
+`DESIGN.md` §5 states the *rules* (container queries inside cards, one breakpoint authority per
+card, toolbars flex-wrap, tables wrap prose). These are the concrete snippets that implement them.
 
-| Section | Components | Items |
-|---------|-----------|-------|
-| Header | Logo + "QManager" / "Admin" | QManager logo SVG |
-| NavMain | Home | Single link to dashboard |
-| NavCellular | Collapsible groups | Cellular Info, SMS, Profiles, Band Locking, Cell Scanner, Settings |
-| NavLocalNetwork | Flat list | Ethernet, IP Passthrough, DNS, TTL & MTU |
-| NavMonitoring | Collapsible groups | Events, Email Alerts, Tailscale, Watchdog, Logs |
-| NavSecondary | Flat list + donate dialog | About Device, Support, Donate |
-| Footer | NavUser | User avatar, change password, logout |
-
----
-
-## Responsive Design
-
-### Container Queries
-
-The main content area uses container queries for responsive layouts:
+### Container scope
 
 ```tsx
 <main className="@container/main">
-  <div className="grid gap-4 @lg/main:grid-cols-2 @xl/main:grid-cols-3">
-    {/* Cards resize based on container, not viewport */}
+  <div className="grid gap-4 @3xl/main:grid-cols-2 @4xl/main:grid-cols-2">
+    {/* cards resize to the container, not the viewport */}
   </div>
 </main>
-```
 
-Cards that need internal responsive behavior declare their own container scope:
-
-```tsx
 <Card className="@container/card">
-  {/* Use @sm/card, @md/card, etc. inside this card */}
+  {/* use @sm/card:, @md/card: for everything inside this card */}
 </Card>
 ```
 
-### Container vs. Viewport Queries — Don't Mix Within a Card
+> ⚠️ WARNING: Never mix viewport queries (`sm:`, `md:`) with container queries (`@sm/card:`) inside
+> the same card. A card can be narrow while the viewport is wide (expanded sidebar, tablet), so
+> viewport-keyed labels appear before the card has room for them. Viewport breakpoints stay for
+> **page-level** concerns only (page padding, heading scale).
 
-When a card declares `@container/card`, **all responsive logic inside that card must use container queries** (`@sm/card:`, `@md/card:`). Mixing viewport queries (`sm:`, `md:`) with container queries inside the same card causes layout breakage on tablets and expanded sidebars: the card may be narrow while the viewport is wide, so viewport-keyed labels appear before the card has room for them.
+### Toolbars inside cards
 
-| ❌ Don't | ✅ Do |
-|---------|------|
-| `className="hidden sm:inline"` (inside `@container/card`) | `className="hidden @sm/card:inline"` |
-| Tabs use `@sm/card:` but action buttons use `sm:` in the same toolbar | Both use `@sm/card:` so they share one breakpoint authority |
-
-Viewport queries (`sm:`, `md:`) are still appropriate for **page-level** layout decisions (page heading scaling, page padding) that should respond to the viewport regardless of card sizing.
-
-### Toolbars Inside Cards
-
-Toolbars combining tabs + action buttons must `flex-wrap` so the action cluster falls to a second row instead of overflowing the card when the contents outgrow the available width:
+Toolbars that combine tabs and actions must `flex-wrap` so the action cluster drops to a second row
+instead of overflowing:
 
 ```tsx
 <div className="flex flex-wrap items-center gap-2">
@@ -363,9 +123,10 @@ Toolbars combining tabs + action buttons must `flex-wrap` so the action cluster 
 </div>
 ```
 
-### Tables Inside Cards
+### Tables inside cards
 
-Tables inherit `whitespace-nowrap` from the base `TableCell`. For columns with prose content (event messages, descriptions, long names), explicitly opt back into wrapping and constrain max-width across container breakpoints:
+`TableCell` inherits `whitespace-nowrap`. For prose columns (event messages, long names), opt back
+into wrapping and cap width across container breakpoints; keep date/short-id columns nowrap:
 
 ```tsx
 <TableCell className="max-w-[12rem] @sm/card:max-w-[20rem] @md/card:max-w-md whitespace-normal break-words">
@@ -373,11 +134,12 @@ Tables inherit `whitespace-nowrap` from the base `TableCell`. For columns with p
 </TableCell>
 ```
 
-Date/time columns and short identifier columns can keep `whitespace-nowrap`. The wrapping `<Table>` provides `overflow-x-auto` as a fallback, but relying on horizontal scroll for primary content is a phone UX anti-pattern.
+The wrapping `<Table>` provides `overflow-x-auto` as a fallback only; relying on horizontal scroll
+for primary content is a phone UX anti-pattern.
 
-### Breakpoints
+### Breakpoint reference
 
-Standard Tailwind viewport breakpoints — used for page-level responsive decisions:
+Viewport breakpoints (page-level decisions: padding, heading scale, breadcrumb visibility):
 
 | Prefix | Width | Usage |
 |--------|-------|-------|
@@ -387,105 +149,60 @@ Standard Tailwind viewport breakpoints — used for page-level responsive decisi
 | `xl` | 1280px | Desktop |
 | `2xl` | 1536px | Large desktop |
 
-Container query breakpoints — used inside cards declaring their own `@container/card` scope:
+Container-query breakpoints (inside a card that declares `@container/card`):
 
-| Prefix | Width | Usage |
-|--------|-------|-------|
-| `@sm/card` | 384px | Card has room for short text labels |
-| `@md/card` | 448px | Card has room for full text labels (e.g., "Band Changes", "Network Mode") |
-| `@lg/card` | 512px | Card has room for dense multi-column layouts |
+| Prefix | Width | Card has room for |
+|--------|-------|-------------------|
+| `@sm/card` | 384px | Short text labels |
+| `@md/card` | 448px | Full text labels ("Band Changes", "Network Mode") |
+| `@lg/card` | 512px | Dense multi-column layouts |
 
-### Mobile Considerations
+### Mobile
 
-- Sidebar collapses to sheet on mobile
-- Cards stack vertically
-- Tables wrap prose columns and rely on `overflow-x-auto` only as a fallback
-- Touch-friendly button sizes (min 44 px). For icon-only tabs, bump the `TabsList` height with `h-11 @md/card:h-9` rather than overriding individual trigger min-widths (which collapses `flex-1` triggers below their content size and breaks tab spacing)
-- Page wrappers should use `px-4 lg:px-6` horizontal padding to match the dashboard rhythm; `mx-auto p-2` (legacy) is being phased out
+- Sidebar collapses to a sheet; cards stack vertically.
+- Touch targets minimum 44px. For icon-only tab lists, bump `TabsList` height
+  (`h-11 @md/card:h-9`) rather than overriding individual trigger min-widths (which collapses
+  `flex-1` triggers below their content size).
+- Page wrappers use `px-4 lg:px-6`; legacy `mx-auto p-2` wrappers are being phased out.
 
 ---
 
-## Dark Mode
+## Dark Mode Implementation
 
-### Implementation
+`DESIGN.md` §2/§4 cover the dark palette and the tonal-layering rationale. This is the mechanism.
 
-Dark mode uses `next-themes` with class-based toggling:
-
-```tsx
-// app/layout.tsx
-<ThemeProvider attribute="class" defaultTheme="system" enableSystem>
-  {children}
-</ThemeProvider>
-```
-
-### CSS
-
-The `.dark` selector is defined as a custom Tailwind variant:
+Theming uses `next-themes` with class-based toggling. `app/layout.tsx` wraps the app in
+`ThemeProvider` with `attribute="class"` and `defaultTheme="system"` (both themes are first-class;
+neither is "the default"). The `.dark` variant is declared in `app/globals.css`:
 
 ```css
 @custom-variant dark (&:is(.dark *));
 ```
 
-All colors automatically switch between light and dark palettes via CSS variables.
+All colors switch through CSS variables, so components never need theme conditionals.
 
-### Guidelines
-
-- Never use hardcoded colors (e.g., `#ffffff`, `rgb(0,0,0)`)
-- Always use semantic tokens (`text-foreground`, `bg-card`)
-- Test both modes when adding new colors
-- Dark mode should have slightly brighter semantic colors for contrast
+- Never use hardcoded colors (`#fff`, `rgb(0,0,0)`); always semantic tokens (`text-foreground`,
+  `bg-card`). See the OKLCH-Only and Semantic-Token rules in `DESIGN.md` §2.
+- Test both themes when adding a surface. Dark-mode functional colors are deliberately brighter for
+  contrast against the dark canvas.
 
 ---
 
-## Animations
+## Sidebar Structure
 
-### Libraries
+The sidebar is the shadcn `inset` variant (header + grouped nav sections + `NavUser` footer). The
+nav grouping, at a glance:
 
-- **tw-animate-css** — Tailwind animation utilities (fade, slide, scale)
-- **Motion** (Framer Motion) — Complex component animations
+| Section | Contents |
+|---------|----------|
+| Header | QManager logo + product name |
+| NavMain | Home / dashboard |
+| NavCellular | Cellular Info, SMS, Profiles, Band Locking, Cell Scanner, Settings (collapsible) |
+| NavLocalNetwork | Ethernet, IP Passthrough, DNS, TTL & MTU |
+| NavMonitoring | Events, Email/SMS Alerts, Tailscale, Watchdog, Logs (collapsible) |
+| NavSystem | System-level tools and settings |
+| NavSecondary | About Device, Support, Donate |
+| Footer (NavUser) | Avatar, change password, logout |
 
-### Custom Animations
-
-```css
-/* Pulsating ring for status indicators */
-.animate-pulse-ring {
-  animation: pulse-ring 2s ease-in-out infinite alternate;
-}
-```
-
-All animations respect `prefers-reduced-motion`:
-```css
-@media (prefers-reduced-motion: reduce) {
-  .animate-pulse-ring { animation: none; }
-}
-```
-
----
-
-## Icons
-
-### Lucide React
-
-Primary icon library. Consistent stroke width and sizing:
-
-```tsx
-import { RadioTowerIcon, SettingsIcon } from "lucide-react";
-
-<RadioTowerIcon className="size-4" />     // 16px (inline text)
-<SettingsIcon className="size-5" />       // 20px (buttons)
-<RadioTowerIcon className="size-8" />     // 32px (empty states)
-```
-
-### Tabler Icons
-
-Secondary icon library (`@tabler/icons-react`) for specialized icons not in Lucide.
-
-### Icon-Only Buttons
-
-Always include `aria-label` for accessibility:
-
-```tsx
-<Button variant="ghost" size="icon" aria-label="Refresh data">
-  <RefreshCwIcon className="size-4" />
-</Button>
-```
+> ℹ️ NOTE: The exact item list drifts as features ship. For the authoritative routing and nav
+> wiring, read the nav components and [FRONTEND.md](FRONTEND.md), not this table.
