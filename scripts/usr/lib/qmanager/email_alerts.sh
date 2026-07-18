@@ -97,9 +97,6 @@ email_alerts_init() {
 # a downtime that exceeded the configured threshold.
 # =============================================================================
 check_email_alert() {
-    # No alerts during scheduled low power mode
-    [ -f "/tmp/qmanager_low_power_active" ] && return 0
-
     # Check for reload flag (CGI saved new settings)
     if [ -f "$_EA_RELOAD_FLAG" ]; then
         rm -f "$_EA_RELOAD_FLAG"

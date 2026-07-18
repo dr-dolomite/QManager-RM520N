@@ -128,9 +128,6 @@ sms_alerts_init() {
 # check_sms_alert — Called every poll cycle after detect_events
 # =============================================================================
 check_sms_alert() {
-    # No alerts during scheduled low power mode
-    [ -f "/tmp/qmanager_low_power_active" ] && return 0
-
     # Check for reload flag (CGI saved new settings)
     if [ -f "$_SA_RELOAD_FLAG" ]; then
         rm -f "$_SA_RELOAD_FLAG"
