@@ -84,7 +84,7 @@ The hook (`use-system-settings.ts`) toasts a warning on `failed` ("Timezone save
     "timezone": "PHT-8",
     "zonename": "Asia/Manila",
     "effective_offset": "+0800",
-    "effective_zone_abbr": "PHT",
+    "effective_zone_abbr": "PST",
     "timezone_applied": true
   }
 }
@@ -93,10 +93,10 @@ The hook (`use-system-settings.ts`) toasts a warning on `failed` ("Timezone save
 | Field | Meaning |
 |-------|---------|
 | `effective_offset` | The live UTC offset from `date +%z` (for example `+0800`, `+0000`) |
-| `effective_zone_abbr` | The live zone abbreviation from `date +%Z` (for example `PHT`, `UTC`) |
+| `effective_zone_abbr` | The live zone abbreviation from `date +%Z`. Whatever tzdata emits, so it is version dependent: Entware `zoneinfo-all` `2025c` emits `PST` (Philippine Standard Time, not US Pacific) for `Asia/Manila`, and `UTC` for UTC. Display only; `timezone_applied` never depends on it. |
 | `timezone_applied` | `true` when the live offset matches the offset recomputed from the configured zone's tzdata; `false` when the config and clock disagree |
 
-The card shows a warning badge ("Not applied - clock shows `<offset>`") whenever `timezone_applied === false`, and a plain confirmation line ("Clock: `PHT +0800`") when it is `true`. These three fields are optional in `SystemSettings` (older backends omit them), so the UI only renders the badge when the backend explicitly reports the state.
+The card shows a warning badge ("Not applied - clock shows `<offset>`") whenever `timezone_applied === false`, and a plain confirmation line ("Clock: `PST +0800`") when it is `true`. These three fields are optional in `SystemSettings` (older backends omit them), so the UI only renders the badge when the backend explicitly reports the state.
 
 ---
 
