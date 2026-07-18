@@ -2,13 +2,15 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 import Euclid from "next/font/local";
-import { Manrope } from "next/font/google";
+import { Geist_Mono } from "next/font/google";
 import { ThemeProvider } from "@/components/theme-provider";
 import { MotionProvider } from "@/components/motion-provider";
 import { Toaster } from "@/components/ui/sonner";
 
-// Google Fonts can be imported from remote
-export const manrope = Manrope({
+// Machine-voice mono font — bound to --font-geist-mono, which globals.css
+// maps to --font-mono (font-mono utility). Self-hosted at build time.
+const geistMono = Geist_Mono({
+  variable: "--font-geist-mono",
   subsets: ["latin"],
 });
 
@@ -62,7 +64,9 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className={`${euclid.variable} ${euclid.className} antialiased`}>
+      <body
+        className={`${euclid.variable} ${geistMono.variable} ${euclid.className} antialiased`}
+      >
         <ThemeProvider
           attribute="class"
           defaultTheme="system"

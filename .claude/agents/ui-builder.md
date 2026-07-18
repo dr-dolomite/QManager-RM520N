@@ -30,7 +30,7 @@ Before building any page, card, or component, read:
 - **Framework**: Next.js (App Router)
 - **Components**: shadcn/ui (Radix primitives)
 - **Styling**: Tailwind CSS with OKLCH color system
-- **Typography**: Euclid Circular B (primary), Manrope (secondary)
+- **Typography**: Euclid Circular B (UI voice), Geist Mono (machine voice via `font-mono`) — no other typefaces
 - **Border radius**: 0.65rem base
 - **Package manager**: bun (never npx)
 

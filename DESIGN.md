@@ -238,9 +238,9 @@ QManager's interface voice is **Euclid Circular B**, a clean geometric sans load
 | 600 (SemiBold) | `EuclidCircularB-SemiBold.woff2` | Card titles, section headings, numeric readouts |
 | 700 (Bold) | `EuclidCircularB-Bold.woff2` | Page titles (`h1`) |
 
-**Secondary: Manrope.** Loaded through `next/font/google` in `app/layout.tsx` and designated the secondary typeface in project canon. Be honest about its current wiring: it is loaded but not bound to a CSS variable or utility class, so no rendered surface uses it today. It is a reserved fallback voice, not an active one. Do not hand-wire Manrope into components; if a genuine secondary-face need appears, bind it properly via a font variable first.
+**No secondary UI typeface.** Manrope was once loaded as a designated secondary face but was never bound to a variable or class, so no surface ever rendered in it; the dead import has been removed from `app/layout.tsx`. If a genuine secondary-face need ever appears, load it deliberately and bind it via a font variable in the same change — never hand-wire a font into components.
 
-**Mono: Geist Mono (the machine voice).** `globals.css` maps `--font-mono: var(--font-geist-mono)`. `font-mono` is used across roughly two dozen surfaces: the AT terminal, system and alert logs, `CopyableCommand`, IMEI tools, cell data readouts, and dense signal values in the alignment meter. **Known gap, stated plainly:** `--font-geist-mono` is not currently defined by any loaded font (neither `layout.tsx` nor a package provides it), so at runtime `font-mono` spans fall back to the inherited UI font. The *scoping* is real and must be maintained; loading Geist Mono to honor the token is an open task. When adding machine-output surfaces, still mark them `font-mono`: the semantic boundary matters even before the glyphs do.
+**Mono: Geist Mono (the machine voice).** Loaded via `next/font/google` (`Geist_Mono`) in `app/layout.tsx`, bound to `--font-geist-mono`, which `globals.css` maps to `--font-mono` (the `font-mono` utility). Self-hosted at build time — no runtime font fetch from the modem. `font-mono` is used across roughly two dozen surfaces: the AT terminal, system and alert logs, `CopyableCommand`, IMEI tools, cell data readouts, and dense signal values in the alignment meter. When adding machine-output surfaces, mark them `font-mono` — the semantic boundary is as important as the glyphs.
 
 ### Hierarchy
 
@@ -254,7 +254,7 @@ QManager's interface voice is **Euclid Circular B**, a clean geometric sans load
 
 ### Named Rules
 
-**The Two-Voice Rule.** Euclid Circular B speaks for the interface; `font-mono` speaks for the machine and for dense technical identifiers. There is no third voice. Pairing Euclid with another UI sans is forbidden; Manrope stays reserved until it is properly bound.
+**The Two-Voice Rule.** Euclid Circular B speaks for the interface; Geist Mono (`font-mono`) speaks for the machine and for dense technical identifiers. There is no third voice. Pairing Euclid with another UI sans is forbidden.
 
 **The Machine-Voice Rule.** `font-mono` (token target: Geist Mono) is scoped to device output and technical data: the AT terminal (input + output), raw log viewers, `CopyableCommand`, inline `<code>` for AT command strings, and identifier/value readouts (IMEI, ICCID, dBm values in compact meters). It is never reached for as decoration on headings, buttons, or prose.
 
@@ -472,7 +472,6 @@ Documented for direction only; none of these exist in this tree today. Do not re
 - **Topology / neighbor-cell map** (UniFi-style pannable canvas); cell scanning currently renders as dense tables.
 - **Sticky save bar** with per-tab error dots for long tabbed settings forms; current forms keep the `SaveButton` in the card footer.
 - **Shared `ServiceStatusBadge` wrapper**; the outline-badge pattern is composed inline until it lands.
-- **Geist Mono actually loaded** so the `--font-geist-mono` token resolves to real glyphs.
 
 ## 6. Do's and Don'ts
 
@@ -502,7 +501,7 @@ Documented for direction only; none of these exist in this tree today. Do not re
 - **Don't** use `#000` or `#fff` literals. They are forbidden in this codebase; the white and near-black that exist are tokens.
 - **Don't** use solid `success` / `warning` / `destructive` / `info` badge variants for status indicators. They exist in `badge.tsx` for completeness; outline-and-tint is the only correct status badge.
 - **Don't** add icons to `CardHeader`. They drift into hero-metric SaaS template territory.
-- **Don't** introduce a second UI typeface. Euclid Circular B is the interface voice; Manrope stays reserved until properly bound; Inter, Geist Sans, IBM Plex, and Roboto are forbidden as UI fonts. `font-mono` is scoped by the Machine-Voice Rule, never decoration.
+- **Don't** introduce a second UI typeface. Euclid Circular B is the interface voice; Inter, Geist Sans, IBM Plex, and Roboto are forbidden as UI fonts. `font-mono` (Geist Mono) is scoped by the Machine-Voice Rule, never decoration.
 - **Don't** hand-wire fonts into components with `font-family` styles or ad-hoc classes; fonts enter through `next/font` variables and the `@theme` mapping in `globals.css`.
 - **Don't** use side-stripe borders (`border-left: 3px solid`) on cards or callouts; emphasis is a full tinted wash (`border-primary/30 bg-primary/5`), consistent with the Hairline discipline.
 - **Don't** use `background-clip: text` gradient text. Solid color only; emphasis through weight or size.

@@ -21,7 +21,7 @@ Do not re-document it here; point to it.
 | Topic | Authority |
 |-------|-----------|
 | OKLCH color tokens (light + dark), functional colors, chart ramp, signal-quality ramp | `DESIGN.md` §2 Colors |
-| Typography (Euclid Circular B, the mono/Manrope status, weight discipline) | `DESIGN.md` §3 Typography |
+| Typography (Euclid Circular B, Geist Mono machine voice, weight discipline) | `DESIGN.md` §3 Typography |
 | Radius (`0.65rem` base) and spacing scale | `DESIGN.md` frontmatter (`rounded`, `spacing`) |
 | Elevation, shadows, tonal layering | `DESIGN.md` §4 Elevation |
 | Motion system (durations, springs, reduced-motion, presets) | `DESIGN.md` §4a Motion System |
@@ -31,9 +31,9 @@ Do not re-document it here; point to it.
 > ℹ️ NOTE: Two claims in the older version of this file were **wrong** and are corrected in
 > `DESIGN.md`: (1) **Status badges use the outline-plus-tint pattern**
 > (`variant="outline"` + `bg-{role}/15 text-{role} hover:bg-{role}/20 border-{role}/30` + `size-3`
-> icon), *not* solid `variant="default"`/`variant="destructive"` fills. (2) **Manrope is loaded but
-> not bound** to any CSS variable, and **no monospace font is actually loaded** (`--font-geist-mono`
-> is referenced but resolves to the inherited UI font, a known gap). See `DESIGN.md` §3.
+> icon), *not* solid `variant="default"`/`variant="destructive"` fills. (2) The fonts are
+> **Euclid Circular B** (UI) and **Geist Mono** (machine voice, bound to `--font-geist-mono`);
+> the previously-loaded-but-unbound Manrope has been removed. See `DESIGN.md` §3.
 
 ---
 

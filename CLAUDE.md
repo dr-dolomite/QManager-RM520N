@@ -127,7 +127,7 @@ All status badges use `variant="outline"` with semantic color classes and `size-
 - **CardHeader**: Always plain `CardTitle` + `CardDescription` without icons. Icons belong in badges or separate action areas, not in the card header itself.
 - **Primary action buttons**: Default variant (not outline) for main actions like Record, Save, Apply. Use `SaveButton` for save-specific actions with loading animation.
 - **Step-based progress**: `Loader2Icon` spinner + dot indicators for step/sample progress. Reserve fill/progress bars for data visualization (signal strength, quality meters) only.
-- **Typography**: Euclid Circular B is the UI typeface (`--font-sans`); mono is scoped to machine-voice surfaces via `font-mono` (see DESIGN.md's Machine-Voice Rule — note Manrope is loaded but currently unbound). Both light and dark mode are first-class (OKLCH tokens); radius 0.65rem base.
+- **Typography**: Euclid Circular B is the UI typeface (`--font-sans`); Geist Mono (`--font-geist-mono` → `font-mono`) is scoped to machine-voice surfaces per DESIGN.md's Machine-Voice Rule. No other typeface is loaded. Both light and dark mode are first-class (OKLCH tokens); radius 0.65rem base.
 - **Components**: use shadcn/ui primitives before hand-rolling; semantic color tokens only, never raw Tailwind colors.
 
 ## RM520N-GL Platform
