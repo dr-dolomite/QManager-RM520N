@@ -202,6 +202,7 @@ Detailed operational notes for individual features live in `docs/reference/`. Re
 - **Discord Bot** (`discord-bot/`, deployed as `/usr/bin/qmanager_discord`) — `docs/reference/discord-bot.md`
 - **WAN Profile Management** (`cellular/apn.sh`, 6 PDP contexts, AT-only, per-context `AT+CGACT` cycle) — `docs/reference/wan-profile-management.md`
 - **Custom SIM Profiles** (4-step apply `apn → ttl_hl → scenario → imei`; `settings.scenario_id` binds a Connection Scenario; active profile gates APN / TTL/HL / Scenarios / Band Locking pages; `profile_managed` CGI guard) — `docs/reference/sim-profiles.md`
+- **Timezone / System Clock** (`/system-settings`, glibc reads `/etc/localtime`; applied by copying a TZif via the `qmanager_timezone_apply` root helper; zoneinfo at `/opt/share/zoneinfo` from Entware `zoneinfo-all`; `/etc/TZ` is inert on glibc; cron adopts a new zone on the next reboot) — `docs/reference/timezone.md`
 
 If you add a substantial new feature with non-obvious invariants, drop its notes into `docs/reference/<feature>.md` and add a row above rather than re-fattening this file.
 

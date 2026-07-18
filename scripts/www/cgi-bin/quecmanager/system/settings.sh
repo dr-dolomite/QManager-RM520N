@@ -56,6 +56,12 @@ if [ "$REQUEST_METHOD" = "GET" ]; then
     timezone=$(sys_get_timezone)
     zonename=$(sys_get_zonename)
 
+    # --- Effective (live) timezone — ground truth, not just config ---
+    eff_tz=$(sys_get_effective_tz)
+    eff_offset=$(printf '%s' "$eff_tz" | cut -d' ' -f1)
+    eff_applied=$(printf '%s' "$eff_tz" | cut -d' ' -f3)
+    eff_abbr=$(printf '%s' "$eff_tz" | cut -d' ' -f4)
+
     # --- Scheduled reboot ---
     sched_enabled=$(qm_config_get settings sched_reboot_enabled "0")
     sched_time=$(qm_config_get settings sched_reboot_time "04:00")
@@ -78,6 +84,9 @@ if [ "$REQUEST_METHOD" = "GET" ]; then
         --arg distance_unit "$distance_unit" \
         --arg timezone "$timezone" \
         --arg zonename "$zonename" \
+        --arg effective_offset "$eff_offset" \
+        --arg effective_zone_abbr "$eff_abbr" \
+        --argjson timezone_applied "$([ "$eff_applied" = "1" ] && echo true || echo false)" \
         --arg sms_tool_device "$sms_tool_device" \
         --argjson sched_enabled "$sched_enabled" \
         --arg sched_time "$sched_time" \
@@ -95,6 +104,9 @@ if [ "$REQUEST_METHOD" = "GET" ]; then
                 distance_unit: $distance_unit,
                 timezone: $timezone,
                 zonename: $zonename,
+                effective_offset: $effective_offset,
+                effective_zone_abbr: $effective_zone_abbr,
+                timezone_applied: $timezone_applied,
                 sms_tool_device: $sms_tool_device
             },
             scheduled_reboot: {
@@ -172,14 +184,15 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
         # --- Timezone ---
         val=$(printf '%s' "$POST_DATA" | jq -r '.timezone // empty')
         zn=$(printf '%s' "$POST_DATA" | jq -r '.zonename // empty')
+        tz_status="not_attempted"
         if [ -n "$val" ]; then
-            sys_set_timezone "$val" "$zn"
+            tz_status=$(sys_set_timezone "$val" "$zn")
         fi
 
         # AT device is hardcoded to /dev/smd11 via atcli_smd11 — no override needed
 
         qlog_info "System settings saved"
-        echo '{"success":true}'
+        jq -n --arg tz_status "$tz_status" '{success:true, timezone_apply_status:$tz_status}'
         exit 0
     fi
 

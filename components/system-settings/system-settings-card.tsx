@@ -36,12 +36,14 @@ import {
 } from "@/components/ui/tooltip";
 import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
   AlertTriangleIcon,
   Check,
   ChevronsUpDown,
+  TriangleAlertIcon,
 } from "lucide-react";
 import { SaveButton, useSaveFlash } from "@/components/ui/save-button";
 import { motion, type Variants } from "motion/react";
@@ -192,9 +194,10 @@ function SystemSettingsForm({
     return (
       tempUnit !== settings.temp_unit ||
       distanceUnit !== settings.distance_unit ||
-      zonename !== settings.zonename
+      zonename !== settings.zonename ||
+      timezone !== settings.timezone
     );
-  }, [settings, tempUnit, distanceUnit, zonename]);
+  }, [settings, tempUnit, distanceUnit, zonename, timezone]);
 
   const canSave = isDirty && !isSaving;
 
@@ -300,56 +303,89 @@ function SystemSettingsForm({
 
           {/* ── Timezone ──────────────────────────────────────────── */}
           <Separator />
-          <motion.div variants={itemVariants} className="flex items-center justify-between">
-            <p className="font-semibold text-muted-foreground text-sm">
-              Timezone
-            </p>
-            <Popover open={tzOpen} onOpenChange={setTzOpen}>
-              <PopoverTrigger asChild>
-                <Button
+          <motion.div variants={itemVariants} className="grid gap-2">
+            <div className="flex items-center justify-between">
+              <p className="font-semibold text-muted-foreground text-sm">
+                Timezone
+              </p>
+              <Popover open={tzOpen} onOpenChange={setTzOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    role="combobox"
+                    aria-expanded={tzOpen}
+                    className="w-52 @sm/card:w-64 justify-between font-normal"
+                  >
+                    <span className="truncate">
+                      {TIMEZONES.find((tz) => tz.zonename === zonename)?.label ??
+                        "Select timezone"}
+                    </span>
+                    <ChevronsUpDown className="ml-2 size-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-64 p-0" align="end">
+                  <Command>
+                    <CommandInput placeholder="Search timezone..." />
+                    <CommandList>
+                      <CommandEmpty>No timezone found.</CommandEmpty>
+                      <CommandGroup>
+                        {TIMEZONES.map((tz) => (
+                          <CommandItem
+                            key={tz.zonename}
+                            value={tz.label}
+                            onSelect={() => {
+                              handleTimezoneChange(tz.zonename);
+                              setTzOpen(false);
+                            }}
+                          >
+                            <Check
+                              className={cn(
+                                "mr-2 size-4",
+                                zonename === tz.zonename
+                                  ? "opacity-100"
+                                  : "opacity-0",
+                              )}
+                            />
+                            {tz.label}
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
+            </div>
+
+            {/* Timezone ground-truth: warn when the configured zone did not
+                reach the live device clock. Only render when the backend
+                explicitly reports the state (older backends omit the field). */}
+            {settings?.timezone_applied === false && (
+              <div className="flex flex-col items-start gap-1.5">
+                <Badge
                   variant="outline"
-                  role="combobox"
-                  aria-expanded={tzOpen}
-                  className="w-52 @sm/card:w-64 justify-between font-normal"
+                  className="bg-warning/15 text-warning hover:bg-warning/20 border-warning/30"
                 >
-                  <span className="truncate">
-                    {TIMEZONES.find((tz) => tz.zonename === zonename)?.label ??
-                      "Select timezone"}
+                  <TriangleAlertIcon className="size-3" />
+                  Not applied — clock shows {settings.effective_offset}
+                </Badge>
+                <p className="text-muted-foreground text-sm">
+                  Saved as {settings.zonename} ({settings.timezone}) but the
+                  device clock is still {settings.effective_offset}. It may
+                  apply shortly, or the timezone data may be missing.
+                </p>
+              </div>
+            )}
+
+            {settings?.timezone_applied === true &&
+              settings.effective_zone_abbr &&
+              settings.effective_offset && (
+                <p className="text-muted-foreground text-sm">
+                  Clock:{" "}
+                  <span className="font-mono">
+                    {settings.effective_zone_abbr} {settings.effective_offset}
                   </span>
-                  <ChevronsUpDown className="ml-2 size-4 shrink-0 opacity-50" />
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-64 p-0" align="end">
-                <Command>
-                  <CommandInput placeholder="Search timezone..." />
-                  <CommandList>
-                    <CommandEmpty>No timezone found.</CommandEmpty>
-                    <CommandGroup>
-                      {TIMEZONES.map((tz) => (
-                        <CommandItem
-                          key={tz.zonename}
-                          value={tz.label}
-                          onSelect={() => {
-                            handleTimezoneChange(tz.zonename);
-                            setTzOpen(false);
-                          }}
-                        >
-                          <Check
-                            className={cn(
-                              "mr-2 size-4",
-                              zonename === tz.zonename
-                                ? "opacity-100"
-                                : "opacity-0",
-                            )}
-                          />
-                          {tz.label}
-                        </CommandItem>
-                      ))}
-                    </CommandGroup>
-                  </CommandList>
-                </Command>
-              </PopoverContent>
-            </Popover>
+                </p>
+              )}
           </motion.div>
 
           {/* ── Save Button ───────────────────────────────────────── */}

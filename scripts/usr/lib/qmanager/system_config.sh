@@ -54,16 +54,82 @@ sys_get_zonename() {
 
 # Set timezone (persists to config + applies live)
 # Args: $1 = POSIX TZ string, $2 = zone name (IANA, e.g., "Asia/Manila")
+# Stdout: status token — one of:
+#   applied       — helper ran and installed the TZif successfully
+#   failed        — helper ran but reported an error (zone not found, copy failed, etc.)
+#   not_attempted — tz was valid but zonename ($2) was empty, so no live-apply was tried
+#   invalid       — tz itself was empty; nothing was persisted (also returns 1)
+# NOTE: does NOT export TZ or write /etc/TZ — glibc 2.31 on this platform reads
+# /etc/localtime, not /etc/TZ, and leaving TZ exported here would leak into the
+# rest of this CGI process and corrupt any later `date`-based effective-tz check.
 sys_set_timezone() {
-    local tz="$1" zn="${2:-}"
-    [ -z "$tz" ] && return 1
+    local tz="$1" zn="${2:-}" status
+    [ -z "$tz" ] && { printf 'invalid'; return 1; }
     qm_config_set settings timezone "$tz"
     [ -n "$zn" ] && qm_config_set settings zonename "$zn"
-    # Apply to running system: symlink /etc/localtime (standard Linux)
-    if [ -n "$zn" ] && [ -f "/usr/share/zoneinfo/$zn" ]; then
-        ln -sf "/usr/share/zoneinfo/$zn" /etc/localtime 2>/dev/null
+
+    if [ -z "$zn" ]; then
+        printf 'not_attempted'
+        return 0
     fi
-    # Also export TZ for the current process and /etc/TZ as fallback
-    export TZ="$tz"
-    echo "$tz" > /etc/TZ 2>/dev/null
+
+    # Apply to running system via the root helper (www-data cannot write /etc directly).
+    if sudo -n /usr/bin/qmanager_timezone_apply "$zn" >/dev/null 2>&1; then
+        status="applied"
+    else
+        status="failed"
+        qlog_warn "qmanager_timezone_apply failed for zone $zn"
+    fi
+
+    # NOTE: scheduled-reboot / low-power cron windows adopt the new timezone on
+    # the NEXT device reboot, not instantly. RM520N-GL's cron is BusyBox crond
+    # writing /var/spool/cron/crontabs/root directly — it is NOT a systemd unit
+    # under any name (verified on-device: cron/crond/busybox-cron/cronie all
+    # absent), and glibc caches the zone per-process at start, so a running
+    # crond cannot be made to re-read /etc/localtime without a fresh start.
+    # We deliberately do NOT attempt an in-request restart (it would be dead or
+    # unreliable code); the natural next-boot start picks up /etc/localtime.
+    # date/log/alert timestamps are unaffected — each is a fresh process that
+    # reads /etc/localtime at exec time. See docs/reference/timezone.md.
+
+    printf '%s' "$status"
+    return 0
+}
+
+# Get the LIVE effective timezone vs. what's configured, so GET can report
+# ground truth rather than just echoing config back. Since we COPY a TZif into
+# /etc/localtime (no symlink), readlink can't recover the zone name — instead
+# compare the live UTC offset against the offset recomputed from tzdata for
+# the configured zone.
+# Stdout: "<live_offset> <expected_offset> <applied:0|1> <live_zone_abbr>"
+#   e.g. "+0800 +0800 1 PHT"
+sys_get_effective_tz() {
+    local configured_zn live_offset expected_offset applied abbr tzdir d
+    configured_zn=$(sys_get_zonename); [ -z "$configured_zn" ] && configured_zn="UTC"
+    live_offset=$(date +%z 2>/dev/null); [ -z "$live_offset" ] && live_offset="+0000"
+    abbr=$(date +%Z 2>/dev/null)
+
+    tzdir=""
+    for d in /opt/share/zoneinfo /usr/share/zoneinfo; do
+        [ -f "$d/$configured_zn" ] && { tzdir="$d"; break; }
+    done
+    if [ -z "$tzdir" ] && [ "$configured_zn" = "UTC" ]; then
+        for d in /opt/share/zoneinfo /usr/share/zoneinfo; do
+            [ -f "$d/Etc/UTC" ] && { tzdir="$d"; configured_zn="Etc/UTC"; break; }
+        done
+    fi
+
+    if [ -n "$tzdir" ]; then
+        expected_offset=$(TZDIR="$tzdir" TZ="$configured_zn" date +%z 2>/dev/null)
+    else
+        expected_offset=""
+    fi
+
+    if [ -n "$expected_offset" ] && [ "$live_offset" = "$expected_offset" ]; then
+        applied="1"
+    else
+        applied="0"
+    fi
+
+    printf '%s %s %s %s' "$live_offset" "${expected_offset:-unknown}" "$applied" "${abbr:-UTC}"
 }

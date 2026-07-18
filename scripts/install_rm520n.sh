@@ -110,6 +110,10 @@ UCI_GATED_SERVICES="qmanager-watchcat qmanager-tower-failover qmanager-discord"
 # Conflict packages that must be removed before installing
 CONFLICT_PACKAGES="socat socat-at-bridge"
 
+# Full IANA tzdata (RM520N-GL's vendor /usr/share/zoneinfo ships empty) —
+# see ensure_zoneinfo_packages()
+ZONEINFO_PACKAGE="zoneinfo-all"
+
 # --- Colors & Icons ----------------------------------------------------------
 
 if [ -t 1 ]; then
@@ -427,6 +431,41 @@ remove_conflicts() {
             fi
         fi
     done
+}
+
+# --- Ensure Zoneinfo Packages -------------------------------------------------
+
+# Installs the zoneinfo-all Entware package (full IANA tzdata) into
+# /opt/share/zoneinfo — RM520N-GL's vendor /usr/share/zoneinfo ships empty, so
+# qmanager_timezone_apply has nothing to copy from without this.
+#
+# Runs UNCONDITIONALLY, even with --skip-packages (mirrors remove_conflicts()
+# just above in main()): OTA upgrades invoke this installer with
+# --skip-packages, which gates install_dependencies(). Gating this install
+# behind that flag would mean the majority upgrade path (in-app "Software
+# Update") never fetches zoneinfo, and the timezone-apply fix stays silently
+# broken forever for every existing user. Warn-only on failure — a device
+# offline during an update should still complete the upgrade, not brick it.
+ensure_zoneinfo_packages() {
+    # Skip silently if Entware isn't available yet (fresh install, pre-bootstrap —
+    # install_dependencies() bootstraps Entware and this will catch up on next run)
+    if [ ! -x "$OPKG" ]; then
+        _log_raw "ensure_zoneinfo_packages: opkg not available — skipping (pre-Entware)"
+        return 0
+    fi
+
+    if "$OPKG" list-installed 2>/dev/null | grep -q "^${ZONEINFO_PACKAGE} "; then
+        info "$ZONEINFO_PACKAGE already installed"
+        return 0
+    fi
+
+    info "Installing timezone data ($ZONEINFO_PACKAGE)..."
+    if "$OPKG" update >/dev/null 2>&1 && "$OPKG" install "$ZONEINFO_PACKAGE" >/dev/null 2>&1; then
+        info "$ZONEINFO_PACKAGE installed"
+    else
+        warn "Failed to install $ZONEINFO_PACKAGE (offline?) — timezone apply will fail until this succeeds"
+        warn "  Retry manually: $OPKG update && $OPKG install $ZONEINFO_PACKAGE"
+    fi
 }
 
 # --- Install Dependencies ----------------------------------------------------
@@ -1805,6 +1844,11 @@ main() {
     # remove_conflicts runs even with --skip-packages (e.g. socat-at-bridge
     # must be gone before atcli_smd11 can open /dev/smd11)
     remove_conflicts
+
+    # ensure_zoneinfo_packages runs even with --skip-packages — OTA upgrades
+    # pass that flag, so gating this behind install_dependencies() would leave
+    # the timezone-apply fix silently broken for every in-app-updated device.
+    ensure_zoneinfo_packages
 
     [ "$DO_PACKAGES" = "1" ] && install_dependencies
 

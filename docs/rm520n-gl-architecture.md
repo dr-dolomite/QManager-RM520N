@@ -189,7 +189,9 @@ tmpfs             → /tmp                (89 MB, volatile, fs.protected_regular
 ### Time and Clock
 
 - **No NTP service.** `timedatectl` reports `System clock synchronized: no` and `NTP service: n/a`. Wall-clock time is set when the modem registers on the cellular network; if the modem is offline at boot the clock can be years off (probed device showed RTC time stuck at `1970-01-01 02:13:52`).
-- **No `/etc/localtime`** — system runs in UTC.
+- **Timezone is applied via `/etc/localtime`** (corrects the older "no `/etc/localtime`, system runs in UTC" claim). This platform's libc is **glibc 2.31**, which reads `/etc/localtime` (or the `TZ` env var) as authoritative and **never** reads `/etc/TZ` (that file is a musl/BusyBox convention and is inert here). QManager sets the zone from **System Settings** by copying the matching TZif file over `/etc/localtime` through the `qmanager_timezone_apply` root helper. Zone data comes from Entware's `/opt/share/zoneinfo` (the vendor path `/usr/share/zoneinfo` ships **empty**). `/etc` is its own persistent read-write UBIFS volume (`/dev/ubi2_0`), so the copied `/etc/localtime` survives reboot with no boot unit. See [Timezone](reference/timezone.md).
+- **The modem does not set the zone.** NITZ (`AT+CTZU`, Network Identity and Time Zone) is disabled, so cellular registration never restamps the zone over a user selection.
+- **Cron is not systemd-managed.** Scheduled jobs run under BusyBox `crond`, which reads `/var/spool/cron/crontabs/root` directly; there is no `cron`/`crond`/`cronie` systemd unit. Consequence for timezone changes: `date`, log, and alert timestamps go local immediately (each is a fresh process), but scheduled-reboot and low-power windows adopt a newly-set zone only on the **next reboot**, because glibc caches the zone per-process and a running `crond` cannot re-read `/etc/localtime` in place.
 - **Never rely on absolute timestamps** for security-sensitive ordering. Use `/proc/uptime` for monotonic deltas where possible.
 
 ### Hardened Kernel Tunables
@@ -210,7 +212,7 @@ These are issues observed on a running device; they should be fixed in code or t
 
 - **`qmanager-firewall.service` uses a dedicated `QMANAGER_FW` user chain** (since 2026-05). Probe-validated layout: `iptables -L QMANAGER_FW -n -v` is the single source of truth; `INPUT` carries one `-j QMANAGER_FW` jump and nothing else QManager-owned. The script also drains pre-chain orphan rules (e.g. legacy `DROP -i rmnet_data0`) on every `start`/`stop` so upgrades self-heal. See `docs/BACKEND.md` §14 for the full pattern.
 - **`qmanager-imei-check.service` is in `failed` state** on the dev device alongside expected OEM service failures (`pcie-diag`, `pcie`, `ql_ctcc_selfreg`, `r8168`). Worth investigating whether this is environmental or a real regression.
-- **Doc claim `/etc/ is tmpfs`** is partially wrong — `/etc/qmanager/` and most OEM-shipped files in `/etc/` are on the ubifs rootfs. Only specific subpaths (`/etc/machine-id`) are tmpfs-backed. Code that relies on `/etc/` being volatile should be re-checked.
+- **Doc claim `/etc/ is tmpfs` / `/etc is read-only rootfs`** is wrong. Probing shows `/dev/ubi2_0 on /etc type ubifs (rw,...)`, i.e. `/etc` is its **own persistent read-write UBIFS volume** (the same `ubi2_0` pool as `/usrdata` and `/opt`), separate from the read-only rootfs `/` (`ubi0`). Files written under `/etc` (for example `/etc/localtime`, `/etc/qmanager/`, `/etc/data/dnsmasq.conf`) persist across reboot with no rootfs remount. Only specific single-file subpaths (`/etc/machine-id`) are tmpfs-backed. Code that relies on `/etc/` being volatile, or on remounting the rootfs to write `/etc`, should be re-checked.
 - **Kernel version is `5.4.210-perf`** on the probed device, not `5.4.180` as older docs say. Update references when convenient.
 
 ---

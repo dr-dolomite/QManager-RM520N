@@ -20,6 +20,8 @@ Another attempt to fix rx/tx orientation: if Data Used still shows upload/downlo
 
 - **Version Management → Install actually installs.** The button used to stop after download — the tarball staged but nothing ran. It now completes the full download → install → reboot in one click, same as the main Update flow. Works for upgrades, reinstalls, and rollbacks.
 
+- **Timezone selection now actually changes the device clock.** Picking a zone in **System Settings** updates the clock, log timestamps, and alert times instead of silently snapping back to UTC (glibc reads `/etc/localtime`, which QManager now writes via a root helper using Entware's full IANA tzdata). Heads-up: scheduled-reboot and low-power windows follow the device's local timezone and shift to a newly-set zone after the next reboot — set your timezone first, then schedule.
+
 ## 📥 Installation
 
 ### Upgrading from v0.1.11

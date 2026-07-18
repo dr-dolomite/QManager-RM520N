@@ -987,8 +987,11 @@ System preferences, scheduled reboot, and low power mode.
     "wan_guard_enabled": true,
     "temp_unit": "celsius",
     "distance_unit": "km",
-    "timezone": "UTC0",
-    "zonename": "UTC"
+    "timezone": "PHT-8",
+    "zonename": "Asia/Manila",
+    "effective_offset": "+0800",
+    "effective_zone_abbr": "PHT",
+    "timezone_applied": true
   },
   "scheduled_reboot": {
     "enabled": false,
@@ -1003,6 +1006,11 @@ System preferences, scheduled reboot, and low power mode.
   }
 }
 ```
+
+- `timezone`/`zonename`: the **configured** POSIX TZ string and IANA zone name (echoed from config)
+- `effective_offset`: the **live** clock UTC offset from `date +%z` (e.g. `"+0800"`, `"+0000"`)
+- `effective_zone_abbr`: the **live** zone abbreviation from `date +%Z` (e.g. `"PHT"`, `"UTC"`)
+- `timezone_applied`: `true` when the live clock matches the configured zone; `false` when config and clock disagree (the UI shows a "not applied" warning). Reported by `sys_get_effective_tz`. See [reference/timezone.md](reference/timezone.md)
 
 **POST (save_settings):**
 ```json
@@ -1019,7 +1027,14 @@ System preferences, scheduled reboot, and low power mode.
 - `temp_unit`: `"celsius"` or `"fahrenheit"`
 - `distance_unit`: `"km"` or `"miles"`
 - `wan_guard_enabled`: accepted in the payload but **not ported to the RM520N-GL** — the handler silently ignores it
-- `timezone`/`zonename`: applied via the `sys_set_timezone` helper (system config lib), not UCI
+- `timezone`/`zonename`: persisted, then applied to the live clock via `sys_set_timezone` (which copies the resolved TZif over `/etc/localtime` through the `qmanager_timezone_apply` root helper), not UCI
+
+**POST (save_settings) Response:**
+```json
+{ "success": true, "timezone_apply_status": "applied" }
+```
+
+- `timezone_apply_status`: outcome of pushing the configured zone to the live clock. One of `"applied"` (clock updated), `"failed"` (config saved but the clock apply did not take), `"not_attempted"` (`zonename` was empty), or `"invalid"` (`timezone` was empty). The frontend warns the user on `"failed"`. See [reference/timezone.md](reference/timezone.md)
 
 **POST (save_scheduled_reboot):**
 

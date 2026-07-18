@@ -439,7 +439,10 @@ System settings abstraction. Replaces `uci system.@system[0].*` for hostname and
 | `sys_set_hostname <name>` | Persist to `qmanager.conf`, write `/proc/sys/kernel/hostname`, update `/etc/hostname` |
 | `sys_get_timezone` | Read POSIX TZ string from `qmanager.conf` (default `"UTC0"`) |
 | `sys_get_zonename` | Read IANA zone name from `qmanager.conf` (default `"UTC"`) |
-| `sys_set_timezone <tz> [zonename]` | Persist TZ, symlink `/etc/localtime`, export `$TZ`, write `/etc/TZ` |
+| `sys_set_timezone <tz> [zonename]` | Persist TZ + zonename to `qmanager.conf`, then apply the live clock via `sudo -n /usr/bin/qmanager_timezone_apply <zonename>` (copies the resolved TZif over `/etc/localtime`). Prints a status token on stdout: `applied` / `failed` / `not_attempted` / `invalid`. Does **not** write `/etc/TZ` or export `$TZ` (glibc 2.31 reads `/etc/localtime`, and `/etc/TZ` is inert here) |
+| `sys_get_effective_tz` | Report the **live** timezone vs. config, so GET returns ground truth. Since `/etc/localtime` is a copied TZif (no symlink to read back), it compares `date +%z` against the offset recomputed from tzdata for the configured zone. Prints `"<live_offset> <expected_offset> <applied:0\|1> <live_zone_abbr>"` (e.g. `+0800 +0800 1 PHT`) |
+
+> ℹ️ NOTE: The old `sys_set_timezone` symlinked `/etc/localtime`, wrote `/etc/TZ`, and exported `$TZ`. All three were inert or harmful on this platform (empty `/usr/share/zoneinfo`, glibc ignoring `/etc/TZ`, and `www-data` unable to write `/etc`), so a saved zone never reached the clock. See [Timezone](reference/timezone.md) for the full failure analysis and the root-helper design.
 
 ### 4.14 `tower_lock_mgr.sh`
 
@@ -742,6 +745,12 @@ Reads a new root password from stdin, hashes it with `openssl passwd -1`, and up
 
 Resets the QManager web UI password. Interactive utility; typically invoked via SSH.
 
+#### `qmanager_timezone_apply`
+
+**Location:** `/usr/bin/qmanager_timezone_apply`
+
+Applies an IANA timezone to the live clock by copying the resolved TZif file over `/etc/localtime`. Called via `sudo -n` from `sys_set_timezone` (`system_config.sh`) because `www-data` cannot write root-owned `/etc`. Validates the zone name (empty / `..` traversal / charset / `TZif` magic-byte checks), resolves it from `/opt/share/zoneinfo` (Entware, fallback `/usr/share/zoneinfo`, plus an `Etc/UTC` fallback for bare `UTC`), then installs it atomically via a temp file **inside** `/etc`. Copies rather than symlinks because `/opt` is a late-boot bind-mount and a symlink would dangle in early boot. Prints a one-line JSON result and exits `0` on success. See [Timezone](reference/timezone.md).
+
 #### `qmanager_logread`
 
 **Location:** `/usr/bin/qmanager_logread`
@@ -842,6 +851,9 @@ www-data ALL=(root) NOPASSWD: /usr/bin/qmanager_update
 | `ln/rm tailscaled.service` | `vpn/tailscale.sh` (enable/disable Tailscale at boot) |
 | `qmanager_console_mgr` | Console management via system settings CGI |
 | `qmanager_update` | `system/update.sh` (OTA update; added in v0.1.5 -- previously required ADB/SSH) |
+| `qmanager_timezone_apply` | `system_config.sh` `sys_set_timezone` (copies resolved TZif over `/etc/localtime`) |
+
+> ℹ️ NOTE: The rules block quoted above is illustrative and not exhaustive. The authoritative file is `scripts/etc/sudoers.d/qmanager`, which also carries `qmanager_health_check`, `qmanager_ethernet_apply`, `qmanager_timezone_apply`, and the Custom DNS rules.
 
 **Security note:** All rules use full absolute paths. sudo's `secure_path` is overridden by Entware's sudo configuration, but absolute paths in rules are immune to PATH injection regardless.
 
@@ -1035,7 +1047,7 @@ For request/response schemas, see `API-REFERENCE.md`.
 | `system/logs.sh` | GET | Return QManager log file contents |
 | `system/modem-subsys.sh` | GET | Return modem subsystem health (state, crash count, coredump flag) by reshaping the `system_health` block from the poller status cache; thin `jq` extractor — never re-computes live data |
 | `system/reboot.sh` | POST | Initiate system reboot via `cgi_reboot_response` |
-| `system/settings.sh` | GET/POST | Read or write system settings (hostname, timezone, scheduled reboot, low-power schedule, auto-update) |
+| `system/settings.sh` | GET/POST | Read or write system settings (hostname, timezone, scheduled reboot, low-power schedule, auto-update). GET adds `effective_offset` / `effective_zone_abbr` / `timezone_applied` (live clock truth from `sys_get_effective_tz`); POST `save_settings` returns `timezone_apply_status` (`applied`/`failed`/`not_attempted`/`invalid`). See [Timezone](reference/timezone.md) |
 | `system/update.sh` | GET/POST | OTA update: check version, download, install, rollback; spawns `qmanager_update` via sudo |
 
 #### `tower/` (5 scripts)
@@ -1304,6 +1316,10 @@ Contract between the installer and the worker:
 #### Rollback Support
 
 Before every install, `qmanager_update` writes the current version to `/etc/qmanager/updates/previous_version`. The CGI's rollback action reads this file to determine the URL for the previous release.
+
+#### Unconditional zoneinfo install (`ensure_zoneinfo_packages`)
+
+`install_rm520n.sh` calls `ensure_zoneinfo_packages()` from `main()` **outside** the `--skip-packages` / `DO_PACKAGES` gate (alongside `remove_conflicts()`). It installs the `zoneinfo-all` Entware meta-package into `/opt/share/zoneinfo`, which `qmanager_timezone_apply` needs as a source (the vendor `/usr/share/zoneinfo` ships empty). It runs unconditionally on purpose: OTA upgrades invoke the installer with `--skip-packages`, which gates the normal `install_dependencies()` step, so gating zoneinfo behind that flag would mean the in-app **Software Update** path never fetches tzdata and the timezone fix would stay silently broken for existing users. The function is warn-only: if Entware is not yet bootstrapped or the device is offline mid-update, it logs and returns `0` (a later run catches up) rather than failing the upgrade. `zoneinfo-all` is additive, so it is safe over partially pre-existing zoneinfo packages. See [Timezone](reference/timezone.md).
 
 For more detail on the CGI request/response schemas, see `API-REFERENCE.md`.
 

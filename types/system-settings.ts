@@ -9,6 +9,12 @@ export interface SystemSettings {
   timezone: string; // POSIX TZ string, e.g. "EST5EDT,M3.2.0,M11.1.0"
   zonename: string; // IANA zone name, e.g. "America/New_York"
   sms_tool_device: string; // "" = default (smd11), "/dev/smd7" = alternate
+  // --- Timezone ground-truth (optional; only sent by newer backends) --------
+  // These report what the live device clock is *actually* using, so the UI can
+  // warn when a configured zone did not reach the clock.
+  effective_offset?: string; // Live clock offset, e.g. "+0800" / "+0000"
+  effective_zone_abbr?: string; // Live zone abbreviation, e.g. "PHT" / "UTC"
+  timezone_applied?: boolean; // true = configured zone matches the live clock
 }
 
 export interface ScheduleConfig {

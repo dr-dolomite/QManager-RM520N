@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback, useRef, useEffect } from "react";
+import { toast } from "sonner";
 import { authFetch } from "@/lib/auth-fetch";
 import type {
   SystemSettings,
@@ -36,6 +37,28 @@ export interface SaveScheduledRebootPayload {
   enabled: boolean;
   time: string;
   days: number[];
+}
+
+// ─── Save Response Types ──────────────────────────────────────────────────
+
+// Outcome of pushing the configured timezone to the live device clock.
+// "failed" = config saved, but the clock apply did not take (e.g. sudoers not
+// yet rolled out, or zone data missing).
+export type TimezoneApplyStatus =
+  | "applied"
+  | "failed"
+  | "not_attempted"
+  | "invalid";
+
+// Shared shape for the POST responses handled by postAction(). Fields are
+// optional because they vary by action (save_settings vs save_scheduled_reboot).
+interface SaveResponse {
+  success: boolean;
+  detail?: string;
+  error?: string;
+  scheduled_reboot?: ScheduleConfig;
+  low_power?: unknown;
+  timezone_apply_status?: TimezoneApplyStatus;
 }
 
 export interface UseSystemSettingsReturn {
@@ -130,7 +153,7 @@ export function useSystemSettings(): UseSystemSettingsReturn {
           throw new Error(`HTTP ${resp.status}: ${resp.statusText}`);
         }
 
-        const json = await resp.json();
+        const json: SaveResponse = await resp.json();
         if (!mountedRef.current) return false;
 
         if (!json.success) {
@@ -148,7 +171,16 @@ export function useSystemSettings(): UseSystemSettingsReturn {
 
         // Re-fetch for save_settings (preferences) which doesn't return
         // schedule data — and to sync any other state we didn't capture above.
+        // The silent re-fetch also pulls the fresh timezone ground-truth fields
+        // (effective_offset / timezone_applied) so the card can render its badge.
         if (payload.action === "save_settings") {
+          // Config saved, but the zone did not reach the live clock. Warn the
+          // user honestly (partial success); the settings themselves persisted.
+          if (json.timezone_apply_status === "failed") {
+            toast.warning(
+              "Timezone saved, but couldn't apply to the device clock — check again in a moment",
+            );
+          }
           await fetchSettings(true);
         }
 
