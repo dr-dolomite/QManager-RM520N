@@ -12,6 +12,7 @@ Detailed operational notes extracted from `CLAUDE.md` to keep the always-loaded 
 | [data-usage-counter.md](data-usage-counter.md) | The persistent data-usage counter (kernel `/proc/net/dev`-sourced, schema v5 with static SoC-based orientation) |
 | [wan-profile-management.md](wan-profile-management.md) | WAN Profile / APN management (`cellular/apn.sh`, 6 PDP contexts, AT-only) |
 | [sim-profiles.md](sim-profiles.md) | Custom SIM Profiles (4-step apply, `scenario_id` binding, gate matrix, `profile_managed` guard) |
+| [connection-watchdog.md](connection-watchdog.md) | Connection Watchdog (`qmanager_watchcat` 4-tier recovery ladder, Tier-3 SIM failover / Golden Rule / 90s settle floor, misconfig-stops-ladder, two-pass CGI validation, status-first UI) |
 | [timezone.md](timezone.md) | Timezone / system clock (glibc `/etc/localtime` via `qmanager_timezone_apply` root helper, zoneinfo at `/opt/share/zoneinfo`, `sys_get_effective_tz` ground-truth, cron adopts zone on next reboot) |
 
 For broader architecture, see `../rm520n-gl-architecture.md` and `../ARCHITECTURE.md`.

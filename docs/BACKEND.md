@@ -570,10 +570,10 @@ Both targets accept:
 #### `qmanager_watchcat`
 
 **Location:** `/usr/bin/qmanager_watchcat`
-**State files:** `/tmp/qmanager_watchcat.json`, `/tmp/qmanager_watchcat.pid`, `/tmp/qmanager_watchcat.lock`, `/tmp/qmanager_recovery_active`, `/tmp/qmanager_sim_failover`, `/etc/qmanager/crash.log`
+**State files:** `/tmp/qmanager_watchcat.json`, `/tmp/qmanager_watchcat.pid`, `/tmp/qmanager_watchcat.lock`, `/tmp/qmanager_recovery_active`, `/etc/qmanager/qmanager_sim_failover` (persistent), `/etc/qmanager/last_iccid` (persistent), `/etc/qmanager/crash.log`
 **Config:** `qmanager.conf` section `watchcat`
 
-Pure state machine. Reads `qmanager_ping.json`; never pings independently.
+Pure state machine. Reads `qmanager_ping.json`; never pings independently. Full feature reference: `docs/reference/connection-watchdog.md`.
 
 **State machine:**
 
@@ -588,10 +588,12 @@ MONITOR -> SUSPECT -> RECOVERY -> COOLDOWN -> MONITOR
 |------|----------|--------|-------|
 | 1 | Re-register to Network | Network deregister/reregister (`AT+COPS=2/0`) | Enabled by default |
 | 2 | CFUN Toggle | Radio toggle (`AT+CFUN=0/1`) | Skipped if tower lock active |
-| 3 | SIM Failover | SIM failover (`AT+QUIMSLOT`) | Disabled by default; Golden Rule sequence |
+| 3 | SIM Failover | SIM failover (`AT+QUIMSLOT`) | Disabled by default; Golden Rule sequence; misconfig **stops the ladder** (never reboots) |
 | 4 | Reboot | System reboot | Token bucket: max N/hour; auto-disables if limit hit |
 
 LOCKED state: set by touching `/tmp/qmanager_watchcat.lock`. Watchcat sleeps until the file is removed. The update worker and installer touch this file during OTA operations.
+
+Tier-3 SIM failover keeps its state in `/etc/qmanager/qmanager_sim_failover` (persistent, so a Tier-4 reboot doesn't lose the fact that the modem is on the backup SIM) and floors the post-swap cooldown at `SIM_SETTLE_SECS=90` so a real swap isn't judged failed before the new SIM re-attaches. After any swap or revert it also writes the landed ICCID to `/etc/qmanager/last_iccid`, so the poller's boot-time SIM-swap detector treats the change as expected instead of false-firing "New SIM detected". A Tier-3 misconfiguration (no backup slot, or backup == current slot) stops the ladder rather than escalating to a Tier-4 reboot. See `docs/reference/connection-watchdog.md` for the full lifecycle.
 
 ### 5.2 On-Demand Daemons
 
@@ -1092,7 +1094,8 @@ Cleared on every reboot (tmpfs). Files pre-created by `qmanager_setup` are marke
 | `/tmp/qmanager_watchcat.lock` | root | qmanager_watchcat / update worker | Maintenance lock; forces watchcat into LOCKED state |
 | `/tmp/qmanager_watchcat_reload` | root | CGI | Flag: watchcat should reload config |
 | `/tmp/qmanager_recovery_active` | root | qmanager_watchcat | Flag: recovery action in progress |
-| `/tmp/qmanager_sim_failover` | root | qmanager_watchcat | Flag: SIM failover occurred (Tier 3) |
+| `/tmp/qmanager_watchcat_revert_sim` | root | CGI | Flag: user requested SIM revert (Tier 3) |
+| `/tmp/qmanager_watchcat_disabled` | root | qmanager_watchcat | Flag: watchcat auto-disabled (Tier-4 reboot cap hit) |
 | `/tmp/qmanager_profile_state.json` (S) | www-data | qmanager_setup | Profile apply progress state |
 | `/tmp/qmanager_profile_apply.pid` (S) | www-data | qmanager_setup | Profile apply PID |
 | `/tmp/qmanager_sessions/` | www-data | qmanager_setup | Session token directory (mode 700) |
@@ -1148,7 +1151,9 @@ Lives on the rootfs (read-only by default). `qmanager_setup` calls `mount -o rem
 | `/etc/qmanager/ttl_state` | TTL/HL values (`TTL=N\nHL=N`); absent = no rules |
 | `/etc/firewall.user.mtu` | MTU setting script (sourced by `qmanager_mtu.service`) |
 | `/etc/qmanager/long_commands.list` | List of AT commands treated as long (one per line) |
-| `/etc/qmanager/crash.log` | Watchcat Tier-4 reboot log |
+| `/etc/qmanager/crash.log` | Watchcat Tier-4 reboot log (token-bucket source; `<epoch>\|reboot\|tier4_escalation`) |
+| `/etc/qmanager/qmanager_sim_failover` | Watchcat Tier-3 SIM-failover record (persistent so it survives a Tier-4 reboot) |
+| `/etc/qmanager/last_iccid` | Last-landed SIM ICCID; written after a swap/revert so the poller's boot swap-detector doesn't false-fire |
 | `/etc/qmanager/environment` | Optional environment overrides for systemd units (e.g., `QLOG_LEVEL=DEBUG`) |
 
 ### Other Paths
