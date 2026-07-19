@@ -152,9 +152,9 @@ export function LanguageSettings() {
   const manifestError = listError || list?.manifest_error;
 
   return (
-    <div className="@container/main mx-auto w-full max-w-5xl p-2">
+    <div className="@container/main mx-auto p-2">
       <div className="mb-6">
-        <h1 className="text-2xl font-bold">{t("language.page_title")}</h1>
+        <h1 className="text-3xl font-bold mb-2">{t("language.page_title")}</h1>
         <p className="text-muted-foreground">{t("language.page_description")}</p>
       </div>
 
@@ -186,27 +186,45 @@ export function LanguageSettings() {
                 />
               ) : null,
             )}
-            {catalogView.downloaded.map((row) =>
-              row.status === "downloaded" ? (
-                <LanguagePackRow
-                  key={row.entry.code}
-                  variant={{
-                    kind: "downloaded",
-                    entry: row.entry,
-                    isActive: row.entry.code === activeCode,
-                    version: row.version,
-                    completeness: row.completeness,
-                    updateAvailableVersion: row.updateAvailableVersion,
-                    manifestEntry: row.manifestEntry,
-                  }}
-                  installState={install}
-                  onInstall={handleInstall}
-                  onCancelInstall={cancelInstall}
-                  onRemove={handleRemove}
-                  onSelectActive={handleSelectActive}
-                  switching={switchingCode === row.entry.code}
-                />
-              ) : null,
+            {isLoading ? (
+              <div
+                className="flex flex-col gap-3 rounded-md border p-4"
+                aria-hidden
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex flex-col gap-2">
+                    <Skeleton className="h-5 w-32" />
+                    <Skeleton className="h-4 w-16" />
+                  </div>
+                  <Skeleton className="h-8 w-16" />
+                </div>
+                <span className="sr-only" role="status">
+                  Checking for downloaded language packs…
+                </span>
+              </div>
+            ) : (
+              catalogView.downloaded.map((row) =>
+                row.status === "downloaded" ? (
+                  <LanguagePackRow
+                    key={row.entry.code}
+                    variant={{
+                      kind: "downloaded",
+                      entry: row.entry,
+                      isActive: row.entry.code === activeCode,
+                      version: row.version,
+                      completeness: row.completeness,
+                      updateAvailableVersion: row.updateAvailableVersion,
+                      manifestEntry: row.manifestEntry,
+                    }}
+                    installState={install}
+                    onInstall={handleInstall}
+                    onCancelInstall={cancelInstall}
+                    onRemove={handleRemove}
+                    onSelectActive={handleSelectActive}
+                    switching={switchingCode === row.entry.code}
+                  />
+                ) : null,
+              )
             )}
           </CardContent>
         </Card>
