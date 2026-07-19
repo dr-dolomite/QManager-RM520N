@@ -10,6 +10,8 @@ QManager now speaks your language, and the Connection Watchdog gets a ground-up 
 
 - **Redesigned Watchdog page.** **Monitoring → Watchdog** now leads with a live status hero — current state, failed-check counters, and a recovery-ladder view — beside a Recovery Activity log and a tabbed **Detection / Recovery** settings panel with a single save bar. See at a glance what the watchdog is doing and which SIM you're on.
 
+- **Translate QManager in your own language.** A new community translation toolkit lets anyone add or complete a language without being a developer — `bun run lang scaffold` starts a new language, `status`/`check` show what's left and check your work with plain-English fixes, and one command packages a finished pack (zero-dependency Bun CLI sharing the app's `i18n:check` validation engine; partial translations are welcome and fall back to English). See `docs/CONTRIBUTING-translations.md`.
+
 ## 🛠️ Improvements
 
 - **SIM failover now survives a reboot.** If the watchdog switched you to your backup SIM, that state is kept across a restart, so the page still shows you're on the backup slot (and offers the revert) instead of losing track (failover state moved to persistent storage).
@@ -17,6 +19,8 @@ QManager now speaks your language, and the Connection Watchdog gets a ground-up 
 - **Backup SIM slot is now required to arm SIM failover.** Turning on the "Switch to Backup SIM" step without picking a slot is blocked at save with a clear prompt, so failover can never be enabled in a state where it can't actually fail over.
 
 - **Cleaner watchdog settings save.** The watchdog settings form now validates every field before writing anything and points at the exact field that's out of range, so a bad value can't half-apply.
+
+- **Translation pull requests are checked automatically.** Every PR that touches a language now gets a bot comment with a per-language completeness table and inline notes, failing only on real structural mistakes — so contributors get instant, plain-English feedback (`bun run lang check --all --ci` on CI, ~20–30s, no install).
 
 ## 🐛 Fixes
 

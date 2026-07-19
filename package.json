@@ -8,6 +8,7 @@
     "start": "bun --bun next start",
     "lint": "eslint",
     "i18n:check": "bun run lib/i18n/check.ts",
+    "lang": "bun run scripts-dev/lang.ts",
     "package": "bash scripts/test/run-all.sh && bun --bun next build && bash build.sh",
     "test:harness": "bash scripts/test/run-harnesses.sh"
   },
