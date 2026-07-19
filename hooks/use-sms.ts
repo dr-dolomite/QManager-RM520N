@@ -37,8 +37,10 @@ export interface UseSmsReturn {
   error: string | null;
   /** Send an SMS message. Returns true on success. */
   sendSms: (phone: string, message: string) => Promise<boolean>;
-  /** Delete a message by its storage indexes. Returns true on success. */
-  deleteSms: (indexes: number[]) => Promise<boolean>;
+  /** Delete a message by its storage indexes. Returns true on success.
+   *  `storage` selects which modem memory (ME / SM) the indexes live in;
+   *  the backend deletes one storage per call. */
+  deleteSms: (indexes: number[], storage: "ME" | "SM") => Promise<boolean>;
   /** Delete all messages. Returns true on success. */
   deleteAllSms: () => Promise<boolean>;
   /** Re-fetch inbox data. Pass true for silent (no loading skeleton). */
@@ -151,7 +153,7 @@ export function useSms(): UseSmsReturn {
   // Delete single message
   // ---------------------------------------------------------------------------
   const deleteSms = useCallback(
-    async (indexes: number[]): Promise<boolean> => {
+    async (indexes: number[], storage: "ME" | "SM"): Promise<boolean> => {
       setError(null);
       setIsSaving(true);
 
@@ -159,7 +161,7 @@ export function useSms(): UseSmsReturn {
         const resp = await authFetch(CGI_ENDPOINT, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ action: "delete", indexes }),
+          body: JSON.stringify({ action: "delete", indexes, storage }),
         });
 
         if (!resp.ok) {

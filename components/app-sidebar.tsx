@@ -108,6 +108,12 @@ const data = {
       t_key: "sms_center",
       url: "/cellular/sms",
       icon: MessageCircleIcon,
+      items: [
+        {
+          title: "SMS Forwarding",
+          url: "/cellular/sms/forwarding",
+        },
+      ],
     },
     {
       t_key: "custom_profiles",

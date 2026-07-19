@@ -19,6 +19,13 @@ export interface SmsMessage {
   content: string;
   /** Timestamp string (format: "MM/DD/YY HH:MM:SS") */
   timestamp: string;
+  /**
+   * Which modem memory this message lives in:
+   *   "ME" — modem memory (where new incoming messages are routed)
+   *   "SM" — SIM card (legacy storage; incoming used to land here)
+   * Required so deletion targets the correct storage (AT+CPMS).
+   */
+  storage: "ME" | "SM";
 }
 
 /** Storage status info */

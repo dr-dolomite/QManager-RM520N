@@ -16,5 +16,7 @@ Detailed operational notes extracted from `CLAUDE.md` to keep the always-loaded 
 | [connection-quality.md](connection-quality.md) | Connection Quality — the measurement/telemetry side (`qmanager_ping` Rust HTTP/204 producer, poller latency/jitter/loss stats, Probe Targets + Latency & Loss Thresholds cards, `ping_profile.json` two-writer contract) |
 | [overview-splash.md](overview-splash.md) | The public Overview splash at `/` (unauthenticated landing, the 3-state `/` gate, 3 public CGI endpoints under `public/`, `credentials:"omit"` hooks, logout→`/` wiring) |
 | [timezone.md](timezone.md) | Timezone / system clock (glibc `/etc/localtime` via `qmanager_timezone_apply` root helper, zoneinfo at `/opt/share/zoneinfo`, `sys_get_effective_tz` ground-truth, cron adopts zone on next reboot) |
+| [sms.md](sms.md) | SMS Center (`/cellular/sms`, `sms.sh`, patched `sms_tool`, CPMS ME+SM dual-storage routing, boot routing oneshot, client-side read/unread) |
+| [sms-forwarding.md](sms-forwarding.md) | SMS Forwarding (`/cellular/sms/forwarding`, `qmanager_sms_forward` daemon, seed-on-first-run, loop guard, retry/failures, gated service) |
 
 For broader architecture, see `../rm520n-gl-architecture.md` and `../ARCHITECTURE.md`.

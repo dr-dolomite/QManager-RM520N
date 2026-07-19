@@ -1,0 +1,27 @@
+QManager RM520N — bundled third-party binaries
+==============================================
+
+This directory ships a prebuilt binary derived from third-party software.
+The attribution and change notices below satisfy Apache License 2.0 §4(b)/(d).
+
+--------------------------------------------------------------------------------
+sms_tool
+--------------------------------------------------------------------------------
+Derived from: obsy/sms_tool  <https://github.com/obsy/sms_tool>
+License:      Apache License, Version 2.0
+              <https://www.apache.org/licenses/LICENSE-2.0>
+
+The bundled `dependencies/sms_tool` is a MODIFIED build of the above work. The
+modifications (see `dependencies/sms_tool.patch`, applied to `sms_main.c`) are:
+
+  1. Change the default AT device from `/dev/ttyUSB0` to `/dev/smd11`.
+  2. Skip termios setup (`tcgetattr`/`tcsetattr`) on non-TTY character devices
+     via an `isatty()` guard in `setserial()`.
+  3. Apply the same `isatty()` guard to the exit-time termios restore in
+     `resetserial()`.
+  4. Exit cleanly (`exit(1)`) on port open/reopen/fdopen failure instead of
+     dereferencing an invalid stream and crashing; gate verbose open traces
+     behind the existing `-D` debug flag.
+
+No other changes were made. A copy of the Apache License 2.0 is available at the
+URL above. This binary is redistributed under the terms of that license.

@@ -415,10 +415,10 @@ t_at_lock_serial() {
 }
 
 t_sms_recv_listing() {
-    # On RM520N-GL the AT device is /dev/smd11. Without -d, sms_tool tries
-    # to autodetect and may pick the wrong port. tcsetattr warnings are
-    # harmless on smd devices (per CLAUDE.md), so suppress stderr.
-    local out; out=$(sms_tool -j recv -d /dev/smd11 2>/dev/null)
+    # The bundled sms_tool is patched to default to /dev/smd11 and is silent
+    # on smd devices (no tcgetattr/tcsetattr noise) — see dependencies/README.md.
+    # No -d flag or stderr suppression needed.
+    local out; out=$(sms_tool -j recv)
     echo "$out" >> "$OUTPUT_FILE"
     if echo "$out" | jq -e . >/dev/null 2>&1; then echo "pass|valid JSON"
     else echo "fail|invalid JSON or sms_tool error"; fi

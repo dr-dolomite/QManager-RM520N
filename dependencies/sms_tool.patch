@@ -1,0 +1,76 @@
+--- a/sms_main.c
++++ b/sms_main.c
+@@ -30,7 +30,7 @@
+ 		"options:\n"
+ 		"\t-b <baudrate> (default: 115200)\n"
+ 		"\t-c coding scheme (for ussd, 0 - 7BIT, 2 - UCS2, default: detect)\n"
+-		"\t-d <tty device> (default: /dev/ttyUSB0)\n"
++		"\t-d <tty device> (default: /dev/smd11)\n"
+ 		"\t-D debug (for ussd and at)\n"
+ 		"\t-f <date/time format> (for sms/recv)\n"
+ 		"\t-j json output (for sms/recv)\n"
+@@ -43,13 +43,14 @@
+ 
+ static struct termios save_tio;
+ static int port = -1;
+-static const char* dev = "/dev/ttyUSB0";
++static const char* dev = "/dev/smd11";
+ static const char* storage = "";
+ static const char* dateformat = "%D %T";
+ 
+ static void setserial(int baudrate)
+ {
+ 	struct termios t;
++	if (!isatty(port)) return;  /* smd/char devices are not TTYs */
+ 	if (tcgetattr(port, &t) < 0)
+ 		fprintf(stderr,"tcgetattr(%s)\n", dev);
+ 
+@@ -106,9 +107,11 @@
+ 
+ static void resetserial()
+ {
+-	if (tcsetattr(port, TCSANOW, &save_tio) < 0)
+-		fprintf(stderr, "failed tcsetattr(%s): %s\n", dev, strerror(errno));
+-	tcflush(port, TCIOFLUSH);
++	if (isatty(port)) {
++		if (tcsetattr(port, TCSANOW, &save_tio) < 0)
++			fprintf(stderr, "failed tcsetattr(%s): %s\n", dev, strerror(errno));
++		tcflush(port, TCIOFLUSH);
++	}
+ 	close(port);
+ }
+ 
+@@ -222,20 +225,28 @@
+ 	// open the port
+ 
+ 	port = open(dev, O_RDWR|O_NONBLOCK|O_NOCTTY);
+-	if (port < 0)
+-		fprintf(stderr,"open(%s)\n", dev);
++	if (port < 0) {
++		if (debug) fprintf(stderr,"open(%s)\n", dev);
++		fprintf(stderr,"open port failed\n");
++		exit(1);
++	}
+ 	setserial(baudrate);
+ 	atexit(resetserial);
+ 
+ 	close(port);
+ 	port = open(dev, O_RDWR|O_NOCTTY);
+-	if (port < 0)
+-		fprintf(stderr,"reopen(%s)\n", dev);
++	if (port < 0) {
++		if (debug) fprintf(stderr,"reopen(%s)\n", dev);
++		fprintf(stderr,"open port failed\n");
++		exit(1);
++	}
+ 
+ 	FILE* pf = fdopen(port, "w");
+ 	FILE* pfi = fdopen(port, "r");
+-	if (!pf || ! pfi)
++	if (!pf || !pfi) {
+ 		fprintf(stderr,"open port failed\n");
++		exit(1);
++	}
+ 	if(setvbuf(pf, NULL, _IOLBF, 0))
+ 	{
+ 		fprintf(stderr, "failed to make serial port linebuffered\n");
