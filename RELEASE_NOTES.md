@@ -1,4 +1,4 @@
-# 🚀 QManager RM520N BETA v0.1.13
+# 🚀 QManager RM520N BETA v0.1.13-draft
 
 QManager now speaks your language. A new language picker brings the interface to English, 简体中文, 繁體中文, Italiano, and Bahasa Indonesia — switch it from the sidebar, the login screen, or the new **System Settings → Languages** page, and your choice sticks on that device. This release also fixes timezone selection so the device clock, log timestamps, and alert times finally follow the zone you pick.
 
