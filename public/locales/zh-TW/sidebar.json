@@ -12,6 +12,7 @@
     "antenna_statistics": "天線統計",
     "antenna_alignment": "天線對準",
     "sms_center": "簡訊中心",
+    "sms_forwarding": "簡訊轉發",
     "custom_profiles": "自訂設定",
     "connection_scenarios": "連線場景",
     "band_locking": "頻段鎖定",

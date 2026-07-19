@@ -12,6 +12,7 @@
     "antenna_statistics": "天线统计",
     "antenna_alignment": "天线对准",
     "sms_center": "短信中心",
+    "sms_forwarding": "短信转发",
     "custom_profiles": "自定义配置",
     "connection_scenarios": "连接场景",
     "band_locking": "频段锁定",

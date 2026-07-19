@@ -12,6 +12,7 @@
     "antenna_statistics": "Statistiche dell'antenna",
     "antenna_alignment": "Allineamento dell'antenna",
     "sms_center": "Centro SMS",
+    "sms_forwarding": "Inoltro SMS",
     "custom_profiles": "Profili personalizzati",
     "connection_scenarios": "Scenari di connessione",
     "band_locking": "Blocco bande",

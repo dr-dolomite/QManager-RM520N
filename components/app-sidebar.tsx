@@ -110,7 +110,7 @@ const data = {
       icon: MessageCircleIcon,
       items: [
         {
-          title: "SMS Forwarding",
+          t_key: "sms_forwarding",
           url: "/cellular/sms/forwarding",
         },
       ],
