@@ -1554,7 +1554,7 @@ sim_fo_active="false"
 sim_fo_original_slot="null"
 sim_fo_current_slot="null"
 sim_fo_switched_at="null"
-SIM_FAILOVER_FILE="/tmp/qmanager_sim_failover"
+SIM_FAILOVER_FILE="/etc/qmanager/qmanager_sim_failover"
 
 # SIM swap detection state variables
 sim_swap_detected="false"

@@ -1,8 +1,8 @@
 # /lib/systemd/system/qmanager-watchcat.service
 [Unit]
 Description=QManager Connection Health Watchdog
-After=qmanager-poller.service
-Wants=qmanager-poller.service
+After=qmanager-poller.service qmanager-ping.service
+Wants=qmanager-poller.service qmanager-ping.service
 
 [Service]
 Type=simple

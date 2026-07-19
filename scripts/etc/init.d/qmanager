@@ -78,8 +78,8 @@ EOF
     procd_set_param respawn 3600 5 5
     procd_close_instance
 
-    # Watchcat and tower failover daemons are managed by their own init.d
-    # scripts: /etc/init.d/qmanager_watchcat, /etc/init.d/qmanager_tower_failover
+    # Watchcat and tower failover daemons are managed by their own systemd
+    # units: qmanager-watchcat.service, qmanager-tower-failover.service
 }
 
 stop_service() {

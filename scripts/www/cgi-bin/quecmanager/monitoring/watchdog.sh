@@ -21,10 +21,27 @@ cgi_handle_options
 
 WATCHCAT_STATE="/tmp/qmanager_watchcat.json"
 SIM_SWAP_FLAG="/tmp/qmanager_sim_swap_detected"
-SIM_FAILOVER_FILE="/tmp/qmanager_sim_failover"
+SIM_FAILOVER_FILE="/etc/qmanager/qmanager_sim_failover"
 RELOAD_FLAG="/tmp/qmanager_watchcat_reload"
 REVERT_FLAG="/tmp/qmanager_watchcat_revert_sim"
 DISABLED_FLAG="/tmp/qmanager_watchcat_disabled"
+
+# validate_int: unsigned-integer-only range check (rejects "", leading +/-,
+# non-digits, and out-of-range values).
+validate_int() {
+    local val="$1" min="$2" max="$3"
+    case "$val" in ''|*[!0-9]*) return 1 ;; esac
+    [ "$val" -ge "$min" ] 2>/dev/null && [ "$val" -le "$max" ] 2>/dev/null
+}
+
+# reject_field: emit a structured validation error and exit. Used only
+# during PASS 1 (validation) — never after any qm_config_set write.
+reject_field() {
+    local field="$1" reason="$2"
+    jq -n --arg field "$field" --arg reason "$reason" \
+        '{success:false, error:"invalid_field", field:$field, reason:$reason}'
+    exit 0
+}
 
 # =============================================================================
 # GET — Fetch settings + live status
@@ -125,57 +142,90 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
     # -------------------------------------------------------------------------
     if [ "$ACTION" = "save_settings" ]; then
         qlog_info "Saving watchdog settings"
+
+        # ---------------------------------------------------------------
+        # PASS 1 — extract every field into f_* locals and validate. Any
+        # invalid field calls reject_field (which exits) BEFORE qm_config_init
+        # or a single qm_config_set write, so a bad request never partially
+        # applies.
+        # ---------------------------------------------------------------
+        f_enabled=$(printf '%s' "$POST_DATA" | jq -r '.enabled | if . == null then empty else tostring end')
+
+        f_max_failures=$(printf '%s' "$POST_DATA" | jq -r '.max_failures // empty')
+        if [ -n "$f_max_failures" ]; then
+            validate_int "$f_max_failures" 1 20 || reject_field "max_failures" "must be an integer between 1 and 20"
+        fi
+
+        f_check_interval=$(printf '%s' "$POST_DATA" | jq -r '.check_interval // empty')
+        if [ -n "$f_check_interval" ]; then
+            validate_int "$f_check_interval" 5 60 || reject_field "check_interval" "must be an integer between 5 and 60"
+        fi
+
+        f_cooldown=$(printf '%s' "$POST_DATA" | jq -r '.cooldown // empty')
+        if [ -n "$f_cooldown" ]; then
+            validate_int "$f_cooldown" 10 300 || reject_field "cooldown" "must be an integer between 10 and 300"
+        fi
+
+        # Tier enable/disable booleans: legacy parity — anything other than
+        # literal true/false is silently ignored (no reject_field), matching
+        # the existing case-statement behavior below.
+        f_tier1=$(printf '%s' "$POST_DATA" | jq -r '.tier1_enabled | if . == null then empty else tostring end')
+        f_tier2=$(printf '%s' "$POST_DATA" | jq -r '.tier2_enabled | if . == null then empty else tostring end')
+        f_tier3=$(printf '%s' "$POST_DATA" | jq -r '.tier3_enabled | if . == null then empty else tostring end')
+        f_tier4=$(printf '%s' "$POST_DATA" | jq -r '.tier4_enabled | if . == null then empty else tostring end')
+
+        f_backup_sim_slot=$(printf '%s' "$POST_DATA" | jq -r '.backup_sim_slot // empty')
+        if [ -n "$f_backup_sim_slot" ] && [ "$f_backup_sim_slot" != "null" ]; then
+            case "$f_backup_sim_slot" in
+                1|2) ;;
+                *) reject_field "backup_sim_slot" "must be 1 or 2" ;;
+            esac
+        fi
+
+        f_max_reboots=$(printf '%s' "$POST_DATA" | jq -r '.max_reboots_per_hour // empty')
+        if [ -n "$f_max_reboots" ]; then
+            validate_int "$f_max_reboots" 1 10 || reject_field "max_reboots_per_hour" "must be an integer between 1 and 10"
+        fi
+
+        # ---------------------------------------------------------------
+        # PASS 2 — apply. Only reached if every field above validated cleanly.
+        # ---------------------------------------------------------------
         qm_config_init
 
-        # Extract fields from POST body
-        val=""
-
-        val=$(printf '%s' "$POST_DATA" | jq -r '.enabled | if . == null then empty else tostring end')
-        if [ -n "$val" ]; then
-            case "$val" in
+        if [ -n "$f_enabled" ]; then
+            case "$f_enabled" in
                 true)  qm_config_set watchcat enabled 1 ;;
                 false) qm_config_set watchcat enabled 0 ;;
             esac
         fi
 
-        val=$(printf '%s' "$POST_DATA" | jq -r '.max_failures // empty')
-        [ -n "$val" ] && qm_config_set watchcat max_failures "$val"
+        [ -n "$f_max_failures" ] && qm_config_set watchcat max_failures "$f_max_failures"
+        [ -n "$f_check_interval" ] && qm_config_set watchcat check_interval "$f_check_interval"
+        [ -n "$f_cooldown" ] && qm_config_set watchcat cooldown "$f_cooldown"
 
-        val=$(printf '%s' "$POST_DATA" | jq -r '.check_interval // empty')
-        [ -n "$val" ] && qm_config_set watchcat check_interval "$val"
-
-        val=$(printf '%s' "$POST_DATA" | jq -r '.cooldown // empty')
-        [ -n "$val" ] && qm_config_set watchcat cooldown "$val"
-
-        val=$(printf '%s' "$POST_DATA" | jq -r '.tier1_enabled | if . == null then empty else tostring end')
-        if [ -n "$val" ]; then
-            case "$val" in true) qm_config_set watchcat tier1_enabled 1 ;; false) qm_config_set watchcat tier1_enabled 0 ;; esac
+        if [ -n "$f_tier1" ]; then
+            case "$f_tier1" in true) qm_config_set watchcat tier1_enabled 1 ;; false) qm_config_set watchcat tier1_enabled 0 ;; esac
         fi
 
-        val=$(printf '%s' "$POST_DATA" | jq -r '.tier2_enabled | if . == null then empty else tostring end')
-        if [ -n "$val" ]; then
-            case "$val" in true) qm_config_set watchcat tier2_enabled 1 ;; false) qm_config_set watchcat tier2_enabled 0 ;; esac
+        if [ -n "$f_tier2" ]; then
+            case "$f_tier2" in true) qm_config_set watchcat tier2_enabled 1 ;; false) qm_config_set watchcat tier2_enabled 0 ;; esac
         fi
 
-        val=$(printf '%s' "$POST_DATA" | jq -r '.tier3_enabled | if . == null then empty else tostring end')
-        if [ -n "$val" ]; then
-            case "$val" in true) qm_config_set watchcat tier3_enabled 1 ;; false) qm_config_set watchcat tier3_enabled 0 ;; esac
+        if [ -n "$f_tier3" ]; then
+            case "$f_tier3" in true) qm_config_set watchcat tier3_enabled 1 ;; false) qm_config_set watchcat tier3_enabled 0 ;; esac
         fi
 
-        val=$(printf '%s' "$POST_DATA" | jq -r '.tier4_enabled | if . == null then empty else tostring end')
-        if [ -n "$val" ]; then
-            case "$val" in true) qm_config_set watchcat tier4_enabled 1 ;; false) qm_config_set watchcat tier4_enabled 0 ;; esac
+        if [ -n "$f_tier4" ]; then
+            case "$f_tier4" in true) qm_config_set watchcat tier4_enabled 1 ;; false) qm_config_set watchcat tier4_enabled 0 ;; esac
         fi
 
-        val=$(printf '%s' "$POST_DATA" | jq -r '.backup_sim_slot // empty')
-        if [ -n "$val" ] && [ "$val" != "null" ]; then
-            qm_config_set watchcat backup_sim_slot "$val"
+        if [ -n "$f_backup_sim_slot" ] && [ "$f_backup_sim_slot" != "null" ]; then
+            qm_config_set watchcat backup_sim_slot "$f_backup_sim_slot"
         else
             qm_config_set watchcat backup_sim_slot ""
         fi
 
-        val=$(printf '%s' "$POST_DATA" | jq -r '.max_reboots_per_hour // empty')
-        [ -n "$val" ] && qm_config_set watchcat max_reboots_per_hour "$val"
+        [ -n "$f_max_reboots" ] && qm_config_set watchcat max_reboots_per_hour "$f_max_reboots"
 
         # Signal running watchcat daemon to reload config (if it's already running)
         touch "$RELOAD_FLAG"

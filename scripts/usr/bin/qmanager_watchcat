@@ -18,7 +18,7 @@
 # Data flow:
 #   Reads:  /tmp/qmanager_ping.json (from ping daemon)
 #   Writes: /tmp/qmanager_watchcat.json (for poller consumption)
-#           /tmp/qmanager_sim_failover (on Tier 3 success)
+#           /etc/qmanager/qmanager_sim_failover (on Tier 3 success)
 #           /tmp/qmanager_recovery_active (during any recovery)
 #           /etc/qmanager/crash.log (Tier 4 reboot log)
 #
@@ -41,7 +41,7 @@ MAX_EVENTS=50
     append_event() { :; }
 }
 
-# --- Config helper (RM520N-GL: replaces UCI) ---------------------------------
+# --- Config helper (RM520N-GL JSON config via config.sh) ---------------------
 [ -f /usr/lib/qmanager/config.sh ] && . /usr/lib/qmanager/config.sh
 [ -f /usr/lib/qmanager/platform.sh ] && . /usr/lib/qmanager/platform.sh
 [ -f /usr/lib/qmanager/profile_mgr.sh ] && . /usr/lib/qmanager/profile_mgr.sh
@@ -56,13 +56,14 @@ LOCK_FILE="/tmp/qmanager_watchcat.lock"
 RELOAD_FLAG="/tmp/qmanager_watchcat_reload"
 REVERT_FLAG="/tmp/qmanager_watchcat_revert_sim"
 DISABLED_FLAG="/tmp/qmanager_watchcat_disabled"
-SIM_FAILOVER_FILE="/tmp/qmanager_sim_failover"
+SIM_FAILOVER_FILE="/etc/qmanager/qmanager_sim_failover"
 LONG_RUNNING_FLAG="/tmp/qmanager_long_running"
 PROFILE_APPLY_PID="/tmp/qmanager_profile_apply.pid"
 TOWER_LOCK_CONFIG="/etc/qmanager/tower_lock.json"
 CRASH_LOG="/etc/qmanager/crash.log"
+LAST_ICCID_FILE="/etc/qmanager/last_iccid"
 
-# --- Configuration (defaults, overridden by UCI) -----------------------------
+# --- Configuration (defaults, overridden by /etc/qmanager/qmanager.conf) -----
 CFG_ENABLED=1
 CFG_CHECK_INTERVAL=10
 CFG_MAX_FAILURES=5
@@ -76,6 +77,7 @@ CFG_MAX_REBOOTS_PER_HOUR=3
 BOOT_SETTLE=30
 PING_STALE_THRESHOLD=15
 MODEM_WAIT_TIMEOUT=60
+SIM_SETTLE_SECS=90
 
 # --- State Variables ---------------------------------------------------------
 state="monitor"
@@ -89,7 +91,9 @@ cooldown_remaining=0
 sim_failover_active="false"
 original_sim_slot="null"
 current_sim_slot="null"
+original_sim_iccid=""
 reboots_this_hour=0
+cooldown_stale_retries=0
 
 # =============================================================================
 # CONFIGURATION
@@ -133,6 +137,15 @@ read_config() {
 # STATE FILE WRITER
 # =============================================================================
 
+# Persist the landed ICCID after a SIM swap or revert so the poller's
+# boot-time SIM-swap detector (which reads LAST_ICCID_FILE) treats this SIM
+# as expected rather than false-firing a "new SIM card detected" event.
+persist_last_iccid() {
+    local iccid="$1"
+    [ -n "$iccid" ] || return 0
+    printf '%s' "$iccid" > "${LAST_ICCID_FILE}.tmp" && mv "${LAST_ICCID_FILE}.tmp" "$LAST_ICCID_FILE"
+}
+
 write_state() {
     local ts
     ts=$(date +%s)
@@ -147,7 +160,7 @@ write_state() {
         --argjson last_tier "${last_recovery_tier:-null}" \
         --argjson total "$total_recoveries" \
         --argjson cooldown "$cooldown_remaining" \
-        --argjson sf_active "$sim_failover_active" \
+        --arg sf_active "$sim_failover_active" \
         --argjson sf_orig "${original_sim_slot:-null}" \
         --argjson sf_curr "${current_sim_slot:-null}" \
         --argjson reboots "$reboots_this_hour" \
@@ -328,10 +341,11 @@ execute_tier2() {
 }
 
 execute_tier3() {
-    # Pre-check: backup SIM configured
+    # Pre-check: backup SIM configured. Misconfiguration (code 2) — never
+    # cascade this to a Tier-4 reboot; do_recovery stops the ladder outright.
     if [ -z "$CFG_BACKUP_SIM_SLOT" ]; then
         qlog_warn "TIER 3 SKIPPED: no backup SIM slot configured"
-        return 1
+        return 2
     fi
 
     # Read current SIM slot
@@ -346,7 +360,7 @@ execute_tier3() {
 
     if [ "$CFG_BACKUP_SIM_SLOT" = "$current_slot" ]; then
         qlog_warn "TIER 3 SKIPPED: backup slot ($CFG_BACKUP_SIM_SLOT) equals current slot ($current_slot)"
-        return 1
+        return 2
     fi
 
     qlog_info "TIER 3: SIM failover from slot $current_slot to slot $CFG_BACKUP_SIM_SLOT"
@@ -356,6 +370,19 @@ execute_tier3() {
 
     # Save original slot for potential fallback
     original_sim_slot="$current_slot"
+
+    # Capture the ORIGINAL slot's ICCID (3x1s retry) BEFORE detaching, so the
+    # failover file records an honest original_iccid instead of a hard-coded
+    # "". Best-effort: if unreadable after 3 tries, leave it "" and continue
+    # — never block the swap on this.
+    local _orig_iccid_raw _orig_try
+    original_sim_iccid=""
+    for _orig_try in 1 2 3; do
+        _orig_iccid_raw=$(qcmd 'AT+QCCID' 2>/dev/null)
+        original_sim_iccid=$(printf '%s' "$_orig_iccid_raw" | grep '+QCCID:' | sed 's/+QCCID: //g' | tr -d '\r ')
+        [ -n "$original_sim_iccid" ] && break
+        sleep 1
+    done
 
     # Stop tower failover daemon (locks are meaningless on different SIM)
     svc_stop qmanager_tower_failover
@@ -417,7 +444,15 @@ sim_failover_fallback() {
     sleep 2
     qcmd 'AT+CFUN=1' >/dev/null 2>&1
 
-    wait_for_modem
+    if ! wait_for_modem; then
+        qlog_error "SIM failover fallback: modem unresponsive after revert to slot $original_sim_slot"
+        append_event "sim_failover" "Watchcat: SIM reverted but modem unresponsive — manual check needed" "error"
+        current_sim_slot="$original_sim_slot"
+        sim_failover_active="false"
+        original_sim_slot="null"
+        original_sim_iccid=""
+        return
+    fi
 
     # Restart tower failover daemon
     svc_start qmanager_tower_failover
@@ -425,6 +460,7 @@ sim_failover_fallback() {
     # Auto-apply matching profile for the reverted SIM
     local _revert_iccid
     _revert_iccid=$(qcmd 'AT+QCCID' 2>/dev/null | grep '+QCCID:' | sed 's/+QCCID: //g' | tr -d '\r ')
+    persist_last_iccid "$_revert_iccid"
     [ -n "$_revert_iccid" ] && auto_apply_profile "$_revert_iccid" "watchdog_revert"
 
     current_sim_slot="$original_sim_slot"
@@ -478,7 +514,7 @@ execute_tier4() {
     rm -f "$RECOVERY_FLAG"
 
     # Reboot after flushing state
-    ( sleep 1 && reboot ) &
+    ( sleep 1 && run_reboot ) &
     exit 0
 }
 
@@ -517,6 +553,17 @@ do_recovery() {
         4) execute_tier4; action_result=$? ;;  # may not return (reboot/exit)
     esac
 
+    # Tier-3 misconfiguration (code 2): stop the ladder here — never
+    # escalate a bad config (no backup slot / backup == current) to a
+    # Tier-4 reboot.
+    if [ "$action_result" -eq 2 ]; then
+        qlog_error "Tier $current_tier misconfigured — recovery stopped (will not escalate to reboot)"
+        append_event "watchcat_recovery" "Watchcat: Tier $current_tier misconfigured, recovery ladder stopped" "error"
+        rm -f "$RECOVERY_FLAG"
+        state="monitor"; current_tier=0; failure_counter=0
+        return
+    fi
+
     # If tier was skipped (returned 1), try next tier
     if [ "$action_result" -ne 0 ]; then
         qlog_info "Tier $current_tier skipped, trying next"
@@ -538,9 +585,16 @@ do_recovery() {
     last_recovery_time="$ts"
     last_recovery_tier="$current_tier"
     total_recoveries=$((total_recoveries + 1))
-    cooldown_remaining="$CFG_COOLDOWN"
+    # Tier-3 SIM swaps need a settle floor even if the configured cooldown is
+    # shorter — the modem/network needs time to re-attach on the new SIM
+    # before a ping check can be trusted.
+    if [ "$current_tier" -eq 3 ] && [ "$CFG_COOLDOWN" -lt "$SIM_SETTLE_SECS" ]; then
+        cooldown_remaining="$SIM_SETTLE_SECS"
+    else
+        cooldown_remaining="$CFG_COOLDOWN"
+    fi
     state="cooldown"
-    qlog_info "Entering COOLDOWN for ${CFG_COOLDOWN}s (after Tier $current_tier)"
+    qlog_info "Entering COOLDOWN for ${cooldown_remaining}s (after Tier $current_tier)"
 }
 
 # =============================================================================
@@ -550,27 +604,67 @@ do_recovery() {
 finish_cooldown() {
     rm -f "$RECOVERY_FLAG"
 
-    # Re-read ping data to check if recovery worked
-    if read_ping && [ "$ping_reachable" = "true" ]; then
+    # Re-read ping data to check if recovery worked. Immediately after a
+    # Tier 2/3 action (radio/SIM churn) the ping daemon's cache can be
+    # transiently stale — retry a bounded number of cycles before treating
+    # that as a hard recovery failure, rather than failing on the very first
+    # stale read.
+    #
+    # _cooldown_success is decided ONCE below and is what the SUCCESS/FAILURE
+    # dispatch acts on — the stale-exhausted path must NOT fall through to
+    # testing $ping_reachable directly, since that value predates this
+    # cooldown (stale) and could spuriously read "true".
+    local _cooldown_success="false"
+
+    if ! read_ping; then
+        # (a) Stale/missing ping data — retry, or give up after 3 tries.
+        if [ "$cooldown_stale_retries" -lt 3 ]; then
+            cooldown_stale_retries=$((cooldown_stale_retries + 1))
+            qlog_warn "COOLDOWN: ping data stale (retry $cooldown_stale_retries/3) — extending by ${CFG_CHECK_INTERVAL}s"
+            cooldown_remaining="$CFG_CHECK_INTERVAL"
+            touch "$RECOVERY_FLAG"
+            return
+        fi
+        # Stale-exhausted: reset the retry counter and fall through to the
+        # FAILURE branch below WITHOUT consulting ping_reachable.
+        qlog_error "COOLDOWN: ping data still stale after 3 retries — treating as recovery failure"
+        cooldown_stale_retries=0
+    elif [ "$ping_reachable" = "true" ]; then
+        # (b) Fresh read, reachable — success.
+        cooldown_stale_retries=0
+        _cooldown_success="true"
+    else
+        # (c) Fresh read, unreachable — failure.
+        cooldown_stale_retries=0
+    fi
+
+    if [ "$_cooldown_success" = "true" ]; then
         qlog_info "COOLDOWN complete: connectivity RESTORED after Tier $current_tier"
 
         # If this was Tier 3 SIM failover, finalize the failover state
         if [ "$current_tier" -eq 3 ] && [ "$current_sim_slot" != "$original_sim_slot" ] && [ "$original_sim_slot" != "null" ]; then
             sim_failover_active="true"
 
-            # Read ICCIDs for the state file
-            local orig_iccid curr_iccid_raw curr_iccid
-            orig_iccid=""  # we don't have it cached
+            # Read current ICCID for the state file (original_sim_iccid was
+            # captured up front in execute_tier3, before the swap)
+            local curr_iccid_raw curr_iccid
             curr_iccid_raw=$(qcmd 'AT+QCCID' 2>/dev/null)
             curr_iccid=$(printf '%s' "$curr_iccid_raw" | grep '+QCCID:' | sed 's/+QCCID: //g' | tr -d '\r ')
 
             local ts
             ts=$(date +%s)
-            printf '{"active":true,"original_slot":%s,"current_slot":%s,"switched_at":%d,"reason":"connectivity_failure","original_iccid":"","current_iccid":"%s"}\n' \
-                "$original_sim_slot" "$current_sim_slot" "$ts" "$curr_iccid" \
-                > "$SIM_FAILOVER_FILE"
+            jq -n -c --argjson orig "$original_sim_slot" --argjson curr "$current_sim_slot" \
+                --argjson ts "$ts" --arg reason "connectivity_failure" \
+                --arg orig_iccid "$original_sim_iccid" --arg iccid "$curr_iccid" \
+                '{active:true, original_slot:$orig, current_slot:$curr, switched_at:$ts, reason:$reason, original_iccid:$orig_iccid, current_iccid:$iccid}' \
+                > "${SIM_FAILOVER_FILE}.tmp" && mv "${SIM_FAILOVER_FILE}.tmp" "$SIM_FAILOVER_FILE"
 
             qlog_info "SIM failover state saved: slot $original_sim_slot → $current_sim_slot"
+            append_event "sim_failover" "Watchcat: SIM failover confirmed — running on slot $current_sim_slot" "info"
+
+            # Persist the landed ICCID so the poller's boot-time swap
+            # detector treats this SIM as expected, not a physical swap.
+            persist_last_iccid "$curr_iccid"
 
             # Auto-apply matching profile for the new SIM
             if [ -n "$curr_iccid" ]; then
@@ -622,6 +716,7 @@ check_revert_request() {
         state="monitor"
         current_tier=0
         failure_counter=0
+        cooldown_stale_retries=0
         return 0
     fi
     rm -f "$REVERT_FLAG"  # clean up stale flag
@@ -664,15 +759,29 @@ main() {
     count_recent_reboots
     qlog_info "Reboots in last hour: $reboots_this_hour"
 
-    # Check for stale SIM failover state from before reboot
+    # Check for stale SIM failover state from before reboot, verifying the
+    # live slot matches what the file records. If the modem is on a
+    # different slot than recorded, clear the file rather than carry stale
+    # state forward.
     if [ -f "$SIM_FAILOVER_FILE" ]; then
         local sf_active_val
         sf_active_val=$(jq -r '(.active) | if . == null then "false" else tostring end' "$SIM_FAILOVER_FILE" 2>/dev/null)
         if [ "$sf_active_val" = "true" ]; then
-            sim_failover_active="true"
-            original_sim_slot=$(jq -r '(.original_slot) | if . == null then "null" else tostring end' "$SIM_FAILOVER_FILE" 2>/dev/null)
-            current_sim_slot=$(jq -r '(.current_slot) | if . == null then "null" else tostring end' "$SIM_FAILOVER_FILE" 2>/dev/null)
-            qlog_info "Resuming SIM failover state: slot $original_sim_slot → $current_sim_slot"
+            local _sf_orig _sf_curr _live_slot
+            _sf_orig=$(jq -r '(.original_slot) | if . == null then "null" else tostring end' "$SIM_FAILOVER_FILE" 2>/dev/null)
+            _sf_curr=$(jq -r '(.current_slot) | if . == null then "null" else tostring end' "$SIM_FAILOVER_FILE" 2>/dev/null)
+            _live_slot=$(qcmd 'AT+QUIMSLOT?' 2>/dev/null | grep '+QUIMSLOT:' | sed 's/.*: *//' | tr -d '\r ')
+
+            if [ -n "$_live_slot" ] && [ "$_live_slot" = "$_sf_curr" ]; then
+                sim_failover_active="true"
+                original_sim_slot="$_sf_orig"
+                current_sim_slot="$_sf_curr"
+                original_sim_iccid=$(jq -r '(.original_iccid) | if . == null then "" else tostring end' "$SIM_FAILOVER_FILE" 2>/dev/null)
+                qlog_info "Resumed SIM failover state: slot $original_sim_slot → $current_sim_slot (verified)"
+            else
+                qlog_warn "SIM failover file recorded slot $_sf_curr but modem is on slot ${_live_slot:-unknown} — clearing stale state"
+                rm -f "$SIM_FAILOVER_FILE"
+            fi
         fi
     fi
 
@@ -704,6 +813,11 @@ main() {
             if [ "$state" != "locked" ]; then
                 qlog_info "Entering LOCKED state (maintenance)"
                 state="locked"
+                # A maintenance lock can interrupt an in-progress cooldown
+                # (state gets overwritten to "locked" here without going
+                # through finish_cooldown), which would otherwise strand a
+                # nonzero retry count for the next cooldown episode.
+                cooldown_stale_retries=0
             fi
             write_state
             sleep "$CFG_CHECK_INTERVAL"
@@ -715,6 +829,7 @@ main() {
             qlog_info "Exiting LOCKED state"
             state="monitor"
             failure_counter=0
+            cooldown_stale_retries=0
         fi
 
         # --- COOLDOWN state ---
@@ -778,6 +893,7 @@ main() {
                     qlog_info "SUSPECT → MONITOR: connectivity restored naturally"
                     state="monitor"
                     failure_counter=0
+                    cooldown_stale_retries=0
                 else
                     failure_counter=$((failure_counter + 1))
                     qlog_debug "SUSPECT: failure_counter=$failure_counter/$CFG_MAX_FAILURES"

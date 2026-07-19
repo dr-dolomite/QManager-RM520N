@@ -16,6 +16,7 @@ INSTALL_LOG="/tmp/qmanager_install.log"
 STATUS_FILE="/tmp/qmanager_update.json"
 PID_FILE="/tmp/qmanager_update.pid"
 REBOOT_ACK_FILE="/tmp/qmanager_reboot_ack"
+WATCHCAT_LOCK="/tmp/qmanager_watchcat.lock"
 # 20s gives the cold-cache /reboot/ page time to download bundles, hydrate,
 # and fire reboot_ack before the worker proceeds. Matches the CGI default in
 # cgi_base.sh ($QM_REBOOT_ACK_TIMEOUT) so every reboot path shares one budget.
@@ -177,6 +178,7 @@ post_install_check() {
 cleanup() {
     rm -f "$PID_FILE"
     rm -rf /tmp/qmanager_install
+    rm -f "$WATCHCAT_LOCK"
 }
 
 # Wait for the /reboot/ page to confirm it has loaded by writing
@@ -221,7 +223,11 @@ MODE="$1"
 log "Starting qmanager_update mode=$MODE"
 
 # Stop watchdog early to prevent interference during download/install.
+# Touch the same maintenance lock the daemon's check_locked() honors, so any
+# watchcat instance still finishing a cycle parks in LOCKED instead of racing
+# the OTA's AT commands; cleanup() removes it on exit.
 # svc_stop translates underscores to dashes, so this maps to qmanager-watchcat.service
+touch "$WATCHCAT_LOCK"
 svc_stop qmanager_watchcat
 log "Watchdog stopped"
 
