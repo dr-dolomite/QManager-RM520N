@@ -1,8 +1,12 @@
-# 🚀 QManager RM520N BETA v0.1.12
+# 🚀 QManager RM520N BETA v0.1.13
 
-Another attempt to fix rx/tx orientation: if Data Used still shows upload/download swapped after v0.1.11, QManager now runs a per-device rx/tx probe at boot and applies the correct mapping so bytes are accounted in the right bucket despite firmware quirks. If you still see reversed totals, please open an issue with your device model and firmware — feedback welcome.
+QManager now speaks your language. A new language picker brings the interface to English, 简体中文, 繁體中文, Italiano, and Bahasa Indonesia — switch it from the sidebar, the login screen, or the new **System Settings → Languages** page, and your choice sticks on that device. This release also fixes timezone selection and adds the boot-time rx/tx orientation probe for the Data Used counter.
 
 > One-click OTA from **System Settings → Software Update** if you're on v0.1.5 or newer.
+
+## ✨ New Features
+
+- **Pick your language.** The interface now ships in five languages — English, Simplified Chinese (简体中文), Traditional Chinese (繁體中文), Italian (Italiano), and Indonesian (Bahasa Indonesia). Switch from the language menu in the sidebar, the picker on the login screen, or the new **System Settings → Languages** page; your choice is saved per device. The Dashboard and navigation are fully translated now, with the remaining screens following in upcoming releases (every language is bundled in the firmware — nothing to download).
 
 ## 🛠️ Improvements
 
@@ -24,7 +28,7 @@ Another attempt to fix rx/tx orientation: if Data Used still shows upload/downlo
 
 ## 📥 Installation
 
-### Upgrading from v0.1.11
+### Upgrading from v0.1.12
 
 **System Settings → Software Update** → Download → Install. No SSH/ADB needed. All settings preserved.
 
