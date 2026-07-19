@@ -1,0 +1,14 @@
+# /lib/systemd/system/qmanager-sms-storage.service
+[Unit]
+Description=QManager SMS Storage Routing (Boot Self-Heal)
+After=qmanager-setup.service qmanager-cfun-fix.service
+Before=qmanager-poller.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/qmanager_sms_storage
+RemainAfterExit=yes
+TimeoutStartSec=90
+
+[Install]
+WantedBy=multi-user.target

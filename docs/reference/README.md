@@ -12,5 +12,7 @@ Detailed operational notes extracted from `CLAUDE.md` to keep the always-loaded 
 | [data-usage-counter.md](data-usage-counter.md) | The persistent data-usage counter (kernel `/proc/net/dev`-sourced, schema v3) |
 | [wan-profile-management.md](wan-profile-management.md) | WAN Profile / APN management (`cellular/apn.sh`, 6 PDP contexts, AT-only) |
 | [sim-profiles.md](sim-profiles.md) | Custom SIM Profiles (4-step apply, `scenario_id` binding, gate matrix, `profile_managed` guard) |
+| [sms.md](sms.md) | SMS Center (`/cellular/sms`, `sms.sh`, patched `sms_tool`, CPMS ME+SM dual-storage routing, boot routing oneshot, client-side read/unread) |
+| [sms-forwarding.md](sms-forwarding.md) | SMS Forwarding (`/cellular/sms/forwarding`, `qmanager_sms_forward` daemon, seed-on-first-run, loop guard, retry/failures, gated service) |
 
 For broader architecture, see `../rm520n-gl-architecture.md` and `../ARCHITECTURE.md`.

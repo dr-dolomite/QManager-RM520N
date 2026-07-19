@@ -428,6 +428,8 @@ rm -f /tmp/qmanager_*.pid   2>/dev/null || true
 rm -f /tmp/qmanager_*.lock  2>/dev/null || true
 rm -f /tmp/qmanager_speedtest_output /tmp/qmanager_speedtest_run.sh 2>/dev/null || true
 rm -f /tmp/qmanager_email_reload /tmp/qmanager_sms_reload          2>/dev/null || true
+rm -f /tmp/qmanager_sms_forward_reload /tmp/qmanager_sms_forward_seen 2>/dev/null || true
+rm -f /tmp/qmanager_sms_forward_failures.json                       2>/dev/null || true
 rm -f /tmp/qmanager_ping_reload /tmp/qmanager_ping_history          2>/dev/null || true
 rm -f /tmp/qmanager_imei_check_done                                 2>/dev/null || true
 rm -f /tmp/qmanager_low_power_active /tmp/qmanager_recovery_active  2>/dev/null || true

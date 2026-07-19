@@ -127,6 +127,12 @@ const data = {
       title: "SMS Center",
       url: "/cellular/sms",
       icon: MessageCircleIcon,
+      items: [
+        {
+          title: "SMS Forwarding",
+          url: "/cellular/sms/forwarding",
+        },
+      ],
     },
     {
       title: "Custom Profiles",
