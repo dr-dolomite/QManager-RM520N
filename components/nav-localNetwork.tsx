@@ -4,6 +4,7 @@ import * as React from "react"
 import { ChevronRight, type LucideIcon } from "lucide-react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
+import { useTranslation } from "react-i18next"
 
 import {
   Collapsible,
@@ -23,20 +24,20 @@ import {
   SidebarMenuSubItem,
 } from "@/components/ui/sidebar"
 
+type LocalNetworkItem = {
+  t_key: string
+  url: string
+  icon: LucideIcon
+  isActive?: boolean
+  items?: { t_key: string; url: string }[]
+}
+
 export function NavLocalNetwork({
   localNetwork,
 }: {
-  localNetwork: {
-    title: string
-    url: string
-    icon: LucideIcon
-    isActive?: boolean
-    items?: {
-      title: string
-      url: string
-    }[]
-  }[]
+  localNetwork: LocalNetworkItem[]
 }) {
+  const { t } = useTranslation("sidebar")
   const rawPathname = usePathname()
   const pathname = rawPathname.endsWith('/') && rawPathname !== '/' ? rawPathname.slice(0, -1) : rawPathname
   const [openItems, setOpenItems] = React.useState<Record<string, boolean>>({})
@@ -44,32 +45,31 @@ export function NavLocalNetwork({
   React.useEffect(() => {
     const states: Record<string, boolean> = {}
     localNetwork.forEach((item) => {
-      states[item.title] = pathname === item.url || (!!item.items?.length && item.items.some(sub => pathname === sub.url || pathname.startsWith(sub.url + "/")))
+      states[item.t_key] = pathname === item.url || (!!item.items?.length && item.items.some(sub => pathname === sub.url || pathname.startsWith(sub.url + "/")))
     })
     setOpenItems(states)
   }, [pathname, localNetwork])
 
   return (
     <SidebarGroup>
-      <SidebarGroupLabel>
-        Local Network
-      </SidebarGroupLabel>
+      <SidebarGroupLabel>{t("groups.local_network")}</SidebarGroupLabel>
       <SidebarMenu>
         {localNetwork.map((item) => {
           const isParentOrChildActive = pathname === item.url || (!!item.items?.length && item.items.some(sub => pathname === sub.url || pathname.startsWith(sub.url + "/")))
+          const label = t(`items.${item.t_key}`)
 
           return (
           <Collapsible
-            key={item.title}
+            key={item.t_key}
             asChild
-            open={openItems[item.title] ?? false}
-            onOpenChange={(isOpen) => setOpenItems((prev) => ({ ...prev, [item.title]: isOpen }))}
+            open={openItems[item.t_key] ?? false}
+            onOpenChange={(isOpen) => setOpenItems((prev) => ({ ...prev, [item.t_key]: isOpen }))}
           >
             <SidebarMenuItem>
-              <SidebarMenuButton asChild tooltip={item.title} isActive={isParentOrChildActive}>
+              <SidebarMenuButton asChild tooltip={label} isActive={isParentOrChildActive}>
                 <Link href={item.url}>
                   <item.icon />
-                  <span>{item.title}</span>
+                  <span>{label}</span>
                 </Link>
               </SidebarMenuButton>
               {item.items?.length ? (
@@ -85,10 +85,10 @@ export function NavLocalNetwork({
                       {item.items?.map((subItem) => {
                         const isSubItemActive = pathname === subItem.url || pathname.startsWith(subItem.url + "/")
                         return (
-                        <SidebarMenuSubItem key={subItem.title}>
+                        <SidebarMenuSubItem key={subItem.t_key}>
                           <SidebarMenuSubButton asChild isActive={isSubItemActive}>
                             <Link href={subItem.url}>
-                              <span>{subItem.title}</span>
+                              <span>{t(`items.${subItem.t_key}`)}</span>
                             </Link>
                           </SidebarMenuSubButton>
                         </SidebarMenuSubItem>

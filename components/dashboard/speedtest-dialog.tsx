@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import {
   Dialog,
   DialogContent,
@@ -43,10 +44,11 @@ interface SpeedtestDialogProps {
 // Phase Indicator — shows which test phase is active
 // =============================================================================
 function PhaseIndicator({ phase }: { phase: SpeedtestPhase }) {
+  const { t } = useTranslation("dashboard");
   const phases: { key: SpeedtestPhase; label: string }[] = [
-    { key: "ping", label: "Ping" },
-    { key: "download", label: "Download" },
-    { key: "upload", label: "Upload" },
+    { key: "ping", label: t("speedtest.phase_ping") },
+    { key: "download", label: t("speedtest.phase_download") },
+    { key: "upload", label: t("speedtest.phase_upload") },
   ];
 
   return (
@@ -107,6 +109,7 @@ function LiveSpeed({
   progress: number;
   bytes: number;
 }) {
+  const { t } = useTranslation("dashboard");
   const Icon = phase === "download" ? ArrowDown : ArrowUp;
   const mbps = bytesToMbps(bandwidth);
   const pct = Math.round(progress * 100);
@@ -116,10 +119,12 @@ function LiveSpeed({
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Icon className="size-4 text-primary" />
-          <span className="text-sm font-medium capitalize">{phase}</span>
+          <span className="text-sm font-medium">
+            {t(`speedtest.phase_${phase}`)}
+          </span>
         </div>
         <span className="text-xs text-muted-foreground">
-          {formatBytes(bytes)} transferred
+          {t("speedtest.bytes_transferred", { bytes: formatBytes(bytes) })}
         </span>
       </div>
 
@@ -148,6 +153,7 @@ function ResultDisplay({
 }: {
   result: NonNullable<ReturnType<typeof useSpeedtest>["result"]>;
 }) {
+  const { t } = useTranslation("dashboard");
   return (
     <div className="space-y-4">
       {/* Primary metrics — three big numbers */}
@@ -156,7 +162,7 @@ function ResultDisplay({
         <div className="text-center space-y-1">
           <div className="flex items-center justify-center gap-1 text-primary font-semibold">
             <ArrowDown className="h-3.5 w-3.5" />
-            <span className="text-xs">Download</span>
+            <span className="text-xs">{t("speedtest.result_download")}</span>
           </div>
           <div className="flex items-baseline justify-center gap-0.5">
             <span className="text-2xl font-bold tabular-nums">
@@ -172,7 +178,7 @@ function ResultDisplay({
         <div className="text-center space-y-1">
           <div className="flex items-center justify-center gap-1 text-primary font-semibold">
             <ArrowUp className="h-3.5 w-3.5" />
-            <span className="text-xs">Upload</span>
+            <span className="text-xs">{t("speedtest.result_upload")}</span>
           </div>
           <div className="flex items-baseline justify-center gap-0.5">
             <span className="text-2xl font-bold tabular-nums">
@@ -188,7 +194,7 @@ function ResultDisplay({
         <div className="text-center space-y-1">
           <div className="flex items-center justify-center gap-1 text-primary font-semibold">
             <Activity className="h-3.5 w-3.5" />
-            <span className="text-xs">Ping</span>
+            <span className="text-xs">{t("speedtest.result_ping")}</span>
           </div>
           <div className="flex items-baseline justify-center gap-0.5">
             <span className="text-2xl font-bold tabular-nums">
@@ -206,13 +212,17 @@ function ResultDisplay({
       {/* Secondary metrics */}
       <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm">
         <div className="flex justify-between">
-          <span className="text-muted-foreground font-medium">Jitter</span>
+          <span className="text-muted-foreground font-medium">
+            {t("speedtest.metric_jitter")}
+          </span>
           <span className="font-semibold tabular-nums">
             {result.ping.jitter.toFixed(1)} ms
           </span>
         </div>
         <div className="flex justify-between">
-          <span className="text-muted-foreground font-medium">Packet Loss</span>
+          <span className="text-muted-foreground font-medium">
+            {t("speedtest.metric_packet_loss")}
+          </span>
           <span className="font-semibold tabular-nums">
             {result.packetLoss !== undefined
               ? `${result.packetLoss.toFixed(2)}%`
@@ -220,25 +230,33 @@ function ResultDisplay({
           </span>
         </div>
         <div className="flex justify-between">
-          <span className="text-muted-foreground font-medium">DL Latency</span>
+          <span className="text-muted-foreground font-medium">
+            {t("speedtest.metric_dl_latency")}
+          </span>
           <span className="font-semibold tabular-nums">
             {result.download.latency.iqm.toFixed(1)} ms
           </span>
         </div>
         <div className="flex justify-between">
-          <span className="text-muted-foreground font-medium">UL Latency</span>
+          <span className="text-muted-foreground font-medium">
+            {t("speedtest.metric_ul_latency")}
+          </span>
           <span className="font-semibold tabular-nums">
             {result.upload.latency.iqm.toFixed(1)} ms
           </span>
         </div>
         <div className="flex justify-between">
-          <span className="text-muted-foreground font-medium">DL Data</span>
+          <span className="text-muted-foreground font-medium">
+            {t("speedtest.metric_dl_data")}
+          </span>
           <span className="font-semibold tabular-nums">
             {formatBytes(result.download.bytes)}
           </span>
         </div>
         <div className="flex justify-between">
-          <span className="text-muted-foreground font-medium">UL Data</span>
+          <span className="text-muted-foreground font-medium">
+            {t("speedtest.metric_ul_data")}
+          </span>
           <span className="font-semibold tabular-nums">
             {formatBytes(result.upload.bytes)}
           </span>
@@ -251,19 +269,25 @@ function ResultDisplay({
       <div className="space-y-2 text-sm">
         <div className="flex items-center gap-1.5">
           <Server className="h-3.5 w-3.5 text-primary" />
-          <span className="text-primary font-semibold">Server</span>
+          <span className="text-primary font-semibold">
+            {t("speedtest.result_server_heading")}
+          </span>
           <span className="font-medium ml-auto">{result.server.name}</span>
         </div>
         <div className="flex items-center gap-1.5">
           <Globe className="h-3.5 w-3.5 text-primary" />
-          <span className="text-primary font-semibold">Location</span>
+          <span className="text-primary font-semibold">
+            {t("speedtest.result_location")}
+          </span>
           <span className="font-medium ml-auto">
             {result.server.location}, {result.server.country}
           </span>
         </div>
         <div className="flex items-center gap-1.5">
           <Activity className="h-3.5 w-3.5 text-primary" />
-          <span className="text-primary font-semibold">ISP</span>
+          <span className="text-primary font-semibold">
+            {t("speedtest.result_isp")}
+          </span>
           <span className="font-medium ml-auto">{result.isp}</span>
         </div>
       </div>
@@ -277,7 +301,7 @@ function ResultDisplay({
           className="flex items-center justify-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors pt-1 underline underline-offset-4"
         >
           <ExternalLink className="h-3 w-3" />
-          View on Speedtest.net
+          {t("speedtest.view_result_link")}
         </a>
       )}
     </div>
@@ -288,6 +312,7 @@ function ResultDisplay({
 // Main Dialog Component
 // =============================================================================
 export function SpeedtestDialog({ open, onOpenChange }: SpeedtestDialogProps) {
+  const { t } = useTranslation("dashboard");
   const {
     isAvailable,
     phase,
@@ -339,10 +364,10 @@ export function SpeedtestDialog({ open, onOpenChange }: SpeedtestDialogProps) {
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            Speed Test
+            {t("speedtest.title")}
             {isRunning && (
               <Badge variant="default" className="text-[10px] font-normal">
-                Running
+                {t("speedtest.running_badge")}
               </Badge>
             )}
           </DialogTitle>
@@ -355,20 +380,22 @@ export function SpeedtestDialog({ open, onOpenChange }: SpeedtestDialogProps) {
           {phase === "idle" && (
             <div className="flex flex-col items-center gap-4 py-4">
               <p className="text-sm text-muted-foreground text-center">
-                Measure your current download speed, upload speed, and latency.
+                {t("speedtest.dialog_idle_description")}
               </p>
 
               {/* Server selection */}
               <div className="w-full space-y-2">
                 <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium">Server</span>
+                  <span className="text-sm font-medium">
+                    {t("speedtest.server_label")}
+                  </span>
                   <Button
                     variant="ghost"
                     size="icon"
                     className="size-7"
                     onClick={fetchServers}
                     disabled={isLoadingServers}
-                    aria-label="Refresh server list"
+                    aria-label={t("speedtest.refresh_aria")}
                   >
                     <RefreshCwIcon className={`size-3.5 ${isLoadingServers ? "animate-spin" : ""}`} />
                   </Button>
@@ -382,12 +409,15 @@ export function SpeedtestDialog({ open, onOpenChange }: SpeedtestDialogProps) {
                       setSelectedServer(value === "auto" ? null : Number(value))
                     }
                   >
-                    <SelectTrigger className="w-full" aria-label="Select server">
-                      <SelectValue placeholder="Automatic (nearest)" />
+                    <SelectTrigger
+                      className="w-full"
+                      aria-label={t("speedtest.server_select_aria")}
+                    >
+                      <SelectValue placeholder={t("speedtest.server_automatic")} />
                     </SelectTrigger>
                     <SelectContent className="rounded-xl max-h-64">
                       <SelectItem value="auto" className="rounded-lg">
-                        Automatic (nearest)
+                        {t("speedtest.server_automatic")}
                       </SelectItem>
                       {servers.map((s) => (
                         <SelectItem
@@ -405,11 +435,11 @@ export function SpeedtestDialog({ open, onOpenChange }: SpeedtestDialogProps) {
 
               <Button onClick={start} disabled={!isAvailable} className="gap-2">
                 <Play className="size-4" />
-                Run Speed Test
+                {t("speedtest.run_button")}
               </Button>
               {isAvailable === false && (
                 <p className="text-xs text-destructive">
-                  speedtest-cli is not installed on this device.
+                  {t("speedtest.not_installed_error")}
                 </p>
               )}
             </div>
@@ -422,7 +452,7 @@ export function SpeedtestDialog({ open, onOpenChange }: SpeedtestDialogProps) {
             <div className="flex flex-col items-center gap-3 py-6">
               <Loader2 className="h-8 w-8 animate-spin text-primary" />
               <p className="text-sm text-muted-foreground">
-                Connecting to server...
+                {t("speedtest.connecting_message")}
               </p>
               {currentProgress?.type === "testStart" && (
                 <p className="text-xs text-muted-foreground">
@@ -441,7 +471,9 @@ export function SpeedtestDialog({ open, onOpenChange }: SpeedtestDialogProps) {
               <PhaseIndicator phase="ping" />
               <div className="flex flex-col items-center gap-2 py-4">
                 <Activity className="size-6 text-primary animate-pulse" />
-                <span className="text-sm font-medium">Testing latency...</span>
+                <span className="text-sm font-medium">
+                  {t("speedtest.testing_latency_message")}
+                </span>
                 {currentProgress?.type === "ping" && (
                   <span className="text-2xl font-bold tabular-nums">
                     {currentProgress.ping.latency.toFixed(1)}{" "}
@@ -494,7 +526,7 @@ export function SpeedtestDialog({ open, onOpenChange }: SpeedtestDialogProps) {
               <div className="flex justify-center pt-2">
                 <Button onClick={start}>
                   <Play className="h-3.5 w-3.5" />
-                  Run Again
+                  {t("speedtest.run_again_button")}
                 </Button>
               </div>
             </div>
@@ -514,7 +546,7 @@ export function SpeedtestDialog({ open, onOpenChange }: SpeedtestDialogProps) {
                 className="gap-2"
               >
                 <Play className="h-3.5 w-3.5" />
-                Try Again
+                {t("speedtest.try_again_button")}
               </Button>
             </div>
           )}

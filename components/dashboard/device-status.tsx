@@ -2,6 +2,7 @@
 
 import React, { useState } from "react";
 import { motion, type Variants } from "motion/react";
+import { useTranslation } from "react-i18next";
 import {
   Card,
   CardAction,
@@ -41,34 +42,35 @@ const DeviceStatusComponent = ({
   isLoading,
   lanGateway,
 }: DeviceStatusComponentProps) => {
+  const { t } = useTranslation("dashboard");
   const [hidePrivate, setHidePrivate] = useState(false);
 
   const rows = [
-    { label: "Manufacturer", value: data?.manufacturer || "-" },
-    { label: "Firmware Version", value: data?.firmware || "-" },
-    { label: "Build Date", value: data?.build_date || "-" },
+    { label: t("device_status.manufacturer"), value: data?.manufacturer || "-" },
+    { label: t("device_status.firmware_version"), value: data?.firmware || "-" },
+    { label: t("device_status.build_date"), value: data?.build_date || "-" },
     {
-      label: "Phone Number",
+      label: t("device_status.phone_number"),
       value: data?.phone_number || "-",
       mono: true,
       private: true,
     },
-    { label: "IMSI", value: data?.imsi || "-", mono: true, private: true },
-    { label: "ICCID", value: data?.iccid || "-", mono: true, private: true },
+    { label: t("device_status.imsi"), value: data?.imsi || "-", mono: true, private: true },
+    { label: t("device_status.iccid"), value: data?.iccid || "-", mono: true, private: true },
     {
-      label: "Device IMEI",
+      label: t("device_status.device_imei"),
       value: data?.imei || "-",
       mono: true,
       private: true,
     },
     {
-      label: "LTE Category",
+      label: t("device_status.lte_category"),
       value: data?.lte_category ? `Cat ${data.lte_category}` : "-",
       mono: true,
     },
-    { label: "Active MIMO", value: data?.mimo || "-", mono: true },
-    { label: "LAN Gateway", value: lanGateway || "-", mono: true },
-    { label: "QManager Version", value: packageJson.version, mono: true },
+    { label: t("device_status.active_mimo"), value: data?.mimo || "-", mono: true },
+    { label: t("device_status.lan_gateway"), value: lanGateway || "-", mono: true },
+    { label: t("device_status.qmanager_version"), value: packageJson.version, mono: true },
   ];
 
   if (isLoading) {
@@ -76,7 +78,7 @@ const DeviceStatusComponent = ({
       <Card className="@container/card">
         <CardHeader>
           <CardTitle className="text-2xl font-semibold @[250px]/card:text-3xl">
-            Device Information
+            {t("device_status.title")}
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -113,7 +115,9 @@ const DeviceStatusComponent = ({
             size="icon"
             onClick={() => setHidePrivate((prev) => !prev)}
             aria-label={
-              hidePrivate ? "Show private details" : "Hide private details"
+              hidePrivate
+                ? t("device_status.show_private")
+                : t("device_status.hide_private")
             }
           >
             {hidePrivate ? (
@@ -130,7 +134,7 @@ const DeviceStatusComponent = ({
             <div className="size-44 bg-primary/15 rounded-full p-4 flex items-center justify-center">
               <img
                 src="/device-icon.svg"
-                alt="Device Icon"
+                alt={t("device_status.icon_alt")}
                 className="size-full drop-shadow-md object-contain"
               />
             </div>

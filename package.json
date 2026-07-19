@@ -7,6 +7,7 @@
     "build": "bun --bun next build",
     "start": "bun --bun next start",
     "lint": "eslint",
+    "i18n:check": "bun run lib/i18n/check.ts",
     "package": "bash scripts/test/run-all.sh && bun --bun next build && bash build.sh",
     "test:harness": "bash scripts/test/run-harnesses.sh"
   },
@@ -53,6 +54,7 @@
     "cmdk": "^1.1.1",
     "date-fns": "^4.1.0",
     "embla-carousel-react": "^8.6.0",
+    "i18next": "^26.0.5",
     "input-otp": "^1.4.2",
     "lucide-react": "^0.562.0",
     "motion": "^12.38.0",
@@ -63,6 +65,7 @@
     "react-day-picker": "^9.14.0",
     "react-dom": "19.2.1",
     "react-hook-form": "^7.71.2",
+    "react-i18next": "^17.0.4",
     "react-icons": "^5.6.0",
     "react-markdown": "^10.1.0",
     "react-resizable-panels": "^4.7.4",

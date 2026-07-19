@@ -1,3 +1,6 @@
+"use client";
+
+import { useTranslation } from "react-i18next";
 import { SignalStatusCard } from "./signal-status-card";
 import type { LteStatus } from "@/types/modem-status";
 import {
@@ -12,30 +15,32 @@ interface LTEStatusComponentProps {
 }
 
 const LTEStatusComponent = ({ data, isLoading }: LTEStatusComponentProps) => {
+  const { t } = useTranslation("dashboard");
+
   const fmt = (value: number | null | undefined, unit: string) => {
     if (value === null || value === undefined) return "-";
     return `${value} ${unit}`;
   };
 
   const rows = [
-    { label: "Band", value: data?.band || "-" },
-    { label: "EARFCN", value: data?.earfcn?.toString() ?? "-" },
-    { label: "PCI", value: data?.pci?.toString() ?? "-" },
+    { label: t("signal_status.band"), value: data?.band || "-" },
+    { label: t("signal_status.earfcn"), value: data?.earfcn?.toString() ?? "-" },
+    { label: t("signal_status.pci"), value: data?.pci?.toString() ?? "-" },
     {
-      label: "RSRP",
+      label: t("signal_status.rsrp"),
       value: fmt(data?.rsrp, "dBm"),
       rawValue: data?.rsrp,
       thresholds: RSRP_THRESHOLDS,
     },
     {
-      label: "RSRQ",
+      label: t("signal_status.rsrq"),
       value: fmt(data?.rsrq, "dB"),
       rawValue: data?.rsrq,
       thresholds: RSRQ_THRESHOLDS,
     },
-    { label: "RSSI", value: fmt(data?.rssi, "dBm") },
+    { label: t("signal_status.rssi"), value: fmt(data?.rssi, "dBm") },
     {
-      label: "SINR",
+      label: t("signal_status.sinr"),
       value: fmt(data?.sinr, "dB"),
       rawValue: data?.sinr,
       thresholds: SINR_THRESHOLDS,
@@ -44,7 +49,7 @@ const LTEStatusComponent = ({ data, isLoading }: LTEStatusComponentProps) => {
 
   return (
     <SignalStatusCard
-      title="4G Primary Status"
+      title={t("signal_status.lte_primary_title")}
       state={data?.state ?? "unknown"}
       rsrp={data?.rsrp ?? null}
       rows={rows}

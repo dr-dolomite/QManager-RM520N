@@ -203,6 +203,7 @@ Detailed operational notes for individual features live in `docs/reference/`. Re
 - **WAN Profile Management** (`cellular/apn.sh`, 6 PDP contexts, AT-only, per-context `AT+CGACT` cycle) — `docs/reference/wan-profile-management.md`
 - **Custom SIM Profiles** (4-step apply `apn → ttl_hl → scenario → imei`; `settings.scenario_id` binds a Connection Scenario; active profile gates APN / TTL/HL / Scenarios / Band Locking pages; `profile_managed` CGI guard) — `docs/reference/sim-profiles.md`
 - **Timezone / System Clock** (`/system-settings`, glibc reads `/etc/localtime`; applied by copying a TZif via the `qmanager_timezone_apply` root helper; zoneinfo at `/opt/share/zoneinfo` from Entware `zoneinfo-all`; `/etc/TZ` is inert on glibc; cron adopts a new zone on the next reboot) — `docs/reference/timezone.md`
+- **i18n / Language Picker** (`react-i18next`, **bundle-only** — all 5 langs `en`/`zh-CN`/`zh-TW`/`it`/`id` compiled in via `lib/i18n/resources.ts`, no download/CGI backend; client-only-lazy init is a hard invariant for the static export; native `_one`/`_other` plurals — **no** `i18next-icu`/`http-backend`/`languagedetector`; `localStorage["qmanager_lang"]`; `bun run i18n:check` key-parity gate. Increment 1 = `common`/`sidebar`/`dashboard` namespaces) — `docs/reference/i18n.md`
 
 If you add a substantial new feature with non-obvious invariants, drop its notes into `docs/reference/<feature>.md` and add a row above rather than re-fattening this file.
 

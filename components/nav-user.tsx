@@ -15,8 +15,10 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { useTheme } from "next-themes";
+import { useTranslation } from "react-i18next";
 import { logout } from "@/hooks/use-auth";
 import { authFetch } from "@/lib/auth-fetch";
+import { LanguageSwitcher } from "@/components/i18n/language-switcher";
 
 import {
   Avatar,
@@ -69,6 +71,7 @@ export function NavUser({
 }) {
   const { isMobile } = useSidebar();
   const { theme, setTheme } = useTheme();
+  const { t } = useTranslation("common");
 
   // --- Display name from device hostname ---
   const [displayName, setDisplayName] = useState<string>(user.name);
@@ -269,6 +272,15 @@ export function NavUser({
                   </div>
                 </div>
               </DropdownMenuLabel>
+
+              <DropdownMenuSeparator />
+              <DropdownMenuLabel className="text-muted-foreground text-xs">
+                {t("language.label")}
+              </DropdownMenuLabel>
+              <div className="px-1 pb-1">
+                <LanguageSwitcher />
+              </div>
+
               <DropdownMenuSeparator />
               <DropdownMenuGroup>
                 <DropdownMenuItem
@@ -278,13 +290,13 @@ export function NavUser({
                   }}
                 >
                   <Pencil />
-                  Change Display Name
+                  {t("actions.change_display_name")}
                 </DropdownMenuItem>
                 <DropdownMenuItem
                   onClick={() => setPasswordDialogOpen(true)}
                 >
                   <KeyRound />
-                  Change Password
+                  {t("actions.change_password")}
                 </DropdownMenuItem>
                 <DropdownMenuItem
                   onClick={() =>
@@ -308,11 +320,11 @@ export function NavUser({
                 onClick={() => setRebootDialogOpen(true)}
               >
                 <Power />
-                Reboot Device
+                {t("actions.reboot_device")}
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => logout()}>
                 <LogOut />
-                Log out
+                {t("actions.log_out")}
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>

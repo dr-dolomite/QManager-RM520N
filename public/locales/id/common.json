@@ -1,0 +1,168 @@
+{
+  "actions": {
+    "save": "Simpan",
+    "saving": "Menyimpan…",
+    "saved": "Tersimpan!",
+    "cancel": "Batal",
+    "confirm": "Konfirmasi",
+    "apply": "Terapkan",
+    "close": "Tutup",
+    "retry": "Coba Lagi",
+    "reboot": "Reboot",
+    "log_out": "Keluar",
+    "reboot_device": "Reboot Perangkat",
+    "reconnect_modem": "Sambungkan Ulang Modem",
+    "change_display_name": "Ubah Nama Tampilan",
+    "change_password": "Ubah Kata Sandi"
+  },
+  "state": {
+    "loading": "Memuat…",
+    "saving": "Menyimpan…",
+    "applying": "Menerapkan…",
+    "disconnecting": "Memutuskan…",
+    "reconnecting": "Menyambungkan ulang…",
+    "installing": "Menginstal…",
+    "removing": "Menghapus…",
+    "enabled": "Aktif",
+    "disabled": "Nonaktif",
+    "on": "Nyala",
+    "off": "Mati"
+  },
+  "connection": {
+    "reconnecting": "Kehilangan kontak dengan perangkat. Menyambungkan ulang…"
+  },
+  "profile_override": {
+    "banner": "{{controls}} dikelola oleh Profil SIM Khusus <strong>{{profile_name}}</strong>."
+  },
+  "time": {
+    "just_now": "Baru saja",
+    "now": "Sekarang",
+    "unknown": "Tidak diketahui",
+    "minutes_ago_one": "{{count}} menit lalu",
+    "minutes_ago_other": "{{count}} menit lalu",
+    "hours_ago_one": "{{count}} jam lalu",
+    "hours_ago_other": "{{count}} jam lalu",
+    "days_ago_one": "{{count}} hari lalu",
+    "days_ago_other": "{{count}} hari lalu"
+  },
+  "language": {
+    "label": "Bahasa",
+    "switch_aria": "Ganti bahasa",
+    "page_title": "Bahasa",
+    "page_description": "Pilih bahasa tampilan untuk QManager. Pilihan Anda disimpan di perangkat ini.",
+    "active": "Aktif",
+    "select_prompt": "Pilih bahasa"
+  },
+  "login": {
+    "brand_label": "Konsol operator QManager",
+    "welcome": "Selamat datang di QManager",
+    "password_label": "Kata sandi",
+    "submit": "Masuk",
+    "signing_in": "Sedang masuk…",
+    "locked": "Terkunci ({{seconds}}s)",
+    "show_password": "Tampilkan kata sandi",
+    "hide_password": "Sembunyikan kata sandi",
+    "session_expired": "Sesi Anda berakhir karena perangkat tidak dapat dijangkau terlalu lama.",
+    "signing_in_to": "Masuk ke {{hostname}}",
+    "signing_in_as": "Masuk sebagai {{hostname}}",
+    "recovery": {
+      "toggle": "Tidak bisa masuk?",
+      "intro": "Jika Anda kehilangan kata sandi admin, ada dua jalur pemulihan:",
+      "option_reset": "Buka sesi SSH ke perangkat dan jalankan <code>qmanager_reset_password</code> untuk menetapkan kata sandi admin baru. (Memerlukan akses SSH yang sudah diaktifkan.)",
+      "option_backup": "Jika Anda menyimpan file .qmbackup, flash ulang firmware perangkat lalu pulihkan dari file tersebut."
+    }
+  },
+  "overview": {
+    "title": "QManager",
+    "tagline": "Status modem langsung",
+    "login_button": "Masuk",
+    "header": {
+      "carrier": "Carrier",
+      "network": "Jaringan",
+      "bands": "Bandwidth"
+    },
+    "status": {
+      "overall": "Keseluruhan",
+      "connectivity": "Internet",
+      "temperature": "Suhu"
+    },
+    "actions": {
+      "login": "Masuk",
+      "theme_toggle_aria": "Ganti tema",
+      "theme_light": "Terang",
+      "theme_dark": "Gelap",
+      "theme_system": "Sistem"
+    },
+    "field": {
+      "carrier": "Carrier",
+      "aggregation": "Band",
+      "uptime": "Waktu Aktif",
+      "temperature": "Suhu",
+      "temp_warn": "Berjalan panas",
+      "temp_danger": "Terlalu panas",
+      "empty": "—"
+    },
+    "aggregation": {
+      "band_with_bw": "{{band}} ({{bandwidth}} MHz)",
+      "band_only": "{{band}}",
+      "pci_label": "PCI"
+    },
+    "bands": {
+      "toggle_multi_band": "Band aktif",
+      "toggle_single_band": "Carrier tunggal",
+      "section": "Band",
+      "count_one": "{{count}} aktif",
+      "count_other": "{{count}} aktif",
+      "bandwidth": "{{bandwidth}} MHz",
+      "rsrp_unit": "{{rsrp}} dBm"
+    },
+    "metrics": {
+      "rsrp": "RSRP",
+      "rsrq": "RSRQ",
+      "sinr": "SINR",
+      "rsrp_value": "{{rsrp}} dBm",
+      "rsrq_value": "{{rsrq}} dB",
+      "sinr_value": "{{sinr}} dB",
+      "toggle_aria": "Ganti metrik sinyal band"
+    },
+    "signal": {
+      "dual": "{{rsrp}} dBm · {{sinr}} dB SINR",
+      "rsrp_only": "{{rsrp}} dBm",
+      "sinr_only": "{{sinr}} dB SINR",
+      "none": "—"
+    },
+    "quality": {
+      "overall_label": "Keseluruhan",
+      "excellent": "Sangat Baik",
+      "good": "Baik",
+      "fair": "Cukup",
+      "poor": "Buruk",
+      "none": "Tidak ada sinyal"
+    },
+    "connection": {
+      "connected": "Terhubung",
+      "searching": "Mencari",
+      "limited": "Terbatas",
+      "inactive": "Tidak aktif",
+      "error": "Kesalahan",
+      "disconnected": "Terputus",
+      "unknown": "Tidak diketahui",
+      "modem_unreachable": "Modem tidak dapat dijangkau"
+    },
+    "stale_indicator": "Data mungkin sudah kedaluwarsa",
+    "redirecting_setup": "Mengalihkan ke pengaturan pertama…",
+    "loading_status": "Memuat status modem…",
+    "empty": {
+      "title": "Status modem tidak tersedia",
+      "subtitle": "Masuk untuk detail diagnostik.",
+      "fetch_error": "Tidak dapat menjangkau perangkat.",
+      "retry": "Coba lagi"
+    },
+    "uptime": {
+      "days": "{{days}}h {{hours}}j",
+      "hours": "{{hours}}j {{minutes}}m",
+      "minutes": "{{minutes}}m"
+    },
+    "copyright": "© {{year}} QManager"
+  }
+}

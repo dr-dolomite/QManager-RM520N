@@ -1,6 +1,8 @@
 "use client";
 
 import React from "react";
+import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 
 import {
   Card,
@@ -43,7 +45,9 @@ interface NetworkStatusComponentProps {
   isStale: boolean;
 }
 
-// --- Helper: Determine network icon & label from type + CA status ---
+// --- Helper: Determine network icon & label keys from type + CA status ---
+// Returns dashboard-namespace keys (network.*); the component resolves them via
+// t() so these stay pure, hook-free helpers.
 function getNetworkDisplay(
   type: string,
   caActive: boolean,
@@ -53,58 +57,58 @@ function getNetworkDisplay(
     case "5G-NSA":
       return {
         icon: <MdOutline5G className="size-full text-white" />,
-        label: "5G Signal",
-        sublabel: nrCaActive ? "5G + LTE / NR-CA" : "5G + LTE",
+        labelKey: "network.signal_5g",
+        sublabelKey: nrCaActive ? "network.signal_5g_lte_nrca" : "network.signal_5g_lte",
         hasNetwork: true,
       };
     case "5G-SA":
       return {
         icon: <MdOutline5G className="size-full text-white" />,
-        label: "5G Signal",
-        sublabel: nrCaActive ? "Standalone / NR-CA" : "Standalone",
+        labelKey: "network.signal_5g",
+        sublabelKey: nrCaActive ? "network.signal_sa_nrca" : "network.signal_sa",
         hasNetwork: true,
       };
     case "LTE":
       return caActive
         ? {
             icon: <Md4gPlusMobiledata className="size-full text-white" />,
-            label: "LTE+ Signal",
-            sublabel: "4G Carrier Aggregation",
+            labelKey: "network.signal_lte_plus",
+            sublabelKey: "network.ca_4g",
             hasNetwork: true,
           }
         : {
             icon: <Md4gMobiledata className="size-full text-white" />,
-            label: "LTE Signal",
-            sublabel: "4G Connected",
+            labelKey: "network.signal_lte",
+            sublabelKey: "network.connected_4g",
             hasNetwork: true,
           };
     default:
       return {
         icon: <Md3gMobiledata className="size-full text-white/50" />,
-        label: "Signal",
-        sublabel: "No 4G/5G",
+        labelKey: "network.signal_generic",
+        sublabelKey: "network.no_signal",
         hasNetwork: false,
       };
   }
 }
 
-// --- Helper: Service status label ---
-function getServiceLabel(status: ServiceStatus) {
+// --- Helper: Service status label key ---
+function getServiceLabelKey(status: ServiceStatus) {
   switch (status) {
     case "optimal":
-      return "Optimal";
+      return "network.service_optimal";
     case "connected":
-      return "Connected";
+      return "network.service_connected";
     case "limited":
-      return "Limited";
+      return "network.service_limited";
     case "no_service":
-      return "No Service";
+      return "network.service_no_service";
     case "searching":
-      return "Searching";
+      return "network.service_searching";
     case "sim_error":
-      return "SIM Error";
+      return "network.service_sim_error";
     default:
-      return "Unknown";
+      return "network.service_unknown";
   }
 }
 
@@ -150,7 +154,10 @@ interface InternetBadge {
   tooltip: string | null;
 }
 
-function buildInternetBadge(c: ConnectivityStatus | null): InternetBadge {
+function buildInternetBadge(
+  c: ConnectivityStatus | null,
+  t: TFunction,
+): InternetBadge {
   // Prefer the new tri-state field; fall back to internet_available for
   // rolling-upgrade safety (poller without Phase 2 forwarding).
   let state: PingTriState = "unknown";
@@ -166,61 +173,61 @@ function buildInternetBadge(c: ConnectivityStatus | null): InternetBadge {
     case "connected":
       return {
         cls: "bg-success/15 text-success hover:bg-success/20 border-success/30",
-        label: "Online",
+        label: t("network.internet_online"),
         state,
         tooltip: null,
       };
     case "limited":
       return {
         cls: "bg-warning/15 text-warning hover:bg-warning/20 border-warning/30",
-        label: "Carrier Limited",
+        label: t("network.internet_limited"),
         state,
-        tooltip: limitedTooltip(c?.limited_reason ?? null),
+        tooltip: limitedTooltip(c?.limited_reason ?? null, t),
       };
     case "disconnected":
       return {
         cls: "bg-destructive/15 text-destructive hover:bg-destructive/20 border-destructive/30",
-        label: "Offline",
+        label: t("network.internet_offline"),
         state,
-        tooltip: downTooltip(c?.down_reason ?? null),
+        tooltip: downTooltip(c?.down_reason ?? null, t),
       };
     default:
       return {
         cls: "bg-muted/50 text-muted-foreground hover:bg-muted/70 border-muted-foreground/30",
-        label: "Internet",
+        label: t("network.internet_label"),
         state,
         tooltip: null,
       };
   }
 }
 
-function limitedTooltip(code: number | null): string {
+function limitedTooltip(code: number | null, t: TFunction): string {
   if (code === null) {
-    return "Carrier is intercepting probes — billing or activation page likely.";
+    return t("network.internet_tooltip.limited_intercept");
   }
   if (code >= 300 && code < 400) {
-    return `Carrier is redirecting probes (HTTP ${code}). Likely walled-garden or activation page.`;
+    return t("network.internet_tooltip.limited_redirect", { code });
   }
   if (code >= 400) {
-    return `Carrier returned HTTP ${code}. Probe path is intercepted but not by a redirect.`;
+    return t("network.internet_tooltip.limited_http", { code });
   }
-  return `Network reachable but probe returned HTTP ${code}, not 204. Carrier may be redirecting traffic to a billing or activation page.`;
+  return t("network.internet_tooltip.limited_generic", { code });
 }
 
-function downTooltip(reason: string | null): string {
+function downTooltip(reason: string | null, t: TFunction): string {
   switch (reason) {
     case "timeout":
-      return "Probe timed out — connection may be stalled.";
+      return t("network.internet_tooltip.down_timeout");
     case "refused":
-      return "Connection refused by probe target.";
+      return t("network.internet_tooltip.down_refused");
     case "reset":
-      return "Connection reset by carrier or peer.";
+      return t("network.internet_tooltip.down_reset");
     case "dns":
-      return "DNS resolution failed.";
+      return t("network.internet_tooltip.down_dns");
     case "malformed":
-      return "Probe response was malformed.";
+      return t("network.internet_tooltip.down_malformed");
     default:
-      return "Internet unreachable.";
+      return t("network.internet_tooltip.down_generic");
   }
 }
 
@@ -256,6 +263,7 @@ const NetworkStatusComponent = ({
   isLoading,
   isStale,
 }: NetworkStatusComponentProps) => {
+  const { t } = useTranslation("dashboard");
   // Derive display values
   const networkType = data?.type ?? "";
   const serviceStatus = data?.service_status ?? "unknown";
@@ -265,7 +273,9 @@ const NetworkStatusComponent = ({
   const nrCaActive = data?.nr_ca_active ?? false;
 
   const networkDisplay = getNetworkDisplay(networkType, caActive, nrCaActive);
-  const serviceLabel = getServiceLabel(serviceStatus);
+  const networkLabel = t(networkDisplay.labelKey);
+  const networkSublabel = t(networkDisplay.sublabelKey);
+  const serviceLabel = t(getServiceLabelKey(serviceStatus));
   const serviceColor = getServiceColor(networkType, caActive, serviceStatus);
   const serviceColors = serviceColorMap[serviceColor] ?? serviceColorMap.red;
 
@@ -287,7 +297,7 @@ const NetworkStatusComponent = ({
       <CardHeader>
         <div className="flex md:flex-row flex-col xl:items-center justify-center xl:justify-between gap-2">
           <CardTitle className="text-2xl font-semibold @[250px]/card:text-3xl">
-            Network Status
+            {t("network.title")}
           </CardTitle>
 
           {/* Status badges */}
@@ -305,7 +315,7 @@ const NetworkStatusComponent = ({
                   className="bg-warning/15 text-warning hover:bg-warning/20 border-warning/30"
                 >
                   <div className="w-2 h-2 rounded-full bg-warning" />
-                  Data Delayed
+                  {t("network.data_delayed_badge")}
                 </Badge>
               )}
 
@@ -330,15 +340,15 @@ const NetworkStatusComponent = ({
                   }`}
                 />
                 {isAirplaneMode
-                  ? "Airplane Mode"
+                  ? t("network.airplane_mode")
                   : radioOn
-                    ? "Radio On"
-                    : "Radio Off"}
+                    ? t("network.radio_on")
+                    : t("network.radio_off")}
               </Badge>
 
               {/* Internet status — tri-state from ping daemon */}
               {(() => {
-                const b = buildInternetBadge(connectivity);
+                const b = buildInternetBadge(connectivity, t);
                 const dot =
                   b.state === "connected" ? (
                     <span className="relative flex size-2 shrink-0">
@@ -419,10 +429,10 @@ const NetworkStatusComponent = ({
               </div>
               <div className="grid gap-0.5 text-center">
                 <h3 className="text-base font-semibold leading-none">
-                  {isAirplaneMode ? "Low Power" : networkDisplay.label}
+                  {isAirplaneMode ? t("network.low_power") : networkLabel}
                 </h3>
                 <p className="text-muted-foreground text-sm">
-                  {isAirplaneMode ? "Radio Off" : networkDisplay.sublabel}
+                  {isAirplaneMode ? t("network.radio_off") : networkSublabel}
                 </p>
               </div>
             </div>
@@ -465,12 +475,12 @@ const NetworkStatusComponent = ({
               </div>
               <div className="grid gap-0.5 text-center">
                 <h3 className="text-base font-semibold leading-none">
-                  SIM {simSlot}
+                  {t("network.sim_label", { slot: simSlot })}
                 </h3>
                 <p className="text-muted-foreground text-sm">
                   {isAirplaneMode
-                    ? "Airplane Mode"
-                    : carrier || "No Carrier"}
+                    ? t("network.airplane_mode")
+                    : carrier || t("network.no_carrier")}
                 </p>
               </div>
             </div>
@@ -519,10 +529,10 @@ const NetworkStatusComponent = ({
               </div>
               <div className="grid gap-0.5 text-center">
                 <h3 className="text-base font-semibold leading-none">
-                  {isAirplaneMode ? "Standby" : "Service"}
+                  {isAirplaneMode ? t("network.standby_label") : t("network.service_label")}
                 </h3>
                 <p className="text-muted-foreground text-sm">
-                  {isAirplaneMode ? "Radio Off" : serviceLabel}
+                  {isAirplaneMode ? t("network.radio_off") : serviceLabel}
                 </p>
               </div>
             </div>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useId, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from "recharts";
 
 import {
@@ -60,6 +61,7 @@ const chartConfig = {
 } satisfies ChartConfig;
 
 export function SignalHistoryComponent() {
+  const { t } = useTranslation("dashboard");
   const gradientId = useId();
   const [signalType, setSignalType] = useState("rsrp");
   const { chartData, isLoading } = useSignalHistory();
@@ -96,17 +98,11 @@ export function SignalHistoryComponent() {
 
   const baseValue = getBaseValue();
 
-  // Time window description based on actual data span
-  const getTimeSpan = () => {
-    if (chartData.length < 2) return "signal strength";
-    return "signal strength over recent history";
-  };
-
   return (
     <Card className="@container/card">
       <CardHeader>
         <CardTitle className="text-2xl font-semibold @[250px]/card:text-3xl">
-          Signal Quality Monitor
+          {t("signal_history.title")}
         </CardTitle>
         <CardAction>
           <ToggleGroup
@@ -124,7 +120,7 @@ export function SignalHistoryComponent() {
             <SelectTrigger
               className="flex w-32 **:data-[slot=select-value]:block **:data-[slot=select-value]:truncate @[540px]/card:hidden"
               size="sm"
-              aria-label="Select signal type"
+              aria-label={t("signal_history.select_aria")}
             >
               <SelectValue placeholder="RSRP" />
             </SelectTrigger>
@@ -145,11 +141,11 @@ export function SignalHistoryComponent() {
       <CardContent className="px-2 pt-4 sm:px-6 sm:pt-6">
         {isLoading ? (
           <div className="flex h-[250px] items-center justify-center text-muted-foreground text-sm">
-            Loading signal history…
+            {t("signal_history.loading_message")}
           </div>
         ) : chartData.length === 0 ? (
           <div className="flex h-[250px] items-center justify-center text-muted-foreground text-sm">
-            No signal history available yet. Data will appear after ~10 seconds.
+            {t("signal_history.no_data_message")}
           </div>
         ) : (
           <ChartContainer
@@ -232,11 +228,12 @@ export function SignalHistoryComponent() {
         <div className="flex w-full items-start gap-2 text-sm">
           <div className="grid gap-2">
             <div className="flex items-center gap-2 leading-none font-medium">
-              This chart shows the {signalType.toUpperCase()} {getTimeSpan()}.
+              {t("signal_history.chart_description", {
+                signal_type: signalType.toUpperCase(),
+              })}
             </div>
             <div className="text-muted-foreground flex items-center gap-2 leading-none">
-              Values may fluctuate due to environmental factors and network
-              conditions.
+              {t("signal_history.fluctuation_note")}
             </div>
           </div>
         </div>

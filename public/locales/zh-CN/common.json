@@ -1,0 +1,168 @@
+{
+  "actions": {
+    "save": "保存",
+    "saving": "保存中…",
+    "saved": "已保存！",
+    "cancel": "取消",
+    "confirm": "确认",
+    "apply": "应用",
+    "close": "关闭",
+    "retry": "重试",
+    "reboot": "重启",
+    "log_out": "退出登录",
+    "reboot_device": "重启设备",
+    "reconnect_modem": "重新连接调制解调器",
+    "change_display_name": "更改显示名称",
+    "change_password": "更改密码"
+  },
+  "state": {
+    "loading": "加载中…",
+    "saving": "保存中…",
+    "applying": "应用中…",
+    "disconnecting": "断开连接中…",
+    "reconnecting": "重新连接中…",
+    "installing": "正在安装…",
+    "removing": "正在删除…",
+    "enabled": "已启用",
+    "disabled": "已禁用",
+    "on": "开",
+    "off": "关"
+  },
+  "connection": {
+    "reconnecting": "与设备失去联系，正在重新连接…"
+  },
+  "profile_override": {
+    "banner": "{{controls}} 由自定义 SIM 配置文件 <strong>{{profile_name}}</strong> 管理。"
+  },
+  "time": {
+    "just_now": "刚刚",
+    "now": "现在",
+    "unknown": "未知",
+    "minutes_ago_one": "{{count}} 分钟前",
+    "minutes_ago_other": "{{count}} 分钟前",
+    "hours_ago_one": "{{count}} 小时前",
+    "hours_ago_other": "{{count}} 小时前",
+    "days_ago_one": "{{count}} 天前",
+    "days_ago_other": "{{count}} 天前"
+  },
+  "language": {
+    "label": "语言",
+    "switch_aria": "切换语言",
+    "page_title": "语言",
+    "page_description": "选择 QManager 的显示语言。您的选择将保存在本设备上。",
+    "active": "活动",
+    "select_prompt": "选择语言"
+  },
+  "login": {
+    "brand_label": "QManager 操作员控制台",
+    "welcome": "欢迎使用 QManager",
+    "password_label": "密码",
+    "submit": "登录",
+    "signing_in": "登录中…",
+    "locked": "已锁定 ({{seconds}}秒)",
+    "show_password": "显示密码",
+    "hide_password": "隐藏密码",
+    "session_expired": "由于设备长时间无法连接,您的会话已结束。",
+    "signing_in_to": "正在登录到 {{hostname}}",
+    "signing_in_as": "以 {{hostname}} 登录",
+    "recovery": {
+      "toggle": "无法登录?",
+      "intro": "如果您忘记了管理员密码,有两种恢复方式:",
+      "option_reset": "通过 SSH 连接到设备并运行 <code>qmanager_reset_password</code> 以设置新的管理员密码。(需要先启用 SSH 访问。)",
+      "option_backup": "如果您保存了 .qmbackup 文件,请重新刷写设备固件,然后从该文件中恢复。"
+    }
+  },
+  "overview": {
+    "title": "QManager",
+    "tagline": "实时调制解调器状态",
+    "login_button": "登录",
+    "header": {
+      "carrier": "运营商",
+      "network": "网络",
+      "bands": "带宽"
+    },
+    "status": {
+      "overall": "总体",
+      "connectivity": "互联网",
+      "temperature": "温度"
+    },
+    "actions": {
+      "login": "登录",
+      "theme_toggle_aria": "切换主题",
+      "theme_light": "浅色",
+      "theme_dark": "深色",
+      "theme_system": "跟随系统"
+    },
+    "field": {
+      "carrier": "运营商",
+      "aggregation": "频段",
+      "uptime": "运行时间",
+      "temperature": "温度",
+      "temp_warn": "温度偏高",
+      "temp_danger": "温度过高",
+      "empty": "—"
+    },
+    "aggregation": {
+      "band_with_bw": "{{band}} ({{bandwidth}} MHz)",
+      "band_only": "{{band}}",
+      "pci_label": "PCI"
+    },
+    "bands": {
+      "toggle_multi_band": "活动频段",
+      "toggle_single_band": "单载波",
+      "section": "频段",
+      "count_one": "{{count}} 个活跃",
+      "count_other": "{{count}} 个活跃",
+      "bandwidth": "{{bandwidth}} MHz",
+      "rsrp_unit": "{{rsrp}} dBm"
+    },
+    "metrics": {
+      "rsrp": "RSRP",
+      "rsrq": "RSRQ",
+      "sinr": "SINR",
+      "rsrp_value": "{{rsrp}} dBm",
+      "rsrq_value": "{{rsrq}} dB",
+      "sinr_value": "{{sinr}} dB",
+      "toggle_aria": "切换频段信号指标"
+    },
+    "signal": {
+      "dual": "{{rsrp}} dBm · {{sinr}} dB SINR",
+      "rsrp_only": "{{rsrp}} dBm",
+      "sinr_only": "{{sinr}} dB SINR",
+      "none": "—"
+    },
+    "quality": {
+      "overall_label": "总体",
+      "excellent": "极佳",
+      "good": "良好",
+      "fair": "一般",
+      "poor": "较差",
+      "none": "无信号"
+    },
+    "connection": {
+      "connected": "已连接",
+      "searching": "搜索中",
+      "limited": "受限",
+      "inactive": "未激活",
+      "error": "错误",
+      "disconnected": "未连接",
+      "unknown": "未知",
+      "modem_unreachable": "无法连接到调制解调器"
+    },
+    "stale_indicator": "数据可能已过期",
+    "redirecting_setup": "正在跳转到初次设置…",
+    "loading_status": "正在加载调制解调器状态…",
+    "empty": {
+      "title": "调制解调器状态不可用",
+      "subtitle": "登录以查看诊断详情。",
+      "fetch_error": "无法连接到设备。",
+      "retry": "重试"
+    },
+    "uptime": {
+      "days": "{{days}}天 {{hours}}小时",
+      "hours": "{{hours}}小时 {{minutes}}分钟",
+      "minutes": "{{minutes}}分钟"
+    },
+    "copyright": "© {{year}} QManager"
+  }
+}

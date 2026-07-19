@@ -43,6 +43,9 @@ import {
 import Image from "next/image";
 import Link from "next/link";
 
+// t_key values are keys inside the "sidebar" namespace's "items" object; the
+// nav-* components resolve them via t(`items.${t_key}`) under
+// useTranslation("sidebar"). Labels never live in this file.
 const data = {
   user: {
     name: "Admin",
@@ -50,7 +53,7 @@ const data = {
   },
   navMain: [
     {
-      title: "Home",
+      t_key: "home",
       url: "/dashboard",
       icon: HomeIcon,
       isActive: true,
@@ -58,194 +61,142 @@ const data = {
   ],
   system: [
     {
-      title: "System Settings",
+      t_key: "system_settings",
       url: "/system-settings",
       icon: SettingsIcon,
       items: [
+        { t_key: "logs", url: "/system-settings/logs" },
         {
-          title: "Logs",
-          url: "/system-settings/logs",
-        },
-        {
-          title: "System Health Check",
+          t_key: "system_health_check",
           url: "/system-settings/system-health-check",
         },
         {
-          title: "Connection Quality",
+          t_key: "connection_quality",
           url: "/system-settings/connection-quality",
         },
+        { t_key: "languages", url: "/system-settings/languages" },
       ],
     },
     {
-      title: "Software Update",
+      t_key: "software_update",
       url: "/system-settings/software-update",
       icon: DownloadIcon,
     },
     {
-      title: "Terminals",
+      t_key: "terminals",
       url: "/system-settings/at-terminal",
       icon: TerminalIcon,
-      items: [
-        { title: "Web Console", url: "/system-settings/web-console" },
-      ],
+      items: [{ t_key: "web_console", url: "/system-settings/web-console" }],
     },
   ],
   navSecondary: [
-    {
-      title: "About Device",
-      url: "/about-device",
-      icon: RouterIcon,
-    },
-    {
-      title: "Support",
-      url: "/support",
-      icon: LifeBuoy,
-    },
-    {
-      title: "Donate to the Project",
-      url: "#",
-      icon: HeartIcon,
-    },
+    { t_key: "about_device", url: "/about-device", icon: RouterIcon },
+    { t_key: "support", url: "/support", icon: LifeBuoy },
+    { t_key: "donate", url: "#", icon: HeartIcon },
   ],
   cellular: [
     {
-      title: "Cellular Information",
+      t_key: "cellular_information",
       url: "/cellular",
       icon: RadioTowerIcon,
       items: [
-        {
-          title: "Antenna Statistics",
-          url: "/cellular/antenna-statistics",
-        },
-        {
-          title: "Antenna Alignment",
-          url: "/cellular/antenna-alignment",
-        }
+        { t_key: "antenna_statistics", url: "/cellular/antenna-statistics" },
+        { t_key: "antenna_alignment", url: "/cellular/antenna-alignment" },
       ],
     },
     {
-      title: "SMS Center",
+      t_key: "sms_center",
       url: "/cellular/sms",
       icon: MessageCircleIcon,
     },
     {
-      title: "Custom Profiles",
+      t_key: "custom_profiles",
       url: "/cellular/custom-profiles",
       icon: User2Icon,
       items: [
         {
-          title: "Connection Scenarios",
+          t_key: "connection_scenarios",
           url: "/cellular/custom-profiles/connection-scenarios",
         },
       ],
     },
     {
-      title: "Band Locking",
+      t_key: "band_locking",
       url: "/cellular/cell-locking",
       icon: LucideSignal,
       items: [
+        { t_key: "tower_locking", url: "/cellular/cell-locking/tower-locking" },
         {
-          title: "Tower Locking",
-          url: "/cellular/cell-locking/tower-locking",
-        },
-        {
-          title: "Frequency Locking",
+          t_key: "frequency_locking",
           url: "/cellular/cell-locking/frequency-locking",
         },
       ],
     },
     {
-      title: "Cell Scanner",
+      t_key: "cell_scanner",
       url: "/cellular/cell-scanner",
       icon: ScanIcon,
       items: [
         {
-          title: "Neighboring Cells",
+          t_key: "neighboring_cells",
           url: "/cellular/cell-scanner/neighbourcell-scanner",
         },
         {
-          title: "Frequency Calculator",
+          t_key: "frequency_calculator",
           url: "/cellular/cell-scanner/frequency-calculator",
         },
       ],
     },
     {
-      title: "Settings",
+      t_key: "settings",
       url: "/cellular/settings",
       icon: Settings2,
       items: [
+        { t_key: "apn_management", url: "/cellular/settings/apn-management" },
         {
-          title: "APN Management",
-          url: "/cellular/settings/apn-management",
-        },
-        {
-          title: "Network Priority",
+          t_key: "network_priority",
           url: "/cellular/settings/network-priority",
         },
-        {
-          title: "IMEI Settings",
-          url: "/cellular/settings/imei-settings",
-        },
-        {
-          title: "FPLMN Settings",
-          url: "/cellular/settings/fplmn-settings",
-        },
+        { t_key: "imei_settings", url: "/cellular/settings/imei-settings" },
+        { t_key: "fplmn_settings", url: "/cellular/settings/fplmn-settings" },
       ],
     },
   ],
   localNetwork: [
     {
-      title: "Ethernet Status",
+      t_key: "ethernet_status",
       url: "/local-network/ethernet",
       icon: EthernetPort,
     },
     {
-      title: "Settings",
+      t_key: "local_network_settings",
       url: "/local-network/ip-passthrough",
       icon: Settings2,
       items: [
-        {
-          title: "TTL & MTU Settings",
-          url: "/local-network/ttl-settings",
-        },
-        {
-          title: "Custom DNS",
-          url: "/local-network/custom-dns",
-        },
+        { t_key: "ttl_mtu_settings", url: "/local-network/ttl-settings" },
+        { t_key: "custom_dns", url: "/local-network/custom-dns" },
       ],
     },
   ],
   monitoring: [
     {
-      title: "Network Events",
+      t_key: "network_events",
       url: "/monitoring",
       icon: PieChart,
       items: [
-        {
-          title: "Latency Monitor",
-          url: "/monitoring/latency",
-        },
-        {
-          title: "Email Alerts",
-          url: "/monitoring/email-alerts",
-        },
-        {
-          title: "SMS Alerts",
-          url: "/monitoring/sms-alerts",
-        },
-        {
-          title: "Discord Bot",
-          url: "/monitoring/discord-bot",
-        },
+        { t_key: "latency_monitor", url: "/monitoring/latency" },
+        { t_key: "email_alerts", url: "/monitoring/email-alerts" },
+        { t_key: "sms_alerts", url: "/monitoring/sms-alerts" },
+        { t_key: "discord_bot", url: "/monitoring/discord-bot" },
       ],
     },
     {
-      title: "Watchdog",
+      t_key: "watchdog",
       url: "/monitoring/watchdog",
       icon: DogIcon,
     },
     {
-      title: "Tailscale VPN",
+      t_key: "tailscale",
       url: "/monitoring/tailscale",
       icon: GlobeIcon,
     },
@@ -256,7 +207,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const [donateOpen, setDonateOpen] = React.useState(false);
 
   const navSecondaryItems = data.navSecondary.map((item) =>
-    item.title === "Donate to the Project"
+    item.t_key === "donate"
       ? { ...item, onClick: () => setDonateOpen(true) }
       : item,
   );
