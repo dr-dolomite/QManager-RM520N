@@ -93,12 +93,22 @@ qm_config_set() {
     case "$value" in
         ''|*[!0-9]*) # non-numeric or empty — store as string
             jq --arg s "$section" --arg k "$key" --arg v "$value" \
-                '.[$s][$k] = $v' "$QM_CONFIG" > "$QM_CONFIG_TMP" ;;
+                '.[$s][$k] = $v' "$QM_CONFIG" > "$QM_CONFIG_TMP" 2>/dev/null ;;
         *) # numeric — store as number
             jq --arg s "$section" --arg k "$key" --argjson v "$value" \
-                '.[$s][$k] = $v' "$QM_CONFIG" > "$QM_CONFIG_TMP" ;;
+                '.[$s][$k] = $v' "$QM_CONFIG" > "$QM_CONFIG_TMP" 2>/dev/null ;;
     esac
-    mv "$QM_CONFIG_TMP" "$QM_CONFIG"
+    # Gate the mv on jq's exit status (a case statement's status is that of the
+    # jq it ran): the '>' redirect truncates $QM_CONFIG_TMP to empty before jq
+    # runs, so an unconditional mv after a jq failure (corrupt/unparseable
+    # config) would clobber the live config with that empty temp. Only publish
+    # the temp when jq actually succeeded — mirrors qm_config_delete below.
+    if [ $? -eq 0 ]; then
+        mv "$QM_CONFIG_TMP" "$QM_CONFIG"
+    else
+        rm -f "$QM_CONFIG_TMP"
+        return 1
+    fi
 }
 
 # Delete: qm_config_delete <section> <key>

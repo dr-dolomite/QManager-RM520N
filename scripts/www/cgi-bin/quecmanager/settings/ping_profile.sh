@@ -3,9 +3,10 @@
 # ping_profile.sh — CGI Endpoint: Connectivity Sensitivity Profile (GET + POST)
 # =============================================================================
 # GET:  Returns current ping profile selection.
-# POST: Saves profile selection (one of sensitive/regular/relaxed/quiet) and
-#       the probe targets, merging them into /etc/qmanager/ping_profile.json,
-#       then pokes the daemon's reload flag at /tmp/qmanager_ping_reload.
+# POST: Saves the probe targets (target_1/target_2) plus an OPTIONAL profile
+#       label (one of sensitive/regular/relaxed/quiet; preserved from the file
+#       when omitted), merging them into /etc/qmanager/ping_profile.json, then
+#       pokes the daemon's reload flag at /tmp/qmanager_ping_reload.
 #
 # The daemon's for_profile() map is the single source of truth for the actual
 # threshold values — this CGI writes only the profile name (+ targets), not
@@ -135,14 +136,29 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
         exit 0
     fi
 
+    # `profile` is OPTIONAL as of the split-ownership rework: the Probe Targets
+    # card is targets-only and no longer POSTs a profile. When absent, preserve
+    # the existing label already in the config (defaulting to "relaxed" if the
+    # file is missing or holds an unexpected value) so a targets-only save is
+    # never rejected. When a profile IS sent, it must still be one of the four
+    # valid presets. profile is just a label paired with the targets — the
+    # daemon's for_profile() map remains the source of truth for thresholds.
     new_profile=$(printf '%s' "$POST_DATA" | jq -r '.profile // empty' 2>/dev/null)
-    case "$new_profile" in
-        sensitive|regular|relaxed|quiet) ;;
-        *)
-            cgi_error "invalid_profile" "profile must be one of: sensitive, regular, relaxed, quiet"
-            exit 0
-            ;;
-    esac
+    if [ -z "$new_profile" ]; then
+        new_profile=$(jq -r '.profile // "relaxed"' "$CONFIG" 2>/dev/null)
+        case "$new_profile" in
+            sensitive|regular|relaxed|quiet) ;;
+            *) new_profile="relaxed" ;;
+        esac
+    else
+        case "$new_profile" in
+            sensitive|regular|relaxed|quiet) ;;
+            *)
+                cgi_error "invalid_profile" "profile must be one of: sensitive, regular, relaxed, quiet"
+                exit 0
+                ;;
+        esac
+    fi
 
     new_t1_raw=$(printf '%s' "$POST_DATA" | jq -r '.target_1 // empty' 2>/dev/null)
     new_t2_raw=$(printf '%s' "$POST_DATA" | jq -r '.target_2 // empty' 2>/dev/null)

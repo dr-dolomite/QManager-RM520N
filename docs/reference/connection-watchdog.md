@@ -353,6 +353,7 @@ Because each writer merges only its own keys, the two never clobber each other. 
 
 ## Related docs
 
+- Connection Quality — the measurement/telemetry side (the `qmanager_ping` producer, the poller's latency/jitter/loss stats, the Probe Targets + Quality Thresholds cards) — [connection-quality.md](connection-quality.md)
 - Ping daemon (`qmanager_ping`), the connectivity verdict the watchdog consumes — `docs/BACKEND.md`
 - AT command transport (`qcmd`, flock serialization) — `docs/reference/at-command-transport.md`
 - SIM profiles and auto-apply on SIM change — `docs/reference/sim-profiles.md`

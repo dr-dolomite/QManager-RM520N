@@ -14,6 +14,8 @@ QManager now speaks your language, and the Connection Watchdog gets a ground-up 
 
 - **Translate QManager in your own language.** A new community translation toolkit lets anyone add or complete a language without being a developer — `bun run lang scaffold` starts a new language, `status`/`check` show what's left and check your work with plain-English fixes, and one command packages a finished pack (zero-dependency Bun CLI sharing the app's `i18n:check` validation engine; partial translations are welcome and fall back to English). See `docs/CONTRIBUTING-translations.md`.
 
+- **Install extra languages without a firmware update.** Beyond the five built-in languages, **System Settings → Languages** now has an Available list of community translation packs you can download and install straight onto the modem, then switch to like any other language — no OTA, no reflash. Packs survive reboots and future updates, and untranslated bits fall back to English (each pack is fetched only from the project's own GitHub release and sha256-verified before it's ever loaded; installed packs live outside the web root and are re-linked on every update).
+
 ## 🛠️ Improvements
 
 - **The Watchdog now owns connection timing.** Probe interval and failure threshold moved from Connection Quality into the Watchdog's **Detection** tab, so one place decides how often your link is checked and when it counts as down — and the Connection Quality page is now a simpler "Probe Targets" card (detection reads the ping daemon's raw failure streak directly, fixing a double-count that made the "declares down after ~Ns" estimate drift).
