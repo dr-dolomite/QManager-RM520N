@@ -41,7 +41,7 @@ export function RebootCountdown() {
   useEffect(() => {
     const flag = sessionStorage.getItem(SESSION_KEY);
     if (!flag) {
-      window.location.href = "/";
+      window.location.href = "/login/";
       return;
     }
     sessionStorage.removeItem(SESSION_KEY);

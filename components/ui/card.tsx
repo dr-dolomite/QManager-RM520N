@@ -33,7 +33,7 @@ function CardTitle({
   as: Comp = "h3",
   ...props
 }: Omit<React.ComponentProps<"div">, "as"> & {
-  as?: "h2" | "h3" | "h4" | "div"
+  as?: "h1" | "h2" | "h3" | "h4" | "div"
 }) {
   return (
     <Comp

@@ -325,6 +325,31 @@ export function getSignalQuality(
   return "poor";
 }
 
+export type SignalQuality = ReturnType<typeof getSignalQuality>;
+
+const SIGNAL_QUALITY_RANK: Record<SignalQuality, number> = {
+  excellent: 4,
+  good: 3,
+  fair: 2,
+  poor: 1,
+  none: 0,
+};
+
+/**
+ * Returns the worst quality across the supplied metrics. "none" entries
+ * (missing/null values) are skipped; if every input is "none", returns "none".
+ * Used by the public overview "Overall" verdict so a strong RSRP can't mask
+ * a poor SINR.
+ */
+export function worstSignalQuality(...qualities: SignalQuality[]): SignalQuality {
+  const known = qualities.filter((q): q is Exclude<SignalQuality, "none"> => q !== "none");
+  if (known.length === 0) return "none";
+  return known.reduce<SignalQuality>(
+    (worst, q) => (SIGNAL_QUALITY_RANK[q] < SIGNAL_QUALITY_RANK[worst] ? q : worst),
+    known[0],
+  );
+}
+
 /** Daemon's authoritative tri-state connectivity outcome (from qmanager_ping.json's `connectivity` field). */
 export type PingTriState = "connected" | "limited" | "disconnected" | "unknown";
 

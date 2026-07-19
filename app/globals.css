@@ -31,10 +31,14 @@
   --color-destructive-foreground: var(--destructive-foreground);
   --color-success: var(--success);
   --color-success-foreground: var(--success-foreground);
+  --color-success-on-surface: var(--success-on-surface);
   --color-warning: var(--warning);
   --color-warning-foreground: var(--warning-foreground);
+  --color-warning-on-surface: var(--warning-on-surface);
   --color-info: var(--info);
   --color-info-foreground: var(--info-foreground);
+  --color-info-on-surface: var(--info-on-surface);
+  --color-destructive-on-surface: var(--destructive-on-surface);
   --color-accent-foreground: var(--accent-foreground);
   --color-accent: var(--accent);
   --color-muted-foreground: var(--muted-foreground);
@@ -84,10 +88,16 @@
   --chart-6: oklch(0.705 0.213 47.604);
   --success: oklch(0.59 0.18 149);
   --success-foreground: oklch(0.985 0 0);
+  /* On-surface text variant of --success: darker so text reads at WCAG AA 4.5:1
+     against a Pearl White card (L 1.0). Same hue/chroma as the fill token. */
+  --success-on-surface: oklch(0.48 0.16 149);
   --warning: oklch(0.75 0.18 75);
   --warning-foreground: oklch(0.21 0.006 285.885);
+  --warning-on-surface: oklch(0.50 0.15 65);
   --info: oklch(0.62 0.19 255);
   --info-foreground: oklch(0.985 0 0);
+  --info-on-surface: oklch(0.50 0.20 255);
+  --destructive-on-surface: oklch(0.50 0.22 27.325);
   --sidebar: oklch(0.985 0 0);
   --sidebar-foreground: oklch(0.141 0.005 285.823);
   --sidebar-primary: oklch(0.546 0.245 262.881);
@@ -126,10 +136,16 @@
   --chart-6: oklch(0.705 0.213 47.604);
   --success: oklch(0.65 0.17 149);
   --success-foreground: oklch(0.985 0 0);
+  /* On-surface text variant for the dark Slate card (L 0.21): lighter so it
+     reads at AA 4.5:1+. Hue/chroma match the fill token. */
+  --success-on-surface: oklch(0.78 0.17 149);
   --warning: oklch(0.80 0.16 75);
   --warning-foreground: oklch(0.21 0.006 285.885);
+  --warning-on-surface: oklch(0.85 0.16 75);
   --info: oklch(0.68 0.17 255);
   --info-foreground: oklch(0.985 0 0);
+  --info-on-surface: oklch(0.78 0.18 255);
+  --destructive-on-surface: oklch(0.78 0.18 22.216);
   --sidebar: oklch(0.21 0.006 285.885);
   --sidebar-foreground: oklch(0.985 0 0);
   --sidebar-primary: oklch(0.623 0.214 259.815);
