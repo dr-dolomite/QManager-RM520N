@@ -19,3 +19,57 @@ export interface LanguageMeta {
    */
   bundled: boolean;
 }
+
+// ---------------------------------------------------------------------------
+// Language-pack pipeline (Increment A: authoring/build/publish).
+//
+// These describe the pack format and the remote manifest index produced by
+// `bun run lang build|publish` and stored under `language-packs/`. They are the
+// forward-compatible seams the LATER device-side downloader increment will
+// consume; nothing in the app runtime imports them yet.
+// ---------------------------------------------------------------------------
+
+/** Metadata embedded in a pack tarball as `_pack.json`. */
+export interface PackMeta {
+  /** Bumped when the pack on-disk format changes; a downloader rejects newer. */
+  pack_format: number;
+  code: LanguageCode;
+  native_name: string;
+  english_name: string;
+  rtl: boolean;
+  /** Pack version, `YYYY.MM.DD`. */
+  version: string;
+  /** App release whose English key-set this pack was validated against (semver). */
+  app_min_version: string;
+  namespaces: Namespace[] | string[];
+  completeness: {
+    overall: number; // 0..1
+    per_namespace: Record<string, number>;
+  };
+  key_count: { translated: number; total: number };
+  generated_at: string; // ISO-8601
+  contributors: string[];
+}
+
+/** One language's entry in the remote manifest index. */
+export interface RemoteManifestEntry {
+  code: LanguageCode;
+  native_name: string;
+  english_name: string;
+  rtl: boolean;
+  version: string;
+  app_min_version: string;
+  completeness: number; // overall 0..1 (per-namespace detail lives in the pack)
+  size_bytes: number;
+  sha256: string;
+  url: string;
+  contributors: string[];
+}
+
+/** The manifest index published as a release asset + kept under language-packs/. */
+export interface RemoteManifest {
+  manifest_version: number;
+  generated_at: string; // ISO-8601
+  app_repo: string;
+  packs: RemoteManifestEntry[];
+}

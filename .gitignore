@@ -45,6 +45,9 @@ qmanager-build/
 qmanager_install/
 RELEASE_NOTE.md
 
+# language-pack build output (maintainer `bun run lang build`)
+/dist/
+
 # claude superpowers
 /.superpowers
 /docs/superpowers

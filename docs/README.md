@@ -18,6 +18,7 @@ QManager is a modern web-based GUI that runs **on the Quectel RM520N-GL modem it
 | [API Reference](API-REFERENCE.md) | Complete CGI endpoint reference with request/response schemas |
 | [Design System](DESIGN-SYSTEM.md) | Developer reference (shadcn setup, component inventory, responsive recipes, theming mechanism). Visual authority is root [`DESIGN.md`](../DESIGN.md) |
 | [Deployment Guide](DEPLOYMENT.md) | Building the static export and installing onto the RM520N-GL |
+| [Contributing Translations](CONTRIBUTING-translations.md) | Non-developer guide to adding/completing a language with the `bun run lang` toolkit (pairs with [reference/i18n.md](reference/i18n.md)) |
 | [RM520N-GL Architecture](rm520n-gl-architecture.md) | Platform internals, Entware bootstrap, lighttpd, boot sequence, AT handling, troubleshooting |
 | [RM520N Phase 2: Systemd Migration](rm520n-phase2-systemd-migration.md) | Converting the legacy procd/init.d model to systemd service units for the RM520N-GL |
 | [reference/](reference/) | Per-feature and per-subsystem operational notes (AT transport, data usage counter, WAN profiles, SIM profiles, connection watchdog, Discord bot, custom DNS, antenna alignment, timezone, install/runtime internals). See [reference/README.md](reference/README.md) for the index. |
