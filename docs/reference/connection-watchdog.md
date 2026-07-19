@@ -39,15 +39,17 @@ The Connection Watchdog (`qmanager_watchcat`) is a self-healing daemon that watc
 The daemon runs one loop on a `check_interval` cadence (default 10s), transitioning between these states:
 
 ```
-MONITOR ──streak_fail>0──▶ SUSPECT ──failures ≥ max_failures──▶ RECOVERY ──▶ COOLDOWN ──▶ MONITOR
-   ▲                          │  (connectivity restored naturally)                │
-   └──────────────────────────┘◀───────────────────────────────────────────────┘
+MONITOR ──streak_fail>0──▶ SUSPECT ──streak_fail ≥ fail_threshold──▶ RECOVERY ──▶ COOLDOWN ──▶ MONITOR
+   ▲                          │  (connectivity restored naturally)                     │
+   └──────────────────────────┘◀────────────────────────────────────────────────────┘
 LOCKED    — maintenance mode; sleeps until the lock clears
 DISABLED  — turned off (config, or auto-disabled by the Tier-4 cap)
 ```
 
 - **MONITOR** — the healthy resting state. Reads `qmanager_ping.json` each cycle; if the ping daemon reports any failure streak (`streak_fail > 0`) it moves to SUSPECT.
-- **SUSPECT** — a debounce window. Each cycle that stays down increments `failure_count`; a clean read returns straight to MONITOR. When `failure_count` reaches `max_failures`, the watchdog declares the connection down and enters RECOVERY. This is why the UI previews "declares down after ~`check_interval × max_failures`s".
+- **SUSPECT** — the decision window. The watchdog compares the ping daemon's **raw `streak_fail`** — the count of consecutive failed *probes* the daemon has already tallied — directly against `fail_threshold`. A clean read (`reachable=true` and `streak_fail == 0`) returns straight to MONITOR; when `streak_fail ≥ fail_threshold` the watchdog declares the connection down and enters RECOVERY. This is why the UI previews "declares down after ~`probe_interval × fail_threshold`s" — the daemon probes every `probe_interval` seconds, so it takes roughly that many probes to reach the threshold.
+
+> ℹ️ NOTE — the double-debounce fix: the watchdog now trusts the ping daemon's `streak_fail` as the single count of consecutive failures, rather than re-counting its own loop cycles on top of the daemon's already-debounced signal. Previously each side counted independently (the daemon debounced its probes into a verdict, *then* the watchdog counted its own passes on top), so the real time-to-recovery was the product of two debounce windows and drifted far from what the UI advertised. `check_interval` is now purely the watchdog's internal *sampling* cadence — how often it wakes to re-read the cache — and is no longer the unit the down-declaration is measured in; the probe cadence (`probe_interval`) is what governs detection timing.
 - **RECOVERY** — runs the current tier's action (see the ladder below), then drops into COOLDOWN. It doesn't linger here.
 - **COOLDOWN** — waits for the action to settle, then re-reads the ping verdict to decide success or escalation (see *Cooldown adjudication*).
 - **LOCKED** — set whenever a maintenance condition is present: the lock file `/tmp/qmanager_watchcat.lock` exists (touched by the OTA updater and installer), a long-running AT command is in flight (`/tmp/qmanager_long_running`), or a SIM-profile apply is running (`/tmp/qmanager_profile_apply.pid` points at a live process). The watchdog parks here so its AT commands never race those operations.
@@ -147,8 +149,9 @@ Config lives in `/etc/qmanager/qmanager.conf` under `[watchcat]`, read/written v
 | Key | Type | CGI-validated range | Default | Meaning |
 |-----|------|--------------------|---------|---------|
 | `enabled` | bool (0/1) | — | off | Master enable. Saving toggles the systemd unit (enable+start / stop+disable). |
-| `check_interval` | int (s) | 5–60 | 10 | Seconds between checks. The UI offers 5 / 10 / 15 / 30. |
-| `max_failures` | int | 1–20 | 5 | Consecutive failed checks before recovery starts. |
+| `fail_threshold` | int | 1–20 | 5 | Consecutive failed **probes** before recovery — compared directly against the ping daemon's raw `streak_fail`. Renamed from the retired `max_failures` (which counted the watchdog's own loop cycles). |
+| `probe_interval` | int (s) | 1–60 | 5 | Probe cadence — how often the ping daemon probes. **The Watchdog is the sole writer**; on save it is propagated into `/etc/qmanager/ping_profile.json`'s `.interval_sec`. |
+| `check_interval` | int (s) | 5–60 | 10 | The watchdog's internal *sampling* loop — how often it wakes to re-read the ping cache. No longer drives the down-declaration timing (that's `probe_interval × fail_threshold`). The UI offers 5 / 10 / 15 / 30. |
 | `cooldown` | int (s) | 10–300 | 60 | Wait after each recovery step before re-checking (Tier 3 is floored at 90s). |
 | `tier1_enabled` | bool | — | on | Enable Tier 1 (re-register). |
 | `tier2_enabled` | bool | — | on | Enable Tier 2 (radio toggle). |
@@ -157,7 +160,25 @@ Config lives in `/etc/qmanager/qmanager.conf` under `[watchcat]`, read/written v
 | `backup_sim_slot` | `1` \| `2` \| `null` | `1`/`2`/null | null | SIM slot to fail over to. Required when Tier 3 is on. |
 | `max_reboots_per_hour` | int | 1–10 | 3 | Tier-4 token-bucket cap. Auto-disable trips when hit. |
 
-> ℹ️ NOTE: The config key is `max_failures` — it is **not** renamed. There are **no** `quality_*`, `ssr_*`, or `primary_recheck_*` keys on the RM520N-GL; quality-trigger, SSR-aware-hold, and auto-failback are not implemented here.
+> ℹ️ NOTE: The failure-count key is now `fail_threshold` (the retired `max_failures` is migrated away — see *Migrations* below). There are still **no** `quality_*`, `ssr_*`, or `primary_recheck_*` keys on the RM520N-GL; quality-trigger, SSR-aware-hold, and auto-failback are not implemented here.
+
+### Split ownership of the probe cadence
+
+`probe_interval` is stored in **two** places, with the Watchdog as the single source of truth:
+
+1. `watchcat.probe_interval` in `qmanager.conf` — the canonical value the Watchdog's Detection tab reads and writes.
+2. `.interval_sec` in `/etc/qmanager/ping_profile.json` — what the ping daemon (`qmanager_ping`) actually consumes.
+
+On every save, `watchdog.sh` propagates (1) into (2) via an **atomic jq key-merge** (read the existing JSON, set only `.interval_sec`, temp-file + `mv`) and touches **both** `/tmp/qmanager_ping_reload` (so the ping daemon re-reads its cadence) and `/tmp/qmanager_watchcat_reload` (so the watchdog re-reads its config). The merge never overwrites the whole file, so it can't clobber the `profile`/`target_1`/`target_2` keys that the Connection Quality "Probe Targets" card owns independently in the same file (see [Ping source / split ownership](#ping-source--split-ownership)).
+
+### Migrations (hand-written — `config.sh` has no key-migration primitive)
+
+`qm_config_*` only seeds an empty config; it has no rename/migrate step, so the `max_failures` → `fail_threshold` rename is handled by two idempotent, defensive migrations:
+
+- **Installer** (`install_rm520n.sh` → `migrate_watchcat_fail_threshold`, run on every install/OTA): if `fail_threshold` is unset and `max_failures` is set, copy the value across and delete the old key; if both are unset, seed `fail_threshold=5`; if `fail_threshold` is already present, just prune any leftover `max_failures`. It also seeds `probe_interval=5` (the daemon's relaxed-profile default) when unset.
+- **Runtime** (`watchdog.sh` → `migrate_fail_threshold`, run on both GET and the save's Pass 2): covers a device that hits the CGI *before* the installer migration runs — same copy-across-then-delete logic, idempotent (returns immediately once `fail_threshold` is present).
+
+The delete side uses the new `qm_config_delete` primitive added to `config.sh` in this change.
 
 ---
 
@@ -237,7 +258,8 @@ Returns the saved config plus a snapshot of daemon/failover/swap state:
   "success": true,
   "settings": {
     "enabled": false,
-    "max_failures": 5,
+    "fail_threshold": 5,
+    "probe_interval": 5,
     "check_interval": 10,
     "cooldown": 60,
     "tier1_enabled": true,
@@ -264,7 +286,7 @@ Returns the saved config plus a snapshot of daemon/failover/swap state:
    { "success": false, "error": "invalid_field", "field": "cooldown", "reason": "must be an integer between 10 and 300" }
    ```
 
-2. **Pass 2 (apply):** only reached when every field validated. Writes each key via `qm_config_set`, touches the reload flag, and toggles the service — enable+restart when `enabled=1` (also clearing `auto_disabled`), or stop+disable when `enabled=0`.
+2. **Pass 2 (apply):** only reached when every field validated. First runs the defensive `migrate_fail_threshold()` (in case this device hasn't been touched by the installer migration yet), then writes each key via `qm_config_set`, touches the reload flag, and toggles the service — enable+restart when `enabled=1` (also clearing `auto_disabled`), or stop+disable when `enabled=0`. When `probe_interval` is present it additionally propagates the value into `ping_profile.json.interval_sec` and touches `/tmp/qmanager_ping_reload` (see below).
 
    ```json
    { "success": true }
@@ -272,7 +294,11 @@ Returns the saved config plus a snapshot of daemon/failover/swap state:
 
 > ℹ️ NOTE — why two passes: `qm_config_set` writes each key immediately with no commit-staging (no transaction). Validating everything up front is the only way to guarantee a bad request can't leave the config half-applied. Tier enable booleans are the one exception — anything other than literal `true`/`false` is silently ignored (legacy parity), not rejected.
 
-**Field ranges** (Pass 1): `max_failures` 1–20, `check_interval` 5–60, `cooldown` 10–300, `max_reboots_per_hour` 1–10, `backup_sim_slot` `1`/`2`/`null`.
+> ℹ️ NOTE — `migrate_fail_threshold()` also runs on **GET**, so a device that reads its settings before ever saving still gets `max_failures` transparently renamed to `fail_threshold`.
+
+**Field ranges** (Pass 1): `fail_threshold` 1–20, `probe_interval` 1–60, `check_interval` 5–60, `cooldown` 10–300, `max_reboots_per_hour` 1–10, `backup_sim_slot` `1`/`2`/`null`.
+
+**`probe_interval` propagation (Watchdog is the sole writer):** on save, `watchdog.sh` writes `watchcat.probe_interval` to `qmanager.conf` *and* merges it into `/etc/qmanager/ping_profile.json`'s `.interval_sec` via an atomic jq key-merge (`propagate_probe_interval`), then touches **both** reload flags — `/tmp/qmanager_ping_reload` (ping daemon re-reads cadence) and `/tmp/qmanager_watchcat_reload` (watchdog re-reads config). The merge only sets `.interval_sec`, so it never clobbers the `profile`/`target_1`/`target_2` keys owned by the Connection Quality "Probe Targets" card. Propagation is best-effort: the `watchcat.probe_interval` write always lands, and a failed merge is logged and skipped rather than failing the save.
 
 **`action: "dismiss_sim_swap"`** — marks the physical-SIM-swap notification dismissed. → `{ "success": true }`
 
@@ -294,11 +320,34 @@ Page: `/monitoring/watchdog` — `components/monitoring/watchdog/watchdog.tsx`. 
 - **Recovery Activity** (`watchdog-recovery-activity-card.tsx`) — a paginated table of recent `watchcat_recovery` + `sim_failover` events.
 
 **Right column:**
-- **Watchdog Settings** (`watchdog-settings-card.tsx`) — tabbed **Detection** (check interval, failure threshold, cooldown, plus a live "declares down after ~Ns" derivation) and **Recovery** (the four-rung ladder with per-tier switches, each showing its AT sequence; the backup-slot selector under Tier 3 and the reboot cap under Tier 4). One sticky save bar commits the whole form (the backend save is atomic). Each tab shows an error dot when a field on it is invalid, and a blocked save jumps to the first offending field.
+- **Watchdog Settings** (`watchdog-settings-card.tsx`) — tabbed **Detection** (**probe interval**, **failure threshold**, cooldown, plus a live "declares down after ~Ns" derivation computed as `probeInterval × failThreshold`) and **Recovery** (the four-rung ladder with per-tier switches, each showing its AT sequence; the backup-slot selector under Tier 3 and the reboot cap under Tier 4). One sticky save bar commits the whole form (the backend save is atomic). Each tab shows an error dot when a field on it is invalid, and a blocked save jumps to the first offending field. `check_interval` is no longer a user-facing field — the form carries it through read-only (`use-watchdog-form.ts`) so it round-trips unchanged.
 
 **Backup-slot save gating:** enabling Tier 3 without choosing a backup slot **blocks the save** in the form (`use-watchdog-form.ts`) — the frontend guard that keeps you out of the misconfig-stops-ladder state described above. The form validation mirrors the CGI ranges exactly.
 
 > ℹ️ NOTE: All copy is inline English — the RM520N build has no i18n on this page.
+
+---
+
+## Ping source / split ownership
+
+The connectivity verdict the watchdog reads is produced by the **`qmanager_ping` daemon** — a small always-on producer that issues HTTP/204 probes and writes its verdict (including the raw `streak_fail` count) to `/tmp/qmanager_ping.json`. It runs independently of the watchdog: **the daemon stays up regardless of `watchcat.enabled`**, so the Connection Quality page and the poller still get a live verdict even when the watchdog itself is off. The watchdog only ever *reads* that file — it never probes and never writes it.
+
+The daemon's own config lives in `/etc/qmanager/ping_profile.json`, and that one file has **two independent writers** (each an atomic key-merge, never a whole-file overwrite):
+
+| Owner | CGI | Keys it writes | Reload flag it touches |
+|-------|-----|----------------|------------------------|
+| **Connection Watchdog** (Detection tab) | `monitoring/watchdog.sh` | `interval_sec` (from `watchcat.probe_interval`) | `/tmp/qmanager_ping_reload` **and** `/tmp/qmanager_watchcat_reload` |
+| **Connection Quality** ("Probe Targets" card) | `settings/ping_profile.sh` | `profile`, `target_1`, `target_2` | `/tmp/qmanager_ping_reload` |
+
+Because each writer merges only its own keys, the two never clobber each other. This is the split-ownership realignment: **the Watchdog owns the *cadence* (probe interval + fail threshold), the Connection Quality page owns the *targets*.** The old "Connectivity Sensitivity" card — which used to pick a profile (sensitive/regular/relaxed/quiet) and display interval/fail/recover — is gone, replaced by the targets-only "Probe Targets" card. One documented side effect: since `ping_profile.sh` no longer overwrites the whole file, changing `profile` no longer resets the daemon's internal `fail_secs`/`recover_secs`/`intercept_secs`/`history_secs` debounce fields — once present, those pass through unchanged. `profile` is now effectively a label paired with the targets.
+
+> ℹ️ NOTE: The Quality Thresholds card (latency/loss presets feeding `events.sh` alerts) is a **separate** surface and was not touched by this rework.
+
+---
+
+## Known limitations
+
+- **`qm_config_set` doesn't gate its `mv` on jq's exit status** (pre-existing). The `>` redirect creates an empty temp file *before* jq runs, so if jq fails on a corrupt/unparseable config, the unconditional `mv` publishes that empty temp over the live config. The `qm_config_delete` primitive added in this change was hardened against exactly this (it gates the `mv` on jq success); `qm_config_set` was left as-is and remains a latent hazard for a future fix.
 
 ---
 

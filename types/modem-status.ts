@@ -353,17 +353,6 @@ export function worstSignalQuality(...qualities: SignalQuality[]): SignalQuality
 /** Daemon's authoritative tri-state connectivity outcome (from qmanager_ping.json's `connectivity` field). */
 export type PingTriState = "connected" | "limited" | "disconnected" | "unknown";
 
-/** User-selectable ping daemon sensitivity profile. */
-export type PingProfile = "sensitive" | "regular" | "relaxed" | "quiet";
-
-/** Display-order list of the four named profiles. */
-export const PING_PROFILES: readonly PingProfile[] = [
-  "sensitive",
-  "regular",
-  "relaxed",
-  "quiet",
-] as const;
-
 /** User-selectable preset for high_latency / high_packet_loss event thresholds. */
 export type QualityPreset = "standard" | "tolerant" | "very-tolerant";
 
@@ -424,7 +413,7 @@ export interface ConnectivityStatus {
   down_reason: string | null;
   /** Consecutive limited-outcome probes. Resets on any other outcome. */
   streak_limited: number;
-  /** Daemon's runtime profile string. Can be one of PingProfile, or "custom" (env-var override),
+  /** Daemon's runtime profile string. A named preset, "custom" (env-var override),
       or "unknown" (daemon dead/stale). Typed as string to admit all three. */
   profile: string;
   /** Runtime fail-threshold in seconds (active in the daemon). 0 if daemon dead/stale. */

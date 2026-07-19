@@ -11,6 +11,17 @@
 # Config: /etc/qmanager/qmanager.conf [watchcat] section
 # State:  /tmp/qmanager_watchcat.json (read-only, written by daemon)
 #
+# --- Split-ownership (fail cadence vs. probe targets) -----------------------
+# The Watchdog owns BOTH the fail_threshold (consecutive failed probes before
+# recovery — read by qmanager_watchcat against /tmp/qmanager_ping.json's raw
+# .streak_fail) AND the probe_interval (probe cadence). It is the SOLE writer
+# of probe_interval, which it propagates into /etc/qmanager/ping_profile.json's
+# `interval_sec` (an atomic key-merge, never a whole-file overwrite — that file
+# is also written independently by settings/ping_profile.sh for target_1/
+# target_2/profile, and must never clobber the other writer's key). The
+# Connectivity Sensitivity card (settings/ping_profile.sh) owns only the probe
+# targets and no longer has any say over interval or fail cadence.
+#
 # Endpoint: GET/POST /cgi-bin/quecmanager/monitoring/watchdog.sh
 # Install location: /www/cgi-bin/quecmanager/monitoring/watchdog.sh
 # =============================================================================
@@ -23,6 +34,8 @@ WATCHCAT_STATE="/tmp/qmanager_watchcat.json"
 SIM_SWAP_FLAG="/tmp/qmanager_sim_swap_detected"
 SIM_FAILOVER_FILE="/etc/qmanager/qmanager_sim_failover"
 RELOAD_FLAG="/tmp/qmanager_watchcat_reload"
+PING_RELOAD_FLAG="/tmp/qmanager_ping_reload"
+PING_PROFILE_CONFIG="/etc/qmanager/ping_profile.json"
 REVERT_FLAG="/tmp/qmanager_watchcat_revert_sim"
 DISABLED_FLAG="/tmp/qmanager_watchcat_disabled"
 
@@ -32,6 +45,43 @@ validate_int() {
     local val="$1" min="$2" max="$3"
     case "$val" in ''|*[!0-9]*) return 1 ;; esac
     [ "$val" -ge "$min" ] 2>/dev/null && [ "$val" -le "$max" ] 2>/dev/null
+}
+
+# Defensive runtime migration: if a legacy watchcat.max_failures value exists
+# and watchcat.fail_threshold is unset, copy it across once and delete the old
+# key. Idempotent (returns immediately once fail_threshold is present). Covers
+# a device that hits this CGI before the installer's own migration runs.
+migrate_fail_threshold() {
+    local current legacy
+    current=$(qm_config_get watchcat fail_threshold "")
+    [ -n "$current" ] && return
+    legacy=$(qm_config_get watchcat max_failures "")
+    if [ -n "$legacy" ]; then
+        qm_config_set watchcat fail_threshold "$legacy"
+        qm_config_delete watchcat max_failures
+        qlog_info "Migrated watchcat.max_failures -> watchcat.fail_threshold ($legacy)"
+    fi
+}
+
+# Propagate the Watchdog-owned probe interval into ping_profile.json's
+# interval_sec via an atomic key-merge (read existing JSON, set only
+# .interval_sec, temp-file + mv). NEVER overwrites the whole file — that would
+# clobber target_1/target_2/profile, which settings/ping_profile.sh owns
+# independently in the same file. Best-effort: logs and continues on failure,
+# matching the non-fatal reload-flag pattern used elsewhere in this endpoint —
+# the watchcat.probe_interval config value is already saved regardless.
+propagate_probe_interval() {
+    local interval="$1"
+    local existing='{}'
+    [ -f "$PING_PROFILE_CONFIG" ] && existing=$(cat "$PING_PROFILE_CONFIG" 2>/dev/null)
+    [ -z "$existing" ] && existing='{}'
+    mkdir -p "$(dirname "$PING_PROFILE_CONFIG")"
+    if printf '%s' "$existing" | jq --argjson v "$interval" '.interval_sec = $v' > "${PING_PROFILE_CONFIG}.tmp" 2>/dev/null; then
+        mv "${PING_PROFILE_CONFIG}.tmp" "$PING_PROFILE_CONFIG"
+    else
+        rm -f "${PING_PROFILE_CONFIG}.tmp"
+        qlog_error "Failed to propagate probe_interval into $PING_PROFILE_CONFIG"
+    fi
 }
 
 # reject_field: emit a structured validation error and exit. Used only
@@ -49,12 +99,14 @@ reject_field() {
 if [ "$REQUEST_METHOD" = "GET" ]; then
     qlog_info "Fetching watchdog settings"
     qm_config_init
+    migrate_fail_threshold
 
-    enabled="" max_failures="" check_interval="" cooldown=""
+    enabled="" fail_threshold="" probe_interval="" check_interval="" cooldown=""
     tier1="" tier2="" tier3="" tier4="" backup_sim="" max_reboots=""
 
     enabled=$(qm_config_get watchcat enabled 0)
-    max_failures=$(qm_config_get watchcat max_failures 5)
+    fail_threshold=$(qm_config_get watchcat fail_threshold 5)
+    probe_interval=$(qm_config_get watchcat probe_interval 5)
     check_interval=$(qm_config_get watchcat check_interval 10)
     cooldown=$(qm_config_get watchcat cooldown 60)
     tier1=$(qm_config_get watchcat tier1_enabled 1)
@@ -88,7 +140,8 @@ if [ "$REQUEST_METHOD" = "GET" ]; then
 
     jq -n \
         --argjson enabled "$enabled" \
-        --argjson max_failures "$max_failures" \
+        --argjson fail_threshold "$fail_threshold" \
+        --argjson probe_interval "$probe_interval" \
         --argjson check_interval "$check_interval" \
         --argjson cooldown "$cooldown" \
         --argjson tier1 "$tier1" \
@@ -105,7 +158,8 @@ if [ "$REQUEST_METHOD" = "GET" ]; then
             success: true,
             settings: {
                 enabled: ($enabled == 1),
-                max_failures: $max_failures,
+                fail_threshold: $fail_threshold,
+                probe_interval: $probe_interval,
                 check_interval: $check_interval,
                 cooldown: $cooldown,
                 tier1_enabled: ($tier1 == 1),
@@ -151,9 +205,14 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
         # ---------------------------------------------------------------
         f_enabled=$(printf '%s' "$POST_DATA" | jq -r '.enabled | if . == null then empty else tostring end')
 
-        f_max_failures=$(printf '%s' "$POST_DATA" | jq -r '.max_failures // empty')
-        if [ -n "$f_max_failures" ]; then
-            validate_int "$f_max_failures" 1 20 || reject_field "max_failures" "must be an integer between 1 and 20"
+        f_fail_threshold=$(printf '%s' "$POST_DATA" | jq -r '.fail_threshold // empty')
+        if [ -n "$f_fail_threshold" ]; then
+            validate_int "$f_fail_threshold" 1 20 || reject_field "fail_threshold" "must be an integer between 1 and 20"
+        fi
+
+        f_probe_interval=$(printf '%s' "$POST_DATA" | jq -r '.probe_interval // empty')
+        if [ -n "$f_probe_interval" ]; then
+            validate_int "$f_probe_interval" 1 60 || reject_field "probe_interval" "must be an integer between 1 and 60"
         fi
 
         f_check_interval=$(printf '%s' "$POST_DATA" | jq -r '.check_interval // empty')
@@ -191,6 +250,7 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
         # PASS 2 — apply. Only reached if every field above validated cleanly.
         # ---------------------------------------------------------------
         qm_config_init
+        migrate_fail_threshold
 
         if [ -n "$f_enabled" ]; then
             case "$f_enabled" in
@@ -199,7 +259,17 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
             esac
         fi
 
-        [ -n "$f_max_failures" ] && qm_config_set watchcat max_failures "$f_max_failures"
+        [ -n "$f_fail_threshold" ] && qm_config_set watchcat fail_threshold "$f_fail_threshold"
+
+        # probe_interval: Watchdog is the SOLE writer. Save to qmanager.conf
+        # AND propagate into ping_profile.json's interval_sec (atomic merge —
+        # never touches target_1/target_2/profile, which ping_profile.sh owns).
+        if [ -n "$f_probe_interval" ]; then
+            qm_config_set watchcat probe_interval "$f_probe_interval"
+            propagate_probe_interval "$f_probe_interval"
+            touch "$PING_RELOAD_FLAG"
+        fi
+
         [ -n "$f_check_interval" ] && qm_config_set watchcat check_interval "$f_check_interval"
         [ -n "$f_cooldown" ] && qm_config_set watchcat cooldown "$f_cooldown"
 

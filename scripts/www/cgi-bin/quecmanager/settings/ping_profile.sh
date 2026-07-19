@@ -3,12 +3,27 @@
 # ping_profile.sh — CGI Endpoint: Connectivity Sensitivity Profile (GET + POST)
 # =============================================================================
 # GET:  Returns current ping profile selection.
-# POST: Saves profile selection (one of sensitive/regular/relaxed/quiet),
-#       writes /etc/qmanager/ping_profile.json atomically, pokes the daemon's
-#       reload flag at /tmp/qmanager_ping_reload.
+# POST: Saves profile selection (one of sensitive/regular/relaxed/quiet) and
+#       the probe targets, merging them into /etc/qmanager/ping_profile.json,
+#       then pokes the daemon's reload flag at /tmp/qmanager_ping_reload.
 #
 # The daemon's for_profile() map is the single source of truth for the actual
-# threshold values — this CGI writes only the profile name, not the thresholds.
+# threshold values — this CGI writes only the profile name (+ targets), not
+# the thresholds.
+#
+# --- Split-ownership (probe targets vs. fail cadence) -----------------------
+# This endpoint owns ONLY `profile` (label) + `target_1` + `target_2` in
+# ping_profile.json. monitoring/watchdog.sh is the SOLE writer of
+# `interval_sec` (the Watchdog owns the probe cadence + fail threshold as of
+# the split-ownership rework — see docs/reference/connection-watchdog.md).
+# Every write here is therefore an ATOMIC KEY-MERGE (read existing JSON, set
+# only profile/target_1/target_2, temp-file + mv) — NEVER a whole-file
+# overwrite, or it would silently clobber the interval_sec the Watchdog wrote.
+# One side effect: changing `profile` here no longer resets the daemon's
+# internal fail_secs/recover_secs/intercept_secs/history_secs debounce
+# windows (previously reset via the old whole-file overwrite's field-absence
+# trick) — those keys, once present, now pass through unchanged on every
+# save. `profile` is effectively a label paired with the targets.
 #
 # Endpoint: GET/POST /cgi-bin/quecmanager/settings/ping_profile.sh
 # Install location: /www/cgi-bin/quecmanager/settings/ping_profile.sh
@@ -144,11 +159,21 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
 
     mkdir -p "$(dirname "$CONFIG")"
 
-    if ! jq -n \
+    # Atomic key-merge: read the existing file (if any) and set only our
+    # three owned keys, leaving interval_sec (Watchdog-owned) and any daemon
+    # debounce fields (fail_secs/recover_secs/intercept_secs/history_secs)
+    # untouched. See the file-header note on split ownership.
+    existing_json='{}'
+    if [ -f "$CONFIG" ]; then
+        existing_json=$(cat "$CONFIG" 2>/dev/null)
+        [ -z "$existing_json" ] && existing_json='{}'
+    fi
+
+    if ! printf '%s' "$existing_json" | jq \
         --arg profile "$new_profile" \
         --arg target_1 "$new_t1" \
         --arg target_2 "$new_t2" \
-        '{profile: $profile, target_1: $target_1, target_2: $target_2}' \
+        '.profile = $profile | .target_1 = $target_1 | .target_2 = $target_2' \
         > "${CONFIG}.tmp"; then
         rm -f "${CONFIG}.tmp"
         cgi_error "write_failed" "Failed to generate config JSON"

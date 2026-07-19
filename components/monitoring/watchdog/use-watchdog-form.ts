@@ -23,11 +23,12 @@ import type {
 // initial-value pattern honest without a setState-in-effect (forbidden by the
 // project's React-Compiler lint rules).
 
-/** Detection cadence, in seconds. The Select is constrained to these values. */
-export const CHECK_INTERVAL_OPTIONS = [5, 10, 15, 30] as const;
+/** Probe cadence options (seconds) offered by the Probe Interval Select. */
+export const PROBE_INTERVAL_OPTIONS = [1, 2, 5, 10, 15, 30] as const;
 
 export interface WatchdogFormErrors {
-  maxFailures: string | null;
+  failThreshold: string | null;
+  probeInterval: string | null;
   cooldown: string | null;
   maxReboots: string | null;
   backupSim: string | null;
@@ -39,13 +40,13 @@ export interface WatchdogForm {
   setIsEnabled: (v: boolean) => void;
 
   // Detection policy
-  checkInterval: string; // one of CHECK_INTERVAL_OPTIONS, as a string
-  setCheckInterval: (v: string) => void;
-  maxFailures: string;
-  setMaxFailures: (v: string) => void;
+  probeInterval: string; // one of PROBE_INTERVAL_OPTIONS, as a string (ping cadence)
+  setProbeInterval: (v: string) => void;
+  failThreshold: string;
+  setFailThreshold: (v: string) => void;
   cooldown: string;
   setCooldown: (v: string) => void;
-  /** check_interval × max_failures — honest "declares down after ~Ns". */
+  /** probe_interval × fail_threshold — honest "declares down after ~Ns". */
   estimatedDownSecs: number | null;
 
   // Recovery ladder tiers
@@ -96,10 +97,16 @@ export function useWatchdogForm({
   const { saved, markSaved } = useSaveFlash();
 
   const [isEnabled, setIsEnabled] = useState(settings.enabled);
-  const [checkInterval, setCheckInterval] = useState(
-    String(settings.check_interval),
+  // check_interval is the watchdog's internal sampling loop. It no longer has a
+  // user-facing control (probe_interval is the meaningful cadence now), but we
+  // still round-trip its saved value through the atomic save so it's preserved.
+  const [checkInterval] = useState(String(settings.check_interval));
+  const [probeInterval, setProbeInterval] = useState(
+    String(settings.probe_interval),
   );
-  const [maxFailures, setMaxFailures] = useState(String(settings.max_failures));
+  const [failThreshold, setFailThreshold] = useState(
+    String(settings.fail_threshold),
+  );
   const [cooldown, setCooldown] = useState(String(settings.cooldown));
   const [tier1Enabled, setTier1Enabled] = useState(settings.tier1_enabled);
   const [tier2Enabled, setTier2Enabled] = useState(settings.tier2_enabled);
@@ -113,16 +120,23 @@ export function useWatchdogForm({
   );
 
   // --- Derived preview ---
+  // Raw probe streak at the probe cadence: probe_interval × fail_threshold.
   const estimatedDownSecs = useMemo<number | null>(() => {
-    if (!isIntInRange(checkInterval, 1, 300)) return null;
-    if (!isIntInRange(maxFailures, 1, 20)) return null;
-    return Number(checkInterval) * Number(maxFailures);
-  }, [checkInterval, maxFailures]);
+    if (!isIntInRange(probeInterval, 1, 60)) return null;
+    if (!isIntInRange(failThreshold, 1, 20)) return null;
+    return Number(probeInterval) * Number(failThreshold);
+  }, [probeInterval, failThreshold]);
 
   // --- Validation (mirrors the CGI field ranges) ---
   const errors = useMemo<WatchdogFormErrors>(() => {
-    const maxFailuresErr =
-      maxFailures && !isIntInRange(maxFailures, 1, 20) ? "Must be 1–20" : null;
+    const failThresholdErr =
+      failThreshold && !isIntInRange(failThreshold, 1, 20)
+        ? "Must be 1–20"
+        : null;
+    const probeIntervalErr =
+      probeInterval && !isIntInRange(probeInterval, 1, 60)
+        ? "Must be 1–60 seconds"
+        : null;
     const cooldownErr =
       cooldown && !isIntInRange(cooldown, 10, 300)
         ? "Must be 10–300 seconds"
@@ -139,12 +153,13 @@ export function useWatchdogForm({
         : null;
 
     return {
-      maxFailures: maxFailuresErr,
+      failThreshold: failThresholdErr,
+      probeInterval: probeIntervalErr,
       cooldown: cooldownErr,
       maxReboots: maxRebootsErr,
       backupSim: backupSimErr,
     };
-  }, [maxFailures, cooldown, tier4Enabled, maxRebootsPerHour, tier3Enabled, backupSimSlot]);
+  }, [failThreshold, probeInterval, cooldown, tier4Enabled, maxRebootsPerHour, tier3Enabled, backupSimSlot]);
 
   const hasValidationErrors = useMemo(
     () => Object.values(errors).some(Boolean),
@@ -153,15 +168,16 @@ export function useWatchdogForm({
 
   // Empty-while-required fields aren't range errors but still can't be saved.
   const hasEmptyRequired =
-    maxFailures.trim() === "" ||
+    failThreshold.trim() === "" ||
+    probeInterval.trim() === "" ||
     cooldown.trim() === "" ||
     (tier4Enabled && maxRebootsPerHour.trim() === "");
 
   const isDirty = useMemo(
     () =>
       isEnabled !== settings.enabled ||
-      checkInterval !== String(settings.check_interval) ||
-      maxFailures !== String(settings.max_failures) ||
+      probeInterval !== String(settings.probe_interval) ||
+      failThreshold !== String(settings.fail_threshold) ||
       cooldown !== String(settings.cooldown) ||
       tier1Enabled !== settings.tier1_enabled ||
       tier2Enabled !== settings.tier2_enabled ||
@@ -175,8 +191,8 @@ export function useWatchdogForm({
     [
       settings,
       isEnabled,
-      checkInterval,
-      maxFailures,
+      probeInterval,
+      failThreshold,
       cooldown,
       tier1Enabled,
       tier2Enabled,
@@ -196,7 +212,9 @@ export function useWatchdogForm({
     const payload: WatchdogSavePayload = {
       action: "save_settings",
       enabled: isEnabled,
-      max_failures: parseInt(maxFailures, 10),
+      fail_threshold: parseInt(failThreshold, 10),
+      probe_interval: parseInt(probeInterval, 10),
+      // Preserved untouched: no user-facing control, round-tripped at its saved value.
       check_interval: parseInt(checkInterval, 10),
       cooldown: parseInt(cooldown, 10),
       tier1_enabled: tier1Enabled,
@@ -220,7 +238,8 @@ export function useWatchdogForm({
     isDirty,
     isSaving,
     isEnabled,
-    maxFailures,
+    failThreshold,
+    probeInterval,
     checkInterval,
     cooldown,
     tier1Enabled,
@@ -235,10 +254,11 @@ export function useWatchdogForm({
   ]);
 
   // Discard resets every field to the server-truth in `settings`.
+  // check_interval has no control, so it never diverges — nothing to reset.
   const discard = useCallback(() => {
     setIsEnabled(settings.enabled);
-    setCheckInterval(String(settings.check_interval));
-    setMaxFailures(String(settings.max_failures));
+    setProbeInterval(String(settings.probe_interval));
+    setFailThreshold(String(settings.fail_threshold));
     setCooldown(String(settings.cooldown));
     setTier1Enabled(settings.tier1_enabled);
     setTier2Enabled(settings.tier2_enabled);
@@ -253,10 +273,10 @@ export function useWatchdogForm({
   return {
     isEnabled,
     setIsEnabled,
-    checkInterval,
-    setCheckInterval,
-    maxFailures,
-    setMaxFailures,
+    probeInterval,
+    setProbeInterval,
+    failThreshold,
+    setFailThreshold,
     cooldown,
     setCooldown,
     estimatedDownSecs,

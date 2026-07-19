@@ -9,7 +9,10 @@ const CGI_ENDPOINT = "/cgi-bin/quecmanager/monitoring/watchdog.sh";
 
 export interface WatchdogSettings {
   enabled: boolean;
-  max_failures: number;
+  /** Consecutive failed PROBES (raw ping streak) before recovery begins. */
+  fail_threshold: number;
+  /** Ping probe cadence in seconds. The watchdog owns this and propagates it to the ping daemon on save. */
+  probe_interval: number;
   check_interval: number;
   cooldown: number;
   tier1_enabled: boolean;
@@ -110,7 +113,14 @@ export function useWatchdogSettings(): UseWatchdogSettingsReturn {
         return;
       }
 
-      setSettings(json.settings);
+      // Defensive defaults: the frozen backend always emits fail_threshold +
+      // probe_interval, but guard the rename so an older/partial envelope during
+      // an OTA rollout can't seed the form with NaN.
+      setSettings({
+        ...json.settings,
+        fail_threshold: json.settings?.fail_threshold ?? 5,
+        probe_interval: json.settings?.probe_interval ?? 5,
+      });
       setStatus(json.status && json.status.timestamp ? json.status : null);
       setSimFailover(json.sim_failover || null);
       setSimSwap(json.sim_swap || null);

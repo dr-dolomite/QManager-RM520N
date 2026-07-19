@@ -44,7 +44,7 @@ import {
 } from "lucide-react";
 import { TbInfoCircleFilled } from "react-icons/tb";
 import { cn } from "@/lib/utils";
-import { CHECK_INTERVAL_OPTIONS, type WatchdogForm } from "./use-watchdog-form";
+import { PROBE_INTERVAL_OPTIONS, type WatchdogForm } from "./use-watchdog-form";
 
 type SettingsTab = "detection" | "recovery";
 
@@ -63,7 +63,8 @@ export function WatchdogSettingsCard({ form }: { form: WatchdogForm }) {
 
   // Empty-while-required blockers the hook folds into canSave but doesn't expose
   // as named errors — recomputed here so the tab dots + jump logic see them.
-  const maxFailuresMissing = form.maxFailures.trim() === "";
+  const failThresholdMissing = form.failThreshold.trim() === "";
+  const probeIntervalMissing = form.probeInterval.trim() === "";
   const cooldownMissing = form.cooldown.trim() === "";
   const maxRebootsMissing =
     form.tier4Enabled && form.maxRebootsPerHour.trim() === "";
@@ -71,13 +72,19 @@ export function WatchdogSettingsCard({ form }: { form: WatchdogForm }) {
   const e = form.errors;
   const tabErrors: Record<SettingsTab, boolean> = {
     detection:
-      !!e.maxFailures || !!e.cooldown || maxFailuresMissing || cooldownMissing,
+      !!e.failThreshold ||
+      !!e.probeInterval ||
+      !!e.cooldown ||
+      failThresholdMissing ||
+      probeIntervalMissing ||
+      cooldownMissing,
     recovery: !!e.backupSim || !!e.maxReboots || maxRebootsMissing,
   };
 
   const blocked =
     form.hasValidationErrors ||
-    maxFailuresMissing ||
+    failThresholdMissing ||
+    probeIntervalMissing ||
     cooldownMissing ||
     maxRebootsMissing;
 
@@ -112,8 +119,13 @@ export function WatchdogSettingsCard({ form }: { form: WatchdogForm }) {
   const orderedErrors: { tab: SettingsTab; id: string; present: boolean }[] = [
     {
       tab: "detection",
-      id: "max-failures",
-      present: !!e.maxFailures || maxFailuresMissing,
+      id: "probe-interval",
+      present: !!e.probeInterval || probeIntervalMissing,
+    },
+    {
+      tab: "detection",
+      id: "fail-threshold",
+      present: !!e.failThreshold || failThresholdMissing,
     },
     {
       tab: "detection",
@@ -186,62 +198,79 @@ export function WatchdogSettingsCard({ form }: { form: WatchdogForm }) {
             <FieldSet>
               <FieldGroup>
                 <div className="grid grid-cols-1 gap-4 @sm/card:grid-cols-2">
-                  {/* Check interval */}
+                  {/* Probe interval — how often the modem probes the internet */}
                   <Field>
-                    <FieldLabel htmlFor="check-interval">
-                      Check Interval
+                    <FieldLabel htmlFor="probe-interval">
+                      Probe Interval
                     </FieldLabel>
                     <Select
-                      value={form.checkInterval}
-                      onValueChange={form.setCheckInterval}
+                      value={form.probeInterval}
+                      onValueChange={form.setProbeInterval}
                       disabled={masterOff}
                     >
-                      <SelectTrigger id="check-interval">
+                      <SelectTrigger
+                        id="probe-interval"
+                        ref={registerField("probe-interval")}
+                        aria-invalid={!!e.probeInterval}
+                        aria-describedby={
+                          e.probeInterval
+                            ? "probe-interval-error"
+                            : "probe-interval-desc"
+                        }
+                      >
                         <SelectValue placeholder="Select interval" />
                       </SelectTrigger>
                       <SelectContent>
-                        {CHECK_INTERVAL_OPTIONS.map((secs) => (
+                        {PROBE_INTERVAL_OPTIONS.map((secs) => (
                           <SelectItem key={secs} value={String(secs)}>
-                            {secs} seconds
+                            {secs === 1 ? "1 second" : `${secs} seconds`}
                           </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
-                    <FieldDescription>
-                      How often the watchdog checks your internet connection.
-                    </FieldDescription>
+                    {e.probeInterval ? (
+                      <FieldError id="probe-interval-error">
+                        {e.probeInterval}
+                      </FieldError>
+                    ) : (
+                      <FieldDescription id="probe-interval-desc">
+                        How often the modem probes the internet to confirm it&apos;s
+                        reachable.
+                      </FieldDescription>
+                    )}
                   </Field>
 
-                  {/* Failure threshold */}
+                  {/* Failure threshold — consecutive failed probes before recovery */}
                   <Field>
-                    <FieldLabel htmlFor="max-failures">
+                    <FieldLabel htmlFor="fail-threshold">
                       Failure Threshold
                     </FieldLabel>
                     <Input
-                      ref={registerField("max-failures")}
-                      id="max-failures"
+                      ref={registerField("fail-threshold")}
+                      id="fail-threshold"
                       type="number"
                       inputMode="numeric"
                       min="1"
                       max="20"
                       placeholder="5"
                       className="tabular-nums"
-                      value={form.maxFailures}
-                      onChange={(ev) => form.setMaxFailures(ev.target.value)}
+                      value={form.failThreshold}
+                      onChange={(ev) => form.setFailThreshold(ev.target.value)}
                       disabled={masterOff}
-                      aria-invalid={!!e.maxFailures}
+                      aria-invalid={!!e.failThreshold}
                       aria-describedby={
-                        e.maxFailures ? "max-failures-error" : "max-failures-desc"
+                        e.failThreshold
+                          ? "fail-threshold-error"
+                          : "fail-threshold-desc"
                       }
                     />
-                    {e.maxFailures ? (
-                      <FieldError id="max-failures-error">
-                        {e.maxFailures}
+                    {e.failThreshold ? (
+                      <FieldError id="fail-threshold-error">
+                        {e.failThreshold}
                       </FieldError>
                     ) : (
-                      <FieldDescription id="max-failures-desc">
-                        How many failed connectivity checks in a row before
-                        recovery begins.
+                      <FieldDescription id="fail-threshold-desc">
+                        How many consecutive failed probes before recovery begins.
                       </FieldDescription>
                     )}
                   </Field>
@@ -288,7 +317,7 @@ export function WatchdogSettingsCard({ form }: { form: WatchdogForm }) {
                       <span className="text-foreground font-semibold tabular-nums">
                         {form.estimatedDownSecs}s
                       </span>{" "}
-                      of failed checks.
+                      of failed probes.
                     </span>
                   ) : (
                     <span>

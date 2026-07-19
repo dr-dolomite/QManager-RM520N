@@ -65,7 +65,8 @@ function settingsSignature(hookData: UseWatchdogSettingsReturn): string {
   if (!s) return "empty";
   return [
     s.enabled,
-    s.max_failures,
+    s.fail_threshold,
+    s.probe_interval,
     s.check_interval,
     s.cooldown,
     s.tier1_enabled,

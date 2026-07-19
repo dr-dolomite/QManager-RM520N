@@ -1114,6 +1114,7 @@ install_backend() {
         . "$LIB_DIR/config.sh"
         qm_config_init
         info "Config initialized at /etc/qmanager/qmanager.conf"
+        migrate_watchcat_fail_threshold
     fi
 
     # --- Bootstrap default ping_profile.json / migrate legacy env vars ----------
@@ -1122,6 +1123,47 @@ install_backend() {
     prune_stale_ping_environment
 
     info "Backend installed"
+}
+
+# --- Migrate watchcat.max_failures -> watchcat.fail_threshold ----------------
+
+# Split-ownership realignment: the Connection Watchdog now owns the fail
+# cadence (fail_threshold, compared against the ping daemon's raw
+# streak_fail — replaces the old max_failures double-debounce) AND the probe
+# cadence (probe_interval, propagated into ping_profile.json's interval_sec
+# by monitoring/watchdog.sh). The Connectivity Sensitivity card keeps only
+# the probe targets. Runs unconditionally on every install/OTA — mirrors
+# migrate_ping_environment's idempotent style. Three cases, each a no-op on
+# re-run:
+#   1. fail_threshold unset, max_failures set   -> copy value, delete old key
+#   2. fail_threshold unset, max_failures unset -> seed fail_threshold=5
+#   3. fail_threshold already set               -> just drop any leftover max_failures
+# Also seeds probe_interval=5 (the daemon's relaxed-profile default) if unset,
+# so an upgraded device gets a sane starting cadence.
+migrate_watchcat_fail_threshold() {
+    command -v qm_config_get >/dev/null 2>&1 || return 0
+
+    local current legacy probe_interval
+    current=$(qm_config_get watchcat fail_threshold "")
+    if [ -n "$current" ]; then
+        qm_config_delete watchcat max_failures
+    else
+        legacy=$(qm_config_get watchcat max_failures "")
+        if [ -n "$legacy" ]; then
+            qm_config_set watchcat fail_threshold "$legacy"
+            qm_config_delete watchcat max_failures
+            echo "  Migrated watchcat.max_failures -> watchcat.fail_threshold ($legacy)"
+        else
+            qm_config_set watchcat fail_threshold 5
+            echo "  Seeded watchcat.fail_threshold=5 (default)"
+        fi
+    fi
+
+    probe_interval=$(qm_config_get watchcat probe_interval "")
+    if [ -z "$probe_interval" ]; then
+        qm_config_set watchcat probe_interval 5
+        echo "  Seeded watchcat.probe_interval=5 (default)"
+    fi
 }
 
 # --- Bootstrap Default ping_profile.json -------------------------------------

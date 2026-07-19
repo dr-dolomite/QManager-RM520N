@@ -66,7 +66,7 @@ LAST_ICCID_FILE="/etc/qmanager/last_iccid"
 # --- Configuration (defaults, overridden by /etc/qmanager/qmanager.conf) -----
 CFG_ENABLED=1
 CFG_CHECK_INTERVAL=10
-CFG_MAX_FAILURES=5
+CFG_FAIL_THRESHOLD=5          # consecutive failed PROBES (raw ping streak_fail) before recovery
 CFG_COOLDOWN=60
 CFG_TIER1_ENABLED=1
 CFG_TIER2_ENABLED=1
@@ -106,8 +106,13 @@ read_config() {
     val=$(qm_config_get watchcat check_interval "")
     [ -n "$val" ] && CFG_CHECK_INTERVAL="$val"
 
-    val=$(qm_config_get watchcat max_failures "")
-    [ -n "$val" ] && CFG_MAX_FAILURES="$val"
+    # fail_threshold = consecutive failed PROBES (raw ping streak_fail). Renamed
+    # from the retired max_failures (which counted watchcat's own loop cycles —
+    # a double-debounce on top of the ping daemon's own reachable debounce).
+    # Explicit default so an un-migrated qmanager.conf (pre-existing on an
+    # OTA'd device before the installer migration runs) still works immediately.
+    val=$(qm_config_get watchcat fail_threshold 5)
+    case "$val" in ''|*[!0-9]*) CFG_FAIL_THRESHOLD=5 ;; *) CFG_FAIL_THRESHOLD="$val" ;; esac
 
     val=$(qm_config_get watchcat cooldown "")
     [ -n "$val" ] && CFG_COOLDOWN="$val"
@@ -129,7 +134,7 @@ read_config() {
     val=$(qm_config_get watchcat max_reboots_per_hour "")
     [ -n "$val" ] && CFG_MAX_REBOOTS_PER_HOUR="$val"
 
-    qlog_info "Config loaded: interval=${CFG_CHECK_INTERVAL}s max_fail=${CFG_MAX_FAILURES} cooldown=${CFG_COOLDOWN}s"
+    qlog_info "Config loaded: interval=${CFG_CHECK_INTERVAL}s fail_threshold=${CFG_FAIL_THRESHOLD} probes cooldown=${CFG_COOLDOWN}s"
     qlog_info "  Tiers: T1=${CFG_TIER1_ENABLED} T2=${CFG_TIER2_ENABLED} T3=${CFG_TIER3_ENABLED} T4=${CFG_TIER4_ENABLED} backup_sim=${CFG_BACKUP_SIM_SLOT:-none}"
 }
 
@@ -684,11 +689,16 @@ finish_cooldown() {
             sim_failover_fallback
         fi
 
-        # Escalate to next tier
+        # Escalate to next tier — call do_recovery directly. Under the
+        # raw-streak model there is no failure_counter accumulator left to
+        # "prime" for a suspect bounce (the old trick set
+        # failure_counter=CFG_MAX_FAILURES to force an immediate re-breach on
+        # the next suspect cycle); the suspect branch now reads ping_streak_fail
+        # directly, so that prime would silently no-op. Run the next tier now.
         if find_next_tier $((current_tier + 1)); then
-            state="suspect"
-            failure_counter="$CFG_MAX_FAILURES"  # will trigger recovery immediately
             qlog_info "Escalating to Tier $current_tier"
+            state="recovery"
+            do_recovery
         else
             qlog_error "All recovery tiers exhausted — returning to monitor"
             state="monitor"
@@ -876,14 +886,22 @@ main() {
         fi
         prev_limited_reason="null"
 
+        # Sanitize the raw probe-failure streak from the ping daemon — a
+        # stale/garbage value must never crash the loop arithmetic below.
+        case "$ping_streak_fail" in ''|*[!0-9]*) ping_streak_fail=0 ;; esac
+        # Mirror the raw streak into failure_counter purely for the state-file
+        # readout (unchanged field name/shape for the poller/UI contract). The
+        # recovery DECISION below no longer uses an accumulator — it compares
+        # the raw streak directly against CFG_FAIL_THRESHOLD.
+        failure_counter="$ping_streak_fail"
+
         # --- State machine ---
         case "$state" in
             monitor)
                 if [ "$ping_streak_fail" -gt 0 ]; then
                     prev_state="$state"
                     state="suspect"
-                    failure_counter=1
-                    qlog_info "MONITOR → SUSPECT: streak_fail=$ping_streak_fail"
+                    qlog_info "MONITOR → SUSPECT: streak_fail=$ping_streak_fail (threshold=$CFG_FAIL_THRESHOLD)"
                 fi
                 ;;
 
@@ -895,11 +913,14 @@ main() {
                     failure_counter=0
                     cooldown_stale_retries=0
                 else
-                    failure_counter=$((failure_counter + 1))
-                    qlog_debug "SUSPECT: failure_counter=$failure_counter/$CFG_MAX_FAILURES"
+                    qlog_debug "SUSPECT: streak_fail=$ping_streak_fail/$CFG_FAIL_THRESHOLD"
 
-                    if [ "$failure_counter" -ge "$CFG_MAX_FAILURES" ]; then
-                        qlog_warn "SUSPECT → RECOVERY: threshold breached ($failure_counter >= $CFG_MAX_FAILURES)"
+                    # Breach is purely the RAW consecutive-probe streak crossing
+                    # the threshold — no per-cycle accumulation (the ping daemon
+                    # already debounces; double-counting here was the re-count
+                    # bug this split-ownership rework fixes).
+                    if [ "$ping_streak_fail" -ge "$CFG_FAIL_THRESHOLD" ]; then
+                        qlog_warn "SUSPECT → RECOVERY: streak_fail=$ping_streak_fail >= $CFG_FAIL_THRESHOLD"
                         state="recovery"
 
                         # Find first enabled tier

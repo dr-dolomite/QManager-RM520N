@@ -17,7 +17,8 @@ qm_config_init() {
   "watchcat": {
     "enabled": 0,
     "check_interval": 10,
-    "max_failures": 5,
+    "fail_threshold": 5,
+    "probe_interval": 5,
     "cooldown": 60,
     "tier1_enabled": 1,
     "tier2_enabled": 1,
@@ -98,6 +99,27 @@ qm_config_set() {
                 '.[$s][$k] = $v' "$QM_CONFIG" > "$QM_CONFIG_TMP" ;;
     esac
     mv "$QM_CONFIG_TMP" "$QM_CONFIG"
+}
+
+# Delete: qm_config_delete <section> <key>
+# Example: qm_config_delete watchcat max_failures
+#   Equivalent to: uci -q delete quecmanager.watchcat.max_failures
+# Atomic write via temp file + mv. No-op (success) if the config file or the
+# section/key doesn't exist — used by defensive key-rename migrations.
+qm_config_delete() {
+    local section="$1" key="$2"
+    [ -f "$QM_CONFIG" ] || return 0
+    # Gate the mv on jq's exit status: the '>' redirect creates an empty
+    # $QM_CONFIG_TMP before jq runs, so an unconditional mv after a jq failure
+    # (e.g. a corrupt/unparseable config) would clobber the live file with that
+    # empty temp. Only publish the temp when jq actually succeeded.
+    if jq --arg s "$section" --arg k "$key" \
+        'if has($s) then .[$s] |= del(.[$k]) else . end' "$QM_CONFIG" > "$QM_CONFIG_TMP" 2>/dev/null; then
+        mv "$QM_CONFIG_TMP" "$QM_CONFIG"
+    else
+        rm -f "$QM_CONFIG_TMP"
+        return 1
+    fi
 }
 
 # Bulk read: qm_config_section <section>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import { toast } from "sonner";
 import { motion } from "motion/react";
 
@@ -11,72 +12,18 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Separator } from "@/components/ui/separator";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AlertTriangleIcon, RotateCcwIcon } from "lucide-react";
-import { TbAlertTriangleFilled } from "react-icons/tb";
 import { SaveButton, useSaveFlash } from "@/components/ui/save-button";
-import { MetaPanel, MetaPair } from "@/components/ui/meta-panel";
 
 import { usePingProfile } from "@/hooks/use-ping-profile";
-import { useModemStatus } from "@/hooks/use-modem-status";
-import { PING_PROFILES, type PingProfile } from "@/types/modem-status";
 import { staggerContainer, staggerItem } from "@/lib/motion-presets";
 
-// ─── Profile metadata (UI labels and per-preset blurbs) ────────────────────
-
-// Mirrors ping-daemon/src/config.rs::ProfileConfig::for_profile.
-// Keep these in sync — the daemon is the source of truth, this table is
-// purely for previewing values in the UI before the user saves.
-const PROFILE_META: Record<
-  PingProfile,
-  {
-    label: string;
-    blurb: string;
-    intervalSec: number;
-    failSecs: number;
-    recoverSecs: number;
-  }
-> = {
-  sensitive: {
-    label: "Sensitive",
-    blurb:
-      "Fastest UI feedback. Best for hardwired or strong-signal setups.",
-    intervalSec: 1,
-    failSecs: 6,
-    recoverSecs: 3,
-  },
-  regular: {
-    label: "Regular",
-    blurb: "Balanced default. Good for most users.",
-    intervalSec: 2,
-    failSecs: 10,
-    recoverSecs: 6,
-  },
-  relaxed: {
-    label: "Relaxed",
-    blurb: "Conservative. Matches the previous QManager default.",
-    intervalSec: 5,
-    failSecs: 15,
-    recoverSecs: 10,
-  },
-  quiet: {
-    label: "Quiet",
-    blurb: "Battery and data conscious. Slowest reaction time.",
-    intervalSec: 10,
-    failSecs: 30,
-    recoverSecs: 20,
-  },
-};
-
-// 30 seconds — how long after a save we wait before showing the
-// "daemon hasn't picked up the change yet" footnote.
-const STUCK_THRESHOLD_MS = 30_000;
+// ─── Constants ──────────────────────────────────────────────────────────────
 
 const DEFAULT_TARGET_1 = "http://cp.cloudflare.com/";
 const DEFAULT_TARGET_2 = "http://www.gstatic.com/generate_204";
@@ -90,30 +37,13 @@ function validateTargetClient(value: string): string | null {
   return null;
 }
 
-// ─── Helpers ────────────────────────────────────────────────────────────────
-
-function formatSecs(value: number | null | undefined): string {
-  if (value === undefined || value === null || value === 0) return "—";
-  return `${value}s`;
-}
-
 // ─── Component ──────────────────────────────────────────────────────────────
 
 export default function ConnectivitySensitivityCard() {
-  const {
-    profile,
-    target1,
-    target2,
-    isLoading,
-    error,
-    isSaving,
-    saveError,
-    save,
-  } = usePingProfile();
-  const { data: modemStatus } = useModemStatus();
+  const { target1, target2, isLoading, error, isSaving, saveError, save } =
+    usePingProfile();
   const { saved, markSaved } = useSaveFlash();
 
-  const [selected, setSelected] = useState<PingProfile | undefined>(profile);
   const [target1Input, setTarget1Input] = useState<string>("");
   const [target2Input, setTarget2Input] = useState<string>("");
   const [target1Err, setTarget1Err] = useState<string | null>(null);
@@ -123,61 +53,30 @@ export default function ConnectivitySensitivityCard() {
   // When the saved settings arrive, sync local state once.
   useEffect(() => {
     if (
-      profile !== undefined &&
       target1 !== undefined &&
       target2 !== undefined &&
       !initializedRef.current
     ) {
-      setSelected(profile);
       setTarget1Input(target1);
       setTarget2Input(target2);
       initializedRef.current = true;
     }
-  }, [profile, target1, target2]);
-
-  // After a successful save, sync local selection to whatever was just saved
-  // (prevents stale dirty state if user clicks a profile twice)
-  const lastSavedAtRef = useRef<number | null>(null);
-  const lastSavedProfileRef = useRef<PingProfile | null>(null);
+  }, [target1, target2]);
 
   // Dirty detection
   const isDirty = useMemo(() => {
-    if (!profile || selected === undefined) return false;
-    if (selected !== profile) return true;
-    if (target1 !== undefined && target1Input !== target1) return true;
-    if (target2 !== undefined && target2Input !== target2) return true;
+    if (target1 === undefined || target2 === undefined) return false;
+    if (target1Input !== target1) return true;
+    if (target2Input !== target2) return true;
     return false;
-  }, [profile, selected, target1, target1Input, target2, target2Input]);
+  }, [target1, target1Input, target2, target2Input]);
 
   const hasValidationErrors = target1Err !== null || target2Err !== null;
   const canSave = isDirty && !isSaving && !hasValidationErrors;
 
-  // Daemon-stuck detection: after a save, if the daemon's runtime profile
-  // doesn't match within STUCK_THRESHOLD_MS, surface a footnote.
-  const [stuckHint, setStuckHint] = useState(false);
-  const [saveCount, setSaveCount] = useState(0);
-  useEffect(() => {
-    if (lastSavedAtRef.current === null) return;
-    const interval = setInterval(() => {
-      if (lastSavedAtRef.current === null) return;
-      const elapsed = Date.now() - lastSavedAtRef.current;
-      if (elapsed < STUCK_THRESHOLD_MS) return;
-      const runtime = modemStatus?.connectivity?.profile;
-      const target = lastSavedProfileRef.current;
-      if (runtime && target && runtime !== target) {
-        setStuckHint(true);
-      } else {
-        setStuckHint(false);
-        lastSavedAtRef.current = null;
-        lastSavedProfileRef.current = null;
-      }
-    }, 2_000);
-    return () => clearInterval(interval);
-  }, [saveCount, modemStatus?.connectivity?.profile]);
-
   // Save handler
   const handleSave = async () => {
-    if (!canSave || !selected) return;
+    if (!canSave) return;
     // Re-validate at submit time
     const e1 = validateTargetClient(target1Input);
     const e2 = validateTargetClient(target2Input);
@@ -187,16 +86,11 @@ export default function ConnectivitySensitivityCard() {
 
     try {
       await save({
-        profile: selected,
         target_1: target1Input.trim(),
         target_2: target2Input.trim(),
       });
       markSaved();
-      lastSavedAtRef.current = Date.now();
-      lastSavedProfileRef.current = selected;
-      setStuckHint(false);
-      setSaveCount((c) => c + 1);
-      toast.success("Connectivity settings updated");
+      toast.success("Probe targets updated");
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Failed to save";
       toast.error(msg);
@@ -208,19 +102,14 @@ export default function ConnectivitySensitivityCard() {
     return (
       <Card className="@container/card">
         <CardHeader>
-          <CardTitle>Connectivity Sensitivity</CardTitle>
+          <CardTitle>Probe Targets</CardTitle>
           <CardDescription>
-            How aggressively the modem checks if your internet is working.
+            Which endpoints the modem checks to confirm the internet is
+            reachable.
           </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="grid gap-3">
-            {/* Profile tabs */}
-            <Skeleton className="h-10 w-full rounded-md" />
-            {/* Active-profile meta panel */}
-            <Skeleton className="h-20 w-full rounded-md" />
-            {/* Separator */}
-            <Separator className="my-2" />
             {/* Probe targets header + reset icon */}
             <div className="flex items-start justify-between gap-3">
               <div className="grid gap-1.5 flex-1">
@@ -250,13 +139,14 @@ export default function ConnectivitySensitivityCard() {
   }
 
   // ── Error variant ──────────────────────────────────────────────────────
-  if (error && !profile) {
+  if (error && target1 === undefined) {
     return (
       <Card className="@container/card">
         <CardHeader>
-          <CardTitle>Connectivity Sensitivity</CardTitle>
+          <CardTitle>Probe Targets</CardTitle>
           <CardDescription>
-            How aggressively the modem checks if your internet is working.
+            Which endpoints the modem checks to confirm the internet is
+            reachable.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -269,14 +159,12 @@ export default function ConnectivitySensitivityCard() {
     );
   }
 
-  const activeMeta = selected ? PROFILE_META[selected] : null;
-
   return (
     <Card className="@container/card">
       <CardHeader>
-        <CardTitle>Connectivity Sensitivity</CardTitle>
+        <CardTitle>Probe Targets</CardTitle>
         <CardDescription>
-          How aggressively the modem checks if your internet is working.
+          Which endpoints the modem checks to confirm the internet is reachable.
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -293,48 +181,7 @@ export default function ConnectivitySensitivityCard() {
           initial="hidden"
           animate="visible"
         >
-          {/* ── Segmented control ────────────────────────────────────── */}
-          <motion.div variants={staggerItem}>
-            <Tabs
-              value={selected ?? ""}
-              onValueChange={(v) => {
-                if (v && (PING_PROFILES as readonly string[]).includes(v)) {
-                  setSelected(v as PingProfile);
-                }
-              }}
-            >
-              <TabsList
-                className="grid w-full grid-cols-4"
-                aria-label="Connectivity sensitivity profile"
-              >
-                {PING_PROFILES.map((p) => (
-                  <TabsTrigger
-                    key={p}
-                    value={p}
-                    aria-label={`${PROFILE_META[p].label} (${PROFILE_META[p].intervalSec}s probe)`}
-                  >
-                    {PROFILE_META[p].label}
-                  </TabsTrigger>
-                ))}
-              </TabsList>
-            </Tabs>
-          </motion.div>
-
-          {/* ── Active-profile meta panel ────────────────────────────── */}
-          {activeMeta && (
-            <motion.div variants={staggerItem}>
-              <MetaPanel title={activeMeta.label} blurb={activeMeta.blurb}>
-                <div className="mt-2 grid grid-cols-3 gap-x-3 gap-y-1">
-                  <MetaPair label="Probe interval" value={formatSecs(activeMeta.intervalSec)} />
-                  <MetaPair label="Fail threshold" value={formatSecs(activeMeta.failSecs)} />
-                  <MetaPair label="Recover after" value={formatSecs(activeMeta.recoverSecs)} />
-                </div>
-              </MetaPanel>
-            </motion.div>
-          )}
-
           {/* ── Probe target inputs ──────────────────────────────────── */}
-          <Separator className="my-2" />
           <motion.div variants={staggerItem} className="grid gap-3">
             <div className="flex items-start justify-between gap-3">
               <div>
@@ -418,19 +265,20 @@ export default function ConnectivitySensitivityCard() {
             </div>
           </motion.div>
 
-          {/* ── Daemon-stuck warning banner ──────────────────────────── */}
-          {stuckHint && (
-            <motion.div variants={staggerItem}>
-              <div className="flex items-start gap-2 p-2 rounded-md bg-warning/10 border border-warning/30 text-warning text-sm">
-                <TbAlertTriangleFilled className="size-5 mt-0.5 shrink-0" />
-                <p className="font-semibold">
-                  Settings saved, but the probe is still on the old preset. Try
-                  refreshing in a moment; if this persists, restart the
-                  qmanager-ping service.
-                </p>
-              </div>
-            </motion.div>
-          )}
+          {/* ── Cross-link: probe timing lives in the Watchdog now ───── */}
+          <motion.div variants={staggerItem}>
+            <p className="text-xs text-muted-foreground">
+              Probe timing — how often the modem checks and how many failures
+              trigger recovery — now lives in the{" "}
+              <Link
+                href="/monitoring/watchdog"
+                className="text-primary underline-offset-4 hover:underline"
+              >
+                Connection Watchdog
+              </Link>
+              .
+            </p>
+          </motion.div>
 
           {/* ── Save button ──────────────────────────────────────────── */}
           <motion.div variants={staggerItem} className="flex justify-end">
@@ -446,4 +294,3 @@ export default function ConnectivitySensitivityCard() {
     </Card>
   );
 }
-

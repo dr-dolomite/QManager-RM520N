@@ -16,6 +16,8 @@ QManager now speaks your language, and the Connection Watchdog gets a ground-up 
 
 ## 🛠️ Improvements
 
+- **The Watchdog now owns connection timing.** Probe interval and failure threshold moved from Connection Quality into the Watchdog's **Detection** tab, so one place decides how often your link is checked and when it counts as down — and the Connection Quality page is now a simpler "Probe Targets" card (detection reads the ping daemon's raw failure streak directly, fixing a double-count that made the "declares down after ~Ns" estimate drift).
+
 - **SIM failover now survives a reboot.** If the watchdog switched you to your backup SIM, that state is kept across a restart, so the page still shows you're on the backup slot (and offers the revert) instead of losing track (failover state moved to persistent storage).
 
 - **Backup SIM slot is now required to arm SIM failover.** Turning on the "Switch to Backup SIM" step without picking a slot is blocked at save with a clear prompt, so failover can never be enabled in a state where it can't actually fail over.
