@@ -163,7 +163,7 @@ The table below contrasts RM520N-GL against the legacy RM551E (OpenWRT) target �
 Read these only when working on the relevant subsystem:
 
 - **AT command transport** (`atcli_smd11`, `qcmd`, SMS, flock serialization) — `docs/reference/at-command-transport.md`
-- **QManager standalone install & runtime internals** (Entware bootstrap, udev permissions, CGI auth, service persistence, firewall, Tailscale, web console, email/SMS alerts, OTA pipeline incl. opt-in auto-update timer gated on `update.auto_update_enabled`, armed only at install/OTA — the UI toggle does NOT arm it live) — `docs/reference/qmanager-independence.md`
+- **QManager standalone install & runtime internals** (Entware bootstrap, udev permissions, CGI auth, service persistence, firewall, Tailscale, web console, email/SMS alerts, OTA pipeline incl. opt-in auto-update timer gated on `update.auto_update_enabled` — armed at install/OTA AND live by the Software Update UI toggle via the `qmanager_auto_update_arm` root helper) — `docs/reference/qmanager-independence.md`
 - **Full platform architecture** (platform internals, Entware bootstrapping, lighttpd config, boot sequences, troubleshooting) — `docs/rm520n-gl-architecture.md`
 
 **Source reference:** `simpleadmin-source/` contains the original RM520N-GL admin panel (iamromulan/quectel-rgmii-toolkit) for historical reference. QManager is now fully independent and does not require SimpleAdmin to be installed.

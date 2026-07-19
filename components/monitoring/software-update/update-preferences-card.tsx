@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useRef, useEffect } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { motion, type Variants } from "motion/react";
 import {
   Card,
@@ -10,7 +10,6 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
@@ -51,8 +50,6 @@ interface UpdatePreferencesCardProps {
 
 // ─── Component ──────────────────────────────────────────────────────────────
 
-const AUTO_UPDATE_DEBOUNCE = 800;
-
 const containerVariants: Variants = {
   hidden: {},
   visible: { transition: { staggerChildren: 0.06 } },
@@ -77,7 +74,6 @@ export function UpdatePreferencesCard({
   const [prereleaseToggling, setPrereleaseToggling] = useState(false);
   const [autoUpdateToggling, setAutoUpdateToggling] = useState(false);
   const [autoUpdateTime, setAutoUpdateTime] = useState("03:00");
-  const autoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Sync local time from server data
   useEffect(() => {
@@ -131,32 +127,6 @@ export function UpdatePreferencesCard({
     },
     [saveAutoUpdate, autoUpdateTime],
   );
-
-  const handleAutoUpdateTimeChange = useCallback(
-    (newTime: string) => {
-      setAutoUpdateTime(newTime);
-      if (!updateInfo?.auto_update_enabled) return;
-
-      // Debounced save
-      if (autoTimerRef.current) clearTimeout(autoTimerRef.current);
-      autoTimerRef.current = setTimeout(async () => {
-        try {
-          await saveAutoUpdate(true, newTime);
-          toast.success("Update schedule saved");
-        } catch {
-          toast.error("Failed to save schedule");
-        }
-      }, AUTO_UPDATE_DEBOUNCE);
-    },
-    [saveAutoUpdate, updateInfo?.auto_update_enabled],
-  );
-
-  // Clean up debounce timer
-  useEffect(() => {
-    return () => {
-      if (autoTimerRef.current) clearTimeout(autoTimerRef.current);
-    };
-  }, []);
 
   // ── Loading skeleton ──────────────────────────────────────────────────
   if (isLoading) {
@@ -245,36 +215,18 @@ export function UpdatePreferencesCard({
               </div>
             </motion.div>
 
-            {/* Time Configuration for Automatic Updates */}
+            {/* Cadence note — the timer runs a daily check at a randomized time
+                (fleet-spread by design), so there is no exact-time control to offer. */}
             {updateInfo?.auto_update_enabled && (
               <>
                 <Separator />
                 <motion.div variants={itemVariants} className="flex flex-col gap-2">
-                  <p className="font-semibold text-sm">
-                    Update Installation Time
-                  </p>
-
-                  <div className="flex flex-col @sm/card:flex-row @sm/card:items-center gap-2 @sm/card:justify-between rounded-lg border bg-muted/50 p-3">
-                    <div className="flex flex-col gap-0.5 min-w-0">
-                      <span className="text-xs text-muted-foreground">
-                        Update at
-                      </span>
-                      <p className="text-xs text-muted-foreground">
-                        Checks for updates and installs automatically. The
-                        device will reboot if an update is found.
-                      </p>
-                    </div>
-                    <Input
-                      id="auto-update-time"
-                      type="time"
-                      value={autoUpdateTime}
-                      onChange={(e) =>
-                        handleAutoUpdateTimeChange(e.target.value)
-                      }
-                      disabled={isUpdating || autoUpdateToggling}
-                      aria-label="Automatic update time"
-                      className="w-28 shrink-0"
-                    />
+                  <div className="rounded-lg border bg-muted/50 p-3">
+                    <p className="text-xs text-muted-foreground">
+                      QManager checks for a newer release once a day at a
+                      randomized time and installs it automatically if one is
+                      found. The device will reboot to finish the update.
+                    </p>
                   </div>
                 </motion.div>
               </>

@@ -53,13 +53,6 @@ ensure_update_config() {
     qm_config_init
 }
 
-strip_leading_zero() {
-    local v
-    v=$(echo "$1" | sed 's/^0*//')
-    [ -z "$v" ] && v=0
-    echo "$v"
-}
-
 # Check if an update process is already running
 check_lock() {
     if [ -f "$PID_FILE" ]; then
@@ -341,28 +334,20 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
         esac
         qm_config_set update auto_update_time "$auto_time"
 
-        # Manage crontab (write directly to root's crontab file)
-        CRON_MARKER="# qmanager_auto_update"
-        AUTO_UPDATE_SCRIPT="/usr/bin/qmanager_auto_update"
-        CRON_FILE="/var/spool/cron/crontabs/root"
-        current_cron=$(cat "$CRON_FILE" 2>/dev/null || true)
-        filtered_cron=$(printf '%s\n' "$current_cron" | grep -v "$CRON_MARKER")
-
+        # Arm/disarm the systemd timer LIVE so the toggle takes effect immediately,
+        # not just at the next install/OTA. This replaced a dead crontab-writer: CGI
+        # runs as www-data (can't write root's /var/spool/cron/crontabs/root) and no
+        # cron daemon runs on RM520N-GL at all, so the old entry was never scheduled.
+        # qmanager_auto_update_arm persists via /lib timers.target.wants (matching the
+        # installer's own arming) and is a clean no-op if the .timer unit predates this
+        # device's OTA base. Best-effort: a helper hiccup logs but never fails the save
+        # — the config write above is the source of truth the auto-updater also re-checks.
         if [ "$enabled" = "true" ]; then
-            sched_hour=$(printf '%s' "$auto_time" | cut -d: -f1)
-            sched_min=$(printf '%s' "$auto_time" | cut -d: -f2)
-            sched_hour=$(strip_leading_zero "$sched_hour")
-            sched_min=$(strip_leading_zero "$sched_min")
-
-            new_cron=$(printf '%s\n%s %s * * * %s  %s' \
-                "$filtered_cron" "$sched_min" "$sched_hour" "$AUTO_UPDATE_SCRIPT" "$CRON_MARKER")
-            printf '%s\n' "$new_cron" > "$CRON_FILE"
+            sudo -n /usr/bin/qmanager_auto_update_arm on >/dev/null 2>&1 \
+                || logger -t update "auto_update_arm on failed (non-fatal)"
         else
-            if [ -z "$(printf '%s' "$filtered_cron" | tr -d '[:space:]')" ]; then
-                rm -f "$CRON_FILE"
-            else
-                printf '%s\n' "$filtered_cron" > "$CRON_FILE"
-            fi
+            sudo -n /usr/bin/qmanager_auto_update_arm off >/dev/null 2>&1 \
+                || logger -t update "auto_update_arm off failed (non-fatal)"
         fi
 
         cgi_success

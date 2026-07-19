@@ -23,8 +23,12 @@ www-data ALL=(root) NOPASSWD: /usr/sbin/iptables, /usr/sbin/iptables-restore, /u
 # System reboot (used by system/reboot.sh, update installer)
 www-data ALL=(root) NOPASSWD: /sbin/reboot
 
-# Crontab management (used by scheduled reboot, low power, auto-update)
+# Crontab management (used by scheduled reboot and tower schedule)
 www-data ALL=(root) NOPASSWD: /usr/bin/crontab
+
+# Auto-update timer live-arming (arms/disarms qmanager-auto-update.timer when the
+# Software Update UI toggle flips — the helper hardcodes the unit + validates on/off)
+www-data ALL=(root) NOPASSWD: /usr/bin/qmanager_auto_update_arm
 
 # SSH password management (reads password from stdin, updates /etc/shadow)
 www-data ALL=(root) NOPASSWD: /usr/bin/qmanager_set_ssh_password

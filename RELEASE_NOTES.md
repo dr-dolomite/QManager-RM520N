@@ -30,6 +30,8 @@ QManager now speaks your language, and the Connection Watchdog gets a ground-up 
 
 - **Installs and updates are tougher.** A momentary system hiccup partway through an install no longer aborts the whole thing, an upgrade can't lose your custom TTL/HL setting, and files are flushed to flash before the filesystem is sealed — so an install or update is far less likely to leave the device half-finished (guarded `systemctl daemon-reload`, ordered TTL-state migration that keeps the old value on a failed write, and `sync`-before-remount discipline).
 
+- **Automatic updates switch on the instant you toggle them.** Flipping **Automatic updates** in **System Settings → Software Update** now arms (or disarms) the daily updater right away, instead of waiting until the next update to take effect. The old time field — which never actually controlled anything — is replaced by a short note explaining the updater runs a check once a day at a randomized time (a small root helper arms the systemd timer live; the crontab path it replaced was dead on this device, since nothing runs cron here).
+
 - **Tightened the web backend's system permissions.** QManager's web service can now start and stop only *its own* services rather than any service on the device — a defense-in-depth cleanup with zero change to what you can do in the UI (the `www-data` sudoers grant is scoped to the `qmanager-*` and `tailscaled` units it actually uses).
 
 ## 🐛 Fixes

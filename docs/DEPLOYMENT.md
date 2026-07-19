@@ -22,6 +22,8 @@ See `install_rm520n.sh --help` for all flags (`--skip-packages`, `--force`, etc.
 
 If internet access is unavailable on the modem, build and transfer the tarball from your dev machine:
 
+> ℹ️ NOTE: When cutting a real release, set `QM_RELEASE_TAG` to the git tag being pushed (e.g. `QM_RELEASE_TAG=v0.1.14 bun run package`) — `build.sh` then hard-fails if `package.json`'s version doesn't match (draft-aware, leading `v` normalized), so a forgotten version bump can't ship a mislabeled tarball. Dev builds leave `QM_RELEASE_TAG` unset and skip the check.
+
 ```bash
 # 1. Build the package (frontend + backend + dependencies)
 bun run package

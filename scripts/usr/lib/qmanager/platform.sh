@@ -43,9 +43,17 @@ svc_restart() {
     $_SUDO $_SYSTEMCTL restart "$(_svc_unit "$1")" 2>/dev/null
 }
 
-# Enable a service (start on boot via symlink — SimpleAdmin pattern)
-# RM520N-GL's minimal systemd ignores `systemctl enable` for boot.
-# Use explicit symlinks into multi-user.target.wants instead.
+# Enable a service (start on boot via symlink — SimpleAdmin pattern).
+# NOTE: `systemctl enable` is NOT actually broken on this systemd 244 — it works, but
+# it writes its symlink into /etc/systemd/system/...wants/ while `systemctl is-enabled`
+# only ever reads /etc. Every deployed qmanager unit is enabled via a /lib symlink (the
+# installer's enable_services + these helpers), which is invisible to `is-enabled` and
+# whose boot-honoring from /etc is unverified on this minimal systemd. So we deliberately
+# stay on explicit /lib symlinks for ONE consistent source of truth. Do NOT "simplify"
+# these to `systemctl enable/disable/is-enabled`: a live audit showed a naive swap would
+# silently leave a UI-disabled unit (e.g. the connection watchdog) still autostarting
+# from its legacy /lib symlink. Any migration must relocate the whole fleet in lockstep
+# (installer + qmanager_health_check included). See docs/reference/qmanager-independence.md.
 _WANTS_DIR="/lib/systemd/system/multi-user.target.wants"
 _UNIT_DIR="/lib/systemd/system"
 

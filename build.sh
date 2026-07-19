@@ -68,6 +68,22 @@ cp "$SCRIPTS_DIR/uninstall_rm520n.sh" "$STAGING_DIR/uninstall_rm520n.sh"
 step "Stamping version from package.json..."
 PKG_VERSION=$(sed -n 's/.*"version":[[:space:]]*"\([^"]*\)".*/\1/p' "$ROOT_DIR/package.json" | head -n1)
 [ -n "$PKG_VERSION" ] || fail "Could not read version from package.json"
+
+# Release-gate belt (opt-in): when cutting a real release, set QM_RELEASE_TAG to the
+# git tag being pushed so a forgotten package.json bump can't ship a mislabeled tarball
+# (the device would report the old version and semver_compare would never see the
+# update). Dev builds leave QM_RELEASE_TAG unset and skip this entirely. Draft-aware: a
+# single leading `v` is normalized off both sides but suffixes like `-draft` are kept,
+# so v0.1.13-draft == v0.1.13-draft passes while v0.1.14 vs v0.1.13-draft fails loud.
+if [ -n "${QM_RELEASE_TAG:-}" ]; then
+  _norm_pkg="${PKG_VERSION#v}"
+  _norm_tag="${QM_RELEASE_TAG#v}"
+  if [ "$_norm_pkg" != "$_norm_tag" ]; then
+    fail "Release tag/package.json mismatch: QM_RELEASE_TAG='$QM_RELEASE_TAG' but package.json version='$PKG_VERSION' — bump package.json before tagging."
+  fi
+  step "Release-tag check passed: package.json matches $QM_RELEASE_TAG"
+fi
+
 tmp="$STAGING_DIR/install_rm520n.sh.tmp"
 sed "s|^VERSION=\"[^\"]*\"|VERSION=\"$PKG_VERSION\"|" "$STAGING_DIR/install_rm520n.sh" > "$tmp" && mv "$tmp" "$STAGING_DIR/install_rm520n.sh"
 chmod +x "$STAGING_DIR/install_rm520n.sh" "$STAGING_DIR/uninstall_rm520n.sh"

@@ -47,8 +47,8 @@
 
 ## Service persistence (systemd symlinks)
 
-- **Boot persistence is implemented via direct symlinks** into `/lib/systemd/system/multi-user.target.wants/` (and `timers.target.wants/` for timer units), managed through `svc_enable`/`svc_disable`/`svc_is_enabled` in `platform.sh` — use those helpers everywhere; do not mix in raw `systemctl enable/disable`, because they write to a *different* wants dir (see next point).
-- **The "`systemctl enable` doesn't work here" rationale is stale.** A scoped on-device experiment (systemd 244) confirmed plain `systemctl enable` **succeeds** and honors the units' `[Install] WantedBy=` sections — it just creates the symlink in `/etc/systemd/system/*.target.wants/` instead of the `/lib/...` dir QManager uses. So the manual-symlink approach is a *choice*, not a necessity. A future release *could* simplify `platform.sh` to plain `systemctl enable`/`disable`/`is-enabled`, but only as a consistent set (all three together, re-pointing `svc_is_enabled` at the `/etc` wants dir) — switching just one would make the helpers stop seeing each other's symlinks. Bonus: `systemctl enable` writes to `/etc` (persistent always-RW UBIFS), dropping the rootfs-remount that the `/lib` symlink needs.
+- **Boot persistence is implemented via direct symlinks** into `/lib/systemd/system/multi-user.target.wants/` (and `timers.target.wants/` for timer units), managed through `svc_enable`/`svc_disable`/`svc_is_enabled` in `platform.sh` — use those helpers everywhere; do not mix in raw `systemctl enable/disable`, because they write to a *different* wants dir (see next point). The same `/lib` manual-symlink mechanism is what the root helper `qmanager_auto_update_arm` uses to arm/disarm the auto-update timer live (see [Auto-update timer](#auto-update-timer)).
+- **The `/lib` manual symlink is the deliberate single source of truth — do NOT migrate to `systemctl enable`.** A live-probed migration to `systemctl enable/disable/is-enabled` was evaluated and **rejected**; see [The `systemctl enable` migration was evaluated and rejected](#the-systemctl-enable-migration-was-evaluated-and-rejected) below. The `platform.sh` comment above `svc_enable` records the same verdict.
 
 ### `systemctl is-enabled` is unreliable here
 
@@ -56,7 +56,18 @@
 
 > ⚠️ WARNING: Never use `systemctl is-enabled` to decide whether a QManager unit will survive a reboot — it will lie. Verify boot persistence by checking the wants-symlink directly (e.g. `test -L /lib/systemd/system/multi-user.target.wants/<unit>`). Validators and health checks must do the same, never `is-enabled`.
 
-> ℹ️ NOTE: `systemctl is-enabled` is unreliable *because* QManager symlinks into `/lib/...wants/` while `is-enabled` inspects `/etc/...wants/`. A device that switched to raw `systemctl enable` (which writes to `/etc`) would get truthful `is-enabled` answers — but until/unless `platform.sh` is migrated as a set (see above), QManager units live in `/lib` and `is-enabled` remains a lying witness for them.
+> ℹ️ NOTE: `systemctl is-enabled` is unreliable *because* QManager symlinks into `/lib/...wants/` while `is-enabled` inspects `/etc/...wants/`. This split is exactly why the `systemctl enable` migration was rejected — see the next subsection.
+
+### The `systemctl enable` migration was evaluated and rejected
+
+A recurring temptation is to "simplify" `platform.sh`'s `svc_enable`/`svc_disable`/`svc_is_enabled` (and the parallel `qmanager_auto_update_arm` timer helper) to plain `systemctl enable`/`disable`/`is-enabled`. **This was live-probed on the device's systemd 244 and rejected — do not re-attempt it.** The `platform.sh` comment block above `svc_enable` records the same verdict.
+
+The problem is a *split brain* between two different symlink locations:
+
+- `systemctl enable` writes its wants-symlink into `/etc/systemd/system/*.target.wants/`, and `systemctl is-enabled` **only ever reads `/etc`**.
+- But every deployed QManager unit is enabled via a **manual `/lib/systemd/system/*.target.wants/` symlink** — created by `install_rm520n.sh`'s `enable_services()`, by `platform.sh`, and (for the auto-update timer) by `qmanager_auto_update_arm`. `is-enabled` never sees those, so it always answers "disabled."
+
+Mixing the two is worse than either alone. `systemctl disable` removes only the `/etc` copy and **leaves the legacy `/lib` symlink orphaned** — so a unit the UI just "disabled" (e.g. the connection watchdog) would **still autostart at every boot**, a silent regression detectable only by rebooting, which can't be exercised on the live device. A correct migration would have to relocate the entire fleet's symlinks `/lib` → `/etc` in lockstep across the installer, `qmanager_health_check`, and the uninstaller, plus a reboot test that can't be run here. Not worth it: the `/lib` manual-symlink mechanism stays as the one source of truth.
 
 ### Condition placement — unit-health lesson
 
@@ -205,7 +216,7 @@ PID tracking spans the full install lifetime to keep the CGI's `pid_alive` concu
 - **`UCI_GATED_SERVICES`**: Controls which services are only re-enabled if their `multi-user.target.wants/` symlink existed before the upgrade.
 - **Watchdog suppression**: The watchcat lock `/tmp/qmanager_watchcat.lock` is touched before stopping services and released via an `EXIT` trap, suppressing the watchdog during the install window.
 - **Shared semver library**: `/usr/lib/qmanager/semver.sh` — sourced by both `update.sh` CGI and `qmanager_auto_update`.
-- **Shared downloader library**: `/usr/lib/qmanager/downloader.sh` — sourced by `update.sh` CGI, `qmanager_update` (OTA worker), and `qmanager_auto_update` (cron). The two worker/cron scripts source it *guarded*, with an inline fallback so they still run if the lib is missing. See "HTTP transport & installer resilience" below — note the 3-copy maintenance hazard.
+- **Shared downloader library**: `/usr/lib/qmanager/downloader.sh` — sourced by `update.sh` CGI, `qmanager_update` (OTA worker), and `qmanager_auto_update` (run by the auto-update systemd timer). The two worker/timer scripts source it *guarded*, with an inline fallback so they still run if the lib is missing. See "HTTP transport & installer resilience" below — note the 3-copy maintenance hazard.
 - **v0.1.4 → v0.1.5 requires ADB/SSH**: v0.1.4's CGI has no sudo and v0.1.4's sudoers has no `qmanager_update` rule, so OTA cannot self-update from v0.1.4. From v0.1.5 onward, OTA works via the UI.
 
 ### Dev-box version footgun
@@ -230,11 +241,23 @@ The frontend and CGI trees are deployed **wipe-and-recopy**, not staged-and-swap
 
 **Recommended future direction (documented, not built):** stage the extract into a sibling directory and swap it in with an atomic `rename()` (or a symlink flip), so an interrupted update can never leave a partially-copied *live* tree.
 
-### Auto-update timer (PR-5)
+### Auto-update timer
 
-A dormant auto-updater ships as a systemd timer pair — `qmanager-auto-update.service` + `qmanager-auto-update.timer` — **default-OFF**. It is gated on the existing config key `update.auto_update_enabled` (surfaced at **System Settings → Software Update**) and armed by `enable_services()` on install/OTA. `qmanager_auto_update` re-checks the config key at runtime, so a timer that somehow fires while disabled still no-ops. When it does run, it honors the SHA-256 rules above (unattended path hard-fails on a missing/unverifiable checksum).
+A dormant auto-updater ships as a systemd timer pair — `qmanager-auto-update.service` + `qmanager-auto-update.timer` — **default-OFF**. It is gated on the config key `update.auto_update_enabled` (surfaced at **System Settings → Software Update**). `qmanager_auto_update` re-checks the config key at runtime, so a timer that somehow fires while disabled still no-ops. When it does run, it honors the SHA-256 rules above (unattended path hard-fails on a missing/unverifiable checksum).
 
-> ⚠️ KNOWN GAP / follow-up: Toggling the UI switch on an **already-installed** device writes the config key but does **not** itself arm the timer — there is no root helper for the CGI layer to create the `/lib/systemd/system/timers.target.wants/` symlink. So opt-in only takes effect at the **next install/OTA**, when `enable_services()` runs. Follow-up ticket: add a root helper so `update.sh`'s `save_auto_update` arms/disarms the timer immediately, and retire the now-dead crontab-writer still in `update.sh` — RM520N-GL has no `crond`, so those crontab lines never execute.
+**Two paths arm the timer, both using the same `/lib` manual symlink:**
+
+1. **Install / OTA** — `enable_services()` in `install_rm520n.sh` creates the `/lib/systemd/system/timers.target.wants/qmanager-auto-update.timer` symlink when the config key is on.
+2. **The UI toggle — live.** Flipping the **Software Update** switch now arms/disarms the timer *immediately*, not just at the next install/OTA. `update.sh`'s `save_auto_update` action writes the config key and then calls `sudo -n /usr/bin/qmanager_auto_update_arm on|off` (sudoers: one bare-path line, `www-data ALL=(root) NOPASSWD: /usr/bin/qmanager_auto_update_arm`). The root helper mirrors the installer exactly — it creates/removes the *same* `/lib/.../timers.target.wants/` symlink (**not** `systemctl enable`, for the split-brain reason above) and `systemctl start|stop`s the unit so the change also takes effect for the current boot.
+
+`qmanager_auto_update_arm` guarantees:
+- **Strict `on`/`off` validation** — the unit name is hardcoded; any other argument is rejected.
+- **Missing-unit no-op success** — a device whose OTA base predates the `.timer` unit has nothing to arm, so the helper returns `{"success":true,"armed":false,"reason":"unit_absent"}` instead of surfacing a hard error to the UI.
+- **Best-effort from the CGI's view** — the config write is the source of truth (`qmanager_auto_update` re-checks it), so an arm/disarm hiccup is logged via `logger` but never fails the save.
+
+> ℹ️ NOTE: The cadence is **not** user-configurable. The timer is `OnCalendar=daily` with `RandomizedDelaySec=3h` — a deliberate fleet-spread design so devices don't all hit GitHub at the same instant. The old "auto-update time" picker in the UI was removed (it never controlled anything), and the config key `update.auto_update_time` is now inert. The check runs once daily at a randomized time.
+
+> ℹ️ NOTE: There was never a working cron path. An earlier `save_auto_update` wrote a crontab entry to `/var/spool/cron/crontabs/root`, but **RM520N-GL runs no `crond`**, so that entry never fired — and CGI (as `www-data`) couldn't write root's crontab anyway. That dead writer has been fully removed in favor of the systemd timer + `qmanager_auto_update_arm`.
 
 ---
 

@@ -815,8 +815,12 @@ www-data ALL=(root) NOPASSWD: /usr/sbin/iptables, /usr/sbin/iptables-restore, /u
 # System reboot (used by system/reboot.sh, update installer)
 www-data ALL=(root) NOPASSWD: /sbin/reboot
 
-# Crontab management (used by scheduled reboot, low power, auto-update)
+# Crontab management (used by scheduled reboot and tower schedule)
 www-data ALL=(root) NOPASSWD: /usr/bin/crontab
+
+# Auto-update timer live-arming (arms/disarms qmanager-auto-update.timer when the
+# Software Update UI toggle flips)
+www-data ALL=(root) NOPASSWD: /usr/bin/qmanager_auto_update_arm
 
 # SSH password management (reads password from stdin, updates /etc/shadow)
 www-data ALL=(root) NOPASSWD: /usr/bin/qmanager_set_ssh_password
@@ -845,7 +849,8 @@ www-data ALL=(root) NOPASSWD: /usr/bin/qmanager_update
 | `ln -sf qmanager*.service` / `rm -f qmanager*.service` | `platform.sh` `svc_enable`/`svc_disable`; `tower/settings.sh`, `monitoring/watchdog.sh` |
 | `iptables*`, `ip6tables*`, `*-restore` | `platform.sh` `run_iptables`/`run_ip6tables`; `network/ttl.sh`, `qmanager_firewall` |
 | `/sbin/reboot` | `cgi_base.sh` `cgi_reboot_response`; `system/reboot.sh`; `qmanager_update` |
-| `/usr/bin/crontab` | `system/settings.sh` (scheduled reboot, auto-update, low-power cron entries) |
+| `/usr/bin/crontab` | `system/settings.sh` (scheduled reboot, tower schedule) — the auto-update path no longer uses crontab; it arms a systemd timer via `qmanager_auto_update_arm` |
+| `qmanager_auto_update_arm` | `system/update.sh` `save_auto_update` — arms/disarms `qmanager-auto-update.timer` live via its `/lib` boot symlink |
 | `qmanager_set_ssh_password` | `cgi_auth.sh` `qm_set_ssh_password`; `auth/ssh_password.sh` |
 | `qmanager_tailscale_mgr` | `vpn/tailscale.sh` |
 | `/usrdata/tailscale/tailscale` | `vpn/tailscale.sh` (status queries, `tailscale up`) |
