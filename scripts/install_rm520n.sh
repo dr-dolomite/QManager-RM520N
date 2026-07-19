@@ -910,6 +910,18 @@ install_frontend() {
     # Copy new frontend
     cp -r "$SRC_FRONTEND"/* "$WWW_ROOT/"
 
+    # Re-derive the served language-pack copy from the persistent store.
+    # /usrdata/qmanager/locales-packs/ lives OUTSIDE $WWW_ROOT so it survives
+    # the wipe above; this is the OTA-survival step that puts installed packs
+    # back under the web root on every install/update run. Idempotent — safe
+    # on fresh installs (no persistent store yet) and every subsequent OTA.
+    mkdir -p "$WWW_ROOT/locales-packs"
+    if [ -d /usrdata/qmanager/locales-packs ]; then
+        for d in /usrdata/qmanager/locales-packs/*/; do
+            [ -d "$d" ] && cp -r "$d" "$WWW_ROOT/locales-packs/"
+        done
+    fi
+
     info "Frontend installed ($file_count files)"
 }
 
@@ -1067,6 +1079,15 @@ install_backend() {
     # the final rename into place stays atomic. install -d self-heals owner/mode
     # on re-run, so this is safe on upgrade.
     install -d -o www-data -g www-data -m 0700 /etc/data/qmanager
+
+    # Runtime language-pack downloader storage (Increment B). Persistent store
+    # stays root-owned — only the qmanager_language_pack_apply root helper may
+    # write into it (see sudoers.d/qmanager). The staging dir is www-data-owned
+    # so the unprivileged download worker can extract + validate a pack there
+    # before handing the validated tree to the root helper. install -d self-
+    # heals owner/mode on re-run, so this is safe on upgrade.
+    mkdir -p /usrdata/qmanager/locales-packs
+    install -d -o www-data -g www-data -m 0700 /usrdata/qmanager/locales-staging
 
     # --- Migrate legacy TTL state file (one-time, non-fatal) -----------------
     # Old path: /etc/firewall.user.ttl (root-owned, unwritable by www-data CGI)

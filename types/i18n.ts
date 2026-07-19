@@ -73,3 +73,53 @@ export interface RemoteManifest {
   app_repo: string;
   packs: RemoteManifestEntry[];
 }
+
+// ---------------------------------------------------------------------------
+// Runtime downloader (Increment B: device-side install/remove).
+// These describe the on-device install lifecycle and the shape list.sh returns
+// for a pack already present in the persistent store. Consumed by the
+// language-pack hook/client and the /system-settings/languages manager.
+// ---------------------------------------------------------------------------
+
+/**
+ * One installed (downloaded, non-bundled) pack as reported by `list.sh`.
+ * Bundled languages never appear here — they live in AVAILABLE_LANGUAGES.
+ */
+export interface InstalledPack {
+  code: LanguageCode;
+  version: string;
+  native_name: string;
+  english_name: string;
+  completeness: number; // 0..1
+  namespaces: string[];
+}
+
+/**
+ * Non-terminal install steps the worker walks through, mirrored from
+ * `install_status.sh`. `cancelling` is the transient state after a cancel
+ * request is accepted but before the worker unwinds.
+ */
+export type LanguagePackInstallStep =
+  | "pending"
+  | "downloading"
+  | "verifying"
+  | "extracting"
+  | "validating"
+  | "installing"
+  | "cancelling";
+
+/** Terminal states the poller stops on. `idle` is the client-side resting state. */
+export type LanguagePackInstallTerminal = "done" | "cancelled" | "failed" | "idle";
+
+/** Live install progress. `state:"idle"` means no install is in flight. */
+export interface LanguagePackInstallState {
+  state: LanguagePackInstallStep | LanguagePackInstallTerminal;
+  code?: LanguageCode;
+  progress: number; // 0..100
+  /** Machine step key (== state for the worker); used for a stable label. */
+  step?: string;
+  /** Human-readable detail from the worker, if any. */
+  message?: string;
+  /** Epoch seconds of the last worker write. */
+  updated_at?: number;
+}

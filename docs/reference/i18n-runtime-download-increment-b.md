@@ -1,13 +1,51 @@
 # i18n Runtime Download — Increment B Plan (handoff)
 
-**Status:** DEFERRED / not started. This is an execution-ready handoff for a future
-session. Increment A (the contributor pipeline — `bun run lang`, `lib/i18n/pack.ts`,
-parity CI, `language-packs/manifest.json`) shipped under v0.1.13-draft; see
-[i18n.md](./i18n.md). Increment B adds the **device-side runtime downloader** that
-installs published packs onto a live RM520N-GL without a firmware update.
+**Status: IMPLEMENTED** (v0.1.13-draft). Increment B — the device-side runtime
+downloader that installs published packs onto a live RM520N-GL without a firmware
+update — is built and validated. This document is retained as the **historical
+design record**; the authoritative as-built reference is the
+[Runtime downloader (Increment B)](./i18n.md#runtime-downloader-increment-b)
+section of `i18n.md`. Increment A (the contributor pipeline — `bun run lang`,
+`lib/i18n/pack.ts`, parity CI, `language-packs/manifest.json`) shipped earlier under
+the same draft.
 
-Read this top-to-bottom before writing any code. Most of the Phase 1 recon is
-already done and captured below — verify, don't re-derive.
+> ℹ️ NOTE: The plan below is preserved as originally written. Several decisions
+> changed during implementation — see **[As-built deviations from this plan](#as-built-deviations-from-this-plan)**
+> at the bottom before treating any detail here as current.
+
+---
+
+## As-built deviations from this plan
+
+The implementation diverged from this plan in four notable ways. Where they
+conflict, the as-built (and `i18n.md`) wins:
+
+1. **OTA survival = re-copy, not symlink.** The plan recommended a `www/locales-packs`
+   symlink into the persistent store. As built, `install_frontend()` **re-copies**
+   each persistent-store pack into `www/locales-packs/` after the wipe
+   (`scripts/install_rm520n.sh:913-923`). This avoids the contested lighttpd
+   `server.follow-symlink` dependency entirely.
+2. **No systemd boot oneshot.** The plan's alternative was a boot-time oneshot unit.
+   As built there is **no new unit** — the re-copy rides the installer that already
+   runs on every OTA, and the worker writes the served copy directly at install time
+   for immediate availability. Zero new systemd surface.
+3. **Concurrency = kernel `flock` on fd 9, not a PID file.** The plan called for a
+   PID file + `kill -0` guard. That design proved structurally racy (a real TOCTOU
+   window, exploitable under parallel requests), so it was replaced with a kernel
+   `flock` held across the double-forked worker's lifetime via the inherited open
+   file description — matching the `qcmd` / `sms_alerts.sh` precedent.
+4. **Tar hardening gained a member-TYPE check.** The plan hardened against `..` /
+   absolute / non-allow-listed **names** only. During validation a symlink smuggled
+   in under an allow-listed name (`common.json` → `/etc/passwd`) was found to bypass
+   the name check. The as-built `lp_extract_tarball_safe` additionally rejects any
+   member that is a **symlink or hardlink** (via the ` -> ` marker in `tar -tvzf`
+   output), checked before the column-1 type check.
+
+Two smaller notes: the served copy is written by a narrow root helper
+(`qmanager_language_pack_apply`, one bare-path sudoers line) rather than the worker
+writing the store directly (the store is root-owned); and the frontend gained a
+cold-boot fallback fix (`resolveInitialLanguage` returning `{initial, pendingDownloaded}`)
+so a persisted non-bundled `qmanager_lang` no longer silently boots into English.
 
 ---
 
