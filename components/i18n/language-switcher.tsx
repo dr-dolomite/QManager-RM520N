@@ -11,16 +11,43 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { AVAILABLE_LANGUAGES } from "@/lib/i18n/available-languages";
+import { switchLanguage } from "@/lib/i18n/runtime-pack";
+import {
+  getInstalledPacks,
+  INSTALLED_PACKS_EVENT,
+} from "@/lib/i18n/installed-store";
+import type { LanguageMeta } from "@/types/i18n";
 
-// Bundle-only switcher: every catalog language ships in firmware, so the list is
-// simply AVAILABLE_LANGUAGES — no installed-pack fetch, no manifest. Designed to
-// sit inside the NavUser dropdown; stops the keys/clicks the parent Radix menu
-// would otherwise intercept while letting Escape/Tab bubble.
+// NavUser dropdown switcher. Lists bundled catalog languages PLUS any downloaded
+// (non-bundled) packs mirrored to localStorage by the manager card — so it stays
+// network-free. Switching to a downloaded code injects its pack via
+// addResourceBundle before changeLanguage (switchLanguage handles both).
 export function LanguageSwitcher({ className }: { className?: string }) {
   const { t, i18n } = useTranslation("common");
+  const [installed, setInstalled] = React.useState<LanguageMeta[]>([]);
+
+  React.useEffect(() => {
+    const read = () => setInstalled(getInstalledPacks());
+    read();
+    window.addEventListener(INSTALLED_PACKS_EVENT, read);
+    window.addEventListener("storage", read);
+    return () => {
+      window.removeEventListener(INSTALLED_PACKS_EVENT, read);
+      window.removeEventListener("storage", read);
+    };
+  }, []);
+
+  // Bundled + downloaded, de-duped by code (bundled wins).
+  const languages = React.useMemo<LanguageMeta[]>(() => {
+    const seen = new Set(AVAILABLE_LANGUAGES.map((l) => l.code));
+    return [
+      ...AVAILABLE_LANGUAGES,
+      ...installed.filter((l) => !seen.has(l.code)),
+    ];
+  }, [installed]);
 
   const formatLabel = React.useCallback(
-    (lang: (typeof AVAILABLE_LANGUAGES)[number]) =>
+    (lang: LanguageMeta) =>
       lang.native_name === lang.english_name
         ? lang.native_name
         : `${lang.native_name} (${lang.english_name})`,
@@ -28,8 +55,8 @@ export function LanguageSwitcher({ className }: { className?: string }) {
   );
 
   const activeLang =
-    AVAILABLE_LANGUAGES.find((l) => l.code === i18n.language) ??
-    AVAILABLE_LANGUAGES.find((l) => l.code === i18n.language.split("-")[0]);
+    languages.find((l) => l.code === i18n.language) ??
+    languages.find((l) => l.code === i18n.language.split("-")[0]);
 
   const stopMenuKeys = (e: React.KeyboardEvent) => {
     const intercepted = ["ArrowDown", "ArrowUp", "Enter", " "];
@@ -46,7 +73,9 @@ export function LanguageSwitcher({ className }: { className?: string }) {
     >
       <Select
         value={i18n.language}
-        onValueChange={(value) => i18n.changeLanguage(value)}
+        onValueChange={(value) => {
+          void switchLanguage(i18n, value);
+        }}
       >
         <SelectTrigger
           aria-label={t("language.switch_aria")}
@@ -58,7 +87,7 @@ export function LanguageSwitcher({ className }: { className?: string }) {
           </SelectValue>
         </SelectTrigger>
         <SelectContent>
-          {AVAILABLE_LANGUAGES.map((lang) => (
+          {languages.map((lang) => (
             <SelectItem key={lang.code} value={lang.code}>
               {formatLabel(lang)}
             </SelectItem>
