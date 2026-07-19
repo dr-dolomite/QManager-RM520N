@@ -2,14 +2,22 @@
 [Unit]
 Description=QManager IMEI Rejection Check (One-Shot)
 After=qmanager-setup.service
+# The common "nothing pending" boot is the overwhelming default state — express
+# it as Conditions (systemd reports "skipped", not "failed") instead of an
+# ExecStartPre exit 1, which used to mark this unit failed on every idle boot.
+ConditionPathExists=/etc/qmanager/imei_check_pending
+ConditionPathExists=/etc/qmanager/imei_backup.json
 
 [Service]
 Type=oneshot
-ExecStartPre=/bin/sh -c '\
-    [ -f /etc/qmanager/imei_check_pending ] || exit 1; \
-    [ -f /etc/qmanager/imei_backup.json ] || exit 1; \
+# ExecCondition (not ExecStartPre): the "enabled" flag lives inside JSON, so it
+# can't be a Condition= directive. Unlike ExecStartPre, an ExecCondition that
+# exits 1-254 skips ExecStart AND leaves the unit non-failed (same semantics
+# as a Condition check) — an ExecStartPre exiting 0 here would have let
+# ExecStart run unconditionally, which is not what we want.
+ExecCondition=/bin/sh -c '\
     enabled=$(jq -r "(.enabled) | if . == null then \"false\" else tostring end" /etc/qmanager/imei_backup.json 2>/dev/null); \
-    [ "$enabled" = "true" ] || exit 1'
+    [ "$enabled" = "true" ] || { echo "qmanager-imei-check: imei_backup.json enabled != true — skipping" >&2; exit 1; }'
 ExecStart=/usr/bin/qmanager_imei_check
 RemainAfterExit=no
 

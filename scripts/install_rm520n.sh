@@ -43,6 +43,10 @@ set -e
 
 # --- Configuration -----------------------------------------------------------
 
+# Placeholder — overwritten by build.sh at package time. Running this script
+# straight from a git checkout (not a built release tarball) stamps this
+# placeholder as the installed version, so a dev box will perpetually see
+# "update available" against any real release. Not a bug — just don't chase it.
 VERSION="v0.1.5"
 INSTALL_DIR="$(cd "$(dirname "$0")" && pwd)"
 
@@ -54,6 +58,7 @@ LIB_DIR="/usr/lib/qmanager"
 BIN_DIR="/usr/bin"
 SYSTEMD_DIR="/lib/systemd/system"
 WANTS_DIR="/lib/systemd/system/multi-user.target.wants"
+TIMERS_WANTS_DIR="/lib/systemd/system/timers.target.wants"
 TAILSCALE_DIR="/usrdata/tailscale"
 
 # Detect Entware vs system sudo (called as function — must re-evaluate
@@ -104,7 +109,7 @@ SSH_BOOTSTRAP_STATUS="not_run"
 # Install log (qmanager_update tails this for step progress)
 LOG_FILE="/tmp/qmanager_install.log"
 
-# Services gated on config: only re-enable if they were already enabled
+# Services gated on config: only re-enable if they were already enabled.
 UCI_GATED_SERVICES="qmanager-watchcat qmanager-tower-failover qmanager-discord"
 
 # Conflict packages that must be removed before installing
@@ -618,7 +623,7 @@ SVCEOF
             info "Created start-opt-mount.service"
         fi
 
-        systemctl daemon-reload
+        systemctl daemon-reload 2>/dev/null || warn "daemon-reload failed (transient?) — continuing"
         systemctl start opt.mount 2>/dev/null || true
         info "Mounted /usrdata/opt → /opt"
 
@@ -683,7 +688,7 @@ RCEOF
         ln -sf /opt/bin/opkg /bin/opkg 2>/dev/null || true
         ln -sf /opt/bin/jq /usr/bin/jq 2>/dev/null || true
 
-        systemctl daemon-reload
+        systemctl daemon-reload 2>/dev/null || warn "daemon-reload failed (transient?) — continuing"
         info "Entware bootstrap complete"
     else
         info "Entware already installed at $OPKG"
@@ -874,6 +879,25 @@ backup_originals() {
         local ts; ts=$(date +%Y%m%d_%H%M%S)
         cp "$CONF_DIR/auth.json" "$BACKUP_DIR/auth.json.$ts" 2>/dev/null || true
         info "Backed up auth config"
+
+        # Prune to the newest 5 auth.json backups — every install/OTA run adds
+        # one and nothing ever removed the old ones, so this grows unbounded
+        # on constrained UBI flash. Filenames use %Y%m%d_%H%M%S, so a plain
+        # lexicographic sort is already chronological order — no reliance on
+        # `ls -t` (mtime-based, BusyBox behavior not guaranteed) or `head -n
+        # -N` (negative counts aren't portable either).
+        local _keep=5
+        local _backups; _backups=$(ls -1 "$BACKUP_DIR"/auth.json.* 2>/dev/null | sort)
+        if [ -n "$_backups" ]; then
+            local _total; _total=$(printf '%s\n' "$_backups" | wc -l)
+            if [ "$_total" -gt "$_keep" ]; then
+                local _excess=$(( _total - _keep ))
+                printf '%s\n' "$_backups" | head -n "$_excess" | while IFS= read -r f; do
+                    rm -f "$f" 2>/dev/null || true
+                done
+                info "Pruned $_excess old auth.json backup(s), keeping newest $_keep"
+            fi
+        fi
     fi
 
     # Backup existing lighttpd config (if upgrading)
@@ -1014,6 +1038,16 @@ install_backend() {
                 || die "Failed to install $(basename "$f")"
         done
 
+        # Copy timer units too (e.g. qmanager-auto-update.timer) — the glob
+        # above only matches *.service, so timers need their own loop or they
+        # silently never get deployed. Enablement is gated separately in
+        # enable_services() (timers.target.wants, not multi-user.target.wants).
+        for f in "$SRC_SCRIPTS/etc/systemd/system"/qmanager*.timer; do
+            [ -f "$f" ] || continue
+            install_file "$f" "$SYSTEMD_DIR/$(basename "$f")" 644 \
+                || die "Failed to install $(basename "$f")"
+        done
+
         # Install lighttpd service file — ensures correct config path is used.
         # Entware's default service may point to /opt/etc/lighttpd/lighttpd.conf
         # instead of /usrdata/qmanager/lighttpd.conf where QManager's config lives.
@@ -1025,8 +1059,23 @@ install_backend() {
         fi
         sync
 
-        systemctl daemon-reload
+        systemctl daemon-reload 2>/dev/null || warn "daemon-reload failed (transient?) — continuing"
         info "Systemd units installed to $SYSTEMD_DIR"
+    fi
+
+    # --- Console login-shell PATH snippet (/etc/profile.d) --------------------
+    # SSH sessions and CGI already get /opt/bin (Entware) on PATH via
+    # cgi_base.sh / the dropbear login profile. The one gap is an interactive
+    # serial/getty console LOGIN shell, which reads /etc/profile.d/*.sh but
+    # otherwise starts with the vendor's bare PATH. Cosmetic only — nothing
+    # functional depends on it — so failures here are warnings, not die().
+    if [ -f "$SRC_SCRIPTS/etc/profile.d/qmanager-path.sh" ]; then
+        mount -o remount,rw / 2>/dev/null || true
+        install_file "$SRC_SCRIPTS/etc/profile.d/qmanager-path.sh" \
+            "/etc/profile.d/qmanager-path.sh" 644 \
+            || warn "Failed to install qmanager-path.sh profile.d snippet"
+        sync
+        info "Console PATH snippet installed (/etc/profile.d/qmanager-path.sh)"
     fi
 
     # --- Sudoers (re-detect after install_dependencies may have installed sudo) ---
@@ -1104,10 +1153,18 @@ install_backend() {
             if [ "$old_ttl" -eq 0 ] && [ "$old_hl" -eq 0 ]; then
                 info "Legacy /etc/firewall.user.ttl had no parseable TTL/HL — leaving in place for inspection"
             else
-                ttl_state_write_persisted "$old_ttl" "$old_hl" && \
+                # Only delete the legacy file once the new state file is
+                # confirmed written — this migration is gated on ttl_state
+                # not existing, so it never retries. Deleting unconditionally
+                # (previously a separate statement outside this check) would
+                # permanently lose the operator's TTL/HL on a write failure.
+                if ttl_state_write_persisted "$old_ttl" "$old_hl"; then
                     info "Migrated TTL=$old_ttl HL=$old_hl to $TTL_STATE_FILE"
-                rm -f /etc/firewall.user.ttl || true
-                info "Removed legacy /etc/firewall.user.ttl"
+                    rm -f /etc/firewall.user.ttl || true
+                    info "Removed legacy /etc/firewall.user.ttl"
+                else
+                    warn "Failed to write $TTL_STATE_FILE — leaving /etc/firewall.user.ttl in place to retry next run"
+                fi
             fi
         ) || true
     fi
@@ -1504,6 +1561,12 @@ enable_services() {
         [ -f "$unit" ] || continue
         svc=$(basename "$unit" .service)
 
+        # qmanager-auto-update.service has no [Install] section — it is
+        # started only by qmanager-auto-update.timer, never boot-enabled
+        # directly. Symlinking it here would run it at every boot in
+        # addition to the timer schedule, which is not the intent.
+        [ "$svc" = "qmanager-auto-update" ] && continue
+
         # Check if this service is in the gated list
         local is_gated=0
         for g in $UCI_GATED_SERVICES; do
@@ -1534,6 +1597,30 @@ enable_services() {
         fi
     done
 
+    # --- Auto-update timer (config-gated, NOT symlink-state-gated) ------------
+    # Timers enable via timers.target.wants, not multi-user.target.wants, so
+    # this can't share the .service loop above. Unlike the UCI_GATED_SERVICES
+    # services above, this is NOT "restore whatever symlink state existed
+    # before this run" — timers are new this release, so a user who already
+    # opted in via the existing System Settings → Software Update toggle has
+    # update.auto_update_enabled=1 in config but NO pre-existing timer
+    # symlink. Gating on symlink presence would silently ignore that opt-in;
+    # gating on the config key the UI already writes does not.
+    mkdir -p "$TIMERS_WANTS_DIR"
+    command -v qm_config_get >/dev/null 2>&1 || . "$LIB_DIR/config.sh"
+
+    if [ -f "$SYSTEMD_DIR/qmanager-auto-update.timer" ]; then
+        _auto_update_enabled=$(qm_config_get update auto_update_enabled 0 2>/dev/null)
+        if [ "$_auto_update_enabled" = "1" ]; then
+            ln -sf "$SYSTEMD_DIR/qmanager-auto-update.timer" "$TIMERS_WANTS_DIR/qmanager-auto-update.timer"
+            info "Auto-update timer enabled (update.auto_update_enabled=1)"
+        else
+            # rm -f (not just "skip") so a later opt-OUT is honored on re-run/OTA
+            rm -f "$TIMERS_WANTS_DIR/qmanager-auto-update.timer"
+            info "Auto-update timer not enabled (opt in via System Settings → Software Update)"
+        fi
+    fi
+
     # --- Discord bot (gated on binary + config + enabled flag) ----------------
     if [ -x "$BIN_DIR/qmanager_discord" ] && [ -f /etc/qmanager/discord_bot.json ]; then
         enabled=$(jq -r '.enabled // false' /etc/qmanager/discord_bot.json 2>/dev/null)
@@ -1544,7 +1631,7 @@ enable_services() {
     fi
 
     sync
-    systemctl daemon-reload
+    systemctl daemon-reload 2>/dev/null || warn "daemon-reload failed (transient?) — continuing"
 }
 
 # --- Start Services ----------------------------------------------------------

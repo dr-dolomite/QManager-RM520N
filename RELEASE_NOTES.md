@@ -28,6 +28,10 @@ QManager now speaks your language, and the Connection Watchdog gets a ground-up 
 
 - **Translation pull requests are checked automatically.** Every PR that touches a language now gets a bot comment with a per-language completeness table and inline notes, failing only on real structural mistakes — so contributors get instant, plain-English feedback (`bun run lang check --all --ci` on CI, ~20–30s, no install).
 
+- **Installs and updates are tougher.** A momentary system hiccup partway through an install no longer aborts the whole thing, an upgrade can't lose your custom TTL/HL setting, and files are flushed to flash before the filesystem is sealed — so an install or update is far less likely to leave the device half-finished (guarded `systemctl daemon-reload`, ordered TTL-state migration that keeps the old value on a failed write, and `sync`-before-remount discipline).
+
+- **Tightened the web backend's system permissions.** QManager's web service can now start and stop only *its own* services rather than any service on the device — a defense-in-depth cleanup with zero change to what you can do in the UI (the `www-data` sudoers grant is scoped to the `qmanager-*` and `tailscaled` units it actually uses).
+
 ## 🐛 Fixes
 
 - **Timezone selection now actually changes the device clock.** Picking a zone in **System Settings** updates the clock, log timestamps, and alert times instead of silently snapping back to UTC (glibc reads `/etc/localtime`, which QManager now writes via a root helper using Entware's full IANA tzdata). Heads-up: scheduled-reboot and low-power windows follow the device's local timezone and shift to a newly-set zone after the next reboot — set your timezone first, then schedule.
@@ -40,6 +44,10 @@ QManager now speaks your language, and the Connection Watchdog gets a ground-up 
 
 - **A brief connectivity blip during cooldown no longer forces a reboot.** The watchdog now retries a transient ping hiccup after a recovery step rather than treating it as a hard failure and jumping to the next tier.
 
+- **Updates no longer report failure when they actually succeeded.** A completed update whose version differs only by a pre-release tag (like `-draft`) is now recognized as a success instead of throwing a false "update failed" at the very last step (the post-install version check compares releases semantically rather than as an exact string).
+
+- **A clean bill of health after install or update.** Two internal services (Ethernet and IMEI check) used to show up as "failed" on a perfectly healthy device that simply had nothing to do; they now correctly report as idle/skipped, so a quick `systemctl --failed` comes back clean — on both a fresh install and an OTA upgrade of an existing device.
+
 ## 📥 Installation
 
 ### Upgrading from v0.1.12
@@ -47,6 +55,8 @@ QManager now speaks your language, and the Connection Watchdog gets a ground-up 
 **System Settings → Software Update** → Download → Install. No SSH/ADB needed. All settings preserved.
 
 ### Fresh Install
+
+> **No SimpleAdmin required.** QManager installs completely standalone — you do **not** need to install (or uninstall) SimpleAdmin or the RGMII toolkit first. The installer bootstraps everything itself (Entware, web server, users, services).
 
 SSH or ADB into the modem and run:
 

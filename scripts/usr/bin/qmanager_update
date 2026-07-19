@@ -5,10 +5,15 @@
 # Spawned by update.sh CGI. Downloads, verifies, installs, and reboots.
 #
 # Usage:
-#   qmanager_update install <download_url> <version> [download_size]
+#   qmanager_update install <download_url> <version> [download_size] [--unattended]
 #   qmanager_update download <tarball_url> <checksum_url> <version>
 #   qmanager_update install_staged
 #   qmanager_update rollback <rollback_url> <rollback_version>
+#
+# The optional [--unattended] (alias --strict) flag on "install" is set by
+# qmanager_auto_update: it makes SHA-256 verification mandatory rather than
+# best-effort, since nobody is watching the progress UI to catch a bad
+# unattended install before it reboots the device. See verify_checksum().
 # =============================================================================
 
 LOG_FILE="/tmp/qmanager_update.log"
@@ -114,6 +119,85 @@ verify_archive() {
     return 0
 }
 
+# A GitHub Release publishes qmanager.tar.gz and sha256sum.txt as siblings in
+# the same release. "install" mode is only ever given the tarball URL (unlike
+# "download" mode, which receives an explicit checksum URL from the CGI) — so
+# for the releases path we derive the sibling checksum URL ourselves. The
+# raw/qmanager-build path (dev/one-step installs) has no such sibling and
+# yields an empty string, which verify_checksum() treats as "unavailable".
+derive_checksum_url() {
+    local tarball_url="$1"
+    case "$tarball_url" in
+        https://github.com/dr-dolomite/QManager-RM520N/releases/download/*/qmanager.tar.gz)
+            printf '%s' "${tarball_url%/qmanager.tar.gz}/sha256sum.txt"
+            ;;
+        *)
+            printf ''
+            ;;
+    esac
+}
+
+# Fetch + verify a tarball's SHA-256 against a checksum URL. Shared by both
+# "download" (staged) and "install" (one-step) modes so the two paths carry
+# identical integrity guarantees — previously only "download" mode verified
+# checksums at all.
+#
+# Return codes:
+#   0 = verified OK, or skipped and the caller's strictness allows that
+#   1 = checksum unavailable/unverifiable AND strict — caller must die
+#   2 = checksum present but MISMATCHED — always fatal regardless of strict;
+#       a mismatch is a corruption/tamper signal, never a "just proceed" gap
+#
+# strict="strict" is set by qmanager_auto_update (the unattended, reboot-
+# capable path) — it must never install unverified bytes. The manual/UI path
+# passes strict="" so a human watching the progress UI can still proceed past
+# a transient checksum-hosting hiccup, same as today. Every skip/verify/
+# mismatch outcome is always logged — silence was the actual bug being fixed.
+verify_checksum() {
+    local tarball="$1" checksum_url="$2" strict="$3"
+    local checksum_file="/tmp/qmanager_update_sha256.txt"
+    local expected_sha="" actual_sha=""
+
+    if [ -z "$checksum_url" ]; then
+        log "SHA-256 check skipped — no checksum URL available for this install"
+        [ "$strict" = "strict" ] && return 1
+        return 0
+    fi
+
+    rm -f "$checksum_file"
+    if ! http_download "$checksum_url" "$checksum_file" 15; then
+        log "SHA-256 check skipped — checksum file not available at $checksum_url"
+        rm -f "$checksum_file"
+        [ "$strict" = "strict" ] && return 1
+        return 0
+    fi
+
+    if ! command -v sha256sum >/dev/null 2>&1; then
+        log "SHA-256 check skipped — sha256sum not available on this system"
+        rm -f "$checksum_file"
+        [ "$strict" = "strict" ] && return 1
+        return 0
+    fi
+
+    expected_sha=$(awk '{print $1}' "$checksum_file" 2>/dev/null)
+    actual_sha=$(sha256sum "$tarball" 2>/dev/null | awk '{print $1}')
+    rm -f "$checksum_file"
+
+    if [ -z "$expected_sha" ] || [ -z "$actual_sha" ]; then
+        log "SHA-256 check skipped — could not parse checksum value(s) from $checksum_url"
+        [ "$strict" = "strict" ] && return 1
+        return 0
+    fi
+
+    if [ "$actual_sha" != "$expected_sha" ]; then
+        log "SHA-256 MISMATCH (expected $expected_sha, got $actual_sha)"
+        return 2
+    fi
+
+    log "SHA-256 verified ($actual_sha)"
+    return 0
+}
+
 # Run install_rm520n.sh with step-streaming progress updates to the UI.
 # Installer stdout/stderr go to INSTALL_LOG (separate from the worker LOG_FILE)
 # so we can poll it cleanly; the install log is appended to LOG_FILE on exit.
@@ -159,6 +243,19 @@ run_install_with_progress() {
 
 # Verify the installed VERSION matches what was expected.
 # A VERSION.pending file means the installer died mid-flight.
+#
+# The comparison is semantic, not byte-exact. install_rm520n.sh stamps
+# VERSION with whatever build.sh baked in from package.json at build time —
+# which can carry a pre-release suffix (e.g. "v0.1.13-draft") even when the
+# GitHub release itself was tagged clean ("v0.1.13"). A byte-exact compare
+# would then report a fully successful OTA as a fatal failure. Rule:
+#   - major.minor.patch CORE differs               -> fatal (die)
+#   - only a "v" prefix / "-suffix" difference      -> warn, treat as success
+# We extract cores with plain shell parameter expansion (matching semver.sh's
+# own "${v#v}" / "${v%%-*}" idiom) rather than adding a new helper to
+# semver.sh, since semver_compare()'s ordering semantics (no-prerelease always
+# "newer" than any prerelease) can't disambiguate a genuine numeric mismatch
+# from a same-core prerelease-only difference — both can return exit code 2.
 post_install_check() {
     local expected="$1" actual=""
 
@@ -170,9 +267,23 @@ post_install_check() {
         actual=$(tr -d '[:space:]' < "$VERSION_FILE")
     fi
 
-    if [ "$actual" != "$expected" ]; then
-        die "Install completed but VERSION not stamped (expected $expected, got ${actual:-<missing>}). Check $LOG_FILE."
+    if [ -z "$actual" ]; then
+        die "Install completed but VERSION not stamped (expected $expected, got <missing>). Check $LOG_FILE."
     fi
+
+    if [ "$actual" = "$expected" ]; then
+        return 0
+    fi
+
+    local expected_core actual_core
+    expected_core="${expected#v}"; expected_core="${expected_core%%-*}"
+    actual_core="${actual#v}"; actual_core="${actual_core%%-*}"
+
+    if [ "$expected_core" != "$actual_core" ]; then
+        die "Install completed but VERSION mismatch (expected $expected, got $actual). Check $LOG_FILE."
+    fi
+
+    log "WARNING: VERSION differs only by a 'v' prefix / pre-release suffix (expected '$expected', got '$actual') — numeric core '$actual_core' matches, treating install as success."
 }
 
 cleanup() {
@@ -238,6 +349,14 @@ if [ "$MODE" = "install" ]; then
     URL="$2"
     VERSION="$3"
     SIZE="$4"
+    # Strictness flag — set by qmanager_auto_update for the unattended path.
+    # "" (manual/UI-triggered) warns and proceeds on an unverifiable checksum;
+    # "--unattended"/"--strict" hard-fails instead, since nothing is watching
+    # the progress UI to catch a bad install before it reboots the device.
+    STRICT=""
+    case "$5" in
+        --unattended|--strict) STRICT="strict" ;;
+    esac
 
     if ! validate_url "$URL"; then
         die "Invalid download URL"
@@ -261,6 +380,21 @@ if [ "$MODE" = "install" ]; then
         die "Downloaded file is corrupt or missing install_rm520n.sh."
     fi
     log "Archive verified"
+
+    # 2b. Verify SHA-256 — same integrity guarantee "download" mode already
+    # has (see verify_checksum()). Previously "install" mode skipped this
+    # entirely, so the unattended auto-update path installed unverified bytes.
+    write_status "verifying" "Verifying SHA-256..." "$VERSION" ""
+    checksum_url=$(derive_checksum_url "$URL")
+    verify_checksum "$download_path" "$checksum_url" "$STRICT"
+    checksum_rc=$?
+    if [ "$checksum_rc" -eq 2 ]; then
+        rm -f "$download_path"
+        die "SHA-256 mismatch — download may be corrupt or tampered"
+    elif [ "$checksum_rc" -eq 1 ]; then
+        rm -f "$download_path"
+        die "SHA-256 verification unavailable for an unattended install — refusing to install unverified update"
+    fi
 
     # 3. Save current version for rollback tracking
     write_status "installing" "Installing update..." "$VERSION" ""
@@ -328,29 +462,16 @@ if [ "$MODE" = "download" ]; then
     fi
     log "Archive integrity verified"
 
-    # 3. SHA-256 verification (if checksum URL provided)
+    # 3. SHA-256 verification — shared helper (see verify_checksum()). The
+    # staged "download" flow is always human-triggered from the UI (auto-
+    # update uses "install" mode, not "download"), so strict="" here: a
+    # missing/unverifiable checksum warns and proceeds, matching prior
+    # behavior. A mismatch is always fatal regardless.
     write_status "verifying" "Verifying SHA-256..." "$VERSION" ""
-    if [ -n "$CHECKSUM_URL" ]; then
-        checksum_file="/tmp/qmanager_staged_sha256.txt"
-        rm -f "$checksum_file"
-
-        if http_download "$CHECKSUM_URL" "$checksum_file" 15; then
-            expected_sha=$(awk '{print $1}' "$checksum_file" 2>/dev/null)
-            actual_sha=$(sha256sum "$STAGED_TARBALL" 2>/dev/null | awk '{print $1}')
-
-            if [ -n "$expected_sha" ] && [ -n "$actual_sha" ]; then
-                if [ "$actual_sha" != "$expected_sha" ]; then
-                    rm -f "$STAGED_TARBALL" "$checksum_file"
-                    die "SHA-256 mismatch — download may be corrupt or tampered"
-                fi
-                log "SHA-256 verified"
-            else
-                log "SHA-256 check skipped (sha256sum not available)"
-            fi
-            rm -f "$checksum_file"
-        else
-            log "Checksum file not available — skipping SHA-256 verification"
-        fi
+    verify_checksum "$STAGED_TARBALL" "$CHECKSUM_URL" ""
+    if [ $? -eq 2 ]; then
+        rm -f "$STAGED_TARBALL"
+        die "SHA-256 mismatch — download may be corrupt or tampered"
     fi
 
     # 4. Stage version marker

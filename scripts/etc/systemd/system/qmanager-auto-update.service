@@ -1,0 +1,14 @@
+# /lib/systemd/system/qmanager-auto-update.service
+[Unit]
+Description=QManager Unattended Update Check (triggered by qmanager-auto-update.timer)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/qmanager_auto_update
+
+# No [Install] section — this unit is only ever started by
+# qmanager-auto-update.timer, never boot-enabled directly. The unattended
+# on/off switch lives in /etc/qmanager/qmanager.conf ("update.
+# auto_update_enabled"), checked at runtime by qmanager_auto_update itself.

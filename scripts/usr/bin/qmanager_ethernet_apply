@@ -27,6 +27,24 @@ case "$speed_limit" in
         ;;
 esac
 
+# --- No-NIC branch -------------------------------------------------------------
+# Many boxes have no RTL8125B 2.5GbE dongle attached, so eth0 never shows up
+# under /sys/class/net. This is called both from qmanager-ethernet.service at
+# boot and directly from the CGI apply path — neither caller should see a hard
+# failure just because the hardware isn't present. Persist the requested
+# preference (so it takes effect automatically if the dongle is hot-plugged or
+# present on a later boot) and exit clean.
+if [ ! -e "/sys/class/net/$ETH_INTERFACE" ]; then
+    echo "qmanager_ethernet_apply: $ETH_INTERFACE not present (no RTL8125B NIC attached) — skipping ethtool, preference persisted" >&2
+
+    mkdir -p "$CONF_DIR"
+    printf '%s\n' "$speed_limit" > "${ETHERNET_SPEED_FILE}.tmp"
+    mv "${ETHERNET_SPEED_FILE}.tmp" "$ETHERNET_SPEED_FILE"
+
+    printf '{"success":true,"speed_limit":"%s","applied":false,"reason":"no_nic"}\n' "$speed_limit"
+    exit 0
+fi
+
 # --- Build ethtool advertise mask and apply ----------------------------------
 
 case "$speed_limit" in

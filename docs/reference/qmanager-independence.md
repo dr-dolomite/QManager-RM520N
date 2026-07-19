@@ -47,9 +47,25 @@
 
 ## Service persistence (systemd symlinks)
 
-- **`systemctl enable` does not work** on this platform — it fails silently or errors depending on systemd version.
-- All boot persistence is implemented via **direct symlinks** into `/lib/systemd/system/multi-user.target.wants/`.
-- This is managed through `svc_enable` and `svc_disable` helpers in `platform.sh` — use those functions everywhere, never call `systemctl enable/disable` directly.
+- **Boot persistence is implemented via direct symlinks** into `/lib/systemd/system/multi-user.target.wants/` (and `timers.target.wants/` for timer units), managed through `svc_enable`/`svc_disable`/`svc_is_enabled` in `platform.sh` — use those helpers everywhere; do not mix in raw `systemctl enable/disable`, because they write to a *different* wants dir (see next point).
+- **The "`systemctl enable` doesn't work here" rationale is stale.** A scoped on-device experiment (systemd 244) confirmed plain `systemctl enable` **succeeds** and honors the units' `[Install] WantedBy=` sections — it just creates the symlink in `/etc/systemd/system/*.target.wants/` instead of the `/lib/...` dir QManager uses. So the manual-symlink approach is a *choice*, not a necessity. A future release *could* simplify `platform.sh` to plain `systemctl enable`/`disable`/`is-enabled`, but only as a consistent set (all three together, re-pointing `svc_is_enabled` at the `/etc` wants dir) — switching just one would make the helpers stop seeing each other's symlinks. Bonus: `systemctl enable` writes to `/etc` (persistent always-RW UBIFS), dropping the rootfs-remount that the `/lib` symlink needs.
+
+### `systemctl is-enabled` is unreliable here
+
+`systemctl is-enabled <unit>` reports **"disabled"** for every QManager unit — even on a device where that unit boots perfectly every time. This is a direct consequence of the symlink approach above: QManager writes its wants-symlinks into `/lib/systemd/system/*.target.wants/`, but `is-enabled` only inspects `/etc/systemd/system/...`. It never sees QManager's symlinks, so it always answers "disabled."
+
+> ⚠️ WARNING: Never use `systemctl is-enabled` to decide whether a QManager unit will survive a reboot — it will lie. Verify boot persistence by checking the wants-symlink directly (e.g. `test -L /lib/systemd/system/multi-user.target.wants/<unit>`). Validators and health checks must do the same, never `is-enabled`.
+
+> ℹ️ NOTE: `systemctl is-enabled` is unreliable *because* QManager symlinks into `/lib/...wants/` while `is-enabled` inspects `/etc/...wants/`. A device that switched to raw `systemctl enable` (which writes to `/etc`) would get truthful `is-enabled` answers — but until/unless `platform.sh` is migrated as a set (see above), QManager units live in `/lib` and `is-enabled` remains a lying witness for them.
+
+### Condition placement — unit-health lesson
+
+Two QManager units — `qmanager-ethernet.service` and `qmanager-imei-check.service` — historically showed as `Active: failed` on a completely healthy device that simply had nothing to do. The root cause was systemd directive placement, and the rule is worth internalizing for any new no-op-capable unit:
+
+- **`Condition*=` (e.g. `ConditionPathExists=`) MUST live in `[Unit]`.** systemd **silently ignores** a `Condition*=` placed in `[Service]` — the guard never fires, the unit's real command runs and exits non-zero, and the unit lands in `failed`. Moved to `[Unit]`, systemd skips the unit cleanly when the precondition isn't met (the unit reports `condition failed`/inactive, not `failed`). This was the Ethernet-unit fix.
+- **`ExecCondition=` belongs in `[Service]`** and behaves differently on purpose: a non-zero `ExecCondition` marks the run **`skipped`**, not `failed`. `qmanager-imei-check.service` uses `ExecCondition=` so an idle "nothing to check" exit reads as skipped.
+
+Net effect after the fix: `systemctl --failed` comes back clean on a healthy box, on both a fresh install and an OTA upgrade of an existing device. When authoring a unit that should no-op under some condition, decide up front which directive you want and put it in the correct section.
 
 ---
 
@@ -191,6 +207,34 @@ PID tracking spans the full install lifetime to keep the CGI's `pid_alive` concu
 - **Shared semver library**: `/usr/lib/qmanager/semver.sh` — sourced by both `update.sh` CGI and `qmanager_auto_update`.
 - **Shared downloader library**: `/usr/lib/qmanager/downloader.sh` — sourced by `update.sh` CGI, `qmanager_update` (OTA worker), and `qmanager_auto_update` (cron). The two worker/cron scripts source it *guarded*, with an inline fallback so they still run if the lib is missing. See "HTTP transport & installer resilience" below — note the 3-copy maintenance hazard.
 - **v0.1.4 → v0.1.5 requires ADB/SSH**: v0.1.4's CGI has no sudo and v0.1.4's sudoers has no `qmanager_update` rule, so OTA cannot self-update from v0.1.4. From v0.1.5 onward, OTA works via the UI.
+
+### Dev-box version footgun
+
+Running `scripts/install_rm520n.sh` **directly from a git checkout** stamps the placeholder `VERSION="v0.1.5"` — `build.sh` injects the real release version only at *package* time, never into the tracked source. A dev box installed straight from the repo therefore always believes it is on v0.1.5 and **perpetually shows "update available."** This is expected on dev boxes, not a bug.
+
+R1's **semantic** version compare in `qmanager_update`'s `post_install_check` also fixes a related false-failure: a release whose version differs only by a **pre-release suffix** (e.g. installed `v0.1.13-draft` vs expected `v0.1.13`) no longer reports failure. The check compares the numeric core (`0.1.13`) and treats a suffix-only mismatch as **warn-and-succeed**; a real numeric-core mismatch still **fails** the install. Previously the exact-string compare threw a false "update failed" at the very last step of an otherwise-successful OTA.
+
+### SHA-256 verification on the install path (A6)
+
+OTA `install` mode now performs SHA-256 verification of the downloaded package — previously only `download` mode did, so `install` could silently skip the check:
+
+- **Unattended path** (`qmanager_auto_update` invoking with `--unattended`): a missing or unverifiable checksum is a **hard failure** — no silent skip.
+- **Manual path**: a missing checksum **warns and proceeds** (preserves the ability to install a release before its checksum is published).
+- **A checksum MISMATCH is always fatal**, on both paths.
+
+### OTA atomicity — known limitation
+
+The frontend and CGI trees are deployed **wipe-and-recopy**, not staged-and-swapped. A power loss *mid-copy* can therefore leave a mixed tree (some new files, some old). The two-phase `VERSION` / `VERSION.pending` marker (above) **detects** this — a surviving `.pending` after reboot surfaces as `previous_install_failed` — but detection is not recovery.
+
+> ⚠️ WARNING: The built-in recovery is a **user-invoked UI rollback**, which itself needs a working web UI — precisely what a half-copied tree may have broken. The real safety net is **SSH**: dropbear is installed independently and survives from the original install, so a bricked web UI is always recoverable over SSH.
+
+**Recommended future direction (documented, not built):** stage the extract into a sibling directory and swap it in with an atomic `rename()` (or a symlink flip), so an interrupted update can never leave a partially-copied *live* tree.
+
+### Auto-update timer (PR-5)
+
+A dormant auto-updater ships as a systemd timer pair — `qmanager-auto-update.service` + `qmanager-auto-update.timer` — **default-OFF**. It is gated on the existing config key `update.auto_update_enabled` (surfaced at **System Settings → Software Update**) and armed by `enable_services()` on install/OTA. `qmanager_auto_update` re-checks the config key at runtime, so a timer that somehow fires while disabled still no-ops. When it does run, it honors the SHA-256 rules above (unattended path hard-fails on a missing/unverifiable checksum).
+
+> ⚠️ KNOWN GAP / follow-up: Toggling the UI switch on an **already-installed** device writes the config key but does **not** itself arm the timer — there is no root helper for the CGI layer to create the `/lib/systemd/system/timers.target.wants/` symlink. So opt-in only takes effect at the **next install/OTA**, when `enable_services()` runs. Follow-up ticket: add a root helper so `update.sh`'s `save_auto_update` arms/disarms the timer immediately, and retire the now-dead crontab-writer still in `update.sh` — RM520N-GL has no `crond`, so those crontab lines never execute.
 
 ---
 
