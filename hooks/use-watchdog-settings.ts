@@ -131,6 +131,10 @@ export function useWatchdogSettings(): UseWatchdogSettingsReturn {
 
   useEffect(() => {
     fetchSettings();
+    // Silent background refresh so the live status hero and counter strip stay
+    // current without flashing the skeleton on every tick.
+    const id = setInterval(() => fetchSettings(true), 30_000);
+    return () => clearInterval(id);
   }, [fetchSettings]);
 
   // ---------------------------------------------------------------------------

@@ -1,8 +1,7 @@
 "use client";
 
-import { useState, useMemo, useCallback } from "react";
-import { toast } from "sonner";
-import { SaveButton, useSaveFlash } from "@/components/ui/save-button";
+import React, { useCallback, useEffect, useRef, useState } from "react";
+import { useReducedMotion } from "motion/react";
 import {
   Card,
   CardContent,
@@ -10,6 +9,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Field,
   FieldDescription,
@@ -18,8 +18,8 @@ import {
   FieldLabel,
   FieldSet,
 } from "@/components/ui/field";
-import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
 import {
   Select,
   SelectContent,
@@ -27,232 +27,127 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Button } from "@/components/ui/button";
+import { SaveButton } from "@/components/ui/save-button";
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import { AlertTriangleIcon } from "lucide-react";
-import type {
-  WatchdogSavePayload,
-  UseWatchdogSettingsReturn,
-} from "@/hooks/use-watchdog-settings";
-import { Separator } from "@/components/ui/separator";
+import {
+  ActivityIcon,
+  CheckIcon,
+  PowerIcon,
+  RadioIcon,
+  RefreshCwIcon,
+  RotateCcwIcon,
+} from "lucide-react";
 import { TbInfoCircleFilled } from "react-icons/tb";
+import { cn } from "@/lib/utils";
+import { CHECK_INTERVAL_OPTIONS, type WatchdogForm } from "./use-watchdog-form";
 
-type WatchdogSettingsCardProps = Pick<
-  UseWatchdogSettingsReturn,
-  | "settings"
-  | "autoDisabled"
-  | "isLoading"
-  | "isSaving"
-  | "error"
-  | "saveSettings"
->;
+type SettingsTab = "detection" | "recovery";
 
-export function WatchdogSettingsCard({
-  settings,
-  autoDisabled,
-  isLoading,
-  isSaving,
-  error,
-  saveSettings,
-}: WatchdogSettingsCardProps) {
+// -----------------------------------------------------------------------------
+// Watchdog settings — one card, two tabs (Detection / Recovery), one atomic
+// Save. Because the backend save carries every field in a single POST, the
+// sticky save bar at the card foot commits the whole form, not just the visible
+// tab. Each tab label carries a destructive error dot when a field on it is
+// invalid; a blocked Save jumps to the first offending tab and focuses the
+// field.
+// -----------------------------------------------------------------------------
+export function WatchdogSettingsCard({ form }: { form: WatchdogForm }) {
+  const reduceMotion = useReducedMotion();
+  const [tab, setTab] = useState<SettingsTab>("detection");
+  const masterOff = !form.isEnabled;
 
-  // Loading skeleton
-  if (isLoading) {
-    return (
-      <Card className="@container/card">
-        <CardHeader>
-          <CardTitle>Watchdog Settings</CardTitle>
-          <CardDescription>
-            Configure connection health monitoring and recovery.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid gap-4">
-            <Skeleton className="h-8 w-48" />
-            <div className="grid grid-cols-1 @sm/card:grid-cols-2 gap-4">
-              <Skeleton className="h-16 w-full" />
-              <Skeleton className="h-16 w-full" />
-              <Skeleton className="h-16 w-full" />
-            </div>
-            <Skeleton className="h-5 w-32 mt-2" />
-            <Skeleton className="h-7 w-44" />
-            <Skeleton className="h-7 w-44" />
-            <Skeleton className="h-7 w-44" />
-            <Skeleton className="h-7 w-44" />
-          </div>
-        </CardContent>
-      </Card>
-    );
-  }
+  // Empty-while-required blockers the hook folds into canSave but doesn't expose
+  // as named errors — recomputed here so the tab dots + jump logic see them.
+  const maxFailuresMissing = form.maxFailures.trim() === "";
+  const cooldownMissing = form.cooldown.trim() === "";
+  const maxRebootsMissing =
+    form.tier4Enabled && form.maxRebootsPerHour.trim() === "";
 
-  // Key-based remount: when settings change (initial load or post-save re-fetch),
-  // the form reinitializes with fresh values from useState defaults.
-  const formKey = settings
-    ? `${settings.enabled}-${settings.max_failures}-${settings.check_interval}-${settings.cooldown}-${settings.backup_sim_slot}`
-    : "empty";
+  const e = form.errors;
+  const tabErrors: Record<SettingsTab, boolean> = {
+    detection:
+      !!e.maxFailures || !!e.cooldown || maxFailuresMissing || cooldownMissing,
+    recovery: !!e.backupSim || !!e.maxReboots || maxRebootsMissing,
+  };
 
-  return (
-    <WatchdogSettingsForm
-      key={formKey}
-      settings={settings}
-      autoDisabled={autoDisabled}
-      isSaving={isSaving}
-      error={error}
-      saveSettings={saveSettings}
-    />
-  );
-}
+  const blocked =
+    form.hasValidationErrors ||
+    maxFailuresMissing ||
+    cooldownMissing ||
+    maxRebootsMissing;
 
-function WatchdogSettingsForm({
-  settings,
-  autoDisabled,
-  isSaving,
-  error,
-  saveSettings,
-}: Omit<WatchdogSettingsCardProps, "isLoading">) {
-  const { saved, markSaved } = useSaveFlash();
-
-  // --- Local form state (initialized from settings prop) ---
-  const [isEnabled, setIsEnabled] = useState(settings?.enabled ?? false);
-  const [maxFailures, setMaxFailures] = useState(
-    String(settings?.max_failures ?? 5),
-  );
-  const [checkInterval, setCheckInterval] = useState(
-    String(settings?.check_interval ?? 10),
-  );
-  const [cooldown, setCooldown] = useState(String(settings?.cooldown ?? 60));
-  const [tier1Enabled, setTier1Enabled] = useState(
-    settings?.tier1_enabled ?? true,
-  );
-  const [tier2Enabled, setTier2Enabled] = useState(
-    settings?.tier2_enabled ?? true,
-  );
-  const [tier3Enabled, setTier3Enabled] = useState(
-    settings?.tier3_enabled ?? false,
-  );
-  const [tier4Enabled, setTier4Enabled] = useState(
-    settings?.tier4_enabled ?? true,
-  );
-  const [backupSimSlot, setBackupSimSlot] = useState<string>(
-    settings?.backup_sim_slot != null ? String(settings.backup_sim_slot) : "",
-  );
-  const [maxRebootsPerHour, setMaxRebootsPerHour] = useState(
-    String(settings?.max_reboots_per_hour ?? 3),
-  );
-
-  // --- Validation ---
-  const maxFailuresError =
-    maxFailures &&
-    (isNaN(Number(maxFailures)) ||
-      Number(maxFailures) < 1 ||
-      Number(maxFailures) > 20)
-      ? "Must be 1\u201320"
-      : null;
-
-  const cooldownError =
-    cooldown &&
-    (isNaN(Number(cooldown)) || Number(cooldown) < 10 || Number(cooldown) > 300)
-      ? "Must be 10\u2013300 seconds"
-      : null;
-
-  const maxRebootsError =
-    maxRebootsPerHour &&
-    (isNaN(Number(maxRebootsPerHour)) ||
-      Number(maxRebootsPerHour) < 1 ||
-      Number(maxRebootsPerHour) > 10)
-      ? "Must be 1\u201310"
-      : null;
-
-  const hasValidationErrors = !!(
-    maxFailuresError ||
-    cooldownError ||
-    maxRebootsError
-  );
-
-  // --- Dirty check ---
-  const isDirty = useMemo(() => {
-    if (!settings) return false;
-    return (
-      isEnabled !== settings.enabled ||
-      maxFailures !== String(settings.max_failures) ||
-      checkInterval !== String(settings.check_interval) ||
-      cooldown !== String(settings.cooldown) ||
-      tier1Enabled !== settings.tier1_enabled ||
-      tier2Enabled !== settings.tier2_enabled ||
-      tier3Enabled !== settings.tier3_enabled ||
-      tier4Enabled !== settings.tier4_enabled ||
-      backupSimSlot !==
-        (settings.backup_sim_slot != null
-          ? String(settings.backup_sim_slot)
-          : "") ||
-      maxRebootsPerHour !== String(settings.max_reboots_per_hour)
-    );
-  }, [
-    settings,
-    isEnabled,
-    maxFailures,
-    checkInterval,
-    cooldown,
-    tier1Enabled,
-    tier2Enabled,
-    tier3Enabled,
-    tier4Enabled,
-    backupSimSlot,
-    maxRebootsPerHour,
-  ]);
-
-  const canSave = !hasValidationErrors && isDirty && !isSaving;
-
-  // --- Save handler ---
-  const handleSave = useCallback(
-    async (e: React.FormEvent) => {
-      e.preventDefault();
-      if (!canSave) return;
-
-      const payload: WatchdogSavePayload = {
-        action: "save_settings",
-        enabled: isEnabled,
-        max_failures: parseInt(maxFailures, 10),
-        check_interval: parseInt(checkInterval, 10),
-        cooldown: parseInt(cooldown, 10),
-        tier1_enabled: tier1Enabled,
-        tier2_enabled: tier2Enabled,
-        tier3_enabled: tier3Enabled,
-        tier4_enabled: tier4Enabled,
-        backup_sim_slot: backupSimSlot ? parseInt(backupSimSlot, 10) : null,
-        max_reboots_per_hour: parseInt(maxRebootsPerHour, 10),
-      };
-
-      const success = await saveSettings(payload);
-      if (success) {
-        markSaved();
-        toast.success("Watchdog settings saved");
-      } else {
-        toast.error(error || "Failed to save watchdog settings");
-      }
+  // --- Focus-first-invalid on a blocked save --------------------------------
+  const fieldRefs = useRef<Record<string, HTMLElement | null>>({});
+  const registerField = useCallback(
+    (id: string) => (el: HTMLElement | null) => {
+      fieldRefs.current[id] = el;
     },
-    [
-      canSave,
-      isEnabled,
-      maxFailures,
-      checkInterval,
-      cooldown,
-      tier1Enabled,
-      tier2Enabled,
-      tier3Enabled,
-      tier4Enabled,
-      backupSimSlot,
-      maxRebootsPerHour,
-      saveSettings,
-      error,
-      markSaved,
-    ],
+    [],
   );
+  const [focusReq, setFocusReq] = useState<{ id: string; n: number } | null>(
+    null,
+  );
+  // Focus runs after the tab switch has mounted the target field. This is a DOM
+  // side effect (focus/scroll), never a setState-in-effect.
+  useEffect(() => {
+    if (!focusReq) return;
+    const raf = requestAnimationFrame(() => {
+      const el = fieldRefs.current[focusReq.id];
+      if (el) {
+        el.focus({ preventScroll: true });
+        el.scrollIntoView({
+          block: "center",
+          behavior: reduceMotion ? "auto" : "smooth",
+        });
+      }
+    });
+    return () => cancelAnimationFrame(raf);
+  }, [focusReq, reduceMotion]);
+
+  const orderedErrors: { tab: SettingsTab; id: string; present: boolean }[] = [
+    {
+      tab: "detection",
+      id: "max-failures",
+      present: !!e.maxFailures || maxFailuresMissing,
+    },
+    {
+      tab: "detection",
+      id: "cooldown",
+      present: !!e.cooldown || cooldownMissing,
+    },
+    { tab: "recovery", id: "backup-sim-slot", present: !!e.backupSim },
+    {
+      tab: "recovery",
+      id: "max-reboots",
+      present: !!e.maxReboots || maxRebootsMissing,
+    },
+  ];
+
+  const handleSave = () => {
+    if (blocked) {
+      const first = orderedErrors.find((f) => f.present);
+      if (first) {
+        setTab(first.tab);
+        setFocusReq((prev) => ({ id: first.id, n: (prev?.n ?? 0) + 1 }));
+      }
+      return;
+    }
+    void form.submit();
+  };
+
+  // Human-readable list of the tabs that currently hold an error.
+  const TAB_NAMES: Record<SettingsTab, string> = {
+    detection: "Detection",
+    recovery: "Recovery",
+  };
+  const erroredTabNames = (["detection", "recovery"] as const)
+    .filter((tk) => tabErrors[tk])
+    .map((tk) => TAB_NAMES[tk]);
 
   return (
     <Card className="@container/card">
@@ -262,114 +157,120 @@ function WatchdogSettingsForm({
           Configure connection health monitoring and recovery.
         </CardDescription>
       </CardHeader>
-      <CardContent>
-        {autoDisabled && (
-          <Alert variant="destructive" className="mb-4">
-            <AlertTriangleIcon className="size-4" />
-            <AlertDescription>
-              Watchdog disabled itself after too many reboots in one hour.
-              Re-enable it below once your connection is stable.
-            </AlertDescription>
-          </Alert>
-        )}
 
-        <form className="grid gap-4" onSubmit={handleSave}>
-          <FieldSet>
-            <FieldGroup>
-              {/* Master toggle */}
-              <Field orientation="horizontal" className="w-fit">
-                <FieldLabel htmlFor="watchdog-enabled">
-                  Enable Watchdog
-                </FieldLabel>
-                <Switch
-                  id="watchdog-enabled"
-                  checked={isEnabled}
-                  onCheckedChange={setIsEnabled}
-                />
-              </Field>
-
-              <div className="grid grid-cols-1 @sm/card:grid-cols-2 gap-4">
-                {/* Max Failures */}
-                <Field>
-                  <FieldLabel htmlFor="max-failures">
-                    Failure Threshold
-                  </FieldLabel>
-                  <Input
-                    id="max-failures"
-                    type="number"
-                    min="1"
-                    max="20"
-                    placeholder="5"
-                    className="max-w-sm"
-                    value={maxFailures}
-                    onChange={(e) => setMaxFailures(e.target.value)}
-                    disabled={!isEnabled}
-                    aria-invalid={!!maxFailuresError}
-                    aria-describedby={
-                      maxFailuresError
-                        ? "max-failures-error"
-                        : "max-failures-desc"
-                    }
+      <CardContent className="flex min-h-0 flex-1 flex-col">
+        <Tabs
+          value={tab}
+          onValueChange={(v) => setTab(v as SettingsTab)}
+          className="min-h-0 flex-1"
+        >
+          <TabsList className="w-full">
+            {(["detection", "recovery"] as const).map((tk) => (
+              <TabsTrigger key={tk} value={tk} className="gap-1.5">
+                {TAB_NAMES[tk]}
+                {tabErrors[tk] && (
+                  <span
+                    aria-label="Has errors"
+                    className="bg-destructive size-1.5 rounded-full"
                   />
-                  {maxFailuresError ? (
-                    <FieldError id="max-failures-error">
-                      {maxFailuresError}
-                    </FieldError>
-                  ) : (
-                    <FieldDescription id="max-failures-desc">
-                      How many failed connectivity checks in a row before
-                      recovery begins.
-                    </FieldDescription>
-                  )}
-                </Field>
+                )}
+              </TabsTrigger>
+            ))}
+          </TabsList>
 
-                {/* Check Interval */}
-                <Field>
-                  <FieldLabel htmlFor="check-interval">
-                    Check Interval
-                  </FieldLabel>
-                  <Select
-                    value={checkInterval}
-                    onValueChange={setCheckInterval}
-                    disabled={!isEnabled}
-                  >
-                    <SelectTrigger id="check-interval" className="max-w-sm">
-                      <SelectValue placeholder="Select interval" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="5">5 seconds</SelectItem>
-                      <SelectItem value="10">10 seconds</SelectItem>
-                      <SelectItem value="15">15 seconds</SelectItem>
-                      <SelectItem value="30">30 seconds</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <FieldDescription>
-                    How often the watchdog checks your internet connection.
-                  </FieldDescription>
-                </Field>
+          {/* ================= DETECTION ================= */}
+          <TabsContent
+            value="detection"
+            className="mt-5 animate-in fade-in-0 duration-200 motion-reduce:animate-none"
+          >
+            <FieldSet>
+              <FieldGroup>
+                <div className="grid grid-cols-1 gap-4 @sm/card:grid-cols-2">
+                  {/* Check interval */}
+                  <Field>
+                    <FieldLabel htmlFor="check-interval">
+                      Check Interval
+                    </FieldLabel>
+                    <Select
+                      value={form.checkInterval}
+                      onValueChange={form.setCheckInterval}
+                      disabled={masterOff}
+                    >
+                      <SelectTrigger id="check-interval">
+                        <SelectValue placeholder="Select interval" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {CHECK_INTERVAL_OPTIONS.map((secs) => (
+                          <SelectItem key={secs} value={String(secs)}>
+                            {secs} seconds
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FieldDescription>
+                      How often the watchdog checks your internet connection.
+                    </FieldDescription>
+                  </Field>
+
+                  {/* Failure threshold */}
+                  <Field>
+                    <FieldLabel htmlFor="max-failures">
+                      Failure Threshold
+                    </FieldLabel>
+                    <Input
+                      ref={registerField("max-failures")}
+                      id="max-failures"
+                      type="number"
+                      inputMode="numeric"
+                      min="1"
+                      max="20"
+                      placeholder="5"
+                      className="tabular-nums"
+                      value={form.maxFailures}
+                      onChange={(ev) => form.setMaxFailures(ev.target.value)}
+                      disabled={masterOff}
+                      aria-invalid={!!e.maxFailures}
+                      aria-describedby={
+                        e.maxFailures ? "max-failures-error" : "max-failures-desc"
+                      }
+                    />
+                    {e.maxFailures ? (
+                      <FieldError id="max-failures-error">
+                        {e.maxFailures}
+                      </FieldError>
+                    ) : (
+                      <FieldDescription id="max-failures-desc">
+                        How many failed connectivity checks in a row before
+                        recovery begins.
+                      </FieldDescription>
+                    )}
+                  </Field>
+                </div>
 
                 {/* Cooldown */}
-                <Field>
+                <Field className="@sm/card:max-w-[18rem]">
                   <FieldLabel htmlFor="cooldown">
                     Cooldown Period (seconds)
                   </FieldLabel>
                   <Input
+                    ref={registerField("cooldown")}
                     id="cooldown"
                     type="number"
+                    inputMode="numeric"
                     min="10"
                     max="300"
                     placeholder="60"
-                    className="max-w-sm"
-                    value={cooldown}
-                    onChange={(e) => setCooldown(e.target.value)}
-                    disabled={!isEnabled}
-                    aria-invalid={!!cooldownError}
+                    className="tabular-nums"
+                    value={form.cooldown}
+                    onChange={(ev) => form.setCooldown(ev.target.value)}
+                    disabled={masterOff}
+                    aria-invalid={!!e.cooldown}
                     aria-describedby={
-                      cooldownError ? "cooldown-error" : "cooldown-desc"
+                      e.cooldown ? "cooldown-error" : "cooldown-desc"
                     }
                   />
-                  {cooldownError ? (
-                    <FieldError id="cooldown-error">{cooldownError}</FieldError>
+                  {e.cooldown ? (
+                    <FieldError id="cooldown-error">{e.cooldown}</FieldError>
                   ) : (
                     <FieldDescription id="cooldown-desc">
                       Wait time after each recovery step before checking
@@ -378,31 +279,164 @@ function WatchdogSettingsForm({
                   )}
                 </Field>
 
-                {tier4Enabled && (
-                  <Field>
+                {/* Live "declares down after ~Ns" derivation. */}
+                <div className="bg-muted/30 text-muted-foreground flex items-center gap-2 rounded-lg border px-3 py-2 text-sm">
+                  <ActivityIcon className="text-foreground/70 size-4 shrink-0" />
+                  {form.estimatedDownSecs != null ? (
+                    <span>
+                      Declares the connection down after about{" "}
+                      <span className="text-foreground font-semibold tabular-nums">
+                        {form.estimatedDownSecs}s
+                      </span>{" "}
+                      of failed checks.
+                    </span>
+                  ) : (
+                    <span>
+                      Enter valid detection values to preview when the connection
+                      is declared down.
+                    </span>
+                  )}
+                </div>
+              </FieldGroup>
+            </FieldSet>
+          </TabsContent>
+
+          {/* ================= RECOVERY ================= */}
+          <TabsContent
+            value="recovery"
+            className="mt-5 animate-in fade-in-0 duration-200 motion-reduce:animate-none"
+          >
+            <div className="mb-4 grid gap-1">
+              <p className="text-sm font-medium">Recovery Ladder</p>
+              <p className="text-muted-foreground text-xs">
+                Tried in order, from gentlest to most disruptive.
+              </p>
+            </div>
+
+            <ol>
+              {/* Tier 1 — Network re-registration */}
+              <LadderStep
+                index={1}
+                icon={<RefreshCwIcon className="size-4" />}
+                name="Re-register to Network"
+                description="Detach and reattach to the cellular network."
+                atCommand="AT+COPS=2 → AT+COPS=0"
+                enabled={form.tier1Enabled}
+                onToggle={form.setTier1Enabled}
+                masterOff={masterOff}
+              />
+
+              {/* Tier 2 — Radio toggle (skipped under tower lock) */}
+              <LadderStep
+                index={2}
+                icon={<RadioIcon className="size-4" />}
+                name="Restart Modem Radio"
+                description="Power-cycle the radio (airplane mode off then on)."
+                atCommand="AT+CFUN=0 → AT+CFUN=1"
+                enabled={form.tier2Enabled}
+                onToggle={form.setTier2Enabled}
+                masterOff={masterOff}
+                info="Automatically skipped when tower lock is active, to preserve your locked cells."
+                infoAria="More info about the radio restart step"
+              />
+
+              {/* Tier 3 — SIM failover (backup slot lives here) */}
+              <LadderStep
+                index={3}
+                icon={<RotateCcwIcon className="size-4" />}
+                name="Switch to Backup SIM"
+                description="Fail over to the backup SIM slot."
+                atCommand="AT+QUIMSLOT=N"
+                enabled={form.tier3Enabled}
+                onToggle={form.setTier3Enabled}
+                masterOff={masterOff}
+              >
+                {form.tier3Enabled && (
+                  <Field className="@sm/card:max-w-[18rem]">
+                    <FieldLabel htmlFor="backup-sim-slot">
+                      Backup SIM Slot
+                    </FieldLabel>
+                    <Select
+                      value={form.backupSimSlot}
+                      onValueChange={form.setBackupSimSlot}
+                      disabled={masterOff}
+                    >
+                      <SelectTrigger
+                        id="backup-sim-slot"
+                        ref={registerField("backup-sim-slot")}
+                        aria-invalid={!!e.backupSim}
+                        aria-describedby={
+                          e.backupSim
+                            ? "backup-sim-error"
+                            : "backup-sim-desc backup-sim-note"
+                        }
+                      >
+                        <SelectValue placeholder="Select slot" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="1">Slot 1</SelectItem>
+                        <SelectItem value="2">Slot 2</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    {e.backupSim ? (
+                      <FieldError id="backup-sim-error">
+                        {e.backupSim}
+                      </FieldError>
+                    ) : (
+                      <FieldDescription id="backup-sim-desc">
+                        The SIM slot to switch to when the primary SIM loses
+                        connectivity. Must differ from the current active slot.
+                      </FieldDescription>
+                    )}
+                    <FieldDescription id="backup-sim-note">
+                      If no backup slot is set, the ladder stops here for that
+                      failure and won&apos;t continue to reboot until a slot is
+                      chosen.
+                    </FieldDescription>
+                  </Field>
+                )}
+              </LadderStep>
+
+              {/* Tier 4 — Reboot (reboot cap lives here) */}
+              <LadderStep
+                index={4}
+                icon={<PowerIcon className="size-4" />}
+                name="Reboot Device"
+                description="Restart the modem as a last resort."
+                atCommand="reboot"
+                tone="caution"
+                enabled={form.tier4Enabled}
+                onToggle={form.setTier4Enabled}
+                masterOff={masterOff}
+                isLast
+              >
+                {form.tier4Enabled && (
+                  <Field className="@sm/card:max-w-[18rem]">
                     <FieldLabel htmlFor="max-reboots">
                       Max Reboots Per Hour
                     </FieldLabel>
                     <Input
+                      ref={registerField("max-reboots")}
                       id="max-reboots"
                       type="number"
+                      inputMode="numeric"
                       min="1"
                       max="10"
                       placeholder="3"
-                      className="max-w-sm"
-                      value={maxRebootsPerHour}
-                      onChange={(e) => setMaxRebootsPerHour(e.target.value)}
-                      disabled={!isEnabled}
-                      aria-invalid={!!maxRebootsError}
+                      className="tabular-nums"
+                      value={form.maxRebootsPerHour}
+                      onChange={(ev) =>
+                        form.setMaxRebootsPerHour(ev.target.value)
+                      }
+                      disabled={masterOff}
+                      aria-invalid={!!e.maxReboots}
                       aria-describedby={
-                        maxRebootsError
-                          ? "max-reboots-error"
-                          : "max-reboots-desc"
+                        e.maxReboots ? "max-reboots-error" : "max-reboots-desc"
                       }
                     />
-                    {maxRebootsError ? (
+                    {e.maxReboots ? (
                       <FieldError id="max-reboots-error">
-                        {maxRebootsError}
+                        {e.maxReboots}
                       </FieldError>
                     ) : (
                       <FieldDescription id="max-reboots-desc">
@@ -412,128 +446,228 @@ function WatchdogSettingsForm({
                     )}
                   </Field>
                 )}
+              </LadderStep>
+            </ol>
+          </TabsContent>
+        </Tabs>
 
-                <div aria-live="polite">
-                  {tier3Enabled && (
-                    <Field>
-                      <FieldLabel htmlFor="backup-sim-slot">
-                        Backup SIM Slot
-                      </FieldLabel>
-                      <Select
-                        value={backupSimSlot}
-                        onValueChange={setBackupSimSlot}
-                        disabled={!isEnabled}
-                      >
-                        <SelectTrigger
-                          id="backup-sim-slot"
-                          className="max-w-sm"
-                        >
-                          <SelectValue placeholder="Select slot" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="1">Slot 1</SelectItem>
-                          <SelectItem value="2">Slot 2</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <FieldDescription>
-                        The SIM slot to switch to when the primary SIM loses
-                        connectivity. Must differ from the current active slot.
-                      </FieldDescription>
-                    </Field>
-                  )}
-                </div>
-              </div>
-
-              <Separator />
-              <div className="grid gap-2">
-                <CardTitle>Recovery Steps</CardTitle>
-                <CardDescription>
-                  Tried in order, from gentlest to most disruptive.
-                </CardDescription>
-              </div>
-
-              <div className="grid grid-cols-1 @sm/card:grid-cols-2 gap-4">
-                <Field orientation="horizontal" className="w-fit">
-                  <FieldLabel htmlFor="tier1-enabled">
-                    Re-register to Network
-                  </FieldLabel>
-                  <Switch
-                    id="tier1-enabled"
-                    checked={tier1Enabled}
-                    onCheckedChange={setTier1Enabled}
-                    disabled={!isEnabled}
-                  />
-                </Field>
-
-                <Field orientation="horizontal" className="w-fit">
-                  <div className="flex items-center gap-1.5">
-                    <Tooltip>
-                      <TooltipTrigger>
-                        <button
-                          type="button"
-                          className="inline-flex"
-                          aria-label="More info"
-                        >
-                          <TbInfoCircleFilled className="size-5 text-info" />
-                        </button>
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        <p>
-                          Automatically skipped when tower lock is active <br />{" "}
-                          to preserve your locked cells.
-                        </p>
-                      </TooltipContent>
-                    </Tooltip>
-                    <FieldLabel htmlFor="tier2-enabled">
-                      Restart Modem Radio
-                    </FieldLabel>
-                    <Switch
-                      id="tier2-enabled"
-                      checked={tier2Enabled}
-                      onCheckedChange={setTier2Enabled}
-                      disabled={!isEnabled}
-                      aria-describedby={tier2Enabled ? "tier2-note" : undefined}
-                    />
-                  </div>
-                </Field>
-
-                <Field orientation="horizontal" className="w-fit">
-                  <FieldLabel htmlFor="tier3-enabled">
-                    Switch to Backup SIM
-                  </FieldLabel>
-                  <Switch
-                    id="tier3-enabled"
-                    checked={tier3Enabled}
-                    onCheckedChange={setTier3Enabled}
-                    disabled={!isEnabled}
-                  />
-                </Field>
-
-                <Field orientation="horizontal" className="w-fit">
-                  <FieldLabel htmlFor="tier4-enabled">Reboot Device</FieldLabel>
-                  <Switch
-                    id="tier4-enabled"
-                    checked={tier4Enabled}
-                    onCheckedChange={setTier4Enabled}
-                    disabled={!isEnabled}
-                  />
-                </Field>
-              </div>
-
-              {/* Save Button */}
-              <div className="flex items-center gap-2 pt-2">
-                <SaveButton
-                  type="submit"
-                  isSaving={isSaving}
-                  saved={saved}
-                  className="w-fit"
-                  disabled={!isDirty || hasValidationErrors}
-                />
-              </div>
-            </FieldGroup>
-          </FieldSet>
-        </form>
+        {/* ---- Sticky save bar — commits every pending change on the page. ---- */}
+        <div className="bg-card/95 supports-[backdrop-filter]:bg-card/80 sticky bottom-0 z-10 -mx-6 -mb-6 mt-6 flex shrink-0 items-center justify-between gap-3 rounded-b-xl border-t px-6 py-4 backdrop-blur">
+          <SaveStatus
+            isDirty={form.isDirty}
+            blocked={blocked}
+            saved={form.saved}
+            erroredTabNames={erroredTabNames}
+          />
+          <div className="flex shrink-0 items-center gap-2">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={form.discard}
+              disabled={!form.isDirty || form.isSaving}
+            >
+              Discard
+            </Button>
+            <SaveButton
+              type="button"
+              size="sm"
+              isSaving={form.isSaving}
+              saved={form.saved}
+              disabled={!form.isDirty || form.isSaving}
+              onClick={handleSave}
+              label="Save"
+            />
+          </div>
+        </div>
       </CardContent>
     </Card>
+  );
+}
+
+// -----------------------------------------------------------------------------
+// SaveStatus — the four-state truthful save line.
+// -----------------------------------------------------------------------------
+function SaveStatus({
+  isDirty,
+  blocked,
+  saved,
+  erroredTabNames,
+}: {
+  isDirty: boolean;
+  blocked: boolean;
+  saved: boolean;
+  erroredTabNames: string[];
+}) {
+  if (isDirty && blocked) {
+    return (
+      <div className="flex min-w-0 items-center gap-1.5">
+        <span
+          className="bg-destructive size-2 shrink-0 rounded-full"
+          aria-hidden
+        />
+        <p className="text-destructive truncate text-xs font-medium">
+          Fix errors in {erroredTabNames.join(", ")}
+        </p>
+      </div>
+    );
+  }
+  if (isDirty) {
+    return (
+      <div className="flex min-w-0 items-center gap-1.5">
+        <span className="relative flex size-2 shrink-0" aria-hidden>
+          <span className="bg-primary/50 absolute inline-flex size-full animate-ping rounded-full motion-reduce:hidden" />
+          <span className="bg-primary relative inline-flex size-2 rounded-full" />
+        </span>
+        <p className="truncate text-xs font-medium">You have unsaved changes</p>
+      </div>
+    );
+  }
+  if (saved) {
+    return (
+      <div className="text-success flex min-w-0 items-center gap-1.5">
+        <CheckIcon className="size-3.5 shrink-0" aria-hidden />
+        <p className="truncate text-xs font-medium">Saved!</p>
+      </div>
+    );
+  }
+  return (
+    <p className="text-muted-foreground truncate text-xs">All changes saved</p>
+  );
+}
+
+// -----------------------------------------------------------------------------
+// InfoTip — keyboard-focusable info tooltip trigger.
+// -----------------------------------------------------------------------------
+function InfoTip({ text, aria }: { text: string; aria: string }) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <button
+          type="button"
+          className="text-info inline-flex shrink-0"
+          aria-label={aria}
+        >
+          <TbInfoCircleFilled className="size-4" />
+        </button>
+      </TooltipTrigger>
+      <TooltipContent className="max-w-xs">
+        <p>{text}</p>
+      </TooltipContent>
+    </Tooltip>
+  );
+}
+
+// -----------------------------------------------------------------------------
+// LadderStep — one rung of the recovery ladder: numbered node in a left rail
+// with a connector to the next rung, lucide icon, enable switch, AT-command
+// chip, and inline sub-config.
+// -----------------------------------------------------------------------------
+function LadderStep({
+  index,
+  icon,
+  name,
+  description,
+  atCommand,
+  enabled,
+  onToggle,
+  masterOff,
+  info,
+  infoAria,
+  tone = "neutral",
+  isLast = false,
+  children,
+}: {
+  index: number;
+  icon: React.ReactNode;
+  name: string;
+  description: string;
+  atCommand: string;
+  enabled: boolean;
+  onToggle: (v: boolean) => void;
+  masterOff: boolean;
+  info?: string;
+  infoAria?: string;
+  tone?: "neutral" | "caution";
+  isLast?: boolean;
+  children?: React.ReactNode;
+}) {
+  const active = enabled && !masterOff;
+  const switchId = `tier${index}-enabled`;
+
+  return (
+    <li className={cn("flex gap-3", !isLast && "pb-6")}>
+      {/* Left rail: numbered node + connector */}
+      <div className="flex flex-col items-center">
+        <span
+          className={cn(
+            "flex size-8 shrink-0 items-center justify-center rounded-full border text-xs font-semibold tabular-nums transition-colors duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] motion-reduce:transition-none",
+            active
+              ? "bg-secondary text-secondary-foreground border-transparent"
+              : "bg-muted/40 text-muted-foreground border-border",
+          )}
+        >
+          {index}
+        </span>
+        {!isLast && (
+          <span
+            aria-hidden
+            className={cn(
+              "mt-1.5 w-px flex-1 transition-colors duration-300",
+              active ? "bg-secondary" : "bg-border",
+            )}
+          />
+        )}
+      </div>
+
+      {/* Body */}
+      <div className="min-w-0 flex-1 pb-0.5">
+        <div className="flex items-start justify-between gap-3">
+          <div className="grid min-w-0 gap-1">
+            <div className="flex items-center gap-1.5">
+              <span
+                className={cn(
+                  "flex size-5 shrink-0 items-center justify-center",
+                  active ? "text-foreground" : "text-muted-foreground",
+                )}
+                aria-hidden
+              >
+                {icon}
+              </span>
+              <span
+                className={cn(
+                  "truncate text-sm font-semibold",
+                  !active && "text-muted-foreground",
+                )}
+              >
+                {name}
+              </span>
+              {info && <InfoTip text={info} aria={infoAria ?? ""} />}
+            </div>
+            <p className="text-muted-foreground text-xs">{description}</p>
+            <code
+              className={cn(
+                "mt-0.5 w-fit rounded border px-1.5 py-0.5 font-mono text-[11px] leading-tight",
+                tone === "caution"
+                  ? "border-warning/30 bg-warning/10 text-warning"
+                  : "border-border bg-muted/40 text-muted-foreground",
+              )}
+            >
+              {atCommand}
+            </code>
+          </div>
+
+          <Switch
+            id={switchId}
+            checked={enabled}
+            onCheckedChange={onToggle}
+            disabled={masterOff}
+            aria-label={name}
+          />
+        </div>
+
+        {children && <div className="mt-3">{children}</div>}
+      </div>
+    </li>
   );
 }
