@@ -141,25 +141,8 @@ export function AlertsLogCard({
     return (
       <Card className="@container/card min-h-0 flex-1">
         {header}
-        <CardContent className="flex min-h-0 flex-1 flex-col justify-center">
-          <div className="rounded-md border">
-            <div className="border-b px-4 py-3">
-              <div className="flex gap-4">
-                <Skeleton className="h-4 w-28" />
-                <Skeleton className="h-4 w-20" />
-                <Skeleton className="h-4 w-14" />
-              </div>
-            </div>
-            <div className="divide-y">
-              {Array.from({ length: 4 }).map((_, i) => (
-                <div key={i} className="flex items-center gap-4 px-4 py-3">
-                  <Skeleton className="h-4 w-32" />
-                  <Skeleton className="h-4 w-24" />
-                  <Skeleton className="h-5 w-12 rounded-full" />
-                </div>
-              ))}
-            </div>
-          </div>
+        <CardContent className="flex min-h-0 flex-1 flex-col">
+          <AlertsActivityTableSkeleton />
         </CardContent>
       </Card>
     );
@@ -366,5 +349,59 @@ export function AlertsLogCard({
         </CardFooter>
       )}
     </Card>
+  );
+}
+
+// -----------------------------------------------------------------------------
+// AlertsActivityTableSkeleton — mirrors the real 5-column feed (Timestamp /
+// Event / Channel / Status / Recipient) at the same responsive breakpoints as
+// the loaded table above. Shared by this card's own `isLoading` state and the
+// page-level skeleton in `alerts.tsx` so the two can never drift out of sync
+// with each other, or with the real thing, and land with zero reflow.
+// -----------------------------------------------------------------------------
+export function AlertsActivityTableSkeleton() {
+  return (
+    <div className="min-h-[12rem] flex-1 overflow-auto rounded-md border">
+      <Table>
+        <TableHeader className="bg-card sticky top-0 z-10">
+          <TableRow>
+            <TableHead scope="col" className="whitespace-nowrap">
+              Timestamp
+            </TableHead>
+            <TableHead scope="col">Event</TableHead>
+            <TableHead scope="col" className="hidden @sm/card:table-cell">
+              Channel
+            </TableHead>
+            <TableHead scope="col" className="whitespace-nowrap">
+              Status
+            </TableHead>
+            <TableHead scope="col" className="hidden @md/card:table-cell">
+              Recipient
+            </TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {Array.from({ length: 4 }).map((_, i) => (
+            <TableRow key={i}>
+              <TableCell className="whitespace-nowrap">
+                <Skeleton className="h-4 w-28" />
+              </TableCell>
+              <TableCell>
+                <Skeleton className="h-4 w-32" />
+              </TableCell>
+              <TableCell className="hidden @sm/card:table-cell">
+                <Skeleton className="h-5 w-16 rounded-full" />
+              </TableCell>
+              <TableCell>
+                <Skeleton className="h-5 w-14 rounded-full" />
+              </TableCell>
+              <TableCell className="hidden @md/card:table-cell">
+                <Skeleton className="h-4 w-24" />
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </div>
   );
 }

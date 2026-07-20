@@ -5,10 +5,14 @@ import { motion } from "motion/react";
 import {
   Card,
   CardContent,
-  CardFooter,
+  CardDescription,
   CardHeader,
+  CardTitle,
 } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Button } from "@/components/ui/button";
+import { RefreshCcwIcon } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { staggerContainer, staggerItem } from "@/lib/motion-presets";
 import { useAlerts, type UseAlertsReturn } from "@/hooks/use-alerts";
 import { ALERT_EVENT_ORDER, ALERT_CHANNEL_ORDER } from "@/types/alerts";
@@ -16,7 +20,7 @@ import type { AlertsState } from "@/types/alerts";
 import { useAlertsForm } from "./use-alerts-form";
 import { AlertsStatusCard } from "./alerts-status-card";
 import { AlertsSettingsCard } from "./alerts-settings-card";
-import { AlertsLogCard } from "./alerts-log-card";
+import { AlertsLogCard, AlertsActivityTableSkeleton } from "./alerts-log-card";
 
 // -----------------------------------------------------------------------------
 // Alerts — page coordinator (status-first anatomy, 2-col desktop).
@@ -104,7 +108,10 @@ function AlertsBody({
         <AlertsStatusCard state={state} />
         <AlertsLogCard refreshKey={logRefreshKey} reboots={state.reboots} />
       </motion.div>
-      <motion.div variants={staggerItem}>
+      <motion.div
+        variants={staggerItem}
+        className="flex flex-col @4xl/main:h-full"
+      >
         <AlertsSettingsCard
           form={form}
           state={state}
@@ -123,16 +130,18 @@ function AlertsBody({
 function PageSkeleton() {
   return (
     <div
-      className="grid grid-cols-1 items-start gap-6 @4xl/main:grid-cols-2"
+      className="grid grid-cols-1 gap-6 @4xl/main:grid-cols-2 @4xl/main:items-stretch"
       role="status"
       aria-busy="true"
       aria-live="polite"
     >
-      <div className="flex flex-col gap-6">
+      <div className="flex flex-col gap-6 @4xl/main:h-full">
         <StatusSkeleton />
         <LogSkeleton />
       </div>
-      <SettingsSkeleton />
+      <div className="flex flex-col @4xl/main:h-full">
+        <SettingsSkeleton />
+      </div>
     </div>
   );
 }
@@ -141,21 +150,43 @@ function StatusSkeleton() {
   return (
     <Card className="@container/card" aria-hidden>
       <CardHeader>
-        <Skeleton className="h-5 w-32" />
-        <Skeleton className="h-4 w-64" />
+        <CardTitle>Alert channels</CardTitle>
+        <CardDescription>
+          Where QManager will reach you when the connection changes.
+        </CardDescription>
       </CardHeader>
       <CardContent className="grid gap-5">
+        {/* Channel readiness tiles — same DOM shape as the loaded tile (icon
+            circle + name/badge row + detail line) so the row height the grid
+            settles on doesn't jump once real copy replaces the placeholders. */}
         <div className="grid gap-3 @md/card:grid-cols-2 @2xl/card:grid-cols-3">
           {Array.from({ length: 3 }).map((_, i) => (
-            <Skeleton key={i} className="h-[70px] w-full rounded-xl" />
+            <div
+              key={i}
+              className="flex items-center gap-3 rounded-xl border p-3.5"
+            >
+              <Skeleton className="size-10 shrink-0 rounded-full" />
+              <div className="grid min-w-0 flex-1 gap-1.5">
+                <div className="flex items-center gap-2">
+                  <Skeleton className="h-4 w-12" />
+                  <Skeleton className="h-5 w-16 rounded-full" />
+                </div>
+                <Skeleton className="h-3 w-full max-w-36" />
+              </div>
+            </div>
           ))}
         </div>
         <div className="border-t pt-5">
-          <Skeleton className="mb-3 h-3 w-24" />
-          <div className="grid gap-3">
+          <span className="text-muted-foreground text-xs font-medium">
+            What fires where
+          </span>
+          <div className="mt-3 grid gap-3">
             {Array.from({ length: 3 }).map((_, i) => (
-              <div key={i} className="flex items-center justify-between">
-                <Skeleton className="h-4 w-40" />
+              <div key={i} className="flex items-center justify-between gap-3">
+                <div className="flex min-w-0 items-center gap-2">
+                  <Skeleton className="size-4 shrink-0 rounded-full" />
+                  <Skeleton className="h-4 w-32" />
+                </div>
                 <Skeleton className="h-5 w-16 rounded-full" />
               </div>
             ))}
@@ -166,27 +197,72 @@ function StatusSkeleton() {
   );
 }
 
+// -----------------------------------------------------------------------------
+// SettingsSkeleton — mirrors the Routing tab, the tab the page always lands
+// on first, NOT the SMS/Email/Discord field-form shape. Loading briefly into
+// the wrong tab's layout is its own reflow bug (Skeleton-Mirror rule).
+// -----------------------------------------------------------------------------
 function SettingsSkeleton() {
   return (
-    <Card className="@container/card" aria-hidden>
+    <Card className="@container/card min-h-0 flex-1" aria-hidden>
       <CardHeader>
-        <Skeleton className="h-5 w-36" />
-        <Skeleton className="h-4 w-56" />
+        <CardTitle>Alert Settings</CardTitle>
+        <CardDescription>
+          Choose which events reach each channel, then configure SMS, email,
+          and Discord.
+        </CardDescription>
       </CardHeader>
-      <CardContent>
+      <CardContent className="flex min-h-0 flex-1 flex-col">
         <Skeleton className="h-9 w-full rounded-md" />
-        <div className="mt-5 grid gap-4">
-          <Skeleton className="h-16 w-full rounded-lg" />
-          <div className="grid gap-1.5">
-            <Skeleton className="h-3.5 w-28" />
-            <Skeleton className="h-9 w-full max-w-sm rounded-md" />
+        <p className="text-muted-foreground mt-5 mb-4 text-sm">
+          Pick which events go to which channel. Some combinations
+          aren&apos;t possible and are shown as unavailable.
+        </p>
+        <div className="rounded-lg border p-4">
+          <div className="flex items-center gap-1 pb-3">
+            <div className="flex-1" />
+            {Array.from({ length: 3 }).map((_, i) => (
+              <div
+                key={i}
+                className="grid w-20 shrink-0 justify-items-center gap-1"
+              >
+                <Skeleton className="size-4 rounded-full" />
+                <Skeleton className="h-3 w-10" />
+              </div>
+            ))}
           </div>
-          <div className="grid gap-1.5">
-            <Skeleton className="h-3.5 w-24" />
-            <Skeleton className="h-9 w-full max-w-[18rem] rounded-md" />
+          <div className="grid">
+            {Array.from({ length: 3 }).map((_, i) => (
+              <div
+                key={i}
+                className={cn(
+                  "flex items-center gap-1 py-3.5",
+                  i < 2 && "border-b",
+                )}
+              >
+                <div className="flex min-w-0 flex-1 items-start gap-2.5">
+                  <Skeleton className="mt-0.5 size-4 shrink-0 rounded-full" />
+                  <div className="grid min-w-0 gap-1.5">
+                    <Skeleton className="h-3.5 w-32" />
+                    <Skeleton className="h-3 w-40" />
+                  </div>
+                </div>
+                {Array.from({ length: 3 }).map((_, j) => (
+                  <div
+                    key={j}
+                    className="flex w-20 shrink-0 items-center justify-center"
+                  >
+                    <Skeleton className="h-5 w-9 rounded-full" />
+                  </div>
+                ))}
+              </div>
+            ))}
           </div>
         </div>
-        <div className="-mx-6 -mb-6 mt-6 flex items-center justify-between gap-3 border-t px-6 py-4">
+        <p className="text-muted-foreground mt-3 text-xs">
+          Turn a channel on in its tab to route events to it.
+        </p>
+        <div className="-mx-6 -mb-6 mt-6 flex shrink-0 items-center justify-between gap-3 border-t px-6 py-4">
           <Skeleton className="h-3.5 w-28" />
           <div className="flex items-center gap-2">
             <Skeleton className="h-8 w-16 rounded-md" />
@@ -200,40 +276,23 @@ function SettingsSkeleton() {
 
 function LogSkeleton() {
   return (
-    <Card className="@container/card" aria-hidden>
+    <Card className="@container/card min-h-0 flex-1" aria-hidden>
       <CardHeader>
-        <div className="flex items-start justify-between">
-          <div className="grid gap-1.5">
-            <Skeleton className="h-5 w-28" />
-            <Skeleton className="h-4 w-56" />
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <CardTitle>Activity</CardTitle>
+            <CardDescription>
+              Sent alerts and recorded reboots, newest first.
+            </CardDescription>
           </div>
-          <Skeleton className="size-8 rounded-md" />
+          <Button variant="outline" size="icon" disabled tabIndex={-1}>
+            <RefreshCcwIcon className="size-4" />
+          </Button>
         </div>
       </CardHeader>
-      <CardContent>
-        <div className="rounded-md border">
-          <div className="border-b px-4 py-3">
-            <div className="flex gap-4">
-              <Skeleton className="h-4 w-28" />
-              <Skeleton className="h-4 w-20" />
-              <Skeleton className="h-4 w-14" />
-            </div>
-          </div>
-          <div className="divide-y">
-            {Array.from({ length: 4 }).map((_, i) => (
-              <div key={i} className="flex items-center gap-4 px-4 py-3">
-                <Skeleton className="h-4 w-32" />
-                <Skeleton className="h-4 w-24" />
-                <Skeleton className="h-5 w-12 rounded-full" />
-              </div>
-            ))}
-          </div>
-        </div>
+      <CardContent className="flex min-h-0 flex-1 flex-col">
+        <AlertsActivityTableSkeleton />
       </CardContent>
-      <CardFooter className="justify-between gap-3 border-t pt-4">
-        <Skeleton className="h-3.5 w-24" />
-        <Skeleton className="h-3.5 w-32" />
-      </CardFooter>
     </Card>
   );
 }

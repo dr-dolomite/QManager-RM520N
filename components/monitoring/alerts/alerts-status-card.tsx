@@ -202,7 +202,7 @@ export function AlertsStatusCard({ state }: { state: AlertsState }) {
                   <Icon className="size-5" />
                 </span>
                 <div className="grid min-w-0 gap-1">
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
                     <span className="text-sm font-semibold">
                       {CHANNEL_META[ch].name}
                     </span>
@@ -216,8 +216,8 @@ export function AlertsStatusCard({ state }: { state: AlertsState }) {
                   </div>
                   <span
                     className={cn(
-                      "text-muted-foreground truncate text-xs",
-                      r.isContact && "font-mono",
+                      "text-muted-foreground text-xs",
+                      r.isContact ? "truncate font-mono" : "line-clamp-2",
                     )}
                   >
                     {r.detail}

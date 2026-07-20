@@ -221,7 +221,7 @@ export function AlertsSettingsCard({
   const msmtpInstalled = state.channels.email.msmtp_installed;
 
   return (
-    <Card className="@container/card">
+    <Card className="@container/card min-h-0 flex-1">
       <CardHeader>
         <CardTitle>Alert Settings</CardTitle>
         <CardDescription>
