@@ -1,6 +1,6 @@
 # 🚀 QManager RM520N BETA v0.1.32
 
-This release closes out a false-alarm bug in SIM swap detection, lets a SIM profile switch Connection Scenarios on a schedule, and gives the APN Settings page a cleaner single-APN layout.
+This release closes out a false-alarm bug in SIM swap detection, lets a SIM profile switch Connection Scenarios on a schedule, gives the APN Settings page a cleaner single-APN layout, and switches the Connection Quality probe to a lean ICMP ping matching the RM551E build.
 
 > One-click OTA from **System Settings → Software Update** if you're on v0.1.5 or newer.
 
@@ -16,11 +16,17 @@ This release closes out a false-alarm bug in SIM swap detection, lets a SIM prof
 
 - **SIM-to-profile matching is more forgiving.** A SIM card's ID is now compared the same way everywhere internally, so a saved profile keeps matching its SIM even when different parts of QManager read the card slightly differently.
 
+- **Connection Quality now checks the internet with a plain ICMP ping.** The reachability probe switched from an HTTP request to a straightforward `ping` of a DNS server, so **System Settings → Connection Quality** now takes an IPv4 and an IPv6 **DNS-server address** (default `1.1.1.1` and Cloudflare's `2606:4700:4700::1111`) instead of web URLs — it tries IPv4 first and falls back to IPv6. Existing setups are migrated automatically on update (a small shell daemon replaces the previous compiled probe for 1:1 parity with the RM551E build; the failure streak the Watchdog acts on is unchanged, so self-healing works exactly as before).
+
 ## 🐛 Fixes
 
 - **"New SIM card detected" no longer fires on a SIM you've already used.** QManager now remembers every SIM it's seen instead of just the last one, so failing over to your backup SIM (and back) no longer re-triggers the new-SIM banner.
 
 - **SIM slot switches are now verified before QManager trusts them.** Both the Watchdog's automatic SIM failover and a manual slot switch in Cellular Settings now confirm the modem actually landed on the requested slot before applying anything for it, closing a rare case where a busy modem silently stayed on the old SIM.
+
+- **Fewer moving parts in the connectivity probe.** The reachability check is now a single self-contained shell daemon with a slimmer status file (latency, jitter, and loss are still computed the same way, downstream). No action needed — the change applies on update.
+
+> ⚠️ **Heads-up for power users:** the ICMP probe drops the old "Limited by carrier" state, so QManager no longer flags a captive-portal / billing-wall interception separately — it only reports reachable vs. not. Also note that some carriers filter ICMP to public DNS IPs; if yours does, point the Connection Quality targets at addresses your carrier answers, or Connection Quality may read a false "disconnected."
 
 ## 📥 Installation
 

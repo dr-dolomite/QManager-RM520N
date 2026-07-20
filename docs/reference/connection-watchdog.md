@@ -56,7 +56,8 @@ DISABLED  — turned off (config, or auto-disabled by the Tier-4 cap)
 - **LOCKED** — set whenever a maintenance condition is present: the lock file `/tmp/qmanager_watchcat.lock` exists (touched by the OTA updater and installer), a long-running AT command is in flight (`/tmp/qmanager_long_running`), or a SIM-profile apply is running (`/tmp/qmanager_profile_apply.pid` points at a live process). The watchdog parks here so its AT commands never race those operations.
 - **DISABLED** — `watchcat.enabled=0`, or the daemon shut itself off after tripping the Tier-4 reboot cap.
 
-> ℹ️ NOTE: A **carrier-intercept** verdict short-circuits recovery. When the ping daemon reports `connectivity=limited` (a billing portal, data-cap wall, or activation walled garden is intercepting traffic), the watchdog stays in MONITOR and clears any pending recovery — no tier can fix a captive portal, so trying would only churn the modem.
+<a id="carrier-intercept-short-circuit-now-inert"></a>
+> ℹ️ NOTE — carrier-intercept short-circuit is now **inert** (v0.1.32): the watchdog still contains a branch that short-circuits recovery when the ping daemon reports `connectivity=limited` (a captive/billing portal). After the [ICMP producer port](connection-quality.md#why-the-tri-state-is-gone), `qmanager_ping` **no longer emits `connectivity` or `limited` at all** — an ICMP echo either answers or it doesn't. The branch is therefore dead code that never fires; it was left in place as harmless (no behavior change) rather than ripped out. **The recovery ladder is unaffected** — it keys off `streak_fail`, which the new ICMP producer still emits, so genuine-outage detection and recovery are intact.
 
 ### The escalation engine
 
@@ -171,7 +172,7 @@ Config lives in `/etc/qmanager/qmanager.conf` under `[watchcat]`, read/written v
 1. `watchcat.probe_interval` in `qmanager.conf` — the canonical value the Watchdog's Detection tab reads and writes.
 2. `.interval_sec` in `/etc/qmanager/ping_profile.json` — what the ping daemon (`qmanager_ping`) actually consumes.
 
-On every save, `watchdog.sh` propagates (1) into (2) via an **atomic jq key-merge** (read the existing JSON, set only `.interval_sec`, temp-file + `mv`) and touches **both** `/tmp/qmanager_ping_reload` (so the ping daemon re-reads its cadence) and `/tmp/qmanager_watchcat_reload` (so the watchdog re-reads its config). The merge never overwrites the whole file, so it can't clobber the `profile`/`target_1`/`target_2` keys that the Connection Quality "Probe Targets" card owns independently in the same file (see [Ping source / split ownership](#ping-source--split-ownership)).
+On every save, `watchdog.sh` propagates (1) into (2) via an **atomic jq key-merge** (read the existing JSON, set only `.interval_sec`, temp-file + `mv`) and touches **both** `/tmp/qmanager_ping_reload` (so the ping daemon re-reads its cadence) and `/tmp/qmanager_watchcat_reload` (so the watchdog re-reads its config). The merge never overwrites the whole file, so it can't clobber the `profile`/`target_ipv4`/`target_ipv6` keys that the Connection Quality "Probe Targets" card owns independently in the same file (see [Ping source / split ownership](#ping-source--split-ownership)).
 
 ### Migrations (hand-written — `config.sh` has no key-migration primitive)
 
@@ -300,7 +301,7 @@ Returns the saved config plus a snapshot of daemon/failover/swap state:
 
 **Field ranges** (Pass 1): `fail_threshold` 1–20, `probe_interval` 1–60, `check_interval` 5–60, `cooldown` 10–300, `max_reboots_per_hour` 1–10, `backup_sim_slot` `1`/`2`/`null`.
 
-**`probe_interval` propagation (Watchdog is the sole writer):** on save, `watchdog.sh` writes `watchcat.probe_interval` to `qmanager.conf` *and* merges it into `/etc/qmanager/ping_profile.json`'s `.interval_sec` via an atomic jq key-merge (`propagate_probe_interval`), then touches **both** reload flags — `/tmp/qmanager_ping_reload` (ping daemon re-reads cadence) and `/tmp/qmanager_watchcat_reload` (watchdog re-reads config). The merge only sets `.interval_sec`, so it never clobbers the `profile`/`target_1`/`target_2` keys owned by the Connection Quality "Probe Targets" card. Propagation is best-effort: the `watchcat.probe_interval` write always lands, and a failed merge is logged and skipped rather than failing the save.
+**`probe_interval` propagation (Watchdog is the sole writer):** on save, `watchdog.sh` writes `watchcat.probe_interval` to `qmanager.conf` *and* merges it into `/etc/qmanager/ping_profile.json`'s `.interval_sec` via an atomic jq key-merge (`propagate_probe_interval`), then touches **both** reload flags — `/tmp/qmanager_ping_reload` (ping daemon re-reads cadence) and `/tmp/qmanager_watchcat_reload` (watchdog re-reads config). The merge only sets `.interval_sec`, so it never clobbers the `profile`/`target_ipv4`/`target_ipv6` keys owned by the Connection Quality "Probe Targets" card. Propagation is best-effort: the `watchcat.probe_interval` write always lands, and a failed merge is logged and skipped rather than failing the save.
 
 **`action: "dismiss_sim_swap"`** — marks the physical-SIM-swap notification dismissed. → `{ "success": true }`
 
@@ -332,16 +333,18 @@ Page: `/monitoring/watchdog` — `components/monitoring/watchdog/watchdog.tsx`. 
 
 ## Ping source / split ownership
 
-The connectivity verdict the watchdog reads is produced by the **`qmanager_ping` daemon** — a small always-on producer that issues HTTP/204 probes and writes its verdict (including the raw `streak_fail` count) to `/tmp/qmanager_ping.json`. It runs independently of the watchdog: **the daemon stays up regardless of `watchcat.enabled`**, so the Connection Quality page and the poller still get a live verdict even when the watchdog itself is off. The watchdog only ever *reads* that file — it never probes and never writes it.
+The connectivity verdict the watchdog reads is produced by the **`qmanager_ping` daemon** — a small always-on producer that (as of v0.1.32) issues plain **ICMP `ping`** probes (IPv4-first, IPv6-fallback) and writes its verdict — including the raw `streak_fail` count — to `/tmp/qmanager_ping.json`. It runs independently of the watchdog: **the daemon stays up regardless of `watchcat.enabled`**, so the Connection Quality page and the poller still get a live verdict even when the watchdog itself is off. The watchdog only ever *reads* that file — it never probes and never writes it.
+
+> ℹ️ NOTE — the watchdog's input did **not** change with the ICMP port. The recovery ladder keys off `streak_fail`, which the new shell ICMP producer emits exactly as the old Rust HTTP/204 producer did. What the watchdog lost is the `connectivity=limited` short-circuit (see the [inert-short-circuit note](#carrier-intercept-short-circuit-now-inert)) — a producer field that no longer exists. Full producer details: [connection-quality.md → The producer](connection-quality.md#the-producer--qmanager_ping-shell-icmp-daemon).
 
 The daemon's own config lives in `/etc/qmanager/ping_profile.json`, and that one file has **two independent writers** (each an atomic key-merge, never a whole-file overwrite):
 
 | Owner | CGI | Keys it writes | Reload flag it touches |
 |-------|-----|----------------|------------------------|
 | **Connection Watchdog** (Detection tab) | `monitoring/watchdog.sh` | `interval_sec` (from `watchcat.probe_interval`) | `/tmp/qmanager_ping_reload` **and** `/tmp/qmanager_watchcat_reload` |
-| **Connection Quality** ("Probe Targets" card) | `settings/ping_profile.sh` | `profile`, `target_1`, `target_2` | `/tmp/qmanager_ping_reload` |
+| **Connection Quality** ("Probe Targets" card) | `settings/ping_profile.sh` | `profile`, `target_ipv4`, `target_ipv6` | `/tmp/qmanager_ping_reload` |
 
-Because each writer merges only its own keys, the two never clobber each other. This is the split-ownership realignment: **the Watchdog owns the *cadence* (probe interval + fail threshold), the Connection Quality page owns the *targets*.** The old "Connectivity Sensitivity" card — which used to pick a profile (sensitive/regular/relaxed/quiet) and display interval/fail/recover — is gone, replaced by the targets-only "Probe Targets" card. One documented side effect: since `ping_profile.sh` no longer overwrites the whole file, changing `profile` no longer resets the daemon's internal `fail_secs`/`recover_secs`/`intercept_secs`/`history_secs` debounce fields — once present, those pass through unchanged. `profile` is now effectively a label paired with the targets.
+Because each writer merges only its own keys, the two never clobber each other. This is the split-ownership realignment: **the Watchdog owns the *cadence* (probe interval + fail threshold), the Connection Quality page owns the *targets*** — now IPv4/IPv6 ICMP hosts rather than the retired HTTP `target_1`/`target_2` URLs. One documented side effect: since `ping_profile.sh` merges only its own keys, changing `profile` no longer resets the daemon's per-field `interval_sec`/`fail_secs`/`recover_secs`/`history_secs` overrides — once present, those pass through unchanged. `profile` is now effectively a label paired with the targets.
 
 > ℹ️ NOTE: The Quality Thresholds card (latency/loss presets feeding `events.sh` alerts) is a **separate** surface and was not touched by this rework.
 
