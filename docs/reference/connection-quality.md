@@ -4,6 +4,8 @@
 
 > ℹ️ NOTE: The two docs are siblings by design. Connection Quality owns the **probe targets** and the **latency/loss alert thresholds**; the Watchdog owns the **probe cadence** (how often) and the **failure threshold** (how many misses before recovery). Where they touch the same file (`ping_profile.json`), the ownership boundary is spelled out below and in [connection-watchdog.md](connection-watchdog.md#ping-source--split-ownership).
 
+> ⚠️ WARNING — ICMP probe change (v0.1.32): the producer was switched from a compiled Rust **HTTP/204** daemon to a pure-shell **ICMP `ping`** daemon, ported from the RM551E sibling project for 1:1 parity. This was a deliberate, user-approved tradeoff that **removed the `connected`/`limited`/`disconnected` tri-state** — an ICMP echo either answers or it doesn't, so carrier-intercept ("Limited by carrier" / captive-portal / billing-wall) detection is gone. See [The producer](#the-producer--qmanager_ping-shell-icmp-daemon) for the mechanism and the [known regression path](#known-tradeoffs-and-the-icmp-regression-path).
+
 ---
 
 ## Quick Reference
@@ -11,11 +13,11 @@
 | Item | Value |
 |------|-------|
 | Frontend page | `/system-settings/connection-quality` (`components/system-settings/connection-quality/`) |
-| Producer daemon | `qmanager_ping` — compiled **Rust** HTTP/204 probe daemon (source: `ping-daemon/`, installed to `/usr/bin/qmanager_ping`) |
-| Poller | `qmanager_poller` (`scripts/usr/bin/qmanager_poller`) — derives latency/jitter/loss/history |
-| Consumer (recovery) | `qmanager_watchcat` — reads the verdict, never probes; see [connection-watchdog.md](connection-watchdog.md) |
-| Ping verdict cache | `/tmp/qmanager_ping.json` (written by `qmanager_ping`, read by poller + watchdog) |
-| History ring buffer | `/tmp/qmanager_ping_history` (RTT samples, read by poller for stats) |
+| Producer daemon | `qmanager_ping` — `#!/bin/sh` **ICMP `ping`** daemon (source: `scripts/usr/bin/qmanager_ping`, installed to `/usr/bin/qmanager_ping`) |
+| Poller | `qmanager_poller` (`scripts/usr/bin/qmanager_poller`) — derives latency/jitter/loss/history (**unchanged** by the ICMP port) |
+| Consumer (recovery) | `qmanager_watchcat` — reads `streak_fail`, never probes; see [connection-watchdog.md](connection-watchdog.md) |
+| Ping verdict cache | `/tmp/qmanager_ping.json` (written by `qmanager_ping`, read by poller + watchdog) — **slim schema, no stats/history** |
+| History ring buffer | `/tmp/qmanager_ping_history` (flat file, one RTT float or `null` per line, read by poller for stats) |
 | History-as-array CGI | `GET /cgi-bin/quecmanager/at_cmd/fetch_ping_history.sh` (serves `/tmp/qmanager_ping_history.json` NDJSON as a JSON array) |
 | Daemon config | `/etc/qmanager/ping_profile.json` (**two writers** — see below) |
 | Daemon reload flag | `/tmp/qmanager_ping_reload` |
@@ -29,71 +31,91 @@
 ```
 qmanager_ping        →  /tmp/qmanager_ping.json   →  qmanager_poller  →  /tmp/qmanager_status.json  →  UI
 (PRODUCER)              /tmp/qmanager_ping_history    (STATS)             .connectivity block
-HTTP/204 probes                                          │
+ICMP ping probes                                         │
                                                          └──────────────▶  qmanager_watchcat (CONSUMER, recovery)
 ```
 
 ---
 
-## The producer — `qmanager_ping` (Rust HTTP/204 daemon)
+## The producer — `qmanager_ping` (shell ICMP daemon)
 
-**Short version:** `qmanager_ping` is a small always-on Rust binary that asks a couple of well-known web endpoints "are you there?" every few seconds and writes the answer to a JSON file. It uses an **HTTP request that expects a `204 No Content` reply**, not an ICMP `ping`, and that choice is forced by the carrier — see below.
+**Short version:** `qmanager_ping` is a small always-on POSIX-shell (`#!/bin/sh`) daemon that runs a plain ICMP `ping` at a DNS-server IP every few seconds and writes "did it come back?" to a JSON file. It replaced a compiled Rust HTTP/204 daemon; the switch was an explicit port from the RM551E sibling project for feature parity, and it consciously drops the old tri-state.
 
-The daemon replaces an older POSIX-shell version. It keeps one TCP connection open per target and reuses it across probes (persistent keep-alive), so the reported `last_rtt_ms` is real round-trip time rather than TCP-handshake overhead. Full design rationale lives in `docs/superpowers/specs/2026-05-09-rust-ping-daemon-design.md`; build/test notes in `ping-daemon/README.md`.
+Each cycle probes **IPv4 first, then IPv6 as a fallback**:
 
-### Why HTTP/204 and not ICMP
+1. `ping -c 1 -W 2 <target_ipv4>` (default `1.1.1.1`).
+2. Only if that fails, `ping -6 -c 1 -W 2 <target_ipv6>` (default `2606:4700:4700::1111`) — using whichever IPv6 invocation the daemon detected at startup (`ping -6`, else the `ping6` applet; empty = IPv6 probing unavailable, IPv4-only).
 
-Two carrier-path realities on this project's cellular link make ICMP useless as a reachability test:
+A probe **succeeds** when the daemon parses a numeric round-trip time greater than 0 from the ping summary line (`min/avg/max[/mdev] = a/b/c[/d]`, average = 2nd field), falling back to a per-packet `time=<n>` reading. 100 % packet loss produces no round-trip line → no RTT → probe failure. That is the fail-safe: silence reads as "down", never as "up".
 
-1. **ICMP to common DNS anycast IPs is 100 % dropped.** Pinging `1.1.1.1` or `8.8.8.8` over the `rmnet` interface returns total packet loss — the carrier silently discards it. An ICMP-based "is the internet up?" check would report the link permanently down even when it is fine. (This is captured in project memory: *"Carrier drops ICMP to common DNS IPs on rmnet"* — do not "revert to a simple DNS ping" without re-verifying per carrier.)
-2. **There is no IPv6 default route on the cellular path**, so IPv6 probes have nowhere to go.
+> ℹ️ NOTE — why v4-primary / v6-fallback: on an IPv6-only bearer the IPv4 probe fails fast and the IPv6 probe carries the connection, so `reachable` stays `true`. Either family answering counts as reachable; `last_family` records which one did.
 
-An **HTTP/204 probe** ("captive-portal check" — the same technique phones use to detect WiFi login walls) sidesteps both. The daemon opens plain TCP on port 80/443 to a captive-portal endpoint (default `http://cp.cloudflare.com/` and `http://www.gstatic.com/generate_204`) and inspects the HTTP status code. That single content check yields **three** distinguishable states instead of two:
+### Why the tri-state is gone
 
-| State | Trigger | Meaning |
-|-------|---------|---------|
-| `connected` | HTTP `204 No Content` | Real, unimpeded internet. |
-| `limited` | Any other HTTP code (`200`, `302`, `4xx`, `5xx`…) | **Carrier intercept** — a billing/data-cap/activation walled garden is answering instead of the real endpoint. TCP works, but you don't have open internet. |
-| `disconnected` | TCP failure (timeout, refused, reset, DNS failure, malformed response) or carrier sysfs down | The link itself is down. |
+The previous Rust daemon used an **HTTP/204** probe specifically because ICMP to common DNS anycast IPs (`1.1.1.1`, `8.8.8.8`) was observed to be **100 % dropped by this project's cellular carrier** on the `rmnet` interface — an ICMP check would have reported the link permanently down (this is captured in project memory: *"Carrier drops ICMP to common DNS IPs on rmnet"*). The HTTP content check also yielded a third state, `limited`, that distinguished a **carrier intercept** (billing/data-cap/activation walled garden answering with a `200`/`302` instead of `204`) from a real outage.
 
-The `limited` state is the whole point of the content check: it lets the [Watchdog short-circuit recovery](connection-watchdog.md) (no amount of modem-reset or SIM-failover fixes a billing portal), and it lets the UI render an honest "Limited by carrier" badge instead of a false "disconnected".
+The ICMP port **knowingly gives that up** in exchange for 1:1 parity with the RM551E daemon. There is no `limited` state anymore — an ICMP echo request either gets a reply or it doesn't:
+
+| Old (Rust HTTP/204) | New (shell ICMP) |
+|---------------------|------------------|
+| `connected` (HTTP 204) | `reachable: true` |
+| `limited` (any other HTTP code — carrier intercept) | **— gone —** (an intercept that still routes ICMP now reads as `reachable: true`; one that drops ICMP reads as `reachable: false`) |
+| `disconnected` (TCP/DNS failure) | `reachable: false` |
+
+See [Known tradeoffs and the ICMP regression path](#known-tradeoffs-and-the-icmp-regression-path) for what this costs.
 
 ### What the daemon writes — `/tmp/qmanager_ping.json`
 
-Atomic write (`.tmp` + `rename`) every cycle. The shape below is abridged; the authoritative schema is Section 5 of the design spec. The fields most relevant to Connection Quality:
+Atomic write (`.tmp` + `mv`) every cycle. The schema is now **slim** — the daemon emits only reachability/streak facts; the poller computes all stats (avg/min/max/jitter/loss) and the history array:
 
 ```json
 {
   "timestamp": 1707900000,
+  "mono": 84213,
+  "profile": "relaxed",
+  "targets": ["1.1.1.1", "2606:4700:4700::1111"],
+  "interval_sec": 5,
   "last_rtt_ms": 34.2,
   "reachable": true,
   "streak_success": 12,
   "streak_fail": 0,
-  "connectivity": "connected",
-  "limited_reason": null,
-  "down_reason": null,
-  "streak_limited": 0,
-  "interval_sec": 5,
-  "profile": "relaxed"
+  "during_recovery": false,
+  "last_family": "ipv4"
 }
 ```
 
-- **`connectivity`** — the authoritative tri-state (`connected`/`limited`/`disconnected`). `reachable` is preserved as `connectivity == "connected"` for legacy consumers.
-- **`streak_fail`** — the debounced count of **consecutive `disconnected` probes**. This is the single number the Watchdog compares against its `fail_threshold` (see the split-ownership note). Critically, a `limited` probe increments `streak_limited` and resets `streak_fail` to `0` — carrier intercepts never look like link failures to the watchdog.
-- **`last_rtt_ms`** — real RTT, or JSON `null` on any non-`connected` outcome.
+| Field | Meaning |
+|-------|---------|
+| `timestamp` | Wall-clock epoch of the write. |
+| `mono` | Boot-relative monotonic seconds (from `/proc/uptime`) — immune to wall-clock jumps. |
+| `profile` | Active profile name (`sensitive`/`regular`/`relaxed`/`quiet`) — a label the daemon resolves to cadence/thresholds; the CGI only writes the name. |
+| `targets` | `[target_ipv4, target_ipv6]` — the two ICMP hosts in probe order. |
+| `interval_sec` | Effective probe interval in seconds. |
+| `last_rtt_ms` | Average RTT of the winning probe (1 decimal), or JSON `null` when both families failed. |
+| `reachable` | Debounced boolean — flips to `false` only after `FAIL_THRESHOLD` consecutive failures, back to `true` after `RECOVER_THRESHOLD` consecutive successes. |
+| `streak_success` | Consecutive successful probes. |
+| `streak_fail` | **Consecutive failed probes.** This is the single number the Watchdog compares against its `fail_threshold` — the fail-ladder input, unchanged by the ICMP port. |
+| `during_recovery` | `true` while `/tmp/qmanager_recovery_active` exists (the watchdog is mid-recovery); lets the poller suppress noise. |
+| `last_family` | `ipv4` \| `ipv6` \| `none` — which address family answered last cycle. `ipv6` means the IPv4 leg failed and the fallback carried it; `none` means nothing answered. |
+
+**Fields that are GONE** (were emitted by the Rust daemon, no longer written): `connectivity`, `limited_reason`, `down_reason`, `streak_limited`, `probe_target_used`, `http_code_seen`, `tcp_reused`. The `connectivity`/`state` tri-state no longer exists at the producer.
 
 ### Config and live reload
 
-The daemon reads `/etc/qmanager/ping_profile.json` (env vars override it; hardcoded relaxed-profile defaults back it up — resolution order is env > JSON > defaults, in `ping-daemon/src/config.rs::load`). Named profiles (`sensitive`/`regular`/`relaxed`/`quiet`) map to time-based windows the daemon compiles into cycle counts at load:
+The daemon reads `/etc/qmanager/ping_profile.json` (env vars override it; hardcoded relaxed-profile defaults back it up). The active **profile name** maps to a cadence/threshold table the daemon owns in `resolve_profile()` — thresholds are derived from time windows via `ceil(secs / interval)` so retuning the interval keeps time-to-fail / time-to-recover stable:
 
-| Profile | `interval_sec` | `fail_secs` | `recover_secs` | `intercept_secs` | `history_secs` |
-|---------|---------------|-------------|----------------|------------------|----------------|
-| sensitive | 1 | 6 | 3 | 8 | 300 |
-| regular | 2 | 10 | 6 | 8 | 300 |
-| relaxed *(default)* | 5 | 15 | 10 | 8 | 300 |
-| quiet | 10 | 30 | 20 | 8 | 600 |
+| Profile | `interval_sec` | `fail_secs` | `recover_secs` | `history_secs` |
+|---------|---------------|-------------|----------------|----------------|
+| sensitive | 1 | 6 | 3 | 300 |
+| regular | 2 | 10 | 6 | 300 |
+| relaxed *(default)* | 5 | 15 | 10 | 300 |
+| quiet | 10 | 30 | 20 | 600 |
 
-**Reload without restart:** any writer updates `ping_profile.json` and then `touch /tmp/qmanager_ping_reload`. The daemon `stat`s that flag once per cycle (one syscall, no fork), re-reads config, recomputes thresholds, unlinks the flag, and continues — **streak counters survive the reload**, so switching cadence mid-flight never resets the connectivity verdict.
+Per-field JSON keys (`interval_sec`, `fail_secs`, `recover_secs`, `history_secs`) override the profile table when present and numeric — this is how the Watchdog retunes the **probe cadence** (`interval_sec`) without changing the profile. The config keys the daemon reads are `profile`, `target_ipv4`, `target_ipv6`, and those four optional overrides. The legacy HTTP-era keys `target_1`/`target_2` are **not** read (the installer migrates them — see below).
+
+> ℹ️ NOTE — vestigial `intercept_secs`: the seed `ping_profile.json` still carries an `intercept_secs: 8` key inherited from the HTTP/204 era. The ICMP daemon does not read it (there is no intercept state to debounce). It is harmless and left in place; a future cleanup may prune it.
+
+**Reload without restart:** any writer updates `ping_profile.json` and then `touch /tmp/qmanager_ping_reload`. The daemon `stat`s that flag once per cycle, re-reads config, re-resolves the profile, re-detects the IPv6 invocation, unlinks the flag, and continues — streak counters survive the reload, so switching cadence mid-flight never resets the reachability verdict.
 
 > ℹ️ NOTE — the daemon is independent of the Watchdog. `qmanager_ping` stays up regardless of `watchcat.enabled`, so the Connection Quality page and the dashboard latency card get a live verdict even when the Watchdog is switched off. The Watchdog only ever *reads* `qmanager_ping.json`.
 
@@ -101,11 +123,11 @@ The daemon reads `/etc/qmanager/ping_profile.json` (env vars override it; hardco
 
 ## The poller — turning probes into stats
 
-**Short version:** `qmanager_poller` reads the daemon's raw verdict plus the RTT history ring and computes the latency/jitter/loss numbers the UI actually shows.
+**Short version:** `qmanager_poller` reads the daemon's raw verdict plus the RTT history ring and computes the latency/jitter/loss numbers the UI actually shows. **The poller was not modified by the ICMP port** — its null-safe `jq` reads simply see the fields the slim schema still emits and degrade gracefully on the ones it dropped.
 
 The poller reads two files the daemon produces:
 
-- `/tmp/qmanager_ping.json` — the current verdict (`connectivity`, `reachable`, `during_recovery`, `streak_*`).
+- `/tmp/qmanager_ping.json` — the current verdict (`reachable`, `streak_*`, `during_recovery`, `last_family`).
 - `/tmp/qmanager_ping_history` — a flat ring buffer of RTT samples (one float or literal `null` per line), trimmed to `history_secs / interval_sec` entries.
 
 From those, in a single pass, it derives the `connectivity` block written into `/tmp/qmanager_status.json` and typed as `ConnectivityStatus` (`types/modem-status.ts`):
@@ -119,10 +141,14 @@ From those, in a single pass, it derives the `connectivity` block written into `
 | `jitter_ms` | Average inter-sample RTT variation |
 | `packet_loss_pct` | Percentage of failed probes in the history window (0–100) |
 | `latency_history` | Ring buffer of the last N RTTs (`null` = failed probe) — the data behind the latency graph |
-| `state` | The daemon's raw tri-state (`connected`/`limited`/`disconnected`/`unknown`) passed through for the badge |
-| `limited_reason` / `down_reason` | HTTP code (when limited) / failure reason (when disconnected) |
+| `state` | The daemon's tri-state, passed through — now only ever `connected` / `disconnected` / `unknown` (never `limited`; `PingTriState` dropped that member) |
+| `last_family` | `ipv4` / `ipv6` / `none` — new field, mirrors the daemon's `last_family` |
+| `limited_reason` / `streak_limited` | Legacy HTTP-probe fields — kept **typed but always `null`/`0`** for rolling-upgrade safety (a `status.json` from an older poller still parses); never populated post-ICMP |
+| `down_reason` | Failure reason when disconnected (may be `null` under ICMP) |
 
 **Where it surfaces:** the dashboard latency card and the Connection Quality page's live "Current" readouts consume this via the `useModemStatus` hook (5-second poll of `/tmp/qmanager_status.json`). The latency **chart** additionally pulls the NDJSON history through `GET /cgi-bin/quecmanager/at_cmd/fetch_ping_history.sh`, which reads `/tmp/qmanager_ping_history.json` from RAM and reshapes it into a JSON array — zero modem contact.
+
+> ℹ️ NOTE — the dashboard's `limited` internet badge was removed (`components/dashboard/network-status.tsx`), because the producer can no longer emit that state. The badge now renders only connected / degraded / disconnected.
 
 ---
 
@@ -132,24 +158,27 @@ The page (`/system-settings/connection-quality`) is a two-card grid (`components
 
 ### Probe Targets card (`connectivity-sensitivity-card.tsx`)
 
-> ℹ️ NOTE: The React file is still named `connectivity-sensitivity-card.tsx` for git-history continuity, but the card's title and role are now **"Probe Targets"**. The former "Connectivity Sensitivity" profile picker (the `sensitive`/`regular`/`relaxed`/`quiet` Tabs) was removed in the split-ownership rework.
+> ℹ️ NOTE: The React file is still named `connectivity-sensitivity-card.tsx` for git-history continuity, but the card's title and role are **"Probe Targets"**.
 
-The card owns exactly two settings — `target_1` (primary) and `target_2` (fallback) — the URLs the daemon probes. Behavior:
+Post ICMP-port, the card owns **two ICMP host settings** — `target_ipv4` (probed first) and `target_ipv6` (fallback) — plus the profile selector. Behavior:
 
-- Primary is checked first; secondary is only used if primary fails. URLs without a scheme default to https.
-- A reset button restores the defaults (`http://cp.cloudflare.com/`, `http://www.gstatic.com/generate_204`).
-- Client-side validation rejects empty/over-256-char/whitespace/shell-metacharacter input; the CGI re-validates server-side.
-- The card carries an explicit cross-link: *"Probe timing — how often the modem checks and how many failures trigger recovery — now lives in the [Connection Watchdog](connection-watchdog.md)."* This is the UI half of the ownership boundary.
+- Inputs are **ICMP hosts** (IPv4 literal / IPv6 literal / hostname), **not HTTP URLs** — no scheme is prepended.
+- IPv4 is probed first; the IPv6 target is only used if the IPv4 leg fails (and only when the daemon detected a working IPv6 ping invocation).
+- A reset restores the Cloudflare DNS defaults (`1.1.1.1`, `2606:4700:4700::1111`).
+- Client-side validation mirrors the CGI's per-family charset checks; the CGI re-validates server-side.
 
-Data flow: `usePingProfile` hook (`hooks/use-ping-profile.ts`) → `GET/POST /cgi-bin/quecmanager/settings/ping_profile.sh`. The hook is **targets-only** — it reads `settings.target_1`/`settings.target_2` from the GET response and ignores any legacy `profile` field the endpoint still echoes; its `save()` POSTs `{ action: "save_settings", target_1, target_2 }`.
+Data flow: `usePingProfile` hook (`hooks/use-ping-profile.ts`) → `GET/POST /cgi-bin/quecmanager/settings/ping_profile.sh`.
 
-> ℹ️ NOTE — `profile` is optional on POST: the targets-only `usePingProfile.save()` deliberately sends no `profile` field. `ping_profile.sh`'s POST handler treats it as **optional** — when absent it preserves the existing `.profile` label already in `ping_profile.json` (defaulting to `relaxed` if the file is missing or holds an unexpected value), so a targets-only save is never rejected. When a `profile` **is** sent it must still be one of `sensitive|regular|relaxed|quiet`, else `invalid_profile`. (An earlier build hard-required `profile` and rejected every targets-only save with `invalid_profile`; that was fixed by making the field optional — verified on-device across the targets-only, missing-file, explicit-valid, and explicit-invalid cases.)
+- **GET** returns `{ success: true, settings: { profile, target_ipv4, target_ipv6 } }`.
+- **POST** sends `{ action: "save_settings", profile, target_ipv4, target_ipv6 }`. All three are required; the CGI validates `profile ∈ {sensitive,regular,relaxed,quiet}` and each target against its family charset, then performs an **atomic jq key-merge** — it writes only `profile`/`target_ipv4`/`target_ipv6`, preserving the daemon/Watchdog-owned keys (`interval_sec`/`fail_secs`/`recover_secs`/`history_secs`) — and touches `/tmp/qmanager_ping_reload`.
+
+**Server-side target validation** (`validate_target()`): trimmed, non-empty, ≤128 chars, no interior whitespace, no shell/HTML metacharacters (`` ` `` `$ ( ) ; | < > " \`), then a per-family charset whitelist — `ipv4` allows `[0-9A-Za-z.-]` (IPv4 literal or hostname), `ipv6` allows `[0-9A-Fa-f:.%]` and requires at least one `:`. Failures return `{ success: false, error: "invalid_target", message: "<reason>" }`.
 
 ### Latency & Loss Thresholds card (`quality-thresholds-card.tsx`)
 
-**Short version:** this card decides *when a slow or lossy link gets flagged as a network event* — it is an **alerting** control, not a recovery control. Nothing here ever triggers a modem reset or SIM failover.
+**Short version:** this card decides *when a slow or lossy link gets flagged as a network event* — an **alerting** control, not a recovery control. Nothing here triggers a modem reset or SIM failover. **This card was untouched by the ICMP port.**
 
-It sets two independent presets — one for latency, one for packet loss — each `standard` / `tolerant` / `very-tolerant`. The presets are pure classification thresholds consumed by the events pipeline (`scripts/usr/lib/qmanager/events.sh`), which emits `high_latency` / `high_packet_loss` network events (and downstream email/SMS/Discord alerts) when a live reading stays over threshold for the debounce count of samples. The threshold values are authoritative in `events.sh`; the card mirrors them for display:
+It sets two independent presets — one for latency, one for packet loss — each `standard` / `tolerant` / `very-tolerant`, consumed by the events pipeline (`scripts/usr/lib/qmanager/events.sh`), which emits `high_latency` / `high_packet_loss` events (and downstream email/SMS/Discord alerts) when a live reading stays over threshold for the debounce count of samples:
 
 | Preset | Latency threshold / debounce | Loss threshold / debounce |
 |--------|------------------------------|---------------------------|
@@ -157,9 +186,7 @@ It sets two independent presets — one for latency, one for packet loss — eac
 | tolerant *(default)* | 250 ms / 3 samples | 30 % / 3 samples |
 | very-tolerant | 500 ms / 2 samples | 50 % / 2 samples |
 
-Data flow: `useQualityThresholds` → `GET/POST /cgi-bin/quecmanager/settings/quality_thresholds.sh` → `/etc/qmanager/quality_thresholds.json`, poking `/tmp/qmanager_events_reload` so `events.sh` re-reads without a restart. The card's "Current" cells read `connectivity.latency_ms` / `connectivity.packet_loss_pct` live and show an ok/warn glyph relative to the selected threshold — a preview, not the alert itself.
-
-> ℹ️ NOTE: These thresholds are **shared, read-only telemetry classification** from the Watchdog's perspective — the recovery ladder never reads them. Conversely, the Quality Thresholds surface was untouched by the split-ownership rework; it is orthogonal to both probe targets and probe cadence.
+Data flow: `useQualityThresholds` → `GET/POST /cgi-bin/quecmanager/settings/quality_thresholds.sh` → `/etc/qmanager/quality_thresholds.json`, poking `/tmp/qmanager_events_reload` so `events.sh` re-reads without a restart. Note the events pipeline emits `high_latency`/`high_packet_loss` only — it does **not** emit a recovery/connectivity event; recovery lives entirely in the Watchdog off `streak_fail`.
 
 ---
 
@@ -169,12 +196,29 @@ Data flow: `useQualityThresholds` → `GET/POST /cgi-bin/quecmanager/settings/qu
 
 | Owner | CGI | Keys it writes | Reload flag(s) it touches |
 |-------|-----|----------------|---------------------------|
-| **Connection Quality** (Probe Targets card) | `settings/ping_profile.sh` | `profile`, `target_1`, `target_2` | `/tmp/qmanager_ping_reload` |
+| **Connection Quality** (Probe Targets card) | `settings/ping_profile.sh` | `profile`, `target_ipv4`, `target_ipv6` | `/tmp/qmanager_ping_reload` |
 | **Connection Watchdog** (Detection tab) | `monitoring/watchdog.sh` | `interval_sec` (propagated from `watchcat.probe_interval`) | `/tmp/qmanager_ping_reload` **and** `/tmp/qmanager_watchcat_reload` |
 
-This is the split-ownership realignment: **the Watchdog owns the *cadence*, the Connection Quality page owns the *targets*.** The `fail_threshold` and `probe_interval` ownership, the propagation mechanism, and the `max_failures → fail_threshold` migration all live on the Watchdog side — see [connection-watchdog.md → Split ownership of the probe cadence](connection-watchdog.md#split-ownership-of-the-probe-cadence) rather than duplicating them here.
+This is the split-ownership realignment: **the Watchdog owns the *cadence*, the Connection Quality page owns the *targets*.** The `fail_threshold` / `probe_interval` ownership and propagation live on the Watchdog side — see [connection-watchdog.md → Split ownership of the probe cadence](connection-watchdog.md#split-ownership-of-the-probe-cadence).
 
-**Documented side effect:** because `ping_profile.sh` no longer overwrites the whole file, changing `profile` no longer resets the daemon's internal `fail_secs` / `recover_secs` / `intercept_secs` / `history_secs` debounce fields — once present, those pass through unchanged. `profile` is now effectively a label paired with the targets, not a live threshold switch.
+### OTA migration — `migrate_ping_targets()`
+
+Because the config keys were renamed (`target_1`/`target_2` HTTP URLs → `target_ipv4`/`target_ipv6` ICMP hosts), a device upgrading from the HTTP-probe era would otherwise carry dead keys the daemon ignores while missing the ones it reads. `config.sh` has no key-migration primitive, so the installer (`install_rm520n.sh` → `migrate_ping_targets`, wired into `install_backend`, run on every install/OTA) handles it defensively and idempotently:
+
+- If `ping_profile.json` is absent or `jq` is unavailable → no-op.
+- If the file has a legacy `target_1`/`target_2` **and** lacks the new `target_ipv4`+`target_ipv6` → reseed `target_ipv4=1.1.1.1` / `target_ipv6=2606:4700:4700::1111` and `del(.target_1)` / `del(.target_2)`, atomically (`mktemp` + `mv`, `chmod 644`).
+- If the new keys are already present, or no legacy keys exist → no-op (idempotent).
+
+---
+
+## Known tradeoffs and the ICMP regression path
+
+The ICMP port was a deliberate, user-approved decision that accepts real costs for RM551E parity:
+
+- **No carrier-intercept detection.** The `limited` state — an honest "Limited by carrier" badge when a billing/data-cap/activation walled garden intercepts traffic — is gone. Under ICMP, an intercept that still routes ICMP reads as `reachable: true` (falsely "up"); one that drops ICMP reads as `reachable: false` (indistinguishable from a real outage). The Watchdog's old `limited` short-circuit is now permanently inert (see [connection-watchdog.md](connection-watchdog.md#carrier-intercept-short-circuit-now-inert)).
+- **ICMP reachability is per-carrier variable.** This is the documented regression path: the very reason the Rust daemon used HTTP/204 was that *this project's* carrier dropped ICMP to `1.1.1.1`/`8.8.8.8` entirely. On a carrier (or SIM/APN) that filters ICMP to the configured DNS-server targets, `qmanager_ping` will read **100 % loss** and report a **false "disconnected"** even when the link is fine — which can drive the Watchdog into needless recovery. If you hit this, change the Probe Targets to hosts your carrier does answer ICMP for, before assuming the link is actually down.
+
+> ℹ️ NOTE: The `ping-daemon/` Rust crate remains in the tree for now — **retired but present**, pending deletion in a follow-up cleanup commit after on-device soak. `ping-daemon/build-ping-daemon.sh` is neutered (early `exit 1`) so it can no longer produce the old binary. Do not treat the crate as live.
 
 ---
 
@@ -184,8 +228,8 @@ This is the split-ownership realignment: **the Watchdog owns the *cadence*, the 
 |---------|--------|-------|---------|-----|
 | Probe cadence (how often) | `watchcat.probe_interval` → `ping_profile.json.interval_sec` | **Watchdog** | Watchdog → Detection tab | [connection-watchdog.md](connection-watchdog.md) |
 | Failure threshold (how many misses) | `watchcat.fail_threshold` (vs. daemon `streak_fail`) | **Watchdog** | Watchdog → Detection tab | [connection-watchdog.md](connection-watchdog.md) |
-| Probe targets (which endpoints) | `ping_profile.json.target_1` / `target_2` | **Connection Quality** | Probe Targets card | this doc |
-| Profile label | `ping_profile.json.profile` | **Connection Quality** | Probe Targets card (no longer picker-driven) | this doc |
+| Probe targets (which hosts) | `ping_profile.json.target_ipv4` / `target_ipv6` | **Connection Quality** | Probe Targets card | this doc |
+| Profile label | `ping_profile.json.profile` | **Connection Quality** | Probe Targets card | this doc |
 | Alert thresholds (latency/loss) | `quality_thresholds.json.latency` / `loss` | **Connection Quality** | Latency & Loss Thresholds card | this doc |
 | Recovery ladder (act on down link) | `watchcat.*` tiers | **Watchdog** | Watchdog page | [connection-watchdog.md](connection-watchdog.md) |
 
@@ -194,6 +238,5 @@ This is the split-ownership realignment: **the Watchdog owns the *cadence*, the 
 ## Related docs
 
 - Connection Watchdog — the recovery state machine that consumes this telemetry (`qmanager_watchcat`, 4-tier ladder, SIM failover, probe-cadence ownership) — [connection-watchdog.md](connection-watchdog.md)
-- Rust ping daemon full design (tri-state machine, keep-alive client, output contract) — `docs/superpowers/specs/2026-05-09-rust-ping-daemon-design.md`; build/test — `ping-daemon/README.md`
 - AT command transport (`qcmd`, flock serialization) — [at-command-transport.md](at-command-transport.md)
 - Platform architecture, daemons, boot sequence — `../rm520n-gl-architecture.md`

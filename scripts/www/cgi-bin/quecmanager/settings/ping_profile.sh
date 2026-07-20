@@ -2,23 +2,27 @@
 # =============================================================================
 # ping_profile.sh — CGI Endpoint: Connectivity Sensitivity Profile (GET + POST)
 # =============================================================================
-# GET:  Returns current ping profile selection.
-# POST: Saves the probe targets (target_1/target_2) plus an OPTIONAL profile
-#       label (one of sensitive/regular/relaxed/quiet; preserved from the file
-#       when omitted), merging them into /etc/qmanager/ping_profile.json, then
-#       pokes the daemon's reload flag at /tmp/qmanager_ping_reload.
+# GET:  Returns current ping profile selection + IPv4/IPv6 ICMP probe targets.
+# POST: Saves the probe targets (target_ipv4/target_ipv6) plus an OPTIONAL
+#       profile label (one of sensitive/regular/relaxed/quiet; preserved from
+#       the file when omitted), merging them into
+#       /etc/qmanager/ping_profile.json, then pokes the daemon's reload flag
+#       at /tmp/qmanager_ping_reload.
 #
 # The daemon's for_profile() map is the single source of truth for the actual
 # threshold values — this CGI writes only the profile name (+ targets), not
 # the thresholds.
 #
+# Targets are ICMP hosts (NOT HTTP URLs) — no scheme is prepended. Both GET
+# and POST use the snake_case keys target_ipv4 / target_ipv6.
+#
 # --- Split-ownership (probe targets vs. fail cadence) -----------------------
-# This endpoint owns ONLY `profile` (label) + `target_1` + `target_2` in
+# This endpoint owns ONLY `profile` (label) + `target_ipv4` + `target_ipv6` in
 # ping_profile.json. monitoring/watchdog.sh is the SOLE writer of
 # `interval_sec` (the Watchdog owns the probe cadence + fail threshold as of
 # the split-ownership rework — see docs/reference/connection-watchdog.md).
 # Every write here is therefore an ATOMIC KEY-MERGE (read existing JSON, set
-# only profile/target_1/target_2, temp-file + mv) — NEVER a whole-file
+# only profile/target_ipv4/target_ipv6, temp-file + mv) — NEVER a whole-file
 # overwrite, or it would silently clobber the interval_sec the Watchdog wrote.
 # One side effect: changing `profile` here no longer resets the daemon's
 # internal fail_secs/recover_secs/intercept_secs/history_secs debounce
@@ -48,8 +52,8 @@ if [ "$REQUEST_METHOD" = "GET" ]; then
     qlog_info "Fetching ping profile selection"
 
     profile="relaxed"
-    target_1="http://cp.cloudflare.com/"
-    target_2="http://www.gstatic.com/generate_204"
+    target_ipv4="1.1.1.1"
+    target_ipv6="2606:4700:4700::1111"
 
     if [ -f "$CONFIG" ]; then
         v=$(jq -r '.profile // empty' "$CONFIG" 2>/dev/null) || v=""
@@ -58,64 +62,94 @@ if [ "$REQUEST_METHOD" = "GET" ]; then
             *) qlog_warn "ping_profile.json had unexpected profile value '$v', returning default" ;;
         esac
 
-        t1=$(jq -r '.target_1 // empty' "$CONFIG" 2>/dev/null) || t1=""
-        t2=$(jq -r '.target_2 // empty' "$CONFIG" 2>/dev/null) || t2=""
-        [ -n "$t1" ] && target_1="$t1"
-        [ -n "$t2" ] && target_2="$t2"
+        t4=$(jq -r '.target_ipv4 // empty' "$CONFIG" 2>/dev/null) || t4=""
+        t6=$(jq -r '.target_ipv6 // empty' "$CONFIG" 2>/dev/null) || t6=""
+        [ -n "$t4" ] && target_ipv4="$t4"
+        [ -n "$t6" ] && target_ipv6="$t6"
     fi
 
     jq -n \
         --arg profile "$profile" \
-        --arg target_1 "$target_1" \
-        --arg target_2 "$target_2" \
-        '{success: true, settings: {profile: $profile, target_1: $target_1, target_2: $target_2}}'
+        --arg target_ipv4 "$target_ipv4" \
+        --arg target_ipv6 "$target_ipv6" \
+        '{success: true, settings: {profile: $profile, target_ipv4: $target_ipv4, target_ipv6: $target_ipv6}}'
     exit 0
 fi
 
-# Validate a target URL string. Echoes the trimmed input on success, prints
-# error and returns 1 on failure. Used by both target_1 and target_2.
-validate_target_url() {
+# Validate an ICMP probe host server-side (IPv4 literal / IPv6 literal /
+# hostname). Common rules: trimmed, non-empty, length <= 128, no interior
+# whitespace, free of shell/HTML metacharacters. The per-family charset is
+# passed as $3:
+#   ipv4 -> [0-9A-Za-z.-]   (IPv4 literal or hostname)
+#   ipv6 -> [0-9A-Fa-f:.%]  (IPv6 literal incl. zone id)
+# No scheme is prepended. Echoes the trimmed host on success, prints an
+# error and returns 1 on failure. Used by both target_ipv4 and target_ipv6.
+validate_target() {
     local label="$1"
     local raw="$2"
+    local family="$3"
 
-    # Strip leading/trailing whitespace
-    local trimmed
-    trimmed=$(printf '%s' "$raw" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
+    local host
+    host=$(printf '%s' "$raw" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
 
-    if [ -z "$trimmed" ]; then
+    if [ -z "$host" ]; then
         echo "${label} cannot be empty"
         return 1
     fi
 
-    # Length cap
-    if [ ${#trimmed} -gt 256 ]; then
-        echo "${label} exceeds 256 characters"
+    if [ ${#host} -gt 128 ]; then
+        echo "${label} exceeds 128 characters"
         return 1
     fi
 
-    # Reject control chars + shell metacharacters not in URL-safe set
-    case "$trimmed" in
-        *[\`\;\|\<\>\"\\]*)
+    # No interior whitespace (space or tab).
+    case "$host" in
+        *" "*|*"	"*)
+            echo "${label} must not contain whitespace"
+            return 1
+            ;;
+    esac
+
+    # Reject shell/HTML metacharacters: ` $ ( ) ; | < > " \
+    case "$host" in
+        *'`'*|*'$'*|*'('*|*')'*|*';'*|*'|'*|*'<'*|*'>'*|*'"'*|*'\'*)
             echo "${label} contains disallowed characters"
             return 1
             ;;
     esac
 
-    # Reject dollar-paren injection patterns specifically
-    case "$trimmed" in
-        *\$\(*)
-            echo "${label} contains disallowed characters"
+    # Per-family charset whitelist. Reject any character outside the allowed set.
+    case "$family" in
+        ipv4)
+            case "$host" in
+                *[!0-9A-Za-z.-]*)
+                    echo "${label} is not a valid IPv4 address or hostname"
+                    return 1
+                    ;;
+            esac
+            ;;
+        ipv6)
+            case "$host" in
+                *[!0-9A-Fa-f:.%]*)
+                    echo "${label} is not a valid IPv6 address"
+                    return 1
+                    ;;
+            esac
+            case "$host" in
+                *:*) ;;
+                *)
+                    echo "${label} must be a valid IPv6 address (missing ':')"
+                    return 1
+                    ;;
+            esac
+            ;;
+        *)
+            echo "${label} has an unknown address family"
             return 1
             ;;
     esac
 
-    # Allow only URL-safe charset (RFC 3986 reserved + unreserved + percent + IDN-friendly)
-    if printf '%s' "$trimmed" | LC_ALL=C grep -qE '[^A-Za-z0-9._:/?#@!$%&'"'"'()*+,;=~-]'; then
-        echo "${label} contains invalid characters"
-        return 1
-    fi
-
-    printf '%s' "$trimmed"
+    printf '%s' "$host"
     return 0
 }
 
@@ -160,16 +194,16 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
         esac
     fi
 
-    new_t1_raw=$(printf '%s' "$POST_DATA" | jq -r '.target_1 // empty' 2>/dev/null)
-    new_t2_raw=$(printf '%s' "$POST_DATA" | jq -r '.target_2 // empty' 2>/dev/null)
+    new_t4_raw=$(printf '%s' "$POST_DATA" | jq -r '.target_ipv4 // empty' 2>/dev/null)
+    new_t6_raw=$(printf '%s' "$POST_DATA" | jq -r '.target_ipv6 // empty' 2>/dev/null)
 
     # Both targets are required on every save (kept idempotent + simple).
-    if ! new_t1=$(validate_target_url "target_1" "$new_t1_raw"); then
-        cgi_error "invalid_target" "$new_t1"
+    if ! new_t4=$(validate_target "target_ipv4" "$new_t4_raw" "ipv4"); then
+        cgi_error "invalid_target" "$new_t4"
         exit 0
     fi
-    if ! new_t2=$(validate_target_url "target_2" "$new_t2_raw"); then
-        cgi_error "invalid_target" "$new_t2"
+    if ! new_t6=$(validate_target "target_ipv6" "$new_t6_raw" "ipv6"); then
+        cgi_error "invalid_target" "$new_t6"
         exit 0
     fi
 
@@ -187,9 +221,9 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
 
     if ! printf '%s' "$existing_json" | jq \
         --arg profile "$new_profile" \
-        --arg target_1 "$new_t1" \
-        --arg target_2 "$new_t2" \
-        '.profile = $profile | .target_1 = $target_1 | .target_2 = $target_2' \
+        --arg target_ipv4 "$new_t4" \
+        --arg target_ipv6 "$new_t6" \
+        '.profile = $profile | .target_ipv4 = $target_ipv4 | .target_ipv6 = $target_ipv6' \
         > "${CONFIG}.tmp"; then
         rm -f "${CONFIG}.tmp"
         cgi_error "write_failed" "Failed to generate config JSON"
@@ -202,7 +236,7 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
         exit 0
     fi
 
-    qlog_info "Ping profile saved: profile=$new_profile target_1=$new_t1 target_2=$new_t2"
+    qlog_info "Ping profile saved: profile=$new_profile target_ipv4=$new_t4 target_ipv6=$new_t6"
 
     # Poke daemon to reload at the start of its next cycle.
     # Failure is non-fatal — daemon still has the old config; user can retry.

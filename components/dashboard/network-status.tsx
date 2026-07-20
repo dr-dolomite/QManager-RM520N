@@ -177,13 +177,6 @@ function buildInternetBadge(
         state,
         tooltip: null,
       };
-    case "limited":
-      return {
-        cls: "bg-warning/15 text-warning hover:bg-warning/20 border-warning/30",
-        label: t("network.internet_limited"),
-        state,
-        tooltip: limitedTooltip(c?.limited_reason ?? null, t),
-      };
     case "disconnected":
       return {
         cls: "bg-destructive/15 text-destructive hover:bg-destructive/20 border-destructive/30",
@@ -199,19 +192,6 @@ function buildInternetBadge(
         tooltip: null,
       };
   }
-}
-
-function limitedTooltip(code: number | null, t: TFunction): string {
-  if (code === null) {
-    return t("network.internet_tooltip.limited_intercept");
-  }
-  if (code >= 300 && code < 400) {
-    return t("network.internet_tooltip.limited_redirect", { code });
-  }
-  if (code >= 400) {
-    return t("network.internet_tooltip.limited_http", { code });
-  }
-  return t("network.internet_tooltip.limited_generic", { code });
 }
 
 function downTooltip(reason: string | null, t: TFunction): string {
@@ -354,11 +334,6 @@ const NetworkStatusComponent = ({
                     <span className="relative flex size-2 shrink-0">
                       <span className="absolute inline-flex size-full rounded-full bg-success opacity-75 animate-ping" />
                       <span className="relative inline-flex size-2 rounded-full bg-success" />
-                    </span>
-                  ) : b.state === "limited" ? (
-                    <span className="relative flex size-2 shrink-0">
-                      <span className="absolute inline-flex size-full rounded-full bg-warning opacity-75 animate-ping" />
-                      <span className="relative inline-flex size-2 rounded-full bg-warning" />
                     </span>
                   ) : b.state === "disconnected" ? (
                     <span className="inline-flex size-2 rounded-full shrink-0 bg-destructive" />

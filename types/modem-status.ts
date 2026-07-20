@@ -350,8 +350,9 @@ export function worstSignalQuality(...qualities: SignalQuality[]): SignalQuality
   );
 }
 
-/** Daemon's authoritative tri-state connectivity outcome (from qmanager_ping.json's `connectivity` field). */
-export type PingTriState = "connected" | "limited" | "disconnected" | "unknown";
+/** Daemon's authoritative tri-state connectivity outcome (from qmanager_ping.json's `connectivity` field).
+    Post ICMP-port there is no "limited" (carrier-intercept) outcome — an ICMP ping either answers or it doesn't. */
+export type PingTriState = "connected" | "disconnected" | "unknown";
 
 /** User-selectable preset for high_latency / high_packet_loss event thresholds. */
 export type QualityPreset = "standard" | "tolerant" | "very-tolerant";
@@ -406,12 +407,18 @@ export interface ConnectivityStatus {
   /** Phase 2 — daemon's tri-state connectivity outcome. null means the field is missing
       from status.json (rolling-upgrade fallback). */
   state: PingTriState | null;
-  /** When state == "limited", the HTTP code seen by the probe (e.g., 200, 302). null otherwise. */
+  /** Address family of the daemon's most recent successful probe. "ipv6" means the IPv4
+      leg failed and the fallback carried the connection. "none" when nothing answered.
+      null on a poller that predates the ICMP port (rolling-upgrade fallback). */
+  last_family: "ipv4" | "ipv6" | "none" | null;
+  /** Legacy HTTP-probe field. Always null post ICMP-port (kept typed for rolling-upgrade
+      safety so a status.json emitted by an older poller still parses). */
   limited_reason: number | null;
   /** When state == "disconnected", the failure reason: "timeout" | "refused"
       | "reset" | "dns" | "malformed". null otherwise. */
   down_reason: string | null;
-  /** Consecutive limited-outcome probes. Resets on any other outcome. */
+  /** Legacy HTTP-probe field. Always 0 post ICMP-port (kept typed for rolling-upgrade
+      safety so a status.json emitted by an older poller still parses). */
   streak_limited: number;
   /** Daemon's runtime profile string. A named preset, "custom" (env-var override),
       or "unknown" (daemon dead/stale). Typed as string to admit all three. */

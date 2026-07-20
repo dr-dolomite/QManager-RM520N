@@ -1207,6 +1207,7 @@ install_backend() {
     install_ping_profile
     migrate_ping_environment
     prune_stale_ping_environment
+    migrate_ping_targets
 
     info "Backend installed"
 }
@@ -1270,6 +1271,43 @@ install_ping_profile() {
         fi
     else
         echo "  Existing ping profile preserved at $target"
+    fi
+}
+
+# --- Migrate Legacy HTTP Ping Targets to ICMP Targets ------------------------
+
+# The ping daemon moved from HTTP probes (target_1/target_2 URLs, e.g.
+# "http://cp.cloudflare.com/") to plain ICMP probes (target_ipv4/target_ipv6
+# hosts, e.g. "1.1.1.1"). An HTTP URL is not a valid ICMP host, so this does
+# NOT try to convert the old value — it reseeds the Cloudflare ICMP defaults
+# and drops the stale keys. Idempotent: a device already on target_ipv4/
+# target_ipv6 (or with no config file yet) is a no-op.
+migrate_ping_targets() {
+    local target="/etc/qmanager/ping_profile.json"
+    [ -f "$target" ] || return 0
+    command -v jq >/dev/null 2>&1 || return 0
+
+    local has_legacy has_new
+    has_legacy=$(jq -r 'has("target_1") or has("target_2")' "$target" 2>/dev/null)
+    has_new=$(jq -r 'has("target_ipv4") and has("target_ipv6")' "$target" 2>/dev/null)
+
+    if [ "$has_legacy" != "true" ] || [ "$has_new" = "true" ]; then
+        return 0
+    fi
+
+    echo "  Migrating ping_profile.json from HTTP targets to ICMP targets..."
+    local tmp; tmp=$(mktemp)
+    if jq \
+        --arg t4 "1.1.1.1" \
+        --arg t6 "2606:4700:4700::1111" \
+        '.target_ipv4 = $t4 | .target_ipv6 = $t6 | del(.target_1) | del(.target_2)' \
+        "$target" > "$tmp" 2>/dev/null; then
+        mv "$tmp" "$target"
+        chmod 644 "$target"
+        echo "  Migrated $target to target_ipv4=1.1.1.1 target_ipv6=2606:4700:4700::1111"
+    else
+        rm -f "$tmp"
+        echo "  WARNING: failed to migrate legacy ping targets in $target" >&2
     fi
 }
 
