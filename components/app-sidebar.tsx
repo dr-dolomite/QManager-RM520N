@@ -185,9 +185,7 @@ const data = {
       icon: PieChart,
       items: [
         { t_key: "latency_monitor", url: "/monitoring/latency" },
-        { t_key: "email_alerts", url: "/monitoring/email-alerts" },
-        { t_key: "sms_alerts", url: "/monitoring/sms-alerts" },
-        { t_key: "discord_bot", url: "/monitoring/discord-bot" },
+        { t_key: "alerts", url: "/monitoring/alerts" },
       ],
     },
     {
