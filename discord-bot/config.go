@@ -12,6 +12,9 @@ const (
 	reloadFlagPath = "/tmp/qmanager_discord_reload"
 	logPath        = "/tmp/qmanager_discord_log.json"
 	maxLogEntries  = 100
+	// cmdPath is the command file the shell alert engine (alert_engine.sh) writes
+	// to tell the daemon to deliver a DM. The daemon watches it via runCmdWatcher.
+	cmdPath = "/tmp/qmanager_discord_cmd"
 )
 
 type Config struct {
@@ -19,6 +22,11 @@ type Config struct {
 	BotToken         string `json:"bot_token"`
 	OwnerDiscordID   string `json:"owner_discord_id"`
 	ThresholdMinutes int    `json:"threshold_minutes"`
+	// AutonomousNotify gates the daemon's own downtime timer (RunNotifier).
+	// Absent key => false (Go zero value) => the shell alert engine is the sole
+	// alert driver via cmdPath, so an OTA-upgraded device with an old config
+	// has NO double-send window. Flip true only as a debug escape hatch.
+	AutonomousNotify bool `json:"autonomous_notify"`
 }
 
 type BotStatus struct {

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"log"
 	"os"
@@ -121,8 +122,19 @@ func main() {
 		}
 	})
 
+	// Autonomous downtime notifier — the daemon's own timer. Off by default:
+	// the shell alert engine (alert_engine.sh) now owns all alert timing and
+	// drives the daemon via cmdPath. Only start it when explicitly opted in,
+	// so an OTA-upgraded device with an old config has no double-send window.
 	stopNotifier := make(chan struct{})
-	go RunNotifier(s, dmCh, cfg, stopNotifier)
+	if cfg.AutonomousNotify {
+		go RunNotifier(s, dmCh, cfg, stopNotifier)
+	}
+
+	// Command watcher — shell alert engine writes cmdPath to have the daemon
+	// deliver a DM. This makes the daemon a pure DM transport.
+	stopCmdWatcher := make(chan struct{})
+	go runCmdWatcher(s, dmCh, cfg, stopCmdWatcher)
 
 	// Test DM trigger watcher — CGI test.sh creates /tmp/qmanager_discord_test.
 	// Always spawn this, even if the initial openDMChannel failed: the user may
@@ -150,6 +162,7 @@ func main() {
 	<-sc
 
 	close(stopNotifier)
+	close(stopCmdWatcher)
 	close(stopTestWatcher)
 	writeStatus(statusPath, BotStatus{Connected: false, Error: "", AppID: appID})
 	log.Println("Discord bot stopped.")
@@ -208,6 +221,90 @@ func runTestDMWatcher(s *discordgo.Session, ownerID string, dmCh *dmChannelHolde
 				continue
 			}
 			writeTestResult(true, "")
+		}
+	}
+}
+
+// discordCmd is the payload the shell alert engine (alert_engine.sh) writes to
+// cmdPath: {"message":"..."}. The daemon delivers Message as an owner DM.
+type discordCmd struct {
+	Message string `json:"message"`
+}
+
+// appendDiscordLog appends one NDJSON result line to logPath, matching the
+// timestamp format the shell logs use ("YYYY-MM-DD HH:MM:SS"). O_APPEND is used
+// deliberately: a single sub-4KB line is written atomically on POSIX, so the
+// daemon and any shell-side writer interleave cleanly without a lock.
+func appendDiscordLog(trigger, status, recipient string) {
+	line := fmt.Sprintf("{\"timestamp\":%q,\"trigger\":%q,\"status\":%q,\"recipient\":%q}\n",
+		time.Now().Format("2006-01-02 15:04:05"), trigger, status, recipient)
+	f, err := os.OpenFile(logPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		log.Printf("cmd watcher: failed to open log %s: %v", logPath, err)
+		return
+	}
+	defer f.Close()
+	if _, err := f.WriteString(line); err != nil {
+		log.Printf("cmd watcher: failed to append log: %v", err)
+	}
+}
+
+// runCmdWatcher polls cmdPath for DM-send commands written by the shell alert
+// engine. Structurally identical to runTestDMWatcher (1s ticker, stat/read/
+// remove), but the payload carries the message to deliver. This is the daemon's
+// pure-transport path: the shell state machine owns alert timing, the daemon
+// just delivers the DM and records the result to the NDJSON log.
+func runCmdWatcher(s *discordgo.Session, dmCh *dmChannelHolder, cfg *Config, stopCh <-chan struct{}) {
+	ticker := time.NewTicker(1 * time.Second)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-stopCh:
+			return
+		case <-ticker.C:
+			if _, err := os.Stat(cmdPath); err != nil {
+				continue
+			}
+			data, readErr := os.ReadFile(cmdPath)
+			os.Remove(cmdPath)
+			if readErr != nil {
+				log.Printf("cmd watcher: failed to read command file: %v", readErr)
+				continue
+			}
+
+			var cmd discordCmd
+			if err := json.Unmarshal(data, &cmd); err != nil {
+				log.Printf("cmd watcher: malformed command payload, skipping: %v", err)
+				continue
+			}
+			if cmd.Message == "" {
+				log.Printf("cmd watcher: empty message, skipping")
+				continue
+			}
+
+			ch := dmCh.get()
+			if ch == "" {
+				// Fallback: resolve the channel — may succeed if the owner has
+				// since authorized the bot after startup.
+				id, err := openDMChannel(s, cfg.OwnerDiscordID)
+				if err != nil {
+					log.Printf("cmd watcher: no DM channel available, dropping alert: %v", err)
+					appendDiscordLog("alert", "failed", "discord")
+					continue
+				}
+				dmCh.set(id)
+				if err := saveDMChannelID(dmChannelPath, id); err != nil {
+					log.Printf("warning: failed to persist DM channel: %v", err)
+				}
+				ch = id
+			}
+
+			if _, err := s.ChannelMessageSend(ch, cmd.Message); err != nil {
+				log.Printf("cmd watcher: failed to send alert DM: %v", err)
+				appendDiscordLog("alert", "failed", "discord")
+				continue
+			}
+			appendDiscordLog("alert", "sent", "discord")
 		}
 	}
 }

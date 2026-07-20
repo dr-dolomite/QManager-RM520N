@@ -348,16 +348,24 @@ log_error() { qlog_error "$1"; }
     exit 1
 }
 
-# Email alerts (optional — non-fatal if missing)
+# Alert channel transports (optional — non-fatal if missing). The per-channel
+# downtime timers were removed; these libs now expose only config parse +
+# send/test/log helpers, driven by alert_engine.sh below.
 . /usr/lib/qmanager/email_alerts.sh 2>/dev/null || {
     qlog_warn "email_alerts.sh not found, email alerts disabled"
-    check_email_alert() { :; }
-    email_alerts_init() { :; }
 }
 . /usr/lib/qmanager/sms_alerts.sh 2>/dev/null || {
     qlog_warn "sms_alerts.sh not found, SMS alerts disabled"
-    check_sms_alert() { :; }
-    sms_alerts_init() { :; }
+}
+
+# Unified alert engine — replaces the old per-channel check_email_alert /
+# check_sms_alert timers with one monotonic downtime timer + routing x
+# capability dispatch (see alert_engine.sh header). Optional — non-fatal
+# if missing, matching the sibling libs above.
+. /usr/lib/qmanager/alert_engine.sh 2>/dev/null || {
+    qlog_warn "alert_engine.sh not found, alerts disabled"
+    check_alerts() { :; }
+    alert_engine_init() { :; }
 }
 
 # Profile manager (for boot-time profile auto-apply)
@@ -1961,8 +1969,7 @@ poll_cycle() {
     update_proc_metrics
     update_system_health
     read_ping_data
-    check_email_alert
-    check_sms_alert
+    check_alerts
 
     if [ -f "$LONG_FLAG" ]; then
         if [ "$system_state" != "scan_in_progress" ]; then
@@ -2079,8 +2086,7 @@ main() {
     collect_boot_data
     update_proc_metrics
     update_system_health
-    email_alerts_init
-    sms_alerts_init
+    alert_engine_init
     restore_event_state
     crash_watcher_init
     write_cache

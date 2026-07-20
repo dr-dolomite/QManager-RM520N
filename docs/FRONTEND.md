@@ -51,7 +51,10 @@ app/                            # Next.js App Router
 ├── monitoring/                 # Monitoring & alerts
 │   ├── page.tsx                # Network events hub
 │   ├── latency/                # Latency monitoring
-│   ├── email-alerts/           # Email alert settings
+│   ├── alerts/                 # Centralized Alerts (SMS + email + Discord)
+│   ├── email-alerts/           # Redirect → /monitoring/alerts (legacy bookmark)
+│   ├── sms-alerts/             # Redirect → /monitoring/alerts (legacy bookmark)
+│   ├── discord-bot/            # Redirect → /monitoring/alerts (legacy bookmark)
 │   ├── watchdog/               # Watchdog settings
 │   ├── logs/                   # System logs
 │   └── tailscale/              # Tailscale VPN
@@ -121,7 +124,10 @@ constants/                      # Static configuration data
 | `/local-network/custom-dns` | CustomDNS | DNS override |
 | `/monitoring` | NetworkEvents | Event log hub |
 | `/monitoring/latency` | LatencyMonitoring | Real-time + history charts |
-| `/monitoring/email-alerts` | EmailAlerts | Downtime alert settings |
+| `/monitoring/alerts` | Alerts | Centralized SMS + email + Discord downtime/reboot alerts |
+| `/monitoring/email-alerts` | Redirect | → `/monitoring/alerts` (legacy bookmark) |
+| `/monitoring/sms-alerts` | Redirect | → `/monitoring/alerts` (legacy bookmark) |
+| `/monitoring/discord-bot` | Redirect | → `/monitoring/alerts` (legacy bookmark) |
 | `/monitoring/watchdog` | Watchdog | Connection health |
 | `/monitoring/logs` | SystemLogs | Log viewer |
 | `/monitoring/tailscale` | Tailscale | VPN status |
@@ -216,7 +222,8 @@ if (result.success) { /* toast success */ }
 | `useMTUSettings` | `/network/mtu.sh` | — |
 | `useDNSSettings` | `/network/dns.sh` | — |
 | `useIPPassthrough` | `/network/ip_passthrough.sh` | `ip-passthrough.ts` |
-| `useEmailAlerts` | `/monitoring/email_alerts.sh` | In hook file |
+| `useAlerts` | `/monitoring/alerts.sh` | `alerts.ts` |
+| `useAlertsLog` | `/monitoring/alerts.sh` (`action=get_log`) | `alerts.ts` |
 | `useWatchdogSettings` | `/monitoring/watchdog.sh` | In hook file |
 | `useSystemSettings` | `/system/settings.sh` | `system-settings.ts` |
 | `useTailscale` | `/vpn/tailscale.sh` | — |

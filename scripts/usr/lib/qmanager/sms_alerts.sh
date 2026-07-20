@@ -2,25 +2,25 @@
 # =============================================================================
 # sms_alerts.sh — SMS Alert Library for QManager
 # =============================================================================
-# Sourced by qmanager_poller and CGI scripts. Detects prolonged internet
-# downtime and sends SMS notifications via sms_tool on /dev/smd11 — both
-# when threshold is first exceeded (if modem is still registered) and on
-# recovery. Deduplicates into a single combined SMS when the downtime-start
-# send never succeeded.
+# Sourced by qmanager_poller and CGI scripts. Provides config parsing, the
+# sms_tool transport (under the shared AT flock), and NDJSON logging for the
+# SMS channel. Downtime tracking and threshold evaluation now live in
+# alert_engine.sh (the unified alert engine) — this library only knows how
+# to SEND, not when to send.
+#
+# Poller globals read (by _sa_is_registered, used at send time):
+#   modem_reachable  ("true"/"false")
+#   lte_state        ("connected"/"searching"/"inactive"/"unknown")
+#   nr_state         ("connected"/"searching"/"inactive"/"unknown")
 #
 # Dependencies: jq, sms_tool (bundled at /usr/bin/sms_tool), flock,
 #               qlog_* functions (optional)
 # Install location: /usr/lib/qmanager/sms_alerts.sh
 #
-# Poller globals read:
-#   conn_internet_available  ("true"/"false"/"null")
-#   modem_reachable          ("true"/"false")
-#   lte_state                ("connected"/"searching"/"inactive"/"unknown")
-#   nr_state                 ("connected"/"searching"/"inactive"/"unknown")
-#
 # Config:  /etc/qmanager/sms_alerts.json
 # Log:     /tmp/qmanager_sms_log.json (NDJSON, max 100 entries)
-# Reload:  /tmp/qmanager_sms_reload   (flag file, touched by CGI)
+# Reload:  /tmp/qmanager_sms_reload   (flag file, touched by CGI, consumed
+#          by alert_engine.sh's check_alerts)
 # Lock:    /tmp/qmanager_at.lock      (shared with qcmd + sms.sh)
 # =============================================================================
 
@@ -38,18 +38,11 @@ _SA_MAX_LOG=100
 _SA_MAX_ATTEMPTS=3
 _SA_RETRY_DELAY_SECS=5
 _SA_MAX_SKIPS=3
-_SA_DISPATCH_PIDFILE="/tmp/qmanager_sms_send.pid"
 
 # --- State (populated by sms_alerts_init / _sa_read_config) ------------------
 _sa_enabled="false"
 _sa_recipient=""
 _sa_threshold_minutes=5
-
-# --- Downtime tracking (poller runtime only) ---------------------------------
-_sa_was_down="false"
-_sa_downtime_start=0
-# Values: "none" | "pending" | "sent" | "failed"
-_sa_downtime_sms_status="none"
 
 # =============================================================================
 # _sa_flock_wait — BusyBox-compatible flock with timeout (polling loop)
@@ -115,6 +108,8 @@ _sa_is_registered() {
 # =============================================================================
 # sms_alerts_init — Called once at poller startup
 # =============================================================================
+# No longer called by the poller (alert_engine_init replaces it) — kept as a
+# standalone entry point for manual sourcing/testing of this lib in isolation.
 sms_alerts_init() {
     _sa_read_config
     if [ "$_sa_enabled" = "true" ]; then
@@ -125,168 +120,21 @@ sms_alerts_init() {
 }
 
 # =============================================================================
-# check_sms_alert — Called every poll cycle after detect_events
+# sms_alert_send — Send a one-shot alert SMS (used by alert_engine.sh and by
+# the CGI's send_test action)
 # =============================================================================
-check_sms_alert() {
-    # Check for reload flag (CGI saved new settings)
-    if [ -f "$_SA_RELOAD_FLAG" ]; then
-        rm -f "$_SA_RELOAD_FLAG"
-        _sa_read_config
-        qlog_info "SMS alerts config reloaded: enabled=$_sa_enabled"
-    fi
-
-    # Skip if disabled or not fully configured
-    [ "$_sa_enabled" != "true" ] && return 0
-
-    # Null/stale ping state: skip ONLY if not already tracking downtime.
-    if [ "$conn_internet_available" = "null" ] || [ -z "$conn_internet_available" ]; then
-        [ "$_sa_was_down" != "true" ] && return 0
-        # Already tracking — fall through to check pending send
-    fi
-
-    if [ "$conn_internet_available" = "false" ]; then
-        # Internet is down — start tracking if not already
-        if [ "$_sa_was_down" != "true" ]; then
-            _sa_downtime_start=$(date +%s)
-            _sa_was_down="true"
-            _sa_downtime_sms_status="none"
-            qlog_debug "SMS alerts: downtime tracking started at $_sa_downtime_start"
-        fi
-
-    elif [ "$conn_internet_available" = "true" ] && [ "$_sa_was_down" = "true" ]; then
-        # RECOVERY PATH
-        local now duration dur_text body trigger threshold_secs
-        now=$(date +%s)
-        duration=$((now - _sa_downtime_start))
-        dur_text=$(_sa_format_duration "$duration")
-        threshold_secs=$((_sa_threshold_minutes * 60))
-
-        qlog_info "SMS alerts: recovery detected — duration=${duration}s status=$_sa_downtime_sms_status"
-
-        # If the outage never crossed threshold and no downtime-start was
-        # ever queued (status "none"), stay silent — matches email_alerts behavior.
-        if [ "$_sa_downtime_sms_status" = "none" ] && [ "$duration" -lt "$threshold_secs" ]; then
-            qlog_info "SMS alerts: recovery under threshold (${duration}s < ${threshold_secs}s) — silent"
-            _sa_was_down="false"
-            _sa_downtime_start=0
-            _sa_downtime_sms_status="none"
-            return 0
-        fi
-
-        if [ "$_sa_downtime_sms_status" = "sent" ]; then
-            body="[QManager] Connection recovered (down ${dur_text})"
-            trigger="Connection recovered (down ${dur_text})"
-        else
-            body="[QManager] Connection was down for ${dur_text}, now restored"
-            trigger="Connection was down for ${dur_text}, now restored"
-        fi
-        _sa_do_send_async "$body" "$trigger"
-        # Note: with async dispatch, _sa_downtime_sms_status reflects
-        # dispatch INTENT, not delivery outcome — the background worker
-        # has no channel to mutate this parent variable. So:
-        #   "sent"  here means "downtime-start was dispatched" (which
-        #           may have actually failed; check the NDJSON log).
-        #   "failed" / "pending" / "none" all collapse into the dedup
-        #           branch above. This is intentional: the user gets
-        #           one combined "was down for X, now restored" SMS
-        #           when no successful downtime-start was visible.
-        # The poller's tracking state is reset below regardless; the
-        # worker's _sa_log_event call records the actual outcome.
-
-        # Reset tracking
-        _sa_was_down="false"
-        _sa_downtime_start=0
-        _sa_downtime_sms_status="none"
-        return 0
-    fi
-
-    # Step 4: promote "none" -> "pending" if threshold exceeded
-    if [ "$_sa_was_down" = "true" ] && [ "$_sa_downtime_sms_status" = "none" ]; then
-        local now elapsed threshold_secs
-        now=$(date +%s)
-        elapsed=$((now - _sa_downtime_start))
-        threshold_secs=$((_sa_threshold_minutes * 60))
-        if [ "$elapsed" -ge "$threshold_secs" ]; then
-            _sa_downtime_sms_status="pending"
-            qlog_info "SMS alerts: threshold exceeded (${elapsed}s >= ${threshold_secs}s), marking pending"
-        fi
-    fi
-
-    # Step 5: if pending and registered, attempt send
-    if [ "$_sa_was_down" = "true" ] && [ "$_sa_downtime_sms_status" = "pending" ]; then
-        if _sa_is_registered; then
-            local now duration dur_text body trigger
-            now=$(date +%s)
-            duration=$((now - _sa_downtime_start))
-            dur_text=$(_sa_format_duration "$duration")
-            body="[QManager] Connection down ${dur_text}"
-            trigger="Connection down ${dur_text}"
-
-            qlog_info "SMS alerts: dispatching downtime-start send (registered)"
-            _sa_do_send_async "$body" "$trigger"
-            # Optimistically advance to "sent" so the recovery path knows a
-            # downtime-start SMS was attempted. The background worker logs
-            # "sent" or "failed" via _sa_log_event according to its own rc.
-            # If the worker returns rc=2 (unregistered for every retry inside
-            # _sa_do_send), no NDJSON log is written and no in-band retry
-            # happens — the user will still receive the recovery SMS when
-            # internet returns. A qlog_warn is emitted by the worker for
-            # operator visibility.
-            _sa_downtime_sms_status="sent"
-        else
-            qlog_debug "SMS alerts: pending downtime send, modem not registered — waiting"
-        fi
-    fi
-}
-
-# =============================================================================
-# _sa_do_send_async — Background variant for the poll loop
-# =============================================================================
-# Wraps _sa_do_send so check_sms_alert (called every poll cycle) does not
-# block on registration-skip sleeps or the underlying sms_tool I/O.
-# Single-flight via _SA_DISPATCH_PIDFILE.
-#
-# Args: $1 — message body
-#       $2 — trigger description for the NDJSON log entry
-# Returns immediately (always 0). The forked worker logs success/failure
-# via _sa_log_event itself.
-_sa_do_send_async() {
+# Thin wrapper over _sa_do_send. Bounded blocking time (registration-skip
+# loop + up to _SA_MAX_ATTEMPTS retries, a few seconds to ~15s worst case) —
+# alert_engine.sh calls this inline from check_alerts, which only happens at
+# real state transitions (threshold crossings / recovery / reboot), not
+# every poll cycle, so this is an accepted trade-off rather than a fork.
+# Normalizes _sa_do_send's rc=2 ("never attempted — not registered") into a
+# plain failure, since the two-state sent/failed NDJSON log has no "deferred"
+# status.
+sms_alert_send() {
     local body="$1"
-    local trigger="$2"
-
-    if [ -f "$_SA_DISPATCH_PIDFILE" ]; then
-        local _old_pid
-        _old_pid=$(cat "$_SA_DISPATCH_PIDFILE" 2>/dev/null)
-        if [ -n "$_old_pid" ] && [ -d "/proc/$_old_pid" ]; then
-            qlog_warn "SMS alerts: previous dispatch still in flight (pid=$_old_pid), skipping"
-            return 0
-        fi
-        rm -f "$_SA_DISPATCH_PIDFILE"
-    fi
-
-    # Fork the worker. Capture $! (child PID) — NOT $$ (which inside the
-    # subshell resolves to the parent poller's PID and would create a
-    # permanent lockout if the worker is hard-killed). The stale-file
-    # cleanup above already handles orphan pidfiles.
-    (
-        _sa_do_send "$body"
-        local _rc=$?
-        if [ "$_rc" -eq 0 ]; then
-            _sa_log_event "$trigger" "sent" "$_sa_recipient"
-        elif [ "$_rc" -eq 1 ]; then
-            _sa_log_event "$trigger" "failed" "$_sa_recipient"
-        else
-            # rc=2 (modem not registered for every attempt). Don't write
-            # an NDJSON entry (it represents an unattempted send, not a
-            # failure), but emit a syslog warning so operators can see
-            # the dispatch was deferred. The poller does NOT auto-retry
-            # because _sa_downtime_sms_status is set to "sent" optimistically;
-            # the user will still receive the recovery SMS when internet returns.
-            qlog_warn "SMS alerts: dispatch deferred — not registered after retries (trigger: $trigger)"
-        fi
-    ) </dev/null >/dev/null 2>&1 &
-    local _sa_worker_pid=$!
-    echo "$_sa_worker_pid" > "$_SA_DISPATCH_PIDFILE" 2>/dev/null
+    _sa_do_send "$body" && return 0
+    return 1
 }
 
 # =============================================================================

@@ -23,6 +23,12 @@ www-data ALL=(root) NOPASSWD: /usr/sbin/iptables, /usr/sbin/iptables-restore, /u
 # System reboot (used by system/reboot.sh, update installer)
 www-data ALL=(root) NOPASSWD: /sbin/reboot
 
+# Crash-log breadcrumb (used by system/reboot.sh to classify a user-initiated
+# reboot). The helper hardcodes the log path + validates the reason against a
+# fixed enum and refuses to follow a symlink — www-data cannot write
+# /etc/qmanager/crash.log directly (root-owned; see qmanager_crash_log_append).
+www-data ALL=(root) NOPASSWD: /usr/bin/qmanager_crash_log_append
+
 # Crontab management (used by scheduled reboot and tower schedule)
 www-data ALL=(root) NOPASSWD: /usr/bin/crontab
 

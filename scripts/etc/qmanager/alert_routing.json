@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "events": {
+    "connection_lost": { "sms": true, "email": false, "discord": false },
+    "connection_restored": { "sms": true, "email": true, "discord": true },
+    "reboot": { "sms": true, "email": true, "discord": true }
+  }
+}

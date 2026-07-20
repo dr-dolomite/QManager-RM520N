@@ -838,52 +838,63 @@ Get the currently active scenario.
 
 ## Monitoring
 
-### GET/POST `/monitoring/email_alerts.sh`
+### GET/POST `/monitoring/alerts.sh`
 
-**GET Response:**
+Unified endpoint for all three alert channels (SMS, email, Discord) plus the routing × capability matrix consumed by `alert_engine.sh`. Replaces the removed per-channel endpoints (`email_alerts.sh`, `email_alert_log.sh`, `sms_alerts.sh`, `sms_alert_log.sh`, `discord_bot/{configure,status,test,alert_log}.sh`). See `docs/reference/alerts.md` for the full contract.
+
+**GET Response** — aggregated settings + routing + capabilities + reboot history. Secrets are never returned (only `app_password_set` / `token_set` booleans):
 ```json
 {
   "success": true,
-  "settings": {
-    "enabled": true,
-    "sender_email": "alerts@gmail.com",
-    "recipient_email": "admin@example.com",
-    "app_password_set": true,
-    "threshold_minutes": 5
-  }
+  "channels": {
+    "sms":     { "enabled": false, "recipient_phone": "", "threshold_minutes": 5, "configured": false },
+    "email":   { "enabled": true, "sender_email": "alerts@gmail.com", "recipient_email": "admin@example.com",
+                 "app_password_set": true, "threshold_minutes": 5, "msmtp_installed": true, "configured": true },
+    "discord": { "enabled": false, "owner_discord_id": "", "token_set": false, "threshold_minutes": 5,
+                 "connected": false, "configured": false }
+  },
+  "routing": { "events": { "connection_lost": {"sms":true,"email":false,"discord":false},
+               "connection_restored": {"sms":true,"email":true,"discord":true},
+               "reboot": {"sms":true,"email":true,"discord":true} } },
+  "capabilities": { "connection_lost": {"sms":true,"email":false,"email_reason":"email_needs_internet",
+                    "discord":false,"discord_reason":"discord_needs_internet"},
+                    "connection_restored": {"sms":true,"email":true,"discord":true},
+                    "reboot": {"sms":true,"email":true,"discord":true} },
+  "reboots": [ {"epoch":1721400000,"cause":"watchdog"}, {"epoch":1721390000,"cause":"user"} ]
 }
 ```
 
-**POST (save settings):**
+**POST** — dispatched on `action`:
+
+| Action | Purpose |
+|--------|---------|
+| `save_settings` | Persist all three channel configs + routing atomically. `app_password` / `bot_token` sent only when changed; omitted secrets reuse the stored value. `connection_lost.email` and `connection_lost.discord` routing cells are hard-clamped to `false` server-side. |
+| `send_test` | `{ "channel": "sms" \| "email" \| "discord" }` — send a real test alert via that channel's live transport. |
+| `get_log` | Merged NDJSON activity log across all three channels, newest first, cap 100. |
+| `install_msmtp` | Background `opkg` install of the `msmtp` mailer (optional email dependency). |
+| `install_status` | Poll `install_msmtp` progress (`idle`/`running`/`complete`/`error`). |
+
+**POST (save settings) example:**
 ```json
 {
   "action": "save_settings",
-  "enabled": true,
-  "sender_email": "alerts@gmail.com",
-  "recipient_email": "admin@example.com",
-  "app_password": "xxxx xxxx xxxx xxxx",
-  "threshold_minutes": 5
+  "sms":     { "enabled": false, "recipient_phone": "", "threshold_minutes": 5 },
+  "email":   { "enabled": true, "sender_email": "alerts@gmail.com", "recipient_email": "admin@example.com",
+               "app_password": "xxxx xxxx xxxx xxxx", "threshold_minutes": 5 },
+  "discord": { "enabled": false, "owner_discord_id": "", "threshold_minutes": 5 },
+  "routing": { "events": { "connection_lost": {"sms":true,"email":false,"discord":false},
+               "connection_restored": {"sms":true,"email":true,"discord":true},
+               "reboot": {"sms":true,"email":true,"discord":true} } }
 }
 ```
-`app_password` only sent when changed. Backend returns `app_password_set: boolean` (never the actual password).
 
-**POST (send test):**
-```json
-{ "action": "send_test" }
-```
-
-### GET `/monitoring/email_alert_log.sh`
-
+**POST (get log) response:**
 ```json
 {
   "success": true,
   "entries": [
-    {
-      "timestamp": 1710700000,
-      "trigger": "downtime_recovery",
-      "status": "sent",
-      "recipient": "admin@example.com"
-    }
+    { "timestamp": "2026-07-20 14:03:11", "trigger": "connection_restored", "status": "sent",
+      "recipient": "admin@example.com", "channel": "email" }
   ],
   "total": 5
 }
