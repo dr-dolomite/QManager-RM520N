@@ -56,6 +56,8 @@ All your alerts finally live in one place. A new **Monitoring → Alerts** page 
 
 - **A clean bill of health after install or update.** Two internal services (Ethernet and IMEI check) used to show up as "failed" on a perfectly healthy device that simply had nothing to do; they now correctly report as idle/skipped, so a quick `systemctl --failed` comes back clean — on both a fresh install and an OTA upgrade of an existing device.
 
+- **Cleaner install and update logs.** Installing or updating no longer prints alarming-but-harmless errors near the very end — the console PATH snippet now installs on the first try, and the installer no longer leaves your shell in a broken directory when it finishes (the installer creates `/etc/profile.d` before dropping in `qmanager-path.sh`, and staging cleanup is left to the OTA worker plus a reboot, so the installer no longer deletes the working directory out from under a manual run).
+
 ## 📥 Installation
 
 ### Upgrading from v0.1.12

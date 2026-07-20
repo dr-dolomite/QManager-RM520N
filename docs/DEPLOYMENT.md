@@ -34,7 +34,9 @@ scp -O qmanager-*.tar.gz root@192.168.225.1:/tmp/
 # 3. Extract and install on device
 ssh root@192.168.225.1
 cd /tmp && tar xzf qmanager-*.tar.gz
-cd qmanager_install && bash install_rm520n.sh
+# Run via absolute path — don't `cd` into the staging dir; it's disposable
+# (/tmp is tmpfs, and the OTA updater deletes it), so keep your shell elsewhere.
+bash /tmp/qmanager_install/install_rm520n.sh
 ```
 
 The installer will:
@@ -371,7 +373,9 @@ scp -O qmanager-*.tar.gz root@192.168.225.1:/tmp/
 # Extract and run installer (handles stop/deploy/start/cleanup)
 ssh root@192.168.225.1
 cd /tmp && tar xzf qmanager-*.tar.gz
-cd qmanager_install && bash install_rm520n.sh
+# Run via absolute path — don't `cd` into the staging dir; it's disposable
+# (/tmp is tmpfs, and the OTA updater deletes it), so keep your shell elsewhere.
+bash /tmp/qmanager_install/install_rm520n.sh
 ```
 
 The installer is idempotent — re-running updates rather than duplicates. It handles:

@@ -299,6 +299,14 @@ else
     info "No udev rule found (already removed)"
 fi
 
+# Console login-shell PATH snippet (installed by install_backend into
+# /etc/profile.d). Lockstep with the installer — leaving it behind would keep
+# prepending /opt/bin to every future login shell after QManager is gone.
+if [ -f /etc/profile.d/qmanager-path.sh ]; then
+    rm -f /etc/profile.d/qmanager-path.sh
+    info "Removed console PATH snippet (/etc/profile.d/qmanager-path.sh)"
+fi
+
 # =============================================================================
 # Step 5: Remove CGI, frontend, lighttpd config, and TLS certs
 # =============================================================================

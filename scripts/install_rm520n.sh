@@ -1070,12 +1070,20 @@ install_backend() {
     # otherwise starts with the vendor's bare PATH. Cosmetic only — nothing
     # functional depends on it — so failures here are warnings, not die().
     if [ -f "$SRC_SCRIPTS/etc/profile.d/qmanager-path.sh" ]; then
-        mount -o remount,rw / 2>/dev/null || true
-        install_file "$SRC_SCRIPTS/etc/profile.d/qmanager-path.sh" \
-            "/etc/profile.d/qmanager-path.sh" 644 \
-            || warn "Failed to install qmanager-path.sh profile.d snippet"
-        sync
-        info "Console PATH snippet installed (/etc/profile.d/qmanager-path.sh)"
+        # /etc/profile.d does not exist on stock RM520N-GL, and the vendor
+        # /etc/profile only sources it from inside `if [ -d /etc/profile.d ]` —
+        # so the directory must exist first, or the snippet is never read anyway.
+        # install_file also writes its atomic temp file *inside* the destination
+        # dir, so without this mkdir the cp fails with ENOENT. (/etc is its own
+        # always-RW UBIFS volume — no root remount is needed or helpful here.)
+        mkdir -p /etc/profile.d 2>/dev/null || true
+        if [ -d /etc/profile.d ] && install_file "$SRC_SCRIPTS/etc/profile.d/qmanager-path.sh" \
+            "/etc/profile.d/qmanager-path.sh" 644; then
+            sync
+            info "Console PATH snippet installed (/etc/profile.d/qmanager-path.sh)"
+        else
+            warn "Failed to install qmanager-path.sh profile.d snippet"
+        fi
     fi
 
     # --- Sudoers (re-detect after install_dependencies may have installed sudo) ---
@@ -2030,12 +2038,14 @@ main() {
 
     finalize_version
 
-    # Self-cleanup: remove the staging directory only when invoked from the
-    # canonical OTA path — avoids deleting a developer's working copy
-    case "$INSTALL_DIR" in
-        /tmp/qmanager_install|/tmp/qmanager_install/)
-            rm -rf "$INSTALL_DIR" 2>/dev/null || true ;;
-    esac
+    # Staging-dir cleanup is intentionally NOT done here. On the OTA path the
+    # worker (qmanager_update) cd's into /tmp/qmanager_install before invoking
+    # us and owns the `rm -rf /tmp/qmanager_install` afterward. If the installer
+    # deleted it here it would (a) race that owner and (b) yank the CWD out from
+    # under whoever is sitting inside it — the OTA worker, or a human who ran
+    # `cd /tmp/qmanager_install && sh install_rm520n.sh` — producing
+    # `getcwd: No such file or directory` and a `(unknown)#` prompt. /tmp is
+    # tmpfs, so any leftover staging is cleared on the next reboot regardless.
 
     if [ "$DO_REBOOT" = "1" ]; then
         printf "  Rebooting in 5 seconds — press Ctrl+C to cancel...\n\n"
