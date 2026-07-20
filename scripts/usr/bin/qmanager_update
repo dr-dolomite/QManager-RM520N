@@ -288,6 +288,7 @@ post_install_check() {
 
 cleanup() {
     rm -f "$PID_FILE"
+    cd /                        # never delete our own CWD (would break getcwd)
     rm -rf /tmp/qmanager_install
     rm -f "$WATCHCAT_LOCK"
 }
@@ -418,7 +419,11 @@ if [ "$MODE" = "install" ]; then
     # 5. Verify the VERSION file was stamped correctly
     post_install_check "$VERSION"
 
-    # 6. Cleanup and reboot
+    # 6. Cleanup and reboot. cd out of the staging dir before deleting it —
+    #    we cd'd into /tmp/qmanager_install to run the installer, and deleting
+    #    our own CWD leaves getcwd() failing for everything after (and any
+    #    relative path a future edit adds in this window).
+    cd /
     rm -rf /tmp/qmanager_install
     write_status "rebooting" "Rebooting device..." "$VERSION" ""
     log "Rebooting"
@@ -522,7 +527,11 @@ if [ "$MODE" = "install_staged" ]; then
     # 3. Verify the VERSION file was stamped correctly
     post_install_check "$VERSION"
 
-    # 4. Cleanup and reboot
+    # 4. Cleanup and reboot. cd out of the staging dir before deleting it —
+    #    we cd'd into /tmp/qmanager_install to run the installer, and deleting
+    #    our own CWD leaves getcwd() failing for everything after (and any
+    #    relative path a future edit adds in this window).
+    cd /
     rm -rf /tmp/qmanager_install
     write_status "rebooting" "Rebooting device..." "$VERSION" ""
     log "Rebooting"
@@ -589,7 +598,11 @@ if [ "$MODE" = "rollback" ]; then
     # 5. Verify the VERSION file was stamped correctly
     post_install_check "$VERSION"
 
-    # 6. Cleanup and reboot
+    # 6. Cleanup and reboot. cd out of the staging dir before deleting it —
+    #    we cd'd into /tmp/qmanager_install to run the installer, and deleting
+    #    our own CWD leaves getcwd() failing for everything after (and any
+    #    relative path a future edit adds in this window).
+    cd /
     rm -rf /tmp/qmanager_install
     write_status "rebooting" "Rebooting device..." "$VERSION" ""
     log "Rebooting"
