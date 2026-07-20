@@ -1,0 +1,16 @@
+{
+  "known_sims": {
+    "row_label": "SIM Dikenal",
+    "info_aria": "Info SIM dikenal",
+    "tooltip": "QManager mengingat SIM yang pernah terdeteksi, sehingga hanya memberi tahu Anda saat SIM yang benar-benar baru dipasang. Menghapus akan melupakan semua SIM kecuali yang sedang terpasang.",
+    "remembered_count_one": "{{count}} SIM",
+    "remembered_count_other": "{{count}} SIM",
+    "clear_button": "Hapus",
+    "clear_dialog_title": "Hapus SIM yang dikenal?",
+    "clear_dialog_description": "Ini akan melupakan setiap SIM yang pernah dikenali QManager, kecuali yang sedang terpasang — sehingga SIM aktif Anda tidak ditandai sebagai baru. SIM yang pernah digunakan akan diberitahukan lagi saat dipasang berikutnya.",
+    "clear_dialog_confirm": "Hapus",
+    "clear_dialog_clearing": "Menghapus…",
+    "toast_cleared": "SIM yang dikenal telah dihapus",
+    "toast_clear_failed": "Gagal menghapus SIM yang dikenal"
+  }
+}

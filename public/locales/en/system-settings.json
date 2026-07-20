@@ -1,0 +1,16 @@
+{
+  "known_sims": {
+    "row_label": "Known SIMs",
+    "info_aria": "Known SIMs info",
+    "tooltip": "QManager remembers the SIMs it has seen, so it only alerts you when a genuinely new SIM is inserted. Clearing forgets every SIM except the one currently inserted.",
+    "remembered_count_one": "{{count}} SIM",
+    "remembered_count_other": "{{count}} SIMs",
+    "clear_button": "Clear",
+    "clear_dialog_title": "Clear known SIMs?",
+    "clear_dialog_description": "This forgets every SIM QManager has seen, except the one currently inserted — so your active SIM won't be flagged as new. Previously-used SIMs will alert again the next time they are inserted.",
+    "clear_dialog_confirm": "Clear",
+    "clear_dialog_clearing": "Clearing…",
+    "toast_cleared": "Known SIMs cleared",
+    "toast_clear_failed": "Failed to clear known SIMs"
+  }
+}

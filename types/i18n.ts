@@ -1,10 +1,17 @@
 // types/i18n.ts
 export type LanguageCode = string; // BCP-47 (e.g., "en", "zh-CN", "it", "id")
 
-// Increment 1 ships three namespaces. Later increments add the rest; extend this
-// union when their JSON lands, never before (a namespace listed here but missing
-// from `resources` would let a component request a bundle that doesn't exist).
-export type Namespace = "common" | "sidebar" | "dashboard";
+// Increment 1 shipped three namespaces (common/sidebar/dashboard); cellular and
+// system-settings were added once components under those surfaces started
+// calling t(). Extend this union when a namespace's JSON lands, never before (a
+// namespace listed here but missing from `resources` would let a component
+// request a bundle that doesn't exist).
+export type Namespace =
+  | "common"
+  | "sidebar"
+  | "dashboard"
+  | "cellular"
+  | "system-settings";
 
 export interface LanguageMeta {
   code: LanguageCode;

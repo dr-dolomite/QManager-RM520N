@@ -36,6 +36,11 @@ www-data ALL=(root) NOPASSWD: /usr/bin/crontab
 # Software Update UI toggle flips — the helper hardcodes the unit + validates on/off)
 www-data ALL=(root) NOPASSWD: /usr/bin/qmanager_auto_update_arm
 
+# Connection Scenario schedule timer live-arming (arms/disarms
+# qmanager-scenario-schedule.timer for a SIM profile's scenario schedule — the
+# helper hardcodes the unit + validates install/teardown and the profile id itself)
+www-data ALL=(root) NOPASSWD: /usr/bin/qmanager_scenario_schedule_arm
+
 # SSH password management (reads password from stdin, updates /etc/shadow)
 www-data ALL=(root) NOPASSWD: /usr/bin/qmanager_set_ssh_password
 

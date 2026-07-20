@@ -1,6 +1,7 @@
 #!/bin/sh
 . /usr/lib/qmanager/cgi_base.sh
 . /usr/lib/qmanager/cgi_at.sh
+. /usr/lib/qmanager/sim_db.sh
 # =============================================================================
 # current_settings.sh — CGI Endpoint: Current Modem Settings
 # =============================================================================
@@ -42,7 +43,11 @@ apn_array=$(parse_cgdcont "$cgdcont_lines")
 current_imei=$(printf '%s\n' "$raw" | tr -d '\r' | grep -x '[0-9]\{15\}' | head -1)
 
 # --- 3. Current ICCID from +QCCID: line ---
-current_iccid=$(printf '%s\n' "$raw" | grep '+QCCID:' | grep -o '[0-9]\{19,20\}' | head -1)
+# Use the canonical apply-time pipeline (keep the raw string) then strip only
+# the trailing BCD pad F via iccid_canonicalize, so a profile saved from this
+# form stores the same value apply-time compares against. The old digits-only
+# extractor silently dropped the pad, diverging from every apply-time reader.
+current_iccid=$(iccid_canonicalize "$(printf '%s\n' "$raw" | grep '+QCCID:' | head -1 | sed 's/+QCCID: //g')")
 
 # --- 4. Active CID (cross-reference +CGPADDR + +QMAP lines from blob) ---
 active_cid=""

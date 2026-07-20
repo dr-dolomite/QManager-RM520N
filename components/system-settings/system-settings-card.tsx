@@ -54,6 +54,7 @@ import type {
 } from "@/hooks/use-system-settings";
 import { TIMEZONES } from "@/types/system-settings";
 import { cn } from "@/lib/utils";
+import KnownSimsRow from "@/components/system-settings/known-sims-row";
 
 // ─── Animation variants ────────────────────────────────────────────────────
 
@@ -97,6 +98,14 @@ export default function SystemSettingsCard({
             <div className="flex items-center justify-between">
               <Skeleton className="h-5 w-36" />
               <Skeleton className="h-6 w-28" />
+            </div>
+            <Separator />
+            <div className="flex items-center justify-between">
+              <Skeleton className="h-5 w-28" />
+              <div className="flex items-center gap-3">
+                <Skeleton className="h-5 w-14" />
+                <Skeleton className="h-8 w-20" />
+              </div>
             </div>
             <Separator />
             <div className="flex items-center justify-between">
@@ -261,6 +270,10 @@ function SystemSettingsForm({
           initial="hidden"
           animate="visible"
         >
+          {/* ── Known SIMs (clear remembered SIM list) ────────────── */}
+          <Separator />
+          <KnownSimsRow />
+
           {/* ── Temperature Unit ──────────────────────────────────── */}
           <Separator />
           <motion.div variants={itemVariants} className="flex items-center justify-between">

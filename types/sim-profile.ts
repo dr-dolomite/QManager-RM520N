@@ -30,7 +30,70 @@ export interface SimProfile {
   updated_at: number;
   /** All configurable modem/system settings */
   settings: ProfileSettings;
+  /**
+   * Connection-scenario binding. Always present — the backend normalizes a
+   * read-time default ({@link DEFAULT_SCENARIO_BINDING}) onto legacy profiles.
+   */
+  scenario: ProfileScenarioBinding;
 }
+
+// --- Scenario Binding & Schedule ---------------------------------------------
+
+/** 0=Sun … 6=Sat (matches JS Date.getDay() and the device cron). */
+export type DayOfWeek = 0 | 1 | 2 | 3 | 4 | 5 | 6;
+
+/** One scheduled time window that maps to a connection scenario. */
+export interface ScenarioScheduleBlock {
+  /** "HH:MM" 24h. Inclusive. */
+  start: string;
+  /** "HH:MM" 24h. Exclusive. end <= start means the window wraps past midnight. */
+  end: string;
+  /**
+   * Days this block is active (0=Sun … 6=Sat). Empty = block inert.
+   *
+   * Optional in the type because the editor no longer exposes per-day
+   * scheduling: it always writes all seven days ([0,1,2,3,4,5,6]) so a block is
+   * simply "this time window, every day". The field is retained on the wire for
+   * backend-resolver compatibility — `scenario_mgr.sh::scenario_block_for_now`
+   * and `lib/scenario-schedule.ts` both still filter on `days`, and
+   * `validateSchedule` still rejects an empty-days block. Legacy profiles that
+   * carry a narrower day set keep resolving correctly; only the editor's input
+   * surface changed.
+   */
+  days?: DayOfWeek[];
+  /** Scenario id to apply during this window. */
+  scenario: string;
+  /**
+   * Client-only React key; never persisted. Seeded in the form so list
+   * reorder/delete keep stable identity, and stripped before save so the
+   * device JSON stays byte-clean.
+   */
+  _key?: string;
+}
+
+/** Optional time-of-day schedule overlaid on the profile's default scenario. */
+export interface ScenarioSchedule {
+  enabled: boolean;
+  blocks: ScenarioScheduleBlock[];
+}
+
+/**
+ * Binds a profile to a connection scenario + optional schedule.
+ * `default` is BOTH the on-activate scenario AND the schedule fallback
+ * ("all other times"). The backend normalizes this onto every profile at read
+ * time, so it is always present on profiles returned by list.sh / get.sh.
+ */
+export interface ProfileScenarioBinding {
+  /** On-activate scenario AND schedule fallback. */
+  default: string;
+  schedule: ScenarioSchedule;
+}
+
+/** Read-time default the backend injects for legacy profiles. */
+export const DEFAULT_SCENARIO_BINDING: ProfileScenarioBinding = {
+  default: "balanced",
+  schedule: { enabled: false, blocks: [] },
+};
 
 /** The configurable settings bundle within a profile */
 export interface ProfileSettings {
@@ -49,6 +112,10 @@ export interface ProfileSettings {
    * active. Empty string or null = profile does not manage radio config.
    *
    * Valid values: "" | "balanced" | "gaming" | "streaming" | "custom-<ts>"
+   *
+   * Kept for compat — mirrors `scenario.default` server-side (single
+   * chokepoint in profile_save()). Prefer reading `scenario.default` /
+   * `scenario.schedule` on the top-level profile for new code.
    */
   scenario_id: string | null;
 }
@@ -83,6 +150,12 @@ export interface ProfileSummary {
   sim_iccid: string;
   created_at: number;
   updated_at: number;
+  /**
+   * Scenario binding — included on every summary by profiles/list.sh (the
+   * backend `profile_list` injects a normalized block). Drives the
+   * locked-while-scheduled UI off the active profile.
+   */
+  scenario: ProfileScenarioBinding;
 }
 
 // --- Profile Apply Lifecycle -------------------------------------------------

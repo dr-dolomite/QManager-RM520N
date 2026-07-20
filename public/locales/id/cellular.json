@@ -1,0 +1,124 @@
+{
+  "core_settings": {
+    "apn": {
+      "page": {
+        "title": "Pengaturan APN",
+        "description": "Atur APN, protokol IP, dan konteks data yang digunakan SIM Anda untuk terhubung.",
+        "error_load_title": "Gagal memuat pengaturan APN",
+        "error_load_description": "Nilai yang ditampilkan mungkin sudah usang."
+      },
+      "card": {
+        "title": "Konfigurasi APN",
+        "description": "Nama Titik Akses yang digunakan modem untuk membangun koneksi data."
+      },
+      "status": {
+        "active": "Aktif",
+        "not_live": "Tidak live",
+        "carrier_default": "Default operator",
+        "network_using": "Jaringan menggunakan: {{apn}}"
+      },
+      "save_connection_notice": "Menyimpan akan memutus koneksi seluler sebentar saat modem menyambung ulang.",
+      "carrier_default": {
+        "button": "Gunakan default operator",
+        "dialog": {
+          "title": "Gunakan APN default operator?",
+          "description": "Operator Anda akan memilih APN secara otomatis. Koneksi seluler akan terputus sebentar saat modem menyambung ulang.",
+          "confirm": "Gunakan default operator",
+          "cancel": "Batal"
+        }
+      },
+      "toast": {
+        "saved": "Pengaturan APN disimpan",
+        "save_error": "Gagal menyimpan pengaturan APN",
+        "deactivated": "Dikembalikan ke APN default operator",
+        "deactivate_error": "Gagal kembali ke default operator"
+      },
+      "controls_label": "Konfigurasi APN",
+      "managed_by_profile_fallback": "Profil SIM Kustom aktif",
+      "list": {
+        "live": {
+          "mismatch_default": "Jaringan menggunakan default operator"
+        }
+      },
+      "edit": {
+        "fields": {
+          "apn": {
+            "label": "APN *",
+            "placeholder": "fast.t-mobile.com",
+            "error_required": "APN wajib diisi"
+          },
+          "pdp_type": {
+            "label": "Tipe PDP",
+            "placeholder": "Pilih tipe PDP",
+            "aria": "Tipe PDP",
+            "options": {
+              "ipv4": "IPv4",
+              "ipv6": "IPv6",
+              "ipv4v6": "IPv4v6"
+            }
+          },
+          "modem_profile": {
+            "label": "CID",
+            "placeholder": "Pilih CID",
+            "aria": "Konteks PDP (CID)",
+            "option_template": "CID {{cid}}",
+            "for_internet": "Internet",
+            "ims_badge": "IMS",
+            "sos_badge": "SOS"
+          }
+        },
+        "cid_confirm": {
+          "title": "Gunakan konteks khusus?",
+          "description_ims": "CID {{cid}} dicadangkan oleh operator Anda untuk IMS (VoLTE / panggilan Wi-Fi). Menulis APN data di sini dapat mengganggu panggilan suara. Tetap lanjutkan?",
+          "description_sos": "CID {{cid}} dicadangkan untuk panggilan darurat (SOS). Menulis APN data di sini dapat mengganggu panggilan darurat. Tetap lanjutkan?",
+          "confirm": "Tetap gunakan",
+          "cancel": "Batal"
+        },
+        "save_button": "Simpan Profil"
+      }
+    }
+  },
+  "custom_profiles": {
+    "form": {
+      "fields": {
+        "mno_custom": "Kustom"
+      },
+      "mno_hint": "Anda dapat memilih operator jaringan seluler yang telah dikonfigurasi di sini.",
+      "default_scenario_label": "Skenario Default",
+      "default_scenario_hint": "Berjalan kapan pun tidak ada jendela jadwal yang aktif.",
+      "schedule_inline_label": "Jadwal berbasis waktu",
+      "schedule_inline_hint": "Ganti skenario dalam maksimal dua jendela harian.",
+      "windows_empty": "Belum ada jendela. Tambahkan satu untuk mengganti skenario pada waktu tertentu.",
+      "windows_count": "{{count}} dari {{max}} jendela",
+      "add_window": "Tambah jendela",
+      "scenario": {
+        "deleted_scenario": "(skenario dihapus)",
+        "create_new": "Buat skenario baru",
+        "start_label": "Mulai",
+        "end_label": "Selesai",
+        "block_scenario_label": "Skenario",
+        "overlap_warning": "Jendela ini tumpang tindih dengan jendela lain. Saat tumpang tindih, jendela paling atas yang berlaku.",
+        "overnight_hint": "Berakhir keesokan harinya",
+        "summary_line": "{{time}} → {{scenario}}",
+        "time_range": "{{start}}–{{end}}",
+        "move_up_aria": "Pindahkan jendela ke atas",
+        "move_down_aria": "Pindahkan jendela ke bawah",
+        "expand_rule_aria": "Edit jendela",
+        "remove_block_aria": "Hapus jendela",
+        "block_label": "Jendela {{index}}",
+        "schedule_invalid": "Perbaiki entri jadwal yang disorot sebelum menyimpan.",
+        "block_errors": {
+          "invalid_start": "Masukkan waktu mulai yang valid (HH:MM).",
+          "invalid_end": "Masukkan waktu selesai yang valid (HH:MM).",
+          "zero_length": "Waktu mulai dan selesai harus berbeda.",
+          "no_days": "Pilih setidaknya satu hari."
+        }
+      }
+    }
+  },
+  "scenarios": {
+    "default_balanced_name": "Seimbang",
+    "default_gaming_name": "Game",
+    "default_streaming_name": "Streaming"
+  }
+}

@@ -46,6 +46,20 @@ MAX_EVENTS=50
 [ -f /usr/lib/qmanager/platform.sh ] && . /usr/lib/qmanager/platform.sh
 [ -f /usr/lib/qmanager/profile_mgr.sh ] && . /usr/lib/qmanager/profile_mgr.sh
 
+# --- Known-SIMs set (persists landed ICCID across SIM swaps/reverts so the
+# poller's boot-time swap detector treats it as expected, not a physical
+# swap). Degrades to a silent no-op if the lib is absent. ------------------
+. /usr/lib/qmanager/sim_db.sh 2>/dev/null || {
+    sim_db_add() { :; }; sim_db_seed_if_absent() { :; }
+}
+
+# --- QUIMSLOT read-back verification (gates Tier-3 SIM switch/revert before
+# trusting the landed slot). Fail-open (verified) if the lib is absent, so
+# watchcat's existing flow is unchanged without it. -------------------------
+. /usr/lib/qmanager/slot_verify.sh 2>/dev/null || {
+    verify_quimslot() { return 0; }
+}
+
 # --- File Paths --------------------------------------------------------------
 PING_CACHE="/tmp/qmanager_ping.json"
 STATE_FILE="/tmp/qmanager_watchcat.json"
@@ -61,7 +75,6 @@ LONG_RUNNING_FLAG="/tmp/qmanager_long_running"
 PROFILE_APPLY_PID="/tmp/qmanager_profile_apply.pid"
 TOWER_LOCK_CONFIG="/etc/qmanager/tower_lock.json"
 CRASH_LOG="/etc/qmanager/crash.log"
-LAST_ICCID_FILE="/etc/qmanager/last_iccid"
 
 # --- Configuration (defaults, overridden by /etc/qmanager/qmanager.conf) -----
 CFG_ENABLED=1
@@ -141,15 +154,6 @@ read_config() {
 # =============================================================================
 # STATE FILE WRITER
 # =============================================================================
-
-# Persist the landed ICCID after a SIM swap or revert so the poller's
-# boot-time SIM-swap detector (which reads LAST_ICCID_FILE) treats this SIM
-# as expected rather than false-firing a "new SIM card detected" event.
-persist_last_iccid() {
-    local iccid="$1"
-    [ -n "$iccid" ] || return 0
-    printf '%s' "$iccid" > "${LAST_ICCID_FILE}.tmp" && mv "${LAST_ICCID_FILE}.tmp" "$LAST_ICCID_FILE"
-}
 
 write_state() {
     local ts
@@ -414,6 +418,16 @@ execute_tier3() {
         return 0
     fi
 
+    # Read-back verify the slot actually landed BEFORE trusting it —
+    # AT+QUIMSLOT=N can return OK while the modem silently stays on the old
+    # slot under qcmd lock contention. Fall through to the existing fallback
+    # machinery on a verify failure; do not add a second write-retry here.
+    if ! verify_quimslot "$CFG_BACKUP_SIM_SLOT" >/dev/null 2>&1; then
+        qlog_error "TIER 3: QUIMSLOT read-back never confirmed slot $CFG_BACKUP_SIM_SLOT, falling back"
+        sim_failover_fallback
+        return 0
+    fi
+
     # Verify SIM presence
     local cpin_result
     cpin_result=$(qcmd 'AT+CPIN?' 2>/dev/null)
@@ -459,13 +473,29 @@ sim_failover_fallback() {
         return
     fi
 
+    # Read-back verify the revert actually landed BEFORE trusting it — same
+    # rationale as the Tier-3 switch gate above. No further tier ladder exists
+    # from within a revert, so on verify-FAIL fall through to the same
+    # best-effort "manual check needed" handling as the modem-unresponsive
+    # case above (no second write-retry).
+    if ! verify_quimslot "$original_sim_slot" >/dev/null 2>&1; then
+        qlog_error "SIM failover fallback: QUIMSLOT read-back never confirmed revert to slot $original_sim_slot"
+        append_event "sim_failover" "Watchcat: SIM revert commanded but slot never confirmed — manual check needed" "error"
+        current_sim_slot="$original_sim_slot"
+        sim_failover_active="false"
+        original_sim_slot="null"
+        original_sim_iccid=""
+        return
+    fi
+
     # Restart tower failover daemon
     svc_start qmanager_tower_failover
 
     # Auto-apply matching profile for the reverted SIM
     local _revert_iccid
     _revert_iccid=$(qcmd 'AT+QCCID' 2>/dev/null | grep '+QCCID:' | sed 's/+QCCID: //g' | tr -d '\r ')
-    persist_last_iccid "$_revert_iccid"
+    sim_db_seed_if_absent >/dev/null 2>&1
+    sim_db_add "$_revert_iccid"
     [ -n "$_revert_iccid" ] && auto_apply_profile "$_revert_iccid" "watchdog_revert"
 
     current_sim_slot="$original_sim_slot"
@@ -669,7 +699,8 @@ finish_cooldown() {
 
             # Persist the landed ICCID so the poller's boot-time swap
             # detector treats this SIM as expected, not a physical swap.
-            persist_last_iccid "$curr_iccid"
+            sim_db_seed_if_absent >/dev/null 2>&1
+            sim_db_add "$curr_iccid"
 
             # Auto-apply matching profile for the new SIM
             if [ -n "$curr_iccid" ]; then

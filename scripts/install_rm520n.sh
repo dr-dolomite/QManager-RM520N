@@ -1575,6 +1575,15 @@ enable_services() {
         # addition to the timer schedule, which is not the intent.
         [ "$svc" = "qmanager-auto-update" ] && continue
 
+        # qmanager-scenario-schedule.service is the same shape: no [Install]
+        # section, started only by qmanager-scenario-schedule.timer. Unlike
+        # the auto-update timer, that .timer is never shipped by the
+        # installer at all — it is generated and armed at runtime by the
+        # qmanager_scenario_schedule_arm root helper when a profile with an
+        # enabled scenario schedule becomes active, so there is nothing to
+        # gate here beyond skipping the boot-symlink for the .service itself.
+        [ "$svc" = "qmanager-scenario-schedule" ] && continue
+
         # Check if this service is in the gated list
         local is_gated=0
         for g in $UCI_GATED_SERVICES; do

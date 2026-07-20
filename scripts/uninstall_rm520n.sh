@@ -216,6 +216,24 @@ fi
 
 info "Systemd services stopped"
 
+# Scenario schedule timer teardown — this .timer is armed live at runtime
+# by qmanager_scenario_schedule_arm (see the profile Connection Scenario
+# schedule feature); it is never a static installer-shipped unit, so it is
+# not caught by the filesystem-driven qmanager-*.service glob in Step 2.
+# Must run here, before Step 3 removes the arm helper binary itself. Prefer
+# the helper (its teardown verb is authoritative and idempotent); fall back
+# to the equivalent manual sequence if it's missing (e.g. a partial install).
+if [ -x "$BIN_DIR/qmanager_scenario_schedule_arm" ]; then
+    "$BIN_DIR/qmanager_scenario_schedule_arm" teardown >/dev/null 2>&1 || true
+    info "Scenario schedule timer torn down"
+else
+    systemctl stop qmanager-scenario-schedule.timer 2>/dev/null || true
+    rm -f /lib/systemd/system/timers.target.wants/qmanager-scenario-schedule.timer
+    rm -f /etc/systemd/system/qmanager-scenario-schedule.timer
+    systemctl daemon-reload 2>/dev/null || true
+    info "Scenario schedule timer torn down (manual fallback)"
+fi
+
 # SIGTERM first, then SIGKILL stragglers — uninstall is terminal so
 # we include update daemons that are normally excluded from service teardown
 for proc in $(ls "$BIN_DIR"/qmanager_* 2>/dev/null | xargs -I{} basename {} 2>/dev/null); do
@@ -473,6 +491,15 @@ step "Config directory"
 if [ "$PURGE" = "1" ]; then
     rm -rf "$CONF_DIR"
     info "Purged config directory $CONF_DIR"
+
+    # Sidecar state files that live directly under $QMANAGER_ROOT (siblings
+    # of www/, not inside it — install_frontend's www-wipe-and-recopy never
+    # touches these, so they must be cleaned up here explicitly).
+    # apn_names.json was a pre-existing orphan bug: it was never removed on
+    # --purge, so it silently blocked the rmdir below from ever succeeding
+    # and left /usrdata/qmanager/ behind after every purge uninstall.
+    rm -f "$QMANAGER_ROOT/apn_setting.json" "$QMANAGER_ROOT/apn_names.json"
+    info "Purged APN sidecar state (apn_setting.json, apn_names.json)"
 elif [ -d "$CONF_DIR" ]; then
     warn "Config preserved at $CONF_DIR (use --purge to remove)"
 fi

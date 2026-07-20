@@ -31,7 +31,7 @@ import { AddScenarioItem } from "./add-scenario-item";
 import { ActiveConfigCard } from "./active-config-card";
 import { ScenarioItem, Scenario } from "./scenario-item";
 import { useConnectionScenarios } from "@/hooks/use-connection-scenarios";
-import { useSimProfiles } from "@/hooks/use-sim-profiles";
+import { useActiveProfile } from "@/hooks/use-active-profile";
 import { ProfileOverrideAlert } from "@/components/cellular/custom-profiles/profile-override-alert";
 import {
   NETWORK_MODE_OPTIONS,
@@ -140,34 +140,27 @@ const ConnectionScenariosCard = ({
   } = useConnectionScenarios();
 
   // --- SIM Profile override check ------------------------------------------
-  // When an active Custom SIM Profile binds a NON-Balanced scenario, that
-  // profile owns scenario activation: the Activate button is disabled on
-  // every card and a banner explains why. A Balanced binding is treated as
-  // "no opinion" and doesn't gate anything (no profileGate populated).
-  // Edit/Delete of *custom* scenarios is intentionally NOT gated.
-  const { activeProfileId, getProfile } = useSimProfiles();
-  const [profileGate, setProfileGate] = useState<{
-    profileName: string;
-  } | null>(null);
+  // When an active Custom SIM Profile binds a NON-Balanced scenario, OR its
+  // schedule is enabled (so it may switch away from Balanced at any moment),
+  // that profile owns scenario activation: the Activate button is disabled on
+  // every card and a banner explains why. A static Balanced binding with no
+  // schedule is treated as "no opinion" and doesn't gate anything. Edit/Delete
+  // of *custom* scenarios is intentionally NOT gated.
+  //
+  // scheduleLocked is display-only here too — the backend independently
+  // rejects a locked activation via `scenario_locked_by_schedule`; this is
+  // just so the button reads disabled before the user tries.
+  const { activeProfile, scheduleLocked, nextChangeAt } = useActiveProfile();
 
-  useEffect(() => {
-    if (!activeProfileId) return;
-    let cancelled = false;
-    (async () => {
-      const profile = await getProfile(activeProfileId);
-      if (cancelled) return;
-      // null and "" both mean "no binding"; "balanced" is treated identically.
-      const boundId = profile?.settings.scenario_id || "";
-      if (profile && boundId && boundId !== "balanced") {
-        setProfileGate({ profileName: profile.name });
-      } else {
-        setProfileGate(null);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [activeProfileId, getProfile]);
+  const profileGate = useMemo(() => {
+    if (!activeProfile) return null;
+    const boundId = activeProfile.scenario?.default || "";
+    const staticBinding = boundId && boundId !== "balanced";
+    if (staticBinding || scheduleLocked) {
+      return { profileName: activeProfile.name };
+    }
+    return null;
+  }, [activeProfile, scheduleLocked]);
 
   const isProfileControlled = profileGate !== null;
 
@@ -485,6 +478,7 @@ const ConnectionScenariosCard = ({
             onActivate={handleActivate}
             activateDisabled={isProfileControlled}
             activeProfileName={profileGate?.profileName}
+            nextChangeAt={scheduleLocked ? nextChangeAt : null}
           />
         )}
       </div>

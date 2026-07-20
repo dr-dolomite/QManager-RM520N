@@ -1,10 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import WanProfileListCard from "./wan-profile-list";
-import WanProfileEditCard from "./wan-profile-edit";
+import { useTranslation } from "react-i18next";
+import ApnSettingsCard from "./apn-settings-card";
 import MBNCard from "./mbn-card";
-import { useWanProfiles } from "@/hooks/use-wan-profiles";
+import { useApnSettings } from "@/hooks/use-apn-settings";
 import { useMbnSettings } from "@/hooks/use-mbn-settings";
 import { useSimProfiles } from "@/hooks/use-sim-profiles";
 import { ProfileOverrideAlert } from "@/components/cellular/custom-profiles/profile-override-alert";
@@ -13,26 +13,36 @@ import { Button } from "@/components/ui/button";
 import { AlertCircleIcon, RefreshCwIcon } from "lucide-react";
 
 // =============================================================================
-// APNSettingsComponent — APN Management page coordinator
+// APNSettingsComponent — APN Settings page coordinator (single-APN model)
 // =============================================================================
 // Gating: when a Custom SIM Profile is active AND that profile sets a
 // non-empty APN, this whole page becomes read-only. The user can still see
 // the current configuration but can't edit it — the source of truth is the
 // profile. We wrap the cards in a disabled <fieldset> rather than threading
-// `disabled` through every WAN profile child (pragmatic shortcut per brief).
+// `disabled` through every child component.
+//
+// NOTE: this page renders ONLY the single-APN card (+ the MBN card). The
+// legacy 6-slot WAN-profile list/edit UI (WanProfileListCard /
+// WanProfileEditCard) is retired from this page per the RM551E pixel-strict
+// port — those components are left in place (not deleted) since other code
+// may still import them.
 // =============================================================================
 
 const APNSettingsComponent = () => {
+  const { t } = useTranslation("cellular");
+
   const {
-    profiles,
-    dataSource,
+    apn,
+    cids,
+    active,
+    activeCid,
     isLoading,
     isSaving,
     error,
-    saveProfile,
-    toggleProfile,
+    save,
+    deactivate,
     refresh,
-  } = useWanProfiles();
+  } = useApnSettings();
 
   const {
     profiles: mbnProfiles,
@@ -42,7 +52,7 @@ const APNSettingsComponent = () => {
     saveMbn,
   } = useMbnSettings();
 
-  const { activeProfileId, getProfile } = useSimProfiles();
+  const { activeProfileId, isLoading: simLoading, getProfile } = useSimProfiles();
 
   // --- SIM Profile override check (async) ----------------------------------
   // Gate iff the active profile has a non-empty APN name. Empty APN = profile
@@ -52,8 +62,18 @@ const APNSettingsComponent = () => {
     name: string;
   } | null>(null);
 
+  // The override verdict arrives over TWO sequential fetches: useSimProfiles
+  // first learns `activeProfileId`, then the effect below fetches that
+  // profile's APN. `checkedId` records the profile id whose APN fetch has
+  // completed, so render can tell whether the current verdict is settled or
+  // still in flight — without any synchronous setState in the effect.
+  const [checkedId, setCheckedId] = useState<string | null>(null);
+
   useEffect(() => {
-    if (!activeProfileId) return;
+    // Only fetch once the profile list has settled and there is an active
+    // profile to inspect. Until then the verdict stays "undetermined" (derived
+    // below) so the UI holds its skeleton rather than exposing live controls.
+    if (simLoading || !activeProfileId) return;
 
     let cancelled = false;
     (async () => {
@@ -65,91 +85,89 @@ const APNSettingsComponent = () => {
       } else {
         setProfileOverride(null);
       }
+      setCheckedId(activeProfileId);
     })();
 
     return () => {
       cancelled = true;
     };
-  }, [activeProfileId, getProfile]);
+  }, [activeProfileId, simLoading, getProfile]);
 
   const isProfileControlled =
     !!activeProfileId && profileOverride?.profileId === activeProfileId;
-  const profileName = isProfileControlled ? profileOverride.name : null;
 
-  const [editingIndex, setEditingIndex] = useState<number | null>(null);
+  // True while we still can't tell whether a profile owns the APN: the list is
+  // still loading, or an active profile's APN fetch hasn't resolved yet
+  // (`checkedId` lags `activeProfileId`). The interactive cards stay in their
+  // loading state and the fieldset stays disabled until this clears, closing
+  // the window where every button is live before the override gate engages.
+  const overrideUndetermined =
+    simLoading || (!!activeProfileId && checkedId !== activeProfileId);
 
-  const editingProfile =
-    editingIndex !== null
-      ? profiles?.find((p) => p.index === editingIndex) ?? null
-      : null;
+  const profileName = isProfileControlled
+    ? profileOverride.name
+    : t("core_settings.apn.managed_by_profile_fallback");
 
   return (
     <div className="@container/main mx-auto p-2">
       <div className="mb-6">
-        <h1 className="text-3xl font-bold mb-2">APN Management</h1>
+        <h1 className="text-3xl font-bold mb-2">
+          {t("core_settings.apn.page.title")}
+        </h1>
         <p className="text-muted-foreground">
-          Manage cellular APN connection profiles and carrier configuration.
+          {t("core_settings.apn.page.description")}
         </p>
       </div>
 
       {error && !isLoading && (
         <Alert variant="destructive" className="mb-4">
           <AlertCircleIcon />
-          <AlertTitle>Failed to load WAN profiles</AlertTitle>
+          <AlertTitle>{t("core_settings.apn.page.error_load_title")}</AlertTitle>
           <AlertDescription className="flex items-center gap-2">
-            <span>Displayed values may be outdated.</span>
+            <span>{t("core_settings.apn.page.error_load_description")}</span>
             <Button variant="outline" size="sm" onClick={() => refresh()}>
               <RefreshCwIcon className="size-3.5" />
-              Retry
+              {t("actions.retry", { ns: "common" })}
             </Button>
           </AlertDescription>
         </Alert>
       )}
 
-      {isProfileControlled && profileName && (
+      {isProfileControlled && (
         <ProfileOverrideAlert
           profileName={profileName}
-          controls="APN configuration"
+          controls={t("core_settings.apn.controls_label")}
         />
       )}
 
-      {/* Fieldset wrap mirrors the TTL pattern but applies to the whole
-          two-card grid. `pointer-events-none opacity-60` makes the
+      {/* Fieldset wrap: `pointer-events-none opacity-60` makes the
           disabled state visually obvious while leaving values readable. */}
       <fieldset
-        disabled={isProfileControlled}
+        disabled={isProfileControlled || overrideUndetermined}
         className={
           isProfileControlled
             ? "pointer-events-none opacity-60 grid grid-cols-1 @3xl/main:grid-cols-2 grid-flow-row gap-4 border-0 p-0 m-0"
             : "grid grid-cols-1 @3xl/main:grid-cols-2 grid-flow-row gap-4 border-0 p-0 m-0"
         }
       >
-        <WanProfileListCard
-          profiles={profiles}
-          isLoading={isLoading}
+        <ApnSettingsCard
+          apn={apn}
+          cids={cids}
+          active={active}
+          activeCid={activeCid}
+          isLoading={isLoading || overrideUndetermined}
           isSaving={isSaving}
-          onEdit={setEditingIndex}
-          onToggle={toggleProfile}
-          editingIndex={editingIndex}
+          onSave={save}
+          onDeactivate={deactivate}
         />
 
-        {editingProfile !== null ? (
-          <WanProfileEditCard
-            profile={editingProfile}
-            isSaving={isSaving}
-            dataSource={dataSource}
-            onSave={saveProfile}
-            onCancel={() => setEditingIndex(null)}
-          />
-        ) : (
-          <MBNCard
-            profiles={mbnProfiles}
-            autoSel={autoSel}
-            isLoading={mbnLoading}
-            isSaving={mbnSaving}
-            onSave={saveMbn}
-          />
-        )}
+        <MBNCard
+          profiles={mbnProfiles}
+          autoSel={autoSel}
+          isLoading={mbnLoading}
+          isSaving={mbnSaving}
+          onSave={saveMbn}
+        />
       </fieldset>
     </div>
   );

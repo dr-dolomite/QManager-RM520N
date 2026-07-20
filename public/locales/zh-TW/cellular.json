@@ -1,0 +1,124 @@
+{
+  "core_settings": {
+    "apn": {
+      "page": {
+        "title": "APN 設定",
+        "description": "設定 SIM 卡用於連線的 APN、IP 協定及資料連線情境。",
+        "error_load_title": "載入 APN 設定失敗",
+        "error_load_description": "顯示的值可能已過時。"
+      },
+      "card": {
+        "title": "APN 設定",
+        "description": "數據機用於建立資料連線的存取點名稱。"
+      },
+      "status": {
+        "active": "已啟用",
+        "not_live": "未生效",
+        "carrier_default": "電信商預設",
+        "network_using": "網路正在使用：{{apn}}"
+      },
+      "save_connection_notice": "儲存時數據機重新連線期間蜂窩連線會短暫中斷。",
+      "carrier_default": {
+        "button": "使用電信商預設",
+        "dialog": {
+          "title": "使用電信商預設 APN？",
+          "description": "您的電信商將自動選擇 APN。數據機重新連線時，蜂窩連線會短暫中斷。",
+          "confirm": "使用電信商預設",
+          "cancel": "取消"
+        }
+      },
+      "toast": {
+        "saved": "APN 設定已儲存",
+        "save_error": "儲存 APN 設定失敗",
+        "deactivated": "已還原至電信商預設 APN",
+        "deactivate_error": "還原至電信商預設失敗"
+      },
+      "controls_label": "APN 配置",
+      "managed_by_profile_fallback": "活動的自訂 SIM 設定",
+      "list": {
+        "live": {
+          "mismatch_default": "網路正在使用運營商預設值"
+        }
+      },
+      "edit": {
+        "fields": {
+          "apn": {
+            "label": "APN *",
+            "placeholder": "fast.t-mobile.com",
+            "error_required": "APN 為必填項"
+          },
+          "pdp_type": {
+            "label": "PDP 型別",
+            "placeholder": "選擇 PDP 型別",
+            "aria": "PDP 型別",
+            "options": {
+              "ipv4": "IPv4",
+              "ipv6": "IPv6",
+              "ipv4v6": "IPv4v6"
+            }
+          },
+          "modem_profile": {
+            "label": "CID",
+            "placeholder": "選擇 CID",
+            "aria": "PDP 上下文（CID）",
+            "option_template": "CID {{cid}}",
+            "for_internet": "網際網路",
+            "ims_badge": "IMS",
+            "sos_badge": "SOS"
+          }
+        },
+        "cid_confirm": {
+          "title": "使用保留的上下文？",
+          "description_ims": "CID {{cid}} 被運營商保留用於 IMS（VoLTE / Wi-Fi 通話）。在此寫入資料 APN 可能會中斷語音通話。仍要繼續嗎？",
+          "description_sos": "CID {{cid}} 被保留用於緊急（SOS）呼叫。在此寫入資料 APN 可能會中斷緊急呼叫。仍要繼續嗎？",
+          "confirm": "仍然使用",
+          "cancel": "取消"
+        },
+        "save_button": "儲存設定檔"
+      }
+    }
+  },
+  "custom_profiles": {
+    "form": {
+      "fields": {
+        "mno_custom": "自訂"
+      },
+      "mno_hint": "您可以在此處選擇預配置的行動網路運營商。",
+      "default_scenario_label": "預設場景",
+      "default_scenario_hint": "在沒有任何計劃時段處於活動狀態時執行。",
+      "schedule_inline_label": "基於時間的計劃",
+      "schedule_inline_hint": "在最多兩個每日時段內切換場景。",
+      "windows_empty": "尚無時段。新增一個以在設定時間切換場景。",
+      "windows_count": "{{max}} 個時段中的 {{count}} 個",
+      "add_window": "新增時段",
+      "scenario": {
+        "deleted_scenario": "（已刪除的場景）",
+        "create_new": "建立新場景",
+        "start_label": "開始",
+        "end_label": "結束",
+        "block_scenario_label": "場景",
+        "overlap_warning": "此時段與另一個時段重疊。重疊時，列表靠前的時段優先生效。",
+        "overnight_hint": "次日結束",
+        "summary_line": "{{time}} → {{scenario}}",
+        "time_range": "{{start}}–{{end}}",
+        "move_up_aria": "上移時段",
+        "move_down_aria": "下移時段",
+        "expand_rule_aria": "編輯時段",
+        "remove_block_aria": "刪除時段",
+        "block_label": "時段 {{index}}",
+        "schedule_invalid": "請先修正高亮顯示的計劃時段再儲存。",
+        "block_errors": {
+          "invalid_start": "請輸入有效的開始時間（HH:MM）。",
+          "invalid_end": "請輸入有效的結束時間（HH:MM）。",
+          "zero_length": "開始時間和結束時間不能相同。",
+          "no_days": "請至少選擇一天。"
+        }
+      }
+    }
+  },
+  "scenarios": {
+    "default_balanced_name": "均衡",
+    "default_gaming_name": "遊戲",
+    "default_streaming_name": "流媒體"
+  }
+}

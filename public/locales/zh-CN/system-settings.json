@@ -1,0 +1,16 @@
+{
+  "known_sims": {
+    "row_label": "已知 SIM 卡",
+    "info_aria": "已知 SIM 卡信息",
+    "tooltip": "QManager 会记住已识别过的 SIM 卡，仅在插入全新 SIM 卡时才提醒您。清除会忘记除当前插入之外的所有 SIM 卡。",
+    "remembered_count_one": "{{count}} 张",
+    "remembered_count_other": "{{count}} 张",
+    "clear_button": "清除",
+    "clear_dialog_title": "清除已知 SIM 卡？",
+    "clear_dialog_description": "这将忘记 QManager 识别过的所有 SIM 卡，但保留当前插入的这张——因此您正在使用的 SIM 卡不会被标记为新卡。之前用过的 SIM 卡在下次插入时会再次提醒。",
+    "clear_dialog_confirm": "清除",
+    "clear_dialog_clearing": "正在清除…",
+    "toast_cleared": "已清除已知 SIM 卡",
+    "toast_clear_failed": "清除已知 SIM 卡失败"
+  }
+}

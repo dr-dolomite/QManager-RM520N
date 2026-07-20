@@ -31,6 +31,9 @@ qlog_init "cgi_cellular_settings"
 cgi_headers
 cgi_handle_options
 
+# --- SIM slot read-back verification (shared with qmanager_watchcat) ---------
+. /usr/lib/qmanager/slot_verify.sh
+
 # --- Configuration -----------------------------------------------------------
 CMD_GAP=0.2
 
@@ -234,6 +237,7 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
     errors=""
     applied=""
     sim_cfun_restored=""
+    sim_switch_verified=""
 
     # 1. NR5G mode (least disruptive, NVM write)
     if [ "$NR5G_MODE" != "unset" ]; then
@@ -283,7 +287,15 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
         sleep "$CMD_GAP"
     fi
 
-    # 4. SIM slot change (requires CFUN=0 -> sleep 2 -> QUIMSLOT -> sleep 2 -> CFUN=1)
+    # 4. SIM slot change (CFUN=0 -> sleep 2 -> QUIMSLOT -> sleep 2 -> CFUN=1,
+    #    then a read-back verification). AT+QUIMSLOT=N can return OK while the
+    #    modem silently STAYS on the old slot under qcmd lock contention;
+    #    trusting that OK would auto-apply the wrong SIM's profile. So the
+    #    write is verified via AT+QUIMSLOT? (verify_quimslot, slot_verify.sh),
+    #    retried once on mismatch, and only a VERIFIED switch fires the
+    #    downstream side effects (sim_db registration, auto-apply, refresh).
+    #    This is a radio cycle (CFUN=0/1), not a full modem reboot — the
+    #    LAN/HTTP path survives, so it's safe to run inline in this CGI.
     if [ "$SIM_SLOT" != "unset" ]; then
         qlog_info "SIM slot change: starting CFUN=0 -> QUIMSLOT=$SIM_SLOT -> CFUN=1 procedure"
         sim_proceed="1"
@@ -304,11 +316,9 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
             case "$result" in
                 *ERROR*)
                     qlog_error "SIM procedure: QUIMSLOT=$SIM_SLOT failed: $result"
-                    errors="${errors}sim_slot,"
                     ;;
                 *)
-                    qlog_info "SIM procedure: QUIMSLOT=$SIM_SLOT OK"
-                    applied="${applied}sim_slot,"
+                    qlog_info "SIM procedure: QUIMSLOT=$SIM_SLOT accepted (pending read-back)"
                     ;;
             esac
             sleep 2
@@ -322,19 +332,52 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
                 *)
                     qlog_info "SIM procedure: CFUN=1 restored"
                     sim_cfun_restored="1"
-
-                    # Auto-apply matching profile for the new SIM
-                    sleep 1  # let SIM initialize after CFUN=1
-                    _new_iccid=$(qcmd 'AT+QCCID' 2>/dev/null | grep '+QCCID:' | sed 's/+QCCID: //g' | tr -d '\r ')
-                    if [ -n "$_new_iccid" ]; then
-                        . /usr/lib/qmanager/profile_mgr.sh 2>/dev/null
-                        auto_apply_profile "$_new_iccid" "sim_switch"
-                    fi
-                    # Nudge the poller to refresh warm fields (carrier name,
-                    # SIM slot, APN, phone number) on its next ~2s tick.
-                    touch /tmp/qmanager_tier2_refresh 2>/dev/null || true
                     ;;
             esac
+
+            # Step 4: Read-back verification. AT+QUIMSLOT? becomes readable
+            # shortly after CFUN=1, before full SIM init.
+            sim_switch_verified=$(verify_quimslot "$SIM_SLOT")
+
+            if [ -z "$sim_switch_verified" ]; then
+                # One full-discipline retry of the write, then re-verify.
+                qlog_warn "SIM procedure: QUIMSLOT read-back != $SIM_SLOT after 10 tries; retrying write once"
+                qcmd 'AT+CFUN=0' >/dev/null 2>&1
+                sleep 2
+                qcmd "AT+QUIMSLOT=$SIM_SLOT" >/dev/null 2>&1
+                sleep 2
+                result=$(qcmd 'AT+CFUN=1' 2>/dev/null)
+                case "$result" in
+                    *ERROR*) qlog_error "SIM procedure: CFUN=1 restore (retry) failed: $result" ;;
+                    *) sim_cfun_restored="1" ;;
+                esac
+                sim_switch_verified=$(verify_quimslot "$SIM_SLOT")
+            fi
+
+            if [ -n "$sim_switch_verified" ]; then
+                qlog_info "SIM procedure: QUIMSLOT=$SIM_SLOT verified active"
+                applied="${applied}sim_slot,"
+
+                # Auto-apply matching profile for the new SIM (verified switch only)
+                sleep 1  # let SIM initialize after CFUN=1
+                _new_iccid=$(qcmd 'AT+QCCID' 2>/dev/null | grep '+QCCID:' | sed 's/+QCCID: //g' | tr -d '\r ')
+                if [ -n "$_new_iccid" ]; then
+                    # Register the switched-to SIM in the known-SIMs database so
+                    # the Known SIMs count reflects it immediately. A deliberate
+                    # slot switch is an expected SIM (like a watchdog failover),
+                    # not a physical swap to alert on — this also suppresses a
+                    # redundant "New SIM" toast on the next poller boot.
+                    ( . /usr/lib/qmanager/sim_db.sh 2>/dev/null && sim_db_add "$_new_iccid" )
+                    . /usr/lib/qmanager/profile_mgr.sh 2>/dev/null
+                    auto_apply_profile "$_new_iccid" "sim_switch"
+                fi
+                # Nudge the poller to refresh warm fields (carrier name,
+                # SIM slot, APN, phone number) on its next ~2s tick.
+                touch /tmp/qmanager_tier2_refresh 2>/dev/null || true
+            else
+                qlog_error "SIM procedure: QUIMSLOT=$SIM_SLOT NOT verified after retry — modem stayed on old slot"
+                errors="${errors}sim_slot,"
+            fi
         fi
     fi
 

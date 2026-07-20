@@ -16,7 +16,8 @@ The Connection Watchdog (`qmanager_watchcat`) is a self-healing daemon that watc
 | Config | `/etc/qmanager/qmanager.conf` → `[watchcat]` section (JSON, via `qm_config_*`) |
 | Live state file | `/tmp/qmanager_watchcat.json` (written by daemon, read by CGI + poller) |
 | SIM-failover state | `/etc/qmanager/qmanager_sim_failover` (**persistent** — survives reboot) |
-| Landed-SIM marker | `/etc/qmanager/last_iccid` (**persistent** — keeps the boot swap-detector honest) |
+| Known-SIMs set | `/etc/qmanager/known_iccids` (**persistent** — replaces the retired single-value `last_iccid`; see [sim-detection.md](sim-detection.md)) |
+| SIM-slot read-back gate | `scripts/usr/lib/qmanager/slot_verify.sh` (`verify_quimslot`) — gates Tier-3 switch/revert before either is trusted |
 | Reboot log | `/etc/qmanager/crash.log` (**persistent** — Tier-4 token bucket source) |
 | Frontend page | `/monitoring/watchdog` (`components/monitoring/watchdog/`) |
 | Ping source | `/tmp/qmanager_ping.json` (from `qmanager_ping`; see `docs/BACKEND.md`) |
@@ -111,14 +112,15 @@ Around that core sequence, Tier 3:
 2. Records `original_sim_slot` for a possible revert.
 3. Stops the tower-failover daemon (`qmanager_tower_failover`) — cell locks are meaningless on a different SIM.
 4. Runs the Golden Rule sequence, then `wait_for_modem`.
-5. **Verifies the backup SIM is actually present** with `AT+CPIN?` — an `ERROR` means the backup slot is empty, and the watchdog falls back to the original slot.
-6. Does **not** write the failover state yet — it waits for cooldown to confirm the backup SIM actually carries traffic.
+5. **Read-back verifies the slot actually landed** via `verify_quimslot` (`slot_verify.sh`) — `AT+QUIMSLOT=N` can return `OK` while the modem silently stays on the old slot under `qcmd` lock contention, so the write is never trusted on its own. `verify_quimslot` polls `AT+QUIMSLOT?` up to 10× (1s apart); an **empty** read counts as not-yet-matched, never a false success. On a verify failure the watchdog falls straight to `sim_failover_fallback()` (no second write-retry at this layer) rather than proceeding on an unconfirmed slot.
+6. **Verifies the backup SIM is actually present** with `AT+CPIN?` — an `ERROR` means the backup slot is empty, and the watchdog falls back to the original slot.
+7. Does **not** write the failover state yet — it waits for cooldown to confirm the backup SIM actually carries traffic.
 
 **SIM-settle floor (`SIM_SETTLE_SECS = 90`):** after a Tier-3 swap the cooldown is `max(cooldown, 90)` seconds. A real SIM swap needs time to re-attach and get a data bearer on the new carrier; judging it "failed" after a short 10–60s cooldown would wrongly bounce a swap that was still coming up. The floor only applies to Tier 3.
 
-**Finalize (in cooldown, on success):** when connectivity comes back on the backup SIM, the daemon writes `/etc/qmanager/qmanager_sim_failover`, emits a **"SIM failover confirmed"** event, persists the landed ICCID (below), and auto-applies any SIM profile matching the new card.
+**Finalize (in cooldown, on success):** when connectivity comes back on the backup SIM, the daemon writes `/etc/qmanager/qmanager_sim_failover`, emits a **"SIM failover confirmed"** event, registers the landed ICCID in the known-SIMs set (below), and auto-applies any SIM profile matching the new card.
 
-**Fallback (revert to original):** triggered when the modem is unresponsive after the swap, the backup slot has no SIM, or cooldown finds the backup SIM still can't reach the internet. It runs the Golden Rule back to `original_sim_slot`, restarts the tower-failover daemon, persists the reverted ICCID, and re-applies that SIM's profile.
+**Fallback (revert to original):** triggered when the modem is unresponsive after the swap, the backup slot has no SIM, or cooldown finds the backup SIM still can't reach the internet. It **read-back verifies the revert landed** via `verify_quimslot(original_sim_slot)` before trusting it — same rationale as the Tier-3 switch gate, and the same "no second write-retry, fall through to best-effort handling" posture on a verify failure (an unconfirmed revert emits an error event asking for a manual check rather than looping). Once verified, it restarts the tower-failover daemon, registers the reverted ICCID in the known-SIMs set, and re-applies that SIM's profile.
 
 ### Tier 4 — Reboot Device (deferred)
 
@@ -189,7 +191,7 @@ The delete side uses the new `qm_config_delete` primitive added to `config.sh` i
 | Path | Written by | Purpose |
 |------|-----------|---------|
 | `qmanager_sim_failover` | daemon (write on finalize / revert), CGI (read), poller (re-emit into `status.json`) | Active SIM-failover record. Persistent so a Tier-4 reboot doesn't lose the fact that you're riding the backup SIM. |
-| `last_iccid` | daemon (`persist_last_iccid`), poller (boot detector) | The ICCID currently in use after a swap/revert. Keeps the poller's boot-time swap detector from false-firing "New SIM detected" on a watchdog-initiated swap. |
+| `known_iccids` | daemon (`sim_db_add`, on finalize + revert), poller (boot detector, also `sim_db_add`), `cellular/settings.sh` (manual slot switch), `profile_mgr.sh` (`set_active_profile`) | The known-SIMs **set** (replaces the retired single-value `last_iccid`). Every code path that lands the modem on a different SIM must add that ICCID here, or the poller's boot-time detector treats the (expected) transition as a physical swap. See [sim-detection.md](sim-detection.md) for the full model, including why a set (not a single value) is required for failover slot-cycling to never false-fire. |
 | `crash.log` | daemon (Tier 4) | Pipe-delimited reboot log (`<epoch>\|reboot\|tier4_escalation`), last 20 entries. Source for the token-bucket count. |
 | `tower_lock.json` | tower-lock feature | Read-only guard: Tier 2 is skipped when LTE or NR-SA locking is enabled. |
 
@@ -353,6 +355,7 @@ Because each writer merges only its own keys, the two never clobber each other. 
 
 ## Related docs
 
+- SIM detection — the known-SIMs set model, byte-parity vs. canonicalized ICCID comparison, and why failover slot-cycling must call `sim_db_add` at every landing point — [sim-detection.md](sim-detection.md)
 - Connection Quality — the measurement/telemetry side (the `qmanager_ping` producer, the poller's latency/jitter/loss stats, the Probe Targets + Quality Thresholds cards) — [connection-quality.md](connection-quality.md)
 - Ping daemon (`qmanager_ping`), the connectivity verdict the watchdog consumes — `docs/BACKEND.md`
 - AT command transport (`qcmd`, flock serialization) — `docs/reference/at-command-transport.md`

@@ -1,0 +1,15 @@
+# /lib/systemd/system/qmanager-scenario-schedule.service
+[Unit]
+Description=QManager scenario schedule apply (triggered by qmanager-scenario-schedule.timer)
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/qmanager_scenario_schedule --now
+
+# No [Install] section — this unit is only ever started by
+# qmanager-scenario-schedule.timer, never boot-enabled directly. Unlike
+# qmanager-auto-update.timer, that .timer is NOT a static file shipped by
+# the installer — it is generated and armed at runtime by the
+# qmanager_scenario_schedule_arm root helper whenever a profile with an
+# enabled scenario schedule becomes active (see scenario_mgr.sh's
+# scenario_install_schedule/scenario_teardown_schedule).

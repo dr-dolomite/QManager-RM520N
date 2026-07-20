@@ -7,6 +7,7 @@ import type {
   ProfileSummary,
   ProfileListResponse,
   ProfileApiResponse,
+  ProfileScenarioBinding,
 } from "@/types/sim-profile";
 
 // =============================================================================
@@ -67,11 +68,12 @@ export interface ProfileFormData {
   ttl: number;
   hl: number;
   /**
-   * Connection Scenario binding. Empty string = no scenario (profile won't
-   * manage radio config). Valid IDs: "balanced" | "gaming" | "streaming" |
-   * "custom-<ts>". Sent to backend as the `scenario_id` JSON field.
+   * Connection-scenario binding (nested object the backend save.sh accepts).
+   * Always sent — defaults to {@link DEFAULT_SCENARIO_BINDING} in the form.
+   * The backend mirrors `scenario.default` onto `settings.scenario_id`
+   * server-side (single chokepoint in profile_save()).
    */
-  scenario_id: string;
+  scenario: ProfileScenarioBinding;
 }
 
 export function useSimProfiles(): UseSimProfilesReturn {

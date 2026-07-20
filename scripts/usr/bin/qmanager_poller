@@ -373,6 +373,16 @@ log_error() { qlog_error "$1"; }
     auto_apply_profile() { :; }
 }
 
+# Known-SIMs database (set-model SIM-swap detection + ICCID canonicalization).
+# Self-guarded (_SIM_DB_LOADED) so re-sourcing elsewhere is a no-op.
+. /usr/lib/qmanager/sim_db.sh 2>/dev/null || {
+    qlog_warn "sim_db.sh not found, SIM-swap detection disabled"
+    sim_db_seed_if_absent() { return 1; }
+    sim_db_known() { return 1; }
+    sim_db_add() { :; }
+    iccid_canonicalize() { printf '%s' "$1" | tr -d ' \r\n'; }
+}
+
 # =============================================================================
 # HELPER: SAFE QCMD CALL
 # =============================================================================
@@ -805,50 +815,58 @@ collect_boot_data() {
         parse_capability "$result"
     fi
 
-    # --- SIM Swap Detection (boot-time, one-shot) ---
-    LAST_ICCID_FILE="/etc/qmanager/last_iccid"
+    # --- SIM Swap Detection (boot-time, one-shot) — known-SIMs set model ---
+    # "New SIM" = boot_iccid is not a member of the persistent known-SIMs set.
+    # On a truly fresh device (no prior known set, no legacy last_iccid),
+    # _had_prior_sim_db stays 0 so we never false-fire on the first-ever SIM.
+    # sim_db_seed_if_absent() migrates the retired /etc/qmanager/last_iccid
+    # forward on first run — that file is left on disk untouched otherwise.
     SIM_SWAP_FLAG="/tmp/qmanager_sim_swap_detected"
+    local _had_prior_sim_db
+    _had_prior_sim_db=0
+    if sim_db_seed_if_absent; then _had_prior_sim_db=1; fi
     if [ -n "$boot_iccid" ]; then
-        if [ -f "$LAST_ICCID_FILE" ]; then
-            local stored_iccid
-            stored_iccid=$(cat "$LAST_ICCID_FILE" 2>/dev/null | tr -d ' \r\n')
-            if [ -n "$stored_iccid" ] && [ "$stored_iccid" != "$boot_iccid" ]; then
-                qlog_warn "SIM SWAP DETECTED: old=...$(printf '%s' "$stored_iccid" | tail -c 4) new=...$(printf '%s' "$boot_iccid" | tail -c 4)"
-                local match_name="" match_id=""
-                local pf
-                for pf in /etc/qmanager/profiles/*.json; do
-                    [ -f "$pf" ] || continue
-                    local pf_iccid
-                    pf_iccid=$(jq -r '(.sim_iccid) | if . == null then empty else . end' "$pf" 2>/dev/null)
-                    if [ "$pf_iccid" = "$boot_iccid" ]; then
-                        match_name=$(jq -r '(.name) | if . == null then empty else . end' "$pf" 2>/dev/null)
-                        match_id=$(jq -r '(.id) | if . == null then empty else . end' "$pf" 2>/dev/null)
-                        break
-                    fi
-                done
-                jq -n -c \
-                    --argjson ts "$(date +%s)" \
-                    --arg prev "$stored_iccid" \
-                    --arg curr "$boot_iccid" \
-                    --arg pid "$match_id" \
-                    --arg pname "$match_name" \
-                    '{detected_at:$ts,previous_iccid:$prev,current_iccid:$curr,matching_profile_id:$pid,matching_profile_name:$pname,dismissed:false}' \
-                    > "$SIM_SWAP_FLAG"
-                append_event "sim_swap_detected" "New SIM detected (ICCID: ...$(printf '%s' "$boot_iccid" | tail -c 4))" "info"
-            fi
+        if [ "$_had_prior_sim_db" = "1" ] && ! sim_db_known "$boot_iccid"; then
+            qlog_warn "NEW SIM DETECTED: ...$(printf '%s' "$boot_iccid" | tail -c 4) not in known set"
+            local match_name=""
+            local match_id=""
+            local pf
+            for pf in /etc/qmanager/profiles/*.json; do
+                [ -f "$pf" ] || continue
+                local pf_iccid
+                pf_iccid=$(jq -r '(.sim_iccid) | if . == null then empty else . end' "$pf" 2>/dev/null)
+                if [ "$(iccid_canonicalize "$pf_iccid")" = "$(iccid_canonicalize "$boot_iccid")" ]; then
+                    match_name=$(jq -r '(.name) | if . == null then empty else . end' "$pf" 2>/dev/null)
+                    match_id=$(jq -r '(.id) | if . == null then empty else . end' "$pf" 2>/dev/null)
+                    break
+                fi
+            done
+            # previous_iccid kept for shape-compat (frontend ignores it); there
+            # is no single "previous" in a set model, so it is always empty.
+            jq -n -c \
+                --argjson ts "$(date +%s)" \
+                --arg prev "" \
+                --arg curr "$boot_iccid" \
+                --arg pid "$match_id" \
+                --arg pname "$match_name" \
+                '{detected_at:$ts,previous_iccid:$prev,current_iccid:$curr,matching_profile_id:$pid,matching_profile_name:$pname,dismissed:false}' \
+                > "$SIM_SWAP_FLAG"
+            append_event "sim_swap_detected" "New SIM detected (ICCID: ...$(printf '%s' "$boot_iccid" | tail -c 4))" "info"
         fi
-        printf '%s' "$boot_iccid" > "$LAST_ICCID_FILE"
+        sim_db_add "$boot_iccid"
 
         # --- Auto-deactivate profile on SIM mismatch ---
         # If the active profile was created for a different SIM, clear it so
         # the UI no longer shows a stale "Active" badge.
         local _ap_file="/etc/qmanager/active_profile"
         if [ -f "$_ap_file" ]; then
-            local _ap_id _ap_iccid _ap_name
+            local _ap_id
+            local _ap_iccid
+            local _ap_name
             _ap_id=$(cat "$_ap_file" 2>/dev/null | tr -d ' \r\n')
             if [ -n "$_ap_id" ] && [ -f "/etc/qmanager/profiles/${_ap_id}.json" ]; then
                 _ap_iccid=$(jq -r '(.sim_iccid) | if . == null then empty else . end' "/etc/qmanager/profiles/${_ap_id}.json" 2>/dev/null)
-                if [ -n "$_ap_iccid" ] && [ "$_ap_iccid" != "$boot_iccid" ]; then
+                if [ -n "$_ap_iccid" ] && [ "$(iccid_canonicalize "$_ap_iccid")" != "$(iccid_canonicalize "$boot_iccid")" ]; then
                     _ap_name=$(jq -r '(.name) | if . == null then empty else . end' "/etc/qmanager/profiles/${_ap_id}.json" 2>/dev/null)
                     rm -f "$_ap_file"
                     qlog_warn "Auto-deactivated profile '$_ap_name' — SIM ICCID mismatch (profile: ...$(printf '%s' "$_ap_iccid" | tail -c 4), current: ...$(printf '%s' "$boot_iccid" | tail -c 4))"

@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useMemo } from "react";
-import { useRouter } from "next/navigation";
+import { useTranslation } from "react-i18next";
 
 import {
   Field,
@@ -15,27 +15,15 @@ import {
 import {
   Select,
   SelectContent,
-  SelectGroup,
   SelectItem,
-  SelectLabel,
-  SelectSeparator,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
 
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
-
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import {
   Card,
   CardContent,
@@ -51,9 +39,20 @@ import type { SimProfile, CurrentModemSettings } from "@/types/sim-profile";
 import type { ProfileFormData } from "@/hooks/use-sim-profiles";
 import {
   PDP_TYPE_LABELS,
+  DEFAULT_SCENARIO_BINDING,
   type PdpType,
+  type ScenarioScheduleBlock,
 } from "@/types/sim-profile";
-import { useConnectionScenarios } from "@/hooks/use-connection-scenarios";
+import { useScenarioList } from "@/hooks/use-scenario-list";
+import {
+  clientKey,
+  ensureScenarioKeys,
+  hasBlockingScheduleErrors,
+  stripScenarioKeys,
+  validateSchedule,
+} from "@/lib/scenario-schedule";
+import { ScenarioPicker } from "@/components/cellular/custom-profiles/scenario-binding/scenario-picker";
+import { ScheduleRuleRow } from "@/components/cellular/custom-profiles/scenario-binding/schedule-rule-row";
 import {
   MNO_PRESETS,
   MNO_CUSTOM_ID,
@@ -74,13 +73,10 @@ interface CustomProfileFormProps {
   onLoadCurrentSettings?: () => void;
 }
 
-// Sentinel value used by the "Create new custom scenario…" SelectItem. It is
-// intercepted in onValueChange and NEVER written to form state.
-const CREATE_SCENARIO_SENTINEL = "__create__";
-
-// Built-in scenario ids — kept in lockstep with DEFAULT_SCENARIOS from
-// types/connection-scenario.ts. Used to detect "unknown id" fallbacks.
-const BUILTIN_SCENARIO_IDS = ["balanced", "gaming", "streaming"] as const;
+// Up to two daily schedule windows per profile — mirrors the wizard's cap so
+// the device cron generator and the resolver in lib/scenario-schedule.ts stay
+// bounded and easy to reason about.
+const MAX_WINDOWS = 2;
 
 const DEFAULT_FORM_STATE: ProfileFormData = {
   name: "",
@@ -92,7 +88,7 @@ const DEFAULT_FORM_STATE: ProfileFormData = {
   imei: "",
   ttl: 64,
   hl: 64,
-  scenario_id: "balanced",
+  scenario: DEFAULT_SCENARIO_BINDING,
 };
 
 function profileToFormData(profile: SimProfile): ProfileFormData {
@@ -107,11 +103,11 @@ function profileToFormData(profile: SimProfile): ProfileFormData {
     imei: s.imei,
     ttl: s.ttl,
     hl: s.hl,
-    // Older profile JSONs may lack scenario_id (null/empty) — show Balanced.
-    // This auto-migrates legacy profiles to a Balanced binding on next save,
-    // which is a no-op for users on stock modems (Balanced sets mode=AUTO,
-    // the modem default).
-    scenario_id: s.scenario_id || "balanced",
+    // The backend always normalizes `scenario` onto every profile (legacy
+    // profiles fall back to DEFAULT_SCENARIO_BINDING at read time), but stay
+    // defensive here too. Seed client-only `_key`s for the schedule editor —
+    // persisted profiles never carry them.
+    scenario: ensureScenarioKeys(profile.scenario ?? DEFAULT_SCENARIO_BINDING),
   };
 }
 
@@ -122,15 +118,13 @@ const CustomProfileFormComponent = ({
   currentSettings,
   onLoadCurrentSettings,
 }: CustomProfileFormProps) => {
-  const router = useRouter();
-  const { customScenarios } = useConnectionScenarios();
+  const { t } = useTranslation("cellular");
+  const { scenarios, isLoading: scenariosLoading, nameForId } = useScenarioList();
 
   const [form, setForm] = useState<ProfileFormData>(DEFAULT_FORM_STATE);
   const [isSaving, setIsSaving] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
-
-  // Discard-changes dialog state for the "Create new custom scenario…" path
-  const [showDiscardDialog, setShowDiscardDialog] = useState(false);
+  const [openBlockKey, setOpenBlockKey] = useState<string | null>(null);
 
   const isEditing = !!editingProfile;
 
@@ -151,6 +145,7 @@ const CustomProfileFormComponent = ({
       editingProfile ? profileToFormData(editingProfile) : DEFAULT_FORM_STATE,
     );
     setErrors({});
+    setOpenBlockKey(null);
   }
 
   // Pre-fill from current modem settings when loaded (create mode only)
@@ -214,57 +209,67 @@ const CustomProfileFormComponent = ({
   };
 
   // ---------------------------------------------------------------------------
-  // Scenario Select handling
+  // Scenario binding — default scenario + optional up-to-2-window schedule
   // ---------------------------------------------------------------------------
+  const scenarioBlocks = form.scenario.schedule.blocks;
+  const atScheduleCap = scenarioBlocks.length >= MAX_WINDOWS;
 
-  // Compute dirty-ness against the "baseline" form (existing profile or empty
-  // defaults). Used by the discard dialog to decide whether to confirm before
-  // navigating away to create a new scenario.
-  const baselineForm = useMemo<ProfileFormData>(
-    () => (editingProfile ? profileToFormData(editingProfile) : DEFAULT_FORM_STATE),
-    [editingProfile],
-  );
-
-  const isFormDirty = useMemo(() => {
-    return (
-      form.name !== baselineForm.name ||
-      form.mno !== baselineForm.mno ||
-      form.sim_iccid !== baselineForm.sim_iccid ||
-      form.cid !== baselineForm.cid ||
-      form.apn_name !== baselineForm.apn_name ||
-      form.pdp_type !== baselineForm.pdp_type ||
-      form.imei !== baselineForm.imei ||
-      form.ttl !== baselineForm.ttl ||
-      form.hl !== baselineForm.hl ||
-      form.scenario_id !== baselineForm.scenario_id
-    );
-  }, [form, baselineForm]);
-
-  const navigateToCreateScenario = () => {
-    router.push("/cellular/custom-profiles/connection-scenarios?action=create");
-  };
-
-  const handleScenarioChange = (value: string) => {
-    if (value === CREATE_SCENARIO_SENTINEL) {
-      // Sentinel: never persist to form state. Confirm only if dirty.
-      if (isFormDirty) {
-        setShowDiscardDialog(true);
-      } else {
-        navigateToCreateScenario();
-      }
-      return;
+  const updateScenario = (patch: Partial<ProfileFormData["scenario"]>) => {
+    setForm((prev) => ({ ...prev, scenario: { ...prev.scenario, ...patch } }));
+    if (errors.schedule) {
+      setErrors((prev) => {
+        const next = { ...prev };
+        delete next.schedule;
+        return next;
+      });
     }
-    updateField("scenario_id", value);
   };
 
-  // Detect "unknown id" — user selected a custom scenario that has since been
-  // deleted. Show a fallback SelectItem so the user can re-select.
-  const isUnknownScenario = useMemo(() => {
-    const id = form.scenario_id;
-    if (!id) return false;
-    if ((BUILTIN_SCENARIO_IDS as readonly string[]).includes(id)) return false;
-    return !customScenarios.some((s) => s.id === id);
-  }, [form.scenario_id, customScenarios]);
+  const updateSchedule = (
+    patch: Partial<ProfileFormData["scenario"]["schedule"]>,
+  ) => {
+    updateScenario({ schedule: { ...form.scenario.schedule, ...patch } });
+  };
+
+  const addScheduleBlock = () => {
+    if (atScheduleCap) return;
+    const key = clientKey();
+    const block: ScenarioScheduleBlock = {
+      start: "22:00",
+      end: "06:00",
+      days: [0, 1, 2, 3, 4, 5, 6],
+      scenario: form.scenario.default,
+      _key: key,
+    };
+    updateSchedule({ blocks: [...scenarioBlocks, block] });
+    setOpenBlockKey(key);
+  };
+
+  const updateScheduleBlock = (key: string, next: ScenarioScheduleBlock) => {
+    updateSchedule({
+      blocks: scenarioBlocks.map((b) => (b._key === key ? next : b)),
+    });
+  };
+
+  const removeScheduleBlock = (key: string) => {
+    updateSchedule({ blocks: scenarioBlocks.filter((b) => b._key !== key) });
+    if (openBlockKey === key) setOpenBlockKey(null);
+  };
+
+  const moveScheduleBlock = (key: string, dir: -1 | 1) => {
+    const idx = scenarioBlocks.findIndex((b) => b._key === key);
+    if (idx < 0) return;
+    const swapIdx = idx + dir;
+    if (swapIdx < 0 || swapIdx >= scenarioBlocks.length) return;
+    const next = [...scenarioBlocks];
+    [next[idx], next[swapIdx]] = [next[swapIdx], next[idx]];
+    updateSchedule({ blocks: next });
+  };
+
+  const scheduleValidation = useMemo(
+    () => validateSchedule(form.scenario.schedule),
+    [form.scenario.schedule],
+  );
 
   // ---------------------------------------------------------------------------
   // Validation & submit
@@ -293,6 +298,13 @@ const CustomProfileFormComponent = ({
       newErrors.hl = "HL must be 0–255.";
     }
 
+    if (
+      form.scenario.schedule.enabled &&
+      hasBlockingScheduleErrors(form.scenario.schedule)
+    ) {
+      newErrors.schedule = t("custom_profiles.form.scenario.schedule_invalid");
+    }
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -303,7 +315,11 @@ const CustomProfileFormComponent = ({
     if (!validate()) return;
 
     setIsSaving(true);
-    const result = await onSave(form);
+    const payload: ProfileFormData = {
+      ...form,
+      scenario: stripScenarioKeys(form.scenario),
+    };
+    const result = await onSave(payload);
     setIsSaving(false);
 
     if (result) {
@@ -330,6 +346,7 @@ const CustomProfileFormComponent = ({
     } else {
       setForm(DEFAULT_FORM_STATE);
       setErrors({});
+      setOpenBlockKey(null);
     }
   };
 
@@ -398,9 +415,14 @@ const CustomProfileFormComponent = ({
                           {preset.label}
                         </SelectItem>
                       ))}
-                      <SelectItem value={MNO_CUSTOM_ID}>Custom</SelectItem>
+                      <SelectItem value={MNO_CUSTOM_ID}>
+                        {t("custom_profiles.form.fields.mno_custom")}
+                      </SelectItem>
                     </SelectContent>
                   </Select>
+                  <FieldDescription>
+                    {t("custom_profiles.form.mno_hint")}
+                  </FieldDescription>
                 </Field>
 
                 <Field>
@@ -502,65 +524,93 @@ const CustomProfileFormComponent = ({
 
               {/* --- Connection Scenario binding --- */}
               <Field>
-                <FieldLabel htmlFor="scenarioBinding">
-                  Connection Scenario
+                <FieldLabel htmlFor="scenarioDefault">
+                  {t("custom_profiles.form.default_scenario_label")}
                 </FieldLabel>
-                <Select
-                  value={form.scenario_id || "balanced"}
-                  onValueChange={handleScenarioChange}
-                >
-                  <SelectTrigger id="scenarioBinding">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {/* Built-in scenarios */}
-                    <SelectGroup>
-                      <SelectLabel>Built-in</SelectLabel>
-                      <SelectItem value="balanced">Balanced</SelectItem>
-                      <SelectItem value="gaming">Gaming</SelectItem>
-                      <SelectItem value="streaming">Streaming</SelectItem>
-                    </SelectGroup>
-
-                    {/* Custom scenarios (only if any exist) */}
-                    {customScenarios.length > 0 && (
-                      <SelectGroup>
-                        <SelectLabel>Custom</SelectLabel>
-                        {customScenarios.map((s) => (
-                          <SelectItem key={s.id} value={s.id}>
-                            {s.name}
-                          </SelectItem>
-                        ))}
-                      </SelectGroup>
-                    )}
-
-                    {/* Fallback for an unknown id (custom scenario was deleted
-                        after the profile was saved). Lets the user see the
-                        invalid state and re-select. */}
-                    {isUnknownScenario && (
-                      <SelectItem value={form.scenario_id}>
-                        (missing — please re-select)
-                      </SelectItem>
-                    )}
-
-                    <SelectSeparator />
-
-                    {/* Sentinel — intercepted in onValueChange */}
-                    <SelectItem value={CREATE_SCENARIO_SENTINEL}>
-                      <span className="flex items-center gap-2">
-                        <PlusIcon className="size-4" />
-                        Create new custom scenario…
-                      </span>
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
+                <ScenarioPicker
+                  id="scenarioDefault"
+                  value={form.scenario.default}
+                  scenarios={scenarios}
+                  loading={scenariosLoading}
+                  aria-label={t("custom_profiles.form.default_scenario_label")}
+                  onChange={(id) => updateScenario({ default: id })}
+                />
                 <FieldDescription>
-                  The profile applies this scenario&apos;s network mode and
-                  band locks on activation. Balanced (AUTO mode, no band
-                  lock) leaves the Scenarios and Band Locking pages freely
-                  editable; any other binding disables them while the
-                  profile is active.
+                  {t("custom_profiles.form.default_scenario_hint")}
                 </FieldDescription>
               </Field>
+
+              <div className="flex items-center justify-between gap-4 rounded-lg border p-3">
+                <div className="grid gap-0.5">
+                  <Label htmlFor="scheduleEnabled">
+                    {t("custom_profiles.form.schedule_inline_label")}
+                  </Label>
+                  <span className="text-muted-foreground text-xs">
+                    {t("custom_profiles.form.schedule_inline_hint")}
+                  </span>
+                </div>
+                <Switch
+                  id="scheduleEnabled"
+                  checked={form.scenario.schedule.enabled}
+                  onCheckedChange={(checked) => updateSchedule({ enabled: checked })}
+                />
+              </div>
+
+              {form.scenario.schedule.enabled && (
+                <div className="flex flex-col gap-3">
+                  {scenarioBlocks.length === 0 ? (
+                    <div className="text-muted-foreground rounded-lg border border-dashed p-4 text-center text-sm">
+                      {t("custom_profiles.form.windows_empty")}
+                    </div>
+                  ) : (
+                    scenarioBlocks.map((block, i) => {
+                      const key = block._key ?? `idx-${i}`;
+                      return (
+                        <ScheduleRuleRow
+                          key={key}
+                          index={i}
+                          block={block}
+                          scenarios={scenarios}
+                          scenariosLoading={scenariosLoading}
+                          error={scheduleValidation.errors[i]}
+                          overlap={scheduleValidation.overlapWarnings.includes(i)}
+                          open={openBlockKey === key}
+                          onOpenChange={(open) => setOpenBlockKey(open ? key : null)}
+                          nameForId={nameForId}
+                          canReorder={scenarioBlocks.length > 1}
+                          isFirst={i === 0}
+                          isLast={i === scenarioBlocks.length - 1}
+                          onMoveUp={() => moveScheduleBlock(key, -1)}
+                          onMoveDown={() => moveScheduleBlock(key, 1)}
+                          onChange={(next) => updateScheduleBlock(key, next)}
+                          onRemove={() => removeScheduleBlock(key)}
+                        />
+                      );
+                    })
+                  )}
+
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground text-xs tabular-nums">
+                      {t("custom_profiles.form.windows_count", {
+                        count: scenarioBlocks.length,
+                        max: MAX_WINDOWS,
+                      })}
+                    </span>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={addScheduleBlock}
+                      disabled={atScheduleCap}
+                    >
+                      <PlusIcon />
+                      {t("custom_profiles.form.add_window")}
+                    </Button>
+                  </div>
+
+                  {errors.schedule && <FieldError>{errors.schedule}</FieldError>}
+                </div>
+              )}
 
               {/* --- Actions --- */}
               <div className="flex gap-3 pt-2">
@@ -581,24 +631,6 @@ const CustomProfileFormComponent = ({
           </FieldSet>
         </form>
       </CardContent>
-
-      {/* Discard-changes confirmation for the "Create new scenario" path */}
-      <AlertDialog open={showDiscardDialog} onOpenChange={setShowDiscardDialog}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Discard unsaved changes?</AlertDialogTitle>
-            <AlertDialogDescription>
-              You&apos;ll lose any unsaved changes to this profile. Continue?
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Stay here</AlertDialogCancel>
-            <AlertDialogAction onClick={navigateToCreateScenario}>
-              Discard &amp; go to Scenarios
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </Card>
   );
 };
