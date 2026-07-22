@@ -7,7 +7,10 @@ import type {
   SystemSettings,
   ScheduleConfig,
   SystemSettingsResponse,
+  ScheduledRebootSaveResult,
 } from "@/types/system-settings";
+
+export type { ScheduledRebootSaveResult } from "@/types/system-settings";
 
 // =============================================================================
 // useSystemSettings — Fetch & Save Hook for System Settings
@@ -57,8 +60,19 @@ interface SaveResponse {
   detail?: string;
   error?: string;
   scheduled_reboot?: ScheduleConfig;
-  low_power?: unknown;
+  // Whether save_scheduled_reboot actually armed a live systemd timer on this
+  // device (vs. merely persisting config). See ScheduledRebootSaveResult.
+  armed?: boolean;
+  reason?: string;
   timezone_apply_status?: TimezoneApplyStatus;
+}
+
+// Internal outcome returned by postAction — carries the raw success plus the
+// arm status so saveScheduledReboot can surface an honest toast.
+interface PostActionResult {
+  success: boolean;
+  armed?: boolean;
+  reason?: string;
 }
 
 export interface UseSystemSettingsReturn {
@@ -68,7 +82,9 @@ export interface UseSystemSettingsReturn {
   isSaving: boolean;
   error: string | null;
   saveSettings: (payload: SaveSettingsPayload) => Promise<boolean>;
-  saveScheduledReboot: (payload: SaveScheduledRebootPayload) => Promise<boolean>;
+  saveScheduledReboot: (
+    payload: SaveScheduledRebootPayload,
+  ) => Promise<ScheduledRebootSaveResult>;
   refresh: () => void;
 }
 
@@ -138,7 +154,7 @@ export function useSystemSettings(): UseSystemSettingsReturn {
       payload:
         | SaveSettingsPayload
         | SaveScheduledRebootPayload,
-    ): Promise<boolean> => {
+    ): Promise<PostActionResult> => {
       setError(null);
       setIsSaving(true);
 
@@ -154,19 +170,17 @@ export function useSystemSettings(): UseSystemSettingsReturn {
         }
 
         const json: SaveResponse = await resp.json();
-        if (!mountedRef.current) return false;
+        if (!mountedRef.current) return { success: false };
 
         if (!json.success) {
           setError(json.detail || json.error || "Failed to save settings");
-          return false;
+          return { success: false };
         }
 
         // Use response data directly when available (avoids re-fetch race),
         // fall back to silent re-fetch for actions that don't return full state.
         if (json.scheduled_reboot) {
           setScheduledReboot(json.scheduled_reboot);
-        } else if (json.low_power) {
-          // Future: setLowPower(json.low_power) when low power hook exists
         }
 
         // Re-fetch for save_settings (preferences) which doesn't return
@@ -184,13 +198,15 @@ export function useSystemSettings(): UseSystemSettingsReturn {
           await fetchSettings(true);
         }
 
-        return true;
+        // Thread through the arm status so save_scheduled_reboot can warn the
+        // user when the schedule persisted but no live timer was installed.
+        return { success: true, armed: json.armed, reason: json.reason };
       } catch (err) {
-        if (!mountedRef.current) return false;
+        if (!mountedRef.current) return { success: false };
         setError(
           err instanceof Error ? err.message : "Failed to save settings",
         );
-        return false;
+        return { success: false };
       } finally {
         if (mountedRef.current) {
           setIsSaving(false);
@@ -204,12 +220,14 @@ export function useSystemSettings(): UseSystemSettingsReturn {
   // Per-action save wrappers
   // ---------------------------------------------------------------------------
   const saveSettings = useCallback(
-    (payload: SaveSettingsPayload) => postAction(payload),
+    async (payload: SaveSettingsPayload) =>
+      (await postAction(payload)).success,
     [postAction],
   );
 
   const saveScheduledReboot = useCallback(
-    (payload: SaveScheduledRebootPayload) => postAction(payload),
+    (payload: SaveScheduledRebootPayload): Promise<ScheduledRebootSaveResult> =>
+      postAction(payload),
     [postAction],
   );
 

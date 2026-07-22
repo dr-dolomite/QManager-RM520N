@@ -1,0 +1,15 @@
+# /lib/systemd/system/qmanager-tower-schedule-apply.service
+[Unit]
+Description=QManager tower lock schedule apply (triggered by qmanager-tower-schedule-apply.timer)
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/qmanager_tower_schedule apply
+
+# No [Install] section — this unit is only ever started by
+# qmanager-tower-schedule-apply.timer, never boot-enabled directly. That
+# .timer is NOT a static file shipped by the installer — it is generated and
+# armed at runtime by the qmanager_tower_schedule_arm root helper whenever
+# the Tower Lock schedule is saved enabled (mirrors
+# qmanager-scenario-schedule.service). Its sibling is
+# qmanager-tower-schedule-clear.service.

@@ -823,8 +823,10 @@ www-data ALL=(root) NOPASSWD: /usr/sbin/iptables, /usr/sbin/iptables-restore, /u
 # System reboot (used by system/reboot.sh, update installer)
 www-data ALL=(root) NOPASSWD: /sbin/reboot
 
-# Crontab management (used by scheduled reboot and tower schedule)
-www-data ALL=(root) NOPASSWD: /usr/bin/crontab
+# Scheduled Reboot + Tower Lock schedule timer arming (replaced the dead crontab
+# path — RM520N runs no crond; these arm runtime systemd OnCalendar timers)
+www-data ALL=(root) NOPASSWD: /usr/bin/qmanager_scheduled_reboot_arm
+www-data ALL=(root) NOPASSWD: /usr/bin/qmanager_tower_schedule_arm
 
 # Auto-update timer live-arming (arms/disarms qmanager-auto-update.timer when the
 # Software Update UI toggle flips)

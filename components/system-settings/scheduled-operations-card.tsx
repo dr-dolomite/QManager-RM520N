@@ -39,6 +39,20 @@ const itemVariants: Variants = {
   visible: { opacity: 1, y: 0, transition: { duration: 0.25, ease: "easeOut" } },
 };
 
+// Copy is hardcoded English to match this card (no useTranslation here) — do
+// not introduce a lone i18n key into an otherwise-untranslated surface.
+const REBOOT_ARM_REASONS: Record<string, string> = {
+  unit_absent:
+    "the scheduling service isn't installed on this device yet — update to the latest firmware to enable it",
+};
+
+function rebootArmWarning(reason?: string): string {
+  const detail = reason
+    ? REBOOT_ARM_REASONS[reason] ?? reason
+    : "reason unknown";
+  return `Reboot schedule saved, but it couldn't be armed on this device — ${detail}`;
+}
+
 type ScheduledOperationsCardProps = Pick<
   UseSystemSettingsReturn,
   | "scheduledReboot"
@@ -84,11 +98,19 @@ const ScheduledOperationsCard = ({
         clearTimeout(rebootSaveTimerRef.current);
       }
       rebootSaveTimerRef.current = setTimeout(async () => {
-        const success = await saveScheduledReboot(payload);
-        if (success) {
-          toast.success("Reboot schedule saved");
-        } else {
+        const result = await saveScheduledReboot(payload);
+        if (!result.success) {
           toast.error("Failed to save reboot schedule");
+          return;
+        }
+        // Debounced saves only fire while the schedule is enabled, so the
+        // user's intent is always "armed". armed === false means it persisted
+        // but no live timer was installed — warn honestly instead of a green
+        // success toast. Undefined armed (older backend) → assume armed.
+        if (result.armed === false) {
+          toast.warning(rebootArmWarning(result.reason));
+        } else {
+          toast.success("Reboot schedule saved");
         }
       }, 800);
     },
@@ -105,21 +127,25 @@ const ScheduledOperationsCard = ({
       clearTimeout(rebootSaveTimerRef.current);
       rebootSaveTimerRef.current = null;
     }
-    const success = await saveScheduledReboot({
+    const result = await saveScheduledReboot({
       action: "save_scheduled_reboot",
       enabled: checked,
       time: rebootTime,
       days: rebootDays,
     });
-    if (success) {
-      toast.success(
-        checked
-          ? "Scheduled reboot enabled"
-          : "Scheduled reboot disabled",
-      );
-    } else {
+    if (!result.success) {
       setRebootEnabled(!checked);
       toast.error("Failed to update reboot schedule");
+      return;
+    }
+    // Only warn about arming when the user is turning the schedule ON. Turning
+    // it OFF disarms the timer by design, so armed === false is expected there.
+    if (checked && result.armed === false) {
+      toast.warning(rebootArmWarning(result.reason));
+    } else {
+      toast.success(
+        checked ? "Scheduled reboot enabled" : "Scheduled reboot disabled",
+      );
     }
   };
 

@@ -234,6 +234,37 @@ else
     info "Scenario schedule timer torn down (manual fallback)"
 fi
 
+# Scheduled Reboot timer teardown — same shape: runtime-armed by
+# qmanager_scheduled_reboot_arm, never a static installer-shipped .timer, so
+# it is not caught by the qmanager-*.service glob in Step 2 either. Must run
+# here, before Step 3 removes the arm helper binary itself.
+if [ -x "$BIN_DIR/qmanager_scheduled_reboot_arm" ]; then
+    "$BIN_DIR/qmanager_scheduled_reboot_arm" teardown >/dev/null 2>&1 || true
+    info "Scheduled reboot timer torn down"
+else
+    systemctl stop qmanager-scheduled-reboot.timer 2>/dev/null || true
+    rm -f /lib/systemd/system/timers.target.wants/qmanager-scheduled-reboot.timer
+    rm -f /etc/systemd/system/qmanager-scheduled-reboot.timer
+    systemctl daemon-reload 2>/dev/null || true
+    info "Scheduled reboot timer torn down (manual fallback)"
+fi
+
+# Tower Lock schedule timer PAIR teardown — same shape, one helper call tears
+# down both qmanager-tower-schedule-apply.timer and
+# qmanager-tower-schedule-clear.timer.
+if [ -x "$BIN_DIR/qmanager_tower_schedule_arm" ]; then
+    "$BIN_DIR/qmanager_tower_schedule_arm" teardown >/dev/null 2>&1 || true
+    info "Tower lock schedule timers torn down"
+else
+    systemctl stop qmanager-tower-schedule-apply.timer qmanager-tower-schedule-clear.timer 2>/dev/null || true
+    rm -f /lib/systemd/system/timers.target.wants/qmanager-tower-schedule-apply.timer
+    rm -f /lib/systemd/system/timers.target.wants/qmanager-tower-schedule-clear.timer
+    rm -f /etc/systemd/system/qmanager-tower-schedule-apply.timer
+    rm -f /etc/systemd/system/qmanager-tower-schedule-clear.timer
+    systemctl daemon-reload 2>/dev/null || true
+    info "Tower lock schedule timers torn down (manual fallback)"
+fi
+
 # SIGTERM first, then SIGKILL stragglers — uninstall is terminal so
 # we include update daemons that are normally excluded from service teardown
 for proc in $(ls "$BIN_DIR"/qmanager_* 2>/dev/null | xargs -I{} basename {} 2>/dev/null); do

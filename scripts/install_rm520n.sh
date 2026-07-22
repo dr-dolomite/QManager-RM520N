@@ -1622,6 +1622,16 @@ enable_services() {
         # gate here beyond skipping the boot-symlink for the .service itself.
         [ "$svc" = "qmanager-scenario-schedule" ] && continue
 
+        # qmanager-scheduled-reboot.service / qmanager-tower-schedule-apply.service /
+        # qmanager-tower-schedule-clear.service are the same shape: no
+        # [Install] section, started only by their runtime-armed .timer
+        # counterparts (see the re-arm step below, after this loop). Nothing
+        # to gate here beyond skipping the boot-symlink for the .service
+        # files themselves.
+        [ "$svc" = "qmanager-scheduled-reboot" ] && continue
+        [ "$svc" = "qmanager-tower-schedule-apply" ] && continue
+        [ "$svc" = "qmanager-tower-schedule-clear" ] && continue
+
         # Check if this service is in the gated list
         local is_gated=0
         for g in $UCI_GATED_SERVICES; do
@@ -1673,6 +1683,48 @@ enable_services() {
             # rm -f (not just "skip") so a later opt-OUT is honored on re-run/OTA
             rm -f "$TIMERS_WANTS_DIR/qmanager-auto-update.timer"
             info "Auto-update timer not enabled (opt in via System Settings → Software Update)"
+        fi
+    fi
+
+    # --- Scheduled Reboot / Tower Lock schedule timers (config-driven re-arm) --
+    # Unlike qmanager-scenario-schedule (armed only when a profile activates
+    # it), Scheduled Reboot and the Tower Lock schedule are NOT
+    # symlink-state-gated either — they are config-driven, same as
+    # auto-update above, and re-armed HERE unconditionally so the generated
+    # .timer + timers.target.wants symlink survive an OTA partition swap.
+    # /etc/qmanager survives OTA (persistent UBIFS partition); /lib does not
+    # — a fresh install_rm520n.sh run (fresh install OR OTA, both reach this
+    # function since DO_BACKEND/DO_ENABLE default on and OTA never passes
+    # --backend-only or --no-enable) always regenerates both timers from
+    # whatever is currently saved in config, so a device that had Scheduled
+    # Reboot or Tower Lock schedule armed before the update still has it
+    # armed after. Calling the arm helpers DIRECTLY (not via sudo -n) because
+    # this installer already runs as root — mirrors scenario_mgr.sh's
+    # scenario_install_schedule "already root" branch.
+    if [ -x "$BIN_DIR/qmanager_scheduled_reboot_arm" ]; then
+        _sched_enabled=$(qm_config_get settings sched_reboot_enabled 0 2>/dev/null)
+        if [ "$_sched_enabled" = "1" ]; then
+            _sched_time=$(qm_config_get settings sched_reboot_time "04:00" 2>/dev/null)
+            _sched_days=$(qm_config_get settings sched_reboot_days "0,1,2,3,4,5,6" 2>/dev/null)
+            "$BIN_DIR/qmanager_scheduled_reboot_arm" install "$_sched_time" "$_sched_days" >/dev/null 2>&1 \
+                && info "Scheduled reboot timer re-armed (${_sched_time}, days=${_sched_days})" \
+                || warn "Scheduled reboot timer re-arm failed (non-fatal)"
+        else
+            "$BIN_DIR/qmanager_scheduled_reboot_arm" teardown >/dev/null 2>&1 || true
+        fi
+    fi
+
+    if [ -x "$BIN_DIR/qmanager_tower_schedule_arm" ] && [ -f /etc/qmanager/tower_lock.json ]; then
+        _tower_enabled=$(jq -r '.schedule.enabled // false' /etc/qmanager/tower_lock.json 2>/dev/null)
+        if [ "$_tower_enabled" = "true" ]; then
+            _tower_start=$(jq -r '.schedule.start_time // "08:00"' /etc/qmanager/tower_lock.json 2>/dev/null)
+            _tower_end=$(jq -r '.schedule.end_time // "22:00"' /etc/qmanager/tower_lock.json 2>/dev/null)
+            _tower_days=$(jq -r '.schedule.days // [1,2,3,4,5] | join(",")' /etc/qmanager/tower_lock.json 2>/dev/null)
+            "$BIN_DIR/qmanager_tower_schedule_arm" install "$_tower_start" "$_tower_end" "$_tower_days" >/dev/null 2>&1 \
+                && info "Tower lock schedule timers re-armed (apply ${_tower_start}, clear ${_tower_end}, days=${_tower_days})" \
+                || warn "Tower lock schedule timer re-arm failed (non-fatal)"
+        else
+            "$BIN_DIR/qmanager_tower_schedule_arm" teardown >/dev/null 2>&1 || true
         fi
     fi
 

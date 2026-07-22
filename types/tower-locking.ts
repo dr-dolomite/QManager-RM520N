@@ -123,8 +123,27 @@ export interface TowerScheduleResponse {
   start_time?: string;
   end_time?: string;
   days?: number[];
+  /**
+   * Whether the schedule was actually installed as a live systemd timer on THIS
+   * device (vs. merely written to config). `armed:false` + a `reason` (e.g.
+   * "unit_absent") means it persisted but won't fire until the timer unit ships
+   * — the UI warns instead of flashing an unconditional success.
+   */
+  armed?: boolean;
+  reason?: string;
   error?: string;
   detail?: string;
+}
+
+/**
+ * Result surfaced to the schedule card after saving a tower schedule. `armed`
+ * carries the on-device timer status so the card can warn honestly. Absent
+ * `armed` (older backend that doesn't report it) is treated as "assume armed".
+ */
+export interface TowerScheduleSaveResult {
+  success: boolean;
+  armed?: boolean;
+  reason?: string;
 }
 
 /** Response from GET /cgi-bin/quecmanager/tower/failover_status.sh */

@@ -3,14 +3,16 @@
 # =============================================================================
 # schedule.sh — CGI Endpoint: Update Tower Lock Schedule
 # =============================================================================
-# Updates the schedule section of tower_lock.json and manages crontab
-# entries for automatic tower lock enable/disable.
+# Updates the schedule section of tower_lock.json and arms/disarms the
+# runtime systemd timer pair (via qmanager_tower_schedule_arm) for automatic
+# tower lock enable/disable — RM520N has no crond, see schedule_timer.sh.
 #
 # POST body:
 #   {"enabled": true, "start_time": "08:00", "end_time": "22:00", "days": [1,2,3,4,5]}
 #
-# When enabled, writes cron entries to apply/clear locks at scheduled times.
-# When disabled, removes QManager tower schedule cron entries.
+# When enabled, arms qmanager-tower-schedule-apply.timer /
+# qmanager-tower-schedule-clear.timer to apply/clear locks at scheduled times.
+# When disabled, tears down both timers.
 #
 # Endpoint: POST /cgi-bin/quecmanager/tower/schedule.sh
 # Install location: /www/cgi-bin/quecmanager/tower/schedule.sh
@@ -121,46 +123,28 @@ qlog_info "Schedule update: enabled=$ENABLED start=$START_TIME end=$END_TIME day
 
 tower_config_update_schedule "$ENABLED" "$START_TIME" "$END_TIME" "$DAYS_JSON"
 
-# --- Manage crontab (write directly to root's crontab file) -----------------
-# CGI runs as www-data but scheduled scripts need root.
-# BusyBox crond reads /var/spool/cron/crontabs/<user> directly.
-CRON_MARKER="qmanager_tower_schedule"
-SCHEDULE_SCRIPT="/usr/bin/qmanager_tower_schedule"
-CRON_FILE="/var/spool/cron/crontabs/root"
-
-current_cron=$(cat "$CRON_FILE" 2>/dev/null || true)
-cleaned_cron=$(printf '%s\n' "$current_cron" | grep -v "$CRON_MARKER")
+# --- Arm/disarm the runtime systemd timer pair (root helper) -----------------
+# RM520N has no crond — the old /var/spool/cron/crontabs/root write (two
+# lines: apply, clear) was never read by anything. qmanager_tower_schedule_arm
+# replaces both with a pair of runtime-generated .timer units armed in one
+# call; the helper hardcodes the units + re-validates start/end/days itself
+# before they touch a generated .timer file (this CGI-side validation above
+# is necessary but not sufficient on its own).
+day_list="$DAYS_RAW"
 
 if [ "$ENABLED" = "true" ]; then
-    # Parse times into hour/minute
-    start_hour=$(printf '%s' "$START_TIME" | cut -d: -f1 | sed 's/^0//')
-    start_min=$(printf '%s' "$START_TIME" | cut -d: -f2 | sed 's/^0//')
-    end_hour=$(printf '%s' "$END_TIME" | cut -d: -f1 | sed 's/^0//')
-    end_min=$(printf '%s' "$END_TIME" | cut -d: -f2 | sed 's/^0//')
-
-    # Handle leading zero removal edge case (00 becomes empty)
-    [ -z "$start_hour" ] && start_hour="0"
-    [ -z "$start_min" ] && start_min="0"
-    [ -z "$end_hour" ] && end_hour="0"
-    [ -z "$end_min" ] && end_min="0"
-
-    day_list="$DAYS_RAW"
-
-    new_cron="${cleaned_cron}
-# QManager Tower Lock Schedule — DO NOT EDIT MANUALLY
-${start_min} ${start_hour} * * ${day_list} ${SCHEDULE_SCRIPT} apply  # ${CRON_MARKER}
-${end_min} ${end_hour} * * ${day_list} ${SCHEDULE_SCRIPT} clear  # ${CRON_MARKER}"
-
-    printf '%s\n' "$new_cron" > "$CRON_FILE"
-    qlog_info "Tower schedule cron entries installed: apply at ${START_TIME}, clear at ${END_TIME}, days=${day_list}"
+    arm_json=$(sudo -n /usr/bin/qmanager_tower_schedule_arm install "$START_TIME" "$END_TIME" "$day_list" 2>/dev/null)
 else
-    if [ -n "$cleaned_cron" ]; then
-        printf '%s\n' "$cleaned_cron" > "$CRON_FILE"
-    else
-        rm -f "$CRON_FILE"
-    fi
-    qlog_info "Tower schedule cron entries removed"
+    arm_json=$(sudo -n /usr/bin/qmanager_tower_schedule_arm teardown 2>/dev/null)
 fi
+
+arm_ok=$(printf '%s' "$arm_json" | jq -r '.success // false' 2>/dev/null)
+armed=$(printf '%s' "$arm_json" | jq -r 'if has("armed") then (.armed|tostring) else "false" end' 2>/dev/null)
+arm_reason=$(printf '%s' "$arm_json" | jq -r '.reason // ""' 2>/dev/null)
+if [ "$arm_ok" != "true" ]; then
+    qlog_error "Tower schedule timer arm/disarm failed: ${arm_json:-<empty response>}"
+fi
+qlog_info "Tower schedule timer ${ENABLED}: apply at ${START_TIME}, clear at ${END_TIME}, days=${day_list}, armed=${armed}"
 
 # --- Response (using jq for guaranteed valid JSON) ---------------------------
 # Reconstruct days as JSON array for response
@@ -172,4 +156,6 @@ jq -n \
     --arg start "$START_TIME" \
     --arg end "$END_TIME" \
     --argjson days "$DAYS_RESP" \
-    '{success: true, enabled: $enabled, start_time: $start, end_time: $end, days: $days}'
+    --argjson armed "$([ "$armed" = "true" ] && echo true || echo false)" \
+    --arg reason "$arm_reason" \
+    '{success: true, armed: $armed, reason: $reason, enabled: $enabled, start_time: $start, end_time: $end, days: $days}'
