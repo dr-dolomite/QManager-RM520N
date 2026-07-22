@@ -60,6 +60,8 @@ All your alerts finally live in one place. A new **Monitoring → Alerts** page 
 
 - **"New SIM card detected" no longer fires on a SIM you've already used.** QManager now remembers every SIM it's seen instead of just the last one, so failing over to your backup SIM (and back) no longer re-triggers the new-SIM banner.
 
+- **Dismissing the "New SIM detected" banner now sticks.** Closing the banner used to only hide it until the next page load; it now stays dismissed for that SIM, and got a visual cleanup — proper title, aligned SIM icon, and an info-tone treatment (dismissal is remembered in the browser per-SIM, so it survives reloads and reboots).
+
 - **SIM slot switches are now verified before QManager trusts them.** Both the Watchdog's automatic SIM failover and a manual slot switch in Cellular Settings now confirm the modem actually landed on the requested slot before applying anything for it, closing a rare case where a busy modem silently stayed on the old SIM.
 
 - **Timezone selection now actually changes the device clock.** Picking a zone in **System Settings** updates the clock, log timestamps, and alert times instead of silently snapping back to UTC (glibc reads `/etc/localtime`, which QManager now writes via a root helper using Entware's full IANA tzdata). Heads-up: scheduled-reboot and tower-lock schedule windows follow the device's local timezone and adopt a newly-set zone after the next reboot — set your timezone first, then schedule.
