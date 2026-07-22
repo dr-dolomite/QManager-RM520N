@@ -261,6 +261,40 @@ A dormant auto-updater ships as a systemd timer pair — `qmanager-auto-update.s
 
 ---
 
+## Uninstaller coverage
+
+`scripts/uninstall_rm520n.sh` reverses the install. It is mostly **filesystem-driven** — Step 1 stops every `qmanager-*.service` it finds and Step 2 removes those unit files plus their `multi-user.target.wants/` boot symlinks by globbing the disk, so it needs no hardcoded service list. But that glob has two blind spots that each need an explicit teardown block, and the `--purge` path has a class of artifacts that must be removed by name or they strand the final directory removal.
+
+### Timers the service glob misses
+
+The Step 1/Step 2 globs only match `qmanager-*.service` and `qmanager*.target` in `/lib/systemd/system/`, and they only look in `multi-user.target.wants/`. Every QManager **`.timer`** unit is therefore invisible to them, for two separate reasons — its extension isn't `.service`, and its boot symlink lives in `timers.target.wants/` (systemd routes timer units through the `timers.target`, a different wants directory). Each timer gets its own teardown block in Step 1, and they come in two shapes:
+
+| Timer | Shape | Teardown mechanism |
+| ----- | ----- | ------------------ |
+| `qmanager-scenario-schedule.timer` | Runtime-armed | Prefer `qmanager_scenario_schedule_arm teardown`; manual `stop` + symlink `rm` fallback |
+| `qmanager-scheduled-reboot.timer` | Runtime-armed | Prefer `qmanager_scheduled_reboot_arm teardown`; manual fallback |
+| `qmanager-tower-schedule-apply.timer` + `…-clear.timer` | Runtime-armed (pair) | One `qmanager_tower_schedule_arm teardown` call drops both; manual fallback |
+| `qmanager-auto-update.timer` | **Static installer-shipped** | Direct `stop` + `rm` of the `timers.target.wants/` symlink **and** the unit file |
+
+- **Runtime-armed timers** are created on demand by an arm helper (there is no `.timer` file on disk until a schedule is set — RM520N-GL has no `crond`, so schedules are implemented as runtime-generated systemd timers; see [Auto-update timer](#auto-update-timer) for the same `/lib` manual-symlink mechanism). Their teardown prefers the helper's own `teardown` verb (authoritative and idempotent) and falls back to a manual `stop` + symlink/unit `rm` if the helper binary is already gone (partial install). These blocks **must run before Step 3** deletes the arm-helper binaries from `/usr/bin/`.
+- **The auto-update timer is different: it is static — shipped by the installer as a real unit file** that exists whether or not the feature is enabled. So it is caught by *neither* the `.service` glob (wrong extension) *nor* any arm-helper teardown (the helper `qmanager_auto_update_arm` only ever adds/drops the boot symlink — it never removes the unit file). Its block removes both the `timers.target.wants/` symlink and the unit file directly.
+
+> ℹ️ NOTE: If you add a new static-shipped `.timer` in the future, it needs its own explicit removal block here — the Step 2 glob will silently leave the unit file and its `timers.target.wants/` symlink behind, and the orphaned symlink will still try to start a now-deleted unit at every boot.
+
+### Artifacts that strand the final `rmdir`
+
+The uninstaller's last act (Step 12) is `rmdir "$QMANAGER_ROOT"` (`/usrdata/qmanager`) — a **non-recursive** removal that only succeeds if the directory is already empty. Anything left directly under `/usrdata/qmanager/` that the earlier steps didn't remove will silently block it, leaving the whole tree behind. The trap is that `install_frontend`'s wipe-and-recopy only ever touches `www/`, so any state file or directory placed as a **sibling** of `www/` survives both OTA and the frontend teardown and must be removed **by name**:
+
+| Artifact | When removed | Why it's not caught elsewhere |
+| -------- | ------------ | ----------------------------- |
+| `apn_setting.json`, `apn_names.json` | `--purge` only (config) | APN sidecar state, sibling of `www/` |
+| `locales-packs/`, `locales-staging/` | `--purge` only (config) | Language-pack persistent store + staging quarantine, siblings of `www/` (see [i18n runtime downloader](i18n.md)) |
+| `/etc/data/qmanager/` | **Every uninstall** (unconditional) | Installer-created DNS staging scratch dir (`www-data:www-data` 0700) — not user config, so it isn't gated on `--purge` (see [custom-dns](custom-dns.md)) |
+
+The language-pack store and the older APN sidecars are the same bug class: `apn_names.json` was a pre-existing orphan that was never purged, so it silently blocked the `rmdir` and left `/usrdata/qmanager/` behind after every `--purge` uninstall. The rule for any new persistent state written outside `www/`: **if the installer or a runtime feature creates it under `$QMANAGER_ROOT` but outside `www/`, the uninstaller must remove it explicitly** — on `--purge` if it's user config, unconditionally if it's scratch/derived state.
+
+---
+
 ## HTTP transport & installer resilience
 
 - **`curl` is NOT a hard requirement.** The install and OTA pipeline auto-detect whichever HTTP downloader the device has — `curl` or `wget` — and use it. `curl` is preferred when both are present, but it is **never force-installed**.

@@ -265,6 +265,19 @@ else
     info "Tower lock schedule timers torn down (manual fallback)"
 fi
 
+# Auto-update timer teardown — unlike the three runtime-armed timers above,
+# this is a STATIC installer-shipped .timer, so it is caught by neither the
+# qmanager-*.service glob in Step 2 nor an arm-helper teardown verb (the
+# helper's disarm only drops the symlink; it never removes the unit file).
+# Its wants-symlink also lives in timers.target.wants/, not the
+# multi-user.target.wants/ ($WANTS_DIR) that Step 2 knows about. Remove the
+# symlink AND the unit file here, before Step 3 removes the arm helper binary.
+systemctl stop qmanager-auto-update.timer 2>/dev/null || true
+rm -f /lib/systemd/system/timers.target.wants/qmanager-auto-update.timer
+rm -f "$SYSTEMD_DIR/qmanager-auto-update.timer"
+systemctl daemon-reload 2>/dev/null || true
+info "Auto-update timer torn down"
+
 # SIGTERM first, then SIGKILL stragglers — uninstall is terminal so
 # we include update daemons that are normally excluded from service teardown
 for proc in $(ls "$BIN_DIR"/qmanager_* 2>/dev/null | xargs -I{} basename {} 2>/dev/null); do
@@ -531,9 +544,21 @@ if [ "$PURGE" = "1" ]; then
     # and left /usrdata/qmanager/ behind after every purge uninstall.
     rm -f "$QMANAGER_ROOT/apn_setting.json" "$QMANAGER_ROOT/apn_names.json"
     info "Purged APN sidecar state (apn_setting.json, apn_names.json)"
+
+    # Language-pack persistent store (Increment B) — same shape as the APN
+    # sidecars above: created directly under $QMANAGER_ROOT, outside www/, so
+    # install_frontend's www-wipe never touches them and, left behind, they
+    # silently block the rmdir below and strand /usrdata/qmanager/ after purge.
+    rm -rf "$QMANAGER_ROOT/locales-packs" "$QMANAGER_ROOT/locales-staging"
+    info "Purged language-pack store (locales-packs, locales-staging)"
 elif [ -d "$CONF_DIR" ]; then
     warn "Config preserved at $CONF_DIR (use --purge to remove)"
 fi
+
+# Custom DNS staging dir (/etc/data/qmanager) — installer-created scratch space
+# for the atomic dnsmasq.conf rename; not user config, safe to remove on every
+# uninstall (independent of --purge).
+rm -rf /etc/data/qmanager
 
 # Remove qmanager root only when empty (console + certs already gone;
 # Tailscale teardown under --purge removes nothing here)
