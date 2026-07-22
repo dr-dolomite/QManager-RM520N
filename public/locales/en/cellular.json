@@ -79,41 +79,355 @@
     }
   },
   "custom_profiles": {
-    "form": {
-      "fields": {
-        "mno_custom": "Custom"
+    "page": {
+      "title": "Custom SIM Profile",
+      "description": "Bundle APN, IMEI, and TTL/HL settings into one-click profiles.",
+      "error_load_failed": "Could not load profiles. Check the connection and try again."
+    },
+    "view": {
+      "title": "Saved Profiles",
+      "description": "Manage your custom SIM profiles.",
+      "count_one": "{{count}} profile saved",
+      "count_other": "{{count}} profiles saved",
+      "subtitle": "Activate, edit, or remove the cellular profiles on this device.",
+      "activating": "Activating",
+      "scenario_scheduled": "{{scenario}} on a daily schedule",
+      "scenario_always_on": "{{scenario}}, always on",
+      "delete_description": "This removes the profile from the device. Any schedule bound to it is cleared. This cannot be undone.",
+      "delete_keep": "Keep profile",
+      "mismatch_note": "The SIM in the modem does not match this profile's ICCID. The device keeps its current settings until a matching SIM is inserted.",
+      "toast": {
+        "deactivated": "{{name}} deactivated",
+        "deactivate_error": "Failed to deactivate profile",
+        "deleted": "{{name}} deleted",
+        "delete_error": "Failed to delete profile"
       },
-      "mno_hint": "You may select pre-configured mobile network operators here.",
-      "default_scenario_label": "Default Scenario",
-      "default_scenario_hint": "Runs whenever no schedule window is active.",
-      "schedule_inline_label": "Time-based schedule",
-      "schedule_inline_hint": "Switch scenario inside up to two daily windows.",
-      "windows_empty": "No windows yet. Add one to switch scenario at a set time.",
-      "windows_count": "{{count}} of {{max}} windows",
-      "add_window": "Add window",
+      "delete_title": "Delete “{{name}}”?",
+      "audit": {
+        "applied": "Applied at {{time}}",
+        "partial": "Partial apply at {{time}}",
+        "failed": "Apply failed at {{time}}"
+      }
+    },
+    "table": {
+      "headers": {
+        "profile": "Profile",
+        "status": "Status",
+        "last_updated": "Last Updated",
+        "actions": ""
+      },
+      "status_badge": {
+        "active": "Active",
+        "inactive": "Inactive",
+        "sim_mismatch": "SIM Mismatch"
+      },
+      "pagination": {
+        "total_one": "{{count}} profile total",
+        "total_other": "{{count}} profiles total",
+        "page_info": "Page {{current}} of {{total}}",
+        "previous": "Previous",
+        "next": "Next"
+      },
+      "empty_row": "No profiles yet. Create one to get started.",
+      "actions_menu": {
+        "open_menu": "Open menu",
+        "edit": "Edit",
+        "activate": "Activate",
+        "deactivate": "Deactivate",
+        "delete": "Delete"
+      },
+      "delete_confirm": {
+        "title": "Delete Profile",
+        "description": "Are you sure you want to delete \"{{name}}\"? This action cannot be undone. Deleting this profile won't change your current modem configuration.",
+        "confirm_button": "Delete",
+        "deleting": "Deleting…"
+      }
+    },
+    "form": {
+      "create_title": "Create Custom SIM Profile",
+      "create_description": "Create a custom SIM profile with specific APN, TTL, and IMEI settings.",
+      "edit_title": "Edit Profile",
+      "edit_description": "Editing \"{{name}}\". Update the fields below.",
+      "load_current_button": "Load Current SIM",
+      "fields": {
+        "profile_name_label": "Profile Name",
+        "profile_name_placeholder": "My LTE Profile",
+        "profile_name_required": "Profile name is required.",
+        "sim_iccid_required": "SIM ICCID is required.",
+        "sim_iccid_duplicate": "A profile with this SIM ICCID already exists.",
+        "apn_name_required": "APN name is required.",
+        "sim_iccid_label": "SIM ICCID",
+        "sim_iccid_placeholder": "Auto-filled from current SIM",
+        "mno_label": "Mobile Network Operator",
+        "mno_placeholder": "Select carrier…",
+        "mno_custom": "Custom",
+        "reuse_apn_label": "APN Profiles",
+        "reuse_apn_placeholder": "Choose a saved APN…",
+        "reuse_apn_custom": "Custom",
+        "use_saved_apn": "Use my saved APN ({{apn}})",
+        "apn_name_label": "APN Name",
+        "apn_name_placeholder": "internet",
+        "ip_protocol_label": "IP Protocol",
+        "ip_protocol_ipv4": "IPv4 Only",
+        "ip_protocol_ipv6": "IPv6 Only",
+        "ip_protocol_dual": "IPv4 + IPv6 (Dual Stack)",
+        "cid_label": "Profile Slot (CID)",
+        "cid_error": "CID must be 1–15.",
+        "imei_label": "Preferred IMEI",
+        "imei_placeholder": "Leave blank to keep current IMEI",
+        "imei_error": "IMEI must be exactly 15 digits.",
+        "ttl_label": "TTL Value",
+        "ttl_error": "TTL must be 0–255.",
+        "hl_label": "Hop Limit",
+        "hl_error": "HL must be 0–255.",
+        "sim_iccid_hint": "Leave blank to apply this profile to any SIM.",
+        "imei_danger": "Changing the IMEI rewrites the modem identity and reboots the modem on activation. Leave blank to keep the current IMEI."
+      },
+      "buttons": {
+        "create_submit": "Create Profile",
+        "update_submit": "Update Profile",
+        "reset": "Reset",
+        "back": "Back",
+        "next": "Next"
+      },
+      "toast": {
+        "create_success": "Profile created successfully.",
+        "create_error": "Failed to create profile.",
+        "update_success": "Profile updated successfully.",
+        "update_error": "Failed to update profile."
+      },
       "scenario": {
-        "deleted_scenario": "(deleted scenario)",
-        "create_new": "Create a new scenario",
+        "section_title": "Scenario",
+        "section_description": "Bind this profile to a connection scenario, applied automatically when the profile activates. Optionally schedule different scenarios by time of day.",
+        "default_label": "Default scenario",
+        "default_hint": "Applied when this profile activates, and used as the fallback for any time not covered by the schedule below.",
+        "schedule_toggle_label": "Schedule by time of day",
+        "schedule_toggle_hint": "Switch scenarios automatically on a daily timetable.",
+        "add_block": "Add window",
+        "remove_block_aria": "Remove window",
+        "block_label": "Window {{index}}",
         "start_label": "Start",
         "end_label": "End",
         "block_scenario_label": "Scenario",
+        "active_now_line": "Right now → {{scenario}}",
+        "active_now_line_with_next": "Right now → {{scenario}} · next change {{time}}",
+        "otherwise_label": "Otherwise",
+        "entries_cap_hint": "Up to {{max}} time windows. Remove one to add another.",
+        "empty_schedule_hint": "No windows yet — this behaves the same as just using {{name}}.",
         "overlap_warning": "This window overlaps another. When windows overlap, the topmost one wins.",
-        "overnight_hint": "Ends next day",
-        "summary_line": "{{time}} → {{scenario}}",
-        "time_range": "{{start}}–{{end}}",
-        "move_up_aria": "Move window up",
-        "move_down_aria": "Move window down",
-        "expand_rule_aria": "Edit window",
-        "remove_block_aria": "Remove window",
-        "block_label": "Window {{index}}",
         "schedule_invalid": "Fix the highlighted schedule entries before saving.",
+        "deleted_scenario": "(deleted scenario)",
         "block_errors": {
           "invalid_start": "Enter a valid start time (HH:MM).",
           "invalid_end": "Enter a valid end time (HH:MM).",
           "zero_length": "Start and end times must differ.",
           "no_days": "Select at least one day."
-        }
+        },
+        "summary_line": "{{time}} → {{scenario}}",
+        "time_range": "{{start}}–{{end}}",
+        "move_up_aria": "Move window up",
+        "move_down_aria": "Move window down",
+        "expand_rule_aria": "Edit window",
+        "overnight_hint": "Ends next day",
+        "create_new": "Create a new scenario"
+      },
+      "loading_current": "Reading SIM…",
+      "advanced": {
+        "title": "Advanced",
+        "summary_imei": "IMEI override",
+        "summary_ttl": "TTL {{value}}",
+        "summary_hl": "HL {{value}}"
+      },
+      "back_to_list": "Back to profiles",
+      "edit_loading": "Loading profile…",
+      "steps": {
+        "nav_aria": "Profile steps",
+        "identity_label": "Identity & Carrier",
+        "identity_short": "Identity",
+        "apn_short": "APN",
+        "apn_label": "APN & Connection",
+        "advanced_label": "Advanced",
+        "advanced_short": "Advanced",
+        "advanced_desc": "Rarely needed. Leave these untouched unless you specifically need to change them.",
+        "scenario_label": "Connection Scenario",
+        "scenario_short": "Scenario",
+        "review_short": "Review",
+        "review_label": "Review",
+        "scenario_desc": "Choose the scenario applied when this profile activates, and optionally schedule changes through the day.",
+        "optional": "Optional",
+        "step_of": "Step {{current}} of {{total}}",
+        "state_current": "current step",
+        "state_complete": "completed",
+        "state_error": "has errors",
+        "state_upcoming": "upcoming"
+      },
+      "sections": {
+        "identity_title": "Identity",
+        "identity_desc": "Name this profile and pick the carrier it is for.",
+        "apn_title": "APN & Connection",
+        "apn_desc": "How the modem connects to the carrier data network.",
+        "advanced_title": "Advanced",
+        "advanced_desc": "Rarely needed. Change these only if you know you must."
+      },
+      "summary": {
+        "title": "Preview",
+        "desc": "How this profile reads in your registry, and what it changes when activated.",
+        "untitled": "Untitled profile",
+        "reboot_note": "Activating reboots the modem to apply the IMEI change."
+      },
+      "discard_dialog": {
+        "title": "Discard changes?",
+        "description": "You have unsaved changes. Leaving now will discard them.",
+        "confirm": "Discard",
+        "keep": "Keep editing"
+      },
+      "add_title": "Add Profile",
+      "add_description": "Add a new cellular profile to your device.",
+      "edit_description_simple": "Update this cellular profile, then save your changes.",
+      "load_from_sim": "Load from SIM",
+      "loaded_from_sim": "Loaded current settings from SIM",
+      "save_failed": "Failed to save profile",
+      "profile_added": "Profile added",
+      "profile_updated": "Profile updated",
+      "submit_add": "Submit",
+      "submit_edit": "Save changes",
+      "cancel": "Cancel",
+      "next": "Next",
+      "clear": "Clear",
+      "tab_network": "Network",
+      "network_desc": "How the modem connects to the carrier data network.",
+      "identity_load_hint": "Name this profile and pick the carrier it is for.",
+      "sim_iccid_placeholder_inline": "Auto-detect or enter ICCID",
+      "sim_iccid_hint_inline": "Identifies which SIM this profile is for.",
+      "mno_hint": "You may select pre-configured mobile network operators here.",
+      "cid_default_option": "CID 1 (default)",
+      "scenario_desc_inline": "Choose the scenario this profile runs, and optionally switch scenario at set times of day.",
+      "default_scenario_label": "Default Scenario",
+      "default_scenario_hint": "Runs whenever no schedule window is active.",
+      "create_scenario_option": "Create new scenario",
+      "schedule_inline_label": "Time-based schedule",
+      "schedule_inline_hint": "Switch scenario inside up to two daily windows.",
+      "windows_empty": "No windows yet. Add one to switch scenario at a set time.",
+      "window_label": "Window {{index}}",
+      "window_remove_aria": "Remove window {{index}}",
+      "window_from": "From",
+      "window_to": "To",
+      "windows_count": "{{count}} of {{max}} windows",
+      "add_window": "Add window",
+      "review_desc_add": "Review your profile, then add it to the device.",
+      "review_desc_edit": "Review your profile, then save your changes.",
+      "review_edit_aria": "Edit",
+      "review": {
+        "section_identity": "Identity",
+        "section_network": "Network",
+        "section_scenario": "Scenario",
+        "profile_name": "Profile Name",
+        "sim_iccid": "SIM ICCID",
+        "all_sims": "All SIMs",
+        "operator": "Operator",
+        "apn": "APN",
+        "ip_protocol": "IP Protocol",
+        "profile_slot": "Profile Slot",
+        "cid_value": "CID {{cid}}",
+        "cid_value_default": "CID {{cid}} (default)",
+        "preferred_imei": "Preferred IMEI",
+        "ttl_hl": "TTL / Hop Limit",
+        "default": "Default",
+        "schedule": "Schedule",
+        "schedule_on_no_windows": "On, no windows",
+        "schedule_off": "Off",
+        "window_value": "{{scenario}} · {{start}}–{{end}}",
+        "not_set": "Not set"
+      },
+      "pdp_inline": {
+        "ipv4": "IPv4",
+        "ipv6": "IPv6",
+        "dual": "IPv4 & IPv6"
       }
+    },
+    "activate_dialog": {
+      "title": "Activate Profile",
+      "description": "Apply \"{{name}}\" to the modem? This will update APN, TTL/HL, and IMEI settings as configured in the profile. Unchanged settings will be skipped.",
+      "confirm": "Activate"
+    },
+    "deactivate_dialog": {
+      "title": "Deactivate Profile",
+      "description": "Clear the active profile marker? The modem's current settings (APN, IMEI, TTL) will not be reverted — only the \"Active\" badge will be removed.",
+      "confirm": "Deactivate",
+      "deactivating": "Deactivating…"
+    },
+    "apply_dialog": {
+      "title": "Applying Profile",
+      "status_badge": {
+        "applying": "Applying…",
+        "complete": "Complete",
+        "partial": "Partial",
+        "failed": "Failed"
+      },
+      "step_labels": {
+        "apn": "APN Configuration",
+        "ttl_hl": "TTL / Hop Limit",
+        "imei": "IMEI",
+        "scenario": "Connection Scenario"
+      },
+      "reboot_notice": "Modem is restarting to apply IMEI change. Dashboard will reconnect automatically.",
+      "step_state_unchanged": "Unchanged",
+      "preparing": "Preparing…",
+      "step_progress": "Step {{current}} of {{total}}",
+      "complete_headline": "Profile active",
+      "complete_sub": "All applicable settings are now on the modem.",
+      "partial_headline": "Activated with skips",
+      "partial_sub": "Some steps were skipped. Review the details below.",
+      "failed_headline": "Activation failed",
+      "failed_sub": "The modem was not fully reconfigured.",
+      "details_label": "Steps"
+    },
+    "empty_state": {
+      "title": "No Custom Profiles",
+      "description": "Manage your custom SIM profiles here.",
+      "description_full": "You have not created any custom SIM profiles yet. Use the form to create your first profile.",
+      "refresh": "Refresh",
+      "card_title": "Custom SIM Profiles",
+      "card_description": "Saved bundles of APN, IMEI, and TTL settings applied to the modem in one step.",
+      "teaching_headline": "No profiles yet",
+      "teaching_body": "A Custom SIM Profile bundles APN name, IP protocol, TTL/HL overrides, and an optional IMEI into one saved preset. Activating it applies every setting at once, so switching carriers or SIM slots takes seconds instead of manual re-entry.",
+      "cta_new": "New Profile",
+      "cta_refresh": "Refresh"
+    },
+    "pills": {
+      "ip_v4": "IPv4",
+      "ip_v6": "IPv6",
+      "ip_dual": "IPv4v6",
+      "apn": "APN {{name}}",
+      "apn_default": "Default APN",
+      "cid": "CID {{cid}}",
+      "ttl": "TTL {{value}}",
+      "hl": "HL {{value}}",
+      "imei_override": "IMEI override"
+    },
+    "active_card": {
+      "none_title": "No active profile",
+      "none_description": "The modem is using its current settings. Activate a saved profile to apply a bundle.",
+      "subtitle": "Applied to the modem now",
+      "subtitle_with_mno": "Applied now · {{mno}}",
+      "scenario_default": "Scenario: {{name}}",
+      "scenario_scheduled": "Scenario: {{name}} (scheduled)",
+      "mismatch_note": "This profile was built for a different SIM than the one inserted now. Reactivate it for this SIM, or activate the profile that matches.",
+      "edit_button": "Edit"
+    },
+    "list": {
+      "new_button": "New",
+      "bound_sim": "Bound to SIM {{iccid}}",
+      "detail_unavailable": "Could not load this profile’s settings.",
+      "only_active_hint": "Your only profile is the active one. Create another to switch between setups."
+    },
+    "edit": {
+      "not_found_title": "Profile not found",
+      "not_found_desc": "This profile may have been deleted. Return to your saved profiles."
+    },
+    "card": {
+      "label_iccid": "SIM",
+      "label_updated": "Updated"
     }
   },
   "scenarios": {

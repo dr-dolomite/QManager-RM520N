@@ -16,7 +16,6 @@ const TICK_INTERVAL_MS = 60_000;
 
 export interface UseActiveProfileReturn {
   activeProfile: ProfileSummary | null;
-  isVerizonActive: boolean;
   isLoading: boolean;
   refresh: () => void;
   // --- Scenario schedule lock (display-only; device cron is authoritative) ---
@@ -92,7 +91,6 @@ export function useActiveProfile(): UseActiveProfileReturn {
 
   return {
     activeProfile,
-    isVerizonActive: activeProfile?.mno === "Verizon",
     isLoading,
     refresh: fetchActive,
     scheduleLocked,

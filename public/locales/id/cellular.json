@@ -79,41 +79,355 @@
     }
   },
   "custom_profiles": {
-    "form": {
-      "fields": {
-        "mno_custom": "Kustom"
+    "page": {
+      "title": "Profil SIM Kustom",
+      "description": "Gabungkan pengaturan APN, IMEI, dan TTL/HL ke dalam profil sekali klik",
+      "error_load_failed": "Gagal memuat profil. Periksa koneksi dan coba lagi."
+    },
+    "view": {
+      "title": "Profil Tersimpan",
+      "description": "Kelola profil SIM kustom Anda.",
+      "count_one": "{{count}} Profil Tersimpan",
+      "count_other": "{{count}} Profil Tersimpan",
+      "subtitle": "Aktifkan, edit, atau hapus profil seluler di perangkat ini.",
+      "activating": "Mengaktifkan",
+      "scenario_scheduled": "{{scenario}} sesuai jadwal harian",
+      "scenario_always_on": "{{scenario}}, selalu aktif",
+      "delete_description": "Tindakan ini menghapus profil dari perangkat. Setiap jadwal yang terikat padanya akan dihapus. Tindakan ini tidak dapat dibatalkan.",
+      "delete_keep": "Pertahankan profil",
+      "mismatch_note": "SIM di modem tidak cocok dengan ICCID profil ini. Perangkat tetap menggunakan pengaturan saat ini hingga SIM yang cocok dipasang.",
+      "toast": {
+        "deactivated": "{{name}} dinonaktifkan",
+        "deactivate_error": "Gagal menonaktifkan profil",
+        "deleted": "{{name}} dihapus",
+        "delete_error": "Gagal menghapus profil"
       },
-      "mno_hint": "Anda dapat memilih operator jaringan seluler yang telah dikonfigurasi di sini.",
-      "default_scenario_label": "Skenario Default",
-      "default_scenario_hint": "Berjalan kapan pun tidak ada jendela jadwal yang aktif.",
-      "schedule_inline_label": "Jadwal berbasis waktu",
-      "schedule_inline_hint": "Ganti skenario dalam maksimal dua jendela harian.",
-      "windows_empty": "Belum ada jendela. Tambahkan satu untuk mengganti skenario pada waktu tertentu.",
-      "windows_count": "{{count}} dari {{max}} jendela",
-      "add_window": "Tambah jendela",
+      "delete_title": "Hapus “{{name}}”?",
+      "audit": {
+        "applied": "Diterapkan pukul {{time}}",
+        "partial": "Penerapan sebagian pukul {{time}}",
+        "failed": "Penerapan gagal pukul {{time}}"
+      }
+    },
+    "table": {
+      "headers": {
+        "profile": "Profil",
+        "status": "Status",
+        "last_updated": "Terakhir Diperbarui",
+        "actions": ""
+      },
+      "status_badge": {
+        "active": "Aktif",
+        "inactive": "Nonaktif",
+        "sim_mismatch": "SIM Tidak Sesuai"
+      },
+      "pagination": {
+        "total_one": "{{count}} Total profil",
+        "total_other": "{{count}} Total profil",
+        "page_info": "halaman {{current}} dari {{total}}",
+        "previous": "Sebelumnya",
+        "next": "Selanjutnya"
+      },
+      "empty_row": "Belum ada profil. Buat untuk memulai.",
+      "actions_menu": {
+        "open_menu": "Buka Menu",
+        "edit": "Edit",
+        "activate": "Aktifkan",
+        "deactivate": "Nonaktifkan",
+        "delete": "Hapus"
+      },
+      "delete_confirm": {
+        "title": "Hapus Profil",
+        "description": "Apakah Anda yakin ingin menghapus \"{{name}}\"? Tindakan ini tidak dapat dibatalkan. Menghapus profil ini tidak akan mengubah konfigurasi modem Anda saat ini.",
+        "confirm_button": "Hapus",
+        "deleting": "Menghapus.."
+      }
+    },
+    "form": {
+      "create_title": "Buat Profil SIM Kustom",
+      "create_description": "Buat profil SIM kustom dengan pengaturan APN, TTL, dan IMEI tertentu",
+      "edit_title": "Edit Profil",
+      "edit_description": "Mengedit \"{{name}}\". Perbarui kolom di bawah ini.",
+      "load_current_button": "Muat SIM Saat Ini",
+      "fields": {
+        "profile_name_label": "Nama Profil ",
+        "profile_name_placeholder": "Profil LTE Saya",
+        "profile_name_required": "Nama Profile diperlukan.",
+        "sim_iccid_required": "SIM ICCID diperlukan.",
+        "sim_iccid_duplicate": "Profil dengan SIM ICCID ini sudah ada.",
+        "apn_name_required": "Nama APN diperlukan.",
+        "sim_iccid_label": "SIM ICCID",
+        "sim_iccid_placeholder": "Isi otomatis dari SIM saat ini",
+        "mno_label": "Operator Jaringan Seluler",
+        "mno_placeholder": "Pilih operator…",
+        "mno_custom": "Kustom",
+        "reuse_apn_label": "Profil APN",
+        "reuse_apn_placeholder": "Pilih APN tersimpan…",
+        "reuse_apn_custom": "Kustom",
+        "use_saved_apn": "Gunakan APN tersimpan saya ({{apn}})",
+        "apn_name_label": "Nama APN",
+        "apn_name_placeholder": "internet",
+        "ip_protocol_label": "Protokol IP",
+        "ip_protocol_ipv4": "Hanya IPv4",
+        "ip_protocol_ipv6": "Hanya IPv6",
+        "ip_protocol_dual": "IPv4 + IPv6 (Dual Stack)",
+        "cid_label": "Slot Profil (CID)",
+        "cid_error": "CID Harus 1–15.",
+        "imei_label": "IMEI yang Diutamakan",
+        "imei_placeholder": "Biarkan kosong untuk Menggunakan IMEI saat ini",
+        "imei_error": "IMEI harus 15 digit.",
+        "ttl_label": "Nilai TTL",
+        "ttl_error": "TTL Harus 0–255.",
+        "hl_label": "Limit Hop",
+        "hl_error": "HL Harus 0–255.",
+        "sim_iccid_hint": "Biarkan kosong untuk menerapkan profil ini ke semua SIM.",
+        "imei_danger": "Mengubah IMEI akan menulis ulang identitas modem dan memulai ulang modem saat aktivasi. Biarkan kosong untuk mempertahankan IMEI saat ini."
+      },
+      "buttons": {
+        "create_submit": "Buat Profil",
+        "update_submit": "Perbarui Profil",
+        "reset": "Atur Ulang",
+        "back": "Kembali",
+        "next": "Lanjut"
+      },
+      "toast": {
+        "create_success": "Profil berhasil dibuat.",
+        "create_error": "Gagal membuat profil",
+        "update_success": "Profil berhasil diperbarui",
+        "update_error": "Gagal memperbarui profil."
+      },
       "scenario": {
-        "deleted_scenario": "(skenario dihapus)",
-        "create_new": "Buat skenario baru",
+        "section_title": "Skenario",
+        "section_description": "Ikat profil ini ke skenario koneksi yang diterapkan otomatis saat profil diaktifkan. Opsional, atur jadwal skenario berbeda berdasarkan waktu.",
+        "default_label": "Skenario default",
+        "default_hint": "Diterapkan saat profil ini diaktifkan, dan digunakan sebagai fallback untuk waktu yang tidak tercakup oleh jadwal di bawah.",
+        "schedule_toggle_label": "Jadwalkan berdasarkan waktu",
+        "schedule_toggle_hint": "Ganti skenario secara otomatis sesuai jadwal harian.",
+        "add_block": "Tambah jendela",
+        "remove_block_aria": "Hapus jendela",
+        "block_label": "Jendela {{index}}",
         "start_label": "Mulai",
         "end_label": "Selesai",
         "block_scenario_label": "Skenario",
+        "empty_schedule_hint": "Belum ada jendela — perilakunya sama seperti hanya menggunakan {{name}}.",
         "overlap_warning": "Jendela ini tumpang tindih dengan jendela lain. Saat tumpang tindih, jendela paling atas yang berlaku.",
-        "overnight_hint": "Berakhir keesokan harinya",
-        "summary_line": "{{time}} → {{scenario}}",
-        "time_range": "{{start}}–{{end}}",
-        "move_up_aria": "Pindahkan jendela ke atas",
-        "move_down_aria": "Pindahkan jendela ke bawah",
-        "expand_rule_aria": "Edit jendela",
-        "remove_block_aria": "Hapus jendela",
-        "block_label": "Jendela {{index}}",
         "schedule_invalid": "Perbaiki entri jadwal yang disorot sebelum menyimpan.",
+        "deleted_scenario": "(skenario dihapus)",
         "block_errors": {
           "invalid_start": "Masukkan waktu mulai yang valid (HH:MM).",
           "invalid_end": "Masukkan waktu selesai yang valid (HH:MM).",
           "zero_length": "Waktu mulai dan selesai harus berbeda.",
           "no_days": "Pilih setidaknya satu hari."
-        }
+        },
+        "summary_line": "{{time}} → {{scenario}}",
+        "time_range": "{{start}}–{{end}}",
+        "move_up_aria": "Pindahkan jendela ke atas",
+        "move_down_aria": "Pindahkan jendela ke bawah",
+        "expand_rule_aria": "Edit jendela",
+        "active_now_line": "Sekarang → {{scenario}}",
+        "active_now_line_with_next": "Sekarang → {{scenario}} · berikutnya {{time}}",
+        "overnight_hint": "Berakhir keesokan harinya",
+        "otherwise_label": "Selain itu",
+        "entries_cap_hint": "Maksimal {{max}} jendela waktu. Hapus satu untuk menambah yang lain.",
+        "create_new": "Buat skenario baru"
+      },
+      "loading_current": "Membaca SIM…",
+      "back_to_list": "Kembali ke profil",
+      "edit_loading": "Memuat profil…",
+      "steps": {
+        "nav_aria": "Langkah profil",
+        "identity_label": "Identitas & Operator",
+        "identity_short": "Identitas",
+        "apn_short": "APN",
+        "apn_label": "APN & Koneksi",
+        "advanced_label": "Lanjutan",
+        "advanced_short": "Lanjutan",
+        "advanced_desc": "Jarang diperlukan. Biarkan apa adanya kecuali Anda memang perlu mengubahnya.",
+        "scenario_label": "Skenario Koneksi",
+        "scenario_short": "Skenario",
+        "review_short": "Tinjau",
+        "review_label": "Tinjau",
+        "scenario_desc": "Pilih skenario yang diterapkan saat profil ini aktif, dan opsional jadwalkan perubahan sepanjang hari.",
+        "optional": "Opsional",
+        "step_of": "Langkah {{current}} dari {{total}}",
+        "state_current": "langkah saat ini",
+        "state_complete": "selesai",
+        "state_error": "ada kesalahan",
+        "state_upcoming": "berikutnya"
+      },
+      "sections": {
+        "identity_title": "Identitas",
+        "identity_desc": "Beri nama profil ini dan pilih operator yang dituju.",
+        "apn_title": "APN & Koneksi",
+        "apn_desc": "Cara modem terhubung ke jaringan data operator.",
+        "advanced_title": "Lanjutan",
+        "advanced_desc": "Jarang diperlukan. Ubah hanya jika Anda yakin perlu."
+      },
+      "summary": {
+        "title": "Pratinjau",
+        "desc": "Tampilan profil ini di registri Anda, dan apa yang diubahnya saat diaktifkan.",
+        "untitled": "Profil tanpa nama",
+        "reboot_note": "Mengaktifkan akan memulai ulang modem untuk menerapkan perubahan IMEI."
+      },
+      "advanced": {
+        "title": "Lanjutan",
+        "summary_imei": "Penggantian IMEI",
+        "summary_ttl": "TTL {{value}}",
+        "summary_hl": "HL {{value}}"
+      },
+      "discard_dialog": {
+        "title": "Buang perubahan?",
+        "description": "Anda memiliki perubahan yang belum disimpan. Keluar sekarang akan membuangnya.",
+        "confirm": "Buang",
+        "keep": "Tetap edit"
+      },
+      "add_title": "Tambah Profil",
+      "add_description": "Tambahkan profil seluler baru ke perangkat Anda.",
+      "edit_description_simple": "Perbarui profil seluler ini, lalu simpan perubahan Anda.",
+      "load_from_sim": "Muat dari SIM",
+      "loaded_from_sim": "Memuat pengaturan saat ini dari SIM",
+      "save_failed": "Gagal menyimpan profil",
+      "profile_added": "Profil ditambahkan",
+      "profile_updated": "Profil diperbarui",
+      "submit_add": "Kirim",
+      "submit_edit": "Simpan perubahan",
+      "cancel": "Batal",
+      "next": "Berikutnya",
+      "clear": "Bersihkan",
+      "tab_network": "Jaringan",
+      "network_desc": "Cara modem terhubung ke jaringan data operator.",
+      "identity_load_hint": "Beri nama profil ini dan pilih operator yang dituju.",
+      "sim_iccid_placeholder_inline": "Deteksi otomatis atau masukkan ICCID",
+      "sim_iccid_hint_inline": "Menentukan SIM mana yang dituju profil ini.",
+      "mno_hint": "Anda dapat memilih operator jaringan seluler yang telah dikonfigurasi di sini.",
+      "cid_default_option": "CID 1 (default)",
+      "scenario_desc_inline": "Pilih skenario yang dijalankan profil ini, dan opsional ganti skenario pada waktu tertentu dalam sehari.",
+      "default_scenario_label": "Skenario Default",
+      "default_scenario_hint": "Berjalan kapan pun tidak ada jendela jadwal yang aktif.",
+      "create_scenario_option": "Buat skenario baru",
+      "schedule_inline_label": "Jadwal berbasis waktu",
+      "schedule_inline_hint": "Ganti skenario dalam maksimal dua jendela harian.",
+      "windows_empty": "Belum ada jendela. Tambahkan satu untuk mengganti skenario pada waktu tertentu.",
+      "window_label": "Jendela {{index}}",
+      "window_remove_aria": "Hapus jendela {{index}}",
+      "window_from": "Dari",
+      "window_to": "Sampai",
+      "windows_count": "{{count}} dari {{max}} jendela",
+      "add_window": "Tambah jendela",
+      "review_desc_add": "Tinjau profil Anda, lalu tambahkan ke perangkat.",
+      "review_desc_edit": "Tinjau profil Anda, lalu simpan perubahan Anda.",
+      "review_edit_aria": "Edit",
+      "review": {
+        "section_identity": "Identitas",
+        "section_network": "Jaringan",
+        "section_scenario": "Skenario",
+        "profile_name": "Nama Profil",
+        "sim_iccid": "SIM ICCID",
+        "all_sims": "Semua SIM",
+        "operator": "Operator",
+        "apn": "APN",
+        "ip_protocol": "Protokol IP",
+        "profile_slot": "Slot Profil",
+        "cid_value": "CID {{cid}}",
+        "cid_value_default": "CID {{cid}} (default)",
+        "preferred_imei": "IMEI Pilihan",
+        "ttl_hl": "TTL / Hop Limit",
+        "default": "Default",
+        "schedule": "Jadwal",
+        "schedule_on_no_windows": "Aktif, tanpa jendela",
+        "schedule_off": "Nonaktif",
+        "window_value": "{{scenario}} · {{start}}–{{end}}",
+        "not_set": "Belum diatur"
+      },
+      "pdp_inline": {
+        "ipv4": "IPv4",
+        "ipv6": "IPv6",
+        "dual": "IPv4 & IPv6"
       }
+    },
+    "activate_dialog": {
+      "title": "Aktifkan Profil",
+      "description": "Terapkan \"{{name}}\" ke modem? Ini akan memperbarui pengaturan APN, TTL/HL, dan IMEI sesuai konfigurasi profil. Pengaturan yang tidak berubah akan dilewati.",
+      "confirm": "Aktifkan"
+    },
+    "deactivate_dialog": {
+      "title": "Nonaktifkan Profil",
+      "description": "Hapus penanda profil aktif? Pengaturan modem saat ini (APN, IMEI, TTL) tidak akan dikembalikan — hanya label \"Aktif\" yang akan dihapus",
+      "confirm": "Menonaktifkan",
+      "deactivating": "Menonaktifkan…"
+    },
+    "apply_dialog": {
+      "title": "Menerapkan Profil",
+      "status_badge": {
+        "applying": "Menerapkan…",
+        "complete": "Selesai",
+        "partial": "Sebagian",
+        "failed": "Gagal"
+      },
+      "step_labels": {
+        "apn": "Konfigurasi APN",
+        "ttl_hl": "TTL / Hop Limit",
+        "imei": "IMEI",
+        "scenario": "Skenario Koneksi"
+      },
+      "reboot_notice": "Modem sedang memulai ulang untuk menerapkan perubahan IMEI. Dashboard akan tersambung kembali secara otomatis.",
+      "step_state_unchanged": "Tidak berubah",
+      "preparing": "Menyiapkan…",
+      "step_progress": "Langkah {{current}} dari {{total}}",
+      "complete_headline": "Profil aktif",
+      "complete_sub": "Semua pengaturan yang berlaku kini ada di modem.",
+      "partial_headline": "Diaktifkan dengan pelewatan",
+      "partial_sub": "Beberapa langkah dilewati. Tinjau detail di bawah.",
+      "failed_headline": "Aktivasi gagal",
+      "failed_sub": "Modem tidak sepenuhnya dikonfigurasi ulang.",
+      "details_label": "Langkah"
+    },
+    "pills": {
+      "ip_v4": "IPv4",
+      "ip_v6": "IPv6",
+      "ip_dual": "IPv4v6",
+      "apn": "APN {{name}}",
+      "apn_default": "APN Default",
+      "cid": "CID {{cid}}",
+      "ttl": "TTL {{value}}",
+      "hl": "HL {{value}}",
+      "imei_override": "Penggantian IMEI"
+    },
+    "empty_state": {
+      "title": "Tidak ada profil",
+      "description": "Kelola profil SIM kustom Anda di sini.",
+      "description_full": "Anda belum membuat profil SIM kustom. Gunakan formulir untuk membuat profil pertama Anda.",
+      "refresh": "Muat Ulang",
+      "card_title": "Profil SIM Kustom",
+      "card_description": "Bundel APN, IMEI, dan pengaturan TTL yang diterapkan ke modem dalam satu langkah.",
+      "teaching_headline": "Belum ada profil",
+      "teaching_body": "Profil SIM Kustom menggabungkan nama APN, protokol IP, penggantian TTL/HL, dan IMEI opsional ke dalam satu preset tersimpan. Mengaktifkannya menerapkan semua pengaturan sekaligus, sehingga berpindah operator atau slot SIM hanya butuh detik.",
+      "cta_new": "Profil Baru",
+      "cta_refresh": "Muat Ulang"
+    },
+    "edit": {
+      "not_found_title": "Profil tidak ditemukan",
+      "not_found_desc": "Profil ini mungkin telah dihapus. Kembali ke profil tersimpan Anda."
+    },
+    "active_card": {
+      "none_title": "Tidak ada profil aktif",
+      "none_description": "Modem menggunakan pengaturan saat ini. Aktifkan profil tersimpan untuk menerapkan bundel.",
+      "subtitle": "Diterapkan ke modem sekarang",
+      "subtitle_with_mno": "Diterapkan sekarang · {{mno}}",
+      "mismatch_note": "Profil ini dibuat untuk SIM yang berbeda dari yang terpasang sekarang. Aktifkan ulang untuk SIM ini, atau aktifkan profil yang sesuai.",
+      "edit_button": "Edit",
+      "scenario_default": "Skenario: {{name}}",
+      "scenario_scheduled": "Skenario: {{name}} (terjadwal)"
+    },
+    "card": {
+      "label_iccid": "SIM",
+      "label_updated": "Diperbarui"
+    },
+    "list": {
+      "new_button": "Baru",
+      "bound_sim": "Terikat ke SIM {{iccid}}",
+      "detail_unavailable": "Tidak dapat memuat pengaturan profil ini.",
+      "only_active_hint": "Satu-satunya profil Anda adalah yang sedang aktif. Buat profil lain untuk berpindah pengaturan."
     }
   },
   "scenarios": {

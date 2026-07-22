@@ -79,41 +79,355 @@
     }
   },
   "custom_profiles": {
-    "form": {
-      "fields": {
-        "mno_custom": "自訂"
+    "page": {
+      "title": "自訂 SIM 設定檔",
+      "description": "將 APN、IMEI 和 TTL/HL 設定打包為一鍵式設定檔。",
+      "error_load_failed": "無法載入設定檔。請檢查連線並重試。"
+    },
+    "view": {
+      "title": "已儲存的設定檔",
+      "description": "管理您的自訂 SIM 設定檔。",
+      "count_one": "已儲存 {{count}} 個設定檔",
+      "count_other": "已儲存 {{count}} 個設定檔",
+      "subtitle": "在此裝置上啟用、編輯或移除蜂窩設定檔。",
+      "activating": "正在啟用",
+      "scenario_scheduled": "{{scenario}}，按每日計劃",
+      "scenario_always_on": "{{scenario}}，始終啟用",
+      "delete_description": "此操作將從裝置中移除該設定檔。繫結到它的任何計劃都將被清除。此操作無法撤銷。",
+      "delete_keep": "保留設定檔",
+      "mismatch_note": "modem 中的 SIM 卡與此設定檔的 ICCID 不匹配。在插入匹配的 SIM 卡之前，裝置將保持當前設定。",
+      "toast": {
+        "deactivated": "已停用 {{name}}",
+        "deactivate_error": "停用設定檔失敗",
+        "deleted": "已刪除 {{name}}",
+        "delete_error": "刪除設定檔失敗"
       },
-      "mno_hint": "您可以在此處選擇預配置的行動網路運營商。",
-      "default_scenario_label": "預設場景",
-      "default_scenario_hint": "在沒有任何計劃時段處於活動狀態時執行。",
-      "schedule_inline_label": "基於時間的計劃",
-      "schedule_inline_hint": "在最多兩個每日時段內切換場景。",
-      "windows_empty": "尚無時段。新增一個以在設定時間切換場景。",
-      "windows_count": "{{max}} 個時段中的 {{count}} 個",
-      "add_window": "新增時段",
+      "delete_title": "刪除“{{name}}”？",
+      "audit": {
+        "applied": "已於 {{time}} 套用",
+        "partial": "已於 {{time}} 部分套用",
+        "failed": "{{time}} 套用失敗"
+      }
+    },
+    "table": {
+      "headers": {
+        "profile": "設定檔",
+        "status": "狀態",
+        "last_updated": "最後更新",
+        "actions": ""
+      },
+      "status_badge": {
+        "active": "活動",
+        "inactive": "未啟用",
+        "sim_mismatch": "SIM 不匹配"
+      },
+      "pagination": {
+        "total_one": "共 {{count}} 個設定檔",
+        "total_other": "共 {{count}} 個設定檔",
+        "page_info": "第 {{current}} 頁，共 {{total}} 頁",
+        "previous": "上一頁",
+        "next": "下一頁"
+      },
+      "empty_row": "暫無設定檔，請建立一個以開始使用。",
+      "actions_menu": {
+        "open_menu": "開啟選單",
+        "edit": "編輯",
+        "activate": "啟用",
+        "deactivate": "停用",
+        "delete": "刪除"
+      },
+      "delete_confirm": {
+        "title": "刪除設定檔",
+        "description": "確定要刪除「{{name}}」嗎？此操作不可撤銷。刪除此設定檔不會變更當前調變解調器設定。",
+        "confirm_button": "刪除",
+        "deleting": "刪除中…"
+      }
+    },
+    "form": {
+      "create_title": "建立自訂 SIM 設定檔",
+      "create_description": "使用特定的 APN、TTL 和 IMEI 設定建立自訂 SIM 設定檔。",
+      "edit_title": "編輯設定檔",
+      "edit_description": "正在編輯「{{name}}」。請更新以下欄位。",
+      "load_current_button": "載入當前 SIM",
+      "fields": {
+        "profile_name_label": "設定檔名稱",
+        "profile_name_placeholder": "我的 LTE 設定檔",
+        "profile_name_required": "設定檔名稱為必填項。",
+        "sim_iccid_required": "SIM ICCID 為必填項。",
+        "sim_iccid_duplicate": "已存在使用此 SIM ICCID 的設定檔。",
+        "apn_name_required": "APN 名稱為必填項。",
+        "sim_iccid_label": "SIM ICCID",
+        "sim_iccid_placeholder": "自動從當前 SIM 填充",
+        "mno_label": "行動網路運營商",
+        "mno_placeholder": "選擇運營商…",
+        "mno_custom": "自訂",
+        "reuse_apn_label": "APN 配置",
+        "reuse_apn_placeholder": "選擇已儲存的 APN…",
+        "reuse_apn_custom": "自訂",
+        "use_saved_apn": "使用我已儲存的 APN（{{apn}}）",
+        "apn_name_label": "APN 名稱",
+        "apn_name_placeholder": "internet",
+        "ip_protocol_label": "IP 協議",
+        "ip_protocol_ipv4": "僅 IPv4",
+        "ip_protocol_ipv6": "僅 IPv6",
+        "ip_protocol_dual": "IPv4 + IPv6 (雙棧)",
+        "cid_label": "設定檔槽位 (CID)",
+        "cid_error": "CID 必須為 1–15。",
+        "imei_label": "首選 IMEI",
+        "imei_placeholder": "留空以保留當前 IMEI",
+        "imei_error": "IMEI 必須為 15 位數字。",
+        "ttl_label": "TTL 值",
+        "ttl_error": "TTL 必須為 0–255。",
+        "hl_label": "跳數限制",
+        "hl_error": "HL 必須為 0–255。",
+        "sim_iccid_hint": "留空可將此配置套用於任意 SIM 卡。",
+        "imei_danger": "更改 IMEI 會重寫數據機標識，並在啟用時重啟數據機。留空以保留當前 IMEI。"
+      },
+      "buttons": {
+        "create_submit": "建立設定檔",
+        "update_submit": "更新設定檔",
+        "reset": "重置",
+        "back": "上一步",
+        "next": "下一步"
+      },
+      "toast": {
+        "create_success": "設定檔建立成功。",
+        "create_error": "建立設定檔失敗。",
+        "update_success": "設定檔更新成功。",
+        "update_error": "更新設定檔失敗。"
+      },
       "scenario": {
-        "deleted_scenario": "（已刪除的場景）",
-        "create_new": "建立新場景",
+        "section_title": "場景",
+        "section_description": "將此配置繫結到連線場景，啟用時自動套用。可選擇按時段配置不同場景的定時切換。",
+        "default_label": "預設場景",
+        "default_hint": "啟用此配置時套用，並用作未被以下計劃覆蓋的時段的回退場景。",
+        "schedule_toggle_label": "按時段計劃",
+        "schedule_toggle_hint": "按每日時間表自動切換場景。",
+        "add_block": "新增時段",
+        "remove_block_aria": "刪除時段",
+        "block_label": "時段 {{index}}",
         "start_label": "開始",
         "end_label": "結束",
         "block_scenario_label": "場景",
+        "active_now_line": "當前 → {{scenario}}",
+        "active_now_line_with_next": "當前 → {{scenario}} · 下次切換 {{time}}",
+        "otherwise_label": "其他時間",
+        "entries_cap_hint": "最多 {{max}} 個時段。請先刪除一個再新增。",
+        "empty_schedule_hint": "暫無時段 — 效果與直接使用 {{name}} 相同。",
         "overlap_warning": "此時段與另一個時段重疊。重疊時，列表靠前的時段優先生效。",
-        "overnight_hint": "次日結束",
-        "summary_line": "{{time}} → {{scenario}}",
-        "time_range": "{{start}}–{{end}}",
-        "move_up_aria": "上移時段",
-        "move_down_aria": "下移時段",
-        "expand_rule_aria": "編輯時段",
-        "remove_block_aria": "刪除時段",
-        "block_label": "時段 {{index}}",
         "schedule_invalid": "請先修正高亮顯示的計劃時段再儲存。",
+        "deleted_scenario": "（已刪除的場景）",
         "block_errors": {
           "invalid_start": "請輸入有效的開始時間（HH:MM）。",
           "invalid_end": "請輸入有效的結束時間（HH:MM）。",
           "zero_length": "開始時間和結束時間不能相同。",
           "no_days": "請至少選擇一天。"
-        }
+        },
+        "summary_line": "{{time}} → {{scenario}}",
+        "time_range": "{{start}}–{{end}}",
+        "move_up_aria": "上移時段",
+        "move_down_aria": "下移時段",
+        "expand_rule_aria": "編輯時段",
+        "overnight_hint": "次日結束",
+        "create_new": "建立新場景"
+      },
+      "loading_current": "正在讀取 SIM…",
+      "advanced": {
+        "title": "高階",
+        "summary_imei": "IMEI 覆蓋",
+        "summary_ttl": "TTL {{value}}",
+        "summary_hl": "HL {{value}}"
+      },
+      "back_to_list": "返回配置列表",
+      "edit_loading": "正在載入配置…",
+      "steps": {
+        "nav_aria": "配置步驟",
+        "identity_label": "身份與運營商",
+        "identity_short": "身份",
+        "apn_short": "APN",
+        "apn_label": "APN 與連線",
+        "advanced_label": "高階",
+        "advanced_short": "高階",
+        "advanced_desc": "通常無需更改。除非確有需要，請保持預設。",
+        "scenario_label": "連線場景",
+        "scenario_short": "場景",
+        "review_short": "檢視",
+        "review_label": "檢視",
+        "scenario_desc": "選擇啟用此配置時套用的場景，並可按一天中的時間安排切換。",
+        "optional": "可選",
+        "step_of": "第 {{current}} 步，共 {{total}} 步",
+        "state_current": "當前步驟",
+        "state_complete": "已完成",
+        "state_error": "存在錯誤",
+        "state_upcoming": "待進行"
+      },
+      "sections": {
+        "identity_title": "標識",
+        "identity_desc": "為此配置命名並選擇對應的運營商。",
+        "apn_title": "APN 與連線",
+        "apn_desc": "數據機連線運營商資料網路的方式。",
+        "advanced_title": "高階",
+        "advanced_desc": "很少需要更改。僅在確有必要時修改。"
+      },
+      "summary": {
+        "title": "預覽",
+        "desc": "此配置在列表中的顯示方式，以及啟用時會更改的內容。",
+        "untitled": "未命名配置",
+        "reboot_note": "啟用將重啟數據機以套用 IMEI 更改。"
+      },
+      "discard_dialog": {
+        "title": "放棄更改？",
+        "description": "您有未儲存的更改。現在離開將放棄這些更改。",
+        "confirm": "放棄",
+        "keep": "繼續編輯"
+      },
+      "add_title": "新增設定檔",
+      "add_description": "向您的裝置新增新的蜂窩設定檔。",
+      "edit_description_simple": "更新此蜂窩設定檔，然後儲存更改。",
+      "load_from_sim": "從 SIM 載入",
+      "loaded_from_sim": "已從 SIM 載入當前設定",
+      "save_failed": "儲存設定檔失敗",
+      "profile_added": "已新增設定檔",
+      "profile_updated": "已更新設定檔",
+      "submit_add": "提交",
+      "submit_edit": "儲存更改",
+      "cancel": "取消",
+      "next": "下一步",
+      "clear": "清除",
+      "tab_network": "網路",
+      "network_desc": "modem 連線到運營商資料網路的方式。",
+      "identity_load_hint": "為此設定檔命名並選擇適用的運營商。",
+      "sim_iccid_placeholder_inline": "自動檢測或輸入 ICCID",
+      "sim_iccid_hint_inline": "標識此設定檔對應的 SIM 卡。",
+      "mno_hint": "您可以在此處選擇預配置的行動網路運營商。",
+      "cid_default_option": "CID 1（預設）",
+      "scenario_desc_inline": "選擇此設定檔執行的場景，並可選擇在一天中的設定時間切換場景。",
+      "default_scenario_label": "預設場景",
+      "default_scenario_hint": "在沒有任何計劃時段處於活動狀態時執行。",
+      "create_scenario_option": "新建場景",
+      "schedule_inline_label": "基於時間的計劃",
+      "schedule_inline_hint": "在最多兩個每日時段內切換場景。",
+      "windows_empty": "尚無時段。新增一個以在設定時間切換場景。",
+      "window_label": "時段 {{index}}",
+      "window_remove_aria": "移除時段 {{index}}",
+      "window_from": "從",
+      "window_to": "到",
+      "windows_count": "{{max}} 個時段中的 {{count}} 個",
+      "add_window": "新增時段",
+      "review_desc_add": "檢查您的設定檔，然後將其新增到裝置。",
+      "review_desc_edit": "檢查您的設定檔，然後儲存更改。",
+      "review_edit_aria": "編輯",
+      "review": {
+        "section_identity": "身份",
+        "section_network": "網路",
+        "section_scenario": "場景",
+        "profile_name": "設定檔名稱",
+        "sim_iccid": "SIM ICCID",
+        "all_sims": "所有 SIM 卡",
+        "operator": "運營商",
+        "apn": "APN",
+        "ip_protocol": "IP 協議",
+        "profile_slot": "設定檔槽位",
+        "cid_value": "CID {{cid}}",
+        "cid_value_default": "CID {{cid}}（預設）",
+        "preferred_imei": "首選 IMEI",
+        "ttl_hl": "TTL / 跳數限制",
+        "default": "預設",
+        "schedule": "計劃",
+        "schedule_on_no_windows": "已啟用，無時段",
+        "schedule_off": "已關閉",
+        "window_value": "{{scenario}} · {{start}}–{{end}}",
+        "not_set": "未設定"
+      },
+      "pdp_inline": {
+        "ipv4": "IPv4",
+        "ipv6": "IPv6",
+        "dual": "IPv4 & IPv6"
       }
+    },
+    "activate_dialog": {
+      "title": "啟用設定檔",
+      "description": "將「{{name}}」套用到調變解調器？這將按設定檔中的設定更新 APN、TTL/HL 和 IMEI。未變更的設定將被跳過。",
+      "confirm": "啟用"
+    },
+    "deactivate_dialog": {
+      "title": "停用設定檔",
+      "description": "清除活動設定檔標記？調變解調器當前的設定（APN、IMEI、TTL）不會恢復——僅移除「活動」標記。",
+      "confirm": "停用",
+      "deactivating": "停用中…"
+    },
+    "apply_dialog": {
+      "title": "正在套用設定檔",
+      "status_badge": {
+        "applying": "套用中…",
+        "complete": "完成",
+        "partial": "部分完成",
+        "failed": "失敗"
+      },
+      "step_labels": {
+        "apn": "APN 設定",
+        "ttl_hl": "TTL / 跳數限制",
+        "imei": "IMEI",
+        "scenario": "連線情境"
+      },
+      "reboot_notice": "調變解調器正在重啟以套用 IMEI 變更，儀表板將自動重新連線。",
+      "step_state_unchanged": "無變化",
+      "preparing": "準備中…",
+      "step_progress": "第 {{current}} / {{total}} 步",
+      "complete_headline": "配置已啟用",
+      "complete_sub": "所有適用的設定已套用到數據機。",
+      "partial_headline": "已啟用（部分跳過）",
+      "partial_sub": "部分步驟已跳過。請檢視下方詳情。",
+      "failed_headline": "啟用失敗",
+      "failed_sub": "數據機未完全重新配置。",
+      "details_label": "步驟"
+    },
+    "empty_state": {
+      "title": "暫無自訂設定檔",
+      "description": "在此管理您的自訂 SIM 設定檔。",
+      "description_full": "您尚未建立任何自訂 SIM 設定檔。請使用表單建立您的第一個設定檔。",
+      "refresh": "重新整理",
+      "card_title": "自訂 SIM 設定檔",
+      "card_description": "將 APN、IMEI 和 TTL 設定打包，一步套用到數據機。",
+      "teaching_headline": "尚無設定檔",
+      "teaching_body": "自訂 SIM 設定檔將 APN 名稱、IP 協議、TTL/HL 覆蓋和可選 IMEI 打包為一個已儲存的預設。啟用後一次性套用所有設定，切換運營商或 SIM 卡槽只需數秒。",
+      "cta_new": "新建設定檔",
+      "cta_refresh": "重新整理"
+    },
+    "pills": {
+      "ip_v4": "IPv4",
+      "ip_v6": "IPv6",
+      "ip_dual": "IPv4v6",
+      "apn": "APN {{name}}",
+      "apn_default": "預設 APN",
+      "cid": "CID {{cid}}",
+      "ttl": "TTL {{value}}",
+      "hl": "HL {{value}}",
+      "imei_override": "IMEI 覆蓋"
+    },
+    "active_card": {
+      "none_title": "無活動配置",
+      "none_description": "數據機正在使用當前設定。啟用已儲存的配置以套用一組設定。",
+      "subtitle": "已套用到數據機",
+      "subtitle_with_mno": "已套用 · {{mno}}",
+      "scenario_default": "場景：{{name}}",
+      "scenario_scheduled": "場景：{{name}}（已排程）",
+      "mismatch_note": "此配置是為另一張 SIM 卡建立的，與當前插入的 SIM 卡不同。請為當前 SIM 卡重新啟用，或啟用匹配的配置。",
+      "edit_button": "編輯"
+    },
+    "list": {
+      "new_button": "新建",
+      "bound_sim": "繫結到 SIM {{iccid}}",
+      "detail_unavailable": "無法載入此配置的設定。",
+      "only_active_hint": "您唯一的配置正是當前啟用的配置。建立另一個即可在不同設定間切換。"
+    },
+    "edit": {
+      "not_found_title": "未找到配置",
+      "not_found_desc": "該配置可能已被刪除。返回已儲存的配置。"
+    },
+    "card": {
+      "label_iccid": "SIM",
+      "label_updated": "更新時間"
     }
   },
   "scenarios": {

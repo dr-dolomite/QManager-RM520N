@@ -1,6 +1,8 @@
 "use client";
 
-import React from "react";
+import React, { useMemo } from "react";
+import { useTranslation } from "react-i18next";
+import { motion, useReducedMotion } from "motion/react";
 import {
   Dialog,
   DialogContent,
@@ -9,27 +11,46 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import {
-  TbCircleCheck,
-  TbCircleX,
-  TbLoader2,
-  TbClock,
-} from "react-icons/tb";
 import {
   CheckCircle2Icon,
-  Loader2Icon,
-  TriangleAlertIcon,
   XCircleIcon,
+  Loader2,
+  EllipsisIcon,
+  ClockIcon,
+  MinusCircleIcon,
+  RotateCwIcon,
+  TriangleAlertIcon,
 } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { EASE_OUT_EXPO } from "@/lib/motion";
 
 import type {
   ProfileApplyState,
+  ApplyStep,
   ApplyStepStatus,
 } from "@/types/sim-profile";
 
 // =============================================================================
-// ApplyProgressDialog — Shows step-by-step profile application progress
+// ApplyProgressDialog — the Sequenced Pipeline Dialog
+// =============================================================================
+// QManager's signature shape for irreversible, multi-step apply pipelines
+// (profile apply here; config-restore and language-install share it). A
+// justified modal — profile activation reconfigures a live modem.
+//
+// Composition leads with a status HERO: a single state glyph, a headline that
+// names the step in flight (or the terminal verdict), and one determinate fill
+// bar that advances as steps complete. The per-step list sits beneath as
+// supporting detail — a compact ledger, not the primary progress signal. This
+// keeps one obvious "where am I" focal point instead of four competing rows.
+// "Skipped" reads as a calm "Unchanged" (the value was already correct) and
+// resolves to a check once the whole apply completes. The fill is transform-
+// only (scaleX) on the system EXPO ease and collapses to instant under
+// prefers-reduced-motion.
+//
+// RM520N contract: EXACTLY 4 steps in worker/serialization order —
+// apn → ttl_hl → scenario → imei. (There is no `mpdn_rule` step here; MPDN is
+// a Verizon concept that only exists on the RM551E target.) IMEI is last
+// because it carries the deferred reboot.
 // =============================================================================
 
 interface ApplyProgressDialogProps {
@@ -37,73 +58,124 @@ interface ApplyProgressDialogProps {
   onClose: () => void;
   applyState: ProfileApplyState | null;
   error: string | null;
-  /** Called when the user clicks Retry on a partial/failed terminal state */
+  /** Called when the user clicks Retry on a partial/failed terminal state. */
   onRetry?: () => void;
 }
 
-const stepIcons: Record<ApplyStepStatus, React.ReactNode> = {
-  pending: <TbClock className="size-4 text-muted-foreground" />,
-  running: <TbLoader2 className="size-4 text-info animate-spin" />,
-  done: <TbCircleCheck className="size-4 text-success" />,
-  failed: <TbCircleX className="size-4 text-destructive" />,
-  // Skipped = value already matches modem state. Muted check reads as
-  // "nothing to do" both transiently and at completion — no retroactive remap.
-  skipped: <TbCircleCheck className="size-4 text-muted-foreground" />,
+/**
+ * Default steps shown while waiting for the first poll response. Order MUST
+ * mirror the worker's execution/serialization order (apn → ttl_hl → scenario →
+ * imei) so the placeholder ledger doesn't reshuffle when the first real poll
+ * lands. IMEI is last because it carries the deferred reboot.
+ */
+const DEFAULT_STEPS: ApplyStep[] = [
+  { name: "apn", status: "pending", detail: "" },
+  { name: "ttl_hl", status: "pending", detail: "" },
+  { name: "scenario", status: "pending", detail: "" },
+  { name: "imei", status: "pending", detail: "" },
+];
+
+const EXPO = EASE_OUT_EXPO;
+
+type Tone = "info" | "success" | "warning" | "destructive";
+
+/**
+ * The effective node status. "skipped" means "already correct"; once the whole
+ * apply completes we show it as done (a check).
+ */
+function effectiveStatus(
+  status: ApplyStepStatus,
+  overall?: string,
+): ApplyStepStatus {
+  if (status === "skipped" && overall === "complete") return "done";
+  return status;
+}
+
+/** Does this step count toward the completed fraction? */
+function isTraversed(status: ApplyStepStatus): boolean {
+  return status === "done" || status === "skipped";
+}
+
+const TONE_FILL: Record<Tone, string> = {
+  info: "bg-info",
+  success: "bg-success",
+  warning: "bg-warning",
+  destructive: "bg-destructive",
 };
 
-const stepLabels: Record<string, string> = {
-  apn: "APN Configuration",
-  ttl_hl: "TTL / Hop Limit",
-  scenario: "Connection Scenario",
-  imei: "IMEI",
+const TONE_RING: Record<Tone, string> = {
+  info: "border-info/20 bg-info/10 text-info",
+  success: "border-success/20 bg-success/10 text-success",
+  warning: "border-warning/20 bg-warning/10 text-warning",
+  destructive: "border-destructive/20 bg-destructive/10 text-destructive",
 };
 
-const statusBadge = (status: string) => {
+/** The large hero glyph for the current overall state. */
+function HeroGlyph({ tone, status }: { tone: Tone; status: string }) {
+  const Icon =
+    status === "complete"
+      ? CheckCircle2Icon
+      : status === "partial"
+        ? MinusCircleIcon
+        : status === "failed"
+          ? XCircleIcon
+          : null;
+
+  return (
+    <span
+      className={cn(
+        "flex size-14 items-center justify-center rounded-full border",
+        TONE_RING[tone],
+      )}
+    >
+      {Icon ? (
+        <Icon className="size-7" />
+      ) : (
+        // In-flight: a calm pulsing ellipsis (not a spinner) so the focal glyph
+        // reads as "working" without the rotation that competes with the fill bar.
+        <EllipsisIcon className="size-7 animate-pulse motion-reduce:animate-none" />
+      )}
+    </span>
+  );
+}
+
+/** Compact status node for the supporting step ledger. */
+function StepNode({ status }: { status: ApplyStepStatus }) {
+  const base =
+    "flex size-5 shrink-0 items-center justify-center rounded-full transition-colors duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] motion-reduce:transition-none";
   switch (status) {
-    case "applying":
+    case "running":
       return (
-        <Badge
-          variant="outline"
-          className="bg-info/15 text-info hover:bg-info/20 border-info/30"
-        >
-          <Loader2Icon className="size-3 animate-spin" />
-          Applying…
-        </Badge>
+        <span className={cn(base, "text-info")}>
+          <Loader2 className="size-4 animate-spin" />
+        </span>
       );
-    case "complete":
+    case "done":
       return (
-        <Badge
-          variant="outline"
-          className="bg-success/15 text-success hover:bg-success/20 border-success/30"
-        >
-          <CheckCircle2Icon className="size-3" />
-          Complete
-        </Badge>
-      );
-    case "partial":
-      return (
-        <Badge
-          variant="outline"
-          className="bg-warning/15 text-warning hover:bg-warning/20 border-warning/30"
-        >
-          <TriangleAlertIcon className="size-3" />
-          Partial
-        </Badge>
+        <span className={cn(base, "text-success")}>
+          <CheckCircle2Icon className="size-4" />
+        </span>
       );
     case "failed":
       return (
-        <Badge
-          variant="outline"
-          className="bg-destructive/15 text-destructive hover:bg-destructive/20 border-destructive/30"
-        >
-          <XCircleIcon className="size-3" />
-          Failed
-        </Badge>
+        <span className={cn(base, "text-destructive")}>
+          <XCircleIcon className="size-4" />
+        </span>
+      );
+    case "skipped":
+      return (
+        <span className={cn(base, "text-muted-foreground")}>
+          <MinusCircleIcon className="size-4" />
+        </span>
       );
     default:
-      return null;
+      return (
+        <span className={cn(base, "text-muted-foreground/60")}>
+          <ClockIcon className="size-3.5" />
+        </span>
+      );
   }
-};
+}
 
 export function ApplyProgressDialog({
   open,
@@ -112,166 +184,204 @@ export function ApplyProgressDialog({
   error,
   onRetry,
 }: ApplyProgressDialogProps) {
-  const isTerminal =
-    applyState &&
-    ["complete", "partial", "failed"].includes(applyState.status);
+  const { t } = useTranslation("cellular");
+  const reduceMotion = useReducedMotion();
 
-  const steps = applyState?.steps ?? [];
+  const stepLabels = useMemo<Record<string, string>>(
+    () => ({
+      apn: t("custom_profiles.apply_dialog.step_labels.apn"),
+      ttl_hl: t("custom_profiles.apply_dialog.step_labels.ttl_hl"),
+      scenario: t("custom_profiles.apply_dialog.step_labels.scenario"),
+      imei: t("custom_profiles.apply_dialog.step_labels.imei"),
+    }),
+    [t],
+  );
 
-  // Resolve display status — when the dialog first opens with no applyState
-  // yet, show "Applying…" badge so the user sees immediate feedback.
-  const displayStatus = applyState?.status ?? (open ? "applying" : undefined);
+  const status = applyState?.status ?? (open ? "applying" : "idle");
+  const isTerminal = ["complete", "partial", "failed"].includes(status);
+  const steps = applyState?.steps ?? (open ? DEFAULT_STEPS : []);
 
-  // Show Step N of M only while applying and the backend has populated counts.
-  const showStepCounter =
-    applyState?.status === "applying" &&
-    applyState.total_steps > 0 &&
-    applyState.current_step > 0;
+  const tone: Tone =
+    status === "complete"
+      ? "success"
+      : status === "partial"
+        ? "warning"
+        : status === "failed"
+          ? "destructive"
+          : "info";
 
-  // Reboot heartbeat — only shown while the modem is actively unreachable.
-  // A precise elapsed-seconds counter would require Date.now() in render
-  // (flagged as impure by React Compiler), so we set expectations with
-  // explanatory copy + the animated loader icon instead.
-  const isRebooting =
-    !!applyState?.requires_reboot && applyState.status === "applying";
+  // Completed fraction drives the determinate fill (skipped counts as done).
+  const total = applyState?.total_steps || steps.length || 0;
+  const doneCount = steps.filter((s) => isTraversed(s.status)).length;
+  const fraction = isTerminal
+    ? status === "complete"
+      ? 1
+      : total > 0
+        ? doneCount / total
+        : 1
+    : total > 0
+      ? doneCount / total
+      : 0;
+
+  // Headline + subtext: name the step in flight, or the terminal verdict.
+  const runningStep = steps.find((s) => s.status === "running");
+  const headline =
+    status === "complete"
+      ? t("custom_profiles.apply_dialog.complete_headline")
+      : status === "partial"
+        ? t("custom_profiles.apply_dialog.partial_headline")
+        : status === "failed"
+          ? t("custom_profiles.apply_dialog.failed_headline")
+          : runningStep
+            ? (stepLabels[runningStep.name] ?? runningStep.name)
+            : t("custom_profiles.apply_dialog.preparing");
+
+  const subtext =
+    status === "complete"
+      ? t("custom_profiles.apply_dialog.complete_sub")
+      : status === "partial"
+        ? t("custom_profiles.apply_dialog.partial_sub")
+        : status === "failed"
+          ? t("custom_profiles.apply_dialog.failed_sub")
+          : runningStep && total > 0
+            ? t("custom_profiles.apply_dialog.step_progress", {
+                current: applyState?.current_step ?? doneCount + 1,
+                total,
+              })
+            : null;
 
   const canRetry =
-    !!onRetry &&
-    (applyState?.status === "partial" || applyState?.status === "failed");
+    !!onRetry && (status === "partial" || status === "failed");
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && isTerminal && onClose()}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            Applying Profile
-            {displayStatus && statusBadge(displayStatus)}
-          </DialogTitle>
-          {(applyState?.profile_name || showStepCounter) && (
-            <DialogDescription className="flex items-center gap-2">
-              {applyState?.profile_name && <span>{applyState.profile_name}</span>}
-              {showStepCounter && (
-                <>
-                  {applyState?.profile_name && (
-                    <span className="text-muted-foreground/50" aria-hidden>
-                      ·
-                    </span>
-                  )}
-                  <span className="text-xs tabular-nums">
-                    Step {applyState.current_step} of {applyState.total_steps}
-                  </span>
-                </>
-              )}
-            </DialogDescription>
+          <DialogTitle>{t("custom_profiles.apply_dialog.title")}</DialogTitle>
+          {applyState?.profile_name && (
+            <DialogDescription>{applyState.profile_name}</DialogDescription>
           )}
         </DialogHeader>
 
-        {/* Step list — populated from backend poll */}
-        {steps.length > 0 ? (
-          <div className="space-y-1 py-2">
-            {steps.map((step) => (
-              <div
-                key={step.name}
-                className={`flex items-start gap-3 rounded-md px-3 py-2 text-sm transition-colors ${
-                  step.status === "running"
-                    ? "bg-info/5"
-                    : ""
-                }`}
-              >
-                <div className="mt-0.5 shrink-0">
-                  {stepIcons[step.status]}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="font-medium">
-                    {stepLabels[step.name] ?? step.name}
-                  </div>
-                  {step.detail ? (
-                    <div className="text-muted-foreground text-xs truncate">
-                      {step.detail}
-                    </div>
-                  ) : step.status === "skipped" ? (
-                    <div className="text-muted-foreground text-xs">
-                      Unchanged
-                    </div>
-                  ) : null}
-                </div>
-              </div>
-            ))}
+        {/* Status hero — the single focal point. Text block reserves a fixed
+            two-line height so advancing between steps doesn't resize the dialog. */}
+        <div className="flex flex-col items-center gap-3 py-2 text-center">
+          <HeroGlyph tone={tone} status={status} />
+          <div className="flex min-h-[2.75rem] flex-col justify-center space-y-1">
+            <p className="text-base font-semibold tracking-tight">{headline}</p>
+            {subtext && (
+              <p className="text-muted-foreground text-sm">{subtext}</p>
+            )}
           </div>
-        ) : open && !error ? (
-          // Pre-first-poll: ~50-500ms window between starting the apply and the
-          // first /apply_status.sh response. Render a single honest row instead
-          // of a hard-coded placeholder list (the real count is 3 or 4 depending
-          // on the RESOLVED scenario — i.e. the scenario in force now per the
-          // schedule, not the static scenario_id — and we don't have that info
-          // here).
-          <div className="space-y-1 py-2">
-            <div className="flex items-start gap-3 rounded-md px-3 py-2 text-sm bg-info/5">
-              <div className="mt-0.5 shrink-0">
-                <TbLoader2 className="size-4 text-info animate-spin" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="font-medium">Preparing…</div>
-                <div className="text-muted-foreground text-xs">
-                  Starting profile apply
-                </div>
-              </div>
-            </div>
-          </div>
-        ) : null}
 
-        {/* Reboot notice — heartbeat while modem is unreachable */}
-        {isRebooting && (
-          <div className="flex items-start gap-2 rounded-md border border-info/30 bg-info/15 p-3 text-sm text-info">
-            <Loader2Icon className="mt-0.5 size-4 shrink-0 animate-spin" />
-            <div className="flex-1">
-              <div>Modem is restarting to apply the IMEI change.</div>
-              <div className="text-xs text-info/80 mt-0.5">
-                This usually takes 30–60 seconds. The dashboard will reconnect
-                automatically.
-              </div>
-            </div>
+          {/* Determinate fill — transform-only (scaleX). */}
+          <div className="bg-muted relative h-1.5 w-full overflow-hidden rounded-full">
+            <motion.div
+              className={cn(
+                "h-full w-full origin-left rounded-full",
+                TONE_FILL[tone],
+              )}
+              initial={false}
+              animate={{ scaleX: fraction }}
+              transition={
+                reduceMotion ? { duration: 0 } : { duration: 0.5, ease: EXPO }
+              }
+            />
+          </div>
+        </div>
+
+        {/* Supporting ledger — compact per-step detail. */}
+        {steps.length > 0 && (
+          <div className="rounded-lg border">
+            <p className="text-muted-foreground border-b px-3 py-2 text-xs font-medium">
+              {t("custom_profiles.apply_dialog.details_label")}
+            </p>
+            <ul className="divide-y">
+              {steps.map((step) => {
+                const eff = effectiveStatus(step.status, applyState?.status);
+                const detailText =
+                  eff === "skipped"
+                    ? t("custom_profiles.apply_dialog.step_state_unchanged")
+                    : step.detail;
+                return (
+                  <li
+                    key={step.name}
+                    className={cn(
+                      "flex items-center gap-2.5 px-3 py-2 transition-colors duration-300 motion-reduce:transition-none",
+                      eff === "running" && "bg-info/5",
+                    )}
+                  >
+                    <StepNode status={eff} />
+                    <span
+                      className={cn(
+                        "flex-1 text-sm font-medium",
+                        eff === "pending" && "text-muted-foreground",
+                      )}
+                    >
+                      {stepLabels[step.name] ?? step.name}
+                    </span>
+                    {detailText && (
+                      <span className="text-muted-foreground max-w-[45%] truncate text-xs">
+                        {detailText}
+                      </span>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        )}
+
+        {/* Reboot notice — deferred, never an inline reboot. */}
+        {applyState?.requires_reboot && (
+          <div className="border-info/30 bg-info/10 text-info flex items-start gap-2 rounded-md border p-3 text-sm">
+            <RotateCwIcon className="mt-0.5 size-4 shrink-0" />
+            <p>{t("custom_profiles.apply_dialog.reboot_notice")}</p>
           </div>
         )}
 
         {/* Error from the start request (not step-level) */}
         {error && !applyState && (
-          <div className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/15 p-3 text-sm text-destructive">
-            <XCircleIcon className="mt-0.5 size-4 shrink-0" />
-            <span>{error}</span>
+          <div className="border-destructive/30 bg-destructive/10 text-destructive flex items-start gap-2 rounded-md border p-3 text-sm">
+            <TriangleAlertIcon className="mt-0.5 size-4 shrink-0" />
+            <p>{error}</p>
           </div>
         )}
 
-        {/* Partial/failed summary */}
+        {/* Partial / failed summary */}
         {applyState?.status === "partial" && applyState.error && (
-          <div className="flex items-start gap-2 rounded-md border border-warning/30 bg-warning/15 p-3 text-sm text-warning">
+          <div className="border-warning/30 bg-warning/10 text-warning flex items-start gap-2 rounded-md border p-3 text-sm">
             <TriangleAlertIcon className="mt-0.5 size-4 shrink-0" />
             <span>{applyState.error}</span>
           </div>
         )}
         {applyState?.status === "failed" && applyState.error && (
-          <div className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/15 p-3 text-sm text-destructive">
+          <div className="border-destructive/30 bg-destructive/10 text-destructive flex items-start gap-2 rounded-md border p-3 text-sm">
             <XCircleIcon className="mt-0.5 size-4 shrink-0" />
             <span>{applyState.error}</span>
           </div>
         )}
 
-        {/* Footer actions (only on terminal states) */}
-        {(isTerminal || (error && !applyState)) && (
-          <div className="flex justify-end gap-2 pt-2">
-            {canRetry && (
-              <Button variant="outline" onClick={onRetry}>
-                Retry
+        {/* Footer — height reserved (min-h) so a button appearing at a terminal
+            state doesn't resize the dialog. Buttons render only when actionable. */}
+        <div className="flex min-h-9 justify-end gap-2">
+          {(isTerminal || (error && !applyState)) && (
+            <>
+              {canRetry && (
+                <Button variant="outline" onClick={onRetry}>
+                  <RotateCwIcon className="size-4" />
+                  {t("actions.retry", { ns: "common" })}
+                </Button>
+              )}
+              <Button
+                variant={canRetry ? "default" : "outline"}
+                onClick={onClose}
+              >
+                {t("actions.close", { ns: "common" })}
               </Button>
-            )}
-            <Button
-              variant={canRetry ? "default" : "outline"}
-              onClick={onClose}
-            >
-              Close
-            </Button>
-          </div>
-        )}
+            </>
+          )}
+        </div>
       </DialogContent>
     </Dialog>
   );
