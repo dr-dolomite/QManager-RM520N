@@ -130,11 +130,12 @@ function WatchdogForm({
 
 // -----------------------------------------------------------------------------
 // Page skeleton — mirrors the live column geometry (Skeleton-Mirror rule) so
-// content replacement is a clean fill with zero reflow. Each sub-skeleton is
-// shaped to the state its card lands in *next*: Status → the live hero, Activity
-// → the recovery card's own loading table (header strip + rows, no pager yet),
-// Settings → the Detection tab that opens by default. Getting the *next* state
-// right, not the eventual one, is what makes the hand-off invisible.
+// content replacement is a clean fill with minimal reflow. Each sub-skeleton is
+// shaped to the state its card lands in *next*: Status → the compact tile shape
+// (see StatusSkeleton), Activity → the recovery card's own loading table (header
+// strip + rows, no pager yet), Settings → the Detection tab that opens by
+// default. Getting the *next* state right, not the eventual one, is what makes
+// the hand-off invisible.
 // -----------------------------------------------------------------------------
 function PageSkeleton() {
   return (
@@ -155,45 +156,28 @@ function PageSkeleton() {
   );
 }
 
-// Status hero: header + switch action, the state tile (matches the p-4 + size-12
-// tile → 80px), the wrap-flow counter strip, and the read-only ladder stepper.
-// The counter strip mirrors the common case — 5 stats (Current Step, Failed
-// Checks, Total Recoveries, Reboots This Hour, Last Recovery). The 6th "Cooldown"
-// stat only appears while a Tier-3 SIM swap is actively settling, so it's
-// deliberately left out here rather than reserving space for a rare transient.
+// Status hero: header + switch action, then a single state tile (matches the
+// p-4 + size-12 tile → 80px). Deliberately the COMPACT shape, not the live one:
+// the status card renders three heights — Off and Starting Up show just this
+// header + tile, while the Live state adds a counter strip and recovery ladder
+// below it. At skeleton-paint time the page hasn't yet resolved `enabled` or
+// whether the daemon is reporting, so the landing height is unknown. Mirroring
+// the shortest common shape (shared by Off + Starting Up, the usual landing
+// state) means the worst case is a Live card *growing* in — content arriving —
+// instead of a taller skeleton *collapsing* to the compact tile, which reads as
+// something breaking. Grow, never collapse.
 function StatusSkeleton() {
   return (
     <Card className="@container/card" aria-hidden>
       <CardHeader>
         <Skeleton className="h-5 w-28" />
-        <Skeleton className="h-4 w-64" />
+        <Skeleton className="h-4 w-44" />
         <CardAction>
           <Skeleton className="h-5 w-9 rounded-full" />
         </CardAction>
       </CardHeader>
-      <CardContent className="grid gap-5">
+      <CardContent className="grid gap-4">
         <Skeleton className="h-20 w-full rounded-xl" />
-        <div className="border-t pt-5">
-          <div className="flex flex-wrap gap-x-10 gap-y-5">
-            {Array.from({ length: 5 }).map((_, i) => (
-              <div key={i} className="grid gap-1">
-                <Skeleton className="h-3 w-20" />
-                <Skeleton className="h-4 w-16" />
-              </div>
-            ))}
-          </div>
-        </div>
-        <div className="border-t pt-5">
-          <Skeleton className="mb-2.5 h-3 w-24" />
-          <div className="flex items-center gap-1.5">
-            {Array.from({ length: 4 }).map((_, i) => (
-              <div key={i} className="flex flex-1 items-center gap-1.5">
-                <Skeleton className="size-6 shrink-0 rounded-full" />
-                {i < 3 && <Skeleton className="h-px flex-1" />}
-              </div>
-            ))}
-          </div>
-        </div>
       </CardContent>
     </Card>
   );
