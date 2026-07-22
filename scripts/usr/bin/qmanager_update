@@ -81,6 +81,29 @@ get_current_version() {
     fi
 }
 
+# scrub_legacy_cron — Remove orphaned QManager cron markers from a device
+# updated from a pre-timer release.
+#
+# Scheduled Reboot, Tower Lock schedule, and (formerly) Low Power Mode used
+# to printf lines into /var/spool/cron/crontabs/root — lines BusyBox crond
+# never actually read (RM520N has no crond daemon running; see
+# schedule_timer.sh). Those writers are now retired/migrated to
+# runtime-generated systemd timers, but an OTA-upgraded device may still
+# carry the old dead lines on disk. If a future release (or a manually
+# started `crond`) ever DID start reading that file, stale entries firing
+# `qmanager_scheduled_reboot`, `qmanager_tower_schedule`, or the
+# already-deleted `qmanager_low_power` unattended would be a nasty surprise.
+# Scrub them on every OTA install/rollback so they can never resurrect.
+scrub_legacy_cron() {
+    local cron_file="/var/spool/cron/crontabs/root"
+    [ -f "$cron_file" ] || return 0
+    if grep -qE 'qmanager_scheduled_reboot|qmanager_tower_schedule|qmanager_low_power' "$cron_file" 2>/dev/null; then
+        grep -vE 'qmanager_scheduled_reboot|qmanager_tower_schedule|qmanager_low_power' "$cron_file" > "${cron_file}.tmp" 2>/dev/null \
+            && mv "${cron_file}.tmp" "$cron_file"
+        log "Scrubbed legacy QManager cron markers from $cron_file"
+    fi
+}
+
 http_download() {
     local url="$1" dest="$2" timeout="${3:-120}"
     # Transport is curl or wget, whichever the device has (see downloader.sh).
@@ -410,6 +433,10 @@ if [ "$MODE" = "install" ]; then
     rm -f "$download_path"
     cd /tmp/qmanager_install || die "Extraction failed — /tmp/qmanager_install not found"
 
+    # Scrub any pre-timer-migration dead cron markers before handing off to
+    # the installer (which re-arms the current timers from config either way).
+    scrub_legacy_cron
+
     log "Running install_rm520n.sh --force --skip-packages --no-reboot"
     if ! run_install_with_progress "$VERSION"; then
         die "Installation failed. Check $LOG_FILE for details."
@@ -518,6 +545,10 @@ if [ "$MODE" = "install_staged" ]; then
     rm -f "$STAGED_TARBALL" "$STAGED_VERSION"
     cd /tmp/qmanager_install || die "Extraction failed — /tmp/qmanager_install not found"
 
+    # Scrub any pre-timer-migration dead cron markers before handing off to
+    # the installer (which re-arms the current timers from config either way).
+    scrub_legacy_cron
+
     log "Running install_rm520n.sh --force --skip-packages --no-reboot"
     if ! run_install_with_progress "$VERSION"; then
         die "Installation failed. Check $LOG_FILE for details."
@@ -588,6 +619,10 @@ if [ "$MODE" = "rollback" ]; then
     tar xzf "$download_path" -C /tmp/
     rm -f "$download_path"
     cd /tmp/qmanager_install || die "Extraction failed"
+
+    # Scrub any pre-timer-migration dead cron markers before handing off to
+    # the installer (which re-arms the current timers from config either way).
+    scrub_legacy_cron
 
     log "Running install_rm520n.sh --force --skip-packages --no-reboot"
     if ! run_install_with_progress "$VERSION"; then

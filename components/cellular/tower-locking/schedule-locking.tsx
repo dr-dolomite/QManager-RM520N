@@ -26,12 +26,29 @@ import { CircleIcon } from "lucide-react";
 import type {
   TowerLockConfig,
   TowerScheduleConfig,
+  TowerScheduleSaveResult,
 } from "@/types/tower-locking";
 import { DAY_LABELS } from "@/types/tower-locking";
 
 interface ScheduleTowerLockingProps {
   config: TowerLockConfig | null;
-  onScheduleChange: (schedule: TowerScheduleConfig) => Promise<boolean>;
+  onScheduleChange: (
+    schedule: TowerScheduleConfig,
+  ) => Promise<TowerScheduleSaveResult>;
+}
+
+// Copy is hardcoded English to match this card (no useTranslation here) — do
+// not introduce a lone i18n key into an otherwise-untranslated surface.
+const SCHEDULE_ARM_REASONS: Record<string, string> = {
+  unit_absent:
+    "the scheduling service isn't installed on this device yet — update to the latest firmware to enable it",
+};
+
+function scheduleArmWarning(reason?: string): string {
+  const detail = reason
+    ? SCHEDULE_ARM_REASONS[reason] ?? reason
+    : "reason unknown";
+  return `Schedule saved, but it couldn't be armed on this device — ${detail}`;
 }
 
 const ScheduleTowerLockingComponent = ({
@@ -63,8 +80,14 @@ const ScheduleTowerLockingComponent = ({
       if (saveTimerRef.current) {
         clearTimeout(saveTimerRef.current);
       }
-      saveTimerRef.current = setTimeout(() => {
-        onScheduleChange(schedule);
+      saveTimerRef.current = setTimeout(async () => {
+        // Debounced saves only fire while the schedule is enabled, so intent is
+        // always "armed". armed === false means it persisted but no live timer
+        // was installed — warn honestly instead of a silent success.
+        const result = await onScheduleChange(schedule);
+        if (result.success && result.armed === false) {
+          toast.warning(scheduleArmWarning(result.reason));
+        }
       }, 800);
     },
     [onScheduleChange],
@@ -88,18 +111,24 @@ const ScheduleTowerLockingComponent = ({
       clearTimeout(saveTimerRef.current);
       saveTimerRef.current = null;
     }
-    const success = await onScheduleChange({
+    const result = await onScheduleChange({
       enabled: checked,
       start_time: startTime,
       end_time: endTime,
       days,
     });
-    if (!success) {
+    if (!result.success) {
       // Backend rejected — revert toggle
       setEnabled(!checked);
       toast.warning(
         "No lock targets configured"
       );
+      return;
+    }
+    // Warn about arming only when turning the schedule ON — turning it OFF
+    // disarms the timer by design, so armed === false is expected there.
+    if (checked && result.armed === false) {
+      toast.warning(scheduleArmWarning(result.reason));
     }
   };
 

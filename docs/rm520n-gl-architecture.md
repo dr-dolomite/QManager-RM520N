@@ -191,7 +191,7 @@ tmpfs             → /tmp                (89 MB, volatile, fs.protected_regular
 - **No NTP service.** `timedatectl` reports `System clock synchronized: no` and `NTP service: n/a`. Wall-clock time is set when the modem registers on the cellular network; if the modem is offline at boot the clock can be years off (probed device showed RTC time stuck at `1970-01-01 02:13:52`).
 - **Timezone is applied via `/etc/localtime`** (corrects the older "no `/etc/localtime`, system runs in UTC" claim). This platform's libc is **glibc 2.31**, which reads `/etc/localtime` (or the `TZ` env var) as authoritative and **never** reads `/etc/TZ` (that file is a musl/BusyBox convention and is inert here). QManager sets the zone from **System Settings** by copying the matching TZif file over `/etc/localtime` through the `qmanager_timezone_apply` root helper. Zone data comes from Entware's `/opt/share/zoneinfo` (the vendor path `/usr/share/zoneinfo` ships **empty**). `/etc` is its own persistent read-write UBIFS volume (`/dev/ubi2_0`), so the copied `/etc/localtime` survives reboot with no boot unit. See [Timezone](reference/timezone.md).
 - **The modem does not set the zone.** NITZ (`AT+CTZU`, Network Identity and Time Zone) is disabled, so cellular registration never restamps the zone over a user selection.
-- **RM520N-GL runs no `crond` at all.** Confirmed live: no `crond` process, and `/var/spool/cron/crontabs/` is empty. There is no `cron`/`crond`/`cronie` systemd unit either — this is not a "cron runs but isn't systemd-managed" situation, it's "nothing reads a crontab on this device." `www-data` can still write `/var/spool/cron/crontabs/root` (the directory is world-writable) and any code path that does so reports success, but the entries never fire. Three shipped features — **Scheduled Reboot**, **Low Power** window, and **Tower Lock Schedule** — write crontab entries expecting a consumer that doesn't exist; this is a known follow-up, not fixed as of this doc. `date`, log, and alert timestamps still go local immediately on a timezone change (each is a fresh process reading `/etc/localtime` at exec time) — that part is unaffected. Time-of-day scheduling that actually needs to fire on this platform uses a **systemd `OnCalendar` timer**, armed at runtime by a root helper (the pattern used by both auto-update and the Custom SIM Profile scenario schedule — see `docs/reference/qmanager-independence.md` and `docs/reference/sim-profiles.md`).
+- **RM520N-GL runs no `crond` at all.** Confirmed live: no `crond` process, and `/var/spool/cron/crontabs/` is empty. There is no `cron`/`crond`/`cronie` systemd unit either — this is not a "cron runs but isn't systemd-managed" situation, it's "nothing reads a crontab on this device." `www-data` can still write `/var/spool/cron/crontabs/root` (the directory is world-writable) and any code path that does so reports success, but the entries never fire. `which crond` finding `/usr/sbin/crond` is the trap — the binary's presence is not evidence a daemon consumes crontabs. Time-of-day scheduling that actually needs to fire on this platform uses a **systemd `OnCalendar` timer**, armed at runtime by a root helper: **auto-update** (`qmanager_auto_update_arm`), the **Custom SIM Profile scenario schedule** (`qmanager_scenario_schedule_arm`), and now **Scheduled Reboot** + **Tower Lock Schedule** (`qmanager_scheduled_reboot_arm` / `qmanager_tower_schedule_arm`, via the shared `schedule_timer.sh`) all use it. The old cron-writing versions of Scheduled Reboot and Tower Lock were silent no-ops and have been migrated; the **Low Power** scheduler was removed outright. `date`, log, and alert timestamps still go local immediately on a timezone change (each is a fresh process reading `/etc/localtime` at exec time) — that part is unaffected. See `docs/reference/scheduled-timers.md`, `docs/reference/qmanager-independence.md`, and `docs/reference/sim-profiles.md`.
 - **Never rely on absolute timestamps** for security-sensitive ordering. Use `/proc/uptime` for monotonic deltas where possible.
 
 ### Hardened Kernel Tunables
@@ -459,7 +459,7 @@ www-data ALL = (root) NOPASSWD: /usr/sbin/iptables, /usr/sbin/ip6tables, \
     /usrdata/simplefirewall/ttl-override, /bin/echo, /bin/cat
 ```
 
-QManager installs its own sudoers file at `/etc/sudoers.d/qmanager` (not `/opt/etc/sudoers.d/`) covering systemctl, reboot, crontab, ln, rm, iptables-restore, `qmanager_set_ssh_password`, and — critically for OTA updates — `qmanager_update`. All entries use full absolute paths due to Entware's `secure_path` restriction (see [Web Server: lighttpd](#web-server-lighttpd)).
+QManager installs its own sudoers file at `/etc/sudoers.d/qmanager` (not `/opt/etc/sudoers.d/`) covering systemctl, reboot, ln, rm, iptables-restore, the schedule-timer arm helpers (`qmanager_scheduled_reboot_arm` / `qmanager_tower_schedule_arm`, which replaced the removed `crontab` grant), `qmanager_set_ssh_password`, and — critically for OTA updates — `qmanager_update`. All entries use full absolute paths due to Entware's `secure_path` restriction (see [Web Server: lighttpd](#web-server-lighttpd)).
 
 The `qmanager_update` rule deserves special mention:
 ```
@@ -1412,11 +1412,14 @@ www-data ALL=(root) NOPASSWD: /bin/systemctl start *, /bin/systemctl stop *, /bi
 www-data ALL=(root) NOPASSWD: /bin/ln -sf /lib/systemd/system/qmanager*.service ...
 www-data ALL=(root) NOPASSWD: /bin/rm -f /lib/systemd/system/multi-user.target.wants/qmanager*.service
 
-# Firewall, reboot, crontab, SSH password
+# Firewall, reboot, SSH password
 www-data ALL=(root) NOPASSWD: /usr/sbin/iptables, /usr/sbin/iptables-restore, /usr/sbin/ip6tables, /usr/sbin/ip6tables-restore
 www-data ALL=(root) NOPASSWD: /sbin/reboot
-www-data ALL=(root) NOPASSWD: /usr/bin/crontab
 www-data ALL=(root) NOPASSWD: /usr/bin/qmanager_set_ssh_password
+
+# Schedule timer arm helpers (systemd OnCalendar timers replace the dead crond)
+www-data ALL=(root) NOPASSWD: /usr/bin/qmanager_scheduled_reboot_arm
+www-data ALL=(root) NOPASSWD: /usr/bin/qmanager_tower_schedule_arm
 ```
 
 > **WARNING: Entware sudo `secure_path` restriction.** Entware's sudo has a restricted `secure_path` that does NOT include `/sbin/` or `/usr/sbin/`. All `$_SUDO` commands in `platform.sh` **must use full absolute paths** — bare command names (`systemctl`, `reboot`, `iptables`) will fail silently from CGI context. Key paths: `systemctl` is at `/bin/systemctl` (not `/usr/bin/systemctl`), `reboot` is at `/sbin/reboot`, `iptables` is at `/usr/sbin/iptables`. The `$_SYSTEMCTL` variable in `platform.sh` centralizes the systemctl path.

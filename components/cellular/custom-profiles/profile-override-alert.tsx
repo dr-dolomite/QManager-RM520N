@@ -21,11 +21,15 @@ interface ProfileOverrideAlertProps {
   /** What is being controlled by the profile. Used as the leading clause —
    *  e.g., "APN configuration" → "APN configuration is managed by the …". */
   controls: string;
+  /** Optional secondary line (e.g., "Scheduled to change at 22:00."). Rendered
+   *  muted below the main sentence when present. */
+  note?: string;
 }
 
 export function ProfileOverrideAlert({
   profileName,
   controls,
+  note,
 }: ProfileOverrideAlertProps) {
   return (
     <Alert className="mb-4">
@@ -36,6 +40,9 @@ export function ProfileOverrideAlert({
           <span className="font-semibold">{profileName}</span> Custom SIM
           Profile.
         </p>
+        {note ? (
+          <p className="text-muted-foreground text-sm mt-1">{note}</p>
+        ) : null}
       </AlertDescription>
     </Alert>
   );

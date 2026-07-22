@@ -11,10 +11,13 @@ import type {
   TowerLockResponse,
   TowerSettingsResponse,
   TowerScheduleResponse,
+  TowerScheduleSaveResult,
   TowerFailoverStatusResponse,
   LteLockCell,
   NrSaLockCell,
 } from "@/types/tower-locking";
+
+export type { TowerScheduleSaveResult } from "@/types/tower-locking";
 
 // =============================================================================
 // useTowerLocking — Tower Lock State, Lock/Unlock, Settings & Schedule Hook
@@ -81,8 +84,14 @@ export interface UseTowerLockingReturn {
     failover: { enabled: boolean; threshold: number }
   ) => Promise<boolean>;
 
-  /** Update schedule configuration and manage cron entries. */
-  updateSchedule: (schedule: TowerScheduleConfig) => Promise<boolean>;
+  /**
+   * Update schedule configuration and manage the systemd timer. Resolves to
+   * `{ success, armed?, reason? }` — `armed:false` means the schedule persisted
+   * but no live timer was installed on this device.
+   */
+  updateSchedule: (
+    schedule: TowerScheduleConfig,
+  ) => Promise<TowerScheduleSaveResult>;
 
   /** True while the failover watcher is running (anti-spam guard) */
   isWatcherRunning: boolean;
@@ -480,7 +489,9 @@ export function useTowerLocking(): UseTowerLockingReturn {
   // Update Schedule
   // ---------------------------------------------------------------------------
   const updateSchedule = useCallback(
-    async (schedule: TowerScheduleConfig): Promise<boolean> => {
+    async (
+      schedule: TowerScheduleConfig,
+    ): Promise<TowerScheduleSaveResult> => {
       setError(null);
 
       try {
@@ -495,11 +506,11 @@ export function useTowerLocking(): UseTowerLockingReturn {
         }
 
         const data: TowerScheduleResponse = await resp.json();
-        if (!mountedRef.current) return false;
+        if (!mountedRef.current) return { success: false };
 
         if (!data.success) {
           setError(data.detail || data.error || "Failed to update schedule");
-          return false;
+          return { success: false };
         }
 
         // Optimistic update of config
@@ -507,13 +518,15 @@ export function useTowerLocking(): UseTowerLockingReturn {
           prev ? { ...prev, schedule } : prev
         );
 
-        return true;
+        // Thread the on-device arm status through so the card can warn when the
+        // schedule saved but couldn't be armed (e.g. timer unit not shipped).
+        return { success: true, armed: data.armed, reason: data.reason };
       } catch (err) {
-        if (!mountedRef.current) return false;
+        if (!mountedRef.current) return { success: false };
         setError(
           err instanceof Error ? err.message : "Failed to update schedule"
         );
-        return false;
+        return { success: false };
       }
     },
     []

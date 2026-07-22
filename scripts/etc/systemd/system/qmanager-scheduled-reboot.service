@@ -1,0 +1,14 @@
+# /lib/systemd/system/qmanager-scheduled-reboot.service
+[Unit]
+Description=QManager scheduled reboot (triggered by qmanager-scheduled-reboot.timer)
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/qmanager_scheduled_reboot
+
+# No [Install] section — this unit is only ever started by
+# qmanager-scheduled-reboot.timer, never boot-enabled directly. That .timer
+# is NOT a static file shipped by the installer — it is generated and armed
+# at runtime by the qmanager_scheduled_reboot_arm root helper whenever the
+# System Settings -> Scheduled Reboot toggle is saved enabled (mirrors
+# qmanager-scenario-schedule.service).

@@ -14,6 +14,10 @@ import {
   type BandCategory,
 } from "@/types/band-locking";
 import { DEFAULT_SCENARIOS } from "@/types/connection-scenario";
+import {
+  resolveScheduledScenario,
+  nextChangeAt,
+} from "@/lib/scenario-schedule";
 import { InfoIcon } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
@@ -83,6 +87,8 @@ const BandLockingComponent = () => {
   const { activeProfileId, getProfile } = useSimProfiles();
   const [profileGate, setProfileGate] = useState<{
     profileName: string;
+    /** "HH:MM" of the next scheduled scenario boundary, when one exists. */
+    nextChange: string | null;
   } | null>(null);
 
   useEffect(() => {
@@ -91,9 +97,27 @@ const BandLockingComponent = () => {
     (async () => {
       const profile = await getProfile(activeProfileId);
       if (cancelled) return;
-      const boundId = profile?.settings.scenario_id || "";
+      // Resolve the scenario in force RIGHT NOW from the schedule, not the
+      // static settings.scenario_id (which only mirrors scenario.default and
+      // is blind to active schedule windows). This keeps the band-lock gate in
+      // sync with what the on-device timer is actually applying.
+      const now = new Date();
+      const boundId = profile
+        ? resolveScheduledScenario(
+            now,
+            profile.scenario.schedule,
+            profile.scenario.default,
+          )
+        : "";
       if (profile && boundId && boundId !== "balanced") {
-        setProfileGate({ profileName: profile.name });
+        setProfileGate({
+          profileName: profile.name,
+          nextChange: nextChangeAt(
+            now,
+            profile.scenario.schedule,
+            profile.scenario.default,
+          ),
+        });
       } else {
         setProfileGate(null);
       }
@@ -153,6 +177,11 @@ const BandLockingComponent = () => {
         <ProfileOverrideAlert
           profileName={profileGate.profileName}
           controls="Band locking"
+          note={
+            profileGate.nextChange
+              ? `The active scenario is scheduled to change at ${profileGate.nextChange}.`
+              : undefined
+          }
         />
       )}
 

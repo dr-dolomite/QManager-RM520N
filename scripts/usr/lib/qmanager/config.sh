@@ -45,10 +45,6 @@ qm_config_init() {
     "timezone": "UTC0",
     "zonename": "UTC",
     "sms_tool_device": "",
-    "low_power_enabled": 0,
-    "low_power_start": "23:00",
-    "low_power_end": "06:00",
-    "low_power_days": "0,1,2,3,4,5,6",
     "sched_reboot_enabled": 0,
     "sched_reboot_time": "04:00",
     "sched_reboot_days": "0,1,2,3,4,5,6"

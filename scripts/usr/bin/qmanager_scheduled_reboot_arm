@@ -1,0 +1,144 @@
+#!/bin/sh
+# qmanager_scheduled_reboot_arm — Arm/disarm the Scheduled Reboot systemd
+# timer live.
+#
+# RM520N has no crond (see schedule_timer.sh header). The System Settings ->
+# Scheduled Reboot toggle used to printf a line into
+# /var/spool/cron/crontabs/root, which nothing ever read. This is the
+# privileged half of the replacement: it generates a single weekly
+# OnCalendar= trigger from the saved time + day mask, writes
+# qmanager-scheduled-reboot.timer, and arms/disarms it for the current boot —
+# mirroring qmanager_scenario_schedule_arm / qmanager_auto_update_arm.
+#
+# Called via: sudo -n /usr/bin/qmanager_scheduled_reboot_arm install <HH:MM> <days_csv>
+#             sudo -n /usr/bin/qmanager_scheduled_reboot_arm teardown
+#
+# MECHANISM — deliberate: manual symlink into
+# /lib/systemd/system/timers.target.wants/, NOT `systemctl enable`. On this
+# minimal systemd 244, `systemctl enable` writes its symlink into
+# /etc/systemd/system/... and `systemctl is-enabled` only ever reads /etc;
+# meanwhile the installer (enable_services) and every other qmanager timer
+# persist via /lib symlinks. Using `systemctl enable` here would put this
+# timer's enablement in a DIFFERENT place than every other unit. This helper
+# mirrors qmanager_scenario_schedule_arm exactly so there is one source of
+# truth.
+#
+# Persistent=false is load-bearing, NOT a copy-paste default: a missed
+# reboot window during downtime must NOT stack-fire the moment the device
+# comes back — that would reboot the box again right after it just rebooted
+# or recovered from an outage.
+#
+# Idempotent both directions. No-op (success) if the .service this timer
+# targets is absent — an OTA-upgraded device that predates this feature must
+# not surface a hard error to the caller.
+#
+# SECURITY: this is a sudo-reachable root helper. The CGI-side validation in
+# settings.sh is necessary but NOT sufficient — this helper re-validates the
+# time and day-mask itself (charset-gate BEFORE shape-check, see
+# schedule_timer.sh) before either value is interpolated into the generated
+# .timer unit's OnCalendar= line. Never eval'd.
+
+PATH=/opt/bin:/opt/sbin:/usr/bin:/usr/sbin:/bin:/sbin
+export PATH
+
+UNIT="qmanager-scheduled-reboot.timer"
+SERVICE="qmanager-scheduled-reboot.service"
+UNIT_DIR="/lib/systemd/system"
+WANTS_DIR="/lib/systemd/system/timers.target.wants"
+
+action="$1"
+sched_time="$2"
+sched_days="$3"
+
+# Strict arg validation — only the two verbs, nothing else.
+case "$action" in
+    install|teardown) ;;
+    *) printf '{"success":false,"error":"invalid_action","detail":"action must be install or teardown"}\n'; exit 1 ;;
+esac
+
+teardown_unit() {
+    systemctl stop "$UNIT" 2>/dev/null || true
+    rm -f "$WANTS_DIR/$UNIT" 2>/dev/null
+    rm -f "$UNIT_DIR/$UNIT" 2>/dev/null
+    systemctl daemon-reload 2>/dev/null || true
+}
+
+# Missing-unit no-op: a device that predates the .service this timer targets
+# (older OTA base) has nothing to schedule against. Report success so the
+# caller still lands cleanly instead of surfacing a hard error.
+if [ ! -f "$UNIT_DIR/$SERVICE" ]; then
+    printf '{"success":true,"armed":false,"reason":"unit_absent"}\n'
+    exit 0
+fi
+
+if [ "$action" = "teardown" ]; then
+    teardown_unit
+    printf '{"success":true,"armed":false,"reason":""}\n'
+    exit 0
+fi
+
+# --- install --------------------------------------------------------------
+if [ ! -f /usr/lib/qmanager/schedule_timer.sh ]; then
+    printf '{"success":false,"error":"lib_missing","detail":"schedule_timer.sh not found"}\n'
+    exit 1
+fi
+. /usr/lib/qmanager/schedule_timer.sh
+
+if ! _qm_validate_hhmm "$sched_time"; then
+    printf '{"success":false,"error":"invalid_time","detail":"time must be HH:MM"}\n'
+    exit 1
+fi
+if ! _qm_validate_days "$sched_days"; then
+    printf '{"success":false,"error":"invalid_days","detail":"days must be a comma list of 0-6"}\n'
+    exit 1
+fi
+
+line=$(_qm_oncalendar_line "$sched_days" "$sched_time")
+
+# No resolvable day -> tear down any existing timer rather than arm a .timer
+# with a zero OnCalendar= line (a systemd config error).
+if [ -z "$line" ]; then
+    teardown_unit
+    printf '{"success":true,"armed":false,"reason":"no_schedule"}\n'
+    exit 0
+fi
+
+# /lib lives on read-only-by-default UBIFS; ensure writable. Idempotent — a
+# no-op if already rw. Left rw afterwards, matching the reference helpers.
+mount -o remount,rw / 2>/dev/null || true
+
+# Atomic write: build the unit in a tmp file, then mv over the target — a
+# concurrent systemd daemon-reload must never observe a half-written unit.
+tmp_unit="${UNIT_DIR}/.${UNIT}.tmp.$$"
+{
+    printf '[Unit]\n'
+    printf 'Description=QManager scheduled reboot\n'
+    printf '\n[Timer]\n'
+    printf '%s\n' "$line"
+    printf 'Unit=%s\n' "$SERVICE"
+    printf 'Persistent=false\n'
+    printf '\n[Install]\n'
+    printf 'WantedBy=timers.target\n'
+} > "$tmp_unit" 2>/dev/null
+
+if [ ! -s "$tmp_unit" ]; then
+    rm -f "$tmp_unit" 2>/dev/null
+    printf '{"success":false,"error":"write_failed","detail":"could not write timer unit"}\n'
+    exit 1
+fi
+
+rc=0
+mv "$tmp_unit" "$UNIT_DIR/$UNIT" || rc=1
+mkdir -p "$WANTS_DIR" 2>/dev/null || rc=1
+ln -sf "$UNIT_DIR/$UNIT" "$WANTS_DIR/$UNIT" 2>/dev/null || rc=1
+sync
+systemctl daemon-reload 2>/dev/null || true
+systemctl start "$UNIT" 2>/dev/null || true   # arm the TIMER for this boot too, not the service
+
+if [ "$rc" -ne 0 ] || [ ! -L "$WANTS_DIR/$UNIT" ]; then
+    printf '{"success":false,"error":"arm_failed","detail":"could not create timer symlink"}\n'
+    exit 1
+fi
+
+printf '{"success":true,"armed":true,"reason":""}\n'
+exit 0

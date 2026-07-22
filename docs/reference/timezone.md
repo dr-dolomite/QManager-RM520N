@@ -1,6 +1,6 @@
 # Timezone
 
-> Timezone lets the user set the device's local clock from **System Settings**. Selecting a zone (for example `Asia/Manila`) persists the choice to config, then pushes it to the live system by copying the matching zoneinfo file over `/etc/localtime` through a small root helper. Once applied, `date`, log timestamps, and alert times switch to local time immediately. Cron-driven schedules (scheduled reboot, low-power windows) adopt the new zone on the next device reboot, not instantly.
+> Timezone lets the user set the device's local clock from **System Settings**. Selecting a zone (for example `Asia/Manila`) persists the choice to config, then pushes it to the live system by copying the matching zoneinfo file over `/etc/localtime` through a small root helper. Once applied, `date`, log timestamps, and alert times switch to local time immediately. Time-of-day schedules (scheduled reboot, tower-lock schedule windows) are systemd `OnCalendar` timers evaluated in the system timezone — they adopt the new zone on the next `daemon-reload` or reboot, not instantly.
 
 Before this feature was fixed, selecting a zone saved to config so the UI *showed* it, but the device clock stayed on UTC. The old apply path failed three ways at once, all silently (`2>/dev/null`): it looked for zone data under `/usr/share/zoneinfo` (which ships **empty** on this device), it wrote `/etc/TZ` (which glibc ignores), and it ran as `www-data` (which cannot write root-owned `/etc`). The current implementation resolves zone data from Entware's `/opt/share/zoneinfo`, installs `/etc/localtime` through a `sudo` root helper, and reports the live effective offset back to the UI so a partial failure is visible instead of hidden.
 
@@ -166,7 +166,7 @@ These are the load-bearing platform truths behind the design. Several older docs
 - **glibc governs the clock.** This platform's libc is glibc 2.31. glibc reads `/etc/localtime` (or the `TZ` environment variable) as authoritative and **never** reads `/etc/TZ`. `/etc/TZ` is a musl/BusyBox convention and is inert on RM520N-GL. Writing it does nothing.
 - **The zoneinfo database lives at `/opt/share/zoneinfo`.** The vendor path `/usr/share/zoneinfo` ships **empty** on stock RM520N-GL. Entware's `zoneinfo-all` package populates `/opt/share/zoneinfo`. Quick manual check: `TZDIR=/opt/share/zoneinfo TZ=Asia/Manila date` yields a `+0800` time.
 - **`/etc` is its own persistent read-write UBIFS volume** (`/dev/ubi2_0`), separate from the read-only rootfs `/` (`ubi0`). A TZif copied to `/etc/localtime` survives reboot with no boot unit and no rootfs remount. (This corrects the older "`/etc` is read-only rootfs" and "system runs in UTC, no `/etc/localtime`" claims.)
-- **RM520N-GL runs no `crond` at all** — confirmed live (no `crond` process, `/var/spool/cron/crontabs/` empty). This corrects the older "cron is BusyBox `crond`, not systemd" claim below, which was itself only half right: there genuinely is no `cron`/`crond`/`cronie` systemd unit, but the conclusion that jobs "live in `/var/spool/cron/crontabs/root`" implied a daemon reads them — none does. `www-data` can still *write* that file (it's world-writable) and any `crontab`-writing code path reports success, but nothing ever consumes the entries. See [qmanager-independence.md](qmanager-independence.md) for the confirmed probe and the Cron Caveat section below for which features this affects.
+- **RM520N-GL runs no `crond` at all** — confirmed live (no `crond` process, `/var/spool/cron/crontabs/` empty). This corrects the older "cron is BusyBox `crond`, not systemd" claim below, which was itself only half right: there genuinely is no `cron`/`crond`/`cronie` systemd unit, but the conclusion that jobs "live in `/var/spool/cron/crontabs/root`" implied a daemon reads them — none does. `www-data` can still *write* that file (it's world-writable) and any `crontab`-writing code path reports success, but nothing ever consumes the entries — which is why the time-of-day features use systemd timers instead. See [qmanager-independence.md](qmanager-independence.md) for the confirmed probe, [scheduled-timers.md](scheduled-timers.md) for the timer replacement, and [Schedules adopt the new zone on daemon-reload or reboot](#schedules-adopt-the-new-zone-on-daemon-reload-or-reboot) below.
 - **The modem does not set the zone.** Network Identity and Time Zone updates (`AT+CTZU`) are disabled, so cellular registration never restamps the zone out from under a user selection. (Wall-clock *time* still syncs from the network; only the zone is under app control.)
 
 ---
@@ -182,48 +182,36 @@ Two properties make it OTA-safe:
 
 ---
 
-## Cron Caveat: schedules adopt the new zone on the next reboot
+## Schedules adopt the new zone on daemon-reload or reboot
 
-`date`, log timestamps, and alert timestamps go local **immediately** after apply, because each of those is a fresh process that reads `/etc/localtime` at exec time.
+`date`, log timestamps, and alert timestamps go local **immediately** after
+apply, because each of those is a fresh process that reads `/etc/localtime` at
+exec time.
 
-> ⚠️ WARNING — this section is written to describe the *intended* behavior of
-> a `crond`-backed schedule, which is the model the rest of this doc's prose
-> assumed. Live probing of the device (see [qmanager-independence.md](qmanager-independence.md))
-> confirmed **RM520N-GL runs no `crond` process at all** —
-> `/var/spool/cron/crontabs/` is empty and nothing polls it. So the
-> "adopts the new zone on next reboot" framing below is aspirational for any
-> feature that actually depends on it: those features' crontab writes never
-> fire in the first place, timezone or not. See
-> [Known follow-up: crontab-writing features have no consumer](#known-follow-up-crontab-writing-features-have-no-consumer)
-> below for which features this affects.
+Time-of-day **schedules** are different. RM520N-GL runs **no `crond`** — the
+binary exists on `PATH` but no daemon starts it, and
+`/var/spool/cron/crontabs/` is empty (confirmed live; see
+[qmanager-independence.md](qmanager-independence.md)). So the features that
+need to fire at a wall-clock time — **Scheduled Reboot** and the **Tower Lock
+Schedule** — are implemented as **systemd `OnCalendar` timers** armed at
+runtime by root helpers, not crontab entries. (The **Low Power** scheduler that
+this section used to list alongside them has been removed entirely.) See
+[scheduled-timers.md](scheduled-timers.md) for the full mechanism.
 
-Cron is different in the *design*. RM520N-GL scheduled jobs were meant to be
-BusyBox `crond`, reading `/var/spool/cron/crontabs/root`, with glibc caching
-the timezone per-process at startup so a running `crond` couldn't re-read
-`/etc/localtime` in place until it restarted. Because scheduled-reboot and
-low-power windows are interpreted in system-local time, the intended
-behavior was that a zone change wouldn't shift their trigger times until
-`crond` restarted on the next device reboot.
+systemd evaluates an `OnCalendar=` expression in the **system timezone**, and a
+running timer does not re-read the zone live. So a timezone change shifts these
+triggers only after the next `systemctl daemon-reload` or reboot — the same
+practical outcome the old crond-era prose described, just via a mechanism that
+actually fires. `sys_set_timezone` deliberately does **not** attempt an
+in-request `daemon-reload`; doing so from a CGI response path would be
+unreliable. Practical guidance is unchanged: set the timezone first, then
+configure scheduled reboot / tower-lock windows, so the two agree.
 
-`sys_set_timezone` deliberately does **not** attempt an in-request `crond`
-restart — that reasoning holds regardless of the crond finding above: doing
-so from a CGI response path would be unreliable even if a `crond` existed to
-restart. Practical guidance for users is unchanged: set the timezone first,
-then configure scheduled reboot / low-power windows, so the two agree
-whenever the underlying scheduling mechanism actually starts firing.
-
-### Known follow-up: crontab-writing features have no consumer
-
-Three currently-shipped features write to `/var/spool/cron/crontabs/root`
-expecting a `crond` daemon to read it: **Scheduled Reboot**, the **Low Power**
-window, and **Tower Lock Schedule**. The directory is world-writable, so the
-writes succeed and the UI reports success — but because no `crond` process
-exists on RM520N-GL, none of these entries ever fire. This was **not**
-introduced by this change; it predates it and is flagged here as a
-known-broken area, not fixed in this pass. The newer scenario-schedule
-feature (see [sim-profiles.md](sim-profiles.md#scenario-schedule-windows-systemd-timer-not-crond))
-deliberately avoided this trap by using a systemd `OnCalendar` timer instead
-of a crontab entry — the same fix these three features will need.
+> ℹ️ NOTE: earlier revisions of this doc flagged Scheduled Reboot, Low Power,
+> and Tower Lock Schedule as a known-broken "crontab writes with no consumer"
+> follow-up. That is resolved: Scheduled Reboot and Tower Lock now use systemd
+> timers, Low Power scheduling was deleted, and `qmanager_update`'s
+> `scrub_legacy_cron()` strips the dead legacy cron markers on every OTA.
 
 ---
 

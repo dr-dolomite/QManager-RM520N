@@ -490,10 +490,11 @@ www-data ALL=(root) NOPASSWD: /bin/systemctl start *, /bin/systemctl stop *, /bi
 www-data ALL=(root) NOPASSWD: /bin/ln -sf /lib/systemd/system/qmanager*.service ...
 www-data ALL=(root) NOPASSWD: /bin/rm -f /lib/systemd/system/multi-user.target.wants/qmanager*.service
 
-# Firewall, reboot, crontab, SSH password
+# Firewall, reboot, schedule-timer arming, SSH password
 www-data ALL=(root) NOPASSWD: /usr/sbin/iptables, /usr/sbin/iptables-restore, /usr/sbin/ip6tables, /usr/sbin/ip6tables-restore
 www-data ALL=(root) NOPASSWD: /sbin/reboot
-www-data ALL=(root) NOPASSWD: /usr/bin/crontab
+www-data ALL=(root) NOPASSWD: /usr/bin/qmanager_scheduled_reboot_arm
+www-data ALL=(root) NOPASSWD: /usr/bin/qmanager_tower_schedule_arm
 www-data ALL=(root) NOPASSWD: /usr/bin/qmanager_set_ssh_password
 ```
 

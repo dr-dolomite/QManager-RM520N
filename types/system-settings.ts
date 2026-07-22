@@ -29,6 +29,22 @@ export interface SystemSettingsResponse {
   scheduled_reboot: ScheduleConfig;
 }
 
+/**
+ * Result surfaced to the UI after saving a scheduled-reboot config.
+ *
+ * `armed` reports whether the schedule was actually installed as a live systemd
+ * timer on THIS device — not merely written to config. On an OTA-old base that
+ * predates the timer unit, the config persists but `armed:false` with a `reason`
+ * (e.g. "unit_absent"). The UI must warn on `armed === false` rather than flash
+ * an unconditional success toast (silent-success bug). Absent `armed` (older
+ * backend that doesn't report it) is treated as "assume armed" for compat.
+ */
+export interface ScheduledRebootSaveResult {
+  success: boolean;
+  armed?: boolean;
+  reason?: string;
+}
+
 // --- Day Labels (shared with tower locking) --------------------------------
 
 export const DAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
