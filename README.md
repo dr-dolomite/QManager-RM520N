@@ -14,6 +14,12 @@
 
 ---
 
+<div align="center">
+  <img src="docs/screenshots/dashboard.png" alt="QManager Dashboard Screenshot" width="900" />
+</div>
+
+---
+
 > **Note:** QManager is the successor to [SimpleAdmin](https://github.com/dr-dolomite/simpleadmin-mockup), rebuilt from the ground up with a modern tech stack and improved user experience. This branch targets the **Quectel RM520N-GL** modem running its internal Linux OS (SDXLEMUR, ARMv7l, kernel 5.4.180).
 
 ---
