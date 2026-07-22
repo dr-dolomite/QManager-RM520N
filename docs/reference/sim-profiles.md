@@ -34,9 +34,10 @@ points (boot, SIM switch, watchdog) and are still current.
 | Apply state file | `/tmp/qmanager_profile_state.json` |
 | Apply PID lock | `/tmp/qmanager_profile_apply.pid` |
 | CGI endpoints | `scripts/www/cgi-bin/quecmanager/profiles/*.sh` |
-| Frontend hook | `hooks/use-sim-profiles.ts` |
+| Frontend hook | `hooks/use-sim-profiles.ts`, `hooks/use-active-profile.ts` |
 | Frontend types | `types/sim-profile.ts` |
 | Frontend page | `app/cellular/custom-profiles/` |
+| Frontend components | `components/cellular/custom-profiles/` (coordinator `custom-profile.tsx`, wizard `custom-profile-form.tsx`, list `custom-profile-view.tsx`, dialog `apply-progress-dialog.tsx`) |
 | Apply steps | 4: `apn` → `ttl_hl` → `scenario` → `imei` |
 
 ---
@@ -219,11 +220,70 @@ deliberately allowed through — see [Why Balanced is treated as "no opinion"](#
 
 ---
 
-## Creating the binding from the SIM Profile form
+## Frontend UI (RM551E-parity redesign)
+
+The Custom SIM Profiles page was rebuilt to match the RM551E design. This is a
+**frontend-only** change — the backend data model, CGI contract, and apply
+pipeline described above are untouched. The three surfaces are the create/edit
+**wizard**, the saved-profiles **card list**, and the **apply-progress dialog**,
+coordinated by `custom-profile.tsx`.
+
+> ℹ️ NOTE: Verizon-specific UX is **omitted on RM520N** (it is RM551E-only):
+> there is no CID-lock-to-3, no brick-guard dialog, no MPDN pill, and no
+> `verizon_revert` reboot. The `vzw` MNO preset remains an ordinary, selectable
+> preset — RM520N already carried it and it is not special-cased. The dormant
+> `isVerizonActive` flag was removed from `hooks/use-active-profile.ts`.
+
+### The 4-tab create/edit wizard (`custom-profile-form.tsx`)
+
+The single-page form became a **4-tab wizard** with directional slide
+animation (`motion/react`, reduced-motion aware):
+
+| Tab | Purpose |
+|-----|---------|
+| Identity | Profile name, MNO preset, SIM ICCID. **Load-from-SIM** quick-fill pulls the live ICCID/IMEI; a live **duplicate-ICCID guard** warns before you save a profile bound to an already-claimed SIM. |
+| Network | APN name, CID, PDP type, TTL/HL, optional IMEI override. **"Use my saved APN"** quick-pick fills the APN from the current setting. |
+| Scenario | Scenario binding + optional daily schedule windows (see [scenario picker](#scenario-picker-and-the-create-new-deep-link) below). |
+| Review | Per-section summaries with edit-jump-back — clicking a section returns to its tab. Final Submit lives here. |
+
+The wizard emits the same flat `ProfileFormData` the old form did
+(`name` / `mno` / `sim_iccid` / `cid` / `apn_name` / `pdp_type` / `imei` /
+`ttl` / `hl` plus the nested `scenario` object) — no contract change. The
+Next/Submit buttons carry **distinct React `key`s** so React remounts the
+button across the step transition; this is the ported fix for an early-submit
+reconciliation bug where a stale click handler could fire a submit while the
+user only meant to advance a tab.
+
+### Saved-profiles card list (`custom-profile-view.tsx`)
+
+The old TanStack **data table was removed** (`custom-profile-table.tsx` is
+deleted) in favor of a **stacked-card row list**. Each row shows:
+
+- Config pills — APN / CID / PDP / TTL / HL / IMEI-override.
+- A **pulsing live-dot** on the active row.
+- An outline status badge — **Active** / **SIM-Mismatch** / **Inactive** (the
+  standard `variant="outline"` semantic-color pattern, not a solid badge).
+- The scenario-binding line and, when relevant, a SIM-mismatch inline banner.
+- A per-row audit line — **"Applied / Partial / Failed at HH:MM"** — backed by
+  the new `custom_profiles.view.audit.{applied,partial,failed}` i18n keys.
+
+Row settings are hydrated on demand via a `getProfile` prefetch, because the
+`list.sh` summaries deliberately omit the `settings` object (the list endpoint
+stays lightweight; per-row config detail is fetched when a card needs it).
+
+### Apply-progress dialog (`apply-progress-dialog.tsx`)
+
+The apply dialog adopts the RM551E **hero-glyph** design — a tinted-ring glyph,
+a determinate fill bar, and a step ledger. It renders the **4 RM520N steps**
+`apn → ttl_hl → scenario → imei` (it does **not** carry RM551E's Verizon
+`mpdn_rule` step). While the apply is non-terminal the dialog cannot be closed;
+on a terminal **partial** or **failed** result it offers **Retry**.
+
+### Scenario picker and the "+ Create new" deep-link
 
 New profiles default to `scenario_id = "balanced"`. The user picks any
-built-in or custom scenario from the Select; there's no "None" option —
-Balanced is the de-facto no-op value.
+built-in or custom scenario from the Select in the Scenario tab; there's no
+"None" option — Balanced is the de-facto no-op value.
 
 The Select uses one sentinel option value:
 
@@ -231,9 +291,39 @@ The Select uses one sentinel option value:
 |----------|---------|
 | `__create__` | "+ Create new custom scenario…" — deep-links to `/cellular/custom-profiles/connection-scenarios?action=create`, which auto-opens the create-scenario dialog. If the profile form is dirty, an AlertDialog prompts the user to discard changes before navigating. |
 
-The destination page wraps `useSearchParams()` in `<Suspense>` (Next.js
-requirement when reading search params in a client component) and consumes
-the `action=create` query param to open the dialog on mount.
+> ℹ️ NOTE: The deep-link param is `?action=create`. It was previously
+> `?create=1`, which did not match what the scenarios page consumer reads —
+> the param name is now aligned so the create-scenario dialog actually opens on
+> arrival. The destination page wraps `useSearchParams()` in `<Suspense>`
+> (Next.js requirement when reading search params in a client component) and
+> consumes `action=create` to open the dialog on mount.
+
+### Supporting components
+
+- `empty-profile.tsx` — restyled empty state, now i18n'd.
+- `profile-override-alert.tsx` — the reusable gate banner (see
+  [Gate matrix](#gate-matrix)), now i18n-wired. Its prop contract
+  (`{ profileName, controls, note? }`) is **preserved** — it is shared by the
+  APN, TTL/HL, Scenarios, and Band-Locking gate pages, so the shape could not
+  change.
+- `custom-profile.tsx` — the coordinator, i18n-wired for the page header and
+  the activate/deactivate confirmation dialogs. **Deactivate ≠ revert**
+  semantics are preserved.
+
+### i18n and the `ApplyStep` comment fix
+
+The `custom_profiles` namespace was transplanted from RM551E's professional
+translations (minus the Verizon keys), growing from ~28 to **282 leaf keys**
+per locale across all five locales (`en` / `zh-CN` / `zh-TW` / `it` / `id`);
+`bun run i18n:check` reports 100% parity. Separately, the `ApplyStep.name`
+doc comment in `types/sim-profile.ts` was corrected — it now documents the
+real 4-step RM520N set (`apn`, `ttl_hl`, `scenario`, `imei`), replacing a
+stale RM551E 7-step list.
+
+> ℹ️ NOTE: This redesign was validated with `next build` (exit 0, both
+> `/cellular/custom-profiles` routes prerender), `bun run i18n:check` (100%
+> parity, 0 errors), and `eslint` (exit 0). On-device curl validation was not
+> run — no backend changed, so it is not required for this change.
 
 ---
 

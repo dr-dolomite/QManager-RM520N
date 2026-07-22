@@ -79,41 +79,355 @@
     }
   },
   "custom_profiles": {
-    "form": {
-      "fields": {
-        "mno_custom": "自定义"
+    "page": {
+      "title": "自定义 SIM 配置文件",
+      "description": "将 APN、IMEI 和 TTL/HL 设置打包为一键式配置文件。",
+      "error_load_failed": "无法加载配置文件。请检查连接并重试。"
+    },
+    "view": {
+      "title": "已保存的配置文件",
+      "description": "管理您的自定义 SIM 配置文件。",
+      "count_one": "已保存 {{count}} 个配置文件",
+      "count_other": "已保存 {{count}} 个配置文件",
+      "subtitle": "在此设备上激活、编辑或移除蜂窝配置文件。",
+      "activating": "正在激活",
+      "scenario_scheduled": "{{scenario}}，按每日计划",
+      "scenario_always_on": "{{scenario}}，始终启用",
+      "delete_description": "此操作将从设备中移除该配置文件。绑定到它的任何计划都将被清除。此操作无法撤销。",
+      "delete_keep": "保留配置文件",
+      "mismatch_note": "modem 中的 SIM 卡与此配置文件的 ICCID 不匹配。在插入匹配的 SIM 卡之前，设备将保持当前设置。",
+      "toast": {
+        "deactivated": "已停用 {{name}}",
+        "deactivate_error": "停用配置文件失败",
+        "deleted": "已删除 {{name}}",
+        "delete_error": "删除配置文件失败"
       },
-      "mno_hint": "您可以在此处选择预配置的移动网络运营商。",
-      "default_scenario_label": "默认场景",
-      "default_scenario_hint": "在没有任何计划时段处于活动状态时运行。",
-      "schedule_inline_label": "基于时间的计划",
-      "schedule_inline_hint": "在最多两个每日时段内切换场景。",
-      "windows_empty": "尚无时段。添加一个以在设定时间切换场景。",
-      "windows_count": "{{max}} 个时段中的 {{count}} 个",
-      "add_window": "添加时段",
+      "delete_title": "删除“{{name}}”？",
+      "audit": {
+        "applied": "已于 {{time}} 应用",
+        "partial": "已于 {{time}} 部分应用",
+        "failed": "{{time}} 应用失败"
+      }
+    },
+    "table": {
+      "headers": {
+        "profile": "配置文件",
+        "status": "状态",
+        "last_updated": "最后更新",
+        "actions": ""
+      },
+      "status_badge": {
+        "active": "活动",
+        "inactive": "未激活",
+        "sim_mismatch": "SIM 不匹配"
+      },
+      "pagination": {
+        "total_one": "共 {{count}} 个配置文件",
+        "total_other": "共 {{count}} 个配置文件",
+        "page_info": "第 {{current}} 页，共 {{total}} 页",
+        "previous": "上一页",
+        "next": "下一页"
+      },
+      "empty_row": "暂无配置文件，请创建一个以开始使用。",
+      "actions_menu": {
+        "open_menu": "打开菜单",
+        "edit": "编辑",
+        "activate": "激活",
+        "deactivate": "停用",
+        "delete": "删除"
+      },
+      "delete_confirm": {
+        "title": "删除配置文件",
+        "description": "确定要删除「{{name}}」吗？此操作不可撤销。删除此配置文件不会更改当前调制解调器配置。",
+        "confirm_button": "删除",
+        "deleting": "删除中…"
+      }
+    },
+    "form": {
+      "create_title": "创建自定义 SIM 配置文件",
+      "create_description": "使用特定的 APN、TTL 和 IMEI 设置创建自定义 SIM 配置文件。",
+      "edit_title": "编辑配置文件",
+      "edit_description": "正在编辑「{{name}}」。请更新以下字段。",
+      "load_current_button": "加载当前 SIM",
+      "fields": {
+        "profile_name_label": "配置文件名称",
+        "profile_name_placeholder": "我的 LTE 配置文件",
+        "profile_name_required": "配置文件名称为必填项。",
+        "sim_iccid_required": "SIM ICCID 为必填项。",
+        "sim_iccid_duplicate": "已存在使用此 SIM ICCID 的配置文件。",
+        "apn_name_required": "APN 名称为必填项。",
+        "sim_iccid_label": "SIM ICCID",
+        "sim_iccid_placeholder": "自动从当前 SIM 填充",
+        "mno_label": "移动网络运营商",
+        "mno_placeholder": "选择运营商…",
+        "mno_custom": "自定义",
+        "reuse_apn_label": "APN 配置",
+        "reuse_apn_placeholder": "选择已保存的 APN…",
+        "reuse_apn_custom": "自定义",
+        "use_saved_apn": "使用我已保存的 APN（{{apn}}）",
+        "apn_name_label": "APN 名称",
+        "apn_name_placeholder": "internet",
+        "ip_protocol_label": "IP 协议",
+        "ip_protocol_ipv4": "仅 IPv4",
+        "ip_protocol_ipv6": "仅 IPv6",
+        "ip_protocol_dual": "IPv4 + IPv6 (双栈)",
+        "cid_label": "配置文件槽位 (CID)",
+        "cid_error": "CID 必须为 1–15。",
+        "imei_label": "首选 IMEI",
+        "imei_placeholder": "留空以保留当前 IMEI",
+        "imei_error": "IMEI 必须为 15 位数字。",
+        "ttl_label": "TTL 值",
+        "ttl_error": "TTL 必须为 0–255。",
+        "hl_label": "跳数限制",
+        "hl_error": "HL 必须为 0–255。",
+        "sim_iccid_hint": "留空可将此配置应用于任意 SIM 卡。",
+        "imei_danger": "更改 IMEI 会重写调制解调器标识，并在激活时重启调制解调器。留空以保留当前 IMEI。"
+      },
+      "buttons": {
+        "create_submit": "创建配置文件",
+        "update_submit": "更新配置文件",
+        "reset": "重置",
+        "back": "上一步",
+        "next": "下一步"
+      },
+      "toast": {
+        "create_success": "配置文件创建成功。",
+        "create_error": "创建配置文件失败。",
+        "update_success": "配置文件更新成功。",
+        "update_error": "更新配置文件失败。"
+      },
       "scenario": {
-        "deleted_scenario": "（已删除的场景）",
-        "create_new": "创建新场景",
+        "section_title": "场景",
+        "section_description": "将此配置绑定到连接场景，激活时自动应用。可选择按时段配置不同场景的定时切换。",
+        "default_label": "默认场景",
+        "default_hint": "激活此配置时应用，并用作未被以下计划覆盖的时段的回退场景。",
+        "schedule_toggle_label": "按时段计划",
+        "schedule_toggle_hint": "按每日时间表自动切换场景。",
+        "add_block": "添加时段",
+        "remove_block_aria": "删除时段",
+        "block_label": "时段 {{index}}",
         "start_label": "开始",
         "end_label": "结束",
         "block_scenario_label": "场景",
+        "otherwise_label": "其他时间",
+        "empty_schedule_hint": "暂无时段 — 效果与直接使用 {{name}} 相同。",
         "overlap_warning": "此时段与另一个时段重叠。重叠时，列表靠前的时段优先生效。",
-        "overnight_hint": "次日结束",
-        "summary_line": "{{time}} → {{scenario}}",
-        "time_range": "{{start}}–{{end}}",
-        "move_up_aria": "上移时段",
-        "move_down_aria": "下移时段",
-        "expand_rule_aria": "编辑时段",
-        "remove_block_aria": "删除时段",
-        "block_label": "时段 {{index}}",
         "schedule_invalid": "请先修正高亮显示的计划时段再保存。",
+        "deleted_scenario": "（已删除的场景）",
         "block_errors": {
           "invalid_start": "请输入有效的开始时间（HH:MM）。",
           "invalid_end": "请输入有效的结束时间（HH:MM）。",
           "zero_length": "开始时间和结束时间不能相同。",
           "no_days": "请至少选择一天。"
-        }
+        },
+        "summary_line": "{{time}} → {{scenario}}",
+        "time_range": "{{start}}–{{end}}",
+        "move_up_aria": "上移时段",
+        "move_down_aria": "下移时段",
+        "expand_rule_aria": "编辑时段",
+        "overnight_hint": "次日结束",
+        "create_new": "创建新场景",
+        "active_now_line": "当前 → {{scenario}}",
+        "active_now_line_with_next": "当前 → {{scenario}} · 下次切换 {{time}}",
+        "entries_cap_hint": "最多 {{max}} 个时段。请先删除一个再添加。"
+      },
+      "loading_current": "正在读取 SIM…",
+      "advanced": {
+        "title": "高级",
+        "summary_imei": "IMEI 覆盖",
+        "summary_ttl": "TTL {{value}}",
+        "summary_hl": "HL {{value}}"
+      },
+      "back_to_list": "返回配置列表",
+      "edit_loading": "正在加载配置…",
+      "steps": {
+        "nav_aria": "配置步骤",
+        "identity_label": "身份与运营商",
+        "identity_short": "身份",
+        "apn_short": "APN",
+        "apn_label": "APN 与连接",
+        "advanced_label": "高级",
+        "advanced_short": "高级",
+        "advanced_desc": "通常无需更改。除非确有需要，请保持默认。",
+        "scenario_label": "连接场景",
+        "scenario_short": "场景",
+        "review_short": "查看",
+        "review_label": "查看",
+        "scenario_desc": "选择激活此配置时应用的场景，并可按一天中的时间安排切换。",
+        "optional": "可选",
+        "step_of": "第 {{current}} 步，共 {{total}} 步",
+        "state_current": "当前步骤",
+        "state_complete": "已完成",
+        "state_error": "存在错误",
+        "state_upcoming": "待进行"
+      },
+      "sections": {
+        "identity_title": "标识",
+        "identity_desc": "为此配置命名并选择对应的运营商。",
+        "apn_title": "APN 与连接",
+        "apn_desc": "调制解调器连接运营商数据网络的方式。",
+        "advanced_title": "高级",
+        "advanced_desc": "很少需要更改。仅在确有必要时修改。"
+      },
+      "summary": {
+        "title": "预览",
+        "desc": "此配置在列表中的显示方式，以及激活时会更改的内容。",
+        "untitled": "未命名配置",
+        "reboot_note": "激活将重启调制解调器以应用 IMEI 更改。"
+      },
+      "discard_dialog": {
+        "title": "放弃更改？",
+        "description": "您有未保存的更改。现在离开将放弃这些更改。",
+        "confirm": "放弃",
+        "keep": "继续编辑"
+      },
+      "add_title": "添加配置文件",
+      "add_description": "向您的设备添加新的蜂窝配置文件。",
+      "edit_description_simple": "更新此蜂窝配置文件，然后保存更改。",
+      "load_from_sim": "从 SIM 加载",
+      "loaded_from_sim": "已从 SIM 加载当前设置",
+      "save_failed": "保存配置文件失败",
+      "profile_added": "已添加配置文件",
+      "profile_updated": "已更新配置文件",
+      "submit_add": "提交",
+      "submit_edit": "保存更改",
+      "cancel": "取消",
+      "next": "下一步",
+      "clear": "清除",
+      "tab_network": "网络",
+      "network_desc": "modem 连接到运营商数据网络的方式。",
+      "identity_load_hint": "为此配置文件命名并选择适用的运营商。",
+      "sim_iccid_placeholder_inline": "自动检测或输入 ICCID",
+      "sim_iccid_hint_inline": "标识此配置文件对应的 SIM 卡。",
+      "mno_hint": "您可以在此处选择预配置的移动网络运营商。",
+      "cid_default_option": "CID 1（默认）",
+      "scenario_desc_inline": "选择此配置文件运行的场景，并可选择在一天中的设定时间切换场景。",
+      "default_scenario_label": "默认场景",
+      "default_scenario_hint": "在没有任何计划时段处于活动状态时运行。",
+      "create_scenario_option": "新建场景",
+      "schedule_inline_label": "基于时间的计划",
+      "schedule_inline_hint": "在最多两个每日时段内切换场景。",
+      "windows_empty": "尚无时段。添加一个以在设定时间切换场景。",
+      "window_label": "时段 {{index}}",
+      "window_remove_aria": "移除时段 {{index}}",
+      "window_from": "从",
+      "window_to": "到",
+      "windows_count": "{{max}} 个时段中的 {{count}} 个",
+      "add_window": "添加时段",
+      "review_desc_add": "检查您的配置文件，然后将其添加到设备。",
+      "review_desc_edit": "检查您的配置文件，然后保存更改。",
+      "review_edit_aria": "编辑",
+      "review": {
+        "section_identity": "身份",
+        "section_network": "网络",
+        "section_scenario": "场景",
+        "profile_name": "配置文件名称",
+        "sim_iccid": "SIM ICCID",
+        "all_sims": "所有 SIM 卡",
+        "operator": "运营商",
+        "apn": "APN",
+        "ip_protocol": "IP 协议",
+        "profile_slot": "配置文件槽位",
+        "cid_value": "CID {{cid}}",
+        "cid_value_default": "CID {{cid}}（默认）",
+        "preferred_imei": "首选 IMEI",
+        "ttl_hl": "TTL / 跳数限制",
+        "default": "默认",
+        "schedule": "计划",
+        "schedule_on_no_windows": "已启用，无时段",
+        "schedule_off": "已关闭",
+        "window_value": "{{scenario}} · {{start}}–{{end}}",
+        "not_set": "未设置"
+      },
+      "pdp_inline": {
+        "ipv4": "IPv4",
+        "ipv6": "IPv6",
+        "dual": "IPv4 & IPv6"
       }
+    },
+    "activate_dialog": {
+      "title": "激活配置文件",
+      "description": "将「{{name}}」应用到调制解调器？这将按配置文件中的设置更新 APN、TTL/HL 和 IMEI。未更改的设置将被跳过。",
+      "confirm": "激活"
+    },
+    "deactivate_dialog": {
+      "title": "停用配置文件",
+      "description": "清除活动配置文件标记？调制解调器当前的设置（APN、IMEI、TTL）不会恢复——仅移除「活动」标记。",
+      "confirm": "停用",
+      "deactivating": "停用中…"
+    },
+    "apply_dialog": {
+      "title": "正在应用配置文件",
+      "status_badge": {
+        "applying": "应用中…",
+        "complete": "完成",
+        "partial": "部分完成",
+        "failed": "失败"
+      },
+      "step_labels": {
+        "apn": "APN 配置",
+        "ttl_hl": "TTL / 跳数限制",
+        "imei": "IMEI",
+        "scenario": "连接场景"
+      },
+      "reboot_notice": "调制解调器正在重启以应用 IMEI 更改，仪表板将自动重新连接。",
+      "step_state_unchanged": "无变化",
+      "preparing": "准备中…",
+      "step_progress": "第 {{current}} / {{total}} 步",
+      "complete_headline": "配置已激活",
+      "complete_sub": "所有适用的设置已应用到调制解调器。",
+      "partial_headline": "已激活（部分跳过）",
+      "partial_sub": "部分步骤已跳过。请查看下方详情。",
+      "failed_headline": "激活失败",
+      "failed_sub": "调制解调器未完全重新配置。",
+      "details_label": "步骤"
+    },
+    "empty_state": {
+      "title": "暂无自定义配置文件",
+      "description": "在此管理您的自定义 SIM 配置文件。",
+      "description_full": "您尚未创建任何自定义 SIM 配置文件。请使用表单创建您的第一个配置文件。",
+      "refresh": "刷新",
+      "card_title": "自定义 SIM 配置文件",
+      "card_description": "将 APN、IMEI 和 TTL 设置打包，一步应用到调制解调器。",
+      "teaching_headline": "尚无配置文件",
+      "teaching_body": "自定义 SIM 配置文件将 APN 名称、IP 协议、TTL/HL 覆盖和可选 IMEI 打包为一个已保存的预设。激活后一次性应用所有设置，切换运营商或 SIM 卡槽只需数秒。",
+      "cta_new": "新建配置文件",
+      "cta_refresh": "刷新"
+    },
+    "pills": {
+      "ip_v4": "IPv4",
+      "ip_v6": "IPv6",
+      "ip_dual": "IPv4v6",
+      "apn": "APN {{name}}",
+      "apn_default": "默认 APN",
+      "cid": "CID {{cid}}",
+      "ttl": "TTL {{value}}",
+      "hl": "HL {{value}}",
+      "imei_override": "IMEI 覆盖"
+    },
+    "active_card": {
+      "none_title": "无活动配置",
+      "none_description": "调制解调器正在使用当前设置。激活已保存的配置以应用一组设置。",
+      "subtitle": "已应用到调制解调器",
+      "subtitle_with_mno": "已应用 · {{mno}}",
+      "scenario_default": "场景：{{name}}",
+      "scenario_scheduled": "场景：{{name}}（已排程）",
+      "mismatch_note": "此配置是为另一张 SIM 卡创建的，与当前插入的 SIM 卡不同。请为当前 SIM 卡重新激活，或激活匹配的配置。",
+      "edit_button": "编辑"
+    },
+    "card": {
+      "label_iccid": "SIM",
+      "label_updated": "更新时间"
+    },
+    "list": {
+      "new_button": "新建",
+      "bound_sim": "绑定到 SIM {{iccid}}",
+      "detail_unavailable": "无法加载此配置的设置。",
+      "only_active_hint": "您唯一的配置正是当前激活的配置。创建另一个即可在不同设置间切换。"
+    },
+    "edit": {
+      "not_found_title": "未找到配置",
+      "not_found_desc": "该配置可能已被删除。返回已保存的配置。"
     }
   },
   "scenarios": {

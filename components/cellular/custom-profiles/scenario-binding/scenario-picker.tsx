@@ -74,7 +74,7 @@ export function ScenarioPicker({
             navigation instead of becoming the selected value. */}
         <SelectSeparator />
         <Link
-          href="/cellular/custom-profiles/connection-scenarios?create=1"
+          href="/cellular/custom-profiles/connection-scenarios?action=create"
           className="text-muted-foreground hover:bg-accent hover:text-accent-foreground focus-visible:bg-accent focus-visible:text-accent-foreground relative flex w-full cursor-pointer items-center gap-2 rounded-sm py-1.5 pl-2 pr-8 text-sm outline-none transition-colors"
         >
           <PlusIcon className="size-4 shrink-0" />

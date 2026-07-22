@@ -186,7 +186,7 @@ export type ApplyStatus = "idle" | "applying" | "complete" | "partial" | "failed
 
 /** Status of a single step in the apply sequence */
 export interface ApplyStep {
-  /** Step name: apn, network_mode, lte_bands, nsa_nr_bands, sa_nr_bands, ttl_hl, imei */
+  /** Step name — the RM520N apply pipeline emits exactly 4, in order: apn, ttl_hl, scenario, imei */
   name: string;
   /** Current step status */
   status: ApplyStepStatus;
