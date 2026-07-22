@@ -37,7 +37,7 @@ import {
   PowerOffIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useModemStatus } from "@/hooks/use-modem-status";
+import type { UseModemStatusReturn } from "@/hooks/use-modem-status";
 import { formatTimeAgo } from "@/types/modem-status";
 import type { WatchcatState } from "@/types/modem-status";
 import type { WatchdogSettings } from "@/hooks/use-watchdog-settings";
@@ -49,6 +49,13 @@ interface WatchdogStatusCardProps {
   settings: WatchdogSettings;
   autoDisabled: boolean;
   revertSim: () => Promise<boolean>;
+  /**
+   * Lifted up to the page coordinator (rather than fetched here) so the
+   * page-level loading gate can wait on it too — by the time this card
+   * mounts, the initial poll has already resolved, so there's no separate
+   * "Starting Up" loading flash after the page skeleton.
+   */
+  modemStatus: UseModemStatusReturn;
 }
 
 type HeroTone = "success" | "warning" | "destructive" | "info" | "muted";
@@ -120,10 +127,9 @@ export function WatchdogStatusCard({
   settings,
   autoDisabled,
   revertSim,
+  modemStatus: modemStatusResult,
 }: WatchdogStatusCardProps) {
-  const { data: modemStatus, isLoading } = useModemStatus({
-    pollInterval: 5000,
-  });
+  const { data: modemStatus } = modemStatusResult;
   const [isReverting, setIsReverting] = useState(false);
   const reduceMotion = useReducedMotion();
 
@@ -164,26 +170,6 @@ export function WatchdogStatusCard({
       </CardAction>
     </CardHeader>
   );
-
-  // ---- Loading (Skeleton-Mirror handled by the page-level skeleton) ----
-  if (isLoading && !watchcat) {
-    return (
-      <Card className="@container/card">
-        {header}
-        <CardContent>
-          <StateTile
-            tone="muted"
-            icon={
-              <Loader2 className="size-6 animate-spin motion-reduce:animate-none" />
-            }
-            title="Starting Up"
-            subtitle="The watchdog is starting up."
-            reduceMotion={reduceMotion}
-          />
-        </CardContent>
-      </Card>
-    );
-  }
 
   // ---- Off (saved disabled) ----
   if (!savedEnabled) {

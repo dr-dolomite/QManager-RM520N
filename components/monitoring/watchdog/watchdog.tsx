@@ -2,6 +2,8 @@
 
 import { useWatchdogSettings } from "@/hooks/use-watchdog-settings";
 import type { UseWatchdogSettingsReturn } from "@/hooks/use-watchdog-settings";
+import { useModemStatus } from "@/hooks/use-modem-status";
+import type { UseModemStatusReturn } from "@/hooks/use-modem-status";
 import {
   Card,
   CardAction,
@@ -35,6 +37,18 @@ import { WatchdogRecoveryActivityCard } from "./watchdog-recovery-activity-card"
 // settings card's sticky bar and commits every change.
 const WatchdogComponent = () => {
   const hookData = useWatchdogSettings();
+  // Lifted here (rather than inside WatchdogStatusCard) so the page-level
+  // skeleton can wait on it too — see the loading-gate comment below.
+  const modemStatus = useModemStatus({ pollInterval: 5000 });
+
+  // WatchdogStatusCard's own first-paint depends on both settings AND the
+  // first modem-status poll. Dropping the skeleton on settings alone let the
+  // status card mount mid-loading and flash its own bare "Starting Up" tile
+  // (no counters, no ladder) before the real hero arrived — a second, smaller
+  // skeleton shape stacked right after the first. Waiting for both sources
+  // here means the skeleton hands off directly to the real first render.
+  const isLoading =
+    hookData.isLoading || !hookData.settings || modemStatus.isLoading;
 
   return (
     <div className="@container/main mx-auto flex flex-col gap-6 p-2">
@@ -46,7 +60,7 @@ const WatchdogComponent = () => {
         </p>
       </div>
 
-      {hookData.isLoading || !hookData.settings ? (
+      {isLoading ? (
         <PageSkeleton />
       ) : (
         <WatchdogForm
@@ -54,6 +68,7 @@ const WatchdogComponent = () => {
           // server truth after every save / background refetch.
           key={settingsSignature(hookData)}
           hookData={hookData}
+          modemStatus={modemStatus}
         />
       )}
     </div>
@@ -78,7 +93,13 @@ function settingsSignature(hookData: UseWatchdogSettingsReturn): string {
   ].join("-");
 }
 
-function WatchdogForm({ hookData }: { hookData: UseWatchdogSettingsReturn }) {
+function WatchdogForm({
+  hookData,
+  modemStatus,
+}: {
+  hookData: UseWatchdogSettingsReturn;
+  modemStatus: UseModemStatusReturn;
+}) {
   const { settings, isSaving, error, saveSettings, autoDisabled, revertSim } =
     hookData;
 
@@ -98,6 +119,7 @@ function WatchdogForm({ hookData }: { hookData: UseWatchdogSettingsReturn }) {
           settings={settings!}
           autoDisabled={autoDisabled}
           revertSim={revertSim}
+          modemStatus={modemStatus}
         />
         <WatchdogRecoveryActivityCard />
       </div>
@@ -135,6 +157,10 @@ function PageSkeleton() {
 
 // Status hero: header + switch action, the state tile (matches the p-4 + size-12
 // tile → 80px), the wrap-flow counter strip, and the read-only ladder stepper.
+// The counter strip mirrors the common case — 5 stats (Current Step, Failed
+// Checks, Total Recoveries, Reboots This Hour, Last Recovery). The 6th "Cooldown"
+// stat only appears while a Tier-3 SIM swap is actively settling, so it's
+// deliberately left out here rather than reserving space for a rare transient.
 function StatusSkeleton() {
   return (
     <Card className="@container/card" aria-hidden>
@@ -149,7 +175,7 @@ function StatusSkeleton() {
         <Skeleton className="h-20 w-full rounded-xl" />
         <div className="border-t pt-5">
           <div className="flex flex-wrap gap-x-10 gap-y-5">
-            {Array.from({ length: 6 }).map((_, i) => (
+            {Array.from({ length: 5 }).map((_, i) => (
               <div key={i} className="grid gap-1">
                 <Skeleton className="h-3 w-20" />
                 <Skeleton className="h-4 w-16" />
