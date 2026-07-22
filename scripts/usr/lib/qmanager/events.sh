@@ -406,12 +406,6 @@ detect_data_connection_events() {
 
 # Compare current state vs previous and emit events for any changes
 detect_events() {
-    # Suppress all events during scheduled low power mode
-    if [ -f "/tmp/qmanager_low_power_active" ]; then
-        snapshot_event_state
-        return
-    fi
-
     # First cycle: populate previous state, don't generate events
     if [ "$events_initialized" = "false" ]; then
         snapshot_event_state

@@ -2,15 +2,42 @@
 # =============================================================================
 # qmanager_scheduled_reboot — Scheduled System Reboot
 # =============================================================================
-# Called by cron at the configured time. Logs the event and reboots.
+# Fired by qmanager-scheduled-reboot.timer (runtime-armed by
+# qmanager_scheduled_reboot_arm — RM520N has no crond, see
+# schedule_timer.sh). Logs the event and reboots.
+#
+# OTA GUARD: an in-flight qmanager_update (download/verify/install) must
+# never be cut off by an unrelated scheduled reboot landing mid-update —
+# that would corrupt the staged install and could brick the boot partition
+# if the timer fires between "installed new files" and "reboot into them".
+# qmanager_update writes its own PID to /tmp/qmanager_update.pid for the
+# entire duration of an install/download/rollback run and removes it on
+# every exit path (success, error, or handoff to its own reboot) — see
+# PID_FILE in qmanager_update. pid_alive (not `kill -0`) because a stale PID
+# could be recycled by an unrelated process; checking /proc/<pid> existence
+# is what platform.sh's pid_alive does and is safe across the root/root
+# boundary here regardless.
 # Install location: /usr/bin/qmanager_scheduled_reboot
 # =============================================================================
 
 . /usr/lib/qmanager/qlog.sh 2>/dev/null || {
     qlog_init() { :; }
     qlog_info() { logger -t scheduled_reboot "$1"; }
+    qlog_warn() { logger -t scheduled_reboot "$1"; }
 }
+[ -f /usr/lib/qmanager/platform.sh ] && . /usr/lib/qmanager/platform.sh 2>/dev/null
+command -v pid_alive >/dev/null 2>&1 || pid_alive() { [ -n "$1" ] && [ -d "/proc/$1" ]; }
 
 qlog_init "scheduled_reboot"
+
+UPDATE_PID_FILE="/tmp/qmanager_update.pid"
+if [ -f "$UPDATE_PID_FILE" ]; then
+    update_pid=$(cat "$UPDATE_PID_FILE" 2>/dev/null)
+    if pid_alive "$update_pid"; then
+        qlog_warn "Scheduled reboot skipped: qmanager_update in progress (pid $update_pid)"
+        exit 0
+    fi
+fi
+
 qlog_info "Scheduled system reboot triggered"
 reboot

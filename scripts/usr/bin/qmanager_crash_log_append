@@ -1,0 +1,80 @@
+#!/bin/sh
+# =============================================================================
+# qmanager_crash_log_append — Root helper: append a validated reboot-cause
+# entry to /etc/qmanager/crash.log
+# =============================================================================
+# installer-safety-auditor BLOCKED a www-data CGI writing crash.log directly:
+# lighttpd runs reboot.sh as www-data, and a plain `echo ... >> crash.log`
+# from that context is a symlink privilege-escalation hole — a compromised
+# www-data process could replace crash.log with a symlink to any root-owned
+# file, and the next root-run append (this helper, or qmanager_watchcat's
+# Tier 4 path) would write through it. This helper is the sanctioned pattern
+# (same shape as qmanager_ethernet_apply / qmanager_set_ssh_password):
+# narrowly-scoped root logic gated behind one bare-path sudoers line, with
+# every input hardcoded/validated rather than interpolated.
+#
+# Usage:  qmanager_crash_log_append <reason>
+#   <reason> — ONLY the literal "user" is accepted. This helper exists
+#   solely so system/reboot.sh can classify a user-initiated reboot; any
+#   other cause (watchdog Tier 4, unplanned) is already written directly by
+#   qmanager_watchcat, which runs as root and needs no sudoers gate.
+#
+# Exit: 0 = appended, 1 = rejected/failed (JSON error on stdout, matching
+#       the other qmanager_* root helpers' convention)
+#
+# Called via sudoers: www-data ALL=(root) NOPASSWD: /usr/bin/qmanager_crash_log_append
+# Install location: /usr/bin/qmanager_crash_log_append
+# =============================================================================
+
+CRASH_LOG="/etc/qmanager/crash.log"
+MAX_LINES=20
+
+reason="$1"
+
+# --- Reason whitelist: never interpolate arbitrary caller text ---------------
+case "$reason" in
+    user) ;;
+    *)
+        printf '{"success":false,"error":"invalid_reason","detail":"reason must be exactly \"user\""}\n'
+        exit 1
+        ;;
+esac
+
+mkdir -p /etc/qmanager 2>/dev/null
+
+# --- Symlink guard -------------------------------------------------------
+# Refuse (and remove) a symlinked crash.log rather than following it.
+if [ -L "$CRASH_LOG" ]; then
+    rm -f "$CRASH_LOG"
+fi
+
+# --- Self-heal as a regular root:root 644 file on EVERY call -----------------
+# install_rm520n.sh's `chown -R www-data:www-data /etc/qmanager` (config-dir
+# ownership pass, unrelated to this file) will flip crash.log back to
+# www-data:www-data on every OTA/upgrade re-run — that chown is intentionally
+# left untouched (see install_rm520n.sh notes). Re-asserting ownership here
+# on every invocation, not just at first creation, is what keeps the
+# root:root invariant intact across upgrades.
+[ -f "$CRASH_LOG" ] || : > "$CRASH_LOG"
+chown root:root "$CRASH_LOG" 2>/dev/null
+chmod 644 "$CRASH_LOG" 2>/dev/null
+
+epoch=$(date +%s)
+if ! echo "${epoch}|reboot|${reason}" >> "$CRASH_LOG" 2>/dev/null; then
+    printf '{"success":false,"error":"write_failed","detail":"Failed to append to crash.log"}\n'
+    exit 1
+fi
+
+# --- Trim to last N lines (matches qmanager_watchcat's own convention) ------
+count=$(wc -l < "$CRASH_LOG" 2>/dev/null || echo 0)
+if [ "$count" -gt "$MAX_LINES" ]; then
+    tmp="${CRASH_LOG}.tmp"
+    if tail -n "$MAX_LINES" "$CRASH_LOG" > "$tmp" 2>/dev/null; then
+        mv "$tmp" "$CRASH_LOG" 2>/dev/null || rm -f "$tmp"
+    else
+        rm -f "$tmp"
+    fi
+fi
+
+printf '{"success":true}\n'
+exit 0

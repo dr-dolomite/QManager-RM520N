@@ -1,0 +1,124 @@
+{
+  "core_settings": {
+    "apn": {
+      "page": {
+        "title": "APN Settings",
+        "description": "Set the APN, IP protocol, and data context your SIM uses to connect.",
+        "error_load_title": "Failed to load APN settings",
+        "error_load_description": "Displayed values may be outdated."
+      },
+      "card": {
+        "title": "APN Configuration",
+        "description": "The Access Point Name the modem uses to establish a data connection."
+      },
+      "status": {
+        "active": "Active",
+        "not_live": "Not live",
+        "carrier_default": "Carrier default",
+        "network_using": "Network is using: {{apn}}"
+      },
+      "save_connection_notice": "Saving briefly drops the cellular connection while the modem reconnects.",
+      "carrier_default": {
+        "button": "Use carrier default",
+        "dialog": {
+          "title": "Use carrier default APN?",
+          "description": "Your carrier will choose the APN automatically. The cellular connection will drop briefly while the modem reconnects.",
+          "confirm": "Use carrier default",
+          "cancel": "Cancel"
+        }
+      },
+      "toast": {
+        "saved": "APN settings saved",
+        "save_error": "Failed to save APN settings",
+        "deactivated": "Reverted to carrier default APN",
+        "deactivate_error": "Failed to revert to carrier default"
+      },
+      "controls_label": "APN configuration",
+      "managed_by_profile_fallback": "active Custom SIM Profile",
+      "list": {
+        "live": {
+          "mismatch_default": "Network is using the carrier default"
+        }
+      },
+      "edit": {
+        "fields": {
+          "apn": {
+            "label": "APN *",
+            "placeholder": "fast.t-mobile.com",
+            "error_required": "APN is required"
+          },
+          "pdp_type": {
+            "label": "PDP Type",
+            "placeholder": "Select PDP type",
+            "aria": "PDP Type",
+            "options": {
+              "ipv4": "IPv4",
+              "ipv6": "IPv6",
+              "ipv4v6": "IPv4v6"
+            }
+          },
+          "modem_profile": {
+            "label": "CID",
+            "placeholder": "Select CID",
+            "aria": "PDP context (CID)",
+            "option_template": "CID {{cid}}",
+            "for_internet": "Internet",
+            "ims_badge": "IMS",
+            "sos_badge": "SOS"
+          }
+        },
+        "cid_confirm": {
+          "title": "Use a reserved context?",
+          "description_ims": "CID {{cid}} is reserved by your carrier for IMS (VoLTE / Wi-Fi calling). Writing a data APN here can disrupt voice calling. Continue anyway?",
+          "description_sos": "CID {{cid}} is reserved for emergency (SOS) calling. Writing a data APN here can disrupt emergency calls. Continue anyway?",
+          "confirm": "Use anyway",
+          "cancel": "Cancel"
+        },
+        "save_button": "Save Profile"
+      }
+    }
+  },
+  "custom_profiles": {
+    "form": {
+      "fields": {
+        "mno_custom": "Custom"
+      },
+      "mno_hint": "You may select pre-configured mobile network operators here.",
+      "default_scenario_label": "Default Scenario",
+      "default_scenario_hint": "Runs whenever no schedule window is active.",
+      "schedule_inline_label": "Time-based schedule",
+      "schedule_inline_hint": "Switch scenario inside up to two daily windows.",
+      "windows_empty": "No windows yet. Add one to switch scenario at a set time.",
+      "windows_count": "{{count}} of {{max}} windows",
+      "add_window": "Add window",
+      "scenario": {
+        "deleted_scenario": "(deleted scenario)",
+        "create_new": "Create a new scenario",
+        "start_label": "Start",
+        "end_label": "End",
+        "block_scenario_label": "Scenario",
+        "overlap_warning": "This window overlaps another. When windows overlap, the topmost one wins.",
+        "overnight_hint": "Ends next day",
+        "summary_line": "{{time}} → {{scenario}}",
+        "time_range": "{{start}}–{{end}}",
+        "move_up_aria": "Move window up",
+        "move_down_aria": "Move window down",
+        "expand_rule_aria": "Edit window",
+        "remove_block_aria": "Remove window",
+        "block_label": "Window {{index}}",
+        "schedule_invalid": "Fix the highlighted schedule entries before saving.",
+        "block_errors": {
+          "invalid_start": "Enter a valid start time (HH:MM).",
+          "invalid_end": "Enter a valid end time (HH:MM).",
+          "zero_length": "Start and end times must differ.",
+          "no_days": "Select at least one day."
+        }
+      }
+    }
+  },
+  "scenarios": {
+    "default_balanced_name": "Balanced",
+    "default_gaming_name": "Gaming",
+    "default_streaming_name": "Streaming"
+  }
+}

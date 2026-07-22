@@ -1,0 +1,197 @@
+#!/bin/sh
+# =============================================================================
+# qmanager_language_install — Detached language-pack install worker
+# =============================================================================
+# Spawned by scripts/www/cgi-bin/quecmanager/system/language-packs/install.sh
+# via double-fork, running as www-data. Reads
+# /tmp/qmanager_language_install_input.json and:
+#
+#   1. fetch_catalog: fetch the remote manifest, find the pack entry matching
+#      the requested code (exact jq string-eq), check pack_format support.
+#   2. download: disk pre-flight (declared size_bytes vs /usrdata free + a
+#      hard per-pack ceiling), then curl the tarball to a /tmp scratch file.
+#   3. verify: sha256 the tarball against the manifest-declared digest.
+#   4. extract: hardened extraction (member allow-list, no traversal) into
+#      the www-data-owned quarantine dir
+#      /usrdata/qmanager/locales-staging/<code>.stage.
+#   5. validate: every required namespace file + _pack.json parseable JSON.
+#   6. install: hand the validated staging dir to the root helper
+#      (qmanager_language_pack_apply), which does the ONLY privileged step —
+#      atomically moving it into the root-owned persistent store and copying
+#      it into the served web-root copy. This worker never writes outside
+#      /tmp or its own staging quarantine dir.
+#
+# Progress JSON is written to /tmp/qmanager_language_install.json after every
+# step (schema: state/code/progress/step/message/updated_at). Honors the
+# /tmp/qmanager_language_install.cancel sentinel between steps.
+# =============================================================================
+
+. /usr/lib/qmanager/qlog.sh 2>/dev/null || {
+    qlog_init() { :; }; qlog_info() { :; }; qlog_warn() { :; }; qlog_error() { :; }
+}
+qlog_init "lang_install"
+
+. /usr/lib/qmanager/language_packs.sh
+
+INPUT_FILE="$LP_INPUT_FILE"
+CANCEL_FILE="$LP_CANCEL_FILE"
+
+# --- Singleton -----------------------------------------------------------------
+# No PID file, no lock directory, no staleness check here at all. The CGI
+# (install.sh) takes a kernel flock on fd 9 before it double-forks this
+# worker, and since a shell `exec N>` fd is not close-on-exec, this process
+# inherits that SAME open file description — the lock stays held for this
+# worker's entire run even after install.sh itself has exited. If this
+# process dies for any reason, the kernel releases the lock automatically;
+# there is nothing for this worker to acquire, check, or clean up itself.
+qlog_info "Holding install lock via inherited fd (flock acquired by install.sh)"
+
+# --- Resource tracking for cleanup ------------------------------------------
+LP_TARBALL=""
+LP_STAGE=""
+LP_CODE=""
+
+cleanup() {
+    [ -n "$LP_TARBALL" ] && [ -f "$LP_TARBALL" ] && rm -f "$LP_TARBALL"
+    [ -n "$LP_STAGE" ] && [ -d "$LP_STAGE" ] && rm -rf "$LP_STAGE"
+    rm -f "$CANCEL_FILE" "$INPUT_FILE"
+    # No explicit fd-9/flock release here — process exit closes every open
+    # fd, which drops the lock automatically.
+}
+trap cleanup EXIT INT TERM
+
+die_fail() {
+    _msg="$1"
+    qlog_error "$_msg"
+    lp_write_progress "failed" "$LP_CODE" 100 "failed" "$_msg"
+    exit 1
+}
+
+bail_if_cancelled() {
+    _progress="$1"
+    if [ -f "$CANCEL_FILE" ]; then
+        qlog_info "Cancel requested — aborting"
+        lp_write_progress "cancelled" "$LP_CODE" "${_progress:-0}" "cancelled" "Install cancelled"
+        exit 0
+    fi
+}
+
+# --- Validate input ----------------------------------------------------------
+[ -f "$INPUT_FILE" ] || die_fail "Input file not found"
+
+LP_CODE=$(jq -r '.code // empty' "$INPUT_FILE" 2>/dev/null)
+MANIFEST_URL=$(jq -r '.manifest_url // empty' "$INPUT_FILE" 2>/dev/null)
+
+[ -z "$LP_CODE" ] && die_fail "Missing code"
+lp_pack_is_code_safe "$LP_CODE" || die_fail "Invalid language code"
+[ -z "$MANIFEST_URL" ] && die_fail "Missing manifest_url"
+
+qlog_info "Installing language pack: $LP_CODE"
+lp_write_progress "pending" "$LP_CODE" 5 "start" "Starting install..."
+
+# --- Step 1: fetch manifest + find pack --------------------------------------
+bail_if_cancelled 5
+lp_write_progress "downloading" "$LP_CODE" 10 "fetch_catalog" "Fetching catalog..."
+MANIFEST_BODY=$(lp_fetch_manifest "$MANIFEST_URL") || die_fail "Manifest unreachable"
+
+bail_if_cancelled 10
+PACK_JSON=$(lp_manifest_find_pack "$MANIFEST_BODY" "$LP_CODE")
+[ -z "$PACK_JSON" ] && die_fail "Pack not found in catalog"
+
+PACK_URL=$(printf '%s' "$PACK_JSON" | jq -r '.url // empty')
+PACK_SHA=$(printf '%s' "$PACK_JSON" | jq -r '.sha256 // empty')
+PACK_VER=$(printf '%s' "$PACK_JSON" | jq -r '.version // empty')
+PACK_SIZE=$(printf '%s' "$PACK_JSON" | jq -r '.size_bytes // 0')
+PACK_FORMAT=$(printf '%s' "$PACK_JSON" | jq -r '.pack_format // 1')
+
+[ -z "$PACK_URL" ] && die_fail "Pack URL missing"
+[ -z "$PACK_SHA" ] && die_fail "Pack sha256 missing"
+
+# Pack URL must live under the same pinned GitHub release feed as the
+# manifest itself — the manifest is maintainer-published/trusted, but this
+# closes the gap defensively rather than trusting an unpinned field inside it.
+lp_manifest_url_is_safe "$PACK_URL" || die_fail "Pack URL is outside the trusted release feed"
+
+# Non-numeric size_bytes/pack_format (malformed manifest entry) must fail
+# CLOSED, not silently skip the ceiling checks below — BusyBox `test -gt` on
+# a non-integer just errors (suppressed by 2>/dev/null) and evaluates false,
+# and an unvalidated PACK_SIZE also feeds 32-bit arithmetic further down.
+case "$PACK_SIZE" in
+    ''|*[!0-9]*) die_fail "Pack manifest entry has a malformed size_bytes" ;;
+esac
+case "$PACK_FORMAT" in
+    ''|*[!0-9]*) die_fail "Pack manifest entry has a malformed pack_format" ;;
+esac
+
+if [ "$PACK_FORMAT" -gt "$LP_PACK_FORMAT_SUPPORTED" ]; then
+    die_fail "Pack format $PACK_FORMAT is newer than this device supports (max $LP_PACK_FORMAT_SUPPORTED)"
+fi
+
+if [ "$PACK_SIZE" -gt "$LP_MAX_PACK_BYTES" ]; then
+    die_fail "Pack exceeds the per-pack size ceiling ($PACK_SIZE > $LP_MAX_PACK_BYTES bytes)"
+fi
+
+# --- Step 2: disk-space pre-flight (declared size + slack) ------------------
+bail_if_cancelled 15
+FREE_KB=$(lp_disk_free_kb)
+NEEDED_KB=$(( (PACK_SIZE / 1024) + 128 ))
+if [ -n "$FREE_KB" ] && [ "$FREE_KB" -lt "$NEEDED_KB" ] 2>/dev/null; then
+    die_fail "Not enough disk space on /usrdata (needs ~${NEEDED_KB} KB, have ${FREE_KB} KB)"
+fi
+
+lp_write_progress "downloading" "$LP_CODE" 20 "download" "Downloading pack..."
+
+# --- Step 3: download tarball -------------------------------------------------
+bail_if_cancelled 20
+mkdir -p "$LP_DOWNLOAD_DIR"
+LP_TARBALL="$LP_DOWNLOAD_DIR/${LP_CODE}.tar.gz"
+rm -f "$LP_TARBALL"
+curl -sSfL -m 60 -H "User-Agent: QManager" -o "$LP_TARBALL" "$PACK_URL" 2>/dev/null \
+    || die_fail "Download failed"
+[ -s "$LP_TARBALL" ] || die_fail "Downloaded file is empty"
+
+lp_write_progress "downloading" "$LP_CODE" 55 "download" "Download complete"
+
+# --- Step 4: sha256 verify ----------------------------------------------------
+bail_if_cancelled 55
+lp_write_progress "verifying" "$LP_CODE" 70 "verify" "Verifying checksum..."
+lp_verify_sha256 "$LP_TARBALL" "$PACK_SHA" || die_fail "Checksum mismatch"
+
+# --- Step 5: hardened extract into the www-data-owned quarantine dir ---------
+bail_if_cancelled 70
+lp_write_progress "extracting" "$LP_CODE" 85 "extract" "Extracting files..."
+mkdir -p "$LP_STAGING_ROOT"
+LP_STAGE="$LP_STAGING_ROOT/${LP_CODE}.stage"
+lp_extract_tarball_safe "$LP_TARBALL" "$LP_STAGE" "$LP_CODE" \
+    || die_fail "Extraction failed (unexpected archive contents)"
+
+# Tarball no longer needed once extracted.
+rm -f "$LP_TARBALL"
+LP_TARBALL=""
+
+# --- Step 6: validate pack tree ----------------------------------------------
+bail_if_cancelled 85
+lp_write_progress "validating" "$LP_CODE" 95 "validate" "Validating pack..."
+lp_validate_pack_tree "$LP_STAGE" || die_fail "Pack is missing required namespaces"
+
+# Cross-check the code embedded in _pack.json matches the requested code —
+# a mismatched pack must never be committed under the wrong code.
+_meta_code=$(jq -r '.code // empty' "$LP_STAGE/_pack.json" 2>/dev/null)
+[ "$_meta_code" = "$LP_CODE" ] || die_fail "Pack metadata code mismatch"
+
+# --- Step 7: commit via the root helper (only privileged step) --------------
+bail_if_cancelled 95
+lp_write_progress "installing" "$LP_CODE" 98 "install" "Installing..."
+_apply_out=$(sudo -n /usr/bin/qmanager_language_pack_apply "$LP_CODE" 2>&1)
+_apply_rc=$?
+# The helper commits (mv) the staging dir on success — nothing left to clean.
+LP_STAGE=""
+if [ "$_apply_rc" -ne 0 ]; then
+    qlog_error "qmanager_language_pack_apply failed rc=$_apply_rc: $_apply_out"
+    die_fail "Failed to install pack (apply helper rc=$_apply_rc)"
+fi
+
+# --- Done ----------------------------------------------------------------------
+lp_write_progress "done" "$LP_CODE" 100 "done" "Installed"
+qlog_info "Language pack $LP_CODE installed (version=${PACK_VER:-unknown})"
+exit 0

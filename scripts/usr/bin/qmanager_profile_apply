@@ -54,6 +54,9 @@ MAX_EVENTS=50
 
 # --- Configuration -----------------------------------------------------------
 STATE_FILE="/tmp/qmanager_profile_state.json"
+# Pending re-apply marker: auto_apply_profile writes this when it finds THIS
+# worker holding the PID lock; we consume it on exit (after the lock is freed).
+PROFILE_PENDING_APPLY_FILE="/tmp/qmanager_profile_pending_apply"
 
 # Sip-don't-gulp gap between AT commands (seconds)
 CMD_GAP=0.3
@@ -68,15 +71,95 @@ if [ -z "$PROFILE_ID" ]; then
     exit 1
 fi
 
+# Auto mode: set only when spawned by auto_apply_profile (SIM-driven). Enables
+# the stale-SIM guard below. Manual Activate (apply.sh) omits it and keeps its
+# exact prior semantics — no guard, never aborts on a SIM read.
+AUTO_MODE=""
+if [ "$2" = "--auto" ]; then
+    AUTO_MODE=1
+fi
+
+# --- Auto-mode stale-SIM guard helpers ---------------------------------------
+# _auto_read_live_iccid — canonical QCCID parse + iccid_canonicalize, 3x1s
+# retry. Prints the canonicalized ICCID (empty if every read failed). Empty is
+# a "don't know" signal — callers must NOT abort on it (best-effort guard).
+_auto_read_live_iccid() {
+    local _ali_raw
+    local _ali_i
+    _ali_i=1
+    while [ "$_ali_i" -le 3 ]; do
+        _ali_raw=$(qcmd 'AT+QCCID' 2>/dev/null | grep '+QCCID:' | sed 's/+QCCID: //g' | tr -d '\r ')
+        if [ -n "$_ali_raw" ]; then
+            iccid_canonicalize "$_ali_raw"
+            return 0
+        fi
+        sleep 1
+        _ali_i=$((_ali_i + 1))
+    done
+    printf ''
+    return 0
+}
+
+# _auto_sim_guard <phase> — returns 0 (proceed) unless, in auto mode, the profile
+# is SIM-bound AND the live ICCID now differs from the profile's sim_iccid — i.e.
+# a newer SIM switch has superseded this apply. An empty live read never aborts.
+_auto_sim_guard() {
+    local _asg_phase
+    local _asg_live
+    local _asg_want
+    _asg_phase="$1"
+    [ -z "$AUTO_MODE" ] && return 0
+    [ -z "$p_sim_iccid" ] && return 0
+    _asg_live=$(_auto_read_live_iccid)
+    [ -z "$_asg_live" ] && return 0
+    _asg_want=$(iccid_canonicalize "$p_sim_iccid")
+    [ "$_asg_live" = "$_asg_want" ] && return 0
+    qlog_warn "[auto] SIM changed under apply ($_asg_phase): live=$_asg_live != profile=$_asg_want — superseding"
+    return 1
+}
+
+# _consume_pending_apply — called from the EXIT trap STRICTLY AFTER the PID lock
+# is freed, so a re-spawned auto_apply_profile can acquire the lock instead of
+# busy-skipping again. If a pending marker exists, consume it and re-run
+# auto_apply for the FRESHEST live SIM (read now, not the stored value) so the
+# newest state wins; fall back to the stored ICCID only if the live read is
+# empty. Terminates: a re-run that again finds the lock busy just rewrites the
+# pending file for the next worker's exit — no loop.
+_consume_pending_apply() {
+    [ -f "$PROFILE_PENDING_APPLY_FILE" ] || return 0
+    local _cp_stored
+    local _cp_live
+    local _cp_i
+    local _cp_iccid
+    _cp_stored=$(head -1 "$PROFILE_PENDING_APPLY_FILE" 2>/dev/null | cut -f1)
+    rm -f "$PROFILE_PENDING_APPLY_FILE"
+    _cp_live=""
+    _cp_i=1
+    while [ "$_cp_i" -le 3 ]; do
+        _cp_live=$(qcmd 'AT+QCCID' 2>/dev/null | grep '+QCCID:' | sed 's/+QCCID: //g' | tr -d '\r ')
+        [ -n "$_cp_live" ] && break
+        sleep 1
+        _cp_i=$((_cp_i + 1))
+    done
+    _cp_iccid="$_cp_live"
+    [ -z "$_cp_iccid" ] && _cp_iccid="$_cp_stored"
+    [ -z "$_cp_iccid" ] && return 0
+    qlog_info "[requeue] Consuming pending apply; re-running auto_apply for ICCID ...$(printf '%s' "$_cp_iccid" | tail -c 4)"
+    ( . /usr/lib/qmanager/profile_mgr.sh && auto_apply_profile "$_cp_iccid" "requeue" ) </dev/null >/dev/null 2>&1 &
+}
+
 # --- Singleton enforcement via PID file --------------------------------------
 if ! profile_acquire_lock; then
     qlog_warn "Apply already running (PID: $_profile_lock_pid)"
     exit 1
 fi
 
-# --- Cleanup trap: always remove PID file on exit ----------------------------
+# --- Cleanup trap: remove PID file, THEN consume any queued re-apply ----------
+# Order is critical: the pending re-apply must run only after the PID lock is
+# gone, or the re-spawned auto_apply would busy-skip and drop the marker.
 cleanup() {
     rm -f "$PROFILE_APPLY_PID_FILE"
+    _consume_pending_apply
 }
 trap cleanup EXIT INT TERM
 
@@ -229,6 +312,7 @@ p_imei=$(printf '%s' "$profile_json" | jq -r '.settings.imei // empty')
 p_ttl=$(printf '%s' "$profile_json" | jq -r '.settings.ttl // empty | tostring')
 p_hl=$(printf '%s' "$profile_json" | jq -r '.settings.hl // empty | tostring')
 p_scenario_id=$(printf '%s' "$profile_json" | jq -r '.settings.scenario_id // empty')
+p_sim_iccid=$(printf '%s' "$profile_json" | jq -r '.sim_iccid // empty')
 
 # Defaults
 [ -z "$p_apn_cid" ] && p_apn_cid=1
@@ -239,6 +323,19 @@ qlog_info "Applying profile: $p_name (APN=$p_apn_name, CID=$p_apn_cid)"
 
 # Write initial state
 write_state
+
+# --- Auto-mode at-start stale-SIM guard --------------------------------------
+# If the SIM already changed before we ran the first step, this apply was
+# superseded by a newer switch. Abort cleanly WITHOUT touching the active marker
+# (the authoritative apply for the current SIM owns it). The EXIT trap still runs
+# the pending re-apply. "failed" is a terminal state for the status poller.
+if ! _auto_sim_guard "pre-apply"; then
+    apply_status="failed"
+    apply_error="superseded_sim_changed"
+    write_state
+    append_event "profile_failed" "Profile '$p_name' apply superseded — active SIM changed before apply" "warning"
+    exit 0
+fi
 
 # =============================================================================
 # Step 1: APN
@@ -489,6 +586,21 @@ apply_imei
 # FINALIZE
 # =============================================================================
 
+# --- Auto-mode pre-finalize stale-SIM guard ----------------------------------
+# A rapid back-to-back switch can supersede this apply while it ran; committing
+# the active marker now would pin the WRONG SIM's profile. Re-verify the live
+# SIM still matches; on mismatch finalize as "failed" and do NOT write the
+# marker. The EXIT trap's pending re-apply then reconciles to the current SIM.
+# NOTE: the IMEI step pre-sets the marker before AT+CFUN=1,1; that reboot-bearing
+# path is unchanged.
+if [ -n "$AUTO_MODE" ] && ! _auto_sim_guard "pre-finalize"; then
+    apply_status="failed"
+    apply_error="superseded_sim_changed"
+    write_state
+    append_event "profile_failed" "Profile '$p_name' apply superseded — active SIM changed during apply" "warning"
+    exit 0
+fi
+
 # Determine final status
 if [ "$steps_failed" -gt 0 ] && [ "$steps_done" -gt 0 ]; then
     apply_status="partial"
@@ -508,8 +620,14 @@ write_state
 # path, and clear on total failure.
 if [ "$apply_status" = "complete" ] || [ "$apply_status" = "partial" ]; then
     set_active_profile "$PROFILE_ID"
+    # Scenario binding side-effect (NOT a tracked apply step): arm the profile's
+    # scenario schedule timer (no-op if the schedule is disabled — the helper
+    # handles that internally).
+    command -v scenario_install_schedule >/dev/null 2>&1 && scenario_install_schedule "$PROFILE_ID"
 elif [ "$apply_status" = "failed" ]; then
     clear_active_profile
+    command -v scenario_teardown_schedule >/dev/null 2>&1 && scenario_teardown_schedule
+    command -v scenario_reset_to_default >/dev/null 2>&1 && scenario_reset_to_default
 fi
 
 # --- Emit network event ------------------------------------------------------

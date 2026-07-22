@@ -2,6 +2,7 @@
 
 import React from "react";
 import { motion, type Variants } from "motion/react";
+import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 import { useModemStatus } from "@/hooks/use-modem-status";
 import { useAboutDevice } from "@/hooks/use-about-device";
@@ -33,6 +34,7 @@ const itemVariants: Variants = {
 };
 
 const HomeComponent = () => {
+  const { t } = useTranslation("dashboard");
   const [pollInterval, setPollInterval] = React.useState<number>(DEFAULT_POLL_MS);
   const { data, isLoading, isStale, error } = useModemStatus({ pollInterval });
   const { data: aboutDevice } = useAboutDevice();
@@ -55,7 +57,7 @@ const HomeComponent = () => {
     <div className="grid grid-cols-1 gap-6 px-4 lg:px-6 @4xl/main:grid-cols-5" aria-live="polite" aria-atomic="false">
       {error && !isLoading && (
         <div role="alert" className="col-span-full rounded-lg bg-destructive/10 px-4 py-3 text-sm text-destructive">
-          Unable to reach the modem. Data shown may be outdated.
+          {t("alert.modem_unreachable")}
         </div>
       )}
       <div className="grid gap-4 col-span-1 @4xl/main:col-span-3">

@@ -1,8 +1,17 @@
 # QManager — sudoers rules for CGI scripts (lighttpd runs as www-data)
 # Install location: /opt/etc/sudoers.d/qmanager (Entware) or /etc/sudoers.d/qmanager
 
-# Service control (used by platform.sh svc_* functions)
-www-data ALL=(root) NOPASSWD: /bin/systemctl start *, /bin/systemctl stop *, /bin/systemctl restart *, /bin/systemctl is-active *
+# Service control (used by platform.sh svc_* functions).
+# Scoped to QManager's own unit namespace (qmanager-* covers qmanager-discord,
+# qmanager-firewall, qmanager-watchcat, qmanager-tower-failover, and the
+# qmanager-auto-update.service/.timer pair) plus tailscaled, the one
+# third-party unit www-data legitimately starts/stops (VPN toggle in
+# vpn/tailscale.sh). A bare `*` here would let a compromised www-data
+# start/stop/restart ANY systemd unit as root — see A5.
+www-data ALL=(root) NOPASSWD: /bin/systemctl start qmanager-*, /bin/systemctl start tailscaled
+www-data ALL=(root) NOPASSWD: /bin/systemctl stop qmanager-*, /bin/systemctl stop tailscaled
+www-data ALL=(root) NOPASSWD: /bin/systemctl restart qmanager-*, /bin/systemctl restart tailscaled
+www-data ALL=(root) NOPASSWD: /bin/systemctl is-active qmanager-*, /bin/systemctl is-active tailscaled
 
 # Boot persistence (symlink-based — systemctl enable doesn't work on RM520N-GL)
 www-data ALL=(root) NOPASSWD: /bin/ln -sf /lib/systemd/system/qmanager*.service /lib/systemd/system/multi-user.target.wants/qmanager*.service
@@ -14,8 +23,31 @@ www-data ALL=(root) NOPASSWD: /usr/sbin/iptables, /usr/sbin/iptables-restore, /u
 # System reboot (used by system/reboot.sh, update installer)
 www-data ALL=(root) NOPASSWD: /sbin/reboot
 
-# Crontab management (used by scheduled reboot, low power, auto-update)
-www-data ALL=(root) NOPASSWD: /usr/bin/crontab
+# Crash-log breadcrumb (used by system/reboot.sh to classify a user-initiated
+# reboot). The helper hardcodes the log path + validates the reason against a
+# fixed enum and refuses to follow a symlink — www-data cannot write
+# /etc/qmanager/crash.log directly (root-owned; see qmanager_crash_log_append).
+www-data ALL=(root) NOPASSWD: /usr/bin/qmanager_crash_log_append
+
+# Auto-update timer live-arming (arms/disarms qmanager-auto-update.timer when the
+# Software Update UI toggle flips — the helper hardcodes the unit + validates on/off)
+www-data ALL=(root) NOPASSWD: /usr/bin/qmanager_auto_update_arm
+
+# Connection Scenario schedule timer live-arming (arms/disarms
+# qmanager-scenario-schedule.timer for a SIM profile's scenario schedule — the
+# helper hardcodes the unit + validates install/teardown and the profile id itself)
+www-data ALL=(root) NOPASSWD: /usr/bin/qmanager_scenario_schedule_arm
+
+# Scheduled Reboot timer live-arming (arms/disarms qmanager-scheduled-reboot.timer
+# when the System Settings -> Scheduled Reboot toggle is saved — the helper
+# hardcodes the unit + re-validates install/teardown, time, and day-mask itself)
+www-data ALL=(root) NOPASSWD: /usr/bin/qmanager_scheduled_reboot_arm
+
+# Tower Lock schedule timer live-arming (arms/disarms the
+# qmanager-tower-schedule-apply.timer / qmanager-tower-schedule-clear.timer
+# pair when the Tower Lock schedule is saved — the helper hardcodes both units
+# + re-validates install/teardown, start/end time, and day-mask itself)
+www-data ALL=(root) NOPASSWD: /usr/bin/qmanager_tower_schedule_arm
 
 # SSH password management (reads password from stdin, updates /etc/shadow)
 www-data ALL=(root) NOPASSWD: /usr/bin/qmanager_set_ssh_password
@@ -40,6 +72,13 @@ www-data ALL=(root) NOPASSWD: /usr/bin/qmanager_health_check
 
 # Ethernet link speed limit management
 www-data ALL=(root) NOPASSWD: /usr/bin/qmanager_ethernet_apply
+
+# Timezone apply (copies resolved TZif over /etc/localtime)
+www-data ALL=(root) NOPASSWD: /usr/bin/qmanager_timezone_apply
+
+# Runtime language-pack downloader (commits validated staging into the
+# root-owned persistent store + served web-root copy; remove mode too)
+www-data ALL=(root) NOPASSWD: /usr/bin/qmanager_language_pack_apply
 
 # Custom DNS management (dnsmasq config atomic swap + reload)
 # Note: chown's "radio:radio" argument has the colon backslash-escaped because

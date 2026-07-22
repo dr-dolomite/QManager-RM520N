@@ -2,6 +2,7 @@
 
 import React from "react";
 import { motion } from "motion/react";
+import { useTranslation } from "react-i18next";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
@@ -82,13 +83,14 @@ function EventSkeleton() {
 
 // --- Main component ---
 const RecentActivitiesComponent = () => {
+  const { t } = useTranslation("dashboard");
   const { events, isLoading } = useRecentActivities();
 
   return (
     <Card className="@container/card">
       <CardHeader className="-mb-4">
         <CardTitle className="text-lg font-semibold">
-          Recent Activities
+          {t("activities.title")}
         </CardTitle>
       </CardHeader>
       <CardContent>
@@ -110,11 +112,9 @@ const RecentActivitiesComponent = () => {
                 <EmptyMedia variant="icon">
                   <CalendarX2Icon />
                 </EmptyMedia>
-                <EmptyTitle>No Events</EmptyTitle>
+                <EmptyTitle>{t("activities.empty_title")}</EmptyTitle>
                 <EmptyDescription className="max-w-xs text-pretty">
-                  No recent network events detected. Your device is likely
-                  stable and not experiencing any significant changes in network
-                  conditions.
+                  {t("activities.empty_description")}
                 </EmptyDescription>
               </EmptyHeader>
             </Empty>

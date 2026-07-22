@@ -202,7 +202,9 @@ export function ApplyProgressDialog({
           // Pre-first-poll: ~50-500ms window between starting the apply and the
           // first /apply_status.sh response. Render a single honest row instead
           // of a hard-coded placeholder list (the real count is 3 or 4 depending
-          // on profile.scenario_id, and we don't have that info here).
+          // on the RESOLVED scenario — i.e. the scenario in force now per the
+          // schedule, not the static scenario_id — and we don't have that info
+          // here).
           <div className="space-y-1 py-2">
             <div className="flex items-start gap-3 rounded-md px-3 py-2 text-sm bg-info/5">
               <div className="mt-0.5 shrink-0">

@@ -1,6 +1,7 @@
 "use client";
 
 import { motion } from "motion/react";
+import { useTranslation } from "react-i18next";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Separator } from "@/components/ui/separator";
@@ -48,20 +49,22 @@ function getSignalBarIcon(quality: string) {
 }
 
 // --- Connection state display ---
+// Returns a color plus the signal_card translation key for the state label; the
+// component resolves the key via t() so this stays a pure, hook-free helper.
 function getStateDisplay(state: string) {
   switch (state) {
     case "connected":
-      return { color: "text-success", label: "Connected" };
+      return { color: "text-success", key: "connected" };
     case "disconnected":
-      return { color: "text-destructive", label: "Disconnected" };
+      return { color: "text-destructive", key: "disconnected" };
     case "searching":
-      return { color: "text-warning", label: "Searching" };
+      return { color: "text-warning", key: "searching" };
     case "limited":
-      return { color: "text-warning", label: "Limited Service" };
+      return { color: "text-warning", key: "limited_service" };
     case "inactive":
-      return { color: "text-muted-foreground", label: "Inactive" };
+      return { color: "text-muted-foreground", key: "inactive" };
     default:
-      return { color: "text-muted-foreground", label: "Unknown" };
+      return { color: "text-muted-foreground", key: "unknown" };
   }
 }
 
@@ -89,6 +92,7 @@ export function SignalStatusCard({
   rows,
   isLoading,
 }: SignalStatusCardProps) {
+  const { t } = useTranslation("dashboard");
   const stateDisplay = getStateDisplay(state);
   const isInactive = state === "inactive";
   const signalQuality = getSignalQuality(rsrp, RSRP_THRESHOLDS);
@@ -134,14 +138,14 @@ export function SignalStatusCard({
         <div className="grid gap-4">
           <div className="flex items-center justify-between">
             <div className="grid gap-0.5">
-              <h3 className="text-sm font-semibold">Signal Strength</h3>
+              <h3 className="text-sm font-semibold">{t("signal_card.strength_heading")}</h3>
               <div className="flex items-center gap-x-1">
                 <FaCircle
                   className={`${stateDisplay.color} w-2 h-2`}
                   aria-hidden
                 />
                 <p className="text-muted-foreground text-xs">
-                  {stateDisplay.label}
+                  {t(`signal_card.${stateDisplay.key}`)}
                 </p>
               </div>
             </div>

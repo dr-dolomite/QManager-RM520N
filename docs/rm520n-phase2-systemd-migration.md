@@ -1,6 +1,16 @@
 # Phase 2: Systemd Migration Plan — RM520N-GL Port
 
-> **NOTE (2026-04-05):** This is a historical planning document. Key changes since this was written: (1) `qmanager.target` was dropped -- services are symlinked directly into `multi-user.target.wants/` (SimpleAdmin's proven pattern); (2) service files install to `/lib/systemd/system/` (persistent rootfs), not `/etc/systemd/system/` (tmpfs); (3) `systemctl enable/disable` does not work for boot persistence -- `platform.sh` uses symlink creation/removal instead. See `docs/rm520n-gl-architecture.md` for current state.
+> # ⚠️ ARCHIVED PLANNING DOCUMENT — NOT A SOURCE OF TRUTH
+>
+> This is an **archived planning document** from the RM551E → RM520N-GL migration (early 2026). It captures *intended* approaches at planning time, several of which were **abandoned or changed** before shipping. **Do not treat anything here as current behavior.**
+>
+> **Most important divergence — AT transport:** this document plans a **socat PTY bridge** for AT command access (`/dev/ttyOUT2`, `microcom`, etc.). That approach was **abandoned**. The shipped transport is **`qcmd` wrapping `atcli_smd11` on `/dev/smd11` directly** (no socat, no PTY bridge), serialized by `flock` on `/tmp/qmanager_at.lock`.
+>
+> **Other divergences since this was written:** (1) `qmanager.target` was dropped — services are symlinked directly into `multi-user.target.wants/` (SimpleAdmin's proven pattern); (2) service files install to `/lib/systemd/system/` (persistent rootfs), not `/etc/systemd/system/` (tmpfs); (3) `systemctl enable/disable` does not work for boot persistence — `platform.sh` creates/removes the symlinks instead.
+>
+> **For the current architecture, read these instead:**
+> - [`rm520n-gl-architecture.md`](rm520n-gl-architecture.md) — shipped platform architecture reference
+> - [`reference/at-command-transport.md`](reference/at-command-transport.md) — current AT command transport (`atcli_smd11` + `qcmd` + `flock`)
 
 This document covers converting QManager's 11 procd/rc.d init scripts and their associated daemons to systemd service units for the RM520N-GL port. Phase 1 (qcmd replacement with microcom + flock) is assumed complete. Phase 3 (CGI endpoint UCI migration) is a separate effort, but UCI reads inside daemon scripts are addressed here because services cannot start without their config.
 

@@ -17,7 +17,8 @@ qm_config_init() {
   "watchcat": {
     "enabled": 0,
     "check_interval": 10,
-    "max_failures": 5,
+    "fail_threshold": 5,
+    "probe_interval": 5,
     "cooldown": 60,
     "tier1_enabled": 1,
     "tier2_enabled": 1,
@@ -44,10 +45,6 @@ qm_config_init() {
     "timezone": "UTC0",
     "zonename": "UTC",
     "sms_tool_device": "",
-    "low_power_enabled": 0,
-    "low_power_start": "23:00",
-    "low_power_end": "06:00",
-    "low_power_days": "0,1,2,3,4,5,6",
     "sched_reboot_enabled": 0,
     "sched_reboot_time": "04:00",
     "sched_reboot_days": "0,1,2,3,4,5,6"
@@ -92,12 +89,43 @@ qm_config_set() {
     case "$value" in
         ''|*[!0-9]*) # non-numeric or empty — store as string
             jq --arg s "$section" --arg k "$key" --arg v "$value" \
-                '.[$s][$k] = $v' "$QM_CONFIG" > "$QM_CONFIG_TMP" ;;
+                '.[$s][$k] = $v' "$QM_CONFIG" > "$QM_CONFIG_TMP" 2>/dev/null ;;
         *) # numeric — store as number
             jq --arg s "$section" --arg k "$key" --argjson v "$value" \
-                '.[$s][$k] = $v' "$QM_CONFIG" > "$QM_CONFIG_TMP" ;;
+                '.[$s][$k] = $v' "$QM_CONFIG" > "$QM_CONFIG_TMP" 2>/dev/null ;;
     esac
-    mv "$QM_CONFIG_TMP" "$QM_CONFIG"
+    # Gate the mv on jq's exit status (a case statement's status is that of the
+    # jq it ran): the '>' redirect truncates $QM_CONFIG_TMP to empty before jq
+    # runs, so an unconditional mv after a jq failure (corrupt/unparseable
+    # config) would clobber the live config with that empty temp. Only publish
+    # the temp when jq actually succeeded — mirrors qm_config_delete below.
+    if [ $? -eq 0 ]; then
+        mv "$QM_CONFIG_TMP" "$QM_CONFIG"
+    else
+        rm -f "$QM_CONFIG_TMP"
+        return 1
+    fi
+}
+
+# Delete: qm_config_delete <section> <key>
+# Example: qm_config_delete watchcat max_failures
+#   Equivalent to: uci -q delete quecmanager.watchcat.max_failures
+# Atomic write via temp file + mv. No-op (success) if the config file or the
+# section/key doesn't exist — used by defensive key-rename migrations.
+qm_config_delete() {
+    local section="$1" key="$2"
+    [ -f "$QM_CONFIG" ] || return 0
+    # Gate the mv on jq's exit status: the '>' redirect creates an empty
+    # $QM_CONFIG_TMP before jq runs, so an unconditional mv after a jq failure
+    # (e.g. a corrupt/unparseable config) would clobber the live file with that
+    # empty temp. Only publish the temp when jq actually succeeded.
+    if jq --arg s "$section" --arg k "$key" \
+        'if has($s) then .[$s] |= del(.[$k]) else . end' "$QM_CONFIG" > "$QM_CONFIG_TMP" 2>/dev/null; then
+        mv "$QM_CONFIG_TMP" "$QM_CONFIG"
+    else
+        rm -f "$QM_CONFIG_TMP"
+        return 1
+    fi
 }
 
 # Bulk read: qm_config_section <section>

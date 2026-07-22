@@ -68,6 +68,22 @@ cp "$SCRIPTS_DIR/uninstall_rm520n.sh" "$STAGING_DIR/uninstall_rm520n.sh"
 step "Stamping version from package.json..."
 PKG_VERSION=$(sed -n 's/.*"version":[[:space:]]*"\([^"]*\)".*/\1/p' "$ROOT_DIR/package.json" | head -n1)
 [ -n "$PKG_VERSION" ] || fail "Could not read version from package.json"
+
+# Release-gate belt (opt-in): when cutting a real release, set QM_RELEASE_TAG to the
+# git tag being pushed so a forgotten package.json bump can't ship a mislabeled tarball
+# (the device would report the old version and semver_compare would never see the
+# update). Dev builds leave QM_RELEASE_TAG unset and skip this entirely. Draft-aware: a
+# single leading `v` is normalized off both sides but suffixes like `-draft` are kept,
+# so v0.1.13-draft == v0.1.13-draft passes while v0.1.14 vs v0.1.13-draft fails loud.
+if [ -n "${QM_RELEASE_TAG:-}" ]; then
+  _norm_pkg="${PKG_VERSION#v}"
+  _norm_tag="${QM_RELEASE_TAG#v}"
+  if [ "$_norm_pkg" != "$_norm_tag" ]; then
+    fail "Release tag/package.json mismatch: QM_RELEASE_TAG='$QM_RELEASE_TAG' but package.json version='$PKG_VERSION' — bump package.json before tagging."
+  fi
+  step "Release-tag check passed: package.json matches $QM_RELEASE_TAG"
+fi
+
 tmp="$STAGING_DIR/install_rm520n.sh.tmp"
 sed "s|^VERSION=\"[^\"]*\"|VERSION=\"$PKG_VERSION\"|" "$STAGING_DIR/install_rm520n.sh" > "$tmp" && mv "$tmp" "$STAGING_DIR/install_rm520n.sh"
 chmod +x "$STAGING_DIR/install_rm520n.sh" "$STAGING_DIR/uninstall_rm520n.sh"
@@ -80,7 +96,10 @@ step "Linting install_rm520n.sh (systemd service coverage)..."
 # A missing .service file here means the installer will enable a non-existent
 # unit — silent failure on the device.
 SYSTEMD_SCRIPTS_DIR="$SCRIPTS_DIR/etc/systemd/system"
-CORE_SERVICES="lighttpd qmanager-firewall qmanager-setup qmanager-ping qmanager-poller qmanager-ttl qmanager-mtu qmanager-imei-check qmanager-watchcat qmanager-tower-failover"
+# qmanager-auto-update is default-off/gated (like qmanager-watchcat and
+# qmanager-tower-failover above it) but, unlike the Discord bot, is always
+# shipped rather than conditionally built — so it belongs in this list too.
+CORE_SERVICES="lighttpd qmanager-firewall qmanager-setup qmanager-ping qmanager-poller qmanager-ttl qmanager-mtu qmanager-imei-check qmanager-watchcat qmanager-tower-failover qmanager-auto-update"
 LINT_ERRORS=0
 
 for svc in $CORE_SERVICES; do
@@ -90,10 +109,18 @@ for svc in $CORE_SERVICES; do
   fi
 done
 
+# qmanager-auto-update.service intentionally has no [Install] section (it's
+# only ever started by its .timer, never boot-enabled directly) — so it needs
+# its own check here; the loop above only looks for CORE_SERVICES.service.
+if [ ! -f "$SYSTEMD_SCRIPTS_DIR/qmanager-auto-update.timer" ]; then
+  printf "  ${RED}MISSING:${NC} qmanager-auto-update.timer not found in scripts/etc/systemd/system/\n"
+  LINT_ERRORS=$((LINT_ERRORS + 1))
+fi
+
 if [ "$LINT_ERRORS" -gt 0 ]; then
   fail "Lint failed with $LINT_ERRORS missing service unit(s)"
 fi
-step "Lint passed ($CORE_SERVICES)"
+step "Lint passed ($CORE_SERVICES + qmanager-auto-update.timer)"
 
 step "Copying bundled dependencies..."
 mkdir -p "$STAGING_DIR/dependencies"

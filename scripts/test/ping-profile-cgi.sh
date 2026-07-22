@@ -82,7 +82,7 @@ fi
 # Test 2: POST each valid profile, verify file + reload flag
 for p in sensitive regular relaxed quiet; do
     rm -f "$PING_PROFILE_RELOAD_FLAG"
-    BODY="{\"action\":\"save_settings\",\"profile\":\"$p\",\"target_1\":\"http://cp.cloudflare.com/\",\"target_2\":\"http://www.gstatic.com/generate_204\"}"
+    BODY="{\"action\":\"save_settings\",\"profile\":\"$p\",\"target_ipv4\":\"1.1.1.1\",\"target_ipv6\":\"2606:4700:4700::1111\"}"
     LEN=${#BODY}
     RES=$(printf '%s' "$BODY" | run_cgi POST application/json "$LEN")
     if ! echo "$RES" | jq -e '.success == true' >/dev/null; then
@@ -145,17 +145,17 @@ else
 fi
 
 # ─── Target validation: empty target rejected ───────────────────────────────
-BODY='{"action":"save_settings","profile":"relaxed","target_1":"","target_2":"http://x/"}'
+BODY='{"action":"save_settings","profile":"relaxed","target_ipv4":"","target_ipv6":"2606:4700:4700::1111"}'
 LEN=${#BODY}
 RES=$(printf '%s' "$BODY" | run_cgi POST application/json "$LEN")
 if echo "$RES" | jq -e '.success == false and .error == "invalid_target"' >/dev/null; then
-    pass "empty target_1 rejected"
+    pass "empty target_ipv4 rejected"
 else
-    fail "empty target_1 rejected — got: $RES"
+    fail "empty target_ipv4 rejected — got: $RES"
 fi
 
 # ─── Target validation: shell-injection attempt rejected ────────────────────
-BODY='{"action":"save_settings","profile":"relaxed","target_1":"http://x/\";rm -rf /tmp","target_2":"http://y/"}'
+BODY='{"action":"save_settings","profile":"relaxed","target_ipv4":"1.1.1.1\";rm -rf /tmp","target_ipv6":"2606:4700:4700::1111"}'
 LEN=${#BODY}
 RES=$(printf '%s' "$BODY" | run_cgi POST application/json "$LEN")
 if echo "$RES" | jq -e '.success == false and .error == "invalid_target"' >/dev/null; then
@@ -164,14 +164,37 @@ else
     fail "shell metacharacter in target rejected — got: $RES"
 fi
 
-# ─── Target validation: bare hostname accepted ──────────────────────────────
-BODY='{"action":"save_settings","profile":"relaxed","target_1":"youtube.com","target_2":"google.com"}'
+# ─── Target validation: bare IPv4 hostname accepted ─────────────────────────
+BODY='{"action":"save_settings","profile":"relaxed","target_ipv4":"youtube.com","target_ipv6":"2606:4700:4700::1111"}'
 LEN=${#BODY}
 RES=$(printf '%s' "$BODY" | run_cgi POST application/json "$LEN")
 if echo "$RES" | jq -e '.success == true' >/dev/null; then
-    pass "bare hostname accepted"
+    pass "bare IPv4-family hostname accepted"
 else
-    fail "bare hostname accepted — got: $RES"
+    fail "bare IPv4-family hostname accepted — got: $RES"
+fi
+
+# ─── Target validation: IPv6 without a colon rejected ───────────────────────
+BODY='{"action":"save_settings","profile":"relaxed","target_ipv4":"1.1.1.1","target_ipv6":"nocolonhere"}'
+LEN=${#BODY}
+RES=$(printf '%s' "$BODY" | run_cgi POST application/json "$LEN")
+if echo "$RES" | jq -e '.success == false and .error == "invalid_target"' >/dev/null; then
+    pass "IPv6 target without ':' rejected"
+else
+    fail "IPv6 target without ':' rejected — got: $RES"
+fi
+
+# ─── Target validation: previously-set keys survive an unrelated field merge ─
+# The atomic key-merge must leave interval_sec (daemon/Watchdog-owned) intact
+# across a profile+targets save.
+printf '%s' '{"profile":"relaxed","interval_sec":7,"target_ipv4":"1.1.1.1","target_ipv6":"2606:4700:4700::1111"}' > "$PING_PROFILE_CONFIG"
+BODY='{"action":"save_settings","profile":"quiet","target_ipv4":"1.1.1.1","target_ipv6":"2606:4700:4700::1111"}'
+LEN=${#BODY}
+RES=$(printf '%s' "$BODY" | run_cgi POST application/json "$LEN")
+if echo "$RES" | jq -e '.success == true' >/dev/null && [ "$(jq -r .interval_sec "$PING_PROFILE_CONFIG")" = "7" ]; then
+    pass "atomic key-merge preserves interval_sec across save"
+else
+    fail "atomic key-merge preserves interval_sec — config: $(cat "$PING_PROFILE_CONFIG")"
 fi
 
 echo ""

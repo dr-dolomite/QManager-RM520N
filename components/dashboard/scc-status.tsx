@@ -1,6 +1,7 @@
 "use client";
 
 import { motion } from "motion/react";
+import { useTranslation } from "react-i18next";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -18,6 +19,7 @@ interface SccStatusProps {
 }
 
 const SccStatusComponent = ({ carriers }: SccStatusProps) => {
+  const { t } = useTranslation("dashboard");
   const sccCarriers = carriers.filter((c) => c.type === "SCC");
   const totalBw = sccCarriers.reduce(
     (sum, c) => sum + (c.bandwidth_mhz || 0),
@@ -28,7 +30,7 @@ const SccStatusComponent = ({ carriers }: SccStatusProps) => {
     <Card>
       <CardHeader>
         <CardTitle className="text-lg font-semibold">
-          Secondary Carriers
+          {t("scc.title")}
         </CardTitle>
       </CardHeader>
       <CardContent>
@@ -36,14 +38,14 @@ const SccStatusComponent = ({ carriers }: SccStatusProps) => {
           {/* Summary — mirrors SignalStatusCard's signal strength header */}
           <div className="flex items-center justify-between">
             <div className="grid gap-0.5">
-              <h3 className="text-sm font-semibold">Carrier Aggregation</h3>
+              <h3 className="text-sm font-semibold">{t("scc.heading")}</h3>
               <div className="flex items-center gap-x-1">
                 <FaCircle
                   className="w-2 h-2 text-success"
                   aria-hidden
                 />
                 <p className="text-muted-foreground text-xs">
-                  {sccCarriers.length} active carrier{sccCarriers.length !== 1 ? "s" : ""}
+                  {t("scc.active_carriers", { count: sccCarriers.length })}
                 </p>
               </div>
             </div>

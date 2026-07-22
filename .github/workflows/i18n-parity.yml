@@ -1,0 +1,224 @@
+# i18n parity — validates that translation locale files stay in sync with the
+# English source of truth (public/locales/en/**).
+#
+# Speed budget: ~20-30s. This job DELIBERATELY skips `bun install` and any Next
+# build — the validator `scripts-dev/lang.ts` is a zero-dependency Bun CLI, so
+# `oven-sh/setup-bun` + a checkout is all it needs. Do not add an install step.
+#
+# Flow: run the CLI (never let a hard-error exit fail the step), post/refresh a
+# sticky PR comment + inline annotations, THEN fail the job at the end if the
+# report says `ok: false`. This ordering guarantees contributors always get the
+# teaching comment even when the check fails.
+
+name: i18n parity
+
+on:
+  pull_request:
+    # Any locale change (any language) is worth checking for parity/placeholder drift.
+    paths:
+      - "public/locales/**"
+  push:
+    # English is the source of truth — a change to en/** can orphan the other
+    # languages (new/removed keys), so re-check drift on the trunk branches.
+    branches:
+      - main
+      - development
+    paths:
+      - "public/locales/en/**"
+
+jobs:
+  check:
+    name: check
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write   # needed to create/update the sticky PR comment
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Run i18n parity check
+        # Never fail here even on a hard-error exit(1): we want to capture the
+        # JSON report and post the comment first, then fail the job at the end.
+        # `|| true` swallows the CLI's non-zero exit; the report's `ok` field is
+        # the source of truth for pass/fail (read in the final step).
+        run: bun run lang check --all --ci > i18n-report.json || true
+
+      - name: Annotate + comment
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+
+            // ---- Load the report ---------------------------------------------
+            // If the file is missing/empty/unparseable, the CLI crashed. Post a
+            // failure comment (on PRs) and fail the job — a green check on a
+            // crashed validator would be worse than a red one.
+            let report = null;
+            let loadError = null;
+            try {
+              const raw = fs.readFileSync('i18n-report.json', 'utf8').trim();
+              if (!raw) throw new Error('i18n-report.json is empty');
+              report = JSON.parse(raw);
+            } catch (e) {
+              loadError = e.message || String(e);
+            }
+
+            const isPR = !!context.payload.pull_request;
+            const prNumber = context.payload.pull_request
+              && context.payload.pull_request.number;
+            const MARKER = '<!-- i18n-parity -->';
+
+            // ---- Sticky-comment helper ---------------------------------------
+            // Find our previous comment by the marker and edit it in place so we
+            // don't spam the PR with a new comment on every push. Only ever runs
+            // on pull_request events (guarded by prNumber below).
+            async function upsertComment(body) {
+              if (!isPR || !prNumber) return; // no-op on push events
+              const { owner, repo } = context.repo;
+              const existing = await github.paginate(
+                github.rest.issues.listComments,
+                { owner, repo, issue_number: prNumber, per_page: 100 }
+              );
+              const mine = existing.find(c => c.body && c.body.includes(MARKER));
+              if (mine) {
+                await github.rest.issues.updateComment({
+                  owner, repo, comment_id: mine.id, body,
+                });
+              } else {
+                await github.rest.issues.createComment({
+                  owner, repo, issue_number: prNumber, body,
+                });
+              }
+            }
+
+            // ---- Crash path --------------------------------------------------
+            if (!report) {
+              core.error(`i18n parity check could not run: ${loadError}`);
+              const body = [
+                MARKER,
+                '## 🌐 i18n parity — check could not run',
+                '',
+                'The translation validator did not produce a readable report ' +
+                '(`i18n-report.json` was missing, empty, or invalid).',
+                '',
+                '```',
+                String(loadError),
+                '```',
+                '',
+                'This usually means `bun run lang check --all --ci` crashed. ' +
+                'Please check the workflow logs.',
+              ].join('\n');
+              await upsertComment(body);
+              core.setFailed('i18n report missing or unparseable.');
+              return;
+            }
+
+            // ---- Inline annotations for hard issues --------------------------
+            // Every hard issue with a line number becomes a file-anchored error
+            // annotation; hard issues without a line get a plain error.
+            const results = Array.isArray(report.results) ? report.results : [];
+            for (const r of results) {
+              const issues = Array.isArray(r.issues) ? r.issues : [];
+              for (const it of issues) {
+                if (!it.hard) continue;
+                const file = `public/locales/${it.lang}/${it.ns}.json`;
+                const msg = `[${it.kind}] ${it.key}: ${it.message}`;
+                if (it.line != null) {
+                  core.error(msg, { file, startLine: it.line });
+                } else {
+                  core.error(`${file} — ${msg}`);
+                }
+              }
+            }
+
+            // ---- Build the sticky comment body -------------------------------
+            const pct = n => `${Math.round((n || 0) * 100)}%`;
+            const esc = s => String(s == null ? '' : s)
+              .replace(/\|/g, '\\|').replace(/\n/g, ' ');
+
+            const lines = [MARKER, '## 🌐 i18n parity'];
+            if (report.ok) {
+              lines.push('', 'All languages pass — no hard errors blocking merge. ✅');
+            } else {
+              lines.push('', 'Some languages have hard errors that block merge. ' +
+                'See **Problems to fix** under each language below. ❌');
+            }
+            lines.push('',
+              '> Partial translations are welcome and mergeable — any string ' +
+              'that is not translated yet simply shows the English text until ' +
+              'someone fills it in. Only structural problems (broken ' +
+              '`{{placeholders}}`, HTML tags, plural keys, or extra/malformed ' +
+              'keys) block merge.',
+              '');
+
+            for (const r of results) {
+              const nsList = Array.isArray(r.namespaces) ? r.namespaces : [];
+              const issues = Array.isArray(r.issues) ? r.issues : [];
+
+              // Per-namespace status: ❌ if it has any hard error, ⚠️ if it has a
+              // missing_key/plural warning, ✅ if fully translated & clean.
+              const hardNs = new Set();
+              const warnNs = new Set();
+              for (const it of issues) {
+                if (it.hard) hardNs.add(it.ns);
+                else if (it.kind === 'missing_key' || it.kind === 'plural') warnNs.add(it.ns);
+              }
+
+              lines.push(`### ${r.lang} — ${pct(r.completeness)} complete`);
+              lines.push('');
+              lines.push('| Namespace | Translated | Status |');
+              lines.push('| --- | --- | --- |');
+              for (const ns of nsList) {
+                let status = '✅';
+                if (hardNs.has(ns.ns)) status = '❌';
+                else if (warnNs.has(ns.ns) || ns.translatedKeys < ns.totalKeys) status = '⚠️';
+                lines.push(`| \`${esc(ns.ns)}\` | ${ns.translatedKeys}/${ns.totalKeys} | ${status} |`);
+              }
+              const overallStatus = r.hardErrors > 0 ? '❌' : (r.warnings > 0 ? '⚠️' : '✅');
+              lines.push(`| **Overall** | **${r.translatedKeys}/${r.totalKeys}** | **${overallStatus}** |`);
+              lines.push('');
+
+              // Teaching block: only when this language has hard errors.
+              if (r.hardErrors > 0) {
+                const hardIssues = issues.filter(i => i.hard).slice(0, 20);
+                lines.push('**Problems to fix:**');
+                lines.push('');
+                for (const it of hardIssues) {
+                  lines.push(`- **\`${esc(it.key)}\`** in \`${esc(it.ns)}\` — ${esc(it.message)}`);
+                  if (it.enValue != null) lines.push(`  - English: \`${esc(it.enValue)}\``);
+                  if (it.value != null) lines.push(`  - Yours: \`${esc(it.value)}\``);
+                  if (it.suggestion) lines.push(`  - Did you mean \`${esc(it.suggestion)}\`?`);
+                }
+                if (issues.filter(i => i.hard).length > 20) {
+                  lines.push(`- …and ${issues.filter(i => i.hard).length - 20} more.`);
+                }
+                lines.push('');
+                lines.push('Run `bun run lang check ' + r.lang +
+                  '` locally to see this before pushing.');
+                lines.push('');
+              }
+            }
+
+            const body = lines.join('\n');
+            await upsertComment(body);
+
+            // Note: this step does NOT fail the job — the final step does, based
+            // purely on `report.ok`. Warnings must never block merge.
+            core.info(`i18n parity ok=${report.ok}`);
+
+      - name: Fail on hard errors
+        # The gate. Warnings never reach here as a failure; only `ok: false`
+        # (i.e. at least one language has hardErrors > 0) blocks the merge.
+        run: |
+          ok=$(node -e "try{process.stdout.write(String(require('./i18n-report.json').ok))}catch(e){process.stdout.write('false')}")
+          echo "report ok = $ok"
+          if [ "$ok" != "true" ]; then
+            echo "::error::i18n parity failed — hard errors present. See the PR comment for details."
+            exit 1
+          fi

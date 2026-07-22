@@ -2,6 +2,7 @@
 
 import { usePathname } from 'next/navigation';
 import { useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 
 export interface BreadcrumbItem {
   label: string;
@@ -9,45 +10,58 @@ export interface BreadcrumbItem {
   isCurrentPage: boolean;
 }
 
-// Map route segments to display names
-const routeNameMap: Record<string, string> = {
-  dashboard: 'Dashboard',
-  home: 'Home',
-  cellular: 'Cellular',
-  sms: 'SMS Center',
-  'custom-profiles': 'Custom Profiles',
-  'connection-scenarios': 'Connection Scenarios',
-  'cell-locking': 'Band Locking',
-  'tower-locking': 'Tower Locking',
-  'frequency-locking': 'Frequency Locking',
-  'cell-scanner': 'Cell Scanner',
-  'neighbourcell-scanner': 'Neighboring Cells',
-  'frequency-calculator': 'Frequency Calculator',
-  settings: 'Settings',
-  'apn-management': 'APN Management',
-  'network-priority': 'Network Priority',
-  'imei-settings': 'IMEI Settings',
-  'fplmn-settings': 'FPLMN Settings',
-  'local-network': 'Local Network',
-  'ip-passthrough': 'IP Passthrough',
-  'ttl-settings': 'TTL & MTU Settings',
-  monitoring: 'Monitoring',
-  latency: 'Latency Monitor',
-  logs: 'Logs',
-  'email-alerts': 'Email Alerts',
-  watchdog: 'Watchdog',
-  'system-settings': 'System Settings',
-  'about-device': 'About Device',
-  support: 'Support',
+// Map each route segment to a key in the "sidebar" namespace (groups.* or
+// items.*), so breadcrumbs read exactly like the sidebar they mirror and pick up
+// translations for free. Segments not listed here fall back to a capitalized
+// version of the raw segment.
+const routeKeyMap: Record<string, string> = {
+  dashboard: 'groups.dashboard',
+  home: 'items.home',
+  cellular: 'groups.cellular',
+  sms: 'items.sms_center',
+  'custom-profiles': 'items.custom_profiles',
+  'connection-scenarios': 'items.connection_scenarios',
+  'cell-locking': 'items.band_locking',
+  'tower-locking': 'items.tower_locking',
+  'frequency-locking': 'items.frequency_locking',
+  'cell-scanner': 'items.cell_scanner',
+  'neighbourcell-scanner': 'items.neighboring_cells',
+  'frequency-calculator': 'items.frequency_calculator',
+  settings: 'items.settings',
+  'apn-management': 'items.apn_management',
+  'network-priority': 'items.network_priority',
+  'imei-settings': 'items.imei_settings',
+  'fplmn-settings': 'items.fplmn_settings',
+  'local-network': 'groups.local_network',
+  'ip-passthrough': 'items.ip_passthrough',
+  ethernet: 'items.ethernet_status',
+  'ttl-settings': 'items.ttl_mtu_settings',
+  'custom-dns': 'items.custom_dns',
+  monitoring: 'groups.monitoring',
+  latency: 'items.latency_monitor',
+  alerts: 'items.alerts',
+  logs: 'items.logs',
+  watchdog: 'items.watchdog',
+  tailscale: 'items.tailscale',
+  'system-settings': 'items.system_settings',
+  'system-health-check': 'items.system_health_check',
+  'connection-quality': 'items.connection_quality',
+  'software-update': 'items.software_update',
+  'at-terminal': 'items.at_terminal',
+  'web-console': 'items.web_console',
+  languages: 'items.languages',
+  'about-device': 'items.about_device',
+  support: 'items.support',
 };
 
 export function useBreadcrumbs(): BreadcrumbItem[] {
   const pathname = usePathname();
+  const { t, i18n } = useTranslation('sidebar');
 
   return useMemo(() => {
     // Remove leading/trailing slashes and split by '/'
     const segments = pathname.split('/').filter(Boolean);
-    
+
     if (segments.length === 0) {
       return [];
     }
@@ -56,11 +70,14 @@ export function useBreadcrumbs(): BreadcrumbItem[] {
     const breadcrumbs: BreadcrumbItem[] = segments.map((segment, index) => {
       // Build the href by joining all segments up to current index
       const href = '/' + segments.slice(0, index + 1).join('/');
-      
-      // Get display name from map or capitalize the segment
-      const label = routeNameMap[segment] || 
-        segment.charAt(0).toUpperCase() + segment.slice(1).replace(/-/g, ' ');
-      
+
+      // Translate via the sidebar namespace when the segment is known;
+      // otherwise capitalize the raw segment.
+      const key = routeKeyMap[segment];
+      const label = key
+        ? t(key)
+        : segment.charAt(0).toUpperCase() + segment.slice(1).replace(/-/g, ' ');
+
       // Last segment is the current page
       const isCurrentPage = index === segments.length - 1;
 
@@ -72,5 +89,7 @@ export function useBreadcrumbs(): BreadcrumbItem[] {
     });
 
     return breadcrumbs;
-  }, [pathname]);
+    // i18n.language is in deps so labels re-render on language change.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pathname, t, i18n.language]);
 }

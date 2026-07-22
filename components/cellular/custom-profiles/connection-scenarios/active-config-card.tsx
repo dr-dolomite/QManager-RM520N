@@ -22,6 +22,9 @@ interface ActiveConfigCardProps {
   /** Display name of the active profile, used for the disabled-Activate
    *  tooltip. Only meaningful when activateDisabled is true. */
   activeProfileName?: string;
+  /** "HH:MM" of the next scheduled scenario change, appended to the
+   *  disabled-Activate tooltip when the lock comes from a schedule. */
+  nextChangeAt?: string | null;
 }
 
 export const ActiveConfigCard = ({
@@ -32,6 +35,7 @@ export const ActiveConfigCard = ({
   onActivate,
   activateDisabled,
   activeProfileName,
+  nextChangeAt,
 }: ActiveConfigCardProps) => {
   if (!scenario) return null;
   const Icon = scenario.icon;
@@ -94,7 +98,9 @@ export const ActiveConfigCard = ({
                 disabled={activateDisabled}
                 title={
                   activateDisabled && activeProfileName
-                    ? `Scenario activation is managed by the ${activeProfileName} Custom SIM Profile.`
+                    ? `Scenario activation is managed by the ${activeProfileName} Custom SIM Profile.${
+                        nextChangeAt ? ` Next change at ${nextChangeAt}.` : ""
+                      }`
                     : undefined
                 }
               >

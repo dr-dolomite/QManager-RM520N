@@ -1,0 +1,124 @@
+{
+  "core_settings": {
+    "apn": {
+      "page": {
+        "title": "APN 设置",
+        "description": "设置 SIM 卡用于连接的 APN、IP 协议和数据上下文。",
+        "error_load_title": "加载 APN 设置失败",
+        "error_load_description": "显示的值可能已过时。"
+      },
+      "card": {
+        "title": "APN 配置",
+        "description": "调制解调器用于建立数据连接的接入点名称。"
+      },
+      "status": {
+        "active": "已激活",
+        "not_live": "未生效",
+        "carrier_default": "运营商默认",
+        "network_using": "网络正在使用：{{apn}}"
+      },
+      "save_connection_notice": "保存时调制解调器重连期间蜂窝连接会短暂中断。",
+      "carrier_default": {
+        "button": "使用运营商默认",
+        "dialog": {
+          "title": "使用运营商默认 APN？",
+          "description": "您的运营商将自动选择 APN。调制解调器重新连接时，蜂窝连接会短暂中断。",
+          "confirm": "使用运营商默认",
+          "cancel": "取消"
+        }
+      },
+      "toast": {
+        "saved": "APN 设置已保存",
+        "save_error": "保存 APN 设置失败",
+        "deactivated": "已恢复到运营商默认 APN",
+        "deactivate_error": "恢复到运营商默认失败"
+      },
+      "controls_label": "APN 配置",
+      "managed_by_profile_fallback": "活动的自定义 SIM 配置",
+      "list": {
+        "live": {
+          "mismatch_default": "网络正在使用运营商默认值"
+        }
+      },
+      "edit": {
+        "fields": {
+          "apn": {
+            "label": "APN *",
+            "placeholder": "fast.t-mobile.com",
+            "error_required": "APN 为必填项"
+          },
+          "pdp_type": {
+            "label": "PDP 类型",
+            "placeholder": "选择 PDP 类型",
+            "aria": "PDP 类型",
+            "options": {
+              "ipv4": "IPv4",
+              "ipv6": "IPv6",
+              "ipv4v6": "IPv4v6"
+            }
+          },
+          "modem_profile": {
+            "label": "CID",
+            "placeholder": "选择 CID",
+            "aria": "PDP 上下文（CID）",
+            "option_template": "CID {{cid}}",
+            "for_internet": "互联网",
+            "ims_badge": "IMS",
+            "sos_badge": "SOS"
+          }
+        },
+        "cid_confirm": {
+          "title": "使用保留的上下文？",
+          "description_ims": "CID {{cid}} 被运营商保留用于 IMS（VoLTE / Wi-Fi 通话）。在此写入数据 APN 可能会中断语音通话。仍要继续吗？",
+          "description_sos": "CID {{cid}} 被保留用于紧急（SOS）呼叫。在此写入数据 APN 可能会中断紧急呼叫。仍要继续吗？",
+          "confirm": "仍然使用",
+          "cancel": "取消"
+        },
+        "save_button": "保存配置文件"
+      }
+    }
+  },
+  "custom_profiles": {
+    "form": {
+      "fields": {
+        "mno_custom": "自定义"
+      },
+      "mno_hint": "您可以在此处选择预配置的移动网络运营商。",
+      "default_scenario_label": "默认场景",
+      "default_scenario_hint": "在没有任何计划时段处于活动状态时运行。",
+      "schedule_inline_label": "基于时间的计划",
+      "schedule_inline_hint": "在最多两个每日时段内切换场景。",
+      "windows_empty": "尚无时段。添加一个以在设定时间切换场景。",
+      "windows_count": "{{max}} 个时段中的 {{count}} 个",
+      "add_window": "添加时段",
+      "scenario": {
+        "deleted_scenario": "（已删除的场景）",
+        "create_new": "创建新场景",
+        "start_label": "开始",
+        "end_label": "结束",
+        "block_scenario_label": "场景",
+        "overlap_warning": "此时段与另一个时段重叠。重叠时，列表靠前的时段优先生效。",
+        "overnight_hint": "次日结束",
+        "summary_line": "{{time}} → {{scenario}}",
+        "time_range": "{{start}}–{{end}}",
+        "move_up_aria": "上移时段",
+        "move_down_aria": "下移时段",
+        "expand_rule_aria": "编辑时段",
+        "remove_block_aria": "删除时段",
+        "block_label": "时段 {{index}}",
+        "schedule_invalid": "请先修正高亮显示的计划时段再保存。",
+        "block_errors": {
+          "invalid_start": "请输入有效的开始时间（HH:MM）。",
+          "invalid_end": "请输入有效的结束时间（HH:MM）。",
+          "zero_length": "开始时间和结束时间不能相同。",
+          "no_days": "请至少选择一天。"
+        }
+      }
+    }
+  },
+  "scenarios": {
+    "default_balanced_name": "均衡",
+    "default_gaming_name": "游戏",
+    "default_streaming_name": "流媒体"
+  }
+}

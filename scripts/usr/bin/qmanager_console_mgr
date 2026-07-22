@@ -24,6 +24,7 @@ do_install() {
     # Download ttyd binary
     if [ -x "$TTYD_BIN" ]; then
         echo "ttyd already installed at $TTYD_BIN"
+        sync
         mount -o remount,ro / 2>/dev/null || true
         return 0
     fi
@@ -32,6 +33,7 @@ do_install() {
     if ! curl -fSL -o "$TTYD_BIN" "$DOWNLOAD_URL" 2>/dev/null; then
         echo "ERROR: Failed to download ttyd" >&2
         rm -f "$TTYD_BIN"
+        sync
         mount -o remount,ro / 2>/dev/null || true
         return 1
     fi
@@ -54,6 +56,7 @@ do_install() {
         /bin/systemctl start qmanager-console 2>/dev/null || true
     fi
 
+    sync
     mount -o remount,ro / 2>/dev/null || true
     echo "ttyd v${TTYD_VERSION} installed successfully"
 }
@@ -68,6 +71,7 @@ do_uninstall() {
 
     rm -f "$TTYD_BIN"
 
+    sync
     mount -o remount,ro / 2>/dev/null || true
     echo "ttyd uninstalled"
 }

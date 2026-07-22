@@ -1,0 +1,68 @@
+#!/bin/sh
+# =============================================================================
+# qmanager_scenario_schedule — Connection Scenario schedule fire-worker
+# =============================================================================
+# Triggered by qmanager-scenario-schedule.service, which is started ONLY by
+# qmanager-scenario-schedule.timer (armed at runtime by the
+# qmanager_scenario_schedule_arm root helper — RM520N has no crond, so
+# per-profile scenario scheduling is systemd OnCalendar, not a crontab).
+#
+# A systemd OnCalendar line can only encode WHEN to fire, never WHICH
+# scenario — unlike a cron line, it carries no payload. So the timer always
+# fires this ONE fixed worker, which resolves "what should be active right
+# now" at fire time via scenario_mgr.sh's scenario_block_for_now /
+# scenario_apply_resolved, rather than being told directly.
+#
+# Self-heals: if the active profile has since been deleted, or its schedule
+# was disabled/edited since the timer was armed, tear down the timer instead
+# of erroring. This is a backstop — the primary teardown paths are
+# profile_mgr.sh's _profile_teardown_scenario_schedule (delete/SIM-mismatch)
+# and whatever schedule-editing CGI re-arms/tears down on save.
+#
+# Usage: qmanager_scenario_schedule --now
+# =============================================================================
+
+. /usr/lib/qmanager/qlog.sh 2>/dev/null || {
+    qlog_init() { :; }
+    qlog_info() { logger -t scenario_schedule "$1"; }
+    qlog_warn() { logger -t scenario_schedule "WARN: $1"; }
+}
+
+[ -f /usr/lib/qmanager/profile_mgr.sh ] && . /usr/lib/qmanager/profile_mgr.sh
+[ -f /usr/lib/qmanager/scenario_mgr.sh ] && . /usr/lib/qmanager/scenario_mgr.sh
+
+qlog_init "scenario_schedule"
+
+if [ "$1" != "--now" ]; then
+    printf 'usage: %s --now\n' "$0" >&2
+    exit 1
+fi
+
+if ! command -v get_active_profile >/dev/null 2>&1 || ! command -v scenario_block_for_now >/dev/null 2>&1; then
+    qlog_warn "required libraries unavailable — nothing to do"
+    exit 0
+fi
+
+active_profile_id=$(get_active_profile 2>/dev/null)
+
+if [ -z "$active_profile_id" ]; then
+    qlog_warn "No active profile — tearing down orphaned scenario schedule"
+    scenario_teardown_schedule
+    exit 0
+fi
+
+if [ "$(scenario_profile_schedule_enabled "$active_profile_id")" != "true" ]; then
+    qlog_warn "Schedule disabled for active profile $active_profile_id — tearing down"
+    scenario_teardown_schedule
+    exit 0
+fi
+
+resolved_scenario=$(scenario_block_for_now "$active_profile_id")
+if [ -z "$resolved_scenario" ]; then
+    qlog_warn "scenario_block_for_now returned empty for $active_profile_id — nothing to apply"
+    exit 0
+fi
+
+qlog_info "Applying scheduled scenario '$resolved_scenario' for profile $active_profile_id"
+scenario_apply_resolved "$resolved_scenario"
+exit 0

@@ -1,0 +1,107 @@
+#!/bin/sh
+# =============================================================================
+# qmanager_sms_storage — One-Shot Boot-Time SMS Storage Routing (RM520N-GL)
+# =============================================================================
+# Ported from the RM551E sibling project's qmanager_sms_storage daemon
+# (procd init.d), translated to a systemd oneshot for RM520N-GL.
+#
+# Purpose: guarantee incoming SMS are routed to ME (modem) storage even if
+# the SMS Center page is never opened. Mirrors the self-heal step already
+# performed by sms.sh's GET handler (see cgi-bin/quecmanager/cellular/sms.sh)
+# so a bare CPMS state after boot never leaves incoming messages stranded in
+# SM (SIM, ~40 slots) while the UI/CGI reads assume ME (modem, 255 slots).
+#
+# Flow:
+#   1. Poll `sms_tool status` until the modem answers (up to ~60s), acquiring
+#      and releasing the shared /tmp/qmanager_at.lock flock on EACH attempt —
+#      never held across the whole wait, so a slow-booting modem never
+#      starves qcmd, the poller, or concurrent CGI traffic.
+#   2. Once ready, issue AT+CPMS="ME","ME","ME" under its own lock acquisition.
+#   3. Log the result and exit. 0 on success, 1 on failure/timeout. No
+#      respawn — this is a oneshot, not a supervised daemon.
+#
+# Does NOT reboot or call CFUN. Run once at boot by
+# qmanager-sms-storage.service, after qmanager-setup.service (so
+# /tmp/qmanager_at.lock exists and is writable) and qmanager-cfun-fix.service
+# (so the radio is confirmed on), and before qmanager-poller.service.
+#
+# Install location: /usr/bin/qmanager_sms_storage
+# Dependencies: sms_tool, flock
+# =============================================================================
+
+. /usr/lib/qmanager/qlog.sh 2>/dev/null || {
+    qlog_init() { :; }
+    qlog_info() { :; }
+    qlog_warn() { :; }
+}
+qlog_init "sms_storage"
+
+SMS_TOOL="/usr/bin/sms_tool"
+LOCK_FILE="/tmp/qmanager_at.lock"
+READY_TRIES=20
+READY_SLEEP=3
+
+# BusyBox-safe flock acquire (no -w in BusyBox flock). Per-attempt only: the
+# caller acquires and releases this for each poll/apply, never across the
+# full ~60s readiness wait.
+# Usage: flock_wait <fd> <timeout_seconds>
+flock_wait() {
+    _fd="$1"
+    _wait="$2"
+    _elapsed=0
+    while [ "$_elapsed" -lt "$_wait" ]; do
+        if flock -x -n "$_fd" 2>/dev/null; then
+            return 0
+        fi
+        sleep 1
+        _elapsed=$((_elapsed + 1))
+    done
+    flock -x -n "$_fd" 2>/dev/null
+}
+
+# qmanager-setup.service (an After= dependency) already creates and
+# chmod 666's this file, but guard defensively in case of unit reordering.
+[ -e "$LOCK_FILE" ] || : > "$LOCK_FILE" 2>/dev/null
+
+# --- Wait for modem readiness (lock acquired+released per attempt) ----------
+ready=0
+i=0
+while [ "$i" -lt "$READY_TRIES" ]; do
+    rc=1
+    (
+        flock_wait 9 10 || exit 2
+        "$SMS_TOOL" status >/dev/null 2>&1
+        exit $?
+    ) 9<"$LOCK_FILE"
+    rc=$?
+
+    if [ "$rc" -eq 0 ]; then
+        ready=1
+        break
+    fi
+
+    i=$((i + 1))
+    sleep "$READY_SLEEP"
+done
+
+if [ "$ready" -ne 1 ]; then
+    qlog_warn "Modem not ready after $((READY_TRIES * READY_SLEEP))s — CPMS routing not applied"
+    exit 1
+fi
+
+# --- Apply routing (separate lock acquisition) ------------------------------
+# Single-quote the AT string so the inner double quotes reach sms_tool intact.
+(
+    flock_wait 9 10 || exit 2
+    "$SMS_TOOL" at 'AT+CPMS="ME","ME","ME"' >/dev/null 2>&1
+    exit $?
+) 9<"$LOCK_FILE"
+apply_rc=$?
+
+if [ "$apply_rc" -eq 0 ]; then
+    qlog_info "CPMS routing set to ME (incoming SMS -> modem storage)"
+    exit 0
+fi
+
+qlog_warn "Failed to set CPMS routing (rc=$apply_rc)"
+exit 1

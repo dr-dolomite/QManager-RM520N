@@ -9,6 +9,12 @@ export interface SystemSettings {
   timezone: string; // POSIX TZ string, e.g. "EST5EDT,M3.2.0,M11.1.0"
   zonename: string; // IANA zone name, e.g. "America/New_York"
   sms_tool_device: string; // "" = default (smd11), "/dev/smd7" = alternate
+  // --- Timezone ground-truth (optional; only sent by newer backends) --------
+  // These report what the live device clock is *actually* using, so the UI can
+  // warn when a configured zone did not reach the clock.
+  effective_offset?: string; // Live clock offset, e.g. "+0800" / "+0000"
+  effective_zone_abbr?: string; // Live zone abbreviation, e.g. "PHT" / "UTC"
+  timezone_applied?: boolean; // true = configured zone matches the live clock
 }
 
 export interface ScheduleConfig {
@@ -21,6 +27,22 @@ export interface SystemSettingsResponse {
   success: boolean;
   settings: SystemSettings;
   scheduled_reboot: ScheduleConfig;
+}
+
+/**
+ * Result surfaced to the UI after saving a scheduled-reboot config.
+ *
+ * `armed` reports whether the schedule was actually installed as a live systemd
+ * timer on THIS device — not merely written to config. On an OTA-old base that
+ * predates the timer unit, the config persists but `armed:false` with a `reason`
+ * (e.g. "unit_absent"). The UI must warn on `armed === false` rather than flash
+ * an unconditional success toast (silent-success bug). Absent `armed` (older
+ * backend that doesn't report it) is treated as "assume armed" for compat.
+ */
+export interface ScheduledRebootSaveResult {
+  success: boolean;
+  armed?: boolean;
+  reason?: string;
 }
 
 // --- Day Labels (shared with tower locking) --------------------------------

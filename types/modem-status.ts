@@ -325,19 +325,34 @@ export function getSignalQuality(
   return "poor";
 }
 
-/** Daemon's authoritative tri-state connectivity outcome (from qmanager_ping.json's `connectivity` field). */
-export type PingTriState = "connected" | "limited" | "disconnected" | "unknown";
+export type SignalQuality = ReturnType<typeof getSignalQuality>;
 
-/** User-selectable ping daemon sensitivity profile. */
-export type PingProfile = "sensitive" | "regular" | "relaxed" | "quiet";
+const SIGNAL_QUALITY_RANK: Record<SignalQuality, number> = {
+  excellent: 4,
+  good: 3,
+  fair: 2,
+  poor: 1,
+  none: 0,
+};
 
-/** Display-order list of the four named profiles. */
-export const PING_PROFILES: readonly PingProfile[] = [
-  "sensitive",
-  "regular",
-  "relaxed",
-  "quiet",
-] as const;
+/**
+ * Returns the worst quality across the supplied metrics. "none" entries
+ * (missing/null values) are skipped; if every input is "none", returns "none".
+ * Used by the public overview "Overall" verdict so a strong RSRP can't mask
+ * a poor SINR.
+ */
+export function worstSignalQuality(...qualities: SignalQuality[]): SignalQuality {
+  const known = qualities.filter((q): q is Exclude<SignalQuality, "none"> => q !== "none");
+  if (known.length === 0) return "none";
+  return known.reduce<SignalQuality>(
+    (worst, q) => (SIGNAL_QUALITY_RANK[q] < SIGNAL_QUALITY_RANK[worst] ? q : worst),
+    known[0],
+  );
+}
+
+/** Daemon's authoritative tri-state connectivity outcome (from qmanager_ping.json's `connectivity` field).
+    Post ICMP-port there is no "limited" (carrier-intercept) outcome — an ICMP ping either answers or it doesn't. */
+export type PingTriState = "connected" | "disconnected" | "unknown";
 
 /** User-selectable preset for high_latency / high_packet_loss event thresholds. */
 export type QualityPreset = "standard" | "tolerant" | "very-tolerant";
@@ -392,14 +407,20 @@ export interface ConnectivityStatus {
   /** Phase 2 — daemon's tri-state connectivity outcome. null means the field is missing
       from status.json (rolling-upgrade fallback). */
   state: PingTriState | null;
-  /** When state == "limited", the HTTP code seen by the probe (e.g., 200, 302). null otherwise. */
+  /** Address family of the daemon's most recent successful probe. "ipv6" means the IPv4
+      leg failed and the fallback carried the connection. "none" when nothing answered.
+      null on a poller that predates the ICMP port (rolling-upgrade fallback). */
+  last_family: "ipv4" | "ipv6" | "none" | null;
+  /** Legacy HTTP-probe field. Always null post ICMP-port (kept typed for rolling-upgrade
+      safety so a status.json emitted by an older poller still parses). */
   limited_reason: number | null;
   /** When state == "disconnected", the failure reason: "timeout" | "refused"
       | "reset" | "dns" | "malformed". null otherwise. */
   down_reason: string | null;
-  /** Consecutive limited-outcome probes. Resets on any other outcome. */
+  /** Legacy HTTP-probe field. Always 0 post ICMP-port (kept typed for rolling-upgrade
+      safety so a status.json emitted by an older poller still parses). */
   streak_limited: number;
-  /** Daemon's runtime profile string. Can be one of PingProfile, or "custom" (env-var override),
+  /** Daemon's runtime profile string. A named preset, "custom" (env-var override),
       or "unknown" (daemon dead/stale). Typed as string to admit all three. */
   profile: string;
   /** Runtime fail-threshold in seconds (active in the daemon). 0 if daemon dead/stale. */

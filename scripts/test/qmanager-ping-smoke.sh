@@ -1,23 +1,25 @@
 #!/bin/sh
-# Workstation/on-device smoke test for the Rust qmanager_ping binary.
-# Stops the systemd service, runs the binary against a local stub HTTP server,
-# then validates the JSON output.
+# Workstation/on-device smoke test for the shell qmanager_ping ICMP daemon.
+# Runs the daemon against a temp JSON config (CONFIG_FILE override) so it
+# never touches the real /etc/qmanager/ping_profile.json, then validates the
+# slim cache schema. Requires: jq.
 #
-# Run on the device or in WSL2 with the binary built. Requires: jq, python3.
-#
-# NOTE: the Rust daemon hardcodes /tmp/qmanager_ping.json, /tmp/qmanager_ping_history,
+# NOTE: the daemon hardcodes /tmp/qmanager_ping.json, /tmp/qmanager_ping_history,
 # /tmp/qmanager_ping.pid, etc. This smoke runs against those production paths —
 # stop the live qmanager-ping service first if it's running on this host, and
 # expect /tmp/qmanager_ping.json to be overwritten by the test cycles.
-# Run this smoke on a dev machine (WSL2) or on a device where the service is stopped.
+# Run this smoke on a dev machine (WSL2/Linux) or on a device where the
+# service is stopped. ICMP probing needs either real root/CAP_NET_RAW or a
+# system where unprivileged ping works (ping_group_range) — same requirement
+# the production daemon has under systemd (root-owned service).
 set -eu
 
 if ! command -v jq >/dev/null; then
     echo "FAIL: jq not found" >&2
     exit 1
 fi
-if ! command -v python3 >/dev/null; then
-    echo "FAIL: python3 not found (install with: opkg install python3-light)" >&2
+if ! command -v ping >/dev/null; then
+    echo "FAIL: ping not found" >&2
     exit 1
 fi
 
@@ -29,11 +31,9 @@ if [ ! -x "$BIN" ]; then
 fi
 
 WORK=$(mktemp -d)
-SERVER_PID=""
 DAEMON_PID=""
 
 cleanup() {
-    [ -n "$SERVER_PID" ] && kill "$SERVER_PID" 2>/dev/null || true
     [ -n "$DAEMON_PID" ] && kill -9 "$DAEMON_PID" 2>/dev/null || true
     rm -rf "$WORK"
 }
@@ -42,72 +42,70 @@ trap cleanup EXIT INT TERM
 # Remove any stale state from previous runs so we never read old cache data.
 rm -f /tmp/qmanager_ping.json /tmp/qmanager_ping.pid /tmp/qmanager_ping_history
 
-# Tiny always-204 server (HTTP/1.1 keepalive so the Rust probe's TCP reuse works)
-python3 -c '
-import http.server, socketserver, threading
-class H(http.server.BaseHTTPRequestHandler):
-    protocol_version = "HTTP/1.1"
-    def do_GET(self):
-        self.send_response(204); self.send_header("Content-Length","0"); self.end_headers()
-    def log_message(self, *a, **k): pass
-class S(socketserver.ThreadingMixIn, socketserver.TCPServer):
-    allow_reuse_address = True
-with S(("127.0.0.1", 18204), H) as s:
-    s.serve_forever()
-' &
-SERVER_PID=$!
-sleep 0.5
+# ─── Test: IPv4 loopback reachable ────────────────────────────────────────────
+echo "TEST: IPv4 target reachable → reachable=true, last_family=ipv4"
 
-PING_INTERVAL=1 \
-FAIL_SECS=3 \
-RECOVER_SECS=2 \
-INTERCEPT_SECS=4 \
-HISTORY_SECS=10 \
-PING_TARGET_1="http://127.0.0.1:18204/" \
-PING_TARGET_2="http://127.0.0.1:18204/" \
-"$BIN" >/tmp/qping_smoke.log 2>&1 &
+cat > "$WORK/ping_profile.json" <<'JSON'
+{
+  "profile": "sensitive",
+  "interval_sec": 1,
+  "fail_secs": 2,
+  "recover_secs": 1,
+  "history_secs": 10,
+  "target_ipv4": "127.0.0.1",
+  "target_ipv6": "::1"
+}
+JSON
+
+CONFIG_FILE="$WORK/ping_profile.json" "$BIN" >/tmp/qping_smoke.log 2>&1 &
 DAEMON_PID=$!
 
-sleep 4
+sleep 3
 
 if [ ! -f /tmp/qmanager_ping.json ]; then
     echo "FAIL: /tmp/qmanager_ping.json was not created"
     exit 1
 fi
 
-CONN=$(jq -r .connectivity /tmp/qmanager_ping.json)
+REACHABLE=$(jq -r .reachable /tmp/qmanager_ping.json)
+LAST_FAMILY=$(jq -r .last_family /tmp/qmanager_ping.json)
 RTT_TYPE=$(jq -r '.last_rtt_ms | type' /tmp/qmanager_ping.json)
-TCP_REUSED=$(jq -r .tcp_reused /tmp/qmanager_ping.json)
 PROFILE=$(jq -r .profile /tmp/qmanager_ping.json)
+MONO_TYPE=$(jq -r '.mono | type' /tmp/qmanager_ping.json)
 
-[ "$CONN" = "connected" ] || { echo "FAIL: connectivity=$CONN expected connected"; exit 1; }
+[ "$REACHABLE" = "true" ] || { echo "FAIL: reachable=$REACHABLE expected true"; exit 1; }
+[ "$LAST_FAMILY" = "ipv4" ] || { echo "FAIL: last_family=$LAST_FAMILY expected ipv4"; exit 1; }
 [ "$RTT_TYPE" = "number" ] || { echo "FAIL: last_rtt_ms type=$RTT_TYPE expected number"; exit 1; }
-[ "$TCP_REUSED" = "true" ] || echo "WARN: tcp_reused=$TCP_REUSED (may be ok on first cycle, but should flip true within 4s)"
-[ "$PROFILE" = "custom" ] || { echo "FAIL: profile=$PROFILE expected custom (env overrides)"; exit 1; }
-echo "PASS: connected path"
+[ "$MONO_TYPE" = "number" ] || { echo "FAIL: mono type=$MONO_TYPE expected number"; exit 1; }
+[ "$PROFILE" = "sensitive" ] || { echo "FAIL: profile=$PROFILE expected sensitive"; exit 1; }
+echo "PASS: IPv4 loopback reachable path"
 
-# ─── Test: primary unreachable, fallback to secondary ────────────────────────
-echo
-echo "TEST: primary down → fallback to secondary"
-
-# Reset state for this scenario.
-rm -f /tmp/qmanager_ping.json /tmp/qmanager_ping.pid /tmp/qmanager_ping_history
-
-# Kill the previous daemon instance (already dead from timeout, but be sure).
 kill "$DAEMON_PID" 2>/dev/null || true
 wait "$DAEMON_PID" 2>/dev/null || true
+DAEMON_PID=""
 
-# Point primary at port 18203 (no listener → refused) so it always fails.
-# Secondary points at the still-running stub on port 18204.
-# Path "/" is a custom URL (not /generate_204) so any HTTP response = Connected.
-PING_INTERVAL=1 \
-FAIL_SECS=3 \
-RECOVER_SECS=2 \
-INTERCEPT_SECS=4 \
-HISTORY_SECS=10 \
-PING_TARGET_1="http://127.0.0.1:18203/" \
-PING_TARGET_2="http://127.0.0.1:18204/" \
-"$BIN" >>/tmp/qping_smoke.log 2>&1 &
+# ─── Test: IPv4 down, IPv6 loopback fallback ──────────────────────────────────
+echo
+echo "TEST: IPv4 unroutable → fallback to IPv6 loopback"
+
+rm -f /tmp/qmanager_ping.json /tmp/qmanager_ping.pid /tmp/qmanager_ping_history
+
+# 192.0.2.1 is TEST-NET-1 (RFC 5737) — reserved, never routable, always
+# times out rather than getting an ICMP unreachable that could short-circuit
+# faster than PROBE_TIMEOUT.
+cat > "$WORK/ping_profile.json" <<'JSON'
+{
+  "profile": "sensitive",
+  "interval_sec": 1,
+  "fail_secs": 2,
+  "recover_secs": 1,
+  "history_secs": 10,
+  "target_ipv4": "192.0.2.1",
+  "target_ipv6": "::1"
+}
+JSON
+
+CONFIG_FILE="$WORK/ping_profile.json" "$BIN" >>/tmp/qping_smoke.log 2>&1 &
 DAEMON_PID=$!
 
 sleep 4
@@ -117,24 +115,65 @@ if [ ! -f /tmp/qmanager_ping.json ]; then
     exit 1
 fi
 
-CONN=$(jq -r .connectivity /tmp/qmanager_ping.json)
-TARGET_USED=$(jq -r '.probe_target_used' /tmp/qmanager_ping.json)
+LAST_FAMILY=$(jq -r .last_family /tmp/qmanager_ping.json)
+IPV6_CMD_LINE=$(grep -c "IPv6 probing unavailable" /tmp/qping_smoke.log || true)
 
 kill "$DAEMON_PID" 2>/dev/null || true
 wait "$DAEMON_PID" 2>/dev/null || true
 DAEMON_PID=""
 
-if [ "$CONN" != "connected" ]; then
-    echo "FAIL: expected connectivity=connected with working fallback, got '$CONN'"
+if [ "$IPV6_CMD_LINE" -gt 0 ]; then
+    echo "SKIP: IPv6 ping unavailable on this workstation — cannot verify v6 fallback"
+else
+    if [ "$LAST_FAMILY" != "ipv6" ]; then
+        echo "FAIL: expected last_family=ipv6 with v4 down + v6 loopback up, got '$LAST_FAMILY'"
+        exit 1
+    fi
+    echo "PASS: fallback to IPv6 works"
+fi
+
+# ─── Test: both families down → reachable flips false after fail_secs ────────
+echo
+echo "TEST: both families unreachable → reachable transitions to false"
+
+rm -f /tmp/qmanager_ping.json /tmp/qmanager_ping.pid /tmp/qmanager_ping_history
+
+cat > "$WORK/ping_profile.json" <<'JSON'
+{
+  "profile": "sensitive",
+  "interval_sec": 1,
+  "fail_secs": 2,
+  "recover_secs": 1,
+  "history_secs": 10,
+  "target_ipv4": "192.0.2.1",
+  "target_ipv6": "100::1"
+}
+JSON
+
+CONFIG_FILE="$WORK/ping_profile.json" "$BIN" >>/tmp/qping_smoke.log 2>&1 &
+DAEMON_PID=$!
+
+# fail_secs=2 at interval_sec=1 => FAIL_THRESHOLD=2 cycles. Give it 3 probe
+# cycles (PROBE_TIMEOUT=2s each) plus slack before asserting.
+sleep 8
+
+if [ ! -f /tmp/qmanager_ping.json ]; then
+    echo "FAIL: /tmp/qmanager_ping.json was not created in total-failure test"
     exit 1
 fi
 
-if [ "$TARGET_USED" != "http://127.0.0.1:18204/" ]; then
-    echo "FAIL: expected probe_target_used=http://127.0.0.1:18204/, got '$TARGET_USED'"
-    exit 1
-fi
+REACHABLE=$(jq -r .reachable /tmp/qmanager_ping.json)
+LAST_FAMILY=$(jq -r .last_family /tmp/qmanager_ping.json)
+STREAK_FAIL=$(jq -r .streak_fail /tmp/qmanager_ping.json)
 
-echo "PASS: fallback to secondary works"
+kill "$DAEMON_PID" 2>/dev/null || true
+wait "$DAEMON_PID" 2>/dev/null || true
+DAEMON_PID=""
+
+[ "$REACHABLE" = "false" ] || { echo "FAIL: reachable=$REACHABLE expected false after sustained failure"; exit 1; }
+[ "$LAST_FAMILY" = "none" ] || { echo "FAIL: last_family=$LAST_FAMILY expected none"; exit 1; }
+[ "$STREAK_FAIL" -ge 2 ] || { echo "FAIL: streak_fail=$STREAK_FAIL expected >= 2"; exit 1; }
+echo "PASS: reachable transitions to false, last_family=none"
 
 echo
 echo "All smoke checks passed."

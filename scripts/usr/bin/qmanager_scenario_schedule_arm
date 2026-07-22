@@ -1,0 +1,155 @@
+#!/bin/sh
+# qmanager_scenario_schedule_arm — Arm/disarm a profile's Connection
+# Scenario schedule systemd timer live.
+#
+# RM520N has no crond. Per-profile scenario schedules ("switch to Gaming
+# 18:00-23:00 weekdays") are implemented as a systemd OnCalendar timer
+# instead of a crontab entry. This is the privileged half: it generates the
+# OnCalendar lines for a profile's schedule (via scenario_mgr.sh's
+# _scenario_generate_oncalendar_lines), writes
+# qmanager-scenario-schedule.timer, and arms/disarms it for the current
+# boot — mirroring qmanager_auto_update_arm.
+#
+# Called via: sudo -n /usr/bin/qmanager_scenario_schedule_arm install <profile_id>
+#             sudo -n /usr/bin/qmanager_scenario_schedule_arm teardown
+#
+# MECHANISM — deliberate: manual symlink into
+# /lib/systemd/system/timers.target.wants/, NOT `systemctl enable`. On this
+# minimal systemd 244, `systemctl enable` writes its symlink into
+# /etc/systemd/system/... and `systemctl is-enabled` only ever reads /etc;
+# meanwhile the installer (enable_services) and every other qmanager unit —
+# including qmanager-auto-update.timer — persist via /lib symlinks. Using
+# `systemctl enable` here would put this timer's enablement in a DIFFERENT
+# place than every other unit, so state could disagree across a reboot. This
+# helper mirrors qmanager_auto_update_arm exactly so there is one source of
+# truth.
+#
+# Idempotent both directions. No-op (success) if the .service this timer
+# targets is absent — an OTA-upgraded device that predates this feature must
+# not surface a hard error to the caller.
+#
+# The profile id is validated against a strict pattern (matching
+# profile_mgr.sh's own p_<ts>_<hex> ID generator) BEFORE it ever reaches
+# scenario_mgr.sh or a disk path — no free-form www-data input reaches a
+# shell command unchecked. Never eval'd.
+
+PATH=/opt/bin:/opt/sbin:/usr/bin:/usr/sbin:/bin:/sbin
+export PATH
+
+UNIT="qmanager-scenario-schedule.timer"
+SERVICE="qmanager-scenario-schedule.service"
+UNIT_DIR="/lib/systemd/system"
+WANTS_DIR="/lib/systemd/system/timers.target.wants"
+
+action="$1"
+profile_id="$2"
+
+# Strict arg validation — only the two verbs, nothing else.
+case "$action" in
+    install|teardown) ;;
+    *) printf '{"success":false,"error":"invalid_action","detail":"action must be install or teardown"}\n'; exit 1 ;;
+esac
+
+# Missing-unit no-op: a device that predates the .service this timer targets
+# (older OTA base) has nothing to schedule against. Report success so the
+# caller still lands cleanly instead of surfacing a hard error.
+if [ ! -f "$UNIT_DIR/$SERVICE" ]; then
+    printf '{"success":true,"armed":false,"reason":"unit_absent"}\n'
+    exit 0
+fi
+
+if [ "$action" = "teardown" ]; then
+    systemctl stop "$UNIT" 2>/dev/null || true
+    rm -f "$WANTS_DIR/$UNIT" 2>/dev/null
+    rm -f "$UNIT_DIR/$UNIT" 2>/dev/null
+    systemctl daemon-reload 2>/dev/null || true
+    printf '{"success":true,"armed":false}\n'
+    exit 0
+fi
+
+# --- install ------------------------------------------------------------
+# Validate profile id BEFORE it touches scenario_mgr.sh / any disk path.
+# This is a root helper reachable from www-data via sudo, so the id must never
+# be trusted from its caller — it is interpolated into the generated .timer
+# unit (Description=...), so a metacharacter or NEWLINE could inject arbitrary
+# systemd directives. TWO gates:
+#   1. Charset reject: '*[!0-9a-z_]*' rejects ANY char outside [0-9a-z_] —
+#      including ';', '/', whitespace and newline. A shell bracket expression
+#      matches a single char anywhere in the value (unlike `grep -Eq '^..$'`,
+#      which matches line-by-line and would pass a multi-line value whose first
+#      line is valid). This is the real newline-injection gate.
+#   2. Shape check: the documented p_<timestamp>_<hex> structure.
+case "$profile_id" in
+    ''|*[!0-9a-z_]*)
+        printf '{"success":false,"error":"invalid_profile_id","detail":"profile id must match p_<timestamp>_<hex>"}\n'
+        exit 1
+        ;;
+esac
+case "$profile_id" in
+    p_[0-9]*_[0-9a-f]*) ;;
+    *)
+        printf '{"success":false,"error":"invalid_profile_id","detail":"profile id must match p_<timestamp>_<hex>"}\n'
+        exit 1
+        ;;
+esac
+
+if [ ! -f /usr/lib/qmanager/scenario_mgr.sh ]; then
+    printf '{"success":false,"error":"lib_missing","detail":"scenario_mgr.sh not found"}\n'
+    exit 1
+fi
+. /usr/lib/qmanager/scenario_mgr.sh
+
+lines=$(_scenario_generate_oncalendar_lines "$profile_id")
+
+# No schedule (disabled, no blocks, or an unresolvable profile) — tear down
+# any existing timer and report a clean no-op rather than arming a .timer
+# with zero OnCalendar= lines (a systemd config error).
+if [ -z "$lines" ]; then
+    systemctl stop "$UNIT" 2>/dev/null || true
+    rm -f "$WANTS_DIR/$UNIT" 2>/dev/null
+    rm -f "$UNIT_DIR/$UNIT" 2>/dev/null
+    systemctl daemon-reload 2>/dev/null || true
+    printf '{"success":true,"armed":false,"reason":"no_schedule"}\n'
+    exit 0
+fi
+
+# /lib lives on read-only-by-default UBIFS; ensure writable. Idempotent — a
+# no-op if already rw. Left rw afterwards, matching qmanager_auto_update_arm
+# (which never remounts ro).
+mount -o remount,rw / 2>/dev/null || true
+
+# Atomic write: build the unit in a tmp file, then mv over the target — a
+# concurrent systemd daemon-reload must never observe a half-written unit.
+tmp_unit="${UNIT_DIR}/.${UNIT}.tmp.$$"
+{
+    printf '[Unit]\n'
+    printf 'Description=QManager scenario schedule (profile %s)\n' "$profile_id"
+    printf '\n[Timer]\n'
+    printf '%s\n' "$lines"
+    printf 'Unit=%s\n' "$SERVICE"
+    printf 'Persistent=false\n'
+    printf '\n[Install]\n'
+    printf 'WantedBy=timers.target\n'
+} > "$tmp_unit" 2>/dev/null
+
+if [ ! -s "$tmp_unit" ]; then
+    rm -f "$tmp_unit" 2>/dev/null
+    printf '{"success":false,"error":"write_failed","detail":"could not write timer unit"}\n'
+    exit 1
+fi
+
+rc=0
+mv "$tmp_unit" "$UNIT_DIR/$UNIT" || rc=1
+mkdir -p "$WANTS_DIR" 2>/dev/null || rc=1
+ln -sf "$UNIT_DIR/$UNIT" "$WANTS_DIR/$UNIT" 2>/dev/null || rc=1
+sync
+systemctl daemon-reload 2>/dev/null || true
+systemctl start "$UNIT" 2>/dev/null || true   # arm the TIMER for this boot too, not the service
+
+if [ "$rc" -ne 0 ] || [ ! -L "$WANTS_DIR/$UNIT" ]; then
+    printf '{"success":false,"error":"arm_failed","detail":"could not create timer symlink"}\n'
+    exit 1
+fi
+
+printf '{"success":true,"armed":true}\n'
+exit 0

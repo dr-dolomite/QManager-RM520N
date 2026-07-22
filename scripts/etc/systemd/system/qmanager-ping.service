@@ -1,20 +1,23 @@
 # /lib/systemd/system/qmanager-ping.service
 [Unit]
-Description=QManager Ping Daemon (Rust)
+Description=QManager Ping Daemon
 After=network.target qmanager-setup.service
 
 [Service]
 Type=simple
 ExecStart=/usr/bin/qmanager_ping
-# Probe targets and timing knobs (PING_TARGET_1, PING_TARGET_2,
-# PING_PROFILE, PING_INTERVAL, FAIL_SECS, RECOVER_SECS, INTERCEPT_SECS,
-# HISTORY_SECS) are intentionally NOT set here: the daemon's resolution
-# order is env > JSON > hardcoded defaults (see ping-daemon/src/config.rs),
-# so any inline Environment= here would beat /etc/qmanager/ping_profile.json
-# written by the Connectivity Sensitivity UI. The daemon's hardcoded
-# defaults (Cloudflare primary, Google secondary; relaxed profile) cover
-# fresh boots before the JSON exists. Operators who genuinely need a
-# manual override can drop values into /etc/qmanager/environment.
+# Config is JSON-only: /etc/qmanager/ping_profile.json (profile, target_ipv4,
+# target_ipv6, and optional interval_sec/fail_secs/recover_secs/history_secs
+# overrides — interval_sec is Watchdog-owned). No UCI on RM520N-GL. Probe
+# targets and timing knobs are intentionally NOT set as inline Environment=
+# here: the daemon reads shell env vars only as hardcoded startup defaults
+# (before the JSON is first loaded) and re-reads the JSON on every reload-
+# flag trip, so an inline Environment= here would permanently shadow the
+# Connectivity Sensitivity UI's writes to ping_profile.json. The daemon's
+# hardcoded defaults (Cloudflare 1.1.1.1 / 2606:4700:4700::1111; relaxed
+# profile) cover fresh boots before the JSON exists. Operators who
+# genuinely need a manual override can drop values into
+# /etc/qmanager/environment (PING_PROFILE, PING_TARGET_IPV4, PING_TARGET_IPV6).
 EnvironmentFile=-/etc/qmanager/environment
 TimeoutStopSec=10
 Restart=on-failure

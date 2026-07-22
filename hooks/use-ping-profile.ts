@@ -2,25 +2,27 @@
 
 import { useState, useCallback, useRef, useEffect } from "react";
 import { authFetch } from "@/lib/auth-fetch";
-import type { PingProfile } from "@/types/modem-status";
 
 // =============================================================================
-// usePingProfile — Fetch & Save Hook for Connectivity Sensitivity
+// usePingProfile — Fetch & Save Hook for the probe targets
 // =============================================================================
 // Backend: GET/POST /cgi-bin/quecmanager/settings/ping_profile.sh
 //
-// GET returns { success: true, settings: { profile: PingProfile, target_1, target_2 } }.
-// POST { action: "save_settings", profile: PingProfile, target_1, target_2 } writes
-// the file and pokes /tmp/qmanager_ping_reload; daemon picks up the change on its
-// next probe cycle (1-10s depending on the previous profile's interval).
+// GET returns { success: true, settings: { target_ipv4, target_ipv6, ... } }. The
+// endpoint may still echo a legacy `profile` field — we ignore it. Probe timing
+// (cadence + failure threshold) is now owned by the Connection Watchdog, so this
+// hook is targets-only.
+// POST { action: "save_settings", target_ipv4, target_ipv6 } writes the file and
+// pokes /tmp/qmanager_ping_reload; the daemon reloads its targets on the next cycle.
+// The two targets are DNS hosts the ICMP-port daemon pings — IPv4 first, IPv6 as
+// the fallback so an IPv6-only bearer is never reported as down.
 // =============================================================================
 
 const ENDPOINT = "/cgi-bin/quecmanager/settings/ping_profile.sh";
 
 interface PingProfileSettings {
-  profile: PingProfile;
-  target_1: string;
-  target_2: string;
+  target_ipv4: string;
+  target_ipv6: string;
 }
 
 interface PingProfileResponse {
@@ -31,26 +33,23 @@ interface PingProfileResponse {
 }
 
 export interface UsePingProfileReturn {
-  profile: PingProfile | undefined;
-  target1: string | undefined;
-  target2: string | undefined;
+  targetIpv4: string | undefined;
+  targetIpv6: string | undefined;
   isLoading: boolean;
   error: string | null;
   isSaving: boolean;
   saveError: string | null;
   save: (settings: {
-    profile: PingProfile;
-    target_1: string;
-    target_2: string;
+    target_ipv4: string;
+    target_ipv6: string;
   }) => Promise<PingProfileResponse>;
 }
 
 // ─── Hook ─────────────────────────────────────────────────────────────────────
 
 export function usePingProfile(): UsePingProfileReturn {
-  const [profile, setProfile] = useState<PingProfile | undefined>(undefined);
-  const [target1, setTarget1] = useState<string | undefined>(undefined);
-  const [target2, setTarget2] = useState<string | undefined>(undefined);
+  const [targetIpv4, setTargetIpv4] = useState<string | undefined>(undefined);
+  const [targetIpv6, setTargetIpv6] = useState<string | undefined>(undefined);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
@@ -77,15 +76,14 @@ export function usePingProfile(): UsePingProfileReturn {
       if (!mountedRef.current) return;
 
       if (!json.success || !json.settings) {
-        throw new Error(json.detail ?? json.error ?? "Failed to load profile");
+        throw new Error(json.detail ?? json.error ?? "Failed to load targets");
       }
 
-      setProfile(json.settings.profile);
-      setTarget1(json.settings.target_1);
-      setTarget2(json.settings.target_2);
+      setTargetIpv4(json.settings.target_ipv4);
+      setTargetIpv6(json.settings.target_ipv6);
     } catch (err) {
       if (!mountedRef.current) return;
-      setError(err instanceof Error ? err.message : "Failed to load profile");
+      setError(err instanceof Error ? err.message : "Failed to load targets");
     } finally {
       if (mountedRef.current && !silent) setIsLoading(false);
     }
@@ -97,9 +95,8 @@ export function usePingProfile(): UsePingProfileReturn {
 
   const save = useCallback(
     async (settings: {
-      profile: PingProfile;
-      target_1: string;
-      target_2: string;
+      target_ipv4: string;
+      target_ipv6: string;
     }): Promise<PingProfileResponse> => {
       setSaveError(null);
       setIsSaving(true);
@@ -110,9 +107,8 @@ export function usePingProfile(): UsePingProfileReturn {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             action: "save_settings",
-            profile: settings.profile,
-            target_1: settings.target_1,
-            target_2: settings.target_2,
+            target_ipv4: settings.target_ipv4,
+            target_ipv6: settings.target_ipv6,
           }),
         });
 
@@ -123,9 +119,8 @@ export function usePingProfile(): UsePingProfileReturn {
           throw new Error(json.detail ?? json.error ?? "Save failed");
         }
 
-        setProfile(settings.profile);
-        setTarget1(settings.target_1);
-        setTarget2(settings.target_2);
+        setTargetIpv4(settings.target_ipv4);
+        setTargetIpv6(settings.target_ipv6);
         fetchProfile(true);
 
         return json;
@@ -141,9 +136,8 @@ export function usePingProfile(): UsePingProfileReturn {
   );
 
   return {
-    profile,
-    target1,
-    target2,
+    targetIpv4,
+    targetIpv6,
     isLoading,
     error,
     isSaving,

@@ -1,10 +1,11 @@
 "use client";
 
 import React, { useCallback, useState } from "react";
-import { motion, AnimatePresence } from "motion/react";
+import { motion, AnimatePresence, useReducedMotion } from "motion/react";
 import { toast } from "sonner";
 import {
   Card,
+  CardAction,
   CardContent,
   CardDescription,
   CardHeader,
@@ -21,13 +22,10 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
-import { Separator } from "@/components/ui/separator";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Skeleton } from "@/components/ui/skeleton";
 import {
-  DogIcon,
   InfoIcon,
   Loader2,
   CheckCircle2Icon,
@@ -36,81 +34,110 @@ import {
   ClockIcon,
   LockIcon,
   MinusCircleIcon,
+  PowerOffIcon,
 } from "lucide-react";
-import { useModemStatus } from "@/hooks/use-modem-status";
+import { cn } from "@/lib/utils";
+import type { UseModemStatusReturn } from "@/hooks/use-modem-status";
 import { formatTimeAgo } from "@/types/modem-status";
 import type { WatchcatState } from "@/types/modem-status";
+import type { WatchdogSettings } from "@/hooks/use-watchdog-settings";
+import type { WatchdogForm } from "./use-watchdog-form";
 
 interface WatchdogStatusCardProps {
+  form: WatchdogForm;
+  /** Server-truth settings — the hero reflects SAVED state, never form drafts. */
+  settings: WatchdogSettings;
+  autoDisabled: boolean;
   revertSim: () => Promise<boolean>;
-  /** Whether the user has enabled watchdog in settings (from CGI, not daemon) */
-  settingsEnabled?: boolean;
+  /**
+   * Lifted up to the page coordinator (rather than fetched here) so the
+   * page-level loading gate can wait on it too — by the time this card
+   * mounts, the initial poll has already resolved, so there's no separate
+   * "Starting Up" loading flash after the page skeleton.
+   */
+  modemStatus: UseModemStatusReturn;
 }
 
-const STATE_BADGE_CONFIG: Record<
+type HeroTone = "success" | "warning" | "destructive" | "info" | "muted";
+
+const STATE_META: Record<
   WatchcatState,
-  { label: string; variant: "outline"; className: string; icon: React.ReactNode }
+  { tone: HeroTone; icon: React.ReactNode; pulse?: boolean }
 > = {
-  monitor: {
-    label: "Monitoring",
-    variant: "outline",
-    className: "bg-success/15 text-success hover:bg-success/20 border-success/30",
-    icon: <CheckCircle2Icon className="h-3 w-3" />,
-  },
-  suspect: {
-    label: "Detecting Issue",
-    variant: "outline",
-    className: "bg-warning/15 text-warning hover:bg-warning/20 border-warning/30",
-    icon: <TriangleAlertIcon className="h-3 w-3" />,
-  },
+  monitor: { tone: "success", icon: <CheckCircle2Icon className="size-6" /> },
+  suspect: { tone: "warning", icon: <TriangleAlertIcon className="size-6" /> },
   recovery: {
-    label: "Recovering",
-    variant: "outline",
-    className: "bg-destructive/15 text-destructive hover:bg-destructive/20 border-destructive/30 animate-pulse motion-reduce:animate-none",
-    icon: <AlertCircleIcon className="h-3 w-3" />,
+    tone: "destructive",
+    icon: <AlertCircleIcon className="size-6" />,
+    pulse: true,
   },
-  cooldown: {
-    label: "Cooldown",
-    variant: "outline",
-    className: "bg-info/15 text-info hover:bg-info/20 border-info/30",
-    icon: <ClockIcon className="h-3 w-3" />,
-  },
-  locked: {
-    label: "Locked",
-    variant: "outline",
-    className: "bg-muted/50 text-muted-foreground border-muted-foreground/30",
-    icon: <LockIcon className="h-3 w-3" />,
-  },
-  disabled: {
-    label: "Disabled",
-    variant: "outline",
-    className: "bg-muted/50 text-muted-foreground border-muted-foreground/30",
-    icon: <MinusCircleIcon className="h-3 w-3" />,
-  },
+  cooldown: { tone: "info", icon: <ClockIcon className="size-6" /> },
+  locked: { tone: "muted", icon: <LockIcon className="size-6" /> },
+  disabled: { tone: "muted", icon: <MinusCircleIcon className="size-6" /> },
 };
 
-const TIER_LABELS: Record<number, string> = {
-  0: "\u2014",
-  1: "Re-register to Network",
-  2: "Restart Modem Radio",
-  3: "Switch to Backup SIM",
-  4: "Reboot Device",
+// State-name labels reuse the target status card's established copy.
+const STATE_LABELS: Record<WatchcatState, string> = {
+  monitor: "Monitoring",
+  suspect: "Detecting Issue",
+  recovery: "Recovering",
+  cooldown: "Cooldown",
+  locked: "Locked",
+  disabled: "Disabled",
 };
+
+const STATE_BLURBS: Record<WatchcatState, string> = {
+  monitor: "Connection is healthy. Watching for outages.",
+  suspect: "A connectivity check just failed. Confirming before acting.",
+  recovery: "Working through the recovery ladder to restore the connection.",
+  cooldown: "Waiting for the last recovery step to settle before rechecking.",
+  locked: "Recovery is paused after hitting the reboot limit.",
+  disabled: "The watchdog is not monitoring the connection.",
+};
+
+// Full recovery-tier names, shared with the settings ladder for consistency.
+const TIER_NAMES = [
+  "Re-register to Network",
+  "Restart Modem Radio",
+  "Switch to Backup SIM",
+  "Reboot Device",
+];
+
+const TONE_RING: Record<HeroTone, string> = {
+  success: "bg-success/15 text-success border-success/30",
+  warning: "bg-warning/15 text-warning border-warning/30",
+  destructive: "bg-destructive/15 text-destructive border-destructive/30",
+  info: "bg-info/15 text-info border-info/30",
+  muted: "bg-muted/50 text-muted-foreground border-muted-foreground/25",
+};
+
+const TONE_TILE: Record<HeroTone, string> = {
+  success: "border-success/25 bg-success/5",
+  warning: "border-warning/25 bg-warning/5",
+  destructive: "border-destructive/25 bg-destructive/5",
+  info: "border-info/25 bg-info/5",
+  muted: "border-border bg-muted/20",
+};
+
+const stepLabel = (tier: number | null | undefined) =>
+  tier ? `Tier ${tier}` : "None";
 
 export function WatchdogStatusCard({
+  form,
+  settings,
+  autoDisabled,
   revertSim,
-  settingsEnabled,
+  modemStatus: modemStatusResult,
 }: WatchdogStatusCardProps) {
-  const { data: modemStatus, isLoading } = useModemStatus({
-    pollInterval: 5000,
-  });
+  const { data: modemStatus } = modemStatusResult;
   const [isReverting, setIsReverting] = useState(false);
+  const reduceMotion = useReducedMotion();
 
   const handleRevertSim = useCallback(async () => {
     setIsReverting(true);
     try {
-      const success = await revertSim();
-      if (success) {
+      const ok = await revertSim();
+      if (ok) {
         toast.success(
           "SIM revert requested. The watchdog will process this shortly.",
         );
@@ -124,223 +151,364 @@ export function WatchdogStatusCard({
 
   const watchcat = modemStatus?.watchcat;
   const simFailover = modemStatus?.sim_failover;
-
-  // Loading skeleton
-  if (isLoading) {
-    return (
-      <Card className="@container/card">
-        <CardHeader>
-          <CardTitle>Watchdog Status</CardTitle>
-          <CardDescription>Live connection health status.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-3">
-            <Skeleton className="h-6 w-28" />
-            {Array.from({ length: 5 }).map((_, i) => (
-              <Skeleton key={i} className="h-5 w-full" />
-            ))}
-          </div>
-        </CardContent>
-      </Card>
-    );
-  }
-
-  // Empty/disabled state
   const daemonReporting = watchcat?.enabled;
-  const enabledButNotReporting = settingsEnabled && !daemonReporting;
+  // Saved-State Honesty: the branch reflects SAVED settings + daemon truth, not
+  // the (possibly dirty) master toggle. The toggle applies on Save.
+  const savedEnabled = settings.enabled;
 
-  if (!daemonReporting && !enabledButNotReporting) {
+  const header = (
+    <CardHeader>
+      <CardTitle>Watchdog Status</CardTitle>
+      <CardDescription>Live connection health status.</CardDescription>
+      <CardAction>
+        <Switch
+          id="watchdog-enabled"
+          checked={form.isEnabled}
+          onCheckedChange={form.setIsEnabled}
+          aria-label="Enable watchdog"
+        />
+      </CardAction>
+    </CardHeader>
+  );
+
+  // ---- Off (saved disabled) ----
+  if (!savedEnabled) {
     return (
       <Card className="@container/card">
-        <CardHeader>
-          <CardTitle>Watchdog Status</CardTitle>
-          <CardDescription>Live connection health status.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="flex flex-col items-center justify-center py-8 gap-3">
-            <DogIcon className="size-10 text-muted-foreground" />
-            <p className="text-sm text-muted-foreground text-center">
-              Watchdog is not active. Enable it in Settings to begin monitoring
-              connection health.
-            </p>
-          </div>
+        {header}
+        <CardContent className="grid gap-4">
+          {autoDisabled && <AutoDisabledAlert />}
+          <StateTile
+            tone="muted"
+            icon={<PowerOffIcon className="size-6" />}
+            title="Watchdog Off"
+            subtitle="Enable it above to begin monitoring connection health."
+            reduceMotion={reduceMotion}
+          />
         </CardContent>
       </Card>
     );
   }
 
-  // Enabled in settings but daemon hasn't reported yet (starting up / boot settle)
-  if (enabledButNotReporting) {
+  // ---- Settling (saved enabled, daemon not reporting yet) ----
+  if (!daemonReporting) {
     return (
       <Card className="@container/card">
-        <CardHeader>
-          <CardTitle>Watchdog Status</CardTitle>
-          <CardDescription>Live connection health status.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="flex flex-col items-center justify-center py-8 gap-3">
-            <Loader2 className="size-10 text-muted-foreground animate-spin" />
-            <p className="text-sm text-muted-foreground text-center">
-              Watchdog is starting up. It will begin monitoring shortly.
-            </p>
-          </div>
+        {header}
+        <CardContent className="grid gap-4">
+          {autoDisabled && <AutoDisabledAlert />}
+          <StateTile
+            tone="info"
+            icon={
+              <Loader2 className="size-6 animate-spin motion-reduce:animate-none" />
+            }
+            title="Starting Up"
+            subtitle="It will begin monitoring shortly."
+            reduceMotion={reduceMotion}
+          />
         </CardContent>
       </Card>
     );
   }
 
-  // At this point watchcat is guaranteed to be defined and enabled
-  // (both early returns above handle the undefined/disabled cases)
-  if (!watchcat) return null;
+  // ---- Live ----
+  const stateKey = (watchcat!.state as WatchcatState) || "disabled";
+  const meta = STATE_META[stateKey] ?? STATE_META.disabled;
+  const runningTier = watchcat!.current_tier;
 
-  const stateKey = (watchcat.state as WatchcatState) || "disabled";
-  const badge = STATE_BADGE_CONFIG[stateKey] || STATE_BADGE_CONFIG.disabled;
-  const tierLabel = TIER_LABELS[watchcat.current_tier] || TIER_LABELS[0];
-
-  const statusRows: { label: string; value: React.ReactNode }[] = [
-    { label: "Current Step", value: tierLabel },
+  const stats: {
+    key: string;
+    label: string;
+    value: React.ReactNode;
+    tint?: "warning";
+  }[] = [
     {
+      key: "step",
+      label: "Current Step",
+      value: stepLabel(watchcat!.current_tier),
+    },
+    {
+      key: "failed",
       label: "Failed Checks",
-      value: <span className="font-mono">{watchcat.failure_count}</span>,
+      value: watchcat!.failure_count,
+      tint: watchcat!.failure_count > 0 ? "warning" : undefined,
     },
-    ...(watchcat.cooldown_remaining > 0
+    // Cooldown only when actually counting down — an honest readout of the
+    // SIM-settle floor when a Tier-3 swap is settling.
+    ...(watchcat!.cooldown_remaining > 0
       ? [
           {
+            key: "cooldown",
             label: "Cooldown",
-            value: (
-              <span className="font-mono">
-                {watchcat.cooldown_remaining}s remaining
-              </span>
-            ),
+            value: `${watchcat!.cooldown_remaining}s remaining`,
           },
         ]
       : []),
     {
+      key: "recoveries",
       label: "Total Recoveries",
-      value: <span className="font-mono">{watchcat.total_recoveries}</span>,
+      value: watchcat!.total_recoveries,
     },
     {
+      key: "reboots",
       label: "Reboots This Hour",
-      value: <span className="font-mono">{watchcat.reboots_this_hour}</span>,
+      value: watchcat!.reboots_this_hour,
+      tint: watchcat!.reboots_this_hour > 0 ? "warning" : undefined,
     },
-    ...(watchcat.last_recovery_time != null
-      ? [
-          {
-            label: "Last Recovery",
-            value: (
-              <span>
-                {TIER_LABELS[watchcat.last_recovery_tier ?? 0]}{" "}
-                <span className="text-muted-foreground">
-                  ({formatTimeAgo(watchcat.last_recovery_time)})
-                </span>
+    {
+      key: "last",
+      label: "Last Recovery",
+      value:
+        watchcat!.last_recovery_time != null ? (
+          watchcat!.last_recovery_tier ? (
+            <span>
+              {stepLabel(watchcat!.last_recovery_tier)}
+              <span className="text-muted-foreground font-normal">
+                {" "}
+                ({formatTimeAgo(watchcat!.last_recovery_time)})
               </span>
-            ),
-          },
-        ]
-      : []),
+            </span>
+          ) : (
+            <span className="text-muted-foreground font-normal">
+              {formatTimeAgo(watchcat!.last_recovery_time)}
+            </span>
+          )
+        ) : (
+          <span className="text-muted-foreground font-normal">None</span>
+        ),
+    },
   ];
 
   return (
     <Card className="@container/card">
-      <CardHeader>
-        <CardTitle>Watchdog Status</CardTitle>
-        <CardDescription>Live connection health status.</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <div className="grid gap-2">
-          {/* State badge — animates when state changes */}
-          <div className="flex items-center justify-between">
-            <p className="text-sm font-semibold text-muted-foreground">State</p>
-            <AnimatePresence mode="wait">
-              <motion.div
-                key={stateKey}
-                initial={{ opacity: 0, scale: 0.88 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.88 }}
-                transition={{ duration: 0.18, type: "spring", stiffness: 400, damping: 24 }}
-              >
-                <Badge variant={badge.variant} className={badge.className}>{badge.icon}{badge.label}</Badge>
-              </motion.div>
-            </AnimatePresence>
-          </div>
-          {/* Status rows — stagger in on mount */}
-          <motion.div
-            className="grid gap-2"
-            initial="hidden"
-            animate="visible"
-            variants={{ hidden: {}, visible: { transition: { staggerChildren: 0.05, delayChildren: 0.05 } } }}
-          >
-            {statusRows.map((row) => (
-              <motion.div
-                key={row.label}
-                variants={{ hidden: { opacity: 0, x: -6 }, visible: { opacity: 1, x: 0 } }}
-                transition={{ duration: 0.2, ease: "easeOut" }}
-              >
-                <Separator />
-                <div className="flex items-center justify-between pt-2">
-                  <p className="text-sm font-semibold text-muted-foreground">
-                    {row.label}
-                  </p>
-                  <p className="text-sm font-semibold">{row.value}</p>
-                </div>
-              </motion.div>
-            ))}
-          </motion.div>
-          <Separator />
+      {header}
+      <CardContent className="grid gap-5">
+        {autoDisabled && <AutoDisabledAlert />}
 
-          {/* SIM Failover section */}
-          {simFailover?.active && (
-            <div className="pt-3 border-t">
-              <Alert className="mb-3">
-                <InfoIcon className="size-4" />
-                <AlertDescription>
+        {/* Screen-reader announcement of state-name changes. */}
+        <p className="sr-only" role="status" aria-live="polite">
+          Watchdog state: {STATE_LABELS[stateKey] ?? STATE_LABELS.disabled}
+        </p>
+
+        <AnimatePresence mode="wait" initial={false}>
+          <motion.div
+            key={stateKey}
+            initial={{ opacity: 0, scale: reduceMotion ? 1 : 0.97 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: reduceMotion ? 1 : 0.98 }}
+            transition={{ duration: reduceMotion ? 0 : 0.2, ease: "easeOut" }}
+          >
+            <StateTile
+              tone={meta.tone}
+              icon={meta.icon}
+              pulse={meta.pulse}
+              title={STATE_LABELS[stateKey] ?? STATE_LABELS.disabled}
+              subtitle={STATE_BLURBS[stateKey] ?? ""}
+              reduceMotion={reduceMotion}
+            />
+          </motion.div>
+        </AnimatePresence>
+
+        {/* Hairline divider, then the counter strip. */}
+        <div className="border-t pt-5">
+          <div className="flex flex-wrap gap-x-10 gap-y-5">
+            {stats.map((s) => (
+              <div key={s.key} className="grid gap-1">
+                <span className="text-muted-foreground text-xs font-medium">
+                  {s.label}
+                </span>
+                <span
+                  className={cn(
+                    "text-sm font-semibold tabular-nums",
+                    s.tint === "warning" && "text-warning",
+                  )}
+                >
+                  {s.value}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Read-only ladder stepper — the SAVED enabled state of the four tiers,
+            with the currently-running tier highlighted. Saved-State Honesty:
+            reads server truth, never form drafts. */}
+        <HeroLadder
+          savedTiers={[
+            settings.tier1_enabled,
+            settings.tier2_enabled,
+            settings.tier3_enabled,
+            settings.tier4_enabled,
+          ]}
+          runningTier={runningTier}
+        />
+
+        {simFailover?.active && (
+          <div className="border-t pt-5">
+            <Alert className="mb-3">
+              <InfoIcon className="size-4" />
+              <AlertDescription>
+                <p>
                   Running on backup SIM (slot {simFailover.current_slot}) since{" "}
                   {simFailover.switched_at
                     ? formatTimeAgo(simFailover.switched_at)
                     : "recently"}
                   . Original SIM was in slot {simFailover.original_slot}.
-                </AlertDescription>
-              </Alert>
+                </p>
+              </AlertDescription>
+            </Alert>
 
-              {/* H1: Confirmation dialog for destructive SIM revert */}
-              <AlertDialog>
-                <AlertDialogTrigger asChild>
-                  <Button
-                    variant="destructive"
-                    size="sm"
-                    disabled={isReverting}
-                  >
-                    {isReverting ? (
-                      <>
-                        <Loader2 className="size-4 animate-spin" />
-                        Reverting…
-                      </>
-                    ) : (
-                      "Revert to Original SIM"
-                    )}
-                  </Button>
-                </AlertDialogTrigger>
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>Revert to Original SIM?</AlertDialogTitle>
-                    <AlertDialogDescription>
-                      This will switch back to SIM slot{" "}
-                      {simFailover.original_slot}. Your internet will briefly
-                      disconnect while the modem reconnects.
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                    <AlertDialogAction onClick={handleRevertSim}>
-                      Revert SIM
-                    </AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
-            </div>
-          )}
-        </div>
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="destructive" size="sm" disabled={isReverting}>
+                  {isReverting ? (
+                    <>
+                      <Loader2 className="size-4 animate-spin motion-reduce:animate-none" />
+                      Reverting…
+                    </>
+                  ) : (
+                    "Revert to Original SIM"
+                  )}
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Revert to Original SIM?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    This will switch back to SIM slot{" "}
+                    {simFailover.original_slot}. Your internet will briefly
+                    disconnect while the modem reconnects.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction onClick={handleRevertSim}>
+                    Revert SIM
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          </div>
+        )}
       </CardContent>
     </Card>
+  );
+}
+
+function AutoDisabledAlert() {
+  return (
+    <Alert variant="destructive">
+      <TriangleAlertIcon className="size-4" />
+      <AlertDescription>
+        <p>
+          Watchdog disabled itself after too many reboots in one hour. Re-enable
+          it once your connection is stable.
+        </p>
+      </AlertDescription>
+    </Alert>
+  );
+}
+
+// -----------------------------------------------------------------------------
+// State tile — the single "what is it doing right now" focal element.
+// -----------------------------------------------------------------------------
+function StateTile({
+  tone,
+  icon,
+  title,
+  subtitle,
+  pulse,
+  reduceMotion,
+}: {
+  tone: HeroTone;
+  icon: React.ReactNode;
+  title: string;
+  subtitle: string;
+  pulse?: boolean;
+  reduceMotion: boolean | null;
+}) {
+  return (
+    <div
+      className={cn(
+        "flex items-center gap-4 rounded-xl border p-4",
+        TONE_TILE[tone],
+      )}
+    >
+      <span
+        className={cn(
+          "flex size-12 shrink-0 items-center justify-center rounded-full border",
+          TONE_RING[tone],
+          pulse && !reduceMotion && "animate-pulse motion-reduce:animate-none",
+        )}
+      >
+        {icon}
+      </span>
+      <div className="grid min-w-0 gap-0.5">
+        <span className="truncate text-base font-semibold">{title}</span>
+        {subtitle && (
+          <span className="text-muted-foreground text-sm">{subtitle}</span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// -----------------------------------------------------------------------------
+// Hero ladder — a compact, read-only stepper of the four recovery tiers showing
+// their SAVED enabled state and which one (if any) is running right now.
+// -----------------------------------------------------------------------------
+function HeroLadder({
+  savedTiers,
+  runningTier,
+}: {
+  savedTiers: boolean[];
+  runningTier: number;
+}) {
+  return (
+    <div className="border-t pt-5" aria-label="Recovery ladder" role="group">
+      <div className="mb-2.5 flex items-center justify-between">
+        <span className="text-muted-foreground text-xs font-medium">
+          Recovery ladder
+        </span>
+      </div>
+      <ol className="flex items-center gap-1.5">
+        {savedTiers.map((enabled, i) => {
+          const tier = i + 1;
+          const running = runningTier === tier;
+          const srText = running
+            ? `${TIER_NAMES[i]}: running now`
+            : enabled
+              ? `${TIER_NAMES[i]}: enabled`
+              : `${TIER_NAMES[i]}: disabled`;
+          return (
+            <li key={tier} className="flex min-w-0 flex-1 items-center gap-1.5">
+              <span
+                className={cn(
+                  "flex size-6 shrink-0 items-center justify-center rounded-full border text-xs font-semibold tabular-nums",
+                  running
+                    ? "border-warning/40 bg-warning/15 text-warning ring-warning/30 ring-2"
+                    : enabled
+                      ? "border-transparent bg-secondary text-secondary-foreground"
+                      : "border-border bg-muted/40 text-muted-foreground",
+                )}
+                aria-hidden
+              >
+                {tier}
+              </span>
+              <span className="sr-only">{srText}</span>
+              {i < savedTiers.length - 1 && (
+                <span
+                  aria-hidden
+                  className={cn(
+                    "h-px min-w-4 flex-1",
+                    enabled && savedTiers[i + 1] ? "bg-secondary" : "bg-border",
+                  )}
+                />
+              )}
+            </li>
+          );
+        })}
+      </ol>
+    </div>
   );
 }

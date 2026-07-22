@@ -43,6 +43,10 @@ set -e
 
 # --- Configuration -----------------------------------------------------------
 
+# Placeholder — overwritten by build.sh at package time. Running this script
+# straight from a git checkout (not a built release tarball) stamps this
+# placeholder as the installed version, so a dev box will perpetually see
+# "update available" against any real release. Not a bug — just don't chase it.
 VERSION="v0.1.5"
 INSTALL_DIR="$(cd "$(dirname "$0")" && pwd)"
 
@@ -54,6 +58,7 @@ LIB_DIR="/usr/lib/qmanager"
 BIN_DIR="/usr/bin"
 SYSTEMD_DIR="/lib/systemd/system"
 WANTS_DIR="/lib/systemd/system/multi-user.target.wants"
+TIMERS_WANTS_DIR="/lib/systemd/system/timers.target.wants"
 TAILSCALE_DIR="/usrdata/tailscale"
 
 # Detect Entware vs system sudo (called as function — must re-evaluate
@@ -104,11 +109,15 @@ SSH_BOOTSTRAP_STATUS="not_run"
 # Install log (qmanager_update tails this for step progress)
 LOG_FILE="/tmp/qmanager_install.log"
 
-# Services gated on config: only re-enable if they were already enabled
-UCI_GATED_SERVICES="qmanager-watchcat qmanager-tower-failover qmanager-discord"
+# Services gated on config: only re-enable if they were already enabled.
+UCI_GATED_SERVICES="qmanager-watchcat qmanager-tower-failover qmanager-discord qmanager-sms-forward"
 
 # Conflict packages that must be removed before installing
 CONFLICT_PACKAGES="socat socat-at-bridge"
+
+# Full IANA tzdata (RM520N-GL's vendor /usr/share/zoneinfo ships empty) —
+# see ensure_zoneinfo_packages()
+ZONEINFO_PACKAGE="zoneinfo-all"
 
 # --- Colors & Icons ----------------------------------------------------------
 
@@ -429,6 +438,41 @@ remove_conflicts() {
     done
 }
 
+# --- Ensure Zoneinfo Packages -------------------------------------------------
+
+# Installs the zoneinfo-all Entware package (full IANA tzdata) into
+# /opt/share/zoneinfo — RM520N-GL's vendor /usr/share/zoneinfo ships empty, so
+# qmanager_timezone_apply has nothing to copy from without this.
+#
+# Runs UNCONDITIONALLY, even with --skip-packages (mirrors remove_conflicts()
+# just above in main()): OTA upgrades invoke this installer with
+# --skip-packages, which gates install_dependencies(). Gating this install
+# behind that flag would mean the majority upgrade path (in-app "Software
+# Update") never fetches zoneinfo, and the timezone-apply fix stays silently
+# broken forever for every existing user. Warn-only on failure — a device
+# offline during an update should still complete the upgrade, not brick it.
+ensure_zoneinfo_packages() {
+    # Skip silently if Entware isn't available yet (fresh install, pre-bootstrap —
+    # install_dependencies() bootstraps Entware and this will catch up on next run)
+    if [ ! -x "$OPKG" ]; then
+        _log_raw "ensure_zoneinfo_packages: opkg not available — skipping (pre-Entware)"
+        return 0
+    fi
+
+    if "$OPKG" list-installed 2>/dev/null | grep -q "^${ZONEINFO_PACKAGE} "; then
+        info "$ZONEINFO_PACKAGE already installed"
+        return 0
+    fi
+
+    info "Installing timezone data ($ZONEINFO_PACKAGE)..."
+    if "$OPKG" update >/dev/null 2>&1 && "$OPKG" install "$ZONEINFO_PACKAGE" >/dev/null 2>&1; then
+        info "$ZONEINFO_PACKAGE installed"
+    else
+        warn "Failed to install $ZONEINFO_PACKAGE (offline?) — timezone apply will fail until this succeeds"
+        warn "  Retry manually: $OPKG update && $OPKG install $ZONEINFO_PACKAGE"
+    fi
+}
+
 # --- Install Dependencies ----------------------------------------------------
 
 install_dependencies() {
@@ -579,7 +623,7 @@ SVCEOF
             info "Created start-opt-mount.service"
         fi
 
-        systemctl daemon-reload
+        systemctl daemon-reload 2>/dev/null || warn "daemon-reload failed (transient?) — continuing"
         systemctl start opt.mount 2>/dev/null || true
         info "Mounted /usrdata/opt → /opt"
 
@@ -644,7 +688,7 @@ RCEOF
         ln -sf /opt/bin/opkg /bin/opkg 2>/dev/null || true
         ln -sf /opt/bin/jq /usr/bin/jq 2>/dev/null || true
 
-        systemctl daemon-reload
+        systemctl daemon-reload 2>/dev/null || warn "daemon-reload failed (transient?) — continuing"
         info "Entware bootstrap complete"
     else
         info "Entware already installed at $OPKG"
@@ -835,6 +879,25 @@ backup_originals() {
         local ts; ts=$(date +%Y%m%d_%H%M%S)
         cp "$CONF_DIR/auth.json" "$BACKUP_DIR/auth.json.$ts" 2>/dev/null || true
         info "Backed up auth config"
+
+        # Prune to the newest 5 auth.json backups — every install/OTA run adds
+        # one and nothing ever removed the old ones, so this grows unbounded
+        # on constrained UBI flash. Filenames use %Y%m%d_%H%M%S, so a plain
+        # lexicographic sort is already chronological order — no reliance on
+        # `ls -t` (mtime-based, BusyBox behavior not guaranteed) or `head -n
+        # -N` (negative counts aren't portable either).
+        local _keep=5
+        local _backups; _backups=$(ls -1 "$BACKUP_DIR"/auth.json.* 2>/dev/null | sort)
+        if [ -n "$_backups" ]; then
+            local _total; _total=$(printf '%s\n' "$_backups" | wc -l)
+            if [ "$_total" -gt "$_keep" ]; then
+                local _excess=$(( _total - _keep ))
+                printf '%s\n' "$_backups" | head -n "$_excess" | while IFS= read -r f; do
+                    rm -f "$f" 2>/dev/null || true
+                done
+                info "Pruned $_excess old auth.json backup(s), keeping newest $_keep"
+            fi
+        fi
     fi
 
     # Backup existing lighttpd config (if upgrading)
@@ -870,6 +933,18 @@ install_frontend() {
 
     # Copy new frontend
     cp -r "$SRC_FRONTEND"/* "$WWW_ROOT/"
+
+    # Re-derive the served language-pack copy from the persistent store.
+    # /usrdata/qmanager/locales-packs/ lives OUTSIDE $WWW_ROOT so it survives
+    # the wipe above; this is the OTA-survival step that puts installed packs
+    # back under the web root on every install/update run. Idempotent — safe
+    # on fresh installs (no persistent store yet) and every subsequent OTA.
+    mkdir -p "$WWW_ROOT/locales-packs"
+    if [ -d /usrdata/qmanager/locales-packs ]; then
+        for d in /usrdata/qmanager/locales-packs/*/; do
+            [ -d "$d" ] && cp -r "$d" "$WWW_ROOT/locales-packs/"
+        done
+    fi
 
     info "Frontend installed ($file_count files)"
 }
@@ -963,6 +1038,16 @@ install_backend() {
                 || die "Failed to install $(basename "$f")"
         done
 
+        # Copy timer units too (e.g. qmanager-auto-update.timer) — the glob
+        # above only matches *.service, so timers need their own loop or they
+        # silently never get deployed. Enablement is gated separately in
+        # enable_services() (timers.target.wants, not multi-user.target.wants).
+        for f in "$SRC_SCRIPTS/etc/systemd/system"/qmanager*.timer; do
+            [ -f "$f" ] || continue
+            install_file "$f" "$SYSTEMD_DIR/$(basename "$f")" 644 \
+                || die "Failed to install $(basename "$f")"
+        done
+
         # Install lighttpd service file — ensures correct config path is used.
         # Entware's default service may point to /opt/etc/lighttpd/lighttpd.conf
         # instead of /usrdata/qmanager/lighttpd.conf where QManager's config lives.
@@ -974,8 +1059,31 @@ install_backend() {
         fi
         sync
 
-        systemctl daemon-reload
+        systemctl daemon-reload 2>/dev/null || warn "daemon-reload failed (transient?) — continuing"
         info "Systemd units installed to $SYSTEMD_DIR"
+    fi
+
+    # --- Console login-shell PATH snippet (/etc/profile.d) --------------------
+    # SSH sessions and CGI already get /opt/bin (Entware) on PATH via
+    # cgi_base.sh / the dropbear login profile. The one gap is an interactive
+    # serial/getty console LOGIN shell, which reads /etc/profile.d/*.sh but
+    # otherwise starts with the vendor's bare PATH. Cosmetic only — nothing
+    # functional depends on it — so failures here are warnings, not die().
+    if [ -f "$SRC_SCRIPTS/etc/profile.d/qmanager-path.sh" ]; then
+        # /etc/profile.d does not exist on stock RM520N-GL, and the vendor
+        # /etc/profile only sources it from inside `if [ -d /etc/profile.d ]` —
+        # so the directory must exist first, or the snippet is never read anyway.
+        # install_file also writes its atomic temp file *inside* the destination
+        # dir, so without this mkdir the cp fails with ENOENT. (/etc is its own
+        # always-RW UBIFS volume — no root remount is needed or helpful here.)
+        mkdir -p /etc/profile.d 2>/dev/null || true
+        if [ -d /etc/profile.d ] && install_file "$SRC_SCRIPTS/etc/profile.d/qmanager-path.sh" \
+            "/etc/profile.d/qmanager-path.sh" 644; then
+            sync
+            info "Console PATH snippet installed (/etc/profile.d/qmanager-path.sh)"
+        else
+            warn "Failed to install qmanager-path.sh profile.d snippet"
+        fi
     fi
 
     # --- Sudoers (re-detect after install_dependencies may have installed sudo) ---
@@ -1029,6 +1137,15 @@ install_backend() {
     # on re-run, so this is safe on upgrade.
     install -d -o www-data -g www-data -m 0700 /etc/data/qmanager
 
+    # Runtime language-pack downloader storage (Increment B). Persistent store
+    # stays root-owned — only the qmanager_language_pack_apply root helper may
+    # write into it (see sudoers.d/qmanager). The staging dir is www-data-owned
+    # so the unprivileged download worker can extract + validate a pack there
+    # before handing the validated tree to the root helper. install -d self-
+    # heals owner/mode on re-run, so this is safe on upgrade.
+    mkdir -p /usrdata/qmanager/locales-packs
+    install -d -o www-data -g www-data -m 0700 /usrdata/qmanager/locales-staging
+
     # --- Migrate legacy TTL state file (one-time, non-fatal) -----------------
     # Old path: /etc/firewall.user.ttl (root-owned, unwritable by www-data CGI)
     # New path: /etc/qmanager/ttl_state (www-data-owned via CONF_DIR chown above)
@@ -1044,10 +1161,18 @@ install_backend() {
             if [ "$old_ttl" -eq 0 ] && [ "$old_hl" -eq 0 ]; then
                 info "Legacy /etc/firewall.user.ttl had no parseable TTL/HL — leaving in place for inspection"
             else
-                ttl_state_write_persisted "$old_ttl" "$old_hl" && \
+                # Only delete the legacy file once the new state file is
+                # confirmed written — this migration is gated on ttl_state
+                # not existing, so it never retries. Deleting unconditionally
+                # (previously a separate statement outside this check) would
+                # permanently lose the operator's TTL/HL on a write failure.
+                if ttl_state_write_persisted "$old_ttl" "$old_hl"; then
                     info "Migrated TTL=$old_ttl HL=$old_hl to $TTL_STATE_FILE"
-                rm -f /etc/firewall.user.ttl || true
-                info "Removed legacy /etc/firewall.user.ttl"
+                    rm -f /etc/firewall.user.ttl || true
+                    info "Removed legacy /etc/firewall.user.ttl"
+                else
+                    warn "Failed to write $TTL_STATE_FILE — leaving /etc/firewall.user.ttl in place to retry next run"
+                fi
             fi
         ) || true
     fi
@@ -1075,14 +1200,57 @@ install_backend() {
         . "$LIB_DIR/config.sh"
         qm_config_init
         info "Config initialized at /etc/qmanager/qmanager.conf"
+        migrate_watchcat_fail_threshold
     fi
 
     # --- Bootstrap default ping_profile.json / migrate legacy env vars ----------
     install_ping_profile
     migrate_ping_environment
     prune_stale_ping_environment
+    migrate_ping_targets
 
     info "Backend installed"
+}
+
+# --- Migrate watchcat.max_failures -> watchcat.fail_threshold ----------------
+
+# Split-ownership realignment: the Connection Watchdog now owns the fail
+# cadence (fail_threshold, compared against the ping daemon's raw
+# streak_fail — replaces the old max_failures double-debounce) AND the probe
+# cadence (probe_interval, propagated into ping_profile.json's interval_sec
+# by monitoring/watchdog.sh). The Connectivity Sensitivity card keeps only
+# the probe targets. Runs unconditionally on every install/OTA — mirrors
+# migrate_ping_environment's idempotent style. Three cases, each a no-op on
+# re-run:
+#   1. fail_threshold unset, max_failures set   -> copy value, delete old key
+#   2. fail_threshold unset, max_failures unset -> seed fail_threshold=5
+#   3. fail_threshold already set               -> just drop any leftover max_failures
+# Also seeds probe_interval=5 (the daemon's relaxed-profile default) if unset,
+# so an upgraded device gets a sane starting cadence.
+migrate_watchcat_fail_threshold() {
+    command -v qm_config_get >/dev/null 2>&1 || return 0
+
+    local current legacy probe_interval
+    current=$(qm_config_get watchcat fail_threshold "")
+    if [ -n "$current" ]; then
+        qm_config_delete watchcat max_failures
+    else
+        legacy=$(qm_config_get watchcat max_failures "")
+        if [ -n "$legacy" ]; then
+            qm_config_set watchcat fail_threshold "$legacy"
+            qm_config_delete watchcat max_failures
+            echo "  Migrated watchcat.max_failures -> watchcat.fail_threshold ($legacy)"
+        else
+            qm_config_set watchcat fail_threshold 5
+            echo "  Seeded watchcat.fail_threshold=5 (default)"
+        fi
+    fi
+
+    probe_interval=$(qm_config_get watchcat probe_interval "")
+    if [ -z "$probe_interval" ]; then
+        qm_config_set watchcat probe_interval 5
+        echo "  Seeded watchcat.probe_interval=5 (default)"
+    fi
 }
 
 # --- Bootstrap Default ping_profile.json -------------------------------------
@@ -1103,6 +1271,43 @@ install_ping_profile() {
         fi
     else
         echo "  Existing ping profile preserved at $target"
+    fi
+}
+
+# --- Migrate Legacy HTTP Ping Targets to ICMP Targets ------------------------
+
+# The ping daemon moved from HTTP probes (target_1/target_2 URLs, e.g.
+# "http://cp.cloudflare.com/") to plain ICMP probes (target_ipv4/target_ipv6
+# hosts, e.g. "1.1.1.1"). An HTTP URL is not a valid ICMP host, so this does
+# NOT try to convert the old value — it reseeds the Cloudflare ICMP defaults
+# and drops the stale keys. Idempotent: a device already on target_ipv4/
+# target_ipv6 (or with no config file yet) is a no-op.
+migrate_ping_targets() {
+    local target="/etc/qmanager/ping_profile.json"
+    [ -f "$target" ] || return 0
+    command -v jq >/dev/null 2>&1 || return 0
+
+    local has_legacy has_new
+    has_legacy=$(jq -r 'has("target_1") or has("target_2")' "$target" 2>/dev/null)
+    has_new=$(jq -r 'has("target_ipv4") and has("target_ipv6")' "$target" 2>/dev/null)
+
+    if [ "$has_legacy" != "true" ] || [ "$has_new" = "true" ]; then
+        return 0
+    fi
+
+    echo "  Migrating ping_profile.json from HTTP targets to ICMP targets..."
+    local tmp; tmp=$(mktemp)
+    if jq \
+        --arg t4 "1.1.1.1" \
+        --arg t6 "2606:4700:4700::1111" \
+        '.target_ipv4 = $t4 | .target_ipv6 = $t6 | del(.target_1) | del(.target_2)' \
+        "$target" > "$tmp" 2>/dev/null; then
+        mv "$tmp" "$target"
+        chmod 644 "$target"
+        echo "  Migrated $target to target_ipv4=1.1.1.1 target_ipv6=2606:4700:4700::1111"
+    else
+        rm -f "$tmp"
+        echo "  WARNING: failed to migrate legacy ping targets in $target" >&2
     fi
 }
 
@@ -1402,6 +1607,31 @@ enable_services() {
         [ -f "$unit" ] || continue
         svc=$(basename "$unit" .service)
 
+        # qmanager-auto-update.service has no [Install] section — it is
+        # started only by qmanager-auto-update.timer, never boot-enabled
+        # directly. Symlinking it here would run it at every boot in
+        # addition to the timer schedule, which is not the intent.
+        [ "$svc" = "qmanager-auto-update" ] && continue
+
+        # qmanager-scenario-schedule.service is the same shape: no [Install]
+        # section, started only by qmanager-scenario-schedule.timer. Unlike
+        # the auto-update timer, that .timer is never shipped by the
+        # installer at all — it is generated and armed at runtime by the
+        # qmanager_scenario_schedule_arm root helper when a profile with an
+        # enabled scenario schedule becomes active, so there is nothing to
+        # gate here beyond skipping the boot-symlink for the .service itself.
+        [ "$svc" = "qmanager-scenario-schedule" ] && continue
+
+        # qmanager-scheduled-reboot.service / qmanager-tower-schedule-apply.service /
+        # qmanager-tower-schedule-clear.service are the same shape: no
+        # [Install] section, started only by their runtime-armed .timer
+        # counterparts (see the re-arm step below, after this loop). Nothing
+        # to gate here beyond skipping the boot-symlink for the .service
+        # files themselves.
+        [ "$svc" = "qmanager-scheduled-reboot" ] && continue
+        [ "$svc" = "qmanager-tower-schedule-apply" ] && continue
+        [ "$svc" = "qmanager-tower-schedule-clear" ] && continue
+
         # Check if this service is in the gated list
         local is_gated=0
         for g in $UCI_GATED_SERVICES; do
@@ -1432,6 +1662,72 @@ enable_services() {
         fi
     done
 
+    # --- Auto-update timer (config-gated, NOT symlink-state-gated) ------------
+    # Timers enable via timers.target.wants, not multi-user.target.wants, so
+    # this can't share the .service loop above. Unlike the UCI_GATED_SERVICES
+    # services above, this is NOT "restore whatever symlink state existed
+    # before this run" — timers are new this release, so a user who already
+    # opted in via the existing System Settings → Software Update toggle has
+    # update.auto_update_enabled=1 in config but NO pre-existing timer
+    # symlink. Gating on symlink presence would silently ignore that opt-in;
+    # gating on the config key the UI already writes does not.
+    mkdir -p "$TIMERS_WANTS_DIR"
+    command -v qm_config_get >/dev/null 2>&1 || . "$LIB_DIR/config.sh"
+
+    if [ -f "$SYSTEMD_DIR/qmanager-auto-update.timer" ]; then
+        _auto_update_enabled=$(qm_config_get update auto_update_enabled 0 2>/dev/null)
+        if [ "$_auto_update_enabled" = "1" ]; then
+            ln -sf "$SYSTEMD_DIR/qmanager-auto-update.timer" "$TIMERS_WANTS_DIR/qmanager-auto-update.timer"
+            info "Auto-update timer enabled (update.auto_update_enabled=1)"
+        else
+            # rm -f (not just "skip") so a later opt-OUT is honored on re-run/OTA
+            rm -f "$TIMERS_WANTS_DIR/qmanager-auto-update.timer"
+            info "Auto-update timer not enabled (opt in via System Settings → Software Update)"
+        fi
+    fi
+
+    # --- Scheduled Reboot / Tower Lock schedule timers (config-driven re-arm) --
+    # Unlike qmanager-scenario-schedule (armed only when a profile activates
+    # it), Scheduled Reboot and the Tower Lock schedule are NOT
+    # symlink-state-gated either — they are config-driven, same as
+    # auto-update above, and re-armed HERE unconditionally so the generated
+    # .timer + timers.target.wants symlink survive an OTA partition swap.
+    # /etc/qmanager survives OTA (persistent UBIFS partition); /lib does not
+    # — a fresh install_rm520n.sh run (fresh install OR OTA, both reach this
+    # function since DO_BACKEND/DO_ENABLE default on and OTA never passes
+    # --backend-only or --no-enable) always regenerates both timers from
+    # whatever is currently saved in config, so a device that had Scheduled
+    # Reboot or Tower Lock schedule armed before the update still has it
+    # armed after. Calling the arm helpers DIRECTLY (not via sudo -n) because
+    # this installer already runs as root — mirrors scenario_mgr.sh's
+    # scenario_install_schedule "already root" branch.
+    if [ -x "$BIN_DIR/qmanager_scheduled_reboot_arm" ]; then
+        _sched_enabled=$(qm_config_get settings sched_reboot_enabled 0 2>/dev/null)
+        if [ "$_sched_enabled" = "1" ]; then
+            _sched_time=$(qm_config_get settings sched_reboot_time "04:00" 2>/dev/null)
+            _sched_days=$(qm_config_get settings sched_reboot_days "0,1,2,3,4,5,6" 2>/dev/null)
+            "$BIN_DIR/qmanager_scheduled_reboot_arm" install "$_sched_time" "$_sched_days" >/dev/null 2>&1 \
+                && info "Scheduled reboot timer re-armed (${_sched_time}, days=${_sched_days})" \
+                || warn "Scheduled reboot timer re-arm failed (non-fatal)"
+        else
+            "$BIN_DIR/qmanager_scheduled_reboot_arm" teardown >/dev/null 2>&1 || true
+        fi
+    fi
+
+    if [ -x "$BIN_DIR/qmanager_tower_schedule_arm" ] && [ -f /etc/qmanager/tower_lock.json ]; then
+        _tower_enabled=$(jq -r '.schedule.enabled // false' /etc/qmanager/tower_lock.json 2>/dev/null)
+        if [ "$_tower_enabled" = "true" ]; then
+            _tower_start=$(jq -r '.schedule.start_time // "08:00"' /etc/qmanager/tower_lock.json 2>/dev/null)
+            _tower_end=$(jq -r '.schedule.end_time // "22:00"' /etc/qmanager/tower_lock.json 2>/dev/null)
+            _tower_days=$(jq -r '.schedule.days // [1,2,3,4,5] | join(",")' /etc/qmanager/tower_lock.json 2>/dev/null)
+            "$BIN_DIR/qmanager_tower_schedule_arm" install "$_tower_start" "$_tower_end" "$_tower_days" >/dev/null 2>&1 \
+                && info "Tower lock schedule timers re-armed (apply ${_tower_start}, clear ${_tower_end}, days=${_tower_days})" \
+                || warn "Tower lock schedule timer re-arm failed (non-fatal)"
+        else
+            "$BIN_DIR/qmanager_tower_schedule_arm" teardown >/dev/null 2>&1 || true
+        fi
+    fi
+
     # --- Discord bot (gated on binary + config + enabled flag) ----------------
     if [ -x "$BIN_DIR/qmanager_discord" ] && [ -f /etc/qmanager/discord_bot.json ]; then
         enabled=$(jq -r '.enabled // false' /etc/qmanager/discord_bot.json 2>/dev/null)
@@ -1442,7 +1738,7 @@ enable_services() {
     fi
 
     sync
-    systemctl daemon-reload
+    systemctl daemon-reload 2>/dev/null || warn "daemon-reload failed (transient?) — continuing"
 }
 
 # --- Start Services ----------------------------------------------------------
@@ -1806,6 +2102,11 @@ main() {
     # must be gone before atcli_smd11 can open /dev/smd11)
     remove_conflicts
 
+    # ensure_zoneinfo_packages runs even with --skip-packages — OTA upgrades
+    # pass that flag, so gating this behind install_dependencies() would leave
+    # the timezone-apply fix silently broken for every in-app-updated device.
+    ensure_zoneinfo_packages
+
     [ "$DO_PACKAGES" = "1" ] && install_dependencies
 
     # SSH bootstrap runs after install_dependencies so Entware + bundled
@@ -1836,12 +2137,14 @@ main() {
 
     finalize_version
 
-    # Self-cleanup: remove the staging directory only when invoked from the
-    # canonical OTA path — avoids deleting a developer's working copy
-    case "$INSTALL_DIR" in
-        /tmp/qmanager_install|/tmp/qmanager_install/)
-            rm -rf "$INSTALL_DIR" 2>/dev/null || true ;;
-    esac
+    # Staging-dir cleanup is intentionally NOT done here. On the OTA path the
+    # worker (qmanager_update) cd's into /tmp/qmanager_install before invoking
+    # us and owns the `rm -rf /tmp/qmanager_install` afterward. If the installer
+    # deleted it here it would (a) race that owner and (b) yank the CWD out from
+    # under whoever is sitting inside it — the OTA worker, or a human who ran
+    # `cd /tmp/qmanager_install && sh install_rm520n.sh` — producing
+    # `getcwd: No such file or directory` and a `(unknown)#` prompt. /tmp is
+    # tmpfs, so any leftover staging is cleared on the next reboot regardless.
 
     if [ "$DO_REBOOT" = "1" ]; then
         printf "  Rebooting in 5 seconds — press Ctrl+C to cancel...\n\n"

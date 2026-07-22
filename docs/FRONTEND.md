@@ -14,9 +14,9 @@ This document covers the frontend architecture, component patterns, hooks, routi
 | Tailwind CSS | v4 | Utility-first styling |
 | shadcn/ui | Latest | Headless UI components (Radix UI) |
 | Recharts | 2.15.4 | Signal and latency charting |
-| React Hook Form | 7.69.0 | Form state management |
-| Zod | 4.2.1 | Schema validation |
-| Motion | 12.34.3 | Animations |
+| React Hook Form | 7.71.2 | Form state management |
+| Zod | 4.3.6 | Schema validation |
+| Motion | 12.38.0 | Animations |
 | @dnd-kit | 6.3/10.0 | Drag-and-drop (sortable lists) |
 | @tanstack/react-table | 8.21.3 | Data tables |
 | Lucide React | 0.562.0 | Icons |
@@ -51,7 +51,10 @@ app/                            # Next.js App Router
 ├── monitoring/                 # Monitoring & alerts
 │   ├── page.tsx                # Network events hub
 │   ├── latency/                # Latency monitoring
-│   ├── email-alerts/           # Email alert settings
+│   ├── alerts/                 # Centralized Alerts (SMS + email + Discord)
+│   ├── email-alerts/           # Redirect → /monitoring/alerts (legacy bookmark)
+│   ├── sms-alerts/             # Redirect → /monitoring/alerts (legacy bookmark)
+│   ├── discord-bot/            # Redirect → /monitoring/alerts (legacy bookmark)
 │   ├── watchdog/               # Watchdog settings
 │   ├── logs/                   # System logs
 │   └── tailscale/              # Tailscale VPN
@@ -121,7 +124,10 @@ constants/                      # Static configuration data
 | `/local-network/custom-dns` | CustomDNS | DNS override |
 | `/monitoring` | NetworkEvents | Event log hub |
 | `/monitoring/latency` | LatencyMonitoring | Real-time + history charts |
-| `/monitoring/email-alerts` | EmailAlerts | Downtime alert settings |
+| `/monitoring/alerts` | Alerts | Centralized SMS + email + Discord downtime/reboot alerts |
+| `/monitoring/email-alerts` | Redirect | → `/monitoring/alerts` (legacy bookmark) |
+| `/monitoring/sms-alerts` | Redirect | → `/monitoring/alerts` (legacy bookmark) |
+| `/monitoring/discord-bot` | Redirect | → `/monitoring/alerts` (legacy bookmark) |
 | `/monitoring/watchdog` | Watchdog | Connection health |
 | `/monitoring/logs` | SystemLogs | Log viewer |
 | `/monitoring/tailscale` | Tailscale | VPN status |
@@ -216,7 +222,8 @@ if (result.success) { /* toast success */ }
 | `useMTUSettings` | `/network/mtu.sh` | — |
 | `useDNSSettings` | `/network/dns.sh` | — |
 | `useIPPassthrough` | `/network/ip_passthrough.sh` | `ip-passthrough.ts` |
-| `useEmailAlerts` | `/monitoring/email_alerts.sh` | In hook file |
+| `useAlerts` | `/monitoring/alerts.sh` | `alerts.ts` |
+| `useAlertsLog` | `/monitoring/alerts.sh` (`action=get_log`) | `alerts.ts` |
 | `useWatchdogSettings` | `/monitoring/watchdog.sh` | In hook file |
 | `useSystemSettings` | `/system/settings.sh` | `system-settings.ts` |
 | `useTailscale` | `/vpn/tailscale.sh` | — |

@@ -1,0 +1,59 @@
+#!/bin/sh
+# qmanager_timezone_apply — Apply an IANA timezone to the live system by
+# copying the resolved TZif file over /etc/localtime. COPY (not symlink):
+# /opt is Entware's late-boot bind-mount, so a symlink would dangle in early boot.
+# Called via: sudo -n /usr/bin/qmanager_timezone_apply <zonename>
+LOCALTIME="/etc/localtime"
+zn="$1"
+
+[ -z "$zn" ] && { printf '{"success":false,"error":"empty_zonename","detail":"Zonename is required"}\n'; exit 1; }
+
+# Path traversal guard — checked separately from the charset guard below so
+# the error message pinpoints the actual problem.
+case "$zn" in
+    *..*) printf '{"success":false,"error":"path_traversal","detail":"Zonename must not contain .."}\n'; exit 1 ;;
+esac
+
+# Charset guard: must start with a letter, and contain only
+# letters/digits/dot/underscore/plus/slash/hyphen (IANA zone name chars).
+case "$zn" in
+    [A-Za-z]*) ;;
+    *) printf '{"success":false,"error":"invalid_charset","detail":"Zonename must start with a letter"}\n'; exit 1 ;;
+esac
+case "$zn" in
+    *[!A-Za-z0-9._+/-]*) printf '{"success":false,"error":"invalid_charset","detail":"Zonename contains disallowed characters"}\n'; exit 1 ;;
+esac
+
+# Resolve source — Entware's zoneinfo-all package first, vendor fallback second.
+src=""
+for dir in /opt/share/zoneinfo /usr/share/zoneinfo; do
+    [ -f "$dir/$zn" ] && { src="$dir/$zn"; break; }
+done
+
+# UTC alias fallback — some zoneinfo trees only ship Etc/UTC, not a bare UTC link.
+if [ -z "$src" ] && [ "$zn" = "UTC" ]; then
+    for dir in /opt/share/zoneinfo /usr/share/zoneinfo; do
+        [ -f "$dir/Etc/UTC" ] && { src="$dir/Etc/UTC"; break; }
+    done
+fi
+
+[ -z "$src" ] && { printf '{"success":false,"error":"zone_not_found","detail":"No zoneinfo data for %s"}\n' "$zn"; exit 1; }
+
+# Magic-byte check — the real security backstop. Confirms the resolved path
+# is an actual TZif file (not, say, a traversal target or arbitrary file).
+[ "$(head -c 4 "$src" 2>/dev/null)" != "TZif" ] && { printf '{"success":false,"error":"invalid_tzif","detail":"%s is not a TZif file"}\n' "$src"; exit 1; }
+
+# Atomic install — temp file INSIDE /etc (not /tmp) so www-data (which cannot
+# write to root-owned /etc) can't pre-stage a symlink/file for us to land on;
+# only root (this helper, via sudo) can create/move within /etc.
+tmp="/etc/localtime.tmp.$$"
+
+cp "$src" "$tmp" 2>/dev/null || { printf '{"success":false,"error":"copy_failed","detail":"cp failed"}\n'; rm -f "$tmp"; exit 1; }
+
+# Re-verify the copy itself is a valid TZif before it ever becomes /etc/localtime.
+[ "$(head -c 4 "$tmp" 2>/dev/null)" != "TZif" ] && { printf '{"success":false,"error":"copy_corrupt","detail":"copy failed TZif check"}\n'; rm -f "$tmp"; exit 1; }
+
+mv -f "$tmp" "$LOCALTIME" 2>/dev/null || { printf '{"success":false,"error":"mv_failed","detail":"mv failed"}\n'; rm -f "$tmp"; exit 1; }
+
+printf '{"success":true,"zonename":"%s","source":"%s"}\n' "$zn" "$src"
+exit 0

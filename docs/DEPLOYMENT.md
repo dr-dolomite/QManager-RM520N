@@ -22,6 +22,8 @@ See `install_rm520n.sh --help` for all flags (`--skip-packages`, `--force`, etc.
 
 If internet access is unavailable on the modem, build and transfer the tarball from your dev machine:
 
+> ℹ️ NOTE: When cutting a real release, set `QM_RELEASE_TAG` to the git tag being pushed (e.g. `QM_RELEASE_TAG=v0.1.14 bun run package`) — `build.sh` then hard-fails if `package.json`'s version doesn't match (draft-aware, leading `v` normalized), so a forgotten version bump can't ship a mislabeled tarball. Dev builds leave `QM_RELEASE_TAG` unset and skip the check.
+
 ```bash
 # 1. Build the package (frontend + backend + dependencies)
 bun run package
@@ -32,7 +34,9 @@ scp -O qmanager-*.tar.gz root@192.168.225.1:/tmp/
 # 3. Extract and install on device
 ssh root@192.168.225.1
 cd /tmp && tar xzf qmanager-*.tar.gz
-cd qmanager_install && bash install_rm520n.sh
+# Run via absolute path — don't `cd` into the staging dir; it's disposable
+# (/tmp is tmpfs, and the OTA updater deletes it), so keep your shell elsewhere.
+bash /tmp/qmanager_install/install_rm520n.sh
 ```
 
 The installer will:
@@ -251,7 +255,7 @@ cat /etc/qmanager/VERSION
 
 ## Line Ending Enforcement
 
-**Critical:** All shell scripts must have LF line endings. CRLF breaks scripts silently on OpenWRT.
+**Critical:** All shell scripts must have LF line endings. CRLF breaks scripts silently on the RM520N-GL (the `#!/bin/sh` BusyBox `ash` interpreter treats a trailing `\r` as part of the command).
 
 ### Prevention
 
@@ -323,9 +327,13 @@ ls -la /etc/qmanager/shadow
 ### Service Won't Start
 
 ```bash
-# Check init.d script
-/etc/init.d/qmanager start
-cat /tmp/qmanager.log
+# Check service status and logs (systemd — units in /lib/systemd/system/)
+systemctl status qmanager-poller
+journalctl -u qmanager-poller --no-pager | tail -50
+
+# Start it manually (boot persistence is a multi-user.target.wants/ symlink;
+# `systemctl enable` does NOT work on this platform)
+systemctl start qmanager-poller
 
 # Verify dependencies
 which jq        # Required
@@ -365,14 +373,16 @@ scp -O qmanager-*.tar.gz root@192.168.225.1:/tmp/
 # Extract and run installer (handles stop/deploy/start/cleanup)
 ssh root@192.168.225.1
 cd /tmp && tar xzf qmanager-*.tar.gz
-cd qmanager_install && bash install_rm520n.sh
+# Run via absolute path — don't `cd` into the staging dir; it's disposable
+# (/tmp is tmpfs, and the OTA updater deletes it), so keep your shell elsewhere.
+bash /tmp/qmanager_install/install_rm520n.sh
 ```
 
 The installer is idempotent — re-running updates rather than duplicates. It handles:
 - Stopping existing services (filesystem-driven scan of `/lib/systemd/system/qmanager-*.service`, batched into a single `systemctl stop` call so systemd shuts them down in parallel; long-running daemons set `TimeoutStopSec=10` so a wedged service caps the wait at 10s instead of systemd's 90s default)
 - Removing orphaned daemons/units/libs not present in the current source tree (`cleanup_legacy_scripts`)
 - Removing conflicting packages (`socat`, `socat-at-bridge`) even with `--skip-packages`
-- Re-enabling services (UCI-gated services only re-enabled if their `multi-user.target.wants/` symlink existed pre-upgrade)
+- Re-enabling services (symlink-gated: services are only re-enabled if their `multi-user.target.wants/` symlink existed pre-upgrade — no UCI involved on this platform)
 - AT stack health check (3× `qcmd 'ATI'` retries, warn-only) and poller health check after completion
 
 ---
@@ -480,10 +490,11 @@ www-data ALL=(root) NOPASSWD: /bin/systemctl start *, /bin/systemctl stop *, /bi
 www-data ALL=(root) NOPASSWD: /bin/ln -sf /lib/systemd/system/qmanager*.service ...
 www-data ALL=(root) NOPASSWD: /bin/rm -f /lib/systemd/system/multi-user.target.wants/qmanager*.service
 
-# Firewall, reboot, crontab, SSH password
+# Firewall, reboot, schedule-timer arming, SSH password
 www-data ALL=(root) NOPASSWD: /usr/sbin/iptables, /usr/sbin/iptables-restore, /usr/sbin/ip6tables, /usr/sbin/ip6tables-restore
 www-data ALL=(root) NOPASSWD: /sbin/reboot
-www-data ALL=(root) NOPASSWD: /usr/bin/crontab
+www-data ALL=(root) NOPASSWD: /usr/bin/qmanager_scheduled_reboot_arm
+www-data ALL=(root) NOPASSWD: /usr/bin/qmanager_tower_schedule_arm
 www-data ALL=(root) NOPASSWD: /usr/bin/qmanager_set_ssh_password
 ```
 
@@ -497,7 +508,7 @@ QManager runs directly on the modem's internal Linux OS — no external OpenWRT 
 
 | Concern | Value |
 |---------|-------|
-| Platform | Quectel RM520N-GL (SDXLEMUR, ARMv7l, kernel 5.4.180) |
+| Platform | Quectel RM520N-GL (SDXLEMUR, ARMv7l, kernel 5.4.210) |
 | Init system | systemd (units in `/lib/systemd/system/`) |
 | Root filesystem | Read-only by default (`mount -o remount,rw /` when needed) |
 | Persistent storage | `/usrdata/` partition |

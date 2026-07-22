@@ -2,11 +2,14 @@
 [Unit]
 Description=QManager Ethernet Link Speed Persistence
 After=network.target qmanager-setup.service ethernet-config.service
+# Condition*= directives only take effect in [Unit] — systemd silently
+# ignores them if placed in [Service], which is what let this unit run
+# (and fail) even with no ethernet_speed config on disk. Keep them here.
+ConditionPathExists=/etc/qmanager/ethernet_speed
+ConditionFileIsExecutable=/usr/bin/qmanager_ethernet_apply
 
 [Service]
 Type=oneshot
-ConditionPathExists=/etc/qmanager/ethernet_speed
-ConditionFileIsExecutable=/usr/bin/qmanager_ethernet_apply
 ExecStart=/bin/sh -c '/usr/bin/qmanager_ethernet_apply "$(cat /etc/qmanager/ethernet_speed)"'
 RemainAfterExit=yes
 Restart=no

@@ -1,0 +1,16 @@
+{
+  "known_sims": {
+    "row_label": "SIM note",
+    "info_aria": "Info SIM note",
+    "tooltip": "QManager ricorda le SIM già viste, così ti avvisa solo quando viene inserita una SIM davvero nuova. La cancellazione dimentica tutte le SIM tranne quella attualmente inserita.",
+    "remembered_count_one": "{{count}} SIM",
+    "remembered_count_other": "{{count}} SIM",
+    "clear_button": "Cancella",
+    "clear_dialog_title": "Cancellare le SIM note?",
+    "clear_dialog_description": "Verranno dimenticate tutte le SIM viste da QManager, tranne quella attualmente inserita, così la tua SIM attiva non verrà segnalata come nuova. Le SIM già usate verranno segnalate di nuovo al prossimo inserimento.",
+    "clear_dialog_confirm": "Cancella",
+    "clear_dialog_clearing": "Cancellazione…",
+    "toast_cleared": "SIM note cancellate",
+    "toast_clear_failed": "Impossibile cancellare le SIM note"
+  }
+}

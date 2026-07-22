@@ -163,7 +163,7 @@ export async function logout(): Promise<void> {
     // Ignore network errors on logout
   } finally {
     clearIndicatorCookie();
-    window.location.href = "/login/";
+    window.location.href = "/";
   }
 }
 

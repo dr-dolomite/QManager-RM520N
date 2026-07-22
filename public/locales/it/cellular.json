@@ -1,0 +1,124 @@
+{
+  "core_settings": {
+    "apn": {
+      "page": {
+        "title": "Impostazioni APN",
+        "description": "Imposta l'APN, il protocollo IP e il contesto dati usati dalla SIM per connettersi.",
+        "error_load_title": "Impossibile caricare le impostazioni APN",
+        "error_load_description": "I valori visualizzati potrebbero essere obsoleti."
+      },
+      "card": {
+        "title": "Configurazione APN",
+        "description": "Il nome del punto di accesso usato dal modem per stabilire una connessione dati."
+      },
+      "status": {
+        "active": "Attivo",
+        "not_live": "Non attivo",
+        "carrier_default": "Predefinito operatore",
+        "network_using": "La rete sta usando: {{apn}}"
+      },
+      "save_connection_notice": "Il salvataggio interrompe brevemente la connessione cellulare durante la riconnessione del modem.",
+      "carrier_default": {
+        "button": "Usa predefinito operatore",
+        "dialog": {
+          "title": "Usare l'APN predefinito dell'operatore?",
+          "description": "Il tuo operatore sceglierà l'APN automaticamente. La connessione cellulare si interromperà brevemente durante la riconnessione del modem.",
+          "confirm": "Usa predefinito operatore",
+          "cancel": "Annulla"
+        }
+      },
+      "toast": {
+        "saved": "Impostazioni APN salvate",
+        "save_error": "Impossibile salvare le impostazioni APN",
+        "deactivated": "Ripristinato all'APN predefinito dell'operatore",
+        "deactivate_error": "Impossibile ripristinare il predefinito dell'operatore"
+      },
+      "controls_label": "Configurazione APN",
+      "managed_by_profile_fallback": "profilo SIM personalizzato attivo",
+      "list": {
+        "live": {
+          "mismatch_default": "La rete sta usando il valore predefinito dell'operatore"
+        }
+      },
+      "edit": {
+        "fields": {
+          "apn": {
+            "label": "APN *",
+            "placeholder": "fast.t-mobile.com",
+            "error_required": "L'APN è obbligatorio"
+          },
+          "pdp_type": {
+            "label": "Tipo PDP",
+            "placeholder": "Seleziona tipo PDP",
+            "aria": "Tipo PDP",
+            "options": {
+              "ipv4": "IPv4",
+              "ipv6": "IPv6",
+              "ipv4v6": "IPv4v6"
+            }
+          },
+          "modem_profile": {
+            "label": "CID",
+            "placeholder": "Seleziona CID",
+            "aria": "Contesto PDP (CID)",
+            "option_template": "CID {{cid}}",
+            "for_internet": "Internet",
+            "ims_badge": "IMS",
+            "sos_badge": "SOS"
+          }
+        },
+        "cid_confirm": {
+          "title": "Usare un contesto riservato?",
+          "description_ims": "Il CID {{cid}} è riservato dal tuo operatore per l'IMS (VoLTE / chiamate Wi-Fi). Scrivere qui un APN dati può compromettere le chiamate vocali. Continuare comunque?",
+          "description_sos": "Il CID {{cid}} è riservato alle chiamate di emergenza (SOS). Scrivere qui un APN dati può compromettere le chiamate di emergenza. Continuare comunque?",
+          "confirm": "Usa comunque",
+          "cancel": "Annulla"
+        },
+        "save_button": "Salva profilo"
+      }
+    }
+  },
+  "custom_profiles": {
+    "form": {
+      "fields": {
+        "mno_custom": "Personalizzato"
+      },
+      "mno_hint": "Qui puoi selezionare operatori di rete mobile preconfigurati.",
+      "default_scenario_label": "Scenario predefinito",
+      "default_scenario_hint": "Viene eseguito ogni volta che nessuna finestra di pianificazione è attiva.",
+      "schedule_inline_label": "Pianificazione basata sull'orario",
+      "schedule_inline_hint": "Cambia scenario entro un massimo di due finestre giornaliere.",
+      "windows_empty": "Nessuna finestra ancora. Aggiungine una per cambiare scenario a un orario prestabilito.",
+      "windows_count": "{{count}} di {{max}} finestre",
+      "add_window": "Aggiungi finestra",
+      "scenario": {
+        "deleted_scenario": "(scenario eliminato)",
+        "create_new": "Crea un nuovo scenario",
+        "start_label": "Inizio",
+        "end_label": "Fine",
+        "block_scenario_label": "Scenario",
+        "overlap_warning": "Questa finestra si sovrappone a un'altra. In caso di sovrapposizione, vince quella più in alto.",
+        "overnight_hint": "Termina il giorno dopo",
+        "summary_line": "{{time}} → {{scenario}}",
+        "time_range": "{{start}}–{{end}}",
+        "move_up_aria": "Sposta la finestra su",
+        "move_down_aria": "Sposta la finestra giù",
+        "expand_rule_aria": "Modifica finestra",
+        "remove_block_aria": "Rimuovi finestra",
+        "block_label": "Finestra {{index}}",
+        "schedule_invalid": "Correggi le voci di pianificazione evidenziate prima di salvare.",
+        "block_errors": {
+          "invalid_start": "Inserisci un orario di inizio valido (HH:MM).",
+          "invalid_end": "Inserisci un orario di fine valido (HH:MM).",
+          "zero_length": "L'orario di inizio e di fine devono essere diversi.",
+          "no_days": "Seleziona almeno un giorno."
+        }
+      }
+    }
+  },
+  "scenarios": {
+    "default_balanced_name": "Equilibrato",
+    "default_gaming_name": "Gioco",
+    "default_streaming_name": "Streaming"
+  }
+}

@@ -2,14 +2,17 @@
 # Build the qmanager_ping Rust binary for ARMv7-musl and install it into
 # scripts/usr/bin/ where the QManager installer expects it.
 #
-# Usage: bash ping-daemon/build-ping-daemon.sh [--debug]
-#
-# Prerequisites:
-#   - Rust toolchain (rustup recommended)
-#   - rustup target add armv7-unknown-linux-musleabihf
-#   - arm-linux-gnueabihf-gcc (apt: gcc-arm-linux-gnueabihf)
-#
-# WSL2 setup parallels the atcli_smd11 build flow.
+# RETIRED: qmanager_ping is now a shell daemon at scripts/usr/bin/qmanager_ping
+# (ported from RM551E's ICMP-probing shell daemon, adapted to RM520N-GL's
+# JSON config at /etc/qmanager/ping_profile.json). This Rust build step is no
+# longer used and must NOT be re-run — doing so would overwrite the shell
+# script with a stale compiled ELF. The ping-daemon/ crate itself is kept
+# around for reference only, pending a later cleanup commit.
+echo "ERROR: qmanager_ping is now a shell script (scripts/usr/bin/qmanager_ping)." >&2
+echo "This Rust build step is retired and must not be run — it would clobber" >&2
+echo "the shell daemon with a stale ELF binary. See ping-daemon/build-ping-daemon.sh" >&2
+echo "history / RELEASE_NOTES.md for the ICMP daemon migration." >&2
+exit 1
 
 set -euo pipefail
 

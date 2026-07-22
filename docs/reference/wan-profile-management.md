@@ -5,6 +5,13 @@
 Backed by the CGI endpoint `cellular/apn.sh`. The frontend UI lives under
 `components/cellular/settings/apn-management/`.
 
+> ℹ️ NOTE: The **APN Settings page** now renders a pixel-strict single-APN
+> card ported from RM551E, not the 6-slot list this doc originally described
+> as the page UI. The 6-slot backend contract below (`profiles[]`, `toggle`)
+> is fully retained — see
+> [APN pixel-strict single-APN UI (WS6)](#apn-pixel-strict-single-apn-ui-ws6)
+> for what changed and what didn't.
+
 ---
 
 ## Quick Reference
@@ -15,9 +22,12 @@ Backed by the CGI endpoint `cellular/apn.sh`. The frontend UI lives under
 | HTTP methods | `GET` (list), `POST` (`save` / `toggle`) |
 | Profile slots | 6, one per PDP context CID (1-6) |
 | Name sidecar file | `/usrdata/qmanager/apn_names.json` |
-| Frontend types | `types/wan-profiles.ts` |
-| Frontend hook | `hooks/use-wan-profiles.ts` |
-| Frontend components | `components/cellular/settings/apn-management/` |
+| Single-APN sidecar file (WS6) | `/usrdata/qmanager/apn_setting.json` |
+| Frontend types (6-slot) | `types/wan-profiles.ts` |
+| Frontend hook (6-slot) | `hooks/use-wan-profiles.ts` |
+| Frontend types (single-APN, page-active) | `types/apn-settings.ts` |
+| Frontend hook (single-APN, page-active) | `hooks/use-apn-settings.ts` |
+| Frontend components | `components/cellular/settings/apn-management/` (page uses `apn-settings-card.tsx`; `wan-profile-list.tsx`/`wan-profile-edit.tsx` retained but not rendered on the page) |
 | `data_source` | Always `"at"` on RM520N-GL |
 
 A "PDP context" is the modem's record of a data connection — which APN to dial,
@@ -198,6 +208,81 @@ The gate is purely a frontend concern; `cellular/apn.sh` itself does not yet
 emit a `profile_managed` error for APN POSTs (unlike `scenarios/activate.sh`).
 A power user who bypasses the UI can still write the APN, but the next
 profile apply will reconcile back to the profile's value.
+
+---
+
+## APN pixel-strict single-APN UI (WS6)
+
+The APN Settings page (`components/cellular/settings/apn-management/apn-settings.tsx`)
+now renders **only** `apn-settings-card.tsx` (+ the MBN card) — a pixel-strict
+port of RM551E's single-APN model, matching that build's `use-apn-settings.ts`
+contract exactly. The legacy 6-slot list/edit UI
+(`wan-profile-list.tsx`/`wan-profile-edit.tsx`) is **retired from this page**
+but not deleted — other code may still reference the components — and the
+backend's 6-slot AT machinery underneath is fully retained (see
+[AT command surface](#at-command-surface) above, unchanged).
+
+> ⚠️ WARNING — capability regression, deliberate: this UI change **removes
+> per-slot enable/disable and PAP/CHAP auth editing from the APN page**. The
+> single-APN model exposes one APN + PDP type + target CID, nothing more. The
+> user chose pixel-strict RM551E parity over exposing the additional
+> capability RM520N's AT-only backend already supports; the removed controls
+> are not deleted code, just unreached from this page.
+
+### The `apn_setting.json` sidecar
+
+A single-APN setting lives in its own flat sidecar,
+`/usrdata/qmanager/apn_setting.json` — a sibling of `apn_names.json`, same
+world-writable directory (`/usrdata/qmanager/` is `0777`), same
+lazy-create-on-first-save pattern (no installer seeding needed), same atomic
+tmp+mv write with an explicit `chmod 644`:
+
+```json
+{ "apn": "fast.t-mobile.com", "pdp_type": "ipv4v6", "cid": 1, "active": 1 }
+```
+
+A missing or corrupt file reads as `{"active":0}` — treated as "carrier
+default, nothing stored" rather than an error.
+
+### `apn.sh`'s additive RM551E contract
+
+`apn.sh`'s `GET` response gained four top-level fields, all derived from AT
+reads the endpoint already performs (plus one extra `AT+CGPADDR;+QMAP="WWAN"`
+compound round-trip via `cgi_at.sh`'s `detect_active_cid()`); the existing
+`profiles[]`/`toggle` output is untouched:
+
+| Field | Meaning |
+|-------|---------|
+| `active` | `1` = a custom APN is live, `0` = carrier default. Read from the sidecar. |
+| `active_cid` | The live WAN-bearing CID, from `detect_active_cid()` (QMAP authoritative, CGPADDR fallback; defaults to `"1"` on a transient read failure — same lenient-degrade posture as the rest of this GET). |
+| `internet_cid` | Always equals `active_cid` — kept as a separate field for RM551E schema parity. |
+| `apn` | The stored single-APN object (`{apn, pdp_type, cid}`) from the sidecar — pre-fills the form even when `active === 0`. |
+| `cids[]` | One tagged entry per CID 1-`MAX_PROFILES`, derived from `profiles_json` with **no extra AT calls**: `{cid, apn, apn_type, is_internet}`. Drives the CID picker's IMS/SOS badges and the "this is the live WAN context" confirmation. |
+
+**`POST` gained two new behaviors, both additive:**
+
+- **`action: "save"` branches on the *absence* of an `index` key.** The
+  legacy 6-slot contract always sends `index`; the WS6 single-APN contract
+  sends `cid` instead (`{action:"save", apn, pdp_type, cid}`, see
+  `ApnSaveRequest` in `types/apn-settings.ts`). When `index` is absent, a
+  **lighter** apply runs — `AT+COPS=2` → `AT+CGDCONT=<cid>,"<pdp>","<apn>"` →
+  `AT+COPS=0` — deliberately skipping the `AT+QICSGP` auth write and the
+  name-sidecar write the legacy save performs, so a single-APN save can never
+  blank out a legacy slot's stored auth credentials or profile name. It does
+  still re-apply persisted TTL/HL hotspot-bypass rules (parity with the
+  legacy path — TTL is orthogonal to APN) and persists to `apn_setting.json`
+  as a best-effort step after the modem write succeeds.
+- **`action: "deactivate"` is new.** Reverts the target CID to carrier
+  default via a blank-APN `AT+CGDCONT` through the same `COPS=2`/`COPS=0`
+  cycle, and sets the sidecar's `active` to `0`. A request while already
+  `active: 0` is a no-op that never touches the modem (avoids an unnecessary
+  WAN drop). No `index`/`cid` is sent — the target CID is read from the
+  sidecar — so this action is dispatched **before** the common index/cid
+  validation that every other POST action goes through.
+
+Both new POST paths reuse the same `cops_recover()` pattern documented in
+[Why save requires a full attach cycle](#why-save-requires-a-full-attach-cycle)
+— a partial failure never leaves the modem detached.
 
 ---
 

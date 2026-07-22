@@ -1,0 +1,16 @@
+# /lib/systemd/system/qmanager-auto-update.timer
+[Unit]
+Description=QManager Unattended Update Check (daily)
+
+[Timer]
+# Fires once a day; RandomizedDelaySec spreads a whole fleet's GitHub API
+# calls across a 3-hour window instead of everyone hitting api.github.com at
+# once on the hour. Persistent=true catches a missed run (device was off /
+# rebooting at the scheduled time) on the next boot instead of silently
+# skipping a day.
+OnCalendar=daily
+RandomizedDelaySec=3h
+Persistent=true
+
+[Install]
+WantedBy=timers.target

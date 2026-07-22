@@ -1,0 +1,142 @@
+#!/bin/sh
+# =============================================================================
+# qmanager_language_pack_apply — Privileged commit/remove step for the
+# runtime language-pack downloader.
+# =============================================================================
+# Called via: sudo -n /usr/bin/qmanager_language_pack_apply <code>
+#         or: sudo -n /usr/bin/qmanager_language_pack_apply --remove <code>
+#
+# This is the ONLY code path allowed to write into the root-owned pack
+# stores. It is deliberately narrow — no arbitrary source argument, no
+# free-form destination. <code> selects a FIXED, pre-computed path; it is
+# never used to build an unconstrained path.
+#
+# Commit mode (default):
+#   Source (fixed):  /usrdata/qmanager/locales-staging/<code>.stage
+#                     (www-data-owned quarantine dir populated + validated by
+#                     the unprivileged worker qmanager_language_install)
+#   Dest 1 (fixed):   /usrdata/qmanager/locales-packs/<code>          (persistent)
+#   Dest 2 (fixed):   /usrdata/qmanager/www/locales-packs/<code>      (served)
+#   Steps: re-validate the staging tree shape (never trust the caller),
+#          atomically mv staging -> persistent store, then cp -r the
+#          persistent copy -> served copy. Both destinations stay root-owned;
+#          this helper never chowns them to www-data.
+#
+# Remove mode (--remove):
+#   Removes <code> from BOTH the persistent store and the served copy. Only
+#   ever rm's inside the two fixed store roots below — no other path is
+#   reachable through this helper.
+# =============================================================================
+
+LP_PERSIST_DIR="/usrdata/qmanager/locales-packs"
+LP_SERVED_DIR="/usrdata/qmanager/www/locales-packs"
+LP_STAGING_ROOT="/usrdata/qmanager/locales-staging"
+LP_REQUIRED_NS="common sidebar dashboard"
+
+fail() {
+    printf '{"success":false,"error":"%s","detail":"%s"}\n' "$1" "$2"
+    exit 1
+}
+
+# -----------------------------------------------------------------------------
+# Code safety guard — identical rule to lp_pack_is_code_safe() in
+# language_packs.sh. Duplicated intentionally: this helper must not depend on
+# a www-data-writable library file for its security boundary.
+# -----------------------------------------------------------------------------
+code_is_safe() {
+    _c="$1"
+    [ -z "$_c" ] && return 1
+    _len=$(printf '%s' "$_c" | wc -c | tr -d ' ')
+    [ "$_len" -lt 2 ] && return 1
+    [ "$_len" -gt 35 ] && return 1
+    printf '%s' "$_c" | grep -qE '^[A-Za-z0-9-]+$' || return 1
+    case "$_c" in
+        -*|*-) return 1 ;;
+        *--*) return 1 ;;
+    esac
+    return 0
+}
+
+validate_tree() {
+    _dir="$1"
+    [ -d "$_dir" ] || return 1
+    jq -e '.' "$_dir/_pack.json" >/dev/null 2>&1 || return 1
+    for _ns in $LP_REQUIRED_NS; do
+        _f="$_dir/$_ns.json"
+        [ -f "$_f" ] || return 1
+        jq -e '.' "$_f" >/dev/null 2>&1 || return 1
+    done
+    return 0
+}
+
+# =============================================================================
+# --remove <code>
+# =============================================================================
+if [ "$1" = "--remove" ]; then
+    CODE="$2"
+    code_is_safe "$CODE" || fail "invalid_code" "Language code failed safety check"
+
+    _persist_target="$LP_PERSIST_DIR/$CODE"
+    _served_target="$LP_SERVED_DIR/$CODE"
+
+    if [ -d "$_persist_target" ]; then
+        rm -rf "$_persist_target" || fail "remove_failed" "Could not remove persistent store entry"
+    fi
+    if [ -d "$_served_target" ]; then
+        rm -rf "$_served_target" || fail "remove_failed" "Could not remove served copy"
+    fi
+
+    printf '{"success":true,"code":"%s","removed":true}\n' "$CODE"
+    exit 0
+fi
+
+# =============================================================================
+# Commit mode: <code>
+# =============================================================================
+CODE="$1"
+code_is_safe "$CODE" || fail "invalid_code" "Language code failed safety check"
+
+# The staging path is FIXED and derived only from the validated code — never
+# taken as a free-form argument from the caller.
+STAGE="$LP_STAGING_ROOT/${CODE}.stage"
+
+case "$STAGE" in
+    "$LP_STAGING_ROOT"/*.stage) ;;
+    *) fail "bad_staging_path" "Computed staging path escaped the staging root" ;;
+esac
+
+[ -d "$STAGE" ] || fail "staging_missing" "Staging directory does not exist: $STAGE"
+
+# Defensive re-validation — never trust that the unprivileged worker's
+# validation still holds; the tree could have changed between check and use.
+validate_tree "$STAGE" || fail "invalid_pack_tree" "Staging tree failed re-validation"
+
+_meta_code=$(jq -r '.code // empty' "$STAGE/_pack.json" 2>/dev/null)
+[ "$_meta_code" = "$CODE" ] || fail "code_mismatch" "Pack metadata code does not match requested code"
+
+mkdir -p "$LP_PERSIST_DIR" "$LP_SERVED_DIR"
+
+PERSIST_TARGET="$LP_PERSIST_DIR/$CODE"
+SERVED_TARGET="$LP_SERVED_DIR/$CODE"
+
+# Atomic commit to the persistent store: stage a sibling temp dir, then mv
+# over the final name so a reader never observes a half-written tree.
+PERSIST_TMP="${PERSIST_TARGET}.new.$$"
+rm -rf "$PERSIST_TMP"
+cp -r "$STAGE" "$PERSIST_TMP" || fail "copy_failed" "Could not copy staging into persistent store"
+rm -rf "$PERSIST_TARGET"
+mv "$PERSIST_TMP" "$PERSIST_TARGET" || fail "mv_failed" "Could not move new persistent store entry into place"
+
+# Re-derive the served copy from the persistent store (never from staging
+# directly) so the two stores can never drift.
+SERVED_TMP="${SERVED_TARGET}.new.$$"
+rm -rf "$SERVED_TMP"
+cp -r "$PERSIST_TARGET" "$SERVED_TMP" || fail "served_copy_failed" "Could not copy into served web root"
+rm -rf "$SERVED_TARGET"
+mv "$SERVED_TMP" "$SERVED_TARGET" || fail "served_mv_failed" "Could not move served copy into place"
+
+# Staging is fully consumed — remove the quarantine dir.
+rm -rf "$STAGE"
+
+printf '{"success":true,"code":"%s"}\n' "$CODE"
+exit 0

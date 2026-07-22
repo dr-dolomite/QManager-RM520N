@@ -2,10 +2,18 @@
 
 > A Custom SIM Profile is a saved bundle of modem configuration — APN, TTL/HL,
 > optional IMEI, and (since the binding feature) an optional Connection
-> Scenario — that is tied to a SIM by ICCID. When the modem detects that SIM,
-> the bound profile is applied automatically; the user can also apply manually.
-> Profiles are owned by `profile_mgr.sh` (library) and applied by the
-> `qmanager_profile_apply` daemon.
+> Scenario **with an optional time-of-day schedule** — that is tied to a SIM
+> by ICCID. When the modem detects that SIM, the bound profile is applied
+> automatically; the user can also apply manually. Profiles are owned by
+> `profile_mgr.sh` (library) and applied by the `qmanager_profile_apply`
+> daemon.
+
+> ℹ️ NOTE: The APN Settings page (`/cellular/settings` → APN) now renders a
+> pixel-strict single-APN card ported from RM551E, not the 6-slot list this
+> doc originally described for gating purposes. The gate matrix and apply
+> pipeline below are unaffected — see
+> [wan-profile-management.md](wan-profile-management.md#apn-pixel-strict-single-apn-ui-ws6)
+> for the UI-layer detail.
 
 This doc covers the profile data model, the apply pipeline, and how an active
 profile gates other parts of the UI. Auto-apply on ICCID match is covered in
@@ -49,15 +57,55 @@ points (boot, SIM switch, watchdog) and are still current.
     "ttl": 65,
     "hl": 65,
     "scenario_id": "gaming"
+  },
+  "scenario": {
+    "default": "gaming",
+    "schedule": {
+      "enabled": true,
+      "blocks": [
+        { "start": "18:00", "end": "23:00", "days": [1,2,3,4,5], "scenario": "gaming" }
+      ]
+    }
   }
 }
 ```
 
-### `settings.scenario_id`
+### `scenario` (top-level object) and the `settings.scenario_id` bridge
+
+Scenario binding lives in a **top-level** `scenario` object —
+`{ default, schedule: { enabled, blocks[] } }` — not inside `settings`.
+`scenario.default` is both the on-activate scenario **and** the schedule's
+fallback for any time not covered by a block. `settings.scenario_id` still
+exists and is kept **byte-mirrored** to `scenario.default` by `profile_save`
+at a single chokepoint — no installer migration was needed because this is a
+read/write bridge, not a rename:
+
+- **Write:** `profile_save` accepts an optional `scenario` object in the
+  input, normalizes it (defaults: `default: "balanced"`,
+  `schedule: {enabled: false, blocks: []}`), and writes `settings.scenario_id`
+  as a plain mirror of `scenario.default` in the same jq template. This is
+  the *only* place the two representations are reconciled.
+- **Read:** `profile_get` and `profile_list` **synthesize** `.scenario` for
+  legacy profiles that predate this feature (no `scenario` key on disk) by
+  falling back to `settings.scenario_id` — so an already-chosen scenario
+  isn't silently reset to `"balanced"` on first read after an OTA upgrade.
+  This synthesis is read-time only; nothing is written back to disk by a
+  `GET`.
+- **Validation:** every scenario reference — `scenario.default` and every
+  `scenario.schedule.blocks[].scenario` — is checked against
+  `scenario_mgr.sh`'s `scenario_is_known()` (a built-in name or an existing
+  `custom-*.json` file) before save; any unknown reference rejects the whole
+  save with `"Unknown connection scenario: <id>."`.
+
+Existing UI code and the apply pipeline's step 3 (`scenario`) still read
+`settings.scenario_id` unchanged — see the next section.
+
+#### `settings.scenario_id`
 
 The `scenario_id` field is the profile's binding to a Connection Scenario.
-It encodes a **reference**, not a copy. New profiles created via the
-frontend default to `"balanced"`.
+It encodes a **reference**, not a copy — and now, a mirror of
+`scenario.default` (see above). New profiles created via the frontend
+default to `"balanced"`.
 
 | Value | Meaning |
 |-------|---------|
@@ -189,9 +237,136 @@ the `action=create` query param to open the dialog on mount.
 
 ---
 
+## Scenario schedule windows (systemd timer, NOT crond)
+
+A profile's scenario binding can carry up to **2 daily time windows**
+(`scenario.schedule.blocks`) that override `scenario.default` for part of
+the day — e.g. "Gaming 18:00-23:00 weekdays, Balanced otherwise." RM520N-GL
+has **no running `crond`** (see the crond correction in
+[timezone.md](timezone.md) and `docs/rm520n-gl-architecture.md`), so this is
+implemented as a **systemd `OnCalendar` timer**, generated at runtime, not a
+crontab entry.
+
+### Resolution rule (must match byte-for-behavior in 3 places)
+
+For weekday `dow` (0=Sun..6=Sat) and minute-of-day `m`:
+
+1. Consider only blocks whose `days` array includes `dow`.
+2. A block matches when `start` ≤ `m` < `end` (start inclusive, end
+   exclusive); if `end` ≤ `start` the window wraps past midnight and matches
+   when `m ≥ start` **or** `m < end`.
+3. First matching block in array order wins.
+4. No block matches → `scenario.default`.
+
+This exact rule is implemented independently in three places and **must
+stay in sync**:
+
+| Implementation | Purpose |
+|-----------------|---------|
+| `scenario_mgr.sh::scenario_block_for_now` (jq, on-device) | Authoritative — resolves "what should be active right now" when the timer fires. |
+| `scenario_mgr.sh::_scenario_generate_oncalendar_lines` (jq, on-device) | Compiles a schedule into `OnCalendar=` lines (see below) — a from-scratch reimplementation of the same timeline logic, not a call into `scenario_block_for_now`. |
+| `lib/scenario-schedule.ts` (`resolveScheduledScenario`, `nextChangeAt`) | Display-only — drives the frontend's "locked" badge and "next change at HH:MM" line. The on-device timer is authoritative; this module exists only so the UI agrees with the device. |
+
+### The systemd mechanism
+
+Unlike `qmanager-auto-update.timer` (a **static** unit shipped by the
+installer that the installer arms once), the scenario-schedule timer is
+**generated from scratch on every arm/disarm** because its `OnCalendar=`
+lines are per-profile data, not a fixed schedule:
+
+| Component | Role |
+|-----------|------|
+| `scripts/usr/bin/qmanager_scenario_schedule_arm` | Root helper (sudoers-gated). `install <profile_id>` computes `OnCalendar=` lines via `_scenario_generate_oncalendar_lines`, writes `qmanager-scenario-schedule.timer` to `/lib/systemd/system/`, and manually symlinks it into `/lib/systemd/system/timers.target.wants/` — the same manual-symlink pattern as `qmanager_auto_update_arm`, and for the same reason: on this systemd 244, `systemctl enable` writes into `/etc/systemd/system/`, but `systemctl is-enabled` and every other qmanager unit persist via `/lib` symlinks, so using `systemctl enable` here would put this unit's enablement state in a different place than everything else. `teardown` stops + removes the timer. Both verbs no-op cleanly if the target `.service` is absent (an OTA-upgraded device that predates the feature). |
+| `qmanager-scenario-schedule.service` (static, installer-shipped, `Type=oneshot`) | `ExecStart=/usr/bin/qmanager_scenario_schedule --now`. No `[Install]` section — only ever started by the timer, never boot-enabled directly. |
+| `scripts/usr/bin/qmanager_scenario_schedule` | The fire-worker. A systemd `OnCalendar` line can only encode **when** to fire, never **which** scenario (unlike a cron line, it carries no payload) — so every firing runs this one fixed worker, which resolves "what should be active right now" via `scenario_block_for_now` / `scenario_apply_resolved` rather than being told directly. Self-heals: if the active profile was deleted or its schedule disabled/edited since the timer was armed, it tears the timer down instead of erroring. |
+
+`scenario_install_schedule <profile_id>` / `scenario_teardown_schedule` in
+`scenario_mgr.sh` are the library-level entry points — thin wrappers that
+call the root helper directly if already root, or via `sudo -n` from a
+`www-data` context. They are invoked from:
+
+- `qmanager_profile_apply` — arms the schedule on a successful apply
+  (`complete`/`partial`), tears it down + resets the scenario to Balanced on
+  `failed`.
+- `profile_mgr.sh::profile_delete` — tears down + resets when deleting the
+  active profile.
+- `profile_mgr.sh::auto_apply_profile` — tears down + resets when a SIM
+  mismatch deactivates the active profile.
+- `profiles/deactivate.sh` (CGI) — tears down + resets on explicit
+  deactivate.
+
+> ⚠️ WARNING: The `profile_id` argument reaches `qmanager_scenario_schedule_arm`
+> from a `www-data`-reachable `sudo` call and is interpolated into the
+> generated `.timer` unit's `Description=` line, so the helper validates it
+> against a strict `p_<timestamp>_<hex>` charset (rejecting anything outside
+> `[0-9a-z_]` — including `;`, `/`, whitespace, and newline) **before** it
+> ever reaches `scenario_mgr.sh` or a disk path. This is the newline-injection
+> gate; a malformed id is rejected outright rather than sanitized.
+
+An `OnCalendar` line only encodes a fire time, not a payload — the
+`_scenario_generate_oncalendar_lines` compiler walks the weekly timeline per
+weekday, de-duplicates transitions at shared minute boundaries (a block-start
+wins over a touching block-end), seeds each weekday with the effective
+scenario at 23:59 of the previous day (so an overnight block bleeding past
+midnight still emits its restore transition), and groups identical
+`(minute, scenario)` transitions across weekdays into one `OnCalendar=<days>
+HH:MM:00` line.
+
+---
+
+## ICCID canonicalization and `--auto` apply supersession
+
+`iccid_canonicalize` (from `sim_db.sh`, see
+[sim-detection.md](sim-detection.md#byte-parity-requirement-why-sim_db_normalize--iccid_canonicalize))
+strips a trailing BCD pad `F` for **comparison** purposes. `profile_mgr.sh`'s
+`find_profile_by_iccid` and `auto_apply_profile` both canonicalize *both*
+operands before comparing a live ICCID against a profile's stored
+`sim_iccid` — otherwise a profile saved via one read path (raw string, pad
+kept) would silently fail to match a live SIM read via another path
+(digits-only extractor, pad dropped), or vice versa.
+
+### `--auto` mode and the stale-SIM guard
+
+`qmanager_profile_apply <profile_id> --auto` is the flag `auto_apply_profile`
+passes when it spawns the worker (a manual Activate from the UI omits it and
+keeps the prior, unguarded semantics). In `--auto` mode the worker checks —
+at two points, **pre-apply** and **pre-finalize** — that the live ICCID
+still matches the profile's `sim_iccid` (re-read via the canonical `AT+QCCID`
+pipeline, 3×1s retry, canonicalized on both sides). An empty live read is
+"don't know" and never aborts; a **confirmed mismatch** aborts the apply as
+`failed` with `apply_error: "superseded_sim_changed"` and does **not** touch
+the active-profile marker — the apply that's actually current for the live
+SIM owns that.
+
+**Why two checkpoints:** a rapid back-to-back SIM switch (e.g. a user
+toggling slots, or a watchdog failover landing mid-apply) can invalidate an
+in-flight apply either before it starts or while it's running. Checking only
+once at start would miss a switch that happens mid-apply and let a stale
+apply finalize — pinning the **wrong** SIM's profile as active.
+
+### The pending-apply queue (latest wins)
+
+If `auto_apply_profile` is called while a worker is already holding the PID
+lock, the old behavior was a pure skip — silently dropping a rapid
+back-to-back switch if a stale worker was still applying the *previous*
+SIM's profile. Instead, the caller now writes `(iccid, caller)` to
+`/tmp/qmanager_profile_pending_apply` (atomic tmp+mv, so a second queued call
+before the first is consumed simply overwrites it — latest wins, no queue
+buildup). The **running worker's `EXIT` trap** consumes this marker, but only
+**after** it has released the PID lock (`rm -f "$PROFILE_APPLY_PID_FILE"`
+runs first in `cleanup()`) — consuming it earlier would have the re-spawned
+`auto_apply_profile` immediately busy-skip again on the same still-held lock.
+The re-run reads the **freshest live ICCID** (not the stored/queued one) so
+the newest SIM state wins even if it changed again while the first apply was
+finishing.
+
+---
+
 ## Related
 
 - [wan-profile-management.md](wan-profile-management.md) — APN editor, the underlying mechanism step 1 uses (and the APN gating note).
+- [sim-detection.md](sim-detection.md) — the known-SIMs set model, byte-parity vs. canonicalized ICCID comparison, and the watchdog/slot-switch/profile-activate coupling that keeps expected SIM transitions from false-firing the "New SIM" banner.
+- [connection-watchdog.md](connection-watchdog.md) — Tier-3 SIM failover, the `verify_quimslot` read-back gate, and the `sim_db_add` coupling at finalize/revert.
 - `../ARCHITECTURE.md` § Custom SIM Profiles — auto-apply trigger points (boot / SIM switch / watchdog).
 - `../rm520n-gl-architecture.md` § Custom SIM Profiles — Auto-Apply on ICCID Match — RM520N-GL platform considerations (`fs.protected_regular`, `/proc/$pid` checks, defensive sourcing).
 - `../BACKEND.md` § `profile_mgr.sh`, § `scenario_mgr.sh`, § `qmanager_profile_apply` — library and daemon inventory.

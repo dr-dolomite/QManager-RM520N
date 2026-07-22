@@ -1,0 +1,73 @@
+#!/bin/sh
+# qmanager_auto_update_arm — Arm/disarm the unattended-update systemd timer live.
+#
+# The Software Update UI toggle (update.auto_update_enabled) needs to take effect
+# IMMEDIATELY, not just at the next install/OTA. This helper is the privileged
+# half: it creates/removes the boot-persistence symlink for
+# qmanager-auto-update.timer and starts/stops it for the current boot.
+#
+# Called via: sudo -n /usr/bin/qmanager_auto_update_arm on|off
+#
+# MECHANISM — deliberate: manual symlink into /lib/systemd/system/timers.target.wants/,
+# NOT `systemctl enable`. On this minimal systemd 244, `systemctl enable` writes its
+# symlink into /etc/systemd/system/... and `systemctl is-enabled` only ever reads /etc;
+# meanwhile the installer (enable_services) and every other qmanager unit persist via
+# /lib symlinks. Using `systemctl enable` here would put the enablement in a DIFFERENT
+# place than install/OTA, so the two paths would disagree about the timer's state (and a
+# UI "off" could leave a stray /lib symlink armed, or vice-versa). This helper mirrors
+# install_rm520n.sh's arming (TIMERS_WANTS_DIR) exactly so there is one source of truth.
+#
+# Idempotent both directions. No-op (success) if the timer unit is absent — an
+# OTA-upgraded device that predates the unit must not surface a hard error to the UI.
+
+PATH=/opt/bin:/opt/sbin:/usr/bin:/usr/sbin:/bin:/sbin
+export PATH
+
+UNIT="qmanager-auto-update.timer"
+UNIT_DIR="/lib/systemd/system"
+WANTS_DIR="/lib/systemd/system/timers.target.wants"
+
+action="$1"
+
+# Strict arg validation — only the two literals, nothing else.
+case "$action" in
+    on|off) ;;
+    *) printf '{"success":false,"error":"invalid_action","detail":"action must be on or off"}\n'; exit 1 ;;
+esac
+
+# Missing-unit no-op: a device that predates the .timer unit (older OTA base) has
+# nothing to arm. Report success so the UI toggle + config write still land cleanly.
+if [ ! -f "$UNIT_DIR/$UNIT" ]; then
+    printf '{"success":true,"armed":false,"reason":"unit_absent"}\n'
+    exit 0
+fi
+
+# /lib lives on read-only-by-default UBIFS; ensure writable. Idempotent — a no-op if
+# already rw. Left rw afterwards, matching install_rm520n.sh (which never remounts ro).
+mount -o remount,rw / 2>/dev/null || true
+
+rc=0
+if [ "$action" = "on" ]; then
+    mkdir -p "$WANTS_DIR" 2>/dev/null || rc=1
+    ln -sf "$UNIT_DIR/$UNIT" "$WANTS_DIR/$UNIT" 2>/dev/null || rc=1
+    sync
+    systemctl daemon-reload 2>/dev/null || true
+    systemctl start "$UNIT" 2>/dev/null || true   # take effect this boot too
+    if [ "$rc" -ne 0 ] || [ ! -L "$WANTS_DIR/$UNIT" ]; then
+        printf '{"success":false,"error":"arm_failed","detail":"could not create timer symlink"}\n'
+        exit 1
+    fi
+    printf '{"success":true,"armed":true}\n'
+    exit 0
+else
+    rm -f "$WANTS_DIR/$UNIT" 2>/dev/null || rc=1
+    sync
+    systemctl stop "$UNIT" 2>/dev/null || true
+    systemctl daemon-reload 2>/dev/null || true
+    if [ "$rc" -ne 0 ] || [ -L "$WANTS_DIR/$UNIT" ]; then
+        printf '{"success":false,"error":"disarm_failed","detail":"could not remove timer symlink"}\n'
+        exit 1
+    fi
+    printf '{"success":true,"armed":false}\n'
+    exit 0
+fi

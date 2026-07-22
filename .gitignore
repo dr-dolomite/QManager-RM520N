@@ -45,6 +45,9 @@ qmanager-build/
 qmanager_install/
 RELEASE_NOTE.md
 
+# language-pack build output (maintainer `bun run lang build`)
+/dist/
+
 # claude superpowers
 /.superpowers
 /docs/superpowers
@@ -61,3 +64,5 @@ RELEASE_NOTE.md
 
 # Investigation scratch (probe scripts, raw logs)
 /scratch/
+# Go host build artifacts (device binary ships via build-discord-bot.sh tarball)
+discord-bot/*.exe

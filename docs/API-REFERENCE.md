@@ -838,52 +838,63 @@ Get the currently active scenario.
 
 ## Monitoring
 
-### GET/POST `/monitoring/email_alerts.sh`
+### GET/POST `/monitoring/alerts.sh`
 
-**GET Response:**
+Unified endpoint for all three alert channels (SMS, email, Discord) plus the routing × capability matrix consumed by `alert_engine.sh`. Replaces the removed per-channel endpoints (`email_alerts.sh`, `email_alert_log.sh`, `sms_alerts.sh`, `sms_alert_log.sh`, `discord_bot/{configure,status,test,alert_log}.sh`). See `docs/reference/alerts.md` for the full contract.
+
+**GET Response** — aggregated settings + routing + capabilities + reboot history. Secrets are never returned (only `app_password_set` / `token_set` booleans):
 ```json
 {
   "success": true,
-  "settings": {
-    "enabled": true,
-    "sender_email": "alerts@gmail.com",
-    "recipient_email": "admin@example.com",
-    "app_password_set": true,
-    "threshold_minutes": 5
-  }
+  "channels": {
+    "sms":     { "enabled": false, "recipient_phone": "", "threshold_minutes": 5, "configured": false },
+    "email":   { "enabled": true, "sender_email": "alerts@gmail.com", "recipient_email": "admin@example.com",
+                 "app_password_set": true, "threshold_minutes": 5, "msmtp_installed": true, "configured": true },
+    "discord": { "enabled": false, "owner_discord_id": "", "token_set": false, "threshold_minutes": 5,
+                 "connected": false, "configured": false }
+  },
+  "routing": { "events": { "connection_lost": {"sms":true,"email":false,"discord":false},
+               "connection_restored": {"sms":true,"email":true,"discord":true},
+               "reboot": {"sms":true,"email":true,"discord":true} } },
+  "capabilities": { "connection_lost": {"sms":true,"email":false,"email_reason":"email_needs_internet",
+                    "discord":false,"discord_reason":"discord_needs_internet"},
+                    "connection_restored": {"sms":true,"email":true,"discord":true},
+                    "reboot": {"sms":true,"email":true,"discord":true} },
+  "reboots": [ {"epoch":1721400000,"cause":"watchdog"}, {"epoch":1721390000,"cause":"user"} ]
 }
 ```
 
-**POST (save settings):**
+**POST** — dispatched on `action`:
+
+| Action | Purpose |
+|--------|---------|
+| `save_settings` | Persist all three channel configs + routing atomically. `app_password` / `bot_token` sent only when changed; omitted secrets reuse the stored value. `connection_lost.email` and `connection_lost.discord` routing cells are hard-clamped to `false` server-side. |
+| `send_test` | `{ "channel": "sms" \| "email" \| "discord" }` — send a real test alert via that channel's live transport. |
+| `get_log` | Merged NDJSON activity log across all three channels, newest first, cap 100. |
+| `install_msmtp` | Background `opkg` install of the `msmtp` mailer (optional email dependency). |
+| `install_status` | Poll `install_msmtp` progress (`idle`/`running`/`complete`/`error`). |
+
+**POST (save settings) example:**
 ```json
 {
   "action": "save_settings",
-  "enabled": true,
-  "sender_email": "alerts@gmail.com",
-  "recipient_email": "admin@example.com",
-  "app_password": "xxxx xxxx xxxx xxxx",
-  "threshold_minutes": 5
+  "sms":     { "enabled": false, "recipient_phone": "", "threshold_minutes": 5 },
+  "email":   { "enabled": true, "sender_email": "alerts@gmail.com", "recipient_email": "admin@example.com",
+               "app_password": "xxxx xxxx xxxx xxxx", "threshold_minutes": 5 },
+  "discord": { "enabled": false, "owner_discord_id": "", "threshold_minutes": 5 },
+  "routing": { "events": { "connection_lost": {"sms":true,"email":false,"discord":false},
+               "connection_restored": {"sms":true,"email":true,"discord":true},
+               "reboot": {"sms":true,"email":true,"discord":true} } }
 }
 ```
-`app_password` only sent when changed. Backend returns `app_password_set: boolean` (never the actual password).
 
-**POST (send test):**
-```json
-{ "action": "send_test" }
-```
-
-### GET `/monitoring/email_alert_log.sh`
-
+**POST (get log) response:**
 ```json
 {
   "success": true,
   "entries": [
-    {
-      "timestamp": 1710700000,
-      "trigger": "downtime_recovery",
-      "status": "sent",
-      "recipient": "admin@example.com"
-    }
+    { "timestamp": "2026-07-20 14:03:11", "trigger": "connection_restored", "status": "sent",
+      "recipient": "admin@example.com", "channel": "email" }
   ],
   "total": 5
 }
@@ -987,8 +998,11 @@ System preferences, scheduled reboot, and low power mode.
     "wan_guard_enabled": true,
     "temp_unit": "celsius",
     "distance_unit": "km",
-    "timezone": "UTC0",
-    "zonename": "UTC"
+    "timezone": "PHT-8",
+    "zonename": "Asia/Manila",
+    "effective_offset": "+0800",
+    "effective_zone_abbr": "PHT",
+    "timezone_applied": true
   },
   "scheduled_reboot": {
     "enabled": false,
@@ -1004,6 +1018,11 @@ System preferences, scheduled reboot, and low power mode.
 }
 ```
 
+- `timezone`/`zonename`: the **configured** POSIX TZ string and IANA zone name (echoed from config)
+- `effective_offset`: the **live** clock UTC offset from `date +%z` (e.g. `"+0800"`, `"+0000"`)
+- `effective_zone_abbr`: the **live** zone abbreviation from `date +%Z` (e.g. `"PHT"`, `"UTC"`)
+- `timezone_applied`: `true` when the live clock matches the configured zone; `false` when config and clock disagree (the UI shows a "not applied" warning). Reported by `sys_get_effective_tz`. See [reference/timezone.md](reference/timezone.md)
+
 **POST (save_settings):**
 ```json
 {
@@ -1018,8 +1037,15 @@ System preferences, scheduled reboot, and low power mode.
 
 - `temp_unit`: `"celsius"` or `"fahrenheit"`
 - `distance_unit`: `"km"` or `"miles"`
-- `wan_guard_enabled`: toggles init.d symlink (enable/disable)
-- `timezone`/`zonename`: written to UCI `system.@system[0]`
+- `wan_guard_enabled`: accepted in the payload but **not ported to the RM520N-GL** — the handler silently ignores it
+- `timezone`/`zonename`: persisted, then applied to the live clock via `sys_set_timezone` (which copies the resolved TZif over `/etc/localtime` through the `qmanager_timezone_apply` root helper), not UCI
+
+**POST (save_settings) Response:**
+```json
+{ "success": true, "timezone_apply_status": "applied" }
+```
+
+- `timezone_apply_status`: outcome of pushing the configured zone to the live clock. One of `"applied"` (clock updated), `"failed"` (config saved but the clock apply did not take), `"not_attempted"` (`zonename` was empty), or `"invalid"` (`timezone` was empty). The frontend warns the user on `"failed"`. See [reference/timezone.md](reference/timezone.md)
 
 **POST (save_scheduled_reboot):**
 
@@ -1034,7 +1060,7 @@ System preferences, scheduled reboot, and low power mode.
 
 - `days`: array of integers 0-6 (0=Sunday, 6=Saturday)
 - Manages cron entries for `/usr/bin/qmanager_scheduled_reboot`
-- Config persisted in UCI `quecmanager.settings.sched_reboot_*`
+- Config persisted in the JSON config store via `qm_config_set settings sched_reboot_*` (`/etc/qmanager/`, no UCI)
 
 **POST (save_low_power):**
 
@@ -1050,7 +1076,7 @@ System preferences, scheduled reboot, and low power mode.
 
 - Creates two cron entries: `enter` at start_time on selected days, `exit` at end_time on all 7 days
 - Exit cron fires on all days to handle overnight windows (e.g., 23:00-06:00) — no-ops if flag absent
-- Enables/disables `qmanager_low_power_check` init.d (boot-time window check)
+- Enables/disables the `qmanager_low_power_check` systemd service via `svc_enable`/`svc_disable` (boot-time window check); persistence is a `multi-user.target.wants/` symlink, since `systemctl enable` does not work on this platform
 - Disabling while active immediately triggers `qmanager_low_power exit` (restores CFUN=1)
 
 ### POST `/system/reboot.sh`

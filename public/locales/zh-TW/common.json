@@ -1,0 +1,168 @@
+{
+  "actions": {
+    "save": "儲存",
+    "saving": "儲存中…",
+    "saved": "已儲存！",
+    "cancel": "取消",
+    "confirm": "確認",
+    "apply": "套用",
+    "close": "關閉",
+    "retry": "重試",
+    "reboot": "重啟",
+    "log_out": "登出",
+    "reboot_device": "重啟裝置",
+    "reconnect_modem": "重新連線調變解調器",
+    "change_display_name": "變更顯示名稱",
+    "change_password": "變更密碼"
+  },
+  "state": {
+    "loading": "載入中…",
+    "saving": "儲存中…",
+    "applying": "套用中…",
+    "disconnecting": "斷開連線中…",
+    "reconnecting": "重新連線中…",
+    "installing": "正在安裝…",
+    "removing": "正在刪除…",
+    "enabled": "已啟用",
+    "disabled": "已停用",
+    "on": "開",
+    "off": "關"
+  },
+  "connection": {
+    "reconnecting": "與裝置失去聯絡，正在重新連線…"
+  },
+  "profile_override": {
+    "banner": "{{controls}} 由自訂 SIM 設定檔 <strong>{{profile_name}}</strong> 管理。"
+  },
+  "time": {
+    "just_now": "剛剛",
+    "now": "現在",
+    "unknown": "未知",
+    "minutes_ago_one": "{{count}} 分鐘前",
+    "minutes_ago_other": "{{count}} 分鐘前",
+    "hours_ago_one": "{{count}} 小時前",
+    "hours_ago_other": "{{count}} 小時前",
+    "days_ago_one": "{{count}} 天前",
+    "days_ago_other": "{{count}} 天前"
+  },
+  "language": {
+    "label": "語言",
+    "switch_aria": "切換語言",
+    "page_title": "語言",
+    "page_description": "選擇 QManager 的顯示語言。您的選擇將儲存在此裝置上。",
+    "active": "使用中",
+    "select_prompt": "選擇語言"
+  },
+  "login": {
+    "brand_label": "QManager 操作員控制台",
+    "welcome": "歡迎使用 QManager",
+    "password_label": "密碼",
+    "submit": "登入",
+    "signing_in": "登入中…",
+    "locked": "已鎖定 ({{seconds}}秒)",
+    "show_password": "顯示密碼",
+    "hide_password": "隱藏密碼",
+    "session_expired": "由於裝置長時間無法連線,您的會話已結束。",
+    "signing_in_to": "正在登入到 {{hostname}}",
+    "signing_in_as": "以 {{hostname}} 登入",
+    "recovery": {
+      "toggle": "無法登入?",
+      "intro": "如果您忘記了管理員密碼,有兩種恢復方式:",
+      "option_reset": "通過 SSH 連線到裝置並執行 <code>qmanager_reset_password</code> 以設定新的管理員密碼。(需要先啟用 SSH 訪問。)",
+      "option_backup": "如果您儲存了 .qmbackup 檔案,請重新刷寫裝置韌體,然後從該檔案中恢復。"
+    }
+  },
+  "overview": {
+    "title": "QManager",
+    "tagline": "即時數據機狀態",
+    "login_button": "登入",
+    "header": {
+      "carrier": "運營商",
+      "network": "網路",
+      "bands": "頻寬"
+    },
+    "status": {
+      "overall": "總體",
+      "connectivity": "網際網路",
+      "temperature": "溫度"
+    },
+    "actions": {
+      "login": "登入",
+      "theme_toggle_aria": "切換主題",
+      "theme_light": "淺色",
+      "theme_dark": "深色",
+      "theme_system": "跟隨系統"
+    },
+    "field": {
+      "carrier": "運營商",
+      "aggregation": "頻段",
+      "uptime": "執行時間",
+      "temperature": "溫度",
+      "temp_warn": "溫度偏高",
+      "temp_danger": "溫度過高",
+      "empty": "—"
+    },
+    "aggregation": {
+      "band_with_bw": "{{band}} ({{bandwidth}} MHz)",
+      "band_only": "{{band}}",
+      "pci_label": "PCI"
+    },
+    "bands": {
+      "toggle_multi_band": "活動頻段",
+      "toggle_single_band": "單載波",
+      "section": "頻段",
+      "count_one": "{{count}} 個活躍",
+      "count_other": "{{count}} 個活躍",
+      "bandwidth": "{{bandwidth}} MHz",
+      "rsrp_unit": "{{rsrp}} dBm"
+    },
+    "metrics": {
+      "rsrp": "RSRP",
+      "rsrq": "RSRQ",
+      "sinr": "SINR",
+      "rsrp_value": "{{rsrp}} dBm",
+      "rsrq_value": "{{rsrq}} dB",
+      "sinr_value": "{{sinr}} dB",
+      "toggle_aria": "切換頻段訊號指標"
+    },
+    "signal": {
+      "dual": "{{rsrp}} dBm · {{sinr}} dB SINR",
+      "rsrp_only": "{{rsrp}} dBm",
+      "sinr_only": "{{sinr}} dB SINR",
+      "none": "—"
+    },
+    "quality": {
+      "overall_label": "總體",
+      "excellent": "極佳",
+      "good": "良好",
+      "fair": "一般",
+      "poor": "較差",
+      "none": "無訊號"
+    },
+    "connection": {
+      "connected": "已連線",
+      "searching": "搜尋中",
+      "limited": "受限",
+      "inactive": "未啟用",
+      "error": "錯誤",
+      "disconnected": "未連線",
+      "unknown": "未知",
+      "modem_unreachable": "無法連線到數據機"
+    },
+    "stale_indicator": "資料可能已過期",
+    "redirecting_setup": "正在跳轉到初次設定…",
+    "loading_status": "正在載入數據機狀態…",
+    "empty": {
+      "title": "數據機狀態不可用",
+      "subtitle": "登入以檢視診斷詳情。",
+      "fetch_error": "無法連線到裝置。",
+      "retry": "重試"
+    },
+    "uptime": {
+      "days": "{{days}}天 {{hours}}小時",
+      "hours": "{{hours}}小時 {{minutes}}分鐘",
+      "minutes": "{{minutes}}分鐘"
+    },
+    "copyright": "© {{year}} QManager"
+  }
+}
