@@ -22,6 +22,8 @@
 
 > **Note:** QManager is the successor to [SimpleAdmin](https://github.com/dr-dolomite/simpleadmin-mockup), rebuilt from the ground up with a modern tech stack and improved user experience. This branch targets the **Quectel RM520N-GL** modem running its internal Linux OS (SDXLEMUR, ARMv7l, kernel 5.4.180).
 
+> **Other modems:** This build is primarily developed and tested against the RM520N-GL (Qualcomm SDXLEMUR chipset), but since it targets the vanilla Linux OS running on the modem itself rather than a device-specific stack, it may also work on other Quectel modems with a similar internal architecture -- notably Qualcomm **SDX55 / SDXPRAIRIE**-based models. These aren't officially validated -- your mileage may vary, and issue reports from other SDX55/SDXPRAIRIE modems are welcome.
+
 ---
 
 ## Features
