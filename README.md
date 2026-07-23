@@ -146,6 +146,16 @@ bash /tmp/qmanager_install/uninstall_rm520n.sh --purge
 
 Entware (`/opt/`) is always preserved even with `--purge` — remove it manually if needed.
 
+### Password Reset
+
+If you forget your QManager web GUI password, SSH into the modem as root and run:
+
+```sh
+qmanager_reset_password
+```
+
+This removes the stored password hash (`/etc/qmanager/auth.json`) and the active session, then prompts you to open the QManager web UI to set a new password — no reinstall needed.
+
 ---
 
 ## Additional Dependencies
