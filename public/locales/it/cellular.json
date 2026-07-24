@@ -434,5 +434,136 @@
     "default_balanced_name": "Equilibrato",
     "default_gaming_name": "Gioco",
     "default_streaming_name": "Streaming"
+  },
+  "sms": {
+    "page": {
+      "title": "Centro SMS",
+      "description": "Visualizza, gestisci e invia messaggi SMS dal tuo modem."
+    },
+    "inbox": {
+      "title": "Posta in arrivo",
+      "description": "Visualizza e gestisci i tuoi messaggi SMS",
+      "storage_suffix": " — Messaggi {{used}}/{{total}} memorizzati",
+      "table": {
+        "headers": {
+          "from": "Da",
+          "message": "Messaggio",
+          "date": "Data"
+        },
+        "actions": {
+          "open_menu": "Apri il menu",
+          "view": "Visualizza",
+          "delete": "Elimina"
+        },
+        "empty_row": "Nessun messaggio trovato.",
+        "select_all_aria": "Seleziona tutto",
+        "select_row_aria": "Seleziona riga",
+        "sim_badge": "SIM",
+        "empty_unread": "Nessun messaggio non letto.",
+        "empty_read": "Nessun messaggio letto.",
+        "empty_search": "Nessun messaggio corrisponde alla ricerca."
+      },
+      "empty_state": {
+        "title": "Nessun messaggio ancora",
+        "description": "I messaggi ricevuti appariranno qui. Invia un messaggio per iniziare."
+      },
+      "buttons": {
+        "refresh_aria": "Aggiorna la posta in arrivo",
+        "delete_selected": "Elimina ({{count}})",
+        "delete_selected_aria": "Elimina {{count}} selezionato",
+        "delete_all": "Elimina tutto",
+        "delete_all_aria": "Elimina tutti i messaggi",
+        "new_message": "Nuovo messaggio",
+        "prev": "Prec",
+        "next": "Avanti",
+        "mark_all_read": "Segna tutti come letti",
+        "mark_all_read_aria": "Segna tutti i messaggi come letti",
+        "first_page": "Vai alla prima pagina",
+        "prev_page": "Vai alla pagina precedente",
+        "next_page": "Vai alla pagina successiva",
+        "last_page": "Vai all’ultima pagina"
+      },
+      "pagination": {
+        "total_one": "messaggio {{count}}",
+        "total_other": "{{count}} messaggi",
+        "page_info": "{{current}} / {{total}}",
+        "rows_per_page": "Righe per pagina",
+        "page_label": "Pagina {{current}} di {{total}}",
+        "selected_info": "{{selected}} di {{total}} selezionati"
+      },
+      "error": {
+        "title": "Impossibile caricare i messaggi",
+        "description_prefix": "Impossibile caricare i messaggi"
+      },
+      "view_dialog": {
+        "title": "Messaggio da {{sender}}",
+        "timestamp_aria": "{{timestamp}}"
+      },
+      "delete_single_confirm": {
+        "title": "Elimina messaggio",
+        "description": "Sei sicuro di voler eliminare questo messaggio da {{sender}}? Questa azione non può essere annullata.",
+        "confirm": "Elimina",
+        "deleting": "Eliminazione…"
+      },
+      "delete_all_confirm": {
+        "title": "Elimina tutti i messaggi",
+        "description": "Sei sicuro di voler eliminare tutti i messaggi {{count}}? Questa azione non può essere annullata.",
+        "confirm": "Elimina tutto"
+      },
+      "delete_selected_confirm": {
+        "title": "Elimina i messaggi selezionati",
+        "description_one": "Sei sicuro di voler eliminare il messaggio selezionato {{count}}? Questa azione non può essere annullata.",
+        "description_other": "Sei sicuro di voler eliminare i {{count}} messaggi selezionati? Questa azione non può essere annullata.",
+        "confirm": "Elimina ({{count}})",
+        "deleting": "Eliminazione…"
+      },
+      "toast": {
+        "delete_success": "Messaggio eliminato",
+        "delete_error": "Impossibile eliminare il messaggio",
+        "delete_all_success": "Tutti i messaggi cancellati",
+        "delete_all_error": "Impossibile eliminare i messaggi",
+        "delete_selected_success_one": "{{count}} messaggio eliminato",
+        "delete_selected_success_other": "{{count}} messaggi eliminati",
+        "delete_selected_error": "Impossibile eliminare i messaggi selezionati",
+        "mark_all_read_success": "Tutti i messaggi sono stati segnati come letti"
+      },
+      "tabs": {
+        "all": "Tutti",
+        "unread": "Non letti",
+        "read": "Letti"
+      },
+      "unread_aria": "Messaggio non letto",
+      "search": {
+        "placeholder": "Cerca messaggi…",
+        "aria": "Cerca messaggi"
+      },
+      "sort": {
+        "label": "Ordina",
+        "newest": "Prima i più recenti",
+        "oldest": "Prima i meno recenti",
+        "aria": "Ordine"
+      }
+    },
+    "compose": {
+      "title": "Nuovo messaggio",
+      "description": "Componi e invia un messaggio SMS.",
+      "fields": {
+        "phone_label": "Numero di telefono",
+        "phone_placeholder": "+1234567890",
+        "message_label": "Messaggio",
+        "message_placeholder": "Scrivi il tuo messaggio...",
+        "char_counter": "{{count}}/{{max}}"
+      },
+      "unicode_indicator": "(Unicode)",
+      "limit_warning": "Il messaggio supera il limite singolo SMS. Verrà inviato in più parti.",
+      "buttons": {
+        "send": "Invia",
+        "sending": "Invio…"
+      },
+      "toast": {
+        "success": "SMS inviato con successo",
+        "error": "Impossibile inviare SMS"
+      }
+    }
   }
 }

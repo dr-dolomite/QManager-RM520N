@@ -434,5 +434,136 @@
     "default_balanced_name": "均衡",
     "default_gaming_name": "游戏",
     "default_streaming_name": "流媒体"
+  },
+  "sms": {
+    "page": {
+      "title": "短信中心",
+      "description": "查看、管理并从调制解调器发送短信。"
+    },
+    "inbox": {
+      "title": "收件箱",
+      "description": "查看和管理您的短信",
+      "storage_suffix": " — 已存储 {{used}}/{{total}} 条短信",
+      "table": {
+        "headers": {
+          "from": "发件人",
+          "message": "消息",
+          "date": "日期"
+        },
+        "actions": {
+          "open_menu": "打开菜单",
+          "view": "查看",
+          "delete": "删除"
+        },
+        "empty_row": "未找到消息。",
+        "select_all_aria": "全选",
+        "select_row_aria": "选择行",
+        "sim_badge": "SIM",
+        "empty_unread": "没有未读消息。",
+        "empty_read": "没有已读消息。",
+        "empty_search": "没有符合搜索条件的短信。"
+      },
+      "empty_state": {
+        "title": "暂无消息",
+        "description": "收到的短信将显示在这里。发送一条短信即可开始。"
+      },
+      "buttons": {
+        "refresh_aria": "刷新收件箱",
+        "delete_selected": "删除 ({{count}})",
+        "delete_selected_aria": "删除 {{count}} 条选中的消息",
+        "delete_all": "全部删除",
+        "delete_all_aria": "删除所有消息",
+        "new_message": "新短信",
+        "prev": "上一页",
+        "next": "下一页",
+        "mark_all_read": "全部标为已读",
+        "mark_all_read_aria": "将所有消息标记为已读",
+        "first_page": "转到第一页",
+        "prev_page": "转到上一页",
+        "next_page": "转到下一页",
+        "last_page": "转到最后一页"
+      },
+      "pagination": {
+        "total_one": "{{count}} 条消息",
+        "total_other": "{{count}} 条消息",
+        "page_info": "{{current}} / {{total}}",
+        "rows_per_page": "每页行数",
+        "page_label": "第 {{current}} 页，共 {{total}} 页",
+        "selected_info": "已选择 {{selected}} / {{total}}"
+      },
+      "error": {
+        "title": "加载消息失败",
+        "description_prefix": "加载消息失败"
+      },
+      "view_dialog": {
+        "title": "来自 {{sender}} 的消息",
+        "timestamp_aria": "{{timestamp}}"
+      },
+      "delete_single_confirm": {
+        "title": "删除消息",
+        "description": "确定要删除来自 {{sender}} 的这条消息吗？此操作不可撤销。",
+        "confirm": "删除",
+        "deleting": "删除中…"
+      },
+      "delete_all_confirm": {
+        "title": "删除所有消息",
+        "description": "确定要删除全部 {{count}} 条消息吗？此操作不可撤销。",
+        "confirm": "全部删除"
+      },
+      "delete_selected_confirm": {
+        "title": "删除选中的消息",
+        "description_one": "确定要删除 {{count}} 条选中的消息吗？此操作不可撤销。",
+        "description_other": "确定要删除 {{count}} 条选中的消息吗？此操作不可撤销。",
+        "confirm": "删除 ({{count}})",
+        "deleting": "删除中…"
+      },
+      "toast": {
+        "delete_success": "消息已删除",
+        "delete_error": "删除消息失败",
+        "delete_all_success": "所有消息已删除",
+        "delete_all_error": "删除消息失败",
+        "delete_selected_success_one": "已删除 {{count}} 条消息",
+        "delete_selected_success_other": "已删除 {{count}} 条消息",
+        "delete_selected_error": "删除选中的消息失败",
+        "mark_all_read_success": "所有消息已标记为已读"
+      },
+      "tabs": {
+        "all": "全部",
+        "unread": "未读",
+        "read": "已读"
+      },
+      "unread_aria": "未读消息",
+      "search": {
+        "placeholder": "搜索短信…",
+        "aria": "搜索短信"
+      },
+      "sort": {
+        "label": "排序",
+        "newest": "最新优先",
+        "oldest": "最早优先",
+        "aria": "排序方式"
+      }
+    },
+    "compose": {
+      "title": "新短信",
+      "description": "撰写并发送短信。",
+      "fields": {
+        "phone_label": "电话号码",
+        "phone_placeholder": "+1234567890",
+        "message_label": "消息",
+        "message_placeholder": "请输入您的消息...",
+        "char_counter": "{{count}}/{{max}}"
+      },
+      "unicode_indicator": "（Unicode）",
+      "limit_warning": "消息超过单条短信限制，将作为多部分发送。",
+      "buttons": {
+        "send": "发送",
+        "sending": "发送中…"
+      },
+      "toast": {
+        "success": "短信发送成功",
+        "error": "发送短信失败"
+      }
+    }
   }
 }

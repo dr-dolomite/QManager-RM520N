@@ -473,6 +473,73 @@ ensure_zoneinfo_packages() {
     fi
 }
 
+# --- Install Bundled Binaries -------------------------------------------------
+
+# Copies the first-party binaries bundled in dependencies/ (atcli_smd11,
+# sms_tool, qmanager_discord) into $BIN_DIR.
+#
+# Runs UNCONDITIONALLY, even with --skip-packages (mirrors remove_conflicts()
+# and ensure_zoneinfo_packages() above in main()): OTA upgrades invoke this
+# installer with --skip-packages, which gates install_dependencies(). These
+# binaries are app payload, not Entware opkg packages — unlike the one-time
+# package installs that legitimately stay skippable, they ship a new revision
+# with every QManager release and MUST be refreshed on every upgrade. This was
+# the root cause of the SMS OTA-upgrade bug: devices that OTA'd to v0.1.13 kept
+# the OLD unpatched sms_tool (compiled default /dev/ttyUSB0) because the copy
+# was gated behind install_dependencies(), while v0.1.13's CGI calls sms_tool
+# without -d /dev/smd11, relying on the new patched binary's smd11 default.
+#
+# Each binary is skipped via `cmp -s` if the bundled copy is byte-identical to
+# what's already installed, avoiding a needless UBIFS rewrite on every OTA.
+install_bundled_binaries() {
+    step "Installing bundled binaries"
+
+    # --- atcli_smd11 (AT command transport — direct /dev/smd11 access) --------
+    if [ -f "$SRC_DEPS/atcli_smd11" ]; then
+        if [ -x "$BIN_DIR/atcli_smd11" ] && cmp -s "$SRC_DEPS/atcli_smd11" "$BIN_DIR/atcli_smd11"; then
+            info "atcli_smd11 already current"
+        else
+            install_file "$SRC_DEPS/atcli_smd11" "$BIN_DIR/atcli_smd11" 755 \
+                || die "Failed to install atcli_smd11"
+            info "atcli_smd11 installed to $BIN_DIR/atcli_smd11"
+        fi
+    elif [ -x "$BIN_DIR/atcli_smd11" ]; then
+        info "atcli_smd11 already installed"
+    else
+        die "atcli_smd11 not found in $SRC_DEPS and not installed on device"
+    fi
+
+    # --- sms_tool (SMS send/recv/delete — handles multi-part reassembly) ------
+    if [ -f "$SRC_DEPS/sms_tool" ]; then
+        if [ -x "$BIN_DIR/sms_tool" ] && cmp -s "$SRC_DEPS/sms_tool" "$BIN_DIR/sms_tool"; then
+            info "sms_tool already current"
+        else
+            install_file "$SRC_DEPS/sms_tool" "$BIN_DIR/sms_tool" 755 \
+                || die "Failed to install sms_tool"
+            info "sms_tool installed to $BIN_DIR/sms_tool"
+        fi
+    elif [ -x "$BIN_DIR/sms_tool" ]; then
+        info "sms_tool already installed"
+    else
+        warn "sms_tool not found — SMS features will not work"
+    fi
+
+    # --- qmanager_discord (optional Discord bot binary) -----------------------
+    if [ -f "$SRC_DEPS/qmanager_discord" ]; then
+        if [ -x "$BIN_DIR/qmanager_discord" ] && cmp -s "$SRC_DEPS/qmanager_discord" "$BIN_DIR/qmanager_discord"; then
+            info "qmanager_discord already current"
+        else
+            install_file "$SRC_DEPS/qmanager_discord" "$BIN_DIR/qmanager_discord" 755 \
+                || warn "Failed to install qmanager_discord"
+            info "qmanager_discord installed to $BIN_DIR/qmanager_discord"
+        fi
+    elif [ -x "$BIN_DIR/qmanager_discord" ]; then
+        info "qmanager_discord already installed"
+    else
+        info "qmanager_discord not bundled — Discord bot feature disabled"
+    fi
+}
+
 # --- Install Dependencies ----------------------------------------------------
 
 install_dependencies() {
@@ -531,38 +598,9 @@ install_dependencies() {
         info "www-data added to dialout via /etc/group fallback"
     fi
 
-    # --- atcli_smd11 (AT command transport — direct /dev/smd11 access) --------
-    if [ -f "$SRC_DEPS/atcli_smd11" ]; then
-        install_file "$SRC_DEPS/atcli_smd11" "$BIN_DIR/atcli_smd11" 755 \
-            || die "Failed to install atcli_smd11"
-        info "atcli_smd11 installed to $BIN_DIR/atcli_smd11"
-    elif [ -x "$BIN_DIR/atcli_smd11" ]; then
-        info "atcli_smd11 already installed"
-    else
-        die "atcli_smd11 not found in $SRC_DEPS and not installed on device"
-    fi
-
-    # --- sms_tool (SMS send/recv/delete — handles multi-part reassembly) ------
-    if [ -f "$SRC_DEPS/sms_tool" ]; then
-        install_file "$SRC_DEPS/sms_tool" "$BIN_DIR/sms_tool" 755 \
-            || die "Failed to install sms_tool"
-        info "sms_tool installed to $BIN_DIR/sms_tool"
-    elif [ -x "$BIN_DIR/sms_tool" ]; then
-        info "sms_tool already installed"
-    else
-        warn "sms_tool not found — SMS features will not work"
-    fi
-
-    # --- qmanager_discord (optional Discord bot binary) -----------------------
-    if [ -f "$SRC_DEPS/qmanager_discord" ]; then
-        install_file "$SRC_DEPS/qmanager_discord" "$BIN_DIR/qmanager_discord" 755 \
-            || warn "Failed to install qmanager_discord"
-        info "qmanager_discord installed to $BIN_DIR/qmanager_discord"
-    elif [ -x "$BIN_DIR/qmanager_discord" ]; then
-        info "qmanager_discord already installed"
-    else
-        info "qmanager_discord not bundled — Discord bot feature disabled"
-    fi
+    # Bundled first-party binaries (atcli_smd11, sms_tool, qmanager_discord) are
+    # installed unconditionally by install_bundled_binaries(), called earlier in
+    # main() — NOT here — so they refresh on OTA even with --skip-packages.
 
     # --- Entware bootstrap -------------------------------------------------------
     # If opkg is not installed, bootstrap Entware from scratch.
@@ -2089,7 +2127,7 @@ main() {
     printf "  ══════════════════════════════════════════\n"
 
     # Calculate steps: preflight always runs; others are conditional
-    TOTAL_STEPS=4  # preflight + setup_ssh_early + stop_services + cleanup_legacy_scripts
+    TOTAL_STEPS=5  # preflight + install_bundled_binaries + setup_ssh_early + stop_services + cleanup_legacy_scripts
     [ "$DO_PACKAGES" = "1" ] && TOTAL_STEPS=$(( TOTAL_STEPS + 1 ))
     [ "$DO_FRONTEND" = "1" ] && TOTAL_STEPS=$(( TOTAL_STEPS + 2 ))  # backup + frontend
     [ "$DO_BACKEND" = "1" ] && TOTAL_STEPS=$(( TOTAL_STEPS + 2 ))   # backend + udev
@@ -2106,6 +2144,10 @@ main() {
     # pass that flag, so gating this behind install_dependencies() would leave
     # the timezone-apply fix silently broken for every in-app-updated device.
     ensure_zoneinfo_packages
+
+    # install_bundled_binaries runs even with --skip-packages — see its
+    # doc-comment above for why (SMS OTA-upgrade bug root cause).
+    install_bundled_binaries
 
     [ "$DO_PACKAGES" = "1" ] && install_dependencies
 

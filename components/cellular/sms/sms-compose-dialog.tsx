@@ -3,6 +3,7 @@
 import * as React from "react";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import { useTranslation } from "react-i18next";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -34,6 +35,7 @@ export default function SmsComposeDialog({
   onSend,
   isSaving,
 }: SmsComposeDialogProps) {
+  const { t } = useTranslation("cellular");
   const [phone, setPhone] = React.useState("");
   const [message, setMessage] = React.useState("");
 
@@ -52,12 +54,12 @@ export default function SmsComposeDialog({
 
     const success = await onSend(phone.trim(), message);
     if (success) {
-      toast.success("SMS sent successfully");
+      toast.success(t("sms.compose.toast.success"));
       setPhone("");
       setMessage("");
       onOpenChange(false);
     } else {
-      toast.error("Failed to send SMS");
+      toast.error(t("sms.compose.toast.error"));
     }
   };
 
@@ -73,18 +75,18 @@ export default function SmsComposeDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>New Message</DialogTitle>
+          <DialogTitle>{t("sms.compose.title")}</DialogTitle>
           <DialogDescription>
-            Compose and send an SMS message.
+            {t("sms.compose.description")}
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSend} className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="sms-phone">Phone Number</Label>
+            <Label htmlFor="sms-phone">{t("sms.compose.fields.phone_label")}</Label>
             <Input
               id="sms-phone"
               type="tel"
-              placeholder="+1234567890"
+              placeholder={t("sms.compose.fields.phone_placeholder")}
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
               disabled={isSaving}
@@ -92,7 +94,7 @@ export default function SmsComposeDialog({
           </div>
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <Label htmlFor="sms-message">Message</Label>
+              <Label htmlFor="sms-message">{t("sms.compose.fields.message_label")}</Label>
               <span
                 className={`text-xs ${
                   isOverLimit
@@ -102,13 +104,13 @@ export default function SmsComposeDialog({
                       : "text-muted-foreground"
                 }`}
               >
-                {charCount}/{maxChars}
-                {isUcs2 && " (Unicode)"}
+                {t("sms.compose.fields.char_counter", { count: charCount, max: maxChars })}
+                {isUcs2 && t("sms.compose.unicode_indicator")}
               </span>
             </div>
             <Textarea
               id="sms-message"
-              placeholder="Type your message..."
+              placeholder={t("sms.compose.fields.message_placeholder")}
               value={message}
               onChange={(e) => setMessage(e.target.value)}
               disabled={isSaving}
@@ -117,8 +119,7 @@ export default function SmsComposeDialog({
             />
             {isOverLimit && (
               <p className="text-xs text-destructive">
-                Message exceeds single SMS limit. It will be sent as multiple
-                parts.
+                {t("sms.compose.limit_warning")}
               </p>
             )}
           </div>
@@ -129,16 +130,16 @@ export default function SmsComposeDialog({
               onClick={() => onOpenChange(false)}
               disabled={isSaving}
             >
-              Cancel
+              {t("actions.cancel", { ns: "common" })}
             </Button>
             <Button type="submit" disabled={isSaving || !isValid}>
               {isSaving ? (
                 <>
                   <Loader2 className="size-4 animate-spin" />
-                  Sending&hellip;
+                  {t("sms.compose.buttons.sending")}
                 </>
               ) : (
-                "Send"
+                t("sms.compose.buttons.send")
               )}
             </Button>
           </DialogFooter>

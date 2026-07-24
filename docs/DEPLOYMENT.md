@@ -382,6 +382,7 @@ The installer is idempotent — re-running updates rather than duplicates. It ha
 - Stopping existing services (filesystem-driven scan of `/lib/systemd/system/qmanager-*.service`, batched into a single `systemctl stop` call so systemd shuts them down in parallel; long-running daemons set `TimeoutStopSec=10` so a wedged service caps the wait at 10s instead of systemd's 90s default)
 - Removing orphaned daemons/units/libs not present in the current source tree (`cleanup_legacy_scripts`)
 - Removing conflicting packages (`socat`, `socat-at-bridge`) even with `--skip-packages`
+- Deploying the bundled first-party binaries (`atcli_smd11`, `sms_tool`, `qmanager_discord`) even with `--skip-packages` — `install_bundled_binaries()` runs unconditionally in `main()`, so an OTA/in-app "Software Update" upgrade (which always passes `--skip-packages`) still refreshes them; each copy is skipped via `cmp -s` when the on-device binary is already byte-identical, avoiding a needless UBIFS write. Entware/opkg packages (jq, dropbear, sudo, lighttpd) stay gated inside `install_dependencies()` and are the *only* thing `--skip-packages` actually skips
 - Re-enabling services (symlink-gated: services are only re-enabled if their `multi-user.target.wants/` symlink existed pre-upgrade — no UCI involved on this platform)
 - AT stack health check (3× `qcmd 'ATI'` retries, warn-only) and poller health check after completion
 

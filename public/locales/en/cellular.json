@@ -434,5 +434,136 @@
     "default_balanced_name": "Balanced",
     "default_gaming_name": "Gaming",
     "default_streaming_name": "Streaming"
+  },
+  "sms": {
+    "page": {
+      "title": "SMS Center",
+      "description": "View, manage, and send SMS messages from your modem."
+    },
+    "inbox": {
+      "title": "Inbox",
+      "description": "View and manage your SMS messages",
+      "storage_suffix": " — {{used}}/{{total}} messages stored",
+      "tabs": {
+        "all": "All",
+        "unread": "Unread",
+        "read": "Read"
+      },
+      "unread_aria": "Unread",
+      "table": {
+        "headers": {
+          "from": "From",
+          "message": "Message",
+          "date": "Date"
+        },
+        "actions": {
+          "open_menu": "Open menu",
+          "view": "View",
+          "delete": "Delete"
+        },
+        "empty_row": "No messages found.",
+        "empty_unread": "No unread messages.",
+        "empty_read": "No read messages.",
+        "select_all_aria": "Select all",
+        "select_row_aria": "Select row",
+        "sim_badge": "SIM",
+        "empty_search": "No messages match your search."
+      },
+      "empty_state": {
+        "title": "No messages",
+        "description": "Your inbox is empty. Send a new message to get started."
+      },
+      "buttons": {
+        "refresh_aria": "Refresh inbox",
+        "delete_selected": "Delete ({{count}})",
+        "delete_selected_aria": "Delete {{count}} selected",
+        "delete_all": "Delete All",
+        "delete_all_aria": "Delete all messages",
+        "new_message": "New Message",
+        "mark_all_read": "Mark all read",
+        "mark_all_read_aria": "Mark all as read",
+        "prev": "Prev",
+        "next": "Next",
+        "first_page": "First page",
+        "prev_page": "Previous page",
+        "next_page": "Next page",
+        "last_page": "Last page"
+      },
+      "pagination": {
+        "total_one": "{{count}} message",
+        "total_other": "{{count}} messages",
+        "page_info": "{{current}} / {{total}}",
+        "rows_per_page": "Rows per page",
+        "page_label": "Page {{current}} of {{total}}",
+        "selected_info": "{{selected}} of {{total}} selected"
+      },
+      "error": {
+        "title": "Failed to load messages",
+        "description_prefix": "Couldn't load your SMS inbox"
+      },
+      "view_dialog": {
+        "title": "Message from {{sender}}",
+        "timestamp_aria": "{{timestamp}}"
+      },
+      "delete_single_confirm": {
+        "title": "Delete Message",
+        "description": "Are you sure you want to delete this message from {{sender}}? This action cannot be undone.",
+        "confirm": "Delete",
+        "deleting": "Deleting…"
+      },
+      "delete_all_confirm": {
+        "title": "Delete All Messages",
+        "description": "Are you sure you want to delete all {{count}} messages? This action cannot be undone.",
+        "confirm": "Delete All"
+      },
+      "delete_selected_confirm": {
+        "title": "Delete Selected Messages",
+        "description_one": "Are you sure you want to delete {{count}} selected message? This action cannot be undone.",
+        "description_other": "Are you sure you want to delete {{count}} selected messages? This action cannot be undone.",
+        "confirm": "Delete ({{count}})",
+        "deleting": "Deleting…"
+      },
+      "toast": {
+        "delete_success": "Message deleted",
+        "delete_error": "Failed to delete message",
+        "delete_all_success": "All messages deleted",
+        "delete_all_error": "Failed to delete messages",
+        "delete_selected_success_one": "{{count}} message deleted",
+        "delete_selected_success_other": "{{count}} messages deleted",
+        "delete_selected_error": "Failed to delete selected messages",
+        "mark_all_read_success": "All messages marked as read"
+      },
+      "search": {
+        "placeholder": "Search messages…",
+        "aria": "Search messages"
+      },
+      "sort": {
+        "label": "Sort by",
+        "newest": "Newest",
+        "oldest": "Oldest",
+        "aria": "Sort messages"
+      }
+    },
+    "compose": {
+      "title": "New Message",
+      "description": "Compose and send an SMS message.",
+      "fields": {
+        "phone_label": "Phone Number",
+        "phone_placeholder": "+1234567890",
+        "message_label": "Message",
+        "message_placeholder": "Type your message...",
+        "char_counter": "{{count}}/{{max}}"
+      },
+      "unicode_indicator": " (Unicode)",
+      "limit_warning": "Message exceeds single SMS limit. It will be sent as multiple parts.",
+      "buttons": {
+        "send": "Send",
+        "sending": "Sending…"
+      },
+      "toast": {
+        "success": "SMS sent successfully",
+        "error": "Failed to send SMS"
+      }
+    }
   }
 }

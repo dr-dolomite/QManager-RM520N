@@ -434,5 +434,136 @@
     "default_balanced_name": "Seimbang",
     "default_gaming_name": "Game",
     "default_streaming_name": "Streaming"
+  },
+  "sms": {
+    "page": {
+      "title": "Pusat SMS ",
+      "description": "Lihat, kelola, dan kirim pesan SMS dari modem Anda."
+    },
+    "inbox": {
+      "title": "Kotak Masuk",
+      "description": "Lihat dan kelola pesan SMS Anda.",
+      "storage_suffix": " — {{used}}/{{total}} pesan tersimpan",
+      "table": {
+        "headers": {
+          "from": "Dari",
+          "message": "Pesan",
+          "date": "Tanggal"
+        },
+        "actions": {
+          "open_menu": "Buka menu",
+          "view": "Lihat",
+          "delete": "Hapus"
+        },
+        "empty_row": "Tidak ada pesan ditemukan.",
+        "select_all_aria": "Pilih semua",
+        "select_row_aria": "Pilih baris",
+        "sim_badge": "SIM",
+        "empty_unread": "Tidak ada pesan belum dibaca.",
+        "empty_read": "Tidak ada pesan dibaca.",
+        "empty_search": "Tidak ada pesan yang cocok dengan pencarian Anda."
+      },
+      "empty_state": {
+        "title": "Belum ada pesan",
+        "description": "Pesan yang Anda terima akan muncul di sini. Kirim pesan untuk memulai."
+      },
+      "buttons": {
+        "refresh_aria": "Muat ulang kotak masuk",
+        "delete_selected": "Hapus ({{count}})",
+        "delete_selected_aria": "Hapus {{count}} terpilih",
+        "delete_all": "Hapus Semua",
+        "delete_all_aria": "Hapus semua pesan",
+        "new_message": "Pesan Baru",
+        "prev": "Sebelum",
+        "next": "Selanjutnya",
+        "mark_all_read": "Tandai semua dibaca",
+        "mark_all_read_aria": "Tandai semua pesan sebagai dibaca",
+        "first_page": "Ke halaman pertama",
+        "prev_page": "Ke halaman sebelumnya",
+        "next_page": "Ke halaman berikutnya",
+        "last_page": "Ke halaman terakhir"
+      },
+      "pagination": {
+        "total_one": "{{count}} pesan",
+        "total_other": "{{count}} pesan",
+        "page_info": "{{current}} / {{total}}",
+        "rows_per_page": "Baris per halaman",
+        "page_label": "Halaman {{current}} dari {{total}}",
+        "selected_info": "{{selected}} dari {{total}} dipilih"
+      },
+      "error": {
+        "title": "Gagal memuat pesan",
+        "description_prefix": "Gagal memuat pesan"
+      },
+      "view_dialog": {
+        "title": "Pesan dari {{sender}}",
+        "timestamp_aria": "{{timestamp}}"
+      },
+      "delete_single_confirm": {
+        "title": "Hapus Pesan",
+        "description": "Apakah Anda yakin ingin menghapus pesan ini dari {{sender}}? Tindakan ini tidak dapat dibatalkan.",
+        "confirm": "Menghapus",
+        "deleting": "Menghapus…"
+      },
+      "delete_all_confirm": {
+        "title": "Hapus Semua Pesan",
+        "description": "Apakah Anda yakin ingin menghapus semua {{count}} messages? Tindakan ini tidak dapat dibatalkan.",
+        "confirm": "Hapus semua"
+      },
+      "delete_selected_confirm": {
+        "title": "Hapus pesan terpilih",
+        "description_one": "Apakah Anda yakin ingin menghapus {{count}} pesan terpilih? Tindakan ini tidak dapat dibatalkan.",
+        "description_other": "Apakah Anda yakin ingin menghapus {{count}} pesan terpilih? Tindakan ini tidak dapat dibatalkan.",
+        "confirm": "Menghapus ({{count}})",
+        "deleting": "Menghapus…"
+      },
+      "toast": {
+        "delete_success": "Pesan berhasil dihapus",
+        "delete_error": "Pesan gagal dihapus",
+        "delete_all_success": "Semua pesan berhasil dihapus",
+        "delete_all_error": "Gagal menghapus pesan",
+        "delete_selected_success_one": "{{count}} pesan terhapus",
+        "delete_selected_success_other": "{{count}} pesan terhapus",
+        "delete_selected_error": "Gagal menghapus pesan yang dipilih",
+        "mark_all_read_success": "Semua pesan ditandai sebagai dibaca"
+      },
+      "tabs": {
+        "all": "Semua",
+        "unread": "Belum dibaca",
+        "read": "Dibaca"
+      },
+      "unread_aria": "Pesan belum dibaca",
+      "search": {
+        "placeholder": "Cari pesan…",
+        "aria": "Cari pesan"
+      },
+      "sort": {
+        "label": "Urutkan",
+        "newest": "Terbaru dulu",
+        "oldest": "Terlama dulu",
+        "aria": "Urutan"
+      }
+    },
+    "compose": {
+      "title": "Pesan baru",
+      "description": "Tulis dan kirim pesan SMS.",
+      "fields": {
+        "phone_label": "Nomor Telepon",
+        "phone_placeholder": "+1234567890",
+        "message_label": "Pesan",
+        "message_placeholder": "Tulis Pesan...",
+        "char_counter": "{{count}}/{{max}}"
+      },
+      "unicode_indicator": " (Unicode)",
+      "limit_warning": "Pesan melebihi batas satu SMS. Pesan akan dikirim dalam beberapa bagian.",
+      "buttons": {
+        "send": "Kirim",
+        "sending": "Mengirim…"
+      },
+      "toast": {
+        "success": "SMS berhasil terkirim",
+        "error": "SMS gagal terkirim"
+      }
+    }
   }
 }

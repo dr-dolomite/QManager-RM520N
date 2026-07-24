@@ -38,6 +38,10 @@ The bundled `/usr/bin/sms_tool` is a patched fork of [`obsy/sms_tool`](https://g
 
 Because the patched binary defaults to `/dev/smd11` and stays silent on the SMD device, the CGI callers dropped the `-d /dev/smd11` flag and the `2>/dev/null` termios-noise crutch that the previous unpatched binary needed.
 
+### Deployment (install + OTA)
+
+`/usr/bin/sms_tool` is laid down by `install_bundled_binaries()` in `install_rm520n.sh`, alongside `atcli_smd11` and `qmanager_discord`. That function runs **unconditionally** in `main()` — outside the `--skip-packages` gate — so every OTA / in-app "Software Update" upgrade (which always passes `--skip-packages`) refreshes the binary, `cmp -s`-skipping the copy only when the on-device file is already byte-identical. This matters because the CGI callers rely on the patched binary's `/dev/smd11` default (they invoke `sms_tool` with **no** `-d` flag): previously the copy was stranded inside `install_dependencies()`, which `--skip-packages` skips, so OTA-upgraded devices kept the old unpatched binary (compiled default `/dev/ttyUSB0`) and the inbox came up empty. See [`../DEPLOYMENT.md`](../DEPLOYMENT.md).
+
 ### Command surface used by QManager
 
 ```sh
