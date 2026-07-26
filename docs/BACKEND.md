@@ -1037,7 +1037,7 @@ For request/response schemas, see `API-REFERENCE.md`.
 |--------|--------|-------------|
 | `profiles/apply.sh` | POST | Spawn `qmanager_profile_apply` for a profile ID |
 | `profiles/apply_status.sh` | GET | Poll apply progress from `qmanager_profile_state.json` |
-| `profiles/current_settings.sh` | GET | Read current modem settings (APN, IMEI, TTL) for comparison |
+| `profiles/current_settings.sh` | GET | Read current modem settings for form pre-fill in ONE compound AT round-trip (`AT+CGDCONT?;+CGSN;+QCCID;+CGPADDR;+QMAP="WWAN";+QSPN`) — returns `apn_profiles`, `imei`, `iccid`, `active_cid`, plus carrier identity `spn`/`mcc`/`mnc`. No TTL. Always 200; carrier fields fail soft to `""` |
 | `profiles/deactivate.sh` | POST | Clear active profile marker |
 | `profiles/delete.sh` | POST | Delete a profile by ID |
 | `profiles/get.sh` | GET | Return full profile JSON for a profile ID |
