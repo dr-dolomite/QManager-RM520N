@@ -53,6 +53,94 @@ devices and fixed in `install_rm520n.sh` / `qmanager_setup`):
 > `profiles/`, and similar. That ownership is a known, accepted boundary — see
 > the "Honest threat model" section in [sim-detection.md](sim-detection.md).
 
+`/var/spool/cron/crontabs` is covered by the same rule and for the same reason,
+even though **nothing on this device consumes it** — see
+[scheduled-timers.md](scheduled-timers.md#varspoolcroncrontabs-is-still-created-and-still-re-tightened).
+
+### ⚠️ Temp-file rule: in-directory `mktemp`, and set mode/owner *before* the rename
+
+**A temp file destined for `/etc` or `/usrdata` must be created with an
+in-directory `mktemp` template — never a bare `mktemp`.**
+
+```sh
+# WRONG — lands in /tmp
+tmp=$(mktemp)
+
+# RIGHT — lands beside the destination
+tmp=$(mktemp /etc/qmanager/.ping_profile.json.XXXXXX)
+```
+
+`mv` is only an atomic `rename(2)` **within one filesystem**. `/tmp` is tmpfs,
+`/etc` and `/usrdata` are UBIFS — different filesystems. A cross-filesystem
+`mv` gets `EXDEV` from `rename(2)` and BusyBox `mv` silently falls back to
+copy + unlink, so the destination is briefly a half-written file rather than
+flipping from old to new in one step. On flash that means a power loss
+mid-install can leave a truncated config behind.
+
+**Set mode *and* owner on the temp file before the rename, not on the
+destination after it.** BusyBox `mktemp` creates its file `0600 root:root`, and
+`mv` carries **both** mode and owner to the destination. The `chmod`-after-`mv`
+shape therefore has two defects, not one: a window where the live file is
+`0600`, and a silent ownership change on the destination.
+
+```sh
+chmod 644 "$tmp"
+chown www-data:www-data "$tmp" 2>/dev/null || true   # || true: missing user must not abort
+mv "$tmp" "$target"
+```
+
+Reference implementations in `install_rm520n.sh`: `migrate_sim_registry()`,
+`migrate_ping_targets()`, `migrate_ping_environment()`,
+`prune_stale_ping_environment()`.
+
+> ℹ️ NOTE: `stop_services()` runs before `install_backend()`, so the poller and
+> every other QManager daemon are already stopped when these migrations run —
+> the justification is crash-atomicity on flash and the mode/owner defect, not
+> a concurrent-reader race. The one genuine live-writer case is
+> `/etc/qmanager/ping_profile.json`: lighttpd is **not** stopped during an OTA,
+> so `settings/ping_profile.sh` and `monitoring/watchdog.sh` can still write it.
+> Even there, an atomic rename does not close the read-modify-write race — no
+> lock is held on either side, and none was added.
+
+### ⚠️ `set -e` rule: functions called bare from `install_backend()` must be fail-soft
+
+`install_rm520n.sh` runs under `set -e`. Any function invoked **bare** (not in an
+`if`, `&&`, or `||`) from `install_backend()` aborts the entire installer on a
+non-zero return — mid-OTA, *after* `stop_services()` has already torn down every
+QManager daemon, with no rollback. A half-finished install is far worse than a
+skipped migration.
+
+So every such function warns to stderr and `return 0` on failure:
+
+```sh
+tmp=$(mktemp /etc/qmanager/.sim_registry.json.XXXXXX) || {
+    echo "  WARNING: failed to create temp file for sim_registry.json seed — skipping" >&2
+    return 0
+}
+```
+
+The same applies to bare commands inside them: `qm_config_set` /
+`qm_config_delete` calls in `migrate_watchcat_fail_threshold()` carry `|| true`
+(they return 1 on a `jq` failure over a corrupt `qmanager.conf`), and the `cp`
+in `install_ping_profile()` and the backup `cp` in `migrate_ping_environment()`
+are `if`-guarded.
+
+### `/etc/qmanager/environment` is deliberately `root:root`
+
+`install_backend()` does a blanket `chown -R www-data:www-data "$CONF_DIR"`,
+then immediately re-pins one file back:
+
+| File | Owner | Why |
+|------|-------|-----|
+| `/etc/qmanager/ping_profile.json` | `www-data:www-data` | The CGI genuinely writes it (`settings/ping_profile.sh`, `monitoring/watchdog.sh`). |
+| `/etc/qmanager/environment` | `root:root` `0644` | It is the systemd `EnvironmentFile=` for four **root-run** daemons (`qmanager-poller`, `qmanager-ping`, `qmanager-watchcat`, `qmanager-discord`) and **no CGI reads or writes it**. `www-data` ownership would hand a compromised web user in-place environment-variable injection into root daemons. `0644` is all any consumer needs. |
+
+The re-pin is unconditional on every install and OTA, so already-fielded devices
+are corrected — without it, the blanket `chown` above would leave the file
+`www-data`-owned forever. The two migration functions that rewrite this file
+(`migrate_ping_environment()`, `prune_stale_ping_environment()`) `chown root:root`
+their temp file to match; keep all three in sync if any changes.
+
 ---
 
 ## Device permissions (/dev/smd11 & udev)

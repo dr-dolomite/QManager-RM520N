@@ -15,7 +15,7 @@ fi
 rm -f /usr/.qm_rw_test
 
 # Ensure required directories exist
-mkdir -p /var/lock /etc/qmanager /tmp/quecmanager /var/spool/cron/crontabs
+mkdir -p /var/lock /etc/qmanager /tmp/quecmanager
 # /usr/lib/qmanager is created with an explicit 0755 rather than via `mkdir -p`,
 # which honours the ambient umask. Root helpers (qmanager_*_apply, reachable by
 # www-data through NOPASSWD sudo) `.` source libraries from here AS ROOT, and
@@ -24,8 +24,23 @@ mkdir -p /var/lock /etc/qmanager /tmp/quecmanager /var/spool/cron/crontabs
 # boot, so it is also the last line of defence if the directory is ever removed
 # and recreated outside the installer. See install_rm520n.sh's SECURITY note.
 install -d -o root -g root -m 0755 /usr/lib/qmanager
-# CGI (www-data) writes cron entries for root — needs write access to spool dir
-chmod 777 /var/spool/cron/crontabs
+# /var/spool/cron/crontabs is created (and its mode RE-ASSERTED) here for the
+# same self-healing reason as /usr/lib/qmanager above, even though nothing on
+# RM520N-GL runs crond — no unit, no boot symlink, no reader of this directory
+# at all. It is kept only so qmanager_update's scrub_legacy_cron() has a
+# stable path to scrub old QManager cron markers from on every OTA. It is
+# CREATED AND RE-TIGHTENED here rather than simply left alone because
+# QManager's own installer historically shipped it 0777 on persistent flash
+# (ubi0:rootfs, not tmpfs) — a device that already booted the old `chmod 777
+# /var/spool/cron/crontabs` line would stay world-writable forever if this
+# were simply removed with nothing in its place. Running `install -d` on
+# every boot self-heals those devices on their next reboot.
+# A world-writable spool is a latent root-escalation vector even with no
+# crond running today: scrub_legacy_cron writes a predictable
+# "${cron_file}.tmp" inside it, and any future release (or a manually
+# started crond) that read root's crontab would execute attacker-planted
+# content as root.
+install -d -o root -g root -m 0755 /var/spool/cron/crontabs
 
 # AT device permissions — www-data (via dialout group) needs read/write access.
 # Primary mechanism: /etc/udev/rules.d/99-qmanager-smd11.rules fires on the

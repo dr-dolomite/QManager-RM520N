@@ -690,21 +690,32 @@ One-shot check that runs after boot if `/etc/qmanager/imei_check_pending` exists
 
 Apply custom MTU from `/etc/firewall.user.mtu` to `rmnet_data*` interface at boot. The systemd unit has `ConditionPathExists=/etc/firewall.user.mtu` so it is a no-op if no custom MTU is configured.
 
-### 5.4 Cron-Driven
+### 5.4 Timer-Driven
 
-These are invoked by root's crontab entries written by CGI scripts.
+These are invoked by runtime-generated systemd `OnCalendar` timers, armed by the
+`qmanager_*_arm` root helpers that the CGI calls over `sudo -n`.
+
+> ⚠️ WARNING: RM520N-GL ships a BusyBox `crond` binary but **never runs it** — no
+> systemd unit, no boot symlink, no reader of `/var/spool/cron/crontabs/`. Every
+> schedule on this platform is a systemd timer. Anything in older docs or
+> comments describing a "crontab entry written by the CGI" describes code that
+> was a silent no-op and has since been replaced. See
+> [scheduled-timers.md](reference/scheduled-timers.md).
 
 #### `qmanager_scheduled_reboot`
 
 **Location:** `/usr/bin/qmanager_scheduled_reboot`
 
-Performs a scheduled reboot at the configured time. Crontab entry written by `system/settings.sh` when `sched_reboot_enabled=1`. Config: `qmanager.conf` section `settings`.
+Performs a scheduled reboot at the configured time. Fired by
+`qmanager-scheduled-reboot.timer`, which `system/settings.sh` (`save_scheduled_reboot`)
+arms via `sudo -n /usr/bin/qmanager_scheduled_reboot_arm` when `sched_reboot_enabled=1`.
+Config: `qmanager.conf` section `settings`.
 
 #### `qmanager_auto_update`
 
 **Location:** `/usr/bin/qmanager_auto_update`
 
-Checks GitHub for a newer release and spawns `qmanager_update install` if a newer version is available. Crontab entry written by `system/settings.sh` when `auto_update_enabled=1`. Config: `qmanager.conf` section `update`. Uses `semver_compare` from `semver.sh`.
+Checks GitHub for a newer release and spawns `qmanager_update install` if a newer version is available. Fired by `qmanager-auto-update.timer`, armed by `system/update.sh` (`save_auto_update`) via `sudo -n /usr/bin/qmanager_auto_update_arm` when `auto_update_enabled=1`. Config: `qmanager.conf` section `update`. Uses `semver_compare` from `semver.sh`.
 
 **Note on low-power scheduling:** Low-power mode configuration (start/end times, days) is stored in `qmanager.conf` section `settings` and managed by `system/settings.sh` CGI. The flag file `/tmp/qmanager_low_power_active` is checked by `alert_engine.sh` (which freezes all alert dispatch) and `events.sh` to suppress activity during low-power windows.
 
@@ -859,8 +870,9 @@ www-data ALL=(root) NOPASSWD: /usr/bin/qmanager_update
 | `ln -sf qmanager*.service` / `rm -f qmanager*.service` | `platform.sh` `svc_enable`/`svc_disable`; `tower/settings.sh`, `monitoring/watchdog.sh` |
 | `iptables*`, `ip6tables*`, `*-restore` | `platform.sh` `run_iptables`/`run_ip6tables`; `network/ttl.sh`, `qmanager_firewall` |
 | `/sbin/reboot` | `cgi_base.sh` `cgi_reboot_response`; `system/reboot.sh`; `qmanager_update` |
-| `/usr/bin/crontab` | `system/settings.sh` (scheduled reboot, tower schedule) — the auto-update path no longer uses crontab; it arms a systemd timer via `qmanager_auto_update_arm` |
 | `qmanager_auto_update_arm` | `system/update.sh` `save_auto_update` — arms/disarms `qmanager-auto-update.timer` live via its `/lib` boot symlink |
+| `qmanager_scheduled_reboot_arm` | `system/settings.sh` `save_scheduled_reboot` — arms/disarms `qmanager-scheduled-reboot.timer` |
+| `qmanager_tower_schedule_arm` | `tower/schedule.sh` — arms/clears the `qmanager-tower-schedule-apply`/`-clear` timer pair |
 | `qmanager_set_ssh_password` | `cgi_auth.sh` `qm_set_ssh_password`; `auth/ssh_password.sh` |
 | `qmanager_tailscale_mgr` | `vpn/tailscale.sh` |
 | `/usrdata/tailscale/tailscale` | `vpn/tailscale.sh` (status queries, `tailscale up`) |

@@ -13,9 +13,9 @@ but never runs it.** `which crond` finds `/usr/sbin/crond` (a BusyBox applet),
 which makes it *look* available, but there is no systemd unit that starts it,
 no boot symlink, and `/var/spool/cron/crontabs/` is empty. Any feature that
 `printf`'d a line into `/var/spool/cron/crontabs/root` succeeded at *writing*
-(the directory is world-writable) but the entry never fired — a silent no-op
-that showed a green success toast. `crond` being on `PATH` is the trap: the
-binary's presence is not evidence a daemon consumes crontabs.
+(the directory was world-writable at the time) but the entry never fired — a
+silent no-op that showed a green success toast. `crond` being on `PATH` is the
+trap: the binary's presence is not evidence a daemon consumes crontabs.
 
 The fix mirrors the proven auto-update and Custom SIM Profile scenario-schedule
 pattern: generate a systemd `.timer` unit at runtime whose `OnCalendar=` line
@@ -172,6 +172,68 @@ they are only ever started by their timer, never boot-enabled directly.
 - `qmanager_update` runs `scrub_legacy_cron()` on every OTA path, stripping the
   dead legacy cron markers left in `/var/spool/cron/crontabs/root` by the old
   no-op code so upgraded devices don't carry stale entries.
+- `uninstall_rm520n.sh` Step 11 scrubs the same file directly instead of shelling
+  out to `crontab`. On this device `crontab -l` errors outright (`can't open
+  'root'`), so the old `crontab -l | grep -v qmanager | crontab -` pipeline never
+  matched anything.
+
+---
+
+## `/var/spool/cron/crontabs` is still created, and still re-tightened
+
+Nothing reads this directory on RM520N-GL. It is retained for exactly one
+reason: it gives `scrub_legacy_cron()` (and the uninstaller's Step 11) a stable
+path to scrub, rather than having them guess.
+
+`qmanager_setup` creates it with `install -d -o root -g root -m 0755` on **every
+boot**. It previously shipped `chmod 777` — and this is a re-tighten, not a
+removal, because of where the directory lives:
+
+- Verified live, it was `drwxrwxrwx root:root`, empty, on **persistent flash**
+  (`ubi0:rootfs` — *not* tmpfs), created by QManager's own installer on install
+  day. A reboot does not reset it.
+- So simply deleting the `chmod 777` would have left every already-fielded
+  device world-writable forever: nothing else would ever visit the path again.
+  `install -d` re-applies owner and mode on every run, which is what makes
+  fielded devices self-heal. This is the same reasoning as the "Directory
+  creation rule: `install -d`, never `mkdir -p`" section in
+  [qmanager-independence.md](qmanager-independence.md).
+- The risk is latent rather than live: with no `crond` running, a world-writable
+  spool executes nothing today. But `scrub_legacy_cron()` writes a predictable
+  `${cron_file}.tmp` inside it, and any future release — or a manually started
+  `crond` — that read root's crontab would run attacker-planted content as root.
+
+> ⚠️ WARNING: **Timing.** `qmanager_setup` is a boot-time oneshot and is *not*
+> invoked by `qmanager_update` mid-OTA. The re-tighten therefore lands on the
+> **next reboot after** the update, not during it.
+
+Also verified live on the device: no `crond` process, no cron systemd unit, no
+`/etc/cron*`, and no `atd`. The BusyBox `crond`/`crontab` binaries exist and
+nothing launches them.
+
+## `scrub_legacy_cron()`: the `grep -v` exit-1 bug
+
+`grep` exits **1** when it selects no lines. For `grep -v PATTERN` that means
+*every* line matched the pattern — i.e. root's crontab consisted **entirely** of
+QManager markers, which is precisely the case the scrub exists for.
+
+The old code was:
+
+```sh
+grep -vE 'qmanager_…' "$cron_file" > "${cron_file}.tmp" 2>/dev/null \
+    && mv "${cron_file}.tmp" "$cron_file"
+log "Scrubbed legacy QManager cron markers from $cron_file"
+```
+
+The `&&` short-circuited on that exit 1, so the `mv` never ran, every marker
+stayed in place — and the unconditional `log` still reported success.
+
+Both scrubs (`qmanager_update`'s `scrub_legacy_cron()` and the uninstaller's
+Step 11) now capture the exit status and treat **0 and 1 alike**; only `>= 2` is
+a real `grep` error. They also `chmod 600` the temp file before the rename
+(crontabs are conventionally `0600 root:root`, and the `>` redirect creates the
+temp with the ambient umask), and log success **only if the `mv` actually
+succeeded**.
 
 ---
 

@@ -98,9 +98,33 @@ scrub_legacy_cron() {
     local cron_file="/var/spool/cron/crontabs/root"
     [ -f "$cron_file" ] || return 0
     if grep -qE 'qmanager_scheduled_reboot|qmanager_tower_schedule|qmanager_low_power' "$cron_file" 2>/dev/null; then
-        grep -vE 'qmanager_scheduled_reboot|qmanager_tower_schedule|qmanager_low_power' "$cron_file" > "${cron_file}.tmp" 2>/dev/null \
-            && mv "${cron_file}.tmp" "$cron_file"
-        log "Scrubbed legacy QManager cron markers from $cron_file"
+        # grep exits 1 when it selects NO lines. For `grep -v` that means
+        # "every line was a qmanager marker" — i.e. the crontab consists
+        # ENTIRELY of our entries, which is the single most important case to
+        # scrub. An `&& mv` here would short-circuit on that exit 1, silently
+        # leave every marker in place, and still log success. So capture the
+        # status and treat 0 and 1 alike; only 2+ is a real grep error.
+        local rc=0
+        grep -vE 'qmanager_scheduled_reboot|qmanager_tower_schedule|qmanager_low_power' \
+            "$cron_file" > "${cron_file}.tmp" 2>/dev/null || rc=$?
+        if [ "$rc" -le 1 ]; then
+            # crontabs are conventionally 0600 root:root, and the redirect
+            # above creates the temp with the ambient umask. Set the mode
+            # before the rename so the live file is never briefly loosened.
+            chmod 600 "${cron_file}.tmp" 2>/dev/null || true
+            # Log success only if the rename actually happened. The old code
+            # got this right by accident via its `&& mv && log` chain; keep
+            # the property explicitly now that the chain is gone.
+            if mv "${cron_file}.tmp" "$cron_file"; then
+                log "Scrubbed legacy QManager cron markers from $cron_file"
+            else
+                rm -f "${cron_file}.tmp"
+                log "WARNING: could not replace $cron_file — legacy markers left in place"
+            fi
+        else
+            rm -f "${cron_file}.tmp"
+            log "WARNING: failed to scrub legacy cron markers from $cron_file"
+        fi
     fi
 }
 

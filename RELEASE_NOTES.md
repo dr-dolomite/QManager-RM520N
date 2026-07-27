@@ -20,6 +20,7 @@ Custom SIM Profiles gets a full redesign — a guided step-by-step wizard for cr
 - **Dismissing the banner asks first, and says what it means.** Closing the banner now opens a short confirmation that spells out the SIM's ID and makes clear you're silencing the alert for *that SIM only* — every other card still raises it, and you can undo it from Tracked SIMs.
 - **A friendlier "page not found."** Hit a broken bookmark or a mistyped link and you now land on a branded 404 that speaks QManager's language — an animated signal meter reaching for a lock it can't get, the exact address you asked for, and a one-tap **Return to Dashboard** — instead of a blank error page (new `not-found` route styled to match the login/splash screens; works in light and dark).
 - **SMS Center now speaks all five languages.** The inbox, compose dialog, and message views under **Cellular → SMS Center** are fully translated into English, Simplified Chinese (简体中文), Traditional Chinese (繁體中文), Italian (Italiano), and Indonesian (Bahasa Indonesia), matching the rest of the localized interface.
+- **Your settings survive a power cut during an update.** Config files rewritten by an update are now swapped into place in a single step instead of being rewritten in the open, so losing power mid-update can no longer leave one half-written on flash (also cleans up leftover scheduling entries from pre-timer versions, which a bug could previously skip entirely).
 
 ## 🐛 Fixes
 
@@ -32,6 +33,8 @@ Custom SIM Profiles gets a full redesign — a guided step-by-step wizard for cr
 - **Tightened permissions on QManager's own program folder.** The folder holding the web console was world-writable, which could have let a local attacker swap in their own console program to be run with full privileges at the next start. Now locked down, and repaired automatically on update.
 - **Tightened permissions on the HTTPS certificate folder.** The certificate folder and the public certificate were world-writable, which could have let a local attacker replace them and intercept your connection to the QManager web interface. Both are now locked down, with the private key restricted on every update.
 - **Tightened permissions on the web root.** The folder QManager serves the web interface from was world-writable, which could have let a local attacker on the device tamper with the pages and scripts it serves. Now locked down, and repaired automatically on update.
+- **An update can no longer stop partway through.** On a small number of devices, a config check during the update could fail and take the whole update down with it — after QManager's services had already been shut down for the upgrade. That check now logs a warning and carries on.
+- **Tightened permissions on the scheduling folder and the background-service settings file.** Both were writable by the web interface, which could have let a local attacker influence code that runs with full privileges. The settings file is repaired the moment you update; the folder is repaired on your **next reboot after** updating, since that's when QManager's boot setup runs.
 
 ## 📥 Installation
 

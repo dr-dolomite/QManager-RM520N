@@ -1218,6 +1218,21 @@ install_backend() {
     mkdir -p "$CONF_DIR/profiles"
     chown -R www-data:www-data "$CONF_DIR"
 
+    # ...but NOT the daemon environment file. The blanket chown above is for
+    # the config files the CGI genuinely writes (auth.json, profiles, the
+    # various *_alerts.json). /etc/qmanager/environment is different: it is
+    # the systemd EnvironmentFile= for four ROOT-run daemons
+    # (qmanager-poller/-ping/-watchcat/-discord) and no CGI reads or writes
+    # it. Leaving it www-data-owned would give a compromised web user
+    # in-place environment-variable injection into root daemons — a
+    # straightforward privilege escalation. 0644 keeps it readable by
+    # everything that needs it. Re-asserted on every install/OTA so already
+    # fielded devices are corrected, not just fresh ones.
+    if [ -f "$CONF_DIR/environment" ]; then
+        chown root:root "$CONF_DIR/environment" 2>/dev/null || true
+        chmod 644 "$CONF_DIR/environment" 2>/dev/null || true
+    fi
+
     # Custom DNS needs a www-data-owned staging dir on /dev/ubi2_0 (same volume
     # as /etc/data/dnsmasq.conf) so the CGI can write the candidate config and
     # the final rename into place stays atomic. install -d self-heals owner/mode
@@ -1318,25 +1333,33 @@ install_backend() {
 migrate_watchcat_fail_threshold() {
     command -v qm_config_get >/dev/null 2>&1 || return 0
 
+    # qm_config_set/qm_config_delete (config.sh) return 1 on a jq failure —
+    # e.g. a corrupt/unparseable qmanager.conf — and this file runs under
+    # `set -e` with this function called bare from install_backend(), so an
+    # unguarded call here would abort the entire installer/OTA over a
+    # non-fatal config migration. `|| true` on each: worst case this one
+    # migration is skipped and retried next run: config.sh's writers are
+    # self-contained (temp file + gated mv), so a skip here cannot corrupt
+    # the config, only leave the old key(s) in place for the next install.
     local current legacy probe_interval
     current=$(qm_config_get watchcat fail_threshold "")
     if [ -n "$current" ]; then
-        qm_config_delete watchcat max_failures
+        qm_config_delete watchcat max_failures || true
     else
         legacy=$(qm_config_get watchcat max_failures "")
         if [ -n "$legacy" ]; then
-            qm_config_set watchcat fail_threshold "$legacy"
-            qm_config_delete watchcat max_failures
+            qm_config_set watchcat fail_threshold "$legacy" || true
+            qm_config_delete watchcat max_failures || true
             echo "  Migrated watchcat.max_failures -> watchcat.fail_threshold ($legacy)"
         else
-            qm_config_set watchcat fail_threshold 5
+            qm_config_set watchcat fail_threshold 5 || true
             echo "  Seeded watchcat.fail_threshold=5 (default)"
         fi
     fi
 
     probe_interval=$(qm_config_get watchcat probe_interval "")
     if [ -z "$probe_interval" ]; then
-        qm_config_set watchcat probe_interval 5
+        qm_config_set watchcat probe_interval 5 || true
         echo "  Seeded watchcat.probe_interval=5 (default)"
     fi
 }
@@ -1351,9 +1374,18 @@ install_ping_profile() {
     mkdir -p /etc/qmanager
     if [ ! -f "$target" ]; then
         if [ -f "$source_file" ]; then
-            cp "$source_file" "$target"
-            chmod 644 "$target"
-            echo "  Installed default ping profile (relaxed)"
+            # This file runs under `set -e` and install_ping_profile is
+            # called bare from install_backend() — a `cp` failure (e.g. disk
+            # full on /etc/qmanager's UBIFS volume) would otherwise abort the
+            # whole installer/OTA over a missing default profile, which the
+            # ping daemon can tolerate (it has in-code defaults) far better
+            # than a half-finished install can.
+            if cp "$source_file" "$target" 2>/dev/null; then
+                chmod 644 "$target"
+                echo "  Installed default ping profile (relaxed)"
+            else
+                echo "  WARNING: failed to install default ping profile to $target" >&2
+            fi
         else
             echo "  WARNING: $source_file missing from installer payload" >&2
         fi
@@ -1384,14 +1416,39 @@ migrate_ping_targets() {
     fi
 
     echo "  Migrating ping_profile.json from HTTP targets to ICMP targets..."
-    local tmp; tmp=$(mktemp)
+    # Temp file MUST live in the destination directory (/etc/qmanager), not a
+    # bare `mktemp` (which lands in /tmp): mv is only atomic (rename(2))
+    # within one filesystem, and /tmp is tmpfs while /etc is UBIFS — a
+    # cross-filesystem mv silently degrades to copy+unlink. That matters here
+    # for two reasons: (1) crash-atomicity against power loss mid-write on
+    # flash, and (2) lighttpd (and its CGI, settings/ping_profile.sh and
+    # monitoring/watchdog.sh) is NOT stopped during an OTA, so there IS a live
+    # concurrent writer for this specific file. Note this does not fully
+    # close that race: no lock is held on either side, so an atomic rename
+    # only turns a torn read into a lost update if the CGI writes between our
+    # read and our rename — out of scope here, no locking added.
+    local tmp
+    tmp=$(mktemp /etc/qmanager/.ping_profile.json.XXXXXX) || {
+        echo "  WARNING: failed to create temp file for ping_profile.json migration — skipping" >&2
+        return 0
+    }
     if jq \
         --arg t4 "1.1.1.1" \
         --arg t6 "2606:4700:4700::1111" \
         '.target_ipv4 = $t4 | .target_ipv6 = $t6 | del(.target_1) | del(.target_2)' \
         "$target" > "$tmp" 2>/dev/null; then
+        # Set mode AND owner on the temp file BEFORE the rename: BusyBox
+        # mktemp creates 0600 root:root, and mv carries both mode and owner
+        # to the destination. A chmod-after-mv (the old code) leaves a
+        # 0600-root window AND silently flips this file from
+        # www-data:www-data back to root:root on every run where the legacy
+        # gate fires — install_backend() chowns /etc/qmanager to
+        # www-data:www-data earlier in the same function, so www-data is the
+        # intended steady state. `|| true` on chown: a missing www-data user
+        # must not abort the install.
+        chmod 644 "$tmp"
+        chown www-data:www-data "$tmp" 2>/dev/null || true
         mv "$tmp" "$target"
-        chmod 644 "$target"
         echo "  Migrated $target to target_ipv4=1.1.1.1 target_ipv6=2606:4700:4700::1111"
     else
         rm -f "$tmp"
@@ -1422,6 +1479,14 @@ migrate_ping_targets() {
 # key), there is no separate unconditional bootstrap-seed step for this file —
 # once it exists, it's either already migrated or already being written to by
 # the poller/CGI, so any further run must leave it alone.
+# NOTE: this function is called BARE (not inside an if/&&/||) from
+# install_backend(), and this whole file runs under `set -e` (see top of
+# file). A non-zero return here would abort the entire installer/OTA
+# mid-flight — after stop_services() has already torn down every qmanager
+# service, with no rollback. A failed seed is recoverable (the poller/CGI
+# recreate sim_registry.json records lazily as the SIM is re-observed), but a
+# half-finished install is not. So every failure path below warns to stderr
+# and returns 0, matching every sibling migration function in this file.
 migrate_sim_registry() {
     local target="/etc/qmanager/sim_registry.json"
     local source_file="/etc/qmanager/known_iccids"
@@ -1433,9 +1498,17 @@ migrate_sim_registry() {
     echo "  Seeding sim_registry.json from known_iccids..."
     # Temp file MUST live in the destination directory: mv is only atomic
     # (rename(2)) within one filesystem, and /tmp is tmpfs while /etc is UBIFS.
-    # A cross-filesystem mv degrades to copy+unlink, which a concurrently
-    # running poller can observe half-written during an OTA.
-    local tmp; tmp=$(mktemp /etc/qmanager/.sim_registry.json.XXXXXX) || return 1
+    # A cross-filesystem mv degrades to copy+unlink, leaving a window where
+    # the destination exists half-written. The concern is crash-atomicity on
+    # flash, NOT a concurrent reader: stop_services() has already stopped the
+    # poller and every other qmanager daemon by the time install_backend()
+    # reaches this. (An earlier version of this comment claimed a running
+    # poller could observe the torn file — it cannot, at this call site.)
+    local tmp
+    tmp=$(mktemp /etc/qmanager/.sim_registry.json.XXXXXX) || {
+        echo "  WARNING: failed to create temp file for sim_registry.json seed — skipping" >&2
+        return 0
+    }
     if [ -f "$source_file" ]; then
         if ! jq -R -s '
             split("\n")
@@ -1450,7 +1523,7 @@ migrate_sim_registry() {
             ' "$source_file" > "$tmp" 2>/dev/null; then
             rm -f "$tmp"
             echo "  WARNING: failed to seed sim_registry.json from known_iccids" >&2
-            return 1
+            return 0
         fi
     else
         echo '{}' > "$tmp"
@@ -1491,9 +1564,28 @@ migrate_ping_environment() {
     fi
 
     local backup="${env_file}.pre-rust-ping.bak"
-    cp "$env_file" "$backup"
+    # `|| true`: this file runs under `set -e` and migrate_ping_environment
+    # is called bare from install_backend() — a backup-copy failure (e.g.
+    # disk full) must not abort the whole installer/OTA over a best-effort
+    # safety copy; the migration below still proceeds without one.
+    cp "$env_file" "$backup" 2>/dev/null || echo "  WARNING: failed to back up $env_file to $backup" >&2
 
-    local tmp; tmp=$(mktemp)
+    # Temp file MUST live in the destination directory (/etc/qmanager), not a
+    # bare `mktemp` (which lands in /tmp): mv is only atomic (rename(2))
+    # within one filesystem, and /tmp is tmpfs while /etc is UBIFS — a
+    # cross-filesystem mv silently degrades to copy+unlink. The concern here
+    # is crash-atomicity, not a concurrent reader: /etc/qmanager/environment
+    # is the systemd EnvironmentFile= for four units (qmanager-poller,
+    # qmanager-ping, qmanager-watchcat, qmanager-discord), and stop_services()
+    # has already stopped all of them by the time install_backend() runs
+    # this migration — but a power loss mid-copy on flash can still leave the
+    # file truncated, and a torn EnvironmentFile means those daemons silently
+    # start with missing env vars on next boot.
+    local tmp
+    tmp=$(mktemp /etc/qmanager/.environment.XXXXXX) || {
+        echo "  WARNING: failed to create temp file for environment migration — skipping" >&2
+        return 0
+    }
     while IFS= read -r line || [ -n "$line" ]; do
         case "$line" in
             FAIL_THRESHOLD=*)
@@ -1516,8 +1608,23 @@ migrate_ping_environment() {
                 ;;
         esac
     done < "$env_file"
+    # Set mode AND owner on the temp file BEFORE the rename: BusyBox mktemp
+    # creates 0600, and mv carries both mode and owner to the destination, so
+    # a chmod-after-mv (the old code) leaves a window where the live file is
+    # 0600 and the owner is whatever the temp had.
+    #
+    # Owner is root:root DELIBERATELY, unlike ping_profile.json below. This
+    # file is the systemd EnvironmentFile= for four root-run daemons
+    # (qmanager-poller/-ping/-watchcat/-discord) and NO CGI reads or writes
+    # it. Making it www-data-owned would hand a compromised web user
+    # in-place environment-variable injection into root daemons; 0644 keeps
+    # it world-readable, which is all any consumer needs. The blanket
+    # `chown -R www-data:www-data "$CONF_DIR"` earlier in install_backend()
+    # re-pins this file back to root:root immediately afterwards for the
+    # same reason — keep the two in sync if either changes.
+    chmod 644 "$tmp"
+    chown root:root "$tmp" 2>/dev/null || true
     mv "$tmp" "$env_file"
-    chmod 644 "$env_file"
     echo "  Migrated $env_file (backup at $backup)"
 }
 
@@ -1532,7 +1639,19 @@ prune_stale_ping_environment() {
 
     local stale_keys="CARRIER_FILE"
     local pruned=0
-    local tmp; tmp=$(mktemp)
+    # Temp file MUST live in the destination directory (/etc/qmanager), not a
+    # bare `mktemp` (which lands in /tmp): mv is only atomic (rename(2))
+    # within one filesystem, and /tmp is tmpfs while /etc is UBIFS — a
+    # cross-filesystem mv silently degrades to copy+unlink. As with
+    # migrate_ping_environment() above, the concern is crash-atomicity (this
+    # file is the systemd EnvironmentFile= for four daemons, all stopped by
+    # stop_services() before this runs, but a torn write on power loss still
+    # leaves them starting with missing env vars), not a concurrent reader.
+    local tmp
+    tmp=$(mktemp /etc/qmanager/.environment.XXXXXX) || {
+        echo "  WARNING: failed to create temp file for environment pruning — skipping" >&2
+        return 0
+    }
 
     while IFS= read -r line || [ -n "$line" ]; do
         local key="${line%%=*}"
@@ -1548,8 +1667,13 @@ prune_stale_ping_environment() {
     done < "$env_file"
 
     if [ "$pruned" -gt 0 ]; then
+        # Mode AND owner on the temp file BEFORE the rename — see the
+        # equivalent block in migrate_ping_environment() above for the full
+        # rationale. root:root is deliberate: this is a systemd
+        # EnvironmentFile= for four root-run daemons and no CGI touches it.
+        chmod 644 "$tmp"
+        chown root:root "$tmp" 2>/dev/null || true
         mv "$tmp" "$env_file"
-        chmod 644 "$env_file"
         echo "  Removed $pruned stale ping env var(s) from $env_file (CARRIER_FILE no longer used)"
     else
         rm -f "$tmp"

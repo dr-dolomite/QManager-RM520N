@@ -519,9 +519,44 @@ info "Runtime state removed"
 
 step "Removing cron jobs"
 
-if crontab -l 2>/dev/null | grep -q qmanager; then
-    crontab -l 2>/dev/null | grep -v qmanager | crontab - 2>/dev/null || true
-    info "Removed qmanager cron jobs"
+# Scrub qmanager markers directly from the spool file rather than shelling
+# out to `crontab` — RM520N-GL has no functioning cron (no crond unit, no
+# boot symlink; the BusyBox crond/crontab binaries being present is not
+# evidence anything consumes crontabs), and on this device `crontab -l`
+# itself errors ("can't open 'root'"), so the old grep|crontab pipeline
+# never actually matched. Mirrors scrub_legacy_cron() in qmanager_update.
+CRON_FILE="/var/spool/cron/crontabs/root"
+if [ -f "$CRON_FILE" ] && grep -q qmanager "$CRON_FILE" 2>/dev/null; then
+    # Temp file lives in the same directory as CRON_FILE so the mv below is
+    # an atomic same-filesystem rename(2), not a cross-filesystem copy.
+    CRON_TMP="${CRON_FILE}.tmp"
+    # grep exits 1 when it selects NO lines. For `grep -v` that means every
+    # line was a qmanager entry — i.e. the crontab is entirely ours, the case
+    # this step most needs to handle. Testing the pipeline directly would
+    # short-circuit on that exit 1 and silently leave our entries behind, so
+    # capture the status and treat 0 and 1 alike; only 2+ is a real error.
+    # (`|| rc=$?` also keeps this safe under the `set -e` at the top of the
+    # file — a bare non-zero command there would abort the uninstall.)
+    CRON_RC=0
+    grep -v qmanager "$CRON_FILE" > "$CRON_TMP" 2>/dev/null || CRON_RC=$?
+    if [ "$CRON_RC" -le 1 ]; then
+        # crontabs are conventionally 0600 root:root; set that on the temp
+        # file before the rename, since the `>` redirect above creates it
+        # with the ambient umask.
+        chmod 600 "$CRON_TMP" 2>/dev/null || true
+        # Report success only if the rename actually happened — swallowing
+        # mv's status with `|| true` and then claiming success would leave
+        # the entries in place while telling the user they were removed.
+        if mv "$CRON_TMP" "$CRON_FILE" 2>/dev/null; then
+            info "Removed qmanager cron jobs"
+        else
+            rm -f "$CRON_TMP" 2>/dev/null || true
+            warn "Could not replace $CRON_FILE — qmanager cron entries left in place"
+        fi
+    else
+        rm -f "$CRON_TMP" 2>/dev/null || true
+        warn "Could not scrub qmanager cron entries from $CRON_FILE"
+    fi
 else
     info "No qmanager cron jobs found"
 fi
