@@ -428,11 +428,20 @@
   }
 }
 
-/* Pulsating circle animation */
+/* ---------------------------------------------------------------------------
+   Ambient loops (DESIGN.md > Motion). These two are the ONLY continuous
+   animations sanctioned in the product, and both are gated on something being
+   genuinely live — the One-Loop Rule. Both are written on the ambient token
+   pair rather than a literal `2s ease-in-out` so a future retune moves every
+   surface at once.
+--------------------------------------------------------------------------- */
+
+/* Service rings: three concentric discs, offset 0 / .3s / .6s, on the
+   tone-{role}-{1,2,3} steps. Values are the Motion Study's spec 7. */
 @keyframes pulse-ring {
   0% {
-    transform: scale(0.8);
-    opacity: 0.8;
+    transform: scale(0.82);
+    opacity: 0.85;
   }
   100% {
     transform: scale(1);
@@ -441,11 +450,54 @@
 }
 
 .animate-pulse-ring {
-  animation: pulse-ring 2s ease-in-out infinite alternate;
+  animation: pulse-ring var(--duration-ambient) var(--ease-ambient) infinite
+    alternate;
 }
 
+/* Live ping: a disc expands past its anchor and fades. Distinct from Tailwind's
+   built-in `animate-ping` (1s, scale 2, linear-ish) — this is the canon timing,
+   and it does not `alternate`: a radar sweep only travels outward. */
+@keyframes live-ping {
+  0% {
+    transform: scale(1);
+    opacity: 0.7;
+  }
+  70%,
+  100% {
+    transform: scale(2.4);
+    opacity: 0;
+  }
+}
+
+.animate-live-ping {
+  animation: live-ping var(--duration-ambient) var(--ease-ambient) infinite;
+}
+
+/* ---------------------------------------------------------------------------
+   Banner entrance (DESIGN.md > Banner System > Motion). A 6px rise plus fade on
+   `emphasized`. Enter only: there is deliberately no exit keyframe, because a
+   banner leaving means the condition cleared and that should feel immediate.
+--------------------------------------------------------------------------- */
+@keyframes banner-in {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.animate-banner-in {
+  animation: banner-in var(--duration-emphasized) var(--ease-emphasized);
+}
+
+/* Movement goes, opacity stays, nothing here is load-bearing. */
 @media (prefers-reduced-motion: reduce) {
-  .animate-pulse-ring {
+  .animate-pulse-ring,
+  .animate-live-ping,
+  .animate-banner-in {
     animation: none;
   }
 }

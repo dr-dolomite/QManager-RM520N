@@ -643,9 +643,17 @@ own `@media (prefers-reduced-motion: reduce)` off-switch.
 - **Alert arrival.** New Recent Activity rows enter from the trailing edge over `emphasized`; existing
   rows move on transform. Nothing animates out; history does not retreat.
 - **Save confirmation.** `SaveButton` swaps idle to "Saving..." to "Saved!" on `useSaveFlash` timing;
-  the check scales to 1.03 and settles.
-- **Ambient pulse.** `animate-pulse-ring` on live and active indicators, with its own reduced-motion
-  kill switch.
+  the check scales to 1.03 and settles. The check is the **only** element in the product permitted to
+  exceed 1.0 scale, and only to 1.03.
+- **Service rings.** `animate-pulse-ring`, three concentric discs on the `tone-{role}-{1,2,3}` steps,
+  offset 0 / 0.3s / 0.6s. This is the only thing on the dashboard that loops continuously, and **it
+  stops the moment the service is not active** — a ring that pulses over a dead service is a lie.
+- **Live ping dot.** `animate-live-ping`: a disc scales to 2.4 and fades out over the ambient duration.
+  Reserved for a genuinely live stream (poller ticking, watchdog probing), never for "this page loaded".
+
+Every one of these carries its own reduced-motion off-switch: `motion/react` variants through the
+global `MotionConfig`, raw keyframes through a `@media (prefers-reduced-motion: reduce)` block beside
+the class in `globals.css`.
 
 ### Named Rules
 
@@ -663,6 +671,17 @@ transitions. The aggregation chain's width is the sole documented exception, and
 
 **The One-Loop Rule.** At most one ambient loop per surface, and only where something is genuinely
 live. A loop that runs while nothing is happening is a lie.
+
+**The Motion-Ceiling Rule.** Nothing exceeds 400ms. `emphasized` is the ceiling, not a starting point,
+and the only durations longer than it in the product are ambient loops, which are not transitions.
+
+**The Non-Load-Bearing Rule.** No transition may be load-bearing: if it never runs, the UI is still
+correct. This is stronger than the Reduced-Motion Rule, which only covers the user's preference. A
+transition can also be skipped because the element mounted mid-flight, because the tab was backgrounded,
+or because a slow poll landed the data before the animation started. Final state is computed and
+correct on its own; the animation is only how it got there. The nav indicator is the reference: its
+position is derived from the active row, and the slide is a `transition` on top of a value that is
+already right (see `.nav-indicator[data-settling="true"]`, which suppresses the slide on first paint).
 
 **The Reduced-Motion Rule** (kept). Movement goes, opacity stays, and no layout depends on a transition
 completing. The UI must remain perfectly usable, and feel intentional, with motion off. Because
@@ -771,10 +790,81 @@ The sidebar is the one surface that carries Material Symbols Rounded glyphs (see
 - **Destructive dialogs:** consequences spelled out in `DialogDescription`, a destructive-fill CTA
   ("Reboot Now"), and a tonal "Later" escape. Reboot-required operations surface this dialog rather
   than rebooting mid-request.
-- **Persistent banners:** app-level warnings that must outlive a page render as a banner above the
-  content area; `SimSwapBanner` (rendered in `AppLayout`) is the reference.
+- **Banners:** see the next section. Banners are a system with eight roles, not a one-off per feature.
 - **Toasts:** `sonner` for action feedback. Toasts confirm; they never carry the only copy of an error
   a user must act on.
+
+### Banner System
+
+A page-level banner states a **condition or a notice about the system itself** — something that
+outlives a single interaction and that no card on the page owns. It is the widest, loudest surface in
+the product, so the set is closed: eight roles, one anatomy, no per-feature variants.
+
+**Anatomy** (leading glyph, content, one CTA, optional dismiss):
+
+- **Container:** `bg-{role}-container` with `text-on-{role}-container`, card radius, **no border**.
+- **Glyph:** a `size-9` filled circle on the role's strong fill (`bg-{role}`, `text-{role}-foreground`)
+  holding a `size-5` icon. Never a bare icon on the container.
+- **Title:** 15px semibold. **Identity line** (optional): a machine-voice row of carrier, number, or
+  masked ICCID in `font-mono`. **Description:** 13px, one or two sentences, says what happens next.
+- **CTA:** exactly one pill button, right-aligned, wrapping below on narrow widths.
+- **Dismiss:** an absolutely-positioned `size-8` circle at the top-trailing corner, present only on
+  notices.
+
+**The eight roles:**
+
+| # | Role | Container | Dismissible | ARIA |
+|---|------|-----------|-------------|------|
+| 01 | SIM swap, matching profile | `primary-container` | Yes, durably | `role="alert"` |
+| 02 | SIM swap, no matching profile | `primary-container` | Yes, durably | `role="alert"` |
+| 03 | Stale data / modem unreachable | `destructive-container` | **No** | `role="alert"` + `aria-live="assertive"` |
+| 04 | Degraded but functioning | `warning-container` | **No** | `role="alert"` |
+| 05 | In progress | `primary-container` | **No** | `role="status"` |
+| 06 | Success, transient | `success-container` | Auto-dismisses | `role="status"` |
+| 07 | Page-scoped override (profile-managed) | `surface-container` | **No** | `role="note"` |
+| 08 | Deferred reboot | `warning-container` | **No** | `role="alert"` |
+
+Role 05 carries a spinner in the glyph disc and a dot row for step progress (Loader-and-Dots Rule).
+Role 07 is the neutral one: its glyph disc sits on `surface-container-high` with `on-surface-variant`
+ink, because "this page is managed elsewhere" is information, not a status.
+
+#### Named Rules
+
+**The Solid-Container Rule.** A banner is `bg-{role}-container`, never a wash. The retired pattern was
+`border-info/30 bg-info/10`; a 10% alpha over a tinted surface is not a stable color — its value moves
+with whatever sits behind it, it collapses to near-invisible in dark mode, and it is the first thing to
+wash out in sunlight. The container and its `on-` ink are a measured pair, which is also why the border
+becomes unnecessary.
+
+**The Glyph-Disc Rule.** The icon always sits in a filled circle. A bare 16px glyph disappears against
+a saturated container, and the disc is the element that survives when the container fill washes out. It
+also makes the banner and the status chip read as the same family.
+
+**The One-CTA Rule** (kept from the existing canon). One action per banner. Role 08 is the single
+sanctioned exception: "review what changed" and "do the risky thing" are genuinely different decisions,
+so it carries a tonal **Review** and a destructive-fill **Reboot now**.
+
+**The Dismiss-Only-Notices Rule.** A banner gets an X only when it is a *notification*. Conditions —
+stale data, deferred reboot, in progress, degraded — leave when the condition leaves, and never before.
+Nothing that reports a broken link gets a dismiss affordance. When a notice is dismissible it must be
+dismissible **durably**: the SIM-swap banner persists its dismissal server-side in the SIM registry, not
+in component state.
+
+**The Info-Is-Brand Rule.** Informational banners use `primary-container`, not a separate info hue. The
+SIM notice and the apply pipeline are the same class of "the system is telling you something", and the
+functional four already spend the saturated-blue slot on the brand.
+
+**The Tabular-Counter Rule.** Any figure that ticks inside banner copy is `font-mono tabular-nums`.
+Without it, "38 s" → "39 s" reflows the whole sentence once a second.
+
+**Motion.** Enter on `emphasized` (400ms): a 6px rise plus a fade, replacing the older
+`duration-300 slide-in-from-top-1`. There is **no exit animation** — a banner leaving means the
+condition cleared, and that should feel immediate rather than negotiated.
+
+**Contrast floor.** The tightest pair in the set is light `on-warning-container` on `warning-container`
+at 8.4:1; the white-alpha secondary buttons in roles 04 and 08 sit at 6.9:1 against their ink; dark's
+tightest is `on-destructive-container` at 9.1:1. Any new banner role must clear AA on both the body
+copy and the CTA ink.
 
 ### Carrier Aggregation strip (signature component)
 
@@ -1024,7 +1114,7 @@ step is independently shippable and leaves the product correct.
 |------|-------|-------|
 | 1 | **Tokens in `globals.css`.** Container roles, tinted surface steps, retuned amber, info aliased to the brand ramp, ring tone steps, the shape scale as additive role radii, motion curves and durations. No component touched; the product changes color and stays correct. | **Landed** |
 | 2 | **Shell and shape scale.** Sidebar pills with the sliding indicator and the self-hosted Material Symbols Rounded subset, the role radii applied to cards and controls (retiring the legacy `--radius` chain), the new mark wired in (`public/qmanager-mark.svg` is already in the tree, currently unreferenced). | Not started |
-| 3 | **Chips and the dashboard.** Flip the badge pattern to filled chips, adopt containers and pill rows on the status cards (Network Status keeps its icons), land the Carrier Aggregation strip. | Not started |
+| 3 | **Chips, banners, and the dashboard.** Flip the badge pattern to filled chips, retarget the banners to the eight-role system (`SimSwapBanner` first — it is the reference anatomy), adopt containers and pill rows on the status cards (Network Status keeps its icons), land the Carrier Aggregation strip. | Not started |
 | 4 | **Dense pages.** Cell Scanner, log views, and SMS adopt the new tokens while keeping hairline rows. This is where the system is proven or corrected. | Not started |
 
 **Step 3 is the CLAUDE.md gate.** The status-badge table in `CLAUDE.md` still documents the shipped
