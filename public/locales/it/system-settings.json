@@ -31,6 +31,10 @@
     "empty_description": "QManager registra ogni SIM al primo inserimento. Inserisci una SIM per iniziare l'elenco.",
     "toast_restored": "Avviso riattivato",
     "toast_restored_detail": "QManager avviserà di nuovo quando verrà inserita la SIM {{carrier}}.",
-    "toast_restore_failed": "Impossibile riattivare l'avviso"
+    "toast_restore_failed": "Impossibile riattivare l'avviso",
+    "remembered_count_one": "{{count}} SIM memorizzata",
+    "remembered_count_other": "{{count}} SIM memorizzate",
+    "toast_cleared_partial": "Cancellate, ma l'elenco potrebbe non essere aggiornato",
+    "toast_cleared_partial_detail": "Il dispositivo ha dimenticato le SIM ma non è riuscito ad aggiornare questo elenco. Ricarica la pagina per verificare."
   }
 }

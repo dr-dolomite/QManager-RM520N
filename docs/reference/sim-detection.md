@@ -30,7 +30,7 @@ date) that a bare ICCID line in a flat file can't.
 | **Set** — library | `scripts/usr/lib/qmanager/sim_db.sh` |
 | **Set** — store | `/etc/qmanager/known_iccids` (newline-delimited bare ICCIDs, persistent UBIFS) — **format frozen, see below** |
 | **Set** — legacy file (migrated once, left in place) | `/etc/qmanager/last_iccid` |
-| **Set** — admin CGI / UI | `system/known_sims.sh` / `components/system-settings/known-sims-row.tsx` |
+| **Set** — admin CGI / UI | `system/known_sims.sh` / `hooks/use-known-sims.ts`, rendered as the **footer of** `components/system-settings/sim-registry-card.tsx` |
 | **Registry** — library | `scripts/usr/lib/qmanager/sim_registry.sh` |
 | **Registry** — store | `/etc/qmanager/sim_registry.json` (root:root 0644, lazy-created) |
 | **Registry** — lock | `/etc/qmanager/sim_registry.lock` |
@@ -236,10 +236,30 @@ avoid fighting the caller's own load-guard ordering). Self-guarded with
 | `sim_registry_seed_new <iccid> <carrier> <phone>` | Creates/refreshes a record for a **newly detected** SIM: sets carrier, phone, `first_seen=now`, `dismissed=false`. Unconditional — only call it once per genuine detection. |
 | `sim_registry_refresh_active <iccid> <carrier> <phone>` | Scoped refresh of **only** `carrier` + `phone_number`. Never touches `dismissed`/`first_seen`. **Change-gated** — exits before the `mktemp`/`mv` when neither value changed, so a steady state costs no write per poll cycle. |
 | `sim_registry_set_dismissed <iccid> <true\|false>` | Scoped write of **only** `dismissed`. **Refuses to create a record** — returns **3** for an unknown ICCID. Root-privileged callers only. |
+| `sim_registry_clear_keep <iccid>` | Reduces the registry to **only** that ICCID's record, kept **verbatim**. The sidecar half of "clear known SIMs" — see below. Empty ICCID, or one with no record, empties the registry. Never auto-vivifies. Root-privileged callers only. |
 | `sim_registry_get_record <iccid>` | Prints the record as compact JSON, or `null`. Read-only, no lock (the atomic `mv` means a reader never sees a torn file). |
 
 Return codes across the write functions: `0` success, `1` write failure,
 `2` lock timeout, `3` unknown ICCID (`sim_registry_set_dismissed` only).
+
+#### `sim_registry_clear_keep` — the one sanctioned whole-object rewrite
+
+Every other writer above is a **scoped field write** (see "Why every write is
+scoped"). `clear_keep` is the deliberate exception: discarding the other keys
+*is* the operation, so a read-modify-write cannot revert anything a concurrent
+writer meant to keep. It still runs under the same `flock`, so a poller refresh
+cannot interleave with it.
+
+Two properties matter and are easy to get wrong:
+
+- **The kept record is preserved verbatim**, not reseeded. If a user already
+  silenced the inserted SIM's banner, forgetting the *other* SIMs must not hand
+  that banner back. Reseeding via `sim_registry_seed_new` would set
+  `dismissed=false` and do exactly that.
+- **It must move in lockstep with `sim_db_clear_keep`.** The set answers "is
+  this SIM new", the registry answers "what do we know about it". Clearing one
+  without the other is the shipped bug this function exists to fix: the count
+  dropped to 1 while "Tracked SIMs" kept listing 2.
 
 ### Why every write is scoped
 
@@ -302,7 +322,7 @@ this file is tamper-proof against the web user.**
 ## Root helper — `qmanager_sim_registry_apply`
 
 ```sh
-sudo -n /usr/bin/qmanager_sim_registry_apply <iccid> <dismiss|undismiss>
+sudo -n /usr/bin/qmanager_sim_registry_apply <iccid> <dismiss|undismiss|clear_keep>
 ```
 
 Sudoers grant (`scripts/etc/sudoers.d/qmanager`), a bare-path NOPASSWD line:
@@ -316,10 +336,16 @@ privileged boundary validates its own input rather than trusting the caller:
 
 | Gate | Rule |
 |------|------|
-| Action | Strict 2-value enum: `dismiss` \| `undismiss`. |
+| Action | Strict 3-value enum: `dismiss` \| `undismiss` \| `clear_keep`. |
+| ICCID present | Required for `dismiss`/`undismiss`. **`clear_keep` alone accepts an empty ICCID** — clearing with no SIM inserted legitimately empties the whole registry, mirroring `sim_db_clear_keep`'s truncate-on-empty. |
 | ICCID charset | Digits only, plus `F`/`f`. Anything else → `invalid_charset`. |
 | ICCID shape | `F`/`f` may appear **only** as the single trailing pad nibble; strip one trailing `F` and the remainder must be all-digit (rejects e.g. `12F34`). |
 | ICCID length | 18–22 characters. |
+
+⚠️ The charset/shape/length gates are gated on `[ -n "$iccid" ]`, **not** on the
+action. A non-empty ICCID runs the full gate set whatever the action is; only
+the *presence* requirement varies. Per-action validation loosening is precisely
+where these helpers grow holes — keep the exemption to presence alone.
 
 The ICCID never reaches a `jq` filter by string interpolation — it always goes
 in via `jq --arg` (in `sim_registry.sh`).
@@ -328,10 +354,10 @@ Exit codes and their JSON on stdout:
 
 | rc | JSON | Meaning |
 |----|------|---------|
-| 0 | `{"success":true,"dismissed":true\|false}` | Applied. |
+| 0 | `{"success":true,"dismissed":true\|false}` or `{"success":true,"cleared":true}` | Applied. |
 | 1 | `{"success":false,"error":"invalid_action"\|"empty_iccid"\|"invalid_charset"\|"invalid_length"\|"write_failed", …}` | Rejected input, or the write failed. |
 | 2 | `{"success":false,"error":"lock_timeout", …}` | Couldn't take the lock within 5s. |
-| 3 | `{"success":false,"error":"unknown_iccid", …}` | No record for that ICCID — **never auto-created**. |
+| 3 | `{"success":false,"error":"unknown_iccid", …}` | No record for that ICCID — **never auto-created**. `clear_keep` never returns 3: an unknown ICCID there simply clears everything. |
 
 ---
 
@@ -492,14 +518,51 @@ other migrations. It seeds one record per existing `known_iccids` line:
 - `first_seen` is `null` — there is no recorded add-time for legacy entries.
   Do **not** fabricate one from install time or the file's mtime (mtime is the
   *last* add, not the first).
-- **Idempotent via an existence gate**, not a content check: `[ -f "$target" ]
-  && return 0`. Unlike `migrate_ping_targets()` (which re-runs against a live,
-  still-growing config key), there is no separate unconditional bootstrap-seed
-  step for this file — once it exists, it is either already migrated or already
-  being written by the poller/CGI, so any later run must leave it alone.
+- **Idempotent via a content check** — the count of `known_iccids` entries with
+  no record — **not** an existence gate. It originally gated on
+  `[ -f "$target" ] && return 0`; see *Backfill semantics* below for why that
+  had to change.
 - The temp file is `mktemp /etc/qmanager/.sim_registry.json.XXXXXX` — in the
   destination directory, for the same atomic-`mv` reason as the library.
-- `chmod 644` **before** the rename, so the CGI can always read the live file.
+- `chmod 644` **and** `chown www-data:www-data` **before** the rename. `mv`
+  carries owner as well as mode, and the blanket
+  `chown -R www-data:www-data "$CONF_DIR"` runs *earlier* in `install_backend()`,
+  so a default `root:root` temp would downgrade a live www-data-owned registry
+  and break the dismiss CGI's write.
+- **No jq regex.** Entware's `jq` on RM520N-GL is built without ONIGURUMA, so
+  `gsub`/`test`/`match`/`sub` abort at runtime; line trimming is done by
+  `tr -d ' \t\r'` *before* jq. See `docs/rm520n-gl-architecture.md`.
+
+### Backfill semantics
+
+The existence gate was a real defect, not a style choice. The original seed
+trimmed with jq's `gsub()`, which **fails on every device** — so the migration
+warned and bailed, `sim_registry.json` was later created lazily by
+`sim_registry_refresh_active()`'s auto-vivify holding only the **active** SIM,
+and the existence gate then made that state permanent: no later install could
+ever add the missing SIMs. Symptom: a SIM present in `known_iccids` never appears
+in "Tracked SIMs", and `sim_registry_set_dismissed` returns rc 3 (unknown ICCID)
+for it because the registry never auto-creates on dismiss.
+
+The migration is now strictly **additive**:
+
+- Records are merged with jq's `+` — a **shallow, right-hand-wins** merge,
+  `seed + existing`. An existing record replaces the seeded stub **wholesale**,
+  so a genuine detection record (`first_seen` set, `dismissed: false`) and a
+  user's dismissal both survive untouched.
+- **Never use `*`.** It deep-merges *inside* each record, which would resurrect
+  `first_seen`/`dismissed` on a record where the poller deliberately left them
+  absent — silently changing banner behaviour.
+- If nothing is missing it **writes nothing** — no flash churn, and it avoids
+  overlapping a concurrent CGI dismissal write (`stop_services()` stops the
+  poller before `install_backend()`, but **lighttpd is never stopped during an
+  OTA**). The in-directory rename bounds that race: a concurrent write can be
+  lost, never torn.
+- A target that exists but does not parse is left **untouched** with a warning —
+  losing a user's dismissal state is worse than skipping the backfill.
+
+Backfilled records still carry `first_seen: null`, so the poller's
+`first_seen` non-empty clause keeps them from ever raising a banner.
 
 The root helper and the CGI need no installer changes of their own: the helper
 is picked up by `install_backend()`'s `scripts/usr/bin/*` loop (installed 755
@@ -556,7 +619,26 @@ itself, so this surface only ever re-enables. Loading / error / empty / data
 states are all handled; a failed refresh with existing data shows a stale
 notice instead of blanking the list.
 
-Strings: `system-settings` namespace, `sim_registry.*` subtree, all 5 locales.
+**The card also owns Clear** (`CardFooter`: remembered-count + info tooltip on
+the left, destructive Clear on the right). It previously lived in a separate
+`known-sims-row.tsx` mounted inside the *System Settings* card, which was wrong
+on two counts. Cosmetically, a destructive SIM-database action sat on top of
+temperature and distance preferences. Functionally, it was the bug: Clear acts
+on the **set** while this card renders the **registry**, so with the control on
+another card a clear dropped the count 2 → 1 while the list kept showing 2, and
+nothing ever refetched. With one owner, a successful clear necessarily calls
+`refresh()`, so the two halves cannot drift.
+
+The footer renders when **either** store is non-empty (`knownCount > 0 ||
+sims.length > 0`) — if they ever disagree, the reset is exactly what resolves
+it, so hiding the control on an empty list would strand the user.
+
+Clear reports honestly: `known_sims.sh` returns `registry_cleared`, and a
+`false` (sidecar write failed, or a backend predating the two-store clear)
+raises a **warning** toast naming the stale list rather than a success toast.
+
+Strings: `system-settings` namespace, `sim_registry.*` and the reused
+`known_sims.*` subtrees, all 5 locales.
 
 ### `hooks/use-sim-registry.ts` / `types/sim-registry.ts`
 

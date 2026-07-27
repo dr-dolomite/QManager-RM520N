@@ -8,11 +8,23 @@ import {
   BellIcon,
   CardSimIcon,
   CheckCircle2Icon,
+  InfoIcon,
   Loader2Icon,
   MinusCircleIcon,
+  Trash2Icon,
   TriangleAlertIcon,
 } from "lucide-react";
 
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -20,6 +32,7 @@ import {
   Card,
   CardContent,
   CardDescription,
+  CardFooter,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
@@ -32,7 +45,13 @@ import {
 } from "@/components/ui/empty";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { containerVariants, itemVariants } from "@/lib/motion";
+import { useKnownSims } from "@/hooks/use-known-sims";
 import { useSimRegistry } from "@/hooks/use-sim-registry";
 import type { SimRegistryEntry } from "@/types/sim-registry";
 
@@ -43,6 +62,13 @@ import type { SimRegistryEntry } from "@/types/sim-registry";
 // "stop alerting for this SIM" flag; this card is where a user takes it back.
 // Dismissing is deliberately NOT offered here — silencing an alert belongs to
 // the alert itself, so this surface only ever re-enables.
+//
+// The card also owns Clear (previously a row inside the System Settings card,
+// where a destructive SIM action sat oddly on top of display preferences).
+// Colocating matters beyond tidiness: Clear acts on the known-SIMs SET while
+// this list renders the registry SIDECAR, two separate stores. With one owner,
+// a clear necessarily refreshes the list, so the count and the list cannot
+// drift apart the way they did when the control lived on another card.
 // =============================================================================
 
 function formatFirstSeen(iso: string | null, locale: string): string | null {
@@ -155,10 +181,122 @@ function SimRegistryRow({
   );
 }
 
+// --- Footer: how many SIMs are remembered, and the control that forgets them --
+// Rendered whenever EITHER store has something in it, so a divergence between
+// them (list empty, count non-zero) still leaves the user a way to reset.
+function ClearKnownSimsFooter({
+  count,
+  isLoading,
+  isClearing,
+  onConfirm,
+}: {
+  count: number;
+  isLoading: boolean;
+  isClearing: boolean;
+  onConfirm: () => Promise<void>;
+}) {
+  const { t } = useTranslation("system-settings");
+  const [open, setOpen] = useState(false);
+
+  const handleConfirm = useCallback(async () => {
+    await onConfirm();
+    setOpen(false);
+  }, [onConfirm]);
+
+  return (
+    <>
+      <CardFooter className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3 border-t">
+        <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-xs"
+                // -ml-1.5 cancels the icon button's own box inset so the glyph
+                // sits on the card's content column, flush with the title and
+                // description above it rather than 6px inboard of them.
+                className="-ml-1.5 text-info hover:text-info"
+                aria-label={t("known_sims.info_aria")}
+              >
+                <InfoIcon className="size-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p className="max-w-sm text-balance">{t("known_sims.tooltip")}</p>
+            </TooltipContent>
+          </Tooltip>
+
+          {isLoading ? (
+            <Skeleton className="h-4 w-28" />
+          ) : (
+            <span className="tabular-nums">
+              {t("sim_registry.remembered_count", { count })}
+            </span>
+          )}
+        </div>
+
+        <Button
+          variant="destructive"
+          size="sm"
+          onClick={() => setOpen(true)}
+          disabled={isLoading || isClearing}
+        >
+          <Trash2Icon className="size-4" />
+          {t("known_sims.clear_button")}
+        </Button>
+      </CardFooter>
+
+      <AlertDialog open={open} onOpenChange={setOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {t("known_sims.clear_dialog_title")}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {t("known_sims.clear_dialog_description")}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isClearing}>
+              {t("actions.cancel", { ns: "common" })}
+            </AlertDialogCancel>
+            <AlertDialogAction
+              disabled={isClearing}
+              onClick={(e) => {
+                // Keep the dialog mounted through the request so the button can
+                // show its own in-flight state; Radix would close it otherwise.
+                e.preventDefault();
+                void handleConfirm();
+              }}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {isClearing ? (
+                <>
+                  <Loader2Icon className="size-4 animate-spin" />
+                  {t("known_sims.clear_dialog_clearing")}
+                </>
+              ) : (
+                t("known_sims.clear_dialog_confirm")
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
+  );
+}
+
 export default function SimRegistryCard() {
   const { t } = useTranslation("system-settings");
   const { sims, isLoading, error, pendingIccid, refresh, setDismissed } =
     useSimRegistry();
+  const {
+    count: knownCount,
+    isLoading: isKnownLoading,
+    isClearing,
+    clear: clearKnownSims,
+  } = useKnownSims();
   const [isRetrying, setIsRetrying] = useState(false);
 
   const handleShowAlert = useCallback(
@@ -183,12 +321,47 @@ export default function SimRegistryCard() {
     setIsRetrying(false);
   }, [refresh]);
 
+  const handleClear = useCallback(async () => {
+    const result = await clearKnownSims();
+
+    if (!result.ok) {
+      toast.error(result.detail || t("known_sims.toast_clear_failed"));
+      return;
+    }
+
+    // The device clears both stores, so the list this card renders has changed
+    // underneath us. Refetch rather than trusting a local prediction of it.
+    await refresh();
+
+    if (result.registryCleared) {
+      toast.success(t("known_sims.toast_cleared"));
+    } else {
+      // The set was cleared but the registry sidecar was not. Say so instead
+      // of reporting a clean sweep the device did not perform.
+      toast.warning(t("sim_registry.toast_cleared_partial"), {
+        description: t("sim_registry.toast_cleared_partial_detail"),
+      });
+    }
+  }, [clearKnownSims, refresh, t]);
+
   const header = (
     <CardHeader>
       <CardTitle>{t("sim_registry.title")}</CardTitle>
       <CardDescription>{t("sim_registry.description")}</CardDescription>
     </CardHeader>
   );
+
+  // Only offer Clear when there is something to forget. Either store counts:
+  // if they ever disagree, the reset is exactly what resolves it.
+  const footer =
+    knownCount > 0 || sims.length > 0 ? (
+      <ClearKnownSimsFooter
+        count={knownCount}
+        isLoading={isKnownLoading}
+        isClearing={isClearing}
+        onConfirm={handleClear}
+      />
+    ) : null;
 
   // --- Loading skeleton (mirrors three data rows) ---
   if (isLoading) {
@@ -212,6 +385,10 @@ export default function SimRegistryCard() {
             ))}
           </div>
         </CardContent>
+        <CardFooter className="flex items-center justify-between border-t">
+          <Skeleton className="h-5 w-36" />
+          <Skeleton className="h-8 w-20" />
+        </CardFooter>
       </Card>
     );
   }
@@ -237,6 +414,7 @@ export default function SimRegistryCard() {
             {t("sim_registry.retry")}
           </Button>
         </CardContent>
+        {footer}
       </Card>
     );
   }
@@ -259,6 +437,7 @@ export default function SimRegistryCard() {
             </EmptyHeader>
           </Empty>
         </CardContent>
+        {footer}
       </Card>
     );
   }
@@ -295,6 +474,7 @@ export default function SimRegistryCard() {
           </p>
         )}
       </CardContent>
+      {footer}
     </Card>
   );
 }

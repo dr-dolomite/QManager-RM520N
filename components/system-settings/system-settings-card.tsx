@@ -29,11 +29,6 @@ import {
   CommandItem,
   CommandList,
 } from "@/components/ui/command";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
 import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -54,7 +49,6 @@ import type {
 } from "@/hooks/use-system-settings";
 import { TIMEZONES } from "@/types/system-settings";
 import { cn } from "@/lib/utils";
-import KnownSimsRow from "@/components/system-settings/known-sims-row";
 
 // ─── Animation variants ────────────────────────────────────────────────────
 
@@ -93,20 +87,9 @@ export default function SystemSettingsCard({
           </CardDescription>
         </CardHeader>
         <CardContent>
+          {/* Mirrors the loaded geometry exactly: three setting rows and the
+              save action, so the card does not reflow when data lands. */}
           <div className="grid gap-2">
-            <Separator />
-            <div className="flex items-center justify-between">
-              <Skeleton className="h-5 w-36" />
-              <Skeleton className="h-6 w-28" />
-            </div>
-            <Separator />
-            <div className="flex items-center justify-between">
-              <Skeleton className="h-5 w-28" />
-              <div className="flex items-center gap-3">
-                <Skeleton className="h-5 w-14" />
-                <Skeleton className="h-8 w-20" />
-              </div>
-            </div>
             <Separator />
             <div className="flex items-center justify-between">
               <Skeleton className="h-5 w-32" />
@@ -270,10 +253,6 @@ function SystemSettingsForm({
           initial="hidden"
           animate="visible"
         >
-          {/* ── Known SIMs (clear remembered SIM list) ────────────── */}
-          <Separator />
-          <KnownSimsRow />
-
           {/* ── Temperature Unit ──────────────────────────────────── */}
           <Separator />
           <motion.div variants={itemVariants} className="flex items-center justify-between">

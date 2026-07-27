@@ -1474,11 +1474,20 @@ migrate_ping_targets() {
 # fabricate one from install time or the file's mtime, which only reflects the
 # LAST add, not the first).
 #
-# Idempotent via an EXISTENCE gate, not a content check: unlike
-# migrate_ping_targets() (which re-runs against a live, still-growing config
-# key), there is no separate unconditional bootstrap-seed step for this file —
-# once it exists, it's either already migrated or already being written to by
-# the poller/CGI, so any further run must leave it alone.
+# Idempotent via a CONTENT check (missing-keys backfill), not an existence
+# gate. It used to gate on existence alone, which turned a one-release bug into
+# a permanent one: the original seed trimmed with jq's gsub(), which aborts on
+# this platform (see the ONIGURUMA note below), so the file got created lazily
+# by sim_registry_refresh_active()'s auto-vivify with only the ACTIVE SIM in it.
+# An existence gate then meant no later install could ever repair that — the
+# same trap as "fixing" a bad chmod by deleting the line (see
+# docs/reference/qmanager-independence.md): a fix that never revisits the drifted
+# state is not a fix. So this now adds records for known_iccids entries that have
+# NO record at all, and is strictly ADDITIVE — an existing record is never
+# modified, so a real "new SIM" record (first_seen set, dismissed false) and a
+# user's dismissal both survive untouched. If nothing is missing it writes
+# nothing, which also keeps it from clobbering a concurrent CGI write in the
+# common case (lighttpd is NOT stopped during an OTA, unlike the poller).
 # NOTE: this function is called BARE (not inside an if/&&/||) from
 # install_backend(), and this whole file runs under `set -e` (see top of
 # file). A non-zero return here would abort the entire installer/OTA
@@ -1490,49 +1499,104 @@ migrate_ping_targets() {
 migrate_sim_registry() {
     local target="/etc/qmanager/sim_registry.json"
     local source_file="/etc/qmanager/known_iccids"
-    [ -f "$target" ] && return 0
     command -v jq >/dev/null 2>&1 || return 0
     # Config dir must exist — the in-dir mktemp below depends on it.
     [ -d /etc/qmanager ] || return 0
+    # Nothing to seed from, and nothing to repair.
+    [ -f "$source_file" ] || return 0
 
-    echo "  Seeding sim_registry.json from known_iccids..."
+    # Load any existing registry. A target that exists but does not parse is
+    # left strictly alone: it may be a partial CGI write we'd rather not
+    # overwrite, and destroying a user's dismissal state is worse than skipping.
+    local existing='{}'
+    if [ -f "$target" ]; then
+        existing=$(jq -c '.' "$target" 2>/dev/null) || {
+            echo "  WARNING: $target is not valid JSON — leaving it untouched" >&2
+            return 0
+        }
+        [ -n "$existing" ] || existing='{}'
+    fi
+    # NO jq regex functions anywhere below. Entware's jq on RM520N-GL (1.7.1) is
+    # built WITHOUT the ONIGURUMA regex library, so gsub/sub/test/match/capture
+    # all abort at runtime with "jq was compiled without ONIGURUMA regex
+    # library". `jq -n builtins` still LISTS gsub/2, so `builtins` is NOT a
+    # usable capability probe — only actually calling one reveals the gap.
+    # Trimming is done by `tr` before jq sees the data: known_iccids lines are
+    # bare ICCIDs (line format frozen — see sim_db.sh), so deleting every
+    # space/tab/CR is equivalent to trimming each line, and also strips CRLF if
+    # the file was ever touched by a Windows editor.
+    local missing
+    missing=$(tr -d ' \t\r' < "$source_file" | jq -R -s --argjson existing "$existing" '
+        [ split("\n")[]
+          | select(length > 0)
+          | . as $iccid
+          | select($existing | has($iccid) | not)
+        ] | length' 2>&1) || {
+        echo "  WARNING: failed to read known_iccids: ${missing:-unknown error}" >&2
+        return 0
+    }
+    case "$missing" in
+        ''|*[!0-9]*) return 0 ;;
+        0) return 0 ;;
+    esac
+
+    echo "  Backfilling sim_registry.json with $missing SIM(s) from known_iccids..."
     # Temp file MUST live in the destination directory: mv is only atomic
     # (rename(2)) within one filesystem, and /tmp is tmpfs while /etc is UBIFS.
-    # A cross-filesystem mv degrades to copy+unlink, leaving a window where
-    # the destination exists half-written. The concern is crash-atomicity on
-    # flash, NOT a concurrent reader: stop_services() has already stopped the
-    # poller and every other qmanager daemon by the time install_backend()
-    # reaches this. (An earlier version of this comment claimed a running
-    # poller could observe the torn file — it cannot, at this call site.)
+    # A cross-filesystem mv degrades to copy+unlink, leaving a window where the
+    # destination exists half-written. Note this atomicity is what bounds the
+    # residual race with a CGI dismissal write (lighttpd is never stopped during
+    # an OTA): a concurrent write can be LOST here, but the file cannot be
+    # corrupted, and this branch only runs when a record is genuinely missing.
     local tmp
     tmp=$(mktemp /etc/qmanager/.sim_registry.json.XXXXXX) || {
         echo "  WARNING: failed to create temp file for sim_registry.json seed — skipping" >&2
         return 0
     }
-    if [ -f "$source_file" ]; then
-        if ! jq -R -s '
-            split("\n")
-            | map(gsub("^[ \t\r]+|[ \t\r]+$";""))
-            | map(select(length > 0))
-            | reduce .[] as $iccid ({}; .[$iccid] = {
-                carrier: "",
-                phone_number: "",
-                first_seen: null,
-                dismissed: true
-              })
-            ' "$source_file" > "$tmp" 2>/dev/null; then
-            rm -f "$tmp"
-            echo "  WARNING: failed to seed sim_registry.json from known_iccids" >&2
-            return 0
-        fi
-    else
-        echo '{}' > "$tmp"
-    fi
+    # Seed a stub for every known ICCID, then let any EXISTING record win
+    # outright. `+` on objects is a shallow, right-hand-wins merge, which is
+    # exactly the semantics wanted: a key present in $existing replaces the
+    # seeded stub WHOLESALE, so an existing record is never partially patched
+    # and a field the poller/CGI deliberately left absent is never resurrected.
+    # Do NOT use `*` here — it deep-merges and would reach inside live records.
+    # stderr is captured, NOT discarded: the previous `2>/dev/null` is exactly
+    # what hid the ONIGURUMA failure behind a generic warning on a live install.
+    local jq_err
+    jq_err=$(tr -d ' \t\r' < "$source_file" | jq -R -s --argjson existing "$existing" '
+        split("\n")
+        | map(select(length > 0))
+        | reduce .[] as $iccid ({}; .[$iccid] = {
+            carrier: "",
+            phone_number: "",
+            first_seen: null,
+            dismissed: true
+          })
+        | . + $existing
+        ' > "$tmp" 2>&1) || {
+        rm -f "$tmp"
+        echo "  WARNING: failed to seed sim_registry.json from known_iccids: ${jq_err:-unknown error}" >&2
+        return 0
+    }
     # chmod BEFORE the rename: mktemp creates 0600, so chmod-after would leave a
     # window where the live file is root-only and www-data's CGI cannot read it.
-    chmod 644 "$tmp"
-    mv "$tmp" "$target"
-    local count; count=$(jq 'length' "$target" 2>/dev/null)
+    # Both of these are guarded rather than bare: a bare failure under `set -e`
+    # would abort the in-flight OTA, which is exactly what this function's header
+    # comment promises it will never do.
+    chmod 644 "$tmp" 2>/dev/null || true
+    # Owner must be set on the TEMP too, for the same reason as the mode: `mv`
+    # carries owner as well as mode across a rename. The blanket
+    # `chown -R www-data:www-data "$CONF_DIR"` runs earlier in install_backend()
+    # than this function, so a root:root temp would silently DOWNGRADE a live
+    # www-data-owned registry. Unlike $CONF_DIR/environment (deliberately
+    # root:root — see the note further down), sim_registry.json genuinely has a
+    # www-data writer: the dismiss/undismiss CGI, via sim_registry.sh.
+    chown www-data:www-data "$tmp" 2>/dev/null || true
+    if ! mv "$tmp" "$target"; then
+        rm -f "$tmp"
+        echo "  WARNING: could not install $target — skipping seed" >&2
+        return 0
+    fi
+    local count; count=$(jq 'length' "$target" 2>/dev/null) || true
     echo "  Seeded $target with ${count:-0} entries from known_iccids"
 }
 

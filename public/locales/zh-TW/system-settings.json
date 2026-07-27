@@ -31,6 +31,10 @@
     "empty_description": "QManager 會在 SIM 卡首次插入時記錄它。插入一張 SIM 卡即可開始。",
     "toast_restored": "已重新開啟提醒",
     "toast_restored_detail": "當插入 {{carrier}} SIM 卡時，QManager 會再次提醒。",
-    "toast_restore_failed": "無法重新開啟提醒"
+    "toast_restore_failed": "無法重新開啟提醒",
+    "remembered_count_one": "已記住 {{count}} 張 SIM 卡",
+    "remembered_count_other": "已記住 {{count}} 張 SIM 卡",
+    "toast_cleared_partial": "已清除，但列表可能不是最新的",
+    "toast_cleared_partial_detail": "裝置已忘記這些 SIM 卡，但未能更新此列表。請重新載入頁面查看。"
   }
 }

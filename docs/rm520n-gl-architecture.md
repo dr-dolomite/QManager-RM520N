@@ -1379,9 +1379,20 @@ Packages available via Entware that QManager depends on or could use:
 | `xmlstarlet` | LAN config editing | Parses `mobileap_cfg.xml` |
 | `curl` | HTTP client (full, not BusyBox) | Preferred but not required — install/OTA auto-detects `curl` or `wget` |
 | `openssh` | SSH server | Already available |
-| `jq` | JSON processing | Check for regex/oniguruma support |
+| `jq` | JSON processing | **No regex** — built without oniguruma (verified) |
 
-> **NOTE:** Verify whether Entware's `jq` includes oniguruma (regex support). OpenWRT's `jq` lacks it, and QManager's scripts already avoid `test()` / regex. If Entware's `jq` has regex, it would be an improvement but not worth depending on for portability.
+> **VERIFIED (2026-07-27):** Entware's `jq` on RM520N-GL is **1.7.1 built WITHOUT the ONIGURUMA regex library**, same as OpenWRT's. Every regex builtin — `test`, `match`, `capture`, `scan`, `split/2`, `splits`, `sub`, `gsub` — parses fine but **aborts at runtime**:
+>
+> ```
+> jq: error (at <stdin>:1): jq was compiled without ONIGURUMA regex library.
+> match/test/sub and related functions are not available.
+> ```
+>
+> **The trap:** `jq -n builtins` still *lists* `gsub/2`, `test/1`, `match/2` and friends, because the names are registered even though the implementation is compiled out. So `builtins` is **useless as a capability probe** — the only reliable check is actually calling one.
+>
+> Do the string work outside jq instead: `tr` for character deletion, `sed`/`awk` for pattern edits (awk's own `gsub` is a *different, unrelated* builtin and is always available), and jq's non-regex primitives — `split/1` (literal separator), `ltrimstr`, `rtrimstr`, `startswith`, `endswith`, `contains`, `index`, `ascii_downcase`.
+>
+> This bit once for real: `migrate_sim_registry()` in `install_rm520n.sh` trimmed with `gsub("^[ \t\r]+|[ \t\r]+$";"")` and failed on every device, and because its stderr was sent to `/dev/null` the installer only printed a generic `WARNING: failed to seed sim_registry.json`. **Never `2>/dev/null` a jq call whose failure you report** — capture stderr into the warning instead.
 
 ---
 

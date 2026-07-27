@@ -31,6 +31,10 @@
     "empty_description": "QManager records each SIM the first time it is inserted. Insert a SIM to start the list.",
     "toast_restored": "Alert turned back on",
     "toast_restored_detail": "QManager will alert again when the {{carrier}} SIM is inserted.",
-    "toast_restore_failed": "Couldn't turn the alert back on"
+    "toast_restore_failed": "Couldn't turn the alert back on",
+    "remembered_count_one": "{{count}} SIM remembered",
+    "remembered_count_other": "{{count}} SIMs remembered",
+    "toast_cleared_partial": "Cleared, but the list may be stale",
+    "toast_cleared_partial_detail": "The device forgot the SIMs but couldn't update this list. Reload the page to check."
   }
 }

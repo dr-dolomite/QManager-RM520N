@@ -31,6 +31,10 @@
     "empty_description": "QManager mencatat setiap SIM saat pertama kali dipasang. Pasang SIM untuk memulai daftar.",
     "toast_restored": "Peringatan diaktifkan kembali",
     "toast_restored_detail": "QManager akan memberi tahu lagi saat SIM {{carrier}} dipasang.",
-    "toast_restore_failed": "Gagal mengaktifkan kembali peringatan"
+    "toast_restore_failed": "Gagal mengaktifkan kembali peringatan",
+    "remembered_count_one": "{{count}} SIM diingat",
+    "remembered_count_other": "{{count}} SIM diingat",
+    "toast_cleared_partial": "Sudah dihapus, tetapi daftar mungkin belum diperbarui",
+    "toast_cleared_partial_detail": "Perangkat sudah melupakan SIM tersebut tetapi gagal memperbarui daftar ini. Muat ulang halaman untuk memeriksa."
   }
 }

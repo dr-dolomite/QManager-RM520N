@@ -230,6 +230,49 @@ sim_registry_set_dismissed() {
     ) 9<"$SIM_REGISTRY_LOCK"
 }
 
+# sim_registry_clear_keep <iccid>
+# Reset the registry to contain ONLY the given ICCID's record — the sidecar
+# half of the "clear known SIMs" action. sim_db_clear_keep() is the set half;
+# the two MUST move together or the Tracked SIMs card lists SIMs the count
+# already reports as forgotten (this was a real shipped bug).
+#
+# The kept record is preserved VERBATIM (carrier, phone_number, first_seen,
+# dismissed) rather than reseeded: a user who already silenced the inserted
+# SIM's banner must not get it back as a side effect of forgetting the OTHER
+# SIMs. An empty ICCID (no SIM inserted) empties the registry entirely,
+# mirroring sim_db_clear_keep's truncate-on-empty. An ICCID with no existing
+# record also yields an empty registry — nothing is ever auto-vivified here.
+#
+# Unlike the scoped-field writers above this is a WHOLE-object rewrite, which
+# is safe only because it is the one operation whose entire purpose is to
+# discard the other keys. It still runs under the same flock, so a concurrent
+# poller refresh cannot interleave.
+# Return codes: 0 success, 1 write failure, 2 lock-acquire timeout.
+# Root-privileged callers only (qmanager_sim_registry_apply); www-data never
+# calls this directly.
+sim_registry_clear_keep() {
+    local _iccid
+    _iccid=$(sim_db_normalize "$1")
+
+    _sim_registry_ensure_files
+
+    (
+        sim_registry_flock_wait 9 5 || exit 2
+        local _cur _tmp
+        _cur=$(_sim_registry_read)
+        _tmp=$(mktemp "${SIM_REGISTRY_FILE}.XXXXXX" 2>/dev/null) || exit 1
+        if ! printf '%s' "$_cur" | jq \
+            --arg iccid "$_iccid" \
+            'if ($iccid != "" and has($iccid)) then {($iccid): .[$iccid]} else {} end' \
+            > "$_tmp" 2>/dev/null; then
+            rm -f "$_tmp"
+            exit 1
+        fi
+        chmod 644 "$_tmp" 2>/dev/null
+        mv "$_tmp" "$SIM_REGISTRY_FILE"
+    ) 9<"$SIM_REGISTRY_LOCK"
+}
+
 # sim_registry_get_record <iccid>
 # Print the record for <iccid> as compact JSON, or "null" if absent/file
 # missing. Read-only — safe for www-data (file is world-readable 0644), no

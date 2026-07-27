@@ -1,26 +1,32 @@
 #!/bin/sh
 # =============================================================================
-# qmanager_sim_registry_apply — Root helper: dismiss/undismiss a SIM registry
-# record.
+# qmanager_sim_registry_apply — Root helper: mutate the SIM registry.
 # =============================================================================
-# Called via: sudo -n /usr/bin/qmanager_sim_registry_apply <iccid> <dismiss|undismiss>
+# Called via: sudo -n /usr/bin/qmanager_sim_registry_apply <iccid> <action>
+#   action ∈ dismiss | undismiss | clear_keep
 #
 # This is the privileged boundary for /etc/qmanager/sim_registry.json
 # (root:root 0644) — www-data cannot write it directly. ALL input validation
 # happens HERE, inside the helper, not in the calling CGI:
 #   - ICCID: charset digits with an optional single TRAILING F/f pad nibble,
 #     18-22 characters total.
-#   - action: strict 2-value enum (dismiss|undismiss).
+#   - action: strict 3-value enum (dismiss|undismiss|clear_keep).
 # The ICCID is NEVER string-interpolated into a jq filter — it always goes in
 # via `jq --arg` (see sim_registry.sh). Anything that fails validation is
 # rejected with a nonzero exit and NO write.
 #
+# clear_keep is the ONLY action that accepts an empty ICCID: it is the sidecar
+# half of "clear known SIMs", and clearing with no SIM inserted legitimately
+# empties the whole registry (mirroring sim_db_clear_keep). A NON-empty ICCID
+# still runs the full gate set regardless of action.
+#
 # Exit codes:
-#   0 — success (dismissed/undismissed)
+#   0 — success (dismissed/undismissed/cleared)
 #   1 — invalid input, or write failed
 #   2 — could not acquire the sim_registry lock in time
 #   3 — unknown ICCID (no existing registry record) — a dismiss/undismiss
-#       call must never silently create a new record.
+#       call must never silently create a new record. clear_keep never
+#       returns 3: an unknown ICCID there simply clears everything.
 #
 # Install location: /usr/bin/qmanager_sim_registry_apply
 # Sudoers: bare-path NOPASSWD grant for www-data (added by the installer).
@@ -32,11 +38,11 @@
 raw_iccid="$1"
 action="$2"
 
-# --- Validate action (strict 2-value enum) -----------------------------------
+# --- Validate action (strict 3-value enum) -----------------------------------
 case "$action" in
-    dismiss|undismiss) ;;
+    dismiss|undismiss|clear_keep) ;;
     *)
-        printf '{"success":false,"error":"invalid_action","detail":"action must be dismiss or undismiss"}\n'
+        printf '{"success":false,"error":"invalid_action","detail":"action must be dismiss, undismiss, or clear_keep"}\n'
         exit 1
         ;;
 esac
@@ -47,54 +53,69 @@ esac
 # match what the poller writes.
 iccid=$(sim_db_normalize "$raw_iccid")
 
-if [ -z "$iccid" ]; then
+# Empty is legal ONLY for clear_keep (no SIM inserted -> clear everything).
+if [ -z "$iccid" ] && [ "$action" != "clear_keep" ]; then
     printf '{"success":false,"error":"empty_iccid","detail":"ICCID is required"}\n'
     exit 1
 fi
 
-# Charset gate: only digits and F/f are allowed anywhere.
-case "$iccid" in
-    *[!0-9Ff]*)
-        printf '{"success":false,"error":"invalid_charset","detail":"ICCID must be digits, with an optional trailing F"}\n'
-        exit 1
-        ;;
-esac
+# A non-empty ICCID runs every gate below, whatever the action.
+if [ -n "$iccid" ]; then
+    # Charset gate: only digits and F/f are allowed anywhere.
+    case "$iccid" in
+        *[!0-9Ff]*)
+            printf '{"success":false,"error":"invalid_charset","detail":"ICCID must be digits, with an optional trailing F"}\n'
+            exit 1
+            ;;
+    esac
 
-# Shape gate: F/f, if present, must appear ONLY as the single trailing char.
-# Strip one trailing F/f (if present) and require the remainder be all-digit
-# — this rejects an embedded F anywhere but the last position (e.g. "12F34").
-_stripped="$iccid"
-case "$_stripped" in
-    *[Ff]) _stripped=${_stripped%?} ;;
-esac
-case "$_stripped" in
-    ''|*[!0-9]*)
-        printf '{"success":false,"error":"invalid_charset","detail":"F/f is only allowed as a single trailing pad nibble"}\n'
-        exit 1
-        ;;
-esac
+    # Shape gate: F/f, if present, must appear ONLY as the single trailing char.
+    # Strip one trailing F/f (if present) and require the remainder be all-digit
+    # — this rejects an embedded F anywhere but the last position (e.g. "12F34").
+    _stripped="$iccid"
+    case "$_stripped" in
+        *[Ff]) _stripped=${_stripped%?} ;;
+    esac
+    case "$_stripped" in
+        ''|*[!0-9]*)
+            printf '{"success":false,"error":"invalid_charset","detail":"F/f is only allowed as a single trailing pad nibble"}\n'
+            exit 1
+            ;;
+    esac
 
-# Length gate: 18-22 characters total.
-iccid_len=${#iccid}
-if [ "$iccid_len" -lt 18 ] || [ "$iccid_len" -gt 22 ]; then
-    printf '{"success":false,"error":"invalid_length","detail":"ICCID must be 18-22 characters"}\n'
-    exit 1
+    # Length gate: 18-22 characters total.
+    iccid_len=${#iccid}
+    if [ "$iccid_len" -lt 18 ] || [ "$iccid_len" -gt 22 ]; then
+        printf '{"success":false,"error":"invalid_length","detail":"ICCID must be 18-22 characters"}\n'
+        exit 1
+    fi
 fi
 
 # --- Apply ---------------------------------------------------------------------
-val="false"
-[ "$action" = "dismiss" ] && val="true"
+if [ "$action" = "clear_keep" ]; then
+    sim_registry_clear_keep "$iccid"
+    rc=$?
+else
+    val="false"
+    [ "$action" = "dismiss" ] && val="true"
 
-sim_registry_set_dismissed "$iccid" "$val"
-rc=$?
+    sim_registry_set_dismissed "$iccid" "$val"
+    rc=$?
+fi
 
 case "$rc" in
     0)
-        if [ "$action" = "dismiss" ]; then
-            printf '{"success":true,"dismissed":true}\n'
-        else
-            printf '{"success":true,"dismissed":false}\n'
-        fi
+        case "$action" in
+            clear_keep)
+                printf '{"success":true,"cleared":true}\n'
+                ;;
+            dismiss)
+                printf '{"success":true,"dismissed":true}\n'
+                ;;
+            *)
+                printf '{"success":true,"dismissed":false}\n'
+                ;;
+        esac
         exit 0
         ;;
     3)

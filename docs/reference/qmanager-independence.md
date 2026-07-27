@@ -141,6 +141,47 @@ are corrected — without it, the blanket `chown` above would leave the file
 (`migrate_ping_environment()`, `prune_stale_ping_environment()`) `chown root:root`
 their temp file to match; keep all three in sync if any changes.
 
+`migrate_sim_registry()` is the third writer under `$CONF_DIR` and `chown www-data:www-data`s
+its temp — `sim_registry.json` **does** have a `www-data` writer (the
+dismiss/undismiss CGI via `sim_registry.sh`). Because the blanket `chown -R` runs
+*earlier* in `install_backend()` than the migration functions, a temp left at
+`mktemp`'s default `root:root` would silently **downgrade** a live www-data-owned
+file. Always set the owner explicitly on the temp; never rely on the blanket chown.
+
+### ⚠️ Migration rule: repair drifted state, don't just gate on existence
+
+A migration guarded only by `[ -f "$target" ] && return 0` cannot fix anything it
+previously got wrong — the first (broken) run creates the file, and every later
+run sees it and returns. That converts a one-release bug into a permanent one,
+exactly like "fixing" a bad `chmod` by deleting the line (see the `install -d`
+rule above): **a fix that never revisits the drifted state is not a fix.**
+
+This is not hypothetical. `migrate_sim_registry()` shipped with a jq `gsub()` call
+that aborts on this platform (Entware's jq has no regex — see
+`docs/rm520n-gl-architecture.md`), so the seed failed on every device and
+`sim_registry.json` got created lazily by `sim_registry_refresh_active()`'s
+auto-vivify holding only the **active** SIM. The existence gate then locked that
+in permanently.
+
+It now does a **content check** — count the `known_iccids` entries that have no
+record — and is strictly **additive**:
+
+- Merge with jq's `+` (shallow, right-hand-wins: `seed + existing`), so an
+  existing record replaces the seeded stub **wholesale**. Never `*`, which
+  deep-merges and would reach *inside* live records, resurrecting fields the
+  poller or CGI deliberately left absent and clobbering a user's dismissal.
+- If nothing is missing, **write nothing**. Beyond avoiding pointless flash
+  churn, this bounds the one real race here: `stop_services()` stops the poller
+  before `install_backend()`, but **lighttpd is never stopped during an OTA**, so
+  a CGI dismissal write can overlap. The in-directory `mktemp` + rename keeps
+  that atomic — a concurrent write can be *lost*, but the file cannot be torn.
+- A target that exists but does not parse is left **untouched** with a warning;
+  destroying a user's dismissal state is worse than skipping the backfill.
+
+**Never `2>/dev/null` a jq/command whose failure you then report.** The original
+did, so a live install printed only `WARNING: failed to seed sim_registry.json`
+with the actual ONIGURUMA error discarded. Capture stderr into the warning text.
+
 ---
 
 ## Device permissions (/dev/smd11 & udev)
