@@ -83,7 +83,7 @@
       "title": "Direkomendasikan untuk SIM Anda",
       "description": "Konfigurasi awal untuk operator yang terdeteksi. Belum ada yang disimpan, dan tidak ada yang diterapkan sampai Anda membuat profil lalu mengaktifkannya.",
       "badge": "Disarankan",
-      "plan_ambiguity": "Kami mendeteksi SIM T-Mobile, tetapi jaringan tidak memberi tahu jenis paketnya. Pilih yang sesuai dengan layanan Anda: SIM internet rumah memakai profil TMHI, sedangkan nomor ponsel dan tablet memakai profil standar. APN yang salah dapat membuat data gagal terhubung.",
+      "plan_ambiguity": "SIM Anda cocok dengan lebih dari satu paket di jaringan ini, dan jaringan tidak memberi tahu kami paket mana yang Anda gunakan. Pilih yang sesuai dengan layanan Anda — paket internet rumah dan paket ponsel memakai APN yang berbeda, dan salah pilih bisa membuat data tidak tersambung.",
       "bands_nsa": "5G NSA {{bands}}",
       "bands_sa": "5G SA {{bands}}",
       "bands_nsa_auto": "5G NSA Otomatis",
@@ -92,7 +92,7 @@
       "create": "Buat",
       "creating": "Membuat",
       "create_aria": "Buat profil {{name}}",
-      "rationale_bands": "Penguncian pita menjaga modem tetap pada pita 5G utama T-Mobile (n25, n41, n66, n71) dan biasanya meningkatkan kestabilan. Namun jangkauan bisa berkurang di lokasi yang hanya terjangkau pita lain. Pita yang tidak dilaporkan didukung oleh modem akan dilewati, dan menonaktifkan profil akan menghapus penguncian ini.",
+      "rationale_bands": "Penguncian band membuat modem tetap pada band 5G utama operator, yang biasanya meningkatkan stabilitas. Namun bisa juga mengurangi jangkauan di tempat yang hanya terjangkau band lain. Band yang tidak dilaporkan didukung oleh modem akan dilewati, dan menonaktifkan profil akan menghapus penguncian.",
       "rationale_ttl": "TTL dan hop limit diatur ke 64 agar lalu lintas dari perangkat di belakang modem keluar dengan nilai yang sama seperti lalu lintas modem itu sendiri. Menonaktifkan profil akan mengembalikan nilai sebelumnya."
     },
     "page": {

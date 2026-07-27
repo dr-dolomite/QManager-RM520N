@@ -11,9 +11,9 @@
 // (sometimes intentionally zeroed) TTL/HL values. Suggestions carry the values
 // we actually recommend for the carrier, independently. Do not couple them.
 //
-// To add a carrier: append a suggestion here AND add its MCC/MNC to the
-// allowlist in lib/carrier-match.ts. Both halves are required — a suggestion no
-// matcher returns is dead code, and a match with no suggestion renders nothing.
+// To add a carrier: append a suggestion here AND add its PLMN to the table in
+// lib/carrier-match.ts. Both halves are required — a suggestion no matcher
+// returns is dead code, and a match with no suggestion renders nothing.
 // =============================================================================
 
 /**
@@ -45,9 +45,28 @@ export interface ProfileSuggestion {
   nsa_nr_bands: number[];
   /** Recommended NR5G SA bands. Intersected with modem support before use. */
   sa_nr_bands: number[];
+  /**
+   * Name of the connection scenario this suggestion binds to.
+   *
+   * Present ONLY when the suggestion recommends band locks. A suggestion with
+   * no bands must leave this undefined so the create path skips scenario
+   * creation entirely — see the `scenario_name` note in
+   * hooks/use-profile-suggestions.ts for why that matters.
+   */
+  scenario_name?: string;
+  /**
+   * True when this suggestion shares its PLMN with a sibling suggestion, so
+   * the two cannot be told apart over the air and the user must choose.
+   *
+   * Currently: T-Mobile vs TMHI (both 310-260), Globe vs GOMO (both 515-02).
+   * Drives the "we can't detect which plan you have" note in the UI, rendered
+   * only when a visible suggestion carries this flag — an unambiguous single
+   * match should not warn about a choice that isn't there.
+   */
+  ambiguous_plan?: boolean;
 }
 
-/** T-Mobile US mid-band + low-band 5G set shared by both suggestions. */
+/** T-Mobile US mid-band + low-band 5G set shared by both T-Mobile suggestions. */
 const TMOBILE_NR_BANDS = [25, 41, 66, 71];
 
 /**
@@ -57,7 +76,20 @@ const TMOBILE_NR_BANDS = [25, 41, 66, 71];
  */
 export const TMOBILE_SCENARIO_NAME = "T-Mobile Recommended Bands";
 
+// -----------------------------------------------------------------------------
+// The recipes.
+// -----------------------------------------------------------------------------
+// Only the T-Mobile pair carries band locks. Every other carrier here is
+// APN + TTL/HL only, deliberately: we have no verified band recommendation for
+// them, and a band lock is a NARROWING operation. Guessing one would be
+// actively harmful — and it would bind a `custom-*` scenario, which disables
+// the Band Locking page and removes the user's own route to undoing it.
+//
+// TTL/HL 64 across the board is intentional and independent of MNO_PRESETS,
+// several of which store 0 (leave unchanged) for the same carrier.
+// -----------------------------------------------------------------------------
 export const PROFILE_SUGGESTIONS: ProfileSuggestion[] = [
+  // --- United States ---------------------------------------------------------
   {
     id: "tmobile",
     label: "T-Mobile",
@@ -69,6 +101,8 @@ export const PROFILE_SUGGESTIONS: ProfileSuggestion[] = [
     hl: 64,
     nsa_nr_bands: TMOBILE_NR_BANDS,
     sa_nr_bands: TMOBILE_NR_BANDS,
+    scenario_name: TMOBILE_SCENARIO_NAME,
+    ambiguous_plan: true,
   },
   {
     id: "tmobile_home",
@@ -81,6 +115,89 @@ export const PROFILE_SUGGESTIONS: ProfileSuggestion[] = [
     hl: 64,
     nsa_nr_bands: TMOBILE_NR_BANDS,
     sa_nr_bands: TMOBILE_NR_BANDS,
+    scenario_name: TMOBILE_SCENARIO_NAME,
+    ambiguous_plan: true,
+  },
+  {
+    id: "verizon",
+    label: "Verizon",
+    mno: "Verizon",
+    apn_name: "vzwinternet",
+    pdp_type: "IPV4V6",
+    cid: 1,
+    ttl: 64,
+    hl: 64,
+    nsa_nr_bands: [],
+    sa_nr_bands: [],
+  },
+  {
+    id: "att",
+    label: "AT&T",
+    mno: "AT&T",
+    // Matches the `att_5g_phone` MNO preset. This is AT&T's phone APN, not a
+    // dedicated fixed-wireless one — it is what the preset has always carried.
+    apn_name: "enhancedphone",
+    pdp_type: "IPV4V6",
+    cid: 1,
+    ttl: 64,
+    hl: 64,
+    nsa_nr_bands: [],
+    sa_nr_bands: [],
+  },
+
+  // --- Philippines -----------------------------------------------------------
+  {
+    id: "smart",
+    label: "Smart",
+    mno: "Smart",
+    apn_name: "SMARTLTE",
+    pdp_type: "IPV4V6",
+    cid: 1,
+    ttl: 64,
+    hl: 64,
+    nsa_nr_bands: [],
+    sa_nr_bands: [],
+  },
+  {
+    id: "globe",
+    label: "Globe",
+    mno: "Globe",
+    apn_name: "internet.globe.com.ph",
+    pdp_type: "IPV4V6",
+    cid: 1,
+    ttl: 64,
+    hl: 64,
+    nsa_nr_bands: [],
+    sa_nr_bands: [],
+    // GOMO is Globe's own digital brand riding the same PLMN (515-02), so the
+    // two are indistinguishable over the air — the same situation as T-Mobile
+    // vs TMHI. Both are shown and the user picks.
+    ambiguous_plan: true,
+  },
+  {
+    id: "gomo",
+    label: "GOMO",
+    mno: "GOMO",
+    apn_name: "gomo.ph",
+    pdp_type: "IPV4V6",
+    cid: 1,
+    ttl: 64,
+    hl: 64,
+    nsa_nr_bands: [],
+    sa_nr_bands: [],
+    ambiguous_plan: true,
+  },
+  {
+    id: "dito",
+    label: "DITO",
+    mno: "DITO",
+    apn_name: "internet.dito.ph",
+    pdp_type: "IPV4V6",
+    cid: 1,
+    ttl: 64,
+    hl: 64,
+    nsa_nr_bands: [],
+    sa_nr_bands: [],
   },
 ];
 
