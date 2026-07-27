@@ -83,7 +83,7 @@
       "title": "Consigliati per la tua SIM",
       "description": "Configurazioni iniziali per l'operatore rilevato. Nulla è ancora salvato e nulla viene applicato finché non crei un profilo e lo attivi.",
       "badge": "Consigliato",
-      "plan_ambiguity": "Abbiamo rilevato una SIM T-Mobile, ma la rete non indica il tipo di piano. Scegli quello corrispondente alla tua linea: le SIM per internet casa usano il profilo TMHI, le linee per telefono e tablet usano quello standard. Un APN sbagliato può impedire la connessione dati.",
+      "plan_ambiguity": "La tua SIM corrisponde a più piani su questa rete e la rete non ci dice quale hai. Scegli quello che corrisponde alla tua linea: i piani per internet casa e quelli per telefono usano APN diversi e quello sbagliato può impedire la connessione dati.",
       "bands_nsa": "5G NSA {{bands}}",
       "bands_sa": "5G SA {{bands}}",
       "bands_nsa_auto": "5G NSA Auto",
@@ -92,7 +92,7 @@
       "create": "Crea",
       "creating": "Creazione",
       "create_aria": "Crea il profilo {{name}}",
-      "rationale_bands": "Il blocco delle bande mantiene il modem sulle principali bande 5G di T-Mobile (n25, n41, n66, n71) e di solito migliora la stabilità. Può però ridurre la copertura dove arrivano solo altre bande. Le bande che il modem non dichiara supportate vengono escluse e disattivando il profilo il blocco viene rimosso.",
+      "rationale_bands": "Il blocco delle bande mantiene il modem sulle principali bande 5G dell'operatore, il che di solito migliora la stabilità. Può però ridurre la copertura dove arrivano solo altre bande. Le bande che il modem non segnala come supportate vengono escluse e disattivando il profilo il blocco viene rimosso.",
       "rationale_ttl": "TTL e hop limit sono impostati a 64 così il traffico dei dispositivi collegati al modem esce con lo stesso valore di quello del modem stesso. Disattivando il profilo i valori precedenti vengono ripristinati."
     },
     "page": {

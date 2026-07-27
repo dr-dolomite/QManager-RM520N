@@ -7,12 +7,12 @@ import {
   iccidMatches,
   canonicalizeIccid,
 } from "@/lib/carrier-match";
-import {
-  TMOBILE_SCENARIO_NAME,
-  type ProfileSuggestion,
-} from "@/constants/profile-suggestions";
+import { type ProfileSuggestion } from "@/constants/profile-suggestions";
 import type { ProfileFormData } from "@/hooks/use-sim-profiles";
-import type { ProfileSummary } from "@/types/sim-profile";
+import {
+  DEFAULT_SCENARIO_BINDING,
+  type ProfileSummary,
+} from "@/types/sim-profile";
 import type {
   ScenarioApiResponse,
   ScenarioListResponse,
@@ -36,6 +36,17 @@ import type {
 // =============================================================================
 
 const SCENARIO_BASE = "/cgi-bin/quecmanager/scenarios";
+
+/**
+ * Scenario bound when a suggestion recommends no band lock.
+ *
+ * `"balanced"` is a BUILT-IN scenario, and that is the whole point. Binding a
+ * `custom-*` scenario disables the Band Locking page — client-side and again
+ * server-side in `scenarios/activate.sh` — so a profile that locks nothing
+ * must not bind one. Otherwise an APN-only suggestion would silently cost the
+ * user their manual band controls in exchange for nothing at all.
+ */
+const NO_BAND_SCENARIO_ID = DEFAULT_SCENARIO_BINDING.default;
 
 /** Colon-delimited band string → sorted unique numbers. Tolerates junk. */
 function parseBandList(raw: string | null | undefined): number[] {
@@ -87,6 +98,14 @@ export interface UseProfileSuggestionsInput {
   /** Mobile network code from current_settings.sh. */
   mnc: string | null | undefined;
   /**
+   * EF_SPN service-provider name from current_settings.sh. Used only to
+   * SUPPRESS suggestions when the SIM names a known reseller — never to
+   * produce them. Optional; `""` is normal and means "SIM did not say".
+   */
+  spn?: string | null;
+  /** EF_PNN full network name from current_settings.sh. Same role as `spn`. */
+  networkName?: string | null;
+  /**
    * Live SIM ICCID. Prefer current_settings.sh's value — it is already
    * canonicalized backend-side — over modem status's raw copy.
    */
@@ -119,6 +138,8 @@ export interface UseProfileSuggestionsReturn {
 export function useProfileSuggestions({
   mcc,
   mnc,
+  spn,
+  networkName,
   currentIccid,
   profiles,
   supportedNsaBands,
@@ -142,19 +163,33 @@ export function useProfileSuggestions({
   const suggestions = useMemo<SuggestionView[]>(() => {
     if (!iccid) return [];
     if (simAlreadyCovered) return [];
-    return matchCarrierSuggestions(mcc ?? "", mnc ?? "").map((suggestion) => ({
-      suggestion,
-      nsaBands: intersectSupported(suggestion.nsa_nr_bands, supportedNsaBands),
-      saBands: intersectSupported(suggestion.sa_nr_bands, supportedSaBands),
-    }));
-  }, [iccid, simAlreadyCovered, mcc, mnc, supportedNsaBands, supportedSaBands]);
+    return matchCarrierSuggestions(mcc ?? "", mnc ?? "", spn, networkName).map(
+      (suggestion) => ({
+        suggestion,
+        nsaBands: intersectSupported(suggestion.nsa_nr_bands, supportedNsaBands),
+        saBands: intersectSupported(suggestion.sa_nr_bands, supportedSaBands),
+      }),
+    );
+  }, [
+    iccid,
+    simAlreadyCovered,
+    mcc,
+    mnc,
+    spn,
+    networkName,
+    supportedNsaBands,
+    supportedSaBands,
+  ]);
 
   const clearError = useCallback(() => setError(null), []);
 
   // ---------------------------------------------------------------------------
-  // Create — a two-call sequence, ordered because the backend requires it.
-  // profile_mgr.sh rejects a save whose scenario id does not exist yet
-  // ("Unknown connection scenario: <id>."), so the scenario must land first.
+  // Create — one call, or two when a band lock is involved.
+  //
+  // When the suggestion carries bands, the scenario must land BEFORE the
+  // profile: profile_mgr.sh rejects a save naming a scenario id that does not
+  // exist yet ("Unknown connection scenario: <id>."). When it carries none,
+  // there is no scenario call at all and the profile binds the built-in.
   // ---------------------------------------------------------------------------
   const createFromSuggestion = useCallback(
     async (suggestionId: string): Promise<string | null> => {
@@ -169,58 +204,79 @@ export function useProfileSuggestions({
       // scenario may be bound to other profiles and must never be removed.
       let createdScenarioId: string | null = null;
 
+      // A scenario is worth creating ONLY when there is an actual band lock to
+      // put in it. Two ways that fails, and both must land on the built-in:
+      //
+      //   1. The suggestion recommends no bands at all (every carrier except
+      //      the T-Mobile pair) — `scenario_name` is undefined.
+      //   2. The suggestion recommends bands, but none survived intersection
+      //      with what the modem reports it supports.
+      //
+      // Case 2 is the subtle one. Before this check, a T-Mobile suggestion on a
+      // modem whose supported-band list had not yet landed would create a
+      // `custom-*` scenario containing two EMPTY band strings — locking
+      // nothing, while still tripping the `custom-*` gate that disables the
+      // Band Locking page. Strictly worse than binding the built-in.
+      const hasBandLock = nsaBands.length > 0 || saBands.length > 0;
+      const scenarioName = suggestion.scenario_name;
+      const wantsScenario = hasBandLock && !!scenarioName;
+
       try {
         // -- Step 1: reuse an existing scenario with the same name if present --
-        let scenarioId: string | null = null;
-        try {
-          const listResp = await authFetch(`${SCENARIO_BASE}/list.sh`);
-          if (listResp.ok) {
-            const listData: ScenarioListResponse = await listResp.json();
-            const existing = (listData.scenarios || []).find(
-              (s) => s.name === TMOBILE_SCENARIO_NAME,
-            );
-            if (existing) scenarioId = existing.id;
-          }
-        } catch {
-          // A failed lookup is not fatal — fall through and create a new one.
-        }
+        let scenarioId: string = NO_BAND_SCENARIO_ID;
 
-        // -- Step 2: create the scenario if it does not exist yet -------------
-        if (!scenarioId) {
-          const scenarioBody = {
-            name: TMOBILE_SCENARIO_NAME,
-            description: `${suggestion.mno} recommended 5G bands`,
-            gradient: "from-fuchsia-500 via-pink-600 to-rose-600",
-            config: {
-              atModeValue: "AUTO",
-              mode: "Auto",
-              optimization: "Custom",
-              lte_bands: "",
-              // An empty intersection means "we could not confirm the modem
-              // supports these" — write no lock rather than a lock it cannot use.
-              nsa_nr_bands: bandsToColonString(nsaBands),
-              sa_nr_bands: bandsToColonString(saBands),
-            },
-          };
+        if (wantsScenario) {
+          let foundId: string | null = null;
+          try {
+            const listResp = await authFetch(`${SCENARIO_BASE}/list.sh`);
+            if (listResp.ok) {
+              const listData: ScenarioListResponse = await listResp.json();
+              const existing = (listData.scenarios || []).find(
+                (s) => s.name === scenarioName,
+              );
+              if (existing) foundId = existing.id;
+            }
+          } catch {
+            // A failed lookup is not fatal — fall through and create a new one.
+          }
 
-          const resp = await authFetch(`${SCENARIO_BASE}/save.sh`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(scenarioBody),
-          });
-          if (!resp.ok) {
-            throw new Error(`HTTP ${resp.status}: ${resp.statusText}`);
+          // -- Step 2: create the scenario if it does not exist yet -----------
+          if (foundId) {
+            scenarioId = foundId;
+          } else {
+            const scenarioBody = {
+              name: scenarioName,
+              description: `${suggestion.mno} recommended 5G bands`,
+              gradient: "from-fuchsia-500 via-pink-600 to-rose-600",
+              config: {
+                atModeValue: "AUTO",
+                mode: "Auto",
+                optimization: "Custom",
+                lte_bands: "",
+                nsa_nr_bands: bandsToColonString(nsaBands),
+                sa_nr_bands: bandsToColonString(saBands),
+              },
+            };
+
+            const resp = await authFetch(`${SCENARIO_BASE}/save.sh`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(scenarioBody),
+            });
+            if (!resp.ok) {
+              throw new Error(`HTTP ${resp.status}: ${resp.statusText}`);
+            }
+            const result: ScenarioApiResponse = await resp.json();
+            if (!result.success || !result.id) {
+              // Surfaces the real backend detail, including the
+              // MAX_SCENARIOS=20 limit_reached case.
+              throw new Error(
+                result.detail || result.error || "Failed to create scenario",
+              );
+            }
+            scenarioId = result.id;
+            createdScenarioId = result.id;
           }
-          const result: ScenarioApiResponse = await resp.json();
-          if (!result.success || !result.id) {
-            // Surfaces the real backend detail, including the MAX_SCENARIOS=20
-            // limit_reached case.
-            throw new Error(
-              result.detail || result.error || "Failed to create scenario",
-            );
-          }
-          scenarioId = result.id;
-          createdScenarioId = result.id;
         }
 
         // -- Step 3: create the profile bound to that scenario -----------------

@@ -65,6 +65,22 @@ const SuggestedProfiles = ({
 
   if (suggestions.length === 0) return null;
 
+  // Both notes below are conditional on what is actually on screen.
+  //
+  // The ambiguity warning applies only where two suggestions share a PLMN and
+  // the user genuinely has to choose (T-Mobile/TMHI, Globe/GOMO). Showing it
+  // above a single unambiguous card would invent a decision that isn't there.
+  //
+  // The band rationale keys off the RECIPE, not the intersected result: a
+  // suggestion that recommends bands still deserves the explanation even when
+  // none survived the modem's supported-band check, because the "Auto" pills
+  // it renders are the outcome that paragraph accounts for.
+  const hasAmbiguity = suggestions.some((v) => v.suggestion.ambiguous_plan);
+  const hasBandRecipe = suggestions.some(
+    (v) =>
+      v.suggestion.nsa_nr_bands.length > 0 || v.suggestion.sa_nr_bands.length > 0,
+  );
+
   return (
     // mt-4 matches the coordinator grid's gap-4. It lives here rather than on a
     // wrapper in the coordinator because this component returns null when there
@@ -81,13 +97,15 @@ const SuggestedProfiles = ({
         </CardHeader>
 
         <CardContent className="flex flex-col gap-3">
-          {/* The plan-type ambiguity. TMHI and consumer T-Mobile are
+          {/* Plan ambiguity. Sibling suggestions on a shared PLMN are
               indistinguishable over the air, so this is framed as the user's
               choice, never as a detection result. */}
-          <div className="text-warning bg-warning/10 flex items-start gap-2 rounded-md p-2 text-xs">
-            <TriangleAlertIcon className="mt-px size-3.5 shrink-0" />
-            <span>{t("custom_profiles.suggestions.plan_ambiguity")}</span>
-          </div>
+          {hasAmbiguity && (
+            <div className="text-warning bg-warning/10 flex items-start gap-2 rounded-md p-2 text-xs">
+              <TriangleAlertIcon className="mt-px size-3.5 shrink-0" />
+              <span>{t("custom_profiles.suggestions.plan_ambiguity")}</span>
+            </div>
+          )}
 
           {error && (
             <Alert variant="destructive">
@@ -110,13 +128,15 @@ const SuggestedProfiles = ({
             ))}
           </div>
 
-          {/* Honest rationale. These two lines carry the safety warning: a band
+          {/* Honest rationale. These lines carry the safety warning: a band
               lock narrows the radio, and both are undone by deactivating. */}
           <div className="text-muted-foreground flex flex-col gap-1.5 text-xs">
-            <p className="flex items-start gap-2">
-              <InfoIcon className="mt-px size-3.5 shrink-0" />
-              <span>{t("custom_profiles.suggestions.rationale_bands")}</span>
-            </p>
+            {hasBandRecipe && (
+              <p className="flex items-start gap-2">
+                <InfoIcon className="mt-px size-3.5 shrink-0" />
+                <span>{t("custom_profiles.suggestions.rationale_bands")}</span>
+              </p>
+            )}
             <p className="flex items-start gap-2">
               <InfoIcon className="mt-px size-3.5 shrink-0" />
               <span>{t("custom_profiles.suggestions.rationale_ttl")}</span>
@@ -148,6 +168,8 @@ const SuggestionCard = ({
 }) => {
   const { t } = useTranslation("cellular");
   const { suggestion, nsaBands, saBands } = view;
+  const recommendsBands =
+    suggestion.nsa_nr_bands.length > 0 || suggestion.sa_nr_bands.length > 0;
 
   return (
     <motion.div
@@ -197,24 +219,29 @@ const SuggestionCard = ({
         )}
       </div>
 
-      {/* Band lock — "Auto" when the modem did not confirm support, because an
-          unverified lock is never written. */}
-      <div className="flex flex-wrap items-center gap-1.5">
-        <Pill tone="info">
-          {nsaBands.length > 0
-            ? t("custom_profiles.suggestions.bands_nsa", {
-                bands: nsaBands.join(", "),
-              })
-            : t("custom_profiles.suggestions.bands_nsa_auto")}
-        </Pill>
-        <Pill tone="info">
-          {saBands.length > 0
-            ? t("custom_profiles.suggestions.bands_sa", {
-                bands: saBands.join(", "),
-              })
-            : t("custom_profiles.suggestions.bands_sa_auto")}
-        </Pill>
-      </div>
+      {/* Band lock — rendered only when this recipe actually recommends bands.
+          Most carriers here are APN + TTL/HL only, and a row of "Auto / Auto"
+          pills on those would imply a band decision was made when none was.
+          Where a recipe DOES recommend bands, "Auto" is meaningful: it means
+          the modem did not confirm support, so no lock will be written. */}
+      {recommendsBands && (
+        <div className="flex flex-wrap items-center gap-1.5">
+          <Pill tone="info">
+            {nsaBands.length > 0
+              ? t("custom_profiles.suggestions.bands_nsa", {
+                  bands: nsaBands.join(", "),
+                })
+              : t("custom_profiles.suggestions.bands_nsa_auto")}
+          </Pill>
+          <Pill tone="info">
+            {saBands.length > 0
+              ? t("custom_profiles.suggestions.bands_sa", {
+                  bands: saBands.join(", "),
+                })
+              : t("custom_profiles.suggestions.bands_sa_auto")}
+          </Pill>
+        </div>
+      )}
 
       <div className="flex items-center justify-between gap-3 pt-0.5">
         <span className="text-muted-foreground text-xs">
