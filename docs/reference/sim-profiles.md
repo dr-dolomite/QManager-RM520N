@@ -37,7 +37,7 @@ points (boot, SIM switch, watchdog) and are still current.
 | Frontend hook | `hooks/use-sim-profiles.ts`, `hooks/use-active-profile.ts`, `hooks/use-current-settings.ts`, `hooks/use-profile-suggestions.ts` |
 | Frontend types | `types/sim-profile.ts` |
 | Frontend page | `app/cellular/custom-profiles/` |
-| Frontend components | `components/cellular/custom-profiles/` (coordinator `custom-profile.tsx`, wizard `custom-profile-form.tsx`, list `custom-profile-view.tsx`, dialog `apply-progress-dialog.tsx`, suggestions `suggested-profiles.tsx`) |
+| Frontend components | `components/cellular/custom-profiles/` (coordinator `custom-profile.tsx`, wizard `custom-profile-form.tsx`, list `custom-profile-view.tsx` — which also renders suggestion rows — dialog `apply-progress-dialog.tsx`) |
 | Suggestion data / matcher | `constants/profile-suggestions.ts`, `lib/carrier-match.ts` |
 | Apply steps | 4: `apn` → `ttl_hl` → `scenario` → `imei` |
 | Band failover watcher | `/usr/bin/qmanager_band_failover`, flag `/etc/qmanager/band_failover_enabled`, PID `/tmp/qmanager_band_failover.pid` |
@@ -102,7 +102,7 @@ Practical consequences worth internalizing before touching this area:
   reference it. `profile_save` validates the reference and rejects a save that
   names a scenario which does not exist yet
   (`"Unknown connection scenario: <id>."`) — so the two writes are strictly
-  ordered, scenario before profile. This is exactly why the suggested-profiles
+  ordered, scenario before profile. This is exactly why the suggestion
   create flow is a two-call sequence (see
   [Suggested profiles](#suggested-profiles-recommended-for-your-sim)).
 - **Editing the scenario changes every profile bound to it.** Bands are shared
@@ -546,17 +546,64 @@ async, so the mount fetch can resolve between the Edit click and
 ## Suggested profiles ("Recommended for your SIM")
 
 When the inserted SIM's PLMN matches a carrier QManager has a known-good recipe
-for, the Custom SIM Profiles page renders a **Recommended for your SIM**
-section below the two-column grid. These are **not saved profiles** — nothing
-exists on flash until the user presses **Create**.
+for, suggestions render as **rows inside the Saved Profiles list**, appended
+below the saved rows under a "Recommended for your SIM" divider. These are
+**not saved profiles** — nothing exists on flash until the user presses
+**Create**.
 
 | Piece | File |
 |-------|------|
 | Recipe data | `constants/profile-suggestions.ts` |
 | PLMN matcher (pure) | `lib/carrier-match.ts` |
 | Decision + create sequence | `hooks/use-profile-suggestions.ts` |
-| UI | `components/cellular/custom-profiles/suggested-profiles.tsx` |
-| i18n | 14 keys under `custom_profiles.suggestions.*` in the `cellular` namespace, all 5 locales |
+| UI | `SuggestionRow` in `components/cellular/custom-profiles/custom-profile-view.tsx` |
+| i18n | 15 keys under `custom_profiles.suggestions.*` in the `cellular` namespace, all 5 locales |
+
+### Why suggestions live in the list but not in `profiles[]`
+
+A suggestion row is structurally identical to a saved row — same border,
+radius, padding, motion, and the same four content bands (identity + status,
+scenario binding, config pills, action footer). Three differences carry the
+honesty, none of them colour-only:
+
+- the status slot reads **Suggested** (info-toned, `SparklesIcon`) where a saved
+  row reads Active / SIM mismatch / Inactive;
+- there is **no overflow menu**, because there is nothing yet to edit or delete;
+- the footer verb is **Create**, not Activate, above a "Not saved yet" label.
+
+The surface stays `bg-muted/20` — the same wash an inactive saved row uses.
+Tinting it would re-create the visual quarantine the in-list design removes.
+
+> ⚠️ **Suggestions must stay a sibling prop, never merged into `profiles`.**
+> Three invariants depend on that separation, and merging breaks all three at
+> once:
+>
+> 1. the header **count badge** reads `profiles.length`, so it never claims a
+>    suggestion is stored;
+> 2. the **detail prefetch** (`Promise.all(profiles.map(getProfile))`) never
+>    fires a CGI GET for a synthetic id that resolves to nothing;
+> 3. **activate / edit / delete** are wired per row variant, so a synthetic id
+>    is never handed to an endpoint that only accepts real ones.
+
+Two further consequences of moving suggestions inside the card:
+
+- **The empty-state gate is widened.** `custom-profile-view.tsx` returns
+  `EmptyProfileViewComponent` only when `profiles.length === 0` **and**
+  `suggestions.length === 0`. A user with no saved profiles but a matched
+  carrier is exactly who a suggestion is for; the full empty-state card would
+  otherwise hide the recommendation from its whole audience. When only
+  suggestions exist, an inline `view.none_saved_yet` line carries the
+  "nothing stored yet" message instead.
+- **The scenario binding line is now rendered on suggestion rows.** It resolves
+  the same way the create path does: the recipe's `scenario_name` when a band
+  lock actually survives intersection with the modem's supported bands,
+  otherwise the built-in `balanced`. This is honest disclosure — binding a
+  `custom-*` scenario is what disables the manual Band Locking page.
+
+The plan-ambiguity warning is per-row (`suggestions.plan_ambiguity_short`,
+occupying the slot a saved row uses for its SIM-mismatch note), because the
+choice it describes is between two specific sibling rows. The band and TTL
+rationale stays section-level, in a muted footer beneath the suggestion rows.
 
 ### The recipes
 
