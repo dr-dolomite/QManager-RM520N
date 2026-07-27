@@ -245,33 +245,73 @@ const CustomProfileFormComponent = ({
 
   // Pre-fill from current modem settings when loaded (create mode only).
   // Compare during render instead of useEffect to avoid cascading setState.
+  //
+  // Two arrival paths land here and must behave differently:
+  //   MOUNT    — useCurrentSettings(true) fires the ~2-3s AT read on page load.
+  //              The user may already be typing when it resolves, so this path
+  //              is FILL-EMPTY-ONLY: whatever is already in the form (typed, or
+  //              seeded by an MNO preset) always wins. It also never writes
+  //              IMEI — apply step 4 (qmanager_profile_apply) issues
+  //              AT+EGMR=1,7 and REBOOTS the modem whenever a profile's stored
+  //              IMEI differs from live, and a stored IMEI also stamps an
+  //              "IMEI override" pill on the saved-profile row. Neither should
+  //              be armed silently on every new profile.
+  //   EXPLICIT — the user pressed "Load from SIM", which means "replace what's
+  //              in the form with what the SIM says": SIM values win, IMEI
+  //              included. `explicitLoad` is set by the click handler and
+  //              consumed by the next settings object to arrive.
   const [prevSettings, setPrevSettings] = useState<CurrentModemSettings | null>(
     null,
   );
+  const [explicitLoad, setExplicitLoad] = useState(false);
 
-  if (currentSettings && currentSettings !== prevSettings && !isEditing) {
+  if (currentSettings && currentSettings !== prevSettings) {
     setPrevSettings(currentSettings);
-    const apnPrefill =
-      currentSettings.apn_profiles?.length > 0
-        ? (() => {
-            const activeCid = currentSettings.active_cid;
-            const primary =
-              currentSettings.apn_profiles.find((a) => a.cid === activeCid) ||
-              currentSettings.apn_profiles[0];
-            return {
-              cid: primary.cid,
-              apn_name: primary.apn || "",
-              pdp_type: normalizePdpType(primary.pdp_type),
-            };
-          })()
-        : {};
+    setExplicitLoad(false);
 
-    setForm((prev) => ({
-      ...prev,
-      sim_iccid: currentSettings.iccid || prev.sim_iccid,
-      imei: currentSettings.imei || prev.imei,
-      ...apnPrefill,
-    }));
+    // The settings object is consumed (prevSettings advanced) even while
+    // editing, so a response that lands mid-edit can never write itself into a
+    // form the user opens later. That window is real: handleEdit is async, so
+    // the mount fetch can resolve between the Edit click and editingProfile
+    // arriving — and the form-reset block above would then be racing this one.
+    if (!isEditing) {
+      const primary =
+        currentSettings.apn_profiles && currentSettings.apn_profiles.length > 0
+          ? currentSettings.apn_profiles.find(
+              (a) => a.cid === currentSettings.active_cid,
+            ) || currentSettings.apn_profiles[0]
+          : null;
+
+      setForm((prev) => {
+        const next = { ...prev };
+
+        if (currentSettings.iccid) {
+          next.sim_iccid = explicitLoad
+            ? currentSettings.iccid
+            : prev.sim_iccid || currentSettings.iccid;
+        }
+
+        // IMEI: explicit click only — never on the automatic mount path.
+        if (explicitLoad && currentSettings.imei) {
+          next.imei = currentSettings.imei;
+        }
+
+        // APN triple. `cid` (default 1) and `pdp_type` (default IPV4V6) have no
+        // "empty" value, so fill-empty-only can't be expressed for them on
+        // their own — they ride along with apn_name so the triple is either
+        // fully SIM-sourced or fully untouched, never half-overwritten.
+        // An empty SIM APN never writes: the live device reports active_cid 1
+        // with an empty APN string, which under the old code blanked the field.
+        const simApn = (primary?.apn ?? "").trim();
+        if (primary && simApn !== "" && (explicitLoad || prev.apn_name.trim() === "")) {
+          next.apn_name = simApn;
+          next.cid = primary.cid;
+          next.pdp_type = normalizePdpType(primary.pdp_type);
+        }
+
+        return next;
+      });
+    }
   }
 
   const updateField = <K extends keyof ProfileFormData>(
@@ -308,8 +348,14 @@ const CustomProfileFormComponent = ({
   // ---------------------------------------------------------------------------
   // Load current SIM settings (create mode). The button fires the coordinator
   // callback; the render-time compare above prefills once currentSettings lands.
+  // Arming `explicitLoad` marks that arrival as user-requested, which upgrades
+  // the prefill from fill-empty-only to overwrite and lets it include IMEI. If a
+  // mount fetch is still in flight when this is clicked, that in-flight response
+  // is treated as the explicit one — same endpoint, same data, and the user did
+  // ask for it.
   // ---------------------------------------------------------------------------
   const handleLoadFromSim = () => {
+    setExplicitLoad(true);
     if (onLoadCurrentSettings) onLoadCurrentSettings();
   };
 

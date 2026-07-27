@@ -208,6 +208,12 @@ export interface CurrentModemSettings {
   iccid: string;
   /** Active data CID (detected via QMAP/CGPADDR cross-reference) */
   active_cid: number;
+  /** Service provider name from AT+QSPN (first quoted field). May be "" if unavailable (e.g. no SIM). */
+  spn: string;
+  /** 3-digit mobile country code, parsed from the AT+QSPN PLMN field. May be "" if unavailable. */
+  mcc: string;
+  /** 2- or 3-digit mobile network code, parsed from the AT+QSPN PLMN field. May be "" if unavailable. */
+  mnc: string;
 }
 
 /** A single APN/CID pair from AT+CGDCONT? */

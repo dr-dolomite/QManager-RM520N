@@ -79,6 +79,22 @@
     }
   },
   "custom_profiles": {
+    "suggestions": {
+      "title": "为您的 SIM 卡推荐",
+      "description": "根据检测到的运营商提供的初始配置。以下内容尚未保存，在您创建配置文件并激活之前不会生效。",
+      "badge": "推荐",
+      "plan_ambiguity": "我们检测到一张 T-Mobile SIM 卡，但网络不会告知它属于哪种套餐。请选择与您号码相符的一项：家庭宽带 SIM 卡使用 TMHI 配置，手机和平板号码使用标准配置。APN 选错可能导致数据无法连接。",
+      "bands_nsa": "5G NSA {{bands}}",
+      "bands_sa": "5G SA {{bands}}",
+      "bands_nsa_auto": "5G NSA 自动",
+      "bands_sa_auto": "5G SA 自动",
+      "not_saved_yet": "尚未保存",
+      "create": "创建",
+      "creating": "正在创建",
+      "create_aria": "创建 {{name}} 配置文件",
+      "rationale_bands": "频段锁定会将调制解调器限制在 T-Mobile 的主要 5G 频段（n25、n41、n66、n71），通常可提升稳定性，但在仅有其他频段覆盖的地方可能会缩小覆盖范围。调制解调器未报告支持的频段将被排除；停用该配置文件即可解除锁定。",
+      "rationale_ttl": "TTL 与跳数限制设为 64，使调制解调器后方设备的流量与调制解调器自身流量具有相同数值。停用该配置文件会恢复原有数值。"
+    },
     "page": {
       "title": "自定义 SIM 配置文件",
       "description": "将 APN、IMEI 和 TTL/HL 设置打包为一键式配置文件。",

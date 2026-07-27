@@ -779,7 +779,28 @@ Deactivate the currently active profile.
 
 ### GET `/profiles/current_settings.sh`
 
-Get current modem settings for pre-filling profile creation forms.
+Get current modem settings for pre-filling profile creation forms. One compound
+AT read (`AT+CGDCONT?;+CGSN;+QCCID;+CGPADDR;+QMAP="WWAN";+QSPN`), called once
+per form open — never polled.
+
+```json
+{
+  "apn_profiles": [ { "cid": 1, "apn": "fbb.home", "pdp_type": "IPV4V6" } ],
+  "imei": "860000000000000",
+  "iccid": "8901260123456789012",
+  "active_cid": 1,
+  "spn": "GLOBE",
+  "mcc": "515",
+  "mnc": "02"
+}
+```
+
+`spn` / `mcc` / `mnc` are the carrier identity parsed from `+QSPN`; the MCC/MNC
+split is first-3 / rest (MNC is 2 **or** 3 digits). All three fail soft to `""`
+on an absent or malformed `+QSPN` — the endpoint always returns 200, including
+on a SIM-less modem. `iccid` is already canonicalized (trailing BCD pad `F`
+stripped). See
+[sim-profiles.md](reference/sim-profiles.md#live-modem-settings-get-profilescurrent_settingssh).
 
 ---
 

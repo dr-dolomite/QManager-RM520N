@@ -79,6 +79,22 @@
     }
   },
   "custom_profiles": {
+    "suggestions": {
+      "title": "Recommended for your SIM",
+      "description": "Starting configurations for the carrier we detected. Nothing here is saved yet, and nothing is applied until you create a profile and activate it.",
+      "badge": "Suggested",
+      "plan_ambiguity": "We detected a T-Mobile SIM, but the network does not tell us which plan it is on. Pick the one that matches your line: home internet SIMs use the TMHI profile, phone and tablet lines use the standard one. The wrong APN can stop data from connecting.",
+      "bands_nsa": "5G NSA {{bands}}",
+      "bands_sa": "5G SA {{bands}}",
+      "bands_nsa_auto": "5G NSA Auto",
+      "bands_sa_auto": "5G SA Auto",
+      "not_saved_yet": "Not saved yet",
+      "create": "Create",
+      "creating": "Creating",
+      "create_aria": "Create the {{name}} profile",
+      "rationale_bands": "The band lock keeps the modem on T-Mobile's main 5G bands (n25, n41, n66, n71), which usually improves stability. It can also reduce coverage where only other bands reach you. Bands the modem does not report as supported are left out, and deactivating the profile removes the lock.",
+      "rationale_ttl": "TTL and hop limit are set to 64 so traffic from devices behind the modem leaves with the same value as traffic from the modem itself. Deactivating the profile restores the previous values."
+    },
     "page": {
       "title": "Custom SIM Profile",
       "description": "Bundle APN, IMEI, and TTL/HL settings into one-click profiles.",
