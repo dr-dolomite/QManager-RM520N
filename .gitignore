@@ -66,3 +66,6 @@ RELEASE_NOTE.md
 /scratch/
 # Go host build artifacts (device binary ships via build-discord-bot.sh tarball)
 discord-bot/*.exe
+
+# Reimagine directory
+/reimagine/
