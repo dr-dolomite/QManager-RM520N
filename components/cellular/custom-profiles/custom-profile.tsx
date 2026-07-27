@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useEffect, useRef } from "react";
+import { useSearchParams } from "next/navigation";
 import { useTranslation } from "react-i18next";
 
 import CustomProfileFormComponent from "@/components/cellular/custom-profiles/custom-profile-form";
@@ -59,6 +60,28 @@ const CustomProfileComponent = () => {
   const currentIccid = modemStatus?.device?.iccid ?? null;
 
   const [editingProfile, setEditingProfile] = useState<SimProfile | null>(null);
+
+  // ---------------------------------------------------------------------------
+  // Deep link: ?action=create — the SIM-swap banner's "Create Profile" CTA.
+  // ---------------------------------------------------------------------------
+  // The create flow is this page's left card, always mounted, so "opening" it
+  // means guaranteeing create mode (not a leftover edit) and scrolling it into
+  // view. Latched once at mount, mirroring the Connection Scenarios deep link:
+  // the user must stay wherever they navigate afterwards, so no re-render or
+  // prop change can pull them back to the form.
+  const searchParams = useSearchParams();
+  const [arrivedFromCreateLink] = useState(
+    () => searchParams.get("action") === "create"
+  );
+  const formRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!arrivedFromCreateLink) return;
+    setEditingProfile(null);
+    formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    // Mount only; ignore later search-param changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Apply confirmation state
   const [activateTarget, setActivateTarget] = useState<{
@@ -190,13 +213,15 @@ const CustomProfileComponent = () => {
         </p>
       </div>
       <div className="grid grid-cols-1 @3xl/main:grid-cols-2 grid-flow-row gap-4">
-        <CustomProfileFormComponent
-          editingProfile={editingProfile}
-          onSave={handleSave}
-          onCancel={handleCancelEdit}
-          currentSettings={currentSettings}
-          onLoadCurrentSettings={handleLoadCurrentSettings}
-        />
+        <div ref={formRef}>
+          <CustomProfileFormComponent
+            editingProfile={editingProfile}
+            onSave={handleSave}
+            onCancel={handleCancelEdit}
+            currentSettings={currentSettings}
+            onLoadCurrentSettings={handleLoadCurrentSettings}
+          />
+        </div>
         <CustomProfileViewComponent
           profiles={profiles}
           activeProfileId={activeProfileId}

@@ -14,6 +14,45 @@
 - **Installer stops socat-smd11** services if they are running — `atcli_smd11` requires exclusive access to `/dev/smd11` and cannot co-exist with a socat bridge holding it open.
 - **Windows line ending safety**: The installer strips `\r` from all deployed shell scripts, systemd units, and sudoers rules using `sed -i 's/\r$//'`. This prevents BusyBox and sudoers parse failures that occur when tarballs are built on Windows.
 
+### ⚠️ Directory creation rule: `install -d`, never `mkdir -p`
+
+**Any directory that root reads code, libraries, configuration, or keys from
+must be created with `install -d -o root -g root -m 0755`, not `mkdir -p`.**
+
+Why `mkdir -p` is the wrong tool here — two reasons that compound:
+
+1. It **honours the ambient umask**. A permissive umask at install time bakes a
+   permissive mode into the directory.
+2. It is a **silent no-op on an existing directory**. It never re-applies the
+   mode, so once a directory is wrong in the field it stays wrong through every
+   subsequent install and OTA, forever.
+
+`install -d` re-applies owner and mode on **every** run, so a single OTA
+self-heals already-drifted devices.
+
+The failure mode this prevents is not subtle. On Unix, **directory write
+permission governs create/rename/delete of entries inside it, regardless of
+those entries' own modes** — think of a locked filing cabinet in an unlocked
+room: the folders' own locks don't matter if anyone can swap the folder out.
+So a world-writable directory means `www-data` can delete a root-owned `0644`
+file and put its own there. Where root later reads that file as code, that is
+root code execution.
+
+Directories covered by this rule today (all were found at `0777` on fielded
+devices and fixed in `install_rm520n.sh` / `qmanager_setup`):
+
+| Directory | Why it matters |
+|-----------|----------------|
+| `/usr/lib/qmanager` | Root helpers (`qmanager_*_apply`, reachable by `www-data` through a NOPASSWD sudo grant) `.` source these libraries **as root**. Created in two places — `install_backend()` and `install_udev_rules()` — plus `qmanager_setup` at every boot; **all three** use `install -d`. |
+| `/usrdata/qmanager` (`$QMANAGER_ROOT`) | `qmanager-console.service` has no `User=`, so it runs as root with `ExecStart=$QMANAGER_ROOT/console/ttyd … console.sh`. A writable parent lets `console/` be replaced wholesale and executed as root at next start, with no auth gate. |
+| `/usrdata/qmanager/certs` | `server.key`'s own `0600` is moot if the *directory* is writable — the key and cert can be deleted and replaced, enabling a TLS MITM of the admin UI. Deliberately `0755` and not `0750`: lighttpd reads the key as root at startup before dropping to `www-data`, and `www-data` legitimately reads the public cert. File modes are also re-asserted unconditionally each run (`chmod 600 server.key`, `chmod 644 server.crt` — the cert was shipping `0666`). |
+| `/usrdata/qmanager/www` (`$WWW_ROOT`) and `$WWW_ROOT/cgi-bin` | lighttpd serves this tree and runs CGI from `cgi-bin/`. The subtree's own modes were correct; a writable **parent** made that moot — the whole `cgi-bin/` could be swapped. |
+
+> ℹ️ NOTE: The exception is `/etc/qmanager`, which is intentionally
+> `chown -R www-data:www-data` because the CGI legitimately writes `auth.json`,
+> `profiles/`, and similar. That ownership is a known, accepted boundary — see
+> the "Honest threat model" section in [sim-detection.md](sim-detection.md).
+
 ---
 
 ## Device permissions (/dev/smd11 & udev)

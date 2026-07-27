@@ -12,5 +12,25 @@
     "clear_dialog_clearing": "Cancellazione…",
     "toast_cleared": "SIM note cancellate",
     "toast_clear_failed": "Impossibile cancellare le SIM note"
+  },
+  "sim_registry": {
+    "title": "SIM registrate",
+    "description": "Tutte le SIM che QManager ha visto e se generano ancora l'avviso di nuova SIM.",
+    "carrier_unknown": "Operatore sconosciuto",
+    "no_phone_number": "Nessun numero assegnato",
+    "added_on": "Aggiunta il {{date}}",
+    "added_unknown": "Aggiunta prima dell'avvio del registro",
+    "badge_active": "Attiva",
+    "badge_alerts_on": "Avvisi attivi",
+    "badge_alerts_off": "Avvisi disattivati",
+    "show_alert": "Riattiva avviso",
+    "restoring": "Riattivazione…",
+    "retry": "Riprova",
+    "stale_notice": "Vengono mostrati gli ultimi dati letti correttamente: il dispositivo non ha risposto all'ultimo aggiornamento.",
+    "empty_title": "Nessuna SIM registrata",
+    "empty_description": "QManager registra ogni SIM al primo inserimento. Inserisci una SIM per iniziare l'elenco.",
+    "toast_restored": "Avviso riattivato",
+    "toast_restored_detail": "QManager avviserà di nuovo quando verrà inserita la SIM {{carrier}}.",
+    "toast_restore_failed": "Impossibile riattivare l'avviso"
   }
 }

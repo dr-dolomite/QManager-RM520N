@@ -4,7 +4,10 @@ import { useSystemSettings } from "@/hooks/use-system-settings";
 import SystemSettingsCard from "@/components/system-settings/system-settings-card";
 import ScheduledOperationsCard from "@/components/system-settings/scheduled-operations-card";
 import SSHPasswordCard from "@/components/system-settings/ssh-password-card";
-import ModemSubsystemCard from "@/components/system-settings/modem-subsystem-card";
+// Parked for future use — the System Health card (subsystem state + host
+// resource usage) is kept on disk and can be restored to the grid at any time.
+// import ModemSubsystemCard from "@/components/system-settings/modem-subsystem-card";
+import SimRegistryCard from "@/components/system-settings/sim-registry-card";
 
 const SystemSettings = () => {
   const hookData = useSystemSettings();
@@ -18,7 +21,8 @@ const SystemSettings = () => {
         <SystemSettingsCard {...hookData} />
         <ScheduledOperationsCard {...hookData} />
         <SSHPasswordCard />
-        <ModemSubsystemCard />
+        {/* <ModemSubsystemCard /> — parked, see the commented import above. */}
+        <SimRegistryCard />
       </div>
     </div>
   );

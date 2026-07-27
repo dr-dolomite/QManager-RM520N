@@ -15,7 +15,15 @@ fi
 rm -f /usr/.qm_rw_test
 
 # Ensure required directories exist
-mkdir -p /var/lock /etc/qmanager /usr/lib/qmanager /tmp/quecmanager /var/spool/cron/crontabs
+mkdir -p /var/lock /etc/qmanager /tmp/quecmanager /var/spool/cron/crontabs
+# /usr/lib/qmanager is created with an explicit 0755 rather than via `mkdir -p`,
+# which honours the ambient umask. Root helpers (qmanager_*_apply, reachable by
+# www-data through NOPASSWD sudo) `.` source libraries from here AS ROOT, and
+# directory write permission governs delete-and-replace of those libraries — so
+# a world-writable dir here is a root-code-execution vector. This runs on every
+# boot, so it is also the last line of defence if the directory is ever removed
+# and recreated outside the installer. See install_rm520n.sh's SECURITY note.
+install -d -o root -g root -m 0755 /usr/lib/qmanager
 # CGI (www-data) writes cron entries for root — needs write access to spool dir
 chmod 777 /var/spool/cron/crontabs
 

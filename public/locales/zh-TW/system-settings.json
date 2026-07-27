@@ -12,5 +12,25 @@
     "clear_dialog_clearing": "正在清除…",
     "toast_cleared": "已清除已知 SIM 卡",
     "toast_clear_failed": "清除已知 SIM 卡失敗"
+  },
+  "sim_registry": {
+    "title": "已追蹤的 SIM 卡",
+    "description": "QManager 記錄過的所有 SIM 卡，以及它們是否仍會觸發新卡提醒。",
+    "carrier_unknown": "未知電信業者",
+    "no_phone_number": "未配發號碼",
+    "added_on": "新增於 {{date}}",
+    "added_unknown": "在開始記錄之前新增",
+    "badge_active": "使用中",
+    "badge_alerts_on": "提醒已開啟",
+    "badge_alerts_off": "提醒已關閉",
+    "show_alert": "開啟提醒",
+    "restoring": "正在開啟…",
+    "retry": "重試",
+    "stale_notice": "顯示的是上次成功讀取的資料，裝置未回應最近一次重新整理。",
+    "empty_title": "尚未記錄任何 SIM 卡",
+    "empty_description": "QManager 會在 SIM 卡首次插入時記錄它。插入一張 SIM 卡即可開始。",
+    "toast_restored": "已重新開啟提醒",
+    "toast_restored_detail": "當插入 {{carrier}} SIM 卡時，QManager 會再次提醒。",
+    "toast_restore_failed": "無法重新開啟提醒"
   }
 }

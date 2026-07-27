@@ -953,8 +953,12 @@ install_frontend() {
     step "Installing frontend"
 
     # Create web root if it doesn't exist (independent install — no SimpleAdmin)
-    mkdir -p "$WWW_ROOT"
-    mkdir -p "$WWW_ROOT/cgi-bin"
+    # SECURITY: 0755, never world-writable. lighttpd serves this tree and runs
+    # CGI from cgi-bin/; a writable docroot lets an unprivileged local user
+    # replace served assets or swap out the whole cgi-bin/ subtree (the subtree
+    # is correctly 0755 itself, but a writable PARENT makes that moot).
+    install -d -o root -g root -m 0755 "$WWW_ROOT"
+    install -d -o root -g root -m 0755 "$WWW_ROOT/cgi-bin"
 
     local file_count
     file_count=$(count_files "$SRC_FRONTEND")
@@ -992,8 +996,38 @@ install_frontend() {
 install_backend() {
     step "Installing backend scripts"
 
+    # --- Secure the install root FIRST ----------------------------------------
+    # SECURITY: $QMANAGER_ROOT must never be group/world-writable, and must be
+    # pinned BEFORE anything is written into it — not merely by the time this
+    # function returns.
+    #
+    # Why it matters: qmanager-console.service has no User= directive, so it
+    # runs as root with ExecStart=$QMANAGER_ROOT/console/ttyd ... console.sh.
+    # Write permission on this PARENT allows deleting and recreating console/
+    # regardless of console/'s own mode, so the next service start would execute
+    # attacker-supplied console.sh as root, with no authentication anywhere in
+    # the path.
+    #
+    # Why up here: this directory was otherwise first created by the console
+    # block further down via `mkdir -p`, which honours the ambient umask and is
+    # a silent no-op on an existing directory — exactly how 0777 reached fielded
+    # devices and then persisted across every OTA. `install -d` re-applies
+    # owner/mode on EVERY run, so one OTA self-heals a drifted device.
+    install -d -o root -g root -m 0755 "$QMANAGER_ROOT"
+
     # --- Shared libraries ---
-    mkdir -p "$LIB_DIR"
+    # SECURITY: this directory MUST NOT be group/world-writable. Root helpers
+    # (qmanager_*_apply, invoked by www-data through a NOPASSWD sudoers grant)
+    # `.` source these libraries AS ROOT. Directory write permission governs
+    # create/rename/DELETE of entries — so a world-writable dir lets www-data
+    # replace a 0644 root-owned lib wholesale and get root code execution on
+    # the next helper call, regardless of the files' own modes.
+    #
+    # `mkdir -p` honours the process umask and is a silent no-op on an existing
+    # directory, which is how this shipped as 0777 in the field. `install -d`
+    # re-applies owner/mode on EVERY run, so one OTA self-heals every device
+    # (same idiom, same reason, as /etc/data/qmanager below).
+    install -d -o root -g root -m 0755 "$LIB_DIR"
     if [ -d "$SRC_SCRIPTS/usr/lib/qmanager" ]; then
         local lib_count
         lib_count=$(install_dir_flat "$SRC_SCRIPTS/usr/lib/qmanager" "$LIB_DIR" 644)
@@ -1049,8 +1083,11 @@ install_backend() {
     fi
 
     # --- Console startup script ---
+    # console/ holds console.sh, which qmanager-console.service executes AS ROOT
+    # (no User= directive). Both this dir and its parent are pinned to 0755 —
+    # see the SECURITY note on $QMANAGER_ROOT at the top of this function.
     if [ -d "$SRC_SCRIPTS/usrdata/qmanager/console" ]; then
-        mkdir -p "$QMANAGER_ROOT/console"
+        install -d -o root -g root -m 0755 "$QMANAGER_ROOT/console"
         for f in "$SRC_SCRIPTS/usrdata/qmanager/console"/*; do
             [ -f "$f" ] || continue
             local mode=644
@@ -1143,7 +1180,7 @@ install_backend() {
     fi
 
     # --- lighttpd config ---
-    mkdir -p "$QMANAGER_ROOT"
+    # ($QMANAGER_ROOT is secured at the top of this function, before any write.)
     if [ -f "$SRC_SCRIPTS/usrdata/qmanager/lighttpd.conf" ]; then
         install_file "$SRC_SCRIPTS/usrdata/qmanager/lighttpd.conf" "$LIGHTTPD_CONF" 644 \
             || die "Failed to install lighttpd.conf"
@@ -1151,7 +1188,14 @@ install_backend() {
     fi
 
     # --- TLS certificates ---
-    mkdir -p "$CERT_DIR"
+    # SECURITY: 0755 root:root. The private key is 0600 and lighttpd reads it
+    # while still root at startup (it drops to www-data afterwards), so www-data
+    # never needs to read the key — but it DOES need traverse+read for the
+    # public cert, which is why this is 0755 and not 0750. The bug being fixed
+    # is the world-WRITE bit: a writable certs/ let any local user delete and
+    # replace server.key/server.crt wholesale (bypassing the key's own 0600)
+    # and MITM the HTTPS admin UI.
+    install -d -o root -g root -m 0755 "$CERT_DIR"
     if [ ! -f "$CERT_DIR/server.key" ]; then
         # Generate self-signed cert if none exist
         openssl req -x509 -newkey rsa:2048 -keyout "$CERT_DIR/server.key" \
@@ -1161,6 +1205,11 @@ install_backend() {
     else
         info "TLS certs already exist"
     fi
+    # Re-assert file modes every run: the key must never be group/world
+    # readable, and the cert was shipping 0666 (world-WRITABLE) on fielded
+    # devices. Unconditional so an already-drifted device self-heals on OTA.
+    [ -f "$CERT_DIR/server.key" ] && chmod 600 "$CERT_DIR/server.key"
+    [ -f "$CERT_DIR/server.crt" ] && chmod 644 "$CERT_DIR/server.crt"
 
     # --- Create required directories ---
     # www-data (lighttpd CGI) needs write access to config dir (auth.json, profiles)
@@ -1246,6 +1295,7 @@ install_backend() {
     migrate_ping_environment
     prune_stale_ping_environment
     migrate_ping_targets
+    migrate_sim_registry
 
     info "Backend installed"
 }
@@ -1347,6 +1397,70 @@ migrate_ping_targets() {
         rm -f "$tmp"
         echo "  WARNING: failed to migrate legacy ping targets in $target" >&2
     fi
+}
+
+# --- Seed SIM Registry from Legacy known_iccids ------------------------------
+
+# The "New SIM detected" banner used to be dismissed via browser localStorage.
+# The new /etc/qmanager/sim_registry.json (root:root 0644, one object per
+# ICCID) replaces that with a server-side record, filled in going forward by
+# the poller (carrier/phone_number) and the sim_registry CGI (dismissed).
+#
+# On an existing device, /etc/qmanager/known_iccids (newline-delimited bare
+# ICCIDs, see sim_db.sh) already lists every SIM the device has seen and the
+# user has implicitly acknowledged — being a member of that set IS the prior
+# acknowledgement. So each line is seeded as dismissed:true to avoid re-firing
+# the banner for every already-known SIM on the first boot after upgrade.
+# carrier/phone_number are seeded empty (unknown for historical entries — the
+# poller fills them in for the active SIM on its next cycle) and first_seen is
+# seeded null (there is no recorded add-time for these legacy entries; do NOT
+# fabricate one from install time or the file's mtime, which only reflects the
+# LAST add, not the first).
+#
+# Idempotent via an EXISTENCE gate, not a content check: unlike
+# migrate_ping_targets() (which re-runs against a live, still-growing config
+# key), there is no separate unconditional bootstrap-seed step for this file —
+# once it exists, it's either already migrated or already being written to by
+# the poller/CGI, so any further run must leave it alone.
+migrate_sim_registry() {
+    local target="/etc/qmanager/sim_registry.json"
+    local source_file="/etc/qmanager/known_iccids"
+    [ -f "$target" ] && return 0
+    command -v jq >/dev/null 2>&1 || return 0
+    # Config dir must exist — the in-dir mktemp below depends on it.
+    [ -d /etc/qmanager ] || return 0
+
+    echo "  Seeding sim_registry.json from known_iccids..."
+    # Temp file MUST live in the destination directory: mv is only atomic
+    # (rename(2)) within one filesystem, and /tmp is tmpfs while /etc is UBIFS.
+    # A cross-filesystem mv degrades to copy+unlink, which a concurrently
+    # running poller can observe half-written during an OTA.
+    local tmp; tmp=$(mktemp /etc/qmanager/.sim_registry.json.XXXXXX) || return 1
+    if [ -f "$source_file" ]; then
+        if ! jq -R -s '
+            split("\n")
+            | map(gsub("^[ \t\r]+|[ \t\r]+$";""))
+            | map(select(length > 0))
+            | reduce .[] as $iccid ({}; .[$iccid] = {
+                carrier: "",
+                phone_number: "",
+                first_seen: null,
+                dismissed: true
+              })
+            ' "$source_file" > "$tmp" 2>/dev/null; then
+            rm -f "$tmp"
+            echo "  WARNING: failed to seed sim_registry.json from known_iccids" >&2
+            return 1
+        fi
+    else
+        echo '{}' > "$tmp"
+    fi
+    # chmod BEFORE the rename: mktemp creates 0600, so chmod-after would leave a
+    # window where the live file is root-only and www-data's CGI cannot read it.
+    chmod 644 "$tmp"
+    mv "$tmp" "$target"
+    local count; count=$(jq 'length' "$target" 2>/dev/null)
+    echo "  Seeded $target with ${count:-0} entries from known_iccids"
 }
 
 # --- Migrate Legacy Ping Environment -----------------------------------------
@@ -1562,7 +1676,11 @@ install_udev_rules() {
     # Remount rootfs rw — /etc and /usr/lib live on the read-only root.
     mount -o remount,rw / 2>/dev/null || true
 
-    mkdir -p /etc/udev/rules.d /usr/lib/qmanager
+    mkdir -p /etc/udev/rules.d
+    # 0755 explicitly — see the SECURITY note in install_backend(); root helpers
+    # source libs from here, so this dir must never be world-writable no matter
+    # which of the two creation sites happens to run first.
+    install -d -o root -g root -m 0755 /usr/lib/qmanager
 
     # Strip any third-party smd11 entries from vendor files first, so our rule
     # is the only one firing on smd11 add events (no race for ownership).

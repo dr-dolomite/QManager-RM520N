@@ -1,94 +1,38 @@
-# 🚀 QManager RM520N BETA v0.1.13
+# 🚀 QManager RM520N BETA v0.1.14
 
-All your alerts finally live in one place. A new **Monitoring → Alerts** page unifies email, SMS, and Discord into a single routing grid — you pick which events reach which channel — and it can now tell you when *and why* the Connection Watchdog rebooted your modem. This release also lands a 5-language interface picker, a ground-up Watchdog rework with a tougher reboot-proof SIM-failover engine, daily Connection Scenario schedules for your SIM profiles, and fixes that finally make timezones and time-based schedules stick on this cron-less modem.
+QManager now remembers your SIM cards properly. A new **Tracked SIMs** list in System Settings shows every SIM the modem has seen — carrier, number, when it was added — and the "New SIM card detected" banner finally stays dismissed for good, per SIM, on the device itself. This release also hardens several file permissions on the modem and fixes a wrong phone number showing after a SIM swap.
 
 > One-click OTA from **System Settings → Software Update** if you're on v0.1.5 or newer.
 
 ## ✨ New Features
 
-- **All your alerts in one place.** Email, SMS, and Discord notifications now live on a single **Monitoring → Alerts** page with a routing grid where you choose which events — connection lost, connection restored, or a device reboot — reach each channel. Alerts can now also tell you *why* your modem rebooted (a watchdog recovery, a reboot you asked for, or an unexpected one), so an unattended device is never silent about what happened. This replaces the separate Email Alerts, SMS Alerts, and Discord Bot pages — those links now redirect here (one unified alert engine replaces the three separate per-channel downtime timers; the grid greys out combinations that can't fire — only SMS can reach you *while* the internet is down, since email and Discord need the connection that's out — and reboot causes are read from the watchdog's crash-log ledger and coalesced if they repeat).
+- **See every SIM QManager remembers.** A new **Tracked SIMs** card in **System Settings** lists each SIM by carrier, phone number, and the date it was first seen, marks the one currently in the modem, and shows whether it still raises a new-SIM alert. SIMs already known to your device appear on the list after updating, with alerts already switched off (existing SIMs are backfilled from the known-SIMs list; historical entries show "Added before tracking began" rather than a made-up date).
 
-- **Pick your language.** The interface now ships in five languages — English, Simplified Chinese (简体中文), Traditional Chinese (繁體中文), Italian (Italiano), and Indonesian (Bahasa Indonesia). Switch from the language menu in the sidebar, the picker on the login screen, or the new **System Settings → Languages** page; your choice is saved per device. The Dashboard and navigation are fully translated now, with the remaining screens following in upcoming releases (every language is bundled in the firmware — nothing to download).
-
-- **A redesigned Custom SIM Profiles page.** Creating a profile is now a guided four-step wizard — Identity, Network, Scenario, Review — with Load-from-SIM quick-fill, a "Use my saved APN" pick, and a live duplicate-SIM warning, and your saved profiles show as at-a-glance cards with config pills, a live dot on the active one, and an "Applied/Partial/Failed at HH:MM" line. Find it under **Cellular → Custom SIM Profiles**, now fully translated in all five languages (frontend-only redesign ported from the RM551E build; the profile data model and apply pipeline are unchanged).
-
-- **Schedule your Connection Scenario by time of day.** A SIM profile can now bind up to two daily time windows to a scenario — e.g. Gaming from 6pm to 11pm on weekdays, Balanced the rest of the time — set right from the profile's scenario picker under **Cellular → Custom SIM Profiles** (applied on-device by a systemd timer, since this modem has no cron daemon to run a traditional schedule).
-
-- **New public Overview landing page.** QManager's home page (`/`) is now an **Overview** splash that shows the device name plus live carrier, network, signal, and temperature *before* you log in — and logging out returns you here instead of a bare login form (three read-only public endpoints project an allowlisted slice of the poller cache; nothing sensitive is exposed).
-
-- **Redesigned Watchdog page.** **Monitoring → Watchdog** now leads with a live status hero — current state, failed-check counters, and a recovery-ladder view — beside a Recovery Activity log and a tabbed **Detection / Recovery** settings panel with a single save bar. See at a glance what the watchdog is doing and which SIM you're on.
-
-- **See how many SIM cards QManager remembers, and clear the list.** A new row in **System Settings** shows the count of known SIMs and lets you reset it, keeping the currently-inserted SIM known so it doesn't immediately re-trigger a "new SIM" notice.
-
-- **Auto-forward incoming texts to another number.** A new **Cellular → SMS Center → SMS Forwarding** page relays every SMS the modem receives to a phone number you choose — handy for a headless modem or a data-only SIM you can't otherwise check (a background daemon polls the inbox, seeds silently on first enable so it never blasts your existing messages, guards against relay loops, and logs delivery failures right on the page).
-
-- **Translate QManager in your own language.** A new community translation toolkit lets anyone add or complete a language without being a developer — `bun run lang scaffold` starts a new language, `status`/`check` show what's left and check your work with plain-English fixes, and one command packages a finished pack (zero-dependency Bun CLI sharing the app's `i18n:check` validation engine; partial translations are welcome and fall back to English). See `docs/CONTRIBUTING-translations.md`.
-
-- **Install extra languages without a firmware update.** Beyond the five built-in languages, **System Settings → Languages** now has an Available list of community translation packs you can download and install straight onto the modem, then switch to like any other language — no OTA, no reflash. Packs survive reboots and future updates, and untranslated bits fall back to English (each pack is fetched only from the project's own GitHub release and sha256-verified before it's ever loaded; installed packs live outside the web root and are re-linked on every update).
+- **Turn the new-SIM alert back on for any SIM.** If you dismissed the "New SIM card detected" banner and want it back — say you're testing a profile — hit **Show Alert** on that SIM's row in Tracked SIMs and the banner returns, no reboot or reload needed.
 
 ## 🛠️ Improvements
 
-- **The Watchdog now owns connection timing.** Probe interval and failure threshold moved from Connection Quality into the Watchdog's **Detection** tab, so one place decides how often your link is checked and when it counts as down — and the Connection Quality page is now a simpler "Probe Targets" card (detection reads the ping daemon's raw failure streak directly, fixing a double-count that made the "declares down after ~Ns" estimate drift).
+- **A clearer "New SIM card detected" banner.** The banner now names the SIM's carrier and phone number instead of just announcing a swap, and offers exactly one next step: **Apply Profile** when a saved profile matches the card, or **Create Profile** when none does — which now drops you straight into the profile creation form.
 
-- **APN Settings has a cleaner single-card layout.** The page now shows one focused APN card instead of a 6-slot list. (Per-slot enable/disable and PAP/CHAP auth editing move off this page for now — the underlying 6-context support on the modem is unchanged.)
-
-- **Connection Quality now checks the internet with a plain ICMP ping.** The reachability probe switched from an HTTP request to a straightforward `ping` of a DNS server, so **System Settings → Connection Quality** now takes an IPv4 and an IPv6 **DNS-server address** (default `1.1.1.1` and Cloudflare's `2606:4700:4700::1111`) instead of web URLs — it tries IPv4 first and falls back to IPv6. Existing setups are migrated automatically on update (a small shell daemon replaces the previous compiled probe for 1:1 parity with the RM551E build; the failure streak the Watchdog acts on is unchanged, so self-healing works exactly as before).
-
-- **"Create new scenario" from a profile now opens the right dialog.** The "+ Create new custom scenario…" shortcut in a profile's scenario picker now correctly deep-links into the Connection Scenarios page with the create dialog open, instead of landing there with nothing happening (fixed a `?create=1` vs. `?action=create` param mismatch).
-
-- **Band Locking follows your scheduled scenario.** The **Cellular → Band Locking** page now respects whichever Connection Scenario your profile has in force *right now* — including an active scheduled window — instead of only the profile's default, so the band controls lock and unlock in step with your time-of-day scenario schedule.
-
-- **The schedule save button now tells the truth.** Saving a Scheduled Reboot or Tower Lock schedule now warns you if it couldn't be armed on your device, instead of always flashing a green "saved" — so a schedule that can't run never looks like it will.
-
-- **SMS Center now shows texts stored on the SIM.** Messages the carrier routed to SIM storage used to be silently missed; the inbox at **Cellular → SMS Center** now reads both modem and SIM memory and merges them, and adds Unread/Read tabs plus search, sort, and rows-per-page pagination for a busy inbox (dual **CPMS ME+SM** storage routing, self-healed at boot; read/unread tracked per-browser; and a cleaner bundled `sms_tool`).
-
-- **SIM-to-profile matching is more forgiving.** A SIM card's ID is now compared the same way everywhere internally, so a saved profile keeps matching its SIM even when different parts of QManager read the card slightly differently.
-
-- **SIM failover now survives a reboot.** If the watchdog switched you to your backup SIM, that state is kept across a restart, so the page still shows you're on the backup slot (and offers the revert) instead of losing track (failover state moved to persistent storage).
-
-- **Backup SIM slot is now required to arm SIM failover.** Turning on the "Switch to Backup SIM" step without picking a slot is blocked at save with a clear prompt, so failover can never be enabled in a state where it can't actually fail over.
-
-- **Cleaner watchdog settings save.** The watchdog settings form now validates every field before writing anything and points at the exact field that's out of range, so a bad value can't half-apply.
-
-- **Translation pull requests are checked automatically.** Every PR that touches a language now gets a bot comment with a per-language completeness table and inline notes, failing only on real structural mistakes — so contributors get instant, plain-English feedback (`bun run lang check --all --ci` on CI, ~20–30s, no install).
-
-- **Installs and updates are tougher.** A momentary system hiccup partway through an install no longer aborts the whole thing, an upgrade can't lose your custom TTL/HL setting, and files are flushed to flash before the filesystem is sealed — so an install or update is far less likely to leave the device half-finished (guarded `systemctl daemon-reload`, ordered TTL-state migration that keeps the old value on a failed write, and `sync`-before-remount discipline).
-
-- **Automatic updates switch on the instant you toggle them.** Flipping **Automatic updates** in **System Settings → Software Update** now arms (or disarms) the daily updater right away, instead of waiting until the next update to take effect. The old time field — which never actually controlled anything — is replaced by a short note explaining the updater runs a check once a day at a randomized time (a small root helper arms the systemd timer live; the crontab path it replaced was dead on this device, since nothing runs cron here).
-
-- **Tightened the web backend's system permissions.** QManager's web service can now start and stop only *its own* services rather than any service on the device — a defense-in-depth cleanup with zero change to what you can do in the UI (the `www-data` sudoers grant is scoped to the `qmanager-*` and `tailscaled` units it actually uses).
+- **Dismissing the banner asks first, and says what it means.** Closing the banner now opens a short confirmation that spells out the SIM's ID and makes clear you're silencing the alert for *that SIM only* — every other card still raises it, and you can undo it from Tracked SIMs.
 
 ## 🐛 Fixes
 
-- **Scheduled reboots and tower-lock schedules now actually happen.** A Scheduled Reboot or a Tower Lock apply/clear window you set used to be saved but never fire — this modem has no running cron daemon, so the schedule sat dead while the page reported success. Both now run on a systemd timer that triggers at the time you set, and a scheduled reboot politely stands down if a firmware update is in progress so it can't interrupt one.
+- **Dismissing "New SIM card detected" now really sticks — on the modem, not just in your browser.** The dismissal used to be remembered only by the browser you clicked it in, so the banner came back on your phone, on another laptop, or after clearing site data. It's now stored on the device per SIM and survives reboots and updates (the old dismiss request quietly failed on the device and reported success anyway; it's been replaced with a proper privileged write).
 
-- **"New SIM card detected" no longer fires on a SIM you've already used.** QManager now remembers every SIM it's seen instead of just the last one, so failing over to your backup SIM (and back) no longer re-triggers the new-SIM banner.
+- **The wrong phone number no longer sticks around after a SIM swap.** If you switched to a SIM with no number provisioned — common on prepaid and data-only cards — QManager kept displaying the *previous* SIM's number. It now correctly shows "No number provisioned" instead (also made the number parsing robust against carriers that put a comma in the SIM's name field).
 
-- **Dismissing the "New SIM detected" banner now sticks.** Closing the banner used to only hide it until the next page load; it now stays dismissed for that SIM, and got a visual cleanup — proper title, aligned SIM icon, and an info-tone treatment (dismissal is remembered in the browser per-SIM, so it survives reloads and reboots).
+- **Tightened permissions on the folder QManager's system helpers load code from.** This folder was world-writable, which could have let a local attacker on the device replace one of those files and have it run with full privileges. It's now locked down, and the fix re-applies itself on every update so existing devices are repaired automatically.
 
-- **SIM slot switches are now verified before QManager trusts them.** Both the Watchdog's automatic SIM failover and a manual slot switch in Cellular Settings now confirm the modem actually landed on the requested slot before applying anything for it, closing a rare case where a busy modem silently stayed on the old SIM.
+- **Tightened permissions on QManager's own program folder.** The folder holding the web console was world-writable, which could have let a local attacker swap in their own console program to be run with full privileges at the next start. Now locked down, and repaired automatically on update.
 
-- **Timezone selection now actually changes the device clock.** Picking a zone in **System Settings** updates the clock, log timestamps, and alert times instead of silently snapping back to UTC (glibc reads `/etc/localtime`, which QManager now writes via a root helper using Entware's full IANA tzdata). Heads-up: scheduled-reboot and tower-lock schedule windows follow the device's local timezone and adopt a newly-set zone after the next reboot — set your timezone first, then schedule.
+- **Tightened permissions on the HTTPS certificate folder.** The certificate folder and the public certificate were world-writable, which could have let a local attacker replace them and intercept your connection to the QManager web interface. Both are now locked down, with the private key restricted on every update.
 
-- **Real SIM swaps get time to settle.** A genuine failover now waits ~90 seconds for the backup SIM to attach before the watchdog judges it, so a working swap is no longer wrongly reverted mid-connect.
-
-- **A misconfigured backup SIM no longer triggers reboots.** If the backup slot is unset or the same as the active one, the watchdog stops there and flags it instead of escalating to a device reboot.
-
-- **"Running on backup SIM" status shows correctly again.** The live status now reports an active failover accurately, so the backup-SIM banner and Revert button appear when they should.
-
-- **A brief connectivity blip during cooldown no longer forces a reboot.** The watchdog now retries a transient ping hiccup after a recovery step rather than treating it as a hard failure and jumping to the next tier.
-
-- **Fewer moving parts in the connectivity probe.** The reachability check is now a single self-contained shell daemon with a slimmer status file (latency, jitter, and loss are still computed the same way, downstream). No action needed — the change applies on update.
-
-- **Updates no longer report failure when they actually succeeded.** A completed update whose version differs only by a pre-release tag (like `-draft`) is now recognized as a success instead of throwing a false "update failed" at the very last step (the post-install version check compares releases semantically rather than as an exact string).
-
-- **A clean bill of health after install or update.** Two internal services (Ethernet and IMEI check) used to show up as "failed" on a perfectly healthy device that simply had nothing to do; they now correctly report as idle/skipped, so a quick `systemctl --failed` comes back clean — on both a fresh install and an OTA upgrade of an existing device.
-
-> ⚠️ **Heads-up for power users:** the ICMP probe drops the old "Limited by carrier" state, so QManager no longer flags a captive-portal / billing-wall interception separately — it only reports reachable vs. not. Also note that some carriers filter ICMP to public DNS IPs; if yours does, point the Connection Quality targets at addresses your carrier answers, or Connection Quality may read a false "disconnected."
+- **Tightened permissions on the web root.** The folder QManager serves the web interface from was world-writable, which could have let a local attacker on the device tamper with the pages and scripts it serves. Now locked down, and repaired automatically on update.
 
 ## 📥 Installation
 
-### Upgrading from v0.1.12
+### Upgrading from v0.1.13
 
 **System Settings → Software Update** → Download → Install. No SSH/ADB needed. All settings preserved.
 

@@ -12,5 +12,25 @@
     "clear_dialog_clearing": "Menghapus…",
     "toast_cleared": "SIM yang dikenal telah dihapus",
     "toast_clear_failed": "Gagal menghapus SIM yang dikenal"
+  },
+  "sim_registry": {
+    "title": "SIM Terdaftar",
+    "description": "Semua SIM yang pernah dikenali QManager, dan apakah masih memunculkan peringatan SIM baru.",
+    "carrier_unknown": "Operator tidak diketahui",
+    "no_phone_number": "Nomor belum tersedia",
+    "added_on": "Ditambahkan {{date}}",
+    "added_unknown": "Ditambahkan sebelum pencatatan dimulai",
+    "badge_active": "Aktif",
+    "badge_alerts_on": "Peringatan aktif",
+    "badge_alerts_off": "Peringatan mati",
+    "show_alert": "Aktifkan Peringatan",
+    "restoring": "Mengaktifkan…",
+    "retry": "Coba lagi",
+    "stale_notice": "Menampilkan data terakhir yang berhasil dibaca. Perangkat tidak menjawab pembaruan terakhir.",
+    "empty_title": "Belum ada SIM yang tercatat",
+    "empty_description": "QManager mencatat setiap SIM saat pertama kali dipasang. Pasang SIM untuk memulai daftar.",
+    "toast_restored": "Peringatan diaktifkan kembali",
+    "toast_restored_detail": "QManager akan memberi tahu lagi saat SIM {{carrier}} dipasang.",
+    "toast_restore_failed": "Gagal mengaktifkan kembali peringatan"
   }
 }

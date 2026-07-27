@@ -1,18 +1,25 @@
-# SIM Detection (Known-SIMs Set)
+# SIM Detection (Known-SIMs Set + SIM Registry)
 
-> QManager needs to tell a **genuinely new SIM card** apart from a SIM it has
-> already seen — a watchdog failover swap, a manual slot switch, or a reboot
-> on the same card. This is the "known-SIMs" subsystem: a persistent **set**
-> of every ICCID the device has encountered, consulted at boot to decide
-> whether to fire the "New SIM card detected" banner.
+> QManager answers two separate questions about the SIM in the modem, and it
+> uses two separate stores to do it. **"Is this SIM new?"** is answered by the
+> known-SIMs **set** (`/etc/qmanager/known_iccids`). **"Should we still be
+> showing the New SIM banner for it?"** is answered by the **SIM registry**
+> (`/etc/qmanager/sim_registry.json`). The set is the detector; the registry is
+> the notification ledger and the metadata sidecar. Neither replaces the other.
 
-This replaced a single-value scheme (`/etc/qmanager/last_iccid`, one slot of
-memory) that could only remember the *immediately previous* ICCID. On a
-dual-SIM device that value gets overwritten by every Tier-3 failover and
-every manual slot switch, so any swap back to a SIM used two-or-more
-swaps ago looked "new" again — a false "New SIM detected" banner even
-though the device had used that card before. The set model fixes this at
-the root: membership, not last-value-equality, decides "new."
+The set model came first and is unchanged: a persistent set of every ICCID the
+device has encountered, consulted at boot to decide whether a card is a
+genuinely new physical SIM or one the device has already used (a watchdog
+failover swap, a manual slot switch, a reboot on the same card).
+
+The registry was added on top because dismissal had nowhere durable to live.
+The banner's dismiss button used to write to a root-owned `/tmp` file from a
+`www-data` CGI — a write that always failed while the endpoint returned
+`{"success":true}` anyway — so dismissal was worked around in browser
+`localStorage`, which is per-browser and per-device and invisible to the modem.
+The registry gives dismissal a real, per-ICCID, reboot-surviving home on the
+device, and carries the human-facing metadata (carrier, MSISDN, first-seen
+date) that a bare ICCID line in a flat file can't.
 
 ---
 
@@ -20,12 +27,36 @@ the root: membership, not last-value-equality, decides "new."
 
 | Item | Value |
 |------|-------|
-| Library | `scripts/usr/lib/qmanager/sim_db.sh` |
-| Store | `/etc/qmanager/known_iccids` (newline-delimited, persistent UBIFS) |
-| Legacy file (migrated once, left in place) | `/etc/qmanager/last_iccid` |
-| Admin CGI | `scripts/www/cgi-bin/quecmanager/system/known_sims.sh` |
-| Admin UI | `components/system-settings/known-sims-row.tsx` (System Settings page) |
-| Consumers | `qmanager_poller` (boot-time detector), `qmanager_watchcat` (Tier-3 failover/revert), `profile_mgr.sh` (`set_active_profile` → `mark_sim_acknowledged`), `cellular/settings.sh` (manual SIM-slot switch) |
+| **Set** — library | `scripts/usr/lib/qmanager/sim_db.sh` |
+| **Set** — store | `/etc/qmanager/known_iccids` (newline-delimited bare ICCIDs, persistent UBIFS) — **format frozen, see below** |
+| **Set** — legacy file (migrated once, left in place) | `/etc/qmanager/last_iccid` |
+| **Set** — admin CGI / UI | `system/known_sims.sh` / `components/system-settings/known-sims-row.tsx` |
+| **Registry** — library | `scripts/usr/lib/qmanager/sim_registry.sh` |
+| **Registry** — store | `/etc/qmanager/sim_registry.json` (root:root 0644, lazy-created) |
+| **Registry** — lock | `/etc/qmanager/sim_registry.lock` |
+| **Registry** — root helper | `scripts/usr/bin/qmanager_sim_registry_apply` → `/usr/bin/qmanager_sim_registry_apply` |
+| **Registry** — CGI | `scripts/www/cgi-bin/quecmanager/system/sim_registry.sh` |
+| **Registry** — hook / types | `hooks/use-sim-registry.ts`, `types/sim-registry.ts` |
+| **Registry** — UI | `components/system-settings/sim-registry-card.tsx` ("Tracked SIMs"), `components/monitoring/watchdog/sim-swap-banner.tsx` |
+| Transient detection flag | `/tmp/qmanager_sim_swap_detected` (root:root — still written, no longer the visibility gate) |
+| Consumers | `qmanager_poller` (detect + seed + refresh + derive `sim_swap.detected`), `qmanager_watchcat` (Tier-3 failover/revert), `profile_mgr.sh`, `cellular/settings.sh` |
+
+---
+
+## Division of responsibility
+
+| Question | Store | Decided by |
+|----------|-------|-----------|
+| Is this ICCID a SIM the device has seen before? | `known_iccids` (set) | `sim_db_known` — membership |
+| What carrier / MSISDN / first-seen date belongs to this ICCID? | `sim_registry.json` | `sim_registry_refresh_active` (poller) |
+| Should `status.json.sim_swap.detected` be `true` right now? | `sim_registry.json` | `read_sim_state()` in `qmanager_poller` |
+| Did the user silence the banner for this SIM? | `sim_registry.json` (`dismissed`) | `qmanager_sim_registry_apply` via the CGI |
+
+> ℹ️ NOTE: A SIM can be **known** (in the set) and still **alerting** (registry
+> `dismissed:false`) — that's the normal state right after a genuine swap, and
+> it's exactly why two stores exist. The set stops the banner from re-firing on
+> a *future* insertion of the same card; the registry stops it from nagging
+> *now*.
 
 ---
 
@@ -47,6 +78,24 @@ A SIM is "new" iff its ICCID (after normalization) is **not** a member of
 `known_iccids`. On detection, the ICCID is added immediately so the banner
 fires exactly once per SIM, ever — not once per "SIM last seen two swaps
 ago."
+
+### ⚠️ The `known_iccids` line format is FROZEN
+
+Membership is tested with `grep -qxF` — a **whole-line, fixed-string** match.
+A line is a bare ICCID and nothing else:
+
+```
+8963xxxxxxxxxxxxxxx
+8952xxxxxxxxxxxxxxxF
+```
+
+> ⚠️ WARNING: Do **not** add fields, delimiters, comments, or a header to this
+> file. Appending anything to a line (`<iccid>,<carrier>`, `<iccid> <date>`,
+> …) makes `grep -qxF "$iccid"` miss, so **every already-known SIM instantly
+> looks new** and the banner fires for all of them. All new per-SIM metadata
+> belongs in the `sim_registry.json` sidecar, which is keyed by the same
+> normalized ICCID. That is the entire reason the registry is a separate file
+> instead of an enriched `known_iccids`.
 
 ### Migration from `last_iccid`
 
@@ -97,6 +146,11 @@ to disk.
 > that still keeps the pad — `sim_db_add`/`sim_db_known` intentionally use
 > `sim_db_normalize`, not `iccid_canonicalize`.
 
+**The registry key follows the same rule.** `sim_registry.json` keys are
+`sim_db_normalize` output — pad **kept** — so a registry key and its
+`known_iccids` line are byte-identical. `qmanager_sim_registry_apply` and the
+CGI both normalize with `sim_db_normalize`, never `iccid_canonicalize`.
+
 ---
 
 ## The watchcat coupling — why failover slot-cycling must not false-fire
@@ -122,7 +176,7 @@ at both landing points:
   backup SIM's ICCID.
 - **`sim_failover_fallback`** (revert to original) — adds the original SIM's
   ICCID, gated behind a `verify_quimslot` read-back confirming the revert
-  actually landed (see below).
+  actually landed.
 
 Because both directions add to a *set* rather than overwrite a single
 pointer, a SIM the device has failed over to (or reverted to) before is
@@ -142,37 +196,418 @@ The same pattern is used by:
 
 ---
 
-## Admin CGI — `known_sims.sh`
+## The SIM registry
 
-`GET` (or `POST {"action":"list"}`):
+### Store shape
 
-```json
-{ "success": true, "count": 3 }
-```
-
-`POST {"action":"clear"}`:
-
-Resets the set to contain **only the currently-inserted SIM** (read live via
-the canonical `AT+QCCID` pipeline). This is deliberate — clearing "forgets"
-every other SIM the device has used, but the SIM sitting in the modem right
-now must stay known, or the *next* poller boot would immediately re-fire
-"New SIM detected" for the card that's already inserted. If no SIM is
-present, the set is emptied entirely. Also drops any stale
-`/tmp/qmanager_sim_swap_detected` banner flag so a pending notification for
-a SIM the set no longer distinguishes doesn't linger.
+`/etc/qmanager/sim_registry.json`, `root:root 0644`, lazy-created (it is
+**not** an install asset — nothing ships it, the installer's migration or the
+first poller write creates it):
 
 ```json
-{ "success": true, "count": 1 }
+{
+  "8963xxxxxxxxxxxxxxx": {
+    "carrier": "GLOBE",
+    "phone_number": "+639544817486",
+    "first_seen": "2026-07-27T06:34:00Z",
+    "dismissed": false
+  }
+}
 ```
+
+| Field | Meaning |
+|-------|---------|
+| *(key)* | ICCID, `sim_db_normalize`d — byte-parity with `known_iccids`, BCD pad **kept**. |
+| `carrier` | Operator name from the poller's Tier 2 carrier parse. `""` until the first Tier 2 cycle fills it. |
+| `phone_number` | MSISDN from `AT+CNUM`. **`""` when the carrier never provisioned one** — common on prepaid and M2M SIMs. The UI renders "No number provisioned", never a blank. |
+| `first_seen` | ISO-8601 UTC (`date -u +%Y-%m-%dT%H:%M:%SZ`) of the detection that created the record. **`null`** for records backfilled by the installer migration; the UI renders "Added before tracking began". Never fabricate a date. |
+| `dismissed` | `true` once the user silences the banner for this SIM. Absent is read as `false` everywhere. |
+
+### `sim_registry.sh` API
+
+Sourced by `qmanager_poller`, by the root helper, and read-only by the CGI.
+It **requires `sim_db.sh` to already be sourced** by the caller (it uses
+`sim_db_normalize` and deliberately does not source `sim_db.sh` itself, to
+avoid fighting the caller's own load-guard ordering). Self-guarded with
+`_SIM_REGISTRY_LOADED`.
+
+| Function | Behavior |
+|----------|----------|
+| `sim_registry_seed_new <iccid> <carrier> <phone>` | Creates/refreshes a record for a **newly detected** SIM: sets carrier, phone, `first_seen=now`, `dismissed=false`. Unconditional — only call it once per genuine detection. |
+| `sim_registry_refresh_active <iccid> <carrier> <phone>` | Scoped refresh of **only** `carrier` + `phone_number`. Never touches `dismissed`/`first_seen`. **Change-gated** — exits before the `mktemp`/`mv` when neither value changed, so a steady state costs no write per poll cycle. |
+| `sim_registry_set_dismissed <iccid> <true\|false>` | Scoped write of **only** `dismissed`. **Refuses to create a record** — returns **3** for an unknown ICCID. Root-privileged callers only. |
+| `sim_registry_get_record <iccid>` | Prints the record as compact JSON, or `null`. Read-only, no lock (the atomic `mv` means a reader never sees a torn file). |
+
+Return codes across the write functions: `0` success, `1` write failure,
+`2` lock timeout, `3` unknown ICCID (`sim_registry_set_dismissed` only).
+
+### Why every write is scoped
+
+Two different processes write into the **same per-ICCID object**: the poller
+(carrier/phone refresh, every Tier 2 cycle) and the root helper
+(dismiss/undismiss, on demand). A whole-object read-modify-write would let a
+poller refresh that started before a dismissal land after it and silently
+revert the user's choice. So every write is a scoped jq field transform —
+`.[$iccid].carrier = $carrier`, `.[$iccid].dismissed = $val` — never a
+wholesale rewrite.
+
+### Write discipline
+
+Every write is the same four steps:
+
+1. `mktemp "${SIM_REGISTRY_FILE}.XXXXXX"` — **in the same directory** as the
+   target, because `mv` is only an atomic `rename(2)` within one filesystem.
+   `/tmp` is tmpfs and `/etc` is UBIFS, so a cross-filesystem `mv` would
+   degrade to copy+unlink and a concurrent reader could see it half-written.
+2. `jq` scoped-field transform into the temp file.
+3. `chmod 644` on the temp file — `mktemp` creates `0600`, and chmod-ing
+   *after* the rename would leave a window where the live file is root-only
+   and the `www-data` CGI can't read it.
+4. `mv` over the target.
+
+Never a raw `>` or `>>` on the live path: those follow symlinks and are gated
+by the target's mode, not safe against a symlink swap.
+
+### BusyBox-safe locking
+
+Writes serialize on `/etc/qmanager/sim_registry.lock` via fd 9. **BusyBox
+`flock` has no `-w`/`--timeout` flag**, so `sim_registry_flock_wait()` polls
+`flock -x -n` in a 1-second loop up to a 5-second budget — the same pattern
+used by `qcmd`, `qmanager_sms_storage`, and `sms_alerts.sh`. Think of it as
+knocking once a second rather than waiting at the door: BusyBox doesn't offer
+the "wait up to N seconds" door, so the loop builds it.
+
+### ⚠️ Honest threat model — the registry is NOT tamper-proof against `www-data`
+
+This is stated in `sim_registry.sh`'s own header; keep docs consistent with it.
+
+The root-helper + validation + scoped-write design defends against:
+
+- concurrent-writer races (a poller refresh vs. an on-demand dismiss),
+- malformed or hostile **input** reaching `jq` (ICCID validation, `--arg` only),
+- bugs in the CGI corrupting unrelated records.
+
+It does **not** defend against a hostile or compromised `www-data` process.
+`/etc/qmanager` is owned by `www-data` (pre-existing — the installer does a
+`chown -R www-data:www-data` there, and `auth.json`, `profiles/` and others
+legitimately need direct `www-data` writes). Directory ownership governs
+`unlink`/`rename` regardless of a file's own mode, so `www-data` can delete
+`sim_registry.json` and write its own in place, bypassing the helper entirely.
+Making that boundary real would mean relocating the registry outside
+`/etc/qmanager` — deliberately not attempted. **Do not write anything claiming
+this file is tamper-proof against the web user.**
 
 ---
 
-## Frontend — `known-sims-row.tsx`
+## Root helper — `qmanager_sim_registry_apply`
 
-A self-contained row (own fetch, own loading/clearing state) embedded in the
-System Settings page. Shows the remembered-SIM count and a **Clear** button
-behind an `AlertDialog` confirm. Not part of any larger settings form — it
-survives a parent form remount-on-save independently.
+```sh
+sudo -n /usr/bin/qmanager_sim_registry_apply <iccid> <dismiss|undismiss>
+```
+
+Sudoers grant (`scripts/etc/sudoers.d/qmanager`), a bare-path NOPASSWD line:
+
+```
+www-data ALL=(root) NOPASSWD: /usr/bin/qmanager_sim_registry_apply
+```
+
+**All validation lives inside the helper**, not in the calling CGI — the
+privileged boundary validates its own input rather than trusting the caller:
+
+| Gate | Rule |
+|------|------|
+| Action | Strict 2-value enum: `dismiss` \| `undismiss`. |
+| ICCID charset | Digits only, plus `F`/`f`. Anything else → `invalid_charset`. |
+| ICCID shape | `F`/`f` may appear **only** as the single trailing pad nibble; strip one trailing `F` and the remainder must be all-digit (rejects e.g. `12F34`). |
+| ICCID length | 18–22 characters. |
+
+The ICCID never reaches a `jq` filter by string interpolation — it always goes
+in via `jq --arg` (in `sim_registry.sh`).
+
+Exit codes and their JSON on stdout:
+
+| rc | JSON | Meaning |
+|----|------|---------|
+| 0 | `{"success":true,"dismissed":true\|false}` | Applied. |
+| 1 | `{"success":false,"error":"invalid_action"\|"empty_iccid"\|"invalid_charset"\|"invalid_length"\|"write_failed", …}` | Rejected input, or the write failed. |
+| 2 | `{"success":false,"error":"lock_timeout", …}` | Couldn't take the lock within 5s. |
+| 3 | `{"success":false,"error":"unknown_iccid", …}` | No record for that ICCID — **never auto-created**. |
+
+---
+
+## CGI contract — `system/sim_registry.sh`
+
+Endpoint: `GET`/`POST /cgi-bin/quecmanager/system/sim_registry.sh`
+(installed to `/usrdata/qmanager/www/cgi-bin/quecmanager/system/sim_registry.sh`).
+
+`list` is a **plain read** of the world-readable file — no `sudo`.
+`dismiss`/`undismiss` shell out to the root helper.
+
+### `GET` (or `POST {"action":"list"}` — an absent `action` also lists)
+
+```json
+{
+  "success": true,
+  "sims": [
+    {
+      "iccid": "8963xxxxxxxxxxxxxxx",
+      "carrier": "GLOBE",
+      "phone_number": "+639544817486",
+      "first_seen": "2026-07-27T06:34:00Z",
+      "dismissed": false,
+      "active": true
+    }
+  ]
+}
+```
+
+- `active` is computed by the CGI, not stored: it compares each key against
+  `.device.iccid` from `/tmp/qmanager_status.json` (normalized with
+  `sim_db_normalize`). **No fresh AT command is issued** — the poller cache is
+  the only source.
+- Sort order: **active first**, then `first_seen` descending with nulls last
+  (a `null` sorts as `""`, then the list is reversed).
+- A corrupted registry file degrades to an empty list with a `qlog_warn`,
+  rather than hard-failing the whole response through `jq --argjson`.
+
+### `POST {"action":"dismiss"|"undismiss","iccid":"<iccid>"}`
+
+```json
+{ "success": true, "dismissed": true }
+```
+
+Helper exit codes map to HTTP status (a `Status:` line is emitted **before**
+`cgi_headers`, mirroring `auth/login.sh`'s deferred-header pattern — that's
+also why `OPTIONS` and the POST body read are handled inline instead of via
+`cgi_handle_options` / `cgi_read_post`):
+
+| Condition | Status | Body |
+|-----------|--------|------|
+| Success | 200 | helper's JSON, passed through verbatim |
+| Empty POST body | 400 | `no_body` |
+| Missing `iccid` | 400 | `missing_iccid` |
+| Unrecognized action | 400 | `invalid_action` |
+| Helper rc 3 (unknown ICCID) | 404 | helper's `unknown_iccid` JSON |
+| Helper rc 2 (lock timeout) | 503 | helper's `lock_timeout` JSON |
+| Helper rc 1 / other | 500 | `apply_failed` |
+| Method other than GET/POST/OPTIONS | 405 | `cgi_method_not_allowed` |
+
+The log line deliberately records only the last 4 ICCID digits
+(`qlog_info "SIM registry: $action iccid=...<4>"`).
+
+---
+
+## Poller integration (`qmanager_poller`)
+
+### 1. Seeding on detection — `collect_boot_data()`
+
+The seed sits **inside** the existing new-SIM branch, behind the **same**
+`_had_prior_sim_db` gate that suppresses the `/tmp` flag on a genuinely fresh
+device (no prior known-SIMs set → no bogus first-boot banner, and now no bogus
+first-boot record either):
+
+```sh
+sim_registry_seed_new "$boot_iccid" "$t2_carrier" "$boot_phone_number"
+```
+
+`t2_carrier` is still `""` this early in boot (Tier 2 hasn't run yet); the
+Tier 2 refresh backfills it within the first poll cycle.
+
+This is the **only** site that creates a fresh, undismissed record.
+
+### 2. Refresh on the active SIM — `poll_tier2()`
+
+```sh
+sim_registry_refresh_active "$boot_iccid" "$t2_carrier" "$boot_phone_number"
+```
+
+Change-gated inside the library, so a steady state does not write on every
+Tier 2 cycle. It also acts as the **backfill path**: if no record exists yet
+(a SIM already in `known_iccids` from before the registry existed and never
+touched by the installer migration), `jq` auto-vivifies one with `first_seen`
+left `null` and `dismissed` absent — which every reader treats as `false`, but
+which can never satisfy the "detected" condition below.
+
+### 3. Deriving `sim_swap.detected` — `read_sim_state()`
+
+The visibility gate is now the **registry record for the current ICCID**, not
+the mere existence of `/tmp/qmanager_sim_swap_detected`:
+
+```
+detected = record exists for boot_iccid
+           AND first_seen is non-empty
+           AND dismissed != true
+```
+
+The `first_seen` non-empty clause is what keeps a backfilled/migrated record
+from ever raising a banner — those SIMs never had a real detection event.
+
+**The emitted `sim_swap` object shape in `status.json` is UNCHANGED**
+(`detected`, `matching_profile_id`, `matching_profile_name`); the frontend type
+depends on it. `matching_profile_id`/`name` are a one-shot detection-time
+artifact, not a durable per-ICCID fact, so they are **not** part of the
+registry contract — they are still read from the `/tmp` flag, and only while a
+swap is actively flagged as detected.
+
+`/tmp/qmanager_sim_swap_detected` is still **written** at detection time
+because `monitoring/watchdog.sh`'s GET handler and `system/known_sims.sh`'s
+`clear` action both still read/clear it — it just no longer gates visibility.
+
+### 4. `AT+CNUM` parse fix (real bug, fixed here)
+
+Both `collect_boot_data()` and `poll_tier2()` used to read the MSISDN as:
+
+```sh
+num=$(... | cut -d',' -f2 | tr -d '"' | tr -d '\r')
+[ -n "$num" ] && boot_phone_number="$num"
+```
+
+Two problems, both fixed:
+
+- **The `[ -n "$num" ] &&` guard.** A SIM with no provisioned MSISDN produced
+  an empty `num`, so the assignment was skipped and the **previous SIM's phone
+  number stayed in place** — the wrong number displayed for the current SIM
+  after a swap or failover. The assignment is now unconditional, so a blank
+  CNUM correctly yields `""`.
+- **`cut -d',' -f2` is fragile.** A carrier-populated alpha field containing
+  its own comma shifts which field `cut` lands on. Replaced with a `sed` anchor
+  on the trailing `,"<number>",<type>` shape at end of line.
+
+---
+
+## Installer migration — `migrate_sim_registry()`
+
+In `scripts/install_rm520n.sh`, called from `install_backend()` alongside the
+other migrations. It seeds one record per existing `known_iccids` line:
+
+```json
+{ "<iccid>": { "carrier": "", "phone_number": "", "first_seen": null, "dismissed": true } }
+```
+
+- **`dismissed: true` is load-bearing.** Membership in the known set *is* the
+  prior acknowledgement — seeding `false` would re-fire the banner for every
+  already-known SIM on the first boot after an OTA.
+- `carrier`/`phone_number` are `""` (unknown for historical entries; the poller
+  fills them in for the active SIM on its next cycle).
+- `first_seen` is `null` — there is no recorded add-time for legacy entries.
+  Do **not** fabricate one from install time or the file's mtime (mtime is the
+  *last* add, not the first).
+- **Idempotent via an existence gate**, not a content check: `[ -f "$target" ]
+  && return 0`. Unlike `migrate_ping_targets()` (which re-runs against a live,
+  still-growing config key), there is no separate unconditional bootstrap-seed
+  step for this file — once it exists, it is either already migrated or already
+  being written by the poller/CGI, so any later run must leave it alone.
+- The temp file is `mktemp /etc/qmanager/.sim_registry.json.XXXXXX` — in the
+  destination directory, for the same atomic-`mv` reason as the library.
+- `chmod 644` **before** the rename, so the CGI can always read the live file.
+
+The root helper and the CGI need no installer changes of their own: the helper
+is picked up by `install_backend()`'s `scripts/usr/bin/*` loop (installed 755
+to `/usr/bin`), and the CGI by the `install_tree` of
+`scripts/www/cgi-bin/quecmanager`.
+
+---
+
+## Retired: `dismiss_sim_swap`
+
+`monitoring/watchdog.sh`'s `POST {"action":"dismiss_sim_swap"}` action is
+**deleted**. It did `jq '.dismissed = true' > $SIM_SWAP_FLAG` on a root-owned
+`/tmp` file while running as `www-data` — the write always failed — and then
+returned `{"success":true}` unconditionally. That silent lie is the reason
+dismissal was pushed into browser `localStorage` in the first place.
+
+Frontend fallout: `hooks/use-watchdog-settings.ts` no longer exposes
+`simSwap` or `dismissSimSwap`, and the `SimSwapInfo` interface is gone from it.
+SIM-swap state is read for display through `status.json.sim_swap`
+(`useModemStatus`) and mutated through `hooks/use-sim-registry.ts`.
+
+---
+
+## Frontend surfaces
+
+### `components/monitoring/watchdog/sim-swap-banner.tsx`
+
+Mounted once in `AppLayout`, so it outlives any single page — which is why its
+strings live in the **`common`** namespace (`sim_swap.*`) rather than a
+page-scoped one.
+
+- Visibility is driven **entirely** by the device (`status.json.sim_swap.detected`).
+  The `localStorage` dismissal store is gone — one source of truth, and it is
+  the modem.
+- Shows carrier + MSISDN, falling back to "Unknown carrier" / "No number
+  provisioned"; if neither is known it shows the raw ICCID in mono.
+- **Exactly one CTA per branch**: "Apply Profile" → `/cellular/custom-profiles`
+  when `matching_profile_id` is set, otherwise "Create Profile" →
+  `/cellular/custom-profiles?action=create`.
+- The `×` opens an `AlertDialog` that spells out the ICCID and states the scope
+  is **this SIM only**, not a global mute.
+- `optimisticallyHidden` is the only client state: the banner hides immediately
+  on a confirmed dismiss (poll cycle is ~2s) and self-clears the moment the
+  device reports `detected:false` — so a later un-dismiss from System Settings
+  re-shows it without a page reload.
+
+### `components/system-settings/sim-registry-card.tsx` — "Tracked SIMs"
+
+Per-SIM row: carrier, MSISDN (or "No number provisioned"), ICCID + "Added
+{date}" / "Added before tracking began", an Active badge on the current SIM,
+and an Alerts on / Alerts off badge. The **"Show Alert"** un-dismiss button
+renders **only on dismissed rows** — silencing an alert belongs to the alert
+itself, so this surface only ever re-enables. Loading / error / empty / data
+states are all handled; a failed refresh with existing data shows a stale
+notice instead of blanking the list.
+
+Strings: `system-settings` namespace, `sim_registry.*` subtree, all 5 locales.
+
+### `hooks/use-sim-registry.ts` / `types/sim-registry.ts`
+
+`postSimDismissal(iccid, dismissed)` is exported standalone so the globally
+mounted banner can dismiss without pulling the whole registry on every page;
+`useSimRegistry()` (fetch-on-mount + refetch-after-mutation, no polling — the
+registry only changes on SIM insertion or user action) is what the card uses.
+Mutations flip the row optimistically then reconcile with a refetch, so a
+rejected write can't leave the UI lying.
+
+### `app/cellular/custom-profiles/page.tsx`
+
+Wrapped in `<Suspense>` — **mandatory**. `CustomProfileComponent` now reads
+`useSearchParams()` to honour the banner's `?action=create` deep link, and
+without a Suspense boundary Next.js fails the static-export build with a
+CSR-bailout error. The deep link is latched once at mount (clears any leftover
+edit, scrolls the form into view) so no later re-render can yank the user back
+to the form.
+
+### `ModemSubsystemCard` is parked, not deleted
+
+`components/system-settings/system-settings.tsx` has the import and the JSX for
+`ModemSubsystemCard` **commented out** to make room for `SimRegistryCard`.
+`components/system-settings/modem-subsystem-card.tsx` and
+`hooks/use-modem-subsys.ts` remain on disk, untouched, ready to restore.
+
+> ℹ️ NOTE: `modem-subsystem-card.tsx` renders a `CardTitle` of **"System
+> Health"** — the filename and the title disagree. This is *not* the separate
+> **System Health Check** page, which is unaffected by this change.
+
+---
+
+## Gotchas
+
+- **`known_iccids` line format is frozen.** See the warning above — this is the
+  single easiest way to break new-SIM detection for every fielded device.
+- **Un-dismissing a migrated record does nothing visible, by design.**
+  `POST {"action":"undismiss"}` on a record with `first_seen: null` is a legal,
+  successful call — but such a record can never satisfy the "detected"
+  condition, so no banner appears. Migrated rows never had a real detection
+  event. Do not "fix" this.
+- **The registry never auto-creates on dismiss/undismiss.** An unknown ICCID is
+  always a 404. Records are created only by a genuine detection
+  (`sim_registry_seed_new`), the Tier 2 backfill, or the installer migration.
+- **The registry is not tamper-proof against `www-data`.** See the threat model
+  above.
+- **`sim_registry.sh` does not source `sim_db.sh`.** A new caller must source
+  `sim_db.sh` first or `sim_db_normalize` is undefined and every key comes out
+  empty.
+- **BusyBox `flock` has no `-w`.** Any new lock code here must use the polling
+  loop, not `flock -w`.
 
 ---
 
@@ -180,4 +615,5 @@ survives a parent form remount-on-save independently.
 
 - [connection-watchdog.md](connection-watchdog.md) — Tier-3 SIM failover, the `verify_quimslot` gate, and the `sim_db_add` finalize/revert coupling.
 - [sim-profiles.md](sim-profiles.md) — Custom SIM Profiles, ICCID canonicalization in `find_profile_by_iccid`/`auto_apply_profile`, and `set_active_profile`'s `mark_sim_acknowledged` side effect.
+- [qmanager-independence.md](qmanager-independence.md) — installer/OTA internals, sudoers grants, and the `install -d` vs `mkdir -p` directory-mode rule.
 - `docs/rm520n-gl-architecture.md` — platform persistence facts (`/etc/qmanager/` is persistent UBIFS, not tmpfs).

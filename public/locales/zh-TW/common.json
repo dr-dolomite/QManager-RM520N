@@ -164,5 +164,25 @@
       "minutes": "{{minutes}}分鐘"
     },
     "copyright": "© {{year}} QManager"
+  },
+  "sim_swap": {
+    "title": "偵測到新 SIM 卡",
+    "carrier_unknown": "未知電信業者",
+    "no_phone_number": "未配發號碼",
+    "description_match": "設定檔 <strong>{{profile_name}}</strong> 與此 SIM 卡相符。",
+    "description_no_match": "沒有與此 SIM 卡相符的已儲存設定檔。",
+    "apply_profile": "套用設定檔",
+    "create_profile": "建立設定檔",
+    "dismiss_aria": "停止提醒此 SIM 卡",
+    "toast_dismissed": "已關閉此 SIM 卡的提醒",
+    "toast_dismissed_detail": "其他 SIM 卡仍會觸發新卡提醒。可在「系統設定 → 已追蹤的 SIM 卡」中重新開啟。",
+    "toast_dismiss_failed": "無法關閉此 SIM 卡的提醒",
+    "dismiss_dialog": {
+      "title": "停止提醒此 SIM 卡？",
+      "description": "QManager 將僅不再為這張 {{carrier}} SIM 卡顯示新卡提醒。其他 SIM 卡仍會提醒，您可隨時在「系統設定 → 已追蹤的 SIM 卡」中重新開啟。",
+      "sim_label": "此 SIM 卡（ICCID）",
+      "confirm": "停止提醒",
+      "dismissing": "正在關閉…"
+    }
   }
 }

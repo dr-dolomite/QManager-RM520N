@@ -50,24 +50,20 @@ export interface SimFailoverInfo {
   switched_at?: number;
 }
 
-export interface SimSwapInfo {
-  detected: boolean;
-  matching_profile_id?: string;
-  matching_profile_name?: string;
-  dismissed?: boolean;
-}
+// NOTE: SIM-swap state is NOT surfaced here. It lives in the persistent SIM
+// registry (`system/sim_registry.sh` + `hooks/use-sim-registry.ts`) and is read
+// for display through `status.json.sim_swap`; the watchdog endpoint no longer
+// owns a dismiss action.
 
 export interface UseWatchdogSettingsReturn {
   settings: WatchdogSettings | null;
   status: WatchdogLiveStatus | null;
   simFailover: SimFailoverInfo | null;
-  simSwap: SimSwapInfo | null;
   autoDisabled: boolean;
   isLoading: boolean;
   isSaving: boolean;
   error: string | null;
   saveSettings: (payload: WatchdogSavePayload) => Promise<boolean>;
-  dismissSimSwap: () => Promise<boolean>;
   revertSim: () => Promise<boolean>;
   refresh: () => void;
 }
@@ -78,7 +74,6 @@ export function useWatchdogSettings(): UseWatchdogSettingsReturn {
   const [settings, setSettings] = useState<WatchdogSettings | null>(null);
   const [status, setStatus] = useState<WatchdogLiveStatus | null>(null);
   const [simFailover, setSimFailover] = useState<SimFailoverInfo | null>(null);
-  const [simSwap, setSimSwap] = useState<SimSwapInfo | null>(null);
   const [autoDisabled, setAutoDisabled] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -123,7 +118,6 @@ export function useWatchdogSettings(): UseWatchdogSettingsReturn {
       });
       setStatus(json.status && json.status.timestamp ? json.status : null);
       setSimFailover(json.sim_failover || null);
-      setSimSwap(json.sim_swap || null);
       setAutoDisabled(json.auto_disabled === true);
     } catch (err) {
       if (!mountedRef.current) return;
@@ -193,33 +187,6 @@ export function useWatchdogSettings(): UseWatchdogSettingsReturn {
   );
 
   // ---------------------------------------------------------------------------
-  // Dismiss SIM swap notification
-  // ---------------------------------------------------------------------------
-  const dismissSimSwap = useCallback(async (): Promise<boolean> => {
-    try {
-      const resp = await authFetch(CGI_ENDPOINT, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "dismiss_sim_swap" }),
-      });
-
-      if (!resp.ok) return false;
-
-      const json = await resp.json();
-      if (!mountedRef.current) return false;
-
-      if (json.success) {
-        setSimSwap((prev) =>
-          prev ? { ...prev, detected: false, dismissed: true } : prev
-        );
-      }
-      return json.success;
-    } catch {
-      return false;
-    }
-  }, []);
-
-  // ---------------------------------------------------------------------------
   // Request SIM revert (watchcat picks up the flag)
   // ---------------------------------------------------------------------------
   const revertSim = useCallback(async (): Promise<boolean> => {
@@ -243,13 +210,11 @@ export function useWatchdogSettings(): UseWatchdogSettingsReturn {
     settings,
     status,
     simFailover,
-    simSwap,
     autoDisabled,
     isLoading,
     isSaving,
     error,
     saveSettings,
-    dismissSimSwap,
     revertSim,
     refresh: fetchSettings,
   };

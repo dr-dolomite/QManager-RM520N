@@ -12,5 +12,25 @@
     "clear_dialog_clearing": "Clearing…",
     "toast_cleared": "Known SIMs cleared",
     "toast_clear_failed": "Failed to clear known SIMs"
+  },
+  "sim_registry": {
+    "title": "Tracked SIMs",
+    "description": "Every SIM QManager has seen, and whether it still raises a new-SIM alert.",
+    "carrier_unknown": "Unknown carrier",
+    "no_phone_number": "No number provisioned",
+    "added_on": "Added {{date}}",
+    "added_unknown": "Added before tracking began",
+    "badge_active": "Active",
+    "badge_alerts_on": "Alerts on",
+    "badge_alerts_off": "Alerts off",
+    "show_alert": "Show Alert",
+    "restoring": "Turning on…",
+    "retry": "Retry",
+    "stale_notice": "Showing the last successful read. The device didn't answer the latest refresh.",
+    "empty_title": "No SIMs tracked yet",
+    "empty_description": "QManager records each SIM the first time it is inserted. Insert a SIM to start the list.",
+    "toast_restored": "Alert turned back on",
+    "toast_restored_detail": "QManager will alert again when the {{carrier}} SIM is inserted.",
+    "toast_restore_failed": "Couldn't turn the alert back on"
   }
 }

@@ -380,7 +380,18 @@ log_error() { qlog_error "$1"; }
     sim_db_seed_if_absent() { return 1; }
     sim_db_known() { return 1; }
     sim_db_add() { :; }
+    sim_db_normalize() { printf '%s' "$1" | tr -d ' \r\n'; }
     iccid_canonicalize() { printf '%s' "$1" | tr -d ' \r\n'; }
+}
+
+# Persistent per-ICCID SIM registry (carrier/phone_number/first_seen/
+# dismissed). Self-guarded (_SIM_REGISTRY_LOADED). Requires sim_db.sh (above)
+# for sim_db_normalize.
+. /usr/lib/qmanager/sim_registry.sh 2>/dev/null || {
+    qlog_warn "sim_registry.sh not found, SIM registry writes disabled"
+    sim_registry_seed_new() { :; }
+    sim_registry_refresh_active() { :; }
+    SIM_REGISTRY_FILE="/etc/qmanager/sim_registry.json"
 }
 
 # =============================================================================
@@ -806,10 +817,17 @@ collect_boot_data() {
         # QCCID: prefixed
         boot_iccid=$(printf '%s\n' "$result" | grep '+QCCID:' | sed 's/+QCCID: //g' | tr -d '\r ')
 
-        # CNUM: prefixed
+        # CNUM: prefixed. Always RESET boot_phone_number (no `[ -n ] &&` guard)
+        # so a blank/absent CNUM yields "" rather than leaving a PREVIOUS
+        # SIM's number in place after a failover to a SIM with no provisioned
+        # MSISDN. Extraction anchors on the trailing quoted-number,type shape
+        # (`,"<number>",<type>` at end of line) rather than a raw `cut -f2`,
+        # since a carrier-populated alpha field containing its own comma
+        # would otherwise shift which field `cut` lands on.
         local num
-        num=$(printf '%s\n' "$result" | grep '+CNUM:' | head -1 | cut -d',' -f2 | tr -d '"' | tr -d '\r')
-        [ -n "$num" ] && boot_phone_number="$num"
+        num=$(printf '%s\n' "$result" | grep '+CNUM:' | head -1 | tr -d '\r')
+        num=$(printf '%s\n' "$num" | sed -n 's/.*,"\([+0-9]*\)",[0-9]*[[:space:]]*$/\1/p')
+        boot_phone_number="$num"
 
         # QGETCAPABILITY: prefixed (multi-line)
         parse_capability "$result"
@@ -852,6 +870,16 @@ collect_boot_data() {
                 '{detected_at:$ts,previous_iccid:$prev,current_iccid:$curr,matching_profile_id:$pid,matching_profile_name:$pname,dismissed:false}' \
                 > "$SIM_SWAP_FLAG"
             append_event "sim_swap_detected" "New SIM detected (ICCID: ...$(printf '%s' "$boot_iccid" | tail -c 4))" "info"
+
+            # Persistent registry record — this is the ONLY site that seeds a
+            # fresh, undismissed record (first_seen=now). Gated on the SAME
+            # _had_prior_sim_db check as the /tmp flag above, so a genuinely
+            # fresh device (no prior known-SIMs set) never gets a bogus
+            # first-boot record either — matches the /tmp flag's existing
+            # suppression exactly. t2_carrier is still "" this early in boot
+            # (Tier 2 hasn't run yet); the Tier 2 refresh backfills it within
+            # the first poll cycle (TIER2_EVERY divides cycle_count=0).
+            sim_registry_seed_new "$boot_iccid" "$t2_carrier" "$boot_phone_number"
         fi
         sim_db_add "$boot_iccid"
 
@@ -1114,10 +1142,16 @@ poll_tier2() {
         parse_carrier "$result"
         parse_sim_slot "$result"
 
-        # Phone number refresh (may change on SIM swap)
+        # Phone number refresh (may change on SIM swap). Always RESET (no
+        # `[ -n ] &&` guard) so a blank CNUM after a failover to a SIM with
+        # no provisioned MSISDN clears the PREVIOUS SIM's number instead of
+        # leaving it displayed for the wrong SIM. Same trailing
+        # quoted-number,type anchor as collect_boot_data's CNUM parse (see
+        # there for why `cut -d',' -f2` is unsafe).
         local num
-        num=$(printf '%s\n' "$result" | grep '+CNUM:' | head -1 | cut -d',' -f2 | tr -d '"' | tr -d '\r')
-        [ -n "$num" ] && boot_phone_number="$num"
+        num=$(printf '%s\n' "$result" | grep '+CNUM:' | head -1 | tr -d '\r')
+        num=$(printf '%s\n' "$num" | sed -n 's/.*,"\([+0-9]*\)",[0-9]*[[:space:]]*$/\1/p')
+        boot_phone_number="$num"
 
         # SIM status — extract CPIN line specifically (parse_sim_status uses
         # case matching, not grep, so pass only the relevant line)
@@ -1129,6 +1163,11 @@ poll_tier2() {
             t2_sim_status="error"
             errors="sim_not_inserted"
         fi
+
+        # Registry refresh (c): scoped carrier/phone_number update on the
+        # ACTIVE record only — never touches dismissed/first_seen. No-ops
+        # internally (no write) when neither value changed since last cycle.
+        sim_registry_refresh_active "$boot_iccid" "$t2_carrier" "$boot_phone_number"
     fi
     sleep "$SIP_DELAY"
 
@@ -1619,24 +1658,57 @@ read_watchcat_state() {
 }
 
 read_sim_state() {
-    # SIM swap flag (boot-time, changes rarely)
+    # SIM swap visibility — source of truth is now the persistent
+    # /etc/qmanager/sim_registry.json record for the CURRENT ICCID, not the
+    # root-owned /tmp/qmanager_sim_swap_detected flag's mere existence.
+    # www-data cannot write that /tmp file (root-owned), so dismissal only
+    # ever worked via browser localStorage before the registry existed.
+    #
+    # detected = a registry record exists for boot_iccid AND it has a
+    # first_seen (i.e. it was actually created by a "new SIM" detection, not
+    # just auto-vivified by a carrier/phone refresh backfill on an
+    # already-known SIM) AND dismissed == false.
+    #
+    # The emitted sim_swap object SHAPE is unchanged (detected,
+    # matching_profile_id, matching_profile_name) — the frontend type depends
+    # on it. matching_profile_id/name are NOT part of the registry contract
+    # (they're a one-shot detection-time artifact, not a per-ICCID durable
+    # fact), so they still come from the /tmp flag, read only while a swap is
+    # actively flagged as detected. The /tmp flag itself is still WRITTEN at
+    # detection time (collect_boot_data) because monitoring/watchdog.sh's GET
+    # handler and system/known_sims.sh's "clear" action both still read/clear
+    # it independently — but it is no longer the gate for visibility here.
     sim_swap_detected="false"
     sim_swap_profile_id=""
     sim_swap_profile_name=""
-    if [ -f "$SIM_SWAP_FLAG" ]; then
+
+    local _sim_norm_iccid
+    _sim_norm_iccid=$(sim_db_normalize "$boot_iccid")
+
+    if [ -n "$_sim_norm_iccid" ] && [ -f "$SIM_REGISTRY_FILE" ]; then
+        local _reg_data _reg_first_seen _reg_dismissed
+        _reg_data=$(jq -r --arg k "$_sim_norm_iccid" '
+            (.[$k] // {}) as $r
+            | [
+                (($r.first_seen // "") | tostring),
+                (($r.dismissed // false) | tostring)
+              ] | @tsv
+        ' "$SIM_REGISTRY_FILE" 2>/dev/null)
+        _reg_first_seen=$(printf '%s' "$_reg_data" | cut -f1)
+        _reg_dismissed=$(printf '%s' "$_reg_data" | cut -f2)
+        if [ -n "$_reg_first_seen" ] && [ "$_reg_dismissed" != "true" ]; then
+            sim_swap_detected="true"
+        fi
+    fi
+
+    if [ "$sim_swap_detected" = "true" ] && [ -f "$SIM_SWAP_FLAG" ]; then
         local _swap_data
         _swap_data=$(jq -r '[
-            ((.dismissed) | if . == null then "false" else tostring end),
             (.matching_profile_id // ""),
             (.matching_profile_name // "")
         ] | @tsv' "$SIM_SWAP_FLAG" 2>/dev/null)
-        local _dismissed
-        _dismissed=$(printf '%s' "$_swap_data" | cut -f1)
-        if [ "$_dismissed" != "true" ]; then
-            sim_swap_detected="true"
-            sim_swap_profile_id=$(printf '%s' "$_swap_data" | cut -f2)
-            sim_swap_profile_name=$(printf '%s' "$_swap_data" | cut -f3)
-        fi
+        sim_swap_profile_id=$(printf '%s' "$_swap_data" | cut -f1)
+        sim_swap_profile_name=$(printf '%s' "$_swap_data" | cut -f2)
     fi
 
     # SIM failover state (written by watchcat Tier 3)

@@ -164,5 +164,25 @@
       "minutes": "{{minutes}}m"
     },
     "copyright": "© {{year}} QManager"
+  },
+  "sim_swap": {
+    "title": "SIM baru terdeteksi",
+    "carrier_unknown": "Operator tidak diketahui",
+    "no_phone_number": "Nomor belum tersedia",
+    "description_match": "Profil <strong>{{profile_name}}</strong> cocok dengan SIM ini.",
+    "description_no_match": "Tidak ada profil tersimpan yang cocok dengan SIM ini.",
+    "apply_profile": "Terapkan Profil",
+    "create_profile": "Buat Profil",
+    "dismiss_aria": "Hentikan peringatan untuk SIM ini",
+    "toast_dismissed": "Peringatan dimatikan untuk SIM ini",
+    "toast_dismissed_detail": "SIM lain tetap memunculkan peringatan. Aktifkan kembali di Pengaturan Sistem → SIM Terdaftar.",
+    "toast_dismiss_failed": "Gagal mematikan peringatan untuk SIM ini",
+    "dismiss_dialog": {
+      "title": "Hentikan peringatan untuk SIM ini?",
+      "description": "QManager hanya akan berhenti menampilkan peringatan SIM baru untuk SIM {{carrier}} ini. Semua SIM lain tetap memunculkan peringatan, dan Anda dapat mengaktifkannya kembali kapan saja dari Pengaturan Sistem → SIM Terdaftar.",
+      "sim_label": "SIM ini (ICCID)",
+      "confirm": "Hentikan peringatan",
+      "dismissing": "Mematikan…"
+    }
   }
 }

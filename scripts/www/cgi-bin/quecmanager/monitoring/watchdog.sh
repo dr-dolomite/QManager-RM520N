@@ -320,21 +320,6 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
     fi
 
     # -------------------------------------------------------------------------
-    # action: dismiss_sim_swap
-    # -------------------------------------------------------------------------
-    if [ "$ACTION" = "dismiss_sim_swap" ]; then
-        qlog_info "Dismissing SIM swap notification"
-        if [ -f "$SIM_SWAP_FLAG" ]; then
-            tmp_json=$(jq -c '.dismissed = true' "$SIM_SWAP_FLAG" 2>/dev/null)
-            if [ -n "$tmp_json" ]; then
-                printf '%s\n' "$tmp_json" > "$SIM_SWAP_FLAG"
-            fi
-        fi
-        echo '{"success":true}'
-        exit 0
-    fi
-
-    # -------------------------------------------------------------------------
     # action: revert_sim
     # -------------------------------------------------------------------------
     if [ "$ACTION" = "revert_sim" ]; then

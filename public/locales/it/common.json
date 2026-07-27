@@ -164,5 +164,25 @@
       "minutes": "{{minutes}}m"
     },
     "copyright": "© {{year}} QManager"
+  },
+  "sim_swap": {
+    "title": "Rilevata una nuova SIM",
+    "carrier_unknown": "Operatore sconosciuto",
+    "no_phone_number": "Nessun numero assegnato",
+    "description_match": "Il profilo <strong>{{profile_name}}</strong> corrisponde a questa SIM.",
+    "description_no_match": "Nessun profilo salvato corrisponde a questa SIM.",
+    "apply_profile": "Applica profilo",
+    "create_profile": "Crea profilo",
+    "dismiss_aria": "Disattiva l'avviso per questa SIM",
+    "toast_dismissed": "Avviso disattivato per questa SIM",
+    "toast_dismissed_detail": "Le altre SIM continueranno a generare l'avviso. Puoi riattivarlo in Impostazioni di sistema → SIM registrate.",
+    "toast_dismiss_failed": "Impossibile disattivare l'avviso per questa SIM",
+    "dismiss_dialog": {
+      "title": "Disattivare l'avviso per questa SIM?",
+      "description": "QManager smetterà di mostrare l'avviso di nuova SIM solo per questa SIM {{carrier}}. Tutte le altre SIM continueranno a generarlo e puoi riattivare questa in qualsiasi momento da Impostazioni di sistema → SIM registrate.",
+      "sim_label": "Questa SIM (ICCID)",
+      "confirm": "Disattiva l'avviso",
+      "dismissing": "Disattivazione…"
+    }
   }
 }

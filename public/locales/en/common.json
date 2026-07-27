@@ -164,5 +164,25 @@
       "minutes": "{{minutes}}m"
     },
     "copyright": "© {{year}} QManager"
+  },
+  "sim_swap": {
+    "title": "New SIM card detected",
+    "carrier_unknown": "Unknown carrier",
+    "no_phone_number": "No number provisioned",
+    "description_match": "Profile <strong>{{profile_name}}</strong> matches this SIM.",
+    "description_no_match": "No saved profile matches this SIM.",
+    "apply_profile": "Apply Profile",
+    "create_profile": "Create Profile",
+    "dismiss_aria": "Stop alerting for this SIM",
+    "toast_dismissed": "Alert turned off for this SIM",
+    "toast_dismissed_detail": "Other SIMs still raise the new-SIM alert. Turn this one back on in System Settings → Tracked SIMs.",
+    "toast_dismiss_failed": "Couldn't turn off the alert for this SIM",
+    "dismiss_dialog": {
+      "title": "Stop alerting for this SIM?",
+      "description": "QManager will stop showing the new-SIM alert for this {{carrier}} SIM only. Every other SIM still raises the alert, and you can turn this one back on any time from System Settings → Tracked SIMs.",
+      "sim_label": "This SIM (ICCID)",
+      "confirm": "Stop alerting",
+      "dismissing": "Turning off…"
+    }
   }
 }
