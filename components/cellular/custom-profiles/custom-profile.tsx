@@ -7,7 +7,6 @@ import { useTranslation } from "react-i18next";
 import CustomProfileFormComponent from "@/components/cellular/custom-profiles/custom-profile-form";
 import CustomProfileViewComponent from "@/components/cellular/custom-profiles/custom-profile-view";
 import { ApplyProgressDialog } from "@/components/cellular/custom-profiles/apply-progress-dialog";
-import SuggestedProfiles from "@/components/cellular/custom-profiles/suggested-profiles";
 import { useSimProfiles, type ProfileFormData } from "@/hooks/use-sim-profiles";
 import { useProfileApply } from "@/hooks/use-profile-apply";
 import { useCurrentSettings } from "@/hooks/use-current-settings";
@@ -281,24 +280,24 @@ const CustomProfileComponent = () => {
           onRefresh={refresh}
           currentIccid={currentIccid}
           lastApplyState={applyState}
+          // Recommended for your SIM — rendered as rows INSIDE the saved list,
+          // not as a separate card. They stay a sibling prop rather than being
+          // merged into `profiles`, which is what keeps the count badge, the
+          // detail prefetch, and the activate/delete wiring honest; see the
+          // header note in custom-profile-view.tsx.
+          //
+          // The view widens its own empty-state gate on `suggestions`, so a
+          // user with no saved profiles still sees the recommendation.
+          //
+          // Error falls back to the CRUD error because the create sequence
+          // spans two hooks: scenario failures surface on useProfileSuggestions,
+          // profile failures (incl. the MAX_PROFILES=10 cap) on useSimProfiles.
+          suggestions={suggestions}
+          creatingSuggestionId={creatingId}
+          suggestionError={suggestionsError ?? error}
+          onCreateSuggestion={handleCreateFromSuggestion}
         />
       </div>
-
-      {/* Recommended for your SIM — renders nothing when there is no match.
-          Deliberately OUTSIDE the grid: the empty state replaces the whole view
-          card (custom-profile-view.tsx returns EmptyProfileViewComponent), so a
-          section nested inside it would vanish for exactly the user who has no
-          profiles yet — the one most likely to want a suggestion.
-
-          Error prop falls back to the CRUD error because the create sequence
-          spans two hooks: scenario failures surface on useProfileSuggestions,
-          profile failures (incl. the MAX_PROFILES=10 cap) on useSimProfiles. */}
-      <SuggestedProfiles
-        suggestions={suggestions}
-        creatingId={creatingId}
-        error={suggestionsError ?? error}
-        onCreate={handleCreateFromSuggestion}
-      />
 
       {/* Activate Confirmation Dialog */}
       <AlertDialog

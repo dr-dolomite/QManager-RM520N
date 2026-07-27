@@ -34,24 +34,31 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import {
+  AlertCircleIcon,
   CalendarClockIcon,
   CheckCircle2Icon,
+  InfoIcon,
   Loader2Icon,
   MinusCircleIcon,
   MoreVerticalIcon,
   PencilIcon,
   PlayIcon,
+  PlusIcon,
   PowerIcon,
   RouteIcon,
+  SparklesIcon,
   Trash2Icon,
   TriangleAlertIcon,
 } from "lucide-react";
 
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { cn } from "@/lib/utils";
 import EmptyProfileViewComponent from "@/components/cellular/custom-profiles/empty-profile";
 import { useSimProfiles } from "@/hooks/use-sim-profiles";
 import { useScenarioList } from "@/hooks/use-scenario-list";
+import type { SuggestionView } from "@/hooks/use-profile-suggestions";
 import {
+  DEFAULT_SCENARIO_BINDING,
   formatProfileDate,
   type ProfileApplyState,
   type ProfileSummary,
@@ -74,6 +81,17 @@ import {
 // they all land, so rows arrive fully populated instead of double-shimmering.
 // SIM-mismatch is a best-effort naive string compare of profile.sim_iccid vs
 // the live ICCID — never canonicalized client-side, WARNING only, never blocks.
+//
+// Suggestions ("Recommended for your SIM") render as ROWS IN THIS LIST but are
+// never merged into `profiles`. That separation is load-bearing, and it is what
+// makes an in-list suggestion safe at all:
+//   - the header count badge reads `profiles.length`, so it never claims a
+//     suggestion is stored;
+//   - the detail prefetch below maps over `profiles`, so it never fires a CGI
+//     GET for an id that resolves to nothing;
+//   - activate/edit/delete are wired per row variant, so a synthetic id is
+//     never handed to an endpoint that only accepts real ones.
+// Keep suggestions a sibling prop. Merging the arrays breaks all three at once.
 
 // Cap how many rows stagger so a long roster never plays a long load cascade.
 const STAGGER_STEP_S = 0.04;
@@ -120,6 +138,14 @@ interface CustomProfileViewProps {
   currentIccid?: string | null;
   /** Most recent apply state — drives the per-row spinner AND "Applied at HH:MM". */
   lastApplyState?: ProfileApplyState | null;
+  /** Carrier-matched suggestions, already band-intersected. Empty renders none. */
+  suggestions?: SuggestionView[];
+  /** Suggestion id currently being created, or null. */
+  creatingSuggestionId?: string | null;
+  /** Error from the last suggestion-create attempt. */
+  suggestionError?: string | null;
+  /** Materialize a suggestion as a real profile. */
+  onCreateSuggestion?: (suggestionId: string) => void;
 }
 
 const CustomProfileViewComponent = ({
@@ -134,6 +160,10 @@ const CustomProfileViewComponent = ({
   onRefresh,
   currentIccid = null,
   lastApplyState = null,
+  suggestions = [],
+  creatingSuggestionId = null,
+  suggestionError = null,
+  onCreateSuggestion,
 }: CustomProfileViewProps) => {
   const { t } = useTranslation("cellular");
   const reduceMotion = useReducedMotion();
@@ -215,9 +245,39 @@ const CustomProfileViewComponent = ({
     });
   }, [profiles, activeProfileId]);
 
+  // Which scenario a suggestion WILL bind, resolved the same way the create
+  // path resolves it (see useProfileSuggestions): a `custom-*` scenario named
+  // by the recipe only when a band lock actually survives intersection with
+  // the modem's supported bands, otherwise the built-in default. Showing this
+  // on the row is the honest disclosure — binding a `custom-*` scenario is what
+  // disables the manual Band Locking page.
+  const suggestionScenarioName = React.useCallback(
+    (view: SuggestionView) => {
+      const hasBandLock = view.nsaBands.length > 0 || view.saBands.length > 0;
+      return hasBandLock && view.suggestion.scenario_name
+        ? view.suggestion.scenario_name
+        : nameForId(DEFAULT_SCENARIO_BINDING.default);
+    },
+    [nameForId],
+  );
+
+  // The band rationale keys off the RECIPE, not the intersected result: a
+  // suggestion that recommends bands still deserves the explanation even when
+  // none survived, because the "Auto" pills it renders are that outcome.
+  const hasBandRecipe = suggestions.some(
+    (v) =>
+      v.suggestion.nsa_nr_bands.length > 0 || v.suggestion.sa_nr_bands.length > 0,
+  );
+
   // Empty state is a full-card surface (owns its own header + refresh), so it
   // replaces this card entirely rather than nesting inside it.
-  if (!showSkeleton && profiles.length === 0) {
+  //
+  // Gated on suggestions TOO. A user with no saved profiles but a matched
+  // carrier is precisely the one a suggestion is for; letting the empty card
+  // win here would hide the recommendation from its whole audience. When only
+  // suggestions exist, the inline `none_saved_yet` line below carries the
+  // "nothing stored yet" message instead.
+  if (!showSkeleton && profiles.length === 0 && suggestions.length === 0) {
     return <EmptyProfileViewComponent onRefresh={onRefresh} />;
   }
 
@@ -249,6 +309,15 @@ const CustomProfileViewComponent = ({
           // nudging the rows.
           <div className="-mr-2 max-h-128 overflow-x-hidden overflow-y-auto pr-2 [scrollbar-width:thin]">
             <div className="flex flex-col gap-3">
+              {/* Only reachable when suggestions kept the card alive. Keeps the
+                  list honest about having nothing stored without spending the
+                  full empty-state card on it. */}
+              {profiles.length === 0 && (
+                <p className="text-muted-foreground text-xs">
+                  {t("custom_profiles.view.none_saved_yet")}
+                </p>
+              )}
+
               {ordered.map((profile, i) => {
                 const audit =
                   lastApplyState &&
@@ -284,6 +353,69 @@ const CustomProfileViewComponent = ({
                   />
                 );
               })}
+
+              {suggestions.length > 0 && (
+                <>
+                  {suggestionError && (
+                    <Alert variant="destructive">
+                      <AlertCircleIcon className="size-4" />
+                      <AlertDescription>{suggestionError}</AlertDescription>
+                    </Alert>
+                  )}
+
+                  {/* Suggestions pair up side by side once the card is wide
+                      enough; a lone suggestion takes the full width and is
+                      indistinguishable in footprint from a saved row. The
+                      dashed border is what identifies them — no section label,
+                      no preamble. Container query, not viewport: this card
+                      sits in a two-column page grid, so `md:` would lie about
+                      how much room it actually has. */}
+                  <div
+                    className={cn(
+                      "grid items-stretch gap-3",
+                      // @xl (576px) not @md: at 448px each column would be
+                      // ~215px, narrower than a single APN pill, and the
+                      // footer's label + Create button would collide.
+                      suggestions.length > 1 && "@xl/card:grid-cols-2",
+                    )}
+                  >
+                    {suggestions.map((view, i) => (
+                      <SuggestionRow
+                        key={view.suggestion.id}
+                        view={view}
+                        // Index continues the saved rows so the entrance plays
+                        // as one cascade down a single list, not two.
+                        index={ordered.length + i}
+                        reduceMotion={!!reduceMotion}
+                        scenarioName={suggestionScenarioName(view)}
+                        isCreating={creatingSuggestionId === view.suggestion.id}
+                        disabled={creatingSuggestionId !== null}
+                        onCreate={() => onCreateSuggestion?.(view.suggestion.id)}
+                      />
+                    ))}
+                  </div>
+
+                  {/* Honest rationale. Carries the safety note that a band lock
+                      narrows the radio, and that both it and the TTL/HL change
+                      are undone by deactivating. */}
+                  <div className="text-muted-foreground flex flex-col gap-1.5 pt-1 text-xs">
+                    {hasBandRecipe && (
+                      <p className="flex items-start gap-2">
+                        <InfoIcon className="mt-px size-3.5 shrink-0" />
+                        <span>
+                          {t("custom_profiles.suggestions.rationale_bands")}
+                        </span>
+                      </p>
+                    )}
+                    <p className="flex items-start gap-2">
+                      <InfoIcon className="mt-px size-3.5 shrink-0" />
+                      <span>
+                        {t("custom_profiles.suggestions.rationale_ttl")}
+                      </span>
+                    </p>
+                  </div>
+                </>
+              )}
             </div>
           </div>
         )}
@@ -470,14 +602,14 @@ const ProfileRow = ({
       {/* Action footer: updated date + per-row audit line + primary action */}
       <div className="flex items-center justify-between gap-3 pt-0.5">
         <div className="grid min-w-0 gap-0.5">
-          <span className="text-muted-foreground text-[11px]">
+          <span className="text-muted-foreground text-xs">
             {t("custom_profiles.card.label_updated")}{" "}
             {formatProfileDate(summary.updated_at)}
           </span>
           {auditStatus && (
             <span
               className={cn(
-                "text-[11px]",
+                "text-xs",
                 auditStatus === "failed"
                   ? "text-destructive"
                   : auditStatus === "partial"
@@ -569,6 +701,163 @@ const StatusBadge = ({ status }: { status: ProfileStatus }) => {
       <MinusCircleIcon className="size-3" />
       {t("custom_profiles.table.status_badge.inactive")}
     </Badge>
+  );
+};
+
+// -----------------------------------------------------------------------------
+// Suggestion row — a carrier recommendation, shaped as a peer of ProfileRow.
+// -----------------------------------------------------------------------------
+// Structurally identical to a saved row (same radius, padding, motion, and the
+// same content bands) so it reads as an ordinary entry. Four differences carry
+// the honesty, and none of them rely on colour alone:
+//   - the border is DASHED, this codebase's existing vocabulary for a thing
+//     that does not exist yet (add-scenario-item, the Empty primitive). It is
+//     legible at a glance, survives greyscale, and costs no vertical space —
+//     which is what lets the section label above it go away;
+//   - the status slot reads "Suggested" where a saved row reads Active/Inactive;
+//   - there is no overflow menu, because there is nothing yet to edit or delete;
+//   - the footer verb is Create, not Activate, and it says "Not saved yet".
+// `h-full` + `mt-auto` on the footer keep the Create buttons on one baseline
+// when two suggestions sit side by side with unequal pill counts.
+const SuggestionRow = ({
+  view,
+  index,
+  reduceMotion,
+  scenarioName,
+  isCreating,
+  disabled,
+  onCreate,
+}: {
+  view: SuggestionView;
+  index: number;
+  reduceMotion: boolean;
+  /** Scenario this suggestion will bind once created. */
+  scenarioName: string;
+  isCreating: boolean;
+  /** True while ANY suggestion is being created — the create path is serial. */
+  disabled: boolean;
+  onCreate: () => void;
+}) => {
+  const { t } = useTranslation("cellular");
+  const { suggestion, nsaBands, saBands } = view;
+  const recommendsBands =
+    suggestion.nsa_nr_bands.length > 0 || suggestion.sa_nr_bands.length > 0;
+
+  return (
+    <motion.div
+      initial={reduceMotion ? false : { opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{
+        duration: 0.3,
+        delay: Math.min(index, STAGGER_MAX_ROWS) * STAGGER_STEP_S,
+        ease: [0.16, 1, 0.3, 1],
+      }}
+      className={cn(
+        "flex h-full flex-col gap-3 rounded-lg border border-dashed p-3",
+        "transition-colors duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] motion-reduce:transition-none",
+        "border-info/40 bg-info/5",
+      )}
+    >
+      {/* Identity + status */}
+      <div className="flex items-start justify-between gap-3">
+        <div className="grid min-w-0 gap-0.5">
+          <span className="truncate text-sm font-semibold">
+            {suggestion.label}
+          </span>
+          <span className="text-muted-foreground truncate text-xs">
+            {suggestion.mno}
+          </span>
+        </div>
+        <Badge
+          variant="outline"
+          className="border-info/30 bg-info/15 text-info hover:bg-info/20 shrink-0"
+        >
+          <SparklesIcon className="size-3" />
+          {t("custom_profiles.suggestions.badge")}
+        </Badge>
+      </div>
+
+      {/* Scenario binding line — what WILL be bound on create. A suggestion
+          never schedules, so this is always the always-on phrasing. */}
+      <div className="text-muted-foreground flex items-center gap-1.5 text-xs">
+        <RouteIcon className="size-3.5 shrink-0" />
+        <span className="truncate">
+          {t("custom_profiles.view.scenario_always_on", {
+            scenario: scenarioName,
+          })}
+        </span>
+      </div>
+
+      {/* Config readout — same pill vocabulary as a saved row. */}
+      <div className="flex flex-wrap items-center gap-1.5">
+        <Pill>
+          {t("custom_profiles.pills.apn", { name: suggestion.apn_name })}
+        </Pill>
+        <Pill>{t("custom_profiles.pills.cid", { cid: suggestion.cid })}</Pill>
+        <Pill>
+          {PDP_PILL_KEY[suggestion.pdp_type]
+            ? t(PDP_PILL_KEY[suggestion.pdp_type])
+            : suggestion.pdp_type}
+        </Pill>
+        {suggestion.ttl > 0 && (
+          <Pill>{t("custom_profiles.pills.ttl", { value: suggestion.ttl })}</Pill>
+        )}
+        {suggestion.hl > 0 && (
+          <Pill>{t("custom_profiles.pills.hl", { value: suggestion.hl })}</Pill>
+        )}
+      </div>
+
+      {/* Band lock — rendered only when this recipe actually recommends bands.
+          Most carriers here are APN + TTL/HL only, and a row of "Auto / Auto"
+          pills on those would imply a band decision was made when none was.
+          Where a recipe DOES recommend bands, "Auto" is meaningful: it means
+          the modem did not confirm support, so no lock will be written. */}
+      {recommendsBands && (
+        <div className="flex flex-wrap items-center gap-1.5">
+          <Pill tone="info">
+            {nsaBands.length > 0
+              ? t("custom_profiles.suggestions.bands_nsa", {
+                  bands: nsaBands.join(", "),
+                })
+              : t("custom_profiles.suggestions.bands_nsa_auto")}
+          </Pill>
+          <Pill tone="info">
+            {saBands.length > 0
+              ? t("custom_profiles.suggestions.bands_sa", {
+                  bands: saBands.join(", "),
+                })
+              : t("custom_profiles.suggestions.bands_sa_auto")}
+          </Pill>
+        </div>
+      )}
+
+      {/* Action footer — mirrors the saved row's metadata + primary action.
+          `mt-auto` pushes it to the bottom so paired suggestions of unequal
+          height still line their Create buttons up. */}
+      <div className="mt-auto flex items-center justify-between gap-3 pt-0.5">
+        <span className="text-muted-foreground text-xs">
+          {t("custom_profiles.suggestions.not_saved_yet")}
+        </span>
+        <Button
+          size="sm"
+          className="shrink-0"
+          onClick={onCreate}
+          disabled={disabled}
+          aria-label={t("custom_profiles.suggestions.create_aria", {
+            name: suggestion.label,
+          })}
+        >
+          {isCreating ? (
+            <Loader2Icon className="size-4 animate-spin" />
+          ) : (
+            <PlusIcon className="size-4" />
+          )}
+          {isCreating
+            ? t("custom_profiles.suggestions.creating")
+            : t("custom_profiles.suggestions.create")}
+        </Button>
+      </div>
+    </motion.div>
   );
 };
 
