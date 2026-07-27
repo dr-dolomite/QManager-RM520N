@@ -84,6 +84,10 @@ const CustomProfileComponent = () => {
   } = useProfileSuggestions({
     mcc: currentSettings?.mcc,
     mnc: currentSettings?.mnc,
+    // SIM-provisioned carrier names, used only to suppress suggestions for
+    // known resellers whose APN differs from their host network's.
+    spn: currentSettings?.spn,
+    networkName: currentSettings?.network_name,
     currentIccid: currentSettings?.iccid ?? currentIccid,
     profiles,
     supportedNsaBands: modemStatus?.device?.supported_nsa_nr5g_bands,

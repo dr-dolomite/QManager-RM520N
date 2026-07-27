@@ -427,14 +427,15 @@ Response (`CurrentModemSettings` in `types/sim-profile.ts`):
   "iccid": "8901260123456789012",
   "active_cid": 1,
   "spn": "GLOBE",
+  "network_name": "GLOBE",
   "mcc": "515",
   "mnc": "02"
 }
 ```
 
-`spn` / `mcc` / `mnc` are **additive** — added alongside the existing keys, with
-`;+QSPN` appended to the compound command rather than issued as a second
-`qcmd` call. Nothing that consumed the older shape breaks.
+`spn` / `network_name` / `mcc` / `mnc` are **additive** — added alongside the
+existing keys, with `;+QSPN` appended to the compound command rather than
+issued as a second `qcmd` call. Nothing that consumed the older shape breaks.
 
 ### Parsing `+QSPN`
 
@@ -442,6 +443,7 @@ A live response looks like:
 
 ```
 +QSPN: "GLOBE","GLOBE","GLOBE",0,"51502"
+         FNN     SNN     SPN        RPLMN
 ```
 
 The **last quoted field is the concatenated PLMN** — the carrier's numeric
@@ -450,11 +452,26 @@ MNC (mobile network code). MNC width is **not fixed** — it is 2 or 3 digits
 depending on the country — so the script splits **first-3 / rest**, never at a
 fixed offset:
 
-| Field | Source | Example |
-|-------|--------|---------|
-| `spn` | first quoted field (full service provider name) | `"GLOBE"` |
-| `mcc` | PLMN chars 1–3 | `"515"` |
-| `mnc` | PLMN chars 4–end | `"02"` |
+| Field | Source | `awk -F'"'` field | Example |
+|-------|--------|-------------------|---------|
+| `network_name` | 1st quoted field — FNN, from the SIM's `EF_PNN` | `$2` | `"GLOBE"` |
+| `spn` | 3rd quoted field — SPN, from the SIM's `EF_SPN` | `$6` | `"GLOBE"` |
+| `mcc` | PLMN chars 1–3 | `$(NF-1)` | `"515"` |
+| `mnc` | PLMN chars 4–end | `$(NF-1)` | `"02"` |
+
+> ⚠️ WARNING: `spn` was originally parsed from `$2`, which is **FNN, not SPN**.
+> The bug was invisible on the GLOBE test SIM because all three name fields are
+> identical there. The two fields answer different questions and the difference
+> is the entire basis of MVNO detection:
+>
+> - **FNN** (`EF_PNN`) names the **network**. An MVNO usually inherits its
+>   host's name here.
+> - **SPN** (`EF_SPN`) names the **service provider** — whoever sold the SIM.
+>   This is where a reseller brands itself.
+>
+> A Mint SIM on T-Mobile reads `network_name: "T-Mobile"`, `spn: "Mint"`.
+> Verified on-device with BusyBox `awk`:
+> `+QSPN: "T-Mobile","TMO","Mint",0,"310260"` → `fnn=[T-Mobile] spn=[Mint]`.
 
 > ⚠️ WARNING: The PLMN guard rejects the empty and any-non-digit cases
 > **first** (`''|*[!0-9]*)`) before matching the 4-plus-digit pattern. A bare
@@ -462,6 +479,11 @@ fixed offset:
 > a corrupt tail like `5150A` would have produced `mnc="0A"`. Verified on
 > device: `5150A` / `abc` / `""` all reject; `51502` → `515`/`02`;
 > `310260` → `310`/`260`.
+>
+> The guard clears **only the numeric fields**. `spn` and `network_name` are
+> parsed from independent positions and stay valid on their own — blanking them
+> as collateral for a malformed PLMN would discard the one identity an MVNO
+> actually controls.
 
 All three fields **fail soft to `""`** on an absent or malformed `+QSPN`, and
 the endpoint always returns **200** — including on a SIM-less modem. A
@@ -536,44 +558,115 @@ exists on flash until the user presses **Create**.
 | UI | `components/cellular/custom-profiles/suggested-profiles.tsx` |
 | i18n | 14 keys under `custom_profiles.suggestions.*` in the `cellular` namespace, all 5 locales |
 
-### The two T-Mobile US suggestions
+### The recipes
 
 | id | Name | APN | TTL / HL | CID / PDP | NR bands (NSA **and** SA) |
 |----|------|-----|----------|-----------|---------------------------|
 | `tmobile` | T-Mobile | `fast.t-mobile.com` | 64 / 64 | 1 / `IPV4V6` | 25, 41, 66, 71 |
 | `tmobile_home` | T-Mobile Home Internet (TMHI) | `fbb.home` | 64 / 64 | 1 / `IPV4V6` | 25, 41, 66, 71 |
+| `verizon` | Verizon | `vzwinternet` | 64 / 64 | 1 / `IPV4V6` | — |
+| `att` | AT&T | `enhancedphone` | 64 / 64 | 1 / `IPV4V6` | — |
+| `smart` | Smart | `SMARTLTE` | 64 / 64 | 1 / `IPV4V6` | — |
+| `globe` | Globe | `internet.globe.com.ph` | 64 / 64 | 1 / `IPV4V6` | — |
+| `gomo` | GOMO | `gomo.ph` | 64 / 64 | 1 / `IPV4V6` | — |
+| `dito` | DITO | `internet.dito.ph` | 64 / 64 | 1 / `IPV4V6` | — |
 
-**Both are always shown together.** TMHI and consumer T-Mobile are
-**indistinguishable over the air** — identical MCC/MNC — so the UI frames the
-pick as the user's choice ("home internet SIMs use the TMHI profile, phone and
-tablet lines use the standard one"), never as a detection result.
+> ⚠️ WARNING: **Only the T-Mobile pair carries band locks, and that is
+> deliberate.** We have no verified band recommendation for the other carriers,
+> and a band lock is a *narrowing* operation. Guessing one would be actively
+> harmful — and because band locks can only live on a scenario, it would also
+> bind a `custom-*` scenario, which **disables the Band Locking page** and
+> removes the user's own route to undoing it. Do not add bands to a carrier
+> here without evidence.
 
-> ⚠️ WARNING: **Known limitation — MVNOs.** Mint, Google Fi, US Mobile and other
-> MVNOs riding T-Mobile's network broadcast the **same MCC/MNC** and will
-> therefore also see these suggestions, even though they need different APNs.
-> PLMN cannot distinguish them. If this becomes a support burden, the fix is
-> additional signal (e.g. ICCID IIN prefix), not a tighter MNC allowlist.
+TTL/HL is 64 across the board, **independent of `MNO_PRESETS`**, several of
+which store `0` (leave unchanged) for the same carrier. The two tables are
+deliberately uncoupled — see [Relationship to MNO presets](#relationship-to-mno-presets).
 
-### Detection
+**Shared-PLMN pairs are always shown together.** Two pairs are
+indistinguishable over the air and are marked `ambiguous_plan: true`:
 
-`matchCarrierSuggestions(mcc, mnc)` in `lib/carrier-match.ts` is a **pure**
-function — no React, no fetch, no module state. That is deliberate: the only
-live test device runs a GLOBE SIM (MCC 515), so the T-Mobile branch is
-**unreachable on hardware** and had to be verifiable off-device.
+| Pair | Shared PLMN | Why |
+|------|-------------|-----|
+| `tmobile` / `tmobile_home` | 310-260 | TMHI and consumer T-Mobile are the same network |
+| `globe` / `gomo` | 515-02 | GOMO is Globe's own digital brand |
 
-- MCC must normalize to `310` (USA).
-- MNC must be in `TMOBILE_US_MNCS`: `260, 160, 200, 210, 220, 230, 240, 250,
-  270, 310, 490, 660, 800`.
-- `normalizeMnc()` strips non-digits and **leading zeros** before comparing,
-  because `AT+QSPN` can report the same network as `"02"`, `"2"`, or `"002"`
-  depending on firmware and PLMN width.
-- Anything unmatched returns `[]` — an unrecognized SIM renders no section,
-  never a guess.
+That flag drives the "we can't tell which plan you're on" warning, which renders
+**only** when a visible suggestion carries it — an unambiguous single match must
+not warn about a choice that isn't there.
+
+### Detection: PLMN gate + SPN refinement
+
+`matchCarrierSuggestions(mcc, mnc, spn, networkName)` in `lib/carrier-match.ts`
+is a **pure** function — no React, no fetch, no module state. That is
+deliberate: the only live test device runs a GLOBE SIM (MCC 515), so the US
+branches are **unreachable on hardware** and had to be verifiable off-device.
+88 assertions cover the table, the denylist and the normalizers.
+
+**Step 1 — PLMN gate (`PLMN_TABLE`).** Every entry whose MCC+MNC matches
+contributes its suggestion ids, so two entries sharing a PLMN (Globe/GOMO) both
+apply.
+
+| Carrier | PLMNs |
+|---------|-------|
+| T-Mobile US | `310` + `TMOBILE_US_MNCS` (260, 160, 200, 210, 220, 230, 240, 250, 270, 310, 490, 660, 800) |
+| AT&T | `310`/410, 150, 170, 280, 380, 560, 680, 090, 980 · `311`/180 |
+| Verizon | `311`/480, 110, 270–289 · `310`/004, 010, 012, 013 |
+| Smart | `515`/03, 05 |
+| Globe + GOMO | `515`/02, 01 |
+| DITO | `515`/66 |
+
+> ℹ️ NOTE: **Verizon's primary PLMN is `311`-480 — MCC 311, not 310.** This is
+> why the matcher had to stop being a function of the single `MCC_US` constant
+> and become a general table. `MCC_US` remains exported, but it is no longer the
+> only US MCC.
+
+Only PLMNs we are confident about are listed. A carrier's secondary or legacy
+codes are **omitted rather than guessed** — a wrong entry shows a real user the
+wrong APN, while a missing one merely shows nothing.
+
+`normalizeMnc()` strips non-digits and **leading zeros** before comparing,
+because `AT+QSPN` can report the same network as `"02"`, `"2"`, or `"002"`
+depending on firmware and PLMN width.
 
 > ℹ️ NOTE: Leading-zero stripping is **not** zero-padding. `310/26` and
-> `310/026` both normalize to `26`, which is **not** `260` — they are a
-> different network and correctly do not match. AT&T (`310/410`) and Verizon
-> (`311/480`) also correctly return nothing, despite AT&T sharing MCC 310.
+> `310/026` both normalize to `26`, which is **not** `260` — a different
+> network, and they correctly do not match.
+
+**Step 2 — MVNO denylist (`MVNO_SPN_DENYLIST`).** An MVNO owns no towers; it
+resells a host network's radio access. Every *network*-broadcast identifier
+therefore truthfully reports the host — a Mint SIM really is on T-Mobile's
+network and really does broadcast T-Mobile's PLMN. No network-side probing can
+separate them.
+
+The one identity the reseller controls is on the SIM: `EF_SPN` (surfaced as
+`spn`) and `EF_PNN` (surfaced as `network_name`). Both are checked, because
+some resellers brand only via `EF_PNN`.
+
+> ⚠️ WARNING: The denylist is matched by **exact normalized equality — never
+> substring or prefix.** `"mobile"` occurs inside `"tmobile"`, so a loose match
+> against any `*mobile*` reseller would suppress suggestions for the host
+> carrier itself. `normalizeCarrierName()` lowercases and strips non-alphanumerics
+> (`"US Mobile"` → `"usmobile"`); denylist entries are stored pre-normalized and
+> an assertion enforces that.
+
+The asymmetry is the important part:
+
+- The PLMN gate **establishes** a match.
+- The denylist can only **remove** one — it is applied *after* the gate and can
+  never be the reason a suggestion appears.
+
+That direction is chosen because `EF_SPN` is an **optional** file. Plenty of
+legitimate SIMs leave it blank or copy the network name into it, so requiring a
+positive SPN match would silently kill suggestions for all of them. A name we
+have never seen falls through and is treated as the host — the safe failure
+direction, since the worst case is the pre-existing behaviour.
+
+> ℹ️ NOTE: The poller's `network.carrier` (from `AT+COPS?`, see
+> `parse_at.sh::parse_carrier`) is **not** used for any of this. It names the
+> *tower's* operator, so it carries the same MVNO ambiguity as the PLMN, plus
+> free-text instability across firmware and registration state
+> (`"T-Mobile"` / `"T-Mobile US"` / `"310260"`).
 
 ### Visibility rule (derived, never persisted)
 
@@ -611,15 +704,40 @@ band the radio cannot use is strictly worse than not locking: it narrows the
 radio to a set it can never camp on. The suggestion card reflects this
 honestly, showing **"5G NSA Auto"** instead of a band list.
 
-### Create: a two-call sequence with rollback
+### Create: one call, or two when a band lock is involved
 
-Ordered because `profile_mgr.sh` rejects a save that references a scenario which
-does not exist yet (see
+A scenario is created **only** when there is an actual band lock to put in it.
+The gate is `hasBandLock && !!suggestion.scenario_name`, and it fails in two
+distinct ways:
+
+1. The suggestion recommends no bands at all — every carrier except the
+   T-Mobile pair. `scenario_name` is `undefined`.
+2. The suggestion recommends bands, but **none survived intersection** with
+   what the modem reports it supports.
+
+Either way the profile binds `NO_BAND_SCENARIO_ID` — the **built-in**
+`"balanced"` (`DEFAULT_SCENARIO_BINDING.default`) — and no scenario call is
+made at all.
+
+> ⚠️ WARNING: Binding a `custom-*` scenario **disables the Band Locking page**,
+> client-side and again server-side in `scenarios/activate.sh`. A profile that
+> locks nothing must therefore never bind one, or an APN-only suggestion would
+> silently cost the user their manual band controls in exchange for nothing.
+>
+> Case 2 is the subtle one and was a **real latent bug**: before this gate, a
+> T-Mobile suggestion created while the modem's supported-band list had not yet
+> landed would mint a `custom-*` scenario holding two *empty* band strings —
+> locking nothing, while still tripping the gate. Strictly worse than the
+> built-in.
+
+When a band lock **is** involved, the calls are ordered because `profile_mgr.sh`
+rejects a save that references a scenario which does not exist yet (see
 [A profile carries NO band fields](#a-profile-carries-no-band-fields--bands-live-in-the-scenario)):
 
 1. **`GET scenarios/list.sh`** — reuse a scenario named exactly
-   `T-Mobile Recommended Bands` (`TMOBILE_SCENARIO_NAME`) if one exists. A
-   failed lookup is non-fatal; it falls through to step 2.
+   `suggestion.scenario_name` (for the T-Mobile pair, `TMOBILE_SCENARIO_NAME` =
+   `"T-Mobile Recommended Bands"`) if one exists. A failed lookup is non-fatal;
+   it falls through to step 2.
 2. **`POST scenarios/save.sh`** — otherwise create it, with
    `config.atModeValue: "AUTO"` and the **intersected** bands as colon-joined
    bare decimals (`"25:41:66:71"` — **no `N` prefix**), `lte_bands: ""`.
@@ -629,24 +747,32 @@ does not exist yet (see
    it. A **reused** scenario is never deleted: other profiles may be bound to
    it.
 
+> ℹ️ NOTE: The scenario name lives on the suggestion (`scenario_name`), not as a
+> module constant the create path reaches for. The hardcoded
+> `TMOBILE_SCENARIO_NAME` could not have named a Globe scenario.
+
 Device caps surface as real, human-readable errors rather than silent no-ops:
 `MAX_SCENARIOS=20` and `MAX_PROFILES=10`. The two errors come from different
 hooks (scenario failures from `useProfileSuggestions`, profile failures from
 `useSimProfiles`), so the UI falls back between them and never shows two
 contradicting messages.
 
-### Relationship to `constants/mno-presets.ts` — deliberately none
+### Relationship to MNO presets
 
-`MNO_PRESETS` was **not modified**. Its existing `tmo_home` preset keeps
-`ttl: 0, hl: 0`; the suggestions carry TTL/HL 64 independently. The presets
-feed the profile form's carrier dropdown; suggestions are a separate recipe
-list. **Do not "reconcile" the two without an explicit decision** — the zeroed
-preset values are intentional there.
+`constants/mno-presets.ts` is **deliberately uncoupled**. Its `tmo_home` preset
+keeps `ttl: 0, hl: 0`, and `dito`/`gomo`/`globe`/`att_5g_phone` likewise store
+`0`; the suggestions carry TTL/HL 64 independently. The presets feed the profile
+form's carrier dropdown; suggestions are a separate recipe list. **Do not
+"reconcile" the two without an explicit decision** — the zeroed preset values are
+intentional there.
 
-To add a carrier you must touch **both** halves: append a suggestion to
-`PROFILE_SUGGESTIONS` **and** add its MCC/MNC to the allowlist in
-`lib/carrier-match.ts`. A suggestion no matcher returns is dead code; a match
-with no suggestion renders nothing.
+### Adding a carrier
+
+You must touch **both** halves: append a suggestion to `PROFILE_SUGGESTIONS`
+**and** add its PLMN to `PLMN_TABLE` in `lib/carrier-match.ts`. A suggestion no
+matcher returns is dead code; a match with no suggestion renders nothing. The
+assertion harness enforces both directions (every table id resolves to a recipe;
+every recipe is reachable from the table).
 
 ---
 

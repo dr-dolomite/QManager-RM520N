@@ -1,12 +1,13 @@
 # 🚀 QManager RM520N BETA v0.1.14-draft
 
-Custom SIM Profiles gets a full redesign — a guided step-by-step wizard for creating profiles and at-a-glance cards for managing them, matching the polish of the RM551E build — plus ready-made profile suggestions for T-Mobile SIMs. QManager also remembers your SIM cards properly now: a new **Tracked SIMs** list in System Settings shows every SIM the modem has seen, and the "New SIM card detected" banner finally stays dismissed for good, per SIM, on the device itself.
+Custom SIM Profiles gets a full redesign — a guided step-by-step wizard for creating profiles and at-a-glance cards for managing them, matching the polish of the RM551E build — plus ready-made profile suggestions for eight carriers. QManager also remembers your SIM cards properly now: a new **Tracked SIMs** list in System Settings shows every SIM the modem has seen, and the "New SIM card detected" banner finally stays dismissed for good, per SIM, on the device itself.
 
 > One-click OTA from **System Settings → Software Update** if you're on v0.1.5 or newer.
 
 ## ✨ New Features
 
-- **Ready-made profiles for T-Mobile SIMs.** Pop in a T-Mobile SIM and **Cellular → Custom SIM Profiles** now offers a **Recommended for your SIM** section with one-tap setups for T-Mobile and T-Mobile Home Internet — APN, TTL, and a 5G band lock already filled in. The suggestions disappear once you have a profile for that SIM, and come back if you delete it (the network can't tell TMHI and phone lines apart, so both are offered and you pick; recommended bands are checked against what your modem actually supports before anything is locked).
+- **Ready-made profiles for your carrier.** Insert a SIM and **Cellular → Custom SIM Profiles** now offers a **Recommended for your SIM** section with one-tap setups — APN and TTL already filled in — for T-Mobile, T-Mobile Home Internet, Verizon, AT&T, Smart, Globe, GOMO, and DITO. The suggestions disappear once you have a profile for that SIM, and come back if you delete it (the T-Mobile pair also includes a 5G band lock, checked against what your modem actually supports before anything is applied; the other carriers set APN and TTL only, so your Band Locking page stays available).
+- **Prepaid and reseller SIMs are left alone.** SIMs from resellers that ride a bigger carrier's network — Mint, Google Fi, US Mobile, Visible, Cricket, Metro and others — no longer get their host carrier's suggestions, since those need a different APN. The check reads the service-provider name written on the SIM itself, which is the only place a reseller's identity actually appears.
 
 - **See every SIM QManager remembers.** A new **Tracked SIMs** card in **System Settings** lists each SIM by carrier, phone number, and the date it was first seen, marks the one currently in the modem, and shows whether it still raises a new-SIM alert. SIMs already known to your device appear on the list after updating, with alerts already switched off (existing SIMs are backfilled from the known-SIMs list; historical entries show "Added before tracking began" rather than a made-up date).
 
