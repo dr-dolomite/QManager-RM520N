@@ -5,6 +5,23 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* ---------------------------------------------------------------------------
+   Design system: Material-3-inspired tonal system derived from the QManager
+   mark (public/qmanager-mark.svg). See DESIGN.md for the canon and the
+   four-step Migration Sequence. This file is migration step 1: tokens only.
+   No component is edited here; the product changes color and stays correct.
+
+   Naming notes where the canon and shadcn's vocabulary collide:
+   - DESIGN.md "secondary" (Carrier Violet, the 4G LTE identity) ships as the
+     --lte-* family. shadcn's --secondary is a neutral used for progress
+     tracks and secondary buttons, and identity hues must never act.
+   - DESIGN.md "tertiary" (Uplink Cyan) ships as the --uplink-* family.
+   - The new 12/20/28/36/40px shape scale ships as additive role radii
+     (--radius-inline/field/tile/card/hero/pill). The legacy --radius chain
+     stays live until step 2 retargets components; redefining rounded-md
+     under 114 existing call sites would be a regression, not a migration.
+--------------------------------------------------------------------------- */
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -24,20 +41,32 @@
   --color-chart-3: var(--chart-3);
   --color-chart-2: var(--chart-2);
   --color-chart-1: var(--chart-1);
+  --color-chart-nr: var(--chart-nr);
+  --color-chart-lte: var(--chart-lte);
+  --color-chart-threshold: var(--chart-threshold);
   --color-ring: var(--ring);
   --color-input: var(--input);
   --color-border: var(--border);
+  --color-outline: var(--outline);
   --color-destructive: var(--destructive);
   --color-destructive-foreground: var(--destructive-foreground);
+  --color-destructive-container: var(--destructive-container);
+  --color-on-destructive-container: var(--on-destructive-container);
   --color-success: var(--success);
   --color-success-foreground: var(--success-foreground);
   --color-success-on-surface: var(--success-on-surface);
+  --color-success-container: var(--success-container);
+  --color-on-success-container: var(--on-success-container);
   --color-warning: var(--warning);
   --color-warning-foreground: var(--warning-foreground);
   --color-warning-on-surface: var(--warning-on-surface);
+  --color-warning-container: var(--warning-container);
+  --color-on-warning-container: var(--on-warning-container);
   --color-info: var(--info);
   --color-info-foreground: var(--info-foreground);
   --color-info-on-surface: var(--info-on-surface);
+  --color-info-container: var(--info-container);
+  --color-on-info-container: var(--on-info-container);
   --color-destructive-on-surface: var(--destructive-on-surface);
   --color-accent-foreground: var(--accent-foreground);
   --color-accent: var(--accent);
@@ -47,38 +76,162 @@
   --color-secondary: var(--secondary);
   --color-primary-foreground: var(--primary-foreground);
   --color-primary: var(--primary);
+  --color-primary-container: var(--primary-container);
+  --color-on-primary-container: var(--on-primary-container);
+  --color-lte: var(--lte);
+  --color-lte-foreground: var(--lte-foreground);
+  --color-lte-container: var(--lte-container);
+  --color-on-lte-container: var(--on-lte-container);
+  --color-uplink: var(--uplink);
+  --color-uplink-foreground: var(--uplink-foreground);
+  --color-uplink-container: var(--uplink-container);
+  --color-on-uplink-container: var(--on-uplink-container);
+  --color-surface: var(--surface);
+  --color-surface-container: var(--surface-container);
+  --color-surface-container-high: var(--surface-container-high);
+  --color-on-surface: var(--on-surface);
+  --color-on-surface-variant: var(--on-surface-variant);
+  --color-tone-success-1: var(--tone-success-1);
+  --color-tone-success-2: var(--tone-success-2);
+  --color-tone-success-3: var(--tone-success-3);
+  --color-tone-warning-1: var(--tone-warning-1);
+  --color-tone-warning-2: var(--tone-warning-2);
+  --color-tone-warning-3: var(--tone-warning-3);
   --color-popover-foreground: var(--popover-foreground);
   --color-popover: var(--popover);
   --color-card-foreground: var(--card-foreground);
   --color-card: var(--card);
+
+  /* Legacy radius chain: consumed by 240+ existing rounded-{sm,md,lg,xl}
+     call sites. Retired in migration step 2, not before. */
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
+
+  /* Shape scale (DESIGN.md > Shapes). Radius carries size hierarchy. */
+  --radius-inline: 0.75rem; /* 12px: small inline affordances, code, skeletons */
+  --radius-field: 1.25rem; /*  20px: inputs, selects, small popovers */
+  --radius-tile: 1.75rem; /*   28px: inner tiles, carrier tiles, alignment slots */
+  --radius-card: 2.25rem; /*   36px: standard cards, dialogs */
+  --radius-hero: 2.5rem; /*    40px: hero surfaces, aggregation strip */
+  --radius-pill: 9999px; /*    chips, buttons, nav items, metric rows, meters */
+
+  /* Motion curves (DESIGN.md > Motion). Expressive in curve, still settled.
+     Emits ease-emphasized / ease-standard. Durations are plain custom
+     properties below: Tailwind v4 has no --duration-* theme namespace, so
+     declaring them here would emit meaningless utilities. */
+  --ease-emphasized: cubic-bezier(0.05, 0.7, 0.1, 1);
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --ease-quick: ease-out;
+  --ease-ambient: ease-in-out;
+
   --breakpoint-desktop: 68.75rem;
 }
 
 :root {
   --radius: 0.65rem;
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.141 0.005 285.823);
+
+  /* Motion durations. Use as duration-[var(--duration-standard)] or in a
+     motion/react transition. The old 140-160ms floor is retired: at 140ms a
+     container color change reads as a flicker rather than a morph. */
+  --duration-emphasized: 400ms;
+  --duration-standard: 300ms;
+  --duration-quick: 180ms;
+  /* The fourth token from the Motion Study: ambient loops. Pair with
+     --ease-ambient and `alternate`. Only where something is genuinely live. */
+  --duration-ambient: 2s;
+  /* Card cascade step. Wider and the last card feels late behind a slow poll. */
+  --stagger-step: 60ms;
+
+  /* --- Surfaces: every neutral carries a trace of the mark's hue (258) --- */
+  --background: oklch(0.978 0.014 258);
+  --foreground: oklch(0.19 0.032 258);
+  --surface: oklch(1 0 0);
+  --surface-container: oklch(0.952 0.026 258);
+  --surface-container-high: oklch(0.918 0.04 258);
+  --on-surface: oklch(0.19 0.032 258);
+  --on-surface-variant: oklch(0.435 0.05 258);
   --card: oklch(1 0 0);
-  --card-foreground: oklch(0.141 0.005 285.823);
+  --card-foreground: oklch(0.19 0.032 258);
   --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.141 0.005 285.823);
+  --popover-foreground: oklch(0.19 0.032 258);
+
+  /* --- Primary: the mark's tail, used literally. The only hue that acts. --- */
   --primary: oklch(0.488 0.243 264.376);
-  --primary-foreground: oklch(0.97 0.014 254.604);
-  --secondary: oklch(0.967 0.001 286.375);
-  --secondary-foreground: oklch(0.21 0.006 285.885);
-  --muted: oklch(0.967 0.001 286.375);
-  --muted-foreground: oklch(0.552 0.016 285.938);
-  --accent: oklch(0.967 0.001 286.375);
-  --accent-foreground: oklch(0.21 0.006 285.885);
-  --destructive: oklch(0.577 0.245 27.325);
-  --destructive-foreground: oklch(0.985 0 0);
-  --border: oklch(0.92 0.004 286.32);
-  --input: oklch(0.92 0.004 286.32);
-  --ring: oklch(0.708 0 0);
+  --primary-foreground: oklch(0.99 0.014 264);
+  --primary-container: oklch(0.885 0.1 264);
+  --on-primary-container: oklch(0.275 0.17 264);
+
+  /* --- Identity hues: carry meaning, never affordance --- */
+  /* Carrier Violet: the 4G LTE identity (DESIGN.md "secondary") */
+  --lte: oklch(0.495 0.205 296);
+  --lte-foreground: oklch(0.99 0.012 296);
+  --lte-container: oklch(0.9 0.085 296);
+  --on-lte-container: oklch(0.265 0.15 296);
+  /* Uplink Cyan: counts, upload direction, minor accents (DESIGN.md "tertiary") */
+  /* Hue 200, not the bundle's 185. At 185 this sat 36 degrees from success
+     (149), breaking DESIGN.md's own 40-degree separation rule. Turn 2a rejects
+     teal for exactly that reason ("sits only 36 degrees from success-green").
+     Lightness and chroma are unchanged; only the hue moved. */
+  --uplink: oklch(0.49 0.13 200);
+  --uplink-foreground: oklch(0.99 0.01 200);
+  --uplink-container: oklch(0.885 0.09 200);
+  --on-uplink-container: oklch(0.26 0.09 200);
+
+  /* --- shadcn neutrals: NOT the canon's secondary/tertiary roles --- */
+  --secondary: oklch(0.952 0.026 258);
+  --secondary-foreground: oklch(0.24 0.035 258);
+  --muted: oklch(0.952 0.026 258);
+  --muted-foreground: oklch(0.435 0.05 258);
+  --accent: oklch(0.918 0.04 258);
+  --accent-foreground: oklch(0.24 0.035 258);
+
+  /* --- Functional four --- */
+  --success: oklch(0.52 0.18 149);
+  --success-foreground: oklch(0.99 0.02 149);
+  /* On-surface text variant: reads at AA 4.5:1 against a white card. */
+  --success-on-surface: oklch(0.45 0.155 149);
+  --success-container: oklch(0.89 0.115 149);
+  --on-success-container: oklch(0.26 0.11 149);
+  /* Amber dropped from L 0.75 to L 0.585: the old fill measured 2.4:1 on a
+     white card and failed AA. Its ink flips to light with it. */
+  --warning: oklch(0.585 0.16 72);
+  --warning-foreground: oklch(0.99 0.02 80);
+  --warning-on-surface: oklch(0.475 0.14 70);
+  --warning-container: oklch(0.905 0.125 82);
+  --on-warning-container: oklch(0.31 0.11 70);
+  --destructive: oklch(0.54 0.235 27);
+  --destructive-foreground: oklch(0.99 0.01 27);
+  --destructive-on-surface: oklch(0.475 0.21 27);
+  --destructive-container: oklch(0.905 0.08 25);
+  --on-destructive-container: oklch(0.3 0.16 27);
+  /* Info collapses into the brand ramp: a saturated brand blue and a
+     saturated info blue cannot coexist without ambiguity. Meaning and icon
+     vocabulary are unchanged; "in progress" now differs from a primary
+     action by shape and glyph, not by hue. */
+  --info: oklch(0.488 0.243 264.376);
+  --info-foreground: oklch(0.99 0.014 264);
+  --info-on-surface: oklch(0.4 0.21 264);
+  --info-container: oklch(0.885 0.1 264);
+  --on-info-container: oklch(0.275 0.17 264);
+
+  /* --- Signal-quality ring steps: explicit tones, never stacked alpha --- */
+  --tone-success-1: oklch(0.935 0.065 149);
+  --tone-success-2: oklch(0.875 0.1 149);
+  --tone-success-3: oklch(0.795 0.14 149);
+  --tone-warning-1: oklch(0.95 0.055 80);
+  --tone-warning-2: oklch(0.905 0.09 78);
+  --tone-warning-3: oklch(0.835 0.13 78);
+
+  /* --- Strokes. --outline is the canon token (inputs, table rules only);
+         --border stays quiet because cards still render one until step 3. --- */
+  --outline: oklch(0.86 0.028 258);
+  --border: oklch(0.905 0.022 258);
+  --input: oklch(0.86 0.028 258);
+  --ring: oklch(0.488 0.243 264.376);
+
+  /* --- Charts: one hue per radio family --- */
   --chart-1: oklch(0.809 0.105 251.813);
   --chart-2: oklch(0.623 0.214 259.815);
   --chart-3: oklch(0.546 0.245 262.881);
@@ -86,74 +239,121 @@
   --chart-5: oklch(0.424 0.199 265.638);
   /* Orange for Chart 6 */
   --chart-6: oklch(0.705 0.213 47.604);
-  --success: oklch(0.59 0.18 149);
-  --success-foreground: oklch(0.985 0 0);
-  /* On-surface text variant of --success: darker so text reads at WCAG AA 4.5:1
-     against a Pearl White card (L 1.0). Same hue/chroma as the fill token. */
-  --success-on-surface: oklch(0.48 0.16 149);
-  --warning: oklch(0.75 0.18 75);
-  --warning-foreground: oklch(0.21 0.006 285.885);
-  --warning-on-surface: oklch(0.50 0.15 65);
-  --info: oklch(0.62 0.19 255);
-  --info-foreground: oklch(0.985 0 0);
-  --info-on-surface: oklch(0.50 0.20 255);
-  --destructive-on-surface: oklch(0.50 0.22 27.325);
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.141 0.005 285.823);
-  --sidebar-primary: oklch(0.546 0.245 262.881);
-  --sidebar-primary-foreground: oklch(0.97 0.014 254.604);
-  --sidebar-accent: oklch(0.967 0.001 286.375);
-  --sidebar-accent-foreground: oklch(0.21 0.006 285.885);
-  --sidebar-border: oklch(0.92 0.004 286.32);
-  --sidebar-ring: oklch(0.708 0 0);
+  --chart-nr: oklch(0.488 0.243 264.376);
+  --chart-lte: oklch(0.495 0.205 296);
+  --chart-threshold: oklch(0.585 0.16 72);
+
+  /* The rail sits one step off the canvas so it reads as chrome, not content.
+     Light recesses (rail 0.952 < canvas 0.978 < card 1.0); dark lifts
+     (canvas 0.155 < rail = card 0.215). Matching the rail to the canvas
+     leaves the hairline doing all the separating, which the No-Hairline-On-Fill
+     Rule retires. */
+  --sidebar: oklch(0.952 0.026 258);
+  --sidebar-foreground: oklch(0.19 0.032 258);
+  --sidebar-primary: oklch(0.488 0.243 264.376);
+  --sidebar-primary-foreground: oklch(0.99 0.014 264);
+  --sidebar-accent: oklch(0.918 0.04 258);
+  --sidebar-accent-foreground: oklch(0.24 0.035 258);
+  --sidebar-border: oklch(0.905 0.022 258);
+  --sidebar-ring: oklch(0.488 0.243 264.376);
+
+  /* Optional card lift. Never load-bearing: nothing breaks if it disappears. */
+  --shadow-whisper: 0 1px 2px oklch(0.19 0.032 258 / 6%);
 }
 
 .dark {
-  --background: oklch(0.141 0.005 285.823);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.21 0.006 285.885);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.21 0.006 285.885);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.488 0.243 264.376);
-  --primary-foreground: oklch(0.97 0.014 254.604);
-  --secondary: oklch(0.274 0.006 286.033);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.274 0.006 286.033);
-  --muted-foreground: oklch(0.705 0.015 286.067);
-  --accent: oklch(0.274 0.006 286.033);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --destructive-foreground: oklch(0.985 0 0);
+  --background: oklch(0.155 0.024 258);
+  --foreground: oklch(0.96 0.012 258);
+  --surface: oklch(0.215 0.03 258);
+  --surface-container: oklch(0.262 0.04 258);
+  --surface-container-high: oklch(0.312 0.05 258);
+  --on-surface: oklch(0.96 0.012 258);
+  --on-surface-variant: oklch(0.782 0.03 258);
+  --card: oklch(0.215 0.03 258);
+  --card-foreground: oklch(0.96 0.012 258);
+  --popover: oklch(0.215 0.03 258);
+  --popover-foreground: oklch(0.96 0.012 258);
+
+  --primary: oklch(0.79 0.16 262);
+  --primary-foreground: oklch(0.2 0.12 258);
+  --primary-container: oklch(0.4 0.165 260);
+  --on-primary-container: oklch(0.92 0.09 262);
+
+  --lte: oklch(0.8 0.145 296);
+  --lte-foreground: oklch(0.21 0.1 296);
+  --lte-container: oklch(0.325 0.11 296);
+  --on-lte-container: oklch(0.91 0.075 296);
+  --uplink: oklch(0.81 0.11 200);
+  --uplink-foreground: oklch(0.21 0.06 200);
+  --uplink-container: oklch(0.3 0.08 200);
+  --on-uplink-container: oklch(0.9 0.07 200);
+
+  --secondary: oklch(0.262 0.04 258);
+  --secondary-foreground: oklch(0.96 0.012 258);
+  --muted: oklch(0.262 0.04 258);
+  --muted-foreground: oklch(0.782 0.03 258);
+  --accent: oklch(0.312 0.05 258);
+  --accent-foreground: oklch(0.96 0.012 258);
+
+  --success: oklch(0.82 0.17 149);
+  /* Dark fills are light, so their ink flips dark. Fill and ink always move
+     together: a fill's -foreground is the only ink allowed on it. */
+  --success-foreground: oklch(0.22 0.075 149);
+  --success-on-surface: oklch(0.84 0.16 149);
+  --success-container: oklch(0.3 0.095 149);
+  --on-success-container: oklch(0.91 0.11 149);
+  --warning: oklch(0.865 0.155 80);
+  --warning-foreground: oklch(0.24 0.065 70);
+  --warning-on-surface: oklch(0.88 0.145 80);
+  --warning-container: oklch(0.32 0.085 70);
+  --on-warning-container: oklch(0.93 0.11 80);
+  /* Held one step below the canon's 0.77: Button and Badge hardcode
+     `text-white` on destructive, which step 1 may not edit. Moves to
+     0.77 0.175 25 in step 3, with the chip flip. */
+  --destructive: oklch(0.62 0.21 25);
+  --destructive-foreground: oklch(0.99 0.01 27);
+  --destructive-on-surface: oklch(0.79 0.16 22);
+  --destructive-container: oklch(0.325 0.115 25);
+  --on-destructive-container: oklch(0.91 0.075 22);
+  --info: oklch(0.79 0.16 262);
+  --info-foreground: oklch(0.2 0.12 258);
+  --info-on-surface: oklch(0.82 0.14 262);
+  --info-container: oklch(0.4 0.165 260);
+  --on-info-container: oklch(0.92 0.09 262);
+
+  --tone-success-1: oklch(0.275 0.075 149);
+  --tone-success-2: oklch(0.375 0.105 149);
+  --tone-success-3: oklch(0.505 0.14 149);
+  --tone-warning-1: oklch(0.275 0.06 70);
+  --tone-warning-2: oklch(0.365 0.09 74);
+  --tone-warning-3: oklch(0.49 0.12 78);
+
+  --outline: oklch(0.365 0.04 258);
   --border: oklch(1 0 0 / 10%);
   --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
+  --ring: oklch(0.79 0.16 262);
+
   --chart-1: oklch(0.809 0.105 251.813);
   --chart-2: oklch(0.623 0.214 259.815);
   --chart-3: oklch(0.546 0.245 262.881);
   --chart-4: oklch(0.488 0.243 264.376);
   --chart-5: oklch(0.424 0.199 265.638);
   --chart-6: oklch(0.705 0.213 47.604);
-  --success: oklch(0.65 0.17 149);
-  --success-foreground: oklch(0.985 0 0);
-  /* On-surface text variant for the dark Slate card (L 0.21): lighter so it
-     reads at AA 4.5:1+. Hue/chroma match the fill token. */
-  --success-on-surface: oklch(0.78 0.17 149);
-  --warning: oklch(0.80 0.16 75);
-  --warning-foreground: oklch(0.21 0.006 285.885);
-  --warning-on-surface: oklch(0.85 0.16 75);
-  --info: oklch(0.68 0.17 255);
-  --info-foreground: oklch(0.985 0 0);
-  --info-on-surface: oklch(0.78 0.18 255);
-  --destructive-on-surface: oklch(0.78 0.18 22.216);
-  --sidebar: oklch(0.21 0.006 285.885);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.623 0.214 259.815);
-  --sidebar-primary-foreground: oklch(0.97 0.014 254.604);
-  --sidebar-accent: oklch(0.274 0.006 286.033);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
+  --chart-nr: oklch(0.79 0.16 262);
+  --chart-lte: oklch(0.8 0.145 296);
+  --chart-threshold: oklch(0.865 0.155 80);
+
+  --sidebar: oklch(0.215 0.03 258);
+  --sidebar-foreground: oklch(0.96 0.012 258);
+  --sidebar-primary: oklch(0.79 0.16 262);
+  --sidebar-primary-foreground: oklch(0.2 0.12 258);
+  --sidebar-accent: oklch(0.312 0.05 258);
+  --sidebar-accent-foreground: oklch(0.96 0.012 258);
   --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.439 0 0);
+  --sidebar-ring: oklch(0.79 0.16 262);
+
+  /* Tonal elevation only in dark: the whisper is absent. */
+  --shadow-whisper: 0 0 #0000;
 }
 
 @layer base {
@@ -162,6 +362,69 @@
   }
   body {
     @apply bg-background text-foreground;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   Material Symbols Rounded — the shell's icon typeface (DESIGN.md >
+   Iconography). Scoped to the sidebar; the rest of the product stays on lucide.
+
+   These declarations are not decoration: the font substitutes the literal text
+   "cell_tower" for one glyph via a ligature, so `font-feature-settings: 'liga'`
+   is what makes an icon an icon, and the white-space / word-wrap rules stop a
+   narrow container from breaking that ligature apart mid-name.
+--------------------------------------------------------------------------- */
+.material-symbol {
+  font-family: var(--font-material-symbols), sans-serif;
+  font-weight: 400;
+  font-style: normal;
+  line-height: 1;
+  letter-spacing: normal;
+  text-transform: none;
+  display: inline-block;
+  flex: none;
+  white-space: nowrap;
+  word-wrap: normal;
+  direction: ltr;
+  -webkit-font-feature-settings: "liga";
+  font-feature-settings: "liga";
+  -webkit-font-smoothing: antialiased;
+  /* The FILL axis is animatable, so the active nav row's icon thickens into
+     place with its container instead of snapping. Motion Study spec 3. */
+  transition: font-variation-settings var(--duration-standard)
+    var(--ease-standard);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .material-symbol {
+    transition: none;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   Sidebar nav indicator (Motion Study spec 3 — "the single most Material-
+   feeling change in the sidebar"). The active pill slides between rows rather
+   than appearing. Implemented as a view-transition-free FLIP: the indicator is
+   one absolutely-positioned element per nav group whose transform is driven
+   from React, so only transform/opacity animate and nothing is load-bearing —
+   if the transition never runs, the pill is still in the right place.
+--------------------------------------------------------------------------- */
+.nav-indicator {
+  transition:
+    transform var(--duration-standard) var(--ease-standard),
+    height var(--duration-standard) var(--ease-standard),
+    opacity var(--duration-quick) ease-out;
+}
+
+/* First paint must not slide the pill in from y=0 — it should already be under
+   the active row. This class is removed one frame after mount. */
+.nav-indicator[data-settling="true"] {
+  transition: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nav-indicator {
+    transition: opacity var(--duration-quick) ease-out;
   }
 }
 

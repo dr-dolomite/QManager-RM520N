@@ -1,0 +1,311 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-07-28T00:00:00Z",
+  "title": "Design System: QManager (RM520N-GL)",
+  "extensions": {
+    "colorMeta": {
+      "primary-light": {
+        "role": "primary",
+        "displayName": "Signal Blue",
+        "canonical": "oklch(0.488 0.243 264.376)",
+        "note": "The mark's tail, used literally. Brand, the only action accent, focus, active nav, 5G NR identity.",
+        "tonalRamp": [
+          "oklch(0.20 0.12 264)",
+          "oklch(0.275 0.17 264)",
+          "oklch(0.36 0.21 264)",
+          "oklch(0.488 0.243 264)",
+          "oklch(0.60 0.22 264)",
+          "oklch(0.70 0.19 264)",
+          "oklch(0.79 0.16 262)",
+          "oklch(0.885 0.10 264)"
+        ]
+      },
+      "secondary-light": {
+        "role": "secondary",
+        "displayName": "Carrier Violet",
+        "canonical": "oklch(0.495 0.205 296)",
+        "note": "4G LTE identity. Never acts. Chosen at 296 so it cannot read as a tone of the brand blue.",
+        "tonalRamp": [
+          "oklch(0.19 0.11 296)",
+          "oklch(0.265 0.15 296)",
+          "oklch(0.36 0.18 296)",
+          "oklch(0.495 0.205 296)",
+          "oklch(0.60 0.19 296)",
+          "oklch(0.71 0.165 296)",
+          "oklch(0.80 0.145 296)",
+          "oklch(0.90 0.085 296)"
+        ]
+      },
+      "tertiary-light": {
+        "role": "tertiary",
+        "displayName": "Uplink Cyan",
+        "canonical": "oklch(0.49 0.13 200)",
+        "note": "Counts, upload direction, minor accents. Never acts. Low chroma on purpose.",
+        "tonalRamp": [
+          "oklch(0.19 0.06 200)",
+          "oklch(0.26 0.09 200)",
+          "oklch(0.36 0.11 200)",
+          "oklch(0.49 0.13 200)",
+          "oklch(0.60 0.13 200)",
+          "oklch(0.71 0.12 200)",
+          "oklch(0.81 0.11 200)",
+          "oklch(0.885 0.09 200)"
+        ]
+      },
+      "success-light": {
+        "role": "functional",
+        "displayName": "Uplink Green",
+        "canonical": "oklch(0.52 0.18 149)",
+        "note": "Healthy: connected, service active, save succeeded, profile applied. Paired with CheckCircle2Icon.",
+        "tonalRamp": [
+          "oklch(0.19 0.08 149)",
+          "oklch(0.26 0.11 149)",
+          "oklch(0.375 0.15 149)",
+          "oklch(0.52 0.18 149)",
+          "oklch(0.63 0.18 149)",
+          "oklch(0.72 0.175 149)",
+          "oklch(0.82 0.17 149)",
+          "oklch(0.89 0.115 149)"
+        ]
+      },
+      "warning-light": {
+        "role": "functional",
+        "displayName": "Caution Amber",
+        "canonical": "oklch(0.585 0.16 72)",
+        "note": "Degraded: weak signal, searching, limited service, partial success. Retuned from L 0.75, which measured 2.4:1 on white and failed AA.",
+        "tonalRamp": [
+          "oklch(0.22 0.07 70)",
+          "oklch(0.31 0.11 70)",
+          "oklch(0.44 0.14 71)",
+          "oklch(0.585 0.16 72)",
+          "oklch(0.69 0.16 76)",
+          "oklch(0.78 0.16 78)",
+          "oklch(0.865 0.155 80)",
+          "oklch(0.905 0.125 82)"
+        ]
+      },
+      "destructive-light": {
+        "role": "functional",
+        "displayName": "Fault Red",
+        "canonical": "oklch(0.54 0.235 27)",
+        "note": "Failed or irreversible: disconnected, apply failed, reboot dialogs. Paired with XCircleIcon or AlertCircleIcon.",
+        "tonalRamp": [
+          "oklch(0.22 0.11 27)",
+          "oklch(0.30 0.16 27)",
+          "oklch(0.41 0.20 27)",
+          "oklch(0.54 0.235 27)",
+          "oklch(0.63 0.22 26)",
+          "oklch(0.70 0.20 25)",
+          "oklch(0.77 0.175 25)",
+          "oklch(0.905 0.08 25)"
+        ]
+      },
+      "surface-light": {
+        "role": "neutral",
+        "displayName": "Surface",
+        "canonical": "oklch(1 0 0)",
+        "note": "Cards, dialogs, popovers. Steps: background, surface, surface-container, surface-container-high. All neutrals carry a trace of the mark's hue.",
+        "tonalRamp": [
+          "oklch(0.155 0.024 258)",
+          "oklch(0.215 0.03 258)",
+          "oklch(0.262 0.04 258)",
+          "oklch(0.312 0.05 258)",
+          "oklch(0.435 0.05 258)",
+          "oklch(0.86 0.028 258)",
+          "oklch(0.952 0.026 258)",
+          "oklch(1 0 0)"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "display": { "displayName": "Display / Page Title", "purpose": "The h1 at the top of every feature page. 700 weight, 30px. Page titles only." },
+      "headline": { "displayName": "Headline", "purpose": "Large card titles and state labels. 600 weight, 20px." },
+      "title": { "displayName": "Title", "purpose": "The CardTitle default. 600 weight, 16px, leading-none so titles align with adjacent metadata." },
+      "body": { "displayName": "Body", "purpose": "Default UI text, descriptions, table cells. 400 weight, 14px." },
+      "label": { "displayName": "Label", "purpose": "Chips, table headers, button text, form labels, 11px uppercase sidebar section labels. 500 weight, 12px." },
+      "numeric": { "displayName": "Numeric", "purpose": "Live signal values, counters, timers. 600 weight, always tabular-nums so values do not jitter as they tick." },
+      "mono": { "displayName": "Machine Voice", "purpose": "Geist Mono. AT terminal, logs, CopyableCommand, IMEI/ICCID, ARFCN, dBm readouts. Never decoration." }
+    },
+    "shadows": [
+      { "name": "whisper", "value": "0 1px 2px oklch(0.19 0.032 258 / 0.06)", "purpose": "Optional card lift in light theme. Never load-bearing; depth is tonal. Absent in dark." },
+      { "name": "popover-float", "value": "0 10px 30px oklch(0.19 0.032 258 / 0.16)", "purpose": "Dialogs, dropdowns, popovers. The 'not part of the page flow' signal, and the only real shadow in the system." }
+    ],
+    "motion": [
+      { "name": "emphasized", "value": "400ms cubic-bezier(0.05, 0.7, 0.1, 1)", "purpose": "Container size and shape changes, aggregation chain re-proportioning, alert arrival, page-level enter." },
+      { "name": "standard", "value": "300ms cubic-bezier(0.2, 0, 0, 1)", "purpose": "Nav indicator translate, card entrance, meter fill, chip container morph." },
+      { "name": "quick", "value": "180ms ease-out", "purpose": "Label swaps, live value ticks, hover tints, focus rings." },
+      { "name": "ambient", "value": "2s ease-in-out infinite alternate", "purpose": "Service rings, live ping dot, spinners. The only loops in the product, one per surface, only where something is genuinely live." }
+    ],
+    "breakpoints": [
+      { "name": "@3xl/main", "value": "48rem", "purpose": "Page grid steps to two columns." },
+      { "name": "@4xl/main", "value": "56rem", "purpose": "Dashboard splits into 3/5 status plus 2/5 device panel." },
+      { "name": "desktop", "value": "68.75rem", "purpose": "Breadcrumb parents appear in the header bar." }
+    ],
+    "iconLibraries": [
+      { "name": "Material Symbols Rounded", "scope": "Sidebar navigation only. Self-hosted subset, never a CDN link. FILL 1 for the active item, FILL 0 for inactive." },
+      { "name": "Lucide", "scope": "Everything else: cards, chips, buttons, dialogs, tables, empty states, header bar." },
+      { "name": "Tabler", "scope": "Sanctioned secondary for glyphs lucide lacks." }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "The one filled action per surface: Save, Apply, Record, Confirm.",
+      "html": "<button class=\"ds-btn-primary\">Apply profile</button>",
+      "css": ".ds-btn-primary { display:inline-flex; align-items:center; gap:.5rem; height:2.5rem; padding:0 1.25rem; border:none; border-radius:9999px; background:oklch(0.488 0.243 264.376); color:oklch(0.99 0.014 264); font-family:'Euclid Circular B',system-ui,sans-serif; font-size:.875rem; font-weight:500; cursor:pointer; transition:background 180ms ease-out, box-shadow 180ms ease-out; } .ds-btn-primary:hover { background:oklch(0.44 0.235 264); } .ds-btn-primary:focus-visible { outline:none; box-shadow:0 0 0 3px oklch(0.488 0.243 264.376 / 0.5); } .ds-btn-primary:active { background:oklch(0.41 0.225 264); }"
+    },
+    {
+      "name": "Tonal Button",
+      "kind": "button",
+      "refersTo": "button-tonal",
+      "description": "The new secondary action. Replaces the retired outline variant for Cancel, Reset, Check again.",
+      "html": "<button class=\"ds-btn-tonal\">Cancel</button>",
+      "css": ".ds-btn-tonal { display:inline-flex; align-items:center; gap:.5rem; height:2.5rem; padding:0 1.25rem; border:none; border-radius:9999px; background:oklch(0.885 0.10 264); color:oklch(0.275 0.17 264); font-family:'Euclid Circular B',system-ui,sans-serif; font-size:.875rem; font-weight:500; cursor:pointer; transition:background 180ms ease-out; } .ds-btn-tonal:hover { background:oklch(0.855 0.115 264); } .ds-btn-tonal:focus-visible { outline:none; box-shadow:0 0 0 3px oklch(0.488 0.243 264.376 / 0.5); }"
+    },
+    {
+      "name": "Status Chip",
+      "kind": "chip",
+      "refersTo": "chip-status",
+      "description": "The signature pattern. Filled tonal container, its on- ink, a size-4 lucide icon, pill radius. Replaces the retired outline-and-tint badge.",
+      "html": "<span class=\"ds-chip ds-chip-success\"><svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M21.801 10A10 10 0 1 1 17 3.335\"/><path d=\"m9 11 3 3L22 4\"/></svg>Connected</span> <span class=\"ds-chip ds-chip-warning\"><svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3\"/><path d=\"M12 9v4\"/><path d=\"M12 17h.01\"/></svg>Searching</span> <span class=\"ds-chip ds-chip-muted\"><svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><circle cx=\"12\" cy=\"12\" r=\"10\"/><path d=\"M8 12h8\"/></svg>Stopped</span>",
+      "css": ".ds-chip { display:inline-flex; align-items:center; gap:.375rem; padding:.4375rem .8125rem; border-radius:9999px; font-family:'Euclid Circular B',system-ui,sans-serif; font-size:.75rem; font-weight:500; line-height:1; transition:background 300ms cubic-bezier(0.2,0,0,1), color 300ms cubic-bezier(0.2,0,0,1); } .ds-chip svg { width:1rem; height:1rem; flex:none; } .ds-chip-success { background:oklch(0.89 0.115 149); color:oklch(0.26 0.11 149); } .ds-chip-warning { background:oklch(0.905 0.125 82); color:oklch(0.31 0.11 70); } .ds-chip-destructive { background:oklch(0.905 0.08 25); color:oklch(0.30 0.16 27); } .ds-chip-info { background:oklch(0.885 0.10 264); color:oklch(0.275 0.17 264); } .ds-chip-muted { background:oklch(0.918 0.04 258); color:oklch(0.435 0.05 258); }"
+    },
+    {
+      "name": "Card",
+      "kind": "card",
+      "refersTo": "card",
+      "description": "The unit of composition. Surface fill one tonal step above the page, 36px radius, no border, header is title plus description only.",
+      "html": "<div class=\"ds-card\"><div class=\"ds-card-header\"><h3 class=\"ds-card-title\">Network Status</h3><p class=\"ds-card-desc\">Live registration and carrier state</p></div><div class=\"ds-card-body\"><div class=\"ds-row\"><span class=\"ds-row-label\">RSRP</span><span class=\"ds-row-value ds-good\">-78 dBm</span></div><div class=\"ds-row\"><span class=\"ds-row-label\">RSRQ</span><span class=\"ds-row-value ds-warn\">-11 dB</span></div></div></div>",
+      "css": ".ds-card { background:oklch(1 0 0); color:oklch(0.19 0.032 258); border-radius:2.25rem; padding:1.5rem; display:flex; flex-direction:column; gap:1.5rem; font-family:'Euclid Circular B',system-ui,sans-serif; } .ds-card-header { display:flex; flex-direction:column; gap:.375rem; } .ds-card-title { margin:0; font-size:1rem; font-weight:600; line-height:1; } .ds-card-desc { margin:0; font-size:.875rem; font-weight:400; line-height:1.5; color:oklch(0.435 0.05 258); } .ds-card-body { display:flex; flex-direction:column; gap:.5rem; } .ds-row { display:flex; align-items:center; justify-content:space-between; gap:1rem; background:oklch(0.952 0.026 258); border-radius:9999px; padding:.625rem .9375rem; } .ds-row-label { font-size:.75rem; font-weight:500; color:oklch(0.435 0.05 258); } .ds-row-value { font-family:var(--font-geist-mono),ui-monospace,monospace; font-size:.875rem; font-weight:600; font-variant-numeric:tabular-nums; } .ds-good { color:oklch(0.52 0.18 149); } .ds-warn { color:oklch(0.585 0.16 72); }"
+    },
+    {
+      "name": "Metric Row Pill",
+      "kind": "custom",
+      "refersTo": "metric-row-pill",
+      "description": "Glance-surface row (12 rows or fewer). Genuine data tables keep hairline rows instead; pills cost roughly a third of the visible rows.",
+      "html": "<div class=\"ds-metric\"><span class=\"ds-metric-label\">SINR</span><span class=\"ds-metric-value\">21 dB</span></div>",
+      "css": ".ds-metric { display:flex; align-items:center; justify-content:space-between; gap:1rem; background:oklch(0.952 0.026 258); border-radius:9999px; padding:.625rem .9375rem; font-family:'Euclid Circular B',system-ui,sans-serif; transition:background 180ms ease-out; } .ds-metric:hover { background:oklch(0.918 0.04 258); } .ds-metric-label { font-size:.75rem; font-weight:500; color:oklch(0.435 0.05 258); } .ds-metric-value { font-family:var(--font-geist-mono),ui-monospace,monospace; font-size:.875rem; font-weight:600; font-variant-numeric:tabular-nums; color:oklch(0.52 0.18 149); }"
+    },
+    {
+      "name": "Sidebar Nav Item",
+      "kind": "nav",
+      "refersTo": "nav-item-active",
+      "description": "Pill nav. The one surface carrying Material Symbols Rounded. Active sits on primary-container with the filled glyph weight; the indicator translates between rows over 300ms rather than appearing.",
+      "html": "<nav class=\"ds-nav\"><a class=\"ds-nav-item ds-nav-active\" href=\"#\"><svg viewBox=\"0 0 24 24\" fill=\"currentColor\"><path d=\"M4 21V9l8-6 8 6v12h-6v-7h-4v7z\"/></svg>Home</a><a class=\"ds-nav-item\" href=\"#\"><svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\"><path d=\"M5 20v-8\"/><path d=\"M19 20v-8\"/><path d=\"M12 20V4\"/><path d=\"M8.5 7.5a5 5 0 0 1 7 0\"/><path d=\"M5.5 4.5a9 9 0 0 1 13 0\"/></svg>Cellular Information</a></nav>",
+      "css": ".ds-nav { display:flex; flex-direction:column; gap:.25rem; background:oklch(0.952 0.026 258); border-radius:2.25rem; padding:.75rem; font-family:'Euclid Circular B',system-ui,sans-serif; } .ds-nav-item { display:flex; align-items:center; gap:.75rem; padding:.5rem .875rem; border-radius:9999px; font-size:.875rem; font-weight:500; color:oklch(0.435 0.05 258); text-decoration:none; transition:background 300ms cubic-bezier(0.2,0,0,1), color 300ms cubic-bezier(0.2,0,0,1); } .ds-nav-item svg { width:1.25rem; height:1.25rem; flex:none; } .ds-nav-item:hover { background:oklch(0.918 0.04 258); } .ds-nav-active { background:oklch(0.885 0.10 264); color:oklch(0.275 0.17 264); font-weight:600; } .ds-nav-active:hover { background:oklch(0.885 0.10 264); } .ds-nav-item:focus-visible { outline:none; box-shadow:0 0 0 3px oklch(0.488 0.243 264.376 / 0.5); }"
+    },
+    {
+      "name": "Input",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "Surface-container fill in both themes, 20px radius, no border at rest. Focus is a 3px primary ring plus a primary edge.",
+      "html": "<input class=\"ds-input\" type=\"text\" value=\"internet.carrier.com\" aria-label=\"APN\">",
+      "css": ".ds-input { height:2.5rem; padding:0 .875rem; border:1px solid transparent; border-radius:1.25rem; background:oklch(0.952 0.026 258); color:oklch(0.19 0.032 258); font-family:'Euclid Circular B',system-ui,sans-serif; font-size:.875rem; font-weight:400; transition:border-color 180ms ease-out, box-shadow 180ms ease-out; } .ds-input::placeholder { color:oklch(0.435 0.05 258); } .ds-input:focus-visible { outline:none; border-color:oklch(0.488 0.243 264.376); box-shadow:0 0 0 3px oklch(0.488 0.243 264.376 / 0.5); } .ds-input[aria-invalid=\"true\"] { border-color:oklch(0.54 0.235 27); box-shadow:0 0 0 3px oklch(0.54 0.235 27 / 0.2); } .ds-input:disabled { opacity:.5; cursor:not-allowed; }"
+    },
+    {
+      "name": "Carrier Aggregation Segment",
+      "kind": "custom",
+      "refersTo": null,
+      "description": "Signature component. Width is the bandwidth, tone is the radio family (primary for NR, secondary for LTE), strong tone is the primary carrier. Released segments stay in place greyed rather than being removed.",
+      "html": "<div class=\"ds-agg\"><div class=\"ds-seg ds-seg-nr-pcc\" style=\"width:50%\"><span class=\"ds-seg-band\">n78</span><span class=\"ds-seg-bw\">100 MHz</span></div><div class=\"ds-seg ds-seg-nr-scc\" style=\"width:30%\"><span class=\"ds-seg-band\">n41</span><span class=\"ds-seg-bw\">60 MHz</span></div><div class=\"ds-seg ds-seg-lte-pcc\" style=\"width:10%\"><span class=\"ds-seg-band\">B1</span><span class=\"ds-seg-bw\">20 MHz</span></div><div class=\"ds-seg ds-seg-released\" style=\"width:10%\"><span class=\"ds-seg-band\">B3</span><span class=\"ds-seg-bw\">released</span></div></div>",
+      "css": ".ds-agg { display:flex; gap:.5rem; height:4rem; font-family:'Euclid Circular B',system-ui,sans-serif; } .ds-seg { display:flex; flex-direction:column; justify-content:center; gap:.125rem; padding:0 1rem; border-radius:1.75rem; white-space:nowrap; overflow:hidden; transition:width 400ms cubic-bezier(0.05,0.7,0.1,1), background 400ms cubic-bezier(0.05,0.7,0.1,1); } .ds-seg-band { font-family:var(--font-geist-mono),ui-monospace,monospace; font-size:.875rem; font-weight:600; } .ds-seg-bw { font-size:.75rem; font-weight:500; opacity:.9; } .ds-seg-nr-pcc { background:oklch(0.488 0.243 264.376); color:oklch(0.99 0.014 264); } .ds-seg-nr-scc { background:oklch(0.885 0.10 264); color:oklch(0.275 0.17 264); } .ds-seg-lte-pcc { background:oklch(0.495 0.205 296); color:oklch(0.99 0.01 296); } .ds-seg-lte-scc { background:oklch(0.90 0.085 296); color:oklch(0.265 0.15 296); } .ds-seg-released { background:oklch(0.918 0.04 258); color:oklch(0.435 0.05 258); }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Operator's Console, in color",
+    "overview": "QManager is still the calm, expert console an operator trusts when something matters. What changed is how that calm is expressed: color is no longer scarce, it is structured. The system is a real Material-3-style tonal palette derived from the QManager mark, where content sits inside filled tonal containers rather than being sprinkled as colored text on white. Density stays the job; color now organizes the density instead of decorating it.\n\nThe aesthetic is tonal at rest, expressive in transition, dense in data, honest in state. A surface tells you what kind of thing it is by its fill and its radius before you read a word of it. Nothing shouts, because everything is a container: hierarchy comes from tone, size, and shape rather than from one loud focal element competing for attention.\n\nIt earns its restraint twice, as it always did. Once as a stylistic principle, and again as a safety principle: QManager is served by the modem it manages, so the routine 90% should feel effortless and the risky 10% should feel deliberate. A colorful interface is not permission to become a consumer router app.",
+    "keyCharacteristics": [
+      "OKLCH-only. #000 and #fff never appear as literals; every neutral is tinted toward the mark's hue.",
+      "The palette is derived from the mark, not chosen alongside it.",
+      "Three identity hues (primary blue, secondary violet, tertiary cyan) plus the functional four. No hue is decorative and functional at the same time.",
+      "Euclid Circular B is the interface voice; Geist Mono is the machine voice. There is no third voice.",
+      "Depth is tonal. Shadows are optional and never load-bearing.",
+      "Motion is expressive in duration and curve, and never overshoots.",
+      "Light and dark are first-class equals; dark mode is genuinely colored, not desaturated.",
+      "Build on shadcn/ui first and restyle its primitives with these tokens."
+    ],
+    "rules": [
+      { "name": "The Source-Color Rule", "body": "New colors are derived from the mark's hue family or from an existing identity or functional role. Nobody picks a hue by eye and adds it to globals.css.", "section": "colors" },
+      { "name": "The Container-Pair Rule", "body": "Never place text on a role's fill unless you are using that role's -foreground; never place it on a container unless you are using that container's on- ink. Mixing a fill with a container's ink is the single most common way to fail contrast here.", "section": "colors" },
+      { "name": "The Functional-Color Promise", "body": "A user who learns green means healthy on the dashboard finds the same green meaning the same thing in Watchdog, in Profile Apply, and in the alert logs. Hue and chroma were retuned; meanings did not move, and functional colors are never decorative.", "section": "colors" },
+      { "name": "The Identity-Never-Acts Rule", "body": "Secondary and tertiary carry identity, never affordance. A violet surface means 'this is the LTE leg', never 'click me'. Only primary acts. This replaces the retired One-Accent Rule, whose intent it preserves: exactly one hue acts.", "section": "colors" },
+      { "name": "The Semantic-Token Rule", "body": "Reach for bg-success-container and text-on-surface-variant, never raw Tailwind palette classes like text-blue-500. The theme switch depends on it.", "section": "colors" },
+      { "name": "The OKLCH-Only Rule", "body": "No hex literals, ever. New colors enter the system in OKLCH form in globals.css; conversion is the author's job, not the consumer's.", "section": "colors" },
+      { "name": "The Explicit-Tone Rule", "body": "Layered translucency is banned for stacked shapes. The service rings composite to a flat disc when built from one color at 0.15 / 0.25 / 0.40 alpha; they use four explicit tone steps instead.", "section": "colors" },
+      { "name": "The Two-Voice Rule", "body": "Euclid Circular B speaks for the interface; Geist Mono speaks for the machine. There is no third voice. Pairing Euclid with another UI sans is forbidden. An icon font is not a voice and does not count against this rule.", "section": "typography" },
+      { "name": "The Machine-Voice Rule", "body": "font-mono is scoped to device output and technical data: the AT terminal, raw log viewers, CopyableCommand, inline code for AT command strings, and identifier or value readouts. It is never reached for as decoration.", "section": "typography" },
+      { "name": "The Tabular-Number Rule", "body": "Any value that updates live is tabular-nums. Non-negotiable: a tonal pill makes jitter more visible, not less.", "section": "typography" },
+      { "name": "The Weight-Discipline Rule", "body": "400 body, 500 labels and medium emphasis, 600 headings and numerics, 700 page titles only.", "section": "typography" },
+      { "name": "The Tonal-First Rule", "body": "Two surfaces at different conceptual elevations differ by at least one container step. This is now the only elevation signal in both themes.", "section": "elevation" },
+      { "name": "The No-Hairline-On-Fill Rule", "body": "Bordered rows inside a tonal card are replaced by container fills. A border is reserved for inputs, for table rules in genuine data tables, and for the outlined-card variant. This replaces the retired Border-Carries-Structure Rule.", "section": "elevation" },
+      { "name": "The Highlight-by-Container Rule", "body": "Emphasis promotes a surface one container step and changes its ink, rather than adding a translucent wash over a neutral card.", "section": "elevation" },
+      { "name": "The Radius-Follows-Size Rule", "body": "A surface's radius is a function of its size and role, not of taste. A 28px tile never sits inside a 20px card, and a chip is always fully round.", "section": "shapes" },
+      { "name": "The Fill-Over-Stroke Rule", "body": "When a shape needs to be distinguished from its neighbor, change its fill, not its border. Borders survive only on inputs and genuine table rules.", "section": "shapes" },
+      { "name": "The Settled-Motion Rule", "body": "Every transition ends at rest. The save check at 1.03 is the ceiling for overshoot, not the floor. Bouncy, elastic, and rubber-band motion stay banned.", "section": "motion" },
+      { "name": "The Expressive-Duration Rule", "body": "Anything that changes a container's size, shape, or fill runs at standard or emphasized. The old 140-160ms floor is retired: at 140ms a container color change reads as a flicker rather than a morph. Value and label swaps stay at quick.", "section": "motion" },
+      { "name": "The Transform-Only Rule", "body": "Animations touch opacity and transform, plus color via CSS transitions. The aggregation chain's width is the sole documented exception, and it is data, not decoration.", "section": "motion" },
+      { "name": "The One-Loop Rule", "body": "At most one ambient loop per surface, and only where something is genuinely live. A loop that runs while nothing is happening is a lie.", "section": "motion" },
+      { "name": "The Reduced-Motion Rule", "body": "Movement goes, opacity stays, and no layout depends on a transition completing. Because durations are now longer, this matters more than it did.", "section": "motion" },
+      { "name": "The Loader-and-Dots Rule", "body": "Step and sample progress is a Loader2Icon spinner plus discrete dot indicators. Fill bars remain data visualization only.", "section": "motion" },
+      { "name": "The Nav-Glyph Boundary Rule", "body": "Material Symbols Rounded appears in the sidebar nav and nowhere else; every other surface is lucide. A Material Symbol outside the sidebar, or a lucide icon inside a nav item, is a bug.", "section": "components" },
+      { "name": "The Filled-Chip Rule", "body": "Every status indicator is a filled tonal chip: a role container fill, that container's on- ink, an icon, and pill radius. This replaces the retired Outline-Badge Rule. If a chip needs to feel louder, the answer is a banner or an alert, not a stronger fill.", "section": "components" },
+      { "name": "The No-Header-Icon Rule", "body": "CardHeader is CardTitle plus CardDescription only. Icons live in chips or in the CardAction slot. Once one card grows a header icon, every card grows one.", "section": "components" },
+      { "name": "The Save-Button Singleton", "body": "All save actions use SaveButton plus useSaveFlash. Extend it rather than fork it.", "section": "components" },
+      { "name": "The Consistent-Layout Rule", "body": "Feature pages compose as a page header plus a uniform container-query grid of self-contained cards. A bespoke asymmetric layout unique to one screen is almost always wrong.", "section": "components" },
+      { "name": "The Skeleton-Mirror Rule", "body": "Loading skeletons reproduce the geometry of the loaded state, radius included; the page must not reflow when real data arrives.", "section": "components" },
+      { "name": "The Saved-State Honesty Rule", "body": "Surfaces describing live behavior tell the truth: status cards render saved settings and actual daemon state, the dashboard flags stale data instead of freezing silently, a released carrier stays visible and greyed rather than vanishing, and the apply dialog renders 'Preparing...' rather than a fabricated step list.", "section": "components" },
+      { "name": "The Muted-vs-Destructive Rule", "body": "Muted means 'deliberately off' (Stopped, Disabled, Offline peer). Destructive means 'failed' (Disconnected link, Failed email). Muted must stay genuinely grey so the two never blur.", "section": "components" },
+      { "name": "The Deferred-Reboot Rule", "body": "Nothing reboots the modem as a side effect. Reboot-requiring changes surface an explicit dialog or an in-pipeline heartbeat notice; persistent conditions get a banner.", "section": "components" }
+    ],
+    "dos": [
+      "Do derive new colors from the mark's hue family or an existing role, in OKLCH, as tokens in globals.css.",
+      "Do pick a pair: a fill with its -foreground, or a container with its on- ink. Never mix across.",
+      "Do use filled tonal chips with an icon for every status indicator.",
+      "Do keep the functional four meaning exactly what they meant before.",
+      "Do use pill metric rows on glance surfaces (12 rows or fewer) and hairline rows in genuine data tables.",
+      "Do carry elevation with a container step, and let shadows be optional.",
+      "Do scale radius with surface size: 28px inner tiles, 36px cards, 40px hero surfaces, full-round chips and nav.",
+      "Do animate container changes at standard or emphasized, and value or label swaps at quick.",
+      "Do build stacked shapes from explicit tone steps, never from stacked alpha.",
+      "Do keep tabular-nums on every live value and font-mono on machine output and identifiers.",
+      "Do keep Material Symbols Rounded inside the sidebar and lucide everywhere else, and self-host the Material subset rather than linking Google's CDN.",
+      "Do test both themes, and measure the worst text pairing on each new surface before merge.",
+      "Do keep CardHeader to title plus description, and put icons in chips or CardAction.",
+      "Do use SaveButton for saves and exactly one filled primary action per surface.",
+      "Do compose feature pages as a page header plus a uniform container-query card grid, and author each card as a self-contained component the page arranges.",
+      "Do build on shadcn/ui first; restyle its primitives with these tokens rather than hand-rolling.",
+      "Do use container queries inside a card that declares @container/card, and keep viewport breakpoints for page-level decisions.",
+      "Do render step and sample progress as a spinner plus dot indicators; keep fill bars for data visualization.",
+      "Do make skeletons mirror the loaded layout, put table empty states inside the table, and surface stale data with an honest alert band.",
+      "Do defer reboots behind explicit dialogs or in-pipeline notices with honest time expectations.",
+      "Do include aria-label on icon-only buttons, role=status or aria-live on polling surfaces, and role=alert on failure bands."
+    ],
+    "donts": [
+      "Don't use hex literals, #000, or #fff. Every color enters as an OKLCH token.",
+      "Don't place text on a fill using a container's ink, or on a container using a fill's foreground.",
+      "Don't use outline-and-tint status badges. (Retired rule: the Outline-Badge Rule.)",
+      "Don't treat secondary or tertiary as an action color, or as a second brand. (The One-Accent Rule is retired as written; its intent survives as the Identity-Never-Acts Rule.)",
+      "Don't animate a container color, size, or shape in 140ms. (Retired rule: the 140-160ms floor.)",
+      "Don't add overshoot beyond the sanctioned 1.03 save check; no bounce, no elastic, no rubber band.",
+      "Don't stack translucent copies of one color to fake tonal layers.",
+      "Don't put pill rows in a 60-row table, or hairline rows on a four-row glance card.",
+      "Don't reintroduce a hairline border on a card that already carries a tonal fill.",
+      "Don't add icons to CardHeader. They drift into hero-metric SaaS template territory.",
+      "Don't put a Material Symbol outside the sidebar, a lucide icon inside a nav item, or re-glyph Network Status while restyling it.",
+      "Don't load an icon font or webfont from a remote CDN; the modem serves this app and may have no internet.",
+      "Don't introduce a second UI typeface, or hand-wire a font into a component with a font-family style.",
+      "Don't use background-clip: text gradients, side-stripe accent borders, or glassmorphism.",
+      "Don't ship the hero-metric SaaS template, or invent a bespoke layout for one feature page.",
+      "Don't build grids of decorative icon-plus-heading cards that carry no real controls.",
+      "Don't hand-roll a component shadcn/ui already provides (tabs, accordion, dialog, popover, tooltip, select, dropdown).",
+      "Don't let a functional hue be decorative, or a decorative hue land within 40 degrees of a functional one.",
+      "Don't mix viewport breakpoints and container queries inside the same card; one breakpoint authority per card.",
+      "Don't make modals the first thought. Inline disclosure, destructive buttons with clear descriptions, and deferred banners cover most confirmations.",
+      "Don't let a UI claim liveness it does not have: no fake timers, no placeholder step lists, no frozen values without a stale-data notice.",
+      "Don't document or reference removed features (NetBird VPN, DPI/Traffic Engine, Low Power Mode daemons) as design surfaces.",
+      "Don't use em dashes in documentation."
+    ]
+  }
+}
