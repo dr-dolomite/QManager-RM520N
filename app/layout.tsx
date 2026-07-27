@@ -15,6 +15,27 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+// Icon typeface for the sidebar (DESIGN.md > Iconography: Material Symbols
+// Rounded, scoped to the shell). Self-hosted and subset at build time to the
+// 19 glyphs the nav actually renders — 10 KB instead of the family's 3.4 MB.
+// The modem serves this app and may have no internet, so a CDN <link> would
+// render every nav item as the literal ligature text ("cell_tower") in the
+// field. Regenerate with `bun run icons:subset` when the glyph set changes.
+//
+// display: "block" (not "swap") for the same reason: during the brief load
+// window an icon font must render nothing rather than its ligature source text.
+const materialSymbols = Euclid({
+  variable: "--font-material-symbols",
+  display: "block",
+  src: [
+    {
+      path: "./fonts/MaterialSymbolsRounded-subset.woff2",
+      weight: "400",
+      style: "normal",
+    },
+  ],
+});
+
 // Font files can be colocated inside of `app`
 const euclid = Euclid({
   variable: "--font-euclid",
@@ -66,7 +87,7 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body
-        className={`${euclid.variable} ${geistMono.variable} ${euclid.className} antialiased`}
+        className={`${euclid.variable} ${geistMono.variable} ${materialSymbols.variable} ${euclid.className} antialiased`}
       >
         <ThemeProvider
           attribute="class"

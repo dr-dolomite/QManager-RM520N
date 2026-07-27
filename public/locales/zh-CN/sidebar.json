@@ -48,5 +48,20 @@
     "about_device": "关于设备",
     "support": "支持",
     "donate": "捐赠项目"
+  },
+  "header": {
+    "role": "管理员"
+  },
+  "user": {
+    "signed_in": "已登录"
+  },
+  "actions": {
+    "toggle_section": "展开/收起 {{section}} 分区"
+  },
+  "status": {
+    "watchdog_acting": "处理中",
+    "watchdog_acting_detail": "看门狗正在恢复连接（第 {{tier}} 级）。",
+    "watchdog_settling": "观察中",
+    "watchdog_settling_detail": "看门狗正在确认恢复后连接是否稳定。"
   }
 }

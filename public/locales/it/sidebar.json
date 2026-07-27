@@ -48,5 +48,20 @@
     "about_device": "Informazioni sul dispositivo",
     "support": "Supporto",
     "donate": "Dona al progetto"
+  },
+  "header": {
+    "role": "Admin"
+  },
+  "user": {
+    "signed_in": "Connesso"
+  },
+  "actions": {
+    "toggle_section": "Apri o chiudi la sezione {{section}}"
+  },
+  "status": {
+    "watchdog_acting": "in azione",
+    "watchdog_acting_detail": "Il watchdog sta ripristinando la connessione (livello {{tier}}).",
+    "watchdog_settling": "verifica",
+    "watchdog_settling_detail": "Il watchdog sta verificando che la connessione regga dopo il ripristino."
   }
 }

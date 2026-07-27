@@ -2,7 +2,6 @@
 
 import { useEffect, useRef, useState } from "react";
 import {
-  ChevronsUpDown,
   KeyRound,
   Loader2,
   LogOut,
@@ -19,6 +18,7 @@ import { useTranslation } from "react-i18next";
 import { logout } from "@/hooks/use-auth";
 import { authFetch } from "@/lib/auth-fetch";
 import { LanguageSwitcher } from "@/components/i18n/language-switcher";
+import { MaterialSymbol } from "@/components/ui/material-symbol";
 
 import {
   Avatar,
@@ -61,23 +61,20 @@ import {
 } from "@/components/ui/sidebar";
 import { ChangePasswordDialog } from "@/components/auth/change-password-dialog";
 
-export function NavUser({
-  user,
-}: {
-  user: {
-    name: string;
-    avatar: string;
-  };
-}) {
+/** Shown until the device hostname arrives, and if it never does. */
+const FALLBACK_NAME = "Admin";
+
+export function NavUser() {
   const { isMobile } = useSidebar();
   const { theme, setTheme } = useTheme();
   const { t } = useTranslation("common");
+  const { t: tSidebar } = useTranslation("sidebar");
 
   // --- Display name from device hostname ---
-  const [displayName, setDisplayName] = useState<string>(user.name);
+  const [displayName, setDisplayName] = useState<string>(FALLBACK_NAME);
   const [avatarSrc, setAvatarSrc] = useState<string>(() => {
-    if (typeof window === "undefined") return user.avatar;
-    return localStorage.getItem("qm_display_avatar") || user.avatar;
+    if (typeof window === "undefined") return "";
+    return localStorage.getItem("qm_display_avatar") || "";
   });
 
   // Fetch hostname from system settings on mount
@@ -226,20 +223,36 @@ export function NavUser({
         <SidebarMenuItem>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
+              {/* The one filled surface in the footer. It sits on
+                  surface-container-high rather than a pill outline so the
+                  account block reads as a distinct object from the nav rows
+                  above it, which are transparent until selected. */}
               <SidebarMenuButton
                 size="lg"
-                className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
+                className="bg-surface-container-high hover:bg-surface-container-high/70 data-[state=open]:bg-surface-container-high h-[3.25rem] gap-3 px-2.5"
               >
-                <Avatar className="h-8 w-8 rounded-lg">
-                  <AvatarImage src={avatarSrc} alt={displayName} />
-                  <AvatarFallback className="rounded-lg">
+                <Avatar className="size-8 rounded-pill">
+                  {/* Only mount the image when there IS one. An <img src="">
+                      resolves against the page URL and paints a broken-image
+                      box over the fallback. */}
+                  {avatarSrc ? <AvatarImage src={avatarSrc} alt="" /> : null}
+                  <AvatarFallback className="bg-primary text-primary-foreground rounded-pill text-xs font-semibold">
                     {initials}
                   </AvatarFallback>
                 </Avatar>
-                <div className="grid flex-1 text-left text-sm leading-tight">
-                  <span className="truncate font-medium">{displayName}</span>
+                <div className="grid flex-1 text-left leading-tight">
+                  <span className="truncate text-sm font-medium">
+                    {displayName}
+                  </span>
+                  <span className="text-sidebar-foreground/70 truncate text-xs">
+                    {tSidebar("user.signed_in")}
+                  </span>
                 </div>
-                <ChevronsUpDown className="ml-auto size-4" />
+                <MaterialSymbol
+                  name="unfold_more"
+                  size={18}
+                  className="text-sidebar-foreground/60 ml-auto"
+                />
               </SidebarMenuButton>
             </DropdownMenuTrigger>
             <DropdownMenuContent
@@ -254,16 +267,18 @@ export function NavUser({
                   <button
                     type="button"
                     onClick={handleAvatarClick}
-                    className="relative group shrink-0 rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    className="relative group shrink-0 rounded-pill focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                     aria-label="Change profile photo"
                   >
-                    <Avatar className="h-8 w-8 rounded-lg">
-                      <AvatarImage src={avatarSrc} alt={displayName} />
-                      <AvatarFallback className="rounded-lg">
+                    <Avatar className="size-8 rounded-pill">
+                      {avatarSrc ? (
+                        <AvatarImage src={avatarSrc} alt="" />
+                      ) : null}
+                      <AvatarFallback className="bg-primary text-primary-foreground rounded-pill text-xs font-semibold">
                         {initials}
                       </AvatarFallback>
                     </Avatar>
-                    <div className="absolute inset-0 rounded-lg bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                    <div className="absolute inset-0 rounded-pill bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
                       <Camera className="size-3.5 text-white" />
                     </div>
                   </button>

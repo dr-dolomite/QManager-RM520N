@@ -48,5 +48,20 @@
     "about_device": "Tentang Perangkat",
     "support": "Dukungan",
     "donate": "Donasi untuk Proyek"
+  },
+  "header": {
+    "role": "Admin"
+  },
+  "user": {
+    "signed_in": "Masuk"
+  },
+  "actions": {
+    "toggle_section": "Buka atau tutup bagian {{section}}"
+  },
+  "status": {
+    "watchdog_acting": "bertindak",
+    "watchdog_acting_detail": "Watchdog sedang memulihkan koneksi (tingkat {{tier}}).",
+    "watchdog_settling": "memantau",
+    "watchdog_settling_detail": "Watchdog sedang memastikan koneksi bertahan setelah pemulihan."
   }
 }

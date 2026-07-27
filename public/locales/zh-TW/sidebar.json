@@ -48,5 +48,20 @@
     "about_device": "關於裝置",
     "support": "支援",
     "donate": "捐贈專案"
+  },
+  "header": {
+    "role": "管理員"
+  },
+  "user": {
+    "signed_in": "已登入"
+  },
+  "actions": {
+    "toggle_section": "展開/收合 {{section}} 分區"
+  },
+  "status": {
+    "watchdog_acting": "處理中",
+    "watchdog_acting_detail": "看門狗正在恢復連線（第 {{tier}} 級）。",
+    "watchdog_settling": "觀察中",
+    "watchdog_settling_detail": "看門狗正在確認恢復後連線是否穩定。"
   }
 }

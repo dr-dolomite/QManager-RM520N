@@ -1,0 +1,61 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 48 48" fill="none" role="img" aria-labelledby="qm-mark-title">
+  <title id="qm-mark-title">QManager</title>
+
+  <!--
+    QManager mark - "Tonal Q"
+    Material 3 construction: 2 shapes, 2 tones, 1 hue. No gradient, no shadow, no filter,
+    no media query. A static file that renders identically everywhere.
+
+    GEOMETRY  48 x 48 grid, centred on (24, 24). Bounds are exactly the ring, 2 -> 46,
+              so the mark is optically centred in any square slot without nudging.
+
+      ring    centreline r 18.5, weight 7   (outer 22 / inner 15)
+      tail    45deg ray from dead centre to r 23.5, weight 7, round cap
+              (cap tip reaches r 27, i.e. 5 past the ring's outer edge)
+      notch   the tail's own path stroked at 14 = weight + 2x3.5, masked out of the
+              ring, leaving a uniform 3.5 channel - half the stroke weight - on both
+              sides. This is the Material Symbols intersection rule.
+
+    WHY THE RAY STARTS AT THE CENTRE, NOT INSIDE THE COUNTER
+      A ring plus a detached 45deg round-capped bar is the universal magnifying-glass
+      glyph, and it read as "search" at every size under 48px. A magnifier's handle
+      never reaches the lens centre; a Q's tail does. Anchoring the ray at the centre
+      is what makes this a letterform instead of a search icon. It also carries the
+      product idea: the signal originates at the device, and QManager runs on the
+      device it manages.
+
+    COLOUR    Both tones are existing chart-ramp tokens, two steps apart, so this stays
+              one hue and one accent. Deliberately NOT theme-responsive: prefers-color-scheme
+              resolves against the OS when this file is loaded as an image element, not
+              against next-themes, so a manual theme override would have mismatched.
+              Both tones were verified on both canvases instead.
+
+                ring  chart-2         oklch(0.623 0.214 259.815)   3.76:1 white / 4.71:1 slate
+                tail  Signal Indigo   oklch(0.488 0.243 264.376)   6.83:1 white / 2.59:1 slate
+                tonal separation 1.82:1
+
+              The ring carries the silhouette and clears 3:1 on every surface. The tail
+              sits at 2.59:1 on the dark Slate card; WCAG 1.4.11 exempts brand marks from
+              that floor, and it renders cleanly because the lighter ring frames it.
+
+              Hex presentation attributes are the fallback for engines without oklch()
+              (pre-Chrome 111 / Safari 15.4 / Firefox 113). The inline style wins wherever
+              oklch parses; where it does not, the declaration is dropped and the hex holds.
+  -->
+
+  <defs>
+    <!-- Luminance mask: white keeps, black cuts. These are alpha values, not colour tokens. -->
+    <mask id="qm-notch" maskUnits="userSpaceOnUse" x="0" y="0" width="48" height="48">
+      <rect width="48" height="48" fill="white" />
+      <path d="M24 24 L40.617 40.617" stroke="black" stroke-width="14" stroke-linecap="round" />
+    </mask>
+  </defs>
+
+  <!-- Ring: the signal field -->
+  <circle cx="24" cy="24" r="18.5" stroke="#2b7fff" style="stroke:oklch(0.623 0.214 259.815)"
+          stroke-width="7" mask="url(#qm-notch)" />
+
+  <!-- Tail: the Q, and the ray leaving the device at the centre -->
+  <path d="M24 24 L40.617 40.617" stroke="#1447e6" style="stroke:oklch(0.488 0.243 264.376)"
+        stroke-width="7" stroke-linecap="round" />
+</svg>

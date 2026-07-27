@@ -85,9 +85,12 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
           id="main-content"
           key={pathname}
           className="px-2 lg:px-6 py-4"
-          initial={{ opacity: 0, y: 6 }}
+          // Motion Study spec 1: route content rises 10px and fades, on the
+          // Material standard curve. Enter only, no exit — the outgoing page is
+          // already gone, and animating it out would delay the incoming one.
+          initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.2, ease: "easeOut" }}
+          transition={{ duration: 0.3, ease: [0.2, 0, 0, 1] }}
         >
           {children}
         </motion.div>

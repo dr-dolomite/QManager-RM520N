@@ -48,5 +48,20 @@
     "about_device": "About Device",
     "support": "Support",
     "donate": "Donate to the Project"
+  },
+  "header": {
+    "role": "Admin"
+  },
+  "user": {
+    "signed_in": "Signed in"
+  },
+  "actions": {
+    "toggle_section": "Toggle {{section}} section"
+  },
+  "status": {
+    "watchdog_acting": "acting",
+    "watchdog_acting_detail": "Watchdog is recovering the connection (tier {{tier}}).",
+    "watchdog_settling": "settling",
+    "watchdog_settling_detail": "Watchdog is verifying the connection held after a recovery."
   }
 }

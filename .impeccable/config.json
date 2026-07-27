@@ -1,0 +1,14 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "design-system-font-size",
+        "value": "0.6875rem",
+        "createdAt": "2026-07-27T23:25:19.748Z",
+        "reason": "DESIGN.md documents 11px for sidebar section labels (lines 454, 741)"
+      }
+    ]
+  }
+}
