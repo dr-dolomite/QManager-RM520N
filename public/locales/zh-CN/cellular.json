@@ -80,10 +80,7 @@
   },
   "custom_profiles": {
     "suggestions": {
-      "title": "为您的 SIM 卡推荐",
-      "description": "根据检测到的运营商提供的初始配置。以下内容尚未保存，在您创建配置文件并激活之前不会生效。",
       "badge": "推荐",
-      "plan_ambiguity": "您的 SIM 卡在此网络上匹配多个套餐，而网络并不会告诉我们您使用的是哪一个。请选择与您的号码相符的一项——家庭宽带套餐与手机套餐使用不同的 APN，选错可能导致无法连接数据。",
       "bands_nsa": "5G NSA {{bands}}",
       "bands_sa": "5G SA {{bands}}",
       "bands_nsa_auto": "5G NSA 自动",
@@ -106,6 +103,7 @@
       "count_one": "已保存 {{count}} 个配置文件",
       "count_other": "已保存 {{count}} 个配置文件",
       "subtitle": "在此设备上激活、编辑或移除蜂窝配置文件。",
+      "none_saved_yet": "尚未保存任何配置文件。可从下方的推荐开始，或自行创建。",
       "activating": "正在激活",
       "scenario_scheduled": "{{scenario}}，按每日计划",
       "scenario_always_on": "{{scenario}}，始终启用",

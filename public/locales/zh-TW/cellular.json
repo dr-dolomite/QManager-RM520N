@@ -80,10 +80,7 @@
   },
   "custom_profiles": {
     "suggestions": {
-      "title": "為您的 SIM 卡推薦",
-      "description": "依據偵測到的電信業者提供的初始設定。以下內容尚未儲存，在您建立設定檔並啟用之前不會生效。",
       "badge": "推薦",
-      "plan_ambiguity": "您的 SIM 卡在此網路上符合多個方案，而網路並不會告訴我們您使用的是哪一個。請選擇與您的門號相符的項目——家庭寬頸方案與手機方案使用不同的 APN，選錯可能導致無法連線。",
       "bands_nsa": "5G NSA {{bands}}",
       "bands_sa": "5G SA {{bands}}",
       "bands_nsa_auto": "5G NSA 自動",
@@ -106,6 +103,7 @@
       "count_one": "已儲存 {{count}} 個設定檔",
       "count_other": "已儲存 {{count}} 個設定檔",
       "subtitle": "在此裝置上啟用、編輯或移除蜂窩設定檔。",
+      "none_saved_yet": "尚未儲存任何設定檔。可從下方的建議開始，或自行建立。",
       "activating": "正在啟用",
       "scenario_scheduled": "{{scenario}}，按每日計劃",
       "scenario_always_on": "{{scenario}}，始終啟用",

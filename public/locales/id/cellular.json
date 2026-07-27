@@ -80,10 +80,7 @@
   },
   "custom_profiles": {
     "suggestions": {
-      "title": "Direkomendasikan untuk SIM Anda",
-      "description": "Konfigurasi awal untuk operator yang terdeteksi. Belum ada yang disimpan, dan tidak ada yang diterapkan sampai Anda membuat profil lalu mengaktifkannya.",
       "badge": "Disarankan",
-      "plan_ambiguity": "SIM Anda cocok dengan lebih dari satu paket di jaringan ini, dan jaringan tidak memberi tahu kami paket mana yang Anda gunakan. Pilih yang sesuai dengan layanan Anda — paket internet rumah dan paket ponsel memakai APN yang berbeda, dan salah pilih bisa membuat data tidak tersambung.",
       "bands_nsa": "5G NSA {{bands}}",
       "bands_sa": "5G SA {{bands}}",
       "bands_nsa_auto": "5G NSA Otomatis",
@@ -106,6 +103,7 @@
       "count_one": "{{count}} Profil Tersimpan",
       "count_other": "{{count}} Profil Tersimpan",
       "subtitle": "Aktifkan, edit, atau hapus profil seluler di perangkat ini.",
+      "none_saved_yet": "Belum ada profil tersimpan. Mulai dari rekomendasi di bawah, atau buat sendiri.",
       "activating": "Mengaktifkan",
       "scenario_scheduled": "{{scenario}} sesuai jadwal harian",
       "scenario_always_on": "{{scenario}}, selalu aktif",

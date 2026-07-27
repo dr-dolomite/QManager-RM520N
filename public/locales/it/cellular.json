@@ -80,10 +80,7 @@
   },
   "custom_profiles": {
     "suggestions": {
-      "title": "Consigliati per la tua SIM",
-      "description": "Configurazioni iniziali per l'operatore rilevato. Nulla è ancora salvato e nulla viene applicato finché non crei un profilo e lo attivi.",
       "badge": "Consigliato",
-      "plan_ambiguity": "La tua SIM corrisponde a più piani su questa rete e la rete non ci dice quale hai. Scegli quello che corrisponde alla tua linea: i piani per internet casa e quelli per telefono usano APN diversi e quello sbagliato può impedire la connessione dati.",
       "bands_nsa": "5G NSA {{bands}}",
       "bands_sa": "5G SA {{bands}}",
       "bands_nsa_auto": "5G NSA Auto",
@@ -106,6 +103,7 @@
       "count_one": "Profilo {{count}} salvato",
       "count_other": "{{count}} profili salvati",
       "subtitle": "Attiva, modifica o rimuovi i profili cellulari su questo dispositivo.",
+      "none_saved_yet": "Nessun profilo salvato. Parti da un suggerimento qui sotto oppure creane uno tuo.",
       "activating": "Attivazione",
       "scenario_scheduled": "{{scenario}} su pianificazione giornaliera",
       "scenario_always_on": "{{scenario}}, sempre attivo",

@@ -80,10 +80,7 @@
   },
   "custom_profiles": {
     "suggestions": {
-      "title": "Recommended for your SIM",
-      "description": "Starting configurations for the carrier we detected. Nothing here is saved yet, and nothing is applied until you create a profile and activate it.",
       "badge": "Suggested",
-      "plan_ambiguity": "Your SIM matches more than one plan on this network, and the network does not tell us which one you have. Pick the one that matches your line — home internet and phone plans use different APNs, and the wrong one can stop data from connecting.",
       "bands_nsa": "5G NSA {{bands}}",
       "bands_sa": "5G SA {{bands}}",
       "bands_nsa_auto": "5G NSA Auto",
@@ -106,6 +103,7 @@
       "count_one": "{{count}} profile saved",
       "count_other": "{{count}} profiles saved",
       "subtitle": "Activate, edit, or remove the cellular profiles on this device.",
+      "none_saved_yet": "No profiles saved yet. Start from a recommendation below, or create your own.",
       "activating": "Activating",
       "scenario_scheduled": "{{scenario}} on a daily schedule",
       "scenario_always_on": "{{scenario}}, always on",
