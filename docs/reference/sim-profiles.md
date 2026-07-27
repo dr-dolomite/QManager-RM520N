@@ -34,11 +34,13 @@ points (boot, SIM switch, watchdog) and are still current.
 | Apply state file | `/tmp/qmanager_profile_state.json` |
 | Apply PID lock | `/tmp/qmanager_profile_apply.pid` |
 | CGI endpoints | `scripts/www/cgi-bin/quecmanager/profiles/*.sh` |
-| Frontend hook | `hooks/use-sim-profiles.ts`, `hooks/use-active-profile.ts` |
+| Frontend hook | `hooks/use-sim-profiles.ts`, `hooks/use-active-profile.ts`, `hooks/use-current-settings.ts`, `hooks/use-profile-suggestions.ts` |
 | Frontend types | `types/sim-profile.ts` |
 | Frontend page | `app/cellular/custom-profiles/` |
-| Frontend components | `components/cellular/custom-profiles/` (coordinator `custom-profile.tsx`, wizard `custom-profile-form.tsx`, list `custom-profile-view.tsx`, dialog `apply-progress-dialog.tsx`) |
+| Frontend components | `components/cellular/custom-profiles/` (coordinator `custom-profile.tsx`, wizard `custom-profile-form.tsx`, list `custom-profile-view.tsx`, dialog `apply-progress-dialog.tsx`, suggestions `suggested-profiles.tsx`) |
+| Suggestion data / matcher | `constants/profile-suggestions.ts`, `lib/carrier-match.ts` |
 | Apply steps | 4: `apn` → `ttl_hl` → `scenario` → `imei` |
+| Band failover watcher | `/usr/bin/qmanager_band_failover`, flag `/etc/qmanager/band_failover_enabled`, PID `/tmp/qmanager_band_failover.pid` |
 
 ---
 
@@ -70,6 +72,45 @@ points (boot, SIM switch, watchdog) and are still current.
   }
 }
 ```
+
+### A profile carries NO band fields — bands live in the scenario
+
+> ⚠️ WARNING: There is **no** `bands`, `lte_bands`, `nsa_nr_bands`, or
+> `sa_nr_bands` key anywhere in the profile JSON above, and `profile_save`
+> would reject one. The schema is exhaustive: `apn` / `imei` / `ttl` / `hl` /
+> `scenario_id` under `settings`, plus the top-level `scenario` object.
+
+Band locking is reachable from a profile **only indirectly**, through a bound
+**custom scenario**. The chain is:
+
+```
+profile.settings.scenario_id  →  "custom-<timestamp>"
+    →  /etc/qmanager/scenarios/custom-<timestamp>.json
+        →  .config.lte_bands      e.g. "3:7:20"
+        →  .config.nsa_nr_bands   e.g. "25:41:66:71"
+        →  .config.sa_nr_bands    e.g. "25:41:66:71"
+```
+
+Each band string is **colon-joined bare decimals** — no `N`/`n` prefix, no
+commas, no spaces (`"25:41:66:71"`, never `"n25,n41"`). The three built-in
+scenarios (`balanced` / `gaming` / `streaming`) leave all three fields empty
+and therefore never lock a band.
+
+Practical consequences worth internalizing before touching this area:
+
+- **To give a profile a band lock you must create a scenario first**, then
+  reference it. `profile_save` validates the reference and rejects a save that
+  names a scenario which does not exist yet
+  (`"Unknown connection scenario: <id>."`) — so the two writes are strictly
+  ordered, scenario before profile. This is exactly why the suggested-profiles
+  create flow is a two-call sequence (see
+  [Suggested profiles](#suggested-profiles-recommended-for-your-sim)).
+- **Editing the scenario changes every profile bound to it.** Bands are shared
+  state by reference, not copied into the profile.
+- **Binding a band-carrying scenario disables the Band Locking page** (see the
+  [Gate matrix](#gate-matrix)) — which is why the apply path needed its own
+  band-failover safety net (see
+  [Band failover watcher](#band-failover-watcher-on-the-apply-path)).
 
 ### `scenario` (top-level object) and the `settings.scenario_id` bridge
 
@@ -113,7 +154,7 @@ default to `"balanced"`.
 | `""` (empty) | Legacy value — present only on profile JSONs saved before scenario binding shipped. The scenario step is skipped at apply time. The frontend no longer emits this; loading such a profile in the form auto-migrates the display to Balanced, which is persisted on next save. |
 | `"balanced"` | Built-in Balanced scenario. `scenario_apply` sends `AT+QNWPREFCFG="mode_pref",AUTO`. Treated as "no opinion" for UI gating purposes — see [Gate matrix](#gate-matrix) below. |
 | `"gaming"` / `"streaming"` | Built-in scenario. `scenario_apply` resolves the mode (`NR5G` / `LTE:NR5G`) and sends `AT+QNWPREFCFG="mode_pref",<mode>`. Built-ins never carry band locks. |
-| `"custom-<timestamp>"` | Custom scenario stored at `/etc/qmanager/scenarios/<id>.json`. The apply step looks up the JSON, reads `mode_pref` and the optional `lte_bands` / `nsa_nr_bands` / `nr5g_band` strings, and applies them. |
+| `"custom-<timestamp>"` | Custom scenario stored at `/etc/qmanager/scenarios/<id>.json`. The apply step looks up the JSON, reads `mode_pref` and the optional `lte_bands` / `nsa_nr_bands` / `sa_nr_bands` strings, and applies them. (These are the **JSON** key names; the AT parameter for `sa_nr_bands` is confusingly `nr5g_band` — see [A profile carries NO band fields](#a-profile-carries-no-band-fields--bands-live-in-the-scenario).) |
 
 > ℹ️ NOTE: Because `scenario_id` is a reference, **editing the referenced
 > scenario later changes what gets applied on the next profile activation**.
@@ -181,6 +222,44 @@ scenario produces `failed` with detail
 `"Partial: band lock failed for: <fields>"` — the scenario is still marked
 active because `mode_pref` succeeded; only the supplementary band locks
 failed.
+
+### Band failover watcher on the apply path
+
+A bad band lock can leave the modem with no camp-able carrier — the radio is
+narrowed to a set nothing is broadcasting on, and the device drops off the
+network entirely. The manual **Band Locking** page has always guarded against
+this: `bands/lock.sh` spawns `/usr/bin/qmanager_band_failover`, which polls
+`AT+QCAINFO` for ~30 s and reverts to *all* supported bands if no carrier
+appears.
+
+For a long time that was the **only** call site. `scenario_apply` sends the
+*identical* `AT+QNWPREFCFG` band commands when a profile applies a custom
+scenario, and spawned nothing — so applying a band lock **via a profile** had
+no safety net, while the manual route did. Worse, per the
+[Gate matrix](#gate-matrix), binding a `custom-*` scenario **disables the Band
+Locking page**, which is the user's manual recovery route. A user who locked
+themselves off the network through a profile had neither the automatic revert
+nor the manual one.
+
+`qmanager_profile_apply::_spawn_band_failover_if_needed()` closes that gap.
+It is called from the `custom-*` branch of `apply_scenario`, immediately after
+`scenario_apply` returns 0, on **both** sub-paths — full success *and* partial
+band failure — mirroring `bands/lock.sh`, which spawns unconditionally once its
+AT command is accepted.
+
+| Behavior | Detail |
+|----------|--------|
+| Early return | Spawns nothing when `lte_bands`, `nsa_nr_bands`, and `sa_nr_bands` are **all** empty. Built-in scenarios (`balanced` / `gaming` / `streaming`) are therefore completely unaffected. |
+| Opt-in flag | Honors the same `/etc/qmanager/band_failover_enabled` file; spawns only when its contents are exactly `1`. |
+| Shared state | Same PID file (`/tmp/qmanager_band_failover.pid`), same activated flag (`/tmp/qmanager_band_failover`), same detached-subshell spawn idiom as `bands/lock.sh` — the two spawn paths are indistinguishable to the watcher and to the UI's failover-activated indicator. |
+| Missing watcher | Logs a warning and returns 0 if `/usr/bin/qmanager_band_failover` is absent or non-executable. |
+| Failure mode | Non-blocking and non-fatal. A spawn failure can never alter the `scenario` step's `done` / `partial` / `failed` status. |
+
+> ℹ️ NOTE: **No sudo, no sudoers rule is involved.** Both `bands/lock.sh` and
+> `profiles/apply.sh` are CGI running as `www-data`, and both spawn their
+> workers with a plain backgrounded subshell — the watcher inherits the
+> `www-data` context. This is why adding the second spawn site stayed a Tier 3
+> change rather than a Tier 4 (installer/sudoers) one.
 
 ---
 
@@ -324,6 +403,250 @@ stale RM551E 7-step list.
 > `/cellular/custom-profiles` routes prerender), `bun run i18n:check` (100%
 > parity, 0 errors), and `eslint` (exit 0). On-device curl validation was not
 > run — no backend changed, so it is not required for this change.
+
+---
+
+## Live modem settings: `GET profiles/current_settings.sh`
+
+`scripts/www/cgi-bin/quecmanager/profiles/current_settings.sh` is the one
+endpoint the create form reads to pre-fill itself. It is called **once per
+form open / page mount**, never on a timer, and does all of its work in a
+**single compound AT round-trip** so the whole read costs one hold of
+`/tmp/qmanager_at.lock`:
+
+```sh
+qcmd 'AT+CGDCONT?;+CGSN;+QCCID;+CGPADDR;+QMAP="WWAN";+QSPN'
+```
+
+Response (`CurrentModemSettings` in `types/sim-profile.ts`):
+
+```json
+{
+  "apn_profiles": [ { "cid": 1, "apn": "fbb.home", "pdp_type": "IPV4V6" } ],
+  "imei": "860000000000000",
+  "iccid": "8901260123456789012",
+  "active_cid": 1,
+  "spn": "GLOBE",
+  "mcc": "515",
+  "mnc": "02"
+}
+```
+
+`spn` / `mcc` / `mnc` are **additive** — added alongside the existing keys, with
+`;+QSPN` appended to the compound command rather than issued as a second
+`qcmd` call. Nothing that consumed the older shape breaks.
+
+### Parsing `+QSPN`
+
+A live response looks like:
+
+```
++QSPN: "GLOBE","GLOBE","GLOBE",0,"51502"
+```
+
+The **last quoted field is the concatenated PLMN** — the carrier's numeric
+identity, MCC (mobile country code, always 3 digits) immediately followed by
+MNC (mobile network code). MNC width is **not fixed** — it is 2 or 3 digits
+depending on the country — so the script splits **first-3 / rest**, never at a
+fixed offset:
+
+| Field | Source | Example |
+|-------|--------|---------|
+| `spn` | first quoted field (full service provider name) | `"GLOBE"` |
+| `mcc` | PLMN chars 1–3 | `"515"` |
+| `mnc` | PLMN chars 4–end | `"02"` |
+
+> ⚠️ WARNING: The PLMN guard rejects the empty and any-non-digit cases
+> **first** (`''|*[!0-9]*)`) before matching the 4-plus-digit pattern. A bare
+> `[0-9][0-9][0-9][0-9]*` glob only constrains the leading four characters, so
+> a corrupt tail like `5150A` would have produced `mnc="0A"`. Verified on
+> device: `5150A` / `abc` / `""` all reject; `51502` → `515`/`02`;
+> `310260` → `310`/`260`.
+
+All three fields **fail soft to `""`** on an absent or malformed `+QSPN`, and
+the endpoint always returns **200** — including on a SIM-less modem. A
+consumer must treat empty as "unknown carrier", never as an error.
+
+---
+
+## Create-form autofill on page load
+
+The create form pre-fills from the live SIM **automatically on mount**
+(`custom-profile.tsx` calls `useCurrentSettings(true)`), not only when the user
+presses **Load from SIM**. Because the compound AT read takes ~2–3 s, the user
+can already be typing when the response lands — so the two arrival paths are
+handled differently, distinguished by an `explicitLoad` state flag in
+`custom-profile-form.tsx`.
+
+| Path | Trigger | Write policy | IMEI |
+|------|---------|--------------|------|
+| **MOUNT** | `useCurrentSettings(true)` fires on page load | **Fill-empty-only** — anything already in the form (typed, or seeded by an MNO preset) always wins | **Never written** |
+| **EXPLICIT** | User pressed **Load from SIM** (`handleLoadFromSim` sets `explicitLoad`) | SIM values **overwrite** the form | Written |
+
+> ℹ️ NOTE: The prefill is a **render-time compare**, not a `useEffect` — a
+> deliberate convention in this file, to avoid a cascading `setState` round.
+> If a mount fetch is still in flight when **Load from SIM** is clicked, that
+> in-flight response is treated as the explicit one: same endpoint, same data,
+> and the user did ask for it.
+
+### Why IMEI is excluded from the automatic path
+
+Apply **step 4** (`qmanager_profile_apply`) issues `AT+EGMR=1,7` and **reboots
+the modem** whenever a profile's stored IMEI differs from the live one.
+Autofilling IMEI on every mount would silently arm that reboot on every new
+profile, and would also stamp a misleading **"IMEI override"** pill on the
+saved-profile row for a profile that overrides nothing. An IMEI override must
+stay an explicit act.
+
+### Why `cid` and `pdp_type` ride along with `apn_name`
+
+`cid` (default `1`) and `pdp_type` (default `IPV4V6`) have no "empty" state, so
+fill-empty-only cannot be expressed for them individually. They are written
+**only together with `apn_name`**, so the APN triple is either fully
+SIM-sourced or fully untouched — never half-overwritten with one field from the
+SIM and two from the defaults.
+
+An **empty SIM APN never writes at all**. The live device reports
+`active_cid: 1` with an empty APN string; under the older unconditional prefill
+that blanked whatever the user had typed.
+
+### Bug fixed in passing: the mid-edit prefill
+
+`prevSettings` now advances on **every** settings object that arrives, while the
+form write stays gated on `!isEditing`. Previously a response landing mid-edit
+was never consumed, so it stayed pending and fired later — repopulating the form
+the next time the user left edit mode. The window is real: `handleEdit` is
+async, so the mount fetch can resolve between the Edit click and
+`editingProfile` arriving.
+
+---
+
+## Suggested profiles ("Recommended for your SIM")
+
+When the inserted SIM's PLMN matches a carrier QManager has a known-good recipe
+for, the Custom SIM Profiles page renders a **Recommended for your SIM**
+section below the two-column grid. These are **not saved profiles** — nothing
+exists on flash until the user presses **Create**.
+
+| Piece | File |
+|-------|------|
+| Recipe data | `constants/profile-suggestions.ts` |
+| PLMN matcher (pure) | `lib/carrier-match.ts` |
+| Decision + create sequence | `hooks/use-profile-suggestions.ts` |
+| UI | `components/cellular/custom-profiles/suggested-profiles.tsx` |
+| i18n | 14 keys under `custom_profiles.suggestions.*` in the `cellular` namespace, all 5 locales |
+
+### The two T-Mobile US suggestions
+
+| id | Name | APN | TTL / HL | CID / PDP | NR bands (NSA **and** SA) |
+|----|------|-----|----------|-----------|---------------------------|
+| `tmobile` | T-Mobile | `fast.t-mobile.com` | 64 / 64 | 1 / `IPV4V6` | 25, 41, 66, 71 |
+| `tmobile_home` | T-Mobile Home Internet (TMHI) | `fbb.home` | 64 / 64 | 1 / `IPV4V6` | 25, 41, 66, 71 |
+
+**Both are always shown together.** TMHI and consumer T-Mobile are
+**indistinguishable over the air** — identical MCC/MNC — so the UI frames the
+pick as the user's choice ("home internet SIMs use the TMHI profile, phone and
+tablet lines use the standard one"), never as a detection result.
+
+> ⚠️ WARNING: **Known limitation — MVNOs.** Mint, Google Fi, US Mobile and other
+> MVNOs riding T-Mobile's network broadcast the **same MCC/MNC** and will
+> therefore also see these suggestions, even though they need different APNs.
+> PLMN cannot distinguish them. If this becomes a support burden, the fix is
+> additional signal (e.g. ICCID IIN prefix), not a tighter MNC allowlist.
+
+### Detection
+
+`matchCarrierSuggestions(mcc, mnc)` in `lib/carrier-match.ts` is a **pure**
+function — no React, no fetch, no module state. That is deliberate: the only
+live test device runs a GLOBE SIM (MCC 515), so the T-Mobile branch is
+**unreachable on hardware** and had to be verifiable off-device.
+
+- MCC must normalize to `310` (USA).
+- MNC must be in `TMOBILE_US_MNCS`: `260, 160, 200, 210, 220, 230, 240, 250,
+  270, 310, 490, 660, 800`.
+- `normalizeMnc()` strips non-digits and **leading zeros** before comparing,
+  because `AT+QSPN` can report the same network as `"02"`, `"2"`, or `"002"`
+  depending on firmware and PLMN width.
+- Anything unmatched returns `[]` — an unrecognized SIM renders no section,
+  never a guess.
+
+> ℹ️ NOTE: Leading-zero stripping is **not** zero-padding. `310/26` and
+> `310/026` both normalize to `26`, which is **not** `260` — they are a
+> different network and correctly do not match. AT&T (`310/410`) and Verizon
+> (`311/480`) also correctly return nothing, despite AT&T sharing MCC 310.
+
+### Visibility rule (derived, never persisted)
+
+The section shows when **both** hold:
+
+1. `matchCarrierSuggestions(mcc, mnc)` is non-empty, **and**
+2. **no saved profile's `sim_iccid` canonically matches the live ICCID.**
+
+That single second test satisfies two requirements at once — hide after a
+suggestion was created, and hide when a profile already exists for this SIM —
+and it **self-heals**: delete the profile and the suggestion comes back.
+
+> ⚠️ WARNING: There is deliberately **no persisted "dismissed" flag.**
+> `config.sh`'s `qm_config_init` only seeds an *empty* file and the project has
+> no key-migration primitive, so a newly-introduced persisted key would
+> silently do nothing on every OTA-upgraded device. Do not "improve" this by
+> adding one without also adding a migration step.
+
+ICCID comparison goes through `canonicalizeIccid()` / `iccidMatches()`, a
+client-side mirror of `sim_db.sh::iccid_canonicalize` — strip whitespace, then
+drop **one** trailing `F`/`f` BCD pad. This must stay in lockstep with the
+shell implementation; a divergence makes the client think a SIM has no profile
+when the backend knows it does. See
+[sim-detection.md](sim-detection.md#byte-parity-requirement-why-sim_db_normalize--iccid_canonicalize).
+
+### Band-support intersection
+
+The recommended bands are intersected against the modem's own
+`device.supported_nsa_nr5g_bands` / `device.supported_sa_nr5g_bands` (from the
+status poll, colon-delimited) **before** anything is written.
+
+An **empty intersection — including "support unknown", e.g. status has not
+landed yet — writes no lock at all** for that category, i.e. Auto. Locking a
+band the radio cannot use is strictly worse than not locking: it narrows the
+radio to a set it can never camp on. The suggestion card reflects this
+honestly, showing **"5G NSA Auto"** instead of a band list.
+
+### Create: a two-call sequence with rollback
+
+Ordered because `profile_mgr.sh` rejects a save that references a scenario which
+does not exist yet (see
+[A profile carries NO band fields](#a-profile-carries-no-band-fields--bands-live-in-the-scenario)):
+
+1. **`GET scenarios/list.sh`** — reuse a scenario named exactly
+   `T-Mobile Recommended Bands` (`TMOBILE_SCENARIO_NAME`) if one exists. A
+   failed lookup is non-fatal; it falls through to step 2.
+2. **`POST scenarios/save.sh`** — otherwise create it, with
+   `config.atModeValue: "AUTO"` and the **intersected** bands as colon-joined
+   bare decimals (`"25:41:66:71"` — **no `N` prefix**), `lte_bands: ""`.
+3. **`POST profiles/save.sh`** — create the profile bound to that scenario id,
+   via the page's existing `createProfile` path.
+4. **Rollback** — if step 3 fails **and** step 2 created the scenario, delete
+   it. A **reused** scenario is never deleted: other profiles may be bound to
+   it.
+
+Device caps surface as real, human-readable errors rather than silent no-ops:
+`MAX_SCENARIOS=20` and `MAX_PROFILES=10`. The two errors come from different
+hooks (scenario failures from `useProfileSuggestions`, profile failures from
+`useSimProfiles`), so the UI falls back between them and never shows two
+contradicting messages.
+
+### Relationship to `constants/mno-presets.ts` — deliberately none
+
+`MNO_PRESETS` was **not modified**. Its existing `tmo_home` preset keeps
+`ttl: 0, hl: 0`; the suggestions carry TTL/HL 64 independently. The presets
+feed the profile form's carrier dropdown; suggestions are a separate recipe
+list. **Do not "reconcile" the two without an explicit decision** — the zeroed
+preset values are intentional there.
+
+To add a carrier you must touch **both** halves: append a suggestion to
+`PROFILE_SUGGESTIONS` **and** add its MCC/MNC to the allowlist in
+`lib/carrier-match.ts`. A suggestion no matcher returns is dead code; a match
+with no suggestion renders nothing.
 
 ---
 

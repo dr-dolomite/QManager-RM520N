@@ -58,6 +58,14 @@ STATE_FILE="/tmp/qmanager_profile_state.json"
 # worker holding the PID lock; we consume it on exit (after the lock is freed).
 PROFILE_PENDING_APPLY_FILE="/tmp/qmanager_profile_pending_apply"
 
+# Band failover watcher — same files/flag bands/lock.sh (the manual Band
+# Locking page) uses. Kept identical so both spawn paths are indistinguishable
+# to the watcher and to the UI's failover-activated flag.
+FAILOVER_ENABLED_FILE="/etc/qmanager/band_failover_enabled"
+FAILOVER_PID_FILE="/tmp/qmanager_band_failover.pid"
+FAILOVER_ACTIVATED_FLAG="/tmp/qmanager_band_failover"
+FAILOVER_SCRIPT="/usr/bin/qmanager_band_failover"
+
 # Sip-don't-gulp gap between AT commands (seconds)
 CMD_GAP=0.3
 # Max seconds to wait for modem to come back after AT+CFUN=1,1
@@ -409,6 +417,55 @@ apply_ttl_hl() {
     fi
 }
 
+# --- Band failover watcher spawn ----------------------------------------------
+# Parity with bands/lock.sh (the manual Band Locking page): a bad band lock can
+# kill service, so lock.sh spawns qmanager_band_failover to poll AT+QCAINFO for
+# ~30s and revert to all supported bands if no carrier is found. The profile
+# apply pipeline sends the IDENTICAL AT+QNWPREFCFG band commands (via
+# scenario_apply) for a custom scenario's bands, but had no such safety net —
+# and once a profile binds a custom-* scenario, the gate matrix disables the
+# Band Locking page itself, blocking the user's manual recovery route too.
+# This closes that gap. Non-blocking, non-fatal: a spawn failure never affects
+# the "scenario" step's done/partial/failed status.
+_spawn_band_failover_if_needed() {
+    local _bf_lte="$1"
+    local _bf_nsa="$2"
+    local _bf_sa="$3"
+
+    # Never spawn for built-in scenarios or a custom scenario with no bands.
+    if [ -z "$_bf_lte" ] && [ -z "$_bf_nsa" ] && [ -z "$_bf_sa" ]; then
+        return 0
+    fi
+
+    local _bf_enabled="false"
+    if [ -f "$FAILOVER_ENABLED_FILE" ]; then
+        local _bf_val
+        _bf_val=$(cat "$FAILOVER_ENABLED_FILE" 2>/dev/null | tr -d ' \n\r')
+        [ "$_bf_val" = "1" ] && _bf_enabled="true"
+    fi
+    [ "$_bf_enabled" = "true" ] || return 0
+
+    [ -x "$FAILOVER_SCRIPT" ] || { qlog_warn "Band failover enabled but watcher missing: $FAILOVER_SCRIPT"; return 0; }
+
+    # Clear any previous activation flag — this lock supersedes it (same as lock.sh).
+    rm -f "$FAILOVER_ACTIVATED_FLAG"
+
+    # Kill any existing watcher (latest lock is the one we monitor)
+    if [ -f "$FAILOVER_PID_FILE" ]; then
+        local _bf_old_pid
+        _bf_old_pid=$(cat "$FAILOVER_PID_FILE" 2>/dev/null | tr -d ' \n\r')
+        if pid_alive "$_bf_old_pid"; then
+            kill "$_bf_old_pid" 2>/dev/null
+            qlog_debug "Killed previous failover watcher (PID=$_bf_old_pid)"
+        fi
+        rm -f "$FAILOVER_PID_FILE"
+    fi
+
+    # Spawn new watcher (detached via double-fork, same idiom as bands/lock.sh)
+    ( "$FAILOVER_SCRIPT" </dev/null >/dev/null 2>&1 & )
+    qlog_info "Failover watcher spawned for profile-applied band lock"
+}
+
 # =============================================================================
 # Step 3: Scenario (radio mode + optional band locks)
 # =============================================================================
@@ -462,6 +519,12 @@ apply_scenario() {
 
             mark_step_running "scenario" "Applying custom scenario: $p_scenario_id (mode=$sc_mode)..."
             if scenario_apply "$p_scenario_id" "$sc_mode" "$sc_lte" "$sc_nsa" "$sc_sa"; then
+                # mode_pref landed, meaning any band-lock AT commands below it
+                # were also sent (see scenario_apply) — arm the same safety net
+                # the manual Band Locking page uses, on success OR partial band
+                # failure alike, mirroring lock.sh which spawns unconditionally
+                # once its single AT command is accepted.
+                _spawn_band_failover_if_needed "$sc_lte" "$sc_nsa" "$sc_sa"
                 if [ -n "$_scenario_apply_failed" ]; then
                     scenario_set_active "$p_scenario_id"
                     mark_step_failed "scenario" "Partial: band lock failed for: $_scenario_apply_failed"

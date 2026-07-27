@@ -6,9 +6,11 @@ import { useTranslation } from "react-i18next";
 import CustomProfileFormComponent from "@/components/cellular/custom-profiles/custom-profile-form";
 import CustomProfileViewComponent from "@/components/cellular/custom-profiles/custom-profile-view";
 import { ApplyProgressDialog } from "@/components/cellular/custom-profiles/apply-progress-dialog";
+import SuggestedProfiles from "@/components/cellular/custom-profiles/suggested-profiles";
 import { useSimProfiles, type ProfileFormData } from "@/hooks/use-sim-profiles";
 import { useProfileApply } from "@/hooks/use-profile-apply";
 import { useCurrentSettings } from "@/hooks/use-current-settings";
+import { useProfileSuggestions } from "@/hooks/use-profile-suggestions";
 import { useModemStatus } from "@/hooks/use-modem-status";
 import type { SimProfile } from "@/types/sim-profile";
 import {
@@ -52,11 +54,52 @@ const CustomProfileComponent = () => {
 
   const { applyState, applyProfile, error: applyError } = useProfileApply();
 
+  // fetchOnMount = true: the create form pre-fills from the SIM automatically on
+  // page load. The AT read takes ~2-3s, so the form treats a mount-sourced
+  // settings object as fill-empty-only (and skips IMEI) — see the prefill block
+  // in custom-profile-form.tsx.
   const { settings: currentSettings, refresh: refreshCurrentSettings } =
-    useCurrentSettings(false);
+    useCurrentSettings(true);
 
   const { data: modemStatus } = useModemStatus();
   const currentIccid = modemStatus?.device?.iccid ?? null;
+
+  // ---------------------------------------------------------------------------
+  // "Recommended for your SIM" — carrier-matched suggestions
+  // ---------------------------------------------------------------------------
+  // Pure decision layer over data this page already holds: the PLMN + ICCID from
+  // current_settings.sh, the saved-profile list, and the modem's supported band
+  // lists. No extra endpoint, no second poller.
+  //
+  // The ICCID here prefers current_settings.sh's value because the backend has
+  // already canonicalized it (a trailing BCD pad `F` stripped); modem status
+  // carries the raw string. The hook canonicalizes either way, but starting from
+  // the canonical source keeps the comparison byte-identical to the backend's.
+  const {
+    suggestions,
+    creatingId,
+    error: suggestionsError,
+    createFromSuggestion,
+  } = useProfileSuggestions({
+    mcc: currentSettings?.mcc,
+    mnc: currentSettings?.mnc,
+    currentIccid: currentSettings?.iccid ?? currentIccid,
+    profiles,
+    supportedNsaBands: modemStatus?.device?.supported_nsa_nr5g_bands,
+    supportedSaBands: modemStatus?.device?.supported_sa_nr5g_bands,
+    createProfile,
+  });
+
+  // Refresh the list on success so the new profile appears and the suggestion
+  // that produced it disappears — the visibility rule is derived from the list,
+  // so this single refresh drives both.
+  const handleCreateFromSuggestion = useCallback(
+    async (suggestionId: string) => {
+      const newId = await createFromSuggestion(suggestionId);
+      if (newId) refresh();
+    },
+    [createFromSuggestion, refresh],
+  );
 
   const [editingProfile, setEditingProfile] = useState<SimProfile | null>(null);
 
@@ -211,6 +254,22 @@ const CustomProfileComponent = () => {
           lastApplyState={applyState}
         />
       </div>
+
+      {/* Recommended for your SIM — renders nothing when there is no match.
+          Deliberately OUTSIDE the grid: the empty state replaces the whole view
+          card (custom-profile-view.tsx returns EmptyProfileViewComponent), so a
+          section nested inside it would vanish for exactly the user who has no
+          profiles yet — the one most likely to want a suggestion.
+
+          Error prop falls back to the CRUD error because the create sequence
+          spans two hooks: scenario failures surface on useProfileSuggestions,
+          profile failures (incl. the MAX_PROFILES=10 cap) on useSimProfiles. */}
+      <SuggestedProfiles
+        suggestions={suggestions}
+        creatingId={creatingId}
+        error={suggestionsError ?? error}
+        onCreate={handleCreateFromSuggestion}
+      />
 
       {/* Activate Confirmation Dialog */}
       <AlertDialog

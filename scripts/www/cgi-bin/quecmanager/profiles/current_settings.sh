@@ -33,7 +33,7 @@ CMD_GAP=0.2   # Gap between AT commands (seconds) — kept for POST if needed
 qlog_info "Querying current modem settings for profile form"
 
 # --- Compound AT: fetch all settings in one call ---
-raw=$(qcmd 'AT+CGDCONT?;+CGSN;+QCCID;+CGPADDR;+QMAP="WWAN"' 2>/dev/null)
+raw=$(qcmd 'AT+CGDCONT?;+CGSN;+QCCID;+CGPADDR;+QMAP="WWAN";+QSPN' 2>/dev/null)
 
 # --- 1. APN profiles from +CGDCONT: lines ---
 cgdcont_lines=$(printf '%s\n' "$raw" | grep '+CGDCONT:')
@@ -49,7 +49,43 @@ current_imei=$(printf '%s\n' "$raw" | tr -d '\r' | grep -x '[0-9]\{15\}' | head 
 # extractor silently dropped the pad, diverging from every apply-time reader.
 current_iccid=$(iccid_canonicalize "$(printf '%s\n' "$raw" | grep '+QCCID:' | head -1 | sed 's/+QCCID: //g')")
 
-# --- 4. Active CID (cross-reference +CGPADDR + +QMAP lines from blob) ---
+# --- 4. Carrier identity from +QSPN: line ---
+# +QSPN: "<full spn>","<short spn>","<display spn>",<disp_cond>,"<plmn>"
+# The last quoted field is the concatenated numeric PLMN (MCC + MNC), e.g.
+# "51502" -> mcc=515, mnc=02. MNC length is NOT fixed (2 or 3 digits), so
+# split as first-3 / rest rather than assuming a fixed width. Fail soft to
+# empty strings on any absent/malformed +QSPN — this endpoint must always
+# return 200, even on a SIM-less modem.
+qspn_line=$(printf '%s\n' "$raw" | tr -d '\r' | grep '+QSPN:' | head -1)
+current_spn=""
+current_plmn=""
+if [ -n "$qspn_line" ]; then
+    current_spn=$(printf '%s\n' "$qspn_line" | awk -F'"' '{print $2}')
+    current_plmn=$(printf '%s\n' "$qspn_line" | awk -F'"' '{print $(NF-1)}')
+fi
+# Guard: the PLMN field must be all-digits with at least 4 chars (min a
+# 3-digit MCC + 1-digit MNC) or we treat it as malformed/absent. The empty /
+# any-non-digit case is rejected FIRST — a bare [0-9][0-9][0-9][0-9]* glob
+# would only constrain the leading four characters and let a corrupt tail
+# (e.g. "5150A") through into the MNC.
+case "$current_plmn" in
+    ''|*[!0-9]*)
+        current_spn=""
+        current_mcc=""
+        current_mnc=""
+        ;;
+    [0-9][0-9][0-9][0-9]*)
+        current_mcc=$(printf '%s' "$current_plmn" | cut -c1-3)
+        current_mnc=$(printf '%s' "$current_plmn" | cut -c4-)
+        ;;
+    *)
+        current_spn=""
+        current_mcc=""
+        current_mnc=""
+        ;;
+esac
+
+# --- 5. Active CID (cross-reference +CGPADDR + +QMAP lines from blob) ---
 active_cid=""
 
 # CGPADDR: collect CIDs with valid IPv4
@@ -95,11 +131,17 @@ jq -n --argjson apns "$apn_array" \
     --arg imei "$current_imei" \
     --arg iccid "$current_iccid" \
     --arg active_cid "$active_cid" \
+    --arg spn "$current_spn" \
+    --arg mcc "$current_mcc" \
+    --arg mnc "$current_mnc" \
     '{
         "apn_profiles": $apns,
         "imei": $imei,
         "iccid": $iccid,
-        "active_cid": ($active_cid | tonumber)
+        "active_cid": ($active_cid | tonumber),
+        "spn": $spn,
+        "mcc": $mcc,
+        "mnc": $mnc
     }'
 
 qlog_info "Current settings query complete (active_cid=$active_cid)"
