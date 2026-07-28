@@ -164,6 +164,29 @@ export const staggerItem: Variants = {
   },
 };
 
+/**
+ * Row cascade item — the in-card sibling of `staggerItem`, and the child that
+ * pairs with `staggerRows`. Same curve and duration; the rise is 5px rather
+ * than 10px.
+ *
+ * The shorter travel is not a taste call. Rows inside one card sit at ~6px
+ * spacing, so a 10px lift moves each row past its own neighbour's resting
+ * position and the group reads as the card reflowing rather than as content
+ * arriving. Cards sit in a 16px page gutter, where 10px still reads as a lift.
+ *
+ * Choosing between the two, restated from `staggerContainer`/`staggerRows`: if
+ * the children are cards, `staggerItem`; if they are rows sharing one card's
+ * border, this.
+ */
+export const staggerRowItem: Variants = {
+  hidden: { opacity: 0, y: 5 },
+  visible: {
+    opacity: 1,
+    y: 0,
+    transition: { duration: DUR.standard, ease: EASE_STANDARD },
+  },
+};
+
 // The route transition is deliberately NOT defined here. `components/app-layout.tsx`
 // implements it inline, keyed on `pathname`, because it is a single site that
 // needs no shared definition. It is enter-only by design: DESIGN.md forbids an

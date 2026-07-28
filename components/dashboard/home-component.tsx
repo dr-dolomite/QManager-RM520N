@@ -109,13 +109,23 @@ const HomeComponent = () => {
 
         </motion.div>
       </motion.div>
-      <div className="col-span-1 @4xl/main:col-span-2 h-full *:data-[slot=card]:h-full">
+      {/* Device Information is the head of the right column, so it enters on
+          the same clock as the hero at the head of the left one — a lone
+          `staggerItem` with its own initial/animate, no container, because a
+          single child needs no cascade. It was the one column card outside the
+          entrance entirely, which made it pop in ahead of every sibling. */}
+      <motion.div
+        className="col-span-1 @4xl/main:col-span-2 h-full *:data-[slot=card]:h-full"
+        variants={staggerItem}
+        initial="hidden"
+        animate="visible"
+      >
         <DeviceStatus
           data={data?.device ?? null}
           isLoading={isLoading}
           lanGateway={aboutDevice?.network.lan_gateway}
         />
-      </div>
+      </motion.div>
 
       {/* Carrier Aggregation — full width because the proportional chain is the
           point, and a chain squeezed into a 3/5 column stops being readable at
