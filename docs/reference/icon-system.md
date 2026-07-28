@@ -9,19 +9,23 @@ Material Symbols is a **self-hosted, ligature-driven icon font**, not an SVG com
 | Thing | Where |
 |-------|-------|
 | Icon component | `components/ui/material-symbol.tsx` |
-| Allowed glyph names (TS union) | `MaterialSymbolName` in the same file |
-| Subset generator | `scripts-dev/subset-icons.mjs` |
-| Glyph list consumed by the generator | `ICONS` in the same file |
-| Shipped font file | `app/fonts/MaterialSymbolsRounded-subset.woff2` (53 glyphs, 19.3 KB) |
+| **Canonical glyph list (single source of truth)** | `MATERIAL_SYMBOL_NAMES` in `components/ui/material-symbol-names.ts` |
+| Allowed glyph names (TS type) | `MaterialSymbolName`, **derived** from that array |
+| Subset generator | `scripts-dev/subset-icons.ts` (imports the same array) |
+| Shipped font file | `app/fonts/MaterialSymbolsRounded-subset.woff2` (56 glyphs, 20.2 KB) |
+| Generator manifest | `app/fonts/MaterialSymbolsRounded-subset.json` — what was requested + sha256 of what shipped |
 | Font binding | `app/layout.tsx` (`next/font/local`, bound to a CSS variable) |
 | Regenerate the font | `bun run icons:subset` |
+| **Verify the font is not stale** | `bun run icons:check` — runs inside `bun run package` |
 | Canon | `DESIGN.md` > Components > Icons; the Icon-Boundary Rule, the Network Status Landmark Rule |
 | Machine-readable copy (audit tooling reads this) | `.impeccable/design.json` |
 
 ```sh
-# after editing BOTH glyph lists
+# after editing the glyph list
 bun run icons:subset
-git add app/fonts/MaterialSymbolsRounded-subset.woff2
+bun run icons:check
+git add app/fonts/MaterialSymbolsRounded-subset.woff2 \
+        app/fonts/MaterialSymbolsRounded-subset.json
 ```
 
 ## Where each library is allowed
@@ -46,26 +50,46 @@ Both live in `components/dashboard/network-status.tsx` and are covered by DESIGN
 
 ## Adding a glyph
 
-> ⚠️ WARNING: `MaterialSymbolName` and `ICONS` are **hand-synced, and nothing verifies they agree.** There is no `icons:check` gate, and `icons:subset` is deliberately not part of `bun run package`.
+Because the typeface is ligature-driven — the component renders the literal text `cell_tower` and the font substitutes a glyph for it — a name the type permits but the shipped subset lacks does **not** fail the build. It type-checks, it builds, and it ships a card that renders the literal word `sim_card` to a technician standing at a mast. This is the one failure mode in the icon system that is invisible until it reaches a device: there is no runtime error to trace, because a ligature font failing to substitute is just a font drawing the letters it was given.
 
-Because the typeface is ligature-driven — the component renders the literal text `cell_tower` and the font substitutes a glyph for it — a name present in the TS union but absent from the shipped subset does **not** fail the build. It type-checks, it builds, and it ships a card that renders the literal word `sim_card` to a technician standing at a mast. This is the one failure mode in the icon system that is invisible until it reaches a device.
+The procedure is two steps:
 
-The procedure is three steps, all in one change:
+1. Add the ligature name to `MATERIAL_SYMBOL_NAMES` in `components/ui/material-symbol-names.ts`, **keeping the array sorted**.
+2. Run `bun run icons:subset`, then **commit the regenerated `.woff2` and `.json` together**.
 
-1. Add the ligature name to `MaterialSymbolName` in `components/ui/material-symbol.tsx`, keeping the union sorted.
-2. Add the identical string to `ICONS` in `scripts-dev/subset-icons.mjs`, keeping that list sorted too.
-3. Run `bun run icons:subset` and **commit the regenerated `app/fonts/MaterialSymbolsRounded-subset.woff2`**.
+There is no second list to keep in step. `MaterialSymbolName` is derived from the array (`(typeof MATERIAL_SYMBOL_NAMES)[number]`) and the generator imports the same array, so the compiler and the font cannot disagree about which glyphs exist. That used to be two hand-maintained copies with nothing checking them; the duplication was removed rather than policed.
 
-A name added only to the generator is dead weight in the font. A name added only to the union is the field failure above.
+Sorting is enforced, and not for tidiness: it keeps "we added one glyph" a one-line diff, and stops two people who each append to the end in the same week from colliding on the same line.
+
+### What `icons:check` actually proves
+
+The remaining hazard is the **committed font going stale**. Editing the list is one text edit; regenerating the font is a network round-trip plus a `git add` of a binary — that is the half people skip, and skipping it produces a clean diff, a passing `tsc`, a successful `next build`, and a broken device.
+
+WOFF2 cannot be cheaply introspected: it is Brotli-compressed with per-table transforms, so reading its ligature table needs a real font parser. Rather than take that dependency, **the generator testifies** — `icons:subset` writes `MaterialSymbolsRounded-subset.json` recording the exact names requested, the axis string, the byte count, and the sha256 of the bytes received. `icons:check` compares the committed font against that testimony and fails the build on any mismatch. It catches:
+
+| Failure | How it is caught |
+|---------|------------------|
+| Glyph added to the list, font not regenerated | name in the array but not in `manifest.icons` |
+| Font cut from a stale list | name in `manifest.icons` but not in the array |
+| List left unsorted | direct sort comparison, names the first offending entry |
+| Font hand-edited, truncated, or corrupted in transit | byte count, then sha256 |
+| `FILL` axis collapsed to a pinned value | `manifest.axes` vs `MATERIAL_SYMBOL_AXES` — a change no glyph list can reveal |
+| Glyph carried with no call site | **warning only**, see below |
+
+> ⚠️ WARNING: the unused-glyph scan is a **substring search, not a resolver.** A name that also reads as an ordinary string — `check`, `info`, `home`, `router` — looks used even when it is not, so the scan can miss dead weight. It must never fail the build over one.
+
+**Stated honestly, this proves the `.woff2` is the file the generator produced for this list and these axes. It does not re-derive the glyphs from the font's own tables**, so a hand-edited font committed alongside a hand-edited manifest would pass. That is not a realistic accident, and it is the price of staying dependency-free.
 
 ### How the generator works
 
-`scripts-dev/subset-icons.mjs` asks Google Fonts for a CSS file with an `icon_names=` parameter, which performs the subsetting **server side**, then follows the `url(...)` in the response and downloads the WOFF2. Two constraints are load-bearing:
+`scripts-dev/subset-icons.ts` asks Google Fonts for a CSS file with an `icon_names=` parameter, which performs the subsetting **server side**, then follows the `url(...)` in the response and downloads the WOFF2. Two constraints are load-bearing:
 
 - **`FILL` must stay a range (`0..1`), never a pinned value.** Pinning it collapses the variable axis and the active nav row's filled-glyph affordance silently stops working. The URL requests `opsz,wght,FILL,GRAD@20..48,400,0..1,0`.
 - **A desktop `User-Agent` is sent on both requests.** Google serves WOFF2 only to user agents it believes support it.
 
-The full family is roughly 3.4 MB, which is why the subset exists at all: QManager is served *by* the modem, which frequently has no internet, so a `fonts.googleapis.com` link at runtime would render a page of literal words. The subset grew from 19 glyphs / 10.4 KB to 53 glyphs / 19.3 KB when the boundary moved to include the dashboard.
+The full family is roughly 3.4 MB, which is why the subset exists at all: QManager is served *by* the modem, which frequently has no internet, so a `fonts.googleapis.com` link at runtime would render a page of literal words. The subset grew from 19 glyphs / 10.4 KB to **56 glyphs / 20.2 KB** when the boundary moved to include the dashboard.
+
+`MATERIAL_SYMBOL_NAMES` lives in its own **import-free** module on purpose. `subset-icons.ts` is run by bun from `scripts-dev/`, which `tsconfig.json` excludes, so pulling the list out of `material-symbol.tsx` would couple font generation to React and the `@/` path alias. The array is referenced only at type level by the component, so bundlers tree-shake it — verified absent from the production chunks, meaning the modem never downloads the 56 strings.
 
 ## The sizing gotcha
 
@@ -136,9 +160,11 @@ The rule that generalises, DESIGN.md's **Identity-Chip Rule**: *where a chip car
 
 ## Known Risks
 
-- **No verifier on the two glyph lists.** Described above. An `icons:check` gate was considered and declined for now; this change was verified by hand. If a future change adds many glyphs at once, add the gate rather than trusting the review.
-- **`icons:subset` is not in `bun run package`.** The font is a committed artifact, so a forgotten regeneration ships a stale font with a green build.
-- **The generator needs network access** (Google Fonts). It cannot run on the modem, and it cannot run in an offline CI job.
+- **The manifest is testimony, not proof.** `icons:check` verifies the font is the artifact the generator reported producing; it does not parse the font's ligature table. A hand-edited font plus a matching hand-edited manifest would pass. Accepted deliberately — the alternative is a font-parser dependency.
+- **The unused-glyph scan under-reports.** It is a substring search, so common words (`check`, `info`, `home`, `router`) always read as used. Warning-only by design; never make it fail the build.
+- **The generator needs network access** (Google Fonts). It cannot run on the modem, and it cannot run in an offline CI job — which is precisely why the *check* is offline and dependency-free while the *generator* is not. `icons:check` is in `bun run package`; `icons:subset` deliberately is not.
+
+*Resolved:* the two hand-synced glyph lists and the missing `icons:check` gate were both live risks here until the list was collapsed to a single source of truth and the manifest gate landed.
 
 ## Related
 

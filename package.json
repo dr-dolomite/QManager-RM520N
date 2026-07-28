@@ -9,9 +9,10 @@
     "lint": "eslint",
     "i18n:check": "bun run lib/i18n/check.ts",
     "lang": "bun run scripts-dev/lang.ts",
-    "package": "bash scripts/test/run-all.sh && bun --bun next build && bash build.sh",
+    "package": "bash scripts/test/run-all.sh && bun run icons:check && bun --bun next build && bash build.sh",
     "test:harness": "bash scripts/test/run-harnesses.sh",
-    "icons:subset": "node scripts-dev/subset-icons.mjs"
+    "icons:subset": "bun run scripts-dev/subset-icons.ts",
+    "icons:check": "bun run scripts-dev/check-icons.ts"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

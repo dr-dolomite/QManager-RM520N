@@ -246,7 +246,7 @@
     "iconLibraries": [
       {
         "name": "Material Symbols Rounded",
-        "scope": "Sidebar navigation AND the dashboard route (every dashboard card body). Self-hosted subset (app/fonts/MaterialSymbolsRounded-subset.woff2, 53 glyphs), never a CDN link. FILL 1 for the active nav item, FILL 0 for inactive. The boundary is per-route, not per-component: the failure the rule prevents is two icon sets inside one screen. MaterialSymbol sets fontSize inline, so parent auto-sizing utilities such as badge.tsx [&>svg]:size-3 cannot reach it; every call site passes `size` explicitly. Adding a glyph means editing BOTH the MaterialSymbolName union and scripts-dev/subset-icons.mjs, then re-running `bun run icons:subset` and committing the WOFF2. Nothing verifies the two lists agree."
+        "scope": "Sidebar navigation AND the dashboard route (every dashboard card body). Self-hosted subset (app/fonts/MaterialSymbolsRounded-subset.woff2, 56 glyphs), never a CDN link. FILL 1 for the active nav item, FILL 0 for inactive. The boundary is per-route, not per-component: the failure the rule prevents is two icon sets inside one screen. MaterialSymbol sets fontSize inline, so parent auto-sizing utilities such as badge.tsx [&>svg]:size-3 cannot reach it; every call site passes `size` explicitly. Adding a glyph means editing the single canonical list MATERIAL_SYMBOL_NAMES in components/ui/material-symbol-names.ts (kept sorted), then re-running `bun run icons:subset` and committing the WOFF2 and its manifest .json together. MaterialSymbolName is derived from that array and the subset generator imports it, so the type and the font cannot disagree; `bun run icons:check` runs inside `bun run package` and fails on a stale font, an unsorted list, or a collapsed FILL axis."
       },
       {
         "name": "Lucide",
@@ -584,7 +584,7 @@
       "Do keep tabular-nums on every live value and font-mono on machine output and identifiers.",
       "Do keep Material Symbols Rounded inside the sidebar and the dashboard route, lucide on every other route, and self-host the Material subset rather than linking Google's CDN.",
       "Do pass `size` explicitly on every MaterialSymbol; its inline fontSize outranks the parent's auto-sizing utilities.",
-      "Do add a new glyph to the MaterialSymbolName union AND scripts-dev/subset-icons.mjs, then re-run `bun run icons:subset` and commit the regenerated WOFF2 in the same change. Nothing verifies the two lists agree, and a name in the union but absent from the font ships the literal word on a modem in the field.",
+      "Do add a new glyph to MATERIAL_SYMBOL_NAMES in components/ui/material-symbol-names.ts, keeping the array sorted, then re-run `bun run icons:subset` and commit the regenerated WOFF2 and its manifest .json in the same change. A name the type permits but the font lacks ships the literal word on a modem in the field; `bun run icons:check` fails the build if the font is stale.",
       "Do encode quality non-chromatically (bar count, glyph ladder) whenever a chip's fill is spent on identity.",
       "Do keep metric value tints on the functional palette for both radios, using the darkened -on-surface ink steps (5.88 / 5.95 on surface-container in light) rather than the solid role tokens (4.29 / 3.74, both below AA), and add an sr-only quality word after each tinted value.",
       "Do test both themes, and measure the worst text pairing on each new surface before merge.",

@@ -4,6 +4,8 @@ import * as React from "react";
 
 import { cn } from "@/lib/utils";
 
+import type { MaterialSymbolName } from "./material-symbol-names";
+
 // =============================================================================
 // MaterialSymbol — the shell's icon primitive
 // =============================================================================
@@ -38,71 +40,11 @@ import { cn } from "@/lib/utils";
 //      is what `filled` buys, and it is an accessibility affordance, not polish.
 // =============================================================================
 
-/**
- * Ligature names present in the build-time subset (app/fonts/…-subset.woff2).
- *
- * MUST stay sorted and byte-identical to ICONS in scripts-dev/subset-icons.mjs.
- * Nothing verifies the two agree: a name here but not there does not fail the
- * build, it ships a card that renders the literal word "sim_card" on a modem in
- * the field. Re-run `bun run icons:subset` and commit the .woff2 on every edit.
- */
-export type MaterialSymbolName =
-  | "account_circle"
-  | "airplanemode_active"
-  | "arrow_circle_down"
-  | "arrow_circle_up"
-  | "arrow_downward"
-  | "arrow_upward"
-  | "badge"
-  | "cancel"
-  | "cell_tower"
-  | "check"
-  | "check_circle"
-  | "chevron_right"
-  | "close"
-  | "dns"
-  | "do_not_disturb_on"
-  | "donut_small"
-  | "download"
-  | "energy_savings_leaf"
-  | "event_busy"
-  | "favorite"
-  | "help"
-  | "home"
-  | "info"
-  | "memory"
-  | "network_ping"
-  | "open_in_new"
-  | "pets"
-  | "play_arrow"
-  | "power_settings_new"
-  | "priority_high"
-  | "progress_activity"
-  | "public"
-  | "radar"
-  | "refresh"
-  | "restart_alt"
-  | "router"
-  | "schedule"
-  | "settings"
-  | "settings_ethernet"
-  | "signal_cellular_1_bar"
-  | "signal_cellular_2_bar"
-  | "signal_cellular_3_bar"
-  | "signal_cellular_4_bar"
-  | "signal_cellular_alt"
-  | "signal_cellular_off"
-  | "sms"
-  | "support"
-  | "swap_horiz"
-  | "terminal"
-  | "timeline"
-  | "tune"
-  | "unfold_more"
-  | "visibility"
-  | "visibility_off"
-  | "vpn_lock"
-  | "warning";
+// The glyph list lives in its own import-free module because the font-subset
+// script must read it without loading React or the `@/` path alias. It is the
+// single source of truth for both the type below and the .woff2 — see the
+// header there. Re-exported so call sites keep importing the type from here.
+export type { MaterialSymbolName } from "./material-symbol-names";
 
 export interface MaterialSymbolProps
   extends Omit<React.ComponentPropsWithoutRef<"span">, "children"> {
