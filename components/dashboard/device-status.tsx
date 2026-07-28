@@ -14,38 +14,13 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { Eye, EyeOff } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { staggerContainer, staggerItem } from "@/lib/motion";
+import { TickValue } from "@/components/ui/tick-value";
+import { staggerRows, staggerRowItem } from "@/lib/motion";
 
 import { formatUptime, type DeviceStatus } from "@/types/modem-status";
 import packageJson from "@/package.json";
 
 const MASK = "••••••••••••";
-
-/**
- * Live value tick (DESIGN.md > Motion > "Live value tick"): an 180ms opacity
- * dip when the rendered text changes, and nothing else — no fade-out-then-in,
- * no layout shift, no color flash. Driven by remounting on a key derived from
- * the value itself, so a poll that returns the same string animates nothing.
- * Opacity-only, so it survives `prefers-reduced-motion` intact and stays
- * non-load-bearing: the final text is correct whether or not the dip runs.
- */
-const TickValue = ({
-  value,
-  className,
-}: {
-  value: string;
-  className?: string;
-}) => (
-  <motion.span
-    key={value}
-    initial={{ opacity: 0.3 }}
-    animate={{ opacity: 1 }}
-    transition={{ duration: 0.18, ease: "easeOut" }}
-    className={className}
-  >
-    {value}
-  </motion.span>
-);
 
 interface DeviceStatusComponentProps {
   data: DeviceStatus | null;
@@ -172,9 +147,18 @@ const DeviceStatusComponent = ({
           </div>
         </div>
 
+        {/* `staggerRows`, not `staggerContainer`. These are nine rows sharing
+            one card's border, which the eye groups as a single object, so they
+            take the 40ms row step: 9 x 40ms lands the last row at 360ms. On the
+            60ms card step this card ran 540ms — long enough past the ~2s poll's
+            first paint that the tail read as the card still loading rather than
+            as choreography, which is precisely the pre-migration feel. Paired
+            with `staggerRowItem`'s 5px rise for the same reason: at the 6px row
+            gap, the card variant's 10px lift carried each row past its
+            neighbour's resting position and the group read as a reflow. */}
         <motion.dl
           className="flex flex-col gap-1.5"
-          variants={staggerContainer}
+          variants={staggerRows}
           initial="hidden"
           animate="visible"
         >
@@ -184,7 +168,7 @@ const DeviceStatusComponent = ({
             return (
               <motion.div
                 key={row.label}
-                variants={staggerItem}
+                variants={staggerRowItem}
                 className="flex items-center justify-between gap-3 rounded-pill bg-surface-container px-[15px] py-2.5"
               >
                 <dt className="text-sm font-semibold text-on-surface-variant">

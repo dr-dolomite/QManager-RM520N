@@ -644,19 +644,31 @@ own `@media (prefers-reduced-motion: reduce)` off-switch.
 - **Card cascade.** `staggerContainer` and `staggerItem` from `lib/motion.ts`, a 60ms step, each child
   rising 10px over `standard`. Import them rather than re-declaring local copies. Keep the 60ms step:
   wider and the last card feels late behind a slow poll.
-- **Row cascade.** `staggerRows` from `lib/motion.ts`, a 40ms step, for rows *inside* one card (metric
-  rows, test results, band rows, activity entries). Denser than the card step on purpose: a cascade's
-  total length is the step times the child count, so a card holding a dozen rows would take most of a
-  second to finish at 60ms and read as still loading. Rows inside a shared border are also grouped by
-  the eye as one object, so they should arrive nearly together. **Choosing between the two: if the
-  children are cards, use `staggerContainer`; if they are rows sharing one card's border, use
-  `staggerRows`.** These two are the only stagger steps in the product; no surface declares its own.
+- **Row cascade.** `staggerRows` and `staggerRowItem` from `lib/motion.ts`, a 40ms step, for rows
+  *inside* one card (metric rows, test results, band rows, activity entries). `staggerRowItem` is the
+  child that pairs with `staggerRows`, exactly as `staggerItem` pairs with `staggerContainer`. The step
+  is denser than the card step on purpose: a cascade's total length is the step times the child count,
+  so a card holding a dozen rows would take most of a second to finish at 60ms and read as still
+  loading. Rows inside a shared border are also grouped by the eye as one object, so they should arrive
+  nearly together. The rise is shorter too, **5px rather than the card's 10px**, and for the same
+  reason it is not a taste call: rows inside one card sit at ~6px spacing, so a 10px lift carries each
+  row past its own neighbour's resting position and the group reads as the card reflowing rather than
+  as content arriving. Cards sit in a 16px page gutter, where 10px still reads as a lift. **Choosing
+  between the two: if the children are cards, use `staggerContainer`/`staggerItem`; if they are rows
+  sharing one card's border, use `staggerRows`/`staggerRowItem`.** These two are the only stagger steps
+  in the product; no surface declares its own. One implementation trap: a cascade child must be a
+  block or `inline-flex` box. Transforms are ignored on non-replaced inline boxes, so a bare
+  `motion.span` silently drops the 5px rise while still running the opacity fade, which looks like a
+  half-broken animation rather than a missing one.
 - **Nav indicator.** The active pill translates between rows over `standard` instead of appearing.
   This is the single most Material-feeling change in the shell.
 - **Meter fill.** `scaleX` from `transform-origin: left` over `standard`. Never animate width, except
   the aggregation chain, where the width *is* the data.
 - **Live value tick.** An 180ms opacity dip on a `tabular-nums` value. No fade-out-then-in, no layout
-  shift, no color flash.
+  shift, no color flash. `components/ui/tick-value.tsx` is the shared implementation (`TickValue`):
+  the dip is driven by remounting on `key={value}`, so a poll returning the same string animates
+  nothing, and there is no effect, ref or timer to leak. Import it rather than re-declaring a local
+  copy. It is also the label half of the status chip swap below.
 - **Status chip swap.** The label crossfades over `quick` while the container color morphs over
   `standard`, so the state change is felt before it is read. The icon always changes with the color.
 - **Aggregation re-proportion.** Segment widths animate over `emphasized` when a carrier is added or
@@ -1160,7 +1172,7 @@ step is independently shippable and leaves the product correct.
 |------|-------|-------|
 | 1 | **Tokens in `globals.css`.** Container roles, tinted surface steps, retuned amber, info aliased to the brand ramp, ring tone steps, the shape scale as additive role radii, motion curves and durations. No component touched; the product changes color and stays correct. | **Landed** |
 | 2 | **Shell and shape scale.** Sidebar pills with the sliding indicator and the self-hosted Material Symbols Rounded subset, the role radii applied to cards and controls (retiring the legacy `--radius` chain), the new mark wired in (`public/qmanager-mark.svg` is already in the tree, currently unreferenced). | **Partial.** Nav half landed. The dashboard's own cards now carry role radii (`rounded-hero` on the two hero cards, `rounded-card` on the rest). The legacy `--radius` chain is still live everywhere else: `rounded-md` alone has 114 call sites, so retargeting it silently would be a regression, not a migration. |
-| 3 | **Chips, banners, and the dashboard.** Flip the badge pattern to filled chips, retarget the banners to the eight-role system (`SimSwapBanner` first — it is the reference anatomy), adopt containers and pill rows on the status cards (Network Status keeps its icons), land the Carrier Aggregation strip. | **Landed.** The Banner System shipped as `components/ui/banner.tsx` (all eight roles; 01/02/03/05/07 mounted, 04/06/08 available but unmounted). **The badge flip is done**: the five chip roles live in `components/ui/badge.tsx`'s `cva`, all 90+ call sites across 33 files render `variant="…"`, four tone maps key onto the exported `BadgeVariant` type, and the `CLAUDE.md` table now documents the filled chip. **The Carrier Aggregation strip has landed** (`components/dashboard/carrier-aggregation.tsx` plus the pure view model in `lib/carrier-aggregation.ts`), mounted `col-span-full` and replacing the deleted `scc-status.tsx`; the dashboard's carrier surfaces now carry pill metric rows on `surface-container`, filled quality chips and identity-toned band pills. Step 3 is closed. |
+| 3 | **Chips, banners, and the dashboard.** Flip the badge pattern to filled chips, retarget the banners to the eight-role system (`SimSwapBanner` first — it is the reference anatomy), adopt containers and pill rows on the status cards (Network Status keeps its icons), land the Carrier Aggregation strip. | **Landed.** The Banner System shipped as `components/ui/banner.tsx` (all eight roles; 01/02/03/05/07 mounted, 04/06/08 available but unmounted). **The badge flip is done**: the five chip roles live in `components/ui/badge.tsx`'s `cva`, all 90+ call sites across 33 files render `variant="…"`, four tone maps key onto the exported `BadgeVariant` type, and the `CLAUDE.md` table now documents the filled chip. **The Carrier Aggregation strip has landed** (`components/dashboard/carrier-aggregation.tsx` plus the pure view model in `lib/carrier-aggregation.ts`), mounted `col-span-full` and replacing the deleted `scc-status.tsx`; the dashboard's carrier surfaces now carry pill metric rows on `surface-container`, filled quality chips and identity-toned band pills. Step 3 is closed. **The three retargeted cards now also carry the motion canon**: Network Status, Device Information and the 4G/5G Primary Status card had tonal surfaces but no state-change motion, and were animating only via the outer card cascade. They now use `staggerRows`/`staggerRowItem` for their in-card rows, the shared `TickValue` for live readings and orb labels, `standard` colour transitions on containers (chips, orb fills, ring tones, the core disc, band pills) and `quick` ones on ink and focus rings. `components/ui/metric-bar.tsx` lost its spring in the same pass: a spring settles by oscillating, which the Settled-Motion Rule bans outright, and it made a 61% meter overshoot to ~64 and rock back. This is refinement inside step 3, not a new step. |
 | 3b | **Token debt owed by step 3.** Move dark `--destructive` to the canon value and promote `--border` to `--outline` (see "held one step off" above). | **Deferred, with cause.** Neither is a drop-in. Dark `--destructive` at the canon `oklch(0.77 0.175 25)` measures **2.42:1** against white ink — below even the 3:1 large-text floor. `Button` and `Badge` escape only because they override with `dark:bg-destructive/60` (5.28:1 composited); ~20 other surfaces use `bg-destructive` at full opacity and would regress. `--border` is gated on cards dropping their hairlines, which has not happened, and step 4 keeps hairlines in the dense tables deliberately — promoting it now would make the very hairlines this system retires *more* prominent. Both move when their blockers clear, not before. |
 | 3c | **Identity colour outside the token system.** Retire the connection-scenario gradient palette and move scenario identity onto glyphs; convert the profile apply dialog's deferred-reboot wash to the Banner primitive. | **Landed.** `gradientOptions` (12 raw Tailwind gradients) and `getRingColor()` (12 `ring-*-500` classes selected by substring-matching the gradient) are gone. Scenario tiles are `surface-container` with a filled `bg-primary` glyph disc, and identity is a persisted glyph key resolved through `scenario-icons.ts`. `AbstractPattern` now draws in `currentColor`, so the texture follows the theme instead of assuming a dark tile. |
 | 4 | **Dense pages.** Cell Scanner, log views, and SMS adopt the new tokens while keeping hairline rows. This is where the system is proven or corrected. | Not started |

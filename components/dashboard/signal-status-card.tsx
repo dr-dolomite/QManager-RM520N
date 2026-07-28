@@ -19,8 +19,9 @@ import {
   getSignalQuality,
   type SignalThresholds,
 } from "@/types/modem-status";
-import { rowVariants, getValueColorClass } from "./signal-card-utils";
-import { staggerRows } from "@/lib/motion";
+import { TickValue } from "@/components/ui/tick-value";
+import { getValueColorClass } from "./signal-card-utils";
+import { staggerRows, staggerRowItem } from "@/lib/motion";
 
 /** Which radio leg this card describes. Drives the identity tone only: blue is
  *  the 5G NR leg, violet the 4G LTE leg. Neither ever acts as a control. */
@@ -155,7 +156,10 @@ export function SignalStatusCard({
           </span>
           <span className="flex items-center gap-1.5 text-xs text-on-surface-variant">
             <span
-              className={cn("size-2 shrink-0 rounded-pill", stateDisplay.dot)}
+              className={cn(
+                "size-2 shrink-0 rounded-pill transition-colors duration-(--duration-standard) ease-standard",
+                stateDisplay.dot,
+              )}
               aria-hidden
             />
             {t(`signal_card.${stateDisplay.key}`)}
@@ -189,7 +193,7 @@ export function SignalStatusCard({
           return (
             <motion.div
               key={row.label}
-              variants={rowVariants}
+              variants={staggerRowItem}
               className="flex items-center justify-between gap-3 rounded-pill bg-surface-container px-4 py-2.5"
             >
               <dt className="text-sm font-medium text-on-surface-variant">
@@ -199,22 +203,31 @@ export function SignalStatusCard({
                   chip rather than as absent data, so a missing band falls back
                   to plain ink. */}
               {row.asIdentity && row.value !== "-" ? (
+                // The band is an identifier, not a measurement: it changes on a
+                // handover, not on a poll. So it takes the container morph
+                // (`standard`) and NOT the live tick — dipping a value that
+                // holds steady for minutes would invent an event.
                 <dd
                   className={cn(
-                    "m-0 shrink-0 rounded-pill px-2.5 py-1 font-mono text-xs font-semibold",
+                    "m-0 shrink-0 rounded-pill px-2.5 py-1 font-mono text-xs font-semibold transition-colors duration-(--duration-standard) ease-standard",
                     identityTone,
                   )}
                 >
                   {row.value}
                 </dd>
               ) : (
+                // Measurements, and the reason this card needed the tick at
+                // all: RSRP/RSRQ/SINR redraw every ~2s. Without the dip the
+                // digits change with no acknowledgement at all, which is why
+                // the card read as static despite the new tonal surfaces. Ink
+                // colour is the `quick` clock; only containers get `standard`.
                 <dd
                   className={cn(
-                    "m-0 font-mono text-sm font-semibold tabular-nums",
+                    "m-0 font-mono text-sm font-semibold tabular-nums transition-colors duration-(--duration-quick) ease-quick",
                     valueColor,
                   )}
                 >
-                  {row.value}
+                  <TickValue value={row.value} />
                 </dd>
               )}
             </motion.div>

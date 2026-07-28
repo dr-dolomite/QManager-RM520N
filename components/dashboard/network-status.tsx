@@ -1,11 +1,19 @@
 "use client";
 
 import React from "react";
+import { motion } from "motion/react";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
 
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { TickValue } from "@/components/ui/tick-value";
+import {
+  DUR,
+  EASE_QUICK,
+  staggerRows,
+  staggerRowItem,
+} from "@/lib/motion";
 import {
   CardSimIcon,
   ClockIcon,
@@ -200,14 +208,26 @@ const serviceColorMap: Record<
 // the hero surface needs its two live signals to read at a glance, and an
 // outline chip on a borderless 40px card reads as debris.
 
+// Two clocks, per DESIGN.md > Motion > "Status chip swap" (Motion Guide recipe
+// 05). The container's fill and ink morph over `standard` through this CSS
+// transition; the contents crossfade over `quick` through the keyed span in the
+// body. The state change is therefore FELT peripherally — a 300ms colour mass
+// moving at the edge of vision — before it is READ. Collapsing both onto one
+// clock loses that ordering, and running the container at `quick` reads as a
+// flicker, which is exactly why the old 140-160ms floor was retired.
 const CHIP_BASE =
-  "inline-flex items-center gap-[7px] rounded-full text-xs font-semibold py-[7px] pr-[13px] pl-[11px]";
+  "inline-flex items-center gap-[7px] rounded-full text-xs font-semibold py-[7px] pr-[13px] pl-[11px] transition-colors duration-(--duration-standard) ease-standard";
 
 function Chip({
   tone,
+  swapKey,
   children,
 }: {
   tone: "success" | "warning" | "muted";
+  /** Identity of the current contents. When it changes the label and glyph
+   *  crossfade; when it does not, a poll returning the same state animates
+   *  nothing. Callers pass the label, which is what actually changes. */
+  swapKey: string;
   children: React.ReactNode;
 }) {
   const toneCls =
@@ -216,7 +236,22 @@ function Chip({
       : tone === "warning"
         ? "bg-warning-container text-on-warning-container"
         : "bg-surface-container-high text-on-surface-variant";
-  return <span className={`${CHIP_BASE} ${toneCls}`}>{children}</span>;
+  return (
+    <span className={`${CHIP_BASE} ${toneCls}`}>
+      {/* The inner span carries the gap so the crossfade wraps glyph and label
+          together: they are one statement, and fading the word while the icon
+          holds would let the two disagree for 180ms. */}
+      <motion.span
+        key={swapKey}
+        initial={{ opacity: 0.35 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: DUR.quick, ease: EASE_QUICK }}
+        className="inline-flex items-center gap-[7px]"
+      >
+        {children}
+      </motion.span>
+    </span>
+  );
 }
 
 // ─── Radio chip ───────────────────────────────────────────────────────────
@@ -355,15 +390,27 @@ function CornerBadge({ state }: { state: "ok" | "warn" | "fail" }) {
   return (
     <span
       aria-hidden="true"
-      className={`absolute top-[4px] right-[14px] grid size-7 place-items-center rounded-full ${cls} ${BADGE_SHADOW}`}
+      className={`absolute top-[4px] right-[14px] grid size-7 place-items-center rounded-full transition-colors duration-(--duration-standard) ease-standard ${cls} ${BADGE_SHADOW}`}
     >
-      {state === "ok" ? (
-        <FaCheck className="size-[17px]" />
-      ) : state === "warn" ? (
-        <TriangleAlertIcon className="size-[17px]" />
-      ) : (
-        <FaXmark className="size-[17px]" />
-      )}
+      {/* The badge is a 28px disc, so its fill morph is small enough to miss.
+          Crossfading the glyph on the `quick` clock is what makes the change
+          legible at that size — and the glyph is the half that survives
+          greyscale and deuteranopia, so it is the half that must not snap. */}
+      <motion.span
+        key={state}
+        initial={{ opacity: 0.35 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: DUR.quick, ease: EASE_QUICK }}
+        className="grid place-items-center"
+      >
+        {state === "ok" ? (
+          <FaCheck className="size-[17px]" />
+        ) : state === "warn" ? (
+          <TriangleAlertIcon className="size-[17px]" />
+        ) : (
+          <FaXmark className="size-[17px]" />
+        )}
+      </motion.span>
     </span>
   );
 }
@@ -377,11 +424,18 @@ function simBadgeState(status: ServiceStatus): "ok" | "warn" | "fail" {
 }
 
 // ─── Orb label block ──────────────────────────────────────────────────────
+// Both lines swap on real state changes only — the RAT label on a handover, the
+// carrier and service lines when the network moves. They are label swaps, so
+// they take `quick`, and the block is centre-aligned, which is what lets a
+// width change ride under the crossfade without the text appearing to slide.
 function OrbLabel({ title, subtitle }: { title: string; subtitle: string }) {
   return (
     <div className="flex flex-col gap-[3px] text-center">
-      <span className="text-base leading-none font-semibold">{title}</span>
-      <span className="text-sm text-on-surface-variant">{subtitle}</span>
+      <TickValue
+        value={title}
+        className="text-base leading-none font-semibold"
+      />
+      <TickValue value={subtitle} className="text-sm text-on-surface-variant" />
     </div>
   );
 }
@@ -441,6 +495,18 @@ const NetworkStatusComponent = ({
   const isServiceActive =
     serviceStatus === "optimal" || serviceStatus === "connected";
 
+  // The core disc's verdict, named once so the glyph's crossfade key and the
+  // glyph itself can never disagree about which state is being drawn — keying
+  // a swap on a value re-derived beside the branch is how a crossfade silently
+  // stops firing.
+  const coreState: "off" | "ok" | "warn" | "fail" = isAirplaneMode
+    ? "off"
+    : isServiceActive
+      ? "ok"
+      : serviceStatus === "searching" || serviceStatus === "limited"
+        ? "warn"
+        : "fail";
+
   // Whether we have a real network (LTE/5G), not fallback 3G
   const hasNetwork = networkDisplay.hasNetwork;
 
@@ -471,60 +537,108 @@ const NetworkStatusComponent = ({
         ) : (
           // flex-wrap so up to three chips break BETWEEN pills on a phone
           // rather than overflowing the hero or wrapping inside a pill.
-          <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
+          //
+          // The rail cascades on the row step when data first lands. It is the
+          // shorter of the card's two groups and sits above the orbs, so it
+          // reads as the first beat of one entrance rather than as a second,
+          // competing one.
+          <motion.div
+            className="ml-auto flex flex-wrap items-center justify-end gap-2"
+            variants={staggerRows}
+            initial="hidden"
+            animate="visible"
+          >
             {/* Stale — stays a CARD-scoped chip. "Your last poll was late" is
-                not an assertive alert; promoting it to a banner would cry wolf. */}
+                not an assertive alert; promoting it to a banner would cry wolf.
+
+                Every rail item wraps in an `inline-flex` span, not a bare one:
+                transforms are ignored on non-replaced inline boxes, so the row
+                item's 5px rise would silently do nothing while the opacity
+                half still ran — a half-working entrance that reads as a design
+                choice rather than as the bug it is. */}
             {isStale && (
-              <Chip tone="warning">
-                <ClockIcon className="size-[15px] shrink-0" />
-                {t("network.data_delayed_badge")}
-              </Chip>
+              <motion.span variants={staggerRowItem} className="inline-flex">
+                <Chip tone="warning" swapKey="stale">
+                  <ClockIcon className="size-[15px] shrink-0" />
+                  {t("network.data_delayed_badge")}
+                </Chip>
+              </motion.span>
             )}
 
             {/* Radio */}
-            <Chip tone={radio.tone}>
-              {radio.icon}
-              {radio.label}
-            </Chip>
+            <motion.span variants={staggerRowItem} className="inline-flex">
+              <Chip tone={radio.tone} swapKey={radio.label}>
+                {radio.icon}
+                {radio.label}
+              </Chip>
+            </motion.span>
 
             {/* Internet */}
-            {internet.tooltip ? (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <button
-                    type="button"
-                    // The chip is 30px tall; `before:` lifts the hit area to
-                    // the 44px touch floor without shifting any layout.
-                    className="relative rounded-full before:absolute before:-inset-[7px] before:content-[''] focus-visible:ring-ring focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
-                  >
-                    <Chip tone={internet.tone}>
-                      <InternetDot chip={internet} />
-                      {internet.label}
-                    </Chip>
-                  </button>
-                </TooltipTrigger>
-                <TooltipContent>{internet.tooltip}</TooltipContent>
-              </Tooltip>
-            ) : (
-              <Chip tone={internet.tone}>
-                <InternetDot chip={internet} />
-                {internet.label}
-              </Chip>
-            )}
-          </div>
+            <motion.span variants={staggerRowItem} className="inline-flex">
+              {internet.tooltip ? (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      type="button"
+                      // The chip is 30px tall; `before:` lifts the hit area to
+                      // the 44px touch floor without shifting any layout.
+                      //
+                      // The ring arrives over `quick` and is never animated
+                      // away: a focus ring that fades out on blur trails the
+                      // caret through a keyboard pass and reads as lag, which
+                      // is why only the appearing half is transitioned.
+                      className="relative rounded-full transition-[box-shadow] duration-(--duration-quick) ease-quick before:absolute before:-inset-[7px] before:content-[''] focus-visible:ring-ring focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
+                    >
+                      <Chip tone={internet.tone} swapKey={internet.label}>
+                        <InternetDot chip={internet} />
+                        {internet.label}
+                      </Chip>
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent>{internet.tooltip}</TooltipContent>
+                </Tooltip>
+              ) : (
+                <Chip tone={internet.tone} swapKey={internet.label}>
+                  <InternetDot chip={internet} />
+                  {internet.label}
+                </Chip>
+              )}
+            </motion.span>
+          </motion.div>
         )}
       </div>
 
-      {/* ── Three orbs ── */}
-      <div className="grid grid-cols-1 gap-4 place-items-center @lg/card:grid-cols-3">
-        {/* === Orb 1 — Radio / RAT === */}
-        {isLoading ? (
+      {/* ── Three orbs ──
+          One branch, not three: the cascade has to key on the skeleton→data
+          handoff, and with a ternary per orb the wrapper grid persists across
+          that handoff, so a container mounted with the skeletons would have
+          fired its entrance against placeholder geometry and left the real
+          orbs to appear with no motion at all. */}
+      {isLoading ? (
+        <div className="grid grid-cols-1 gap-4 place-items-center @lg/card:grid-cols-3">
           <OrbSkeleton />
-        ) : (
-          <div className="flex flex-col items-center gap-2.5">
+          <OrbSkeleton />
+          <OrbSkeleton />
+        </div>
+      ) : (
+        <motion.div
+          className="grid grid-cols-1 gap-4 place-items-center @lg/card:grid-cols-3"
+          variants={staggerRows}
+          initial="hidden"
+          animate="visible"
+        >
+          {/* === Orb 1 — Radio / RAT === */}
+          <motion.div
+            variants={staggerRowItem}
+            className="flex flex-col items-center gap-2.5"
+          >
             <div className="relative">
+              {/* Every orb fill morphs over `standard`. These are 152px
+                  containers changing fill — the largest colour mass on the
+                  dashboard — and a hard swap on a RAT handover or an airplane
+                  toggle is the single most jarring frame the card can produce. */}
               <div
-                className={`${ORB} grid place-items-center rounded-full ${
+                className={`${ORB} grid place-items-center rounded-full transition-colors duration-(--duration-standard) ease-standard ${
                   isAirplaneMode
                     ? "bg-success-container text-on-success-container"
                     : hasNetwork
@@ -546,17 +660,16 @@ const NetworkStatusComponent = ({
               title={isAirplaneMode ? t("network.low_power") : networkLabel}
               subtitle={isAirplaneMode ? t("network.radio_off") : networkSublabel}
             />
-          </div>
-        )}
+          </motion.div>
 
-        {/* === Orb 2 — SIM / Carrier === */}
-        {isLoading ? (
-          <OrbSkeleton />
-        ) : (
-          <div className="flex flex-col items-center gap-2.5">
+          {/* === Orb 2 — SIM / Carrier === */}
+          <motion.div
+            variants={staggerRowItem}
+            className="flex flex-col items-center gap-2.5"
+          >
             <div className="relative">
               <div
-                className={`${ORB} grid place-items-center rounded-full ${
+                className={`${ORB} grid place-items-center rounded-full transition-colors duration-(--duration-standard) ease-standard ${
                   isAirplaneMode
                     ? "bg-surface-container-high text-on-surface-variant"
                     : "bg-primary-container text-on-primary-container"
@@ -580,63 +693,78 @@ const NetworkStatusComponent = ({
                   : carrier || t("network.no_carrier")
               }
             />
-          </div>
-        )}
+          </motion.div>
 
-        {/* === Orb 3 — Service ring stack ===
-            The isServiceActive gate is load-bearing: rings only breathe when
-            service is genuinely live. A pulsing ring over "No Service" would
-            animate a lie, so the inactive branch renders the same geometry
-            static. */}
-        {isLoading ? (
-          <OrbSkeleton />
-        ) : (
-          <div className="flex flex-col items-center gap-2.5">
+          {/* === Orb 3 — Service ring stack ===
+              The isServiceActive gate is load-bearing: rings only breathe when
+              service is genuinely live. A pulsing ring over "No Service" would
+              animate a lie, so the inactive branch renders the same geometry
+              static.
+
+              The ring tones morph over `standard` in BOTH branches. That is
+              the seam the gate creates: crossing it swaps the whole ramp (say
+              success → destructive) at the same instant the pulse starts or
+              stops, and without the transition the stack jump-cuts to a new
+              colour. The morph runs on background-color while the ambient loop
+              runs on transform and opacity, so the two never contend. */}
+          <motion.div
+            variants={staggerRowItem}
+            className="flex flex-col items-center gap-2.5"
+          >
             <div className={`relative ${ORB} grid place-items-center`}>
               {isServiceActive ? (
                 <>
                   <span
-                    className={`absolute size-[152px] rounded-full ${serviceColors.ring1} animate-pulse-ring`}
+                    className={`absolute size-[152px] rounded-full transition-colors duration-(--duration-standard) ease-standard ${serviceColors.ring1} animate-pulse-ring`}
                   />
                   <span
-                    className={`absolute size-[112px] rounded-full ${serviceColors.ring2} animate-pulse-ring`}
+                    className={`absolute size-[112px] rounded-full transition-colors duration-(--duration-standard) ease-standard ${serviceColors.ring2} animate-pulse-ring`}
                     style={{ animationDelay: "0.3s" }}
                   />
                   <span
-                    className={`absolute size-[80px] rounded-full ${serviceColors.ring3} animate-pulse-ring`}
+                    className={`absolute size-[80px] rounded-full transition-colors duration-(--duration-standard) ease-standard ${serviceColors.ring3} animate-pulse-ring`}
                     style={{ animationDelay: "0.6s" }}
                   />
                 </>
               ) : (
                 <>
                   <span
-                    className={`absolute size-[152px] rounded-full ${serviceColors.ring1}`}
+                    className={`absolute size-[152px] rounded-full transition-colors duration-(--duration-standard) ease-standard ${serviceColors.ring1}`}
                   />
                   <span
-                    className={`absolute size-[112px] rounded-full ${serviceColors.ring2}`}
+                    className={`absolute size-[112px] rounded-full transition-colors duration-(--duration-standard) ease-standard ${serviceColors.ring2}`}
                   />
                   <span
-                    className={`absolute size-[80px] rounded-full ${serviceColors.ring3}`}
+                    className={`absolute size-[80px] rounded-full transition-colors duration-(--duration-standard) ease-standard ${serviceColors.ring3}`}
                   />
                 </>
               )}
               <span
                 aria-hidden="true"
-                className={`relative grid size-[48px] place-items-center rounded-full ${serviceColors.center}`}
+                className={`relative grid size-[48px] place-items-center rounded-full transition-colors duration-(--duration-standard) ease-standard ${serviceColors.center}`}
               >
                 {/* The core glyph tracks service LIVENESS, not the ring tone:
                     a yellow stack just means single-band LTE, which is still a
-                    working connection and must not wear an alert glyph. */}
-                {isAirplaneMode ? (
-                  <PowerOffIcon className="size-[22px]" />
-                ) : isServiceActive ? (
-                  <FaCheck className="size-[22px]" />
-                ) : serviceStatus === "searching" ||
-                  serviceStatus === "limited" ? (
-                  <TriangleAlertIcon className="size-[22px]" />
-                ) : (
-                  <FaXmark className="size-[22px]" />
-                )}
+                    working connection and must not wear an alert glyph.
+                    Crossfaded on `quick` so the glyph and the disc fill never
+                    disagree for longer than a label swap. */}
+                <motion.span
+                  key={coreState}
+                  initial={{ opacity: 0.35 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ duration: DUR.quick, ease: EASE_QUICK }}
+                  className="grid place-items-center"
+                >
+                  {coreState === "off" ? (
+                    <PowerOffIcon className="size-[22px]" />
+                  ) : coreState === "ok" ? (
+                    <FaCheck className="size-[22px]" />
+                  ) : coreState === "warn" ? (
+                    <TriangleAlertIcon className="size-[22px]" />
+                  ) : (
+                    <FaXmark className="size-[22px]" />
+                  )}
+                </motion.span>
               </span>
             </div>
             <OrbLabel
@@ -647,9 +775,9 @@ const NetworkStatusComponent = ({
               }
               subtitle={isAirplaneMode ? t("network.radio_off") : serviceLabel}
             />
-          </div>
-        )}
-      </div>
+          </motion.div>
+        </motion.div>
+      )}
     </Card>
   );
 };

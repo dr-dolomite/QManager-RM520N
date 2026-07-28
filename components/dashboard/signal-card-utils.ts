@@ -1,19 +1,9 @@
-import type { Variants } from "motion/react";
-import { DUR, EASE_STANDARD } from "@/lib/motion";
-
-/** Fade-up entrance for individual signal metric rows. Content arriving, so it
- *  takes `standard` rather than the emphasized curve reserved for container
- *  mass. The rise is 5px rather than the shared item's 10px: these rows sit
- *  inside one card at tight spacing, and a full 10px lift reads as the card
- *  reflowing. Pair with `staggerRows` on the parent. */
-export const rowVariants: Variants = {
-  hidden: { opacity: 0, y: 5 },
-  visible: {
-    opacity: 1,
-    y: 0,
-    transition: { duration: DUR.standard, ease: EASE_STANDARD },
-  },
-};
+// The row entrance that used to be declared here is now `staggerRowItem` in
+// `lib/motion.ts`. It was never specific to signal cards — Device Information
+// needed the same 5px in-card rise and reached for the 10px card variant
+// instead, which is exactly the drift DESIGN.md's "single motion source" rule
+// exists to prevent. Import it from the canon; this file keeps only the colour
+// helper, which genuinely is signal-specific.
 
 /**
  * Maps a signal quality level to a Tailwind text-color class.
