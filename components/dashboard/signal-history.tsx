@@ -99,7 +99,7 @@ export function SignalHistoryComponent() {
   const baseValue = getBaseValue();
 
   return (
-    <Card className="@container/card">
+    <Card className="@container/card rounded-card">
       <CardHeader>
         <CardTitle className="text-2xl font-semibold @[250px]/card:text-3xl">
           {t("signal_history.title")}

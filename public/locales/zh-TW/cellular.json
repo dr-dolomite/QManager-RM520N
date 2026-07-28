@@ -1,4 +1,7 @@
 {
+  "band_locking": {
+    "controls_label": "頻段鎖定"
+  },
   "core_settings": {
     "apn": {
       "page": {
@@ -445,6 +448,7 @@
     }
   },
   "scenarios": {
+    "controls_label": "場景啟用",
     "default_balanced_name": "均衡",
     "default_gaming_name": "遊戲",
     "default_streaming_name": "流媒體"

@@ -802,10 +802,15 @@ the product, so the set is closed: eight roles, one anatomy, no per-feature vari
 
 **Anatomy** (leading glyph, content, one CTA, optional dismiss):
 
-- **Container:** `bg-{role}-container` with `text-on-{role}-container`, card radius, **no border**.
+- **Container:** `bg-{role}-container` with `text-on-{role}-container`, **field radius** (20px,
+  `rounded-field`), **no border**. Not card radius: at 36px the banner would out-round the cards
+  beneath it and invert the shape hierarchy, which is the opposite of what the shape scale is for.
 - **Glyph:** a `size-9` filled circle on the role's strong fill (`bg-{role}`, `text-{role}-foreground`)
   holding a `size-5` icon. Never a bare icon on the container.
-- **Title:** 15px semibold. **Identity line** (optional): a machine-voice row of carrier, number, or
+- **Title:** 15px semibold (tracking -0.005em). **Note:** 15px and 13px are the banner's own two type
+  steps and are deliberately off the main ramp (30 / 20 / 16 / 14 / 12) — a banner is denser than body
+  copy and looser than a label, and both steps are measured for AA on every role container. They are
+  the only sanctioned literal font sizes outside the ramp. **Identity line** (optional): a machine-voice row of carrier, number, or
   masked ICCID in `font-mono`. **Description:** 13px, one or two sentences, says what happens next.
 - **CTA:** exactly one pill button, right-aligned, wrapping below on narrow widths.
 - **Dismiss:** an absolutely-positioned `size-8` circle at the top-trailing corner, present only on
@@ -857,7 +862,8 @@ functional four already spend the saturated-blue slot on the brand.
 **The Tabular-Counter Rule.** Any figure that ticks inside banner copy is `font-mono tabular-nums`.
 Without it, "38 s" → "39 s" reflows the whole sentence once a second.
 
-**Motion.** Enter on `emphasized` (400ms): a 6px rise plus a fade, replacing the older
+**Motion.** Enter on `emphasized` (400ms): a 6px **descent** plus a fade (`translateY(-6px)` to
+`none`, i.e. the banner settles down into place from above, which is where it comes from), replacing the older
 `duration-300 slide-in-from-top-1`. There is **no exit animation** — a banner leaving means the
 condition cleared, and that should feel immediate rather than negotiated.
 
@@ -1113,8 +1119,8 @@ step is independently shippable and leaves the product correct.
 | Step | Scope | State |
 |------|-------|-------|
 | 1 | **Tokens in `globals.css`.** Container roles, tinted surface steps, retuned amber, info aliased to the brand ramp, ring tone steps, the shape scale as additive role radii, motion curves and durations. No component touched; the product changes color and stays correct. | **Landed** |
-| 2 | **Shell and shape scale.** Sidebar pills with the sliding indicator and the self-hosted Material Symbols Rounded subset, the role radii applied to cards and controls (retiring the legacy `--radius` chain), the new mark wired in (`public/qmanager-mark.svg` is already in the tree, currently unreferenced). | Not started |
-| 3 | **Chips, banners, and the dashboard.** Flip the badge pattern to filled chips, retarget the banners to the eight-role system (`SimSwapBanner` first — it is the reference anatomy), adopt containers and pill rows on the status cards (Network Status keeps its icons), land the Carrier Aggregation strip. | Not started |
+| 2 | **Shell and shape scale.** Sidebar pills with the sliding indicator and the self-hosted Material Symbols Rounded subset, the role radii applied to cards and controls (retiring the legacy `--radius` chain), the new mark wired in (`public/qmanager-mark.svg` is already in the tree, currently unreferenced). | **Partial.** Nav half landed. The dashboard's own cards now carry role radii (`rounded-hero` on the two hero cards, `rounded-card` on the rest). The legacy `--radius` chain is still live everywhere else: `rounded-md` alone has 114 call sites, so retargeting it silently would be a regression, not a migration. |
+| 3 | **Chips, banners, and the dashboard.** Flip the badge pattern to filled chips, retarget the banners to the eight-role system (`SimSwapBanner` first — it is the reference anatomy), adopt containers and pill rows on the status cards (Network Status keeps its icons), land the Carrier Aggregation strip. | **Partial.** The Banner System shipped as `components/ui/banner.tsx` (all eight roles; 01/02/03/07 mounted, 04/05/06/08 available but unmounted). Network Status is retargeted and is the one surface on filled chips. **The badge flip is NOT done** — ~40 files still carry the outline pattern, which is why the `CLAUDE.md` badge table is unchanged. Carrier Aggregation strip not started. |
 | 4 | **Dense pages.** Cell Scanner, log views, and SMS adopt the new tokens while keeping hairline rows. This is where the system is proven or corrected. | Not started |
 
 **Step 3 is the CLAUDE.md gate.** The status-badge table in `CLAUDE.md` still documents the shipped

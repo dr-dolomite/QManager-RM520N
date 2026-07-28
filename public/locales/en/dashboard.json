@@ -27,25 +27,16 @@
     "airplane_mode": "Airplane Mode",
     "radio_on": "Radio On",
     "radio_off": "Radio Off",
+    "radio_unknown": "Radio Unknown",
     "low_power": "Low Power",
     "standby_label": "Standby",
     "internet_label": "Internet",
     "internet_online": "Online",
-    "internet_offline": "Offline",
-    "internet_limited": "Carrier Limited",
+    "internet_unreachable": "No Reply",
     "sim_label": "SIM {{slot}}",
     "no_carrier": "No Carrier",
     "internet_tooltip": {
-      "limited_intercept": "Carrier is intercepting probes — billing or activation page likely.",
-      "limited_redirect": "Carrier is redirecting probes (HTTP {{code}}). Likely walled-garden or activation page.",
-      "limited_http": "Carrier returned HTTP {{code}}. Probe path is intercepted but not by a redirect.",
-      "limited_generic": "Network reachable but probe returned HTTP {{code}}, not 204. Carrier may be redirecting traffic to a billing or activation page.",
-      "down_timeout": "Probe timed out — connection may be stalled.",
-      "down_refused": "Connection refused by probe target.",
-      "down_reset": "Connection reset by carrier or peer.",
-      "down_dns": "DNS resolution failed.",
-      "down_malformed": "Probe response was malformed.",
-      "down_generic": "Internet unreachable."
+      "no_reply": "No reply to the connectivity ping. Some carriers block these probes, so the connection may still be working."
     }
   },
   "device_status": {

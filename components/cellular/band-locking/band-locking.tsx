@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import BandCardsComponent from "./band-cards";
 import BandSettingsComponent from "./band-settings";
 import { useBandLocking } from "@/hooks/use-band-locking";
@@ -61,6 +62,7 @@ const BAND_CARDS: {
 ];
 
 const BandLockingComponent = () => {
+  const { t } = useTranslation("cellular");
   const { data, isLoading: statusLoading } = useModemStatus();
   const {
     currentBands,
@@ -176,7 +178,7 @@ const BandLockingComponent = () => {
       {isProfileControlled && profileGate && !isPageLoading && (
         <ProfileOverrideAlert
           profileName={profileGate.profileName}
-          controls="Band locking"
+          controls={t("band_locking.controls_label")}
           note={
             profileGate.nextChange
               ? `The active scenario is scheduled to change at ${profileGate.nextChange}.`

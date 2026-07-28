@@ -27,25 +27,16 @@
     "airplane_mode": "飛航模式",
     "radio_on": "射頻已開",
     "radio_off": "射頻已關",
+    "radio_unknown": "射頻未知",
     "low_power": "低功耗",
     "standby_label": "待機",
     "internet_label": "網際網路",
     "internet_online": "線上",
-    "internet_offline": "離線",
-    "internet_limited": "運營商受限",
+    "internet_unreachable": "無回應",
     "sim_label": "SIM {{slot}}",
     "no_carrier": "無運營商",
     "internet_tooltip": {
-      "limited_intercept": "運營商正在攔截探測請求，可能是帳單或啟用頁面。",
-      "limited_redirect": "運營商正在重新導向探測請求（HTTP {{code}}）。可能是受限入口網路或啟用頁面。",
-      "limited_http": "運營商回傳 HTTP {{code}}。探測路徑遭到攔截，但並非透過重新導向。",
-      "limited_generic": "網路可連線，但探測回應為 HTTP {{code}}，並非 204。運營商可能正在將流量導向帳單或啟用頁面。",
-      "down_timeout": "探測逾時 — 連線可能已停滯。",
-      "down_refused": "探測目標拒絕連線。",
-      "down_reset": "連線遭運營商或對端重設。",
-      "down_dns": "DNS 解析失敗。",
-      "down_malformed": "探測回應格式錯誤。",
-      "down_generic": "網際網路無法連線。"
+      "no_reply": "連線偵測 ping 未收到回應。部分運營商會封鎖此類探測，因此連線可能仍然正常。"
     }
   },
   "device_status": {

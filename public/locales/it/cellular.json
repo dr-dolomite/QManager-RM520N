@@ -1,4 +1,7 @@
 {
+  "band_locking": {
+    "controls_label": "Blocco delle bande"
+  },
   "core_settings": {
     "apn": {
       "page": {
@@ -445,6 +448,7 @@
     }
   },
   "scenarios": {
+    "controls_label": "Attivazione degli scenari",
     "default_balanced_name": "Equilibrato",
     "default_gaming_name": "Gioco",
     "default_streaming_name": "Streaming"

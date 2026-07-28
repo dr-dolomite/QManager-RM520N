@@ -27,25 +27,16 @@
     "airplane_mode": "飞行模式",
     "radio_on": "射频已开",
     "radio_off": "射频已关",
+    "radio_unknown": "射频未知",
     "low_power": "低功耗",
     "standby_label": "待机",
     "internet_label": "互联网",
     "internet_online": "在线",
-    "internet_offline": "离线",
-    "internet_limited": "运营商限制",
+    "internet_unreachable": "无响应",
     "sim_label": "SIM {{slot}}",
     "no_carrier": "无运营商",
     "internet_tooltip": {
-      "limited_intercept": "运营商正在拦截探测请求 — 可能是计费或激活页面。",
-      "limited_redirect": "运营商正在重定向探测请求（HTTP {{code}}）。很可能是受限门户或激活页面。",
-      "limited_http": "运营商返回了 HTTP {{code}}。探测路径被拦截，但并非通过重定向方式。",
-      "limited_generic": "网络可达，但探测请求返回的是 HTTP {{code}} 而非 204。运营商可能正在将流量重定向至计费或激活页面。",
-      "down_timeout": "探测请求超时 — 连接可能已停滞。",
-      "down_refused": "探测目标拒绝了连接。",
-      "down_reset": "连接被运营商或对端重置。",
-      "down_dns": "DNS 解析失败。",
-      "down_malformed": "探测响应格式有误。",
-      "down_generic": "互联网不可达。"
+      "no_reply": "连通性 ping 未收到响应。部分运营商会屏蔽此类探测，因此连接可能仍然正常。"
     }
   },
   "device_status": {

@@ -1,4 +1,7 @@
 {
+  "band_locking": {
+    "controls_label": "Band locking"
+  },
   "core_settings": {
     "apn": {
       "page": {
@@ -445,6 +448,7 @@
     }
   },
   "scenarios": {
+    "controls_label": "Scenario activation",
     "default_balanced_name": "Balanced",
     "default_gaming_name": "Gaming",
     "default_streaming_name": "Streaming"

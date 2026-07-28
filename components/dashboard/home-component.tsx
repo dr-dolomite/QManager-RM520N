@@ -1,9 +1,11 @@
 "use client";
 
 import React from "react";
-import { motion, type Variants } from "motion/react";
+import { motion } from "motion/react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
+import { containerVariants, itemVariants } from "@/lib/motion";
+import { Banner } from "@/components/ui/banner";
 import { useModemStatus } from "@/hooks/use-modem-status";
 import { useAboutDevice } from "@/hooks/use-about-device";
 import NetworkStatusComponent from "./network-status";
@@ -18,20 +20,6 @@ import LiveLatencyComponent from "./live-latency";
 
 const DEFAULT_POLL_MS = 2000;
 const POLL_BUFFER_MS = 250; // Small lag past each daemon write to avoid catching a half-written cache
-
-const containerVariants: Variants = {
-  hidden: {},
-  visible: { transition: { staggerChildren: 0.06 } },
-};
-
-const itemVariants: Variants = {
-  hidden: { opacity: 0, y: 8 },
-  visible: {
-    opacity: 1,
-    y: 0,
-    transition: { duration: 0.25, ease: "easeOut" },
-  },
-};
 
 const HomeComponent = () => {
   const { t } = useTranslation("dashboard");
@@ -56,23 +44,35 @@ const HomeComponent = () => {
   return (
     <div className="grid grid-cols-1 gap-6 px-4 lg:px-6 @4xl/main:grid-cols-5" aria-live="polite" aria-atomic="false">
       {error && !isLoading && (
-        <div role="alert" className="col-span-full rounded-lg bg-destructive/10 px-4 py-3 text-sm text-destructive">
-          {t("alert.modem_unreachable")}
-        </div>
-      )}
-      <div className="grid gap-4 col-span-1 @4xl/main:col-span-3">
-        <NetworkStatusComponent
-          data={data?.network ?? null}
-          connectivity={data?.connectivity ?? null}
-          modemReachable={data?.modem_reachable ?? false}
-          isLoading={isLoading}
-          isStale={isStale}
+        <Banner
+          role="stale"
+          title={t("alert.modem_unreachable")}
+          className="col-span-full"
         />
+      )}
+      {/* One stagger owns the whole left column, so the hero card enters with
+          the cascade instead of popping in ahead of its own siblings. */}
+      <motion.div
+        className="grid gap-4 col-span-1 @4xl/main:col-span-3"
+        variants={containerVariants}
+        initial="hidden"
+        animate="visible"
+      >
+        <motion.div variants={itemVariants}>
+          <NetworkStatusComponent
+            data={data?.network ?? null}
+            connectivity={data?.connectivity ?? null}
+            modemReachable={data?.modem_reachable ?? false}
+            isLoading={isLoading}
+            isStale={isStale}
+          />
+        </motion.div>
+        {/* Nested container: inherits `visible` from the column above, then
+            runs its own cascade over the carrier cards. No initial/animate of
+            its own — that would detach it from the parent's timing. */}
         <motion.div
           className="grid grid-cols-1 @3xl/main:grid-cols-2 grid-flow-row gap-4"
           variants={containerVariants}
-          initial="hidden"
-          animate="visible"
         >
           {/* LTE PCC — shown in LTE and NSA modes; spans full width when no SCCs */}
           {networkType !== "5G-SA" && (
@@ -117,7 +117,7 @@ const HomeComponent = () => {
             </motion.div>
           )}
         </motion.div>
-      </div>
+      </motion.div>
       <div className="col-span-1 @4xl/main:col-span-2 h-full *:data-[slot=card]:h-full">
         <DeviceStatus
           data={data?.device ?? null}

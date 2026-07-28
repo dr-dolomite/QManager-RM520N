@@ -1,4 +1,7 @@
 {
+  "band_locking": {
+    "controls_label": "Penguncian band"
+  },
   "core_settings": {
     "apn": {
       "page": {
@@ -445,6 +448,7 @@
     }
   },
   "scenarios": {
+    "controls_label": "Aktivasi skenario",
     "default_balanced_name": "Seimbang",
     "default_gaming_name": "Game",
     "default_streaming_name": "Streaming"

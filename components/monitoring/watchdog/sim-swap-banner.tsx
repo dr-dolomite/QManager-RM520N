@@ -4,9 +4,8 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
 import { Trans, useTranslation } from "react-i18next";
-import { CardSimIcon, Loader2Icon, XIcon } from "lucide-react";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Button } from "@/components/ui/button";
+import { Loader2Icon } from "lucide-react";
+import { Banner, bannerActionVariants } from "@/components/ui/banner";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -81,85 +80,69 @@ export function SimSwapBanner() {
   return (
     <>
       <div className="px-2 lg:px-6">
-        <Alert className="relative mb-2 border-info/30 bg-info/10 pr-11 duration-300 animate-in fade-in-0 slide-in-from-top-1 motion-reduce:animate-none">
-          <CardSimIcon className="size-4 text-info" />
-          <div className="col-start-2 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
-            <div className="space-y-1">
-              <AlertTitle className="text-foreground">
-                {t("sim_swap.title")}
-              </AlertTitle>
-
-              {/* SIM identity line — carrier, then the MSISDN as a technical
-                  identifier (machine voice), or an honest "not provisioned". */}
-              <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs">
-                <span className="font-medium text-foreground">
-                  {carrier || t("sim_swap.carrier_unknown")}
+        <Banner
+          role={hasMatchingProfile ? "sim-swap-matched" : "sim-swap-unmatched"}
+          className="mb-2"
+          title={t("sim_swap.title")}
+          // SIM identity line — carrier, then the MSISDN as a technical
+          // identifier (machine voice), or an honest "not provisioned".
+          identity={
+            <>
+              <span className="font-semibold">
+                {carrier || t("sim_swap.carrier_unknown")}
+              </span>
+              <span aria-hidden="true" className="opacity-50">
+                ·
+              </span>
+              {phoneNumber ? (
+                <span className="font-mono opacity-85">{phoneNumber}</span>
+              ) : (
+                <span className="opacity-85">
+                  {t("sim_swap.no_phone_number")}
                 </span>
-                <span aria-hidden="true" className="text-muted-foreground">
-                  ·
-                </span>
-                {phoneNumber ? (
-                  <span className="font-mono text-muted-foreground">
-                    {phoneNumber}
-                  </span>
-                ) : (
-                  <span className="text-muted-foreground">
-                    {t("sim_swap.no_phone_number")}
-                  </span>
-                )}
-                {identity.length === 0 && iccid ? (
-                  <span className="font-mono text-muted-foreground break-all">
-                    {iccid}
-                  </span>
-                ) : null}
-              </div>
-
-              <AlertDescription>
-                {hasMatchingProfile ? (
-                  <Trans
-                    i18nKey="sim_swap.description_match"
-                    ns="common"
-                    values={{
-                      profile_name: simSwap.matching_profile_name ?? "",
-                    }}
-                    components={{
-                      strong: (
-                        <span className="font-medium text-foreground break-all" />
-                      ),
-                    }}
-                  />
-                ) : (
-                  t("sim_swap.description_no_match")
-                )}
-              </AlertDescription>
-            </div>
-
-            {/* Exactly one CTA: apply the matching profile, or create one. */}
-            {hasMatchingProfile ? (
-              <Button asChild size="sm" className="shrink-0 self-start sm:self-auto">
-                <Link href="/cellular/custom-profiles">
-                  {t("sim_swap.apply_profile")}
-                </Link>
-              </Button>
+              )}
+              {identity.length === 0 && iccid ? (
+                <span className="font-mono break-all opacity-85">{iccid}</span>
+              ) : null}
+            </>
+          }
+          description={
+            hasMatchingProfile ? (
+              <Trans
+                i18nKey="sim_swap.description_match"
+                ns="common"
+                values={{
+                  profile_name: simSwap.matching_profile_name ?? "",
+                }}
+                components={{
+                  strong: <span className="font-semibold break-all" />,
+                }}
+              />
             ) : (
-              <Button asChild size="sm" className="shrink-0 self-start sm:self-auto">
-                <Link href="/cellular/custom-profiles?action=create">
-                  {t("sim_swap.create_profile")}
-                </Link>
-              </Button>
-            )}
-          </div>
-
-          <Button
-            size="icon"
-            variant="ghost"
-            onClick={() => setShowDismissDialog(true)}
-            aria-label={t("sim_swap.dismiss_aria")}
-            className="absolute right-2 top-2 size-7 text-muted-foreground hover:text-foreground"
-          >
-            <XIcon className="size-4" />
-          </Button>
-        </Alert>
+              t("sim_swap.description_no_match")
+            )
+          }
+          // Exactly one CTA: apply the matching profile, or create one.
+          action={
+            hasMatchingProfile ? (
+              <Link
+                href="/cellular/custom-profiles"
+                className={bannerActionVariants()}
+              >
+                {t("sim_swap.apply_profile")}
+              </Link>
+            ) : (
+              <Link
+                href="/cellular/custom-profiles?action=create"
+                className={bannerActionVariants()}
+              >
+                {t("sim_swap.create_profile")}
+              </Link>
+            )
+          }
+          onDismiss={() => setShowDismissDialog(true)}
+          dismissLabel={t("sim_swap.dismiss_aria")}
+        />
       </div>
 
       <AlertDialog

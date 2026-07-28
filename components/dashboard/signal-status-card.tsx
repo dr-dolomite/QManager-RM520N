@@ -99,7 +99,7 @@ export function SignalStatusCard({
 
   if (isLoading) {
     return (
-      <Card>
+      <Card className="rounded-card">
         <CardHeader>
           <CardTitle className="text-lg font-semibold">{title}</CardTitle>
         </CardHeader>
@@ -130,7 +130,7 @@ export function SignalStatusCard({
   }
 
   return (
-    <Card>
+    <Card className="rounded-card">
       <CardHeader>
         <CardTitle className="text-lg font-semibold">{title}</CardTitle>
       </CardHeader>

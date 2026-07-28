@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { motion } from "motion/react";
+import { useTranslation } from "react-i18next";
 import { Gamepad2, Play, Zap, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -129,6 +130,7 @@ interface ConnectionScenariosCardProps {
 const ConnectionScenariosCard = ({
   autoOpenAddDialog,
 }: ConnectionScenariosCardProps = {}) => {
+  const { t } = useTranslation("cellular");
   const {
     activeScenarioId,
     customScenarios: storedScenarios,
@@ -401,7 +403,7 @@ const ConnectionScenariosCard = ({
       {isProfileControlled && profileGate && !isLoading && (
         <ProfileOverrideAlert
           profileName={profileGate.profileName}
-          controls="Scenario activation"
+          controls={t("scenarios.controls_label")}
         />
       )}
 

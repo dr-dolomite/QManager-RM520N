@@ -27,25 +27,16 @@
     "airplane_mode": "Mode Pesawat",
     "radio_on": "Radio Nyala",
     "radio_off": "Radio Mati",
+    "radio_unknown": "Radio Tidak Diketahui",
     "low_power": "Daya Rendah",
     "standby_label": "Siaga",
     "internet_label": "Internet",
     "internet_online": "Online",
-    "internet_offline": "Offline",
-    "internet_limited": "Dibatasi Operator",
+    "internet_unreachable": "Tanpa Respons",
     "sim_label": "SIM {{slot}}",
     "no_carrier": "Tidak Ada Operator",
     "internet_tooltip": {
-      "limited_intercept": "Operator mencegat probe — kemungkinan halaman tagihan atau aktivasi.",
-      "limited_redirect": "Operator mengalihkan probe (HTTP {{code}}). Kemungkinan halaman walled-garden atau aktivasi.",
-      "limited_http": "Operator mengembalikan HTTP {{code}}. Jalur probe dicegat, tetapi bukan melalui pengalihan.",
-      "limited_generic": "Jaringan dapat dijangkau, tetapi probe mengembalikan HTTP {{code}}, bukan 204. Operator mungkin mengalihkan lalu lintas ke halaman tagihan atau aktivasi.",
-      "down_timeout": "Probe kehabisan waktu — koneksi mungkin macet.",
-      "down_refused": "Koneksi ditolak oleh target probe.",
-      "down_reset": "Koneksi direset oleh operator atau peer.",
-      "down_dns": "Resolusi DNS gagal.",
-      "down_malformed": "Respons probe tidak valid.",
-      "down_generic": "Internet tidak dapat dijangkau."
+      "no_reply": "Tidak ada balasan untuk ping konektivitas. Sebagian operator memblokir probe semacam ini, sehingga koneksi mungkin masih berfungsi."
     }
   },
   "device_status": {

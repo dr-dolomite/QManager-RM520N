@@ -87,7 +87,7 @@ const RecentActivitiesComponent = () => {
   const { events, isLoading } = useRecentActivities();
 
   return (
-    <Card className="@container/card">
+    <Card className="@container/card rounded-card">
       <CardHeader className="-mb-4">
         <CardTitle className="text-lg font-semibold">
           {t("activities.title")}

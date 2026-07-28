@@ -40,7 +40,6 @@ import type {
 } from "@/types/modem-status";
 import {
   formatBytes,
-  formatUptime,
   calculateLteDistance,
   calculateNrDistance,
   formatDistance,
@@ -79,8 +78,6 @@ const DeviceMetricsComponent = ({
 
   // Uptime values — read directly from poll data (no seconds displayed,
   // so no need for 1-second client-side interpolation)
-  const displayDevUptime = deviceData?.uptime_seconds ?? 0;
-  const displayConnUptime = deviceData?.conn_uptime_seconds ?? 0;
 
   const isTempHigh = temp !== null && temp >= TEMP_WARN;
   const isCpuHigh = cpu !== null && cpu >= CPU_WARN;
@@ -113,7 +110,7 @@ const DeviceMetricsComponent = ({
 
   if (isLoading) {
     return (
-      <Card className="@container/card">
+      <Card className="@container/card rounded-card">
         <CardHeader className="-mb-4">
           <CardTitle className="text-lg font-semibold">
             {t("metrics.title")}
@@ -137,7 +134,7 @@ const DeviceMetricsComponent = ({
   }
 
   return (
-    <Card className="@container/card">
+    <Card className="@container/card rounded-card">
       <CardHeader className="-mb-4">
         <CardTitle className="text-lg font-semibold tabular-nums">
           {t("metrics.title")}
@@ -340,28 +337,6 @@ const DeviceMetricsComponent = ({
                 {formatDistance(calculateNrDistance(nrData?.ta ?? null), unitPrefs?.distanceUnit)}
               </p>
             </div>
-          </div>
-
-          {/* Connection Uptime */}
-          <Separator />
-          <div className="flex items-center justify-between">
-            <p className="font-semibold text-muted-foreground text-sm">
-              {t("metrics.connection_uptime")}
-            </p>
-            <p className="font-semibold text-sm tabular-nums">
-              {displayConnUptime > 0 ? formatUptime(displayConnUptime) : "-"}
-            </p>
-          </div>
-
-          {/* Device Uptime */}
-          <Separator />
-          <div className="flex items-center justify-between">
-            <p className="font-semibold text-muted-foreground text-sm">
-              {t("metrics.device_uptime")}
-            </p>
-            <p className="font-semibold text-sm tabular-nums">
-              {displayDevUptime > 0 ? formatUptime(displayDevUptime) : "-"}
-            </p>
           </div>
         </div>
       </CardContent>

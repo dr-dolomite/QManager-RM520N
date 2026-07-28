@@ -27,7 +27,7 @@ const SccStatusComponent = ({ carriers }: SccStatusProps) => {
   );
 
   return (
-    <Card>
+    <Card className="rounded-card">
       <CardHeader>
         <CardTitle className="text-lg font-semibold">
           {t("scc.title")}

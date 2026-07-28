@@ -1,8 +1,7 @@
 "use client";
 
-import { InfoIcon } from "lucide-react";
 import { Trans, useTranslation } from "react-i18next";
-import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Banner } from "@/components/ui/banner";
 
 // =============================================================================
 // ProfileOverrideAlert — Reusable "managed by Custom SIM Profile" banner
@@ -38,28 +37,30 @@ export function ProfileOverrideAlert({
 }: ProfileOverrideAlertProps) {
   const { t } = useTranslation("common");
 
+  // Role 07 in the banner system: the neutral, page-scoped note. No CTA and no
+  // dismiss — this is a standing condition of the page, and it goes away only
+  // when the profile stops owning the setting. `role="note"`, neutral
+  // `surface-container` skin and the one unfilled glyph disc all come from the
+  // primitive.
   return (
-    <Alert className="mb-4">
-      <InfoIcon className="size-4" />
-      <AlertDescription>
-        <p>
-          <Trans
-            i18nKey="profile_override.banner"
-            ns="common"
-            values={{ controls, profile_name: profileName }}
-            components={{ strong: <span className="font-semibold" /> }}
-          >
-            {t("profile_override.banner", {
-              controls,
-              profile_name: profileName,
-            })}
-          </Trans>
-        </p>
-        {note ? (
-          <p className="text-muted-foreground text-sm mt-1">{note}</p>
-        ) : null}
-      </AlertDescription>
-    </Alert>
+    <Banner
+      role="override"
+      className="mb-4"
+      title={
+        <Trans
+          i18nKey="profile_override.banner"
+          ns="common"
+          values={{ controls, profile_name: profileName }}
+          components={{ strong: <strong className="font-semibold" /> }}
+        >
+          {t("profile_override.banner", {
+            controls,
+            profile_name: profileName,
+          })}
+        </Trans>
+      }
+      description={note}
+    />
   );
 }
 

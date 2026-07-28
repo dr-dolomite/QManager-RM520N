@@ -27,25 +27,16 @@
     "airplane_mode": "Modalità aereo",
     "radio_on": "Radio accesa",
     "radio_off": "Radio spenta",
+    "radio_unknown": "Stato radio sconosciuto",
     "low_power": "Bassa potenza",
     "standby_label": "Pronta attesa",
     "internet_label": "Internet",
     "internet_online": "In linea",
-    "internet_offline": "Non in linea",
-    "internet_limited": "Limitato dall'operatore",
+    "internet_unreachable": "Nessuna risposta",
     "sim_label": "SIM {{slot}}",
     "no_carrier": "Nessun corriere",
     "internet_tooltip": {
-      "limited_intercept": "L'operatore sta intercettando le sonde di rete — probabile pagina di fatturazione o attivazione.",
-      "limited_redirect": "L'operatore sta reindirizzando le sonde di rete (HTTP {{code}}). Probabile walled garden o pagina di attivazione.",
-      "limited_http": "L'operatore ha restituito HTTP {{code}}. Il percorso della sonda è intercettato, ma non tramite reindirizzamento.",
-      "limited_generic": "Rete raggiungibile, ma la sonda ha restituito HTTP {{code}} invece di 204. L'operatore potrebbe reindirizzare il traffico verso una pagina di fatturazione o attivazione.",
-      "down_timeout": "Timeout della sonda — la connessione potrebbe essersi bloccata.",
-      "down_refused": "Connessione rifiutata dalla destinazione della sonda.",
-      "down_reset": "Connessione interrotta dall'operatore o dal peer.",
-      "down_dns": "Risoluzione DNS non riuscita.",
-      "down_malformed": "La risposta della sonda non è valida.",
-      "down_generic": "Internet non raggiungibile."
+      "no_reply": "Nessuna risposta al ping di connettività. Alcuni operatori bloccano queste sonde, quindi la connessione potrebbe essere comunque attiva."
     }
   },
   "device_status": {
