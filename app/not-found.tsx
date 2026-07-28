@@ -144,7 +144,7 @@ export default function NotFound() {
 
       <div className="flex items-center gap-2">
         <img
-          src="/qmanager-logo.svg"
+          src="/qmanager-mark.svg"
           alt=""
           aria-hidden
           className="size-4 opacity-70"

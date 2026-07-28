@@ -446,7 +446,7 @@ export default function OverviewCard() {
             {/* Decorative: the adjacent CardTitle already names the product
                   for screen readers. */}
             <img
-              src="/qmanager-logo.svg"
+              src="/qmanager-mark.svg"
               alt=""
               aria-hidden="true"
               width={40}

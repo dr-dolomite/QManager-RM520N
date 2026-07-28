@@ -9,7 +9,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import QManagerLogo from "@/public/qmanager-logo.svg";
+import QManagerMark from "@/public/qmanager-mark.svg";
 import packageJson from "@/package.json";
 
 import type { AboutDeviceData } from "@/types/about-device";
@@ -46,8 +46,8 @@ const AboutQManagerCard = ({ data, isLoading }: AboutQManagerCardProps) => {
           {/* Logo */}
           <div className="flex items-center justify-center">
             <Image
-              src={QManagerLogo}
-              alt="QManager Logo"
+              src={QManagerMark}
+              alt="QManager"
               className="size-24"
               priority
             />

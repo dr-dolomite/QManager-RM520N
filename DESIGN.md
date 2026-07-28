@@ -2,7 +2,8 @@
 name: QManager
 description: Modern web GUI for managing the Quectel RM520N-GL modem. The Operator's Console, in color, running on the modem it manages.
 colors:
-  # --- Brand / primary (source: the mark's tail) ---
+  # --- Brand / primary (source: the mark) ---
+  mark-ring: "oklch(0.623 0.214 259.815)"
   primary-light: "oklch(0.488 0.243 264.376)"
   primary-dark: "oklch(0.79 0.16 262)"
   primary-foreground-light: "oklch(0.99 0.014 264)"
@@ -249,9 +250,9 @@ a hue used because a surface looked empty.
 
 ### Source color
 
-The QManager mark (`public/qmanager-mark.svg`, the "Tonal Q") is two tones of one blue: ring
-`oklch(0.623 0.214 259.815)` and tail `oklch(0.488 0.243 264.376)`. That pair is treated as a
-Material source pair:
+The QManager mark (`public/qmanager-mark.svg`, the "Tonal Q") is two tones of one blue, carried in
+the frontmatter above as `mark-ring` and `primary-light`. That pair is treated as a Material source
+pair:
 
 - The **tail** is light-mode `--primary`.
 - The **ring's** hue drives the dark-mode `--primary-container` and the active-nav tone.
