@@ -89,6 +89,53 @@ export const DUR = {
 /** The card-cascade step. Mirrors `--stagger-step` (60ms). */
 export const STAGGER_STEP = 0.06;
 
+// -----------------------------------------------------------------------------
+// Composed gestures
+// -----------------------------------------------------------------------------
+
+/**
+ * The live value tick (Motion Guide recipe 06), as a *composition* of two
+ * tokens rather than one.
+ *
+ * The guide files the tick under `quick`, and the shipped implementation read
+ * that as "the whole gesture lasts 180ms". But a dip-and-return is two legs, so
+ * one `quick` budget bought 90ms each way — under the ~100ms floor where the eye
+ * reads a transition as a transition at all. The result was the blink the guide
+ * spends its own copy warning against.
+ *
+ * The guide's own demo is the tell: `mg-tick` puts the dip at 12% of its cycle
+ * and spends the remaining 88% returning. It is deliberately ASYMMETRIC — the
+ * dip is the event, the return is the settle — and collapsing the recipe into a
+ * single duration is what threw that away.
+ *
+ * So: `quick` down (the leg that carries the signal, still below conscious
+ * notice), `standard` up (the leg that lets it land). No fifth token, and the
+ * ratio is derived from the scale rather than dialled in by eye.
+ */
+export const TICK = {
+  /** Peak dip. The guide's 35%, unchanged — this was never the problem. */
+  opacity: 0.35,
+  /** 180ms + 300ms. Total wall time of the gesture, in seconds. */
+  duration: DUR.quick + DUR.standard,
+  /** Where the dip sits: 180 / 480 = 0.375. Keep in sync with `duration`. */
+  dipOffset: DUR.quick / (DUR.quick + DUR.standard),
+} as const;
+
+/**
+ * Meter fill on FIRST PAINT (Motion Guide recipe 07).
+ *
+ * Distinct from `transitionStandard`, which still owns the poll retarget, and
+ * the split is the point. A first paint travels 0 → full; a retarget moves a few
+ * percent. Giving both the same 300ms clock is what made the fill read as a
+ * snap: Material scales duration with distance, and this is the longest journey
+ * a meter ever makes. `emphasized` is the top of the existing scale, so the
+ * arrival gets the system's slowest curve without inventing a sixth value.
+ */
+export const transitionMeterFill: Transition = {
+  duration: DUR.emphasized,
+  ease: EASE_EMPHASIZED,
+};
+
 /**
  * The row-cascade step, for rows *inside* one card rather than cards across a
  * page. Deliberately denser: a cascade's total length is the step times the
