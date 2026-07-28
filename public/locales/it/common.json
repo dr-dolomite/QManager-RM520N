@@ -32,7 +32,7 @@
     "reconnecting": "Connessione al dispositivo persa. Riconnessione…"
   },
   "profile_override": {
-    "banner": "{{controls}} è gestito dal profilo SIM personalizzato <strong>{{profile_name}}</strong>."
+    "banner": "{{controls}}: gestione affidata al profilo SIM personalizzato <strong>{{profile_name}}</strong>."
   },
   "time": {
     "just_now": "Proprio adesso",
