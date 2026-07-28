@@ -22,6 +22,7 @@ import {
   TriangleAlertIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Banner } from "@/components/ui/banner";
 import { transitionStandard } from "@/lib/motion";
 
 import type {
@@ -330,12 +331,19 @@ export function ApplyProgressDialog({
           </div>
         )}
 
-        {/* Reboot notice — deferred, never an inline reboot. */}
+        {/* Reboot notice — deferred, never an inline reboot.
+            Uses the Banner primitive's `in-progress` role: a solid
+            `primary-container` rather than the retired `border-info/30
+            bg-info/10` wash, which collapsed in dark mode and washed out first
+            in sunlight — the exact condition this notice has to survive, since
+            it is read beside the modem. The explicit glyph overrides the role's
+            default spinner: the reboot is deferred, not running. */}
         {applyState?.requires_reboot && (
-          <div className="border-info/30 bg-info/10 text-info flex items-start gap-2 rounded-md border p-3 text-sm">
-            <RotateCwIcon className="mt-0.5 size-4 shrink-0" />
-            <p>{t("custom_profiles.apply_dialog.reboot_notice")}</p>
-          </div>
+          <Banner
+            role="in-progress"
+            icon={RotateCwIcon}
+            description={t("custom_profiles.apply_dialog.reboot_notice")}
+          />
         )}
 
         {/* Error from the start request (not step-level) */}

@@ -1,8 +1,10 @@
 import React, { useState } from "react";
 import { motion } from "motion/react";
-import { Trash2 } from "lucide-react";
+import { CheckCircle2Icon, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { AbstractPattern } from "./abstract-pattern";
+import { Badge } from "@/components/ui/badge";
+import { DUR, EASE_STANDARD } from "@/lib/motion";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -15,12 +17,39 @@ import {
 } from "@/components/ui/alert-dialog";
 import type { ScenarioConfig } from "@/types/connection-scenario";
 
+// =============================================================================
+// ScenarioItem — one selectable scenario tile
+// =============================================================================
+// The tile is a tonal surface, not a saturated gradient. What it used to be: a
+// full-bleed `bg-linear-to-br from-violet-600 …` with `text-white` content and
+// a `getRingColor()` helper that string-matched the gradient to pick one of
+// twelve `ring-*-500` classes. None of that could follow the theme, and the
+// white ink was only legible because the tile beneath it was guaranteed dark.
+//
+// Identity now rides on the GLYPH (see `scenario-icons.ts`). That matters more
+// than the token cleanup: every custom scenario renders the same base tile, so
+// if colour were still the identity channel, a colour-blind user would have had
+// no way to tell two custom scenarios apart.
+//
+// Selection state is two-tier, and both tiers are rings so neither competes
+// with the identity glyph for the tile's fill:
+//   active   — `ring-primary`, the scenario the modem is actually running
+//   selected — a muted ring, meaning "you are looking at this one"
+// Active additionally carries a success chip, because a ring alone is a
+// colour-only signal and "which scenario is live" is the one thing on this card
+// that must not depend on colour perception.
+// =============================================================================
+
 export interface Scenario {
   id: string;
   name: string;
   description: string;
+  /** Resolved component, for rendering. */
   icon: React.ElementType;
-  gradient: string;
+  /** The persisted glyph KEY this was resolved from. Kept alongside the
+   *  component because the edit dialog needs to pre-select the stored choice,
+   *  and a component reference cannot be compared back to a picker option. */
+  iconId?: string;
   pattern: "gaming" | "streaming" | "balanced" | "custom";
   config: ScenarioConfig;
   isDefault?: boolean;
@@ -33,23 +62,6 @@ interface ScenarioItemProps {
   onSelect: (id: string) => void;
   onDelete?: (id: string) => void;
 }
-
-// Map gradient to matching ring color
-const getRingColor = (gradient: string) => {
-  if (gradient.includes("violet")) return "ring-violet-500";
-  if (gradient.includes("rose")) return "ring-rose-500";
-  if (gradient.includes("emerald")) return "ring-emerald-500";
-  if (gradient.includes("blue")) return "ring-blue-500";
-  if (gradient.includes("amber")) return "ring-amber-500";
-  if (gradient.includes("slate")) return "ring-slate-500";
-  if (gradient.includes("sky")) return "ring-sky-500";
-  if (gradient.includes("lime")) return "ring-lime-500";
-  if (gradient.includes("fuchsia")) return "ring-fuchsia-500";
-  if (gradient.includes("yellow")) return "ring-yellow-500";
-  if (gradient.includes("cyan")) return "ring-cyan-500";
-  if (gradient.includes("orange")) return "ring-orange-500";
-  return "ring-primary";
-};
 
 export const ScenarioItem = ({
   scenario,
@@ -76,58 +88,61 @@ export const ScenarioItem = ({
     <>
       <motion.div
         className={cn(
-          "relative overflow-hidden rounded-xl cursor-pointer",
+          "bg-surface-container text-on-surface rounded-card relative cursor-pointer overflow-hidden",
           isActive
-            ? `ring-2 ${getRingColor(scenario.gradient)} ring-offset-3 ring-offset-background`
+            ? "ring-primary ring-offset-background ring-2 ring-offset-3"
             : isSelected
-              ? "ring-2 ring-muted-foreground/40 ring-offset-2 ring-offset-background"
+              ? "ring-on-surface-variant/40 ring-offset-background ring-2 ring-offset-2"
               : "",
         )}
         animate={{ scale: isActive || isSelected ? 1.01 : 1 }}
         whileHover={!isActive && !isSelected ? { scale: 1.02, y: -2 } : {}}
         whileTap={{ scale: 0.97 }}
-        transition={{ type: "spring", stiffness: 500, damping: 30 }}
+        // Canon curve rather than the spring this carried before: DESIGN.md's
+        // motion character is expressive but settled, never springy.
+        transition={{ duration: DUR.quick, ease: EASE_STANDARD }}
         onClick={() => onSelect(scenario.id)}
       >
-        {/* Background gradient */}
-        <div
-          className={cn("absolute inset-0 bg-linear-to-br", scenario.gradient)}
-        />
-
-        {/* Abstract pattern overlay */}
+        {/* Texture. Inherits `on-surface-variant` so it reads in both themes. */}
         <AbstractPattern
           type={scenario.pattern}
-          className="absolute inset-0 w-full h-full"
+          className="text-on-surface-variant absolute inset-0 h-full w-full"
         />
 
         {/* Content */}
-        <div className="relative p-5 h-36 flex flex-col justify-between text-white group">
-          {/* Top row - Icon and badges/delete */}
-          <div className="flex justify-between items-start">
+        <div className="group relative flex h-36 flex-col justify-between p-5">
+          {/* Top row - glyph disc and active chip / delete */}
+          <div className="flex items-start justify-between">
             <div className="flex items-center gap-2">
-              <div className="p-2.5 bg-white/20 backdrop-blur-sm rounded-lg">
-                <Icon size={20} />
-              </div>
+              {/* Glyph disc, matching the Banner primitive's Glyph-Disc Rule:
+                  a filled circle survives when a tint washes out. */}
+              <span className="bg-primary text-primary-foreground grid size-9 flex-none place-items-center rounded-full">
+                <Icon className="size-5" />
+              </span>
               {isActive && (
-                <span className="px-2 py-0.5 bg-white/25 backdrop-blur-sm rounded-full text-xs font-medium">
+                <Badge variant="success">
+                  <CheckCircle2Icon className="size-3" />
                   Active
-                </span>
+                </Badge>
               )}
             </div>
             {isCustom && (
               <button
                 onClick={handleDeleteClick}
-                className="p-2 bg-white/20 backdrop-blur-sm rounded-lg hover:bg-destructive/80 transition-all opacity-0 group-hover:opacity-100"
+                aria-label={`Delete ${scenario.name} scenario`}
+                className="bg-surface-container-high text-on-surface-variant hover:bg-destructive hover:text-destructive-foreground rounded-inline p-2 opacity-0 transition-colors group-hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-current"
               >
                 <Trash2 size={16} />
               </button>
             )}
           </div>
 
-          {/* Bottom row - Name and description */}
+          {/* Bottom row - name and description */}
           <div>
-            <h3 className="text-base font-semibold mb-0.5">{scenario.name}</h3>
-            <p className="text-white/80 text-xs">{scenario.description}</p>
+            <h3 className="mb-0.5 text-base font-semibold">{scenario.name}</h3>
+            <p className="text-on-surface-variant text-xs">
+              {scenario.description}
+            </p>
           </div>
         </div>
       </motion.div>

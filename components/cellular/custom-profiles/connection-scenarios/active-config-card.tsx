@@ -2,7 +2,6 @@ import React from "react";
 import { Settings } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Spinner } from "@/components/ui/spinner";
@@ -47,12 +46,9 @@ export const ActiveConfigCard = ({
         {/* Header */}
         <div className="flex items-center justify-between mb-5">
           <div className="flex items-center gap-3">
-            <div
-              className={cn(
-                "p-2.5 rounded-xl bg-linear-to-br text-white",
-                scenario.gradient,
-              )}
-            >
+            {/* Same filled glyph disc the tile uses, so the scenario keeps one
+                identity across the picker and this detail card. */}
+            <div className="bg-primary text-primary-foreground rounded-tile p-2.5">
               <Icon className="size-6" />
             </div>
             <div className="grid">

@@ -247,7 +247,9 @@ export function useProfileSuggestions({
             const scenarioBody = {
               name: scenarioName,
               description: `${suggestion.mno} recommended 5G bands`,
-              gradient: "from-fuchsia-500 via-pink-600 to-rose-600",
+              // Auto-created from a carrier recommendation rather than picked
+              // in the dialog, so it takes a fixed glyph.
+              icon: "rocket",
               config: {
                 atModeValue: "AUTO",
                 mode: "Auto",

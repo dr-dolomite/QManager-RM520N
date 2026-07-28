@@ -107,6 +107,17 @@ Practical consequences worth internalizing before touching this area:
   [Suggested profiles](#suggested-profiles-recommended-for-your-sim)).
 - **Editing the scenario changes every profile bound to it.** Bands are shared
   state by reference, not copied into the profile.
+- **A scenario record also carries a UI-only `icon` key** (a stable glyph name
+  such as `"gamepad"`, resolved through
+  `components/cellular/custom-profiles/connection-scenarios/scenario-icons.ts`).
+  It replaced a `gradient` field that stored raw Tailwind classes. Two things
+  follow. First, the key is **optional** — records written before it existed
+  have no `icon` and fall back to the default glyph, which is why the resolver
+  is total rather than a plain map lookup. Second, neither field was ever read
+  by the backend: `save.sh` stores the POST body verbatim (`jq '.id = $id'`)
+  and parses only `.id` and `.name`, so swapping one presentational key for
+  another needed no CGI change and no migration. Records saved before the
+  switch simply keep an ignored `gradient` key.
 - **Binding a band-carrying scenario disables the Band Locking page** (see the
   [Gate matrix](#gate-matrix)) — which is why the apply path needed its own
   band-failover safety net (see

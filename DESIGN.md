@@ -861,6 +861,10 @@ the product, so the set is closed: eight roles, one anatomy, no per-feature vari
 | 08 | Deferred reboot | `warning-container` | **No** | `role="alert"` |
 
 Role 05 carries a spinner in the glyph disc and a dot row for step progress (Loader-and-Dots Rule).
+Its spinner is a **default, not a fixture**: pass an explicit `icon` and that glyph is used instead.
+Role 05 is also the right container for a calm standing notice that happens to be primary-toned (the
+deferred-reboot notice inside the profile apply dialog is the first such caller), and a spinner there
+would advertise work that is not running. Callers that pass no icon are unaffected.
 Role 07 is the neutral one: its glyph disc sits on `surface-container-high` with `on-surface-variant`
 ink, because "this page is managed elsewhere" is information, not a status.
 
@@ -1156,8 +1160,9 @@ step is independently shippable and leaves the product correct.
 |------|-------|-------|
 | 1 | **Tokens in `globals.css`.** Container roles, tinted surface steps, retuned amber, info aliased to the brand ramp, ring tone steps, the shape scale as additive role radii, motion curves and durations. No component touched; the product changes color and stays correct. | **Landed** |
 | 2 | **Shell and shape scale.** Sidebar pills with the sliding indicator and the self-hosted Material Symbols Rounded subset, the role radii applied to cards and controls (retiring the legacy `--radius` chain), the new mark wired in (`public/qmanager-mark.svg` is already in the tree, currently unreferenced). | **Partial.** Nav half landed. The dashboard's own cards now carry role radii (`rounded-hero` on the two hero cards, `rounded-card` on the rest). The legacy `--radius` chain is still live everywhere else: `rounded-md` alone has 114 call sites, so retargeting it silently would be a regression, not a migration. |
-| 3 | **Chips, banners, and the dashboard.** Flip the badge pattern to filled chips, retarget the banners to the eight-role system (`SimSwapBanner` first — it is the reference anatomy), adopt containers and pill rows on the status cards (Network Status keeps its icons), land the Carrier Aggregation strip. | **Landed.** The Banner System shipped as `components/ui/banner.tsx` (all eight roles; 01/02/03/07 mounted, 04/05/06/08 available but unmounted). **The badge flip is done**: the five chip roles live in `components/ui/badge.tsx`'s `cva`, all 90+ call sites across 33 files render `variant="…"`, four tone maps key onto the exported `BadgeVariant` type, and the `CLAUDE.md` table now documents the filled chip. **The Carrier Aggregation strip has landed** (`components/dashboard/carrier-aggregation.tsx` plus the pure view model in `lib/carrier-aggregation.ts`), mounted `col-span-full` and replacing the deleted `scc-status.tsx`; the dashboard's carrier surfaces now carry pill metric rows on `surface-container`, filled quality chips and identity-toned band pills. Step 3 is closed. |
+| 3 | **Chips, banners, and the dashboard.** Flip the badge pattern to filled chips, retarget the banners to the eight-role system (`SimSwapBanner` first — it is the reference anatomy), adopt containers and pill rows on the status cards (Network Status keeps its icons), land the Carrier Aggregation strip. | **Landed.** The Banner System shipped as `components/ui/banner.tsx` (all eight roles; 01/02/03/05/07 mounted, 04/06/08 available but unmounted). **The badge flip is done**: the five chip roles live in `components/ui/badge.tsx`'s `cva`, all 90+ call sites across 33 files render `variant="…"`, four tone maps key onto the exported `BadgeVariant` type, and the `CLAUDE.md` table now documents the filled chip. **The Carrier Aggregation strip has landed** (`components/dashboard/carrier-aggregation.tsx` plus the pure view model in `lib/carrier-aggregation.ts`), mounted `col-span-full` and replacing the deleted `scc-status.tsx`; the dashboard's carrier surfaces now carry pill metric rows on `surface-container`, filled quality chips and identity-toned band pills. Step 3 is closed. |
 | 3b | **Token debt owed by step 3.** Move dark `--destructive` to the canon value and promote `--border` to `--outline` (see "held one step off" above). | **Deferred, with cause.** Neither is a drop-in. Dark `--destructive` at the canon `oklch(0.77 0.175 25)` measures **2.42:1** against white ink — below even the 3:1 large-text floor. `Button` and `Badge` escape only because they override with `dark:bg-destructive/60` (5.28:1 composited); ~20 other surfaces use `bg-destructive` at full opacity and would regress. `--border` is gated on cards dropping their hairlines, which has not happened, and step 4 keeps hairlines in the dense tables deliberately — promoting it now would make the very hairlines this system retires *more* prominent. Both move when their blockers clear, not before. |
+| 3c | **Identity colour outside the token system.** Retire the connection-scenario gradient palette and move scenario identity onto glyphs; convert the profile apply dialog's deferred-reboot wash to the Banner primitive. | **Landed.** `gradientOptions` (12 raw Tailwind gradients) and `getRingColor()` (12 `ring-*-500` classes selected by substring-matching the gradient) are gone. Scenario tiles are `surface-container` with a filled `bg-primary` glyph disc, and identity is a persisted glyph key resolved through `scenario-icons.ts`. `AbstractPattern` now draws in `currentColor`, so the texture follows the theme instead of assuming a dark tile. |
 | 4 | **Dense pages.** Cell Scanner, log views, and SMS adopt the new tokens while keeping hairline rows. This is where the system is proven or corrected. | Not started |
 
 **Step 3's CLAUDE.md gate is closed.** The status-chip table in `CLAUDE.md` was flipped to the
@@ -1170,6 +1175,15 @@ chips, so the chip flip deliberately left them alone. They need their own pass, 
 whether a tonal container replaces each wash or whether the wash is the right answer for a large
 surface. Note that `bg-muted/50` is overloaded — it is also a plain surface tint on tables, popovers
 and toolbars — so that pass cannot be driven by grep alone.
+
+One wash has already been converted, and step 3c records it so the eventual pass does not read the
+file as untouched: the apply dialog's deferred-reboot notice moved from `border-info/30 bg-info/10` to
+Banner role 05. It was converted because an exact role already existed for it, not because notices are
+being migrated generally. Its three siblings in that same dialog (the start-request error, and the
+partial and failed summaries) are still washes on purpose — they have no banner role, and inventing
+one for a dialog-scoped message would widen the Banner System past what it is for. `TONE_RING`'s
+`info` entry likewise stays: it is the live tone for the in-flight hero glyph, not a leftover of the
+notice that moved.
 
 Source of the direction: `reimagine/dashboard-design-exploration-directions/` (Claude Design handoff
 bundle). "Recommended Hybrid" is the committed dashboard composition; the brand deck carries the

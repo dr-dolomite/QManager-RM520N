@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { motion } from "motion/react";
 import { useTranslation } from "react-i18next";
-import { Gamepad2, Play, Zap, Sparkles } from "lucide-react";
+import { Gamepad2, Play, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -31,6 +31,11 @@ import { AbstractPattern } from "./abstract-pattern";
 import { AddScenarioItem } from "./add-scenario-item";
 import { ActiveConfigCard } from "./active-config-card";
 import { ScenarioItem, Scenario } from "./scenario-item";
+import {
+  SCENARIO_ICONS,
+  DEFAULT_SCENARIO_ICON_ID,
+  resolveScenarioIcon,
+} from "./scenario-icons";
 import { useConnectionScenarios } from "@/hooks/use-connection-scenarios";
 import { useActiveProfile } from "@/hooks/use-active-profile";
 import { ProfileOverrideAlert } from "@/components/cellular/custom-profiles/profile-override-alert";
@@ -46,21 +51,6 @@ import {
 // Constants
 // =============================================================================
 
-const gradientOptions = [
-  { id: "purple", value: "from-violet-600 via-purple-600 to-indigo-700" },
-  { id: "rose", value: "from-rose-500 via-pink-500 to-orange-400" },
-  { id: "teal", value: "from-emerald-500 via-teal-500 to-cyan-500" },
-  { id: "blue", value: "from-blue-500 via-indigo-500 to-purple-600" },
-  { id: "amber", value: "from-amber-500 via-orange-500 to-red-500" },
-  { id: "slate", value: "from-slate-600 via-gray-700 to-zinc-800" },
-  { id: "sky", value: "from-sky-400 via-blue-500 to-indigo-500" },
-  { id: "lime", value: "from-lime-400 via-green-500 to-emerald-600" },
-  { id: "fuchsia", value: "from-fuchsia-500 via-pink-600 to-rose-600" },
-  { id: "gold", value: "from-yellow-400 via-amber-500 to-orange-600" },
-  { id: "ocean", value: "from-cyan-500 via-blue-600 to-indigo-800" },
-  { id: "sunset", value: "from-orange-400 via-red-500 to-pink-600" },
-];
-
 // Default (built-in) scenarios — icons are UI-only, not stored in backend
 const DEFAULT_SCENARIOS: Scenario[] = [
   {
@@ -68,7 +58,6 @@ const DEFAULT_SCENARIOS: Scenario[] = [
     name: "Balanced",
     description: "Auto band selection",
     icon: Zap,
-    gradient: "from-emerald-500 via-teal-500 to-cyan-500",
     pattern: "balanced",
     isDefault: true,
     config: {
@@ -85,7 +74,6 @@ const DEFAULT_SCENARIOS: Scenario[] = [
     name: "Gaming",
     description: "Low latency, SA priority",
     icon: Gamepad2,
-    gradient: "from-violet-600 via-purple-600 to-indigo-700",
     pattern: "gaming",
     isDefault: true,
     config: {
@@ -102,7 +90,6 @@ const DEFAULT_SCENARIOS: Scenario[] = [
     name: "Streaming",
     description: "High bandwidth, stable connection",
     icon: Play,
-    gradient: "from-rose-500 via-pink-500 to-orange-400",
     pattern: "streaming",
     isDefault: true,
     config: {
@@ -172,7 +159,12 @@ const ConnectionScenariosCard = ({
     () =>
       storedScenarios.map((s) => ({
         ...s,
-        icon: Sparkles,
+        // Resolve the persisted glyph key to a component, but keep the key too:
+        // the edit dialog pre-selects by key, and a component reference cannot
+        // be compared back to a picker option. Records saved before the icon
+        // field existed have no key and resolve to the default glyph.
+        icon: resolveScenarioIcon(s.icon),
+        iconId: s.icon ?? DEFAULT_SCENARIO_ICON_ID,
         pattern: "custom" as const,
         isDefault: false,
       })),
@@ -209,7 +201,7 @@ const ConnectionScenariosCard = ({
   // Add form state
   const [addName, setAddName] = useState("");
   const [addDescription, setAddDescription] = useState("");
-  const [addGradient, setAddGradient] = useState(gradientOptions[3].value);
+  const [addIcon, setAddIcon] = useState(DEFAULT_SCENARIO_ICON_ID);
   const [addMode, setAddMode] = useState("AUTO");
   const [addLteBands, setAddLteBands] = useState("");
   const [addNsaNrBands, setAddNsaNrBands] = useState("");
@@ -219,7 +211,7 @@ const ConnectionScenariosCard = ({
   const [editId, setEditId] = useState("");
   const [editName, setEditName] = useState("");
   const [editDescription, setEditDescription] = useState("");
-  const [editGradient, setEditGradient] = useState("");
+  const [editIcon, setEditIcon] = useState(DEFAULT_SCENARIO_ICON_ID);
   const [editMode, setEditMode] = useState("AUTO");
   const [editOptimization, setEditOptimization] = useState("");
   const [editLteBands, setEditLteBands] = useState("");
@@ -289,7 +281,7 @@ const ConnectionScenariosCard = ({
     const scenarioData = {
       name: addName,
       description: addDescription || "Custom configuration",
-      gradient: addGradient,
+      icon: addIcon,
       config: {
         atModeValue: addMode,
         mode: modeValueToLabel(addMode),
@@ -324,7 +316,7 @@ const ConnectionScenariosCard = ({
   const resetAddForm = () => {
     setAddName("");
     setAddDescription("");
-    setAddGradient(gradientOptions[3].value);
+    setAddIcon(DEFAULT_SCENARIO_ICON_ID);
     setAddMode("AUTO");
     setAddLteBands("");
     setAddNsaNrBands("");
@@ -356,7 +348,7 @@ const ConnectionScenariosCard = ({
     setEditId(selectedScenario.id);
     setEditName(selectedScenario.name);
     setEditDescription(selectedScenario.description);
-    setEditGradient(selectedScenario.gradient);
+    setEditIcon(selectedScenario.iconId ?? DEFAULT_SCENARIO_ICON_ID);
     setEditMode(selectedScenario.config.atModeValue);
     setEditOptimization(selectedScenario.config.optimization);
     setEditLteBands(bandsToInput(selectedScenario.config.lte_bands));
@@ -373,7 +365,7 @@ const ConnectionScenariosCard = ({
       id: editId,
       name: editName,
       description: editDescription,
-      gradient: editGradient,
+      icon: editIcon,
       config: {
         atModeValue: editMode,
         mode: modeValueToLabel(editMode),
@@ -564,47 +556,63 @@ const ConnectionScenariosCard = ({
               </div>
             </div>
 
-            {/* Card Theme */}
+            {/* Identity glyph */}
             <div className="space-y-2">
-              <Label>Card Theme</Label>
-              <div className="grid grid-cols-6 gap-2">
-                {gradientOptions.map((grad) => (
-                  <button
-                    key={grad.id}
-                    type="button"
-                    onClick={() => setAddGradient(grad.value)}
-                    className={cn(
-                      "h-9 rounded-lg bg-linear-to-br transition-all",
-                      grad.value,
-                      addGradient === grad.value
-                        ? "ring-2 ring-primary ring-offset-2 ring-offset-background"
-                        : "hover:scale-105",
-                    )}
-                  />
-                ))}
+              <Label id="add-icon-label">Icon</Label>
+              <div
+                role="group"
+                aria-labelledby="add-icon-label"
+                className="grid grid-cols-6 gap-2"
+              >
+                {SCENARIO_ICONS.map(({ id, Icon, label }) => {
+                  const selected = addIcon === id;
+                  return (
+                    <button
+                      key={id}
+                      type="button"
+                      onClick={() => setAddIcon(id)}
+                      aria-pressed={selected}
+                      aria-label={label}
+                      title={label}
+                      className={cn(
+                        "grid h-9 place-items-center rounded-inline transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background",
+                        selected
+                          ? "bg-primary text-primary-foreground"
+                          // Hover previews the selected treatment in a lighter
+                          // tone, so the affordance reads without implying the
+                          // choice has already been made.
+                          : "bg-surface-container-high text-on-surface-variant hover:bg-primary-container hover:text-on-primary-container",
+                      )}
+                    >
+                      <Icon className="size-4" />
+                    </button>
+                  );
+                })}
               </div>
             </div>
 
             {/* Preview */}
             <div className="space-y-2">
               <Label>Preview</Label>
-              <div
-                className={cn(
-                  "relative overflow-hidden rounded-xl h-20 bg-linear-to-br",
-                  addGradient,
-                )}
-              >
+              <div className="bg-surface-container text-on-surface rounded-card relative h-20 overflow-hidden">
                 <AbstractPattern
                   type="custom"
-                  className="absolute inset-0 w-full h-full"
+                  className="text-on-surface-variant absolute inset-0 h-full w-full"
                 />
-                <div className="relative p-4 text-white">
-                  <p className="font-medium">
-                    {addName || "Scenario Name"}
-                  </p>
-                  <p className="text-sm text-white/70">
-                    {addDescription || "Custom configuration"}
-                  </p>
+                <div className="relative flex items-center gap-3 p-4">
+                  <span className="bg-primary text-primary-foreground grid size-9 flex-none place-items-center rounded-full">
+                    {React.createElement(resolveScenarioIcon(addIcon), {
+                      className: "size-5",
+                    })}
+                  </span>
+                  <div className="min-w-0">
+                    <p className="truncate font-medium">
+                      {addName || "Scenario Name"}
+                    </p>
+                    <p className="text-on-surface-variant truncate text-sm">
+                      {addDescription || "Custom configuration"}
+                    </p>
+                  </div>
                 </div>
               </div>
             </div>
@@ -713,45 +721,63 @@ const ConnectionScenariosCard = ({
               </div>
             </div>
 
-            {/* Card Theme */}
+            {/* Identity glyph */}
             <div className="space-y-2">
-              <Label>Card Theme</Label>
-              <div className="grid grid-cols-6 gap-2">
-                {gradientOptions.map((grad) => (
-                  <button
-                    key={grad.id}
-                    type="button"
-                    onClick={() => setEditGradient(grad.value)}
-                    className={cn(
-                      "h-9 rounded-lg bg-linear-to-br transition-all",
-                      grad.value,
-                      editGradient === grad.value
-                        ? "ring-2 ring-primary ring-offset-2 ring-offset-background"
-                        : "hover:scale-105",
-                    )}
-                  />
-                ))}
+              <Label id="edit-icon-label">Icon</Label>
+              <div
+                role="group"
+                aria-labelledby="edit-icon-label"
+                className="grid grid-cols-6 gap-2"
+              >
+                {SCENARIO_ICONS.map(({ id, Icon, label }) => {
+                  const selected = editIcon === id;
+                  return (
+                    <button
+                      key={id}
+                      type="button"
+                      onClick={() => setEditIcon(id)}
+                      aria-pressed={selected}
+                      aria-label={label}
+                      title={label}
+                      className={cn(
+                        "grid h-9 place-items-center rounded-inline transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background",
+                        selected
+                          ? "bg-primary text-primary-foreground"
+                          // Hover previews the selected treatment in a lighter
+                          // tone, so the affordance reads without implying the
+                          // choice has already been made.
+                          : "bg-surface-container-high text-on-surface-variant hover:bg-primary-container hover:text-on-primary-container",
+                      )}
+                    >
+                      <Icon className="size-4" />
+                    </button>
+                  );
+                })}
               </div>
             </div>
 
             {/* Preview */}
             <div className="space-y-2">
               <Label>Preview</Label>
-              <div
-                className={cn(
-                  "relative overflow-hidden rounded-xl h-20 bg-linear-to-br",
-                  editGradient,
-                )}
-              >
+              <div className="bg-surface-container text-on-surface rounded-card relative h-20 overflow-hidden">
                 <AbstractPattern
                   type="custom"
-                  className="absolute inset-0 w-full h-full"
+                  className="text-on-surface-variant absolute inset-0 h-full w-full"
                 />
-                <div className="relative p-4 text-white">
-                  <p className="font-medium">{editName || "Scenario Name"}</p>
-                  <p className="text-sm text-white/70">
-                    {editDescription || "Custom configuration"}
-                  </p>
+                <div className="relative flex items-center gap-3 p-4">
+                  <span className="bg-primary text-primary-foreground grid size-9 flex-none place-items-center rounded-full">
+                    {React.createElement(resolveScenarioIcon(editIcon), {
+                      className: "size-5",
+                    })}
+                  </span>
+                  <div className="min-w-0">
+                    <p className="truncate font-medium">
+                      {editName || "Scenario Name"}
+                    </p>
+                    <p className="text-on-surface-variant truncate text-sm">
+                      {editDescription || "Custom configuration"}
+                    </p>
+                  </div>
                 </div>
               </div>
             </div>

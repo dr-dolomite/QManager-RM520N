@@ -299,10 +299,16 @@ export function Banner({
           meta.disc
         )}
       >
-        {isProgress ? (
-          <span className="block size-[17px] animate-spin rounded-full border-[2.5px] border-current border-t-transparent [animation-duration:900ms]" />
-        ) : Icon ? (
+        {/* An explicit `icon` wins even on `in-progress`. That role defaults to
+            a spinner because it usually narrates live work, but it is also the
+            right container for a calm standing notice ("a reboot is needed
+            later"), and a spinner there would advertise activity that is not
+            happening. `in-progress` has no default glyph, so `Icon` is set only
+            when a caller passed one — existing spinner callers are unaffected. */}
+        {Icon ? (
           <Icon className="size-5" />
+        ) : isProgress ? (
+          <span className="block size-[17px] animate-spin rounded-full border-[2.5px] border-current border-t-transparent [animation-duration:900ms]" />
         ) : null}
       </span>
 

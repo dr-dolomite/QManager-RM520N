@@ -14,7 +14,7 @@
 #   "id": "custom-..." (optional — omit for create),
 #   "name": "My Scenario",
 #   "description": "...",
-#   "gradient": "from-violet-600 via-purple-600 to-indigo-700",
+#   "icon": "gamepad",            (optional — identity glyph key, UI-only)
 #   "config": {
 #     "atModeValue": "AUTO",
 #     "mode": "Auto",

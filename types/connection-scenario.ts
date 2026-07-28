@@ -80,8 +80,8 @@ export interface ConnectionScenario {
   name: string;
   /** Short description */
   description: string;
-  /** Tailwind gradient classes for the card background */
-  gradient: string;
+  /** Identity glyph key — see `SCENARIO_ICONS`. Absent on pre-icon records. */
+  icon?: string;
   /** SVG pattern type for the card overlay */
   pattern: "balanced" | "gaming" | "streaming" | "custom";
   /** Scenario configuration */
@@ -97,7 +97,7 @@ export const DEFAULT_SCENARIOS: ConnectionScenario[] = [
     id: "balanced",
     name: "Balanced",
     description: "Auto band selection",
-    gradient: "from-emerald-500 via-teal-500 to-cyan-500",
+    icon: "zap",
     pattern: "balanced",
     config: {
       atModeValue: "AUTO",
@@ -113,7 +113,7 @@ export const DEFAULT_SCENARIOS: ConnectionScenario[] = [
     id: "gaming",
     name: "Gaming",
     description: "Low latency, SA priority",
-    gradient: "from-violet-600 via-purple-600 to-indigo-700",
+    icon: "gamepad",
     pattern: "gaming",
     config: {
       atModeValue: "NR5G",
@@ -129,7 +129,7 @@ export const DEFAULT_SCENARIOS: ConnectionScenario[] = [
     id: "streaming",
     name: "Streaming",
     description: "High bandwidth, stable connection",
-    gradient: "from-rose-500 via-pink-500 to-orange-400",
+    icon: "play",
     pattern: "streaming",
     config: {
       atModeValue: "LTE:NR5G",
@@ -161,7 +161,11 @@ export interface StoredScenario {
   id: string;
   name: string;
   description: string;
-  gradient: string;
+  /** Identity glyph key. Optional: records saved before the icon field existed
+   *  have no value here, and resolve to the default glyph. `save.sh` stores the
+   *  POST body verbatim, so dropping the old `gradient` key needed no backend
+   *  change — pre-existing records simply carry an ignored extra field. */
+  icon?: string;
   config: ScenarioConfig;
 }
 
