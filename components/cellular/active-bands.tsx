@@ -19,6 +19,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 
 import type { CarrierComponent } from "@/types/modem-status";
+import { staggerContainer, staggerRows } from "@/lib/motion";
 import {
   getSignalQuality,
   signalToProgress,
@@ -183,7 +184,7 @@ const ActiveBandsComponent = ({
           <motion.div
             initial="hidden"
             animate="visible"
-            variants={{ hidden: {}, visible: { transition: { staggerChildren: 0.07 } } }}
+            variants={staggerContainer}
           >
             {components.map((cc, idx) => {
               const rsrpQuality = getSignalQuality(cc.rsrp, RSRP_THRESHOLDS);
@@ -221,7 +222,7 @@ const ActiveBandsComponent = ({
                         className="grid gap-1.5 text-base"
                         initial="hidden"
                         animate="visible"
-                        variants={{ hidden: {}, visible: { transition: { staggerChildren: 0.05 } } }}
+                        variants={staggerRows}
                       >
                         {/* Signal metrics with progress bars */}
                         <motion.div variants={{ hidden: { opacity: 0, x: -6 }, visible: { opacity: 1, x: 0 } }} transition={{ duration: 0.18, ease: "easeOut" }}>

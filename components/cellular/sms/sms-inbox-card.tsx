@@ -93,7 +93,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
-import { staggerContainer, staggerItem } from "@/lib/motion-presets";
+import { staggerContainer, staggerItem } from "@/lib/motion";
 import type { SmsData } from "@/hooks/use-sms";
 import type { SmsMessage } from "@/types/sms";
 import {

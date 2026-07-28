@@ -21,6 +21,7 @@ import {
   EmptyTitle,
 } from "@/components/ui/empty";
 import { CalendarX2Icon } from "lucide-react";
+import { staggerRows } from "@/lib/motion";
 
 // --- Severity icon component ---
 function SeverityIcon({ severity }: { severity: EventSeverity }) {
@@ -31,11 +32,6 @@ function SeverityIcon({ severity }: { severity: EventSeverity }) {
   return <TbCircleCheckFilled className="size-5 shrink-0 text-success" />;
 }
 
-// Stagger variants for event list
-const listVariants = {
-  hidden: {},
-  visible: { transition: { staggerChildren: 0.06 } },
-};
 const rowVariants = {
   hidden: { opacity: 0, x: -8 },
   visible: { opacity: 1, x: 0 },
@@ -122,7 +118,7 @@ const RecentActivitiesComponent = () => {
             // Event list (newest first, max 6 visible) — stagger in on mount
             <motion.div
               className="grid gap-3"
-              variants={listVariants}
+              variants={staggerRows}
               initial="hidden"
               animate="visible"
             >

@@ -13,7 +13,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { RefreshCcwIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { staggerContainer, staggerItem } from "@/lib/motion-presets";
+import { staggerContainer, staggerItem } from "@/lib/motion";
 import { useAlerts, type UseAlertsReturn } from "@/hooks/use-alerts";
 import { ALERT_EVENT_ORDER, ALERT_CHANNEL_ORDER } from "@/types/alerts";
 import type { AlertsState } from "@/types/alerts";

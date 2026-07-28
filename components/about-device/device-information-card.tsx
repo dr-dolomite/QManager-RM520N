@@ -14,6 +14,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { AlertCircle, RefreshCcw } from "lucide-react";
 
 import type { AboutDeviceData } from "@/types/about-device";
+import { staggerRows } from "@/lib/motion";
 
 // =============================================================================
 // DeviceInformationCard — Modem image + device identity & network addresses
@@ -169,7 +170,7 @@ const DeviceInformationCard = ({
                   className="grid divide-y divide-border border-y border-border"
                   initial="hidden"
                   animate="visible"
-                  variants={{ hidden: {}, visible: { transition: { staggerChildren: 0.04 } } }}
+                  variants={staggerRows}
                 >
                   {section.rows.map((row) => (
                     <motion.div

@@ -24,6 +24,7 @@ import {
 
 import type { WanProfile } from "@/types/wan-profiles";
 import { isCarrierProfile, isProfileConnected } from "@/types/wan-profiles";
+import { staggerContainer, staggerItem } from "@/lib/motion";
 
 // =============================================================================
 // Props
@@ -42,19 +43,7 @@ interface WanProfileListCardProps {
 // Animation Variants
 // =============================================================================
 
-const containerVariants: Variants = {
-  hidden: {},
-  visible: { transition: { staggerChildren: 0.05 } },
-};
 
-const itemVariants: Variants = {
-  hidden: { opacity: 0, y: 8 },
-  visible: {
-    opacity: 1,
-    y: 0,
-    transition: { duration: 0.25, ease: "easeOut" },
-  },
-};
 
 // =============================================================================
 // Status Badge
@@ -207,7 +196,7 @@ export default function WanProfileListCard({
         ) : (
           <motion.div
             className="grid divide-y divide-border border-y border-border"
-            variants={containerVariants}
+            variants={staggerContainer}
             initial={shouldReduceMotion ? false : "hidden"}
             animate="visible"
           >
@@ -218,7 +207,7 @@ export default function WanProfileListCard({
               return (
                 <motion.div
                   key={profile.index}
-                  variants={itemVariants}
+                  variants={staggerItem}
                   initial={shouldReduceMotion ? false : "hidden"}
                   animate="visible"
                   className={`grid grid-cols-[auto_1fr_auto] @md/card:grid-cols-[auto_1fr_auto_auto_auto] items-center gap-x-3 gap-y-2 py-3 px-2 rounded-sm transition-colors duration-200 ${

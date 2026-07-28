@@ -49,18 +49,11 @@ import type {
 } from "@/hooks/use-system-settings";
 import { TIMEZONES } from "@/types/system-settings";
 import { cn } from "@/lib/utils";
+import { staggerContainer, staggerItem } from "@/lib/motion";
 
 // ─── Animation variants ────────────────────────────────────────────────────
 
-const containerVariants: Variants = {
-  hidden: {},
-  visible: { transition: { staggerChildren: 0.06 } },
-};
 
-const itemVariants: Variants = {
-  hidden: { opacity: 0, y: 8 },
-  visible: { opacity: 1, y: 0, transition: { duration: 0.25, ease: "easeOut" } },
-};
 
 // ─── Component ──────────────────────────────────────────────────────────────
 
@@ -249,13 +242,13 @@ function SystemSettingsForm({
 
         <motion.div
           className="grid gap-2"
-          variants={containerVariants}
+          variants={staggerContainer}
           initial="hidden"
           animate="visible"
         >
           {/* ── Temperature Unit ──────────────────────────────────── */}
           <Separator />
-          <motion.div variants={itemVariants} className="flex items-center justify-between">
+          <motion.div variants={staggerItem} className="flex items-center justify-between">
             <p className="font-semibold text-muted-foreground text-sm">
               Temperature Unit
             </p>
@@ -275,7 +268,7 @@ function SystemSettingsForm({
 
           {/* ── Distance Unit ─────────────────────────────────────── */}
           <Separator />
-          <motion.div variants={itemVariants} className="flex items-center justify-between">
+          <motion.div variants={staggerItem} className="flex items-center justify-between">
             <p className="font-semibold text-muted-foreground text-sm">
               Distance Unit
             </p>
@@ -295,7 +288,7 @@ function SystemSettingsForm({
 
           {/* ── Timezone ──────────────────────────────────────────── */}
           <Separator />
-          <motion.div variants={itemVariants} className="grid gap-2">
+          <motion.div variants={staggerItem} className="grid gap-2">
             <div className="flex items-center justify-between">
               <p className="font-semibold text-muted-foreground text-sm">
                 Timezone
@@ -379,7 +372,7 @@ function SystemSettingsForm({
 
           {/* ── Save Button ───────────────────────────────────────── */}
           <Separator />
-          <motion.div variants={itemVariants} className="flex justify-end">
+          <motion.div variants={staggerItem} className="flex justify-end">
             <SaveButton
               onClick={handleSave}
               isSaving={isSaving}

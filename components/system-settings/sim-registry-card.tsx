@@ -50,7 +50,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { containerVariants, itemVariants } from "@/lib/motion";
+import { staggerContainer, staggerItem } from "@/lib/motion";
 import { useKnownSims } from "@/hooks/use-known-sims";
 import { useSimRegistry } from "@/hooks/use-sim-registry";
 import type { SimRegistryEntry } from "@/types/sim-registry";
@@ -96,7 +96,7 @@ function SimRegistryRow({
 
   return (
     <motion.div
-      variants={itemVariants}
+      variants={staggerItem}
       className={
         "flex flex-wrap items-center justify-between gap-x-4 gap-y-2 rounded-lg px-2 py-1.5 " +
         (sim.active ? "border border-primary/30 bg-primary/5" : "border border-transparent")
@@ -442,7 +442,7 @@ export default function SimRegistryCard() {
           // Keeps a long registry from stretching the settings grid; short
           // lists (the normal case) never reach the cap.
           className="grid max-h-96 gap-2 overflow-y-auto"
-          variants={containerVariants}
+          variants={staggerContainer}
           initial="hidden"
           animate="visible"
         >

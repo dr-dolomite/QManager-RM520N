@@ -22,7 +22,7 @@ import {
   TriangleAlertIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { EASE_OUT_EXPO } from "@/lib/motion";
+import { transitionStandard } from "@/lib/motion";
 
 import type {
   ProfileApplyState,
@@ -44,8 +44,8 @@ import type {
 // keeps one obvious "where am I" focal point instead of four competing rows.
 // "Skipped" reads as a calm "Unchanged" (the value was already correct) and
 // resolves to a check once the whole apply completes. The fill is transform-
-// only (scaleX) on the system EXPO ease and collapses to instant under
-// prefers-reduced-motion.
+// only (scaleX) on the system standard curve — the motion canon puts meter
+// fills there — and collapses to instant under prefers-reduced-motion.
 //
 // RM520N contract: EXACTLY 4 steps in worker/serialization order —
 // apn → ttl_hl → scenario → imei. (There is no `mpdn_rule` step here; MPDN is
@@ -74,8 +74,6 @@ const DEFAULT_STEPS: ApplyStep[] = [
   { name: "scenario", status: "pending", detail: "" },
   { name: "imei", status: "pending", detail: "" },
 ];
-
-const EXPO = EASE_OUT_EXPO;
 
 type Tone = "info" | "success" | "warning" | "destructive";
 
@@ -284,7 +282,7 @@ export function ApplyProgressDialog({
               initial={false}
               animate={{ scaleX: fraction }}
               transition={
-                reduceMotion ? { duration: 0 } : { duration: 0.5, ease: EXPO }
+                reduceMotion ? { duration: 0 } : transitionStandard
               }
             />
           </div>

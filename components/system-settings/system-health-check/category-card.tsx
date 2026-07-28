@@ -9,6 +9,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import TestRow from "./test-row";
+import { staggerRows } from "@/lib/motion";
 import {
   CATEGORY_LABELS,
   CATEGORY_DESCRIPTIONS,
@@ -34,7 +35,7 @@ export default function CategoryCard({ category, tests, fetchOutput }: CategoryC
           className="divide-y"
           initial="hidden"
           animate="visible"
-          variants={{ hidden: {}, visible: { transition: { staggerChildren: 0.03, delayChildren: 0.05 } } }}
+          variants={staggerRows}
         >
           {tests.map((t) => (
             <motion.div

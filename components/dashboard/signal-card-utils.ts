@@ -1,20 +1,17 @@
 import type { Variants } from "motion/react";
+import { DUR, EASE_STANDARD } from "@/lib/motion";
 
-/** Stagger container for signal metric rows. Denser than the 60ms card cascade
- *  because these are rows inside one card, not cards across a page. */
-export const listVariants: Variants = {
-  hidden: {},
-  visible: { transition: { staggerChildren: 0.04 } },
-};
-
-/** Fade-up entrance for individual metric rows. Content arriving, so it takes
- *  `standard` (300ms) rather than the 400ms reserved for container mass. */
+/** Fade-up entrance for individual signal metric rows. Content arriving, so it
+ *  takes `standard` rather than the emphasized curve reserved for container
+ *  mass. The rise is 5px rather than the shared item's 10px: these rows sit
+ *  inside one card at tight spacing, and a full 10px lift reads as the card
+ *  reflowing. Pair with `staggerRows` on the parent. */
 export const rowVariants: Variants = {
   hidden: { opacity: 0, y: 5 },
   visible: {
     opacity: 1,
     y: 0,
-    transition: { duration: 0.3, ease: [0.2, 0, 0, 1] },
+    transition: { duration: DUR.standard, ease: EASE_STANDARD },
   },
 };
 

@@ -3,20 +3,30 @@ import type { Variants, Transition } from "motion/react";
 // =============================================================================
 // QManager Motion System — the project's single source of truth for motion.
 // =============================================================================
-// Every animation in the app settles on the same curve, drawn from the same
-// duration scale, so the whole product feels like one instrument. This is the
-// reference layer: reach for these tokens before writing a bespoke transition,
-// and add new shared motion here rather than re-deriving a curve locally.
+// Every animation in the app settles on the same curves, drawn from the same
+// duration scale, so the whole product feels like one instrument. Reach for
+// these tokens before writing a bespoke transition, and add new shared motion
+// here rather than re-deriving a curve locally.
 //
-// Character (per DESIGN.md): Apple instrument-class. Silky, exponential
-// ease-out; never bouncy, never springy, never Material-pop. Motion conveys
-// state — entrance, feedback, settle — not decoration.
+// Character (per DESIGN.md > Motion): expressive in duration and curve, and
+// still settled. The expressiveness comes from the easing, never from
+// overshoot, which is what keeps it compatible with a tool whose job is holding
+// a connection alive. The one sanctioned exception in the entire product is the
+// save-confirmation check at 1.03 scale. Never springy, never elastic.
+//
+// These values mirror the CSS custom properties in `app/globals.css`
+// (--ease-emphasized, --ease-standard, --duration-*, --stagger-step). The CSS
+// layer is authoritative for anything styled in a class; this module exists
+// because `motion/react` transitions need the same values as JS numbers. If you
+// retune one layer, retune the other in the same change, or the product drifts
+// apart curve by curve.
 //
 // Reduced motion is handled globally by `<MotionConfig reducedMotion="user">`
-// at the app root, so every motion/react component below automatically
-// collapses transform/layout movement (keeping opacity) for users who ask for
-// it. Variants here stay pure transform + opacity so that global switch is all
-// that's ever needed.
+// in `components/motion-provider.tsx`, so every motion/react component below
+// automatically collapses transform movement (keeping opacity) for users who
+// ask for it. Keep variants here pure transform + opacity so that one switch
+// stays sufficient. Raw CSS keyframes carry their own
+// `@media (prefers-reduced-motion: reduce)` block beside them in globals.css.
 // =============================================================================
 
 // -----------------------------------------------------------------------------
@@ -24,56 +34,85 @@ import type { Variants, Transition } from "motion/react";
 // -----------------------------------------------------------------------------
 
 /**
- * The reference curve. ease-out-expo: a fast departure and a long, gentle
- * settle that never overshoots — the feel of a Control Center toggle or a
- * macOS window coming to rest. Default to this for any state change.
+ * The expressive curve: a deliberate departure and a long settle. Owns
+ * container size and shape changes, the aggregation chain re-proportioning, and
+ * alert arrival — the moments that should be felt before they are read.
+ *
+ * Mirrors `--ease-emphasized`.
  */
-export const EASE_OUT_EXPO = [0.16, 1, 0.3, 1] as const;
+export const EASE_EMPHASIZED = [0.05, 0.7, 0.1, 1] as const;
 
 /**
- * A slightly gentler tail for short, frequent moves (button presses, small
- * swaps, exits) where the long expo settle would feel sluggish.
+ * The everyday curve, and the right default for a state change. Owns the nav
+ * indicator, card entrance, meter fill, chip container morph, and the page
+ * entrance in `components/app-layout.tsx`.
+ *
+ * Mirrors `--ease-standard`.
  */
-export const EASE_OUT_QUART = [0.25, 1, 0.5, 1] as const;
+export const EASE_STANDARD = [0.2, 0, 0, 1] as const;
 
-/** CSS-string equivalents for Tailwind arbitrary values and plain transitions. */
-export const EASE_OUT_EXPO_CSS = "cubic-bezier(0.16, 1, 0.3, 1)";
-export const EASE_OUT_QUART_CSS = "cubic-bezier(0.25, 1, 0.5, 1)";
+/**
+ * The short curve, for moves too brief to need shaping. Owns label swaps, live
+ * value ticks, hover tints and focus rings. A plain ease-out, deliberately:
+ * below ~180ms a bespoke cubic is indistinguishable from the built-in.
+ *
+ * Mirrors `--ease-quick`.
+ */
+export const EASE_QUICK = "easeOut" as const;
+
+/** CSS-string equivalents, for Tailwind arbitrary values and plain transitions. */
+export const EASE_EMPHASIZED_CSS = "cubic-bezier(0.05, 0.7, 0.1, 1)";
+export const EASE_STANDARD_CSS = "cubic-bezier(0.2, 0, 0, 1)";
 
 // -----------------------------------------------------------------------------
 // Duration scale (seconds)
 // -----------------------------------------------------------------------------
 
 /**
- * Product motion lives between 150ms and 500ms. These four steps are the only
- * durations the system should use; anything slower reads as choreography the
- * user has to wait through, anything faster reads as a snap.
+ * Three steps, and they are the only durations product motion should use.
+ * Seconds here because `motion/react` takes seconds; the CSS side of each value
+ * is the matching `--duration-*` custom property, in milliseconds.
+ *
+ * The ambient loop (2s, service rings and the live ping dot) is deliberately
+ * absent: it is CSS-only, lives on `--duration-ambient`, and nothing in JS
+ * should be starting a continuous animation.
  */
 export const DUR = {
-  /** Presses, micro-feedback, live value swaps. */
-  fast: 0.16,
-  /** Most state transitions: hover, color shifts, toggles. */
-  base: 0.24,
-  /** Entrances and the page-content rise. */
-  slow: 0.34,
-  /** Determinate fills and the circular signal-meter arc. */
-  slower: 0.5,
+  /** Label swaps, live value ticks, hover tints, focus rings. */
+  quick: 0.18,
+  /** Most state changes: card entrance, meter fill, nav, page entrance. */
+  standard: 0.3,
+  /** Container size and shape, aggregation re-proportion, alert arrival. */
+  emphasized: 0.4,
 } as const;
+
+/** The card-cascade step. Mirrors `--stagger-step` (60ms). */
+export const STAGGER_STEP = 0.06;
+
+/**
+ * The row-cascade step, for rows *inside* one card rather than cards across a
+ * page. Deliberately denser: a cascade's total length is the step times the
+ * child count, and a card holding a dozen metric rows would take most of a
+ * second to finish at the card step, which reads as the card still loading.
+ * The eye also groups rows inside a shared border as one object, so they should
+ * arrive nearly together.
+ */
+export const STAGGER_STEP_ROWS = 0.04;
 
 // -----------------------------------------------------------------------------
 // Prebuilt transitions
 // -----------------------------------------------------------------------------
 
-/** The everyday transition: reference curve at the base duration. */
-export const transitionBase: Transition = {
-  duration: DUR.base,
-  ease: EASE_OUT_EXPO,
+/** The everyday transition: standard curve at the standard duration. */
+export const transitionStandard: Transition = {
+  duration: DUR.standard,
+  ease: EASE_STANDARD,
 };
 
-/** The entrance transition: reference curve at the slow duration. */
-export const transitionSlow: Transition = {
-  duration: DUR.slow,
-  ease: EASE_OUT_EXPO,
+/** The expressive transition, for size, shape and arrival. */
+export const transitionEmphasized: Transition = {
+  duration: DUR.emphasized,
+  ease: EASE_EMPHASIZED,
 };
 
 // -----------------------------------------------------------------------------
@@ -81,48 +120,54 @@ export const transitionSlow: Transition = {
 // -----------------------------------------------------------------------------
 
 /**
- * Stagger container — the parent of a card's content groups or a list. Children
- * settle in sequence at a calm cadence. Pair with `itemVariants` on each child.
+ * Card cascade container — the parent of a card's content groups or a list.
+ * Children settle in sequence one `STAGGER_STEP` apart. Pair with `staggerItem`
+ * on each direct child.
+ *
+ * Keep the 60ms step. Wider and the last card feels late behind a slow poll,
+ * which reads as the page still loading rather than as choreography.
  */
-export const containerVariants: Variants = {
+export const staggerContainer: Variants = {
   hidden: {},
   visible: {
-    transition: { staggerChildren: 0.055, delayChildren: 0.02 },
+    transition: { staggerChildren: STAGGER_STEP },
   },
 };
 
 /**
- * Fade-up entrance — content lifts 8px into place on the reference curve. This
- * is the most-used entrance in the product; dozens of surfaces consume it by
+ * Row cascade container — the dense sibling of `staggerContainer`, for a list
+ * of rows within a single card (metric rows, test results, band rows, activity
+ * entries). Same children, tighter step.
+ *
+ * Choosing between the two: if the children are cards, use `staggerContainer`;
+ * if they are rows sharing one card's border, use this.
+ */
+export const staggerRows: Variants = {
+  hidden: {},
+  visible: {
+    transition: { staggerChildren: STAGGER_STEP_ROWS },
+  },
+};
+
+/**
+ * Card cascade item — content rises 10px into place on the standard curve. This
+ * is the most-used entrance in the product and dozens of surfaces consume it by
  * reference, so its curve *is* the app's entrance feel. Change it here and the
  * whole app retunes at once.
  */
-export const itemVariants: Variants = {
-  hidden: { opacity: 0, y: 8 },
+export const staggerItem: Variants = {
+  hidden: { opacity: 0, y: 10 },
   visible: {
     opacity: 1,
     y: 0,
-    transition: { duration: DUR.slow, ease: EASE_OUT_EXPO },
+    transition: { duration: DUR.standard, ease: EASE_STANDARD },
   },
 };
 
-/**
- * Route transition — the single most-felt motion in the product, fired on every
- * navigation. Incoming content rises 10px and settles on the reference curve;
- * outgoing content fades quickly out of the way first (drive with
- * `AnimatePresence mode="wait"`). Pure transform + opacity: no blur, no scale,
- * the quiet macOS System Settings pane-swap. Reduced motion drops the rise via
- * the global `MotionConfig` and leaves a clean cross-fade.
- */
-export const pageVariants: Variants = {
-  hidden: { opacity: 0, y: 10 },
-  enter: {
-    opacity: 1,
-    y: 0,
-    transition: { duration: DUR.slow, ease: EASE_OUT_EXPO },
-  },
-  exit: {
-    opacity: 0,
-    transition: { duration: 0.12, ease: EASE_OUT_QUART },
-  },
-};
+// The route transition is deliberately NOT defined here. `components/app-layout.tsx`
+// implements it inline, keyed on `pathname`, because it is a single site that
+// needs no shared definition. It is enter-only by design: DESIGN.md forbids an
+// exit animation on navigation, since the outgoing page is already gone and
+// animating it out only delays the incoming one. A `pageVariants` export used to
+// live here carrying both the retired curve and exactly that forbidden exit. It
+// had no consumers, so it was removed rather than retuned.

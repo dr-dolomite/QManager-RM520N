@@ -14,6 +14,7 @@ import { useModemStatus } from "@/hooks/use-modem-status";
 import { detectRadioMode } from "./utils";
 import { AntennaCard, AntennaCardSkeleton } from "./antenna-card";
 import AlignmentMeterSection from "./alignment-meter";
+import { staggerContainer, staggerItem } from "@/lib/motion";
 
 // ---------------------------------------------------------------------------
 // Legend
@@ -23,19 +24,7 @@ import AlignmentMeterSection from "./alignment-meter";
 // Animation variants
 // ---------------------------------------------------------------------------
 
-const containerVariants: Variants = {
-  hidden: {},
-  visible: { transition: { staggerChildren: 0.05 } },
-};
 
-const itemVariants: Variants = {
-  hidden: { opacity: 0, y: 6 },
-  visible: {
-    opacity: 1,
-    y: 0,
-    transition: { duration: 0.2, ease: "easeOut" },
-  },
-};
 
 // ---------------------------------------------------------------------------
 // Main component
@@ -89,12 +78,12 @@ export default function AntennaAlignmentComponent() {
 
           <motion.div
             className="grid grid-cols-1 gap-4 @3xl/main:grid-cols-2 @5xl/main:grid-cols-4"
-            variants={containerVariants}
+            variants={staggerContainer}
             initial="hidden"
             animate="visible"
           >
             {[0, 1, 2, 3].map((index) => (
-              <motion.div key={index} variants={itemVariants}>
+              <motion.div key={index} variants={staggerItem}>
                 <AntennaCard index={index} spa={spa} mode={mode} />
               </motion.div>
             ))}

@@ -4,7 +4,7 @@ import React from "react";
 import { motion } from "motion/react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
-import { containerVariants, itemVariants } from "@/lib/motion";
+import { staggerContainer, staggerItem } from "@/lib/motion";
 import { Banner } from "@/components/ui/banner";
 import { useModemStatus } from "@/hooks/use-modem-status";
 import { useAboutDevice } from "@/hooks/use-about-device";
@@ -53,11 +53,11 @@ const HomeComponent = () => {
           the cascade instead of popping in ahead of its own siblings. */}
       <motion.div
         className="grid gap-4 col-span-1 @4xl/main:col-span-3"
-        variants={containerVariants}
+        variants={staggerContainer}
         initial="hidden"
         animate="visible"
       >
-        <motion.div variants={itemVariants}>
+        <motion.div variants={staggerItem}>
           <NetworkStatusComponent
             data={data?.network ?? null}
             connectivity={data?.connectivity ?? null}
@@ -71,13 +71,13 @@ const HomeComponent = () => {
             its own — that would detach it from the parent's timing. */}
         <motion.div
           className="grid grid-cols-1 @3xl/main:grid-cols-2 grid-flow-row gap-4"
-          variants={containerVariants}
+          variants={staggerContainer}
         >
           {/* LTE PCC — shown in LTE and NSA modes; spans the row when it is the
               only carrier card (LTE-only, i.e. no NR leg beside it). */}
           {networkType !== "5G-SA" && (
             <motion.div
-              variants={itemVariants}
+              variants={staggerItem}
               className={cn(
                 "h-full *:data-[slot=card]:h-full",
                 networkType === "LTE" && "@3xl/main:col-span-2",
@@ -94,7 +94,7 @@ const HomeComponent = () => {
               only carrier card (5G-SA, i.e. no LTE leg beside it). */}
           {networkType !== "LTE" && (
             <motion.div
-              variants={itemVariants}
+              variants={staggerItem}
               className={cn(
                 "h-full *:data-[slot=card]:h-full",
                 networkType === "5G-SA" && "@3xl/main:col-span-2",
@@ -123,11 +123,11 @@ const HomeComponent = () => {
           showed a strict subset of these same values. */}
       <motion.div
         className="col-span-full"
-        variants={containerVariants}
+        variants={staggerContainer}
         initial="hidden"
         animate="visible"
       >
-        <motion.div variants={itemVariants}>
+        <motion.div variants={staggerItem}>
           <CarrierAggregationComponent
             carriers={carrierComponents}
             networkType={networkType}
@@ -140,11 +140,11 @@ const HomeComponent = () => {
       <div className="col-span-full">
         <motion.div
           className="grid grid-cols-1 @3xl/main:grid-cols-2 @5xl/main:grid-cols-3 grid-flow-row gap-4"
-          variants={containerVariants}
+          variants={staggerContainer}
           initial="hidden"
           animate="visible"
         >
-          <motion.div variants={itemVariants} className="h-full *:data-[slot=card]:h-full">
+          <motion.div variants={staggerItem} className="h-full *:data-[slot=card]:h-full">
             <DeviceMetricsComponent
               deviceData={data?.device ?? null}
               lteData={data?.lte ?? null}
@@ -152,13 +152,13 @@ const HomeComponent = () => {
               isLoading={isLoading}
             />
           </motion.div>
-          <motion.div variants={itemVariants} className="h-full *:data-[slot=card]:h-full">
+          <motion.div variants={staggerItem} className="h-full *:data-[slot=card]:h-full">
             <LiveLatencyComponent
               connectivity={data?.connectivity ?? null}
               isLoading={isLoading}
             />
           </motion.div>
-          <motion.div variants={itemVariants} className="h-full *:data-[slot=card]:h-full">
+          <motion.div variants={staggerItem} className="h-full *:data-[slot=card]:h-full">
             <RecentActivitiesComponent />
           </motion.div>
         </motion.div>

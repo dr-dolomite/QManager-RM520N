@@ -38,6 +38,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { AiFillSignal } from "react-icons/ai";
 import { motion } from "motion/react";
 import { SaveButton, useSaveFlash } from "@/components/ui/save-button";
+import { staggerRows } from "@/lib/motion";
 
 // =============================================================================
 // RAT name mapping: AT command value → display name
@@ -312,7 +313,7 @@ const NetworkPriorityCard = () => {
             className="space-y-2"
             initial="hidden"
             animate="visible"
-            variants={{ hidden: {}, visible: { transition: { staggerChildren: 0.07 } } }}
+            variants={staggerRows}
           >
             <SortableContext
               items={networkIds}

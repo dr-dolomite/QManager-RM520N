@@ -25,6 +25,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { formatBandName, type BandCategory } from "@/types/band-locking";
+import { staggerContainer } from "@/lib/motion";
 
 // =============================================================================
 // BandCardsComponent — Per-Category Band Checkbox Grid + Lock/Unlock Actions
@@ -231,7 +232,7 @@ const BandCardsComponent = ({
           className="grid @lg/card:grid-cols-8 @md/card:grid-cols-6 @sm/card:grid-cols-4 grid-cols-3 grid-flow-row gap-4 mt-2"
           initial="hidden"
           animate="visible"
-          variants={{ hidden: {}, visible: { transition: { staggerChildren: 0.025 } } }}
+          variants={staggerContainer}
         >
           {supportedBands.map((band) => (
             <motion.div

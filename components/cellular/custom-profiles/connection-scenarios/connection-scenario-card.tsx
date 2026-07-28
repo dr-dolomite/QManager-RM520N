@@ -34,6 +34,7 @@ import { ScenarioItem, Scenario } from "./scenario-item";
 import { useConnectionScenarios } from "@/hooks/use-connection-scenarios";
 import { useActiveProfile } from "@/hooks/use-active-profile";
 import { ProfileOverrideAlert } from "@/components/cellular/custom-profiles/profile-override-alert";
+import { staggerContainer } from "@/lib/motion";
 import {
   NETWORK_MODE_OPTIONS,
   modeValueToLabel,
@@ -422,7 +423,7 @@ const ConnectionScenariosCard = ({
               className="contents"
               initial="hidden"
               animate="visible"
-              variants={{ hidden: {}, visible: { transition: { staggerChildren: 0.06 } } }}
+              variants={staggerContainer}
             >
               {scenarios.map((scenario) => (
                 <motion.div

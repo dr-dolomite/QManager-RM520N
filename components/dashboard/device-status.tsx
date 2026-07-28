@@ -14,7 +14,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { Eye, EyeOff } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { staggerContainer, staggerItem } from "@/lib/motion-presets";
+import { staggerContainer, staggerItem } from "@/lib/motion";
 
 import { formatUptime, type DeviceStatus } from "@/types/modem-status";
 import packageJson from "@/package.json";

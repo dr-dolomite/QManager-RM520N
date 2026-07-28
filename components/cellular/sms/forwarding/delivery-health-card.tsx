@@ -22,7 +22,7 @@ import {
   TriangleAlertIcon,
   XIcon,
 } from "lucide-react";
-import { staggerContainer, staggerItem } from "@/lib/motion-presets";
+import { staggerContainer, staggerItem } from "@/lib/motion";
 import { type UseSmsForwardingReturn } from "@/hooks/use-sms-forwarding";
 
 // =============================================================================

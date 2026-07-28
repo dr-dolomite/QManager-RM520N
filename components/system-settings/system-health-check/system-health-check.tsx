@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { useSystemHealthCheck } from "@/hooks/use-system-health-check";
 import SummaryCard from "./summary-card";
 import CategoryCard from "./category-card";
+import { staggerContainer } from "@/lib/motion";
 import {
   CATEGORY_LABELS,
   type HealthCheckTest,
@@ -92,7 +93,7 @@ export default function SystemHealthCheck() {
             className="grid grid-cols-1 @4xl/main:grid-cols-2 gap-4 items-stretch"
             initial="hidden"
             animate="visible"
-            variants={{ hidden: {}, visible: { transition: { staggerChildren: 0.05 } } }}
+            variants={staggerContainer}
           >
             {groups.map((g) => (
               <motion.div

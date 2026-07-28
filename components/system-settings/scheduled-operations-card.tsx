@@ -26,18 +26,11 @@ import type {
 } from "@/hooks/use-system-settings";
 import type { ScheduleConfig } from "@/types/system-settings";
 import { DAY_LABELS } from "@/types/system-settings";
+import { staggerContainer, staggerItem } from "@/lib/motion";
 
 // ─── Animation variants ────────────────────────────────────────────────────
 
-const containerVariants: Variants = {
-  hidden: {},
-  visible: { transition: { staggerChildren: 0.06 } },
-};
 
-const itemVariants: Variants = {
-  hidden: { opacity: 0, y: 8 },
-  visible: { opacity: 1, y: 0, transition: { duration: 0.25, ease: "easeOut" } },
-};
 
 // Copy is hardcoded English to match this card (no useTranslation here) — do
 // not introduce a lone i18n key into an otherwise-untranslated surface.
@@ -241,16 +234,16 @@ const ScheduledOperationsCard = ({
       <CardContent>
         <motion.div
           className="grid gap-2"
-          variants={containerVariants}
+          variants={staggerContainer}
           initial="hidden"
           animate="visible"
         >
           {/* ─── Section: Scheduled Reboot ─────────────────────────────── */}
-          <motion.p variants={itemVariants} className="font-semibold text-sm">Scheduled Reboot</motion.p>
+          <motion.p variants={staggerItem} className="font-semibold text-sm">Scheduled Reboot</motion.p>
           <Separator />
 
           {/* Enable toggle */}
-          <motion.div variants={itemVariants} className="flex items-center justify-between">
+          <motion.div variants={staggerItem} className="flex items-center justify-between">
             <p className="font-semibold text-muted-foreground text-sm">
               Enable Scheduled Reboot
             </p>
@@ -268,7 +261,7 @@ const ScheduledOperationsCard = ({
           <Separator />
 
           {/* Reboot Time */}
-          <motion.div variants={itemVariants} className="flex items-center justify-between mt-4">
+          <motion.div variants={staggerItem} className="flex items-center justify-between mt-4">
             <Label className="font-semibold text-muted-foreground text-sm">
               Reboot Time
             </Label>
@@ -282,7 +275,7 @@ const ScheduledOperationsCard = ({
           <Separator />
 
           {/* Repeat On */}
-          <motion.fieldset variants={itemVariants} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mt-4">
+          <motion.fieldset variants={staggerItem} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mt-4">
             <legend className="font-semibold text-muted-foreground text-sm">
               Repeat On
             </legend>

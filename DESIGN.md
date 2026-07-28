@@ -596,10 +596,16 @@ connection alive.
 
 | Token | Value | Owns |
 |-------|-------|------|
-| **emphasized** | `400ms cubic-bezier(0.05, 0.7, 0.1, 1)` | Container size and shape changes, the aggregation chain re-proportioning, alert arrival, page-level enter |
+| **emphasized** | `400ms cubic-bezier(0.05, 0.7, 0.1, 1)` | Container size and shape changes, the aggregation chain re-proportioning, alert arrival |
 | **standard** | `300ms cubic-bezier(0.2, 0, 0, 1)` | Nav indicator, card entrance, meter fill, chip container morph |
 | **quick** | `180ms ease-out` | Label swaps, live value ticks, hover tints, focus rings |
 | **ambient** | `2s ease-in-out alternate` | Service rings, live ping dot, spinners; the only loops in the product |
+
+`lib/motion.ts` is the JS mirror of these tokens and the **single** motion source in the tree
+(`lib/motion-presets.ts` and the seven local variant clones that shadowed it are gone). Use it for any
+`motion/react` transition; use the CSS custom properties for anything styled in a class. The two layers
+carry the same values on purpose, so retune both in one change or the product drifts apart curve by
+curve.
 
 In code, all four tokens exist as real values, so no surface has to hardcode a curve or a duration:
 
@@ -609,6 +615,10 @@ In code, all four tokens exist as real values, so no surface has to hardcode a c
 | standard | `ease-standard` | `--duration-standard` |
 | quick | `ease-quick` | `--duration-quick` |
 | ambient | `ease-ambient` | `--duration-ambient` |
+
+Page-level enter sits on **standard**, not emphasized. It is listed under standard below and is
+implemented that way in `components/app-layout.tsx`; a navigation is the one moment where the user is
+already waiting, so it gets the shorter curve.
 
 Plus `--stagger-step` (60ms) for the card cascade. Curves live in `@theme` and emit Tailwind
 utilities; durations are plain custom properties, used as `duration-[var(--duration-standard)]` in a
@@ -631,9 +641,16 @@ own `@media (prefers-reduced-motion: reduce)` off-switch.
 
 - **Page entrance.** Route content, keyed on `pathname`, rises 10px and fades over `standard`. Enter
   only; there is no exit animation. This is the most-felt animation in the product; do not embellish it.
-- **Card cascade.** `staggerContainer` and `staggerItem` from `lib/motion-presets.ts`, a 60ms step,
-  each child rising 10px over `standard`. Import the presets rather than re-declaring local copies.
-  Keep the 60ms step: wider and the last card feels late behind a slow poll.
+- **Card cascade.** `staggerContainer` and `staggerItem` from `lib/motion.ts`, a 60ms step, each child
+  rising 10px over `standard`. Import them rather than re-declaring local copies. Keep the 60ms step:
+  wider and the last card feels late behind a slow poll.
+- **Row cascade.** `staggerRows` from `lib/motion.ts`, a 40ms step, for rows *inside* one card (metric
+  rows, test results, band rows, activity entries). Denser than the card step on purpose: a cascade's
+  total length is the step times the child count, so a card holding a dozen rows would take most of a
+  second to finish at 60ms and read as still loading. Rows inside a shared border are also grouped by
+  the eye as one object, so they should arrive nearly together. **Choosing between the two: if the
+  children are cards, use `staggerContainer`; if they are rows sharing one card's border, use
+  `staggerRows`.** These two are the only stagger steps in the product; no surface declares its own.
 - **Nav indicator.** The active pill translates between rows over `standard` instead of appearing.
   This is the single most Material-feeling change in the shell.
 - **Meter fill.** `scaleX` from `transform-origin: left` over `standard`. Never animate width, except

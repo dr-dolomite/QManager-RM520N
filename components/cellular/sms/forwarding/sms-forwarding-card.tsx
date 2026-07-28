@@ -26,7 +26,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { SaveButton, useSaveFlash } from "@/components/ui/save-button";
 import { AlertCircleIcon, RefreshCcwIcon } from "lucide-react";
-import { staggerItem } from "@/lib/motion-presets";
+import { staggerItem } from "@/lib/motion";
 import { type UseSmsForwardingReturn } from "@/hooks/use-sms-forwarding";
 import { type SmsForwardingData } from "@/types/sms-forwarding";
 

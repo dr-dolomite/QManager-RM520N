@@ -28,6 +28,7 @@ import type {
   DeviceStatus,
 } from "@/types/modem-status";
 import { formatNumericField } from "@/types/modem-status";
+import { staggerContainer } from "@/lib/motion";
 
 // =============================================================================
 // Props
@@ -292,7 +293,7 @@ const CellDataComponent = ({
           className="grid gap-2"
           initial="hidden"
           animate="visible"
-          variants={{ hidden: {}, visible: { transition: { staggerChildren: 0.04 } } }}
+          variants={staggerContainer}
         >
           {/* ISP */}
           <Separator />

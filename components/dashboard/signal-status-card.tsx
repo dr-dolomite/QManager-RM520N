@@ -19,11 +19,8 @@ import {
   getSignalQuality,
   type SignalThresholds,
 } from "@/types/modem-status";
-import {
-  listVariants,
-  rowVariants,
-  getValueColorClass,
-} from "./signal-card-utils";
+import { rowVariants, getValueColorClass } from "./signal-card-utils";
+import { staggerRows } from "@/lib/motion";
 
 /** Which radio leg this card describes. Drives the identity tone only: blue is
  *  the 5G NR leg, violet the 4G LTE leg. Neither ever acts as a control. */
@@ -178,7 +175,7 @@ export function SignalStatusCard({
 
       <motion.dl
         className="grid gap-1.5"
-        variants={listVariants}
+        variants={staggerRows}
         initial="hidden"
         animate="visible"
       >

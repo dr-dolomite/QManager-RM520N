@@ -35,6 +35,7 @@ import { DownloadIcon } from "lucide-react";
 import { toast } from "sonner";
 
 import type { UpdateInfo } from "@/hooks/use-software-update";
+import { staggerContainer, staggerItem } from "@/lib/motion";
 
 // ─── Props ──────────────────────────────────────────────────────────────────
 
@@ -50,15 +51,7 @@ interface UpdatePreferencesCardProps {
 
 // ─── Component ──────────────────────────────────────────────────────────────
 
-const containerVariants: Variants = {
-  hidden: {},
-  visible: { transition: { staggerChildren: 0.06 } },
-};
 
-const itemVariants: Variants = {
-  hidden: { opacity: 0, y: 8 },
-  visible: { opacity: 1, y: 0, transition: { duration: 0.25, ease: "easeOut" } },
-};
 
 export function UpdatePreferencesCard({
   updateInfo,
@@ -171,13 +164,13 @@ export function UpdatePreferencesCard({
         <CardContent>
           <motion.div
             className="grid gap-2"
-            variants={containerVariants}
+            variants={staggerContainer}
             initial="hidden"
             animate="visible"
           >
             {/* ── Pre-release toggle ──────────────────────────────── */}
             <Separator />
-            <motion.div variants={itemVariants} className="flex items-center justify-between">
+            <motion.div variants={staggerItem} className="flex items-center justify-between">
               <p className="font-semibold text-muted-foreground text-sm">
                 Include pre-releases
               </p>
@@ -196,7 +189,7 @@ export function UpdatePreferencesCard({
 
             {/* ── Automatic updates ─────────────────────────────── */}
             <Separator />
-            <motion.div variants={itemVariants} className="flex flex-col gap-2">
+            <motion.div variants={staggerItem} className="flex flex-col gap-2">
               <div className="flex items-center justify-between">
                 <p className="font-semibold text-muted-foreground text-sm">
                   Automatic updates
@@ -220,7 +213,7 @@ export function UpdatePreferencesCard({
             {updateInfo?.auto_update_enabled && (
               <>
                 <Separator />
-                <motion.div variants={itemVariants} className="flex flex-col gap-2">
+                <motion.div variants={staggerItem} className="flex flex-col gap-2">
                   <div className="rounded-lg border bg-muted/50 p-3">
                     <p className="text-xs text-muted-foreground">
                       QManager checks for a newer release once a day at a
@@ -234,7 +227,7 @@ export function UpdatePreferencesCard({
 
             {/* ── Version Management ──────────────────────────────── */}
             <Separator />
-            <motion.div variants={itemVariants} className="flex flex-col gap-2">
+            <motion.div variants={staggerItem} className="flex flex-col gap-2">
               <p className="font-semibold text-sm">Version Management</p>
               <div className="flex flex-col gap-2 rounded-lg border bg-muted/50 p-3">
                 <span className="text-xs text-muted-foreground">

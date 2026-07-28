@@ -28,6 +28,7 @@ import {
   SINR_THRESHOLDS,
 } from "@/types/modem-status";
 import type { SignalPerAntenna } from "@/types/modem-status";
+import { staggerRows } from "@/lib/motion";
 
 const QUALITY_BAR_COLORS: Record<string, string> = {
   excellent: "bg-success",
@@ -210,10 +211,7 @@ function TechCard({
           className="divide-y divide-border"
           initial="hidden"
           animate="visible"
-          variants={{
-            hidden: {},
-            visible: { transition: { staggerChildren: 0.05 } },
-          }}
+          variants={staggerRows}
         >
           {ANTENNA_PORTS.map((ant, i) => (
             <motion.div

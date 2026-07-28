@@ -22,7 +22,7 @@ import { SaveButton, useSaveFlash } from "@/components/ui/save-button";
 
 import { usePingProfile } from "@/hooks/use-ping-profile";
 import { useModemStatus } from "@/hooks/use-modem-status";
-import { staggerContainer, staggerItem } from "@/lib/motion-presets";
+import { staggerContainer, staggerItem } from "@/lib/motion";
 
 // ─── Constants ──────────────────────────────────────────────────────────────
 

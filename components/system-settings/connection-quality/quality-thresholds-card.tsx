@@ -26,7 +26,7 @@ import {
   type QualityPreset,
   type QualityThresholdsSettings,
 } from "@/types/modem-status";
-import { staggerContainer, staggerItem } from "@/lib/motion-presets";
+import { staggerContainer, staggerItem } from "@/lib/motion";
 
 // ─── Preset metadata ────────────────────────────────────────────────────────
 
