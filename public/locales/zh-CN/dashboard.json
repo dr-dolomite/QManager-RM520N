@@ -102,7 +102,12 @@
     "searching": "搜索中",
     "limited_service": "受限服务",
     "inactive": "未激活",
-    "unknown": "未知"
+    "unknown": "未知",
+    "quality_excellent": "优秀",
+    "quality_good": "良好",
+    "quality_fair": "一般",
+    "quality_poor": "较差",
+    "quality_none": "无信号"
   },
   "signal_history": {
     "title": "信号质量监控",
@@ -156,11 +161,33 @@
     "try_again_button": "重试",
     "run_again_button": "再次运行"
   },
-  "scc": {
-    "title": "辅助载波",
-    "heading": "载波聚合",
-    "active_carriers_one": "{{count}} 个活动载波",
-    "active_carriers_other": "{{count}} 个活动载波"
+  "ca": {
+    "title": "载波聚合",
+    "aggregated": "MHz 聚合带宽",
+    "bandwidth": "MHz 带宽",
+    "bw_unknown": "— MHz",
+    "empty_title": "暂无载波数据",
+    "empty_description": "调制解调器当前未报告任何成分载波。",
+    "segment_label": "{{band}}，{{role}}，{{bw}} MHz",
+    "released_moments": "刚刚释放",
+    "released_minutes_one": "{{count}} 分钟前释放",
+    "released_minutes_other": "{{count}} 分钟前释放",
+    "status": {
+      "both": "NR-CA + LTE-CA 已启用",
+      "nr_ca": "NR-CA 已启用",
+      "lte_ca": "LTE-CA 已启用",
+      "endc_lte_ca": "EN-DC + LTE-CA 已启用",
+      "endc": "EN-DC 已启用",
+      "none": "未聚合",
+      "released_one": "{{count}} 个载波已释放",
+      "released_other": "{{count}} 个载波已释放"
+    },
+    "role": {
+      "pcc": "{{tech}} 主载波",
+      "anchor": "NR 锚点",
+      "scc": "{{tech}} 辅载波",
+      "released": "已释放"
+    }
   },
   "activities": {
     "title": "最近活动",

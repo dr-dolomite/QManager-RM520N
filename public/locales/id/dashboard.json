@@ -102,7 +102,12 @@
     "searching": "Mencari",
     "limited_service": "Layanan Terbatas",
     "inactive": "Tidak Aktif",
-    "unknown": "Tidak Diketahui"
+    "unknown": "Tidak Diketahui",
+    "quality_excellent": "Sangat Baik",
+    "quality_good": "Baik",
+    "quality_fair": "Cukup",
+    "quality_poor": "Buruk",
+    "quality_none": "Tidak Ada Sinyal"
   },
   "signal_history": {
     "title": "Monitor Kualitas Sinyal",
@@ -156,11 +161,33 @@
     "try_again_button": "Coba Lagi",
     "run_again_button": "Jalankan Lagi"
   },
-  "scc": {
-    "title": "Carrier Sekunder",
-    "heading": "Carrier Aggregation",
-    "active_carriers_one": "{{count}} carrier aktif",
-    "active_carriers_other": "{{count}} carrier aktif"
+  "ca": {
+    "title": "Agregasi Carrier",
+    "aggregated": "MHz teragregasi",
+    "bandwidth": "MHz lebar pita",
+    "bw_unknown": "— MHz",
+    "empty_title": "Tidak ada data carrier",
+    "empty_description": "Modem tidak melaporkan carrier komponen saat ini.",
+    "segment_label": "{{band}}, {{role}}, {{bw}} MHz",
+    "released_moments": "Baru saja dilepas",
+    "released_minutes_one": "Dilepas {{count}} mnt lalu",
+    "released_minutes_other": "Dilepas {{count}} mnt lalu",
+    "status": {
+      "both": "NR-CA + LTE-CA aktif",
+      "nr_ca": "NR-CA aktif",
+      "lte_ca": "LTE-CA aktif",
+      "endc_lte_ca": "EN-DC + LTE-CA aktif",
+      "endc": "EN-DC aktif",
+      "none": "Tanpa agregasi",
+      "released_one": "{{count}} carrier dilepas",
+      "released_other": "{{count}} carrier dilepas"
+    },
+    "role": {
+      "pcc": "{{tech}} PCC",
+      "anchor": "Anchor NR",
+      "scc": "{{tech}} SCC",
+      "released": "Dilepas"
+    }
   },
   "activities": {
     "title": "Aktivitas Terkini",

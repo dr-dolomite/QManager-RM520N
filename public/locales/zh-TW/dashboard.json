@@ -102,7 +102,12 @@
     "searching": "搜尋中",
     "limited_service": "受限服務",
     "inactive": "未啟用",
-    "unknown": "未知"
+    "unknown": "未知",
+    "quality_excellent": "優秀",
+    "quality_good": "良好",
+    "quality_fair": "一般",
+    "quality_poor": "較差",
+    "quality_none": "無訊號"
   },
   "signal_history": {
     "title": "訊號質量監控",
@@ -156,11 +161,33 @@
     "try_again_button": "重試",
     "run_again_button": "再次執行"
   },
-  "scc": {
-    "title": "輔助載波",
-    "heading": "載波聚合",
-    "active_carriers_one": "{{count}} 個活動載波",
-    "active_carriers_other": "{{count}} 個活動載波"
+  "ca": {
+    "title": "載波聚合",
+    "aggregated": "MHz 聚合頻寬",
+    "bandwidth": "MHz 頻寬",
+    "bw_unknown": "— MHz",
+    "empty_title": "暫無載波資料",
+    "empty_description": "數據機目前未回報任何成分載波。",
+    "segment_label": "{{band}}，{{role}}，{{bw}} MHz",
+    "released_moments": "剛剛釋放",
+    "released_minutes_one": "{{count}} 分鐘前釋放",
+    "released_minutes_other": "{{count}} 分鐘前釋放",
+    "status": {
+      "both": "NR-CA + LTE-CA 已啟用",
+      "nr_ca": "NR-CA 已啟用",
+      "lte_ca": "LTE-CA 已啟用",
+      "endc_lte_ca": "EN-DC + LTE-CA 已啟用",
+      "endc": "EN-DC 已啟用",
+      "none": "未聚合",
+      "released_one": "{{count}} 個載波已釋放",
+      "released_other": "{{count}} 個載波已釋放"
+    },
+    "role": {
+      "pcc": "{{tech}} 主載波",
+      "anchor": "NR 錨點",
+      "scc": "{{tech}} 輔載波",
+      "released": "已釋放"
+    }
   },
   "activities": {
     "title": "最近活動",

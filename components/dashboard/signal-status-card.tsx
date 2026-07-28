@@ -2,20 +2,16 @@
 
 import { motion } from "motion/react";
 import { useTranslation } from "react-i18next";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Separator } from "@/components/ui/separator";
-import { cn } from "@/lib/utils";
-import { FaCircle } from "react-icons/fa6";
 import {
-  MdSignalCellular0Bar,
-  MdSignalCellular1Bar,
-  MdSignalCellular2Bar,
-  MdSignalCellular3Bar,
-  MdSignalCellular4Bar,
-  MdSignalCellularOff,
-  MdOutlineSignalCellularConnectedNoInternet0Bar,
-} from "react-icons/md";
+  SignalIcon,
+  SignalHighIcon,
+  SignalLowIcon,
+  SignalMediumIcon,
+  SignalZeroIcon,
+} from "lucide-react";
+import { Card } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
+import { cn } from "@/lib/utils";
 
 import {
   RSRP_THRESHOLDS,
@@ -28,43 +24,63 @@ import {
   getValueColorClass,
 } from "./signal-card-utils";
 
-// --- Signal bar icon based on RSRP quality ---
-function getSignalBarIcon(quality: string) {
-  const iconClass = "size-10 text-primary";
-  const props = { className: iconClass, "aria-hidden": true as const };
+/** Which radio leg this card describes. Drives the identity tone only: blue is
+ *  the 5G NR leg, violet the 4G LTE leg. Neither ever acts as a control. */
+export type RadioFamily = "nr" | "lte";
+
+function getSignalIcon(quality: string) {
   switch (quality) {
     case "excellent":
-      return <MdSignalCellular4Bar {...props} />;
+      return SignalIcon;
     case "good":
-      return <MdSignalCellular3Bar {...props} />;
+      return SignalHighIcon;
     case "fair":
-      return <MdSignalCellular2Bar {...props} />;
+      return SignalMediumIcon;
     case "poor":
-      return <MdSignalCellular1Bar {...props} />;
-    case "none":
-      return <MdSignalCellular0Bar {...props} />;
+      return SignalLowIcon;
     default:
-      return <MdSignalCellularOff {...props} />;
+      return SignalZeroIcon;
   }
 }
 
-// --- Connection state display ---
-// Returns a color plus the signal_card translation key for the state label; the
-// component resolves the key via t() so this stays a pure, hook-free helper.
+/**
+ * Quality chips carry the functional four, not the radio family's hue.
+ *
+ * The source mock tinted this chip with the RAT identity colour, which would
+ * make an "Excellent" chip and a "Good" chip differ by radio rather than by
+ * quality — the chip's own fill contradicting its own label. Quality is a
+ * status, so it reads on the status palette; the band pill below keeps the
+ * identity hue, where identity belongs.
+ */
+function getQualityChipTone(quality: string): string {
+  switch (quality) {
+    case "excellent":
+    case "good":
+      return "bg-success-container text-on-success-container";
+    case "fair":
+      return "bg-warning-container text-on-warning-container";
+    case "poor":
+      return "bg-destructive-container text-on-destructive-container";
+    default:
+      return "bg-surface-container-high text-on-surface-variant";
+  }
+}
+
+/** Returns the state dot's fill plus the `signal_card` key for its label. */
 function getStateDisplay(state: string) {
   switch (state) {
     case "connected":
-      return { color: "text-success", key: "connected" };
+      return { dot: "bg-success", key: "connected" };
     case "disconnected":
-      return { color: "text-destructive", key: "disconnected" };
+      return { dot: "bg-destructive", key: "disconnected" };
     case "searching":
-      return { color: "text-warning", key: "searching" };
+      return { dot: "bg-warning", key: "searching" };
     case "limited":
-      return { color: "text-warning", key: "limited_service" };
+      return { dot: "bg-warning", key: "limited_service" };
     case "inactive":
-      return { color: "text-muted-foreground", key: "inactive" };
+      return { dot: "bg-on-surface-variant", key: "inactive" };
     default:
-      return { color: "text-muted-foreground", key: "unknown" };
+      return { dot: "bg-on-surface-variant", key: "unknown" };
   }
 }
 
@@ -75,6 +91,9 @@ export interface SignalStatusRow {
   rawValue?: number | null;
   /** Threshold set to use for color coding (RSRP, RSRQ, or SINR) */
   thresholds?: SignalThresholds;
+  /** Render the value as an identity-toned pill rather than plain ink. Used for
+   *  the band, which is an identifier rather than a measurement. */
+  asIdentity?: boolean;
 }
 
 interface SignalStatusCardProps {
@@ -83,6 +102,7 @@ interface SignalStatusCardProps {
   rsrp: number | null;
   rows: SignalStatusRow[];
   isLoading: boolean;
+  family: RadioFamily;
 }
 
 export function SignalStatusCard({
@@ -91,107 +111,120 @@ export function SignalStatusCard({
   rsrp,
   rows,
   isLoading,
+  family,
 }: SignalStatusCardProps) {
   const { t } = useTranslation("dashboard");
   const stateDisplay = getStateDisplay(state);
   const isInactive = state === "inactive";
-  const signalQuality = getSignalQuality(rsrp, RSRP_THRESHOLDS);
+  const quality = isInactive ? "none" : getSignalQuality(rsrp, RSRP_THRESHOLDS);
+  const QualityIcon = getSignalIcon(quality);
+
+  const identityTone =
+    family === "nr"
+      ? "bg-primary-container text-on-primary-container"
+      : "bg-lte-container text-on-lte-container";
 
   if (isLoading) {
     return (
-      <Card className="rounded-card">
-        <CardHeader>
-          <CardTitle className="text-lg font-semibold">{title}</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid gap-4">
-            <div className="flex items-center justify-between">
-              <div className="grid gap-1.5">
-                <Skeleton className="h-4 w-28" />
-                <Skeleton className="h-3 w-20" />
-              </div>
-              <Skeleton className="size-10" />
-            </div>
-            <div className="grid gap-2">
-              {Array.from({ length: rows.length || 7 }).map((_, i) => (
-                <div key={i}>
-                  <Separator />
-                  <div className="flex items-center justify-between py-1">
-                    <Skeleton className="h-4 w-16" />
-                    <Skeleton className="h-4 w-20" />
-                  </div>
-                </div>
-              ))}
-            </div>
+      <Card className="gap-4 rounded-card border-0 px-6 py-6 shadow-[var(--shadow-whisper)]">
+        <Skeleton className="h-6 w-40" />
+        <div className="flex items-center justify-between gap-3">
+          <div className="grid gap-1.5">
+            <Skeleton className="h-4 w-28" />
+            <Skeleton className="h-3 w-20" />
           </div>
-        </CardContent>
+          <Skeleton className="h-8 w-24 rounded-pill" />
+        </div>
+        {/* Mirrors the loaded geometry exactly — same row count, same pill
+            radius — so nothing reflows when data lands. */}
+        <div className="grid gap-1.5">
+          {Array.from({ length: rows.length || 7 }).map((_, i) => (
+            <Skeleton key={i} className="h-10 rounded-pill" />
+          ))}
+        </div>
       </Card>
     );
   }
 
   return (
-    <Card className="rounded-card">
-      <CardHeader>
-        <CardTitle className="text-lg font-semibold">{title}</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <div className="grid gap-4">
-          <div className="flex items-center justify-between">
-            <div className="grid gap-0.5">
-              <h3 className="text-sm font-semibold">{t("signal_card.strength_heading")}</h3>
-              <div className="flex items-center gap-x-1">
-                <FaCircle
-                  className={`${stateDisplay.color} w-2 h-2`}
-                  aria-hidden
-                />
-                <p className="text-muted-foreground text-xs">
-                  {t(`signal_card.${stateDisplay.key}`)}
-                </p>
-              </div>
-            </div>
-            {isInactive ? (
-              <MdOutlineSignalCellularConnectedNoInternet0Bar
-                className="size-10 text-muted-foreground"
-                aria-hidden
-              />
-            ) : (
-              getSignalBarIcon(signalQuality)
-            )}
-          </div>
+    <Card className="gap-4 rounded-card border-0 px-6 py-6 shadow-[var(--shadow-whisper)]">
+      <h3 className="text-lg font-semibold">{title}</h3>
 
-          {/* Metric rows — stagger in on first render */}
-          <motion.dl
-            className="grid divide-y divide-border border-y border-border"
-            variants={listVariants}
-            initial="hidden"
-            animate="visible"
-          >
-            {rows.map((row) => {
-              const quality =
-                row.rawValue != null && row.thresholds
-                  ? getSignalQuality(row.rawValue, row.thresholds)
-                  : "none";
-              const valueColor = getValueColorClass(quality);
-
-              return (
-                <motion.div
-                  key={row.label}
-                  variants={rowVariants}
-                  transition={{ duration: 0.25, ease: "easeOut" }}
-                  className="flex items-center justify-between py-2"
-                >
-                  <dt className="font-semibold text-muted-foreground text-sm">
-                    {row.label}
-                  </dt>
-                  <dd className={cn("font-semibold text-sm tabular-nums", valueColor)}>
-                    {row.value}
-                  </dd>
-                </motion.div>
-              );
-            })}
-          </motion.dl>
+      <div className="flex items-center justify-between gap-3">
+        <div className="grid gap-0.5">
+          <span className="text-sm font-semibold">
+            {t("signal_card.strength_heading")}
+          </span>
+          <span className="flex items-center gap-1.5 text-xs text-on-surface-variant">
+            <span
+              className={cn("size-2 shrink-0 rounded-pill", stateDisplay.dot)}
+              aria-hidden
+            />
+            {t(`signal_card.${stateDisplay.key}`)}
+          </span>
         </div>
-      </CardContent>
+
+        {/* The glyph changes with the colour: it is what survives greyscale,
+            deuteranopia, and a fill washed out by direct sun. */}
+        <span
+          className={cn(
+            "inline-flex shrink-0 items-center gap-1.5 rounded-pill px-3 py-1.5 text-xs font-semibold transition-colors duration-(--duration-standard) ease-standard",
+            getQualityChipTone(quality),
+          )}
+        >
+          <QualityIcon className="size-4" aria-hidden />
+          {t(`signal_card.quality_${quality}`)}
+        </span>
+      </div>
+
+      <motion.dl
+        className="grid gap-1.5"
+        variants={listVariants}
+        initial="hidden"
+        animate="visible"
+      >
+        {rows.map((row) => {
+          const rowQuality =
+            row.rawValue != null && row.thresholds
+              ? getSignalQuality(row.rawValue, row.thresholds)
+              : "none";
+          const valueColor = getValueColorClass(rowQuality);
+
+          return (
+            <motion.div
+              key={row.label}
+              variants={rowVariants}
+              className="flex items-center justify-between gap-3 rounded-pill bg-surface-container px-4 py-2.5"
+            >
+              <dt className="text-sm font-medium text-on-surface-variant">
+                {row.label}
+              </dt>
+              {/* An identity pill wrapping a placeholder dash reads as a broken
+                  chip rather than as absent data, so a missing band falls back
+                  to plain ink. */}
+              {row.asIdentity && row.value !== "-" ? (
+                <dd
+                  className={cn(
+                    "m-0 shrink-0 rounded-pill px-2.5 py-1 font-mono text-xs font-semibold",
+                    identityTone,
+                  )}
+                >
+                  {row.value}
+                </dd>
+              ) : (
+                <dd
+                  className={cn(
+                    "m-0 font-mono text-sm font-semibold tabular-nums",
+                    valueColor,
+                  )}
+                >
+                  {row.value}
+                </dd>
+              )}
+            </motion.div>
+          );
+        })}
+      </motion.dl>
     </Card>
   );
 }

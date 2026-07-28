@@ -879,7 +879,11 @@ The full-width surface that replaces the SCC card on the dashboard.
 
 - A **proportional chain**: one segment per carrier, width proportional to bandwidth, tone by radio
   family (primary for NR, secondary for LTE), the strong tone for the primary carrier and the container
-  tone for secondaries. Segment labels carry bandwidth only and never wrap.
+  tone for secondaries. Segment labels carry the band and its bandwidth, and never wrap. (The band
+  was added when the strip was built: bandwidth alone leaves the chain unreadable, since a bare "60
+  MHz" does not say which carrier it belongs to. Below the `@md` container step the labels drop
+  entirely and the chain becomes a bare proportion bar, because at phone width a small segment is
+  narrower than its own padding; the tiles beneath carry every label the segments give up.)
 - A **tile row** beneath: one tile per carrier with band, role chip, PCI, ARFCN or EARFCN, and an RSRP
   quality bar.
 - On loss, released segments **stay in place greyed**, with the aggregate figure showing what remains
@@ -1121,7 +1125,7 @@ step is independently shippable and leaves the product correct.
 |------|-------|-------|
 | 1 | **Tokens in `globals.css`.** Container roles, tinted surface steps, retuned amber, info aliased to the brand ramp, ring tone steps, the shape scale as additive role radii, motion curves and durations. No component touched; the product changes color and stays correct. | **Landed** |
 | 2 | **Shell and shape scale.** Sidebar pills with the sliding indicator and the self-hosted Material Symbols Rounded subset, the role radii applied to cards and controls (retiring the legacy `--radius` chain), the new mark wired in (`public/qmanager-mark.svg` is already in the tree, currently unreferenced). | **Partial.** Nav half landed. The dashboard's own cards now carry role radii (`rounded-hero` on the two hero cards, `rounded-card` on the rest). The legacy `--radius` chain is still live everywhere else: `rounded-md` alone has 114 call sites, so retargeting it silently would be a regression, not a migration. |
-| 3 | **Chips, banners, and the dashboard.** Flip the badge pattern to filled chips, retarget the banners to the eight-role system (`SimSwapBanner` first — it is the reference anatomy), adopt containers and pill rows on the status cards (Network Status keeps its icons), land the Carrier Aggregation strip. | **Partial.** The Banner System shipped as `components/ui/banner.tsx` (all eight roles; 01/02/03/07 mounted, 04/05/06/08 available but unmounted). Network Status is retargeted and is the one surface on filled chips. **The badge flip is NOT done** — ~40 files still carry the outline pattern, which is why the `CLAUDE.md` badge table is unchanged. Carrier Aggregation strip not started. |
+| 3 | **Chips, banners, and the dashboard.** Flip the badge pattern to filled chips, retarget the banners to the eight-role system (`SimSwapBanner` first — it is the reference anatomy), adopt containers and pill rows on the status cards (Network Status keeps its icons), land the Carrier Aggregation strip. | **Partial.** The Banner System shipped as `components/ui/banner.tsx` (all eight roles; 01/02/03/07 mounted, 04/05/06/08 available but unmounted). The Carrier Aggregation strip has **landed** (`components/dashboard/carrier-aggregation.tsx` + the pure view model in `lib/carrier-aggregation.ts`), mounted `col-span-full` and replacing the deleted `scc-status.tsx`. The dashboard's carrier surfaces are now on the tonal system: Network Status, and Signal Status (LTE/NR) with pill metric rows on `surface-container`, filled quality chips on the functional four, and identity-toned band pills. **The badge flip is NOT done** — ~40 files elsewhere still carry the outline pattern, which is why the `CLAUDE.md` badge table is unchanged. |
 | 4 | **Dense pages.** Cell Scanner, log views, and SMS adopt the new tokens while keeping hairline rows. This is where the system is proven or corrected. | Not started |
 
 **Step 3 is the CLAUDE.md gate.** The status-badge table in `CLAUDE.md` still documents the shipped

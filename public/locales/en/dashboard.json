@@ -102,7 +102,12 @@
     "searching": "Searching",
     "limited_service": "Limited Service",
     "inactive": "Inactive",
-    "unknown": "Unknown"
+    "unknown": "Unknown",
+    "quality_excellent": "Excellent",
+    "quality_good": "Good",
+    "quality_fair": "Fair",
+    "quality_poor": "Poor",
+    "quality_none": "No signal"
   },
   "signal_history": {
     "title": "Signal Quality Monitor",
@@ -156,11 +161,33 @@
     "try_again_button": "Try Again",
     "run_again_button": "Run Again"
   },
-  "scc": {
-    "title": "Secondary Carriers",
-    "heading": "Carrier Aggregation",
-    "active_carriers_one": "{{count}} active carrier",
-    "active_carriers_other": "{{count}} active carriers"
+  "ca": {
+    "title": "Carrier Aggregation",
+    "aggregated": "MHz aggregated",
+    "bandwidth": "MHz bandwidth",
+    "bw_unknown": "— MHz",
+    "empty_title": "No carrier data",
+    "empty_description": "The modem is not reporting any component carriers right now.",
+    "segment_label": "{{band}}, {{role}}, {{bw}} MHz",
+    "released_moments": "Released moments ago",
+    "released_minutes_one": "Released {{count}} min ago",
+    "released_minutes_other": "Released {{count}} min ago",
+    "status": {
+      "both": "NR-CA + LTE-CA active",
+      "nr_ca": "NR-CA active",
+      "lte_ca": "LTE-CA active",
+      "endc_lte_ca": "EN-DC + LTE-CA active",
+      "endc": "EN-DC active",
+      "none": "No aggregation",
+      "released_one": "{{count}} carrier released",
+      "released_other": "{{count}} carriers released"
+    },
+    "role": {
+      "pcc": "{{tech}} PCC",
+      "anchor": "NR Anchor",
+      "scc": "{{tech}} SCC",
+      "released": "Released"
+    }
   },
   "activities": {
     "title": "Recent Activities",

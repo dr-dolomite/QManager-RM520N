@@ -12,7 +12,7 @@ import NetworkStatusComponent from "./network-status";
 import DeviceStatus from "./device-status";
 import LTEStatusComponent from "./lte-status";
 import NrStatusComponent from "./nr-status";
-import SccStatusComponent from "./scc-status";
+import CarrierAggregationComponent from "./carrier-aggregation";
 import { SignalHistoryComponent } from "./signal-history";
 import RecentActivitiesComponent from "./recent-activities";
 import DeviceMetricsComponent from "./device-metrics";
@@ -39,7 +39,6 @@ const HomeComponent = () => {
 
   const networkType = data?.network?.type ?? "";
   const carrierComponents = data?.network?.carrier_components ?? [];
-  const hasScc = carrierComponents.some((c) => c.type === "SCC");
 
   return (
     <div className="grid grid-cols-1 gap-6 px-4 lg:px-6 @4xl/main:grid-cols-5" aria-live="polite" aria-atomic="false">
@@ -74,13 +73,14 @@ const HomeComponent = () => {
           className="grid grid-cols-1 @3xl/main:grid-cols-2 grid-flow-row gap-4"
           variants={containerVariants}
         >
-          {/* LTE PCC — shown in LTE and NSA modes; spans full width when no SCCs */}
+          {/* LTE PCC — shown in LTE and NSA modes; spans the row when it is the
+              only carrier card (LTE-only, i.e. no NR leg beside it). */}
           {networkType !== "5G-SA" && (
             <motion.div
               variants={itemVariants}
               className={cn(
                 "h-full *:data-[slot=card]:h-full",
-                networkType === "LTE" && !hasScc && "@3xl/main:col-span-2",
+                networkType === "LTE" && "@3xl/main:col-span-2",
               )}
             >
               <LTEStatusComponent
@@ -90,13 +90,14 @@ const HomeComponent = () => {
             </motion.div>
           )}
 
-          {/* NR PCC — shown in SA and NSA modes; spans full width when no SCCs */}
+          {/* NR PCC — shown in SA and NSA modes; spans the row when it is the
+              only carrier card (5G-SA, i.e. no LTE leg beside it). */}
           {networkType !== "LTE" && (
             <motion.div
               variants={itemVariants}
               className={cn(
                 "h-full *:data-[slot=card]:h-full",
-                networkType === "5G-SA" && !hasScc && "@3xl/main:col-span-2",
+                networkType === "5G-SA" && "@3xl/main:col-span-2",
               )}
             >
               <NrStatusComponent
@@ -106,16 +107,6 @@ const HomeComponent = () => {
             </motion.div>
           )}
 
-          {/*
-           * SCC card on the right — Primary always on the left, Secondary always on the right.
-           * 5G-NSA intentionally omits SCC here to keep the dual-Primary row uncluttered;
-           * carrier-aggregation details for NSA live on the Cellular Information page.
-           */}
-          {(networkType === "LTE" || networkType === "5G-SA") && hasScc && (
-            <motion.div variants={itemVariants} className="h-full *:data-[slot=card]:h-full">
-              <SccStatusComponent carriers={carrierComponents} />
-            </motion.div>
-          )}
         </motion.div>
       </motion.div>
       <div className="col-span-1 @4xl/main:col-span-2 h-full *:data-[slot=card]:h-full">
@@ -125,6 +116,26 @@ const HomeComponent = () => {
           lanGateway={aboutDevice?.network.lan_gateway}
         />
       </div>
+
+      {/* Carrier Aggregation — full width because the proportional chain is the
+          point, and a chain squeezed into a 3/5 column stops being readable at
+          the narrow end. It replaces the old Secondary Carriers card, which
+          showed a strict subset of these same values. */}
+      <motion.div
+        className="col-span-full"
+        variants={containerVariants}
+        initial="hidden"
+        animate="visible"
+      >
+        <motion.div variants={itemVariants}>
+          <CarrierAggregationComponent
+            carriers={carrierComponents}
+            networkType={networkType}
+            isLoading={isLoading}
+            isStale={isStale}
+          />
+        </motion.div>
+      </motion.div>
 
       <div className="col-span-full">
         <motion.div

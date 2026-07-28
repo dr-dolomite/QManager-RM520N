@@ -102,7 +102,12 @@
     "searching": "Ricerca",
     "limited_service": "Servizio limitato",
     "inactive": "Inattivo",
-    "unknown": "Sconosciuto"
+    "unknown": "Sconosciuto",
+    "quality_excellent": "Eccellente",
+    "quality_good": "Buono",
+    "quality_fair": "Discreto",
+    "quality_poor": "Scarso",
+    "quality_none": "Nessun segnale"
   },
   "signal_history": {
     "title": "Monitoraggio della qualità del segnale",
@@ -156,11 +161,33 @@
     "try_again_button": "Riprova",
     "run_again_button": "Corri di nuovo"
   },
-  "scc": {
-    "title": "Portatori secondari",
-    "heading": "Aggregazione dei vettori",
-    "active_carriers_one": "{{count}} operatore attivo",
-    "active_carriers_other": "{{count}} operatori attivi"
+  "ca": {
+    "title": "Aggregazione portanti",
+    "aggregated": "MHz aggregati",
+    "bandwidth": "MHz di banda",
+    "bw_unknown": "— MHz",
+    "empty_title": "Nessun dato sulle portanti",
+    "empty_description": "Il modem non sta segnalando alcuna portante componente.",
+    "segment_label": "{{band}}, {{role}}, {{bw}} MHz",
+    "released_moments": "Rilasciata poco fa",
+    "released_minutes_one": "Rilasciata {{count}} min fa",
+    "released_minutes_other": "Rilasciata {{count}} min fa",
+    "status": {
+      "both": "NR-CA + LTE-CA attive",
+      "nr_ca": "NR-CA attiva",
+      "lte_ca": "LTE-CA attiva",
+      "endc_lte_ca": "EN-DC + LTE-CA attive",
+      "endc": "EN-DC attivo",
+      "none": "Nessuna aggregazione",
+      "released_one": "{{count}} portante rilasciata",
+      "released_other": "{{count}} portanti rilasciate"
+    },
+    "role": {
+      "pcc": "{{tech}} PCC",
+      "anchor": "Ancora NR",
+      "scc": "{{tech}} SCC",
+      "released": "Rilasciata"
+    }
   },
   "activities": {
     "title": "Attività recenti",

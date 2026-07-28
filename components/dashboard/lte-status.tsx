@@ -23,7 +23,11 @@ const LTEStatusComponent = ({ data, isLoading }: LTEStatusComponentProps) => {
   };
 
   const rows = [
-    { label: t("signal_status.band"), value: data?.band || "-" },
+    {
+      label: t("signal_status.band"),
+      value: data?.band || "-",
+      asIdentity: true,
+    },
     { label: t("signal_status.earfcn"), value: data?.earfcn?.toString() ?? "-" },
     { label: t("signal_status.pci"), value: data?.pci?.toString() ?? "-" },
     {
@@ -54,6 +58,7 @@ const LTEStatusComponent = ({ data, isLoading }: LTEStatusComponentProps) => {
       rsrp={data?.rsrp ?? null}
       rows={rows}
       isLoading={isLoading}
+      family="lte"
     />
   );
 };

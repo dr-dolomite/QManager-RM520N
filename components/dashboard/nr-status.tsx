@@ -23,7 +23,11 @@ const NrStatusComponent = ({ data, isLoading }: NrStatusComponentProps) => {
   };
 
   const rows = [
-    { label: t("signal_status.band"), value: data?.band || "-" },
+    {
+      label: t("signal_status.band"),
+      value: data?.band || "-",
+      asIdentity: true,
+    },
     { label: t("signal_status.arfcn"), value: data?.arfcn?.toString() ?? "-" },
     { label: t("signal_status.pci"), value: data?.pci?.toString() ?? "-" },
     {
@@ -54,6 +58,7 @@ const NrStatusComponent = ({ data, isLoading }: NrStatusComponentProps) => {
       rsrp={data?.rsrp ?? null}
       rows={rows}
       isLoading={isLoading}
+      family="nr"
     />
   );
 };

@@ -501,3 +501,37 @@
     animation: none;
   }
 }
+
+/* ---------------------------------------------------------------------------
+   Carrier Aggregation chain (DESIGN.md > Carrier Aggregation strip).
+
+   `width` is the single sanctioned width animation in the product: on this
+   surface the width IS the data, and a scaleX would distort the band and
+   bandwidth labels riding inside each segment. Everything else, including the
+   quality meters ten pixels below, animates transform only.
+
+   Re-proportioning is a container size change, so it takes `emphasized`.
+--------------------------------------------------------------------------- */
+.ca-segment {
+  transition:
+    width var(--duration-emphasized) var(--ease-emphasized),
+    background-color var(--duration-standard) var(--ease-standard),
+    color var(--duration-standard) var(--ease-standard);
+}
+
+/* Meter fill: transform, never width — otherwise every meter on the dashboard
+   triggers layout on each poll, on a CPU that is also carrying the user's
+   traffic. `standard`, because a fill is a content change, not a mass one. */
+.ca-meter {
+  transition: transform var(--duration-standard) var(--ease-standard);
+}
+
+/* With motion off the end state must already be correct: the segment still has
+   its final width and the meter its final scale, they simply arrive there
+   without travelling. */
+@media (prefers-reduced-motion: reduce) {
+  .ca-segment,
+  .ca-meter {
+    transition: none;
+  }
+}

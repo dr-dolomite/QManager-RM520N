@@ -148,7 +148,13 @@ export interface LteStatus {
   band: string;
   /** E-UTRA Absolute Radio Frequency Channel Number */
   earfcn: number | null;
-  /** Downlink bandwidth in MHz */
+  /**
+   * Raw QENG downlink bandwidth ENUM, not MHz: 0-5 maps to 1.4/3/5/10/15/20 MHz.
+   * The poller stores field 12 of AT+QENG="servingcell" undecoded, so a 20 MHz
+   * channel arrives here as `5`. For a real MHz figure use
+   * `NetworkStatus.carrier_components[].bandwidth_mhz`, which AT+QCAINFO
+   * reports as resource blocks and the poller decodes.
+   */
   bandwidth: number | null;
   /** Physical Cell ID */
   pci: number | null;
