@@ -125,10 +125,7 @@ const BandSettingsComponent = ({
 
     if (!failover.enabled) {
       return (
-        <Badge
-          variant="outline"
-          className="bg-muted/50 text-muted-foreground border-muted-foreground/30"
-        >
+        <Badge variant="muted">
           <MinusCircleIcon className="h-3 w-3" />
           Disabled
         </Badge>
@@ -137,10 +134,7 @@ const BandSettingsComponent = ({
 
     if (failover.activated) {
       return (
-        <Badge
-          variant="outline"
-          className="bg-warning/15 text-warning hover:bg-warning/20 border-warning/30"
-        >
+        <Badge variant="warning">
           <TriangleAlertIcon className="h-3 w-3" />
           Fallback Active
         </Badge>
@@ -149,10 +143,7 @@ const BandSettingsComponent = ({
 
     if (failover.watcher_running) {
       return (
-        <Badge
-          variant="outline"
-          className="bg-info/15 text-info hover:bg-info/20 border-info/30"
-        >
+        <Badge variant="info">
           <Loader2Icon className="h-3 w-3 animate-spin" />
           Monitoring
         </Badge>
@@ -160,10 +151,7 @@ const BandSettingsComponent = ({
     }
 
     return (
-      <Badge
-        variant="outline"
-        className="bg-success/15 text-success hover:bg-success/20 border-success/30"
-      >
+      <Badge variant="success">
         <CheckCircle2Icon className="h-3 w-3" />
         Ready
       </Badge>

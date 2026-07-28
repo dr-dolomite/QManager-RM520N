@@ -108,10 +108,7 @@ function SimRegistryRow({
             {sim.carrier || t("sim_registry.carrier_unknown")}
           </p>
           {sim.active && (
-            <Badge
-              variant="outline"
-              className="bg-success/15 text-success hover:bg-success/20 border-success/30"
-            >
+            <Badge variant="success">
               <CheckCircle2Icon className="size-3" />
               {t("sim_registry.badge_active")}
             </Badge>
@@ -139,18 +136,12 @@ function SimRegistryRow({
 
       <div className="flex shrink-0 items-center gap-2">
         {sim.dismissed ? (
-          <Badge
-            variant="outline"
-            className="bg-muted/50 text-muted-foreground border-muted-foreground/30"
-          >
+          <Badge variant="muted">
             <MinusCircleIcon className="size-3" />
             {t("sim_registry.badge_alerts_off")}
           </Badge>
         ) : (
-          <Badge
-            variant="outline"
-            className="bg-info/15 text-info hover:bg-info/20 border-info/30"
-          >
+          <Badge variant="info">
             <BellIcon className="size-3" />
             {t("sim_registry.badge_alerts_on")}
           </Badge>

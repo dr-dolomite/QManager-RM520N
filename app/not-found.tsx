@@ -95,10 +95,7 @@ export default function NotFound() {
             >
               404
             </p>
-            <Badge
-              variant="outline"
-              className="bg-destructive/15 text-destructive hover:bg-destructive/20 border-destructive/30"
-            >
+            <Badge variant="destructive">
               <XCircleIcon className="size-3" />
               No route acquired
             </Badge>
@@ -147,7 +144,7 @@ export default function NotFound() {
 
       <div className="flex items-center gap-2">
         <img
-          src="/qmanager-logo.svg"
+          src="/qmanager-mark.svg"
           alt=""
           aria-hidden
           className="size-4 opacity-70"

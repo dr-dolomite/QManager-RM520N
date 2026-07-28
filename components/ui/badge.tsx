@@ -13,14 +13,35 @@ const badgeVariants = cva(
           "border-transparent bg-primary text-primary-foreground [a&]:hover:bg-primary/90",
         secondary:
           "border-transparent bg-secondary text-secondary-foreground [a&]:hover:bg-secondary/90",
-        destructive:
-          "border-transparent bg-destructive text-white [a&]:hover:bg-destructive/90 focus-visible:ring-destructive/20 dark:focus-visible:ring-destructive/40 dark:bg-destructive/60",
+        // ── Status roles: filled tonal chips (the Filled-Chip Rule) ──────────
+        // A role container fill, that container's `on-` ink, no visible border,
+        // pill radius from the base. These replaced the retired outline-and-tint
+        // badge; they are the ONLY correct way to render a status indicator.
+        //
+        // Colour alone never carries the state. `success-container` (L 0.89) and
+        // `warning-container` (L 0.905) measure 1.03:1 apart, so they are the
+        // same surface to anyone with deuteranopia and very nearly the same
+        // surface to everyone else. The `size-3` glyph is doing the work, which
+        // is why the base class reserves a slot for it. Never ship one of these
+        // without an icon.
+        //
+        // Hover is `[a&]:` scoped on purpose: a static status chip that responds
+        // to the cursor advertises a click target that does not exist.
         success:
-          "border-transparent bg-success text-success-foreground [a&]:hover:bg-success/90",
-        info:
-          "border-transparent bg-info text-info-foreground [a&]:hover:bg-info/90",
+          "border-transparent bg-success-container text-on-success-container [a&]:hover:bg-success-container/80",
         warning:
-          "border-transparent bg-warning text-warning-foreground [a&]:hover:bg-warning/90",
+          "border-transparent bg-warning-container text-on-warning-container [a&]:hover:bg-warning-container/80",
+        destructive:
+          "border-transparent bg-destructive-container text-on-destructive-container [a&]:hover:bg-destructive-container/80",
+        // Info resolves to the brand ramp, not a separate hue (Info-Is-Brand
+        // Rule): an informational chip and a primary button differ by shape and
+        // glyph, not by owning two different blues.
+        info:
+          "border-transparent bg-primary-container text-on-primary-container [a&]:hover:bg-primary-container/80",
+        // Deliberately-inactive states (Stopped, Disabled, Offline peer) — not
+        // failures. Failure is `destructive`.
+        muted:
+          "border-transparent bg-surface-container-high text-on-surface-variant [a&]:hover:bg-surface-container-high/80",
         outline:
           "text-foreground [a&]:hover:bg-accent [a&]:hover:text-accent-foreground",
       },
@@ -49,4 +70,11 @@ function Badge({
   )
 }
 
+/**
+ * The variant names, as a type. Tone maps should key onto this rather than onto
+ * a class string, so adding a tone without a matching chip role fails the build.
+ */
+type BadgeVariant = NonNullable<VariantProps<typeof badgeVariants>["variant"]>
+
 export { Badge, badgeVariants }
+export type { BadgeVariant }

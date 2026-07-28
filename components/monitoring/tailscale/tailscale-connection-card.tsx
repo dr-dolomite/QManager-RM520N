@@ -550,7 +550,7 @@ export function TailscaleConnectionCard({
               <p className="text-sm font-semibold text-muted-foreground">
                 Service
               </p>
-              <Badge variant="outline" className="bg-muted/50 text-muted-foreground border-muted-foreground/30">
+              <Badge variant="muted">
                 <MinusCircleIcon className="size-3" />
                 Stopped
               </Badge>
@@ -606,7 +606,7 @@ export function TailscaleConnectionCard({
               <p className="text-sm font-semibold text-muted-foreground">
                 Status
               </p>
-              <Badge variant="outline" className="bg-warning/15 text-warning hover:bg-warning/20 border-warning/30">
+              <Badge variant="warning">
                 <LogInIcon className="size-3" />
                 Needs Login
               </Badge>
@@ -787,7 +787,7 @@ export function TailscaleConnectionCard({
               <p className="text-sm font-semibold text-muted-foreground">
                 Status
               </p>
-              <Badge variant="outline" className="bg-success/15 text-success hover:bg-success/20 border-success/30">
+              <Badge variant="success">
                 <CheckCircle2Icon className="size-3" />
                 Connected
               </Badge>
@@ -898,7 +898,7 @@ export function TailscaleConnectionCard({
             <p className="text-sm font-semibold text-muted-foreground">
               Status
             </p>
-            <Badge variant="outline" className="bg-muted/50 text-muted-foreground border-muted-foreground/30">
+            <Badge variant="muted">
               <MinusCircleIcon className="size-3" />
               Disconnected
             </Badge>

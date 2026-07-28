@@ -19,35 +19,35 @@ export default function HealthStatusBadge({ status }: HealthStatusBadgeProps) {
   switch (status) {
     case "pass":
       return (
-        <Badge variant="outline" className="bg-success/15 text-success hover:bg-success/20 border-success/30">
+        <Badge variant="success">
           <CheckCircle2Icon className="size-3" />
           Pass
         </Badge>
       );
     case "fail":
       return (
-        <Badge variant="outline" className="bg-destructive/15 text-destructive hover:bg-destructive/20 border-destructive/30">
+        <Badge variant="destructive">
           <XCircleIcon className="size-3" />
           Fail
         </Badge>
       );
     case "warn":
       return (
-        <Badge variant="outline" className="bg-warning/15 text-warning hover:bg-warning/20 border-warning/30">
+        <Badge variant="warning">
           <TriangleAlertIcon className="size-3" />
           Warning
         </Badge>
       );
     case "skip":
       return (
-        <Badge variant="outline" className="bg-muted/50 text-muted-foreground border-muted-foreground/30">
+        <Badge variant="muted">
           <MinusCircleIcon className="size-3" />
           Skipped
         </Badge>
       );
     case "running":
       return (
-        <Badge variant="outline" className="bg-info/15 text-info hover:bg-info/20 border-info/30">
+        <Badge variant="info">
           <Loader2Icon className="size-3 animate-spin" />
           Running
         </Badge>
@@ -55,7 +55,7 @@ export default function HealthStatusBadge({ status }: HealthStatusBadgeProps) {
     case "pending":
     default:
       return (
-        <Badge variant="outline" className="bg-muted/50 text-muted-foreground border-muted-foreground/30">
+        <Badge variant="muted">
           <ClockIcon className="size-3" />
           Pending
         </Badge>

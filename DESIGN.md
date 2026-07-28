@@ -186,7 +186,8 @@ components:
 > **Status: committed target, migration in progress.** This document supersedes the monotone-indigo
 > system. The tokens below are the binding design canon for all new work. **Step 1 has landed: every
 > token here resolves at runtime in `app/globals.css`**, under the names given in Token Names in Code
-> below. Components have not yet been retargeted; see Migration Sequence at the end of this file for
+> below. Component retargeting is partway: the status chips and the Banner System have landed, the
+> shape scale and the opacity washes have not. See Migration Sequence at the end of this file for
 > steps 2 through 4.
 >
 > Three previously named rules are **retired** and are called out as such below: the One-Accent Rule,
@@ -411,7 +412,9 @@ Everything else uses its canon name: `--primary-container`, `--on-primary-contai
 steps (`surface-container` for secondary and muted, `surface-container-high` for accent), so the
 existing neutral vocabulary joins the tonal family without any component edit.
 
-Two values are deliberately held one step off the table above until step 3:
+Two values are deliberately held one step off the table above. Step 3 was meant to pay them; both were
+measured during that change and both are blocked on work step 3 does not cover, so they moved to step
+3b in the Migration Sequence rather than shipping a regression:
 
 - **Dark `--destructive` sits at `oklch(0.62 0.21 25)`, not the canon's `0.77 0.175 25`.** `Button` and
   `Badge` hardcode `text-white` on the destructive variant, and step 1 may not edit components; white
@@ -713,9 +716,19 @@ sunlight, which is the field-tech failure case.
 | Muted / Disabled | `surface-container-high` | `on-surface-variant` | `MinusCircleIcon` |
 
 Choose **Muted** for deliberately inactive states (Stopped, Offline peer, Disabled-by-config) and
-reserve **Destructive** for failure or error (Disconnected link, Failed email). No shared chip wrapper
-component exists in the tree; the pattern is composed inline. If a reusable `ServiceStatusChip` is ever
-extracted, migrate inline copies to it and update `CLAUDE.md` in the same change.
+reserve **Destructive** for failure or error (Disconnected link, Failed email).
+
+The wrapper exists: these five roles are variants in `components/ui/badge.tsx`'s `cva`, so a chip is
+written `<Badge variant="success">` and the classes above are an implementation detail. Tone maps key
+onto the exported `BadgeVariant` type rather than a class string, which makes a tone without a matching
+role a build error instead of a review catch.
+
+**Colour never carries the state on its own.** `success-container` (L 0.89) and `warning-container`
+(L 0.905) measure **1.03:1** apart — the same surface to the eye, and indistinguishable under
+deuteranopia. The glyph is doing the work, so every chip has one, and two states that can appear in the
+same slot must not share a glyph. The signal-quality chips in the cell scanner are the worked example:
+Good / Fair / Bad carry `SignalHigh` / `SignalMedium` / `SignalLow`, which encode the verdict by bar
+count and survive both a colourblind reader and a greyscale print.
 
 ### Buttons
 
@@ -1048,7 +1061,8 @@ Documented for direction only; none of these exist in this tree today. Do not re
   dense tables.
 - **Sticky save bar** with per-tab error dots for long tabbed settings forms; current forms keep the
   `SaveButton` in the card footer.
-- **Shared `ServiceStatusChip` wrapper**; the filled-chip pattern is composed inline until it lands.
+- **Migration of the opacity washes** (`bg-{role}/5`, `/10`, `/15` on icon discs, tone tiles, pulse
+  rings and inline notices); the chip flip retired the tinted *badge*, not these.
 - **Status-first column** anatomy for live-service pages (see Layout).
 
 ## Do's and Don'ts
@@ -1125,12 +1139,20 @@ step is independently shippable and leaves the product correct.
 |------|-------|-------|
 | 1 | **Tokens in `globals.css`.** Container roles, tinted surface steps, retuned amber, info aliased to the brand ramp, ring tone steps, the shape scale as additive role radii, motion curves and durations. No component touched; the product changes color and stays correct. | **Landed** |
 | 2 | **Shell and shape scale.** Sidebar pills with the sliding indicator and the self-hosted Material Symbols Rounded subset, the role radii applied to cards and controls (retiring the legacy `--radius` chain), the new mark wired in (`public/qmanager-mark.svg` is already in the tree, currently unreferenced). | **Partial.** Nav half landed. The dashboard's own cards now carry role radii (`rounded-hero` on the two hero cards, `rounded-card` on the rest). The legacy `--radius` chain is still live everywhere else: `rounded-md` alone has 114 call sites, so retargeting it silently would be a regression, not a migration. |
-| 3 | **Chips, banners, and the dashboard.** Flip the badge pattern to filled chips, retarget the banners to the eight-role system (`SimSwapBanner` first — it is the reference anatomy), adopt containers and pill rows on the status cards (Network Status keeps its icons), land the Carrier Aggregation strip. | **Partial.** The Banner System shipped as `components/ui/banner.tsx` (all eight roles; 01/02/03/07 mounted, 04/05/06/08 available but unmounted). The Carrier Aggregation strip has **landed** (`components/dashboard/carrier-aggregation.tsx` + the pure view model in `lib/carrier-aggregation.ts`), mounted `col-span-full` and replacing the deleted `scc-status.tsx`. The dashboard's carrier surfaces are now on the tonal system: Network Status, and Signal Status (LTE/NR) with pill metric rows on `surface-container`, filled quality chips on the functional four, and identity-toned band pills. **The badge flip is NOT done** — ~40 files elsewhere still carry the outline pattern, which is why the `CLAUDE.md` badge table is unchanged. |
+| 3 | **Chips, banners, and the dashboard.** Flip the badge pattern to filled chips, retarget the banners to the eight-role system (`SimSwapBanner` first — it is the reference anatomy), adopt containers and pill rows on the status cards (Network Status keeps its icons), land the Carrier Aggregation strip. | **Landed.** The Banner System shipped as `components/ui/banner.tsx` (all eight roles; 01/02/03/07 mounted, 04/05/06/08 available but unmounted). **The badge flip is done**: the five chip roles live in `components/ui/badge.tsx`'s `cva`, all 90+ call sites across 33 files render `variant="…"`, four tone maps key onto the exported `BadgeVariant` type, and the `CLAUDE.md` table now documents the filled chip. **The Carrier Aggregation strip has landed** (`components/dashboard/carrier-aggregation.tsx` plus the pure view model in `lib/carrier-aggregation.ts`), mounted `col-span-full` and replacing the deleted `scc-status.tsx`; the dashboard's carrier surfaces now carry pill metric rows on `surface-container`, filled quality chips and identity-toned band pills. Step 3 is closed. |
+| 3b | **Token debt owed by step 3.** Move dark `--destructive` to the canon value and promote `--border` to `--outline` (see "held one step off" above). | **Deferred, with cause.** Neither is a drop-in. Dark `--destructive` at the canon `oklch(0.77 0.175 25)` measures **2.42:1** against white ink — below even the 3:1 large-text floor. `Button` and `Badge` escape only because they override with `dark:bg-destructive/60` (5.28:1 composited); ~20 other surfaces use `bg-destructive` at full opacity and would regress. `--border` is gated on cards dropping their hairlines, which has not happened, and step 4 keeps hairlines in the dense tables deliberately — promoting it now would make the very hairlines this system retires *more* prominent. Both move when their blockers clear, not before. |
 | 4 | **Dense pages.** Cell Scanner, log views, and SMS adopt the new tokens while keeping hairline rows. This is where the system is proven or corrected. | Not started |
 
-**Step 3 is the CLAUDE.md gate.** The status-badge table in `CLAUDE.md` still documents the shipped
-outline-and-tint pattern because that is what the code does today. Flip it to the filled-chip pattern
-in the same change as step 3, not before, so the two documents never disagree about what ships.
+**Step 3's CLAUDE.md gate is closed.** The status-chip table in `CLAUDE.md` was flipped to the
+filled-chip pattern in the same commit as the code, so the two documents agree about what ships.
+
+**The opacity washes are a separate family and are still unmigrated.** `bg-{role}/5`, `/10` and `/15`
+survive on icon discs, tone tiles, pulse rings and inline notices (`TONE_RING`, `TONE_TILE`, the
+ethernet ring ramp, the error notices in the frequency-locking and calculator cards). These were never
+chips, so the chip flip deliberately left them alone. They need their own pass, and it should decide
+whether a tonal container replaces each wash or whether the wash is the right answer for a large
+surface. Note that `bg-muted/50` is overloaded — it is also a plain surface tint on tables, popovers
+and toolbars — so that pass cannot be driven by grep alone.
 
 Source of the direction: `reimagine/dashboard-design-exploration-directions/` (Claude Design handoff
 bundle). "Recommended Hybrid" is the committed dashboard composition; the brand deck carries the

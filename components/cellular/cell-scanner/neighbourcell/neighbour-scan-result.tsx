@@ -14,7 +14,13 @@ import {
   type VisibilityState,
   type Row,
 } from "@tanstack/react-table";
-import { ArrowUpDown, ChevronDown, LockIcon, MoreVertical } from "lucide-react";
+import {
+  ArrowUpDown,
+  ChevronDown,
+  LockIcon,
+  MoreVertical,
+  SignalZeroIcon,
+} from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -116,7 +122,8 @@ function getColumns(
         const strength = row.getValue("signalStrength") as number;
         if (strength === 0) {
           return (
-            <Badge className="bg-warning/15 text-warning hover:bg-warning/20 border-warning/30">
+            <Badge variant="warning">
+              <SignalZeroIcon className="size-3" />
               No data
             </Badge>
           );

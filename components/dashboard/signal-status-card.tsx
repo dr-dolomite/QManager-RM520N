@@ -9,6 +9,7 @@ import {
   SignalMediumIcon,
   SignalZeroIcon,
 } from "lucide-react";
+import { Badge, type BadgeVariant } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
@@ -52,17 +53,17 @@ function getSignalIcon(quality: string) {
  * status, so it reads on the status palette; the band pill below keeps the
  * identity hue, where identity belongs.
  */
-function getQualityChipTone(quality: string): string {
+function getQualityBadgeVariant(quality: string): BadgeVariant {
   switch (quality) {
     case "excellent":
     case "good":
-      return "bg-success-container text-on-success-container";
+      return "success";
     case "fair":
-      return "bg-warning-container text-on-warning-container";
+      return "warning";
     case "poor":
-      return "bg-destructive-container text-on-destructive-container";
+      return "destructive";
     default:
-      return "bg-surface-container-high text-on-surface-variant";
+      return "muted";
   }
 }
 
@@ -166,15 +167,13 @@ export function SignalStatusCard({
 
         {/* The glyph changes with the colour: it is what survives greyscale,
             deuteranopia, and a fill washed out by direct sun. */}
-        <span
-          className={cn(
-            "inline-flex shrink-0 items-center gap-1.5 rounded-pill px-3 py-1.5 text-xs font-semibold transition-colors duration-(--duration-standard) ease-standard",
-            getQualityChipTone(quality),
-          )}
+        <Badge
+          variant={getQualityBadgeVariant(quality)}
+          className="shrink-0 px-3 py-1.5 transition-colors duration-(--duration-standard) ease-standard"
         >
-          <QualityIcon className="size-4" aria-hidden />
+          <QualityIcon aria-hidden />
           {t(`signal_card.quality_${quality}`)}
-        </span>
+        </Badge>
       </div>
 
       <motion.dl

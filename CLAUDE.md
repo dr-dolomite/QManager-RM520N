@@ -114,26 +114,29 @@ See **`PRODUCT.md`** (strategic: what QManager is, users, brand personality, aes
 
 Quick reminders the visual spec enforces (current shipped state):
 
-### Status Badge Pattern
-All status badges use `variant="outline"` with semantic color classes and `size-3` lucide icons. Never use solid badge variants (`variant="success"`, `variant="destructive"`, etc.) for status indicators.
+### Status Chip Pattern
+All status indicators are **filled tonal chips**: a `Badge` variant carrying a role container fill, that container's `on-` ink, no visible border, pill radius, and a `size-3` lucide icon. The variant is the whole API — never hand-write the classes, and never use `variant="outline"` for a status indicator (that is the retired Outline-Badge Rule).
 
-| State | Classes | Icon |
-| ----- | ------- | ---- |
-| Success/Active | `bg-success/15 text-success hover:bg-success/20 border-success/30` | `CheckCircle2Icon` |
-| Warning | `bg-warning/15 text-warning hover:bg-warning/20 border-warning/30` | `TriangleAlertIcon` |
-| Destructive/Error | `bg-destructive/15 text-destructive hover:bg-destructive/20 border-destructive/30` | `XCircleIcon` or `AlertCircleIcon` |
-| Info | `bg-info/15 text-info hover:bg-info/20 border-info/30` | Context-specific (`DownloadIcon`, `ClockIcon`, etc.) |
-| Muted/Disabled | `bg-muted/50 text-muted-foreground border-muted-foreground/30` | `MinusCircleIcon` |
+| State | Variant | Renders | Icon |
+| ----- | ------- | ------- | ---- |
+| Success/Active | `success` | `bg-success-container text-on-success-container` | `CheckCircle2Icon` |
+| Warning | `warning` | `bg-warning-container text-on-warning-container` | `TriangleAlertIcon` |
+| Destructive/Error | `destructive` | `bg-destructive-container text-on-destructive-container` | `XCircleIcon` or `AlertCircleIcon` |
+| Info | `info` | `bg-primary-container text-on-primary-container` | Context-specific (`DownloadIcon`, `ClockIcon`, etc.) |
+| Muted/Disabled | `muted` | `bg-surface-container-high text-on-surface-variant` | `MinusCircleIcon` |
 
 ```tsx
-<Badge variant="outline" className="bg-success/15 text-success hover:bg-success/20 border-success/30">
+<Badge variant="success">
   <CheckCircle2Icon className="size-3" />
   Active
 </Badge>
 ```
 
-- There is no shared badge wrapper component — compose the pattern inline with `Badge` (every current surface does); if a wrapper is extracted later, update this line and DESIGN.md together
+- `components/ui/badge.tsx` is the shared wrapper: the five roles above live in its `cva`, so a status chip is correct by construction rather than by reviewer discipline. `default` / `secondary` / `outline` remain for non-status labels (network type, category tags, counts)
+- **Every status chip carries an icon.** `success-container` and `warning-container` measure **1.03:1** apart — the same surface to the eye, and identical under deuteranopia — so the glyph is the only thing separating a healthy state from a degraded one. Two states in the same slot must never share a glyph either
+- Tone maps key onto the exported `BadgeVariant` type, never onto a class string, so a new tone without a matching role fails the build (`REBOOT_TONE_BADGE`, `TONE_BADGE`, `qualityBadgeVariants`, `getQualityBadgeVariant`)
 - Choose muted for deliberately inactive states (Stopped, Offline peer, Disabled); destructive for failure/error states (Disconnected link, Failed email)
+- The opacity washes (`bg-{role}/5`, `/10`, `/15` on icon discs, tiles, pulse rings and inline notices) are a **separate, still-unmigrated** family. They are not chips; do not flip them as part of chip work
 
 ### UI Component Conventions
 - **CardHeader**: Always plain `CardTitle` + `CardDescription` without icons. Icons belong in badges or separate action areas, not in the card header itself.

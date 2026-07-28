@@ -6,6 +6,7 @@ import {
   CheckCircle2Icon,
   DownloadIcon,
   Loader2Icon,
+  PackageIcon,
   RefreshCwIcon,
   Trash2Icon,
   TriangleAlertIcon,
@@ -164,45 +165,31 @@ export function LanguagePackRow({
           </div>
           <div className="flex flex-wrap items-center gap-1.5">
             {variant.kind === "built_in" && (
-              <Badge
-                variant="outline"
-                className="bg-muted/50 text-muted-foreground border-muted-foreground/30"
-              >
+              <Badge variant="muted">
+                <PackageIcon className="size-3" />
                 Built-in
               </Badge>
             )}
             {variant.kind === "downloaded" && (
-              <Badge
-                variant="outline"
-                className="bg-success/15 text-success hover:bg-success/20 border-success/30"
-              >
+              <Badge variant="success">
                 <CheckCircle2Icon className="size-3" />
                 Installed
               </Badge>
             )}
             {variant.kind === "downloaded" && variant.updateAvailableVersion && (
-              <Badge
-                variant="outline"
-                className="bg-info/15 text-info hover:bg-info/20 border-info/30"
-              >
+              <Badge variant="info">
                 <DownloadIcon className="size-3" />
                 Update available
               </Badge>
             )}
             {isActive && (
-              <Badge
-                variant="outline"
-                className="bg-success/15 text-success hover:bg-success/20 border-success/30"
-              >
+              <Badge variant="success">
                 <CheckCircle2Icon className="size-3" />
                 Active
               </Badge>
             )}
             {variant.kind === "available" && !compatible && (
-              <Badge
-                variant="outline"
-                className="bg-warning/15 text-warning hover:bg-warning/20 border-warning/30"
-              >
+              <Badge variant="warning">
                 <TriangleAlertIcon className="size-3" />
                 Needs newer app
               </Badge>

@@ -9,6 +9,7 @@ import {
   TriangleAlertIcon,
 } from "lucide-react";
 
+import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import {
   Empty,
@@ -65,9 +66,18 @@ function tileTone(c: ResolvedCarrier): string {
     : "bg-lte-container text-on-lte-container";
 }
 
-/** The role chip inverts its tile: the tile's ink becomes the chip's fill.
- *  Both sides of the pair are measured, so the chip stays legible when the
- *  container fill washes out in sunlight. */
+/**
+ * The role chip inverts its tile: the tile's ink becomes the chip's fill. Both
+ * sides of the pair are measured and WCAG contrast is symmetric, so inverting
+ * preserves the ratio while staying legible when the container fill washes out
+ * in sunlight.
+ *
+ * Deliberately NOT a `Badge` status variant. This labels which carrier a tile
+ * is, not how it is doing, and every Badge status role is itself a container
+ * fill: putting one on an already-container-filled tile would sit two adjacent
+ * tones on top of each other and lose the chip. The Filled-Chip Rule governs
+ * status indicators; this is an identifier.
+ */
 function roleChipTone(c: ResolvedCarrier): string {
   if (c.released) return "bg-on-surface-variant text-surface-container-high";
   return c.technology === "NR"
@@ -190,22 +200,16 @@ export function CarrierAggregationComponent({
       <div className="flex flex-wrap items-center gap-3.5">
         <h3 className="text-lg font-semibold">{t("ca.title")}</h3>
 
-        <span
-          className={cn(
-            "inline-flex items-center gap-1.5 rounded-pill px-3 py-1.5 text-xs font-semibold",
-            hasReleased
-              ? "bg-warning-container text-on-warning-container"
-              : aggregating
-                ? "bg-success-container text-on-success-container"
-                : "bg-surface-container-high text-on-surface-variant",
-          )}
+        <Badge
+          variant={hasReleased ? "warning" : aggregating ? "success" : "muted"}
+          className="px-3 py-1.5"
         >
           {hasReleased ? (
-            <TriangleAlertIcon className="size-4" aria-hidden />
+            <TriangleAlertIcon aria-hidden />
           ) : aggregating ? (
-            <CheckCircle2Icon className="size-4" aria-hidden />
+            <CheckCircle2Icon aria-hidden />
           ) : (
-            <MinusCircleIcon className="size-4" aria-hidden />
+            <MinusCircleIcon aria-hidden />
           )}
           {/* When something has been released the chip must SAY so. An amber
               fill and a warning glyph over the words "NR-CA active" is the
@@ -213,7 +217,7 @@ export function CarrierAggregationComponent({
           {hasReleased
             ? t("ca.status.released", { count: summary.releasedCount })
             : t(statusKey)}
-        </span>
+        </Badge>
 
         <span className="ml-auto inline-flex items-baseline gap-2">
           {/* On a drop, what remains is shown against what it was, so the

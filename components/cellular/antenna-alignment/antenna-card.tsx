@@ -23,7 +23,7 @@ import {
   normalizeValue,
   formatValue,
   getQualityColor,
-  getQualityBadgeClasses,
+  getQualityBadgeVariant,
   isAntennaActive,
   type RadioMode,
 } from "./utils";
@@ -63,11 +63,8 @@ function MetricRow({
         </span>
         {!isNull && (
           <Badge
-            variant="outline"
-            className={cn(
-              "text-[10px] px-1.5 py-0 h-4",
-              getQualityBadgeClasses(quality)
-            )}
+            variant={getQualityBadgeVariant(quality)}
+            className="h-4 px-1.5 py-0 text-[10px]"
           >
             {quality.charAt(0).toUpperCase() + quality.slice(1)}
           </Badge>
@@ -115,14 +112,7 @@ export function AntennaCard({
               {description}
             </CardDescription>
           </div>
-          <Badge
-            variant="outline"
-            className={
-              active
-                ? "bg-success/15 text-success hover:bg-success/20 border-success/30"
-                : "bg-muted/50 text-muted-foreground border-muted-foreground/30"
-            }
-          >
+          <Badge variant={active ? "success" : "muted"}>
             {active ? (
               <CheckCircle2Icon className="size-3" />
             ) : (

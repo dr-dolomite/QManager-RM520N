@@ -8,7 +8,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import { Badge, type BadgeVariant } from "@/components/ui/badge";
 import {
   CheckCircle2Icon,
   MinusCircleIcon,
@@ -46,10 +46,12 @@ const TONE_TILE: Record<Tone, string> = {
   muted: "border-border bg-muted/20",
 };
 
-const TONE_BADGE: Record<Tone, string> = {
-  success: "bg-success/15 text-success border-success/30",
-  warning: "bg-warning/15 text-warning border-warning/30",
-  muted: "bg-muted/50 text-muted-foreground border-muted-foreground/30",
+// TONE_RING and TONE_TILE above stay on the opacity washes: they are an icon
+// disc and a tile surface, not status chips. Only the chip flips here.
+const TONE_BADGE: Record<Tone, BadgeVariant> = {
+  success: "success",
+  warning: "warning",
+  muted: "muted",
 };
 
 interface Readiness {
@@ -206,10 +208,7 @@ export function AlertsStatusCard({ state }: { state: AlertsState }) {
                     <span className="text-sm font-semibold">
                       {CHANNEL_META[ch].name}
                     </span>
-                    <Badge
-                      variant="outline"
-                      className={cn("gap-1", TONE_BADGE[r.tone])}
-                    >
+                    <Badge variant={TONE_BADGE[r.tone]} className="gap-1">
                       {r.icon}
                       {r.label}
                     </Badge>

@@ -18,6 +18,7 @@ import {
   TriangleAlertIcon,
   type LucideIcon,
 } from "lucide-react";
+import type { BadgeVariant } from "@/components/ui/badge";
 import type {
   AlertChannel,
   AlertEventKey,
@@ -95,10 +96,14 @@ export const REBOOT_CAUSE_META: Record<RebootCause, RebootCauseMeta> = {
   user: { icon: PowerIcon, tone: "muted", label: "Planned" },
 };
 
-export const REBOOT_TONE_BADGE: Record<RebootTone, string> = {
-  warning: "bg-warning/15 text-warning border-warning/30",
-  info: "bg-info/15 text-info border-info/30",
-  muted: "bg-muted/50 text-muted-foreground border-muted-foreground/30",
+/**
+ * Maps a reboot tone onto a `Badge` variant rather than a class string, so a
+ * new tone cannot ship without a matching chip role — the compiler rejects it.
+ */
+export const REBOOT_TONE_BADGE: Record<RebootTone, BadgeVariant> = {
+  warning: "warning",
+  info: "info",
+  muted: "muted",
 };
 
 // ─── Recipient masking (never show the full contact in the glance hero) ──────

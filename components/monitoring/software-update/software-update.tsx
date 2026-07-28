@@ -45,7 +45,7 @@ export function StatusBadge({
 }) {
   if (isUpdating && updateStatus.status !== "error") {
     return (
-      <Badge variant="outline" className="bg-info/15 text-info hover:bg-info/20 border-info/30">
+      <Badge variant="info">
         <DownloadIcon className="h-3 w-3" />
         Updating
       </Badge>
@@ -53,7 +53,7 @@ export function StatusBadge({
   }
   if (isDownloading) {
     return (
-      <Badge variant="outline" className="bg-info/15 text-info hover:bg-info/20 border-info/30">
+      <Badge variant="info">
         <DownloadIcon className="h-3 w-3" />
         Downloading
       </Badge>
@@ -61,14 +61,14 @@ export function StatusBadge({
   }
   if (updateAvailable) {
     return (
-      <Badge variant="outline" className="bg-warning/15 text-warning hover:bg-warning/20 border-warning/30">
+      <Badge variant="warning">
         <TriangleAlertIcon className="h-3 w-3" />
         Update available
       </Badge>
     );
   }
   return (
-    <Badge variant="outline" className="bg-success/15 text-success hover:bg-success/20 border-success/30">
+    <Badge variant="success">
       <CheckCircle2Icon className="h-3 w-3" />
       Up to date
     </Badge>

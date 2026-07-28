@@ -99,8 +99,8 @@ export default function LoginComponent() {
           <div className="flex flex-col items-center gap-2 text-center">
             <div className="flex size-16 p-1 items-center justify-center rounded-md">
               <img
-                src="/qmanager-logo.svg"
-                alt="QManager Logo"
+                src="/qmanager-mark.svg"
+                alt="QManager"
                 className="size-full"
               />
             </div>

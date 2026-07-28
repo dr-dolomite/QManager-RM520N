@@ -31,9 +31,14 @@
 
               These are the SOURCE PAIR for the whole design system, not consumers of it.
               DESIGN.md > Colors > Source color derives the palette from this file: the
-              tail is light-mode --primary used literally, and the ring's hue drives the
-              dark-mode --primary-container and the active-nav tone. Changing either tone
+              tail is light-mode `primary` used literally, and the ring's hue drives the
+              dark-mode `primary-container` and the active-nav tone. Changing either tone
               here is a system-wide change, not an asset tweak.
+
+              Token names appear WITHOUT their CSS leading dashes on purpose: a literal
+              double hyphen is illegal inside an XML comment, and it makes this file fail
+              to render when it is loaded as an image element (inline HTML parsing is
+              lenient enough to hide the breakage, so it only shows up once wired).
 
               Deliberately NOT theme-responsive. prefers-color-scheme resolves against the
               OS when this file is loaded as an image element, not against next-themes, so

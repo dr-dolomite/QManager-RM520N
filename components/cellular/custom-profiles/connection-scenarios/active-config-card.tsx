@@ -58,27 +58,18 @@ export const ActiveConfigCard = ({
             <div className="grid">
               <h4 className="font-semibold">{scenario.name} Configuration</h4>
               {isActivating ? (
-                <Badge
-                  variant="outline"
-                  className="bg-info/15 text-info hover:bg-info/20 border-info/30"
-                >
+                <Badge variant="info">
                   <Spinner className="h-2 w-2" />
                   Applying…
                 </Badge>
               ) : isActive ? (
-                <Badge
-                  variant="outline"
-                  className="bg-success/15 text-success hover:bg-success/20 border-success/30"
-                >
+                <Badge variant="success">
                   <div className="w-2 h-2 rounded-full bg-success" />
                   Active
                 </Badge>
               ) : (
-                <Badge
-                  variant="outline"
-                  className="bg-muted text-muted-foreground hover:bg-muted border-border"
-                >
-                  <div className="w-2 h-2 rounded-full bg-muted-foreground/50" />
+                <Badge variant="muted">
+                  <div className="bg-on-surface-variant/50 h-2 w-2 rounded-full" />
                   Not Active
                 </Badge>
               )}

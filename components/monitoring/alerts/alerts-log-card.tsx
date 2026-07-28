@@ -261,11 +261,8 @@ export function AlertsLogCard({
                         </TableCell>
                         <TableCell>
                           <Badge
-                            variant="outline"
-                            className={cn(
-                              "gap-1 whitespace-nowrap",
-                              REBOOT_TONE_BADGE[meta.tone],
-                            )}
+                            variant={REBOOT_TONE_BADGE[meta.tone]}
+                            className="gap-1 whitespace-nowrap"
                           >
                             <CauseIcon className="size-3" />
                             {meta.label}
@@ -304,18 +301,14 @@ export function AlertsLogCard({
                       </TableCell>
                       <TableCell>
                         {entry.status === "sent" ? (
-                          <Badge
-                            variant="outline"
-                            className="bg-success/15 text-success hover:bg-success/20 border-success/30 gap-1 whitespace-nowrap"
-                          >
+                          <Badge variant="success"
+                            className="gap-1 whitespace-nowrap">
                             <CheckCircle2Icon className="size-3" />
                             Sent
                           </Badge>
                         ) : (
-                          <Badge
-                            variant="outline"
-                            className="bg-destructive/15 text-destructive hover:bg-destructive/20 border-destructive/30 gap-1 whitespace-nowrap"
-                          >
+                          <Badge variant="destructive"
+                            className="gap-1 whitespace-nowrap">
                             <XCircleIcon className="size-3" />
                             Failed
                           </Badge>
