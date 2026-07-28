@@ -66,7 +66,7 @@ migrate_fail_threshold() {
 # Propagate the Watchdog-owned probe interval into ping_profile.json's
 # interval_sec via an atomic key-merge (read existing JSON, set only
 # .interval_sec, temp-file + mv). NEVER overwrites the whole file — that would
-# clobber target_1/target_2/profile, which settings/ping_profile.sh owns
+# clobber target_ipv4/target_ipv6/profile, which settings/ping_profile.sh owns
 # independently in the same file. Best-effort: logs and continues on failure,
 # matching the non-fatal reload-flag pattern used elsewhere in this endpoint —
 # the watchcat.probe_interval config value is already saved regardless.
@@ -74,9 +74,19 @@ propagate_probe_interval() {
     local interval="$1"
     local existing='{}'
     [ -f "$PING_PROFILE_CONFIG" ] && existing=$(cat "$PING_PROFILE_CONFIG" 2>/dev/null)
-    [ -z "$existing" ] && existing='{}'
+    # Same object guard as settings/ping_profile.sh's merge — this is the OTHER
+    # writer of this same file, so a corrupt config must not defeat both of
+    # them. Worse here than there: this path is best-effort and already
+    # swallows stderr, so an aborted jq would fail SILENTLY (log only, user
+    # still sees success). `type == "object"` also catches the empty and
+    # whitespace-only cases that the old `[ -z ]` test let through.
+    if ! printf '%s' "$existing" | jq -e 'type == "object"' >/dev/null 2>&1; then
+        [ -n "$existing" ] && qlog_warn "Unusable $PING_PROFILE_CONFIG (not a JSON object) — rebuilding from defaults"
+        existing='{}'
+    fi
     mkdir -p "$(dirname "$PING_PROFILE_CONFIG")"
-    if printf '%s' "$existing" | jq --argjson v "$interval" '.interval_sec = $v' > "${PING_PROFILE_CONFIG}.tmp" 2>/dev/null; then
+    if printf '%s' "$existing" | jq --argjson v "$interval" '.interval_sec = $v' > "${PING_PROFILE_CONFIG}.tmp" 2>/dev/null &&
+        [ -s "${PING_PROFILE_CONFIG}.tmp" ]; then
         mv "${PING_PROFILE_CONFIG}.tmp" "$PING_PROFILE_CONFIG"
     else
         rm -f "${PING_PROFILE_CONFIG}.tmp"

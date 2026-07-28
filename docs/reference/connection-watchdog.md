@@ -174,6 +174,10 @@ Config lives in `/etc/qmanager/qmanager.conf` under `[watchcat]`, read/written v
 
 On every save, `watchdog.sh` propagates (1) into (2) via an **atomic jq key-merge** (read the existing JSON, set only `.interval_sec`, temp-file + `mv`) and touches **both** `/tmp/qmanager_ping_reload` (so the ping daemon re-reads its cadence) and `/tmp/qmanager_watchcat_reload` (so the watchdog re-reads its config). The merge never overwrites the whole file, so it can't clobber the `profile`/`target_ipv4`/`target_ipv6` keys that the Connection Quality "Probe Targets" card owns independently in the same file (see [Ping source / split ownership](#ping-source--split-ownership)).
 
+`propagate_probe_interval()` (`watchdog.sh:73-95`) guards the existing file with `jq -e 'type == "object"'` before merging and falls back to `{}` on failure, because a merge *indexes* what it reads — anything that isn't an object (malformed, empty, whitespace-only, `null`, scalar, array) aborts jq. This path is best-effort and already swallows stderr, so before the guard an aborted jq failed **silently**: the log recorded it, the user still saw a successful save, and the cadence never reached the daemon. The success condition also requires `[ -s "${PING_PROFILE_CONFIG}.tmp" ]` so a zero-byte temp is never promoted.
+
+> ⚠️ WARNING — `jq -e .` is the **wrong** predicate here and must not be substituted in: `-e` tests output truthiness, so it passes `5`/`"str"`/`[1,2]` (unmergeable) and rejects `null`/`false` (parseable). The other writer of this same file carries the identical guard for the identical reason — full rationale, rc matrix, and test coverage in [connection-quality.md → Corrupt-config guard](connection-quality.md#corrupt-config-guard). Change one writer's guard and you must change both.
+
 ### Migrations (hand-written — `config.sh` has no key-migration primitive)
 
 `qm_config_*` only seeds an empty config; it has no rename/migrate step, so the `max_failures` → `fail_threshold` rename is handled by two idempotent, defensive migrations:

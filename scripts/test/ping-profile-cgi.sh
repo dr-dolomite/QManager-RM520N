@@ -174,6 +174,33 @@ else
     fail "bare IPv4-family hostname accepted — got: $RES"
 fi
 
+# ─── Corrupt config self-heals on save (regression: cf177d0) ────────────────
+# Test 7 above leaves malformed JSON in place ON PURPOSE and the save-path
+# tests below inherit it — that is this file's coverage of the corrupt-config
+# case, not cross-talk. Do not "clean it up".
+# The save path merges into the existing file, so unusable content used to
+# abort jq and fail every save forever while GET still served defaults. Each
+# shape below must self-heal to a valid object, not a write_failed.
+for BAD in 'this is not valid json' '' '   ' 'null' '5' '[1,2]'; do
+    printf '%s' "$BAD" > "$PING_PROFILE_CONFIG"
+    BODY='{"action":"save_settings","profile":"regular","target_ipv4":"1.1.1.1","target_ipv6":"2606:4700:4700::1111"}'
+    LEN=${#BODY}
+    RES=$(printf '%s' "$BODY" | run_cgi POST application/json "$LEN")
+    if echo "$RES" | jq -e '.success == true' >/dev/null 2>&1 &&
+        jq -e 'type == "object" and .profile == "regular"' "$PING_PROFILE_CONFIG" >/dev/null 2>&1; then
+        pass "save over unusable config self-heals [<$BAD>]"
+    else
+        fail "save over unusable config [<$BAD>] — got: $RES / config: $(cat "$PING_PROFILE_CONFIG")"
+    fi
+done
+
+# The save must never promote a zero-byte temp file over a live config.
+if [ -s "$PING_PROFILE_CONFIG" ]; then
+    pass "config is non-empty after corrupt-config recovery"
+else
+    fail "config was truncated to zero bytes by the recovery path"
+fi
+
 # ─── Target validation: IPv6 without a colon rejected ───────────────────────
 BODY='{"action":"save_settings","profile":"relaxed","target_ipv4":"1.1.1.1","target_ipv6":"nocolonhere"}'
 LEN=${#BODY}

@@ -31,9 +31,14 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   useAutoLogout();
 
-  // Sync cookie check — no API call, no loading state
+  // Sync cookie check — no API call, no loading state.
+  // `location.replace()` rather than assigning `location.href`: an auth bounce
+  // should not leave a history entry, or Back returns to the gated route,
+  // re-trips this guard and bounces again. It also keeps the redirect out of
+  // react-hooks/immutability's way — the rule objects to assigning an outer
+  // binding during render, not to calling a method on one.
   if (typeof document !== "undefined" && !isLoggedIn()) {
-    window.location.href = "/login/";
+    window.location.replace("/login/");
     return null;
   }
 

@@ -216,7 +216,18 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
     existing_json='{}'
     if [ -f "$CONFIG" ]; then
         existing_json=$(cat "$CONFIG" 2>/dev/null)
-        [ -z "$existing_json" ] && existing_json='{}'
+        # Only reuse the file when it parses AND is an object. The merge below
+        # indexes it, so malformed / empty / whitespace / null / scalar / array
+        # content aborts jq and fails EVERY future save — while GET keeps
+        # serving its own fallback defaults, so the UI looks healthy and the
+        # device is quietly unsavable with no way out from the web console.
+        # `jq -e .` is the wrong predicate here: it tests output TRUTHINESS,
+        # so it passes `5`/`[1,2]` (still unmergeable) and rejects `null`.
+        # `type == "object"` is exactly the question the merge is asking.
+        if ! printf '%s' "$existing_json" | jq -e 'type == "object"' >/dev/null 2>&1; then
+            qlog_warn "Unusable $CONFIG (not a JSON object) — rebuilding from defaults"
+            existing_json='{}'
+        fi
     fi
 
     if ! printf '%s' "$existing_json" | jq \
@@ -224,7 +235,10 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
         --arg target_ipv4 "$new_t4" \
         --arg target_ipv6 "$new_t6" \
         '.profile = $profile | .target_ipv4 = $target_ipv4 | .target_ipv6 = $target_ipv6' \
-        > "${CONFIG}.tmp"; then
+        > "${CONFIG}.tmp" 2>/dev/null || [ ! -s "${CONFIG}.tmp" ]; then
+        # -s guards the promote: never `mv` a zero-byte temp over a live
+        # config. jq can exit 0 having written nothing if the redirect itself
+        # failed (a full /etc UBIFS is the realistic case on this device).
         rm -f "${CONFIG}.tmp"
         cgi_error "write_failed" "Failed to generate config JSON"
         exit 0
