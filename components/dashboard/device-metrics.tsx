@@ -26,6 +26,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { TickingValue } from "@/components/ui/ticking-value";
+import { TickGroup } from "@/components/ui/tick-group";
 
 import type { DeviceStatus, LteStatus, NrStatus } from "@/types/modem-status";
 import {
@@ -238,249 +239,264 @@ const DeviceMetricsComponent = ({
   const body = isLoading ? (
     <MetricsSkeleton />
   ) : (
-    <motion.div
-      className="flex flex-col gap-3.5"
-      variants={staggerRows}
-      initial="hidden"
-      animate="visible"
-    >
-      {/* ── Modem Temperature ─────────────────────────────────────────── */}
-      <MeterRow
-        label={t("metrics.modem_temperature")}
-        bar={
-          temp !== null ? (
-            <MetricBar
-              value={temp}
-              max={100}
-              warnAt={TEMP_WARN}
-              dangerAt={TEMP_DANGER}
-              // A cool modem is good news, not merely not-yet-bad — so the
-              // meter reads green below the warn line and still escalates to
-              // amber and red above it.
-              baseTone="success"
-              size="md"
-              track="surface-container-high"
-              index={0}
+    // One tick cascade for the whole body, and the card's reading order is
+    // already the cascade order: the four meters top-to-bottom, then the Data
+    // Used pill whose rx/tx pair sits side by side and so reads left-to-right,
+    // then the two distance rows. `TickGroup` sorts the live DOM nodes rather
+    // than a declared index, so it needs no axis flag to switch between the
+    // two — and rows that hold their value this poll never enter the ranking,
+    // which is why one group over eight figures cannot run long.
+    //
+    // Wrapping the `motion.div` from outside is deliberate but also safe from
+    // inside: `TickGroup` publishes its own React context and never touches
+    // `MotionContext`, and motion/react resolves a child's parent through
+    // `useContext(MotionContext)`, so an intervening plain provider is
+    // transparent to `staggerRows` -> `staggerRowItem` propagation.
+    <TickGroup>
+      <motion.div
+        className="flex flex-col gap-3.5"
+        variants={staggerRows}
+        initial="hidden"
+        animate="visible"
+      >
+        {/* ── Modem Temperature ─────────────────────────────────────────── */}
+        <MeterRow
+          label={t("metrics.modem_temperature")}
+          bar={
+            temp !== null ? (
+              <MetricBar
+                value={temp}
+                max={100}
+                warnAt={TEMP_WARN}
+                dangerAt={TEMP_DANGER}
+                // A cool modem is good news, not merely not-yet-bad — so the
+                // meter reads green below the warn line and still escalates to
+                // amber and red above it.
+                baseTone="success"
+                size="md"
+                track="surface-container-high"
+                index={0}
+              />
+            ) : null
+          }
+        >
+          {isTempHigh && (
+            // The glyph inherits the chip's `on-warning-container` ink. It used
+            // to carry `text-warning`, which repainted it in the SOLID role
+            // colour on a container fill — the Container-Pair Rule's most common
+            // failure. No `transition-colors` here either: `badge.tsx` writes its
+            // own two-clock longhand and the utility would clobber it.
+            <Badge variant="warning">
+              <MaterialSymbol name="warning" size={12} filled />
+              {t("metrics.high_temp_warning")}
+            </Badge>
+          )}
+          <span className={VALUE_CLASS}>
+            <TickingValue value={temp}>{tempValue}</TickingValue>
+          </span>
+        </MeterRow>
+
+        {/* ── CPU Usage ─────────────────────────────────────────────────── */}
+        <MeterRow
+          label={t("metrics.cpu_usage")}
+          bar={
+            cpu !== null ? (
+              <MetricBar
+                value={cpu}
+                max={100}
+                warnAt={CPU_WARN}
+                dangerAt={CPU_DANGER}
+                size="md"
+                track="surface-container-high"
+                index={1}
+              />
+            ) : null
+          }
+        >
+          {isCpuHigh && (
+            <Badge variant="warning">
+              <MaterialSymbol name="warning" size={12} filled />
+              {t("metrics.high_cpu_warning")}
+            </Badge>
+          )}
+          <span className={VALUE_CLASS}>
+            <TickingValue value={cpu}>{cpuValue}</TickingValue>
+          </span>
+        </MeterRow>
+
+        {/* ── Memory Usage ──────────────────────────────────────────────── */}
+        <MeterRow
+          label={t("metrics.memory_usage")}
+          bar={
+            memTotal > 0 ? (
+              <MetricBar
+                value={memPct}
+                max={100}
+                warnAt={70}
+                dangerAt={90}
+                size="md"
+                track="surface-container-high"
+                index={2}
+              />
+            ) : null
+          }
+        >
+          <span className={VALUE_CLASS}>
+            <TickingValue value={memUsed}>{memValue}</TickingValue>
+          </span>
+        </MeterRow>
+
+        {/* ── Storage (/usrdata partition) ──────────────────────────────── */}
+        <MeterRow
+          label={t("metrics.storage_label")}
+          bar={
+            storageTotalKb > 0 ? (
+              <MetricBar
+                value={storagePct}
+                max={100}
+                warnAt={80}
+                dangerAt={95}
+                size="md"
+                track="surface-container-high"
+                index={3}
+              />
+            ) : null
+          }
+        >
+          <span className={VALUE_CLASS}>
+            <TickingValue value={storageUsedKb}>{storageValue}</TickingValue>
+          </span>
+        </MeterRow>
+
+        {/* ── Data Used (cumulative counter from AT+QGDCNT/QGDNRCNT) ────── */}
+        <PillRow
+          label={
+            <>
+              <span className="truncate">{t("metrics.data_used_label")}</span>
+              <AlertDialog open={resetDialogOpen} onOpenChange={setResetDialogOpen}>
+                <AlertDialogTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="size-5 rounded-pill text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface"
+                    aria-label={t("metrics.reset_counter_aria")}
+                    disabled={isResetting}
+                  >
+                    <MaterialSymbol name="restart_alt" size={14} />
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>
+                      {t("metrics.reset_confirm_title")}
+                    </AlertDialogTitle>
+                    <AlertDialogDescription>
+                      {t("metrics.reset_confirm_desc")}
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>{tc("actions.cancel")}</AlertDialogCancel>
+                    <AlertDialogAction onClick={handleResetConfirm}>
+                      {t("metrics.reset_confirm_button")}
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            </>
+          }
+        >
+          {/* Down/up are the one place a solid role colour is right on a
+              container: they are accent GLYPHS, not text, and the figure beside
+              each keeps the container's ink. Uplink is `--uplink` (hue 200), not
+              the mock's literal hue 185 — 185 sits 36° from success and fails
+              the system's 40° separation floor. */}
+          <span className={cn(VALUE_CLASS, "flex items-center gap-1")}>
+            <MaterialSymbol
+              name="arrow_circle_down"
+              size={20}
+              filled
+              className="shrink-0 text-primary"
             />
-          ) : null
-        }
-      >
-        {isTempHigh && (
-          // The glyph inherits the chip's `on-warning-container` ink. It used
-          // to carry `text-warning`, which repainted it in the SOLID role
-          // colour on a container fill — the Container-Pair Rule's most common
-          // failure. No `transition-colors` here either: `badge.tsx` writes its
-          // own two-clock longhand and the utility would clobber it.
-          <Badge variant="warning">
-            <MaterialSymbol name="warning" size={12} filled />
-            {t("metrics.high_temp_warning")}
-          </Badge>
-        )}
-        <span className={VALUE_CLASS}>
-          <TickingValue value={temp}>{tempValue}</TickingValue>
-        </span>
-      </MeterRow>
-
-      {/* ── CPU Usage ─────────────────────────────────────────────────── */}
-      <MeterRow
-        label={t("metrics.cpu_usage")}
-        bar={
-          cpu !== null ? (
-            <MetricBar
-              value={cpu}
-              max={100}
-              warnAt={CPU_WARN}
-              dangerAt={CPU_DANGER}
-              size="md"
-              track="surface-container-high"
-              index={1}
+            <TickingValue value={dataUsed?.accumulated_rx_bytes ?? 0}>
+              {formatBytes(dataUsed?.accumulated_rx_bytes ?? 0)}
+            </TickingValue>
+          </span>
+          <span className={cn(VALUE_CLASS, "flex items-center gap-1")}>
+            <MaterialSymbol
+              name="arrow_circle_up"
+              size={20}
+              filled
+              className="shrink-0 text-uplink"
             />
-          ) : null
-        }
-      >
-        {isCpuHigh && (
-          <Badge variant="warning">
-            <MaterialSymbol name="warning" size={12} filled />
-            {t("metrics.high_cpu_warning")}
-          </Badge>
-        )}
-        <span className={VALUE_CLASS}>
-          <TickingValue value={cpu}>{cpuValue}</TickingValue>
-        </span>
-      </MeterRow>
+            <TickingValue value={dataUsed?.accumulated_tx_bytes ?? 0}>
+              {formatBytes(dataUsed?.accumulated_tx_bytes ?? 0)}
+            </TickingValue>
+          </span>
+        </PillRow>
 
-      {/* ── Memory Usage ──────────────────────────────────────────────── */}
-      <MeterRow
-        label={t("metrics.memory_usage")}
-        bar={
-          memTotal > 0 ? (
-            <MetricBar
-              value={memPct}
-              max={100}
-              warnAt={70}
-              dangerAt={90}
-              size="md"
-              track="surface-container-high"
-              index={2}
-            />
-          ) : null
-        }
-      >
-        <span className={VALUE_CLASS}>
-          <TickingValue value={memUsed}>{memValue}</TickingValue>
-        </span>
-      </MeterRow>
+        {/* ── LTE Cell Distance ─────────────────────────────────────────── */}
+        <PillRow
+          label={
+            <>
+              <span className="truncate">{t("metrics.lte_cell_distance")}</span>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    type="button"
+                    className={cn("inline-flex shrink-0", FOCUS_RING)}
+                    aria-label={t("metrics.more_info_aria")}
+                  >
+                    <MaterialSymbol name="info" size={16} filled />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  {lteData?.ta ? (
+                    <p>{t("metrics.lte_distance_tooltip", { ta: lteData.ta })}</p>
+                  ) : (
+                    <p>{t("metrics.ta_unavailable")}</p>
+                  )}
+                </TooltipContent>
+              </Tooltip>
+            </>
+          }
+        >
+          <span className={VALUE_CLASS}>
+            <TickingValue value={lteDistance}>{lteDistance}</TickingValue>
+          </span>
+        </PillRow>
 
-      {/* ── Storage (/usrdata partition) ──────────────────────────────── */}
-      <MeterRow
-        label={t("metrics.storage_label")}
-        bar={
-          storageTotalKb > 0 ? (
-            <MetricBar
-              value={storagePct}
-              max={100}
-              warnAt={80}
-              dangerAt={95}
-              size="md"
-              track="surface-container-high"
-              index={3}
-            />
-          ) : null
-        }
-      >
-        <span className={VALUE_CLASS}>
-          <TickingValue value={storageUsedKb}>{storageValue}</TickingValue>
-        </span>
-      </MeterRow>
-
-      {/* ── Data Used (cumulative counter from AT+QGDCNT/QGDNRCNT) ────── */}
-      <PillRow
-        label={
-          <>
-            <span className="truncate">{t("metrics.data_used_label")}</span>
-            <AlertDialog open={resetDialogOpen} onOpenChange={setResetDialogOpen}>
-              <AlertDialogTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="size-5 rounded-pill text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface"
-                  aria-label={t("metrics.reset_counter_aria")}
-                  disabled={isResetting}
-                >
-                  <MaterialSymbol name="restart_alt" size={14} />
-                </Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>
-                    {t("metrics.reset_confirm_title")}
-                  </AlertDialogTitle>
-                  <AlertDialogDescription>
-                    {t("metrics.reset_confirm_desc")}
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>{tc("actions.cancel")}</AlertDialogCancel>
-                  <AlertDialogAction onClick={handleResetConfirm}>
-                    {t("metrics.reset_confirm_button")}
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
-          </>
-        }
-      >
-        {/* Down/up are the one place a solid role colour is right on a
-            container: they are accent GLYPHS, not text, and the figure beside
-            each keeps the container's ink. Uplink is `--uplink` (hue 200), not
-            the mock's literal hue 185 — 185 sits 36° from success and fails
-            the system's 40° separation floor. */}
-        <span className={cn(VALUE_CLASS, "flex items-center gap-1")}>
-          <MaterialSymbol
-            name="arrow_circle_down"
-            size={20}
-            filled
-            className="shrink-0 text-primary"
-          />
-          <TickingValue value={dataUsed?.accumulated_rx_bytes ?? 0}>
-            {formatBytes(dataUsed?.accumulated_rx_bytes ?? 0)}
-          </TickingValue>
-        </span>
-        <span className={cn(VALUE_CLASS, "flex items-center gap-1")}>
-          <MaterialSymbol
-            name="arrow_circle_up"
-            size={20}
-            filled
-            className="shrink-0 text-uplink"
-          />
-          <TickingValue value={dataUsed?.accumulated_tx_bytes ?? 0}>
-            {formatBytes(dataUsed?.accumulated_tx_bytes ?? 0)}
-          </TickingValue>
-        </span>
-      </PillRow>
-
-      {/* ── LTE Cell Distance ─────────────────────────────────────────── */}
-      <PillRow
-        label={
-          <>
-            <span className="truncate">{t("metrics.lte_cell_distance")}</span>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <button
-                  type="button"
-                  className={cn("inline-flex shrink-0", FOCUS_RING)}
-                  aria-label={t("metrics.more_info_aria")}
-                >
-                  <MaterialSymbol name="info" size={16} filled />
-                </button>
-              </TooltipTrigger>
-              <TooltipContent>
-                {lteData?.ta ? (
-                  <p>{t("metrics.lte_distance_tooltip", { ta: lteData.ta })}</p>
-                ) : (
-                  <p>{t("metrics.ta_unavailable")}</p>
-                )}
-              </TooltipContent>
-            </Tooltip>
-          </>
-        }
-      >
-        <span className={VALUE_CLASS}>
-          <TickingValue value={lteDistance}>{lteDistance}</TickingValue>
-        </span>
-      </PillRow>
-
-      {/* ── NR Cell Distance ──────────────────────────────────────────── */}
-      <PillRow
-        label={
-          <>
-            <span className="truncate">{t("metrics.nr_cell_distance")}</span>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <button
-                  type="button"
-                  className={cn("inline-flex shrink-0", FOCUS_RING)}
-                  aria-label={t("metrics.more_info_aria")}
-                >
-                  <MaterialSymbol name="info" size={16} filled />
-                </button>
-              </TooltipTrigger>
-              <TooltipContent>
-                {nrData?.ta ? (
-                  <p>{t("metrics.nr_distance_tooltip", { ta: nrData.ta })}</p>
-                ) : (
-                  <p>{t("metrics.ta_unavailable")}</p>
-                )}
-              </TooltipContent>
-            </Tooltip>
-          </>
-        }
-      >
-        <span className={VALUE_CLASS}>
-          <TickingValue value={nrDistance}>{nrDistance}</TickingValue>
-        </span>
-      </PillRow>
-    </motion.div>
+        {/* ── NR Cell Distance ──────────────────────────────────────────── */}
+        <PillRow
+          label={
+            <>
+              <span className="truncate">{t("metrics.nr_cell_distance")}</span>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    type="button"
+                    className={cn("inline-flex shrink-0", FOCUS_RING)}
+                    aria-label={t("metrics.more_info_aria")}
+                  >
+                    <MaterialSymbol name="info" size={16} filled />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  {nrData?.ta ? (
+                    <p>{t("metrics.nr_distance_tooltip", { ta: nrData.ta })}</p>
+                  ) : (
+                    <p>{t("metrics.ta_unavailable")}</p>
+                  )}
+                </TooltipContent>
+              </Tooltip>
+            </>
+          }
+        >
+          <span className={VALUE_CLASS}>
+            <TickingValue value={nrDistance}>{nrDistance}</TickingValue>
+          </span>
+        </PillRow>
+      </motion.div>
+    </TickGroup>
   );
 
   return (

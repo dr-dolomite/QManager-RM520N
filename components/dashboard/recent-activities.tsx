@@ -24,6 +24,7 @@ import {
   EmptyTitle,
 } from "@/components/ui/empty";
 import { Skeleton } from "@/components/ui/skeleton";
+import { SwapLabel } from "@/components/ui/swap-label";
 import { useRecentActivities } from "@/hooks/use-recent-activities";
 import {
   computeUnresolved,
@@ -34,8 +35,6 @@ import {
   type EventPresentation,
 } from "@/lib/event-presentation";
 import {
-  DUR,
-  EASE_QUICK,
   STAGGER_STEP_ROWS,
   staggerRowItem,
   transitionEmphasized,
@@ -416,16 +415,17 @@ const RecentActivitiesComponent = () => {
       className="px-3 py-1.5"
     >
       {/* Two clocks: the Badge's own cva morphs the fill over `standard`, the
-          glyph and label crossfade over `quick` on the key below. Keyed on what
-          the chip SAYS, not on its variant. Two different unresolved counts
-          share the amber fill but are not the same statement. */}
-      <motion.span
-        key={`${chipTone}-${unresolvedCount}`}
-        initial={{ opacity: 0, y: 4 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: DUR.quick, ease: EASE_QUICK }}
-        className="inline-flex items-center gap-1"
-      >
+          glyph and label crossfade over `quick` through `SwapLabel`. Keyed on
+          what the chip SAYS, not on its variant. Two different unresolved
+          counts share the amber fill but are not the same statement.
+
+          This was a keyed `motion.span` with an `initial`/`animate` pair and NO
+          `AnimatePresence` around it — the exact half-a-crossfade `SwapLabel`
+          was extracted to fix. React drops the outgoing node in a single
+          commit, so only the incoming label ever animated and the old one
+          blinked out in one frame; there was no `exit` leg for it to run, and
+          the travel was 4px rather than the recipe's 7px. */}
+      <SwapLabel swapKey={`${chipTone}-${unresolvedCount}`} className="gap-1">
         {/* Explicit `size={12}`, doubly required: Badge's base sizes `[&>svg]`,
             a DIRECT child, and the crossfade wrapper puts the glyph a level
             deeper than that selector reaches — and MaterialSymbol carries its
@@ -435,7 +435,7 @@ const RecentActivitiesComponent = () => {
         {chipTone === "quiet"
           ? t("activities.chip.quiet")
           : t("activities.chip.unresolved", { count: unresolvedCount })}
-      </motion.span>
+      </SwapLabel>
     </Badge>
   );
 

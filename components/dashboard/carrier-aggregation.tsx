@@ -16,6 +16,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { SwapLabel } from "@/components/ui/swap-label";
 import { TickingValue } from "@/components/ui/ticking-value";
+import { TickGroup } from "@/components/ui/tick-group";
 import { DUR } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 import type { CarrierComponent, NetworkType } from "@/types/modem-status";
@@ -269,206 +270,220 @@ export function CarrierAggregationComponent({
 
   return shell(
     <Card className={CARD_SHELL}>
-      {/* ── Header ── */}
-      <div className="flex flex-wrap items-center gap-3.5">
-        <h3 className="text-lg font-semibold">{t("ca.title")}</h3>
+      {/* One tick cascade for the card: the aggregate bandwidth figure in the
+          header, then each carrier tile's RSRP. The tile grid runs
+          `grid-cols-1 -> @md:grid-cols-2 -> @3xl:grid-cols-4`, and no direction
+          handling is needed for that flip because CSS grid places row-major, so
+          document order stays reading order in all three states — a column when
+          stacked, left-to-right-then-wrap when not. `TickGroup` sorts the live
+          nodes, so it inherits that for free.
 
-        {/* Two clocks, per the chip-swap recipe: the Badge's own transition
-            morphs the container fill over `standard` (see badge.tsx), while the
-            glyph and label crossfade over `quick` on the key change below. The
-            state is felt peripherally, in the colour, a beat before it is read.
+          Distinct from the meter cascade already on this card: `--meter-index`
+          below staggers the FILL arrival at the 60ms card step on first paint,
+          while this staggers the value DIP on every poll at the 40ms row step.
+          Two different gestures on two different clocks; leave both alone. */}
+      <TickGroup>
+        {/* ── Header ── */}
+        <div className="flex flex-wrap items-center gap-3.5">
+          <h3 className="text-lg font-semibold">{t("ca.title")}</h3>
 
-            Keyed on what the chip SAYS rather than on its variant: two
-            different released counts share the warning fill but are not the
-            same statement, and a chip whose text changed without acknowledging
-            it is the sort of silent swap this recipe exists to prevent. */}
-        <Badge
-          variant={hasReleased ? "warning" : aggregating ? "success" : "muted"}
-          className="px-3 py-1.5"
-        >
-          <SwapLabel
-            swapKey={
-              hasReleased ? `released-${summary.releasedCount}` : statusKey
-            }
-            className="gap-1"
+          {/* Two clocks, per the chip-swap recipe: the Badge's own transition
+              morphs the container fill over `standard` (see badge.tsx), while the
+              glyph and label crossfade over `quick` on the key change below. The
+              state is felt peripherally, in the colour, a beat before it is read.
+
+              Keyed on what the chip SAYS rather than on its variant: two
+              different released counts share the warning fill but are not the
+              same statement, and a chip whose text changed without acknowledging
+              it is the sort of silent swap this recipe exists to prevent. */}
+          <Badge
+            variant={hasReleased ? "warning" : aggregating ? "success" : "muted"}
+            className="px-3 py-1.5"
           >
-            {/* `size={12}` is explicit here for two reasons, and either alone
-                would be enough. Badge's base class sizes `[&>svg]`, a DIRECT
-                child, and the crossfade wrapper puts the glyph one level deeper
-                than that selector reaches; and MaterialSymbol sets its fontSize
-                as an inline style, which a class utility cannot override even
-                when the selector does reach it. */}
-            {hasReleased ? (
-              <MaterialSymbol name="warning" size={12} filled />
-            ) : aggregating ? (
-              <MaterialSymbol name="check_circle" size={12} filled />
-            ) : (
-              <MaterialSymbol name="do_not_disturb_on" size={12} filled />
-            )}
-            {/* When something has been released the chip must SAY so. An amber
-                fill and a warning glyph over the words "NR-CA active" is the
-                colour carrying meaning the sentence denies. */}
-            {hasReleased
-              ? t("ca.status.released", { count: summary.releasedCount })
-              : t(statusKey)}
-          </SwapLabel>
-        </Badge>
+            <SwapLabel
+              swapKey={
+                hasReleased ? `released-${summary.releasedCount}` : statusKey
+              }
+              className="gap-1"
+            >
+              {/* `size={12}` is explicit here for two reasons, and either alone
+                  would be enough. Badge's base class sizes `[&>svg]`, a DIRECT
+                  child, and the crossfade wrapper puts the glyph one level deeper
+                  than that selector reaches; and MaterialSymbol sets its fontSize
+                  as an inline style, which a class utility cannot override even
+                  when the selector does reach it. */}
+              {hasReleased ? (
+                <MaterialSymbol name="warning" size={12} filled />
+              ) : aggregating ? (
+                <MaterialSymbol name="check_circle" size={12} filled />
+              ) : (
+                <MaterialSymbol name="do_not_disturb_on" size={12} filled />
+              )}
+              {/* When something has been released the chip must SAY so. An amber
+                  fill and a warning glyph over the words "NR-CA active" is the
+                  colour carrying meaning the sentence denies. */}
+              {hasReleased
+                ? t("ca.status.released", { count: summary.releasedCount })
+                : t(statusKey)}
+            </SwapLabel>
+          </Badge>
 
-        <span className="ml-auto inline-flex items-baseline gap-2">
-          {/* On a drop, what remains is shown against what it was, so the
-              figure reads as a loss rather than as a number that quietly
-              shrank between polls. */}
-          <TickingValue
-            value={summary.totalMhz}
-            className="text-xl font-semibold"
-          >
-            {summary.totalMhz}
-            {hasReleased && (
-              <span className="text-on-surface-variant">
-                {" / "}
-                {summary.previousTotalMhz}
-              </span>
-            )}
-          </TickingValue>
-          {/* A lone carrier has a bandwidth, not an aggregate. Calling 20 MHz
-              "aggregated" would be the card describing something the radio is
-              not doing. */}
-          <span className="text-xs font-semibold text-on-surface-variant">
-            {aggregating ? t("ca.aggregated") : t("ca.bandwidth")}
+          <span className="ml-auto inline-flex items-baseline gap-2">
+            {/* On a drop, what remains is shown against what it was, so the
+                figure reads as a loss rather than as a number that quietly
+                shrank between polls. */}
+            <TickingValue
+              value={summary.totalMhz}
+              className="text-xl font-semibold"
+            >
+              {summary.totalMhz}
+              {hasReleased && (
+                <span className="text-on-surface-variant">
+                  {" / "}
+                  {summary.previousTotalMhz}
+                </span>
+              )}
+            </TickingValue>
+            {/* A lone carrier has a bandwidth, not an aggregate. Calling 20 MHz
+                "aggregated" would be the card describing something the radio is
+                not doing. */}
+            <span className="text-xs font-semibold text-on-surface-variant">
+              {aggregating ? t("ca.aggregated") : t("ca.bandwidth")}
+            </span>
           </span>
-        </span>
-      </div>
+        </div>
 
-      {/* ── Proportional chain ──
-          Width is the one property in the product allowed to animate, because
-          here the width IS the data: a scaleX would distort the labels riding
-          inside each segment. */}
-      {/* Narrow containers drop to a bare proportion bar: at phone width a 10%
-          segment is ~23px, which is less than its own horizontal padding, so
-          the labels would clip to nothing and the chain would read as broken.
-          The proportions still carry at a glance, and the stacked tiles below
-          carry every label the segments give up. */}
-      <div className="flex h-8 gap-1 @md/ca:h-12 @md/ca:gap-1.5" role="list">
-        {resolved.map((c, i) => (
-          <div
-            key={c.key}
-            role="listitem"
-            aria-label={t("ca.segment_label", {
-              band: c.band,
-              role: roleLabel(c),
-              bw: c.bandwidth_mhz,
-            })}
-            title={`${c.band} · ${roleLabel(c)} · ${c.bandwidth_mhz} MHz`}
-            style={{ width: `${shares[i]}%` }}
-            className={cn(
-              "ca-segment flex min-w-0 flex-col justify-center gap-px overflow-hidden rounded-tile py-1.5 whitespace-nowrap @md/ca:px-3.5",
-              // Grows in from nothing only when the radio ADDED this carrier.
-              // The inline width above stays the truth throughout, so a segment
-              // whose animation never runs is still exactly the right size.
-              hasDrawnChain && !previousKeys.has(c.key) && "ca-segment-enter",
-              segmentTone(c),
-            )}
-          >
-            <span className="hidden font-mono text-sm leading-[1.1] font-semibold @md/ca:block">
-              {c.band}
-            </span>
-            {/* No alpha on the ink: a released segment's pair measures 6.2:1
-                and 85% opacity drops it under AA. It recedes by being smaller,
-                not by being faded. */}
-            <span className="hidden text-xs font-medium tabular-nums @md/ca:block">
-              {c.bandwidth_mhz > 0 ? `${c.bandwidth_mhz} MHz` : t("ca.bw_unknown")}
-            </span>
-          </div>
-        ))}
-      </div>
-
-      {/* ── Per-carrier tiles ──
-          Container-queried: the deck's fixed 4-column grid is desktop-only, and
-          this dashboard is read on a phone beside the modem. */}
-      <div className="grid grid-cols-1 gap-3 @md/ca:grid-cols-2 @3xl/ca:grid-cols-4">
-        {resolved.map((c, i) => {
-          const pct = rsrpToPercent(c.rsrp);
-          const minutes = Math.floor(releasedForMs(c, now) / 60000);
-
-          return (
+        {/* ── Proportional chain ──
+            Width is the one property in the product allowed to animate, because
+            here the width IS the data: a scaleX would distort the labels riding
+            inside each segment. */}
+        {/* Narrow containers drop to a bare proportion bar: at phone width a 10%
+            segment is ~23px, which is less than its own horizontal padding, so
+            the labels would clip to nothing and the chain would read as broken.
+            The proportions still carry at a glance, and the stacked tiles below
+            carry every label the segments give up. */}
+        <div className="flex h-8 gap-1 @md/ca:h-12 @md/ca:gap-1.5" role="list">
+          {resolved.map((c, i) => (
             <div
               key={c.key}
+              role="listitem"
+              aria-label={t("ca.segment_label", {
+                band: c.band,
+                role: roleLabel(c),
+                bw: c.bandwidth_mhz,
+              })}
+              title={`${c.band} · ${roleLabel(c)} · ${c.bandwidth_mhz} MHz`}
+              style={{ width: `${shares[i]}%` }}
               className={cn(
-                "flex flex-col gap-[7px] rounded-tile px-3.5 py-[11px] transition-colors duration-(--duration-standard) ease-standard",
-                tileTone(c),
+                "ca-segment flex min-w-0 flex-col justify-center gap-px overflow-hidden rounded-tile py-1.5 whitespace-nowrap @md/ca:px-3.5",
+                // Grows in from nothing only when the radio ADDED this carrier.
+                // The inline width above stays the truth throughout, so a segment
+                // whose animation never runs is still exactly the right size.
+                hasDrawnChain && !previousKeys.has(c.key) && "ca-segment-enter",
+                segmentTone(c),
               )}
             >
-              <div className="flex items-center justify-between gap-2.5">
-                <span className="font-mono text-base font-semibold">
-                  {c.band}
-                </span>
-                {/* The role is text, never colour alone — it is the affordance
-                    that survives glare, greyscale, and the tile row scrolling
-                    out of view below the chain. */}
-                <span
-                  className={cn(
-                    "shrink-0 rounded-pill px-2.5 py-1 text-xs font-semibold",
-                    roleChipTone(c),
-                  )}
-                >
-                  {roleLabel(c)}
-                </span>
-              </div>
-
-              <div className="flex gap-3.5 font-mono text-xs font-medium tabular-nums">
-                <span>PCI {c.pci ?? "—"}</span>
-                <span>
-                  {c.technology === "NR" ? "ARFCN" : "EARFCN"} {c.earfcn ?? "—"}
-                </span>
-              </div>
-
-              {c.released ? (
-                <p className="text-xs font-medium">
-                  {minutes < 1
-                    ? t("ca.released_moments")
-                    : t("ca.released_minutes", { count: minutes })}
-                </p>
-              ) : (
-                <div className="flex items-center gap-2.5">
-                  <div className="h-[7px] flex-1 overflow-hidden rounded-pill bg-surface">
-                    {/* scaleX, not width: every meter on the page would
-                        otherwise relayout on each poll.
-
-                        `--meter-index` staggers the arrival across the tile
-                        grid (60ms apart, `.ca-meter` in globals.css). The
-                        inline transform stays the single source of truth for
-                        the resting scale — the index only shifts when the fill
-                        starts, never where it ends. */}
-                    <div
-                      className={cn(
-                        "ca-meter h-full origin-left rounded-pill",
-                        meterFillTone(c),
-                      )}
-                      style={
-                        {
-                          transform: `scaleX(${pct / 100})`,
-                          "--meter-index": i,
-                        } as React.CSSProperties
-                      }
-                    />
-                  </div>
-                  {/* The card's most genuinely live figure: RSRP moves on
-                      almost every poll. The dip is what separates "the radio
-                      re-reported this" from "this number has been frozen since
-                      you opened the tab" — a distinction a monitoring tool
-                      cannot afford to leave to the user's memory. */}
-                  <TickingValue
-                    value={c.rsrp}
-                    className="font-mono text-xs font-semibold"
-                  >
-                    {c.rsrp != null ? `${c.rsrp} dBm` : "—"}
-                  </TickingValue>
-                </div>
-              )}
+              <span className="hidden font-mono text-sm leading-[1.1] font-semibold @md/ca:block">
+                {c.band}
+              </span>
+              {/* No alpha on the ink: a released segment's pair measures 6.2:1
+                  and 85% opacity drops it under AA. It recedes by being smaller,
+                  not by being faded. */}
+              <span className="hidden text-xs font-medium tabular-nums @md/ca:block">
+                {c.bandwidth_mhz > 0 ? `${c.bandwidth_mhz} MHz` : t("ca.bw_unknown")}
+              </span>
             </div>
-          );
-        })}
-      </div>
+          ))}
+        </div>
+
+        {/* ── Per-carrier tiles ──
+            Container-queried: the deck's fixed 4-column grid is desktop-only, and
+            this dashboard is read on a phone beside the modem. */}
+        <div className="grid grid-cols-1 gap-3 @md/ca:grid-cols-2 @3xl/ca:grid-cols-4">
+          {resolved.map((c, i) => {
+            const pct = rsrpToPercent(c.rsrp);
+            const minutes = Math.floor(releasedForMs(c, now) / 60000);
+
+            return (
+              <div
+                key={c.key}
+                className={cn(
+                  "flex flex-col gap-[7px] rounded-tile px-3.5 py-[11px] transition-colors duration-(--duration-standard) ease-standard",
+                  tileTone(c),
+                )}
+              >
+                <div className="flex items-center justify-between gap-2.5">
+                  <span className="font-mono text-base font-semibold">
+                    {c.band}
+                  </span>
+                  {/* The role is text, never colour alone — it is the affordance
+                      that survives glare, greyscale, and the tile row scrolling
+                      out of view below the chain. */}
+                  <span
+                    className={cn(
+                      "shrink-0 rounded-pill px-2.5 py-1 text-xs font-semibold",
+                      roleChipTone(c),
+                    )}
+                  >
+                    {roleLabel(c)}
+                  </span>
+                </div>
+
+                <div className="flex gap-3.5 font-mono text-xs font-medium tabular-nums">
+                  <span>PCI {c.pci ?? "—"}</span>
+                  <span>
+                    {c.technology === "NR" ? "ARFCN" : "EARFCN"} {c.earfcn ?? "—"}
+                  </span>
+                </div>
+
+                {c.released ? (
+                  <p className="text-xs font-medium">
+                    {minutes < 1
+                      ? t("ca.released_moments")
+                      : t("ca.released_minutes", { count: minutes })}
+                  </p>
+                ) : (
+                  <div className="flex items-center gap-2.5">
+                    <div className="h-[7px] flex-1 overflow-hidden rounded-pill bg-surface">
+                      {/* scaleX, not width: every meter on the page would
+                          otherwise relayout on each poll.
+
+                          `--meter-index` staggers the arrival across the tile
+                          grid (60ms apart, `.ca-meter` in globals.css). The
+                          inline transform stays the single source of truth for
+                          the resting scale — the index only shifts when the fill
+                          starts, never where it ends. */}
+                      <div
+                        className={cn(
+                          "ca-meter h-full origin-left rounded-pill",
+                          meterFillTone(c),
+                        )}
+                        style={
+                          {
+                            transform: `scaleX(${pct / 100})`,
+                            "--meter-index": i,
+                          } as React.CSSProperties
+                        }
+                      />
+                    </div>
+                    {/* The card's most genuinely live figure: RSRP moves on
+                        almost every poll. The dip is what separates "the radio
+                        re-reported this" from "this number has been frozen since
+                        you opened the tab" — a distinction a monitoring tool
+                        cannot afford to leave to the user's memory. */}
+                    <TickingValue
+                      value={c.rsrp}
+                      className="font-mono text-xs font-semibold"
+                    >
+                      {c.rsrp != null ? `${c.rsrp} dBm` : "—"}
+                    </TickingValue>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </TickGroup>
     </Card>
   );
 }
