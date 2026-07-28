@@ -1,7 +1,7 @@
 # QManager
 
 <div align="center">
-  <img src="public/qmanager-logo.svg" alt="QManager Logo" width="120" />
+  <img src="public/qmanager-mark.svg" alt="QManager" width="120" />
   <h3>A modern, custom GUI for Quectel modem management</h3>
   <p>Visualize, configure, and optimize your cellular modem's performance with an intuitive web interface</p>
 

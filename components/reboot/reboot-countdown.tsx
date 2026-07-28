@@ -121,7 +121,7 @@ export function RebootCountdown() {
       <div className="flex flex-col items-center gap-6 rounded-xl border bg-card px-12 py-10 shadow-sm max-w-[340px] w-full">
         {/* Logo */}
         <img
-          src="/qmanager-logo.svg"
+          src="/qmanager-mark.svg"
           alt="QManager"
           className="size-9"
         />
