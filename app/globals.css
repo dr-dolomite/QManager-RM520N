@@ -307,11 +307,38 @@
   --warning-on-surface: oklch(0.88 0.145 80);
   --warning-container: oklch(0.32 0.085 70);
   --on-warning-container: oklch(0.93 0.11 80);
-  /* Held one step below the canon's 0.77: Button and Badge hardcode
-     `text-white` on destructive, which step 1 may not edit. Moves to
-     0.77 0.175 25 in step 3, with the chip flip. */
-  --destructive: oklch(0.62 0.21 25);
-  --destructive-foreground: oklch(0.99 0.01 27);
+  /* Migration step 3b, landed. The canon value was blocked not by the fill but
+     by its ink: destructive was the one functional role still carrying the
+     LIGHT-mode shape in dark, a mid fill (L 0.62) under near-white ink
+     (L 0.99). Raising the fill alone to 0.77 would have measured 2.42:1 —
+     below even the large-text floor — which is what kept deferring it.
+
+     The fix is the pair, exactly as the comment above this block requires and
+     as success (0.82 / 0.22) and warning (0.865 / 0.24) already do: the fill
+     goes light and the ink flips dark with it. ~6.3:1, and destructive finally
+     matches the shape of its three siblings instead of being the exception.
+
+     Consequence, deliberately: `text-white` hardcoded on a destructive fill is
+     now the bug rather than the blocker, and both sites carrying it now read
+     `text-destructive-foreground` — Button's destructive variant, and the
+     hand-rolled copy of it on the delete-profile AlertDialogAction.
+
+     Badge is NOT one of them, though the older migration notes name it: its
+     destructive variant moved to `bg-destructive-container` /
+     `text-on-destructive-container` with the chip flip, so it never carried
+     ink on a fill at all.
+
+     Button's `dark:bg-destructive/60` went with it. That override was
+     compensation for the mismatched pair, not an intent: it softened a
+     saturated mid-tone fill while near-white ink stayed legible on the result.
+     Against the canon pair it INVERTS — compositing 60% of an L 0.77 fill over
+     a dark card lands near L 0.65, dropping ~6.3:1 to ~5.1:1 — and an alpha is
+     a request to the canvas rather than to the token, so the same button would
+     render a different red in a dialog, a card and a popover. Success and
+     warning already ship full-strength in dark; destructive no longer is the
+     exception. */
+  --destructive: oklch(0.77 0.175 25);
+  --destructive-foreground: oklch(0.24 0.07 27);
   --destructive-on-surface: oklch(0.79 0.16 22);
   --destructive-container: oklch(0.325 0.115 25);
   --on-destructive-container: oklch(0.91 0.075 22);
@@ -609,6 +636,63 @@
   }
 }
 
+/* Chart draw-in (Motion Guide recipe 16), the last recipe of the sixteen to be
+   built. The stroke draws itself on `standard` and the area fill follows just
+   behind it, so the chart reads as being plotted rather than pasted.
+
+   Applied by putting `.chart-draw` on the ChartContainer and letting these
+   selectors reach recharts' own emitted classes. That indirection is the whole
+   trick, and it buys the recipe's hardest clause — "first paint only" — for
+   free: a CSS animation fires on element MOUNT, and once recharts' internal
+   <Animate> wrapper is gone (`isAnimationActive={false}`) it keeps the same
+   path node across polls and merely rewrites its `d`. No wrapper remount, no
+   replay. Every consumer must therefore pass `isAnimationActive={false}`, which
+   is also how a live defect got retired: recharts keys that wrapper on the data
+   array's IDENTITY, and both cards rebuild theirs every poll, so the charts had
+   been re-running a 1500ms `ease` animation — 3.75x the Motion-Ceiling, on a
+   curve from no design system — every two seconds, invisible to MotionConfig.
+
+   `pathLength: 1` on the series is what makes this exact. Normalising every
+   path to one user unit lets `stroke-dasharray: 1` be a single dash covering
+   the whole line whatever its real geometry, which matters because these cards
+   are container-responsive and real path length changes with the viewport. The
+   design mock hardcodes `stroke-dasharray: 2400` against paths ~400-700px long,
+   where visible length is min(L, D - offset): nothing appears until the offset
+   falls under ~1800, so the first 75% of its 300ms is dead time and the line
+   snaps in over the last 75ms. Faithfully copying that constant would have
+   shipped a snap and called it a draw.
+
+   Open-ended keyframes, `from` and no `to`, on the same construction as
+   `.ca-meter` above: resting `stroke-dashoffset` is 0 and resting opacity is 1,
+   so the chart is already correct if this never runs. Non-load-bearing by
+   construction rather than by promise. */
+.chart-draw .recharts-line-curve,
+.chart-draw .recharts-area-curve {
+  stroke-dasharray: 1;
+  animation: chart-draw var(--duration-standard) var(--ease-standard);
+}
+
+@keyframes chart-draw {
+  from {
+    stroke-dashoffset: 1;
+  }
+}
+
+/* The fill trails the stroke by 80ms so the line reads as leading and the area
+   as following it, rather than the two arriving as one block. `backwards` holds
+   it transparent through that delay; without it the fill paints, vanishes, then
+   fades back in. */
+.chart-draw .recharts-area-area {
+  animation: chart-area var(--duration-standard) var(--ease-standard) 80ms
+    backwards;
+}
+
+@keyframes chart-area {
+  from {
+    opacity: 0;
+  }
+}
+
 /* With motion off the end state must already be correct: the segment still has
    its final width and the meter its final scale, they simply arrive there
    without travelling. The crossfade survives — movement goes, opacity stays,
@@ -622,5 +706,15 @@
   .ca-segment-enter,
   .ca-meter {
     animation: none;
+  }
+
+  /* The line must not be left dashed: `stroke-dasharray` is the mechanism, not
+     the appearance, so it is cleared here rather than merely stopping the
+     keyframe. */
+  .chart-draw .recharts-line-curve,
+  .chart-draw .recharts-area-curve,
+  .chart-draw .recharts-area-area {
+    animation: none;
+    stroke-dasharray: none;
   }
 }
