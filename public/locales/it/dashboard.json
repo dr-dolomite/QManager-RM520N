@@ -192,6 +192,53 @@
   "activities": {
     "title": "Attività recenti",
     "empty_title": "Nessun evento",
-    "empty_description": "Nessun evento di rete recente rilevato. Probabilmente il tuo dispositivo è stabile e non presenta cambiamenti significativi nelle condizioni della rete."
+    "empty_description": "Nessun evento di rete recente rilevato. Probabilmente il tuo dispositivo è stabile e non presenta cambiamenti significativi nelle condizioni della rete.",
+    "error_title": "Impossibile caricare gli eventi",
+    "error_description": "{{message}}",
+    "chip": {
+      "quiet": "Tutto regolare",
+      "unresolved_one": "{{count}} non risolto",
+      "unresolved_other": "{{count}} non risolti"
+    },
+    "severity": {
+      "routine": "Ordinario",
+      "recovered": "Ripristinato",
+      "warning": "Avviso",
+      "error": "Errore",
+      "unresolved": "Non risolto"
+    },
+    "time": {
+      "just_now": "adesso",
+      "minutes_one": "{{count}} min fa",
+      "minutes_other": "{{count}} min fa",
+      "hours_one": "{{count}} h fa",
+      "hours_other": "{{count}} h fa",
+      "days_one": "{{count}} g fa",
+      "days_other": "{{count}} g fa"
+    },
+    "events": {
+      "network_mode": "Cambio modalità",
+      "band_change": "Cambio banda",
+      "pci_change": "Handover di cella",
+      "scc_pci_change": "Cambio banda secondaria",
+      "ca_change": "Aggregazione portanti",
+      "nr_anchor": "Cambio ancora 5G",
+      "signal_lost": "Segnale perso",
+      "signal_restored": "Segnale ripristinato",
+      "internet_lost": "Internet perso",
+      "internet_restored": "Internet ripristinato",
+      "high_latency": "Latenza elevata",
+      "latency_recovered": "Latenza ripristinata",
+      "high_packet_loss": "Perdita di pacchetti elevata",
+      "packet_loss_recovered": "Perdita di pacchetti rientrata",
+      "watchcat_recovery": "Ripristino watchdog",
+      "sim_failover": "Failover SIM",
+      "sim_swap_detected": "Cambio SIM rilevato",
+      "airplane_mode": "Modalità aereo",
+      "profile_applied": "Profilo applicato",
+      "profile_failed": "Profilo non riuscito",
+      "profile_deactivated": "Profilo disattivato",
+      "tower_failover": "Failover blocco BTS"
+    }
   }
 }

@@ -192,6 +192,53 @@
   "activities": {
     "title": "最近活动",
     "empty_title": "无事件",
-    "empty_description": "未检测到近期网络事件。您的设备状态可能很稳定，网络状况没有显著变化。"
+    "empty_description": "未检测到近期网络事件。您的设备状态可能很稳定，网络状况没有显著变化。",
+    "error_title": "无法加载事件",
+    "error_description": "{{message}}",
+    "chip": {
+      "quiet": "一切正常",
+      "unresolved_one": "{{count}} 项未解决",
+      "unresolved_other": "{{count}} 项未解决"
+    },
+    "severity": {
+      "routine": "常规",
+      "recovered": "已恢复",
+      "warning": "警告",
+      "error": "错误",
+      "unresolved": "未解决"
+    },
+    "time": {
+      "just_now": "刚刚",
+      "minutes_one": "{{count}} 分钟前",
+      "minutes_other": "{{count}} 分钟前",
+      "hours_one": "{{count}} 小时前",
+      "hours_other": "{{count}} 小时前",
+      "days_one": "{{count}} 天前",
+      "days_other": "{{count}} 天前"
+    },
+    "events": {
+      "network_mode": "模式变更",
+      "band_change": "频段变更",
+      "pci_change": "小区切换",
+      "scc_pci_change": "辅频段变更",
+      "ca_change": "载波聚合",
+      "nr_anchor": "5G 锚点变更",
+      "signal_lost": "信号丢失",
+      "signal_restored": "信号恢复",
+      "internet_lost": "互联网中断",
+      "internet_restored": "互联网恢复",
+      "high_latency": "延迟过高",
+      "latency_recovered": "延迟已恢复",
+      "high_packet_loss": "丢包率过高",
+      "packet_loss_recovered": "丢包率已恢复",
+      "watchcat_recovery": "看门狗恢复",
+      "sim_failover": "SIM 卡故障切换",
+      "sim_swap_detected": "检测到更换 SIM 卡",
+      "airplane_mode": "飞行模式",
+      "profile_applied": "配置文件已应用",
+      "profile_failed": "配置文件应用失败",
+      "profile_deactivated": "配置文件已停用",
+      "tower_failover": "基站锁定故障切换"
+    }
   }
 }

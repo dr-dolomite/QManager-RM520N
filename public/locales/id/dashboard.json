@@ -192,6 +192,53 @@
   "activities": {
     "title": "Aktivitas Terkini",
     "empty_title": "Tidak Ada Peristiwa",
-    "empty_description": "Tidak ada peristiwa jaringan terkini yang terdeteksi. Perangkat Anda kemungkinan stabil dan tidak mengalami perubahan signifikan pada kondisi jaringan."
+    "empty_description": "Tidak ada peristiwa jaringan terkini yang terdeteksi. Perangkat Anda kemungkinan stabil dan tidak mengalami perubahan signifikan pada kondisi jaringan.",
+    "error_title": "Tidak dapat memuat peristiwa",
+    "error_description": "{{message}}",
+    "chip": {
+      "quiet": "Semua aman",
+      "unresolved_one": "{{count}} belum tuntas",
+      "unresolved_other": "{{count}} belum tuntas"
+    },
+    "severity": {
+      "routine": "Rutin",
+      "recovered": "Pulih",
+      "warning": "Peringatan",
+      "error": "Kesalahan",
+      "unresolved": "Belum Tuntas"
+    },
+    "time": {
+      "just_now": "baru saja",
+      "minutes_one": "{{count}} mnt lalu",
+      "minutes_other": "{{count}} mnt lalu",
+      "hours_one": "{{count}} jam lalu",
+      "hours_other": "{{count}} jam lalu",
+      "days_one": "{{count}} hr lalu",
+      "days_other": "{{count}} hr lalu"
+    },
+    "events": {
+      "network_mode": "Perubahan Mode",
+      "band_change": "Perubahan Band",
+      "pci_change": "Perpindahan Sel",
+      "scc_pci_change": "Perubahan Band Sekunder",
+      "ca_change": "Carrier Aggregation",
+      "nr_anchor": "Perubahan Anchor 5G",
+      "signal_lost": "Sinyal Hilang",
+      "signal_restored": "Sinyal Pulih",
+      "internet_lost": "Internet Terputus",
+      "internet_restored": "Internet Pulih",
+      "high_latency": "Latensi Tinggi",
+      "latency_recovered": "Latensi Pulih",
+      "high_packet_loss": "Packet Loss Tinggi",
+      "packet_loss_recovered": "Packet Loss Pulih",
+      "watchcat_recovery": "Pemulihan Watchdog",
+      "sim_failover": "Failover SIM",
+      "sim_swap_detected": "Pergantian SIM Terdeteksi",
+      "airplane_mode": "Mode Pesawat",
+      "profile_applied": "Profil Diterapkan",
+      "profile_failed": "Profil Gagal",
+      "profile_deactivated": "Profil Dinonaktifkan",
+      "tower_failover": "Failover Penguncian Tower"
+    }
   }
 }
