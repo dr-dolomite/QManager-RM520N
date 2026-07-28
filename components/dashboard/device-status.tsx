@@ -14,7 +14,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { Eye, EyeOff } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { TickValue } from "@/components/ui/tick-value";
+import { TickingValue } from "@/components/ui/ticking-value";
 import { staggerRows, staggerRowItem } from "@/lib/motion";
 
 import { formatUptime, type DeviceStatus } from "@/types/modem-status";
@@ -181,13 +181,22 @@ const DeviceStatusComponent = ({
                     user opened this card to read, so it is never the thing
                     that gets clipped — a half-printed IMEI is worse than a
                     two-line label. */}
+                {/* The tick keys on the RENDERED string, not on a raw datum.
+                    `TickingValue`'s guidance prefers the raw value so a
+                    re-render of an unchanged number stays silent — an equal
+                    string satisfies that identically (`Object.is` on two equal
+                    strings is true), and it additionally suppresses the
+                    inverse case, where a raw value moves but formats to the
+                    same text and the dip would announce a change the user
+                    cannot see. Here it is also the only correct key: masking
+                    swaps the text without the underlying datum moving at all. */}
                 <dd
                   className={cn(
                     "shrink-0 text-right text-sm font-semibold",
-                    row.mono && "font-mono tabular-nums",
+                    row.mono && "font-mono",
                   )}
                 >
-                  <TickValue value={display} />
+                  <TickingValue value={display}>{display}</TickingValue>
                 </dd>
               </motion.div>
             );
@@ -216,19 +225,23 @@ const DeviceStatusComponent = ({
             >
               {t("device_status.conn_uptime_short")}
             </span>
-            <TickValue
-              className="font-mono text-base font-semibold tabular-nums"
+            <TickingValue
+              className="font-mono text-base font-semibold"
               value={connUptime > 0 ? formatUptime(connUptime) : "-"}
-            />
+            >
+              {connUptime > 0 ? formatUptime(connUptime) : "-"}
+            </TickingValue>
           </div>
           <div className="flex flex-1 flex-col gap-px rounded-tile bg-surface-container px-4 py-3">
             <span className="text-xs font-semibold tracking-[0.06em] text-on-surface-variant uppercase">
               {t("device_status.device_uptime_short")}
             </span>
-            <TickValue
-              className="font-mono text-base font-semibold tabular-nums"
+            <TickingValue
+              className="font-mono text-base font-semibold"
               value={deviceUptime > 0 ? formatUptime(deviceUptime) : "-"}
-            />
+            >
+              {deviceUptime > 0 ? formatUptime(deviceUptime) : "-"}
+            </TickingValue>
           </div>
         </div>
       </CardContent>

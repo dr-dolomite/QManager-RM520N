@@ -19,7 +19,7 @@ import {
   getSignalQuality,
   type SignalThresholds,
 } from "@/types/modem-status";
-import { TickValue } from "@/components/ui/tick-value";
+import { TickingValue } from "@/components/ui/ticking-value";
 import { getValueColorClass } from "./signal-card-utils";
 import { staggerRows, staggerRowItem } from "@/lib/motion";
 
@@ -170,7 +170,11 @@ export function SignalStatusCard({
             deuteranopia, and a fill washed out by direct sun. */}
         <Badge
           variant={getQualityBadgeVariant(quality)}
-          className="shrink-0 px-3 py-1.5 transition-colors duration-(--duration-standard) ease-standard"
+          // No transition here: `badge.tsx` now writes the two-clock longhand
+          // (fill and ink on `standard`, focus ring on `quick`) for every
+          // Badge. A `transition-colors` utility layered on top would re-declare
+          // transition-property and silently drop the ring's separate clock.
+          className="shrink-0 px-3 py-1.5"
         >
           <QualityIcon aria-hidden />
           {t(`signal_card.quality_${quality}`)}
@@ -223,11 +227,16 @@ export function SignalStatusCard({
                 // colour is the `quick` clock; only containers get `standard`.
                 <dd
                   className={cn(
-                    "m-0 font-mono text-sm font-semibold tabular-nums transition-colors duration-(--duration-quick) ease-quick",
+                    "m-0 font-mono text-sm font-semibold transition-colors duration-(--duration-quick) ease-quick",
                     valueColor,
                   )}
                 >
-                  <TickValue value={row.value} />
+                  {/* Keyed on the rendered string rather than `rawValue`: the
+                      quality thresholds mean a raw RSRP can drift by a tenth
+                      of a dB every poll and format to the same text, and a dip
+                      on an unchanged reading is the tick announcing nothing.
+                      `tabular-nums` is baked into TickingValue. */}
+                  <TickingValue value={row.value}>{row.value}</TickingValue>
                 </dd>
               )}
             </motion.div>

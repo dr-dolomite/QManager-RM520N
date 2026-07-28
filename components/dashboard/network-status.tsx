@@ -7,7 +7,6 @@ import type { TFunction } from "i18next";
 
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { TickValue } from "@/components/ui/tick-value";
 import {
   DUR,
   EASE_QUICK,
@@ -425,17 +424,34 @@ function simBadgeState(status: ServiceStatus): "ok" | "warn" | "fail" {
 
 // ─── Orb label block ──────────────────────────────────────────────────────
 // Both lines swap on real state changes only — the RAT label on a handover, the
-// carrier and service lines when the network moves. They are label swaps, so
-// they take `quick`, and the block is centre-aligned, which is what lets a
-// width change ride under the crossfade without the text appearing to slide.
+// carrier and service lines when the network moves. These are LABEL swaps, not
+// live values, so they take the keyed-`motion.span` crossfade that DESIGN.md
+// prescribes for the label half of a chip, not `TickingValue`: that component
+// bakes in `tabular-nums`, which is right for a figure and wrong for prose, and
+// its contract is a datum that moves on a poll rather than a word that changes
+// on a handover. The block is centre-aligned, which is what lets a width change
+// ride under the crossfade without the text appearing to slide.
 function OrbLabel({ title, subtitle }: { title: string; subtitle: string }) {
   return (
     <div className="flex flex-col gap-[3px] text-center">
-      <TickValue
-        value={title}
+      <motion.span
+        key={title}
+        initial={{ opacity: 0.35 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: DUR.quick, ease: EASE_QUICK }}
         className="text-base leading-none font-semibold"
-      />
-      <TickValue value={subtitle} className="text-sm text-on-surface-variant" />
+      >
+        {title}
+      </motion.span>
+      <motion.span
+        key={subtitle}
+        initial={{ opacity: 0.35 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: DUR.quick, ease: EASE_QUICK }}
+        className="text-sm text-on-surface-variant"
+      >
+        {subtitle}
+      </motion.span>
     </div>
   );
 }

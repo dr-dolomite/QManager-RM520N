@@ -663,16 +663,42 @@ own `@media (prefers-reduced-motion: reduce)` off-switch.
 - **Nav indicator.** The active pill translates between rows over `standard` instead of appearing.
   This is the single most Material-feeling change in the shell.
 - **Meter fill.** `scaleX` from `transform-origin: left` over `standard`. Never animate width, except
-  the aggregation chain, where the width *is* the data.
-- **Live value tick.** An 180ms opacity dip on a `tabular-nums` value. No fade-out-then-in, no layout
-  shift, no color flash. `components/ui/tick-value.tsx` is the shared implementation (`TickValue`):
-  the dip is driven by remounting on `key={value}`, so a poll returning the same string animates
-  nothing, and there is no effect, ref or timer to leak. Import it rather than re-declaring a local
-  copy. It is also the label half of the status chip swap below.
+  the aggregation chain, where the width *is* the data. Fills **on first paint only**: subsequent polls
+  move the scale through a transition rather than replaying from zero. Implemented as `.ca-meter` in
+  `globals.css`, whose `@keyframes ca-meter-fill` carries a `from` and **no** `to`, so it animates up
+  to whatever scale the element's own inline `transform` already holds. That construction is what keeps
+  it non-load-bearing: the correct scale is always in the DOM and the keyframe only describes the
+  journey. Do not reach for a `requestAnimationFrame`-armed state flip instead; rAF does not fire in a
+  backgrounded tab, which would strand every meter at zero until the user returned to the page.
+- **Live value tick.** An 180ms opacity dip to 35% on a `tabular-nums` value. No fade-out-then-in, no
+  layout shift, no color flash. Use `TickingValue` (`components/ui/ticking-value.tsx`), or
+  `useValueTick` directly where a hook is legal; the component exists because the values that need this
+  are usually inside a `.map`. Three contracts ride with it: it fires on a **change** and never on
+  first paint (arrival belongs to the skeleton crossfade), it **interrupts and retargets** rather than
+  queueing when a value moves mid-dip, and it is driven by the Web Animations API rather than a keyed
+  remount so it does not churn the DOM inside a polling surface's `aria-live` region. It is the one
+  place reduced motion removes an opacity change rather than preserving it: a repeating luminance flash
+  every two seconds carries no information the new number is not already carrying.
 - **Status chip swap.** The label crossfades over `quick` while the container color morphs over
   `standard`, so the state change is felt before it is read. The icon always changes with the color.
+  The container half lives in `components/ui/badge.tsx`, which writes its transition longhand because
+  it runs on two clocks: fill and ink on `standard`, focus ring on `quick`. No single Tailwind duration
+  utility can express that, which is how `background-color` fell out of the list and every chip in the
+  product spent a while cutting straight to its new fill. The label half is local to the consumer: key
+  a `motion.span` on what the chip **says**, not on its variant, since two states can share a container.
 - **Aggregation re-proportion.** Segment widths animate over `emphasized` when a carrier is added or
-  released; released segments stay in place, greyed, rather than being removed.
+  released; released segments stay in place, greyed, rather than being removed. A carrier the radio has
+  just **added** additionally grows in from zero width via `.ca-segment-enter`, on the same open-ended
+  keyframe construction as the meter. Entrance is scoped to genuine additions: a whole chain appearing
+  at once is the card arriving, which belongs to the skeleton handoff, and four simultaneous `width`
+  animations would be four layout passes to announce something that was never absent.
+- **Skeleton handoff.** A crossfade over `quick`, with no movement. The outgoing skeleton is an
+  **overlay on top of** the real content, never a sibling beside it: stacked as siblings the container
+  sizes to the taller of the two for the duration of the fade and then collapses, so the handoff ends on
+  a jolt. As an overlay the content owns the container's height from its first frame and the crossfade
+  contributes no layout shift at all. Render the skeleton from a single extracted definition shared by
+  the loading branch and the overlay, or the two drift and the Skeleton-Mirror Rule fails silently.
+  `.ca-skeleton-out` / `.ca-content-in` are the reference implementation.
 - **Alert arrival.** New Recent Activity rows enter from the trailing edge over `emphasized`; existing
   rows move on transform. Nothing animates out; history does not retreat.
 - **Save confirmation.** `SaveButton` swaps idle to "Saving..." to "Saved!" on `useSaveFlash` timing;
@@ -935,6 +961,15 @@ The full-width surface that replaces the SCC card on the dashboard.
 - On loss, released segments **stay in place greyed**, with the aggregate figure showing what remains
   against what it was, so a drop reads as a gap rather than a redraw.
 - Empty and degraded states are honest: "released 3 min ago", never a silent absence.
+- **Motion.** This is the surface where the largest share of the motion vocabulary lands at once, and
+  the reference implementation for four of its entries: the skeleton handoff, the meter fill, the
+  aggregation re-proportion (including the added-carrier entrance), and the live value tick on RSRP and
+  on the aggregate MHz figure. All of it is one-shot; the strip carries **no** ambient loop, because
+  nothing on it is continuously live in the way a service ring or a ping dot is. Note that a
+  four-carrier configuration ticking together puts five concurrent animations on the surface, one over
+  the Motion Guide's stated ceiling of three. That is a deliberate, measured exception rather than an
+  oversight: they are opacity-only, compositor-promoted, and collectively cheaper than the single
+  `width` animation the same guide sanctions ten pixels above them.
 
 ### Apply Progress Dialog (signature component)
 
@@ -1172,7 +1207,7 @@ step is independently shippable and leaves the product correct.
 |------|-------|-------|
 | 1 | **Tokens in `globals.css`.** Container roles, tinted surface steps, retuned amber, info aliased to the brand ramp, ring tone steps, the shape scale as additive role radii, motion curves and durations. No component touched; the product changes color and stays correct. | **Landed** |
 | 2 | **Shell and shape scale.** Sidebar pills with the sliding indicator and the self-hosted Material Symbols Rounded subset, the role radii applied to cards and controls (retiring the legacy `--radius` chain), the new mark wired in (`public/qmanager-mark.svg` is already in the tree, currently unreferenced). | **Partial.** Nav half landed. The dashboard's own cards now carry role radii (`rounded-hero` on the two hero cards, `rounded-card` on the rest). The legacy `--radius` chain is still live everywhere else: `rounded-md` alone has 114 call sites, so retargeting it silently would be a regression, not a migration. |
-| 3 | **Chips, banners, and the dashboard.** Flip the badge pattern to filled chips, retarget the banners to the eight-role system (`SimSwapBanner` first — it is the reference anatomy), adopt containers and pill rows on the status cards (Network Status keeps its icons), land the Carrier Aggregation strip. | **Landed.** The Banner System shipped as `components/ui/banner.tsx` (all eight roles; 01/02/03/05/07 mounted, 04/06/08 available but unmounted). **The badge flip is done**: the five chip roles live in `components/ui/badge.tsx`'s `cva`, all 90+ call sites across 33 files render `variant="…"`, four tone maps key onto the exported `BadgeVariant` type, and the `CLAUDE.md` table now documents the filled chip. **The Carrier Aggregation strip has landed** (`components/dashboard/carrier-aggregation.tsx` plus the pure view model in `lib/carrier-aggregation.ts`), mounted `col-span-full` and replacing the deleted `scc-status.tsx`; the dashboard's carrier surfaces now carry pill metric rows on `surface-container`, filled quality chips and identity-toned band pills. Step 3 is closed. **The three retargeted cards now also carry the motion canon**: Network Status, Device Information and the 4G/5G Primary Status card had tonal surfaces but no state-change motion, and were animating only via the outer card cascade. They now use `staggerRows`/`staggerRowItem` for their in-card rows, the shared `TickValue` for live readings and orb labels, `standard` colour transitions on containers (chips, orb fills, ring tones, the core disc, band pills) and `quick` ones on ink and focus rings. `components/ui/metric-bar.tsx` lost its spring in the same pass: a spring settles by oscillating, which the Settled-Motion Rule bans outright, and it made a 61% meter overshoot to ~64 and rock back. This is refinement inside step 3, not a new step. |
+| 3 | **Chips, banners, and the dashboard.** Flip the badge pattern to filled chips, retarget the banners to the eight-role system (`SimSwapBanner` first — it is the reference anatomy), adopt containers and pill rows on the status cards (Network Status keeps its icons), land the Carrier Aggregation strip. | **Landed.** The Banner System shipped as `components/ui/banner.tsx` (all eight roles; 01/02/03/05/07 mounted, 04/06/08 available but unmounted). **The badge flip is done**: the five chip roles live in `components/ui/badge.tsx`'s `cva`, all 90+ call sites across 33 files render `variant="…"`, four tone maps key onto the exported `BadgeVariant` type, and the `CLAUDE.md` table now documents the filled chip. **The Carrier Aggregation strip has landed** (`components/dashboard/carrier-aggregation.tsx` plus the pure view model in `lib/carrier-aggregation.ts`), mounted `col-span-full` and replacing the deleted `scc-status.tsx`; the dashboard's carrier surfaces now carry pill metric rows on `surface-container`, filled quality chips and identity-toned band pills. Step 3 is closed. **The three retargeted cards now also carry the motion canon**: Network Status, Device Information and the 4G/5G Primary Status card had tonal surfaces but no state-change motion, and were animating only via the outer card cascade. They now use `staggerRows`/`staggerRowItem` for their in-card rows, `TickingValue` for live readings, the keyed-`motion.span` label crossfade for chip contents, badge glyphs and orb labels, `standard` colour transitions on containers (chips, orb fills, ring tones, the core disc, band pills) and `quick` ones on ink and focus rings. The split between the two tick mechanisms is the load-bearing part: `TickingValue` bakes in `tabular-nums` and keys on a datum that moves every poll, so it is for figures; a word that changes on a handover takes the label crossfade instead. `components/ui/metric-bar.tsx` lost its spring in the same pass: a spring settles by oscillating, which the Settled-Motion Rule bans outright, and it made a 61% meter overshoot to ~64 and rock back. This is refinement inside step 3, not a new step. |
 | 3b | **Token debt owed by step 3.** Move dark `--destructive` to the canon value and promote `--border` to `--outline` (see "held one step off" above). | **Deferred, with cause.** Neither is a drop-in. Dark `--destructive` at the canon `oklch(0.77 0.175 25)` measures **2.42:1** against white ink — below even the 3:1 large-text floor. `Button` and `Badge` escape only because they override with `dark:bg-destructive/60` (5.28:1 composited); ~20 other surfaces use `bg-destructive` at full opacity and would regress. `--border` is gated on cards dropping their hairlines, which has not happened, and step 4 keeps hairlines in the dense tables deliberately — promoting it now would make the very hairlines this system retires *more* prominent. Both move when their blockers clear, not before. |
 | 3c | **Identity colour outside the token system.** Retire the connection-scenario gradient palette and move scenario identity onto glyphs; convert the profile apply dialog's deferred-reboot wash to the Banner primitive. | **Landed.** `gradientOptions` (12 raw Tailwind gradients) and `getRingColor()` (12 `ring-*-500` classes selected by substring-matching the gradient) are gone. Scenario tiles are `surface-container` with a filled `bg-primary` glyph disc, and identity is a persisted glyph key resolved through `scenario-icons.ts`. `AbstractPattern` now draws in `currentColor`, so the texture follows the theme instead of assuming a dark tile. |
 | 4 | **Dense pages.** Cell Scanner, log views, and SMS adopt the new tokens while keeping hairline rows. This is where the system is proven or corrected. | Not started |

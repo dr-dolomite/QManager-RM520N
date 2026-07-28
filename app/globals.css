@@ -519,19 +519,93 @@
     color var(--duration-standard) var(--ease-standard);
 }
 
+/* A carrier the radio has just ADDED grows from nothing into its share, so the
+   chain reads as "something arrived" rather than "everything shuffled". The
+   keyframe is deliberately open-ended: with no `to`, it animates from width 0 up
+   to whatever the element's own inline width already is, so the final geometry
+   is computed by React and this rule only describes the journey.
+
+   Applied only to segments that appear AFTER the card has rendered content once.
+   First paint is the skeleton crossfade's moment (Motion Guide recipe 03); four
+   segments each animating `width` on arrival would be four simultaneous layout
+   passes to show a chain that was never not there. */
+@keyframes ca-segment-enter {
+  from {
+    width: 0;
+    opacity: 0;
+  }
+}
+
+.ca-segment-enter {
+  animation: ca-segment-enter var(--duration-emphasized)
+    var(--ease-emphasized);
+}
+
 /* Meter fill: transform, never width — otherwise every meter on the dashboard
    triggers layout on each poll, on a CPU that is also carrying the user's
    traffic. `standard`, because a fill is a content change, not a mass one. */
 .ca-meter {
+  /* Fills on first paint only. The tiles are keyed by carrier, so this runs
+     once per carrier lifetime: on arrival, and again for a carrier the radio
+     adds later. Subsequent polls move the scale through the `transition` below
+     instead of replaying from zero (Motion Guide recipe 07).
+
+     An animation rather than a mount-time state flip on purpose. The inline
+     `transform` is always the truth; the keyframe only overrides it while it
+     runs. So if this never executes — reduced motion, a backgrounded tab, a
+     paint that beat the animation — the meter is already at its correct scale.
+     That is the Non-Load-Bearing Rule, and a rAF-armed state flip would break
+     it: requestAnimationFrame does not fire in a background tab, which would
+     strand every meter at zero until the user came back to the page. */
+  animation: ca-meter-fill var(--duration-standard) var(--ease-standard);
   transition: transform var(--duration-standard) var(--ease-standard);
+}
+
+@keyframes ca-meter-fill {
+  from {
+    transform: scaleX(0);
+  }
+}
+
+/* Skeleton handoff (Motion Guide recipe 03): a pure crossfade on `quick`, with
+   no movement. The outgoing skeleton is an overlay ON TOP of the real content
+   rather than a sibling beside it, so the card is sized by its content from the
+   first frame and the crossfade itself contributes zero layout shift. */
+.ca-skeleton-out {
+  animation: ca-skeleton-out var(--duration-quick) ease-out forwards;
+}
+
+@keyframes ca-skeleton-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+.ca-content-in {
+  animation: ca-content-in var(--duration-quick) ease-out;
+}
+
+@keyframes ca-content-in {
+  from {
+    opacity: 0;
+  }
 }
 
 /* With motion off the end state must already be correct: the segment still has
    its final width and the meter its final scale, they simply arrive there
-   without travelling. */
+   without travelling. The crossfade survives — movement goes, opacity stays,
+   and a crossfade is still legible information where a slide is not. */
 @media (prefers-reduced-motion: reduce) {
   .ca-segment,
   .ca-meter {
     transition: none;
+  }
+
+  .ca-segment-enter,
+  .ca-meter {
+    animation: none;
   }
 }
