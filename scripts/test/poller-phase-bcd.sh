@@ -413,6 +413,128 @@ case "$warn_output" in
         ;;
 esac
 
+section "_ev_settle debounce for band and PCI"
+
+# Drive the real helper out of events.sh through synthetic observation
+# sequences. Each case runs in its own subshell so the per-channel globals
+# (_ev_hold_*, _ev_holdn_*, _ev_last_*, _ev_flap*) start clean.
+#
+# The helper returns 0 = settled onto a new value, 1 = nothing to report,
+# 2 = churning. `feed` replays a sequence and prints one line per announcement,
+# which is exactly what detect_events would have appended to the ring.
+
+cat > "$work/settle_harness.sh" <<'HARNESS'
+qlog_info()  { :; }
+qlog_warn()  { :; }
+qlog_debug() { :; }
+QUALITY_CONFIG=/nonexistent
+. "$REPO_ROOT/scripts/usr/lib/qmanager/events.sh"
+
+# feed <channel> <value>...
+# Prints "SETTLED <from> -> <to>" or "FLAP <n>" for each announcement.
+feed() {
+    ch=$1; shift
+    for v in "$@"; do
+        [ "$v" = "_" ] && v=""      # "_" stands in for a blank observation
+        _ev_settle "$ch" "$v"; rc=$?
+        if [ "$rc" -eq 0 ]; then
+            printf 'SETTLED %s -> %s\n' "$_EV_SETTLED_FROM" "$_EV_SETTLED_TO"
+        elif [ "$rc" -eq 2 ]; then
+            printf 'FLAP %s\n' "$_EV_FLAP_N"
+        fi
+    done
+}
+HARNESS
+
+settle_case() {
+    # settle_case <description> <expected-output> <channel> <values...>
+    local desc="$1" expect="$2"; shift 2
+    local got
+    got=$(REPO_ROOT="$REPO_ROOT" bash -c '
+        . "$0"
+        feed "$@"
+    ' "$work/settle_harness.sh" "$@" 2>&1)
+    if [ "$got" = "$expect" ]; then
+        ok "$desc"
+    else
+        bad "$desc — expected [$expect], got [$got]"
+    fi
+}
+
+# The live capture, replayed exactly: steady on B41, nine blank samples while
+# service is gone, a single-sample camp on B8 during re-acquisition, then back
+# to B41. The old raw-inequality code emitted one band_change here. The radio
+# never left B41 in any way a user cares about, so the correct answer is none.
+settle_case "outage then return to the same band is silent" \
+    "" \
+    lte_band B41 B41 B41 _ _ _ _ _ _ _ _ _ B8 B41 B41 B41
+
+# A real, settled move must still be reported.
+settle_case "a band that settles is announced once" \
+    "SETTLED B41 -> B8" \
+    lte_band B41 B41 B41 B8 B8 B8 B8 B8
+
+# The re-acquisition ladder: intermediate rungs held 1-2 samples each are not
+# announced, and the wording the caller uses ("settled on X, was Y") is why
+# skipping them does not state a hop that never happened.
+settle_case "transient rungs are skipped, destination announced once" \
+    "SETTLED B41 -> B28" \
+    lte_band B41 B41 B41 B1 B3 B28 B28 B28
+
+# The failure mode a hold-only rule would have introduced: a radio oscillating
+# faster than the settle window never settles, so it must NOT go silent.
+settle_case "period-2 oscillation reports instability instead of nothing" \
+    "FLAP 6" \
+    lte_band A B A B A B A B A B A B
+
+# A blank is an absent observation, not a value: it must not reset a settle
+# that is already in progress.
+settle_case "blanks do not reset an in-progress settle" \
+    "SETTLED B41 -> B8" \
+    lte_band B41 B41 B41 B8 B8 _ _ _ _ _ B8
+
+# First value after a cold start is adopted silently — there is no previous
+# value to have "changed from".
+settle_case "cold start adopts the first settled value silently" \
+    "" \
+    lte_band B41 B41 B41 B41
+
+# An all-blank channel (NR inactive on this SIM) never fires anything.
+settle_case "an always-blank channel stays silent" \
+    "" \
+    nr_band _ _ _ _ _ _ _ _ _ _
+
+# Channels are independent: PCI churn must not consume the band channel's state.
+got_multi=$(REPO_ROOT="$REPO_ROOT" bash -c '
+    . "$0"
+    feed lte_band B41 B41 B41 B8 B8 B8
+    feed lte_pci  271 271 271 305 305 305
+' "$work/settle_harness.sh" 2>&1)
+if [ "$got_multi" = "SETTLED B41 -> B8
+SETTLED 271 -> 305" ]; then
+    ok "band and PCI channels keep independent state"
+else
+    bad "channel independence — got [$got_multi]"
+fi
+
+section "event ring depth agrees across all producers"
+
+# append_event trims with tail -n "$MAX_EVENTS"; five producers write the same
+# file, so a disagreement silently truncates another producer's history.
+ring_vals=$(grep -rhn 'MAX_EVENTS=[0-9]' \
+    "$REPO_ROOT/scripts/usr/bin/qmanager_poller" \
+    "$REPO_ROOT/scripts/usr/bin/qmanager_watchcat" \
+    "$REPO_ROOT/scripts/usr/bin/qmanager_profile_apply" \
+    "$REPO_ROOT/scripts/usr/lib/qmanager/profile_mgr.sh" \
+    "$REPO_ROOT/scripts/www/cgi-bin/quecmanager/profiles/deactivate.sh" \
+    | sed 's/.*MAX_EVENTS=\([0-9]*\).*/\1/' | sort -u)
+ring_count=$(printf '%s\n' "$ring_vals" | grep -c .)
+if [ "$ring_count" -eq 1 ]; then
+    ok "all five producers agree on MAX_EVENTS=$ring_vals"
+else
+    bad "producers disagree on MAX_EVENTS: $(printf '%s' "$ring_vals" | tr '\n' ' ')"
+fi
+
 printf '\n%d passed, %d failed' "$pass_count" "$fail_count"
 if [ "$fail" -eq 0 ]; then
     printf ', ALL PASS\n'

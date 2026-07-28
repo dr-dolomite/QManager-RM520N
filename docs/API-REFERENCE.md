@@ -246,7 +246,7 @@ Main polling endpoint. Returns the cached modem status JSON (built by `qmanager_
 
 ### GET `/at_cmd/fetch_events.sh`
 
-Returns network events as a JSON array.
+Returns the **newest 50** network events as a JSON array, oldest first. The on-device ring holds up to 300 (`MAX_EVENTS`); the endpoint serves a slice so the browser payload stays small.
 
 **Response:**
 ```json
@@ -254,11 +254,19 @@ Returns network events as a JSON array.
   {
     "timestamp": 1710700000,
     "type": "band_change",
-    "message": "LTE band changed from B2 to B66",
+    "message": "LTE band settled on B66 (was B2) (PCI 305)",
     "severity": "info"
+  },
+  {
+    "timestamp": 1710700120,
+    "type": "band_change",
+    "message": "LTE band unstable — 14 changes in the last 5 min",
+    "severity": "warning"
   }
 ]
 ```
+
+> ℹ️ NOTE: `band_change` and `pci_change` messages are phrased as "settled on X (was Y)" rather than "changed from X to Y" because the value is debounced — the radio may pass through intermediate values that are deliberately not reported. Both types can arrive at `severity: "warning"` when the radio is churning; do not assume they are always `info`.
 
 ### GET `/at_cmd/fetch_signal_history.sh`
 

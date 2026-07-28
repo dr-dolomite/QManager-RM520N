@@ -548,7 +548,7 @@ _profile_emit_event() {
     severity="$3"
     if ! command -v append_event >/dev/null 2>&1; then
         [ -z "$EVENTS_FILE" ] && EVENTS_FILE="/tmp/qmanager_events.json"
-        [ -z "$MAX_EVENTS" ] && MAX_EVENTS=50
+        [ -z "$MAX_EVENTS" ] && MAX_EVENTS=300
         . /usr/lib/qmanager/events.sh 2>/dev/null || return 0
     fi
     command -v append_event >/dev/null 2>&1 && append_event "$etype" "$msg" "$severity" 2>/dev/null

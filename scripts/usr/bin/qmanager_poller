@@ -108,7 +108,15 @@ _last_crash_count=0            # last-known crash_count value
 # --- Event Detection State ---------------------------------------------------
 EVENTS_FILE="/tmp/qmanager_events.json"
 PCI_STATE_FILE="/tmp/qmanager_pci_state.json"
-MAX_EVENTS=50
+# Ring depth. Five producers append to this one file (this poller,
+# qmanager_watchcat, qmanager_profile_apply, profiles/deactivate.sh and
+# profile_mgr.sh) and each trims it, so they must agree — change all five
+# together. Raised from 50 because a single burst of radio churn could fill a
+# 50-slot ring in 12 minutes and evict the outage the user was chasing.
+# Measured cost on-device: ~117 bytes/event, so 300 slots is ~35KB against
+# ~62MB free on /tmp. The browser is not made to pay for the extra depth —
+# fetch_events.sh serves only the newest slice (see EVENTS_SERVE_LIMIT there).
+MAX_EVENTS=300
 events_initialized=false
 
 # Previous state for change detection (prefixed prev_ev_ to avoid collision)

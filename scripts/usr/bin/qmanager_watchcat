@@ -36,7 +36,7 @@ qlog_init "watchcat"
 # --- Events (for append_event) -----------------------------------------------
 # Must define EVENTS_FILE and MAX_EVENTS before sourcing events.sh
 EVENTS_FILE="/tmp/qmanager_events.json"
-MAX_EVENTS=50
+MAX_EVENTS=300
 . /usr/lib/qmanager/events.sh 2>/dev/null || {
     append_event() { :; }
 }

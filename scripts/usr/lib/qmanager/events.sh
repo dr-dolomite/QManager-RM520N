@@ -180,13 +180,169 @@ _ev_net_context() {
     fi
 }
 
+# ---------------------------------------------------------------------------
+# Settle debounce for discrete radio identifiers (band, PCI)
+# ---------------------------------------------------------------------------
+# Why this exists, because the naive version was shipped first and was wrong:
+#
+# The serving band and cell identity are compared against the previous poll
+# sample. On a service drop the modem re-acquires by walking a ladder of
+# coverage bands, camping on each for one or two samples before settling back
+# on the band it started from. A raw inequality reports every rung. Measured on
+# a live RM520N: 44 of the 50 slots in the event ring were band_change, the
+# whole ring spanned 12.5 minutes, and one outage plus one 100% packet-loss
+# episode were the only non-band history that survived. The user's actual
+# problem had been evicted by the noise generated while diagnosing it.
+#
+# Two mechanics make that worse than it looks:
+#
+#   1. A blank reading is NOT a value. parse_serving_cell blanks these fields
+#      whenever AT+QENG returns no usable line (parse_at.sh:113-119, :232-235),
+#      which is exactly what happens during a drop. The old code let a blank
+#      propagate into the previous-sample snapshot, so the return leg of every
+#      re-acquisition compared a real band against "" and silently vanished. On
+#      the live capture that hid 22 of ~66 transitions: B8 was departed 24
+#      times and entered twice, which is impossible for a contiguous walk.
+#      Here a blank is skipped outright: no observation, no counter movement.
+#
+#   2. Announcing a settled value must not invent a hop. The band really does
+#      pass through the intermediate rungs, so "changed from B41 to B28" would
+#      state a transition the radio never made. Callers phrase it as "settled
+#      on X (was Y)" instead: both clauses stay true no matter how many rungs
+#      were skipped, and no reader is told about a hop that did not happen.
+#
+# The counterpart hazard, and the reason return code 2 exists: a value that
+# oscillates faster than the settle window never settles, so a hold-only rule
+# would go SILENT on the most broken radio it could encounter. That is a worse
+# failure than the noise it replaces. So churn is counted, and a caller that
+# gets rc 2 reports the instability itself rather than the individual rungs.
+#
+# Usage:
+#   _ev_settle <channel> <current-value>; rc=$?
+#     rc 0 → settled onto a new value; read $_EV_SETTLED_TO / $_EV_SETTLED_FROM
+#     rc 1 → nothing to report (blank, still settling, or unchanged)
+#     rc 2 → churning; read $_EV_FLAP_N for the count in this window
+#
+# <channel> must be a bare identifier — it is interpolated into variable names.
+# Per-channel state lives in poller globals, matching the existing latency and
+# loss streak counters (qmanager_poller:131-135), which are likewise not
+# persisted. A poller restart therefore re-settles rather than resuming, which
+# costs one settle window of silence and keeps the positional cut -f decode in
+# restore_event_state untouched.
+
+# Consecutive real observations before a new value is announced. The measured
+# poll cadence is ~3s (POLL_INTERVAL=2 is a sleep AFTER the cycle body), so 3
+# samples is roughly 9 seconds of stability. Every intermediate rung in the
+# live capture was held for 1 to 2 samples; the steady-state band held for 45
+# consecutive samples. Hard-coded deliberately, NOT a config key: the CGI that
+# writes quality_thresholds.json rebuilds it from scratch with exactly two keys
+# (settings/quality_thresholds.sh), so a third would be erased on the user's
+# next preset save, and install_backend only deploys config files that do not
+# already exist, so an upgraded device would never receive the new seed.
+EV_SETTLE_SAMPLES="${EV_SETTLE_SAMPLES:-3}"
+
+# Churn reporting: this many candidate changes inside this many seconds emits
+# one instability event, then the window restarts. Six changes in five minutes
+# is well clear of a normal handoff rate and well under the ~44-per-12-minutes
+# the live storm produced.
+EV_FLAP_THRESHOLD="${EV_FLAP_THRESHOLD:-6}"
+EV_FLAP_WINDOW="${EV_FLAP_WINDOW:-300}"
+
+_ev_settle() {
+    local _ch="$1" _cur="$2"
+    local _hold _holdn _last _flapn _flapt _now
+    _EV_SETTLED_FROM=""
+    _EV_SETTLED_TO=""
+    _EV_FLAP_N=0
+
+    # A blank is an absent observation, not a new value. Leave every counter
+    # exactly as it was so an outage cannot reset a settle in progress.
+    [ -z "$_cur" ] && return 1
+
+    eval "_hold=\${_ev_hold_${_ch}:-}"
+    eval "_holdn=\${_ev_holdn_${_ch}:-0}"
+    eval "_last=\${_ev_last_${_ch}:-}"
+
+    if [ "$_cur" = "$_hold" ]; then
+        _holdn=$((_holdn + 1))
+    else
+        # A new candidate. Count it as churn unless it is simply the value we
+        # already announced coming back, which is a settle, not a flap.
+        if [ "$_cur" != "$_last" ]; then
+            eval "_flapn=\${_ev_flapn_${_ch}:-0}"
+            eval "_flapt=\${_ev_flapt_${_ch}:-0}"
+            _now=$(date +%s)
+            if [ $((_now - _flapt)) -ge "$EV_FLAP_WINDOW" ]; then
+                _flapn=1
+                _flapt="$_now"
+            else
+                _flapn=$((_flapn + 1))
+            fi
+            eval "_ev_flapn_${_ch}=\$_flapn"
+            eval "_ev_flapt_${_ch}=\$_flapt"
+        fi
+        _hold="$_cur"
+        _holdn=1
+    fi
+
+    eval "_ev_hold_${_ch}=\$_hold"
+    eval "_ev_holdn_${_ch}=\$_holdn"
+
+    if [ "$_holdn" -ge "$EV_SETTLE_SAMPLES" ]; then
+        # Settled. Clear the churn window either way: the radio has stopped
+        # moving, so counting toward an instability report would be stale. The
+        # report latch clears too, so a later episode is reported promptly
+        # rather than being muted by the previous one.
+        eval "_ev_last_${_ch}=\$_cur"
+        eval "_ev_flapn_${_ch}=0"
+        eval "_ev_flapr_${_ch}=0"
+        if [ -n "$_last" ] && [ "$_cur" != "$_last" ]; then
+            _EV_SETTLED_FROM="$_last"
+            _EV_SETTLED_TO="$_cur"
+            return 0
+        fi
+        # First settle after a cold start, or settled back onto the value we
+        # already reported (the re-acquisition case). Adopt it silently.
+        return 1
+    fi
+
+    # Still unsettled. If it has been churning all window, report that — but at
+    # most once per window. Resetting only the counter is not enough: a radio
+    # oscillating every sample re-reaches the threshold in another six changes,
+    # which would rebuild the very storm this function exists to stop, at
+    # warning severity instead of info. So the last report time is its own
+    # latch, cleared on settle so a genuinely new episode is not muted.
+    eval "_flapn=\${_ev_flapn_${_ch}:-0}"
+    if [ "$_flapn" -ge "$EV_FLAP_THRESHOLD" ]; then
+        local _flapr
+        eval "_flapr=\${_ev_flapr_${_ch}:-0}"
+        _now=$(date +%s)
+        if [ "$_flapr" -eq 0 ] || [ $((_now - _flapr)) -ge "$EV_FLAP_WINDOW" ]; then
+            _EV_FLAP_N="$_flapn"
+            eval "_ev_flapn_${_ch}=0"
+            eval "_ev_flapt_${_ch}=\$_now"
+            eval "_ev_flapr_${_ch}=\$_now"
+            return 2
+        fi
+    fi
+
+    return 1
+}
+
 # Snapshot current state into prev_ev_* variables (called once after first parse)
 snapshot_event_state() {
     prev_ev_network_type="$network_type"
-    prev_ev_lte_band="$lte_band"
-    prev_ev_lte_pci="$lte_pci"
-    prev_ev_nr_band="$nr_band"
-    prev_ev_nr_pci="$nr_pci"
+    # Band and PCI keep their last known good value across a blank reading.
+    # parse_serving_cell blanks all four whenever AT+QENG returns no usable
+    # line (parse_at.sh:113-119, :232-235) — i.e. on every service drop — and
+    # the previous unconditional copy propagated that blank, destroying the
+    # baseline. The visible symptom was the "was ..." clause on the NR anchor
+    # lost message (below, in detect_events) going empty precisely when a user
+    # most wants to know which band they fell off.
+    prev_ev_lte_band="${lte_band:-$prev_ev_lte_band}"
+    prev_ev_lte_pci="${lte_pci:-$prev_ev_lte_pci}"
+    prev_ev_nr_band="${nr_band:-$prev_ev_nr_band}"
+    prev_ev_nr_pci="${nr_pci:-$prev_ev_nr_pci}"
     prev_ev_nr_state="$nr_state"
     prev_ev_modem_reachable="$modem_reachable"
     prev_ev_internet="$conn_internet_available"
@@ -484,28 +640,29 @@ detect_events() {
     # Section 2: Band Changes events
     # =====================================================================
 
-    # --- LTE band change ---
-    if [ -n "$lte_band" ] && [ -n "$prev_ev_lte_band" ] && \
-       [ "$lte_band" != "$prev_ev_lte_band" ]; then
+    # --- LTE band change (settle-debounced, see _ev_settle) ---
+    local _rc
+    _ev_settle lte_band "$lte_band"; _rc=$?
+    if [ "$_rc" -eq 0 ]; then
         local lte_band_detail=""
-        if [ -n "$lte_pci" ]; then
-            if [ -n "$prev_ev_lte_pci" ] && [ "$lte_pci" != "$prev_ev_lte_pci" ]; then
-                lte_band_detail=" (PCI: $prev_ev_lte_pci -> $lte_pci)"
-            else
-                lte_band_detail=" (PCI $lte_pci)"
-            fi
-        fi
+        [ -n "$lte_pci" ] && lte_band_detail=" (PCI $lte_pci)"
         append_event "band_change" \
-            "LTE band changed from $prev_ev_lte_band to $lte_band${lte_band_detail}" "info"
+            "LTE band settled on ${_EV_SETTLED_TO} (was ${_EV_SETTLED_FROM})${lte_band_detail}" "info"
+    elif [ "$_rc" -eq 2 ]; then
+        append_event "band_change" \
+            "LTE band unstable — ${_EV_FLAP_N} changes in the last $((EV_FLAP_WINDOW / 60)) min" "warning"
     fi
 
-    # --- LTE PCI change (PCC cell handoff) ---
-    if [ -n "$lte_pci" ] && [ -n "$prev_ev_lte_pci" ] && \
-       [ "$lte_pci" != "$prev_ev_lte_pci" ]; then
+    # --- LTE PCI change (PCC cell handoff, settle-debounced) ---
+    _ev_settle lte_pci "$lte_pci"; _rc=$?
+    if [ "$_rc" -eq 0 ]; then
         local lte_pci_ctx=""
         [ -n "$lte_band" ] && lte_pci_ctx=" on $lte_band"
         append_event "pci_change" \
-            "LTE PCC cell handoff${lte_pci_ctx} (PCI: $prev_ev_lte_pci -> $lte_pci)" "info"
+            "LTE PCC cell handoff${lte_pci_ctx} (PCI ${_EV_SETTLED_FROM} -> ${_EV_SETTLED_TO})" "info"
+    elif [ "$_rc" -eq 2 ]; then
+        append_event "pci_change" \
+            "LTE cell unstable — ${_EV_FLAP_N} handoffs in the last $((EV_FLAP_WINDOW / 60)) min" "warning"
     fi
 
     # --- NR state change (5G anchor gained/lost) ---
@@ -522,30 +679,37 @@ detect_events() {
         fi
     fi
 
-    # --- NR band change ---
-    if [ "$nr_state" = "connected" ] && \
-       [ -n "$nr_band" ] && [ -n "$prev_ev_nr_band" ] && \
-       [ "$nr_band" != "$prev_ev_nr_band" ]; then
-        local nr_band_detail=""
-        if [ -n "$nr_pci" ]; then
-            if [ -n "$prev_ev_nr_pci" ] && [ "$nr_pci" != "$prev_ev_nr_pci" ]; then
-                nr_band_detail=" (PCI: $prev_ev_nr_pci -> $nr_pci)"
-            else
-                nr_band_detail=" (PCI $nr_pci)"
-            fi
-        fi
-        append_event "band_change" \
-            "NR band changed from $prev_ev_nr_band to $nr_band${nr_band_detail}" "info"
+    # --- NR band / PCI changes (settle-debounced) ---
+    # While the NR anchor is down there is nothing to observe, so feed the
+    # helper a blank rather than skipping the call: counters freeze instead of
+    # resetting, and an NSA drop-and-reacquire onto the same band stays silent.
+    # The anchor itself is reported by the nr_anchor events above.
+    local _nr_band_obs="" _nr_pci_obs=""
+    if [ "$nr_state" = "connected" ]; then
+        _nr_band_obs="$nr_band"
+        _nr_pci_obs="$nr_pci"
     fi
 
-    # --- NR PCI change (PCC) ---
-    if [ "$nr_state" = "connected" ] && \
-       [ -n "$nr_pci" ] && [ -n "$prev_ev_nr_pci" ] && \
-       [ "$nr_pci" != "$prev_ev_nr_pci" ]; then
+    _ev_settle nr_band "$_nr_band_obs"; _rc=$?
+    if [ "$_rc" -eq 0 ]; then
+        local nr_band_detail=""
+        [ -n "$nr_pci" ] && nr_band_detail=" (PCI $nr_pci)"
+        append_event "band_change" \
+            "NR band settled on ${_EV_SETTLED_TO} (was ${_EV_SETTLED_FROM})${nr_band_detail}" "info"
+    elif [ "$_rc" -eq 2 ]; then
+        append_event "band_change" \
+            "NR band unstable — ${_EV_FLAP_N} changes in the last $((EV_FLAP_WINDOW / 60)) min" "warning"
+    fi
+
+    _ev_settle nr_pci "$_nr_pci_obs"; _rc=$?
+    if [ "$_rc" -eq 0 ]; then
         local nr_pci_ctx=""
         [ -n "$nr_band" ] && nr_pci_ctx=" on $nr_band"
         append_event "pci_change" \
-            "NR PCC cell handoff${nr_pci_ctx} (PCI: $prev_ev_nr_pci -> $nr_pci)" "info"
+            "NR PCC cell handoff${nr_pci_ctx} (PCI ${_EV_SETTLED_FROM} -> ${_EV_SETTLED_TO})" "info"
+    elif [ "$_rc" -eq 2 ]; then
+        append_event "pci_change" \
+            "NR cell unstable — ${_EV_FLAP_N} handoffs in the last $((EV_FLAP_WINDOW / 60)) min" "warning"
     fi
 
     # --- LTE CA changes ---

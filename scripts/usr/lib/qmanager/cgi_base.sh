@@ -164,9 +164,16 @@ cgi_reboot_response() {
 # Usage:
 #   serve_ndjson_as_array "/tmp/myfile.json"
 # ---------------------------------------------------------------------------
+# An optional second argument caps the response to the newest N lines. Omit it
+# (or pass 0) to serve the whole file, which is what the existing callers do.
 serve_ndjson_as_array() {
-    if [ -f "$1" ] && [ -s "$1" ]; then
-        jq -s '.' "$1"
+    local _file="$1" _limit="${2:-0}"
+    if [ -f "$_file" ] && [ -s "$_file" ]; then
+        if [ "$_limit" -gt 0 ] 2>/dev/null; then
+            tail -n "$_limit" "$_file" | jq -s '.'
+        else
+            jq -s '.' "$_file"
+        fi
     else
         echo "[]"
     fi
