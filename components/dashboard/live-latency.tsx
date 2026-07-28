@@ -63,17 +63,29 @@ const LOSS_WINDOW = 10;
 const CGI_BASE = "/cgi-bin/quecmanager/at_cmd";
 
 /**
- * One constant for the plot height, consumed by the chart, the skeleton and the
- * empty state alike.
+ * One constant for the plot box, consumed by the chart, the skeleton and the
+ * empty state alike — floor-plus-grow rather than a fixed height.
  *
- * Two reasons it has to be pinned rather than inherited. `ChartContainer`'s base
- * class is `aspect-video`, so an unpinned chart's height is a function of the
- * card's width and changes as the dashboard grid reflows; and recharts'
+ * In the design mock this card sits beside two other naturally-equal-height
+ * columns, so a fixed 150px plot never left slack. In the real dashboard grid
+ * this card is a row-mate of Device Metrics (which is taller — seven metric
+ * rows), so the card stretches to match and all of that slack used to collect
+ * as dead space between the plot and the Speed Test tile. `flex-1` lets the
+ * plot claim that slack instead, while the tile stays pinned to the bottom
+ * with `mt-auto`.
+ *
+ * `min-h-[150px]` rather than no floor at all, for two reasons that still
+ * apply. `ChartContainer`'s base class is `aspect-video`, so an unpinned
+ * chart's height is a function of the card's width and changes as the
+ * dashboard grid reflows — `aspect-auto` (applied at the call site) defeats
+ * that, but only once the container HAS a height to report. And recharts'
  * `ResponsiveContainer` renders NOTHING until it has measured its parent, so a
- * zero-height parent on the first frame makes the card pop when the measurement
- * lands. A fixed height gives the container something to measure immediately.
+ * zero-height parent on the first frame makes the card pop when the
+ * measurement lands. `min-h-[150px]` guarantees a measurable height on that
+ * first frame even before the flex parent has resolved how much slack there
+ * is to hand out, discharging the same obligation the old fixed height did.
  */
-const CHART_H = "h-[150px]";
+const CHART_BOX = "min-h-[150px] flex-1";
 
 // Byte-identical to the shells in device-metrics.tsx and recent-activities.tsx,
 // because those two are this card's row-mates and three cards sharing a grid
@@ -157,9 +169,9 @@ function chipTone(connectivity: ConnectivityStatus | null): {
  * geometry from one definition (the Skeleton-Mirror Rule). Two copies would
  * drift, and a drifted skeleton turns the handoff from a fade into a jump.
  *
- * Every block mirrors a real element: the title and chip row, the 150px plot,
- * the legend, and the Speed Test tile at its natural 88px (12px padding twice,
- * a 20px label, a 10px gap and the 34px action row).
+ * Every block mirrors a real element: the title and chip row, the floor-plus-
+ * grow plot, the legend, and the Speed Test tile at its natural 88px (12px
+ * padding twice, a 20px label, a 10px gap and the 34px action row).
  */
 function LiveLatencySkeleton() {
   return (
@@ -168,7 +180,7 @@ function LiveLatencySkeleton() {
         <Skeleton className="h-6 w-40" />
         <Skeleton className="ml-auto h-7 w-24 rounded-pill" />
       </div>
-      <Skeleton className={cn("w-full rounded-field", CHART_H)} />
+      <Skeleton className={cn("w-full rounded-field", CHART_BOX)} />
       <div className="flex items-center gap-4">
         <Skeleton className="h-3 w-20" />
         <Skeleton className="h-3 w-24" />
@@ -363,7 +375,7 @@ const LiveLatencyComponent = ({
       <div
         className={cn(
           "flex w-full flex-col items-center justify-center gap-2 rounded-field bg-surface-container px-6 text-center",
-          CHART_H,
+          CHART_BOX,
         )}
       >
         <MaterialSymbol name="timeline" size={24} className="text-on-surface-variant" />
@@ -379,7 +391,7 @@ const LiveLatencyComponent = ({
       // so a mount-triggered CSS animation cannot replay.
       <ChartContainer
         config={chartConfig}
-        className={cn("chart-draw aspect-auto w-full", CHART_H)}
+        className={cn("chart-draw aspect-auto w-full", CHART_BOX)}
       >
         <AreaChart
           accessibilityLayer

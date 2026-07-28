@@ -70,23 +70,6 @@ export function MetricBar({
 }) {
   const pct = Math.min((value / max) * 100, 100);
 
-  // First paint travels 0 -> full and takes `emphasized` plus its place in the
-  // cascade; every later poll is a small retarget and stays on `standard` with
-  // no delay.
-  //
-  // State rather than a ref, because a ref read during render is a genuine
-  // correctness smell (react-hooks/refs) and not merely a lint preference. The
-  // extra render this schedules is harmless here: `animate` still resolves to
-  // the same `scaleX`, and motion only starts a new animation when the resolved
-  // target changes, so swapping the transition mid-flight does not restart or
-  // interrupt the arrival.
-  const [transition, setTransition] = React.useState<Transition>(() => ({
-    ...transitionMeterFill,
-    delay: index * STAGGER_STEP,
-  }));
-  React.useEffect(() => {
-    setTransition(transitionStandard);
-  }, []);
   const tone: MetricBarTone =
     colorOverride ??
     (value >= dangerAt
@@ -103,31 +86,55 @@ export function MetricBar({
         TRACK_CLASS[track],
       )}
     >
-      {/* Meter fill (DESIGN.md > Motion > "Meter fill"): scaleX from the left,
-          never width — width relayouts every frame of every meter on the page,
-          on a modem SoC.
+      {/* Meter fill (DESIGN.md > Motion > "Meter fill"): the value and the
+          entrance are now deliberately split across two different mechanisms.
+
+          The value lives in layout `width` (a plain CSS `transition`, not a
+          motion prop), because a CSS `transform` scales the whole box —
+          `border-radius` included. At low percentages a `scaleX`-only fill
+          squashed the fill's own pill cap into a near-flat ellipse, so the
+          leading edge read almost square instead of rounded. `width` resizes
+          the box without touching its radius, so the cap stays a true
+          semicircle at every value. Width now changes only on a poll retarget
+          (~2-3s cadence, see poller-cadence note in CLAUDE.md), not every
+          frame, so the old "width relayouts every frame" objection to width
+          no longer applies — that concern was about animating width on every
+          frame, and nothing here does that anymore.
+
+          The entrance (0 -> current value, once, on mount) stays a pure
+          `scaleX` transform for exactly the reason width was avoided
+          everywhere else: a transform is compositor-only and doesn't touch
+          layout, so the one-time arrival sweep stays cheap on the modem's
+          SoC. It also lands at scaleX(1), where the radius distortion is
+          zero, so the transient squash during the 300ms sweep is cosmetic
+          and matches the design mock's own technique.
 
           This was a spring (`stiffness: 180, damping: 24`), which the
           Settled-Motion Rule bans outright: a spring settles by oscillating,
           so a CPU meter reading 61% overshot to ~64 and rocked back, showing a
-          number the device never reported. `transitionStandard` ends at rest
-          on the first arrival.
+          number the device never reported. `transitionMeterFill` ends at rest.
 
-          `initial` runs on mount only; later polls retarget scaleX from
-          wherever it currently is, which is the "first paint only, then
-          transition" half of the recipe — do not add a key here. The two legs
-          now carry different durations (see `transition` above): the arrival is
-          `emphasized`, the retarget `standard`. Both were `standard`, which is
-          what made a 0 -> full sweep read as a snap. */}
+          `initial` runs on mount only, so the entrance never replays on a
+          later width change — do not add a key here.
+
+          `motion-reduce:transition-none` is load-bearing, not decoration.
+          The scaleX entrance is a motion prop and so is governed by the app's
+          global `<MotionConfig reducedMotion="user">`, but the width retarget
+          is now plain CSS and sits entirely outside motion's reach — and
+          `globals.css` has only per-component reduced-motion blocks, no
+          blanket rule to catch it. Without this variant, moving the value out
+          of `animate` would have quietly re-introduced an unstoppable
+          animation for reduced-motion users. The bar still lands on the right
+          width; it just arrives there instantly. */}
       <motion.div
         className={cn(
-          "h-full rounded-full transition-colors duration-(--duration-standard) ease-standard",
+          "h-full rounded-full transition-[width,background-color] duration-(--duration-standard) ease-standard motion-reduce:transition-none",
           colorClass,
         )}
         initial={{ scaleX: 0 }}
-        animate={{ scaleX: pct / 100 }}
-        style={{ originX: 0 }}
-        transition={transition}
+        animate={{ scaleX: 1 }}
+        style={{ originX: 0, width: `${pct}%` }}
+        transition={{ ...transitionMeterFill, delay: index * STAGGER_STEP }}
       />
     </div>
   );

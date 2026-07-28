@@ -68,6 +68,15 @@ const CHART_H = "h-[250px]";
 /** Mock: the 34px mono y-axis rail to the left of the plot. */
 const AXIS_W = 34;
 
+/**
+ * Padding (in the metric's own unit — dBm/dB) added above and below the data
+ * range for the YAxis `domain` below. Shared with the Area `baseValue`
+ * calculation so the fill's bottom edge and the axis's actual floor are the
+ * SAME line — see the long comment on `baseValue` for why a mismatch here
+ * silently turns a filled area into a thin line with a gap under it.
+ */
+const Y_AXIS_PAD = 5;
+
 /** The three metrics, in the mock's order. `labelKey` wires up locale strings
  *  that shipped months ago and were never read (the switcher was hardcoded). */
 const SIGNAL_TYPES = [
@@ -213,6 +222,18 @@ export function SignalHistoryComponent() {
 
   // Calculate the min value for the current signal type to use as baseline, so
   // the fill anchors at the data floor rather than at zero (RSRP is negative).
+  //
+  // MUST match the YAxis `domain` floor below (`dataMin - Y_AXIS_PAD`), not the
+  // bare data minimum. Recharts' own default for an *unset* `baseValue` (see
+  // `Area.getBaseValue` in recharts source) derives it FROM the resolved axis
+  // domain, so an Area with no baseValue prop always paints down to the true
+  // plot floor — that's why Live Latency's identical gradient reads as a filled
+  // area. Here we pass an explicit NUMBER, which recharts uses verbatim with no
+  // reference to the axis domain at all. Passing the bare min (dataMin) left the
+  // fill's bottom edge sitting `Y_AXIS_PAD` units ABOVE the actual axis floor —
+  // a permanent blank band under the fill on narrow-banded metrics (RSRP/RSRQ/
+  // SINR barely move), which is what made a real area chart read as a thin line
+  // with a faint shadow instead of a filled region anchored to the bottom.
   const getBaseValue = () => {
     if (chartData.length === 0) return 0;
     const values = chartData
@@ -225,7 +246,7 @@ export function SignalHistoryComponent() {
     return Math.min(...values);
   };
 
-  const baseValue = getBaseValue();
+  const baseValue = getBaseValue() - Y_AXIS_PAD;
 
   /** Index of the newest non-null sample per series — where the mock's filled
    *  trailing dot belongs. A series with no 5G leg on the last sample must not
@@ -460,7 +481,10 @@ export function SignalHistoryComponent() {
               // Recharts RELATIVE-domain strings, not numbers: RSRP is negative
               // and its usable range moves with the band, so a fixed numeric
               // domain would flatten or clip the trace depending on the cell.
-              domain={["dataMin - 5", "dataMax + 5"]}
+              // `Y_AXIS_PAD` here MUST equal the padding subtracted in
+              // `baseValue` above, or the Area's fill floor drifts away from
+              // this axis's actual floor again.
+              domain={[`dataMin - ${Y_AXIS_PAD}`, `dataMax + ${Y_AXIS_PAD}`]}
             />
             <ChartTooltip
               cursor={false}
