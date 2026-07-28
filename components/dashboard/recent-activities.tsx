@@ -33,7 +33,6 @@ import {
 } from "@/components/ui/empty";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useRecentActivities } from "@/hooks/use-recent-activities";
-import { EVENT_LABELS } from "@/constants/network-events";
 import {
   computeUnresolved,
   eventKey,
@@ -67,25 +66,43 @@ import type { NetworkEvent } from "@/types/modem-status";
 //
 // Row weight is age, with one exception. A row is drawn in its tonal container
 // for its first hour and then settles onto the plain surface keeping only its
-// coloured glyph, EXCEPT when the condition it reports is still unresolved, in
-// which case it stays lit however old it is. Age retires history; it does not
+// coloured icon disc, EXCEPT when the condition it reports is still unresolved,
+// in which case it stays lit however old it is. Age retires history; it does not
 // retire a problem. See lib/event-presentation.ts.
+//
+// The row anatomy is the Motion Guide's recipe 04 (Alert arrival): a filled
+// circular disc in the solid role colour, the message as the primary line, and
+// a machine-voice timestamp caption under it. The event-type label the earlier
+// Recommended Hybrid pass drew above the message is gone by decision — the
+// message already names what happened, and the disc already names its kind, so
+// "Carrier Aggregation" above "NR-CA active: n78 + n41" was the row saying the
+// same thing twice at two type sizes. The `activities.events.*` keys stay in
+// the locale files: they are parity-clean, unreferenced here, and the natural
+// home for them is the Monitoring events page, which still renders the
+// untranslated EVENT_LABELS map.
 // =============================================================================
 
 // --- Row geometry ------------------------------------------------------------
 // The clip height is arithmetic, not a guess, so hard-code it and show the work.
-// A row is: py-[11px] (22) + label leading-4 (16) + gap-0.5 (2)
-//           + message leading-5 (20) = 60px.
-// The glyph is size-5 (20px), comfortably inside the 38px text column, so it
+// A row is: py-[11px] (22) + message leading-5 (20) + gap-0.5 (2)
+//           + caption leading-4 (16) = 60px.
+// The disc is size-7 (28px), comfortably inside the 38px text column, so it
 // never sets the height.
 //
-// The type is text-xs / text-sm, straight off the documented ramp. An earlier
-// pass used 11px and 13px, which buy 4px per row and keep this card flush with
-// its two grid siblings, and DESIGN.md does name both sizes. But it names them
-// as surface-scoped exceptions (11px is the sidebar's uppercase section label,
-// 13px is one of the SIM-swap banner's own two steps), so spending them here
-// would have extended a scoped exception to a third surface for 24px of
-// height. Not worth a standing waiver.
+// 60px is the SAME total the previous anatomy came to, which is deliberate
+// rather than lucky: the two lines swapped roles but kept their sizes, so the
+// clip edge, LIST_MAX_H, ROW_ADVANCE and the skeleton all stay valid and this
+// card does not change height against its two grid siblings.
+//
+// The type is text-xs / text-sm, straight off the documented ramp. The
+// reference draws 12px over 10px, but the Motion Guide's demo tiles run a
+// smaller scale than the dashboard mock throughout (its cards are 26px radius
+// against the dashboard's 36px), so those are tile-scale figures, not a spec.
+// Taking them literally would put a 10px size into the product, two steps below
+// the sidebar's already-scoped 11px exception, to render the one line a user
+// squints at. The ramp keeps the reference's HIERARCHY — message dominant,
+// caption subordinate and in the machine voice — at sizes the product already
+// owns.
 //
 // Line heights are still pinned rather than left implicit because this
 // arithmetic has to be exact and a clip edge computed from a ratio drifts.
@@ -217,7 +234,6 @@ function useTimeAgo() {
 interface EventRowProps {
   event: NetworkEvent;
   presentation: EventPresentation;
-  label: string;
   timeAgo: string;
   severityWord: string;
 }
@@ -225,7 +241,6 @@ interface EventRowProps {
 function EventRow({
   event,
   presentation,
-  label,
   timeAgo,
   severityWord,
 }: EventRowProps) {
@@ -234,7 +249,10 @@ function EventRow({
   return (
     <div
       className={cn(
-        "flex items-start gap-[11px] rounded-tile px-3.5 py-[11px]",
+        // items-center, not items-start: the disc is a self-contained object
+        // rather than a mark that belongs to the first line, so it centres
+        // against the whole text column. At items-start it reads as a bullet.
+        "flex items-center gap-3 rounded-tile px-3.5 py-[11px]",
         // The settle from tonal to neutral is the only thing on this card that
         // happens without the user or the radio doing anything, so it gets the
         // everyday curve and no more. It must read as a row going quiet, never
@@ -243,32 +261,50 @@ function EventRow({
         presentation.containerClass,
       )}
     >
-      {/* Inside a chromatic container the glyph inherits the container's `on-`
-          ink and `glyphClass` is empty: the fill has already said what kind of
-          thing this is, and a second, differently-toned voice inside it would
-          read as two statements rather than one. On a neutral row the glyph is
-          the ONLY carrier of tone, so it keeps its role colour there. */}
-      <Glyph
+      {/* Recipe 04's icon disc. The disc carries both the fill and the glyph
+          ink as one paired decision from `discClass`, so this element never
+          picks a colour of its own — and unlike the container, the disc does
+          not expire, which is what lets an aged row stay legible by KIND after
+          it has gone quiet by weight. 16px glyph in a 28px disc holds the
+          reference's 0.58 ratio on values the spacing scale already owns. */}
+      <span
         aria-hidden
-        className={cn("size-5 shrink-0", presentation.glyphClass)}
-      />
+        className={cn(
+          "grid size-7 shrink-0 place-items-center rounded-full",
+          "transition-colors duration-(--duration-standard) ease-standard",
+          presentation.discClass,
+        )}
+      >
+        <Glyph className="size-4" />
+      </span>
       <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-        {/* Tone is carried visually by the glyph and the fill, and a screen
+        {/* Tone is carried visually by the disc and the fill, and a screen
             reader can see neither a shape nor a background. Dark-mode
             success-container and destructive-container measure about 1.00:1
             apart, so this is not a nicety even for sighted users on the
-            colour channel alone. Spoken first, before the label. */}
+            colour channel alone. Spoken first, before the message. */}
         <span className="sr-only">{severityWord}</span>
-        <span className={cn("text-xs leading-4 font-medium", presentation.labelClass)}>
-          {label} · {timeAgo}
-        </span>
         <span
           className={cn(
-            "text-sm leading-5 font-medium",
+            "truncate text-sm leading-5 font-medium",
             presentation.messageClass,
           )}
         >
           {event.message}
+        </span>
+        {/* The machine voice, per the reference. A modem-written relative time
+            sits at the edge of the Machine-Voice Rule — it is device-clock
+            output, but "2 min ago" is also prose — and it is spent here
+            because it is the cheapest way to make the caption unmistakably a
+            different KIND of line from the message above it without another
+            colour or another size step. */}
+        <span
+          className={cn(
+            "font-mono text-xs leading-4 tabular-nums",
+            presentation.metaClass,
+          )}
+        >
+          {timeAgo}
         </span>
       </div>
     </div>
@@ -471,9 +507,6 @@ const RecentActivitiesComponent = () => {
       <EventRow
         event={event}
         presentation={presentation}
-        label={t(`activities.events.${event.type}`, {
-          defaultValue: EVENT_LABELS[event.type] ?? event.type,
-        })}
         timeAgo={timeAgo(event.timestamp, nowSec)}
         severityWord={t(presentation.srSeverityKey)}
       />
@@ -511,7 +544,19 @@ const RecentActivitiesComponent = () => {
               // there is no arrival, and the head still has to join the mount
               // cascade as its item 0, or it pops in while the rows under
               // it rise. Same shape and curve as `staggerRowItem`.
-              initial={hasArrival ? { opacity: 0, x: 24 } : { opacity: 0, y: 5 }}
+              //
+              // "100%" of the row's own width, i.e. the row genuinely enters
+              // from off the trailing edge, which is what the reference draws
+              // and what the recipe is named for. An earlier pass used a 24px
+              // nudge: safe, and wrong. At 24px the row does not arrive from
+              // anywhere, it just twitches, and this is the one moment on the
+              // dashboard that is allowed to be felt before it is read. The
+              // clip below is `overflow-hidden` on both axes, so the offscreen
+              // half never widens the card. Percent rather than pixels so it
+              // stays a full entrance at every breakpoint.
+              initial={
+                hasArrival ? { opacity: 0, x: "100%" } : { opacity: 0, y: 5 }
+              }
               animate={{ opacity: 1, x: 0, y: 0 }}
               transition={hasArrival ? transitionEmphasized : transitionStandard}
             >

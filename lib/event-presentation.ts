@@ -16,12 +16,20 @@ import type { NetworkEvent, NetworkEventType } from "@/types/modem-status";
 //   WEIGHT: how much the row still MATTERS. A tonal container is spent on
 //           rows that are recent, or on problems that have not been resolved
 //           yet. Everything else settles to a neutral surface and keeps only
-//           its coloured glyph.
+//           its coloured icon disc.
 //
-// The design reference (Recommended Hybrid, the Recent Activities block) draws
-// exactly this: three recent rows in their role containers, and a fourth row
-// an hour old sitting on the plain surface with its green check still green.
-// Age is what moves a row between those two states.
+// The row's ANATOMY comes from the Motion Guide's recipe 04 (Alert arrival):
+// a filled circular icon disc in the solid role colour, then the message as the
+// primary line, then a machine-voice timestamp caption. The earlier pass drew
+// the Recommended Hybrid variant instead — a bare glyph under a "Carrier
+// Aggregation — 2 min ago" label line — which is why the slots below invert
+// relative to that version.
+//
+// Weight still moves the CONTAINER between two states, exactly as it did: three
+// recent rows in their role containers, and a row an hour old sitting on the
+// plain surface. What changed is what survives the settle. It used to be a bare
+// green check; it is now a saturated green disc, which is a stronger carrier of
+// the same statement — tone is a fact about the event and never expires.
 //
 // The resolution pairing below is the one derivation the backend deliberately
 // does not do, and it survives as the guard on the age rule rather than as the
@@ -160,9 +168,15 @@ export type EventTone = "error" | "warning" | "success" | "routine";
  *
  * `unresolved` and a `tonal` flag both used to be echoed back here and neither
  * is: the caller supplies the first and the second is fully readable from
- * `containerClass`. What survives is the classification (`tone`) plus the four
- * class slots, which is the smallest set that keeps every colour decision in
- * this module instead of leaking into the component's className chain.
+ * `containerClass`. What survives is the classification (`tone`) plus the class
+ * slots, which is the smallest set that keeps every colour decision in this
+ * module instead of leaking into the component's className chain.
+ *
+ * The slots inverted with the recipe-04 anatomy. There used to be a
+ * `labelClass` for an event-type line above the message and a `glyphClass` for
+ * a bare icon; there is now a `metaClass` for the timestamp caption BELOW the
+ * message, and the glyph's colour is folded into `discClass` because the disc
+ * and the glyph inside it are one paired decision, never two.
  */
 export interface EventPresentation {
   glyph: EventGlyph;
@@ -170,12 +184,12 @@ export interface EventPresentation {
   tone: EventTone;
   /** Container fill, plus paired `on-` ink when the fill is chromatic. */
   containerClass: string;
-  /** Ink for the label line. Empty when the container supplies it. */
-  labelClass: string;
+  /** The icon disc: its fill and the glyph ink paired with it. Never empty. */
+  discClass: string;
   /** Ink for the message line. Empty when the container supplies it. */
   messageClass: string;
-  /** Ink for the glyph. Empty when the container supplies it. */
-  glyphClass: string;
+  /** Ink for the timestamp caption. */
+  metaClass: string;
   /** i18n key under the `dashboard` namespace for the sr-only severity word. */
   srSeverityKey: string;
 }
@@ -257,20 +271,47 @@ const TONAL_FILL: Record<EventTone, string> = {
 };
 
 /**
- * Glyph ink for rows whose container does NOT supply an `on-` colour: every
- * aged row, plus fresh routine rows.
+ * The icon disc, recipe 04's defining move: a filled circle in the SOLID role
+ * colour with that role's near-white ink, not a bare glyph tinted with it.
  *
- * This is what keeps an aged row readable at a glance. The reference's fourth
- * row is an hour old and sits on the plain surface, but its check is still
- * green, so the row's KIND survives the loss of its container. Tone is a fact
- * about the event and never expires; weight is about attention and does.
+ * The solid role is a full step more saturated than the container it usually
+ * sits inside (`--success` L 0.52 against `--success-container` L 0.89 in
+ * light, 0.82 against 0.30 in dark), so the disc separates from its own row in
+ * both themes without a border, and it stays the loudest thing in the row when
+ * the row settles to a neutral surface. That is the whole reason the disc, not
+ * the container, is now the primary tone carrier: a container that expires
+ * cannot be where a permanent fact lives.
+ *
+ * "routine" is absent on purpose — it has no solid role colour to spend and its
+ * disc is a function of whatever surface the row landed on. See `discFor`.
  */
-const GLYPH_INK: Record<EventTone, string> = {
-  error: "text-destructive",
-  warning: "text-warning",
-  success: "text-success",
-  routine: "text-on-surface-variant",
+const DISC_FILL: Record<Exclude<EventTone, "routine">, string> = {
+  error: "bg-destructive text-destructive-foreground",
+  warning: "bg-warning text-warning-foreground",
+  success: "bg-success text-success-foreground",
 };
+
+/**
+ * The routine disc is defined by its RELATIONSHIP to the row, not by a colour.
+ *
+ * The reference puts it one surface step BELOW the row — a recessed well rather
+ * than a raised token, which is exactly the reading routine deserves: present,
+ * not announcing itself. That works on a fresh routine row, which sits on
+ * `surface-container-high` and can afford a step down.
+ *
+ * An aged row has already spent that step; it sits on `surface-container`, and
+ * stepping down again lands on `surface`, i.e. the card itself, which erases
+ * the disc entirely. So an aged routine disc steps UP instead. The magnitude of
+ * the delta is preserved (one step, ~0.034 L in both themes) and only its
+ * direction flips, which keeps the disc a soft halo in both cases. The GLYPH is
+ * what has to be legible, and `on-surface-variant` clears 4.5:1 against every
+ * surface in the chain.
+ */
+function routineDisc(tonal: boolean): string {
+  return tonal
+    ? "bg-surface-container text-on-surface-variant"
+    : "bg-surface-container-high text-on-surface-variant";
+}
 
 /** Screen-reader severity word per tone, before the unresolved override. */
 const SR_KEY: Record<EventTone, string> = {
@@ -339,9 +380,19 @@ export function presentEvent(
     glyph,
     tone,
     containerClass,
-    labelClass: chromatic ? "" : "text-on-surface-variant",
+    // The one slot that does NOT consult `tonal` for a chromatic tone. An aged
+    // warning row goes grey and keeps a full-strength amber disc, which is the
+    // age rule stated in one line: the row stops competing for attention, the
+    // event does not stop having been a warning.
+    discClass: tone === "routine" ? routineDisc(tonal) : DISC_FILL[tone],
     messageClass: chromatic ? "" : "text-on-surface",
-    glyphClass: chromatic ? "" : GLYPH_INK[tone],
+    // On a chromatic row the caption inherits the container's `on-` ink and is
+    // pushed back by a whisper. 90% rather than the reference's 75%: at 75% the
+    // 12px caption falls to roughly 3.5:1 against its own container, under the
+    // 4.5:1 floor, and this line carries the timestamp — the one thing on the
+    // row a user squints at. Size, weight and the mono voice already do most of
+    // the recession; the opacity only finishes it.
+    metaClass: chromatic ? "opacity-90" : "text-on-surface-variant",
     // An unresolved row is not describing a past severity, it is describing a
     // present condition, and the screen-reader label has to say which.
     srSeverityKey: unresolved ? "activities.severity.unresolved" : SR_KEY[tone],
