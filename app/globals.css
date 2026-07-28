@@ -556,8 +556,23 @@
      paint that beat the animation — the meter is already at its correct scale.
      That is the Non-Load-Bearing Rule, and a rAF-armed state flip would break
      it: requestAnimationFrame does not fire in a background tab, which would
-     strand every meter at zero until the user came back to the page. */
-  animation: ca-meter-fill var(--duration-standard) var(--ease-standard);
+     strand every meter at zero until the user came back to the page.
+
+     Two clocks, on purpose. The ARRIVAL travels 0 -> full and runs on
+     `emphasized`; the poll RETARGET moves a few percent and stays on
+     `standard`. Both were `standard` until now, which is why the fill read as a
+     snap: duration has to scale with distance, and this is the longest journey
+     a meter ever makes. Motion Guide recipe 07 draws the same distinction in
+     words ("fills animate on first paint only — subsequent polls transition the
+     scale value"); it just never got two durations.
+
+     `--meter-index` staggers the column so four carriers arrive as a cascade
+     rather than one simultaneous snap. `backwards` holds scaleX(0) through the
+     delay — without it a meter would paint at full scale, jump to zero when its
+     turn came, and fill from there. */
+  animation: ca-meter-fill var(--duration-emphasized) var(--ease-emphasized);
+  animation-delay: calc(var(--meter-index, 0) * var(--stagger-step));
+  animation-fill-mode: backwards;
   transition: transform var(--duration-standard) var(--ease-standard);
 }
 

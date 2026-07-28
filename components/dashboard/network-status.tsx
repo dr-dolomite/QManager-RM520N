@@ -7,12 +7,8 @@ import type { TFunction } from "i18next";
 
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import {
-  DUR,
-  EASE_QUICK,
-  staggerRows,
-  staggerRowItem,
-} from "@/lib/motion";
+import { staggerRows, staggerRowItem } from "@/lib/motion";
+import { SwapLabel } from "@/components/ui/swap-label";
 import {
   CardSimIcon,
   ClockIcon,
@@ -240,15 +236,9 @@ function Chip({
       {/* The inner span carries the gap so the crossfade wraps glyph and label
           together: they are one statement, and fading the word while the icon
           holds would let the two disagree for 180ms. */}
-      <motion.span
-        key={swapKey}
-        initial={{ opacity: 0.35 }}
-        animate={{ opacity: 1 }}
-        transition={{ duration: DUR.quick, ease: EASE_QUICK }}
-        className="inline-flex items-center gap-[7px]"
-      >
+      <SwapLabel swapKey={swapKey} className="gap-[7px]">
         {children}
-      </motion.span>
+      </SwapLabel>
     </span>
   );
 }
@@ -395,13 +385,7 @@ function CornerBadge({ state }: { state: "ok" | "warn" | "fail" }) {
           Crossfading the glyph on the `quick` clock is what makes the change
           legible at that size — and the glyph is the half that survives
           greyscale and deuteranopia, so it is the half that must not snap. */}
-      <motion.span
-        key={state}
-        initial={{ opacity: 0.35 }}
-        animate={{ opacity: 1 }}
-        transition={{ duration: DUR.quick, ease: EASE_QUICK }}
-        className="grid place-items-center"
-      >
+      <SwapLabel swapKey={state} className="justify-center">
         {state === "ok" ? (
           <FaCheck className="size-[17px]" />
         ) : state === "warn" ? (
@@ -409,7 +393,7 @@ function CornerBadge({ state }: { state: "ok" | "warn" | "fail" }) {
         ) : (
           <FaXmark className="size-[17px]" />
         )}
-      </motion.span>
+      </SwapLabel>
     </span>
   );
 }
@@ -425,7 +409,7 @@ function simBadgeState(status: ServiceStatus): "ok" | "warn" | "fail" {
 // ─── Orb label block ──────────────────────────────────────────────────────
 // Both lines swap on real state changes only — the RAT label on a handover, the
 // carrier and service lines when the network moves. These are LABEL swaps, not
-// live values, so they take the keyed-`motion.span` crossfade that DESIGN.md
+// live values, so they take the `SwapLabel` crossfade that DESIGN.md
 // prescribes for the label half of a chip, not `TickingValue`: that component
 // bakes in `tabular-nums`, which is right for a figure and wrong for prose, and
 // its contract is a datum that moves on a poll rather than a word that changes
@@ -434,24 +418,18 @@ function simBadgeState(status: ServiceStatus): "ok" | "warn" | "fail" {
 function OrbLabel({ title, subtitle }: { title: string; subtitle: string }) {
   return (
     <div className="flex flex-col gap-[3px] text-center">
-      <motion.span
-        key={title}
-        initial={{ opacity: 0.35 }}
-        animate={{ opacity: 1 }}
-        transition={{ duration: DUR.quick, ease: EASE_QUICK }}
-        className="text-base leading-none font-semibold"
+      <SwapLabel
+        swapKey={title}
+        className="justify-center text-base leading-none font-semibold"
       >
         {title}
-      </motion.span>
-      <motion.span
-        key={subtitle}
-        initial={{ opacity: 0.35 }}
-        animate={{ opacity: 1 }}
-        transition={{ duration: DUR.quick, ease: EASE_QUICK }}
-        className="text-sm text-on-surface-variant"
+      </SwapLabel>
+      <SwapLabel
+        swapKey={subtitle}
+        className="justify-center text-sm text-on-surface-variant"
       >
         {subtitle}
-      </motion.span>
+      </SwapLabel>
     </div>
   );
 }
@@ -764,13 +742,7 @@ const NetworkStatusComponent = ({
                     working connection and must not wear an alert glyph.
                     Crossfaded on `quick` so the glyph and the disc fill never
                     disagree for longer than a label swap. */}
-                <motion.span
-                  key={coreState}
-                  initial={{ opacity: 0.35 }}
-                  animate={{ opacity: 1 }}
-                  transition={{ duration: DUR.quick, ease: EASE_QUICK }}
-                  className="grid place-items-center"
-                >
+                <SwapLabel swapKey={coreState} className="justify-center">
                   {coreState === "off" ? (
                     <PowerOffIcon className="size-[22px]" />
                   ) : coreState === "ok" ? (
@@ -780,7 +752,7 @@ const NetworkStatusComponent = ({
                   ) : (
                     <FaXmark className="size-[22px]" />
                   )}
-                </motion.span>
+                </SwapLabel>
               </span>
             </div>
             <OrbLabel

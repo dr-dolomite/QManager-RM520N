@@ -1,7 +1,6 @@
 "use client";
 
 import * as React from "react";
-import { motion } from "motion/react";
 import { useTranslation } from "react-i18next";
 import {
   CheckCircle2Icon,
@@ -20,8 +19,9 @@ import {
   EmptyTitle,
 } from "@/components/ui/empty";
 import { Skeleton } from "@/components/ui/skeleton";
+import { SwapLabel } from "@/components/ui/swap-label";
 import { TickingValue } from "@/components/ui/ticking-value";
-import { DUR, EASE_QUICK } from "@/lib/motion";
+import { DUR } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 import type { CarrierComponent, NetworkType } from "@/types/modem-status";
 import {
@@ -288,12 +288,11 @@ export function CarrierAggregationComponent({
           variant={hasReleased ? "warning" : aggregating ? "success" : "muted"}
           className="px-3 py-1.5"
         >
-          <motion.span
-            key={hasReleased ? `released-${summary.releasedCount}` : statusKey}
-            initial={{ opacity: 0, y: 4 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: DUR.quick, ease: EASE_QUICK }}
-            className="inline-flex items-center gap-1"
+          <SwapLabel
+            swapKey={
+              hasReleased ? `released-${summary.releasedCount}` : statusKey
+            }
+            className="gap-1"
           >
             {/* `size-3` is explicit here: Badge's base class sizes `[&>svg]`,
                 a DIRECT child, and the crossfade wrapper puts the glyph one
@@ -311,7 +310,7 @@ export function CarrierAggregationComponent({
             {hasReleased
               ? t("ca.status.released", { count: summary.releasedCount })
               : t(statusKey)}
-          </motion.span>
+          </SwapLabel>
         </Badge>
 
         <span className="ml-auto inline-flex items-baseline gap-2">
@@ -386,7 +385,7 @@ export function CarrierAggregationComponent({
           Container-queried: the deck's fixed 4-column grid is desktop-only, and
           this dashboard is read on a phone beside the modem. */}
       <div className="grid grid-cols-1 gap-3 @md/ca:grid-cols-2 @3xl/ca:grid-cols-4">
-        {resolved.map((c) => {
+        {resolved.map((c, i) => {
           const pct = rsrpToPercent(c.rsrp);
           const minutes = Math.floor(releasedForMs(c, now) / 60000);
 
@@ -432,13 +431,24 @@ export function CarrierAggregationComponent({
                 <div className="flex items-center gap-2.5">
                   <div className="h-[7px] flex-1 overflow-hidden rounded-pill bg-surface">
                     {/* scaleX, not width: every meter on the page would
-                        otherwise relayout on each poll. */}
+                        otherwise relayout on each poll.
+
+                        `--meter-index` staggers the arrival across the tile
+                        grid (60ms apart, `.ca-meter` in globals.css). The
+                        inline transform stays the single source of truth for
+                        the resting scale — the index only shifts when the fill
+                        starts, never where it ends. */}
                     <div
                       className={cn(
                         "ca-meter h-full origin-left rounded-pill",
                         meterFillTone(c),
                       )}
-                      style={{ transform: `scaleX(${pct / 100})` }}
+                      style={
+                        {
+                          transform: `scaleX(${pct / 100})`,
+                          "--meter-index": i,
+                        } as React.CSSProperties
+                      }
                     />
                   </div>
                   {/* The card's most genuinely live figure: RSRP moves on

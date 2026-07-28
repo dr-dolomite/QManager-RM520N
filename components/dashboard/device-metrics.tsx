@@ -162,7 +162,7 @@ const DeviceMetricsComponent = ({
               </div>
             </div>
             {temp !== null && (
-              <MetricBar value={temp} max={100} warnAt={TEMP_WARN} dangerAt={TEMP_DANGER} />
+              <MetricBar value={temp} max={100} warnAt={TEMP_WARN} dangerAt={TEMP_DANGER} index={0} />
             )}
           </div>
 
@@ -186,7 +186,7 @@ const DeviceMetricsComponent = ({
               </div>
             </div>
             {cpu !== null && (
-              <MetricBar value={cpu} max={100} warnAt={CPU_WARN} dangerAt={CPU_DANGER} />
+              <MetricBar value={cpu} max={100} warnAt={CPU_WARN} dangerAt={CPU_DANGER} index={1} />
             )}
           </div>
 
@@ -202,7 +202,7 @@ const DeviceMetricsComponent = ({
               </p>
             </div>
             {memTotal > 0 && (
-              <MetricBar value={memPct} max={100} warnAt={70} dangerAt={90} />
+              <MetricBar value={memPct} max={100} warnAt={70} dangerAt={90} index={2} />
             )}
           </div>
 
@@ -220,7 +220,7 @@ const DeviceMetricsComponent = ({
               </p>
             </div>
             {storageTotalKb > 0 && (
-              <MetricBar value={storagePct} max={100} warnAt={80} dangerAt={95} />
+              <MetricBar value={storagePct} max={100} warnAt={80} dangerAt={95} index={3} />
             )}
           </div>
 
