@@ -25,7 +25,7 @@ cgi_handle_options
 
 # --- Events (for append_event) -----------------------------------------------
 EVENTS_FILE="/tmp/qmanager_events.json"
-MAX_EVENTS=50
+MAX_EVENTS=300
 . /usr/lib/qmanager/events.sh 2>/dev/null || {
     append_event() { :; }
 }
