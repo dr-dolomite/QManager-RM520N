@@ -654,13 +654,42 @@ own `@media (prefers-reduced-motion: reduce)` off-switch.
 - **Nav indicator.** The active pill translates between rows over `standard` instead of appearing.
   This is the single most Material-feeling change in the shell.
 - **Meter fill.** `scaleX` from `transform-origin: left` over `standard`. Never animate width, except
-  the aggregation chain, where the width *is* the data.
-- **Live value tick.** An 180ms opacity dip on a `tabular-nums` value. No fade-out-then-in, no layout
-  shift, no color flash.
+  the aggregation chain, where the width *is* the data. Fills **on first paint only**: subsequent polls
+  move the scale through a transition rather than replaying from zero. Implemented as `.ca-meter` in
+  `globals.css`, whose `@keyframes ca-meter-fill` carries a `from` and **no** `to`, so it animates up
+  to whatever scale the element's own inline `transform` already holds. That construction is what keeps
+  it non-load-bearing: the correct scale is always in the DOM and the keyframe only describes the
+  journey. Do not reach for a `requestAnimationFrame`-armed state flip instead; rAF does not fire in a
+  backgrounded tab, which would strand every meter at zero until the user returned to the page.
+- **Live value tick.** An 180ms opacity dip to 35% on a `tabular-nums` value. No fade-out-then-in, no
+  layout shift, no color flash. Use `TickingValue` (`components/ui/ticking-value.tsx`), or
+  `useValueTick` directly where a hook is legal; the component exists because the values that need this
+  are usually inside a `.map`. Three contracts ride with it: it fires on a **change** and never on
+  first paint (arrival belongs to the skeleton crossfade), it **interrupts and retargets** rather than
+  queueing when a value moves mid-dip, and it is driven by the Web Animations API rather than a keyed
+  remount so it does not churn the DOM inside a polling surface's `aria-live` region. It is the one
+  place reduced motion removes an opacity change rather than preserving it: a repeating luminance flash
+  every two seconds carries no information the new number is not already carrying.
 - **Status chip swap.** The label crossfades over `quick` while the container color morphs over
   `standard`, so the state change is felt before it is read. The icon always changes with the color.
+  The container half lives in `components/ui/badge.tsx`, which writes its transition longhand because
+  it runs on two clocks: fill and ink on `standard`, focus ring on `quick`. No single Tailwind duration
+  utility can express that, which is how `background-color` fell out of the list and every chip in the
+  product spent a while cutting straight to its new fill. The label half is local to the consumer: key
+  a `motion.span` on what the chip **says**, not on its variant, since two states can share a container.
 - **Aggregation re-proportion.** Segment widths animate over `emphasized` when a carrier is added or
-  released; released segments stay in place, greyed, rather than being removed.
+  released; released segments stay in place, greyed, rather than being removed. A carrier the radio has
+  just **added** additionally grows in from zero width via `.ca-segment-enter`, on the same open-ended
+  keyframe construction as the meter. Entrance is scoped to genuine additions: a whole chain appearing
+  at once is the card arriving, which belongs to the skeleton handoff, and four simultaneous `width`
+  animations would be four layout passes to announce something that was never absent.
+- **Skeleton handoff.** A crossfade over `quick`, with no movement. The outgoing skeleton is an
+  **overlay on top of** the real content, never a sibling beside it: stacked as siblings the container
+  sizes to the taller of the two for the duration of the fade and then collapses, so the handoff ends on
+  a jolt. As an overlay the content owns the container's height from its first frame and the crossfade
+  contributes no layout shift at all. Render the skeleton from a single extracted definition shared by
+  the loading branch and the overlay, or the two drift and the Skeleton-Mirror Rule fails silently.
+  `.ca-skeleton-out` / `.ca-content-in` are the reference implementation.
 - **Alert arrival.** New Recent Activity rows enter from the trailing edge over `emphasized`; existing
   rows move on transform. Nothing animates out; history does not retreat.
 - **Save confirmation.** `SaveButton` swaps idle to "Saving..." to "Saved!" on `useSaveFlash` timing;
@@ -923,6 +952,15 @@ The full-width surface that replaces the SCC card on the dashboard.
 - On loss, released segments **stay in place greyed**, with the aggregate figure showing what remains
   against what it was, so a drop reads as a gap rather than a redraw.
 - Empty and degraded states are honest: "released 3 min ago", never a silent absence.
+- **Motion.** This is the surface where the largest share of the motion vocabulary lands at once, and
+  the reference implementation for four of its entries: the skeleton handoff, the meter fill, the
+  aggregation re-proportion (including the added-carrier entrance), and the live value tick on RSRP and
+  on the aggregate MHz figure. All of it is one-shot; the strip carries **no** ambient loop, because
+  nothing on it is continuously live in the way a service ring or a ping dot is. Note that a
+  four-carrier configuration ticking together puts five concurrent animations on the surface, one over
+  the Motion Guide's stated ceiling of three. That is a deliberate, measured exception rather than an
+  oversight: they are opacity-only, compositor-promoted, and collectively cheaper than the single
+  `width` animation the same guide sanctions ten pixels above them.
 
 ### Apply Progress Dialog (signature component)
 

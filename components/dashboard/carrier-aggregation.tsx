@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { motion } from "motion/react";
 import { useTranslation } from "react-i18next";
 import {
   CheckCircle2Icon,
@@ -19,6 +20,8 @@ import {
   EmptyTitle,
 } from "@/components/ui/empty";
 import { Skeleton } from "@/components/ui/skeleton";
+import { TickingValue } from "@/components/ui/ticking-value";
+import { DUR, EASE_QUICK } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 import type { CarrierComponent, NetworkType } from "@/types/modem-status";
 import {
@@ -92,6 +95,35 @@ function meterFillTone(c: ResolvedCarrier): string {
   return c.technology === "NR" ? "bg-primary" : "bg-lte";
 }
 
+const CARD_SHELL =
+  "@container/ca gap-4 rounded-hero border-0 px-7 py-6 shadow-[var(--shadow-whisper)]";
+
+/**
+ * Extracted so the loading branch and the crossfade overlay render the SAME
+ * geometry from one definition. Two copies would drift, and a skeleton that has
+ * drifted from the thing it stands in for is the Skeleton-Mirror Rule failing
+ * silently — the handoff would show as a jump rather than a fade.
+ */
+function AggregationSkeleton() {
+  return (
+    <Card className={CARD_SHELL}>
+      <div className="flex flex-wrap items-center gap-3.5">
+        <Skeleton className="h-6 w-48" />
+        <Skeleton className="h-8 w-40 rounded-pill" />
+        <Skeleton className="ml-auto h-8 w-36" />
+      </div>
+      {/* Matches the chain's own responsive height, or the page reflows 16px
+          at phone width the moment data lands. */}
+      <Skeleton className="h-8 w-full rounded-tile @md/ca:h-12" />
+      <div className="grid grid-cols-1 gap-3 @md/ca:grid-cols-2 @3xl/ca:grid-cols-4">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <Skeleton key={i} className="h-[92px] rounded-tile" />
+        ))}
+      </div>
+    </Card>
+  );
+}
+
 export function CarrierAggregationComponent({
   carriers,
   networkType,
@@ -124,6 +156,37 @@ export function CarrierAggregationComponent({
   const summary = summarise(resolved, networkType);
   const shares = computeSegmentShares(resolved.map((c) => c.bandwidth_mhz));
 
+  // A carrier is "entering" only if the card has already drawn a chain without
+  // it. Derived from `retained` — committed state, never a value this render
+  // invented — so a render React discards cannot mark a segment as new.
+  //
+  // The distinction matters because the two cases mean different things. Four
+  // segments appearing together is the card arriving, and that belongs to the
+  // skeleton crossfade; one segment appearing beside three that were already
+  // there is the radio adding a carrier, which is the event this widget exists
+  // to report. Only the second one grows.
+  //
+  // Read straight off the ref rather than memoised: the effect above commits
+  // `retained` AFTER render, so during render it still holds the PREVIOUS
+  // chain, which is exactly the set we need to diff against.
+  const previousKeys = new Set(retained.current.map((c) => c.key));
+  const hasDrawnChain = retained.current.length > 0;
+
+  // Skeleton handoff (Motion Guide recipe 03). The overlay lives for one
+  // `quick` and then unmounts; nothing downstream depends on it, so a missed
+  // timer degrades to an ordinary instant swap rather than a stuck skeleton.
+  const [handoff, setHandoff] = React.useState(false);
+  const wasLoading = React.useRef(isLoading);
+  React.useEffect(() => {
+    const landed = wasLoading.current && !isLoading;
+    wasLoading.current = isLoading;
+    if (!landed) return;
+
+    setHandoff(true);
+    const id = window.setTimeout(() => setHandoff(false), DUR.quick * 1000);
+    return () => window.clearTimeout(id);
+  }, [isLoading]);
+
   const roleLabel = React.useCallback(
     (c: ResolvedCarrier): string => {
       if (c.released) return t("ca.role.released");
@@ -137,28 +200,40 @@ export function CarrierAggregationComponent({
     [t],
   );
 
+  /**
+   * The crossfade shell. Every branch returns through here so the skeleton can
+   * fade out ON TOP of whatever replaced it.
+   *
+   * Overlay rather than sibling on purpose: stacked as siblings, the container
+   * would size to the taller of the two for the duration of the fade and then
+   * collapse, so the handoff would end with a jolt. As an overlay the real
+   * content owns the card's height from its very first frame and the crossfade
+   * itself contributes no layout shift at all — which is the whole point of
+   * recipe 03.
+   */
+  const shell = (body: React.ReactNode) => (
+    <div className="relative">
+      <div className={cn(handoff && "ca-content-in")}>{body}</div>
+      {/* `[&>*]:h-full` so the outgoing skeleton matches whatever height the
+          real content just claimed. Left at its natural height it would
+          overhang the card by however many carriers the radio did not have. */}
+      {handoff && (
+        <div
+          aria-hidden
+          className="ca-skeleton-out pointer-events-none absolute inset-0 [&>*]:h-full"
+        >
+          <AggregationSkeleton />
+        </div>
+      )}
+    </div>
+  );
+
   if (isLoading) {
-    return (
-      <Card className="@container/ca gap-4 rounded-hero border-0 px-7 py-6 shadow-[var(--shadow-whisper)]">
-        <div className="flex flex-wrap items-center gap-3.5">
-          <Skeleton className="h-6 w-48" />
-          <Skeleton className="h-8 w-40 rounded-pill" />
-          <Skeleton className="ml-auto h-8 w-36" />
-        </div>
-        {/* Matches the chain's own responsive height, or the page reflows 16px
-            at phone width the moment data lands. */}
-        <Skeleton className="h-8 w-full rounded-tile @md/ca:h-12" />
-        <div className="grid grid-cols-1 gap-3 @md/ca:grid-cols-2 @3xl/ca:grid-cols-4">
-          {Array.from({ length: 4 }).map((_, i) => (
-            <Skeleton key={i} className="h-[92px] rounded-tile" />
-          ))}
-        </div>
-      </Card>
-    );
+    return shell(<AggregationSkeleton />);
   }
 
   if (resolved.length === 0) {
-    return (
+    return shell(
       <Card className="gap-3 rounded-hero border-0 px-7 py-6 shadow-[var(--shadow-whisper)]">
         <h3 className="text-lg font-semibold">{t("ca.title")}</h3>
         <Empty className="py-6">
@@ -172,7 +247,7 @@ export function CarrierAggregationComponent({
             </EmptyDescription>
           </EmptyHeader>
         </Empty>
-      </Card>
+      </Card>,
     );
   }
 
@@ -194,36 +269,59 @@ export function CarrierAggregationComponent({
   const aggregating = summary.nrCa || summary.lteCa || summary.endc;
   const hasReleased = resolved.some((c) => c.released);
 
-  return (
-    <Card className="@container/ca gap-4 rounded-hero border-0 px-7 py-6 shadow-[var(--shadow-whisper)]">
+  return shell(
+    <Card className={CARD_SHELL}>
       {/* ── Header ── */}
       <div className="flex flex-wrap items-center gap-3.5">
         <h3 className="text-lg font-semibold">{t("ca.title")}</h3>
 
+        {/* Two clocks, per the chip-swap recipe: the Badge's own transition
+            morphs the container fill over `standard` (see badge.tsx), while the
+            glyph and label crossfade over `quick` on the key change below. The
+            state is felt peripherally, in the colour, a beat before it is read.
+
+            Keyed on what the chip SAYS rather than on its variant: two
+            different released counts share the warning fill but are not the
+            same statement, and a chip whose text changed without acknowledging
+            it is the sort of silent swap this recipe exists to prevent. */}
         <Badge
           variant={hasReleased ? "warning" : aggregating ? "success" : "muted"}
           className="px-3 py-1.5"
         >
-          {hasReleased ? (
-            <TriangleAlertIcon aria-hidden />
-          ) : aggregating ? (
-            <CheckCircle2Icon aria-hidden />
-          ) : (
-            <MinusCircleIcon aria-hidden />
-          )}
-          {/* When something has been released the chip must SAY so. An amber
-              fill and a warning glyph over the words "NR-CA active" is the
-              colour carrying meaning the sentence denies. */}
-          {hasReleased
-            ? t("ca.status.released", { count: summary.releasedCount })
-            : t(statusKey)}
+          <motion.span
+            key={hasReleased ? `released-${summary.releasedCount}` : statusKey}
+            initial={{ opacity: 0, y: 4 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: DUR.quick, ease: EASE_QUICK }}
+            className="inline-flex items-center gap-1"
+          >
+            {/* `size-3` is explicit here: Badge's base class sizes `[&>svg]`,
+                a DIRECT child, and the crossfade wrapper puts the glyph one
+                level deeper than that selector reaches. */}
+            {hasReleased ? (
+              <TriangleAlertIcon className="size-3" aria-hidden />
+            ) : aggregating ? (
+              <CheckCircle2Icon className="size-3" aria-hidden />
+            ) : (
+              <MinusCircleIcon className="size-3" aria-hidden />
+            )}
+            {/* When something has been released the chip must SAY so. An amber
+                fill and a warning glyph over the words "NR-CA active" is the
+                colour carrying meaning the sentence denies. */}
+            {hasReleased
+              ? t("ca.status.released", { count: summary.releasedCount })
+              : t(statusKey)}
+          </motion.span>
         </Badge>
 
         <span className="ml-auto inline-flex items-baseline gap-2">
           {/* On a drop, what remains is shown against what it was, so the
               figure reads as a loss rather than as a number that quietly
               shrank between polls. */}
-          <span className="text-xl font-semibold tabular-nums">
+          <TickingValue
+            value={summary.totalMhz}
+            className="text-xl font-semibold"
+          >
             {summary.totalMhz}
             {hasReleased && (
               <span className="text-on-surface-variant">
@@ -231,7 +329,7 @@ export function CarrierAggregationComponent({
                 {summary.previousTotalMhz}
               </span>
             )}
-          </span>
+          </TickingValue>
           {/* A lone carrier has a bandwidth, not an aggregate. Calling 20 MHz
               "aggregated" would be the card describing something the radio is
               not doing. */}
@@ -264,6 +362,10 @@ export function CarrierAggregationComponent({
             style={{ width: `${shares[i]}%` }}
             className={cn(
               "ca-segment flex min-w-0 flex-col justify-center gap-px overflow-hidden rounded-tile py-1.5 whitespace-nowrap @md/ca:px-3.5",
+              // Grows in from nothing only when the radio ADDED this carrier.
+              // The inline width above stays the truth throughout, so a segment
+              // whose animation never runs is still exactly the right size.
+              hasDrawnChain && !previousKeys.has(c.key) && "ca-segment-enter",
               segmentTone(c),
             )}
           >
@@ -339,9 +441,17 @@ export function CarrierAggregationComponent({
                       style={{ transform: `scaleX(${pct / 100})` }}
                     />
                   </div>
-                  <span className="font-mono text-xs font-semibold tabular-nums">
+                  {/* The card's most genuinely live figure: RSRP moves on
+                      almost every poll. The dip is what separates "the radio
+                      re-reported this" from "this number has been frozen since
+                      you opened the tab" — a distinction a monitoring tool
+                      cannot afford to leave to the user's memory. */}
+                  <TickingValue
+                    value={c.rsrp}
+                    className="font-mono text-xs font-semibold"
+                  >
                     {c.rsrp != null ? `${c.rsrp} dBm` : "—"}
-                  </span>
+                  </TickingValue>
                 </div>
               )}
             </div>
