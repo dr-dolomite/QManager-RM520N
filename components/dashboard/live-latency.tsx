@@ -563,6 +563,19 @@ const LiveLatencyComponent = ({
               />
               <span className="sr-only">{t("speedtest.result_download")}</span>
               {formatSpeed(cachedResult.download.bandwidth)}
+              {/* The unit is printed once, on the upload figure below, because
+                  the two readings sit adjacent and share it — the mock's own
+                  compact idiom ("412 / 68 Mbps"), and repeating "Mbps" twice in
+                  a tile this size reads as noise.
+
+                  That works only for the EYE, though. Each figure carries its
+                  own sr-only label, so the two are announced as separate
+                  readings and a screen reader would hear "Download 412" with no
+                  unit at all while the upload beside it got one. The unit is
+                  therefore repeated here for assistive tech only: same
+                  information to both audiences, each in the form that suits
+                  it. */}
+              <span className="sr-only"> {t("speedtest.unit_mbps")}</span>
             </span>
             <span className="inline-flex items-center gap-1.5 font-mono text-sm font-semibold tabular-nums">
               <TbCircleArrowUpFilled

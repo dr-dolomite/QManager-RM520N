@@ -421,7 +421,13 @@ export function SignalHistoryComponent() {
           config={chartConfig}
           className={`chart-draw aspect-auto w-full ${CHART_H} [&_.recharts-cartesian-axis-tick_text]:fill-on-surface-variant [&_.recharts-cartesian-axis-tick_text]:font-mono [&_.recharts-cartesian-axis-tick_text]:text-xs [&_.recharts-cartesian-axis-tick_text]:font-medium`}
         >
-          <AreaChart data={chartData}>
+          {/* `accessibilityLayer` is recharts' opt-in for a keyboard-reachable
+              plot: arrow keys walk the samples and the tooltip is announced.
+              Without it this chart is inert to anyone not using a mouse, which
+              on the one card whose entire content IS the chart means the card
+              has nothing to offer them. Live Latency already sets it; this was
+              the only chart in the product still missing it. */}
+          <AreaChart accessibilityLayer data={chartData}>
             <defs>
               {/* Mock gradient: 0.32 at the top, 0.10 at 55%, transparent at
                   the floor — a fill that fades out rather than banding. */}
