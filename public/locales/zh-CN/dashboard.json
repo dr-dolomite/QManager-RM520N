@@ -51,6 +51,8 @@
     "imsi": "IMSI",
     "iccid": "ICCID",
     "device_imei": "设备 IMEI",
+    "conn_uptime_short": "连接时长",
+    "device_uptime_short": "设备时长",
     "lte_category": "LTE 类别",
     "active_mimo": "活动 MIMO",
     "lan_gateway": "LAN 网关",
