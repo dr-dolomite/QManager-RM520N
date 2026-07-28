@@ -154,8 +154,8 @@ export const TILE_SHAPE = "rounded-field px-[0.9375rem] py-[0.8125rem]";
  * in the mono face per DESIGN.md's Machine-Voice Rule.
  */
 export function formatAge(seconds: number): string {
-  if (seconds < 90) return `${seconds} s`;
-  return `${Math.round(seconds / 60)} m`;
+  if (seconds < 90) return `${seconds}s`;
+  return `${Math.round(seconds / 60)}m`;
 }
 
 /** U+2212 MINUS SIGN for negative readings — a hyphen is not a minus. */

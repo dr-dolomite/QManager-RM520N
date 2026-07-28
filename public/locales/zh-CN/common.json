@@ -81,7 +81,7 @@
     "password_to_manage_bare": "请输入密码。"
   },
   "overview": {
-    "title": "QManager",
+    "title": "调制解调器概览",
     "tagline": "实时调制解调器状态",
     "login_button": "登录",
     "header": {
@@ -157,7 +157,7 @@
       "error": "错误",
       "disconnected": "未连接",
       "unknown": "未知",
-      "modem_unreachable": "无法连接到调制解调器"
+      "modem_unreachable": "离线"
     },
     "stale_indicator": "数据可能已过期",
     "redirecting_setup": "正在跳转到初次设置…",
@@ -182,7 +182,10 @@
       "retrying": "每 {{seconds}} 秒重试",
       "signin_works": "仍可登录"
     },
-    "loading_chip": "读取中"
+    "loading_chip": "读取中",
+    "unreachable": {
+      "banner": "调制解调器目前没有响应。它可能正忙或正在重启。"
+    }
   },
   "sim_swap": {
     "title": "检测到新 SIM 卡",

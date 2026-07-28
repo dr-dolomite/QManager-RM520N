@@ -81,7 +81,7 @@
     "password_to_manage_bare": "Inserisci la password."
   },
   "overview": {
-    "title": "QManager",
+    "title": "Panoramica modem",
     "tagline": "Stato del modem in tempo reale",
     "login_button": "Accedi",
     "header": {
@@ -157,7 +157,7 @@
       "error": "Errore",
       "disconnected": "Disconnesso",
       "unknown": "Sconosciuto",
-      "modem_unreachable": "Modem irraggiungibile"
+      "modem_unreachable": "Offline"
     },
     "stale_indicator": "I dati potrebbero non essere aggiornati",
     "redirecting_setup": "Reindirizzamento alla configurazione iniziale…",
@@ -179,10 +179,13 @@
     },
     "footer": {
       "updated_ago": "aggiornato {{age}} fa",
-      "retrying": "nuovo tentativo ogni {{seconds}} s",
+      "retrying": "nuovo tentativo ogni {{seconds}}s",
       "signin_works": "l'accesso funziona comunque"
     },
-    "loading_chip": "Lettura"
+    "loading_chip": "Lettura",
+    "unreachable": {
+      "banner": "Il modem non risponde in questo momento. Potrebbe essere occupato o in fase di riavvio."
+    }
   },
   "sim_swap": {
     "title": "Rilevata una nuova SIM",

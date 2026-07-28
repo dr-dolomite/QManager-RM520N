@@ -250,7 +250,7 @@ export default function OverviewCard() {
           ? { duration: 0 }
           : { duration: DUR.standard, ease: EASE_STANDARD }
       }
-      className="@container/overview bg-card text-foreground mx-auto flex w-full max-w-[29.5rem] flex-col gap-6 rounded-hero px-8 py-7.5 shadow-sm dark:shadow-none"
+      className="@container/overview bg-card text-foreground mx-auto flex w-full max-w-[34rem] flex-col gap-6 rounded-hero px-8 py-7.5 shadow-sm dark:shadow-none"
     >
       {/* (a) Header ------------------------------------------------------- */}
       <div className="flex items-center gap-3.5">
@@ -266,7 +266,7 @@ export default function OverviewCard() {
           />
         </div>
         <div className="flex min-w-0 flex-col gap-0.5">
-          <h1 className="text-[1.1875rem] leading-[1.15] font-semibold tracking-[-0.01em]">
+          <h1 className="text-[1.1875rem] leading-[1.15] font-semibold tracking-[-0.01em] truncate">
             {t("overview.title")}
           </h1>
           {/* Self-skeletoning, and silent when the device has no hostname. */}
@@ -440,12 +440,32 @@ function renderBody({
 
   return (
     <>
+      {/* Unreachable banner — the poller itself couldn't reach the modem's AT
+          layer (lte_state/nr_state come back "unknown" in this state), which
+          is a harder failure than a merely-stale HTTP fetch. role="alert",
+          and it takes the one-word "Offline" INTERNET tile's place explaining
+          why, rather than cramming the explanation into that tile. */}
+      {!reachable && (
+        <TonalBanner
+          tone="destructive"
+          icon="signal_cellular_off"
+          size="compact"
+          role="alert"
+        >
+          {t("overview.unreachable.banner")}
+        </TonalBanner>
+      )}
+
       {/* Stale banner — a sentence, not a badge. A lone amber "Stale" chip
           states a fact you cannot act on; this says how old the reading is and
           offers a likely reason, and the zones beneath drop in opacity so the
           whole card reads as provisional. role="status", never "alert": stale
-          data is not an emergency. */}
-      {isStale && ageSeconds != null && (
+          data is not an emergency.
+          Gated on `reachable`: an unreachable modem's timestamp is stale by
+          definition (the poller can't get a fresh one either), so pairing it
+          with the unreachable banner above would just repeat the same fact
+          in two colours. The unreachable banner alone already covers it. */}
+      {reachable && isStale && ageSeconds != null && (
         <TonalBanner tone="warning" icon="schedule" size="compact" role="status">
           <Trans
             i18nKey="overview.stale.banner"

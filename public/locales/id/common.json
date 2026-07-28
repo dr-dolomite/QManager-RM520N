@@ -81,7 +81,7 @@
     "password_to_manage_bare": "Masukkan kata sandi Anda."
   },
   "overview": {
-    "title": "QManager",
+    "title": "Ringkasan Modem",
     "tagline": "Status modem langsung",
     "login_button": "Masuk",
     "header": {
@@ -157,7 +157,7 @@
       "error": "Kesalahan",
       "disconnected": "Terputus",
       "unknown": "Tidak diketahui",
-      "modem_unreachable": "Modem tidak dapat dijangkau"
+      "modem_unreachable": "Offline"
     },
     "stale_indicator": "Data mungkin sudah kedaluwarsa",
     "redirecting_setup": "Mengalihkan ke pengaturan pertama…",
@@ -182,7 +182,10 @@
       "retrying": "mencoba lagi setiap {{seconds}} dtk",
       "signin_works": "masuk tetap bisa"
     },
-    "loading_chip": "Membaca"
+    "loading_chip": "Membaca",
+    "unreachable": {
+      "banner": "Modem sedang tidak merespons. Mungkin sedang sibuk atau memulai ulang."
+    }
   },
   "sim_swap": {
     "title": "SIM baru terdeteksi",

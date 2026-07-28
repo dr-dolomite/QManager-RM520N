@@ -81,7 +81,7 @@
     "password_to_manage_bare": "請輸入密碼。"
   },
   "overview": {
-    "title": "QManager",
+    "title": "數據機概覽",
     "tagline": "即時數據機狀態",
     "login_button": "登入",
     "header": {
@@ -157,7 +157,7 @@
       "error": "錯誤",
       "disconnected": "未連線",
       "unknown": "未知",
-      "modem_unreachable": "無法連線到數據機"
+      "modem_unreachable": "離線"
     },
     "stale_indicator": "資料可能已過期",
     "redirecting_setup": "正在跳轉到初次設定…",
@@ -182,7 +182,10 @@
       "retrying": "每 {{seconds}} 秒重試",
       "signin_works": "仍可登入"
     },
-    "loading_chip": "讀取中"
+    "loading_chip": "讀取中",
+    "unreachable": {
+      "banner": "數據機目前沒有回應。它可能正忙或正在重新啟動。"
+    }
   },
   "sim_swap": {
     "title": "偵測到新 SIM 卡",

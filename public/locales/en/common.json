@@ -81,7 +81,7 @@
     "password_to_manage_bare": "Enter your password."
   },
   "overview": {
-    "title": "QManager",
+    "title": "Modem Overview",
     "tagline": "Live modem status",
     "login_button": "Sign in",
     "header": {
@@ -157,7 +157,7 @@
       "error": "Error",
       "disconnected": "Disconnected",
       "unknown": "Unknown",
-      "modem_unreachable": "Modem unreachable"
+      "modem_unreachable": "Offline"
     },
     "stale_indicator": "Data may be outdated",
     "redirecting_setup": "Redirecting to first-time setup…",
@@ -179,10 +179,13 @@
     },
     "footer": {
       "updated_ago": "updated {{age}} ago",
-      "retrying": "retrying every {{seconds}} s",
+      "retrying": "retrying every {{seconds}}s",
       "signin_works": "signing in still works"
     },
-    "loading_chip": "Reading"
+    "loading_chip": "Reading",
+    "unreachable": {
+      "banner": "The modem isn't responding right now. It may be busy or restarting."
+    }
   },
   "sim_swap": {
     "title": "New SIM card detected",
