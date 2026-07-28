@@ -1,6 +1,6 @@
 # Recent Activities (Dashboard Event Feed)
 
-The Recent Activities card is the dashboard's window onto the poller's network event log: what the radio did, newest first. It does one thing the backend deliberately does not, which is decide whether anything on that list is *still* wrong. The event log is a flat transcript where "Internet Lost" reads exactly like "Internet Restored" two rows above it; the card pairs each degradation with the recovery that cancels it and gives a tonal container only to the degradations still standing. This doc covers the data path, the resolution-pairing model in `lib/event-presentation.ts`, the presentation contract the card renders from, and the invariants that are easy to break.
+The Recent Activities card is the dashboard's window onto the poller's network event log: what the radio did, newest first. It does one thing the backend deliberately does not, which is decide whether anything on that list is *still* wrong. The event log is a flat transcript where "Internet Lost" reads exactly like "Internet Restored" two rows above it; the card gives every row a **tone** (what kind of thing happened) and then decides its **weight** (how loudly to draw it) from age, with unresolved conditions exempt from ageing out. This doc covers the data path, the tone and resolution-pairing model in `lib/event-presentation.ts`, the presentation contract the card renders from, and the invariants that are easy to break.
 
 ## Quick Reference
 
@@ -16,6 +16,9 @@ The Recent Activities card is the dashboard's window onto the poller's network e
 | Event types / severities | `types/modem-status.ts` (`NetworkEventType`, `EventSeverity`, `NetworkEvent`) |
 | English label fallback | `constants/network-events.ts` (`EVENT_LABELS`) |
 | i18n keys | `dashboard` namespace, `activities.*` subtree, all 5 locales |
+| Rows shown | `VISIBLE_ROWS = 5` (the only number to change; everything else derives) |
+| Tonal window | `FRESH_WINDOW_SEC = 3600` (one hour) |
+| Clock tick | `CLOCK_TICK_MS = 30_000`, independent of the 10s data poll |
 
 ## Data Path
 
@@ -23,23 +26,75 @@ The Recent Activities card is the dashboard's window onto the poller's network e
 events.sh  append_event()   -> /tmp/qmanager_events.json   (NDJSON, append + tail -n 50)
 fetch_events.sh             -> JSON array, oldest first     (serve_ndjson_as_array)
 useRecentActivities()       -> reverse() + slice(0, 20)     (newest first)
-computeUnresolved(events)   -> Set<number> of indices       (full 20, never the sliced 6)
-presentEvent(event, flag)   -> glyph + ink + sr-only key
+computeUnresolved(events)   -> Set<number> of indices       (full 20, never the sliced 5)
+isFresh(event, nowSec)      -> boolean                      (now - timestamp < 3600)
+presentEvent(ev, unres, fr) -> glyph + tone + 4 class slots + sr-only key
 ```
 
 `append_event` writes `{timestamp, type, message, severity}`, trims the file to the newest 50 lines, and mirrors the line into the poller log as `EVENT [<type>] <message>`. The CGI is a pure file read; nothing on this path touches an AT channel or takes the `/tmp/qmanager_at.lock`.
 
 > ℹ️ NOTE: the same event log feeds `/monitoring` via `components/monitoring/network-events-card.tsx`. It has its own independent internet-lost detection and is not coupled to the Centralized Alerts engine, so a device can log a "connection lost" activity without dispatching any alert. See [alerts.md](alerts.md).
 
-## The Unresolved-Condition Model
+## The Age-Gated Tone Model
 
-The card's container fill answers "is something wrong **right now**". The glyph answers "what happened". Those are two different questions and they are carried by two different channels on purpose.
+This is the reference implementation of `DESIGN.md`'s **Age-Gated Tone Rule**. Two axes, independent, and confusing them is the standard failure:
 
-### Why severity alone is not enough
+| Axis | Question | Carried by | Expires? |
+| ---- | -------- | ---------- | -------- |
+| **Tone** | What KIND of thing happened | The glyph and its ink, plus the container fill while the row has one | No. It is a fact about the event |
+| **Weight** | How much the row still deserves attention | Whether the row gets a tonal container at all | Yes, after one hour, unless the row is unresolved |
 
-`severity: "info"` in this system means *routine*, not *good*. `events.sh` emits `info` for LTE band change (`:498`), LTE PCC cell handoff (`:507`), NR band change (`:537`), NR PCC cell handoff (`:547`) and CA activation (`:557`). A handoff is the radio doing its job. Filling those rows with `success-container` would spend a functional color decoratively, which the Functional-Color Promise in `DESIGN.md` forbids.
+A row is drawn **tonal** when it is `fresh || unresolved`. Otherwise it settles onto `bg-surface-container` and keeps only its colored glyph. The design reference (`Recommended Hybrid`, the Recent Activities block) draws exactly this: three recent rows in their role containers, and a fourth row an hour old sitting on the plain surface with its green check still green.
 
-Aging the list (fresh rows saturated, old rows greyed) fails for a different reason: wall-clock age is not the same as resolution, so a still-unrecovered failure greys out simply because time passed. It is also nearly invisible. Measured aged-vs-fresh luminance separation is 1.16:1 to 1.24:1, and dark-mode `success-container` against `destructive-container` measures about 1.00:1, meaning the two differ in hue only.
+### Why the gate is an OR, not an AND
+
+Freshness decides the common case; resolution is the safety valve underneath it. A degradation nobody has recovered from must never quietly fade to grey just because an hour passed, because the alternative is a live outage rendered in the same grey as a band change from last Tuesday. Age may retire history. It may not retire a problem.
+
+This is also why the earlier resolution-only model was replaced rather than extended: it was correct about the safety valve and wrong about the common case. Under it, a failure and its recovery from four minutes ago both rendered as flat grey history, so the card had no way to say "this just happened".
+
+### The tones and their fills
+
+`EventTone` is derived severity-first, family second:
+
+| Tone | Derived from | Tonal fill (`TONAL_FILL`) | Settled glyph ink (`GLYPH_INK`) |
+| ---- | ------------ | ------------------------- | ------------------------------- |
+| `error` | `severity === "error"` | `bg-destructive-container text-on-destructive-container` | `text-destructive` |
+| `warning` | `severity === "warning"` | `bg-warning-container text-on-warning-container` | `text-warning` |
+| `success` | info **and** in `RECOVERY_TYPES` | `bg-success-container text-on-success-container` | `text-success` |
+| `routine` | everything else | `bg-surface-container-high` (**achromatic**, no `on-` pair) | `text-on-surface-variant` |
+
+The three chromatic fills ship their own paired `on-` ink, so a row using them sets **no** per-line color at all: `presentEvent` returns empty strings for `labelClass` / `messageClass` / `glyphClass` on a chromatic row. A second, differently toned voice inside the fill would read as two statements rather than one. On every other row the glyph is the sole carrier of tone, so it keeps its role ink.
+
+### Why `routine` is achromatic
+
+This is the one place the design reference had to be extrapolated rather than traced: it shows no fresh routine row, so there was no literal answer to copy. Both colored options were worse than a neutral step.
+
+`success-container` would claim a band change is good news. It is not news at all. `severity: "info"` in this system means *routine*, not *good*: `events.sh` emits `info` for LTE band change (`:498`), LTE PCC cell handoff (`:507`), NR band change (`:537`), NR PCC cell handoff (`:547`) and CA activation (`:557`). A handoff is the radio doing its job, and tinting it green would spend a functional color decoratively, which the Functional-Color Promise forbids.
+
+`primary-container` measures **L 0.400** in dark mode against **0.300 / 0.320 / 0.325** for success / warning / destructive. A routine handoff would be the brightest row on the card, louder than an outage. Inverted urgency.
+
+`surface-container-high` (L 0.918 light, 0.312 dark) is a step up from the resting surface without making a color claim, which is exactly the reading: noted, recent, not important. It is also already the shipped meaning of the `muted` badge role, so the vocabulary stays consistent across the product.
+
+**This decision is what keeps the card quiet.** A live device probe of the 50-event ring found **48 of 50 events at `info` severity and 44 of 50 of type `band_change`**, with the whole ring spanning roughly 750 seconds of wall clock. If routine were chromatic, the overwhelmingly common case would be a wall of color and the rare chromatic fills would mean nothing.
+
+### Why the fill is the weak channel
+
+The fill is a supporting signal, never the only one. Measured aged-vs-fresh luminance separation is 1.16:1 to 1.24:1, and dark-mode `success-container` against `destructive-container` measures about 1.00:1, meaning the two differ in **hue only** and are identical under deuteranopia. Consequences, both mandatory:
+
+- Every row carries a glyph, and two states that can occupy the same slot must never share one.
+- Every row carries an `sr-only` severity word spoken **before** the label, since a screen reader can see neither a shape nor a background.
+
+### Freshness and the clock
+
+`isFresh(event, nowSec)` is `nowSec - event.timestamp < FRESH_WINDOW_SEC` (3600). One hour comes straight from the design reference, where a 16-minute row is filled and a 1h03m row is not.
+
+This subtracts a browser clock from a modem-written `date +%s` (`events.sh:84`), which is a cross-machine comparison and can skew. That is accepted deliberately, because it is the **same** subtraction that already prints "2 min ago" beside the row: the fill and the timestamp can only ever be wrong together and consistently. A freshness gate computed some other way would be the real hazard, two clocks disagreeing inside one row.
+
+Three pieces of discipline hold that together:
+
+1. **One clock reading per render.** `useTimeAgo(timestamp, nowSec)` takes `nowSec` as a parameter rather than calling `Date.now()` itself. Two readings in one render can straddle the hour boundary and print "1h ago" on a row still drawn as fresh.
+2. **A negative-diff clamp.** `Math.max(0, nowSec - timestamp)`. On a device whose RTC is unset and which runs neither NTP nor NITZ, the difference can legitimately come out negative. `types/modem-status.ts:769` carries the same clamp; the local hook previously claimed to mirror those thresholds "exactly" while missing precisely this branch.
+3. **An independent ticker.** `useNowSec()` re-reads the wall clock every `CLOCK_TICK_MS` (30s), not on the data poll. The hook's error path calls `setError` and deliberately never calls `setEvents` (`use-recent-activities.ts:85-90`), and on a sustained failure the message string is identical every time, so React bails out of the re-render entirely. Without the ticker the card would go on rendering its stale list with a frozen age classification: rows asserting "just now" about data that has not refreshed in an hour, which is the Saved-State Honesty Rule failure the header chip is already careful to avoid. 30s rather than 10s because nothing here changes faster than a minute and an idle dashboard should not wake three times as often as it needs to.
 
 ### Resolution pairing
 
@@ -49,7 +104,9 @@ Aging the list (fresh rows saturated, old rows greyed) fails for a different rea
 | ----- | ----- | --------------- |
 | Cross-type condition (`RESOLVED_BY`) | `internet_lost`, `signal_lost`, `high_latency`, `high_packet_loss` | A **different** type appears later: `internet_restored`, `signal_restored`, `latency_recovered`, `packet_loss_recovered` |
 | Self-resolving condition (`SELF_RESOLVING`) | `nr_anchor`, `ca_change`, `airplane_mode` | The **same** type appears later at severity `info`. These describe a property that flipped, so the poller reuses one type and lets severity carry the direction |
-| One-shot notice | everything else (`tower_failover`, `sim_failover`, `sim_swap_detected`, `profile_deactivated`, `profile_failed`, `watchcat_recovery`, `network_mode`, `band_change`, `pci_change`, `scc_pci_change`, `profile_applied`, and the four `*_restored` / `*_recovered` types) | None. A one-shot describes a moment that has already passed, so it can never be unresolved and must never light a container |
+| One-shot notice | everything else (`tower_failover`, `sim_failover`, `sim_swap_detected`, `profile_deactivated`, `profile_failed`, `watchcat_recovery`, `network_mode`, `band_change`, `pci_change`, `scc_pci_change`, `profile_applied`, and the four `*_restored` / `*_recovered` types) | None. A one-shot describes a moment that has already passed, so it can never be unresolved |
+
+> ℹ️ NOTE: a one-shot **can** still be tonal. That is what the age gate changed. A one-shot wears its container for its first hour and then settles; what `unresolved` buys a row is exemption from that settling, and only a condition can earn it.
 
 The pass is a single forward walk over the newest-first array with three accumulators:
 
@@ -59,27 +116,41 @@ The pass is a single forward walk over the newest-first array with three accumul
 
 Newest-first ordering is what makes one pass sufficient. Walking down from index 0, everything already visited is later in time, which is exactly the window a resolution has to appear in.
 
-> ⚠️ WARNING: `computeUnresolved` must be given the hook's **full** array (up to 20), not the six rows the card draws. A recovery that has already scrolled past the clip edge still resolves the failure below it. Slicing first would leave resolved rows glowing amber forever.
+> ⚠️ WARNING: `computeUnresolved` must be given the hook's **full** array (up to 20), not the five rows the card draws. A recovery that has already scrolled past the clip edge still resolves the failure below it. Slicing first would leave resolved rows glowing amber forever. The visible count shrinking from six to five makes this **more** load-bearing, not less: there is now one fewer row of headroom before a recovery falls past the clip edge.
 
 The pairing lives in the client rather than in `events.sh` because it is a *reading* of the log, not a fact about the radio. `status.json` and the NDJSON stay a faithful transcript, and the interpretation can change without an OTA.
 
-### Glyph and ink
+### The presentation contract
 
-`presentEvent(event, unresolved)` returns `{glyph, glyphTone, srSeverityKey, unresolved}`. It resolves severity first, family second:
+`presentEvent(event, unresolved, fresh)` returns exactly this, and nothing the caller already knows:
 
-| Condition | Glyph | Ink | sr-only word |
-| --------- | ----- | --- | ------------ |
-| `severity === "error"` | `XCircleIcon` | `text-destructive` | Error |
-| `severity === "warning"` | `TriangleAlertIcon` | `text-warning` | Warning |
-| info **and** in `RECOVERY_TYPES` | `CheckCircle2Icon` | `text-success` | Recovered |
-| info, family mapped | `ArrowLeftRightIcon` handoff, `RadioTowerIcon` radio, `MicrochipIcon` SIM, `IdCardIcon` profile | `text-on-surface-variant` | Routine |
-| info, unmapped | `InfoIcon` | `text-on-surface-variant` | Routine |
+```ts
+interface EventPresentation {
+  glyph: EventGlyph;        // which lucide icon
+  tone: EventTone;          // the semantic classification
+  containerClass: string;   // fill, plus paired `on-` ink when chromatic
+  labelClass: string;       // "" when the container supplies the ink
+  messageClass: string;     // "" when the container supplies the ink
+  glyphClass: string;       // "" when the container supplies the ink
+  srSeverityKey: string;    // i18n key under the `dashboard` namespace
+}
+```
+
+> ⚠️ WARNING: the signature and shape both changed in this pass. It used to be `presentEvent(event, unresolved)` returning `{glyph, glyphTone, srSeverityKey, unresolved}`. `glyphTone` is gone (superseded by `tone` plus the four class slots), and the `tonal` / `unresolved` echo fields are gone because the caller supplies the first input and the second is fully readable from `containerClass`.
+
+Glyph selection is severity first, family second:
+
+| Condition | Glyph | sr-only word |
+| --------- | ----- | ------------ |
+| tone `error` | `XCircleIcon` | Error |
+| tone `warning` | `TriangleAlertIcon` | Warning |
+| tone `success` (info **and** in `RECOVERY_TYPES`) | `CheckCircle2Icon` | Recovered |
+| tone `routine`, family mapped (`FAMILY_GLYPHS`) | `ArrowLeftRightIcon` handoff, `RadioTowerIcon` radio, `MicrochipIcon` SIM, `IdCardIcon` profile | Routine |
+| tone `routine`, unmapped | `InfoIcon` | Routine |
 
 `RECOVERY_TYPES` is deliberately narrower than "severity info": it is the info events that report something going *right* (`internet_restored`, `signal_restored`, `latency_recovered`, `packet_loss_recovered`, `watchcat_recovery`, `profile_applied`), not everything that merely changed. A band change does not earn a green check.
 
-An unresolved row drops its per-glyph ink and inherits the container's `on-` color, because the fill has already said "this is a problem" and a second differently-toned voice inside it would read as two statements. Its `srSeverityKey` is overridden to `activities.severity.unresolved`, since the row is describing a present condition, not a past severity.
-
-The `sr-only` severity word is rendered **before** the label. The glyph is the sole visual carrier of severity, a screen reader cannot see a shape, and the two containers are near-equiluminant in dark mode, so the word is the only accessible path to the same information.
+`srSeverityKey` is overridden to `activities.severity.unresolved` on an unresolved row, since the row is describing a present condition, not a past severity. It is rendered **before** the label.
 
 ### Where `error` actually comes from
 
@@ -91,7 +162,11 @@ The `sr-only` severity word is rendered **before** the label. The glyph is the s
 | `qmanager_watchcat` | 468, 483 | `sim_failover` |
 | `qmanager_watchcat` | 512, 528, 596 | `watchcat_recovery` |
 
-All three of those types are **one-shot notices**, so an error event renders as a red `XCircleIcon` on a neutral `bg-surface-container`, never as a `destructive-container` fill. The `unresolvedError` branch in `EventRow` (and the `error` chip tone) is therefore forward-compatible plumbing: it becomes reachable only if a type in `RESOLVED_BY` or `SELF_RESOLVING` is ever emitted at `error`. Keep it, but do not design the card around red being a common sight.
+Grepping `events.sh` alone reports zero `error` events and is misleading. All three of those types are **one-shot notices**, so none of them can ever be `unresolved`.
+
+**Under the age gate the red fill is now reachable, which it was not before.** An error-severity one-shot is drawn in `destructive-container` for its first hour and then settles to a red `XCircleIcon` on the plain `bg-surface-container`. Previously only unresolved rows were ever filled, and since no error-emitting type enters `RESOLVED_BY` or `SELF_RESOLVING`, that branch was unreachable plumbing. Note the header chip's `destructive` tone is a *separate* question: it still keys off unresolved rows only, so a fresh red row can coexist with an "All clear" chip. That pair is intended, and reads as a story rather than a contradiction because the recovery sits directly above the failure it cancelled.
+
+Red is still not a common sight on a healthy device. Do not design the card around it.
 
 ## Card Behavior
 
@@ -105,7 +180,7 @@ The chip is **hidden while loading and on the no-data error path**. "All clear" 
 
 | State | Render |
 | ----- | ------ |
-| `isLoading` | Six skeleton rows at the exact `ROW_H` of a real row, so the skeleton-to-data handoff moves nothing |
+| `isLoading` | `VISIBLE_ROWS` skeleton rows at the exact `ROW_H` of a real row, so the skeleton-to-data handoff moves nothing |
 | `error && events.length === 0` | `role="alert"` `destructive-container` panel carrying the raw error string (the HTTP status is the only thing that distinguishes a dead service from an expired session) |
 | `error && events.length > 0` | Compact `destructive-container` notice **above** a still-populated list. A stale list beats a blank card |
 | `events.length === 0` | `Empty` with `CalendarX2Icon` |
@@ -118,12 +193,17 @@ The chip is **hidden while loading and on the no-data error path**. "All clear" 
 The clip height is arithmetic, not a guess, and the constants at the top of the component show the work:
 
 ```
-ROW_H       = 60   // py-[11px] (22) + label leading-4 (16) + gap-0.5 (2) + message leading-5 (20)
-ROW_GAP     = 8    // gap-2
-ROW_ADVANCE = 68   // how far the history travels when a new head pushes it down
-LIST_MAX_H  = 400  // 6 * ROW_H + 5 * ROW_GAP
-RENDER_COUNT= 7    // six visible plus one that exists only to be pushed into the clip
+ROW_H        = 60  // py-[11px] (22) + label leading-4 (16) + gap-0.5 (2) + message leading-5 (20)
+ROW_GAP      = 8   // gap-2
+ROW_ADVANCE  = 68  // how far the history travels when a new head pushes it down
+VISIBLE_ROWS = 5   // the only number to change if the count moves again
+LIST_MAX_H   = 332 // VISIBLE_ROWS * ROW_H + (VISIBLE_ROWS - 1) * ROW_GAP
+RENDER_COUNT = 6   // VISIBLE_ROWS + 1: one row that exists only to be pushed into the clip
 ```
+
+`RENDER_COUNT` must stay exactly `VISIBLE_ROWS + 1`. With no spare row the bottom row is pulled into view at the start of the push and then vanishes at the end, instead of sliding under the edge.
+
+> ⚠️ WARNING: `ActivitiesSkeleton` derives its row count from `VISIBLE_ROWS` and must keep doing so. As a literal it already silently outlived one change to the row count: a six-row skeleton handing off to a five-row list drops the card 68px and drags every grid sibling below it up with it.
 
 Line heights are pinned rather than left implicit because a clip edge computed from a ratio drifts. `leading-4` and `leading-5` are already the ramp's defaults for `text-xs` and `text-sm`, so pinning them changes nothing visually and makes the sum checkable.
 
@@ -134,9 +214,11 @@ Type sizes stay on the documented ramp (`text-xs` / `text-sm`) rather than the 1
 Two animations total, against a per-surface budget of three, on an ARM32 SoC rendering its own UI.
 
 1. **Head row arrival.** When a genuinely new event lands, the head row enters `x: 24 → 0` on the `emphasized` curve. On first load there is no previous head, so it instead enters on `staggerRowItem`'s shape and curve as item 0 of the mount cascade, which stops it popping in while the rows below it rise.
-2. **History push.** Everything below the head moves as ONE transform (`y: -ROW_ADVANCE → 0`). Six per-row FLIP projections via `layout` would be six concurrent animations.
+2. **History push.** Everything below the head moves as ONE transform (`y: -ROW_ADVANCE → 0`). Five per-row FLIP projections via `layout` would be five concurrent animations.
 
-Nothing animates out. A seventh row is rendered into an `overflow-hidden` box sized for six, so row six slides under the clip edge instead of vanishing.
+Nothing animates out. A sixth row is rendered into an `overflow-hidden` box sized for five, so row five slides under the clip edge instead of vanishing.
+
+The settle from tonal to neutral is not counted against that budget: it is a `transition-colors` on the `standard` curve, not a keyframed animation. It is the only thing on this card that happens without the user or the radio doing anything, so it gets the everyday curve and no more. It must read as a row going quiet, never as an event arriving.
 
 **The three-state variant set is load-bearing.** The history group carries both lifecycles on one element via `historyGroup`: `settled` (mount entry, no push, children cascade), `pushed` (arrival entry, group starts one row high) and `visible` (the shared rest state, which also declares `staggerChildren`). It cannot be split into a push wrapper around a cascade wrapper, because **a motion child that declares its own `initial`/`animate` object stops variant propagation dead**. On the arrival path the children's initial state is `pushed`, a variant they do not define, so they sit at rest and the cascade stays a mount-only event. `delayChildren: STAGGER_STEP_ROWS` compensates for the head row being item 0 of the cascade while living outside the group.
 
@@ -148,7 +230,7 @@ Nothing animates out. A seventh row is rendered into an `overflow-hidden` box si
 
 Both remaining parts are load-bearing:
 
-- **The index is gone.** The old key was `` `${timestamp}-${type}-${i}` ``. On a newest-first list one new event shifts every index, so all six keys changed, all six rows remounted, and the entire cascade replayed on every single event.
+- **The index is gone.** The old key was `` `${timestamp}-${type}-${i}` ``. On a newest-first list one new event shifts every index, so every key changed, every row remounted, and the entire cascade replayed on every single event.
 - **The message stays.** `events.sh` emits type `pci_change` from two separate sites (LTE handoff at `:507`, NR handoff at `:547`), so an LTE and an NR handoff detected in the same poll tick share a timestamp **and** a type. Timestamp + type alone would collide.
 
 ## i18n
@@ -173,10 +255,29 @@ Adding a new `NetworkEventType` therefore means: extend the union in `types/mode
 ## Gotchas
 
 - **Never slice before `computeUnresolved`.** See the warning above.
-- **Never light a container from severity alone.** `warning` on a one-shot type (`tower_failover`, `sim_failover`) is history the moment it is written. Only `RESOLVED_BY` and `SELF_RESOLVING` members can be unresolved.
+- **Never derive `unresolved` from severity alone.** `warning` on a one-shot type (`tower_failover`, `sim_failover`) is history the moment it is written. Only `RESOLVED_BY` and `SELF_RESOLVING` members can be unresolved. A one-shot may still be *tonal*, but only for its first hour, and only via `fresh`.
+- **Never add a chromatic fill for `routine`.** See "Why `routine` is achromatic". A green or blue routine row breaks the Functional-Color Promise or inverts urgency, and 44 of 50 buffered events on a live device were routine band changes.
+- **Change `VISIBLE_ROWS`, never the numbers derived from it.** `LIST_MAX_H`, `RENDER_COUNT` and `ActivitiesSkeleton` all read it. A stray literal is a page jump waiting to happen.
 - **`watchcat_recovery` is in `RECOVERY_TYPES` but is never emitted at `info`.** All five call sites in `qmanager_watchcat` pass `warning` or `error`, and severity wins in `presentEvent`, so its green-check branch is currently unreachable. Intended, not a bug: the entry is there so a future "recovery succeeded" line reads correctly. `profile_applied` is the same shape in reverse, emitted at `info` for a complete apply and `warning` for a partial one.
 - **The NDJSON file lives in `/tmp` and does not survive a reboot.** An empty card after a restart is correct, not a fault.
 - **`MAX_EVENTS=50` on the device vs. `maxEvents=20` in the hook.** The resolution pass sees 20. A degradation whose recovery is more than 20 events old will still be flagged unresolved; in practice a recovery follows its degradation closely enough that this has not been observed, but it is the model's outer limit.
+
+## Known Issues
+
+### `band_change` has no debounce, and it can evict the entire ring
+
+**No code change was made for this in the presentation pass. It is a telemetry bug and deserves its own change.**
+
+Latency and packet loss are both debounced before an event is written: `events.sh:370` and `:390` require `_qt_lat_debounce` / `_qt_loss_debounce` consecutive readings (3 on the `standard` preset) before `append_event` fires. Band change is not. `events.sh:488-489` compares the current `lte_band` against the previous **2-second** sample with a raw `!=` and emits immediately (`:498`); the NR path at `:526-528` does the same and emits at `:537`.
+
+The arithmetic is unforgiving. `POLL_INTERVAL=2` (`qmanager_poller:39`) and `MAX_EVENTS=50` (`qmanager_poller:111`), so a modem oscillating between two bands on consecutive polls can write 50 events in **about 100 seconds** and, at a more realistic every-other-poll flap, consume the whole ring in **roughly 12 minutes**, evicting every other event in it. A live probe caught this in progress: 44 of 50 buffered events were `band_change` and the entire 50-event ring spanned about 750 seconds of wall clock, meaning nothing older than 12 minutes was recoverable.
+
+Consequences worth knowing before touching this card:
+
+- The 20 events the hook keeps can be entirely band changes, so `computeUnresolved` may never see a recovery that did happen. The pass is correct; its input was starved.
+- The user-visible symptom is a card that scrolls constantly and says nothing.
+
+The fix belongs in `events.sh`, mirroring the latency pattern: require N consecutive samples on the new band before emitting, and ideally collapse a flap between two known bands into one event. Doing it in the client would only hide the eviction, not stop it.
 
 ## See Also
 
@@ -184,4 +285,4 @@ Adding a new `NetworkEventType` therefore means: extend the union in `types/mode
 - [connection-quality.md](connection-quality.md): the producer of `high_latency` / `high_packet_loss` and their thresholds
 - [connection-watchdog.md](connection-watchdog.md): the producer of `watchcat_recovery` and `sim_failover`
 - [carrier-aggregation.md](carrier-aggregation.md): the sibling dashboard surface whose release clock uses the same commit-after-render ref discipline
-- `DESIGN.md`: the Unresolved-Condition Rule, the Functional-Color Promise, the Saved-State Honesty Rule, and the motion canon
+- `DESIGN.md`: the Age-Gated Tone Rule, the Functional-Color Promise, the Saved-State Honesty Rule, and the motion canon

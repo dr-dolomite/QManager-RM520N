@@ -37,6 +37,7 @@ import { EVENT_LABELS } from "@/constants/network-events";
 import {
   computeUnresolved,
   eventKey,
+  isFresh,
   presentEvent,
   type EventGlyph,
   type EventPresentation,
@@ -55,12 +56,20 @@ import type { NetworkEvent } from "@/types/modem-status";
 // =============================================================================
 // Recent Activities: the dashboard's event log.
 // =============================================================================
-// Two jobs, and the second one is the reason the card was rewritten. The first
-// is the transcript: what the radio did, newest first. The second is the
-// verdict: is anything on that list still wrong. Only the still-wrong rows wear
-// a tonal container, so the card answers "am I fine" from across the room and
-// only then invites reading. See lib/event-presentation.ts for the pairing that
-// decides which rows those are.
+// Two jobs. The first is the transcript: what the radio did, newest first. The
+// second is the verdict: is anything on that list still wrong.
+//
+// The rows answer the first question and the header chip answers the second,
+// and they are allowed to disagree. A recovered failure from ten minutes ago
+// still shows a red row, because it did happen and it is recent, while the chip
+// reads "All clear", because it is over. That pair reads as a story rather than
+// a contradiction: the recovery sits directly above the failure it cancelled.
+//
+// Row weight is age, with one exception. A row is drawn in its tonal container
+// for its first hour and then settles onto the plain surface keeping only its
+// coloured glyph, EXCEPT when the condition it reports is still unresolved, in
+// which case it stays lit however old it is. Age retires history; it does not
+// retire a problem. See lib/event-presentation.ts.
 // =============================================================================
 
 // --- Row geometry ------------------------------------------------------------
@@ -86,11 +95,18 @@ const ROW_H = 60;
 const ROW_GAP = 8; // gap-2
 /** How far the history travels when a new head pushes it down. */
 const ROW_ADVANCE = ROW_H + ROW_GAP; // 68
-/** Six rows and the five gaps between them. The seventh row rendered below
- *  sits under this edge on purpose. */
-const LIST_MAX_H = 6 * ROW_H + 5 * ROW_GAP; // 400
-/** Six visible plus one that exists only to be pushed into the clip. */
-const RENDER_COUNT = 7;
+
+/** How many rows the card actually shows. Everything below derives from it, so
+ *  this is the only number to change if the count moves again. */
+const VISIBLE_ROWS = 5;
+/** Five rows and the four gaps between them. The sixth row rendered below sits
+ *  under this edge on purpose. */
+const LIST_MAX_H = VISIBLE_ROWS * ROW_H + (VISIBLE_ROWS - 1) * ROW_GAP; // 332
+/** The visible rows plus one that exists only to be pushed into the clip.
+ *  Must stay exactly VISIBLE_ROWS + 1: with no spare row the bottom row is
+ *  pulled into view at the start of the push and then vanishes at the end
+ *  instead of sliding under the edge. */
+const RENDER_COUNT = VISIBLE_ROWS + 1;
 
 const GLYPHS: Record<EventGlyph, LucideIcon> = {
   success: CheckCircle2Icon,
@@ -132,17 +148,59 @@ const historyGroup: Variants = {
   },
 };
 
+/**
+ * How often the card re-reads the wall clock, independent of the data fetch.
+ *
+ * Both the "12 min ago" label and the freshness gate are functions of time
+ * rather than of the payload, so they cannot be left to re-evaluate only when a
+ * poll succeeds. The hook's error path calls `setError` and deliberately never
+ * calls `setEvents` (use-recent-activities.ts:85-90), and on a sustained
+ * failure the message string is identical every time, so React bails out of the
+ * re-render entirely. Without this ticker the card would go on rendering its
+ * stale list with a frozen age classification: rows asserting "just now" about
+ * data that has not refreshed in an hour. That is the Saved-State Honesty Rule
+ * failure the header chip is already careful to avoid.
+ *
+ * 30s rather than the 10s poll: nothing here changes faster than a minute, and
+ * an idle dashboard should not wake up three times as often as it needs to.
+ */
+const CLOCK_TICK_MS = 30_000;
+
+/** Unix-seconds now, refreshed on its own clock. */
+function useNowSec(): number {
+  const [now, setNow] = React.useState(() => Math.floor(Date.now() / 1000));
+  React.useEffect(() => {
+    const id = setInterval(
+      () => setNow(Math.floor(Date.now() / 1000)),
+      CLOCK_TICK_MS,
+    );
+    return () => clearInterval(id);
+  }, []);
+  return now;
+}
+
 /** Locale-aware relative time.
  *
  *  Deliberately local rather than a change to `formatTimeAgo` in
  *  types/modem-status.ts: that helper has three live call sites in the watchdog
  *  cards and returns a hard-coded English string by design. The thresholds here
- *  mirror it exactly so the two never disagree about when "1h ago" starts. */
+ *  mirror it exactly so the two never disagree about when "1h ago" starts.
+ *
+ *  `now` is passed in rather than read here so that this and the freshness gate
+ *  are computed from ONE clock reading. Two `Date.now()` calls in one render
+ *  can straddle the hour boundary and print "1h ago" on a row still drawn as
+ *  fresh. */
 function useTimeAgo() {
   const { t } = useTranslation("dashboard");
   return React.useCallback(
-    (timestamp: number): string => {
-      const diff = Math.floor(Date.now() / 1000) - timestamp;
+    (timestamp: number, nowSec: number): string => {
+      // The modem writes the timestamp with its own `date +%s` and the browser
+      // supplies `now`, so this subtracts two different machines' clocks. On a
+      // device whose RTC is unset and which runs neither NTP nor NITZ, that can
+      // legitimately come out negative. types/modem-status.ts:769 carries the
+      // same clamp, and this one used to claim it mirrored those thresholds
+      // "exactly" while missing precisely this branch.
+      const diff = Math.max(0, nowSec - timestamp);
       if (diff < 60) return t("activities.time.just_now");
       if (diff < 3600)
         return t("activities.time.minutes", { count: Math.floor(diff / 60) });
@@ -172,49 +230,42 @@ function EventRow({
   severityWord,
 }: EventRowProps) {
   const Glyph = GLYPHS[presentation.glyph];
-  const unresolvedError = presentation.unresolved && event.severity === "error";
 
   return (
     <div
       className={cn(
         "flex items-start gap-[11px] rounded-tile px-3.5 py-[11px]",
+        // The settle from tonal to neutral is the only thing on this card that
+        // happens without the user or the radio doing anything, so it gets the
+        // everyday curve and no more. It must read as a row going quiet, never
+        // as an event arriving.
         "transition-colors duration-(--duration-standard) ease-standard",
-        presentation.unresolved
-          ? unresolvedError
-            ? "bg-destructive-container text-on-destructive-container"
-            : "bg-warning-container text-on-warning-container"
-          : "bg-surface-container",
+        presentation.containerClass,
       )}
     >
-      {/* An unresolved row drops the per-glyph ink and inherits the
-          container's `on-` colour: the fill has already said "this is a
-          problem", and a second, differently-toned voice inside it would read
-          as two statements rather than one. */}
+      {/* Inside a chromatic container the glyph inherits the container's `on-`
+          ink and `glyphClass` is empty: the fill has already said what kind of
+          thing this is, and a second, differently-toned voice inside it would
+          read as two statements rather than one. On a neutral row the glyph is
+          the ONLY carrier of tone, so it keeps its role colour there. */}
       <Glyph
         aria-hidden
-        className={cn(
-          "size-5 shrink-0",
-          !presentation.unresolved && presentation.glyphTone,
-        )}
+        className={cn("size-5 shrink-0", presentation.glyphClass)}
       />
       <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-        {/* The severity is carried visually by the glyph alone. Dark-mode
-            success-container and destructive-container are near-equiluminant,
-            and the glyph is a shape a screen reader cannot see. So it is
-            spoken here, first, before the label. */}
+        {/* Tone is carried visually by the glyph and the fill, and a screen
+            reader can see neither a shape nor a background. Dark-mode
+            success-container and destructive-container measure about 1.00:1
+            apart, so this is not a nicety even for sighted users on the
+            colour channel alone. Spoken first, before the label. */}
         <span className="sr-only">{severityWord}</span>
-        <span
-          className={cn(
-            "text-xs leading-4 font-medium",
-            !presentation.unresolved && "text-on-surface-variant",
-          )}
-        >
+        <span className={cn("text-xs leading-4 font-medium", presentation.labelClass)}>
           {label} · {timeAgo}
         </span>
         <span
           className={cn(
             "text-sm leading-5 font-medium",
-            !presentation.unresolved && "text-on-surface",
+            presentation.messageClass,
           )}
         >
           {event.message}
@@ -229,12 +280,18 @@ function EventRow({
 const CARD_SHELL =
   "@container/card h-full gap-4 rounded-card border-0 px-6 py-6 shadow-[var(--shadow-whisper)]";
 
-/** Skeleton rows are the EXACT height of a real row, so the skeleton-to-data
- *  handoff moves nothing on the page. */
+/** Skeleton rows are the EXACT height of a real row, and there are exactly as
+ *  many as the list will show, so the skeleton-to-data handoff moves nothing on
+ *  the page.
+ *
+ *  The count is derived from VISIBLE_ROWS rather than written out, because as a
+ *  literal it silently outlived a change to the row count once already: a
+ *  six-row skeleton handing off to a five-row list drops the card 68px and
+ *  drags every grid sibling below it up with it. */
 function ActivitiesSkeleton() {
   return (
     <div className="flex flex-col gap-2">
-      {Array.from({ length: 6 }).map((_, i) => (
+      {Array.from({ length: VISIBLE_ROWS }).map((_, i) => (
         <Skeleton
           key={i}
           className="rounded-tile"
@@ -251,8 +308,11 @@ const RecentActivitiesComponent = () => {
   const { t } = useTranslation("dashboard");
   const { events, isLoading, error } = useRecentActivities();
   const timeAgo = useTimeAgo();
+  // ONE clock reading per render, shared by the label and the freshness gate,
+  // so a row can never print "1h ago" while still being drawn as fresh.
+  const nowSec = useNowSec();
 
-  // Computed over the FULL array, never the sliced six: a recovery that has
+  // Computed over the FULL array, never the sliced five: a recovery that has
   // already scrolled past the clip edge still resolves the failure below it.
   const unresolved = React.useMemo(() => computeUnresolved(events), [events]);
 
@@ -402,7 +462,11 @@ const RecentActivitiesComponent = () => {
   const visible = events.slice(0, RENDER_COUNT);
 
   const renderRow = (event: NetworkEvent, absoluteIndex: number) => {
-    const presentation = presentEvent(event, unresolved.has(absoluteIndex));
+    const presentation = presentEvent(
+      event,
+      unresolved.has(absoluteIndex),
+      isFresh(event, nowSec),
+    );
     return (
       <EventRow
         event={event}
@@ -410,7 +474,7 @@ const RecentActivitiesComponent = () => {
         label={t(`activities.events.${event.type}`, {
           defaultValue: EVENT_LABELS[event.type] ?? event.type,
         })}
-        timeAgo={timeAgo(event.timestamp)}
+        timeAgo={timeAgo(event.timestamp, nowSec)}
         severityWord={t(presentation.srSeverityKey)}
       />
     );
@@ -432,7 +496,7 @@ const RecentActivitiesComponent = () => {
         )}
 
         {/* The clip. History does not retreat, it scrolls off the bottom, so
-            the seventh row exists purely to carry row six under this edge
+            the sixth row exists purely to carry row five under this edge
             instead of letting it vanish. */}
         <div className="overflow-hidden" style={{ maxHeight: LIST_MAX_H }}>
           <div className="flex flex-col gap-2">
@@ -445,7 +509,7 @@ const RecentActivitiesComponent = () => {
               // Two entrances, never both. On arrival it is recipe 04's slide
               // from the trailing edge on the emphasized curve. On first load
               // there is no arrival, and the head still has to join the mount
-              // cascade as its item 0, or it pops in while the six rows under
+              // cascade as its item 0, or it pops in while the rows under
               // it rise. Same shape and curve as `staggerRowItem`.
               initial={hasArrival ? { opacity: 0, x: 24 } : { opacity: 0, y: 5 }}
               animate={{ opacity: 1, x: 0, y: 0 }}
@@ -456,7 +520,7 @@ const RecentActivitiesComponent = () => {
 
             {/* ── History ──
                 The second and last animation: ONE transform on the whole
-                group. Six per-row FLIP projections via `layout` would be six
+                group. Five per-row FLIP projections via `layout` would be five
                 concurrent animations on an ARM32 SoC rendering its own UI, and
                 the budget is three. Keyed on the head so the push replays only
                 when a new event actually arrived. */}
