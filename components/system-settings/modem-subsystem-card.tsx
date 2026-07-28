@@ -63,30 +63,21 @@ function ModemStateBadge({ state }: { state: ModemSubsysState }) {
   switch (state) {
     case "online":
       return (
-        <Badge
-          variant="outline"
-          className="bg-success/15 text-success hover:bg-success/20 border-success/30"
-        >
+        <Badge variant="success">
           <CheckCircle2Icon className="size-3" />
           Online
         </Badge>
       );
     case "crashed":
       return (
-        <Badge
-          variant="outline"
-          className="bg-destructive/15 text-destructive hover:bg-destructive/20 border-destructive/30"
-        >
+        <Badge variant="destructive">
           <XCircleIcon className="size-3" />
           Crashed
         </Badge>
       );
     case "offline":
       return (
-        <Badge
-          variant="outline"
-          className="bg-muted/50 text-muted-foreground border-muted-foreground/30"
-        >
+        <Badge variant="muted">
           <MinusCircleIcon className="size-3" />
           Offline
         </Badge>
@@ -94,10 +85,7 @@ function ModemStateBadge({ state }: { state: ModemSubsysState }) {
     case "unknown":
     default:
       return (
-        <Badge
-          variant="outline"
-          className="bg-muted/50 text-muted-foreground border-muted-foreground/30"
-        >
+        <Badge variant="muted">
           <MinusCircleIcon className="size-3" />
           Unknown
         </Badge>
@@ -273,10 +261,7 @@ export default function ModemSubsystemCard() {
             {data ? (
               <ModemStateBadge state={data.state} />
             ) : (
-              <Badge
-                variant="outline"
-                className="bg-muted/50 text-muted-foreground border-muted-foreground/30"
-              >
+              <Badge variant="muted">
                 <MinusCircleIcon className="size-3" />
                 Unknown
               </Badge>
@@ -459,10 +444,7 @@ export default function ModemSubsystemCard() {
                 <p className="font-semibold text-muted-foreground text-sm">
                   Diagnostic data
                 </p>
-                <Badge
-                  variant="outline"
-                  className="bg-warning/15 text-warning hover:bg-warning/20 border-warning/30"
-                >
+                <Badge variant="warning">
                   <TriangleAlertIcon className="size-3" />
                   Coredump available
                 </Badge>

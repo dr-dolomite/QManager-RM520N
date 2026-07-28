@@ -1,5 +1,6 @@
 import { ANTENNA_PORTS } from "@/types/modem-status";
 import type { SignalPerAntenna } from "@/types/modem-status";
+import type { BadgeVariant } from "@/components/ui/badge";
 
 export { ANTENNA_PORTS };
 
@@ -89,17 +90,21 @@ export function getQualityColor(quality: string) {
   }
 }
 
-export function getQualityBadgeClasses(quality: string) {
+/**
+ * Antenna quality as a chip role. Returns a `Badge` variant rather than a class
+ * string so the chip cannot drift from the tonal system.
+ */
+export function getQualityBadgeVariant(quality: string): BadgeVariant {
   switch (quality) {
     case "excellent":
     case "good":
-      return "bg-success/15 text-success hover:bg-success/20 border-success/30";
+      return "success";
     case "fair":
-      return "bg-warning/15 text-warning hover:bg-warning/20 border-warning/30";
+      return "warning";
     case "poor":
-      return "bg-destructive/15 text-destructive hover:bg-destructive/20 border-destructive/30";
+      return "destructive";
     default:
-      return "bg-muted/50 text-muted-foreground border-muted-foreground/30";
+      return "muted";
   }
 }
 

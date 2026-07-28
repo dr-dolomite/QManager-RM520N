@@ -227,12 +227,12 @@ export function TailscalePeersCard({
                   </TableCell>
                   <TableCell>
                     {peer.online ? (
-                      <Badge variant="outline" className="bg-success/15 text-success hover:bg-success/20 border-success/30">
+                      <Badge variant="success">
                         <CheckCircle2Icon className="h-3 w-3" />
                         Online
                       </Badge>
                     ) : (
-                      <Badge variant="outline" className="bg-muted/50 text-muted-foreground border-muted-foreground/30">
+                      <Badge variant="muted">
                         <MinusCircleIcon className="h-3 w-3" />
                         Offline
                       </Badge>

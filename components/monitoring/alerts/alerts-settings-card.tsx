@@ -740,7 +740,7 @@ function SecretField({
           {label}
         </FieldLabel>
         {isSet && (
-          <span className="bg-success/15 text-success border-success/30 inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[0.65rem] font-medium">
+          <span className="bg-success-container text-on-success-container inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[0.65rem] font-medium">
             <CheckIcon className="size-2.5" />
             Saved
           </span>

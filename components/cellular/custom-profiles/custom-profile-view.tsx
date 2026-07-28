@@ -673,10 +673,7 @@ const StatusBadge = ({ status }: { status: ProfileStatus }) => {
   const { t } = useTranslation("cellular");
   if (status === "active") {
     return (
-      <Badge
-        variant="outline"
-        className="border-success/30 bg-success/15 text-success hover:bg-success/20"
-      >
+      <Badge variant="success">
         <CheckCircle2Icon className="size-3" />
         {t("custom_profiles.table.status_badge.active")}
       </Badge>
@@ -684,20 +681,14 @@ const StatusBadge = ({ status }: { status: ProfileStatus }) => {
   }
   if (status === "mismatch") {
     return (
-      <Badge
-        variant="outline"
-        className="border-warning/30 bg-warning/15 text-warning hover:bg-warning/20"
-      >
+      <Badge variant="warning">
         <TriangleAlertIcon className="size-3" />
         {t("custom_profiles.table.status_badge.sim_mismatch")}
       </Badge>
     );
   }
   return (
-    <Badge
-      variant="outline"
-      className="border-muted-foreground/30 bg-muted/50 text-muted-foreground"
-    >
+    <Badge variant="muted">
       <MinusCircleIcon className="size-3" />
       {t("custom_profiles.table.status_badge.inactive")}
     </Badge>
@@ -768,10 +759,8 @@ const SuggestionRow = ({
             {suggestion.mno}
           </span>
         </div>
-        <Badge
-          variant="outline"
-          className="border-info/30 bg-info/15 text-info hover:bg-info/20 shrink-0"
-        >
+        <Badge variant="info"
+          className="shrink-0">
           <SparklesIcon className="size-3" />
           {t("custom_profiles.suggestions.badge")}
         </Badge>

@@ -95,10 +95,7 @@ export default function NotFound() {
             >
               404
             </p>
-            <Badge
-              variant="outline"
-              className="bg-destructive/15 text-destructive hover:bg-destructive/20 border-destructive/30"
-            >
+            <Badge variant="destructive">
               <XCircleIcon className="size-3" />
               No route acquired
             </Badge>

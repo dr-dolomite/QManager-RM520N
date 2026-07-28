@@ -452,18 +452,12 @@ const EthernetStatusCard = () => {
                 Link Status
               </p>
               {isConnected ? (
-                <Badge
-                  variant="outline"
-                  className="bg-success/15 text-success hover:bg-success/20 border-success/30"
-                >
+                <Badge variant="success">
                   <CheckCircle2Icon className="h-3 w-3" />
                   Connected
                 </Badge>
               ) : (
-                <Badge
-                  variant="outline"
-                  className="bg-destructive/15 text-destructive hover:bg-destructive/20 border-destructive/30"
-                >
+                <Badge variant="destructive">
                   <XCircleIcon className="h-3 w-3" />
                   Disconnected
                 </Badge>

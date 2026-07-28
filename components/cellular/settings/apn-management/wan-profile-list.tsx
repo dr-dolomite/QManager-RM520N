@@ -65,11 +65,9 @@ function ProfileStatusBadge({ profile }: { profile: WanProfile }) {
 
   if (connected) {
     return (
-      <Badge
-        variant="outline"
-        className="bg-success/15 text-success hover:bg-success/20 border-success/30"
-        title="Connected"
-      >
+      <Badge variant="success"
+
+        title="Connected">
         <CheckCircle2Icon className="size-3" />
         <span className="sr-only @xs/card:not-sr-only">Connected</span>
       </Badge>
@@ -78,11 +76,9 @@ function ProfileStatusBadge({ profile }: { profile: WanProfile }) {
 
   if (profile.pdp_error && profile.enabled) {
     return (
-      <Badge
-        variant="outline"
-        className="bg-destructive/15 text-destructive hover:bg-destructive/20 border-destructive/30"
-        title="Error"
-      >
+      <Badge variant="destructive"
+
+        title="Error">
         <XCircleIcon className="size-3" />
         <span className="sr-only @xs/card:not-sr-only">Error</span>
       </Badge>
@@ -90,11 +86,9 @@ function ProfileStatusBadge({ profile }: { profile: WanProfile }) {
   }
 
   return (
-    <Badge
-      variant="outline"
-      className="bg-muted/50 text-muted-foreground border-muted-foreground/30"
-      title="Disconnected"
-    >
+    <Badge variant="muted"
+
+      title="Disconnected">
       <MinusCircleIcon className="size-3" />
       <span className="sr-only @xs/card:not-sr-only">Disconnected</span>
     </Badge>
@@ -117,11 +111,9 @@ function ApnTypeBadge({ apnType }: { apnType: string }) {
         : `Carrier-provisioned ${label} profile`;
 
   return (
-    <Badge
-      variant="outline"
-      className="bg-info/15 text-info hover:bg-info/20 border-info/30"
-      title={tooltip}
-    >
+    <Badge variant="info"
+
+      title={tooltip}>
       {label}
     </Badge>
   );

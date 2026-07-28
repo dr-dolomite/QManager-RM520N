@@ -26,13 +26,14 @@ import { Separator } from "@/components/ui/separator";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { TbInfoCircleFilled } from "react-icons/tb";
-import { Badge } from "@/components/ui/badge";
+import { Badge, type BadgeVariant } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import {
   Loader2,
   PercentIcon,
   CheckCircle2Icon,
   TriangleAlertIcon,
+  AlertCircleIcon,
   XCircleIcon,
   MinusCircleIcon,
 } from "lucide-react";
@@ -124,21 +125,24 @@ const TowerLockingSettingsComponent = ({
   const qualityLvl = qualityLevel(signalQualityPct);
 
   // --- Signal quality badge styling ---
-  const qualityBadgeStyles: Record<string, string> = {
-    good: "bg-success/15 text-success hover:bg-success/20 border-success/30",
-    fair: "bg-warning/15 text-warning hover:bg-warning/20 border-warning/30",
-    poor: "bg-warning/15 text-warning hover:bg-warning/20 border-warning/30",
-    critical:
-      "bg-destructive/15 text-destructive hover:bg-destructive/20 border-destructive/30",
-    none: "bg-muted/50 text-muted-foreground border-muted-foreground/30",
+  // `fair` and `poor` share the warning tone, and the two warning containers are
+  // the same surface to the eye, so the glyph is the only thing separating them.
+  // They previously shared TriangleAlertIcon too, which left the label doing all
+  // the work; `poor` now carries a circle rather than a triangle.
+  const qualityBadgeVariants: Record<string, BadgeVariant> = {
+    good: "success",
+    fair: "warning",
+    poor: "warning",
+    critical: "destructive",
+    none: "muted",
   };
 
   const qualityIcons: Record<string, React.ReactNode> = {
     good: <CheckCircle2Icon className="h-3 w-3" />,
     fair: <TriangleAlertIcon className="h-3 w-3" />,
-    poor: <TriangleAlertIcon className="h-3 w-3" />,
+    poor: <AlertCircleIcon className="h-3 w-3" />,
     critical: <XCircleIcon className="h-3 w-3" />,
-    none: null,
+    none: <MinusCircleIcon className="h-3 w-3" />,
   };
 
   // --- Failover status badge ---
@@ -146,10 +150,7 @@ const TowerLockingSettingsComponent = ({
     // Show loading only during initial load; after that show a fallback
     if (!failoverState && isLoading) {
       return (
-        <Badge
-          variant="outline"
-          className="bg-muted/50 text-muted-foreground border-muted-foreground/30"
-        >
+        <Badge variant="muted">
           <Loader2 className="h-3 w-3 animate-spin" />
           Loading
         </Badge>
@@ -158,10 +159,7 @@ const TowerLockingSettingsComponent = ({
 
     if (!failoverState) {
       return (
-        <Badge
-          variant="outline"
-          className="bg-muted/50 text-muted-foreground border-muted-foreground/30"
-        >
+        <Badge variant="muted">
           <MinusCircleIcon className="h-3 w-3" />
           Unknown
         </Badge>
@@ -170,10 +168,7 @@ const TowerLockingSettingsComponent = ({
 
     if (failoverState.watcher_running) {
       return (
-        <Badge
-          variant="outline"
-          className="bg-success/15 text-success hover:bg-success/20 border-success/30"
-        >
+        <Badge variant="success">
           <CheckCircle2Icon className="h-3 w-3" />
           Monitoring
         </Badge>
@@ -182,10 +177,7 @@ const TowerLockingSettingsComponent = ({
 
     if (failoverState.activated) {
       return (
-        <Badge
-          variant="outline"
-          className="bg-warning/15 text-warning hover:bg-warning/20 border-warning/30"
-        >
+        <Badge variant="warning">
           <TriangleAlertIcon className="h-3 w-3" />
           Unlocked due to Poor Signal
         </Badge>
@@ -194,10 +186,7 @@ const TowerLockingSettingsComponent = ({
 
     if (!failoverState.enabled) {
       return (
-        <Badge
-          variant="outline"
-          className="bg-muted/50 text-muted-foreground border-muted-foreground/30"
-        >
+        <Badge variant="muted">
           <MinusCircleIcon className="h-3 w-3" />
           Disabled
         </Badge>
@@ -205,10 +194,7 @@ const TowerLockingSettingsComponent = ({
     }
 
     return (
-      <Badge
-        variant="outline"
-        className="bg-success/15 text-success hover:bg-success/20 border-success/30"
-      >
+      <Badge variant="success">
         <CheckCircle2Icon className="h-3 w-3" />
         Ready
       </Badge>
@@ -220,10 +206,7 @@ const TowerLockingSettingsComponent = ({
     // Show loading only during initial load; after that show a fallback
     if (!config && isLoading) {
       return (
-        <Badge
-          variant="outline"
-          className="bg-muted/50 text-muted-foreground border-muted-foreground/30"
-        >
+        <Badge variant="muted">
           <Loader2 className="h-3 w-3 animate-spin" />
           Loading
         </Badge>
@@ -232,10 +215,7 @@ const TowerLockingSettingsComponent = ({
 
     if (!config) {
       return (
-        <Badge
-          variant="outline"
-          className="bg-muted/50 text-muted-foreground border-muted-foreground/30"
-        >
+        <Badge variant="muted">
           <MinusCircleIcon className="h-3 w-3" />
           Unknown
         </Badge>
@@ -244,10 +224,7 @@ const TowerLockingSettingsComponent = ({
 
     if (config.schedule.enabled) {
       return (
-        <Badge
-          variant="outline"
-          className="bg-success/15 text-success hover:bg-success/20 border-success/30"
-        >
+        <Badge variant="success">
           <CheckCircle2Icon className="h-3 w-3" />
           Active
         </Badge>
@@ -255,10 +232,7 @@ const TowerLockingSettingsComponent = ({
     }
 
     return (
-      <Badge
-        variant="outline"
-        className="bg-muted/50 text-muted-foreground border-muted-foreground/30"
-      >
+      <Badge variant="muted">
         <MinusCircleIcon className="h-3 w-3" />
         Inactive
       </Badge>
@@ -271,10 +245,7 @@ const TowerLockingSettingsComponent = ({
 
     if (!modemData && isLoading) {
       return (
-        <Badge
-          variant="outline"
-          className="bg-muted/50 text-muted-foreground border-muted-foreground/30"
-        >
+        <Badge variant="muted">
           <Loader2 className="h-3 w-3 animate-spin" />
           Loading
         </Badge>
@@ -283,10 +254,7 @@ const TowerLockingSettingsComponent = ({
 
     if (!modemData || !serviceStatus) {
       return (
-        <Badge
-          variant="outline"
-          className="bg-muted/50 text-muted-foreground border-muted-foreground/30"
-        >
+        <Badge variant="muted">
           <MinusCircleIcon className="h-3 w-3" />
           Unknown
         </Badge>
@@ -297,50 +265,36 @@ const TowerLockingSettingsComponent = ({
       case "optimal":
       case "connected":
         return (
-          <Badge
-            variant="outline"
-            className="bg-success/15 text-success hover:bg-success/20 border-success/30"
-          >
+          <Badge variant="success">
             <CheckCircle2Icon className="h-3 w-3" />
             Connected
           </Badge>
         );
       case "limited":
         return (
-          <Badge
-            variant="outline"
-            className="bg-warning/15 text-warning hover:bg-warning/20 border-warning/30"
-          >
+          <Badge variant="warning">
             <TriangleAlertIcon className="h-3 w-3" />
             Limited Service
           </Badge>
         );
       case "searching":
         return (
-          <Badge
-            variant="outline"
-            className="bg-warning/15 text-warning hover:bg-warning/20 border-warning/30"
-          >
+          <Badge variant="warning">
             <TriangleAlertIcon className="h-3 w-3" />
             Searching
           </Badge>
         );
       case "no_service":
         return (
-          <Badge
-            variant="outline"
-            className="bg-destructive/15 text-destructive hover:bg-destructive/20 border-destructive/30"
-          >
+          <Badge variant="destructive">
             <XCircleIcon className="h-3 w-3" />
             No Service
           </Badge>
         );
       default:
         return (
-          <Badge
-            variant="outline"
-            className="bg-muted/50 text-muted-foreground border-muted-foreground/30"
-          >
+          <Badge variant="muted">
+            <MinusCircleIcon className="h-3 w-3" />
             {serviceStatus}
           </Badge>
         );
@@ -576,10 +530,7 @@ const TowerLockingSettingsComponent = ({
               Current Signal Quality
             </span>
             <div className="flex items-center gap-1.5">
-              <Badge
-                variant="outline"
-                className={qualityBadgeStyles[qualityLvl]}
-              >
+              <Badge variant={qualityBadgeVariants[qualityLvl]}>
                 {qualityIcons[qualityLvl]}
                 {activeRsrp !== null ? `${signalQualityPct}%` : "N/A"}
               </Badge>

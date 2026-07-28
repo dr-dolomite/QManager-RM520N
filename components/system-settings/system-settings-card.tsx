@@ -353,10 +353,7 @@ function SystemSettingsForm({
                 explicitly reports the state (older backends omit the field). */}
             {settings?.timezone_applied === false && (
               <div className="flex flex-col items-start gap-1.5">
-                <Badge
-                  variant="outline"
-                  className="bg-warning/15 text-warning hover:bg-warning/20 border-warning/30"
-                >
+                <Badge variant="warning">
                   <TriangleAlertIcon className="size-3" />
                   Not applied — clock shows {settings.effective_offset}
                 </Badge>

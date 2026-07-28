@@ -207,26 +207,17 @@ const BandCardsComponent = ({
             <CardDescription>{description}</CardDescription>
           </div>
           {disabled ? (
-            <Badge
-              variant="outline"
-              className="bg-info/15 text-info hover:bg-info/20 border-info/30"
-            >
+            <Badge variant="info">
               <ShieldIcon className="h-3 w-3" />
               Scenario Controlled
             </Badge>
           ) : isAllUnlocked ? (
-            <Badge
-              variant="outline"
-              className="bg-success/15 text-success hover:bg-success/20 border-success/30"
-            >
+            <Badge variant="success">
               <LockOpenIcon className="h-3 w-3" />
               All Unlocked
             </Badge>
           ) : (
-            <Badge
-              variant="outline"
-              className="bg-warning/15 text-warning hover:bg-warning/20 border-warning/30"
-            >
+            <Badge variant="warning">
               <LockIcon className="h-3 w-3" />
               {currentLockedBands.length} / {supportedBands.length} Bands
             </Badge>

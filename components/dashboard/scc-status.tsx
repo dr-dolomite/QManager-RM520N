@@ -49,10 +49,8 @@ const SccStatusComponent = ({ carriers }: SccStatusProps) => {
                 </p>
               </div>
             </div>
-            <Badge
-              variant="outline"
-              className="bg-info/15 text-info hover:bg-info/20 border-info/30 tabular-nums"
-            >
+            <Badge variant="info"
+              className="tabular-nums">
               +{totalBw} MHz
             </Badge>
           </div>

@@ -77,7 +77,7 @@ function CidBadge({ ctx }: { ctx: CidContext }) {
 
   if (ctx.apn_type === "ims") {
     return (
-      <Badge variant="outline" className="bg-warning/15 text-warning border-warning/30">
+      <Badge variant="warning">
         <PhoneCallIcon className="text-warning size-3" />
         {t("core_settings.apn.edit.fields.modem_profile.ims_badge")}
       </Badge>
@@ -85,7 +85,7 @@ function CidBadge({ ctx }: { ctx: CidContext }) {
   }
   if (ctx.apn_type === "emergency") {
     return (
-      <Badge variant="outline" className="bg-destructive/15 text-destructive border-destructive/30">
+      <Badge variant="destructive">
         <SirenIcon className="text-destructive size-3" />
         {t("core_settings.apn.edit.fields.modem_profile.sos_badge")}
       </Badge>
@@ -93,7 +93,7 @@ function CidBadge({ ctx }: { ctx: CidContext }) {
   }
   if (ctx.is_internet) {
     return (
-      <Badge variant="outline" className="bg-success/15 text-success border-success/30">
+      <Badge variant="success">
         <GlobeIcon className="text-success size-3" />
         {t("core_settings.apn.edit.fields.modem_profile.for_internet")}
       </Badge>
@@ -126,10 +126,7 @@ function LiveStatusBadge({
   if (active === 0) {
     return (
       <div className="flex items-center gap-2">
-        <Badge
-          variant="outline"
-          className="bg-muted/50 text-muted-foreground border-muted-foreground/30"
-        >
+        <Badge variant="muted">
           <CircleSlashIcon className="size-3" />
           {t("core_settings.apn.status.carrier_default")}
         </Badge>
@@ -155,10 +152,8 @@ function LiveStatusBadge({
   if (!isSaving && liveApn !== null && !isMatch) {
     return (
       <div className="flex flex-col gap-1">
-        <Badge
-          variant="outline"
-          className="bg-warning/15 text-warning border-warning/30 w-fit"
-        >
+        <Badge variant="warning"
+          className="w-fit">
           <TriangleAlertIcon className="size-3" />
           {t("core_settings.apn.status.not_live")}
         </Badge>
@@ -172,10 +167,7 @@ function LiveStatusBadge({
   }
 
   return (
-    <Badge
-      variant="outline"
-      className="bg-success/15 text-success border-success/30"
-    >
+    <Badge variant="success">
       <GlobeIcon className="size-3" />
       {t("core_settings.apn.status.active")}
     </Badge>

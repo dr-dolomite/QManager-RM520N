@@ -1,20 +1,30 @@
+import { SignalHighIcon, SignalMediumIcon, SignalLowIcon } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 
+// These three chips share one table column, so they are read against each other
+// rather than in isolation. `success-container` and `warning-container` sit
+// 1.03:1 apart in measured contrast — the same surface to the eye, and identical
+// under deuteranopia — so Good and Fair cannot be told apart by fill. The signal
+// glyph encodes the verdict by bar count, which survives both a colourblind
+// reader and a greyscale print.
 export function SignalBadge({ strength }: { strength: number }) {
   if (strength >= -85)
     return (
-      <Badge className="bg-success/15 text-success hover:bg-success/20 border-success/30">
+      <Badge variant="success">
+        <SignalHighIcon className="size-3" />
         Good
       </Badge>
     );
   if (strength >= -100)
     return (
-      <Badge className="bg-warning/15 text-warning hover:bg-warning/20 border-warning/30">
+      <Badge variant="warning">
+        <SignalMediumIcon className="size-3" />
         Fair
       </Badge>
     );
   return (
-    <Badge className="bg-destructive/15 text-destructive hover:bg-destructive/20 border-destructive/30">
+    <Badge variant="destructive">
+      <SignalLowIcon className="size-3" />
       Bad
     </Badge>
   );

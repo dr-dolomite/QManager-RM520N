@@ -640,10 +640,7 @@ function renderBody({
           poll tick from the cells themselves. */}
       {isStale && (
         <div aria-live="polite" className="flex flex-wrap items-center gap-2">
-          <Badge
-            variant="outline"
-            className="bg-warning/15 text-warning-on-surface hover:bg-warning/20 border-warning/30"
-          >
+          <Badge variant="warning">
             <TriangleAlertIcon className="size-3" aria-hidden />
             {t("overview.stale_indicator")}
           </Badge>
