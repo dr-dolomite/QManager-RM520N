@@ -66,6 +66,10 @@ const RESOLVED_BY: Partial<Record<NetworkEventType, NetworkEventType>> = {
  *   nr_anchor     "5G NR anchor lost" (warning) -> "acquired" (info)
  *   ca_change     "LTE/NR CA deactivated" (warning) -> "activated" (info)
  *   airplane_mode enabled (warning) -> disabled (info)
+ *
+ * Read by TWO consumers, which is why it is worth keeping as one list: the
+ * pairing pass below, and `toneOf`, where membership plus info severity is what
+ * makes a gained carrier green instead of grey.
  */
 const SELF_RESOLVING: ReadonlySet<NetworkEventType> = new Set([
   "nr_anchor",
@@ -213,7 +217,11 @@ export function isFresh(event: NetworkEvent, nowSec: number): boolean {
 }
 
 /** Info-severity types that report something going RIGHT rather than something
- *  merely changing. They earn the success glyph; a band change does not. */
+ *  merely changing. They earn the success glyph; a band change does not.
+ *
+ *  This set names types that are recoveries OUTRIGHT — every event of this type
+ *  is good news. It is deliberately not the whole story: see `SELF_RESOLVING`
+ *  in `toneOf`, where the direction lives in severity rather than in the type. */
 const RECOVERY_TYPES: ReadonlySet<NetworkEventType> = new Set([
   "internet_restored",
   "signal_restored",
@@ -336,11 +344,32 @@ const SR_KEY: Record<EventTone, string> = {
  * `unresolved` rows were ever filled, and no error-emitting type can be
  * unresolved (none enters RESOLVED_BY or SELF_RESOLVING), so that branch was
  * unreachable plumbing.
+ *
+ * The SELF_RESOLVING branch is the one that stops a carrier being ADDED from
+ * reading as housekeeping. `ca_change` is a single type carrying both
+ * directions — "LTE CA activated: B1+B3" at info (events.sh:721), "LTE carriers
+ * changed from 2 to 3 (+B3)" at info (:754), "LTE CA deactivated" at warning
+ * (:730) — and the count-shrink case already downgrades itself to warning
+ * (:736). So by the time control reaches here, an info-severity self-resolver
+ * has ALREADY been filtered by the two severity guards above: it can only be
+ * the recovery half. That is why the set needs no severity check of its own,
+ * and why gaining a carrier is green while a band handoff stays routine. A
+ * handoff swaps one band for another and nothing improved; this is capacity
+ * that was missing and came back.
+ *
+ * Reusing SELF_RESOLVING rather than listing `ca_change` in RECOVERY_TYPES is
+ * the point: that set is already DEFINED as "types whose info half is the
+ * recovery", so tone and the unresolved pairing now read one fact instead of
+ * two lists that can drift apart. It also, by construction, greens the other
+ * two members on their info half — "5G NR anchor acquired" (:674) and airplane
+ * mode disabled — which is the same statement in both cases: a radio capability
+ * that was gone is back.
  */
 function toneOf(event: NetworkEvent): EventTone {
   if (event.severity === "error") return "error";
   if (event.severity === "warning") return "warning";
-  if (RECOVERY_TYPES.has(event.type)) return "success";
+  if (RECOVERY_TYPES.has(event.type) || SELF_RESOLVING.has(event.type))
+    return "success";
   return "routine";
 }
 

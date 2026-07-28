@@ -192,8 +192,12 @@ This is also why the earlier resolution-only model was replaced rather than exte
 | ---- | ------------ | ------------------------- | ----------------------- |
 | `error` | `severity === "error"` | `bg-destructive-container text-on-destructive-container` | `bg-destructive text-destructive-foreground` |
 | `warning` | `severity === "warning"` | `bg-warning-container text-on-warning-container` | `bg-warning text-warning-foreground` |
-| `success` | info **and** in `RECOVERY_TYPES` | `bg-success-container text-on-success-container` | `bg-success text-success-foreground` |
+| `success` | info **and** in `RECOVERY_TYPES` **or** `SELF_RESOLVING` | `bg-success-container text-on-success-container` | `bg-success text-success-foreground` |
 | `routine` | everything else | `bg-surface-container-high` (**achromatic**, no `on-` pair) | see `routineDisc` below |
+
+The `SELF_RESOLVING` half of the success rule is what makes a **gained carrier green**. `ca_change` is one type carrying both directions, and the two severity guards above it have already run, so an info-severity self-resolver can only be the recovery half — the set needs no severity check of its own. Concretely: "LTE CA activated: B1+B3" (`events.sh:721`) and "LTE carriers changed from 2 to 3 (+B3)" (`:754`) are green, while "LTE CA deactivated" (`:730`) and any count *shrink* (`:736` downgrades itself to `warning`) are amber. The other two members green on the same reading — "5G NR anchor acquired" (`:674`) and airplane mode disabled: a radio capability that was gone came back.
+
+Reusing `SELF_RESOLVING` rather than adding `ca_change` to `RECOVERY_TYPES` is deliberate. That set is *already defined* as "types whose info half is the recovery", so tone and the unresolved pairing read one fact instead of two lists that can drift. Note the consequence in the glyph table below: a green `ca_change` takes `CheckCircle2Icon`, not its `FAMILY_GLYPHS` radio tower — tone outranks family, and green always means a check across the whole card.
 
 The three chromatic fills ship their own paired `on-` ink, so a row using them sets **no** per-line color at all: `presentEvent` returns an empty `messageClass` on a chromatic row. A second, differently toned voice inside the fill would read as two statements rather than one.
 
@@ -214,7 +218,9 @@ The reference draws the recessed-well version (down), which reads as *present, n
 
 This is the one place the design reference had to be extrapolated rather than traced: it shows no fresh routine row, so there was no literal answer to copy. Both colored options were worse than a neutral step.
 
-`success-container` would claim a band change is good news. It is not news at all. `severity: "info"` in this system means *routine*, not *good*: `events.sh` emits `info` for LTE band settle (`:649`), LTE PCC cell handoff (`:661`), NR band settle (`:697`), NR PCC cell handoff (`:708`) and CA activation (`:721`). A handoff is the radio doing its job, and tinting it green would spend a functional color decoratively, which the Functional-Color Promise forbids.
+`success-container` would claim a band change is good news. It is not news at all. `severity: "info"` in this system means *routine*, not *good*: `events.sh` emits `info` for LTE band settle (`:649`), LTE PCC cell handoff (`:661`), NR band settle (`:697`) and NR PCC cell handoff (`:708`). A handoff is the radio doing its job, and tinting it green would spend a functional color decoratively, which the Functional-Color Promise forbids.
+
+CA activation (`:721`) is the line that **left** this list: a handoff swaps one band for another and nothing improved, but a carrier being added is capacity that was missing and came back. That is a real functional gain, so it earns the green — see the `SELF_RESOLVING` note under the tone table.
 
 The instability rows at `:652` / `:664` / `:700` / `:711` are the exception that proves the rule: they carry `warning`, so they leave the routine family entirely and are drawn amber with the warning triangle. A band that is *moving* is routine; a band that will not stop moving is not.
 
@@ -293,11 +299,11 @@ Glyph selection is severity first, family second:
 | --------- | ----- | ------------ |
 | tone `error` | `XCircleIcon` | Error |
 | tone `warning` | `TriangleAlertIcon` | Warning |
-| tone `success` (info **and** in `RECOVERY_TYPES`) | `CheckCircle2Icon` | Recovered |
+| tone `success` (info **and** in `RECOVERY_TYPES` or `SELF_RESOLVING`) | `CheckCircle2Icon` | Recovered |
 | tone `routine`, family mapped (`FAMILY_GLYPHS`) | `ArrowLeftRightIcon` handoff, `RadioTowerIcon` radio, `MicrochipIcon` SIM, `IdCardIcon` profile | Routine |
 | tone `routine`, unmapped | `InfoIcon` | Routine |
 
-`RECOVERY_TYPES` is deliberately narrower than "severity info": it is the info events that report something going *right* (`internet_restored`, `signal_restored`, `latency_recovered`, `packet_loss_recovered`, `watchcat_recovery`, `profile_applied`), not everything that merely changed. A band change does not earn a green check.
+`RECOVERY_TYPES` is deliberately narrower than "severity info": it names types that are recoveries *outright* — every event of the type is good news (`internet_restored`, `signal_restored`, `latency_recovered`, `packet_loss_recovered`, `watchcat_recovery`, `profile_applied`). `SELF_RESOLVING` covers the other shape, where the direction lives in severity rather than in the type, and only its info half is green. Between them they still exclude the bulk of `info`: a band change or a cell handoff does not earn a green check.
 
 `srSeverityKey` is overridden to `activities.severity.unresolved` on an unresolved row, since the row is describing a present condition, not a past severity. It is rendered **before** the label.
 
