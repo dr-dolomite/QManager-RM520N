@@ -187,7 +187,7 @@ Runtime state is coordinated entirely through files — **no IPC sockets or sign
 | `/tmp/qmanager_status.json` | poller | JSON | Main modem-status cache (the frontend's source of truth) |
 | `/tmp/qmanager_signal_history.json` | poller | NDJSON | Per-antenna signal history (~30 min, 180 lines @ 10s) |
 | `/tmp/qmanager_ping_history.json` | poller | NDJSON | Latency history (24 h, max 8640 lines @ 10s) |
-| `/tmp/qmanager_events.json` | poller | NDJSON | Network events (max 50 entries) |
+| `/tmp/qmanager_events.json` | poller (+ 4 other producers) | NDJSON | Network events (max 300 entries) |
 | `/tmp/qmanager_pci_state.json` | poller | JSON | SCC PCI tracking for event detection |
 | `/usrdata/qmanager/data_used.json` | poller | JSON | Persistent RX/TX byte accounting (survives reboot) |
 | `/tmp/qmanager_ping.json` | ping daemon | JSON | Current connectivity/latency result |
@@ -260,13 +260,14 @@ Full detail — including the "do NOT UPX-compress the Rust binary" rule and `pi
 
 ## Event System
 
-The poller's `events.sh` library detects state changes each cycle and appends them to the events NDJSON file (max 50), which the UI surfaces as "Recent Activity":
+The poller's `events.sh` library detects state changes each cycle and appends them to the events NDJSON file (max 300; the CGI serves only the newest 50), which the UI surfaces as "Recent Activity":
 
 | Event Type | Trigger | Severity |
 |-----------|---------|----------|
 | `network_mode` | LTE ↔ 5G-NSA ↔ 5G-SA switch | info/warning |
-| `band_change` | LTE or NR band changed | info |
-| `pci_change` / `scc_pci_change` | PCC / SCC cell handoff | info |
+| `band_change` | LTE or NR band settled on a new value (debounced), or is churning | info/warning |
+| `pci_change` | PCC cell handoff (debounced), or cell is churning | info/warning |
+| `scc_pci_change` | SCC cell handoff | info |
 | `ca_change` | Carrier aggregation activated/deactivated/count changed | info/warning |
 | `nr_anchor` | 5G NR anchor gained/lost | info/warning |
 | `airplane_mode` | CFUN state toggled (radio on/off) | info/warning |
@@ -274,6 +275,8 @@ The poller's `events.sh` library detects state changes each cycle and appends th
 | `internet_lost` / `internet_restored` | Internet connectivity change | warning/info |
 | `high_latency` / `latency_recovered` | Latency over threshold (debounced) | warning/info |
 | `high_packet_loss` / `packet_loss_recovered` | Loss over threshold (debounced) | warning/info |
+
+Band and PCI are **settle-debounced**: a value must hold for `EV_SETTLE_SAMPLES` (3, ~9s) consecutive non-blank readings before an event is written, and a value that churns faster than that emits one `warning`-severity "unstable" row per `EV_FLAP_WINDOW` (300s) instead. Blank readings — what `AT+QENG` returns during a service drop — are treated as absent observations, not as values. See [`reference/recent-activities.md`](reference/recent-activities.md).
 
 Two additional events are emitted from outside `events.sh`: `sim_swap_detected` (poller `collect_boot_data`, when the boot ICCID differs from the stored one) and watchdog recovery/failover events (from `qmanager_watchcat`). Events are suppressed during active watchdog recovery to prevent noise.
 

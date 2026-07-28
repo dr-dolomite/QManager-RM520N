@@ -197,7 +197,7 @@ PATH is exported at source time to include `/opt/bin:/opt/sbin:/usr/bin:/usr/sbi
 | `cgi_success` | Emit `{"success":true}` |
 | `cgi_error <code> <detail>` | Emit `{"success":false,"error":$code,"detail":$detail}` |
 | `cgi_reboot_response` | Emit success, then async-wait for `/tmp/qmanager_reboot_ack` (up to `$QM_REBOOT_ACK_TIMEOUT`s, default 20) before issuing reboot via `run_reboot`. See [§4.3.1 Reboot Ack Handshake](#431-reboot-ack-handshake). |
-| `serve_ndjson_as_array <file>` | Serve an NDJSON file as a JSON array; emits `[]` if missing |
+| `serve_ndjson_as_array <file> [limit]` | Serve an NDJSON file as a JSON array; emits `[]` if missing. Optional `limit` serves only the newest N lines (default `0` = whole file) |
 
 #### 4.3.1 Reboot Ack Handshake
 
@@ -256,12 +256,13 @@ msmtp binary is detected at source time from `/opt/bin/msmtp` (Entware) or `/usr
 
 ### 4.6 `events.sh`
 
-Network event detection library. Sourced by `qmanager_poller` and `qmanager_watchcat`. Detects state changes and appends NDJSON events to `/tmp/qmanager_events.json` (max 50 entries). Reads global state variables populated by the poller's AT parsers.
+Network event detection library. Sourced by `qmanager_poller` and `qmanager_watchcat`. Detects state changes and appends NDJSON events to `/tmp/qmanager_events.json` (max `$MAX_EVENTS` = 300 entries). Reads global state variables populated by the poller's AT parsers.
 
 | Function | Description |
 |----------|-------------|
 | `append_event <type> <message> [severity]` | Append one event record to `$EVENTS_FILE`; trims to `$MAX_EVENTS` |
-| `snapshot_event_state` | Snapshot current state into `prev_ev_*` variables |
+| `_ev_settle <channel> <value>` | Settle debounce for band / PCI. rc 0 = settled (sets `$_EV_SETTLED_FROM` / `$_EV_SETTLED_TO`), rc 1 = nothing to report, rc 2 = churning (sets `$_EV_FLAP_N`). Blank values are skipped as absent observations |
+| `snapshot_event_state` | Snapshot current state into `prev_ev_*` variables. Band and PCI keep last-known-good across a blank reading |
 | `detect_events` | Compare current vs previous state; emit events for all changes |
 | `detect_data_connection_events` | Detect internet up/down and high latency/loss events (debounced) |
 | `detect_scc_pci_changes` | Detect SCC cell handoffs via `$PCI_STATE_FILE`; called on Tier 2 refresh |
@@ -271,6 +272,12 @@ Network event detection library. Sourced by `qmanager_poller` and `qmanager_watc
 | `_ev_net_context` | Build short network context string from current globals |
 
 **First-cycle behaviour:** `detect_events` populates `prev_ev_*` on the first call without emitting events. Set `events_initialized=false` at startup.
+
+**Band / PCI debounce:** the four discrete radio identifiers (`lte_band`, `lte_pci`, `nr_band`, `nr_pci`) are routed through `_ev_settle` rather than compared with a raw `!=`. A value must hold for `EV_SETTLE_SAMPLES` (3, ~9s at the measured ~3s cadence) consecutive non-blank observations before it is announced as `<X> settled on <new> (was <old>)`; a value changing more than `EV_FLAP_THRESHOLD` (6) times inside `EV_FLAP_WINDOW` (300s) instead emits one `warning`-severity "unstable" event per window. Per-channel counters live in poller globals (`_ev_hold_<ch>`, `_ev_holdn_<ch>`, `_ev_last_<ch>`, `_ev_flapn_<ch>`, `_ev_flapt_<ch>`, `_ev_flapr_<ch>`) and are **not** persisted, so `restore_event_state`'s positional `cut -f` decode is unaffected.
+
+> ⚠️ WARNING: the three constants are hard-coded in `events.sh`, not config keys. `settings/quality_thresholds.sh` rebuilds `quality_thresholds.json` from scratch with exactly two keys, and `install_backend` only deploys config files that do not already exist — a new key would be erased on the next preset save and would never reach an upgraded device.
+
+> ⚠️ WARNING: `MAX_EVENTS` is defined independently by **five** producers that all append to and trim the same file (`qmanager_poller`, `qmanager_watchcat`, `qmanager_profile_apply`, `profile_mgr.sh`, `profiles/deactivate.sh`). They must agree, or the smallest value wins.
 
 **Low power suppression:** All event detection is suppressed when `/tmp/qmanager_low_power_active` exists.
 

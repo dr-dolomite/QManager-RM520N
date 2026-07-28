@@ -1,6 +1,6 @@
 # Recent Activities (Dashboard Event Feed)
 
-The Recent Activities card is the dashboard's window onto the poller's network event log: what the radio did, newest first. It does one thing the backend deliberately does not, which is decide whether anything on that list is *still* wrong. The event log is a flat transcript where "Internet Lost" reads exactly like "Internet Restored" two rows above it; the card gives every row a **tone** (what kind of thing happened) and then decides its **weight** (how loudly to draw it) from age, with unresolved conditions exempt from ageing out. This doc covers the data path, the tone and resolution-pairing model in `lib/event-presentation.ts`, the presentation contract the card renders from, and the invariants that are easy to break.
+The Recent Activities card is the dashboard's window onto the poller's network event log: what the radio did, newest first. It does one thing the backend deliberately does not, which is decide whether anything on that list is *still* wrong. The event log is a flat transcript where "Internet Lost" reads exactly like "Internet Restored" two rows above it; the card gives every row a **tone** (what kind of thing happened) and then decides its **weight** (how loudly to draw it) from age, with unresolved conditions exempt from ageing out. This doc covers the data path, the producer-side settle debounce in `events.sh` that decides whether a band or cell change is worth writing down at all, the tone and resolution-pairing model in `lib/event-presentation.ts`, the presentation contract the card renders from, and the invariants that are easy to break.
 
 ## Quick Reference
 
@@ -8,8 +8,10 @@ The Recent Activities card is the dashboard's window onto the poller's network e
 | ----- | ----- |
 | Producer | `scripts/usr/lib/qmanager/events.sh` (sourced by `qmanager_poller`) |
 | Backing file | `/tmp/qmanager_events.json` (NDJSON, one object per line, oldest first) |
-| Ring-buffer cap | `MAX_EVENTS=50` (`scripts/usr/bin/qmanager_poller:111`) |
+| Ring-buffer cap | `MAX_EVENTS=300` (`scripts/usr/bin/qmanager_poller:119`, and four other producers — see below) |
+| Settle debounce | `EV_SETTLE_SAMPLES=3`, `EV_FLAP_THRESHOLD=6`, `EV_FLAP_WINDOW=300` (`events.sh:242-249`, hard-coded) |
 | CGI endpoint | `GET /cgi-bin/quecmanager/at_cmd/fetch_events.sh` (zero modem contact, RAM read only) |
+| Served slice | `EVENTS_SERVE_LIMIT=50` (newest 50 lines of the 300-slot ring) |
 | Hook | `hooks/use-recent-activities.ts` (10s poll, reverses to newest-first, keeps 20) |
 | Presentation model | `lib/event-presentation.ts` (pure, no React) |
 | Card | `components/dashboard/recent-activities.tsx` |
@@ -23,17 +25,145 @@ The Recent Activities card is the dashboard's window onto the poller's network e
 ## Data Path
 
 ```
-events.sh  append_event()   -> /tmp/qmanager_events.json   (NDJSON, append + tail -n 50)
-fetch_events.sh             -> JSON array, oldest first     (serve_ndjson_as_array)
+events.sh  _ev_settle()     -> debounce, producer side      (band + PCI only)
+events.sh  append_event()   -> /tmp/qmanager_events.json    (NDJSON, append + tail -n 300)
+fetch_events.sh             -> JSON array, oldest first     (newest 50 lines only)
 useRecentActivities()       -> reverse() + slice(0, 20)     (newest first)
 computeUnresolved(events)   -> Set<number> of indices       (full 20, never the sliced 5)
 isFresh(event, nowSec)      -> boolean                      (now - timestamp < 3600)
 presentEvent(ev, unres, fr) -> glyph + tone + 4 class slots + sr-only key
 ```
 
-`append_event` writes `{timestamp, type, message, severity}`, trims the file to the newest 50 lines, and mirrors the line into the poller log as `EVENT [<type>] <message>`. The CGI is a pure file read; nothing on this path touches an AT channel or takes the `/tmp/qmanager_at.lock`.
+`append_event` writes `{timestamp, type, message, severity}`, trims the file to the newest `MAX_EVENTS` lines, and mirrors the line into the poller log as `EVENT [<type>] <message>`. The CGI is a pure file read; nothing on this path touches an AT channel or takes the `/tmp/qmanager_at.lock`.
+
+Note the funnel: **300 on disk, 50 served, 20 kept, 5 drawn.** Each step exists for a different reason and they are not interchangeable — see [Ring depth vs. served slice](#ring-depth-vs-served-slice).
 
 > ℹ️ NOTE: the same event log feeds `/monitoring` via `components/monitoring/network-events-card.tsx`. It has its own independent internet-lost detection and is not coupled to the Centralized Alerts engine, so a device can log a "connection lost" activity without dispatching any alert. See [alerts.md](alerts.md).
+
+## The Producer-Side Debounce
+
+Everything below this heading happens on the modem, in `events.sh`, before a line is ever written. It is the half of the feature that decides *whether there is an event at all*; everything after it decides how an event that already exists is drawn.
+
+### The problem it solves
+
+The serving band and the serving cell identity are read once per poll cycle and compared against the previous sample. Until v0.1.14 that comparison was a raw `!=`: any difference emitted an event immediately.
+
+That is wrong because of how a modem recovers from a service drop. It does not jump straight back to the band it was on — it **walks a ladder** of coverage bands, camping on each for one or two samples, and usually settles back where it started. Every rung of that walk was a `band_change` row.
+
+A live RM520N probe caught it mid-storm: **44 of the 50 ring slots were `band_change`**, the entire ring spanned **12.5 minutes**, and one outage plus one 100%-packet-loss episode were the only other history that had survived. The problem the user opens the dashboard to diagnose was being evicted by the noise generated while diagnosing it. Re-measured at validation time on a quieter device, `band_change` was still 76% of the ring.
+
+### Blanks are not values
+
+`parse_serving_cell` blanks `lte_band` / `lte_pci` / `nr_band` / `nr_pci` whenever `AT+QENG="servingcell"` returns no usable line (`parse_at.sh:113-119`, `:232-235`) — which is exactly what happens during a drop. The old `snapshot_event_state` copied that blank straight over the last-known-good value, so the *return* leg of every re-acquisition compared a real band against `""`, failed the `[ -n "$prev_ev_lte_band" ]` guard, and vanished silently.
+
+The proof is a degree census over the live capture: **B8 was departed 24 times and entered twice**, which is impossible for a contiguous walk. Half the transitions were being reported and half were being swallowed, which is why the noise also looked incoherent.
+
+Two changes fix it, and they are separate:
+
+1. `_ev_settle` returns immediately on a blank. No observation, no counter movement — an outage cannot reset a settle already in progress.
+2. `snapshot_event_state` preserves last-known-good for exactly those four fields:
+
+```sh
+prev_ev_lte_band="${lte_band:-$prev_ev_lte_band}"
+prev_ev_lte_pci="${lte_pci:-$prev_ev_lte_pci}"
+prev_ev_nr_band="${nr_band:-$prev_ev_nr_band}"
+prev_ev_nr_pci="${nr_pci:-$prev_ev_nr_pci}"
+```
+
+Every other `prev_ev_*` field keeps its unconditional copy. A visible side benefit: the `5G NR anchor lost (was B78)` message no longer goes empty precisely when a user most wants to know which band they fell off.
+
+### `_ev_settle`
+
+A discrete value must **hold** for `EV_SETTLE_SAMPLES` consecutive non-blank observations before it is announced.
+
+```sh
+_ev_settle <channel> <current-value>; rc=$?
+#   rc 0 → settled onto a new value; read $_EV_SETTLED_TO / $_EV_SETTLED_FROM
+#   rc 1 → nothing to report (blank, still settling, or unchanged)
+#   rc 2 → churning; read $_EV_FLAP_N for the count in this window
+```
+
+Four channels use it, one per undebounced site: `lte_band`, `lte_pci`, `nr_band`, `nr_pci`. `<channel>` must be a bare identifier because it is interpolated into variable names — per-channel state lives in poller globals built with `eval`:
+
+| Variable | Holds |
+| -------- | ----- |
+| `_ev_hold_<ch>` | the candidate value currently being held |
+| `_ev_holdn_<ch>` | how many consecutive observations have held it |
+| `_ev_last_<ch>` | the last value actually announced |
+| `_ev_flapn_<ch>` | candidate changes counted in the current churn window |
+| `_ev_flapt_<ch>` | when that window opened |
+| `_ev_flapr_<ch>` | when an instability event was last emitted (the rate-limit latch) |
+
+> ℹ️ NOTE: these counters are **not persisted**, matching the existing latency and loss streak counters (`qmanager_poller:131-135`). That is deliberate: it means the positional `cut -f` decode in `restore_event_state` is untouched, so adding the debounce could not corrupt state restore. The cost is one settle window of silence after a poller restart.
+
+`EV_SETTLE_SAMPLES` is **3**, which is roughly **9 seconds** — not 6. The measured poll cadence is ~3s, because `POLL_INTERVAL=2` is a `sleep 2` placed *after* the cycle body, not a period. In the live capture every intermediate rung was held for 1-2 samples and the steady-state band held for 45 consecutive samples, so 3 separates them with a wide margin.
+
+The NR pair gets one extra guard. While the NR anchor is down there is nothing to observe, so the caller feeds `_ev_settle` a **blank** rather than skipping the call — counters freeze instead of resetting, and an NSA drop-and-reacquire onto the same band stays silent. The anchor itself is already reported by the `nr_anchor` events.
+
+### The wording contract: "settled on X (was Y)"
+
+This is not a copy preference, it is a correctness constraint. The messages are now:
+
+```
+LTE band settled on B28 (was B41) (PCI 305)
+LTE PCC cell handoff on B41 (PCI 271 -> 305)
+NR band settled on N78 (was N41) (PCI 812)
+```
+
+The old wording was `LTE band changed from B41 to B28`. Under a debounce that is a **lie**: the radio really did pass through the intermediate rungs, and B41 → B28 asserts a direct hop that never happened. "Settled on X (was Y)" keeps both clauses true no matter how many rungs were skipped — X is where it is now, Y is where it was — while claiming nothing about the path between them.
+
+> ⚠️ WARNING: any future edit to these strings must preserve that property. If a debounced event names two values, it may only state them as endpoints, never as a transition.
+
+### The instability event
+
+A hold-only rule has a nasty failure mode: a radio oscillating *faster* than the settle window never settles, so the card would go **completely silent on the most broken radio it could encounter**. That is worse than the noise it replaces.
+
+So churn is counted. `_ev_settle` returns rc 2 when `EV_FLAP_THRESHOLD` (6) candidate changes occur inside `EV_FLAP_WINDOW` (300s), and the caller emits one row at **`warning`** severity:
+
+```
+LTE band unstable — 14 changes in the last 5 min
+LTE cell unstable — 9 handoffs in the last 5 min
+```
+
+Six changes in five minutes is well clear of a normal handoff rate and well under the ~44-per-12-minutes the live storm produced. A value returning to the one already announced is counted as a settle, not a flap.
+
+**This is the first time `band_change` and `pci_change` have ever carried `warning` severity.** The presentation layer needed no change to absorb it: `glyphOf` (`lib/event-presentation.ts:306-311`) is tone-first, so a `warning`-severity `band_change` automatically gets the amber `warning-container` and the `TriangleAlertIcon` rather than the routine `ArrowLeftRightIcon` handoff glyph — satisfying `DESIGN.md`'s rule that two states occupying the same slot never share a glyph. Both remain **one-shot** types in `computeUnresolved`; an instability report describes a window that has closed.
+
+> ⚠️ WARNING: the rate limit is its own latch (`_ev_flapr_<ch>`), separate from the counter. Resetting only the counter was tried and is broken: a radio oscillating every sample re-reaches 6 changes in about 18 seconds, rebuilding the exact storm the debounce exists to stop — at `warning` severity instead of `info`, which is strictly worse. The latch clears on settle, so a genuinely new episode is still reported promptly. The new test fixtures caught this before it shipped.
+
+### Why the constants are hard-coded
+
+`EV_SETTLE_SAMPLES`, `EV_FLAP_THRESHOLD` and `EV_FLAP_WINDOW` are shell constants in `events.sh`, **not** config keys, and this is deliberate. Two independent mechanisms would each silently eat a new key:
+
+1. **The CGI rebuilds the file.** `scripts/www/cgi-bin/quecmanager/settings/quality_thresholds.sh:103-114` writes `quality_thresholds.json` from scratch with exactly two keys. A third would be erased the next time the user saved a preset.
+2. **The installer will not overwrite.** `install_backend` (`scripts/install_rm520n.sh:1287-1298`) only deploys config files that do **not** already exist, so an upgraded device would never receive the new seed — it would silently fall back to whatever the shell default is, on exactly the devices most likely to hit the bug.
+
+Either mechanism alone is enough to make the setting a lie. `config.sh` has no key-migration primitive to route around them.
+
+They are still written as `${EV_SETTLE_SAMPLES:-3}` so the test harness can override them from the environment. That is a testing seam, not a user-facing knob.
+
+### Ring depth vs. served slice
+
+`MAX_EVENTS` went **50 → 300**. The point is not more history for its own sake — it is that a burst of radio churn must not be able to evict the outage the user is chasing. Measured cost: ~117 bytes per event, so 300 slots is ~35KB against ~62MB free on `/tmp`.
+
+> ⚠️ WARNING: **five** producers append to `/tmp/qmanager_events.json` and each trims it independently, so they must all agree on `MAX_EVENTS`. Change all five together or the smallest one wins:
+>
+> | Producer | Line |
+> | -------- | ---- |
+> | `scripts/usr/bin/qmanager_poller` | `:119` |
+> | `scripts/usr/bin/qmanager_watchcat` | `:39` |
+> | `scripts/usr/bin/qmanager_profile_apply` | `:44` |
+> | `scripts/usr/lib/qmanager/profile_mgr.sh` | `:551` (fallback default) |
+> | `scripts/www/cgi-bin/quecmanager/profiles/deactivate.sh` | `:28` |
+
+The browser is not made to pay for the extra depth. `serve_ndjson_as_array` in `cgi_base.sh` gained an **optional** second argument, a line limit:
+
+```sh
+serve_ndjson_as_array "$EVENTS_FILE" "$EVENTS_SERVE_LIMIT"   # newest 50
+serve_ndjson_as_array "$SOME_FILE"                            # whole file, unchanged
+```
+
+The default is `0` = whole file, so the two other callers (`fetch_ping_history.sh`, `fetch_signal_history.sh`) are unaffected. `fetch_events.sh` passes `EVENTS_SERVE_LIMIT=50`, which is the pre-change payload size — the hook keeps 20 and the card draws 5, so 50 is already comfortably deeper than anything reads.
 
 ## The Age-Gated Tone Model
 
@@ -69,13 +199,15 @@ The three chromatic fills ship their own paired `on-` ink, so a row using them s
 
 This is the one place the design reference had to be extrapolated rather than traced: it shows no fresh routine row, so there was no literal answer to copy. Both colored options were worse than a neutral step.
 
-`success-container` would claim a band change is good news. It is not news at all. `severity: "info"` in this system means *routine*, not *good*: `events.sh` emits `info` for LTE band change (`:498`), LTE PCC cell handoff (`:507`), NR band change (`:537`), NR PCC cell handoff (`:547`) and CA activation (`:557`). A handoff is the radio doing its job, and tinting it green would spend a functional color decoratively, which the Functional-Color Promise forbids.
+`success-container` would claim a band change is good news. It is not news at all. `severity: "info"` in this system means *routine*, not *good*: `events.sh` emits `info` for LTE band settle (`:649`), LTE PCC cell handoff (`:661`), NR band settle (`:697`), NR PCC cell handoff (`:708`) and CA activation (`:721`). A handoff is the radio doing its job, and tinting it green would spend a functional color decoratively, which the Functional-Color Promise forbids.
+
+The instability rows at `:652` / `:664` / `:700` / `:711` are the exception that proves the rule: they carry `warning`, so they leave the routine family entirely and are drawn amber with the warning triangle. A band that is *moving* is routine; a band that will not stop moving is not.
 
 `primary-container` measures **L 0.400** in dark mode against **0.300 / 0.320 / 0.325** for success / warning / destructive. A routine handoff would be the brightest row on the card, louder than an outage. Inverted urgency.
 
 `surface-container-high` (L 0.918 light, 0.312 dark) is a step up from the resting surface without making a color claim, which is exactly the reading: noted, recent, not important. It is also already the shipped meaning of the `muted` badge role, so the vocabulary stays consistent across the product.
 
-**This decision is what keeps the card quiet.** A live device probe of the 50-event ring found **48 of 50 events at `info` severity and 44 of 50 of type `band_change`**, with the whole ring spanning roughly 750 seconds of wall clock. If routine were chromatic, the overwhelmingly common case would be a wall of color and the rare chromatic fills would mean nothing.
+**This decision is what keeps the card quiet.** A live device probe, taken before the producer-side debounce landed, found **48 of 50 events at `info` severity and 44 of 50 of type `band_change`**, with the whole ring spanning roughly 750 seconds of wall clock. The debounce has since removed most of that volume at the source, but the ratio argument survives it: routine handoffs remain the most common thing on a healthy device, and if routine were chromatic the common case would be a wall of color while the rare chromatic fills meant nothing.
 
 ### Why the fill is the weak channel
 
@@ -231,7 +363,7 @@ The settle from tonal to neutral is not counted against that budget: it is a `tr
 Both remaining parts are load-bearing:
 
 - **The index is gone.** The old key was `` `${timestamp}-${type}-${i}` ``. On a newest-first list one new event shifts every index, so every key changed, every row remounted, and the entire cascade replayed on every single event.
-- **The message stays.** `events.sh` emits type `pci_change` from two separate sites (LTE handoff at `:507`, NR handoff at `:547`), so an LTE and an NR handoff detected in the same poll tick share a timestamp **and** a type. Timestamp + type alone would collide.
+- **The message stays.** `events.sh` emits type `pci_change` from four separate sites (LTE handoff `:661`, LTE instability `:664`, NR handoff `:708`, NR instability `:711`), so an LTE and an NR handoff detected in the same poll tick share a timestamp **and** a type. Timestamp + type alone would collide. `band_change` is the same shape, from `:649` / `:652` / `:697` / `:700`.
 
 ## i18n
 
@@ -256,28 +388,22 @@ Adding a new `NetworkEventType` therefore means: extend the union in `types/mode
 
 - **Never slice before `computeUnresolved`.** See the warning above.
 - **Never derive `unresolved` from severity alone.** `warning` on a one-shot type (`tower_failover`, `sim_failover`) is history the moment it is written. Only `RESOLVED_BY` and `SELF_RESOLVING` members can be unresolved. A one-shot may still be *tonal*, but only for its first hour, and only via `fresh`.
-- **Never add a chromatic fill for `routine`.** See "Why `routine` is achromatic". A green or blue routine row breaks the Functional-Color Promise or inverts urgency, and 44 of 50 buffered events on a live device were routine band changes.
+- **Never add a chromatic fill for `routine`.** See "Why `routine` is achromatic". A green or blue routine row breaks the Functional-Color Promise or inverts urgency, and routine handoffs are still the most common thing on the feed even after the producer-side debounce.
+- **`band_change` and `pci_change` are no longer info-only.** Both can arrive at `warning` when the radio is churning. Anything that assumes those two types are always routine — a filter, a glyph map, a copy string — is wrong. Tone is read from severity first, never from type.
 - **Change `VISIBLE_ROWS`, never the numbers derived from it.** `LIST_MAX_H`, `RENDER_COUNT` and `ActivitiesSkeleton` all read it. A stray literal is a page jump waiting to happen.
 - **`watchcat_recovery` is in `RECOVERY_TYPES` but is never emitted at `info`.** All five call sites in `qmanager_watchcat` pass `warning` or `error`, and severity wins in `presentEvent`, so its green-check branch is currently unreachable. Intended, not a bug: the entry is there so a future "recovery succeeded" line reads correctly. `profile_applied` is the same shape in reverse, emitted at `info` for a complete apply and `warning` for a partial one.
 - **The NDJSON file lives in `/tmp` and does not survive a reboot.** An empty card after a restart is correct, not a fault.
-- **`MAX_EVENTS=50` on the device vs. `maxEvents=20` in the hook.** The resolution pass sees 20. A degradation whose recovery is more than 20 events old will still be flagged unresolved; in practice a recovery follows its degradation closely enough that this has not been observed, but it is the model's outer limit.
+- **300 on disk, 50 served, 20 kept, 5 drawn.** The resolution pass sees 20. A degradation whose recovery is more than 20 events old will still be flagged unresolved; in practice a recovery follows its degradation closely enough that this has not been observed, but it is the model's outer limit. Raising `MAX_EVENTS` does not widen that window — the hook's `maxEvents` does.
+- **The debounce costs latency, on purpose.** A genuine band change is announced about 9 seconds after it happens, not immediately. Anything that needs the current band in real time must read `status.json`, which is undebounced; the event feed is a history, not a live readout.
 
-## Known Issues
+## Tests
 
-### `band_change` has no debounce, and it can evict the entire ring
+`scripts/test/poller-phase-bcd.sh` carries the producer-side fixtures. Two are worth knowing about by name because they encode the bug and its counterpart hazard:
 
-**No code change was made for this in the presentation pass. It is a telemetry bug and deserves its own change.**
+- **The live-capture replay** — B41, nine blanks, a one-sample B8, back to B41. Must emit **zero** events. This is the exact shape that produced 44 rows before the fix.
+- **The period-2 oscillation** — a value alternating every sample. Must emit the **instability warning**, not silence. This is the fixture that caught the rate-limit latch bug.
 
-Latency and packet loss are both debounced before an event is written: `events.sh:370` and `:390` require `_qt_lat_debounce` / `_qt_loss_debounce` consecutive readings (3 on the `standard` preset) before `append_event` fires. Band change is not. `events.sh:488-489` compares the current `lte_band` against the previous **2-second** sample with a raw `!=` and emits immediately (`:498`); the NR path at `:526-528` does the same and emits at `:537`.
-
-The arithmetic is unforgiving. `POLL_INTERVAL=2` (`qmanager_poller:39`) and `MAX_EVENTS=50` (`qmanager_poller:111`), so a modem oscillating between two bands on consecutive polls can write 50 events in **about 100 seconds** and, at a more realistic every-other-poll flap, consume the whole ring in **roughly 12 minutes**, evicting every other event in it. A live probe caught this in progress: 44 of 50 buffered events were `band_change` and the entire 50-event ring spanned about 750 seconds of wall clock, meaning nothing older than 12 minutes was recoverable.
-
-Consequences worth knowing before touching this card:
-
-- The 20 events the hook keeps can be entirely band changes, so `computeUnresolved` may never see a recovery that did happen. The pass is correct; its input was starved.
-- The user-visible symptom is a card that scrolls constantly and says nothing.
-
-The fix belongs in `events.sh`, mirroring the latency pattern: require N consecutive samples on the new band before emitting, and ideally collapse a flap between two known bands into one event. Doing it in the client would only hide the eviction, not stop it.
+> ℹ️ NOTE: the suite currently reports 27 passed / 1 failed. The single failure is `read_sim_state output mismatch`, which is pre-existing on `development` and unrelated to this feature.
 
 ## See Also
 
