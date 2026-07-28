@@ -60,6 +60,8 @@
     "imsi": "IMSI",
     "iccid": "ICCID",
     "device_imei": "Dispositivo IMEI",
+    "conn_uptime_short": "Tempo Conn.",
+    "device_uptime_short": "Tempo Disp.",
     "lte_category": "Categoria LTE",
     "active_mimo": "Attivo MIMO",
     "lan_gateway": "Gateway LAN",

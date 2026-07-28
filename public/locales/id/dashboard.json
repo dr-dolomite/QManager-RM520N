@@ -60,6 +60,8 @@
     "imsi": "IMSI",
     "iccid": "ICCID",
     "device_imei": "IMEI Perangkat",
+    "conn_uptime_short": "Waktu Koneksi",
+    "device_uptime_short": "Waktu Perangkat",
     "lte_category": "Kategori LTE",
     "active_mimo": "MIMO Aktif",
     "lan_gateway": "Gateway LAN",
