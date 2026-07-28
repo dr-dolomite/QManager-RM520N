@@ -9,19 +9,67 @@ import {
   transitionStandard,
 } from "@/lib/motion";
 
+/**
+ * The meter's fill tones, as a STATIC lookup.
+ *
+ * This was `` `bg-${colorOverride}` `` — a dynamic class string, which Tailwind
+ * v4's static extractor cannot see. It rendered correctly only by accident:
+ * `bg-primary`, `bg-warning` and `bg-destructive` each happen to appear as
+ * literals elsewhere in the codebase, so the classes were in the bundle for
+ * unrelated reasons. Adding `success` would have been the first tone with no
+ * such coincidence backing it, and it would simply have rendered transparent.
+ * A map keeps every tone extractable by construction.
+ */
+const TONE_CLASS = {
+  primary: "bg-primary",
+  success: "bg-success",
+  warning: "bg-warning",
+  destructive: "bg-destructive",
+} as const;
+
+export type MetricBarTone = keyof typeof TONE_CLASS;
+
+/** Track fills, same static-extraction reasoning as `TONE_CLASS`. */
+const TRACK_CLASS = {
+  muted: "bg-muted",
+  "surface-container-high": "bg-surface-container-high",
+} as const;
+
+/** Track heights. `sm` is the historical 1px-ish hairline; `md` is the 8px
+ *  track the dashboard mock draws. */
+const SIZE_CLASS = {
+  sm: "h-1",
+  md: "h-2",
+} as const;
+
 export function MetricBar({
   value,
   max = 100,
   warnAt,
   dangerAt,
   colorOverride,
+  baseTone = "primary",
+  size = "sm",
+  track = "muted",
   index = 0,
 }: {
   value: number;
   max?: number;
   warnAt: number;
   dangerAt: number;
-  colorOverride?: "primary" | "warning" | "destructive";
+  /** Hard override — pins the fill regardless of where `value` sits. */
+  colorOverride?: MetricBarTone;
+  /**
+   * The tone the fill carries BELOW `warnAt`. Defaults to `primary`; the
+   * dashboard's temperature meter passes `success`, because a cool modem is
+   * actively good news rather than merely not-yet-bad. The warn/danger steps
+   * still take over above their thresholds, so this never suppresses a warning.
+   */
+  baseTone?: MetricBarTone;
+  /** Track height. `sm` (default) keeps every existing call site unchanged. */
+  size?: keyof typeof SIZE_CLASS;
+  /** Track fill role. Defaults to `muted` so existing call sites are unchanged. */
+  track?: keyof typeof TRACK_CLASS;
   /** Position in a stack of meters, for the arrival cascade. */
   index?: number;
 }) {
@@ -44,15 +92,22 @@ export function MetricBar({
   React.useEffect(() => {
     setTransition(transitionStandard);
   }, []);
-  const colorClass = colorOverride
-    ? `bg-${colorOverride}`
-    : value >= dangerAt
-      ? "bg-destructive"
+  const tone: MetricBarTone =
+    colorOverride ??
+    (value >= dangerAt
+      ? "destructive"
       : value >= warnAt
-        ? "bg-warning"
-        : "bg-primary";
+        ? "warning"
+        : baseTone);
+  const colorClass = TONE_CLASS[tone];
   return (
-    <div className="h-1 w-full overflow-hidden rounded-full bg-muted">
+    <div
+      className={cn(
+        "w-full overflow-hidden rounded-full",
+        SIZE_CLASS[size],
+        TRACK_CLASS[track],
+      )}
+    >
       {/* Meter fill (DESIGN.md > Motion > "Meter fill"): scaleX from the left,
           never width — width relayouts every frame of every meter on the page,
           on a modem SoC.

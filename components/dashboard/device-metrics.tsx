@@ -1,9 +1,10 @@
 "use client";
 
-import React, { useState, useCallback } from "react";
+import React, { useCallback, useState } from "react";
+import { motion } from "motion/react";
 import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { MetricBar } from "@/components/ui/metric-bar";
 import {
   Tooltip,
@@ -22,9 +23,9 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { TickingValue } from "@/components/ui/ticking-value";
 import { RotateCcwIcon } from "lucide-react";
 import {
   TbAlertTriangleFilled,
@@ -33,11 +34,7 @@ import {
   TbInfoCircleFilled,
 } from "react-icons/tb";
 
-import type {
-  DeviceStatus,
-  LteStatus,
-  NrStatus,
-} from "@/types/modem-status";
+import type { DeviceStatus, LteStatus, NrStatus } from "@/types/modem-status";
 import {
   formatBytes,
   calculateLteDistance,
@@ -48,6 +45,8 @@ import {
 import { useUnitPreferences } from "@/hooks/use-system-settings";
 import { useDataUsed } from "@/hooks/use-data-used";
 import { useModemSubsys } from "@/hooks/use-modem-subsys";
+import { DUR, staggerRows, staggerRowItem } from "@/lib/motion";
+import { cn } from "@/lib/utils";
 
 interface DeviceMetricsComponentProps {
   deviceData: DeviceStatus | null;
@@ -61,6 +60,115 @@ const TEMP_WARN = 60; // °C
 const TEMP_DANGER = 75; // °C
 const CPU_WARN = 70; // percentage
 const CPU_DANGER = 90; // percentage
+
+/** Card shell, identical to its two grid siblings so the row reads as one
+ *  object. No fixed height: the dashboard grid stretches all three via
+ *  `h-full *:data-[slot=card]:h-full`, which requires the Card to stay the
+ *  DIRECT child of its wrapper — hence the skeleton overlay lives inside the
+ *  card rather than around it. */
+const CARD_SHELL =
+  // gap-4, not the mock's literal 14px. This is the gap between the card's
+  // title and its body, and it is the one measurement that reads ACROSS the
+  // three cards sharing this grid row — recent-activities.tsx already ships
+  // gap-4, so 14px here would set this card 2px out of step with the card
+  // beside it to gain fidelity nobody can see. The 14px inner rhythm between
+  // metric groups is kept below, where the mock's value is doing real work.
+  "@container/card h-full gap-4 rounded-card border-0 px-6 py-6 shadow-[var(--shadow-whisper)]";
+
+/** Meter track height, shared by the loaded bar and its skeleton slot so the
+ *  handoff moves nothing. Mirrors `MetricBar size="md"`. */
+const METER_H = "h-2";
+
+/**
+ * Recipe 12, the focus ring, for the two bare tooltip triggers (the reset
+ * control is a `Button`, which already carries the project ring).
+ *
+ * `focus-visible:transition-shadow` rather than a base `transition-shadow` is
+ * the guide's "focus is never animated AWAY" clause spelled in CSS: a
+ * transition is read off the state being moved TO, so on blur the element
+ * reverts to a base with no transition and the ring simply stops existing.
+ */
+const FOCUS_RING =
+  "rounded-pill outline-none focus-visible:ring-ring/50 focus-visible:ring-[3px] focus-visible:transition-shadow focus-visible:duration-(--duration-quick) focus-visible:ease-quick";
+
+/** One meter group: a label/value row over an 8px track. */
+function MeterRow({
+  label,
+  children,
+  bar,
+}: {
+  label: string;
+  /** The value cell — already wrapped in its own `TickingValue`. */
+  children: React.ReactNode;
+  /** `null` when the datum is absent; the slot still reserves its height. */
+  bar: React.ReactNode;
+}) {
+  return (
+    <motion.div variants={staggerRowItem} className="flex flex-col gap-1.5">
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-sm font-semibold text-on-surface-variant">
+          {label}
+        </span>
+        <div className="flex items-center gap-1.5">{children}</div>
+      </div>
+      {/* An absent bar leaves its track height behind rather than collapsing
+          the group, so a modem that reports no temperature does not shorten
+          the card — and does not desync it from the skeleton above. */}
+      {bar ?? <div className={METER_H} aria-hidden />}
+    </motion.div>
+  );
+}
+
+/** One pill row: label left, machine-voice value right, on a tonal container. */
+function PillRow({
+  label,
+  children,
+}: {
+  label: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  return (
+    <motion.div
+      variants={staggerRowItem}
+      className="flex items-center justify-between gap-3 rounded-pill bg-surface-container px-4 py-2.5"
+    >
+      {/* Container-Pair Rule: text on `surface-container` takes that
+          container's own ink, never a solid role colour. */}
+      <div className="flex min-w-0 items-center gap-1.5 text-sm font-semibold text-on-surface-variant">
+        {label}
+      </div>
+      <div className="flex shrink-0 items-center gap-3">{children}</div>
+    </motion.div>
+  );
+}
+
+const VALUE_CLASS = "font-mono text-sm font-semibold text-on-surface";
+
+/**
+ * Skeleton (Skeleton-Mirror Rule): four meter groups and three pills, i.e. the
+ * exact seven-row geometry of the loaded body at the exact same heights.
+ *
+ * It used to draw TEN generic rows for a body of seven, so the card lost height
+ * the instant data landed and dragged its grid siblings with it.
+ */
+function MetricsSkeleton() {
+  return (
+    <div className="flex flex-col gap-3.5">
+      {Array.from({ length: 4 }).map((_, i) => (
+        <div key={i} className="flex flex-col gap-1.5">
+          <div className="flex h-5 items-center justify-between gap-2">
+            <Skeleton className="h-4 w-32" />
+            <Skeleton className="h-4 w-20" />
+          </div>
+          <Skeleton className={cn(METER_H, "w-full rounded-pill")} />
+        </div>
+      ))}
+      {Array.from({ length: 3 }).map((_, i) => (
+        <Skeleton key={i} className="h-10 w-full rounded-pill" />
+      ))}
+    </div>
+  );
+}
 
 const DeviceMetricsComponent = ({
   deviceData,
@@ -76,25 +184,19 @@ const DeviceMetricsComponent = ({
   const memUsed = deviceData?.memory_used_mb ?? 0;
   const memTotal = deviceData?.memory_total_mb ?? 0;
 
-  // Uptime values — read directly from poll data (no seconds displayed,
-  // so no need for 1-second client-side interpolation)
-
   const isTempHigh = temp !== null && temp >= TEMP_WARN;
   const isCpuHigh = cpu !== null && cpu >= CPU_WARN;
   const memPct = memTotal > 0 ? (memUsed / memTotal) * 100 : 0;
 
   // Persistent data-usage counter — polled independently at 2 s cadence
-  const {
-    data: dataUsed,
-    isResetting,
-    resetCounter,
-  } = useDataUsed();
+  const { data: dataUsed, isResetting, resetCounter } = useDataUsed();
 
   // /usrdata partition usage — sourced from the poller cache via modem-subsys
   const { data: subsysData } = useModemSubsys();
   const storageTotalKb = subsysData?.storage?.total_kb ?? 0;
   const storageUsedKb = subsysData?.storage?.used_kb ?? 0;
-  const storagePct = storageTotalKb > 0 ? (storageUsedKb / storageTotalKb) * 100 : 0;
+  const storagePct =
+    storageTotalKb > 0 ? (storageUsedKb / storageTotalKb) * 100 : 0;
 
   const [resetDialogOpen, setResetDialogOpen] = useState(false);
 
@@ -108,238 +210,304 @@ const DeviceMetricsComponent = ({
     setResetDialogOpen(false);
   }, [resetCounter, t]);
 
-  if (isLoading) {
-    return (
-      <Card className="@container/card rounded-card">
-        <CardHeader className="-mb-4">
-          <CardTitle className="text-lg font-semibold">
-            {t("metrics.title")}
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid gap-2">
-            {Array.from({ length: 10 }).map((_, i) => (
-              <div key={i}>
-                <Separator />
-                <div className="flex items-center justify-between py-1">
-                  <Skeleton className="h-4 w-28" />
-                  <Skeleton className="h-4 w-24" />
-                </div>
-              </div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
-    );
-  }
+  // Skeleton handoff (Motion Guide recipe 11): the overlay lives for one
+  // `quick` and then unmounts. Nothing downstream depends on it, so a missed
+  // timer degrades to an ordinary instant swap rather than a stuck skeleton.
+  const [handoff, setHandoff] = useState(false);
+  const wasLoading = React.useRef(isLoading);
+  React.useEffect(() => {
+    const landed = wasLoading.current && !isLoading;
+    wasLoading.current = isLoading;
+    if (!landed) return;
+
+    setHandoff(true);
+    const id = window.setTimeout(() => setHandoff(false), DUR.quick * 1000);
+    return () => window.clearTimeout(id);
+  }, [isLoading]);
+
+  const tempValue = formatTemperature(temp, unitPrefs?.tempUnit);
+  const cpuValue = cpu !== null ? `${cpu}%` : "-";
+  const memValue = memTotal > 0 ? `${memUsed} MB / ${memTotal} MB` : "-";
+  const storageValue =
+    storageTotalKb > 0
+      ? `${formatBytes(storageUsedKb * 1024)} / ${formatBytes(storageTotalKb * 1024)}`
+      : "-";
+  const lteDistance = formatDistance(
+    calculateLteDistance(lteData?.ta ?? null),
+    unitPrefs?.distanceUnit,
+  );
+  const nrDistance = formatDistance(
+    calculateNrDistance(nrData?.ta ?? null),
+    unitPrefs?.distanceUnit,
+  );
+
+  const body = isLoading ? (
+    <MetricsSkeleton />
+  ) : (
+    <motion.div
+      className="flex flex-col gap-3.5"
+      variants={staggerRows}
+      initial="hidden"
+      animate="visible"
+    >
+      {/* ── Modem Temperature ─────────────────────────────────────────── */}
+      <MeterRow
+        label={t("metrics.modem_temperature")}
+        bar={
+          temp !== null ? (
+            <MetricBar
+              value={temp}
+              max={100}
+              warnAt={TEMP_WARN}
+              dangerAt={TEMP_DANGER}
+              // A cool modem is good news, not merely not-yet-bad — so the
+              // meter reads green below the warn line and still escalates to
+              // amber and red above it.
+              baseTone="success"
+              size="md"
+              track="surface-container-high"
+              index={0}
+            />
+          ) : null
+        }
+      >
+        {isTempHigh && (
+          // The glyph inherits the chip's `on-warning-container` ink. It used
+          // to carry `text-warning`, which repainted it in the SOLID role
+          // colour on a container fill — the Container-Pair Rule's most common
+          // failure. No `transition-colors` here either: `badge.tsx` writes its
+          // own two-clock longhand and the utility would clobber it.
+          <Badge variant="warning">
+            <TbAlertTriangleFilled aria-hidden />
+            {t("metrics.high_temp_warning")}
+          </Badge>
+        )}
+        <span className={VALUE_CLASS}>
+          <TickingValue value={temp}>{tempValue}</TickingValue>
+        </span>
+      </MeterRow>
+
+      {/* ── CPU Usage ─────────────────────────────────────────────────── */}
+      <MeterRow
+        label={t("metrics.cpu_usage")}
+        bar={
+          cpu !== null ? (
+            <MetricBar
+              value={cpu}
+              max={100}
+              warnAt={CPU_WARN}
+              dangerAt={CPU_DANGER}
+              size="md"
+              track="surface-container-high"
+              index={1}
+            />
+          ) : null
+        }
+      >
+        {isCpuHigh && (
+          <Badge variant="warning">
+            <TbAlertTriangleFilled aria-hidden />
+            {t("metrics.high_cpu_warning")}
+          </Badge>
+        )}
+        <span className={VALUE_CLASS}>
+          <TickingValue value={cpu}>{cpuValue}</TickingValue>
+        </span>
+      </MeterRow>
+
+      {/* ── Memory Usage ──────────────────────────────────────────────── */}
+      <MeterRow
+        label={t("metrics.memory_usage")}
+        bar={
+          memTotal > 0 ? (
+            <MetricBar
+              value={memPct}
+              max={100}
+              warnAt={70}
+              dangerAt={90}
+              size="md"
+              track="surface-container-high"
+              index={2}
+            />
+          ) : null
+        }
+      >
+        <span className={VALUE_CLASS}>
+          <TickingValue value={memUsed}>{memValue}</TickingValue>
+        </span>
+      </MeterRow>
+
+      {/* ── Storage (/usrdata partition) ──────────────────────────────── */}
+      <MeterRow
+        label={t("metrics.storage_label")}
+        bar={
+          storageTotalKb > 0 ? (
+            <MetricBar
+              value={storagePct}
+              max={100}
+              warnAt={80}
+              dangerAt={95}
+              size="md"
+              track="surface-container-high"
+              index={3}
+            />
+          ) : null
+        }
+      >
+        <span className={VALUE_CLASS}>
+          <TickingValue value={storageUsedKb}>{storageValue}</TickingValue>
+        </span>
+      </MeterRow>
+
+      {/* ── Data Used (cumulative counter from AT+QGDCNT/QGDNRCNT) ────── */}
+      <PillRow
+        label={
+          <>
+            <span className="truncate">{t("metrics.data_used_label")}</span>
+            <AlertDialog open={resetDialogOpen} onOpenChange={setResetDialogOpen}>
+              <AlertDialogTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="size-5 rounded-pill text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface"
+                  aria-label={t("metrics.reset_counter_aria")}
+                  disabled={isResetting}
+                >
+                  <RotateCcwIcon className="size-3.5" />
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>
+                    {t("metrics.reset_confirm_title")}
+                  </AlertDialogTitle>
+                  <AlertDialogDescription>
+                    {t("metrics.reset_confirm_desc")}
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>{tc("actions.cancel")}</AlertDialogCancel>
+                  <AlertDialogAction onClick={handleResetConfirm}>
+                    {t("metrics.reset_confirm_button")}
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          </>
+        }
+      >
+        {/* Down/up are the one place a solid role colour is right on a
+            container: they are accent GLYPHS, not text, and the figure beside
+            each keeps the container's ink. Uplink is `--uplink` (hue 200), not
+            the mock's literal hue 185 — 185 sits 36° from success and fails
+            the system's 40° separation floor. */}
+        <span className={cn(VALUE_CLASS, "flex items-center gap-1")}>
+          <TbCircleArrowDownFilled className="size-5 shrink-0 text-primary" aria-hidden />
+          <TickingValue value={dataUsed?.accumulated_rx_bytes ?? 0}>
+            {formatBytes(dataUsed?.accumulated_rx_bytes ?? 0)}
+          </TickingValue>
+        </span>
+        <span className={cn(VALUE_CLASS, "flex items-center gap-1")}>
+          <TbCircleArrowUpFilled className="size-5 shrink-0 text-uplink" aria-hidden />
+          <TickingValue value={dataUsed?.accumulated_tx_bytes ?? 0}>
+            {formatBytes(dataUsed?.accumulated_tx_bytes ?? 0)}
+          </TickingValue>
+        </span>
+      </PillRow>
+
+      {/* ── LTE Cell Distance ─────────────────────────────────────────── */}
+      <PillRow
+        label={
+          <>
+            <span className="truncate">{t("metrics.lte_cell_distance")}</span>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  className={cn("inline-flex shrink-0", FOCUS_RING)}
+                  aria-label={t("metrics.more_info_aria")}
+                >
+                  <TbInfoCircleFilled className="size-4" aria-hidden />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent>
+                {lteData?.ta ? (
+                  <p>{t("metrics.lte_distance_tooltip", { ta: lteData.ta })}</p>
+                ) : (
+                  <p>{t("metrics.ta_unavailable")}</p>
+                )}
+              </TooltipContent>
+            </Tooltip>
+          </>
+        }
+      >
+        <span className={VALUE_CLASS}>
+          <TickingValue value={lteDistance}>{lteDistance}</TickingValue>
+        </span>
+      </PillRow>
+
+      {/* ── NR Cell Distance ──────────────────────────────────────────── */}
+      <PillRow
+        label={
+          <>
+            <span className="truncate">{t("metrics.nr_cell_distance")}</span>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  className={cn("inline-flex shrink-0", FOCUS_RING)}
+                  aria-label={t("metrics.more_info_aria")}
+                >
+                  <TbInfoCircleFilled className="size-4" aria-hidden />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent>
+                {nrData?.ta ? (
+                  <p>{t("metrics.nr_distance_tooltip", { ta: nrData.ta })}</p>
+                ) : (
+                  <p>{t("metrics.ta_unavailable")}</p>
+                )}
+              </TooltipContent>
+            </Tooltip>
+          </>
+        }
+      >
+        <span className={VALUE_CLASS}>
+          <TickingValue value={nrDistance}>{nrDistance}</TickingValue>
+        </span>
+      </PillRow>
+    </motion.div>
+  );
 
   return (
-    <Card className="@container/card rounded-card">
-      <CardHeader className="-mb-4">
+    <Card className={CARD_SHELL}>
+      {/* CardHeader with its own padding cancelled, because CARD_SHELL already
+          carries px-6. Structurally identical to the loaded/skeleton titles in
+          recent-activities.tsx and signal-status-card.tsx — this card has no
+          CardAction today, but keeping the header slot means the grid column
+          for one is already reserved, and a reviewer diffing the dashboard
+          cards does not find this one built differently for no reason. */}
+      <CardHeader className="px-0">
         <CardTitle className="text-lg font-semibold tabular-nums">
           {t("metrics.title")}
         </CardTitle>
       </CardHeader>
-      <CardContent>
-        <div className="grid gap-2">
-          {/* Modem Temperature */}
-          <Separator />
-          <div className="flex flex-col gap-1.5">
-            <div className="flex items-center justify-between">
-              <p className="font-semibold text-muted-foreground text-sm">
-                {t("metrics.modem_temperature")}
-              </p>
-              <div className="flex items-center gap-1.5">
-                {isTempHigh && (
-                  <Badge variant="warning">
-                    <TbAlertTriangleFilled className="text-warning" />
-                    {t("metrics.high_temp_warning")}
-                  </Badge>
-                )}
-                <p className="font-semibold text-sm tabular-nums">
-                  {formatTemperature(temp, unitPrefs?.tempUnit)}
-                </p>
-              </div>
-            </div>
-            {temp !== null && (
-              <MetricBar value={temp} max={100} warnAt={TEMP_WARN} dangerAt={TEMP_DANGER} index={0} />
-            )}
-          </div>
 
-          {/* CPU Usage */}
-          <Separator />
-          <div className="flex flex-col gap-1.5">
-            <div className="flex items-center justify-between">
-              <p className="font-semibold text-muted-foreground text-sm">
-                {t("metrics.cpu_usage")}
-              </p>
-              <div className="flex items-center gap-1.5">
-                {isCpuHigh && (
-                  <Badge variant="warning">
-                    <TbAlertTriangleFilled className="text-warning" />
-                    {t("metrics.high_cpu_warning")}
-                  </Badge>
-                )}
-                <p className="font-semibold text-sm tabular-nums">
-                  {cpu !== null ? `${cpu}%` : "-"}
-                </p>
-              </div>
-            </div>
-            {cpu !== null && (
-              <MetricBar value={cpu} max={100} warnAt={CPU_WARN} dangerAt={CPU_DANGER} index={1} />
-            )}
+      {/* Recipe 11's overlay construction: the skeleton fades out ON TOP of the
+          real content rather than beside it, so the real body owns the card's
+          height from its first frame and the crossfade contributes zero layout
+          shift. Pure opacity, no movement. */}
+      <div className="relative">
+        <div className={cn(handoff && "ca-content-in")}>{body}</div>
+        {handoff && (
+          <div
+            aria-hidden
+            className="ca-skeleton-out pointer-events-none absolute inset-0 [&>*]:h-full"
+          >
+            <MetricsSkeleton />
           </div>
-
-          {/* Memory Usage */}
-          <Separator />
-          <div className="flex flex-col gap-1.5">
-            <div className="flex items-center justify-between">
-              <p className="font-semibold text-muted-foreground text-sm">
-                {t("metrics.memory_usage")}
-              </p>
-              <p className="font-semibold text-sm tabular-nums">
-                {memTotal > 0 ? `${memUsed} MB / ${memTotal} MB` : "-"}
-              </p>
-            </div>
-            {memTotal > 0 && (
-              <MetricBar value={memPct} max={100} warnAt={70} dangerAt={90} index={2} />
-            )}
-          </div>
-
-          {/* Storage (/usrdata partition) */}
-          <Separator />
-          <div className="flex flex-col gap-1.5">
-            <div className="flex items-center justify-between">
-              <p className="font-semibold text-muted-foreground text-sm">
-                {t("metrics.storage_label")}
-              </p>
-              <p className="font-semibold text-sm tabular-nums">
-                {storageTotalKb > 0
-                  ? `${formatBytes(storageUsedKb * 1024)} / ${formatBytes(storageTotalKb * 1024)}`
-                  : "-"}
-              </p>
-            </div>
-            {storageTotalKb > 0 && (
-              <MetricBar value={storagePct} max={100} warnAt={80} dangerAt={95} index={3} />
-            )}
-          </div>
-
-          {/* Data Used (persistent cumulative counter from AT+QGDCNT/QGDNRCNT) */}
-          <Separator />
-          <div className="flex items-start justify-between gap-2">
-            <div className="flex items-center gap-1.5 min-w-0">
-              <p className="font-semibold text-muted-foreground text-sm shrink-0">
-                {t("metrics.data_used_label")}
-              </p>
-              {/* Reset button */}
-              <AlertDialog open={resetDialogOpen} onOpenChange={setResetDialogOpen}>
-                <AlertDialogTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-5 w-5 text-muted-foreground hover:text-foreground"
-                    aria-label={t("metrics.reset_counter_aria")}
-                    disabled={isResetting}
-                  >
-                    <RotateCcwIcon className="size-3.5" />
-                  </Button>
-                </AlertDialogTrigger>
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>{t("metrics.reset_confirm_title")}</AlertDialogTitle>
-                    <AlertDialogDescription>
-                      {t("metrics.reset_confirm_desc")}
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel>{tc("actions.cancel")}</AlertDialogCancel>
-                    <AlertDialogAction onClick={handleResetConfirm}>
-                      {t("metrics.reset_confirm_button")}
-                    </AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
-            </div>
-            <div className="flex items-center gap-x-2">
-              <div className="flex items-center gap-1">
-                <TbCircleArrowDownFilled className="text-info size-5 shrink-0" />
-                <p className="font-semibold text-sm tabular-nums">
-                  {formatBytes(dataUsed?.accumulated_rx_bytes ?? 0)}
-                </p>
-              </div>
-              <div className="flex items-center gap-1">
-                <TbCircleArrowUpFilled className="text-purple-500 size-5 shrink-0" />
-                <p className="font-semibold text-sm tabular-nums">
-                  {formatBytes(dataUsed?.accumulated_tx_bytes ?? 0)}
-                </p>
-              </div>
-            </div>
-          </div>
-
-          {/* LTE Cell Distance */}
-          <Separator />
-          <div className="flex items-center justify-between">
-            <p className="font-semibold text-muted-foreground text-sm">
-              {t("metrics.lte_cell_distance")}
-            </p>
-
-            <div className="flex items-center gap-1.5">
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <button
-                    type="button"
-                    className="inline-flex"
-                    aria-label={t("metrics.more_info_aria")}
-                  >
-                    <TbInfoCircleFilled className="size-5 text-info" />
-                  </button>
-                </TooltipTrigger>
-                <TooltipContent>
-                  {lteData?.ta ? (
-                    <p>{t("metrics.lte_distance_tooltip", { ta: lteData.ta })}</p>
-                  ) : (
-                    <p>{t("metrics.ta_unavailable")}</p>
-                  )}
-                </TooltipContent>
-              </Tooltip>
-              <p className="font-semibold text-sm tabular-nums">
-                {formatDistance(calculateLteDistance(lteData?.ta ?? null), unitPrefs?.distanceUnit)}
-              </p>
-            </div>
-          </div>
-
-          {/* NR Cell Distance */}
-          <Separator />
-          <div className="flex items-center justify-between">
-            <p className="font-semibold text-muted-foreground text-sm">
-              {t("metrics.nr_cell_distance")}
-            </p>
-            <div className="flex items-center gap-1.5">
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <button
-                    type="button"
-                    className="inline-flex"
-                    aria-label={t("metrics.more_info_aria")}
-                  >
-                    <TbInfoCircleFilled className="size-5 text-info" />
-                  </button>
-                </TooltipTrigger>
-                <TooltipContent>
-                  {nrData?.ta ? (
-                    <p>{t("metrics.nr_distance_tooltip", { ta: nrData.ta })}</p>
-                  ) : (
-                    <p>{t("metrics.ta_unavailable")}</p>
-                  )}
-                </TooltipContent>
-              </Tooltip>
-              <p className="font-semibold text-sm tabular-nums">
-                {formatDistance(calculateNrDistance(nrData?.ta ?? null), unitPrefs?.distanceUnit)}
-              </p>
-            </div>
-          </div>
-        </div>
-      </CardContent>
+        )}
+      </div>
     </Card>
   );
 };

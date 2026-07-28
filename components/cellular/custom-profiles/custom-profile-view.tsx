@@ -451,7 +451,7 @@ const CustomProfileViewComponent = ({
                 void confirmDelete();
               }}
               disabled={isDeleting}
-              className="bg-destructive text-white hover:bg-destructive/90 focus-visible:ring-destructive/20"
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90 focus-visible:ring-destructive/20"
             >
               {isDeleting
                 ? t("custom_profiles.table.delete_confirm.deleting")

@@ -174,9 +174,28 @@ const HomeComponent = () => {
         </motion.div>
       </div>
 
-      <div className="col-span-full">
+      {/* Signal History was the one dashboard card outside the entrance
+          cascade — a bare div while every sibling rose into place — so it
+          popped in fully formed against neighbours that were still arriving.
+          The design mock gives it the cascade's last beat; this gives it the
+          same rise and fade as its siblings.
+
+          Deliberately NO extra delay to reproduce the mock's 240ms offset.
+          That offset belongs to a single page-wide cascade, and this page runs
+          several independent containers (the left column, the three-card row,
+          and now this), each starting its own clock. Stacking a hardcoded
+          delay on top of that would not recreate the mock's rhythm, it would
+          just land the widest card late — which is the exact failure the
+          60ms step is documented to avoid, a last card that reads as the page
+          still loading rather than as choreography. */}
+      <motion.div
+        className="col-span-full"
+        variants={staggerItem}
+        initial="hidden"
+        animate="visible"
+      >
         <SignalHistoryComponent />
-      </div>
+      </motion.div>
     </div>
   );
 };

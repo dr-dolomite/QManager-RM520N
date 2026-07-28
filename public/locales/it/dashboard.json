@@ -118,12 +118,21 @@
     "loading_message": "Caricamento cronologia segnali…",
     "no_data_message": "Nessuna cronologia del segnale ancora disponibile. I dati verranno visualizzati dopo circa 10 secondi.",
     "chart_description": "Questo grafico mostra la potenza del segnale {{signal_type}} nella cronologia recente.",
-    "fluctuation_note": "I valori possono variare a causa di fattori ambientali e condizioni della rete."
+    "fluctuation_note": "I valori possono variare a causa di fattori ambientali e condizioni della rete.",
+    "legend_lte": "LTE",
+    "legend_nr": "5G",
+    "trend_heading": "Andamento {{metric}} nella cronologia recente, in {{unit}}",
+    "error_title": "Cronologia del segnale non disponibile",
+    "error_description": "Impossibile caricare la cronologia del segnale: {{message}}"
   },
   "latency": {
-    "title": "Latenza in tempo reale e test di velocità",
+    "title": "Latenza in tempo reale",
     "chart_latency": "Latenza",
-    "chart_packetloss": "Perdita di pacchetti"
+    "chart_packetloss": "Perdita di pacchetti",
+    "current_label": "Latenza attuale",
+    "unit_ms": "ms",
+    "no_reading": "Nessuna lettura",
+    "empty_description": "In attesa dei primi campioni di latenza."
   },
   "speedtest": {
     "section_label": "Prova di velocità",
@@ -159,7 +168,8 @@
     "view_result_link": "Visualizza su Speedtest.net",
     "bytes_transferred": "{{bytes}} trasferito",
     "try_again_button": "Riprova",
-    "run_again_button": "Corri di nuovo"
+    "run_again_button": "Corri di nuovo",
+    "unit_mbps": "Mbps"
   },
   "ca": {
     "title": "Aggregazione portanti",

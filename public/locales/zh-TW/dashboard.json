@@ -118,12 +118,21 @@
     "loading_message": "載入訊號歷史中…",
     "no_data_message": "暫無訊號歷史資料。大約 10 秒後將顯示資料。",
     "chart_description": "此圖表顯示最近的 {{signal_type}} 訊號強度。",
-    "fluctuation_note": "數值可能因環境因素和網路狀況而波動。"
+    "fluctuation_note": "數值可能因環境因素和網路狀況而波動。",
+    "legend_lte": "LTE",
+    "legend_nr": "5G",
+    "trend_heading": "近期 {{metric}} 趨勢（單位：{{unit}}）",
+    "error_title": "無法取得訊號歷史",
+    "error_description": "無法載入訊號歷史：{{message}}"
   },
   "latency": {
-    "title": "即時延遲與速度測試",
+    "title": "即時延遲",
     "chart_latency": "延遲",
-    "chart_packetloss": "丟包率"
+    "chart_packetloss": "丟包率",
+    "current_label": "目前延遲",
+    "unit_ms": "毫秒",
+    "no_reading": "無讀數",
+    "empty_description": "正在等待首批延遲取樣。"
   },
   "speedtest": {
     "section_label": "速度測試",
@@ -159,7 +168,8 @@
     "view_result_link": "在 Speedtest.net 上檢視",
     "bytes_transferred": "已傳輸 {{bytes}}",
     "try_again_button": "重試",
-    "run_again_button": "再次執行"
+    "run_again_button": "再次執行",
+    "unit_mbps": "Mbps"
   },
   "ca": {
     "title": "載波聚合",
