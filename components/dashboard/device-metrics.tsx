@@ -25,13 +25,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { RotateCcwIcon } from "lucide-react";
-import {
-  TbAlertTriangleFilled,
-  TbCircleArrowDownFilled,
-  TbCircleArrowUpFilled,
-  TbInfoCircleFilled,
-} from "react-icons/tb";
+import { MaterialSymbol } from "@/components/ui/material-symbol";
 
 import type {
   DeviceStatus,
@@ -152,7 +146,14 @@ const DeviceMetricsComponent = ({
               <div className="flex items-center gap-1.5">
                 {isTempHigh && (
                   <Badge variant="warning">
-                    <TbAlertTriangleFilled className="text-warning" />
+                    {/* Explicit 12px: Badge auto-sizes `[&>svg]`, and a
+                        MaterialSymbol carries its size as an inline fontSize
+                        that no class utility can reach. */}
+                    <MaterialSymbol
+                      name="warning"
+                      size={12}
+                      filled
+                    />
                     {t("metrics.high_temp_warning")}
                   </Badge>
                 )}
@@ -176,7 +177,11 @@ const DeviceMetricsComponent = ({
               <div className="flex items-center gap-1.5">
                 {isCpuHigh && (
                   <Badge variant="warning">
-                    <TbAlertTriangleFilled className="text-warning" />
+                    <MaterialSymbol
+                      name="warning"
+                      size={12}
+                      filled
+                    />
                     {t("metrics.high_cpu_warning")}
                   </Badge>
                 )}
@@ -241,7 +246,7 @@ const DeviceMetricsComponent = ({
                     aria-label={t("metrics.reset_counter_aria")}
                     disabled={isResetting}
                   >
-                    <RotateCcwIcon className="size-3.5" />
+                    <MaterialSymbol name="restart_alt" size={14} />
                   </Button>
                 </AlertDialogTrigger>
                 <AlertDialogContent>
@@ -262,13 +267,23 @@ const DeviceMetricsComponent = ({
             </div>
             <div className="flex items-center gap-x-2">
               <div className="flex items-center gap-1">
-                <TbCircleArrowDownFilled className="text-info size-5 shrink-0" />
+                <MaterialSymbol
+                  name="arrow_circle_down"
+                  size={20}
+                  filled
+                  className="text-info shrink-0"
+                />
                 <p className="font-semibold text-sm tabular-nums">
                   {formatBytes(dataUsed?.accumulated_rx_bytes ?? 0)}
                 </p>
               </div>
               <div className="flex items-center gap-1">
-                <TbCircleArrowUpFilled className="text-purple-500 size-5 shrink-0" />
+                <MaterialSymbol
+                  name="arrow_circle_up"
+                  size={20}
+                  filled
+                  className="text-uplink shrink-0"
+                />
                 <p className="font-semibold text-sm tabular-nums">
                   {formatBytes(dataUsed?.accumulated_tx_bytes ?? 0)}
                 </p>
@@ -291,7 +306,12 @@ const DeviceMetricsComponent = ({
                     className="inline-flex"
                     aria-label={t("metrics.more_info_aria")}
                   >
-                    <TbInfoCircleFilled className="size-5 text-info" />
+                    <MaterialSymbol
+                      name="info"
+                      size={20}
+                      filled
+                      className="text-info"
+                    />
                   </button>
                 </TooltipTrigger>
                 <TooltipContent>
@@ -322,7 +342,12 @@ const DeviceMetricsComponent = ({
                     className="inline-flex"
                     aria-label={t("metrics.more_info_aria")}
                   >
-                    <TbInfoCircleFilled className="size-5 text-info" />
+                    <MaterialSymbol
+                      name="info"
+                      size={20}
+                      filled
+                      className="text-info"
+                    />
                   </button>
                 </TooltipTrigger>
                 <TooltipContent>

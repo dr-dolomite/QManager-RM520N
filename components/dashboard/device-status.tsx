@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
-import { Eye, EyeOff } from "lucide-react";
+import { MaterialSymbol } from "@/components/ui/material-symbol";
 import { cn } from "@/lib/utils";
 import { TickingValue } from "@/components/ui/ticking-value";
 import { staggerRows, staggerRowItem } from "@/lib/motion";
@@ -125,9 +125,9 @@ const DeviceStatusComponent = ({
             }
           >
             {hidePrivate ? (
-              <EyeOff className="size-5" />
+              <MaterialSymbol name="visibility_off" size={20} />
             ) : (
-              <Eye className="size-5" />
+              <MaterialSymbol name="visibility" size={20} />
             )}
           </Button>
         </CardAction>

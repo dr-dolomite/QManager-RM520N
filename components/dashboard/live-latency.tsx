@@ -18,12 +18,7 @@ import {
   type ChartConfig,
 } from "@/components/ui/chart";
 import { Button } from "../ui/button";
-import {
-  TbCircleArrowDownFilled,
-  TbCircleArrowUpFilled,
-  TbPlayerPlayFilled,
-  TbTimeline,
-} from "react-icons/tb";
+import { MaterialSymbol } from "@/components/ui/material-symbol";
 import { SpeedtestDialog } from "./speedtest-dialog";
 import {
   bytesToMbps,
@@ -164,11 +159,21 @@ const LiveLatencyComponent = ({ connectivity }: LiveLatencyComponentProps) => {
           {t("speedtest.result_label")}
         </p>
         <div className="flex items-center gap-x-0.5">
-          <TbCircleArrowDownFilled className="text-info size-5" />
+          <MaterialSymbol
+            name="arrow_circle_down"
+            size={20}
+            filled
+            className="text-info"
+          />
           <p>{dl} Mbps</p>
         </div>
         <div className="flex items-center gap-x-0.5">
-          <TbCircleArrowUpFilled className="text-purple-500 size-5" />
+          <MaterialSymbol
+            name="arrow_circle_up"
+            size={20}
+            filled
+            className="text-uplink"
+          />
           <p>{ul} Mbps</p>
         </div>
       </div>
@@ -255,7 +260,7 @@ const LiveLatencyComponent = ({ connectivity }: LiveLatencyComponentProps) => {
                   aria-label={t("speedtest.start_button_aria")}
                   onClick={handleSpeedtestOpen}
                 >
-                  <TbPlayerPlayFilled className="size-4" />
+                  <MaterialSymbol name="play_arrow" size={16} filled />
                 </Button>
                 <span className="font-medium text-sm">
                   {footerDescription}

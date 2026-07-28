@@ -26,12 +26,14 @@ Do not re-document it here; point to it.
 | Elevation, shadows, tonal layering | `DESIGN.md` §4 Elevation |
 | Motion system (durations, springs, reduced-motion, presets) | `DESIGN.md` §4a Motion System |
 | Buttons, badges, cards, inputs, dialogs, the signature components | `DESIGN.md` §5 Components |
+| Icon libraries and the Icon-Boundary Rule (Material Symbols on the sidebar + dashboard route, lucide elsewhere) | `DESIGN.md` §5 Components > Icons, and [reference/icon-system.md](reference/icon-system.md) |
 | Do's and Don'ts | `DESIGN.md` §6 |
 
 > ℹ️ NOTE: Two claims in the older version of this file were **wrong** and are corrected in
-> `DESIGN.md`: (1) **Status badges use the outline-plus-tint pattern**
-> (`variant="outline"` + `bg-{role}/15 text-{role} hover:bg-{role}/20 border-{role}/30` + `size-3`
-> icon), *not* solid `variant="default"`/`variant="destructive"` fills. (2) The fonts are
+> `DESIGN.md`: (1) **Status badges are filled tonal chips** — a `Badge` variant carrying
+> `bg-{role}-container` + `text-on-{role}-container`, no border, pill radius, and an icon. Both the
+> old solid `variant="default"`/`variant="destructive"` fills and the outline-plus-tint pattern that
+> briefly replaced them are retired; see `DESIGN.md` > The Filled-Chip Rule. (2) The fonts are
 > **Euclid Circular B** (UI) and **Geist Mono** (machine voice, bound to `--font-geist-mono`);
 > the previously-loaded-but-unbound Manrope has been removed. See `DESIGN.md` §3.
 

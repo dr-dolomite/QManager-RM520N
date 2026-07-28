@@ -2,14 +2,9 @@
 
 import * as React from "react";
 import { useTranslation } from "react-i18next";
-import {
-  CheckCircle2Icon,
-  MinusCircleIcon,
-  RadioIcon,
-  TriangleAlertIcon,
-} from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
+import { MaterialSymbol } from "@/components/ui/material-symbol";
 import { Card } from "@/components/ui/card";
 import {
   Empty,
@@ -239,7 +234,10 @@ export function CarrierAggregationComponent({
         <Empty className="py-6">
           <EmptyHeader>
             <EmptyMedia variant="icon">
-              <RadioIcon />
+              {/* Explicit 24px: `empty.tsx`'s icon variant sizes `svg` via a
+                  class utility, and MaterialSymbol sets fontSize inline, which
+                  no class can override. */}
+              <MaterialSymbol name="cell_tower" size={24} />
             </EmptyMedia>
             <EmptyTitle>{t("ca.empty_title")}</EmptyTitle>
             <EmptyDescription className="max-w-xs text-pretty">
@@ -294,15 +292,18 @@ export function CarrierAggregationComponent({
             }
             className="gap-1"
           >
-            {/* `size-3` is explicit here: Badge's base class sizes `[&>svg]`,
-                a DIRECT child, and the crossfade wrapper puts the glyph one
-                level deeper than that selector reaches. */}
+            {/* `size={12}` is explicit here for two reasons, and either alone
+                would be enough. Badge's base class sizes `[&>svg]`, a DIRECT
+                child, and the crossfade wrapper puts the glyph one level deeper
+                than that selector reaches; and MaterialSymbol sets its fontSize
+                as an inline style, which a class utility cannot override even
+                when the selector does reach it. */}
             {hasReleased ? (
-              <TriangleAlertIcon className="size-3" aria-hidden />
+              <MaterialSymbol name="warning" size={12} filled />
             ) : aggregating ? (
-              <CheckCircle2Icon className="size-3" aria-hidden />
+              <MaterialSymbol name="check_circle" size={12} filled />
             ) : (
-              <MinusCircleIcon className="size-3" aria-hidden />
+              <MaterialSymbol name="do_not_disturb_on" size={12} filled />
             )}
             {/* When something has been released the chip must SAY so. An amber
                 fill and a warning glyph over the words "NR-CA active" is the

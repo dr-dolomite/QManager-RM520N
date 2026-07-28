@@ -104,7 +104,7 @@
         "role": "functional",
         "displayName": "Fault Red",
         "canonical": "oklch(0.54 0.235 27)",
-        "note": "Failed or irreversible: disconnected, apply failed, reboot dialogs. Paired with XCircleIcon or AlertCircleIcon.",
+        "note": "Failed or irreversible: disconnected, apply failed, reboot dialogs. Paired with XCircleIcon or AlertCircleIcon. Ring tone steps --tone-destructive-1/2/3 now ship in both themes (light 0.945 0.05 25 / 0.905 0.08 25 / 0.835 0.12 25; dark 0.275 0.07 25 / 0.365 0.105 25 / 0.49 0.15 25), so all three ring ramps are symmetric. The failed service ring used to borrow surface-container, surface-container-high and destructive-container, which is a neutral grey ramp with one red note and read as broken chrome rather than as a red state.",
         "tonalRamp": [
           "oklch(0.22 0.11 27)",
           "oklch(0.30 0.16 27)",
@@ -149,6 +149,10 @@
       "body": {
         "displayName": "Body",
         "purpose": "Default UI text, descriptions, table cells. 400 weight, 14px."
+      },
+      "metric-row": {
+        "displayName": "Metric Row",
+        "purpose": "The dense metric-row step: 13px at 600 weight on a 20px line box, written text-[13px]/5, used for both label and value of a pill metric row on a glance card. Shipped on both dashboard Primary Status cards (components/dashboard/signal-status-card.tsx). The explicit /5 leading is load-bearing: 13px is an arbitrary Tailwind size and would otherwise inherit the card's leading, and pinning the line box to 20px is what holds the row at exactly 40px so the loading skeleton's h-10 keeps mirroring it. Do not use 13px outside a dense metric row; 14px body and 12px label remain the defaults."
       },
       "label": {
         "displayName": "Label",
@@ -242,11 +246,15 @@
     "iconLibraries": [
       {
         "name": "Material Symbols Rounded",
-        "scope": "Sidebar navigation only. Self-hosted subset, never a CDN link. FILL 1 for the active item, FILL 0 for inactive."
+        "scope": "Sidebar navigation AND the dashboard route (every dashboard card body). Self-hosted subset (app/fonts/MaterialSymbolsRounded-subset.woff2, 53 glyphs), never a CDN link. FILL 1 for the active nav item, FILL 0 for inactive. The boundary is per-route, not per-component: the failure the rule prevents is two icon sets inside one screen. MaterialSymbol sets fontSize inline, so parent auto-sizing utilities such as badge.tsx [&>svg]:size-3 cannot reach it; every call site passes `size` explicitly. Adding a glyph means editing BOTH the MaterialSymbolName union and scripts-dev/subset-icons.mjs, then re-running `bun run icons:subset` and committing the WOFF2. Nothing verifies the two lists agree."
       },
       {
         "name": "Lucide",
-        "scope": "Everything else: cards, chips, buttons, dialogs, tables, empty states, header bar."
+        "scope": "Every route still on lucide: Cellular, Local Network, Monitoring, System Settings, their dialogs, the header bar, page content. Also the two sanctioned dashboard exceptions on Network Status (CardSimIcon, Plane)."
+      },
+      {
+        "name": "react-icons/md",
+        "scope": "Legacy dependency, not to be extended. One sanctioned survivor: the RAT marks on Network Status (MdOutline5G, Md4gPlusMobiledata, Md4gMobiledata, Md3gMobiledata), which are typographic marks Material Symbols has no equivalent for."
       },
       {
         "name": "Tabler",
@@ -275,7 +283,7 @@
       "name": "Status Chip",
       "kind": "chip",
       "refersTo": "chip-status",
-      "description": "The signature pattern. Filled tonal container, its on- ink, a size-4 lucide icon, pill radius. Replaces the retired outline-and-tint badge.",
+      "description": "The signature pattern. Filled tonal container, its on- ink, an icon, pill radius. Replaces the retired outline-and-tint badge. The icon is lucide on lucide routes and a MaterialSymbol on the dashboard route. Five status roles: success, warning, destructive, info, muted. Two further variants, `nr` and `lte`, are IDENTITY roles, not status roles: they say which radio a chip belongs to and never mean healthy. Where a chip's fill is spent on identity, the quality it also reports must be encoded non-chromatically (the Identity-Chip Rule).",
       "html": "<span class=\"ds-chip ds-chip-success\"><svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M21.801 10A10 10 0 1 1 17 3.335\"/><path d=\"m9 11 3 3L22 4\"/></svg>Connected</span> <span class=\"ds-chip ds-chip-warning\"><svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3\"/><path d=\"M12 9v4\"/><path d=\"M12 17h.01\"/></svg>Searching</span> <span class=\"ds-chip ds-chip-muted\"><svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><circle cx=\"12\" cy=\"12\" r=\"10\"/><path d=\"M8 12h8\"/></svg>Stopped</span>",
       "css": ".ds-chip { display:inline-flex; align-items:center; gap:.375rem; padding:.4375rem .8125rem; border-radius:9999px; font-family:'Euclid Circular B',system-ui,sans-serif; font-size:.75rem; font-weight:500; line-height:1; transition:background 300ms cubic-bezier(0.2,0,0,1), color 300ms cubic-bezier(0.2,0,0,1); } .ds-chip svg { width:1rem; height:1rem; flex:none; } .ds-chip-success { background:oklch(0.89 0.115 149); color:oklch(0.26 0.11 149); } .ds-chip-warning { background:oklch(0.905 0.125 82); color:oklch(0.31 0.11 70); } .ds-chip-destructive { background:oklch(0.905 0.08 25); color:oklch(0.30 0.16 27); } .ds-chip-info { background:oklch(0.885 0.10 264); color:oklch(0.275 0.17 264); } .ds-chip-muted { background:oklch(0.918 0.04 258); color:oklch(0.435 0.05 258); }"
     },
@@ -307,7 +315,7 @@
       "name": "Sidebar Nav Item",
       "kind": "nav",
       "refersTo": "nav-item-active",
-      "description": "Pill nav. The one surface carrying Material Symbols Rounded. Active sits on primary-container with the filled glyph weight; the indicator translates between rows over 300ms rather than appearing.",
+      "description": "Pill nav. The first surface to carry Material Symbols Rounded, since joined by the dashboard route. Active sits on primary-container with the filled glyph weight; the indicator translates between rows over 300ms rather than appearing.",
       "html": "<nav class=\"ds-nav\"><a class=\"ds-nav-item ds-nav-active\" href=\"#\"><svg viewBox=\"0 0 24 24\" fill=\"currentColor\"><path d=\"M4 21V9l8-6 8 6v12h-6v-7h-4v7z\"/></svg>Home</a><a class=\"ds-nav-item\" href=\"#\"><svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\"><path d=\"M5 20v-8\"/><path d=\"M19 20v-8\"/><path d=\"M12 20V4\"/><path d=\"M8.5 7.5a5 5 0 0 1 7 0\"/><path d=\"M5.5 4.5a9 9 0 0 1 13 0\"/></svg>Cellular Information</a></nav>",
       "css": ".ds-nav { display:flex; flex-direction:column; gap:.25rem; background:oklch(0.952 0.026 258); border-radius:2.25rem; padding:.75rem; font-family:'Euclid Circular B',system-ui,sans-serif; } .ds-nav-item { display:flex; align-items:center; gap:.75rem; padding:.5rem .875rem; border-radius:9999px; font-size:.875rem; font-weight:500; color:oklch(0.435 0.05 258); text-decoration:none; transition:background 300ms cubic-bezier(0.2,0,0,1), color 300ms cubic-bezier(0.2,0,0,1); } .ds-nav-item svg { width:1.25rem; height:1.25rem; flex:none; } .ds-nav-item:hover { background:oklch(0.918 0.04 258); } .ds-nav-active { background:oklch(0.885 0.10 264); color:oklch(0.275 0.17 264); font-weight:600; } .ds-nav-active:hover { background:oklch(0.885 0.10 264); } .ds-nav-item:focus-visible { outline:none; box-shadow:0 0 0 3px oklch(0.488 0.243 264.376 / 0.5); }"
     },
@@ -498,8 +506,28 @@
         "section": "components"
       },
       {
-        "name": "The Nav-Glyph Boundary Rule",
-        "body": "Material Symbols Rounded appears in the sidebar nav and nowhere else; every other surface is lucide. A Material Symbol outside the sidebar, or a lucide icon inside a nav item, is a bug.",
+        "name": "The Icon-Boundary Rule",
+        "body": "Replaces the retired Nav-Glyph Boundary Rule, which scoped Material Symbols to the sidebar alone. Material Symbols Rounded appears in the sidebar nav AND the dashboard route; every other route is lucide. A lucide icon inside a nav item is a bug, and so is a Material Symbol on a route not yet migrated. The boundary is per-route on purpose: the failure it prevents is two icon sets inside one screen, and the dashboard was carrying four (lucide, react-icons/md, /fa6, /tb) beside a Material sidebar. Moving the boundary again is one deliberate change that updates DESIGN.md, this file, and CLAUDE.md together. It does not leak.",
+        "section": "components"
+      },
+      {
+        "name": "The Network Status Landmark Rule",
+        "body": "Network Status keeps its existing icons through any restyle; it is a recognized landmark on the one glance surface and re-glyphing it buys nothing. Two exceptions to the icon boundary survive on it by explicit decision, and they are the only two on the dashboard: the SIM orb keeps lucide CardSimIcon and Plane, and the RAT glyphs keep react-icons/md (MdOutline5G, Md4gPlusMobiledata, Md4gMobiledata, Md3gMobiledata), because 5G, 4G+ and 3G are typographic marks Material Symbols has no equivalent for.",
+        "section": "components"
+      },
+      {
+        "name": "The Identity-Chip Rule",
+        "body": "The Badge variants `nr` (primary-container, brand blue) and `lte` (lte-container, Carrier Violet) are identity roles, not status roles: they say which radio a chip belongs to and never vary with health. The five status roles (success, warning, destructive, info, muted) remain the only correct choice for an actual status indicator. Where a chip carries identity, the quality it also reports must be encoded somewhere non-chromatic. On the dashboard Primary Status cards that channel is the Material glyph bar count: signal_cellular_4_bar (excellent), signal_cellular_3_bar (good), signal_cellular_2_bar (fair), signal_cellular_1_bar (poor), signal_cellular_off (none) — the constant-silhouette wedge family, not the alt bar family the mock drew, whose lower rungs are non-monotone in ink mass. That is a stronger channel than the fill ever was, since success-container and warning-container measure 1.03:1 apart.",
+        "section": "components"
+      },
+      {
+        "name": "The Explicit-Sizing Rule (Material glyphs)",
+        "body": "MaterialSymbol renders a span and sets fontSize as an inline style, which outranks any utility. Parent auto-sizing rules that reach a lucide child do not reach it: badge.tsx [&>svg]:size-3 and empty.tsx [&_svg:not([class*='size-'])]:size-6 both silently lose. Every Material glyph passes `size` explicitly at its call site (12 in a dense chip, 16 where the glyph is the only channel carrying meaning, 24 in an EmptyMedia). Only pointer-events ports across, via a parallel [&>[data-slot=material-symbol]] rule.",
+        "section": "components"
+      },
+      {
+        "name": "The Service-Ring Axes Rule",
+        "body": "Network Status orbs run two orthogonal axes that must stay distinct. RING TONE tracks RAT quality: amber is a working connection that is not optimal (LTE without carrier aggregation), not a fault. CORE GLYPH tracks service liveness. The shipped table is green+pulse+check (Optimal), amber+pulse+check (LTE without CA), amber+static+warning (Searching / Limited), red+static+priority_high (No Service / SIM error / unknown). The pulse is a redundant channel gated by isServiceActive: prefers-reduced-motion removes it and the glyph carries the meaning alone. Tone says how bad, motion says whether it is alive, which is what keeps a full-strength red ramp from crying wolf.",
         "section": "components"
       },
       {
@@ -554,7 +582,11 @@
       "Do animate container changes at standard or emphasized, and value or label swaps at quick.",
       "Do build stacked shapes from explicit tone steps, never from stacked alpha.",
       "Do keep tabular-nums on every live value and font-mono on machine output and identifiers.",
-      "Do keep Material Symbols Rounded inside the sidebar and lucide everywhere else, and self-host the Material subset rather than linking Google's CDN.",
+      "Do keep Material Symbols Rounded inside the sidebar and the dashboard route, lucide on every other route, and self-host the Material subset rather than linking Google's CDN.",
+      "Do pass `size` explicitly on every MaterialSymbol; its inline fontSize outranks the parent's auto-sizing utilities.",
+      "Do add a new glyph to the MaterialSymbolName union AND scripts-dev/subset-icons.mjs, then re-run `bun run icons:subset` and commit the regenerated WOFF2 in the same change. Nothing verifies the two lists agree, and a name in the union but absent from the font ships the literal word on a modem in the field.",
+      "Do encode quality non-chromatically (bar count, glyph ladder) whenever a chip's fill is spent on identity.",
+      "Do keep metric value tints on the functional palette for both radios, using the darkened -on-surface ink steps (5.88 / 5.95 on surface-container in light) rather than the solid role tokens (4.29 / 3.74, both below AA), and add an sr-only quality word after each tinted value.",
       "Do test both themes, and measure the worst text pairing on each new surface before merge.",
       "Do keep CardHeader to title plus description, and put icons in chips or CardAction.",
       "Do use SaveButton for saves and exactly one filled primary action per surface.",
@@ -577,7 +609,9 @@
       "Don't put pill rows in a 60-row table, or hairline rows on a four-row glance card.",
       "Don't reintroduce a hairline border on a card that already carries a tonal fill.",
       "Don't add icons to CardHeader. They drift into hero-metric SaaS template territory.",
-      "Don't put a Material Symbol outside the sidebar, a lucide icon inside a nav item, or re-glyph Network Status while restyling it.",
+      "Don't put a Material Symbol on a route still on lucide, a lucide icon inside a nav item, or re-glyph Network Status while restyling it. (Retired rule: the Nav-Glyph Boundary Rule, which scoped Material Symbols to the sidebar alone.)",
+      "Don't use the `nr` or `lte` Badge variants for a status indicator. They say which radio, never whether it is well.",
+      "Don't tint a metric value by radio identity, and don't tint an identifier row (Band, ARFCN, PCI, SCS) at all: an identifier has no good-or-bad reading to announce.",
       "Don't load an icon font or webfont from a remote CDN; the modem serves this app and may have no internet.",
       "Don't introduce a second UI typeface, or hand-wire a font into a component with a font-family style.",
       "Don't use background-clip: text gradients, side-stripe accent borders, or glassmorphism.",

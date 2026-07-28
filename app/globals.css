@@ -97,6 +97,9 @@
   --color-tone-warning-1: var(--tone-warning-1);
   --color-tone-warning-2: var(--tone-warning-2);
   --color-tone-warning-3: var(--tone-warning-3);
+  --color-tone-destructive-1: var(--tone-destructive-1);
+  --color-tone-destructive-2: var(--tone-destructive-2);
+  --color-tone-destructive-3: var(--tone-destructive-3);
   --color-popover-foreground: var(--popover-foreground);
   --color-popover: var(--popover);
   --color-card-foreground: var(--card-foreground);
@@ -223,6 +226,13 @@
   --tone-warning-1: oklch(0.95 0.055 80);
   --tone-warning-2: oklch(0.905 0.09 78);
   --tone-warning-3: oklch(0.835 0.13 78);
+  /* The failed ring used to borrow surface-container/-high + destructive-
+     container, which is a neutral ramp with one red note — it read as broken
+     chrome rather than a red state. Step 2 sits on --destructive-container so
+     the innermost halo still relates to the chip family. */
+  --tone-destructive-1: oklch(0.945 0.05 25);
+  --tone-destructive-2: oklch(0.905 0.08 25);
+  --tone-destructive-3: oklch(0.835 0.12 25);
 
   /* --- Strokes. --outline is the canon token (inputs, table rules only);
          --border stays quiet because cards still render one until step 3. --- */
@@ -327,6 +337,9 @@
   --tone-warning-1: oklch(0.275 0.06 70);
   --tone-warning-2: oklch(0.365 0.09 74);
   --tone-warning-3: oklch(0.49 0.12 78);
+  --tone-destructive-1: oklch(0.275 0.07 25);
+  --tone-destructive-2: oklch(0.365 0.105 25);
+  --tone-destructive-3: oklch(0.49 0.15 25);
 
   --outline: oklch(0.365 0.04 258);
   --border: oklch(1 0 0 / 10%);

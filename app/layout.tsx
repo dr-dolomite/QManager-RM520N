@@ -15,12 +15,15 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
-// Icon typeface for the sidebar (DESIGN.md > Iconography: Material Symbols
-// Rounded, scoped to the shell). Self-hosted and subset at build time to the
-// 19 glyphs the nav actually renders — 10 KB instead of the family's 3.4 MB.
+// Icon typeface for the sidebar and the dashboard route (DESIGN.md > Icons:
+// the Icon-Boundary Rule; every other route stays on lucide). Self-hosted and
+// subset at build time to the 53 glyphs those two surfaces render — 19.3 KB
+// instead of the family's 3.4 MB.
 // The modem serves this app and may have no internet, so a CDN <link> would
 // render every nav item as the literal ligature text ("cell_tower") in the
-// field. Regenerate with `bun run icons:subset` when the glyph set changes.
+// field. Regenerate with `bun run icons:subset` when the glyph set changes,
+// and remember the union and the generator's list are hand-synced
+// (docs/reference/icon-system.md).
 //
 // display: "block" (not "swap") for the same reason: during the brief load
 // window an icon font must render nothing rather than its ligature source text.

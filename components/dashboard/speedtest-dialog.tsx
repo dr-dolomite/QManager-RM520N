@@ -21,17 +21,9 @@ import {
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
-  ArrowDown,
-  ArrowUp,
-  Activity,
-  Server,
-  Globe,
-  ExternalLink,
-  Loader2,
-  TriangleAlert,
-  Play,
-  RefreshCwIcon,
-} from "lucide-react";
+  MaterialSymbol,
+  type MaterialSymbolName,
+} from "@/components/ui/material-symbol";
 import { useSpeedtest, type SpeedtestPhase } from "@/hooks/use-speedtest";
 import { bytesToMbps, formatSpeed, formatBytes } from "@/types/speedtest";
 
@@ -110,7 +102,8 @@ function LiveSpeed({
   bytes: number;
 }) {
   const { t } = useTranslation("dashboard");
-  const Icon = phase === "download" ? ArrowDown : ArrowUp;
+  const icon: MaterialSymbolName =
+    phase === "download" ? "arrow_downward" : "arrow_upward";
   const mbps = bytesToMbps(bandwidth);
   const pct = Math.round(progress * 100);
 
@@ -118,7 +111,7 @@ function LiveSpeed({
     <div className="space-y-3">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <Icon className="size-4 text-primary" />
+          <MaterialSymbol name={icon} size={16} className="text-primary" />
           <span className="text-sm font-medium">
             {t(`speedtest.phase_${phase}`)}
           </span>
@@ -161,7 +154,7 @@ function ResultDisplay({
         {/* Download */}
         <div className="text-center space-y-1">
           <div className="flex items-center justify-center gap-1 text-primary font-semibold">
-            <ArrowDown className="h-3.5 w-3.5" />
+            <MaterialSymbol name="arrow_downward" size={14} />
             <span className="text-xs">{t("speedtest.result_download")}</span>
           </div>
           <div className="flex items-baseline justify-center gap-0.5">
@@ -177,7 +170,7 @@ function ResultDisplay({
         {/* Upload */}
         <div className="text-center space-y-1">
           <div className="flex items-center justify-center gap-1 text-primary font-semibold">
-            <ArrowUp className="h-3.5 w-3.5" />
+            <MaterialSymbol name="arrow_upward" size={14} />
             <span className="text-xs">{t("speedtest.result_upload")}</span>
           </div>
           <div className="flex items-baseline justify-center gap-0.5">
@@ -193,7 +186,7 @@ function ResultDisplay({
         {/* Ping */}
         <div className="text-center space-y-1">
           <div className="flex items-center justify-center gap-1 text-primary font-semibold">
-            <Activity className="h-3.5 w-3.5" />
+            <MaterialSymbol name="network_ping" size={14} />
             <span className="text-xs">{t("speedtest.result_ping")}</span>
           </div>
           <div className="flex items-baseline justify-center gap-0.5">
@@ -268,14 +261,14 @@ function ResultDisplay({
       {/* Server info */}
       <div className="space-y-2 text-sm">
         <div className="flex items-center gap-1.5">
-          <Server className="h-3.5 w-3.5 text-primary" />
+          <MaterialSymbol name="dns" size={14} className="text-primary" />
           <span className="text-primary font-semibold">
             {t("speedtest.result_server_heading")}
           </span>
           <span className="font-medium ml-auto">{result.server.name}</span>
         </div>
         <div className="flex items-center gap-1.5">
-          <Globe className="h-3.5 w-3.5 text-primary" />
+          <MaterialSymbol name="public" size={14} className="text-primary" />
           <span className="text-primary font-semibold">
             {t("speedtest.result_location")}
           </span>
@@ -284,7 +277,10 @@ function ResultDisplay({
           </span>
         </div>
         <div className="flex items-center gap-1.5">
-          <Activity className="h-3.5 w-3.5 text-primary" />
+          {/* Not `network_ping` — that glyph labels the Ping stat higher in
+              this same card, and one glyph on two meanings in one view is
+              worse than the vague lucide `Activity` it replaced. */}
+          <MaterialSymbol name="router" size={14} className="text-primary" />
           <span className="text-primary font-semibold">
             {t("speedtest.result_isp")}
           </span>
@@ -300,7 +296,7 @@ function ResultDisplay({
           rel="noopener noreferrer"
           className="flex items-center justify-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors pt-1 underline underline-offset-4"
         >
-          <ExternalLink className="h-3 w-3" />
+          <MaterialSymbol name="open_in_new" size={12} />
           {t("speedtest.view_result_link")}
         </a>
       )}
@@ -397,7 +393,11 @@ export function SpeedtestDialog({ open, onOpenChange }: SpeedtestDialogProps) {
                     disabled={isLoadingServers}
                     aria-label={t("speedtest.refresh_aria")}
                   >
-                    <RefreshCwIcon className={`size-3.5 ${isLoadingServers ? "animate-spin" : ""}`} />
+                    <MaterialSymbol
+                      name="refresh"
+                      size={14}
+                      className={isLoadingServers ? "animate-spin" : ""}
+                    />
                   </Button>
                 </div>
                 {isLoadingServers && servers.length === 0 ? (
@@ -434,7 +434,7 @@ export function SpeedtestDialog({ open, onOpenChange }: SpeedtestDialogProps) {
               </div>
 
               <Button onClick={start} disabled={!isAvailable} className="gap-2">
-                <Play className="size-4" />
+                <MaterialSymbol name="play_arrow" size={16} filled />
                 {t("speedtest.run_button")}
               </Button>
               {isAvailable === false && (
@@ -450,7 +450,11 @@ export function SpeedtestDialog({ open, onOpenChange }: SpeedtestDialogProps) {
           {/* ============================================================= */}
           {phase === "initializing" && (
             <div className="flex flex-col items-center gap-3 py-6">
-              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+              <MaterialSymbol
+                name="progress_activity"
+                size={32}
+                className="animate-spin text-primary"
+              />
               <p className="text-sm text-muted-foreground">
                 {t("speedtest.connecting_message")}
               </p>
@@ -470,7 +474,11 @@ export function SpeedtestDialog({ open, onOpenChange }: SpeedtestDialogProps) {
             <div className="space-y-3 py-2">
               <PhaseIndicator phase="ping" />
               <div className="flex flex-col items-center gap-2 py-4">
-                <Activity className="size-6 text-primary animate-pulse" />
+                <MaterialSymbol
+                  name="network_ping"
+                  size={24}
+                  className="text-primary animate-pulse"
+                />
                 <span className="text-sm font-medium">
                   {t("speedtest.testing_latency_message")}
                 </span>
@@ -525,7 +533,7 @@ export function SpeedtestDialog({ open, onOpenChange }: SpeedtestDialogProps) {
               <ResultDisplay result={result} />
               <div className="flex justify-center pt-2">
                 <Button onClick={start}>
-                  <Play className="h-3.5 w-3.5" />
+                  <MaterialSymbol name="play_arrow" size={14} filled />
                   {t("speedtest.run_again_button")}
                 </Button>
               </div>
@@ -537,7 +545,11 @@ export function SpeedtestDialog({ open, onOpenChange }: SpeedtestDialogProps) {
           {/* ============================================================= */}
           {phase === "error" && (
             <div className="flex flex-col items-center gap-3 py-4">
-              <TriangleAlert className="h-8 w-8 text-destructive" />
+              <MaterialSymbol
+                name="warning"
+                size={32}
+                className="text-destructive"
+              />
               <p className="text-sm text-destructive text-center">{error}</p>
               <Button
                 onClick={start}
@@ -545,7 +557,7 @@ export function SpeedtestDialog({ open, onOpenChange }: SpeedtestDialogProps) {
                 size="sm"
                 className="gap-2"
               >
-                <Play className="h-3.5 w-3.5" />
+                <MaterialSymbol name="play_arrow" size={14} filled />
                 {t("speedtest.try_again_button")}
               </Button>
             </div>

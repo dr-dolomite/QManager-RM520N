@@ -21,8 +21,17 @@ import { cn } from "@/lib/utils"
  * status chip in the product cut straight to its new fill. The half of the
  * two-clock recipe that is supposed to be felt peripherally was never running.
  */
+/*
+ * Icon slot: `[&>svg]:size-3` auto-sizes a lucide child. It does NOT reach a
+ * MaterialSymbol, which renders a <span> and sets fontSize inline — an inline
+ * style outranks any utility, so a parallel sizing rule would silently lose.
+ * Material glyphs in a Badge therefore pass `size` explicitly — 12 in a dense
+ * chip, 16 on the signal-quality chip where the glyph is the only thing
+ * carrying quality — which is also what keeps the opsz axis honest. Only
+ * pointer-events ports across.
+ */
 const badgeVariants = cva(
-  "inline-flex items-center justify-center rounded-full border px-2 py-0.5 text-xs font-medium w-fit whitespace-nowrap shrink-0 [&>svg]:size-3 gap-1 [&>svg]:pointer-events-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive overflow-hidden [transition:color_var(--duration-standard)_var(--ease-standard),background-color_var(--duration-standard)_var(--ease-standard),box-shadow_var(--duration-quick)_ease-out]",
+  "inline-flex items-center justify-center rounded-full border px-2 py-0.5 text-xs font-medium w-fit whitespace-nowrap shrink-0 [&>svg]:size-3 gap-1 [&>svg]:pointer-events-none [&>[data-slot=material-symbol]]:pointer-events-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive overflow-hidden [transition:color_var(--duration-standard)_var(--ease-standard),background-color_var(--duration-standard)_var(--ease-standard),box-shadow_var(--duration-quick)_ease-out]",
   {
     variants: {
       variant: {
@@ -59,6 +68,27 @@ const badgeVariants = cva(
         // failures. Failure is `destructive`.
         muted:
           "border-transparent bg-surface-container-high text-on-surface-variant [a&]:hover:bg-surface-container-high/80",
+        // ── Identity roles: NOT status chips ────────────────────────────────
+        // These carry which RADIO a chip belongs to — blue is the 5G NR leg,
+        // violet the 4G LTE leg — and never vary with health. They exist so a
+        // radio-identity tone can key onto `BadgeVariant` like every other tone
+        // map, instead of being hand-written as a class string at the call site.
+        //
+        // They are not interchangeable with the five status roles above: an
+        // identity fill says "this is the NR card", not "this is fine". A status
+        // indicator must still be `success`/`warning`/`destructive`/`info`/
+        // `muted`. Where a chip carries identity, the quality it also reports
+        // has to be encoded somewhere non-chromatic — on the signal cards that
+        // is the Material glyph's bar count.
+        //
+        // Carrier Violet ships as `--lte-*`: `secondary` in this codebase is
+        // byte-identical to `surface-container`, so `text-secondary` on a row
+        // pill would be 1.00:1 — literally invisible (DESIGN.md > Token Names
+        // in Code).
+        nr:
+          "border-transparent bg-primary-container text-on-primary-container [a&]:hover:bg-primary-container/80",
+        lte:
+          "border-transparent bg-lte-container text-on-lte-container [a&]:hover:bg-lte-container/80",
         outline:
           "text-foreground [a&]:hover:bg-accent [a&]:hover:text-accent-foreground",
       },

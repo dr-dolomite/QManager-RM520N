@@ -73,6 +73,12 @@ colors:
   ring-warning-1-dark: "oklch(0.275 0.06 70)"
   ring-warning-2-dark: "oklch(0.365 0.09 74)"
   ring-warning-3-dark: "oklch(0.49 0.12 78)"
+  ring-destructive-1-light: "oklch(0.945 0.05 25)"
+  ring-destructive-2-light: "oklch(0.905 0.08 25)"
+  ring-destructive-3-light: "oklch(0.835 0.12 25)"
+  ring-destructive-1-dark: "oklch(0.275 0.07 25)"
+  ring-destructive-2-dark: "oklch(0.365 0.105 25)"
+  ring-destructive-3-dark: "oklch(0.49 0.15 25)"
   # --- Chart series (one hue per radio family) ---
   chart-nr: "oklch(0.488 0.243 264.376)"
   chart-lte: "oklch(0.495 0.205 296)"
@@ -421,7 +427,12 @@ never raw Tailwind palette classes like `text-blue-500`. The theme switch depend
 
 **The Explicit-Tone Rule.** Layered translucency is banned for stacked shapes. The service rings
 composite to a flat disc when built from one color at 0.15 / 0.25 / 0.40 alpha; they use four
-explicit tone steps instead (`ring-success-1` through `ring-success-3` plus the fill).
+explicit tone steps instead (`tone-{role}-1` through `tone-{role}-3` plus the solid role at the core).
+All three ring ramps are now symmetric: `--tone-success-*`, `--tone-warning-*`, and
+`--tone-destructive-*` each walk their own role's hue outward-in. The red branch used to borrow
+`surface-container` / `surface-container-high` / `destructive-container` because no destructive tone
+steps existed, which is a neutral grey ramp with one red note: it read as broken chrome rather than
+as a red state.
 
 ### Token Names in Code
 
@@ -434,7 +445,7 @@ violet and hand affordance to a hue that must never act.
 |------------|-------------------------------|-----------|
 | Secondary (Carrier Violet, 4G LTE) | `--lte`, `--lte-foreground`, `--lte-container`, `--on-lte-container` | `bg-lte-container`, `text-on-lte-container` |
 | Tertiary (Uplink Cyan) | `--uplink`, `--uplink-foreground`, `--uplink-container`, `--on-uplink-container` | `bg-uplink-container`, `text-on-uplink-container` |
-| Signal ring steps | `--tone-success-1..3`, `--tone-warning-1..3` | `bg-tone-success-2` |
+| Signal ring steps | `--tone-success-1..3`, `--tone-warning-1..3`, `--tone-destructive-1..3` | `bg-tone-success-2` |
 | Outline (inputs, table rules) | `--outline` | `border-outline` |
 
 Everything else uses its canon name: `--primary-container`, `--on-primary-container`,
@@ -487,7 +498,8 @@ ever rendered in it; the dead import is gone. If a genuine secondary-face need e
 deliberately and bind it via a font variable in the same change. Never hand-wire a font into a component.
 
 A third font file does enter the build under the new system, but it is an **icon font, not a voice**:
-Material Symbols Rounded, self-hosted and scoped to the sidebar. See Components > Icons.
+Material Symbols Rounded, self-hosted and scoped to the sidebar and the dashboard route.
+See Components > Icons.
 
 ### Hierarchy
 
@@ -497,6 +509,14 @@ Material Symbols Rounded, self-hosted and scoped to the sidebar. See Components 
 - **Title** (600, 1rem / 16px, `leading-none`): the `CardTitle` default. Tight leading so titles
   align cleanly with adjacent metadata.
 - **Body** (400, `text-sm` / 14px, line-height 1.5): default UI text, descriptions, table cells.
+- **Metric row** (600, `text-[13px]/5` / 13px on a 20px line box): the dense metric-row step, used for
+  both the label and the value of a pill metric row on a glance card. It is a real ramp step, not a
+  one-off: the two dashboard Primary Status cards render every row at it
+  (`components/dashboard/signal-status-card.tsx`). **The `/5` is not optional.** 13px is an arbitrary
+  Tailwind size, so it would otherwise inherit whatever leading the card sits in; pinning the line box
+  to 20px is what holds the row at exactly 40px and keeps the loading skeleton's `h-10` mirroring it
+  (the Skeleton-Mirror Rule). Do not reach for 13px outside a dense metric row; 14px body and 12px
+  label remain the defaults.
 - **Label** (500, `text-xs` / 12px): chips, table headers, button text, form labels, tiny uppercase
   section labels (`uppercase tracking-wider`, 11px in the sidebar).
 - **Numeric** (600, sized to slot, `tabular-nums`): live signal values, counters, timers.
@@ -738,9 +758,12 @@ own `@media (prefers-reduced-motion: reduce)` off-switch.
 - **Save confirmation.** `SaveButton` swaps idle to "Saving..." to "Saved!" on `useSaveFlash` timing;
   the check scales to 1.03 and settles. The check is the **only** element in the product permitted to
   exceed 1.0 scale, and only to 1.03.
-- **Service rings.** `animate-pulse-ring`, three concentric discs on the `tone-{role}-{1,2,3}` steps,
-  offset 0 / 0.3s / 0.6s. This is the only thing on the dashboard that loops continuously, and **it
-  stops the moment the service is not active** — a ring that pulses over a dead service is a lie.
+- **Service rings.** `animate-pulse-ring`, three concentric discs on the `tone-{role}-{1,2,3}` steps
+  (all three ramps, success / warning / destructive), offset 0 / 0.3s / 0.6s. This is the only thing
+  on the dashboard that loops continuously, and **it stops the moment the service is not active** — a
+  ring that pulses over a dead service is a lie. The pulse is also what stops a full-strength red ramp
+  from crying wolf: red and static-amber stacks are frozen while only a live one breathes, so tone
+  says how bad and motion says whether it is alive. See Components > Service rings for the state table.
 - **Live ping dot.** `animate-live-ping`: a disc scales to 2.4 and fades out over the ambient duration.
   Reserved for a genuinely live stream (poller ticking, watchdog probing), never for "this page loaded".
 
@@ -791,8 +814,9 @@ lucide icons); the custom layer is thin and listed below.
 
 ### Status chips (replaces status badges)
 
-**All status indicators are filled tonal chips**: `bg-{role}-container`, `text-on-{role}-container`, a
-`size-4` lucide icon, pill radius. The outline-plus-tint pattern is **retired**. Inside a tonal system
+**All status indicators are filled tonal chips**: `bg-{role}-container`, `text-on-{role}-container`, an
+icon, pill radius. The icon is lucide everywhere except the dashboard route, which is on Material
+Symbols (see Icons). The outline-plus-tint pattern is **retired**. Inside a tonal system
 an outlined badge reads as a weaker copy of the container beside it, and it loses legibility first in
 sunlight, which is the field-tech failure case.
 
@@ -818,6 +842,70 @@ deuteranopia. The glyph is doing the work, so every chip has one, and two states
 same slot must not share a glyph. The signal-quality chips in the cell scanner are the worked example:
 Good / Fair / Bad carry `SignalHigh` / `SignalMedium` / `SignalLow`, which encode the verdict by bar
 count and survive both a colourblind reader and a greyscale print.
+
+#### Identity chips: `nr` and `lte` (not status chips)
+
+Two further variants live in the same `cva`, and they are a **different kind of thing**. `nr`
+(`primary-container`, brand blue) and `lte` (`lte-container`, Carrier Violet) carry which **radio** a
+chip belongs to. They never vary with health, and an identity fill never means "this is fine".
+
+They exist so a radio-identity tone can key onto the exported `BadgeVariant` type like every other
+tone map, instead of being hand-written as a class string at the call site. The shipped consumer is
+the quality chip on the two dashboard Primary Status cards
+(`components/dashboard/signal-status-card.tsx`), which is toned by RAT so the paired cards are told
+apart from across a room.
+
+> ⚠️ WARNING: this is not a licence to tint status indicators by identity. The five status roles
+> above remain the **only** correct choice for an actual status indicator.
+
+**The Identity-Chip Rule.** Where a chip carries identity, the quality it also reports must be
+encoded somewhere **non-chromatic**. On the signal cards that channel is the Material glyph's bar
+count, a five-step monotonic ladder that survives greyscale and deuteranopia:
+
+| Quality | Glyph |
+|---------|-------|
+| Excellent | `signal_cellular_4_bar` |
+| Good | `signal_cellular_3_bar` |
+| Fair | `signal_cellular_2_bar` |
+| Poor | `signal_cellular_1_bar` |
+| None | `signal_cellular_off` |
+
+The **wedge** family, not the `signal_cellular_alt*` bar family the source mock drew. The mock only
+rendered Excellent and Good, so it never exposed what the alt family does further down: `alt_1_bar`
+is a single 120×240-unit mark (~2×4px at `size={16}`, indistinguishable from a failed icon load) and
+there is no `alt_0_bar` at all, so Poor and None fall back to full-size wedges. Ink mass would run
+large → medium → speck → large → large. The wedge family holds one constant silhouette and grows the
+solid fill, so every rung shares a footprint and the ladder scans as a meter.
+
+This is a stronger channel than the fill ever was. `success-container` and `warning-container`
+measure 1.03:1 apart, so the previous quality-toned chip was already leaning on its icon to be read;
+moving the fill to identity cost nothing that was actually carrying meaning.
+
+### Service rings (Network Status)
+
+The dashboard's Network Status orbs are three concentric tone discs plus a solid core, built per the
+Explicit-Tone Rule from `--tone-{role}-1/2/3` and never from stacked alpha. **Two orthogonal axes
+run through them, and they must stay distinct in any surface that reuses the pattern:**
+
+- **Ring tone tracks RAT quality.** Amber is a *working* connection that is not optimal, not a fault.
+- **Core glyph tracks service liveness.** It answers "is there service at all".
+
+| Ring tone | Pulse | Core glyph | Meaning |
+|-----------|-------|------------|---------|
+| Green | Pulses | `check` | Optimal |
+| Amber | Pulses | `check` | LTE without carrier aggregation: working, not optimal |
+| Amber | Static | `warning` | Searching / Limited |
+| Red | Static | `priority_high` | No Service / SIM error / unknown |
+
+The pulse is a **redundant** channel, gated by `isServiceActive`: tone says how bad, motion says
+whether it is alive. `prefers-reduced-motion` removes the pulse entirely and the glyph still carries
+the whole meaning on its own. That gating is also what keeps a red ramp from crying wolf: red and
+static-amber stacks are frozen, and only a live one breathes.
+
+Orb geometry is shared with the skeletons so the two can never drift: a 152px disc with a 96px glyph,
+leaving roughly 28px of optical padding. 96 is near the ceiling, not a taste call. The corner badge
+occupies x 110-138 / y 4-32 of the orb box, and at 96px the widest glyph's ink still clears it.
+Re-check that overlap before raising it.
 
 ### Buttons
 
@@ -860,6 +948,21 @@ The one deliberately conditional rule in the system.
 
 If you are unsure which you are building, count the rows a real device produces, not the rows in the mock.
 
+**Metric value tints stay on the functional palette, on both radios.** A tinted metric value uses the
+darkened `-on-surface` ink steps (green / amber / red), never the identity hue, and never the solid
+role tokens. The design mock tinted some LTE values violet; that was deliberately not followed,
+because a value's colour is a verdict and a verdict must not change meaning with the radio reporting
+it. The mock's literal tints were also unusable on contrast grounds: it reaches for the **solid** role
+tokens, which measure **4.29:1 (`--ok`)** and **3.74:1 (`--wa`)** on `surface-container` in light mode,
+both below AA. The shipped `-on-surface` ink steps measure 5.88 and 5.95.
+
+Colour is never the only channel on a metric row either. `success-on-surface` and
+`warning-on-surface` measure roughly **1.01:1** apart in light mode, so they are the same luminance
+separated only by hue, and green and amber converge under deuteranopia: a "good" SINR and a "fair"
+SINR were the same grey number to a colourblind technician in sunlight. Every tinted value therefore
+carries an `sr-only` quality word after it. Identifier rows (Band, ARFCN, PCI, SCS) are untinted and
+must **not** get one, because they have no good-or-bad reading to announce.
+
 ### Inputs / Fields
 
 - **Style:** `surface-container` fill in both themes, 1.25rem radius, `h-10`, `px-3.5`, no border at rest.
@@ -871,7 +974,8 @@ If you are unsure which you are building, count the rows a real device produces,
 
 ### Navigation
 
-The sidebar is the one surface that carries Material Symbols Rounded glyphs (see Icons).
+The sidebar was the first surface to carry Material Symbols Rounded glyphs, and the dashboard route
+has since joined it (see Icons).
 
 - shadcn sidebar, **inset variant**: header (mark plus product name), grouped nav sections (`NavMain`,
   `NavCellular`, `NavLocalNetwork`, `NavMonitoring`, `NavSystem`, `NavSecondary`), `NavUser` footer.
@@ -911,9 +1015,10 @@ the product, so the set is closed: eight roles, one anatomy, no per-feature vari
 - **Glyph:** a `size-9` filled circle on the role's strong fill (`bg-{role}`, `text-{role}-foreground`)
   holding a `size-5` icon. Never a bare icon on the container.
 - **Title:** 15px semibold (tracking -0.005em). **Note:** 15px and 13px are the banner's own two type
-  steps and are deliberately off the main ramp (30 / 20 / 16 / 14 / 12) — a banner is denser than body
-  copy and looser than a label, and both steps are measured for AA on every role container. They are
-  the only sanctioned literal font sizes outside the ramp. **Identity line** (optional): a machine-voice row of carrier, number, or
+  steps — a banner is denser than body copy and looser than a label, and both steps are measured for
+  AA on every role container. 13px has since been promoted to a real ramp step (the dense metric-row
+  step, see Typography > Hierarchy); 15px remains banner-scoped and is now the only sanctioned literal
+  font size outside the ramp. **Identity line** (optional): a machine-voice row of carrier, number, or
   masked ICCID in `font-mono`. **Description:** 13px, one or two sentences, says what happens next.
 - **CTA:** exactly one pill button, right-aligned, wrapping below on narrow widths.
 - **Dismiss:** an absolutely-positioned `size-8` circle at the top-trailing corner, present only on
@@ -1096,30 +1201,59 @@ Never a blank card, never a spinner in a void.
 
 ### Icons
 
-Two libraries, one hard boundary. The boundary is **the sidebar**, not a vibe.
+Two libraries, one hard boundary. The boundary is **the route**, not a vibe, and it is tracked
+deliberately rather than allowed to drift.
 
-- **Material Symbols Rounded is scoped to the sidebar navigation, and nothing else.** Its filled
-  (`FILL 1`) and outlined (`FILL 0`) axes are what make the active nav pill read as active without
-  relying on the container tone alone, which is why the swap is worth a second icon dependency here
-  and nowhere else. It must be **self-hosted** (a subset WOFF2 shipped with the build, bound through a
-  font variable like every other face): the app is served by the modem itself and can never depend on
-  `fonts.googleapis.com`. Subset it to the glyphs the nav actually uses.
-- **Lucide is the library for everything else**: cards, chips, buttons, dialogs, tables, empty states,
-  the header bar, page content. Prefer its rounded, filled-adjacent glyphs so the icon weight matches
-  the shape scale.
-- **Network Status keeps its current icons.** It is a recognized landmark on the one glance surface,
-  and re-glyphing it buys nothing. Re-tint it onto the new tonal roles and leave the icon set alone.
+- **Material Symbols Rounded is scoped to the sidebar navigation and the dashboard route.** Its
+  filled (`FILL 1`) and outlined (`FILL 0`) axes are what make the active nav pill read as active
+  without relying on the container tone alone, and the same fill axis gives the dashboard's glance
+  surfaces a heavier, tonal glyph weight that matches the shape scale. It must be **self-hosted** (a
+  subset WOFF2 shipped with the build, bound through a font variable like every other face): the app
+  is served by the modem itself and can never depend on `fonts.googleapis.com`.
+- **Lucide is the library for every other route**: Cellular, Local Network, Monitoring, System
+  Settings, dialogs launched from them, the header bar, page content. Prefer its rounded,
+  filled-adjacent glyphs so the icon weight matches the shape scale.
 - **Tabler** (`@tabler/icons-react`) remains the sanctioned secondary for glyphs lucide lacks. Some
   legacy surfaces import from `react-icons` (Md/Fa6/Tb); do not extend that dependency in new work.
 - `size-4` inline, `size-5` in chips and buttons, `size-8` and up in empty states. Icon-only buttons
   always include `aria-label`.
 
+**Sizing gotcha: `MaterialSymbol` sets `fontSize` inline.** An inline style outranks any utility, so
+the auto-sizing rules that reach a lucide child do **not** reach a Material glyph:
+`badge.tsx`'s `[&>svg]:size-3` and `empty.tsx`'s `[&_svg:not([class*='size-'])]:size-6` both silently
+lose. Every Material glyph therefore passes `size` explicitly at its call site (12 in a dense chip,
+16 where the glyph is the only channel carrying meaning, 24 in an `EmptyMedia`). Both files carry a
+comment saying so. Only `pointer-events` ports across, via a parallel
+`[&>[data-slot=material-symbol]]` rule.
+
+**Adding a glyph is a two-file, one-binary change.** `MaterialSymbolName` (the TS union in
+`components/ui/material-symbol.tsx`) and `ICONS` (`scripts-dev/subset-icons.mjs`) are **hand-synced,
+and nothing verifies they agree.** A name in the union but absent from the font does not fail the
+build; the typeface is ligature-driven, so it ships a card that renders the literal word `sim_card`
+on a modem in the field. `icons:subset` is also not part of `bun run package`. Add the name to both
+lists, run `bun run icons:subset`, and commit the regenerated
+`app/fonts/MaterialSymbolsRounded-subset.woff2` in the same change. See
+`docs/reference/icon-system.md`.
+
 ### Named Rules
 
-**The Nav-Glyph Boundary Rule.** Material Symbols Rounded appears in the sidebar nav and nowhere else;
-every other surface is lucide. A Material Symbol outside the sidebar, or a lucide icon inside a nav
-item, is a bug. If a future surface wants Material glyphs, it moves the boundary deliberately in one
-change, it does not leak.
+**The Icon-Boundary Rule** (replaces the retired Nav-Glyph Boundary Rule). Material Symbols Rounded
+appears in the **sidebar nav and the dashboard route**; every other route is lucide. A lucide icon
+inside a nav item is a bug, and so is a Material Symbol on an unmigrated route. The boundary is
+per-route on purpose: the failure this rule exists to prevent is **two icon sets inside one screen**,
+and the dashboard was carrying four (lucide, `react-icons/md`, `/fa6`, `/tb`) beside a Material
+sidebar. When another route wants Material glyphs it moves the boundary deliberately in one change
+and updates this rule, `.impeccable/design.json`, and `CLAUDE.md` with it. It does not leak.
+
+**The Network Status Landmark Rule.** Network Status keeps its existing icons through any restyle. It
+is a recognized landmark on the one glance surface and re-glyphing it buys nothing. Two exceptions to
+the icon boundary survive on it by explicit decision, and they are the only two on the dashboard: the
+SIM orb keeps lucide `CardSimIcon` / `Plane`, and the RAT glyphs keep `react-icons/md` (`MdOutline5G`,
+`Md4gPlusMobiledata`, `Md4gMobiledata`, `Md3gMobiledata`), because "5G", "4G+"
+and "3G" are typographic marks Material Symbols has no equivalent for.
+
+**The Identity-Chip Rule.** `nr` and `lte` are identity roles, not status roles. Where a chip carries
+identity, the quality it also reports must be encoded somewhere non-chromatic. See Status chips.
 
 **The Filled-Chip Rule** (replaces the retired Outline-Badge Rule). Every status indicator is a filled
 tonal chip: a role container fill, that container's `on-` ink, an icon, and pill radius. If a chip needs
@@ -1181,8 +1315,14 @@ Documented for direction only; none of these exist in this tree today. Do not re
 - **Do** animate container changes at `standard` or `emphasized`, and value or label swaps at `quick`.
 - **Do** build stacked shapes from explicit tone steps, never from stacked alpha.
 - **Do** keep `tabular-nums` on every live value and `font-mono` on machine output and identifiers.
-- **Do** keep Material Symbols Rounded inside the sidebar and lucide everywhere else, and self-host the
-  Material subset rather than linking Google's CDN.
+- **Do** keep Material Symbols Rounded inside the sidebar and the dashboard route, lucide on every
+  other route, and self-host the Material subset rather than linking Google's CDN.
+- **Do** pass `size` explicitly on every `MaterialSymbol`; its inline `fontSize` outranks the parent's
+  auto-sizing utilities.
+- **Do** add a new glyph to `MaterialSymbolName` *and* `scripts-dev/subset-icons.mjs`, then re-run
+  `bun run icons:subset` and commit the regenerated WOFF2 in the same change.
+- **Do** encode quality non-chromatically (bar count, glyph ladder) whenever a chip's fill is spent on
+  identity.
 - **Do** test both themes, and measure the worst text pairing on each new surface before merge.
 - **Do** keep `CardHeader` to title plus description, and put icons in chips or `CardAction`.
 - **Do** use `SaveButton` for saves and exactly one filled primary action per surface.
@@ -1211,8 +1351,10 @@ Documented for direction only; none of these exist in this tree today. Do not re
 - **Don't** put pill rows in a 60-row table, or hairline rows on a four-row glance card.
 - **Don't** reintroduce a hairline border on a card that already carries a tonal fill.
 - **Don't** add icons to `CardHeader`. They drift into hero-metric SaaS template territory.
-- **Don't** put a Material Symbol outside the sidebar, a lucide icon inside a nav item, or re-glyph
-  Network Status while restyling it.
+- **Don't** put a Material Symbol on a route still on lucide, a lucide icon inside a nav item, or
+  re-glyph Network Status while restyling it. *(Retired rule: the Nav-Glyph Boundary Rule, which
+  scoped Material Symbols to the sidebar alone.)*
+- **Don't** use `nr` or `lte` for a status indicator. They say which radio, never whether it is well.
 - **Don't** load an icon font or webfont from a remote CDN; the modem serves this app and may have no
   internet.
 - **Don't** introduce a second UI typeface, or hand-wire a font into a component with a `font-family` style.
@@ -1241,9 +1383,10 @@ step is independently shippable and leaves the product correct.
 |------|-------|-------|
 | 1 | **Tokens in `globals.css`.** Container roles, tinted surface steps, retuned amber, info aliased to the brand ramp, ring tone steps, the shape scale as additive role radii, motion curves and durations. No component touched; the product changes color and stays correct. | **Landed** |
 | 2 | **Shell and shape scale.** Sidebar pills with the sliding indicator and the self-hosted Material Symbols Rounded subset, the role radii applied to cards and controls (retiring the legacy `--radius` chain), the new mark wired in (`public/qmanager-mark.svg` is already in the tree, currently unreferenced). | **Partial.** Nav half landed. The dashboard's own cards now carry role radii (`rounded-hero` on the two hero cards, `rounded-card` on the rest). The legacy `--radius` chain is still live everywhere else: `rounded-md` alone has 114 call sites, so retargeting it silently would be a regression, not a migration. |
-| 3 | **Chips, banners, and the dashboard.** Flip the badge pattern to filled chips, retarget the banners to the eight-role system (`SimSwapBanner` first — it is the reference anatomy), adopt containers and pill rows on the status cards (Network Status keeps its icons), land the Carrier Aggregation strip. | **Landed.** The Banner System shipped as `components/ui/banner.tsx` (all eight roles; 01/02/03/05/07 mounted, 04/06/08 available but unmounted). **The badge flip is done**: the five chip roles live in `components/ui/badge.tsx`'s `cva`, all 90+ call sites across 33 files render `variant="…"`, four tone maps key onto the exported `BadgeVariant` type, and the `CLAUDE.md` table now documents the filled chip. **The Carrier Aggregation strip has landed** (`components/dashboard/carrier-aggregation.tsx` plus the pure view model in `lib/carrier-aggregation.ts`), mounted `col-span-full` and replacing the deleted `scc-status.tsx`; the dashboard's carrier surfaces now carry pill metric rows on `surface-container`, filled quality chips and identity-toned band pills. Step 3 is closed. **Four retargeted dashboard cards now also carry the motion canon.** Three of them, Network Status, Device Information and the 4G/5G Primary Status card, had tonal surfaces but no state-change motion, and were animating only via the outer card cascade. They now use `staggerRows`/`staggerRowItem` for their in-card rows, `TickingValue` for live readings, the keyed-`motion.span` label crossfade for chip contents, badge glyphs and orb labels, `standard` colour transitions on containers (chips, orb fills, ring tones, the core disc, band pills) and `quick` ones on ink and focus rings. The split between the two tick mechanisms is the load-bearing part: `TickingValue` bakes in `tabular-nums` and keys on a datum that moves every poll, so it is for figures; a word that changes on a handover takes the label crossfade instead. `components/ui/metric-bar.tsx` lost its spring in the same pass: a spring settles by oscillating, which the Settled-Motion Rule bans outright, and it made a 61% meter overshoot to ~64 and rock back. **The fourth card, Recent Activities, was rewritten rather than retuned**, and it is where the Age-Gated Tone Rule (see Named Rules, Color) enters the system: the card's tonal fill now encodes weight rather than severity, lit while a row is fresh or still unresolved and settling to a colored icon disc on the plain surface once it is neither, so a historical list can say "this is recent, and this is still wrong" without ever tinting routine radio events as good news. It ships two animations against the three-per-surface budget, recipe 04's `emphasized` head-row arrival plus a single group transform for the history push, and the three-state variant set (`settled`/`pushed`/`visible`) that lets one element carry both lifecycles, since a motion child declaring its own `initial`/`animate` object stops variant propagation. Its glyphs moved from `react-icons/tb` to lucide per the Nav-Glyph Boundary Rule, and its type stayed on the `text-xs`/`text-sm` ramp rather than taking the sidebar's 11px and the banner's 13px, which are surface-scoped exceptions and not a general ramp. **A follow-up pass retargeted the row from the `Recommended Hybrid` treatment to the Motion Guide's recipe 04 anatomy**, which is the version that ships: a filled 28px disc in the solid role color, the message promoted to the primary line, a `font-mono` timestamp caption below it, and the event-type label dropped as a restatement of what the message and the disc already say. The arrival gesture was retuned in the same pass from a 24px nudge to `x: "100%"`, i.e. an actual entrance from off the trailing edge — at 6% travel the row had been twitching rather than arriving. `ROW_H` stayed 60px through both changes because the two lines swapped roles without changing size, so the clip arithmetic and the card's height against its grid siblings never moved. See `docs/reference/recent-activities.md`. This is refinement inside step 3, not a new step. |
+| 3 | **Chips, banners, and the dashboard.** Flip the badge pattern to filled chips, retarget the banners to the eight-role system (`SimSwapBanner` first — it is the reference anatomy), adopt containers and pill rows on the status cards (Network Status keeps its icons), land the Carrier Aggregation strip. | **Landed.** The Banner System shipped as `components/ui/banner.tsx` (all eight roles; 01/02/03/05/07 mounted, 04/06/08 available but unmounted). **The badge flip is done**: the five chip roles live in `components/ui/badge.tsx`'s `cva`, all 90+ call sites across 33 files render `variant="…"`, four tone maps key onto the exported `BadgeVariant` type, and the `CLAUDE.md` table now documents the filled chip. **The Carrier Aggregation strip has landed** (`components/dashboard/carrier-aggregation.tsx` plus the pure view model in `lib/carrier-aggregation.ts`), mounted `col-span-full` and replacing the deleted `scc-status.tsx`; the dashboard's carrier surfaces now carry pill metric rows on `surface-container`, filled quality chips and identity-toned band pills. Step 3 is closed. **Four retargeted dashboard cards now also carry the motion canon.** Three of them, Network Status, Device Information and the 4G/5G Primary Status card, had tonal surfaces but no state-change motion, and were animating only via the outer card cascade. They now use `staggerRows`/`staggerRowItem` for their in-card rows, `TickingValue` for live readings, the keyed-`motion.span` label crossfade for chip contents, badge glyphs and orb labels, `standard` colour transitions on containers (chips, orb fills, ring tones, the core disc, band pills) and `quick` ones on ink and focus rings. The split between the two tick mechanisms is the load-bearing part: `TickingValue` bakes in `tabular-nums` and keys on a datum that moves every poll, so it is for figures; a word that changes on a handover takes the label crossfade instead. `components/ui/metric-bar.tsx` lost its spring in the same pass: a spring settles by oscillating, which the Settled-Motion Rule bans outright, and it made a 61% meter overshoot to ~64 and rock back. **The fourth card, Recent Activities, was rewritten rather than retuned**, and it is where the Age-Gated Tone Rule (see Named Rules, Color) enters the system: the card's tonal fill now encodes weight rather than severity, lit while a row is fresh or still unresolved and settling to a colored icon disc on the plain surface once it is neither, so a historical list can say "this is recent, and this is still wrong" without ever tinting routine radio events as good news. It ships two animations against the three-per-surface budget, recipe 04's `emphasized` head-row arrival plus a single group transform for the history push, and the three-state variant set (`settled`/`pushed`/`visible`) that lets one element carry both lifecycles, since a motion child declaring its own `initial`/`animate` object stops variant propagation. Its glyphs moved from `react-icons/tb` to lucide under the then-current Nav-Glyph Boundary Rule, and moved again to Material Symbols in step 3d; its type stayed on the `text-xs`/`text-sm` ramp rather than taking the sidebar's 11px (still a surface-scoped exception) or 13px (since promoted to a real ramp step in step 3d, but scoped to dense metric rows, which an activity row is not). **A follow-up pass retargeted the row from the `Recommended Hybrid` treatment to the Motion Guide's recipe 04 anatomy**, which is the version that ships: a filled 28px disc in the solid role color, the message promoted to the primary line, a `font-mono` timestamp caption below it, and the event-type label dropped as a restatement of what the message and the disc already say. The arrival gesture was retuned in the same pass from a 24px nudge to `x: "100%"`, i.e. an actual entrance from off the trailing edge — at 6% travel the row had been twitching rather than arriving. `ROW_H` stayed 60px through both changes because the two lines swapped roles without changing size, so the clip arithmetic and the card's height against its grid siblings never moved. See `docs/reference/recent-activities.md`. This is refinement inside step 3, not a new step. |
 | 3b | **Token debt owed by step 3.** Move dark `--destructive` to the canon value and promote `--border` to `--outline` (see "held one step off" above). | **Deferred, with cause.** Neither is a drop-in. Dark `--destructive` at the canon `oklch(0.77 0.175 25)` measures **2.42:1** against white ink — below even the 3:1 large-text floor. `Button` and `Badge` escape only because they override with `dark:bg-destructive/60` (5.28:1 composited); ~20 other surfaces use `bg-destructive` at full opacity and would regress. `--border` is gated on cards dropping their hairlines, which has not happened, and step 4 keeps hairlines in the dense tables deliberately — promoting it now would make the very hairlines this system retires *more* prominent. Both move when their blockers clear, not before. |
 | 3c | **Identity colour outside the token system.** Retire the connection-scenario gradient palette and move scenario identity onto glyphs; convert the profile apply dialog's deferred-reboot wash to the Banner primitive. | **Landed.** `gradientOptions` (12 raw Tailwind gradients) and `getRingColor()` (12 `ring-*-500` classes selected by substring-matching the gradient) are gone. Scenario tiles are `surface-container` with a filled `bg-primary` glyph disc, and identity is a persisted glyph key resolved through `scenario-icons.ts`. `AbstractPattern` now draws in `currentColor`, so the texture follows the theme instead of assuming a dark tile. |
+| 3d | **The dashboard's icon and chip finish.** Move the icon boundary from "sidebar only" to "sidebar plus the dashboard route", give the failed service ring a real tone ramp, and settle the Primary Status cards' chip and type treatment. | **Landed.** Every dashboard card body is now Material Symbols; the route previously carried four icon sets in one viewport (`lucide-react`, `react-icons/md`, `/fa6`, `/tb`) beside a Material sidebar. The Nav-Glyph Boundary Rule is retired and replaced by the **Icon-Boundary Rule**; the two Network Status exceptions (SIM orb on lucide, RAT marks on `react-icons/md`) are named in the **Network Status Landmark Rule** rather than left as drift. The subset grew 19 → 53 glyphs, 10.4 KB → 19.3 KB. `--tone-destructive-1/2/3` shipped in both themes, so all three ring ramps are now symmetric. The Primary Status quality chip moved from quality tone to **radio identity** via the new `nr` / `lte` `Badge` variants, with quality re-encoded as the glyph's bar count (the **Identity-Chip Rule**). 13px joined the type ramp as the dense metric-row step. Two accessibility additions ride along: an `sr-only` quality word after each tinted metric value, and `min-w-0` + `truncate` on the card header. See `docs/reference/icon-system.md`. |
 | 4 | **Dense pages.** Cell Scanner, log views, and SMS adopt the new tokens while keeping hairline rows. This is where the system is proven or corrected. | Not started |
 
 **Step 3's CLAUDE.md gate is closed.** The status-chip table in `CLAUDE.md` was flipped to the
