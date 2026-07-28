@@ -15,9 +15,10 @@ compiles.
 | Live Latency | `components/dashboard/live-latency.tsx` |
 | Signal History | `components/dashboard/signal-history.tsx` |
 | Meter primitive | `components/ui/metric-bar.tsx` |
-| Draw-in animation | `.chart-draw` / `.chart-area` in `app/globals.css` |
+| Draw-in animation | `.chart-draw` / `.chart-area` in `app/globals.css`, applied **only** via `useChartDrawIn()` |
+| Chart motion hooks | `hooks/use-chart-motion.ts` — `useChartDrawIn()` (entrance) + `useChartSeriesMotion()` (poll updates) |
 | Series colours | `--chart-nr` (5G NR), `--chart-lte` (4G LTE), plus `--primary` / `--lte` in Live Latency |
-| Mandatory chart props | `isAnimationActive={false}` and `pathLength={1}` on every animated series |
+| Mandatory chart props | `{...useChartSeriesMotion()}` and `pathLength={1}` on every animated series |
 | i18n namespace | `dashboard` (`metrics.*`, `latency.*`, `signal_history.*`) |
 | Design canon | `DESIGN.md` > Motion > "Chart draw-in", and > Color > "Data visualization" |
 
@@ -45,9 +46,10 @@ There were three ways to build it, and the two obvious ones lose more than they 
 
 1. **Recharts' own animation props** (`isAnimationActive`, `animationDuration`, `animationEasing`)
    cannot express the recipe. They offer one duration and one easing for the whole series, no way to
-   stagger the fill behind the stroke, no access to the design system's curve tokens, and, decisively,
-   no "first paint only" mode. They are also invisible to `MotionConfig`, the app-wide
-   `prefers-reduced-motion` switch, so a reduced-motion user cannot turn them off.
+   stagger the fill behind the stroke, and, decisively, no "first paint only" mode. They are also
+   invisible to `MotionConfig`, the app-wide `prefers-reduced-motion` switch, because recharts animates
+   through **react-smooth**, a separate engine motion/react knows nothing about. (These props are not
+   unused — they own the *poll update*, a different job entirely. See "The two clocks" below.)
 2. **Hand-rolling the SVG** would give total control and lose the entire feature set these cards
    actually depend on: tooltips, `accessibilityLayer` keyboard and screen-reader support, responsive
    domain calculation, `connectNulls` gap handling, and monotone curve interpolation. That is a large
@@ -56,21 +58,49 @@ There were three ways to build it, and the two obvious ones lose more than they 
    tokens, honours reduced motion through a normal `@media` block, and gets the recipe's hardest
    clause for free.
 
-That free clause is **"first paint only"**. A CSS animation fires when an element *mounts*. Once
-recharts' internal `<Animate>` wrapper is gone, recharts keeps the same `<path>` node across every
-poll and merely rewrites its `d` attribute. No remount, no replay, and no bookkeeping to write.
+## The two clocks
 
-### The two mandatory props
+A live-polling chart has two distinct motion jobs, and they were in direct conflict until
+`hooks/use-chart-motion.ts` separated them.
 
-Every animated series in these cards passes both. Neither is optional, and neither failure produces a
-TypeScript error.
+| Job | When | Owner |
+|-----|------|-------|
+| **Entrance** — the trace draws itself in | Once, on first paint (and on metric switch in Signal History) | CSS `.chart-draw`, applied via `useChartDrawIn()` |
+| **Update** — the trace moves to a new shape | Every poll (~2-3s Live Latency, 10s Signal History) | recharts, configured by `useChartSeriesMotion()` |
 
-**`isAnimationActive={false}`** removes recharts' `<Animate>` wrapper, which is what makes the path
-node stable across polls. Without it the CSS animation replays on every remount, and worse, recharts'
-own animation runs: it keys that wrapper on the **identity of the data array**, and both chart cards
-rebuild their array on every poll, so the charts had been re-running a 1500ms `ease` animation every
-couple of seconds. That is well past the motion ceiling, on an easing curve from no design system, and
-invisible to `MotionConfig`. Retiring that defect is part of what landing recipe 16 bought.
+Only recharts can do the second job: it interpolates each point from its previous *plot* position to
+its new one (`Area.js:250-265`), and nothing outside recharts knows where a point sits in plot space.
+
+### Why they conflicted, and the one rule that resolves it
+
+Recharts wraps an animated series in `<Animate key={"area-" + animationId}>` (`Area.js:245`), where
+`animationId` is the chart's `updateId`, incremented on **every data change**
+(`generateCategoricalChart.js:2035`). A changed React key remounts the subtree, so each poll produces
+a **brand-new `<path>` node** — and a CSS `@keyframes` fires on element *mount*.
+
+So leaving `.chart-draw` on a live chart replays the entrance on every poll: the line re-draws from
+zero and the fill flashes transparent, on top of the poll's own morph.
+
+> ⚠️ WARNING: **Never hardcode `chart-draw` in a className.** The class is correct only while it is
+> *temporary*. `useChartDrawIn()` returns `"chart-draw"` for the length of the entrance and `""`
+> afterwards; the remounts still happen, there is simply no CSS left for them to fire. Pass the same
+> value used as the `ChartContainer`'s `key` as the hook's `resetKey` (Signal History passes
+> `signalType`) or the entrance will not replay when the chart genuinely remounts.
+
+The earlier answer was to disable recharts' animation outright with `isAnimationActive={false}`, which
+kept one stable path node across polls. That did retire a real defect — the charts had been re-running
+recharts' default **1500ms `ease`**, 3.75x the motion ceiling on a curve from no design system, and
+unreachable by `MotionConfig` — but it also killed the poll-to-poll morph, so the trace *teleported*
+to each new shape in a single frame. `useChartSeriesMotion()` restores the movement without the
+defect: `standard` (300ms) on `--ease-standard`, with reduced motion handled in the hook via
+`useReducedMotion()` because `MotionConfig` cannot reach react-smooth.
+
+> ℹ️ NOTE: recharts types `animationEasing` as a union of the five CSS keyword easings. That union is
+> under-specified rather than restrictive — react-smooth's `configEasing` explicitly parses
+> `cubic-bezier(x1,y1,x2,y2)` (`react-smooth/es6/easing.js:167`), which is how the project's real curve
+> gets through. The cast in the hook is annotated accordingly.
+
+### The other mandatory prop
 
 **`pathLength={1}`** normalizes any path to one SVG user unit, which is what makes
 `stroke-dasharray: 1` in `.chart-draw` a single dash covering the whole line at any width. These cards
@@ -100,7 +130,7 @@ These are all silent failures. Each one compiles, renders, and is wrong.
 | `useId()`-derived gradient ids | Both chart cards | SVG `<defs>` ids are **document-global**. A literal id collides the moment two instances of the card mount, and both charts then paint from whichever definition rendered last. Live Latency additionally strips `:` from the generated id, because React's `useId` emits characters that are not valid in an SVG id reference. |
 | `connectNulls={false}` | Signal History's areas | A `null` means the modem reported **no 5G leg on that sample**, not a missing reading. With `connectNulls` on, recharts interpolates straight through the gap and the card draws a 5G signal that did not exist. The area must break. |
 | `domain={["dataMin - 5", "dataMax + 5"]}` as **strings** | Signal History's `YAxis` | These are recharts' relative-domain expressions and only work as strings. Passing numbers pins the axis to an absolute range, which is wrong for RSRP (negative, carrier-dependent) and flattens every chart into a line near one edge. |
-| `baseValue` | Signal History's areas | The fill anchors at zero instead of at the data floor. RSRP is negative, so a zero baseline fills the entire plot. The card computes it as the minimum non-null value across both series. |
+| `baseValue` | Signal History's areas | The fill anchors at zero instead of at the data floor. RSRP is negative, so a zero baseline fills the entire plot. The card computes it as `min(non-null values) - Y_AXIS_PAD`, and that `- Y_AXIS_PAD` is load-bearing: it must equal the `YAxis` domain floor above, **not** the bare data minimum. Recharts derives the default for an *unset* `baseValue` from the resolved axis domain (`Area.getBaseValue`), but an explicit **number** is used verbatim with no reference to the domain — so passing the bare minimum left the fill's bottom edge `Y_AXIS_PAD` units above the actual axis floor. On narrow-banded metrics (RSRP/RSRQ/SINR barely move) that blank band is most of the visible fill, which is what made a real area chart read as a thin line with a faint shadow. Live Latency looks right precisely because it sets no `baseValue` at all. |
 | `chartConfig` object **keys** | Both chart cards | shadcn's `ChartStyle` emits one `--color-<key>` CSS custom property per entry, and the strokes, the gradient stops and the tooltip swatch all read those back as raw template strings (`` var(--color-${name}) ``). Renaming a key breaks all three at runtime with **no** type error. Live Latency's keys must stay `latency` / `packetloss`; Signal History's are `rsrp4G` / `rsrp5G` / `rsrq4G` / `rsrq5G` / `sinr4G` / `sinr5G`. |
 
 ## Signal History
@@ -163,9 +193,25 @@ each other, so colour alone does not separate these states for a deuteranopic re
 
 `isLoading` had been declared on the props interface and passed by the parent, but never destructured,
 so the card had no loading state at all. It now renders a skeleton on the zero-shift overlay
-construction, and the chart carries the `CHART_H` height pin whose absence let `ResponsiveContainer`
+construction, and the chart carries the `CHART_BOX` height whose absence let `ResponsiveContainer`
 pop the layout on load (`ResponsiveContainer` renders nothing until it has measured its parent, so an
 unpinned parent measures zero and then jumps).
+
+### `CHART_BOX` is floor-plus-grow, not a fixed height
+
+`CHART_BOX` (`min-h-[150px] flex-1`) is the single source for the plot box across all four branches —
+chart, skeleton, empty and error — so the loading handoff cannot jump.
+
+The mock's plot really is 150px, and this card matched it, yet a large dead gap opened between the
+plot and the Speed Test tile. That is a **mock-vs-product structural difference**, not a wrong number:
+in the mock this card sits beside two naturally-equal-height columns so 150px leaves no slack, but in
+the real dashboard grid it is a row-mate of Device Metrics (seven metric rows, taller), the row
+equalises heights, and the tile's `mt-auto` pools every pixel of that slack in the middle. `flex-1`
+hands the slack to the plot instead.
+
+The `min-h` floor still discharges the `ResponsiveContainer` obligation above: it guarantees a
+measurable height on the first frame, before the flex parent has resolved how much slack there is.
+`aspect-auto` at the call site is still required to defeat `ChartContainer`'s base `aspect-video`.
 
 ### Series colours
 
@@ -215,7 +261,28 @@ reason.
 > the codebase. If you find yourself writing `` `bg-${x}` ``, `` `text-${x}` `` or
 > `` `border-${x}` ``, replace it with a lookup map of complete class names.
 
-The `scaleX` fill motion is untouched by this change (see `DESIGN.md` > Motion > "Meter fill").
+### The fill's value and its entrance run on two different mechanisms
+
+`MetricBar` deliberately splits them (see `DESIGN.md` > Motion > "Meter fill"):
+
+- **Value → layout `width`**, as a plain CSS `transition`.
+- **Entrance (0 → value, once, on mount) → `scaleX`**, as a motion prop.
+
+The reason is that **a CSS `transform` scales `border-radius` along with the box**. A `scaleX`-only
+fill squashed its own `rounded-full` cap into a near-flat ellipse at low percentages — at 37% a 4px
+pill cap renders as roughly 1.5px, so the leading edge read square instead of rounded and the fill
+looked harsher and darker than the mock. `width` resizes the box without touching its radius.
+
+The old objection to `width` ("it relayouts every frame") was about animating width *per frame*.
+Nothing does that here: width changes only on a poll retarget, and the entrance — the one gesture that
+does run per frame — is still a compositor-only transform, landing at `scaleX(1)` where the radius
+distortion is zero. This is the mock's own technique.
+
+> ⚠️ WARNING: `motion-reduce:transition-none` on the fill is load-bearing. The `scaleX` entrance is a
+> motion prop and so obeys the app-wide `<MotionConfig reducedMotion="user">`, but the width retarget
+> is plain CSS and sits outside motion's reach — and `globals.css` carries only per-component
+> reduced-motion blocks, no blanket rule. Without the variant, moving the value out of `animate`
+> silently gives reduced-motion users an animation they cannot turn off.
 
 ## What the mock was deliberately not followed on
 

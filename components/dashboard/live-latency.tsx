@@ -19,6 +19,7 @@ import {
 import { authFetch } from "@/lib/auth-fetch";
 import { cn } from "@/lib/utils";
 import { DUR, EASE_QUICK } from "@/lib/motion";
+import { useChartDrawIn, useChartSeriesMotion } from "@/hooks/use-chart-motion";
 import { Badge, type BadgeVariant } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -222,6 +223,12 @@ const LiveLatencyComponent = ({
   const latencyFill = `${gradientId}-latency`;
   const lossFill = `${gradientId}-loss`;
 
+  // The two chart clocks — see hooks/use-chart-motion.ts. `drawIn` is the CSS
+  // entrance and retires itself once it has run; `seriesMotion` is the ongoing
+  // poll-to-poll morph, which only works BECAUSE the entrance retires.
+  const drawIn = useChartDrawIn();
+  const seriesMotion = useChartSeriesMotion();
+
   // Fetch any cached speedtest result
   const fetchCachedResult = useCallback(async () => {
     try {
@@ -384,14 +391,16 @@ const LiveLatencyComponent = ({
         </p>
       </div>
     ) : (
-      // `chart-draw` is the entrance (Motion Guide recipe 16) — the keyframes
-      // live in globals.css and reach recharts' own emitted classes, which is
-      // what buys "first paint only" for free: with recharts' <Animate> wrapper
-      // gone the path node survives every poll and only its `d` is rewritten,
-      // so a mount-triggered CSS animation cannot replay.
+      // `drawIn` is the entrance (Motion Guide recipe 16) — the keyframes live
+      // in globals.css and reach recharts' own emitted classes. It resolves to
+      // `chart-draw` for the length of that entrance and to `""` afterwards,
+      // which is what lets the series below animate their POLL updates:
+      // recharts remounts each series on every data change, so a permanent
+      // entrance class would re-fire the draw on every poll instead of once.
+      // The hook carries the full explanation.
       <ChartContainer
         config={chartConfig}
-        className={cn("chart-draw aspect-auto w-full", CHART_BOX)}
+        className={cn(drawIn, "aspect-auto w-full", CHART_BOX)}
       >
         <AreaChart
           accessibilityLayer
@@ -471,14 +480,21 @@ const LiveLatencyComponent = ({
           {/* Packet loss is drawn first so latency — the series the card is
               named for — sits on top of it.
 
-              `isAnimationActive={false}` on both: recharts keys its internal
-              <Animate> wrapper on the DATA ARRAY'S IDENTITY, and `chartData` is
-              rebuilt every 2s poll, so the default 1500ms `ease` animation had
-              been re-firing every two seconds — 3.75x the project's 400ms motion
-              ceiling, on a curve from no design system, and invisible to
-              `MotionConfig` so a reduced-motion user could not escape it. The
-              `animationDuration` is belt-and-braces: if anyone ever flips the
-              flag back on, it inherits an in-canon duration.
+              `seriesMotion` on both is what makes the trace MOVE between polls
+              rather than teleport. Recharts interpolates each point from its
+              previous plot position to its new one, which nothing outside
+              recharts can do — it is the only party that knows where a point
+              sits in plot space. It had been switched off entirely, which is
+              why the chart looked static: `chartData` is rebuilt on every poll
+              and the path's `d` was simply rewritten in one frame.
+
+              Switching it back on is safe now only because the entrance class
+              retires itself (see `drawIn` above). What is NOT restored is
+              recharts' default timing: the 1500ms `ease` it ships is 3.75x the
+              project's 400ms motion ceiling on a curve from no design system,
+              so the hook pins `standard` (300ms) on `--ease-standard`. Reduced
+              motion is handled in the hook too — recharts animates through
+              react-smooth, a separate engine `MotionConfig` cannot reach.
 
               `pathLength={1}` normalises each path to one user unit so the
               `stroke-dasharray: 1` in `.chart-draw` is a single dash covering
@@ -492,8 +508,7 @@ const LiveLatencyComponent = ({
             strokeWidth={2.5}
             fill={`url(#${lossFill})`}
             dot={false}
-            isAnimationActive={false}
-            animationDuration={300}
+            {...seriesMotion}
             pathLength={1}
           />
           <Area
@@ -519,8 +534,7 @@ const LiveLatencyComponent = ({
                 <g />
               )
             }
-            isAnimationActive={false}
-            animationDuration={300}
+            {...seriesMotion}
             pathLength={1}
           />
         </AreaChart>

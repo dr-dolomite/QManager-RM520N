@@ -655,15 +655,30 @@
 
    Applied by putting `.chart-draw` on the ChartContainer and letting these
    selectors reach recharts' own emitted classes. That indirection is the whole
-   trick, and it buys the recipe's hardest clause — "first paint only" — for
-   free: a CSS animation fires on element MOUNT, and once recharts' internal
-   <Animate> wrapper is gone (`isAnimationActive={false}`) it keeps the same
-   path node across polls and merely rewrites its `d`. No wrapper remount, no
-   replay. Every consumer must therefore pass `isAnimationActive={false}`, which
-   is also how a live defect got retired: recharts keys that wrapper on the data
-   array's IDENTITY, and both cards rebuild theirs every poll, so the charts had
-   been re-running a 1500ms `ease` animation — 3.75x the Motion-Ceiling, on a
-   curve from no design system — every two seconds, invisible to MotionConfig.
+   trick — but it also means this class CANNOT be left on a live-updating chart,
+   and that is the one rule every consumer has to honour.
+
+   Why: a CSS animation fires on element MOUNT, and recharts wraps an animated
+   series in `<Animate key={"area-" + animationId}>` where `animationId` is the
+   chart's `updateId`, bumped on every data change. A changed React key remounts
+   the subtree, so each poll hands these selectors a BRAND NEW path node and the
+   entrance replays — the line re-draws from zero and the fill flashes
+   transparent, on top of the poll's own morph.
+
+   So the recipe's hardest clause, "first paint only", is bought by making the
+   class TRANSIENT: `useChartDrawIn` (hooks/use-chart-motion.ts) returns
+   `chart-draw` for the length of the entrance and `""` afterwards. The remounts
+   still happen; there is simply no CSS left for them to fire. Never hardcode
+   `chart-draw` in a className — the class is correct only while it is
+   temporary.
+
+   The earlier answer here was to disable recharts' animation outright
+   (`isAnimationActive={false}`), which kept one stable path node across polls.
+   That did retire a real defect — the charts had been re-running recharts'
+   default 1500ms `ease`, 3.75x the Motion-Ceiling on a curve from no design
+   system, invisible to MotionConfig — but it also killed the poll-to-poll
+   morph, so the trace teleported to each new shape. Series now animate on the
+   project's own duration and curve; see the hook.
 
    `pathLength: 1` on the series is what makes this exact. Normalising every
    path to one user unit lets `stroke-dasharray: 1` be a single dash covering

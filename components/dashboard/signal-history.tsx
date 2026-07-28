@@ -31,6 +31,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { transitionStandard } from "@/lib/motion";
+import { useChartDrawIn, useChartSeriesMotion } from "@/hooks/use-chart-motion";
 import { useSignalHistory } from "@/hooks/use-signal-history";
 import type { SignalChartPoint } from "@/hooks/use-signal-history";
 
@@ -170,6 +171,19 @@ export function SignalHistoryComponent() {
     const frame = requestAnimationFrame(() => setSettled(true));
     return () => cancelAnimationFrame(frame);
   }, []);
+
+  // The two chart clocks — see hooks/use-chart-motion.ts. Both are called up
+  // here, above the loading/error/empty early returns below, because hooks
+  // cannot sit behind a conditional.
+  //
+  // `drawIn` takes `signalType` as its reset key: the ChartContainer carries
+  // `key={signalType}`, so switching metric really does remount the chart and
+  // the entrance should play again — but this component does NOT remount, so
+  // without the key the hook would stay retired from first paint onward and the
+  // switch would be silent. `seriesMotion` is the poll-to-poll morph, which
+  // works only because `drawIn` retires.
+  const drawIn = useChartDrawIn(signalType);
+  const seriesMotion = useChartSeriesMotion();
 
   /**
    * Built here rather than at module scope because the legend labels are now
@@ -430,9 +444,12 @@ export function SignalHistoryComponent() {
         </p>
 
         <ChartContainer
-          // Recipe 15 (chart draw-in). `.chart-draw` reaches recharts' own
+          // Recipe 16 (chart draw-in). `.chart-draw` reaches recharts' own
           // emitted classes: the stroke unwinds its dash over `standard` and
           // the fill follows it 80ms later, line leading, area trailing.
+          // `drawIn` resolves to that class for the length of the entrance and
+          // to `""` afterwards, so the series below are free to animate their
+          // poll updates without the entrance replaying on each one.
           //
           // `key={signalType}` is deliberate. Switching metric only changes a
           // `dataKey` — a prop change, not a remount — so the draw would never
@@ -440,7 +457,7 @@ export function SignalHistoryComponent() {
           // different chart, which is the correct reading of "first paint only".
           key={signalType}
           config={chartConfig}
-          className={`chart-draw aspect-auto w-full ${CHART_H} [&_.recharts-cartesian-axis-tick_text]:fill-on-surface-variant [&_.recharts-cartesian-axis-tick_text]:font-mono [&_.recharts-cartesian-axis-tick_text]:text-xs [&_.recharts-cartesian-axis-tick_text]:font-medium`}
+          className={`${drawIn} aspect-auto w-full ${CHART_H} [&_.recharts-cartesian-axis-tick_text]:fill-on-surface-variant [&_.recharts-cartesian-axis-tick_text]:font-mono [&_.recharts-cartesian-axis-tick_text]:text-xs [&_.recharts-cartesian-axis-tick_text]:font-medium`}
         >
           {/* `accessibilityLayer` is recharts' opt-in for a keyboard-reachable
               plot: arrow keys walk the samples and the tooltip is announced.
@@ -506,16 +523,22 @@ export function SignalHistoryComponent() {
               // BREAK there; interpolating across the gap would invent signal.
               connectNulls={false}
               dot={newestDotRenderer(`var(--color-${key4G})`, lastIndexOf(key4G))}
-              // Recharts keys its <Animate> wrapper on the data array's
-              // IDENTITY, and this card rebuilds `chartData` every 10s poll —
-              // so the default was re-running a 1500ms `ease` animation on
-              // every poll: 3.75x the project's 400ms ceiling, on a curve from
-              // no design system, and invisible to MotionConfig so a
-              // reduced-motion user could not escape it. Off; the CSS recipe
-              // above owns the draw. The duration below is a safety net only,
-              // so a future flip back to `true` inherits an in-canon value.
-              isAnimationActive={false}
-              animationDuration={300}
+              // `seriesMotion` is what makes the trace MOVE when a poll lands
+              // instead of teleporting: recharts interpolates each point from
+              // its previous plot position to its new one, and nothing outside
+              // recharts can do that — it is the only party that knows where a
+              // point sits in plot space. It had been off entirely, which is
+              // why the chart looked static between polls.
+              //
+              // Recharts' own default timing is NOT restored with it: the
+              // 1500ms `ease` it ships is 3.75x the project's 400ms ceiling on
+              // a curve from no design system, so the hook pins `standard` on
+              // `--ease-standard` and handles reduced motion itself (recharts
+              // animates through react-smooth, which `MotionConfig` cannot
+              // reach). This is only safe because the entrance class above now
+              // retires — recharts remounts this series on every data change,
+              // so a permanent `.chart-draw` would replay the draw each poll.
+              {...seriesMotion}
               // Normalises the path to one user unit so `.chart-draw`'s
               // `stroke-dasharray: 1` covers the whole line at any card width.
               pathLength={1}
@@ -529,8 +552,7 @@ export function SignalHistoryComponent() {
               baseValue={baseValue}
               connectNulls={false}
               dot={newestDotRenderer(`var(--color-${key5G})`, lastIndexOf(key5G))}
-              isAnimationActive={false}
-              animationDuration={300}
+              {...seriesMotion}
               pathLength={1}
             />
             <ChartLegend
