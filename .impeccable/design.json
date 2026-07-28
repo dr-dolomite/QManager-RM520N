@@ -1,9 +1,25 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-07-28T00:00:00Z",
+  "generatedAt": "2026-07-28T00:12:43Z",
   "title": "Design System: QManager (RM520N-GL)",
   "extensions": {
     "colorMeta": {
+      "mark-ring": {
+        "role": "primary",
+        "displayName": "Mark Ring",
+        "canonical": "oklch(0.623 0.214 259.815)",
+        "note": "The lighter half of the mark's source pair (public/qmanager-mark.svg). Not consumed directly as a UI fill: its hue drives the dark-mode primary-container and the active-nav tone. Changing it is a system-wide change, not an asset tweak.",
+        "tonalRamp": [
+          "oklch(0.20 0.12 260)",
+          "oklch(0.275 0.17 260)",
+          "oklch(0.36 0.205 260)",
+          "oklch(0.488 0.235 260)",
+          "oklch(0.623 0.214 259.815)",
+          "oklch(0.72 0.175 260)",
+          "oklch(0.82 0.13 260)",
+          "oklch(0.90 0.09 260)"
+        ]
+      },
       "primary-light": {
         "role": "primary",
         "displayName": "Signal Blue",
@@ -131,10 +147,11 @@
       { "name": "popover-float", "value": "0 10px 30px oklch(0.19 0.032 258 / 0.16)", "purpose": "Dialogs, dropdowns, popovers. The 'not part of the page flow' signal, and the only real shadow in the system." }
     ],
     "motion": [
-      { "name": "emphasized", "value": "400ms cubic-bezier(0.05, 0.7, 0.1, 1)", "purpose": "Container size and shape changes, aggregation chain re-proportioning, alert arrival, page-level enter." },
-      { "name": "standard", "value": "300ms cubic-bezier(0.2, 0, 0, 1)", "purpose": "Nav indicator translate, card entrance, meter fill, chip container morph." },
-      { "name": "quick", "value": "180ms ease-out", "purpose": "Label swaps, live value ticks, hover tints, focus rings." },
-      { "name": "ambient", "value": "2s ease-in-out infinite alternate", "purpose": "Service rings, live ping dot, spinners. The only loops in the product, one per surface, only where something is genuinely live." }
+      { "name": "emphasized", "value": "400ms cubic-bezier(0.05, 0.7, 0.1, 1)", "purpose": "Container size and shape changes, aggregation chain re-proportioning, banner arrival, page-level enter. In code: ease-emphasized plus --duration-emphasized. This is the ceiling, not a starting point." },
+      { "name": "standard", "value": "300ms cubic-bezier(0.2, 0, 0, 1)", "purpose": "Nav indicator translate, card entrance, meter fill, chip container morph. In code: ease-standard plus --duration-standard." },
+      { "name": "quick", "value": "180ms ease-out", "purpose": "Label swaps, live value ticks, hover tints, focus rings. In code: ease-quick plus --duration-quick." },
+      { "name": "ambient", "value": "2s ease-in-out infinite alternate", "purpose": "Service rings, live ping dot, spinners. In code: ease-ambient plus --duration-ambient. The only loops in the product, one per surface, only where something is genuinely live." },
+      { "name": "stagger-step", "value": "60ms", "purpose": "The card cascade step, as --stagger-step. Wider and the last card feels late behind a slow poll. Curves live in @theme and emit Tailwind utilities; durations are plain custom properties, because Tailwind v4 has no --duration-* theme namespace." }
     ],
     "breakpoints": [
       { "name": "@3xl/main", "value": "48rem", "purpose": "Page grid steps to two columns." },
@@ -171,6 +188,14 @@
       "description": "The signature pattern. Filled tonal container, its on- ink, a size-4 lucide icon, pill radius. Replaces the retired outline-and-tint badge.",
       "html": "<span class=\"ds-chip ds-chip-success\"><svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M21.801 10A10 10 0 1 1 17 3.335\"/><path d=\"m9 11 3 3L22 4\"/></svg>Connected</span> <span class=\"ds-chip ds-chip-warning\"><svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3\"/><path d=\"M12 9v4\"/><path d=\"M12 17h.01\"/></svg>Searching</span> <span class=\"ds-chip ds-chip-muted\"><svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><circle cx=\"12\" cy=\"12\" r=\"10\"/><path d=\"M8 12h8\"/></svg>Stopped</span>",
       "css": ".ds-chip { display:inline-flex; align-items:center; gap:.375rem; padding:.4375rem .8125rem; border-radius:9999px; font-family:'Euclid Circular B',system-ui,sans-serif; font-size:.75rem; font-weight:500; line-height:1; transition:background 300ms cubic-bezier(0.2,0,0,1), color 300ms cubic-bezier(0.2,0,0,1); } .ds-chip svg { width:1rem; height:1rem; flex:none; } .ds-chip-success { background:oklch(0.89 0.115 149); color:oklch(0.26 0.11 149); } .ds-chip-warning { background:oklch(0.905 0.125 82); color:oklch(0.31 0.11 70); } .ds-chip-destructive { background:oklch(0.905 0.08 25); color:oklch(0.30 0.16 27); } .ds-chip-info { background:oklch(0.885 0.10 264); color:oklch(0.275 0.17 264); } .ds-chip-muted { background:oklch(0.918 0.04 258); color:oklch(0.435 0.05 258); }"
+    },
+    {
+      "name": "Banner",
+      "kind": "custom",
+      "refersTo": null,
+      "description": "The widest, loudest surface in the product, and a closed set of eight roles with one anatomy. Shown here as role 01 (SIM swap with a matching profile), which is the reference implementation. Container fill with no border, a filled glyph disc, an optional machine-voice identity line, exactly one pill CTA, and a dismiss affordance present only on notices.",
+      "html": "<div class=\"ds-banner ds-banner-primary\"><span class=\"ds-banner-glyph\"><svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M6 4a2 2 0 0 1 2-2h5l5 5v13a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2z\"/><rect x=\"8.5\" y=\"11\" width=\"7\" height=\"7\" rx=\"1\"/><path d=\"M8.5 14.5h7\"/><path d=\"M12 11v7\"/></svg></span><div class=\"ds-banner-body\"><p class=\"ds-banner-title\">New SIM detected</p><p class=\"ds-banner-identity\">GLOBE / 8963 06** **** **12</p><p class=\"ds-banner-desc\">A saved profile matches this SIM. Applying it sets the APN, TTL, and connection scenario.</p></div><button class=\"ds-banner-cta\">Apply profile</button><button class=\"ds-banner-dismiss\" aria-label=\"Dismiss\"><svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\"><path d=\"M18 6 6 18\"/><path d=\"m6 6 12 12\"/></svg></button></div>",
+      "css": ".ds-banner { position:relative; display:flex; align-items:center; flex-wrap:wrap; gap:1rem; padding:1.25rem 1.5rem; border-radius:2.25rem; font-family:'Euclid Circular B',system-ui,sans-serif; animation:ds-banner-in 400ms cubic-bezier(0.05,0.7,0.1,1); } .ds-banner:has(.ds-banner-dismiss) { padding-right:3.75rem; } @keyframes ds-banner-in { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:none; } } @media (prefers-reduced-motion: reduce) { .ds-banner { animation:none; } } .ds-banner-primary { background:oklch(0.885 0.10 264); color:oklch(0.275 0.17 264); } .ds-banner-destructive { background:oklch(0.905 0.08 25); color:oklch(0.30 0.16 27); } .ds-banner-warning { background:oklch(0.905 0.125 82); color:oklch(0.31 0.11 70); } .ds-banner-glyph { display:inline-flex; align-items:center; justify-content:center; flex:none; width:2.25rem; height:2.25rem; border-radius:9999px; background:oklch(0.488 0.243 264.376); color:oklch(0.99 0.014 264); } .ds-banner-destructive .ds-banner-glyph { background:oklch(0.54 0.235 27); color:oklch(0.99 0.01 27); } .ds-banner-warning .ds-banner-glyph { background:oklch(0.585 0.16 72); color:oklch(0.99 0.01 72); } .ds-banner-glyph svg { width:1.25rem; height:1.25rem; } .ds-banner-body { flex:1 1 16rem; display:flex; flex-direction:column; gap:.25rem; } .ds-banner-title { margin:0; font-size:.9375rem; font-weight:600; line-height:1.3; } .ds-banner-identity { margin:0; font-family:var(--font-geist-mono),ui-monospace,monospace; font-size:.75rem; font-variant-numeric:tabular-nums; opacity:.85; } .ds-banner-desc { margin:0; font-size:.8125rem; line-height:1.5; opacity:.9; } .ds-banner-cta { flex:none; margin-left:auto; height:2.5rem; padding:0 1.25rem; border:none; border-radius:9999px; background:oklch(0.488 0.243 264.376); color:oklch(0.99 0.014 264); font-family:inherit; font-size:.875rem; font-weight:500; cursor:pointer; transition:background 180ms ease-out; } .ds-banner-cta:hover { background:oklch(0.44 0.235 264); } .ds-banner-cta:focus-visible { outline:none; box-shadow:0 0 0 3px oklch(0.488 0.243 264.376 / 0.5); } .ds-banner-dismiss { position:absolute; top:.75rem; right:.75rem; display:inline-flex; align-items:center; justify-content:center; width:2rem; height:2rem; border:none; border-radius:9999px; background:transparent; color:inherit; cursor:pointer; transition:background 180ms ease-out; } .ds-banner-dismiss:hover { background:oklch(0.275 0.17 264 / 0.12); } .ds-banner-dismiss:focus-visible { outline:none; box-shadow:0 0 0 3px oklch(0.488 0.243 264.376 / 0.5); } .ds-banner-dismiss svg { width:1rem; height:1rem; }"
     },
     {
       "name": "Card",
@@ -238,6 +263,7 @@
       { "name": "The Machine-Voice Rule", "body": "font-mono is scoped to device output and technical data: the AT terminal, raw log viewers, CopyableCommand, inline code for AT command strings, and identifier or value readouts. It is never reached for as decoration.", "section": "typography" },
       { "name": "The Tabular-Number Rule", "body": "Any value that updates live is tabular-nums. Non-negotiable: a tonal pill makes jitter more visible, not less.", "section": "typography" },
       { "name": "The Weight-Discipline Rule", "body": "400 body, 500 labels and medium emphasis, 600 headings and numerics, 700 page titles only.", "section": "typography" },
+      { "name": "The Card-Wrapped Surface Rule", "body": "The card component owns its whole content (CardHeader plus CardContent with every control); the page only arranges cards. The page is never the layout canvas with cards demoted to fragments.", "section": "layout" },
       { "name": "The Tonal-First Rule", "body": "Two surfaces at different conceptual elevations differ by at least one container step. This is now the only elevation signal in both themes.", "section": "elevation" },
       { "name": "The No-Hairline-On-Fill Rule", "body": "Bordered rows inside a tonal card are replaced by container fills. A border is reserved for inputs, for table rules in genuine data tables, and for the outlined-card variant. This replaces the retired Border-Carries-Structure Rule.", "section": "elevation" },
       { "name": "The Highlight-by-Container Rule", "body": "Emphasis promotes a surface one container step and changes its ink, rather than adding a translucent wash over a neutral card.", "section": "elevation" },
@@ -247,8 +273,16 @@
       { "name": "The Expressive-Duration Rule", "body": "Anything that changes a container's size, shape, or fill runs at standard or emphasized. The old 140-160ms floor is retired: at 140ms a container color change reads as a flicker rather than a morph. Value and label swaps stay at quick.", "section": "motion" },
       { "name": "The Transform-Only Rule", "body": "Animations touch opacity and transform, plus color via CSS transitions. The aggregation chain's width is the sole documented exception, and it is data, not decoration.", "section": "motion" },
       { "name": "The One-Loop Rule", "body": "At most one ambient loop per surface, and only where something is genuinely live. A loop that runs while nothing is happening is a lie.", "section": "motion" },
+      { "name": "The Motion-Ceiling Rule", "body": "Nothing exceeds 400ms. Emphasized is the ceiling, not a starting point, and the only durations longer than it in the product are ambient loops, which are not transitions.", "section": "motion" },
+      { "name": "The Non-Load-Bearing Rule", "body": "No transition may be load-bearing: if it never runs, the UI is still correct. This is stronger than the Reduced-Motion Rule, which only covers the user's preference. A transition can also be skipped because the element mounted mid-flight, because the tab was backgrounded, or because a slow poll landed the data before the animation started. Final state is computed and correct on its own; the animation is only how it got there.", "section": "motion" },
       { "name": "The Reduced-Motion Rule", "body": "Movement goes, opacity stays, and no layout depends on a transition completing. Because durations are now longer, this matters more than it did.", "section": "motion" },
       { "name": "The Loader-and-Dots Rule", "body": "Step and sample progress is a Loader2Icon spinner plus discrete dot indicators. Fill bars remain data visualization only.", "section": "motion" },
+      { "name": "The Solid-Container Rule", "body": "A banner is bg-{role}-container, never a wash. The retired pattern was border-info/30 bg-info/10; a 10% alpha over a tinted surface is not a stable color, its value moves with whatever sits behind it, it collapses to near-invisible in dark mode, and it is the first thing to wash out in sunlight. The container and its on- ink are a measured pair, which is also why the border becomes unnecessary.", "section": "components" },
+      { "name": "The Glyph-Disc Rule", "body": "The banner icon always sits in a filled circle. A bare 16px glyph disappears against a saturated container, and the disc is the element that survives when the container fill washes out. It also makes the banner and the status chip read as the same family.", "section": "components" },
+      { "name": "The One-CTA Rule", "body": "One action per banner. The deferred-reboot role is the single sanctioned exception: 'review what changed' and 'do the risky thing' are genuinely different decisions, so it carries a tonal Review and a destructive-fill Reboot now.", "section": "components" },
+      { "name": "The Dismiss-Only-Notices Rule", "body": "A banner gets an X only when it is a notification. Conditions (stale data, deferred reboot, in progress, degraded) leave when the condition leaves, and never before. Nothing that reports a broken link gets a dismiss affordance. When a notice is dismissible it must be dismissible durably: the SIM-swap banner persists its dismissal server-side in the SIM registry, not in component state.", "section": "components" },
+      { "name": "The Info-Is-Brand Rule", "body": "Informational banners use primary-container, not a separate info hue. The SIM notice and the apply pipeline are the same class of 'the system is telling you something', and the functional four already spend the saturated-blue slot on the brand.", "section": "components" },
+      { "name": "The Tabular-Counter Rule", "body": "Any figure that ticks inside banner copy is font-mono tabular-nums. Without it, '38 s' to '39 s' reflows the whole sentence once a second.", "section": "components" },
       { "name": "The Nav-Glyph Boundary Rule", "body": "Material Symbols Rounded appears in the sidebar nav and nowhere else; every other surface is lucide. A Material Symbol outside the sidebar, or a lucide icon inside a nav item, is a bug.", "section": "components" },
       { "name": "The Filled-Chip Rule", "body": "Every status indicator is a filled tonal chip: a role container fill, that container's on- ink, an icon, and pill radius. This replaces the retired Outline-Badge Rule. If a chip needs to feel louder, the answer is a banner or an alert, not a stronger fill.", "section": "components" },
       { "name": "The No-Header-Icon Rule", "body": "CardHeader is CardTitle plus CardDescription only. Icons live in chips or in the CardAction slot. Once one card grows a header icon, every card grows one.", "section": "components" },

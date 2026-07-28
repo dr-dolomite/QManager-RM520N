@@ -335,6 +335,35 @@ QManager runs 10 systemd services on the modem:
 
 ---
 
+## The Mark
+
+<div align="center">
+  <img src="public/qmanager-mark.svg" alt="The QManager mark, a tonal Q" width="96" />
+</div>
+
+**The ring is the network. The ray is the device, speaking from inside it.**
+
+QManager runs on the modem it manages, so the mark starts where the device is: a single ray leaves the center of a signal field and cuts a clean channel out through it. Nothing reaches in from the outside.
+
+- **The ring** is the network. Continuous and even, there whether or not you are looking at it.
+- **The ray** is the transmission leaving the device. It is anchored at the center because that is where QManager actually lives.
+- **The notch** is where the ring gives way. The two shapes never overlap or blur; the field makes a clean, measured space for what passes through it. That is the product's promise in one detail: the interface never claims something the modem is not doing.
+
+It is a **Q** first, for QManager and Quectel. Two shapes, two tones, one hue, drawn on a 48 x 48 geometric grid at uniform stroke weight, with no gradient, shadow, or filter.
+
+> **If you redraw it, keep the ray anchored at the center.** Detached, a ring plus a 45 degree round-capped bar reads as a magnifying glass at every size below 48px. A magnifier's handle never reaches the lens center; a Q's tail does. That anchoring is what makes this a letterform instead of a search icon.
+
+The two tones are the **source pair for the entire design system**, not consumers of it:
+
+| Part | Value | Role in the system |
+| --- | --- | --- |
+| Ring | `oklch(0.623 0.214 259.815)` | Drives the dark-mode `--primary-container` and the active-nav tone |
+| Tail | `oklch(0.488 0.243 264.376)` | "Signal Blue", the light-mode `--primary`, used literally |
+
+Every neutral in the interface carries a trace of that hue, so surfaces read as a family. Changing either tone is a system-wide change, not an asset tweak. See [DESIGN.md](DESIGN.md) under Colors > Source color.
+
+---
+
 ## License
 
 This project is licensed under the [MIT License with Commons Clause](LICENSE).

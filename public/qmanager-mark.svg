@@ -24,19 +24,37 @@
       product idea: the signal originates at the device, and QManager runs on the
       device it manages.
 
-    COLOUR    Both tones are existing chart-ramp tokens, two steps apart, so this stays
-              one hue and one accent. Deliberately NOT theme-responsive: prefers-color-scheme
-              resolves against the OS when this file is loaded as an image element, not
-              against next-themes, so a manual theme override would have mismatched.
-              Both tones were verified on both canvases instead.
+    COLOUR    Two tones of one blue, tonal separation 1.82:1.
 
-                ring  chart-2         oklch(0.623 0.214 259.815)   3.76:1 white / 4.71:1 slate
-                tail  Signal Indigo   oklch(0.488 0.243 264.376)   6.83:1 white / 2.59:1 slate
-                tonal separation 1.82:1
+                ring  oklch(0.623 0.214 259.815)   DESIGN.md: mark-ring
+                tail  oklch(0.488 0.243 264.376)   DESIGN.md: primary-light, "Signal Blue"
 
-              The ring carries the silhouette and clears 3:1 on every surface. The tail
-              sits at 2.59:1 on the dark Slate card; WCAG 1.4.11 exempts brand marks from
-              that floor, and it renders cleanly because the lighter ring frames it.
+              These are the SOURCE PAIR for the whole design system, not consumers of it.
+              DESIGN.md > Colors > Source color derives the palette from this file: the
+              tail is light-mode --primary used literally, and the ring's hue drives the
+              dark-mode --primary-container and the active-nav tone. Changing either tone
+              here is a system-wide change, not an asset tweak.
+
+              Deliberately NOT theme-responsive. prefers-color-scheme resolves against the
+              OS when this file is loaded as an image element, not against next-themes, so
+              a manual theme override would have mismatched. Measured instead, against the
+              surfaces in DESIGN.md (3:1 is the WCAG graphical-object floor; 1.4.11 exempts
+              brand marks from it, so these are information, not a gate):
+
+                                              ring   tail
+                surface-light                 3.76   6.83
+                background-light              3.52   6.39
+                surface-container-light       3.27   5.93
+                surface-container-high-light  2.95   5.35
+                background-dark               5.21   2.87
+                surface-dark                  4.65   2.56
+                surface-container-dark        4.10   2.26
+                surface-container-high-dark   3.48   1.92
+
+              The ring carries the silhouette and holds up across the range. The tail goes
+              quiet on dark containers, lowest on surface-container-high-dark, where the
+              ring is what keeps the mark legible. If the mark is ever placed on that
+              surface at a small size, check it there first.
 
               Hex presentation attributes are the fallback for engines without oklch()
               (pre-Chrome 111 / Safari 15.4 / Firefox 113). The inline style wins wherever
