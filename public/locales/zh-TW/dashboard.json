@@ -192,6 +192,53 @@
   "activities": {
     "title": "最近活動",
     "empty_title": "無事件",
-    "empty_description": "未檢測到近期網路事件。您的裝置狀態可能很穩定，網路狀況沒有顯著變化。"
+    "empty_description": "未檢測到近期網路事件。您的裝置狀態可能很穩定，網路狀況沒有顯著變化。",
+    "error_title": "無法載入事件",
+    "error_description": "{{message}}",
+    "chip": {
+      "quiet": "一切正常",
+      "unresolved_one": "{{count}} 項未解決",
+      "unresolved_other": "{{count}} 項未解決"
+    },
+    "severity": {
+      "routine": "例行",
+      "recovered": "已恢復",
+      "warning": "警告",
+      "error": "錯誤",
+      "unresolved": "未解決"
+    },
+    "time": {
+      "just_now": "剛剛",
+      "minutes_one": "{{count}} 分鐘前",
+      "minutes_other": "{{count}} 分鐘前",
+      "hours_one": "{{count}} 小時前",
+      "hours_other": "{{count}} 小時前",
+      "days_one": "{{count}} 天前",
+      "days_other": "{{count}} 天前"
+    },
+    "events": {
+      "network_mode": "模式變更",
+      "band_change": "頻段變更",
+      "pci_change": "基地台換手",
+      "scc_pci_change": "輔頻段變更",
+      "ca_change": "載波聚合",
+      "nr_anchor": "5G 錨點變更",
+      "signal_lost": "訊號中斷",
+      "signal_restored": "訊號恢復",
+      "internet_lost": "網際網路中斷",
+      "internet_restored": "網際網路恢復",
+      "high_latency": "延遲過高",
+      "latency_recovered": "延遲已恢復",
+      "high_packet_loss": "封包遺失率過高",
+      "packet_loss_recovered": "封包遺失率已恢復",
+      "watchcat_recovery": "看門狗恢復",
+      "sim_failover": "SIM 卡容錯移轉",
+      "sim_swap_detected": "偵測到更換 SIM 卡",
+      "airplane_mode": "飛航模式",
+      "profile_applied": "設定檔已套用",
+      "profile_failed": "設定檔套用失敗",
+      "profile_deactivated": "設定檔已停用",
+      "tower_failover": "基站鎖定容錯移轉"
+    }
   }
 }
