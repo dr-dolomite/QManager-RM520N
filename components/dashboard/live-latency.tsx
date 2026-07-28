@@ -1,13 +1,36 @@
 "use client";
-import React, { useState, useEffect, useMemo, useCallback } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useTranslation } from "react-i18next";
-import { authFetch } from "@/lib/auth-fetch";
+import { AnimatePresence, motion } from "motion/react";
+import {
+  CheckCircle2Icon,
+  MinusCircleIcon,
+  XCircleIcon,
+  type LucideIcon,
+} from "lucide-react";
+import { Area, AreaChart, CartesianGrid } from "recharts";
+import {
+  TbCircleArrowDownFilled,
+  TbCircleArrowUpFilled,
+  TbPlayerPlayFilled,
+  TbTimeline,
+} from "react-icons/tb";
 
-import { CartesianGrid, Line, LineChart } from "recharts";
+import { authFetch } from "@/lib/auth-fetch";
+import { cn } from "@/lib/utils";
+import { DUR, EASE_QUICK } from "@/lib/motion";
+import { Badge, type BadgeVariant } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   Card,
-  CardContent,
-  CardFooter,
+  CardAction,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
@@ -17,24 +40,16 @@ import {
   ChartTooltipContent,
   type ChartConfig,
 } from "@/components/ui/chart";
-import { Button } from "../ui/button";
-import {
-  TbCircleArrowDownFilled,
-  TbCircleArrowUpFilled,
-  TbPlayerPlayFilled,
-  TbTimeline,
-} from "react-icons/tb";
+import { Skeleton } from "@/components/ui/skeleton";
+import { TickingValue } from "@/components/ui/ticking-value";
 import { SpeedtestDialog } from "./speedtest-dialog";
 import {
-  bytesToMbps,
   formatSpeed,
   type SpeedtestFinalResult,
   type SpeedtestStatusResponse,
 } from "@/types/speedtest";
 
 import type { ConnectivityStatus } from "@/types/modem-status";
-
-export const description = "A multiple bar chart";
 
 // =============================================================================
 // Data Wiring
@@ -54,28 +69,153 @@ const LOSS_WINDOW = 10;
 
 const CGI_BASE = "/cgi-bin/quecmanager/at_cmd";
 
+/**
+ * One constant for the plot height, consumed by the chart, the skeleton and the
+ * empty state alike.
+ *
+ * Two reasons it has to be pinned rather than inherited. `ChartContainer`'s base
+ * class is `aspect-video`, so an unpinned chart's height is a function of the
+ * card's width and changes as the dashboard grid reflows; and recharts'
+ * `ResponsiveContainer` renders NOTHING until it has measured its parent, so a
+ * zero-height parent on the first frame makes the card pop when the measurement
+ * lands. A fixed height gives the container something to measure immediately.
+ */
+const CHART_H = "h-[150px]";
+
+// Byte-identical to the shells in device-metrics.tsx and recent-activities.tsx,
+// because those two are this card's row-mates and three cards sharing a grid
+// row have to share a shell. Four things were out of step and each is worth
+// naming, since a parallel rewrite is exactly where this drift comes from:
+//
+//   `@container/latency` -> `@container/card`. Harmless today only because
+//   this file happens to use no container queries; the moment one is added as
+//   `@[540px]/card:` it matches nothing and fails silently, with no error to
+//   find. Every other card in the product names this container `card`.
+//
+//   `gap-3.5`/`px-7` -> `gap-4`/`px-6`. The mock specifies 26px padding, which
+//   has no step on the scale; rounding down matches the row, rounding up did
+//   not. Signal History keeps px-7 because its mock value really is 28px and
+//   it sits alone in a full-width row with nothing to align to.
+//
+//   `h-full` restored. The parent grid already forces it via
+//   `*:data-[slot=card]:h-full`, so this is redundant rather than load-bearing
+//   — but it is redundant in all three siblings, and a shell that differs from
+//   its neighbours reads as intent.
+const CARD_SHELL =
+  "@container/card h-full gap-4 rounded-card border-0 px-6 py-6 shadow-[var(--shadow-whisper)]";
+
 interface LiveLatencyComponentProps {
   connectivity: ConnectivityStatus | null;
   isLoading: boolean;
 }
 
+/**
+ * The chart's two series.
+ *
+ * The keys are load-bearing and must stay `latency` / `packetloss`: shadcn's
+ * `ChartStyle` injects a `--color-<key>` custom property per entry, and both the
+ * strokes and the tooltip swatch read those back as raw template strings
+ * (`var(--color-${name})`). Renaming a key breaks all three at runtime with no
+ * TypeScript error to catch it.
+ *
+ * The colours were `--chart-1` / `--chart-2`, which are byte-identical in the
+ * light and dark blocks of globals.css — the chart did not theme at all. The two
+ * role tokens below do. `--lte` rather than `--secondary` for packet loss:
+ * shipped `--secondary` is a NEUTRAL (it backs progress tracks), so the intended
+ * Carrier Violet would have rendered grey.
+ */
 const chartConfig = {
   latency: {
     label: "Latency",
-    color: "var(--chart-1)",
+    color: "var(--primary)",
   },
   packetloss: {
     label: "Packetloss",
-    color: "var(--chart-2)",
+    color: "var(--lte)",
   },
 } satisfies ChartConfig;
 
-const LiveLatencyComponent = ({ connectivity }: LiveLatencyComponentProps) => {
+/**
+ * The header chip's tone, derived from what we actually know rather than from an
+ * invented latency-quality threshold. The backend owns latency thresholds (the
+ * Connection Quality presets that feed `high_latency`), and duplicating a number
+ * here would let the card disagree with the alert that fires beside it.
+ *
+ * So the chip reports REACHABILITY, which this component holds first-hand: a
+ * reading means the last probe came back, no reading means it timed out, and no
+ * connectivity object at all means we have nothing to say.
+ *
+ * Distinct glyph per tone is mandatory, not decorative: `success-container` and
+ * the other role containers sit within ~1.03:1 of each other, so colour alone
+ * does not separate these states for a deuteranopic reader.
+ */
+function chipTone(connectivity: ConnectivityStatus | null): {
+  variant: BadgeVariant;
+  Icon: LucideIcon;
+} {
+  if (!connectivity) return { variant: "muted", Icon: MinusCircleIcon };
+  if (connectivity.latency_ms === null)
+    return { variant: "destructive", Icon: XCircleIcon };
+  return { variant: "success", Icon: CheckCircle2Icon };
+}
+
+/**
+ * Extracted so the loading branch and the crossfade overlay render the SAME
+ * geometry from one definition (the Skeleton-Mirror Rule). Two copies would
+ * drift, and a drifted skeleton turns the handoff from a fade into a jump.
+ *
+ * Every block mirrors a real element: the title and chip row, the 150px plot,
+ * the legend, and the Speed Test tile at its natural 88px (12px padding twice,
+ * a 20px label, a 10px gap and the 34px action row).
+ */
+function LiveLatencySkeleton() {
+  return (
+    <div className="flex h-full flex-col gap-3.5">
+      <div className="flex items-center gap-3">
+        <Skeleton className="h-6 w-40" />
+        <Skeleton className="ml-auto h-7 w-24 rounded-pill" />
+      </div>
+      <Skeleton className={cn("w-full rounded-field", CHART_H)} />
+      <div className="flex items-center gap-4">
+        <Skeleton className="h-3 w-20" />
+        <Skeleton className="h-3 w-24" />
+      </div>
+      <Skeleton className="mt-auto h-[88px] w-full rounded-tile" />
+    </div>
+  );
+}
+
+/** Legend swatch: a 12x3 pill bar, matching the mock's key. */
+function LegendEntry({ className, label }: { className: string; label: string }) {
+  return (
+    <span className="inline-flex items-center gap-1.5">
+      <span
+        aria-hidden
+        className={cn("h-[3px] w-3 rounded-pill", className)}
+      />
+      {label}
+    </span>
+  );
+}
+
+const LiveLatencyComponent = ({
+  connectivity,
+  isLoading,
+}: LiveLatencyComponentProps) => {
   const { t } = useTranslation("dashboard");
   const [speedtestOpen, setSpeedtestOpen] = useState(false);
   const [cachedResult, setCachedResult] = useState<SpeedtestFinalResult | null>(
     null,
   );
+
+  // Gradient ids are per-instance. A literal string id would collide the moment
+  // two of these cards shared a document — SVG ids live in one flat namespace
+  // per document, and `url(#id)` resolves to whichever painted first. The colons
+  // React puts in a `useId` are stripped for the same reason `ChartContainer`
+  // strips them: they are legal in an id but awkward inside a `url()` reference.
+  const gradientId = useId().replace(/:/g, "");
+  const latencyFill = `${gradientId}-latency`;
+  const lossFill = `${gradientId}-loss`;
 
   // Fetch any cached speedtest result
   const fetchCachedResult = useCallback(async () => {
@@ -150,120 +290,341 @@ const LiveLatencyComponent = ({ connectivity }: LiveLatencyComponentProps) => {
     });
   }, [connectivity?.latency_history, connectivity?.history_interval_sec]);
 
-  // Build the footer description from cached result
-  const footerDescription = useMemo(() => {
-    if (!cachedResult) {
-      return t("speedtest.idle_description");
-    }
-    const dl = formatSpeed(cachedResult.download.bandwidth);
-    const ul = formatSpeed(cachedResult.upload.bandwidth);
-    const ping = cachedResult.ping.latency.toFixed(0);
-    return (
-      <div className="flex items-center gap-x-3">
-        <p className="font-medium text-sm text-muted-foreground xl:mr-2 mr-0">
-          {t("speedtest.result_label")}
+  const lastIndex = chartData.length - 1;
+
+  // Skeleton handoff (Motion Guide recipe 03). The overlay lives for exactly one
+  // `quick` and then unmounts; nothing downstream depends on it, so a missed
+  // timer degrades to a plain instant swap rather than a stuck skeleton.
+  const [handoff, setHandoff] = useState(false);
+  const wasLoading = useRef(isLoading);
+  useEffect(() => {
+    const landed = wasLoading.current && !isLoading;
+    wasLoading.current = isLoading;
+    if (!landed) return;
+
+    setHandoff(true);
+    const id = window.setTimeout(() => setHandoff(false), DUR.quick * 1000);
+    return () => window.clearTimeout(id);
+  }, [isLoading]);
+
+  const tone = chipTone(connectivity);
+  const latencyMs = connectivity?.latency_ms ?? null;
+  const hasReading = latencyMs !== null;
+
+  // CardHeader + CardAction rather than a hand-rolled flex row with `ml-auto`.
+  // The header grid already reserves a right-hand column the moment a
+  // `data-slot="card-action"` child appears, which is the layout this was
+  // rebuilding by hand, and `CardAction`'s `self-start justify-self-end` is
+  // what top-aligns a chip against a single-line title. Recent Activities —
+  // this card's row-mate — ships a chip in exactly this slot, so matching it
+  // keeps the three cards in the row structurally identical instead of one of
+  // them arriving at the same pixels by a different route.
+  const header = (
+    <CardHeader className="px-0">
+      <CardTitle className="text-lg font-semibold">
+        {t("latency.title")}
+      </CardTitle>
+      <CardAction>
+      {/* No `transition-colors` utility here on purpose: `Badge` writes its own
+          two-clock transition longhand (fill + ink on `standard`, focus ring on
+          `quick`), and a utility would re-declare transition-property and drop
+          the ring's separate clock. */}
+      <Badge
+        variant={tone.variant}
+        className="gap-1.5 px-3 py-1.5 text-xs font-semibold"
+      >
+        <tone.Icon className="size-3" aria-hidden />
+        <span className="sr-only">{t("latency.current_label")}</span>
+        {/* The chip's LABEL crossfades (Motion Guide recipe 05) and its numeric
+            reading TICKS (recipe 06) — two different gestures for two different
+            things. The AnimatePresence is keyed on whether there IS a reading,
+            never on the reading itself, so an ordinary poll does not replay a
+            state-change animation. `popLayout` lets the outgoing and incoming
+            labels overlap the way the recipe's keyframes do, without either one
+            being hand-positioned. */}
+        <AnimatePresence initial={false} mode="popLayout">
+          <motion.span
+            key={hasReading ? "reading" : "none"}
+            initial={{ opacity: 0, y: 7 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -7 }}
+            transition={{ duration: DUR.quick, ease: EASE_QUICK }}
+            className="inline-flex items-center"
+          >
+            {hasReading ? (
+              <TickingValue value={latencyMs} className="font-mono">
+                {latencyMs} {t("latency.unit_ms")}
+              </TickingValue>
+            ) : (
+              t("latency.no_reading")
+            )}
+          </motion.span>
+        </AnimatePresence>
+        </Badge>
+      </CardAction>
+    </CardHeader>
+  );
+
+  const chart =
+    chartData.length === 0 ? (
+      <div
+        className={cn(
+          "flex w-full flex-col items-center justify-center gap-2 rounded-field bg-surface-container px-6 text-center",
+          CHART_H,
+        )}
+      >
+        <TbTimeline className="size-6 text-on-surface-variant" aria-hidden />
+        <p className="text-xs font-medium text-on-surface-variant text-pretty">
+          {t("latency.empty_description")}
         </p>
-        <div className="flex items-center gap-x-0.5">
-          <TbCircleArrowDownFilled className="text-info size-5" />
-          <p>{dl} Mbps</p>
-        </div>
-        <div className="flex items-center gap-x-0.5">
-          <TbCircleArrowUpFilled className="text-purple-500 size-5" />
-          <p>{ul} Mbps</p>
-        </div>
       </div>
+    ) : (
+      // `chart-draw` is the entrance (Motion Guide recipe 16) — the keyframes
+      // live in globals.css and reach recharts' own emitted classes, which is
+      // what buys "first paint only" for free: with recharts' <Animate> wrapper
+      // gone the path node survives every poll and only its `d` is rewritten,
+      // so a mount-triggered CSS animation cannot replay.
+      <ChartContainer
+        config={chartConfig}
+        className={cn("chart-draw aspect-auto w-full", CHART_H)}
+      >
+        <AreaChart
+          accessibilityLayer
+          data={chartData}
+          margin={{
+            left: 12,
+            right: 12,
+          }}
+        >
+          <defs>
+            <linearGradient id={latencyFill} x1="0" y1="0" x2="0" y2="1">
+              <stop
+                offset="0%"
+                stopColor="var(--color-latency)"
+                stopOpacity={0.32}
+              />
+              <stop
+                offset="55%"
+                stopColor="var(--color-latency)"
+                stopOpacity={0.1}
+              />
+              <stop
+                offset="100%"
+                stopColor="var(--color-latency)"
+                stopOpacity={0}
+              />
+            </linearGradient>
+            <linearGradient id={lossFill} x1="0" y1="0" x2="0" y2="1">
+              <stop
+                offset="0%"
+                stopColor="var(--color-packetloss)"
+                stopOpacity={0.32}
+              />
+              <stop
+                offset="55%"
+                stopColor="var(--color-packetloss)"
+                stopOpacity={0.1}
+              />
+              <stop
+                offset="100%"
+                stopColor="var(--color-packetloss)"
+                stopOpacity={0}
+              />
+            </linearGradient>
+          </defs>
+          <CartesianGrid vertical={false} />
+          <ChartTooltip
+            cursor={false}
+            content={
+              <ChartTooltipContent
+                formatter={(value, name) => (
+                  <>
+                    <div
+                      className="h-2.5 w-2.5 shrink-0 rounded-[2px] bg-(--color-bg)"
+                      style={
+                        {
+                          "--color-bg": `var(--color-${name})`,
+                        } as React.CSSProperties
+                      }
+                    />
+                    {name === "latency"
+                      ? t("latency.chart_latency")
+                      : name === "packetloss"
+                        ? t("latency.chart_packetloss")
+                        : name}
+                    <div className="ml-auto flex items-baseline gap-0.5 font-mono font-medium tabular-nums text-foreground">
+                      {value}
+                      <span className="font-normal text-muted-foreground">
+                        {name === "latency" ? "ms" : "%"}
+                      </span>
+                    </div>
+                  </>
+                )}
+              />
+            }
+          />
+          {/* Packet loss is drawn first so latency — the series the card is
+              named for — sits on top of it.
+
+              `isAnimationActive={false}` on both: recharts keys its internal
+              <Animate> wrapper on the DATA ARRAY'S IDENTITY, and `chartData` is
+              rebuilt every 2s poll, so the default 1500ms `ease` animation had
+              been re-firing every two seconds — 3.75x the project's 400ms motion
+              ceiling, on a curve from no design system, and invisible to
+              `MotionConfig` so a reduced-motion user could not escape it. The
+              `animationDuration` is belt-and-braces: if anyone ever flips the
+              flag back on, it inherits an in-canon duration.
+
+              `pathLength={1}` normalises each path to one user unit so the
+              `stroke-dasharray: 1` in `.chart-draw` is a single dash covering
+              the whole line at any card width. The mock's hardcoded
+              `stroke-dasharray="2400"` against a real ~400-700px path would
+              spend most of its 300ms invisible and then snap. */}
+          <Area
+            dataKey="packetloss"
+            type="monotone"
+            stroke="var(--color-packetloss)"
+            strokeWidth={2.5}
+            fill={`url(#${lossFill})`}
+            dot={false}
+            isAnimationActive={false}
+            animationDuration={300}
+            pathLength={1}
+          />
+          <Area
+            dataKey="latency"
+            type="monotone"
+            stroke="var(--color-latency)"
+            strokeWidth={2.5}
+            fill={`url(#${latencyFill})`}
+            // A filled dot on the newest point only, marking "you are here".
+            // Rendered through the dot renderer rather than a ReferenceDot so it
+            // tracks the series' own computed geometry.
+            dot={(props: { cx?: number; cy?: number; index?: number }) =>
+              props.index === lastIndex &&
+              props.cx !== undefined &&
+              props.cy !== undefined ? (
+                <circle
+                  cx={props.cx}
+                  cy={props.cy}
+                  r={4.5}
+                  fill="var(--color-latency)"
+                />
+              ) : (
+                <g />
+              )
+            }
+            isAnimationActive={false}
+            animationDuration={300}
+            pathLength={1}
+          />
+        </AreaChart>
+      </ChartContainer>
     );
-  }, [cachedResult, t]);
+
+  const legend = (
+    <div className="flex items-center gap-4 text-xs font-medium text-on-surface-variant">
+      <LegendEntry className="bg-primary" label={t("latency.chart_latency")} />
+      <LegendEntry className="bg-lte" label={t("latency.chart_packetloss")} />
+    </div>
+  );
+
+  const speedtestTile = (
+    <div className="mt-auto flex flex-col gap-2.5 rounded-tile bg-surface-container px-4 py-3">
+      {/* The mock sets this label and the two figures at 13px. That step is a
+          surface-scoped exception in DESIGN.md (banners), not part of the ramp,
+          so they take `text-sm` — the same call Recent Activities made when it
+          was retargeted from the same mock family. */}
+      <span className="text-sm font-semibold">
+        {t("speedtest.section_label")}
+      </span>
+      <div className="flex flex-wrap items-center gap-x-2.5 gap-y-2">
+        {/* Hover is one tone step plus a 1px lift on `quick` (Motion Guide
+            recipe 08); the focus ring comes from the Button base and runs on its
+            own `quick` clock. */}
+        <Button
+          variant="default"
+          size="icon"
+          className="rounded-pill duration-(--duration-quick) ease-out hover:-translate-y-px"
+          aria-label={t("speedtest.start_button_aria")}
+          onClick={handleSpeedtestOpen}
+        >
+          <TbPlayerPlayFilled className="size-4" />
+        </Button>
+        {cachedResult ? (
+          <>
+            <span className="text-xs font-medium text-on-surface-variant">
+              {t("speedtest.result_label")}
+            </span>
+            <span className="inline-flex items-center gap-1.5 font-mono text-sm font-semibold tabular-nums">
+              <TbCircleArrowDownFilled
+                className="size-4 shrink-0 text-primary"
+                aria-hidden
+              />
+              <span className="sr-only">{t("speedtest.result_download")}</span>
+              {formatSpeed(cachedResult.download.bandwidth)}
+            </span>
+            <span className="inline-flex items-center gap-1.5 font-mono text-sm font-semibold tabular-nums">
+              <TbCircleArrowUpFilled
+                className="size-4 shrink-0 text-uplink"
+                aria-hidden
+              />
+              <span className="sr-only">{t("speedtest.result_upload")}</span>
+              {formatSpeed(cachedResult.upload.bandwidth)}{" "}
+              {t("speedtest.unit_mbps")}
+            </span>
+          </>
+        ) : (
+          <p className="text-xs font-medium text-on-surface-variant text-pretty">
+            {t("speedtest.idle_description")}
+          </p>
+        )}
+      </div>
+    </div>
+  );
+
+  const body = isLoading ? (
+    <LiveLatencySkeleton />
+  ) : (
+    <>
+      {header}
+      {chart}
+      {legend}
+      {speedtestTile}
+    </>
+  );
 
   return (
     <>
-      <Card className="@container/card rounded-card">
-        <CardHeader className="-mb-4">
-          <CardTitle className="text-lg font-semibold">
-            {t("latency.title")}
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <ChartContainer config={chartConfig}>
-            <LineChart
-              accessibilityLayer
-              data={chartData}
-              margin={{
-                left: 12,
-                right: 12,
-              }}
-            >
-              <CartesianGrid vertical={false} />
-              <ChartTooltip
-                cursor={false}
-                content={
-                  <ChartTooltipContent
-                    formatter={(value, name) => (
-                      <>
-                        <div
-                          className="h-2.5 w-2.5 shrink-0 rounded-[2px] bg-(--color-bg)"
-                          style={
-                            {
-                              "--color-bg": `var(--color-${name})`,
-                            } as React.CSSProperties
-                          }
-                        />
-                        {name === "latency"
-                          ? t("latency.chart_latency")
-                          : name === "packetloss"
-                            ? t("latency.chart_packetloss")
-                            : name}
-                        <div className="ml-auto flex items-baseline gap-0.5 font-mono font-medium tabular-nums text-foreground">
-                          {value}
-                          <span className="font-normal text-muted-foreground">
-                            {name === "latency" ? "ms" : "%"}
-                          </span>
-                        </div>
-                      </>
-                    )}
-                  />
-                }
-              />
-              <Line
-                dataKey="latency"
-                type="monotone"
-                stroke="var(--color-latency)"
-                strokeWidth={2}
-                dot={false}
-              />
-              <Line
-                dataKey="packetloss"
-                type="monotone"
-                stroke="var(--color-packetloss)"
-                strokeWidth={2}
-                dot={false}
-              />
-            </LineChart>
-          </ChartContainer>
-        </CardContent>
-        <CardFooter>
-          <div className="flex w-full items-start gap-2 text-sm">
-            <div className="grid gap-2">
-              <div className="flex items-center gap-2 leading-none font-medium">
-                {t("speedtest.section_label")}
-              </div>
-              <div className="text-muted-foreground flex items-center gap-2 leading-none">
-                <Button
-                  variant="default"
-                  size="icon-sm"
-                  className="p-0.5 rounded-full"
-                  aria-label={t("speedtest.start_button_aria")}
-                  onClick={handleSpeedtestOpen}
-                >
-                  <TbPlayerPlayFilled className="size-4" />
-                </Button>
-                <span className="font-medium text-sm">
-                  {footerDescription}
-                </span>
-              </div>
-            </div>
+      <Card className={CARD_SHELL}>
+        {/* The skeleton crossfade is an OVERLAY on top of the real content, not
+            a sibling beside it. Stacked as siblings the card would size to the
+            taller of the two for the length of the fade and then collapse, so
+            the handoff would end in a jolt; as an overlay the real content owns
+            the height from its first frame and the crossfade contributes zero
+            layout shift.
+
+            No `h-full` on the Card itself — the dashboard grid equalises this
+            row with `h-full *:data-[slot=card]:h-full`, so the Card must stay a
+            direct child and must not pin its own height. */}
+        <div className="relative flex flex-1 flex-col">
+          <div
+            className={cn(
+              "flex flex-1 flex-col gap-3.5",
+              handoff && "ca-content-in",
+            )}
+          >
+            {body}
           </div>
-        </CardFooter>
+          {handoff && (
+            <div
+              aria-hidden
+              className="ca-skeleton-out pointer-events-none absolute inset-0"
+            >
+              <LiveLatencySkeleton />
+            </div>
+          )}
+        </div>
       </Card>
 
       <SpeedtestDialog open={speedtestOpen} onOpenChange={handleDialogChange} />

@@ -118,12 +118,21 @@
     "loading_message": "Memuat riwayat sinyal…",
     "no_data_message": "Belum ada riwayat sinyal tersedia. Data akan muncul setelah ~10 detik.",
     "chart_description": "Grafik ini menunjukkan kekuatan sinyal {{signal_type}} dalam riwayat terkini.",
-    "fluctuation_note": "Nilai mungkin berfluktuasi karena faktor lingkungan dan kondisi jaringan."
+    "fluctuation_note": "Nilai mungkin berfluktuasi karena faktor lingkungan dan kondisi jaringan.",
+    "legend_lte": "LTE",
+    "legend_nr": "5G",
+    "trend_heading": "Tren {{metric}} pada riwayat terkini, dalam {{unit}}",
+    "error_title": "Riwayat sinyal tidak tersedia",
+    "error_description": "Tidak dapat memuat riwayat sinyal: {{message}}"
   },
   "latency": {
-    "title": "Latensi Langsung dan Tes Kecepatan",
+    "title": "Latensi Langsung",
     "chart_latency": "Latensi",
-    "chart_packetloss": "Packet Loss"
+    "chart_packetloss": "Packet Loss",
+    "current_label": "Latensi saat ini",
+    "unit_ms": "ms",
+    "no_reading": "Tidak ada pembacaan",
+    "empty_description": "Menunggu sampel latensi pertama."
   },
   "speedtest": {
     "section_label": "Tes Kecepatan",
@@ -159,7 +168,8 @@
     "view_result_link": "Lihat di Speedtest.net",
     "bytes_transferred": "{{bytes}} ditransfer",
     "try_again_button": "Coba Lagi",
-    "run_again_button": "Jalankan Lagi"
+    "run_again_button": "Jalankan Lagi",
+    "unit_mbps": "Mbps"
   },
   "ca": {
     "title": "Agregasi Carrier",

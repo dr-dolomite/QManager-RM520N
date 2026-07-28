@@ -118,12 +118,21 @@
     "loading_message": "加载信号历史中…",
     "no_data_message": "暂无信号历史数据。大约 10 秒后将显示数据。",
     "chart_description": "此图表显示最近的 {{signal_type}} 信号强度。",
-    "fluctuation_note": "数值可能因环境因素和网络状况而波动。"
+    "fluctuation_note": "数值可能因环境因素和网络状况而波动。",
+    "legend_lte": "LTE",
+    "legend_nr": "5G",
+    "trend_heading": "近期 {{metric}} 趋势（单位：{{unit}}）",
+    "error_title": "无法获取信号历史",
+    "error_description": "无法加载信号历史：{{message}}"
   },
   "latency": {
-    "title": "实时延迟与速度测试",
+    "title": "实时延迟",
     "chart_latency": "延迟",
-    "chart_packetloss": "丢包率"
+    "chart_packetloss": "丢包率",
+    "current_label": "当前延迟",
+    "unit_ms": "毫秒",
+    "no_reading": "无读数",
+    "empty_description": "正在等待首批延迟采样。"
   },
   "speedtest": {
     "section_label": "速度测试",
@@ -159,7 +168,8 @@
     "view_result_link": "在 Speedtest.net 上查看",
     "bytes_transferred": "已传输 {{bytes}}",
     "try_again_button": "重试",
-    "run_again_button": "再次运行"
+    "run_again_button": "再次运行",
+    "unit_mbps": "Mbps"
   },
   "ca": {
     "title": "载波聚合",

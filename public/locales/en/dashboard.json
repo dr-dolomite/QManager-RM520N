@@ -118,12 +118,21 @@
     "loading_message": "Loading signal history…",
     "no_data_message": "No signal history available yet. Data will appear after ~10 seconds.",
     "chart_description": "This chart shows the {{signal_type}} signal strength over recent history.",
-    "fluctuation_note": "Values may fluctuate due to environmental factors and network conditions."
+    "fluctuation_note": "Values may fluctuate due to environmental factors and network conditions.",
+    "legend_lte": "LTE",
+    "legend_nr": "5G",
+    "trend_heading": "{{metric}} trend over recent history, in {{unit}}",
+    "error_title": "Signal history unavailable",
+    "error_description": "Couldn't load signal history: {{message}}"
   },
   "latency": {
-    "title": "Live Latency and Speed Test",
+    "title": "Live Latency",
     "chart_latency": "Latency",
-    "chart_packetloss": "Packetloss"
+    "chart_packetloss": "Packetloss",
+    "current_label": "Current latency",
+    "unit_ms": "ms",
+    "no_reading": "No reading",
+    "empty_description": "Waiting for the first latency samples."
   },
   "speedtest": {
     "section_label": "Speed Test",
@@ -159,7 +168,8 @@
     "view_result_link": "View on Speedtest.net",
     "bytes_transferred": "{{bytes}} transferred",
     "try_again_button": "Try Again",
-    "run_again_button": "Run Again"
+    "run_again_button": "Run Again",
+    "unit_mbps": "Mbps"
   },
   "ca": {
     "title": "Carrier Aggregation",
