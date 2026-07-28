@@ -8,7 +8,6 @@ import React, {
   useState,
 } from "react";
 import { useTranslation } from "react-i18next";
-import { AnimatePresence, motion } from "motion/react";
 import { Area, AreaChart, CartesianGrid } from "recharts";
 
 import {
@@ -18,7 +17,7 @@ import {
 
 import { authFetch } from "@/lib/auth-fetch";
 import { cn } from "@/lib/utils";
-import { DUR, EASE_QUICK } from "@/lib/motion";
+import { DUR } from "@/lib/motion";
 import { useChartDrawIn, useChartSeriesMotion } from "@/hooks/use-chart-motion";
 import { Badge, type BadgeVariant } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -35,6 +34,7 @@ import {
   type ChartConfig,
 } from "@/components/ui/chart";
 import { Skeleton } from "@/components/ui/skeleton";
+import { SwapLabel } from "@/components/ui/swap-label";
 import { TickingValue } from "@/components/ui/ticking-value";
 import { SpeedtestDialog } from "./speedtest-dialog";
 import {
@@ -345,33 +345,42 @@ const LiveLatencyComponent = ({
         variant={tone.variant}
         className="gap-1.5 px-3 py-1.5 text-xs font-semibold"
       >
-        <MaterialSymbol name={tone.glyph} size={12} filled />
+        {/* The sr-only name stays OUTSIDE the swap on purpose. It is the chip's
+            stable accessible label, not part of the statement that changes, and
+            `popLayout` keeps the outgoing and incoming spans in the DOM together
+            for the length of the crossfade — inside, a screen reader would meet
+            "Current latency" twice for 180ms on every tone change. */}
         <span className="sr-only">{t("latency.current_label")}</span>
         {/* The chip's LABEL crossfades (Motion Guide recipe 05) and its numeric
             reading TICKS (recipe 06) — two different gestures for two different
-            things. The AnimatePresence is keyed on whether there IS a reading,
-            never on the reading itself, so an ordinary poll does not replay a
-            state-change animation. `popLayout` lets the outgoing and incoming
-            labels overlap the way the recipe's keyframes do, without either one
-            being hand-positioned. */}
-        <AnimatePresence initial={false} mode="popLayout">
-          <motion.span
-            key={hasReading ? "reading" : "none"}
-            initial={{ opacity: 0, y: 7 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -7 }}
-            transition={{ duration: DUR.quick, ease: EASE_QUICK }}
-            className="inline-flex items-center"
-          >
-            {hasReading ? (
-              <TickingValue value={latencyMs} className="font-mono">
-                {latencyMs} {t("latency.unit_ms")}
-              </TickingValue>
-            ) : (
-              t("latency.no_reading")
-            )}
-          </motion.span>
-        </AnimatePresence>
+            things.
+
+            Two bugs lived here. The block hand-rolled `AnimatePresence` +
+            `motion.span`, duplicating `SwapLabel`; and the GLYPH sat outside it,
+            so it snapped in one frame while the fill morphed over 300ms — the
+            motion half of the colour-blindness contract, since the glyph is the
+            only channel separating these tones in greyscale. The key was also
+            coarser than the tone it reports: `hasReading` cannot distinguish
+            muted-with-no-connectivity from success, so a variant change with a
+            reading present animated nothing. Keying on the variant AND the
+            reading covers both, and still does not fire on an ordinary poll —
+            that movement belongs to `TickingValue`. */}
+        {/* The `gap-1.5` moves onto the swapping span with the glyph: it is now
+            the glyph-to-label gap, and the Badge's own gap no longer has two
+            in-flow children to separate. */}
+        <SwapLabel swapKey={`${tone.variant}-${hasReading}`} className="gap-1.5">
+          {/* Explicit `size={12}`: MaterialSymbol carries its size as an inline
+              fontSize, and the swap wrapper puts the glyph a level deeper than
+              Badge's `[&>svg]` selector reaches. */}
+          <MaterialSymbol name={tone.glyph} size={12} filled />
+          {hasReading ? (
+            <TickingValue value={latencyMs} className="font-mono">
+              {latencyMs} {t("latency.unit_ms")}
+            </TickingValue>
+          ) : (
+            t("latency.no_reading")
+          )}
+        </SwapLabel>
         </Badge>
       </CardAction>
     </CardHeader>

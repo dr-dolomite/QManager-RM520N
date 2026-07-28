@@ -9,6 +9,8 @@ import {
   type MaterialSymbolName,
 } from "@/components/ui/material-symbol";
 import { Skeleton } from "@/components/ui/skeleton";
+import { SwapLabel } from "@/components/ui/swap-label";
+import { TickGroup } from "@/components/ui/tick-group";
 import { cn } from "@/lib/utils";
 
 import {
@@ -199,92 +201,118 @@ export function SignalStatusCard({
           // transition-property and silently drop the ring's separate clock.
           className="shrink-0 px-3 py-1.5 font-semibold"
         >
-          <MaterialSymbol name={getQualityGlyph(quality)} size={16} filled />
-          {t(`signal_card.quality_${quality}`)}
+          {/* The container half was running solo: the fill morphs over
+              `standard` on a RAT handover and the glyph changes with quality,
+              but the contents themselves snapped — the exact inverse of the bug
+              `badge.tsx` already fixed on the fill. `SwapLabel` supplies the
+              `quick` label leg, keyed on BOTH axes because either can move
+              independently (a handover changes the fill, a fade changes the
+              bars). `size={16}` is doubly required here: MaterialSymbol carries
+              its size as an inline fontSize, and the swap wrapper puts the glyph
+              one level deeper than Badge's `[&>svg]:size-3` can reach. */}
+          <SwapLabel swapKey={`${identityVariant}-${quality}`} className="gap-1">
+            <MaterialSymbol name={getQualityGlyph(quality)} size={16} filled />
+            {t(`signal_card.quality_${quality}`)}
+          </SwapLabel>
         </Badge>
       </div>
 
-      <motion.dl
-        className="grid gap-1.5"
-        variants={staggerRows}
-        initial="hidden"
-        animate="visible"
-      >
-        {rows.map((row) => {
-          // Only measurement rows carry a tint. Band/ARFCN/PCI/SCS are
-          // identifiers with no good-or-bad reading, so they must not get a
-          // quality word announced after them.
-          const isTinted = row.rawValue != null && row.thresholds != null;
-          const rowQuality = isTinted
-            ? getSignalQuality(row.rawValue!, row.thresholds!)
-            : "none";
-          const valueColor = getValueColorClass(rowQuality);
+      {/* The rows are a single-column grid (`grid` with no `grid-cols-*`), so
+          document order IS top-to-bottom reading order and `TickGroup` needs no
+          axis or index prop — it ranks the values that moved this poll by their
+          live DOM position. Mounted outside the `motion.dl` for readability
+          rather than out of necessity: `TickGroup` renders no DOM and publishes
+          only its own React context, and motion/react resolves a child's
+          variant parent through `useContext(MotionContext)` rather than by
+          direct-child adjacency, so an intervening plain provider is
+          transparent to `staggerRows` → `staggerRowItem` either way.
+          The band row takes the identity-pill branch below and mounts no tick at
+          all; because ranking sorts live nodes rather than map indices, it is
+          simply absent from the set and the cascade opens on the first real
+          measurement instead of on a silent slot. */}
+      <TickGroup>
+        <motion.dl
+          className="grid gap-1.5"
+          variants={staggerRows}
+          initial="hidden"
+          animate="visible"
+        >
+          {rows.map((row) => {
+            // Only measurement rows carry a tint. Band/ARFCN/PCI/SCS are
+            // identifiers with no good-or-bad reading, so they must not get a
+            // quality word announced after them.
+            const isTinted = row.rawValue != null && row.thresholds != null;
+            const rowQuality = isTinted
+              ? getSignalQuality(row.rawValue!, row.thresholds!)
+              : "none";
+            const valueColor = getValueColorClass(rowQuality);
 
-          return (
-            <motion.div
-              key={row.label}
-              variants={staggerRowItem}
-              className="flex items-center justify-between gap-3 rounded-pill bg-surface-container px-4 py-2.5"
-            >
-              {/* 13px/600 per the mock. The `/5` pins line-height to 20px so
-                  the row stays exactly 40px tall and the skeleton's `h-10`
-                  keeps matching — an arbitrary font-size would otherwise
-                  inherit whatever leading the card sits in. */}
-              <dt className="text-[13px]/5 font-semibold text-on-surface-variant">
-                {row.label}
-              </dt>
-              {/* An identity pill wrapping a placeholder dash reads as a broken
-                  chip rather than as absent data, so a missing band falls back
-                  to plain ink. */}
-              {row.asIdentity && row.value !== "-" ? (
-                // The band is an identifier, not a measurement: it changes on a
-                // handover, not on a poll. So it takes the container morph
-                // (`standard`) and NOT the live tick — dipping a value that
-                // holds steady for minutes would invent an event.
-                <dd
-                  className={cn(
-                    "m-0 shrink-0 rounded-pill px-2.5 py-1 font-mono text-xs font-semibold transition-colors duration-(--duration-standard) ease-standard",
-                    identityTone,
-                  )}
-                >
-                  {row.value}
-                </dd>
-              ) : (
-                // Measurements, and the reason this card needed the tick at
-                // all: RSRP/RSRQ/SINR redraw every ~2s. Without the dip the
-                // digits change with no acknowledgement at all, which is why
-                // the card read as static despite the new tonal surfaces. Ink
-                // colour is the `quick` clock; only containers get `standard`.
-                <dd
-                  className={cn(
-                    "m-0 font-mono text-[13px]/5 font-semibold transition-colors duration-(--duration-quick) ease-quick",
-                    valueColor,
-                  )}
-                >
-                  {/* Keyed on the rendered string rather than `rawValue`: the
-                      quality thresholds mean a raw RSRP can drift by a tenth
-                      of a dB every poll and format to the same text, and a dip
-                      on an unchanged reading is the tick announcing nothing.
-                      `tabular-nums` is baked into TickingValue. */}
-                  <TickingValue value={row.value}>{row.value}</TickingValue>
-                  {/* The tint is the only thing separating a "good" SINR from a
-                      "fair" one, and `success-on-surface` vs
-                      `warning-on-surface` measure ~1.01:1 apart — same
-                      luminance, hue only, and they converge under
-                      deuteranopia. The word restores the meaning in greyscale
-                      and to a screen reader. */}
-                  {isTinted && (
-                    <span className="sr-only">
-                      {" "}
-                      {t(`signal_card.quality_${rowQuality}`)}
-                    </span>
-                  )}
-                </dd>
-              )}
-            </motion.div>
-          );
-        })}
-      </motion.dl>
+            return (
+              <motion.div
+                key={row.label}
+                variants={staggerRowItem}
+                className="flex items-center justify-between gap-3 rounded-pill bg-surface-container px-4 py-2.5"
+              >
+                {/* 13px/600 per the mock. The `/5` pins line-height to 20px so
+                    the row stays exactly 40px tall and the skeleton's `h-10`
+                    keeps matching — an arbitrary font-size would otherwise
+                    inherit whatever leading the card sits in. */}
+                <dt className="text-[13px]/5 font-semibold text-on-surface-variant">
+                  {row.label}
+                </dt>
+                {/* An identity pill wrapping a placeholder dash reads as a broken
+                    chip rather than as absent data, so a missing band falls back
+                    to plain ink. */}
+                {row.asIdentity && row.value !== "-" ? (
+                  // The band is an identifier, not a measurement: it changes on a
+                  // handover, not on a poll. So it takes the container morph
+                  // (`standard`) and NOT the live tick — dipping a value that
+                  // holds steady for minutes would invent an event.
+                  <dd
+                    className={cn(
+                      "m-0 shrink-0 rounded-pill px-2.5 py-1 font-mono text-xs font-semibold transition-colors duration-(--duration-standard) ease-standard",
+                      identityTone,
+                    )}
+                  >
+                    {row.value}
+                  </dd>
+                ) : (
+                  // Measurements, and the reason this card needed the tick at
+                  // all: RSRP/RSRQ/SINR redraw every ~2s. Without the dip the
+                  // digits change with no acknowledgement at all, which is why
+                  // the card read as static despite the new tonal surfaces. Ink
+                  // colour is the `quick` clock; only containers get `standard`.
+                  <dd
+                    className={cn(
+                      "m-0 font-mono text-[13px]/5 font-semibold transition-colors duration-(--duration-quick) ease-quick",
+                      valueColor,
+                    )}
+                  >
+                    {/* Keyed on the rendered string rather than `rawValue`: the
+                        quality thresholds mean a raw RSRP can drift by a tenth
+                        of a dB every poll and format to the same text, and a dip
+                        on an unchanged reading is the tick announcing nothing.
+                        `tabular-nums` is baked into TickingValue. */}
+                    <TickingValue value={row.value}>{row.value}</TickingValue>
+                    {/* The tint is the only thing separating a "good" SINR from a
+                        "fair" one, and `success-on-surface` vs
+                        `warning-on-surface` measure ~1.01:1 apart — same
+                        luminance, hue only, and they converge under
+                        deuteranopia. The word restores the meaning in greyscale
+                        and to a screen reader. */}
+                    {isTinted && (
+                      <span className="sr-only">
+                        {" "}
+                        {t(`signal_card.quality_${rowQuality}`)}
+                      </span>
+                    )}
+                  </dd>
+                )}
+              </motion.div>
+            );
+          })}
+        </motion.dl>
+      </TickGroup>
     </Card>
   );
 }

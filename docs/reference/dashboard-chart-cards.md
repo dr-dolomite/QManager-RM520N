@@ -189,6 +189,12 @@ disagree with the alert firing directly beside it, which is worse than having no
 distinct glyph per tone is mandatory rather than decorative: the role containers sit within ~1.03:1 of
 each other, so colour alone does not separate these states for a deuteranopic reader.
 
+The chip's label and glyph crossfade through the shared `SwapLabel` primitive, keyed on
+`` `${tone.variant}-${hasReading}` ``. This card previously hand-rolled a duplicate of that component
+and left the **glyph outside** it, so the one channel that separates these tones in greyscale snapped
+in a single frame while the container fill morphed over 300ms. See
+[dashboard-state-motion.md](dashboard-state-motion.md).
+
 ### Loading state
 
 `isLoading` had been declared on the props interface and passed by the parent, but never destructured,
@@ -297,6 +303,9 @@ not "fix" them back:
 
 ## Related docs
 
+- [dashboard-state-motion.md](dashboard-state-motion.md) for the other dashboard motion contract — the
+  live value tick cascade (`TickGroup`) and the status chip morph (`SwapLabel`). Device Metrics carries
+  a `TickGroup`; Live Latency's single figure is deliberately ungrouped
 - [carrier-aggregation.md](carrier-aggregation.md) for the other dashboard data-visualisation surface
 - [recent-activities.md](recent-activities.md) for the dashboard event feed and the Age-Gated Tone Rule
 - [connection-quality.md](connection-quality.md) for who owns latency thresholds and where the
