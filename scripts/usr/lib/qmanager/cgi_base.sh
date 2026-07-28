@@ -66,6 +66,7 @@ cgi_headers() {
     qm_verify_password()    { return 1; }
     qm_save_password()      { :; }
     qm_check_rate_limit()   { return 0; }
+    qm_get_rate_limit_status() { RATE_LIMIT_RETRY_AFTER=0; RATE_LIMIT_ATTEMPTS_REMAINING=5; return 0; }
     qm_record_failed_attempt() { :; }
     qm_clear_attempts()     { :; }
 }

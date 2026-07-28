@@ -533,6 +533,37 @@ See Components > Icons.
 - **Mono** (`font-mono`, usually `text-xs` or `text-sm`): AT terminal streams, log viewers, copyable
   commands, IMEI/ICCID identifiers, band and ARFCN values, dBm readouts.
 
+#### The pre-auth card exception (`/` and `/login/`)
+
+The two pre-auth surfaces run a **denser five-step scale of their own**, sanctioned by the
+`Login and Overview` comp. This is a surface-scoped exception in the same sense as the sidebar's 11px
+label, and it applies **only** to the Overview splash and the login page — nothing else may reach for
+these steps.
+
+| Step | Size | Role |
+|------|------|------|
+| Card title | 600, `text-[1.1875rem]` / 19px, `tracking-[-0.01em]` | `Modem overview` — the card's own `h1` |
+| Section title | 600, `text-[1.0625rem]` / 17px | the empty-state headline |
+| Emphasis | 600, `text-[0.9375rem]` / 15px | the 48px pill CTA label, status-tile values |
+| Body | 400/500/600, `text-[0.8125rem]` / 13px | subcopy, field labels, inline errors, banner body |
+| Eyebrow | 600, `text-[0.6875rem]` / 11px, `tracking-[0.11em] uppercase` | the label above every tile and section |
+
+**Why these surfaces get their own scale.** Every other screen in the product sits inside the app
+shell, where the sidebar, page title and card grid establish scale before a card says anything. These
+two are the only screens that are a single card on an empty canvas, so the card has to build its own
+hierarchy from nothing — and it has to do it across five levels inside roughly 400px of width. The
+14px/12px body-and-label default flattens to two levels at that size and the composition reads as
+sparse rather than considered.
+
+**The comp draws the eyebrow at 10px; it ships at 11px.** 11px is the floor already set by the
+sidebar exception and by the eyebrow the Overview card shipped before the retarget. Going below it
+would make uppercase text at 0.11em tracking the smallest type anywhere in the product, on the least
+legible thing on the page. Comp fidelity does not justify a new product-wide minimum.
+
+**Both surfaces must agree.** The 48px pill CTA appears on both and is the same role in both; a user
+meets them back to back. When one of these steps changes, it changes on both screens in the same
+commit.
+
 ### Named Rules
 
 **The Two-Voice Rule** (kept). Euclid Circular B speaks for the interface; Geist Mono speaks for the

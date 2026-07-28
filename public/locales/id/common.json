@@ -54,15 +54,15 @@
     "select_prompt": "Pilih bahasa"
   },
   "login": {
-    "brand_label": "Konsol operator QManager",
+    "brand_label": "QManager · Manajemen Modem Quectel",
     "welcome": "Selamat datang di QManager",
     "password_label": "Kata sandi",
     "submit": "Masuk",
     "signing_in": "Sedang masuk…",
-    "locked": "Terkunci ({{seconds}}s)",
+    "locked": "Terkunci ({{seconds}})",
     "show_password": "Tampilkan kata sandi",
     "hide_password": "Sembunyikan kata sandi",
-    "session_expired": "Sesi Anda berakhir karena perangkat tidak dapat dijangkau terlalu lama.",
+    "session_expired": "Perangkat tidak dapat dijangkau terlalu lama. Masuk lagi untuk melanjutkan.",
     "signing_in_to": "Masuk ke {{hostname}}",
     "signing_in_as": "Masuk sebagai {{hostname}}",
     "recovery": {
@@ -70,7 +70,15 @@
       "intro": "Jika Anda kehilangan kata sandi admin, ada dua jalur pemulihan:",
       "option_reset": "Buka sesi SSH ke perangkat dan jalankan <code>qmanager_reset_password</code> untuk menetapkan kata sandi admin baru. (Memerlukan akses SSH yang sudah diaktifkan.)",
       "option_backup": "Jika Anda menyimpan file .qmbackup, flash ulang firmware perangkat lalu pulihkan dari file tersebut."
-    }
+    },
+    "session_expired_title": "Sesi berakhir",
+    "locked_title": "Terlalu banyak percobaan",
+    "locked_body": "Terkunci selama {{seconds}} untuk melindungi perangkat.",
+    "invalid_password": "Kata sandi salah.",
+    "attempts_left_one": "Kata sandi salah. Sisa {{count}} percobaan.",
+    "attempts_left_other": "Kata sandi salah. Sisa {{count}} percobaan.",
+    "password_to_manage": "Masukkan kata sandi Anda untuk mengelola {{hostname}}.",
+    "password_to_manage_bare": "Masukkan kata sandi Anda."
   },
   "overview": {
     "title": "QManager",
@@ -87,7 +95,7 @@
       "temperature": "Suhu"
     },
     "actions": {
-      "login": "Masuk",
+      "login": "Masuk untuk mengelola",
       "theme_toggle_aria": "Ganti tema",
       "theme_light": "Terang",
       "theme_dark": "Gelap",
@@ -114,7 +122,9 @@
       "count_one": "{{count}} aktif",
       "count_other": "{{count}} aktif",
       "bandwidth": "{{bandwidth}} MHz",
-      "rsrp_unit": "{{rsrp}} dBm"
+      "rsrp_unit": "{{rsrp}} dBm",
+      "section_count_one": "Pembawa · {{count}} teragregasi",
+      "section_count_other": "Pembawa · {{count}} teragregasi"
     },
     "metrics": {
       "rsrp": "RSRP",
@@ -154,7 +164,7 @@
     "loading_status": "Memuat status modem…",
     "empty": {
       "title": "Status modem tidak tersedia",
-      "subtitle": "Masuk untuk detail diagnostik.",
+      "subtitle": "Modem belum melapor selama satu menit. Mungkin sedang memulai ulang — pembacaan akan pulih sendiri.",
       "fetch_error": "Tidak dapat menjangkau perangkat.",
       "retry": "Coba lagi"
     },
@@ -163,7 +173,16 @@
       "hours": "{{hours}}j {{minutes}}m",
       "minutes": "{{minutes}}m"
     },
-    "copyright": "© {{year}} QManager"
+    "copyright": "© {{year}} QManager",
+    "stale": {
+      "banner": "Pembacaan sudah <age>{{age}}</age> yang lalu. Perangkat mungkin sibuk."
+    },
+    "footer": {
+      "updated_ago": "diperbarui {{age}} lalu",
+      "retrying": "mencoba lagi setiap {{seconds}} dtk",
+      "signin_works": "masuk tetap bisa"
+    },
+    "loading_chip": "Membaca"
   },
   "sim_swap": {
     "title": "SIM baru terdeteksi",

@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-07-28T02:56:00Z",
+  "generatedAt": "2026-07-28T00:00:00.000Z",
   "title": "Design System: QManager (RM520N-GL)",
   "extensions": {
     "colorMeta": {
@@ -165,6 +165,10 @@
       "mono": {
         "displayName": "Machine Voice",
         "purpose": "Geist Mono. AT terminal, logs, CopyableCommand, IMEI/ICCID, ARFCN, dBm readouts. Never decoration."
+      },
+      "pre-auth-card": {
+        "displayName": "Pre-auth card scale",
+        "purpose": "Surface-scoped exception for the two pre-auth screens ONLY (/ the Overview splash and /login/), sanctioned by the Login and Overview comp. Five steps: card title 19px (text-[1.1875rem], tracking -0.01em); section title 17px (text-[1.0625rem]); emphasis 15px (text-[0.9375rem]) for the 48px pill CTA label and status-tile values; body 13px (text-[0.8125rem]) for subcopy, field labels, inline errors and banner body; eyebrow 11px (text-[0.6875rem], tracking 0.11em uppercase). Every other screen sits inside the app shell, where the sidebar, page title and card grid establish scale before a card speaks; these two are the only screens that are a single card on an empty canvas, so the card must build five levels of hierarchy from nothing inside ~400px of width, where the 14px/12px default flattens to two. The comp draws the eyebrow at 10px; it ships at 11px because that is the floor already set by the sidebar exception and by the eyebrow the Overview card shipped before the retarget, and going lower would make uppercase text at 0.11em tracking the smallest type in the product. Both surfaces share the 48px pill CTA role, so these steps change on both screens in the same commit. No other surface may use them."
       }
     },
     "shadows": [

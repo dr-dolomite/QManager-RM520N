@@ -54,15 +54,15 @@
     "select_prompt": "Select a language"
   },
   "login": {
-    "brand_label": "QManager operator console",
+    "brand_label": "QManager · Quectel Modem Management",
     "welcome": "Welcome to QManager",
     "password_label": "Password",
-    "submit": "Sign in",
+    "submit": "Log in",
     "signing_in": "Signing in…",
-    "locked": "Locked ({{seconds}}s)",
+    "locked": "Locked ({{seconds}})",
     "show_password": "Show password",
     "hide_password": "Hide password",
-    "session_expired": "Your session ended because the device was unreachable for too long.",
+    "session_expired": "The device was unreachable for too long. Log in again to continue.",
     "signing_in_to": "Signing in to {{hostname}}",
     "signing_in_as": "Sign in as {{hostname}}",
     "recovery": {
@@ -70,7 +70,15 @@
       "intro": "If you've lost the admin password, you have two recovery paths:",
       "option_reset": "Open an SSH session to the device and run <code>qmanager_reset_password</code> to set a new admin password. (Requires SSH access to be enabled.)",
       "option_backup": "If you saved a .qmbackup file, re-flash the device firmware and restore from it."
-    }
+    },
+    "session_expired_title": "Session ended",
+    "locked_title": "Too many attempts",
+    "locked_body": "Locked for {{seconds}} to protect the device.",
+    "invalid_password": "Incorrect password.",
+    "attempts_left_one": "Incorrect password. {{count}} attempt left.",
+    "attempts_left_other": "Incorrect password. {{count}} attempts left.",
+    "password_to_manage": "Enter your password to manage {{hostname}}.",
+    "password_to_manage_bare": "Enter your password."
   },
   "overview": {
     "title": "QManager",
@@ -87,7 +95,7 @@
       "temperature": "Temperature"
     },
     "actions": {
-      "login": "Sign in",
+      "login": "Sign in to manage",
       "theme_toggle_aria": "Toggle theme",
       "theme_light": "Light",
       "theme_dark": "Dark",
@@ -114,7 +122,9 @@
       "count_one": "{{count}} active",
       "count_other": "{{count}} active",
       "bandwidth": "{{bandwidth}} MHz",
-      "rsrp_unit": "{{rsrp}} dBm"
+      "rsrp_unit": "{{rsrp}} dBm",
+      "section_count_one": "Carrier · {{count}} aggregated",
+      "section_count_other": "Carriers · {{count}} aggregated"
     },
     "metrics": {
       "rsrp": "RSRP",
@@ -154,7 +164,7 @@
     "loading_status": "Loading modem status…",
     "empty": {
       "title": "Modem status unavailable",
-      "subtitle": "Log in for diagnostic details.",
+      "subtitle": "The modem has not reported in for a minute. It may be rebooting — the reading resumes on its own.",
       "fetch_error": "Couldn't reach the device.",
       "retry": "Try again"
     },
@@ -163,7 +173,16 @@
       "hours": "{{hours}}h {{minutes}}m",
       "minutes": "{{minutes}}m"
     },
-    "copyright": "© {{year}} QManager"
+    "copyright": "© {{year}} QManager",
+    "stale": {
+      "banner": "Readings are <age>{{age}}</age> old. The device may be busy."
+    },
+    "footer": {
+      "updated_ago": "updated {{age}} ago",
+      "retrying": "retrying every {{seconds}} s",
+      "signin_works": "signing in still works"
+    },
+    "loading_chip": "Reading"
   },
   "sim_swap": {
     "title": "New SIM card detected",

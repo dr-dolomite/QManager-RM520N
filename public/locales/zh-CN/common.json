@@ -54,15 +54,15 @@
     "select_prompt": "选择语言"
   },
   "login": {
-    "brand_label": "QManager 操作员控制台",
+    "brand_label": "QManager · Quectel 调制解调器管理",
     "welcome": "欢迎使用 QManager",
     "password_label": "密码",
     "submit": "登录",
     "signing_in": "登录中…",
-    "locked": "已锁定 ({{seconds}}秒)",
+    "locked": "已锁定 ({{seconds}})",
     "show_password": "显示密码",
     "hide_password": "隐藏密码",
-    "session_expired": "由于设备长时间无法连接,您的会话已结束。",
+    "session_expired": "设备长时间无法访问。请重新登录以继续。",
     "signing_in_to": "正在登录到 {{hostname}}",
     "signing_in_as": "以 {{hostname}} 登录",
     "recovery": {
@@ -70,7 +70,15 @@
       "intro": "如果您忘记了管理员密码,有两种恢复方式:",
       "option_reset": "通过 SSH 连接到设备并运行 <code>qmanager_reset_password</code> 以设置新的管理员密码。(需要先启用 SSH 访问。)",
       "option_backup": "如果您保存了 .qmbackup 文件,请重新刷写设备固件,然后从该文件中恢复。"
-    }
+    },
+    "session_expired_title": "会话已结束",
+    "locked_title": "尝试次数过多",
+    "locked_body": "已锁定 {{seconds}}，以保护设备。",
+    "invalid_password": "密码错误。",
+    "attempts_left_one": "密码错误。还剩 {{count}} 次尝试。",
+    "attempts_left_other": "密码错误。还剩 {{count}} 次尝试。",
+    "password_to_manage": "输入密码以管理 {{hostname}}。",
+    "password_to_manage_bare": "请输入密码。"
   },
   "overview": {
     "title": "QManager",
@@ -87,7 +95,7 @@
       "temperature": "温度"
     },
     "actions": {
-      "login": "登录",
+      "login": "登录以管理",
       "theme_toggle_aria": "切换主题",
       "theme_light": "浅色",
       "theme_dark": "深色",
@@ -114,7 +122,9 @@
       "count_one": "{{count}} 个活跃",
       "count_other": "{{count}} 个活跃",
       "bandwidth": "{{bandwidth}} MHz",
-      "rsrp_unit": "{{rsrp}} dBm"
+      "rsrp_unit": "{{rsrp}} dBm",
+      "section_count_one": "载波 · {{count}} 个聚合",
+      "section_count_other": "载波 · {{count}} 个聚合"
     },
     "metrics": {
       "rsrp": "RSRP",
@@ -154,7 +164,7 @@
     "loading_status": "正在加载调制解调器状态…",
     "empty": {
       "title": "调制解调器状态不可用",
-      "subtitle": "登录以查看诊断详情。",
+      "subtitle": "调制解调器已有一分钟未上报。它可能正在重启 — 读数将自动恢复。",
       "fetch_error": "无法连接到设备。",
       "retry": "重试"
     },
@@ -163,7 +173,16 @@
       "hours": "{{hours}}小时 {{minutes}}分钟",
       "minutes": "{{minutes}}分钟"
     },
-    "copyright": "© {{year}} QManager"
+    "copyright": "© {{year}} QManager",
+    "stale": {
+      "banner": "读数已过去 <age>{{age}}</age>。设备可能正忙。"
+    },
+    "footer": {
+      "updated_ago": "{{age}}前更新",
+      "retrying": "每 {{seconds}} 秒重试",
+      "signin_works": "仍可登录"
+    },
+    "loading_chip": "读取中"
   },
   "sim_swap": {
     "title": "检测到新 SIM 卡",

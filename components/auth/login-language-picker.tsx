@@ -2,8 +2,8 @@
 
 import * as React from "react";
 import { useTranslation } from "react-i18next";
-import { Languages } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { MaterialSymbol } from "@/components/ui/material-symbol";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -24,6 +24,13 @@ import { cn } from "@/lib/utils";
 //
 // Layout-agnostic: positioning (e.g. `fixed top-4 right-4`) is the caller's job,
 // so this can drop into /login, /setup, or any pre-auth surface unchanged.
+//
+// GLYPH: Material Symbols, because the Icon-Boundary Rule now covers `/` and
+// `/login/` alongside the sidebar and /dashboard. NOTE the caveat implied by
+// the paragraph above: the boundary covers those two routes, NOT every pre-auth
+// surface. /setup/ has not been retargeted and is still a lucide route, so
+// mounting this component there would quietly walk Material Symbols across the
+// boundary. Retarget /setup/ first, or give it a lucide sibling.
 // =============================================================================
 
 interface LoginLanguagePickerProps {
@@ -54,11 +61,20 @@ export function LoginLanguagePicker({
           size={size}
           aria-label={t("language.switch_aria")}
           // text-foreground (not muted) for outdoor-readable contrast against a
-          // tablet glass in direct sunlight. Glyph scales with the button: size-5
-          // in the 44px icon-touch button, size-4 in the 32px icon-sm button.
-          className={cn(variant === "ghost" && "text-foreground", className)}
+          // tablet glass in direct sunlight.
+          className={cn(
+            "rounded-pill",
+            variant === "ghost" && "text-foreground",
+            // Ghost at rest, tonal while its menu is open, so the trigger reads
+            // as the origin of the surface hanging beneath it.
+            "data-[state=open]:bg-surface-container",
+            className,
+          )}
         >
-          <Languages className={size === "icon-sm" ? "size-4" : "size-5"} />
+          {/* Explicit `size`: MaterialSymbol emits an inline fontSize that
+              outranks Tailwind size utilities, so omitting it silently pins
+              every glyph to the 20px default. */}
+          <MaterialSymbol name="translate" size={size === "icon-sm" ? 17 : 19} />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" sideOffset={8} className="min-w-[10rem]">

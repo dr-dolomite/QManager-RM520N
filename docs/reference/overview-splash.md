@@ -13,8 +13,13 @@ This feature was ported from the sibling RM551E/OpenWRT project. The one RM551E 
 | Item | Value |
 |------|-------|
 | Public route | `/` (`app/page.tsx`) |
-| Splash component | `components/public/overview-card.tsx` |
-| Supporting components | `components/public/mode-toggle.tsx`, `components/auth/login-device-name.tsx` |
+| Login route | `/login/` (`app/login/page.tsx`) |
+| Splash component | `components/public/overview-card.tsx` (the shell + `resolveBodyMode`) |
+| Splash sub-components | `components/public/overview/{tone.ts,tiles.tsx,band-rows.tsx,states.tsx}` |
+| Login component | `components/auth/login-component.tsx` |
+| Shared in-card notice | `components/ui/tonal-banner.tsx` |
+| Supporting components | `components/public/mode-toggle.tsx`, `components/auth/login-device-name.tsx`, `components/auth/login-language-picker.tsx` |
+| Icon library on both routes | **Material Symbols** — the Icon-Boundary Rule covers `/` and `/login/` |
 | Hooks | `hooks/use-public-overview.ts` (5s poll), `hooks/use-device-hostname.ts`, `hooks/use-public-unit-preferences.ts` |
 | Types | `types/public-overview.ts`, `types/device-hostname.ts`; `SignalQuality` + `worstSignalQuality` in `types/modem-status.ts` |
 | Presentation helpers | `lib/public-overview/format.ts` (`deriveConnectionLabel`), `lib/motion.ts` (`DUR`, `EASE_OUT_EXPO`) |
@@ -24,7 +29,8 @@ This feature was ported from the sibling RM551E/OpenWRT project. The one RM551E 
 | Indicator cookie | `qm_logged_in=1` (optimistic hint, not proof of session) |
 | Session-authority endpoint | `GET /cgi-bin/quecmanager/auth/check.sh` → `{authenticated:bool}` |
 | New CSS tokens | `-on-surface` OKLCH pairs (success/warning/info/destructive, light+dark) in `app/globals.css` |
-| i18n namespace/keys | `common` → `overview.*`, `login.signing_in_*` (already bundled in all 5 languages) |
+| i18n namespace/keys | `common` → `overview.*`, `login.*` (bundled in all 5 languages) |
+| Type scale | `DESIGN.md` > Typography > Hierarchy > **pre-auth card exception** — 19 / 17 / 15 / 13 / 11 px, mirrored in `.impeccable/design.json` as `pre-auth-card` |
 
 > ℹ️ NOTE: Jargon glossary. **CGI** = a shell script lighttpd runs per HTTP request as `www-data`. **Poller** = the background daemon that queries the modem over AT and writes a JSON snapshot to `/tmp/qmanager_status.json`. **Allowlist projection** = the endpoint copies out only a named set of fields and drops everything else, so a new sensitive field in the cache can never leak by default. **RSRP / RSRQ / SINR** = the three cellular signal-quality metrics (received power, quality, and signal-to-noise). **NSA / SA** = 5G Non-Standalone (LTE anchor + NR) vs. Standalone (NR only).
 
@@ -62,6 +68,8 @@ If `/` trusted that cookie blindly, it would forward a logged-out visitor to `/d
 
 **Fast path:** if there's no indicator cookie at all, the gate initializes straight to `public` and skips the network round-trip entirely — no flash, no wait for the logged-out majority.
 
+> ⚠️ WARNING — `check.sh` now returns **additive rate-limit fields** on its unauthenticated branch (`rate_limited`, `retry_after`, `attempts_remaining`), which `/login/` uses to restore a lockout countdown across a page reload. Because `app/page.tsx` calls `check.sh` on **every** load of the public splash, that endpoint must call only the **read-only** limiter accessor `qm_get_rate_limit_status` — never the mutating `qm_check_rate_limit`, or refreshing this page would extend the visitor's own lockout. There is a regression test for it (`scripts/test/auth-lockout-ladder.sh`, section 8). See `docs/reference/auth-rate-limiting.md`.
+
 > ℹ️ NOTE: A fresh-install device (no password set) is handled one layer deeper. The splash's own `overview.sh` returns `{state:"setup_required"}`, and `OverviewCard` redirects to `/setup/` when it sees that state. The `/` gate itself only distinguishes public/checking/redirecting.
 
 ---
@@ -69,6 +77,41 @@ If `/` trusted that cookie blindly, it would forward a logged-out visitor to `/d
 ## The OverviewCard UI
 
 `components/public/overview-card.tsx` is the splash body. It is a single shadcn `Card` laid out as: header (logo + product title + device-name line + theme toggle), body (the live status), and footer (Sign-in button + copyright).
+
+> ℹ️ NOTE — both pre-auth surfaces were **retargeted to the Material-3 tonal system** against the `Login and Overview.dc.html` comp. The structure below is unchanged; what changed is the visual vocabulary (tonal containers instead of washes, pill controls, role radii), the glyph library (Material Symbols), the motion (Motion Guide recipes), and the file layout. See *The retarget* below.
+
+### File layout after the retarget
+
+`overview-card.tsx` went from 841 to 557 lines and four sibling modules were extracted under `components/public/overview/`:
+
+| File | Holds |
+|------|-------|
+| `tone.ts` | The whole tone vocabulary — `qualityTone`, `TONE_CLASSES`, `TILE_CLASSES`, `OVERALL_TILE` / `CONNECTION_TILE` / `TEMPERATURE_TILE` verdict maps, `temperatureBand`, `BAND_METRIC_THRESHOLDS`, `EYEBROW_CLASS`, `TILE_SHAPE`, `formatAge`, `isNrBand` |
+| `tiles.tsx` | `TonalTile`, `StatusTile` — the status-trio cells |
+| `band-rows.tsx` | `BandRow`, `AggregateBandRow`, `SegmentedMetricToggle`, plus the shared `BAND_ROW_SHAPE` / `ROW_GAP` / `ROW_STACK_GAP` geometry constants |
+| `states.tsx` | `ReadingChip`, `SkeletonBody`, `UnreachableState` |
+
+Total across the five files is roughly 1235 lines — **more** than before. The extraction was not a line-count exercise; the retarget genuinely adds surface (tonal maps, a segmented toggle, a real skeleton that mirrors the loaded geometry), and the split is what keeps the shell readable.
+
+Every map in `tone.ts` is keyed on a **union type**, never on a raw class string, so a new state without a matching role fails the build rather than rendering untinted.
+
+### `resolveBodyMode()` — one decision, two consumers
+
+The old `renderBody` carried a seven-branch `if` chain. The order was correct and load-bearing (re-ordering it changes what a flapping modem shows), so it was preserved verbatim but **extracted into a pure function returning a `BodyMode` union**:
+
+```ts
+type BodyMode =
+  | "skeleton"           // 1. first paint, no data yet
+  | "redirecting"        // 2. setup_required → /setup/
+  | "empty_fetch"        // 3 & 4. fetch error, with or without prior data
+  | "empty_unavailable"  // 5. the poller itself reports unavailable
+  | "bare_skeleton"      // 6. no usable payload, but no error either
+  | "live";              // 7. the real thing
+```
+
+The reason it had to move out of the render function is that the **footer caption must agree with the body about which state the card is in** — the footer suffix reads "updated 4 s ago" / "retrying every 8 s" / "signing in still works" depending on the mode. With the chain inlined in `renderBody`, the footer had to re-derive the same conditions independently, and the two could drift. Now there is one call site and both read `mode`.
+
+`FAILURE_EMPTY_STATE_THRESHOLD = 3` is the consecutive-failure count that promotes a still-rendering stale card to the empty state.
 
 **Header:**
 - QManager logo (decorative, `alt=""`) + `CardTitle` (`overview.title`).
@@ -84,7 +127,17 @@ If `/` trusted that cookie blindly, it would forward a logged-out visitor to `/d
    - **Internet** = a single connection label reduced from the LTE and NR states by `deriveConnectionLabel` (priority: connected > searching > limited > inactive > error > disconnected > unknown). When the modem is unreachable it reads `modem_unreachable`.
    - **Temperature** = the SoC temperature, formatted in the visitor's preferred unit, with a tinted `TriangleAlertIcon` at ≥60 °C (warn) / ≥75 °C (danger). The digits stay neutral; the icon carries the state, so the meaning survives for colour-blind users (WCAG 1.4.1).
 
-**States the body can render:** loading skeleton (mirrors the final layout so there's no layout shift on data arrival), `setup_required` (spinner while redirecting to `/setup/`), `unavailable` / repeated-fetch-failure EmptyState (amber warning, not destructive — this surface is degraded/recoverable, with a Retry button), and the live `ok` layout above. A **stale** badge appears above the header trio when the cache timestamp is older than 15 s.
+**States the body can render:** loading skeleton (`SkeletonBody`, mirrors the final layout so there's no layout shift on data arrival — the title, CTA and footer caption are real text and are never skeletonised, because the card's identity is known before its reading is), `setup_required` (spinner while redirecting to `/setup/`), `unavailable` / repeated-fetch-failure (`UnreachableState`), and the live `ok` layout above.
+
+While the first read is in flight a `ReadingChip` replaces the theme toggle at the same 36 px height, so the header does not reflow when it swaps back. Its spinner is the only loop permitted on this surface.
+
+**Staleness** is now a `TonalBanner` (`tone="warning"`, `size="compact"`, `role="status"`) rather than the old chip — "Readings are 42s old. The device may be busy." The chip's key `overview.stale_indicator` is now unreferenced but was **left in place** so installed language packs that already translate it do not error.
+
+**The modem-unreachable empty state is `warning`, not `destructive`**, and its footer says *"signing in still works"*. The distinction is the whole point of the state: the status feed is gone, the login is not, and a red card would tell a visitor the device is broken when it is merely quiet. `overview.empty.subtitle` was rewritten to name cause and recovery ("The modem has not reported in for a minute. It may be rebooting — the reading resumes on its own.") instead of the old "Log in for diagnostic details.", which offered a next step that does not help.
+
+**Band chips carry IDENTITY, not quality.** Per DESIGN.md's Identity-Chip Rule the chip fill says which radio the row belongs to — NR gets `primary-container`, LTE gets `lte-container` — while the meter and the value carry the functional-colour verdict.
+
+> ⚠️ WARNING — the comp calls the LTE role `--sc` (secondary-container). **Do not use `secondary-container` here.** This repo ships Carrier Violet under the non-canon name `--lte-*` specifically to avoid colliding with the shadcn neutral secondary. See `DESIGN.md` > Token Names in Code.
 
 **Accessibility:** a single `sr-only` `aria-live` region announces only *verdict transitions* (a change in signal quality, connection state, or temperature band), gated by comparing the current verdict against the previous one — so the 5 s poll doesn't re-announce the whole status trio on every tick.
 
@@ -93,6 +146,104 @@ If `/` trusted that cookie blindly, it would forward a logged-out visitor to `/d
 ### `LoginDeviceName` — "which modem am I signing into?"
 
 `components/auth/login-device-name.tsx` renders a quiet muted-text line answering which device the visitor is about to log into. It owns its own hostname fetch (`useDeviceHostname`) and all three states (loading skeleton → resolved name → nothing). Its contract is **silent omission**: older firmware without the CGI, or an unnamed device, resolves to `null` and the line simply doesn't render — the title block closes up around it. Per DESIGN.md's Machine-Voice Rule the hostname renders in the UI sans typeface, not the mono machine voice (mono is scoped to the AT terminal). It is used by both the splash and the login screen.
+
+---
+
+## The `/login/` screen
+
+`app/login/page.tsx` and `components/auth/login-component.tsx` were both rewritten in the same retarget, because the two surfaces are one experience: a visitor moves from `/` to `/login/` in a single click, and the 48 px pill CTA is the same role appearing on two consecutive screens. That is why the pre-auth type scale is defined once and applied to both (`DESIGN.md` > Typography > Hierarchy > pre-auth card exception; five steps 19 / 17 / 15 / 13 / 11 px — the comp draws the eyebrow at 10 px, but 11 px is the floor already set by the sidebar exception).
+
+`app/login/page.tsx` now mounts `ModeToggle`, which the route had never carried. It sits beside `LoginLanguagePicker` at `icon-sm`, and both use `rounded-pill`.
+
+The login form renders two `TonalBanner`s:
+
+| Condition | Tone | Copy keys |
+|-----------|------|-----------|
+| Session ended (device was unreachable) | `destructive` | `login.session_expired_title` + `login.session_expired` |
+| Rate limited | **`warning`** | `login.locked_title` + `login.locked_body` |
+
+> ℹ️ NOTE — **the rate-limit banner is amber, not red, on purpose.** Being rate-limited is degraded-but-recoverable: the device is working, it is deliberately pausing you, and the pause ends by itself. Red would read as a fault. The copy names the *reason* ("Locked for 4:32 to protect the device.") rather than only the consequence, which is what turns a punishment into an explanation.
+
+The countdown is formatted by `formatLockout()` — `28 s` under a minute, `4:32` above it — which is why the i18n template lost its baked-in unit. See `docs/reference/auth-rate-limiting.md` for the ladder, the response shapes, and the `attempts_remaining: 0` gotcha the form has to render around.
+
+### `TonalBanner` — the card-scoped notice
+
+`components/ui/tonal-banner.tsx` is a **new shared primitive**, and the sibling of `components/ui/banner.tsx` rather than a replacement for it. The two split on *where they mount*, and everything else follows:
+
+| | `Banner` | `TonalBanner` |
+|---|---|---|
+| Mounts | Page level, any route | Inside a single card, pre-auth surfaces |
+| Roles | Eight named system roles | Three tones: `warning`, `destructive`, `info` |
+| Slots | CTA + dismiss | Neither |
+| Disc | 36 px | 32 px |
+| Glyphs | lucide (route-agnostic) | Material Symbols (`/` and `/login/` are Material end to end) |
+
+```tsx
+<TonalBanner tone="warning" icon="schedule" size="compact" role="status">
+  …
+</TonalBanner>
+```
+
+Props: `tone`, `icon: MaterialSymbolName`, `title?: ReactNode`, `children`, `size?: "default" | "compact"`, `role?: "alert" | "status"`, `className?`.
+
+It exists because a page-level `Banner` dropped inside a 404 px login card is the wrong instrument — its CTA lane, dismiss lane and 300 px text basis all assume a full content column, and its role vocabulary (`sim-swap-matched`, `deferred-reboot`) describes conditions a signed-out visitor cannot act on.
+
+What it **keeps** from the page-level primitive, because these are rules rather than geometry:
+
+- **Solid-Container Rule** — `bg-{role}-container` + `text-on-{role}-container`, never a wash. The pattern it retires from `/login/` was `border-warning/30 bg-warning/10`; a 10 % alpha over a tinted surface is not a stable colour — it collapses in dark mode and washes out first in sunlight.
+- **Glyph-Disc Rule** — the icon always sits in a filled circle on the role's *strong* fill. The disc is what survives when the container fill washes out; a bare icon on the container does not.
+- **Info-Is-Brand** — the informational tone uses `primary-container`. There is no separate info hue.
+- **Field radius** — 20 px (`rounded-field`): a banner must not out-round the surface it sits on. The comp draws 24/22 px, which is not a step on this repo's shape scale (12 / 20 / 28 / 36 / 40).
+
+Motion is enter-only (`.animate-banner-in`, 400 ms emphasized, 6 px rise + fade, already reduced-motion-guarded in `globals.css`). A banner *leaving* means the condition cleared, and that should feel immediate.
+
+### Motion on the pre-auth surfaces
+
+| Recipe | Where |
+|--------|-------|
+| 01 — card entrance | `standard` easing, `y: 10`. Replaced `y: 12, ease: "easeOut"`, a token mixture the system does not produce |
+| 02 — content cascade | 60 ms stagger, composed onto the same element as recipe 01 |
+| 07 — meter growth | `scaleX`, **first paint only**: a `metersPainted` flag flips one frame after the first live render, so rows added mid-poll settle in without re-growing and the 5 s poll never replays the entrance |
+| 15 — submit button | No width change across idle / submitting / locked states |
+
+> ⚠️ WARNING — **there is deliberately no shake on a wrong password.** The Motion Guide prohibits rubber-band motion. The error is carried by ring colour, glyph, and copy. Do not add one back.
+
+Two pre-existing motion bugs were fixed in passing: `SignalBar` in `overview-card.tsx` used `ease: [0.16, 1, 0.3, 1]` (easeOutExpo — not a system curve), and several retired `duration-200` values were moved onto the token scale.
+
+### `hooks/use-auth.ts` changes
+
+`useLogin()` now also returns `lockout: LockoutState`, seeded from `check.sh` so a page reload during a lockout restores the countdown instead of showing an enabled button that would just earn another 429. `LoginError`, `LoginResult` and `LockoutState` are exported. A pre-existing bug was fixed here — the old `error: data.detail || data.error` overwrote the machine sentinel with human text, making `rate_limited` indistinguishable from any other failure at the call site. Full detail in `docs/reference/auth-rate-limiting.md`.
+
+### i18n
+
+`common.json` is at 889/889 keys across all five locales, 0 warnings.
+
+**8 new `login.*` keys:** `session_expired_title`, `locked_title`, `locked_body`, `invalid_password`, `attempts_left_one`, `attempts_left_other`, `password_to_manage`, `password_to_manage_bare`.
+
+**7 new `overview.*` keys:** `stale.banner`, `footer.updated_ago`, `footer.retrying`, `footer.signin_works`, `loading_chip`, `bands.section_count_one`, `bands.section_count_other`.
+
+Copy changes worth knowing about:
+
+| Key | Change | Why |
+|-----|--------|-----|
+| `login.locked` | `"Locked ({{seconds}}s)"` → `"Locked ({{seconds}})"`, all 5 locales | The unit was baked into the template. Once the ladder reached 900 s the UI needed to render `4:32`, and `4:32s` is wrong. The formatter owns the unit now |
+| `overview.actions.login` | "Sign in" → "Sign in to manage" | Names what the button gets you, not just where it goes |
+| `overview.empty.subtitle` | Now states cause + recovery | The old "Log in for diagnostic details." offered a step that does not help |
+| `overview.stale_indicator` | **Unreferenced**, kept in place | The `TonalBanner` replaced the chip; the key stays so installed language packs keep resolving |
+
+#### `interpolation-slot.tsx` — styling one value inside a translated sentence
+
+`components/auth/interpolation-slot.tsx` is a small new helper for the case where a *value* inside a translated sentence needs different treatment from the prose around it — mono digits in "Locked for 4:32", a bolder hostname in "Enter your password to manage sdxlemur."
+
+i18next interpolation returns a flat string, so the value cannot be styled after the fact. The three ways out, and why this one:
+
+| Approach | Why not |
+|----------|---------|
+| Split into two keys | Breaks in zh-CN / zh-TW / it, where the value does not sit at that position in the sentence. The translator loses word order — the one thing a translator must keep |
+| `<Trans>` with markup | Puts `<0>` tags in the JSON. Translators must preserve markup they cannot see rendered, and a dropped tag is a runtime error rather than a typo |
+| **Interpolate a sentinel** ✅ | ONE key, ordinary `{{value}}` syntax, translator keeps full control of word order, and the slice happens *after* i18next has done its job |
+
+The sentinel exported as `SLOT` is **U+0000**. It cannot occur in real copy, no keyboard or CAT tool emits it, and — unlike a visible marker like `%%` or `{0}` — a translator will never "helpfully" correct it.
 
 ---
 
@@ -212,6 +363,8 @@ The point of the splash is that a **deliberate** logout lands you on it. In `hoo
 
 ## Related docs
 
+- Login lockout ladder, `check.sh`'s rate-limit fields, `useLogin().lockout` — `docs/reference/auth-rate-limiting.md`
+- Glyphs on `/` and `/login/`, the extended Icon-Boundary Rule, the `/setup/` caveat — `docs/reference/icon-system.md`
 - Auth model, session cookies, `cgi_base.sh` `require_auth` / `_SKIP_AUTH` — `docs/reference/qmanager-independence.md`
 - Poller cache (`/tmp/qmanager_status.json`) field sourcing — `docs/BACKEND.md`, `docs/ARCHITECTURE.md`
 - i18n bundle and `overview.*` keys — `docs/reference/i18n.md`

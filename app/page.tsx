@@ -70,9 +70,11 @@ export default function Home() {
   }, [gate]);
 
   if (gate === "public") {
+    // The card owns its own 472px ceiling and centering, so the shell here is
+    // only a full-height stage — no competing max-width.
     return (
       <div className="bg-background flex min-h-svh items-center justify-center p-4 font-sans">
-        <main className="w-full max-w-lg">
+        <main className="w-full">
           <OverviewCard />
         </main>
       </div>

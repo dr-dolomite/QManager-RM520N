@@ -1,6 +1,6 @@
 # Icon System
 
-QManager draws its glyphs from two libraries separated by a hard, tracked boundary. **Material Symbols Rounded** is scoped to the sidebar navigation and the dashboard route; **lucide-react** covers every other route. The boundary exists because the failure it prevents is *two icon sets inside one screen*, not "Material is nicer than lucide". Before this change the dashboard carried four icon sets in a single viewport (`lucide-react`, `react-icons/md`, `react-icons/fa6`, `react-icons/tb`) sitting beside a sidebar that was already on Material Symbols. The rule that governs it is DESIGN.md's **Icon-Boundary Rule**, which replaced the retired Nav-Glyph Boundary Rule.
+QManager draws its glyphs from two libraries separated by a hard, tracked boundary. **Material Symbols Rounded** is scoped to the sidebar navigation, the dashboard route, and the two pre-auth routes `/` and `/login/`; **lucide-react** covers every other route. The boundary exists because the failure it prevents is *two icon sets inside one screen*, not "Material is nicer than lucide". Before this change the dashboard carried four icon sets in a single viewport (`lucide-react`, `react-icons/md`, `react-icons/fa6`, `react-icons/tb`) sitting beside a sidebar that was already on Material Symbols. The rule that governs it is DESIGN.md's **Icon-Boundary Rule**, which replaced the retired Nav-Glyph Boundary Rule.
 
 Material Symbols is a **self-hosted, ligature-driven icon font**, not an SVG component library. That single fact produces every gotcha on this page: the sizing behaviour, the build-time subsetting step, and the way a missing glyph fails.
 
@@ -12,7 +12,7 @@ Material Symbols is a **self-hosted, ligature-driven icon font**, not an SVG com
 | **Canonical glyph list (single source of truth)** | `MATERIAL_SYMBOL_NAMES` in `components/ui/material-symbol-names.ts` |
 | Allowed glyph names (TS type) | `MaterialSymbolName`, **derived** from that array |
 | Subset generator | `scripts-dev/subset-icons.ts` (imports the same array) |
-| Shipped font file | `app/fonts/MaterialSymbolsRounded-subset.woff2` (56 glyphs, 20.2 KB) |
+| Shipped font file | `app/fonts/MaterialSymbolsRounded-subset.woff2` (64 glyphs, 23.9 KB) |
 | Generator manifest | `app/fonts/MaterialSymbolsRounded-subset.json` — what was requested + sha256 of what shipped |
 | Font binding | `app/layout.tsx` (`next/font/local`, bound to a CSS variable) |
 | Regenerate the font | `bun run icons:subset` |
@@ -34,10 +34,24 @@ git add app/fonts/MaterialSymbolsRounded-subset.woff2 \
 |---------|---------|
 | Sidebar nav (`components/app-sidebar.tsx`, `nav-section.tsx`, `nav-user.tsx`) | Material Symbols |
 | Dashboard route (`components/dashboard/*`) | Material Symbols |
+| **Pre-auth routes `/` and `/login/`** (`components/public/*`, `components/auth/login-*.tsx`, `components/ui/tonal-banner.tsx`) | Material Symbols |
+| `/setup/` (`components/onboarding/**`) | **lucide** — deliberately out of scope, see below |
 | Cellular, Local Network, Monitoring, System Settings, their dialogs | lucide |
 | Header bar above the content (`SidebarTrigger`, breadcrumbs) | lucide — it is not the sidebar |
-| Banners (`components/ui/banner.tsx`) | lucide — banners are route-agnostic and mount on lucide pages too |
+| Page-level banners (`components/ui/banner.tsx`) | lucide — they are route-agnostic and mount on lucide pages too |
 | Glyphs lucide lacks | Tabler (`@tabler/icons-react`), the sanctioned secondary |
+
+### The boundary is keyed on ROUTES, not on directories
+
+This matters more than it sounds, because `components/auth/` reads like a pre-auth folder and is not one.
+
+> ⚠️ WARNING — known false positive. `grep -rn lucide-react components/auth/` returns a hit on `components/auth/change-password-dialog.tsx`. **That is correct code, not a leak.** The dialog is mounted from `components/nav-user.tsx` — the authenticated sidebar — so it renders on lucide surfaces and keeps its lucide glyphs (`EyeIcon`, `EyeOffIcon`). Only the files that actually render on `/` or `/login/` (`login-component.tsx`, `login-device-name.tsx`, `login-language-picker.tsx`) are inside the Material half of the boundary. Do not "fix" the dialog; converting it would pull Material Symbols onto an authed surface.
+
+### The `/setup/` caveat
+
+`/setup/` was **explicitly left out of scope** and is still a lucide route: `app/setup/page.tsx` imports no icons of its own and renders `components/onboarding/**` (`onboarding-shell.tsx`, `steps/step-*.tsx`), which is lucide-only with zero `MaterialSymbol` imports. The boundary is intact today.
+
+The hazard is forward-looking. `LoginLanguagePicker` and `ModeToggle` were both converted to Material Symbols, and `LoginLanguagePicker`'s own header comment advertises that it is layout-agnostic and can "drop into `/login`, `/setup`, or any pre-auth surface unchanged." Neither control is mounted on `/setup/` at present — but mounting either one there **would** walk Material Symbols across the boundary silently, because a ligature font renders wherever it is asked to. **Retarget `/setup/` first, or give it a lucide sibling.** Both files carry a warning comment saying so.
 
 ### The two sanctioned exceptions
 
@@ -87,9 +101,21 @@ WOFF2 cannot be cheaply introspected: it is Brotli-compressed with per-table tra
 - **`FILL` must stay a range (`0..1`), never a pinned value.** Pinning it collapses the variable axis and the active nav row's filled-glyph affordance silently stops working. The URL requests `opsz,wght,FILL,GRAD@20..48,400,0..1,0`.
 - **A desktop `User-Agent` is sent on both requests.** Google serves WOFF2 only to user agents it believes support it.
 
-The full family is roughly 3.4 MB, which is why the subset exists at all: QManager is served *by* the modem, which frequently has no internet, so a `fonts.googleapis.com` link at runtime would render a page of literal words. The subset grew from 19 glyphs / 10.4 KB to **56 glyphs / 20.2 KB** when the boundary moved to include the dashboard.
+The full family is roughly 3.4 MB, which is why the subset exists at all: QManager is served *by* the modem, which frequently has no internet, so a `fonts.googleapis.com` link at runtime would render a page of literal words.
 
-`MATERIAL_SYMBOL_NAMES` lives in its own **import-free** module on purpose. `subset-icons.ts` is run by bun from `scripts-dev/`, which `tsconfig.json` excludes, so pulling the list out of `material-symbol.tsx` would couple font generation to React and the `@/` path alias. The array is referenced only at type level by the component, so bundlers tree-shake it — verified absent from the production chunks, meaning the modem never downloads the 56 strings.
+Subset growth, by the change that caused it:
+
+| Boundary scope | Glyphs | Font size |
+|----------------|--------|-----------|
+| Sidebar only | 19 | 10.4 KB |
+| + dashboard route | 56 | 20.2 KB |
+| **+ pre-auth `/` and `/login/`** | **64** | **23.9 KB** |
+
+The eight glyphs added for the pre-auth retarget: `dark_mode`, `error`, `light_mode`, `lock`, `lock_clock`, `translate`, `wifi_off`, `wifi_tethering_off`.
+
+> ⚠️ WARNING — this is the one boundary extension where the weight lands on the **first page a visitor loads**. The dashboard's 10 KB rode behind a login; the splash's 23.9 KB does not. It was accepted knowingly: the font is served from the modem over LAN, and the alternative — two icon libraries inside one 404px card — is the exact failure the boundary exists to prevent.
+
+`MATERIAL_SYMBOL_NAMES` lives in its own **import-free** module on purpose. `subset-icons.ts` is run by bun from `scripts-dev/`, which `tsconfig.json` excludes, so pulling the list out of `material-symbol.tsx` would couple font generation to React and the `@/` path alias. The array is referenced only at type level by the component, so bundlers tree-shake it — verified absent from the production chunks, meaning the modem never downloads the 64 strings.
 
 ## The sizing gotcha
 
@@ -158,6 +184,29 @@ The rule that generalises, DESIGN.md's **Identity-Chip Rule**: *where a chip car
 - **Every tinted value carries an `sr-only` quality word after it.** `success-on-surface` and `warning-on-surface` measure roughly 1.01:1 apart in light mode — same luminance, hue only — and green and amber converge under deuteranopia, so a "good" SINR and a "fair" SINR were the same grey number to a colourblind technician in sunlight. Identifier rows (Band, ARFCN, PCI, SCS) are untinted and must **not** get one; they have no good-or-bad reading to announce.
 - **The card header carries `min-w-0` + `truncate`.** Italian trips it: `"Potenza del segnale"` over `"Nessun segnale"` wrapped one card's header to two lines while its sibling stayed at one, and the paired cards stopped reading as a pair.
 
+## Pre-auth glyph decisions worth keeping
+
+### `ModeToggle` — the fill is the caller's business
+
+`components/public/mode-toggle.tsx` swapped lucide `Sun`/`Moon` for Material `light_mode`/`dark_mode`, and dropped `variant="outline"` in the same pass. A 1px outline on a tonal system is the same reasoning that retired outline badges — the trigger now carries a container fill instead.
+
+Which fill, though, is **not** the component's decision. It gained a `className` passthrough rather than a second appearance prop, because the correct fill depends on what sits *behind* the button:
+
+| Route | Context | What it needs |
+|-------|---------|---------------|
+| `/login/` | Floats on the page background | Lift off the page |
+| `/` | Sits **on** the Overview card | Contrast against the card |
+
+Both glyphs stay mounted and swap on transform, so the button never reflows and the swap costs no layout. The rotation is decorative; under `prefers-reduced-motion` the end state is still correct because it is the *scale*, not the transition, that selects a glyph.
+
+### `LoginLanguagePicker` — `Languages` → `translate`
+
+Ghost at rest, `bg-surface-container` while its menu is open (`data-[state=open]:`), so the trigger reads as the origin of the surface hanging beneath it. Sized 17px in the `icon-sm` button and 19px in the `icon` button, matching `ModeToggle` so the `/login/` action cluster reads as one optical rhythm — and, per the sizing gotcha below, **passed explicitly**, since omitting `size` silently pins every glyph to the 20px default.
+
+### `TonalBanner` is Material; `Banner` stays lucide
+
+`components/ui/tonal-banner.tsx` is the card-scoped sibling of the page-level `components/ui/banner.tsx`, not a replacement. The split is by **where they mount**, and the glyph library follows directly from that: `Banner` mounts on every route, so the boundary pins it to lucide; `TonalBanner` mounts only inside the pre-auth cards, so it is Material end to end. See `docs/reference/overview-splash.md` for the rest of its contract.
+
 ## Known Risks
 
 - **The manifest is testimony, not proof.** `icons:check` verifies the font is the artifact the generator reported producing; it does not parse the font's ligature table. A hand-edited font plus a matching hand-edited manifest would pass. Accepted deliberately — the alternative is a font-parser dependency.
@@ -172,3 +221,5 @@ The rule that generalises, DESIGN.md's **Identity-Chip Rule**: *where a chip car
 - `.impeccable/design.json` — the machine-readable copy the design-audit tooling reads. **Keep it in step with `DESIGN.md` in the same change**, or the audit will flag correct code.
 - `docs/reference/recent-activities.md` — the dashboard event feed, whose glyphs moved to Material in the same pass
 - `docs/reference/carrier-aggregation.md` — the CA strip, also on the dashboard route
+- `docs/reference/overview-splash.md` — the `/` and `/login/` retarget that extended the boundary to the pre-auth routes
+- `docs/reference/auth-rate-limiting.md` — the lockout ladder the retargeted login form renders
