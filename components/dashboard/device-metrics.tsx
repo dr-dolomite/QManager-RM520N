@@ -26,13 +26,6 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { TickingValue } from "@/components/ui/ticking-value";
-import { RotateCcwIcon } from "lucide-react";
-import {
-  TbAlertTriangleFilled,
-  TbCircleArrowDownFilled,
-  TbCircleArrowUpFilled,
-  TbInfoCircleFilled,
-} from "react-icons/tb";
 
 import type { DeviceStatus, LteStatus, NrStatus } from "@/types/modem-status";
 import {
@@ -46,6 +39,7 @@ import { useUnitPreferences } from "@/hooks/use-system-settings";
 import { useDataUsed } from "@/hooks/use-data-used";
 import { useModemSubsys } from "@/hooks/use-modem-subsys";
 import { DUR, staggerRows, staggerRowItem } from "@/lib/motion";
+import { MaterialSymbol } from "@/components/ui/material-symbol";
 import { cn } from "@/lib/utils";
 
 interface DeviceMetricsComponentProps {
@@ -278,7 +272,7 @@ const DeviceMetricsComponent = ({
           // failure. No `transition-colors` here either: `badge.tsx` writes its
           // own two-clock longhand and the utility would clobber it.
           <Badge variant="warning">
-            <TbAlertTriangleFilled aria-hidden />
+            <MaterialSymbol name="warning" size={12} filled />
             {t("metrics.high_temp_warning")}
           </Badge>
         )}
@@ -306,7 +300,7 @@ const DeviceMetricsComponent = ({
       >
         {isCpuHigh && (
           <Badge variant="warning">
-            <TbAlertTriangleFilled aria-hidden />
+            <MaterialSymbol name="warning" size={12} filled />
             {t("metrics.high_cpu_warning")}
           </Badge>
         )}
@@ -373,7 +367,7 @@ const DeviceMetricsComponent = ({
                   aria-label={t("metrics.reset_counter_aria")}
                   disabled={isResetting}
                 >
-                  <RotateCcwIcon className="size-3.5" />
+                  <MaterialSymbol name="restart_alt" size={14} />
                 </Button>
               </AlertDialogTrigger>
               <AlertDialogContent>
@@ -402,13 +396,23 @@ const DeviceMetricsComponent = ({
             the mock's literal hue 185 — 185 sits 36° from success and fails
             the system's 40° separation floor. */}
         <span className={cn(VALUE_CLASS, "flex items-center gap-1")}>
-          <TbCircleArrowDownFilled className="size-5 shrink-0 text-primary" aria-hidden />
+          <MaterialSymbol
+            name="arrow_circle_down"
+            size={20}
+            filled
+            className="shrink-0 text-primary"
+          />
           <TickingValue value={dataUsed?.accumulated_rx_bytes ?? 0}>
             {formatBytes(dataUsed?.accumulated_rx_bytes ?? 0)}
           </TickingValue>
         </span>
         <span className={cn(VALUE_CLASS, "flex items-center gap-1")}>
-          <TbCircleArrowUpFilled className="size-5 shrink-0 text-uplink" aria-hidden />
+          <MaterialSymbol
+            name="arrow_circle_up"
+            size={20}
+            filled
+            className="shrink-0 text-uplink"
+          />
           <TickingValue value={dataUsed?.accumulated_tx_bytes ?? 0}>
             {formatBytes(dataUsed?.accumulated_tx_bytes ?? 0)}
           </TickingValue>
@@ -427,7 +431,7 @@ const DeviceMetricsComponent = ({
                   className={cn("inline-flex shrink-0", FOCUS_RING)}
                   aria-label={t("metrics.more_info_aria")}
                 >
-                  <TbInfoCircleFilled className="size-4" aria-hidden />
+                  <MaterialSymbol name="info" size={16} filled />
                 </button>
               </TooltipTrigger>
               <TooltipContent>
@@ -458,7 +462,7 @@ const DeviceMetricsComponent = ({
                   className={cn("inline-flex shrink-0", FOCUS_RING)}
                   aria-label={t("metrics.more_info_aria")}
                 >
-                  <TbInfoCircleFilled className="size-4" aria-hidden />
+                  <MaterialSymbol name="info" size={16} filled />
                 </button>
               </TooltipTrigger>
               <TooltipContent>

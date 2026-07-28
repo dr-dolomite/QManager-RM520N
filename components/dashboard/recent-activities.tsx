@@ -3,18 +3,6 @@
 import * as React from "react";
 import { motion, type Variants } from "motion/react";
 import { useTranslation } from "react-i18next";
-import {
-  ArrowLeftRightIcon,
-  CalendarX2Icon,
-  CheckCircle2Icon,
-  IdCardIcon,
-  InfoIcon,
-  MicrochipIcon,
-  RadioTowerIcon,
-  TriangleAlertIcon,
-  XCircleIcon,
-  type LucideIcon,
-} from "lucide-react";
 
 import {
   Card,
@@ -24,6 +12,10 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import {
+  MaterialSymbol,
+  type MaterialSymbolName,
+} from "@/components/ui/material-symbol";
 import {
   Empty,
   EmptyDescription,
@@ -125,16 +117,21 @@ const LIST_MAX_H = VISIBLE_ROWS * ROW_H + (VISIBLE_ROWS - 1) * ROW_GAP; // 332
  *  instead of sliding under the edge. */
 const RENDER_COUNT = VISIBLE_ROWS + 1;
 
-const GLYPHS: Record<EventGlyph, LucideIcon> = {
-  success: CheckCircle2Icon,
-  warning: TriangleAlertIcon,
-  error: XCircleIcon,
-  handoff: ArrowLeftRightIcon,
+/** Ligature names, not components: `MaterialSymbol` takes the glyph's NAME as a
+ *  prop and the font substitutes it, so the map holds strings. The closed
+ *  `MaterialSymbolName` union is what keeps that honest — a name absent from the
+ *  build-time subset would otherwise render as the literal word. */
+const GLYPHS: Record<EventGlyph, MaterialSymbolName> = {
+  success: "check_circle",
+  warning: "warning",
+  error: "cancel",
+  handoff: "swap_horiz",
   // A SIM is a chip. A credit-card glyph on a modem dashboard reads as billing.
-  sim: MicrochipIcon,
-  radio: RadioTowerIcon,
-  profile: IdCardIcon,
-  neutral: InfoIcon,
+  // `memory` is Material's chip glyph, so the reasoning carries over intact.
+  sim: "memory",
+  radio: "cell_tower",
+  profile: "badge",
+  neutral: "info",
 };
 
 /**
@@ -244,7 +241,15 @@ function EventRow({
   timeAgo,
   severityWord,
 }: EventRowProps) {
-  const Glyph = GLYPHS[presentation.glyph];
+  const glyphName = GLYPHS[presentation.glyph];
+  // Fill tracks the DISC, not the row's age. `presentEvent` splits its disc on
+  // exactly this predicate — a solid role colour for the three chromatic tones,
+  // a surface step for routine — so the glyph inherits the same discriminator:
+  // solid disc gets the filled axis, the recessed routine well gets the outline
+  // weight the reference draws on its handoff row. Keying on `tone` rather than
+  // on freshness is what keeps an aged warning's full-strength amber disc
+  // carrying a filled glyph, matching `DISC_FILL`, which never expires either.
+  const glyphFilled = presentation.tone !== "routine";
 
   return (
     <div
@@ -275,7 +280,7 @@ function EventRow({
           presentation.discClass,
         )}
       >
-        <Glyph className="size-4" />
+        <MaterialSymbol name={glyphName} size={16} filled={glyphFilled} />
       </span>
       <div className="flex min-w-0 flex-1 flex-col gap-0.5">
         {/* Tone is carried visually by the disc and the fill, and a screen
@@ -376,12 +381,12 @@ const RecentActivitiesComponent = () => {
   });
 
   const chipTone = unresolvedCount === 0 ? "quiet" : worstIsError ? "error" : "warning";
-  const ChipGlyph =
+  const chipGlyph: MaterialSymbolName =
     chipTone === "quiet"
-      ? CheckCircle2Icon
+      ? "check_circle"
       : chipTone === "error"
-        ? XCircleIcon
-        : TriangleAlertIcon;
+        ? "cancel"
+        : "warning";
 
   // The chip reports a verdict, so it may only appear once there is something
   // to have a verdict ABOUT. Rendering it while loading or while the fetch is
@@ -421,10 +426,12 @@ const RecentActivitiesComponent = () => {
         transition={{ duration: DUR.quick, ease: EASE_QUICK }}
         className="inline-flex items-center gap-1"
       >
-        {/* Explicit `size-3`: Badge's base sizes `[&>svg]`, a DIRECT child, and
-            the crossfade wrapper puts the glyph a level deeper than that
-            selector reaches. */}
-        <ChipGlyph className="size-3" aria-hidden />
+        {/* Explicit `size={12}`, doubly required: Badge's base sizes `[&>svg]`,
+            a DIRECT child, and the crossfade wrapper puts the glyph a level
+            deeper than that selector reaches — and MaterialSymbol carries its
+            size as an inline fontSize, which no class utility can override.
+            Filled to match the chip's own solid-tone reading. */}
+        <MaterialSymbol name={chipGlyph} size={12} filled />
         {chipTone === "quiet"
           ? t("activities.chip.quiet")
           : t("activities.chip.unresolved", { count: unresolvedCount })}
@@ -482,7 +489,9 @@ const RecentActivitiesComponent = () => {
           <Empty className="h-full">
             <EmptyHeader>
               <EmptyMedia variant="icon">
-                <CalendarX2Icon />
+                {/* Explicit 24px: `empty.tsx`'s icon variant sizes `svg` with a
+                    class, which cannot reach an inline fontSize. */}
+                <MaterialSymbol name="event_busy" size={24} />
               </EmptyMedia>
               <EmptyTitle>{t("activities.empty_title")}</EmptyTitle>
               <EmptyDescription className="max-w-xs text-pretty">

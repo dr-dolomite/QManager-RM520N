@@ -43,8 +43,14 @@ import { cn } from "@/lib/utils";
 //                           gets a dismiss.
 //   Info-Is-Brand           Informational banners use primary-container, never
 //                           a separate info hue.
-//   Nav-Glyph Boundary      Material Symbols are sidebar-only; banners use
-//                           lucide-react.
+//   Icon-Boundary Rule      Material Symbols are scoped to the sidebar and the
+//                           dashboard route; every other route is lucide.
+//                           Banners are route-agnostic — they mount on Cellular,
+//                           Monitoring and System Settings pages too — so they
+//                           stay on lucide-react regardless of where they
+//                           appear. (Replaces the retired Nav-Glyph Boundary
+//                           Rule, which scoped Material Symbols to the sidebar
+//                           alone.)
 //
 // Motion: `.animate-banner-in` (400ms emphasized, 6px rise + fade) already
 // ships in globals.css together with its prefers-reduced-motion guard. There is

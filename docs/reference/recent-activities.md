@@ -127,7 +127,7 @@ LTE cell unstable — 9 handoffs in the last 5 min
 
 Six changes in five minutes is well clear of a normal handoff rate and well under the ~44-per-12-minutes the live storm produced. A value returning to the one already announced is counted as a settle, not a flap.
 
-**This is the first time `band_change` and `pci_change` have ever carried `warning` severity.** The presentation layer needed no change to absorb it: `glyphOf` (`lib/event-presentation.ts:306-311`) is tone-first, so a `warning`-severity `band_change` automatically gets the amber `warning-container` and the `TriangleAlertIcon` rather than the routine `ArrowLeftRightIcon` handoff glyph — satisfying `DESIGN.md`'s rule that two states occupying the same slot never share a glyph. Both remain **one-shot** types in `computeUnresolved`; an instability report describes a window that has closed.
+**This is the first time `band_change` and `pci_change` have ever carried `warning` severity.** The presentation layer needed no change to absorb it: `glyphOf` (`lib/event-presentation.ts:306-311`) is tone-first, so a `warning`-severity `band_change` automatically gets the amber `warning-container` and the `warning` glyph rather than the routine `swap_horiz` handoff glyph — satisfying `DESIGN.md`'s rule that two states occupying the same slot never share a glyph. Both remain **one-shot** types in `computeUnresolved`; an instability report describes a window that has closed.
 
 > ⚠️ WARNING: the rate limit is its own latch (`_ev_flapr_<ch>`), separate from the counter. Resetting only the counter was tried and is broken: a radio oscillating every sample re-reaches 6 changes in about 18 seconds, rebuilding the exact storm the debounce exists to stop — at `warning` severity instead of `info`, which is strictly worse. The latch clears on settle, so a genuinely new episode is still reported promptly. The new test fixtures caught this before it shipped.
 
@@ -197,7 +197,7 @@ This is also why the earlier resolution-only model was replaced rather than exte
 
 The `SELF_RESOLVING` half of the success rule is what makes a **gained carrier green**. `ca_change` is one type carrying both directions, and the two severity guards above it have already run, so an info-severity self-resolver can only be the recovery half — the set needs no severity check of its own. Concretely: "LTE CA activated: B1+B3" (`events.sh:721`) and "LTE carriers changed from 2 to 3 (+B3)" (`:754`) are green, while "LTE CA deactivated" (`:730`) and any count *shrink* (`:736` downgrades itself to `warning`) are amber. The other two members green on the same reading — "5G NR anchor acquired" (`:674`) and airplane mode disabled: a radio capability that was gone came back.
 
-Reusing `SELF_RESOLVING` rather than adding `ca_change` to `RECOVERY_TYPES` is deliberate. That set is *already defined* as "types whose info half is the recovery", so tone and the unresolved pairing read one fact instead of two lists that can drift. Note the consequence in the glyph table below: a green `ca_change` takes `CheckCircle2Icon`, not its `FAMILY_GLYPHS` radio tower — tone outranks family, and green always means a check across the whole card.
+Reusing `SELF_RESOLVING` rather than adding `ca_change` to `RECOVERY_TYPES` is deliberate. That set is *already defined* as "types whose info half is the recovery", so tone and the unresolved pairing read one fact instead of two lists that can drift. Note the consequence in the glyph table below: a green `ca_change` takes the `success` glyph (`check_circle`), not its `FAMILY_GLYPHS` radio tower — tone outranks family, and green always means a check across the whole card.
 
 The three chromatic fills ship their own paired `on-` ink, so a row using them sets **no** per-line color at all: `presentEvent` returns an empty `messageClass` on a chromatic row. A second, differently toned voice inside the fill would read as two statements rather than one.
 
@@ -279,7 +279,7 @@ The pairing lives in the client rather than in `events.sh` because it is a *read
 
 ```ts
 interface EventPresentation {
-  glyph: EventGlyph;        // which lucide icon
+  glyph: EventGlyph;        // an abstract key, NOT an icon component
   tone: EventTone;          // the semantic classification
   containerClass: string;   // fill, plus paired `on-` ink when chromatic
   discClass: string;        // disc fill + its paired glyph ink. never ""
@@ -293,15 +293,21 @@ interface EventPresentation {
 >
 > An earlier pass had already changed `presentEvent(event, unresolved)` → `presentEvent(event, unresolved, fresh)` and dropped `glyphTone` plus the `tonal` / `unresolved` echo fields. That signature is unchanged here; only the returned slots moved.
 
+`EventGlyph` is an **abstract key**, not an icon component. `lib/event-presentation.ts` stays pure and library-agnostic; the card maps the key to a concrete glyph through its own `GLYPHS` record. Since the dashboard moved to Material Symbols (the Icon-Boundary Rule, see `icon-system.md`), that record holds **ligature name strings**, because `MaterialSymbol` takes the glyph's name as a prop and the font substitutes it. The closed `MaterialSymbolName` union is what keeps that honest: a name absent from the build-time subset would render as the literal word.
+
 Glyph selection is severity first, family second:
 
-| Condition | Glyph | sr-only word |
-| --------- | ----- | ------------ |
-| tone `error` | `XCircleIcon` | Error |
-| tone `warning` | `TriangleAlertIcon` | Warning |
-| tone `success` (info **and** in `RECOVERY_TYPES` or `SELF_RESOLVING`) | `CheckCircle2Icon` | Recovered |
-| tone `routine`, family mapped (`FAMILY_GLYPHS`) | `ArrowLeftRightIcon` handoff, `RadioTowerIcon` radio, `MicrochipIcon` SIM, `IdCardIcon` profile | Routine |
-| tone `routine`, unmapped | `InfoIcon` | Routine |
+| Condition | `EventGlyph` | Material ligature | sr-only word |
+| --------- | ------------ | ----------------- | ------------ |
+| tone `error` | `error` | `cancel` | Error |
+| tone `warning` | `warning` | `warning` | Warning |
+| tone `success` (info **and** in `RECOVERY_TYPES` or `SELF_RESOLVING`) | `success` | `check_circle` | Recovered |
+| tone `routine`, family mapped (`FAMILY_GLYPHS`) | `handoff` / `radio` / `sim` / `profile` | `swap_horiz` / `cell_tower` / `memory` / `badge` | Routine |
+| tone `routine`, unmapped | `neutral` | `info` | Routine |
+
+> ℹ️ NOTE: SIM maps to `memory`, Material's chip glyph, rather than a card glyph. A credit-card shape on a modem dashboard reads as billing.
+
+The header verdict chip uses the same three severity glyphs (`check_circle` / `warning` / `cancel`) at `size={12}`, and the empty state uses `event_busy` at `size={24}`. Sizes are passed explicitly at every call site because `MaterialSymbol` sets `fontSize` inline and no parent utility can reach it.
 
 `RECOVERY_TYPES` is deliberately narrower than "severity info": it names types that are recoveries *outright* — every event of the type is good news (`internet_restored`, `signal_restored`, `latency_recovered`, `packet_loss_recovered`, `watchcat_recovery`, `profile_applied`). `SELF_RESOLVING` covers the other shape, where the direction lives in severity rather than in the type, and only its info half is green. Between them they still exclude the bulk of `info`: a band change or a cell handoff does not earn a green check.
 
@@ -319,7 +325,7 @@ Glyph selection is severity first, family second:
 
 Grepping `events.sh` alone reports zero `error` events and is misleading. All three of those types are **one-shot notices**, so none of them can ever be `unresolved`.
 
-**Under the age gate the red fill is now reachable, which it was not before.** An error-severity one-shot is drawn in `destructive-container` for its first hour and then settles to a red `XCircleIcon` on the plain `bg-surface-container`. Previously only unresolved rows were ever filled, and since no error-emitting type enters `RESOLVED_BY` or `SELF_RESOLVING`, that branch was unreachable plumbing. Note the header chip's `destructive` tone is a *separate* question: it still keys off unresolved rows only, so a fresh red row can coexist with an "All clear" chip. That pair is intended, and reads as a story rather than a contradiction because the recovery sits directly above the failure it cancelled.
+**Under the age gate the red fill is now reachable, which it was not before.** An error-severity one-shot is drawn in `destructive-container` for its first hour and then settles to a red `cancel` glyph on the plain `bg-surface-container`. Previously only unresolved rows were ever filled, and since no error-emitting type enters `RESOLVED_BY` or `SELF_RESOLVING`, that branch was unreachable plumbing. Note the header chip's `destructive` tone is a *separate* question: it still keys off unresolved rows only, so a fresh red row can coexist with an "All clear" chip. That pair is intended, and reads as a story rather than a contradiction because the recovery sits directly above the failure it cancelled.
 
 Red is still not a common sight on a healthy device. Do not design the card around it.
 
@@ -327,7 +333,7 @@ Red is still not a common sight on a healthy device. Do not design the card arou
 
 ### Header chip
 
-A single filled chip reports the verdict: `muted` + `CheckCircle2Icon` + "All clear" when `unresolved.size === 0`, otherwise `warning` (or `destructive` if any unresolved row is `error`) + the count.
+A single filled chip reports the verdict: `muted` + `check_circle` + "All clear" when `unresolved.size === 0`, otherwise `warning` (or `destructive` if any unresolved row is `error`) + the count.
 
 The chip is **hidden while loading and on the no-data error path**. "All clear" computed from an empty array is the Saved-State Honesty Rule's exact failure case: a surface claiming a state the device never reported. Loading renders a pill-shaped `Skeleton` at the chip's own geometry so the header does not reflow; the error path renders nothing, because the alert below already says the true thing.
 
@@ -338,7 +344,7 @@ The chip is **hidden while loading and on the no-data error path**. "All clear" 
 | `isLoading` | `VISIBLE_ROWS` skeleton rows at the exact `ROW_H` of a real row, so the skeleton-to-data handoff moves nothing |
 | `error && events.length === 0` | `role="alert"` `destructive-container` panel carrying the raw error string (the HTTP status is the only thing that distinguishes a dead service from an expired session) |
 | `error && events.length > 0` | Compact `destructive-container` notice **above** a still-populated list. A stale list beats a blank card |
-| `events.length === 0` | `Empty` with `CalendarX2Icon` |
+| `events.length === 0` | `Empty` with the `event_busy` glyph at `size={24}` |
 | otherwise | The list |
 
 > ⚠️ WARNING: the card previously destructured only `{events, isLoading}` and dropped the hook's `error`, so a failed poll rendered as the reassuring "No Events" empty state. Any future edit to this component must keep the error branches distinct from the empty branch.

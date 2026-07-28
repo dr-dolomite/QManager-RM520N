@@ -9,19 +9,12 @@ import React, {
 } from "react";
 import { useTranslation } from "react-i18next";
 import { AnimatePresence, motion } from "motion/react";
-import {
-  CheckCircle2Icon,
-  MinusCircleIcon,
-  XCircleIcon,
-  type LucideIcon,
-} from "lucide-react";
 import { Area, AreaChart, CartesianGrid } from "recharts";
+
 import {
-  TbCircleArrowDownFilled,
-  TbCircleArrowUpFilled,
-  TbPlayerPlayFilled,
-  TbTimeline,
-} from "react-icons/tb";
+  MaterialSymbol,
+  type MaterialSymbolName,
+} from "@/components/ui/material-symbol";
 
 import { authFetch } from "@/lib/auth-fetch";
 import { cn } from "@/lib/utils";
@@ -151,12 +144,12 @@ const chartConfig = {
  */
 function chipTone(connectivity: ConnectivityStatus | null): {
   variant: BadgeVariant;
-  Icon: LucideIcon;
+  glyph: MaterialSymbolName;
 } {
-  if (!connectivity) return { variant: "muted", Icon: MinusCircleIcon };
+  if (!connectivity) return { variant: "muted", glyph: "do_not_disturb_on" };
   if (connectivity.latency_ms === null)
-    return { variant: "destructive", Icon: XCircleIcon };
-  return { variant: "success", Icon: CheckCircle2Icon };
+    return { variant: "destructive", glyph: "cancel" };
+  return { variant: "success", glyph: "check_circle" };
 }
 
 /**
@@ -333,7 +326,7 @@ const LiveLatencyComponent = ({
         variant={tone.variant}
         className="gap-1.5 px-3 py-1.5 text-xs font-semibold"
       >
-        <tone.Icon className="size-3" aria-hidden />
+        <MaterialSymbol name={tone.glyph} size={12} filled />
         <span className="sr-only">{t("latency.current_label")}</span>
         {/* The chip's LABEL crossfades (Motion Guide recipe 05) and its numeric
             reading TICKS (recipe 06) — two different gestures for two different
@@ -373,7 +366,7 @@ const LiveLatencyComponent = ({
           CHART_H,
         )}
       >
-        <TbTimeline className="size-6 text-on-surface-variant" aria-hidden />
+        <MaterialSymbol name="timeline" size={24} className="text-on-surface-variant" />
         <p className="text-xs font-medium text-on-surface-variant text-pretty">
           {t("latency.empty_description")}
         </p>
@@ -549,7 +542,7 @@ const LiveLatencyComponent = ({
           aria-label={t("speedtest.start_button_aria")}
           onClick={handleSpeedtestOpen}
         >
-          <TbPlayerPlayFilled className="size-4" />
+          <MaterialSymbol name="play_arrow" size={16} filled />
         </Button>
         {cachedResult ? (
           <>
@@ -557,9 +550,11 @@ const LiveLatencyComponent = ({
               {t("speedtest.result_label")}
             </span>
             <span className="inline-flex items-center gap-1.5 font-mono text-sm font-semibold tabular-nums">
-              <TbCircleArrowDownFilled
-                className="size-4 shrink-0 text-primary"
-                aria-hidden
+              <MaterialSymbol
+                name="arrow_circle_down"
+                size={16}
+                filled
+                className="shrink-0 text-primary"
               />
               <span className="sr-only">{t("speedtest.result_download")}</span>
               {formatSpeed(cachedResult.download.bandwidth)}
@@ -578,9 +573,11 @@ const LiveLatencyComponent = ({
               <span className="sr-only"> {t("speedtest.unit_mbps")}</span>
             </span>
             <span className="inline-flex items-center gap-1.5 font-mono text-sm font-semibold tabular-nums">
-              <TbCircleArrowUpFilled
-                className="size-4 shrink-0 text-uplink"
-                aria-hidden
+              <MaterialSymbol
+                name="arrow_circle_up"
+                size={16}
+                filled
+                className="shrink-0 text-uplink"
               />
               <span className="sr-only">{t("speedtest.result_upload")}</span>
               {formatSpeed(cachedResult.upload.bandwidth)}{" "}

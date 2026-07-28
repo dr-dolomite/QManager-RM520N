@@ -3,8 +3,9 @@
 // subset-icons — regenerate the Material Symbols Rounded subset
 // =============================================================================
 // QManager is served BY the modem, which frequently has no internet, so the
-// icon font must be self-hosted. The full family is ~3.4 MB; the sidebar needs
-// 19 glyphs. Google Fonts' `icon_names=` parameter does the subsetting server
+// icon font must be self-hosted. The full family is ~3.4 MB; the sidebar plus
+// the dashboard route need 53 glyphs (19.3 KB). It was 19 glyphs / 10.4 KB when
+// the boundary was sidebar-only. Google Fonts' `icon_names=` parameter does the subsetting server
 // side and — critically — preserves the variable FILL axis, which the active
 // nav row depends on (DESIGN.md > Iconography, PRODUCT.md > Accessibility).
 //
@@ -22,24 +23,61 @@ import { writeFile } from "node:fs/promises";
 
 const ICONS = [
   "account_circle",
+  "airplanemode_active",
+  "arrow_circle_down",
+  "arrow_circle_up",
+  "arrow_downward",
+  "arrow_upward",
+  "badge",
+  "cancel",
   "cell_tower",
+  "check",
+  "check_circle",
   "chevron_right",
+  "close",
+  "dns",
+  "do_not_disturb_on",
   "donut_small",
   "download",
+  "energy_savings_leaf",
+  "event_busy",
   "favorite",
+  "help",
   "home",
+  "info",
+  "memory",
+  "network_ping",
+  "open_in_new",
   "pets",
+  "play_arrow",
+  "power_settings_new",
+  "priority_high",
+  "progress_activity",
+  "public",
   "radar",
+  "refresh",
+  "restart_alt",
   "router",
+  "schedule",
   "settings",
   "settings_ethernet",
+  "signal_cellular_1_bar",
+  "signal_cellular_2_bar",
+  "signal_cellular_3_bar",
+  "signal_cellular_4_bar",
   "signal_cellular_alt",
+  "signal_cellular_off",
   "sms",
   "support",
+  "swap_horiz",
   "terminal",
+  "timeline",
   "tune",
   "unfold_more",
+  "visibility",
+  "visibility_off",
   "vpn_lock",
+  "warning",
 ];
 
 const OUT = "app/fonts/MaterialSymbolsRounded-subset.woff2";

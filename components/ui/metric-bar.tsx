@@ -1,13 +1,8 @@
 "use client";
 
-import * as React from "react";
-import { motion, type Transition } from "motion/react";
+import { motion } from "motion/react";
 import { cn } from "@/lib/utils";
-import {
-  STAGGER_STEP,
-  transitionMeterFill,
-  transitionStandard,
-} from "@/lib/motion";
+import { STAGGER_STEP, transitionMeterFill } from "@/lib/motion";
 
 /**
  * The meter's fill tones, as a STATIC lookup.

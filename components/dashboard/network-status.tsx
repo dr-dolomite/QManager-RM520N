@@ -9,26 +9,22 @@ import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { staggerRows, staggerRowItem } from "@/lib/motion";
 import { SwapLabel } from "@/components/ui/swap-label";
-import {
-  CardSimIcon,
-  ClockIcon,
-  HelpCircleIcon,
-  MinusCircleIcon,
-  Plane,
-  PowerOffIcon,
-  RadarIcon,
-  RadioTowerIcon,
-  TriangleAlertIcon,
-} from "lucide-react";
+import { MaterialSymbol } from "@/components/ui/material-symbol";
+// Two lucide glyphs survive the Material sweep by explicit decision
+// (DESIGN.md > Network Status Landmark Rule): the SIM orb's card and its
+// airplane-mode stand-in. They are a recognized landmark on the one glance
+// surface and re-glyphing them buys nothing.
+import { CardSimIcon, Plane } from "lucide-react";
 
+// The RAT glyphs stay react-icons/md for the same reason: "5G", "4G+", "3G" are
+// typographic marks Material Symbols has no equivalent for. The exception ends
+// there — the low-power leaf is an ordinary pictorial glyph and migrated.
 import {
   MdOutline5G,
   Md4gMobiledata,
   Md4gPlusMobiledata,
   Md3gMobiledata,
-  MdEnergySavingsLeaf,
 } from "react-icons/md";
-import { FaCheck, FaXmark } from "react-icons/fa6";
 
 import type {
   NetworkStatus,
@@ -59,7 +55,12 @@ interface NetworkStatusComponentProps {
 
 // Shared geometry so the skeletons and the real orbs can never drift apart.
 const ORB = "size-[152px]";
-const GLYPH = "size-[74px]";
+// 96 in a 152 disc leaves ~28px of optical padding. 74 left 39px, which read as
+// a small mark floating in a large disc rather than as a single object. The
+// ceiling is set by the corner badge, not by taste: the badge occupies
+// x 110-138 / y 4-32 of the orb box, and at 96px the widest glyph's ink still
+// clears it. Do not raise this without re-checking that overlap.
+const GLYPH = "size-[96px]";
 
 // The prototype's badge lift. Not a token: it is a one-off elevation on a
 // 28px disc, and --shadow-whisper is a card-level shadow, not this.
@@ -167,13 +168,18 @@ function getServiceColor(
 }
 
 // Ring stacks use explicit tone steps, never stacked alpha — three translucent
-// discs over one another produce a muddy, unpredictable composite.
+// discs over one another composite to a flat disc and the ring structure
+// disappears (Motion Guide recipe 13).
 //
-// NOTE: --tone-destructive-{1,2,3} does not exist in globals.css (only the
-// success and warning ramps shipped). The red stack therefore ramps through the
-// neutral surface containers into destructive-container, with the failure state
-// carried by the solid core. That is also the honest reading: a dead radio is
-// not radiating, so the rings should recede rather than shout.
+// All three ramps are now symmetric: each walks its own role's --tone-{role}-1
+// →2→3 outward-in and lands on the solid role at the core. The red branch used
+// to borrow the neutral surface containers with a single red note, which read
+// as broken chrome rather than as a red state — greyed-out UI, not an outage.
+// A failed link is not quiet; it is the loudest thing on the glance surface.
+//
+// What keeps that from crying wolf is the PULSE, not the palette: isServiceActive
+// gates the animation, so red and static-amber stacks are frozen while only a
+// live one breathes. Tone says how bad, motion says whether it is alive.
 const serviceColorMap: Record<
   "green" | "yellow" | "red",
   { ring1: string; ring2: string; ring3: string; center: string }
@@ -191,9 +197,9 @@ const serviceColorMap: Record<
     center: "bg-warning text-warning-foreground",
   },
   red: {
-    ring1: "bg-surface-container",
-    ring2: "bg-surface-container-high",
-    ring3: "bg-destructive-container",
+    ring1: "bg-tone-destructive-1",
+    ring2: "bg-tone-destructive-2",
+    ring3: "bg-tone-destructive-3",
     center: "bg-destructive text-destructive-foreground",
   },
 };
@@ -257,7 +263,14 @@ function buildRadioChip(
   if (isAirplaneMode) {
     return {
       tone: "warning",
-      icon: <Plane className="size-[15px] shrink-0" />,
+      icon: (
+        <MaterialSymbol
+          name="airplanemode_active"
+          size={15}
+          filled
+          className="shrink-0"
+        />
+      ),
       label: t("network.airplane_mode"),
     };
   }
@@ -267,27 +280,36 @@ function buildRadioChip(
   if (!modemReachable) {
     return {
       tone: "muted",
-      icon: <HelpCircleIcon className="size-[15px] shrink-0" />,
+      icon: <MaterialSymbol name="help" size={15} filled className="shrink-0" />,
       label: t("network.radio_unknown"),
     };
   }
   if (!radioOn) {
     return {
       tone: "muted",
-      icon: <PowerOffIcon className="size-[15px] shrink-0" />,
+      icon: (
+        <MaterialSymbol
+          name="power_settings_new"
+          size={15}
+          filled
+          className="shrink-0"
+        />
+      ),
       label: t("network.radio_off"),
     };
   }
   if (isSearching) {
     return {
       tone: "warning",
-      icon: <RadarIcon className="size-[15px] shrink-0" />,
+      icon: <MaterialSymbol name="radar" size={15} filled className="shrink-0" />,
       label: t("network.service_searching"),
     };
   }
   return {
     tone: "success",
-    icon: <RadioTowerIcon className="size-[15px] shrink-0" />,
+    icon: (
+      <MaterialSymbol name="cell_tower" size={15} filled className="shrink-0" />
+    ),
     label: t("network.radio_on"),
   };
 }
@@ -350,7 +372,14 @@ function buildInternetChip(
         tone: "warning",
         dotCls: "bg-warning",
         live: false,
-        icon: <TriangleAlertIcon className="size-[15px] shrink-0" />,
+        icon: (
+          <MaterialSymbol
+            name="warning"
+            size={15}
+            filled
+            className="shrink-0"
+          />
+        ),
         label: t("network.internet_unreachable"),
         tooltip: t("network.internet_tooltip.no_reply"),
       };
@@ -359,7 +388,14 @@ function buildInternetChip(
         tone: "muted",
         dotCls: "bg-on-surface-variant",
         live: false,
-        icon: <MinusCircleIcon className="size-[15px] shrink-0" />,
+        icon: (
+          <MaterialSymbol
+            name="do_not_disturb_on"
+            size={15}
+            filled
+            className="shrink-0"
+          />
+        ),
         label: t("network.internet_label"),
         tooltip: null,
       };
@@ -387,11 +423,11 @@ function CornerBadge({ state }: { state: "ok" | "warn" | "fail" }) {
           greyscale and deuteranopia, so it is the half that must not snap. */}
       <SwapLabel swapKey={state} className="justify-center">
         {state === "ok" ? (
-          <FaCheck className="size-[17px]" />
+          <MaterialSymbol name="check" size={17} filled />
         ) : state === "warn" ? (
-          <TriangleAlertIcon className="size-[17px]" />
+          <MaterialSymbol name="warning" size={17} filled />
         ) : (
-          <FaXmark className="size-[17px]" />
+          <MaterialSymbol name="close" size={17} filled />
         )}
       </SwapLabel>
     </span>
@@ -553,7 +589,12 @@ const NetworkStatusComponent = ({
             {isStale && (
               <motion.span variants={staggerRowItem} className="inline-flex">
                 <Chip tone="warning" swapKey="stale">
-                  <ClockIcon className="size-[15px] shrink-0" />
+                  <MaterialSymbol
+                    name="schedule"
+                    size={15}
+                    filled
+                    className="shrink-0"
+                  />
                   {t("network.data_delayed_badge")}
                 </Chip>
               </motion.span>
@@ -641,7 +682,7 @@ const NetworkStatusComponent = ({
                 }`}
               >
                 {isAirplaneMode ? (
-                  <MdEnergySavingsLeaf className={GLYPH} />
+                  <MaterialSymbol name="energy_savings_leaf" size={96} filled />
                 ) : (
                   networkDisplay.icon
                 )}
@@ -739,18 +780,23 @@ const NetworkStatusComponent = ({
               >
                 {/* The core glyph tracks service LIVENESS, not the ring tone:
                     a yellow stack just means single-band LTE, which is still a
-                    working connection and must not wear an alert glyph.
+                    working connection and must not wear an alert glyph — hence
+                    amber-pulsing rings around a `check`. `warning` is reserved
+                    for the transitional states (searching / limited) and
+                    `priority_high` for outright failure, so all four states
+                    hold distinct glyphs and the card never encodes its verdict
+                    in hue alone.
                     Crossfaded on `quick` so the glyph and the disc fill never
                     disagree for longer than a label swap. */}
                 <SwapLabel swapKey={coreState} className="justify-center">
                   {coreState === "off" ? (
-                    <PowerOffIcon className="size-[22px]" />
+                    <MaterialSymbol name="power_settings_new" size={22} />
                   ) : coreState === "ok" ? (
-                    <FaCheck className="size-[22px]" />
+                    <MaterialSymbol name="check" size={22} />
                   ) : coreState === "warn" ? (
-                    <TriangleAlertIcon className="size-[22px]" />
+                    <MaterialSymbol name="warning" size={22} filled />
                   ) : (
-                    <FaXmark className="size-[22px]" />
+                    <MaterialSymbol name="priority_high" size={22} />
                   )}
                 </SwapLabel>
               </span>
