@@ -4,14 +4,29 @@ import type { NetworkEvent, NetworkEventType } from "@/types/modem-status";
 // Network-event presentation model.
 // =============================================================================
 // The poller's event log is a flat transcript: every line is equally loud, and
-// "Internet Lost" reads exactly like "Internet Restored" two rows above it. The
-// question a person actually brings to this card is not "what happened" but "is
-// anything still wrong right now", and the transcript alone cannot answer it.
+// "Internet Lost" reads exactly like "Internet Restored" two rows above it.
+// This module turns that transcript into something scannable, along two
+// independent axes that must not be confused with each other:
 //
-// So this module does one derivation the backend deliberately does not: it
-// pairs each degradation with the recovery that cancels it, and reports which
-// degradations are still standing. Only those get a tonal container in the UI.
-// Everything else is history, and history is quiet.
+//   TONE:   what KIND of thing happened. Failure, degradation, recovery, or
+//           routine radio housekeeping. Derived from severity, then from
+//           whether an info-severity type reports something going right rather
+//           than merely changing.
+//
+//   WEIGHT: how much the row still MATTERS. A tonal container is spent on
+//           rows that are recent, or on problems that have not been resolved
+//           yet. Everything else settles to a neutral surface and keeps only
+//           its coloured glyph.
+//
+// The design reference (Recommended Hybrid, the Recent Activities block) draws
+// exactly this: three recent rows in their role containers, and a fourth row
+// an hour old sitting on the plain surface with its green check still green.
+// Age is what moves a row between those two states.
+//
+// The resolution pairing below is the one derivation the backend deliberately
+// does not do, and it survives as the guard on the age rule rather than as the
+// fill rule itself: a degradation nobody has recovered from must never quietly
+// fade to grey just because an hour passed. It is still true, so it stays lit.
 //
 // The pairing is done here rather than in `events.sh` because it is a reading
 // of the log, not a fact about the radio. status.json stays a faithful
@@ -55,16 +70,23 @@ const SELF_RESOLVING: ReadonlySet<NetworkEventType> = new Set([
 // profile_failed, watchcat_recovery, network_mode, band_change, pci_change,
 // scc_pci_change, profile_applied, and the four *_restored / *_recovered
 // types. A one-shot describes a moment that has already passed, so it can
-// never be "unresolved" and must never light a container.
+// never be "unresolved".
+//
+// It can still be TONAL, which is the change the age rule brings: a one-shot
+// wears its container for its first hour and then settles. What "unresolved"
+// buys a row is exemption from that settling, and only a condition can earn
+// it.
 
 /**
  * Which rows are still-standing problems, computed in ONE pass over the full
  * event array.
  *
  * `events` must be the hook's complete newest-first array (up to 20), not the
- * six rows the card draws. A recovery that has already scrolled out of the
+ * five rows the card draws. A recovery that has already scrolled out of the
  * visible slice still resolves the degradation below it, and slicing first
- * would leave stale rows glowing amber forever.
+ * would leave stale rows glowing amber forever. The visible count shrinking
+ * from six to five makes this MORE load-bearing, not less: there is now one
+ * fewer row of headroom before a recovery falls past the clip edge.
  *
  * Newest-first is what makes a single pass possible: walking from index 0
  * downward, everything already visited is strictly LATER in time than the event
@@ -125,13 +147,55 @@ export type EventGlyph =
   | "profile"
   | "neutral";
 
+/**
+ * What kind of thing the row reports. Independent of how loudly it is drawn.
+ *
+ * "routine" is the large majority of a healthy modem's log: band changes, cell
+ * handoffs, mode switches. They are information, not news.
+ */
+export type EventTone = "error" | "warning" | "success" | "routine";
+
+/**
+ * Everything the row needs to draw itself, and nothing it already knows.
+ *
+ * `unresolved` and a `tonal` flag both used to be echoed back here and neither
+ * is: the caller supplies the first and the second is fully readable from
+ * `containerClass`. What survives is the classification (`tone`) plus the four
+ * class slots, which is the smallest set that keeps every colour decision in
+ * this module instead of leaking into the component's className chain.
+ */
 export interface EventPresentation {
   glyph: EventGlyph;
-  /** Tailwind class for the glyph ink. */
-  glyphTone: string;
+  /** The semantic classification. The one output worth reading directly. */
+  tone: EventTone;
+  /** Container fill, plus paired `on-` ink when the fill is chromatic. */
+  containerClass: string;
+  /** Ink for the label line. Empty when the container supplies it. */
+  labelClass: string;
+  /** Ink for the message line. Empty when the container supplies it. */
+  messageClass: string;
+  /** Ink for the glyph. Empty when the container supplies it. */
+  glyphClass: string;
   /** i18n key under the `dashboard` namespace for the sr-only severity word. */
   srSeverityKey: string;
-  unresolved: boolean;
+}
+
+/**
+ * How long a row keeps its tonal container. One hour, taken straight from the
+ * design reference, where a 16-minute row is filled and a 1h03m row is not.
+ *
+ * The comparison uses the browser clock against a modem-written `date +%s`
+ * (events.sh:84). That is a cross-machine subtraction and it can skew, but it
+ * is the SAME subtraction that already prints "2 min ago" beside the row, so
+ * the fill and the timestamp can only ever be wrong together and consistently.
+ * A freshness gate computed some other way would be the real hazard: two
+ * clocks disagreeing inside one row.
+ */
+export const FRESH_WINDOW_SEC = 3600;
+
+/** Whether a row still counts as recent, given a unix-seconds "now". */
+export function isFresh(event: NetworkEvent, nowSec: number): boolean {
+  return nowSec - event.timestamp < FRESH_WINDOW_SEC;
 }
 
 /** Info-severity types that report something going RIGHT rather than something
@@ -161,6 +225,62 @@ const FAMILY_GLYPHS: Partial<Record<NetworkEventType, EventGlyph>> = {
 };
 
 /**
+ * The tonal container each tone spends when the row is drawn at full weight.
+ *
+ * Three of the four are chromatic and carry their own paired `on-` ink, so a
+ * row using them needs no per-line colour at all: the pair is contrast-checked
+ * by construction and the whole row speaks with one voice.
+ *
+ * "routine" is deliberately ACHROMATIC, and this is the one place the design
+ * reference had to be extrapolated rather than traced: it shows no fresh
+ * routine row, so there was no literal answer to copy. Both coloured options
+ * were worse than a neutral step:
+ *
+ *   success-container would claim a band change is good news. It is not news
+ *   at all, and DESIGN.md's Functional-Color Promise reserves green for
+ *   something actually going right.
+ *
+ *   primary-container measures L 0.400 in dark mode against 0.300 / 0.320 /
+ *   0.325 for success / warning / destructive. A routine handoff would be the
+ *   BRIGHTEST row on the card, louder than an outage. Inverted urgency.
+ *
+ * surface-container-high (L 0.918 light, 0.312 dark) is a step up from the
+ * resting surface without making a colour claim, which is exactly the reading:
+ * noted, recent, not important. It is also already the shipped meaning of the
+ * `muted` badge role, so the vocabulary stays consistent across the product.
+ */
+const TONAL_FILL: Record<EventTone, string> = {
+  error: "bg-destructive-container text-on-destructive-container",
+  warning: "bg-warning-container text-on-warning-container",
+  success: "bg-success-container text-on-success-container",
+  routine: "bg-surface-container-high",
+};
+
+/**
+ * Glyph ink for rows whose container does NOT supply an `on-` colour: every
+ * aged row, plus fresh routine rows.
+ *
+ * This is what keeps an aged row readable at a glance. The reference's fourth
+ * row is an hour old and sits on the plain surface, but its check is still
+ * green, so the row's KIND survives the loss of its container. Tone is a fact
+ * about the event and never expires; weight is about attention and does.
+ */
+const GLYPH_INK: Record<EventTone, string> = {
+  error: "text-destructive",
+  warning: "text-warning",
+  success: "text-success",
+  routine: "text-on-surface-variant",
+};
+
+/** Screen-reader severity word per tone, before the unresolved override. */
+const SR_KEY: Record<EventTone, string> = {
+  error: "activities.severity.error",
+  warning: "activities.severity.warning",
+  success: "activities.severity.recovered",
+  routine: "activities.severity.routine",
+};
+
+/**
  * Severity first, family second.
  *
  * Note on the error branch, because it is easy to get wrong: severity "error"
@@ -169,45 +289,63 @@ const FAMILY_GLYPHS: Partial<Record<NetworkEventType, EventGlyph>> = {
  * :512, :528, :596 watchcat_recovery) and qmanager_profile_apply (:702
  * profile_failed). Grepping events.sh alone reports zero and is misleading.
  *
- * What that means for this card: a red GLYPH is reachable today, a red FILL is
- * not. All three error-emitting types are one-shot notices, so none of them
- * enters RESOLVED_BY or SELF_RESOLVING, so none can ever be `unresolved`, so
- * the destructive-container branch in the row (and the `destructive` chip tone,
- * which reads only unresolved rows) stays unreachable plumbing. That is a
- * consequence of the resolution model, not an accident, and it holds as long as
- * no error-severity type gains a paired recovery.
+ * Under the age rule a red FILL is now reachable, which it was not before: an
+ * error-severity one-shot is drawn in destructive-container for its first hour
+ * and then settles to a red glyph on the plain surface. Previously only
+ * `unresolved` rows were ever filled, and no error-emitting type can be
+ * unresolved (none enters RESOLVED_BY or SELF_RESOLVING), so that branch was
+ * unreachable plumbing.
+ */
+function toneOf(event: NetworkEvent): EventTone {
+  if (event.severity === "error") return "error";
+  if (event.severity === "warning") return "warning";
+  if (RECOVERY_TYPES.has(event.type)) return "success";
+  return "routine";
+}
+
+function glyphOf(event: NetworkEvent, tone: EventTone): EventGlyph {
+  if (tone === "error") return "error";
+  if (tone === "warning") return "warning";
+  if (tone === "success") return "success";
+  return FAMILY_GLYPHS[event.type] ?? "neutral";
+}
+
+/**
+ * Build the row's full visual description.
+ *
+ * `fresh` and `unresolved` are ORed rather than ANDed on purpose. Freshness
+ * decides the common case, and resolution is the safety valve underneath it: a
+ * degradation still standing after an hour keeps its container, because the
+ * alternative is a live outage rendered in the same grey as a band change from
+ * last Tuesday. Age may retire history. It may not retire a problem.
  */
 export function presentEvent(
   event: NetworkEvent,
   unresolved: boolean,
+  fresh: boolean,
 ): EventPresentation {
-  let glyph: EventGlyph;
-  let glyphTone: string;
-  let srSeverityKey: string;
+  const tone = toneOf(event);
+  const glyph = glyphOf(event, tone);
+  const tonal = fresh || unresolved;
 
-  if (event.severity === "error") {
-    glyph = "error";
-    glyphTone = "text-destructive";
-    srSeverityKey = "activities.severity.error";
-  } else if (event.severity === "warning") {
-    glyph = "warning";
-    glyphTone = "text-warning";
-    srSeverityKey = "activities.severity.warning";
-  } else if (RECOVERY_TYPES.has(event.type)) {
-    glyph = "success";
-    glyphTone = "text-success";
-    srSeverityKey = "activities.severity.recovered";
-  } else {
-    glyph = FAMILY_GLYPHS[event.type] ?? "neutral";
-    glyphTone = "text-on-surface-variant";
-    srSeverityKey = "activities.severity.routine";
-  }
+  // A chromatic container ships its own ink for every line inside it, so the
+  // row must NOT also set per-line colours; a second voice inside the fill
+  // reads as two statements rather than one.
+  const chromatic = tonal && tone !== "routine";
 
-  // An unresolved row is not describing a past severity, it is describing a
-  // present condition, and the screen-reader label has to say which.
-  if (unresolved) srSeverityKey = "activities.severity.unresolved";
+  const containerClass = tonal ? TONAL_FILL[tone] : "bg-surface-container";
 
-  return { glyph, glyphTone, srSeverityKey, unresolved };
+  return {
+    glyph,
+    tone,
+    containerClass,
+    labelClass: chromatic ? "" : "text-on-surface-variant",
+    messageClass: chromatic ? "" : "text-on-surface",
+    glyphClass: chromatic ? "" : GLYPH_INK[tone],
+    // An unresolved row is not describing a past severity, it is describing a
+    // present condition, and the screen-reader label has to say which.
+    srSeverityKey: unresolved ? "activities.severity.unresolved" : SR_KEY[tone],
+  };
 }
 
 /**
