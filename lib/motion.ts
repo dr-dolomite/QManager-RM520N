@@ -108,18 +108,49 @@ export const STAGGER_STEP = 0.06;
  * dip is the event, the return is the settle — and collapsing the recipe into a
  * single duration is what threw that away.
  *
- * So: `quick` down (the leg that carries the signal, still below conscious
- * notice), `standard` up (the leg that lets it land). No fifth token, and the
- * ratio is derived from the scale rather than dialled in by eye.
+ * So: one scale step down (the leg that carries the signal), the next step up
+ * (the leg that lets it land). No fifth token, and the ratio is derived from the
+ * scale rather than dialled in by eye.
+ *
+ * **The pair was raised one step, from `quick`+`standard` to
+ * `standard`+`emphasized`.** At 480ms the gesture was correct in shape and still
+ * read as fast — a dip that brief is registered rather than watched, and on a
+ * card where several figures dip together the eye gets one impression instead of
+ * a sequence. 700ms is the same asymmetry with room to be seen. It stays well
+ * inside a poll (~3s measured), so the anti-queue rule is untouched: a value
+ * that moves again mid-dip still retargets rather than waiting.
  */
 export const TICK = {
   /** Peak dip. The guide's 35%, unchanged — this was never the problem. */
   opacity: 0.35,
-  /** 180ms + 300ms. Total wall time of the gesture, in seconds. */
-  duration: DUR.quick + DUR.standard,
-  /** Where the dip sits: 180 / 480 = 0.375. Keep in sync with `duration`. */
-  dipOffset: DUR.quick / (DUR.quick + DUR.standard),
+  /** 300ms + 400ms. Total wall time of the gesture, in seconds. */
+  duration: DUR.standard + DUR.emphasized,
+  /** Where the dip sits: 300 / 700 ≈ 0.43. Derived, so it cannot drift. */
+  dipOffset: DUR.standard / (DUR.standard + DUR.emphasized),
 } as const;
+
+/**
+ * The step between two figures' dips inside one `TickGroup`
+ * (components/ui/tick-group.tsx). A third stagger step, and the only one that is
+ * not an entrance.
+ *
+ * DESIGN.md's "exactly two stagger steps" rule governs *entrances* — content
+ * arriving, where 60ms/40ms keep a card from reading as still loading. A tick
+ * cascade is the opposite situation: nothing is arriving, the whole card is
+ * already on screen and settled, and the cascade's only job is to be legible as
+ * a sequence rather than as a flash. At the 40ms row step a four-value cascade
+ * spanned 120ms — shorter than the dip itself, so the dips overlapped almost
+ * completely and the group still read as simultaneous.
+ *
+ * 100ms is the middle of the available range. The floor is ~80ms, below which
+ * consecutive dips overlap enough to merge; the ceiling is set by the poll, and
+ * with `MAX_RANK` (7) the worst case here is 700ms of lead plus a 700ms dip,
+ * landing inside a ~3s cycle with margin. Recipe 06's demo stages its values
+ * 350ms apart, which is a 2s *looping* showcase spacing three dips for
+ * isolation — legibility spacing, not a product value, and at that step a
+ * five-value cascade would outlive its own poll.
+ */
+export const TICK_STAGGER_STEP = 0.1;
 
 /**
  * Meter fill on FIRST PAINT (Motion Guide recipe 07).

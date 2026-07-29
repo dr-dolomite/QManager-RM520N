@@ -21,9 +21,9 @@ contracts a future edit must not quietly drop.
 | Tick cascade | `components/ui/tick-group.tsx` — `TickGroup`, renders **no DOM** |
 | Chip label half | `components/ui/swap-label.tsx` — `SwapLabel`, keyed crossfade |
 | Chip container half | `components/ui/badge.tsx` — longhand transition in the `cva` base |
-| Cascade step | `STAGGER_STEP_ROWS` (40ms) from `lib/motion.ts` — the **row** step, not the 60ms card step |
+| Cascade step | `TICK_STAGGER_STEP` (100ms) from `lib/motion.ts` — a **non-entrance** step, neither the 60ms card nor the 40ms row step |
 | Cascade clamp | `MAX_RANK = 7` in `tick-group.tsx` |
-| Tick shape | `TICK` in `lib/motion.ts` — 480ms total, dip to 35% at 37.5% of the run |
+| Tick shape | `TICK` in `lib/motion.ts` — 700ms total (`standard` down on standard's curve + `emphasized`'s duration up on a **linear** ramp), dip to 35% at ~43% of the run |
 | Reference chip implementation | `components/dashboard/network-status.tsx` |
 | Design canon | `DESIGN.md` > Motion > "Live value tick" and "Status chip swap" |
 
@@ -51,7 +51,7 @@ not a layout box, so dropping one into a flex row or a grid cannot disturb the r
    calls `group.enqueue({ node, start })` instead of starting the dip.
 2. The first enqueue of a commit schedules a `queueMicrotask` drain.
 3. The drain sorts the enqueued members with `compareDocumentPosition` and calls
-   `member.start(rank × 40ms)`.
+   `member.start(rank × 100ms)`.
 
 Outside a group the delay is zero and the behaviour is exactly what it was. That is deliberate: a
 `TickingValue` mounted without a group is not broken, it simply dips immediately, which is the right
@@ -77,7 +77,7 @@ biggest cards:
   which reads as rows failing to render rather than as choreography.
 
 Ranking over only the values that actually moved gives a gapless cascade whose total length is bounded
-by how many figures changed — typically three to five, so a ≤160ms tail — whichever ones they were.
+by how many figures changed — typically three to five, so a ≤400ms tail — whichever ones they were.
 
 > ℹ️ NOTE: The tradeoff, recorded honestly: one row's **absolute** delay shifts between polls. What
 > never shifts is its position **relative to its neighbours**, and that relative order is what the eye
@@ -116,22 +116,77 @@ components rendered, so the group always sees the true set of values that moved 
 > run first and each value would fire alone — a silent regression to the pre-cascade behaviour, with no
 > type error and no visible breakage in a single-value card.
 
-#### 4. The step is 40ms (the row step), not 60ms and emphatically not 350ms
+#### 4. The step is `TICK_STAGGER_STEP` (100ms), which is neither entrance step
 
-`DESIGN.md` is explicit that the product has exactly two stagger steps and that the denser one owns
-"rows inside one card's border" — which is precisely what these values are. The cascade therefore
-reuses `STAGGER_STEP_ROWS` rather than minting a third step.
+This shipped first at the 40ms row step, reasoning that `DESIGN.md` gives the denser step to "rows
+inside one card's border" and that these figures are exactly that. The premise was right and the
+conclusion was wrong, because the two entrance steps are tuned against a failure this cascade does not
+have:
 
-Recipe 06's demo stages its values **350ms** apart, and that number will look authoritative to anyone
-who re-reads the mock. It is not a product value: the demo is a **2s looping** showcase spacing three
-dips far enough apart to be legible in isolation, and the Motion Guide's own Don'ts cap stagger at
-60ms. Its offsets are legibility spacing.
+| | Entrance cascade | Tick cascade |
+|---|---|---|
+| What the user is waiting for | the content itself | nothing — the card is already on screen |
+| Failure if too slow | reads as still loading | none, until it collides with the poll |
+| Failure if too fast | none | dips overlap and merge back into one flash |
+| Correct instinct | as dense as still reads as sequence | as loose as the poll affords |
 
-> ⚠️ WARNING: Do not "restore" the mock's 350ms. At 350ms a five-value cascade runs 1.4s, which is
-> longer than the poll interval that produced it — the next poll would land mid-cascade, permanently.
+At 40ms four dips spanned 120ms against a dip several times longer, so consecutive dips overlapped
+almost entirely and a card still read as flashing — the exact symptom the cascade was built to remove.
+
+100ms sits in the middle of the usable range. The **floor** is ~80ms, below which consecutive dips
+merge. The **ceiling** is the poll: with `MAX_RANK` (7) the worst case is 700ms of lead plus a 700ms
+dip, comfortably inside the measured ~3s cadence.
+
+Recipe 06's demo stages its values **350ms** apart, and that number still is not the product value: the
+demo is a **2s looping** showcase spacing three dips far enough apart to be legible in isolation.
+
+> ⚠️ WARNING: Do not "restore" the mock's 350ms. At 350ms a five-value cascade spends 1.4s on lead
+> alone before its last dip even starts, which is longer than the poll that produced it — the next poll
+> would land mid-cascade, permanently.
 
 Rank is clamped at `MAX_RANK` (7), so a group past the guide's ~8-item cascade ceiling shares the tail
 slot instead of growing an unbounded tail.
+
+> ℹ️ NOTE: This is the product's only non-entrance stagger, and the exception is closed. A third
+> *entrance* step is still a mistake; `staggerContainer`/`staggerRows` remain the only two.
+
+### Why the return leg is linear, and how that was established
+
+The tick's two legs each carried their own token's curve — `standard` down, `emphasized` up. That is
+the right instinct and it produced a measurably bad return.
+
+The shape was measured on the live dashboard at `192.168.225.1` by pulling a running tick's keyframes
+off the page and stepping a probe animation through fixed `currentTime` values. Clock-independent, so
+it stays valid even though the automated tab is backgrounded and Chrome freezes the animation clock
+there — a detail worth remembering before anyone tries to verify this by sampling `getComputedStyle`
+during a real tick and concludes the animation is broken because everything reads `1.00`.
+
+| t | eased return (`emphasized`) | linear return (shipped) |
+|---|---|---|
+| 0ms | 1.000 | 1.000 |
+| 100ms | 0.524 | 0.524 |
+| 200ms | 0.380 | 0.380 |
+| **300ms** | **0.350** (dip bottom) | **0.350** |
+| 400ms | 0.890 | 0.513 |
+| 500ms | 0.968 | 0.675 |
+| 600ms | ~0.99 | 0.838 |
+| 700ms | 1.000 | 1.000 |
+
+The eased return recovers **78% of its distance in its first 100ms** and then spends 300ms travelling
+0.89 → 1.00 — below the threshold where an opacity change on text is noticeable. The gesture was
+nominally 700ms and perceptually about **400ms**. That is why it still read fast at a duration that
+should have been ample, and why reaching for another scale step would have been the wrong fix: the
+budget was already there, the curve was hiding it.
+
+> ℹ️ NOTE: The general lesson, worth applying beyond this hook. **Every curve on this scale is
+> front-loaded**, because they are shaped for content that *arrives* — depart decisively, settle into
+> place. A return to rest has no arrival to sell; its whole job is a recovery that stays visible for as
+> long as it lasts. Linear is the only ramp with no invisible tail. On a pure opacity fade it reads as
+> smooth, not mechanical, and the down leg still carries `standard` so the dip keeps its shape and
+> decelerates into the bottom.
+
+**A duration is only as long as its visible part.** When a gesture reads fast at a duration that should
+be ample, measure where the curve is spending it before lengthening it.
 
 ### The retarget fix the cascade forced
 
@@ -182,7 +237,7 @@ and the LTE/NR distance rows.
 
 > ⚠️ WARNING: Carrier Aggregation now carries **two** cascades and they must not be conflated.
 > `--meter-index` staggers the meter **fill arrival** at the 60ms *card* step, on first paint only.
-> `TickGroup` staggers the value **dip** at the 40ms *row* step, on every poll. Different step,
+> `TickGroup` staggers the value **dip** at the 100ms *tick* step, on every poll. Different step,
 > different trigger, different lifetime.
 
 ### A verified fact, so nobody re-litigates it
@@ -294,5 +349,5 @@ All silent failures. Each one compiles, renders, and is wrong.
 - [recent-activities.md](recent-activities.md) — the header chip that now uses `SwapLabel`, and the
   Age-Gated Tone Rule behind its tone
 - [icon-system.md](icon-system.md) — why every status chip carries a glyph in the first place
-- `DESIGN.md` > Motion > "Live value tick" and "Status chip swap"; > Motion > "Row cascade" for the
-  40ms step this reuses
+- `DESIGN.md` > Motion > "Live value tick" and "Status chip swap"; > Motion > "Row cascade" for the two
+  entrance steps this one is deliberately *not*

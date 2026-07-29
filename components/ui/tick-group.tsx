@@ -2,7 +2,7 @@
 
 import * as React from "react";
 
-import { STAGGER_STEP_ROWS } from "@/lib/motion";
+import { TICK_STAGGER_STEP } from "@/lib/motion";
 
 /**
  * The cascade half of the live value tick (DESIGN.md > Motion, "Live value
@@ -25,7 +25,7 @@ import { STAGGER_STEP_ROWS } from "@/lib/motion";
  *
  * So rank is assigned over only the values that actually moved this commit. A
  * poll that moves four figures produces a four-step cascade with no gaps and a
- * 120ms tail, whichever four they were. The cost is that one row's absolute
+ * 300ms tail, whichever four they were. The cost is that one row's absolute
  * delay shifts between polls; what never shifts is its position relative to its
  * neighbours, which is the thing the eye is actually reading.
  *
@@ -47,13 +47,15 @@ import { STAGGER_STEP_ROWS } from "@/lib/motion";
  * whole commit's layout effects regardless of which components rendered, so the
  * group sees the true set of values that moved together.
  *
- * The step is `STAGGER_STEP_ROWS` (40ms), not the 60ms card step. DESIGN.md is
- * explicit that the product has exactly two stagger steps and that the denser
- * one owns "rows inside one card's border", which is what these values are.
- * Recipe 06's demo stages its values 350ms apart, but that is a 2s *looping*
- * demo spacing three dips far enough apart to be legible in isolation; the
- * guide's own Don'ts cap stagger at 60ms, so the demo's offsets are legibility
- * spacing rather than a product value.
+ * The step is `TICK_STAGGER_STEP` (100ms, lib/motion.ts), which is neither of
+ * the two entrance steps. This shipped first at the 40ms row step, on the
+ * reading that these are rows inside one card's border — true, but the entrance
+ * steps are tuned against a different failure. An entrance cascade is racing the
+ * user's patience, so it stays dense; a tick cascade is racing nothing, because
+ * the card is already on screen. At 40ms four dips spanned 120ms against a dip
+ * lasting several times that, so they overlapped almost entirely and the group
+ * still read as one flash — the exact symptom the cascade was built to fix. See
+ * `TICK_STAGGER_STEP` for why 100ms rather than the demo's 350ms.
  *
  * Rank is clamped at `MAX_RANK` so a group larger than the guide's ~8-item
  * cascade ceiling shares the tail slot instead of growing an ever-longer tail.
@@ -130,7 +132,7 @@ export function TickGroup({ children }: { children: React.ReactNode }) {
           });
 
           members.forEach((member, rank) => {
-            member.start(Math.min(rank, MAX_RANK) * STAGGER_STEP_ROWS * 1000);
+            member.start(Math.min(rank, MAX_RANK) * TICK_STAGGER_STEP * 1000);
           });
         });
       },

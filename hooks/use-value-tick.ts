@@ -21,9 +21,11 @@ import { TickGroupContext } from "@/components/ui/tick-group";
  * rather than as a state change. It blinked. The Motion Guide's own demo is
  * explicit about the shape: `mg-tick` reaches the dip at 12% of its cycle and
  * spends the remaining 88% coming back. The dip is the event; the return is the
- * settle. So the down leg runs on `quick` and the up leg on `standard`
- * (`TICK`, lib/motion.ts) — 480ms in total, composed from the existing scale
- * rather than a new duration.
+ * settle. So the down leg runs on `standard`'s duration and curve, and the up
+ * leg on `emphasized`'s duration but a LINEAR ramp (`TICK`, lib/motion.ts) —
+ * 700ms in total, composed from the existing scale rather than a new duration.
+ * The one place this departs from "each leg carries its own token's curve" is
+ * the return, and it was measured rather than guessed; see keyframe 2 below.
  *
  * Five deliberate implementation choices:
  *
@@ -94,13 +96,25 @@ export function useValueTick<T>(value: T): React.RefObject<HTMLSpanElement | nul
     running.current?.cancel();
     running.current = el.animate(
       [
-        // Down leg: `quick`, on quick's own ease-out. Starts wherever an
+        // Down leg: `standard`, on standard's curve. Starts wherever an
         // interrupted dip had reached rather than from full opacity.
-        { opacity: from, offset: 0, easing: "ease-out" },
-        // Up leg: `standard`, on standard's curve. The dip sits at 37.5% of the
-        // run, which is what makes the return read as a settle rather than the
-        // second half of a flash.
-        { opacity: TICK.opacity, offset: TICK.dipOffset, easing: EASE_STANDARD_CSS },
+        { opacity: from, offset: 0, easing: EASE_STANDARD_CSS },
+        // Up leg: `emphasized`'s 400ms, but deliberately LINEAR rather than
+        // emphasized's curve. Measured on the live dashboard, the eased return
+        // was 0.35 → 0.89 in its first 100ms and then spent 300ms crawling
+        // 0.89 → 1.00 — a change under the threshold where an opacity shift on
+        // text is noticeable at all. The gesture was nominally 700ms and
+        // perceptually about 400: the curve was spending most of the budget
+        // where nobody could see it.
+        //
+        // Every curve on the scale is front-loaded, because they are shaped for
+        // things that ARRIVE — depart decisively, settle into place. A return to
+        // rest is the opposite job: there is no arrival to sell, only a recovery
+        // that has to stay visible for as long as it lasts. Linear is the only
+        // ramp with no invisible tail, and on a pure opacity fade it reads as
+        // smooth rather than mechanical (the down leg still carries `standard`,
+        // so the dip keeps its shape and decelerates into the bottom).
+        { opacity: TICK.opacity, offset: TICK.dipOffset, easing: "linear" },
         { opacity: 1, offset: 1 },
       ],
       {

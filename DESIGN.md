@@ -750,10 +750,11 @@ own `@media (prefers-reduced-motion: reduce)` off-switch.
   row past its own neighbour's resting position and the group reads as the card reflowing rather than
   as content arriving. Cards sit in a 16px page gutter, where 10px still reads as a lift. **Choosing
   between the two: if the children are cards, use `staggerContainer`/`staggerItem`; if they are rows
-  sharing one card's border, use `staggerRows`/`staggerRowItem`.** These two are the only stagger steps
-  in the product; no surface declares its own — the live value tick's cascade (below) reuses the 40ms
-  row step rather than minting a third, because the figures it stages are rows inside one card's
-  border. One implementation trap: a cascade child must be a
+  sharing one card's border, use `staggerRows`/`staggerRowItem`.** These two are the only **entrance**
+  stagger steps in the product; no surface declares its own. The live value tick's cascade (below) is
+  the single non-entrance stagger and carries its own `TICK_STAGGER_STEP` (100ms) — see there for why
+  an entrance step is the wrong tuning for it. That exception is closed: a third *entrance* step is
+  still a mistake. One implementation trap: a cascade child must be a
   block or `inline-flex` box. Transforms are ignored on non-replaced inline boxes, so a bare
   `motion.span` silently drops the 5px rise while still running the opacity fade, which looks like a
   half-broken animation rather than a missing one.
@@ -790,8 +791,21 @@ own `@media (prefers-reduced-motion: reduce)` off-switch.
   is already correct if the animation never runs. Its reduced-motion block clears `stroke-dasharray`
   rather than merely stopping the keyframe, because the dash array is the mechanism and not the
   appearance, and a stopped animation would otherwise leave the line visibly dashed.
-- **Live value tick.** An 180ms opacity dip to 35% on a `tabular-nums` value. No fade-out-then-in, no
-  layout shift, no color flash. Use `TickingValue` (`components/ui/ticking-value.tsx`), or
+- **Live value tick.** An opacity dip to 35% on a `tabular-nums` value. No fade-out-then-in, no
+  layout shift, no color flash. **The dip is asymmetric and that is the whole recipe**: `standard` down
+  on standard's curve, `emphasized`'s duration up on a **linear** ramp (`TICK` in `lib/motion.ts`,
+  700ms total, dip at ~43% of the run). The dip is the
+  event; the return is the settle. Three successive readings of recipe 06 were all too fast, and the
+  third is the instructive one: 180ms for the whole gesture bought 90ms a leg, under the ~100ms floor
+  where the eye reads motion at all; the 480ms `quick`+`standard` pair that replaced it was right in
+  shape but still registered rather than watched; and at 700ms with an *eased* return it measured
+  0.35 → 0.89 in the return's first 100ms and then spent 300ms crawling 0.89 → 1.00, which is under the
+  threshold where an opacity change on text is visible. **A duration is only as long as its visible
+  part.** Compose from the duration scale rather than dialling a number in by eye — but when a gesture
+  still reads fast at a duration that should be ample, check where the curve is spending it before
+  reaching for another scale step. **Every curve on this scale is front-loaded because they are shaped
+  for things that arrive; a return to rest has no arrival to sell, so it takes a linear ramp** — the
+  only one with no invisible tail. Use `TickingValue` (`components/ui/ticking-value.tsx`), or
   `useValueTick` directly where a hook is legal; the component exists because the values that need this
   are usually inside a `.map`. Three contracts ride with it: it fires on a **change** and never on
   first paint (arrival belongs to the skeleton crossfade), it **interrupts and retargets** rather than
@@ -807,7 +821,7 @@ own `@media (prefers-reduced-motion: reduce)` off-switch.
   (`components/ui/tick-group.tsx`) is the primitive that gives a group an order: it is a context
   provider that **renders no DOM**, so dropping one around a card body cannot disturb the layout.
   Inside a group `useValueTick` *enqueues* on a change instead of starting; the group drains on a
-  shared microtask and starts each member at `rank × 40ms`.
+  shared microtask and starts each member at `rank × 100ms`.
 
   Four things about that cascade are load-bearing, and each of them is a rejected alternative:
 
@@ -818,7 +832,7 @@ own `@media (prefers-reduced-motion: reduce)` off-switch.
      600ms**, which is not a cascade, it is unexplained latency. Device Metrics would cascade with
      *holes* wherever a value happened not to move, which reads as rows failing to render. Ranking
      over only what moved gives a gapless cascade whose length is bounded by how many figures actually
-     changed — typically three to five, so a ≤160ms tail. The honest cost: one row's *absolute* delay
+     changed — typically three to five, so a ≤400ms tail. The honest cost: one row's *absolute* delay
      shifts between polls. What never shifts is its position relative to its neighbours, which is what
      the eye is actually reading.
   2. **Order comes from live DOM nodes (`compareDocumentPosition`), not an index prop or an axis
@@ -833,13 +847,19 @@ own `@media (prefers-reduced-motion: reduce)` off-switch.
      every child, since React runs child layout effects first — but only if the parent re-rendered in
      that commit, so a memoized subtree updating alone would strand its registrations. A microtask
      flushes after the whole commit's layout effects regardless of which components rendered.
-  4. **The step is `STAGGER_STEP_ROWS` (40ms), the row step — not the 60ms card step, and emphatically
-     not the demo's 350ms.** These figures are rows inside one card's border, which is exactly what the
-     denser step owns. Recipe 06's demo does stage its values 350ms apart, but that is a 2s *looping*
-     demo spacing three dips far enough apart to be legible in isolation, and the Motion Guide's own
-     Don'ts cap stagger at 60ms: the demo's offsets are legibility spacing, not a product value. Do not
-     "restore" them after re-reading the mock. Rank is clamped at `MAX_RANK` (7) so a group past the
-     guide's ~8-item ceiling shares the tail slot instead of growing an unbounded tail.
+  4. **The step is `TICK_STAGGER_STEP` (100ms), which is neither entrance step.** This first shipped at
+     the 40ms row step, on the reasoning that these figures are rows inside one card's border — true,
+     but the entrance steps are tuned against a different failure. An entrance cascade is racing the
+     user's patience, so it stays dense; a tick cascade is racing nothing, because the card is already
+     on screen and settled, and its only job is to be legible *as a sequence*. At 40ms four dips spanned
+     120ms against a dip several times longer, so they overlapped almost entirely and the group still
+     read as one flash — the exact symptom the cascade exists to fix. 100ms sits mid-range: the floor is
+     ~80ms, below which consecutive dips merge; the ceiling is the poll. Recipe 06's demo stages its
+     values **350ms** apart, and that is still not the product value — it is a 2s *looping* showcase
+     spacing three dips for isolation, and at 350ms a five-value cascade runs 1.4s of lead alone. Rank
+     is clamped at `MAX_RANK` (7) so a group past the guide's ~8-item ceiling shares the tail slot
+     instead of growing an unbounded tail; with the clamp the worst case is 700ms of lead plus a 700ms
+     dip, inside the measured ~3s poll with margin.
 
   The cascade also forced a fix to the retarget contract above. `useValueTick` used to `cancel()` the
   running animation, which snaps opacity back to 1 — invisible while every tick started on the frame it
