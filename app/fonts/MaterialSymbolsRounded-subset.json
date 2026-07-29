@@ -14,6 +14,7 @@
     "check_circle",
     "chevron_right",
     "close",
+    "cloud_off",
     "dark_mode",
     "dns",
     "do_not_disturb_on",
@@ -66,6 +67,6 @@
     "wifi_off",
     "wifi_tethering_off"
   ],
-  "bytes": 24516,
-  "sha256": "6baaa159390d9fb1dcb6a3299193f4017e79990f656b49f2b0a37100171911a0"
+  "bytes": 25192,
+  "sha256": "63e209873ede26b8a33045ebf8a0514e9ef1fc1e25bc573c6e556994672a1b3d"
 }

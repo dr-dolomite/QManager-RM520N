@@ -529,7 +529,18 @@ See Components > Icons.
   label remain the defaults.
 - **Label** (500, `text-xs` / 12px): chips, table headers, button text, form labels, tiny uppercase
   section labels (`uppercase tracking-wider`, 11px in the sidebar).
-- **Numeric** (600, sized to slot, `tabular-nums`): live signal values, counters, timers.
+- **Numeric** (600, sized to slot, `tabular-nums`): live signal values, counters, timers. This is the
+  one step that is deliberately not a fixed ramp — a numeral is read at the distance its container
+  implies, so its size is derived from the slot holding it, and a literal `text-[Npx]` on a
+  `tabular-nums` numeral is correct by construction rather than a ramp violation. Shipped steps:
+  **52px** live throughput and **44px** live latency in the Speed Test dialog's running phases (the
+  numeral *is* the content of the tonal block); **26px** in that dialog's three result tiles, sized so
+  three fit one row; **17px** with an **11px** unit suffix in the dashboard Speed Test tile, sized to
+  its 34px action row — that pair is load-bearing, because `SPEEDTEST_TILE_H` mirrors the tile height
+  into `LiveLatencySkeleton` and the card crossfades skeleton over content, so re-sizing the figure
+  onto the ramp reflows the tile and makes the handoff jump. A numeral *not* sized to a slot still
+  takes the ramp, and prose never qualifies — which is why that tile's phase name ("Download") is
+  `text-xs`, not the comp's 11px. Do not use this step to smuggle arbitrary sizes onto ordinary text.
 - **Mono** (`font-mono`, usually `text-xs` or `text-sm`): AT terminal streams, log viewers, copyable
   commands, IMEI/ICCID identifiers, band and ARFCN values, dBm readouts.
 

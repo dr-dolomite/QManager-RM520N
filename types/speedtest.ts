@@ -97,7 +97,16 @@ export interface SpeedtestFinalResult {
       jitter: number;
     };
   };
-  packetLoss: number; // percentage
+  /**
+   * Percentage, 0–100, as a full float (`0.33003300330033003` on the wire —
+   * round it before display).
+   *
+   * OPTIONAL, and verified so against the live device: Ookla omits the field
+   * entirely for servers that do not measure loss. The render site has always
+   * guarded it; the type is what disagreed, and the type was the one that was
+   * wrong.
+   */
+  packetLoss?: number;
   isp: string;
   interface: SpeedtestInterface;
   server: SpeedtestServer;

@@ -55,6 +55,7 @@ export const MATERIAL_SYMBOL_NAMES = [
   "check_circle",
   "chevron_right",
   "close",
+  "cloud_off",
   "dark_mode",
   "dns",
   "do_not_disturb_on",

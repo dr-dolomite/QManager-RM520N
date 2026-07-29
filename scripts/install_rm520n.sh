@@ -296,14 +296,24 @@ dl_resolve() {
     [ "$_DL_TOOL" != "none" ]
 }
 
-# dl_get <url> <dest> — download url to dest; dest is removed on failure so a
-# partial file or an HTTP error page is never left behind as a "success".
+# dl_get <url> <dest> [max_time_secs] — download url to dest; dest is removed
+# on failure so a partial file or an HTTP error page is never left behind as
+# a "success". The optional 3rd arg bounds the transfer (curl --max-time /
+# wget -T) for callers where a hung connection must not stall indefinitely;
+# omitted, curl keeps its prior unbounded behavior and wget keeps its 60s
+# default, so existing 2-arg call sites are unaffected.
 dl_get() {
-    local url="$1" dest="$2" rc
+    local url="$1" dest="$2" max_time="${3:-}" rc
     dl_resolve || return 1
     case "$_DL_TOOL" in
-        curl) curl -fsSL -o "$dest" "$url" ;;
-        wget) wget -q -T 60 -O "$dest" "$url" ;;
+        curl)
+            if [ -n "$max_time" ]; then
+                curl -fsSL --max-time "$max_time" -o "$dest" "$url"
+            else
+                curl -fsSL -o "$dest" "$url"
+            fi
+            ;;
+        wget) wget -q -T "${max_time:-60}" -O "$dest" "$url" ;;
     esac
     rc=$?
     [ "$rc" -ne 0 ] && rm -f "$dest"
@@ -538,6 +548,93 @@ install_bundled_binaries() {
     else
         info "qmanager_discord not bundled — Discord bot feature disabled"
     fi
+}
+
+# --- Install Speedtest CLI ----------------------------------------------------
+
+# Downloads the Ookla Speedtest CLI (not bundled — proprietary, not
+# redistributable) into /usrdata/root/bin so the web UI's speed test feature
+# has a binary to exec.
+#
+# Runs UNCONDITIONALLY, even with --skip-packages (mirrors remove_conflicts(),
+# ensure_zoneinfo_packages(), and install_bundled_binaries() above in main()):
+# OTA upgrades invoke this installer with --skip-packages, which gates
+# install_dependencies(). This download used to live inside that gated
+# function — a device whose install-time download failed (offline, flaky
+# cellular) would warn and continue, then NEVER get a retry on any future OTA,
+# leaving Speedtest permanently dead with no recovery path. Warn-only on any
+# failure here too — optional, must never abort an install or upgrade.
+#
+# Depends on preflight() having already remounted / read-write earlier in
+# main() — if this is ever called from outside main(), it needs its own
+# remount guard.
+install_speedtest_cli() {
+    local speedtest_dir="/usrdata/root/bin"
+    local speedtest_url="https://install.speedtest.net/app/cli/ookla-speedtest-1.2.0-linux-armhf.tgz"
+
+    # /usrdata must already be its own mount before we create anything under
+    # it, or the dir (and binary) land on whatever filesystem backs the path
+    # and silently vanish on next boot.
+    if ! mountpoint -q /usrdata 2>/dev/null; then
+        warn "/usrdata is not a mounted filesystem — skipping speedtest CLI install"
+        return 0
+    fi
+
+    # install -d (not mkdir -p): mkdir -p no-ops on an already-existing dir
+    # and would preserve a bad mode across every future OTA.
+    #
+    # ORDER IS LOAD-BEARING: this runs BEFORE the idempotence guard below, so
+    # the directory mode is re-asserted on every install and every OTA even
+    # when the binary is already present. Putting it after the guard looks
+    # tidier and silently defeats the whole point — a device that installed
+    # the CLI under the old `mkdir -p` code satisfies both halves of that
+    # guard while sitting on a world-writable 0777 directory, so it would
+    # return early and never be remediated. Devices already in the bad state
+    # are exactly the ones this line exists for. Only the network download
+    # below is worth skipping; this is free.
+    install -d -o root -g root -m 0755 "$speedtest_dir"
+
+    # Primary idempotence guard: command -v costs zero network calls on a
+    # device that already has it — this is what keeps a normal OTA free of
+    # any speedtest network traffic. The -x check on our own install path is
+    # belt-and-braces against some other same-named binary earlier on PATH
+    # shadowing a missing/broken install here.
+    if command -v speedtest >/dev/null 2>&1 && [ -x "$speedtest_dir/speedtest" ]; then
+        info "speedtest CLI is already installed"
+        return 0
+    fi
+
+    # 120s bound: a hung TCP connection on a marginal cellular link must not
+    # stall an OTA indefinitely now that this runs on every upgrade.
+    if ! dl_get "$speedtest_url" /tmp/speedtest.tgz 120 2>/dev/null; then
+        warn "speedtest CLI download failed (optional — requires internet)"
+        return 0
+    fi
+
+    tar -xzf /tmp/speedtest.tgz -C "$speedtest_dir" speedtest 2>/dev/null
+    rm -f /tmp/speedtest.tgz "$speedtest_dir/speedtest.md"
+
+    # Verify extraction actually produced the binary before touching
+    # ownership/mode or linking — a truncated archive (disk full, dropped
+    # cellular link) must never leave a symlink to a missing/partial target.
+    if [ ! -f "$speedtest_dir/speedtest" ]; then
+        warn "speedtest CLI extraction failed (partial download?) — skipping"
+        return 0
+    fi
+
+    # tar inherits owner metadata from the archive (observed shipping as
+    # uid/gid 10000:10000, an account with no /etc/passwd entry) — assert
+    # root:root explicitly rather than trusting the tarball's own attrs.
+    chown root:root "$speedtest_dir/speedtest" 2>/dev/null
+    chmod 0755 "$speedtest_dir/speedtest"
+
+    if [ ! -x "$speedtest_dir/speedtest" ]; then
+        warn "speedtest CLI binary is not executable after extraction — skipping"
+        return 0
+    fi
+
+    ln -sf "$speedtest_dir/speedtest" /bin/speedtest
+    info "speedtest CLI installed to $speedtest_dir/speedtest"
 }
 
 # --- Install Dependencies ----------------------------------------------------
@@ -814,24 +911,6 @@ RCEOF
                 || warn "dropbear install failed (optional — SSH server)"
         else
             info "dropbear not bundled and not installed (optional)"
-        fi
-    fi
-
-    # --- Ookla Speedtest CLI (speed test from web UI) ---
-    if command -v speedtest >/dev/null 2>&1; then
-        info "speedtest CLI is already installed"
-    else
-        SPEEDTEST_URL="https://install.speedtest.net/app/cli/ookla-speedtest-1.2.0-linux-armhf.tgz"
-        SPEEDTEST_DIR="/usrdata/root/bin"
-        mkdir -p "$SPEEDTEST_DIR"
-        if dl_get "$SPEEDTEST_URL" /tmp/speedtest.tgz 2>/dev/null; then
-            tar -xzf /tmp/speedtest.tgz -C "$SPEEDTEST_DIR" speedtest 2>/dev/null
-            rm -f /tmp/speedtest.tgz "$SPEEDTEST_DIR/speedtest.md"
-            chmod +x "$SPEEDTEST_DIR/speedtest"
-            ln -sf "$SPEEDTEST_DIR/speedtest" /bin/speedtest
-            info "speedtest CLI installed to $SPEEDTEST_DIR/speedtest"
-        else
-            warn "speedtest CLI download failed (optional — requires internet)"
         fi
     fi
 
@@ -2454,6 +2533,11 @@ main() {
     # install_bundled_binaries runs even with --skip-packages — see its
     # doc-comment above for why (SMS OTA-upgrade bug root cause).
     install_bundled_binaries
+
+    # install_speedtest_cli runs even with --skip-packages — see its
+    # doc-comment above for why (permanently-dead-Speedtest bug on any device
+    # whose install-time download failed).
+    install_speedtest_cli
 
     [ "$DO_PACKAGES" = "1" ] && install_dependencies
 

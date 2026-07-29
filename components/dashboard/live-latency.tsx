@@ -15,10 +15,10 @@ import {
   type MaterialSymbolName,
 } from "@/components/ui/material-symbol";
 
-import { authFetch } from "@/lib/auth-fetch";
 import { cn } from "@/lib/utils";
 import { DUR } from "@/lib/motion";
 import { useChartDrawIn, useChartSeriesMotion } from "@/hooks/use-chart-motion";
+import { useSpeedtest, type SpeedtestPhase } from "@/hooks/use-speedtest";
 import { Badge, type BadgeVariant } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -37,11 +37,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { SwapLabel } from "@/components/ui/swap-label";
 import { TickingValue } from "@/components/ui/ticking-value";
 import { SpeedtestDialog } from "./speedtest-dialog";
-import {
-  formatSpeed,
-  type SpeedtestFinalResult,
-  type SpeedtestStatusResponse,
-} from "@/types/speedtest";
+import { formatSpeed, type SpeedtestProgressLine } from "@/types/speedtest";
 
 import type { ConnectivityStatus } from "@/types/modem-status";
 
@@ -60,8 +56,6 @@ const CHART_POINTS = 10;
 
 /** Rolling window size for per-point packet loss calculation */
 const LOSS_WINDOW = 10;
-
-const CGI_BASE = "/cgi-bin/quecmanager/at_cmd";
 
 /**
  * One constant for the plot box, consumed by the chart, the skeleton and the
@@ -109,6 +103,196 @@ const CHART_BOX = "min-h-[150px] flex-1";
 //   its neighbours reads as intent.
 const CARD_SHELL =
   "@container/card h-full gap-4 rounded-card border-0 px-6 py-6 shadow-[var(--shadow-whisper)]";
+
+// =============================================================================
+// Speed Test tile
+// =============================================================================
+
+/**
+ * The tile's resting height, shared by the tile itself and by the skeleton that
+ * stands in for it (the Skeleton-Mirror Rule). The card runs a skeleton→content
+ * CROSSFADE, so both are on screen together during the handoff — a drifted
+ * number here is not a rounding detail, it is a visible jump at the moment the
+ * real content lands.
+ *
+ * 88px is measured from the markup below, and every one of the three tile
+ * states is built to land on it:
+ *
+ *   12px  py-3 top
+ *   20px  header row (`text-sm` label / its `leading-5` line box)
+ *   10px  gap-2.5
+ *   34px  action row — the comp pins the play disc AND the running spinner disc
+ *         at 34px, and the running state's stacked column is tuned to the same
+ *         34px (a 22px value line + a 6px gap + the 6px meter) rather than being
+ *         allowed to find its own height. The cached state's two figure chips
+ *         are 30px, so the disc governs there too.
+ *   12px  py-3 bottom
+ *
+ * It is a MIN-height, not a fixed one: the idle state's sentence can wrap on a
+ * narrow card and must be allowed to, and a growing tile is far better than a
+ * clipped one. What it must never do is change height when the tile switches
+ * BETWEEN states, which is why the three bodies are matched rather than left to
+ * their intrinsic sizes.
+ *
+ * Note the shipped value was already 88 while the real tile measured 90 — the
+ * play button was inheriting Button's `size-9` (36px) instead of the comp's 34.
+ * Pinning the disc closes that 2px gap rather than papering over it.
+ */
+const SPEEDTEST_TILE_H = "min-h-[88px]";
+
+/**
+ * How often the tile re-reads the wall clock, independent of the status poll.
+ *
+ * The relative timestamp ("14 min ago") is a function of TIME, not of the
+ * payload, so it cannot be left to re-evaluate only when a fetch lands. In
+ * `watch` mode the status endpoint is polled every 10s but returns a
+ * byte-identical cached result each time, so React bails out of the re-render
+ * and the label would sit frozen at whatever it said when the result first
+ * arrived. Same reasoning, same 30s cadence, as Recent Activities.
+ */
+const CLOCK_TICK_MS = 30_000;
+
+/**
+ * Past this, a result's age is read as a broken clock rather than an old test.
+ *
+ * The modem stamps the result with its own clock and the browser supplies
+ * `now`, so this subtracts two machines. On a device that has not reached NTP
+ * (the RTC starts at the epoch) a naive diff renders "20454 d ago" — a number
+ * that is not merely wrong but actively misleading about whether the reading
+ * below it can be trusted. A year is comfortably past any legitimate cached
+ * result and comfortably short of an unsynced clock.
+ */
+const ABSURD_AGE_SEC = 365 * 86400;
+
+/** Unix-seconds now, refreshed on its own clock. */
+function useNowSec(): number {
+  const [now, setNow] = useState(() => Math.floor(Date.now() / 1000));
+  useEffect(() => {
+    const id = setInterval(
+      () => setNow(Math.floor(Date.now() / 1000)),
+      CLOCK_TICK_MS,
+    );
+    return () => clearInterval(id);
+  }, []);
+  return now;
+}
+
+/**
+ * Locale-aware relative time for the cached result's ISO-8601 stamp.
+ *
+ * Local rather than shared with Recent Activities' copy on purpose, and worth
+ * naming because a third private clock helper is normally a smell: that one
+ * takes UNIX SECONDS from the poller and keys the `activities.time.*` subtree,
+ * this one takes an ISO STRING from the Ookla payload and keys
+ * `speedtest.time_*`. Neither is exported, and hoisting one into a shared
+ * module is a change to files this card does not own. The two things that
+ * actually matter — one clock reading in, and a defensive clamp — are mirrored
+ * exactly.
+ *
+ * `nowSec` is a parameter rather than a second `Date.now()` here so the label
+ * can never straddle a threshold that some other part of the render already
+ * decided on the other side of.
+ */
+function useSpeedtestTimeAgo() {
+  const { t } = useTranslation("dashboard");
+  return useCallback(
+    (iso: string, nowSec: number): string | null => {
+      const ms = Date.parse(iso);
+      if (Number.isNaN(ms)) return null;
+
+      // A negative diff is a browser clock behind the modem's; an enormous one
+      // is a modem that never synced. Both collapse to "just now" — vague, but
+      // the only honest thing a broken clock supports saying.
+      const diff = nowSec - Math.floor(ms / 1000);
+      if (diff < 60 || diff > ABSURD_AGE_SEC) return t("speedtest.time_just_now");
+      if (diff < 3600)
+        return t("speedtest.time_minutes_ago", { count: Math.floor(diff / 60) });
+      if (diff < 86400)
+        return t("speedtest.time_hours_ago", { count: Math.floor(diff / 3600) });
+      return t("speedtest.time_days_ago", { count: Math.floor(diff / 86400) });
+    },
+    [t],
+  );
+}
+
+/**
+ * Which measurement the run is on, as the user reads it.
+ *
+ * `initializing` deliberately has no entry: the run is genuinely between
+ * measurements there, and naming it "Latency" a beat before latency starts is
+ * the same lie the dialog's ping floor exists to prevent. It falls back to the
+ * generic "Running" label instead.
+ */
+const PHASE_LABEL_KEY: Partial<Record<SpeedtestPhase, string>> = {
+  ping: "speedtest.step_latency",
+  download: "speedtest.step_download",
+  upload: "speedtest.step_upload",
+};
+
+/**
+ * The one figure the running tile prints, pulled from whichever branch of the
+ * progress union is live.
+ *
+ * Returns null while the run has no measurement to report — a placeholder is
+ * drawn in that slot rather than a zero, because "0.00 Mbps" is a claim about
+ * the connection and "still connecting" is not.
+ */
+function liveReading(
+  phase: SpeedtestPhase,
+  p: SpeedtestProgressLine | null,
+): { value: string; unitKey: string } | null {
+  if (!p) return null;
+  if (phase === "download" && p.type === "download")
+    return { value: formatSpeed(p.download.bandwidth), unitKey: "speedtest.unit_mbps" };
+  if (phase === "upload" && p.type === "upload")
+    return { value: formatSpeed(p.upload.bandwidth), unitKey: "speedtest.unit_mbps" };
+  if (phase === "ping" && p.type === "ping")
+    return { value: p.ping.latency.toFixed(1), unitKey: "speedtest.unit_ms" };
+  return null;
+}
+
+/**
+ * One cached figure, as a filled tonal pill.
+ *
+ * The fill is the colour contract, not decoration: one hue per measurement,
+ * held from this tile through the dialog to the result — download is primary
+ * blue, upload is Carrier Violet. (Upload used to be drawn in Uplink Cyan here,
+ * which left the dialog's latency reading with no hue of its own; cyan is now
+ * latency's, everywhere.) These are IDENTITY fills under DESIGN.md's
+ * Identity-Chip Rule — they say WHICH measurement, never how good it was — so
+ * each one also carries a direction glyph and the reading is machine voice.
+ */
+function SpeedtestFigure({
+  glyph,
+  className,
+  srLabel,
+  value,
+  unit,
+}: {
+  glyph: MaterialSymbolName;
+  className: string;
+  srLabel: string;
+  value: string;
+  unit: string;
+}) {
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center gap-1 rounded-pill py-[5px] pl-2 pr-[11px] font-mono text-sm font-semibold tabular-nums",
+        className,
+      )}
+    >
+      <MaterialSymbol name={glyph} size={15} className="shrink-0" />
+      <span className="sr-only">{srLabel}</span>
+      {value}
+      {/* The unit is printed for assistive tech only. The two chips sit
+          adjacent and share it by eye — the mock's compact idiom — but each is
+          announced as its own reading, so a screen reader would otherwise hear
+          a bare number. */}
+      <span className="sr-only"> {unit}</span>
+    </span>
+  );
+}
 
 interface LiveLatencyComponentProps {
   connectivity: ConnectivityStatus | null;
@@ -171,8 +355,7 @@ function chipTone(connectivity: ConnectivityStatus | null): {
  * drift, and a drifted skeleton turns the handoff from a fade into a jump.
  *
  * Every block mirrors a real element: the title and chip row, the floor-plus-
- * grow plot, the legend, and the Speed Test tile at its natural 88px (12px
- * padding twice, a 20px label, a 10px gap and the 34px action row).
+ * grow plot, the legend, and the Speed Test tile at `SPEEDTEST_TILE_H`.
  */
 function LiveLatencySkeleton() {
   return (
@@ -186,7 +369,9 @@ function LiveLatencySkeleton() {
         <Skeleton className="h-3 w-20" />
         <Skeleton className="h-3 w-24" />
       </div>
-      <Skeleton className="mt-auto h-[88px] w-full rounded-tile" />
+      <Skeleton
+        className={cn("mt-auto w-full rounded-tile", SPEEDTEST_TILE_H)}
+      />
     </div>
   );
 }
@@ -210,9 +395,25 @@ const LiveLatencyComponent = ({
 }: LiveLatencyComponentProps) => {
   const { t } = useTranslation("dashboard");
   const [speedtestOpen, setSpeedtestOpen] = useState(false);
-  const [cachedResult, setCachedResult] = useState<SpeedtestFinalResult | null>(
-    null,
-  );
+
+  // `watch: true` is the whole third state. The tile used to fire a one-shot
+  // fetch on mount and another on dialog close, which meant a run started in
+  // another tab — or from another device on the LAN — was invisible here until
+  // something happened to re-open the dialog. The hook now owns the cadence:
+  // a 10s heartbeat while idle, escalating itself to 500ms once a run appears
+  // and dropping back when it ends. The status endpoint took an flock for
+  // exactly this reason, so the dialog mounting its own instance alongside this
+  // one is expected rather than tolerated.
+  const {
+    phase,
+    progress,
+    currentProgress,
+    result: cachedResult,
+    isRunning,
+  } = useSpeedtest({ watch: true });
+
+  const nowSec = useNowSec();
+  const timeAgo = useSpeedtestTimeAgo();
 
   // Gradient ids are per-instance. A literal string id would collide the moment
   // two of these cards shared a document — SVG ids live in one flat namespace
@@ -229,39 +430,9 @@ const LiveLatencyComponent = ({
   const drawIn = useChartDrawIn();
   const seriesMotion = useChartSeriesMotion();
 
-  // Fetch any cached speedtest result
-  const fetchCachedResult = useCallback(async () => {
-    try {
-      const resp = await authFetch(`${CGI_BASE}/speedtest_status.sh`);
-      if (!resp.ok) return;
-      const data: SpeedtestStatusResponse = await resp.json();
-      if (data.status === "complete" && data.result) {
-        setCachedResult(data.result);
-      }
-    } catch {
-      // Silent — no cached result is fine
-    }
-  }, []);
-
-  // Fetch cached result on mount
-  useEffect(() => {
-    fetchCachedResult();
-  }, [fetchCachedResult]);
-
   const handleSpeedtestOpen = useCallback(() => {
     setSpeedtestOpen(true);
   }, []);
-
-  // Refresh cached result when dialog closes (may have new result)
-  const handleDialogChange = useCallback(
-    (open: boolean) => {
-      setSpeedtestOpen(open);
-      if (!open) {
-        fetchCachedResult();
-      }
-    },
-    [fetchCachedResult],
-  );
 
   const chartData = useMemo(() => {
     if (
@@ -557,74 +728,171 @@ const LiveLatencyComponent = ({
     </div>
   );
 
-  const speedtestTile = (
-    <div className="mt-auto flex flex-col gap-2.5 rounded-tile bg-surface-container px-4 py-3">
-      {/* The mock sets this label and the two figures at 13px. That step is a
-          surface-scoped exception in DESIGN.md (banners), not part of the ramp,
-          so they take `text-sm` — the same call Recent Activities made when it
-          was retargeted from the same mock family. */}
-      <span className="text-sm font-semibold">
-        {t("speedtest.section_label")}
-      </span>
-      <div className="flex flex-wrap items-center gap-x-2.5 gap-y-2">
-        {/* Hover is one tone step plus a 1px lift on `quick` (Motion Guide
-            recipe 08); the focus ring comes from the Button base and runs on its
-            own `quick` clock. */}
-        <Button
-          variant="default"
-          size="icon"
-          className="rounded-pill duration-(--duration-quick) ease-out hover:-translate-y-px"
-          aria-label={t("speedtest.start_button_aria")}
-          onClick={handleSpeedtestOpen}
-        >
-          <MaterialSymbol name="play_arrow" size={16} filled />
-        </Button>
-        {cachedResult ? (
-          <>
-            <span className="text-xs font-medium text-on-surface-variant">
-              {t("speedtest.result_label")}
-            </span>
-            <span className="inline-flex items-center gap-1.5 font-mono text-sm font-semibold tabular-nums">
-              <MaterialSymbol
-                name="arrow_circle_down"
-                size={16}
-                filled
-                className="shrink-0 text-primary"
-              />
-              <span className="sr-only">{t("speedtest.result_download")}</span>
-              {formatSpeed(cachedResult.download.bandwidth)}
-              {/* The unit is printed once, on the upload figure below, because
-                  the two readings sit adjacent and share it — the mock's own
-                  compact idiom ("412 / 68 Mbps"), and repeating "Mbps" twice in
-                  a tile this size reads as noise.
+  // --- Speed Test tile -------------------------------------------------------
+  // Three states off one data source: running (a run is in flight, wherever it
+  // was started from), cached (a previous result to report), and idle (neither).
+  // They share a header row and a 34px action row so switching between them is
+  // a colour and content change, never a reflow of the card.
 
-                  That works only for the EYE, though. Each figure carries its
-                  own sr-only label, so the two are announced as separate
-                  readings and a screen reader would hear "Download 412" with no
-                  unit at all while the upload beside it got one. The unit is
-                  therefore repeated here for assistive tech only: same
-                  information to both audiences, each in the form that suits
-                  it. */}
-              <span className="sr-only"> {t("speedtest.unit_mbps")}</span>
+  const reading = liveReading(phase, currentProgress);
+  const phaseLabelKey = PHASE_LABEL_KEY[phase];
+  // 0–1 WITHIN the current phase, not across the run — the meter refills as
+  // each measurement starts, which is what the phase caption above it says is
+  // happening. Clamped because the bar is drawn from it directly and a stray
+  // value out of the CLI would otherwise overshoot its own track.
+  const progressPct = Math.min(100, Math.max(0, progress * 100));
+  const agoLabel = cachedResult ? timeAgo(cachedResult.timestamp, nowSec) : null;
+
+  const playButton = (
+    // Hover is one tone step plus a 1px lift on `quick` (Motion Guide recipe
+    // 08); the focus ring comes from the Button base and runs on its own
+    // `quick` clock. `size-[34px]` overrides the `icon` size's 36px so the disc
+    // matches the running state's spinner disc exactly — see SPEEDTEST_TILE_H.
+    <Button
+      variant="default"
+      size="icon"
+      className="size-[34px] shrink-0 rounded-pill duration-(--duration-quick) ease-out hover:-translate-y-px"
+      aria-label={t("speedtest.start_button_aria")}
+      onClick={handleSpeedtestOpen}
+    >
+      <MaterialSymbol name="play_arrow" size={20} filled />
+    </Button>
+  );
+
+  const speedtestTile = (
+    <div
+      className={cn(
+        // The container fill IS the state, so it moves on `emphasized` (400ms)
+        // like every other container morph in the product — a tile going blue
+        // is the same class of gesture as a chip changing tone, not a hover.
+        "mt-auto flex flex-col gap-2.5 rounded-tile px-4 py-3 transition-colors duration-(--duration-emphasized) ease-emphasized motion-reduce:transition-none",
+        SPEEDTEST_TILE_H,
+        isRunning
+          ? "bg-primary-container text-on-primary-container"
+          : "bg-surface-container",
+      )}
+    >
+      <div className="flex items-center gap-2">
+        {/* The mock sets this label and the two figures at 13px. That step is a
+            surface-scoped exception in DESIGN.md (banners), not part of the
+            ramp, so they take `text-sm` — the same call Recent Activities made
+            when it was retargeted from the same mock family. */}
+        <span className="text-sm font-semibold">
+          {t("speedtest.section_label")}
+        </span>
+        {/* The phase name is prose, not a numeric slot, so it snaps to the ramp
+            at `text-xs` rather than taking the comp's literal 11px — the same
+            call the label above made with the comp's 13px. The numeric slots
+            below are the documented exception, not this. */}
+        {isRunning ? (
+          <span className="ml-auto inline-flex items-center gap-1.5 text-xs font-semibold">
+            {/* The live dot is the sanctioned `animate-live-ping` idiom (a disc
+                expanding past its anchor and fading), not a fourth hand-rolled
+                loop. It is gated on a genuinely live run, which is the whole
+                condition the One-Loop Rule asks for. */}
+            <span aria-hidden className="relative inline-flex size-[7px] shrink-0">
+              <span className="absolute inset-0 rounded-pill bg-primary animate-live-ping" />
+              <span className="relative size-[7px] rounded-pill bg-primary" />
             </span>
-            <span className="inline-flex items-center gap-1.5 font-mono text-sm font-semibold tabular-nums">
-              <MaterialSymbol
-                name="arrow_circle_up"
-                size={16}
-                filled
-                className="shrink-0 text-uplink"
-              />
-              <span className="sr-only">{t("speedtest.result_upload")}</span>
-              {formatSpeed(cachedResult.upload.bandwidth)}{" "}
-              {t("speedtest.unit_mbps")}
-            </span>
-          </>
-        ) : (
-          <p className="text-xs font-medium text-on-surface-variant text-pretty">
-            {t("speedtest.idle_description")}
-          </p>
-        )}
+            {phaseLabelKey
+              ? t(phaseLabelKey)
+              : t("speedtest.tile_running_label")}
+          </span>
+        ) : agoLabel ? (
+          <span className="ml-auto font-mono text-[11px] tabular-nums text-on-surface-variant">
+            {agoLabel}
+          </span>
+        ) : null}
       </div>
+
+      {isRunning ? (
+        <div className="flex min-h-[34px] items-center gap-2.5">
+          <span className="grid size-[34px] shrink-0 place-items-center rounded-pill bg-primary text-primary-foreground">
+            {/* `animate-spin` at the comp's 1.1s, the same explicit-duration
+                idiom the login button uses. A spinner is a busy signal rather
+                than decoration, which is why it is not gated on reduced
+                motion. */}
+            <MaterialSymbol
+              name="progress_activity"
+              size={19}
+              className="animate-spin [animation-duration:1100ms]"
+            />
+          </span>
+          <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+            {/* Machine voice, and deliberately NOT wrapped in `TickingValue`.
+                That tick is a 700ms dip tuned for the ~3s dashboard poll; at
+                the speedtest's 500ms live cadence it would never finish before
+                the next value arrived and would read as a strobe. The number
+                simply lands on the poll tick. */}
+            {/* The 17px figure and its 11px unit are deliberately off the text
+                ramp: DESIGN.md's Numeric step is "600, sized to slot,
+                tabular-nums" for live values, and this slot is sized to the
+                34px action row so the tile keeps its height across all three
+                states. Do not "correct" these to text-base/text-xs — that
+                would reflow the tile and break the skeleton mirror. */}
+            <span className="flex items-baseline gap-1 leading-[22px]">
+              <span className="font-mono text-[17px] font-semibold tabular-nums">
+                {reading ? reading.value : "—"}
+              </span>
+              {reading ? (
+                <span className="text-[11px] font-semibold opacity-75">
+                  {t(reading.unitKey)}
+                </span>
+              ) : null}
+            </span>
+            {/* Bespoke rather than the shared Progress primitive: this bar is
+                6px on a coloured container with a translucent track, and it is
+                driven by `scaleX` rather than `width` because width animation
+                is reserved for the Carrier Aggregation strip, where the width
+                genuinely IS the data. */}
+            <span
+              role="progressbar"
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-valuenow={Math.round(progressPct)}
+              aria-label={
+                phaseLabelKey
+                  ? t(phaseLabelKey)
+                  : t("speedtest.tile_running_label")
+              }
+              className="block h-1.5 overflow-hidden rounded-pill bg-white/45"
+            >
+              <span
+                aria-hidden
+                className="block h-full origin-left rounded-pill bg-primary transition-transform duration-(--duration-standard) ease-standard motion-reduce:transition-none"
+                style={{ transform: `scaleX(${progressPct / 100})` }}
+              />
+            </span>
+          </div>
+        </div>
+      ) : (
+        <div className="flex min-h-[34px] items-center gap-2.5">
+          {playButton}
+          {cachedResult ? (
+            <span className="ml-auto inline-flex items-center gap-2.5">
+              <span className="sr-only">{t("speedtest.result_label")}</span>
+              <SpeedtestFigure
+                glyph="arrow_downward"
+                className="bg-primary-container text-on-primary-container"
+                srLabel={t("speedtest.result_download")}
+                value={formatSpeed(cachedResult.download.bandwidth)}
+                unit={t("speedtest.unit_mbps")}
+              />
+              <SpeedtestFigure
+                glyph="arrow_upward"
+                className="bg-lte-container text-on-lte-container"
+                srLabel={t("speedtest.result_upload")}
+                value={formatSpeed(cachedResult.upload.bandwidth)}
+                unit={t("speedtest.unit_mbps")}
+              />
+            </span>
+          ) : (
+            <p className="text-xs font-medium leading-[1.45] text-on-surface-variant text-pretty">
+              {t("speedtest.idle_description")}
+            </p>
+          )}
+        </div>
+      )}
     </div>
   );
 
@@ -672,7 +940,10 @@ const LiveLatencyComponent = ({
         </div>
       </Card>
 
-      <SpeedtestDialog open={speedtestOpen} onOpenChange={handleDialogChange} />
+      {/* No refetch-on-close handler any more: the tile's own `watch` poll is
+          already the source of truth for both the run and its result, so the
+          dialog closing needs to do nothing but close. */}
+      <SpeedtestDialog open={speedtestOpen} onOpenChange={setSpeedtestOpen} />
     </>
   );
 };

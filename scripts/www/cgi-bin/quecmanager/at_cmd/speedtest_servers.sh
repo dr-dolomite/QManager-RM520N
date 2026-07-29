@@ -33,7 +33,10 @@ export LC_ALL="${LC_ALL:-C}"
 export TERM="${TERM:-xterm}"
 export PATH="/usr/sbin:/usr/bin:/sbin:/bin:${PATH}"
 
-# Run server list to temp file (takes 2-5 seconds)
+# Run server list to temp file. Measured live on an RM520N-GL: ~1.2s, cold or
+# warm (the earlier "2-5 seconds" estimate here was pessimistic). Note this
+# forks the Ookla binary SYNCHRONOUSLY inside the request, so the UI's refresh
+# affordance costs a real process spawn on a single-core device each time.
 OUTFILE="/tmp/qmanager_speedtest_servers.json"
 speedtest --servers --accept-license --accept-gdpr -f json > "$OUTFILE" 2>/dev/null
 
