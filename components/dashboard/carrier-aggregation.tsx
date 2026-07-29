@@ -38,6 +38,13 @@ interface CarrierAggregationProps {
   /** True when the dashboard has stopped trusting its own data. The release
    *  clock must not run on snapshots the app is already disowning. */
   isStale: boolean;
+  /**
+   * Browser wall-clock ms at which the snapshot behind `carriers` ARRIVED, from
+   * `useModemStatus`. This is the release clock, and it is a prop rather than a
+   * render-time `Date.now()` on purpose — see the note at the reconcile call.
+   * `null` before the first snapshot lands.
+   */
+  receivedAtMs: number | null;
 }
 
 /**
@@ -125,6 +132,7 @@ export function CarrierAggregationComponent({
   networkType,
   isLoading,
   isStale,
+  receivedAtMs,
 }: CarrierAggregationProps) {
   const { t } = useTranslation("dashboard");
 
@@ -137,11 +145,37 @@ export function CarrierAggregationComponent({
   // longer than the grace window would otherwise have us announce "released"
   // for carriers that never went anywhere, on the same screen where the
   // stale-data banner is saying the readings cannot be trusted.
+  // The release clock is the snapshot's ARRIVAL time, threaded in from
+  // `useModemStatus`, not a `Date.now()` read here. Three reasons, in order of
+  // how much they matter:
+  //
+  // 1. Correctness. `lastSeenMs` means "when did a poll last contain this
+  //    carrier". A render timestamp answers a different question, because this
+  //    component re-renders for reasons that are not polls — the `handoff`
+  //    state below is one. Every such render used to advance the clock and get
+  //    committed by the effect, so the 6s grace window was measuring time since
+  //    the last render that happened to include a carrier, and a burst of
+  //    unrelated re-renders could carry a carrier across the release threshold
+  //    with no new data behind it.
+  // 2. Purity. Render is now a function of its props: the same snapshot
+  //    reconciles to the same chain however many times React invokes this
+  //    component. That is what `react-hooks/purity` asks for, and it is
+  //    satisfied by moving the clock read to the fetch callback rather than by
+  //    suppressing the rule.
+  // 3. It stays WALL CLOCK. `receivedAtMs` is stamped by the browser, so it is
+  //    comparable to other browser-side times. Sourcing this from the poller's
+  //    own `timestamp` would look equally pure while silently comparing the
+  //    modem's clock against ours.
+  //
+  // Before the first snapshot lands there is no arrival time and nothing to
+  // reconcile against, so the chain holds whatever it already had — the same
+  // branch `isStale` takes, for the same reason.
   const retained = React.useRef<ResolvedCarrier[]>([]);
-  const now = Date.now();
-  const resolved = isStale
-    ? retained.current
-    : reconcileCarriers(retained.current, carriers, networkType, now);
+  const now = receivedAtMs;
+  const resolved =
+    isStale || now === null
+      ? retained.current
+      : reconcileCarriers(retained.current, carriers, networkType, now);
 
   // Committed after render, never during: a render React throws away must not
   // advance the release clock.
@@ -402,7 +436,11 @@ export function CarrierAggregationComponent({
         <div className="grid grid-cols-1 gap-3 @md/ca:grid-cols-2 @3xl/ca:grid-cols-4">
           {resolved.map((c, i) => {
             const pct = rsrpToPercent(c.rsrp);
-            const minutes = Math.floor(releasedForMs(c, now) / 60000);
+            // `now` is non-null wherever this runs: `resolved` can only be
+            // non-empty if a reconcile produced it, and a reconcile requires an
+            // arrival time. The fallback keeps the type honest; it does not
+            // describe a reachable state.
+            const minutes = Math.floor(releasedForMs(c, now ?? 0) / 60000);
 
             return (
               <div

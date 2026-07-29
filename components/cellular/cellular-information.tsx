@@ -49,7 +49,8 @@ import { ActiveBandsCard } from "@/components/cellular/radio/active-bands-card";
 
 const CellularInformationComponent = () => {
   const { t } = useTranslation("cellular");
-  const { data, isLoading, isStale, error, refresh } = useModemStatus();
+  const { data, isLoading, isStale, receivedAtMs, error, refresh } =
+    useModemStatus();
 
   const mode = resolveRadioMode(data, isLoading);
 
@@ -64,32 +65,45 @@ const CellularInformationComponent = () => {
   // announcing "released" for carriers that never moved, on the same screen as
   // the stale banner, is exactly the contradiction this page exists to avoid.
   // Lifted verbatim from `components/dashboard/carrier-aggregation.tsx`.
+  //
+  // The release clock is `receivedAtMs` — the wall-clock moment the snapshot
+  // ARRIVED, stamped once inside `useModemStatus`'s fetch callback and threaded
+  // down as data. It must stay wall clock, because `lastSeenMs` set here is read
+  // back by `enrichCarriers` against the same browser clock; sourcing it from
+  // the poller's `timestamp` would look equally pure while silently comparing
+  // the modem's clock against ours.
+  //
+  // It is a value rather than a render-time `Date.now()` because `lastSeenMs`
+  // means "when did a poll last contain this carrier", and a render timestamp
+  // answers a different question — this page re-renders for reasons that are not
+  // polls, and each of those used to advance the release clock. Reading it as
+  // data makes the reconcile idempotent and leaves nothing for
+  // `react-hooks/purity` to flag. `components/dashboard/carrier-aggregation.tsx`
+  // takes the same prop from the same source; the decision is shared, not
+  // duplicated per site.
   const retained = React.useRef<ResolvedCarrier[]>([]);
-  const resolved = isStale
-    ? retained.current
-    : reconcileCarriers(
-        retained.current,
-        data?.network?.carrier_components ?? [],
-        networkType,
-        // Wall clock, deliberately, and it must stay wall clock: `lastSeenMs`
-        // set here is read back by `enrichCarriers`, which computes the release
-        // age against its own `Date.now()`. Sourcing this from the poller's
-        // `timestamp` instead would look purer while silently comparing the
-        // modem's clock against the browser's.
-        //
-        // `react-hooks/purity` flags any render-time `Date.now()`. Here the
-        // per-render read IS the intent — retention is this client's own
-        // observation of elapsed time — and the reconcile is idempotent in it.
-        // `components/dashboard/carrier-aggregation.tsx:141` is the same call
-        // and currently trips the same rule unsuppressed; if that rule is to be
-        // honoured, both sites need one shared decision, not two local hacks.
-        // eslint-disable-next-line react-hooks/purity
-        Date.now(),
-      );
+  const resolved =
+    isStale || receivedAtMs === null
+      ? retained.current
+      : reconcileCarriers(
+          retained.current,
+          data?.network?.carrier_components ?? [],
+          networkType,
+          receivedAtMs,
+        );
   React.useEffect(() => {
     retained.current = resolved;
   });
 
+  // `enrichCarriers` takes the arrival clock too, for the "released Ns ago"
+  // reading. It used to call `Date.now()` internally, which the purity rule
+  // cannot see — the rule only analyses Component and Hook bodies, not plain
+  // helpers they call — so that read was an invisible instance of the same
+  // problem. Both clocks now come from one stamp, which is also why the label
+  // and the release decision can no longer disagree.
+  //
+  // The `?? 0` is unreachable: `resolved` is only non-empty once a reconcile has
+  // run, and a reconcile requires an arrival time.
   const carriers = React.useMemo(
     () =>
       enrichCarriers(
@@ -97,8 +111,9 @@ const CellularInformationComponent = () => {
         networkType,
         data?.nr?.arfcn ?? null,
         data?.nr?.scs ?? null,
+        receivedAtMs ?? 0,
       ),
-    [resolved, networkType, data?.nr?.arfcn, data?.nr?.scs],
+    [resolved, networkType, data?.nr?.arfcn, data?.nr?.scs, receivedAtMs],
   );
   const summary = React.useMemo(() => summariseRadio(carriers), [carriers]);
 

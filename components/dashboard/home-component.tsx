@@ -24,7 +24,9 @@ const POLL_BUFFER_MS = 250; // Small lag past each daemon write to avoid catchin
 const HomeComponent = () => {
   const { t } = useTranslation("dashboard");
   const [pollInterval, setPollInterval] = React.useState<number>(DEFAULT_POLL_MS);
-  const { data, isLoading, isStale, error } = useModemStatus({ pollInterval });
+  const { data, isLoading, isStale, receivedAtMs, error } = useModemStatus({
+    pollInterval,
+  });
   const { data: aboutDevice } = useAboutDevice();
 
   // Tie poll cadence to the ping daemon's write interval (Connection Sensitivity).
@@ -143,6 +145,7 @@ const HomeComponent = () => {
             networkType={networkType}
             isLoading={isLoading}
             isStale={isStale}
+            receivedAtMs={receivedAtMs}
           />
         </motion.div>
       </motion.div>

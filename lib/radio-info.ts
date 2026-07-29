@@ -241,10 +241,23 @@ export function enrichCarriers(
   networkType: string,
   nrArfcn: number | null,
   nrScs: number | null,
+  /**
+   * Browser wall-clock ms at which the snapshot behind `resolved` arrived, used
+   * only for the `releasedForMs` reading.
+   *
+   * A parameter rather than a `Date.now()` call in here, and the reason is worth
+   * keeping: this function is called from a component's render path, so reading
+   * a clock inside it made the same mistake `react-hooks/purity` flags at a call
+   * site — except the rule never reported it, because it analyses Component and
+   * Hook bodies and does not trace into ordinary helpers they call. Taking the
+   * clock as an argument is what makes that impossible rather than merely
+   * unreported, and it means the release DECISION (made by `reconcileCarriers`)
+   * and the release LABEL (made here) are measured against the same instant.
+   */
+  nowMs: number,
 ): EnrichedCarrier[] {
   void networkType; // roles are already assigned upstream by assignRoles()
 
-  const nowMs = Date.now();
   let sccSeen = 0;
 
   return resolved.map((carrier) => {

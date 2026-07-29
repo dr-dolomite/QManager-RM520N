@@ -11,7 +11,8 @@ import type { ModemStatus } from "@/types/modem-status";
 // interval. Provides loading/error states and staleness detection.
 //
 // Usage:
-//   const { data, isLoading, isStale, error, refresh } = useModemStatus();
+//   const { data, isLoading, isStale, receivedAtMs, error, refresh } =
+//     useModemStatus();
 //
 // The hook does NOT touch the modem — it only reads the pre-built JSON cache.
 // =============================================================================
@@ -39,6 +40,18 @@ export interface UseModemStatusReturn {
   isLoading: boolean;
   /** True if the data's timestamp is older than the stale threshold */
   isStale: boolean;
+  /**
+   * Browser wall-clock ms at the moment the current `data` LANDED in this
+   * client. `null` until the first successful fetch.
+   *
+   * This exists so consumers that measure elapsed time against a snapshot can
+   * do it without reading a clock during render. It is deliberately NOT
+   * `data.timestamp`: that field is stamped by the modem, and comparing it to a
+   * browser `Date.now()` compares two unsynchronised clocks. It is deliberately
+   * NOT a ticking value either — it changes only when a snapshot arrives, which
+   * is what makes a render that consumes it idempotent.
+   */
+  receivedAtMs: number | null;
   /** Error message if the last fetch failed */
   error: string | null;
   /** Manually trigger an immediate refresh */
@@ -54,6 +67,7 @@ export function useModemStatus(
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isStale, setIsStale] = useState(false);
+  const [receivedAtMs, setReceivedAtMs] = useState<number | null>(null);
 
   // Use ref to track if the component is mounted (prevent state updates after unmount)
   const mountedRef = useRef(true);
@@ -75,9 +89,25 @@ export function useModemStatus(
       setData(json);
       setError(null);
 
-      // Check staleness: compare the JSON timestamp to current time
-      const now = Math.floor(Date.now() / 1000);
-      const age = now - json.timestamp;
+      // ONE clock read serves both consumers below, so a snapshot's arrival
+      // time and its computed age can never disagree by the microseconds
+      // between two `Date.now()` calls.
+      //
+      // This callback is the right place — and the only right place — to read a
+      // clock in this hook. It runs once per landed response, not once per
+      // render, so nothing here re-runs when React re-renders or replays a
+      // component. Consumers that need "how long since this snapshot" read
+      // `receivedAtMs` as data instead of reaching for their own `Date.now()`
+      // during render, which is what `react-hooks/purity` is pointing at when
+      // it flags one.
+      const nowMs = Date.now();
+      setReceivedAtMs(nowMs);
+
+      // Staleness compares the MODEM's timestamp against the browser's clock.
+      // The two are unsynchronised, which the 10s threshold absorbs; it is not
+      // precise enough to be worth correcting, and a drifting modem clock
+      // showing as stale is the safe direction to fail.
+      const age = Math.floor(nowMs / 1000) - json.timestamp;
       setIsStale(age > STALE_THRESHOLD_SECONDS);
 
       // Clear loading state after first successful fetch
@@ -126,5 +156,5 @@ export function useModemStatus(
     };
   }, [fetchData, pollInterval, enabled]);
 
-  return { data, isLoading, isStale, error, refresh };
+  return { data, isLoading, isStale, receivedAtMs, error, refresh };
 }
