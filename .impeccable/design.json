@@ -192,12 +192,12 @@
       {
         "name": "standard",
         "value": "300ms cubic-bezier(0.2, 0, 0, 1)",
-        "purpose": "Nav indicator translate, card entrance, meter fill, chip container morph. In code: ease-standard plus --duration-standard."
+        "purpose": "Nav indicator translate, card entrance, chip container morph, chart draw-in, the meter fill RETARGET (not its arrival, which is emphasized), and the down leg of the value tick. In code: ease-standard plus --duration-standard."
       },
       {
         "name": "quick",
         "value": "180ms ease-out",
-        "purpose": "Label swaps, live value ticks, hover tints, focus rings. In code: ease-quick plus --duration-quick."
+        "purpose": "Label swaps, hover tints, focus rings, the skeleton crossfade. In code: ease-quick plus --duration-quick. NOT the live value tick: the tick was 180ms in an earlier reading and is now a composed 700ms gesture with its own entry below. A single quick is under the threshold where an opacity change on text is visible at all."
       },
       {
         "name": "ambient",
@@ -211,8 +211,8 @@
       },
       {
         "name": "ca-meter-fill",
-        "value": "@keyframes ca-meter-fill { from { transform: scaleX(0) } } / 300ms cubic-bezier(0.2, 0, 0, 1)",
-        "purpose": "Meter fill on first paint only (Motion Guide recipe 07). The keyframe carries a `from` and deliberately no `to`, so it animates up to whatever scale the element inline transform already holds: the correct end state stays in the DOM and the keyframe describes only the journey. That is the Non-Load-Bearing Rule satisfied literally. Do not substitute a requestAnimationFrame-armed state flip; rAF does not fire in a backgrounded tab and would strand every meter at zero. Subsequent polls move the scale through a transition rather than replaying."
+        "value": "@keyframes ca-meter-fill { from { transform: scaleX(0) } } / arrival 400ms cubic-bezier(0.05, 0.7, 0.1, 1) with animation-delay --meter-index * 60ms and animation-fill-mode backwards; retarget transition 300ms cubic-bezier(0.2, 0, 0, 1)",
+        "purpose": "Meter fill on first paint only (Motion Guide recipe 07). TWO clocks, deliberately: the ARRIVAL travels 0 to full and runs on emphasized, while the poll RETARGET moves a few percent and stays on standard. Both were standard until they were split, which is why the fill used to read as a snap - duration has to scale with distance, and the arrival is the longest journey a meter ever makes. The keyframe carries a `from` and deliberately no `to`, so it animates up to whatever scale the element inline transform already holds: the correct end state stays in the DOM and the keyframe describes only the journey. That is the Non-Load-Bearing Rule satisfied literally. Do not substitute a requestAnimationFrame-armed state flip; rAF does not fire in a backgrounded tab and would strand every meter at zero. `backwards` fill is load-bearing for the same reason it is on the value tick: without it a delayed meter paints at full scale, jumps to zero when its turn comes, and fills from there."
       },
       {
         "name": "ca-segment-enter",
@@ -226,8 +226,23 @@
       },
       {
         "name": "value-tick",
-        "value": "opacity 1 to 0.35 to 1, 180ms ease-out (Web Animations API)",
-        "purpose": "The live value tick, implemented as TickingValue (components/ui/ticking-value.tsx) over useValueTick. WAAPI rather than a keyed remount, so it does not churn the DOM inside a polling surface aria-live region, and so a value moving mid-dip interrupts and retargets instead of queueing behind the device. Fires on change and never on first paint; arrival belongs to the skeleton crossfade. The one place reduced motion removes an opacity change rather than preserving it, because a repeating luminance flash every two seconds carries no information the new number is not already carrying. Requires tabular-nums."
+        "value": "opacity 1 -> 0.35 -> 1 over 700ms (DUR.standard + DUR.emphasized), ASYMMETRIC: down leg 300ms cubic-bezier(0.2, 0, 0, 1), dip floor at offset 0.4286 (~43%), up leg 400ms LINEAR; fill backwards (Web Animations API)",
+        "purpose": "The live value tick, implemented as TickingValue (components/ui/ticking-value.tsx) over useValueTick (hooks/use-value-tick.ts), with its numbers in TICK (lib/motion.ts). WAAPI rather than a keyed remount, so it does not churn the DOM inside a polling surface aria-live region, and so a value moving mid-dip interrupts and retargets instead of queueing behind the device. Fires on change and never on first paint; arrival belongs to the skeleton crossfade. THE ASYMMETRY IS THE WHOLE RECIPE: the dip is the event and the return is the settle. Three successive readings were all too fast, and the third is the instructive one - at 700ms with an EASED return it measured 0.35 to 0.89 in the return's first 100ms and then spent 300ms crawling 0.89 to 1.00, which is under the threshold where an opacity change on text is visible, so a nominally-700ms gesture was perceptually ~400ms. Hence the linear return, which deliberately breaks the each-leg-carries-its-own-token's-curve rule: every curve on this scale is front-loaded because they are shaped for content that ARRIVES, and a return-to-rest has no arrival to sell. A DURATION IS ONLY AS LONG AS ITS VISIBLE PART. `fill: backwards` is load-bearing under the stagger below - without it a delayed tick reads snap-freeze-dip - and the pre-cancel computed-opacity read is what makes a mid-dip retarget work, because cancel() reverts the node to its resting opacity so asking afterwards always answers 1. Reduced motion removes this opacity change rather than preserving it, the one place in the product that does, because a repeating luminance flash every poll carries no information the new number is not already carrying. Requires tabular-nums."
+      },
+      {
+        "name": "tick-stagger-step",
+        "value": "100ms (TICK_STAGGER_STEP), rank clamped at MAX_RANK 7",
+        "purpose": "A card full of live figures cascades rather than flashing. TickGroup (components/ui/tick-group.tsx) renders no DOM, sits one-per-card-body, and turns useValueTick from start-on-change into enqueue-on-change; the group drains on a shared microtask and starts each member at rank * 100ms. THIS IS THE PRODUCT'S ONLY NON-ENTRANCE STAGGER STEP and it is deliberately neither entrance step: an entrance cascade races the user's patience so it stays dense, while a tick cascade races nothing - the card is already on screen - and only has to read as a sequence. It shipped wrong at the 40ms row step, where four dips spanned 120ms against a much longer dip, overlapped, and still read as one flash. Floor is ~80ms (dips merge below it); ceiling is the poll interval. The mock demo's 350ms is NOT the value: that is a 2s looping showcase's legibility spacing, and at 350ms a five-value cascade spends 1.4s on lead alone and outlives its own poll. Rank is over the values that CHANGED, not ordinal position, and is derived from live DOM order via compareDocumentPosition so document order is reading order at every breakpoint. The rule this closes: only two ENTRANCE stagger steps exist (60ms cards, 40ms rows); a third entrance step is still a mistake, and this exception is closed."
+      },
+      {
+        "name": "stagger-step-rows",
+        "value": "40ms (STAGGER_STEP_ROWS)",
+        "purpose": "The row cascade step, for metric rows inside a card, as against the 60ms step between cards. Tighter than the card step because rows are read as one block and a 60ms step across eight rows would leave the last row arriving half a second after the first. These two are the only ENTRANCE stagger steps in the product; no surface declares its own."
+      },
+      {
+        "name": "chart-draw",
+        "value": ".chart-draw, stroke 300ms cubic-bezier(0.2, 0, 0, 1); area fill same duration delayed 80ms",
+        "purpose": "A line chart plots itself on first paint instead of appearing whole: the stroke draws left to right and the area fill follows 80ms behind, so the line reads as leading and the fill as following rather than the two arriving as one block. Applied to the ChartContainer, reaching recharts' own selectors, and every series needs pathLength={1}. A live chart runs TWO clocks and they must not be confused: the ENTRANCE is this CSS animation and must be applied via useChartDrawIn() (hooks/use-chart-motion.ts), never a hardcoded class, because recharts remounts each series on every data change and a permanent class replays the draw on every poll; the poll UPDATE is recharts' own interpolation, configured by useChartSeriesMotion() at 300ms standard. Series colours are --chart-nr / --chart-lte, never the numbered --chart-1..6."
       }
     ],
     "breakpoints": [

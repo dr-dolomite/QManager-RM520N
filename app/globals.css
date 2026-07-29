@@ -583,7 +583,8 @@
 
 /* Meter fill: transform, never width — otherwise every meter on the dashboard
    triggers layout on each poll, on a CPU that is also carrying the user's
-   traffic. `standard`, because a fill is a content change, not a mass one. */
+   traffic. Two durations, not one: the arrival runs on `emphasized` and the poll
+   retarget on `standard` — see the note inside the rule for why. */
 .ca-meter {
   /* Fills on first paint only. The tiles are keyed by carrier, so this runs
      once per carrier lifetime: on arrival, and again for a carrier the radio
