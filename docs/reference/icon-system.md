@@ -1,6 +1,6 @@
 # Icon System
 
-QManager draws its glyphs from two libraries separated by a hard, tracked boundary. **Material Symbols Rounded** is scoped to the sidebar navigation, the dashboard route, the two pre-auth routes `/` and `/login/`, and the **`/cellular/` index**; **lucide-react** covers every other route, including the `/cellular/` sub-routes. The boundary exists because the failure it prevents is *two icon sets inside one screen*, not "Material is nicer than lucide". Before this change the dashboard carried four icon sets in a single viewport (`lucide-react`, `react-icons/md`, `react-icons/fa6`, `react-icons/tb`) sitting beside a sidebar that was already on Material Symbols. The rule that governs it is DESIGN.md's **Icon-Boundary Rule**, which replaced the retired Nav-Glyph Boundary Rule.
+QManager draws its glyphs from two libraries separated by a hard, tracked boundary. **Material Symbols Rounded** is scoped to the sidebar navigation, the dashboard route, the two pre-auth routes `/` and `/login/`, and the **entire `/cellular/` route family** (index plus all 17 sub-routes); **lucide-react** covers every other route. The boundary exists because the failure it prevents is *two icon sets inside one screen*, not "Material is nicer than lucide". Before this change the dashboard carried four icon sets in a single viewport (`lucide-react`, `react-icons/md`, `react-icons/fa6`, `react-icons/tb`) sitting beside a sidebar that was already on Material Symbols. The rule that governs it is DESIGN.md's **Icon-Boundary Rule**, which replaced the retired Nav-Glyph Boundary Rule.
 
 Material Symbols is a **self-hosted, ligature-driven icon font**, not an SVG component library. That single fact produces every gotcha on this page: the sizing behaviour, the build-time subsetting step, and the way a missing glyph fails.
 
@@ -12,7 +12,7 @@ Material Symbols is a **self-hosted, ligature-driven icon font**, not an SVG com
 | **Canonical glyph list (single source of truth)** | `MATERIAL_SYMBOL_NAMES` in `components/ui/material-symbol-names.ts` |
 | Allowed glyph names (TS type) | `MaterialSymbolName`, **derived** from that array |
 | Subset generator | `scripts-dev/subset-icons.ts` (imports the same array) |
-| Shipped font file | `app/fonts/MaterialSymbolsRounded-subset.woff2` (71 glyphs, 26.4 KB) |
+| Shipped font file | `app/fonts/MaterialSymbolsRounded-subset.woff2` (95 glyphs, 35.2 KB) |
 | Generator manifest | `app/fonts/MaterialSymbolsRounded-subset.json` — what was requested + sha256 of what shipped |
 | Font binding | `app/layout.tsx` (`next/font/local`, bound to a CSS variable) |
 | Regenerate the font | `bun run icons:subset` |
@@ -35,8 +35,7 @@ git add app/fonts/MaterialSymbolsRounded-subset.woff2 \
 | Sidebar nav (`components/app-sidebar.tsx`, `nav-section.tsx`, `nav-user.tsx`) | Material Symbols |
 | Dashboard route (`components/dashboard/*`) | Material Symbols |
 | **Pre-auth routes `/` and `/login/`** (`components/public/*`, `components/auth/login-*.tsx`, `components/ui/tonal-banner.tsx`) | Material Symbols |
-| **`/cellular/` INDEX only** (`components/cellular/cellular-information.tsx`, `components/cellular/radio/**`) | Material Symbols |
-| `/cellular/` **sub-routes** (Cell Scanner, Band Locking, SMS, APN Management, Antenna Alignment, ...) | **lucide**: 17 routes, still pending, see below |
+| **All of `/cellular/`** (index `components/cellular/cellular-information.tsx` + `components/cellular/radio/**`, and all 17 sub-routes: Cell Scanner, Band Locking, SMS, APN Management, Antenna Alignment, Antenna Statistics, Tower Locking, Custom SIM Profiles, ...) | Material Symbols |
 | `/setup/` (`components/onboarding/**`) | **lucide** — deliberately out of scope, see below |
 | Local Network, Monitoring, System Settings, their dialogs | lucide |
 | Header bar above the content (`SidebarTrigger`, breadcrumbs) | lucide — it is not the sidebar |
@@ -49,18 +48,15 @@ This matters more than it sounds, because `components/auth/` reads like a pre-au
 
 > ⚠️ WARNING — known false positive. `grep -rn lucide-react components/auth/` returns a hit on `components/auth/change-password-dialog.tsx`. **That is correct code, not a leak.** The dialog is mounted from `components/nav-user.tsx` — the authenticated sidebar — so it renders on lucide surfaces and keeps its lucide glyphs (`EyeIcon`, `EyeOffIcon`). Only the files that actually render on `/` or `/login/` (`login-component.tsx`, `login-device-name.tsx`, `login-language-picker.tsx`) are inside the Material half of the boundary. Do not "fix" the dialog; converting it would pull Material Symbols onto an authed surface.
 
-### The `/cellular/` caveat: the boundary is currently *inside* a route family
+### The `/cellular/` extension: closed
 
-The Cellular and Radio Information page (`/cellular/`, the section index) was retargeted to Material Symbols as part of the M3 migration's step 4. **Its 17 sub-routes were not.** This is the first and only place the boundary sits inside a route family rather than around one, and a user walking from the index into Cell Scanner crosses icon libraries mid-section.
+The Cellular and Radio Information page (`/cellular/`, the section index) was retargeted to Material Symbols as part of the M3 migration's step 4, but its 17 sub-routes were left on lucide — the first and only place the boundary sat *inside* a route family rather than around one, and a user walking from the index into Cell Scanner crossed icon libraries mid-section. That gap is now closed: all 17 sub-routes (Cell Scanner, Band Locking, SMS, APN Management, Antenna Alignment, Antenna Statistics, Tower Locking, Custom SIM Profiles and the rest) are converted, across 49 files under `components/cellular/**`. **A lucide glyph anywhere under `/cellular/` is no longer correct code** (see the one deliberate exception just below) — the whole family reads as one screen now.
 
-That was accepted as a step, not as a resting state. The honest risk is the ordinary one: **the follow-up never happens**, and "temporary" quietly becomes the documented behaviour. It is recorded here and in `DESIGN.md` > Icon-Boundary Rule specifically so the next person finds a tracked debt rather than what looks like inconsistent code.
+The reasoning that was recorded while the gap stood is worth keeping, because it is the reason the conversion was done as one pass rather than piecemeal: retargeting one sub-route at a time reproduces the same split one level down, and doing it as two separate passes means touching every shared primitive twice. It also validates the original worry — the risk named at the time was "the follow-up never happens, and temporary quietly becomes the documented behaviour" — this is the case where the follow-up *did* happen, on the next Tier 3 pass through the route family.
 
-Two consequences while it stands:
+One concrete conversion cost, already known before this pass: `components/ui/accordion.tsx`'s `AccordionTrigger` bakes in a lucide `ChevronDownIcon` (and a legacy `rounded-md`). `active-bands-card.tsx:489` reaches for `AccordionPrimitive.Trigger` directly to avoid it, preserving every Radix affordance. Any shared primitive with a hardcoded lucide glyph needs the same treatment or a real fix — and this pass surfaced a second, more expensive case: see "Shared primitives style themselves on `>svg`" below.
 
-- **A lucide glyph anywhere under `/cellular/` except the index is correct code.** Do not "fix" one.
-- **Convert the family in one change, or leave it alone.** Retargeting one sub-route at a time reproduces exactly this split one level down, and Cell Scanner in particular is *also* a step 4 target, so doing the two passes separately means touching it twice.
-
-One concrete conversion cost worth knowing: `components/ui/accordion.tsx`'s `AccordionTrigger` bakes in a lucide `ChevronDownIcon` (and a legacy `rounded-md`). `active-bands-card.tsx:489` reaches for `AccordionPrimitive.Trigger` directly to avoid it, preserving every Radix affordance. Any shared primitive with a hardcoded lucide glyph will need the same treatment or a real fix.
+**One lucide import deliberately survives under `components/cellular/` and it is correct code.** `components/cellular/custom-profiles/apply-progress-dialog.tsx` imports `RotateCwIcon` to pass into `Banner`'s `icon` prop, which is typed `LucideIcon`. `components/ui/banner.tsx` is the page-level, route-agnostic banner and stays lucide by the existing rule (it mounts on lucide pages too) — the same shape of false positive as `components/auth/change-password-dialog.tsx`. Grepping `lucide-react` under `components/cellular/` will find this hit; do not "fix" it.
 
 ### The `/setup/` caveat
 
@@ -125,11 +121,14 @@ Subset growth, by the change that caused it:
 | Sidebar only | 19 | 10.4 KB |
 | + dashboard route | 56 | 20.2 KB |
 | + pre-auth `/` and `/login/` | 64 | 23.9 KB |
-| **+ `/cellular/` index** | **71** | **26.4 KB** |
+| + `/cellular/` index | 71 | 26.4 KB |
+| **+ `/cellular/` sub-routes (17)** | **95** | **35.2 KB** |
 
 The eight glyphs added for the pre-auth retarget: `dark_mode`, `error`, `light_mode`, `lock`, `lock_clock`, `translate`, `wifi_off`, `wifi_tethering_off`. (The row above reads 64 because one further glyph landed between that change and this one without the table being touched; the baseline this change grew from was 65 glyphs / 24.6 KB.)
 
 The **six** glyphs added for the `/cellular/` index: `content_copy`, `expand_more`, `graphic_eq`, `layers`, `settings_input_antenna`, `sim_card`.
+
+The **24** glyphs added for the 17 `/cellular/` sub-routes, each verified against the live Google Fonts endpoint before use (see "Verifying a glyph name and its substitution" below): `add`, `auto_awesome`, `bolt`, `call`, `delete`, `done_all`, `drag_indicator`, `edit`, `explore`, `first_page`, `location_on`, `lock_open`, `more_horiz`, `more_vert`, `rocket_launch`, `route`, `search`, `send`, `shield`, `sos`, `sports_esports`, `trophy`, `videocam`, `work`.
 
 > ⚠️ WARNING: the pre-auth extension is still the one where the weight lands on the **first page a visitor loads**. The dashboard's 10 KB rode behind a login; the splash does not, and it now carries 26.4 KB. It was accepted knowingly: the font is served from the modem over LAN, and the alternative — two icon libraries inside one 404px card — is the exact failure the boundary exists to prevent. Every subsequent boundary extension inherits that cost, so the rejection discipline below is not fussiness.
 
@@ -145,7 +144,17 @@ The naive read of the `/cellular/` comp asked for **11 new glyphs and roughly +5
 | `travel_explore` | `radar` was already present and reads better against the actual copy ("the scanner sweeps"). Nearest-neighbour glyph matching against a comp is not a reason to add one |
 | `5g` | **A typographic mark, not a pictogram.** DESIGN.md ships "5G" / "4G+" / "3G" as text or as a `Badge`, which is also why the two `react-icons/md` RAT marks survive as a named exception rather than migrating. The tile carries `cell_tower` (the radio itself) with the mark as an identity Badge beside it |
 
-The general test, in order: **is it already in the subset under a different name; does an existing transform or text treatment express it; is it a mark rather than a pictogram.** Only a "no" to all three earns a glyph.
+The general test, in order: **is it already in the subset under a different name; does an existing transform or text treatment express it; is it a mark rather than a pictogram.** Only a "no" to all three earns a glyph. The `/cellular/` sub-route pass reused this test and turned 11 naively-requested glyphs into 6, roughly the same 2:1 ratio the index pass produced:
+
+| Requested | Rejected because |
+|-----------|-------------------|
+| `ChevronLeft` (back nav) | Already covered — `chevron_right` rotated 180° serves both directions, same reasoning as the accordion chevron above |
+| `ChevronsRight` (skip-to-end control) | `first_page` rotated 180° reads as "skip to end" without a second glyph; one ligature, one transform, two affordances |
+| `PercentIcon` | **A typographic mark, not a pictogram** — the literal `%` character does the job, same class as the rejected `5g` mark above |
+| `CircleIcon` / `CircleDotIcon` (day-toggle bullet, "not recorded" slot dot) | Plain CSS `<span>`. These are decorative dots whose only state is a CSS class swap; a ligature is unnecessary weight for a bullet |
+| `TbInfoCircleFilled` / `TbAlertTriangleFilled` (`react-icons/tb`) | `info` / `warning` **plus the `filled` prop**. The `Filled` suffix in react-icons is that library's fill *variable axis*, not a separate glyph — Material Symbols already has the same axis, so no new glyph was needed across the 12 files that used these two |
+
+And five more requests were already in the subset under another name, the same "is it already there" check that caught `radar`/`chevron_right` on the index pass: `MoonIcon`→`dark_mode`, `PlaneIcon`→`airplanemode_active`, `UserRoundPenIcon`→`badge`, `MessageSquare`→`sms`, `FileDownIcon`→`download`, `ClockIcon`/`CalendarClockIcon`→`schedule`, `CircleSlashIcon`→`do_not_disturb_on`.
 
 `MATERIAL_SYMBOL_NAMES` lives in its own **import-free** module on purpose. `subset-icons.ts` is run by bun from `scripts-dev/`, which `tsconfig.json` excludes, so pulling the list out of `material-symbol.tsx` would couple font generation to React and the `@/` path alias. The array is referenced only at type level by the component, so bundlers tree-shake it — verified absent from the production chunks, meaning the modem never downloads the 71 strings.
 
@@ -159,6 +168,26 @@ The general test, in order: **is it already in the subset under a different name
 | `components/ui/empty.tsx` | `[&_svg:not([class*='size-'])]:size-6` | yes | **no** |
 
 A parallel sizing rule for `[data-slot=material-symbol]` would lose to the inline style too, so it is not attempted. **Every Material glyph passes `size` explicitly at its call site**: 12 in a dense chip, 15-17 in a status chip or corner badge, 16 where the glyph is the only channel carrying meaning, 24 in an `EmptyMedia`, 96 in a Network Status orb. Only `pointer-events` ports across, via a parallel `[&>[data-slot=material-symbol]]:pointer-events-none` rule added to both files. Both files carry a comment saying so.
+
+## Shared primitives style themselves on `>svg` — mirror the selector, or the layout silently breaks
+
+The sizing gotcha above has a second, worse sibling, found while converting the 17 `/cellular/` sub-routes. Some `components/ui/` primitives don't just *size* on finding an `svg` child — they make their **layout** conditional on it, via Tailwind `has-[>svg]:` variants. `MaterialSymbol` renders a `<span>`, so those selectors never match, and the fallback branch — the one built for "no icon" — wins silently.
+
+Two real instances, both found and fixed in this pass:
+
+- **`components/ui/alert.tsx`**: `grid has-[>svg]:grid-cols-[calc(var(--spacing)*4)_1fr] grid-cols-[0_1fr] has-[>svg]:gap-x-3`. With no `svg` match, the icon column collapses to **zero width** and the gap disappears, so a Material glyph paints directly on top of the alert title. Measured in a browser against the built CSS: no-icon branch is `grid-template-columns: 0px 1880px` with `gap: normal`; the `<svg>` branch is `16px 1852px` with `gap: 12px` — a Material `<span>` was landing on the 0px branch. Fixed by mirroring each rule for `has-[>[data-slot=material-symbol]]:`, so the span now measures identically to the svg. Six `<Alert>` call sites in the converted family were affected.
+- **`components/ui/button.tsx`**: `has-[>svg]:px-3` (and the `xs`/`sm`/`lg` size equivalents) tighten padding on an icon+label button. Left unmirrored, every such button on a Material route silently keeps the wider text-only padding — a quiet ~8px width shift that's consistent across the whole page and therefore easy to miss in review.
+
+**The general rule: when converting a route, grep the shared primitives it renders for `has-[>svg]` and `[&>svg]`, and mirror every *layout* rule for `[data-slot=material-symbol]`.** The one exception is `size-*` rules — those must **not** be mirrored, because the inline `fontSize` already outranks any utility (see above), which is exactly why glyphs pass `size` explicitly instead of relying on a mirrored size selector. This generalizes the `pointer-events` mirror already documented above, which was the first instance of this same pattern — it just happened to be a property, not a whole grid track.
+
+> ⚠️ WARNING: this bug class is invisible to `tsc`, `next build`, `bun run icons:check`, and the design-audit tooling. All four pass cleanly on a broken layout, because none of them render the page — `icons:check` verifies the font artifact, not what consumes it. Only rendering the page catches it. None of the 17 `/cellular/` sub-routes were rendered end-to-end during this pass (they redirect to `/setup/` without a backend, and nothing was loaded on the live modem), so treat the `alert.tsx` and `button.tsx` fixes as verified and everything else on these routes as mechanism-proven but visually unreviewed.
+
+### Verifying a glyph name and its substitution
+
+Two cheap, repeatable checks, worth reusing at the next boundary move rather than re-deriving:
+
+- **Does the name exist?** Request `https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,400,0..1,0&icon_names=<name>` with a desktop `User-Agent`. A real name comes back with a per-request subset URL containing `kit=`; a fake name comes back with the generic, unsubsetted family URL instead. Run a deliberately fake name first, so you know what the negative case looks like before trusting a positive one — this is the same endpoint `scripts-dev/subset-icons.ts` calls, so a name that resolves here will resolve there too.
+- **Did the glyph actually substitute, or is it rendering as literal text?** In a real browser, compare a glyph span's `getBoundingClientRect().width` against its computed `fontSize`. A substituted glyph measures at almost exactly **1.0×** its font size (one em advance, since it's a single character); literal text measures many ems wide. All 24 new glyphs plus 6 pre-existing controls measured at exactly 1.0 in this pass; a deliberately fake name measured at 26.0 — the fake control is what proves the instrument has range, not just a number that happens to look right.
 
 ## Dashboard glyph decisions worth keeping
 
@@ -254,5 +283,5 @@ Ghost at rest, `bg-surface-container` while its menu is open (`data-[state=open]
 - `docs/reference/recent-activities.md` — the dashboard event feed, whose glyphs moved to Material in the same pass
 - `docs/reference/carrier-aggregation.md` — the CA strip, also on the dashboard route
 - `docs/reference/overview-splash.md` — the `/` and `/login/` retarget that extended the boundary to the pre-auth routes
-- `docs/reference/radio-information.md`: the `/cellular/` index retarget that extended the boundary again, and the reason the extension is currently partial
+- `docs/reference/radio-information.md`: the `/cellular/` index retarget that extended the boundary, and the render-time `Date.now()` fix that closed the `react-hooks/purity` asymmetry between it and the dashboard
 - `docs/reference/auth-rate-limiting.md` — the lockout ladder the retargeted login form renders

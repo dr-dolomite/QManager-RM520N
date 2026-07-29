@@ -8,7 +8,7 @@ This doc records the invariants that are cheap to break and expensive to notice:
 
 | Thing | Where |
 | ----- | ----- |
-| Route | `/cellular/` (index only; the 17 sub-routes are unchanged) |
+| Route | `/cellular/` (index; the 17 sub-routes now share its Material Symbols boundary too, see [icon-system.md](icon-system.md)) |
 | Page shell | `components/cellular/cellular-information.tsx` |
 | View model (pure, no React) | `lib/radio-info.ts` |
 | IPv6 / hex helpers (pure) | `lib/ipv6.ts` |
@@ -110,8 +110,10 @@ Two independent reasons, both observed:
 const retained = React.useRef<ResolvedCarrier[]>([]);
 const resolved = isStale
   ? retained.current
-  : reconcileCarriers(retained.current, data?.network?.carrier_components ?? [], networkType, Date.now());
+  : reconcileCarriers(retained.current, data?.network?.carrier_components ?? [], networkType, receivedAtMs);
 ```
+
+`receivedAtMs` comes from `useModemStatus()` — the wall-clock instant the snapshot landed in the fetch callback, not a render-time read. See below for why that distinction was a real bug, not a style nit.
 
 While `isStale` is true the carrier list **freezes** instead of reconciling. This is not an optimisation.
 
@@ -119,13 +121,15 @@ While `isStale` is true the carrier list **freezes** instead of reconciling. Thi
 
 The retention ref is committed in an effect (`:89-91`), not during render, so a render React throws away cannot advance the release clock.
 
-## The render-time `Date.now()`
+## `receivedAtMs`: the render-time `Date.now()` is gone, not suppressed
 
-`cellular-information.tsx:87` reads `Date.now()` during render, under an `eslint-disable-next-line react-hooks/purity`.
+`cellular-information.tsx` and `carrier-aggregation.tsx` used to each read `Date.now()` during render, under an `eslint-disable-next-line react-hooks/purity`. Both reads are now gone — fixed, not silenced. `useModemStatus()` (`hooks/use-modem-status.ts`) stamps the wall-clock instant a snapshot **lands**, in the fetch callback where a clock read already existed, and returns it as `receivedAtMs`. Both components take it as a prop instead of calling `Date.now()` themselves: `cellular-information.tsx` and `carrier-aggregation.tsx` pass it into `reconcileCarriers`, `home-component.tsx` threads it through, and `lib/radio-info.ts`'s `enrichCarriers` now takes `nowMs` as a parameter instead of reading the clock internally.
 
-It must stay **wall clock**. The `lastSeenMs` stamped here is read back by `enrichCarriers`, which computes the release age against its own `Date.now()` (`lib/radio-info.ts:247`, `:303`). Sourcing the stamp from the poller's `timestamp` field instead would look purer and would silently compare *the modem's clock* against *the browser's*, two clocks that have no reason to agree, on a device whose time can move when NTP lands or a timezone is applied. Retention is this client's own observation of elapsed time, so the per-render read is the intent, and the reconcile is idempotent in it.
+This is not just a lint fix — it closes a real latent bug. `lastSeenMs` is supposed to mean "when did a poll last contain this carrier," but it was being fed a **render** timestamp instead. Both components re-render for reasons that have nothing to do with a new poll landing (`carrier-aggregation.tsx` has its own `handoff` state, for one), and each such render advanced the release clock and got committed by the effect. So the 6 s `RELEASE_GRACE_MS` window was actually measuring time since the *last render that happened to include a carrier* — and a burst of unrelated re-renders could carry a carrier across the release threshold with no new data behind it at all. `reconcileCarriers` is now idempotent in its inputs: the same snapshot at the same `receivedAtMs` always produces the same reconciliation, regardless of how many times the component around it re-rendered.
 
-> ⚠️ WARNING: this wants one project-level decision, not two local hacks. `components/dashboard/carrier-aggregation.tsx:141` makes the identical call and trips the identical rule **unsuppressed on `development` today**. Either both sites carry the suppression with this rationale, or the rule is configured off for this pattern repo-wide. Silently suppressing one and leaving the other is the state we are in, and it will read as an oversight to the next person.
+Worth recording: `lib/radio-info.ts` made the identical `Date.now()` call and was **never flagged** by `react-hooks/purity`, because the rule only analyses component/hook bodies and does not trace into a plain helper function they call. Suppressing the two flagged call sites would have made lint go green over an unchanged codebase — the actual violation would have moved from "flagged twice" to "flagged twice and hidden", not "gone".
+
+> ℹ️ NOTE — a toolchain fact worth knowing before trusting a clean `eslint` run on this rule: `eslint-plugin-react-hooks` v7 is compiler-backed, and its analysis **stops at the first violation found in a component** — every later diagnostic in that component is simply never emitted, and an `eslint-disable` on the first one hides the rest along with it. Proven on an isolated probe: a component with one render-time `Date.now()` plus three ref-reads during render reported `purity ×1` only; removing the `Date.now()` then reported `refs ×3`; suppressing the `Date.now()` with `eslint-disable` instead reported **0 errors**. Fixing these two purity violations for real (rather than suppressing) unmasked **16 pre-existing `react-hooks/refs` errors** that had been sitting behind them the whole time — 14 in `carrier-aggregation.tsx`, 2 in `cellular-information.tsx`. App-source lint went from 36 to 51 errors in this pass: `purity` 1→0, `refs` 14→30, every other rule and all 29 warnings unchanged. **Those 16 `refs` errors are pre-existing, not fixed by this change, and are an open decision** — they flag the deliberate, already-documented "read `retained.current` during render to diff against the previously committed chain" `usePrevious`-style pattern used by the stale freeze (see below). Treat them as a known, tracked gap, not as new breakage introduced here and not as something already resolved.
 
 ## Colour: three facts, three channels
 
@@ -215,16 +219,16 @@ The network-type **value** is read from the shared `radio_info.network_type.*` k
 
 ## Icon boundary
 
-This page is the **first `/cellular/` surface on Material Symbols**, and the reason `active-bands-card.tsx:489` reaches for `AccordionPrimitive.Trigger` instead of the shipped `AccordionTrigger` wrapper: that wrapper bakes in a lucide `ChevronDownIcon` (and a legacy `rounded-md`). Every Radix affordance is preserved.
+This page was the **first `/cellular/` surface on Material Symbols**, and the reason `active-bands-card.tsx:489` reaches for `AccordionPrimitive.Trigger` instead of the shipped `AccordionTrigger` wrapper: that wrapper bakes in a lucide `ChevronDownIcon` (and a legacy `rounded-md`). Every Radix affordance is preserved.
 
-> ⚠️ WARNING: the boundary now covers the `/cellular/` **index only**. Its 17 sub-routes (Cell Scanner, Band Locking, SMS, APN Management, Antenna Alignment and the rest) are still lucide, which means the `/cellular/` tree currently carries both libraries. That is a tracked, temporary inconsistency, not a finished state. See [icon-system.md](icon-system.md) and DESIGN.md > Icon-Boundary Rule.
+The index's 17 sibling sub-routes (Cell Scanner, Band Locking, SMS, APN Management, Antenna Alignment and the rest) have since been converted too, closing what was a tracked, temporary split inside the `/cellular/` route family. See [icon-system.md](icon-system.md) for the full conversion (49 files, +24 glyphs) and DESIGN.md > Icon-Boundary Rule, which now covers the whole family rather than just this index.
 
-Six glyphs were added for this page: `content_copy`, `expand_more`, `graphic_eq`, `layers`, `settings_input_antenna`, `sim_card`. `icon-system.md` records the ones deliberately **not** added and the reasoning, which is reusable.
+Six glyphs were added for this page specifically: `content_copy`, `expand_more`, `graphic_eq`, `layers`, `settings_input_antenna`, `sim_card`. `icon-system.md` records the ones deliberately **not** added for this page and for the sub-routes, and the reasoning, which is reusable.
 
 ## Known gaps
 
 - **`formatCarrierAggregation` still reads `ca_count` / `nr_ca_count`** in the left card's summary row. Documented above; not consumed by the tiles or the bands card.
-- **`react-hooks/purity` is suppressed here and not on the dashboard**, for the same call. One decision is owed.
+- **16 `react-hooks/refs` errors are now visible and unfixed** (14 in `carrier-aggregation.tsx`, 2 in `cellular-information.tsx`), unmasked by fixing the `react-hooks/purity` asymmetry described above. They flag the deliberate `usePrevious`-style pattern behind the stale freeze; a real decision (suppress with rationale, or restructure) is still owed, but this is *not* new breakage from this change.
 - **SA mode is implemented but unobserved.** `resolveRadioMode`'s `registered-sa` branch, the SA identity-field switch (`cellular-information-card.tsx:430-438`), and the NR-holds-the-PCC role assignment have never run against live hardware. Treat them as designed-but-untested, exactly as [carrier-aggregation.md](carrier-aggregation.md) does.
 - **Three glyph comments in `summary-tiles.tsx` are stale.** They say `graphic_eq`, `layers` and `settings_input_antenna` are "not in the shipped subset" and name a fallback; the glyphs were added in the same change and the code uses them. Comment-only drift, cosmetic.
 
