@@ -64,12 +64,12 @@ function monoCount(value: string) {
 }
 
 /**
- * `28 s` under a minute, `4:32` above it. The lockout ladder reaches 900s, so
- * minutes are genuinely reachable and a bare `847 s` would be a number the
+ * `28s` under a minute, `4:32` above it. The lockout ladder reaches 900s, so
+ * minutes are genuinely reachable and a bare `847s` would be a number the
  * reader has to do arithmetic on.
  */
 function formatLockout(totalSeconds: number): string {
-  if (totalSeconds < 60) return `${totalSeconds} s`;
+  if (totalSeconds < 60) return `${totalSeconds}s`;
   const minutes = Math.floor(totalSeconds / 60);
   const seconds = totalSeconds % 60;
   return `${minutes}:${String(seconds).padStart(2, "0")}`;
