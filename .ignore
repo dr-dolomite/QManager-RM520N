@@ -1,0 +1,27 @@
+# ripgrep-only ignore file (honored by rg and the Claude Code Grep tool).
+#
+# This is NOT .gitignore — every file listed here is still tracked, still built,
+# and still deployed. It only keeps large generated/data blobs out of repo-wide
+# CONTENT SEARCHES, where a single incidental match can dump hundreds of KB.
+#
+# All of these remain directly readable by exact path (Read, jq, cat) — the only
+# thing that changes is that a broad `grep` sweep no longer walks them.
+#
+# If you genuinely need to search one of these, pass it explicitly:
+#   rg --no-ignore -F "<term>" scripts/www/cgi-bin/quecmanager/operator-list.json
+
+# 415 KB carrier/PLMN lookup table shipped to the device. Consulted by exact key,
+# never by full-text search.
+scripts/www/cgi-bin/quecmanager/operator-list.json
+
+# 498 KB single-path SVG. Text, so ripgrep will happily search it and return one
+# unreadable multi-hundred-KB line.
+public/device-icon.svg
+
+# Lockfile. Use `bun pm ls` / `bun why` rather than grepping it.
+bun.lock
+
+# Binary deps are auto-skipped by ripgrep's binary detection; listed for the
+# reader's benefit, not because rg needs the hint.
+dependencies/atcli_smd11
+dependencies/sms_tool
