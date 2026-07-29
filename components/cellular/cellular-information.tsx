@@ -133,12 +133,7 @@ const CellularInformationComponent = () => {
       animate="visible"
     >
       <motion.div variants={staggerItem}>
-        <RadioPageHeader
-          isLoading={isLoading}
-          isStale={isStale}
-          onRefresh={refresh}
-          buildDiagnostics={buildDiagnostics}
-        />
+        <RadioPageHeader buildDiagnostics={buildDiagnostics} />
       </motion.div>
 
       {/* Outside the cascade on purpose: the banner carries its own
@@ -189,7 +184,6 @@ const CellularInformationComponent = () => {
               carriers={carriers}
               summary={summary}
               isLoading={isLoading}
-              isStale={isStale}
             />
           </motion.div>
         </motion.div>

@@ -17,25 +17,17 @@ import type { RadioMode, RadioSummary } from "@/lib/radio-info";
 // 53-87. Anatomy is kept (52px circular glyph disc → eyebrow → large value →
 // caption); every VALUE in the mock is a fabrication and is re-derived here.
 //
-// COLOUR DISCIPLINE (DESIGN.md > Identity-Chip Rule).
-// The mock paints all four tiles: primary, primary-container, uplink-container
-// and — for Active MIMO — `--sc`, which ships here as `lte-container`. That
-// last one asserts "this is the 4G LTE leg" about a figure that is not about
-// LTE at all (live value is a compound `LTE 1x2 | NR 2x4`), and the same
-// objection applies more weakly to painting Bandwidth and Carrier aggregation
-// in brand hues they do not own.
-//
-// So exactly ONE tile carries colour, and it is the only one whose subject IS
-// a radio: Network type, filled in the identity role of the radio actually
-// registered (NR blue / LTE violet). The other three are neutral
-// `surface-container`. This also buys the page a real focal point instead of
-// four competing saturated blocks, which is what makes a degraded state
-// legible rather than festive.
+// COLOUR DISCIPLINE (matches the mock 1:1).
+// All four tiles carry colour: Network type is the identity FILL (`bg-primary`
+// / `bg-lte`, whichever radio is actually registered), Bandwidth is
+// `primary-container`, Carrier aggregation is `uplink-container`, and Active
+// MIMO is `lte-container` (the mock's `--sc`).
 //
 // Ink pairing: a tile is either a FILL pair (`bg-primary` + `text-primary-
-// foreground`) or a CONTAINER pair, never crossed. The glyph disc inside a
-// filled tile is a full container pair of the same role, so it survives
-// grayscale instead of relying on a white-alpha scrim like the mock's.
+// foreground`) or a CONTAINER pair, never crossed. The glyph disc always
+// inverts the tile's pairing — a FILL tile gets a CONTAINER disc, a CONTAINER
+// tile gets a FILL disc — so the icon pops instead of disappearing into a
+// same-tone circle, and it survives grayscale either way.
 // =============================================================================
 
 /**
@@ -60,6 +52,15 @@ export const TILE_SHAPE = {
 const NEUTRAL_TILE = "bg-surface-container text-on-surface";
 const NEUTRAL_DISC = "bg-surface-container-high text-on-surface-variant";
 const CAPTION = "text-xs text-on-surface-variant";
+
+// Bandwidth / Carrier aggregation / Active MIMO container tones. Each disc
+// inverts to the tile's FILL pair so the glyph pops off its own container.
+const BANDWIDTH_TILE = "bg-primary-container text-on-primary-container";
+const BANDWIDTH_DISC = "bg-primary text-primary-foreground";
+const CARRIERS_TILE = "bg-uplink-container text-on-uplink-container";
+const CARRIERS_DISC = "bg-uplink text-uplink-foreground";
+const MIMO_TILE = "bg-lte-container text-on-lte-container";
+const MIMO_DISC = "bg-lte text-lte-foreground";
 
 function Tile({
   glyph,
@@ -222,13 +223,15 @@ export function SummaryTiles({ mode, summary, mimo }: SummaryTilesProps) {
       <Tile
         glyph="graphic_eq"
         label={t("radio_info.tiles.bandwidth.label")}
+        tone={BANDWIDTH_TILE}
+        disc={BANDWIDTH_DISC}
         caption={
           hasBandwidth && breakdown.length > 0
             ? breakdown.join(" + ")
             : t("radio_info.tiles.bandwidth.caption_unavailable")
         }
         captionClassName={cn(
-          CAPTION,
+          "text-xs opacity-85",
           hasBandwidth && breakdown.length > 0 && "font-mono tabular-nums",
         )}
       >
@@ -247,6 +250,9 @@ export function SummaryTiles({ mode, summary, mimo }: SummaryTilesProps) {
       <Tile
         glyph="layers"
         label={t("radio_info.tiles.carriers.label")}
+        tone={CARRIERS_TILE}
+        disc={CARRIERS_DISC}
+        captionClassName="text-xs opacity-85"
         caption={
           summary.carrierCount > 0
             ? t("radio_info.tiles.carriers.caption", {
@@ -268,11 +274,14 @@ export function SummaryTiles({ mode, summary, mimo }: SummaryTilesProps) {
       <Tile
         glyph="settings_input_antenna"
         label={t("radio_info.tiles.mimo.label")}
+        tone={MIMO_TILE}
+        disc={MIMO_DISC}
+        captionClassName="text-xs opacity-85"
         caption={
           mimoParts.length > 0 ? (
             <Link
               href="/cellular/antenna-statistics"
-              className="font-semibold underline underline-offset-2 hover:text-on-surface"
+              className="font-semibold underline underline-offset-2 hover:opacity-100"
             >
               {t("radio_info.tiles.mimo.caption_link")}
             </Link>

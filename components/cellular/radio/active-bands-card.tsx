@@ -182,10 +182,6 @@ export interface ActiveBandsCardProps {
   carriers: EnrichedCarrier[];
   summary: RadioSummary;
   isLoading: boolean;
-  /** True when the page has stopped trusting its own snapshot. Suppresses the
-   *  live-cadence claim: a card cannot promise "updating" while the data behind
-   *  it is being disowned two cards over. */
-  isStale: boolean;
 }
 
 // -----------------------------------------------------------------------------
@@ -339,7 +335,6 @@ export function ActiveBandsCard({
   carriers,
   summary,
   isLoading,
-  isStale,
 }: ActiveBandsCardProps) {
   const { t } = useTranslation("cellular");
 
@@ -378,24 +373,6 @@ export function ActiveBandsCard({
             })}
           </p>
         </div>
-
-        {/* The comp's "Updates every 30s" chip is CUT: CA data refreshes every
-            ~3.7-4.0s and the client polls every 2s, so the claim was false by
-            roughly 8x. A cadence a user can set a watch by is worse than no
-            cadence at all. */}
-        <Badge
-          variant="muted"
-          className="ml-auto shrink-0 gap-1.5 px-3 py-1.5 text-xs font-semibold"
-        >
-          <MaterialSymbol
-            name={isStale ? "warning" : "schedule"}
-            size={15}
-            filled={isStale}
-          />
-          {isStale
-            ? t("radio_info.bands.stale")
-            : t("radio_info.bands.cadence")}
-        </Badge>
       </div>
 
       {carriers.length === 0 ? (
