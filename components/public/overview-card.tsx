@@ -217,10 +217,8 @@ export default function OverviewCard() {
     prevVerdictRef.current = verdict;
   }, [data, t, unitPrefs?.tempUnit]);
 
-  // Reading age, for the stale banner and the footer caption. ONE `nowSec`
-  // feeds both, so the banner's "22 s old" and the footer's "updated 22 s ago"
-  // can never straddle a tick and disagree. Clamped: a modem clock a second
-  // ahead of the browser must not render "updated −1 s ago".
+  // Reading age, for the stale banner. Clamped: a modem clock a second ahead
+  // of the browser must not render a negative age.
   const ageSeconds =
     data?.state === "ok" ? Math.max(0, nowSec - data.timestamp) : null;
 
@@ -229,13 +227,7 @@ export default function OverviewCard() {
 
   // Footer caption suffix — one derivation, sharing the body's mode so the two
   // can never contradict each other.
-  const footerSuffix = isEmpty
-    ? t("overview.footer.signin_works")
-    : mode === "live" && error
-      ? t("overview.footer.retrying", { seconds: RETRY_SECONDS })
-      : mode === "live" && ageSeconds != null
-        ? t("overview.footer.updated_ago", { age: formatAge(ageSeconds) })
-        : null;
+  const footerSuffix = isEmpty ? t("overview.footer.signin_works") : null;
 
   // The comp overrides this surface's previous "no card entrance" ruling. That
   // ruling is right for product surfaces you load INTO a task — but the splash
