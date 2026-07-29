@@ -508,8 +508,8 @@ ever rendered in it; the dead import is gone. If a genuine secondary-face need e
 deliberately and bind it via a font variable in the same change. Never hand-wire a font into a component.
 
 A third font file does enter the build under the new system, but it is an **icon font, not a voice**:
-Material Symbols Rounded, self-hosted and scoped to the sidebar and the dashboard route.
-See Components > Icons.
+Material Symbols Rounded, self-hosted and scoped to the sidebar, the dashboard route, the pre-auth
+routes `/` and `/login/`, and the `/cellular/` index. See Components > Icons.
 
 ### Hierarchy
 
@@ -943,7 +943,16 @@ container's size, shape, or fill runs at `standard` or `emphasized`. The old 140
 swaps stay at `quick`.
 
 **The Transform-Only Rule** (kept). Animations touch `opacity` and `transform`, plus color via CSS
-transitions. The aggregation chain's width is the sole documented exception, and it is data, not decoration.
+transitions. There are exactly **two** documented exceptions, both earned rather than granted. The
+aggregation chain's `width` is the first: it is data, not decoration, and a `scaleX` would distort the
+labels riding inside each segment. The Active bands accordion's `height` is the second
+(`components/cellular/radio/active-bands-card.tsx:578-585`): `scaleY` squashes the child type and
+radius on the way open, and `clip-path` leaves the collapsed row reserving its expanded height in
+layout, so `height` is the only mechanism that both reveals and reflows. It is a one-shot,
+user-initiated gesture on at most one row at a time, and it is safe as a raw CSS `animation:` class
+only because Radix mounts and unmounts the content, so the keyframe runs on mount rather than
+replaying on every repoll. A third exception needs the same standard: name what the transform
+alternative breaks, and why the replay bug class cannot bite.
 
 **The One-Loop Rule.** At most one ambient loop per surface, and only where something is genuinely
 live. A loop that runs while nothing is happening is a lie.
@@ -1364,14 +1373,16 @@ Never a blank card, never a spinner in a void.
 Two libraries, one hard boundary. The boundary is **the route**, not a vibe, and it is tracked
 deliberately rather than allowed to drift.
 
-- **Material Symbols Rounded is scoped to the sidebar navigation and the dashboard route.** Its
+- **Material Symbols Rounded is scoped to the sidebar navigation, the dashboard route, the pre-auth
+  routes `/` and `/login/`, and the `/cellular/` index.** Its
   filled (`FILL 1`) and outlined (`FILL 0`) axes are what make the active nav pill read as active
   without relying on the container tone alone, and the same fill axis gives the dashboard's glance
   surfaces a heavier, tonal glyph weight that matches the shape scale. It must be **self-hosted** (a
   subset WOFF2 shipped with the build, bound through a font variable like every other face): the app
   is served by the modem itself and can never depend on `fonts.googleapis.com`.
-- **Lucide is the library for every other route**: Cellular, Local Network, Monitoring, System
-  Settings, dialogs launched from them, the header bar, page content. Prefer its rounded,
+- **Lucide is the library for every other route**: the `/cellular/` sub-routes (the index is
+  Material; see the Icon-Boundary Rule), Local Network, Monitoring, System Settings, `/setup/`,
+  dialogs launched from them, the header bar, page content. Prefer its rounded,
   filled-adjacent glyphs so the icon weight matches the shape scale.
 - **Tabler** (`@tabler/icons-react`) remains the sanctioned secondary for glyphs lucide lacks. Some
   legacy surfaces import from `react-icons` (Md/Fa6/Tb); do not extend that dependency in new work.
@@ -1401,12 +1412,32 @@ stale font, an unsorted list, and a collapsed `FILL` axis. See `docs/reference/i
 ### Named Rules
 
 **The Icon-Boundary Rule** (replaces the retired Nav-Glyph Boundary Rule). Material Symbols Rounded
-appears in the **sidebar nav and the dashboard route**; every other route is lucide. A lucide icon
-inside a nav item is a bug, and so is a Material Symbol on an unmigrated route. The boundary is
-per-route on purpose: the failure this rule exists to prevent is **two icon sets inside one screen**,
-and the dashboard was carrying four (lucide, `react-icons/md`, `/fa6`, `/tb`) beside a Material
-sidebar. When another route wants Material glyphs it moves the boundary deliberately in one change
-and updates this rule, `.impeccable/design.json`, and `CLAUDE.md` with it. It does not leak.
+appears in the **sidebar nav, the dashboard route, the two pre-auth routes `/` and `/login/`, and the
+`/cellular/` index**; every other route is lucide. A lucide icon inside a nav item is a bug, and so is
+a Material Symbol on an unmigrated route. The boundary is per-route on purpose: the failure this rule
+exists to prevent is **two icon sets inside one screen**, and the dashboard was carrying four (lucide,
+`react-icons/md`, `/fa6`, `/tb`) beside a Material sidebar. When another route wants Material glyphs it
+moves the boundary deliberately in one change and updates this rule, `.impeccable/design.json`, and
+`CLAUDE.md` with it. It does not leak.
+
+The rule is keyed on **routes, not directories**, which produces two standing consequences worth
+stating rather than rediscovering. `components/auth/change-password-dialog.tsx` correctly keeps lucide,
+because it mounts from the authenticated sidebar rather than from `/login/`. And `/setup/`
+(`components/onboarding/**`) is **deliberately** still lucide, which means mounting either of the
+converted pre-auth controls (`LoginLanguagePicker`, `ModeToggle`) there would walk the boundary
+silently, since a ligature font renders wherever it is asked to.
+
+> ⚠️ The `/cellular/` extension is **partial, and it is the only place the boundary currently sits
+> inside a route family rather than around one.** The `/cellular/` index (Cellular and Radio
+> Information) is converted; its **17 sub-routes are still lucide**: Cell Scanner, Band Locking, SMS
+> Center, APN Management, Antenna Alignment, Antenna Statistics, Tower Locking, Custom SIM Profiles
+> and the rest. A user walking from the index into Cell Scanner therefore crosses icon libraries
+> mid-section. This was accepted as a step, not as a resting state, and the risk is the ordinary one:
+> **the follow-up never happens**, and "temporary" becomes the documented behaviour by default. Until
+> the sub-routes are converted, treat a lucide glyph anywhere under `/cellular/` except the index as
+> correct code, and do not "fix" it piecemeal, because converting one sub-route at a time reproduces the same
+> split one level down. Convert the family in one change, or leave it alone. See
+> `docs/reference/radio-information.md` and `docs/reference/icon-system.md`.
 
 **The Network Status Landmark Rule.** Network Status keeps its existing icons through any restyle. It
 is a recognized landmark on the one glance surface and re-glyphing it buys nothing. Two exceptions to
@@ -1478,8 +1509,9 @@ Documented for direction only; none of these exist in this tree today. Do not re
 - **Do** animate container changes at `standard` or `emphasized`, and value or label swaps at `quick`.
 - **Do** build stacked shapes from explicit tone steps, never from stacked alpha.
 - **Do** keep `tabular-nums` on every live value and `font-mono` on machine output and identifiers.
-- **Do** keep Material Symbols Rounded inside the sidebar and the dashboard route, lucide on every
-  other route, and self-host the Material subset rather than linking Google's CDN.
+- **Do** keep Material Symbols Rounded inside the sidebar, the dashboard route, the pre-auth `/` and
+  `/login/`, and the `/cellular/` index; lucide on every other route, including the `/cellular/`
+  sub-routes and `/setup/`. Self-host the Material subset rather than linking Google's CDN.
 - **Do** pass `size` explicitly on every `MaterialSymbol`; its inline `fontSize` outranks the parent's
   auto-sizing utilities.
 - **Do** add a new glyph to `MATERIAL_SYMBOL_NAMES` (sorted), then re-run `bun run icons:subset` and
@@ -1551,7 +1583,7 @@ step is independently shippable and leaves the product correct.
 | 3b | **Token debt owed by step 3.** Move dark `--destructive` to the canon value and promote `--border` to `--outline` (see "held one step off" above). | **The `--destructive` half has landed; the `--border` half is still deferred.** Destructive kept deferring because it was never a one-token move. It was the last functional role still carrying the LIGHT-mode *shape* in dark: a mid fill (L 0.62) under near-white ink (L 0.99). Raising the fill alone to the canon `oklch(0.77 0.175 25)` measures **2.42:1**, below even the 3:1 large-text floor, which is exactly what earlier passes measured and correctly refused to ship. The fix is to move the **pair**, fill light and ink dark, precisely as success (0.82 / 0.22) and warning (0.865 / 0.24) already do: `--destructive-foreground` is now `oklch(0.24 0.07 27)` and the pair measures ~6.3:1. That reframes `text-white` on a destructive fill as the bug rather than the blocker. Only **two** sites carried it, and both now read `text-destructive-foreground`: `Button`'s destructive variant, and the hand-rolled copy of that variant on the delete-profile `AlertDialogAction` in `custom-profile-view.tsx`. **Badge was never one of them**, despite earlier revisions of this row naming it: its destructive variant moved to `bg-destructive-container` / `text-on-destructive-container` with the chip flip, so it has never placed ink on a fill. `Button`'s `dark:bg-destructive/60` went in the same change; it was compensation for the mismatched pair, not intent, and against the correct pair it *inverts* (60% of an L 0.77 fill over a dark card lands near L 0.65, dropping ~6.3:1 to ~5.1:1) while an alpha is a request to the canvas rather than to the token, so the same button rendered a different red in a dialog, a card and a popover. **`--border` to `--outline` is unchanged and still deferred**: it is gated on cards dropping their hairlines, which has not happened, and step 4 keeps hairlines in the dense tables deliberately, so promoting it now would make the very hairlines this system retires *more* prominent. It moves when that blocker clears, not before. |
 | 3c | **Identity colour outside the token system.** Retire the connection-scenario gradient palette and move scenario identity onto glyphs; convert the profile apply dialog's deferred-reboot wash to the Banner primitive. | **Landed.** `gradientOptions` (12 raw Tailwind gradients) and `getRingColor()` (12 `ring-*-500` classes selected by substring-matching the gradient) are gone. Scenario tiles are `surface-container` with a filled `bg-primary` glyph disc, and identity is a persisted glyph key resolved through `scenario-icons.ts`. `AbstractPattern` now draws in `currentColor`, so the texture follows the theme instead of assuming a dark tile. |
 | 3d | **The dashboard's icon and chip finish.** Move the icon boundary from "sidebar only" to "sidebar plus the dashboard route", give the failed service ring a real tone ramp, and settle the Primary Status cards' chip and type treatment. | **Landed.** Every dashboard card body is now Material Symbols; the route previously carried four icon sets in one viewport (`lucide-react`, `react-icons/md`, `/fa6`, `/tb`) beside a Material sidebar. The Nav-Glyph Boundary Rule is retired and replaced by the **Icon-Boundary Rule**; the two Network Status exceptions (SIM orb on lucide, RAT marks on `react-icons/md`) are named in the **Network Status Landmark Rule** rather than left as drift. The subset grew 19 → 56 glyphs, 10.4 KB → 20.2 KB. `--tone-destructive-1/2/3` shipped in both themes, so all three ring ramps are now symmetric. The Primary Status quality chip moved from quality tone to **radio identity** via the new `nr` / `lte` `Badge` variants, with quality re-encoded as the glyph's bar count (the **Identity-Chip Rule**). 13px joined the type ramp as the dense metric-row step. Two accessibility additions ride along: an `sr-only` quality word after each tinted metric value, and `min-w-0` + `truncate` on the card header. See `docs/reference/icon-system.md`. |
-| 4 | **Dense pages.** Cell Scanner, log views, and SMS adopt the new tokens while keeping hairline rows. This is where the system is proven or corrected. | Not started |
+| 4 | **Dense pages.** Cell Scanner, log views, and SMS adopt the new tokens while keeping hairline rows. This is where the system is proven or corrected. | **Open. First surface landed.** The `/cellular/` index (**Cellular and Radio Information**) is the first step 4 page: `components/cellular/cellular-information.tsx` rewritten over the pure view model `lib/radio-info.ts`, with `cell-data.tsx` (522 lines) and `active-bands.tsx` (318 lines) deleted. See `docs/reference/radio-information.md`. **What it proves.** A dense radio surface can carry the tonal system without becoming a glance card. A ~12-row identity card reads correctly as filled pill rows on `surface-container`, and hairlines stay reserved for genuine tables, so the "pill rows for 12 or fewer, hairlines in real tables" line held under its first real test. The Identity-Chip Rule generalised off the dashboard unchanged (technology on the band label, role in words, quality in the status chip on a deliberately neutral row) and the three-facts-three-channels split is now the reusable answer for any surface where identity and health both need saying. The Skeleton-Mirror Rule went mechanical here rather than by discipline: `TILE_SHAPE`, `ROW_SHAPE` and `GROUP_SHAPES` are exported constants the skeleton reads, so the two shapes cannot drift. And a `motion.div` cascade over a Radix accordion, with `TickGroup` scoped one-per-card-body, composes without a fight. **What it leaves open for Cell Scanner, the log views and SMS.** Those three are the genuinely dense cases (tens to hundreds of rows) and this page has 4 tiles, ~12 rows and at most 4 carriers, so it says nothing yet about hairline tables under the tonal palette, about virtualisation, or about the entrance cascade at row counts where a 40ms step outlives the user's patience. It also opened, and did not close, two things they will hit: the **icon boundary is now partial inside `/cellular/`** (index Material, 17 sub-routes lucide; Cell Scanner is one of them, so it is both a step 4 target and a boundary target, and doing them separately means touching it twice), and the accordion's `height` animation became the **second exception to the Transform-Only Rule** (the CA chain's `width` was the first), safe here only because Radix unmounts the content, which a virtualised list would not. |
 
 **Step 3's CLAUDE.md gate is closed.** The status-chip table in `CLAUDE.md` was flipped to the
 filled-chip pattern in the same commit as the code, so the two documents agree about what ships.

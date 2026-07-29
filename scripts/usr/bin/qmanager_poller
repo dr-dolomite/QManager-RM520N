@@ -10,12 +10,22 @@
 #   - Leaves gaps for terminal/watchdog to access the modem
 #
 # Tiers:
-#   Tier 1 (Hot):    Every cycle (~2s)  — AT+QENG="servingcell", /proc reads
-#   Tier 1.5 (Signal): Every 5 cycles (10s) — AT+QRSRP, AT+QRSRQ, AT+QSINR
+#   Tier 1 (Hot):    Every cycle        — AT+QENG="servingcell", AT+QCAINFO, /proc reads
+#   Tier 1.5 (Signal): Every 5 cycles       — AT+QRSRP, AT+QRSRQ, AT+QSINR
 #   Tier 2 (Warm):   Every 15 cycles    — AT+QTEMP, AT+COPS?, AT+CPIN?, AT+QUIMSLOT?,
-#                                         AT+QCAINFO, AT+QNWCFG="*_time_advance",
+#                                         AT+QNWCFG="*_time_advance",
 #                                         AT+QNWCFG="*_mimo_layers" (network-mode-gated),
 #                                         AT+CGCONTRDP, AT+QMAP="WWAN"
+#
+#   AT+QCAINFO is TIER 1, not Tier 2. Its read sits at the top of the cycle body
+#   (see below), ABOVE the Tier 2 gate, and is unconditional. Earlier revisions of
+#   this header and docs/reference/carrier-aggregation.md both listed it as
+#   "every 15 cycles"; that was never true of the code.
+#
+#   Cycle cadence is ~3.7-4.0s, NOT the ~2s POLL_INTERVAL suggests: the sleep runs
+#   AFTER the cycle body, so the period is the body's own duration plus the sleep.
+#   Measured across 103 consecutive polls on the live device. Any interval derived
+#   from POLL_INTERVAL alone is roughly 50% short.
 #   Boot-only:     Once at startup    — AT+CVERSION, AT+CGSN, AT+CIMI, AT+QCCID,
 #                                       AT+CNUM, AT+QGETCAPABILITY,
 #                                       AT+QNWPREFCFG="policy_band"

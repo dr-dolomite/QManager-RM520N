@@ -447,6 +447,185 @@
       "not_found_desc": "该配置可能已被删除。返回已保存的配置。"
     }
   },
+  "radio_info": {
+    "common": {
+      "not_available": "—"
+    },
+    "page": {
+      "title": "蜂窝与射频信息",
+      "description": "调制解调器当前上报的全部无线链路信息：身份标识、使用中的频谱，以及各载波的信号质量。"
+    },
+    "alert": {
+      "modem_unreachable": "无法连接调制解调器 — 显示的是最后收到的数值。"
+    },
+    "header": {
+      "live": "实时",
+      "stale": "数据已过期",
+      "cadence": "每隔几秒更新一次",
+      "refresh": "立即刷新",
+      "copy": "复制诊断信息",
+      "copied": "已复制",
+      "copy_success": "诊断信息已复制到剪贴板",
+      "copy_error": "无法复制到剪贴板。请改为手动选择这些数值。"
+    },
+    "network_type": {
+      "nsa": "5G NR + LTE",
+      "sa": "5G NR SA",
+      "lte": "LTE",
+      "unknown": "未上报"
+    },
+    "tiles": {
+      "network": {
+        "label": "网络类型",
+        "mark_5g": "5G",
+        "mark_4g": "4G",
+        "caption_nsa": "非独立组网，锚定在 LTE 上",
+        "caption_sa": "独立组网 5G 核心网",
+        "caption_lte": "未接入 5G 分支",
+        "caption_unknown": "调制解调器未上报接入技术"
+      },
+      "bandwidth": {
+        "label": "使用中的带宽",
+        "unit": "MHz",
+        "caption_unavailable": "调制解调器未上报"
+      },
+      "carriers": {
+        "label": "载波聚合",
+        "value_one": "{{count}} 个载波",
+        "value_other": "{{count}} 个载波",
+        "caption": "LTE {{lte}} · NR {{nr}}",
+        "caption_none": "未上报任何载波"
+      },
+      "mimo": {
+        "label": "活动 MIMO",
+        "caption_link": "各天线详情",
+        "caption_unavailable": "调制解调器未上报"
+      }
+    },
+    "states": {
+      "loading_sr": "正在加载射频信息",
+      "retry": "重试",
+      "no_sim": {
+        "title": "未检测到 SIM 卡",
+        "description": "调制解调器检测不到 SIM 卡，因此没有可上报的无线链路。请检查 SIM 卡是否已插入生效的卡槽。"
+      },
+      "no_service": {
+        "title": "无服务",
+        "description": "SIM 卡已插入，但调制解调器尚未注册到任何网络。在成功附着之前，信号指标将保持为空。"
+      },
+      "searching": {
+        "title": "正在搜索网络",
+        "description": "调制解调器正在扫描可用的小区。注册成功后即会显示射频详情。"
+      },
+      "unknown": {
+        "title": "未上报射频状态",
+        "description": "调制解调器返回了本页面无法识别的状态。请尝试刷新；若持续出现，可能需要重启轮询服务。"
+      }
+    },
+    "cellular_card": {
+      "title": "蜂窝信息",
+      "description": "由网络在本次附着中上报。"
+    },
+    "groups": {
+      "connection": "连接",
+      "cell_identity": "小区标识",
+      "addressing": "地址分配"
+    },
+    "rows": {
+      "operator": "运营商",
+      "apn": "接入点名称（APN）",
+      "network_type": "网络类型",
+      "carrier_aggregation": "载波聚合",
+      "cell_id": "Cell ID",
+      "enodeb": "eNodeB",
+      "gnodeb": "gNodeB",
+      "sector": "扇区",
+      "tac": "跟踪区码（TAC）",
+      "wan_ipv4": "WAN IPv4",
+      "wan_ipv6": "WAN IPv6",
+      "primary_dns": "主 DNS",
+      "secondary_dns": "备用 DNS"
+    },
+    "actions": {
+      "edit_apn": "编辑"
+    },
+    "ca": {
+      "lte_carriers_one": "LTE（{{count}} 个载波）",
+      "lte_carriers_other": "LTE（{{count}} 个载波）",
+      "nr_carriers_one": "NR（{{count}} 个载波）",
+      "nr_carriers_other": "NR（{{count}} 个载波）",
+      "lte_only": "LTE",
+      "nr_only": "NR",
+      "inactive": "未启用"
+    },
+    "value": {
+      "unknown": "未上报",
+      "not_assigned": "未分配"
+    },
+    "copy": {
+      "aria": "将{{label}}复制到剪贴板",
+      "success": "{{label}}已复制到剪贴板",
+      "error": "无法复制到剪贴板",
+      "copied": "已复制"
+    },
+    "a11y": {
+      "show_full_address": "显示完整未压缩的 {{label}}"
+    },
+    "bands": {
+      "title": "活动蜂窝频段",
+      "description_one": "{{count}} 个活动载波。展开某个频段可查看其信号指标。",
+      "description_other": "{{count}} 个活动载波。展开某个频段可查看其信号指标。",
+      "cadence": "每隔几秒更新一次",
+      "stale": "读数已暂停",
+      "role": {
+        "pcc": "PCC",
+        "anchor": "ANCHOR",
+        "scc": "SCC {{index}}"
+      },
+      "released": "已释放",
+      "released_note": "该载波已于 {{seconds}} 秒前停止上报。它会在列表中保留一小段时间，以防它重新出现。",
+      "quality": {
+        "excellent": "极佳",
+        "good": "良好",
+        "fair": "一般",
+        "poor": "较差",
+        "none": "无读数"
+      },
+      "metric": {
+        "rsrp": "RSRP",
+        "rsrq": "RSRQ",
+        "sinr": "SINR",
+        "snr": "SNR",
+        "rssi": "RSSI",
+        "rssi_caption": "宽带接收功率",
+        "not_reported": "此载波未上报"
+      },
+      "detail": {
+        "band_name": "频段名称",
+        "bandwidth": "带宽",
+        "dl_frequency": "下行频率",
+        "ul_frequency": "上行频率",
+        "pci": "PCI",
+        "scs": "子载波间隔",
+        "unknown": "未知",
+        "scs_derived": "推算值",
+        "scs_derived_hint": "调制解调器只对服务中的 NR 小区上报子载波间隔。此数值由该频段的双工模式推算得出，并非直接读自射频。"
+      },
+      "units": {
+        "mhz": "{{value}} MHz",
+        "khz": "{{value}} kHz"
+      },
+      "low_snr": "该载波的 SNR 为 {{value}} dB，处于较差区间。",
+      "empty": {
+        "title": "未上报任何载波",
+        "description": "调制解调器当前未上报任何聚合载波。在射频搜索、空闲或切换期间，这属于正常现象。"
+      },
+      "scanner": {
+        "body": "想找出调制解调器未使用的载波？小区扫描会遍历射频支持的每一个频段。",
+        "link": "打开小区扫描"
+      }
+    }
+  },
   "scenarios": {
     "controls_label": "场景激活",
     "default_balanced_name": "均衡",

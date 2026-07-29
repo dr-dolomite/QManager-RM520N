@@ -447,6 +447,185 @@
       "label_updated": "更新時間"
     }
   },
+  "radio_info": {
+    "common": {
+      "not_available": "—"
+    },
+    "page": {
+      "title": "蜂窩與射頻資訊",
+      "description": "數據機目前回報的所有無線連結資訊：身分識別、使用中的頻譜，以及各載波的訊號品質。"
+    },
+    "alert": {
+      "modem_unreachable": "無法連線數據機 — 顯示的是最後收到的數值。"
+    },
+    "header": {
+      "live": "即時",
+      "stale": "資料已過期",
+      "cadence": "每隔幾秒更新一次",
+      "refresh": "立即重新整理",
+      "copy": "複製診斷資訊",
+      "copied": "已複製",
+      "copy_success": "診斷資訊已複製到剪貼簿",
+      "copy_error": "無法複製到剪貼簿。請改為手動選取這些數值。"
+    },
+    "network_type": {
+      "nsa": "5G NR + LTE",
+      "sa": "5G NR SA",
+      "lte": "LTE",
+      "unknown": "未回報"
+    },
+    "tiles": {
+      "network": {
+        "label": "網路類型",
+        "mark_5g": "5G",
+        "mark_4g": "4G",
+        "caption_nsa": "非獨立組網，錨定在 LTE 上",
+        "caption_sa": "獨立組網 5G 核心網",
+        "caption_lte": "未接入 5G 分支",
+        "caption_unknown": "數據機未回報存取技術"
+      },
+      "bandwidth": {
+        "label": "使用中的頻寬",
+        "unit": "MHz",
+        "caption_unavailable": "數據機未回報"
+      },
+      "carriers": {
+        "label": "載波聚合",
+        "value_one": "{{count}} 個載波",
+        "value_other": "{{count}} 個載波",
+        "caption": "LTE {{lte}} · NR {{nr}}",
+        "caption_none": "未回報任何載波"
+      },
+      "mimo": {
+        "label": "啟用中的 MIMO",
+        "caption_link": "各天線詳情",
+        "caption_unavailable": "數據機未回報"
+      }
+    },
+    "states": {
+      "loading_sr": "正在載入射頻資訊",
+      "retry": "重試",
+      "no_sim": {
+        "title": "未偵測到 SIM 卡",
+        "description": "數據機偵測不到 SIM 卡，因此沒有可回報的無線連結。請檢查 SIM 卡是否已插入生效的卡槽。"
+      },
+      "no_service": {
+        "title": "無服務",
+        "description": "SIM 卡已插入，但數據機尚未註冊到任何網路。在成功附著之前，訊號指標將保持為空。"
+      },
+      "searching": {
+        "title": "正在搜尋網路",
+        "description": "數據機正在掃描可用的小區。註冊成功後即會顯示射頻詳情。"
+      },
+      "unknown": {
+        "title": "未回報射頻狀態",
+        "description": "數據機回傳了本頁面無法識別的狀態。請嘗試重新整理；若持續出現，可能需要重新啟動輪詢服務。"
+      }
+    },
+    "cellular_card": {
+      "title": "蜂窩資訊",
+      "description": "由網路在本次附著中回報。"
+    },
+    "groups": {
+      "connection": "連線",
+      "cell_identity": "小區識別",
+      "addressing": "位址配置"
+    },
+    "rows": {
+      "operator": "電信業者",
+      "apn": "存取點名稱（APN）",
+      "network_type": "網路類型",
+      "carrier_aggregation": "載波聚合",
+      "cell_id": "Cell ID",
+      "enodeb": "eNodeB",
+      "gnodeb": "gNodeB",
+      "sector": "扇區",
+      "tac": "追蹤區碼（TAC）",
+      "wan_ipv4": "WAN IPv4",
+      "wan_ipv6": "WAN IPv6",
+      "primary_dns": "主要 DNS",
+      "secondary_dns": "次要 DNS"
+    },
+    "actions": {
+      "edit_apn": "編輯"
+    },
+    "ca": {
+      "lte_carriers_one": "LTE（{{count}} 個載波）",
+      "lte_carriers_other": "LTE（{{count}} 個載波）",
+      "nr_carriers_one": "NR（{{count}} 個載波）",
+      "nr_carriers_other": "NR（{{count}} 個載波）",
+      "lte_only": "LTE",
+      "nr_only": "NR",
+      "inactive": "未啟用"
+    },
+    "value": {
+      "unknown": "未回報",
+      "not_assigned": "未指派"
+    },
+    "copy": {
+      "aria": "將{{label}}複製到剪貼簿",
+      "success": "{{label}}已複製到剪貼簿",
+      "error": "無法複製到剪貼簿",
+      "copied": "已複製"
+    },
+    "a11y": {
+      "show_full_address": "顯示完整未壓縮的 {{label}}"
+    },
+    "bands": {
+      "title": "啟用中的蜂窩頻段",
+      "description_one": "{{count}} 個啟用中的載波。展開某個頻段可查看其訊號指標。",
+      "description_other": "{{count}} 個啟用中的載波。展開某個頻段可查看其訊號指標。",
+      "cadence": "每隔幾秒更新一次",
+      "stale": "讀數已暫停",
+      "role": {
+        "pcc": "PCC",
+        "anchor": "ANCHOR",
+        "scc": "SCC {{index}}"
+      },
+      "released": "已釋放",
+      "released_note": "此載波已於 {{seconds}} 秒前停止回報。它會在清單中保留一小段時間，以防它重新出現。",
+      "quality": {
+        "excellent": "極佳",
+        "good": "良好",
+        "fair": "一般",
+        "poor": "較差",
+        "none": "無讀數"
+      },
+      "metric": {
+        "rsrp": "RSRP",
+        "rsrq": "RSRQ",
+        "sinr": "SINR",
+        "snr": "SNR",
+        "rssi": "RSSI",
+        "rssi_caption": "寬頻接收功率",
+        "not_reported": "此載波未回報"
+      },
+      "detail": {
+        "band_name": "頻段名稱",
+        "bandwidth": "頻寬",
+        "dl_frequency": "下行頻率",
+        "ul_frequency": "上行頻率",
+        "pci": "PCI",
+        "scs": "子載波間隔",
+        "unknown": "未知",
+        "scs_derived": "推算值",
+        "scs_derived_hint": "數據機只對服務中的 NR 小區回報子載波間隔。此數值由該頻段的雙工模式推算得出，並非直接讀自射頻。"
+      },
+      "units": {
+        "mhz": "{{value}} MHz",
+        "khz": "{{value}} kHz"
+      },
+      "low_snr": "此載波的 SNR 為 {{value}} dB，處於較差區間。",
+      "empty": {
+        "title": "未回報任何載波",
+        "description": "數據機目前未回報任何聚合載波。在射頻搜尋、閒置或換手期間，這屬於正常現象。"
+      },
+      "scanner": {
+        "body": "想找出數據機未使用的載波？小區掃描會遍歷射頻支援的每一個頻段。",
+        "link": "開啟小區掃描"
+      }
+    }
+  },
   "scenarios": {
     "controls_label": "場景啟用",
     "default_balanced_name": "均衡",

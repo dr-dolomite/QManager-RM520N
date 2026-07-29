@@ -447,6 +447,185 @@
       "label_updated": "Updated"
     }
   },
+  "radio_info": {
+    "common": {
+      "not_available": "—"
+    },
+    "page": {
+      "title": "Cellular and Radio Information",
+      "description": "Everything the modem currently reports about its radio link: identity, spectrum in use, and per-carrier signal quality."
+    },
+    "alert": {
+      "modem_unreachable": "Can't reach the modem — showing the last values received."
+    },
+    "header": {
+      "live": "Live",
+      "stale": "Data is stale",
+      "cadence": "Updates every few seconds",
+      "refresh": "Refresh now",
+      "copy": "Copy diagnostics",
+      "copied": "Copied",
+      "copy_success": "Diagnostics copied to the clipboard",
+      "copy_error": "Couldn't copy to the clipboard. Select the values manually instead."
+    },
+    "network_type": {
+      "nsa": "5G NR + LTE",
+      "sa": "5G NR SA",
+      "lte": "LTE",
+      "unknown": "Not reported"
+    },
+    "tiles": {
+      "network": {
+        "label": "Network type",
+        "mark_5g": "5G",
+        "mark_4g": "4G",
+        "caption_nsa": "Non-standalone, anchored on LTE",
+        "caption_sa": "Standalone 5G core",
+        "caption_lte": "No 5G leg attached",
+        "caption_unknown": "The modem did not report an access technology"
+      },
+      "bandwidth": {
+        "label": "Bandwidth in use",
+        "unit": "MHz",
+        "caption_unavailable": "Not reported by the modem"
+      },
+      "carriers": {
+        "label": "Carrier aggregation",
+        "value_one": "{{count}} carrier",
+        "value_other": "{{count}} carriers",
+        "caption": "LTE {{lte}} · NR {{nr}}",
+        "caption_none": "No carriers reported"
+      },
+      "mimo": {
+        "label": "Active MIMO",
+        "caption_link": "Per-antenna detail",
+        "caption_unavailable": "Not reported by the modem"
+      }
+    },
+    "states": {
+      "loading_sr": "Loading radio information",
+      "retry": "Try again",
+      "no_sim": {
+        "title": "No SIM detected",
+        "description": "The modem cannot see a SIM card, so there is no radio link to report. Check that the SIM is seated in the active slot."
+      },
+      "no_service": {
+        "title": "No service",
+        "description": "The SIM is present but the modem is not registered on any network. Signal metrics stay empty until it attaches."
+      },
+      "searching": {
+        "title": "Searching for a network",
+        "description": "The modem is scanning for a usable cell. Radio details appear as soon as it registers."
+      },
+      "unknown": {
+        "title": "Radio state not reported",
+        "description": "The modem returned a status this page does not recognise. Try refreshing; if it persists, the poller may need a restart."
+      }
+    },
+    "cellular_card": {
+      "title": "Cellular information",
+      "description": "Reported by the network on the current attach."
+    },
+    "groups": {
+      "connection": "Connection",
+      "cell_identity": "Cell identity",
+      "addressing": "Addressing"
+    },
+    "rows": {
+      "operator": "Operator",
+      "apn": "Access point name",
+      "network_type": "Network type",
+      "carrier_aggregation": "Carrier aggregation",
+      "cell_id": "Cell ID",
+      "enodeb": "eNodeB",
+      "gnodeb": "gNodeB",
+      "sector": "Sector",
+      "tac": "Tracking area code",
+      "wan_ipv4": "WAN IPv4",
+      "wan_ipv6": "WAN IPv6",
+      "primary_dns": "Primary DNS",
+      "secondary_dns": "Secondary DNS"
+    },
+    "actions": {
+      "edit_apn": "Edit"
+    },
+    "ca": {
+      "lte_carriers_one": "LTE ({{count}} carrier)",
+      "lte_carriers_other": "LTE ({{count}} carriers)",
+      "nr_carriers_one": "NR ({{count}} carrier)",
+      "nr_carriers_other": "NR ({{count}} carriers)",
+      "lte_only": "LTE",
+      "nr_only": "NR",
+      "inactive": "Inactive"
+    },
+    "value": {
+      "unknown": "Not reported",
+      "not_assigned": "Not assigned"
+    },
+    "copy": {
+      "aria": "Copy {{label}} to clipboard",
+      "success": "{{label}} copied to clipboard",
+      "error": "Couldn't copy to clipboard",
+      "copied": "Copied"
+    },
+    "a11y": {
+      "show_full_address": "Show the full, uncompressed {{label}}"
+    },
+    "bands": {
+      "title": "Active cellular bands",
+      "description_one": "{{count}} active carrier. Open a band for its signal metrics.",
+      "description_other": "{{count}} active carriers. Open a band for its signal metrics.",
+      "cadence": "Updates every few seconds",
+      "stale": "Readings paused",
+      "role": {
+        "pcc": "PCC",
+        "anchor": "ANCHOR",
+        "scc": "SCC {{index}}"
+      },
+      "released": "Released",
+      "released_note": "This carrier stopped being reported {{seconds}}s ago. It stays listed for a short while in case it comes back.",
+      "quality": {
+        "excellent": "Excellent",
+        "good": "Good",
+        "fair": "Fair",
+        "poor": "Poor",
+        "none": "No reading"
+      },
+      "metric": {
+        "rsrp": "RSRP",
+        "rsrq": "RSRQ",
+        "sinr": "SINR",
+        "snr": "SNR",
+        "rssi": "RSSI",
+        "rssi_caption": "Wideband received power",
+        "not_reported": "Not reported for this carrier"
+      },
+      "detail": {
+        "band_name": "Band name",
+        "bandwidth": "Bandwidth",
+        "dl_frequency": "DL frequency",
+        "ul_frequency": "UL frequency",
+        "pci": "PCI",
+        "scs": "Subcarrier spacing",
+        "unknown": "Unknown",
+        "scs_derived": "Derived",
+        "scs_derived_hint": "The modem reports subcarrier spacing only for the serving NR cell. This value is derived from the band's duplex mode, not read from the radio."
+      },
+      "units": {
+        "mhz": "{{value}} MHz",
+        "khz": "{{value}} kHz"
+      },
+      "low_snr": "SNR on this carrier is {{value}} dB, which is in the poor range.",
+      "empty": {
+        "title": "No carriers reported",
+        "description": "The modem is not reporting any aggregated carriers right now. That is normal while the radio is searching, idle, or between handovers."
+      },
+      "scanner": {
+        "body": "Looking for carriers the modem is not using? The cell scanner sweeps every band the radio supports.",
+        "link": "Open cell scanner"
+      }
+    }
+  },
   "scenarios": {
     "controls_label": "Scenario activation",
     "default_balanced_name": "Balanced",

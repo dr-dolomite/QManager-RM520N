@@ -447,6 +447,185 @@
       "only_active_hint": "Il tuo unico profilo è quello attivo. Creane un altro per passare da una configurazione all'altra."
     }
   },
+  "radio_info": {
+    "common": {
+      "not_available": "—"
+    },
+    "page": {
+      "title": "Informazioni cellulari e radio",
+      "description": "Tutto ciò che il modem riporta al momento sul suo collegamento radio: identità, spettro in uso e qualità del segnale per ogni portante."
+    },
+    "alert": {
+      "modem_unreachable": "Impossibile raggiungere il modem — vengono mostrati gli ultimi valori ricevuti."
+    },
+    "header": {
+      "live": "In tempo reale",
+      "stale": "I dati non sono aggiornati",
+      "cadence": "Si aggiorna ogni pochi secondi",
+      "refresh": "Aggiorna ora",
+      "copy": "Copia diagnostica",
+      "copied": "Copiato",
+      "copy_success": "Diagnostica copiata negli appunti",
+      "copy_error": "Impossibile copiare negli appunti. Seleziona i valori manualmente."
+    },
+    "network_type": {
+      "nsa": "5G NR + LTE",
+      "sa": "5G NR SA",
+      "lte": "LTE",
+      "unknown": "Non riportato"
+    },
+    "tiles": {
+      "network": {
+        "label": "Tipo di rete",
+        "mark_5g": "5G",
+        "mark_4g": "4G",
+        "caption_nsa": "Non-standalone, ancorato su LTE",
+        "caption_sa": "Core 5G standalone",
+        "caption_lte": "Nessun ramo 5G agganciato",
+        "caption_unknown": "Il modem non ha riportato una tecnologia di accesso"
+      },
+      "bandwidth": {
+        "label": "Larghezza di banda in uso",
+        "unit": "MHz",
+        "caption_unavailable": "Non riportata dal modem"
+      },
+      "carriers": {
+        "label": "Aggregazione di portanti",
+        "value_one": "{{count}} portante",
+        "value_other": "{{count}} portanti",
+        "caption": "LTE {{lte}} · NR {{nr}}",
+        "caption_none": "Nessuna portante riportata"
+      },
+      "mimo": {
+        "label": "MIMO attivo",
+        "caption_link": "Dettaglio per antenna",
+        "caption_unavailable": "Non riportato dal modem"
+      }
+    },
+    "states": {
+      "loading_sr": "Caricamento delle informazioni radio",
+      "retry": "Riprova",
+      "no_sim": {
+        "title": "Nessuna SIM rilevata",
+        "description": "Il modem non rileva alcuna SIM, quindi non c'è alcun collegamento radio da riportare. Verifica che la SIM sia inserita correttamente nello slot attivo."
+      },
+      "no_service": {
+        "title": "Nessun servizio",
+        "description": "La SIM è presente ma il modem non è registrato su alcuna rete. Le metriche di segnale restano vuote finché non si aggancia."
+      },
+      "searching": {
+        "title": "Ricerca di una rete",
+        "description": "Il modem sta cercando una cella utilizzabile. I dettagli radio compaiono non appena si registra."
+      },
+      "unknown": {
+        "title": "Stato radio non riportato",
+        "description": "Il modem ha restituito uno stato che questa pagina non riconosce. Prova ad aggiornare; se il problema persiste, il poller potrebbe aver bisogno di un riavvio."
+      }
+    },
+    "cellular_card": {
+      "title": "Informazioni cellulari",
+      "description": "Riportate dalla rete sull'aggancio corrente."
+    },
+    "groups": {
+      "connection": "Connessione",
+      "cell_identity": "Identità della cella",
+      "addressing": "Indirizzamento"
+    },
+    "rows": {
+      "operator": "Operatore",
+      "apn": "Nome del punto di accesso (APN)",
+      "network_type": "Tipo di rete",
+      "carrier_aggregation": "Aggregazione di portanti",
+      "cell_id": "Cell ID",
+      "enodeb": "eNodeB",
+      "gnodeb": "gNodeB",
+      "sector": "Settore",
+      "tac": "Codice area di tracciamento (TAC)",
+      "wan_ipv4": "WAN IPv4",
+      "wan_ipv6": "WAN IPv6",
+      "primary_dns": "DNS primario",
+      "secondary_dns": "DNS secondario"
+    },
+    "actions": {
+      "edit_apn": "Modifica"
+    },
+    "ca": {
+      "lte_carriers_one": "LTE ({{count}} portante)",
+      "lte_carriers_other": "LTE ({{count}} portanti)",
+      "nr_carriers_one": "NR ({{count}} portante)",
+      "nr_carriers_other": "NR ({{count}} portanti)",
+      "lte_only": "LTE",
+      "nr_only": "NR",
+      "inactive": "Inattiva"
+    },
+    "value": {
+      "unknown": "Non riportato",
+      "not_assigned": "Non assegnato"
+    },
+    "copy": {
+      "aria": "Copia {{label}} negli appunti",
+      "success": "{{label}} copiato negli appunti",
+      "error": "Impossibile copiare negli appunti",
+      "copied": "Copiato"
+    },
+    "a11y": {
+      "show_full_address": "Mostra il {{label}} completo, non compresso"
+    },
+    "bands": {
+      "title": "Bande cellulari attive",
+      "description_one": "{{count}} portante attiva. Apri una banda per vedere le sue metriche di segnale.",
+      "description_other": "{{count}} portanti attive. Apri una banda per vedere le sue metriche di segnale.",
+      "cadence": "Si aggiorna ogni pochi secondi",
+      "stale": "Letture in pausa",
+      "role": {
+        "pcc": "PCC",
+        "anchor": "ANCHOR",
+        "scc": "SCC {{index}}"
+      },
+      "released": "Rilasciata",
+      "released_note": "Questa portante ha smesso di essere riportata {{seconds}}s fa. Resta in elenco ancora per un po', nel caso in cui torni.",
+      "quality": {
+        "excellent": "Eccellente",
+        "good": "Buono",
+        "fair": "Discreto",
+        "poor": "Scarso",
+        "none": "Nessuna lettura"
+      },
+      "metric": {
+        "rsrp": "RSRP",
+        "rsrq": "RSRQ",
+        "sinr": "SINR",
+        "snr": "SNR",
+        "rssi": "RSSI",
+        "rssi_caption": "Potenza ricevuta a banda larga",
+        "not_reported": "Non riportato per questa portante"
+      },
+      "detail": {
+        "band_name": "Nome della banda",
+        "bandwidth": "Larghezza di banda",
+        "dl_frequency": "Frequenza DL",
+        "ul_frequency": "Frequenza UL",
+        "pci": "PCI",
+        "scs": "Spaziatura delle sottoportanti",
+        "unknown": "Sconosciuta",
+        "scs_derived": "Derivata",
+        "scs_derived_hint": "Il modem riporta la spaziatura delle sottoportanti solo per la cella NR di servizio. Questo valore è derivato dalla modalità duplex della banda, non letto dalla radio."
+      },
+      "units": {
+        "mhz": "{{value}} MHz",
+        "khz": "{{value}} kHz"
+      },
+      "low_snr": "L'SNR su questa portante è {{value}} dB, che rientra nell'intervallo scarso.",
+      "empty": {
+        "title": "Nessuna portante riportata",
+        "description": "Al momento il modem non riporta alcuna portante aggregata. È normale mentre la radio cerca, è inattiva o è tra un handover e l'altro."
+      },
+      "scanner": {
+        "body": "Cerchi portanti che il modem non sta usando? Lo scanner celle esamina tutte le bande supportate dalla radio.",
+        "link": "Apri lo scanner celle"
+      }
+    }
+  },
   "scenarios": {
     "controls_label": "Attivazione degli scenari",
     "default_balanced_name": "Equilibrato",

@@ -6,10 +6,10 @@ Carrier aggregation (CA) is the radio combining several frequency blocks, called
 
 | Thing | Where |
 | ----- | ----- |
-| AT command | `AT+QCAINFO` (Tier 2 poll, enabled at boot in the poller's Group B) |
+| AT command | `AT+QCAINFO` (**Tier 1, every cycle**, enabled at boot in the poller's Group B) |
 | Parser | `scripts/usr/lib/qmanager/parse_at.sh` > `parse_ca_info()` (field-order comment block at lines 475-501) |
 | Bandwidth maps | `_lte_rb_to_mhz()` (`parse_at.sh:437`), `_nr_bw_to_mhz()` (`parse_at.sh:452`) |
-| Poller call site | `scripts/usr/bin/qmanager_poller`, Tier 2 block, `qcmd_exec 'AT+QCAINFO'` |
+| Poller call site | `scripts/usr/bin/qmanager_poller:2093-2106`, **Tier 1**, `qcmd_exec 'AT+QCAINFO'` |
 | Status JSON | `/tmp/qmanager_status.json` > `network.carrier_components[]`, plus `network.ca_active`, `ca_count`, `nr_ca_active`, `nr_ca_count`, `total_bandwidth_mhz`, `bandwidth_details` |
 | TypeScript types | `types/modem-status.ts` > `CarrierComponent`, `NetworkStatus` |
 | View model | `lib/carrier-aggregation.ts` (pure, no React) |
@@ -19,6 +19,8 @@ Carrier aggregation (CA) is the radio combining several frequency blocks, called
 | Event hooks | `scripts/usr/lib/qmanager/events.sh` (`_ev_bands`, `_ev_band_summary`, `_ev_ca_diff`) |
 
 > ℹ️ NOTE: There is no CGI endpoint for CA. Everything comes through the ordinary poller snapshot that the dashboard already reads, so the widget adds zero backend load.
+
+> ⚠️ CORRECTION (verified against the live device). Earlier revisions of this doc, and the poller's own header comment, classified `AT+QCAINFO` as a **Tier 2 / every-15-cycles** read. **It is not, and never was.** The read sits at `qmanager_poller:2093-2106`, in the cycle body **above** the Tier 2 gate at `:2131`, and is unconditional: it runs on every cycle. Measured refresh on the live device is **3.7 to 4.0 seconds** across 103 consecutive polls. That figure is the *cycle* period, not `POLL_INTERVAL`: the poller sleeps **after** the body, so the real period is the body's duration plus the sleep, and any interval derived from `POLL_INTERVAL` alone is roughly 50% short. Both this doc and the poller comment have been corrected.
 
 ## The three `+QCAINFO` line shapes
 
@@ -161,7 +163,7 @@ fi
 
 `parse_ca_info()` does the same thing internally when the response contains no `+QCAINFO:` lines at all.
 
-The consequence matters for anything downstream: **a single failed or timed-out AT read wipes `carrier_components` to `[]` wholesale**, and the next successful poll repopulates it. On the poller's roughly 2 second cadence, a consumer that treats "absent from the snapshot" as "the carrier was released" will flicker its entire display grey and back. This is the whole reason the frontend has a grace period (below), and it is worth remembering before adding any other consumer of this field.
+The consequence matters for anything downstream: **a single failed or timed-out AT read wipes `carrier_components` to `[]` wholesale**, and the next successful poll repopulates it. On the poller's real 3.7 to 4.0 second cadence, a consumer that treats "absent from the snapshot" as "the carrier was released" will flicker its entire display grey and back. This is the whole reason the frontend has a grace period (below), and it is worth remembering before adding any other consumer of this field.
 
 ## Frontend view model (`lib/carrier-aggregation.ts`)
 
@@ -203,7 +205,7 @@ The backend keeps no release history. A dropped SCC simply stops appearing, and 
 
 | Constant | Value | Why |
 | -------- | ----- | --- |
-| `RELEASE_GRACE_MS` | 6000 | A carrier missing for less than this is still drawn normally. Debounces the empty-array blip; at a 2 second cadence this survives two consecutive failed reads |
+| `RELEASE_GRACE_MS` | 6000 | A carrier missing for less than this is still drawn normally. Debounces the empty-array blip. **At the real 3.7 s cadence this survives ONE consecutive failed read, not two** (an earlier revision claimed two, from the incorrect 2 s figure). Raising it to survive two would mean roughly 8000 ms; that has not been changed, because the frozen-list behaviour on the `/cellular/` page covers the sustained case and a longer grace delays every genuine release |
 | `RELEASE_RETAIN_MS` | 120000 | After this the carrier is dropped from the list entirely. Long enough to explain a drop, short enough that the chain reflects the present |
 
 This is the client's own observation, not a fabricated timestamp, and it resets on page reload. No release history is persisted anywhere.
@@ -238,6 +240,7 @@ The `scc.*` namespace in `public/locales/*/dashboard.json` is **replaced** by `c
 
 ## Related
 
+- The `/cellular/` Radio Information page, the second consumer of this view model: [radio-information.md](radio-information.md). It reuses `carrierKey`, `reconcileCarriers`, `rsrpToPercent` and `releasedForMs`, and adds the stale freeze that the dashboard strip does not have
 - Backend AT plumbing and `qcmd` serialization: [at-command-transport.md](at-command-transport.md)
 - Band locking reads active bands from the same `carrier_components` array (`types/band-locking.ts`): see [sim-profiles.md](sim-profiles.md) for how scenario-bound band locks interact
 - CA change alerts (`LTE CA activated`, band add/remove diffs): `scripts/usr/lib/qmanager/events.sh`, routed per [alerts.md](alerts.md)

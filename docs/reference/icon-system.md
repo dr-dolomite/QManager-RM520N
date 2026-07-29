@@ -1,6 +1,6 @@
 # Icon System
 
-QManager draws its glyphs from two libraries separated by a hard, tracked boundary. **Material Symbols Rounded** is scoped to the sidebar navigation, the dashboard route, and the two pre-auth routes `/` and `/login/`; **lucide-react** covers every other route. The boundary exists because the failure it prevents is *two icon sets inside one screen*, not "Material is nicer than lucide". Before this change the dashboard carried four icon sets in a single viewport (`lucide-react`, `react-icons/md`, `react-icons/fa6`, `react-icons/tb`) sitting beside a sidebar that was already on Material Symbols. The rule that governs it is DESIGN.md's **Icon-Boundary Rule**, which replaced the retired Nav-Glyph Boundary Rule.
+QManager draws its glyphs from two libraries separated by a hard, tracked boundary. **Material Symbols Rounded** is scoped to the sidebar navigation, the dashboard route, the two pre-auth routes `/` and `/login/`, and the **`/cellular/` index**; **lucide-react** covers every other route, including the `/cellular/` sub-routes. The boundary exists because the failure it prevents is *two icon sets inside one screen*, not "Material is nicer than lucide". Before this change the dashboard carried four icon sets in a single viewport (`lucide-react`, `react-icons/md`, `react-icons/fa6`, `react-icons/tb`) sitting beside a sidebar that was already on Material Symbols. The rule that governs it is DESIGN.md's **Icon-Boundary Rule**, which replaced the retired Nav-Glyph Boundary Rule.
 
 Material Symbols is a **self-hosted, ligature-driven icon font**, not an SVG component library. That single fact produces every gotcha on this page: the sizing behaviour, the build-time subsetting step, and the way a missing glyph fails.
 
@@ -12,7 +12,7 @@ Material Symbols is a **self-hosted, ligature-driven icon font**, not an SVG com
 | **Canonical glyph list (single source of truth)** | `MATERIAL_SYMBOL_NAMES` in `components/ui/material-symbol-names.ts` |
 | Allowed glyph names (TS type) | `MaterialSymbolName`, **derived** from that array |
 | Subset generator | `scripts-dev/subset-icons.ts` (imports the same array) |
-| Shipped font file | `app/fonts/MaterialSymbolsRounded-subset.woff2` (64 glyphs, 23.9 KB) |
+| Shipped font file | `app/fonts/MaterialSymbolsRounded-subset.woff2` (71 glyphs, 26.4 KB) |
 | Generator manifest | `app/fonts/MaterialSymbolsRounded-subset.json` — what was requested + sha256 of what shipped |
 | Font binding | `app/layout.tsx` (`next/font/local`, bound to a CSS variable) |
 | Regenerate the font | `bun run icons:subset` |
@@ -35,8 +35,10 @@ git add app/fonts/MaterialSymbolsRounded-subset.woff2 \
 | Sidebar nav (`components/app-sidebar.tsx`, `nav-section.tsx`, `nav-user.tsx`) | Material Symbols |
 | Dashboard route (`components/dashboard/*`) | Material Symbols |
 | **Pre-auth routes `/` and `/login/`** (`components/public/*`, `components/auth/login-*.tsx`, `components/ui/tonal-banner.tsx`) | Material Symbols |
+| **`/cellular/` INDEX only** (`components/cellular/cellular-information.tsx`, `components/cellular/radio/**`) | Material Symbols |
+| `/cellular/` **sub-routes** (Cell Scanner, Band Locking, SMS, APN Management, Antenna Alignment, ...) | **lucide**: 17 routes, still pending, see below |
 | `/setup/` (`components/onboarding/**`) | **lucide** — deliberately out of scope, see below |
-| Cellular, Local Network, Monitoring, System Settings, their dialogs | lucide |
+| Local Network, Monitoring, System Settings, their dialogs | lucide |
 | Header bar above the content (`SidebarTrigger`, breadcrumbs) | lucide — it is not the sidebar |
 | Page-level banners (`components/ui/banner.tsx`) | lucide — they are route-agnostic and mount on lucide pages too |
 | Glyphs lucide lacks | Tabler (`@tabler/icons-react`), the sanctioned secondary |
@@ -46,6 +48,19 @@ git add app/fonts/MaterialSymbolsRounded-subset.woff2 \
 This matters more than it sounds, because `components/auth/` reads like a pre-auth folder and is not one.
 
 > ⚠️ WARNING — known false positive. `grep -rn lucide-react components/auth/` returns a hit on `components/auth/change-password-dialog.tsx`. **That is correct code, not a leak.** The dialog is mounted from `components/nav-user.tsx` — the authenticated sidebar — so it renders on lucide surfaces and keeps its lucide glyphs (`EyeIcon`, `EyeOffIcon`). Only the files that actually render on `/` or `/login/` (`login-component.tsx`, `login-device-name.tsx`, `login-language-picker.tsx`) are inside the Material half of the boundary. Do not "fix" the dialog; converting it would pull Material Symbols onto an authed surface.
+
+### The `/cellular/` caveat: the boundary is currently *inside* a route family
+
+The Cellular and Radio Information page (`/cellular/`, the section index) was retargeted to Material Symbols as part of the M3 migration's step 4. **Its 17 sub-routes were not.** This is the first and only place the boundary sits inside a route family rather than around one, and a user walking from the index into Cell Scanner crosses icon libraries mid-section.
+
+That was accepted as a step, not as a resting state. The honest risk is the ordinary one: **the follow-up never happens**, and "temporary" quietly becomes the documented behaviour. It is recorded here and in `DESIGN.md` > Icon-Boundary Rule specifically so the next person finds a tracked debt rather than what looks like inconsistent code.
+
+Two consequences while it stands:
+
+- **A lucide glyph anywhere under `/cellular/` except the index is correct code.** Do not "fix" one.
+- **Convert the family in one change, or leave it alone.** Retargeting one sub-route at a time reproduces exactly this split one level down, and Cell Scanner in particular is *also* a step 4 target, so doing the two passes separately means touching it twice.
+
+One concrete conversion cost worth knowing: `components/ui/accordion.tsx`'s `AccordionTrigger` bakes in a lucide `ChevronDownIcon` (and a legacy `rounded-md`). `active-bands-card.tsx:489` reaches for `AccordionPrimitive.Trigger` directly to avoid it, preserving every Radix affordance. Any shared primitive with a hardcoded lucide glyph will need the same treatment or a real fix.
 
 ### The `/setup/` caveat
 
@@ -109,13 +124,30 @@ Subset growth, by the change that caused it:
 |----------------|--------|-----------|
 | Sidebar only | 19 | 10.4 KB |
 | + dashboard route | 56 | 20.2 KB |
-| **+ pre-auth `/` and `/login/`** | **64** | **23.9 KB** |
+| + pre-auth `/` and `/login/` | 64 | 23.9 KB |
+| **+ `/cellular/` index** | **71** | **26.4 KB** |
 
-The eight glyphs added for the pre-auth retarget: `dark_mode`, `error`, `light_mode`, `lock`, `lock_clock`, `translate`, `wifi_off`, `wifi_tethering_off`.
+The eight glyphs added for the pre-auth retarget: `dark_mode`, `error`, `light_mode`, `lock`, `lock_clock`, `translate`, `wifi_off`, `wifi_tethering_off`. (The row above reads 64 because one further glyph landed between that change and this one without the table being touched; the baseline this change grew from was 65 glyphs / 24.6 KB.)
 
-> ⚠️ WARNING — this is the one boundary extension where the weight lands on the **first page a visitor loads**. The dashboard's 10 KB rode behind a login; the splash's 23.9 KB does not. It was accepted knowingly: the font is served from the modem over LAN, and the alternative — two icon libraries inside one 404px card — is the exact failure the boundary exists to prevent.
+The **six** glyphs added for the `/cellular/` index: `content_copy`, `expand_more`, `graphic_eq`, `layers`, `settings_input_antenna`, `sim_card`.
 
-`MATERIAL_SYMBOL_NAMES` lives in its own **import-free** module on purpose. `subset-icons.ts` is run by bun from `scripts-dev/`, which `tsconfig.json` excludes, so pulling the list out of `material-symbol.tsx` would couple font generation to React and the `@/` path alias. The array is referenced only at type level by the component, so bundlers tree-shake it — verified absent from the production chunks, meaning the modem never downloads the 64 strings.
+> ⚠️ WARNING: the pre-auth extension is still the one where the weight lands on the **first page a visitor loads**. The dashboard's 10 KB rode behind a login; the splash does not, and it now carries 26.4 KB. It was accepted knowingly: the font is served from the modem over LAN, and the alternative — two icon libraries inside one 404px card — is the exact failure the boundary exists to prevent. Every subsequent boundary extension inherits that cost, so the rejection discipline below is not fussiness.
+
+### Glyphs deliberately NOT added, and why
+
+The naive read of the `/cellular/` comp asked for **11 new glyphs and roughly +5 KB**. The real cost was **6 glyphs and +1.9 KB**, because five requests were answered by something already in the subset or by a rule the system already had. The reasoning is reusable, so it is recorded rather than re-derived at the next boundary move.
+
+| Requested | Rejected because |
+|-----------|------------------|
+| `signal_cellular_alt_1_bar`, `signal_cellular_alt_2_bar` | **The alt family is rejected canon**, and the wedge ladder (`signal_cellular_{1..4}_bar` + `_off`) was already present. `alt_1_bar` is a single 120×240-unit mark (~2×4px at `size={16}`, indistinguishable from a failed icon load) and there is no `alt_0_bar`, so ink mass runs large → medium → speck → large → large and quality reads non-monotone. Settled once on `signal-status-card.tsx`; a comp asking for it again does not reopen it |
+| `expand_less` | The accordion chevron **rotates 180°** (`group-data-[state=open]:rotate-180`). A second glyph for the same affordance costs bytes and buys a state the transform already expresses more legibly, since the rotation animates and a swap does not |
+| `arrow_forward` | `chevron_right` was already in the subset and is what the rest of the shell uses for **in-app navigation**. An arrow reads as "leaves this app" |
+| `travel_explore` | `radar` was already present and reads better against the actual copy ("the scanner sweeps"). Nearest-neighbour glyph matching against a comp is not a reason to add one |
+| `5g` | **A typographic mark, not a pictogram.** DESIGN.md ships "5G" / "4G+" / "3G" as text or as a `Badge`, which is also why the two `react-icons/md` RAT marks survive as a named exception rather than migrating. The tile carries `cell_tower` (the radio itself) with the mark as an identity Badge beside it |
+
+The general test, in order: **is it already in the subset under a different name; does an existing transform or text treatment express it; is it a mark rather than a pictogram.** Only a "no" to all three earns a glyph.
+
+`MATERIAL_SYMBOL_NAMES` lives in its own **import-free** module on purpose. `subset-icons.ts` is run by bun from `scripts-dev/`, which `tsconfig.json` excludes, so pulling the list out of `material-symbol.tsx` would couple font generation to React and the `@/` path alias. The array is referenced only at type level by the component, so bundlers tree-shake it — verified absent from the production chunks, meaning the modem never downloads the 71 strings.
 
 ## The sizing gotcha
 
@@ -222,4 +254,5 @@ Ghost at rest, `bg-surface-container` while its menu is open (`data-[state=open]
 - `docs/reference/recent-activities.md` — the dashboard event feed, whose glyphs moved to Material in the same pass
 - `docs/reference/carrier-aggregation.md` — the CA strip, also on the dashboard route
 - `docs/reference/overview-splash.md` — the `/` and `/login/` retarget that extended the boundary to the pre-auth routes
+- `docs/reference/radio-information.md`: the `/cellular/` index retarget that extended the boundary again, and the reason the extension is currently partial
 - `docs/reference/auth-rate-limiting.md` — the lockout ladder the retargeted login form renders

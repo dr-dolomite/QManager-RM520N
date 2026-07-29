@@ -447,6 +447,185 @@
       "only_active_hint": "Satu-satunya profil Anda adalah yang sedang aktif. Buat profil lain untuk berpindah pengaturan."
     }
   },
+  "radio_info": {
+    "common": {
+      "not_available": "—"
+    },
+    "page": {
+      "title": "Informasi Seluler dan Radio",
+      "description": "Semua yang saat ini dilaporkan modem tentang tautan radionya: identitas, spektrum yang dipakai, dan kualitas sinyal per carrier."
+    },
+    "alert": {
+      "modem_unreachable": "Tidak dapat menjangkau modem — menampilkan nilai terakhir yang diterima."
+    },
+    "header": {
+      "live": "Live",
+      "stale": "Data sudah kedaluwarsa",
+      "cadence": "Diperbarui setiap beberapa detik",
+      "refresh": "Muat ulang sekarang",
+      "copy": "Salin diagnostik",
+      "copied": "Tersalin",
+      "copy_success": "Diagnostik disalin ke papan klip",
+      "copy_error": "Tidak dapat menyalin ke papan klip. Pilih nilainya secara manual saja."
+    },
+    "network_type": {
+      "nsa": "5G NR + LTE",
+      "sa": "5G NR SA",
+      "lte": "LTE",
+      "unknown": "Tidak dilaporkan"
+    },
+    "tiles": {
+      "network": {
+        "label": "Tipe jaringan",
+        "mark_5g": "5G",
+        "mark_4g": "4G",
+        "caption_nsa": "Non-standalone, berjangkar pada LTE",
+        "caption_sa": "Inti 5G standalone",
+        "caption_lte": "Tidak ada kaki 5G yang terpasang",
+        "caption_unknown": "Modem tidak melaporkan teknologi akses"
+      },
+      "bandwidth": {
+        "label": "Bandwidth yang dipakai",
+        "unit": "MHz",
+        "caption_unavailable": "Tidak dilaporkan oleh modem"
+      },
+      "carriers": {
+        "label": "Carrier aggregation",
+        "value_one": "{{count}} carrier",
+        "value_other": "{{count}} carrier",
+        "caption": "LTE {{lte}} · NR {{nr}}",
+        "caption_none": "Tidak ada carrier yang dilaporkan"
+      },
+      "mimo": {
+        "label": "MIMO aktif",
+        "caption_link": "Detail per antena",
+        "caption_unavailable": "Tidak dilaporkan oleh modem"
+      }
+    },
+    "states": {
+      "loading_sr": "Memuat informasi radio",
+      "retry": "Coba lagi",
+      "no_sim": {
+        "title": "Tidak ada SIM terdeteksi",
+        "description": "Modem tidak dapat melihat kartu SIM, sehingga tidak ada tautan radio yang bisa dilaporkan. Pastikan SIM terpasang pada slot yang aktif."
+      },
+      "no_service": {
+        "title": "Tidak ada layanan",
+        "description": "SIM terpasang tetapi modem belum terdaftar di jaringan mana pun. Metrik sinyal tetap kosong sampai modem berhasil attach."
+      },
+      "searching": {
+        "title": "Mencari jaringan",
+        "description": "Modem sedang memindai sel yang dapat dipakai. Detail radio muncul begitu modem terdaftar."
+      },
+      "unknown": {
+        "title": "Status radio tidak dilaporkan",
+        "description": "Modem mengembalikan status yang tidak dikenali halaman ini. Coba muat ulang; jika terus berlanjut, poller mungkin perlu dimulai ulang."
+      }
+    },
+    "cellular_card": {
+      "title": "Informasi seluler",
+      "description": "Dilaporkan oleh jaringan pada attach saat ini."
+    },
+    "groups": {
+      "connection": "Koneksi",
+      "cell_identity": "Identitas sel",
+      "addressing": "Pengalamatan"
+    },
+    "rows": {
+      "operator": "Operator",
+      "apn": "Nama titik akses (APN)",
+      "network_type": "Tipe jaringan",
+      "carrier_aggregation": "Carrier aggregation",
+      "cell_id": "Cell ID",
+      "enodeb": "eNodeB",
+      "gnodeb": "gNodeB",
+      "sector": "Sektor",
+      "tac": "Kode area pelacakan (TAC)",
+      "wan_ipv4": "WAN IPv4",
+      "wan_ipv6": "WAN IPv6",
+      "primary_dns": "DNS utama",
+      "secondary_dns": "DNS sekunder"
+    },
+    "actions": {
+      "edit_apn": "Edit"
+    },
+    "ca": {
+      "lte_carriers_one": "LTE ({{count}} carrier)",
+      "lte_carriers_other": "LTE ({{count}} carrier)",
+      "nr_carriers_one": "NR ({{count}} carrier)",
+      "nr_carriers_other": "NR ({{count}} carrier)",
+      "lte_only": "LTE",
+      "nr_only": "NR",
+      "inactive": "Tidak aktif"
+    },
+    "value": {
+      "unknown": "Tidak dilaporkan",
+      "not_assigned": "Tidak ditetapkan"
+    },
+    "copy": {
+      "aria": "Salin {{label}} ke papan klip",
+      "success": "{{label}} disalin ke papan klip",
+      "error": "Tidak dapat menyalin ke papan klip",
+      "copied": "Tersalin"
+    },
+    "a11y": {
+      "show_full_address": "Tampilkan {{label}} lengkap tanpa pemampatan"
+    },
+    "bands": {
+      "title": "Band seluler aktif",
+      "description_one": "{{count}} carrier aktif. Buka sebuah band untuk melihat metrik sinyalnya.",
+      "description_other": "{{count}} carrier aktif. Buka sebuah band untuk melihat metrik sinyalnya.",
+      "cadence": "Diperbarui setiap beberapa detik",
+      "stale": "Pembacaan dijeda",
+      "role": {
+        "pcc": "PCC",
+        "anchor": "ANCHOR",
+        "scc": "SCC {{index}}"
+      },
+      "released": "Dilepas",
+      "released_note": "Carrier ini berhenti dilaporkan {{seconds}} dtk lalu. Ia tetap ada di daftar untuk sesaat, kalau-kalau muncul lagi.",
+      "quality": {
+        "excellent": "Sangat Baik",
+        "good": "Baik",
+        "fair": "Cukup",
+        "poor": "Buruk",
+        "none": "Tidak ada pembacaan"
+      },
+      "metric": {
+        "rsrp": "RSRP",
+        "rsrq": "RSRQ",
+        "sinr": "SINR",
+        "snr": "SNR",
+        "rssi": "RSSI",
+        "rssi_caption": "Daya terima pita lebar",
+        "not_reported": "Tidak dilaporkan untuk carrier ini"
+      },
+      "detail": {
+        "band_name": "Nama band",
+        "bandwidth": "Bandwidth",
+        "dl_frequency": "Frekuensi DL",
+        "ul_frequency": "Frekuensi UL",
+        "pci": "PCI",
+        "scs": "Jarak subcarrier",
+        "unknown": "Tidak diketahui",
+        "scs_derived": "Turunan",
+        "scs_derived_hint": "Modem melaporkan jarak subcarrier hanya untuk sel NR yang melayani. Nilai ini diturunkan dari mode duplex band tersebut, bukan dibaca dari radio."
+      },
+      "units": {
+        "mhz": "{{value}} MHz",
+        "khz": "{{value}} kHz"
+      },
+      "low_snr": "SNR pada carrier ini adalah {{value}} dB, yang berada di rentang buruk.",
+      "empty": {
+        "title": "Tidak ada carrier yang dilaporkan",
+        "description": "Modem sedang tidak melaporkan carrier teragregasi apa pun. Itu normal saat radio sedang mencari, idle, atau di antara handover."
+      },
+      "scanner": {
+        "body": "Mencari carrier yang tidak sedang dipakai modem? Pemindai sel menyapu setiap band yang didukung radio.",
+        "link": "Buka pemindai sel"
+      }
+    }
+  },
   "scenarios": {
     "controls_label": "Aktivasi skenario",
     "default_balanced_name": "Seimbang",
