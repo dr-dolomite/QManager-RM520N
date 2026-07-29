@@ -34,7 +34,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Spinner } from "@/components/ui/spinner";
-import { FileDownIcon, PlusIcon, SquarePenIcon } from "lucide-react";
+import { MaterialSymbol } from "@/components/ui/material-symbol";
 
 import type { SimProfile, CurrentModemSettings } from "@/types/sim-profile";
 import type { ProfileFormData } from "@/hooks/use-sim-profiles";
@@ -615,7 +615,7 @@ const CustomProfileFormComponent = ({
                           type="button"
                           onClick={handleLoadFromSim}
                         >
-                          <FileDownIcon />
+                          <MaterialSymbol name="download" size={16} />
                           {t("custom_profiles.form.load_from_sim")}
                         </Button>
                       )}
@@ -1018,7 +1018,7 @@ const CustomProfileFormComponent = ({
                               onClick={addScheduleBlock}
                               disabled={atScheduleCap}
                             >
-                              <PlusIcon />
+                              <MaterialSymbol name="add" size={16} />
                               {t("custom_profiles.form.add_window")}
                             </Button>
                           </div>
@@ -1242,7 +1242,7 @@ const SummarySection = ({
           className="text-muted-foreground hover:text-foreground h-7 gap-1.5 px-2"
           onClick={onEdit}
         >
-          <SquarePenIcon className="size-3.5" />
+          <MaterialSymbol name="edit" size={14} />
           {t("custom_profiles.form.review_edit_aria")}
         </Button>
       </div>

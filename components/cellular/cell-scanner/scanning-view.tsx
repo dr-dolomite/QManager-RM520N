@@ -1,4 +1,4 @@
-import { ScanSearchIcon } from "lucide-react";
+import { MaterialSymbol } from "@/components/ui/material-symbol";
 
 interface ScanningViewProps {
   elapsedSeconds: number;
@@ -17,7 +17,7 @@ export function ScanningView({ elapsedSeconds }: ScanningViewProps) {
       <div className="relative flex items-center justify-center">
         <div className="absolute size-16 motion-safe:animate-pulse rounded-full bg-primary/10" />
         <div className="relative flex size-12 items-center justify-center rounded-full bg-primary/15">
-          <ScanSearchIcon className="size-5 text-primary" />
+          <MaterialSymbol name="radar" size={20} className="text-primary" />
         </div>
       </div>
 

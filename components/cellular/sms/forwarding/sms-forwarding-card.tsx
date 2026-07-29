@@ -25,7 +25,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { SaveButton, useSaveFlash } from "@/components/ui/save-button";
-import { AlertCircleIcon, RefreshCcwIcon } from "lucide-react";
+import { MaterialSymbol } from "@/components/ui/material-symbol";
 import { staggerItem } from "@/lib/motion";
 import { type UseSmsForwardingReturn } from "@/hooks/use-sms-forwarding";
 import { type SmsForwardingData } from "@/types/sms-forwarding";
@@ -131,7 +131,7 @@ const SmsForwardingCard = ({ fwd }: { fwd: UseSmsForwardingReturn }) => {
         </CardHeader>
         <CardContent>
           <Alert variant="destructive">
-            <AlertCircleIcon className="size-4" />
+            <MaterialSymbol name="error" size={16} />
             <AlertTitle>Couldn&apos;t load forwarding settings</AlertTitle>
             <AlertDescription>
               <p>{error}</p>
@@ -141,7 +141,7 @@ const SmsForwardingCard = ({ fwd }: { fwd: UseSmsForwardingReturn }) => {
                 className="mt-2"
                 onClick={() => refresh()}
               >
-                <RefreshCcwIcon className="size-3.5" />
+                <MaterialSymbol name="refresh" size={14} />
                 Retry
               </Button>
             </AlertDescription>

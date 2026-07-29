@@ -8,12 +8,7 @@ import ScannerEmptyView from "./empty-view";
 import ScanResultView from "./scan-result";
 import type { CellScanResult } from "./scan-result";
 import { Button } from "@/components/ui/button";
-import {
-  AlertCircle,
-  DownloadIcon,
-  LoaderCircleIcon,
-  RefreshCcwIcon,
-} from "lucide-react";
+import { MaterialSymbol } from "@/components/ui/material-symbol";
 import { useCellScanner } from "@/hooks/use-cell-scanner";
 import { toast } from "sonner";
 import { downloadCSV } from "@/lib/download-csv";
@@ -131,7 +126,7 @@ const FullScannerComponent = () => {
             ) : status === "error" ? (
               <div className="flex flex-col items-center justify-center py-16 text-center gap-4">
                 <div className="flex size-12 items-center justify-center rounded-full bg-destructive/10">
-                  <AlertCircle className="size-5 text-destructive" />
+                  <MaterialSymbol name="error" size={20} className="text-destructive" />
                 </div>
                 <div className="max-w-xs space-y-1">
                   <p className="text-sm font-medium text-foreground">
@@ -143,7 +138,7 @@ const FullScannerComponent = () => {
                   </p>
                 </div>
                 <Button onClick={startScan} variant="outline" size="sm">
-                  <RefreshCcwIcon className="size-4" />
+                  <MaterialSymbol name="refresh" size={16} />
                   Retry Scan
                 </Button>
               </div>
@@ -168,7 +163,7 @@ const FullScannerComponent = () => {
                   }
                   aria-label="Download CSV"
                 >
-                  <DownloadIcon />
+                  <MaterialSymbol name="download" size={16} />
                 </Button>
               )}
             </div>
@@ -201,7 +196,7 @@ const FullScannerComponent = () => {
             <AlertDialogAction onClick={(e) => { e.preventDefault(); confirmLockCell(); }} disabled={isLocking}>
               {isLocking ? (
                 <>
-                  <LoaderCircleIcon className="size-4 animate-spin" />
+                  <MaterialSymbol name="progress_activity" size={16} className="animate-spin motion-reduce:animate-none" />
                   Locking...
                 </>
               ) : (

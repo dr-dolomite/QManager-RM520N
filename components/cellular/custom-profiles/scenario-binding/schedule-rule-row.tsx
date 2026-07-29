@@ -1,12 +1,7 @@
 "use client";
 
 import { useTranslation } from "react-i18next";
-import {
-  ChevronDownIcon,
-  ChevronUpIcon,
-  Trash2Icon,
-  TriangleAlertIcon,
-} from "lucide-react";
+import { MaterialSymbol } from "@/components/ui/material-symbol";
 
 import {
   Collapsible,
@@ -103,7 +98,7 @@ export function ScheduleRuleRow({
                 aria-label={t("custom_profiles.form.scenario.move_up_aria")}
                 onClick={onMoveUp}
               >
-                <ChevronUpIcon className="size-3.5" />
+                <MaterialSymbol name="arrow_upward" size={14} />
               </Button>
               <Button
                 type="button"
@@ -114,7 +109,7 @@ export function ScheduleRuleRow({
                 aria-label={t("custom_profiles.form.scenario.move_down_aria")}
                 onClick={onMoveDown}
               >
-                <ChevronDownIcon className="size-3.5" />
+                <MaterialSymbol name="arrow_downward" size={14} />
               </Button>
             </div>
           )}
@@ -127,12 +122,14 @@ export function ScheduleRuleRow({
               className="flex min-w-0 flex-1 items-center gap-2 rounded-md px-1 py-1 text-left text-sm"
             >
               {flagged && (
-                <TriangleAlertIcon className="text-warning size-3 shrink-0" />
+                <MaterialSymbol name="warning" size={12} className="text-warning shrink-0" />
               )}
               <span className="truncate tabular-nums">{summary}</span>
-              <ChevronDownIcon
+              <MaterialSymbol
+                name="expand_more"
+                size={16}
                 className={cn(
-                  "text-muted-foreground ml-auto size-4 shrink-0 transition-transform duration-200 ease-[cubic-bezier(0.16,1,0.3,1)] motion-reduce:transition-none",
+                  "text-muted-foreground ml-auto shrink-0 transition-transform duration-200 ease-[cubic-bezier(0.16,1,0.3,1)] motion-reduce:transition-none",
                   open && "rotate-180",
                 )}
               />
@@ -147,7 +144,7 @@ export function ScheduleRuleRow({
             aria-label={t("custom_profiles.form.scenario.remove_block_aria")}
             onClick={onRemove}
           >
-            <Trash2Icon className="size-4" />
+            <MaterialSymbol name="delete" size={16} />
           </Button>
         </div>
 

@@ -30,7 +30,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { Loader2, RotateCcwIcon } from "lucide-react";
+import { MaterialSymbol } from "@/components/ui/material-symbol";
 import { SaveButton, useSaveFlash } from "@/components/ui/save-button";
 import type { MbnProfile, MbnSaveRequest } from "@/types/mbn-settings";
 
@@ -253,11 +253,12 @@ const MBNCard = ({
                 <Button
                   type="button"
                   variant="outline"
+                  size="icon"
                   onClick={handleReset}
                   disabled={isSaving}
                   aria-label="Reset to saved values"
                 >
-                  <RotateCcwIcon />
+                  <MaterialSymbol name="restart_alt" size={16} />
                 </Button>
               </TooltipTrigger>
               <TooltipContent>Reset to saved values</TooltipContent>
@@ -288,7 +289,7 @@ const MBNCard = ({
               >
                 {isRebooting ? (
                   <>
-                    <Loader2 className="size-4 animate-spin" />
+                    <MaterialSymbol name="progress_activity" size={16} className="animate-spin motion-reduce:animate-none" />
                     Rebooting...
                   </>
                 ) : (

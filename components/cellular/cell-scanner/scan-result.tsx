@@ -15,13 +15,7 @@ import {
   type VisibilityState,
   type Row,
 } from "@tanstack/react-table";
-import {
-  ArrowUpDown,
-  ChevronDown,
-  Info,
-  LockIcon,
-  MoreVertical,
-} from "lucide-react";
+import { MaterialSymbol } from "@/components/ui/material-symbol";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -89,7 +83,7 @@ const createColumns = (
         onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
       >
         Provider
-        <ArrowUpDown className="size-4" />
+        <MaterialSymbol name="unfold_more" size={16} />
       </Button>
     ),
     cell: ({ row }) => {
@@ -100,7 +94,7 @@ const createColumns = (
           <Tooltip>
             <TooltipTrigger asChild>
               <button type="button" className="inline-flex p-2 -m-2" aria-label="MCC/MNC details">
-                <Info className="size-3" />
+                <MaterialSymbol name="info" size={12} />
               </button>
             </TooltipTrigger>
             <TooltipContent>
@@ -169,7 +163,7 @@ const createColumns = (
         onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
       >
         Signal
-        <ArrowUpDown className="size-4" />
+        <MaterialSymbol name="unfold_more" size={16} />
       </Button>
     ),
     cell: ({ row }) => {
@@ -196,13 +190,13 @@ const createColumns = (
               className="data-[state=open]:bg-muted text-muted-foreground flex size-8"
               size="icon"
             >
-              <MoreVertical className="size-4" />
+              <MaterialSymbol name="more_vert" size={16} />
               <span className="sr-only">Open menu</span>
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-40">
             <DropdownMenuItem onClick={() => onLockCell?.(cellData)}>
-              <LockIcon className="size-4" />
+              <MaterialSymbol name="lock" size={16} />
               Lock Cell
             </DropdownMenuItem>
           </DropdownMenuContent>
@@ -299,7 +293,7 @@ const ScanResultView = ({ data, onLockCell }: ScanResultViewProps) => {
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="outline" className="@sm/card:ml-auto">
-              Columns <ChevronDown className="size-4" />
+              Columns <MaterialSymbol name="expand_more" size={16} />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">

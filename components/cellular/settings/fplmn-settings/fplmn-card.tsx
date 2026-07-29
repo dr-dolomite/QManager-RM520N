@@ -20,12 +20,7 @@ import {
   EmptyTitle,
 } from "@/components/ui/empty";
 import { Skeleton } from "@/components/ui/skeleton";
-import {
-  CircleCheckIcon,
-  RefreshCcwIcon,
-  AlertTriangleIcon,
-  Loader2,
-} from "lucide-react";
+import { MaterialSymbol } from "@/components/ui/material-symbol";
 import { Button } from "@/components/ui/button";
 
 const CGI_ENDPOINT = "/cgi-bin/quecmanager/cellular/fplmn.sh";
@@ -156,7 +151,7 @@ const FPLMNCard = () => {
           <Empty className="bg-destructive/5 h-full">
             <EmptyHeader>
               <EmptyMedia variant="icon" className="bg-destructive rounded-xl">
-                <AlertTriangleIcon className="text-destructive-foreground size-6" />
+                <MaterialSymbol name="warning" size={24} className="text-destructive-foreground" />
               </EmptyMedia>
               <EmptyTitle>Unable to Check</EmptyTitle>
               <EmptyDescription className="max-w-xs text-pretty">
@@ -165,7 +160,7 @@ const FPLMNCard = () => {
             </EmptyHeader>
             <EmptyContent>
               <Button variant="outline" onClick={() => fetchStatus()}>
-                <RefreshCcwIcon />
+                <MaterialSymbol name="refresh" size={16} />
                 Retry
               </Button>
             </EmptyContent>
@@ -191,7 +186,7 @@ const FPLMNCard = () => {
               <Empty className="bg-destructive/5 h-full">
                 <EmptyHeader>
                   <EmptyMedia variant="icon" className="bg-destructive rounded-xl">
-                    <AlertTriangleIcon className="text-destructive-foreground size-6" />
+                    <MaterialSymbol name="warning" size={24} className="text-destructive-foreground" />
                   </EmptyMedia>
                   <EmptyTitle>Blocked Networks Found</EmptyTitle>
                   <EmptyDescription className="max-w-xs text-pretty">
@@ -207,7 +202,7 @@ const FPLMNCard = () => {
                   >
                     {isClearing ? (
                       <>
-                        <Loader2 className="size-4 animate-spin" />
+                        <MaterialSymbol name="progress_activity" size={16} className="animate-spin motion-reduce:animate-none" />
                         Clearing...
                       </>
                     ) : (
@@ -228,7 +223,7 @@ const FPLMNCard = () => {
               <Empty className="bg-muted/30 h-full">
                 <EmptyHeader>
                   <EmptyMedia variant="icon" className="bg-primary rounded-xl">
-                    <CircleCheckIcon className="text-primary-foreground size-6" />
+                    <MaterialSymbol name="check_circle" size={24} className="text-primary-foreground" />
                   </EmptyMedia>
                   <EmptyTitle>No Blocked Networks</EmptyTitle>
                   <EmptyDescription className="max-w-xs text-pretty">
@@ -237,7 +232,7 @@ const FPLMNCard = () => {
                 </EmptyHeader>
                 <EmptyContent>
                   <Button variant="outline" onClick={() => fetchStatus()}>
-                    <RefreshCcwIcon />
+                    <MaterialSymbol name="refresh" size={16} />
                     Refresh Status
                   </Button>
                 </EmptyContent>

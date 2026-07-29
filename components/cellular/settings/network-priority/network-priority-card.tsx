@@ -31,11 +31,9 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 
-import { RotateCcwIcon } from "lucide-react";
-import { IconGripVertical } from "@tabler/icons-react";
+import { MaterialSymbol } from "@/components/ui/material-symbol";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { AiFillSignal } from "react-icons/ai";
 import { motion } from "motion/react";
 import { SaveButton, useSaveFlash } from "@/components/ui/save-button";
 import { staggerRows } from "@/lib/motion";
@@ -107,7 +105,7 @@ function DraggableNetworkItem({
         className="text-muted-foreground size-7 hover:bg-accent cursor-grab active:cursor-grabbing"
         disabled={disabled}
       >
-        <IconGripVertical className="text-muted-foreground size-4" />
+        <MaterialSymbol name="drag_indicator" size={16} className="text-muted-foreground" />
         <span className="sr-only">Drag to reorder</span>
       </Button>
       <div className="flex items-center gap-x-3">
@@ -116,7 +114,11 @@ function DraggableNetworkItem({
             RAT_COLORS[network.id]?.bg ?? "bg-muted-foreground"
           } flex justify-center items-center`}
         >
-          <AiFillSignal className={`size-4 ${RAT_COLORS[network.id]?.fg ?? "text-background"}`} />
+          <MaterialSymbol
+            name="signal_cellular_alt"
+            size={16}
+            className={RAT_COLORS[network.id]?.fg ?? "text-background"}
+          />
         </div>
         <span className="font-medium text-sm">{network.name}</span>
       </div>
@@ -344,11 +346,12 @@ const NetworkPriorityCard = () => {
           />
           <Button
             variant="outline"
+            size="icon"
             onClick={handleReset}
             disabled={isSaving}
             aria-label="Reset to saved values"
           >
-            <RotateCcwIcon />
+            <MaterialSymbol name="restart_alt" size={16} />
           </Button>
         </div>
       </CardContent>

@@ -1,9 +1,9 @@
 import React, { useState } from "react";
 import { motion } from "motion/react";
-import { CheckCircle2Icon, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { AbstractPattern } from "./abstract-pattern";
 import { Badge } from "@/components/ui/badge";
+import { MaterialSymbol, type MaterialSymbolName } from "@/components/ui/material-symbol";
 import { DUR, EASE_STANDARD } from "@/lib/motion";
 import {
   AlertDialog,
@@ -44,8 +44,8 @@ export interface Scenario {
   id: string;
   name: string;
   description: string;
-  /** Resolved component, for rendering. */
-  icon: React.ElementType;
+  /** Resolved ligature name, for rendering. */
+  icon: MaterialSymbolName;
   /** The persisted glyph KEY this was resolved from. Kept alongside the
    *  component because the edit dialog needs to pre-select the stored choice,
    *  and a component reference cannot be compared back to a picker option. */
@@ -70,7 +70,6 @@ export const ScenarioItem = ({
   onSelect,
   onDelete,
 }: ScenarioItemProps) => {
-  const Icon = scenario.icon;
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const isCustom = scenario.pattern === "custom";
 
@@ -117,11 +116,11 @@ export const ScenarioItem = ({
               {/* Glyph disc, matching the Banner primitive's Glyph-Disc Rule:
                   a filled circle survives when a tint washes out. */}
               <span className="bg-primary text-primary-foreground grid size-9 flex-none place-items-center rounded-full">
-                <Icon className="size-5" />
+                <MaterialSymbol name={scenario.icon} size={20} />
               </span>
               {isActive && (
                 <Badge variant="success">
-                  <CheckCircle2Icon className="size-3" />
+                  <MaterialSymbol name="check_circle" size={12} />
                   Active
                 </Badge>
               )}
@@ -132,7 +131,7 @@ export const ScenarioItem = ({
                 aria-label={`Delete ${scenario.name} scenario`}
                 className="bg-surface-container-high text-on-surface-variant hover:bg-destructive hover:text-destructive-foreground rounded-inline p-2 opacity-0 transition-colors group-hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-current"
               >
-                <Trash2 size={16} />
+                <MaterialSymbol name="delete" size={16} />
               </button>
             )}
           </div>

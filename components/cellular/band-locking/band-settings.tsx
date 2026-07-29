@@ -17,13 +17,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { TbInfoCircleFilled } from "react-icons/tb";
-import {
-  TriangleAlertIcon,
-  CheckCircle2Icon,
-  MinusCircleIcon,
-  Loader2Icon,
-} from "lucide-react";
+import { MaterialSymbol } from "@/components/ui/material-symbol";
 import { toast } from "sonner";
 import type { FailoverState } from "@/types/band-locking";
 import type { CarrierComponent } from "@/types/modem-status";
@@ -126,7 +120,7 @@ const BandSettingsComponent = ({
     if (!failover.enabled) {
       return (
         <Badge variant="muted">
-          <MinusCircleIcon className="h-3 w-3" />
+          <MaterialSymbol name="do_not_disturb_on" size={12} />
           Disabled
         </Badge>
       );
@@ -135,7 +129,7 @@ const BandSettingsComponent = ({
     if (failover.activated) {
       return (
         <Badge variant="warning">
-          <TriangleAlertIcon className="h-3 w-3" />
+          <MaterialSymbol name="warning" size={12} />
           Fallback Active
         </Badge>
       );
@@ -144,7 +138,11 @@ const BandSettingsComponent = ({
     if (failover.watcher_running) {
       return (
         <Badge variant="info">
-          <Loader2Icon className="h-3 w-3 animate-spin" />
+          <MaterialSymbol
+            name="progress_activity"
+            size={12}
+            className="animate-spin motion-reduce:animate-none"
+          />
           Monitoring
         </Badge>
       );
@@ -152,7 +150,7 @@ const BandSettingsComponent = ({
 
     return (
       <Badge variant="success">
-        <CheckCircle2Icon className="h-3 w-3" />
+        <MaterialSymbol name="check_circle" size={12} />
         Ready
       </Badge>
     );
@@ -176,7 +174,7 @@ const BandSettingsComponent = ({
               <Tooltip>
                 <TooltipTrigger asChild>
                   <button type="button" className="inline-flex" aria-label="More info">
-                    <TbInfoCircleFilled className="size-5 text-info" />
+                    <MaterialSymbol name="info" filled size={20} className="text-info" />
                   </button>
                 </TooltipTrigger>
                 <TooltipContent>

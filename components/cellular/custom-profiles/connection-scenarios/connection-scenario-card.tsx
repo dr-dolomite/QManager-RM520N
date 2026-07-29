@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { motion } from "motion/react";
 import { useTranslation } from "react-i18next";
-import { Gamepad2, Play, Zap } from "lucide-react";
+import { MaterialSymbol } from "@/components/ui/material-symbol";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -57,7 +57,7 @@ const DEFAULT_SCENARIOS: Scenario[] = [
     id: "balanced",
     name: "Balanced",
     description: "Auto band selection",
-    icon: Zap,
+    icon: "bolt",
     pattern: "balanced",
     isDefault: true,
     config: {
@@ -73,7 +73,7 @@ const DEFAULT_SCENARIOS: Scenario[] = [
     id: "gaming",
     name: "Gaming",
     description: "Low latency, SA priority",
-    icon: Gamepad2,
+    icon: "sports_esports",
     pattern: "gaming",
     isDefault: true,
     config: {
@@ -89,7 +89,7 @@ const DEFAULT_SCENARIOS: Scenario[] = [
     id: "streaming",
     name: "Streaming",
     description: "High bandwidth, stable connection",
-    icon: Play,
+    icon: "play_arrow",
     pattern: "streaming",
     isDefault: true,
     config: {
@@ -564,7 +564,7 @@ const ConnectionScenariosCard = ({
                 aria-labelledby="add-icon-label"
                 className="grid grid-cols-6 gap-2"
               >
-                {SCENARIO_ICONS.map(({ id, Icon, label }) => {
+                {SCENARIO_ICONS.map(({ id, icon, label }) => {
                   const selected = addIcon === id;
                   return (
                     <button
@@ -584,7 +584,7 @@ const ConnectionScenariosCard = ({
                           : "bg-surface-container-high text-on-surface-variant hover:bg-primary-container hover:text-on-primary-container",
                       )}
                     >
-                      <Icon className="size-4" />
+                      <MaterialSymbol name={icon} size={16} />
                     </button>
                   );
                 })}
@@ -601,9 +601,7 @@ const ConnectionScenariosCard = ({
                 />
                 <div className="relative flex items-center gap-3 p-4">
                   <span className="bg-primary text-primary-foreground grid size-9 flex-none place-items-center rounded-full">
-                    {React.createElement(resolveScenarioIcon(addIcon), {
-                      className: "size-5",
-                    })}
+                    <MaterialSymbol name={resolveScenarioIcon(addIcon)} size={20} />
                   </span>
                   <div className="min-w-0">
                     <p className="truncate font-medium">
@@ -729,7 +727,7 @@ const ConnectionScenariosCard = ({
                 aria-labelledby="edit-icon-label"
                 className="grid grid-cols-6 gap-2"
               >
-                {SCENARIO_ICONS.map(({ id, Icon, label }) => {
+                {SCENARIO_ICONS.map(({ id, icon, label }) => {
                   const selected = editIcon === id;
                   return (
                     <button
@@ -749,7 +747,7 @@ const ConnectionScenariosCard = ({
                           : "bg-surface-container-high text-on-surface-variant hover:bg-primary-container hover:text-on-primary-container",
                       )}
                     >
-                      <Icon className="size-4" />
+                      <MaterialSymbol name={icon} size={16} />
                     </button>
                   );
                 })}
@@ -766,9 +764,7 @@ const ConnectionScenariosCard = ({
                 />
                 <div className="relative flex items-center gap-3 p-4">
                   <span className="bg-primary text-primary-foreground grid size-9 flex-none place-items-center rounded-full">
-                    {React.createElement(resolveScenarioIcon(editIcon), {
-                      className: "size-5",
-                    })}
+                    <MaterialSymbol name={resolveScenarioIcon(editIcon)} size={20} />
                   </span>
                   <div className="min-w-0">
                     <p className="truncate font-medium">

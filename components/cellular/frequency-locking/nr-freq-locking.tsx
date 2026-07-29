@@ -37,9 +37,8 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { AlertCircleIcon, Loader2 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
-import { TbInfoCircleFilled, TbAlertTriangleFilled } from "react-icons/tb";
+import { MaterialSymbol } from "@/components/ui/material-symbol";
 
 import { Field, FieldGroup, FieldLabel, FieldSet } from "@/components/ui/field";
 
@@ -331,7 +330,7 @@ const NrFreqLockingComponent = ({
             role="alert"
             className="flex flex-col items-center gap-3 py-8 text-center"
           >
-            <AlertCircleIcon className="size-8 text-destructive" />
+            <MaterialSymbol name="error" size={32} className="text-destructive" />
             <div className="space-y-1">
               <p className="text-sm font-medium">
                 Failed to load frequency lock status
@@ -365,7 +364,7 @@ const NrFreqLockingComponent = ({
             {/* Tower lock active warning */}
             {towerLockActive ? (
               <div className="flex items-start gap-2 p-2 rounded-md bg-destructive/10 border border-destructive/30 text-destructive text-sm">
-                <TbAlertTriangleFilled className="size-5 mt-0.5 shrink-0" />
+                <MaterialSymbol name="warning" filled size={20} className="mt-0.5 shrink-0" />
                 <p className="font-semibold">
                   NR Tower Lock is active. Disable it before using frequency
                   locking.
@@ -373,7 +372,7 @@ const NrFreqLockingComponent = ({
               </div>
             ) : (
               <div className="flex items-start gap-2 p-2 rounded-md bg-warning/10 border border-warning/30 text-warning text-sm">
-                <TbAlertTriangleFilled className="size-5 mt-0.5 shrink-0" />
+                <MaterialSymbol name="warning" filled size={20} className="mt-0.5 shrink-0" />
                 <p className="font-semibold">Experimental Feature</p>
               </div>
             )}
@@ -388,7 +387,7 @@ const NrFreqLockingComponent = ({
                       className="inline-flex"
                       aria-label="More info"
                     >
-                      <TbInfoCircleFilled className="size-5 text-info" />
+                      <MaterialSymbol name="info" filled size={20} className="text-info" />
                     </button>
                   </TooltipTrigger>
                   <TooltipContent>
@@ -406,7 +405,11 @@ const NrFreqLockingComponent = ({
               </div>
               <div className="flex items-center space-x-2">
                 {isLocking ? (
-                  <Loader2 className="size-4 animate-spin text-muted-foreground" />
+                  <MaterialSymbol
+                    name="progress_activity"
+                    size={16}
+                    className="animate-spin motion-reduce:animate-none text-muted-foreground"
+                  />
                 ) : null}
                 <Switch
                   id="nr-freq-locking"

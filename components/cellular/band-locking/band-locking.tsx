@@ -19,7 +19,7 @@ import {
   resolveScheduledScenario,
   nextChangeAt,
 } from "@/lib/scenario-schedule";
-import { InfoIcon } from "lucide-react";
+import { MaterialSymbol } from "@/components/ui/material-symbol";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
 // =============================================================================
@@ -190,7 +190,7 @@ const BandLockingComponent = () => {
       {/* Scenario override banner — shown only when there's no profile gate */}
       {!isProfileControlled && isScenarioControlled && !isPageLoading && (
         <Alert className="mb-4">
-          <InfoIcon className="size-4" />
+          <MaterialSymbol name="info" size={16} />
           <AlertDescription>
             <p>
               Band configuration is managed by the{" "}

@@ -39,13 +39,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { SaveButton, useSaveFlash } from "@/components/ui/save-button";
-import {
-  GlobeIcon,
-  PhoneCallIcon,
-  SirenIcon,
-  TriangleAlertIcon,
-  CircleSlashIcon,
-} from "lucide-react";
+import { MaterialSymbol } from "@/components/ui/material-symbol";
 
 import type { ApnSetting, CidContext, ApnSaveRequest } from "@/types/apn-settings";
 import { PDP_TYPE_OPTIONS } from "@/types/apn-settings";
@@ -78,7 +72,7 @@ function CidBadge({ ctx }: { ctx: CidContext }) {
   if (ctx.apn_type === "ims") {
     return (
       <Badge variant="warning">
-        <PhoneCallIcon className="text-warning size-3" />
+        <MaterialSymbol name="call" size={12} className="text-warning" />
         {t("core_settings.apn.edit.fields.modem_profile.ims_badge")}
       </Badge>
     );
@@ -86,7 +80,7 @@ function CidBadge({ ctx }: { ctx: CidContext }) {
   if (ctx.apn_type === "emergency") {
     return (
       <Badge variant="destructive">
-        <SirenIcon className="text-destructive size-3" />
+        <MaterialSymbol name="sos" size={12} className="text-destructive" />
         {t("core_settings.apn.edit.fields.modem_profile.sos_badge")}
       </Badge>
     );
@@ -94,7 +88,7 @@ function CidBadge({ ctx }: { ctx: CidContext }) {
   if (ctx.is_internet) {
     return (
       <Badge variant="success">
-        <GlobeIcon className="text-success size-3" />
+        <MaterialSymbol name="public" size={12} className="text-success" />
         {t("core_settings.apn.edit.fields.modem_profile.for_internet")}
       </Badge>
     );
@@ -127,7 +121,7 @@ function LiveStatusBadge({
     return (
       <div className="flex items-center gap-2">
         <Badge variant="muted">
-          <CircleSlashIcon className="size-3" />
+          <MaterialSymbol name="do_not_disturb_on" size={12} />
           {t("core_settings.apn.status.carrier_default")}
         </Badge>
       </div>
@@ -154,7 +148,7 @@ function LiveStatusBadge({
       <div className="flex flex-col gap-1">
         <Badge variant="warning"
           className="w-fit">
-          <TriangleAlertIcon className="size-3" />
+          <MaterialSymbol name="warning" size={12} />
           {t("core_settings.apn.status.not_live")}
         </Badge>
         <p className="text-xs text-muted-foreground">
@@ -168,7 +162,7 @@ function LiveStatusBadge({
 
   return (
     <Badge variant="success">
-      <GlobeIcon className="size-3" />
+      <MaterialSymbol name="public" size={12} />
       {t("core_settings.apn.status.active")}
     </Badge>
   );

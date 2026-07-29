@@ -15,13 +15,9 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
-  CheckCircle2Icon,
-  Loader2,
-  MinusCircleIcon,
-  SendIcon,
-  TriangleAlertIcon,
-  XIcon,
-} from "lucide-react";
+  MaterialSymbol,
+  type MaterialSymbolName,
+} from "@/components/ui/material-symbol";
 import { staggerContainer, staggerItem } from "@/lib/motion";
 import { type UseSmsForwardingReturn } from "@/hooks/use-sms-forwarding";
 
@@ -120,32 +116,31 @@ const DeliveryHealthCard = ({ fwd }: { fwd: UseSmsForwardingReturn }) => {
 
   const STATE: Record<
     Health,
-    { tone: Tone; Icon: typeof CheckCircle2Icon; label: string }
+    { tone: Tone; iconName: MaterialSymbolName; label: string }
   > = {
     active: {
       tone: "success",
-      Icon: CheckCircle2Icon,
+      iconName: "check_circle",
       label: "Forwarding active",
     },
     issue: {
       tone: "warning",
-      Icon: TriangleAlertIcon,
+      iconName: "warning",
       label: "Delivery issues",
     },
     unconfigured: {
       tone: "warning",
-      Icon: TriangleAlertIcon,
+      iconName: "warning",
       label: "No destination set",
     },
     off: {
       tone: "muted",
-      Icon: MinusCircleIcon,
+      iconName: "do_not_disturb_on",
       label: "Forwarding off",
     },
   };
 
   const state = STATE[health];
-  const { Icon } = state;
   const canSendTest = enabled && !!target_phone && !isSendingTest;
 
   // --- Render ----------------------------------------------------------------
@@ -169,7 +164,7 @@ const DeliveryHealthCard = ({ fwd }: { fwd: UseSmsForwardingReturn }) => {
             <span
               className={`flex size-9 shrink-0 items-center justify-center rounded-lg ${ICON_WRAP_CLASS[state.tone]}`}
             >
-              <Icon className="size-5" />
+              <MaterialSymbol name={state.iconName} size={20} />
             </span>
             <div className="grid gap-0.5">
               <p className="text-sm font-semibold leading-tight">
@@ -218,12 +213,12 @@ const DeliveryHealthCard = ({ fwd }: { fwd: UseSmsForwardingReturn }) => {
             >
               {isSendingTest ? (
                 <>
-                  <Loader2 className="size-4 animate-spin" />
+                  <MaterialSymbol name="progress_activity" size={16} className="animate-spin motion-reduce:animate-none" />
                   Sending…
                 </>
               ) : (
                 <>
-                  <SendIcon className="size-4" />
+                  <MaterialSymbol name="send" size={16} />
                   Send test
                 </>
               )}
@@ -248,7 +243,7 @@ const DeliveryHealthCard = ({ fwd }: { fwd: UseSmsForwardingReturn }) => {
                   style={{ overflow: "hidden" }}
                 >
                   <Alert variant="destructive">
-                    <TriangleAlertIcon className="size-4" />
+                    <MaterialSymbol name="warning" size={16} />
                     <AlertTitle>
                       {failures.length} delivery{" "}
                       {failures.length === 1 ? "failure" : "failures"}
@@ -287,9 +282,9 @@ const DeliveryHealthCard = ({ fwd }: { fwd: UseSmsForwardingReturn }) => {
                         onClick={handleClear}
                       >
                         {isClearing ? (
-                          <Loader2 className="size-3.5 animate-spin" />
+                          <MaterialSymbol name="progress_activity" size={14} className="animate-spin motion-reduce:animate-none" />
                         ) : (
-                          <XIcon className="size-3.5" />
+                          <MaterialSymbol name="close" size={14} />
                         )}
                         Clear failures
                       </Button>
@@ -305,7 +300,7 @@ const DeliveryHealthCard = ({ fwd }: { fwd: UseSmsForwardingReturn }) => {
                   transition={{ duration: 0.15, ease: "easeOut" }}
                   className="flex items-center gap-1.5 text-sm text-muted-foreground"
                 >
-                  <CheckCircle2Icon className="size-3.5 text-success" />
+                  <MaterialSymbol name="check_circle" size={14} className="text-success" />
                   No delivery failures
                 </motion.p>
               )}

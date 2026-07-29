@@ -35,9 +35,8 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { TbInfoCircleFilled } from "react-icons/tb";
 import { Input } from "@/components/ui/input";
-import { Loader2 } from "lucide-react";
+import { MaterialSymbol } from "@/components/ui/material-symbol";
 import { Skeleton } from "@/components/ui/skeleton";
 
 import { Field, FieldGroup, FieldLabel, FieldSet } from "@/components/ui/field";
@@ -349,7 +348,7 @@ const LTELockingComponent = ({
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <span className="inline-flex">
-                        <TbInfoCircleFilled className="size-4 text-muted-foreground" />
+                        <MaterialSymbol name="info" filled size={16} className="text-muted-foreground" />
                       </span>
                     </TooltipTrigger>
                     <TooltipContent className="max-w-xs">
@@ -383,14 +382,14 @@ const LTELockingComponent = ({
             </div>
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-1.5">
-                <TbInfoCircleFilled className="size-5 text-info" />
+                <MaterialSymbol name="info" filled size={20} className="text-info" />
                 <p className="font-semibold text-muted-foreground text-sm">
                   LTE Tower Locking Enabled
                 </p>
               </div>
               <div className="flex items-center space-x-2">
                 {isLocking ? (
-                  <Loader2 className="size-4 animate-spin text-muted-foreground" />
+                  <MaterialSymbol name="progress_activity" size={16} className="animate-spin motion-reduce:animate-none text-muted-foreground" />
                 ) : null}
                 <Switch
                   id="lte-tower-locking"

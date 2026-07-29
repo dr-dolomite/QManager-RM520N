@@ -39,7 +39,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Loader2, RotateCcwIcon, AlertTriangleIcon } from "lucide-react";
+import { MaterialSymbol } from "@/components/ui/material-symbol";
 
 interface IMEISettingsCardProps {
   currentImei: string | null;
@@ -179,7 +179,7 @@ const IMEISettingsCard = ({
                             className="pl-1.5 inline-flex items-center"
                             aria-label="IMEI legal warning"
                           >
-                            <AlertTriangleIcon className="text-muted-foreground size-4" />
+                            <MaterialSymbol name="warning" size={16} className="text-muted-foreground" />
                           </button>
                         </TooltipTrigger>
                         <TooltipContent>
@@ -212,7 +212,7 @@ const IMEISettingsCard = ({
             >
               {isSaving ? (
                 <>
-                  <Loader2 className="size-4 animate-spin" />
+                  <MaterialSymbol name="progress_activity" size={16} className="animate-spin motion-reduce:animate-none" />
                   Saving...
                 </>
               ) : (
@@ -222,11 +222,12 @@ const IMEISettingsCard = ({
             <Button
               type="button"
               variant="outline"
+              size="icon"
               onClick={handleReset}
               disabled={isSaving}
               aria-label="Reset to saved values"
             >
-              <RotateCcwIcon />
+              <MaterialSymbol name="restart_alt" size={16} />
             </Button>
           </div>
         </form>
@@ -253,7 +254,7 @@ const IMEISettingsCard = ({
               >
                 {isRebooting ? (
                   <>
-                    <Loader2 className="size-4 animate-spin" />
+                    <MaterialSymbol name="progress_activity" size={16} className="animate-spin motion-reduce:animate-none" />
                     Rebooting...
                   </>
                 ) : (

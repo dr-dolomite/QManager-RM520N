@@ -13,12 +13,11 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { CircleArrowDownIcon, CircleArrowUpIcon } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { AmbrData } from "@/types/cellular-settings";
 import { formatBitrate } from "@/types/cellular-settings";
-import { TbInfoCircleFilled } from "react-icons/tb";
+import { MaterialSymbol } from "@/components/ui/material-symbol";
 
 interface CellularAMBRCardProps {
   ambr: AmbrData | null;
@@ -75,7 +74,7 @@ const CellularAMBRCard = ({ ambr, isLoading }: CellularAMBRCardProps) => {
               <Tooltip>
                 <TooltipTrigger asChild>
                   <button type="button" className="inline-flex" aria-label="More info">
-                    <TbInfoCircleFilled className="size-5 text-info" />
+                    <MaterialSymbol name="info" filled size={20} className="text-info" />
                   </button>
                 </TooltipTrigger>
                 <TooltipContent>
@@ -102,13 +101,13 @@ const CellularAMBRCard = ({ ambr, isLoading }: CellularAMBRCardProps) => {
                     </p>
                     <div className="flex items-center gap-x-4">
                       <div className="flex items-center gap-x-1">
-                        <CircleArrowDownIcon className="size-4 text-info" />
+                        <MaterialSymbol name="arrow_circle_down" size={16} className="text-info" />
                         <p className="font-semibold text-sm">
                           {formatBitrate(entry.dl_kbps)}
                         </p>
                       </div>
                       <div className="flex items-center gap-x-1">
-                        <CircleArrowUpIcon className="size-4 text-info" />
+                        <MaterialSymbol name="arrow_circle_up" size={16} className="text-info" />
                         <p className="font-semibold text-sm">
                           {formatBitrate(entry.ul_kbps)}
                         </p>
@@ -134,7 +133,7 @@ const CellularAMBRCard = ({ ambr, isLoading }: CellularAMBRCardProps) => {
               <Tooltip>
                 <TooltipTrigger asChild>
                   <button type="button" className="inline-flex" aria-label="More info">
-                    <TbInfoCircleFilled className="size-5 text-info" />
+                    <MaterialSymbol name="info" filled size={20} className="text-info" />
                   </button>
                 </TooltipTrigger>
                 <TooltipContent>
@@ -160,13 +159,13 @@ const CellularAMBRCard = ({ ambr, isLoading }: CellularAMBRCardProps) => {
                     </p>
                     <div className="flex items-center gap-x-4">
                       <div className="flex items-center gap-x-1">
-                        <CircleArrowDownIcon className="size-4 text-info" />
+                        <MaterialSymbol name="arrow_circle_down" size={16} className="text-info" />
                         <p className="font-semibold text-sm">
                           {formatBitrate(entry.dl_kbps)}
                         </p>
                       </div>
                       <div className="flex items-center gap-x-1">
-                        <CircleArrowUpIcon className="size-4 text-info" />
+                        <MaterialSymbol name="arrow_circle_up" size={16} className="text-info" />
                         <p className="font-semibold text-sm">
                           {formatBitrate(entry.ul_kbps)}
                         </p>

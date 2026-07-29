@@ -2,16 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import {
-  CheckCircle2Icon,
-  CircleDotIcon,
-  Loader2Icon,
-  MapPinIcon,
-  CompassIcon,
-  RotateCcwIcon,
-  TrophyIcon,
-  Trash2Icon,
-} from "lucide-react";
+import { MaterialSymbol } from "@/components/ui/material-symbol";
 import {
   Card,
   CardContent,
@@ -371,7 +362,7 @@ function RecordingSlotCard({
       {isBest && snapshot && (
         <div className="absolute -top-2.5 left-1/2 -translate-x-1/2 z-10">
           <Badge className="gap-1 text-[10px]">
-            <TrophyIcon className="size-3" />
+            <MaterialSymbol name="trophy" size={12} />
             Best
           </Badge>
         </div>
@@ -379,9 +370,17 @@ function RecordingSlotCard({
 
       <div className="flex items-center gap-2">
         {antennaType === "directional" ? (
-          <CompassIcon className="h-4 w-4 text-muted-foreground shrink-0" />
+          <MaterialSymbol
+            name="explore"
+            size={16}
+            className="text-muted-foreground shrink-0"
+          />
         ) : (
-          <MapPinIcon className="h-4 w-4 text-muted-foreground shrink-0" />
+          <MaterialSymbol
+            name="location_on"
+            size={16}
+            className="text-muted-foreground shrink-0"
+          />
         )}
         <Input
           value={label}
@@ -398,7 +397,11 @@ function RecordingSlotCard({
       {isRecording && (
         <div className="space-y-3">
           <div className="flex items-center justify-center gap-2 py-1" aria-live="polite">
-            <Loader2Icon className="size-4 text-info animate-spin" aria-hidden="true" />
+            <MaterialSymbol
+              name="progress_activity"
+              size={16}
+              className="text-info animate-spin motion-reduce:animate-none"
+            />
             <span className="text-xs text-muted-foreground">
               Sample {samplesCollected} of {SAMPLES_PER_RECORDING}
             </span>
@@ -437,7 +440,7 @@ function RecordingSlotCard({
             aria-label={`Clear ${label}`}
             onClick={onClear}
           >
-            <Trash2Icon className="h-3.5 w-3.5" />
+            <MaterialSymbol name="delete" size={14} />
           </Button>
           {showLte && (
             <div className="space-y-1">
@@ -506,7 +509,7 @@ function RecordingSlotCard({
             </div>
           )}
           <div className="flex items-center gap-1 text-[10px] text-muted-foreground">
-            <CheckCircle2Icon className="h-3 w-3 text-success" />
+            <MaterialSymbol name="check_circle" size={12} className="text-success" />
             Recorded {new Date(snapshot.ts).toLocaleTimeString()}
           </div>
         </div>
@@ -516,7 +519,10 @@ function RecordingSlotCard({
       {!isRecording && !snapshot && (
         <div className="space-y-2">
           <div className="flex items-center gap-2 py-3 justify-center">
-            <CircleDotIcon className="h-4 w-4 text-muted-foreground/50" />
+            <span
+              aria-hidden="true"
+              className="size-3 rounded-full border-2 border-muted-foreground/50"
+            />
             <span className="text-xs text-muted-foreground">Not recorded</span>
           </div>
           <Button
@@ -584,14 +590,14 @@ export default function AlignmentMeterSection({
                 value="directional"
                 className="gap-1 text-xs h-7 px-2"
               >
-                <CompassIcon className="h-3 w-3" />
+                <MaterialSymbol name="explore" size={12} />
                 Directional
               </ToggleGroupItem>
               <ToggleGroupItem
                 value="omni"
                 className="gap-1 text-xs h-7 px-2"
               >
-                <MapPinIcon className="h-3 w-3" />
+                <MaterialSymbol name="location_on" size={12} />
                 Omni
               </ToggleGroupItem>
             </ToggleGroup>
@@ -602,7 +608,7 @@ export default function AlignmentMeterSection({
               className="h-7 gap-1 text-xs"
               disabled={activeSlot !== null}
             >
-              <RotateCcwIcon className="h-3 w-3" />
+              <MaterialSymbol name="restart_alt" size={12} />
               Reset
             </Button>
           </div>
@@ -648,7 +654,11 @@ export default function AlignmentMeterSection({
               className="rounded-lg border border-primary/30 bg-primary/5 p-4"
             >
               <div className="flex items-start gap-3">
-                <TrophyIcon className="h-5 w-5 text-primary shrink-0 mt-0.5" />
+                <MaterialSymbol
+                  name="trophy"
+                  size={20}
+                  className="text-primary shrink-0 mt-0.5"
+                />
                 <div className="space-y-1">
                   <p className="text-sm font-semibold">
                     Recommended:{" "}

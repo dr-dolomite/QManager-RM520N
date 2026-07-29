@@ -1,4 +1,4 @@
-import { RefreshCcwIcon, ScanSearchIcon } from "lucide-react";
+import { MaterialSymbol } from "@/components/ui/material-symbol";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -19,7 +19,7 @@ const ScannerEmptyView = ({ onStartScan }: ScannerEmptyViewProps) => {
     <Empty className="from-muted/50 to-background h-full bg-linear-to-b from-30%">
       <EmptyHeader>
         <EmptyMedia variant="icon">
-          <ScanSearchIcon />
+          <MaterialSymbol name="radar" size={24} />
         </EmptyMedia>
         <EmptyTitle>No Scan Results</EmptyTitle>
         <EmptyDescription>
@@ -28,7 +28,7 @@ const ScannerEmptyView = ({ onStartScan }: ScannerEmptyViewProps) => {
       </EmptyHeader>
       <EmptyContent>
         <Button onClick={onStartScan}>
-          <RefreshCcwIcon />
+          <MaterialSymbol name="refresh" size={16} />
           Start New Scan
         </Button>
       </EmptyContent>

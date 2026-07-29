@@ -20,7 +20,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { SaveButton, useSaveFlash } from "@/components/ui/save-button";
-import { RotateCcwIcon } from "lucide-react";
+import { MaterialSymbol } from "@/components/ui/material-symbol";
 import type { CellularSettings } from "@/types/cellular-settings";
 
 interface CellularSettingsCardProps {
@@ -265,11 +265,12 @@ const CellularSettingsCard = ({
             <Button
               type="button"
               variant="outline"
+              size="icon"
               onClick={handleReset}
               disabled={isSaving}
               aria-label="Reset to saved values"
             >
-              <RotateCcwIcon />
+              <MaterialSymbol name="restart_alt" size={16} />
             </Button>
           </div>
         </form>

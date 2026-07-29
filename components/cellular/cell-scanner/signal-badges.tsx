@@ -1,4 +1,4 @@
-import { SignalHighIcon, SignalMediumIcon, SignalLowIcon } from "lucide-react";
+import { MaterialSymbol } from "@/components/ui/material-symbol";
 import { Badge } from "@/components/ui/badge";
 
 // These three chips share one table column, so they are read against each other
@@ -11,20 +11,20 @@ export function SignalBadge({ strength }: { strength: number }) {
   if (strength >= -85)
     return (
       <Badge variant="success">
-        <SignalHighIcon className="size-3" />
+        <MaterialSymbol name="signal_cellular_3_bar" size={12} />
         Good
       </Badge>
     );
   if (strength >= -100)
     return (
       <Badge variant="warning">
-        <SignalMediumIcon className="size-3" />
+        <MaterialSymbol name="signal_cellular_2_bar" size={12} />
         Fair
       </Badge>
     );
   return (
     <Badge variant="destructive">
-      <SignalLowIcon className="size-3" />
+      <MaterialSymbol name="signal_cellular_1_bar" size={12} />
       Bad
     </Badge>
   );

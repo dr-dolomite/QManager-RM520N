@@ -16,13 +16,7 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
-import {
-  AlertCircleIcon,
-  LockIcon,
-  LockOpenIcon,
-  RotateCcwIcon,
-  ShieldIcon,
-} from "lucide-react";
+import { MaterialSymbol } from "@/components/ui/material-symbol";
 import { toast } from "sonner";
 import { formatBandName, type BandCategory } from "@/types/band-locking";
 import { staggerContainer } from "@/lib/motion";
@@ -209,17 +203,17 @@ const BandCardsComponent = ({
           </div>
           {disabled ? (
             <Badge variant="info">
-              <ShieldIcon className="h-3 w-3" />
+              <MaterialSymbol name="shield" size={12} />
               Scenario Controlled
             </Badge>
           ) : isAllUnlocked ? (
             <Badge variant="success">
-              <LockOpenIcon className="h-3 w-3" />
+              <MaterialSymbol name="lock_open" size={12} />
               All Unlocked
             </Badge>
           ) : (
             <Badge variant="warning">
-              <LockIcon className="h-3 w-3" />
+              <MaterialSymbol name="lock" size={12} />
               {currentLockedBands.length} / {supportedBands.length} Bands
             </Badge>
           )}
@@ -265,7 +259,7 @@ const BandCardsComponent = ({
             role="alert"
             className="flex items-center gap-2 rounded-md bg-destructive/10 border border-destructive/30 px-3 py-2 text-sm text-destructive"
           >
-            <AlertCircleIcon className="size-4 shrink-0" />
+            <MaterialSymbol name="error" size={16} className="shrink-0" />
             <span>{error}</span>
           </div>
         </div>
@@ -293,7 +287,7 @@ const BandCardsComponent = ({
             aria-label="Unlock all bands"
             title="Unlock all bands (reset)"
           >
-            <RotateCcwIcon />
+            <MaterialSymbol name="restart_alt" size={16} />
           </Button>
         </div>
         {/* Quick actions row */}

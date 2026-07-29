@@ -10,7 +10,7 @@ import { useSimProfiles } from "@/hooks/use-sim-profiles";
 import { ProfileOverrideAlert } from "@/components/cellular/custom-profiles/profile-override-alert";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import { AlertCircleIcon, RefreshCwIcon } from "lucide-react";
+import { MaterialSymbol } from "@/components/ui/material-symbol";
 
 // =============================================================================
 // APNSettingsComponent — APN Settings page coordinator (single-APN model)
@@ -121,12 +121,12 @@ const APNSettingsComponent = () => {
 
       {error && !isLoading && (
         <Alert variant="destructive" className="mb-4">
-          <AlertCircleIcon />
+          <MaterialSymbol name="error" size={16} />
           <AlertTitle>{t("core_settings.apn.page.error_load_title")}</AlertTitle>
           <AlertDescription className="flex items-center gap-2">
             <span>{t("core_settings.apn.page.error_load_description")}</span>
             <Button variant="outline" size="sm" onClick={() => refresh()}>
-              <RefreshCwIcon className="size-3.5" />
+              <MaterialSymbol name="refresh" size={14} />
               {t("actions.retry", { ns: "common" })}
             </Button>
           </AlertDescription>

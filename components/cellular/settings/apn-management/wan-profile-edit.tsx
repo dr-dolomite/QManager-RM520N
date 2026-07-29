@@ -34,12 +34,7 @@ import {
   TooltipTrigger,
   TooltipContent,
 } from "@/components/ui/tooltip";
-import {
-  EyeIcon,
-  EyeOffIcon,
-  InfoIcon,
-} from "lucide-react";
-import { TbInfoCircleFilled } from "react-icons/tb";
+import { MaterialSymbol } from "@/components/ui/material-symbol";
 
 import type { WanProfile, WanProfileSaveRequest } from "@/types/wan-profiles";
 import {
@@ -239,7 +234,7 @@ export default function WanProfileEditCard({
       <CardContent>
         {carrier && (
           <Alert className="mb-4">
-            <InfoIcon />
+            <MaterialSymbol name="info" size={16} />
             <AlertTitle>Carrier-Provisioned Profile</AlertTitle>
             <AlertDescription>
               This profile is managed by your carrier and cannot be edited.
@@ -392,9 +387,9 @@ export default function WanProfileEditCard({
                           }
                         >
                           {showPassword ? (
-                            <EyeOffIcon className="size-4" />
+                            <MaterialSymbol name="visibility_off" size={16} />
                           ) : (
-                            <EyeIcon className="size-4" />
+                            <MaterialSymbol name="visibility" size={16} />
                           )}
                         </Button>
                       </div>
@@ -494,7 +489,7 @@ export default function WanProfileEditCard({
                             className="inline-flex"
                             aria-label="What is Default Route?"
                           >
-                            <TbInfoCircleFilled className="size-4 text-info" />
+                            <MaterialSymbol name="info" filled size={16} className="text-info" />
                           </button>
                         </TooltipTrigger>
                         <TooltipContent>
@@ -527,7 +522,7 @@ export default function WanProfileEditCard({
                             className="inline-flex"
                             aria-label="What is IP Passthrough?"
                           >
-                            <TbInfoCircleFilled className="size-4 text-info" />
+                            <MaterialSymbol name="info" filled size={16} className="text-info" />
                           </button>
                         </TooltipTrigger>
                         <TooltipContent>

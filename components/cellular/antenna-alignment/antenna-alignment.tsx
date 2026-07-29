@@ -1,7 +1,7 @@
 "use client";
 
 import { motion, type Variants } from "motion/react";
-import { SignalIcon } from "lucide-react";
+import { MaterialSymbol } from "@/components/ui/material-symbol";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Empty,
@@ -93,7 +93,7 @@ export default function AntennaAlignmentComponent() {
         <Empty>
           <EmptyHeader>
             <EmptyMedia variant="icon">
-              <SignalIcon />
+              <MaterialSymbol name="signal_cellular_alt" size={24} />
             </EmptyMedia>
             <EmptyTitle>No Antenna Data</EmptyTitle>
             <EmptyDescription className="max-w-xs text-pretty">

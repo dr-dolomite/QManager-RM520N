@@ -1,5 +1,5 @@
 import React from "react";
-import { Settings } from "lucide-react";
+import { MaterialSymbol } from "@/components/ui/material-symbol";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -37,7 +37,6 @@ export const ActiveConfigCard = ({
   nextChangeAt,
 }: ActiveConfigCardProps) => {
   if (!scenario) return null;
-  const Icon = scenario.icon;
   const isCustom = !scenario.isDefault;
 
   return (
@@ -49,7 +48,7 @@ export const ActiveConfigCard = ({
             {/* Same filled glyph disc the tile uses, so the scenario keeps one
                 identity across the picker and this detail card. */}
             <div className="bg-primary text-primary-foreground rounded-tile p-2.5">
-              <Icon className="size-6" />
+              <MaterialSymbol name={scenario.icon} size={24} />
             </div>
             <div className="grid">
               <h4 className="font-semibold">{scenario.name} Configuration</h4>
@@ -74,7 +73,7 @@ export const ActiveConfigCard = ({
           <div className="flex items-center gap-1">
             {isCustom && (
               <Button variant="ghost" size="icon" aria-label="Edit scenario settings" onClick={onEdit}>
-                <Settings className="size-4" />
+                <MaterialSymbol name="settings" size={16} />
               </Button>
             )}
             {!isActive && !isActivating && (

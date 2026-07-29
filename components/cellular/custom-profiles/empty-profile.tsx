@@ -20,7 +20,7 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@/components/ui/empty";
-import { UserRoundPenIcon, RefreshCcwIcon } from "lucide-react";
+import { MaterialSymbol } from "@/components/ui/material-symbol";
 
 interface EmptyProfileViewProps {
   onRefresh?: () => void;
@@ -48,7 +48,7 @@ const EmptyProfileViewComponent = ({ onRefresh }: EmptyProfileViewProps) => {
           <Empty className="border border-dashed">
             <EmptyHeader>
               <EmptyMedia variant="icon">
-                <UserRoundPenIcon />
+                <MaterialSymbol name="badge" size={24} />
               </EmptyMedia>
               <EmptyTitle>
                 {t("custom_profiles.empty_state.title")}
@@ -60,7 +60,7 @@ const EmptyProfileViewComponent = ({ onRefresh }: EmptyProfileViewProps) => {
             {onRefresh && (
               <EmptyContent>
                 <Button variant="outline" size="sm" onClick={onRefresh}>
-                  <RefreshCcwIcon className="size-4" />
+                  <MaterialSymbol name="refresh" size={16} />
                   {t("custom_profiles.empty_state.refresh")}
                 </Button>
               </EmptyContent>

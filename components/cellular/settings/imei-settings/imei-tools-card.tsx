@@ -38,12 +38,7 @@ import {
 } from "@/components/ui/tooltip";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import {
-  CheckCircle2Icon,
-  XCircleIcon,
-  CopyIcon,
-  ExternalLinkIcon,
-} from "lucide-react";
+import { MaterialSymbol } from "@/components/ui/material-symbol";
 import {
   IMEI_TAC_PRESETS,
   IMEI_CUSTOM_ID,
@@ -209,7 +204,7 @@ const IMEIToolsCard = () => {
                                 aria-label="Copy IMEI"
                                 onClick={handleCopy}
                               >
-                                <CopyIcon />
+                                <MaterialSymbol name="content_copy" size={12} />
                               </InputGroupButton>
                             </TooltipTrigger>
                             <TooltipContent>Copy to clipboard</TooltipContent>
@@ -236,12 +231,12 @@ const IMEIToolsCard = () => {
                   <p className="font-medium flex items-center gap-1">
                     {isValid ? (
                       <>
-                        <CheckCircle2Icon className="size-4 text-green-500" />
+                        <MaterialSymbol name="check_circle" size={16} className="text-green-500" />
                         Valid IMEI
                       </>
                     ) : (
                       <>
-                        <XCircleIcon className="size-4 text-red-500" />
+                        <MaterialSymbol name="cancel" size={16} className="text-red-500" />
                         Invalid IMEI
                       </>
                     )}
@@ -279,7 +274,7 @@ const IMEIToolsCard = () => {
                 )
               }
             >
-              <ExternalLinkIcon className="size-4" />
+              <MaterialSymbol name="open_in_new" size={16} />
               Check IMEI Info
             </Button>
           </div>

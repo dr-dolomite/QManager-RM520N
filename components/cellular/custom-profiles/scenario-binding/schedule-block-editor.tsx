@@ -2,7 +2,7 @@
 
 import { useId } from "react";
 import { useTranslation } from "react-i18next";
-import { TriangleAlertIcon } from "lucide-react";
+import { MaterialSymbol } from "@/components/ui/material-symbol";
 
 import { Field, FieldLabel, FieldError } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
@@ -114,7 +114,7 @@ export function ScheduleBlockEditor({
           role="status"
           className="text-warning flex items-center gap-1.5 text-xs"
         >
-          <TriangleAlertIcon className="size-3 shrink-0" />
+          <MaterialSymbol name="warning" size={12} className="shrink-0" />
           {t("custom_profiles.form.scenario.overlap_warning")}
         </p>
       )}

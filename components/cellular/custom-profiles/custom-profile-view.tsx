@@ -33,23 +33,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import {
-  AlertCircleIcon,
-  CalendarClockIcon,
-  CheckCircle2Icon,
-  InfoIcon,
-  Loader2Icon,
-  MinusCircleIcon,
-  MoreVerticalIcon,
-  PencilIcon,
-  PlayIcon,
-  PlusIcon,
-  PowerIcon,
-  RouteIcon,
-  SparklesIcon,
-  Trash2Icon,
-  TriangleAlertIcon,
-} from "lucide-react";
+import { MaterialSymbol } from "@/components/ui/material-symbol";
 
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { cn } from "@/lib/utils";
@@ -358,7 +342,7 @@ const CustomProfileViewComponent = ({
                 <>
                   {suggestionError && (
                     <Alert variant="destructive">
-                      <AlertCircleIcon className="size-4" />
+                      <MaterialSymbol name="error" size={16} />
                       <AlertDescription>{suggestionError}</AlertDescription>
                     </Alert>
                   )}
@@ -401,14 +385,14 @@ const CustomProfileViewComponent = ({
                   <div className="text-muted-foreground flex flex-col gap-1.5 pt-1 text-xs">
                     {hasBandRecipe && (
                       <p className="flex items-start gap-2">
-                        <InfoIcon className="mt-px size-3.5 shrink-0" />
+                        <MaterialSymbol name="info" size={14} className="mt-px shrink-0" />
                         <span>
                           {t("custom_profiles.suggestions.rationale_bands")}
                         </span>
                       </p>
                     )}
                     <p className="flex items-start gap-2">
-                      <InfoIcon className="mt-px size-3.5 shrink-0" />
+                      <MaterialSymbol name="info" size={14} className="mt-px shrink-0" />
                       <span>
                         {t("custom_profiles.suggestions.rationale_ttl")}
                       </span>
@@ -551,17 +535,17 @@ const ProfileRow = ({
                 className="text-muted-foreground size-7"
                 aria-label={t("custom_profiles.table.actions_menu.open_menu")}
               >
-                <MoreVerticalIcon className="size-4" />
+                <MaterialSymbol name="more_vert" size={16} />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-40">
               <DropdownMenuItem onClick={onEdit}>
-                <PencilIcon className="size-4" />
+                <MaterialSymbol name="edit" size={16} />
                 {t("custom_profiles.table.actions_menu.edit")}
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem variant="destructive" onClick={onDelete}>
-                <Trash2Icon className="size-4" />
+                <MaterialSymbol name="delete" size={16} />
                 {t("custom_profiles.table.actions_menu.delete")}
               </DropdownMenuItem>
             </DropdownMenuContent>
@@ -572,9 +556,9 @@ const ProfileRow = ({
       {/* Scenario binding line */}
       <div className="text-muted-foreground flex items-center gap-1.5 text-xs">
         {scheduled ? (
-          <CalendarClockIcon className="size-3.5 shrink-0" />
+          <MaterialSymbol name="schedule" size={14} className="shrink-0" />
         ) : (
-          <RouteIcon className="size-3.5 shrink-0" />
+          <MaterialSymbol name="route" size={14} className="shrink-0" />
         )}
         <span className="truncate">
           {scheduled
@@ -594,7 +578,7 @@ const ProfileRow = ({
       {/* SIM mismatch note — only when the active profile no longer matches SIM */}
       {status === "mismatch" && (
         <div className="text-warning bg-warning/10 flex items-start gap-2 rounded-md p-2 text-xs">
-          <TriangleAlertIcon className="mt-px size-3.5 shrink-0" />
+          <MaterialSymbol name="warning" size={14} className="mt-px shrink-0" />
           <span>{t("custom_profiles.view.mismatch_note")}</span>
         </div>
       )}
@@ -641,7 +625,7 @@ const ProfileRow = ({
             className="shrink-0"
             onClick={onDeactivate}
           >
-            <PowerIcon className="size-4" />
+            <MaterialSymbol name="power_settings_new" size={16} />
             {t("custom_profiles.table.actions_menu.deactivate")}
           </Button>
         ) : (
@@ -652,9 +636,13 @@ const ProfileRow = ({
             disabled={busy}
           >
             {busy ? (
-              <Loader2Icon className="size-4 animate-spin" />
+              <MaterialSymbol
+                name="progress_activity"
+                size={16}
+                className="animate-spin motion-reduce:animate-none"
+              />
             ) : (
-              <PlayIcon className="size-4" />
+              <MaterialSymbol name="play_arrow" size={16} />
             )}
             {busy
               ? t("custom_profiles.view.activating")
@@ -674,7 +662,7 @@ const StatusBadge = ({ status }: { status: ProfileStatus }) => {
   if (status === "active") {
     return (
       <Badge variant="success">
-        <CheckCircle2Icon className="size-3" />
+        <MaterialSymbol name="check_circle" size={12} />
         {t("custom_profiles.table.status_badge.active")}
       </Badge>
     );
@@ -682,14 +670,14 @@ const StatusBadge = ({ status }: { status: ProfileStatus }) => {
   if (status === "mismatch") {
     return (
       <Badge variant="warning">
-        <TriangleAlertIcon className="size-3" />
+        <MaterialSymbol name="warning" size={12} />
         {t("custom_profiles.table.status_badge.sim_mismatch")}
       </Badge>
     );
   }
   return (
     <Badge variant="muted">
-      <MinusCircleIcon className="size-3" />
+      <MaterialSymbol name="do_not_disturb_on" size={12} />
       {t("custom_profiles.table.status_badge.inactive")}
     </Badge>
   );
@@ -761,7 +749,7 @@ const SuggestionRow = ({
         </div>
         <Badge variant="info"
           className="shrink-0">
-          <SparklesIcon className="size-3" />
+          <MaterialSymbol name="auto_awesome" size={12} />
           {t("custom_profiles.suggestions.badge")}
         </Badge>
       </div>
@@ -769,7 +757,7 @@ const SuggestionRow = ({
       {/* Scenario binding line — what WILL be bound on create. A suggestion
           never schedules, so this is always the always-on phrasing. */}
       <div className="text-muted-foreground flex items-center gap-1.5 text-xs">
-        <RouteIcon className="size-3.5 shrink-0" />
+        <MaterialSymbol name="route" size={14} className="shrink-0" />
         <span className="truncate">
           {t("custom_profiles.view.scenario_always_on", {
             scenario: scenarioName,
@@ -837,9 +825,13 @@ const SuggestionRow = ({
           })}
         >
           {isCreating ? (
-            <Loader2Icon className="size-4 animate-spin" />
+            <MaterialSymbol
+              name="progress_activity"
+              size={16}
+              className="animate-spin motion-reduce:animate-none"
+            />
           ) : (
-            <PlusIcon className="size-4" />
+            <MaterialSymbol name="add" size={16} />
           )}
           {isCreating
             ? t("custom_profiles.suggestions.creating")

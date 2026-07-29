@@ -1,5 +1,5 @@
 import React from "react";
-import { Plus } from "lucide-react";
+import { MaterialSymbol } from "@/components/ui/material-symbol";
 
 interface AddScenarioItemProps {
   onClick: () => void;
@@ -12,7 +12,7 @@ export const AddScenarioItem = ({ onClick }: AddScenarioItemProps) => (
   >
     <div className="p-5 h-36 flex flex-col items-center justify-center text-muted-foreground hover:text-primary transition-colors">
       <div className="p-3 bg-background rounded-lg shadow-sm mb-2">
-        <Plus size={22} />
+        <MaterialSymbol name="add" size={22} />
       </div>
       <h3 className="text-sm font-medium">Create Scenario</h3>
       <p className="text-xs text-muted-foreground/70 mt-0.5">

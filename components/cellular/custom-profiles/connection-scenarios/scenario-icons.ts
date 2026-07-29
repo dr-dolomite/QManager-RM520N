@@ -1,18 +1,4 @@
-import {
-  BriefcaseIcon,
-  DownloadIcon,
-  Gamepad2Icon,
-  GlobeIcon,
-  MoonIcon,
-  PlaneIcon,
-  PlayIcon,
-  RocketIcon,
-  ShieldIcon,
-  SparklesIcon,
-  VideoIcon,
-  ZapIcon,
-  type LucideIcon,
-} from "lucide-react";
+import type { MaterialSymbolName } from "@/components/ui/material-symbol";
 
 // =============================================================================
 // Scenario identity glyphs
@@ -39,37 +25,37 @@ import {
 export interface ScenarioIconOption {
   /** Stable persisted key. Never rename one that has shipped. */
   id: string;
-  Icon: LucideIcon;
+  icon: MaterialSymbolName;
   /** Picker tooltip / aria-label. */
   label: string;
 }
 
 export const SCENARIO_ICONS: ScenarioIconOption[] = [
-  { id: "sparkles", Icon: SparklesIcon, label: "Sparkles" },
-  { id: "gamepad", Icon: Gamepad2Icon, label: "Gaming" },
-  { id: "play", Icon: PlayIcon, label: "Media" },
-  { id: "zap", Icon: ZapIcon, label: "Performance" },
-  { id: "globe", Icon: GlobeIcon, label: "Browsing" },
-  { id: "rocket", Icon: RocketIcon, label: "Speed" },
-  { id: "video", Icon: VideoIcon, label: "Video calls" },
-  { id: "download", Icon: DownloadIcon, label: "Downloads" },
-  { id: "shield", Icon: ShieldIcon, label: "Secure" },
-  { id: "plane", Icon: PlaneIcon, label: "Travel" },
-  { id: "moon", Icon: MoonIcon, label: "Overnight" },
-  { id: "briefcase", Icon: BriefcaseIcon, label: "Work" },
+  { id: "sparkles", icon: "auto_awesome", label: "Sparkles" },
+  { id: "gamepad", icon: "sports_esports", label: "Gaming" },
+  { id: "play", icon: "play_arrow", label: "Media" },
+  { id: "zap", icon: "bolt", label: "Performance" },
+  { id: "globe", icon: "public", label: "Browsing" },
+  { id: "rocket", icon: "rocket_launch", label: "Speed" },
+  { id: "video", icon: "videocam", label: "Video calls" },
+  { id: "download", icon: "download", label: "Downloads" },
+  { id: "shield", icon: "shield", label: "Secure" },
+  { id: "plane", icon: "airplanemode_active", label: "Travel" },
+  { id: "moon", icon: "dark_mode", label: "Overnight" },
+  { id: "briefcase", icon: "work", label: "Work" },
 ];
 
 /** The glyph used when a stored scenario has no `icon`, or an unknown one. */
 export const DEFAULT_SCENARIO_ICON_ID = "sparkles";
 
 /**
- * Resolve a persisted icon id to its component.
+ * Resolve a persisted icon id to its ligature name.
  *
  * Falls back rather than throwing on purpose: scenarios saved before the icon
  * field existed carry no `icon` at all, and they must still render. Those
  * records are the reason this is total instead of a plain map lookup.
  */
-export function resolveScenarioIcon(id: string | undefined): LucideIcon {
+export function resolveScenarioIcon(id: string | undefined): MaterialSymbolName {
   const match = SCENARIO_ICONS.find((opt) => opt.id === id);
-  return match ? match.Icon : SparklesIcon;
+  return match ? match.icon : "auto_awesome";
 }

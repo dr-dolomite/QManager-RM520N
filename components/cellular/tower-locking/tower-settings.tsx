@@ -25,18 +25,9 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { TbInfoCircleFilled } from "react-icons/tb";
 import { Badge, type BadgeVariant } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import {
-  Loader2,
-  PercentIcon,
-  CheckCircle2Icon,
-  TriangleAlertIcon,
-  AlertCircleIcon,
-  XCircleIcon,
-  MinusCircleIcon,
-} from "lucide-react";
+import { MaterialSymbol } from "@/components/ui/material-symbol";
 import { Skeleton } from "@/components/ui/skeleton";
 
 import type {
@@ -138,11 +129,11 @@ const TowerLockingSettingsComponent = ({
   };
 
   const qualityIcons: Record<string, React.ReactNode> = {
-    good: <CheckCircle2Icon className="h-3 w-3" />,
-    fair: <TriangleAlertIcon className="h-3 w-3" />,
-    poor: <AlertCircleIcon className="h-3 w-3" />,
-    critical: <XCircleIcon className="h-3 w-3" />,
-    none: <MinusCircleIcon className="h-3 w-3" />,
+    good: <MaterialSymbol name="check_circle" size={12} />,
+    fair: <MaterialSymbol name="warning" size={12} />,
+    poor: <MaterialSymbol name="error" size={12} />,
+    critical: <MaterialSymbol name="cancel" size={12} />,
+    none: <MaterialSymbol name="do_not_disturb_on" size={12} />,
   };
 
   // --- Failover status badge ---
@@ -151,7 +142,7 @@ const TowerLockingSettingsComponent = ({
     if (!failoverState && isLoading) {
       return (
         <Badge variant="muted">
-          <Loader2 className="h-3 w-3 animate-spin" />
+          <MaterialSymbol name="progress_activity" size={12} className="animate-spin motion-reduce:animate-none" />
           Loading
         </Badge>
       );
@@ -160,7 +151,7 @@ const TowerLockingSettingsComponent = ({
     if (!failoverState) {
       return (
         <Badge variant="muted">
-          <MinusCircleIcon className="h-3 w-3" />
+          <MaterialSymbol name="do_not_disturb_on" size={12} />
           Unknown
         </Badge>
       );
@@ -169,7 +160,7 @@ const TowerLockingSettingsComponent = ({
     if (failoverState.watcher_running) {
       return (
         <Badge variant="success">
-          <CheckCircle2Icon className="h-3 w-3" />
+          <MaterialSymbol name="check_circle" size={12} />
           Monitoring
         </Badge>
       );
@@ -178,7 +169,7 @@ const TowerLockingSettingsComponent = ({
     if (failoverState.activated) {
       return (
         <Badge variant="warning">
-          <TriangleAlertIcon className="h-3 w-3" />
+          <MaterialSymbol name="warning" size={12} />
           Unlocked due to Poor Signal
         </Badge>
       );
@@ -187,7 +178,7 @@ const TowerLockingSettingsComponent = ({
     if (!failoverState.enabled) {
       return (
         <Badge variant="muted">
-          <MinusCircleIcon className="h-3 w-3" />
+          <MaterialSymbol name="do_not_disturb_on" size={12} />
           Disabled
         </Badge>
       );
@@ -195,7 +186,7 @@ const TowerLockingSettingsComponent = ({
 
     return (
       <Badge variant="success">
-        <CheckCircle2Icon className="h-3 w-3" />
+        <MaterialSymbol name="check_circle" size={12} />
         Ready
       </Badge>
     );
@@ -207,7 +198,7 @@ const TowerLockingSettingsComponent = ({
     if (!config && isLoading) {
       return (
         <Badge variant="muted">
-          <Loader2 className="h-3 w-3 animate-spin" />
+          <MaterialSymbol name="progress_activity" size={12} className="animate-spin motion-reduce:animate-none" />
           Loading
         </Badge>
       );
@@ -216,7 +207,7 @@ const TowerLockingSettingsComponent = ({
     if (!config) {
       return (
         <Badge variant="muted">
-          <MinusCircleIcon className="h-3 w-3" />
+          <MaterialSymbol name="do_not_disturb_on" size={12} />
           Unknown
         </Badge>
       );
@@ -225,7 +216,7 @@ const TowerLockingSettingsComponent = ({
     if (config.schedule.enabled) {
       return (
         <Badge variant="success">
-          <CheckCircle2Icon className="h-3 w-3" />
+          <MaterialSymbol name="check_circle" size={12} />
           Active
         </Badge>
       );
@@ -233,7 +224,7 @@ const TowerLockingSettingsComponent = ({
 
     return (
       <Badge variant="muted">
-        <MinusCircleIcon className="h-3 w-3" />
+        <MaterialSymbol name="do_not_disturb_on" size={12} />
         Inactive
       </Badge>
     );
@@ -246,7 +237,7 @@ const TowerLockingSettingsComponent = ({
     if (!modemData && isLoading) {
       return (
         <Badge variant="muted">
-          <Loader2 className="h-3 w-3 animate-spin" />
+          <MaterialSymbol name="progress_activity" size={12} className="animate-spin motion-reduce:animate-none" />
           Loading
         </Badge>
       );
@@ -255,7 +246,7 @@ const TowerLockingSettingsComponent = ({
     if (!modemData || !serviceStatus) {
       return (
         <Badge variant="muted">
-          <MinusCircleIcon className="h-3 w-3" />
+          <MaterialSymbol name="do_not_disturb_on" size={12} />
           Unknown
         </Badge>
       );
@@ -266,35 +257,35 @@ const TowerLockingSettingsComponent = ({
       case "connected":
         return (
           <Badge variant="success">
-            <CheckCircle2Icon className="h-3 w-3" />
+            <MaterialSymbol name="check_circle" size={12} />
             Connected
           </Badge>
         );
       case "limited":
         return (
           <Badge variant="warning">
-            <TriangleAlertIcon className="h-3 w-3" />
+            <MaterialSymbol name="warning" size={12} />
             Limited Service
           </Badge>
         );
       case "searching":
         return (
           <Badge variant="warning">
-            <TriangleAlertIcon className="h-3 w-3" />
+            <MaterialSymbol name="warning" size={12} />
             Searching
           </Badge>
         );
       case "no_service":
         return (
           <Badge variant="destructive">
-            <XCircleIcon className="h-3 w-3" />
+            <MaterialSymbol name="cancel" size={12} />
             No Service
           </Badge>
         );
       default:
         return (
           <Badge variant="muted">
-            <MinusCircleIcon className="h-3 w-3" />
+            <MaterialSymbol name="do_not_disturb_on" size={12} />
             {serviceStatus}
           </Badge>
         );
@@ -389,7 +380,7 @@ const TowerLockingSettingsComponent = ({
               <Tooltip>
                 <TooltipTrigger asChild>
                   <button type="button" className="inline-flex" aria-label="Keep Lock After Reboot info">
-                    <TbInfoCircleFilled className="size-5 text-info" />
+                    <MaterialSymbol name="info" filled size={20} className="text-info" />
                   </button>
                 </TooltipTrigger>
                 <TooltipContent>
@@ -421,7 +412,7 @@ const TowerLockingSettingsComponent = ({
               <Tooltip>
                 <TooltipTrigger asChild>
                   <button type="button" className="inline-flex" aria-label="Signal Failover info">
-                    <TbInfoCircleFilled className="size-5 text-info" />
+                    <MaterialSymbol name="info" filled size={20} className="text-info" />
                   </button>
                 </TooltipTrigger>
                 <TooltipContent>
@@ -470,7 +461,7 @@ const TowerLockingSettingsComponent = ({
               <Tooltip>
                 <TooltipTrigger asChild>
                   <button type="button" className="inline-flex" aria-label="Failover Threshold info">
-                    <TbInfoCircleFilled className="size-5 text-info" />
+                    <MaterialSymbol name="info" filled size={20} className="text-info" />
                   </button>
                 </TooltipTrigger>
                 <TooltipContent>
@@ -503,7 +494,7 @@ const TowerLockingSettingsComponent = ({
                   }}
                 />
                 <InputGroupAddon align="inline-end">
-                  <PercentIcon />
+                  %
                 </InputGroupAddon>
               </InputGroup>
               {(thresholdDirty || thresholdSaved) && (

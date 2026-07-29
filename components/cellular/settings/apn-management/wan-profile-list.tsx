@@ -15,12 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
-import {
-  CheckCircle2Icon,
-  MinusCircleIcon,
-  XCircleIcon,
-  PencilIcon,
-} from "lucide-react";
+import { MaterialSymbol } from "@/components/ui/material-symbol";
 
 import type { WanProfile } from "@/types/wan-profiles";
 import { isCarrierProfile, isProfileConnected } from "@/types/wan-profiles";
@@ -57,7 +52,7 @@ function ProfileStatusBadge({ profile }: { profile: WanProfile }) {
       <Badge variant="success"
 
         title="Connected">
-        <CheckCircle2Icon className="size-3" />
+        <MaterialSymbol name="check_circle" size={12} />
         <span className="sr-only @xs/card:not-sr-only">Connected</span>
       </Badge>
     );
@@ -68,7 +63,7 @@ function ProfileStatusBadge({ profile }: { profile: WanProfile }) {
       <Badge variant="destructive"
 
         title="Error">
-        <XCircleIcon className="size-3" />
+        <MaterialSymbol name="cancel" size={12} />
         <span className="sr-only @xs/card:not-sr-only">Error</span>
       </Badge>
     );
@@ -78,7 +73,7 @@ function ProfileStatusBadge({ profile }: { profile: WanProfile }) {
     <Badge variant="muted"
 
       title="Disconnected">
-      <MinusCircleIcon className="size-3" />
+      <MaterialSymbol name="do_not_disturb_on" size={12} />
       <span className="sr-only @xs/card:not-sr-only">Disconnected</span>
     </Badge>
   );
@@ -185,7 +180,7 @@ export default function WanProfileListCard({
       <CardContent>
         {!profiles || profiles.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-8 text-center">
-            <MinusCircleIcon className="size-8 text-muted-foreground/50 mb-3" />
+            <MaterialSymbol name="do_not_disturb_on" size={32} className="text-muted-foreground/50 mb-3" />
             <p className="text-sm font-medium text-muted-foreground">
               No WAN profiles found
             </p>
@@ -257,7 +252,7 @@ export default function WanProfileListCard({
                       disabled={isSaving}
                       aria-label={`Edit profile ${profile.index}`}
                     >
-                      <PencilIcon className="size-4" />
+                      <MaterialSymbol name="edit" size={16} />
                     </Button>
                   </div>
                 </motion.div>

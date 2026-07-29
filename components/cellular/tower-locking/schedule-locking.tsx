@@ -18,10 +18,9 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { TbInfoCircleFilled } from "react-icons/tb";
 import { Input } from "@/components/ui/input";
+import { MaterialSymbol } from "@/components/ui/material-symbol";
 import { Toggle } from "@/components/ui/toggle";
-import { CircleIcon } from "lucide-react";
 
 import type {
   TowerLockConfig,
@@ -188,7 +187,7 @@ const ScheduleTowerLockingComponent = ({
               <Tooltip>
                 <TooltipTrigger asChild>
                   <button type="button" className="inline-flex" aria-label="More info">
-                    <TbInfoCircleFilled className="size-5 text-info" />
+                    <MaterialSymbol name="info" filled size={20} className="text-info" />
                   </button>
                 </TooltipTrigger>
                 <TooltipContent>
@@ -249,12 +248,12 @@ const ScheduleTowerLockingComponent = ({
                   aria-label={day}
                   key={day}
                   size="sm"
-                  className="data-[state=on]:bg-transparent data-[state=on]:*:[svg]:fill-blue-500 data-[state=on]:*:[svg]:stroke-blue-500"
+                  className="data-[state=on]:bg-transparent data-[state=on]:*:[span]:bg-blue-500 data-[state=on]:*:[span]:border-0"
                   variant="outline"
                   pressed={days.includes(index)}
                   onPressedChange={() => handleDayToggle(index)}
                 >
-                  <CircleIcon />
+                  <span aria-hidden className="size-1.5 rounded-full border border-current" />
                   {day}
                 </Toggle>
               ))}

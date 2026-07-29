@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { PlusIcon } from "lucide-react";
+import { MaterialSymbol } from "@/components/ui/material-symbol";
 import { useTranslation } from "react-i18next";
 import {
   Select,
@@ -77,7 +77,7 @@ export function ScenarioPicker({
           href="/cellular/custom-profiles/connection-scenarios?action=create"
           className="text-muted-foreground hover:bg-accent hover:text-accent-foreground focus-visible:bg-accent focus-visible:text-accent-foreground relative flex w-full cursor-pointer items-center gap-2 rounded-sm py-1.5 pl-2 pr-8 text-sm outline-none transition-colors"
         >
-          <PlusIcon className="size-4 shrink-0" />
+          <MaterialSymbol name="add" size={16} className="shrink-0" />
           {t("custom_profiles.form.scenario.create_new")}
         </Link>
       </SelectContent>

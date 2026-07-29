@@ -14,7 +14,7 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { X, Trash2 } from "lucide-react";
+import { MaterialSymbol } from "@/components/ui/material-symbol";
 import {
   type LTEBandEntry,
   type NRBandEntry,
@@ -458,7 +458,7 @@ const FrequencyCalculator = () => {
             </div>
             {history.length > 0 && (
               <Button variant="destructive" size="sm" onClick={clearHistory}>
-                <Trash2 className="size-4" />
+                <MaterialSymbol name="delete" size={16} />
                 Clear
               </Button>
             )}
@@ -509,7 +509,7 @@ const FrequencyCalculator = () => {
                     aria-label="Delete history entry"
                     className="h-8 w-8 text-muted-foreground hover:text-foreground"
                   >
-                    <X className="size-4" />
+                    <MaterialSymbol name="close" size={16} />
                   </Button>
                 </div>
               ))}

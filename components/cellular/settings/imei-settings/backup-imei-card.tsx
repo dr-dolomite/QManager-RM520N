@@ -37,11 +37,10 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { TbInfoCircleFilled } from "react-icons/tb";
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { RotateCcwIcon, AlertTriangleIcon } from "lucide-react";
+import { MaterialSymbol } from "@/components/ui/material-symbol";
 import type { BackupImeiConfig } from "@/types/imei-settings";
 
 interface BackupIMEICardProps {
@@ -187,7 +186,7 @@ const BackupIMEICard = ({
                     <Tooltip>
                       <TooltipTrigger asChild>
                         <button type="button" className="inline-flex" aria-label="More info">
-                          <TbInfoCircleFilled className="size-5 text-info" />
+                          <MaterialSymbol name="info" filled size={20} className="text-info" />
                         </button>
                       </TooltipTrigger>
                       <TooltipContent>
@@ -229,7 +228,7 @@ const BackupIMEICard = ({
                           className="pl-1.5 inline-flex items-center"
                           aria-label="IMEI legal warning"
                         >
-                          <AlertTriangleIcon className="text-muted-foreground size-4" />
+                          <MaterialSymbol name="warning" size={16} className="text-muted-foreground" />
                         </button>
                       </TooltipTrigger>
                       <TooltipContent>
@@ -259,11 +258,12 @@ const BackupIMEICard = ({
             <Button
               type="button"
               variant="outline"
+              size="icon"
               onClick={handleReset}
               disabled={isSaving}
               aria-label="Reset to saved values"
             >
-              <RotateCcwIcon />
+              <MaterialSymbol name="restart_alt" size={16} />
             </Button>
           </div>
         </form>

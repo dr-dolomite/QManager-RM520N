@@ -11,16 +11,12 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import {
-  CheckCircle2Icon,
-  XCircleIcon,
-  Loader2,
-  EllipsisIcon,
-  ClockIcon,
-  MinusCircleIcon,
-  RotateCwIcon,
-  TriangleAlertIcon,
-} from "lucide-react";
+// RotateCwIcon stays lucide: it is passed to the shared `Banner` primitive's
+// `icon` prop, which is typed `LucideIcon` on purpose — Banner is
+// route-agnostic and stays on lucide-react everywhere it mounts (see
+// banner.tsx's Icon-Boundary Rule note).
+import { RotateCwIcon } from "lucide-react";
+import { MaterialSymbol } from "@/components/ui/material-symbol";
 import { cn } from "@/lib/utils";
 import { Banner } from "@/components/ui/banner";
 import { transitionStandard } from "@/lib/motion";
@@ -111,13 +107,13 @@ const TONE_RING: Record<Tone, string> = {
 
 /** The large hero glyph for the current overall state. */
 function HeroGlyph({ tone, status }: { tone: Tone; status: string }) {
-  const Icon =
+  const name =
     status === "complete"
-      ? CheckCircle2Icon
+      ? "check_circle"
       : status === "partial"
-        ? MinusCircleIcon
+        ? "do_not_disturb_on"
         : status === "failed"
-          ? XCircleIcon
+          ? "cancel"
           : null;
 
   return (
@@ -127,12 +123,16 @@ function HeroGlyph({ tone, status }: { tone: Tone; status: string }) {
         TONE_RING[tone],
       )}
     >
-      {Icon ? (
-        <Icon className="size-7" />
+      {name ? (
+        <MaterialSymbol name={name} size={28} />
       ) : (
         // In-flight: a calm pulsing ellipsis (not a spinner) so the focal glyph
         // reads as "working" without the rotation that competes with the fill bar.
-        <EllipsisIcon className="size-7 animate-pulse motion-reduce:animate-none" />
+        <MaterialSymbol
+          name="more_horiz"
+          size={28}
+          className="animate-pulse motion-reduce:animate-none"
+        />
       )}
     </span>
   );
@@ -146,31 +146,35 @@ function StepNode({ status }: { status: ApplyStepStatus }) {
     case "running":
       return (
         <span className={cn(base, "text-info")}>
-          <Loader2 className="size-4 animate-spin" />
+          <MaterialSymbol
+            name="progress_activity"
+            size={16}
+            className="animate-spin motion-reduce:animate-none"
+          />
         </span>
       );
     case "done":
       return (
         <span className={cn(base, "text-success")}>
-          <CheckCircle2Icon className="size-4" />
+          <MaterialSymbol name="check_circle" size={16} />
         </span>
       );
     case "failed":
       return (
         <span className={cn(base, "text-destructive")}>
-          <XCircleIcon className="size-4" />
+          <MaterialSymbol name="cancel" size={16} />
         </span>
       );
     case "skipped":
       return (
         <span className={cn(base, "text-muted-foreground")}>
-          <MinusCircleIcon className="size-4" />
+          <MaterialSymbol name="do_not_disturb_on" size={16} />
         </span>
       );
     default:
       return (
         <span className={cn(base, "text-muted-foreground/60")}>
-          <ClockIcon className="size-3.5" />
+          <MaterialSymbol name="schedule" size={14} />
         </span>
       );
   }
@@ -349,7 +353,7 @@ export function ApplyProgressDialog({
         {/* Error from the start request (not step-level) */}
         {error && !applyState && (
           <div className="border-destructive/30 bg-destructive/10 text-destructive flex items-start gap-2 rounded-md border p-3 text-sm">
-            <TriangleAlertIcon className="mt-0.5 size-4 shrink-0" />
+            <MaterialSymbol name="warning" size={16} className="mt-0.5 shrink-0" />
             <p>{error}</p>
           </div>
         )}
@@ -357,13 +361,13 @@ export function ApplyProgressDialog({
         {/* Partial / failed summary */}
         {applyState?.status === "partial" && applyState.error && (
           <div className="border-warning/30 bg-warning/10 text-warning flex items-start gap-2 rounded-md border p-3 text-sm">
-            <TriangleAlertIcon className="mt-0.5 size-4 shrink-0" />
+            <MaterialSymbol name="warning" size={16} className="mt-0.5 shrink-0" />
             <span>{applyState.error}</span>
           </div>
         )}
         {applyState?.status === "failed" && applyState.error && (
           <div className="border-destructive/30 bg-destructive/10 text-destructive flex items-start gap-2 rounded-md border p-3 text-sm">
-            <XCircleIcon className="mt-0.5 size-4 shrink-0" />
+            <MaterialSymbol name="cancel" size={16} className="mt-0.5 shrink-0" />
             <span>{applyState.error}</span>
           </div>
         )}
@@ -375,7 +379,7 @@ export function ApplyProgressDialog({
             <>
               {canRetry && (
                 <Button variant="outline" onClick={onRetry}>
-                  <RotateCwIcon className="size-4" />
+                  <MaterialSymbol name="restart_alt" size={16} />
                   {t("actions.retry", { ns: "common" })}
                 </Button>
               )}

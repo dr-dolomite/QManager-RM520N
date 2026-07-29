@@ -11,28 +11,9 @@ import {
   type ColumnDef,
   type RowSelectionState,
 } from "@tanstack/react-table";
-import {
-  TbDotsVertical,
-  TbEye,
-  TbTrash,
-  TbRefresh,
-  TbPlus,
-} from "react-icons/tb";
-import {
-  AlertCircleIcon,
-  ArrowDownUp,
-  CheckCheck,
-  ChevronLeft,
-  ChevronRight,
-  ChevronsLeft,
-  ChevronsRight,
-  Loader2,
-  MessageSquare,
-  Search,
-  Trash2,
-} from "lucide-react";
 import { toast } from "sonner";
 
+import { MaterialSymbol } from "@/components/ui/material-symbol";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -356,13 +337,13 @@ export default function SmsInboxCard({
                   className="data-[state=open]:bg-muted text-muted-foreground flex size-8 pointer-coarse:size-11"
                   size="icon"
                 >
-                  <TbDotsVertical />
+                  <MaterialSymbol name="more_vert" size={16} />
                   <span className="sr-only">{t("sms.inbox.table.actions.open_menu")}</span>
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-40">
                 <DropdownMenuItem onClick={() => openMessage(row.original)}>
-                  <TbEye className="size-4" />
+                  <MaterialSymbol name="visibility" size={16} />
                   {t("sms.inbox.table.actions.view")}
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
@@ -370,7 +351,7 @@ export default function SmsInboxCard({
                   variant="destructive"
                   onClick={() => setDeleteTarget(row.original)}
                 >
-                  <TbTrash className="size-4" />
+                  <MaterialSymbol name="delete" size={16} />
                   {t("sms.inbox.table.actions.delete")}
                 </DropdownMenuItem>
               </DropdownMenuContent>
@@ -470,7 +451,7 @@ export default function SmsInboxCard({
             role="alert"
             className="flex flex-col items-center gap-3 py-8 text-center"
           >
-            <AlertCircleIcon className="size-8 text-destructive" />
+            <MaterialSymbol name="error" size={32} className="text-destructive" />
             <div className="space-y-1">
               <p className="text-sm font-medium">{t("sms.inbox.error.title")}</p>
               <p className="text-xs text-muted-foreground">
@@ -479,7 +460,7 @@ export default function SmsInboxCard({
               </p>
             </div>
             <Button variant="outline" size="sm" onClick={onRefresh}>
-              <TbRefresh className="size-4" />
+              <MaterialSymbol name="refresh" size={16} />
               {t("actions.retry", { ns: "common" })}
             </Button>
           </div>
@@ -515,7 +496,7 @@ export default function SmsInboxCard({
                 disabled={isSaving}
                 aria-label={t("sms.inbox.buttons.refresh_aria")}
               >
-                <TbRefresh className="size-4" />
+                <MaterialSymbol name="refresh" size={16} />
               </Button>
               {selectedCount > 0 && (
                 <Button
@@ -527,7 +508,7 @@ export default function SmsInboxCard({
                     count: selectedCount,
                   })}
                 >
-                  <Trash2 className="size-4" />
+                  <MaterialSymbol name="delete" size={16} />
                   <span className="hidden @sm/card:inline">
                     {t("sms.inbox.buttons.delete_selected", {
                       count: selectedCount,
@@ -543,7 +524,7 @@ export default function SmsInboxCard({
                   disabled={isSaving}
                   aria-label={t("sms.inbox.buttons.delete_all_aria")}
                 >
-                  <Trash2 className="size-4" />
+                  <MaterialSymbol name="delete" size={16} />
                   <span className="hidden @sm/card:inline">
                     {t("sms.inbox.buttons.delete_all")}
                   </span>
@@ -555,7 +536,7 @@ export default function SmsInboxCard({
                 disabled={isSaving}
                 aria-label={t("sms.inbox.buttons.new_message")}
               >
-                <TbPlus className="size-4" />
+                <MaterialSymbol name="add" size={16} />
                 <span className="hidden @xs/card:inline">
                   {t("sms.inbox.buttons.new_message")}
                 </span>
@@ -566,7 +547,7 @@ export default function SmsInboxCard({
         <CardContent>
           {isEmpty ? (
             <div className="flex flex-col items-center gap-3 py-8 text-center">
-              <MessageSquare className="size-8 text-muted-foreground" />
+              <MaterialSymbol name="sms" size={32} className="text-muted-foreground" />
               <div className="space-y-1">
                 <p className="text-sm font-medium">
                   {t("sms.inbox.empty_state.title")}
@@ -581,7 +562,7 @@ export default function SmsInboxCard({
                 disabled={isSaving}
                 aria-label={t("sms.inbox.buttons.new_message")}
               >
-                <TbPlus className="size-4" />
+                <MaterialSymbol name="add" size={16} />
                 {t("sms.inbox.buttons.new_message")}
               </Button>
             </div>
@@ -604,7 +585,11 @@ export default function SmsInboxCard({
                 </Tabs>
                 <div className="flex items-center gap-2">
                   <div className="relative flex-1 @lg/card:flex-initial">
-                    <Search className="text-muted-foreground pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2" />
+                    <MaterialSymbol
+                      name="search"
+                      size={16}
+                      className="text-muted-foreground pointer-events-none absolute top-1/2 left-2.5 -translate-y-1/2"
+                    />
                     <Input
                       value={search}
                       onChange={(e) => setSearch(e.target.value)}
@@ -620,7 +605,7 @@ export default function SmsInboxCard({
                         size="sm"
                         aria-label={t("sms.inbox.sort.aria")}
                       >
-                        <ArrowDownUp className="size-4" />
+                        <MaterialSymbol name="unfold_more" size={16} />
                         <span className="hidden @sm/card:inline">
                           {sortDir === "newest"
                             ? t("sms.inbox.sort.newest")
@@ -655,7 +640,7 @@ export default function SmsInboxCard({
                       onClick={handleMarkAllRead}
                       aria-label={t("sms.inbox.buttons.mark_all_read_aria")}
                     >
-                      <CheckCheck className="size-4" />
+                      <MaterialSymbol name="done_all" size={16} />
                       <span className="hidden @sm/card:inline">
                         {t("sms.inbox.buttons.mark_all_read")}
                       </span>
@@ -785,7 +770,7 @@ export default function SmsInboxCard({
                         disabled={!table.getCanPreviousPage()}
                         aria-label={t("sms.inbox.buttons.first_page")}
                       >
-                        <ChevronsLeft className="size-4" />
+                        <MaterialSymbol name="first_page" size={16} />
                       </Button>
                       <Button
                         variant="outline"
@@ -795,7 +780,7 @@ export default function SmsInboxCard({
                         disabled={!table.getCanPreviousPage()}
                         aria-label={t("sms.inbox.buttons.prev_page")}
                       >
-                        <ChevronLeft className="size-4" />
+                        <MaterialSymbol name="chevron_right" size={16} className="rotate-180" />
                       </Button>
                       <Button
                         variant="outline"
@@ -805,7 +790,7 @@ export default function SmsInboxCard({
                         disabled={!table.getCanNextPage()}
                         aria-label={t("sms.inbox.buttons.next_page")}
                       >
-                        <ChevronRight className="size-4" />
+                        <MaterialSymbol name="chevron_right" size={16} />
                       </Button>
                       <Button
                         variant="outline"
@@ -817,7 +802,7 @@ export default function SmsInboxCard({
                         disabled={!table.getCanNextPage()}
                         aria-label={t("sms.inbox.buttons.last_page")}
                       >
-                        <ChevronsRight className="size-4" />
+                        <MaterialSymbol name="first_page" size={16} className="rotate-180" />
                       </Button>
                     </div>
                   </div>
@@ -875,7 +860,7 @@ export default function SmsInboxCard({
             >
               {isDeleting ? (
                 <>
-                  <Loader2 className="size-4 animate-spin" />
+                  <MaterialSymbol name="progress_activity" size={16} className="animate-spin motion-reduce:animate-none" />
                   {t("sms.inbox.delete_single_confirm.deleting")}
                 </>
               ) : (
@@ -913,7 +898,7 @@ export default function SmsInboxCard({
             >
               {isDeleting ? (
                 <>
-                  <Loader2 className="size-4 animate-spin" />
+                  <MaterialSymbol name="progress_activity" size={16} className="animate-spin motion-reduce:animate-none" />
                   {t("sms.inbox.delete_single_confirm.deleting")}
                 </>
               ) : (
@@ -951,7 +936,7 @@ export default function SmsInboxCard({
             >
               {isDeleting ? (
                 <>
-                  <Loader2 className="size-4 animate-spin" />
+                  <MaterialSymbol name="progress_activity" size={16} className="animate-spin motion-reduce:animate-none" />
                   {t("sms.inbox.delete_selected_confirm.deleting")}
                 </>
               ) : (

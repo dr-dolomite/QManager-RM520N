@@ -1,10 +1,10 @@
 "use client";
 
 import * as React from "react";
-import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
 
+import { MaterialSymbol } from "@/components/ui/material-symbol";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -135,7 +135,7 @@ export default function SmsComposeDialog({
             <Button type="submit" disabled={isSaving || !isValid}>
               {isSaving ? (
                 <>
-                  <Loader2 className="size-4 animate-spin" />
+                  <MaterialSymbol name="progress_activity" size={16} className="animate-spin motion-reduce:animate-none" />
                   {t("sms.compose.buttons.sending")}
                 </>
               ) : (

@@ -2,7 +2,7 @@
 
 import React from "react";
 import { motion } from "motion/react";
-import { SignalIcon } from "lucide-react";
+import { MaterialSymbol } from "@/components/ui/material-symbol";
 import {
   Card,
   CardContent,
@@ -182,7 +182,7 @@ function TechCard({
           <Empty className="h-full bg-muted/30">
             <EmptyHeader>
               <EmptyMedia variant="icon">
-                <SignalIcon />
+                <MaterialSymbol name="signal_cellular_alt" size={24} />
               </EmptyMedia>
               <EmptyTitle>No {title.split(" ")[0]} Signal</EmptyTitle>
               <EmptyDescription className="max-w-xs text-pretty">

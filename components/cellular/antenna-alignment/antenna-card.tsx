@@ -1,6 +1,6 @@
 "use client";
 
-import { CheckCircle2Icon, MinusCircleIcon } from "lucide-react";
+import { MaterialSymbol } from "@/components/ui/material-symbol";
 import {
   Card,
   CardContent,
@@ -114,9 +114,9 @@ export function AntennaCard({
           </div>
           <Badge variant={active ? "success" : "muted"}>
             {active ? (
-              <CheckCircle2Icon className="size-3" />
+              <MaterialSymbol name="check_circle" size={12} />
             ) : (
-              <MinusCircleIcon className="size-3" />
+              <MaterialSymbol name="do_not_disturb_on" size={12} />
             )}
             {active ? "Active" : "Inactive"}
           </Badge>
