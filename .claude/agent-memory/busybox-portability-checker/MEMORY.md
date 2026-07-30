@@ -1,0 +1,3 @@
+- [SSH upload + tooling quirks for on-device testing](reference_ssh_upload_and_tooling.md) — SFTP unavailable, base64-chunk uploads, PowerShell sandbox blocks literal "rm" even in remote SSH command strings, jq/sudo confirmed available
+- [/tmp sticky bit breaks cross-user mv in test seeds](feedback_tmp_sticky_bit_seed_as_owner.md) — seed throwaway config files as the same user (www-data) that will mv over them, or get a false-positive permission failure
+- [ping_profile.sh has a pre-existing malformed-config merge bug](project_ping_profile_malformed_config_merge_bug.md) — latent, not introduced by the profile-optional fix, confirmed present at HEAD too; worth a follow-up ticket
