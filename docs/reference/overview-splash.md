@@ -137,7 +137,7 @@ While the first read is in flight a `ReadingChip` replaces the theme toggle at t
 
 **Band chips carry IDENTITY, not quality.** Per DESIGN.md's Identity-Chip Rule the chip fill says which radio the row belongs to — NR gets `primary-container`, LTE gets `lte-container` — while the meter and the value carry the functional-colour verdict.
 
-> ⚠️ WARNING — the comp calls the LTE role `--sc` (secondary-container). **Do not use `secondary-container` here.** This repo ships Carrier Violet under the non-canon name `--lte-*` specifically to avoid colliding with the shadcn neutral secondary. See `DESIGN.md` > Token Names in Code.
+> ⚠️ WARNING — the comp calls the LTE role `--sc` (secondary-container). **Do not use `secondary-container` here.** This repo ships Carrier Violet under the non-canon name `--lte-*` specifically to avoid colliding with the shadcn neutral secondary. See `DESIGN.md` > Colors > Secondary.
 
 **Accessibility:** a single `sr-only` `aria-live` region announces only *verdict transitions* (a change in signal quality, connection state, or temperature band), gated by comparing the current verdict against the previous one — so the 5 s poll doesn't re-announce the whole status trio on every tick.
 

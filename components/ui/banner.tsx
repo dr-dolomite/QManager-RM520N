@@ -43,14 +43,15 @@ import { cn } from "@/lib/utils";
 //                           gets a dismiss.
 //   Info-Is-Brand           Informational banners use primary-container, never
 //                           a separate info hue.
-//   Icon-Boundary Rule      Material Symbols are scoped to the sidebar and the
-//                           dashboard route; every other route is lucide.
-//                           Banners are route-agnostic — they mount on Cellular,
-//                           Monitoring and System Settings pages too — so they
-//                           stay on lucide-react regardless of where they
-//                           appear. (Replaces the retired Nav-Glyph Boundary
-//                           Rule, which scoped Material Symbols to the sidebar
-//                           alone.)
+//   Icon-Boundary Rule      Material Symbols are scoped to the sidebar, the
+//                           dashboard route, the two pre-auth routes (/ and
+//                           /login/) and the entire /cellular/ family; every
+//                           other route is lucide. This banner is
+//                           ROUTE-AGNOSTIC — it mounts on Cellular, Monitoring
+//                           and System Settings pages alike — so it cannot know
+//                           which side of the boundary it will land on, and
+//                           stays on lucide-react everywhere. That is the rule
+//                           working, not an exception to it.
 //
 // Motion: `.animate-banner-in` (400ms emphasized, 6px rise + fade) already
 // ships in globals.css together with its prefers-reduced-motion guard. There is
@@ -254,7 +255,7 @@ export function Banner({
           className={
             isOverride
               ? "text-sm leading-[1.5]"
-              : "text-[15px] font-semibold tracking-[-0.005em]"
+              : "text-[0.9375rem] font-semibold tracking-[-0.005em]"
           }
         >
           {title}

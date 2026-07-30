@@ -1,7 +1,9 @@
 {
   "detector": {
     "ignoreRules": [],
-    "ignoreFiles": [],
+    "ignoreFiles": [
+      "reimagine/**"
+    ],
     "ignoreValues": [
       {
         "rule": "design-system-font-size",

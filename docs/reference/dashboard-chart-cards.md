@@ -223,7 +223,7 @@ measurable height on the first frame, before the flex parent has resolved how mu
 
 `latency` uses `--primary`; `packetloss` uses `--lte`, **not** `--secondary`. Shipped `--secondary` is
 a neutral (it backs progress tracks), so reaching for it would have rendered the intended Carrier
-Violet as grey. See `DESIGN.md` > Token Names in Code.
+Violet as grey. See `DESIGN.md` > Colors > Secondary.
 
 ## Device Metrics
 
@@ -323,5 +323,5 @@ them.
 This was not folded into the step 3b token change because it is entangled with the still-unmigrated
 `bg-destructive/5` through `/20` opacity-wash family, which those same two lines also use for their
 focus states. Deciding wash-versus-container is a judgement call per surface, so it wants its own pass
-rather than a grep-driven sweep. See `DESIGN.md` > Migration Sequence, step 3b and the opacity-wash
+rather than a grep-driven sweep. See `CLAUDE.md` > Tracked migration deltas and the opacity-wash
 note beneath the table.

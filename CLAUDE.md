@@ -124,12 +124,24 @@ The same Skip Phrases still apply — "just do it" drops orchestration back to a
 
 See **`PRODUCT.md`** (strategic: what QManager is, users, brand personality, aesthetic references/anti-references, design principles) and **`DESIGN.md`** (visual: OKLCH tokens, typography, status-badge pattern, layout rules, component conventions, motion, Do's and Don'ts). Read them before any UI or product-facing work.
 
-**⚠️ A design-language redirect is in flight.** `DESIGN.md` now carries a Material-3-inspired tonal system derived from the new QManager mark (filled `*-container` roles, filled status chips, a 28/36/40px shape scale, pill controls, 300-400ms emphasized motion, Material Symbols Rounded scoped to the **sidebar + the `/dashboard` route + the two pre-auth routes `/` and `/login/` + the `/cellular/` INDEX**, lucide on every other route — the **Icon-Boundary Rule**, which replaced the retired Nav-Glyph Boundary Rule; it is keyed on ROUTES not directories, `/setup/` is deliberately still lucide, and the `/cellular/` extension is PARTIAL: the index is converted, its 17 sub-routes are still lucide and are a tracked follow-up, so a lucide glyph under `/cellular/` outside the index is correct code; see `docs/reference/icon-system.md`). It is the **committed target and the binding canon for new design decisions**. **Migration step 1 has landed:** every token resolves in `app/globals.css`, so `bg-primary-container`, `bg-surface-container`, `rounded-pill`/`rounded-card`, and `ease-emphasized` are live. Two roles ship under non-canon names to avoid colliding with shadcn neutrals: Carrier Violet is `--lte-*`, Uplink Teal is `--uplink-*` (see `DESIGN.md` > Token Names in Code). The legacy `rounded-{sm,md,lg,xl}` chain keeps its old values; new work uses the role radii (`rounded-inline/field/tile/card/hero/pill`). Components are **not** retargeted yet: steps 2 to 4 in `DESIGN.md` > Migration Sequence still stand. The quick reminders below describe **what ships today**; flip the badge table here to the filled-chip pattern in the same change as migration step 3, not before.
+`DESIGN.md` is **the binding canon** — it describes the target as a single correct answer, with no "in progress" hedging. It was rewritten from the shipped `/dashboard` and `/cellular/` index surfaces, so those two are the reference implementations: when a rule is ambiguous, read `components/dashboard/**` or `components/cellular/radio/**` rather than guessing.
 
-Quick reminders the visual spec enforces (current shipped state):
+### Tracked migration deltas (the canon is ahead of the code here)
+
+These are the places where correct-per-`DESIGN.md` and what-a-primitive-currently-defaults-to disagree. **A new component follows the canon and overrides at the call site**; do not "fix" an unconverted surface as a side effect of unrelated work.
+
+| Delta | Reality today | What new work does |
+| ----- | ------------- | ------------------ |
+| **Shape lives at the call site, not in the primitives** | `Card` defaults to `rounded-xl` + `border` + `shadow-sm`; `Button` to `rounded-md` + `h-9`; `Input` to `rounded-md` + transparent fill | Pass the role radius explicitly: cards ship `rounded-card`/`rounded-hero border-0`, actions ship a pill (`h-[2.625rem] rounded-pill px-5`, see `radio/page-header.tsx`'s `PILL_ACTION`) |
+| **Legacy radius chain is still live** | ~349 `rounded-{sm,md,lg,xl,full}` call sites resolve off `--radius: 0.65rem` | Use `rounded-inline/field/tile/card/hero/pill`. Never retarget the legacy chain globally |
+| **Icon-Boundary is partially applied** | Material Symbols owns the sidebar, `/dashboard`, `/` and `/login/`, and the **entire `/cellular/` family** (index + all 17 sub-routes, 53 files). Still lucide: `/local-network/`, `/monitoring/`, `/system-settings/`, `/about-device`, `/support`, onboarding | A lucide glyph on an unconverted route is **correct code**, and a route-agnostic primitive (page-level `Banner`, apply-progress dialog) stays lucide even inside a Material route. Convert a whole route or none of it. See `docs/reference/icon-system.md` |
+| **Opacity washes are unmigrated** | `bg-{role}/5`, `/10`, `/15` on icon discs, tiles, pulse rings, inline notices | Not chips — do not flip them as part of chip work. New concentric/stacked shapes use the explicit `--tone-{role}-{1,2,3}` steps |
+| **Status-first column is unbuilt** | No live-service page (Watchdog, Alerts, Discord) implements the read-only-status-hero → settings → activity-log order | It is a product intent in `PRODUCT.md`, not a `DESIGN.md` rule. Move toward it on new live-service pages; don't retrofit |
+
+Quick reminders the visual spec enforces:
 
 ### Status Chip Pattern
-All status indicators are **filled tonal chips**: a `Badge` variant carrying a role container fill, that container's `on-` ink, no visible border, pill radius, and a `size-3` icon (lucide, or a `MaterialSymbol` with an explicit `size` on the dashboard route). The variant is the whole API — never hand-write the classes, and never use `variant="outline"` for a status indicator (that is the retired Outline-Badge Rule).
+All status indicators are **filled tonal chips**: a `Badge` variant carrying a role container fill, that container's `on-` ink, no visible border, pill radius, and a `size-3` icon (lucide, or a `MaterialSymbol` with an explicit `size` on the dashboard route). The variant is the whole API — never hand-write the classes, and never use `variant="outline"` for a status indicator.
 
 | State | Variant | Renders | Icon |
 | ----- | ------- | ------- | ---- |
@@ -150,14 +162,17 @@ All status indicators are **filled tonal chips**: a `Badge` variant carrying a r
 - **Every status chip carries an icon.** `success-container` and `warning-container` measure **1.03:1** apart — the same surface to the eye, and identical under deuteranopia — so the glyph is the only thing separating a healthy state from a degraded one. Two states in the same slot must never share a glyph either
 - Tone maps key onto the exported `BadgeVariant` type, never onto a class string, so a new tone without a matching role fails the build (`REBOOT_TONE_BADGE`, `TONE_BADGE`, `qualityBadgeVariants`, `getQualityBadgeVariant`)
 - Choose muted for deliberately inactive states (Stopped, Offline peer, Disabled); destructive for failure/error states (Disconnected link, Failed email)
-- The opacity washes (`bg-{role}/5`, `/10`, `/15` on icon discs, tiles, pulse rings and inline notices) are a **separate, still-unmigrated** family. They are not chips; do not flip them as part of chip work
 - **`nr` / `lte` are IDENTITY variants, not status roles** — they say which radio a chip belongs to (blue `primary-container` / violet `lte-container`) and never mean "healthy". The five roles above stay the only correct choice for a status indicator. Where a chip's fill carries identity, the quality it also reports must be encoded non-chromatically (the dashboard signal cards use the Material glyph's bar count). See DESIGN.md > Identity-Chip Rule
 
 ### UI Component Conventions
 - **CardHeader**: Always plain `CardTitle` + `CardDescription` without icons. Icons belong in badges or separate action areas, not in the card header itself.
 - **Primary action buttons**: Default variant (not outline) for main actions like Record, Save, Apply. Use `SaveButton` for save-specific actions with loading animation.
 - **Step-based progress**: `Loader2Icon` spinner + dot indicators for step/sample progress. Reserve fill/progress bars for data visualization (signal strength, quality meters) only.
-- **Typography**: Euclid Circular B is the UI typeface (`--font-sans`); Geist Mono (`--font-geist-mono` → `font-mono`) is scoped to machine-voice surfaces per DESIGN.md's Machine-Voice Rule. No other typeface is loaded. Both light and dark mode are first-class (OKLCH tokens); radius 0.65rem base.
+- **Typography**: Euclid Circular B is the UI typeface (`--font-sans`); Geist Mono (`--font-geist-mono` → `font-mono`) is scoped to machine-voice surfaces per DESIGN.md's Machine-Voice Rule. No other typeface is loaded — Material Symbols is an icon font, not a voice. Both light and dark mode are first-class (OKLCH tokens).
+- **Shape**: the role scale is 12/20/28/36/40px plus pill. A card in a grid is `rounded-card`, the anchor card on a surface is `rounded-hero`, and anything that acts or labels is `rounded-pill`.
+- **Responsive**: container queries against `@container/main` (or a card-local `@container/card`). Viewport breakpoints only for the page gutter and the shell.
+- **Three states**: every data surface ships loading, empty, and error. Skeletons mirror the loaded geometry by importing the same shape constant (see `TILE_SHAPE` in `components/cellular/radio/summary-tiles.tsx`), never by restating numbers.
+- **Motion**: `lib/motion.ts` is the JS source of truth and mirrors the `--duration-*` / `--ease-*` properties in `globals.css`. Three durations (180/300/400ms), two stagger steps (60ms cards, 40ms rows), 400ms ceiling, no springs. Retune both layers in the same change.
 - **Components**: use shadcn/ui primitives before hand-rolling; semantic color tokens only, never raw Tailwind colors.
 
 ## RM520N-GL Platform

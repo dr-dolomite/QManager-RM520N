@@ -7,9 +7,13 @@
 
 /* ---------------------------------------------------------------------------
    Design system: Material-3-inspired tonal system derived from the QManager
-   mark (public/qmanager-mark.svg). See DESIGN.md for the canon and the
-   four-step Migration Sequence. This file is migration step 1: tokens only.
-   No component is edited here; the product changes color and stays correct.
+   mark (public/qmanager-mark.svg). THIS FILE IS NORMATIVE — DESIGN.md's
+   frontmatter mirrors it, not the other way around. Retune a value here and
+   retune the DESIGN.md frontmatter (and lib/motion.ts, for the motion tokens)
+   in the same change.
+
+   Where the canon is ahead of the components that consume it, the gap is
+   tracked in CLAUDE.md > Design Context > Tracked migration deltas.
 
    Naming notes where the canon and shadcn's vocabulary collide:
    - DESIGN.md "secondary" (Carrier Violet, the 4G LTE identity) ships as the

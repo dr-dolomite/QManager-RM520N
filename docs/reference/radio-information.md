@@ -239,4 +239,4 @@ Six glyphs were added for this page specifically: `content_copy`, `expand_more`,
 - [dashboard-state-motion.md](dashboard-state-motion.md): `TickGroup`, `useValueTick` and `SwapLabel`
 - [dashboard-chart-cards.md](dashboard-chart-cards.md): the CSS-animation replay bug class the accordion avoids by construction
 - [overview-splash.md](overview-splash.md): the `resolveBodyMode()` precedent for a single-owner state machine
-- `DESIGN.md` > Named Rules (Icon-Boundary, Identity-Chip, Filled-Chip, Solid-Container), Migration Sequence step 4
+- `DESIGN.md` > Named Rules (Icon-Boundary, Identity-Chip, Filled-Chip, Glyph-Disc, Skeleton-Mirror)

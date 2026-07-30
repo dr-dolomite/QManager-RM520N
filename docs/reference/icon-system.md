@@ -278,7 +278,7 @@ Ghost at rest, `bg-surface-container` while its menu is open (`data-[state=open]
 
 ## Related
 
-- `DESIGN.md` > Components > Icons, Status chips, Service rings; Typography > Hierarchy; Migration Sequence step 3d
+- `DESIGN.md` > Components > Icons, Status chips, Service rings; Typography > Hierarchy
 - `.impeccable/design.json` — the machine-readable copy the design-audit tooling reads. **Keep it in step with `DESIGN.md` in the same change**, or the audit will flag correct code.
 - `docs/reference/recent-activities.md` — the dashboard event feed, whose glyphs moved to Material in the same pass
 - `docs/reference/carrier-aggregation.md` — the CA strip, also on the dashboard route
