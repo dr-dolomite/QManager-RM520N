@@ -75,12 +75,12 @@ No restarts, no reboots, no config edits, no `systemctl enable`/`disable`. Broad
 
 ## Output Format
 
-Produce a clear PASS/FAIL report:
-- **✅ PASS** / **❌ FAIL** per check, with exact line numbers for failures.
-- For each failure: the problematic code, why it breaks on RM520N-GL, and the corrected version.
-- Severity: **critical** (will break in production), **warning** (may break), **info** (best practice).
-- End with a one-line verdict: safe to ship, or blocked pending fixes.
-- Then a **hand-off line**: which fixes route back to `cgi-endpoint-builder` in Phase 4 (endpoint/script code fixes), and anything worth flagging to `docs-writer` (behavior or contract changes the docs should reflect). Omit either target if empty.
+Your report is read by an orchestrator that trusts a PASS as-is and only spends extra tokens re-checking a FAIL — so keep PASS terse and put all the detail on FAIL.
+
+1. **Lead with a one-line verdict**: `SAFE TO SHIP` or `BLOCKED — N fixes required`.
+2. **One line per check**: `✅ PASS — <check name>` (nothing else — no prose, no code excerpt, no restated evidence) or `❌ FAIL — <check name> (<file>:<line>, severity: critical|warning|info)`.
+3. **For each FAIL only**, immediately below its line: the problematic code, why it breaks on RM520N-GL, and the corrected version.
+4. Then a **hand-off line**: which fixes route back to `cgi-endpoint-builder` in Phase 4 (endpoint/script code fixes), and anything worth flagging to `docs-writer` (behavior or contract changes the docs should reflect). Omit either target if empty.
 
 ## What NOT To Do
 

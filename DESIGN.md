@@ -301,6 +301,18 @@ because a surface looked empty.
 - **Build on shadcn/ui first**, restyled with these tokens. Build custom only where shadcn has no
   answer.
 
+## Migration Deltas (tracked)
+
+These are the places where correct-per-this-canon and what-a-primitive-currently-defaults-to disagree. **A new component follows the canon and overrides at the call site**; do not "fix" an unconverted surface as a side effect of unrelated work.
+
+| Delta | Reality today | What new work does |
+| ----- | ------------- | ------------------ |
+| **Shape lives at the call site, not in the primitives** | `Card` defaults to `rounded-xl` + `border` + `shadow-sm`; `Button` to `rounded-md` + `h-9`; `Input` to `rounded-md` + transparent fill | Pass the role radius explicitly: cards ship `rounded-card`/`rounded-hero border-0`, actions ship a pill (`h-[2.625rem] rounded-pill px-5`, see `radio/page-header.tsx`'s `PILL_ACTION`) |
+| **Legacy radius chain is still live** | ~349 `rounded-{sm,md,lg,xl,full}` call sites resolve off `--radius: 0.65rem` | Use `rounded-inline/field/tile/card/hero/pill`. Never retarget the legacy chain globally |
+| **Icon-Boundary is partially applied** | Material Symbols owns the sidebar, `/dashboard`, `/` and `/login/`, and the **entire `/cellular/` family** (index + all 17 sub-routes, 53 files). Still lucide: `/local-network/`, `/monitoring/`, `/system-settings/`, `/about-device`, `/support`, onboarding | A lucide glyph on an unconverted route is **correct code**, and a route-agnostic primitive (page-level `Banner`, apply-progress dialog) stays lucide even inside a Material route. Convert a whole route or none of it. See `docs/reference/icon-system.md` |
+| **Opacity washes are unmigrated** | `bg-{role}/5`, `/10`, `/15` on icon discs, tiles, pulse rings, inline notices | Not chips — do not flip them as part of chip work. New concentric/stacked shapes use the explicit `--tone-{role}-{1,2,3}` steps |
+| **Status-first column is unbuilt** | No live-service page (Watchdog, Alerts, Discord) implements the read-only-status-hero → settings → activity-log order | It is a product intent in `PRODUCT.md`, not a `DESIGN.md` rule. Move toward it on new live-service pages; don't retrofit |
+
 ## Colors
 
 **Governing rule: the mark sets the hue, containers carry the content, functional colors report

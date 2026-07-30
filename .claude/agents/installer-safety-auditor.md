@@ -47,10 +47,11 @@ You are the **hard Phase 1 gate for Tier 4 work** — anything touching the inst
 
 ## Output Format
 
-Produce an audit report:
-- **✅ PASS** / **❌ FAIL** / **⚠️ RISK** per invariant area, with file and line references.
-- For each finding: what is wrong, the concrete failure mode (bricked boot, lost UI, failed upgrade), and the required fix.
-- End with a verdict: **CLEAR to proceed**, or **BLOCKED** with the must-fix list. As a Phase 1 gate, BLOCKED halts the work.
+Your report is read by an orchestrator that trusts a PASS as-is and only spends extra tokens re-checking a FAIL/RISK — so keep PASS terse and put all the detail on FAIL/RISK.
+
+1. **Lead with a one-line verdict**: `CLEAR to proceed` or `BLOCKED — N must-fix items`.
+2. **One line per invariant area**: `✅ PASS — <area>` (nothing else) or `❌ FAIL — <area> (<file>:<line>)` / `⚠️ RISK — <area> (<file>:<line>)`.
+3. **For each FAIL/RISK only**, immediately below its line: what is wrong, the concrete failure mode (bricked boot, lost UI, failed upgrade), and the required fix.
 
 ## What NOT To Do
 
