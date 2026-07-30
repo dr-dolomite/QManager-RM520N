@@ -1,5 +1,10 @@
-import { ANTENNA_PORTS } from "@/types/modem-status";
-import type { SignalPerAntenna } from "@/types/modem-status";
+import {
+  ANTENNA_PORTS,
+  hasAntennaData,
+  isPortReporting,
+  normalizeSignalValue,
+} from "@/types/modem-status";
+import type { SignalMetric, SignalPerAntenna } from "@/types/modem-status";
 import type { BadgeVariant } from "@/components/ui/badge";
 
 export { ANTENNA_PORTS };
@@ -24,10 +29,6 @@ export interface RecordingSnapshot {
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
-
-// -140 dBm is the 3GPP floor sentinel used by Quectel to mean "not measured".
-// -32768 is the integer sentinel emitted when the modem returns no data.
-const RSRP_INVALID_SENTINELS = new Set([-140, -32768]);
 
 export const SIGNAL_KEYS = [
   "lte_rsrp",
@@ -60,12 +61,21 @@ export const EMPTY_SNAPSHOT_ARRAYS = {
 // Helpers
 // ---------------------------------------------------------------------------
 
+/**
+ * Alignment-local alias for the shared per-antenna read boundary.
+ *
+ * The sentinel policy lives in `types/modem-status.ts` so this page and
+ * antenna-statistics cannot disagree about what a number means. `metric`
+ * defaults to `"rsrp"` purely for source compatibility with the single-argument
+ * call sites this function used to have — the shared `rsrp` sentinel set is the
+ * same `{-140, -32768}` this file used to carry locally. Pass the real metric:
+ * SINR additionally suppresses `-20`, and RSRQ deliberately does not.
+ */
 export function normalizeValue(
-  value: number | null | undefined
+  value: number | null | undefined,
+  metric: SignalMetric = "rsrp"
 ): number | null {
-  if (value === null || value === undefined) return null;
-  if (RSRP_INVALID_SENTINELS.has(value)) return null;
-  return value;
+  return normalizeSignalValue(value, metric);
 }
 
 export function formatValue(
@@ -122,13 +132,32 @@ export function qualityToBarColor(quality: string) {
   }
 }
 
-export function rsrpToPercent(value: number | null): number {
+// ---------------------------------------------------------------------------
+// Scoring scale — NOT the display scale
+// ---------------------------------------------------------------------------
+//
+// These two map the FULL 3GPP range (RSRP -140..-44 dBm, SINR -23..30 dB) and
+// exist only to feed `computeCompositeScore`. Display bars use
+// `signalToProgress(value, thresholds)` from `types/modem-status.ts` instead,
+// which maps the narrower quality window [poor..excellent].
+//
+// The two scales answer different questions and cannot be merged. A bar asks
+// "where in the usable range is this reading", so clamping at the top of the
+// window is right — anything better than about -80 dBm is simply good, and the
+// bar should say so. The composite score asks something else: it has to RANK
+// three recorded positions against each other. Under the quality window every
+// position better than -80 dBm scores 100, so two genuinely different good
+// aims come out identical and `findBestSlot` stops discriminating exactly when
+// the user has found a promising spot and is fine-tuning it. Ranking needs the
+// full spread; display needs the honest "how good is this". Hence the split.
+
+export function rsrpToScorePercent(value: number | null): number {
   if (value === null) return 0;
   const clamped = Math.max(-140, Math.min(-44, value));
   return Math.round(((clamped + 140) / 96) * 100);
 }
 
-export function sinrToPercent(value: number | null): number {
+export function sinrToScorePercent(value: number | null): number {
   if (value === null) return 0;
   const clamped = Math.max(-23, Math.min(30, value));
   return Math.round(((clamped + 23) / 53) * 100);
@@ -136,22 +165,8 @@ export function sinrToPercent(value: number | null): number {
 
 /** Determine active RAT(s) across ALL antennas. */
 export function detectRadioMode(spa: SignalPerAntenna): RadioMode {
-  let hasLte = false;
-  let hasNr = false;
-  for (let i = 0; i < 4; i++) {
-    if (
-      normalizeValue(spa.lte_rsrp[i]) !== null ||
-      normalizeValue(spa.lte_rsrq[i]) !== null ||
-      normalizeValue(spa.lte_sinr[i]) !== null
-    )
-      hasLte = true;
-    if (
-      normalizeValue(spa.nr_rsrp[i]) !== null ||
-      normalizeValue(spa.nr_rsrq[i]) !== null ||
-      normalizeValue(spa.nr_sinr[i]) !== null
-    )
-      hasNr = true;
-  }
+  const hasLte = hasAntennaData(spa, "lte");
+  const hasNr = hasAntennaData(spa, "nr");
   if (hasLte && hasNr) return "endc";
   if (hasNr) return "nr";
   return "lte";
@@ -161,14 +176,7 @@ export function isAntennaActive(
   spa: SignalPerAntenna,
   index: number
 ): boolean {
-  return (
-    normalizeValue(spa.lte_rsrp[index]) !== null ||
-    normalizeValue(spa.lte_rsrq[index]) !== null ||
-    normalizeValue(spa.lte_sinr[index]) !== null ||
-    normalizeValue(spa.nr_rsrp[index]) !== null ||
-    normalizeValue(spa.nr_rsrq[index]) !== null ||
-    normalizeValue(spa.nr_sinr[index]) !== null
-  );
+  return isPortReporting(spa, index, "lte") || isPortReporting(spa, index, "nr");
 }
 
 export function computeCompositeScore(
@@ -187,8 +195,9 @@ export function computeCompositeScore(
     sinrVal = snap.lte_sinr[0];
   }
 
-  const rsrpPct = rsrpToPercent(rsrpVal);
-  const sinrPct = sinrToPercent(sinrVal);
+  // Full-range helpers on purpose — see the comment above them.
+  const rsrpPct = rsrpToScorePercent(rsrpVal);
+  const sinrPct = sinrToScorePercent(sinrVal);
   return rsrpPct * 0.6 + sinrPct * 0.4;
 }
 

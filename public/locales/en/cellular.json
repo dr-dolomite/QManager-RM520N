@@ -1,4 +1,73 @@
 {
+  "antenna_statistics": {
+    "page": {
+      "title": "Antenna Statistics",
+      "description": "Per-antenna signal for every receive chain. Compare the Main, Diversity and MIMO ports to spot a weak or idle antenna."
+    },
+    "context": {
+      "mimo": {
+        "label": "Active MIMO",
+        "caption": "Layers the modem reports",
+        "unavailable": "Not reported"
+      },
+      "mode": {
+        "label": "Serving mode",
+        "caption": "Radios currently reporting",
+        "lte": "4G LTE",
+        "nr": "5G NR",
+        "endc": "5G NSA (EN-DC)",
+        "none": "No service"
+      },
+      "chains": {
+        "label": "Chains reporting",
+        "caption": "Antenna ports with a reading",
+        "value": "{{live}} of {{total}}"
+      }
+    },
+    "card": {
+      "lte": {
+        "title": "LTE Signal",
+        "description": "Per-antenna metrics for 4G LTE",
+        "identity": "LTE"
+      },
+      "nr": {
+        "title": "NR5G Signal",
+        "description": "Per-antenna metrics for 5G NR",
+        "identity": "5G NR"
+      }
+    },
+    "empty": {
+      "lte": {
+        "title": "No LTE signal",
+        "description": "Per-antenna metrics appear once 4G LTE is active."
+      },
+      "nr": {
+        "title": "No 5G NR signal",
+        "description": "Per-antenna metrics appear once 5G NR is active."
+      }
+    },
+    "port": {
+      "not_reporting": "Not reporting",
+      "not_reported": "Not reported"
+    },
+    "quality": {
+      "excellent": "Excellent",
+      "good": "Good",
+      "fair": "Fair",
+      "poor": "Poor",
+      "none": "No reading"
+    },
+    "states": {
+      "loading_sr": "Loading antenna statistics",
+      "retry": "Retry",
+      "error_banner": "Can't reach the modem. These readings may be out of date.",
+      "stale_banner": "Signal data is stale. The modem may be unresponsive.",
+      "unreachable": {
+        "title": "Can't reach the modem",
+        "description": "The antenna readings couldn't be loaded. Check that the poller service is running, then try again."
+      }
+    }
+  },
   "band_locking": {
     "controls_label": "Band locking"
   },

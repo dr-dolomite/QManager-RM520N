@@ -16,8 +16,9 @@ import {
   RSRQ_THRESHOLDS,
   SINR_THRESHOLDS,
   getSignalQuality,
+  isPortReporting,
 } from "@/types/modem-status";
-import type { SignalPerAntenna } from "@/types/modem-status";
+import type { SignalMetric, SignalPerAntenna } from "@/types/modem-status";
 import {
   ANTENNA_PORTS,
   normalizeValue,
@@ -37,15 +38,18 @@ function MetricRow({
   value,
   rawValue,
   unit,
+  metric,
   thresholds,
 }: {
   label: string;
   value: number | null | undefined;
   rawValue?: number | null;
   unit: string;
+  /** Selects the sentinel set — a row knows which metric it renders. */
+  metric: SignalMetric;
   thresholds: typeof RSRP_THRESHOLDS;
 }) {
-  const normalized = normalizeValue(rawValue ?? value ?? null);
+  const normalized = normalizeValue(rawValue ?? value ?? null, metric);
   const quality = getSignalQuality(normalized, thresholds);
   const isNull = normalized === null;
 
@@ -93,14 +97,8 @@ export function AntennaCard({
   const showLte = mode === "lte" || mode === "endc";
   const showNr = mode === "nr" || mode === "endc";
 
-  const lteActive =
-    normalizeValue(spa.lte_rsrp[index]) !== null ||
-    normalizeValue(spa.lte_rsrq[index]) !== null ||
-    normalizeValue(spa.lte_sinr[index]) !== null;
-  const nrActive =
-    normalizeValue(spa.nr_rsrp[index]) !== null ||
-    normalizeValue(spa.nr_rsrq[index]) !== null ||
-    normalizeValue(spa.nr_sinr[index]) !== null;
+  const lteActive = isPortReporting(spa, index, "lte");
+  const nrActive = isPortReporting(spa, index, "nr");
 
   return (
     <Card className={cn(!active && "opacity-60")}>
@@ -139,18 +137,21 @@ export function AntennaCard({
                 label="RSRP"
                 value={spa.lte_rsrp[index]}
                 unit="dBm"
+                metric="rsrp"
                 thresholds={RSRP_THRESHOLDS}
               />
               <MetricRow
                 label="RSRQ"
                 value={spa.lte_rsrq[index]}
                 unit="dB"
+                metric="rsrq"
                 thresholds={RSRQ_THRESHOLDS}
               />
               <MetricRow
                 label="SINR"
                 value={spa.lte_sinr[index]}
                 unit="dB"
+                metric="sinr"
                 thresholds={SINR_THRESHOLDS}
               />
             </div>
@@ -172,18 +173,21 @@ export function AntennaCard({
                 label="RSRP"
                 value={spa.nr_rsrp[index]}
                 unit="dBm"
+                metric="rsrp"
                 thresholds={RSRP_THRESHOLDS}
               />
               <MetricRow
                 label="RSRQ"
                 value={spa.nr_rsrq[index]}
                 unit="dB"
+                metric="rsrq"
                 thresholds={RSRQ_THRESHOLDS}
               />
               <MetricRow
                 label="SINR"
                 value={spa.nr_sinr[index]}
                 unit="dB"
+                metric="sinr"
                 thresholds={SINR_THRESHOLDS}
               />
             </div>

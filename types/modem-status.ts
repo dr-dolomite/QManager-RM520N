@@ -488,7 +488,12 @@ export const ANTENNA_PORTS = [
 /**
  * Per-antenna signal values from AT+QRSRP, AT+QRSRQ, AT+QSINR.
  * Each array has 4 elements [ant0, ant1, ant2, ant3].
- * null entries indicate inactive/unavailable antenna ports (sentinel -32768).
+ *
+ * A `null` entry means the poller recognised an inactive port. It does NOT mean
+ * every inactive port arrives as null — the poller only translates `-32768`, and
+ * the modem has two other ways of saying "not measured" that arrive as plain
+ * numbers. Read every value through `normalizeSignalValue()` rather than testing
+ * it against null directly; see SIGNAL_SENTINELS below.
  */
 export interface SignalPerAntenna {
   lte_rsrp: (number | null)[];
@@ -497,6 +502,88 @@ export interface SignalPerAntenna {
   nr_rsrp: (number | null)[];
   nr_rsrq: (number | null)[];
   nr_sinr: (number | null)[];
+}
+
+/** The three per-antenna metrics, used to select a sentinel set. */
+export type SignalMetric = "rsrp" | "rsrq" | "sinr";
+
+/**
+ * Values that mean "this port did not measure anything", per metric.
+ *
+ * These are NOT thresholds and they are NOT interchangeable across metrics — the
+ * set is deliberately different for each one, because the hazard is that a
+ * sentinel sits exactly on that metric's `poor` floor. `getSignalQuality()` then
+ * scores it "poor" and `signalToProgress()` returns 0, so an unused antenna
+ * renders as a legible, plausible, wrong reading — an empty red bar labelled
+ * "-140 dBm" — which is worse than a blank, because it looks like a signal
+ * problem the user should go and fix.
+ *
+ * Verified against 117 live samples on RM520NGLAAR03A03M4G_A0.303:
+ *
+ * - `-32768` is the documented sentinel and is handled by the poller
+ *   (`parse_at.sh:20-23`). It occurred ZERO times. It stays here for firmware
+ *   that does emit it, but it is not the case that bites.
+ * - `-140` (RSRP) is the 3GPP floor, and it lands in the same sample and the
+ *   same port index as `null` in that port's RSRQ and SINR — the modem saying
+ *   "port off" three ways at once, of which the poller understands one.
+ * - `-20` (SINR) appears WITHOUT a corroborating null, so it is the only signal
+ *   available that an NR chain is idle. A genuine -20 dB SINR is unusable by
+ *   definition (it is the bottom of the scale), so suppressing the real value
+ *   costs nothing a user could act on.
+ * - `-20` is NOT a sentinel for RSRQ even though it is RSRQ's `poor` floor: the
+ *   same capture contains a legitimate `-19` dB RSRQ, so that region of the
+ *   range is genuinely reachable by real data. Only `-32768` is suppressed there.
+ */
+const SIGNAL_SENTINELS: Record<SignalMetric, ReadonlySet<number>> = {
+  rsrp: new Set([-140, -32768]),
+  rsrq: new Set([-32768]),
+  sinr: new Set([-20, -32768]),
+};
+
+/**
+ * The single read boundary for a per-antenna value. Returns `null` for anything
+ * the radio did not actually measure, so downstream quality, progress and
+ * "is this port live" logic all agree.
+ *
+ * Every per-antenna surface goes through this. Two pages reading one field
+ * through two different sentinel policies is what let antenna-statistics call a
+ * dead chain "poor" while antenna-alignment called the same chain "—".
+ */
+export function normalizeSignalValue(
+  value: number | null | undefined,
+  metric: SignalMetric
+): number | null {
+  if (value === null || value === undefined) return null;
+  return SIGNAL_SENTINELS[metric].has(value) ? null : value;
+}
+
+/**
+ * Whether a given antenna port is reporting anything at all for one radio.
+ *
+ * Port liveness has to be asked per RAT, not per port: in EN-DC a chain can be
+ * carrying LTE while reporting nothing for NR, and the answer "is MIMO 3 live?"
+ * is then genuinely different for each leg.
+ */
+export function isPortReporting(
+  signal: SignalPerAntenna | undefined,
+  index: number,
+  prefix: "lte" | "nr"
+): boolean {
+  if (!signal) return false;
+  return (
+    normalizeSignalValue(signal[`${prefix}_rsrp`][index], "rsrp") !== null ||
+    normalizeSignalValue(signal[`${prefix}_rsrq`][index], "rsrq") !== null ||
+    normalizeSignalValue(signal[`${prefix}_sinr`][index], "sinr") !== null
+  );
+}
+
+/** Whether a radio has any reporting port at all. */
+export function hasAntennaData(
+  signal: SignalPerAntenna | undefined,
+  prefix: "lte" | "nr"
+): boolean {
+  if (!signal) return false;
+  return ANTENNA_PORTS.some((_, i) => isPortReporting(signal, i, prefix));
 }
 
 /**

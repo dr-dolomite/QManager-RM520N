@@ -22,14 +22,13 @@ import {
   RSRP_THRESHOLDS,
   SINR_THRESHOLDS,
   getSignalQuality,
+  signalToProgress,
 } from "@/types/modem-status";
-import type { SignalPerAntenna } from "@/types/modem-status";
+import type { SignalMetric, SignalPerAntenna } from "@/types/modem-status";
 import {
   normalizeValue,
   getQualityColor,
   qualityToBarColor,
-  rsrpToPercent,
-  sinrToPercent,
   findBestSlot,
   SIGNAL_KEYS,
   SAMPLES_PER_RECORDING,
@@ -48,6 +47,18 @@ import {
 // ---------------------------------------------------------------------------
 // Recording hook — accumulates samples then averages
 // ---------------------------------------------------------------------------
+
+/**
+ * Which sentinel set each recorded key reads through. `SIGNAL_KEYS` only covers
+ * RSRP and SINR, but the mapping is explicit so adding RSRQ later cannot
+ * silently inherit the wrong set — RSRQ's floor of -20 dB is real data.
+ */
+const KEY_METRIC: Record<SignalKey, SignalMetric> = {
+  lte_rsrp: "rsrp",
+  lte_sinr: "sinr",
+  nr_rsrp: "rsrp",
+  nr_sinr: "sinr",
+};
 
 interface RecorderState {
   antennaType: AntennaType;
@@ -97,7 +108,7 @@ function usePositionRecorder(spa: SignalPerAntenna | null) {
     const acc = accRef.current;
     for (const key of SIGNAL_KEYS) {
       acc[key].push(
-        [0, 1, 2, 3].map((i) => normalizeValue(spa[key]?.[i]))
+        [0, 1, 2, 3].map((i) => normalizeValue(spa[key]?.[i], KEY_METRIC[key]))
       );
     }
 
@@ -222,15 +233,24 @@ function MiniSignalBar({
       >
         {value === null ? "—" : `${value} ${unit}`}
       </span>
-      <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
-        <motion.div
-          className={cn("h-full rounded-full", qualityToBarColor(quality))}
-          initial={{ scaleX: 0 }}
-          animate={{ scaleX: percent / 100 }}
-          style={{ originX: 0 }}
-          transition={{ type: "spring", stiffness: 180, damping: 24 }}
-        />
-      </div>
+      {value === null ? (
+        // A null reading is NOT zero percent. A zero-width bar reads as "signal
+        // is zero", which is a different and alarming claim about a value the
+        // radio never reported. The "—" above already says it wasn't measured,
+        // so the track is dropped and only its height is reserved to keep the
+        // recorded/live grids aligned.
+        <div aria-hidden="true" className="h-1.5" />
+      ) : (
+        <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
+          <motion.div
+            className={cn("h-full rounded-full", qualityToBarColor(quality))}
+            initial={{ scaleX: 0 }}
+            animate={{ scaleX: percent / 100 }}
+            style={{ originX: 0 }}
+            transition={{ type: "spring", stiffness: 180, damping: 24 }}
+          />
+        </div>
+      )}
     </div>
   );
 }
@@ -249,10 +269,10 @@ function LiveSignalOverview({
   const showLte = mode === "lte" || mode === "endc";
   const showNr = mode === "nr" || mode === "endc";
 
-  const lteRsrp = normalizeValue(spa.lte_rsrp[0]);
-  const lteSinr = normalizeValue(spa.lte_sinr[0]);
-  const nrRsrp = normalizeValue(spa.nr_rsrp[0]);
-  const nrSinr = normalizeValue(spa.nr_sinr[0]);
+  const lteRsrp = normalizeValue(spa.lte_rsrp[0], "rsrp");
+  const lteSinr = normalizeValue(spa.lte_sinr[0], "sinr");
+  const nrRsrp = normalizeValue(spa.nr_rsrp[0], "rsrp");
+  const nrSinr = normalizeValue(spa.nr_sinr[0], "sinr");
 
   return (
     <div className="grid grid-cols-2 gap-x-6 gap-y-2">
@@ -261,13 +281,13 @@ function LiveSignalOverview({
           <MiniSignalBar
             value={lteRsrp}
             unit="dBm"
-            percent={rsrpToPercent(lteRsrp)}
+            percent={signalToProgress(lteRsrp, RSRP_THRESHOLDS)}
             thresholds={RSRP_THRESHOLDS}
           />
           <MiniSignalBar
             value={lteSinr}
             unit="dB"
-            percent={sinrToPercent(lteSinr)}
+            percent={signalToProgress(lteSinr, SINR_THRESHOLDS)}
             thresholds={SINR_THRESHOLDS}
           />
           <span className="text-[10px] text-muted-foreground -mt-1">
@@ -283,13 +303,13 @@ function LiveSignalOverview({
           <MiniSignalBar
             value={nrRsrp}
             unit="dBm"
-            percent={rsrpToPercent(nrRsrp)}
+            percent={signalToProgress(nrRsrp, RSRP_THRESHOLDS)}
             thresholds={RSRP_THRESHOLDS}
           />
           <MiniSignalBar
             value={nrSinr}
             unit="dB"
-            percent={sinrToPercent(nrSinr)}
+            percent={signalToProgress(nrSinr, SINR_THRESHOLDS)}
             thresholds={SINR_THRESHOLDS}
           />
           <span className="text-[10px] text-muted-foreground -mt-1">
@@ -340,6 +360,14 @@ function RecordingSlotCard({
 
   const showLte = mode === "lte" || mode === "endc";
   const showNr = mode === "nr" || mode === "endc";
+
+  // Re-normalized on read, not just on record: slots persist to localStorage, so
+  // a snapshot captured before SINR's -20 sentinel was recognised is still on
+  // disk and would otherwise render as a real -20 dB reading.
+  const lteRsrp = normalizeValue(snapshot?.lte_rsrp[0], "rsrp");
+  const lteSinr = normalizeValue(snapshot?.lte_sinr[0], "sinr");
+  const nrRsrp = normalizeValue(snapshot?.nr_rsrp[0], "rsrp");
+  const nrSinr = normalizeValue(snapshot?.nr_sinr[0], "sinr");
 
   const slotStatus = isRecording
     ? "recording"
@@ -452,9 +480,9 @@ function RecordingSlotCard({
               <div className="grid grid-cols-2 gap-2">
                 <div>
                   <MiniSignalBar
-                    value={snapshot.lte_rsrp[0]}
+                    value={lteRsrp}
                     unit="dBm"
-                    percent={rsrpToPercent(snapshot.lte_rsrp[0])}
+                    percent={signalToProgress(lteRsrp, RSRP_THRESHOLDS)}
                     thresholds={RSRP_THRESHOLDS}
                   />
                   <span className="text-[10px] text-muted-foreground">
@@ -463,9 +491,9 @@ function RecordingSlotCard({
                 </div>
                 <div>
                   <MiniSignalBar
-                    value={snapshot.lte_sinr[0]}
+                    value={lteSinr}
                     unit="dB"
-                    percent={sinrToPercent(snapshot.lte_sinr[0])}
+                    percent={signalToProgress(lteSinr, SINR_THRESHOLDS)}
                     thresholds={SINR_THRESHOLDS}
                   />
                   <span className="text-[10px] text-muted-foreground">
@@ -485,9 +513,9 @@ function RecordingSlotCard({
               <div className="grid grid-cols-2 gap-2">
                 <div>
                   <MiniSignalBar
-                    value={snapshot.nr_rsrp[0]}
+                    value={nrRsrp}
                     unit="dBm"
-                    percent={rsrpToPercent(snapshot.nr_rsrp[0])}
+                    percent={signalToProgress(nrRsrp, RSRP_THRESHOLDS)}
                     thresholds={RSRP_THRESHOLDS}
                   />
                   <span className="text-[10px] text-muted-foreground">
@@ -496,9 +524,9 @@ function RecordingSlotCard({
                 </div>
                 <div>
                   <MiniSignalBar
-                    value={snapshot.nr_sinr[0]}
+                    value={nrSinr}
                     unit="dB"
-                    percent={sinrToPercent(snapshot.nr_sinr[0])}
+                    percent={signalToProgress(nrSinr, SINR_THRESHOLDS)}
                     thresholds={SINR_THRESHOLDS}
                   />
                   <span className="text-[10px] text-muted-foreground">

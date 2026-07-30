@@ -1,4 +1,73 @@
 {
+  "antenna_statistics": {
+    "page": {
+      "title": "天線統計",
+      "description": "各接收鏈路的天線訊號。比較 Main、Diversity 與 MIMO 連接埠，找出訊號弱或未運作的天線。"
+    },
+    "context": {
+      "mimo": {
+        "label": "啟用中的 MIMO",
+        "caption": "數據機回報的層數",
+        "unavailable": "未回報"
+      },
+      "mode": {
+        "label": "服務模式",
+        "caption": "目前回報的射頻",
+        "lte": "4G LTE",
+        "nr": "5G NR",
+        "endc": "5G NSA (EN-DC)",
+        "none": "無服務"
+      },
+      "chains": {
+        "label": "回報中的鏈路",
+        "caption": "有讀數的天線連接埠",
+        "value": "{{total}} 個中有 {{live}} 個"
+      }
+    },
+    "card": {
+      "lte": {
+        "title": "LTE 訊號",
+        "description": "4G LTE 的各天線指標",
+        "identity": "LTE"
+      },
+      "nr": {
+        "title": "NR5G 訊號",
+        "description": "5G NR 的各天線指標",
+        "identity": "5G NR"
+      }
+    },
+    "empty": {
+      "lte": {
+        "title": "無 LTE 訊號",
+        "description": "4G LTE 啟用後即會顯示各天線指標。"
+      },
+      "nr": {
+        "title": "無 5G NR 訊號",
+        "description": "5G NR 啟用後即會顯示各天線指標。"
+      }
+    },
+    "port": {
+      "not_reporting": "無資料",
+      "not_reported": "未回報"
+    },
+    "quality": {
+      "excellent": "極佳",
+      "good": "良好",
+      "fair": "一般",
+      "poor": "較差",
+      "none": "無讀數"
+    },
+    "states": {
+      "loading_sr": "正在載入天線統計",
+      "retry": "重試",
+      "error_banner": "無法連線至數據機。以下讀數可能已過期。",
+      "stale_banner": "訊號資料已過期。數據機可能沒有回應。",
+      "unreachable": {
+        "title": "無法連線至數據機",
+        "description": "無法載入天線讀數。請檢查輪詢服務是否正在執行，然後再試一次。"
+      }
+    }
+  },
   "band_locking": {
     "controls_label": "頻段鎖定"
   },

@@ -18,6 +18,8 @@ const routeKeyMap: Record<string, string> = {
   dashboard: 'groups.dashboard',
   home: 'items.home',
   cellular: 'groups.cellular',
+  'antenna-statistics': 'items.antenna_statistics',
+  'antenna-alignment': 'items.antenna_alignment',
   sms: 'items.sms_center',
   'custom-profiles': 'items.custom_profiles',
   'connection-scenarios': 'items.connection_scenarios',

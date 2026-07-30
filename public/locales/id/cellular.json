@@ -1,4 +1,73 @@
 {
+  "antenna_statistics": {
+    "page": {
+      "title": "Statistik Antena",
+      "description": "Sinyal per antena untuk setiap rantai penerima. Bandingkan port Main, Diversity, dan MIMO untuk menemukan antena yang lemah atau tidak aktif."
+    },
+    "context": {
+      "mimo": {
+        "label": "MIMO aktif",
+        "caption": "Layer yang dilaporkan modem",
+        "unavailable": "Tidak dilaporkan"
+      },
+      "mode": {
+        "label": "Mode layanan",
+        "caption": "Radio yang sedang melapor",
+        "lte": "4G LTE",
+        "nr": "5G NR",
+        "endc": "5G NSA (EN-DC)",
+        "none": "Tidak ada layanan"
+      },
+      "chains": {
+        "label": "Rantai yang melapor",
+        "caption": "Port antena dengan bacaan",
+        "value": "{{live}} dari {{total}}"
+      }
+    },
+    "card": {
+      "lte": {
+        "title": "Sinyal LTE",
+        "description": "Metrik per antena untuk 4G LTE",
+        "identity": "LTE"
+      },
+      "nr": {
+        "title": "Sinyal NR5G",
+        "description": "Metrik per antena untuk 5G NR",
+        "identity": "5G NR"
+      }
+    },
+    "empty": {
+      "lte": {
+        "title": "Tidak ada sinyal LTE",
+        "description": "Metrik per antena muncul setelah 4G LTE aktif."
+      },
+      "nr": {
+        "title": "Tidak ada sinyal 5G NR",
+        "description": "Metrik per antena muncul setelah 5G NR aktif."
+      }
+    },
+    "port": {
+      "not_reporting": "Tidak aktif",
+      "not_reported": "Tidak dilaporkan"
+    },
+    "quality": {
+      "excellent": "Sangat Baik",
+      "good": "Baik",
+      "fair": "Cukup",
+      "poor": "Buruk",
+      "none": "Tidak ada bacaan"
+    },
+    "states": {
+      "loading_sr": "Memuat statistik antena",
+      "retry": "Coba lagi",
+      "error_banner": "Tidak dapat menjangkau modem. Bacaan ini mungkin sudah usang.",
+      "stale_banner": "Data sinyal sudah usang. Modem mungkin tidak merespons.",
+      "unreachable": {
+        "title": "Tidak dapat menjangkau modem",
+        "description": "Bacaan antena tidak dapat dimuat. Pastikan layanan poller berjalan, lalu coba lagi."
+      }
+    }
+  },
   "band_locking": {
     "controls_label": "Penguncian band"
   },

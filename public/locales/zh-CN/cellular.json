@@ -1,4 +1,73 @@
 {
+  "antenna_statistics": {
+    "page": {
+      "title": "天线统计",
+      "description": "各接收链路的天线信号。对比 Main、Diversity 与 MIMO 端口，找出信号弱或未工作的天线。"
+    },
+    "context": {
+      "mimo": {
+        "label": "活动 MIMO",
+        "caption": "调制解调器上报的层数",
+        "unavailable": "未上报"
+      },
+      "mode": {
+        "label": "服务模式",
+        "caption": "当前上报的射频",
+        "lte": "4G LTE",
+        "nr": "5G NR",
+        "endc": "5G NSA (EN-DC)",
+        "none": "无服务"
+      },
+      "chains": {
+        "label": "上报中的链路",
+        "caption": "有读数的天线端口",
+        "value": "{{total}} 个中有 {{live}} 个"
+      }
+    },
+    "card": {
+      "lte": {
+        "title": "LTE 信号",
+        "description": "4G LTE 的各天线指标",
+        "identity": "LTE"
+      },
+      "nr": {
+        "title": "NR5G 信号",
+        "description": "5G NR 的各天线指标",
+        "identity": "5G NR"
+      }
+    },
+    "empty": {
+      "lte": {
+        "title": "无 LTE 信号",
+        "description": "4G LTE 激活后即会显示各天线指标。"
+      },
+      "nr": {
+        "title": "无 5G NR 信号",
+        "description": "5G NR 激活后即会显示各天线指标。"
+      }
+    },
+    "port": {
+      "not_reporting": "无数据",
+      "not_reported": "未上报"
+    },
+    "quality": {
+      "excellent": "极佳",
+      "good": "良好",
+      "fair": "一般",
+      "poor": "较差",
+      "none": "无读数"
+    },
+    "states": {
+      "loading_sr": "正在加载天线统计",
+      "retry": "重试",
+      "error_banner": "无法连接调制解调器。以下读数可能已过期。",
+      "stale_banner": "信号数据已过期。调制解调器可能无响应。",
+      "unreachable": {
+        "title": "无法连接调制解调器",
+        "description": "无法加载天线读数。请检查轮询服务是否在运行，然后重试。"
+      }
+    }
+  },
   "band_locking": {
     "controls_label": "频段锁定"
   },

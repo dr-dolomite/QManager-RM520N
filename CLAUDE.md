@@ -245,6 +245,7 @@ Each feature below has a reference doc holding its invariants, gotchas, and rati
 | **Icon System / Icon-Boundary Rule** | Any icon, anywhere. The Material-vs-lucide boundary is ROUTE-scoped; Material now covers the sidebar, dashboard, pre-auth routes, and all of `/cellular/` (index + all 17 sub-routes) — the boundary is no longer partial inside `/cellular/` | `icon-system.md` |
 | **Auth Rate Limiting** | `cgi_auth.sh`, login lockout, `auth/check.sh` | `auth-rate-limiting.md` |
 | **Antenna Alignment** | `/cellular/antenna-alignment` | `antenna-alignment.md` |
+| **Antenna Statistics** | `/cellular/antenna-statistics`, `signal_per_antenna`, and the shared `SIGNAL_SENTINELS` / `normalizeSignalValue` / `isPortReporting` boundary in `types/modem-status.ts` (both antenna pages read through it) | `antenna-statistics.md` |
 | **Carrier Aggregation** | `AT+QCAINFO`, `network.carrier_components[]`, the dashboard CA strip | `carrier-aggregation.md` |
 | **Radio Information** | `/cellular/` index, `lib/radio-info.ts`, `components/cellular/radio/**` | `radio-information.md` |
 | **Recent Activities** | `events.sh`, `/tmp/qmanager_events.json`, the dashboard event feed, event tone/freshness | `recent-activities.md` |

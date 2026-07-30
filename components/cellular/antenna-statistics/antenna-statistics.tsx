@@ -1,329 +1,105 @@
 "use client";
 
-import React from "react";
 import { motion } from "motion/react";
-import { MaterialSymbol } from "@/components/ui/material-symbol";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import {
-  Empty,
-  EmptyDescription,
-  EmptyHeader,
-  EmptyMedia,
-  EmptyTitle,
-} from "@/components/ui/empty";
-import { Skeleton } from "@/components/ui/skeleton";
+import { useTranslation } from "react-i18next";
+import { Banner } from "@/components/ui/banner";
 import { useModemStatus } from "@/hooks/use-modem-status";
-import {
-  ANTENNA_PORTS,
-  getSignalQuality,
-  signalToProgress,
-  RSRP_THRESHOLDS,
-  RSRQ_THRESHOLDS,
-  SINR_THRESHOLDS,
-} from "@/types/modem-status";
-import type { SignalPerAntenna } from "@/types/modem-status";
-import { staggerRows } from "@/lib/motion";
-
-const QUALITY_BAR_COLORS: Record<string, string> = {
-  excellent: "bg-success",
-  good: "bg-success",
-  fair: "bg-warning",
-  poor: "bg-destructive",
-  none: "bg-muted-foreground",
-};
-
-// =============================================================================
-// Helpers
-// =============================================================================
-
-/** Check if a technology has any non-null antenna data */
-function hasData(
-  signal: SignalPerAntenna | undefined,
-  prefix: "lte" | "nr"
-): boolean {
-  if (!signal) return false;
-  const rsrp = signal[`${prefix}_rsrp`];
-  const rsrq = signal[`${prefix}_rsrq`];
-  const sinr = signal[`${prefix}_sinr`];
-  return [...rsrp, ...rsrq, ...sinr].some((v) => v !== null);
-}
-
-/** Format a signal value with unit, or "—" for null */
-function fmtSignal(value: number | null, unit: string): string {
-  if (value === null || value === undefined) return "—";
-  return `${value} ${unit}`;
-}
-
-// =============================================================================
-// Sub-components
-// =============================================================================
-
-/** Animated progress bar (spring scaleX) — matches active-bands.tsx pattern */
-function AnimatedProgress({
-  value,
-  label,
-  barColor = "bg-primary",
-}: {
-  value: number;
-  label: string;
-  barColor?: string;
-}) {
-  return (
-    <div
-      className="h-1.5 flex-1 min-w-0 overflow-hidden rounded-full bg-secondary"
-      role="progressbar"
-      aria-valuenow={Math.round(value)}
-      aria-valuemin={0}
-      aria-valuemax={100}
-      aria-label={label}
-    >
-      <motion.div
-        className={`h-full rounded-full ${barColor}`}
-        initial={{ scaleX: 0 }}
-        animate={{ scaleX: value / 100 }}
-        style={{ originX: 0 }}
-        transition={{ type: "spring", stiffness: 180, damping: 24 }}
-      />
-    </div>
-  );
-}
-
-/** A single metric row: label → progress bar → colored value */
-function MetricRow({
-  label,
-  value,
-  unit,
-  thresholds,
-}: {
-  label: string;
-  value: number | null;
-  unit: string;
-  thresholds: { excellent: number; good: number; fair: number; poor: number };
-}) {
-  const quality = getSignalQuality(value, thresholds);
-  const progress = signalToProgress(value, thresholds);
-
-  return (
-    <div className="flex items-center gap-2">
-      <span className="text-xs uppercase tracking-wide text-muted-foreground w-10 shrink-0">
-        {label}
-      </span>
-      <AnimatedProgress
-        value={progress}
-        label={`${label} signal strength`}
-        barColor={QUALITY_BAR_COLORS[quality]}
-      />
-      <span className="text-sm font-semibold tabular-nums min-w-17 text-right shrink-0">
-        {fmtSignal(value, unit)}
-      </span>
-    </div>
-  );
-}
-
-/** A single antenna section with 3 stacked metric rows */
-function AntennaSection({
-  name,
-  rx,
-  rsrp,
-  rsrq,
-  sinr,
-}: {
-  name: string;
-  rx: string;
-  rsrp: number | null;
-  rsrq: number | null;
-  sinr: number | null;
-}) {
-  const isInactive = rsrp === null && rsrq === null && sinr === null;
-
-  return (
-    <div className={isInactive ? "opacity-25" : ""}>
-      <div className="flex items-baseline gap-1.5 mb-2">
-        <span className="text-base font-semibold">{name}</span>
-        <span className="text-xs text-muted-foreground">{rx}</span>
-      </div>
-      <div className="grid gap-1.5">
-        <MetricRow label="RSRP" value={rsrp} unit="dBm" thresholds={RSRP_THRESHOLDS} />
-        <MetricRow label="RSRQ" value={rsrq} unit="dB" thresholds={RSRQ_THRESHOLDS} />
-        <MetricRow label="SINR" value={sinr} unit="dB" thresholds={SINR_THRESHOLDS} />
-      </div>
-    </div>
-  );
-}
-
-/** Technology signal card (LTE or NR5G) */
-function TechCard({
-  title,
-  description,
-  signal,
-  prefix,
-}: {
-  title: string;
-  description: string;
-  signal: SignalPerAntenna | undefined;
-  prefix: "lte" | "nr";
-}) {
-  const active = hasData(signal, prefix);
-
-  if (!active) {
-    return (
-      <Card>
-        <CardHeader>
-          <CardTitle>{title}</CardTitle>
-          <CardDescription>{description}</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Empty className="h-full bg-muted/30">
-            <EmptyHeader>
-              <EmptyMedia variant="icon">
-                <MaterialSymbol name="signal_cellular_alt" size={24} />
-              </EmptyMedia>
-              <EmptyTitle>No {title.split(" ")[0]} Signal</EmptyTitle>
-              <EmptyDescription className="max-w-xs text-pretty">
-                Antenna metrics will appear when{" "}
-                {prefix === "lte" ? "4G LTE" : "5G NR"} is active.
-              </EmptyDescription>
-            </EmptyHeader>
-          </Empty>
-        </CardContent>
-      </Card>
-    );
-  }
-
-  const rsrp = signal![`${prefix}_rsrp`];
-  const rsrq = signal![`${prefix}_rsrq`];
-  const sinr = signal![`${prefix}_sinr`];
-
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle>{title}</CardTitle>
-        <CardDescription>{description}</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <motion.div
-          className="divide-y divide-border"
-          initial="hidden"
-          animate="visible"
-          variants={staggerRows}
-        >
-          {ANTENNA_PORTS.map((ant, i) => (
-            <motion.div
-              key={ant.rx}
-              className={i === 0 ? "pb-3" : "py-3"}
-              variants={{
-                hidden: { opacity: 0, y: 6 },
-                visible: { opacity: 1, y: 0 },
-              }}
-              transition={{ duration: 0.2, ease: "easeOut" }}
-            >
-              <AntennaSection
-                name={ant.name}
-                rx={ant.rx}
-                rsrp={rsrp[i] ?? null}
-                rsrq={rsrq[i] ?? null}
-                sinr={sinr[i] ?? null}
-              />
-            </motion.div>
-          ))}
-        </motion.div>
-      </CardContent>
-    </Card>
-  );
-}
-
-// =============================================================================
-// Loading Skeleton
-// =============================================================================
-
-function AntennaStatsSkeleton() {
-  return (
-    <div className="grid grid-cols-1 @3xl/main:grid-cols-2 gap-4">
-      {[0, 1].map((i) => (
-        <Card key={i}>
-          <CardHeader>
-            <Skeleton className="h-5 w-28" />
-            <Skeleton className="h-4 w-48 mt-1" />
-          </CardHeader>
-          <CardContent>
-            <div className="divide-y divide-border">
-              {[0, 1, 2, 3].map((j) => (
-                <div key={j} className={j === 0 ? "pb-3" : "py-3"}>
-                  <Skeleton className="h-5 w-24 mb-2" />
-                  <div className="grid gap-1.5">
-                    {[0, 1, 2].map((k) => (
-                      <div key={k} className="flex items-center gap-2">
-                        <Skeleton className="h-3.5 w-10" />
-                        <Skeleton className="h-1.5 flex-1" />
-                        <Skeleton className="h-4 w-17" />
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      ))}
-    </div>
-  );
-}
-
-// =============================================================================
-// Main Component
-// =============================================================================
+import { staggerContainer, staggerItem } from "@/lib/motion";
+import { ContextTiles } from "./context-tiles";
+import { AntennaStatsSkeleton, AntennaStatsUnreachable } from "./states";
+import { CARD_GRID, TechCard } from "./tech-card";
 
 export default function AntennaStatistics() {
-  const { data, isLoading } = useModemStatus();
+  const { t } = useTranslation("cellular");
+  const { data, isLoading, isStale, error, refresh } = useModemStatus();
+
   const signal = data?.signal_per_antenna;
 
-  const lteHasData = hasData(signal, "lte");
-  const nrHasData = hasData(signal, "nr");
+  // Card order is taken from the SERVING NETWORK TYPE, not from which radios
+  // currently have per-antenna readings. Per-antenna presence flaps — live
+  // capture shows LTE chains dropping out several times an hour — and ordering
+  // on it would swap the two cards past each other mid-read, with no motion,
+  // because both slots hold the same component type and React re-renders
+  // rather than remounts. The registered network type is the stable fact.
+  const nrFirst = data?.network?.type === "5G-SA";
 
-  // Dynamic ordering: active tech first. Default LTE first.
-  const nrFirst = nrHasData && !lteHasData;
+  // The first fetch never landed. Distinct from "the radio reported nothing":
+  // one is a dead path to the device, the other is a real reading of silence,
+  // and they need different screens.
+  const unreachable = !isLoading && !data;
 
-  const lteCard = (
-    <TechCard
-      title="LTE Signal"
-      description="Per-antenna metrics for 4G LTE"
-      signal={signal}
-      prefix="lte"
-    />
-  );
-
-  const nrCard = (
-    <TechCard
-      title="NR5G Signal"
-      description="Per-antenna metrics for 5G NR"
-      signal={signal}
-      prefix="nr"
-    />
-  );
+  const lteCard = <TechCard signal={signal} prefix="lte" />;
+  const nrCard = <TechCard signal={signal} prefix="nr" />;
 
   return (
-    <div className="@container/main mx-auto p-2">
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold mb-2">Antenna Statistics</h1>
-        <p className="text-muted-foreground">
-          Per-antenna signal metrics for each receiver chain. Compare signal
-          quality across Main, Diversity, and MIMO antenna ports.
-        </p>
-      </div>
-      {isLoading ? (
-        <AntennaStatsSkeleton />
-      ) : (
-        <div className="grid grid-cols-1 @3xl/main:grid-cols-2 gap-4">
-          {nrFirst ? nrCard : lteCard}
-          {nrFirst ? lteCard : nrCard}
+    <motion.div
+      className="@container/main mx-auto flex flex-col gap-5 p-2"
+      aria-live="polite"
+      aria-atomic="false"
+      variants={staggerContainer}
+      initial="hidden"
+      animate="visible"
+    >
+      <motion.div variants={staggerItem}>
+        <div className="flex max-w-[41rem] flex-col gap-1.5">
+          <h1 className="text-3xl font-bold tracking-[-0.02em]">
+            {t("antenna_statistics.page.title")}
+          </h1>
+          <p className="text-on-surface-variant text-sm leading-relaxed text-pretty">
+            {t("antenna_statistics.page.description")}
+          </p>
         </div>
+      </motion.div>
+
+      {/* Outside the cascade on purpose: the banner carries its own entrance,
+          and a condition should never wait its turn. `error` and `isStale` are
+          different facts — the fetch failed, versus the fetch succeeded but the
+          poller's own timestamp is old — so they do not share a message. */}
+      {!isLoading && !unreachable && (error || isStale) && (
+        <Banner
+          role="stale"
+          title={
+            error
+              ? t("antenna_statistics.states.error_banner")
+              : t("antenna_statistics.states.stale_banner")
+          }
+        />
       )}
-    </div>
+
+      {isLoading ? (
+        <AntennaStatsSkeleton
+          label={t("antenna_statistics.states.loading_sr")}
+        />
+      ) : unreachable ? (
+        <AntennaStatsUnreachable onRetry={refresh} />
+      ) : (
+        <>
+          <motion.div variants={staggerItem}>
+            <ContextTiles signal={signal} mimo={data?.device?.mimo ?? null} />
+          </motion.div>
+
+          <motion.div className={CARD_GRID} variants={staggerContainer}>
+            {/* Keyed by which radio occupies the slot, so a genuine RAT change
+                REMOUNTS the card instead of re-rendering the same component
+                type with swapped contents. Without the key the two cards'
+                contents would teleport past each other with no motion at all. */}
+            <motion.div
+              key={nrFirst ? "nr" : "lte"}
+              variants={staggerItem}
+              className="h-full *:data-[slot=card]:h-full"
+            >
+              {nrFirst ? nrCard : lteCard}
+            </motion.div>
+            <motion.div
+              key={nrFirst ? "lte" : "nr"}
+              variants={staggerItem}
+              className="h-full *:data-[slot=card]:h-full"
+            >
+              {nrFirst ? lteCard : nrCard}
+            </motion.div>
+          </motion.div>
+        </>
+      )}
+    </motion.div>
   );
 }

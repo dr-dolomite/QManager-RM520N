@@ -1,4 +1,73 @@
 {
+  "antenna_statistics": {
+    "page": {
+      "title": "Statistiche dell'antenna",
+      "description": "Segnale per antenna di ogni catena di ricezione. Confronta le porte Main, Diversity e MIMO per individuare un'antenna debole o inattiva."
+    },
+    "context": {
+      "mimo": {
+        "label": "MIMO attivo",
+        "caption": "Layer riportati dal modem",
+        "unavailable": "Non riportato"
+      },
+      "mode": {
+        "label": "Modalità di servizio",
+        "caption": "Radio che riportano ora",
+        "lte": "4G LTE",
+        "nr": "5G NR",
+        "endc": "5G NSA (EN-DC)",
+        "none": "Nessun servizio"
+      },
+      "chains": {
+        "label": "Catene che riportano",
+        "caption": "Porte d'antenna con una lettura",
+        "value": "{{live}} di {{total}}"
+      }
+    },
+    "card": {
+      "lte": {
+        "title": "Segnale LTE",
+        "description": "Metriche per antenna per il 4G LTE",
+        "identity": "LTE"
+      },
+      "nr": {
+        "title": "Segnale NR5G",
+        "description": "Metriche per antenna per il 5G NR",
+        "identity": "5G NR"
+      }
+    },
+    "empty": {
+      "lte": {
+        "title": "Nessun segnale LTE",
+        "description": "Le metriche per antenna compaiono quando il 4G LTE è attivo."
+      },
+      "nr": {
+        "title": "Nessun segnale 5G NR",
+        "description": "Le metriche per antenna compaiono quando il 5G NR è attivo."
+      }
+    },
+    "port": {
+      "not_reporting": "Inattiva",
+      "not_reported": "Non riportato"
+    },
+    "quality": {
+      "excellent": "Eccellente",
+      "good": "Buono",
+      "fair": "Discreto",
+      "poor": "Scarso",
+      "none": "Nessuna lettura"
+    },
+    "states": {
+      "loading_sr": "Caricamento delle statistiche dell'antenna",
+      "retry": "Riprova",
+      "error_banner": "Impossibile raggiungere il modem. Queste letture potrebbero non essere aggiornate.",
+      "stale_banner": "I dati di segnale non sono aggiornati. Il modem potrebbe non rispondere.",
+      "unreachable": {
+        "title": "Impossibile raggiungere il modem",
+        "description": "Non è stato possibile caricare le letture dell'antenna. Verifica che il servizio poller sia in esecuzione, poi riprova."
+      }
+    }
+  },
   "band_locking": {
     "controls_label": "Blocco delle bande"
   },
