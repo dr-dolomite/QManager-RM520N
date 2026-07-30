@@ -1,4 +1,105 @@
 {
+  "antenna_alignment": {
+    "page": {
+      "title": "天線對準",
+      "description": "一邊觀察即時評分一邊調整天線朝向或位置，然後記錄最多三個位置以進行比較。"
+    },
+    "mode": {
+      "lte": "4G LTE",
+      "nr": "5G NR",
+      "lte_short": "LTE",
+      "nr_short": "NR"
+    },
+    "aim": {
+      "title": "即時對準",
+      "description": "主接收鏈路，評分標準與已記錄的位置相同。",
+      "score_label": "對準評分",
+      "score_sr": "對準評分 {{score}}，滿分 100",
+      "no_reading": "無對準評分 — 主鏈路未回報",
+      "peak": "峰值",
+      "updated": "更新於",
+      "delta_up": "較上次讀數提升",
+      "delta_down": "較上次讀數下降",
+      "partial": "僅 {{leg}}",
+      "not_reported": "未回報",
+      "primary_chain": "Main / PRX — 評分所依據的鏈路"
+    },
+    "quality": {
+      "excellent": "極佳",
+      "good": "良好",
+      "fair": "一般",
+      "poor": "較差",
+      "none": "無讀數"
+    },
+    "recorder": {
+      "title": "對準量測器",
+      "description_directional": "記錄最多三個角度並進行比較。每次記錄會將數據機的 {{samples}} 次讀數取平均，需要幾秒鐘。",
+      "description_omni": "記錄最多三個擺放位置並進行比較。每次記錄會將數據機的 {{samples}} 次讀數取平均，需要幾秒鐘。",
+      "type_directional": "定向",
+      "type_omni": "全向",
+      "reset": "重設",
+      "position": "位置 {{letter}}",
+      "placeholder_angle": "角度",
+      "placeholder_position": "位置",
+      "record_angle": "記錄角度",
+      "record_position": "記錄位置",
+      "not_recorded": "未記錄",
+      "recorded_at": "記錄於 {{time}}",
+      "sample_progress": "第 {{current}} 次讀數，共 {{total}} 次",
+      "waiting": "正在等待數據機",
+      "cancel": "取消",
+      "clear": "清除 {{label}}",
+      "label_sr": "第 {{index}} 個插槽的標籤",
+      "slot_sr": "插槽 {{index}}：{{label}} — {{status}}",
+      "status": {
+        "recording": "正在記錄",
+        "recorded": "已記錄",
+        "recorded_best": "已記錄，結果最佳",
+        "empty": "空"
+      },
+      "best": "最佳",
+      "best_margin": "最佳，領先 {{margin}}",
+      "not_comparable": "沒有可排序的讀數，因此無法比較這個位置。",
+      "partial": "僅依單一指標評分。",
+      "confirm_cancel": "保留",
+      "reset_confirm_title": "清除所有已記錄的位置？",
+      "reset_confirm_body": "你記錄的所有位置都會被刪除。此操作無法復原。",
+      "reset_confirm_action": "全部清除",
+      "clear_confirm_title": "清除這筆記錄？",
+      "clear_confirm_body": "為 {{label}} 記錄的讀數會被刪除。此操作無法復原。",
+      "clear_confirm_action": "清除"
+    },
+    "recommendation": {
+      "title": "目前最佳：{{label}}",
+      "body_directional": "在你已記錄的位置中，這個角度的綜合訊號最強。",
+      "body_omni": "在你已記錄的位置中，這個擺放位置的綜合訊號最強。",
+      "mixed_radios": "你的記錄橫跨兩種射頻，因此比較結果不如平時精確。",
+      "remaining": "記錄其餘插槽可獲得更完整的比較。"
+    },
+    "ports": {
+      "title": "接收鏈路",
+      "description": "有哪些天線參與評分。",
+      "reporting": "{{total}} 個中有 {{live}} 個在回報",
+      "not_reporting": "無資料",
+      "idle_hint": "這條鏈路未量測到任何資料。",
+      "twin_hint": "若需每條鏈路的各項指標詳情，請前往",
+      "twin_link": "天線統計"
+    },
+    "states": {
+      "loading_sr": "正在載入天線對準",
+      "retry": "重試",
+      "error_banner": "無法連線至數據機。以下讀數可能已過期。",
+      "stale_banner": "訊號資料已過期。數據機可能沒有回應。",
+      "unreachable": {
+        "title": "無法連線至數據機",
+        "description": "無法載入天線讀數。請檢查輪詢服務是否正在執行，然後再試一次。"
+      },
+      "no_readings": {
+        "title": "無天線讀數",
+        "description": "數據機有回應，但沒有任何接收鏈路回報量測值。可能正在搜尋網路，也可能有天線未連接 — 一旦有鏈路開始回報，讀數就會自動恢復。"
+      }
+    }
+  },
   "antenna_statistics": {
     "page": {
       "title": "天線統計",

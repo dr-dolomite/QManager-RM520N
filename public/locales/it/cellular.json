@@ -1,4 +1,105 @@
 {
+  "antenna_alignment": {
+    "page": {
+      "title": "Allineamento dell'antenna",
+      "description": "Orienta o riposiziona l'antenna osservando il punteggio in tempo reale, poi registra fino a tre posizioni per confrontarle."
+    },
+    "mode": {
+      "lte": "4G LTE",
+      "nr": "5G NR",
+      "lte_short": "LTE",
+      "nr_short": "NR"
+    },
+    "aim": {
+      "title": "Puntamento in tempo reale",
+      "description": "La catena di ricezione principale, valutata con la stessa scala delle posizioni registrate.",
+      "score_label": "Punteggio di puntamento",
+      "score_sr": "Punteggio di puntamento {{score}} su 100",
+      "no_reading": "Nessun punteggio di puntamento — la catena principale non riporta dati",
+      "peak": "Picco",
+      "updated": "Aggiornato",
+      "delta_up": "migliorato dall'ultima lettura",
+      "delta_down": "calato dall'ultima lettura",
+      "partial": "Solo {{leg}}",
+      "not_reported": "Non riportato",
+      "primary_chain": "Main / PRX — la catena su cui si basa il punteggio"
+    },
+    "quality": {
+      "excellent": "Eccellente",
+      "good": "Buono",
+      "fair": "Discreto",
+      "poor": "Scarso",
+      "none": "Nessuna lettura"
+    },
+    "recorder": {
+      "title": "Misuratore di allineamento",
+      "description_directional": "Registra fino a tre angoli e confrontali. Ogni registrazione media {{samples}} letture del modem e richiede qualche secondo.",
+      "description_omni": "Registra fino a tre posizionamenti e confrontali. Ogni registrazione media {{samples}} letture del modem e richiede qualche secondo.",
+      "type_directional": "Direzionale",
+      "type_omni": "Omni",
+      "reset": "Reimposta",
+      "position": "Posizione {{letter}}",
+      "placeholder_angle": "Angolo",
+      "placeholder_position": "Posizione",
+      "record_angle": "Registra l'angolo",
+      "record_position": "Registra la posizione",
+      "not_recorded": "Non registrato",
+      "recorded_at": "Registrato {{time}}",
+      "sample_progress": "Lettura {{current}} di {{total}}",
+      "waiting": "In attesa del modem",
+      "cancel": "Annulla",
+      "clear": "Cancella {{label}}",
+      "label_sr": "Etichetta per lo slot {{index}}",
+      "slot_sr": "Slot {{index}}: {{label}} — {{status}}",
+      "status": {
+        "recording": "registrazione in corso",
+        "recorded": "registrato",
+        "recorded_best": "registrato, miglior risultato",
+        "empty": "vuoto"
+      },
+      "best": "Migliore",
+      "best_margin": "Migliore di {{margin}}",
+      "not_comparable": "Nessuna lettura classificabile, quindi questa posizione non può essere confrontata.",
+      "partial": "Valutato su una sola metrica.",
+      "confirm_cancel": "Mantieni",
+      "reset_confirm_title": "Cancellare tutte le posizioni registrate?",
+      "reset_confirm_body": "Tutte le posizioni che hai registrato verranno eliminate. L'operazione non può essere annullata.",
+      "reset_confirm_action": "Cancella tutto",
+      "clear_confirm_title": "Cancellare questa registrazione?",
+      "clear_confirm_body": "La lettura registrata per {{label}} verrà eliminata. L'operazione non può essere annullata.",
+      "clear_confirm_action": "Cancella"
+    },
+    "recommendation": {
+      "title": "Migliore finora: {{label}}",
+      "body_directional": "Questo angolo ha prodotto il segnale composito più forte tra le posizioni che hai registrato.",
+      "body_omni": "Questo posizionamento ha prodotto il segnale composito più forte tra le posizioni che hai registrato.",
+      "mixed_radios": "Le tue registrazioni coprono entrambe le radio, quindi il confronto è più approssimativo del solito.",
+      "remaining": "Registra gli slot rimanenti per un confronto più completo."
+    },
+    "ports": {
+      "title": "Catene di ricezione",
+      "description": "Quali antenne contribuiscono al punteggio.",
+      "reporting": "{{live}} di {{total}} riportano dati",
+      "not_reporting": "Inattiva",
+      "idle_hint": "Questa catena non ha misurato nulla.",
+      "twin_hint": "Per il dettaglio metrica per metrica di ogni catena, vedi",
+      "twin_link": "Statistiche dell'antenna"
+    },
+    "states": {
+      "loading_sr": "Caricamento dell'allineamento dell'antenna",
+      "retry": "Riprova",
+      "error_banner": "Impossibile raggiungere il modem. Queste letture potrebbero non essere aggiornate.",
+      "stale_banner": "I dati di segnale non sono aggiornati. Il modem potrebbe non rispondere.",
+      "unreachable": {
+        "title": "Impossibile raggiungere il modem",
+        "description": "Non è stato possibile caricare le letture dell'antenna. Verifica che il servizio poller sia in esecuzione, poi riprova."
+      },
+      "no_readings": {
+        "title": "Nessuna lettura dell'antenna",
+        "description": "Il modem ha risposto, ma nessuna catena di ricezione ha riportato una misurazione. Potrebbe essere in ricerca di rete, oppure un'antenna potrebbe essere scollegata — le letture tornano da sole appena una catena riporta dati."
+      }
+    }
+  },
   "antenna_statistics": {
     "page": {
       "title": "Statistiche dell'antenna",

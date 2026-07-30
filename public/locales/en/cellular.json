@@ -1,4 +1,105 @@
 {
+  "antenna_alignment": {
+    "page": {
+      "title": "Antenna Alignment",
+      "description": "Aim or reposition the antenna while watching the live score, then record up to three positions to compare them."
+    },
+    "mode": {
+      "lte": "4G LTE",
+      "nr": "5G NR",
+      "lte_short": "LTE",
+      "nr_short": "NR"
+    },
+    "aim": {
+      "title": "Live Aim",
+      "description": "The primary receive chain, scored on the same scale as your recorded positions.",
+      "score_label": "Aim score",
+      "score_sr": "Aim score {{score}} out of 100",
+      "no_reading": "No aim score — the primary chain isn't reporting",
+      "peak": "Peak",
+      "updated": "Updated",
+      "delta_up": "improved since the last reading",
+      "delta_down": "dropped since the last reading",
+      "partial": "{{leg}} only",
+      "not_reported": "Not reported",
+      "primary_chain": "Main / PRX — the chain the score is built from"
+    },
+    "quality": {
+      "excellent": "Excellent",
+      "good": "Good",
+      "fair": "Fair",
+      "poor": "Poor",
+      "none": "No reading"
+    },
+    "recorder": {
+      "title": "Alignment Meter",
+      "description_directional": "Record up to three angles and compare them. Each recording averages {{samples}} readings from the modem, which takes a few seconds.",
+      "description_omni": "Record up to three placements and compare them. Each recording averages {{samples}} readings from the modem, which takes a few seconds.",
+      "type_directional": "Directional",
+      "type_omni": "Omni",
+      "reset": "Reset",
+      "position": "Position {{letter}}",
+      "placeholder_angle": "Angle",
+      "placeholder_position": "Location",
+      "record_angle": "Record angle",
+      "record_position": "Record position",
+      "not_recorded": "Not recorded",
+      "recorded_at": "Recorded {{time}}",
+      "sample_progress": "Reading {{current}} of {{total}}",
+      "waiting": "Waiting for the modem",
+      "cancel": "Cancel",
+      "clear": "Clear {{label}}",
+      "label_sr": "Label for slot {{index}}",
+      "slot_sr": "Slot {{index}}: {{label}} — {{status}}",
+      "status": {
+        "recording": "recording",
+        "recorded": "recorded",
+        "recorded_best": "recorded, best result",
+        "empty": "empty"
+      },
+      "best": "Best",
+      "best_margin": "Best by {{margin}}",
+      "not_comparable": "No rankable reading, so this position can't be compared.",
+      "partial": "Scored on one metric only.",
+      "confirm_cancel": "Keep",
+      "reset_confirm_title": "Clear all recorded positions?",
+      "reset_confirm_body": "Every position you've recorded will be deleted. This can't be undone.",
+      "reset_confirm_action": "Clear all",
+      "clear_confirm_title": "Clear this recording?",
+      "clear_confirm_body": "The reading recorded for {{label}} will be deleted. This can't be undone.",
+      "clear_confirm_action": "Clear"
+    },
+    "recommendation": {
+      "title": "Best so far: {{label}}",
+      "body_directional": "This angle produced the strongest composite signal of the positions you've recorded.",
+      "body_omni": "This placement produced the strongest composite signal of the positions you've recorded.",
+      "mixed_radios": "Your recordings span both radios, so the comparison is rougher than usual.",
+      "remaining": "Record the remaining slots for a fuller comparison."
+    },
+    "ports": {
+      "title": "Receive Chains",
+      "description": "Which antennas are contributing to the score.",
+      "reporting": "{{live}} of {{total}} reporting",
+      "not_reporting": "Not reporting",
+      "idle_hint": "This chain measured nothing.",
+      "twin_hint": "For per-metric detail on every chain, see",
+      "twin_link": "Antenna Statistics"
+    },
+    "states": {
+      "loading_sr": "Loading antenna alignment",
+      "retry": "Retry",
+      "error_banner": "Can't reach the modem. These readings may be out of date.",
+      "stale_banner": "Signal data is stale. The modem may be unresponsive.",
+      "unreachable": {
+        "title": "Can't reach the modem",
+        "description": "The antenna readings couldn't be loaded. Check that the poller service is running, then try again."
+      },
+      "no_readings": {
+        "title": "No antenna readings",
+        "description": "The modem answered, but no receive chain reported a measurement. It may be searching for a network, or an antenna may be disconnected — readings return on their own once a chain reports."
+      }
+    }
+  },
   "antenna_statistics": {
     "page": {
       "title": "Antenna Statistics",

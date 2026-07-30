@@ -1,4 +1,105 @@
 {
+  "antenna_alignment": {
+    "page": {
+      "title": "天线对准",
+      "description": "一边观察实时评分一边调整天线朝向或位置，然后记录最多三个位置进行对比。"
+    },
+    "mode": {
+      "lte": "4G LTE",
+      "nr": "5G NR",
+      "lte_short": "LTE",
+      "nr_short": "NR"
+    },
+    "aim": {
+      "title": "实时对准",
+      "description": "主接收链路，评分标准与已记录的位置相同。",
+      "score_label": "对准评分",
+      "score_sr": "对准评分 {{score}}，满分 100",
+      "no_reading": "无对准评分 — 主链路无数据",
+      "peak": "峰值",
+      "updated": "更新于",
+      "delta_up": "较上次读数有提升",
+      "delta_down": "较上次读数有下降",
+      "partial": "仅 {{leg}}",
+      "not_reported": "未上报",
+      "primary_chain": "Main / PRX — 评分所依据的链路"
+    },
+    "quality": {
+      "excellent": "极佳",
+      "good": "良好",
+      "fair": "一般",
+      "poor": "较差",
+      "none": "无读数"
+    },
+    "recorder": {
+      "title": "对准测量仪",
+      "description_directional": "记录最多三个角度并进行对比。每次记录会对调制解调器的 {{samples}} 次读数取平均，需要几秒钟。",
+      "description_omni": "记录最多三个摆放位置并进行对比。每次记录会对调制解调器的 {{samples}} 次读数取平均，需要几秒钟。",
+      "type_directional": "定向",
+      "type_omni": "全向",
+      "reset": "重置",
+      "position": "位置 {{letter}}",
+      "placeholder_angle": "角度",
+      "placeholder_position": "位置",
+      "record_angle": "记录角度",
+      "record_position": "记录位置",
+      "not_recorded": "未记录",
+      "recorded_at": "记录于 {{time}}",
+      "sample_progress": "第 {{current}} 次读数，共 {{total}} 次",
+      "waiting": "正在等待调制解调器",
+      "cancel": "取消",
+      "clear": "清除 {{label}}",
+      "label_sr": "第 {{index}} 个槽位的标签",
+      "slot_sr": "槽位 {{index}}：{{label}} — {{status}}",
+      "status": {
+        "recording": "正在记录",
+        "recorded": "已记录",
+        "recorded_best": "已记录，结果最佳",
+        "empty": "空"
+      },
+      "best": "最佳",
+      "best_margin": "最佳，领先 {{margin}}",
+      "not_comparable": "没有可排序的读数，因此无法比较该位置。",
+      "partial": "仅按单项指标评分。",
+      "confirm_cancel": "保留",
+      "reset_confirm_title": "清除所有已记录的位置？",
+      "reset_confirm_body": "你记录的所有位置都将被删除。此操作无法撤销。",
+      "reset_confirm_action": "全部清除",
+      "clear_confirm_title": "清除这条记录？",
+      "clear_confirm_body": "为 {{label}} 记录的读数将被删除。此操作无法撤销。",
+      "clear_confirm_action": "清除"
+    },
+    "recommendation": {
+      "title": "目前最佳：{{label}}",
+      "body_directional": "在你已记录的位置中，该角度的综合信号最强。",
+      "body_omni": "在你已记录的位置中，该摆放位置的综合信号最强。",
+      "mixed_radios": "你的记录跨越了两种射频，因此对比结果不如平时精确。",
+      "remaining": "记录剩余槽位可获得更完整的对比。"
+    },
+    "ports": {
+      "title": "接收链路",
+      "description": "哪些天线参与了评分。",
+      "reporting": "{{total}} 个中有 {{live}} 个在上报",
+      "not_reporting": "无数据",
+      "idle_hint": "该链路未测得任何数据。",
+      "twin_hint": "如需查看每条链路的各项指标详情，请前往",
+      "twin_link": "天线统计"
+    },
+    "states": {
+      "loading_sr": "正在加载天线对准",
+      "retry": "重试",
+      "error_banner": "无法连接调制解调器。以下读数可能已过期。",
+      "stale_banner": "信号数据已过期。调制解调器可能无响应。",
+      "unreachable": {
+        "title": "无法连接调制解调器",
+        "description": "无法加载天线读数。请检查轮询服务是否在运行，然后重试。"
+      },
+      "no_readings": {
+        "title": "无天线读数",
+        "description": "调制解调器有响应，但没有任何接收链路上报测量值。可能正在搜索网络，也可能有天线未连接 — 一旦某条链路开始上报，读数会自动恢复。"
+      }
+    }
+  },
   "antenna_statistics": {
     "page": {
       "title": "天线统计",

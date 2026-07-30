@@ -15,6 +15,8 @@ This doc records the invariants that are cheap to break and expensive to notice.
 | Per-technology card, port block, metric row, geometry constants | `components/cellular/antenna-statistics/tech-card.tsx` |
 | 3-tile context strip | `components/cellular/antenna-statistics/context-tiles.tsx` |
 | Skeleton + unreachable screen | `components/cellular/antenna-statistics/states.tsx` |
+| Shared condition-screen primitive (shell + tone spec) | `components/cellular/condition-screen.tsx` |
+| Canonical quality → glyph / chip / meter mappings | `components/cellular/signal-quality-display.ts` (not yet adopted here — see Known gaps) |
 | **Sentinel boundary** (shared with antenna-alignment) | `types/modem-status.ts` — `SIGNAL_SENTINELS`, `normalizeSignalValue`, `isPortReporting`, `hasAntennaData` |
 | Port metadata | `ANTENNA_PORTS` in `types/modem-status.ts` |
 | Data source | `hooks/use-modem-status.ts` > `/tmp/qmanager_status.json` > `signal_per_antenna` |
@@ -156,7 +158,11 @@ Recorded honestly — each of these is a decision that was made, not an oversigh
 
 - **`ANTENNA_PORTS[].name` and `.description` are hardcoded English** (`types/modem-status.ts`) and render on **both** antenna pages. Left alone deliberately: localizing on one page only would make the twins disagree about a port's name. Should be done for both in one change.
 - **A two-leg MIMO value grows its tile past the skeleton.** `LTE 1x4 | NR 2x4` stacks into two lines and resolves to ~107px against `TILE_SHAPE.HEIGHT`'s 92px floor — a ~15px jump at the skeleton-to-data handoff. This is **systemic**, inherited from `components/cellular/radio/summary-tiles.tsx`, which shares the geometry and whose own comment makes the same incorrect "still fits" claim. The fix belongs in `TILE_SHAPE` for both strips at once; a local-only fix would desynchronise the two.
-- **The unreachable screen duplicates `components/cellular/radio/states.tsx`'s condition screen** almost verbatim. It should be generalized into a shared primitive before the two drift.
+- **RESOLVED — the unreachable screen is now a shared primitive.** It used to duplicate `components/cellular/radio/states.tsx`'s condition screen almost verbatim. The shell and the tone→class mapping were extracted into **`components/cellular/condition-screen.tsx`**, and this file, `radio/states.tsx` and the two new antenna-alignment condition screens all consume it. The primitive carries no i18n namespace of its own, which is what lets `radio_info.states.*`, `antenna_statistics.states.*` and `antenna_alignment.states.*` share one screen; callers own the glyph, the tone and the copy. Pure refactor, zero visual change. See [antenna-alignment.md](antenna-alignment.md) > Three states.
+
+  > ⚠️ WARNING: this page's glyph is `error`, while the radio page's `no-service` screen uses `signal_cellular_off`. That divergence is deliberate — no two states in one slot may share a glyph, because the tonal containers sit ~1.03:1 apart. Do not "unify" the glyphs as part of adopting the primitive.
+
+- **`tech-card.tsx` still carries private copies of the quality mappings.** `QUALITY_GLYPH`, `verdictVariant` and `meterTone` live in this file locally, and are value-identical to the canonical exports in **`components/cellular/signal-quality-display.ts`** (`QUALITY_GLYPH`, `qualityBadgeVariant`, `qualityMeterTone`), which the antenna-alignment surfaces already consume. `tech-card.tsx` should adopt that module the next time it is touched; it was left alone only to keep a design migration from editing a shipped surface it had no other reason to open.
 - **The parser-level fix was deliberately not taken.** Mapping `-140` and `-20` to `null` inside `parse_at.sh`'s `_sig_val()` would make this correct by construction for every consumer. But it is a **Tier 3 backend change** that also rewrites the meaning of existing lines in `/tmp/qmanager_signal_history.json` mid-file, so it needs its own recon and validator pass. The frontend boundary is the safe fix, not the final one.
 - **`parse_at.sh:734`'s comment is wrong.** It documents `-32768` as *the* inactive-port sentinel — which is precisely the one that never occurs on the observed firmware. Worth correcting when the parser is next touched.
 

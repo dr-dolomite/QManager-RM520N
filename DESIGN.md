@@ -816,7 +816,9 @@ plus fade); there is no exit.
   invisible on a light container. Tone is chosen per condition, not per aesthetics: no-SIM is
   `warning` (a real fault the user can fix in situ), no-service is `destructive` (the link is down),
   searching is `primary` (transient and hopeful), unknown is neutral. Only `searching` spins — a
-  spinner on a standing condition advertises work that is not happening.
+  spinner on a standing condition advertises work that is not happening. The shell and the tone→class
+  mapping live in `components/cellular/condition-screen.tsx`; callers pass a tone, a glyph and their own
+  copy. No two states in one slot may share a glyph.
 
 ### Icons
 

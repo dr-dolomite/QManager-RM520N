@@ -3,9 +3,10 @@
 import * as React from "react";
 import { useTranslation } from "react-i18next";
 
-import { MaterialSymbol } from "@/components/ui/material-symbol";
 import type { MaterialSymbolName } from "@/components/ui/material-symbol";
 import { Skeleton } from "@/components/ui/skeleton";
+import { ConditionScreen } from "@/components/cellular/condition-screen";
+import type { ConditionTone } from "@/components/cellular/condition-screen";
 import { cn } from "@/lib/utils";
 import type { RadioMode } from "@/lib/radio-info";
 
@@ -38,6 +39,11 @@ import { TILE_SHAPE } from "./summary-tiles";
 // Each carries a DIFFERENT glyph: no two states in one slot may share one,
 // because success/warning/destructive containers sit ~1.03:1 apart and the
 // glyph is the only channel that survives grayscale.
+//
+// The screen itself — shell, tone classes, retry affordance — lives in
+// `components/cellular/condition-screen.tsx` so `/cellular/`'s other surfaces
+// can draw the same thing. This file keeps only the RadioMode → tone/glyph
+// mapping and the `radio_info.states.*` copy.
 // =============================================================================
 
 // -----------------------------------------------------------------------------
@@ -69,11 +75,7 @@ export function SummaryTilesSkeleton({ label }: { label?: string }) {
 type ConditionMode = Exclude<RadioMode, "loading" | `registered-${string}`>;
 
 type ConditionSpec = {
-  container: string;
-  disc: string;
-  /** Retry scrim drawn from the container's OWN ink: a white wash is invisible
-   *  on the light containers and only works in dark mode. */
-  action: string;
+  tone: ConditionTone;
   glyph: MaterialSymbolName;
   /** Only `searching` spins — the others are standing conditions, and a
    *  spinner on a standing condition advertises work that is not happening. */
@@ -83,35 +85,23 @@ type ConditionSpec = {
 
 const CONDITION: Record<ConditionMode, ConditionSpec> = {
   "no-sim": {
-    container: "bg-warning-container text-on-warning-container",
-    disc: "bg-warning text-warning-foreground",
-    action:
-      "bg-on-warning-container/10 hover:bg-on-warning-container/15 focus-visible:ring-on-warning-container",
+    tone: "warning",
     glyph: "sim_card",
     ariaRole: "alert",
   },
   "no-service": {
-    container: "bg-destructive-container text-on-destructive-container",
-    disc: "bg-destructive text-destructive-foreground",
-    action:
-      "bg-on-destructive-container/10 hover:bg-on-destructive-container/15 focus-visible:ring-on-destructive-container",
+    tone: "destructive",
     glyph: "signal_cellular_off",
     ariaRole: "alert",
   },
   searching: {
-    container: "bg-primary-container text-on-primary-container",
-    disc: "bg-primary text-primary-foreground",
-    action:
-      "bg-on-primary-container/10 hover:bg-on-primary-container/15 focus-visible:ring-on-primary-container",
+    tone: "primary",
     glyph: "progress_activity",
     spin: true,
     ariaRole: "status",
   },
   unknown: {
-    container: "bg-surface-container text-on-surface",
-    disc: "bg-surface-container-high text-on-surface-variant",
-    action:
-      "bg-on-surface/5 hover:bg-on-surface/10 focus-visible:ring-on-surface",
+    tone: "neutral",
     glyph: "help",
     ariaRole: "status",
   },
@@ -140,46 +130,16 @@ export function RadioConditionState({ mode, onRetry }: RadioConditionStateProps)
   const key = CONDITION_KEY[mode];
 
   return (
-    <div
-      role={spec.ariaRole}
-      className={cn(
-        "flex flex-col items-center gap-3.5 rounded-hero px-7 py-14 text-center",
-        spec.container,
-      )}
-    >
-      <span className={cn("grid size-14 flex-none place-items-center rounded-pill", spec.disc)}>
-        <MaterialSymbol
-          name={spec.glyph}
-          filled
-          size={30}
-          className={spec.spin ? "motion-safe:animate-spin" : undefined}
-        />
-      </span>
-      <div className="flex flex-col gap-1.5">
-        {/* Headline step (600 / text-xl) — DESIGN.md names it for exactly this:
-            "large card titles and state labels". The overview splash's 17px is
-            its own pre-auth scale and does not travel to `/cellular/`. */}
-        <p className="text-xl font-semibold tracking-[-0.01em]">
-          {t(`radio_info.states.${key}.title`)}
-        </p>
-        <p className="max-w-[46ch] text-sm leading-relaxed opacity-90">
-          {t(`radio_info.states.${key}.description`)}
-        </p>
-      </div>
-      {onRetry && (
-        <button
-          type="button"
-          onClick={onRetry}
-          className={cn(
-            "inline-flex h-10 items-center gap-2 rounded-pill px-5 text-sm font-semibold transition-colors duration-[var(--duration-quick)] ease-out focus-visible:ring-2 focus-visible:outline-none",
-            spec.action,
-          )}
-        >
-          <MaterialSymbol name="refresh" size={17} />
-          {t("radio_info.states.retry")}
-        </button>
-      )}
-    </div>
+    <ConditionScreen
+      tone={spec.tone}
+      glyph={spec.glyph}
+      spin={spec.spin}
+      ariaRole={spec.ariaRole}
+      title={t(`radio_info.states.${key}.title`)}
+      description={t(`radio_info.states.${key}.description`)}
+      onRetry={onRetry}
+      retryLabel={t("radio_info.states.retry")}
+    />
   );
 }
 

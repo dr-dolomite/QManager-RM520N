@@ -83,7 +83,7 @@ The `out/` directory contains the complete static frontend. The installer (`scri
 - **Connection Watchdog** — Multi-tier auto-recovery (re-register, CFUN toggle, SIM/tower failover, reboot)
 - **Latency Monitoring** — Real-time ping with history and aggregated views
 - **Cell Scanner** — Active and neighbor cell scanning with a frequency calculator
-- **Antenna Alignment** — Guided per-port aiming using live signal metrics
+- **Antenna Alignment** — A live 0–100 aim score for sweeping, plus a 3-position recorder that averages real modem measurements and recommends the best aim
 - **Data Usage Counter** — Kernel-sourced RX/TX accounting with persistence across reboots
 - **Network Settings** — Ethernet link speed (2.5GbE `eth0`), TTL/HL, MTU, custom DNS, IP passthrough
 - **Alerts** — Email (Gmail SMTP), SMS, and Discord-bot notifications on downtime/recovery

@@ -2,8 +2,8 @@
 
 import { useTranslation } from "react-i18next";
 import { Card, CardHeader } from "@/components/ui/card";
-import { MaterialSymbol } from "@/components/ui/material-symbol";
 import { Skeleton } from "@/components/ui/skeleton";
+import { ConditionScreen } from "@/components/cellular/condition-screen";
 import { TILE_SHAPE } from "@/components/cellular/radio/summary-tiles";
 import { cn } from "@/lib/utils";
 import { ANTENNA_PORTS } from "@/types/modem-status";
@@ -89,39 +89,26 @@ export function AntennaStatsSkeleton({ label }: { label?: string }) {
 // the modem could not be reached — an actively misleading instrument on the
 // exact screen someone opens to diagnose a chain. Tone is `destructive` because
 // the link to the device is genuinely down, not merely degraded.
+//
+// The screen is the shared `ConditionScreen` primitive, which owns the shell and
+// the tone→class mapping; only the glyph and the copy are ours. The glyph is
+// `error` rather than the radio page's `signal_cellular_off` on purpose: no two
+// states in one slot may share a glyph, because the tonal containers sit
+// ~1.03:1 apart and the glyph is the only channel that survives grayscale.
 // =============================================================================
 
 export function AntennaStatsUnreachable({ onRetry }: { onRetry?: () => void }) {
   const { t } = useTranslation("cellular");
 
   return (
-    <div
-      role="alert"
-      className="flex flex-col items-center gap-3.5 rounded-hero bg-destructive-container px-7 py-14 text-center text-on-destructive-container"
-    >
-      <span className="grid size-14 flex-none place-items-center rounded-pill bg-destructive text-destructive-foreground">
-        <MaterialSymbol name="error" filled size={30} />
-      </span>
-      <div className="flex flex-col gap-1.5">
-        <p className="text-xl font-semibold tracking-[-0.01em]">
-          {t("antenna_statistics.states.unreachable.title")}
-        </p>
-        <p className="max-w-[46ch] text-sm leading-relaxed opacity-90">
-          {t("antenna_statistics.states.unreachable.description")}
-        </p>
-      </div>
-      {onRetry && (
-        // Scrim drawn from the container's OWN ink: a white wash is invisible
-        // on the light container and only works in dark mode.
-        <button
-          type="button"
-          onClick={onRetry}
-          className="inline-flex h-10 items-center gap-2 rounded-pill bg-on-destructive-container/10 px-5 text-sm font-semibold transition-colors duration-(--duration-quick) ease-out hover:bg-on-destructive-container/15 focus-visible:ring-2 focus-visible:ring-on-destructive-container focus-visible:outline-none"
-        >
-          <MaterialSymbol name="refresh" size={17} />
-          {t("antenna_statistics.states.retry")}
-        </button>
-      )}
-    </div>
+    <ConditionScreen
+      tone="destructive"
+      glyph="error"
+      ariaRole="alert"
+      title={t("antenna_statistics.states.unreachable.title")}
+      description={t("antenna_statistics.states.unreachable.description")}
+      onRetry={onRetry}
+      retryLabel={t("antenna_statistics.states.retry")}
+    />
   );
 }

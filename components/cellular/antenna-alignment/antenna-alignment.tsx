@@ -1,108 +1,124 @@
 "use client";
 
-import { motion, type Variants } from "motion/react";
-import { MaterialSymbol } from "@/components/ui/material-symbol";
-import { Skeleton } from "@/components/ui/skeleton";
-import {
-  Empty,
-  EmptyDescription,
-  EmptyHeader,
-  EmptyMedia,
-  EmptyTitle,
-} from "@/components/ui/empty";
+import { motion } from "motion/react";
+import { useTranslation } from "react-i18next";
+
+import { Banner } from "@/components/ui/banner";
 import { useModemStatus } from "@/hooks/use-modem-status";
-import { detectRadioMode } from "./utils";
-import { AntennaCard, AntennaCardSkeleton } from "./antenna-card";
-import AlignmentMeterSection from "./alignment-meter";
 import { staggerContainer, staggerItem } from "@/lib/motion";
 
-// ---------------------------------------------------------------------------
-// Legend
-// ---------------------------------------------------------------------------
+import { LiveAimCard } from "./live-aim";
+import { PortStripCard } from "./port-strip";
+import { RecorderCard } from "./recorder-card";
+import { AlignmentNoReadings, AlignmentSkeleton, AlignmentUnreachable } from "./states";
+import { countReportingPorts, detectRadioMode } from "./utils";
 
-// ---------------------------------------------------------------------------
-// Animation variants
-// ---------------------------------------------------------------------------
-
-
-
-// ---------------------------------------------------------------------------
-// Main component
-// ---------------------------------------------------------------------------
+// =============================================================================
+// Antenna Alignment
+// =============================================================================
+// Page shell only: the hook, state routing, the header, the degraded banner, and
+// the card order. Every card owns its own content.
+//
+// Card order is the order the aiming user's questions arrive in:
+//   1. Live Aim      — "is it better than it was a second ago?" (the sweep)
+//   2. Alignment Meter — "which of these three positions won?" (the commit)
+//   3. Receive Chains  — "am I aiming with all the chains I think I have?"
+//
+// That is a deliberate inversion of the old page, which led with four per-antenna
+// cards and buried the live readout inside the recorder card in 10px type.
+// =============================================================================
 
 export default function AntennaAlignmentComponent() {
-  const { data, isLoading, isStale, error } = useModemStatus();
+  const { t, i18n } = useTranslation("cellular");
+  const { data, isLoading, isStale, error, refresh } = useModemStatus();
+
   const spa = data?.signal_per_antenna ?? null;
   const mode = spa ? detectRadioMode(spa) : null;
 
-  if (isLoading) {
-    return (
-      <div className="@container/main mx-auto p-2">
-        <div className="mb-6">
-          <Skeleton className="h-8 w-64" />
-          <Skeleton className="h-4 w-96 mt-2" />
-        </div>
-        <div className="grid grid-cols-1 gap-4 @3xl/main:grid-cols-2 @5xl/main:grid-cols-4">
-          {[0, 1, 2, 3].map((i) => (
-            <AntennaCardSkeleton key={i} />
-          ))}
-        </div>
-      </div>
-    );
-  }
+  /** The first fetch never landed — we have nothing, not even a reason. */
+  const unreachable = !isLoading && !data;
+  /** The modem answered and every chain reported nothing. */
+  const noReadings = !!spa && countReportingPorts(spa) === 0;
+
+  /**
+   * The modem's own timestamp for this snapshot, rendered as a clock time.
+   *
+   * Deliberately the device's stamp and not an elapsed age: computing "3s ago"
+   * means reading a clock during render, which `react-hooks/purity` flags and
+   * `use-modem-status.ts` explicitly asks consumers not to do. A frozen clock
+   * time is just as legible as a frozen counter — if the figure stops advancing,
+   * the feed has stopped — and it needs no timer to stay honest.
+   */
+  const updatedAt =
+    data?.timestamp != null
+      ? new Date(data.timestamp * 1000).toLocaleTimeString(i18n.language)
+      : null;
+
+  /** Recording depends on fresh snapshots arriving; say so when they are not. */
+  const feedStalled = !!error || isStale;
 
   return (
-    <div className="@container/main mx-auto p-2">
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold mb-2">Antenna Alignment</h1>
-        <p className="text-muted-foreground">
-          Per-antenna signal strength for each receiver chain. Record and
-          compare positions to find the best aim or placement.
+    <motion.div
+      className="@container/main mx-auto flex flex-col gap-5 p-2"
+      aria-live="polite"
+      aria-atomic="false"
+      variants={staggerContainer}
+      initial="hidden"
+      animate="visible"
+    >
+      <motion.div variants={staggerItem} className="flex max-w-[41rem] flex-col gap-1.5">
+        <h1 className="text-3xl font-bold tracking-[-0.02em]">
+          {t("antenna_alignment.page.title")}
+        </h1>
+        <p className="text-on-surface-variant text-sm leading-relaxed text-pretty">
+          {t("antenna_alignment.page.description")}
         </p>
-      </div>
+      </motion.div>
 
-      {(error || isStale) && (
-        <div
-          role="alert"
-          className="rounded-lg bg-destructive/10 px-4 py-3 text-sm text-destructive mb-4"
-        >
-          {error
-            ? "Unable to reach the modem. Data shown may be outdated."
-            : "Signal data is stale — modem may be unresponsive."}
-        </div>
+      {/* Outside the cascade: a condition banner should arrive when the condition
+          does, not on the page's entrance clock. */}
+      {!isLoading && !unreachable && feedStalled && (
+        <Banner
+          role="stale"
+          title={
+            error
+              ? t("antenna_alignment.states.error_banner")
+              : t("antenna_alignment.states.stale_banner")
+          }
+        />
       )}
 
-      {spa && mode ? (
-        <div className="grid grid-cols-1 gap-4">
-          <AlignmentMeterSection spa={spa} mode={mode} />
-
-          <motion.div
-            className="grid grid-cols-1 gap-4 @3xl/main:grid-cols-2 @5xl/main:grid-cols-4"
-            variants={staggerContainer}
-            initial="hidden"
-            animate="visible"
-          >
-            {[0, 1, 2, 3].map((index) => (
-              <motion.div key={index} variants={staggerItem}>
-                <AntennaCard index={index} spa={spa} mode={mode} />
-              </motion.div>
-            ))}
+      {isLoading ? (
+        <AlignmentSkeleton label={t("antenna_alignment.states.loading_sr")} />
+      ) : unreachable ? (
+        <motion.div variants={staggerItem}>
+          <AlignmentUnreachable onRetry={refresh} />
+        </motion.div>
+      ) : noReadings ? (
+        <motion.div variants={staggerItem}>
+          <AlignmentNoReadings onRetry={refresh} />
+        </motion.div>
+      ) : spa && mode ? (
+        <>
+          <motion.div variants={staggerItem}>
+            <LiveAimCard
+              spa={spa}
+              snapshotTs={data?.timestamp ?? null}
+              updatedAt={updatedAt}
+            />
           </motion.div>
-        </div>
-      ) : (
-        <Empty>
-          <EmptyHeader>
-            <EmptyMedia variant="icon">
-              <MaterialSymbol name="signal_cellular_alt" size={24} />
-            </EmptyMedia>
-            <EmptyTitle>No Antenna Data</EmptyTitle>
-            <EmptyDescription className="max-w-xs text-pretty">
-              Antenna metrics will appear when the modem poller is running and
-              reporting per-antenna signal data.
-            </EmptyDescription>
-          </EmptyHeader>
-        </Empty>
-      )}
-    </div>
+          <motion.div variants={staggerItem}>
+            <RecorderCard
+              spa={spa}
+              snapshotTs={data?.timestamp ?? null}
+              feedStalled={feedStalled}
+            />
+          </motion.div>
+          <motion.div variants={staggerItem}>
+            <PortStripCard spa={spa} mode={mode} />
+          </motion.div>
+        </>
+      ) : null}
+    </motion.div>
   );
 }
