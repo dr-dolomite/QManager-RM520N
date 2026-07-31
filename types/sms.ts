@@ -34,6 +34,18 @@ export interface SmsStorage {
   used: number;
   /** Maximum storage capacity */
   total: number;
+  /**
+   * Per-memory breakdown for the ME (modem) store. Optional: an
+   * un-upgraded device runs the old CGI, which does not emit this
+   * breakdown, so the UI must degrade to the combined meter when absent.
+   */
+  me?: { used: number; total: number };
+  /**
+   * Per-memory breakdown for the SM (SIM card) store. Optional: an
+   * un-upgraded device runs the old CGI, which does not emit this
+   * breakdown, so the UI must degrade to the combined meter when absent.
+   */
+  sm?: { used: number; total: number };
 }
 
 /** Response from GET /cgi-bin/quecmanager/cellular/sms.sh */

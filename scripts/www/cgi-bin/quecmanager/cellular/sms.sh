@@ -459,12 +459,24 @@ if [ "$REQUEST_METHOD" = "GET" ]; then
         --argjson messages "$messages" \
         --argjson used "$storage_used" \
         --argjson total "$storage_total" \
+        --argjson me_used "$me_used" \
+        --argjson me_total "$me_total" \
+        --argjson sm_used "$sm_used" \
+        --argjson sm_total "$sm_total" \
         '{
             success: true,
             messages: $messages,
             storage: {
                 used: $used,
-                total: $total
+                total: $total,
+                me: {
+                    used: $me_used,
+                    total: $me_total
+                },
+                sm: {
+                    used: $sm_used,
+                    total: $sm_total
+                }
             }
         }'
     exit 0
