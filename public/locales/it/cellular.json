@@ -873,8 +873,6 @@
         "deleting": "Eliminazione…"
       },
       "delete_all_confirm": {
-        "title": "Elimina tutti i messaggi",
-        "description": "Sei sicuro di voler eliminare tutti i messaggi {{count}}? Questa azione non può essere annullata.",
         "confirm": "Elimina tutto"
       },
       "delete_selected_confirm": {

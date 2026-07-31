@@ -879,8 +879,6 @@
         "deleting": "刪除中…"
       },
       "delete_all_confirm": {
-        "title": "刪除所有訊息",
-        "description": "確定要刪除全部 {{count}} 條訊息嗎？此操作不可撤銷。",
         "confirm": "全部刪除"
       },
       "delete_selected_confirm": {

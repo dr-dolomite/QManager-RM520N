@@ -20,6 +20,13 @@ const TONE_CLASS = {
   success: "bg-success",
   warning: "bg-warning",
   destructive: "bg-destructive",
+  // Uplink Cyan, added for the SMS Center's SIM-memory meter. It is the only
+  // identity hue that may fill a meter here, and it does so because the SM tile
+  // it sits in is an `uplink-container` — the fill has to be that container's
+  // own strong role or the meter reads as an unrelated colour dropped on a
+  // cyan tile. Identity-Never-Acts still holds: this is a readout, not a
+  // control.
+  uplink: "bg-uplink",
 } as const;
 
 export type MetricBarTone = keyof typeof TONE_CLASS;

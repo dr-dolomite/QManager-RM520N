@@ -873,8 +873,6 @@
         "deleting": "删除中…"
       },
       "delete_all_confirm": {
-        "title": "删除所有消息",
-        "description": "确定要删除全部 {{count}} 条消息吗？此操作不可撤销。",
         "confirm": "全部删除"
       },
       "delete_selected_confirm": {

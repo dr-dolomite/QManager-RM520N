@@ -873,8 +873,6 @@
         "deleting": "Menghapus…"
       },
       "delete_all_confirm": {
-        "title": "Hapus Semua Pesan",
-        "description": "Apakah Anda yakin ingin menghapus semua {{count}} messages? Tindakan ini tidak dapat dibatalkan.",
         "confirm": "Hapus semua"
       },
       "delete_selected_confirm": {

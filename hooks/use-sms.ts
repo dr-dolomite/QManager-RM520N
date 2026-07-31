@@ -29,6 +29,20 @@ export interface SmsData {
 export interface UseSmsReturn {
   /** Current SMS data (null before first fetch) */
   data: SmsData | null;
+  /**
+   * Epoch ms of the last GET that actually returned an inbox, or `null` before
+   * the first one lands. Set on the success branch and deliberately PRESERVED
+   * on the error branch, so the staleness chip can say how old the rows on
+   * screen are rather than blanking them.
+   *
+   * This is the CLIENT's own clock, not a field from the CGI, and that is the
+   * point: a server-side stamp would report when the shell script ran, which is
+   * not the same question as "when did this browser last see good data". It is
+   * also why nothing derives it from `Date.now()` during render — the value is
+   * captured inside the fetch callback and read back as data, which keeps
+   * `react-hooks/purity` satisfied at every consumer.
+   */
+  lastSuccessfulFetch: number | null;
   /** True while initial fetch is in progress */
   isLoading: boolean;
   /** True while a send/delete operation is in progress */
@@ -49,6 +63,9 @@ export interface UseSmsReturn {
 
 export function useSms(): UseSmsReturn {
   const [data, setData] = useState<SmsData | null>(null);
+  const [lastSuccessfulFetch, setLastSuccessfulFetch] = useState<number | null>(
+    null,
+  );
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -87,6 +104,10 @@ export function useSms(): UseSmsReturn {
         messages: json.messages || [],
         storage: json.storage || { used: 0, total: 0 },
       });
+      // Stamped only here, on the branch that actually produced an inbox. The
+      // error branches below leave it untouched on purpose — that is what makes
+      // "Stale, 09:14:02" a true statement about the rows still on screen.
+      setLastSuccessfulFetch(Date.now());
     } catch (err) {
       if (!mountedRef.current) return;
       setError(
@@ -240,6 +261,7 @@ export function useSms(): UseSmsReturn {
 
   return {
     data,
+    lastSuccessfulFetch,
     isLoading,
     isSaving,
     error,
