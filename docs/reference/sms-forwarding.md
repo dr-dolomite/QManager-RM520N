@@ -137,22 +137,47 @@ Error codes: `invalid_phone`, `missing_action`, `invalid_action`, `send_failed`.
 
 The hook uses `authFetch` (authenticated) — unlike the public Overview endpoints — because forwarding config is privileged.
 
+> ℹ️ NOTE: The three files above were rebuilt on the tonal design system (`DESIGN.md`) by analogy with the approved SMS Center comp. Every load-bearing contract survived the rebuild unchanged: the lifted single-hook shape with one `fwd` prop, the 20 s silent poll, phone validation gated on `isEnabled`, and Send test reading the target from **config** rather than the control input.
+
 ### Control card (`sms-forwarding-card.tsx`)
 
 Enable toggle + destination number + save. No status display, no test button, no failure history — those belong to the health card. Phone validation is gated on `isEnabled`, so turning forwarding **off** is never blocked by a stale/invalid number in the field.
 
+**The error branch widened from `error && !data` to `!data`.** Previously a first fetch that resolved with *no data and no error string* fell through to the form and rendered an unchecked toggle over a blank number field — which **asserts** that forwarding is off when the truth is that the config was never read. Any state without data now takes the error branch.
+
 ### Health card (`delivery-health-card.tsx`)
 
-A single derived health state drives the whole card:
+A single derived health state drives the whole card. The four states now differ on **both** tone and glyph:
 
-| Health | Condition | Tone |
-|---|---|---|
-| `active` | enabled, target set, no failures | `success` |
-| `issue` | enabled, target set, ≥1 failure | `warning` |
-| `unconfigured` | enabled, target empty | `muted` |
-| `off` | disabled | `muted` |
+| Health | Condition | Tone | Glyph |
+|---|---|---|---|
+| `active` | enabled, target set, no failures | `success-container` | `check_circle` |
+| `issue` | enabled, target set, ≥1 failure | `warning-container` | `warning` |
+| `unconfigured` | enabled, target empty | `primary-container` | `edit` |
+| `off` | disabled | `surface-container` (neutral) | `do_not_disturb_on` |
 
-The state drives a focal icon + label + destination row (the single status surface — there is intentionally no duplicate header badge). A static preview bubble `From +15550142: <sample body>` teaches the relay format (the sample sender is a placeholder; the saved number is the *recipient*, not the sender). **Send test** is enabled only when forwarding is on and a target is set — the CGI reads the target from config, so it verifies the real saved path, not whatever is in the control input. Recent delivery failures (up to 5) show in an animated destructive alert with a Clear button (`clear_failures`); when there are none, a calm "No delivery problems." line shows instead.
+Two things changed here and both are load-bearing.
+
+**`unconfigured` moved off `warning` and onto the brand container.** An empty target is not a fault and not a failure — the daemon is enabled and idle, waiting on one field. That is the "reports rather than alarms" role, and DESIGN.md's Info-Is-Brand Rule renders it as `primary-container`. Previously `unconfigured` and `issue` both drew `warning`, *and* `unconfigured` and `off` both read as muted — so the state was ambiguous in two directions at once.
+
+**All four glyphs must differ.** `success-container` and `warning-container` measure **1.03:1** apart — the same surface to the eye, and identical under deuteranopia — so tone alone carries no information here. The glyph is the channel that actually separates a healthy relay from a degraded one; two states in this slot may never share one.
+
+The card also dropped the `bg-success/15`-style opacity washes it used for these fills in favour of real role containers, per the tonal system.
+
+The state drives a focal icon + label + destination row (the single status surface — there is intentionally no duplicate header badge). A static preview bubble `From +15550142: <sample body>` teaches the relay format (the sample sender is a placeholder; the saved number is the *recipient*, not the sender). **Send test** is enabled only when forwarding is on and a target is set — the CGI reads the target from config, so it verifies the real saved path, not whatever is in the control input. Recent delivery failures (up to 5) show in a destructive alert with a Clear button (`clear_failures`); when there are none, a calm "No delivery problems." line shows instead.
+
+> ℹ️ NOTE: The failures block **lost its `AnimatePresence` height animation** and is now rendered conditionally. It animated `height` on both enter and exit, breaking DESIGN.md's Transform-Only Rule and Enter-Only Rule at once. Do not reintroduce it.
+
+### i18n
+
+**This route was internationalized for the first time in this change** — it previously had zero `useTranslation` calls and shipped hardcoded English. 45 new keys under `sms.forwarding` were added to `public/locales/en/cellular.json` **only**; the other four locales fall back to English and surface as `i18n:check` warnings rather than as a fake "translated" figure. See [`sms.md` > i18n](sms.md#i18n) for the full accounting of the shared key drop.
+
+> ⚠️ WARNING: this rebuild was verified **statically only** — `tsc`, `next build`, eslint, `i18n:check` and `icons:check` pass, but none of them render a page. Nothing on this route has been visually reviewed on a device.
+
+### Known gaps
+
+- **`SaveButton` hardcodes its transient labels.** `components/ui/save-button.tsx` renders the literal strings `Saving…` and `Saved!` internally and exposes only a `label` prop, so those two states stay English on **every** save surface in the product, not just this one. `common.actions.saving` / `common.actions.saved` already exist as keys — the component needs to accept them. Unfixed.
+- **The shadcn `Checkbox` renders a lucide glyph on Material routes.** Pre-existing and out of scope here; recorded in [`icon-system.md`](icon-system.md).
 
 ---
 

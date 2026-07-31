@@ -1,1 +1,1 @@
-
+- [SMS tonal rebuild: visual check still pending](project_sms_tonal_rebuild_visual_check_pending.md) — closed 2026-07-31 statically verified only; sms.md / sms-forwarding.md carry "not visually reviewed" warnings to remove once the owner confirms

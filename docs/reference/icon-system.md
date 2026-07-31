@@ -12,7 +12,7 @@ Material Symbols is a **self-hosted, ligature-driven icon font**, not an SVG com
 | **Canonical glyph list (single source of truth)** | `MATERIAL_SYMBOL_NAMES` in `components/ui/material-symbol-names.ts` |
 | Allowed glyph names (TS type) | `MaterialSymbolName`, **derived** from that array |
 | Subset generator | `scripts-dev/subset-icons.ts` (imports the same array) |
-| Shipped font file | `app/fonts/MaterialSymbolsRounded-subset.woff2` (95 glyphs, 35.2 KB) |
+| Shipped font file | `app/fonts/MaterialSymbolsRounded-subset.woff2` (97 glyphs, 36.3 KB) |
 | Generator manifest | `app/fonts/MaterialSymbolsRounded-subset.json` — what was requested + sha256 of what shipped |
 | Font binding | `app/layout.tsx` (`next/font/local`, bound to a CSS variable) |
 | Regenerate the font | `bun run icons:subset` |
@@ -55,6 +55,15 @@ The Cellular and Radio Information page (`/cellular/`, the section index) was re
 The reasoning that was recorded while the gap stood is worth keeping, because it is the reason the conversion was done as one pass rather than piecemeal: retargeting one sub-route at a time reproduces the same split one level down, and doing it as two separate passes means touching every shared primitive twice. It also validates the original worry — the risk named at the time was "the follow-up never happens, and temporary quietly becomes the documented behaviour" — this is the case where the follow-up *did* happen, on the next Tier 3 pass through the route family.
 
 One concrete conversion cost, already known before this pass: `components/ui/accordion.tsx`'s `AccordionTrigger` bakes in a lucide `ChevronDownIcon` (and a legacy `rounded-md`). `active-bands-card.tsx:489` reaches for `AccordionPrimitive.Trigger` directly to avoid it, preserving every Radix affordance. Any shared primitive with a hardcoded lucide glyph needs the same treatment or a real fix — and this pass surfaced a second, more expensive case: see "Shared primitives style themselves on `>svg`" below.
+
+#### Known unfixed instances of the same leak
+
+Two more shared primitives hardcode lucide glyphs and therefore paint them onto converted Material routes. Both are recorded here as **known unfixed instances, not as correct code** — do not read their presence as sanction.
+
+| Primitive | Glyph(s) | Status |
+|---|---|---|
+| `components/ui/checkbox.tsx` | lucide `CheckIcon` | **Pre-existing leak, deliberately out of scope.** Every Material route that renders a checkbox — the SMS inbox's row and header selection among them — draws a lucide check inside it. It is *not* the `accordion.tsx` escape hatch: there is no primitive-level bypass, because the check lives inside `CheckboxPrimitive.Indicator` and reaching around it would cost the Radix behaviour the glyph rejection above exists to protect. A real fix means giving `Checkbox` an icon slot |
+| `components/ui/sonner.tsx` | lucide `CircleCheckIcon`, `InfoIcon`, `TriangleAlertIcon`, `OctagonXIcon`, `Loader2Icon` | **Open question, not a decision.** Toasts are route-agnostic and mount on lucide pages too, so they are arguably covered by the same reasoning that keeps `components/ui/banner.tsx` on lucide. But sonner is **not** currently a documented exception, and the boundary table above does not list it. Recorded so it is settled explicitly rather than by omission |
 
 **One lucide import deliberately survives under `components/cellular/` and it is correct code.** `components/cellular/custom-profiles/apply-progress-dialog.tsx` imports `RotateCwIcon` to pass into `Banner`'s `icon` prop, which is typed `LucideIcon`. `components/ui/banner.tsx` is the page-level, route-agnostic banner and stays lucide by the existing rule (it mounts on lucide pages too) — the same shape of false positive as `components/auth/change-password-dialog.tsx`. Grepping `lucide-react` under `components/cellular/` will find this hit; do not "fix" it.
 
@@ -122,13 +131,16 @@ Subset growth, by the change that caused it:
 | + dashboard route | 56 | 20.2 KB |
 | + pre-auth `/` and `/login/` | 64 | 23.9 KB |
 | + `/cellular/` index | 71 | 26.4 KB |
-| **+ `/cellular/` sub-routes (17)** | **95** | **35.2 KB** |
+| + `/cellular/` sub-routes (17) | 95 | 35.2 KB |
+| **+ SMS Center / SMS Forwarding tonal rebuild** | **97** | **36.3 KB** |
 
 The eight glyphs added for the pre-auth retarget: `dark_mode`, `error`, `light_mode`, `lock`, `lock_clock`, `translate`, `wifi_off`, `wifi_tethering_off`. (The row above reads 64 because one further glyph landed between that change and this one without the table being touched; the baseline this change grew from was 65 glyphs / 24.6 KB.)
 
 The **six** glyphs added for the `/cellular/` index: `content_copy`, `expand_more`, `graphic_eq`, `layers`, `settings_input_antenna`, `sim_card`.
 
 The **24** glyphs added for the 17 `/cellular/` sub-routes, each verified against the live Google Fonts endpoint before use (see "Verifying a glyph name and its substitution" below): `add`, `auto_awesome`, `bolt`, `call`, `delete`, `done_all`, `drag_indicator`, `edit`, `explore`, `first_page`, `location_on`, `lock_open`, `more_horiz`, `more_vert`, `rocket_launch`, `route`, `search`, `send`, `shield`, `sos`, `sports_esports`, `trophy`, `videocam`, `work`.
+
+The **two** glyphs added for the SMS Center / SMS Forwarding tonal rebuild: `mark_email_unread` (the unread row marker, which replaced a bare colour-only dot) and `delete_sweep` (the "Delete all" action, distinct from the single-message `delete`).
 
 > ⚠️ WARNING: the pre-auth extension is still the one where the weight lands on the **first page a visitor loads**. The dashboard's 10 KB rode behind a login; the splash does not, and it now carries 26.4 KB. It was accepted knowingly: the font is served from the modem over LAN, and the alternative — two icon libraries inside one 404px card — is the exact failure the boundary exists to prevent. Every subsequent boundary extension inherits that cost, so the rejection discipline below is not fussiness.
 
@@ -156,6 +168,20 @@ The general test, in order: **is it already in the subset under a different name
 
 And five more requests were already in the subset under another name, the same "is it already there" check that caught `radar`/`chevron_right` on the index pass: `MoonIcon`→`dark_mode`, `PlaneIcon`→`airplanemode_active`, `UserRoundPenIcon`→`badge`, `MessageSquare`→`sms`, `FileDownIcon`→`download`, `ClockIcon`/`CalendarClockIcon`→`schedule`, `CircleSlashIcon`→`do_not_disturb_on`.
 
+The SMS Center / SMS Forwarding rebuild ran the same test and produced the steepest ratio yet. The approved comp named **31** glyphs: 4 were the mock's own deck chrome (never product), **17 were already in the subset**, **8 were rejected**, and **2 were added**.
+
+| Requested | Rejected because |
+|-----------|-------------------|
+| `chevron_left` | `chevron_right` **rotated 180°** — the pagination "previous" control. Extends the precedent already set twice above; the transform is one class against ~500 bytes of ligature |
+| `last_page` | `first_page` **rotated 180°** reads as "skip to end". Exactly the `ChevronsRight` rejection from the sub-route pass, in the mirror direction |
+| `sd_storage` | `memory` was already present and is what the rest of the product uses for the modem's own store. Nearest-neighbour matching against a comp is not a reason to add one |
+| `edit_square` | `edit` was already present. The square is chrome around the same pictogram |
+| `drafts` | `sms` was already present and is the message pictogram this product already uses; an opened-envelope glyph would introduce a second metaphor for one concept |
+| `swap_vert` | `unfold_more` was already present and serves the sort-direction control |
+| `check_box`, `check_box_outline_blank` | **Rejected outright, not substituted.** The shadcn `Checkbox` is the sanctioned control. Drawing a checkbox as a font glyph throws away Radix's keyboard handling, its indeterminate state and its ARIA wiring — the glyph would look identical and behave worse. A control is never a ligature |
+
+The `check_box` pair is worth keeping separately from the rest: the other rejections are "cheaper glyph available", but this one is **"a glyph is the wrong kind of thing here"**. Add it to the general test as a fourth question: *is this an interactive control rather than a pictogram?*
+
 `MATERIAL_SYMBOL_NAMES` lives in its own **import-free** module on purpose. `subset-icons.ts` is run by bun from `scripts-dev/`, which `tsconfig.json` excludes, so pulling the list out of `material-symbol.tsx` would couple font generation to React and the `@/` path alias. The array is referenced only at type level by the component, so bundlers tree-shake it — verified absent from the production chunks, meaning the modem never downloads the 71 strings.
 
 ## The sizing gotcha
@@ -180,7 +206,7 @@ Two real instances, both found and fixed in this pass:
 
 **The general rule: when converting a route, grep the shared primitives it renders for `has-[>svg]` and `[&>svg]`, and mirror every *layout* rule for `[data-slot=material-symbol]`.** The one exception is `size-*` rules — those must **not** be mirrored, because the inline `fontSize` already outranks any utility (see above), which is exactly why glyphs pass `size` explicitly instead of relying on a mirrored size selector. This generalizes the `pointer-events` mirror already documented above, which was the first instance of this same pattern — it just happened to be a property, not a whole grid track.
 
-> ⚠️ WARNING: this bug class is invisible to `tsc`, `next build`, `bun run icons:check`, and the design-audit tooling. All four pass cleanly on a broken layout, because none of them render the page — `icons:check` verifies the font artifact, not what consumes it. Only rendering the page catches it. None of the 17 `/cellular/` sub-routes were rendered end-to-end during this pass (they redirect to `/setup/` without a backend, and nothing was loaded on the live modem), so treat the `alert.tsx` and `button.tsx` fixes as verified and everything else on these routes as mechanism-proven but visually unreviewed.
+> ⚠️ WARNING: this bug class is invisible to `tsc`, `next build`, `bun run icons:check`, and the design-audit tooling. All four pass cleanly on a broken layout, because none of them render the page — `icons:check` verifies the font artifact, not what consumes it. Only rendering the page catches it. None of the 17 `/cellular/` sub-routes were rendered end-to-end during this pass (they redirect to `/setup/` without a backend, and nothing was loaded on the live modem), so treat the `alert.tsx` and `button.tsx` fixes as verified and everything else on these routes as mechanism-proven but visually unreviewed. **The same caveat applies verbatim to the later SMS Center / SMS Forwarding tonal rebuild**, which also passed `tsc`, `next build`, eslint, `i18n:check` and `icons:check` without any page being rendered.
 
 ### Verifying a glyph name and its substitution
 
@@ -274,6 +300,8 @@ Ghost at rest, `bg-surface-container` while its menu is open (`data-[state=open]
 - **The unused-glyph scan under-reports.** It is a substring search, so common words (`check`, `info`, `home`, `router`) always read as used. Warning-only by design; never make it fail the build.
 - **The generator needs network access** (Google Fonts). It cannot run on the modem, and it cannot run in an offline CI job — which is precisely why the *check* is offline and dependency-free while the *generator* is not. `icons:check` is in `bun run package`; `icons:subset` deliberately is not.
 
+- **Two shared primitives still leak lucide onto Material routes.** `components/ui/checkbox.tsx` (hardcoded `CheckIcon`) and `components/ui/sonner.tsx` (five toast icons) — see "Known unfixed instances of the same leak" above. Neither is sanctioned; the first is a real bug awaiting an icon slot, the second is an undecided exception.
+
 *Resolved:* the two hand-synced glyph lists and the missing `icons:check` gate were both live risks here until the list was collapsed to a single source of truth and the manifest gate landed.
 
 ## Related
@@ -285,3 +313,4 @@ Ghost at rest, `bg-surface-container` while its menu is open (`data-[state=open]
 - `docs/reference/overview-splash.md` — the `/` and `/login/` retarget that extended the boundary to the pre-auth routes
 - `docs/reference/radio-information.md`: the `/cellular/` index retarget that extended the boundary, and the render-time `Date.now()` fix that closed the `react-hooks/purity` asymmetry between it and the dashboard
 - `docs/reference/auth-rate-limiting.md` — the lockout ladder the retargeted login form renders
+- `docs/reference/sms.md` / `docs/reference/sms-forwarding.md` — the tonal rebuild that added `mark_email_unread` and `delete_sweep` and rejected eight further requests, including the `check_box` pair
