@@ -22,6 +22,7 @@
     "content_copy",
     "dark_mode",
     "delete",
+    "delete_sweep",
     "dns",
     "do_not_disturb_on",
     "done_all",
@@ -46,6 +47,7 @@
     "lock",
     "lock_clock",
     "lock_open",
+    "mark_email_unread",
     "memory",
     "more_horiz",
     "more_vert",
@@ -97,6 +99,6 @@
     "wifi_tethering_off",
     "work"
   ],
-  "bytes": 36076,
-  "sha256": "ba3c59166260b94ba15a20f874c28ccbd0864505e4c2c7e29796a79e0aa2eeba"
+  "bytes": 37192,
+  "sha256": "e61d11594889e15d8dc0ad6f5358ac4aace230d100e47f62bb1cec96d1f2938a"
 }
