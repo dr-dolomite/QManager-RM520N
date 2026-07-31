@@ -40,6 +40,12 @@
         "value": "13px",
         "createdAt": "2026-07-28T20:30:00.000Z",
         "reason": "13px TonalBanner body; DESIGN.md > Banner System sanctions 13px for banner body copy"
+      },
+      {
+        "rule": "design-system-font-size",
+        "value": "40px",
+        "createdAt": "2026-07-31T01:29:02.795Z",
+        "reason": "User confirmed 40px is intentional for larger recorder slot scores"
       }
     ]
   }

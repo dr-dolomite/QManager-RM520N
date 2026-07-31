@@ -75,8 +75,8 @@ export const SLOT_SHAPE = {
    */
   BEST: "bg-primary-container text-on-primary-container",
   HEAD: "flex items-center gap-2",
-  SCORE: "font-mono text-[26px] font-semibold leading-none tabular-nums",
-  BODY: "flex flex-1 flex-col justify-center gap-2",
+  SCORE: "font-mono text-[40px] font-semibold leading-none tabular-nums",
+  BODY: "flex flex-1 flex-col items-center justify-center gap-2 text-center",
 } as const;
 
 /**
@@ -235,46 +235,52 @@ function SlotTile({
       {/* --- Recorded ---------------------------------------------------- */}
       {!isRecording && snapshot && score && (
         <div className={SLOT_SHAPE.BODY}>
-          <div className="flex items-end gap-2">
-            <span className={SLOT_SHAPE.SCORE}>
-              {score.value === null ? "—" : score.value}
-            </span>
-            {score.radio && (
+          {/* This group — not the tile — owns the centering, so the footnote
+              below stays pinned to the tile's floor instead of being dragged
+              toward the middle by the same flex-1/justify-center pair. */}
+          <div className="flex flex-1 flex-col items-center justify-center gap-2 text-center">
+            <div className="flex items-end gap-2">
+              <span className={SLOT_SHAPE.SCORE}>
+                {score.value === null ? "—" : score.value}
+              </span>
+              {score.radio && (
+                <Badge
+                  variant={score.radio === "nr" ? "nr" : "lte"}
+                  className="mb-1.5 shrink-0 px-2 py-0.5 text-xs font-semibold"
+                >
+                  {t(`antenna_alignment.mode.${score.radio}`)}
+                </Badge>
+              )}
+            </div>
+
+            {/* Why a slot is unrankable, or why its score is a weaker claim
+                than its neighbour's. Silence here is what let a position
+                lose the recommendation for a reason unrelated to where it
+                was pointing. */}
+            {score.value === null ? (
+              <span className="text-xs opacity-80">
+                {t("antenna_alignment.recorder.not_comparable")}
+              </span>
+            ) : score.partial ? (
+              <span className="text-xs opacity-80">
+                {t("antenna_alignment.recorder.partial")}
+              </span>
+            ) : null}
+
+            {isBest && score.value !== null && (
               <Badge
-                variant={score.radio === "nr" ? "nr" : "lte"}
-                className="mb-0.5 shrink-0 px-2 py-0.5 text-xs font-semibold"
+                variant="secondary"
+                className="w-fit gap-1 px-2 py-0.5 text-xs font-semibold"
               >
-                {t(`antenna_alignment.mode.${score.radio}`)}
+                <MaterialSymbol name="trophy" size={12} filled />
+                {margin === null
+                  ? t("antenna_alignment.recorder.best")
+                  : t("antenna_alignment.recorder.best_margin", { margin })}
               </Badge>
             )}
           </div>
 
-          {/* Why a slot is unrankable, or why its score is a weaker claim than
-              its neighbour's. Silence here is what let a position lose the
-              recommendation for a reason unrelated to where it was pointing. */}
-          {score.value === null ? (
-            <span className="text-xs opacity-80">
-              {t("antenna_alignment.recorder.not_comparable")}
-            </span>
-          ) : score.partial ? (
-            <span className="text-xs opacity-80">
-              {t("antenna_alignment.recorder.partial")}
-            </span>
-          ) : null}
-
-          {isBest && score.value !== null && (
-            <Badge
-              variant="secondary"
-              className="w-fit gap-1 px-2 py-0.5 text-xs font-semibold"
-            >
-              <MaterialSymbol name="trophy" size={12} filled />
-              {margin === null
-                ? t("antenna_alignment.recorder.best")
-                : t("antenna_alignment.recorder.best_margin", { margin })}
-            </Badge>
-          )}
-
-          <span className="mt-auto flex items-center gap-1 text-xs opacity-80">
+          <span className="flex items-center gap-1 text-xs opacity-80">
             <MaterialSymbol name="check_circle" size={12} filled />
             {t("antenna_alignment.recorder.recorded_at", {
               time: new Date(snapshot.ts).toLocaleTimeString(),
