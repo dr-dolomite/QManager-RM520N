@@ -99,14 +99,8 @@ const TTLSettingsCard = () => {
     );
   }
 
-  // Key-based remount — form reinitializes when data changes
-  const formKey = data
-    ? `${data.isEnabled}-${data.ttl}-${data.hl}`
-    : "empty";
-
   return (
     <TTLForm
-      key={formKey}
       data={data}
       isSaving={isSaving}
       error={error}
@@ -135,7 +129,8 @@ function TTLForm({
   const { t } = useTranslation("common");
   const { saved, markSaved } = useSaveFlash();
 
-  // Form state initialized from data — no sync effect needed
+  // Form state initialized from data, then re-seeded by the render-phase sync
+  const [prevData, setPrevData] = useState(data);
   const [isEnabled, setIsEnabled] = useState(data?.isEnabled ?? false);
   const [ttlValue, setTtlValue] = useState(
     data && data.ttl > 0 ? String(data.ttl) : "",
@@ -143,6 +138,16 @@ function TTLForm({
   const [hlValue, setHlValue] = useState(
     data && data.hl > 0 ? String(data.hl) : "",
   );
+
+  // Sync server → local during render (no setState-in-effect; React-Compiler safe).
+  // Replaces the former data-derived `key` remount, which killed the pending
+  // `saved` flash because the refetch and markSaved() land in one React batch.
+  if (data !== prevData) {
+    setPrevData(data);
+    setIsEnabled(data?.isEnabled ?? false);
+    setTtlValue(data && data.ttl > 0 ? String(data.ttl) : "");
+    setHlValue(data && data.hl > 0 ? String(data.hl) : "");
+  }
 
   const isDirty = useMemo(() => {
     if (!data) return false;

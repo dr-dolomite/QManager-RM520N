@@ -128,15 +128,8 @@ export default function SystemSettingsCard({
     );
   }
 
-  // Key-based remount: when settings change after save/re-fetch,
-  // the form reinitializes with fresh values from useState defaults.
-  const formKey = settings
-    ? `${settings.temp_unit}-${settings.distance_unit}-${settings.zonename}-${settings.sms_tool_device}`
-    : "empty";
-
   return (
     <SystemSettingsForm
-      key={formKey}
       settings={settings}
       isSaving={isSaving}
       error={error}
@@ -145,7 +138,7 @@ export default function SystemSettingsCard({
   );
 }
 
-// ─── Form (remounts on settings change for clean state reset) ───────────────
+// ─── Form (re-seeds from settings via render-phase sync, never remounts) ────
 
 interface SystemSettingsFormProps {
   settings: UseSystemSettingsReturn["settings"];
@@ -163,6 +156,7 @@ function SystemSettingsForm({
   const { saved, markSaved } = useSaveFlash();
 
   // --- Local form state (initialized from settings prop) ---
+  const [prevSettings, setPrevSettings] = useState(settings);
   const [tempUnit, setTempUnit] = useState<"celsius" | "fahrenheit">(
     settings?.temp_unit ?? "celsius",
   );
@@ -172,6 +166,18 @@ function SystemSettingsForm({
   const [zonename, setZonename] = useState(settings?.zonename ?? "UTC");
   const [timezone, setTimezone] = useState(settings?.timezone ?? "UTC0");
   const [tzOpen, setTzOpen] = useState(false);
+
+  // Sync server → local during render (no setState-in-effect; React-Compiler safe).
+  // Replaces the former data-derived `key` remount, which killed the pending
+  // `saved` flash because the refetch and markSaved() land in one React batch.
+  // `tzOpen` is popover UI state, not server data — deliberately not synced.
+  if (settings !== prevSettings) {
+    setPrevSettings(settings);
+    setTempUnit(settings?.temp_unit ?? "celsius");
+    setDistanceUnit(settings?.distance_unit ?? "km");
+    setZonename(settings?.zonename ?? "UTC");
+    setTimezone(settings?.timezone ?? "UTC0");
+  }
 
   // --- Dirty check ---
   const isDirty = useMemo(() => {

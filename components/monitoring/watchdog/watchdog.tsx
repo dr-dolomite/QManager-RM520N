@@ -63,35 +63,11 @@ const WatchdogComponent = () => {
       {isLoading ? (
         <PageSkeleton />
       ) : (
-        <WatchdogForm
-          // Remount on a settings signature so the form re-seeds from fresh
-          // server truth after every save / background refetch.
-          key={settingsSignature(hookData)}
-          hookData={hookData}
-          modemStatus={modemStatus}
-        />
+        <WatchdogForm hookData={hookData} modemStatus={modemStatus} />
       )}
     </div>
   );
 };
-
-function settingsSignature(hookData: UseWatchdogSettingsReturn): string {
-  const s = hookData.settings;
-  if (!s) return "empty";
-  return [
-    s.enabled,
-    s.fail_threshold,
-    s.probe_interval,
-    s.check_interval,
-    s.cooldown,
-    s.tier1_enabled,
-    s.tier2_enabled,
-    s.tier3_enabled,
-    s.tier4_enabled,
-    s.backup_sim_slot,
-    s.max_reboots_per_hour,
-  ].join("-");
-}
 
 function WatchdogForm({
   hookData,

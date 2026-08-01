@@ -331,6 +331,10 @@ Page: `/monitoring/watchdog` — `components/monitoring/watchdog/watchdog.tsx`. 
 
 **Backup-slot save gating:** enabling Tier 3 without choosing a backup slot **blocks the save** in the form (`use-watchdog-form.ts`) — the frontend guard that keeps you out of the misconfig-stops-ladder state described above. The form validation mirrors the CGI ranges exactly.
 
+**Form re-seeding vs. the 30s poll:** `use-watchdog-form.ts` seeds its fields from `settings` and re-seeds **in place** when a *value fingerprint* of `settings` changes (`settingsSignature`, a render-phase sync that reuses the hook's own `discard()`). The fingerprint — not an object-identity check — is required here: `use-watchdog-settings.ts:114` does `setSettings({ ...json.settings, … })`, so the silent 30s refetch allocates a **fresh object every tick** even when nothing moved, and an identity comparison would wipe in-progress edits twice a minute. The page previously forced the same re-seed by keying `WatchdogForm` on that signature; that remount also destroyed the "Saved!" flash, the active Detection/Recovery tab, and the Recovery Activity table's pagination on every save. The key is gone (`watchdog.tsx` renders the form unkeyed) and any comment claiming the keying is intentional is stale. See [dashboard-state-motion.md](dashboard-state-motion.md) > Part 3.
+
+> ℹ️ NOTE: The 30s poll can still re-seed the form mid-edit if the *server values genuinely change* (e.g. the daemon auto-disables itself). That was equally true under the old key, so it is not a regression — but a narrower sync that only refreshes fields the user has not touched is now possible, where a remount made it unreachable.
+
 > ℹ️ NOTE: All copy is inline English — the RM520N build has no i18n on this page.
 
 ---

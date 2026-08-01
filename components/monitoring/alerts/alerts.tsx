@@ -15,7 +15,6 @@ import { RefreshCcwIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { staggerContainer, staggerItem } from "@/lib/motion";
 import { useAlerts, type UseAlertsReturn } from "@/hooks/use-alerts";
-import { ALERT_EVENT_ORDER, ALERT_CHANNEL_ORDER } from "@/types/alerts";
 import type { AlertsState } from "@/types/alerts";
 import { useAlertsForm } from "./use-alerts-form";
 import { AlertsStatusCard } from "./alerts-status-card";
@@ -27,9 +26,10 @@ import { AlertsLogCard, AlertsActivityTableSkeleton } from "./alerts-log-card";
 // -----------------------------------------------------------------------------
 // The left column reads top-to-bottom (Channel Readiness → Activity) while the
 // right holds the one write surface (Settings) for its full height. One
-// `useAlerts` instance owns fetch/save/test/install; one `useAlertsForm`
-// (remounted on a settings signature after every save) owns the whole editable
-// form, and its single sticky Save bar commits every channel + the routing map.
+// `useAlerts` instance owns fetch/save/test/install; one `useAlertsForm` owns
+// the whole editable form (re-seeding itself in-place when server truth
+// changes — see the render-phase sync in `use-alerts-form.ts`), and its single
+// sticky Save bar commits every channel + the routing map.
 // -----------------------------------------------------------------------------
 const AlertsComponent = () => {
   const hook = useAlerts();
@@ -47,41 +47,11 @@ const AlertsComponent = () => {
       {hook.isLoading || !hook.state ? (
         <PageSkeleton />
       ) : (
-        <AlertsBody
-          key={settingsSignature(hook.state)}
-          hook={hook}
-          state={hook.state}
-        />
+        <AlertsBody hook={hook} state={hook.state} />
       )}
     </div>
   );
 };
-
-function settingsSignature(state: AlertsState): string {
-  const { sms, email, discord } = state.channels;
-  const routing = ALERT_EVENT_ORDER.flatMap((ev) =>
-    ALERT_CHANNEL_ORDER.map((ch) =>
-      state.routing.events[ev]?.[ch] ? "1" : "0",
-    ),
-  ).join("");
-  return [
-    sms.enabled,
-    sms.recipient_phone,
-    sms.threshold_minutes,
-    email.enabled,
-    email.sender_email,
-    email.recipient_email,
-    email.app_password_set,
-    email.threshold_minutes,
-    email.msmtp_installed,
-    discord.enabled,
-    discord.owner_discord_id,
-    discord.token_set,
-    discord.threshold_minutes,
-    discord.connected,
-    routing,
-  ].join("|");
-}
 
 function AlertsBody({
   hook,

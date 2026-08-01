@@ -17,11 +17,13 @@ import type {
 // check, the submit, and the discard — and each card consumes the slice it
 // renders.
 //
-// The consuming component is keyed on a signature of `settings` (see
-// `watchdog.tsx`), so this hook remounts and re-seeds its `useState` defaults
-// from fresh server values after every save / background refetch. That keeps the
-// initial-value pattern honest without a setState-in-effect (forbidden by the
-// project's React-Compiler lint rules).
+// The form seeds from `settings` and re-seeds itself in place whenever a value
+// fingerprint of `settings` changes, via a render-phase sync (NOT a
+// setState-in-effect, which the project's React-Compiler lint rules forbid).
+// The page used to force that re-seed by keying the consuming subtree on the
+// same signature, but a remount also destroyed the save flash, the active
+// settings tab, the recovery table's pagination, and the sibling cards' fetch
+// state — so the sync lives here now and the page renders unkeyed.
 
 /** Probe cadence options (seconds) offered by the Probe Interval Select. */
 export const PROBE_INTERVAL_OPTIONS = [1, 2, 5, 10, 15, 30] as const;
@@ -82,6 +84,25 @@ interface UseWatchdogFormArgs {
   error: string | null;
   saveSettings: (payload: WatchdogSavePayload) => Promise<boolean>;
 }
+
+// Value fingerprint of every field the form mirrors. A change means server
+// truth moved and the fields must be re-seeded; an identical signature (the
+// common case for the hook's 30s background refetch, which allocates a fresh
+// settings object every tick) leaves the user's edits alone.
+const settingsSignature = (s: WatchdogSettings): string =>
+  [
+    s.enabled,
+    s.fail_threshold,
+    s.probe_interval,
+    s.check_interval,
+    s.cooldown,
+    s.tier1_enabled,
+    s.tier2_enabled,
+    s.tier3_enabled,
+    s.tier4_enabled,
+    s.backup_sim_slot,
+    s.max_reboots_per_hour,
+  ].join("-");
 
 const isIntInRange = (raw: string, min: number, max: number) => {
   const n = Number(raw);
@@ -269,6 +290,16 @@ export function useWatchdogForm({
     );
     setMaxRebootsPerHour(String(settings.max_reboots_per_hour));
   }, [settings]);
+
+  // ── Re-seed on server-truth change (render-phase, React-Compiler safe) ──────
+  // `discard` is the already-correct re-seed path (pure setState, no async, no
+  // toast), so reuse it rather than maintaining a parallel seeding path.
+  const signature = settingsSignature(settings);
+  const [prevSignature, setPrevSignature] = useState(signature);
+  if (signature !== prevSignature) {
+    setPrevSignature(signature);
+    discard();
+  }
 
   return {
     isEnabled,

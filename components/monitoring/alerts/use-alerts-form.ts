@@ -13,10 +13,12 @@ import { ALERT_EVENT_ORDER, ALERT_CHANNEL_ORDER } from "@/types/alerts";
 // =============================================================================
 // useAlertsForm — the single editable form behind the whole Alerts page
 // =============================================================================
-// Seeded ONCE from server truth (the page remounts this on a settings
-// signature after every save / refetch, so no in-render setState is needed and
-// the React Compiler lint rules stay satisfied). Owns all three channels and
-// the routing matrix; a single atomic submit commits everything.
+// Seeded from server truth and re-seeded in place whenever that truth changes,
+// via a render-phase sync keyed on a settings signature (NOT a useEffect — the
+// React-Compiler lint rules forbid setState-in-effect, and NOT a remount — a
+// `key` on the consuming subtree also destroyed the save flash, the active tab,
+// the show-secret toggles and every sibling card's state). Owns all three
+// channels and the routing matrix; a single atomic submit commits everything.
 // =============================================================================
 
 // E.164-ish: optional leading +, first digit 1–9, total 7–15 digits.
@@ -31,6 +33,39 @@ const THRESHOLD_MAX = 60;
 function thresholdInvalid(v: string): boolean {
   const n = Number(v);
   return v.trim() === "" || Number.isNaN(n) || n < THRESHOLD_MIN || n > THRESHOLD_MAX;
+}
+
+// Value fingerprint of everything the form mirrors. A change here means server
+// truth moved and the fields must be re-seeded; an identical signature (e.g. a
+// refetch that returned the same values) leaves the user's edits alone.
+// NOTE: secrets are represented by their `*_set` booleans — the values are
+// never sent to the client — so a rotation (set → set) does NOT move the
+// signature. Clearing the secret inputs after a successful save is therefore
+// the settings card's job, not this sync's.
+function settingsSignature(state: AlertsState): string {
+  const { sms, email, discord } = state.channels;
+  const routing = ALERT_EVENT_ORDER.flatMap((ev) =>
+    ALERT_CHANNEL_ORDER.map((ch) =>
+      state.routing.events[ev]?.[ch] ? "1" : "0",
+    ),
+  ).join("");
+  return [
+    sms.enabled,
+    sms.recipient_phone,
+    sms.threshold_minutes,
+    email.enabled,
+    email.sender_email,
+    email.recipient_email,
+    email.app_password_set,
+    email.threshold_minutes,
+    email.msmtp_installed,
+    discord.enabled,
+    discord.owner_discord_id,
+    discord.token_set,
+    discord.threshold_minutes,
+    discord.connected,
+    routing,
+  ].join("|");
 }
 
 export type RoutingDraft = Record<AlertEventKey, Record<AlertChannel, boolean>>;
@@ -323,6 +358,16 @@ export function useAlertsForm({
     setDiscordThreshold(String(discord.threshold_minutes));
     setRouting(seedRouting());
   }, [sms, email, discord, seedRouting]);
+
+  // ── Re-seed on server-truth change (render-phase, React-Compiler safe) ──────
+  // `discard` is the already-correct re-seed path (pure setState, no async, no
+  // toast), so reuse it rather than maintaining a parallel seeding path.
+  const signature = settingsSignature(state);
+  const [prevSignature, setPrevSignature] = useState(signature);
+  if (signature !== prevSignature) {
+    setPrevSignature(signature);
+    discard();
+  }
 
   return {
     smsEnabled,

@@ -74,7 +74,7 @@ These are not vanilla shadcn primitives; they are QManager additions a developer
 
 | Component | Purpose |
 |-----------|---------|
-| `save-button.tsx` | The mandated save control: three layers (idle label / spinner + "Saving…" / check + "Saved!" via `useSaveFlash`) cross-fading in one grid cell, so the pill never changes width. Every save action uses it; pass a **translated** `label`. See `docs/reference/dashboard-state-motion.md` > Part 3. |
+| `save-button.tsx` | The mandated save control: three layers (idle label / spinner + "Saving…" / check + "Saved!" via `useSaveFlash`) cross-fading in one grid cell, so the pill never changes width. Every save action uses it; pass a **translated** `label`. `useSaveFlash` holds the "Saved!" window in `useState`, so it must never sit under a React `key` derived from fetched data — every save changes that data and the remount discards the flash in the same render. Re-seed forms with a render-phase sync instead. See `docs/reference/dashboard-state-motion.md` > Part 3. |
 | `copyable-command.tsx` | Mono command string with a copy affordance (machine-voice surface). |
 | `empty.tsx` | Empty-state primitive (icon + title + one-line description). The third of the three states. |
 | `field.tsx` | Labeled read-only value display (label + value). |

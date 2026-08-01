@@ -56,14 +56,8 @@ const MTUSettingsCard = () => {
     );
   }
 
-  // Key-based remount — form reinitializes when data changes
-  const formKey = data
-    ? `${data.isEnabled}-${data.currentValue}`
-    : "empty";
-
   return (
     <MTUForm
-      key={formKey}
       data={data}
       isSaving={isSaving}
       error={error}
@@ -89,11 +83,21 @@ function MTUForm({
   const { t } = useTranslation("common");
   const { saved, markSaved } = useSaveFlash();
 
-  // Form state initialized from data — no sync effect needed
+  // Form state initialized from data, then re-seeded by the render-phase sync
+  const [prevData, setPrevData] = useState(data);
   const [isEnabled, setIsEnabled] = useState(data?.isEnabled ?? false);
   const [mtuValue, setMtuValue] = useState(
     data ? String(data.currentValue) : "",
   );
+
+  // Sync server → local during render (no setState-in-effect; React-Compiler safe).
+  // Replaces the former data-derived `key` remount, which killed the pending
+  // `saved` flash because the refetch and markSaved() land in one React batch.
+  if (data !== prevData) {
+    setPrevData(data);
+    setIsEnabled(data?.isEnabled ?? false);
+    setMtuValue(data ? String(data.currentValue) : "");
+  }
 
   const isDirty = useMemo(() => {
     if (!data) return false;

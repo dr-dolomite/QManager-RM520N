@@ -345,6 +345,12 @@ Components: `alerts-settings-card.tsx` (per-channel config), `alert-routing-grid
 
 > ℹ️ NOTE: The UI **renders** capability from the API `capabilities` block; it never hard-codes which `(event, channel)` cells are possible. A future capability change is a backend-only edit.
 
+### Form re-seeding, and why the secret inputs are cleared on save
+
+`useAlertsForm` mirrors server truth into local `useState` and re-seeds itself **in place** when that truth changes, via a render-phase sync on a value fingerprint (`settingsSignature` in `use-alerts-form.ts`, which calls the hook's own `discard()`). The page used to force the same re-seed by putting a React `key` on `AlertsBody` — that remounted the whole body on every save, which also destroyed the "Saved!" flash, the active settings tab, the show-password / show-token toggles, keyboard focus, and the log card's fetch state. The key is gone; nothing on this page remounts on save. Full reasoning: [dashboard-state-motion.md](dashboard-state-motion.md) > Part 3.
+
+> ⚠️ WARNING: **`alerts-settings-card.tsx` must clear `app_password` and `bot_token` after a successful save**, and this is load-bearing rather than cosmetic. Because `GET` never returns secrets — only `app_password_set` / `token_set` booleans — a **rotation** (an already-set secret replaced with a new one) moves those booleans `true → true` and is therefore invisible to `settingsSignature`. Without the explicit clear, the typed secret stays in the input, `isDirty` (true whenever either secret field is non-empty) never settles, and the Save button stays enabled forever after a successful save. This bug shipped in production: the *first* password a user ever set worked only by accident, because `app_password_set` flipped `false → true` and the old key remounted the field away.
+
 ### Legacy page redirects
 
 The three old pages are kept as thin client-side redirects so old bookmarks still work:

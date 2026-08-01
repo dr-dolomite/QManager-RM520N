@@ -176,6 +176,13 @@ export function AlertsSettingsCard({
     }
     const ok = await hook.saveSettings(form.buildPayload());
     if (ok) {
+      // The secrets are write-only: the backend reports `*_set` booleans, never
+      // the values, so rotating an already-set secret doesn't move the settings
+      // signature and won't trigger the form's re-seed. Clear them here so the
+      // committed value leaves the box and `isDirty` (true while either is
+      // non-empty) settles back to false on every save path.
+      form.setAppPassword("");
+      form.setBotToken("");
       form.markSaved();
       toast.success("Alert settings saved");
     } else {

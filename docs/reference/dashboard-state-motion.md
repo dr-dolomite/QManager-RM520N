@@ -32,6 +32,7 @@ which the routing table does not want.
 | Tick shape | `TICK` in `lib/motion.ts` — 700ms total (`standard` down on standard's curve + `emphasized`'s duration up on a **linear** ramp), dip to 35% at ~43% of the run |
 | Reference chip implementation | `components/dashboard/network-status.tsx` |
 | Save flow | `components/ui/save-button.tsx` — `SaveButton` + `useSaveFlash` |
+| Form re-seed idiom | Render-phase sync (`if (data !== prevData) { … }`) — reference: `components/cellular/sms/forwarding/sms-forwarding-card.tsx:186-195`. **Never** a data-derived `key`, never a `useEffect` |
 | Save-check overshoot | `SAVE_CHECK_OVERSHOOT` (1.03), `SAVE_CHECK_KEYFRAMES` (`[0.4, 1.03, 1]`), `transitionSaveCheck` in `lib/motion.ts` |
 | Design canon | `DESIGN.md` > Motion > "Live value tick" and "Status chip swap"; > Named Rules > The No-Overshoot Rule; > Components > Buttons |
 
@@ -416,25 +417,140 @@ New `common.json` keys under `actions`: `save_settings`, `save_and_apply`, `save
 (`apply` / `save` / `saving` / `saved` already existed). New `cellular` key:
 `band_locking.actions.lock_selected`. **Pass a translated `label`; an English literal is a bug.**
 
-### Known gap — three cards remount the flash away (pre-existing, NOT fixed here)
+### The remount rule: never put `useSaveFlash` under a data-derived `key`
 
-`components/local-network/ttl-mtu-settings/ttl-settings-card.tsx`,
-`components/local-network/ttl-mtu-settings/mtu-settings-card.tsx` and
-`components/system-settings/system-settings-card.tsx` each mount their inner form with a `key` derived
-from live data (e.g. `` `${data.isEnabled}-${data.ttl}-${data.hl}` ``), and call `useSaveFlash()`
-**inside** that keyed form. A successful save triggers a silent re-fetch whose `setData(...)` changes
-the key, remounting the form and destroying the `saved` state at or immediately after `markSaved()`.
-So the "Saved!" leg of the flash likely never renders on those three cards — only the toast does.
+Short version: **five surfaces mounted their form under a React `key` built from fetched server data,
+and because every save changes that data, every save destroyed the form — including the pending
+"Saved!" flash — in the same instant it was requested.** The flash never committed and never painted a
+single frame on any of them. All five are now de-keyed.
 
-Verified pre-existing: the save-flow change touched two lines in each of the first two files (a
-`useTranslation` import and a label) and did not touch `system-settings-card.tsx` at all. **The fix is
-to hoist `useSaveFlash` above the keyed boundary in all three cards**, which is a separate, unscoped
-change. Recorded here so the next person does not re-derive the diagnosis.
+The five were `ttl-settings-card.tsx`, `mtu-settings-card.tsx`, `system-settings-card.tsx`,
+`alerts.tsx` and `watchdog.tsx`. Each had a defensible reason for the key: it re-seeded the form's
+`useState` defaults from fresh server truth, and the repo's React-Compiler-backed `react-hooks` lint
+forbids the usual setState-in-effect way of doing that. The mechanism was right; the tool was wrong.
 
-> ⚠️ WARNING: none of this was seen on screen. The dev server redirects to `/setup/` without a backend,
-> so no authed route could be loaded or screenshotted. `tsc`, `next build` (49/49 pages), `icons:check`
-> and `i18n:check` all pass — and all four pass on a broken layout, since none of them render a page.
-> **The grid-stack width lock in particular is mechanism-proven and visually unreviewed.**
+#### Why the remount always wins the race
+
+Every save hook `await`s its own silent refetch **before** resolving the boolean the card is awaiting
+(`hooks/use-ttl-settings.ts:131`, `use-mtu-settings.ts:127` and `:169`, `use-system-settings.ts:198`,
+`use-alerts.ts:123`, `use-watchdog-settings.ts:172`). That whole chain is **microtasks** — the queue
+JavaScript drains to completion before yielding to the browser. React's scheduler runs on a
+**MessageChannel macrotask**, which is a *later* queue, so it cannot interleave.
+
+The consequence is not "usually" or "often": `setData(fresh)` and `setSaved(true)` land in **one render
+batch, always**. The key changes in that same render, React deletes the fiber, and the `saved: true`
+that was set microseconds earlier is discarded with the component that owned it.
+
+> ℹ️ NOTE — the sharpest part of the diagnosis, worth keeping: **on the save path the remount achieved
+> nothing.** The refetch returns exactly what the user just submitted, so re-seeding set every field to
+> the value it already held. The boundary fired most often on the one path where it was a no-op — while
+> destroying real state.
+
+#### What else the key destroyed
+
+The flash was the loudest casualty, not the only one. Everything below was state living under one of
+those boundaries:
+
+| Lost on every save | Where |
+|--------------------|-------|
+| The active settings tab — save from Email, get thrown back to Routing | `alerts-settings-card.tsx:75`, `watchdog-settings-card.tsx:63` |
+| Show-password / show-token toggles | `alerts-settings-card.tsx:76-77` |
+| Keyboard focus, dropped to `<body>` | the remount itself |
+| A redundant `get_log` POST and a redundant `fetch_events.sh` GET, both resetting `isLoading` to true (skeleton flash) | `use-alerts-log.ts:100-102`, `use-recent-activities.ts:99-118` — the latter also tore down and rebuilt its 10s poll timer |
+| Recovery-table pagination | `watchdog-recovery-activity-card.tsx:71` |
+| Entrance stagger replay — a 4-item, ~480ms cascade, ungated for reduced motion | `system-settings-card.tsx:243-248`, `alerts.tsx:98-101` |
+
+The focus loss is the one to dwell on: it is the *exact* failure the save button deliberately avoids by
+refusing to use `disabled` (`save-button.tsx:106-112`, and the Accessibility section above). A keyed
+parent handed that regression straight back at a level the button cannot defend against.
+
+#### The fix: re-seed with a render-phase sync — not a key, not a `useEffect`
+
+The correct primitive is the React-documented "store the previous value in state and compare during
+render" idiom. It is pure setState during render, so the React-Compiler lint is satisfied, and it
+re-seeds **without unmounting anything**:
+
+```tsx
+const [prevData, setPrevData] = useState(data);
+if (data !== prevData) {
+  setPrevData(data);
+  setIsEnabled(data?.isEnabled ?? false);   // re-seed each mirrored field
+}
+```
+
+The canonical in-repo precedent is `components/cellular/sms/forwarding/sms-forwarding-card.tsx:186-195`.
+
+#### Identity vs. value signature — the subtle half
+
+Two different comparison strategies shipped, deliberately. **Which one is correct depends entirely on
+whether the hook refetches in the background.**
+
+| Surface | Comparison | Why |
+|---------|------------|-----|
+| TTL, MTU, System Settings | **Identity** — `data !== prevData` | These hooks fetch **on mount only** — no interval, no focus revalidation. The post-save refetch is the *only* thing that ever produces a new object, so identity is exactly the right signal and needs no field list to maintain. |
+| Alerts, Watchdog | **Value signature** — `settingsSignature(...)` in `use-alerts-form.ts` / `use-watchdog-form.ts` | These poll in the background. `use-watchdog-settings.ts:114` does `setSettings({ ...json.settings, … })`, allocating a **fresh object every 30 seconds** whether or not a value moved. Identity comparison here would fire `discard()` twice a minute and wipe whatever the user was typing. |
+
+So identity comparison on Alerts/Watchdog would be an active **regression**, not a simplification. The
+signature preserves the previous behaviour exactly: re-seed when the values genuinely change, ignore a
+poll that returned the same values in a new object.
+
+Both custom hooks reuse their existing `discard()` (`use-alerts-form.ts:311-325`,
+`use-watchdog-form.ts:258-271`) as the re-seed body rather than growing a parallel seeding path —
+verified to be pure setState, with no async and no toast, and therefore safe to call during render.
+
+#### The write-only-secret bug the de-key forced into the open
+
+`alerts-settings-card.tsx` now clears its secret inputs on save success:
+
+```tsx
+const ok = await hook.saveSettings(form.buildPayload());
+if (ok) {
+  form.setAppPassword("");
+  form.setBotToken("");
+  form.markSaved();
+```
+
+This is **mandatory, not tidiness.** Alert secrets are write-only — the backend reports
+`app_password_set` / `token_set` booleans and never the values (see [alerts.md](alerts.md)) — so
+`settingsSignature` physically cannot see a **rotation**: `true → true` moves nothing.
+
+The old key had the same blind spot, and it hid a shipped production bug. The *first* time a user set a
+password, `app_password_set` flipped `false → true`, the key changed, the remount cleared the field —
+so it looked like it worked, by accident. A *rotation* never changed the key, so the typed secret
+stayed in the box, `isDirty` (true while either secret field is non-empty) stayed true, and **Save
+remained enabled forever after a successful save.** De-keying alone would have spread that behaviour to
+the first-set path too; the explicit clear fixes both at once.
+
+> ℹ️ NOTE — the transferable lesson: a fingerprint can only detect changes in fields the server actually
+> returns. Any write-only field needs an explicit post-save reset, because no comparison strategy will
+> ever see it move.
+
+#### Deliberately out of scope
+
+Watchdog's 30s poll can still re-seed the form mid-edit if the server values genuinely change. That is
+precisely what the key did before, so it is **not a regression** and nothing here made it worse. What
+*is* new is that a targeted improvement — sync only the fields the user has not touched — is now
+reachable at all; under a remount there was no "untouched field" to preserve, because the whole subtree
+went. Recorded as a future option, not a defect.
+
+### Verification status
+
+The save flow's original delivery was mechanism-proven and visually unreviewed: the dev server
+redirects to `/setup/` without a backend, so no authed route could be screenshotted, and `tsc`,
+`next build`, `icons:check` and `i18n:check` all pass on a broken layout because none of them render a
+page. **The grid-stack width lock is still in that category.**
+
+The de-key above is not. It was exercised on the live RM520N-GL — the static export deployed to
+`/usrdata/qmanager/www`, driven through Chrome, then rolled back byte-identically — with a
+`MutationObserver` watching the button's `data-state`:
+
+| Surface | Observed |
+|---------|----------|
+| System Settings | `idle → saving → saved (1797ms, 19 frames) → idle`; `BUTTON_NODE_DESTROYED: false` |
+| Alerts, saving from the **Email** tab | `idle → saving → saved (1799ms, 18 frames) → idle`; `tabsSeen: ["Email"]` only; neither the save button nor the activity table destroyed |
+
+The Activity card's "Last updated" timestamp was unchanged across a save, confirming the redundant
+refetch is gone.
 
 ---
 
@@ -458,7 +574,9 @@ All silent failures. Each one compiles, renders, and is wrong.
 | `aria-disabled` + `onClick` guard, never `disabled` | `components/ui/save-button.tsx` | A keyboard user loses focus to `<body>` for the length of the save |
 | No `aria-live` on the save button | `components/ui/save-button.tsx` | Every save double-announces, because the sonner toast beside it is already a live region |
 | `SaveButton`'s `label` is a `t()` result | every save call site | The resting state reverts to English mid-flow in four of five locales |
-| `useSaveFlash` called **above** any data-derived `key` boundary | the three cards in Part 3's Known gap | The remount destroys `saved` and the "Saved!" leg never renders |
+| **No `key` derived from fetched data** above `useSaveFlash` (or any other state under a form) | every save surface | Every save changes that data, so the remount lands in the same React batch as the flash: `saved` is discarded, the "Saved!" leg never paints, and the active tab, secret-visibility toggles, focus and pagination go with it. Re-seed with a render-phase sync instead |
+| Identity comparison (`data !== prevData`) only where the hook **never** refetches in the background | TTL / MTU / System Settings | On a polling hook a fresh object every tick re-seeds the form and wipes in-progress edits — use a value signature there |
+| Write-only secrets cleared explicitly on save success | `alerts-settings-card.tsx` | A rotation never moves the `*_set` fingerprint, so the typed secret stays in the box and `isDirty` pins Save enabled forever |
 
 ## Related docs
 
@@ -468,6 +586,9 @@ All silent failures. Each one compiles, renders, and is wrong.
   fill cascade and a `TickGroup`
 - [recent-activities.md](recent-activities.md) — the header chip that now uses `SwapLabel`, and the
   Age-Gated Tone Rule behind its tone
+- [alerts.md](alerts.md) — the write-only-secret contract behind the mandatory post-save input clear
+- [connection-watchdog.md](connection-watchdog.md) — the 30s background poll that forces a value
+  signature rather than an identity comparison
 - [icon-system.md](icon-system.md) — why every status chip carries a glyph in the first place, and the
   route-agnostic rule that pins `SaveButton`'s check to lucide
 - [i18n.md](i18n.md) — the parity gate that graded the save button's 16 hardcoded English labels, and a
