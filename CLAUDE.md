@@ -85,7 +85,7 @@ The table below contrasts RM520N-GL against the legacy RM551E (OpenWRT) target �
 |---------|-----------------|---------------------------|
 | Init system | procd | systemd (`.service` units in `/lib/systemd/system/`) |
 | Config store | UCI | Files in `/usrdata/` (persistent partition) |
-| Root filesystem | Read-write | UBIFS — read-only by default on stock boot (`mount -o remount,rw /`) |
+| Root filesystem | Read-write | UBIFS, on `ubi0`/`ubi2` volumes. Verified live 2026-08-01: `/` and `/usrdata` both mount `rw` — no remount needed for a normal write. (Mount options include `assert=read-only`, which reads like a mode flag but is UBIFS's assertion-*failure* policy, not the actual mount mode — don't misread it as confirming read-only.) |
 | Shell | BusyBox sh (POSIX only) | `/bin/bash` available |
 | Web server | uhttpd | lighttpd (Entware) |
 | Firewall | nftables / fw4 | iptables direct |

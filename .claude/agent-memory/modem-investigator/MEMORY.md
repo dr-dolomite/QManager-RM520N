@@ -2,6 +2,7 @@
 
 - [eUICC in slot 2: probe facts](euicc_slot2_probe_facts.md) — hot-swap detect is OFF (`QSIMDET 0,1`) so a mid-session insert is invisible until a power cycle; ISD-R AID opens via AT+CCHO; blank-profile card reports all-1s ICCID/IMSI + CEREG denied
 
+- [ES10c APDUs over AT+CGLA WORK — no lpac needed to read](euicc_es10c_apdu_over_cgla_works.md) — GetEID/GetProfilesInfo/GetEUICCInfo1 all returned 9000 with working hex strings; `<len>` is HEX CHARS not bytes; card is a strict TLV parser (6A80 on malformed tag list); legacy 80CA GET DATA = 6D00
 - [Device time & /etc volume facts](device_time_and_etc_volume.md) — glibc 2.31 (ignores /etc/TZ), empty /usr/share/zoneinfo vs Entware /opt/share/zoneinfo, /etc is rw persistent ubi2_0 but root-only for www-data, NITZ off by default
 - [Public endpoints & status cache](public_endpoints_and_status_cache.md) — auth is script-level (`_SKIP_AUTH`, lighttpd does NOT gate cgi-bin); qmanager_status.json shape == RM551E so public/overview.sh jq ports verbatim, zero live AT; hostname=sdxlemur via /proc; docroot is **/usrdata/qmanager/www** (verified 2026-08-01 from the running lighttpd's own config; "/opt/share/www" here was wrong and has misled three separate runs)
 - [Live observability & SIM hardware](live_observability_and_sim_hardware.md) — journald is empty device-wide (journalctl useless; use single /tmp/qmanager.log); dual-SIM AT matrix (QUIMSLOT (1,2) yes, QDSIM no, QSIMDET/QSIMSTAT active-slot-only, device on slot 2)
