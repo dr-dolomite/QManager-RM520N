@@ -1,7 +1,9 @@
 # MEMORY.md index
 
+- [eUICC in slot 2: probe facts](euicc_slot2_probe_facts.md) — hot-swap detect is OFF (`QSIMDET 0,1`) so a mid-session insert is invisible until a power cycle; ISD-R AID opens via AT+CCHO; blank-profile card reports all-1s ICCID/IMSI + CEREG denied
+
 - [Device time & /etc volume facts](device_time_and_etc_volume.md) — glibc 2.31 (ignores /etc/TZ), empty /usr/share/zoneinfo vs Entware /opt/share/zoneinfo, /etc is rw persistent ubi2_0 but root-only for www-data, NITZ off by default
-- [Public endpoints & status cache](public_endpoints_and_status_cache.md) — auth is script-level (`_SKIP_AUTH`, lighttpd does NOT gate cgi-bin); qmanager_status.json shape == RM551E so public/overview.sh jq ports verbatim, zero live AT; hostname=sdxlemur via /proc; docroot /opt/share/www
+- [Public endpoints & status cache](public_endpoints_and_status_cache.md) — auth is script-level (`_SKIP_AUTH`, lighttpd does NOT gate cgi-bin); qmanager_status.json shape == RM551E so public/overview.sh jq ports verbatim, zero live AT; hostname=sdxlemur via /proc; docroot is **/usrdata/qmanager/www** (verified 2026-08-01 from the running lighttpd's own config; "/opt/share/www" here was wrong and has misled three separate runs)
 - [Live observability & SIM hardware](live_observability_and_sim_hardware.md) — journald is empty device-wide (journalctl useless; use single /tmp/qmanager.log); dual-SIM AT matrix (QUIMSLOT (1,2) yes, QDSIM no, QSIMDET/QSIMSTAT active-slot-only, device on slot 2)
 - [ICMP reachability is VARIABLE per-SIM](icmp_unreliable_on_cellular.md) — 2026-07-19 ICMP to 8.8.8.8=100% loss; 2026-07-20 SAME modem=0% loss + working IPv6. Not an invariant. HTTP/204 daemon's real value is tri-state (connected/limited/disconnected), not ICMP-avoidance
 - [ICMP+IPv6 both work on test SIM 2026-07-20](icmp_now_works_on_test_sim.md) — contradicts the blanket "carrier drops ICMP on rmnet" claim; don't retire qmanager_ping on that basis — you'd lose captive-portal/billing-wall (limited) detection ICMP can't do
