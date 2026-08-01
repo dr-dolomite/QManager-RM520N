@@ -187,9 +187,6 @@ const EthernetStatusCard = () => {
       if (!mountedRef.current) return;
 
       if (data.success) {
-        markSaved();
-        toast.success("Link speed updated");
-
         // Backend reports how long the PHY link bounce takes. Fall back to
         // 8 s if the field is missing (older builds / non-ethtool paths).
         const windowSec =
@@ -198,6 +195,15 @@ const EthernetStatusCard = () => {
             : 8;
 
         await confirmSpeedChange(value, windowSec);
+
+        // markSaved() must fire after the confirm-poll resolves, in the same
+        // synchronous continuation as the finally block's setIsSaving(false)
+        // below — otherwise isSaving stays true (and wins the render ternary
+        // over saved) for the whole ~8s poll window. See issue #10.
+        if (mountedRef.current) {
+          markSaved();
+          toast.success("Link speed updated");
+        }
       } else {
         toast.error(data.detail || "Failed to set link speed");
       }
