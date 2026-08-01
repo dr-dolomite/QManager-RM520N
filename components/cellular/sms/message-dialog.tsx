@@ -39,10 +39,7 @@ import type { SmsMessage } from "@/types/sms";
 /** Pill action, 40px — one step under the primary 42px pill. */
 const DIALOG_ACTION =
   "h-10 gap-2 rounded-pill px-4 text-sm font-semibold pointer-coarse:h-11";
-const DIALOG_TONAL = cn(
-  DIALOG_ACTION,
-  "bg-surface-container text-on-surface hover:bg-surface-container-high",
-);
+const DIALOG_TONAL = DIALOG_ACTION;
 
 /**
  * Is this sender something the radio can actually address? A sender ID like
@@ -152,7 +149,7 @@ export function MessageDialog({
           <div className="flex w-full flex-wrap items-center gap-2">
             <Button
               type="button"
-              variant="ghost"
+              variant="tonal-neutral"
               className={DIALOG_TONAL}
               onClick={handleCopy}
             >
@@ -165,7 +162,7 @@ export function MessageDialog({
             {canReply && message && (
               <Button
                 type="button"
-                variant="ghost"
+                variant="tonal-neutral"
                 className={DIALOG_TONAL}
                 onClick={() => onReply(message.sender)}
               >
@@ -176,11 +173,8 @@ export function MessageDialog({
 
             <Button
               type="button"
-              variant="ghost"
-              className={cn(
-                DIALOG_ACTION,
-                "bg-destructive-container text-on-destructive-container hover:bg-destructive-container/80",
-              )}
+              variant="tonal-destructive"
+              className={DIALOG_ACTION}
               onClick={() => message && onDelete(message)}
             >
               <MaterialSymbol name="delete" size={17} />

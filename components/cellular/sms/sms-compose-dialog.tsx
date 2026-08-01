@@ -201,13 +201,10 @@ export default function SmsComposeDialog({
           <DialogFooter>
             <Button
               type="button"
-              variant="ghost"
+              variant="tonal"
               onClick={() => onOpenChange(false)}
               disabled={isSaving}
-              className={cn(
-                PILL_ACTION,
-                "bg-primary-container text-on-primary-container hover:bg-primary-container/80",
-              )}
+              className={PILL_ACTION}
             >
               {t("actions.cancel", { ns: "common" })}
             </Button>

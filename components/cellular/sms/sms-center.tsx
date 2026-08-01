@@ -7,7 +7,6 @@ import { useTranslation } from "react-i18next";
 
 import { MaterialSymbol } from "@/components/ui/material-symbol";
 import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
 import { staggerContainer, staggerItem } from "@/lib/motion";
 
 import { useSms } from "@/hooks/use-sms";
@@ -104,14 +103,7 @@ const SmsCenterComponent = () => {
           <div className="flex flex-wrap items-center gap-2.5 @3xl/main:ml-auto">
             {/* `Link`, never an `<a>` — an anchor here would full-reload the
                 static export and drop every bit of client state. */}
-            <Button
-              asChild
-              variant="ghost"
-              className={cn(
-                PILL_ACTION,
-                "bg-primary-container text-on-primary-container hover:bg-primary-container/80",
-              )}
-            >
+            <Button asChild variant="tonal" className={PILL_ACTION}>
               <Link href="/cellular/sms/forwarding">
                 <MaterialSymbol name="send" size={18} />
                 {t("sms.page.forwarding")}

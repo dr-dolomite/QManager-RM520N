@@ -33,8 +33,7 @@ export type SmsTab = "all" | "unread" | "read";
 export type SmsSortDir = "newest" | "oldest";
 
 /** Shared by both trailing actions, so the pair cannot drift apart. */
-const TOOLBAR_PILL =
-  "h-9 gap-2 rounded-pill bg-surface-container px-4 text-sm font-medium text-on-surface hover:bg-surface-container-high pointer-coarse:h-11";
+const TOOLBAR_PILL = "h-9 gap-2 rounded-pill px-4 text-sm font-medium pointer-coarse:h-11";
 
 interface InboxToolbarProps {
   tab: SmsTab;
@@ -118,7 +117,7 @@ export function InboxToolbar({
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button
-              variant="ghost"
+              variant="tonal-neutral"
               className={TOOLBAR_PILL}
               aria-label={t("sms.inbox.sort.aria")}
             >
@@ -149,7 +148,7 @@ export function InboxToolbar({
 
         {unreadCount > 0 && (
           <Button
-            variant="ghost"
+            variant="tonal-neutral"
             onClick={onMarkAllRead}
             className={TOOLBAR_PILL}
             aria-label={t("sms.inbox.buttons.mark_all_read_aria")}

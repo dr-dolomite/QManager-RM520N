@@ -1079,10 +1079,10 @@
         "caption_none": "尚未收到任何消息"
       },
       "me": {
-        "label": "调制解调器内存，ME"
+        "label": "调制解调器内存"
       },
       "sm": {
-        "label": "SIM 卡存储，SM"
+        "label": "SIM 卡存储"
       },
       "combined": {
         "label": "消息存储",

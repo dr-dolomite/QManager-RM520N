@@ -1079,10 +1079,10 @@
         "caption_none": "Nothing received yet"
       },
       "me": {
-        "label": "Modem memory, ME"
+        "label": "Modem Memory"
       },
       "sm": {
-        "label": "SIM memory, SM"
+        "label": "SIM Memory"
       },
       "combined": {
         "label": "Message storage",

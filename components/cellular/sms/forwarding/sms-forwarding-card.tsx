@@ -78,18 +78,14 @@ export const HEADER_SHAPE = {
 export const PILL_ACTION =
   "h-[2.625rem] gap-2 rounded-pill px-5 text-sm font-semibold";
 
-/**
- * A tonal (secondary-standing) action: `primary-container` with its own ink.
- * Never `variant="secondary"` — shadcn's `--secondary` is a NEUTRAL in this
- * codebase and byte-identical to `surface-container`, so a "secondary" button
- * inside a card is a surface pretending to be a control.
- */
-export const TONAL_ACTION =
-  "bg-primary-container text-on-primary-container hover:bg-primary-container/80";
-
-/** A neutral action on a plain card surface. */
-export const NEUTRAL_ACTION =
-  "bg-surface-container-high text-on-surface-variant hover:bg-surface-container-high/80";
+// A secondary-standing action is the `Button` `tonal` variant (never
+// `variant="secondary"` — shadcn's `--secondary` is a NEUTRAL in this
+// codebase and byte-identical to `surface-container`, so a "secondary" button
+// inside a card is a surface pretending to be a control); a neutral action on
+// a plain card surface is `tonal-neutral`. Never `variant="ghost"` plus a
+// hand-rolled `bg-*` override — `ghost`'s own `dark:hover:bg-accent/50`
+// outranks a plain `hover:` override on CSS specificity, so the override
+// silently loses in dark mode.
 
 export const FORM_SHAPE = {
   /** The enable row, as a metric-row pill. 44px, so it is a coarse-pointer target. */

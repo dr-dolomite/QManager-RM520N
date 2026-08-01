@@ -20,9 +20,7 @@ import {
   CARD_SHELL,
   ForwardingCardHeader,
   ForwardingCardHeaderSkeleton,
-  NEUTRAL_ACTION,
   PILL_ACTION,
-  TONAL_ACTION,
 } from "./sms-forwarding-card";
 
 // =============================================================================
@@ -336,8 +334,8 @@ const DeliveryHealthCard = ({ fwd }: { fwd: UseSmsForwardingReturn }) => {
           <motion.div variants={staggerRowItem} className="flex flex-col gap-2">
             <Button
               type="button"
-              variant="ghost"
-              className={cn(PILL_ACTION, TONAL_ACTION, "w-fit")}
+              variant="tonal"
+              className={cn(PILL_ACTION, "w-fit")}
               disabled={!canSendTest}
               onClick={handleSendTest}
             >
@@ -426,8 +424,8 @@ const DeliveryHealthCard = ({ fwd }: { fwd: UseSmsForwardingReturn }) => {
                     which is the layered-translucency this rebuild is removing. */}
                 <Button
                   type="button"
-                  variant="ghost"
-                  className={cn(PILL_ACTION, NEUTRAL_ACTION, "w-fit")}
+                  variant="tonal-neutral"
+                  className={cn(PILL_ACTION, "w-fit")}
                   disabled={isClearing}
                   onClick={handleClear}
                 >

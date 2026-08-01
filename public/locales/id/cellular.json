@@ -1079,10 +1079,10 @@
         "caption_none": "Belum ada yang diterima"
       },
       "me": {
-        "label": "Memori modem, ME"
+        "label": "Memori Modem"
       },
       "sm": {
-        "label": "Memori SIM, SM"
+        "label": "Memori SIM"
       },
       "combined": {
         "label": "Penyimpanan pesan",

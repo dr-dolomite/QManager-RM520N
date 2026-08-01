@@ -19,6 +19,19 @@ const buttonVariants = cva(
         ghost:
           "hover:bg-accent hover:text-accent-foreground dark:hover:bg-accent/50",
         link: "text-primary underline-offset-4 hover:underline",
+        // Tonal secondary actions: a role container plus its own `on-` ink. Never
+        // build this by hand as `variant="ghost"` plus a `bg-*-container`
+        // override — `ghost`'s own `dark:hover:bg-accent/50` compiles to a
+        // `:is(.dark *)`-qualified selector, which outranks a plain `hover:`
+        // override on specificity alone, so the intended tonal hover silently
+        // loses to ghost's neutral one in dark mode. These variants carry no
+        // conflicting hover class, so there is nothing to lose to.
+        tonal:
+          "bg-primary-container text-on-primary-container hover:bg-primary-container/80",
+        "tonal-destructive":
+          "bg-destructive-container text-on-destructive-container hover:bg-destructive-container/80",
+        "tonal-neutral":
+          "bg-surface-container text-on-surface hover:bg-surface-container-high",
       },
       // The `has-[>svg]:` padding rules tighten a button that carries an icon
       // beside its label. `MaterialSymbol` renders a <span>, so each one is

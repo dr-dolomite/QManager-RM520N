@@ -379,14 +379,11 @@ export default function SmsInboxCard({
                   </Button>
                   {!isEmpty && (
                     <Button
-                      variant="ghost"
+                      variant="tonal-destructive"
                       onClick={() => setShowDeleteAll(true)}
                       disabled={isSaving}
                       aria-label={t("sms.inbox.buttons.delete_all_aria")}
-                      className={cn(
-                        "rounded-pill h-9 gap-2 px-4 text-sm font-semibold pointer-coarse:h-11",
-                        "bg-destructive-container text-on-destructive-container hover:bg-destructive-container/80",
-                      )}
+                      className="rounded-pill h-9 gap-2 px-4 text-sm font-semibold pointer-coarse:h-11"
                     >
                       <MaterialSymbol name="delete_sweep" size={17} />
                       <span className="hidden @sm/card:inline">

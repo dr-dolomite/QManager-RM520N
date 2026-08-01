@@ -1079,10 +1079,10 @@
         "caption_none": "Nessun messaggio ricevuto"
       },
       "me": {
-        "label": "Memoria del modem, ME"
+        "label": "Memoria del Modem"
       },
       "sm": {
-        "label": "Memoria SIM, SM"
+        "label": "Memoria SIM"
       },
       "combined": {
         "label": "Archiviazione messaggi",

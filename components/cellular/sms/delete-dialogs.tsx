@@ -55,8 +55,7 @@ const DESTRUCTIVE_ACTION = cn(
   buttonVariants({ variant: "destructive" }),
   "h-[2.625rem] gap-2 rounded-pill px-5 text-sm font-semibold",
 );
-const CANCEL_ACTION =
-  "h-[2.625rem] rounded-pill border-0 bg-primary-container px-5 text-sm font-semibold text-on-primary-container hover:bg-primary-container/80 hover:text-on-primary-container";
+const CANCEL_ACTION = "h-[2.625rem] rounded-pill px-5 text-sm font-semibold";
 
 /** Each status carries its own tonal container AND its own glyph — the two
  *  containers sit ~1.03:1 apart, so the glyph is the only separating channel. */
@@ -181,7 +180,11 @@ export function SmsDeleteDialogs({
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={isDeleting} className={CANCEL_ACTION}>
+            <AlertDialogCancel
+              variant="tonal"
+              disabled={isDeleting}
+              className={CANCEL_ACTION}
+            >
               {t("actions.cancel", { ns: "common" })}
             </AlertDialogCancel>
             <AlertDialogAction
@@ -237,7 +240,11 @@ export function SmsDeleteDialogs({
           {isDeleting && steps.length > 0 && <DeleteProgress steps={steps} />}
 
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={isDeleting} className={CANCEL_ACTION}>
+            <AlertDialogCancel
+              variant="tonal"
+              disabled={isDeleting}
+              className={CANCEL_ACTION}
+            >
               {t("sms.inbox.delete_all_confirm.cancel")}
             </AlertDialogCancel>
             <AlertDialogAction
@@ -293,7 +300,11 @@ export function SmsDeleteDialogs({
           {isDeleting && steps.length > 0 && <DeleteProgress steps={steps} />}
 
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={isDeleting} className={CANCEL_ACTION}>
+            <AlertDialogCancel
+              variant="tonal"
+              disabled={isDeleting}
+              className={CANCEL_ACTION}
+            >
               {t("sms.inbox.delete_all_confirm.cancel")}
             </AlertDialogCancel>
             <AlertDialogAction

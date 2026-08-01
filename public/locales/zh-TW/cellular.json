@@ -1079,10 +1079,10 @@
         "caption_none": "尚未收到任何訊息"
       },
       "me": {
-        "label": "數據機記憶體，ME"
+        "label": "數據機記憶體"
       },
       "sm": {
-        "label": "SIM 卡儲存，SM"
+        "label": "SIM 卡儲存"
       },
       "combined": {
         "label": "訊息儲存",
