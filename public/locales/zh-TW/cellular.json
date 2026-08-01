@@ -170,7 +170,10 @@
     }
   },
   "band_locking": {
-    "controls_label": "頻段鎖定"
+    "controls_label": "頻段鎖定",
+    "actions": {
+      "lock_selected": "鎖定所選頻段"
+    }
   },
   "core_settings": {
     "apn": {
@@ -805,7 +808,8 @@
   "sms": {
     "page": {
       "title": "簡訊中心",
-      "description": "檢視、管理並從調變解調器傳送簡訊。"
+      "description": "檢視、管理並從調變解調器傳送簡訊。",
+      "forwarding": "轉發"
     },
     "inbox": {
       "title": "收件箱",
@@ -834,7 +838,8 @@
         "select_all_aria": "全選",
         "select_row_aria": "選擇行",
         "sim_badge": "SIM",
-        "empty_search": "沒有符合搜尋條件的簡訊。"
+        "empty_search": "沒有符合搜尋條件的簡訊。",
+        "unread_sr": "未讀"
       },
       "empty_state": {
         "title": "暫無訊息",
@@ -854,7 +859,8 @@
         "first_page": "轉到第一頁",
         "prev_page": "轉到上一頁",
         "next_page": "轉到下一頁",
-        "last_page": "轉到最後一頁"
+        "last_page": "轉到最後一頁",
+        "delete_selected_short": "刪除所選"
       },
       "pagination": {
         "total_one": "{{count}} 條訊息",
@@ -866,11 +872,21 @@
       },
       "error": {
         "title": "載入訊息失敗",
-        "description_prefix": "載入訊息失敗"
+        "description_prefix": "載入訊息失敗",
+        "body_stale": "可能有另一個 AT 使用方正持有數據機鎖定，通常會在一個輪詢週期內釋放。下方訊息為最後一次成功讀取的結果，已不是即時資料。",
+        "body_empty": "尚未從數據機讀取到任何內容。"
       },
       "view_dialog": {
         "title": "來自 {{sender}} 的訊息",
-        "timestamp_aria": "{{timestamp}}"
+        "timestamp_aria": "{{timestamp}}",
+        "slot": "{{storage}} 插槽 {{slots}}",
+        "slots": "{{storage}} 插槽 {{slots}}",
+        "copy": "複製文字",
+        "copied": "已複製",
+        "copy_error": "無法複製 — 瀏覽器在此連線上封鎖了剪貼簿存取。",
+        "reply": "回覆",
+        "no_reply_hint": "該寄件者是英數字識別碼而非號碼，因此無法回覆。",
+        "close": "關閉"
       },
       "delete_single_confirm": {
         "title": "刪除訊息",
@@ -879,14 +895,22 @@
         "deleting": "刪除中…"
       },
       "delete_all_confirm": {
-        "confirm": "全部刪除"
+        "title": "刪除全部 {{count}} 則訊息？",
+        "description": "這將從數據機記憶體中刪除 {{me}}，並從 SIM 卡中刪除 {{sm}}。已刪除的訊息無法復原，數據機不會重新啟動。",
+        "confirm": "全部刪除",
+        "cancel": "保留訊息",
+        "deleting": "正在全部刪除…",
+        "progress_title": "正在刪除所有訊息",
+        "progress_note": "每個儲存區一次刪除操作，在共享 AT 鎖定後串列執行。"
       },
       "delete_selected_confirm": {
         "title": "刪除選中的訊息",
         "description_one": "確定要刪除 {{count}} 條選中的訊息嗎？此操作不可撤銷。",
         "description_other": "確定要刪除 {{count}} 條選中的訊息嗎？此操作不可撤銷。",
         "confirm": "刪除 ({{count}})",
-        "deleting": "刪除中…"
+        "deleting": "刪除中…",
+        "progress_title_one": "正在刪除 {{count}} 則訊息",
+        "progress_title_other": "正在刪除 {{count}} 則訊息"
       },
       "toast": {
         "delete_success": "訊息已刪除",
@@ -896,7 +920,8 @@
         "delete_selected_success_one": "已刪除 {{count}} 條訊息",
         "delete_selected_success_other": "已刪除 {{count}} 條訊息",
         "delete_selected_error": "刪除選中的訊息失敗",
-        "mark_all_read_success": "所有訊息已標記為已讀"
+        "mark_all_read_success": "所有訊息已標記為已讀",
+        "delete_memory_error": "無法清除 {{memory}}"
       },
       "search": {
         "placeholder": "搜尋簡訊…",
@@ -907,6 +932,29 @@
         "newest": "最新優先",
         "oldest": "最早優先",
         "aria": "排序方式"
+      },
+      "description_loading": "正在從兩個儲存區讀取訊息。",
+      "description_split": "已從兩個儲存區讀取訊息。數據機記憶體 {{me}}/{{meTotal}}，SIM 卡 {{sm}}/{{smTotal}}。",
+      "description_combined": "已從兩個儲存區讀取訊息。兩者共使用 {{used}} 個插槽。",
+      "description_unknown": "在下一次成功讀取之前，插槽使用情況未知。",
+      "stale_chip": "已過期，{{time}}",
+      "selection": {
+        "label": "已選取",
+        "clear_aria": "清除選取"
+      },
+      "memory": {
+        "me": "數據機記憶體",
+        "sm": "SIM 卡儲存"
+      },
+      "delete_progress": {
+        "pending": "{{memory}} 已排入佇列",
+        "running": "正在清除 {{memory}}",
+        "done": "{{memory}} 已清除",
+        "failed": "{{memory}} 失敗",
+        "count_pending_one": "待刪除 {{count}} 則",
+        "count_pending_other": "待刪除 {{count}} 則",
+        "count_done_one": "已刪除 {{count}} 則",
+        "count_done_other": "已刪除 {{count}} 則"
       }
     },
     "compose": {
@@ -928,6 +976,117 @@
       "toast": {
         "success": "簡訊傳送成功",
         "error": "傳送簡訊失敗"
+      },
+      "sending_note": "等待 AT 鎖定，隨後傳送",
+      "encoding_hint": "出現非 ASCII 字元時，訊息將切換為 UCS-2 編碼，單則上限為 70 個字元。",
+      "encoding": {
+        "gsm7": "GSM 7 位元",
+        "ucs2": "UCS-2"
+      }
+    },
+    "forwarding": {
+      "page": {
+        "title": "簡訊轉發",
+        "description": "將每則收到的簡訊轉發到另一個號碼，並查看轉發是否真正送達。"
+      },
+      "card": {
+        "relay": {
+          "title": "轉發中繼",
+          "description": "開啟中繼並選擇訊息的去向。"
+        },
+        "health": {
+          "title": "送達狀況",
+          "description": "即時中繼狀態、收件人預覽以及所有傳送失敗記錄。"
+        }
+      },
+      "fields": {
+        "enabled_label": "啟用轉發",
+        "target_label": "轉發至",
+        "target_placeholder": "+15551234567",
+        "target_hint": "請包含國家/地區代碼。此數據機收到的每則訊息都會轉發到該號碼。",
+        "target_invalid": "請輸入有效的電話號碼，並包含國家/地區代碼 — 例如 +15551234567。"
+      },
+      "buttons": {
+        "save": "儲存轉發設定",
+        "send_test": "傳送測試",
+        "sending": "傳送中…",
+        "clear_failures": "清除失敗記錄",
+        "clearing": "清除中…"
+      },
+      "health": {
+        "forwarding_to": "轉發至",
+        "active": {
+          "label": "轉發已啟用"
+        },
+        "issue": {
+          "label": "送達異常"
+        },
+        "unconfigured": {
+          "label": "未設定目標號碼",
+          "description": "轉發已開啟，但尚未設定接收號碼。新增一個號碼即可開始轉發。"
+        },
+        "off": {
+          "label": "轉發已關閉",
+          "description": "收到的訊息將保留在數據機收件匣中，不會轉發到任何地方。"
+        }
+      },
+      "preview": {
+        "eyebrow": "收件人看到",
+        "from": "來自 {{sender}}：",
+        "sample_body": "您的驗證碼是 123456。",
+        "note": "「來自」一行中的號碼只是來信寄件者的範例。您儲存的號碼是接收這則訊息的一方，而不是傳送方。"
+      },
+      "test": {
+        "hint_ready": "向已儲存的號碼傳送一則測試訊息，因此檢驗的是實際運作中的轉發路徑。",
+        "hint_blocked": "請先開啟轉發並儲存目標號碼 — 測試始終依據已儲存的設定執行，不會使用未儲存的修改。"
+      },
+      "failures": {
+        "title_one": "{{count}} 次送達失敗",
+        "title_other": "{{count}} 次送達失敗",
+        "description": "中繼對每則訊息重試三次後放棄，因此訊息仍留在收件匣中。轉發功能仍在執行。",
+        "unknown_sender": "未知寄件者"
+      },
+      "empty": {
+        "failures": {
+          "title": "沒有送達失敗",
+          "description": "到目前為止，中繼處理的每則訊息都已送達。"
+        }
+      },
+      "states": {
+        "loading_sr": "正在載入簡訊轉發設定",
+        "retry": "重試",
+        "error": {
+          "title": "無法載入轉發設定",
+          "description": "數據機沒有回應，因此目前的中繼設定未知。"
+        }
+      },
+      "toast": {
+        "save_success": "轉發設定已儲存",
+        "save_error": "儲存轉發設定失敗",
+        "test_success": "測試訊息已傳送至已儲存的號碼",
+        "test_error": "傳送測試訊息失敗",
+        "clear_success": "送達失敗記錄已清除",
+        "clear_error": "清除送達失敗記錄失敗"
+      }
+    },
+    "tiles": {
+      "loading_sr": "正在載入收件匣摘要",
+      "capacity_unknown": "未回報",
+      "unread": {
+        "label": "未讀",
+        "of": "共 {{total}}",
+        "caption_newest": "最新 {{timestamp}}",
+        "caption_none": "尚未收到任何訊息"
+      },
+      "me": {
+        "label": "數據機記憶體，ME"
+      },
+      "sm": {
+        "label": "SIM 卡儲存，SM"
+      },
+      "combined": {
+        "label": "訊息儲存",
+        "caption": "兩個儲存區共用的插槽"
       }
     }
   }

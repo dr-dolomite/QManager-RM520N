@@ -22,6 +22,7 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { SaveButton, useSaveFlash } from "@/components/ui/save-button";
 import { toast } from "sonner";
+import { useTranslation } from "react-i18next";
 import { useMtuSettings } from "@/hooks/use-mtu-settings";
 
 // =============================================================================
@@ -85,6 +86,7 @@ function MTUForm({
   saveMtu: ReturnType<typeof useMtuSettings>["saveMtu"];
   disableMtu: ReturnType<typeof useMtuSettings>["disableMtu"];
 }) {
+  const { t } = useTranslation("common");
   const { saved, markSaved } = useSaveFlash();
 
   // Form state initialized from data — no sync effect needed
@@ -200,7 +202,7 @@ function MTUForm({
               type="submit"
               isSaving={isSaving}
               saved={saved}
-              label="Apply"
+              label={t("actions.apply")}
               disabled={!isDirty}
             />
           </div>

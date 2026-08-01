@@ -35,6 +35,7 @@ import {
   TooltipContent,
 } from "@/components/ui/tooltip";
 import { MaterialSymbol } from "@/components/ui/material-symbol";
+import { useTranslation } from "react-i18next";
 
 import type { WanProfile, WanProfileSaveRequest } from "@/types/wan-profiles";
 import {
@@ -125,6 +126,7 @@ export default function WanProfileEditCard({
   const carrier = isCarrierProfile(profile);
   // wmmd-only controls have no AT equivalent — hide them on AT-only modems.
   const showWmmdControls = dataSource === "rdb";
+  const { t: tc } = useTranslation("common");
   const { saved, markSaved } = useSaveFlash();
 
   // --- Form state ---
@@ -555,7 +557,7 @@ export default function WanProfileEditCard({
                   type="submit"
                   isSaving={isSaving}
                   saved={saved}
-                  label="Save Profile"
+                  label={tc("actions.save_profile")}
                 />
               )}
               <Button

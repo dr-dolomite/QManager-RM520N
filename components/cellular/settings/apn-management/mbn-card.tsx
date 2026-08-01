@@ -242,12 +242,9 @@ const MBNCard = ({
             </FieldSet>
           </div>
           <div className="flex items-center gap-x-2">
-            <SaveButton
-              type="submit"
-              isSaving={isSaving}
-              saved={saved}
-              label="Save Settings"
-            />
+            {/* No `label` — SaveButton's default is the translated
+                `actions.save_settings`, which is exactly this button's text. */}
+            <SaveButton type="submit" isSaving={isSaving} saved={saved} />
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button

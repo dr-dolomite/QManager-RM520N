@@ -24,6 +24,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { SaveButton, useSaveFlash } from "@/components/ui/save-button";
 import { InfoIcon } from "lucide-react";
 import { toast } from "sonner";
+import { useTranslation } from "react-i18next";
 import { useTtlSettings } from "@/hooks/use-ttl-settings";
 import { useSimProfiles } from "@/hooks/use-sim-profiles";
 
@@ -131,6 +132,7 @@ function TTLForm({
   isProfileControlled: boolean;
   profileName: string | null;
 }) {
+  const { t } = useTranslation("common");
   const { saved, markSaved } = useSaveFlash();
 
   // Form state initialized from data — no sync effect needed
@@ -270,7 +272,7 @@ function TTLForm({
               type="submit"
               isSaving={isSaving}
               saved={saved}
-              label="Apply"
+              label={t("actions.apply")}
               disabled={isProfileControlled || !isDirty}
             />
           </div>

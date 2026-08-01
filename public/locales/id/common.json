@@ -1,6 +1,10 @@
 {
   "actions": {
     "save": "Simpan",
+    "save_settings": "Simpan Pengaturan",
+    "save_and_apply": "Simpan & terapkan",
+    "save_profile": "Simpan Profil",
+    "update": "Perbarui",
     "saving": "Menyimpan…",
     "saved": "Tersimpan!",
     "cancel": "Batal",

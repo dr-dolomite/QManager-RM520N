@@ -61,7 +61,11 @@ const MotionTableBody = motion.create(TableBody);
 // The mock also draws the header and row checkboxes as raw `check_box` /
 // `check_box_outline_blank` font glyphs. Drawing a checkbox as a glyph throws
 // away Radix's keyboard handling, its indeterminate state and its ARIA wiring,
-// so the shadcn `Checkbox` stays.
+// so the shadcn `Checkbox` stays — but the CONTROL staying Radix never required
+// its tick to stay lucide. The primitive now takes a `glyph` prop that swaps the
+// indicator's mark for a `MaterialSymbol` while leaving the Radix root
+// untouched, so `glyph="check"` below satisfies the Icon-Boundary Rule (all of
+// `/cellular/` is Material) without giving up any of the behaviour above.
 // =============================================================================
 
 /**
@@ -120,6 +124,7 @@ export function useSmsColumns({
         header: ({ table: tbl }) => (
           <div onClick={(e) => e.stopPropagation()}>
             <Checkbox
+              glyph="check"
               checked={
                 tbl.getIsAllPageRowsSelected() ||
                 (tbl.getIsSomePageRowsSelected() && "indeterminate")
@@ -132,6 +137,7 @@ export function useSmsColumns({
         cell: ({ row }) => (
           <div onClick={(e) => e.stopPropagation()}>
             <Checkbox
+              glyph="check"
               checked={row.getIsSelected()}
               onCheckedChange={(value) => row.toggleSelected(!!value)}
               aria-label={t("sms.inbox.table.select_row_aria")}

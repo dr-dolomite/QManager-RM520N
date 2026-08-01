@@ -56,7 +56,7 @@ All status indicators are **filled tonal chips**: a `Badge` variant carrying a r
 
 ### UI Component Conventions
 - **CardHeader**: Always plain `CardTitle` + `CardDescription` without icons. Icons belong in badges or separate action areas, not in the card header itself.
-- **Primary action buttons**: Default variant (not outline) for main actions like Record, Save, Apply. Use `SaveButton` for save-specific actions with loading animation.
+- **Primary action buttons**: Default variant (not outline) for main actions like Record, Save, Apply. Use `SaveButton` for save-specific actions — pass it a **translated** `label`; it owns the three states, the width lock, and the 1.03 check.
 - **Step-based progress**: `Loader2Icon` spinner + dot indicators for step/sample progress. Reserve fill/progress bars for data visualization (signal strength, quality meters) only.
 - **Typography**: Euclid Circular B is the UI typeface (`--font-sans`); Geist Mono (`--font-geist-mono` → `font-mono`) is scoped to machine-voice surfaces per DESIGN.md's Machine-Voice Rule. No other typeface is loaded — Material Symbols is an icon font, not a voice. Both light and dark mode are first-class (OKLCH tokens).
 - **Shape**: the role scale is 12/20/28/36/40px plus pill. A card in a grid is `rounded-card`, the anchor card on a surface is `rounded-hero`, and anything that acts or labels is `rounded-pill`.
@@ -140,7 +140,7 @@ Each feature below has a reference doc holding its invariants, gotchas, and rati
 | **Radio Information** | `/cellular/` index, `lib/radio-info.ts`, `components/cellular/radio/**` | `radio-information.md` |
 | **Recent Activities** | `events.sh`, `/tmp/qmanager_events.json`, the dashboard event feed, event tone/freshness | `recent-activities.md` |
 | **Dashboard chart cards** | Device Metrics, Live Latency, Signal History, `hooks/use-chart-motion.ts`, recharts | `dashboard-chart-cards.md` |
-| **Dashboard state-change motion** | `TickGroup`/`useValueTick`, `SwapLabel`, status-chip morph, live value ticks | `dashboard-state-motion.md` |
+| **Dashboard state-change motion** | `TickGroup`/`useValueTick`, `SwapLabel`, status-chip morph, live value ticks, and `SaveButton`'s save flow | `dashboard-state-motion.md` |
 | **Custom DNS** | `/local-network/custom-dns`, dnsmasq upstreams | `custom-dns.md` |
 | **Data Usage Counter** | `/proc/net/dev` counters, usage schema, orientation map | `data-usage-counter.md` |
 | **Ethernet Status & Link Speed** | `/local-network/ethernet`, `eth0`, `ethtool`, `qmanager_ethernet_apply` | `ethernet.md` |

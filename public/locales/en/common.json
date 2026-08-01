@@ -1,6 +1,10 @@
 {
   "actions": {
     "save": "Save",
+    "save_settings": "Save Settings",
+    "save_and_apply": "Save & apply",
+    "save_profile": "Save Profile",
+    "update": "Update",
     "saving": "Saving…",
     "saved": "Saved!",
     "cancel": "Cancel",

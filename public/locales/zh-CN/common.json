@@ -1,6 +1,10 @@
 {
   "actions": {
     "save": "保存",
+    "save_settings": "保存设置",
+    "save_and_apply": "保存并应用",
+    "save_profile": "保存配置",
+    "update": "更新",
     "saving": "保存中…",
     "saved": "已保存！",
     "cancel": "取消",

@@ -170,7 +170,10 @@
     }
   },
   "band_locking": {
-    "controls_label": "Blocco delle bande"
+    "controls_label": "Blocco delle bande",
+    "actions": {
+      "lock_selected": "Blocca le bande selezionate"
+    }
   },
   "core_settings": {
     "apn": {
@@ -396,6 +399,10 @@
         "start_label": "Inizio",
         "end_label": "Fine",
         "block_scenario_label": "Scenario",
+        "active_now_line": "Adesso → {{scenario}}",
+        "active_now_line_with_next": "Adesso → {{scenario}} · prossimo cambio {{time}}",
+        "otherwise_label": "Altrimenti",
+        "entries_cap_hint": "Fino a {{max}} finestre orarie. Rimuovine una per aggiungerne un'altra.",
         "empty_schedule_hint": "Nessuna finestra — il comportamento è identico all'uso diretto di {{name}}.",
         "overlap_warning": "Questa finestra si sovrappone a un'altra. In caso di sovrapposizione, vince quella più in alto.",
         "schedule_invalid": "Correggi le voci di pianificazione evidenziate prima di salvare.",
@@ -411,14 +418,16 @@
         "move_up_aria": "Sposta la finestra su",
         "move_down_aria": "Sposta la finestra giù",
         "expand_rule_aria": "Modifica finestra",
-        "active_now_line": "Adesso → {{scenario}}",
-        "active_now_line_with_next": "Adesso → {{scenario}} · prossimo cambio {{time}}",
         "overnight_hint": "Termina il giorno dopo",
-        "otherwise_label": "Altrimenti",
-        "entries_cap_hint": "Fino a {{max}} finestre orarie. Rimuovine una per aggiungerne un'altra.",
         "create_new": "Crea un nuovo scenario"
       },
       "loading_current": "Lettura SIM…",
+      "advanced": {
+        "title": "Avanzate",
+        "summary_imei": "Override IMEI",
+        "summary_ttl": "TTL {{value}}",
+        "summary_hl": "HL {{value}}"
+      },
       "back_to_list": "Torna ai profili",
       "edit_loading": "Caricamento profilo…",
       "steps": {
@@ -455,12 +464,6 @@
         "desc": "Come apparirà questo profilo nel registro e cosa cambia all'attivazione.",
         "untitled": "Profilo senza nome",
         "reboot_note": "L'attivazione riavvia il modem per applicare la modifica dell'IMEI."
-      },
-      "advanced": {
-        "title": "Avanzate",
-        "summary_imei": "Override IMEI",
-        "summary_ttl": "TTL {{value}}",
-        "summary_hl": "HL {{value}}"
       },
       "discard_dialog": {
         "title": "Annullare le modifiche?",
@@ -569,17 +572,6 @@
       "failed_sub": "Il modem non è stato riconfigurato completamente.",
       "details_label": "Passaggi"
     },
-    "pills": {
-      "ip_v4": "IPv4",
-      "ip_v6": "IPv6",
-      "ip_dual": "IPv4v6",
-      "apn": "APN {{name}}",
-      "apn_default": "APN predefinito",
-      "cid": "CID {{cid}}",
-      "ttl": "TTL {{value}}",
-      "hl": "HL {{value}}",
-      "imei_override": "Override IMEI"
-    },
     "empty_state": {
       "title": "Nessun profilo personalizzato",
       "description": "Gestisci i tuoi profili SIM personalizzati qui.",
@@ -592,29 +584,40 @@
       "cta_new": "Nuovo profilo",
       "cta_refresh": "Aggiorna"
     },
+    "pills": {
+      "ip_v4": "IPv4",
+      "ip_v6": "IPv6",
+      "ip_dual": "IPv4v6",
+      "apn": "APN {{name}}",
+      "apn_default": "APN predefinito",
+      "cid": "CID {{cid}}",
+      "ttl": "TTL {{value}}",
+      "hl": "HL {{value}}",
+      "imei_override": "Override IMEI"
+    },
     "active_card": {
       "none_title": "Nessun profilo attivo",
       "none_description": "Il modem usa le impostazioni correnti. Attiva un profilo salvato per applicare un pacchetto.",
       "subtitle": "Applicato al modem ora",
       "subtitle_with_mno": "Applicato ora · {{mno}}",
-      "mismatch_note": "Questo profilo è stato creato per una SIM diversa da quella attualmente inserita. Riattivalo per questa SIM o attiva il profilo corrispondente.",
-      "edit_button": "Modifica",
       "scenario_default": "Scenario: {{name}}",
-      "scenario_scheduled": "Scenario: {{name}} (pianificato)"
-    },
-    "card": {
-      "label_iccid": "SIM",
-      "label_updated": "Aggiornato"
-    },
-    "edit": {
-      "not_found_title": "Profilo non trovato",
-      "not_found_desc": "Questo profilo potrebbe essere stato eliminato. Torna ai profili salvati."
+      "scenario_scheduled": "Scenario: {{name}} (pianificato)",
+      "mismatch_note": "Questo profilo è stato creato per una SIM diversa da quella attualmente inserita. Riattivalo per questa SIM o attiva il profilo corrispondente.",
+      "edit_button": "Modifica"
     },
     "list": {
       "new_button": "Nuovo",
       "bound_sim": "Associato alla SIM {{iccid}}",
       "detail_unavailable": "Impossibile caricare le impostazioni di questo profilo.",
       "only_active_hint": "Il tuo unico profilo è quello attivo. Creane un altro per passare da una configurazione all'altra."
+    },
+    "edit": {
+      "not_found_title": "Profilo non trovato",
+      "not_found_desc": "Questo profilo potrebbe essere stato eliminato. Torna ai profili salvati."
+    },
+    "card": {
+      "label_iccid": "SIM",
+      "label_updated": "Aggiornato"
     }
   },
   "radio_info": {
@@ -805,12 +808,19 @@
   "sms": {
     "page": {
       "title": "Centro SMS",
-      "description": "Visualizza, gestisci e invia messaggi SMS dal tuo modem."
+      "description": "Visualizza, gestisci e invia messaggi SMS dal tuo modem.",
+      "forwarding": "Inoltro"
     },
     "inbox": {
       "title": "Posta in arrivo",
       "description": "Visualizza e gestisci i tuoi messaggi SMS",
       "storage_suffix": " — Messaggi {{used}}/{{total}} memorizzati",
+      "tabs": {
+        "all": "Tutti",
+        "unread": "Non letti",
+        "read": "Letti"
+      },
+      "unread_aria": "Messaggio non letto",
       "table": {
         "headers": {
           "from": "Da",
@@ -823,12 +833,13 @@
           "delete": "Elimina"
         },
         "empty_row": "Nessun messaggio trovato.",
+        "empty_unread": "Nessun messaggio non letto.",
+        "empty_read": "Nessun messaggio letto.",
         "select_all_aria": "Seleziona tutto",
         "select_row_aria": "Seleziona riga",
         "sim_badge": "SIM",
-        "empty_unread": "Nessun messaggio non letto.",
-        "empty_read": "Nessun messaggio letto.",
-        "empty_search": "Nessun messaggio corrisponde alla ricerca."
+        "empty_search": "Nessun messaggio corrisponde alla ricerca.",
+        "unread_sr": "Non letto"
       },
       "empty_state": {
         "title": "Nessun messaggio ancora",
@@ -841,14 +852,15 @@
         "delete_all": "Elimina tutto",
         "delete_all_aria": "Elimina tutti i messaggi",
         "new_message": "Nuovo messaggio",
-        "prev": "Prec",
-        "next": "Avanti",
         "mark_all_read": "Segna tutti come letti",
         "mark_all_read_aria": "Segna tutti i messaggi come letti",
+        "prev": "Prec",
+        "next": "Avanti",
         "first_page": "Vai alla prima pagina",
         "prev_page": "Vai alla pagina precedente",
         "next_page": "Vai alla pagina successiva",
-        "last_page": "Vai all’ultima pagina"
+        "last_page": "Vai all’ultima pagina",
+        "delete_selected_short": "Elimina selezionati"
       },
       "pagination": {
         "total_one": "messaggio {{count}}",
@@ -860,11 +872,21 @@
       },
       "error": {
         "title": "Impossibile caricare i messaggi",
-        "description_prefix": "Impossibile caricare i messaggi"
+        "description_prefix": "Impossibile caricare i messaggi",
+        "body_stale": "Probabilmente un altro consumatore AT sta tenendo il lock del modem; di solito si libera entro un ciclo. I messaggi qui sotto sono l'ultima lettura riuscita e non sono più in tempo reale.",
+        "body_empty": "Non è ancora stato letto nulla dal modem."
       },
       "view_dialog": {
         "title": "Messaggio da {{sender}}",
-        "timestamp_aria": "{{timestamp}}"
+        "timestamp_aria": "{{timestamp}}",
+        "slot": "{{storage}} slot {{slots}}",
+        "slots": "{{storage}} slot {{slots}}",
+        "copy": "Copia testo",
+        "copied": "Copiato",
+        "copy_error": "Impossibile copiare — il browser ha bloccato l'accesso agli appunti su questa connessione.",
+        "reply": "Rispondi",
+        "no_reply_hint": "Questo mittente è un ID alfanumerico anziché un numero, quindi non è possibile rispondere.",
+        "close": "Chiudi"
       },
       "delete_single_confirm": {
         "title": "Elimina messaggio",
@@ -873,14 +895,22 @@
         "deleting": "Eliminazione…"
       },
       "delete_all_confirm": {
-        "confirm": "Elimina tutto"
+        "title": "Eliminare tutti i {{count}} messaggi?",
+        "description": "Questo rimuove {{me}} dalla memoria del modem e {{sm}} dalla SIM. I messaggi eliminati non possono essere recuperati e il modem non viene riavviato.",
+        "confirm": "Elimina tutto",
+        "cancel": "Mantieni i messaggi",
+        "deleting": "Eliminazione di tutto…",
+        "progress_title": "Eliminazione di tutti i messaggi",
+        "progress_note": "Una eliminazione per memoria, serializzate dietro il lock AT condiviso."
       },
       "delete_selected_confirm": {
         "title": "Elimina i messaggi selezionati",
         "description_one": "Sei sicuro di voler eliminare il messaggio selezionato {{count}}? Questa azione non può essere annullata.",
         "description_other": "Sei sicuro di voler eliminare i {{count}} messaggi selezionati? Questa azione non può essere annullata.",
         "confirm": "Elimina ({{count}})",
-        "deleting": "Eliminazione…"
+        "deleting": "Eliminazione…",
+        "progress_title_one": "Eliminazione di {{count}} messaggio",
+        "progress_title_other": "Eliminazione di {{count}} messaggi"
       },
       "toast": {
         "delete_success": "Messaggio eliminato",
@@ -890,14 +920,9 @@
         "delete_selected_success_one": "{{count}} messaggio eliminato",
         "delete_selected_success_other": "{{count}} messaggi eliminati",
         "delete_selected_error": "Impossibile eliminare i messaggi selezionati",
-        "mark_all_read_success": "Tutti i messaggi sono stati segnati come letti"
+        "mark_all_read_success": "Tutti i messaggi sono stati segnati come letti",
+        "delete_memory_error": "Impossibile svuotare {{memory}}"
       },
-      "tabs": {
-        "all": "Tutti",
-        "unread": "Non letti",
-        "read": "Letti"
-      },
-      "unread_aria": "Messaggio non letto",
       "search": {
         "placeholder": "Cerca messaggi…",
         "aria": "Cerca messaggi"
@@ -907,6 +932,29 @@
         "newest": "Prima i più recenti",
         "oldest": "Prima i meno recenti",
         "aria": "Ordine"
+      },
+      "description_loading": "Lettura dei messaggi da entrambe le memorie.",
+      "description_split": "Messaggi letti da entrambe le memorie. {{me}}/{{meTotal}} nella memoria del modem, {{sm}}/{{smTotal}} sulla SIM.",
+      "description_combined": "Messaggi letti da entrambe le memorie. {{used}} slot usati in totale.",
+      "description_unknown": "L'uso degli slot resta sconosciuto fino alla prossima lettura riuscita.",
+      "stale_chip": "Non aggiornato, {{time}}",
+      "selection": {
+        "label": "selezionati",
+        "clear_aria": "Cancella selezione"
+      },
+      "memory": {
+        "me": "Memoria del modem",
+        "sm": "Memoria SIM"
+      },
+      "delete_progress": {
+        "pending": "{{memory}} in coda",
+        "running": "Svuotamento di {{memory}}",
+        "done": "{{memory}} svuotata",
+        "failed": "{{memory}} non riuscita",
+        "count_pending_one": "{{count}} da rimuovere",
+        "count_pending_other": "{{count}} da rimuovere",
+        "count_done_one": "{{count}} rimosso",
+        "count_done_other": "{{count}} rimossi"
       }
     },
     "compose": {
@@ -928,6 +976,117 @@
       "toast": {
         "success": "SMS inviato con successo",
         "error": "Impossibile inviare SMS"
+      },
+      "sending_note": "In attesa del lock AT, poi invio",
+      "encoding_hint": "Un carattere non ASCII fa passare il messaggio a UCS-2 e limita una singola parte a 70 caratteri.",
+      "encoding": {
+        "gsm7": "GSM 7 bit",
+        "ucs2": "UCS-2"
+      }
+    },
+    "forwarding": {
+      "page": {
+        "title": "Inoltro SMS",
+        "description": "Inoltra ogni messaggio in arrivo a un altro numero e verifica se l'inoltro arriva davvero a destinazione."
+      },
+      "card": {
+        "relay": {
+          "title": "Relay di inoltro",
+          "description": "Attiva il relay e scegli dove vanno i messaggi."
+        },
+        "health": {
+          "title": "Stato delle consegne",
+          "description": "Stato del relay in tempo reale, anteprima del destinatario ed eventuali invii falliti."
+        }
+      },
+      "fields": {
+        "enabled_label": "Abilita l'inoltro",
+        "target_label": "Inoltra a",
+        "target_placeholder": "+15551234567",
+        "target_hint": "Includi il prefisso internazionale. Ogni messaggio che arriva su questo modem viene inoltrato a questo numero.",
+        "target_invalid": "Inserisci un numero di telefono valido, prefisso internazionale incluso — ad esempio +15551234567."
+      },
+      "buttons": {
+        "save": "Salva inoltro",
+        "send_test": "Invia test",
+        "sending": "Invio…",
+        "clear_failures": "Cancella i falliti",
+        "clearing": "Cancellazione…"
+      },
+      "health": {
+        "forwarding_to": "Inoltro verso",
+        "active": {
+          "label": "Inoltro attivo"
+        },
+        "issue": {
+          "label": "Problemi di consegna"
+        },
+        "unconfigured": {
+          "label": "Nessuna destinazione impostata",
+          "description": "L'inoltro è attivo, ma non c'è ancora una destinazione. Aggiungi un numero per iniziare a inoltrare."
+        },
+        "off": {
+          "label": "Inoltro disattivato",
+          "description": "I messaggi in arrivo restano nella posta in arrivo del modem e non vengono inoltrati da nessuna parte."
+        }
+      },
+      "preview": {
+        "eyebrow": "Il destinatario vede",
+        "from": "Da {{sender}}:",
+        "sample_body": "Il tuo codice di verifica è 123456.",
+        "note": "Il numero nella riga Da è un esempio di mittente in arrivo. Il numero che hai salvato è quello che riceve questo messaggio, non quello che lo invia."
+      },
+      "test": {
+        "hint_ready": "Invia un messaggio di prova al numero salvato, così verifica il percorso di inoltro realmente in funzione.",
+        "hint_blocked": "Attiva prima l'inoltro e salva un numero di destinazione — il test usa sempre le impostazioni salvate, mai le modifiche non salvate."
+      },
+      "failures": {
+        "title_one": "{{count}} consegna fallita",
+        "title_other": "{{count}} consegne fallite",
+        "description": "Il relay ha riprovato tre volte per ciascuno di questi e poi ha rinunciato, quindi il messaggio è rimasto in posta in arrivo. L'inoltro è comunque ancora attivo.",
+        "unknown_sender": "Mittente sconosciuto"
+      },
+      "empty": {
+        "failures": {
+          "title": "Nessuna consegna fallita",
+          "description": "Finora ogni messaggio raccolto dal relay ha raggiunto la sua destinazione."
+        }
+      },
+      "states": {
+        "loading_sr": "Caricamento delle impostazioni di inoltro SMS",
+        "retry": "Riprova",
+        "error": {
+          "title": "Impossibile caricare le impostazioni di inoltro",
+          "description": "Il modem non ha risposto, quindi le impostazioni attuali del relay sono sconosciute."
+        }
+      },
+      "toast": {
+        "save_success": "Impostazioni di inoltro salvate",
+        "save_error": "Impossibile salvare le impostazioni di inoltro",
+        "test_success": "Messaggio di prova inviato al numero salvato",
+        "test_error": "Impossibile inviare il messaggio di prova",
+        "clear_success": "Consegne fallite cancellate",
+        "clear_error": "Impossibile cancellare le consegne fallite"
+      }
+    },
+    "tiles": {
+      "loading_sr": "Caricamento del riepilogo della posta in arrivo",
+      "capacity_unknown": "Non riportato",
+      "unread": {
+        "label": "Non letti",
+        "of": "su {{total}}",
+        "caption_newest": "Più recente {{timestamp}}",
+        "caption_none": "Nessun messaggio ricevuto"
+      },
+      "me": {
+        "label": "Memoria del modem, ME"
+      },
+      "sm": {
+        "label": "Memoria SIM, SM"
+      },
+      "combined": {
+        "label": "Archiviazione messaggi",
+        "caption": "Slot usati su entrambe le memorie"
       }
     }
   }

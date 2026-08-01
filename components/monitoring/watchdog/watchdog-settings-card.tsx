@@ -2,6 +2,7 @@
 
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useReducedMotion } from "motion/react";
+import { useTranslation } from "react-i18next";
 import {
   Card,
   CardContent,
@@ -57,6 +58,7 @@ type SettingsTab = "detection" | "recovery";
 // field.
 // -----------------------------------------------------------------------------
 export function WatchdogSettingsCard({ form }: { form: WatchdogForm }) {
+  const { t } = useTranslation("common");
   const reduceMotion = useReducedMotion();
   const [tab, setTab] = useState<SettingsTab>("detection");
   const masterOff = !form.isEnabled;
@@ -505,7 +507,7 @@ export function WatchdogSettingsCard({ form }: { form: WatchdogForm }) {
               saved={form.saved}
               disabled={!form.isDirty || form.isSaving}
               onClick={handleSave}
-              label="Save"
+              label={t("actions.save")}
             />
           </div>
         </div>

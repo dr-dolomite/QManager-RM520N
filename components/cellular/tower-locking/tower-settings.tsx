@@ -29,6 +29,7 @@ import { Badge, type BadgeVariant } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { MaterialSymbol } from "@/components/ui/material-symbol";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useTranslation } from "react-i18next";
 
 import type {
   TowerLockConfig,
@@ -58,6 +59,8 @@ const TowerLockingSettingsComponent = ({
   isFailoverSaving,
   onThresholdChange,
 }: TowerLockingSettingsProps) => {
+  const { t: tc } = useTranslation("common");
+
   // Whether any tower lock is active (from config — matches what failover daemon checks)
   const hasActiveLock = (config?.lte?.enabled || config?.nr_sa?.enabled) ?? false;
 
@@ -503,7 +506,7 @@ const TowerLockingSettingsComponent = ({
                   className="h-8"
                   isSaving={isSavingThreshold}
                   saved={thresholdSaved}
-                  label="Update"
+                  label={tc("actions.update")}
                   disabled={thresholdInput !== "" && (isNaN(Number(thresholdInput)) || Number(thresholdInput) < 0 || Number(thresholdInput) > 100)}
                   onClick={handleThresholdSave}
                 />

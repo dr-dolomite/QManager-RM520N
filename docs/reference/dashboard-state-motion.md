@@ -8,6 +8,12 @@ half of the gesture missing, in ways nothing in TypeScript or the build could ca
 what the two primitives guarantee, which alternatives were rejected on measured evidence, and the
 contracts a future edit must not quietly drop.
 
+A third gesture was added later and lives here for the same reason the first two do — it is a **shared
+primitive**, and its contracts are the ones `lib/motion.ts` has to keep: the **save flow** (recipe 15),
+in `components/ui/save-button.tsx`. It is product-wide rather than dashboard-scoped, so it sits in
+Part 3 below rather than renaming the file; the alternative was a new reference doc for a primitive,
+which the routing table does not want.
+
 > ℹ️ NOTE: "Motion Guide" is the project's design-mock motion deck (`/reimagine/Motion Guide.dc.html`),
 > which numbers its gestures as recipes. It is **gitignored**, so it does not exist in a worktree — the
 > reasoning below is the durable copy.
@@ -25,7 +31,9 @@ contracts a future edit must not quietly drop.
 | Cascade clamp | `MAX_RANK = 7` in `tick-group.tsx` |
 | Tick shape | `TICK` in `lib/motion.ts` — 700ms total (`standard` down on standard's curve + `emphasized`'s duration up on a **linear** ramp), dip to 35% at ~43% of the run |
 | Reference chip implementation | `components/dashboard/network-status.tsx` |
-| Design canon | `DESIGN.md` > Motion > "Live value tick" and "Status chip swap" |
+| Save flow | `components/ui/save-button.tsx` — `SaveButton` + `useSaveFlash` |
+| Save-check overshoot | `SAVE_CHECK_OVERSHOOT` (1.03), `SAVE_CHECK_KEYFRAMES` (`[0.4, 1.03, 1]`), `transitionSaveCheck` in `lib/motion.ts` |
+| Design canon | `DESIGN.md` > Motion > "Live value tick" and "Status chip swap"; > Named Rules > The No-Overshoot Rule; > Components > Buttons |
 
 ---
 
@@ -323,6 +331,113 @@ to a plain crossfade, which still carries the information that the state changed
 
 ---
 
+## Part 3 — The save flow (`SaveButton`, recipe 15)
+
+`components/ui/save-button.tsx` is the product-wide save action: **18 call sites**, 9 on Material
+routes and 9 on lucide ones. Three states cross-fade **in place** inside one pill — idle label →
+spinner + `actions.saving` → check + `actions.saved` — and the button never changes width while it
+does, so a toolbar cannot reflow mid-save.
+
+### The width lock is a grid stack, not the mock's absolute layers
+
+The Motion Guide's own technique for the lock is three `position: absolute` layers over a pill with a
+`min-width`. That does not survive contact with this codebase, for two reasons that were both proven
+rather than guessed:
+
+1. **Absolutely-positioned children contribute no width.** The button's intrinsic width would collapse
+   to its horizontal padding — and `components/cellular/sms/forwarding/sms-forwarding-card.tsx:376`
+   passes `w-fit`, which would then resolve to roughly 40px. The incumbent's `overflow-hidden` was
+   silently clipping the label rather than fixing anything.
+2. **No single `min-width` works across five locales.** It has to hold `"Update"` (6ch),
+   `"Lock Selected Bands"` (19ch) and Italian `"Salvataggio…"` at once. Any number wide enough to avoid
+   clipping the longest leaves a cavern on `zh-CN` / `zh-TW`, where the same strings are three or four
+   glyphs.
+
+The shipped implementation is a **CSS grid stack**: `inline-grid` on the `Button`, all three layers at
+`[grid-area:1/1]`, opacity alone driving visibility. A grid track sizes itself to its widest item, so
+the pill's width is `max(idle, saving, saved)` **per locale, automatically** — no measurement pass, no
+magic number, no clipping, and nothing to retune when a translator lengthens a string.
+
+> ⚠️ WARNING: **`AnimatePresence` cannot be used here, and this is a constraint rather than a
+> preference.** Unmounting a layer removes its contribution to the grid track, so the width would
+> collapse on the exact frame the lock exists to cover. All three layers stay permanently mounted.
+> `overflow-hidden` is gone with them — it only ever existed to hide the clipping this design removes.
+
+### The check: a keyframe list, because a spring has no ceiling
+
+`DESIGN.md`'s No-Overshoot Rule and `lib/motion.ts:14` both named this button as the *one* sanctioned
+overshoot, at 1.03. The code underneath was running `{ type: "spring", stiffness: 400, damping: 22 }`
+on `scale: 0.85 → 1` — an underdamped spring, whose peak is an emergent property of two dials and is
+bounded by nothing. The rule was being violated by the exact component it cited.
+
+It is now a keyframe list with the peak exported as a constant:
+
+| Export | Value | Why |
+|--------|-------|-----|
+| `SAVE_CHECK_OVERSHOOT` | `1.03` | The ceiling, as a number something can import and a reviewer can grep |
+| `SAVE_CHECK_KEYFRAMES` | `[0.4, SAVE_CHECK_OVERSHOOT, 1]` | In from 0.4, past the ceiling, settled at rest |
+| `transitionSaveCheck` | `DUR.standard`, `EASE_STANDARD`, `times: [0, 0.55, 1]` | The 0.55 midpoint spends more of the budget on arrival than on settle, so the overshoot reads as a landing, not a bounce |
+
+The generalizable lesson: **a motion ceiling enforced by a prose comment is not a ceiling.** If a rule
+names a number, export the number.
+
+### Accessibility decisions, and the reasoning behind each
+
+All three layers are `aria-hidden`; the `Button` carries one stable `aria-label` that does **not**
+change across states, so a state change never re-announces the control.
+
+- **No `aria-live`, deliberately.** All 22 `markSaved()` call sites are immediately followed by a
+  `toast.success(...)`, and sonner already renders into a live region. An `aria-live` on the button
+  would double-announce every save product-wide. **The toast is the announcement channel; the button is
+  the visual confirmation.**
+- **No hard `disable` during the flow, deliberately.** A `disabled` element drops focus to `<body>` in
+  both Chrome and Firefox, so a keyboard user who pressed Enter on Save lost their place for the ~1.8s
+  of the flash — which is what the incumbent did. Instead: the caller's own `disabled` passes through
+  untouched, and while `isSaving || saved` the button sets `aria-disabled` plus an `onClick` guard
+  calling `preventDefault()` / `stopPropagation()`. The guard is what actually stops the second
+  activation, **including native form submission** — 11 of the 18 call sites are `type="submit"` inside
+  a `<form>` with no `onClick` of their own, so returning early from a handler they do not use would
+  have stopped nothing.
+- **The spinner gained `motion-reduce:animate-none`.** It was the only spinner in the product missing
+  it; 82 siblings had it. It stays `animate-spin` at 1s: the guide's "ambient 2s" token is for genuine
+  loops like the service ring, and `lib/motion.ts:76` forbids JS-driven continuous animation.
+- **`useSaveFlash`'s `setTimeout` is now cleaned up** — on unmount *and* on re-trigger. Several callers
+  (tower-settings among them) unmount the button while the flash is still live, and a caller that saves
+  twice inside the window would otherwise have the first timeout cut the second flash short.
+
+### Every idle label is a translation key now
+
+The recorded defect was that `SaveButton` hardcoded `Saving…` / `Saved!`. The larger half was
+undocumented: **16 of the 18 call sites hardcoded English idle labels**, so an Italian user watched
+`"Lock Selected Bands"` → `"Salvataggio…"` → `"Salvato!"` → `"Lock Selected Bands"` — the transient
+states translated and the resting state not.
+
+New `common.json` keys under `actions`: `save_settings`, `save_and_apply`, `save_profile`, `update`
+(`apply` / `save` / `saving` / `saved` already existed). New `cellular` key:
+`band_locking.actions.lock_selected`. **Pass a translated `label`; an English literal is a bug.**
+
+### Known gap — three cards remount the flash away (pre-existing, NOT fixed here)
+
+`components/local-network/ttl-mtu-settings/ttl-settings-card.tsx`,
+`components/local-network/ttl-mtu-settings/mtu-settings-card.tsx` and
+`components/system-settings/system-settings-card.tsx` each mount their inner form with a `key` derived
+from live data (e.g. `` `${data.isEnabled}-${data.ttl}-${data.hl}` ``), and call `useSaveFlash()`
+**inside** that keyed form. A successful save triggers a silent re-fetch whose `setData(...)` changes
+the key, remounting the form and destroying the `saved` state at or immediately after `markSaved()`.
+So the "Saved!" leg of the flash likely never renders on those three cards — only the toast does.
+
+Verified pre-existing: the save-flow change touched two lines in each of the first two files (a
+`useTranslation` import and a label) and did not touch `system-settings-card.tsx` at all. **The fix is
+to hoist `useSaveFlash` above the keyed boundary in all three cards**, which is a separate, unscoped
+change. Recorded here so the next person does not re-derive the diagnosis.
+
+> ⚠️ WARNING: none of this was seen on screen. The dev server redirects to `/setup/` without a backend,
+> so no authed route could be loaded or screenshotted. `tsc`, `next build` (49/49 pages), `icons:check`
+> and `i18n:check` all pass — and all four pass on a broken layout, since none of them render a page.
+> **The grid-stack width lock in particular is mechanism-proven and visually unreviewed.**
+
+---
+
 ## Contracts a future edit must not drop
 
 All silent failures. Each one compiles, renders, and is wrong.
@@ -339,6 +454,11 @@ All silent failures. Each one compiles, renders, and is wrong.
 | Glyph **inside** `SwapLabel` | every chip call site | The one channel that separates these tones in greyscale snaps while the fill morphs |
 | `sr-only` name **outside** `SwapLabel` | every chip call site | `popLayout` doubles the accessible name for 180ms on each change |
 | Swap key encodes text **and** variant where both can move | every chip call site | A tone-only change animates nothing |
+| All three `SaveButton` layers stay mounted in one grid cell — **no `AnimatePresence`** | `components/ui/save-button.tsx` | The width lock collapses on the frame it exists to cover; `w-fit` callers shrink to their padding |
+| `aria-disabled` + `onClick` guard, never `disabled` | `components/ui/save-button.tsx` | A keyboard user loses focus to `<body>` for the length of the save |
+| No `aria-live` on the save button | `components/ui/save-button.tsx` | Every save double-announces, because the sonner toast beside it is already a live region |
+| `SaveButton`'s `label` is a `t()` result | every save call site | The resting state reverts to English mid-flow in four of five locales |
+| `useSaveFlash` called **above** any data-derived `key` boundary | the three cards in Part 3's Known gap | The remount destroys `saved` and the "Saved!" leg never renders |
 
 ## Related docs
 
@@ -348,6 +468,9 @@ All silent failures. Each one compiles, renders, and is wrong.
   fill cascade and a `TickGroup`
 - [recent-activities.md](recent-activities.md) — the header chip that now uses `SwapLabel`, and the
   Age-Gated Tone Rule behind its tone
-- [icon-system.md](icon-system.md) — why every status chip carries a glyph in the first place
+- [icon-system.md](icon-system.md) — why every status chip carries a glyph in the first place, and the
+  route-agnostic rule that pins `SaveButton`'s check to lucide
+- [i18n.md](i18n.md) — the parity gate that graded the save button's 16 hardcoded English labels, and a
+  98-key English-only regression, as silence
 - `DESIGN.md` > Motion > "Live value tick" and "Status chip swap"; > Motion > "Row cascade" for the two
   entrance steps this one is deliberately *not*

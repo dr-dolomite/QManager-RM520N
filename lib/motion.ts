@@ -194,6 +194,45 @@ export const transitionEmphasized: Transition = {
 };
 
 // -----------------------------------------------------------------------------
+// The save-confirmation check (Motion Guide recipe 15)
+// -----------------------------------------------------------------------------
+
+/**
+ * The one sanctioned overshoot in the entire product, as a NUMBER rather than a
+ * sentence.
+ *
+ * The header of this file and DESIGN.md > The No-Overshoot Rule both already
+ * promised "1.03 on the save check, and nothing else". A ceiling that lives only
+ * in prose is not a ceiling: the shipped button ran an underdamped spring
+ * (`stiffness: 400, damping: 22`), whose peak is a function of its constants and
+ * is not bounded by anything at all. Exporting the number is what makes the rule
+ * checkable — anything that wants the pop imports it, and a second overshoot
+ * anywhere else has to be written out in the open.
+ */
+export const SAVE_CHECK_OVERSHOOT = 1.03;
+
+/**
+ * The pop itself: in from 0.4, past the ceiling, and settled at rest. A keyframe
+ * list, not a spring, precisely so the peak is the constant above rather than an
+ * emergent property of two dial settings.
+ */
+export const SAVE_CHECK_KEYFRAMES = [0.4, SAVE_CHECK_OVERSHOOT, 1];
+
+/**
+ * `standard`, matching the guide's own demo (`animation: mg-pop … var(--std)`).
+ * The 0.55 midpoint spends slightly more of the budget on the arrival than on
+ * the settle, so the overshoot reads as a landing rather than as a bounce.
+ */
+export const transitionSaveCheck: Transition = {
+  duration: DUR.standard,
+  ease: EASE_STANDARD,
+  // Mutable on purpose: `motion/react` types `times` as `number[]`, so an
+  // `as const` tuple here fails to assign. Matches the other exports above,
+  // which are all annotated `Transition` rather than frozen.
+  times: [0, 0.55, 1],
+};
+
+// -----------------------------------------------------------------------------
 // Variants
 // -----------------------------------------------------------------------------
 

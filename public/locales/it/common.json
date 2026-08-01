@@ -1,6 +1,10 @@
 {
   "actions": {
     "save": "Salva",
+    "save_settings": "Salva impostazioni",
+    "save_and_apply": "Salva e applica",
+    "save_profile": "Salva profilo",
+    "update": "Aggiorna",
     "saving": "Salvataggio…",
     "saved": "Salvato!",
     "cancel": "Annulla",

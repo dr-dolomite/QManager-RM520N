@@ -176,8 +176,26 @@ The state drives a focal icon + label + destination row (the single status surfa
 
 ### Known gaps
 
-- **`SaveButton` hardcodes its transient labels.** `components/ui/save-button.tsx` renders the literal strings `Saving…` and `Saved!` internally and exposes only a `label` prop, so those two states stay English on **every** save surface in the product, not just this one. `common.actions.saving` / `common.actions.saved` already exist as keys — the component needs to accept them. Unfixed.
-- **The shadcn `Checkbox` renders a lucide glyph on Material routes.** Pre-existing and out of scope here; recorded in [`icon-system.md`](icon-system.md).
+Both gaps recorded here are now **closed**, and one of them turned out to be twice the size it was written up as.
+
+- ~~**`SaveButton` hardcodes its transient labels.**~~ **Fixed.** `components/ui/save-button.tsx` now reads `common.actions.saving` / `common.actions.saved` through `useTranslation`. The bigger half was never recorded: **16 of the 18 call sites hardcoded English *idle* labels too**, so an Italian user saw `"Lock Selected Bands"` → `"Salvataggio…"` → `"Salvato!"` → `"Lock Selected Bands"` — the transient states translated and the resting state not. All idle labels are now keyed (new `common.actions` keys `save_settings`, `save_and_apply`, `save_profile`, `update`; new `cellular.band_locking.actions.lock_selected`). This card's own save button is one of the fixed sites. See [`dashboard-state-motion.md`](dashboard-state-motion.md) > Part 3 for the rebuilt button.
+- ~~**The shadcn `Checkbox` renders a lucide glyph on Material routes.**~~ **Fixed.** `Checkbox` gained an opt-in `glyph?: MaterialSymbolName` slot; the Material-route call sites pass `glyph="check"`, and `check` was already in the 97-glyph subset so it cost zero bytes. See [`icon-system.md`](icon-system.md).
+
+### The 98 keys this rebuild shipped English-only
+
+Worth recording on its own, because a passing gate is what let it through. The SMS tonal rebuild shipped **98 keys English-only** across `it`, `id`, `zh-CN` and `zh-TW`:
+
+| Key group | Keys |
+|---|---|
+| `sms.forwarding.*` | 45 |
+| `sms.inbox.*` | 39 |
+| `sms.tiles.*` | 10 |
+| `sms.compose.*` | 3 |
+| `sms.page.forwarding` | 1 |
+
+`bun run i18n:check` said nothing, because it grades a **missing key as a warning, not an error** — English fallback is a deliberate design choice for community packs, and the same leniency applies to the bundled five, where it is not one. All 98 are now backfilled with real translations; every locale is back at 100% and `i18n:check` reports **0 errors / 0 warnings**, down from 392 warnings.
+
+> ⚠️ WARNING: **a green `i18n:check` does not prove your keys landed.** Read the warning count, not the exit code. This is how a whole feature shipped English-only through a passing gate. See [`i18n.md`](i18n.md) > Validation policy.
 
 ---
 

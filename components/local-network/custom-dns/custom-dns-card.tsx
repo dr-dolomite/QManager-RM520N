@@ -13,6 +13,7 @@ import {
 } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { toast } from "sonner";
+import { useTranslation } from "react-i18next";
 import {
   CheckCircle2Icon,
   MinusCircleIcon,
@@ -79,6 +80,7 @@ const REVEAL_DURATION = 0.2;
 // =============================================================================
 
 const CustomDnsCard = () => {
+  const { t } = useTranslation("common");
   const {
     settings,
     isLoading,
@@ -614,7 +616,7 @@ const CustomDnsCard = () => {
                 type="submit"
                 isSaving={isSaving}
                 saved={saved}
-                label="Save & apply"
+                label={t("actions.save_and_apply")}
                 disabled={
                   formDisabled || anyRowInvalid || emptyWhenEnabled
                 }

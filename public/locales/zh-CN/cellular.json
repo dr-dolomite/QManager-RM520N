@@ -170,7 +170,10 @@
     }
   },
   "band_locking": {
-    "controls_label": "频段锁定"
+    "controls_label": "频段锁定",
+    "actions": {
+      "lock_selected": "锁定所选频段"
+    }
   },
   "core_settings": {
     "apn": {
@@ -396,7 +399,10 @@
         "start_label": "开始",
         "end_label": "结束",
         "block_scenario_label": "场景",
+        "active_now_line": "当前 → {{scenario}}",
+        "active_now_line_with_next": "当前 → {{scenario}} · 下次切换 {{time}}",
         "otherwise_label": "其他时间",
+        "entries_cap_hint": "最多 {{max}} 个时段。请先删除一个再添加。",
         "empty_schedule_hint": "暂无时段 — 效果与直接使用 {{name}} 相同。",
         "overlap_warning": "此时段与另一个时段重叠。重叠时，列表靠前的时段优先生效。",
         "schedule_invalid": "请先修正高亮显示的计划时段再保存。",
@@ -413,10 +419,7 @@
         "move_down_aria": "下移时段",
         "expand_rule_aria": "编辑时段",
         "overnight_hint": "次日结束",
-        "create_new": "创建新场景",
-        "active_now_line": "当前 → {{scenario}}",
-        "active_now_line_with_next": "当前 → {{scenario}} · 下次切换 {{time}}",
-        "entries_cap_hint": "最多 {{max}} 个时段。请先删除一个再添加。"
+        "create_new": "创建新场景"
       },
       "loading_current": "正在读取 SIM…",
       "advanced": {
@@ -602,10 +605,6 @@
       "mismatch_note": "此配置是为另一张 SIM 卡创建的，与当前插入的 SIM 卡不同。请为当前 SIM 卡重新激活，或激活匹配的配置。",
       "edit_button": "编辑"
     },
-    "card": {
-      "label_iccid": "SIM",
-      "label_updated": "更新时间"
-    },
     "list": {
       "new_button": "新建",
       "bound_sim": "绑定到 SIM {{iccid}}",
@@ -615,6 +614,10 @@
     "edit": {
       "not_found_title": "未找到配置",
       "not_found_desc": "该配置可能已被删除。返回已保存的配置。"
+    },
+    "card": {
+      "label_iccid": "SIM",
+      "label_updated": "更新时间"
     }
   },
   "radio_info": {
@@ -805,12 +808,19 @@
   "sms": {
     "page": {
       "title": "短信中心",
-      "description": "查看、管理并从调制解调器发送短信。"
+      "description": "查看、管理并从调制解调器发送短信。",
+      "forwarding": "转发"
     },
     "inbox": {
       "title": "收件箱",
       "description": "查看和管理您的短信",
       "storage_suffix": " — 已存储 {{used}}/{{total}} 条短信",
+      "tabs": {
+        "all": "全部",
+        "unread": "未读",
+        "read": "已读"
+      },
+      "unread_aria": "未读消息",
       "table": {
         "headers": {
           "from": "发件人",
@@ -823,12 +833,13 @@
           "delete": "删除"
         },
         "empty_row": "未找到消息。",
+        "empty_unread": "没有未读消息。",
+        "empty_read": "没有已读消息。",
         "select_all_aria": "全选",
         "select_row_aria": "选择行",
         "sim_badge": "SIM",
-        "empty_unread": "没有未读消息。",
-        "empty_read": "没有已读消息。",
-        "empty_search": "没有符合搜索条件的短信。"
+        "empty_search": "没有符合搜索条件的短信。",
+        "unread_sr": "未读"
       },
       "empty_state": {
         "title": "暂无消息",
@@ -841,14 +852,15 @@
         "delete_all": "全部删除",
         "delete_all_aria": "删除所有消息",
         "new_message": "新短信",
-        "prev": "上一页",
-        "next": "下一页",
         "mark_all_read": "全部标为已读",
         "mark_all_read_aria": "将所有消息标记为已读",
+        "prev": "上一页",
+        "next": "下一页",
         "first_page": "转到第一页",
         "prev_page": "转到上一页",
         "next_page": "转到下一页",
-        "last_page": "转到最后一页"
+        "last_page": "转到最后一页",
+        "delete_selected_short": "删除所选"
       },
       "pagination": {
         "total_one": "{{count}} 条消息",
@@ -860,11 +872,21 @@
       },
       "error": {
         "title": "加载消息失败",
-        "description_prefix": "加载消息失败"
+        "description_prefix": "加载消息失败",
+        "body_stale": "可能有另一个 AT 使用方正持有调制解调器锁，通常会在一个轮询周期内释放。下方消息为最后一次成功读取的结果，已不是实时数据。",
+        "body_empty": "尚未从调制解调器读取到任何内容。"
       },
       "view_dialog": {
         "title": "来自 {{sender}} 的消息",
-        "timestamp_aria": "{{timestamp}}"
+        "timestamp_aria": "{{timestamp}}",
+        "slot": "{{storage}} 槽位 {{slots}}",
+        "slots": "{{storage}} 槽位 {{slots}}",
+        "copy": "复制文本",
+        "copied": "已复制",
+        "copy_error": "无法复制 — 浏览器在此连接上阻止了剪贴板访问。",
+        "reply": "回复",
+        "no_reply_hint": "该发件人是字母数字标识而非号码，因此无法回复。",
+        "close": "关闭"
       },
       "delete_single_confirm": {
         "title": "删除消息",
@@ -873,14 +895,22 @@
         "deleting": "删除中…"
       },
       "delete_all_confirm": {
-        "confirm": "全部删除"
+        "title": "删除全部 {{count}} 条消息？",
+        "description": "这将从调制解调器内存中删除 {{me}}，并从 SIM 卡中删除 {{sm}}。已删除的消息无法恢复，调制解调器不会重启。",
+        "confirm": "全部删除",
+        "cancel": "保留消息",
+        "deleting": "正在全部删除…",
+        "progress_title": "正在删除所有消息",
+        "progress_note": "每个存储区一次删除操作，在共享 AT 锁后串行执行。"
       },
       "delete_selected_confirm": {
         "title": "删除选中的消息",
         "description_one": "确定要删除 {{count}} 条选中的消息吗？此操作不可撤销。",
         "description_other": "确定要删除 {{count}} 条选中的消息吗？此操作不可撤销。",
         "confirm": "删除 ({{count}})",
-        "deleting": "删除中…"
+        "deleting": "删除中…",
+        "progress_title_one": "正在删除 {{count}} 条消息",
+        "progress_title_other": "正在删除 {{count}} 条消息"
       },
       "toast": {
         "delete_success": "消息已删除",
@@ -890,14 +920,9 @@
         "delete_selected_success_one": "已删除 {{count}} 条消息",
         "delete_selected_success_other": "已删除 {{count}} 条消息",
         "delete_selected_error": "删除选中的消息失败",
-        "mark_all_read_success": "所有消息已标记为已读"
+        "mark_all_read_success": "所有消息已标记为已读",
+        "delete_memory_error": "无法清除 {{memory}}"
       },
-      "tabs": {
-        "all": "全部",
-        "unread": "未读",
-        "read": "已读"
-      },
-      "unread_aria": "未读消息",
       "search": {
         "placeholder": "搜索短信…",
         "aria": "搜索短信"
@@ -907,6 +932,29 @@
         "newest": "最新优先",
         "oldest": "最早优先",
         "aria": "排序方式"
+      },
+      "description_loading": "正在从两个存储区读取消息。",
+      "description_split": "已从两个存储区读取消息。调制解调器内存 {{me}}/{{meTotal}}，SIM 卡 {{sm}}/{{smTotal}}。",
+      "description_combined": "已从两个存储区读取消息。两者共使用 {{used}} 个槽位。",
+      "description_unknown": "在下一次成功读取之前，槽位使用情况未知。",
+      "stale_chip": "已过期，{{time}}",
+      "selection": {
+        "label": "已选择",
+        "clear_aria": "清除选择"
+      },
+      "memory": {
+        "me": "调制解调器内存",
+        "sm": "SIM 卡存储"
+      },
+      "delete_progress": {
+        "pending": "{{memory}} 已排队",
+        "running": "正在清除 {{memory}}",
+        "done": "{{memory}} 已清除",
+        "failed": "{{memory}} 失败",
+        "count_pending_one": "待删除 {{count}} 条",
+        "count_pending_other": "待删除 {{count}} 条",
+        "count_done_one": "已删除 {{count}} 条",
+        "count_done_other": "已删除 {{count}} 条"
       }
     },
     "compose": {
@@ -928,6 +976,117 @@
       "toast": {
         "success": "短信发送成功",
         "error": "发送短信失败"
+      },
+      "sending_note": "等待 AT 锁，随后发送",
+      "encoding_hint": "出现非 ASCII 字符时，消息将切换为 UCS-2 编码，单条上限为 70 个字符。",
+      "encoding": {
+        "gsm7": "GSM 7 位",
+        "ucs2": "UCS-2"
+      }
+    },
+    "forwarding": {
+      "page": {
+        "title": "短信转发",
+        "description": "将每条收到的短信转发到另一个号码，并查看转发是否真正送达。"
+      },
+      "card": {
+        "relay": {
+          "title": "转发中继",
+          "description": "开启中继并选择消息的去向。"
+        },
+        "health": {
+          "title": "送达状况",
+          "description": "实时中继状态、收件人预览以及所有发送失败记录。"
+        }
+      },
+      "fields": {
+        "enabled_label": "启用转发",
+        "target_label": "转发至",
+        "target_placeholder": "+15551234567",
+        "target_hint": "请包含国家/地区代码。此调制解调器收到的每条消息都会转发到该号码。",
+        "target_invalid": "请输入有效的电话号码，并包含国家/地区代码 — 例如 +15551234567。"
+      },
+      "buttons": {
+        "save": "保存转发设置",
+        "send_test": "发送测试",
+        "sending": "发送中…",
+        "clear_failures": "清除失败记录",
+        "clearing": "清除中…"
+      },
+      "health": {
+        "forwarding_to": "转发至",
+        "active": {
+          "label": "转发已启用"
+        },
+        "issue": {
+          "label": "送达异常"
+        },
+        "unconfigured": {
+          "label": "未设置目标号码",
+          "description": "转发已开启，但尚未设置接收号码。添加一个号码即可开始转发。"
+        },
+        "off": {
+          "label": "转发已关闭",
+          "description": "收到的消息将保留在调制解调器收件箱中，不会转发到任何地方。"
+        }
+      },
+      "preview": {
+        "eyebrow": "收件人看到",
+        "from": "来自 {{sender}}：",
+        "sample_body": "您的验证码是 123456。",
+        "note": "“来自”一行中的号码只是来信发件人的示例。您保存的号码是接收这条消息的一方，而不是发送方。"
+      },
+      "test": {
+        "hint_ready": "向已保存的号码发送一条测试消息，因此检验的是实际运行中的转发链路。",
+        "hint_blocked": "请先开启转发并保存目标号码 — 测试始终基于已保存的设置运行，不会使用未保存的修改。"
+      },
+      "failures": {
+        "title_one": "{{count}} 次送达失败",
+        "title_other": "{{count}} 次送达失败",
+        "description": "中继对每条消息重试了三次后放弃，因此消息仍留在收件箱中。转发功能仍在运行。",
+        "unknown_sender": "未知发件人"
+      },
+      "empty": {
+        "failures": {
+          "title": "没有送达失败",
+          "description": "到目前为止，中继处理的每条消息都已送达。"
+        }
+      },
+      "states": {
+        "loading_sr": "正在加载短信转发设置",
+        "retry": "重试",
+        "error": {
+          "title": "无法加载转发设置",
+          "description": "调制解调器没有响应，因此当前的中继设置未知。"
+        }
+      },
+      "toast": {
+        "save_success": "转发设置已保存",
+        "save_error": "保存转发设置失败",
+        "test_success": "测试消息已发送至已保存的号码",
+        "test_error": "发送测试消息失败",
+        "clear_success": "送达失败记录已清除",
+        "clear_error": "清除送达失败记录失败"
+      }
+    },
+    "tiles": {
+      "loading_sr": "正在加载收件箱概要",
+      "capacity_unknown": "未报告",
+      "unread": {
+        "label": "未读",
+        "of": "共 {{total}}",
+        "caption_newest": "最新 {{timestamp}}",
+        "caption_none": "尚未收到任何消息"
+      },
+      "me": {
+        "label": "调制解调器内存，ME"
+      },
+      "sm": {
+        "label": "SIM 卡存储，SM"
+      },
+      "combined": {
+        "label": "消息存储",
+        "caption": "两个存储区共用的槽位"
       }
     }
   }

@@ -688,7 +688,13 @@ CPU also carrying the user's traffic, a per-poll layout pass per meter is not fr
 live. Two exist product-wide: the service-ring pulse and the live-ping dot.
 
 **The No-Overshoot Rule.** Never springy, never elastic, never rubber-banding. The one sanctioned
-overshoot in the entire product is the save-confirmation check at 1.03 scale.
+overshoot in the entire product is the save-confirmation check at 1.03 scale — and it is a **number**,
+not a sentence: `SAVE_CHECK_OVERSHOOT` / `SAVE_CHECK_KEYFRAMES` / `transitionSaveCheck` in
+`lib/motion.ts`. Anything that wants the pop imports the constant; a second overshoot has to be written
+out in the open to exist. This rule and that file both cited the save check as the sanctioned exception
+while the button underneath was running an underdamped spring (`stiffness: 400, damping: 22`) whose
+peak is a function of its two dials and is bounded by nothing — a ceiling enforced only by prose is not
+a ceiling.
 
 **The Enter-Only Rule.** Conditions and navigation have no exit animation. A banner leaving means the
 condition cleared and that should feel immediate; an outgoing route is already gone, and animating it
@@ -706,7 +712,12 @@ out only delays the incoming one.
   dark-mode destructive is a *light* fill and white ink on it measures 2.4:1.
 - **Ghost / outline:** transparent or hairline, `on-surface-variant` ink, `surface-container` hover.
 - **Focus:** a 3px `--ring` ring at 50% on the `quick` clock.
-- Use `SaveButton` for save actions; it owns the loading animation and the 1.03 check.
+- Use `SaveButton` for save actions. It owns all three states (idle label → spinner + "Saving…" → check
+  + "Saved!"), the 1.03 check, and the **width lock**: the three layers share one grid cell and stay
+  mounted, so the pill sizes to the widest of them per locale and a toolbar never reflows mid-save.
+  Never `AnimatePresence` around them — unmounting a layer removes its width contribution and breaks
+  the lock on the frame it matters. Pass a **translated** `label`; never an English literal. See
+  [`docs/reference/dashboard-state-motion.md`](docs/reference/dashboard-state-motion.md) > Part 3.
 
 ### Chips
 

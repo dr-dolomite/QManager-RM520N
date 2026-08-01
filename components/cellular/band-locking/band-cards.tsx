@@ -2,6 +2,7 @@
 
 import { useState, useMemo } from "react";
 import { motion } from "motion/react";
+import { useTranslation } from "react-i18next";
 import { SaveButton, useSaveFlash } from "@/components/ui/save-button";
 import {
   Card,
@@ -67,6 +68,7 @@ const BandCardsComponent = ({
   error,
   disabled = false,
 }: BandCardsProps) => {
+  const { t } = useTranslation("cellular");
   const { saved, markSaved } = useSaveFlash();
 
   // --- Local checkbox state (number set for O(1) lookup) --------------------
@@ -236,6 +238,7 @@ const BandCardsComponent = ({
               transition={{ duration: 0.18, ease: "easeOut" }}
             >
               <Checkbox
+                glyph="check"
                 id={`${bandCategory}-${band}`}
                 checked={checkedBands.has(band)}
                 onCheckedChange={() => handleCheckboxChange(band)}
@@ -276,7 +279,7 @@ const BandCardsComponent = ({
             onClick={handleLock}
             isSaving={isLocking}
             saved={saved}
-            label="Lock Selected Bands"
+            label={t("band_locking.actions.lock_selected")}
             disabled={isDisabled || noneSelected || !hasChanges}
           />
           <Button

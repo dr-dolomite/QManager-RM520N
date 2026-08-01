@@ -39,7 +39,7 @@ git add app/fonts/MaterialSymbolsRounded-subset.woff2 \
 | `/setup/` (`components/onboarding/**`) | **lucide** — deliberately out of scope, see below |
 | Local Network, Monitoring, System Settings, their dialogs | lucide |
 | Header bar above the content (`SidebarTrigger`, breadcrumbs) | lucide — it is not the sidebar |
-| Page-level banners (`components/ui/banner.tsx`) | lucide — they are route-agnostic and mount on lucide pages too |
+| **Route-agnostic shared infrastructure** — page-level banners (`components/ui/banner.tsx`), the save action (`components/ui/save-button.tsx`), toasts (`components/ui/sonner.tsx`) | lucide — all three mount on lucide pages too, so none of them can follow the route it is standing on. See "Route-agnostic primitives" below |
 | Glyphs lucide lacks | Tabler (`@tabler/icons-react`), the sanctioned secondary |
 
 ### The boundary is keyed on ROUTES, not on directories
@@ -56,14 +56,25 @@ The reasoning that was recorded while the gap stood is worth keeping, because it
 
 One concrete conversion cost, already known before this pass: `components/ui/accordion.tsx`'s `AccordionTrigger` bakes in a lucide `ChevronDownIcon` (and a legacy `rounded-md`). `active-bands-card.tsx:489` reaches for `AccordionPrimitive.Trigger` directly to avoid it, preserving every Radix affordance. Any shared primitive with a hardcoded lucide glyph needs the same treatment or a real fix — and this pass surfaced a second, more expensive case: see "Shared primitives style themselves on `>svg`" below.
 
-#### Known unfixed instances of the same leak
+#### Both former leaks are now decided — one fixed, one sanctioned
 
-Two more shared primitives hardcode lucide glyphs and therefore paint them onto converted Material routes. Both are recorded here as **known unfixed instances, not as correct code** — do not read their presence as sanction.
+This section previously listed `checkbox.tsx` and `sonner.tsx` as **known unfixed instances**. Both are now settled, in opposite directions, and the reasoning for the split is the useful part: a primitive whose glyph sits *inside a route's content* must follow the route; a primitive that *floats over every route* cannot, and so is pinned.
 
-| Primitive | Glyph(s) | Status |
-|---|---|---|
-| `components/ui/checkbox.tsx` | lucide `CheckIcon` | **Pre-existing leak, deliberately out of scope.** Every Material route that renders a checkbox — the SMS inbox's row and header selection among them — draws a lucide check inside it. It is *not* the `accordion.tsx` escape hatch: there is no primitive-level bypass, because the check lives inside `CheckboxPrimitive.Indicator` and reaching around it would cost the Radix behaviour the glyph rejection above exists to protect. A real fix means giving `Checkbox` an icon slot |
-| `components/ui/sonner.tsx` | lucide `CircleCheckIcon`, `InfoIcon`, `TriangleAlertIcon`, `OctagonXIcon`, `Loader2Icon` | **Open question, not a decision.** Toasts are route-agnostic and mount on lucide pages too, so they are arguably covered by the same reasoning that keeps `components/ui/banner.tsx` on lucide. But sonner is **not** currently a documented exception, and the boundary table above does not list it. Recorded so it is settled explicitly rather than by omission |
+**`components/ui/checkbox.tsx` — fixed, via an opt-in glyph slot.** `Checkbox` gained `glyph?: MaterialSymbolName`. Omit it and you get the existing lucide `CheckIcon`, byte-identical to before; pass it and the indicator renders `<MaterialSymbol name={glyph} size={14} />`. The three Material-route call sites now pass `glyph="check"` (`components/cellular/sms/inbox-table.tsx` ×2 — the header select-all and the per-row select — and `components/cellular/band-locking/band-cards.tsx`); the lucide-route call sites (`components/local-network/custom-dns/custom-dns-card.tsx`, `components/onboarding/steps/step-band-locking.tsx`) correctly pass nothing. Radix keeps its keyboard handling, indeterminate state and ARIA wiring, because the slot swaps the *glyph inside* `CheckboxPrimitive.Indicator` rather than reaching around it — which is exactly the concern that kept this open.
+
+> ℹ️ NOTE: **this cost zero bytes.** `check` was already in the 97-glyph subset (the service-ring core glyph uses it), so no name was added, no font was regenerated, and the subset-growth table below is unchanged. The `check` row is also the one the unused-glyph substring scan can never speak about honestly — see the warning under `icons:check`.
+
+**The 14px is hardcoded inside the primitive, and there is deliberately no `size` prop.** `MaterialSymbol` applies `size` as an inline `fontSize`, which outranks every Tailwind utility (see "The sizing gotcha" below), so a call site that forgot a size would drop a defaulted **20px** glyph inside the `size-4` root — and `Indicator`'s `grid place-content-center` carries no `overflow-hidden` to catch the spill. Pinning the number in the primitive removes the failure mode instead of documenting it. This is the one sanctioned exception to "every Material glyph passes `size` explicitly at its call site": the call site here *is* the primitive.
+
+**`components/ui/sonner.tsx` — sanctioned lucide, no longer an open question.** Toasts mount over every route, so there is no route for their glyphs to agree with; they are covered by the same rule that pins `components/ui/banner.tsx`. The boundary table above now lists them, so this is a documented exception rather than something settled by omission.
+
+#### Route-agnostic primitives: the tie-breaker rule
+
+`banner.tsx`, `sonner.tsx` and `save-button.tsx` share one property — **no route owns them** — and the boundary is keyed on routes. Where there is no route to follow, the primitive is pinned to **lucide**, the default half of the boundary.
+
+`components/ui/save-button.tsx` is the case that forced the rule to be written down rather than inferred. It mounts on **9 Material routes and 9 lucide routes**: there is no majority to default to, and a route-sensing branch would mean a shared primitive reading its own URL to pick an icon library — the exact coupling the boundary exists to avoid. It renders lucide `CheckCircle2Icon`: the **circular-check form** the design mock asked for, drawn with the **library the canon requires**. Form from the mock, library from the rule.
+
+The corollary for future work: **a new `components/ui/` primitive that mounts route-agnostically is lucide by default.** Reaching for Material inside one is the signal that it is not actually route-agnostic, and belongs in a route-scoped sibling instead — which is precisely the `Banner` / `TonalBanner` split documented further down.
 
 **One lucide import deliberately survives under `components/cellular/` and it is correct code.** `components/cellular/custom-profiles/apply-progress-dialog.tsx` imports `RotateCwIcon` to pass into `Banner`'s `icon` prop, which is typed `LucideIcon`. `components/ui/banner.tsx` is the page-level, route-agnostic banner and stays lucide by the existing rule (it mounts on lucide pages too) — the same shape of false positive as `components/auth/change-password-dialog.tsx`. Grepping `lucide-react` under `components/cellular/` will find this hit; do not "fix" it.
 
@@ -206,7 +217,7 @@ Two real instances, both found and fixed in this pass:
 
 **The general rule: when converting a route, grep the shared primitives it renders for `has-[>svg]` and `[&>svg]`, and mirror every *layout* rule for `[data-slot=material-symbol]`.** The one exception is `size-*` rules — those must **not** be mirrored, because the inline `fontSize` already outranks any utility (see above), which is exactly why glyphs pass `size` explicitly instead of relying on a mirrored size selector. This generalizes the `pointer-events` mirror already documented above, which was the first instance of this same pattern — it just happened to be a property, not a whole grid track.
 
-> ⚠️ WARNING: this bug class is invisible to `tsc`, `next build`, `bun run icons:check`, and the design-audit tooling. All four pass cleanly on a broken layout, because none of them render the page — `icons:check` verifies the font artifact, not what consumes it. Only rendering the page catches it. None of the 17 `/cellular/` sub-routes were rendered end-to-end during this pass (they redirect to `/setup/` without a backend, and nothing was loaded on the live modem), so treat the `alert.tsx` and `button.tsx` fixes as verified and everything else on these routes as mechanism-proven but visually unreviewed. **The same caveat applies verbatim to the later SMS Center / SMS Forwarding tonal rebuild**, which also passed `tsc`, `next build`, eslint, `i18n:check` and `icons:check` without any page being rendered.
+> ⚠️ WARNING: this bug class is invisible to `tsc`, `next build`, `bun run icons:check`, and the design-audit tooling. All four pass cleanly on a broken layout, because none of them render the page — `icons:check` verifies the font artifact, not what consumes it. Only rendering the page catches it. None of the 17 `/cellular/` sub-routes were rendered end-to-end during this pass (they redirect to `/setup/` without a backend, and nothing was loaded on the live modem), so treat the `alert.tsx` and `button.tsx` fixes as verified and everything else on these routes as mechanism-proven but visually unreviewed. **The same caveat applies verbatim to the later SMS Center / SMS Forwarding tonal rebuild**, which also passed `tsc`, `next build`, eslint, `i18n:check` and `icons:check` without any page being rendered — **and to the `checkbox.tsx` glyph slot and the `save-button.tsx` rebuild after it.** The 14px checkbox glyph and the save button's grid-stack width lock are *mechanism-proven and visually unreviewed*: the reasoning behind each is recorded, and no one has looked at either one on screen.
 
 ### Verifying a glyph name and its substitution
 
@@ -300,7 +311,9 @@ Ghost at rest, `bg-surface-container` while its menu is open (`data-[state=open]
 - **The unused-glyph scan under-reports.** It is a substring search, so common words (`check`, `info`, `home`, `router`) always read as used. Warning-only by design; never make it fail the build.
 - **The generator needs network access** (Google Fonts). It cannot run on the modem, and it cannot run in an offline CI job — which is precisely why the *check* is offline and dependency-free while the *generator* is not. `icons:check` is in `bun run package`; `icons:subset` deliberately is not.
 
-- **Two shared primitives still leak lucide onto Material routes.** `components/ui/checkbox.tsx` (hardcoded `CheckIcon`) and `components/ui/sonner.tsx` (five toast icons) — see "Known unfixed instances of the same leak" above. Neither is sanctioned; the first is a real bug awaiting an icon slot, the second is an undecided exception.
+- **`MaterialSymbol`'s inline `fontSize` is a footgun inside shared primitives.** A primitive that accepts a caller-supplied glyph but not a caller-supplied size is safe (`checkbox.tsx` pins 14px). One that accepts both, or neither, will eventually paint a 20px default glyph inside a fixed-size box with no `overflow-hidden` to catch it. Prefer pinning the number in the primitive.
+
+*Resolved:* `components/ui/checkbox.tsx` and `components/ui/sonner.tsx` were both listed here as unsanctioned lucide leaks onto Material routes. The checkbox now has a `glyph` slot and the three Material call sites pass `check`; sonner is a documented route-agnostic exception. See "Both former leaks are now decided" above.
 
 *Resolved:* the two hand-synced glyph lists and the missing `icons:check` gate were both live risks here until the list was collapsed to a single source of truth and the manifest gate landed.
 
