@@ -73,21 +73,41 @@ export const EASE_STANDARD_CSS = "cubic-bezier(0.2, 0, 0, 1)";
  * Seconds here because `motion/react` takes seconds; the CSS side of each value
  * is the matching `--duration-*` custom property, in milliseconds.
  *
+ * ## Why these are 2x the Motion Guide's printed figures
+ *
+ * The guide's token table reads 400 / 300 / 180ms, and for a long time so did
+ * this file. Those are the numbers the guide *renders at 1x* — but every demo in
+ * it is authored as `calc(<loop> * var(--sp))`, where a Playback control sets
+ * `--sp` to `1 / speed`. Playback exists because, in the guide's own words,
+ * half or quarter speed "is the only way to actually inspect a 180ms token".
+ *
+ * Reviewed at that 0.5 setting — which is precisely this scale, every duration
+ * doubled — the system read as deliberate rather than snappy, and that is the
+ * pace the product ships at. So the guide's figures are the inspection
+ * baseline; these are the shipped scale. DESIGN.md > Motion is canonical and
+ * says the same thing.
+ *
+ * The ratios are untouched, which is the part that matters: quick : standard :
+ * emphasized is still 3 : 5 : 6.67, so every gesture composed from them (the
+ * tick's dip/settle split, the chart's lead-follow trail) keeps its shape.
+ *
  * The ambient loop (2s, service rings and the live ping dot) is deliberately
- * absent: it is CSS-only, lives on `--duration-ambient`, and nothing in JS
- * should be starting a continuous animation.
+ * absent, and deliberately NOT doubled — it is CSS-only, lives on
+ * `--duration-ambient`, and nothing in JS should be starting a continuous
+ * animation. A loop is not a transition: at 4s a breathing ring stops reading
+ * as "alive" and starts reading as "stuck".
  */
 export const DUR = {
   /** Label swaps, live value ticks, hover tints, focus rings. */
-  quick: 0.18,
+  quick: 0.36,
   /** Most state changes: card entrance, meter fill, nav, page entrance. */
-  standard: 0.3,
+  standard: 0.6,
   /** Container size and shape, aggregation re-proportion, alert arrival. */
-  emphasized: 0.4,
+  emphasized: 0.8,
 } as const;
 
-/** The card-cascade step. Mirrors `--stagger-step` (60ms). */
-export const STAGGER_STEP = 0.06;
+/** The card-cascade step. Mirrors `--stagger-step` (120ms). */
+export const STAGGER_STEP = 0.12;
 
 // -----------------------------------------------------------------------------
 // Composed gestures
@@ -113,19 +133,26 @@ export const STAGGER_STEP = 0.06;
  * scale rather than dialled in by eye.
  *
  * **The pair was raised one step, from `quick`+`standard` to
- * `standard`+`emphasized`.** At 480ms the gesture was correct in shape and still
- * read as fast — a dip that brief is registered rather than watched, and on a
- * card where several figures dip together the eye gets one impression instead of
- * a sequence. 700ms is the same asymmetry with room to be seen. It stays well
- * inside a poll (~3s measured), so the anti-queue rule is untouched: a value
- * that moves again mid-dip still retargets rather than waiting.
+ * `standard`+`emphasized`.** The asymmetry is the spec; the absolute numbers
+ * ride the scale. Under the 2x retune that lands the gesture at 1.4s.
+ *
+ * **This is the tightest thing in the motion system against the poll, so it is
+ * the one to watch.** Worst case is a full `TickGroup` cascade: `MAX_RANK` (7)
+ * × `TICK_STAGGER_STEP` of lead, plus one whole dip — 1400 + 1400 = 2800ms.
+ * Measured poll cadence is ~3.7-4.0s (NOT the ~2s the Motion Guide assumes; the
+ * poller's `sleep 2` runs after the cycle body, so the real interval is roughly
+ * double the nominal one). That leaves ~900ms of headroom where the pre-retune
+ * scale had ~2.3s. Still inside one cycle, so the anti-queue rule holds
+ * unchanged — a value that moves again mid-dip retargets rather than waiting —
+ * but this is now the first thing that would break if the scale went up again
+ * or the poller got faster. Re-check this arithmetic before either.
  */
 export const TICK = {
   /** Peak dip. The guide's 35%, unchanged — this was never the problem. */
   opacity: 0.35,
-  /** 300ms + 400ms. Total wall time of the gesture, in seconds. */
+  /** 600ms + 800ms. Total wall time of the gesture, in seconds. */
   duration: DUR.standard + DUR.emphasized,
-  /** Where the dip sits: 300 / 700 ≈ 0.43. Derived, so it cannot drift. */
+  /** Where the dip sits: 600 / 1400 ≈ 0.43. Derived, so it cannot drift. */
   dipOffset: DUR.standard / (DUR.standard + DUR.emphasized),
 } as const;
 
@@ -135,29 +162,32 @@ export const TICK = {
  * not an entrance.
  *
  * DESIGN.md's "exactly two stagger steps" rule governs *entrances* — content
- * arriving, where 60ms/40ms keep a card from reading as still loading. A tick
- * cascade is the opposite situation: nothing is arriving, the whole card is
- * already on screen and settled, and the cascade's only job is to be legible as
- * a sequence rather than as a flash. At the 40ms row step a four-value cascade
- * spanned 120ms — shorter than the dip itself, so the dips overlapped almost
- * completely and the group still read as simultaneous.
+ * arriving, where the card/row steps keep a card from reading as still loading.
+ * A tick cascade is the opposite situation: nothing is arriving, the whole card
+ * is already on screen and settled, and the cascade's only job is to be legible
+ * as a sequence rather than as a flash. At the row step a four-value cascade
+ * spans less than the dip itself, so the dips overlap almost completely and the
+ * group still reads as simultaneous.
  *
- * 100ms is the middle of the available range. The floor is ~80ms, below which
- * consecutive dips overlap enough to merge; the ceiling is set by the poll, and
- * with `MAX_RANK` (7) the worst case here is 700ms of lead plus a 700ms dip,
- * landing inside a ~3s cycle with margin. Recipe 06's demo stages its values
+ * This step rides the 2x scale with everything else, because the constraint
+ * that set it is a RATIO to the dip rather than an absolute number of
+ * milliseconds — holding it at 100ms while the dip doubled would have re-created
+ * the exact merging it was introduced to fix. The floor is ~1/8th of
+ * `TICK.duration`, below which consecutive dips merge; the ceiling is set by the
+ * poll, and that arithmetic now lives on `TICK` above, where it is the binding
+ * constraint for the whole system. Recipe 06's demo stages its values
  * 350ms apart, which is a 2s *looping* showcase spacing three dips for
  * isolation — legibility spacing, not a product value, and at that step a
  * five-value cascade would outlive its own poll.
  */
-export const TICK_STAGGER_STEP = 0.1;
+export const TICK_STAGGER_STEP = 0.2;
 
 /**
  * Meter fill on FIRST PAINT (Motion Guide recipe 07).
  *
  * Distinct from `transitionStandard`, which still owns the poll retarget, and
  * the split is the point. A first paint travels 0 → full; a retarget moves a few
- * percent. Giving both the same 300ms clock is what made the fill read as a
+ * percent. Giving both the same `standard` clock is what made the fill read as a
  * snap: Material scales duration with distance, and this is the longest journey
  * a meter ever makes. `emphasized` is the top of the existing scale, so the
  * arrival gets the system's slowest curve without inventing a sixth value.
@@ -175,7 +205,34 @@ export const transitionMeterFill: Transition = {
  * The eye also groups rows inside a shared border as one object, so they should
  * arrive nearly together.
  */
-export const STAGGER_STEP_ROWS = 0.04;
+export const STAGGER_STEP_ROWS = 0.08;
+
+/**
+ * How many rows deep a list cascade still staggers before every later row
+ * shares the last one's delay.
+ *
+ * An unbounded `index * step` is fine for a metric card with six rows and wrong
+ * for a log viewer with two hundred: row 180 would wait 14 seconds to appear,
+ * which is not choreography, it is a bug. Ten is where the eye stops reading the
+ * sequence as a sequence anyway, and it sits under the Motion Guide's "don't
+ * cascade more than about eight items" without contradicting it — the guide's
+ * eight is about how many should *feel* staggered, this is the hard stop.
+ */
+export const ROW_CASCADE_MAX_INDEX = 10;
+
+/**
+ * The entrance delay for the Nth row of a list, in seconds.
+ *
+ * This existed as a copy-pasted `Math.min(index * 0.04, 0.4)` in eight separate
+ * cards (activity feeds, log viewers, peer lists, ping entries, scan results),
+ * each with its own slightly different step and cap — 0.03/0.4, 0.04/0.4,
+ * 0.05/0.35 — none of which read a token. Both numbers now derive from
+ * `STAGGER_STEP_ROWS`, so a retune of the scale moves every list at once and
+ * the cap can never drift out of proportion with the step again.
+ */
+export function rowCascadeDelay(index: number): number {
+  return Math.min(index, ROW_CASCADE_MAX_INDEX) * STAGGER_STEP_ROWS;
+}
 
 // -----------------------------------------------------------------------------
 // Prebuilt transitions
@@ -241,8 +298,10 @@ export const transitionSaveCheck: Transition = {
  * Children settle in sequence one `STAGGER_STEP` apart. Pair with `staggerItem`
  * on each direct child.
  *
- * Keep the 60ms step. Wider and the last card feels late behind a slow poll,
- * which reads as the page still loading rather than as choreography.
+ * Don't widen this beyond the scale. The step is already the point at which the
+ * last card in a cascade feels late behind a slow poll, which reads as the page
+ * still loading rather than as choreography — at eight items (the guide's
+ * cascade ceiling) the tail now lands ~840ms after the first card starts.
  */
 export const staggerContainer: Variants = {
   hidden: {},

@@ -146,7 +146,7 @@ export function StepNetworkMode({
               transition={{ type: "spring", stiffness: 600, damping: 30 }}
               className={cn(
                 "flex items-center gap-4 rounded-lg border px-4 py-3.5 text-left",
-                "transition-colors duration-150",
+                "transition-colors duration-[var(--duration-quick)] ease-out",
                 "hover:border-primary/50 hover:bg-primary/5",
                 isSelected
                   ? "border-primary bg-primary/5 ring-1 ring-primary/30"
@@ -155,7 +155,7 @@ export function StepNetworkMode({
             >
               <span
                 className={cn(
-                  "flex size-8 shrink-0 items-center justify-center rounded-md transition-colors duration-150",
+                  "flex size-8 shrink-0 items-center justify-center rounded-md transition-colors duration-[var(--duration-quick)] ease-out",
                   isSelected
                     ? "bg-primary/15 text-primary"
                     : "bg-muted text-muted-foreground"
@@ -172,7 +172,7 @@ export function StepNetworkMode({
               <span
                 aria-hidden="true"
                 className={cn(
-                  "ml-auto block size-4 shrink-0 rounded-full border-2 transition-colors duration-150",
+                  "ml-auto block size-4 shrink-0 rounded-full border-2 transition-colors duration-[var(--duration-quick)] ease-out",
                   isSelected
                     ? "border-primary bg-primary"
                     : "border-muted-foreground/40"
@@ -207,7 +207,7 @@ export function StepNetworkMode({
                   transition={{ type: "spring", stiffness: 600, damping: 30 }}
                   className={cn(
                     "flex items-center gap-3 rounded-lg border px-3 py-2.5 text-left",
-                    "transition-colors duration-150",
+                    "transition-colors duration-[var(--duration-quick)] ease-out",
                     "hover:border-primary/50 hover:bg-primary/5",
                     isSelected ? "border-primary bg-primary/5" : "border-border"
                   )}
@@ -215,7 +215,7 @@ export function StepNetworkMode({
                   <span
                     aria-hidden="true"
                     className={cn(
-                      "block size-3.5 shrink-0 rounded-full border-2 transition-colors duration-150",
+                      "block size-3.5 shrink-0 rounded-full border-2 transition-colors duration-[var(--duration-quick)] ease-out",
                       isSelected ? "border-primary bg-primary" : "border-muted-foreground/40"
                     )}
                   />

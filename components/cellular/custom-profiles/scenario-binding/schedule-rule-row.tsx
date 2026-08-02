@@ -129,7 +129,7 @@ export function ScheduleRuleRow({
                 name="expand_more"
                 size={16}
                 className={cn(
-                  "text-muted-foreground ml-auto shrink-0 transition-transform duration-200 ease-[cubic-bezier(0.16,1,0.3,1)] motion-reduce:transition-none",
+                  "text-muted-foreground ml-auto shrink-0 transition-transform duration-[var(--duration-quick)] ease-out motion-reduce:transition-none",
                   open && "rotate-180",
                 )}
               />

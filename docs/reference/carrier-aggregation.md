@@ -230,7 +230,7 @@ Behavioral notes worth keeping:
 
 Both rules live in `app/globals.css`.
 
-- `.ca-segment` animates real `width` on `emphasized` / 400ms. This is the **single sanctioned width animation in the product**, permitted because on this surface the width *is* the data and a `scaleX` would distort the band and bandwidth labels riding inside each segment.
+- `.ca-segment` animates real `width` on `emphasized`. This is the **single sanctioned width animation in the product**, permitted because on this surface the width *is* the data and a `scaleX` would distort the band and bandwidth labels riding inside each segment.
 - `.ca-meter` animates `transform` on `standard` / 300ms. Never width, or every meter on the dashboard would trigger layout on each poll, on a CPU that is also carrying the user's traffic.
 - Both have explicit `prefers-reduced-motion: reduce` entries. The repo kills motion per-class and has no global catch-all, so a new animated class without its own reduced-motion entry is a real accessibility gap.
 

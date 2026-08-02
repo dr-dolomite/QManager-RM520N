@@ -31,6 +31,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import { ArrowUpDown } from "lucide-react";
+import { DUR, EASE_STANDARD, rowCascadeDelay } from "@/lib/motion";
 
 // =============================================================================
 // Types
@@ -120,7 +121,7 @@ const PingEntriesCard = ({
                   key={ping.timestamp}
                   initial={{ opacity: 0, x: -8 }}
                   animate={{ opacity: 1, x: 0 }}
-                  transition={{ duration: 0.2, delay: Math.min(index * 0.04, 0.4), ease: "easeOut" }}
+                  transition={{ duration: DUR.standard, delay: rowCascadeDelay(index), ease: EASE_STANDARD }}
                 >
                   <TableCell>
                     {isRealtime && !ping.ok

@@ -20,7 +20,7 @@ import { Badge } from "@/components/ui/badge";
 import { MaterialSymbol } from "@/components/ui/material-symbol";
 import { toast } from "sonner";
 import { formatBandName, type BandCategory } from "@/types/band-locking";
-import { staggerContainer } from "@/lib/motion";
+import { DUR, EASE_STANDARD, staggerContainer } from "@/lib/motion";
 
 // =============================================================================
 // BandCardsComponent — Per-Category Band Checkbox Grid + Lock/Unlock Actions
@@ -235,7 +235,7 @@ const BandCardsComponent = ({
               key={band}
               className="flex items-center space-x-2"
               variants={{ hidden: { opacity: 0, scale: 0.88 }, visible: { opacity: 1, scale: 1 } }}
-              transition={{ duration: 0.18, ease: "easeOut" }}
+              transition={{ duration: DUR.standard, ease: EASE_STANDARD }}
             >
               <Checkbox
                 glyph="check"

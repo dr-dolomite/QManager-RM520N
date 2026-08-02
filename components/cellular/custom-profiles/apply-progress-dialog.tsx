@@ -141,7 +141,7 @@ function HeroGlyph({ tone, status }: { tone: Tone; status: string }) {
 /** Compact status node for the supporting step ledger. */
 function StepNode({ status }: { status: ApplyStepStatus }) {
   const base =
-    "flex size-5 shrink-0 items-center justify-center rounded-full transition-colors duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] motion-reduce:transition-none";
+    "flex size-5 shrink-0 items-center justify-center rounded-full transition-colors duration-[var(--duration-standard)] ease-standard motion-reduce:transition-none";
   switch (status) {
     case "running":
       return (
@@ -310,7 +310,7 @@ export function ApplyProgressDialog({
                   <li
                     key={step.name}
                     className={cn(
-                      "flex items-center gap-2.5 px-3 py-2 transition-colors duration-300 motion-reduce:transition-none",
+                      "flex items-center gap-2.5 px-3 py-2 transition-colors duration-[var(--duration-standard)] ease-standard motion-reduce:transition-none",
                       eff === "running" && "bg-info/5",
                     )}
                   >

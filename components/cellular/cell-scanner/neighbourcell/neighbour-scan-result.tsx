@@ -38,6 +38,7 @@ import { motion } from "motion/react";
 const MotionTableRow = motion.create(TableRow);
 import { Badge } from "@/components/ui/badge";
 import { SignalBadge, NetworkTypeBadge } from "../signal-badges";
+import { DUR, EASE_STANDARD, rowCascadeDelay } from "@/lib/motion";
 
 export interface NeighbourCellResult {
   id: string;
@@ -263,7 +264,7 @@ const NeighbourScanResultView = ({
                   key={row.id}
                   initial={hasAnimated.current ? false : { opacity: 0, x: -8 }}
                   animate={{ opacity: 1, x: 0 }}
-                  transition={hasAnimated.current ? undefined : { duration: 0.2, delay: Math.min(index * 0.05, 0.4), ease: "easeOut" }}
+                  transition={hasAnimated.current ? undefined : { duration: DUR.standard, delay: rowCascadeDelay(index), ease: EASE_STANDARD }}
                 >
                   {row.getVisibleCells().map((cell) => (
                     <TableCell key={cell.id}>

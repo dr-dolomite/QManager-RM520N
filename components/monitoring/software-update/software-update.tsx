@@ -29,6 +29,7 @@ import { useSoftwareUpdate } from "@/hooks/use-software-update";
 import type { UpdateStatus } from "@/hooks/use-software-update";
 import { UpdateStatusCard } from "./update-status-card";
 import { UpdatePreferencesCard } from "./update-preferences-card";
+import { DUR, EASE_STANDARD, rowCascadeDelay } from "@/lib/motion";
 
 // ─── Shared helpers ─────────────────────────────────────────────────────────
 
@@ -155,11 +156,11 @@ function UpdateProgressStepper({
             key={step.label}
             initial={{ opacity: 0, x: -8 }}
             animate={{ opacity: 1, x: 0 }}
-            transition={{ duration: 0.25, delay: i * 0.06, ease: "easeOut" }}
+            transition={{ duration: DUR.standard, delay: rowCascadeDelay(i), ease: EASE_STANDARD }}
             role="listitem"
             aria-current={state === "active" ? "step" : undefined}
             className={cn(
-              "flex items-start gap-3 rounded-lg px-3 py-2.5 text-sm transition-colors duration-300",
+              "flex items-start gap-3 rounded-lg px-3 py-2.5 text-sm transition-colors duration-[var(--duration-standard)] ease-standard",
               state === "active" && "bg-info/5",
             )}
           >
@@ -210,7 +211,7 @@ function SegmentedProgress({ activeIndex }: { activeIndex: number }) {
         <div
           key={step.label}
           className={cn(
-            "h-0.75 flex-1 rounded-full transition-colors duration-500",
+            "h-0.75 flex-1 rounded-full transition-colors duration-[var(--duration-standard)] ease-standard",
             i < activeIndex
               ? "bg-success"
               : i === activeIndex

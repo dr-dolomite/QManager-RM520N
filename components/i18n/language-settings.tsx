@@ -29,6 +29,7 @@ import { AVAILABLE_LANGUAGES } from "@/lib/i18n/available-languages";
 import { switchLanguage } from "@/lib/i18n/runtime-pack";
 import { LanguagePackRow } from "./language-pack-row";
 import type { LanguageCode } from "@/types/i18n";
+import { DUR, EASE_STANDARD } from "@/lib/motion";
 
 // The /system-settings/languages manager. Two sections: Installed (bundled
 // built-ins + downloaded packs, selectable) and Available (community packs from
@@ -272,7 +273,7 @@ export function LanguageSettings() {
                   initial={{ opacity: 0, y: -6, height: 0 }}
                   animate={{ opacity: 1, y: 0, height: "auto" }}
                   exit={{ opacity: 0, y: -6, height: 0 }}
-                  transition={{ duration: 0.24, ease: [0.22, 1, 0.36, 1] }}
+                  transition={{ duration: DUR.standard, ease: EASE_STANDARD }}
                   className="overflow-hidden"
                 >
                   <Alert variant="destructive">

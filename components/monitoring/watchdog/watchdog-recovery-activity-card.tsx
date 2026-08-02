@@ -38,6 +38,7 @@ import { cn } from "@/lib/utils";
 import { useRecentActivities } from "@/hooks/use-recent-activities";
 import { EVENT_LABELS } from "@/constants/network-events";
 import type { NetworkEvent, EventSeverity } from "@/types/modem-status";
+import { DUR, EASE_STANDARD, rowCascadeDelay } from "@/lib/motion";
 
 const MotionTableRow = motion.create(TableRow);
 
@@ -185,9 +186,9 @@ export function WatchdogRecoveryActivityCard() {
                         initial={reduceMotion ? false : { opacity: 0, x: -8 }}
                         animate={{ opacity: 1, x: 0 }}
                         transition={{
-                          duration: 0.2,
-                          delay: reduceMotion ? 0 : Math.min(index * 0.04, 0.4),
-                          ease: "easeOut",
+                          duration: DUR.standard,
+                          delay: reduceMotion ? 0 : rowCascadeDelay(index),
+                          ease: EASE_STANDARD,
                         }}
                       >
                         {/* Event type — its own column on wide, folded into the

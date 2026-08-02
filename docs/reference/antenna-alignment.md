@@ -212,8 +212,8 @@ Note the fallback: with no NR data and no LTE data it returns `"lte"`. That is w
 
 Nothing here is hand-rolled; the page inherits the shared primitives from `lib/motion.ts`.
 
-- Page cascade: `staggerContainer` / `staggerItem` (60ms card step). The stale/error banner sits **outside** the cascade — a condition should arrive when the condition does, not on the page's entrance clock.
-- Slot tiles and port blocks: `staggerRows` / `staggerRowItem` (40ms row step), declared as `variants` on the grid so rows arrive inside their card's 60ms slot.
+- Page cascade: `staggerContainer` / `staggerItem` (the card step). The stale/error banner sits **outside** the cascade — a condition should arrive when the condition does, not on the page's entrance clock.
+- Slot tiles and port blocks: `staggerRows` / `staggerRowItem` (the row step), declared as `variants` on the grid so rows arrive inside their card's slot.
 - The previous version's bespoke spring (`stiffness: 180, damping: 24` — the exact constants `components/ui/metric-bar.tsx` bans by name) is **gone**, replaced by `MetricBar`. A meter that overshoots its value and settles back is asserting a reading the radio never made. See DESIGN.md > The No-Overshoot Rule.
 - Chip and label changes use `SwapLabel` so the glyph and the words crossfade together — the glyph is what tells the states apart when colour cannot.
 

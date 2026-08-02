@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { useSystemHealthCheck } from "@/hooks/use-system-health-check";
 import SummaryCard from "./summary-card";
 import CategoryCard from "./category-card";
-import { staggerContainer } from "@/lib/motion";
+import { DUR, EASE_STANDARD, staggerContainer } from "@/lib/motion";
 import {
   CATEGORY_LABELS,
   type HealthCheckTest,
@@ -100,7 +100,7 @@ export default function SystemHealthCheck() {
                 key={g.category}
                 className="h-full"
                 variants={{ hidden: { opacity: 0, y: 8 }, visible: { opacity: 1, y: 0 } }}
-                transition={{ duration: 0.2, ease: "easeOut" }}
+                transition={{ duration: DUR.standard, ease: EASE_STANDARD }}
               >
                 <CategoryCard
                   category={g.category}

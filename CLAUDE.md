@@ -62,7 +62,7 @@ All status indicators are **filled tonal chips**: a `Badge` variant carrying a r
 - **Shape**: the role scale is 12/20/28/36/40px plus pill. A card in a grid is `rounded-card`, the anchor card on a surface is `rounded-hero`, and anything that acts or labels is `rounded-pill`.
 - **Responsive**: container queries against `@container/main` (or a card-local `@container/card`). Viewport breakpoints only for the page gutter and the shell.
 - **Three states**: every data surface ships loading, empty, and error. Skeletons mirror the loaded geometry by importing the same shape constant (see `TILE_SHAPE` in `components/cellular/radio/summary-tiles.tsx`), never by restating numbers.
-- **Motion**: `lib/motion.ts` is the JS source of truth and mirrors the `--duration-*` / `--ease-*` properties in `globals.css`. Three durations (180/300/400ms), two stagger steps (60ms cards, 40ms rows), 400ms ceiling, no springs. Retune both layers in the same change.
+- **Motion**: `lib/motion.ts` is the JS source of truth and mirrors the `--duration-*` / `--ease-*` properties in `globals.css`. Three durations (360/600/800ms — the Motion Guide's 400/300/180 figures are its 1x *inspection* baseline, not the shipped scale), two stagger steps (120ms cards, 80ms rows), `emphasized` is the ceiling, no springs. Retune both layers in the same change. **A raw `duration-200` / `{ duration: 0.25 }` / bare `transition-all` in a component is a bug** — it silently won't retune. See DESIGN.md > The One-Scale Rule.
 - **Components**: use shadcn/ui primitives before hand-rolling; semantic color tokens only, never raw Tailwind colors.
 
 ## RM520N-GL Platform

@@ -21,6 +21,7 @@ import {
   EmptyTitle,
 } from "@/components/ui/empty";
 import { MaterialSymbol } from "@/components/ui/material-symbol";
+import { DUR, EASE_STANDARD } from "@/lib/motion";
 
 interface EmptyProfileViewProps {
   onRefresh?: () => void;
@@ -34,7 +35,7 @@ const EmptyProfileViewComponent = ({ onRefresh }: EmptyProfileViewProps) => {
     <motion.div
       initial={reduceMotion ? false : { opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={reduceMotion ? { duration: 0 } : { duration: 0.3, ease: "easeOut" }}
+      transition={reduceMotion ? { duration: 0 } : { duration: DUR.standard, ease: EASE_STANDARD }}
       className="h-full"
     >
       <Card className="@container/card h-full">

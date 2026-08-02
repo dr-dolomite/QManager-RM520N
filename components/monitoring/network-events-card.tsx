@@ -54,6 +54,7 @@ import { Switch } from "@/components/ui/switch";
 import { useRecentActivities } from "@/hooks/use-recent-activities";
 import { EVENT_LABELS, EVENT_TAB_CATEGORIES } from "@/constants/network-events";
 import type { NetworkEvent, EventSeverity } from "@/types/modem-status";
+import { DUR, EASE_STANDARD, rowCascadeDelay } from "@/lib/motion";
 
 // --- Constants ---------------------------------------------------------------
 
@@ -149,7 +150,7 @@ function EventsTable({
                   key={`${event.timestamp}-${event.type}-${index}`}
                   initial={{ opacity: 0, x: -8 }}
                   animate={{ opacity: 1, x: 0 }}
-                  transition={{ duration: 0.2, delay: Math.min(index * 0.04, 0.4), ease: "easeOut" }}
+                  transition={{ duration: DUR.standard, delay: rowCascadeDelay(index), ease: EASE_STANDARD }}
                 >
                   <TableCell className="font-medium hidden @md/card:table-cell">
                     <div className="flex items-center gap-2">

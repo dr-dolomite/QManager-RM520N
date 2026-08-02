@@ -105,7 +105,7 @@ function BandPresetSection({
             whileTap={{ scale: 0.97 }}
             transition={{ type: "spring", stiffness: 600, damping: 30 }}
             className={cn(
-              "flex items-start gap-3 rounded-lg border px-3 py-2.5 text-left transition-colors duration-150",
+              "flex items-start gap-3 rounded-lg border px-3 py-2.5 text-left transition-colors duration-[var(--duration-quick)] ease-out",
               "hover:border-primary/50 hover:bg-primary/5",
               selectedPreset === opt.id
                 ? "border-primary bg-primary/5"

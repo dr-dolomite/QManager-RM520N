@@ -195,7 +195,7 @@ export function WatchdogSettingsCard({ form }: { form: WatchdogForm }) {
           {/* ================= DETECTION ================= */}
           <TabsContent
             value="detection"
-            className="mt-5 animate-in fade-in-0 duration-200 motion-reduce:animate-none"
+            className="mt-5 animate-in fade-in-0 duration-[var(--duration-standard)] ease-standard motion-reduce:animate-none"
           >
             <FieldSet>
               <FieldGroup>
@@ -335,7 +335,7 @@ export function WatchdogSettingsCard({ form }: { form: WatchdogForm }) {
           {/* ================= RECOVERY ================= */}
           <TabsContent
             value="recovery"
-            className="mt-5 animate-in fade-in-0 duration-200 motion-reduce:animate-none"
+            className="mt-5 animate-in fade-in-0 duration-[var(--duration-standard)] ease-standard motion-reduce:animate-none"
           >
             <div className="mb-4 grid gap-1">
               <p className="text-sm font-medium">Recovery Ladder</p>
@@ -632,7 +632,7 @@ function LadderStep({
       <div className="flex flex-col items-center">
         <span
           className={cn(
-            "flex size-8 shrink-0 items-center justify-center rounded-full border text-xs font-semibold tabular-nums transition-colors duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] motion-reduce:transition-none",
+            "flex size-8 shrink-0 items-center justify-center rounded-full border text-xs font-semibold tabular-nums transition-colors duration-[var(--duration-standard)] ease-standard motion-reduce:transition-none",
             active
               ? "bg-secondary text-secondary-foreground border-transparent"
               : "bg-muted/40 text-muted-foreground border-border",
@@ -644,7 +644,7 @@ function LadderStep({
           <span
             aria-hidden
             className={cn(
-              "mt-1.5 w-px flex-1 transition-colors duration-300",
+              "mt-1.5 w-px flex-1 transition-colors duration-[var(--duration-standard)] ease-standard",
               active ? "bg-secondary" : "bg-border",
             )}
           />

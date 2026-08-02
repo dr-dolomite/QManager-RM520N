@@ -42,6 +42,7 @@ import type {
   IpptNat,
   UsbMode,
 } from "@/types/ip-passthrough";
+import { DUR, EASE_STANDARD } from "@/lib/motion";
 
 // MAC source: "automatic" = FF:FF:FF:FF:FF:FF (first connected device), "manual" = text input
 type MacSource = "automatic" | "manual";
@@ -298,7 +299,7 @@ const IPPassthroughCard = () => {
                           initial={{ opacity: 0 }}
                           animate={{ opacity: 1 }}
                           exit={{ opacity: 0 }}
-                          transition={{ duration: 0.2 }}
+                          transition={{ duration: DUR.standard, ease: EASE_STANDARD }}
                         >
                           <Select disabled>
                             <SelectTrigger aria-label="Target Device MAC">
@@ -313,7 +314,7 @@ const IPPassthroughCard = () => {
                           initial={{ opacity: 0 }}
                           animate={{ opacity: 1 }}
                           exit={{ opacity: 0 }}
-                          transition={{ duration: 0.2 }}
+                          transition={{ duration: DUR.standard, ease: EASE_STANDARD }}
                           className="flex flex-col gap-2"
                         >
                           <Select
@@ -346,8 +347,8 @@ const IPPassthroughCard = () => {
                                 animate={{ opacity: 1, y: 0 }}
                                 exit={{ opacity: 0, y: -10 }}
                                 transition={{
-                                  duration: 0.3,
-                                  ease: [0.16, 1, 0.3, 1],
+                                  duration: DUR.standard,
+                                  ease: EASE_STANDARD,
                                 }}
                               >
                                 <Input

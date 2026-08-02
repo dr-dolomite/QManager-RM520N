@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/chart";
 
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { DUR, EASE_STANDARD } from "@/lib/motion";
 
 // =============================================================================
 // Types
@@ -322,7 +323,7 @@ const LatencyMonitoringCard = ({
                   initial={{ opacity: 0, y: -5 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: 5 }}
-                  transition={{ duration: 0.18, ease: "easeOut" }}
+                  transition={{ duration: DUR.standard, ease: EASE_STANDARD }}
                   className="text-base leading-none font-bold sm:text-3xl tabular-nums"
                 >
                   {total[key].toLocaleString()}

@@ -160,7 +160,7 @@ export function StepConnection({
       {/* Inline form — animates in when a type is selected */}
       <div
         className={cn(
-          "grid transition-[grid-template-rows] duration-200 ease-out motion-reduce:transition-none",
+          "grid transition-[grid-template-rows] duration-[var(--duration-standard)] ease-standard motion-reduce:transition-none",
           selectedType !== null ? "grid-rows-[1fr]" : "grid-rows-[0fr]"
         )}
       >
@@ -256,7 +256,7 @@ function ChoiceCard({
       whileTap={{ scale: 0.97 }}
       transition={{ type: "spring", stiffness: 600, damping: 30 }}
       className={cn(
-        "flex flex-col items-start gap-2 rounded-xl border p-4 text-left transition-colors duration-150",
+        "flex flex-col items-start gap-2 rounded-xl border p-4 text-left transition-colors duration-[var(--duration-quick)] ease-out",
         "hover:border-primary/50 hover:bg-primary/5",
         selected
           ? "border-primary bg-primary/5 ring-1 ring-primary/30"
@@ -265,7 +265,7 @@ function ChoiceCard({
     >
       <span
         className={cn(
-          "rounded-lg p-2 transition-colors duration-150",
+          "rounded-lg p-2 transition-colors duration-[var(--duration-quick)] ease-out",
           selected
             ? "bg-primary/15 text-primary"
             : "bg-muted text-muted-foreground"

@@ -139,9 +139,9 @@ The two wrappers are **keyed** by which radio occupies the slot, so a genuine RA
 
 The page inherits the shared primitives; nothing here is hand-rolled. The previous version's bespoke spring meter is gone, replaced by `MetricBar` — which explicitly bans that spring, because a meter that overshoots its value and settles back is asserting a reading the radio never made.
 
-- Page cascade: `staggerContainer` / `staggerItem` (60ms card step).
-- Port stack: `staggerRows` / `staggerRowItem` (40ms row step). The stack declares **`variants` only**, no `initial`/`animate` of its own, so port blocks arrive inside their card's 60ms slot rather than at `t=0`. Several shipped card bodies restate the clock instead; that also works, but it detaches the row cascade from the card's slot so both cards' rows start together.
-- `MetricBar` receives the **row** index (0/1/2), not the port index — so the three meters in a block cascade against each other. Passing the port index would spend the 60ms card step on an in-card element and fire all three bars simultaneously.
+- Page cascade: `staggerContainer` / `staggerItem` (the card step).
+- Port stack: `staggerRows` / `staggerRowItem` (the row step). The stack declares **`variants` only**, no `initial`/`animate` of its own, so port blocks arrive inside their card's slot rather than at `t=0`. Several shipped card bodies restate the clock instead; that also works, but it detaches the row cascade from the card's slot so both cards' rows start together.
+- `MetricBar` receives the **row** index (0/1/2), not the port index — so the three meters in a block cascade against each other. Passing the port index would spend the card step on an in-card element and fire all three bars simultaneously.
 - One `TickGroup` per card, not one per page: it coordinates the dip order of values sharing an axis and a container, and wrapping the whole page would stagger LTE against NR as if they were one reading. See [dashboard-state-motion.md](dashboard-state-motion.md).
 
 ## i18n

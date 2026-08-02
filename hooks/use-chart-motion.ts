@@ -36,15 +36,30 @@ import { DUR, EASE_STANDARD_CSS } from "@/lib/motion";
 // =============================================================================
 
 /**
+ * How far the area fill trails the stroke, so the line reads as leading it.
+ *
+ * A FRACTION of the stroke's own duration rather than a fixed millisecond
+ * count — the lead-follow only reads correctly if the gap stays proportional,
+ * and this constant used to be a bare `80`, which was ~27% of a 300ms stroke by
+ * coincidence rather than by construction. `/ 3.75` reproduces that ratio and
+ * survives a retune of the scale.
+ *
+ * Mirrors the `calc(var(--duration-standard) / 3.75)` delay on
+ * `.chart-draw .recharts-area-area` in globals.css. Retune both together.
+ */
+export const CHART_TRAIL_MS = (DUR.standard * 1000) / 3.75;
+
+/**
  * How long the CSS entrance actually occupies the element.
  *
- * The stroke runs `standard` from t=0; the fill runs `standard` from t=80ms, so
- * the tail is 300 + 80 = 380ms. Two frames of slack on top, because removing
- * the class mid-keyframe would snap the fill from part-way-faded to opaque —
- * cheap insurance against a slow frame, and invisible either way since the class
- * does nothing once its animations have finished.
+ * The stroke runs `standard` from t=0; the fill runs `standard` from
+ * t=`CHART_TRAIL_MS`, so the tail is one `standard` plus the trail. Two frames
+ * of slack on top, because removing the class mid-keyframe would snap the fill
+ * from part-way-faded to opaque — cheap insurance against a slow frame, and
+ * invisible either way since the class does nothing once its animations have
+ * finished.
  */
-export const CHART_DRAW_MS = DUR.standard * 1000 + 80 + 32;
+export const CHART_DRAW_MS = DUR.standard * 1000 + CHART_TRAIL_MS + 32;
 
 /**
  * The entrance class, for exactly one entrance.

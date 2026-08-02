@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
+import { DUR, EASE_EMPHASIZED, EASE_STANDARD } from "@/lib/motion";
 
 const TOTAL_SECONDS = 70;
 const POLL_START_AT = 35; // seconds remaining when polling begins
@@ -114,7 +115,7 @@ export function RebootCountdown() {
       <motion.div
         initial={{ opacity: 0, y: 6 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5, ease: [0.25, 1, 0.5, 1] }}
+        transition={{ duration: DUR.emphasized, ease: EASE_EMPHASIZED }}
         className="flex flex-col items-center"
       >
       {/* Card */}
@@ -201,7 +202,7 @@ export function RebootCountdown() {
               initial={{ opacity: 0, y: 4 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -4 }}
-              transition={{ duration: 0.2 }}
+              transition={{ duration: DUR.standard, ease: EASE_STANDARD }}
               aria-hidden="true"
             >
               <p className="text-[15px] font-medium text-foreground">
@@ -222,7 +223,7 @@ export function RebootCountdown() {
             <div
               key={seg}
               className={cn(
-                "h-[3px] flex-1 rounded-full transition-colors duration-500",
+                "h-[3px] flex-1 rounded-full transition-colors duration-[var(--duration-standard)] ease-standard",
                 seg < phase.segment
                   ? "bg-primary"
                   : seg === phase.segment

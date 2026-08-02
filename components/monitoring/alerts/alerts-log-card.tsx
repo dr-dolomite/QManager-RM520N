@@ -35,6 +35,7 @@ import { cn } from "@/lib/utils";
 import { useAlertsLog } from "@/hooks/use-alerts-log";
 import type { AlertLogEntry, RebootHistoryEntry } from "@/types/alerts";
 import { CHANNEL_META, REBOOT_CAUSE_META, REBOOT_TONE_BADGE } from "./constants";
+import { DUR, EASE_STANDARD, rowCascadeDelay } from "@/lib/motion";
 
 const MotionTableRow = motion.create(TableRow);
 
@@ -228,9 +229,9 @@ export function AlertsLogCard({
                     initial: { opacity: 0, x: -8 },
                     animate: { opacity: 1, x: 0 },
                     transition: {
-                      duration: 0.2,
-                      delay: Math.min(index * 0.03, 0.3),
-                      ease: "easeOut" as const,
+                      duration: DUR.standard,
+                      delay: rowCascadeDelay(index),
+                      ease: EASE_STANDARD,
                     },
                   };
 

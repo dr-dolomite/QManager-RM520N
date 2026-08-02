@@ -141,15 +141,27 @@
 
   /* Motion durations. Use as duration-[var(--duration-standard)] or in a
      motion/react transition. The old 140-160ms floor is retired: at 140ms a
-     container color change reads as a flicker rather than a morph. */
-  --duration-emphasized: 400ms;
-  --duration-standard: 300ms;
-  --duration-quick: 180ms;
+     container color change reads as a flicker rather than a morph.
+
+     These are the Motion Guide's four tokens at 2x. The guide authors every
+     demo as `calc(<loop> * var(--sp))` and exposes a Playback control that sets
+     --sp to 1 / speed, purely so a 180ms token can be inspected at all. Watched
+     at its 0.5 setting — every duration doubled — the system read as deliberate
+     rather than snappy, and that is the pace the product ships at. The guide's
+     1x figures (400/300/180) are therefore the *inspection baseline*, not the
+     shipped scale; DESIGN.md > Motion carries the shipped one.
+
+     Ambient is deliberately NOT doubled. It is a continuous loop rather than a
+     transition, and it is the one animation that means "this is alive" — at 4s
+     a breathing ring reads as a stalled UI instead of a calm one. */
+  --duration-emphasized: 800ms;
+  --duration-standard: 600ms;
+  --duration-quick: 360ms;
   /* The fourth token from the Motion Study: ambient loops. Pair with
      --ease-ambient and `alternate`. Only where something is genuinely live. */
   --duration-ambient: 2s;
   /* Card cascade step. Wider and the last card feels late behind a slow poll. */
-  --stagger-step: 60ms;
+  --stagger-step: 120ms;
 
   /* --- Surfaces: every neutral carries a trace of the mark's hue (258) --- */
   --background: oklch(0.978 0.014 258);
@@ -711,13 +723,19 @@
   }
 }
 
-/* The fill trails the stroke by 80ms so the line reads as leading and the area
-   as following it, rather than the two arriving as one block. `backwards` holds
-   it transparent through that delay; without it the fill paints, vanishes, then
-   fades back in. */
+/* The fill trails the stroke so the line reads as leading and the area as
+   following it, rather than the two arriving as one block. `backwards` holds it
+   transparent through that delay; without it the fill paints, vanishes, then
+   fades back in.
+
+   The trail is a FRACTION of the stroke's own duration, not a fixed number of
+   milliseconds: it has to stay proportional or the lead-follow reads wrong at a
+   different scale. 80ms of a 300ms stroke was ~27%, so `/ 3.75` reproduces it
+   exactly and survives the next retune. `CHART_TRAIL_MS` in
+   hooks/use-chart-motion.ts is the same ratio on the JS side. */
 .chart-draw .recharts-area-area {
-  animation: chart-area var(--duration-standard) var(--ease-standard) 80ms
-    backwards;
+  animation: chart-area var(--duration-standard) var(--ease-standard)
+    calc(var(--duration-standard) / 3.75) backwards;
 }
 
 @keyframes chart-area {

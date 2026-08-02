@@ -2,18 +2,25 @@
 
 import { motion } from "motion/react";
 
+import { DUR, EASE_STANDARD, STAGGER_STEP } from "@/lib/motion";
+
 // =============================================================================
 // StepWelcome — Onboarding step 1: brand intro, staggered entrance
 // =============================================================================
-
-const STAGGER = 0.09;
-const EASE = [0.25, 1, 0.5, 1] as const;
+// This step used to carry its own motion: a 0.38s duration on an out-quint
+// curve ([0.25, 1, 0.5, 1]) with a 0.09s stagger — none of which is in the
+// system. It is the standard card entrance and nothing more, so it now reads
+// the tokens like every other one and retunes with them.
 
 function fadeUp(i: number) {
   return {
     initial: { opacity: 0, y: 10 },
     animate: { opacity: 1, y: 0 },
-    transition: { duration: 0.38, delay: i * STAGGER, ease: EASE },
+    transition: {
+      duration: DUR.standard,
+      delay: i * STAGGER_STEP,
+      ease: EASE_STANDARD,
+    },
   };
 }
 

@@ -86,7 +86,7 @@ export function StepDone() {
     <div className="flex flex-col items-center gap-6 text-center py-2">
       {/* Animated checkmark */}
       <div
-        className="flex size-16 items-center justify-center rounded-full bg-primary/10 transition-[opacity,transform] duration-500"
+        className="flex size-16 items-center justify-center rounded-full bg-primary/10 transition-[opacity,transform] duration-[var(--duration-emphasized)] ease-emphasized"
         style={{
           opacity: show ? 1 : 0,
           transform: show ? "scale(1)" : "scale(0.6)",

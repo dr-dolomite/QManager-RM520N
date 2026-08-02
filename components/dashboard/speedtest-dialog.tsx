@@ -211,8 +211,14 @@ function TrackBar({
       <span
         className={cn(
           "rounded-pill block h-full",
-          // Linear, at the cadence. `motion-reduce` drops it entirely — a bar
-          // that jumps is honest; a bar that slides is a preference.
+          // A sanctioned exception to The One-Scale Rule (DESIGN.md > Motion):
+          // this bar tracks a real throughput sample arriving on its own clock,
+          // so the transition's job is to bridge one sample to the next, not to
+          // express a state change. That makes `linear` correct where the
+          // system's curves would read as easing the DATA, and pins the duration
+          // to the sample cadence rather than to the duration scale.
+          // `motion-reduce` drops it entirely — a bar that jumps is honest; a
+          // bar that slides is a preference.
           "transition-[width] duration-500 ease-linear motion-reduce:transition-none",
           fillClassName,
         )}

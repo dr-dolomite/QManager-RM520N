@@ -36,7 +36,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { motion } from "motion/react";
 import { SaveButton, useSaveFlash } from "@/components/ui/save-button";
-import { staggerRows } from "@/lib/motion";
+import { DUR, EASE_STANDARD, staggerRows } from "@/lib/motion";
 
 // =============================================================================
 // RAT name mapping: AT command value → display name
@@ -325,7 +325,7 @@ const NetworkPriorityCard = () => {
                 <motion.div
                   key={network.id}
                   variants={{ hidden: { opacity: 0, y: 8 }, visible: { opacity: 1, y: 0 } }}
-                  transition={{ duration: 0.22, ease: "easeOut" }}
+                  transition={{ duration: DUR.standard, ease: EASE_STANDARD }}
                 >
                   <DraggableNetworkItem
                     network={network}

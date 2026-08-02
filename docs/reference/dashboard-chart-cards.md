@@ -92,7 +92,7 @@ kept one stable path node across polls. That did retire a real defect — the ch
 recharts' default **1500ms `ease`**, 3.75x the motion ceiling on a curve from no design system, and
 unreachable by `MotionConfig` — but it also killed the poll-to-poll morph, so the trace *teleported*
 to each new shape in a single frame. `useChartSeriesMotion()` restores the movement without the
-defect: `standard` (300ms) on `--ease-standard`, with reduced motion handled in the hook via
+defect: `standard` on `--ease-standard`, with reduced motion handled in the hook via
 `useReducedMotion()` because `MotionConfig` cannot reach react-smooth.
 
 > ℹ️ NOTE: recharts types `animationEasing` as a union of the five CSS keyword easings. That union is
@@ -192,7 +192,7 @@ each other, so colour alone does not separate these states for a deuteranopic re
 The chip's label and glyph crossfade through the shared `SwapLabel` primitive, keyed on
 `` `${tone.variant}-${hasReading}` ``. This card previously hand-rolled a duplicate of that component
 and left the **glyph outside** it, so the one channel that separates these tones in greyscale snapped
-in a single frame while the container fill morphed over 300ms. See
+in a single frame while the container fill morphed over `standard`. See
 [dashboard-state-motion.md](dashboard-state-motion.md).
 
 ### Loading state

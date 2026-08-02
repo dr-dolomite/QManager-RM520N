@@ -205,7 +205,7 @@ export default function WanProfileListCard({
                   variants={staggerItem}
                   initial={shouldReduceMotion ? false : "hidden"}
                   animate="visible"
-                  className={`grid grid-cols-[auto_1fr_auto] @md/card:grid-cols-[auto_1fr_auto_auto_auto] items-center gap-x-3 gap-y-2 py-3 px-2 rounded-sm transition-colors duration-200 ${
+                  className={`grid grid-cols-[auto_1fr_auto] @md/card:grid-cols-[auto_1fr_auto_auto_auto] items-center gap-x-3 gap-y-2 py-3 px-2 rounded-sm transition-colors duration-[var(--duration-quick)] ease-out ${
                     isEditing ? "bg-accent/50" : ""
                   }`}
                 >

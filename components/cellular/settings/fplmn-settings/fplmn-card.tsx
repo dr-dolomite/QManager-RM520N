@@ -22,6 +22,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { MaterialSymbol } from "@/components/ui/material-symbol";
 import { Button } from "@/components/ui/button";
+import { DUR, EASE_STANDARD } from "@/lib/motion";
 
 const CGI_ENDPOINT = "/cgi-bin/quecmanager/cellular/fplmn.sh";
 
@@ -181,7 +182,7 @@ const FPLMNCard = () => {
               initial={{ opacity: 0, y: 4 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -4 }}
-              transition={{ duration: 0.2, ease: "easeOut" }}
+              transition={{ duration: DUR.standard, ease: EASE_STANDARD }}
             >
               <Empty className="bg-destructive/5 h-full">
                 <EmptyHeader>
@@ -218,7 +219,7 @@ const FPLMNCard = () => {
               initial={{ opacity: 0, y: 4 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -4 }}
-              transition={{ duration: 0.2, ease: "easeOut" }}
+              transition={{ duration: DUR.standard, ease: EASE_STANDARD }}
             >
               <Empty className="bg-muted/30 h-full">
                 <EmptyHeader>

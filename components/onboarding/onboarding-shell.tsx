@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from "motion/react";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
+import { DUR, EASE_STANDARD } from "@/lib/motion";
 import { ArrowLeftIcon, ArrowRightIcon } from "lucide-react";
 
 // =============================================================================
@@ -132,7 +133,7 @@ export function OnboardingShell({
                 initial="enter"
                 animate="center"
                 exit="exit"
-                transition={{ duration: 0.22, ease: [0.25, 1, 0.5, 1] }}
+                transition={{ duration: DUR.standard, ease: EASE_STANDARD }}
               >
                 {children}
               </motion.div>
@@ -184,7 +185,7 @@ export function OnboardingShell({
                     <>
                       {continueLabel ?? defaultContinueLabel}
                       {!isFirstStep && (
-                        <ArrowRightIcon className="size-3.5 transition-transform duration-200 group-hover:translate-x-0.5" />
+                        <ArrowRightIcon className="size-3.5 transition-transform duration-[var(--duration-quick)] ease-out group-hover:translate-x-0.5" />
                       )}
                     </>
                   )}

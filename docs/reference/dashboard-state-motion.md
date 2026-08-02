@@ -27,7 +27,7 @@ which the routing table does not want.
 | Tick cascade | `components/ui/tick-group.tsx` — `TickGroup`, renders **no DOM** |
 | Chip label half | `components/ui/swap-label.tsx` — `SwapLabel`, keyed crossfade |
 | Chip container half | `components/ui/badge.tsx` — longhand transition in the `cva` base |
-| Cascade step | `TICK_STAGGER_STEP` (100ms) from `lib/motion.ts` — a **non-entrance** step, neither the 60ms card nor the 40ms row step |
+| Cascade step | `TICK_STAGGER_STEP` from `lib/motion.ts` — a **non-entrance** step, neither the card nor the row step |
 | Cascade clamp | `MAX_RANK = 7` in `tick-group.tsx` |
 | Tick shape | `TICK` in `lib/motion.ts` — 700ms total (`standard` down on standard's curve + `emphasized`'s duration up on a **linear** ramp), dip to 35% at ~43% of the run |
 | Reference chip implementation | `components/dashboard/network-status.tsx` |
@@ -60,7 +60,7 @@ not a layout box, so dropping one into a flex row or a grid cannot disturb the r
    calls `group.enqueue({ node, start })` instead of starting the dip.
 2. The first enqueue of a commit schedules a `queueMicrotask` drain.
 3. The drain sorts the enqueued members with `compareDocumentPosition` and calls
-   `member.start(rank × 100ms)`.
+   `member.start(rank × TICK_STAGGER_STEP)`.
 
 Outside a group the delay is zero and the behaviour is exactly what it was. That is deliberate: a
 `TickingValue` mounted without a group is not broken, it simply dips immediately, which is the right
@@ -86,7 +86,7 @@ biggest cards:
   which reads as rows failing to render rather than as choreography.
 
 Ranking over only the values that actually moved gives a gapless cascade whose total length is bounded
-by how many figures changed — typically three to five, so a ≤400ms tail — whichever ones they were.
+by how many figures changed — typically three to five, so a tail of a few stagger steps — whichever ones they were.
 
 > ℹ️ NOTE: The tradeoff, recorded honestly: one row's **absolute** delay shifts between polls. What
 > never shifts is its position **relative to its neighbours**, and that relative order is what the eye

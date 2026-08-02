@@ -60,6 +60,7 @@ import {
   MNO_CUSTOM_ID,
   getMnoPreset,
 } from "@/constants/mno-presets";
+import { DUR, EASE_STANDARD } from "@/lib/motion";
 
 // =============================================================================
 // CustomProfileFormComponent — Create / Edit SIM Profile Wizard
@@ -86,9 +87,6 @@ interface CustomProfileFormProps {
 // generator and the resolver in lib/scenario-schedule.ts so both stay bounded.
 const MAX_WINDOWS = 2;
 
-// System EXPO ease-out — the silky settle used across QManager motion.
-const EXPO = [0.16, 1, 0.3, 1] as const;
-
 // Wizard tab order — the "Next" button walks the user forward through these.
 const TAB_ORDER = ["identity", "network", "scenario", "review"] as const;
 type WizardTab = (typeof TAB_ORDER)[number];
@@ -114,7 +112,9 @@ const WizardPanel = ({
       initial={reduceMotion ? false : { opacity: 0, x: dir * 12 }}
       animate={{ opacity: 1, x: 0 }}
       transition={
-        reduceMotion ? { duration: 0 } : { duration: 0.22, ease: EXPO }
+        reduceMotion
+          ? { duration: 0 }
+          : { duration: DUR.standard, ease: EASE_STANDARD }
       }
     >
       {children}

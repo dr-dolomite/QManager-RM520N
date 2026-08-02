@@ -50,6 +50,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Skeleton } from "@/components/ui/skeleton";
+import { DUR, EASE_STANDARD, rowCascadeDelay } from "@/lib/motion";
 import {
   RefreshCcwIcon,
   Loader2,
@@ -415,7 +416,7 @@ const SystemLogsCard = () => {
                       key={`${entry.timestamp}-${index}`}
                       initial={{ opacity: 0, x: -8 }}
                       animate={{ opacity: 1, x: 0 }}
-                      transition={{ duration: 0.2, delay: Math.min(index * 0.03, 0.4), ease: "easeOut" }}
+                      transition={{ duration: DUR.standard, delay: rowCascadeDelay(index), ease: EASE_STANDARD }}
                     >
                       <TableCell className="font-mono text-xs whitespace-nowrap">
                         {entry.timestamp}

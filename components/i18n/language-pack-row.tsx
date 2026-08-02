@@ -33,6 +33,7 @@ import type {
   LanguagePackInstallState,
   RemoteManifestEntry,
 } from "@/types/i18n";
+import { DUR, EASE_STANDARD } from "@/lib/motion";
 
 export type LanguagePackRowVariant =
   | { kind: "built_in"; entry: LanguageMeta; isActive: boolean }
@@ -323,7 +324,7 @@ export function LanguagePackRow({
             initial={{ opacity: 0, y: -6, height: 0 }}
             animate={{ opacity: 1, y: 0, height: "auto" }}
             exit={{ opacity: 0, y: -6, height: 0 }}
-            transition={{ duration: 0.24, ease: [0.22, 1, 0.36, 1] }}
+            transition={{ duration: DUR.standard, ease: EASE_STANDARD }}
             className="overflow-hidden"
           >
             <Alert variant="destructive">

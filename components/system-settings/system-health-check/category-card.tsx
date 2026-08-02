@@ -9,7 +9,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import TestRow from "./test-row";
-import { staggerRows } from "@/lib/motion";
+import { DUR, EASE_STANDARD, staggerRows } from "@/lib/motion";
 import {
   CATEGORY_LABELS,
   CATEGORY_DESCRIPTIONS,
@@ -41,7 +41,7 @@ export default function CategoryCard({ category, tests, fetchOutput }: CategoryC
             <motion.div
               key={t.id}
               variants={{ hidden: { opacity: 0, x: -6 }, visible: { opacity: 1, x: 0 } }}
-              transition={{ duration: 0.18, ease: "easeOut" }}
+              transition={{ duration: DUR.standard, ease: EASE_STANDARD }}
             >
               <TestRow test={t} fetchOutput={fetchOutput} />
             </motion.div>

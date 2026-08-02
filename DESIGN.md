@@ -293,7 +293,7 @@ because a surface looked empty.
   functional at the same time.
 - Euclid Circular B is the interface voice; Geist Mono is the machine voice. There is no third.
 - Depth is tonal. Shadows exist, are optional, and are never load-bearing.
-- Motion is expressive in duration and curve, capped at 400ms, and never overshoots.
+- Motion is expressive in duration and curve, capped at `emphasized`, and never overshoots.
 - Light and dark are first-class equals; dark mode is genuinely colored, not desaturated.
 - Responsive behavior is driven by **container queries**, not viewport breakpoints.
 - No runtime asset fetches. Fonts and the icon font are self-hosted and subset at build time — the
@@ -641,26 +641,47 @@ easing, never in overshoot — which is what keeps it compatible with a tool who
 connection alive. `lib/motion.ts` is the JS source of truth and mirrors the CSS custom properties in
 `globals.css`; retune one layer and you retune the other in the same change.
 
-**Durations.** `quick` 180ms (label swaps, value ticks, hover tints, focus rings) · `standard` 300ms
+**Durations.** `quick` 360ms (label swaps, value ticks, hover tints, focus rings) · `standard` 600ms
 (the default for a state change — card entrance, nav indicator, chip morph, meter retarget) ·
-`emphasized` 400ms (container size and shape, aggregation re-proportioning, banner arrival, meter
+`emphasized` 800ms (container size and shape, aggregation re-proportioning, banner arrival, meter
 first-fill) · `ambient` 2s (the two sanctioned loops only).
+
+**Why these are double the Motion Guide's printed figures.** The guide's token table reads
+400/300/180ms, and those are the numbers it *renders at 1x* — but every demo in it is authored as
+`calc(<loop> * var(--sp))`, driven by a Playback control that sets `--sp` to `1 / speed`. Playback
+exists because, in the guide's own words, half or quarter speed "is the only way to actually inspect a
+180ms token". Reviewed at that 0.5 setting — which is exactly this scale — the system reads as
+deliberate rather than snappy, and that is the pace the product ships at. **The guide's figures are
+the inspection baseline; the figures above are the shipped scale, and this document wins.** The
+*ratios* are untouched (3 : 5 : 6.67), which is what keeps every composed gesture in shape.
+
+`ambient` is deliberately **not** doubled. A loop is not a transition, and it is the one animation
+that means "this is alive" — at 4s a breathing ring reads as a stalled UI rather than a calm one.
 
 **Curves.** `emphasized` `cubic-bezier(0.05, 0.7, 0.1, 1)` — a deliberate departure and a long settle.
 `standard` `cubic-bezier(0.2, 0, 0, 1)` — the everyday state change. `quick` is a plain `ease-out`,
-deliberately: below ~180ms a bespoke cubic is indistinguishable from the built-in.
+deliberately: at the short end of the scale a bespoke cubic is indistinguishable from the built-in.
+**These two curves and `ease-out` are the whole vocabulary** — an `ease-[cubic-bezier(...)]` arbitrary
+value in a className is a violation, not a variant, and so is a bare `ease-linear` outside a
+data-driven progress bar.
 
-**Entrances.** Two stagger steps, and only two. Cards cascade at **60ms** with a 10px rise
-(`staggerContainer` / `staggerItem`); rows inside one card cascade at **40ms** with a 5px rise
-(`staggerRows` / `staggerRowItem`). Rows sit ~6px apart, so a 10px lift would move each row past its
+**Entrances.** Two stagger steps, and only two. Cards cascade at **120ms** with a 10px rise
+(`staggerContainer` / `staggerItem`); rows inside one card cascade at **80ms** with a 5px rise
+(`staggerRows` / `staggerRowItem`). A list cascade bounded by row count uses `rowCascadeDelay(index)`,
+which derives both the step and its ten-row cap from `STAGGER_STEP_ROWS` rather than restating them.
+Rows sit ~6px apart, so a 10px lift would move each row past its
 neighbor's resting position and read as the card reflowing rather than as content arriving. Nested
 containers inherit `visible` from their parent and must **not** declare their own `initial`/`animate`,
 or they detach from the parent's clock. Cascade children must be block boxes — a bare `span` silently
 drops the rise.
 
 **The live value tick.** A poll-driven figure dips to 0.35 opacity and returns, asymmetrically —
-300ms down, 400ms up — so the dip is the event and the return is the settle. Figures within one
-`TickGroup` stagger 100ms apart by live DOM position, not by map index. Only *measurements* tick;
+600ms down, 800ms up — so the dip is the event and the return is the settle. Figures within one
+`TickGroup` stagger 200ms apart by live DOM position, not by map index. **This is the tightest thing
+in the system against the poll:** a full seven-figure cascade runs 1.4s of lead plus a 1.4s dip, and
+the measured poll cadence is ~3.7-4.0s (not the ~2s the Motion Guide assumes — the poller's `sleep 2`
+runs *after* the cycle body). ~900ms of headroom, where the pre-retune scale had ~2.3s. Re-check that
+arithmetic before raising the scale again or making the poller faster. Only *measurements* tick;
 identifiers (band, PCI, EARFCN) take the container morph instead, because dipping a value that holds
 steady for minutes invents an event. A value that moves again mid-dip retargets rather than queueing.
 
@@ -671,7 +692,16 @@ Movement goes, opacity stays: a crossfade is still legible information where a s
 
 ### Named Rules
 
-**The Motion-Ceiling Rule.** Nothing exceeds 400ms. `emphasized` is the ceiling, not a starting point.
+**The Motion-Ceiling Rule.** Nothing exceeds `emphasized` (800ms), and `emphasized` is the ceiling,
+not a starting point. State the rule as *the token*, never as the number — the number moved once
+already and every place it had been written out longhand had to be hunted down.
+
+**The One-Scale Rule.** A duration in a component is a bug. Every transition reads
+`duration-[var(--duration-*)]` in a className or `DUR.*` in a `motion/react` transition; a bare
+`duration-200`, an inline `{ duration: 0.25 }`, or a `transition-all` with no duration at all (which
+silently inherits Tailwind's 150ms) is off the scale and will not retune with it. The exceptions are
+narrow and each carries a comment: continuous loops with their own tempo (spinners, the OTP caret) and
+linear data-driven progress bars. `{ duration: 0 }` as a reduced-motion escape is always fine.
 
 **The Non-Load-Bearing Rule.** If a transition never runs — reduced motion, a backgrounded tab, a
 paint that beat the animation — the UI must already be correct. Every entrance keyframe in
@@ -802,7 +832,7 @@ Both share the rules. A banner is `bg-{role}-container` with `text-on-{role}-con
 wash, because a 10% alpha over a tinted surface collapses in dark mode and washes out first in
 sunlight. Its icon always sits in a filled disc on the role's **strong** fill. Radius is 20px, so it
 never out-rounds its host. Informational banners use `primary-container`. Any figure that ticks inside
-banner copy is `font-mono tabular-nums`. Entrance is `.animate-banner-in` (400ms emphasized, 6px rise
+banner copy is `font-mono tabular-nums`. Entrance is `.animate-banner-in` (`emphasized`, 6px rise
 plus fade); there is no exit.
 
 ### Signature surfaces
@@ -937,7 +967,9 @@ something is genuinely live.
 - **Don't** use the numbered `--chart-1..6`; they do not theme.
 - **Don't** stack alpha to build concentric shapes — use the explicit `--tone-{role}-{1,2,3}` steps.
 - **Don't** put a border on a tonal container, or use `--outline` as a card edge.
-- **Don't** animate `width` (the aggregation segment is the sole exception) or exceed 400ms.
+- **Don't** animate `width` (the aggregation segment is the sole exception) or exceed `emphasized`.
+- **Don't** write a raw duration (`duration-200`, `{ duration: 0.25 }`) or a `transition-all` with no
+  duration — see The One-Scale Rule.
 - **Don't** add a third stagger step, a fifth duration, or a spring.
 - **Don't** add an exit animation to a banner or a route transition.
 - **Don't** loop an animation where nothing is genuinely live.

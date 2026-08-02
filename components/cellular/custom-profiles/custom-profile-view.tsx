@@ -49,6 +49,7 @@ import {
   type SimProfile,
   type PdpType,
 } from "@/types/sim-profile";
+import { DUR, EASE_STANDARD, rowCascadeDelay } from "@/lib/motion";
 
 // =============================================================================
 // CustomProfileViewComponent — Saved Profiles list (stacked-row design)
@@ -77,9 +78,8 @@ import {
 //     never handed to an endpoint that only accepts real ones.
 // Keep suggestions a sibling prop. Merging the arrays breaks all three at once.
 
-// Cap how many rows stagger so a long roster never plays a long load cascade.
-const STAGGER_STEP_S = 0.04;
-const STAGGER_MAX_ROWS = 4;
+// The row cascade (step + cap) lives on `rowCascadeDelay` in lib/motion.ts, so
+// a long roster never plays a long load cascade and the step stays on the scale.
 
 type ProfileStatus = "active" | "mismatch" | "inactive";
 
@@ -490,13 +490,13 @@ const ProfileRow = ({
       initial={reduceMotion ? false : { opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{
-        duration: 0.3,
-        delay: Math.min(index, STAGGER_MAX_ROWS) * STAGGER_STEP_S,
-        ease: [0.16, 1, 0.3, 1],
+        duration: DUR.standard,
+        delay: rowCascadeDelay(index),
+        ease: EASE_STANDARD,
       }}
       className={cn(
         "flex flex-col gap-3 rounded-lg border p-3",
-        "transition-colors duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] motion-reduce:transition-none",
+        "transition-colors duration-[var(--duration-standard)] ease-standard motion-reduce:transition-none",
         status === "active" && "border-success/40 bg-success/5",
         status === "mismatch" && "border-warning/40 bg-warning/5",
         status === "inactive" && "bg-muted/20",
@@ -727,13 +727,13 @@ const SuggestionRow = ({
       initial={reduceMotion ? false : { opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{
-        duration: 0.3,
-        delay: Math.min(index, STAGGER_MAX_ROWS) * STAGGER_STEP_S,
-        ease: [0.16, 1, 0.3, 1],
+        duration: DUR.standard,
+        delay: rowCascadeDelay(index),
+        ease: EASE_STANDARD,
       }}
       className={cn(
         "flex h-full flex-col gap-3 rounded-lg border border-dashed p-3",
-        "transition-colors duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] motion-reduce:transition-none",
+        "transition-colors duration-[var(--duration-standard)] ease-standard motion-reduce:transition-none",
         "border-info/40 bg-info/5",
       )}
     >

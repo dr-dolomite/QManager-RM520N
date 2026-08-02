@@ -39,7 +39,7 @@ import {
 import { useConnectionScenarios } from "@/hooks/use-connection-scenarios";
 import { useActiveProfile } from "@/hooks/use-active-profile";
 import { ProfileOverrideAlert } from "@/components/cellular/custom-profiles/profile-override-alert";
-import { staggerContainer } from "@/lib/motion";
+import { DUR, EASE_STANDARD, staggerContainer } from "@/lib/motion";
 import {
   NETWORK_MODE_OPTIONS,
   modeValueToLabel,
@@ -421,7 +421,7 @@ const ConnectionScenariosCard = ({
                 <motion.div
                   key={scenario.id}
                   variants={{ hidden: { opacity: 0, y: 12 }, visible: { opacity: 1, y: 0 } }}
-                  transition={{ duration: 0.25, ease: "easeOut" }}
+                  transition={{ duration: DUR.standard, ease: EASE_STANDARD }}
                 >
                   <ScenarioItem
                     scenario={scenario}

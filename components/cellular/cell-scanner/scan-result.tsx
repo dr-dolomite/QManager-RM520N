@@ -42,6 +42,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { DUR, EASE_STANDARD, rowCascadeDelay } from "@/lib/motion";
 
 export interface CellScanResult {
   id: string;
@@ -343,7 +344,7 @@ const ScanResultView = ({ data, onLockCell }: ScanResultViewProps) => {
                   key={row.id}
                   initial={hasAnimated.current ? false : { opacity: 0, x: -8 }}
                   animate={{ opacity: 1, x: 0 }}
-                  transition={hasAnimated.current ? undefined : { duration: 0.2, delay: Math.min(index * 0.04, 0.4), ease: "easeOut" }}
+                  transition={hasAnimated.current ? undefined : { duration: DUR.standard, delay: rowCascadeDelay(index), ease: EASE_STANDARD }}
                 >
                   {row.getVisibleCells().map((cell) => (
                     <TableCell key={cell.id}>

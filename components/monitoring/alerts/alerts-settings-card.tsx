@@ -260,7 +260,7 @@ export function AlertsSettingsCard({
           {/* ================= ROUTING ================= */}
           <TabsContent
             value="routing"
-            className="mt-5 animate-in fade-in-0 duration-200 motion-reduce:animate-none"
+            className="mt-5 animate-in fade-in-0 duration-[var(--duration-standard)] ease-standard motion-reduce:animate-none"
           >
             <p className="text-muted-foreground mb-4 text-sm">
               Pick which events go to which channel. Some combinations aren&apos;t
@@ -274,7 +274,7 @@ export function AlertsSettingsCard({
           {/* ================= SMS ================= */}
           <TabsContent
             value="sms"
-            className="mt-5 animate-in fade-in-0 duration-200 motion-reduce:animate-none"
+            className="mt-5 animate-in fade-in-0 duration-[var(--duration-standard)] ease-standard motion-reduce:animate-none"
           >
             <FieldSet>
               <FieldGroup>
@@ -340,7 +340,7 @@ export function AlertsSettingsCard({
           {/* ================= EMAIL ================= */}
           <TabsContent
             value="email"
-            className="mt-5 animate-in fade-in-0 duration-200 motion-reduce:animate-none"
+            className="mt-5 animate-in fade-in-0 duration-[var(--duration-standard)] ease-standard motion-reduce:animate-none"
           >
             {!msmtpInstalled && (
               <MsmtpInstallBanner
@@ -478,7 +478,7 @@ export function AlertsSettingsCard({
           {/* ================= DISCORD ================= */}
           <TabsContent
             value="discord"
-            className="mt-5 animate-in fade-in-0 duration-200 motion-reduce:animate-none"
+            className="mt-5 animate-in fade-in-0 duration-[var(--duration-standard)] ease-standard motion-reduce:animate-none"
           >
             <FieldSet>
               <FieldGroup>
@@ -627,7 +627,7 @@ function ChannelEnableRow({
   return (
     <div
       className={cn(
-        "rounded-lg border p-4 transition-colors duration-300 motion-reduce:transition-none",
+        "rounded-lg border p-4 transition-colors duration-[var(--duration-standard)] ease-standard motion-reduce:transition-none",
         checked ? "border-primary/30 bg-primary/5" : "bg-muted/20",
       )}
     >

@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Field, FieldDescription, FieldGroup, FieldLabel, FieldError } from "@/components/ui/field";
 import { cn } from "@/lib/utils";
+import { DUR, EASE_QUICK } from "@/lib/motion";
 
 // =============================================================================
 // StepPassword — Onboarding step 2: create password (required)
@@ -165,7 +166,7 @@ export function StepPassword({ onSuccess, onLoadingChange, onSubmitRef }: StepPa
                   initial={{ opacity: 0, y: -4 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -4 }}
-                  transition={{ duration: 0.2 }}
+                  transition={{ duration: DUR.quick, ease: EASE_QUICK }}
                   className="flex items-center gap-2 pt-1"
                 >
                   {/* Segmented bar */}
@@ -177,7 +178,7 @@ export function StepPassword({ onSuccess, onLoadingChange, onSubmitRef }: StepPa
                       >
                         <motion.div
                           className={cn(
-                            "h-full rounded-full transition-colors duration-500",
+                            "h-full rounded-full transition-colors duration-[var(--duration-standard)] ease-standard",
                             seg <= strength
                               ? strengthColorClass(strength)
                               : "bg-transparent"
@@ -193,7 +194,7 @@ export function StepPassword({ onSuccess, onLoadingChange, onSubmitRef }: StepPa
                   {/* Label */}
                   <span
                     className={cn(
-                      "text-xs font-medium w-10 text-right transition-colors duration-300",
+                      "text-xs font-medium w-10 text-right transition-colors duration-[var(--duration-standard)] ease-standard",
                       strengthTextClass(strength)
                     )}
                   >

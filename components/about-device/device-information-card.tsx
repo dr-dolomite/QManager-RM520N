@@ -14,7 +14,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { AlertCircle, RefreshCcw } from "lucide-react";
 
 import type { AboutDeviceData } from "@/types/about-device";
-import { staggerRows } from "@/lib/motion";
+import { DUR, EASE_STANDARD, staggerRows } from "@/lib/motion";
 
 // =============================================================================
 // DeviceInformationCard — Modem image + device identity & network addresses
@@ -149,7 +149,7 @@ const DeviceInformationCard = ({
               className="flex items-center justify-center mb-4"
               initial={{ opacity: 0, scale: 0.85 }}
               animate={{ opacity: 1, scale: 1 }}
-              transition={{ duration: 0.35, ease: "easeOut" }}
+              transition={{ duration: DUR.standard, ease: EASE_STANDARD }}
             >
               <div className="size-44 bg-primary/15 rounded-full p-4 flex items-center justify-center">
                 <img
@@ -177,7 +177,7 @@ const DeviceInformationCard = ({
                       key={row.label}
                       className="flex items-center justify-between py-2"
                       variants={{ hidden: { opacity: 0, y: 4 }, visible: { opacity: 1, y: 0 } }}
-                      transition={{ duration: 0.2, ease: "easeOut" }}
+                      transition={{ duration: DUR.standard, ease: EASE_STANDARD }}
                     >
                       <dt className="text-sm font-semibold text-muted-foreground">
                         {row.label}

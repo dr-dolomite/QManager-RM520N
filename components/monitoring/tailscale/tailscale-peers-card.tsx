@@ -25,6 +25,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { UsersIcon, ShieldIcon, AlertCircle, CheckCircle2Icon, MinusCircleIcon } from "lucide-react";
 import type { TailscaleStatus, TailscalePeer } from "@/hooks/use-tailscale";
+import { DUR, EASE_STANDARD, rowCascadeDelay } from "@/lib/motion";
 
 // =============================================================================
 // TailscalePeersCard — Peer list table for Tailscale network
@@ -194,7 +195,7 @@ export function TailscalePeersCard({
                   key={`${peer.hostname}-${peer.tailscale_ips?.[0] ?? i}`}
                   initial={{ opacity: 0, x: -8 }}
                   animate={{ opacity: 1, x: 0 }}
-                  transition={{ duration: 0.2, delay: Math.min(i * 0.05, 0.4), ease: "easeOut" }}
+                  transition={{ duration: DUR.standard, delay: rowCascadeDelay(i), ease: EASE_STANDARD }}
                 >
                   <TableCell className="max-w-48">
                     <div className="min-w-0">

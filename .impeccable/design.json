@@ -337,7 +337,7 @@
       {
         "name": "ease-quick",
         "value": "ease-out",
-        "purpose": "Moves too brief to need shaping: label swaps, value ticks, hover tints, focus rings. Below ~180ms a bespoke cubic is indistinguishable from the built-in."
+        "purpose": "Moves too brief to need shaping: label swaps, value ticks, hover tints, focus rings. At the short end of the scale a bespoke cubic is indistinguishable from the built-in."
       },
       {
         "name": "ease-ambient",
@@ -346,38 +346,38 @@
       },
       {
         "name": "duration-quick",
-        "value": "180ms",
+        "value": "360ms",
         "purpose": "Label swaps, live value ticks, hover tints, focus rings."
       },
       {
         "name": "duration-standard",
-        "value": "300ms",
+        "value": "600ms",
         "purpose": "The default for a state change."
       },
       {
         "name": "duration-emphasized",
-        "value": "400ms",
-        "purpose": "Container size and shape, arrival. This is the ceiling for the whole product."
+        "value": "800ms",
+        "purpose": "Container size and shape, arrival. This is the ceiling for the whole product — state the rule as the token, never as the number."
       },
       {
         "name": "duration-ambient",
         "value": "2s",
-        "purpose": "The service-ring pulse and the live-ping dot. Nothing else loops."
+        "purpose": "The service-ring pulse and the live-ping dot. Nothing else loops. Deliberately NOT scaled with the transition tokens: a loop is not a transition."
       },
       {
         "name": "stagger-step",
-        "value": "60ms",
+        "value": "120ms",
         "purpose": "The card cascade step, with a 10px rise. Wider and the last card reads as the page still loading."
       },
       {
         "name": "stagger-step-rows",
-        "value": "40ms",
-        "purpose": "The in-card row cascade, with a 5px rise. Rows sit ~6px apart, so a 10px lift would read as the card reflowing."
+        "value": "80ms",
+        "purpose": "The in-card row cascade, with a 5px rise. Rows sit ~6px apart, so a 10px lift would read as the card reflowing. `rowCascadeDelay(index)` derives both this step and its ten-row cap."
       },
       {
         "name": "tick-stagger-step",
-        "value": "100ms",
-        "purpose": "The step between two figures' dips inside one TickGroup. Not an entrance: the floor is ~80ms, below which consecutive dips merge."
+        "value": "200ms",
+        "purpose": "The step between two figures' dips inside one TickGroup. Not an entrance: the floor is ~1/8th of the dip, below which consecutive dips merge."
       }
     ],
     "breakpoints": [

@@ -25,6 +25,7 @@ import { useBreadcrumbs } from "@/hooks/use-breadcrumbs";
 import { SimSwapBanner } from "@/components/monitoring/watchdog/sim-swap-banner";
 import { isLoggedIn } from "@/hooks/use-auth";
 import { useAutoLogout } from "@/hooks/use-auto-logout";
+import { DUR, EASE_STANDARD } from "@/lib/motion";
 
 export function AppLayout({ children }: { children: React.ReactNode }) {
   const breadcrumbs = useBreadcrumbs();
@@ -95,7 +96,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
           // already gone, and animating it out would delay the incoming one.
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.3, ease: [0.2, 0, 0, 1] }}
+          transition={{ duration: DUR.standard, ease: EASE_STANDARD }}
         >
           {children}
         </motion.div>

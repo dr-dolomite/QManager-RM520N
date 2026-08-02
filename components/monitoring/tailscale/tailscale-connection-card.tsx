@@ -50,6 +50,7 @@ import {
 } from "lucide-react";
 import { InstallLogViewer } from "@/components/monitoring/tailscale/install-log-viewer";
 import type { UseTailscaleReturn } from "@/hooks/use-tailscale";
+import { DUR, EASE_STANDARD, rowCascadeDelay } from "@/lib/motion";
 
 // =============================================================================
 // TailscaleConnectionCard — Multi-state connection + settings card
@@ -801,7 +802,7 @@ export function TailscaleConnectionCard({
                   className="flex items-center justify-between gap-2"
                   initial={{ opacity: 0, x: -8 }}
                   animate={{ opacity: 1, x: 0 }}
-                  transition={{ duration: 0.2, delay: Math.min(i * 0.05, 0.35), ease: "easeOut" }}
+                  transition={{ duration: DUR.standard, delay: rowCascadeDelay(i), ease: EASE_STANDARD }}
                 >
                   <p className="text-sm font-semibold text-muted-foreground shrink-0">
                     {row.label}
