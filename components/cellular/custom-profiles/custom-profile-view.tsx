@@ -59,6 +59,8 @@ import {
   CONFIG_PILL_NEUTRAL,
   CONFIG_PILL_BRAND,
   MACHINE_VALUE,
+  PILL_ACTION,
+  PILL_ACTION_PLAIN,
   profileRowTone,
 } from "@/components/cellular/custom-profiles/shapes";
 
@@ -102,9 +104,9 @@ import {
  *  hover:bg-destructive/90` copy. */
 const DESTRUCTIVE_ACTION = cn(
   buttonVariants({ variant: "destructive" }),
-  "h-[2.625rem] gap-2 rounded-pill px-5 text-sm font-semibold",
+  PILL_ACTION,
 );
-const CANCEL_ACTION = "h-[2.625rem] rounded-pill px-5 text-sm font-semibold";
+const CANCEL_ACTION = PILL_ACTION_PLAIN;
 
 type ProfileStatus = "active" | "mismatch" | "inactive";
 

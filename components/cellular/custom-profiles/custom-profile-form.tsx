@@ -1303,7 +1303,7 @@ const SummarySection = ({
             <dd
               className={cn(
                 row.value === null
-                  ? "text-on-surface-variant italic"
+                  ? "text-on-surface-variant"
                   : row.numeric
                     ? "text-right font-medium tabular-nums"
                     : "text-right font-medium",

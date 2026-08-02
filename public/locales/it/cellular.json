@@ -399,8 +399,6 @@
         "start_label": "Inizio",
         "end_label": "Fine",
         "block_scenario_label": "Scenario",
-        "active_now_line": "Adesso → {{scenario}}",
-        "active_now_line_with_next": "Adesso → {{scenario}} · prossimo cambio {{time}}",
         "otherwise_label": "Altrimenti",
         "entries_cap_hint": "Fino a {{max}} finestre orarie. Rimuovine una per aggiungerne un'altra.",
         "empty_schedule_hint": "Nessuna finestra — il comportamento è identico all'uso diretto di {{name}}.",
@@ -413,7 +411,6 @@
           "zero_length": "L'orario di inizio e di fine devono essere diversi.",
           "no_days": "Seleziona almeno un giorno."
         },
-        "summary_line": "{{time}} → {{scenario}}",
         "time_range": "{{start}}–{{end}}",
         "move_up_aria": "Sposta la finestra su",
         "move_down_aria": "Sposta la finestra giù",
@@ -526,7 +523,6 @@
         "schedule": "Pianificazione",
         "schedule_on_no_windows": "Attiva, nessuna finestra",
         "schedule_off": "Disattivata",
-        "window_value": "{{scenario}} · {{start}}–{{end}}",
         "not_set": "Non impostato"
       },
       "pdp_inline": {

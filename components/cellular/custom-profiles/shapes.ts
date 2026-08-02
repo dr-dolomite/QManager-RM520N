@@ -76,6 +76,14 @@ export const PROFILE_PAD = "px-7";
 export const PILL_ACTION =
   "h-[2.625rem] gap-2 rounded-pill px-5 text-sm font-semibold";
 
+/**
+ * Same pill, no leading-glyph gap. A dialog Cancel never carries an icon, so
+ * the `gap-2` in `PILL_ACTION` would reserve space for a glyph that isn't
+ * there.
+ */
+export const PILL_ACTION_PLAIN =
+  "h-[2.625rem] rounded-pill px-5 text-sm font-semibold";
+
 /** The Display triple every migrated page `h1` carries. */
 export const PAGE_TITLE = "text-3xl font-bold tracking-[-0.02em]";
 
@@ -241,7 +249,7 @@ export const LEDGER_SHAPE = {
  * impossible: add a status to `ApplyStepStatus` and `ledgerStepTone` stops
  * compiling until it is handled.
  */
-export type LedgerState = ApplyStepStatus;
+type LedgerState = ApplyStepStatus;
 
 /**
  * Step fill + glyph by state. Every state carries a DISTINCT glyph — `running`

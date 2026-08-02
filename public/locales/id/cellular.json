@@ -399,8 +399,6 @@
         "start_label": "Mulai",
         "end_label": "Selesai",
         "block_scenario_label": "Skenario",
-        "active_now_line": "Sekarang → {{scenario}}",
-        "active_now_line_with_next": "Sekarang → {{scenario}} · berikutnya {{time}}",
         "otherwise_label": "Selain itu",
         "entries_cap_hint": "Maksimal {{max}} jendela waktu. Hapus satu untuk menambah yang lain.",
         "empty_schedule_hint": "Belum ada jendela — perilakunya sama seperti hanya menggunakan {{name}}.",
@@ -413,7 +411,6 @@
           "zero_length": "Waktu mulai dan selesai harus berbeda.",
           "no_days": "Pilih setidaknya satu hari."
         },
-        "summary_line": "{{time}} → {{scenario}}",
         "time_range": "{{start}}–{{end}}",
         "move_up_aria": "Pindahkan jendela ke atas",
         "move_down_aria": "Pindahkan jendela ke bawah",
@@ -526,7 +523,6 @@
         "schedule": "Jadwal",
         "schedule_on_no_windows": "Aktif, tanpa jendela",
         "schedule_off": "Nonaktif",
-        "window_value": "{{scenario}} · {{start}}–{{end}}",
         "not_set": "Belum diatur"
       },
       "pdp_inline": {

@@ -399,8 +399,6 @@
         "start_label": "开始",
         "end_label": "结束",
         "block_scenario_label": "场景",
-        "active_now_line": "当前 → {{scenario}}",
-        "active_now_line_with_next": "当前 → {{scenario}} · 下次切换 {{time}}",
         "otherwise_label": "其他时间",
         "entries_cap_hint": "最多 {{max}} 个时段。请先删除一个再添加。",
         "empty_schedule_hint": "暂无时段 — 效果与直接使用 {{name}} 相同。",
@@ -413,7 +411,6 @@
           "zero_length": "开始时间和结束时间不能相同。",
           "no_days": "请至少选择一天。"
         },
-        "summary_line": "{{time}} → {{scenario}}",
         "time_range": "{{start}}–{{end}}",
         "move_up_aria": "上移时段",
         "move_down_aria": "下移时段",
@@ -526,7 +523,6 @@
         "schedule": "计划",
         "schedule_on_no_windows": "已启用，无时段",
         "schedule_off": "已关闭",
-        "window_value": "{{scenario}} · {{start}}–{{end}}",
         "not_set": "未设置"
       },
       "pdp_inline": {

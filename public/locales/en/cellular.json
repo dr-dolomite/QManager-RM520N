@@ -399,8 +399,6 @@
         "start_label": "Start",
         "end_label": "End",
         "block_scenario_label": "Scenario",
-        "active_now_line": "Right now → {{scenario}}",
-        "active_now_line_with_next": "Right now → {{scenario}} · next change {{time}}",
         "otherwise_label": "Otherwise",
         "entries_cap_hint": "Up to {{max}} time windows. Remove one to add another.",
         "empty_schedule_hint": "No windows yet — this behaves the same as just using {{name}}.",
@@ -413,7 +411,6 @@
           "zero_length": "Start and end times must differ.",
           "no_days": "Select at least one day."
         },
-        "summary_line": "{{time}} → {{scenario}}",
         "time_range": "{{start}}–{{end}}",
         "move_up_aria": "Move window up",
         "move_down_aria": "Move window down",
@@ -526,7 +523,6 @@
         "schedule": "Schedule",
         "schedule_on_no_windows": "On, no windows",
         "schedule_off": "Off",
-        "window_value": "{{scenario}} · {{start}}–{{end}}",
         "not_set": "Not set"
       },
       "pdp_inline": {

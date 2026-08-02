@@ -20,6 +20,8 @@ import {
 import type { ScenarioConfig } from "@/types/connection-scenario";
 import {
   BADGE_GLYPH_SIZE,
+  PILL_ACTION,
+  PILL_ACTION_PLAIN,
   PROFILE_STATUS_BADGE,
   SCENARIO_TILE_ACTIVE,
   SCENARIO_TILE_IDLE,
@@ -55,9 +57,9 @@ import {
  *  hover:bg-destructive/90` copy. */
 const DESTRUCTIVE_ACTION = cn(
   buttonVariants({ variant: "destructive" }),
-  "h-[2.625rem] gap-2 rounded-pill px-5 text-sm font-semibold",
+  PILL_ACTION,
 );
-const CANCEL_ACTION = "h-[2.625rem] rounded-pill px-5 text-sm font-semibold";
+const CANCEL_ACTION = PILL_ACTION_PLAIN;
 
 export interface Scenario {
   id: string;
@@ -160,7 +162,7 @@ export const ScenarioItem = ({
                 aria-label={t("scenarios.tile.delete_aria", {
                   name: scenario.name,
                 })}
-                className="bg-surface-container-high text-on-surface-variant hover:bg-destructive hover:text-destructive-foreground rounded-inline p-2 opacity-0 transition-colors group-hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-current"
+                className="bg-surface-container-high text-on-surface-variant hover:bg-destructive hover:text-destructive-foreground rounded-inline p-2 opacity-0 transition-colors duration-[var(--duration-quick)] ease-out group-hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-current"
               >
                 <MaterialSymbol name="delete" size={16} />
               </button>

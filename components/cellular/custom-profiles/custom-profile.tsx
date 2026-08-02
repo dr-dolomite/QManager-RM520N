@@ -14,7 +14,12 @@ import { useCurrentSettings } from "@/hooks/use-current-settings";
 import { useProfileSuggestions } from "@/hooks/use-profile-suggestions";
 import { useModemStatus } from "@/hooks/use-modem-status";
 import type { SimProfile } from "@/types/sim-profile";
-import { PAGE_TITLE, PAGE_DESCRIPTION } from "@/components/cellular/custom-profiles/shapes";
+import {
+  PAGE_TITLE,
+  PAGE_DESCRIPTION,
+  PILL_ACTION,
+  PILL_ACTION_PLAIN,
+} from "@/components/cellular/custom-profiles/shapes";
 import { staggerContainer, staggerItem } from "@/lib/motion";
 import {
   AlertDialog,
@@ -35,9 +40,9 @@ import { cn } from "@/lib/utils";
 // composes the `default` variant rather than `destructive`.
 const CONFIRM_ACTION = cn(
   buttonVariants({ variant: "default" }),
-  "h-[2.625rem] gap-2 rounded-pill px-5 text-sm font-semibold",
+  PILL_ACTION,
 );
-const CANCEL_ACTION = "h-[2.625rem] rounded-pill px-5 text-sm font-semibold";
+const CANCEL_ACTION = PILL_ACTION_PLAIN;
 
 // =============================================================================
 // CustomProfileComponent — Page Layout & State Coordinator
