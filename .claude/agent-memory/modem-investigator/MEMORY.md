@@ -1,5 +1,7 @@
 # MEMORY.md index
 
+- [Every boot starts in 1970; timers arm inside that window](boot_clock_1970_window.md) — no battery RTC, ql_time_daemon steps the clock ~56y forward at boot+~25s, but timers.target arms at boot+6.3s; includes the no-journald proof recipe (/var/log/messages.0 shows the jump in one file)
+
 - [eUICC in slot 2: probe facts](euicc_slot2_probe_facts.md) — hot-swap detect is OFF (`QSIMDET 0,1`) so a mid-session insert is invisible until a power cycle; ISD-R AID opens via AT+CCHO; blank-profile card reports all-1s ICCID/IMSI + CEREG denied
 
 - [ES10c APDUs over AT+CGLA WORK — no lpac needed to read](euicc_es10c_apdu_over_cgla_works.md) — GetEID/GetProfilesInfo/GetEUICCInfo1 all returned 9000 with working hex strings; `<len>` is HEX CHARS not bytes; card is a strict TLV parser (6A80 on malformed tag list); legacy 80CA GET DATA = 6D00

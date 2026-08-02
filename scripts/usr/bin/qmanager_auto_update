@@ -63,6 +63,25 @@ VERSION_FILE="/etc/qmanager/VERSION"
 PID_FILE="/tmp/qmanager_update.pid"
 UPDATER="/usr/bin/qmanager_update"
 
+# --- Guard: 1970 boot-window clock-step fire (issue #9) ----------------------
+# RM520N has no battery RTC: every boot starts at 1970 and ql_time_daemon
+# steps the clock ~24s in. systemd 244 fires every armed OnCalendar timer
+# once on that step, and qmanager-auto-update.timer's Persistent=true means
+# a missed-day catch-up is ALSO implemented by that same past-base-fires-
+# immediately mechanism — so this worker is exposed twice per boot window.
+# Pass "" (no fixed schedule minute) since RandomizedDelaySec=3h means there
+# is no single HH:MM to match against; the guard degrades to uptime-only.
+# A deny here is a routine skip (not a missed-reboot-class event), so this
+# logs via qlog_info rather than qlog_warn. See
+# docs/reference/scheduled-timers.md ("The 1970 boot window").
+[ -f /usr/lib/qmanager/schedule_timer.sh ] && . /usr/lib/qmanager/schedule_timer.sh 2>/dev/null
+if command -v _qm_timer_fire_allowed >/dev/null 2>&1; then
+    if ! _qm_timer_fire_allowed ""; then
+        qlog_info "Auto-update check skipped: boot-window fire (clock-step guard, issue #9)"
+        exit 0
+    fi
+fi
+
 # --- Guard: master on/off switch ---------------------------------------------
 # Belt-and-suspenders: qmanager-auto-update.timer is installed system-wide but
 # gated by the installer (only wanted/started if the user had already opted

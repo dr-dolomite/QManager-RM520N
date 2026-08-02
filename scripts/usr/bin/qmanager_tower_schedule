@@ -39,6 +39,26 @@ if [ "$MODE" != "apply" ] && [ "$MODE" != "clear" ]; then
     exit 1
 fi
 
+# --- Clock-step fire guard (issue #9) -----------------------------------------
+# RM520N has no battery RTC: every boot starts at 1970 and ql_time_daemon steps
+# the clock ~24s in (needs a registered SIM). systemd 244 fires every armed
+# OnCalendar timer once on that step, so this worker can be invoked ~24s into
+# boot regardless of the configured apply/clear time. Guard against acting on
+# that spurious fire before touching config or sending any AT command. See
+# docs/reference/scheduled-timers.md ("The 1970 boot window").
+. /usr/lib/qmanager/schedule_timer.sh 2>/dev/null
+if command -v _qm_timer_fire_allowed >/dev/null 2>&1; then
+    if [ "$MODE" = "apply" ]; then
+        sched_time=$(jq -r '.schedule.start_time // empty' /etc/qmanager/tower_lock.json 2>/dev/null)
+    else
+        sched_time=$(jq -r '.schedule.end_time // empty' /etc/qmanager/tower_lock.json 2>/dev/null)
+    fi
+    if ! _qm_timer_fire_allowed "$sched_time"; then
+        qlog_warn "Tower schedule $MODE skipped: fire outside schedule window (clock-step guard, issue #9)"
+        exit 0
+    fi
+fi
+
 # =============================================================================
 # APPLY MODE — Read config and send lock commands
 # =============================================================================

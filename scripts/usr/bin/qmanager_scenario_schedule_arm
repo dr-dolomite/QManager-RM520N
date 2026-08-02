@@ -127,6 +127,17 @@ tmp_unit="${UNIT_DIR}/.${UNIT}.tmp.$$"
     printf '\n[Timer]\n'
     printf '%s\n' "$lines"
     printf 'Unit=%s\n' "$SERVICE"
+    # Persistent=false: a missed schedule-resolve window during downtime
+    # must NOT stack-fire the moment the device comes back.
+    #
+    # Persistent=false does NOT guard the 1970 clock-step misfire. RM520N
+    # has no battery RTC: every boot starts at 1970, ql_time_daemon steps
+    # the clock at ~boot+24s, and systemd fires every armed OnCalendar
+    # timer once on that step (past base + TFD_TIMER_ABSTIME). Persistent=
+    # only controls the across-reboot stamp file, so it is the wrong
+    # mechanism for this case. Guarded worker-side via
+    # _qm_timer_fire_allowed() in schedule_timer.sh. See issue #9 and
+    # docs/reference/scheduled-timers.md ("The 1970 boot window").
     printf 'Persistent=false\n'
     printf '\n[Install]\n'
     printf 'WantedBy=timers.target\n'

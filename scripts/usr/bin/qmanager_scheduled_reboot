@@ -17,6 +17,20 @@
 # could be recycled by an unrelated process; checking /proc/<pid> existence
 # is what platform.sh's pid_alive does and is safe across the root/root
 # boundary here regardless.
+#
+# CLOCK-STEP GUARD: RM520N has no battery-backed RTC — every boot starts at
+# 1970 and the stock ql_time_daemon steps the clock to real time ~24s in
+# (needs a registered SIM). systemd 244 fires every armed OnCalendar timer
+# ONCE on that step (past-base + TFD_TIMER_ABSTIME, no CANCEL_ON_SET), and
+# because this worker's payload is `reboot`, an unguarded fire resets the
+# clock to 1970 and re-arms the trap — an infinite reboot loop (issue #9).
+# We check /proc/uptime, not the wall clock: by the time this script runs
+# the clock has already been corrected (that correction is what triggered
+# the misfire), so a wall-clock check would pass right through the bug.
+# Uptime is monotonic and cannot be stepped, so it is the only reliable
+# signal that we are inside the boot window. See
+# docs/reference/scheduled-timers.md ("The 1970 boot window") and
+# _qm_timer_fire_allowed in schedule_timer.sh for the shared guard.
 # Install location: /usr/bin/qmanager_scheduled_reboot
 # =============================================================================
 
@@ -29,6 +43,31 @@
 command -v pid_alive >/dev/null 2>&1 || pid_alive() { [ -n "$1" ] && [ -d "/proc/$1" ]; }
 
 qlog_init "scheduled_reboot"
+
+. /usr/lib/qmanager/config.sh 2>/dev/null || :
+. /usr/lib/qmanager/schedule_timer.sh 2>/dev/null || :
+
+if command -v _qm_timer_fire_allowed >/dev/null 2>&1; then
+    sched_time=$(qm_config_get settings sched_reboot_time "" 2>/dev/null)
+    if ! _qm_timer_fire_allowed "$sched_time"; then
+        qlog_warn "Scheduled reboot skipped: fire outside schedule window (clock-step guard, issue #9)"
+        exit 0
+    fi
+else
+    # Fallback if schedule_timer.sh failed to load (e.g. a skewed OTA base
+    # where /usr/lib/qmanager/schedule_timer.sh is stale or missing): a
+    # reboot payload must never run unguarded 24s into boot. Deny on any
+    # uptime read failure too (fail closed) — a missed scheduled reboot is
+    # recoverable, a boot loop is not.
+    up=$(awk '{print int($1)}' /proc/uptime 2>/dev/null)
+    case "$up" in
+        ''|*[!0-9]*) up="" ;;
+    esac
+    if [ -z "$up" ] || [ "$up" -lt 300 ]; then
+        qlog_warn "Scheduled reboot skipped: fire outside schedule window (clock-step guard fallback, issue #9)"
+        exit 0
+    fi
+fi
 
 UPDATE_PID_FILE="/tmp/qmanager_update.pid"
 if [ -f "$UPDATE_PID_FILE" ]; then

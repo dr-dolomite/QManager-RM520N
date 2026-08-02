@@ -38,6 +38,27 @@ if [ "$1" != "--now" ]; then
     exit 1
 fi
 
+# --- Clock-step fire guard (issue #9) ---------------------------------------
+# RM520N has no battery RTC: every boot starts at 1970, and ql_time_daemon
+# steps the clock ~24s in — systemd fires every armed OnCalendar timer once
+# on that step. Pass "" (no single schedule minute) because a scenario
+# schedule is a multi-block timeline, not a fixed HH:MM to match against; the
+# guard degrades to uptime-only, which is exactly what this worker needs.
+# A denied fire here is a plain skip, NOT an orphan — do not fall through to
+# the teardown branches below (those exist for a deleted/disabled active
+# profile, a different condition entirely). Skipping restores the exact
+# pre-0.1.13 behavior of this worker (there was no boot-time resolve at all,
+# because crond never ran); the next legitimate scheduled transition resolves
+# state normally. See docs/reference/scheduled-timers.md ("The 1970 boot
+# window").
+[ -f /usr/lib/qmanager/schedule_timer.sh ] && . /usr/lib/qmanager/schedule_timer.sh 2>/dev/null
+if command -v _qm_timer_fire_allowed >/dev/null 2>&1; then
+    if ! _qm_timer_fire_allowed ""; then
+        qlog_warn "Scenario schedule skipped: fire outside boot-settle window (clock-step guard, issue #9)"
+        exit 0
+    fi
+fi
+
 if ! command -v get_active_profile >/dev/null 2>&1 || ! command -v scenario_block_for_now >/dev/null 2>&1; then
     qlog_warn "required libraries unavailable — nothing to do"
     exit 0

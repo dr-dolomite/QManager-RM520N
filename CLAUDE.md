@@ -69,6 +69,8 @@ All status indicators are **filled tonal chips**: a `Badge` variant carrying a r
 
 QManager targets the Quectel RM520N-GL modem, which runs **vanilla Linux internally** (SDXLEMUR SoC, ARMv7l, kernel 5.4.210) — NOT OpenWRT on an external host. The app (Next.js static export + CGI shell backend) is deployed **onto the modem itself** and is fully standalone. Because the app runs on the device, anything that reboots the modem also kills any in-flight HTTP request — defer reboots via dialog + persistent banner, never `AT+CFUN=1,1` mid-request.
 
+**No battery RTC — every boot starts at Jan 1970.** Stock `ql_time_daemon` steps the clock ~24s into boot (requires a registered SIM; no SIM = 1970 forever), and systemd fires every armed `OnCalendar` timer once on that step. Any new timer payload must pass the fire guard in `schedule_timer.sh` or use monotonic `OnBootSec=` — see `docs/reference/scheduled-timers.md` ("The 1970 boot window").
+
 ### Live Device Access
 
 A live RM520N-GL is reachable over SSH — **probe it whenever you can verify an architecture claim or assumption directly instead of guessing.** Credentials are in `.env` (`MODEM_IP`, `MODEM_SSH_USER`, `MODEM_SSH_PASSWORD`) — gitignored, local-only. Connect with the POSH-SSH PowerShell module (`New-SSHSession` / `Invoke-SSHCommand`). The device is the source of truth for platform facts; docs drift.
@@ -152,7 +154,7 @@ Each feature below has a reference doc holding its invariants, gotchas, and rati
 | **Connection Watchdog** | `/monitoring/watchdog`, `qmanager_watchcat`, the 4-tier recovery ladder | `connection-watchdog.md` |
 | **Connection Quality** | `qmanager_ping`, latency/jitter/loss, probe targets and thresholds | `connection-quality.md` |
 | **Timezone / System Clock** | `/etc/localtime`, `qmanager_timezone_apply`, zoneinfo | `timezone.md` |
-| **Scheduled Reboot & Tower Lock Schedule** | Any scheduled operation. **RM520N has no working `crond`** — everything is a runtime systemd `OnCalendar` timer | `scheduled-timers.md` |
+| **Scheduled Reboot & Tower Lock Schedule** | Any scheduled operation. **RM520N has no working `crond`** — everything is a runtime systemd `OnCalendar` timer. Any new timer must account for the 1970 boot window / clock-step fire guard | `scheduled-timers.md` |
 | **Overview Splash + `/login/`** | The two pre-auth routes, public CGI under `public/`, the pre-auth type scale | `overview-splash.md` |
 | **i18n / Language Picker** | Any user-visible string, `public/locales/**`, language packs | `i18n.md`, `docs/CONTRIBUTING-translations.md` |
 | **SMS Center** | `/cellular/sms`, `sms_tool`, CPMS storage routing | `sms.md` |

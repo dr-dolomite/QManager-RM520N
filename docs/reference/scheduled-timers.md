@@ -112,6 +112,16 @@ Load-bearing properties, all mirroring `qmanager_scenario_schedule_arm` /
   that would reboot the box again right after it just booted; for tower lock a
   clear or apply would fire hours late and surprise the user. (`Persistent=true`
   is the "catch up on missed runs" flag — the opposite of what's wanted here.)
+  > ⚠️ WARNING: **`Persistent=false` guards the downtime case only — it does
+  > NOT guard the 1970 clock-step case.** `Persistent=` controls whether
+  > systemd stamps and re-reads a last-trigger file across a *reboot*, so it
+  > only matters for time the device was powered off. It says nothing about a
+  > timer that was armed only seconds ago, on *this* boot, against a clock
+  > that has not been set yet — which is exactly what happens on every RM520N
+  > boot before the network sets the real time. That case blindsided
+  > Scheduled Reboot on the systemd-timer migration and is guarded
+  > worker-side instead; see [The 1970 boot window](#the-1970-boot-window)
+  > below.
 - **Empty schedule → teardown, not a broken unit.** If `_qm_oncalendar_line`
   returns empty (no resolvable day), the helper tears any existing timer down
   and reports `armed:false, reason:"no_schedule"` rather than writing a `.timer`
@@ -156,6 +166,257 @@ timer points at a fixed oneshot `.service` that does the work:
 
 All three `.service` units are `Type=oneshot` with **no `[Install]` section** —
 they are only ever started by their timer, never boot-enabled directly.
+
+---
+
+## The 1970 boot window
+
+**Short version:** the RM520N-GL has no clock battery, so every boot starts
+in January 1970 and only becomes "now" about 24 seconds later, once the
+network hands the modem the real time. Any systemd timer that's armed during
+that ~24-second window — which is all of them, because timers arm before the
+clock is set — gets tricked into firing once, immediately, for no reason
+related to its actual schedule. This bit us for real: Scheduled Reboot's
+payload is `reboot`, and rebooting resets the clock back to 1970, so the trap
+re-arms itself and the modem loops every 30–60 seconds.
+
+### Why the clock starts at 1970
+
+There's no RTC (real-time clock) battery on this modem — the little
+coin-cell-backed chip that keeps a laptop's or PC's clock ticking through a
+power-off. `/dev/rtc0` is present but free-running with no persisted date, so
+at boot the kernel's `hctosys=1` option seeds `CLOCK_REALTIME` (the
+wall-clock time — "what time is it right now", as opposed to
+`CLOCK_MONOTONIC`, which just counts seconds since boot and never jumps) from
+whatever garbage `/dev/rtc0` currently holds. In practice that's the Unix
+epoch: 1970-01-01 00:00:00.
+
+Stock Quectel firmware ships `ql_time_daemon`, a boot-enabled process holding
+`CAP_SYS_TIME` (the Linux capability that lets a non-root-shell process set
+the system clock). It gets the real date from the **cellular network** — the
+same NITZ-style time info (Network Identity and Time Zone, a signal the
+tower sends during registration) a phone uses to set its clock without you
+touching a setting. That means it **requires a registered SIM**: no SIM, no
+network time source, and the clock is stuck at 1970 forever. This is also
+why the original bug reporter's device was rock-solid *without* a SIM
+inserted — the clock literally never moved, so the trap this section
+describes never sprang.
+
+When `ql_time_daemon` steps the clock, it writes
+`/tmp/ql_time_set_ready.flag` (content like `RTC:2026-08-01 10:29:54`) as a
+signal for anything that wants to know the clock is now sane. QManager
+cannot reorder or suppress this daemon — it is stock firmware.
+
+### The measured boot timeline
+
+Probing a live device gives concrete numbers:
+
+| Monotonic time (seconds since boot) | Event |
+|---|---|
+| ~6.4s | `timers.target` reached — every `.timer` symlinked into `/lib/systemd/system/timers.target.wants/` is now armed |
+| ~24s | `ql_time_daemon` steps `CLOCK_REALTIME` from 1970 to the real date; `/tmp/ql_time_set_ready.flag` is written |
+
+Every QManager timer is therefore armed **~17 seconds before** the clock
+becomes trustworthy. That gap is the whole bug.
+
+### Why systemd fires the timer at the step, not later
+
+This is the mechanistic core, and it's a real systemd 244 behavior, not a
+QManager-specific quirk. When a timer is armed, systemd's
+`timer_enter_waiting()` (in `src/core/timer.c`) computes the next fire time
+("base") for an `OnCalendar=` rule from the unit's
+`inactive_exit_timestamp.realtime` — i.e. wall-clock time, and on this device
+that's a 1970 timestamp. systemd has a clamp for a base computed to be in the
+*future* (a defensive check against clocks that are wildly fast-forward), but
+**no equivalent clamp for a base in the past**. A 1970-based "next Tuesday at
+04:00" resolves to a date decades ago — which systemd treats as "already
+due."
+
+The timer is armed against the kernel using a `timerfd` (a file descriptor
+that becomes readable when a deadline passes — Linux's way of turning "wake
+me up at time X" into something `select`/`poll` can wait on) in
+`TFD_TIMER_ABSTIME` mode (absolute deadline, not "N seconds from now")
+**without** `TFD_TIMER_CANCEL_ON_SET` — the flag that would make the
+timerfd cancel and reset when the system clock jumps. Without that flag, the
+moment `ql_time_daemon` steps `CLOCK_REALTIME` forward by 56 years in one
+call, the kernel sees the (long-past) absolute deadline has been crossed and
+fires the timerfd immediately. systemd sees the trigger and fires the unit
+— once, at whatever wall-clock minute the step happened to land on, with no
+relation to the actual `OnCalendar=` schedule.
+
+### It's one misfire, and systemd self-heals — the loop is our bug, not systemd's
+
+This is the detail that matters most for judging severity: after that one
+spurious fire, systemd stamps `last_trigger` with the *real*, post-step date,
+and the next scheduled-time computation is correct. **A single armed timer
+firing once at boot is not, by itself, a disaster** — it becomes an infinite
+loop **only because Scheduled Reboot's payload is `reboot`**. Rebooting
+resets `CLOCK_REALTIME` back to 1970, which re-arms the exact same trap on
+the next boot. Any other payload (an AT command, a config write) just runs
+once, harmlessly early, and then the schedule behaves correctly forever
+after.
+
+### Exposure: all four timer families sit in the window
+
+| Timer | Generator | Persistent | Payload on misfire | Severity |
+|---|---|---|---|---|
+| `qmanager-scheduled-reboot.timer` | `qmanager_scheduled_reboot_arm` via `schedule_timer.sh` | false | `reboot` → **boot loop** | CRITICAL |
+| `qmanager-tower-schedule-apply.timer` / `-clear.timer` | `qmanager_tower_schedule_arm` via `schedule_timer.sh` | false | `AT+QNWLOCK` apply/unlock at wrong time, ~24s into boot | Medium |
+| `qmanager-scenario-schedule.timer` | `qmanager_scenario_schedule_arm` (scenario_mgr.sh jq compiler) | false | Re-resolves scenario state at wrong time (post-step clock, so the resulting state itself is correct) | Low-Medium |
+| `qmanager-auto-update.timer` | static file, armed by `qmanager_auto_update_arm` / installer | **true** | One spurious daily update check per boot; if an update exists, an unattended install+reboot triggered by *boot*, not schedule. `Persistent=true` also independently stack-fires at boot | Medium |
+
+Only users with the feature enabled are exposed (`sched_reboot_enabled` and
+auto-update both seed to 0). The first boot after an OTA update is exactly a
+boot with freshly-written timers and a pre-step clock — the installer
+re-arms every schedule from saved config on every install/OTA.
+
+### The guard: making the one spurious fire harmless
+
+The fix does not try to prevent the misfire (nothing on our side can — it's
+a kernel/systemd interaction with a daemon we don't control). Instead, each
+fire *worker* script — the thing the timer actually runs — checks a guard
+before doing any work: `_qm_timer_fire_allowed` in `schedule_timer.sh`. A
+fire is **allowed** only if:
+
+1. The wall-clock year parses and is ≥ 2025, **and**
+2. Either uptime is ≥ 300 seconds (the real clock step happens at ~24s, so
+   nothing legitimate needs to fire that early), **or** the worker knows its
+   own schedule minute and the current time is within ±10 minutes of it —
+   this keeps a genuine fire that happens to land shortly after a manual
+   reboot working (e.g. user reboots at 03:58, schedule says 04:00).
+
+A denied fire logs a warning and exits 0 (a clean, successful no-op — never
+an error exit) so systemd doesn't retry or flag the unit as failed.
+
+| Worker | Guard call | Schedule-minute source |
+|---|---|---|
+| `qmanager_scheduled_reboot` | `_qm_timer_fire_allowed "$sched_time"` | `qm_config_get settings sched_reboot_time ""` |
+| `qmanager_tower_schedule apply` | `_qm_timer_fire_allowed "$start"` | `jq -r '.schedule.start_time // empty' /etc/qmanager/tower_lock.json` |
+| `qmanager_tower_schedule clear` | `_qm_timer_fire_allowed "$end"` | `jq -r '.schedule.end_time // empty'` (same file) |
+| `qmanager_scenario_schedule` | `_qm_timer_fire_allowed ""` (uptime-only — a multi-block timeline has no single minute) | — |
+| `qmanager_auto_update` | `_qm_timer_fire_allowed ""` (`RandomizedDelaySec=3h` means no fixed minute) | — |
+
+`QM_TIMER_GUARD_BYPASS=1` skips the guard entirely — it exists only for
+manual invocation and on-device testing and must never be set in a
+production unit file.
+
+### Explicit non-fixes — do not re-try these
+
+Each of these looks like a plausible fix and was considered and rejected.
+Documenting them here so nobody re-discovers and re-implements one later:
+
+- **`Persistent=false` does not guard this.** See the warning above — it
+  only governs the across-reboot catch-up stamp, not a same-boot pre-clock
+  fire.
+- **`Persistent=true` is strictly worse, not better.** Persistent catch-up
+  is *implemented by* firing against a past-due base — it's the same
+  mechanism that causes the bug, deliberately invoked. Turning it on
+  anywhere it isn't already would add a second reason to fire early, not
+  remove the first.
+- **A day-of-week mask does not help.** 1970-01-01 was a Thursday. Any
+  `OnCalendar=` day restriction still resolves to *some* day within the next
+  1970 week, so the past-base problem is unchanged — it just changes which
+  Thursday-adjacent date the bogus "next fire" lands on.
+- **systemd's build-epoch floor does not help.** Some systemd builds clamp
+  timestamps to no earlier than their own compile date (roughly 2020 here).
+  That still leaves the computed base years in the past relative to the real
+  date, so the timer still reads as "already due" and still fires
+  immediately at the step.
+- **`After=time-sync.target` is inert on this device.** That ordering
+  dependency exists to delay units until `systemd-timedaemon`/NTP confirms
+  the clock is synced — but RM520N doesn't ship `systemd-time-wait-sync`, so
+  the target is never reached and the ordering does nothing.
+- **Monotonic timers are immune, but that's not a fix for these four.**
+  `OnBootSec=`/`OnUnitActiveSec=` timers key off `CLOCK_MONOTONIC` (seconds
+  since boot, which never jumps), so they're never fooled by the clock step.
+  That's genuinely useful — but Scheduled Reboot, Tower Lock, and the
+  scenario schedule all need wall-clock semantics ("at 04:00 every day"),
+  which is exactly what `OnCalendar=` is for. It's the right immunity for a
+  different kind of timer, not a substitute here.
+- **`ConditionPathExists=/tmp/ql_time_set_ready.flag` on the `.service`
+  units — rejected as racy by construction.** The flag is written **at**
+  the clock step — the same instant the spurious fire happens. By the time
+  systemd evaluates the `Condition`, the flag has almost certainly already
+  been written, so the condition passes and guards nothing. A Condition that
+  actually mattered (skip while the clock is still 1970) would need to run
+  *before* the step, but the service's `ExecStart` only runs *after*
+  systemd decides to fire it — which is already after the step. This is
+  exactly why the real guard checks **uptime + schedule-minute match**
+  instead of the epoch alone: an epoch-only check loses the same race.
+- **A boot-time re-arm oneshot (e.g. from `qmanager_setup`, waiting for the
+  clock to become sane before arming timers) — rejected as the primary
+  fix.** It's structurally appealing — it would remove the exposure for all
+  four families at once — but: `qmanager_setup` runs *before* the step, so
+  it would need a new background waiter loop in the boot-critical path; and
+  a device that never gets a SIM never gets a sane clock, meaning Scheduled
+  Reboot and auto-update would **silently never arm** on such a device — a
+  new silent no-op of exactly the kind this subsystem was just cured of
+  (see the crond history earlier in this doc). The worker-side guard also
+  defends against causes other than the clock step (a manual
+  `systemctl start`, a `Persistent=true` catch-up), which a boot-time re-arm
+  would not.
+
+---
+
+## Post-mortem: "making a dead feature live" inherits no field-testing
+
+Scheduled Reboot was a **silent no-op for its entire life** before this
+fix's parent change (commit `9bbd670`): it wrote lines into a `crond`
+crontab that nothing on this device ever reads (see the crond section
+earlier in this doc). That migration replaced the dead cron write with a
+real, running systemd timer — the feature *worked*, correctly, for the
+first time. And the very first time it actually fired, it walked straight
+into this platform trap, because nothing had ever exercised the "timer
+actually fires" code path on real hardware before.
+
+**The transferable lesson:** turning a dead feature into a live one gives
+you none of the field-testing the dead version appeared to have racked up.
+A feature that's been "in production" for months with zero complaints and a
+green success toast on every save can still be completely unexercised at
+the one moment that matters — the first real fire.
+
+**The forward rule.** Any new `.timer` unit, or any change that arms one,
+must state — in its plan or PR — how its payload behaves when the timer is
+armed at 1970 and fires once at the clock step. One of the following must be
+true:
+
+1. The payload sources `_qm_timer_fire_allowed` from `schedule_timer.sh`
+   before doing its work, or
+2. The timer uses a monotonic trigger (`OnBootSec=` / `OnUnitActiveSec=`),
+   which is immune to this by construction, or
+3. The plan explicitly documents why a spurious step-fire is harmless for
+   this specific payload (idempotent, side-effect-free, or already guarded
+   another way).
+
+If none of the three apply, the timer is not done.
+
+---
+
+## Honesty note: what this fix does and doesn't prove
+
+The clock-step mechanism above is proven two ways: from systemd 244's
+source (`timer_enter_waiting()` in `src/core/timer.c`, the `timerfd`
+`TFD_TIMER_ABSTIME` behavior) and from a live measured boot timeline on the
+test device (`timers.target` at ~6.4s, clock step at ~24s). That much is
+fact, not inference.
+
+What is **not** confirmed is causation on the original bug reporter's
+specific device. The test unit used to develop this fix has Scheduled
+Reboot disabled and no `qmanager-*` timers armed, so the loop was never
+directly reproduced there; separately, journald is disabled device-wide on
+this platform, so the reporter could not have observed the spurious fire in
+logs even if they'd known to look. There is also a rival hypothesis that has
+not been excluded: a modem-side subsystem restart (SSR) triggered at SIM
+attach could produce a similar 30–60 second, SIM-correlated reboot signature
+with fewer assumptions.
+
+The fix stands regardless of which explanation matches the reporter's
+device: the clock-step mechanism is real and proven on this platform
+independent of any one report, and a reboot worker that runs unconditionally
+on any spurious start is an independent defect worth closing on its own
+merits. If a reported reboot loop persists after this fix ships, the next
+step is to investigate SSR — don't assume this closed every case until the
+reporter confirms.
 
 ---
 

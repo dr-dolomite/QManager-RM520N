@@ -25,6 +25,14 @@
 # downtime must NOT stack-fire at boot (an apply firing hours late, or a
 # clear firing right after an unrelated reboot, would surprise the user).
 #
+# Persistent=false does NOT guard the 1970 clock-step misfire. RM520N has
+# no battery RTC: every boot starts at 1970, ql_time_daemon steps the clock
+# at ~boot+24s, and systemd fires every armed OnCalendar timer once on that
+# step (past base + TFD_TIMER_ABSTIME). Persistent= only controls the
+# across-reboot stamp file, so it is the wrong mechanism for this case.
+# Guarded worker-side via _qm_timer_fire_allowed() in schedule_timer.sh.
+# See issue #9 and docs/reference/scheduled-timers.md ("The 1970 boot window").
+#
 # Idempotent both directions. No-op (success) if EITHER target .service is
 # absent — an OTA-upgraded device that predates this feature must not
 # surface a hard error to the caller, and arming only half the pair would be
