@@ -81,14 +81,21 @@ export const TABLE_SHAPE = {
   HEAD: "bg-surface-container-high",
   /** Header cell. 12px/500 label step. */
   HEAD_CELL:
-    "h-10 px-3 text-xs font-medium text-on-surface-variant whitespace-nowrap",
+    "h-10 px-4 text-xs font-medium text-on-surface-variant whitespace-nowrap",
   /**
    * The hairline. `--outline` is sanctioned for table rules (and input strokes)
    * and nothing else — never as a card edge.
    */
   ROW: "border-outline border-b last:border-0",
-  /** Body cell padding — resolves the row to ROW_HEIGHT below. */
-  CELL: "px-3 py-3 align-middle",
+  /**
+   * Body cell padding — resolves the row to ROW_HEIGHT below. 16px, not the
+   * 12px a plain shadcn table would use, because this table sits inside its
+   * own `rounded-tile` (28px) shell rather than flush against a card's own
+   * padded edge — the first/last cell needs enough clearance to read as
+   * inset from that curve rather than clipped by it. Matches the 16px the
+   * cell-scanner table already uses for the same "dense real table" role.
+   */
+  CELL: "px-4 py-3 align-middle",
   /** Mirrors the resolved height of one populated row, for the skeleton. */
   ROW_HEIGHT: "h-[3.25rem]",
   /** The 16px slot reserved for the unread glyph so senders stay aligned. */
