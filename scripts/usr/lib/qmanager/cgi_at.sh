@@ -136,6 +136,45 @@ parse_cgdcont() {
 }
 
 # ---------------------------------------------------------------------------
+# parse_cgcontrdp <stripped_cgcontrdp_response>
+#   -> "<v4addr>\t<v4gw>\t<dns1>\t<dns2>\t<v6addr>"
+# RM520N-GL format (no MTU / interface fields present):
+#   +CGCONTRDP: <cid>,<bearer>,"<apn>","<addr>",<gw>,"<dns1>","<dns2>"
+# Promoted here VERBATIM from apn.sh (same field layout / same awk -F'"'
+# split) so apn.sh's existing `cut -f1..5` consumers are unaffected.
+#
+# Usage:
+#   fields=$(parse_cgcontrdp "$rdp_resp"); v4addr=$(printf '%s' "$fields" | cut -f1)
+# ---------------------------------------------------------------------------
+parse_cgcontrdp() {
+    printf '%s\n' "$1" | awk -F'"' '
+        /\+CGCONTRDP:/ {
+            addr = $4; sub(/ .*/, "", addr)
+            gw = $5; gsub(/[^0-9.:]/, "", gw)
+            d1 = $6
+            d2 = $8
+            if (addr ~ /:/) { v6 = addr }
+            else { v4 = addr; v4gw = gw; v4d1 = d1; v4d2 = d2 }
+        }
+        END { printf "%s\t%s\t%s\t%s\t%s\n", v4, v4gw, v4d1, v4d2, v6 }'
+}
+
+# ---------------------------------------------------------------------------
+# parse_cgcontrdp_apn <stripped_cgcontrdp_response> -> "<apn>" (empty if none)
+# Sibling of parse_cgcontrdp, kept separate rather than widening its 5-tuple:
+# same "+CGCONTRDP: <cid>,<bearer>,"<apn>","<addr>",<gw>,"<dns1>","<dns2>""
+# field layout (split on '"'), field 2 = apn. Used by apn_apply.sh to verify
+# what the network actually negotiated (AT+CGDCONT? only echoes back what
+# was asked for, never what was granted).
+#
+# Usage:
+#   negotiated=$(parse_cgcontrdp_apn "$rdp_resp")
+# ---------------------------------------------------------------------------
+parse_cgcontrdp_apn() {
+    printf '%s\n' "$1" | awk -F'"' '/\+CGCONTRDP:/ {print $2; exit}'
+}
+
+# ---------------------------------------------------------------------------
 # validate_imei <imei>
 # Validate that <imei> is exactly 15 decimal digits.
 # Returns 0 if valid, 1 if invalid (including empty input).
