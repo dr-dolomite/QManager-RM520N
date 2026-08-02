@@ -315,8 +315,20 @@ an error exit) so systemd doesn't retry or flag the unit as failed.
 | `qmanager_scheduled_reboot` | `_qm_timer_fire_allowed "$sched_time"` | `qm_config_get settings sched_reboot_time ""` |
 | `qmanager_tower_schedule apply` | `_qm_timer_fire_allowed "$start"` | `jq -r '.schedule.start_time // empty' /etc/qmanager/tower_lock.json` |
 | `qmanager_tower_schedule clear` | `_qm_timer_fire_allowed "$end"` | `jq -r '.schedule.end_time // empty'` (same file) |
-| `qmanager_scenario_schedule` | `_qm_timer_fire_allowed ""` (uptime-only — a multi-block timeline has no single minute) | — |
+| `qmanager_scenario_schedule` | `_qm_timer_fire_allowed ""` at lines 54–60 (a multi-block timeline has no single schedule minute to pass) | — |
 | `qmanager_auto_update` | `_qm_timer_fire_allowed ""` (`RandomizedDelaySec=3h` means no fixed minute) | — |
+
+> ℹ️ NOTE: **What the empty-string argument means.** Passing `""` is not "skip
+> the guard" — it says *"I have no single schedule minute to compare against."*
+> Condition 1 (clock-sane) still applies in full, and condition 2 collapses to
+> its uptime-only branch, because the ±10-minute grace has nothing to be within
+> ten minutes *of*. The practical effect is a **stricter** guard, not a looser
+> one: an empty-argument worker will not fire at all until uptime ≥ 300 s, so
+> both boot-window misfires (~23 s and ~29 s) are rejected outright. A denied
+> fire is a skip — `exit 0`, no teardown — so the armed `.timer` is untouched and
+> its next real elapse proceeds normally. This is what keeps the Custom SIM
+> Profiles hero's 24-hour schedule ribbon honest: it draws what the device will
+> actually do, and the device does not act during the boot window.
 
 `QM_TIMER_GUARD_BYPASS=1` skips the guard entirely — it exists only for
 manual invocation and on-device testing and must never be set in a

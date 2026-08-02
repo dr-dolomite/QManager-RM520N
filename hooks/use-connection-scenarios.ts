@@ -1,6 +1,15 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import {
+  useState,
+  useEffect,
+  useCallback,
+  useContext,
+  useRef,
+  createContext,
+  createElement,
+  type ReactNode,
+} from "react";
 import { authFetch } from "@/lib/auth-fetch";
 import type {
   ScenarioListResponse,
@@ -24,6 +33,20 @@ import type {
 //   POST /cgi-bin/quecmanager/scenarios/activate.sh   → apply scenario
 //   POST /cgi-bin/quecmanager/scenarios/save.sh       → save custom scenario
 //   POST /cgi-bin/quecmanager/scenarios/delete.sh     → delete custom scenario
+//
+// OPTIONAL SHARED FETCH. `/cellular/custom-profiles` mounts four consumers of
+// `scenarios/list.sh` on one page (the hero, the scenarios card, the profile
+// list's `nameForId`, and the wizard's ScenarioPicker), so it fired the same
+// endpoint four times per mount. Wrapping a subtree in
+// {@link ConnectionScenariosProvider} collapses that to ONE instance that every
+// consumer inside reads. The provider is strictly opt-in: any caller mounted
+// without one (e.g. `components/cellular/band-locking/band-locking.tsx`) still
+// owns its own fetch and behaves exactly as before.
+//
+// The shared instance is also what makes mutations correct rather than merely
+// cheap: under a provider `saveCustomScenario`/`deleteCustomScenario` refresh
+// the single state the page hero ALSO reads, so a scenario renamed in the card
+// can no longer leave the hero showing the old name.
 // =============================================================================
 
 const CGI_BASE = "/cgi-bin/quecmanager/scenarios";
@@ -60,7 +83,20 @@ export interface UseConnectionScenariosReturn {
   refresh: () => void;
 }
 
-export function useConnectionScenarios(): UseConnectionScenariosReturn {
+/**
+ * The real implementation.
+ *
+ * `enabled` gates the FETCH EFFECT only — never the hook itself. The public
+ * `useConnectionScenarios` below always calls this, because skipping a hook when
+ * a context happens to be present would break the Rules of Hooks. When disabled
+ * this instance issues no network request and its returned object is discarded
+ * by the caller, so its `isLoading` staying `true` is unobservable.
+ */
+function useConnectionScenariosInternal({
+  enabled,
+}: {
+  enabled: boolean;
+}): UseConnectionScenariosReturn {
   const [activeScenarioId, setActiveScenarioId] = useState("balanced");
   const [customScenarios, setCustomScenarios] = useState<StoredScenario[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -104,10 +140,12 @@ export function useConnectionScenarios(): UseConnectionScenariosReturn {
     }
   }, []);
 
-  // Initial fetch
+  // Initial fetch — suppressed entirely when a provider above us already owns
+  // one. This early return is inside the effect, not before the hook.
   useEffect(() => {
+    if (!enabled) return;
     fetchScenarios();
-  }, [fetchScenarios]);
+  }, [enabled, fetchScenarios]);
 
   // ---------------------------------------------------------------------------
   // Activate a scenario
@@ -266,4 +304,51 @@ export function useConnectionScenarios(): UseConnectionScenariosReturn {
     deleteCustomScenario,
     refresh,
   };
+}
+
+// =============================================================================
+// Shared-fetch context
+// =============================================================================
+
+const ConnectionScenariosContext =
+  createContext<UseConnectionScenariosReturn | null>(null);
+
+/**
+ * Wrap a subtree so every `useConnectionScenarios()` inside it — and every
+ * `useScenarioList()`, which derives from the same records — shares ONE fetch of
+ * `scenarios/list.sh`.
+ *
+ * Written with `createElement` rather than JSX purely so this module can stay a
+ * `.ts` file alongside the other hooks.
+ */
+export function ConnectionScenariosProvider({
+  children,
+}: {
+  children: ReactNode;
+}) {
+  const value = useConnectionScenariosInternal({ enabled: true });
+  return createElement(
+    ConnectionScenariosContext.Provider,
+    { value },
+    children,
+  );
+}
+
+/**
+ * The shared instance, or `null` when no provider is mounted above.
+ *
+ * Exported for `use-scenario-list.ts`, which builds its lightweight `{id,name}`
+ * options out of these same records instead of fetching for itself.
+ */
+export function useSharedConnectionScenarios(): UseConnectionScenariosReturn | null {
+  return useContext(ConnectionScenariosContext);
+}
+
+export function useConnectionScenarios(): UseConnectionScenariosReturn {
+  const shared = useContext(ConnectionScenariosContext);
+  // Both are ALWAYS evaluated — the Rules of Hooks forbid calling one
+  // conditionally. `enabled` gates the fetch effect, not the hook, so the
+  // instance we throw away costs a few `useState`s and zero requests.
+  const own = useConnectionScenariosInternal({ enabled: shared === null });
+  return shared ?? own;
 }

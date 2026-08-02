@@ -119,22 +119,69 @@ export const PROFILE_ROW_SHAPE = {
 } as const;
 
 /**
- * Row fill by profile status. Tone step 1 is the quiet stacked fill; ink stays
- * `on-surface` because step 1 is tuned to carry it at full contrast. The
- * incumbent `border-success/40 bg-success/5` is what this replaces.
+ * Row fill by profile status.
+ *
+ * WHY `active` IS NEUTRAL-PLUS-RING RATHER THAN A GREEN FILL. The first tonal
+ * rebuild gave the active row `bg-tone-success-1`, which was the right call
+ * against the opacity wash it replaced but the wrong one against what the row
+ * actually contains: five or six `surface-container-high` config pills. Step 1
+ * of a tone family is tuned to carry `on-surface` INK at full contrast, not to
+ * host another neutral container inside itself — the pills landed on green and
+ * lost the tonal separation that is the only thing distinguishing them from the
+ * row. Emphasis moves to a channel the row's contents do not compete for: the
+ * fill stays neutral and a 2px inset primary ring carries "this is the one".
+ *
+ * This is NOT a No-Hairline-On-Fill violation. That rule bans a stroke drawn to
+ * compensate for a fill too weak to read on its own. Here the fill is neutral by
+ * intent, and the ring is the emphasis itself rather than a prop holding up a
+ * failing fill. It is drawn as an INSET shadow, not a `border`, so it costs no
+ * layout box and the active and inactive rows stay pixel-identical in size — a
+ * real border would shift every child by 2px the moment a row activated.
+ *
+ * `mismatch` keeps its tonal fill: a mismatch is a genuine functional state the
+ * whole row is reporting, not a selection.
  */
 export function profileRowTone(
   status: "active" | "mismatch" | "inactive",
 ): string {
   switch (status) {
     case "active":
-      return "bg-tone-success-1 text-on-surface";
+      return `bg-surface-container text-on-surface ${PROFILE_ROW_ACTIVE_RING}`;
     case "mismatch":
       return "bg-tone-warning-1 text-on-surface";
     case "inactive":
       return "bg-surface-container text-on-surface";
   }
 }
+
+/**
+ * The active row's emphasis ring. Inset so it occupies no layout box — see the
+ * rationale on `profileRowTone`. Exported separately because the scenario tile
+ * grid marks its in-force tile the same way, and the two must never disagree on
+ * the ring's weight.
+ */
+export const PROFILE_ROW_ACTIVE_RING =
+  "shadow-[inset_0_0_0_2px_var(--primary)]";
+
+/**
+ * The live dot beside an active profile's name: a solid core with a ring that
+ * expands and fades behind it.
+ *
+ * THE ONE-LOOP RULE BUDGET FOR THIS SURFACE IS SPENT HERE. The approved mock
+ * shows a second pulsing dot in a breadcrumb status chip; that chip is app-shell
+ * chrome this page does not render, and even if it did, two loops on one surface
+ * is the violation the rule names. If a future change wants an ambient loop
+ * somewhere else on this page, this one has to go first.
+ *
+ * The ring animates `transform` + `opacity` only, on the `ambient` clock (2s,
+ * deliberately NOT doubled with the rest of the scale — a loop is not a
+ * transition, and a 4s breath reads as a stalled UI rather than a calm one).
+ */
+export const LIVE_DOT = {
+  ROOT: "relative inline-flex size-[0.4375rem] flex-none",
+  CORE: "relative size-[0.4375rem] rounded-pill bg-success",
+  RING: "absolute inset-0 rounded-pill bg-success motion-safe:animate-live-ping",
+} as const;
 
 /**
  * A suggested-profile row. Suggestions are an offer, not a state, so they take
@@ -335,3 +382,200 @@ export const PROFILE_STATUS_BADGE: Record<
 
 /** Badge glyph size. Matches the `[&>svg]:size-3` slot Badge reserves. */
 export const BADGE_GLYPH_SIZE = 12;
+
+// =============================================================================
+// The "in force now" hero
+// =============================================================================
+// The page's anchor card, and the one place `rounded-hero` is earned on this
+// surface: it answers the question the user arrived with (what is running on my
+// modem right now) before the list of things they could run instead.
+//
+// This is the exception the Consistent-Layout Rule allows, not a breach of it —
+// "a genuine glance surface may earn a hero card". Everything below the hero is
+// still the uniform card grid. If a future change gives the hero a second
+// sibling hero, that exception has been spent twice and one of them is wrong.
+
+/** The hero shell. `rounded-hero` (40px) — one per surface. */
+export const HERO_CARD =
+  "@container/hero flex flex-col gap-[1.125rem] rounded-hero border-0 bg-surface p-6 shadow-[var(--shadow-whisper)]";
+
+/**
+ * The hero's leading glyph disc. 52px, brand fill with its own `-foreground`
+ * ink — a CONTAINER tile would take a FILL disc and vice versa, but the hero
+ * shell is plain `surface`, so the disc takes the fill pair directly.
+ */
+export const HERO_DISC =
+  "grid size-13 flex-none place-items-center rounded-pill bg-primary text-primary-foreground";
+
+/**
+ * The eyebrow above the active profile's name.
+ *
+ * The generic craft floor treats an eyebrow as a reflex to delete. It is kept
+ * here because this surface's own canon ships one — DESIGN.md's tile anatomy is
+ * literally `eyebrow -> value -> caption`, and the pre-auth scale names an
+ * eyebrow step. The committed world outranks the generic default, and the label
+ * is doing real work: "Home Fixed Wireless" alone does not say whether you are
+ * looking at the active profile or a saved one.
+ */
+export const HERO_EYEBROW =
+  "text-xs font-medium tracking-[0.06em] text-on-surface-variant";
+
+/** The three tiles under the hero's identity line. */
+export const HERO_TILE_SHAPE = {
+  GRID: "grid grid-cols-1 gap-3 @2xl/hero:grid-cols-3",
+  ROOT: "flex flex-col gap-2.5 rounded-tile p-4",
+  /** The tile's own eyebrow. Inherits ink from the tile, never restated. */
+  LABEL: "text-xs font-medium",
+  /** The scenario tile's inner disc — a CONTAINER tile takes a FILL disc. */
+  DISC: "grid size-[2.125rem] flex-none place-items-center rounded-pill bg-primary text-primary-foreground",
+} as const;
+
+/** Neutral hero tile (Identity, Radio). */
+export const HERO_TILE_NEUTRAL = "bg-surface-container text-on-surface";
+
+/**
+ * The scenario tile. Brand container, because the bound scenario is the one
+ * thing in the hero the profile actively OWNS — the other two tiles report.
+ * Never a functional tone: a scenario is not a health state.
+ */
+export const HERO_TILE_SCENARIO =
+  "bg-primary-container text-on-primary-container";
+
+/**
+ * An inline notice inside the hero (mismatch / applying / partial).
+ *
+ * `rounded-field` (20px), so it never out-rounds the 40px hero hosting it —
+ * the Radius-Follows-Size Rule. Tone comes from the CONTAINER PAIR, never a
+ * wash: a 10% alpha over a tinted surface collapses in dark and is the first
+ * thing to wash out in sunlight, which is the ambient condition this product
+ * is explicitly designed against.
+ */
+export const HERO_NOTICE = "flex items-start gap-3 rounded-field px-4 py-3.5";
+
+/**
+ * Fill + glyph for each hero notice, keyed on the condition rather than on a
+ * class string — the same construction as `ledgerStepTone` and
+ * `PROFILE_STATUS_BADGE`, and for the same reason: a fourth notice cannot
+ * quietly invent a fifth container pair, and a pair can never end up crossed.
+ *
+ * `applying` routes to the BRAND container, not to a fourth functional hue.
+ * That is the Info-Is-Brand Rule: there is no separate info color in this
+ * system, so an in-progress surface and a primary button differ by shape and
+ * glyph, never by owning two different blues.
+ *
+ * Every state carries a DISTINCT glyph. `mismatch` and `partial` share a
+ * container — both are `warning`, correctly, since each is a degraded-but-
+ * running state — which makes the glyph the only channel separating them. That
+ * is exactly the case the Every-Chip-Has-A-Glyph Rule is written for.
+ */
+export const HERO_NOTICE_TONE: Record<
+  "mismatch" | "applying" | "partial",
+  { fill: string; glyph: MaterialSymbolName; spin: boolean }
+> = {
+  mismatch: {
+    fill: "bg-warning-container text-on-warning-container",
+    glyph: "warning",
+    spin: false,
+  },
+  applying: {
+    fill: "bg-primary-container text-on-primary-container",
+    glyph: "progress_activity",
+    spin: true,
+  },
+  partial: {
+    fill: "bg-warning-container text-on-warning-container",
+    glyph: "do_not_disturb_on",
+    spin: false,
+  },
+};
+
+// -----------------------------------------------------------------------------
+// The schedule ribbon
+// -----------------------------------------------------------------------------
+
+/**
+ * A profile's scenario schedule drawn as a 24-hour strip: one proportional
+ * segment per block, plus a marker at the current time.
+ *
+ * `rounded-field` (20px) on the segments rather than the mock's 16px, which is
+ * not on the role scale. 20px is what the apply-dialog ledger step already
+ * uses, so a horizontal band and a vertical band read as one family.
+ *
+ * Segments animate `scaleX` from a left origin, never `width` — the
+ * Transform-Only Rule. On a CPU that is also carrying the user's traffic, a
+ * per-segment layout pass is not free, and the aggregation strip is the single
+ * sanctioned `width` animation in the product. It is not this.
+ */
+export const RIBBON_SHAPE = {
+  ROOT: "relative flex h-13 gap-1",
+  SEGMENT:
+    "flex min-w-0 origin-left items-center gap-2 overflow-hidden rounded-field px-3.5",
+  /** Collapsed segment — too narrow for a label, glyph only. */
+  SEGMENT_TIGHT:
+    "grid min-w-0 origin-left place-items-center overflow-hidden rounded-field",
+  /** The "now" needle, drawn over the strip and bleeding past both edges. */
+  NEEDLE: "absolute -top-1.5 -bottom-1.5 w-0.5 rounded-pill bg-on-surface",
+  /** The time readout riding on top of the needle. */
+  NEEDLE_LABEL:
+    "absolute -top-4 -translate-x-1/2 rounded-pill bg-surface px-1.5 text-[0.6875rem] font-semibold text-on-surface",
+  /** The 00 / 06 / 12 / 18 / 24 axis under the strip. */
+  AXIS: "flex justify-between text-[0.6875rem] text-on-surface-variant",
+} as const;
+
+/** The resting ribbon segment. */
+export const RIBBON_SEGMENT_IDLE = "bg-surface-container text-on-surface-variant";
+
+/** The segment in force at the marker. Brand container — in force, not healthy. */
+export const RIBBON_SEGMENT_LIVE =
+  "bg-primary-container text-on-primary-container";
+
+/**
+ * The 8px condensed ribbon a profile ROW carries. Same proportions, same source
+ * data, no labels — it is a glyph for "this profile has a schedule and here is
+ * its shape", not a readable timeline. Both draw from `lib/schedule-timeline.ts`
+ * so the row and the hero can never disagree about where a block starts.
+ */
+export const RIBBON_MINI = {
+  ROOT: "flex h-2 gap-[0.1875rem]",
+  SEGMENT: "min-w-0 rounded-pill",
+  IDLE: "bg-surface-container-high",
+  LIVE: "bg-primary",
+} as const;
+
+// -----------------------------------------------------------------------------
+// Scenario tile additions
+// -----------------------------------------------------------------------------
+
+/**
+ * The mono config pills on a scenario tile (mode token, band list). Smaller
+ * than `CONFIG_PILL` because a tile carries two of them in a narrower column
+ * than a profile row carries five.
+ */
+export const SCENARIO_PILL =
+  "inline-flex h-[1.375rem] items-center gap-1 rounded-pill px-2.5 text-[0.6875rem]";
+
+/** A scenario tile's meta chip: next-fire time, "locks bands", "Custom". */
+export const SCENARIO_META_CHIP =
+  "inline-flex items-center gap-1.5 rounded-pill px-2.5 py-1 text-[0.6875rem] font-medium";
+
+// -----------------------------------------------------------------------------
+// Apply-dialog ledger additions
+// -----------------------------------------------------------------------------
+
+/**
+ * The right-aligned value a ledger step carries — the APN that landed, the AT
+ * error a step returned, "Unchanged" for a skipped one. This is the backend's
+ * own `ApplyStep.detail` string verbatim, so it is machine voice and takes the
+ * mono face. It is NOT decoration: a step that says "done" without saying what
+ * it did is exactly the opaque progress the State-Honesty Rule exists to stop.
+ *
+ * Ink is inherited from the step's container pair rather than restated, so the
+ * value can never end up carrying one role's ink on another role's fill.
+ */
+export const LEDGER_VALUE = "font-mono text-[0.6875rem] tabular-nums opacity-85";
+
+/** The determinate apply bar. `scaleX` from a left origin — never `width`. */
+export const LEDGER_BAR = {
+  TRACK: "relative h-1.5 w-full overflow-hidden rounded-pill bg-surface-container",
+  FILL: "h-full origin-left rounded-pill",
+} as const;

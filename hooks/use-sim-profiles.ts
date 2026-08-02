@@ -1,6 +1,15 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import {
+  useState,
+  useEffect,
+  useCallback,
+  useContext,
+  useRef,
+  createContext,
+  createElement,
+  type ReactNode,
+} from "react";
 import { authFetch } from "@/lib/auth-fetch";
 import type {
   SimProfile,
@@ -24,6 +33,12 @@ import type {
 //     profiles, activeProfileId, isLoading, error,
 //     createProfile, updateProfile, deleteProfile, refresh
 //   } = useSimProfiles();
+//
+// OPTIONAL SHARED FETCH. Wrapping a subtree in {@link SimProfilesProvider}
+// makes every `useSimProfiles()` inside it — and `useActiveProfile()`, which
+// derives from the same list — share ONE fetch of `profiles/list.sh`. Strictly
+// opt-in: callers mounted without a provider (the APN page, the TTL card, band
+// locking) keep fetching for themselves, unchanged.
 // =============================================================================
 
 const CGI_BASE = "/cgi-bin/quecmanager/profiles";
@@ -76,7 +91,18 @@ export interface ProfileFormData {
   scenario: ProfileScenarioBinding;
 }
 
-export function useSimProfiles(): UseSimProfilesReturn {
+/**
+ * The real implementation.
+ *
+ * `enabled` gates the FETCH EFFECT only — never the hook itself. The public
+ * `useSimProfiles` below always calls this; skipping a hook when a context is
+ * present would break the Rules of Hooks.
+ */
+function useSimProfilesInternal({
+  enabled,
+}: {
+  enabled: boolean;
+}): UseSimProfilesReturn {
   const [profiles, setProfiles] = useState<ProfileSummary[]>([]);
   const [activeProfileId, setActiveProfileId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -119,10 +145,12 @@ export function useSimProfiles(): UseSimProfilesReturn {
     }
   }, []);
 
-  // Initial load
+  // Initial load — suppressed when a provider above us already owns one. The
+  // early return is inside the effect, not before the hook.
   useEffect(() => {
+    if (!enabled) return;
     fetchProfiles();
-  }, [fetchProfiles]);
+  }, [enabled, fetchProfiles]);
 
   // ---------------------------------------------------------------------------
   // Create profile
@@ -319,4 +347,37 @@ export function useSimProfiles(): UseSimProfilesReturn {
     getProfile,
     refresh,
   };
+}
+
+// =============================================================================
+// Shared-fetch context
+// =============================================================================
+
+const SimProfilesContext = createContext<UseSimProfilesReturn | null>(null);
+
+/**
+ * Wrap a subtree so every `useSimProfiles()` inside it — and every
+ * `useActiveProfile()`, which derives from the same list — shares ONE fetch of
+ * `profiles/list.sh`.
+ *
+ * `createElement` rather than JSX so this module stays a `.ts` file.
+ */
+export function SimProfilesProvider({ children }: { children: ReactNode }) {
+  const value = useSimProfilesInternal({ enabled: true });
+  return createElement(SimProfilesContext.Provider, { value }, children);
+}
+
+/**
+ * The shared instance, or `null` when no provider is mounted above.
+ * Exported for `use-active-profile.ts`.
+ */
+export function useSharedSimProfiles(): UseSimProfilesReturn | null {
+  return useContext(SimProfilesContext);
+}
+
+export function useSimProfiles(): UseSimProfilesReturn {
+  const shared = useContext(SimProfilesContext);
+  // Both are ALWAYS evaluated — see the note in use-connection-scenarios.ts.
+  const own = useSimProfilesInternal({ enabled: shared === null });
+  return shared ?? own;
 }

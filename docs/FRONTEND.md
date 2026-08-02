@@ -113,8 +113,8 @@ constants/                      # Static configuration data
 | `/cellular/cell-scanner` | CellScanner | Active cell scanning |
 | `/cellular/cell-scanner/neighbourcell-scanner` | NeighbourScanner | Neighbor cells |
 | `/cellular/cell-scanner/frequency-calculator` | FrequencyCalculator | EARFCN ↔ freq |
-| `/cellular/custom-profiles` | CustomProfile | SIM profile CRUD + apply |
-| `/cellular/custom-profiles/connection-scenarios` | ConnectionScenario | Preset templates |
+| `/cellular/custom-profiles` | CustomProfile | SIM profile CRUD + apply, **and** Connection Scenarios — one merged page |
+| `/cellular/custom-profiles/connection-scenarios` | *(retired)* | Client-side `router.replace` redirect to `/cellular/custom-profiles`; kept only for old bookmarks and deep links |
 | `/cellular/sms` | SMS | SMS inbox/send |
 | `/local-network` | EthernetStatus | Ethernet hub |
 | `/local-network/ethernet` | EthernetSettings | Link speed/duplex |

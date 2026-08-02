@@ -266,12 +266,60 @@
       "creating": "Creazione",
       "create_aria": "Crea il profilo {{name}}",
       "rationale_bands": "Il blocco delle bande mantiene il modem sulle principali bande 5G dell'operatore, il che di solito migliora la stabilità. Può però ridurre la copertura dove arrivano solo altre bande. Le bande che il modem non segnala come supportate vengono escluse e disattivando il profilo il blocco viene rimosso.",
-      "rationale_ttl": "TTL e hop limit sono impostati a 64 così il traffico dei dispositivi collegati al modem esce con lo stesso valore di quello del modem stesso. Disattivando il profilo i valori precedenti vengono ripristinati."
+      "rationale_ttl": "TTL e hop limit sono impostati a 64 così il traffico dei dispositivi collegati al modem esce con lo stesso valore di quello del modem stesso. Disattivando il profilo i valori precedenti vengono ripristinati.",
+      "will_bind": "Assocerà: {{scenario}}"
     },
     "page": {
       "title": "Profilo SIM personalizzato",
-      "description": "Raggruppa le impostazioni APN, IMEI e TTL/HL in profili con un clic.",
+      "description": "Un profilo porta con sé l'identità: APN, TTL e hop limit e un IMEI opzionale. Associa uno scenario di connessione, che governa la radio. Attivarne uno riconfigura un modem in funzione.",
+      "new_profile": "Nuovo profilo",
+      "new_scenario": "Nuovo scenario",
       "error_load_failed": "Impossibile caricare i profili. Verifica la connessione e riprova."
+    },
+    "hero": {
+      "eyebrow": "ATTIVO ORA",
+      "badge_mismatch": "SIM non corrispondente",
+      "unknown_operator": "Operatore sconosciuto",
+      "iccid": "ICCID {{value}}",
+      "edit": "Modifica",
+      "deactivate": "Disattiva",
+      "notice": {
+        "applying": "Applicazione di {{name}}. Passaggio {{step}} di {{total}}. La connessione può cadere brevemente mentre la radio si riaggancia.",
+        "partial_lead": "Questo profilo è applicato solo in parte. Il passaggio",
+        "partial_tail": "non è stato applicato ed è rimasto invariato. Il modem ha riportato",
+        "unknown_step": "sconosciuto",
+        "mismatch_lead": "La SIM inserita riporta",
+        "mismatch_tail": "che non è la SIM con cui questo profilo è stato salvato. APN e TTL restano applicati. Aggiorna il profilo oppure attiva quello corrispondente."
+      },
+      "tiles": {
+        "identity": "Identità",
+        "imei_override": "Override IMEI",
+        "scenario": "Scenario attivo",
+        "scheduled": "Pianificato",
+        "radio": "Radio, governata dallo scenario",
+        "band_locking": "Blocco bande",
+        "network_mode": "Modalità di rete",
+        "lte_bands": "Bande LTE",
+        "nr_bands": "Bande NR"
+      },
+      "scenario": {
+        "unknown": "Scenario sconosciuto",
+        "next_change": "{{name}} subentra alle {{time}}",
+        "no_next_change": "Nessun altro cambio oggi"
+      },
+      "ribbon": {
+        "title": "Pianificazione di oggi",
+        "edit": "Modifica pianificazione",
+        "unknown_scenario": "Scenario sconosciuto",
+        "aria_label": "Pianificazione degli scenari di oggi: {{schedule}}",
+        "aria_segment": "{{name}} fino alle {{end}}",
+        "aria_join": ", poi ",
+        "aria_empty": "Nessuna pianificazione di scenari per oggi"
+      }
+    },
+    "hero_empty": {
+      "title": "Nessun profilo attivo",
+      "description": "Il modem sta usando l'APN di fabbrica e lo scenario di connessione predefinito. Salva un profilo per fissare APN, TTL e pianificazione degli scenari su questa SIM."
     },
     "view": {
       "title": "Profili salvati",
@@ -281,7 +329,8 @@
       "subtitle": "Attiva, modifica o rimuovi i profili cellulari su questo dispositivo.",
       "none_saved_yet": "Nessun profilo salvato. Parti da un suggerimento qui sotto oppure creane uno tuo.",
       "activating": "Attivazione",
-      "scenario_scheduled": "{{scenario}} su pianificazione giornaliera",
+      "schedule_live_one": "{{scenario}} ora, {{count}} blocco pianificato",
+      "schedule_live_other": "{{scenario}} ora, {{count}} blocchi pianificati",
       "scenario_always_on": "{{scenario}}, sempre attivo",
       "delete_description": "Questa azione rimuove il profilo dal dispositivo. Qualsiasi pianificazione associata viene cancellata. L'operazione non può essere annullata.",
       "delete_keep": "Mantieni il profilo",
@@ -297,7 +346,11 @@
         "applied": "Applicato alle {{time}}",
         "partial": "Applicazione parziale alle {{time}}",
         "failed": "Applicazione non riuscita alle {{time}}"
-      }
+      },
+      "locks_bands": "Blocca le bande",
+      "row_menu_aria": "Azioni per {{name}}",
+      "reapply": "Riapplica il profilo",
+      "reapply_hint": "La riapplicazione esegue di nuovo tutti e quattro i passaggi: APN, TTL e hop limit, scenario e IMEI."
     },
     "table": {
       "headers": {
@@ -544,6 +597,7 @@
     },
     "apply_dialog": {
       "title": "Applicazione del profilo",
+      "description": "Scrittura delle impostazioni di questo profilo sul modem.",
       "status_badge": {
         "applying": "Applicazione…",
         "complete": "Completo",
@@ -556,17 +610,22 @@
         "imei": "IMEI",
         "scenario": "Scenario di connessione"
       },
-      "reboot_notice": "Il modem si sta riavviando per applicare la modifica IMEI. La dashboard si ricollegherà automaticamente.",
-      "step_state_unchanged": "Invariato",
       "preparing": "Preparazione…",
       "step_progress": "Passaggio {{current}} di {{total}}",
       "complete_headline": "Profilo attivo",
       "complete_sub": "Tutte le impostazioni applicabili sono ora sul modem.",
-      "partial_headline": "Attivato con omissioni",
-      "partial_sub": "Alcuni passaggi sono stati saltati. Controlla i dettagli sotto.",
+      "partial_hero_headline_one": "Applicato con un passaggio in sospeso",
+      "partial_hero_headline_other": "Applicato con {{count}} passaggi in sospeso",
+      "partial_hero_sub_one": "Il profilo è attivo. Un'impostazione non è stata applicata.",
+      "partial_hero_sub_other": "Il profilo è attivo. {{count}} impostazioni non sono state applicate.",
       "failed_headline": "Attivazione non riuscita",
       "failed_sub": "Il modem non è stato riconfigurato completamente.",
-      "details_label": "Passaggi"
+      "details_label": "Passaggi",
+      "partial_notice_title": "Una parte di questo profilo non è stata applicata",
+      "failed_notice_title": "Il profilo non è stato applicato",
+      "reapply_notice": "La riapplicazione esegue di nuovo l'intera sequenza dall'inizio: il modem non può ritentare un singolo passaggio.",
+      "reapply_action": "Riapplica il profilo",
+      "reboot_notice_deferred": "Questo profilo scrive un IMEI, che richiede un riavvio. Ora non viene riavviato nulla: riceverai un banner quando sarà pronto."
     },
     "empty_state": {
       "title": "Nessun profilo personalizzato",
@@ -796,6 +855,11 @@
     }
   },
   "scenarios": {
+    "card": {
+      "title": "Scenari di connessione",
+      "description": "Configurazione radio. I profili li associano; quello attivo governa il blocco delle bande."
+    },
+    "ownership_notice": "Mentre un profilo pianificato è attivo, l'attivazione degli scenari è governata dalla sua pianificazione. Il blocco manuale delle bande resta disattivato finché non disattivi il profilo.",
     "controls_label": "Attivazione degli scenari",
     "icons": {
       "sparkles": "Scintille",
@@ -814,10 +878,6 @@
     "default_balanced_name": "Equilibrato",
     "default_gaming_name": "Gioco",
     "default_streaming_name": "Streaming",
-    "page": {
-      "title": "Scenari di connessione",
-      "description": "Gestisci e personalizza gli scenari di connessione per i tuoi profili cellulari per ottimizzare prestazioni e affidabilità della rete."
-    },
     "default_balanced_description": "Selezione automatica delle bande",
     "default_gaming_description": "Bassa latenza, priorità SA",
     "default_streaming_description": "Banda larga elevata, connessione stabile",
@@ -890,7 +950,11 @@
       }
     },
     "tile": {
-      "active": "Attivo",
+      "in_force": "Attivo",
+      "next_fire_label": "Prossimo cambio pianificato",
+      "locks_bands": "Blocca le bande",
+      "custom_tag": "Personalizzato",
+      "bands_auto": "Bande automatiche",
       "delete_aria": "Elimina lo scenario {{name}}",
       "delete_dialog": {
         "title": "Elimina scenario",
@@ -898,9 +962,12 @@
         "confirm": "Elimina"
       },
       "add": {
-        "title": "Crea scenario",
-        "description": "Aggiungi configurazione personalizzata"
+        "title": "Nuovo scenario",
+        "description": "Scegli una modalità e le bande"
       }
+    },
+    "redirect": {
+      "label": "Apertura di Profilo SIM personalizzato…"
     }
   },
   "sms": {

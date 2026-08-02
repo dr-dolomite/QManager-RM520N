@@ -30,12 +30,14 @@
     "download",
     "drag_indicator",
     "edit",
+    "edit_calendar",
     "energy_savings_leaf",
     "error",
     "event_busy",
     "expand_more",
     "explore",
     "favorite",
+    "fingerprint",
     "first_page",
     "graphic_eq",
     "help",
@@ -79,6 +81,7 @@
     "signal_cellular_alt",
     "signal_cellular_off",
     "sim_card",
+    "sim_card_alert",
     "sms",
     "sos",
     "sports_esports",
@@ -99,6 +102,6 @@
     "wifi_tethering_off",
     "work"
   ],
-  "bytes": 37192,
-  "sha256": "e61d11594889e15d8dc0ad6f5358ac4aace230d100e47f62bb1cec96d1f2938a"
+  "bytes": 38588,
+  "sha256": "0071a8e7aeaf7abbacdebe8a968b19efe3271a4419b4dae78ad4fbdb079a470d"
 }

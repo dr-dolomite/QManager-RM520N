@@ -266,12 +266,60 @@
       "creating": "Creating",
       "create_aria": "Create the {{name}} profile",
       "rationale_bands": "The band lock keeps the modem on the carrier's main 5G bands, which usually improves stability. It can also reduce coverage where only other bands reach you. Bands the modem does not report as supported are left out, and deactivating the profile removes the lock.",
-      "rationale_ttl": "TTL and hop limit are set to 64 so traffic from devices behind the modem leaves with the same value as traffic from the modem itself. Deactivating the profile restores the previous values."
+      "rationale_ttl": "TTL and hop limit are set to 64 so traffic from devices behind the modem leaves with the same value as traffic from the modem itself. Deactivating the profile restores the previous values.",
+      "will_bind": "Will bind: {{scenario}}"
     },
     "page": {
       "title": "Custom SIM Profile",
-      "description": "Bundle APN, IMEI, and TTL/HL settings into one-click profiles.",
+      "description": "A profile carries identity: APN, TTL and hop limit, and an optional IMEI. It binds a connection scenario, which owns the radio. Activating one reconfigures a live modem.",
+      "new_profile": "New profile",
+      "new_scenario": "New scenario",
       "error_load_failed": "Could not load profiles. Check the connection and try again."
+    },
+    "hero": {
+      "eyebrow": "IN FORCE NOW",
+      "badge_mismatch": "SIM mismatch",
+      "unknown_operator": "Unknown operator",
+      "iccid": "ICCID {{value}}",
+      "edit": "Edit",
+      "deactivate": "Deactivate",
+      "notice": {
+        "applying": "Applying {{name}}. Step {{step}} of {{total}}. The connection may drop briefly while the radio reattaches.",
+        "partial_lead": "This profile is only partly applied. The step",
+        "partial_tail": "did not land and was left unchanged. The modem reported",
+        "unknown_step": "unknown",
+        "mismatch_lead": "The inserted SIM reads",
+        "mismatch_tail": "which is not the SIM this profile was saved against. The APN and TTL are still applied. Update the profile, or activate the one that matches."
+      },
+      "tiles": {
+        "identity": "Identity",
+        "imei_override": "IMEI override",
+        "scenario": "Scenario in force",
+        "scheduled": "Scheduled",
+        "radio": "Radio, owned by the scenario",
+        "band_locking": "Band locking",
+        "network_mode": "Network mode",
+        "lte_bands": "LTE bands",
+        "nr_bands": "NR bands"
+      },
+      "scenario": {
+        "unknown": "Unknown scenario",
+        "next_change": "{{name}} takes over at {{time}}",
+        "no_next_change": "No further changes today"
+      },
+      "ribbon": {
+        "title": "Today's schedule",
+        "edit": "Edit schedule",
+        "unknown_scenario": "Unknown scenario",
+        "aria_label": "Today's scenario schedule: {{schedule}}",
+        "aria_segment": "{{name}} until {{end}}",
+        "aria_join": ", then ",
+        "aria_empty": "No scenario schedule for today"
+      }
+    },
+    "hero_empty": {
+      "title": "No profile is active",
+      "description": "The modem is running its stock APN and the default connection scenario. Save a profile to pin an APN, TTL and scenario schedule to this SIM."
     },
     "view": {
       "title": "Saved Profiles",
@@ -281,7 +329,8 @@
       "subtitle": "Activate, edit, or remove the cellular profiles on this device.",
       "none_saved_yet": "No profiles saved yet. Start from a recommendation below, or create your own.",
       "activating": "Activating",
-      "scenario_scheduled": "{{scenario}} on a daily schedule",
+      "schedule_live_one": "{{scenario}} now, {{count}} block scheduled",
+      "schedule_live_other": "{{scenario}} now, {{count}} blocks scheduled",
       "scenario_always_on": "{{scenario}}, always on",
       "delete_description": "This removes the profile from the device. Any schedule bound to it is cleared. This cannot be undone.",
       "delete_keep": "Keep profile",
@@ -297,7 +346,11 @@
         "applied": "Applied at {{time}}",
         "partial": "Partial apply at {{time}}",
         "failed": "Apply failed at {{time}}"
-      }
+      },
+      "locks_bands": "Locks bands",
+      "row_menu_aria": "Actions for {{name}}",
+      "reapply": "Reapply profile",
+      "reapply_hint": "Reapplying runs all four steps again — APN, TTL and hop limit, scenario, and IMEI."
     },
     "table": {
       "headers": {
@@ -544,6 +597,7 @@
     },
     "apply_dialog": {
       "title": "Applying Profile",
+      "description": "Writing this profile's settings to the modem.",
       "status_badge": {
         "applying": "Applying…",
         "complete": "Complete",
@@ -556,17 +610,22 @@
         "imei": "IMEI",
         "scenario": "Connection Scenario"
       },
-      "reboot_notice": "Modem is restarting to apply IMEI change. Dashboard will reconnect automatically.",
-      "step_state_unchanged": "Unchanged",
       "preparing": "Preparing…",
       "step_progress": "Step {{current}} of {{total}}",
       "complete_headline": "Profile active",
       "complete_sub": "All applicable settings are now on the modem.",
-      "partial_headline": "Activated with skips",
-      "partial_sub": "Some steps were skipped. Review the details below.",
+      "partial_hero_headline_one": "Applied with one step left over",
+      "partial_hero_headline_other": "Applied with {{count}} steps left over",
+      "partial_hero_sub_one": "The profile is running. One setting did not take.",
+      "partial_hero_sub_other": "The profile is running. {{count}} settings did not take.",
       "failed_headline": "Activation failed",
       "failed_sub": "The modem was not fully reconfigured.",
-      "details_label": "Steps"
+      "details_label": "Steps",
+      "partial_notice_title": "Part of this profile did not take",
+      "failed_notice_title": "The profile was not applied",
+      "reapply_notice": "Reapplying runs the whole sequence again from the start — the modem has no way to retry a single step.",
+      "reapply_action": "Reapply profile",
+      "reboot_notice_deferred": "This profile writes an IMEI, which needs a reboot. Nothing reboots now — you will get a banner when it is ready."
     },
     "empty_state": {
       "title": "No Custom Profiles",
@@ -796,6 +855,11 @@
     }
   },
   "scenarios": {
+    "card": {
+      "title": "Connection scenarios",
+      "description": "Radio configuration. Profiles bind these; the active one owns band locking."
+    },
+    "ownership_notice": "While a scheduled profile is active, scenario activation is owned by its schedule. Manual band locking stays disabled until you deactivate the profile.",
     "controls_label": "Scenario activation",
     "icons": {
       "sparkles": "Sparkles",
@@ -814,10 +878,6 @@
     "default_balanced_name": "Balanced",
     "default_gaming_name": "Gaming",
     "default_streaming_name": "Streaming",
-    "page": {
-      "title": "Connection Scenarios",
-      "description": "Manage and customize connection scenarios for your cellular profiles to optimize network performance and reliability."
-    },
     "default_balanced_description": "Auto band selection",
     "default_gaming_description": "Low latency, SA priority",
     "default_streaming_description": "High bandwidth, stable connection",
@@ -890,7 +950,11 @@
       }
     },
     "tile": {
-      "active": "Active",
+      "in_force": "In force",
+      "next_fire_label": "Next scheduled change",
+      "locks_bands": "Locks bands",
+      "custom_tag": "Custom",
+      "bands_auto": "Bands auto",
       "delete_aria": "Delete {{name}} scenario",
       "delete_dialog": {
         "title": "Delete Scenario",
@@ -898,9 +962,12 @@
         "confirm": "Delete"
       },
       "add": {
-        "title": "Create Scenario",
-        "description": "Add custom configuration"
+        "title": "New scenario",
+        "description": "Pick a mode and bands"
       }
+    },
+    "redirect": {
+      "label": "Opening Custom SIM Profiles…"
     }
   },
   "sms": {

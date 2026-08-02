@@ -48,16 +48,13 @@ const navCellular: NavItem[] = [
     icon: "sms",
     items: [{ t_key: "sms_forwarding", url: "/cellular/sms/forwarding" }],
   },
+  // No sub-items: Connection Scenarios merged into the Custom SIM Profiles page
+  // and is no longer a destination. `/cellular/custom-profiles/connection-
+  // scenarios` still exists as a client-side redirect for old bookmarks.
   {
     t_key: "custom_profiles",
     url: "/cellular/custom-profiles",
     icon: "account_circle",
-    items: [
-      {
-        t_key: "connection_scenarios",
-        url: "/cellular/custom-profiles/connection-scenarios",
-      },
-    ],
   },
   {
     t_key: "band_locking",

@@ -266,12 +266,60 @@
       "creating": "Membuat",
       "create_aria": "Buat profil {{name}}",
       "rationale_bands": "Penguncian band membuat modem tetap pada band 5G utama operator, yang biasanya meningkatkan stabilitas. Namun bisa juga mengurangi jangkauan di tempat yang hanya terjangkau band lain. Band yang tidak dilaporkan didukung oleh modem akan dilewati, dan menonaktifkan profil akan menghapus penguncian.",
-      "rationale_ttl": "TTL dan hop limit diatur ke 64 agar lalu lintas dari perangkat di belakang modem keluar dengan nilai yang sama seperti lalu lintas modem itu sendiri. Menonaktifkan profil akan mengembalikan nilai sebelumnya."
+      "rationale_ttl": "TTL dan hop limit diatur ke 64 agar lalu lintas dari perangkat di belakang modem keluar dengan nilai yang sama seperti lalu lintas modem itu sendiri. Menonaktifkan profil akan mengembalikan nilai sebelumnya.",
+      "will_bind": "Akan mengikat: {{scenario}}"
     },
     "page": {
       "title": "Profil SIM Kustom",
-      "description": "Gabungkan pengaturan APN, IMEI, dan TTL/HL ke dalam profil sekali klik",
+      "description": "Profil membawa identitas: APN, TTL dan hop limit, serta IMEI opsional. Profil mengikat satu skenario koneksi, yang mengendalikan radio. Mengaktifkannya akan mengonfigurasi ulang modem yang sedang berjalan.",
+      "new_profile": "Profil baru",
+      "new_scenario": "Skenario baru",
       "error_load_failed": "Gagal memuat profil. Periksa koneksi dan coba lagi."
+    },
+    "hero": {
+      "eyebrow": "BERLAKU SEKARANG",
+      "badge_mismatch": "SIM tidak cocok",
+      "unknown_operator": "Operator tidak dikenal",
+      "iccid": "ICCID {{value}}",
+      "edit": "Edit",
+      "deactivate": "Nonaktifkan",
+      "notice": {
+        "applying": "Menerapkan {{name}}. Langkah {{step}} dari {{total}}. Koneksi dapat terputus sejenak saat radio menyambung ulang.",
+        "partial_lead": "Profil ini hanya diterapkan sebagian. Langkah",
+        "partial_tail": "tidak berhasil dan dibiarkan tidak berubah. Modem melaporkan",
+        "unknown_step": "tidak diketahui",
+        "mismatch_lead": "SIM yang terpasang terbaca",
+        "mismatch_tail": "yang bukan SIM tempat profil ini disimpan. APN dan TTL tetap diterapkan. Perbarui profil, atau aktifkan profil yang cocok."
+      },
+      "tiles": {
+        "identity": "Identitas",
+        "imei_override": "Penggantian IMEI",
+        "scenario": "Skenario berlaku",
+        "scheduled": "Terjadwal",
+        "radio": "Radio, dikendalikan skenario",
+        "band_locking": "Penguncian band",
+        "network_mode": "Mode jaringan",
+        "lte_bands": "Band LTE",
+        "nr_bands": "Band NR"
+      },
+      "scenario": {
+        "unknown": "Skenario tidak dikenal",
+        "next_change": "{{name}} mengambil alih pukul {{time}}",
+        "no_next_change": "Tidak ada perubahan lagi hari ini"
+      },
+      "ribbon": {
+        "title": "Jadwal hari ini",
+        "edit": "Edit jadwal",
+        "unknown_scenario": "Skenario tidak dikenal",
+        "aria_label": "Jadwal skenario hari ini: {{schedule}}",
+        "aria_segment": "{{name}} sampai {{end}}",
+        "aria_join": ", lalu ",
+        "aria_empty": "Tidak ada jadwal skenario untuk hari ini"
+      }
+    },
+    "hero_empty": {
+      "title": "Tidak ada profil aktif",
+      "description": "Modem menggunakan APN bawaan dan skenario koneksi default. Simpan profil untuk mengunci APN, TTL, dan jadwal skenario pada SIM ini."
     },
     "view": {
       "title": "Profil Tersimpan",
@@ -281,7 +329,8 @@
       "subtitle": "Aktifkan, edit, atau hapus profil seluler di perangkat ini.",
       "none_saved_yet": "Belum ada profil tersimpan. Mulai dari rekomendasi di bawah, atau buat sendiri.",
       "activating": "Mengaktifkan",
-      "scenario_scheduled": "{{scenario}} sesuai jadwal harian",
+      "schedule_live_one": "{{scenario}} sekarang, {{count}} blok terjadwal",
+      "schedule_live_other": "{{scenario}} sekarang, {{count}} blok terjadwal",
       "scenario_always_on": "{{scenario}}, selalu aktif",
       "delete_description": "Tindakan ini menghapus profil dari perangkat. Setiap jadwal yang terikat padanya akan dihapus. Tindakan ini tidak dapat dibatalkan.",
       "delete_keep": "Pertahankan profil",
@@ -297,7 +346,11 @@
         "applied": "Diterapkan pukul {{time}}",
         "partial": "Penerapan sebagian pukul {{time}}",
         "failed": "Penerapan gagal pukul {{time}}"
-      }
+      },
+      "locks_bands": "Mengunci band",
+      "row_menu_aria": "Tindakan untuk {{name}}",
+      "reapply": "Terapkan ulang profil",
+      "reapply_hint": "Menerapkan ulang menjalankan keempat langkah lagi — APN, TTL dan hop limit, skenario, dan IMEI."
     },
     "table": {
       "headers": {
@@ -544,6 +597,7 @@
     },
     "apply_dialog": {
       "title": "Menerapkan Profil",
+      "description": "Menulis pengaturan profil ini ke modem.",
       "status_badge": {
         "applying": "Menerapkan…",
         "complete": "Selesai",
@@ -556,17 +610,22 @@
         "imei": "IMEI",
         "scenario": "Skenario Koneksi"
       },
-      "reboot_notice": "Modem sedang memulai ulang untuk menerapkan perubahan IMEI. Dashboard akan tersambung kembali secara otomatis.",
-      "step_state_unchanged": "Tidak berubah",
       "preparing": "Menyiapkan…",
       "step_progress": "Langkah {{current}} dari {{total}}",
       "complete_headline": "Profil aktif",
       "complete_sub": "Semua pengaturan yang berlaku kini ada di modem.",
-      "partial_headline": "Diaktifkan dengan pelewatan",
-      "partial_sub": "Beberapa langkah dilewati. Tinjau detail di bawah.",
+      "partial_hero_headline_one": "Diterapkan dengan satu langkah tersisa",
+      "partial_hero_headline_other": "Diterapkan dengan {{count}} langkah tersisa",
+      "partial_hero_sub_one": "Profil sedang berjalan. Satu pengaturan tidak diterapkan.",
+      "partial_hero_sub_other": "Profil sedang berjalan. {{count}} pengaturan tidak diterapkan.",
       "failed_headline": "Aktivasi gagal",
       "failed_sub": "Modem tidak sepenuhnya dikonfigurasi ulang.",
-      "details_label": "Langkah"
+      "details_label": "Langkah",
+      "partial_notice_title": "Sebagian profil ini tidak diterapkan",
+      "failed_notice_title": "Profil tidak diterapkan",
+      "reapply_notice": "Menerapkan ulang menjalankan seluruh urutan dari awal — modem tidak dapat mengulang satu langkah saja.",
+      "reapply_action": "Terapkan ulang profil",
+      "reboot_notice_deferred": "Profil ini menulis IMEI, yang memerlukan reboot. Tidak ada yang direboot sekarang — Anda akan mendapat banner saat siap."
     },
     "empty_state": {
       "title": "Tidak ada profil",
@@ -796,6 +855,11 @@
     }
   },
   "scenarios": {
+    "card": {
+      "title": "Skenario Koneksi",
+      "description": "Konfigurasi radio. Profil mengikat skenario; skenario yang berlaku mengendalikan penguncian band."
+    },
+    "ownership_notice": "Selama profil terjadwal aktif, aktivasi skenario dikendalikan oleh jadwalnya. Penguncian band manual tetap nonaktif sampai Anda menonaktifkan profil.",
     "controls_label": "Aktivasi skenario",
     "icons": {
       "sparkles": "Kilau",
@@ -814,10 +878,6 @@
     "default_balanced_name": "Seimbang",
     "default_gaming_name": "Game",
     "default_streaming_name": "Streaming",
-    "page": {
-      "title": "Skenario Koneksi",
-      "description": "Kelola dan sesuaikan skenario koneksi untuk profil seluler Anda guna mengoptimalkan performa dan keandalan jaringan."
-    },
     "default_balanced_description": "Pemilihan band otomatis",
     "default_gaming_description": "Latensi rendah, prioritas SA",
     "default_streaming_description": "Bandwidth tinggi, koneksi stabil",
@@ -890,7 +950,11 @@
       }
     },
     "tile": {
-      "active": "Aktif",
+      "in_force": "Berlaku",
+      "next_fire_label": "Perubahan terjadwal berikutnya",
+      "locks_bands": "Mengunci band",
+      "custom_tag": "Kustom",
+      "bands_auto": "Band otomatis",
       "delete_aria": "Hapus skenario {{name}}",
       "delete_dialog": {
         "title": "Hapus Skenario",
@@ -898,9 +962,12 @@
         "confirm": "Hapus"
       },
       "add": {
-        "title": "Buat Skenario",
-        "description": "Tambah konfigurasi kustom"
+        "title": "Skenario baru",
+        "description": "Pilih mode dan band"
       }
+    },
+    "redirect": {
+      "label": "Membuka Profil SIM Kustom…"
     }
   },
   "sms": {

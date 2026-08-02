@@ -1,5 +1,7 @@
 # MEMORY.md index
 
+- [current_settings.sh is 0.22s, not 2-3s](current_settings_is_fast_not_3s.md) — the hook comment and sim-profiles.md are 10x stale; all 5 Custom-Profiles endpoints fired concurrently finish in 0.52s wall, so there is no AT cost worth combining; includes the /proc/uptime timing recipe and the `sudo -n` gotcha
+
 - [Every boot starts in 1970; timers arm inside that window](boot_clock_1970_window.md) — no battery RTC, ql_time_daemon steps the clock ~56y forward at boot+~25s, but timers.target arms at boot+6.3s; includes the no-journald proof recipe (/var/log/messages.0 shows the jump in one file)
 
 - [eUICC in slot 2: probe facts](euicc_slot2_probe_facts.md) — hot-swap detect is OFF (`QSIMDET 0,1`) so a mid-session insert is invisible until a power cycle; ISD-R AID opens via AT+CCHO; blank-profile card reports all-1s ICCID/IMSI + CEREG denied

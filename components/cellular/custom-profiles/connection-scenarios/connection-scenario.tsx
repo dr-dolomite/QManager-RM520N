@@ -2,58 +2,39 @@
 
 import * as React from "react";
 import { useSearchParams } from "next/navigation";
-import { motion } from "motion/react";
-import { useTranslation } from "react-i18next";
 
-import { staggerContainer, staggerItem } from "@/lib/motion";
-import { cn } from "@/lib/utils";
-import { PAGE_TITLE, PAGE_DESCRIPTION } from "../shapes";
 import ConnectionScenariosCard from "./connection-scenario-card";
 
 // =============================================================================
-// Connection Scenarios — page shell
+// ConnectionScenariosComponent — the scenarios card's deep-link adapter
 // =============================================================================
-// Rebuilt on the SMS Center / Radio Information cascade: one root motion.div
-// owns the clock (staggerContainer), and every direct section is a
-// motion.div carrying ONLY `variants={staggerItem}` — never its own
-// initial/animate, or it detaches from the parent's timing. The card itself
-// stays a plain component; its own internal cascades (the tile grid) inherit
-// this root's "visible" state by propagation rather than declaring a second
-// clock.
+// This used to be the Connection Scenarios PAGE SHELL: an `h1`, a description,
+// and its own `staggerContainer` clock. All three are gone. Scenarios are no
+// longer a destination — the card mounts inside the Custom SIM Profiles page,
+// which owns the page title and the cascade, and a second `h1` (or a second
+// stagger clock) inside a column of somebody else's page is a defect in both
+// systems at once.
+//
+// What is left is the one thing the card genuinely cannot do for itself: read
+// the URL. `?action=create-scenario` opens the "New Scenario" dialog on mount —
+// the deep link the SIM Profile form's scenario picker fires, renamed from the
+// old route's `?action=create` because the merged page's query string is now
+// shared with the profiles UI and a bare `create` would be ambiguous about which
+// thing it creates.
+//
+// `useSearchParams()` forces a client-side bailout, so the CONSUMER must wrap
+// this in `<Suspense>` — this is a static export (`output: "export"`), and Next
+// fails the build outright on an unwrapped read.
 // =============================================================================
+
+/** The query value that opens the New Scenario dialog on the merged page. */
+export const SCENARIO_CREATE_ACTION = "create-scenario";
 
 const ConnectionScenariosComponent = () => {
-  const { t } = useTranslation("cellular");
-
-  // Deep-link support: ?action=create opens the "New Scenario" dialog on
-  // mount. Set by the SIM Profile form's "Create new custom scenario…" path
-  // — see custom-profile-form.tsx.
   const searchParams = useSearchParams();
-  const autoOpenAdd = searchParams.get("action") === "create";
+  const autoOpenAdd = searchParams.get("action") === SCENARIO_CREATE_ACTION;
 
-  return (
-    <motion.div
-      className="@container/main mx-auto flex flex-col gap-5 p-2"
-      aria-live="polite"
-      aria-atomic="false"
-      variants={staggerContainer}
-      initial="hidden"
-      animate="visible"
-    >
-      <motion.div variants={staggerItem}>
-        <div className="flex max-w-[41rem] flex-col gap-1.5">
-          <h1 className={PAGE_TITLE}>{t("scenarios.page.title")}</h1>
-          <p className={cn(PAGE_DESCRIPTION, "text-sm leading-relaxed text-pretty")}>
-            {t("scenarios.page.description")}
-          </p>
-        </div>
-      </motion.div>
-
-      <motion.div variants={staggerItem}>
-        <ConnectionScenariosCard autoOpenAddDialog={autoOpenAdd} />
-      </motion.div>
-    </motion.div>
-  );
+  return <ConnectionScenariosCard autoOpenAddDialog={autoOpenAdd} />;
 };
 
 export default ConnectionScenariosComponent;

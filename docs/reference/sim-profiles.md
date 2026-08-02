@@ -36,8 +36,9 @@ points (boot, SIM switch, watchdog) and are still current.
 | CGI endpoints | `scripts/www/cgi-bin/quecmanager/profiles/*.sh` |
 | Frontend hook | `hooks/use-sim-profiles.ts`, `hooks/use-active-profile.ts`, `hooks/use-current-settings.ts`, `hooks/use-profile-suggestions.ts` |
 | Frontend types | `types/sim-profile.ts` |
-| Frontend page | `app/cellular/custom-profiles/` |
-| Frontend components | `components/cellular/custom-profiles/` (coordinator `custom-profile.tsx`, wizard `custom-profile-form.tsx`, list `custom-profile-view.tsx` — which also renders suggestion rows — dialog `apply-progress-dialog.tsx`) |
+| Frontend page | `app/cellular/custom-profiles/` — **the single route for this feature.** `app/cellular/custom-profiles/connection-scenarios/page.tsx` is a retired route that now client-side redirects here |
+| Frontend components | `components/cellular/custom-profiles/` (coordinator `custom-profile.tsx`, hero `active-profile-hero.tsx`, ribbon `schedule-ribbon.tsx`, wizard `custom-profile-form.tsx` hosted by `profile-form-dialog.tsx`, list `custom-profile-view.tsx` — which also renders suggestion rows — dialog `apply-progress-dialog.tsx`, geometry/tone contract `shapes.ts`) |
+| Schedule strip math | `lib/schedule-timeline.ts` (`buildDayTimeline`, `nextScenarioChange`, `formatMinute`) |
 | Suggestion data / matcher | `constants/profile-suggestions.ts`, `lib/carrier-match.ts` |
 | Apply steps | 4: `apn` → `ttl_hl` → `scenario` → `imei` |
 | Band failover watcher | `/usr/bin/qmanager_band_failover`, flag `/etc/qmanager/band_failover_enabled`, PID `/tmp/qmanager_band_failover.pid` |
@@ -198,10 +199,34 @@ Order is load-bearing — see the rationale notes inline.
 
 | # | Step | What it does |
 |---|------|--------------|
-| 1 | `apn` | Compare `settings.apn` vs. current PDP context. If different, rewrite via `AT+CGDCONT` (and the full attach cycle for the default bearer — see [wan-profile-management.md](wan-profile-management.md)). |
+| 1 | `apn` | Compare `settings.apn` vs. current PDP context (`AT+CGDCONT?`). If it already matches, mark `skipped`. If different, send **one** command — `AT+CGDCONT=<cid>,"<pdp>","<apn>"` — and mark `done`. **No detach/attach cycle.** See the warning below. |
 | 2 | `ttl_hl` | Compare `settings.ttl` / `settings.hl` vs. the persisted iptables state, then apply via `ttl_state_apply` if drifted. |
 | 3 | `scenario` | If `settings.scenario_id` is set, resolve it (built-in or custom) and call `scenario_apply` from `scenario_mgr.sh`. Persists the result to `/etc/qmanager/active_scenario`. |
 | 4 | `imei` | If `settings.imei` is set and differs from `AT+EGMR=0,7`, write the new IMEI via `AT+EGMR=1,7` and trigger a soft reboot (`AT+CFUN=1,1`). |
+
+> ⚠️ WARNING: **Suspected correctness gap — the profile APN step is not the same
+> operation as the APN Settings page, and this is NOT fixed.**
+>
+> "Attach" is the moment the modem registers with the carrier's packet core and
+> is handed the data bearer it will use for the rest of the session. The APN for
+> that **default bearer** is read *at attach time* — so rewriting the PDP context
+> afterwards edits a stored setting the modem is no longer consulting. That is
+> why the dedicated APN endpoint (`cellular/apn.sh:466–477`) deliberately runs
+> the full cycle: `AT+COPS=2` (deregister) → write `AT+CGDCONT` → `AT+COPS=0`
+> (re-register), forcing a fresh attach that picks the new APN up.
+>
+> `qmanager_profile_apply:376–388` issues the `AT+CGDCONT` write **and nothing
+> else** — no `COPS` bracket, no `CFUN` cycle. Verified by reading the worker,
+> not inferred. The consequence: applying a profile that changes the APN can
+> report the step `done` while the modem is still carrying traffic on the old
+> APN, until something else forces re-registration (a manual reconnect, a
+> watchdog recovery, or a reboot — including the one step 4 triggers when the
+> profile also overrides IMEI, which is why this can look intermittent).
+>
+> This is recorded here as **observed behaviour under separate investigation**.
+> Do not "align" the two paths without one — the profile worker runs unattended
+> at boot and on SIM swap, where a deregister/re-register bracket has different
+> risk than it does behind a user-initiated Save.
 
 ### Why scenario MUST come before IMEI
 
@@ -284,7 +309,7 @@ globally — a profile that only sets APN gates only the APN page.
 |----------------------|---------------|-------------|
 | `settings.apn.name` non-empty | APN Management page | Banner + `<fieldset disabled>` over the form |
 | `settings.ttl > 0` or `settings.hl > 0` | TTL/HL Settings card (existing — predates the scenario feature) | Banner + disabled inputs |
-| `settings.scenario_id` set to `gaming` / `streaming` / `custom-*` | Connection Scenarios page **and** Band Locking page | Scenarios: banner + "Activate" buttons disabled (with tooltip on hover explaining why). Band Locking: full disable. |
+| `settings.scenario_id` set to `gaming` / `streaming` / `custom-*` | The Connection Scenarios **card** (now on `/cellular/custom-profiles`) **and** the Band Locking page | Scenarios: banner + "Activate" buttons disabled (with tooltip on hover explaining why). Band Locking: full disable. |
 | `settings.scenario_id == "balanced"` | (nothing — Balanced is treated as "no opinion") | No banner, no disabled controls. The binding is only visible from the SIM Profile form. |
 | `settings.scenario_id == ""` or null | (nothing) | Pre-binding profiles or legacy data. |
 | `settings.imei` non-empty | (no UI gate — applied only at profile-apply time) | n/a |
@@ -310,13 +335,194 @@ deliberately allowed through — see [Why Balanced is treated as "no opinion"](#
 
 ---
 
-## Frontend UI (RM551E-parity redesign)
+## Frontend UI — one page, one feature
 
-The Custom SIM Profiles page was rebuilt to match the RM551E design. This is a
-**frontend-only** change — the backend data model, CGI contract, and apply
-pipeline described above are untouched. The three surfaces are the create/edit
-**wizard**, the saved-profiles **card list**, and the **apply-progress dialog**,
-coordinated by `custom-profile.tsx`.
+Custom SIM Profiles and Connection Scenarios are **a single page** at
+`/cellular/custom-profiles`. They were two routes and two sidebar entries until
+the merge; a profile has always *contained* a scenario binding, so splitting the
+two meant a user had to leave the page they were configuring to create the thing
+it needed. Everything below is **frontend-only** — the data model, CGI contract,
+and apply pipeline described above are untouched, and no backend script was
+modified by the merge.
+
+### Page anatomy, top to bottom
+
+1. **Page header + two pill actions** — "New scenario" (tonal) and "New profile"
+   (primary). Two creation verbs on one page, ranked by which one a user reaches
+   for more often.
+2. **The "in force now" hero** (`active-profile-hero.tsx`, `rounded-hero`) —
+   what the modem is running *right now*, answered before the list of things it
+   could run instead. Glyph disc, profile name, MNO + ICCID, Edit / Deactivate;
+   at most **one** inline notice; three tiles (identity config pills · scenario
+   in force · radio owned-by-scenario); and the 24-hour **schedule ribbon**.
+   When no profile is active the whole card is replaced by the `NoActiveProfile`
+   state screen — an empty hero would be a card reporting nothing.
+3. **A two-column grid** (`@4xl/main:grid-cols-[1.15fr_1fr]`) — saved profiles
+   beside the Connection Scenarios card. Container query, not a viewport
+   breakpoint, per the project's responsive rule.
+
+Everything the hero renders is **derived from real state**; there is no
+`showMismatchNotice`-style boolean prop, because a notice driven by a flag the
+caller passes in is a notice that can be wrong while looking right. Notice
+priority is `applying → partial → mismatch`, at most one at a time: the in-flight
+apply is the only fact still changing, a partial apply is a finished event the
+user must act on, and a SIM mismatch is a standing condition the identity badge
+already announces on its own.
+
+### The retired `connection-scenarios` route
+
+`app/cellular/custom-profiles/connection-scenarios/page.tsx` still exists, but
+only as a **client-side redirect** to `/cellular/custom-profiles`. Its sidebar
+nav item is gone (`components/app-sidebar.tsx`).
+
+> ℹ️ NOTE: **Why it can't be a real redirect.** QManager ships as a Next.js
+> *static export* (`output: "export"`) served by lighttpd off the modem — there
+> is no Node process at runtime, so `next.config`'s `redirects()` never executes
+> (it is a dev-server-only feature here) and nothing can emit a 308. The
+> navigation has to happen in the browser after the exported HTML loads. It uses
+> `router.replace`, never `push`: a redirect that leaves itself in the history
+> stack traps the Back button in a loop between the two pages. It renders a real
+> centred spinner rather than a blank frame — on the modem's own CPU that frame
+> is not always instantaneous, and a white flash reads as a broken link.
+
+The redirect translates the old route's `?action=create` into
+`?action=create-scenario` on the way through (the merged page hosts two create
+flows, so a bare `create` no longer says which one) and passes any other params
+untouched.
+
+### The create/edit wizard now lives in a dialog
+
+`custom-profile-form.tsx` — the 4-step wizard documented below — is
+**unchanged**. What changed is where it is mounted: it moved from a permanently
+occupied left column into `profile-form-dialog.tsx`, so the page's default state
+is "here is what's running and what you've saved" rather than "here is an empty
+form."
+
+`DialogContent` is `p-0 gap-0 rounded-card overflow-hidden`, so the wizard's own
+`<Card>` *is* the dialog body — a padded dialog around a card would double-frame
+it, two nested rounded containers and two titles saying the same thing. Radix
+still requires an accessible name, so `DialogTitle` / `DialogDescription` are
+rendered `sr-only` and the wizard's card header stays the single visible one.
+The body scrolls (capped at `85dvh`, `dvh` so a collapsing mobile URL bar can't
+cut it off); a four-step wizard on a landscape field tablet would otherwise push
+its own submit button out of reach.
+
+The wrapper decides exactly one thing — whether the dialog closes. `onSave`
+returns the profile id on success and `null` on failure; a non-null id means the
+profile landed on the device and the input is safe to discard, while `null`
+means everything the user typed is still the only copy of it, so the dialog
+deliberately stays open.
+
+> ⚠️ WARNING: **Known wart.** In *create* mode the wizard's own Cancel button
+> **clears the form** rather than closing the dialog
+> (`custom-profile-form.tsx:563`) — that behaviour predates the dialog and was
+> not changed by the move. Dismissal is via the X, Esc, or the overlay.
+
+### The active row is neutral plus a ring, not a green fill
+
+`profileRowTone("active")` no longer returns `bg-tone-success-1`. The active row
+is now neutral `surface-container` carrying a **2 px inset primary ring**
+(`PROFILE_ROW_ACTIVE_RING`).
+
+The reason is what the row *contains*: five or six `surface-container-high`
+config pills. Step 1 of a tone family is tuned to carry `on-surface` ink at full
+contrast, not to host another neutral container inside itself — on a green row
+the pills lost the tonal separation that was the only thing distinguishing them
+from their background. Emphasis therefore moved to a channel the row's contents
+don't compete for.
+
+> ℹ️ NOTE: **This is not a No-Hairline-On-Fill violation.** That rule bans a
+> stroke drawn to prop up a fill too weak to read on its own; here the fill is
+> neutral *by intent* and the ring is the emphasis itself. It is drawn as an
+> inset `box-shadow`, not a `border`, so it occupies no layout box — active and
+> inactive rows stay pixel-identical in size, where a real border would shift
+> every child by 2 px the moment a row activated. The scenario grid marks its
+> in-force tile with the same exported constant, so the two can never disagree
+> on the ring's weight.
+
+`mismatch` keeps its tonal fill: a mismatch is a genuine functional state the
+whole row is reporting, not a selection.
+
+### The 24-hour schedule ribbon
+
+`lib/schedule-timeline.ts` + `components/cellular/custom-profiles/schedule-ribbon.tsx`
+render a profile's scenario schedule as a proportional strip of the day.
+`ScheduleRibbon` is the hero's labelled version (segment names, windows, a
+needle at the current minute, an hour axis); `ScheduleMiniBar` is the 8 px band
+a profile row carries — a *glyph* for "this profile has a schedule and here is
+its shape", not a readable timeline, which is why it animates nothing and stays
+`aria-hidden` (the row's own text line already states the schedule in words).
+
+`buildDayTimeline(schedule, fallbackScenarioId, now)` is pure and takes `now` as
+a **parameter**, never an implicit `new Date()`. One clock is passed down from
+the page, so the needle, the "next change at" caption and every row's mini bar
+are computed against the same instant — and every function is unit-testable
+without freezing global time.
+
+It is implemented as a **painter's pass over 1440 one-minute slots** rather than
+interval arithmetic: blocks are painted in reverse array order into a
+fixed-length array, then adjacent slots carrying the same scenario are collapsed
+into runs. Gaps, midnight wraps and overlaps then fall out of paint order
+instead of each needing its own branch, and the returned strip always totals
+exactly 1440 minutes with no holes.
+
+> ⚠️ WARNING: **`schedule-timeline.ts` is the third TypeScript-or-shell
+> implementation of the schedule resolution rule** (alongside
+> `scenario_mgr.sh::scenario_block_for_now` on-device and
+> `lib/scenario-schedule.ts` for the "locked" badge), and the fourth counting the
+> `OnCalendar` compiler. **They must stay in sync** — see
+> [Resolution rule](#resolution-rule-must-match-byte-for-behavior-in-4-places).
+> Two consequences are load-bearing and were chosen against a design brief that
+> asked otherwise:
+>
+> - **Overlaps resolve FIRST-match-wins**, matching the device's
+>   `$hits[0] // $dflt`. The mock's brief asked for last-wins; a ribbon painting
+>   last-wins would draw a band the modem is not running.
+> - **A block with an empty or absent `days` array is INERT**, never "every
+>   day" — matching the device's `select(.days | index($dow) != null)`. The
+>   editor always writes all seven days, so this only affects legacy records,
+>   but reading empty as "all" would draw a strip the device will not honour.
+
+Segments arrive by `scaleX` from a left origin, never by animating `width`: a
+width animation is a per-frame layout pass on a CPU that is simultaneously
+carrying the user's traffic. The strip is `role="img"` with an `aria-label` that
+speaks the schedule in words ("Night Idle until 07:00, then Balanced until
+18:00, …"), built from the same segments the bands are drawn from.
+
+The ribbon is only honest because the on-device timer that enacts it is honest —
+see [Scenario schedule windows](#scenario-schedule-windows-systemd-timer-not-crond)
+and the fire guard note there.
+
+### What the merged mount actually costs
+
+Merging two pages into one means one mount now fires what used to be two pages'
+worth of requests. Measured on the live modem:
+
+| Fact | Detail |
+|------|--------|
+| **No AT contention** | Exactly **one** endpoint on the page touches the AT transport — `profiles/current_settings.sh` — and it takes `/tmp/qmanager_at.lock` once. `profiles/list.sh`, `scenarios/list.sh` and `apply_status.sh` are pure disk reads and never queue behind the modem. |
+| **Whole-page cost** | Every page endpoint fired concurrently completes in **0.52 s wall**. |
+
+> ℹ️ NOTE: **Known follow-up, not a defect.** The mount currently fetches
+> `scenarios/list.sh` twice (`useConnectionScenarios` + `useScenarioList`) and
+> `profiles/list.sh` twice (`useSimProfiles` + `useActiveProfile`, the latter
+> also re-polling every 30 s). Each is a ~0.08 s disk read, so the waste is real
+> but cheap — worth a shared cache when someone is next in these hooks, not
+> worth a change on its own.
+
+**Why the hero refetches the active profile by id.** `profiles/list.sh`
+summaries **do** carry the full `scenario.schedule.blocks[]`
+(`profile_mgr.sh:139–142`) — which is what lets every row draw its own
+`ScheduleMiniBar` from list data alone — but they deliberately **omit
+`settings`**, to keep the list endpoint lightweight. So the hero fetches the
+active profile through `profiles/get.sh` for its config pills, and list rows
+keep their per-row `getProfile` prefetch.
+
+### Historical context: the RM551E-parity redesign
+
+The sections below describe the redesign that preceded the merge. The three
+surfaces are the create/edit **wizard**, the saved-profiles **card list**, and
+the **apply-progress dialog**, coordinated by `custom-profile.tsx`.
 
 > ℹ️ NOTE: Verizon-specific UX is **omitted on RM520N** (it is RM551E-only):
 > there is no CID-lock-to-3, no brick-guard dialog, no MPDN pill, and no
@@ -327,7 +533,9 @@ coordinated by `custom-profile.tsx`.
 ### The 4-tab create/edit wizard (`custom-profile-form.tsx`)
 
 The single-page form became a **4-tab wizard** with directional slide
-animation (`motion/react`, reduced-motion aware):
+animation (`motion/react`, reduced-motion aware). It is unchanged by the merge —
+only its host moved, into `profile-form-dialog.tsx` (see [The create/edit wizard
+now lives in a dialog](#the-createedit-wizard-now-lives-in-a-dialog)):
 
 | Tab | Purpose |
 |-----|---------|
@@ -365,11 +573,54 @@ stays lightweight; per-row config detail is fetched when a card needs it).
 
 ### Apply-progress dialog (`apply-progress-dialog.tsx`)
 
-The apply dialog adopts the RM551E **hero-glyph** design — a tinted-ring glyph,
-a determinate fill bar, and a step ledger. It renders the **4 RM520N steps**
-`apn → ttl_hl → scenario → imei` (it does **not** carry RM551E's Verizon
-`mpdn_rule` step). While the apply is non-terminal the dialog cannot be closed;
-on a terminal **partial** or **failed** result it offers **Retry**.
+A hero disc per status, a determinate bar, and a **"Details" ledger**. It renders
+the **4 RM520N steps** `apn → ttl_hl → scenario → imei` (it does **not** carry
+RM551E's Verizon `mpdn_rule` step). While the apply is non-terminal the dialog
+cannot be closed; on a terminal **partial** or **failed** result it offers
+**Reapply profile**.
+
+Three details of this dialog are deliberate and each has bitten someone:
+
+- **The ledger prints `ApplyStep.detail` verbatim**, right-aligned in mono — the
+  APN that actually landed, `"already set"` for a skipped step, `+CME ERROR: 4`
+  for a failed one. Previously a step said it was done without saying what it
+  did, which is exactly the opaque progress the State-Honesty Rule exists to
+  stop: "APN Configuration ✓" is not an answer to "*which* APN landed?". The
+  string is never synthesized — an empty `detail` renders an empty slot, not a
+  guess.
+- **The bar counts FINISHED steps, not `current_step / total_steps`.**
+  `mark_step_running()` increments the counter *before* the step does any work
+  (`qmanager_profile_apply:264`), so the naive ratio reads 25 % before the modem
+  has been touched at all. `current_step` reports what has been *started*; a
+  progress bar reports what has been *finished*. A completed apply pins to 1
+  regardless, so a skip-heavy run still ends full.
+- **`skipped` steps stay muted** rather than being rewritten to a green check at
+  completion (the old `effectiveStatus()` helper is gone). A step that did
+  nothing did not succeed at anything, and `ledgerStepTone`'s own contract note
+  says so.
+
+The bar animates `scaleX` from a left origin — transform only, no per-frame
+layout.
+
+> ⚠️ WARNING: **The retry action reads "Reapply profile", not the mock's "Retry
+> IMEI".** Per-step retry is **not implemented, deliberately**, and a label
+> promising it would claim a capability the backend does not have. Three
+> independent reasons, in ascending severity:
+>
+> 1. `apply.sh:80` wipes the state file on every run, so there is nothing for a
+>    scoped run to resume from.
+> 2. `total_steps` is hardcoded to 4 with a monotonic `current_step`; the state
+>    schema cannot describe "step 4 only."
+> 3. **The finalize block at `qmanager_profile_apply:690–694` calls
+>    `clear_active_profile` + `scenario_teardown_schedule` +
+>    `scenario_reset_to_default` whenever a run's status is `failed`.** A failed
+>    single-step "Retry IMEI" would therefore **deactivate a healthy profile and
+>    destroy its schedule timer** — strictly worse than not retrying.
+>
+> The mitigating fact, which is why a full reapply is an acceptable answer:
+> three of the four steps are self-comparing and mark themselves `skipped` on a
+> match. A full reapply after a failed IMEI write costs one `AT+CGDCONT?` read,
+> one iptables read, one redundant `QNWPREFCFG` write, and the retry itself.
 
 ### Scenario picker and the "+ Create new" deep-link
 
@@ -381,14 +632,21 @@ The Select uses one sentinel option value:
 
 | Sentinel | Meaning |
 |----------|---------|
-| `__create__` | "+ Create new custom scenario…" — deep-links to `/cellular/custom-profiles/connection-scenarios?action=create`, which auto-opens the create-scenario dialog. If the profile form is dirty, an AlertDialog prompts the user to discard changes before navigating. |
+| `__create__` | "+ Create new custom scenario…" — deep-links to `/cellular/custom-profiles?action=create-scenario`, which auto-opens the create-scenario dialog on the merged page. If the profile form is dirty, an AlertDialog prompts the user to discard changes before navigating. |
 
-> ℹ️ NOTE: The deep-link param is `?action=create`. It was previously
-> `?create=1`, which did not match what the scenarios page consumer reads —
-> the param name is now aligned so the create-scenario dialog actually opens on
-> arrival. The destination page wraps `useSearchParams()` in `<Suspense>`
-> (Next.js requirement when reading search params in a client component) and
-> consumes `action=create` to open the dialog on mount.
+> ℹ️ NOTE: Since the merge there are **two** create deep-links on one page, so
+> the action name has to say *which* thing to create: `?action=create` opens the
+> profile wizard, `?action=create-scenario` opens the scenario dialog. The
+> `create-scenario` literal is exported as `SCENARIO_CREATE_ACTION` from
+> `connection-scenarios/connection-scenario.tsx` and imported by every consumer
+> (`scenario-binding/scenario-picker.tsx`, the coordinator, and the retired
+> route's redirect) rather than restated — three copies of a string that must
+> match is how a deep link silently stops opening anything.
+>
+> The page wraps `useSearchParams()` in `<Suspense>`, which is not defensive
+> tidiness: reading search params in a client component triggers a
+> client-side-rendering bailout, and an unwrapped read **fails the static export
+> build**.
 
 ### Supporting components
 
@@ -431,7 +689,12 @@ pipeline above changed.
 > (`profileRowTone`, `ledgerStepTone`), and the status→badge map
 > (`PROFILE_STATUS_BADGE`). Any new work on this surface (a new row variant,
 > a new tile, a new status) should extend this file rather than hand-roll a
-> class string — its header comments carry the reasoning (the tone rule: fills
+> class string. The merge added the hero and ribbon vocabulary to it —
+> `HERO_CARD`, `HERO_DISC`, `HERO_EYEBROW`, `HERO_TILE_SHAPE`,
+> `HERO_TILE_NEUTRAL`, `HERO_TILE_SCENARIO`, `HERO_NOTICE`, `HERO_NOTICE_TONE`,
+> `RIBBON_SHAPE`, `RIBBON_SEGMENT_IDLE`, `RIBBON_SEGMENT_LIVE`, `RIBBON_MINI`,
+> `SCENARIO_PILL`, `SCENARIO_META_CHIP`, `LEDGER_VALUE`, `LEDGER_BAR`,
+> `LIVE_DOT`, and `PROFILE_ROW_ACTIVE_RING` — its header comments carry the reasoning (the tone rule: fills
 > use `--tone-{role}-1` for stacked rows, the container pair for chips/notices,
 > `text-{role}-on-surface` for tinted text; and the No-Hairline-On-Fill rule:
 > a real tonal fill doesn't also carry a border). Both page shells also moved
@@ -562,10 +825,18 @@ consumer must treat empty as "unknown carrier", never as an error.
 
 The create form pre-fills from the live SIM **automatically on mount**
 (`custom-profile.tsx` calls `useCurrentSettings(true)`), not only when the user
-presses **Load from SIM**. Because the compound AT read takes ~2–3 s, the user
-can already be typing when the response lands — so the two arrival paths are
+presses **Load from SIM**. The read is fast but not instant — **measured on the
+live modem at ~0.22 s typical (10 samples, 0.20–0.47 s, taken while the status
+poller was running and competing for the same AT lock)** — so the user can
+already be typing when the response lands. The two arrival paths are therefore
 handled differently, distinguished by an `explicitLoad` state flag in
 `custom-profile-form.tsx`.
+
+> ℹ️ NOTE: This doc previously claimed the read took **~2–3 s**, which is off by
+> an order of magnitude and is what motivated an unnecessary optimization
+> investigation. The race the `explicitLoad` flag guards is real regardless — a
+> 220 ms round trip is still far longer than the time it takes a user to focus a
+> field and start typing — but nothing here needs to be made faster.
 
 | Path | Trigger | Write policy | IMEI |
 |------|---------|--------------|------|
@@ -900,7 +1171,7 @@ has **no running `crond`** (see the crond correction in
 implemented as a **systemd `OnCalendar` timer**, generated at runtime, not a
 crontab entry.
 
-### Resolution rule (must match byte-for-behavior in 3 places)
+### Resolution rule (must match byte-for-behavior in 4 places)
 
 For weekday `dow` (0=Sun..6=Sat) and minute-of-day `m`:
 
@@ -911,7 +1182,7 @@ For weekday `dow` (0=Sun..6=Sat) and minute-of-day `m`:
 3. First matching block in array order wins.
 4. No block matches → `scenario.default`.
 
-This exact rule is implemented independently in three places and **must
+This exact rule is implemented independently in **four** places and **must
 stay in sync**:
 
 | Implementation | Purpose |
@@ -919,6 +1190,7 @@ stay in sync**:
 | `scenario_mgr.sh::scenario_block_for_now` (jq, on-device) | Authoritative — resolves "what should be active right now" when the timer fires. |
 | `scenario_mgr.sh::_scenario_generate_oncalendar_lines` (jq, on-device) | Compiles a schedule into `OnCalendar=` lines (see below) — a from-scratch reimplementation of the same timeline logic, not a call into `scenario_block_for_now`. |
 | `lib/scenario-schedule.ts` (`resolveScheduledScenario`, `nextChangeAt`) | Display-only — drives the frontend's "locked" badge and "next change at HH:MM" line. The on-device timer is authoritative; this module exists only so the UI agrees with the device. |
+| `lib/schedule-timeline.ts` (`buildDayTimeline`, `nextScenarioChange`) | Display-only — paints the hero's 24-hour ribbon and every row's mini bar. Same rule, expressed as paint order over 1440 slots (blocks painted in reverse array order so the earliest match owns the slot = first-wins). Added with the merged page; see [The 24-hour schedule ribbon](#the-24-hour-schedule-ribbon). |
 
 ### The systemd mechanism
 
@@ -932,6 +1204,20 @@ lines are per-profile data, not a fixed schedule:
 | `scripts/usr/bin/qmanager_scenario_schedule_arm` | Root helper (sudoers-gated). `install <profile_id>` computes `OnCalendar=` lines via `_scenario_generate_oncalendar_lines`, writes `qmanager-scenario-schedule.timer` to `/lib/systemd/system/`, and manually symlinks it into `/lib/systemd/system/timers.target.wants/` — the same manual-symlink pattern as `qmanager_auto_update_arm`, and for the same reason: on this systemd 244, `systemctl enable` writes into `/etc/systemd/system/`, but `systemctl is-enabled` and every other qmanager unit persist via `/lib` symlinks, so using `systemctl enable` here would put this unit's enablement state in a different place than everything else. `teardown` stops + removes the timer. Both verbs no-op cleanly if the target `.service` is absent (an OTA-upgraded device that predates the feature). |
 | `qmanager-scenario-schedule.service` (static, installer-shipped, `Type=oneshot`) | `ExecStart=/usr/bin/qmanager_scenario_schedule --now`. No `[Install]` section — only ever started by the timer, never boot-enabled directly. |
 | `scripts/usr/bin/qmanager_scenario_schedule` | The fire-worker. A systemd `OnCalendar` line can only encode **when** to fire, never **which** scenario (unlike a cron line, it carries no payload) — so every firing runs this one fixed worker, which resolves "what should be active right now" via `scenario_block_for_now` / `scenario_apply_resolved` rather than being told directly. Self-heals: if the active profile was deleted or its schedule disabled/edited since the timer was armed, it tears the timer down instead of erroring. |
+
+> ℹ️ NOTE: **The timer survives the 1970 boot window, and that is what makes the
+> hero's ribbon honest.** RM520N-GL has no battery-backed real-time clock, so
+> every boot starts at Jan 1970 and every armed `OnCalendar` timer misfires twice
+> around the ~24 s clock step. `qmanager_scenario_schedule:54–60` calls
+> `_qm_timer_fire_allowed ""` — the **empty** argument means "I have no single
+> schedule minute to compare against" (a multi-block timeline doesn't have one),
+> which degrades the guard to *clock-sane **and** uptime ≥ 300 s*. Both
+> boot-window misfires (~23 s and ~29 s) are rejected. A denied fire is
+> `exit 0` — a clean skip, **not** a teardown — so the armed timer is still there
+> for its next real elapse. Verified present on-device: the worker, the
+> `_arm` helper, the `.service` unit and the sudoers rule all exist; only the
+> `.timer` is generated per-profile at arm time. Full mechanism in
+> [scheduled-timers.md](scheduled-timers.md#the-1970-boot-window).
 
 `scenario_install_schedule <profile_id>` / `scenario_teardown_schedule` in
 `scenario_mgr.sh` are the library-level entry points — thin wrappers that

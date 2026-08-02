@@ -266,12 +266,60 @@
       "creating": "正在创建",
       "create_aria": "创建 {{name}} 配置文件",
       "rationale_bands": "频段锁定会让调制解调器保持在运营商的主要 5G 频段上，通常可以提升稳定性。但在只有其他频段覆盖的地方，也可能缩小信号范围。调制解调器未报告支持的频段会被排除，停用配置文件即可解除锁定。",
-      "rationale_ttl": "TTL 与跳数限制设为 64，使调制解调器后方设备的流量与调制解调器自身流量具有相同数值。停用该配置文件会恢复原有数值。"
+      "rationale_ttl": "TTL 与跳数限制设为 64，使调制解调器后方设备的流量与调制解调器自身流量具有相同数值。停用该配置文件会恢复原有数值。",
+      "will_bind": "将绑定：{{scenario}}"
     },
     "page": {
       "title": "自定义 SIM 配置文件",
-      "description": "将 APN、IMEI 和 TTL/HL 设置打包为一键式配置文件。",
+      "description": "配置文件承载身份信息：APN、TTL 与跳数限制，以及可选的 IMEI。它会绑定一个连接场景，由该场景掌管无线电。激活配置文件会重新配置正在运行的调制解调器。",
+      "new_profile": "新建配置文件",
+      "new_scenario": "新建场景",
       "error_load_failed": "无法加载配置文件。请检查连接并重试。"
+    },
+    "hero": {
+      "eyebrow": "当前生效",
+      "badge_mismatch": "SIM 卡不匹配",
+      "unknown_operator": "未知运营商",
+      "iccid": "ICCID {{value}}",
+      "edit": "编辑",
+      "deactivate": "停用",
+      "notice": {
+        "applying": "正在应用 {{name}}。第 {{step}} / {{total}} 步。无线电重新附着期间连接可能短暂中断。",
+        "partial_lead": "此配置文件仅部分应用。步骤",
+        "partial_tail": "未能生效，保持原样。调制解调器报告：",
+        "unknown_step": "未知",
+        "mismatch_lead": "插入的 SIM 卡读取为",
+        "mismatch_tail": "，与此配置文件保存时使用的 SIM 卡不同。APN 与 TTL 仍已应用。请更新此配置文件，或激活与之匹配的配置文件。"
+      },
+      "tiles": {
+        "identity": "身份",
+        "imei_override": "IMEI 覆盖",
+        "scenario": "生效中的场景",
+        "scheduled": "已排定计划",
+        "radio": "无线电，由场景掌管",
+        "band_locking": "频段锁定",
+        "network_mode": "网络模式",
+        "lte_bands": "LTE 频段",
+        "nr_bands": "NR 频段"
+      },
+      "scenario": {
+        "unknown": "未知场景",
+        "next_change": "{{name}} 将于 {{time}} 接管",
+        "no_next_change": "今日无后续变更"
+      },
+      "ribbon": {
+        "title": "今日计划",
+        "edit": "编辑计划",
+        "unknown_scenario": "未知场景",
+        "aria_label": "今日场景计划：{{schedule}}",
+        "aria_segment": "{{name}} 至 {{end}}",
+        "aria_join": "，接着",
+        "aria_empty": "今日没有场景计划"
+      }
+    },
+    "hero_empty": {
+      "title": "没有活动的配置文件",
+      "description": "调制解调器正在使用出厂 APN 和默认连接场景。保存一个配置文件，即可为此 SIM 卡固定 APN、TTL 和场景计划。"
     },
     "view": {
       "title": "已保存的配置文件",
@@ -281,7 +329,8 @@
       "subtitle": "在此设备上激活、编辑或移除蜂窝配置文件。",
       "none_saved_yet": "尚未保存任何配置文件。可从下方的推荐开始，或自行创建。",
       "activating": "正在激活",
-      "scenario_scheduled": "{{scenario}}，按每日计划",
+      "schedule_live_one": "当前 {{scenario}}，已排定 {{count}} 个时段",
+      "schedule_live_other": "当前 {{scenario}}，已排定 {{count}} 个时段",
       "scenario_always_on": "{{scenario}}，始终启用",
       "delete_description": "此操作将从设备中移除该配置文件。绑定到它的任何计划都将被清除。此操作无法撤销。",
       "delete_keep": "保留配置文件",
@@ -297,7 +346,11 @@
         "applied": "已于 {{time}} 应用",
         "partial": "已于 {{time}} 部分应用",
         "failed": "{{time}} 应用失败"
-      }
+      },
+      "locks_bands": "锁定频段",
+      "row_menu_aria": "{{name}} 的操作",
+      "reapply": "重新应用配置文件",
+      "reapply_hint": "重新应用会再次执行全部四个步骤：APN、TTL 与跳数限制、场景和 IMEI。"
     },
     "table": {
       "headers": {
@@ -544,6 +597,7 @@
     },
     "apply_dialog": {
       "title": "正在应用配置文件",
+      "description": "正在将此配置文件的设置写入调制解调器。",
       "status_badge": {
         "applying": "应用中…",
         "complete": "完成",
@@ -556,17 +610,22 @@
         "imei": "IMEI",
         "scenario": "连接场景"
       },
-      "reboot_notice": "调制解调器正在重启以应用 IMEI 更改，仪表板将自动重新连接。",
-      "step_state_unchanged": "无变化",
       "preparing": "准备中…",
       "step_progress": "第 {{current}} / {{total}} 步",
       "complete_headline": "配置已激活",
       "complete_sub": "所有适用的设置已应用到调制解调器。",
-      "partial_headline": "已激活（部分跳过）",
-      "partial_sub": "部分步骤已跳过。请查看下方详情。",
+      "partial_hero_headline_one": "已应用，有一个步骤未生效",
+      "partial_hero_headline_other": "已应用，有 {{count}} 个步骤未生效",
+      "partial_hero_sub_one": "配置文件正在运行。有一项设置未生效。",
+      "partial_hero_sub_other": "配置文件正在运行。有 {{count}} 项设置未生效。",
       "failed_headline": "激活失败",
       "failed_sub": "调制解调器未完全重新配置。",
-      "details_label": "步骤"
+      "details_label": "步骤",
+      "partial_notice_title": "此配置文件的部分内容未生效",
+      "failed_notice_title": "配置文件未被应用",
+      "reapply_notice": "重新应用会从头再执行整个流程——调制解调器无法只重试单个步骤。",
+      "reapply_action": "重新应用配置文件",
+      "reboot_notice_deferred": "此配置文件会写入 IMEI，需要重启才能生效。现在不会重启——准备就绪后会显示提示横幅。"
     },
     "empty_state": {
       "title": "暂无自定义配置文件",
@@ -796,6 +855,11 @@
     }
   },
   "scenarios": {
+    "card": {
+      "title": "连接场景",
+      "description": "无线电配置。配置文件会绑定场景；生效中的场景掌管频段锁定。"
+    },
+    "ownership_notice": "当已排定计划的配置文件处于激活状态时，场景激活由该计划掌管。在停用该配置文件之前，手动频段锁定将保持禁用。",
     "controls_label": "场景激活",
     "icons": {
       "sparkles": "闪光",
@@ -814,10 +878,6 @@
     "default_balanced_name": "均衡",
     "default_gaming_name": "游戏",
     "default_streaming_name": "流媒体",
-    "page": {
-      "title": "连接场景",
-      "description": "管理和自定义蜂窝配置文件的连接场景，以优化网络性能和可靠性。"
-    },
     "default_balanced_description": "自动频段选择",
     "default_gaming_description": "低延迟，SA 优先",
     "default_streaming_description": "高带宽，连接稳定",
@@ -890,7 +950,11 @@
       }
     },
     "tile": {
-      "active": "活动",
+      "in_force": "生效中",
+      "next_fire_label": "下次计划变更",
+      "locks_bands": "锁定频段",
+      "custom_tag": "自定义",
+      "bands_auto": "频段自动",
       "delete_aria": "删除「{{name}}」场景",
       "delete_dialog": {
         "title": "删除场景",
@@ -898,9 +962,12 @@
         "confirm": "删除"
       },
       "add": {
-        "title": "创建场景",
-        "description": "添加自定义配置"
+        "title": "新建场景",
+        "description": "选择模式和频段"
       }
+    },
+    "redirect": {
+      "label": "正在打开自定义 SIM 配置文件…"
     }
   },
   "sms": {

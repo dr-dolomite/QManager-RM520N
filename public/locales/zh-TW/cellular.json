@@ -266,12 +266,60 @@
       "creating": "建立中",
       "create_aria": "建立 {{name}} 設定檔",
       "rationale_bands": "頻段鎖定會讓數據機保持在電信業者的主要 5G 頻段上，通常可以提升穩定性。但在只有其他頻段涵蓋的地方，也可能縮小收訊範圍。數據機未回報支援的頻段會被排除，停用設定檔即可解除鎖定。",
-      "rationale_ttl": "TTL 與躍點限制設為 64，讓數據機後方裝置的流量與數據機自身流量具有相同數值。停用此設定檔會還原先前的數值。"
+      "rationale_ttl": "TTL 與躍點限制設為 64，讓數據機後方裝置的流量與數據機自身流量具有相同數值。停用此設定檔會還原先前的數值。",
+      "will_bind": "將繫結：{{scenario}}"
     },
     "page": {
       "title": "自訂 SIM 設定檔",
-      "description": "將 APN、IMEI 和 TTL/HL 設定打包為一鍵式設定檔。",
+      "description": "設定檔承載身分資訊：APN、TTL 與躍點限制，以及選用的 IMEI。它會繫結一個連線場景，由該場景掌管無線電。啟用設定檔會重新設定執行中的數據機。",
+      "new_profile": "新增設定檔",
+      "new_scenario": "新增場景",
       "error_load_failed": "無法載入設定檔。請檢查連線並重試。"
+    },
+    "hero": {
+      "eyebrow": "目前生效",
+      "badge_mismatch": "SIM 卡不符",
+      "unknown_operator": "未知電信業者",
+      "iccid": "ICCID {{value}}",
+      "edit": "編輯",
+      "deactivate": "停用",
+      "notice": {
+        "applying": "正在套用 {{name}}。第 {{step}} / {{total}} 步。無線電重新附著期間連線可能短暫中斷。",
+        "partial_lead": "此設定檔僅部分套用。步驟",
+        "partial_tail": "未能生效，維持原樣。數據機回報：",
+        "unknown_step": "未知",
+        "mismatch_lead": "插入的 SIM 卡讀取為",
+        "mismatch_tail": "，與此設定檔儲存時使用的 SIM 卡不同。APN 與 TTL 仍已套用。請更新此設定檔，或啟用與之相符的設定檔。"
+      },
+      "tiles": {
+        "identity": "身分",
+        "imei_override": "IMEI 覆寫",
+        "scenario": "生效中的場景",
+        "scheduled": "已排定計劃",
+        "radio": "無線電，由場景掌管",
+        "band_locking": "頻段鎖定",
+        "network_mode": "網路模式",
+        "lte_bands": "LTE 頻段",
+        "nr_bands": "NR 頻段"
+      },
+      "scenario": {
+        "unknown": "未知場景",
+        "next_change": "{{name}} 將於 {{time}} 接手",
+        "no_next_change": "今日無後續變更"
+      },
+      "ribbon": {
+        "title": "今日計劃",
+        "edit": "編輯計劃",
+        "unknown_scenario": "未知場景",
+        "aria_label": "今日場景計劃：{{schedule}}",
+        "aria_segment": "{{name}} 至 {{end}}",
+        "aria_join": "，接著",
+        "aria_empty": "今日沒有場景計劃"
+      }
+    },
+    "hero_empty": {
+      "title": "沒有啟用中的設定檔",
+      "description": "數據機正在使用原廠 APN 與預設連線場景。儲存一個設定檔，即可為此 SIM 卡固定 APN、TTL 與場景計劃。"
     },
     "view": {
       "title": "已儲存的設定檔",
@@ -281,7 +329,8 @@
       "subtitle": "在此裝置上啟用、編輯或移除蜂窩設定檔。",
       "none_saved_yet": "尚未儲存任何設定檔。可從下方的建議開始，或自行建立。",
       "activating": "正在啟用",
-      "scenario_scheduled": "{{scenario}}，按每日計劃",
+      "schedule_live_one": "目前 {{scenario}}，已排定 {{count}} 個時段",
+      "schedule_live_other": "目前 {{scenario}}，已排定 {{count}} 個時段",
       "scenario_always_on": "{{scenario}}，始終啟用",
       "delete_description": "此操作將從裝置中移除該設定檔。繫結到它的任何計劃都將被清除。此操作無法撤銷。",
       "delete_keep": "保留設定檔",
@@ -297,7 +346,11 @@
         "applied": "已於 {{time}} 套用",
         "partial": "已於 {{time}} 部分套用",
         "failed": "{{time}} 套用失敗"
-      }
+      },
+      "locks_bands": "鎖定頻段",
+      "row_menu_aria": "{{name}} 的操作",
+      "reapply": "重新套用設定檔",
+      "reapply_hint": "重新套用會再次執行全部四個步驟：APN、TTL 與躍點限制、場景和 IMEI。"
     },
     "table": {
       "headers": {
@@ -544,6 +597,7 @@
     },
     "apply_dialog": {
       "title": "正在套用設定檔",
+      "description": "正在將此設定檔的設定寫入數據機。",
       "status_badge": {
         "applying": "套用中…",
         "complete": "完成",
@@ -556,17 +610,22 @@
         "imei": "IMEI",
         "scenario": "連線情境"
       },
-      "reboot_notice": "調變解調器正在重啟以套用 IMEI 變更，儀表板將自動重新連線。",
-      "step_state_unchanged": "無變化",
       "preparing": "準備中…",
       "step_progress": "第 {{current}} / {{total}} 步",
       "complete_headline": "配置已啟用",
       "complete_sub": "所有適用的設定已套用到數據機。",
-      "partial_headline": "已啟用（部分跳過）",
-      "partial_sub": "部分步驟已跳過。請檢視下方詳情。",
+      "partial_hero_headline_one": "已套用，有一個步驟未生效",
+      "partial_hero_headline_other": "已套用，有 {{count}} 個步驟未生效",
+      "partial_hero_sub_one": "設定檔正在執行。有一項設定未生效。",
+      "partial_hero_sub_other": "設定檔正在執行。有 {{count}} 項設定未生效。",
       "failed_headline": "啟用失敗",
       "failed_sub": "數據機未完全重新配置。",
-      "details_label": "步驟"
+      "details_label": "步驟",
+      "partial_notice_title": "此設定檔的部分內容未生效",
+      "failed_notice_title": "設定檔未被套用",
+      "reapply_notice": "重新套用會從頭再執行整個流程——數據機無法只重試單一步驟。",
+      "reapply_action": "重新套用設定檔",
+      "reboot_notice_deferred": "此設定檔會寫入 IMEI，需要重新開機才能生效。現在不會重新開機——準備就緒後會顯示提示橫幅。"
     },
     "empty_state": {
       "title": "暫無自訂設定檔",
@@ -796,6 +855,11 @@
     }
   },
   "scenarios": {
+    "card": {
+      "title": "連線場景",
+      "description": "無線電設定。設定檔會繫結場景；生效中的場景掌管頻段鎖定。"
+    },
+    "ownership_notice": "當已排定計劃的設定檔處於啟用狀態時，場景啟用由該計劃掌管。在停用該設定檔之前，手動頻段鎖定將保持停用。",
     "controls_label": "場景啟用",
     "icons": {
       "sparkles": "閃光",
@@ -814,10 +878,6 @@
     "default_balanced_name": "均衡",
     "default_gaming_name": "遊戲",
     "default_streaming_name": "流媒體",
-    "page": {
-      "title": "連線場景",
-      "description": "管理並自訂蜂窩設定檔的連線場景，以最佳化網路效能與可靠性。"
-    },
     "default_balanced_description": "自動頻段選擇",
     "default_gaming_description": "低延遲，SA 優先",
     "default_streaming_description": "高頻寬，連線穩定",
@@ -890,7 +950,11 @@
       }
     },
     "tile": {
-      "active": "活動",
+      "in_force": "生效中",
+      "next_fire_label": "下次計劃變更",
+      "locks_bands": "鎖定頻段",
+      "custom_tag": "自訂",
+      "bands_auto": "頻段自動",
       "delete_aria": "刪除「{{name}}」場景",
       "delete_dialog": {
         "title": "刪除場景",
@@ -898,9 +962,12 @@
         "confirm": "刪除"
       },
       "add": {
-        "title": "建立場景",
-        "description": "新增自訂設定"
+        "title": "新增場景",
+        "description": "選擇模式與頻段"
       }
+    },
+    "redirect": {
+      "label": "正在開啟自訂 SIM 設定檔…"
     }
   },
   "sms": {

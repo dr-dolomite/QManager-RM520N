@@ -25,7 +25,13 @@ import {
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Card, CardContent } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { TonalBanner } from "@/components/ui/tonal-banner";
 import { AbstractPattern } from "./abstract-pattern";
 import { AddScenarioItem } from "./add-scenario-item";
@@ -39,7 +45,7 @@ import {
 import { useConnectionScenarios } from "@/hooks/use-connection-scenarios";
 import { useActiveProfile } from "@/hooks/use-active-profile";
 import { ProfileOverrideAlert } from "@/components/cellular/custom-profiles/profile-override-alert";
-import { staggerContainer, staggerItem } from "@/lib/motion";
+import { staggerRowItem, staggerRows } from "@/lib/motion";
 import {
   NETWORK_MODE_OPTIONS,
   modeValueToLabel,
@@ -58,6 +64,17 @@ import {
 // =============================================================================
 // ConnectionScenariosCard — tile grid + active config + create/edit dialogs
 // =============================================================================
+// SELF-CONTAINED CARD. Connection Scenarios stopped being its own destination:
+// this now mounts inside the Custom SIM Profiles page's right-hand column, so it
+// owns its own `CardHeader` and renders NO page chrome. The `h1`/description it
+// used to sit under belonged to a route that no longer exists — two `h1`s on the
+// merged page would have been an accessibility defect, not a styling one.
+//
+// It is also narrower than it was. `SCENARIO_TILE_SHAPE.GRID` is queried against
+// `@container/card` (declared by `PROFILE_CARD_PEER` on the shell), so the grid
+// lands at 2-up in the column and collapses to 1-up on its own — no viewport
+// breakpoint is involved and none should be added.
+//
 // Every shape here is imported from `../shapes.ts` rather than restated: the
 // tile grid/height come from `SCENARIO_TILE_SHAPE`, the config-card skeleton's
 // disc/title/chip come from `CONFIG_CARD_SHAPE`. That is the Skeleton-Mirror
@@ -81,10 +98,43 @@ interface ConnectionScenariosCardProps {
    *  Select item. After successful create, a special toast prompts the user
    *  to return to their profile and select the new scenario. */
   autoOpenAddDialog?: boolean;
+  /**
+   * Monotonic counter the page shell increments to open the "New scenario"
+   * dialog from its own header button. Every increment opens it once; the
+   * initial 0 does nothing. See the effect that consumes it for why this is not
+   * a boolean.
+   */
+  openAddSignal?: number;
+  /**
+   * Scenario id → "HH:MM" of that scenario's next scheduled activation, for the
+   * per-tile schedule chip.
+   *
+   * SUPPLIED, NEVER DERIVED. A next-fire time is only knowable when an active
+   * profile's `scenario.schedule` actually names the scenario, and that mapping
+   * is the page shell's to compute — this card sees one profile's *aggregate*
+   * `nextChangeAt`, which says when the radio changes but not to what. Omit the
+   * prop and every tile simply renders no schedule chip. Printing a plausible
+   * time the schedule does not contain is the State-Honesty violation the mock's
+   * hardcoded "18:00" would otherwise have shipped.
+   */
+  nextFireByScenarioId?: Readonly<Record<string, string>>;
+  /**
+   * Whether a profile currently owns the radio, gating the foot notice about
+   * schedule-owned activation and disabled manual band locking.
+   *
+   * Defaults to this card's OWN derivation from `useActiveProfile` (the same
+   * condition that gates the Activate button), so the notice is never a standing
+   * claim. Pass it explicitly only when the page shell has already resolved
+   * ownership and wants the two surfaces to agree byte-for-byte.
+   */
+  radioOwnedByProfile?: boolean;
 }
 
 const ConnectionScenariosCard = ({
   autoOpenAddDialog,
+  openAddSignal,
+  nextFireByScenarioId,
+  radioOwnedByProfile,
 }: ConnectionScenariosCardProps = {}) => {
   const { t } = useTranslation("cellular");
   const {
@@ -182,6 +232,12 @@ const ConnectionScenariosCard = ({
 
   const isProfileControlled = profileGate !== null;
 
+  // The foot notice describes a CONDITION, not a rule of the page: it is only
+  // true while something actually owns the radio. Caller override wins; the
+  // local gate is the default so the notice can never contradict the disabled
+  // Activate button sitting a few rows above it.
+  const showOwnershipNotice = radioOwnedByProfile ?? isProfileControlled;
+
   // Tracks whether the list has EVER finished loading. `isLoading` flips back
   // to true on every `refresh()` call — including the Retry button after a
   // read failure — so keying the skeleton off it directly would blank a
@@ -250,6 +306,21 @@ const ConnectionScenariosCard = ({
     // Only auto-open on mount; ignore subsequent prop changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // The page header's "New scenario" button.
+  // ---------------------------------------------------------------------------
+  // A COUNTER, not a boolean, because the user can press that button any number
+  // of times and a boolean that is already `true` produces no change for an
+  // effect to observe — the dialog would open once and never again. The
+  // alternative, remounting this card with a `key`, would refetch the scenario
+  // list and throw away the selected tile on every press.
+  //
+  // Guarded on `> 0` so the initial render does not count as a press.
+  useEffect(() => {
+    if (openAddSignal && openAddSignal > 0) {
+      setShowAddDialog(true);
+    }
+  }, [openAddSignal]);
 
   // Add form state
   const [addName, setAddName] = useState("");
@@ -445,7 +516,15 @@ const ConnectionScenariosCard = ({
   // Render
   // ---------------------------------------------------------------------------
   return (
-    <div className="grid gap-y-6">
+    <Card className={PROFILE_CARD_PEER}>
+      <CardHeader className={PROFILE_PAD}>
+        <CardTitle className="text-xl">{t("scenarios.card.title")}</CardTitle>
+        <CardDescription className="text-pretty">
+          {t("scenarios.card.description")}
+        </CardDescription>
+      </CardHeader>
+
+      <CardContent className={cn(PROFILE_PAD, "flex flex-col gap-4")}>
       {/* Profile override banner — shown when a Custom SIM Profile owns
           scenario activation. Edit/Delete remain enabled; only Activate
           is restricted. */}
@@ -493,81 +572,105 @@ const ConnectionScenariosCard = ({
         </div>
       )}
 
-      {/* Row 1: Scenario Profile Cards */}
-      <div className="@container/card">
-        {showSkeleton ? (
-          <div className={SCENARIO_TILE_SHAPE.GRID}>
-            {[1, 2, 3].map((i) => (
-              <Skeleton
-                key={i}
-                className={cn(SCENARIO_TILE_SHAPE.HEIGHT, "rounded-card")}
-              />
-            ))}
+      {/* The tile grid. NOTE ON THE MISSING EMPTY STATE: there is none, and
+          that is correct rather than an omission — three built-in scenarios
+          always exist, so the grid can never render zero tiles. Loading and
+          error are the only other reachable states. */}
+      {showSkeleton ? (
+        <div className={SCENARIO_TILE_SHAPE.GRID}>
+          {[1, 2, 3].map((i) => (
             <Skeleton
-              className={cn(SCENARIO_TILE_SHAPE.HEIGHT, "rounded-card opacity-50")}
+              key={i}
+              className={cn(SCENARIO_TILE_SHAPE.HEIGHT, "rounded-card")}
             />
-          </div>
-        ) : (
-          <div className={SCENARIO_TILE_SHAPE.GRID}>
-            <motion.div
-              className="contents"
-              variants={staggerContainer}
-            >
-              {scenarios.map((scenario) => (
-                <motion.div key={scenario.id} variants={staggerItem}>
-                  <ScenarioItem
-                    scenario={scenario}
-                    isActive={activeScenarioId === scenario.id}
-                    isSelected={selectedId === scenario.id}
-                    onSelect={handleSelect}
-                    onDelete={handleDeleteScenario}
-                  />
-                </motion.div>
-              ))}
-            </motion.div>
-            <AddScenarioItem onClick={() => setShowAddDialog(true)} />
-          </div>
-        )}
-      </div>
-
-      {/* Row 2: Selected Scenario Configuration */}
-      <div className="grid grid-cols-1 @3xl/main:grid-cols-2 grid-flow-row">
-        {showSkeleton ? (
-          <Card className={PROFILE_CARD_PEER}>
-            <CardContent className={cn(PROFILE_PAD, "flex flex-col gap-5")}>
-              <div className="flex items-center gap-3">
-                <Skeleton className={CONFIG_CARD_SHAPE.DISC} />
-                <div className="grid gap-1.5">
-                  <Skeleton className={CONFIG_CARD_SHAPE.HEAD_TITLE} />
-                  <Skeleton className={cn(CONFIG_CARD_SHAPE.HEAD_CHIP, "rounded-pill")} />
-                </div>
-              </div>
-              <div className="flex flex-col gap-2">
-                {[1, 2, 3, 4, 5].map((i) => (
-                  <div
-                    key={i}
-                    className={cn(CONFIG_CARD_SHAPE.ROW, CONFIG_CARD_SHAPE.ROW_FILL)}
-                  >
-                    <Skeleton className="h-4 w-24" />
-                    <Skeleton className="h-4 w-20" />
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        ) : (
-          <ActiveConfigCard
-            scenario={selectedScenario}
-            isActive={isSelectedActive}
-            isActivating={isActivating}
-            onEdit={handleOpenEditDialog}
-            onActivate={handleActivate}
-            activateDisabled={isProfileControlled}
-            activeProfileName={profileGate?.profileName}
-            nextChangeAt={scheduleLocked ? nextChangeAt : null}
+          ))}
+          <Skeleton
+            className={cn(SCENARIO_TILE_SHAPE.HEIGHT, "rounded-card opacity-50")}
           />
-        )}
-      </div>
+        </div>
+      ) : (
+        <div className={SCENARIO_TILE_SHAPE.GRID}>
+          {/* Row cascade (80ms), not the card step: these are tiles sharing one
+              card's border, not cards across a page. The container is
+              `display:contents` so the grid still sees the tiles as its own
+              children; each child is a real block box, which is what the
+              cascade needs to animate. Children carry ONLY `variants` — an
+              `initial`/`animate` of their own would detach them from the
+              page shell's clock. */}
+          <motion.div className="contents" variants={staggerRows}>
+            {scenarios.map((scenario) => (
+              <motion.div key={scenario.id} variants={staggerRowItem}>
+                <ScenarioItem
+                  scenario={scenario}
+                  isActive={activeScenarioId === scenario.id}
+                  isSelected={selectedId === scenario.id}
+                  onSelect={handleSelect}
+                  onDelete={handleDeleteScenario}
+                  nextFireAt={nextFireByScenarioId?.[scenario.id] ?? null}
+                />
+              </motion.div>
+            ))}
+            <motion.div variants={staggerRowItem}>
+              <AddScenarioItem onClick={() => setShowAddDialog(true)} />
+            </motion.div>
+          </motion.div>
+        </div>
+      )}
+
+      {/* Selected Scenario Configuration. An inner block now, not a nested
+          card — see the header of `active-config-card.tsx`. The skeleton
+          mirrors it by importing the same `CONFIG_CARD_SHAPE` members rather
+          than restating `h-11 w-11` / `h-5 w-44`. */}
+      {showSkeleton ? (
+        <div className="bg-surface-container rounded-tile flex flex-col gap-5 p-5">
+          <div className="flex items-center gap-3">
+            <Skeleton className={CONFIG_CARD_SHAPE.DISC} />
+            <div className="grid gap-1.5">
+              <Skeleton className={CONFIG_CARD_SHAPE.HEAD_TITLE} />
+              <Skeleton className={cn(CONFIG_CARD_SHAPE.HEAD_CHIP, "rounded-pill")} />
+            </div>
+          </div>
+          <div className="flex flex-col gap-2">
+            {[1, 2, 3, 4, 5].map((i) => (
+              <div
+                key={i}
+                className={cn(
+                  CONFIG_CARD_SHAPE.ROW,
+                  CONFIG_CARD_SHAPE.ROW_FILL,
+                  "bg-surface-container-high",
+                )}
+              >
+                <Skeleton className="h-4 w-24" />
+                <Skeleton className="h-4 w-20" />
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : (
+        <ActiveConfigCard
+          scenario={selectedScenario}
+          isActive={isSelectedActive}
+          isActivating={isActivating}
+          onEdit={handleOpenEditDialog}
+          onActivate={handleActivate}
+          activateDisabled={isProfileControlled}
+          activeProfileName={profileGate?.profileName}
+          nextChangeAt={scheduleLocked ? nextChangeAt : null}
+        />
+      )}
+
+      {/* Ownership notice. Conditional on the radio actually being owned — a
+          notice printed unconditionally would be describing a state the page
+          is not in. `rounded-field` (20px) so it never out-rounds the
+          `rounded-card` shell hosting it. */}
+      {showOwnershipNotice && !showSkeleton && (
+        <p className="bg-surface-container text-on-surface-variant rounded-field flex items-start gap-2.5 px-4 py-3.5 text-xs leading-relaxed text-pretty">
+          <MaterialSymbol name="info" size={16} className="mt-px flex-none" />
+          <span>{t("scenarios.ownership_notice")}</span>
+        </p>
+      )}
+
+      </CardContent>
 
       {/* ===== Add Scenario Dialog ===== */}
       <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
@@ -943,7 +1046,7 @@ const ConnectionScenariosCard = ({
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+    </Card>
   );
 };
 

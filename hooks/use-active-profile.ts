@@ -2,11 +2,26 @@
 
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { authFetch } from "@/lib/auth-fetch";
+import { useSharedSimProfiles } from "@/hooks/use-sim-profiles";
 import type { ProfileSummary, ProfileListResponse } from "@/types/sim-profile";
 import {
   resolveScheduledScenario,
   nextChangeAt as computeNextChangeAt,
 } from "@/lib/scenario-schedule";
+
+// =============================================================================
+// useActiveProfile — the active profile + its scenario schedule lock
+// =============================================================================
+// Standalone, this hook owns a 30s poll of `profiles/list.sh` and picks the
+// active record out of the response.
+//
+// SHARED FETCH. When a `SimProfilesProvider` is mounted above (as it is on
+// /cellular/custom-profiles), the same three values are DERIVED from that one
+// shared list and this hook stops both its initial fetch AND its 30s poll —
+// the shared instance already refreshes, and a second poller against the same
+// endpoint was the whole redundancy this removes. The public return shape is
+// unchanged in either mode.
+// =============================================================================
 
 const CGI_BASE = "/cgi-bin/quecmanager/profiles";
 const POLL_INTERVAL_MS = 30_000;
@@ -30,8 +45,13 @@ export interface UseActiveProfileReturn {
 }
 
 export function useActiveProfile(): UseActiveProfileReturn {
-  const [activeProfile, setActiveProfile] = useState<ProfileSummary | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const shared = useSharedSimProfiles();
+  // Gate for our OWN fetch + poll. Every hook below is still called
+  // unconditionally — only the effect bodies branch.
+  const enabled = shared === null;
+
+  const [ownProfile, setOwnProfile] = useState<ProfileSummary | null>(null);
+  const [ownLoading, setOwnLoading] = useState(true);
 
   const mountedRef = useRef(true);
 
@@ -55,19 +75,37 @@ export function useActiveProfile(): UseActiveProfileReturn {
         ? (data.profiles ?? []).find((p) => p.id === data.active_profile_id) ?? null
         : null;
 
-      setActiveProfile(active);
+      setOwnProfile(active);
     } catch {
       // keep stale data on error
     } finally {
-      if (mountedRef.current) setIsLoading(false);
+      if (mountedRef.current) setOwnLoading(false);
     }
   }, []);
 
   useEffect(() => {
+    // No provider → we own the fetch and the poll. Provider → neither, so the
+    // page mounts exactly one reader of profiles/list.sh.
+    if (!enabled) return;
     fetchActive();
     const id = setInterval(fetchActive, POLL_INTERVAL_MS);
     return () => clearInterval(id);
-  }, [fetchActive]);
+  }, [enabled, fetchActive]);
+
+  // ---------------------------------------------------------------------------
+  // Resolve the active record — from the shared list, or from our own fetch
+  // ---------------------------------------------------------------------------
+  // Destructured before the memo so the deps are the shared instance's stable
+  // state values; the context VALUE itself is a fresh object each render and
+  // would defeat memoization.
+  const sharedProfiles = shared?.profiles;
+  const sharedActiveId = shared?.activeProfileId ?? null;
+
+  const activeProfile = useMemo<ProfileSummary | null>(() => {
+    if (!sharedProfiles) return ownProfile;
+    if (!sharedActiveId) return null;
+    return sharedProfiles.find((p) => p.id === sharedActiveId) ?? null;
+  }, [sharedProfiles, sharedActiveId, ownProfile]);
 
   // Minute tick to advance the scheduled-scenario resolution at block edges.
   const [now, setNow] = useState<Date>(() => new Date());
@@ -91,8 +129,10 @@ export function useActiveProfile(): UseActiveProfileReturn {
 
   return {
     activeProfile,
-    isLoading,
-    refresh: fetchActive,
+    isLoading: shared ? shared.isLoading : ownLoading,
+    // Under a provider, refreshing has to refresh the SHARED list — a private
+    // refetch would update nothing anyone reads.
+    refresh: shared ? shared.refresh : fetchActive,
     scheduleLocked,
     scheduledScenarioId,
     nextChangeAt,

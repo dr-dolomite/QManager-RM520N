@@ -69,12 +69,16 @@ export function ScenarioPicker({
           </SelectItem>
         )}
 
-        {/* Pinned action: leaves the picker and opens the full scenarios
-            editor. Rendered as a Link (not a SelectItem) so it fires a
-            navigation instead of becoming the selected value. */}
+        {/* Pinned action: leaves the picker and opens the New Scenario dialog.
+            Rendered as a Link (not a SelectItem) so it fires a navigation
+            instead of becoming the selected value.
+            The target is the MERGED page — Connection Scenarios is no longer its
+            own route — and the action is `create-scenario` rather than `create`,
+            because that page now hosts both profiles and scenarios and a bare
+            `create` would not say which one it opens. */}
         <SelectSeparator />
         <Link
-          href="/cellular/custom-profiles/connection-scenarios?action=create"
+          href="/cellular/custom-profiles?action=create-scenario"
           className="text-on-surface-variant hover:bg-accent hover:text-accent-foreground focus-visible:bg-accent focus-visible:text-accent-foreground relative flex w-full cursor-pointer items-center gap-2 rounded-inline py-1.5 pl-2 pr-8 text-sm outline-none transition-colors duration-[var(--duration-quick)] ease-out"
         >
           <MaterialSymbol name="add" size={16} className="shrink-0" />
