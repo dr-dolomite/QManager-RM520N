@@ -697,7 +697,8 @@ not a starting point. State the rule as *the token*, never as the number — the
 already and every place it had been written out longhand had to be hunted down.
 
 **The One-Scale Rule.** A duration in a component is a bug. Every transition reads
-`duration-[var(--duration-*)]` in a className or `DUR.*` in a `motion/react` transition; a bare
+`duration-[var(--duration-standard)]` (or `-quick` / `-emphasized`) in a className, or `DUR.standard`
+(etc.) in a `motion/react` transition; a bare
 `duration-200`, an inline `{ duration: 0.25 }`, or a `transition-all` with no duration at all (which
 silently inherits Tailwind's 150ms) is off the scale and will not retune with it. The exceptions are
 narrow and each carries a comment: continuous loops with their own tempo (spinners, the OTP caret) and
