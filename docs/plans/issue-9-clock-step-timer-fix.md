@@ -411,6 +411,16 @@ Nothing is deferred.
 
 ## 9. What we could NOT prove (keep this in the doc, do not overclaim)
 
+> **Partly superseded 2026-08-02 by the end-to-end hardware run.** The
+> misfire itself is no longer inferred: with Scheduled Reboot deliberately
+> armed at a schedule 15 hours away, the timer fired **twice** within 30s of
+> boot on two consecutive boots, and the guarded worker skipped both times
+> without rebooting. See "End-to-end verification on hardware" in
+> `docs/reference/scheduled-timers.md`. The reporter-causation gap and the
+> SSR rival hypothesis below **still stand** — they were not addressed by
+> that run. Note also that the run corrected this plan's model: it is two
+> fires per boot, not one.
+
 - **Causation on the reporter's device is unconfirmed.** Our test unit has
   `sched_reboot_enabled: 0` and no qmanager timers armed, so the loop is not
   reproducible there as-is; journald is disabled device-wide, so the reporter could not

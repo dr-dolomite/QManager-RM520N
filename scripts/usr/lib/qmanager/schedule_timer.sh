@@ -104,9 +104,12 @@ _qm_oncalendar_line() {
 
 # --- Fire guard (issue #9: 1970 clock-step spurious fire) --------------------
 # RM520N has no battery RTC: every boot starts at 1970 and ql_time_daemon steps
-# the clock ~24s in (needs a registered SIM). systemd 244 fires every armed
-# OnCalendar timer ONCE on that step (past-base + TFD_TIMER_ABSTIME). Workers
-# call _qm_timer_fire_allowed before doing any work; a deny is a clean skip
+# the clock ~24s in (needs a registered SIM). systemd 244 misfires every armed
+# OnCalendar timer around that step (past-base + TFD_TIMER_ABSTIME) — measured
+# on hardware as TWO fires per boot, not one: ~23s while the clock still reads
+# 1970 (fails the year check below), and ~29s right after the step (fails the
+# uptime check below). Do not assume a payload is safe because it "only runs
+# once". Workers call _qm_timer_fire_allowed before any work; a deny is a clean skip
 # (caller logs via qlog_warn/qlog_info and exits 0 — this library never logs
 # or exits itself; see §2.2 of docs/plans/issue-9-clock-step-timer-fix.md).
 # Test/bypass env: QM_TIMER_GUARD_BYPASS=1, QM_TEST_YEAR, QM_TEST_UPTIME,

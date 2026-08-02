@@ -209,12 +209,16 @@ cannot reorder or suppress this daemon — it is stock firmware.
 
 ### The measured boot timeline
 
-Probing a live device gives concrete numbers:
+Probing a live device gives concrete numbers. These are measured, not
+estimated — see [End-to-end verification on hardware](#end-to-end-verification-on-hardware)
+for the run that produced them:
 
-| Monotonic time (seconds since boot) | Event |
-|---|---|
-| ~6.4s | `timers.target` reached — every `.timer` symlinked into `/lib/systemd/system/timers.target.wants/` is now armed |
-| ~24s | `ql_time_daemon` steps `CLOCK_REALTIME` from 1970 to the real date; `/tmp/ql_time_set_ready.flag` is written |
+| Monotonic time (seconds since boot) | Wall clock at that moment | Event |
+|---|---|---|
+| ~6.5s | **1970** | `timers.target` reached — every `.timer` symlinked into `/lib/systemd/system/timers.target.wants/` is now armed |
+| ~23–24s | **1970** | **Misfire #1** — the armed timer fires while the clock is *still* 1970 |
+| ~24s | 1970 → real date | `ql_time_daemon` steps `CLOCK_REALTIME`; `/tmp/ql_time_set_ready.flag` is written |
+| ~29–30s | real date | **Misfire #2** — the timer fires *again*, immediately after the step |
 
 Every QManager timer is therefore armed **~17 seconds before** the clock
 becomes trustworthy. That gap is the whole bug.
@@ -244,17 +248,35 @@ fires the timerfd immediately. systemd sees the trigger and fires the unit
 — once, at whatever wall-clock minute the step happened to land on, with no
 relation to the actual `OnCalendar=` schedule.
 
-### It's one misfire, and systemd self-heals — the loop is our bug, not systemd's
+### It's a bounded misfire, and systemd self-heals — the loop is our bug, not systemd's
 
-This is the detail that matters most for judging severity: after that one
-spurious fire, systemd stamps `last_trigger` with the *real*, post-step date,
-and the next scheduled-time computation is correct. **A single armed timer
-firing once at boot is not, by itself, a disaster** — it becomes an infinite
-loop **only because Scheduled Reboot's payload is `reboot`**. Rebooting
-resets `CLOCK_REALTIME` back to 1970, which re-arms the exact same trap on
-the next boot. Any other payload (an AT command, a config write) just runs
-once, harmlessly early, and then the schedule behaves correctly forever
-after.
+This is the detail that matters most for judging severity: once the clock is
+sane, systemd stamps `last_trigger` with the *real*, post-step date, and the
+next scheduled-time computation is correct. **An armed timer firing at boot
+is not, by itself, a disaster** — it becomes an infinite loop **only because
+Scheduled Reboot's payload is `reboot`**. Rebooting resets `CLOCK_REALTIME`
+back to 1970, which re-arms the exact same trap on the next boot. Any other
+payload (an AT command, a config write) just runs early and harmlessly, and
+then the schedule behaves correctly forever after.
+
+> **Correction from hardware testing: it is TWO fires per boot, not one.**
+> This doc originally said "one spurious fire per boot," reasoning from
+> systemd's source. Measuring it on a real device showed **two**, and they
+> have different causes:
+>
+> 1. **At ~23s, while the clock still reads 1970.** The calendar base is a
+>    near-epoch timestamp, so the computed "next 04:00" resolves to
+>    1970-01-01 04:00 — already past even by 1970 standards — and the timer
+>    fires as soon as it is armed.
+> 2. **At ~29s, just after the step.** Now the base is the boot's 1970
+>    timestamp, so the next elapse computes to a 1970 date; the step to the
+>    real date puts that deadline ~56 years in the past, and the timerfd
+>    expires immediately all over again.
+>
+> This does not change the fix — the guard denies both, for different
+> reasons (fire #1 fails the year check, fire #2 fails the uptime check).
+> It does mean **any reasoning that assumes a single fire is wrong**, which
+> matters for any future payload judged "harmless if it runs once."
 
 ### Exposure: all four timer families sit in the window
 
@@ -358,6 +380,73 @@ Documenting them here so nobody re-discovers and re-implements one later:
 
 ---
 
+## End-to-end verification on hardware
+
+Run on the live RM520N-GL test unit on **2026-08-02**, against the guarded
+worker. Two independent boots, identical results.
+
+### Method
+
+Reproducing the loop directly with the *unguarded* worker was rejected: a
+real boot loop is only escapable inside a ~20-second SSH window per cycle.
+Instead the run used a **control probe** — a second `.timer` carrying the
+byte-identical `OnCalendar=` line as `qmanager-scheduled-reboot.timer`, but
+whose payload only appends a line to a log. The probe proves whether the
+misfire happens; the guarded worker proves whether it is survived. Neither
+can mask the other.
+
+A **circuit breaker** oneshot (`Before=timers.target`, so it runs at ~6s —
+well ahead of the ~24s step) counted boots and, from boot 2 onward, would
+have replaced the reboot worker with a no-op stub. That bounded the worst
+case at exactly one unexpected reboot instead of an unbounded loop. It never
+tripped.
+
+Both timers were armed at `04:00` daily while the wall clock read `12:07`,
+so `systemctl list-timers` showed the next legitimate elapse **15 hours
+away**. Any fire observed at boot therefore could not be a real scheduled
+run.
+
+### Result
+
+| Check | Boot 1 | Boot 2 |
+|---|---|---|
+| Control probe fired at 1970 | `PROBE_FIRE date=1970-01-02T11:30:28 uptime=23` | `PROBE_FIRE date=1970-01-02T11:33:21 uptime=24` |
+| Control probe fired again post-step | `PROBE_FIRE date=2026-08-02T12:08:13 uptime=30` | `PROBE_FIRE date=2026-08-02T12:11:05 uptime=29` |
+| `qmanager-scheduled-reboot.service` ran | yes, PID 1383 | yes, PID 1257 |
+| Guard verdict | `Scheduled reboot skipped: fire outside schedule window (clock-step guard, issue #9)` | same |
+| Service exit | `status=0/SUCCESS` | `status=0/SUCCESS` |
+| Device rebooted? | **no** | **no** |
+| Boot counter after run | `1` | `1` |
+
+The boot counter staying at `1` is the direct proof of no loop: the breaker
+increments it once per boot, and a second increment never happened.
+
+### What this settles
+
+- **The misfire is real on this hardware, not just in systemd's source.**
+  A timer whose only legitimate elapse was 15 hours away fired twice within
+  30 seconds of boot, on two consecutive boots. That was previously the one
+  inferred link in the chain.
+- **The guard holds in production form**, not just in unit tests: the real
+  `.timer` → real `.service` → real worker → real `qm_config_get` path
+  denied the fire and exited 0.
+- **A wall-clock/epoch guard would NOT have worked.** This is the sharpest
+  finding. The worker's guard evaluated at wall clock `12:08:15`, uptime
+  ~32s — the clock was *already correct* by then. Any "refuse to act if the
+  epoch looks implausibly small" check would have passed cleanly and
+  rebooted the device. The `/proc/uptime` check is what actually stopped it.
+  An earlier draft of this fix proposed exactly that epoch-floor check; it
+  would have shipped as protection that never protects.
+
+### What it does not settle
+
+Whether the original reporter's device failed for *this* reason. This run
+proves the mechanism exists and that the guard defeats it; it does not
+prove the reporter had `sched_reboot_enabled: 1`. See the honesty note
+below.
+
+---
+
 ## Post-mortem: "making a dead feature live" inherits no field-testing
 
 Scheduled Reboot was a **silent no-op for its entire life** before this
@@ -394,21 +483,36 @@ If none of the three apply, the timer is not done.
 
 ## Honesty note: what this fix does and doesn't prove
 
-The clock-step mechanism above is proven two ways: from systemd 244's
+The clock-step mechanism above is proven three ways: from systemd 244's
 source (`timer_enter_waiting()` in `src/core/timer.c`, the `timerfd`
-`TFD_TIMER_ABSTIME` behavior) and from a live measured boot timeline on the
-test device (`timers.target` at ~6.4s, clock step at ~24s). That much is
-fact, not inference.
+`TFD_TIMER_ABSTIME` behavior); from a live measured boot timeline on the
+test device (`timers.target` at ~6.5s, clock step at ~24s); and — since
+2026-08-02 — from a direct observation of an armed timer firing twice
+within 30 seconds of boot when its next legitimate elapse was 15 hours
+away, reproduced across two boots. See
+[End-to-end verification on hardware](#end-to-end-verification-on-hardware).
+That much is fact, not inference.
 
 What is **not** confirmed is causation on the original bug reporter's
-specific device. The test unit used to develop this fix has Scheduled
-Reboot disabled and no `qmanager-*` timers armed, so the loop was never
-directly reproduced there; separately, journald is disabled device-wide on
-this platform, so the reporter could not have observed the spurious fire in
-logs even if they'd known to look. There is also a rival hypothesis that has
-not been excluded: a modem-side subsystem restart (SSR) triggered at SIM
-attach could produce a similar 30–60 second, SIM-correlated reboot signature
-with fewer assumptions.
+specific device. The verification run above armed Scheduled Reboot
+deliberately; it does not tell us whether the reporter had it enabled.
+Separately, journald is disabled device-wide on this platform, so the
+reporter could not have observed the spurious fire in logs even if they'd
+known to look. There is also a rival hypothesis that has not been excluded:
+a modem-side subsystem restart (SSR) triggered at SIM attach could produce a
+similar 30–60 second, SIM-correlated reboot signature with fewer
+assumptions.
+
+The single cheapest way to close this gap is to ask the reporter for:
+
+```sh
+grep sched_reboot /etc/qmanager/qmanager.conf
+ls -l /lib/systemd/system/timers.target.wants/
+```
+
+If `sched_reboot_enabled` is `1` and `qmanager-scheduled-reboot.timer` is
+symlinked there, causation is settled. If it is `0`, this diagnosis does not
+explain their loop and SSR is the next thing to investigate.
 
 The fix stands regardless of which explanation matches the reporter's
 device: the clock-step mechanism is real and proven on this platform
