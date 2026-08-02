@@ -801,9 +801,111 @@
   },
   "scenarios": {
     "controls_label": "Attivazione degli scenari",
+    "icons": {
+      "sparkles": "Scintille",
+      "gamepad": "Gioco",
+      "play": "Media",
+      "zap": "Prestazioni",
+      "globe": "Navigazione",
+      "rocket": "Velocità",
+      "video": "Videochiamate",
+      "download": "Download",
+      "shield": "Sicurezza",
+      "plane": "Viaggio",
+      "moon": "Notturno",
+      "briefcase": "Lavoro"
+    },
     "default_balanced_name": "Equilibrato",
     "default_gaming_name": "Gioco",
-    "default_streaming_name": "Streaming"
+    "default_streaming_name": "Streaming",
+    "page": {
+      "title": "Scenari di connessione",
+      "description": "Gestisci e personalizza gli scenari di connessione per i tuoi profili cellulari per ottimizzare prestazioni e affidabilità della rete."
+    },
+    "default_balanced_description": "Selezione automatica delle bande",
+    "default_gaming_description": "Bassa latenza, priorità SA",
+    "default_streaming_description": "Banda larga elevata, connessione stabile",
+    "error": {
+      "title": "Impossibile caricare gli scenari",
+      "body": "Viene mostrato l'ultimo elenco noto. Riprova tra un momento."
+    },
+    "toast": {
+      "activate_success": "Passato allo scenario {{name}}.",
+      "activate_error": "Impossibile attivare lo scenario {{name}}.",
+      "create_success": "Scenario creato con successo.",
+      "create_success_from_profile": "Scenario creato. Torna al tuo profilo e selezionalo.",
+      "create_error": "Impossibile creare lo scenario.",
+      "delete_success": "Scenario eliminato.",
+      "delete_error": "Impossibile eliminare lo scenario.",
+      "update_success": "Scenario aggiornato.",
+      "update_error": "Impossibile aggiornare lo scenario."
+    },
+    "dialog": {
+      "add": {
+        "title": "Nuovo scenario di connessione"
+      },
+      "edit": {
+        "title": "Modifica configurazione"
+      },
+      "fields": {
+        "name_label": "Nome dello scenario",
+        "name_placeholder_add": "es. Lavoro da casa",
+        "name_placeholder_edit": "Nome dello scenario",
+        "description_label": "Descrizione",
+        "description_placeholder_add": "es. Ottimizzato per videochiamate",
+        "description_placeholder_edit": "Descrizione dello scenario",
+        "network_mode_label": "Modalità di rete",
+        "lte_band_label": "Blocco banda LTE",
+        "lte_band_placeholder": "es. 1, 3, 7, 28 (vuoto = Auto)",
+        "sa_band_label": "Blocco banda NR5G-SA",
+        "nsa_band_label": "Blocco banda NR5G-NSA",
+        "band_placeholder": "es. 41, 78",
+        "optimization_label": "Etichetta di ottimizzazione",
+        "optimization_placeholder": "es. Latenza, Velocità, Personalizzato",
+        "icon_label": "Icona",
+        "preview_label": "Anteprima",
+        "preview_name_fallback": "Nome dello scenario",
+        "preview_description_fallback": "Configurazione personalizzata"
+      },
+      "buttons": {
+        "create": "Crea scenario",
+        "creating": "Creazione…",
+        "save_changes": "Salva modifiche",
+        "saving": "Salvataggio…"
+      }
+    },
+    "active_config": {
+      "title": "Configurazione {{name}}",
+      "status": {
+        "applying": "Applicazione…",
+        "active": "Attivo",
+        "inactive": "Inattivo"
+      },
+      "activate": "Attiva",
+      "edit_aria": "Modifica le impostazioni dello scenario",
+      "disabled_tooltip": "L'attivazione dello scenario è gestita dal profilo SIM personalizzato {{profile}}.",
+      "disabled_tooltip_next": " Prossima modifica alle {{time}}.",
+      "rows": {
+        "network_mode": "Modalità di rete",
+        "optimization": "Ottimizzazione",
+        "lte_bands": "Bande LTE",
+        "nr_sa_bands": "Bande NR5G-SA",
+        "nr_nsa_bands": "Bande NR5G-NSA"
+      }
+    },
+    "tile": {
+      "active": "Attivo",
+      "delete_aria": "Elimina lo scenario {{name}}",
+      "delete_dialog": {
+        "title": "Elimina scenario",
+        "description": "Sei sicuro di voler eliminare \"{{name}}\"? Questa azione non può essere annullata.",
+        "confirm": "Elimina"
+      },
+      "add": {
+        "title": "Crea scenario",
+        "description": "Aggiungi configurazione personalizzata"
+      }
+    }
   },
   "sms": {
     "page": {

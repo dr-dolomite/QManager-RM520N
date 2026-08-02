@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/collapsible";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { MACHINE_VALUE } from "@/components/cellular/custom-profiles/shapes";
 
 import { ScheduleBlockEditor } from "./schedule-block-editor";
 import type { ScheduleBlockError } from "@/lib/scenario-schedule";
@@ -78,14 +79,9 @@ export function ScheduleRuleRow({
     end: block.end,
   });
 
-  const summary = t("custom_profiles.form.scenario.summary_line", {
-    time: timeRange,
-    scenario: nameForId(block.scenario),
-  });
-
   return (
     <Collapsible open={open} onOpenChange={onOpenChange}>
-      <div ref={rowRef} className="rounded-lg border">
+      <div ref={rowRef} className="rounded-tile border">
         <div className="flex items-center gap-1 p-2">
           {canReorder && (
             <div className="flex flex-col">
@@ -119,17 +115,37 @@ export function ScheduleRuleRow({
               type="button"
               aria-expanded={open}
               aria-label={t("custom_profiles.form.scenario.expand_rule_aria")}
-              className="flex min-w-0 flex-1 items-center gap-2 rounded-md px-1 py-1 text-left text-sm"
+              className="flex min-w-0 flex-1 items-center gap-2 rounded-inline px-1 py-1 text-left text-sm"
             >
               {flagged && (
-                <MaterialSymbol name="warning" size={12} className="text-warning shrink-0" />
+                <MaterialSymbol
+                  name="warning"
+                  size={12}
+                  className="text-warning-on-surface shrink-0"
+                />
               )}
-              <span className="truncate tabular-nums">{summary}</span>
+              {/* Machine-Voice Rule per segment: the HH:MM range is
+                  device-format and renders mono; the scenario name is
+                  human-authored (user-typed or a translated default) and
+                  stays proportional. The arrow is a bare separator glyph,
+                  not linguistic content, so it isn't routed through i18n. */}
+              <span className="flex min-w-0 items-center gap-1 truncate">
+                <span className={cn("shrink-0", MACHINE_VALUE)}>
+                  {timeRange}
+                </span>
+                <span
+                  className="text-on-surface-variant shrink-0"
+                  aria-hidden="true"
+                >
+                  →
+                </span>
+                <span className="truncate">{nameForId(block.scenario)}</span>
+              </span>
               <MaterialSymbol
                 name="expand_more"
                 size={16}
                 className={cn(
-                  "text-muted-foreground ml-auto shrink-0 transition-transform duration-[var(--duration-quick)] ease-out motion-reduce:transition-none",
+                  "text-on-surface-variant ml-auto shrink-0 transition-transform duration-[var(--duration-quick)] ease-out motion-reduce:transition-none",
                   open && "rotate-180",
                 )}
               />

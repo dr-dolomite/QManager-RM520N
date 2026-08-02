@@ -26,23 +26,25 @@ export interface ScenarioIconOption {
   /** Stable persisted key. Never rename one that has shipped. */
   id: string;
   icon: MaterialSymbolName;
-  /** Picker tooltip / aria-label. */
-  label: string;
+  /** i18n key for the picker tooltip / aria-label, under `scenarios.icons.*`.
+   *  Resolved with `t()` at render time — this is a module-level array, so it
+   *  cannot hold a translated string directly. */
+  labelKey: string;
 }
 
 export const SCENARIO_ICONS: ScenarioIconOption[] = [
-  { id: "sparkles", icon: "auto_awesome", label: "Sparkles" },
-  { id: "gamepad", icon: "sports_esports", label: "Gaming" },
-  { id: "play", icon: "play_arrow", label: "Media" },
-  { id: "zap", icon: "bolt", label: "Performance" },
-  { id: "globe", icon: "public", label: "Browsing" },
-  { id: "rocket", icon: "rocket_launch", label: "Speed" },
-  { id: "video", icon: "videocam", label: "Video calls" },
-  { id: "download", icon: "download", label: "Downloads" },
-  { id: "shield", icon: "shield", label: "Secure" },
-  { id: "plane", icon: "airplanemode_active", label: "Travel" },
-  { id: "moon", icon: "dark_mode", label: "Overnight" },
-  { id: "briefcase", icon: "work", label: "Work" },
+  { id: "sparkles", icon: "auto_awesome", labelKey: "scenarios.icons.sparkles" },
+  { id: "gamepad", icon: "sports_esports", labelKey: "scenarios.icons.gamepad" },
+  { id: "play", icon: "play_arrow", labelKey: "scenarios.icons.play" },
+  { id: "zap", icon: "bolt", labelKey: "scenarios.icons.zap" },
+  { id: "globe", icon: "public", labelKey: "scenarios.icons.globe" },
+  { id: "rocket", icon: "rocket_launch", labelKey: "scenarios.icons.rocket" },
+  { id: "video", icon: "videocam", labelKey: "scenarios.icons.video" },
+  { id: "download", icon: "download", labelKey: "scenarios.icons.download" },
+  { id: "shield", icon: "shield", labelKey: "scenarios.icons.shield" },
+  { id: "plane", icon: "airplanemode_active", labelKey: "scenarios.icons.plane" },
+  { id: "moon", icon: "dark_mode", labelKey: "scenarios.icons.moon" },
+  { id: "briefcase", icon: "work", labelKey: "scenarios.icons.briefcase" },
 ];
 
 /** The glyph used when a stored scenario has no `icon`, or an unknown one. */

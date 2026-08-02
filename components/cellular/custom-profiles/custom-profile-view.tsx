@@ -2,7 +2,7 @@
 
 import React from "react";
 import { toast } from "sonner";
-import { motion, useReducedMotion } from "motion/react";
+import { motion } from "motion/react";
 import { useTranslation } from "react-i18next";
 
 import {
@@ -13,7 +13,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -35,7 +35,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { MaterialSymbol } from "@/components/ui/material-symbol";
 
-import { Alert, AlertDescription } from "@/components/ui/alert";
+import { TonalBanner } from "@/components/ui/tonal-banner";
 import { cn } from "@/lib/utils";
 import EmptyProfileViewComponent from "@/components/cellular/custom-profiles/empty-profile";
 import { useSimProfiles } from "@/hooks/use-sim-profiles";
@@ -49,7 +49,18 @@ import {
   type SimProfile,
   type PdpType,
 } from "@/types/sim-profile";
-import { DUR, EASE_STANDARD, rowCascadeDelay } from "@/lib/motion";
+import { staggerRows, staggerRowItem } from "@/lib/motion";
+import {
+  PROFILE_ROW_SHAPE,
+  PROFILE_STATUS_BADGE,
+  BADGE_GLYPH_SIZE,
+  SUGGESTION_ROW,
+  CONFIG_PILL,
+  CONFIG_PILL_NEUTRAL,
+  CONFIG_PILL_BRAND,
+  MACHINE_VALUE,
+  profileRowTone,
+} from "@/components/cellular/custom-profiles/shapes";
 
 // =============================================================================
 // CustomProfileViewComponent — Saved Profiles list (stacked-row design)
@@ -78,8 +89,22 @@ import { DUR, EASE_STANDARD, rowCascadeDelay } from "@/lib/motion";
 //     never handed to an endpoint that only accepts real ones.
 // Keep suggestions a sibling prop. Merging the arrays breaks all three at once.
 
-// The row cascade (step + cap) lives on `rowCascadeDelay` in lib/motion.ts, so
-// a long roster never plays a long load cascade and the step stays on the scale.
+// The row cascade is `staggerRows`/`staggerRowItem` from lib/motion.ts, nested
+// under this card's own `staggerItem` in the page-level cascade — variants
+// only, no local `initial`/`animate`, so the sequence inherits the parent
+// clock instead of re-deriving its own (mirrors `sms/inbox-table.tsx`'s
+// `MotionTableBody`). Reduced motion is handled globally by `<MotionConfig
+// reducedMotion="user">`, so no local check is needed here either.
+
+/** The destructive pill, from the button variant — matches
+ *  `sms/delete-dialogs.tsx`'s `DESTRUCTIVE_ACTION`/`CANCEL_ACTION` constants
+ *  rather than a hand-written `bg-destructive text-destructive-foreground
+ *  hover:bg-destructive/90` copy. */
+const DESTRUCTIVE_ACTION = cn(
+  buttonVariants({ variant: "destructive" }),
+  "h-[2.625rem] gap-2 rounded-pill px-5 text-sm font-semibold",
+);
+const CANCEL_ACTION = "h-[2.625rem] rounded-pill px-5 text-sm font-semibold";
 
 type ProfileStatus = "active" | "mismatch" | "inactive";
 
@@ -150,7 +175,6 @@ const CustomProfileViewComponent = ({
   onCreateSuggestion,
 }: CustomProfileViewProps) => {
   const { t } = useTranslation("cellular");
-  const reduceMotion = useReducedMotion();
   const { nameForId } = useScenarioList();
 
   // getProfile is not part of the coordinator prop contract, so we source it
@@ -284,6 +308,23 @@ const CustomProfileViewComponent = ({
         )}
       </CardHeader>
       <CardContent>
+        {/* A failed GET here is usually transient AT-lock contention (another
+            poller/CGI call holding the shared lock for a cycle), never a
+            reason to blank an already-populated list — the list below FREEZES
+            on whatever it last had, and this banner explains why it stopped
+            moving. Mirrors the Carrier Aggregation precedent and
+            `sms/states.tsx`'s `InboxErrorNotice`. */}
+        {error && !showSkeleton && (
+          <TonalBanner
+            tone="destructive"
+            icon="error"
+            size="compact"
+            className="mb-3"
+          >
+            {error}
+          </TonalBanner>
+        )}
+
         {showSkeleton ? (
           <ListSkeleton />
         ) : (
@@ -302,49 +343,53 @@ const CustomProfileViewComponent = ({
                 </p>
               )}
 
-              {ordered.map((profile, i) => {
-                const audit =
-                  lastApplyState &&
-                  lastApplyState.profile_id === profile.id &&
-                  TERMINAL_APPLY.includes(lastApplyState.status as AuditStatus)
-                    ? (lastApplyState.status as AuditStatus)
-                    : null;
-                const busy =
-                  lastApplyState?.profile_id === profile.id &&
-                  lastApplyState?.status === "applying";
-                return (
-                  <ProfileRow
-                    key={profile.id}
-                    summary={profile}
-                    status={deriveStatus(
-                      profile.id === activeProfileId,
-                      profile.sim_iccid,
-                      currentIccid,
-                    )}
-                    index={i}
-                    reduceMotion={!!reduceMotion}
-                    scenarioName={nameForId(profile.scenario.default)}
-                    busy={!!busy}
-                    auditStatus={audit}
-                    auditTime={
-                      audit ? formatAppliedTime(lastApplyState!.started_at) : ""
-                    }
-                    full={details[profile.id] ?? null}
-                    onActivate={() => onActivate(profile.id)}
-                    onDeactivate={onDeactivate}
-                    onEdit={() => onEdit(profile.id)}
-                    onDelete={() => setPendingDelete(profile)}
-                  />
-                );
-              })}
+              {/* Row cascade: variants ONLY, no local initial/animate — it
+                  inherits the "visible" state from this card's own
+                  `staggerItem` wrapper in custom-profile.tsx, one level up
+                  from the page's `staggerContainer`. Same pattern as
+                  `sms/inbox-table.tsx`'s `MotionTableBody`. */}
+              <motion.div variants={staggerRows} className={PROFILE_ROW_SHAPE.LIST}>
+                {ordered.map((profile) => {
+                  const audit =
+                    lastApplyState &&
+                    lastApplyState.profile_id === profile.id &&
+                    TERMINAL_APPLY.includes(lastApplyState.status as AuditStatus)
+                      ? (lastApplyState.status as AuditStatus)
+                      : null;
+                  const busy =
+                    lastApplyState?.profile_id === profile.id &&
+                    lastApplyState?.status === "applying";
+                  return (
+                    <ProfileRow
+                      key={profile.id}
+                      summary={profile}
+                      status={deriveStatus(
+                        profile.id === activeProfileId,
+                        profile.sim_iccid,
+                        currentIccid,
+                      )}
+                      scenarioName={nameForId(profile.scenario.default)}
+                      busy={!!busy}
+                      auditStatus={audit}
+                      auditTime={
+                        audit ? formatAppliedTime(lastApplyState!.started_at) : ""
+                      }
+                      full={details[profile.id] ?? null}
+                      onActivate={() => onActivate(profile.id)}
+                      onDeactivate={onDeactivate}
+                      onEdit={() => onEdit(profile.id)}
+                      onDelete={() => setPendingDelete(profile)}
+                    />
+                  );
+                })}
+              </motion.div>
 
               {suggestions.length > 0 && (
                 <>
                   {suggestionError && (
-                    <Alert variant="destructive">
-                      <MaterialSymbol name="error" size={16} />
-                      <AlertDescription>{suggestionError}</AlertDescription>
-                    </Alert>
+                    <TonalBanner tone="destructive" icon="error" size="compact">
+                      {suggestionError}
+                    </TonalBanner>
                   )}
 
                   {/* Suggestions pair up side by side once the card is wide
@@ -354,7 +399,8 @@ const CustomProfileViewComponent = ({
                       no preamble. Container query, not viewport: this card
                       sits in a two-column page grid, so `md:` would lie about
                       how much room it actually has. */}
-                  <div
+                  <motion.div
+                    variants={staggerRows}
                     className={cn(
                       "grid items-stretch gap-3",
                       // @xl (576px) not @md: at 448px each column would be
@@ -363,21 +409,17 @@ const CustomProfileViewComponent = ({
                       suggestions.length > 1 && "@xl/card:grid-cols-2",
                     )}
                   >
-                    {suggestions.map((view, i) => (
+                    {suggestions.map((view) => (
                       <SuggestionRow
                         key={view.suggestion.id}
                         view={view}
-                        // Index continues the saved rows so the entrance plays
-                        // as one cascade down a single list, not two.
-                        index={ordered.length + i}
-                        reduceMotion={!!reduceMotion}
                         scenarioName={suggestionScenarioName(view)}
                         isCreating={creatingSuggestionId === view.suggestion.id}
                         disabled={creatingSuggestionId !== null}
                         onCreate={() => onCreateSuggestion?.(view.suggestion.id)}
                       />
                     ))}
-                  </div>
+                  </motion.div>
 
                   {/* Honest rationale. Carries the safety note that a band lock
                       narrows the radio, and that both it and the TTL/HL change
@@ -403,10 +445,6 @@ const CustomProfileViewComponent = ({
             </div>
           </div>
         )}
-
-        {error && !showSkeleton && (
-          <p className="text-destructive mt-3 text-xs">{error}</p>
-        )}
       </CardContent>
 
       {/* Delete confirmation — destructive, so it always asks first. */}
@@ -426,7 +464,11 @@ const CustomProfileViewComponent = ({
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={isDeleting}>
+            <AlertDialogCancel
+              variant="tonal"
+              disabled={isDeleting}
+              className={CANCEL_ACTION}
+            >
               {t("custom_profiles.view.delete_keep")}
             </AlertDialogCancel>
             <AlertDialogAction
@@ -435,7 +477,7 @@ const CustomProfileViewComponent = ({
                 void confirmDelete();
               }}
               disabled={isDeleting}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90 focus-visible:ring-destructive/20"
+              className={DESTRUCTIVE_ACTION}
             >
               {isDeleting
                 ? t("custom_profiles.table.delete_confirm.deleting")
@@ -454,8 +496,6 @@ const CustomProfileViewComponent = ({
 const ProfileRow = ({
   summary,
   status,
-  index,
-  reduceMotion,
   scenarioName,
   busy,
   auditStatus,
@@ -468,8 +508,6 @@ const ProfileRow = ({
 }: {
   summary: ProfileSummary;
   status: ProfileStatus;
-  index: number;
-  reduceMotion: boolean;
   scenarioName: string;
   busy: boolean;
   auditStatus: AuditStatus | null;
@@ -484,22 +522,15 @@ const ProfileRow = ({
   const { t } = useTranslation("cellular");
   const isActive = status !== "inactive";
   const scheduled = summary.scenario.schedule.enabled;
+  const tone = profileRowTone(status);
 
   return (
     <motion.div
-      initial={reduceMotion ? false : { opacity: 0, y: 8 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{
-        duration: DUR.standard,
-        delay: rowCascadeDelay(index),
-        ease: EASE_STANDARD,
-      }}
+      variants={staggerRowItem}
       className={cn(
-        "flex flex-col gap-3 rounded-lg border p-3",
+        PROFILE_ROW_SHAPE.ROOT,
         "transition-colors duration-[var(--duration-standard)] ease-standard motion-reduce:transition-none",
-        status === "active" && "border-success/40 bg-success/5",
-        status === "mismatch" && "border-warning/40 bg-warning/5",
-        status === "inactive" && "bg-muted/20",
+        tone,
       )}
     >
       {/* Identity + status + overflow */}
@@ -509,9 +540,11 @@ const ProfileRow = ({
             {status === "active" && (
               // Live-ping: a solid dot with a pulsing halo behind it (the system
               // pulse-ring keyframe, disabled under reduced motion via globals).
+              // Halo is a real token step (`--tone-success-2`), not an alpha
+              // wash over the dot's own colour.
               <span className="relative flex size-1.5 shrink-0" aria-hidden>
-                <span className="bg-success/50 animate-pulse-ring absolute inline-flex size-full rounded-full" />
-                <span className="bg-success relative inline-flex size-1.5 rounded-full" />
+                <span className="bg-tone-success-2 animate-pulse-ring absolute inline-flex size-full rounded-pill" />
+                <span className="bg-success relative inline-flex size-1.5 rounded-pill" />
               </span>
             )}
             <span className="truncate text-sm font-semibold">
@@ -577,10 +610,9 @@ const ProfileRow = ({
 
       {/* SIM mismatch note — only when the active profile no longer matches SIM */}
       {status === "mismatch" && (
-        <div className="text-warning bg-warning/10 flex items-start gap-2 rounded-md p-2 text-xs">
-          <MaterialSymbol name="warning" size={14} className="mt-px shrink-0" />
-          <span>{t("custom_profiles.view.mismatch_note")}</span>
-        </div>
+        <TonalBanner tone="warning" icon="warning" size="compact">
+          {t("custom_profiles.view.mismatch_note")}
+        </TonalBanner>
       )}
 
       {/* Action footer: updated date + per-row audit line + primary action */}
@@ -595,9 +627,9 @@ const ProfileRow = ({
               className={cn(
                 "text-xs",
                 auditStatus === "failed"
-                  ? "text-destructive"
+                  ? "text-destructive-on-surface"
                   : auditStatus === "partial"
-                    ? "text-warning"
+                    ? "text-warning-on-surface"
                     : "text-muted-foreground",
               )}
             >
@@ -655,30 +687,23 @@ const ProfileRow = ({
 };
 
 // -----------------------------------------------------------------------------
-// Status badge — outline pattern per DESIGN.md (bg/15 text border/30 + size-3).
+// Status badge — filled tonal chip via PROFILE_STATUS_BADGE (shapes.ts). Tone
+// keys onto `BadgeVariant`, so a status without a matching role fails the
+// build instead of shipping untinted.
 // -----------------------------------------------------------------------------
+const STATUS_LABEL_KEY: Record<ProfileStatus, string> = {
+  active: "custom_profiles.table.status_badge.active",
+  mismatch: "custom_profiles.table.status_badge.sim_mismatch",
+  inactive: "custom_profiles.table.status_badge.inactive",
+};
+
 const StatusBadge = ({ status }: { status: ProfileStatus }) => {
   const { t } = useTranslation("cellular");
-  if (status === "active") {
-    return (
-      <Badge variant="success">
-        <MaterialSymbol name="check_circle" size={12} />
-        {t("custom_profiles.table.status_badge.active")}
-      </Badge>
-    );
-  }
-  if (status === "mismatch") {
-    return (
-      <Badge variant="warning">
-        <MaterialSymbol name="warning" size={12} />
-        {t("custom_profiles.table.status_badge.sim_mismatch")}
-      </Badge>
-    );
-  }
+  const meta = PROFILE_STATUS_BADGE[status];
   return (
-    <Badge variant="muted">
-      <MaterialSymbol name="do_not_disturb_on" size={12} />
-      {t("custom_profiles.table.status_badge.inactive")}
+    <Badge variant={meta.variant}>
+      <MaterialSymbol name={meta.glyph} size={BADGE_GLYPH_SIZE} />
+      {t(STATUS_LABEL_KEY[status])}
     </Badge>
   );
 };
@@ -700,16 +725,12 @@ const StatusBadge = ({ status }: { status: ProfileStatus }) => {
 // when two suggestions sit side by side with unequal pill counts.
 const SuggestionRow = ({
   view,
-  index,
-  reduceMotion,
   scenarioName,
   isCreating,
   disabled,
   onCreate,
 }: {
   view: SuggestionView;
-  index: number;
-  reduceMotion: boolean;
   /** Scenario this suggestion will bind once created. */
   scenarioName: string;
   isCreating: boolean;
@@ -724,17 +745,11 @@ const SuggestionRow = ({
 
   return (
     <motion.div
-      initial={reduceMotion ? false : { opacity: 0, y: 8 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{
-        duration: DUR.standard,
-        delay: rowCascadeDelay(index),
-        ease: EASE_STANDARD,
-      }}
+      variants={staggerRowItem}
       className={cn(
-        "flex h-full flex-col gap-3 rounded-lg border border-dashed p-3",
+        "flex h-full flex-col gap-3 rounded-tile px-5 py-3.5",
         "transition-colors duration-[var(--duration-standard)] ease-standard motion-reduce:transition-none",
-        "border-info/40 bg-info/5",
+        SUGGESTION_ROW,
       )}
     >
       {/* Identity + status */}
@@ -747,9 +762,8 @@ const SuggestionRow = ({
             {suggestion.mno}
           </span>
         </div>
-        <Badge variant="info"
-          className="shrink-0">
-          <MaterialSymbol name="auto_awesome" size={12} />
+        <Badge variant="info" className="shrink-0">
+          <MaterialSymbol name="auto_awesome" size={BADGE_GLYPH_SIZE} />
           {t("custom_profiles.suggestions.badge")}
         </Badge>
       </div>
@@ -767,20 +781,20 @@ const SuggestionRow = ({
 
       {/* Config readout — same pill vocabulary as a saved row. */}
       <div className="flex flex-wrap items-center gap-1.5">
-        <Pill>
+        <Pill mono>
           {t("custom_profiles.pills.apn", { name: suggestion.apn_name })}
         </Pill>
-        <Pill>{t("custom_profiles.pills.cid", { cid: suggestion.cid })}</Pill>
-        <Pill>
+        <Pill mono>{t("custom_profiles.pills.cid", { cid: suggestion.cid })}</Pill>
+        <Pill mono>
           {PDP_PILL_KEY[suggestion.pdp_type]
             ? t(PDP_PILL_KEY[suggestion.pdp_type])
             : suggestion.pdp_type}
         </Pill>
         {suggestion.ttl > 0 && (
-          <Pill>{t("custom_profiles.pills.ttl", { value: suggestion.ttl })}</Pill>
+          <Pill mono>{t("custom_profiles.pills.ttl", { value: suggestion.ttl })}</Pill>
         )}
         {suggestion.hl > 0 && (
-          <Pill>{t("custom_profiles.pills.hl", { value: suggestion.hl })}</Pill>
+          <Pill mono>{t("custom_profiles.pills.hl", { value: suggestion.hl })}</Pill>
         )}
       </div>
 
@@ -791,14 +805,14 @@ const SuggestionRow = ({
           the modem did not confirm support, so no lock will be written. */}
       {recommendsBands && (
         <div className="flex flex-wrap items-center gap-1.5">
-          <Pill tone="info">
+          <Pill tone="brand" mono>
             {nsaBands.length > 0
               ? t("custom_profiles.suggestions.bands_nsa", {
                   bands: nsaBands.join(", "),
                 })
               : t("custom_profiles.suggestions.bands_nsa_auto")}
           </Pill>
-          <Pill tone="info">
+          <Pill tone="brand" mono>
             {saBands.length > 0
               ? t("custom_profiles.suggestions.bands_sa", {
                   bands: saBands.join(", "),
@@ -845,21 +859,27 @@ const SuggestionRow = ({
 // -----------------------------------------------------------------------------
 // Config pills — dense outline tags describing what a profile does.
 // -----------------------------------------------------------------------------
-// neutral = routine settings; info = settings that carry consequence (an IMEI
-// rewrite reboots the modem on activation).
+// neutral = routine identity labels; brand = settings that carry consequence
+// (an IMEI rewrite reboots the modem on activation) or a value the recipe
+// actively recommends (band locks). These are IDENTITY pills, never a status
+// role — a `success` pill here would claim a health the value does not
+// report. `mono` marks a machine-voice value (APN string, CID, PDP type,
+// TTL/HL) per the Machine-Voice Rule; a human-written label (like the IMEI
+// override notice) stays proportional.
 const Pill = ({
   children,
   tone = "neutral",
+  mono = false,
 }: {
   children: React.ReactNode;
-  tone?: "neutral" | "info";
+  tone?: "neutral" | "brand";
+  mono?: boolean;
 }) => (
   <span
     className={cn(
-      "inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-xs font-medium tabular-nums",
-      tone === "info"
-        ? "border-info/30 bg-info/10 text-info"
-        : "border-border bg-muted/40 text-muted-foreground",
+      CONFIG_PILL,
+      tone === "brand" ? CONFIG_PILL_BRAND : CONFIG_PILL_NEUTRAL,
+      mono && MACHINE_VALUE,
     )}
   >
     {children}
@@ -877,21 +897,21 @@ const ConfigPills = ({ profile }: { profile: SimProfile }) => {
   const { apn, imei, ttl, hl } = profile.settings;
   return (
     <div className="flex flex-wrap items-center gap-1.5">
-      <Pill>
+      <Pill mono>
         {apn.name.trim()
           ? t("custom_profiles.pills.apn", { name: apn.name })
           : t("custom_profiles.pills.apn_default")}
       </Pill>
-      <Pill>{t("custom_profiles.pills.cid", { cid: apn.cid })}</Pill>
-      <Pill>
+      <Pill mono>{t("custom_profiles.pills.cid", { cid: apn.cid })}</Pill>
+      <Pill mono>
         {PDP_PILL_KEY[apn.pdp_type]
           ? t(PDP_PILL_KEY[apn.pdp_type])
           : apn.pdp_type}
       </Pill>
-      {ttl > 0 && <Pill>{t("custom_profiles.pills.ttl", { value: ttl })}</Pill>}
-      {hl > 0 && <Pill>{t("custom_profiles.pills.hl", { value: hl })}</Pill>}
+      {ttl > 0 && <Pill mono>{t("custom_profiles.pills.ttl", { value: ttl })}</Pill>}
+      {hl > 0 && <Pill mono>{t("custom_profiles.pills.hl", { value: hl })}</Pill>}
       {imei.trim() !== "" && (
-        <Pill tone="info">{t("custom_profiles.pills.imei_override")}</Pill>
+        <Pill tone="brand">{t("custom_profiles.pills.imei_override")}</Pill>
       )}
     </div>
   );
@@ -899,10 +919,20 @@ const ConfigPills = ({ profile }: { profile: SimProfile }) => {
 
 // -----------------------------------------------------------------------------
 // Loading affordance — shaped to the populated row so there is no reflow when
-// content lands. Reduced motion is handled by the Skeleton component itself.
+// content lands. Reduced motion is handled globally by `<MotionConfig
+// reducedMotion="user">`.
+//
+// This row has NO shared height constant, deliberately. Its rendered height
+// varies with content (identity + scenario line + wrapped config pills +
+// optional mismatch notice + footer), so a single pinned figure would mirror
+// nothing and make the crossfade jump worse than mirroring section-by-section
+// does. `PROFILE_ROW_SHAPE.ROOT` still carries the shell, so the skeleton and
+// the loaded row can never drift on radius, padding or gap — only the inner
+// placeholder runs are stated here, the same per-piece approach `sms/states.tsx`
+// uses for rows without a fixed height.
 // -----------------------------------------------------------------------------
 const SkeletonRow = () => (
-  <div className="flex flex-col gap-3 rounded-lg border p-3">
+  <div className={PROFILE_ROW_SHAPE.ROOT}>
     <div className="flex items-start justify-between gap-3">
       <div className="grid gap-1.5">
         <Skeleton className="h-3.5 w-32" />
@@ -914,7 +944,7 @@ const SkeletonRow = () => (
       </div>
     </div>
     <div className="flex items-center gap-1.5">
-      <Skeleton className="size-3.5 shrink-0 rounded-full" />
+      <Skeleton className="size-3.5 shrink-0 rounded-pill" />
       <Skeleton className="h-3 w-40" />
     </div>
     <div className="flex flex-wrap items-center gap-1.5">
@@ -930,7 +960,7 @@ const SkeletonRow = () => (
 );
 
 const ListSkeleton = () => (
-  <div className="flex flex-col gap-3">
+  <div className={PROFILE_ROW_SHAPE.LIST}>
     {[0, 1].map((i) => (
       <SkeletonRow key={i} />
     ))}

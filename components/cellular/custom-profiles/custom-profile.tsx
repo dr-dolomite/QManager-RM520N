@@ -3,6 +3,7 @@
 import React, { useState, useCallback, useEffect, useRef } from "react";
 import { useSearchParams } from "next/navigation";
 import { useTranslation } from "react-i18next";
+import { motion } from "motion/react";
 
 import CustomProfileFormComponent from "@/components/cellular/custom-profiles/custom-profile-form";
 import CustomProfileViewComponent from "@/components/cellular/custom-profiles/custom-profile-view";
@@ -13,6 +14,8 @@ import { useCurrentSettings } from "@/hooks/use-current-settings";
 import { useProfileSuggestions } from "@/hooks/use-profile-suggestions";
 import { useModemStatus } from "@/hooks/use-modem-status";
 import type { SimProfile } from "@/types/sim-profile";
+import { PAGE_TITLE, PAGE_DESCRIPTION } from "@/components/cellular/custom-profiles/shapes";
+import { staggerContainer, staggerItem } from "@/lib/motion";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -23,6 +26,18 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { buttonVariants } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
+
+// The pill dialog-action pair, matching `sms/delete-dialogs.tsx`'s
+// `DESTRUCTIVE_ACTION`/`CANCEL_ACTION` constants: both Activate and
+// Deactivate here are non-destructive confirmations, so the action side
+// composes the `default` variant rather than `destructive`.
+const CONFIRM_ACTION = cn(
+  buttonVariants({ variant: "default" }),
+  "h-[2.625rem] gap-2 rounded-pill px-5 text-sm font-semibold",
+);
+const CANCEL_ACTION = "h-[2.625rem] rounded-pill px-5 text-sm font-semibold";
 
 // =============================================================================
 // CustomProfileComponent — Page Layout & State Coordinator
@@ -249,55 +264,67 @@ const CustomProfileComponent = () => {
   }, [refreshCurrentSettings]);
 
   return (
-    <div className="@container/main mx-auto p-2">
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold mb-2">
-          {t("custom_profiles.page.title")}
-        </h1>
-        <p className="text-muted-foreground">
-          {t("custom_profiles.page.description")}
-        </p>
-      </div>
-      <div className="grid grid-cols-1 @3xl/main:grid-cols-2 grid-flow-row gap-4">
-        <div ref={formRef}>
-          <CustomProfileFormComponent
-            editingProfile={editingProfile}
-            onSave={handleSave}
-            onCancel={handleCancelEdit}
-            currentSettings={currentSettings}
-            onLoadCurrentSettings={handleLoadCurrentSettings}
+    <motion.div
+      className="@container/main mx-auto flex flex-col gap-5 p-2"
+      aria-live="polite"
+      aria-atomic="false"
+      variants={staggerContainer}
+      initial="hidden"
+      animate="visible"
+    >
+      {/* Cascade children must be block boxes — a bare span silently drops the
+          10px rise. */}
+      <motion.div variants={staggerItem}>
+        <div className="flex max-w-[41rem] flex-col gap-1.5">
+          <h1 className={PAGE_TITLE}>{t("custom_profiles.page.title")}</h1>
+          <p className={PAGE_DESCRIPTION}>
+            {t("custom_profiles.page.description")}
+          </p>
+        </div>
+      </motion.div>
+
+      <motion.div variants={staggerItem}>
+        <div className="grid grid-cols-1 @3xl/main:grid-cols-2 grid-flow-row gap-4">
+          <div ref={formRef}>
+            <CustomProfileFormComponent
+              editingProfile={editingProfile}
+              onSave={handleSave}
+              onCancel={handleCancelEdit}
+              currentSettings={currentSettings}
+              onLoadCurrentSettings={handleLoadCurrentSettings}
+            />
+          </div>
+          <CustomProfileViewComponent
+            profiles={profiles}
+            activeProfileId={activeProfileId}
+            isLoading={isLoading}
+            error={error}
+            onEdit={handleEdit}
+            onDelete={handleDelete}
+            onActivate={handleActivateRequest}
+            onDeactivate={handleDeactivateRequest}
+            onRefresh={refresh}
+            currentIccid={currentIccid}
+            lastApplyState={applyState}
+            // Recommended for your SIM — rendered as rows INSIDE the saved list,
+            // not as a separate card. They stay a sibling prop rather than being
+            // merged into `profiles`, which is what keeps the count badge, the
+            // detail prefetch, and the activate/delete wiring honest; see the
+            // header note in custom-profile-view.tsx.
+            //
+            // The view widens its own empty-state gate on `suggestions`, so a
+            // user with no saved profiles still sees the recommendation.
+            //
+            // Error falls back to the CRUD error because the create sequence
+            // spans two hooks: scenario failures surface on useProfileSuggestions,
+            // profile failures (incl. the MAX_PROFILES=10 cap) on useSimProfiles.
+            suggestions={suggestions}
+            creatingSuggestionId={creatingId}
+            suggestionError={suggestionsError ?? error}
+            onCreateSuggestion={handleCreateFromSuggestion}
           />
         </div>
-        <CustomProfileViewComponent
-          profiles={profiles}
-          activeProfileId={activeProfileId}
-          isLoading={isLoading}
-          error={error}
-          onEdit={handleEdit}
-          onDelete={handleDelete}
-          onActivate={handleActivateRequest}
-          onDeactivate={handleDeactivateRequest}
-          onRefresh={refresh}
-          currentIccid={currentIccid}
-          lastApplyState={applyState}
-          // Recommended for your SIM — rendered as rows INSIDE the saved list,
-          // not as a separate card. They stay a sibling prop rather than being
-          // merged into `profiles`, which is what keeps the count badge, the
-          // detail prefetch, and the activate/delete wiring honest; see the
-          // header note in custom-profile-view.tsx.
-          //
-          // The view widens its own empty-state gate on `suggestions`, so a
-          // user with no saved profiles still sees the recommendation.
-          //
-          // Error falls back to the CRUD error because the create sequence
-          // spans two hooks: scenario failures surface on useProfileSuggestions,
-          // profile failures (incl. the MAX_PROFILES=10 cap) on useSimProfiles.
-          suggestions={suggestions}
-          creatingSuggestionId={creatingId}
-          suggestionError={suggestionsError ?? error}
-          onCreateSuggestion={handleCreateFromSuggestion}
-        />
-      </div>
+      </motion.div>
 
       {/* Activate Confirmation Dialog */}
       <AlertDialog
@@ -316,8 +343,10 @@ const CustomProfileComponent = () => {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>{tc("actions.cancel")}</AlertDialogCancel>
-            <AlertDialogAction onClick={handleActivateConfirm}>
+            <AlertDialogCancel variant="tonal" className={CANCEL_ACTION}>
+              {tc("actions.cancel")}
+            </AlertDialogCancel>
+            <AlertDialogAction onClick={handleActivateConfirm} className={CONFIRM_ACTION}>
               {t("custom_profiles.activate_dialog.confirm")}
             </AlertDialogAction>
           </AlertDialogFooter>
@@ -339,12 +368,17 @@ const CustomProfileComponent = () => {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={isDeactivating}>
+            <AlertDialogCancel
+              variant="tonal"
+              disabled={isDeactivating}
+              className={CANCEL_ACTION}
+            >
               {tc("actions.cancel")}
             </AlertDialogCancel>
             <AlertDialogAction
               onClick={handleDeactivateConfirm}
               disabled={isDeactivating}
+              className={CONFIRM_ACTION}
             >
               {isDeactivating
                 ? t("custom_profiles.deactivate_dialog.deactivating")
@@ -362,7 +396,7 @@ const CustomProfileComponent = () => {
         error={applyError}
         onRetry={handleRetry}
       />
-    </div>
+    </motion.div>
   );
 };
 

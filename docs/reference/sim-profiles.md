@@ -351,8 +351,10 @@ deleted) in favor of a **stacked-card row list**. Each row shows:
 
 - Config pills — APN / CID / PDP / TTL / HL / IMEI-override.
 - A **pulsing live-dot** on the active row.
-- An outline status badge — **Active** / **SIM-Mismatch** / **Inactive** (the
-  standard `variant="outline"` semantic-color pattern, not a solid badge).
+- A filled tonal status badge — **Active** / **SIM-Mismatch** / **Inactive** —
+  via `PROFILE_STATUS_BADGE` (see [Tonal design rebuild](#tonal-design-rebuild-shapests-contract)
+  below), each status carrying its own glyph rather than relying on colour
+  alone.
 - The scenario-binding line and, when relevant, a SIM-mismatch inline banner.
 - A per-row audit line — **"Applied / Partial / Failed at HH:MM"** — backed by
   the new `custom_profiles.view.audit.{applied,partial,failed}` i18n keys.
@@ -414,6 +416,60 @@ stale RM551E 7-step list.
 > `/cellular/custom-profiles` routes prerender), `bun run i18n:check` (100%
 > parity, 0 errors), and `eslint` (exit 0). On-device curl validation was not
 > run — no backend changed, so it is not required for this change.
+
+### Tonal design rebuild (`shapes.ts` contract)
+
+Custom Profiles and Connection Scenarios were subsequently rebuilt onto the
+project's tonal design language (the same migration already applied to the
+Dashboard, Cellular/Radio Information, and SMS Center). This is again
+**frontend-only** — nothing in the data model, CGI contract, or apply
+pipeline above changed.
+
+> ℹ️ NOTE: **`components/cellular/custom-profiles/shapes.ts` is now the
+> single source of truth** for this surface's geometry and tones — row/tile
+> shapes, pill and badge classes, the tone-per-status helpers
+> (`profileRowTone`, `ledgerStepTone`), and the status→badge map
+> (`PROFILE_STATUS_BADGE`). Any new work on this surface (a new row variant,
+> a new tile, a new status) should extend this file rather than hand-roll a
+> class string — its header comments carry the reasoning (the tone rule: fills
+> use `--tone-{role}-1` for stacked rows, the container pair for chips/notices,
+> `text-{role}-on-surface` for tinted text; and the No-Hairline-On-Fill rule:
+> a real tonal fill doesn't also carry a border). Both page shells also moved
+> onto the shared `staggerContainer`/`staggerItem` cascade and `@container/main`.
+
+An accessibility bug was fixed in the process:
+`connection-scenarios/active-config-card.tsx` distinguished its three status
+chips (Active / Applying / Not Active) with nothing but a hand-drawn coloured
+`<div>` dot. Because `success-container` and `warning-container` measure
+**1.03:1** apart — the same surface to the eye, and identical under
+deuteranopia — colour alone did not separate them. All three now render
+through `PROFILE_STATUS_BADGE`, which carries a distinct Material glyph per
+state.
+
+The apply dialog's step ledger (`apply-progress-dialog.tsx`) was rebuilt on
+the `DeleteProgress` pattern from `components/cellular/sms/delete-dialogs.tsx`.
+Its state type, `LedgerState` in `shapes.ts`, is now a **type alias of
+`ApplyStepStatus`** (`types/sim-profile.ts`) instead of a hand-written union.
+The hand-written version had omitted `"skipped"` — which would have rendered
+an already-correct, skipped apply step as still queued. Aliasing the source
+type makes that class of drift a compile error: add a status to
+`ApplyStepStatus` and `ledgerStepTone` stops compiling until every case is
+handled.
+
+**i18n:** the Connection Scenarios surface (`scenarios.*` in the `cellular`
+namespace, `public/locales/*/cellular.json`) had shipped almost entirely
+hardcoded English — the subtree held 4 keys. It now holds **76 leaves across
+all five locales** (en / zh-CN / zh-TW / it / id), including a new
+`scenarios.icons.*` subtree covering the 12 scenario-icon labels that had
+been string literals inside the `SCENARIO_ICONS` data array in
+`scenario-icons.ts` — invisible to both `bun run i18n:check` and a plain
+JSX-text grep, since they never appeared as rendered text in source.
+
+> ℹ️ NOTE: This pass was validated with `tsc` (clean), `next build` (clean),
+> `eslint` (clean), `bun run icons:check` (97 glyphs, no font regeneration
+> needed), and `bun run i18n:check` (0/0, 76 leaves confirmed in every
+> locale by count). On-device curl validation was not run — no backend
+> changed.
 
 ---
 

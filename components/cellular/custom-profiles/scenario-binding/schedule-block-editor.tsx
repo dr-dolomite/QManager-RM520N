@@ -8,6 +8,7 @@ import { Field, FieldLabel, FieldError } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { ScenarioPicker } from "./scenario-picker";
 import { parseHhmm } from "@/lib/scenario-schedule";
+import { MACHINE_VALUE } from "@/components/cellular/custom-profiles/shapes";
 import type { ScenarioScheduleBlock } from "@/types/sim-profile";
 import type { ScheduleBlockError } from "@/lib/scenario-schedule";
 import type { ScenarioOption } from "@/hooks/use-scenario-list";
@@ -69,7 +70,7 @@ export function ScheduleBlockEditor({
           <Input
             id={startId}
             type="time"
-            className="tabular-nums"
+            className={MACHINE_VALUE}
             value={block.start}
             onChange={(ev) => onChange({ ...block, start: ev.target.value })}
           />
@@ -81,12 +82,12 @@ export function ScheduleBlockEditor({
           <Input
             id={endId}
             type="time"
-            className="tabular-nums"
+            className={MACHINE_VALUE}
             value={block.end}
             onChange={(ev) => onChange({ ...block, end: ev.target.value })}
           />
           {showOvernight && (
-            <p className="text-muted-foreground text-xs">
+            <p className="text-on-surface-variant text-xs">
               {t("custom_profiles.form.scenario.overnight_hint")}
             </p>
           )}
@@ -112,7 +113,7 @@ export function ScheduleBlockEditor({
       {!errorText && overlap && (
         <p
           role="status"
-          className="text-warning flex items-center gap-1.5 text-xs"
+          className="text-warning-on-surface flex items-center gap-1.5 text-xs"
         >
           <MaterialSymbol name="warning" size={12} className="shrink-0" />
           {t("custom_profiles.form.scenario.overlap_warning")}

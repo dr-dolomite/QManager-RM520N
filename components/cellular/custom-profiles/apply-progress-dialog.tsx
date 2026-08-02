@@ -19,7 +19,9 @@ import { RotateCwIcon } from "lucide-react";
 import { MaterialSymbol } from "@/components/ui/material-symbol";
 import { cn } from "@/lib/utils";
 import { Banner } from "@/components/ui/banner";
+import { TonalBanner } from "@/components/ui/tonal-banner";
 import { transitionStandard } from "@/lib/motion";
+import { LEDGER_SHAPE, PILL_ACTION, ledgerStepTone } from "./shapes";
 
 import type {
   ProfileApplyState,
@@ -72,7 +74,11 @@ const DEFAULT_STEPS: ApplyStep[] = [
   { name: "imei", status: "pending", detail: "" },
 ];
 
-type Tone = "info" | "success" | "warning" | "destructive";
+// "primary" stands in for the old "info" tone. Per shapes.ts's Tone Rule,
+// `info` has no tone steps by design — the Info-Is-Brand Rule routes every
+// in-progress surface to the brand fill (`primary` / `primary-container`),
+// never a separate info hue.
+type Tone = "primary" | "success" | "warning" | "destructive";
 
 /**
  * The effective node status. "skipped" means "already correct"; once the whole
@@ -92,17 +98,24 @@ function isTraversed(status: ApplyStepStatus): boolean {
 }
 
 const TONE_FILL: Record<Tone, string> = {
-  info: "bg-info",
+  primary: "bg-primary",
   success: "bg-success",
   warning: "bg-warning",
   destructive: "bg-destructive",
 };
 
-const TONE_RING: Record<Tone, string> = {
-  info: "border-info/20 bg-info/10 text-info",
-  success: "border-success/20 bg-success/10 text-success",
-  warning: "border-warning/20 bg-warning/10 text-warning",
-  destructive: "border-destructive/20 bg-destructive/10 text-destructive",
+/**
+ * Glyph-Disc Rule: a state icon sits in a filled circle on the role's STRONG
+ * fill (`bg-{role} text-{role}-foreground`), never a washed border+tint. This
+ * replaces the retired `border-{role}/20 bg-{role}/10 text-{role}` ring, which
+ * is exactly the pattern `Banner`'s own header comment documents retiring for
+ * the reboot notice below.
+ */
+const HERO_FILL: Record<Tone, string> = {
+  primary: "bg-primary text-primary-foreground",
+  success: "bg-success text-success-foreground",
+  warning: "bg-warning text-warning-foreground",
+  destructive: "bg-destructive text-destructive-foreground",
 };
 
 /** The large hero glyph for the current overall state. */
@@ -119,65 +132,24 @@ function HeroGlyph({ tone, status }: { tone: Tone; status: string }) {
   return (
     <span
       className={cn(
-        "flex size-14 items-center justify-center rounded-full border",
-        TONE_RING[tone],
+        "flex size-14 items-center justify-center rounded-pill",
+        HERO_FILL[tone],
       )}
     >
       {name ? (
-        <MaterialSymbol name={name} size={28} />
+        <MaterialSymbol name={name} filled size={28} />
       ) : (
         // In-flight: a calm pulsing ellipsis (not a spinner) so the focal glyph
         // reads as "working" without the rotation that competes with the fill bar.
         <MaterialSymbol
           name="more_horiz"
+          filled
           size={28}
           className="animate-pulse motion-reduce:animate-none"
         />
       )}
     </span>
   );
-}
-
-/** Compact status node for the supporting step ledger. */
-function StepNode({ status }: { status: ApplyStepStatus }) {
-  const base =
-    "flex size-5 shrink-0 items-center justify-center rounded-full transition-colors duration-[var(--duration-standard)] ease-standard motion-reduce:transition-none";
-  switch (status) {
-    case "running":
-      return (
-        <span className={cn(base, "text-info")}>
-          <MaterialSymbol
-            name="progress_activity"
-            size={16}
-            className="animate-spin motion-reduce:animate-none"
-          />
-        </span>
-      );
-    case "done":
-      return (
-        <span className={cn(base, "text-success")}>
-          <MaterialSymbol name="check_circle" size={16} />
-        </span>
-      );
-    case "failed":
-      return (
-        <span className={cn(base, "text-destructive")}>
-          <MaterialSymbol name="cancel" size={16} />
-        </span>
-      );
-    case "skipped":
-      return (
-        <span className={cn(base, "text-muted-foreground")}>
-          <MaterialSymbol name="do_not_disturb_on" size={16} />
-        </span>
-      );
-    default:
-      return (
-        <span className={cn(base, "text-muted-foreground/60")}>
-          <MaterialSymbol name="schedule" size={14} />
-        </span>
-      );
-  }
 }
 
 export function ApplyProgressDialog({
@@ -211,7 +183,7 @@ export function ApplyProgressDialog({
         ? "warning"
         : status === "failed"
           ? "destructive"
-          : "info";
+          : "primary";
 
   // Completed fraction drives the determinate fill (skipped counts as done).
   const total = applyState?.total_steps || steps.length || 0;
@@ -258,7 +230,7 @@ export function ApplyProgressDialog({
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && isTerminal && onClose()}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="rounded-card border-0 sm:max-w-md">
         <DialogHeader>
           <DialogTitle>{t("custom_profiles.apply_dialog.title")}</DialogTitle>
           {applyState?.profile_name && (
@@ -278,10 +250,10 @@ export function ApplyProgressDialog({
           </div>
 
           {/* Determinate fill — transform-only (scaleX). */}
-          <div className="bg-muted relative h-1.5 w-full overflow-hidden rounded-full">
+          <div className="bg-muted relative h-1.5 w-full overflow-hidden rounded-pill">
             <motion.div
               className={cn(
-                "h-full w-full origin-left rounded-full",
+                "h-full w-full origin-left rounded-pill",
                 TONE_FILL[tone],
               )}
               initial={false}
@@ -293,38 +265,49 @@ export function ApplyProgressDialog({
           </div>
         </div>
 
-        {/* Supporting ledger — compact per-step detail. */}
+        {/* Supporting ledger — the shipped step-ledger pattern from
+            `sms/delete-dialogs.tsx`'s `DeleteProgress`: an `aria-live` list of
+            tonal steps, each carrying its own container fill AND a distinct
+            glyph. No outer border/box — the tonal fill on each row is what
+            carries separation (No-Hairline-On-Fill), so a wrapping card would
+            just be a second layer of framing around framing that already
+            exists. */}
         {steps.length > 0 && (
-          <div className="rounded-lg border">
-            <p className="text-muted-foreground border-b px-3 py-2 text-xs font-medium">
+          <div className="flex flex-col gap-2">
+            <p className="text-on-surface-variant px-1 text-xs font-medium">
               {t("custom_profiles.apply_dialog.details_label")}
             </p>
-            <ul className="divide-y">
+            <ul className={LEDGER_SHAPE.LIST} aria-live="polite">
               {steps.map((step) => {
                 const eff = effectiveStatus(step.status, applyState?.status);
                 const detailText =
                   eff === "skipped"
                     ? t("custom_profiles.apply_dialog.step_state_unchanged")
                     : step.detail;
+                const { fill, glyph, spin } = ledgerStepTone(eff);
                 return (
                   <li
                     key={step.name}
                     className={cn(
-                      "flex items-center gap-2.5 px-3 py-2 transition-colors duration-[var(--duration-standard)] ease-standard motion-reduce:transition-none",
-                      eff === "running" && "bg-info/5",
+                      LEDGER_SHAPE.STEP,
+                      "transition-colors duration-[var(--duration-standard)] ease-standard motion-reduce:transition-none",
+                      fill,
                     )}
                   >
-                    <StepNode status={eff} />
-                    <span
+                    <MaterialSymbol
+                      name={glyph}
+                      filled
+                      size={18}
                       className={cn(
-                        "flex-1 text-sm font-medium",
-                        eff === "pending" && "text-muted-foreground",
+                        LEDGER_SHAPE.GLYPH,
+                        spin && "animate-spin motion-reduce:animate-none",
                       )}
-                    >
+                    />
+                    <span className="flex-1 font-semibold">
                       {stepLabels[step.name] ?? step.name}
                     </span>
                     {detailText && (
-                      <span className="text-muted-foreground max-w-[45%] truncate text-xs">
+                      <span className="max-w-[45%] truncate text-xs opacity-80">
                         {detailText}
                       </span>
                     )}
@@ -350,42 +333,47 @@ export function ApplyProgressDialog({
           />
         )}
 
-        {/* Error from the start request (not step-level) */}
+        {/* Error from the start request (not step-level). This is the exact
+            `border-destructive/30 bg-destructive/10` wash the reboot notice
+            above already retired — ported onto `TonalBanner`, the card-scoped
+            sibling of `Banner` (Material glyph, `rounded-field`, solid
+            container). */}
         {error && !applyState && (
-          <div className="border-destructive/30 bg-destructive/10 text-destructive flex items-start gap-2 rounded-md border p-3 text-sm">
-            <MaterialSymbol name="warning" size={16} className="mt-0.5 shrink-0" />
-            <p>{error}</p>
-          </div>
+          <TonalBanner tone="destructive" icon="warning" size="compact">
+            {error}
+          </TonalBanner>
         )}
 
         {/* Partial / failed summary */}
         {applyState?.status === "partial" && applyState.error && (
-          <div className="border-warning/30 bg-warning/10 text-warning flex items-start gap-2 rounded-md border p-3 text-sm">
-            <MaterialSymbol name="warning" size={16} className="mt-0.5 shrink-0" />
-            <span>{applyState.error}</span>
-          </div>
+          <TonalBanner tone="warning" icon="warning" size="compact">
+            {applyState.error}
+          </TonalBanner>
         )}
         {applyState?.status === "failed" && applyState.error && (
-          <div className="border-destructive/30 bg-destructive/10 text-destructive flex items-start gap-2 rounded-md border p-3 text-sm">
-            <MaterialSymbol name="cancel" size={16} className="mt-0.5 shrink-0" />
-            <span>{applyState.error}</span>
-          </div>
+          <TonalBanner tone="destructive" icon="cancel" size="compact">
+            {applyState.error}
+          </TonalBanner>
         )}
 
         {/* Footer — height reserved (min-h) so a button appearing at a terminal
-            state doesn't resize the dialog. Buttons render only when actionable. */}
+            state doesn't resize the dialog. Buttons render only when actionable.
+            Primary = default variant + pill shape; secondary = `tonal`, never
+            `outline` (a hand-rolled `ghost` + container override loses its hover
+            in dark mode — see CLAUDE.md's Buttons rule). */}
         <div className="flex min-h-9 justify-end gap-2">
           {(isTerminal || (error && !applyState)) && (
             <>
               {canRetry && (
-                <Button variant="outline" onClick={onRetry}>
+                <Button variant="tonal" onClick={onRetry} className={PILL_ACTION}>
                   <MaterialSymbol name="restart_alt" size={16} />
                   {t("actions.retry", { ns: "common" })}
                 </Button>
               )}
               <Button
-                variant={canRetry ? "default" : "outline"}
+                variant={canRetry ? "default" : "tonal"}
                 onClick={onClose}
+                className={PILL_ACTION}
               >
                 {t("actions.close", { ns: "common" })}
               </Button>

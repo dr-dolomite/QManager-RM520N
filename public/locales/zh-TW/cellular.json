@@ -801,9 +801,111 @@
   },
   "scenarios": {
     "controls_label": "場景啟用",
+    "icons": {
+      "sparkles": "閃光",
+      "gamepad": "遊戲",
+      "play": "媒體",
+      "zap": "效能",
+      "globe": "瀏覽",
+      "rocket": "速度",
+      "video": "視訊通話",
+      "download": "下載",
+      "shield": "安全",
+      "plane": "旅行",
+      "moon": "夜間",
+      "briefcase": "工作"
+    },
     "default_balanced_name": "均衡",
     "default_gaming_name": "遊戲",
-    "default_streaming_name": "流媒體"
+    "default_streaming_name": "流媒體",
+    "page": {
+      "title": "連線場景",
+      "description": "管理並自訂蜂窩設定檔的連線場景，以最佳化網路效能與可靠性。"
+    },
+    "default_balanced_description": "自動頻段選擇",
+    "default_gaming_description": "低延遲，SA 優先",
+    "default_streaming_description": "高頻寬，連線穩定",
+    "error": {
+      "title": "無法載入場景",
+      "body": "正在顯示上次已知的清單。請稍後再試。"
+    },
+    "toast": {
+      "activate_success": "已切換至「{{name}}」場景。",
+      "activate_error": "啟用「{{name}}」場景失敗。",
+      "create_success": "場景建立成功。",
+      "create_success_from_profile": "場景已建立。返回您的設定檔並選取它。",
+      "create_error": "建立場景失敗。",
+      "delete_success": "場景已刪除。",
+      "delete_error": "刪除場景失敗。",
+      "update_success": "場景已更新。",
+      "update_error": "更新場景失敗。"
+    },
+    "dialog": {
+      "add": {
+        "title": "新增連線場景"
+      },
+      "edit": {
+        "title": "編輯設定"
+      },
+      "fields": {
+        "name_label": "場景名稱",
+        "name_placeholder_add": "例如：在家工作",
+        "name_placeholder_edit": "場景名稱",
+        "description_label": "描述",
+        "description_placeholder_add": "例如：針對視訊通話最佳化",
+        "description_placeholder_edit": "場景描述",
+        "network_mode_label": "網路模式",
+        "lte_band_label": "LTE 頻段鎖定",
+        "lte_band_placeholder": "例如：1、3、7、28（留空 = 自動）",
+        "sa_band_label": "NR5G-SA 頻段鎖定",
+        "nsa_band_label": "NR5G-NSA 頻段鎖定",
+        "band_placeholder": "例如：41、78",
+        "optimization_label": "最佳化標籤",
+        "optimization_placeholder": "例如：延遲、輸送量、自訂",
+        "icon_label": "圖示",
+        "preview_label": "預覽",
+        "preview_name_fallback": "場景名稱",
+        "preview_description_fallback": "自訂設定"
+      },
+      "buttons": {
+        "create": "建立場景",
+        "creating": "建立中…",
+        "save_changes": "儲存變更",
+        "saving": "儲存中…"
+      }
+    },
+    "active_config": {
+      "title": "「{{name}}」設定",
+      "status": {
+        "applying": "套用中…",
+        "active": "活動",
+        "inactive": "未啟用"
+      },
+      "activate": "啟用",
+      "edit_aria": "編輯場景設定",
+      "disabled_tooltip": "場景啟用由「{{profile}}」自訂 SIM 設定檔管理。",
+      "disabled_tooltip_next": " 下次變更時間為 {{time}}。",
+      "rows": {
+        "network_mode": "網路模式",
+        "optimization": "最佳化",
+        "lte_bands": "LTE 頻段",
+        "nr_sa_bands": "NR5G-SA 頻段",
+        "nr_nsa_bands": "NR5G-NSA 頻段"
+      }
+    },
+    "tile": {
+      "active": "活動",
+      "delete_aria": "刪除「{{name}}」場景",
+      "delete_dialog": {
+        "title": "刪除場景",
+        "description": "確定要刪除「{{name}}」嗎？此操作無法復原。",
+        "confirm": "刪除"
+      },
+      "add": {
+        "title": "建立場景",
+        "description": "新增自訂設定"
+      }
+    }
   },
   "sms": {
     "page": {

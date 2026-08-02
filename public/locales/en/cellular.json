@@ -801,9 +801,111 @@
   },
   "scenarios": {
     "controls_label": "Scenario activation",
+    "icons": {
+      "sparkles": "Sparkles",
+      "gamepad": "Gaming",
+      "play": "Media",
+      "zap": "Performance",
+      "globe": "Browsing",
+      "rocket": "Speed",
+      "video": "Video calls",
+      "download": "Downloads",
+      "shield": "Secure",
+      "plane": "Travel",
+      "moon": "Overnight",
+      "briefcase": "Work"
+    },
     "default_balanced_name": "Balanced",
     "default_gaming_name": "Gaming",
-    "default_streaming_name": "Streaming"
+    "default_streaming_name": "Streaming",
+    "page": {
+      "title": "Connection Scenarios",
+      "description": "Manage and customize connection scenarios for your cellular profiles to optimize network performance and reliability."
+    },
+    "default_balanced_description": "Auto band selection",
+    "default_gaming_description": "Low latency, SA priority",
+    "default_streaming_description": "High bandwidth, stable connection",
+    "error": {
+      "title": "Couldn't load scenarios",
+      "body": "Showing the last known list. Try again in a moment."
+    },
+    "toast": {
+      "activate_success": "Switched to {{name}} scenario.",
+      "activate_error": "Failed to activate {{name}} scenario.",
+      "create_success": "Scenario created successfully.",
+      "create_success_from_profile": "Scenario created. Return to your profile and select it.",
+      "create_error": "Failed to create scenario.",
+      "delete_success": "Scenario deleted.",
+      "delete_error": "Failed to delete scenario.",
+      "update_success": "Scenario updated.",
+      "update_error": "Failed to update scenario."
+    },
+    "dialog": {
+      "add": {
+        "title": "New Connection Scenario"
+      },
+      "edit": {
+        "title": "Edit Configuration"
+      },
+      "fields": {
+        "name_label": "Scenario Name",
+        "name_placeholder_add": "e.g., Work from Home",
+        "name_placeholder_edit": "Scenario name",
+        "description_label": "Description",
+        "description_placeholder_add": "e.g., Optimized for video calls",
+        "description_placeholder_edit": "Scenario description",
+        "network_mode_label": "Network Mode",
+        "lte_band_label": "LTE Band Lock",
+        "lte_band_placeholder": "e.g., 1, 3, 7, 28 (empty = Auto)",
+        "sa_band_label": "NR5G-SA Band Lock",
+        "nsa_band_label": "NR5G-NSA Band Lock",
+        "band_placeholder": "e.g., 41, 78",
+        "optimization_label": "Optimization Label",
+        "optimization_placeholder": "e.g., Latency, Throughput, Custom",
+        "icon_label": "Icon",
+        "preview_label": "Preview",
+        "preview_name_fallback": "Scenario Name",
+        "preview_description_fallback": "Custom configuration"
+      },
+      "buttons": {
+        "create": "Create Scenario",
+        "creating": "Creating…",
+        "save_changes": "Save Changes",
+        "saving": "Saving…"
+      }
+    },
+    "active_config": {
+      "title": "{{name}} Configuration",
+      "status": {
+        "applying": "Applying…",
+        "active": "Active",
+        "inactive": "Not Active"
+      },
+      "activate": "Activate",
+      "edit_aria": "Edit scenario settings",
+      "disabled_tooltip": "Scenario activation is managed by the {{profile}} Custom SIM Profile.",
+      "disabled_tooltip_next": " Next change at {{time}}.",
+      "rows": {
+        "network_mode": "Network Mode",
+        "optimization": "Optimization",
+        "lte_bands": "LTE Bands",
+        "nr_sa_bands": "NR5G-SA Bands",
+        "nr_nsa_bands": "NR5G-NSA Bands"
+      }
+    },
+    "tile": {
+      "active": "Active",
+      "delete_aria": "Delete {{name}} scenario",
+      "delete_dialog": {
+        "title": "Delete Scenario",
+        "description": "Are you sure you want to delete \"{{name}}\"? This action cannot be undone.",
+        "confirm": "Delete"
+      },
+      "add": {
+        "title": "Create Scenario",
+        "description": "Add custom configuration"
+      }
+    }
   },
   "sms": {
     "page": {

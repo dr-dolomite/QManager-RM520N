@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { motion } from "motion/react";
 import { useTranslation } from "react-i18next";
 import { MaterialSymbol } from "@/components/ui/material-symbol";
@@ -26,7 +26,7 @@ import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardContent } from "@/components/ui/card";
-import { Separator } from "@/components/ui/separator";
+import { TonalBanner } from "@/components/ui/tonal-banner";
 import { AbstractPattern } from "./abstract-pattern";
 import { AddScenarioItem } from "./add-scenario-item";
 import { ActiveConfigCard } from "./active-config-card";
@@ -39,72 +39,38 @@ import {
 import { useConnectionScenarios } from "@/hooks/use-connection-scenarios";
 import { useActiveProfile } from "@/hooks/use-active-profile";
 import { ProfileOverrideAlert } from "@/components/cellular/custom-profiles/profile-override-alert";
-import { DUR, EASE_STANDARD, staggerContainer } from "@/lib/motion";
+import { staggerContainer, staggerItem } from "@/lib/motion";
 import {
   NETWORK_MODE_OPTIONS,
   modeValueToLabel,
   inputToBands,
   bandsToInput,
 } from "@/types/connection-scenario";
+import {
+  PROFILE_CARD_PEER,
+  PROFILE_PAD,
+  SCENARIO_TILE_SHAPE,
+  CONFIG_CARD_SHAPE,
+} from "../shapes";
 
 // =============================================================================
-// Constants
+// ConnectionScenariosCard — tile grid + active config + create/edit dialogs
 // =============================================================================
-
-// Default (built-in) scenarios — icons are UI-only, not stored in backend
-const DEFAULT_SCENARIOS: Scenario[] = [
-  {
-    id: "balanced",
-    name: "Balanced",
-    description: "Auto band selection",
-    icon: "bolt",
-    pattern: "balanced",
-    isDefault: true,
-    config: {
-      atModeValue: "AUTO",
-      mode: "Auto",
-      optimization: "Balanced",
-      lte_bands: "",
-      nsa_nr_bands: "",
-      sa_nr_bands: "",
-    },
-  },
-  {
-    id: "gaming",
-    name: "Gaming",
-    description: "Low latency, SA priority",
-    icon: "sports_esports",
-    pattern: "gaming",
-    isDefault: true,
-    config: {
-      atModeValue: "NR5G",
-      mode: "5G SA Only",
-      optimization: "Latency",
-      lte_bands: "",
-      nsa_nr_bands: "",
-      sa_nr_bands: "",
-    },
-  },
-  {
-    id: "streaming",
-    name: "Streaming",
-    description: "High bandwidth, stable connection",
-    icon: "play_arrow",
-    pattern: "streaming",
-    isDefault: true,
-    config: {
-      atModeValue: "LTE:NR5G",
-      mode: "5G SA / NSA",
-      optimization: "Throughput",
-      lte_bands: "",
-      nsa_nr_bands: "",
-      sa_nr_bands: "",
-    },
-  },
-];
-
-// =============================================================================
-// Main Component
+// Every shape here is imported from `../shapes.ts` rather than restated: the
+// tile grid/height come from `SCENARIO_TILE_SHAPE`, the config-card skeleton's
+// disc/title/chip come from `CONFIG_CARD_SHAPE`. That is the Skeleton-Mirror
+// Rule working as intended — the incumbent skeleton hardcoded `rounded-xl`,
+// `h-11 w-11`, `h-5 w-44` etc., none of which matched what `ScenarioItem` /
+// `ActiveConfigCard` (owned by a parallel builder) actually render, so the
+// loading → loaded handoff visibly jumped.
+//
+// THE ERROR STATE IS NOT A REPLACEMENT. A failed `list.sh` GET is usually
+// transient AT-lock contention (`modem_busy`), and the previous request's data
+// is still perfectly good to look at. So on a read failure the tiles and the
+// config card FREEZE on whatever was last loaded — `hasLoadedOnceRef` is what
+// tells the skeleton not to come back on a background retry — while a
+// destructive `TonalBanner` explains and offers Retry. Only the very first
+// load (nothing on screen yet) shows the skeleton.
 // =============================================================================
 
 interface ConnectionScenariosCardProps {
@@ -124,10 +90,70 @@ const ConnectionScenariosCard = ({
     customScenarios: storedScenarios,
     isLoading,
     isActivating,
+    error,
     activateScenario,
     saveCustomScenario,
     deleteCustomScenario,
+    refresh,
   } = useConnectionScenarios();
+
+  // Default (built-in) scenarios — icons are UI-only, not stored in backend.
+  // Names/descriptions are translated at render time (module-level constants
+  // can't call `t()`), keyed off each scenario's stable `id` so an existing
+  // `scenarios.default_*_name` key set already shipped keeps working.
+  const defaultScenarios: Scenario[] = useMemo(
+    () => [
+      {
+        id: "balanced",
+        name: t("scenarios.default_balanced_name"),
+        description: t("scenarios.default_balanced_description"),
+        icon: "bolt",
+        pattern: "balanced",
+        isDefault: true,
+        config: {
+          atModeValue: "AUTO",
+          mode: "Auto",
+          optimization: "Balanced",
+          lte_bands: "",
+          nsa_nr_bands: "",
+          sa_nr_bands: "",
+        },
+      },
+      {
+        id: "gaming",
+        name: t("scenarios.default_gaming_name"),
+        description: t("scenarios.default_gaming_description"),
+        icon: "sports_esports",
+        pattern: "gaming",
+        isDefault: true,
+        config: {
+          atModeValue: "NR5G",
+          mode: "5G SA Only",
+          optimization: "Latency",
+          lte_bands: "",
+          nsa_nr_bands: "",
+          sa_nr_bands: "",
+        },
+      },
+      {
+        id: "streaming",
+        name: t("scenarios.default_streaming_name"),
+        description: t("scenarios.default_streaming_description"),
+        icon: "play_arrow",
+        pattern: "streaming",
+        isDefault: true,
+        config: {
+          atModeValue: "LTE:NR5G",
+          mode: "5G SA / NSA",
+          optimization: "Throughput",
+          lte_bands: "",
+          nsa_nr_bands: "",
+          sa_nr_bands: "",
+        },
+      },
+    ],
+    [t],
+  );
 
   // --- SIM Profile override check ------------------------------------------
   // When an active Custom SIM Profile binds a NON-Balanced scenario, OR its
@@ -154,6 +180,22 @@ const ConnectionScenariosCard = ({
 
   const isProfileControlled = profileGate !== null;
 
+  // Tracks whether the list has EVER finished loading. `isLoading` flips back
+  // to true on every `refresh()` call — including the Retry button after a
+  // read failure — so keying the skeleton off it directly would blank a
+  // perfectly good list every time a background refresh happens to fail.
+  // Only the very first load (nothing on screen yet) should show a skeleton;
+  // every load after that freezes the last known tiles/config in place while
+  // the error banner above explains what's stale. Written in an effect
+  // (never during render) so it stays a plain ref mutation, not a state sync.
+  const hasLoadedOnceRef = useRef(false);
+  useEffect(() => {
+    if (!isLoading) {
+      hasLoadedOnceRef.current = true;
+    }
+  }, [isLoading]);
+  const showSkeleton = isLoading && !hasLoadedOnceRef.current;
+
   // Convert backend StoredScenario[] → UI Scenario[] (add icon, pattern, isDefault)
   const customScenarios: Scenario[] = useMemo(
     () =>
@@ -174,10 +216,19 @@ const ConnectionScenariosCard = ({
   // --- Selection state (view config without activating) ----------------------
   const [selectedId, setSelectedId] = useState<string>(activeScenarioId);
 
-  // Sync selection to active when active changes (e.g., on initial load)
-  useEffect(() => {
+  // Sync selection to active when active changes (e.g., on initial load).
+  // Compared during render instead of via an effect (React-recommended
+  // pattern, same as `prevEditingId` in custom-profile-form.tsx): a plain
+  // `selectedId !== activeScenarioId` check would also fire every time the
+  // USER manually selects a different scenario (selectedId diverges from
+  // activeScenarioId on purpose in that case), fighting their click. Tracking
+  // `prevActiveScenarioId` lets this only react to activeScenarioId itself
+  // changing, matching the effect's original `[activeScenarioId]` deps array.
+  const [prevActiveScenarioId, setPrevActiveScenarioId] = useState(activeScenarioId);
+  if (activeScenarioId !== prevActiveScenarioId) {
+    setPrevActiveScenarioId(activeScenarioId);
     setSelectedId(activeScenarioId);
-  }, [activeScenarioId]);
+  }
 
   // --- Dialog state ----------------------------------------------------------
   const [showAddDialog, setShowAddDialog] = useState(false);
@@ -220,19 +271,25 @@ const ConnectionScenariosCard = ({
 
   // --- Derived ---------------------------------------------------------------
   const scenarios = useMemo(
-    () => [...DEFAULT_SCENARIOS, ...customScenarios],
-    [customScenarios],
+    () => [...defaultScenarios, ...customScenarios],
+    [defaultScenarios, customScenarios],
   );
   const selectedScenario = scenarios.find((s) => s.id === selectedId);
   const isSelectedActive = selectedId === activeScenarioId;
 
   // Fall back to first default if selected scenario isn't found
-  // (e.g., active custom scenario ID from backend doesn't match any local scenario)
-  useEffect(() => {
-    if (!isLoading && selectedId && !scenarios.find((s) => s.id === selectedId)) {
-      setSelectedId(DEFAULT_SCENARIOS[0].id);
-    }
-  }, [isLoading, selectedId, scenarios]);
+  // (e.g., active custom scenario ID from backend doesn't match any local scenario).
+  // Compared during render instead of via an effect. Unlike the sync above,
+  // this check is not "did something change" — it validates whether the
+  // CURRENT selectedId is still valid, so re-checking it on every render
+  // (including ones caused by selectedId itself changing) is exactly the
+  // original `[isLoading, selectedId, scenarios, defaultScenarios]` semantics.
+  // It's self-terminating: once corrected, the condition evaluates false on
+  // the very next render, and setting the same id again is a no-op bail in
+  // React.
+  if (!isLoading && selectedId && !scenarios.find((s) => s.id === selectedId)) {
+    setSelectedId(defaultScenarios[0].id);
+  }
 
   // ---------------------------------------------------------------------------
   // Handle selection (click card = view config)
@@ -254,11 +311,9 @@ const ConnectionScenariosCard = ({
     const success = await activateScenario(selectedId, selectedScenario.config);
 
     if (success) {
-      toast.success(`Switched to ${selectedScenario.name} scenario.`);
+      toast.success(t("scenarios.toast.activate_success", { name: selectedScenario.name }));
     } else {
-      toast.error(
-        `Failed to activate ${selectedScenario.name} scenario.`,
-      );
+      toast.error(t("scenarios.toast.activate_error", { name: selectedScenario.name }));
     }
   }, [
     selectedScenario,
@@ -267,6 +322,7 @@ const ConnectionScenariosCard = ({
     isActivating,
     activateScenario,
     isProfileControlled,
+    t,
   ]);
 
   // ---------------------------------------------------------------------------
@@ -280,7 +336,7 @@ const ConnectionScenariosCard = ({
     setIsSaving(true);
     const scenarioData = {
       name: addName,
-      description: addDescription || "Custom configuration",
+      description: addDescription || t("scenarios.dialog.fields.preview_description_fallback"),
       icon: addIcon,
       config: {
         atModeValue: addMode,
@@ -300,16 +356,14 @@ const ConnectionScenariosCard = ({
       setShowAddDialog(false);
       resetAddForm();
       if (arrivedFromProfileForm) {
-        toast.success(
-          "Scenario created. Return to your profile and select it.",
-        );
+        toast.success(t("scenarios.toast.create_success_from_profile"));
         // One-shot — subsequent creates show the normal toast.
         setArrivedFromProfileForm(false);
       } else {
-        toast.success("Scenario created successfully.");
+        toast.success(t("scenarios.toast.create_success"));
       }
     } else {
-      toast.error("Failed to create scenario.");
+      toast.error(t("scenarios.toast.create_error"));
     }
   };
 
@@ -331,11 +385,11 @@ const ConnectionScenariosCard = ({
     if (success) {
       // If the deleted scenario was selected, fall back to active or default
       if (selectedId === id) {
-        setSelectedId(activeScenarioId === id ? DEFAULT_SCENARIOS[0].id : activeScenarioId);
+        setSelectedId(activeScenarioId === id ? defaultScenarios[0].id : activeScenarioId);
       }
-      toast.success("Scenario deleted.");
+      toast.success(t("scenarios.toast.delete_success"));
     } else {
-      toast.error("Failed to delete scenario.");
+      toast.error(t("scenarios.toast.delete_error"));
     }
   };
 
@@ -379,9 +433,9 @@ const ConnectionScenariosCard = ({
 
     if (updatedId) {
       setShowEditDialog(false);
-      toast.success("Scenario updated.");
+      toast.success(t("scenarios.toast.update_success"));
     } else {
-      toast.error("Failed to update scenario.");
+      toast.error(t("scenarios.toast.update_error"));
     }
   };
 
@@ -400,29 +454,65 @@ const ConnectionScenariosCard = ({
         />
       )}
 
+      {/* Read-failure notice. The tiles and config card below FREEZE on
+          whatever was last loaded — the State-Honesty Rule cuts both ways: a
+          transient `modem_busy` lock contention on a background refresh is
+          not a reason to blank a perfectly good list. */}
+      {error && (
+        <div className="flex flex-col gap-3">
+          <TonalBanner
+            tone="destructive"
+            icon="error"
+            title={t("scenarios.error.title")}
+            role="alert"
+          >
+            <span className="flex flex-col gap-1">
+              <span className="font-mono text-xs leading-relaxed break-words">
+                {error}
+              </span>
+              <span>{t("scenarios.error.body")}</span>
+            </span>
+          </TonalBanner>
+          <div>
+            <Button
+              variant="destructive"
+              onClick={refresh}
+              disabled={isLoading}
+              className="h-[2.625rem] gap-2 rounded-pill px-5 text-sm font-semibold"
+            >
+              <MaterialSymbol
+                name={isLoading ? "progress_activity" : "refresh"}
+                size={18}
+                className={isLoading ? "animate-spin motion-reduce:animate-none" : undefined}
+              />
+              {t("actions.retry", { ns: "common" })}
+            </Button>
+          </div>
+        </div>
+      )}
+
       {/* Row 1: Scenario Profile Cards */}
-      <div className="col-span-full grid grid-cols-2 @3xl/main:grid-cols-4 gap-4">
-        {isLoading ? (
-          <>
+      <div className="@container/card">
+        {showSkeleton ? (
+          <div className={SCENARIO_TILE_SHAPE.GRID}>
             {[1, 2, 3].map((i) => (
-              <Skeleton key={i} className="rounded-xl h-36" />
+              <Skeleton
+                key={i}
+                className={cn(SCENARIO_TILE_SHAPE.HEIGHT, "rounded-card")}
+              />
             ))}
-            <Skeleton className="rounded-xl h-36 opacity-50" />
-          </>
+            <Skeleton
+              className={cn(SCENARIO_TILE_SHAPE.HEIGHT, "rounded-card opacity-50")}
+            />
+          </div>
         ) : (
-          <>
+          <div className={SCENARIO_TILE_SHAPE.GRID}>
             <motion.div
               className="contents"
-              initial="hidden"
-              animate="visible"
               variants={staggerContainer}
             >
               {scenarios.map((scenario) => (
-                <motion.div
-                  key={scenario.id}
-                  variants={{ hidden: { opacity: 0, y: 12 }, visible: { opacity: 1, y: 0 } }}
-                  transition={{ duration: DUR.standard, ease: EASE_STANDARD }}
-                >
+                <motion.div key={scenario.id} variants={staggerItem}>
                   <ScenarioItem
                     scenario={scenario}
                     isActive={activeScenarioId === scenario.id}
@@ -434,33 +524,32 @@ const ConnectionScenariosCard = ({
               ))}
             </motion.div>
             <AddScenarioItem onClick={() => setShowAddDialog(true)} />
-          </>
+          </div>
         )}
       </div>
 
       {/* Row 2: Selected Scenario Configuration */}
       <div className="grid grid-cols-1 @3xl/main:grid-cols-2 grid-flow-row">
-        {isLoading ? (
-          <Card className="@container/card">
-            <CardContent className="px-6">
-              <div className="flex items-center gap-3 mb-5">
-                <Skeleton className="h-11 w-11 rounded-xl" />
+        {showSkeleton ? (
+          <Card className={PROFILE_CARD_PEER}>
+            <CardContent className={cn(PROFILE_PAD, "flex flex-col gap-5")}>
+              <div className="flex items-center gap-3">
+                <Skeleton className={CONFIG_CARD_SHAPE.DISC} />
                 <div className="grid gap-1.5">
-                  <Skeleton className="h-5 w-44" />
-                  <Skeleton className="h-5 w-16 rounded-full" />
+                  <Skeleton className={CONFIG_CARD_SHAPE.HEAD_TITLE} />
+                  <Skeleton className={cn(CONFIG_CARD_SHAPE.HEAD_CHIP, "rounded-pill")} />
                 </div>
               </div>
-              <div className="grid gap-2">
+              <div className="flex flex-col gap-2">
                 {[1, 2, 3, 4, 5].map((i) => (
-                  <React.Fragment key={i}>
-                    <Separator />
-                    <div className="flex items-center justify-between">
-                      <Skeleton className="h-4 w-24" />
-                      <Skeleton className="h-4 w-20" />
-                    </div>
-                  </React.Fragment>
+                  <div
+                    key={i}
+                    className={cn(CONFIG_CARD_SHAPE.ROW, CONFIG_CARD_SHAPE.ROW_FILL)}
+                  >
+                    <Skeleton className="h-4 w-24" />
+                    <Skeleton className="h-4 w-20" />
+                  </div>
                 ))}
-                <Separator />
               </div>
             </CardContent>
           </Card>
@@ -480,39 +569,41 @@ const ConnectionScenariosCard = ({
 
       {/* ===== Add Scenario Dialog ===== */}
       <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="rounded-card border-0 sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>New Connection Scenario</DialogTitle>
+            <DialogTitle>{t("scenarios.dialog.add.title")}</DialogTitle>
           </DialogHeader>
 
           <div className="space-y-5 py-4">
             {/* Name */}
             <div className="space-y-2">
-              <Label htmlFor="add-name">Scenario Name</Label>
+              <Label htmlFor="add-name">{t("scenarios.dialog.fields.name_label")}</Label>
               <Input
                 id="add-name"
                 value={addName}
                 onChange={(e) => setAddName(e.target.value)}
-                placeholder="e.g., Work from Home"
+                placeholder={t("scenarios.dialog.fields.name_placeholder_add")}
               />
             </div>
 
             {/* Description */}
             <div className="space-y-2">
-              <Label htmlFor="add-description">Description</Label>
+              <Label htmlFor="add-description">
+                {t("scenarios.dialog.fields.description_label")}
+              </Label>
               <Input
                 id="add-description"
                 value={addDescription}
                 onChange={(e) => setAddDescription(e.target.value)}
-                placeholder="e.g., Optimized for video calls"
+                placeholder={t("scenarios.dialog.fields.description_placeholder_add")}
               />
             </div>
 
             {/* Network Mode */}
             <div className="space-y-2">
-              <Label>Network Mode</Label>
+              <Label>{t("scenarios.dialog.fields.network_mode_label")}</Label>
               <Select value={addMode} onValueChange={setAddMode}>
-                <SelectTrigger aria-label="Network Mode">
+                <SelectTrigger aria-label={t("scenarios.dialog.fields.network_mode_label")}>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -527,45 +618,52 @@ const ConnectionScenariosCard = ({
 
             {/* Band Locks */}
             <div className="space-y-2">
-              <Label htmlFor="add-lte-bands">LTE Band Lock</Label>
+              <Label htmlFor="add-lte-bands">
+                {t("scenarios.dialog.fields.lte_band_label")}
+              </Label>
               <Input
                 id="add-lte-bands"
                 value={addLteBands}
                 onChange={(e) => setAddLteBands(e.target.value)}
-                placeholder="e.g., 1, 3, 7, 28 (empty = Auto)"
+                placeholder={t("scenarios.dialog.fields.lte_band_placeholder")}
               />
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="add-sa-bands">NR5G-SA Band Lock</Label>
+                <Label htmlFor="add-sa-bands">
+                  {t("scenarios.dialog.fields.sa_band_label")}
+                </Label>
                 <Input
                   id="add-sa-bands"
                   value={addSaNrBands}
                   onChange={(e) => setAddSaNrBands(e.target.value)}
-                  placeholder="e.g., 41, 78"
+                  placeholder={t("scenarios.dialog.fields.band_placeholder")}
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="add-nsa-bands">NR5G-NSA Band Lock</Label>
+                <Label htmlFor="add-nsa-bands">
+                  {t("scenarios.dialog.fields.nsa_band_label")}
+                </Label>
                 <Input
                   id="add-nsa-bands"
                   value={addNsaNrBands}
                   onChange={(e) => setAddNsaNrBands(e.target.value)}
-                  placeholder="e.g., 41, 78"
+                  placeholder={t("scenarios.dialog.fields.band_placeholder")}
                 />
               </div>
             </div>
 
             {/* Identity glyph */}
             <div className="space-y-2">
-              <Label id="add-icon-label">Icon</Label>
+              <Label id="add-icon-label">{t("scenarios.dialog.fields.icon_label")}</Label>
               <div
                 role="group"
                 aria-labelledby="add-icon-label"
                 className="grid grid-cols-6 gap-2"
               >
-                {SCENARIO_ICONS.map(({ id, icon, label }) => {
+                {SCENARIO_ICONS.map(({ id, icon, labelKey }) => {
                   const selected = addIcon === id;
+                  const label = t(labelKey);
                   return (
                     <button
                       key={id}
@@ -575,7 +673,7 @@ const ConnectionScenariosCard = ({
                       aria-label={label}
                       title={label}
                       className={cn(
-                        "grid h-9 place-items-center rounded-inline transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background",
+                        "grid h-9 place-items-center rounded-inline transition-colors duration-[var(--duration-quick)] ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background",
                         selected
                           ? "bg-primary text-primary-foreground"
                           // Hover previews the selected treatment in a lighter
@@ -593,22 +691,22 @@ const ConnectionScenariosCard = ({
 
             {/* Preview */}
             <div className="space-y-2">
-              <Label>Preview</Label>
+              <Label>{t("scenarios.dialog.fields.preview_label")}</Label>
               <div className="bg-surface-container text-on-surface rounded-card relative h-20 overflow-hidden">
                 <AbstractPattern
                   type="custom"
                   className="text-on-surface-variant absolute inset-0 h-full w-full"
                 />
                 <div className="relative flex items-center gap-3 p-4">
-                  <span className="bg-primary text-primary-foreground grid size-9 flex-none place-items-center rounded-full">
+                  <span className="bg-primary text-primary-foreground grid size-9 flex-none place-items-center rounded-pill">
                     <MaterialSymbol name={resolveScenarioIcon(addIcon)} size={20} />
                   </span>
                   <div className="min-w-0">
                     <p className="truncate font-medium">
-                      {addName || "Scenario Name"}
+                      {addName || t("scenarios.dialog.fields.preview_name_fallback")}
                     </p>
                     <p className="text-on-surface-variant truncate text-sm">
-                      {addDescription || "Custom configuration"}
+                      {addDescription || t("scenarios.dialog.fields.preview_description_fallback")}
                     </p>
                   </div>
                 </div>
@@ -618,13 +716,33 @@ const ConnectionScenariosCard = ({
 
           <DialogFooter className="gap-2">
             <DialogClose asChild>
-              <Button variant="outline">Cancel</Button>
+              <Button
+                variant="tonal"
+                className="h-[2.625rem] rounded-pill px-5 text-sm font-semibold"
+              >
+                {t("actions.cancel", { ns: "common" })}
+              </Button>
             </DialogClose>
             <Button
               onClick={handleAddScenario}
               disabled={!addName.trim() || isSaving}
+              className="h-[2.625rem] gap-2 rounded-pill px-5 text-sm font-semibold"
             >
-              {isSaving ? "Creating…" : "Create Scenario"}
+              {isSaving ? (
+                <>
+                  <MaterialSymbol
+                    name="progress_activity"
+                    size={18}
+                    className="animate-spin motion-reduce:animate-none"
+                  />
+                  {t("scenarios.dialog.buttons.creating")}
+                </>
+              ) : (
+                <>
+                  <MaterialSymbol name="add" size={18} />
+                  {t("scenarios.dialog.buttons.create")}
+                </>
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -632,39 +750,41 @@ const ConnectionScenariosCard = ({
 
       {/* ===== Edit Scenario Dialog ===== */}
       <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="rounded-card border-0 sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Edit Configuration</DialogTitle>
+            <DialogTitle>{t("scenarios.dialog.edit.title")}</DialogTitle>
           </DialogHeader>
 
           <div className="space-y-5 py-4">
             {/* Name */}
             <div className="space-y-2">
-              <Label htmlFor="edit-name">Scenario Name</Label>
+              <Label htmlFor="edit-name">{t("scenarios.dialog.fields.name_label")}</Label>
               <Input
                 id="edit-name"
                 value={editName}
                 onChange={(e) => setEditName(e.target.value)}
-                placeholder="Scenario name"
+                placeholder={t("scenarios.dialog.fields.name_placeholder_edit")}
               />
             </div>
 
             {/* Description */}
             <div className="space-y-2">
-              <Label htmlFor="edit-description">Description</Label>
+              <Label htmlFor="edit-description">
+                {t("scenarios.dialog.fields.description_label")}
+              </Label>
               <Input
                 id="edit-description"
                 value={editDescription}
                 onChange={(e) => setEditDescription(e.target.value)}
-                placeholder="Scenario description"
+                placeholder={t("scenarios.dialog.fields.description_placeholder_edit")}
               />
             </div>
 
             {/* Network Mode */}
             <div className="space-y-2">
-              <Label>Network Mode</Label>
+              <Label>{t("scenarios.dialog.fields.network_mode_label")}</Label>
               <Select value={editMode} onValueChange={setEditMode}>
-                <SelectTrigger aria-label="Network Mode">
+                <SelectTrigger aria-label={t("scenarios.dialog.fields.network_mode_label")}>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -679,56 +799,65 @@ const ConnectionScenariosCard = ({
 
             {/* Optimization */}
             <div className="space-y-2">
-              <Label htmlFor="edit-optimization">Optimization Label</Label>
+              <Label htmlFor="edit-optimization">
+                {t("scenarios.dialog.fields.optimization_label")}
+              </Label>
               <Input
                 id="edit-optimization"
                 value={editOptimization}
                 onChange={(e) => setEditOptimization(e.target.value)}
-                placeholder="e.g., Latency, Throughput, Custom"
+                placeholder={t("scenarios.dialog.fields.optimization_placeholder")}
               />
             </div>
 
             {/* Band Locks */}
             <div className="space-y-2">
-              <Label htmlFor="edit-lte-bands">LTE Band Lock</Label>
+              <Label htmlFor="edit-lte-bands">
+                {t("scenarios.dialog.fields.lte_band_label")}
+              </Label>
               <Input
                 id="edit-lte-bands"
                 value={editLteBands}
                 onChange={(e) => setEditLteBands(e.target.value)}
-                placeholder="e.g., 1, 3, 7, 28 (empty = Auto)"
+                placeholder={t("scenarios.dialog.fields.lte_band_placeholder")}
               />
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="edit-sa-bands">NR5G-SA Band Lock</Label>
+                <Label htmlFor="edit-sa-bands">
+                  {t("scenarios.dialog.fields.sa_band_label")}
+                </Label>
                 <Input
                   id="edit-sa-bands"
                   value={editSaNrBands}
                   onChange={(e) => setEditSaNrBands(e.target.value)}
-                  placeholder="e.g., 41, 78"
+                  placeholder={t("scenarios.dialog.fields.band_placeholder")}
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="edit-nsa-bands">NR5G-NSA Band Lock</Label>
+                <Label htmlFor="edit-nsa-bands">
+                  {t("scenarios.dialog.fields.nsa_band_label")}
+                </Label>
                 <Input
                   id="edit-nsa-bands"
                   value={editNsaNrBands}
                   onChange={(e) => setEditNsaNrBands(e.target.value)}
-                  placeholder="e.g., 41, 78"
+                  placeholder={t("scenarios.dialog.fields.band_placeholder")}
                 />
               </div>
             </div>
 
             {/* Identity glyph */}
             <div className="space-y-2">
-              <Label id="edit-icon-label">Icon</Label>
+              <Label id="edit-icon-label">{t("scenarios.dialog.fields.icon_label")}</Label>
               <div
                 role="group"
                 aria-labelledby="edit-icon-label"
                 className="grid grid-cols-6 gap-2"
               >
-                {SCENARIO_ICONS.map(({ id, icon, label }) => {
+                {SCENARIO_ICONS.map(({ id, icon, labelKey }) => {
                   const selected = editIcon === id;
+                  const label = t(labelKey);
                   return (
                     <button
                       key={id}
@@ -738,7 +867,7 @@ const ConnectionScenariosCard = ({
                       aria-label={label}
                       title={label}
                       className={cn(
-                        "grid h-9 place-items-center rounded-inline transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background",
+                        "grid h-9 place-items-center rounded-inline transition-colors duration-[var(--duration-quick)] ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background",
                         selected
                           ? "bg-primary text-primary-foreground"
                           // Hover previews the selected treatment in a lighter
@@ -756,22 +885,22 @@ const ConnectionScenariosCard = ({
 
             {/* Preview */}
             <div className="space-y-2">
-              <Label>Preview</Label>
+              <Label>{t("scenarios.dialog.fields.preview_label")}</Label>
               <div className="bg-surface-container text-on-surface rounded-card relative h-20 overflow-hidden">
                 <AbstractPattern
                   type="custom"
                   className="text-on-surface-variant absolute inset-0 h-full w-full"
                 />
                 <div className="relative flex items-center gap-3 p-4">
-                  <span className="bg-primary text-primary-foreground grid size-9 flex-none place-items-center rounded-full">
+                  <span className="bg-primary text-primary-foreground grid size-9 flex-none place-items-center rounded-pill">
                     <MaterialSymbol name={resolveScenarioIcon(editIcon)} size={20} />
                   </span>
                   <div className="min-w-0">
                     <p className="truncate font-medium">
-                      {editName || "Scenario Name"}
+                      {editName || t("scenarios.dialog.fields.preview_name_fallback")}
                     </p>
                     <p className="text-on-surface-variant truncate text-sm">
-                      {editDescription || "Custom configuration"}
+                      {editDescription || t("scenarios.dialog.fields.preview_description_fallback")}
                     </p>
                   </div>
                 </div>
@@ -781,10 +910,33 @@ const ConnectionScenariosCard = ({
 
           <DialogFooter className="gap-2">
             <DialogClose asChild>
-              <Button variant="outline">Cancel</Button>
+              <Button
+                variant="tonal"
+                className="h-[2.625rem] rounded-pill px-5 text-sm font-semibold"
+              >
+                {t("actions.cancel", { ns: "common" })}
+              </Button>
             </DialogClose>
-            <Button onClick={handleSaveEdit} disabled={!editName.trim() || isSaving}>
-              {isSaving ? "Saving…" : "Save Changes"}
+            <Button
+              onClick={handleSaveEdit}
+              disabled={!editName.trim() || isSaving}
+              className="h-[2.625rem] gap-2 rounded-pill px-5 text-sm font-semibold"
+            >
+              {isSaving ? (
+                <>
+                  <MaterialSymbol
+                    name="progress_activity"
+                    size={18}
+                    className="animate-spin motion-reduce:animate-none"
+                  />
+                  {t("scenarios.dialog.buttons.saving")}
+                </>
+              ) : (
+                <>
+                  <MaterialSymbol name="check" size={18} />
+                  {t("scenarios.dialog.buttons.save_changes")}
+                </>
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>

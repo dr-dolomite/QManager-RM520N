@@ -44,7 +44,7 @@ export function ScenarioPicker({
   const { t } = useTranslation("cellular");
 
   if (loading) {
-    return <Skeleton className="h-9 w-full rounded-md" />;
+    return <Skeleton className="h-9 w-full rounded-field" />;
   }
 
   const known = scenarios.some((s) => s.id === value);
@@ -75,7 +75,7 @@ export function ScenarioPicker({
         <SelectSeparator />
         <Link
           href="/cellular/custom-profiles/connection-scenarios?action=create"
-          className="text-muted-foreground hover:bg-accent hover:text-accent-foreground focus-visible:bg-accent focus-visible:text-accent-foreground relative flex w-full cursor-pointer items-center gap-2 rounded-sm py-1.5 pl-2 pr-8 text-sm outline-none transition-colors"
+          className="text-on-surface-variant hover:bg-accent hover:text-accent-foreground focus-visible:bg-accent focus-visible:text-accent-foreground relative flex w-full cursor-pointer items-center gap-2 rounded-inline py-1.5 pl-2 pr-8 text-sm outline-none transition-colors"
         >
           <MaterialSymbol name="add" size={16} className="shrink-0" />
           {t("custom_profiles.form.scenario.create_new")}

@@ -1,11 +1,17 @@
 import React from "react";
+import { useTranslation } from "react-i18next";
 import { MaterialSymbol } from "@/components/ui/material-symbol";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
-import { Spinner } from "@/components/ui/spinner";
 import { bandsToDisplay } from "@/types/connection-scenario";
+import { cn } from "@/lib/utils";
+import {
+  BADGE_GLYPH_SIZE,
+  CONFIG_CARD_SHAPE,
+  MACHINE_VALUE,
+  PROFILE_STATUS_BADGE,
+} from "../shapes";
 import type { Scenario } from "./scenario-item";
 
 interface ActiveConfigCardProps {
@@ -36,43 +42,67 @@ export const ActiveConfigCard = ({
   activeProfileName,
   nextChangeAt,
 }: ActiveConfigCardProps) => {
+  const { t } = useTranslation("cellular");
+
   if (!scenario) return null;
   const isCustom = !scenario.isDefault;
+
+  const status = isActivating ? "applying" : isActive ? "active" : "inactive";
+  const badge = PROFILE_STATUS_BADGE[status];
+  const statusLabel = t(`scenarios.active_config.status.${status}`);
+
+  const disabledTooltip =
+    activateDisabled && activeProfileName
+      ? t("scenarios.active_config.disabled_tooltip", {
+          profile: activeProfileName,
+        }) +
+        (nextChangeAt
+          ? t("scenarios.active_config.disabled_tooltip_next", {
+              time: nextChangeAt,
+            })
+          : "")
+      : undefined;
 
   return (
     <Card className="@container/card">
       <CardContent className="px-6">
         {/* Header */}
-        <div className="flex items-center justify-between mb-5">
+        <div className="mb-5 flex items-center justify-between">
           <div className="flex items-center gap-3">
             {/* Same filled glyph disc the tile uses, so the scenario keeps one
                 identity across the picker and this detail card. */}
-            <div className="bg-primary text-primary-foreground rounded-tile p-2.5">
+            <div
+              className={cn(
+                CONFIG_CARD_SHAPE.DISC,
+                "bg-primary text-primary-foreground",
+              )}
+            >
               <MaterialSymbol name={scenario.icon} size={24} />
             </div>
             <div className="grid">
-              <h4 className="font-semibold">{scenario.name} Configuration</h4>
-              {isActivating ? (
-                <Badge variant="info">
-                  <Spinner className="h-2 w-2" />
-                  Applying…
-                </Badge>
-              ) : isActive ? (
-                <Badge variant="success">
-                  <div className="w-2 h-2 rounded-full bg-success" />
-                  Active
-                </Badge>
-              ) : (
-                <Badge variant="muted">
-                  <div className="bg-on-surface-variant/50 h-2 w-2 rounded-full" />
-                  Not Active
-                </Badge>
-              )}
+              <h4 className="font-semibold">
+                {t("scenarios.active_config.title", { name: scenario.name })}
+              </h4>
+              <Badge variant={badge.variant}>
+                <MaterialSymbol
+                  name={badge.glyph}
+                  size={BADGE_GLYPH_SIZE}
+                  className={
+                    badge.spin ? "animate-spin motion-reduce:animate-none" : undefined
+                  }
+                />
+                {statusLabel}
+              </Badge>
             </div>
           </div>
           <div className="flex items-center gap-1">
             {isCustom && (
-              <Button variant="ghost" size="icon" aria-label="Edit scenario settings" onClick={onEdit}>
+              <Button
+                variant="ghost"
+                size="icon"
+                aria-label={t("scenarios.active_config.edit_aria")}
+                onClick={onEdit}
+              >
                 <MaterialSymbol name="settings" size={16} />
               </Button>
             )}
@@ -82,42 +112,36 @@ export const ActiveConfigCard = ({
                 onClick={onActivate}
                 className="gap-1.5"
                 disabled={activateDisabled}
-                title={
-                  activateDisabled && activeProfileName
-                    ? `Scenario activation is managed by the ${activeProfileName} Custom SIM Profile.${
-                        nextChangeAt ? ` Next change at ${nextChangeAt}.` : ""
-                      }`
-                    : undefined
-                }
+                title={disabledTooltip}
               >
-                Activate
+                {t("scenarios.active_config.activate")}
               </Button>
             )}
           </div>
         </div>
 
         {/* Config Details */}
-        <div className="grid gap-2">
-          <Separator />
-          <ConfigRow label="Network Mode" value={scenario.config.mode} />
-          <Separator />
-          <ConfigRow label="Optimization" value={scenario.config.optimization} />
-          <Separator />
+        <div className="flex flex-col gap-2">
           <ConfigRow
-            label="LTE Bands"
+            label={t("scenarios.active_config.rows.network_mode")}
+            value={scenario.config.mode}
+          />
+          <ConfigRow
+            label={t("scenarios.active_config.rows.optimization")}
+            value={scenario.config.optimization}
+          />
+          <ConfigRow
+            label={t("scenarios.active_config.rows.lte_bands")}
             value={bandsToDisplay(scenario.config.lte_bands)}
           />
-          <Separator />
           <ConfigRow
-            label="NR5G-SA Bands"
+            label={t("scenarios.active_config.rows.nr_sa_bands")}
             value={bandsToDisplay(scenario.config.sa_nr_bands)}
           />
-          <Separator />
           <ConfigRow
-            label="NR5G-NSA Bands"
+            label={t("scenarios.active_config.rows.nr_nsa_bands")}
             value={bandsToDisplay(scenario.config.nsa_nr_bands)}
           />
-          <Separator />
         </div>
       </CardContent>
     </Card>
@@ -126,9 +150,9 @@ export const ActiveConfigCard = ({
 
 function ConfigRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex items-center justify-between">
-      <p className="text-sm font-semibold text-muted-foreground">{label}</p>
-      <p className="text-sm font-semibold">{value}</p>
+    <div className={cn(CONFIG_CARD_SHAPE.ROW, CONFIG_CARD_SHAPE.ROW_FILL)}>
+      <p className={CONFIG_CARD_SHAPE.LABEL}>{label}</p>
+      <p className={cn(CONFIG_CARD_SHAPE.VALUE, MACHINE_VALUE)}>{value}</p>
     </div>
   );
 }

@@ -1,8 +1,10 @@
 import React, { useState } from "react";
 import { motion } from "motion/react";
+import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 import { AbstractPattern } from "./abstract-pattern";
 import { Badge } from "@/components/ui/badge";
+import { buttonVariants } from "@/components/ui/button";
 import { MaterialSymbol, type MaterialSymbolName } from "@/components/ui/material-symbol";
 import { DUR, EASE_STANDARD } from "@/lib/motion";
 import {
@@ -16,6 +18,13 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import type { ScenarioConfig } from "@/types/connection-scenario";
+import {
+  BADGE_GLYPH_SIZE,
+  PROFILE_STATUS_BADGE,
+  SCENARIO_TILE_ACTIVE,
+  SCENARIO_TILE_IDLE,
+  SCENARIO_TILE_SHAPE,
+} from "../shapes";
 
 // =============================================================================
 // ScenarioItem — one selectable scenario tile
@@ -39,6 +48,16 @@ import type { ScenarioConfig } from "@/types/connection-scenario";
 // colour-only signal and "which scenario is live" is the one thing on this card
 // that must not depend on colour perception.
 // =============================================================================
+
+/** The destructive pill, from the button variant — matches
+ *  `sms/delete-dialogs.tsx`'s `DESTRUCTIVE_ACTION`/`CANCEL_ACTION` constants
+ *  rather than a hand-written `bg-destructive text-destructive-foreground
+ *  hover:bg-destructive/90` copy. */
+const DESTRUCTIVE_ACTION = cn(
+  buttonVariants({ variant: "destructive" }),
+  "h-[2.625rem] gap-2 rounded-pill px-5 text-sm font-semibold",
+);
+const CANCEL_ACTION = "h-[2.625rem] rounded-pill px-5 text-sm font-semibold";
 
 export interface Scenario {
   id: string;
@@ -70,8 +89,10 @@ export const ScenarioItem = ({
   onSelect,
   onDelete,
 }: ScenarioItemProps) => {
+  const { t } = useTranslation("cellular");
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const isCustom = scenario.pattern === "custom";
+  const activeBadge = PROFILE_STATUS_BADGE.active;
 
   const handleDeleteClick = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -87,7 +108,9 @@ export const ScenarioItem = ({
     <>
       <motion.div
         className={cn(
-          "bg-surface-container text-on-surface rounded-card relative cursor-pointer overflow-hidden",
+          SCENARIO_TILE_SHAPE.ROOT,
+          "group cursor-pointer",
+          isActive ? SCENARIO_TILE_ACTIVE : SCENARIO_TILE_IDLE,
           isActive
             ? "ring-primary ring-offset-background ring-2 ring-offset-3"
             : isSelected
@@ -105,30 +128,38 @@ export const ScenarioItem = ({
         {/* Texture. Inherits `on-surface-variant` so it reads in both themes. */}
         <AbstractPattern
           type={scenario.pattern}
-          className="text-on-surface-variant absolute inset-0 h-full w-full"
+          className="absolute inset-0 h-full w-full text-on-surface-variant"
         />
 
-        {/* Content */}
-        <div className="group relative flex h-36 flex-col justify-between p-5">
+        {/* Content — wrapped in its own positioned box so it paints above the
+            absolutely-positioned texture layer regardless of DOM order. */}
+        <div className="relative flex h-full flex-col justify-between">
           {/* Top row - glyph disc and active chip / delete */}
           <div className="flex items-start justify-between">
             <div className="flex items-center gap-2">
               {/* Glyph disc, matching the Banner primitive's Glyph-Disc Rule:
                   a filled circle survives when a tint washes out. */}
-              <span className="bg-primary text-primary-foreground grid size-9 flex-none place-items-center rounded-full">
+              <span
+                className={cn(
+                  SCENARIO_TILE_SHAPE.DISC,
+                  "bg-primary text-primary-foreground",
+                )}
+              >
                 <MaterialSymbol name={scenario.icon} size={20} />
               </span>
               {isActive && (
-                <Badge variant="success">
-                  <MaterialSymbol name="check_circle" size={12} />
-                  Active
+                <Badge variant={activeBadge.variant}>
+                  <MaterialSymbol name={activeBadge.glyph} size={BADGE_GLYPH_SIZE} />
+                  {t("scenarios.tile.active")}
                 </Badge>
               )}
             </div>
             {isCustom && (
               <button
                 onClick={handleDeleteClick}
-                aria-label={`Delete ${scenario.name} scenario`}
+                aria-label={t("scenarios.tile.delete_aria", {
+                  name: scenario.name,
+                })}
                 className="bg-surface-container-high text-on-surface-variant hover:bg-destructive hover:text-destructive-foreground rounded-inline p-2 opacity-0 transition-colors group-hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-current"
               >
                 <MaterialSymbol name="delete" size={16} />
@@ -150,19 +181,24 @@ export const ScenarioItem = ({
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete Scenario</AlertDialogTitle>
+            <AlertDialogTitle>
+              {t("scenarios.tile.delete_dialog.title")}
+            </AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete &quot;{scenario.name}&quot;? This
-              action cannot be undone.
+              {t("scenarios.tile.delete_dialog.description", {
+                name: scenario.name,
+              })}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel variant="tonal" className={CANCEL_ACTION}>
+              {t("actions.cancel", { ns: "common" })}
+            </AlertDialogCancel>
             <AlertDialogAction
               onClick={handleConfirmDelete}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              className={DESTRUCTIVE_ACTION}
             >
-              Delete
+              {t("scenarios.tile.delete_dialog.confirm")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

@@ -801,9 +801,111 @@
   },
   "scenarios": {
     "controls_label": "场景激活",
+    "icons": {
+      "sparkles": "闪光",
+      "gamepad": "游戏",
+      "play": "媒体",
+      "zap": "性能",
+      "globe": "浏览",
+      "rocket": "速度",
+      "video": "视频通话",
+      "download": "下载",
+      "shield": "安全",
+      "plane": "旅行",
+      "moon": "夜间",
+      "briefcase": "工作"
+    },
     "default_balanced_name": "均衡",
     "default_gaming_name": "游戏",
-    "default_streaming_name": "流媒体"
+    "default_streaming_name": "流媒体",
+    "page": {
+      "title": "连接场景",
+      "description": "管理和自定义蜂窝配置文件的连接场景，以优化网络性能和可靠性。"
+    },
+    "default_balanced_description": "自动频段选择",
+    "default_gaming_description": "低延迟，SA 优先",
+    "default_streaming_description": "高带宽，连接稳定",
+    "error": {
+      "title": "无法加载场景",
+      "body": "正在显示上次已知的列表。请稍后重试。"
+    },
+    "toast": {
+      "activate_success": "已切换到「{{name}}」场景。",
+      "activate_error": "激活「{{name}}」场景失败。",
+      "create_success": "场景创建成功。",
+      "create_success_from_profile": "场景已创建。返回您的配置文件并选择它。",
+      "create_error": "创建场景失败。",
+      "delete_success": "场景已删除。",
+      "delete_error": "删除场景失败。",
+      "update_success": "场景已更新。",
+      "update_error": "更新场景失败。"
+    },
+    "dialog": {
+      "add": {
+        "title": "新建连接场景"
+      },
+      "edit": {
+        "title": "编辑配置"
+      },
+      "fields": {
+        "name_label": "场景名称",
+        "name_placeholder_add": "例如：居家办公",
+        "name_placeholder_edit": "场景名称",
+        "description_label": "描述",
+        "description_placeholder_add": "例如：针对视频通话优化",
+        "description_placeholder_edit": "场景描述",
+        "network_mode_label": "网络模式",
+        "lte_band_label": "LTE 频段锁定",
+        "lte_band_placeholder": "例如：1、3、7、28（留空 = 自动）",
+        "sa_band_label": "NR5G-SA 频段锁定",
+        "nsa_band_label": "NR5G-NSA 频段锁定",
+        "band_placeholder": "例如：41、78",
+        "optimization_label": "优化标签",
+        "optimization_placeholder": "例如：延迟、吞吐量、自定义",
+        "icon_label": "图标",
+        "preview_label": "预览",
+        "preview_name_fallback": "场景名称",
+        "preview_description_fallback": "自定义配置"
+      },
+      "buttons": {
+        "create": "创建场景",
+        "creating": "创建中…",
+        "save_changes": "保存更改",
+        "saving": "保存中…"
+      }
+    },
+    "active_config": {
+      "title": "「{{name}}」配置",
+      "status": {
+        "applying": "应用中…",
+        "active": "活动",
+        "inactive": "未激活"
+      },
+      "activate": "激活",
+      "edit_aria": "编辑场景设置",
+      "disabled_tooltip": "场景激活由「{{profile}}」自定义 SIM 配置文件管理。",
+      "disabled_tooltip_next": " 下次更改时间为 {{time}}。",
+      "rows": {
+        "network_mode": "网络模式",
+        "optimization": "优化",
+        "lte_bands": "LTE 频段",
+        "nr_sa_bands": "NR5G-SA 频段",
+        "nr_nsa_bands": "NR5G-NSA 频段"
+      }
+    },
+    "tile": {
+      "active": "活动",
+      "delete_aria": "删除「{{name}}」场景",
+      "delete_dialog": {
+        "title": "删除场景",
+        "description": "确定要删除「{{name}}」吗？此操作无法撤销。",
+        "confirm": "删除"
+      },
+      "add": {
+        "title": "创建场景",
+        "description": "添加自定义配置"
+      }
+    }
   },
   "sms": {
     "page": {

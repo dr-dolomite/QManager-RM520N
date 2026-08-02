@@ -5,6 +5,8 @@ import { useTranslation } from "react-i18next";
 import { motion, useReducedMotion } from "motion/react";
 import { toast } from "sonner";
 
+import { cn } from "@/lib/utils";
+
 import {
   Field,
   FieldDescription,
@@ -33,7 +35,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Spinner } from "@/components/ui/spinner";
+import { SaveButton, useSaveFlash } from "@/components/ui/save-button";
 import { MaterialSymbol } from "@/components/ui/material-symbol";
 
 import type { SimProfile, CurrentModemSettings } from "@/types/sim-profile";
@@ -61,6 +63,10 @@ import {
   getMnoPreset,
 } from "@/constants/mno-presets";
 import { DUR, EASE_STANDARD } from "@/lib/motion";
+import {
+  MACHINE_VALUE,
+  PILL_ACTION,
+} from "@/components/cellular/custom-profiles/shapes";
 
 // =============================================================================
 // CustomProfileFormComponent — Create / Edit SIM Profile Wizard
@@ -204,6 +210,7 @@ const CustomProfileFormComponent = ({
 
   const [form, setForm] = useState<ProfileFormData>(DEFAULT_FORM_STATE);
   const [isSaving, setIsSaving] = useState(false);
+  const { saved, markSaved } = useSaveFlash();
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [openBlockKey, setOpenBlockKey] = useState<string | null>(null);
 
@@ -532,6 +539,7 @@ const CustomProfileFormComponent = ({
     setIsSaving(false);
 
     if (result) {
+      markSaved();
       toast.success(
         isEditing
           ? t("custom_profiles.form.toast.update_success")
@@ -610,7 +618,7 @@ const CustomProfileFormComponent = ({
                       </FieldDescription>
                       {!isEditing && onLoadCurrentSettings && (
                         <Button
-                          variant="secondary"
+                          variant="tonal-neutral"
                           size="sm"
                           type="button"
                           onClick={handleLoadFromSim}
@@ -652,6 +660,7 @@ const CustomProfileFormComponent = ({
                         <Input
                           id="simIccid"
                           type="text"
+                          className={MACHINE_VALUE}
                           placeholder={t(
                             "custom_profiles.form.sim_iccid_placeholder_inline",
                           )}
@@ -663,7 +672,9 @@ const CustomProfileFormComponent = ({
                         />
                         <FieldDescription
                           className={
-                            duplicateIccid ? "text-destructive" : undefined
+                            duplicateIccid
+                              ? "text-destructive-on-surface"
+                              : undefined
                           }
                         >
                           {duplicateIccid
@@ -728,6 +739,7 @@ const CustomProfileFormComponent = ({
                             <Input
                               id="apnName"
                               type="text"
+                              className={MACHINE_VALUE}
                               placeholder={t(
                                 "custom_profiles.form.fields.apn_name_placeholder",
                               )}
@@ -778,6 +790,7 @@ const CustomProfileFormComponent = ({
                           <Input
                             id="apnName"
                             type="text"
+                            className={MACHINE_VALUE}
                             placeholder={t(
                               "custom_profiles.form.fields.apn_name_placeholder",
                             )}
@@ -818,6 +831,7 @@ const CustomProfileFormComponent = ({
                           <Input
                             id="apnCid"
                             type="number"
+                            className={MACHINE_VALUE}
                             min={1}
                             max={15}
                             value={form.cid}
@@ -849,6 +863,7 @@ const CustomProfileFormComponent = ({
                         <Input
                           id="imei"
                           type="text"
+                          className={MACHINE_VALUE}
                           placeholder={t(
                             "custom_profiles.form.fields.imei_placeholder",
                           )}
@@ -863,7 +878,7 @@ const CustomProfileFormComponent = ({
                         {errors.imei ? (
                           <FieldError id="imei-error">{errors.imei}</FieldError>
                         ) : (
-                          <FieldDescription className="text-warning">
+                          <FieldDescription className="text-warning-on-surface">
                             {t("custom_profiles.form.fields.imei_danger")}
                           </FieldDescription>
                         )}
@@ -877,6 +892,7 @@ const CustomProfileFormComponent = ({
                           <Input
                             id="ttl"
                             type="number"
+                            className={MACHINE_VALUE}
                             min={0}
                             max={255}
                             value={form.ttl}
@@ -899,6 +915,7 @@ const CustomProfileFormComponent = ({
                           <Input
                             id="hl"
                             type="number"
+                            className={MACHINE_VALUE}
                             min={0}
                             max={255}
                             value={form.hl}
@@ -947,12 +964,12 @@ const CustomProfileFormComponent = ({
                         </FieldDescription>
                       </Field>
 
-                      <div className="flex items-center justify-between gap-4 rounded-lg border p-3">
+                      <div className="flex items-center justify-between gap-4 rounded-tile bg-surface-container p-3">
                         <div className="grid gap-0.5">
                           <Label htmlFor="scheduleEnabled">
                             {t("custom_profiles.form.schedule_inline_label")}
                           </Label>
-                          <span className="text-muted-foreground text-xs">
+                          <span className="text-on-surface-variant text-xs">
                             {t("custom_profiles.form.schedule_inline_hint")}
                           </span>
                         </div>
@@ -968,7 +985,7 @@ const CustomProfileFormComponent = ({
                       {form.scenario.schedule.enabled && (
                         <div className="flex flex-col gap-3">
                           {scenarioBlocks.length === 0 ? (
-                            <div className="text-muted-foreground rounded-lg border border-dashed p-4 text-center text-sm">
+                            <div className="text-on-surface-variant rounded-tile border border-dashed p-4 text-center text-sm">
                               {t("custom_profiles.form.windows_empty")}
                             </div>
                           ) : (
@@ -1005,7 +1022,7 @@ const CustomProfileFormComponent = ({
                           )}
 
                           <div className="flex items-center justify-between">
-                            <span className="text-muted-foreground text-xs tabular-nums">
+                            <span className="text-on-surface-variant text-xs tabular-nums">
                               {t("custom_profiles.form.windows_count", {
                                 count: scenarioBlocks.length,
                                 max: MAX_WINDOWS,
@@ -1061,6 +1078,7 @@ const CustomProfileFormComponent = ({
                               form.sim_iccid.trim() ||
                               t("custom_profiles.form.review.all_sims"),
                             numeric: form.sim_iccid.trim() !== "",
+                            mono: form.sim_iccid.trim() !== "",
                           },
                           {
                             label: t("custom_profiles.form.review.operator"),
@@ -1075,6 +1093,7 @@ const CustomProfileFormComponent = ({
                           {
                             label: t("custom_profiles.form.review.apn"),
                             value: form.apn_name.trim() || null,
+                            mono: form.apn_name.trim() !== "",
                           },
                           {
                             label: t(
@@ -1100,17 +1119,20 @@ const CustomProfileFormComponent = ({
                                     cid: form.cid,
                                   }),
                             numeric: true,
+                            mono: true,
                           },
                           {
                             label: t(
                               "custom_profiles.form.review.preferred_imei",
                             ),
                             value: form.imei.trim() || null,
+                            mono: form.imei.trim() !== "",
                           },
                           {
                             label: t("custom_profiles.form.review.ttl_hl"),
                             value: `${form.ttl} / ${form.hl}`,
                             numeric: true,
+                            mono: true,
                           },
                         ]}
                       />
@@ -1136,21 +1158,31 @@ const CustomProfileFormComponent = ({
                                     ),
                                   },
                                 ]
-                              : scenarioBlocks.map((b, i) => ({
-                                  label: t(
-                                    "custom_profiles.form.window_label",
-                                    { index: i + 1 },
-                                  ),
-                                  value: t(
-                                    "custom_profiles.form.review.window_value",
-                                    {
-                                      scenario: nameForId(b.scenario),
-                                      start: b.start,
-                                      end: b.end,
-                                    },
-                                  ),
-                                  numeric: true,
-                                }))
+                              : scenarioBlocks.map((b, i) => {
+                                  const name = nameForId(b.scenario);
+                                  return {
+                                    label: t(
+                                      "custom_profiles.form.window_label",
+                                      { index: i + 1 },
+                                    ),
+                                    // Non-null so the "not set" branch never
+                                    // fires; actual rendering reads namePart/
+                                    // machinePart, not this string.
+                                    value: name,
+                                    namePart: name,
+                                    // "· " is a bare separator glyph, not
+                                    // human-authored text, so it rides along
+                                    // inside the mono segment with the time
+                                    // range it precedes (reuses the same
+                                    // `scenario.time_range` key the collapsed
+                                    // row uses in schedule-rule-row.tsx).
+                                    machinePart: `· ${t(
+                                      "custom_profiles.form.scenario.time_range",
+                                      { start: b.start, end: b.end },
+                                    )}`,
+                                    numeric: true,
+                                  };
+                                })
                             : [
                                 {
                                   label: t(
@@ -1184,16 +1216,19 @@ const CustomProfileFormComponent = ({
                 for its whole life, so no stray submit fires.
               */}
               {isReview ? (
-                <Button
+                <SaveButton
                   key="profile-submit"
                   type="submit"
-                  disabled={isSaving || !requiredFilled}
-                >
-                  {isSaving && <Spinner className="size-4" />}
-                  {isEditing
-                    ? t("custom_profiles.form.submit_edit")
-                    : t("custom_profiles.form.submit_add")}
-                </Button>
+                  isSaving={isSaving}
+                  saved={saved}
+                  disabled={!requiredFilled}
+                  label={
+                    isEditing
+                      ? t("custom_profiles.form.submit_edit")
+                      : t("custom_profiles.form.submit_add")
+                  }
+                  className={PILL_ACTION}
+                />
               ) : (
                 <Button key="profile-next" type="button" onClick={goNext}>
                   {t("custom_profiles.form.next")}
@@ -1219,6 +1254,18 @@ interface SummaryRow {
   label: string;
   value: string | null;
   numeric?: boolean;
+  /** A value the device consumes verbatim (ICCID, APN, IMEI, CID, TTL/HL)
+   * rather than a label a human wrote — the Machine-Voice Rule, via
+   * `MACHINE_VALUE` from shapes.ts. Ignored when `machinePart` is set. */
+  mono?: boolean;
+  /** Split composition for a row that mixes a human-authored name with a
+   * device-emitted value in one line — a schedule window's scenario name
+   * plus its HH:MM range. The Machine-Voice Rule applies PER SEGMENT: when
+   * set, `namePart` renders proportional and `machinePart` renders in
+   * `MACHINE_VALUE`, instead of `value`/`mono` wrapping the whole composed
+   * string in mono (which would also monospace the human-typed name). */
+  namePart?: string;
+  machinePart?: string;
 }
 
 const SummarySection = ({
@@ -1239,7 +1286,7 @@ const SummarySection = ({
           type="button"
           variant="ghost"
           size="sm"
-          className="text-muted-foreground hover:text-foreground h-7 gap-1.5 px-2"
+          className="text-on-surface-variant hover:text-foreground h-7 gap-1.5 px-2"
           onClick={onEdit}
         >
           <MaterialSymbol name="edit" size={14} />
@@ -1252,17 +1299,32 @@ const SummarySection = ({
             key={i}
             className="flex items-center justify-between gap-4 py-2 text-sm"
           >
-            <dt className="text-muted-foreground">{row.label}</dt>
+            <dt className="text-on-surface-variant">{row.label}</dt>
             <dd
-              className={
+              className={cn(
                 row.value === null
-                  ? "text-muted-foreground/60"
+                  ? "text-on-surface-variant italic"
                   : row.numeric
                     ? "text-right font-medium tabular-nums"
-                    : "text-right font-medium"
-              }
+                    : "text-right font-medium",
+                row.value !== null &&
+                  row.mono &&
+                  row.machinePart === undefined &&
+                  MACHINE_VALUE,
+              )}
             >
-              {row.value ?? t("custom_profiles.form.review.not_set")}
+              {row.value === null ? (
+                t("custom_profiles.form.review.not_set")
+              ) : row.machinePart !== undefined ? (
+                <>
+                  {row.namePart}
+                  <span className={cn("ms-1", MACHINE_VALUE)}>
+                    {row.machinePart}
+                  </span>
+                </>
+              ) : (
+                row.value
+              )}
             </dd>
           </div>
         ))}

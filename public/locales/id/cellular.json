@@ -801,9 +801,111 @@
   },
   "scenarios": {
     "controls_label": "Aktivasi skenario",
+    "icons": {
+      "sparkles": "Kilau",
+      "gamepad": "Game",
+      "play": "Media",
+      "zap": "Performa",
+      "globe": "Penjelajahan",
+      "rocket": "Kecepatan",
+      "video": "Panggilan video",
+      "download": "Unduhan",
+      "shield": "Aman",
+      "plane": "Perjalanan",
+      "moon": "Malam",
+      "briefcase": "Kerja"
+    },
     "default_balanced_name": "Seimbang",
     "default_gaming_name": "Game",
-    "default_streaming_name": "Streaming"
+    "default_streaming_name": "Streaming",
+    "page": {
+      "title": "Skenario Koneksi",
+      "description": "Kelola dan sesuaikan skenario koneksi untuk profil seluler Anda guna mengoptimalkan performa dan keandalan jaringan."
+    },
+    "default_balanced_description": "Pemilihan band otomatis",
+    "default_gaming_description": "Latensi rendah, prioritas SA",
+    "default_streaming_description": "Bandwidth tinggi, koneksi stabil",
+    "error": {
+      "title": "Gagal memuat skenario",
+      "body": "Menampilkan daftar terakhir yang diketahui. Coba lagi sebentar lagi."
+    },
+    "toast": {
+      "activate_success": "Beralih ke skenario {{name}}.",
+      "activate_error": "Gagal mengaktifkan skenario {{name}}.",
+      "create_success": "Skenario berhasil dibuat.",
+      "create_success_from_profile": "Skenario dibuat. Kembali ke profil Anda dan pilih skenario ini.",
+      "create_error": "Gagal membuat skenario.",
+      "delete_success": "Skenario dihapus.",
+      "delete_error": "Gagal menghapus skenario.",
+      "update_success": "Skenario diperbarui.",
+      "update_error": "Gagal memperbarui skenario."
+    },
+    "dialog": {
+      "add": {
+        "title": "Skenario Koneksi Baru"
+      },
+      "edit": {
+        "title": "Edit Konfigurasi"
+      },
+      "fields": {
+        "name_label": "Nama Skenario",
+        "name_placeholder_add": "mis. Kerja dari Rumah",
+        "name_placeholder_edit": "Nama skenario",
+        "description_label": "Deskripsi",
+        "description_placeholder_add": "mis. Dioptimalkan untuk panggilan video",
+        "description_placeholder_edit": "Deskripsi skenario",
+        "network_mode_label": "Mode Jaringan",
+        "lte_band_label": "Penguncian Band LTE",
+        "lte_band_placeholder": "mis. 1, 3, 7, 28 (kosong = Otomatis)",
+        "sa_band_label": "Penguncian Band NR5G-SA",
+        "nsa_band_label": "Penguncian Band NR5G-NSA",
+        "band_placeholder": "mis. 41, 78",
+        "optimization_label": "Label Optimasi",
+        "optimization_placeholder": "mis. Latensi, Throughput, Kustom",
+        "icon_label": "Ikon",
+        "preview_label": "Pratinjau",
+        "preview_name_fallback": "Nama Skenario",
+        "preview_description_fallback": "Konfigurasi kustom"
+      },
+      "buttons": {
+        "create": "Buat Skenario",
+        "creating": "Membuat…",
+        "save_changes": "Simpan Perubahan",
+        "saving": "Menyimpan…"
+      }
+    },
+    "active_config": {
+      "title": "Konfigurasi {{name}}",
+      "status": {
+        "applying": "Menerapkan…",
+        "active": "Aktif",
+        "inactive": "Nonaktif"
+      },
+      "activate": "Aktifkan",
+      "edit_aria": "Edit pengaturan skenario",
+      "disabled_tooltip": "Aktivasi skenario dikelola oleh Profil SIM Kustom {{profile}}.",
+      "disabled_tooltip_next": " Perubahan berikutnya pada {{time}}.",
+      "rows": {
+        "network_mode": "Mode Jaringan",
+        "optimization": "Optimasi",
+        "lte_bands": "Band LTE",
+        "nr_sa_bands": "Band NR5G-SA",
+        "nr_nsa_bands": "Band NR5G-NSA"
+      }
+    },
+    "tile": {
+      "active": "Aktif",
+      "delete_aria": "Hapus skenario {{name}}",
+      "delete_dialog": {
+        "title": "Hapus Skenario",
+        "description": "Apakah Anda yakin ingin menghapus \"{{name}}\"? Tindakan ini tidak dapat dibatalkan.",
+        "confirm": "Hapus"
+      },
+      "add": {
+        "title": "Buat Skenario",
+        "description": "Tambah konfigurasi kustom"
+      }
+    }
   },
   "sms": {
     "page": {
