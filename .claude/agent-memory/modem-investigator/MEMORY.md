@@ -1,5 +1,7 @@
 # MEMORY.md index
 
+- [/tmp ownership + protected_regular + PID churn](tmp_ownership_protected_regular_facts.md) — protected_regular=1 blocks ROOT from O_CREAT on www-data-owned /tmp files (no cap override; read-only opens exempt, which is why qcmd's `9<lock` works); protected_fifo does NOT exist on this kernel; PID churn measured 100/s → 32768 wraps in 325s; orphaned `*.tmp` siblings are the fingerprint of a failed cross-UID `mv`
+
 - [APN COPS-bracket live experiment facts](apn_bracket_live_experiment_facts.md) — COPS=0 returns in 0.16s (NON-blocking, no poller starvation), reattach ~1.3-4s, no signal_lost event but a spurious band_change; the bracket hops the WAN across rmnet_dataN yet data usage reads rmnet_ipa0 so it's immune; clean-control payload `{"scenario":{"default":""}}`; busybox `date +%s.%N` prints literal %N
 
 - [current_settings.sh is 0.22s, not 2-3s](current_settings_is_fast_not_3s.md) — the hook comment and sim-profiles.md are 10x stale; all 5 Custom-Profiles endpoints fired concurrently finish in 0.52s wall, so there is no AT cost worth combining; includes the /proc/uptime timing recipe and the `sudo -n` gotcha

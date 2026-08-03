@@ -178,7 +178,50 @@ if [ "$STATE_STATUS" = "applying" ]; then
     fi
 fi
 
-# Serve the file. It parsed above; if the write_state_inplace call was refused
-# the ORIGINAL "applying" bytes are still what we serve, which is honest —
-# nothing was corrected, and the warning is in the log.
-cat "$STATE_FILE"
+# Serve the file — re-reading and RE-VALIDATING, not re-`cat`ing blindly.
+#
+# The parse at the top of Case 2 does not cover this point. Several subprocess
+# calls run between there and here (jq for the status, the PID read, pid_alive,
+# possibly a write_state_inplace), and write_state() in qmanager_profile_apply
+# rewrites this file through the same inode on EVERY step transition — which is
+# exactly the window this endpoint is being polled in. A `>` truncates the file
+# to zero bytes before the new content lands, so a poll arriving in that
+# instant would serve an empty 200 body. The frontend parses the body as
+# ProfileApplyState, so that reads as a hard failure of an apply that is in
+# fact progressing normally: the same class of bug as the double-JSON one this
+# repo shipped in profiles/deactivate.sh, just manifesting as zero JSON
+# instead of two.
+#
+# The torn window is sub-millisecond, so an immediate re-read almost always
+# lands clean; three attempts is generous. If all three are torn, fall back to
+# the same honest "still applying" envelope Case 2 uses — never a partial body.
+SERVE_BODY=""
+_try=0
+while [ "$_try" -lt 3 ]; do
+    SERVE_BODY=$(cat "$STATE_FILE" 2>/dev/null)
+    if printf '%s' "$SERVE_BODY" | jq -e . >/dev/null 2>&1; then
+        printf '%s\n' "$SERVE_BODY"
+        exit 0
+    fi
+    _try=$(( _try + 1 ))
+done
+
+qlog_warn "State file $STATE_FILE was torn on 3 consecutive reads — reporting in-progress rather than serving a partial body"
+jq -n \
+    --argjson started "$(date +%s)" \
+    '{
+        status: "applying",
+        profile_id: "",
+        profile_name: "",
+        started_at: $started,
+        current_step: 0,
+        total_steps: 4,
+        steps: [
+            {name: "apn",      status: "pending", detail: ""},
+            {name: "ttl_hl",   status: "pending", detail: ""},
+            {name: "scenario", status: "pending", detail: ""},
+            {name: "imei",     status: "pending", detail: ""}
+        ],
+        requires_reboot: false,
+        error: null
+    }'

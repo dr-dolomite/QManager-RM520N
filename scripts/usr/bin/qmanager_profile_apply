@@ -94,14 +94,25 @@ APN_SETTING_FILE="/etc/qmanager/apn_setting.json"
 # single uptime.
 APN_RECOVERY_FLAG="/tmp/qmanager_recovery_active"
 # Age ceiling for reclaiming a flag whose PID still LOOKS alive. pid_max is
-# 32768 and this device churns 60-90 PIDs/s, so PIDs wrap in ~6 minutes: a
+# 32768 and the churn was MEASURED on this device at ~100 PIDs/s (sampled from
+# /proc/loadavg's last field over 90s), so the PID space wraps in ~325s. A
 # /proc lookup on a flag older than that can match a completely unrelated
-# process, and nobody would ever reclaim it. A real APN bracket is seconds
-# (a few sleeps plus AT round-trips), so 300s sits far above any legitimate
-# bracket while staying far below a typical uptime. Deliberately NOT
+# process, and nobody would ever reclaim it.
+#
+# 120, not 300. An earlier draft used 300 on the strength of a guessed 60-90
+# PIDs/s; at the measured rate that is 92% of a full wrap — no margin at all,
+# and PID *collisions* start well before a full lap because the allocator
+# skips live PIDs (birthday problem). 120s is ~37% of a wrap, and still an
+# order of magnitude above any legitimate bracket: a real APN bracket is
+# seconds (a few sleeps plus AT round-trips). Re-measure before raising this.
+# Deliberately NOT
 # REBOOT_TIMEOUT — that one bounds an AT+CFUN=1,1 wait and has no relation
 # to how long a bracket may hold suppression.
-APN_RECOVERY_FLAG_MAX_AGE=300
+APN_RECOVERY_FLAG_MAX_AGE=120
+# Upper sanity bound on a computed age. Anything above this is not "very old",
+# it is a CLOCK ARTEFACT, and must never be treated as evidence of staleness —
+# see _apn_rf_stale_by_age().
+APN_RECOVERY_FLAG_MAX_PLAUSIBLE_AGE=86400
 # Ownership marker for APN_RECOVERY_FLAG, read by the cleanup() trap below —
 # 1 only when THIS run created (or reclaimed) the flag; see apply_apn()'s
 # recovery-flag block for the full ownership rule. Initialized here (not
@@ -229,18 +240,34 @@ fi
 # mid-bracket, on top of apn_apply_on_bracket_end's own normal-path clear on
 # every return from apn_apply_write.
 #
-# NOTE on PROFILE_APPLY_PID_FILE: this stays an `rm -f`, deliberately — but
-# note it is NOT what makes the lock work across UIDs. As www-data the unlink
-# is refused (root-owned file, sticky /tmp) and silently no-ops; the lock is
-# safe anyway because profile_check_lock decides on CONTENT, not existence
-# (`[ -n "$pid" ] && [ -d /proc/$pid ]`, profile_mgr.sh:715-725), and
-# profile_acquire_lock's `echo $$ >` is a TRUNCATING write, which the seeded
-# root:root 0666 inode permits from either UID. The unlink is kept because
-# when it DOES succeed (root) the next run creates the file fresh and owns
-# what it wrote, which is strictly tidier. Do not "fix" it into a truncate on
-# the assumption it is load-bearing — and do not remove it either.
+# PROFILE_APPLY_PID_FILE is TRUNCATED, never unlinked. An earlier draft used
+# `rm -f` here and reasoned that it was harmless because the lock decides on
+# CONTENT rather than existence (profile_check_lock: `[ -n "$pid" ] &&
+# [ -d /proc/$pid ]`, profile_mgr.sh:715-725). The content half is true; the
+# harmlessness is not.
+#
+# The unlink DESTROYS the seeded inode. qmanager_setup pre-creates this file
+# root:root 0666 precisely so both UIDs can write it — root from the poller and
+# watchcat, www-data from the UI (profiles/apply.sh spawns this binary with no
+# sudo). Unlink it once as root and the seed is gone for the rest of the boot;
+# whichever UID next runs creates it fresh at its own umask, and a root-created
+# 0644 file locks www-data out of the lock file entirely. Its `echo $$ >` then
+# fails silently, the lock is never recorded, and two applies can run
+# concurrently. Confirmed on hardware: the seeded file was simply ABSENT, and
+# the UI path had been running unlocked.
+#
+# `: >` truncates through the existing inode, so ownership and mode survive. It
+# is exactly equivalent to the unlink for the lock's purposes — an empty file
+# yields an empty $pid, which reads as unlocked — while keeping the shared
+# inode alive. Do not turn this back into `rm -f`.
+#
+# The redirect is guarded because as www-data it can still fail if the seed was
+# already lost on an earlier boot; failing to clear the lock is worth a warning,
+# not a crash.
 cleanup() {
-    rm -f "$PROFILE_APPLY_PID_FILE"
+    if ! : > "$PROFILE_APPLY_PID_FILE" 2>/dev/null; then
+        qlog_warn "cleanup: could not truncate $PROFILE_APPLY_PID_FILE as uid $(id -u) — the apply lock may read as held until it ages out"
+    fi
     if [ "${_apn_rf_owned:-0}" = "1" ]; then
         rm -f "$APN_RECOVERY_FLAG" 2>/dev/null
         # An unchecked rm here is how a permanently stuck flag stayed
@@ -601,6 +628,26 @@ _apn_rf_claim() {
 # mix. Any unreadable or non-numeric result degrades to "NOT stale by age" —
 # the PID check alone then decides, which can only ever be too conservative,
 # never a wrong reclaim.
+#
+# THE CLOCK STEP IS THE HARD PART. This device has no battery-backed RTC: every
+# boot starts at Jan 1 1970 and ql_time_daemon steps the wall clock ~24s in. So
+# BOTH directions of `now - mtime` are corruptible, and only one of them is
+# obvious:
+#
+#   - mtime AFTER the step, `now` read BEFORE it -> negative age. Harmless: a
+#     negative number is never `-gt` the ceiling, so we report "not stale".
+#   - mtime BEFORE the step (e.g. the poller's boot-time auto_apply at ~10s
+#     uptime), `now` read AFTER it -> age computes to ~56 YEARS. That is
+#     `-gt 120`, so the naive check reports STALE and we reclaim a flag whose
+#     owner is alive and mid-bracket. We would then unlink their flag, and
+#     their cleanup would later delete OURS, collapsing suppression for both.
+#
+# The second case is the dangerous one and the non-numeric guard cannot catch
+# it — the arithmetic is perfectly valid, it just describes a bogus span. So an
+# implausible age is treated as NO EVIDENCE rather than as strong evidence:
+# fall back to the PID check, which is the conservative direction. A flag whose
+# mtime predates the step simply cannot be aged out during this boot, which is
+# correct — /tmp is tmpfs, so it cannot outlive the boot anyway.
 _apn_rf_stale_by_age() {
     local _rf_mtime _rf_age
     _rf_mtime=$(stat -c %Y "$APN_RECOVERY_FLAG" 2>/dev/null)
@@ -608,6 +655,8 @@ _apn_rf_stale_by_age() {
         ''|*[!0-9]*) return 1 ;;
     esac
     _rf_age=$(( $(date +%s) - _rf_mtime ))
+    # Clock artefact, not age. Report "not stale" and let the PID check decide.
+    [ "$_rf_age" -gt "$APN_RECOVERY_FLAG_MAX_PLAUSIBLE_AGE" ] && return 1
     [ "$_rf_age" -gt "$APN_RECOVERY_FLAG_MAX_AGE" ]
 }
 
