@@ -140,21 +140,46 @@ parse_cgdcont() {
 #   -> "<v4addr>\t<v4gw>\t<dns1>\t<dns2>\t<v6addr>"
 # RM520N-GL format (no MTU / interface fields present):
 #   +CGCONTRDP: <cid>,<bearer>,"<apn>","<addr>",<gw>,"<dns1>","<dns2>"
-# Promoted here VERBATIM from apn.sh (same field layout / same awk -F'"'
-# split) so apn.sh's existing `cut -f1..5` consumers are unaffected.
+# Promoted here from apn.sh (same field layout / same awk -F'"' split) so
+# apn.sh's existing `cut -f1..5` consumers are unaffected. The 5-field arity
+# and field ORDER are contract — callers slice them positionally with
+# `cut -f1..5`. Do not widen or reorder without updating every consumer.
+#
+# IPv4-vs-IPv6 is decided by OCTET COUNT, not by punctuation. 3GPP returns an
+# IPv6 address as 16 dotted-decimal octets, NOT colon-hex — verified live on
+# this firmware, which emits the dotted form in +CGCONTRDP, +CGPADDR and
+# +CGDCONT? alike (colon-hex shows up only in +QMAP). A `addr ~ /:/` test
+# therefore never matches an IPv6 +CGCONTRDP address, and since the address is
+# per-CID and a dual-stack context emits the IPv6 record SECOND, the old test
+# sent it down the IPv4 branch where it overwrote v4/gw/dns1/dns2 wholesale and
+# left v6 permanently empty. Counting octets is the only reliable split:
+#   4 octets  -> IPv4        16 octets -> IPv6        contains ':' -> IPv6
+# First record of each family wins, so a later record can no longer clobber an
+# earlier one. Colon-hex is kept as a fallback for firmwares that do emit it.
+#
+# Input is normalised with `tr '\r' '\n'` first: some firmwares glue successive
+# records with a bare CR instead of CRLF, which would otherwise leave two
+# records on one awk line and hide the second entirely (parse_at.sh's sibling
+# parser has carried this same normalisation since it was written).
 #
 # Usage:
 #   fields=$(parse_cgcontrdp "$rdp_resp"); v4addr=$(printf '%s' "$fields" | cut -f1)
 # ---------------------------------------------------------------------------
 parse_cgcontrdp() {
-    printf '%s\n' "$1" | awk -F'"' '
+    printf '%s\n' "$1" | tr '\r' '\n' | awk -F'"' '
         /\+CGCONTRDP:/ {
             addr = $4; sub(/ .*/, "", addr)
             gw = $5; gsub(/[^0-9.:]/, "", gw)
             d1 = $6
             d2 = $8
-            if (addr ~ /:/) { v6 = addr }
-            else { v4 = addr; v4gw = gw; v4d1 = d1; v4d2 = d2 }
+            n = split(addr, _oct, "[.]")
+            if (addr ~ /:/) {
+                if (v6 == "") v6 = addr
+            } else if (n == 16) {
+                if (v6 == "") v6 = addr
+            } else if (n == 4) {
+                if (v4 == "") { v4 = addr; v4gw = gw; v4d1 = d1; v4d2 = d2 }
+            }
         }
         END { printf "%s\t%s\t%s\t%s\t%s\n", v4, v4gw, v4d1, v4d2, v6 }'
 }
