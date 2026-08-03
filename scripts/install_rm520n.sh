@@ -233,7 +233,15 @@ install_tree() {
 # --- Two-phase Version Write -------------------------------------------------
 
 mark_version_pending() {
-    mkdir -p "$CONF_DIR"
+    # SECURITY: pin the mode, don't just ensure existence. This is the FIRST
+    # thing that creates $CONF_DIR, and a bare `mkdir -p` honours the ambient
+    # umask and is a silent no-op on an already-existing directory — which is
+    # how 0777 reached fielded devices and then survived every OTA. `install -d`
+    # re-applies the mode on EVERY run, so one OTA self-heals a drifted device.
+    # Owner is deliberately NOT set here: www-data is created later, in
+    # install_dependencies(). install_backend() pins owner+mode together once
+    # the user exists. See the SECURITY note there for why the mode matters.
+    install -d -m 0755 "$CONF_DIR"
     printf '%s\n' "$VERSION" > "$VERSION_PENDING"
     _log_raw "Version $VERSION marked as pending"
 }
@@ -1294,7 +1302,26 @@ install_backend() {
     # www-data (lighttpd CGI) needs write access to config dir (auth.json, profiles)
     # and session dir (session tokens). Also needs dialout group for serial device access.
     addgroup www-data dialout 2>/dev/null || true
-    mkdir -p "$CONF_DIR/profiles"
+
+    # SECURITY: $CONF_DIR must be 0755, never group/world-writable — and the
+    # MODE matters independently of the ownership carve-out below.
+    #
+    # Why: removing or replacing a file requires write permission on its PARENT
+    # DIRECTORY, not on the file. So a 0777 $CONF_DIR lets www-data unlink
+    # $CONF_DIR/environment and drop in its own copy, no matter that the file
+    # itself is pinned root:root 0644 twenty lines down. systemd does not shell-
+    # source an EnvironmentFile=, but it will set any KEY=VALUE it finds into
+    # the four ROOT daemons that read it — PATH=, LD_PRELOAD= — and those
+    # daemons shell out constantly. That is root code execution from the web
+    # user, straight through a carve-out that only ever guarded the file.
+    #
+    # This directory was previously created by mark_version_pending()'s
+    # `mkdir -p`, which honours the ambient umask and no-ops on an existing
+    # directory — so 0777 reached fielded devices and persisted across every
+    # OTA. `install -d` re-applies owner AND mode on EVERY run: one OTA
+    # self-heals a drifted device. Same reasoning as $QMANAGER_ROOT above.
+    install -d -o www-data -g www-data -m 0755 "$CONF_DIR"
+    install -d -o www-data -g www-data -m 0755 "$CONF_DIR/profiles"
     chown -R www-data:www-data "$CONF_DIR"
 
     # ...but NOT the daemon environment file. The blanket chown above is for
