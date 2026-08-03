@@ -3,8 +3,9 @@
 # =============================================================================
 # mtu.sh — CGI Endpoint: MTU Configuration (GET + POST)
 # =============================================================================
-# GET:  Reads the current MTU from the rmnet_data0 interface and checks
-#       whether a custom MTU configuration file exists.
+# GET:  Reads the current MTU from whichever rmnet_data* interface currently
+#       carries the WAN (resolved at runtime — the index migrates across
+#       attach cycles) and checks whether a custom MTU config file exists.
 # POST: Applies a new MTU value to all rmnet_data interfaces and persists
 #       the commands to /etc/firewall.user.mtu. The qmanager_mtu init script
 #       re-applies these at boot via the qmanager_mtu_apply daemon.
@@ -26,9 +27,61 @@ cgi_handle_options
 
 # --- Configuration -----------------------------------------------------------
 MTU_FIREWALL_FILE="/etc/firewall.user.mtu"
-NETWORK_INTERFACE="rmnet_data0"
 
-# --- Helper: get current MTU from the primary interface ----------------------
+# --- Helper: resolve the interface that currently carries the WAN ------------
+# The WAN does NOT live on a fixed rmnet_dataN. The channel index migrates
+# across attach cycles — verified live: the modem was attached on rmnet_data1
+# (the only interface UP, holding the address and the default route) while
+# rmnet_data0 sat DOWN with no address but non-zero /proc/net/dev counters,
+# i.e. it had been the WAN earlier in the same boot. Hardcoding index 0 for the
+# GET therefore reported MTU for a downed interface; it only looked correct
+# because both happened to read 1500.
+#
+# Note detect_active_cid() in cgi_at.sh cannot help here: it resolves a PDP
+# context ID, and neither +CGPADDR nor +QMAP carries a Linux interface name —
+# there is no CID -> interface mapping anywhere in the codebase, and the
+# +QMAP mux id matching rmnet_dataN today is coincidence, not a contract.
+#
+# Fallback ladder, most authoritative first:
+#   1. the default route's device (what traffic actually uses)
+#   2. the first rmnet_data* holding a global-scope address
+#   3. the first rmnet_data* with carrier=1 (the tower_lock_mgr.sh idiom)
+#   4. rmnet_data0, preserving legacy behaviour rather than failing the request
+#
+# Kept local deliberately: the other hardcoded rmnet_data0 sites
+# (qmanager_mtu_apply, qmanager_firewall, config.sh) each have different
+# semantics, so this is a candidate for promotion to a shared lib only once
+# they actually converge — not a speculative primitive with one caller.
+resolve_wan_interface() {
+    _wan=$(ip route show default 2>/dev/null \
+        | sed -n 's/.*dev \([^ ]*\).*/\1/p' \
+        | grep '^rmnet_data' | head -1)
+    [ -n "$_wan" ] && { printf '%s' "$_wan"; return 0; }
+
+    for _f in /sys/class/net/rmnet_data*; do
+        [ -e "$_f" ] || continue
+        _n=$(basename "$_f")
+        if ip -o addr show "$_n" 2>/dev/null | grep -q 'scope global'; then
+            printf '%s' "$_n"
+            return 0
+        fi
+    done
+
+    for _f in /sys/class/net/rmnet_data*; do
+        [ -e "$_f" ] || continue
+        _n=$(basename "$_f")
+        if [ "$(cat "/sys/class/net/${_n}/carrier" 2>/dev/null)" = "1" ]; then
+            printf '%s' "$_n"
+            return 0
+        fi
+    done
+
+    printf 'rmnet_data0'
+}
+
+NETWORK_INTERFACE=$(resolve_wan_interface)
+
+# --- Helper: get current MTU from the live WAN interface ---------------------
 get_current_mtu() {
     ip link show "$NETWORK_INTERFACE" 2>/dev/null \
         | grep -o "mtu [0-9]*" | cut -d' ' -f2
