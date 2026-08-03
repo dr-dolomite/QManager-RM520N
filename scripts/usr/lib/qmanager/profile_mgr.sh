@@ -718,7 +718,18 @@ profile_check_lock() {
         if [ -n "$_profile_lock_pid" ] && [ -d "/proc/$_profile_lock_pid" ]; then
             return 1
         fi
-        rm -f "$PROFILE_APPLY_PID_FILE"
+        # Release by TRUNCATION, never `rm`. qmanager_setup seeds this file
+        # root:root 0666 so that both uids can take the lock (this runs as
+        # www-data from profiles/apply.sh and as root from the poller/watchcat).
+        # Unlinking destroys that seed: the next `echo $$ >` re-creates the file
+        # at the caller's umask — 0644 for root — and the OTHER uid is locked
+        # out for the rest of the boot, silently running unlocked.
+        #
+        # This is not a race. The seeded file is EMPTY, so the very first
+        # acquire after every boot reaches this branch with an empty
+        # _profile_lock_pid and would unlink the seed unconditionally.
+        # See docs/reference/tmp-file-ownership.md.
+        : > "$PROFILE_APPLY_PID_FILE" 2>/dev/null || true
     fi
     _profile_lock_pid=""
     return 0
