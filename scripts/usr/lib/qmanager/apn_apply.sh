@@ -28,16 +28,40 @@
 # anywhere — confirmed unsupported on this firmware (returns ERROR).
 #
 # UID-AGNOSTIC BY DESIGN — this primitive does NOT touch
-# /tmp/qmanager_recovery_active. That flag is created, owned, and cleared
-# EXCLUSIVELY by qmanager_profile_apply (the root worker), wrapping its call
-# into this primitive, and ONLY there — because /tmp is mode 1777 (sticky
-# bit): only a file's owner or root may unlink it, regardless of the file's
-# own mode. A `chmod 0666` on the flag does NOT fix this — it only makes the
-# flag world-writable, not world-unlinkable, so a cross-UID caller's
-# `rm -f` would still silently no-op (exit 0 on -f, file stays), orphaning
-# the flag "on" and permanently muting alert/event dispatch. Keeping the
-# flag single-UID-owned (root creates it, root clears it, always) sidesteps
-# the problem entirely instead of trying to paper over it with permissions.
+# /tmp/qmanager_recovery_active. Whether that flag is raised at all is left
+# entirely to the caller, through the optional bracket hooks further down.
+#
+# Why the flag is the caller's problem, stated correctly (the earlier version
+# of this note was both incomplete and wrong about who owns the flag):
+#
+#   1. /tmp is root-owned, mode 1777 (sticky). Only a file's owner or root may
+#      unlink or rename over an entry there, whatever the file's own mode. So
+#      a cross-UID `rm -f` on the flag silently no-ops (`-f` exits 0 and the
+#      file stays), orphaning the flag "on" and permanently muting alert and
+#      event dispatch.
+#   2. INDEPENDENTLY of the sticky bit, this kernel runs with
+#      fs.protected_regular=1: in a world-writable sticky directory, opening
+#      another UID's regular file for WRITE is denied unless
+#      file_owner == dir_owner (i.e. the file is root-owned, matching /tmp) or
+#      caller == file_owner. Root gets NO override — a root process cannot
+#      write a www-data-owned file in /tmp either. This is why `chmod 0666` is
+#      not a fix: mode is not the gate here, ownership is. Verified by live
+#      probe on the device, both directions.
+#      The only ownership under which BOTH UIDs can write a shared /tmp file
+#      is root:root 0666 (which is how /tmp/qmanager.log is seeded at install).
+#   3. Consequence for anything that writes such a file: tmp-file + `mv` is
+#      forbidden. rename() swaps the inode, so the first writer to use it
+#      destroys the shared ownership and replaces it with its own UID at its
+#      own umask. Shared ownership and rename-atomicity are mutually exclusive
+#      in /tmp. Writers must truncate-and-rewrite through the existing inode.
+#
+# NOT AN INVARIANT: the old note claimed the flag was "created, owned and
+# cleared EXCLUSIVELY by qmanager_profile_apply (the root worker)". That was
+# never enforced and is not true — qmanager_profile_apply runs as ROOT when the
+# poller/watchcat spawn it, but as WWW-DATA when profiles/apply.sh spawns it
+# (no sudo, not setuid, no sudoers grant), so the "single UID owns the flag"
+# assumption breaks on the UI path. That worker therefore verifies flag
+# ownership by reading the flag back rather than assuming it.
 # The www-data CGI paths (apn.sh, profiles/deactivate.sh) call this
 # primitive WITHOUT any recovery-flag suppression — same as apn.sh's status
 # quo today (its inline COPS cycles never suppressed anything either), so
@@ -298,10 +322,14 @@ _apn_apply_trap_restore() {
 # APN_APPLY_RC (belt-and-suspenders for `$?` callers).
 #
 # Does NOT manage /tmp/qmanager_recovery_active — see the UID-AGNOSTIC note
-# in the file header. A caller that wants recovery-flag suppression (only
-# qmanager_profile_apply does) must set/clear it itself around this call —
-# in practice by defining the optional hooks below, not by touching the flag
-# inline before calling in (see the ordering note next).
+# in the file header for the sticky-bit AND fs.protected_regular rules that
+# make that flag a cross-UID hazard. A caller that wants recovery-flag
+# suppression (only qmanager_profile_apply does) must set/clear it itself
+# around this call — in practice by defining the optional hooks below, not by
+# touching the flag inline before calling in (see the ordering note next) —
+# and must verify it actually owns the flag rather than assuming it, since
+# that caller runs as root on the poller/watchcat path and as www-data on the
+# profiles/apply.sh path.
 #
 # OPTIONAL HOOKS — apn_apply_on_bracket_start / apn_apply_on_bracket_end:
 # feature-detected via `command -v` (the same idiom qmanager_profile_apply
@@ -315,8 +343,9 @@ _apn_apply_trap_restore() {
 # suppress. This is what lets qmanager_profile_apply raise
 # /tmp/qmanager_recovery_active only once a bracket is actually about to
 # touch the modem, instead of while merely waiting on the lock — this
-# library still knows NOTHING about that flag; it only knows an optional
-# callback might exist.
+# library still knows NOTHING about that flag (nor about which UID the hook
+# will run as, which is not fixed); it only knows an optional callback might
+# exist.
 #
 # Return-code contract:
 #   0  done / done_carrier_default — verified: negotiated APN matches request

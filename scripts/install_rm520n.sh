@@ -2418,8 +2418,29 @@ start_services() {
     systemctl restart lighttpd 2>/dev/null || warn "Could not restart lighttpd"
     info "lighttpd restarted with QManager config"
 
-    # Run setup oneshot (creates lock files, session dirs, permissions)
-    systemctl start qmanager-setup 2>/dev/null || true
+    # Run setup oneshot (creates lock files, session dirs, permissions).
+    #
+    # `restart`, not `start`, as defence-in-depth. qmanager-setup.service is
+    # Type=oneshot with RemainAfterExit=yes, so systemd holds it `active` after
+    # ExecStart exits (that latch is what keeps Before=qmanager-poller.service
+    # satisfiable), and `systemctl start` on an ALREADY-active unit is a no-op
+    # that returns success without re-running ExecStart.
+    #
+    # That no-op does NOT bite today: stop_services() above batches a stop over
+    # every /lib/systemd/system/qmanager-*.service except watchcat, which
+    # includes this unit and releases the latch — so `start` did re-run it. The
+    # correctness of the /tmp ownership seed in qmanager_setup therefore rests
+    # on an exclusion list in a different function. `restart` makes it rest on
+    # nothing: it is identical to `start` on an inactive or not-yet-loaded unit,
+    # and still re-runs ExecStart if that stop is ever narrowed, reordered, or
+    # silently fails. Cheap insurance on a step whose failure mode is invisible
+    # (files keep last boot's ownership; cross-UID writes fail silently).
+    #
+    # Safe to restart mid-install: qmanager_setup is idempotent by design, and
+    # chown/chmod mutate the existing inode in place rather than replacing it,
+    # so a flock held on /tmp/qmanager_at.lock (tied to the open file
+    # description, not the mode bits) and any open fd both survive untouched.
+    systemctl restart qmanager-setup 2>/dev/null || true
 
     # Start always-on services with verification
     for svc in qmanager-cfun-fix qmanager-ping qmanager-poller qmanager-ttl qmanager-mtu qmanager-imei-check; do

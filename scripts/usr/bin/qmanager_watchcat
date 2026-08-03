@@ -310,7 +310,25 @@ execute_tier1() {
     qlog_info "TIER 1: Re-register to network (AT+COPS)"
     append_event "watchcat_recovery" "Watchcat: re-register to network (Tier 1)" "warning"
 
-    touch "$RECOVERY_FLAG"
+    # Raise the shared recovery flag WITH our PID, falling back to a bare
+    # touch. Both halves are load-bearing:
+    #   - The PID lets qmanager_profile_apply judge the flag on its own merits
+    #     (live owner / dead owner / aged-out) instead of special-casing an
+    #     empty file as "some foreign owner, never touch".
+    #   - The `touch` fallback is NOT defensive padding. Watchcat runs as root,
+    #     and if a www-data qmanager_profile_apply already created this flag,
+    #     root's redirect is REFUSED by fs.protected_regular=1 (a world-
+    #     writable sticky dir refuses an O_CREAT write unless you own the file
+    #     or the file is owned by the directory's owner — /tmp is root's, and
+    #     there is no root override). `touch` on that same file still succeeds,
+    #     because stamping mtime only needs CAP_FOWNER. The flag's EXISTENCE is
+    #     the actual signal every consumer reads, so without the fallback this
+    #     change would be a regression: root would fail to raise recovery
+    #     suppression at all.
+    # Known residual, out of scope: if we join a flag a www-data APN bracket
+    # already owns, that bracket clears it at its end and our suppression stops
+    # early. Fixing that needs a multi-owner protocol, not a bigger flag.
+    printf '%s\n' "$$" > "$RECOVERY_FLAG" 2>/dev/null || touch "$RECOVERY_FLAG"
     qcmd 'AT+COPS=2' 2>/dev/null
     sleep 2
     qcmd 'AT+COPS=0' 2>/dev/null
@@ -333,7 +351,9 @@ execute_tier2() {
     qlog_info "TIER 2: Toggling radio (AT+CFUN=0/1)"
     append_event "watchcat_recovery" "Watchcat: toggling radio (Tier 2)" "warning"
 
-    touch "$RECOVERY_FLAG"
+    # PID write + touch fallback — see execute_tier1 for why the fallback is
+    # required, not decorative.
+    printf '%s\n' "$$" > "$RECOVERY_FLAG" 2>/dev/null || touch "$RECOVERY_FLAG"
 
     local result
     result=$(qcmd 'AT+CFUN=0' 2>/dev/null)
@@ -375,7 +395,8 @@ execute_tier3() {
     qlog_info "TIER 3: SIM failover from slot $current_slot to slot $CFG_BACKUP_SIM_SLOT"
     append_event "sim_failover" "Watchcat: switching to SIM slot $CFG_BACKUP_SIM_SLOT (Tier 3)" "warning"
 
-    touch "$RECOVERY_FLAG"
+    # PID write + touch fallback — see execute_tier1.
+    printf '%s\n' "$$" > "$RECOVERY_FLAG" 2>/dev/null || touch "$RECOVERY_FLAG"
 
     # Save original slot for potential fallback
     original_sim_slot="$current_slot"
@@ -579,7 +600,8 @@ do_recovery() {
     local action_result=0
 
     qlog_info "RECOVERY: Executing Tier $current_tier"
-    touch "$RECOVERY_FLAG"
+    # PID write + touch fallback — see execute_tier1.
+    printf '%s\n' "$$" > "$RECOVERY_FLAG" 2>/dev/null || touch "$RECOVERY_FLAG"
 
     case "$current_tier" in
         1) execute_tier1; action_result=$? ;;
@@ -657,7 +679,10 @@ finish_cooldown() {
             cooldown_stale_retries=$((cooldown_stale_retries + 1))
             qlog_warn "COOLDOWN: ping data stale (retry $cooldown_stale_retries/3) — extending by ${CFG_CHECK_INTERVAL}s"
             cooldown_remaining="$CFG_CHECK_INTERVAL"
-            touch "$RECOVERY_FLAG"
+            # PID write + touch fallback — see execute_tier1. Re-stamping the
+            # mtime each extension also keeps the flag from ageing out of
+            # profile_apply's staleness ceiling during a long cooldown.
+            printf '%s\n' "$$" > "$RECOVERY_FLAG" 2>/dev/null || touch "$RECOVERY_FLAG"
             return
         fi
         # Stale-exhausted: reset the retry counter and fall through to the
@@ -749,7 +774,8 @@ check_revert_request() {
         rm -f "$REVERT_FLAG"
         append_event "sim_failover" "Watchcat: reverting to original SIM slot $original_sim_slot (user request)" "info"
 
-        touch "$RECOVERY_FLAG"
+        # PID write + touch fallback — see execute_tier1.
+        printf '%s\n' "$$" > "$RECOVERY_FLAG" 2>/dev/null || touch "$RECOVERY_FLAG"
         sim_failover_fallback
         rm -f "$RECOVERY_FLAG" "$SIM_FAILOVER_FILE"
 

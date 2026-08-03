@@ -104,6 +104,26 @@ _qlog_rotate() {
 
         # Start fresh
         : > "$QLOG_FILE"
+
+        # Re-assert the shared mode. /tmp/qmanager.log is seeded root:root 0666
+        # by qmanager_setup precisely so BOTH root daemons and www-data CGI can
+        # append to it; /tmp is root-owned mode 1777 with fs.protected_regular=1,
+        # and root-owned-in-a-root-owned-dir is the only ownership under which
+        # both UIDs may open it for write.
+        #
+        # The `mv` above breaks that when ROOT rotates: rename() moves the seeded
+        # inode out to .1 and `: >` creates a BRAND NEW one at root's umask 0022,
+        # i.e. 0644. From that moment www-data's appends are denied — and
+        # _qlog_write redirects with `>> ... 2>/dev/null`, so the loss is totally
+        # silent. Since the poller is the highest-volume logger, root wins the
+        # rotation almost every time, which would quietly re-introduce exactly
+        # the missing-warning blindness the shared seed exists to prevent.
+        #
+        # When WWW-DATA rotates, the `mv` fails first (sticky /tmp: it does not
+        # own the root-owned log), but `: >` still truncates THROUGH the existing
+        # inode, so ownership and mode survive and this chmod is a harmless
+        # no-op-or-EPERM. Either way the seed is preserved.
+        chmod 666 "$QLOG_FILE" 2>/dev/null
     fi
 }
 

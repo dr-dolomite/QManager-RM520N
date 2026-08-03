@@ -76,8 +76,72 @@ if [ ! -x "$APPLY_BIN" ]; then
     exit 0
 fi
 
-# --- Clear previous state file -----------------------------------------------
-rm -f "$STATE_FILE"
+# --- Reset previous state file (INODE-PRESERVING — never rm, never mv) -------
+# /tmp is root-owned mode 1777 (sticky) and this kernel runs with
+# fs.protected_regular=1. Two consequences, both of which the old `rm -f` here
+# fell foul of:
+#
+#   1. Sticky bit: as www-data we may NOT unlink a root-owned file in /tmp.
+#      `rm -f` returns 0 regardless (that is what -f means), so the reset
+#      silently no-opped and the frontend's very first poll rendered the
+#      PREVIOUS run's state — in practice the boot-time apply's
+#      "status":"complete" — making a brand-new apply look already finished.
+#   2. fs.protected_regular: a cross-UID write to a file in a world-writable
+#      sticky directory is denied unless file_owner == dir_owner (root) or
+#      caller == file_owner. Root gets NO override either. So the ONLY
+#      ownership under which both this CGI (www-data) and the root-spawned
+#      worker can write this file is root:root 0666 — which is exactly what
+#      qmanager_setup seeds at boot, and exactly what any rm/mv here would
+#      destroy (rename() swaps the inode and the new one is owned by whoever
+#      wrote it, at their umask).
+#
+# So: truncate-and-rewrite through the existing inode, and never reintroduce
+# an `rm`/`mv` on this path.
+#
+# We write a full, schema-valid "applying" envelope rather than an empty file
+# because apply_status.sh serves this file's bytes verbatim (`cat`); an empty
+# file would make that endpoint emit an empty — i.e. invalid JSON — body.
+# The shape matches write_state() in qmanager_profile_apply (4 steps, in the
+# order apn -> ttl_hl -> scenario -> imei); the worker overwrites it with real
+# values within a few hundred ms. If the worker never starts, this envelope is
+# what apply_status.sh's watchdog then flips to "failed".
+if [ ! -e "$STATE_FILE" ]; then
+    # Created by www-data here means www-data-owned, which blocks the ROOT
+    # writers (protected_regular, see above) even at mode 0666. The real fix
+    # is the boot-time root seed in qmanager_setup; this is only a backstop so
+    # a missing file does not break the UI path outright.
+    : > "$STATE_FILE" 2>/dev/null && chmod 666 "$STATE_FILE" 2>/dev/null
+fi
+
+RESET_JSON=$(jq -n \
+    --arg profile_id "$PROFILE_ID" \
+    --argjson started "$(date +%s)" \
+    '{
+        status: "applying",
+        profile_id: $profile_id,
+        profile_name: "",
+        started_at: $started,
+        current_step: 0,
+        total_steps: 4,
+        steps: [
+            {name: "apn",      status: "pending", detail: ""},
+            {name: "ttl_hl",   status: "pending", detail: ""},
+            {name: "scenario", status: "pending", detail: ""},
+            {name: "imei",     status: "pending", detail: ""}
+        ],
+        requires_reboot: false,
+        error: null
+    }' 2>/dev/null)
+
+if [ -n "$RESET_JSON" ]; then
+    if ! printf '%s\n' "$RESET_JSON" > "$STATE_FILE" 2>/dev/null; then
+        # Not fatal — the worker may still be able to write it — but the UI
+        # will show stale progress until it does, so this must be visible.
+        qlog_warn "Could not reset $STATE_FILE (owner/permission denied; expected root:root 0666) — status may render stale"
+    fi
+else
+    qlog_warn "Could not build reset envelope for $STATE_FILE (jq failed) — status may render stale"
+fi
 
 # --- Launch apply in a detached session --------------------------------------
 qlog_info "Spawning profile apply for: $PROFILE_ID"
@@ -96,12 +160,20 @@ if [ -f "$PROFILE_APPLY_PID_FILE" ]; then
         jq -n --argjson pid "$NEW_PID" '{"success":true,"status":"applying","pid":$pid}'
     else
         qlog_error "Apply process exited immediately"
-        # Check if state file has error info
-        if [ -f "$STATE_FILE" ]; then
-            cat "$STATE_FILE"
-        else
-            cgi_error "start_failed" "Apply process exited immediately"
-        fi
+        # Check if the worker managed to record a real failure before dying.
+        # The state file now ALWAYS exists (we reset it in place above instead
+        # of unlinking it), so `-f` alone no longer distinguishes "the worker
+        # wrote an error" from "this is still our own pending envelope" —
+        # test the recorded status instead.
+        STATE_STATUS=$(jq -r '.status // ""' "$STATE_FILE" 2>/dev/null)
+        case "$STATE_STATUS" in
+            failed|partial)
+                cat "$STATE_FILE"
+                ;;
+            *)
+                cgi_error "start_failed" "Apply process exited immediately"
+                ;;
+        esac
     fi
 else
     qlog_error "Apply process failed to write PID file"

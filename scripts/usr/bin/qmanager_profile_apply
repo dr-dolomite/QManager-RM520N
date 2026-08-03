@@ -69,12 +69,39 @@ STATE_FILE="/tmp/qmanager_profile_state.json"
 APN_SETTING_FILE="/etc/qmanager/apn_setting.json"
 # Recovery flag — SAME path watchcat (Tier 1/2/3), qmanager_ping
 # (during_recovery), alert_engine.sh, and events.sh already read/react to.
-# ONLY this root worker ever creates or clears this flag (never apn.sh or
-# profiles/deactivate.sh, which run as www-data): /tmp is mode 1777 (sticky
-# bit), so only the file's owner (or root) may unlink it — keeping the flag
-# single-UID means the owning process can always clear its own flag, instead
-# of trying to paper over the cross-UID unlink problem with a mode change.
+#
+# This flag is genuinely MULTI-UID; an earlier version of this comment claimed
+# "only this root worker ever touches it" and that was simply wrong:
+#   - www-data  when spawned from the UI — profiles/apply.sh runs
+#               "$APPLY_BIN" with NO sudo, and this binary is not setuid and
+#               has no sudoers entry (same for cellular/settings.sh ->
+#               profile_mgr.sh's auto_apply_profile spawn).
+#   - root      when spawned by qmanager_poller (boot auto-apply) or
+#               qmanager_watchcat, neither of which sets User=.
+# So the SAME flag path is written by two different UIDs, and /tmp fights us
+# in two independent ways:
+#   - sticky bit (1777): only the file's owner — or root, via CAP_FOWNER —
+#     may UNLINK it. www-data can never rm a root-created flag.
+#   - fs.protected_regular=1: an O_CREAT open-for-write of a file in a
+#     world-writable sticky dir is refused unless the caller owns the file OR
+#     the file's owner is the DIRECTORY's owner. /tmp is root-owned, and this
+#     check has NO root override — so root cannot even overwrite a
+#     www-data-created flag.
+# Both denials are silent under `2>/dev/null`. Ownership is therefore never
+# assumed here: every claim WRITES and then READS BACK (see _apn_rf_claim),
+# and every clear checks the file is actually gone. Do NOT relocate this flag
+# to a persistent path — /tmp being tmpfs is what bounds a stuck flag to a
+# single uptime.
 APN_RECOVERY_FLAG="/tmp/qmanager_recovery_active"
+# Age ceiling for reclaiming a flag whose PID still LOOKS alive. pid_max is
+# 32768 and this device churns 60-90 PIDs/s, so PIDs wrap in ~6 minutes: a
+# /proc lookup on a flag older than that can match a completely unrelated
+# process, and nobody would ever reclaim it. A real APN bracket is seconds
+# (a few sleeps plus AT round-trips), so 300s sits far above any legitimate
+# bracket while staying far below a typical uptime. Deliberately NOT
+# REBOOT_TIMEOUT — that one bounds an AT+CFUN=1,1 wait and has no relation
+# to how long a bracket may hold suppression.
+APN_RECOVERY_FLAG_MAX_AGE=300
 # Ownership marker for APN_RECOVERY_FLAG, read by the cleanup() trap below —
 # 1 only when THIS run created (or reclaimed) the flag; see apply_apn()'s
 # recovery-flag block for the full ownership rule. Initialized here (not
@@ -194,16 +221,36 @@ fi
 # consume any queued re-apply --------------------------------------------------
 # Order is critical: the pending re-apply must run only after the PID lock is
 # gone, or the re-spawned auto_apply would busy-skip and drop the marker.
-# The recovery-flag clear is gated on `_apn_rf_owned` (set by the
-# apn_apply_on_bracket_start/_end hooks apn_apply_write calls — see
-# APN_RECOVERY_FLAG/those functions' comment above): an EMPTY flag means a
-# foreign owner (watchcat) holds it, and this run must NEVER delete a flag
-# it did not create or reclaim. This is the belt-and-suspenders net for a
-# signal arriving mid-bracket, on top of apn_apply_on_bracket_end's own
-# normal-path clear on every return from apn_apply_write.
+# The recovery-flag clear is gated on `_apn_rf_owned`, which is set ONLY by a
+# verified read-back claim in _apn_rf_claim (see the APN_RECOVERY_FLAG comment
+# above for why a write here cannot be assumed to have landed). A flag we did
+# not verifiably claim — a foreign owner's, e.g. watchcat's — must NEVER be
+# deleted here. This is the belt-and-suspenders net for a signal arriving
+# mid-bracket, on top of apn_apply_on_bracket_end's own normal-path clear on
+# every return from apn_apply_write.
+#
+# NOTE on PROFILE_APPLY_PID_FILE: this stays an `rm -f`, deliberately — but
+# note it is NOT what makes the lock work across UIDs. As www-data the unlink
+# is refused (root-owned file, sticky /tmp) and silently no-ops; the lock is
+# safe anyway because profile_check_lock decides on CONTENT, not existence
+# (`[ -n "$pid" ] && [ -d /proc/$pid ]`, profile_mgr.sh:715-725), and
+# profile_acquire_lock's `echo $$ >` is a TRUNCATING write, which the seeded
+# root:root 0666 inode permits from either UID. The unlink is kept because
+# when it DOES succeed (root) the next run creates the file fresh and owns
+# what it wrote, which is strictly tidier. Do not "fix" it into a truncate on
+# the assumption it is load-bearing — and do not remove it either.
 cleanup() {
     rm -f "$PROFILE_APPLY_PID_FILE"
-    [ "${_apn_rf_owned:-0}" = "1" ] && rm -f "$APN_RECOVERY_FLAG"
+    if [ "${_apn_rf_owned:-0}" = "1" ]; then
+        rm -f "$APN_RECOVERY_FLAG" 2>/dev/null
+        # An unchecked rm here is how a permanently stuck flag stayed
+        # invisible: a cross-UID unlink in sticky /tmp returns 1 and changes
+        # nothing, and a stranded flag pins qmanager_ping's during_recovery,
+        # which freezes ALL alerts and suppresses every internet event until
+        # the next reboot. Make it findable.
+        [ -f "$APN_RECOVERY_FLAG" ] && \
+            qlog_warn "cleanup: failed to remove $APN_RECOVERY_FLAG (cross-UID unlink denied by /tmp's sticky bit) — alert suppression stays raised until reboot"
+    fi
     _consume_pending_apply
 }
 trap cleanup EXIT INT TERM
@@ -241,9 +288,31 @@ steps_done=0
 steps_failed=0
 steps_skipped=0
 
-# --- Write the state file (atomic mv) ----------------------------------------
+# --- Write the state file (build in a temp, then COPY — never rename) --------
+# The staging temp exists so a jq failure cannot truncate live state: the copy
+# below is GUARDED on the temp being non-empty, because `cat` of a zero-byte
+# temp would faithfully truncate the destination to zero bytes. (Without that
+# guard the temp buys nothing — it just moves the truncation one step later.)
+# When the temp is good it is copied BYTE-WISE into the target, never `mv`d
+# over it.
+#
+# THIS MUST NEVER BECOME `mv`. rename(2) swaps the INODE, which destroys the
+# shared file qmanager_setup pre-creates for exactly this cross-UID case: the
+# boot-time ROOT apply's mv replaced the seeded inode with a root-owned one at
+# umask 0022, after which every www-data UI Activate silently failed to record
+# progress and the dialog showed the STALE boot-run result. Writing through the
+# existing inode keeps whatever ownership/mode the seed established.
+#
+# The temp name is PID-qualified: a bare "${STATE_FILE}.tmp" is itself a
+# cross-UID trap — a run killed between jq and the copy leaves a temp owned by
+# one UID that the other UID can then never open for write (same
+# fs.protected_regular rule as the recovery flag).
+#
+# Trade accepted: we give up rename-atomicity, so a reader can briefly observe
+# a partially written file. That is fine for a progress file that is polled and
+# rewritten on every step, and the CGI reader is fail-soft.
 write_state() {
-    local tmp="${STATE_FILE}.tmp"
+    local tmp="${STATE_FILE}.tmp.$$"
     local err_val
     if [ "$apply_error" = "null" ]; then
         err_val="null"
@@ -284,7 +353,28 @@ write_state() {
             requires_reboot: $reboot,
             error: (if $err == "null" then null else $err end)
         }' > "$tmp"
-    mv "$tmp" "$STATE_FILE"
+
+    # Refuse to publish an empty render. jq's exit status above is discarded
+    # (it is the tail of a long heredoc-style invocation), so a jq failure is
+    # only visible as a zero-byte temp. Copying that would truncate the live
+    # state file — and a zero-byte state file with an old mtime is exactly the
+    # shape the CGI reader treats as a stale/unparseable apply, so the UI would
+    # report a phantom "failed" for an apply that is still running fine.
+    if [ ! -s "$tmp" ]; then
+        qlog_warn "jq produced no output for $STATE_FILE — leaving the previous state intact rather than truncating it"
+        rm -f "$tmp" 2>/dev/null
+        return 1
+    fi
+
+    if cat "$tmp" > "$STATE_FILE" 2>/dev/null; then
+        rm -f "$tmp" 2>/dev/null
+    else
+        # Denied — the target inode belongs to the other UID (see the header
+        # above). Warn LOUDLY: silently swallowing this is what made the UI
+        # show a stale apply result with no trace anywhere.
+        qlog_warn "Failed to write $STATE_FILE (running as uid $(id -u); target owned by another UID under fs.protected_regular / mode) — apply progress will read STALE"
+        rm -f "$tmp" 2>/dev/null
+    fi
 }
 
 # --- Step lifecycle helpers ---------------------------------------------------
@@ -440,34 +530,107 @@ _apn_sidecar_converge() {
 # so the CGI callers (apn.sh, profiles/deactivate.sh), which never define
 # these functions, are completely unaffected.
 #
-# Ownership rule (unchanged from the previous inline version that lived at
-# the top of apply_apn(), moved here verbatim):
-#   flag absent          -> WE create it, WE own it, WE clear it.
-#   flag present + EMPTY -> foreign owner (watchcat's bare `touch` — all six
-#                           of its touch sites write no PID at all, so an
-#                           empty file is the NORMAL shape of a live watchcat
-#                           recovery, not a leftover). Leave it alone.
-#   flag present + LIVE PID (ours or foreign) -> leave it alone.
+# Ownership rule:
+#   flag absent          -> try to claim it (create + verify).
+#   flag present + EMPTY -> foreign owner. An OLD watchcat's bare `touch`
+#                           writes no PID at all, and during an OTA an old
+#                           watchcat can be running against this new binary,
+#                           so an empty file is still the NORMAL shape of a
+#                           live watchcat recovery. Leave it alone.
+#   flag present + LIVE PID (ours or foreign) -> leave it alone...
+#   ...UNLESS the flag is older than APN_RECOVERY_FLAG_MAX_AGE, in which case
+#                           the "live" PID is almost certainly a wrapped,
+#                           unrelated process (~6-minute PID wrap on this
+#                           device). Reclaim.
 #   flag present + DEAD PID -> genuinely stale (e.g. a SIGKILLed prior run of
 #                           THIS worker). Safe to reclaim.
+#
+# Ownership is CLAIMED BY VERIFICATION, never by assumption: both claim paths
+# go through _apn_rf_claim, which reads the file back. The previous version
+# set _apn_rf_owned=1 unconditionally after a `printf ... 2>/dev/null`, so a
+# www-data run writing over a root-owned flag "owned" a flag it had never
+# written — and then its rm -f silently no-op'd, stranding suppression (and
+# with it every alert and internet event) until the next reboot.
+#
+# Failing to claim is NOT fatal: suppression is best-effort, and an APN apply
+# that cannot suppress alerts is still a correct APN apply. We proceed
+# unsuppressed and say so in the log.
+#
 # _apn_rf_owned is the plain global declared near APN_RECOVERY_FLAG above —
 # NOT `local` here either — so cleanup()'s EXIT/INT/TERM trap can still read
 # it regardless of which function is executing when a signal arrives.
+
+# _apn_rf_claim — write our PID into the flag and PROVE it landed. Sets
+# _apn_rf_owned=1 only on a verified read-back; returns non-zero (and warns
+# with the PID that actually occupies the file) otherwise.
+_apn_rf_claim() {
+    local _rf_back
+    # Unlink FIRST, then create. Every caller has already decided the flag is
+    # ours to take (absent, dead PID, or aged out), so destroying it here is
+    # never destroying live state.
+    #
+    # This line is load-bearing in the root-reclaims-a-www-data-flag direction.
+    # A bare `printf > flag` against a flag owned by the OTHER uid is refused by
+    # fs.protected_regular (no root override), so the read-back below would
+    # mismatch, ownership would stay 0, and the stale flag would be left raised
+    # for the rest of the uptime — pinning during_recovery, freezing alerts and
+    # suppressing internet events. That is the exact failure this whole change
+    # exists to remove, reached from the mirror side. The unlink turns the write
+    # into an O_CREAT on a name that no longer exists, which protected_regular
+    # never refuses.
+    #
+    # Safe in the other direction too: www-data cannot unlink a root-owned file
+    # from sticky /tmp, so this no-ops there and the read-back still fails
+    # closed — we proceed WITHOUT suppression rather than falsely claiming.
+    rm -f "$APN_RECOVERY_FLAG" 2>/dev/null
+    printf '%s\n' "$$" > "$APN_RECOVERY_FLAG" 2>/dev/null
+    _rf_back=$(cat "$APN_RECOVERY_FLAG" 2>/dev/null | tr -d ' \n\r')
+    if [ "$_rf_back" = "$$" ]; then
+        _apn_rf_owned=1
+        return 0
+    fi
+    _apn_rf_owned=0
+    qlog_warn "Could not claim $APN_RECOVERY_FLAG as uid $(id -u): flag holds '${_rf_back:-<empty>}', wanted $$ — proceeding WITHOUT alert suppression for this APN bracket"
+    return 1
+}
+
+# _apn_rf_stale_by_age — 0 (stale) only when the flag's mtime is provably
+# older than the ceiling. `stat -c %Y` is the established mtime idiom in this
+# codebase (qmanager_poller's LONG_FLAG check, qmanager_health_check's
+# freshness checks), so it is known-present on this device's BusyBox/coreutils
+# mix. Any unreadable or non-numeric result degrades to "NOT stale by age" —
+# the PID check alone then decides, which can only ever be too conservative,
+# never a wrong reclaim.
+_apn_rf_stale_by_age() {
+    local _rf_mtime _rf_age
+    _rf_mtime=$(stat -c %Y "$APN_RECOVERY_FLAG" 2>/dev/null)
+    case "$_rf_mtime" in
+        ''|*[!0-9]*) return 1 ;;
+    esac
+    _rf_age=$(( $(date +%s) - _rf_mtime ))
+    [ "$_rf_age" -gt "$APN_RECOVERY_FLAG_MAX_AGE" ]
+}
+
 apn_apply_on_bracket_start() {
     local _apn_rf_pid
     _apn_rf_owned=0
     if [ ! -f "$APN_RECOVERY_FLAG" ]; then
-        printf '%s\n' "$$" > "$APN_RECOVERY_FLAG" 2>/dev/null
-        _apn_rf_owned=1
+        _apn_rf_claim
     else
         _apn_rf_pid=$(cat "$APN_RECOVERY_FLAG" 2>/dev/null | tr -d ' \n\r')
-        if [ -n "$_apn_rf_pid" ] && ! [ -d "/proc/$_apn_rf_pid" ]; then
+        if [ -z "$_apn_rf_pid" ]; then
+            # Foreign (old watchcat) — untouched, and deliberately NOT aged
+            # out: an empty flag carries no owner to judge it by.
+            :
+        elif ! [ -d "/proc/$_apn_rf_pid" ]; then
             qlog_warn "Reclaiming stale recovery flag (dead pid=$_apn_rf_pid)"
-            printf '%s\n' "$$" > "$APN_RECOVERY_FLAG" 2>/dev/null
-            _apn_rf_owned=1
+            _apn_rf_claim
+        elif _apn_rf_stale_by_age; then
+            qlog_warn "Reclaiming stale recovery flag (pid=$_apn_rf_pid appears live, but the flag is older than ${APN_RECOVERY_FLAG_MAX_AGE}s and PIDs wrap in ~6min here)"
+            _apn_rf_claim
         fi
-        # Empty (foreign, e.g. watchcat) or a live PID -> _apn_rf_owned
-        # stays 0; the flag is left completely untouched.
+        # Live PID within the age ceiling -> _apn_rf_owned stays 0; the flag
+        # is left completely untouched.
     fi
 }
 
@@ -480,6 +643,13 @@ apn_apply_on_bracket_start() {
 apn_apply_on_bracket_end() {
     if [ "$_apn_rf_owned" = "1" ]; then
         rm -f "$APN_RECOVERY_FLAG" 2>/dev/null
+        # A cross-UID unlink in sticky /tmp returns 1 and removes nothing, so
+        # check rather than trust. A flag left behind here pins
+        # qmanager_ping's during_recovery=true, which pins conn_status
+        # "recovery", freezes every alert and suppresses every internet event
+        # for the rest of this uptime — worth a log line.
+        [ -f "$APN_RECOVERY_FLAG" ] && \
+            qlog_warn "Failed to clear $APN_RECOVERY_FLAG after the APN bracket (cross-UID unlink denied by /tmp's sticky bit) — alerts stay suppressed until reboot"
         # Ownership ENDS here. Must reset, or this long-lived global stays
         # "1" for the rest of the process — through apply_imei, which blocks
         # up to REBOOT_TIMEOUT=60s on an AT+CFUN=1,1 reboot. Watchcat can
@@ -546,7 +716,7 @@ apply_apn() {
 
     mark_step_running "apn" "Applying APN ${p_apn_name} (CID ${p_apn_cid})..."
 
-    # --- Recovery-flag suppression (root worker ONLY) -----------------------
+    # --- Recovery-flag suppression (best-effort, either UID) ----------------
     # apn_apply_write calls apn_apply_on_bracket_start/_end (defined above)
     # itself, at the right moments — once the bracket lock is actually held,
     # not while merely waiting on it — so there is nothing to do here beyond

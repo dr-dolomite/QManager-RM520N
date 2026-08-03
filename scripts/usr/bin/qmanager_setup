@@ -61,18 +61,59 @@ fi
 #
 # Strategy: files written by BOTH root (poller) and www-data (CGI) must be root-owned
 # with mode 666. Files written by www-data only are www-data-owned.
-touch /tmp/qmanager_at.lock /tmp/qmanager_at.pid \
-      /tmp/qmanager_profile_apply.pid /tmp/qmanager_profile_state.json
-chown www-data:www-data /tmp/qmanager_at.lock /tmp/qmanager_at.pid \
-      /tmp/qmanager_profile_apply.pid /tmp/qmanager_profile_state.json
-chmod 666 /tmp/qmanager_at.lock /tmp/qmanager_at.pid \
-      /tmp/qmanager_profile_apply.pid /tmp/qmanager_profile_state.json
+#
+# WHY root-owned and not www-data-owned: protected_regular's escape clause is
+# "file_owner == dir_owner OR file_owner == caller". /tmp is root-owned, so a
+# root-owned file satisfies the FIRST clause unconditionally and both UIDs may
+# write it. A www-data-owned file satisfies neither clause for root — and there
+# is no CAP_ override for this check — so root is locked out at ANY mode. The
+# asymmetry is the whole reason this block exists; do not "simplify" it by
+# giving everything to www-data.
+
+# www-data-owned: opened READ-ONLY by root (qcmd holds the flock via `9<`), so
+# root never needs write access and protected_regular never engages.
+touch /tmp/qmanager_at.lock /tmp/qmanager_at.pid
+chown www-data:www-data /tmp/qmanager_at.lock /tmp/qmanager_at.pid
+chmod 666 /tmp/qmanager_at.lock /tmp/qmanager_at.pid
 
 # Shared root-owned files — both root (poller/daemons) and www-data (CGI) write.
 # If www-data owned these, root would be blocked by fs.protected_regular=1.
-touch /tmp/qmanager.log
-chown root:root /tmp/qmanager.log
-chmod 666 /tmp/qmanager.log
+#
+# profile_apply.pid / profile_state.json are here because qmanager_profile_apply
+# runs as BOTH uids: www-data when profiles/apply.sh spawns it (no sudo), root
+# when the poller or watchcat do. Both write them — profile_mgr.sh:732
+# (`echo $$ >`) and write_state() respectively.
+#
+# events.json is here because events.sh's append is reached from root daemons
+# AND from www-data CGI. It was previously seeded nowhere, so root's poller won
+# the boot race and created it 0644, silently dropping every UI-originated event
+# while still logging success.
+#
+# These writers MUST write in place (`>` / `>>` / `cat >`), never tmp+`mv`:
+# rename() swaps the inode and replaces this seeded ownership with the writer's
+# own uid at its umask, which is exactly how these files got broken before.
+#
+# DO NOT "complete the set" by adding /tmp/qmanager_recovery_active here. That
+# path is a FLAG, not a data file: its mere EXISTENCE means "a recovery is in
+# progress, suppress further recovery attempts". Pre-creating it at boot would
+# leave the device permanently suppressed for the whole uptime.
+#
+# Seeding it 0666 specifically would be worse than seeding it at all. The claim
+# logic treats a flag it can open for write as one it OWNS (_apn_rf_owned=1),
+# but www-data cannot then unlink a root-owned file from sticky /tmp — so the
+# flag stays raised forever. That path is unreachable today only because the
+# only creator is root's `printf >`, which lands 0644 at umask 0022 and so
+# correctly falls into the "cannot claim, proceed unsuppressed" branch. A 0666
+# seed would make the stuck path the DEFAULT one.
+touch /tmp/qmanager.log \
+      /tmp/qmanager_profile_apply.pid /tmp/qmanager_profile_state.json \
+      /tmp/qmanager_events.json
+chown root:root /tmp/qmanager.log \
+      /tmp/qmanager_profile_apply.pid /tmp/qmanager_profile_state.json \
+      /tmp/qmanager_events.json
+chmod 666 /tmp/qmanager.log \
+      /tmp/qmanager_profile_apply.pid /tmp/qmanager_profile_state.json \
+      /tmp/qmanager_events.json
 
 # Session directory — www-data needs write access (cleared on reboot since /tmp is tmpfs)
 mkdir -p /tmp/qmanager_sessions
