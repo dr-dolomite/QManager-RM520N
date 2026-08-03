@@ -112,7 +112,7 @@ This table contrasts every major subsystem between the **legacy RM551E-on-OpenWR
 | **Auth** | Cookie-based multi-session | HTTP Basic Auth (`.htpasswd`) | Different auth middleware |
 | **LAN config** | UCI network config | XML (`mobileap_cfg.xml`) via xmlstarlet | Completely different API |
 | **Compound AT** | Semicolon batching via `qcmd` | Supported, but needs serialization | Add `flock` around compound commands |
-| **`fs.protected_regular`** | Not set (typical) | `=1` (kernel default) | All shared `/tmp` files must be `www-data`-owned; see [Known Platform Quirks](#known-platform-quirks) |
+| **`fs.protected_regular`** | Not set (typical) | `=1` (kernel default) | Shared `/tmp` files must be seeded `root:root 0666` and written **in place** (never tmp+`mv`); see [Known Platform Quirks](#known-platform-quirks) and [reference/tmp-file-ownership.md](reference/tmp-file-ownership.md) |
 
 ---
 
@@ -706,36 +706,62 @@ Kernel boot → initrd → basic.target
 
 ### `fs.protected_regular=1` — Sticky Directory File Protection
 
-The RM520N-GL kernel ships with `fs.protected_regular=1`. This Linux security feature restricts opening files with `O_CREAT` in world-writable, sticky-bit directories like `/tmp/`. The rule is:
+The RM520N-GL kernel ships with `fs.protected_regular=1`. This Linux security feature restricts opening files with `O_CREAT` in world-writable, sticky-bit directories like `/tmp/`. The rule (`may_create_in_sticky()`, `fs/namei.c`) is:
 
-> Opening is **blocked** unless `file_owner == caller_uid` **OR** `dir_owner == caller_uid`.
+> Opening is **blocked** unless `file_owner == dir_owner` **OR** `caller_uid == file_owner`.
+
+Two details decide everything downstream, and both are easy to misread:
+
+- The escape clause is `file_owner == **dir**_owner` — **not** `dir_owner == caller`.
+- **There is no root override.** No capability exempts a caller from this check.
 
 Since `/tmp` is owned by `root`:
-- **Root opening www-data files:** `dir_owner` (root) matches caller (root) -- **ALLOWED**
-- **www-data opening root files:** neither `file_owner` nor `dir_owner` matches -- **BLOCKED** (`Permission denied`)
+- **www-data opening a root-owned file:** `file_owner` (root) matches `dir_owner` (root) — **ALLOWED** (subject to ordinary mode bits, so the file still needs the `w` bit for others)
+- **Root opening a www-data-owned file:** neither clause holds — **BLOCKED** (`Permission denied`), at any mode including `0666`
+
+> ⚠️ WARNING: earlier revisions of this document stated that pairing backwards and concluded that "all shared `/tmp` files must be `www-data`-owned". That is the opposite of correct, and it shipped three silent-failure bugs. The only ownership under which **both** UIDs can write a shared `/tmp` file is **`root:root` mode `0666`**. See [reference/tmp-file-ownership.md](reference/tmp-file-ownership.md) for the full protocol, the seeding contract, and the evidence.
+
+Note also that a root-owned `0644` file blocks `www-data` through **plain Unix mode bits**, not through this sysctl. The two mechanisms are routinely conflated; they fail in opposite directions.
 
 This affects **every file in `/tmp/` that both root processes (daemons, setup scripts) and `www-data` processes (CGI scripts via lighttpd) need to access**. Shell `>` and `>>` redirects include the `O_CREAT` flag internally, triggering this protection even on existing files. The `9>"$LOCK_FILE"` pattern used by `qcmd` for `flock` serialization is especially affected.
 
 **Affected shared files:**
 
-| File | Purpose | Accessed By |
-|------|---------|-------------|
-| `/tmp/qmanager_at.lock` | AT command `flock` serialization | `qcmd` (www-data CGI + root daemons) |
-| `/tmp/qmanager_at.pid` | Current AT command PID tracking | `qcmd` (www-data CGI + root daemons) |
-| `/tmp/qmanager.log` | Centralized `qlog` output | All daemons (root) + log viewer CGI (www-data) |
+| File | Purpose | Accessed By | Seeded as |
+|------|---------|-------------|-----------|
+| `/tmp/qmanager_at.lock` | AT command `flock` serialization | `qcmd` (www-data CGI + root daemons) | `www-data:www-data 0666` |
+| `/tmp/qmanager_at.pid` | Current AT command PID tracking | `qcmd` (www-data CGI + root daemons) | `www-data:www-data 0666` |
+| `/tmp/qmanager.log` | Centralized `qlog` output | All daemons (root) + log viewer CGI (www-data) | `root:root 0666` |
+| `/tmp/qmanager_events.json` | Recent Activities NDJSON ring | Root daemons + every CGI that sources `events.sh` | `root:root 0666` |
+| `/tmp/qmanager_profile_state.json` | Profile-apply progress | `qmanager_profile_apply` (both UIDs) + `profiles/*.sh` | `root:root 0666` |
+| `/tmp/qmanager_profile_apply.pid` | Profile-apply singleton lock | `qmanager_profile_apply` (both UIDs) | `root:root 0666` |
+
+The two `qmanager_at.*` files are the exception that proves the rule: they are `www-data`-owned only because root never opens them for **write** — `qcmd` holds the `flock` on a read-only FD (`9<`), so no `O_CREAT` write from root ever happens and the sysctl never engages. Every genuinely dual-writer file is `root:root 0666`.
 
 **Two-part fix (confirmed working in deployment):**
 
-**1. Pre-create files with correct ownership.** The `qmanager_setup` boot service (systemd oneshot, runs as root before other QManager services) pre-creates these files as `www-data`:
+**1. Pre-create files with correct ownership.** The `qmanager_setup` boot service (systemd oneshot, runs as root before other QManager services) pre-creates these files, splitting them by who actually writes:
 
 ```bash
 # qmanager_setup — pre-create shared /tmp files for fs.protected_regular
-touch /tmp/qmanager_at.lock /tmp/qmanager_at.pid /tmp/qmanager.log
-chown www-data:www-data /tmp/qmanager_at.lock /tmp/qmanager_at.pid /tmp/qmanager.log
-chmod 666 /tmp/qmanager_at.lock /tmp/qmanager_at.pid /tmp/qmanager.log
+# www-data-owned: root only ever opens these READ-ONLY (qcmd's `9<`)
+touch /tmp/qmanager_at.lock /tmp/qmanager_at.pid
+chown www-data:www-data /tmp/qmanager_at.lock /tmp/qmanager_at.pid
+chmod 666 /tmp/qmanager_at.lock /tmp/qmanager_at.pid
+
+# root-owned: BOTH root daemons and www-data CGI write these. root:root 0666
+# is the only ownership under which both UIDs can (see the rule above).
+touch /tmp/qmanager.log /tmp/qmanager_events.json \
+      /tmp/qmanager_profile_state.json /tmp/qmanager_profile_apply.pid
+chown root:root /tmp/qmanager.log /tmp/qmanager_events.json \
+      /tmp/qmanager_profile_state.json /tmp/qmanager_profile_apply.pid
+chmod 666 /tmp/qmanager.log /tmp/qmanager_events.json \
+      /tmp/qmanager_profile_state.json /tmp/qmanager_profile_apply.pid
 ```
 
-**2. Use read-only FD redirects for flock.** Even with `www-data`-owned files, `9>"$LOCK_FILE"` still fails because shell `>` always passes `O_CREAT` to the `open()` syscall, regardless of whether the file exists. The fix in `qcmd` is to use `9<` (read-only open) instead of `9>`:
+> ⚠️ WARNING: seeding is only half the contract. Every writer of a seeded file must write **in place** (`>`, `>>`, `cat tmp > file`, `: >`) and never tmp-file + `mv`, and must never `rm` the file to reset it. `rename(2)` and `unlink(2)` both replace the seeded inode with one owned by whoever wrote it, at their umask — which locks the other UID out for the rest of the boot. See [reference/tmp-file-ownership.md](reference/tmp-file-ownership.md).
+
+**2. Use read-only FD redirects for flock.** `9>"$LOCK_FILE"` fails for a cross-UID caller because shell `>` always passes `O_CREAT` to the `open()` syscall, regardless of whether the file exists. The fix in `qcmd` is to use `9<` (read-only open) instead of `9>`:
 
 ```bash
 # RM520N-GL (qcmd) — read-only FD, no O_CREAT
@@ -747,7 +773,7 @@ chmod 666 /tmp/qmanager_at.lock /tmp/qmanager_at.pid /tmp/qmanager.log
 
 This works because `flock()` operates on file descriptors, not files — it does not care whether the FD is opened for reading or writing. Read-only FDs have been valid for `flock` since Linux 2.6.12+. The lock file just needs to exist (handled by step 1).
 
-> **WARNING:** Any new daemon or CGI script that creates shared files in `/tmp/` must follow this pattern: pre-create in `qmanager_setup` with `www-data` ownership, and open with `<` (not `>`) when using `flock`. If a root process creates the file first, `www-data` CGI scripts will get `Permission denied` and fail silently.
+> **WARNING:** Any new daemon or CGI script that creates shared files in `/tmp/` must follow this pattern: pre-create in `qmanager_setup` — `root:root 0666` if both UIDs write it, `www-data:www-data 0666` only if root's access is read-only — and open with `<` (not `>`) when using `flock`. Whoever creates the file first decides its ownership for the whole boot, so an unseeded shared file is a boot race one of the two UIDs silently loses.
 
 > **NOTE:** This protection does NOT affect `/usrdata/` or `/etc/qmanager/` (neither has the sticky bit set). It is specific to `/tmp/` (and any other `+t` directories).
 
@@ -1740,7 +1766,7 @@ Custom SIM Profiles are automatically applied whenever the modem's current SIM I
 
 ### RM520N-GL Platform Considerations
 
-**`fs.protected_regular` handling:** The profile apply PID file (`/tmp/qmanager_profile_apply.pid`) and state file (`/tmp/qmanager_profile_state.json`) are pre-created with `www-data` ownership by `qmanager_setup` at boot. This prevents the scenario where a root-context boot-time auto-apply creates these files first, blocking later CGI access from `www-data`.
+**`fs.protected_regular` handling:** The profile apply PID file (`/tmp/qmanager_profile_apply.pid`) and state file (`/tmp/qmanager_profile_state.json`) are pre-created **`root:root` mode `0666`** by `qmanager_setup` at boot. Both are written by *both* UIDs — `qmanager_profile_apply` runs as root when the poller or watchcat spawn it, and as `www-data` when `profiles/apply.sh` does (no `sudo`, not setuid, no sudoers entry) — and `root:root 0666` is the only ownership under which both can. Every writer must also write **in place**: an earlier `mv`-based `write_state()` and an earlier `rm -f` in `cleanup()` each destroyed the seeded inode and locked the UI path out silently. See [reference/tmp-file-ownership.md](reference/tmp-file-ownership.md).
 
 **PID checks use `/proc/$pid`:** The `profile_check_lock()` function and the watchcat's profile-apply-running check both use `[ -d "/proc/$pid" ]` instead of `kill -0`, because `www-data` (CGI) cannot send signals to root-owned processes due to EPERM. The `/proc` check works cross-user.
 

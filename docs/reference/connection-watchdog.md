@@ -210,9 +210,45 @@ The delete side uses the new `qm_config_delete` primitive added to `config.sh` i
 | `qmanager_watchcat_reload` | CGI (`save_settings`) | Signals a live config reload. |
 | `qmanager_watchcat_revert_sim` | CGI (`revert_sim`) | User-requested SIM revert; consumed by the daemon. |
 | `qmanager_watchcat_disabled` | daemon (Tier-4 auto-disable) | Read by the CGI as `auto_disabled`; cleared when the user re-enables. |
-| `qmanager_recovery_active` | daemon | Set during any recovery; suppresses event noise while acting. |
+| `qmanager_recovery_active` | daemon **and** `qmanager_profile_apply` | Set during any recovery; suppresses event noise (and, via `qmanager_ping`'s `during_recovery`, every alert) while acting. **Shared with another writer that may be a different UID** — see below. |
 | `qmanager_sim_swap_detected` | poller (boot detector) | Physical-SIM-swap notification surfaced in the UI; distinct from watchdog failover. |
 | `qmanager_ping.json` | `qmanager_ping` | The connectivity verdict the watchdog reads (never writes). |
+
+#### Raising `qmanager_recovery_active` is a two-step idiom
+
+The daemon raises the flag at six sites (Tiers 1/2/3, `do_recovery`, the
+cooldown-stale extension, and the SIM revert) with the same line:
+
+```sh
+printf '%s\n' "$$" > "$RECOVERY_FLAG" 2>/dev/null || touch "$RECOVERY_FLAG"
+```
+
+Both halves are load-bearing, and neither is defensive padding:
+
+- **The PID** lets `qmanager_profile_apply` — the other writer of this flag —
+  judge it on its own merits (live owner / dead owner / aged out) instead of
+  special-casing an empty file as "some foreign owner, never touch". Older
+  builds wrote a bare `touch` with no PID, and an OTA can leave an old watchcat
+  running against a new worker, so an **empty** flag is still a valid live state
+  that must be left alone.
+- **The `touch` fallback** is required. Watchcat is root, and if a `www-data`
+  `qmanager_profile_apply` created the flag first, root's redirect is **refused**
+  by `fs.protected_regular=1` — a sticky world-writable directory refuses an
+  `O_CREAT` write unless you own the file or the file is owned by the directory's
+  owner, and there is no root override. `touch` on that same file still succeeds,
+  because stamping mtime only needs `CAP_FOWNER`. Since the flag's *existence* is
+  what every consumer reads, dropping the fallback would mean root silently
+  failing to raise suppression at all.
+
+Re-stamping the mtime on each cooldown extension also keeps the flag from ageing
+out of the worker's 120 s staleness ceiling during a long cooldown.
+
+> ℹ️ NOTE: known residual, out of scope — if watchcat joins a flag a `www-data`
+> APN bracket already owns, that bracket clears it at its end and watchcat's
+> suppression stops early. Fixing that needs a multi-owner protocol, not a bigger
+> flag. The claim protocol and the ownership rules are in
+> [tmp-file-ownership.md](tmp-file-ownership.md); the worker side is in
+> [sim-profiles.md](sim-profiles.md).
 
 ### Live state file — `/tmp/qmanager_watchcat.json`
 

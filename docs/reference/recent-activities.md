@@ -7,7 +7,7 @@ The Recent Activities card is the dashboard's window onto the poller's network e
 | Thing | Where |
 | ----- | ----- |
 | Producer | `scripts/usr/lib/qmanager/events.sh` (sourced by `qmanager_poller`) |
-| Backing file | `/tmp/qmanager_events.json` (NDJSON, one object per line, oldest first) |
+| Backing file | `/tmp/qmanager_events.json` (NDJSON, one object per line, oldest first) — seeded `root:root 0666` by `qmanager_setup`; see [Why the file must be seeded](#why-the-file-must-be-seeded) |
 | Ring-buffer cap | `MAX_EVENTS=300` (`scripts/usr/bin/qmanager_poller:119`, and four other producers — see below) |
 | Settle debounce | `EV_SETTLE_SAMPLES=3`, `EV_FLAP_THRESHOLD=6`, `EV_FLAP_WINDOW=300` (`events.sh:242-249`, hard-coded) |
 | CGI endpoint | `GET /cgi-bin/quecmanager/at_cmd/fetch_events.sh` (zero modem contact, RAM read only) |
@@ -35,6 +35,8 @@ presentEvent(ev, unres, fr) -> glyph + tone + 4 class slots + sr-only key
 ```
 
 `append_event` writes `{timestamp, type, message, severity}`, trims the file to the newest `MAX_EVENTS` lines, and mirrors the line into the poller log as `EVENT [<type>] <message>`. The CGI is a pure file read; nothing on this path touches an AT channel or takes the `/tmp/qmanager_at.lock`.
+
+Both the append and the trim are **checked**, and a failure logs `EVENT DROPPED [...]` rather than the usual success line — see below for why that matters.
 
 Note the funnel: **300 on disk, 50 served, 20 kept, 5 drawn.** Each step exists for a different reason and they are not interchangeable — see [Ring depth vs. served slice](#ring-depth-vs-served-slice).
 
@@ -164,6 +166,20 @@ serve_ndjson_as_array "$SOME_FILE"                            # whole file, unch
 ```
 
 The default is `0` = whole file, so the two other callers (`fetch_ping_history.sh`, `fetch_signal_history.sh`) are unaffected. `fetch_events.sh` passes `EVENTS_SERVE_LIMIT=50`, which is the pre-change payload size — the hook keeps 20 and the card draws 5, so 50 is already comfortably deeper than anything reads.
+
+## Why the file must be seeded
+
+`/tmp/qmanager_events.json` is written by **both** UIDs: root (`qmanager_poller`, `qmanager_watchcat`, `qmanager_tower_failover`) and `www-data` (`cellular/apn.sh`, `profiles/deactivate.sh`, `profile_mgr.sh`'s lazy loader — every CGI that sources `events.sh`). `/tmp` is `root:root` mode 1777 with `fs.protected_regular=1`, so whoever creates the file first fixes its ownership for the whole boot, and only `root:root 0666` lets both UIDs append. `qmanager_setup` therefore pre-creates it at boot with exactly that ownership.
+
+Until v0.1.14 it was seeded **nowhere**. Root's poller won the boot race every time and created it `root:root 0644`, so `www-data` could not append — a plain mode-bit denial, not the sysctl. **Every UI-originated event was silently dropped**, and because the append was fire-and-forget with an unconditional `qlog_info "EVENT [...]"` underneath it, the log claimed each one had been recorded. Confirmed on hardware: the file was `root:root 0644`, `sudo -u www-data test -w` failed, and it was actively growing with poller-only rows.
+
+Three consequences for anyone touching `events.sh`:
+
+- **The trim must never go back to `mv`.** A rename swaps the inode and replaces the seeded `root:root 0666` with the trimming process's own uid at its umask — which re-breaks the file for the other UID. `append_event` copies with `cat "$tmp" > "$EVENTS_FILE"`, writing through the existing inode so owner and mode survive.
+- **The scratch file is PID-qualified** (`${EVENTS_FILE}.$$.tmp`). A fixed `${EVENTS_FILE}.tmp` is the same ownership trap one level down: two UIDs collide on one path and the loser can neither write nor unlink it.
+- **`_events_ensure_file()` is a backstop, not the fix.** It only stops a total loss when the file is missing entirely; if `www-data` creates it, root is then locked out and no `chmod` can undo that.
+
+Full rules and the two sibling bugs: [tmp-file-ownership.md](tmp-file-ownership.md).
 
 ## The Age-Gated Tone Model
 

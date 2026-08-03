@@ -75,12 +75,19 @@ These constraints cause silent failures or security issues if violated.
 
 **LF line endings mandatory.** `.gitattributes` enforces LF for all `.sh`, `.service`, and `sudoers` files. CRLF in shell scripts causes BusyBox/bash parse failures. CRLF in sudoers rules causes silent sudo rejection. The installer runs `sed -i 's/\r$//'` on deployed files as a second safety net, but the source must be LF.
 
-**Atomic writes are universal.** Every file that is polled by another process (status JSON, config, state files) must be written via a temporary file plus `mv`. Never truncate-in-place. This prevents readers from seeing partial JSON during writes.
+**Atomic writes are universal — except for cross-UID `/tmp` files.** Every file that is polled by another process (status JSON, config, state files) must be written via a temporary file plus `mv`. Never truncate-in-place. This prevents readers from seeing partial JSON during writes. **The one exception is a `/tmp` file written by both root and `www-data`**: there, `mv` destroys the shared ownership and the write must go through the existing inode instead, trading atomicity for cross-UID access. See the next constraint.
 
-**`fs.protected_regular=1` is active.** The kernel prevents a root process from truncating a file owned by a different user in a sticky `/tmp` directory. This means: if a CGI script (www-data) creates `/tmp/foo.json`, the poller (root) cannot later open it for truncation. Workaround patterns:
-- `qmanager_setup` pre-creates shared `/tmp` files as `www-data:www-data` mode 666 at boot.
-- For files written exclusively by root, pre-create them as `root:root` mode 666.
-- For worker scripts that need to reset their own log, use `rm -f` then create fresh (as seen in `qmanager_update`).
+**`fs.protected_regular=1` is active.** In a world-writable sticky directory like `/tmp`, an `O_CREAT` open-for-write is refused unless `file_owner == dir_owner` **or** `caller_uid == file_owner`. `/tmp` is root-owned, so:
+- A **root-owned** file there is writable by both UIDs (mode permitting).
+- A **www-data-owned** file there is **not writable by root** — and this check has **no root override**, at any mode including `0666`.
+
+So the only ownership under which both a root daemon and a `www-data` CGI can write the same `/tmp` file is **`root:root` mode `0666`**, seeded at boot by `qmanager_setup`. Rules that follow:
+- `qmanager_setup` pre-creates every shared `/tmp` file `root:root` mode 666. Files where root's access is read-only (`/tmp/qmanager_at.lock`, `/tmp/qmanager_at.pid` — `qcmd` holds the `flock` on `9<`) are `www-data`-owned instead.
+- Every writer of a seeded file writes **in place** (`>`, `>>`, `cat tmp > file`, `: >`). Never tmp+`mv`, never `rm` to reset — both swap the inode and replace the seed with the writer's own uid at its umask.
+- For worker scripts that reset their **own** single-UID log, `rm -f` then create fresh is fine (as in `qmanager_update`).
+- Do not confuse this with plain mode bits: a root-owned `0644` file blocks `www-data` through ordinary permissions, not through this sysctl. The two fail in opposite directions.
+
+Full protocol, the seeding list, and the three live bugs that came from getting the direction backwards: [reference/tmp-file-ownership.md](reference/tmp-file-ownership.md).
 
 **`/bin/bash` is bash 3.2.57 — many "modern" bashisms are missing.** Probe-confirmed unsupported in this version:
 - `${var,,}` / `${var^^}` (lowercase/uppercase substitution) — **broken**, use `tr` instead
@@ -1118,17 +1125,17 @@ Cleared on every reboot (tmpfs). Files pre-created by `qmanager_setup` are marke
 | `/tmp/qmanager_ping.json` | root | qmanager_ping | Current ping state (available, latency, streaks) |
 | `/tmp/qmanager_ping_history` | root | qmanager_ping | Raw latency history (flat ring buffer) |
 | `/tmp/qmanager_signal_history.json` | root | qmanager_poller | Signal history NDJSON for chart |
-| `/tmp/qmanager_events.json` | root | qmanager_poller / qmanager_watchcat | Recent activity events NDJSON |
+| `/tmp/qmanager_events.json` (S) | root | qmanager_setup | Recent activity events NDJSON. Appended by root daemons **and** every CGI that sources `events.sh` — must stay `root:root 0666`, and the ring trim must never use `mv` |
 | `/tmp/qmanager_pci_state.json` | root | qmanager_poller | SCC PCI state for handoff detection |
 | `/tmp/qmanager_watchcat.json` | root | qmanager_watchcat | Watchcat state (mode, tier, recoveries) |
 | `/tmp/qmanager_watchcat.pid` | root | qmanager_watchcat | Watchcat process PID |
 | `/tmp/qmanager_watchcat.lock` | root | qmanager_watchcat / update worker | Maintenance lock; forces watchcat into LOCKED state |
 | `/tmp/qmanager_watchcat_reload` | root | CGI | Flag: watchcat should reload config |
-| `/tmp/qmanager_recovery_active` | root | qmanager_watchcat | Flag: recovery action in progress |
+| `/tmp/qmanager_recovery_active` | root **or** www-data | qmanager_watchcat / qmanager_profile_apply | Flag: recovery action in progress. **Deliberately not seeded** (existence is the signal); ownership is claimed by write-then-read-back — see [reference/tmp-file-ownership.md](reference/tmp-file-ownership.md) |
 | `/tmp/qmanager_watchcat_revert_sim` | root | CGI | Flag: user requested SIM revert (Tier 3) |
 | `/tmp/qmanager_watchcat_disabled` | root | qmanager_watchcat | Flag: watchcat auto-disabled (Tier-4 reboot cap hit) |
-| `/tmp/qmanager_profile_state.json` (S) | www-data | qmanager_setup | Profile apply progress state |
-| `/tmp/qmanager_profile_apply.pid` (S) | www-data | qmanager_setup | Profile apply PID |
+| `/tmp/qmanager_profile_state.json` (S) | root | qmanager_setup | Profile apply progress state. Written by `qmanager_profile_apply` as **both** UIDs — in place only, never `mv` |
+| `/tmp/qmanager_profile_apply.pid` (S) | root | qmanager_setup | Profile apply singleton lock. Truncated (`: >`) on cleanup, never unlinked — an unlink voids the seed for the rest of the boot |
 | `/tmp/qmanager_sessions/` | www-data | qmanager_setup | Session token directory (mode 700) |
 | `/tmp/qmanager_auth_attempts.json` | www-data | cgi_auth.sh | Login rate limiting state |
 | `/tmp/qmanager_cell_scan.json` | root | qmanager_cell_scanner | Cell scan results |
@@ -1446,7 +1453,7 @@ file scripts/usr/bin/qmanager_setup
 
 **jq `//` treats `false` as absent.** `jq -r '.enabled // "false"'` returns `"false"` even when `.enabled` is explicitly `false` in JSON. Use `if . == null then "false" else tostring end` for boolean fields. This pattern appears throughout the codebase and is documented in `config.sh` and `tower_lock_mgr.sh`.
 
-**`fs.protected_regular=1` log-truncation failures.** If a CGI script (www-data) creates a `/tmp` file and a root daemon later tries to truncate it (e.g., `: > "$LOG_FILE"`), the kernel blocks the open. Fix: use `rm -f` before creating the file (as in `qmanager_update`), or pre-create the file with the right owner in `qmanager_setup`.
+**`fs.protected_regular=1` log-truncation failures.** If a CGI script (www-data) creates a `/tmp` file and a root daemon later tries to truncate it (e.g., `: > "$LOG_FILE"`), the kernel blocks the open — root gets **no override** here. Fix: use `rm -f` before creating the file (as in `qmanager_update`), or pre-create the file `root:root 0666` in `qmanager_setup`. Note the direction: this sysctl only ever blocks a caller from a **www-data-owned** file in `/tmp`, and the caller it blocks is root. www-data being unable to write a root-owned file is a plain mode-bit problem, not this.
 
 **CRLF in Windows-edited files.** `.gitattributes` sets `eol=lf` for `.sh`, `.service`, and sudoers files. If you edit with a Windows tool that bypasses git's filter, CRLF will silently break script parsing and sudoers. Check with `file <script>` before committing. The installer's `sed -i 's/\r$//'` pass catches this on deploy but the source should always be clean.
 
@@ -1456,7 +1463,9 @@ file scripts/usr/bin/qmanager_setup
 
 **Trying to `systemctl enable` on RM520N-GL.** `systemctl enable` is a no-op on this platform because unit files are on the read-only rootfs where the command cannot write symlinks. Always use `svc_enable` / `svc_disable` from `platform.sh`, which writes the symlinks directly via `sudo /bin/ln -sf` and `sudo /bin/rm -f`.
 
-**Writing to `/tmp/qmanager_*.json` from CGI without pre-creation.** If a CGI script creates a `/tmp` file that a root daemon will later overwrite, root will be blocked by `fs.protected_regular=1`. Pre-create the file in `qmanager_setup` with `www-data` ownership and mode 666 (or `root:root` mode 666 if root writes it primarily). See `qmanager_setup` for the full list of pre-created files.
+**Writing to `/tmp/qmanager_*.json` from CGI without pre-creation.** If a CGI script creates a `/tmp` file that a root daemon will later overwrite, root will be blocked by `fs.protected_regular=1`. Pre-create any dual-writer file in `qmanager_setup` as **`root:root` mode 666** — that is the only ownership both UIDs can write, not a "primary writer" judgement call. See `qmanager_setup` for the full list, and [reference/tmp-file-ownership.md](reference/tmp-file-ownership.md) for the checklist.
+
+**Publishing a shared `/tmp` file with `mv`.** The project-wide "atomic write" habit is wrong for a `/tmp` file that both UIDs write. `rename(2)` swaps the inode, so the new file is owned by whoever wrote the temp, at their umask — and the other UID is locked out for the rest of the boot, silently. Write through the existing inode (`cat tmp > file`), PID-qualify any scratch name (`${FILE}.tmp.$$`, never a fixed `.tmp`), and make the reader tolerate a torn read since you no longer have atomic publication. Same applies to `rm`-to-reset: truncate with `: >` instead.
 
 **Hardcoding service lists in install/uninstall.** Use filesystem scans instead. `install_rm520n.sh` discovers services by globbing `scripts/etc/systemd/system/qmanager-*.service`. Adding a new service file is sufficient -- no installer edits needed.
 

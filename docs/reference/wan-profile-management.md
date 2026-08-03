@@ -346,14 +346,29 @@ Callers that do **not** lease — the WS6 save, `deactivate`,
 
 - **Never writes `AT+QICSGP`, `AT+CGAUTH`, or `AT+CGACT`.** Auth is `apn.sh`'s
   responsibility via `AT+QICSGP`; `AT+CGAUTH` is unsupported on this firmware.
-- **Never touches `/tmp/qmanager_recovery_active`.** That flag is owned
-  exclusively by the root worker, through two optional callbacks the primitive
-  feature-detects (`apn_apply_on_bracket_start` / `apn_apply_on_bracket_end`).
-  `/tmp` is mode 1777 (the *sticky bit* — only a file's owner or root may unlink
-  a file there, whatever the file's own mode), so a cross-UID `rm -f` from a
-  `www-data` CGI would silently no-op and strand the flag "on", permanently
-  muting alert dispatch. The CGI callers define neither hook and therefore get no
+- **Never touches `/tmp/qmanager_recovery_active`.** Whether that flag is raised
+  at all is entirely the caller's business, expressed through two optional
+  callbacks the primitive feature-detects (`apn_apply_on_bracket_start` /
+  `apn_apply_on_bracket_end`). The primitive is **UID-agnostic** and knows
+  nothing about the flag — nor about which UID the hook will run as, which is
+  not fixed. The CGI callers define neither hook and therefore get no
   suppression — the same behaviour `apn.sh`'s old inline bracket had.
+
+  The flag is a cross-UID hazard for two independent reasons. `/tmp` is mode
+  1777 (the *sticky bit* — only a file's owner or root may unlink an entry
+  there, whatever the file's own mode), so a cross-UID `rm -f` silently no-ops
+  (`-f` exits 0 regardless) and strands the flag "on", permanently muting alert
+  dispatch. Separately, `fs.protected_regular=1` refuses a write-open of another
+  UID's file in a sticky dir — with **no root override** — so `chmod 0666` is
+  not a fix either: mode is not the gate, ownership is.
+
+  > ⚠️ WARNING: an earlier version of this note claimed the flag was "owned
+  > exclusively by the root worker". That was never true. `qmanager_profile_apply`
+  > runs as **root** when the poller or watchcat spawn it and as **www-data**
+  > when `profiles/apply.sh` does (no `sudo`, not setuid, no sudoers entry), so
+  > the single-UID assumption broke on the entire UI path. The worker now proves
+  > ownership by reading the flag back rather than assuming it — see
+  > [tmp-file-ownership.md](tmp-file-ownership.md).
 - **Never sources its own dependencies.** The caller must have sourced `qlog.sh`,
   `cgi_at.sh` (for `run_at` / `parse_cgcontrdp_apn`), and `events.sh` (with
   `EVENTS_FILE` and `MAX_EVENTS` set) first — the same convention `ttl_state.sh`

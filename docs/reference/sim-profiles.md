@@ -314,16 +314,13 @@ Three details worth knowing before touching this path:
   waits up to 30s for it (it is unattended, so it should win the retry); the
   synchronous CGI paths cap their wait at 5s.
 - **Recovery-flag suppression stays with the worker.** `apn_apply.sh` never
-  touches `/tmp/qmanager_recovery_active`. The worker owns that flag through two
+  touches `/tmp/qmanager_recovery_active`. The worker raises it through two
   optional callbacks the primitive feature-detects — `apn_apply_on_bracket_start`
   (called once the lock is actually held, so a run that ends in `apn_busy`
-  never suppresses anything) and `apn_apply_on_bracket_end`. The reason the flag
-  cannot be shared: `/tmp` is mode 1777 (the *sticky bit* — only a file's owner
-  or root may unlink a file there, whatever the file's own mode), so a
-  cross-UID `rm -f` from the `www-data` CGI paths would silently no-op and strand
-  the flag "on", permanently muting alert dispatch. Keeping it single-UID-owned
-  sidesteps that. An **empty** flag file means a foreign owner — `qmanager_watchcat`
-  raises it with a bare `touch` — and must never be cleared.
+  never suppresses anything) and `apn_apply_on_bracket_end`. See
+  [The recovery flag is multi-UID](#the-recovery-flag-is-multi-uid) below for
+  the claim protocol; suppression is **best-effort**, and a bracket that cannot
+  claim the flag proceeds unsuppressed rather than blocking.
 - **Signals.** The primitive borrows `INT`/`TERM` for the bracket so a signal
   arriving between the detach and the re-attach still forces `AT+COPS=0`. It
   releases the trap to the shell's *default* disposition on return, so
@@ -331,6 +328,85 @@ Three details worth knowing before touching this path:
   `SIGKILL` and power loss cannot be trapped; if either lands mid-bracket the
   modem is left deregistered until `qmanager_watchcat`'s own Tier 1 recovery
   notices.
+
+#### The apply worker runs as two different users
+
+`qmanager_profile_apply` is not "the root worker", despite what its own comments
+used to say. It runs as:
+
+| Spawned by | Runs as |
+| ---------- | ------- |
+| `profiles/apply.sh` (the UI "Activate" button) | **`www-data`** — invoked with no `sudo`; the binary is not setuid and has no sudoers entry |
+| `cellular/settings.sh` → `profile_mgr.sh`'s `auto_apply_profile` | **`www-data`** — same |
+| `qmanager_poller` (boot auto-apply) | **root** |
+| `qmanager_watchcat` | **root** |
+
+Every `/tmp` file it touches is therefore a cross-UID file, and `/tmp` on this
+device (`root:root` 1777, `fs.protected_regular=1`) makes both the write and the
+unlink direction-dependent and silently failing. The rules and the kernel
+mechanics live in [tmp-file-ownership.md](tmp-file-ownership.md); what matters
+here is the three files:
+
+- **`/tmp/qmanager_profile_state.json`** — seeded `root:root 0666` by
+  `qmanager_setup`. `write_state()` builds into `${STATE_FILE}.tmp.$$`, refuses
+  to publish a zero-byte render, then **copies it through the existing inode**.
+  It must never go back to `mv`: an earlier `mv` meant the boot-time *root*
+  apply swapped in a root-owned inode at umask 0022, after which every
+  `www-data` UI Activate silently failed to record progress and the dialog
+  showed the **stale boot-run result**.
+- **`/tmp/qmanager_profile_apply.pid`** — seeded the same way, and `cleanup()`
+  **truncates** it (`: >`) rather than unlinking. The lock decides on *content*
+  (`profile_check_lock` tests `[ -n "$pid" ] && [ -d /proc/$pid ]`), so an empty
+  file reads as unlocked — equivalent to the unlink, but it keeps the shared
+  inode alive. One root-run `rm -f` voided the seed for the rest of the boot and
+  let two applies run concurrently.
+- **`/tmp/qmanager_recovery_active`** — see below.
+
+Because in-place writes give up `rename(2)` atomicity, `profiles/apply_status.sh`
+must tolerate a **torn read**: it re-reads and re-validates the state file with
+`jq -e .` immediately before serving, and degrades to a valid `"applying"`
+envelope rather than forwarding partial bytes (the frontend parses the body as
+`ProfileApplyState`, so malformed JSON would surface as a hard failure of an
+apply that is progressing fine). It also treats a zero-byte file as `idle` —
+that is the boot seed, and the check must stay **ahead** of the staleness
+branch, because a seed's mtime is Jan 1970 until the clock steps and would
+otherwise compute as arbitrarily stale. `profiles/apply.sh` likewise resets the
+file by writing a schema-valid `"applying"` envelope in place instead of `rm`ing
+it.
+
+#### The recovery flag is multi-UID
+
+`/tmp/qmanager_recovery_active` is raised by both `qmanager_profile_apply`
+(around an APN attach cycle) and `qmanager_watchcat` (at all six of its recovery
+sites), from either UID. It is **deliberately not seeded** — its mere existence
+means "suppress", so pre-creating it would mute the device for the whole uptime.
+
+Ownership is therefore **claimed by verification, never assumed**. `_apn_rf_claim()`
+unlinks, writes `$$`, and **reads it back**; `_apn_rf_owned=1` only on a match.
+Failure is not fatal — the bracket proceeds **without** suppression and says so
+in the log, because an APN apply that cannot suppress alerts is still a correct
+APN apply. Both clear sites (`cleanup()` and `apn_apply_on_bracket_end`) verify
+the file is actually gone afterwards and warn if it is not: a stranded flag pins
+`qmanager_ping`'s `during_recovery`, which freezes every alert and internet event
+until reboot.
+
+The decision table at bracket start:
+
+| Flag state | Action |
+| ---------- | ------ |
+| Absent | Claim |
+| Present, **empty** | Foreign owner (an *older* watchcat's bare `touch`, which an OTA can leave running against the new binary). Leave alone, and never age out — an empty flag carries no owner to judge |
+| Present, **dead PID** | Reclaim |
+| Present, **live PID**, age ≤ 120 s | Leave alone |
+| Present, **live PID**, age > 120 s | Reclaim — the PID is almost certainly wrapped |
+
+`APN_RECOVERY_FLAG_MAX_AGE=120`, not 300: PID churn was **measured** at ~100
+PIDs/s, so the 32768-PID space wraps in ~325 s and 300 would have been 92% of a
+full wrap. And an age above `APN_RECOVERY_FLAG_MAX_PLAUSIBLE_AGE=86400` is
+treated as **no evidence** rather than as staleness — this device boots at Jan
+1970 and steps its clock ~24 s in, so a flag created before the step computes an
+age of ~56 years and would otherwise trigger a wrongful reclaim of a live flag.
+Full derivation: [tmp-file-ownership.md](tmp-file-ownership.md).
 
 #### Deactivating a profile reverts the APN first
 

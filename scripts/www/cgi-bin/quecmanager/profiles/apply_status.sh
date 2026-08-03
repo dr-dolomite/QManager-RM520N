@@ -27,13 +27,22 @@ cgi_handle_options
 
 # --- Staleness ceiling for an "applying" state -------------------------------
 # Belt-and-braces on top of the pid_alive check below. pid_max on this device
-# is 32768 with 60-90 PIDs/s of churn, so a PID recycles in roughly six
-# minutes: a dead apply whose PID has since been handed to an unrelated
-# process reads as "still alive" forever, and the watchdog never fires. The
-# worker rewrites the state file on every step transition, so an "applying"
-# state whose file has not been touched in this many seconds is dead no matter
-# what the PID says. A real apply is tens of seconds end to end, so this is
-# comfortably above the legitimate ceiling and below the PID-wrap window.
+# is 32768 and the churn was MEASURED at ~100 PIDs/s (sampled from
+# /proc/loadavg over 90s), so the PID space wraps in ~325s: a dead apply whose
+# PID has since been handed to an unrelated process reads as "still alive"
+# forever, and the watchdog never fires. The worker rewrites the state file on
+# every step transition, so an "applying" state whose file has not been touched
+# in this many seconds is dead no matter what the PID says.
+#
+# 300 is deliberately NOT the 120 used for APN_RECOVERY_FLAG_MAX_AGE, and the
+# two must not be unified. That one bounds a single APN bracket (seconds), so
+# it can sit far below the wrap. This one bounds an ENTIRE profile apply, which
+# legitimately includes the ~60s IMEI reboot wait — so its floor is "longer
+# than the slowest real apply", and lowering it to 120 would declare healthy
+# applies dead. It is bounded above by the wrap (300 < 325), which is a thin
+# margin but a safe direction: the worst case is that a false "applying"
+# persists for at most 300s before the mtime ceiling clears it anyway.
+# Re-measure the churn before changing either number.
 # (Age is only trusted when positive — the device boots at 1970 and
 # ql_time_daemon steps the clock ~24s in, which can make a file written before
 # the step look arbitrarily old or the arithmetic go negative.)
