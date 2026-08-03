@@ -731,6 +731,32 @@ a ceiling.
 condition cleared and that should feel immediate; an outgoing route is already gone, and animating it
 out only delays the incoming one.
 
+**The Modal-Exit Rule.** A modal's exit duration is an **input-latency budget**, not a taste call, and
+every modal surface therefore writes its two directions separately: `data-[state=open]:` on
+`emphasized`, `data-[state=closed]:` on `quick`. Never one unqualified `duration-*` for both.
+
+The reason is mechanical rather than aesthetic. Radix sets `pointer-events: none` on `<body>` for as
+long as a modal layer is mounted, and releases it in an unmount cleanup; `<Presence>` holds that layer
+mounted until `animationend` fires on the content node. So **the entire page is click-dead for exactly
+the length of the exit animation.** `dialog` and `alert-dialog` both shipped an unqualified
+`emphasized`, which bought 800ms of dead clicks every time a dialog closed — and their scrims carried
+no duration at all, so the backdrop left on tw-animate's off-scale 150ms default and the page *looked*
+live for the final 650ms of the lockout. On a dialog-dense surface (`/cellular/custom-profiles` holds
+nine of them) that reads as the app dropping input, not as an animation.
+
+Two consequences worth stating separately, because each was violated on its own:
+
+- **The scrim shares the content's clock in both directions.** They are one object arriving and
+  leaving; an overlay with no duration is a One-Scale violation *and* the thing that turns a slow exit
+  into an apparently broken one.
+- **`quick` is the ceiling for a modal exit, not a suggestion.** `sheet` was already correctly
+  state-qualified — it is where the pattern came from — but sat on `standard`, which is still 600ms of
+  dead page. Distance does not buy budget here: a sheet travels a full viewport edge and still exits on
+  `quick`.
+
+This is the one place the Motion-Ceiling Rule's "`emphasized` is a ceiling, not a starting point"
+has a hard floor underneath it too. If a future modal primitive is added, it inherits this shape.
+
 ## Components
 
 ### Buttons
@@ -973,6 +999,8 @@ something is genuinely live.
   duration — see The One-Scale Rule.
 - **Don't** add a third stagger step, a fifth duration, or a spring.
 - **Don't** add an exit animation to a banner or a route transition.
+- **Don't** give a modal one unqualified `duration-*` for both directions, or leave its scrim without
+  one — the exit clock is how long the page stays click-dead. See The Modal-Exit Rule.
 - **Don't** loop an animation where nothing is genuinely live.
 - **Don't** put an icon in a `CardHeader`.
 - **Don't** invent a bespoke hero-driven layout for one screen.

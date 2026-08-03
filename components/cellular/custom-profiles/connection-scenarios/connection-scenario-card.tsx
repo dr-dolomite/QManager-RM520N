@@ -130,16 +130,20 @@ interface ConnectionScenariosCardProps {
   radioOwnedByProfile?: boolean;
   /**
    * ADDED. Keeps this card's skeleton up past its own `list.sh` GET landing,
-   * so it reveals on the same frame as the (slower) Saved Profiles card next
-   * to it rather than popping in first every time — `scenarios/list.sh` is
-   * one request, `profiles/list.sh` is one request PLUS a per-profile detail
-   * prefetch, so this card is reliably the fast one. Only matters before the
-   * first reveal; `hasLoadedOnceRef` below still governs every load after
-   * that, unaffected by this prop.
+   * so it reveals on the same frame as the (slower) sibling cards rather
+   * than popping in first every time — `scenarios/list.sh` is one request,
+   * `profiles/list.sh` is one request PLUS a per-profile detail prefetch, so
+   * this card is reliably the fast one. Only matters before the first
+   * reveal; `hasLoadedOnceRef` below still governs every load after that,
+   * unaffected by this prop.
    */
   holdSkeleton?: boolean;
-  /** ADDED. Fires whenever this card's own skeleton visibility changes. */
-  onSkeletonChange?: (showingSkeleton: boolean) => void;
+  /**
+   * ADDED. Fires whenever this card's OWN data-readiness changes, so the
+   * page shell can AND it together with the sibling cards' own reports and
+   * decide, in one place, when `holdSkeleton` can drop for all of them.
+   */
+  onLocalReadyChange?: (ready: boolean) => void;
 }
 
 const ConnectionScenariosCard = ({
@@ -148,7 +152,7 @@ const ConnectionScenariosCard = ({
   nextFireByScenarioId,
   radioOwnedByProfile,
   holdSkeleton = false,
-  onSkeletonChange,
+  onLocalReadyChange,
 }: ConnectionScenariosCardProps = {}) => {
   const { t } = useTranslation("cellular");
   const {
@@ -267,14 +271,17 @@ const ConnectionScenariosCard = ({
     }
   }, [isLoading]);
   const locallyReady = !isLoading || hasLoadedOnceRef.current;
-  const showSkeleton =
-    !locallyReady || (holdSkeleton && !hasLoadedOnceRef.current);
+  // `holdSkeleton` is a one-way latch owned by the page shell (it only ever
+  // flips true→false, never back), so reading it directly here is safe — it
+  // cannot re-arm on a later background refresh the way a local escape ref
+  // would need to guard against.
+  const showSkeleton = !locallyReady || holdSkeleton;
 
   useEffect(() => {
-    onSkeletonChange?.(showSkeleton);
+    onLocalReadyChange?.(locallyReady);
     // See the matching effect in custom-profile-view.tsx — same rationale.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [showSkeleton]);
+  }, [locallyReady]);
 
   // Convert backend StoredScenario[] → UI Scenario[] (add icon, pattern, isDefault)
   const customScenarios: Scenario[] = useMemo(

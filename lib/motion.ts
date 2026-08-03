@@ -96,6 +96,20 @@ export const EASE_STANDARD_CSS = "cubic-bezier(0.2, 0, 0, 1)";
  * `--duration-ambient`, and nothing in JS should be starting a continuous
  * animation. A loop is not a transition: at 4s a breathing ring stops reading
  * as "alive" and starts reading as "stuck".
+ *
+ * ## `quick` is load-bearing for input latency, not just for short gestures
+ *
+ * The CSS side of `quick` is also the exit clock for every modal surface
+ * (`dialog`, `alert-dialog`, `sheet` — content and scrim alike). That is not a
+ * stylistic pairing: Radix pins `pointer-events: none` on `<body>` for as long
+ * as a modal layer is mounted and `<Presence>` keeps it mounted until
+ * `animationend`, so a modal's exit duration is literally how long the whole
+ * page ignores clicks after the user closes it. Both dialogs shipped an
+ * unqualified `emphasized` and cost 800ms of dead input per close.
+ *
+ * So if this scale is ever raised again, `quick` is the step to check first,
+ * and DESIGN.md > The Modal-Exit Rule is the constraint it has to satisfy —
+ * the same way `TICK` above is the step to check against the poll cadence.
  */
 export const DUR = {
   /** Label swaps, live value ticks, hover tints, focus rings. */

@@ -233,11 +233,16 @@ export interface CustomProfileViewProps {
    */
   holdSkeleton?: boolean;
   /**
-   * ADDED. Fires whenever this card's own skeleton visibility changes, so the
-   * page shell can learn "profiles are ready" independently of the scenarios
-   * card and decide when to release `holdSkeleton` on both.
+   * ADDED. Fires whenever this card's OWN data-readiness changes — i.e. the
+   * summary fetch plus the detail prefetch have settled, independent of
+   * `holdSkeleton`. The page shell ANDs this together with the sibling
+   * cards' own reports to decide, in one place, when every card is ready and
+   * `holdSkeleton` can drop for all of them at once. Reporting readiness
+   * rather than the (already-held) `showSkeleton` is what keeps this a
+   * one-way, non-circular signal — this card's own hold can never gate
+   * whether the page decides it is ready.
    */
-  onSkeletonChange?: (showingSkeleton: boolean) => void;
+  onLocalReadyChange?: (ready: boolean) => void;
 }
 
 const CustomProfileViewComponent = ({
@@ -260,7 +265,7 @@ const CustomProfileViewComponent = ({
   onReapply,
   now,
   holdSkeleton = false,
-  onSkeletonChange,
+  onLocalReadyChange,
 }: CustomProfileViewProps) => {
   const { t } = useTranslation("cellular");
   const { nameForId } = useScenarioList();
@@ -329,29 +334,23 @@ const CustomProfileViewComponent = ({
   }, [profiles, getProfile, isLoading]);
 
   // One skeleton, gated on the summary fetch, the detail prefetch, AND —
-  // before the first reveal only — the sibling Connection Scenarios card via
-  // `holdSkeleton`. `everReadyRef` is what keeps that hold from re-arming on
-  // a later background refresh: the page shell already latches its own
-  // readiness once and stops passing `holdSkeleton`, but this guards the
-  // same invariant locally in case the two ever drift.
-  const everReadyRef = React.useRef(false);
+  // before the first reveal only — the sibling cards via `holdSkeleton`.
+  // `holdSkeleton` is a one-way latch owned by the page shell (it only ever
+  // flips true→false, never back), so it needs no extra ref here to stop it
+  // re-arming on a later background refresh — reading it directly is safe.
   const locallyReady =
     !(isLoading && profiles.length === 0) &&
     !(profiles.length > 0 && !detailsHydrated);
-  React.useEffect(() => {
-    if (locallyReady) everReadyRef.current = true;
-  }, [locallyReady]);
-  const showSkeleton =
-    !locallyReady || (holdSkeleton && !everReadyRef.current);
+  const showSkeleton = !locallyReady || holdSkeleton;
 
   React.useEffect(() => {
-    onSkeletonChange?.(showSkeleton);
+    onLocalReadyChange?.(locallyReady);
     // Reporting an event, not syncing derived state — the callback identity
     // is expected to be stable (page shell wraps it in useCallback([])), so
     // omitting it here matches the sibling effect pattern elsewhere in this
     // file rather than re-firing on every parent re-render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [showSkeleton]);
+  }, [locallyReady]);
 
   // Active profile leads; the rest keep backend order.
   const ordered = React.useMemo(() => {

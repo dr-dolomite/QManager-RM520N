@@ -242,27 +242,46 @@ const CustomProfilePageBody = () => {
   );
 
   // ---------------------------------------------------------------------------
-  // Coordinated first reveal — Saved Profiles beside Connection Scenarios
+  // Coordinated first reveal — hero, Saved Profiles, and Connection Scenarios
+  // together
   // ---------------------------------------------------------------------------
-  // Connection Scenarios is one GET (`scenarios/list.sh`); Saved Profiles is
-  // one GET plus a per-profile detail prefetch, so it is reliably the slower
-  // of the two. Left alone, the scenarios card would pop in first and the
-  // profiles card a beat later — a staggered reveal that reads as the page
-  // loading twice. Each card already reports its own skeleton visibility via
-  // `onSkeletonChange`; this just ORs "hold your skeleton" into the faster one
-  // until both have reported ready ONCE, then latches — a later background
-  // refresh on either side is untouched, since neither card re-arms its own
-  // hold once `pageReady` flips.
-  const [profilesReady, setProfilesReady] = useState(false);
-  const [scenariosReady, setScenariosReady] = useState(false);
-  const pageReady = profilesReady && scenariosReady;
+  // Three independent fetches back these three surfaces (the active profile's
+  // detail GET, `profiles/list.sh` plus its per-profile detail prefetch, and
+  // `scenarios/list.sh`), and they never land in the same frame. Left alone,
+  // each pops in the moment ITS OWN data arrives — a staggered reveal that
+  // reads as the page loading three times, and worse for the hero: with no
+  // active profile yet confirmed, an unset `activeProfileId` looks identical
+  // to "confirmed no active profile" until the list actually answers, so it
+  // would flash "No Profile" before correcting itself.
+  //
+  // Each surface reports its OWN readiness — a plain, one-directional signal,
+  // never influenced by whether the OTHER surfaces are ready — and this page
+  // ANDs the three together into `allLocallyReady`. `pageReady` latches the
+  // first time that AND is true and never resets, so a later background
+  // refresh on any one surface freezes on stale data instead of re-triggering
+  // a shared skeleton. Because no surface's own readiness report is gated by
+  // `pageReady` (that would make each wait on the others waiting on it), the
+  // three can never deadlock waiting on each other.
+  const [profilesLocallyReady, setProfilesLocallyReady] = useState(false);
+  const [scenariosLocallyReady, setScenariosLocallyReady] = useState(false);
+  const heroLocallyReady =
+    !isLoading && (!activeProfileId || activeProfile !== null);
 
-  const handleProfilesSkeletonChange = useCallback((showing: boolean) => {
-    if (!showing) setProfilesReady(true);
+  const allLocallyReady =
+    profilesLocallyReady && scenariosLocallyReady && heroLocallyReady;
+  const [pageReady, setPageReady] = useState(false);
+  useEffect(() => {
+    if (allLocallyReady) setPageReady(true);
+  }, [allLocallyReady]);
+
+  const handleProfilesLocalReadyChange = useCallback((ready: boolean) => {
+    setProfilesLocallyReady(ready);
   }, []);
-  const handleScenariosSkeletonChange = useCallback((showing: boolean) => {
-    if (!showing) setScenariosReady(true);
+  const handleScenariosLocalReadyChange = useCallback((ready: boolean) => {
+    setScenariosLocallyReady(ready);
   }, []);
+
+  const showHeroSkeleton = !heroLocallyReady || !pageReady;
 
   // ---------------------------------------------------------------------------
   // "Recommended for your SIM" — carrier-matched suggestions
@@ -468,8 +487,6 @@ const CustomProfilePageBody = () => {
   // schedule" is "open this profile in the wizard".
   const handleEditSchedule = handleEditActive;
 
-  const showHeroSkeleton = isLoading && !activeProfile && !!activeProfileId;
-
   return (
     <motion.div
       className="@container/main mx-auto flex flex-col gap-5 p-2"
@@ -555,7 +572,7 @@ const CustomProfilePageBody = () => {
             suggestionError={suggestionsError ?? error}
             onCreateSuggestion={handleCreateFromSuggestion}
             holdSkeleton={!pageReady}
-            onSkeletonChange={handleProfilesSkeletonChange}
+            onLocalReadyChange={handleProfilesLocalReadyChange}
           />
           <ConnectionScenariosCard
             autoOpenAddDialog={arrivedFromScenarioLink}
@@ -563,7 +580,7 @@ const CustomProfilePageBody = () => {
             nextFireByScenarioId={nextFireByScenarioId}
             radioOwnedByProfile={radioOwnedByProfile}
             holdSkeleton={!pageReady}
-            onSkeletonChange={handleScenariosSkeletonChange}
+            onLocalReadyChange={handleScenariosLocalReadyChange}
           />
         </div>
       </motion.div>
