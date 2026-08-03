@@ -2175,7 +2175,10 @@ install_udev_rules() {
         return 0
     fi
 
-    # Remount rootfs rw — /etc and /usr/lib live on the read-only root.
+    # Remount rootfs rw — /usr/lib lives on the read-only root (ubi0). NOT /etc:
+    # that is a bind mount of ubi2_0 and is always rw, so this call does nothing
+    # for the /etc/udev write below. Left rw afterwards, per the tree-wide
+    # "remount rw once, never restore ro" convention. See docs/BACKEND.md.
     mount -o remount,rw / 2>/dev/null || true
 
     mkdir -p /etc/udev/rules.d
@@ -2333,7 +2336,7 @@ enable_services() {
     command -v qm_config_get >/dev/null 2>&1 || . "$LIB_DIR/config.sh"
 
     if [ -f "$SYSTEMD_DIR/qmanager-auto-update.timer" ]; then
-        _auto_update_enabled=$(qm_config_get update auto_update_enabled 0 2>/dev/null)
+        _auto_update_enabled=$(qm_config_get update auto_update_enabled 0 2>/dev/null) || _auto_update_enabled=0
         if [ "$_auto_update_enabled" = "1" ]; then
             ln -sf "$SYSTEMD_DIR/qmanager-auto-update.timer" "$TIMERS_WANTS_DIR/qmanager-auto-update.timer"
             info "Auto-update timer enabled (update.auto_update_enabled=1)"
@@ -2360,10 +2363,10 @@ enable_services() {
     # this installer already runs as root — mirrors scenario_mgr.sh's
     # scenario_install_schedule "already root" branch.
     if [ -x "$BIN_DIR/qmanager_scheduled_reboot_arm" ]; then
-        _sched_enabled=$(qm_config_get settings sched_reboot_enabled 0 2>/dev/null)
+        _sched_enabled=$(qm_config_get settings sched_reboot_enabled 0 2>/dev/null) || _sched_enabled=0
         if [ "$_sched_enabled" = "1" ]; then
-            _sched_time=$(qm_config_get settings sched_reboot_time "04:00" 2>/dev/null)
-            _sched_days=$(qm_config_get settings sched_reboot_days "0,1,2,3,4,5,6" 2>/dev/null)
+            _sched_time=$(qm_config_get settings sched_reboot_time "04:00" 2>/dev/null) || _sched_time="04:00"
+            _sched_days=$(qm_config_get settings sched_reboot_days "0,1,2,3,4,5,6" 2>/dev/null) || _sched_days="0,1,2,3,4,5,6"
             "$BIN_DIR/qmanager_scheduled_reboot_arm" install "$_sched_time" "$_sched_days" >/dev/null 2>&1 \
                 && info "Scheduled reboot timer re-armed (${_sched_time}, days=${_sched_days})" \
                 || warn "Scheduled reboot timer re-arm failed (non-fatal)"
@@ -2373,11 +2376,11 @@ enable_services() {
     fi
 
     if [ -x "$BIN_DIR/qmanager_tower_schedule_arm" ] && [ -f /etc/qmanager/tower_lock.json ]; then
-        _tower_enabled=$(jq -r '.schedule.enabled // false' /etc/qmanager/tower_lock.json 2>/dev/null)
+        _tower_enabled=$(jq -r '.schedule.enabled // false' /etc/qmanager/tower_lock.json 2>/dev/null) || _tower_enabled=false
         if [ "$_tower_enabled" = "true" ]; then
-            _tower_start=$(jq -r '.schedule.start_time // "08:00"' /etc/qmanager/tower_lock.json 2>/dev/null)
-            _tower_end=$(jq -r '.schedule.end_time // "22:00"' /etc/qmanager/tower_lock.json 2>/dev/null)
-            _tower_days=$(jq -r '.schedule.days // [1,2,3,4,5] | join(",")' /etc/qmanager/tower_lock.json 2>/dev/null)
+            _tower_start=$(jq -r '.schedule.start_time // "08:00"' /etc/qmanager/tower_lock.json 2>/dev/null) || _tower_start="08:00"
+            _tower_end=$(jq -r '.schedule.end_time // "22:00"' /etc/qmanager/tower_lock.json 2>/dev/null) || _tower_end="22:00"
+            _tower_days=$(jq -r '.schedule.days // [1,2,3,4,5] | join(",")' /etc/qmanager/tower_lock.json 2>/dev/null) || _tower_days="1,2,3,4,5"
             "$BIN_DIR/qmanager_tower_schedule_arm" install "$_tower_start" "$_tower_end" "$_tower_days" >/dev/null 2>&1 \
                 && info "Tower lock schedule timers re-armed (apply ${_tower_start}, clear ${_tower_end}, days=${_tower_days})" \
                 || warn "Tower lock schedule timer re-arm failed (non-fatal)"
@@ -2388,10 +2391,59 @@ enable_services() {
 
     # --- Discord bot (gated on binary + config + enabled flag) ----------------
     if [ -x "$BIN_DIR/qmanager_discord" ] && [ -f /etc/qmanager/discord_bot.json ]; then
-        enabled=$(jq -r '.enabled // false' /etc/qmanager/discord_bot.json 2>/dev/null)
+        enabled=$(jq -r '.enabled // false' /etc/qmanager/discord_bot.json 2>/dev/null) || enabled=false
         if [ "$enabled" = "true" ]; then
             ln -sf "$SYSTEMD_DIR/qmanager-discord.service" "$WANTS_DIR/qmanager-discord.service"
             info "Discord bot service enabled"
+        fi
+    fi
+
+    # --- Watchcat / Tower Failover / SMS Forward (config-gated self-heal) -----
+    # Same shape as the Discord block above, extended to the other three
+    # UCI_GATED_SERVICES. Those three are restored ONLY from pre-install
+    # symlink state (the loop above) — a device that lost its
+    # multi-user.target.wants symlink to a transient EROFS window (see
+    # svc_enable) has configured intent that the symlink-restore loop can
+    # never see, so it stays disabled forever across every future OTA. This
+    # pass re-derives "should be enabled" from the same config each service's
+    # own CGI already treats as authoritative, and is ADDITIVE ONLY: it only
+    # ever ln -sf's a service ON. It never rm -f's one, so it can't undo what
+    # the symlink-restore loop just did — repair upward only, matching the
+    # brief's "never silently turn a working feature off."
+    #
+    # watchcat: /etc/qmanager/qmanager.conf is JSON despite the .conf name;
+    # qm_config_get already degrades to the given default on a missing/
+    # unparseable file (jq failure -> empty val -> default), so no separate
+    # [ -f ... ] guard is needed here — mirrors the auto-update timer block.
+    if [ -x "$BIN_DIR/qmanager_watchcat" ]; then
+        _watchcat_enabled=$(qm_config_get watchcat enabled 0 2>/dev/null) || _watchcat_enabled=0
+        if [ "$_watchcat_enabled" = "1" ]; then
+            ln -sf "$SYSTEMD_DIR/qmanager-watchcat.service" "$WANTS_DIR/qmanager-watchcat.service"
+            info "Watchdog service enabled (watchcat.enabled=1)"
+        fi
+    fi
+
+    # tower-failover: /etc/qmanager/tower_lock.json, .failover.enabled (bool).
+    # Same jq -r '... // false' pattern the tower schedule re-arm above and
+    # tower/status.sh both already use for this exact file.
+    if [ -x "$BIN_DIR/qmanager_tower_failover" ] && [ -f /etc/qmanager/tower_lock.json ]; then
+        _failover_enabled=$(jq -r '.failover.enabled // false' /etc/qmanager/tower_lock.json 2>/dev/null) || _failover_enabled=false
+        if [ "$_failover_enabled" = "true" ]; then
+            ln -sf "$SYSTEMD_DIR/qmanager-tower-failover.service" "$WANTS_DIR/qmanager-tower-failover.service"
+            info "Tower failover service enabled (failover.enabled=true)"
+        fi
+    fi
+
+    # sms-forward: /etc/qmanager/sms_forwarding.json, .enabled (bool). Lazy-
+    # created by cellular/sms_forwarding.sh's own tmp+mv on first save — there
+    # is no installer seed, so a fresh/never-configured device simply has no
+    # file here. The [ -f ... ] guard treats that as "not enabled" without
+    # invoking jq on a nonexistent path.
+    if [ -x "$BIN_DIR/qmanager_sms_forward" ] && [ -f /etc/qmanager/sms_forwarding.json ]; then
+        _smsfwd_enabled=$(jq -r '.enabled // false' /etc/qmanager/sms_forwarding.json 2>/dev/null) || _smsfwd_enabled=false
+        if [ "$_smsfwd_enabled" = "true" ]; then
+            ln -sf "$SYSTEMD_DIR/qmanager-sms-forward.service" "$WANTS_DIR/qmanager-sms-forward.service"
+            info "SMS forwarding service enabled (sms_forwarding.enabled=true)"
         fi
     fi
 
