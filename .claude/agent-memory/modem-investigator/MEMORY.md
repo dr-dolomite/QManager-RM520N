@@ -1,5 +1,7 @@
 # MEMORY.md index
 
+- [APN COPS-bracket live experiment facts](apn_bracket_live_experiment_facts.md) — COPS=0 returns in 0.16s (NON-blocking, no poller starvation), reattach ~1.3-4s, no signal_lost event but a spurious band_change; the bracket hops the WAN across rmnet_dataN yet data usage reads rmnet_ipa0 so it's immune; clean-control payload `{"scenario":{"default":""}}`; busybox `date +%s.%N` prints literal %N
+
 - [current_settings.sh is 0.22s, not 2-3s](current_settings_is_fast_not_3s.md) — the hook comment and sim-profiles.md are 10x stale; all 5 Custom-Profiles endpoints fired concurrently finish in 0.52s wall, so there is no AT cost worth combining; includes the /proc/uptime timing recipe and the `sudo -n` gotcha
 
 - [Every boot starts in 1970; timers arm inside that window](boot_clock_1970_window.md) — no battery RTC, ql_time_daemon steps the clock ~56y forward at boot+~25s, but timers.target arms at boot+6.3s; includes the no-journald proof recipe (/var/log/messages.0 shows the jump in one file)
@@ -28,4 +30,5 @@
 - [jq paths(scalars) drops false/null](jq_paths_scalars_drops_false.md) — the `select` tests truthiness, so `isVpn:false` vanishes from the key map while `persisted:true` survives; never use it to prove a field is absent — check the raw JSON
 - [AT+QCAINFO is per-cycle, NOT Tier 2](qcainfo_is_per_cycle_not_tier2.md) — poller header comment + carrier-aggregation.md both say Tier 2 and are WRONG; carrier_components refreshes every ~3.7s; measured 0 empty arrays in 103 consecutive polls; includes the census recipe + the nested-`\"` jq trap
 - [Posh-SSH connection recipe](posh_ssh_connection_recipe.md) — single-call probe pattern + 4 gotchas (env not persisted, don't name fn `R`, no -TimeoutSecond, busybox df quirk); running lighttpd = /opt/sbin/lighttpd -f /usrdata/qmanager/lighttpd.conf, docroot /usrdata/qmanager/www (NOTE: public_endpoints memory's "/opt/share/www" is WRONG)
+- [APN testing on the Globe SIM](apn_testing_on_globe_sim.md) — `http.globe.com.ph` is granted verbatim so it's a safe non-default test APN; pre-flight with a manual bracket first; carrier default reads UPPERCASE only when configured APN is blank, so skip-checks must case-fold
 - [Walled-garden triage recipe](walled_garden_triage_recipe.md) — 3-probe ICMP/DNS/TCP signature table separating carrier-filtered-ICMP vs walled garden (instant TCP RST + carrier private resolver) vs real outage; local iptables ruled out by construction; rmnet_data0 has NO IPv6 so the v6 fallback is dead weight

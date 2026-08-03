@@ -252,7 +252,7 @@ export function ApplyProgressDialog({
       }}
     >
       <DialogContent
-        className="rounded-card border-0 sm:max-w-md"
+        className="overflow-hidden rounded-card border-0 sm:max-w-md"
         showCloseButton={dismissable}
         // Radix's `onOpenChange` guard above already refuses the close; these
         // cancel the gesture at source so an outside click while applying does

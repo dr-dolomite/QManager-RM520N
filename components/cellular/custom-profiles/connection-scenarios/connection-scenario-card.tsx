@@ -128,6 +128,18 @@ interface ConnectionScenariosCardProps {
    * ownership and wants the two surfaces to agree byte-for-byte.
    */
   radioOwnedByProfile?: boolean;
+  /**
+   * ADDED. Keeps this card's skeleton up past its own `list.sh` GET landing,
+   * so it reveals on the same frame as the (slower) Saved Profiles card next
+   * to it rather than popping in first every time — `scenarios/list.sh` is
+   * one request, `profiles/list.sh` is one request PLUS a per-profile detail
+   * prefetch, so this card is reliably the fast one. Only matters before the
+   * first reveal; `hasLoadedOnceRef` below still governs every load after
+   * that, unaffected by this prop.
+   */
+  holdSkeleton?: boolean;
+  /** ADDED. Fires whenever this card's own skeleton visibility changes. */
+  onSkeletonChange?: (showingSkeleton: boolean) => void;
 }
 
 const ConnectionScenariosCard = ({
@@ -135,6 +147,8 @@ const ConnectionScenariosCard = ({
   openAddSignal,
   nextFireByScenarioId,
   radioOwnedByProfile,
+  holdSkeleton = false,
+  onSkeletonChange,
 }: ConnectionScenariosCardProps = {}) => {
   const { t } = useTranslation("cellular");
   const {
@@ -252,7 +266,15 @@ const ConnectionScenariosCard = ({
       hasLoadedOnceRef.current = true;
     }
   }, [isLoading]);
-  const showSkeleton = isLoading && !hasLoadedOnceRef.current;
+  const locallyReady = !isLoading || hasLoadedOnceRef.current;
+  const showSkeleton =
+    !locallyReady || (holdSkeleton && !hasLoadedOnceRef.current);
+
+  useEffect(() => {
+    onSkeletonChange?.(showSkeleton);
+    // See the matching effect in custom-profile-view.tsx — same rationale.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showSkeleton]);
 
   // Convert backend StoredScenario[] → UI Scenario[] (add icon, pattern, isDefault)
   const customScenarios: Scenario[] = useMemo(

@@ -221,6 +221,23 @@ export interface CustomProfileViewProps {
    * component ticks its own minute clock.
    */
   now?: Date;
+  /**
+   * ADDED. Keeps this card's skeleton up even after ITS OWN data is ready,
+   * because the page shell wants both this list and the Connection Scenarios
+   * card to reveal on the same frame — Scenarios' single `list.sh` GET lands
+   * well before this list's per-profile detail prefetch does, and the two
+   * popping in on separate frames read as the page loading twice. Only ever
+   * true before the FIRST reveal; the page shell latches its own readiness
+   * once and never re-arms it, so a later background refresh here is
+   * unaffected and still freezes on stale data per the existing contract.
+   */
+  holdSkeleton?: boolean;
+  /**
+   * ADDED. Fires whenever this card's own skeleton visibility changes, so the
+   * page shell can learn "profiles are ready" independently of the scenarios
+   * card and decide when to release `holdSkeleton` on both.
+   */
+  onSkeletonChange?: (showingSkeleton: boolean) => void;
 }
 
 const CustomProfileViewComponent = ({
@@ -242,6 +259,8 @@ const CustomProfileViewComponent = ({
   scenarios,
   onReapply,
   now,
+  holdSkeleton = false,
+  onSkeletonChange,
 }: CustomProfileViewProps) => {
   const { t } = useTranslation("cellular");
   const { nameForId } = useScenarioList();
@@ -309,10 +328,30 @@ const CustomProfileViewComponent = ({
     };
   }, [profiles, getProfile, isLoading]);
 
-  // One skeleton, gated on BOTH the summary fetch and the detail prefetch.
+  // One skeleton, gated on the summary fetch, the detail prefetch, AND —
+  // before the first reveal only — the sibling Connection Scenarios card via
+  // `holdSkeleton`. `everReadyRef` is what keeps that hold from re-arming on
+  // a later background refresh: the page shell already latches its own
+  // readiness once and stops passing `holdSkeleton`, but this guards the
+  // same invariant locally in case the two ever drift.
+  const everReadyRef = React.useRef(false);
+  const locallyReady =
+    !(isLoading && profiles.length === 0) &&
+    !(profiles.length > 0 && !detailsHydrated);
+  React.useEffect(() => {
+    if (locallyReady) everReadyRef.current = true;
+  }, [locallyReady]);
   const showSkeleton =
-    (isLoading && profiles.length === 0) ||
-    (profiles.length > 0 && !detailsHydrated);
+    !locallyReady || (holdSkeleton && !everReadyRef.current);
+
+  React.useEffect(() => {
+    onSkeletonChange?.(showSkeleton);
+    // Reporting an event, not syncing derived state — the callback identity
+    // is expected to be stable (page shell wraps it in useCallback([])), so
+    // omitting it here matches the sibling effect pattern elsewhere in this
+    // file rather than re-firing on every parent re-render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showSkeleton]);
 
   // Active profile leads; the rest keep backend order.
   const ordered = React.useMemo(() => {
@@ -688,13 +727,31 @@ const ProfileRow = ({
                 <MaterialSymbol name="more_vert" size={18} aria-hidden />
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-40">
-              <DropdownMenuItem onClick={onEdit}>
+            {/* Scoped override, not a `dropdown-menu.tsx` primitive change —
+                that shared component also backs the SMS Inbox row menu, which
+                this pass does not touch. `rounded-field` (20px) is the shape
+                scale's own answer for "small popovers"; `border-0` +
+                `shadow-lg` follows the Popover Float rule (a floating
+                surface's detachment reads through elevation, not a hairline).
+                Items go pill-radius to match every other actionable pill on
+                this row (`ROW_ACTION`, the row menu trigger itself). */}
+            <DropdownMenuContent
+              align="end"
+              className="w-44 rounded-field border-0 p-1.5 shadow-lg"
+            >
+              <DropdownMenuItem
+                className="rounded-pill"
+                onClick={onEdit}
+              >
                 <MaterialSymbol name="edit" size={16} aria-hidden />
                 {t("custom_profiles.table.actions_menu.edit")}
               </DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem variant="destructive" onClick={onDelete}>
+              <DropdownMenuItem
+                variant="destructive"
+                className="rounded-pill"
+                onClick={onDelete}
+              >
                 <MaterialSymbol name="delete" size={16} aria-hidden />
                 {t("custom_profiles.table.actions_menu.delete")}
               </DropdownMenuItem>

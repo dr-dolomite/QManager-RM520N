@@ -242,6 +242,29 @@ const CustomProfilePageBody = () => {
   );
 
   // ---------------------------------------------------------------------------
+  // Coordinated first reveal — Saved Profiles beside Connection Scenarios
+  // ---------------------------------------------------------------------------
+  // Connection Scenarios is one GET (`scenarios/list.sh`); Saved Profiles is
+  // one GET plus a per-profile detail prefetch, so it is reliably the slower
+  // of the two. Left alone, the scenarios card would pop in first and the
+  // profiles card a beat later — a staggered reveal that reads as the page
+  // loading twice. Each card already reports its own skeleton visibility via
+  // `onSkeletonChange`; this just ORs "hold your skeleton" into the faster one
+  // until both have reported ready ONCE, then latches — a later background
+  // refresh on either side is untouched, since neither card re-arms its own
+  // hold once `pageReady` flips.
+  const [profilesReady, setProfilesReady] = useState(false);
+  const [scenariosReady, setScenariosReady] = useState(false);
+  const pageReady = profilesReady && scenariosReady;
+
+  const handleProfilesSkeletonChange = useCallback((showing: boolean) => {
+    if (!showing) setProfilesReady(true);
+  }, []);
+  const handleScenariosSkeletonChange = useCallback((showing: boolean) => {
+    if (!showing) setScenariosReady(true);
+  }, []);
+
+  // ---------------------------------------------------------------------------
   // "Recommended for your SIM" — carrier-matched suggestions
   // ---------------------------------------------------------------------------
   // Pure decision layer over data this page already holds: the PLMN + ICCID from
@@ -531,12 +554,16 @@ const CustomProfilePageBody = () => {
             creatingSuggestionId={creatingId}
             suggestionError={suggestionsError ?? error}
             onCreateSuggestion={handleCreateFromSuggestion}
+            holdSkeleton={!pageReady}
+            onSkeletonChange={handleProfilesSkeletonChange}
           />
           <ConnectionScenariosCard
             autoOpenAddDialog={arrivedFromScenarioLink}
             openAddSignal={scenarioCreateSignal}
             nextFireByScenarioId={nextFireByScenarioId}
             radioOwnedByProfile={radioOwnedByProfile}
+            holdSkeleton={!pageReady}
+            onSkeletonChange={handleScenariosSkeletonChange}
           />
         </div>
       </motion.div>

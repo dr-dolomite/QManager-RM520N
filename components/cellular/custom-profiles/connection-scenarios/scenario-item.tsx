@@ -231,7 +231,7 @@ export const ScenarioItem = ({
                 aria-label={t("scenarios.tile.delete_aria", {
                   name: scenario.name,
                 })}
-                className="bg-surface-container-high text-on-surface-variant hover:bg-destructive hover:text-destructive-foreground rounded-inline p-1.5 opacity-0 transition-colors duration-[var(--duration-quick)] ease-out group-hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-current"
+                className="bg-surface-container-high text-on-surface-variant hover:bg-destructive hover:text-destructive-foreground rounded-pill p-1.5 opacity-0 transition-colors duration-[var(--duration-quick)] ease-out group-hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-current"
               >
                 <MaterialSymbol name="delete" size={16} />
               </button>

@@ -69,3 +69,6 @@ discord-bot/*.exe
 
 # Reimagine directory
 /reimagine/
+
+# Rescue directory
+/scripts-dev/rescue/

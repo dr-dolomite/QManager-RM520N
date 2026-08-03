@@ -227,7 +227,17 @@ export const MACHINE_VALUE = "font-mono tabular-nums";
  */
 export const SCENARIO_TILE_SHAPE = {
   GRID: "grid grid-cols-1 gap-3.5 @md/card:grid-cols-2 @3xl/card:grid-cols-3",
-  ROOT: "relative flex min-h-[9rem] flex-col justify-between overflow-hidden rounded-card p-4",
+  /**
+   * `h-full` so a tile stretches to match its row-mates rather than sizing to
+   * its own content. The grid cell (the `motion.div` wrapper in
+   * `connection-scenario-card.tsx`) already stretches to the row's tallest
+   * cell by default CSS Grid behavior, but this inner element — the one that
+   * actually paints the fill and border-radius — did not inherit that height
+   * without saying so explicitly, so a tile with a longer band-lock line (e.g.
+   * a custom scenario wrapping to a second pill row) visibly outgrew its
+   * neighbor instead of both settling to the row's height.
+   */
+  ROOT: "relative flex h-full min-h-[9rem] flex-col justify-between overflow-hidden rounded-card p-4",
   HEIGHT: "h-36",
   DISC: "grid size-11 flex-none place-items-center rounded-pill",
 } as const;
@@ -281,8 +291,19 @@ export const CONFIG_CARD_SHAPE = {
  * invents stages is theatre, and the State-Honesty Rule forbids it.
  */
 export const LEDGER_SHAPE = {
-  LIST: "flex flex-col gap-2",
-  STEP: "flex items-center gap-3 rounded-field px-4 py-3 text-sm",
+  LIST: "flex min-w-0 flex-col gap-2",
+  /**
+   * `min-w-0` on the step itself, not just its label span. The label already
+   * carried `min-w-0 truncate`, but a `flex-none` sibling (the detail value)
+   * sizes to its own max-content by default UNLESS the row's own min-width is
+   * explicitly zeroed — without it, a long unbroken `detail` string (a raw
+   * `+CME ERROR:` string, an AT-reported APN with no natural break point) can
+   * push the row's intrinsic width past the dialog's `max-w-md`, which then
+   * has nothing clipping it since `DialogContent` does not set
+   * `overflow-hidden` by default. `max-w-[52%]` on the detail span is a hint
+   * to the flex algorithm, not a hard clip on its own.
+   */
+  STEP: "flex min-w-0 items-center gap-3 rounded-field px-4 py-3 text-sm",
   GLYPH: "size-[1.125rem] flex-none",
 } as const;
 
