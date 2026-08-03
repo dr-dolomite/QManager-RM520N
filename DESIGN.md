@@ -311,6 +311,7 @@ These are the places where correct-per-this-canon and what-a-primitive-currently
 | **Legacy radius chain is still live** | ~349 `rounded-{sm,md,lg,xl,full}` call sites resolve off `--radius: 0.65rem` | Use `rounded-inline/field/tile/card/hero/pill`. Never retarget the legacy chain globally |
 | **Icon-Boundary is partially applied** | Material Symbols owns the sidebar, `/dashboard`, `/` and `/login/`, and the **entire `/cellular/` family** (index + all 17 sub-routes, 53 files). Still lucide: `/local-network/`, `/monitoring/`, `/system-settings/`, `/about-device`, `/support`, onboarding | A lucide glyph on an unconverted route is **correct code**, and a route-agnostic primitive (page-level `Banner`, apply-progress dialog) stays lucide even inside a Material route. Convert a whole route or none of it. See `docs/reference/icon-system.md` |
 | **Opacity washes are unmigrated** | `bg-{role}/5`, `/10`, `/15` on icon discs, tiles, pulse rings, inline notices | Not chips — do not flip them as part of chip work. New concentric/stacked shapes use the explicit `--tone-{role}-{1,2,3}` steps |
+| **Popover-family layers nest flat inside dialogs** | `--surface`, `--card` and `--popover` are the same oklch value in both modes, and the dialog primitives now paint `bg-surface` — so a `SelectContent`/`PopoverContent` opened from inside a dialog lands on the same tonal step as the panel behind it (`connection-scenario-card.tsx:743`, `:924`; latent in `CommandDialog`, `ui/command.tsx:55`, which has no consumer). Their own border + shadow still separate them | The token is canon-correct — popovers ARE surface. The nesting is what's wrong: give the nested layer a container step (`bg-surface-container`), never a hairline. Do it on new work; sweeping every `Select` in every dialog is its own change |
 | **Status-first column is unbuilt** | No live-service page (Watchdog, Alerts, Discord) implements the read-only-status-hero → settings → activity-log order | It is a product intent in `PRODUCT.md`, not a `DESIGN.md` rule. Move toward it on new live-service pages; don't retrofit |
 
 ## Colors
@@ -412,7 +413,9 @@ contrast here, and it is often invisible in light mode while breaking dark.
 are light (L 0.77-0.87), so their inks flip dark (L 0.22-0.24). Raising a dark fill without flipping
 its ink is what kept destructive measuring 2.42:1 through three migration steps. An alpha on a fill
 (`bg-destructive/60`) is a request to the canvas, not to the token, so the same control renders a
-different color in a card, a dialog, and a popover — never compensate with one.
+different color on the page background, on a card, and on a container tile — never compensate with
+one. (A card, a dialog and a popover are the one exception, and only because `--card`, `--surface` and
+`--popover` resolve to the *same* oklch value in both modes.)
 
 **The 40-Degree Rule.** No decorative hue sits within 40 degrees of a functional one. Identity hues
 occupy 264 / 296 / 200; functional hues occupy 149 / 72 / 27 plus the brand ramp.
@@ -427,7 +430,8 @@ corollary: `nr` and `lte` never mean "healthy".
 
 **The Explicit-Tone Rule.** Layered translucency is banned for stacked shapes. Concentric rings, halo
 discs, and nested tonal surfaces use the explicit `--tone-{role}-{1,2,3}` steps, because stacked alpha
-compounds differently over each surface and yields a different color in a card than in a dialog.
+compounds differently over each surface and yields a different color on a card than on a container
+tile.
 
 **The Functional-Color Promise.** A user who learns green means healthy on the dashboard finds the
 same green meaning the same thing in Watchdog, in Profile Apply, and in the alert logs. Hues get

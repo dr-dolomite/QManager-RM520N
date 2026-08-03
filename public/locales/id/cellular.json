@@ -321,6 +321,11 @@
       "title": "Tidak ada profil aktif",
       "description": "Modem menggunakan APN bawaan dan skenario koneksi default. Simpan profil untuk mengunci APN, TTL, dan jadwal skenario pada SIM ini."
     },
+    "hero_error": {
+      "title": "Detail profil tidak tersedia",
+      "description": "Profil masih aktif, tetapi detailnya tidak dapat dimuat. Modem tidak berubah — ini hanya masalah tampilan.",
+      "retry": "Coba lagi"
+    },
     "view": {
       "title": "Profil Tersimpan",
       "description": "Kelola profil SIM kustom Anda.",

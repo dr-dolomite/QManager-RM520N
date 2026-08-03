@@ -110,8 +110,17 @@ export function ProfileFormDialog({
         {/* The scroll container. The dialog shell stays fixed at its cap and
             this is what moves, so the wizard's tab strip and submit row are
             always reachable. `overscroll-contain` stops a flick at the end of
-            the wizard from scrolling the page behind the overlay. */}
-        <div className="max-h-[85dvh] overflow-y-auto overscroll-contain [scrollbar-width:thin]">
+            the wizard from scrolling the page behind the overlay.
+
+            The `[&>[data-slot=card]]` rules neutralise the wizard's own `<Card>`
+            shell. `DialogContent` now paints `bg-surface`, and `--card` is the
+            SAME oklch value in both modes — so the Card's fill, hairline and
+            shadow would draw a second identical rectangle inside the first.
+            The user reads one panel here, so one element owns its fill: the
+            dialog. Only the Card's decoration is dropped; its layout (`gap-6`,
+            `py-6`) and every child, including the `bg-surface-container`
+            sections that still need a step above the panel, are untouched. */}
+        <div className="max-h-[85dvh] overflow-y-auto overscroll-contain [scrollbar-width:thin] [&>[data-slot=card]]:border-0 [&>[data-slot=card]]:bg-transparent [&>[data-slot=card]]:shadow-none">
           <CustomProfileFormComponent
             key={editingProfile?.id ?? "new"}
             editingProfile={editingProfile}

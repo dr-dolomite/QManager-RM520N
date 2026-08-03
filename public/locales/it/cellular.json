@@ -321,6 +321,11 @@
       "title": "Nessun profilo attivo",
       "description": "Il modem sta usando l'APN di fabbrica e lo scenario di connessione predefinito. Salva un profilo per fissare APN, TTL e pianificazione degli scenari su questa SIM."
     },
+    "hero_error": {
+      "title": "Dettagli del profilo non disponibili",
+      "description": "Il profilo è ancora attivo, ma non è stato possibile caricarne i dettagli. Il modem è invariato: è solo un problema di visualizzazione.",
+      "retry": "Riprova"
+    },
     "view": {
       "title": "Profili salvati",
       "description": "Gestisci i tuoi profili SIM personalizzati.",

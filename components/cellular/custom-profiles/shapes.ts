@@ -628,25 +628,25 @@ export const SCENARIO_META_CHIP =
 /**
  * The apply dialog's own panel.
  *
- * `bg-surface`, not the `bg-background` the `DialogContent` base paints. Those
- * are two different tokens with one job between them, and `globals.css` gives
- * `body` the SAME `bg-background` — so the stock dialog is exactly the colour of
- * the page behind it, and the panel dissolves. Every card on this surface
- * (`PROFILE_CARD_PEER`, `HERO_CARD`) already sits on the elevated `surface`
- * step; the dialog is the most elevated thing on the page and cannot be the one
- * element that reads as flat.
+ * No fill here on purpose: `DialogContent`/`AlertDialogContent` now default to
+ * `bg-surface` (see `components/ui/dialog.tsx`, `components/ui/alert-dialog.tsx`),
+ * so do NOT re-add a call-site `bg-*` — the primitive owns it. The old default
+ * was `bg-background`, which never made the panel *invisible* (a `bg-black/50`
+ * scrim composites between panel and page, so it always read as a lighter
+ * rectangle); the actual defect was elevation INVERSION — in dark mode the
+ * dialog painted at `--background` 0.155 while every card under it sits at
+ * `--surface` 0.215, putting the most elevated element below the cards on the
+ * tonal ramp. DESIGN.md:348-349 assigns dialogs to Surface, same step as cards.
  *
- * `border-0` deletes the base `border` deliberately — No-Hairline-On-Fill. A
- * real tonal fill separates on its own; the incumbent hairline was doing the
- * work the missing fill should have been doing. (The base `shadow-lg` is a
- * black shadow and contributes nothing on a dark surface either — the fill is
- * the whole separation.)
+ * No `border-0` either, for the same reason: promoting the fill made the base
+ * `border` a hairline on a tonal container, so the primitives dropped it too —
+ * No-Hairline-On-Fill is now enforced at the source, and the override that used
+ * to delete it here has nothing left to delete.
  *
  * `overflow-hidden` stays as a belt-and-braces clip behind the width guards in
  * THE MIN-CONTENT CHAIN, not as the primary fix.
  */
-export const APPLY_DIALOG_PANEL =
-  "overflow-hidden rounded-card border-0 bg-surface sm:max-w-md";
+export const APPLY_DIALOG_PANEL = "overflow-hidden rounded-card sm:max-w-md";
 
 /**
  * The right-aligned value a ledger step carries — the APN that landed, the AT

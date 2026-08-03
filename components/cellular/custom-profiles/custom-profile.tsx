@@ -1,6 +1,12 @@
 "use client";
 
-import React, { useState, useCallback, useEffect, useMemo } from "react";
+import React, {
+  useState,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+} from "react";
 import { useSearchParams } from "next/navigation";
 import { useTranslation } from "react-i18next";
 import { AnimatePresence, motion } from "motion/react";
@@ -50,6 +56,7 @@ import {
   PILL_ACTION,
   PILL_ACTION_PLAIN,
   HERO_CARD,
+  MACHINE_VALUE,
 } from "@/components/cellular/custom-profiles/shapes";
 import {
   DUR,
@@ -247,10 +254,42 @@ const CustomProfilePageBody = () => {
     [],
   );
 
+  // -------------------------------------------------------------------------
+  // SETTLEMENT, held separately from SUCCESS
+  // -------------------------------------------------------------------------
+  // `getProfile` NEVER rejects (`use-sim-profiles.ts:353-379` catches
+  // internally) and returns null for a dropped request AND for a genuinely
+  // missing record alike. So "did the detail GET finish?" and "did it produce a
+  // record?" are two different questions, and the page's readiness gate must
+  // ask the FIRST one. Conflating them is what bricked this surface: readiness
+  // read `activeProfile !== null`, so one failed GET at mount left
+  // `heroLocallyReady` false forever, `pageReady` never latched, and all three
+  // surfaces sat on skeletons with no error, no retry and no way out but a
+  // reload the UI never suggested. `list.sh` naming an `active_profile_id`
+  // whose JSON file is gone reproduces that on EVERY load, not transiently.
+  //
+  // Settlement is stored as the ID THAT SETTLED rather than as a boolean, which
+  // is what makes the two invalidation paths behave differently without a
+  // second flag:
+  //
+  //   nonce bump (same id)  — `settledDetailId` still equals `activeProfileId`,
+  //                           so the page stays settled and a failed REFRESH
+  //                           never tears a revealed page back down. That is the
+  //                           same reasoning the `pageReady` latch and
+  //                           `showHeroSkeleton` already carry.
+  //   id change             — the new id has not settled, so readiness drops
+  //                           back to false. Note the hero does NOT flash the
+  //                           error card in that window: `activeProfile` still
+  //                           holds the PREVIOUS record (the null-guard below
+  //                           keeps it), and the error card only renders once
+  //                           `activeProfile` is null AND this id has settled.
+  const [settledDetailId, setSettledDetailId] = useState<string | null>(null);
+
   useEffect(() => {
     let cancelled = false;
     if (!activeProfileId) {
       setActiveProfile(null);
+      setSettledDetailId(null);
       return;
     }
     // Keep the previous hero mounted while the detail lands, rather than
@@ -258,6 +297,9 @@ const CustomProfilePageBody = () => {
     // reloading.
     void getProfile(activeProfileId).then((p) => {
       if (cancelled) return;
+      // BOTH branches settle. A failed GET is a finished GET; what it is not is
+      // a successful one, and the render path below is what tells those apart.
+      setSettledDetailId(activeProfileId);
       if (p) {
         setActiveProfile(p);
         return;
@@ -275,6 +317,18 @@ const CustomProfilePageBody = () => {
     };
     // `detailNonce` is the invalidation channel — see the block above.
   }, [activeProfileId, getProfile, detailNonce]);
+
+  const heroDetailSettled = Boolean(
+    activeProfileId && settledDetailId === activeProfileId,
+  );
+
+  // The hero's THIRD state: the list says a profile is in force, the detail GET
+  // has finished, and it produced nothing. Rendering `NoActiveProfile` here —
+  // which is what "just report ready on error" amounts to — would assert to the
+  // user that their modem is on the stock APN and the default scenario. That is
+  // a claim about HARDWARE we have no evidence for, and it is the exact flash
+  // the null-guard above exists to prevent, made permanent instead of momentary.
+  const heroDetailFailed = heroDetailSettled && activeProfile === null;
 
   const activeScenario = useMemo(() => {
     if (!activeProfile) return null;
@@ -344,8 +398,11 @@ const CustomProfilePageBody = () => {
   // three can never deadlock waiting on each other.
   const [profilesLocallyReady, setProfilesLocallyReady] = useState(false);
   const [scenariosLocallyReady, setScenariosLocallyReady] = useState(false);
+  // SETTLEMENT, not success — see the block above the detail effect. A hero that
+  // reports "not ready" because its fetch FAILED can never become ready, and it
+  // takes the whole page's skeleton down with it.
   const heroLocallyReady =
-    !isLoading && (!activeProfileId || activeProfile !== null);
+    !isLoading && (!activeProfileId || heroDetailSettled);
 
   const allLocallyReady =
     profilesLocallyReady && scenariosLocallyReady && heroLocallyReady;
@@ -549,6 +606,49 @@ const CustomProfilePageBody = () => {
   const [deactivatePhase, setDeactivatePhase] =
     useState<DeactivatePhase>("confirm");
   const isDeactivating = showDeactivateDialog && deactivatePhase === "working";
+
+  // ---------------------------------------------------------------------------
+  // ADOPTING AN APPLY NOBODY ON THIS PAGE STARTED
+  // ---------------------------------------------------------------------------
+  // `useProfileApply` already picks up an in-flight run on mount
+  // (`use-profile-apply.ts:160-185` — `checkExisting`, correct, keep it): a
+  // second browser tab, a boot-time apply, or this user navigating away and
+  // back inside the 8-12s window all leave `applyState.status === "applying"`
+  // with no dialog behind it, because the only three things that set
+  // `showApplyProgress` are direct user actions.
+  //
+  // That is not merely a missing spinner. `handleApplyProgressClose` is the ONLY
+  // caller of `refresh()` + `invalidateActiveProfile()` on this path, and a
+  // dialog that never opened never closes. So an adopted run that ends `failed`
+  // — the `clear_active_profile` path documented under Auto-reapply above —
+  // DEACTIVATES the profile on the device while this page goes on rendering it
+  // as in force, indefinitely: `useActiveProfile`'s 30s poll is disabled under
+  // `SimProfilesProvider` and nothing else re-reads it.
+  //
+  // THE RE-OPEN GUARD. `handleApplyProgressClose` deliberately leaves
+  // `applyState` in memory after closing (the row shows "Applied at HH:MM"), so
+  // an effect keyed on `applyState` alone would re-open the dialog on the very
+  // next render and every render after — the user could never dismiss it. Two
+  // things prevent that here, and both are needed:
+  //
+  //   1. It only fires on `status === "applying"`. Every state the user can
+  //      close on is terminal, so the close itself can never be undone by this.
+  //   2. A ref remembers WHICH RUN has been adopted, keyed on
+  //      `profile_id:started_at` — the backend's own run identity, unequal
+  //      across runs by construction. So it is one-shot per run even if a run
+  //      somehow re-enters `applying` after a dismissal, and it cannot fight the
+  //      three user-action set-sites: for those the dialog is already open and
+  //      marking the run adopted is a no-op.
+  //
+  // It only ever sets `true`; closing stays entirely the close handler's job.
+  const adoptedApplyRunRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (applyState?.status !== "applying") return;
+    const runKey = `${applyState.profile_id}:${applyState.started_at}`;
+    if (adoptedApplyRunRef.current === runKey) return;
+    adoptedApplyRunRef.current = runKey;
+    setShowApplyProgress(true);
+  }, [applyState]);
 
   const handleActivateRequest = useCallback(
     (id: string) => {
@@ -812,6 +912,13 @@ const CustomProfilePageBody = () => {
                   onEditSchedule={handleEditSchedule}
                 />
               </motion.div>
+            ) : heroDetailFailed ? (
+              <motion.div key="hero-error" {...HERO_SWAP}>
+                <ActiveProfileUnavailable
+                  detail={error}
+                  onRetry={invalidateActiveProfile}
+                />
+              </motion.div>
             ) : (
               <motion.div key="hero-empty" {...HERO_SWAP}>
                 <NoActiveProfile />
@@ -847,6 +954,14 @@ const CustomProfilePageBody = () => {
             creatingSuggestionId={creatingId}
             suggestionError={suggestionsError ?? error}
             onCreateSuggestion={handleCreateFromSuggestion}
+            // The same "modem is mid-mutation" signal the hero's actions take.
+            // Until the adoption effect above existed this was unreachable —
+            // both progress dialogs are modal and non-dismissable while a
+            // mutation runs, so the list was never clickable during one. An
+            // ADOPTED apply has no dialog until it opens, and the list's own
+            // `busy` is scoped to the profile being applied, so every OTHER
+            // row's Activate stayed live. The two fixes are one fix.
+            pageBusy={heroBusy}
             holdSkeleton={!pageReady}
             onLocalReadyChange={handleProfilesLocalReadyChange}
           />
@@ -943,6 +1058,81 @@ function NoActiveProfile() {
       <span className="text-on-surface-variant max-w-[32rem] text-sm leading-relaxed text-pretty">
         {t("custom_profiles.hero_empty.description")}
       </span>
+    </div>
+  );
+}
+
+/**
+ * The hero's THIRD state: a profile IS active, and we could not read it.
+ *
+ * WHY THIS EXISTS RATHER THAN A LATCHED SKELETON OR A REUSED `NoActiveProfile`.
+ * Those are the two shapes this slot has worn before and both lie in a
+ * different direction. A skeleton that never clears says "still loading" about
+ * a request that finished; `NoActiveProfile` says "your modem is on the stock
+ * APN and the default scenario", which is a claim about hardware nothing here
+ * can support — the LIST still names an active id. This card says only what is
+ * actually known: something is in force, and its record did not load.
+ *
+ * TONE: `warning`, not `destructive`. Nothing on the modem failed — the profile
+ * is running exactly as it was a second ago; what failed is our READ of it.
+ * `destructive` is this system's failure role (a deregistered modem, a failed
+ * apply step) and spending it on an unreadable record trains the user to
+ * discount the tone that has to mean something the next time. This is the same
+ * split `handleDeactivateConfirm` already makes below between rc=3
+ * (deregistered -> error) and rc=5 (attached but unconfirmed -> warning):
+ * ambiguity is warning, confirmed failure is destructive.
+ *
+ * GLYPH: `cloud_off`, distinct from `sim_card_alert` on `NoActiveProfile` — the
+ * two share this slot, `warning-container` and the neutral disc are near enough
+ * in lightness to be one surface at a glance, and the glyph is the only channel
+ * that separates them for a deuteranopic user.
+ *
+ * The retry goes through `invalidateActiveProfile` — the existing nonce channel
+ * — because it is the only thing that can re-run the detail GET when the id has
+ * not moved. `refresh()` would re-read the SUMMARY list, which omits the very
+ * `settings` object this card is missing.
+ */
+function ActiveProfileUnavailable({
+  detail,
+  onRetry,
+}: {
+  /** The hook's shared error string, when the failed GET set one. */
+  detail: string | null;
+  onRetry: () => void;
+}) {
+  const { t } = useTranslation("cellular");
+  return (
+    <div
+      role="alert"
+      className={cn(HERO_CARD, "items-center gap-3 py-9 text-center")}
+    >
+      {/* Fill pair, not the container pair: the disc sits on the hero's plain
+          `bg-surface` shell, which is the same reasoning `HERO_DISC` carries. */}
+      <span className="bg-warning text-warning-foreground grid size-14 place-items-center rounded-pill">
+        <MaterialSymbol name="cloud_off" size={29} filled aria-hidden />
+      </span>
+      <span className="text-lg font-semibold">
+        {t("custom_profiles.hero_error.title")}
+      </span>
+      <span className="text-on-surface-variant max-w-[32rem] text-sm leading-relaxed text-pretty">
+        {t("custom_profiles.hero_error.description")}
+      </span>
+      {/* The backend's own words, verbatim and in machine voice. `break-words`
+          because a `+CME ERROR:` payload has no break opportunity of its own. */}
+      {detail ? (
+        <span
+          className={cn(
+            MACHINE_VALUE,
+            "text-on-surface-variant max-w-[32rem] text-xs break-words",
+          )}
+        >
+          {detail}
+        </span>
+      ) : null}
+      <Button variant="tonal" className={PILL_ACTION} onClick={onRetry}>
+        <MaterialSymbol name="refresh" size={17} aria-hidden />
+        {t("custom_profiles.hero_error.retry")}
+      </Button>
     </div>
   );
 }

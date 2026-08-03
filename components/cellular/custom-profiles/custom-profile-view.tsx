@@ -222,6 +222,26 @@ export interface CustomProfileViewProps {
    */
   now?: Date;
   /**
+   * ADDED. The modem is mid-mutation somewhere on this PAGE — an apply in
+   * flight or a deactivate round trip — regardless of which profile it belongs
+   * to. Every row's actions go dead while it holds.
+   *
+   * The row's own `busy` cannot cover this: it is scoped to
+   * `lastApplyState.profile_id`, so during an apply of profile A, profile B's
+   * Activate stayed live and would fire a second apply into a modem mid-`AT+COPS`
+   * — a wasted `apn_busy` at best, a queued second detach at worst. It was
+   * masked only because both progress dialogs are modal and non-dismissable
+   * while a mutation runs; an ADOPTED apply (see `custom-profile.tsx`) has no
+   * dialog behind it, which is what makes this reachable.
+   *
+   * Deliberately kept SEPARATE from `busy` rather than OR-ed into it at the
+   * source: `busy` also drives the row's "Applying" status chip and its
+   * "Activating…" button label, and a page-wide busy flag flowing into those
+   * would make every idle row claim it was being applied. State honesty — the
+   * page-wide signal disables, it does not narrate.
+   */
+  pageBusy?: boolean;
+  /**
    * ADDED. Keeps this card's skeleton up even after ITS OWN data is ready,
    * because the page shell wants both this list and the Connection Scenarios
    * card to reveal on the same frame — Scenarios' single `list.sh` GET lands
@@ -264,6 +284,7 @@ const CustomProfileViewComponent = ({
   scenarios,
   onReapply,
   now,
+  pageBusy = false,
   holdSkeleton = false,
   onLocalReadyChange,
 }: CustomProfileViewProps) => {
@@ -495,6 +516,7 @@ const CustomProfileViewComponent = ({
                       liveScenario={scenarioById(liveScenarioId)}
                       now={clock}
                       busy={!!busy}
+                      pageBusy={pageBusy}
                       auditStatus={audit}
                       auditTime={
                         audit ? formatAppliedTime(lastApplyState!.started_at) : ""
@@ -643,6 +665,7 @@ const ProfileRow = ({
   liveScenario,
   now,
   busy,
+  pageBusy,
   auditStatus,
   auditTime,
   full,
@@ -660,7 +683,10 @@ const ProfileRow = ({
    *  generic `route` glyph and hides the band-lock chip. */
   liveScenario: ConnectionScenario | null;
   now: Date;
+  /** THIS profile is the one being applied. Drives the chip and the label too. */
   busy: boolean;
+  /** SOMETHING on the page is mutating the modem. Disables only — never narrates. */
+  pageBusy: boolean;
   auditStatus: AuditStatus | null;
   auditTime: string;
   /** Full config, prefetched by the view so the row arrives populated. */
@@ -678,6 +704,12 @@ const ProfileRow = ({
   const scheduled = schedule.enabled && blocks > 0;
   const tone = profileRowTone(status);
   const locksBands = scenarioLocksBands(liveScenario);
+
+  // Every action on this row fires a modem mutation, so all three go dead while
+  // ANY mutation is in flight — this row's own apply or one belonging to another
+  // row. Deactivate had no guard at all before this; it was the one control on
+  // the surface that could still be clicked into a busy modem.
+  const actionsLocked = busy || pageBusy;
 
   return (
     <motion.div
@@ -864,7 +896,7 @@ const ProfileRow = ({
               variant="tonal"
               className={ROW_ACTION}
               onClick={onReapply}
-              disabled={busy}
+              disabled={actionsLocked}
             >
               <MaterialSymbol name="restart_alt" size={16} aria-hidden />
               {t("custom_profiles.view.reapply")}
@@ -875,6 +907,7 @@ const ProfileRow = ({
               variant="secondary"
               className={ROW_ACTION}
               onClick={onDeactivate}
+              disabled={actionsLocked}
             >
               <MaterialSymbol
                 name="power_settings_new"
@@ -887,7 +920,7 @@ const ProfileRow = ({
             <Button
               className={ROW_ACTION}
               onClick={onActivate}
-              disabled={busy}
+              disabled={actionsLocked}
             >
               <MaterialSymbol
                 name={busy ? "progress_activity" : "play_arrow"}

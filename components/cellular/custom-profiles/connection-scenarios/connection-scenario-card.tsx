@@ -703,7 +703,7 @@ const ConnectionScenariosCard = ({
 
       {/* ===== Add Scenario Dialog ===== */}
       <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
-        <DialogContent className="rounded-card border-0 sm:max-w-md">
+        <DialogContent className="rounded-card sm:max-w-md">
           <DialogHeader>
             <DialogTitle>{t("scenarios.dialog.add.title")}</DialogTitle>
           </DialogHeader>
@@ -884,7 +884,7 @@ const ConnectionScenariosCard = ({
 
       {/* ===== Edit Scenario Dialog ===== */}
       <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
-        <DialogContent className="rounded-card border-0 sm:max-w-md">
+        <DialogContent className="rounded-card sm:max-w-md">
           <DialogHeader>
             <DialogTitle>{t("scenarios.dialog.edit.title")}</DialogTitle>
           </DialogHeader>

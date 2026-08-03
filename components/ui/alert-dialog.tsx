@@ -69,7 +69,7 @@ function AlertDialogContent({
           // click-dead for exactly this duration after the user closes. At the
           // unqualified `emphasized` this once carried, that was 800ms of dead
           // clicks behind an already-invisible dialog. Keep exits on `quick`.
-          "bg-background data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=open]:duration-[var(--duration-emphasized)] data-[state=open]:ease-emphasized data-[state=closed]:duration-[var(--duration-quick)] data-[state=closed]:ease-standard group/alert-dialog-content fixed top-[50%] left-[50%] z-50 grid w-full max-w-[calc(100%-2rem)] translate-x-[-50%] translate-y-[-50%] gap-4 rounded-lg border p-6 shadow-lg data-[size=sm]:max-w-xs data-[size=default]:sm:max-w-lg",
+          "bg-surface data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=open]:duration-[var(--duration-emphasized)] data-[state=open]:ease-emphasized data-[state=closed]:duration-[var(--duration-quick)] data-[state=closed]:ease-standard group/alert-dialog-content fixed top-[50%] left-[50%] z-50 grid w-full max-w-[calc(100%-2rem)] translate-x-[-50%] translate-y-[-50%] gap-4 rounded-lg p-6 shadow-lg data-[size=sm]:max-w-xs data-[size=default]:sm:max-w-lg",
           className
         )}
         {...props}

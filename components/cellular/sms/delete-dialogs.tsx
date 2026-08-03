@@ -168,7 +168,7 @@ export function SmsDeleteDialogs({
         open={!!deleteTarget}
         onOpenChange={(open) => !open && onCloseDeleteTarget()}
       >
-        <AlertDialogContent className="rounded-card border-0">
+        <AlertDialogContent className="rounded-card">
           <AlertDialogHeader>
             <AlertDialogTitle>
               {t("sms.inbox.delete_single_confirm.title")}
@@ -217,7 +217,7 @@ export function SmsDeleteDialogs({
         open={showDeleteAll}
         onOpenChange={(open) => !open && onCloseDeleteAll()}
       >
-        <AlertDialogContent className="rounded-card border-0">
+        <AlertDialogContent className="rounded-card">
           <AlertDialogHeader>
             <AlertDialogTitle>
               {isDeleting
@@ -279,7 +279,7 @@ export function SmsDeleteDialogs({
         open={showDeleteSelected}
         onOpenChange={(open) => !open && onCloseDeleteSelected()}
       >
-        <AlertDialogContent className="rounded-card border-0">
+        <AlertDialogContent className="rounded-card">
           <AlertDialogHeader>
             <AlertDialogTitle>
               {isDeleting

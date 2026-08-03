@@ -1079,7 +1079,7 @@ export function SpeedtestDialog({ open, onOpenChange }: SpeedtestDialogProps) {
         showCloseButton={false}
         aria-describedby={undefined}
         className={cn(
-          "bg-surface rounded-card gap-5 border-0 p-6 sm:max-w-md",
+          "rounded-card gap-5 p-6 sm:max-w-md",
           "max-h-[85vh] overflow-y-auto",
           // The panel is changing size and shape, so it arrives on the
           // emphasized clock rather than the primitive's stock 200ms.

@@ -91,7 +91,7 @@ export default function SmsComposeDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="rounded-card border-0 sm:max-w-lg">
+      <DialogContent className="rounded-card sm:max-w-lg">
         <DialogHeader>
           <DialogTitle className="text-xl font-semibold tracking-[-0.01em]">
             {t("sms.compose.title")}

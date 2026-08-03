@@ -98,7 +98,7 @@ export function MessageDialog({
 
   return (
     <Dialog open={!!message} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="rounded-card border-0 sm:max-w-xl">
+      <DialogContent className="rounded-card sm:max-w-xl">
         <DialogHeader>
           <DialogTitle className="text-xl font-semibold tracking-[-0.01em]">
             {message?.sender}

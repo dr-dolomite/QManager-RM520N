@@ -851,12 +851,185 @@ The hero ↔ `NoActiveProfile` swap also cross-fades now, via
 `components/local-network/ip-passthrough/ip-passthrough-card.tsx:295–372`
 precedent. Against DESIGN.md's Enter-Only Rule: that rule governs **conditions**
 and **navigation**, where something leaving means the condition cleared. This is
-neither — the hero is a permanent anchor **slot** that always renders one of two
+neither — the hero is a permanent anchor **slot** that always renders one of its
 full states, and `mode="wait"` requires an exit by construction (without one the
 two full-height cards co-mount for a frame and shove the page down and back).
 Enter is opacity + `y:6`; exit is opacity only. The skeleton stays *outside* the
 `AnimatePresence`, so the page's mount cascade is not doubled up with a
 skeleton→hero cross-fade.
+
+> ℹ️ NOTE: The swap is a **three**-way choice, not two — `activeProfile` →
+> `heroDetailFailed` → `NoActiveProfile`, at
+> `custom-profile.tsx:900–925`. See the next section for the third arm.
+
+### Settlement is not success — the hero's permanent skeleton
+
+**Short version:** the page's readiness gate asked "did the detail fetch produce
+a record?" when the only safe question is "did the detail fetch *finish*?" One
+failed `GET` at mount left the whole page — hero, Saved Profiles, and Connection
+Scenarios — sitting on skeletons forever, with no error, no retry, and no way
+out that the UI ever suggested.
+
+`getProfile` (`hooks/use-sim-profiles.ts:353–379`) **never rejects**. It catches
+internally and returns `null` for a dropped request, a non-2xx response, and a
+genuinely missing record, all alike. Readiness read `activeProfile !== null`, so
+those three outcomes were indistinguishable from "still loading". That flag ANDs
+into the latching `pageReady` (`custom-profile.tsx:407–412`), which gates
+`showHeroSkeleton` (`:428`) **and** is handed down as `holdSkeleton` to both
+child cards (`:965`, `:973`) — so one failed request took down three surfaces.
+
+One trigger is permanent rather than transient: if `list.sh` names an
+`active_profile_id` whose JSON file is gone, `get.sh` fails on **every** attempt,
+and the page is bricked across reloads.
+
+> ℹ️ NOTE: Two plausible causes were investigated and **ruled out** — don't
+> re-chase them. `isLoading` cannot stick, because `fetchProfiles` clears it in a
+> `finally` block (`hooks/use-sim-profiles.ts:180–184`) that runs on the failure
+> path too. And an expired session is not a trigger either: `authFetch` redirects
+> to `/login/` on a 401 (`lib/auth-fetch.ts:11–15`), so the user leaves the page
+> rather than watching it hang.
+
+#### Settlement is stored as an ID, not a boolean
+
+This is the reusable part. `settledDetailId` (`custom-profile.tsx:286`) holds
+**the id that settled**, and it is set in *both* branches of the `.then()` at
+`:302` — before the success/failure split, because a failed `GET` is a finished
+`GET`; what it is not is a successful one. Readiness then derives from
+`heroDetailSettled` (`:321–323`), which compares that id against the live
+`activeProfileId`, and `heroLocallyReady` (`:404–405`) reads it instead of
+`activeProfile !== null`.
+
+Storing the *id* rather than a bare `true` is what makes the page's two
+invalidation paths behave correctly out of one piece of state:
+
+| Invalidation | What `settledDetailId` does | Result |
+| ------------ | --------------------------- | ------ |
+| **Nonce bump** (`invalidateActiveProfile`, same id) | Still equals `activeProfileId` | Page stays settled. A failed *refresh* never tears a revealed page back down — the same reasoning the `pageReady` latch and `showHeroSkeleton` already carry. |
+| **Id change** (activate, deactivate, SIM swap) | No longer equals `activeProfileId` | Readiness drops, because the new id genuinely has not been read yet. |
+
+A boolean cannot do both. `true` never resetting means an id change would reveal
+a hero for a profile nobody had fetched; resetting it on every effect run means a
+failed background refresh collapses a page the user is already reading.
+
+Note the hero does **not** flash the error card during an id change: the effect's
+null-guard (`:313`) keeps the *previous* record mounted, and the error arm only
+renders once `activeProfile` is null **and** the current id has settled
+(`heroDetailFailed`, `:331`).
+
+#### The third hero state: `ActiveProfileUnavailable`
+
+`ActiveProfileUnavailable` (`custom-profile.tsx:1095`) is the state that made
+honest readiness possible: rendered at `:915–921` when settled-and-null, with the
+hook's error string shown verbatim in machine voice and a Retry.
+
+> ⚠️ WARNING: **Do not "fix" a stuck skeleton by reporting ready on error.**
+> That is the obvious one-line change and it is wrong. With `activeProfile` null,
+> reporting ready renders `NoActiveProfile` — a state screen that tells the user
+> their modem is on the **stock APN and the default scenario**. That is a claim
+> about hardware for which a failed read is not evidence, made to a user whose
+> modem *is* running a profile. It is the exact flash the effect's null-guard
+> (`:307–313`) exists to prevent, made permanent instead of momentary. The third
+> state exists so readiness can be honest without lying about the device.
+
+Two details on that card that are load-bearing rather than cosmetic:
+
+- **Tone is `warning`, not `destructive`.** Nothing on the modem failed — our
+  *read* of it failed. `destructive` is this system's confirmed-failure role, and
+  spending it on an unreadable record trains the user to discount the tone that
+  has to mean something next time. This is the same split `handleDeactivateConfirm`
+  already makes between `rc=3` (deregistered → error) and `rc=5` (attached but
+  unconfirmed → warning): ambiguity is warning, confirmed failure is destructive.
+- **Glyph is `cloud_off`**, deliberately unlike `NoActiveProfile`'s
+  `sim_card_alert`. The two share this slot, and per DESIGN.md's status-chip
+  reasoning the glyph is the only channel separating them for a deuteranopic
+  user.
+
+Retry goes through the existing `invalidateActiveProfile` nonce (`:919`), **not**
+`refresh()`. `refresh()` re-reads the *summary* list, which omits the very
+`settings` object this card is missing — see
+[the nonce section above](#the-heros-detail-fetch-needs-a-nonce--refresh-cannot-invalidate-it).
+
+New keys `custom_profiles.hero_error.{title,description,retry}` ship in all five
+locales.
+
+### Adopting an apply nobody on this page started
+
+**Short version:** `useProfileApply` picks up an in-flight apply on mount, but
+nothing opened a dialog for it — and the close handler is the only thing that
+re-reads the profile list. So an adopted run that ended `failed` deactivated the
+profile on the device while the page went on rendering it as in force,
+indefinitely.
+
+The adoption itself was already correct and predates this fix:
+`hooks/use-profile-apply.ts:160–185` (`checkExisting`) reads `apply_status.sh` on
+mount and resumes polling when it finds `status === "applying"`. A second browser
+tab, a boot-time auto-apply, or this user navigating away and back inside the
+8–12 s apply window all land there. What was missing is that the only three
+things that ever set `showApplyProgress` (`custom-profile.tsx:604`) were direct
+user actions, so an adopted run had no dialog behind it.
+
+That is not merely a missing spinner. `handleApplyProgressClose` (`:668–681`) is
+the **only** caller of `refresh()` + `invalidateActiveProfile()` on this path,
+and a dialog that never opened never closes. A run ending `failed` takes the
+`clear_active_profile` branch in the worker's finalize block, so the device
+deactivates the profile while this page keeps rendering it — `useActiveProfile`'s
+30 s poll is disabled under `SimProfilesProvider` and nothing else re-reads it. A
+State-Honesty violation with a concrete, reachable failure mode.
+
+The fix is an adoption effect at `custom-profile.tsx:644–651`. It only ever sets
+`true`; closing stays entirely the close handler's job.
+
+#### The re-open guard is the subtle part
+
+> ⚠️ WARNING: An effect keyed on `applyState` alone re-opens the dialog on every
+> render and the user can **never dismiss it**. `handleApplyProgressClose`
+> deliberately leaves `applyState` in memory after closing — that is what lets
+> the row keep showing "Applied at HH:MM" until the next activation (`:670–671`)
+> — so the condition that opened the dialog is still true the instant it closes.
+
+Two guards prevent that, and **both** are needed:
+
+1. **It only fires on `status === "applying"`** (`:646`). Every state the user can
+   close on is terminal (`complete`, `partial`, `failed`), so the close itself can
+   never be undone by this effect.
+2. **A ref remembers which RUN was adopted**, keyed on
+   `` `${profile_id}:${started_at}` `` (`:644`, `:647–649`) — the backend's own
+   run identity, unequal across runs by construction. That makes it one-shot per
+   run even if a run somehow re-enters `applying` after a dismissal, and it cannot
+   fight the three user-action set-sites: for those the dialog is already open, so
+   marking the run adopted is a no-op.
+
+### `pageBusy` disables; `busy` narrates
+
+The active row's **Deactivate** button had no `disabled` guard at all in any code
+path — the one control on this surface that could be clicked into a modem
+mid-mutation. It is now gated, along with Reapply and Activate, through
+`actionsLocked = busy || pageBusy` (`custom-profile-view.tsx:712`, applied at
+`:899`, `:910`, `:923`). `pageBusy` is a new prop
+(`custom-profile-view.tsx:224–243`) fed from the page's existing `heroBusy`
+signal (`custom-profile.tsx:848–849`, passed at `:964`).
+
+> ⚠️ WARNING: **Do not OR `pageBusy` into `busy` at the source.** This is the
+> non-obvious invariant and the reason two flags exist for what looks like one
+> concept.
+
+The row's own `busy` (`custom-profile-view.tsx:493–495`) is scoped to
+`lastApplyState.profile_id` — it means *this* profile is the one being applied —
+and it does not merely disable, it **narrates**:
+
+- it drives the row's status chip to "Applying" (`:747`), and
+- it swaps Activate's glyph to a spinner and its label to "Activating…"
+  (`:926–935`).
+
+A page-wide flag flowing into those would make every idle row on the surface
+claim it was being applied. So the two signals stay separate by role, recorded in
+the props themselves at `:686` and `:688`: **the page-wide signal disables; it
+does not narrate.**
+
+Before the adoption fix this gap was masked rather than absent — both progress
+dialogs are modal and non-dismissable while a mutation runs, so the list was
+never clickable during one. An adopted apply has no dialog until the effect opens
+it, which is what makes the unguarded button reachable. The two fixes are one fix.
 
 ### Saving an active profile auto-reapplies it
 
@@ -1068,22 +1241,58 @@ what finally makes (1) and (3) do their jobs.
 > earlier version of that comment blamed the `min-w-0` on `STEP`, which was
 > wrong and cost a live investigation; the doc comment and the fix now agree.
 
-#### The panel fill: `bg-surface`, not `bg-background`
+#### The panel fill: `bg-surface`, now owned by the primitive
 
-The dialog painted `bg-background` from the `DialogContent` base — the same
-token `app/globals.css:420` gives the page `body`. The panel was literally the
-colour of the page behind it, and the caller's `border-0` removed the last edge,
-so it dissolved. It now uses the elevated `bg-surface` that every card on this
-surface already sits on (`PROFILE_CARD_PEER`, `HERO_CARD`), via the
-`APPLY_DIALOG_PANEL` constant in `shapes.ts`. `border-0` is retained
-deliberately — No-Hairline-On-Fill: a real tonal fill separates on its own, and
-the incumbent hairline was doing the work the missing fill should have been
-doing.
+`--background` and `--surface` are different tokens
+(`app/globals.css:167`/`:169` light, `:291`/`:293` dark), but the page `body`
+(`:420`) and `SidebarInset` (`components/ui/sidebar.tsx:314`) both paint
+`bg-background` — and so did all four dialog-family primitives. DESIGN.md:348-349
+assigns dialogs to **Surface**, the same step as cards. The citation spans two
+lines on purpose: 348 is Canvas, 349 is Surface, and the point is the contrast
+between them.
 
-> ℹ️ NOTE: `components/ui/dialog.tsx` was **not** changed — this was scoped to
-> the one dialog on purpose. `components/cellular/sms/delete-dialogs.tsx` has
-> the same latent `bg-background`-equals-body issue and is a known, deliberate
-> follow-up rather than an oversight.
+> ⚠️ WARNING: The symptom was **not** "the panel is invisible", and an earlier
+> version of this section and of the `shapes.ts` docblock both said it was. A
+> `bg-black/50` scrim sits between panel and page, and the panel composites above
+> it, so it always read as a lighter rectangle. The real defect was **elevation
+> inversion**: in dark mode the dialog painted `--background` `0.155` while every
+> card beneath it painted `--surface` `0.215`, putting the most elevated element
+> in the app *below* the cards on the tonal ramp.
+
+A census found 53 of 56 dialog-family call sites inheriting that wrong default,
+so the fix moved to the primitives rather than to the call sites:
+`components/ui/dialog.tsx:76`, `alert-dialog.tsx:72`, `sheet.tsx:71` and
+`drawer.tsx:59` now default to `bg-surface`. Promoting the fill made the base
+`border` a hairline on a tonal container, so the same change dropped the border
+from `dialog.tsx` and `alert-dialog.tsx` and the per-side borders from
+`sheet.tsx` and `drawer.tsx` — **No-Hairline-On-Fill is now enforced at the
+source.**
+
+> ℹ️ NOTE: `APPLY_DIALOG_PANEL` (`shapes.ts:649`) therefore carries **neither**
+> `bg-surface` nor `border-0` any more — the primitive owns both, and re-adding
+> either at a call site is a regression, not a belt-and-braces. Seven other
+> overrides in this feature and elsewhere were deleted for the same reason
+> (`deactivate-progress-dialog.tsx`, `connection-scenario-card.tsx` ×2, the three
+> SMS delete dialogs, `sms-compose-dialog.tsx`, `message-dialog.tsx`,
+> `speedtest-dialog.tsx`).
+
+One genuine regression fell out of the promotion and was fixed in the same pass.
+`ProfileFormDialog` (`profile-form-dialog.tsx:123`) renders the wizard, which
+returns its own `<Card>` (`bg-card`, byte-identical to `--surface`) inside a
+`p-0 gap-0` `DialogContent` — so the Card *is* the panel. Card-on-background used
+to give it an edge; on `bg-surface` it became one flat block with a redundant
+hairline. The host neutralises the inner Card's decoration
+(`[&>[data-slot=card]]:border-0 :bg-transparent :shadow-none`) rather than the
+wizard being edited, because `profile-form-dialog.tsx:23` states as a contract
+that the wizard is untouched, and the cause of the collision is the host's new
+fill. Only decoration is dropped — the Card's `gap-6`/`py-6` layout and its
+`bg-surface-container` sections still need their step above the panel.
+
+A known consequence is recorded in DESIGN.md's Migration Deltas table: a
+`SelectContent`/`PopoverContent` opened from inside a dialog now lands on the
+same tonal step as the panel behind it, since `--surface`, `--card` and
+`--popover` are one value. Their own border and shadow still separate them; give
+a nested layer a container step on new work.
 
 Separately, `components/ui/tonal-banner.tsx` gained `break-words` on its body
 span. Banners render raw device strings that carry no break opportunities;

@@ -321,6 +321,11 @@
       "title": "No profile is active",
       "description": "The modem is running its stock APN and the default connection scenario. Save a profile to pin an APN, TTL and scenario schedule to this SIM."
     },
+    "hero_error": {
+      "title": "Profile details unavailable",
+      "description": "A profile is active on your modem, but its details couldn't be loaded. Nothing has changed on the device — this is a display issue only.",
+      "retry": "Try again"
+    },
     "view": {
       "title": "Saved Profiles",
       "description": "Manage your custom SIM profiles.",
