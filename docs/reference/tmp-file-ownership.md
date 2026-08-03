@@ -186,6 +186,10 @@ Seeded correctly, but `cleanup()` did `rm -f` on it at the end of every run. One
 
 *Fix:* `cleanup()` truncates with `: >` instead. That is exactly equivalent for a lock that decides on **content** (`profile_check_lock` tests `[ -n "$pid" ] && [ -d /proc/$pid ]`) — an empty file yields an empty PID, which reads as unlocked — while keeping the shared inode alive.
 
+**There was a second unlink**, missed in that pass and caught only by post-deploy verification: `profile_check_lock()` in `profile_mgr.sh` also did `rm -f` on the file, on its stale-PID branch. Fixing `cleanup()` alone was not enough — and this site was strictly worse, because it is not conditional on a stale run. The seeded file is **empty**, so the first acquire after *every* boot reads an empty PID, takes the stale branch, and unlinks the seed unconditionally. Verified on hardware after the v0.1.14 install: the file was `root:root 0644` and `sudo -u www-data` could not open it for write.
+
+The general lesson: when a seeded file is found violating the never-`rm` rule, **grep for every writer of that path before declaring it fixed**. A release-by-unlink and an acquire-by-`>` are usually written in different functions, and the acquire looks innocent on its own.
+
 ## Checklist for a new shared `/tmp` file
 
 1. Does **both** root and www-data write it?
