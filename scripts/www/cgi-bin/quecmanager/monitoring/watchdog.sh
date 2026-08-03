@@ -316,13 +316,19 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
         if [ "$new_enabled" = "1" ]; then
             rm -f "$DISABLED_FLAG"
             # Enable and start the watchcat service
-            svc_enable qmanager_watchcat
+            if ! svc_enable qmanager_watchcat; then
+                cgi_error "service_enable_failed" "Watchdog settings were saved, but the watchcat service could not be enabled on boot (rootfs may be read-only)"
+                exit 0
+            fi
             ( svc_restart qmanager_watchcat & )
             qlog_info "Watchdog settings saved, watchcat enabled and started"
         else
             # Stop and disable the watchcat service
             svc_stop qmanager_watchcat
-            svc_disable qmanager_watchcat
+            if ! svc_disable qmanager_watchcat; then
+                cgi_error "service_disable_failed" "Watchdog settings were saved, but the watchcat service could not be disabled on boot (rootfs may be read-only)"
+                exit 0
+            fi
             qlog_info "Watchdog settings saved, watchcat stopped and disabled"
         fi
         echo '{"success":true}'

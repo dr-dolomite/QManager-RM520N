@@ -138,11 +138,17 @@ if [ "$LOCK_TYPE" = "lte" ]; then
         # Tower Settings — locking does not implicitly enable it.
         tower_config_update_lte "true" "$c1_earfcn" "$c1_pci" "$c2_earfcn" "$c2_pci" "$c3_earfcn" "$c3_pci"
 
-        # Spawn failover watcher (no-op if failover.enabled is false)
-        failover_armed=$(tower_spawn_failover_watcher)
+        # Spawn failover watcher (no-op if failover.enabled is false).
+        # rc 2 = daemon is live but svc_enable failed, so failover will NOT
+        # survive a reboot. Report it — the printed boolean only describes the
+        # running daemon and would otherwise hide the lost persistence.
+        failover_armed=$(tower_spawn_failover_watcher); _fa_rc=$?
+        _fa_persist_failed="false"
+        [ "$_fa_rc" = "2" ] && _fa_persist_failed="true"
 
         jq -n --argjson nc "$num_cells" --argjson fa "$failover_armed" \
-            '{"success":true,"type":"lte","action":"lock","num_cells":$nc,"failover_armed":$fa}'
+            --argjson pf "$_fa_persist_failed" \
+            '{"success":true,"type":"lte","action":"lock","num_cells":$nc,"failover_armed":$fa,"service_enable_failed":$pf}'
 
     elif [ "$ACTION" = "unlock" ]; then
         # Kill failover watcher BEFORE sending unlock AT command.
@@ -186,7 +192,11 @@ if [ "$LOCK_TYPE" = "lte" ]; then
         else
             # No other lock — disable failover fully
             tower_config_update '.failover.enabled = false'
-            svc_disable qmanager_tower_failover
+            if ! svc_disable qmanager_tower_failover; then
+                qlog_warn "svc_disable qmanager_tower_failover failed after LTE unlock"
+                cgi_error "service_disable_failed" "Tower lock cleared, but the failover watcher could not be disabled on boot (rootfs may be read-only)"
+                exit 0
+            fi
             qlog_info "No active locks — failover stopped and disabled"
         fi
 
@@ -250,11 +260,14 @@ elif [ "$LOCK_TYPE" = "nr_sa" ]; then
         # Tower Settings — locking does not implicitly enable it.
         tower_config_update_nr "true" "$nr_pci" "$nr_arfcn" "$nr_scs" "$nr_band"
 
-        # Spawn failover watcher (no-op if failover.enabled is false)
-        failover_armed=$(tower_spawn_failover_watcher)
+        # Spawn failover watcher (no-op if failover.enabled is false).
+        # rc 2 = daemon live but boot-persistence lost — see the LTE branch.
+        failover_armed=$(tower_spawn_failover_watcher); _fa_rc=$?
+        _fa_persist_failed="false"
+        [ "$_fa_rc" = "2" ] && _fa_persist_failed="true"
 
-        jq -n --argjson fa "$failover_armed" \
-            '{"success":true,"type":"nr_sa","action":"lock","failover_armed":$fa}'
+        jq -n --argjson fa "$failover_armed" --argjson pf "$_fa_persist_failed" \
+            '{"success":true,"type":"nr_sa","action":"lock","failover_armed":$fa,"service_enable_failed":$pf}'
 
     elif [ "$ACTION" = "unlock" ]; then
         # Kill failover watcher BEFORE sending unlock AT command.
@@ -298,7 +311,11 @@ elif [ "$LOCK_TYPE" = "nr_sa" ]; then
         else
             # No other lock — disable failover fully
             tower_config_update '.failover.enabled = false'
-            svc_disable qmanager_tower_failover
+            if ! svc_disable qmanager_tower_failover; then
+                qlog_warn "svc_disable qmanager_tower_failover failed after NR-SA unlock"
+                cgi_error "service_disable_failed" "Tower lock cleared, but the failover watcher could not be disabled on boot (rootfs may be read-only)"
+                exit 0
+            fi
             qlog_info "No active locks — failover stopped and disabled"
         fi
 

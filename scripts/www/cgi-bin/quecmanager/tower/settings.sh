@@ -110,6 +110,7 @@ tower_config_update_settings "$PERSIST" "$FO_ENABLED" "$FO_THRESHOLD"
 
 # --- Ensure failover daemon is running when enabled + lock active ------------
 watcher_spawned="false"
+svc_enable_failed="false"
 if [ "$FO_ENABLED" = "true" ]; then
     lte_active=$(tower_config_get ".lte.enabled")
     nr_active=$(tower_config_get ".nr_sa.enabled")
@@ -121,18 +122,26 @@ if [ "$FO_ENABLED" = "true" ]; then
             pid_alive "$wpid" && daemon_alive="true"
         fi
         if [ "$daemon_alive" != "true" ]; then
-            spawn_result=$(tower_spawn_failover_watcher)
+            spawn_result=$(tower_spawn_failover_watcher); _spawn_rc=$?
             [ "$spawn_result" = "true" ] && watcher_spawned="true"
-            qlog_info "Failover spawn attempt: result=$spawn_result"
+            # rc 2 = daemon live but svc_enable failed, so failover won't
+            # survive a reboot. The printed boolean describes only the running
+            # daemon, so without this the lost persistence is invisible.
+            [ "$_spawn_rc" = "2" ] && svc_enable_failed="true"
+            qlog_info "Failover spawn attempt: result=$spawn_result rc=$_spawn_rc"
         fi
     fi
 fi
 
 # --- Kill failover daemon if failover was just disabled ----------------------
+svc_disable_failed="false"
 if [ "$FO_ENABLED" = "false" ] && [ "$current_fo_enabled" = "true" ]; then
     tower_kill_failover_watcher
     rm -f "$TOWER_FAILOVER_FLAG"
-    svc_disable qmanager_tower_failover
+    if ! svc_disable qmanager_tower_failover; then
+        svc_disable_failed="true"
+        qlog_warn "svc_disable qmanager_tower_failover failed (rootfs may be read-only)"
+    fi
     qlog_info "Failover disabled — killed daemon, disabled service"
 fi
 
@@ -143,12 +152,16 @@ if [ "$persist_ok" = "true" ]; then
         --argjson fo_enabled "$FO_ENABLED" \
         --argjson fo_threshold "$FO_THRESHOLD" \
         --argjson ws "$watcher_spawned" \
-        '{success: true, persist: $persist, failover_enabled: $fo_enabled, failover_threshold: $fo_threshold, watcher_spawned: $ws}'
+        --argjson svc_disable_failed "$svc_disable_failed" \
+        --argjson svc_enable_failed "$svc_enable_failed" \
+        '{success: true, persist: $persist, failover_enabled: $fo_enabled, failover_threshold: $fo_threshold, watcher_spawned: $ws, service_disable_failed: $svc_disable_failed, service_enable_failed: $svc_enable_failed}'
 else
     jq -n \
         --argjson persist "$PERSIST" \
         --argjson fo_enabled "$FO_ENABLED" \
         --argjson fo_threshold "$FO_THRESHOLD" \
         --argjson ws "$watcher_spawned" \
-        '{success: true, persist_command_failed: true, persist: $persist, failover_enabled: $fo_enabled, failover_threshold: $fo_threshold, watcher_spawned: $ws}'
+        --argjson svc_disable_failed "$svc_disable_failed" \
+        --argjson svc_enable_failed "$svc_enable_failed" \
+        '{success: true, persist_command_failed: true, persist: $persist, failover_enabled: $fo_enabled, failover_threshold: $fo_threshold, watcher_spawned: $ws, service_disable_failed: $svc_disable_failed, service_enable_failed: $svc_enable_failed}'
 fi

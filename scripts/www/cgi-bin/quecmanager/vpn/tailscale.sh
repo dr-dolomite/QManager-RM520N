@@ -478,19 +478,34 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
         fi
         case "$boot_enabled" in
             true)
-                $_SUDO /bin/ln -sf "$UNIT_DIR/tailscaled.service" "$WANTS_DIR/tailscaled.service"
-                qlog_info "Tailscale enabled on boot"
+                # www-data has no mount grant (confirmed via `sudo -l -U
+                # www-data`) — do NOT attempt a remount here, just detect and
+                # report honestly if /lib is stuck read-only.
+                _ts_boot_err=$($_SUDO /bin/ln -sf "$UNIT_DIR/tailscaled.service" "$WANTS_DIR/tailscaled.service" 2>&1 >/dev/null)
+                [ -n "$_ts_boot_err" ] && qlog_warn "tailscaled boot-enable ln failed: $_ts_boot_err"
+                if [ -L "$WANTS_DIR/tailscaled.service" ]; then
+                    qlog_info "Tailscale enabled on boot"
+                    cgi_success
+                else
+                    qlog_warn "Tailscale boot-enable failed — symlink not present after ln attempt"
+                    cgi_error "service_enable_failed" "Could not enable Tailscale on boot (rootfs may be read-only)"
+                fi
                 ;;
             false)
-                $_SUDO /bin/rm -f "$WANTS_DIR/tailscaled.service"
-                qlog_info "Tailscale disabled on boot"
+                _ts_boot_err=$($_SUDO /bin/rm -f "$WANTS_DIR/tailscaled.service" 2>&1 >/dev/null)
+                [ -n "$_ts_boot_err" ] && qlog_warn "tailscaled boot-disable rm failed: $_ts_boot_err"
+                if [ ! -L "$WANTS_DIR/tailscaled.service" ]; then
+                    qlog_info "Tailscale disabled on boot"
+                    cgi_success
+                else
+                    qlog_warn "Tailscale boot-disable failed — symlink still present after rm attempt"
+                    cgi_error "service_disable_failed" "Could not disable Tailscale on boot (rootfs may be read-only)"
+                fi
                 ;;
             *)
                 cgi_error "invalid_value" "enabled must be true or false"
-                exit 0
                 ;;
         esac
-        cgi_success
         exit 0
     fi
 

@@ -18,6 +18,15 @@ else
     _SUDO="sudo"
 fi
 
+# --- Logging stubs (defensive — caller may not have sourced qlog.sh) ---------
+. /usr/lib/qmanager/qlog.sh 2>/dev/null || {
+    qlog_init()  { :; }
+    qlog_debug() { :; }
+    qlog_info()  { :; }
+    qlog_warn()  { :; }
+    qlog_error() { :; }
+}
+
 # Map QManager service names to systemd unit names.
 # Input: procd-style name (e.g., "qmanager_watchcat")
 # Output: systemd unit name (e.g., "qmanager-watchcat")
@@ -57,15 +66,59 @@ svc_restart() {
 _WANTS_DIR="/lib/systemd/system/multi-user.target.wants"
 _UNIT_DIR="/lib/systemd/system"
 
+# Ensure the rootfs is writable before a root-side symlink write. Only ever
+# called when running as root ($_SUDO empty) — www-data has no mount grant
+# (confirmed via `sudo -l -U www-data`) and must not attempt a remount; on
+# that path we go straight to the ln/rm and just detect+report the failure.
+# Probe-then-remount, matching install_rm520n.sh's preflight() and
+# qmanager_setup — never remount back to ro.
+_svc_ensure_rw() {
+    if ! touch /usr/.qm_rw_test 2>/dev/null; then
+        mount -o remount,rw / 2>/dev/null
+    fi
+    rm -f /usr/.qm_rw_test 2>/dev/null
+}
+
 svc_enable() {
     local unit="$(_svc_unit "$1").service"
-    $_SUDO /bin/ln -sf "$_UNIT_DIR/$unit" "$_WANTS_DIR/$unit" 2>/dev/null
+    local err
+
+    # `if`, not `[ ... ] && ...` — the && form evaluates to 1 on the www-data
+    # path (where the test is false), which would abort the whole function
+    # under a caller running `set -e`, looking exactly like the silent
+    # enable-failure this code exists to fix. No caller sets -e today.
+    if [ -z "$_SUDO" ]; then
+        _svc_ensure_rw
+    fi
+
+    err=$($_SUDO /bin/ln -sf "$_UNIT_DIR/$unit" "$_WANTS_DIR/$unit" 2>&1 >/dev/null)
+    [ -n "$err" ] && qlog_warn "svc_enable($1): ln failed: $err"
+
+    if [ -L "$_WANTS_DIR/$unit" ]; then
+        return 0
+    fi
+    qlog_warn "svc_enable($1): boot symlink missing after enable attempt ($_WANTS_DIR/$unit)"
+    return 1
 }
 
 # Disable a service (remove boot symlink)
 svc_disable() {
     local unit="$(_svc_unit "$1").service"
-    $_SUDO /bin/rm -f "$_WANTS_DIR/$unit" 2>/dev/null
+    local err
+
+    # `if`, not `[ ... ] && ...` — see the note in svc_enable().
+    if [ -z "$_SUDO" ]; then
+        _svc_ensure_rw
+    fi
+
+    err=$($_SUDO /bin/rm -f "$_WANTS_DIR/$unit" 2>&1 >/dev/null)
+    [ -n "$err" ] && qlog_warn "svc_disable($1): rm failed: $err"
+
+    if [ ! -L "$_WANTS_DIR/$unit" ]; then
+        return 0
+    fi
+    qlog_warn "svc_disable($1): boot symlink still present after disable attempt ($_WANTS_DIR/$unit)"
+    return 1
 }
 
 # Check if a service is enabled (boot symlink exists)

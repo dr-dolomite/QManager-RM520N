@@ -190,12 +190,18 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
         # a stopped unit, so it cleanly covers "was disabled" -> "now enabled"
         # in one call. NEVER call systemctl directly — always svc_*.
         if [ "$ENABLED" = "true" ]; then
-            svc_enable qmanager_sms_forward
+            if ! svc_enable qmanager_sms_forward; then
+                cgi_error "service_enable_failed" "SMS forwarding settings were saved, but the daemon could not be enabled on boot (rootfs may be read-only)"
+                exit 0
+            fi
             svc_restart qmanager_sms_forward
             qlog_info "SMS forwarding enabled, daemon enabled and restarted"
         else
             svc_stop qmanager_sms_forward
-            svc_disable qmanager_sms_forward
+            if ! svc_disable qmanager_sms_forward; then
+                cgi_error "service_disable_failed" "SMS forwarding settings were saved, but the daemon could not be disabled on boot (rootfs may be read-only)"
+                exit 0
+            fi
             qlog_info "SMS forwarding disabled, daemon stopped and disabled"
         fi
 

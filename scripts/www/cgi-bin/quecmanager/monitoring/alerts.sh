@@ -441,8 +441,12 @@ MSMTPEOF
         # The daemon caches token/owner/dmChannel in memory at startup, so a
         # restart (not just "start") is needed to pick up new settings —
         # mirrors the legacy discord_bot/configure.sh behavior.
+        _discord_svc_err=""
         if [ "$discord_enabled_in" = "true" ]; then
-            svc_enable qmanager_discord
+            if ! svc_enable qmanager_discord; then
+                _discord_svc_err="Discord alert settings were saved, but the discord service could not be enabled on boot (rootfs may be read-only)"
+                qlog_warn "svc_enable qmanager_discord failed"
+            fi
             svc_restart qmanager_discord
         else
             svc_stop qmanager_discord
@@ -461,6 +465,10 @@ MSMTPEOF
         touch "$SMS_RELOAD" "$EMAIL_RELOAD" "$DISCORD_RELOAD" "$ROUTING_RELOAD" 2>/dev/null
 
         qlog_info "Centralized alert settings saved: sms=$sms_enabled_in email=$email_enabled_in discord=$discord_enabled_in"
+        if [ -n "$_discord_svc_err" ]; then
+            cgi_error "service_enable_failed" "$_discord_svc_err"
+            exit 0
+        fi
         cgi_success
         exit 0
     fi

@@ -412,8 +412,16 @@ tower_spawn_failover_watcher() {
     svc_stop qmanager_tower_failover
     svc_start qmanager_tower_failover
 
-    # Enable for boot auto-start
-    svc_enable qmanager_tower_failover
+    # Enable for boot auto-start. This is a boot-persistence concern
+    # separate from "is the daemon running right now" — track it so a
+    # failure (e.g. rootfs stuck read-only) is not silently swallowed,
+    # even though the printed true/false (consumed by callers via command
+    # substitution) still reflects live daemon state.
+    local enable_ok=1
+    if ! svc_enable qmanager_tower_failover; then
+        enable_ok=0
+        qlog_warn "svc_enable qmanager_tower_failover failed — daemon may not survive reboot"
+    fi
 
     # Verify daemon actually started (PID file written immediately on spawn)
     sleep 1
@@ -423,6 +431,9 @@ tower_spawn_failover_watcher() {
         if pid_alive "$pid"; then
             qlog_info "Tower failover watcher verified running (PID=$pid)"
             printf 'true'
+            if [ "$enable_ok" -eq 0 ]; then
+                return 2
+            fi
             return 0
         fi
     fi
