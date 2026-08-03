@@ -18,6 +18,36 @@ All endpoints return JSON with a consistent structure:
 { "success": false, "error": "error_code", "detail": "Human-readable message" }
 ```
 
+### Boot-persistence failures (`service_enable_failed` / `service_disable_failed`)
+
+Any endpoint that switches a background service on or off has to write a systemd boot symlink under `/lib/systemd/system/multi-user.target.wants/`, which sits on the read-only-at-boot rootfs. That write can fail (see [BACKEND.md §2.1](BACKEND.md#21-rootfs-mount-mode-contract)). These endpoints previously reported success regardless; they now report the failure, in one of two shapes.
+
+**As an error envelope** — the setting was saved, but the service will not survive a reboot:
+
+```json
+{ "success": false, "error": "service_enable_failed",
+  "detail": "Watchdog settings were saved, but the watchcat service could not be enabled on boot (rootfs may be read-only)" }
+```
+
+| Endpoint | Emits |
+|----------|-------|
+| `POST /monitoring/watchdog.sh` | `service_enable_failed`, `service_disable_failed` |
+| `POST /monitoring/alerts.sh` (Discord channel) | `service_enable_failed` |
+| `POST /cellular/sms_forwarding.sh` | `service_enable_failed`, `service_disable_failed` |
+| `POST /vpn/tailscale.sh` (`set_boot_enabled`) | `service_enable_failed`, `service_disable_failed` |
+| `POST /tower/lock.sh` (unlock, when the last lock is cleared) | `service_disable_failed` |
+
+> ⚠️ WARNING: In every case the **settings write already succeeded** — only the boot symlink failed. The UI should tell the user the change applies now but will not survive a reboot, not that the save was rejected.
+
+**As boolean fields on a success envelope** — used where the operation has a meaningful result of its own that the client still needs:
+
+| Field | On | Meaning when `true` |
+|-------|----|---------------------|
+| `service_enable_failed` | `POST /tower/settings.sh`, `POST /tower/lock.sh` (both lock-success envelopes) | The failover daemon is running now, but its boot symlink was not written — failover will not resume after a reboot. |
+| `service_disable_failed` | `POST /tower/settings.sh` | The failover daemon was stopped, but its boot symlink could not be removed — it will start again after a reboot. |
+
+Both default to `false` and are always present on those envelopes.
+
 ---
 
 ## Platform Notes
@@ -616,6 +646,15 @@ Current frequency lock state.
 }
 ```
 
+**POST Response (lock success):**
+```json
+{ "success": true, "type": "lte", "action": "lock", "num_cells": 2,
+  "failover_armed": true, "service_enable_failed": false }
+```
+The `nr_sa` variant is the same minus `num_cells`. `failover_armed` describes the **running** daemon; `service_enable_failed: true` means that daemon is alive now but its boot symlink was not written, so failover will not resume after a reboot. See [Boot-persistence failures](#boot-persistence-failures-service_enable_failed--service_disable_failed).
+
+On unlock, if this was the last active lock the endpoint disables the failover service; a failed disable returns `{"success": false, "error": "service_disable_failed", ...}` instead of the unlock envelope.
+
 ### GET `/tower/status.sh`
 
 Current tower lock state.
@@ -623,6 +662,13 @@ Current tower lock state.
 ### GET/POST `/tower/settings.sh`
 
 Tower locking general settings.
+
+**POST Response:**
+```json
+{ "success": true, "persist": true, "failover_enabled": true, "failover_threshold": 3,
+  "watcher_spawned": true, "service_disable_failed": false, "service_enable_failed": false }
+```
+`persist_command_failed: true` is added when the persist AT command failed. The two `service_*_failed` booleans report boot-symlink writes for `qmanager-tower-failover.service` and are always present — see [Boot-persistence failures](#boot-persistence-failures-service_enable_failed--service_disable_failed).
 
 ### GET `/tower/failover_status.sh`
 

@@ -146,6 +146,9 @@ Custom SIM Profiles gets a full redesign and absorbs Connection Scenarios, so on
 
 - **The Back button no longer traps you after being sent to the login page.** Opening a page while signed out sends you to **Login**, but the page you came from stayed in your history — so pressing Back bounced you straight to Login again. That redirect no longer leaves a history entry.
 
+- **Features you switch on no longer quietly switch themselves off at the next reboot.** Turning on **Monitoring → Watchdog**, **Cellular → SMS Forwarding**, tower failover or Discord alerts could report success, visibly start working, and then be gone after a restart — most often on a modem where Tailscale had been installed or updated at some point (that left the system partition read-only for the rest of the session, so the boot entry silently failed to write). If it genuinely can't be saved for boot now, the page tells you instead of pretending.
+- **Devices that already lost a setting this way repair themselves on this update.** If your Watchdog, SMS Forwarding or tower failover stopped surviving reboots, installing this release turns them back on from your saved settings — previously the loss was carried forward through every future update.
+
 ## 📥 Installation
 
 ### Upgrading from v0.1.13

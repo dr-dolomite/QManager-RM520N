@@ -80,7 +80,7 @@ For AT command access, QManager uses the `atcli_smd11` binary talking to `/dev/s
 | **CGI PATH caveat** | lighttpd CGI excludes `/opt/bin`; `cgi_base.sh` exports full PATH |
 | **Config storage** | `/usrdata/` (persistent, writable) |
 | **LAN config** | `/etc/data/mobileap_cfg.xml` — parsed with **`xmllint`** (`/usr/bin/xmllint`, system-bundled). `xmlstarlet` is **NOT** installed by default; if a feature truly needs it, add `opkg install xmlstarlet` to the installer. |
-| **Root filesystem** | ubifs (`ubi0:rootfs`), boots read-only (`mount -o remount,rw /`); `sync` before reboot |
+| **Root filesystem** | ubifs (`ubi0:rootfs`), boots read-only (`ro` in `/proc/cmdline`). `mount -o remount,rw /` before any rootfs write, `sync` after; **never remount back to `ro`** — see [BACKEND.md §2.1](BACKEND.md#21-rootfs-mount-mode-contract) |
 | **`/etc/`** | tmpfs — **volatile** (lost on reboot); exception: `/etc/qmanager/` is on rootfs |
 | **Persistent partition** | `/usrdata/` |
 | **Package manager** | Entware opkg at `/opt` (bind-mounted from `/usrdata/opt`) |
@@ -1311,8 +1311,9 @@ The `qcmd` wrapper should accept an optional timeout parameter or use command-sp
 ### Filesystem Layout
 
 ```
-/                           ← ubifs (ubi0:rootfs), boots read-only (assert=read-only)
-│                             mount -o remount,rw / before writes, sync after
+/                           ← ubifs (ubi0:rootfs), boots read-only (`ro` in /proc/cmdline)
+│                             mount -o remount,rw / before writes, sync after,
+│                             never remount back to ro (BACKEND.md §2.1)
 ├── bin/
 │   ├── bash                ← Native bash (not BusyBox)
 │   ├── systemctl           ← systemd control (NOTE: /bin/, not /usr/bin/)
@@ -1357,7 +1358,7 @@ The `qcmd` wrapper should accept an optional timeout parameter or use command-sp
 
 | Mount point | Type | Persists? | Notes |
 |-------------|------|-----------|-------|
-| `/` (rootfs) | ubifs (`ubi0:rootfs`) | **Yes** | Boots with `assert=read-only`; `mount -o remount,rw /` before writes |
+| `/` (rootfs) | ubifs (`ubi0:rootfs`) | **Yes** | Boots **`ro`** — proof is `ro` in `/proc/cmdline`, not `/proc/mounts` (which shows QManager's own boot-time remount) and **not** the `assert=read-only` mount option, which is UBIFS's assertion-failure policy and appears on `rw` volumes too. `mount -o remount,rw /` before writes, never back to `ro` — [BACKEND.md §2.1](BACKEND.md#21-rootfs-mount-mode-contract) |
 | `/lib/systemd/system/` | On rootfs | **Yes** | Service files and boot symlinks survive reboots |
 | `/etc/` | tmpfs | **No** | Volatile — lost on reboot |
 | `/etc/qmanager/` | On rootfs (ubifs) | **Yes** | Exception: resides on rootfs despite `/etc/` being tmpfs |

@@ -511,11 +511,11 @@ QManager runs directly on the modem's internal Linux OS — no external OpenWRT 
 |---------|-------|
 | Platform | Quectel RM520N-GL (SDXLEMUR, ARMv7l, kernel 5.4.210) |
 | Init system | systemd (units in `/lib/systemd/system/`) |
-| Root filesystem | Read-only by default (`mount -o remount,rw /` when needed) |
+| Root filesystem | `ubi0:rootfs`, boots read-only. Remount `rw` before a rootfs write and leave it `rw` — never restore `ro` ([BACKEND.md §2.1](BACKEND.md#21-rootfs-mount-mode-contract)) |
 | Persistent storage | `/usrdata/` partition |
 | Web server | lighttpd (Entware) |
 | AT transport | `atcli_smd11` on `/dev/smd11` directly (no socat bridge) |
-| Config store | Files in `/etc/qmanager/` (rootfs, remounted rw) |
+| Config store | Files in `/etc/qmanager/`. `/etc` is `/dev/ubi2_0`, **not** the rootfs — always `rw`, no remount needed |
 | Firewall | iptables direct |
 | `systemctl enable` | Does NOT work — use direct symlinks into `multi-user.target.wants/` |
 

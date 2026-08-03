@@ -107,7 +107,70 @@ val=$(jq -r '(.field) | if . == null then "false" else tostring end' file.json)
 
 **CGI privilege model.** lighttpd runs CGI as `www-data`. All privileged operations (service control, iptables, reboot) require `sudo -n` with full absolute paths. The `platform.sh` library provides sudo-wrapped helpers (`svc_*`, `run_iptables`, `run_reboot`). The sudoers file whitelists exactly these paths.
 
-**`systemctl enable` does not work on RM520N-GL.** Unit files live on a read-only rootfs partition where `systemctl enable` cannot write symlinks. Boot persistence uses direct symlinks in `/lib/systemd/system/multi-user.target.wants/`. Use `svc_enable`/`svc_disable` from `platform.sh` which write the symlinks directly via `sudo /bin/ln -sf` / `sudo /bin/rm -f`.
+**`systemctl enable` does not work on RM520N-GL.** Unit files live on a read-only rootfs partition where `systemctl enable` cannot write symlinks. Boot persistence uses direct symlinks in `/lib/systemd/system/multi-user.target.wants/`. Use `svc_enable`/`svc_disable` from `platform.sh` which write the symlinks directly via `sudo /bin/ln -sf` / `sudo /bin/rm -f`. Those symlinks live on the rootfs, so writing one is governed by the mount-mode contract in [§2.1](#21-rootfs-mount-mode-contract) — read it before adding any code that writes to `/lib`, `/usr/bin`, or `/usr/lib`.
+
+### 2.1 Rootfs mount-mode contract
+
+**Short version: `/` boots read-only, QManager remounts it read-write once at boot, and nothing in this tree ever puts it back. Every place that writes a rootfs path must ensure `rw`, check whether the write actually landed, and return a real status instead of assuming success.**
+
+This invariant used to be implicit, spread across nine scripts — two of which contradicted the other seven. That is exactly what produced the silent boot-persistence bug described at the end of this section. It is written down here so there is one answer.
+
+#### The two volumes
+
+The device has two UBIFS volumes, and almost every mount-mode mistake in this codebase comes from treating them as one. UBIFS is the flash-aware filesystem the modem uses for both; "volume" here means a UBI logical volume, roughly a partition on raw NAND.
+
+| Path | Device | Mount mode | Remount needed before writing? |
+|------|--------|-----------|-------------------------------|
+| `/` (and therefore `/lib`, `/bin`, `/usr/bin`, `/usr/lib`, `/lib/systemd/system/**`) | `ubi0:rootfs` | boots **`ro`** | **Yes** — `mount -o remount,rw /` |
+| `/etc`, `/usrdata`, `/opt`, `/data`, `/cache`, `/persist`, `/systemrw` | `/dev/ubi2_0` (one volume, bind-mounted at each of these points) | always **`rw`** | **No** — a remount here is a pure no-op. Do not add one. |
+
+So `/etc/qmanager/*.json`, `/usrdata/qmanager/www/**` and everything under `/opt` are written with no ceremony at all. `/lib/systemd/system/multi-user.target.wants/<unit>.service` — where **all** QManager boot persistence lives — is not.
+
+#### How to prove the rootfs boots `ro` (and how not to)
+
+> ⚠️ WARNING: **`/proc/mounts` is not evidence.** By the time you can SSH in, `qmanager_setup` has already run `mount -o remount,rw /` and never restored `ro`, so `/` reads `rw` — the *aftermath of our own remount*, not the boot state. Reading it as "the rootfs is writable, no remount needed" is a wrong conclusion that has already been reached once in this project's history, and it is the reason this section exists.
+
+The authoritative proof is the kernel command line, which is fixed by the bootloader and cannot be rewritten by userspace:
+
+```sh
+cat /proc/cmdline
+# ... ro rootwait rootfstype=ubifs rootflags=bulk_read root=ubi0:rootfs ...
+#     ^^ the rootfs is mounted read-only by the kernel at boot
+```
+
+> ⚠️ WARNING: **`assert=read-only` in the ubifs mount options is NOT the mount mode.** It is UBIFS's *assertion-failure policy* — what the filesystem does when an internal consistency assertion trips (complain and switch itself read-only) rather than panicking. It appears verbatim on volumes that are mounted `rw`, including `ubi2_0`. Never cite it as evidence in either direction; use `/proc/cmdline` for the boot state and a real write probe for the current state.
+
+#### The single convention: remount `rw` once, never restore `ro`
+
+`mount -o remount,rw /` is inherited from the upstream `iamromulan/quectel-rgmii-toolkit` installer and is long-tested on this hardware. It is required, not defensive clutter.
+
+- **`qmanager_setup` performs the boot-time remount.** Every later writer inherits an already-`rw` rootfs. Root-side helpers still probe-then-remount for their own sake, because they may run before or without `qmanager_setup`.
+- **Nothing restores `ro`.** `qmanager_tailscale_mgr` and `qmanager_console_mgr` used to, and were the direct trigger for the bug below. Do not reintroduce a `mount -o remount,ro /` anywhere.
+- **Never remove or weaken an existing `mount -o remount,rw /`.** If it looks redundant because `/proc/mounts` says `rw`, re-read the warning above.
+- **Keep every `sync` after a rootfs mutation.** `sync` flushes dirty UBIFS pages to flash so a write survives an unclean power cut. That is completely independent of mount mode — removing the `ro` remount does not make the `sync` unnecessary, and the two scripts above kept theirs.
+
+#### Rules for any new writer of a rootfs path
+
+Three things, all of them mandatory:
+
+1. **Ensure `rw` — but only as root.** `www-data` has **no** sudoers grant for `mount`, deliberately, and must not attempt a remount. On the CGI path the correct behaviour is to attempt the write and *report* the failure, not to try to repair the filesystem.
+2. **Verify the post-condition, not the exit code.** Under `EROFS` (read-only filesystem) BusyBox returns 1 from both `ln -sf` and `rm -f` — note that `-f` masks `ENOENT` ("no such file") but **not** `EROFS`. Rather than reasoning about which errno you got, check the thing you wanted: `[ -L "$link" ]` after an enable, `[ ! -L "$link" ]` after a disable.
+3. **Return a real status and make the caller act on it.** Capture stderr into `qlog_warn` instead of `2>/dev/null`, return 0/1, and surface a `cgi_error` rather than reporting success.
+
+**Reference implementations — copy these, don't invent a third pattern:**
+
+- `scripts/usr/lib/qmanager/platform.sh` — `_svc_ensure_rw()` (probe with a throwaway `touch`, remount only if the probe fails, never restore `ro`; called only when `$_SUDO` is empty, i.e. running as root) plus `svc_enable()` / `svc_disable()`, which log the real stderr and verify the symlink's presence/absence.
+- `scripts/usr/bin/qmanager_auto_update_arm` — the same shape for a `timers.target.wants/` symlink, with the `# Left rw afterwards` comment that names the convention.
+
+#### The failure this contract prevents
+
+Worth understanding, because the symptom pointed nowhere near the cause.
+
+Before the fix, `svc_enable`/`svc_disable` sent `ln`/`rm` stderr to `/dev/null`, returned whatever fell out, and all nine call sites ignored it. Meanwhile `qmanager_tailscale_mgr` and `qmanager_console_mgr` restored `ro` on exit — so installing, updating or removing Tailscale (or finishing a fresh install) left `/` read-only **for the rest of the uptime**.
+
+The chain: user toggles Watchdog, SMS Forwarding, tower failover or Discord in the UI → `ln -sf` fails with `EROFS` → the error is discarded → the CGI reports success and `systemctl start` even works, so the feature visibly runs → but the boot symlink was never written, so the feature silently disappears at the next reboot with no error anywhere.
+
+And it was permanent: the installer's `enable_services()` restored gated services from their **pre-install symlink state**, so a symlink lost to `EROFS` stayed lost through every subsequent OTA. That half is fixed by the config-gated self-heal described in [reference/qmanager-independence.md](reference/qmanager-independence.md#ota-self-heal-for-gated-services).
 
 ---
 
@@ -339,8 +402,8 @@ Service control abstraction and sudo wrappers for CGI context. Detects whether c
 | `svc_start <name>` | `systemctl start <unit>` |
 | `svc_stop <name>` | `systemctl stop <unit>` |
 | `svc_restart <name>` | `systemctl restart <unit>` |
-| `svc_enable <name>` | Create symlink in `multi-user.target.wants/` |
-| `svc_disable <name>` | Remove symlink from `multi-user.target.wants/` |
+| `svc_enable <name>` | Create symlink in `multi-user.target.wants/`. **Returns 0/1** — 1 means the symlink is not there afterwards. Callers must check. |
+| `svc_disable <name>` | Remove symlink from `multi-user.target.wants/`. **Returns 0/1** — 1 means the symlink is still there afterwards. Callers must check. |
 | `svc_is_enabled <name>` | Test whether boot symlink exists |
 | `svc_is_running <name>` | Test whether unit is currently active |
 | `run_iptables [args...]` | `iptables` with sudo prefix |
@@ -349,6 +412,15 @@ Service control abstraction and sudo wrappers for CGI context. Detects whether c
 | `pid_alive <pid>` | Test `/proc/<pid>` existence (works cross-user, unlike `kill -0`) |
 
 **Unit name translation:** `svc_*` functions translate underscores to dashes (`qmanager_watchcat` -> `qmanager-watchcat.service`) via `_svc_unit()`.
+
+**`svc_enable` / `svc_disable` are the rootfs-writing pair.** Both touch `/lib/systemd/system/multi-user.target.wants/`, which lives on the read-only-at-boot rootfs. Each one:
+
+- calls `_svc_ensure_rw()` **only when running as root** (`$_SUDO` empty) — `www-data` has no `mount` grant and must not attempt a remount, so on the CGI path the code detects and reports the failure rather than trying to repair it;
+- captures `ln`/`rm` stderr into `qlog_warn` instead of discarding it;
+- verifies the **post-condition** (`[ -L ]` / `[ ! -L ]`) rather than trusting the exit code, because BusyBox's `-f` masks `ENOENT` but not `EROFS`;
+- returns 0 on success, 1 on failure.
+
+> ⚠️ WARNING: A caller that ignores the return value reintroduces the exact silent-failure bug this pair was rewritten to fix — the service starts, the UI says success, and the feature vanishes at the next reboot. See [§2.1 Rootfs mount-mode contract](#21-rootfs-mount-mode-contract).
 
 ### 4.9 `profile_mgr.sh`
 
@@ -1170,7 +1242,7 @@ Cleared on every reboot (tmpfs). Files pre-created by `qmanager_setup` are marke
 
 ### Persistent Configuration (`/etc/qmanager/`)
 
-Lives on the rootfs (read-only by default). `qmanager_setup` calls `mount -o remount,rw /` before writing. `/etc/qmanager/` is owned by `www-data` for CGI write access.
+**Not on the rootfs.** `/etc` is a bind mount of `/dev/ubi2_0` — the same always-`rw` UBIFS volume as `/usrdata`, `/opt`, `/data`, `/cache`, `/persist` and `/systemrw` (verified live: `/etc`, `/usrdata` and `/opt` all report the same `st_dev`, distinct from `/`). Writes here need **no remount**; `qmanager_setup`'s `mount -o remount,rw /` exists for the rootfs paths (`/lib/systemd/system`, `/usr/bin`, `/usr/lib`) and has no effect on `/etc`. The read-only-rootfs note in Gotchas describes `/` (`ubi0:rootfs`), which genuinely does boot `ro` — that note is correct and unrelated to this table. `/etc/qmanager/` is owned by `www-data` for CGI write access.
 
 | Path | Description |
 |------|-------------|
@@ -1463,6 +1535,12 @@ file scripts/usr/bin/qmanager_setup
 
 **Trying to `systemctl enable` on RM520N-GL.** `systemctl enable` is a no-op on this platform because unit files are on the read-only rootfs where the command cannot write symlinks. Always use `svc_enable` / `svc_disable` from `platform.sh`, which writes the symlinks directly via `sudo /bin/ln -sf` and `sudo /bin/rm -f`.
 
+**Calling `svc_enable` / `svc_disable` without checking the return value.** Both write to the rootfs, which can be read-only, and both now return 0/1. An unchecked call fails silently in the worst possible way: the service still starts, the UI reports success, and the feature disappears at the next reboot with nothing logged at the point of use. Always branch on the result and surface a `cgi_error` (`service_enable_failed` / `service_disable_failed`). See [§2.1](#21-rootfs-mount-mode-contract).
+
+**Adding `mount -o remount,ro /` after a rootfs write.** The convention in this tree is **remount `rw` once, never restore `ro`** — a script that "tidies up" by restoring `ro` leaves the filesystem unwritable for the rest of the uptime and breaks every later boot-symlink write. Keep the `sync`; it flushes to flash and is independent of mount mode. See [§2.1](#21-rootfs-mount-mode-contract).
+
+**Adding a remount before writing to `/etc`, `/usrdata` or `/opt`.** Those are all `/dev/ubi2_0`, always mounted `rw`. `mount -o remount,rw /` does nothing for them — it only affects `ubi0:rootfs`. Harmless but misleading, and it teaches the next reader the wrong model.
+
 **Writing to `/tmp/qmanager_*.json` from CGI without pre-creation.** If a CGI script creates a `/tmp` file that a root daemon will later overwrite, root will be blocked by `fs.protected_regular=1`. Pre-create any dual-writer file in `qmanager_setup` as **`root:root` mode 666** — that is the only ownership both UIDs can write, not a "primary writer" judgement call. See `qmanager_setup` for the full list, and [reference/tmp-file-ownership.md](reference/tmp-file-ownership.md) for the checklist.
 
 **Publishing a shared `/tmp` file with `mv`.** The project-wide "atomic write" habit is wrong for a `/tmp` file that both UIDs write. `rename(2)` swaps the inode, so the new file is owned by whoever wrote the temp, at their umask — and the other UID is locked out for the rest of the boot, silently. Write through the existing inode (`cat tmp > file`), PID-qualify any scratch name (`${FILE}.tmp.$$`, never a fixed `.tmp`), and make the reader tolerate a torn read since you no longer have atomic publication. Same applies to `rm`-to-reset: truncate with `: >` instead.
@@ -1505,7 +1583,7 @@ These quirks are easy to miss when porting code from a typical GNU/Linux box. Ev
 
 **No NTP, RTC drifts to 1970.** `timedatectl` reports `System clock synchronized: no` and `NTP service: n/a`. Wall-clock time is set by the cellular network when it attaches; if the modem is offline at boot the clock can be years off. Never rely on absolute timestamps for security-sensitive ordering — use monotonic deltas (`/proc/uptime`) where possible.
 
-**`/etc`, `/opt`, `/usrdata`, `/data`, `/cache`, `/persist`, `/systemrw` all bind-mount the same `/dev/ubi2_0` ubifs volume (~124 MB total).** Writes anywhere in this set consume from the same pool. `/tmp` is a separate 89 MB tmpfs (volatile). The rootfs `/` is `/dev/ubi0:rootfs` (~100 MB) — boots `ro`, must `mount -o remount,rw /` before persistent writes, then `sync` and `mount -o remount,ro /` before reboot.
+**`/etc`, `/opt`, `/usrdata`, `/data`, `/cache`, `/persist`, `/systemrw` all bind-mount the same `/dev/ubi2_0` ubifs volume (~124 MB total).** Writes anywhere in this set consume from the same pool. `/tmp` is a separate 89 MB tmpfs (volatile). The rootfs `/` is `/dev/ubi0:rootfs` (~100 MB) — boots `ro` (proof: `ro` in `/proc/cmdline`, **not** `/proc/mounts`, which shows our own boot-time remount) and must be `mount -o remount,rw /` before a persistent write, then `sync`ed. **Do not remount it back to `ro`** — see [§2.1 Rootfs mount-mode contract](#21-rootfs-mount-mode-contract).
 
 **Single-core CPU, 178 MB RAM, ~91 MB zram swap.** ARMv7-A Cortex-A7 @ ~1.2 GHz (`BogoMIPS 38.40`) with VFPv4 + NEON + IDIVA/IDIVT. CPU-bound shell loops compete with the modem stack — keep daemon polling intervals reasonable and avoid per-second `jq` invocations on large JSON.
 

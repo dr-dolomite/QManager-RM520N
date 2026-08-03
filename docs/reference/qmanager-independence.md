@@ -292,6 +292,7 @@ with the actual ONIGURUMA error discarded. Capture stderr into the warning text.
 ## Service persistence (systemd symlinks)
 
 - **Boot persistence is implemented via direct symlinks** into `/lib/systemd/system/multi-user.target.wants/` (and `timers.target.wants/` for timer units), managed through `svc_enable`/`svc_disable`/`svc_is_enabled` in `platform.sh` — use those helpers everywhere; do not mix in raw `systemctl enable/disable`, because they write to a *different* wants dir (see next point). The same `/lib` manual-symlink mechanism is what the root helper `qmanager_auto_update_arm` uses to arm/disarm the auto-update timer live (see [Auto-update timer](#auto-update-timer)).
+- **Those symlinks live on the rootfs, which boots read-only.** `svc_enable`/`svc_disable` ensure `rw` (root path only — `www-data` has no `mount` grant), verify the symlink's presence/absence rather than trusting the exit code, and **return 0/1**. Every call site must check that return and surface a `service_enable_failed` / `service_disable_failed` error; an unchecked call loses boot persistence silently. Read [BACKEND.md §2.1 — Rootfs mount-mode contract](../BACKEND.md#21-rootfs-mount-mode-contract) before touching any of this.
 - **The `/lib` manual symlink is the deliberate single source of truth — do NOT migrate to `systemctl enable`.** A live-probed migration to `systemctl enable/disable/is-enabled` was evaluated and **rejected**; see [The `systemctl enable` migration was evaluated and rejected](#the-systemctl-enable-migration-was-evaluated-and-rejected) below. The `platform.sh` comment above `svc_enable` records the same verdict.
 
 ### `systemctl is-enabled` is unreliable here
@@ -383,9 +384,11 @@ Units come from `/usr/lib/qmanager/tailscaled.service` and `tailscaled.defaults`
 - `ExecStartPost=/bin/chmod 755` in the service unit restores access after each start.
 - `qmanager_setup` also restores access at boot as belt-and-suspenders.
 
-### Rootfs flush before remounting read-only
+### Rootfs flush — `sync`, and never remount `ro`
 
-**All rootfs writes must be flushed before remounting read-only.** `qmanager_tailscale_mgr` calls `sync` before every `mount -o remount,ro /` to prevent unit file or symlink loss on reboot.
+**All rootfs writes must be flushed with `sync`.** `qmanager_tailscale_mgr` calls `sync` after every rootfs mutation (binary install, unit staging, uninstall removals) so a write reaches flash and survives an unclean power cut.
+
+> ⚠️ WARNING: `qmanager_tailscale_mgr` and `qmanager_console_mgr` used to pair that `sync` with `mount -o remount,ro /`. **Both `ro` restores have been removed and must not come back.** They left `/` read-only for the rest of the uptime, after which every boot-symlink write in `platform.sh` failed with `EROFS` — so toggling Watchdog, SMS Forwarding, tower failover or Discord in the UI appeared to succeed while silently losing boot persistence. The tree now has a single convention: **remount `rw` once, never restore `ro`**. The `sync` is unrelated to mount mode and stays. Full contract: [BACKEND.md §2.1](../BACKEND.md#21-rootfs-mount-mode-contract).
 
 ### Firewall restart
 
@@ -457,11 +460,33 @@ PID tracking spans the full install lifetime to keep the CGI's `pid_alive` concu
   - `finalize_version()` moves it to `/etc/qmanager/VERSION` at the end.
   - A surviving `.pending` file after reboot indicates a failed install.
 - **Filesystem-driven cleanup**: `cleanup_legacy_scripts()` and service enable/disable scan `/lib/systemd/system/qmanager-*.service` and `/usr/bin/qmanager_*` at runtime — not a hardcoded list.
-- **`UCI_GATED_SERVICES`**: Controls which services are only re-enabled if their `multi-user.target.wants/` symlink existed before the upgrade.
+- **`UCI_GATED_SERVICES`**: Controls which services are only re-enabled if their `multi-user.target.wants/` symlink existed before the upgrade. See [OTA self-heal for gated services](#ota-self-heal-for-gated-services) — symlink state is no longer the *only* input.
 - **Watchdog suppression**: The watchcat lock `/tmp/qmanager_watchcat.lock` is touched before stopping services and released via an `EXIT` trap, suppressing the watchdog during the install window.
 - **Shared semver library**: `/usr/lib/qmanager/semver.sh` — sourced by both `update.sh` CGI and `qmanager_auto_update`.
 - **Shared downloader library**: `/usr/lib/qmanager/downloader.sh` — sourced by `update.sh` CGI, `qmanager_update` (OTA worker), and `qmanager_auto_update` (run by the auto-update systemd timer). The two worker/timer scripts source it *guarded*, with an inline fallback so they still run if the lib is missing. See "HTTP transport & installer resilience" below — note the 3-copy maintenance hazard.
 - **v0.1.4 → v0.1.5 requires ADB/SSH**: v0.1.4's CGI has no sudo and v0.1.4's sudoers has no `qmanager_update` rule, so OTA cannot self-update from v0.1.4. From v0.1.5 onward, OTA works via the UI.
+
+### OTA self-heal for gated services
+
+**Short version: a gated service is now re-enabled if EITHER its boot symlink existed before the upgrade OR its own config says it should be on. The two passes are additive, so an OTA repairs a device that lost a symlink instead of preserving the loss forever.**
+
+`enable_services()` in `install_rm520n.sh` originally restored the `UCI_GATED_SERVICES` set purely from **pre-install symlink state** — it snapshotted `multi-user.target.wants/` before wiping the tree, then recreated whatever it found. That is a reasonable "don't turn on what the user turned off" rule, but it has a trap: symlink state is not the user's *intent*, it is a cache of it. A device that lost a symlink to a transient read-only rootfs (see [BACKEND.md §2.1](../BACKEND.md#21-rootfs-mount-mode-contract)) has configured intent the snapshot can never see, so the feature stayed disabled through **every future OTA**. Discord happened to escape this because it already had a second, config-gated pass; watchcat, tower-failover and SMS forwarding did not.
+
+`enable_services()` now runs a config-gated pass for all four, reading the same file each service's own CGI already treats as authoritative:
+
+| Service | Unit | Config source | Enabled when |
+|---------|------|---------------|--------------|
+| Discord bot | `qmanager-discord.service` | `/etc/qmanager/discord_bot.json` | `.enabled == true` |
+| Connection watchdog | `qmanager-watchcat.service` | `qm_config_get watchcat enabled` (`/etc/qmanager/qmanager.conf`, JSON despite the name) | `== 1` |
+| Tower failover | `qmanager-tower-failover.service` | `/etc/qmanager/tower_lock.json` | `.failover.enabled == true` |
+| SMS forwarding | `qmanager-sms-forward.service` | `/etc/qmanager/sms_forwarding.json` | `.enabled == true` |
+
+Two properties make this safe:
+
+- **Additive only.** The pass never runs `rm -f` — it only ever `ln -sf`s a service **on**. It therefore cannot undo the symlink-restore loop that ran just before it, and cannot silently turn a working feature off. Repair goes upward only.
+- **Absent config means "not enabled".** `sms_forwarding.json` is lazily created by the CGI on first save, so a never-configured device simply has no file; an explicit `[ -f ]` guard treats that as off rather than invoking `jq` on a missing path. `qm_config_get` already degrades to its supplied default on a missing or unparseable file, so the watchcat block needs no separate guard.
+
+> ℹ️ NOTE: All twelve `VAR=$(...)` config reads in `enable_services()` now carry an `|| VAR=<default>` fallback. The installer runs under `set -e`, so a single malformed JSON file would otherwise abort the whole run **before** `finalize_version()` — leaving `VERSION.pending` behind and the device reporting a failed install for what is really one bad config field.
 
 ### Dev-box version footgun
 

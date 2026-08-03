@@ -87,7 +87,7 @@ The table below contrasts RM520N-GL against the legacy RM551E (OpenWRT) target �
 |---------|-----------------|---------------------------|
 | Init system | procd | systemd (`.service` units in `/lib/systemd/system/`) |
 | Config store | UCI | Files in `/usrdata/` (persistent partition) |
-| Root filesystem | Read-write | UBIFS, on `ubi0`/`ubi2` volumes. Verified live 2026-08-01: `/` and `/usrdata` both mount `rw` — no remount needed for a normal write. (Mount options include `assert=read-only`, which reads like a mode flag but is UBIFS's assertion-*failure* policy, not the actual mount mode — don't misread it as confirming read-only.) |
+| Root filesystem | Read-write | Two UBIFS volumes. `/` is `ubi0:rootfs` and **boots `ro`** (authoritative proof: `ro` in `/proc/cmdline` — **not** `/proc/mounts`, which shows `rw` only because `qmanager_setup` already remounted it, and **not** the `assert=read-only` mount option, which is UBIFS's assertion-*failure* policy and appears on `rw` volumes too). `/etc`, `/usrdata`, `/opt` are `ubi2_0`, always `rw`, no remount. Rootfs writes (`/lib/systemd/system`, `/usr/bin`, `/usr/lib`): remount `rw` once, `sync`, **never restore `ro`**. Full contract + reference implementations: `docs/BACKEND.md` §2.1 |
 | Shell | BusyBox sh (POSIX only) | `/bin/bash` available |
 | Web server | uhttpd | lighttpd (Entware) |
 | Firewall | nftables / fw4 | iptables direct |
