@@ -30,6 +30,8 @@ points (boot, SIM switch, watchdog) and are still current.
 | Profile storage | `/etc/qmanager/profiles/p_<timestamp>_<hex>.json` (max 10) |
 | Active marker | `/etc/qmanager/active_profile` (plain text — profile ID) |
 | Library | `scripts/usr/lib/qmanager/profile_mgr.sh` |
+| Shared APN attach-cycle primitive | `scripts/usr/lib/qmanager/apn_apply.sh` → `/usr/lib/qmanager/apn_apply.sh` |
+| APN bracket lock | `/tmp/qmanager_apn_apply.lock` (fd 8; separate from `qcmd`'s `/tmp/qmanager_at.lock`) |
 | Apply daemon | `scripts/usr/bin/qmanager_profile_apply` |
 | Apply state file | `/tmp/qmanager_profile_state.json` |
 | Apply PID lock | `/tmp/qmanager_profile_apply.pid` |
@@ -199,34 +201,162 @@ Order is load-bearing — see the rationale notes inline.
 
 | # | Step | What it does |
 |---|------|--------------|
-| 1 | `apn` | Compare `settings.apn` vs. current PDP context (`AT+CGDCONT?`). If it already matches, mark `skipped`. If different, send **one** command — `AT+CGDCONT=<cid>,"<pdp>","<apn>"` — and mark `done`. **No detach/attach cycle.** See the warning below. |
+| 1 | `apn` | Compare `settings.apn` vs. the **negotiated** APN (`AT+CGCONTRDP=<cid>`). If it already matches (case-folded), mark `skipped`. If different, run the full write-first attach cycle through the shared `apn_apply.sh` primitive and mark `done` only once the network confirms the new APN. See [The APN step runs a full attach cycle](#the-apn-step-runs-a-full-attach-cycle) below. |
 | 2 | `ttl_hl` | Compare `settings.ttl` / `settings.hl` vs. the persisted iptables state, then apply via `ttl_state_apply` if drifted. |
 | 3 | `scenario` | If `settings.scenario_id` is set, resolve it (built-in or custom) and call `scenario_apply` from `scenario_mgr.sh`. Persists the result to `/etc/qmanager/active_scenario`. |
 | 4 | `imei` | If `settings.imei` is set and differs from `AT+EGMR=0,7`, write the new IMEI via `AT+EGMR=1,7` and trigger a soft reboot (`AT+CFUN=1,1`). |
 
-> ⚠️ WARNING: **Suspected correctness gap — the profile APN step is not the same
-> operation as the APN Settings page, and this is NOT fixed.**
->
-> "Attach" is the moment the modem registers with the carrier's packet core and
-> is handed the data bearer it will use for the rest of the session. The APN for
-> that **default bearer** is read *at attach time* — so rewriting the PDP context
-> afterwards edits a stored setting the modem is no longer consulting. That is
-> why the dedicated APN endpoint (`cellular/apn.sh:466–477`) deliberately runs
-> the full cycle: `AT+COPS=2` (deregister) → write `AT+CGDCONT` → `AT+COPS=0`
-> (re-register), forcing a fresh attach that picks the new APN up.
->
-> `qmanager_profile_apply:376–388` issues the `AT+CGDCONT` write **and nothing
-> else** — no `COPS` bracket, no `CFUN` cycle. Verified by reading the worker,
-> not inferred. The consequence: applying a profile that changes the APN can
-> report the step `done` while the modem is still carrying traffic on the old
-> APN, until something else forces re-registration (a manual reconnect, a
-> watchdog recovery, or a reboot — including the one step 4 triggers when the
-> profile also overrides IMEI, which is why this can look intermittent).
->
-> This is recorded here as **observed behaviour under separate investigation**.
-> Do not "align" the two paths without one — the profile worker runs unattended
-> at boot and on SIM swap, where a deregister/re-register bracket has different
-> risk than it does behind a user-initiated Save.
+### The APN step runs a full attach cycle
+
+**Short version:** writing the APN into the modem is not the same thing as
+telling the carrier about it. Step 1 therefore detaches and re-attaches the
+radio, then asks the network what it actually granted before reporting `done`.
+
+"Attach" is the moment the modem registers with the carrier's packet core and is
+handed the data bearer it will use for the rest of the session. On LTE / 5G-NSA
+the APN for that **default EPS bearer** is a contract field carried in the
+Attach Request to the MME (the core's control-plane gateway) and the PGW (the
+gateway that issues the IP) — it is read *at attach time*. So an
+`AT+CGDCONT` write on its own only edits a stored setting the modem is no
+longer consulting; the network keeps serving the old APN until a fresh Attach
+Request goes out. `AT+CGACT=0/1` is **not** a substitute: it tears down and
+rebuilds the modem-side user-plane of an already-established bearer, and the MME
+keeps the original APN throughout.
+
+#### Why this was wrong before, and why it hid
+
+Earlier builds of `qmanager_profile_apply` issued the `AT+CGDCONT` write **and
+nothing else** — no `COPS` bracket, no `CFUN` cycle. Applying a profile that
+changed the APN reported every step green while the modem stayed attached on the
+old APN, until something else forced re-registration (a manual reconnect, a
+watchdog recovery, or a reboot — including the one step 4 triggers when the
+profile also overrides IMEI, which is why the symptom looked intermittent).
+
+The gap was **self-concealing**, which is the load-bearing insight here: the
+step's skip-check compared against `AT+CGDCONT?` — the *configured* view, which
+merely echoes back whatever was last requested. One bracket-less write made
+`AT+CGDCONT?` match, so a retry reported `skipped` while the bearer was still
+stale. Only `AT+CGCONTRDP=<cid>` — the *negotiated* view, what the network
+actually granted — can verify that an APN apply took. Any future change to this
+step must keep verifying against `CGCONTRDP`, never `CGDCONT?`.
+
+#### What runs now
+
+Step 1 calls `apn_apply_write` from the shared primitive
+`/usr/lib/qmanager/apn_apply.sh` (source: `scripts/usr/lib/qmanager/apn_apply.sh`),
+the same primitive `cellular/apn.sh` and `profiles/deactivate.sh` use — one
+implementation, one set of timings, one return-code contract. The canonical
+sequence is **write-first**:
+
+```
+AT+CGDCONT=<cid>,"<pdp>","<apn>"   sleep 3
+AT+COPS=2                          sleep 1     (detach / deregister)
+AT+COPS=0                          sleep 3     (re-attach, up to 3 tries)
+AT+CGCONTRDP=<cid>                 poll, 1s interval, 15s ceiling
+```
+
+Write-first — not detach-first — so a failed `AT+CGDCONT` returns with the modem
+untouched and **still registered**, instead of leaving it to recover from an
+already-deregistered state. The verify poll's 15s/1s figures are tuned to
+hardware measurement: the negotiated APN became readable ~1.25s after `AT+COPS=0`
+returned `OK`, ~4s in the worst observed run on a live GLOBE SIM.
+
+The step's own pre-check is likewise against `AT+CGCONTRDP=<cid>`, case-folded:
+APNs are DNS-style labels and case-insensitive per 3GPP, and a live device
+negotiated `INTERNET.GLOBE.COM.PH` in uppercase for a profile stored as
+`internet`. A byte-for-byte compare would re-run the whole bracket on every
+trigger (boot, SIM-slot switch, watchdog SIM failover, manual re-activate) for an
+APN that was already correct. Only the comparison folds — every reported and
+persisted string keeps the original casing the network returned.
+
+A profile with an empty `settings.apn.name` (a legitimate IMEI-only or TTL-only
+profile) short-circuits to `skipped` **before any AT command**; the primitive
+will not bracket-cycle a blank APN unless a caller explicitly opts in with
+`allow_empty=1`, which only the two deliberate revert-to-carrier-default callers
+do.
+
+#### Step outcomes
+
+`apn_apply_write` returns a numeric code that the step maps onto the ledger:
+
+| rc | Meaning | Step status |
+|----|---------|-------------|
+| 0 | Verified — the network negotiated the requested APN | `done` |
+| 1 | `AT+CGDCONT` write failed — modem untouched, still registered | `failed` |
+| 2 | `AT+COPS=2` failed — modem unchanged | `failed` |
+| 3 | `AT+COPS=0` failed on every retry — modem may be left **DEREGISTERED** | `failed` |
+| 4 | Re-attached, but the negotiated APN differs from the request | `failed` |
+| 5 | Re-attached, but `AT+CGCONTRDP` returned nothing before the ceiling | `failed` |
+| 6 | Empty APN, no opt-in — no AT commands issued | (pre-empted by the empty-APN skip above) |
+| 7 | Another APN bracket is in progress — no AT commands issued, retryable | `failed` |
+
+The 4-step ledger has no distinct "critical" or "retry" status, so the severity of
+rc=3 and the retryable nature of rc=7 ride entirely in the step's `detail`
+string. See `apn_apply.sh`'s header for the full contract.
+
+> ⚠️ WARNING: Applying a profile that changes the APN **drops the cellular WAN**
+> for the duration of the detach/re-attach (roughly 8-15 seconds). The QManager
+> HTTP session and SSH reach the modem over LAN/Wi-Fi, so they are not affected.
+
+#### Concurrency, the recovery flag, and signals
+
+Three details worth knowing before touching this path:
+
+- **Bracket lock.** The whole write-detach-attach-verify sequence is serialized
+  by an advisory `flock` (a "do not disturb" sign on a file — only one process
+  can hold it) at `/tmp/qmanager_apn_apply.lock`, held on file descriptor 8.
+  This is deliberately **separate** from `qcmd`'s per-command lock at
+  `/tmp/qmanager_at.lock` (fd 9): `qcmd`'s lock serializes exactly one AT
+  command, but `AT+COPS` is *global attach state*, so the whole multi-command
+  bracket needs its own mutex — otherwise the root worker and a concurrent CGI
+  save could interleave their detach/verify windows. The bracket lock is always
+  the outer of the two, strictly nested, so there is no deadlock. The worker
+  waits up to 30s for it (it is unattended, so it should win the retry); the
+  synchronous CGI paths cap their wait at 5s.
+- **Recovery-flag suppression stays with the worker.** `apn_apply.sh` never
+  touches `/tmp/qmanager_recovery_active`. The worker owns that flag through two
+  optional callbacks the primitive feature-detects — `apn_apply_on_bracket_start`
+  (called once the lock is actually held, so a run that ends in `apn_busy`
+  never suppresses anything) and `apn_apply_on_bracket_end`. The reason the flag
+  cannot be shared: `/tmp` is mode 1777 (the *sticky bit* — only a file's owner
+  or root may unlink a file there, whatever the file's own mode), so a
+  cross-UID `rm -f` from the `www-data` CGI paths would silently no-op and strand
+  the flag "on", permanently muting alert dispatch. Keeping it single-UID-owned
+  sidesteps that. An **empty** flag file means a foreign owner — `qmanager_watchcat`
+  raises it with a bare `touch` — and must never be cleared.
+- **Signals.** The primitive borrows `INT`/`TERM` for the bracket so a signal
+  arriving between the detach and the re-attach still forces `AT+COPS=0`. It
+  releases the trap to the shell's *default* disposition on return, so
+  `apply_apn` re-asserts `trap cleanup EXIT INT TERM` immediately afterwards.
+  `SIGKILL` and power loss cannot be trapped; if either lands mid-bracket the
+  modem is left deregistered until `qmanager_watchcat`'s own Tier 1 recovery
+  notices.
+
+#### Deactivating a profile reverts the APN first
+
+`profiles/deactivate.sh` uses the same primitive to undo the APN a profile
+wrote: `apn_apply_write 1 "IPV4V6" "" 1` — a blank APN on CID 1 with
+`allow_empty=1`, i.e. a deliberate revert to carrier default. A profile-written
+APN must not outlive the profile.
+
+The **order is load-bearing**: the revert runs *before* the profile state is
+cleared. If the revert fails partway (rc=3/5 — modem deregistered or
+unconfirmed), the profile stays marked active and its scenario schedule stays
+armed, and the response reports `success:false`. That is the honest half-state:
+the modem really is still on (or ambiguously on) the profile's settings, and the
+UI keeps showing it as active. Clearing state first would produce the opposite —
+a UI reporting "no active profile" over a modem still deregistered or still on
+the old APN, which is far harder to notice.
+
+The PDP type is fixed to `IPV4V6` here: this endpoint clears the active-profile
+marker rather than reading it field-by-field, and `IPV4V6` is the same fallback
+`apply_apn` and `apn.sh` use elsewhere.
+
+**Verified on hardware:** the negotiated APN moved `internet.globe.com.ph` →
+`http.globe.com.ph`, held stable at +0/+10/+30s, `+CEREG: 0,1` (registered)
+throughout, and the bearer address changed — confirming a genuine re-attach
+rather than a local re-allocation. A repeat apply correctly reported `skipped` in
+3.0s versus 11.1s for a real apply.
 
 ### Why scenario MUST come before IMEI
 
@@ -619,8 +749,9 @@ layout.
 >
 > The mitigating fact, which is why a full reapply is an acceptable answer:
 > three of the four steps are self-comparing and mark themselves `skipped` on a
-> match. A full reapply after a failed IMEI write costs one `AT+CGDCONT?` read,
-> one iptables read, one redundant `QNWPREFCFG` write, and the retry itself.
+> match. A full reapply after a failed IMEI write costs one `AT+CGCONTRDP` read,
+> one iptables read, one redundant `QNWPREFCFG` write, and the retry itself — the
+> APN step skips without detaching once the negotiated APN already matches.
 
 ### Scenario picker and the "+ Create new" deep-link
 
@@ -657,8 +788,12 @@ The Select uses one sentinel option value:
   APN, TTL/HL, Scenarios, and Band-Locking gate pages, so the shape could not
   change.
 - `custom-profile.tsx` — the coordinator, i18n-wired for the page header and
-  the activate/deactivate confirmation dialogs. **Deactivate ≠ revert**
-  semantics are preserved.
+  the activate/deactivate confirmation dialogs. The **Deactivate ≠ revert**
+  copy is preserved from the RM551E port, but note it is no longer literally
+  true of the APN: `profiles/deactivate.sh` now reverts CID 1 to carrier
+  default before clearing profile state — see
+  [Deactivating a profile reverts the APN first](#deactivating-a-profile-reverts-the-apn-first).
+  TTL/HL and IMEI are still left as the profile set them.
 
 ### i18n and the `ApplyStep` comment fix
 

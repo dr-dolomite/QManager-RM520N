@@ -591,7 +591,7 @@
     },
     "deactivate_dialog": {
       "title": "停用配置文件",
-      "description": "清除活动配置文件标记？调制解调器当前的设置（APN、IMEI、TTL）不会恢复——仅移除「活动」标记。",
+      "description": "停用此配置文件？APN 将恢复为运营商默认值，移动网络会短暂中断。IMEI 和 TTL 设置保持不变。",
       "confirm": "停用",
       "deactivating": "停用中…"
     },

@@ -591,7 +591,7 @@
     },
     "deactivate_dialog": {
       "title": "Deactivate Profile",
-      "description": "Clear the active profile marker? The modem's current settings (APN, IMEI, TTL) will not be reverted — only the \"Active\" badge will be removed.",
+      "description": "Deactivate this profile? The APN reverts to the carrier default, which briefly drops the mobile connection. IMEI and TTL settings are left unchanged.",
       "confirm": "Deactivate",
       "deactivating": "Deactivating…"
     },

@@ -591,7 +591,7 @@
     },
     "deactivate_dialog": {
       "title": "Nonaktifkan Profil",
-      "description": "Hapus penanda profil aktif? Pengaturan modem saat ini (APN, IMEI, TTL) tidak akan dikembalikan — hanya label \"Aktif\" yang akan dihapus",
+      "description": "Nonaktifkan profil ini? APN akan dikembalikan ke default operator, sehingga koneksi seluler terputus sejenak. Pengaturan IMEI dan TTL tidak diubah.",
       "confirm": "Menonaktifkan",
       "deactivating": "Menonaktifkan…"
     },

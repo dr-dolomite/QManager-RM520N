@@ -591,7 +591,7 @@
     },
     "deactivate_dialog": {
       "title": "Disattiva profilo",
-      "description": "Cancellare l'indicatore del profilo attivo? Le impostazioni correnti del modem (APN, IMEI, TTL) non verranno ripristinate: verrà rimosso solo il badge \"Attivo\".",
+      "description": "Disattivare questo profilo? L'APN verrà ripristinato al valore predefinito dell'operatore, interrompendo brevemente la connessione mobile. Le impostazioni IMEI e TTL restano invariate.",
       "confirm": "Disattiva",
       "deactivating": "Disattivazione…"
     },

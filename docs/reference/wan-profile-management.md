@@ -19,7 +19,9 @@ Backed by the CGI endpoint `cellular/apn.sh`. The frontend UI lives under
 | Item | Value |
 |------|-------|
 | CGI endpoint | `scripts/www/cgi-bin/quecmanager/cellular/apn.sh` |
-| HTTP methods | `GET` (list), `POST` (`save` / `toggle`) |
+| HTTP methods | `GET` (list), `POST` (`save` / `toggle` / `deactivate`) |
+| Shared attach-cycle primitive | `scripts/usr/lib/qmanager/apn_apply.sh` → `/usr/lib/qmanager/apn_apply.sh` |
+| APN bracket lock | `/tmp/qmanager_apn_apply.lock` (fd 8) — **not** `qcmd`'s `/tmp/qmanager_at.lock` (fd 9) |
 | Profile slots | 6, one per PDP context CID (1-6) |
 | Name sidecar file | `/usrdata/qmanager/apn_names.json` |
 | Single-APN sidecar file (WS6) | `/usrdata/qmanager/apn_setting.json` |
@@ -57,26 +59,56 @@ The Quectel-native `AT+QICSGP` reports the stored password, but `apn.sh` reads
 it only to derive the `has_password` boolean. **The password is never emitted
 in any response.**
 
-### POST `save`
+### POST `save` (legacy 6-slot)
 
-1. `AT+COPS=2` — deregister from the network (full detach).
-2. `AT+CGDCONT=<cid>,"<pdp>","<apn>"` — define APN + PDP type.
-3. `AT+QICSGP=<cid>,<ctxtype>,"<apn>","<user>","<pass>",<authtype>` — write auth.
-4. Persist the profile name to the sidecar (see below).
-5. MTU — logged and ignored (see "MTU" below).
-6. `AT+COPS=0` — re-register (automatic operator selection). The next attach carries the new APN in its Attach Request.
+Selected when the request body carries an `index` key.
+
+1. `apn_apply_lock` — take the bracket lock **before writing anything** (see
+   [The lock lease](#the-lock-lease) below).
+2. `AT+QICSGP=<cid>,<ctxtype>,"<apn>","<user>","<pass>",<authtype>` — write auth.
+   This must land **before** the detach so the single re-attach carries the new
+   credentials.
+3. `apn_apply_write <cid> <pdp> <apn>` — the shared write-first attach cycle
+   (`AT+CGDCONT` → `AT+COPS=2` → `AT+COPS=0` → `AT+CGCONTRDP` verify).
+4. `apn_apply_unlock` — end the lease, then dispatch on the return code.
+5. Persist the profile name to the sidecar (see below).
+6. MTU — logged and ignored (see "MTU" below).
 7. Re-apply persisted TTL/HL hotspot-bypass iptables rules.
 
 > ℹ️ NOTE: `AT+CGAUTH` is **not supported** on RM520N-GL firmware — it returns
 > `ERROR`. Authentication is written through the Quectel-native `AT+QICSGP`,
-> which also carries the APN and an IP-stack context type. Because step 3
-> rewrites the APN, it must match step 2.
+> which also carries the APN and an IP-stack context type. Because step 2
+> rewrites the APN, it must match the APN step 3 writes. The shared primitive
+> **never** writes `AT+QICSGP`, `AT+CGAUTH`, or `AT+CGACT` — it has no concept
+> of auth, and the profile schema carries no auth fields either.
 
-A `cops_recover()` helper defined inside the save branch calls `AT+COPS=0` on
-the `cgdcont_failed` and `qicsgp_failed` error paths before `die`, so a
-partial save never leaves the modem detached. No buffer sleeps are needed
-between steps — `run_at` goes through `qcmd`'s `flock`, which is synchronous
-on `OK`/`ERROR`.
+A blank `password` on a PAP/CHAP profile means "keep the stored secret":
+`AT+QICSGP`'s password field is mandatory, so `apn.sh` reads the existing value
+back with `AT+QICSGP=<cid>` and reuses it rather than wiping it.
+
+The old inline `cops_recover()` helper is gone. It existed because the old
+detach-first order could fail with the modem already deregistered; the shared
+primitive is **write-first**, so a `qicsgp_failed` or `cgdcont_failed` now
+happens with the modem still attached and still registered, and there is nothing
+to scramble back from.
+
+### POST `save` (WS6 single-APN)
+
+Selected by the **absence** of `index` (the WS6 contract sends `cid` instead).
+Deliberately lighter: `apn_apply_write` only — no `AT+QICSGP` auth write and no
+name-sidecar write, so a single-APN save can never blank a legacy slot's stored
+credentials or profile name. It does not lease the lock, because it issues no
+modem write of its own before the bracket. On success it re-applies persisted
+TTL/HL rules and persists the **negotiated** APN (`APN_APPLY_NEGOTIATED_APN`) to
+`apn_setting.json`.
+
+### POST `deactivate`
+
+Reverts the stored CID to carrier default via
+`apn_apply_write <cid> <pdp> "" 1` — a blank APN with `allow_empty=1`, the
+explicit opt-in the primitive requires before it will bracket-cycle an empty
+APN. A request while the sidecar already reads `active: 0` is a no-op that never
+touches the modem.
 
 ### POST `toggle`
 
@@ -96,21 +128,170 @@ renegotiate that contract. The network keeps the old APN until the UE
 
 An earlier version of `apn.sh` tried to apply APN changes with a per-context
 deactivate/reactivate cycle (`AT+CGACT=0,<cid>` → `AT+CGACT=1,<cid>`). That
-was wrong: `AT+CGACT` can renegotiate *secondary* or *dedicated* bearers, but
-it cannot rewrite the default bearer's APN, because cycling the user-plane
-does not produce a new Attach Request. Empirically verified on Smart PH on
-2026-05-20: with CGACT cycling, `AT+CGCONTRDP=1` kept returning the old
+was wrong: `AT+CGACT` only tears down and rebuilds the modem-side user-plane of
+an already-established bearer — the MME keeps the original APN, because cycling
+the user-plane produces no new Attach Request. Empirically verified on Smart PH
+on 2026-05-20: with CGACT cycling, `AT+CGCONTRDP=1` kept returning the old
 APN/IP until a full `COPS=2`/`COPS=0` cycle forced a fresh attach.
 
-The save flow therefore detaches the radio with `AT+COPS=2`, writes
-`AT+CGDCONT` and `AT+QICSGP`, then re-attaches with `AT+COPS=0`. Verified on
-hardware: after the new flow, `AT+CGCONTRDP=1` returns a brand-new IP from a
-different PGW subnet (e.g. `10.143.59.15` → `10.115.182.156`), proving the
-bearer was torn down and rebuilt at the network level rather than just
-re-allocated locally.
+The save flow therefore runs a detach/re-attach bracket. Verified on hardware:
+after the new flow, `AT+CGCONTRDP=1` returns a brand-new IP from a different PGW
+subnet (e.g. `10.143.59.15` → `10.115.182.156`), proving the bearer was torn
+down and rebuilt at the network level rather than just re-allocated locally.
+
+### The shared `apn_apply.sh` primitive
+
+That bracket is no longer inlined in `apn.sh`. It lives in
+`/usr/lib/qmanager/apn_apply.sh` (source:
+`scripts/usr/lib/qmanager/apn_apply.sh`) and is sourced by all three callers —
+`cellular/apn.sh` and `profiles/deactivate.sh` as `www-data`, and the
+`qmanager_profile_apply` root worker — following the `ttl_state.sh` precedent
+for a shared library used from both a CGI and a root context. One
+implementation, one set of timings, one return-code contract. Each caller
+hard-stops if `apn_apply_write` is not defined after sourcing, rather than
+silently falling back to a bracket-less `AT+CGDCONT` write.
+
+The canonical sequence is **write-first**:
+
+```
+AT+CGDCONT=<cid>,"<pdp>","<apn>"   sleep 3
+AT+COPS=2                          sleep 1     (detach / deregister)
+AT+COPS=0                          sleep 3     (re-attach, up to 3 tries, 3s backoff)
+AT+CGCONTRDP=<cid>                 poll, 1s interval, 15s ceiling
+```
+
+Write-first, not detach-first, so a failed `AT+CGDCONT` returns with the modem
+untouched and **still registered** instead of having to recover from an
+already-deregistered state. The verify poll figures are tuned to hardware
+measurement: the negotiated APN became readable ~1.25s after `AT+COPS=0`
+returned `OK`, ~4s worst observed on a live GLOBE SIM — 15s/1s is roughly 10x
+headroom over the worst case.
+
+> ℹ️ NOTE: **Verification reads `AT+CGCONTRDP`, never `AT+CGDCONT?`.**
+> `AT+CGDCONT?` is the *configured* view — it merely echoes back what was last
+> requested, so it matches even when the bearer is stale. `AT+CGCONTRDP=<cid>`
+> is the *negotiated* view: what the network actually granted. Comparing against
+> the configured view is self-concealing and was the root cause of the profile
+> worker's silent-failure bug (see
+> [sim-profiles.md](sim-profiles.md#the-apn-step-runs-a-full-attach-cycle)).
+
+APN comparisons **case-fold** (`tr 'A-Z' 'a-z'`) before comparing — APNs are
+DNS-style labels and case-insensitive per 3GPP, and a live device negotiated
+`INTERNET.GLOBE.COM.PH` in uppercase for a stored `internet`. Only the
+comparison folds; every reported and persisted string keeps the original casing
+the network returned.
+
+### Return-code contract
+
+`apn_apply_write` sets `APN_APPLY_STATUS`, `APN_APPLY_DETAIL`,
+`APN_APPLY_NEGOTIATED_APN`, and `APN_APPLY_RC` on every call, and returns
+`APN_APPLY_RC`:
+
+| rc | `APN_APPLY_STATUS` | Modem left | `apn.sh` error code |
+|----|--------------------|------------|---------------------|
+| 0 | `done` / `done_carrier_default` | Attached, on the requested (or carrier-default) APN | — success |
+| 1 | `failed_cgdcont` | Untouched, still registered | `cgdcont_failed` |
+| 2 | `failed_detach` | Unchanged (write landed locally, never took effect) | `cops_detach_failed` |
+| 3 | `failed_attach` | **DEREGISTERED** — critical | `cops_attach_failed` |
+| 4 | `mismatch` | Attached, but not on the requested APN | `apn_mismatch` |
+| 5 | `timeout_verify` | Attached, state unconfirmed (may have worked) | `cops_attach_failed` |
+| 6 | `skipped_empty_apn` | Unchanged — no AT commands issued | (unreachable: APN is validated non-empty first) |
+| 7 | `apn_busy` | Unchanged — no AT commands issued | `apn_busy` |
+
+`apn_mismatch` and `apn_busy` are **new** error codes surfaced to the frontend;
+`cgdcont_failed`, `cops_detach_failed`, `cops_attach_failed`, and
+`qicsgp_failed` are preserved from the inline implementation. `apn_busy` should
+be presented as "try again shortly", not a hard failure — the modem was never
+touched.
+
+### The bracket lock
+
+The whole write-detach-attach-verify sequence is serialized by an advisory
+`flock` (a "do not disturb" sign on a file — only one process can hold it) at
+`/tmp/qmanager_apn_apply.lock`, held on file descriptor 8.
+
+This is deliberately **separate** from `qcmd`'s per-command lock at
+`/tmp/qmanager_at.lock` (fd 9). `qcmd`'s lock serializes exactly one AT command;
+`AT+COPS` is *global attach state*, so the whole multi-command bracket needs its
+own mutex — otherwise `apn.sh` running as `www-data` and `qmanager_profile_apply`
+running as root could each run a full bracket concurrently and corrupt each
+other's detach/verify window. Reusing `qcmd`'s lock instead would deadlock,
+since the bracket calls `qcmd` for every command while holding it. The bracket
+lock is always the **outer** of the two, strictly nested, so there is no
+deadlock risk.
+
+BusyBox `flock` has no `-w` (timeout) option, so acquisition polls `flock -x -n`
+in a 1s loop — the same idiom `qcmd`'s own `flock_wait()` uses. The wait ceiling
+is `APN_APPLY_LOCK_WAIT`: **30s** by default for the unattended root worker
+(nothing is blocked on it, so it should win the retry), overridden to **5s** by
+both CGI endpoints, since a human is waiting on the HTTP response. The override
+must be set **before** sourcing the library — the default assignment evaluates
+once, guarded by `_APN_APPLY_LOADED`.
+
+### The lock lease
+
+`apn_apply_lock` / `apn_apply_unlock` (flag `APN_APPLY_LOCK_EXTERNAL`) let a
+caller take the bracket lock itself and hold it across its own modem write plus
+the bracket.
+
+**Any caller whose own modem write must precede the bracket MUST lease.** The
+legacy 6-slot save is the one such caller: `AT+QICSGP` has to land before the
+detach so the single re-attach carries the new credentials — but `AT+QICSGP`
+*also* rewrites the context's APN. Running it outside the lock meant a
+subsequent `apn_busy` (rc=7) reported "modem unchanged, no AT commands issued"
+*after* the configured APN had already moved with no attach cycle behind it —
+reintroducing the exact configured-vs-negotiated split this library exists to
+eliminate, through the back door of a partial write. Leasing puts the `QICSGP`
+write inside the same critical section, so a busy modem is reported before
+anything is written at all.
+
+```sh
+apn_apply_lock || die "apn_busy" "..."   # nothing written yet
+run_at "AT+QICSGP=..." || die ...        # inside the critical section
+apn_apply_write "$cid" "$pdp" "$apn"     # reuses the held lock
+apn_apply_unlock
+```
+
+Under a lease, rc=7 is unreachable (the lock was already acquired) and
+`apn_apply_write` neither acquires nor releases the lock. Leaks are bounded by
+process lifetime rather than discipline: the lock lives on fd 8, and the kernel
+drops a `flock` when the last file descriptor referencing that open file
+description closes — every CGI failure path is `die`, which exits.
+
+Callers that do **not** lease — the WS6 save, `deactivate`,
+`profiles/deactivate.sh`, and `qmanager_profile_apply` — are unaffected;
+`apn_apply_write` takes and releases the lock itself.
+
+### What the primitive does not do
+
+- **Never writes `AT+QICSGP`, `AT+CGAUTH`, or `AT+CGACT`.** Auth is `apn.sh`'s
+  responsibility via `AT+QICSGP`; `AT+CGAUTH` is unsupported on this firmware.
+- **Never touches `/tmp/qmanager_recovery_active`.** That flag is owned
+  exclusively by the root worker, through two optional callbacks the primitive
+  feature-detects (`apn_apply_on_bracket_start` / `apn_apply_on_bracket_end`).
+  `/tmp` is mode 1777 (the *sticky bit* — only a file's owner or root may unlink
+  a file there, whatever the file's own mode), so a cross-UID `rm -f` from a
+  `www-data` CGI would silently no-op and strand the flag "on", permanently
+  muting alert dispatch. The CGI callers define neither hook and therefore get no
+  suppression — the same behaviour `apn.sh`'s old inline bracket had.
+- **Never sources its own dependencies.** The caller must have sourced `qlog.sh`,
+  `cgi_at.sh` (for `run_at` / `parse_cgcontrdp_apn`), and `events.sh` (with
+  `EVENTS_FILE` and `MAX_EVENTS` set) first — the same convention `ttl_state.sh`
+  documents for `platform.sh`. No-op shims are installed for the logging and
+  event functions if they are missing.
+
+### Events emitted
+
+The primitive appends to the Recent Activities feed via `append_event`:
+`apn_apply_started` (info, before the first AT command),
+`apn_apply_done` (info, rc=0), `apn_apply_mismatch` (warning, rc=4), and
+`apn_apply_critical` (error, rc=3 — the modem may be left deregistered). These
+now fire for CGI-initiated saves too, which is why `apn.sh` sources `events.sh`
+where it previously did not.
 
 > ⚠️ WARNING: Save briefly drops the **cellular WAN** while the modem detaches
-> and re-attaches (typically ~5-10 seconds). The CGI itself runs on
+> and re-attaches — roughly 8-15 seconds end to end (7s of fixed sleeps plus the
+> verify poll; ~11s measured for a real apply on hardware). The CGI itself runs on
 > lighttpd reached over LAN/Wi-Fi to the modem, so SSH and the QManager
 > HTTP session to the modem are **not** dropped — those paths do not ride the
 > cellular WAN. The frontend should expect a short cellular reconnect after
@@ -265,24 +446,27 @@ compound round-trip via `cgi_at.sh`'s `detect_active_cid()`); the existing
   legacy 6-slot contract always sends `index`; the WS6 single-APN contract
   sends `cid` instead (`{action:"save", apn, pdp_type, cid}`, see
   `ApnSaveRequest` in `types/apn-settings.ts`). When `index` is absent, a
-  **lighter** apply runs — `AT+COPS=2` → `AT+CGDCONT=<cid>,"<pdp>","<apn>"` →
-  `AT+COPS=0` — deliberately skipping the `AT+QICSGP` auth write and the
-  name-sidecar write the legacy save performs, so a single-APN save can never
-  blank out a legacy slot's stored auth credentials or profile name. It does
-  still re-apply persisted TTL/HL hotspot-bypass rules (parity with the
-  legacy path — TTL is orthogonal to APN) and persists to `apn_setting.json`
-  as a best-effort step after the modem write succeeds.
+  **lighter** apply runs — a bare `apn_apply_write` bracket, deliberately
+  skipping the `AT+QICSGP` auth write and the name-sidecar write the legacy
+  save performs, so a single-APN save can never blank out a legacy slot's
+  stored auth credentials or profile name. It does still re-apply persisted
+  TTL/HL hotspot-bypass rules (parity with the legacy path — TTL is orthogonal
+  to APN) and persists to `apn_setting.json` as a best-effort step after the
+  modem write succeeds — storing the **negotiated** APN, not the requested one.
 - **`action: "deactivate"` is new.** Reverts the target CID to carrier
-  default via a blank-APN `AT+CGDCONT` through the same `COPS=2`/`COPS=0`
-  cycle, and sets the sidecar's `active` to `0`. A request while already
+  default via `apn_apply_write <cid> <pdp> "" 1` (blank APN, `allow_empty=1`)
+  and sets the sidecar's `active` to `0`. A request while already
   `active: 0` is a no-op that never touches the modem (avoids an unnecessary
   WAN drop). No `index`/`cid` is sent — the target CID is read from the
   sidecar — so this action is dispatched **before** the common index/cid
   validation that every other POST action goes through.
 
-Both new POST paths reuse the same `cops_recover()` pattern documented in
-[Why save requires a full attach cycle](#why-save-requires-a-full-attach-cycle)
-— a partial failure never leaves the modem detached.
+Neither new POST path leases the bracket lock — neither issues a modem write of
+its own ahead of the bracket, so `apn_apply_write` takes and releases the lock
+itself. See
+[The shared `apn_apply.sh` primitive](#the-shared-apn_applysh-primitive) for the
+sequence and [Return-code contract](#return-code-contract) for how each failure
+maps to an error code.
 
 ---
 

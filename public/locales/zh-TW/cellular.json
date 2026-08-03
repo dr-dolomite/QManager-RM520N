@@ -591,7 +591,7 @@
     },
     "deactivate_dialog": {
       "title": "停用設定檔",
-      "description": "清除活動設定檔標記？調變解調器當前的設定（APN、IMEI、TTL）不會恢復——僅移除「活動」標記。",
+      "description": "停用此設定檔？APN 將恢復為電信業者預設值，行動網路會短暫中斷。IMEI 和 TTL 設定保持不變。",
       "confirm": "停用",
       "deactivating": "停用中…"
     },

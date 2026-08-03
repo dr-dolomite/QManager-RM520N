@@ -489,11 +489,13 @@ Activates (`true`) or deactivates (`false`) one PDP context via `AT+CGACT`.
 | Code | Meaning |
 |------|---------|
 | `invalid_index` | `index` missing or not 1-6 |
-| `invalid_action` | `action` not `save` or `toggle` |
+| `invalid_action` | `action` not `save`, `toggle`, or `deactivate` |
 | `missing_fields` | Required field absent (`apn` for save, `enabled` for toggle) |
 | `invalid_pdp_type` | `pdp_type` not `ipv4`/`ipv6`/`ipv4v6` |
 | `invalid_value` | APN/username/password contains a double-quote |
-| `cops_detach_failed` / `cgdcont_failed` / `qicsgp_failed` / `cops_attach_failed` / `cgact_failed` | The underlying AT command failed. On `cgdcont_failed` / `qicsgp_failed` during save, `apn.sh` runs a best-effort `AT+COPS=0` so the modem does not stay detached |
+| `cops_detach_failed` / `cgdcont_failed` / `qicsgp_failed` / `cops_attach_failed` / `cgact_failed` | The underlying AT command failed. Saves are **write-first** (`AT+CGDCONT` before `AT+COPS=2`), so a `cgdcont_failed` / `qicsgp_failed` happens with the modem still registered — there is no recovery re-attach to run. Only `cops_attach_failed` can leave it deregistered |
+| `apn_mismatch` | The modem re-attached, but the APN the network granted (`AT+CGCONTRDP`) differs from the one requested — the apply did **not** take. Distinct from an AT failure: every command succeeded |
+| `apn_busy` | Another APN apply is mid-flight and the bracket lock could not be acquired within 5s. No AT command was issued and the modem is unchanged — surface as "try again shortly", not a hard failure |
 | `parse_failed` | GET could not assemble the profile list |
 
 ### GET/POST `/cellular/mbn.sh`

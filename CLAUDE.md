@@ -148,7 +148,7 @@ Each feature below has a reference doc holding its invariants, gotchas, and rati
 | **Ethernet Status & Link Speed** | `/local-network/ethernet`, `eth0`, `ethtool`, `qmanager_ethernet_apply` | `ethernet.md` |
 | **Centralized Alerts** | `/monitoring/alerts`, `alert_engine.sh`, SMS/email/Discord routing | `alerts.md` |
 | **Discord Bot** | `discord-bot/`, `qmanager_discord` | `discord-bot.md` |
-| **WAN Profile Management** | `cellular/apn.sh`, PDP contexts, the APN Settings page | `wan-profile-management.md` |
+| **WAN Profile Management** | `cellular/apn.sh`, PDP contexts, the APN Settings page, or the shared `apn_apply.sh` attach-cycle primitive any APN write must go through | `wan-profile-management.md` |
 | **Custom SIM Profiles & Connection Scenarios** | One merged page at `/cellular/custom-profiles` (the `connection-scenarios` sub-route is retired to a client-side redirect): profile create/apply, scenarios + schedule ribbon, band locks via scenarios, suggested profiles, `current_settings.sh`, or any geometry/tone on the surface (governed by `shapes.ts`) | `sim-profiles.md` |
 | **SIM Detection** | `known_iccids`, `sim_registry.json`, the SIM-swap banner, Tracked SIMs | `sim-detection.md` |
 | **Connection Watchdog** | `/monitoring/watchdog`, `qmanager_watchcat`, the 4-tier recovery ladder | `connection-watchdog.md` |
