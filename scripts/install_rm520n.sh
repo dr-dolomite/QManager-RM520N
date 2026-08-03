@@ -1995,7 +1995,19 @@ migrate_environment_location() {
 
     [ -f "$src" ] || return 0
 
-    if [ -e "$dst" ]; then
+    # Guard the pathological case BEFORE anything else touches $src. Nothing in
+    # this tree ever creates a directory at $dst, but if one existed the two
+    # obvious codings both destroy data: `[ -e ]` would treat it as "already
+    # migrated" and delete the original outright, while falling through would
+    # be worse still — `mv file dir` does not fail, it moves the file INSIDE
+    # the directory, where nothing reads it, and then we would delete the
+    # original believing the rename succeeded. Bail out and keep $src instead.
+    if [ -d "$dst" ]; then
+        echo "  WARNING: $dst exists and is a directory — skipping relocation, leaving $src in place" >&2
+        return 0
+    fi
+
+    if [ -f "$dst" ]; then
         # Already relocated on an earlier run. Drop the stale original so no
         # later reader — and no downgraded unit file — can pick up the
         # abandoned copy, and so www-data stops owning a writable leftover.
@@ -2021,13 +2033,27 @@ migrate_environment_location() {
         # carries both mode and owner across, so setting them afterwards leaves
         # a window at the wrong values. root:root is the whole point here; 0644
         # is all any consumer needs, and nothing but root ever writes it.
-        chmod 644 "$tmp"
+        #
+        # Both are `|| true` rather than bare. Under `set -e` a bare failure
+        # here would abort the whole in-flight OTA — with services already
+        # stopped — which is precisely what this function's header promises it
+        # will never do. Degrading instead is safe: a chmod failure leaves the
+        # file 0600 root:root, and systemd reads an EnvironmentFile as root, so
+        # the daemons still get their overrides.
+        chmod 644 "$tmp" 2>/dev/null || true
         chown root:root "$tmp" 2>/dev/null || true
-        mv "$tmp" "$dst"
-        rm -f "$src" 2>/dev/null || true
-        echo "  Relocated daemon environment to $dst (root:root 0644)"
+        # The rename is guarded for the same reason, and the original is
+        # removed ONLY if it succeeded — otherwise the operator's overrides
+        # would be lost with nothing installed in their place.
+        if mv "$tmp" "$dst"; then
+            rm -f "$src" 2>/dev/null || true
+            echo "  Relocated daemon environment to $dst (root:root 0644)"
+        else
+            rm -f "$tmp" 2>/dev/null || true
+            echo "  WARNING: failed to install $dst — leaving $src in place" >&2
+        fi
     else
-        rm -f "$tmp"
+        rm -f "$tmp" 2>/dev/null || true
         echo "  WARNING: failed to copy $src — leaving original in place" >&2
     fi
 }
