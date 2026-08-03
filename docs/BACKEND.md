@@ -1192,7 +1192,7 @@ Lives on the rootfs (read-only by default). `qmanager_setup` calls `mount -o rem
 | `/etc/qmanager/crash.log` | Reboot log (`<epoch>\|reboot\|<tag>`): watchcat Tier-4 writes `tier4_escalation` (token-bucket source), the `qmanager_crash_log_append` root helper writes `user`; read-only by alert_engine.sh for reboot classification |
 | `/etc/qmanager/qmanager_sim_failover` | Watchcat Tier-3 SIM-failover record (persistent so it survives a Tier-4 reboot) |
 | `/etc/qmanager/last_iccid` | Last-landed SIM ICCID; written after a swap/revert so the poller's boot swap-detector doesn't false-fire |
-| `/etc/qmanager/environment` | Optional environment overrides for systemd units (e.g., `QLOG_LEVEL=DEBUG`) |
+| `/etc/qmanager.env` | Optional environment overrides for the root-run systemd daemons (e.g., `QLOG_LEVEL=DEBUG`). **Outside `/etc/qmanager` on purpose** — `root:root 0644`, never `www-data`-writable. Relocated from `/etc/qmanager/environment` in v0.1.14; see [qmanager-independence.md](reference/qmanager-independence.md) |
 
 ### Other Paths
 

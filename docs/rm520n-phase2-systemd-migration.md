@@ -6,7 +6,7 @@
 >
 > **Most important divergence — AT transport:** this document plans a **socat PTY bridge** for AT command access (`/dev/ttyOUT2`, `microcom`, etc.). That approach was **abandoned**. The shipped transport is **`qcmd` wrapping `atcli_smd11` on `/dev/smd11` directly** (no socat, no PTY bridge), serialized by `flock` on `/tmp/qmanager_at.lock`.
 >
-> **Other divergences since this was written:** (1) `qmanager.target` was dropped — services are symlinked directly into `multi-user.target.wants/` (SimpleAdmin's proven pattern); (2) service files install to `/lib/systemd/system/` (persistent rootfs), not `/etc/systemd/system/` (tmpfs); (3) `systemctl enable/disable` does not work for boot persistence — `platform.sh` creates/removes the symlinks instead.
+> **Other divergences since this was written:** (1) `qmanager.target` was dropped — services are symlinked directly into `multi-user.target.wants/` (SimpleAdmin's proven pattern); (2) service files install to `/lib/systemd/system/` (persistent rootfs), not `/etc/systemd/system/` (tmpfs); (3) `systemctl enable/disable` does not work for boot persistence — `platform.sh` creates/removes the symlinks instead; (4) the `EnvironmentFile=` planned below at `/etc/qmanager/environment` **moved to `/etc/qmanager.env`** in v0.1.14 — `/etc/qmanager` is `www-data`-owned, which made a root daemon's environment file writable by the web user. Every `EnvironmentFile=-/etc/qmanager/environment` line in this document is the old path. See [`reference/qmanager-independence.md`](reference/qmanager-independence.md).
 >
 > **For the current architecture, read these instead:**
 > - [`rm520n-gl-architecture.md`](rm520n-gl-architecture.md) — shipped platform architecture reference

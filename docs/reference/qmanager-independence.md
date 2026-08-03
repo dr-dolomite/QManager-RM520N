@@ -47,7 +47,7 @@ devices and fixed in `install_rm520n.sh` / `qmanager_setup`):
 | `/usrdata/qmanager` (`$QMANAGER_ROOT`) | `qmanager-console.service` has no `User=`, so it runs as root with `ExecStart=$QMANAGER_ROOT/console/ttyd … console.sh`. A writable parent lets `console/` be replaced wholesale and executed as root at next start, with no auth gate. |
 | `/usrdata/qmanager/certs` | `server.key`'s own `0600` is moot if the *directory* is writable — the key and cert can be deleted and replaced, enabling a TLS MITM of the admin UI. Deliberately `0755` and not `0750`: lighttpd reads the key as root at startup before dropping to `www-data`, and `www-data` legitimately reads the public cert. File modes are also re-asserted unconditionally each run (`chmod 600 server.key`, `chmod 644 server.crt` — the cert was shipping `0666`). |
 | `/usrdata/qmanager/www` (`$WWW_ROOT`) and `$WWW_ROOT/cgi-bin` | lighttpd serves this tree and runs CGI from `cgi-bin/`. The subtree's own modes were correct; a writable **parent** made that moot — the whole `cgi-bin/` could be swapped. |
-| `/etc/qmanager` (`$CONF_DIR`) | **Ownership is `www-data`, but the MODE must still be `0755`.** `/etc/qmanager/environment` is pinned `root:root 0644` (see below) — and that pin only guards the *file*. At `0777`, any local user could unlink it and drop in their own, injecting `PATH=` / `LD_PRELOAD=` into four root daemons. Created in two places — `mark_version_pending()` (mode only; `www-data` does not exist yet at that point) and `install_backend()` (owner **and** mode, once the user exists); **both** use `install -d`. |
+| `/etc/qmanager` (`$CONF_DIR`) | **Ownership is `www-data`, but the MODE must still be `0755`.** `0777` would extend create/rename/unlink here to *every* local user, not just the owner. Note that `0755` does **not** wall `www-data` out — it owns the directory, and `0755` grants the owner `rwx` — which is why nothing that must be protected *from* `www-data` may live here at all (see below). Created in two places — `mark_version_pending()` (mode only; `www-data` does not exist yet at that point) and `install_backend()` (owner **and** mode, once the user exists); **both** use `install -d`. |
 
 > ℹ️ NOTE: `/etc/qmanager` is an exception to the **ownership** half of this
 > rule, not the **mode** half. It is intentionally `chown -R www-data:www-data`
@@ -55,7 +55,7 @@ devices and fixed in `install_rm520n.sh` / `qmanager_setup`):
 > a known, accepted boundary, see the "Honest threat model" section in
 > [sim-detection.md](sim-detection.md). It is **not** an exception to `0755`:
 > `www-data` owning the directory already lets it manage its own files, so
-> group/world write buys nothing and costs the `environment` carve-out. It was
+> group/world write buys nothing and only widens the blast radius. It was
 > found at `0777` on fielded devices, created by a bare `mkdir -p` that honoured
 > the ambient umask and then no-op'd on every subsequent OTA.
 
@@ -97,7 +97,7 @@ mv "$tmp" "$target"
 
 Reference implementations in `install_rm520n.sh`: `migrate_sim_registry()`,
 `migrate_ping_targets()`, `migrate_ping_environment()`,
-`prune_stale_ping_environment()`.
+`prune_stale_ping_environment()`, `migrate_environment_location()`.
 
 > ℹ️ NOTE: `stop_services()` runs before `install_backend()`, so the poller and
 > every other QManager daemon are already stopped when these migrations run —
@@ -131,31 +131,93 @@ The same applies to bare commands inside them: `qm_config_set` /
 in `install_ping_profile()` and the backup `cp` in `migrate_ping_environment()`
 are `if`-guarded.
 
-### `/etc/qmanager/environment` is deliberately `root:root`
+### ⚠️ Nothing that must be protected FROM `www-data` may live in `/etc/qmanager`
 
-`install_backend()` does a blanket `chown -R www-data:www-data "$CONF_DIR"`,
-then immediately re-pins one file back:
+**The parent-directory rule: a file's own owner and mode are irrelevant if
+`www-data` can write the directory it sits in.** Unlinking, renaming, or
+replacing a directory entry requires write permission on the **parent
+directory**, not on the file. `www-data` *owns* `/etc/qmanager`, and `0755`
+grants the owner `rwx` — so `www-data` can unlink any file in there and drop in
+its own, whatever that file says it is. Verified live: `sudo -u www-data` can
+both create and unlink in `/etc/qmanager`.
 
-| File | Owner | Why |
-|------|-------|-----|
-| `/etc/qmanager/ping_profile.json` | `www-data:www-data` | The CGI genuinely writes it (`settings/ping_profile.sh`, `monitoring/watchdog.sh`). |
-| `/etc/qmanager/environment` | `root:root` `0644` | It is the systemd `EnvironmentFile=` for four **root-run** daemons (`qmanager-poller`, `qmanager-ping`, `qmanager-watchcat`, `qmanager-discord`) and **no CGI reads or writes it**. `www-data` ownership would hand a compromised web user in-place environment-variable injection into root daemons. `0644` is all any consumer needs. |
+The daemon `EnvironmentFile` is the file that taught us this, the expensive way.
 
-> ⚠️ WARNING: **The file pin is only half the control — the directory mode is
-> the other half.** Unlinking and replacing a file needs write permission on
-> its *parent*, so a group/world-writable `$CONF_DIR` defeats this carve-out
-> entirely: `www-data` deletes the root-owned `environment` and writes its own.
-> systemd does not shell-source an `EnvironmentFile=`, but it will set any
-> `KEY=VALUE` it finds into those four root daemons — and they shell out
-> constantly. Keep `$CONF_DIR` at `0755`; see the `install -d` table above.
+| File | Location | Owner | Why |
+|------|----------|-------|-----|
+| `/etc/qmanager.env` | **Outside** `$CONF_DIR` | `root:root` `0644` | It is the systemd `EnvironmentFile=` for four **root-run** daemons (`qmanager-poller`, `qmanager-ping`, `qmanager-watchcat`, `qmanager-discord`) and **no CGI reads or writes it**. `/etc` is `root:root 0755` and unwritable by `www-data` (verified live), so the file is genuinely out of reach. |
+| `/etc/qmanager/ping_profile.json` | Inside `$CONF_DIR` | `www-data:www-data` | The CGI genuinely writes it (`settings/ping_profile.sh`, `monitoring/watchdog.sh`) — correct place, correct owner. |
+| `/etc/qmanager/sim_registry.json` | Inside `$CONF_DIR` | `www-data:www-data` | Same: a real `www-data` writer (the dismiss/undismiss CGI via `sim_registry.sh`). |
 
-The re-pin is unconditional on every install and OTA, so already-fielded devices
-are corrected — without it, the blanket `chown` above would leave the file
-`www-data`-owned forever. The two migration functions that rewrite this file
-(`migrate_ping_environment()`, `prune_stale_ping_environment()`) `chown root:root`
-their temp file to match; keep all three in sync if any changes.
+#### Why the old `root:root` pin did not work
 
-`migrate_sim_registry()` is the third writer under `$CONF_DIR` and `chown www-data:www-data`s
+Until v0.1.14 the file lived at `/etc/qmanager/environment` and was pinned
+`root:root 0644` by a carve-out in `install_backend()`, immediately after the
+blanket `chown -R www-data:www-data "$CONF_DIR"`. **That framing — "a
+root-owned file inside a www-data directory" — was the wrong mental model, and
+it is what let the hole survive review.** It failed for two independent
+reasons, both confirmed on live hardware:
+
+1. **The parent-directory rule above.** `www-data` owns `$CONF_DIR`, so it
+   could unlink the pinned file and substitute its own. The pin only ever
+   guarded the file's *contents-in-place*, which was never the attack.
+2. **`qmanager_setup` runs `chown -R www-data:www-data /etc/qmanager` on every
+   boot**, with no exclusion list. The install-time pin therefore survived
+   exactly one boot cycle. Fielded devices were found with the file sitting
+   `www-data:www-data` — directly writable, no unlink trick even needed.
+
+The impact is root code execution from the web user. systemd does **not**
+shell-source an `EnvironmentFile=`, but it *does* inject every `KEY=VALUE` it
+finds there into those four root daemons — including `PATH=` and `LD_PRELOAD=`
+— and they shell out constantly.
+
+#### Why it could not be fixed in place
+
+- `/etc/qmanager` **must** stay `www-data`-writable. The CGI genuinely writes
+  `auth.json`, `profiles/`, `ping_profile.json`, and the `*_alerts.json` blobs.
+- A **root-owned subdirectory** does not help: `www-data` owns the parent, so
+  it can rename the subdirectory out of the way and put its own there.
+- The **sticky bit** (`+t`) does not help either. Its exemption covers "root,
+  the directory's owner, or the file's owner" — and `www-data` **is** the
+  directory's owner.
+- Adding a **chown exclusion list** to `qmanager_setup` is not a fix. It would
+  address reason 2 while leaving reason 1 untouched, and reason 1 alone is
+  sufficient for the escalation.
+
+Moving the file out has a second benefit beyond closing the hole: it makes
+`qmanager_setup`'s blanket `chown -R` *harmless* for this file. That **removes**
+a lockstep hazard rather than adding another carve-out that two scripts have to
+keep in sync forever.
+
+#### Migration: `migrate_environment_location()`
+
+`install_rm520n.sh` moves the file on install and on every OTA, preserving
+content byte-for-byte so an operator's `QLOG_LEVEL=DEBUG` or `PING_TARGET_*`
+overrides carry across. It writes a temp file in `/etc` (the **destination**
+directory) and renames — `/etc` and `/etc/qmanager` are the same UBIFS volume
+(`/dev/ubi2_0`, the same one as `/usrdata`), confirmed live, so `mv` between
+them is a true atomic `rename(2)`. A bare `mktemp` would land in `/tmp`, which
+is tmpfs — a different filesystem, where `mv` silently degrades to copy+unlink.
+See the temp-file rule above. The original is removed only after both the copy
+and the rename succeed, and every failure path warns and `return 0`s per the
+`set -e` rule above, so a bad migration cannot abort an in-flight OTA. If
+`/etc/qmanager.env` already exists, the stale original is simply unlinked so no
+later reader — or a downgraded unit file — can pick up the abandoned copy.
+
+> ⚠️ WARNING: **Ordering is load-bearing.** `migrate_environment_location()`
+> must run **after** `migrate_ping_environment()` and
+> `prune_stale_ping_environment()`. Both of those are deliberately left
+> hardcoded to the **old** path and open with
+> `[ -f "$env_file" ] || return 0`. If the relocation ran first, a device still
+> carrying the pre-v0.1.9 cycle-count format (`FAIL_THRESHOLD=3` rather than
+> `FAIL_SECS=15`) would have the unconverted file moved out from under them;
+> both would find nothing, `return 0`, and that device would never get its
+> conversion — not on that OTA and not on any future one. After the first
+> successful relocation the old path stays empty forever and both become
+> permanent no-ops. That is expected, not a bug — do not "tidy up" by
+> retargeting them.
+
+`migrate_sim_registry()` is the other writer under `$CONF_DIR` and `chown www-data:www-data`s
 its temp — `sim_registry.json` **does** have a `www-data` writer (the
 dismiss/undismiss CGI via `sim_registry.sh`). Because the blanket `chown -R` runs
 *earlier* in `install_backend()` than the migration functions, a temp left at
