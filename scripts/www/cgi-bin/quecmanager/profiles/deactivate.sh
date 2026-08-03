@@ -110,8 +110,15 @@ clear_active_profile
 # cron), nor leave the radio locked to the profile's scenario. Mode-only
 # reset: returns mode_pref to AUTO and writes active_scenario=balanced.
 . /usr/lib/qmanager/scenario_mgr.sh 2>/dev/null
+# Redirect is load-bearing, not tidiness: scenario_teardown_schedule wraps the
+# qmanager_scenario_schedule_arm root helper, which prints a JSON object on
+# every exit path ({"success":true,"armed":false}). Unredirected, that lands in
+# this endpoint's HTTP body ahead of the cgi_success below, so the response is
+# two concatenated JSON documents and no client can parse it. Nothing captures
+# this output anywhere. (scenario_reset_to_default below writes only to the
+# log, so it needs no redirect.)
 if command -v scenario_teardown_schedule >/dev/null 2>&1; then
-    scenario_teardown_schedule
+    scenario_teardown_schedule >/dev/null 2>&1
 fi
 if command -v scenario_reset_to_default >/dev/null 2>&1; then
     scenario_reset_to_default

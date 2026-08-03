@@ -515,7 +515,17 @@ _profile_teardown_scenario_schedule() {
     if ! command -v scenario_teardown_schedule >/dev/null 2>&1; then
         . /usr/lib/qmanager/scenario_mgr.sh 2>/dev/null
     fi
-    command -v scenario_teardown_schedule >/dev/null 2>&1 && scenario_teardown_schedule
+    # Redirect: scenario_teardown_schedule is a thin wrapper over the
+    # qmanager_scenario_schedule_arm root helper, which prints a JSON object on
+    # EVERY exit path ({"success":true,"armed":false} and friends). Both callers
+    # of this helper run inside a CGI that emits its own JSON afterwards
+    # (profile_delete -> profiles/delete.sh, auto_apply_profile ->
+    # cellular/settings.sh), so an unredirected call concatenates two documents
+    # into one HTTP body and the response stops being valid JSON. Nothing
+    # anywhere captures or parses this output — verified across all call sites.
+    # (_profile_reset_scenario_to_default below needs no such redirect:
+    # scenario_reset_to_default writes only to the log, never to stdout.)
+    command -v scenario_teardown_schedule >/dev/null 2>&1 && scenario_teardown_schedule >/dev/null 2>&1
     return 0
 }
 
