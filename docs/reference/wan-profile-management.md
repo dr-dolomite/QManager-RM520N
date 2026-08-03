@@ -23,8 +23,8 @@ Backed by the CGI endpoint `cellular/apn.sh`. The frontend UI lives under
 | Shared attach-cycle primitive | `scripts/usr/lib/qmanager/apn_apply.sh` → `/usr/lib/qmanager/apn_apply.sh` |
 | APN bracket lock | `/tmp/qmanager_apn_apply.lock` (fd 8) — **not** `qcmd`'s `/tmp/qmanager_at.lock` (fd 9) |
 | Profile slots | 6, one per PDP context CID (1-6) |
-| Name sidecar file | `/usrdata/qmanager/apn_names.json` |
-| Single-APN sidecar file (WS6) | `/usrdata/qmanager/apn_setting.json` |
+| Name sidecar file | `/etc/qmanager/apn_names.json` (moved from `/usrdata/qmanager/` — see [Why the sidecars live in `/etc/qmanager`](#why-the-sidecars-live-in-etcqmanager)) |
+| Single-APN sidecar file (WS6) | `/etc/qmanager/apn_setting.json` |
 | Frontend types (6-slot) | `types/wan-profiles.ts` |
 | Frontend hook (6-slot) | `hooks/use-wan-profiles.ts` |
 | Frontend types (single-APN, page-active) | `types/apn-settings.ts` |
@@ -114,6 +114,86 @@ touches the modem.
 
 `AT+CGACT=<0|1>,<cid>` — activate or deactivate one PDP context. No APN or auth
 change.
+
+---
+
+## Parsing `+CGCONTRDP` — `parse_cgcontrdp()` in `cgi_at.sh`
+
+`AT+CGCONTRDP=<cid>` is the only command that reports what the network
+**actually granted** for a context — address, gateway and DNS — so `apn.sh`
+reads it for every active CID. The shared parser lives in
+`scripts/usr/lib/qmanager/cgi_at.sh` and returns five tab-separated fields:
+
+```
+<ipv4_addr>\t<ipv4_gateway>\t<dns1>\t<dns2>\t<ipv6_addr>
+```
+
+> ⚠️ WARNING: The **arity and the field order are contract.** Callers slice
+> them positionally with `cut -f1..5`. Do not widen or reorder without updating
+> every consumer.
+
+> ℹ️ NOTE: **`parse_at.sh` has a separate, deliberately different
+> `parse_cgcontrdp` — leave it alone.** That is the one `qmanager_poller` uses
+> (Tier 2 `t2_apn` / `t2_primary_dns` / `t2_secondary_dns`). It selects the
+> first non-IMS record and never classifies by address family at all, so none
+> of the defects below apply to it. Do not "harmonise" the two parsers; they
+> answer different questions.
+
+### Family is decided by octet count, not by punctuation
+
+3GPP returns an IPv6 address in `+CGCONTRDP` as **16 dotted-decimal octets**,
+not colon-hex — verified live on this firmware, which uses the dotted form in
+`+CGCONTRDP`, `+CGPADDR` and `+CGDCONT?` alike (colon-hex shows up only in
+`+QMAP`). The parser originally split on `addr ~ /:/`, which therefore never
+matched. Because the query is per-CID and a dual-stack context emits the IPv6
+record **second**, that record fell into the IPv4 branch and overwrote the
+address, gateway and both DNS servers wholesale, leaving field 5 empty — which
+in turn made `status_ipv6` permanently unable to read `up`.
+
+Classification is now by octet count, with colon-hex kept as a fallback for
+firmwares that do emit it:
+
+| Address shape | Family |
+|---------------|--------|
+| 4 dotted octets | IPv4 |
+| 16 dotted octets | IPv6 |
+| contains `:` | IPv6 |
+
+The **first** record of each family wins, so a later record can no longer
+clobber an earlier one.
+
+### The gateway is sometimes quoted and sometimes bare
+
+The same CID was observed both ways minutes apart on this firmware:
+
+```
++CGCONTRDP: 1,5,"apn","addr",,"dns1","dns2"        <- bare gateway
++CGCONTRDP: 1,5,"apn","addr","gw","dns1","dns2"    <- quoted gateway
+```
+
+The parser splits on `"` (`awk -F'"'`), so a quoted gateway shifts every later
+field by **two**. The old fixed `$6` / `$8` therefore returned the *gateway* as
+`dns1` and dropped `dns2` entirely on any quoted-gateway context. The parser
+now counts the quoted tokens instead — they sit on even fields, so `int(NF/2)`
+— and picks the offsets from that: five tokens means `apn/addr/gw/dns1/dns2`,
+four means the gateway was bare and lives in the separator run at `$5`.
+
+### DNS is family-neutral, the gateway is not
+
+DNS used to be captured only in the IPv4 branch, but the consumer emits plain
+`dns1` / `dns2`, not `ipv4_dns1`. On an IPv6-only attach — which the test SIM
+currently hands out — that meant **no DNS at all** in the response. DNS is now
+taken from whichever record supplies it, first non-empty winning, so a
+dual-stack context still prefers the IPv4 record that arrives first.
+
+The gateway stays IPv4-only, because `apn.sh` does emit it as `ipv4_gateway`.
+
+### CR normalisation
+
+Input is piped through `tr '\r' '\n'` before `awk`. Some firmwares glue
+successive records with a bare CR instead of CRLF, which would otherwise leave
+two records on one `awk` line and hide the second entirely. `parse_at.sh`'s
+sibling parser has carried this same normalisation since it was written.
 
 ---
 
@@ -311,25 +391,112 @@ on this firmware does not return an MTU field at all.
 The fields exist in `types/wan-profiles.ts` for cross-platform schema parity,
 not because the value can be set here.
 
+### The separate `network/mtu.sh` endpoint reads the *live* WAN interface
+
+The interface-level MTU control (**Network → MTU**) is a different endpoint,
+`scripts/www/cgi-bin/quecmanager/network/mtu.sh`, and it works on Linux netdevs
+rather than PDP contexts. Its `GET` used to hardcode `rmnet_data0`.
+
+**The WAN does not live on a fixed `rmnet_dataN`.** The channel index migrates
+across attach cycles — verified live during this work: the modem was attached
+on `rmnet_data1` (the only interface `UP`, holding the address and the default
+route) while `rmnet_data0` sat `DOWN` with no address but non-zero
+`/proc/net/dev` counters, i.e. it had been the WAN earlier in the same boot.
+Hardcoding index 0 reported the MTU of a downed interface; it only looked
+correct because both happened to read 1500.
+
+`resolve_wan_interface()` now resolves it at request time, most authoritative
+first:
+
+1. the default route's device (what traffic actually uses);
+2. the first `rmnet_data*` holding a global-scope address;
+3. the first `rmnet_data*` with `carrier=1` (the `tower_lock_mgr.sh` idiom);
+4. `rmnet_data0` — a degrade-not-fail default that preserves legacy behaviour
+   rather than erroring the request.
+
+> ℹ️ NOTE: `detect_active_cid()` cannot be reused here. It resolves a **PDP
+> context ID**, and neither `+CGPADDR` nor `+QMAP` carries a Linux interface
+> name — there is no CID → interface mapping anywhere in the codebase, and the
+> `+QMAP` mux id matching `rmnet_dataN` today is coincidence, not a contract.
+
+The `POST` path is unchanged: it already looped over every `rmnet_data*` and
+applied the MTU to all of them.
+
 ---
 
 ## Profile name sidecar
 
 PDP contexts have no native "name" field, so profile names are stored
-separately in `/usrdata/qmanager/apn_names.json` — a flat JSON map of
+separately in `/etc/qmanager/apn_names.json` — a flat JSON map of
 CID to name:
 
 ```json
 { "1": "T-Mobile", "2": "IMS", "3": "SOS" }
 ```
 
-- Written by `apn.sh`, which runs as `www-data`. `/usrdata/qmanager/` is mode
-  `0777`, so the CGI can create the file.
+- Written by `apn.sh`, which runs as `www-data`. `/etc/qmanager/` is owned
+  `www-data:www-data` by the installer's `install_backend()`, so the CGI can
+  create the file.
 - The CGI `chmod 644` the file explicitly so the mode does not depend on the
   process umask.
 - A missing file means all profile names are empty — this is **not** an error.
 - A failure to persist the name is logged (`qlog_warn`) but does not fail the
   save; the APN/auth write has already succeeded.
+
+### Why the sidecars live in `/etc/qmanager`
+
+Short version: both sidecars used to live in `/usrdata/qmanager/`, both of
+their writers run as `www-data`, and that directory is deliberately locked to
+`0755 root:root` — so **every write silently did nothing**.
+
+The mechanism is a Unix rule that surprises people: creating, renaming, or
+deleting a file needs write permission on the file's **parent directory**, not
+on the file. Think of a filing cabinet — the folder's own lock is irrelevant if
+you can't open the drawer. Both sidecars are written with the atomic
+`mktemp`-beside-the-target + `mv` pattern, and that `mktemp` is a *create* in
+the parent directory, so it failed outright on a directory `www-data` cannot
+write.
+
+`/usrdata/qmanager/` is `0755 root:root` on purpose and must stay that way:
+`qmanager-console.service` runs as root and executes `ttyd` from a
+subdirectory of it, so a writable parent is a root-escalation path (see the
+`install -d` table in
+[qmanager-independence.md](qmanager-independence.md#-directory-creation-rule-install--d-never-mkdir--p)).
+Loosening the directory to fix the sidecars would have traded a persistence bug
+for a privilege-escalation bug.
+
+> ℹ️ NOTE: **Both** writers run as `www-data`, including the one whose comments
+> call it "the root worker." `cellular/apn.sh` is CGI, and
+> `qmanager_profile_apply` is spawned by `profiles/apply.sh` **without**
+> `sudo` — it is not setuid and holds no sudoers grant — so on the whole UI
+> path it too is `www-data`. Symptoms on the test device: `apn_setting.json`
+> never existed at all, and every WS6 save logged "failed to persist".
+
+`/etc/qmanager/` is already `www-data:www-data` (it holds `auth.json`,
+`profiles/`, `sim_registry.json`), and `/etc` is persistent UBIFS on this
+platform, so the move survives reboots and OTA. Nothing root sources or
+executes from `/etc/qmanager/`, so this adds no privilege surface — the
+sidecars are inert JSON blobs read only through `jq`.
+
+Fielded devices are moved across by `migrate_apn_sidecars()` in
+`install_rm520n.sh`, which runs on every install and OTA:
+
+- Idempotent — no-op when the source is absent or the destination already
+  exists, so re-running an install never clobbers newer state. If both exist,
+  the stale original is deleted so no later reader can pick it up.
+- The temp file is created in the **destination** directory. `/usrdata` and
+  `/etc` are separate UBIFS volumes, so a cross-volume `mv` is not an atomic
+  `rename(2)` — BusyBox degrades it to copy + unlink and loses crash-atomicity
+  on flash.
+- Mode and owner are set on the temp file *before* the rename, because BusyBox
+  `mktemp` creates `0600 root:root` and `mv` carries both across.
+
+> ⚠️ WARNING: The uninstaller's `--purge` still removes
+> `$QMANAGER_ROOT/apn_setting.json` and `$QMANAGER_ROOT/apn_names.json` by
+> name. **Do not delete that line** because the new location is covered by the
+> `rm -rf` of `$CONF_DIR` — a device uninstalled before it ever OTA'd through
+> the migration still has the files at the legacy path, and leaving either one
+> behind re-strands the final `rmdir /usrdata/qmanager`.
 
 ---
 
@@ -413,10 +580,11 @@ backend's 6-slot AT machinery underneath is fully retained (see
 ### The `apn_setting.json` sidecar
 
 A single-APN setting lives in its own flat sidecar,
-`/usrdata/qmanager/apn_setting.json` — a sibling of `apn_names.json`, same
-world-writable directory (`/usrdata/qmanager/` is `0777`), same
-lazy-create-on-first-save pattern (no installer seeding needed), same atomic
-tmp+mv write with an explicit `chmod 644`:
+`/etc/qmanager/apn_setting.json` — a sibling of `apn_names.json`, same
+`www-data`-owned directory (see
+[Why the sidecars live in `/etc/qmanager`](#why-the-sidecars-live-in-etcqmanager)),
+same lazy-create-on-first-save pattern (no installer seeding needed), same
+atomic tmp+mv write with an explicit `chmod 644`:
 
 ```json
 { "apn": "fast.t-mobile.com", "pdp_type": "ipv4v6", "cid": 1, "active": 1 }

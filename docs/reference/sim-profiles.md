@@ -1369,6 +1369,22 @@ call the root helper directly if already root, or via `sudo -n` from a
 - `profiles/deactivate.sh` (CGI) — tears down + resets on explicit
   deactivate.
 
+> ⚠️ WARNING: **Every `scenario_teardown_schedule` call from inside a CGI must
+> be redirected to `/dev/null`.** It is a thin wrapper over the
+> `qmanager_scenario_schedule_arm` root helper, and that helper prints a JSON
+> object on *every* exit path (`{"success":true,"armed":false}` and friends).
+> Unredirected, that object lands in the endpoint's HTTP body ahead of the
+> endpoint's own `cgi_success`, so the response is **two concatenated JSON
+> documents** and no client can parse it. Three endpoints were affected:
+> `profiles/deactivate.sh` (direct call) plus `profiles/delete.sh` and
+> `cellular/settings.sh` (the SIM-slot-switch path), which both reach it
+> through `profile_mgr.sh`'s `_profile_teardown_scenario_schedule` wrapper. The
+> redirect now sits at the wrapper *and* at the direct call. Nothing anywhere
+> captures or parses this output — verified across all call sites.
+>
+> `scenario_reset_to_default` needs no such redirect: it writes only to the
+> log, never to stdout.
+
 > ⚠️ WARNING: The `profile_id` argument reaches `qmanager_scenario_schedule_arm`
 > from a `www-data`-reachable `sudo` call and is interpolated into the
 > generated `.timer` unit's `Description=` line, so the helper validates it

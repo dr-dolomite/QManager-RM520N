@@ -47,11 +47,17 @@ devices and fixed in `install_rm520n.sh` / `qmanager_setup`):
 | `/usrdata/qmanager` (`$QMANAGER_ROOT`) | `qmanager-console.service` has no `User=`, so it runs as root with `ExecStart=$QMANAGER_ROOT/console/ttyd … console.sh`. A writable parent lets `console/` be replaced wholesale and executed as root at next start, with no auth gate. |
 | `/usrdata/qmanager/certs` | `server.key`'s own `0600` is moot if the *directory* is writable — the key and cert can be deleted and replaced, enabling a TLS MITM of the admin UI. Deliberately `0755` and not `0750`: lighttpd reads the key as root at startup before dropping to `www-data`, and `www-data` legitimately reads the public cert. File modes are also re-asserted unconditionally each run (`chmod 600 server.key`, `chmod 644 server.crt` — the cert was shipping `0666`). |
 | `/usrdata/qmanager/www` (`$WWW_ROOT`) and `$WWW_ROOT/cgi-bin` | lighttpd serves this tree and runs CGI from `cgi-bin/`. The subtree's own modes were correct; a writable **parent** made that moot — the whole `cgi-bin/` could be swapped. |
+| `/etc/qmanager` (`$CONF_DIR`) | **Ownership is `www-data`, but the MODE must still be `0755`.** `/etc/qmanager/environment` is pinned `root:root 0644` (see below) — and that pin only guards the *file*. At `0777`, any local user could unlink it and drop in their own, injecting `PATH=` / `LD_PRELOAD=` into four root daemons. Created in two places — `mark_version_pending()` (mode only; `www-data` does not exist yet at that point) and `install_backend()` (owner **and** mode, once the user exists); **both** use `install -d`. |
 
-> ℹ️ NOTE: The exception is `/etc/qmanager`, which is intentionally
-> `chown -R www-data:www-data` because the CGI legitimately writes `auth.json`,
-> `profiles/`, and similar. That ownership is a known, accepted boundary — see
-> the "Honest threat model" section in [sim-detection.md](sim-detection.md).
+> ℹ️ NOTE: `/etc/qmanager` is an exception to the **ownership** half of this
+> rule, not the **mode** half. It is intentionally `chown -R www-data:www-data`
+> because the CGI legitimately writes `auth.json`, `profiles/`, and similar —
+> a known, accepted boundary, see the "Honest threat model" section in
+> [sim-detection.md](sim-detection.md). It is **not** an exception to `0755`:
+> `www-data` owning the directory already lets it manage its own files, so
+> group/world write buys nothing and costs the `environment` carve-out. It was
+> found at `0777` on fielded devices, created by a bare `mkdir -p` that honoured
+> the ambient umask and then no-op'd on every subsequent OTA.
 
 `/var/spool/cron/crontabs` is covered by the same rule and for the same reason,
 even though **nothing on this device consumes it** — see
@@ -134,6 +140,14 @@ then immediately re-pins one file back:
 |------|-------|-----|
 | `/etc/qmanager/ping_profile.json` | `www-data:www-data` | The CGI genuinely writes it (`settings/ping_profile.sh`, `monitoring/watchdog.sh`). |
 | `/etc/qmanager/environment` | `root:root` `0644` | It is the systemd `EnvironmentFile=` for four **root-run** daemons (`qmanager-poller`, `qmanager-ping`, `qmanager-watchcat`, `qmanager-discord`) and **no CGI reads or writes it**. `www-data` ownership would hand a compromised web user in-place environment-variable injection into root daemons. `0644` is all any consumer needs. |
+
+> ⚠️ WARNING: **The file pin is only half the control — the directory mode is
+> the other half.** Unlinking and replacing a file needs write permission on
+> its *parent*, so a group/world-writable `$CONF_DIR` defeats this carve-out
+> entirely: `www-data` deletes the root-owned `environment` and writes its own.
+> systemd does not shell-source an `EnvironmentFile=`, but it will set any
+> `KEY=VALUE` it finds into those four root daemons — and they shell out
+> constantly. Keep `$CONF_DIR` at `0755`; see the `install -d` table above.
 
 The re-pin is unconditional on every install and OTA, so already-fielded devices
 are corrected — without it, the blanket `chown` above would leave the file
@@ -455,7 +469,7 @@ The uninstaller's last act (Step 12) is `rmdir "$QMANAGER_ROOT"` (`/usrdata/qman
 
 | Artifact | When removed | Why it's not caught elsewhere |
 | -------- | ------------ | ----------------------------- |
-| `apn_setting.json`, `apn_names.json` | `--purge` only (config) | APN sidecar state, sibling of `www/` |
+| `apn_setting.json`, `apn_names.json` | `--purge` only (config) | **Legacy path.** Both sidecars now live in `$CONF_DIR` (`/etc/qmanager/`), which the `--purge` `rm -rf` already covers — they moved there because `/usrdata/qmanager` is `0755 root:root` and both writers run as `www-data`, so every write silently no-op'd (see [wan-profile-management.md](wan-profile-management.md#why-the-sidecars-live-in-etcqmanager)). `install_rm520n.sh`'s `migrate_apn_sidecars()` moves fielded devices across, but a device uninstalled **before** it ever OTA'd through that migration still has them here — and either one left behind re-strands the `rmdir`. Keep this line. |
 | `locales-packs/`, `locales-staging/` | `--purge` only (config) | Language-pack persistent store + staging quarantine, siblings of `www/` (see [i18n runtime downloader](i18n.md)) |
 | `/etc/data/qmanager/` | **Every uninstall** (unconditional) | Installer-created DNS staging scratch dir (`www-data:www-data` 0700) — not user config, so it isn't gated on `--purge` (see [custom-dns](custom-dns.md)) |
 
