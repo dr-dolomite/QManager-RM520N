@@ -571,6 +571,19 @@ if [ "$PURGE" = "1" ]; then
     rm -rf "$CONF_DIR"
     info "Purged config directory $CONF_DIR"
 
+    # The daemon EnvironmentFile is user config (QLOG_LEVEL, and the
+    # PING_PROFILE / PING_TARGET_IPV4 / PING_TARGET_IPV6 manual overrides
+    # documented in qmanager-ping.service), so it follows the same
+    # "preserved unless --purge" contract as everything else in $CONF_DIR.
+    # It needs its own line because it deliberately lives OUTSIDE $CONF_DIR —
+    # /etc/qmanager is www-data-owned and a www-data-writable EnvironmentFile
+    # for four root daemons is a privilege-escalation path (see
+    # migrate_environment_location() in install_rm520n.sh). The `rm -rf`
+    # above therefore does not reach it. Same orphan class as the APN
+    # sidecars below.
+    rm -f /etc/qmanager.env
+    info "Purged daemon environment file (/etc/qmanager.env)"
+
     # Sidecar state files that live directly under $QMANAGER_ROOT (siblings
     # of www/, not inside it — install_frontend's www-wipe-and-recopy never
     # touches these, so they must be cleaned up here explicitly).
@@ -593,7 +606,7 @@ if [ "$PURGE" = "1" ]; then
     rm -rf "$QMANAGER_ROOT/locales-packs" "$QMANAGER_ROOT/locales-staging"
     info "Purged language-pack store (locales-packs, locales-staging)"
 elif [ -d "$CONF_DIR" ]; then
-    warn "Config preserved at $CONF_DIR (use --purge to remove)"
+    warn "Config preserved at $CONF_DIR and /etc/qmanager.env (use --purge to remove)"
 fi
 
 # Custom DNS staging dir (/etc/data/qmanager) — installer-created scratch space

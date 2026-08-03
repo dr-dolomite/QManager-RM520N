@@ -1307,13 +1307,19 @@ install_backend() {
     # MODE matters independently of the ownership carve-out below.
     #
     # Why: removing or replacing a file requires write permission on its PARENT
-    # DIRECTORY, not on the file. So a 0777 $CONF_DIR lets www-data unlink
-    # $CONF_DIR/environment and drop in its own copy, no matter that the file
-    # itself is pinned root:root 0644 twenty lines down. systemd does not shell-
-    # source an EnvironmentFile=, but it will set any KEY=VALUE it finds into
-    # the four ROOT daemons that read it — PATH=, LD_PRELOAD= — and those
-    # daemons shell out constantly. That is root code execution from the web
-    # user, straight through a carve-out that only ever guarded the file.
+    # DIRECTORY, not on the file. A 0777 $CONF_DIR therefore lets ANY local
+    # user — not just the owner — unlink a file here and drop in their own,
+    # no matter what that file's own mode says. Pinning a file's mode is not a
+    # defence against a writable parent.
+    #
+    # Note what 0755 does and does not buy: it closes group and world, but
+    # www-data OWNS this directory, and 0755 grants the owner rwx. So www-data
+    # can still create, rename and unlink anything in here. That is by design —
+    # the CGI has to write auth.json, profiles/, ping_profile.json and the
+    # *_alerts.json blobs — but it means this directory can never hold a file
+    # that must be protected FROM www-data. The daemon EnvironmentFile used to
+    # try, and failed; it now lives at /etc/qmanager.env. See
+    # migrate_environment_location().
     #
     # This directory was previously created by mark_version_pending()'s
     # `mkdir -p`, which honours the ambient umask and no-ops on an existing
@@ -1324,20 +1330,18 @@ install_backend() {
     install -d -o www-data -g www-data -m 0755 "$CONF_DIR/profiles"
     chown -R www-data:www-data "$CONF_DIR"
 
-    # ...but NOT the daemon environment file. The blanket chown above is for
-    # the config files the CGI genuinely writes (auth.json, profiles, the
-    # various *_alerts.json). /etc/qmanager/environment is different: it is
-    # the systemd EnvironmentFile= for four ROOT-run daemons
-    # (qmanager-poller/-ping/-watchcat/-discord) and no CGI reads or writes
-    # it. Leaving it www-data-owned would give a compromised web user
-    # in-place environment-variable injection into root daemons — a
-    # straightforward privilege escalation. 0644 keeps it readable by
-    # everything that needs it. Re-asserted on every install/OTA so already
-    # fielded devices are corrected, not just fresh ones.
-    if [ -f "$CONF_DIR/environment" ]; then
-        chown root:root "$CONF_DIR/environment" 2>/dev/null || true
-        chmod 644 "$CONF_DIR/environment" 2>/dev/null || true
-    fi
+    # NOTE: the daemon EnvironmentFile used to live at $CONF_DIR/environment,
+    # carved out of the blanket chown above and re-pinned root:root here. That
+    # carve-out did not work and has been REMOVED — the file now lives at
+    # /etc/qmanager.env, outside this directory entirely. See
+    # migrate_environment_location() below for the full reasoning. The short
+    # version: pinning a file root:root inside a directory www-data OWNS buys
+    # nothing, because unlinking and replacing a file needs write permission on
+    # the PARENT DIRECTORY, not the file. Worse, qmanager_setup runs a bare
+    # `chown -R www-data:www-data /etc/qmanager` on EVERY boot, so the pin only
+    # survived until the next reboot anyway. Do not reintroduce a carve-out
+    # here for any file that must not be www-data-writable — move it out of
+    # $CONF_DIR instead.
 
     # Custom DNS needs a www-data-owned staging dir on /dev/ubi2_0 (same volume
     # as /etc/data/dnsmasq.conf) so the CGI can write the candidate config and
@@ -1415,6 +1419,10 @@ install_backend() {
     install_ping_profile
     migrate_ping_environment
     prune_stale_ping_environment
+    # MUST stay after the two above — they are hardcoded to the OLD path and
+    # would silently no-op forever if the file moved first. See the ordering
+    # note in migrate_environment_location().
+    migrate_environment_location
     migrate_ping_targets
     migrate_sim_registry
     migrate_apn_sidecars
@@ -1757,9 +1765,12 @@ migrate_sim_registry() {
     # carries owner as well as mode across a rename. The blanket
     # `chown -R www-data:www-data "$CONF_DIR"` runs earlier in install_backend()
     # than this function, so a root:root temp would silently DOWNGRADE a live
-    # www-data-owned registry. Unlike $CONF_DIR/environment (deliberately
-    # root:root — see the note further down), sim_registry.json genuinely has a
-    # www-data writer: the dismiss/undismiss CGI, via sim_registry.sh.
+    # www-data-owned registry. sim_registry.json genuinely has a www-data
+    # writer — the dismiss/undismiss CGI, via sim_registry.sh — so www-data
+    # ownership is correct here, and that is exactly why this file belongs in
+    # $CONF_DIR while the daemon EnvironmentFile (no www-data writer, and a
+    # root-escalation path if it had one) does not. See
+    # migrate_environment_location().
     chown www-data:www-data "$tmp" 2>/dev/null || true
     if ! mv "$tmp" "$target"; then
         rm -f "$tmp"
@@ -1852,10 +1863,16 @@ migrate_ping_environment() {
     # (qmanager-poller/-ping/-watchcat/-discord) and NO CGI reads or writes
     # it. Making it www-data-owned would hand a compromised web user
     # in-place environment-variable injection into root daemons; 0644 keeps
-    # it world-readable, which is all any consumer needs. The blanket
+    # it world-readable, which is all any consumer needs.
+    #
+    # This function still operates on the OLD path, /etc/qmanager/environment,
+    # on purpose — it is a one-time historical conversion and must run BEFORE
+    # migrate_environment_location() moves the file to /etc/qmanager.env. Do
+    # not retarget it. The root:root here is therefore transient: it holds only
+    # until the relocation a few calls later, which is where the ownership
+    # actually becomes durable. Inside $CONF_DIR it never was — the blanket
     # `chown -R www-data:www-data "$CONF_DIR"` earlier in install_backend()
-    # re-pins this file back to root:root immediately afterwards for the
-    # same reason — keep the two in sync if either changes.
+    # and qmanager_setup's per-boot equivalent both flatten it back.
     chmod 644 "$tmp"
     chown root:root "$tmp" 2>/dev/null || true
     mv "$tmp" "$env_file"
@@ -1903,14 +1920,115 @@ prune_stale_ping_environment() {
     if [ "$pruned" -gt 0 ]; then
         # Mode AND owner on the temp file BEFORE the rename — see the
         # equivalent block in migrate_ping_environment() above for the full
-        # rationale. root:root is deliberate: this is a systemd
-        # EnvironmentFile= for four root-run daemons and no CGI touches it.
+        # rationale, including why this function still targets the OLD path
+        # and must run before migrate_environment_location().
         chmod 644 "$tmp"
         chown root:root "$tmp" 2>/dev/null || true
         mv "$tmp" "$env_file"
         echo "  Removed $pruned stale ping env var(s) from $env_file (CARRIER_FILE no longer used)"
     else
         rm -f "$tmp"
+    fi
+}
+
+# --- Relocate the daemon EnvironmentFile out of /etc/qmanager ----------------
+
+# SECURITY. Moves /etc/qmanager/environment -> /etc/qmanager.env.
+#
+# That file is the systemd EnvironmentFile= for four ROOT-run daemons
+# (qmanager-poller/-ping/-watchcat/-discord). systemd does not shell-source an
+# EnvironmentFile, but it DOES set every KEY=VALUE it finds into those daemons'
+# environment — including PATH= and LD_PRELOAD= — and those daemons shell out
+# constantly. So anyone who can write that file, or replace it, has root code
+# execution.
+#
+# It used to live inside /etc/qmanager and was pinned root:root 0644 by a
+# carve-out in install_backend(). That did not work, for two independent
+# reasons, both confirmed on live hardware:
+#
+#   1. Unlinking or replacing a file requires write permission on its PARENT
+#      DIRECTORY, not on the file. /etc/qmanager is owned by www-data (the CGI
+#      genuinely writes auth.json, profiles/, ping_profile.json, sim_registry
+#      .json and the *_alerts.json blobs there), and mode 0755 grants the OWNER
+#      rwx. So www-data could unlink the pinned file and drop in its own,
+#      whatever the file's mode said. Verified: `sudo -u www-data` could both
+#      create and unlink in that directory.
+#   2. qmanager_setup runs `chown -R www-data:www-data /etc/qmanager` on EVERY
+#      boot with no exclusion list, so the install-time pin survived exactly
+#      one boot cycle. Fielded devices were found with the file sitting
+#      www-data:www-data — directly writable, no unlink trick even needed.
+#
+# Neither is fixable while the file lives in that directory, because the
+# directory must stay www-data-writable for the CGI to work. A root-owned
+# SUBdirectory would not help either: www-data owns the parent, so it could
+# rename the subdirectory out of the way. Nor would the sticky bit (+t), whose
+# exemption covers "root, the directory's owner, or the file's owner" — and
+# www-data IS the directory's owner.
+#
+# /etc is root:root 0755 and unwritable by www-data (verified live), so
+# /etc/qmanager.env is genuinely out of reach. Moving the file also makes
+# qmanager_setup's blanket chown harmless for it, which removes the lockstep
+# hazard rather than adding another carve-out to keep in sync.
+#
+# ORDERING — this must run AFTER migrate_ping_environment() and
+# prune_stale_ping_environment(). Both of those open with
+# `env_file=/etc/qmanager/environment; [ -f "$env_file" ] || return 0` and are
+# deliberately left pointing at the OLD path. If this relocation ran first, a
+# device still carrying the pre-v0.1.9 cycle-count format (FAIL_THRESHOLD=3
+# rather than FAIL_SECS=15) would move the unconverted file out from under
+# them, both would find nothing, return 0, and that device would never get its
+# conversion — not on this OTA and not on any future one. Running last lets
+# them finish their one-time historical work first. After the first successful
+# relocation the old path stays empty forever, so both become permanent
+# no-ops; that is expected, not a bug.
+#
+# Idempotent, and never aborts the installer: this file runs under `set -e` and
+# this function is called bare from install_backend(), so every failure path
+# warns and returns 0. The original is removed only after the copy AND the
+# rename have both succeeded — a failure leaves the old file exactly where it
+# was, still readable by the daemons, rather than losing the operator's
+# overrides.
+migrate_environment_location() {
+    local src="/etc/qmanager/environment"
+    local dst="/etc/qmanager.env"
+    local tmp
+
+    [ -f "$src" ] || return 0
+
+    if [ -e "$dst" ]; then
+        # Already relocated on an earlier run. Drop the stale original so no
+        # later reader — and no downgraded unit file — can pick up the
+        # abandoned copy, and so www-data stops owning a writable leftover.
+        rm -f "$src" 2>/dev/null || true
+        return 0
+    fi
+
+    echo "  Relocating $src -> $dst (security: out of the www-data-owned dir) ..."
+
+    # Temp file in the DESTINATION directory, /etc. Confirmed live: /etc and
+    # /etc/qmanager are the same UBIFS volume (/dev/ubi2_0, the same one as
+    # /usrdata), so `mv` between them is a true rename(2) and stays atomic. A
+    # bare mktemp would land in /tmp, which is tmpfs — a different filesystem,
+    # where mv silently degrades to copy+unlink and a power loss mid-write can
+    # leave a torn EnvironmentFile.
+    tmp=$(mktemp /etc/.qmanager.env.XXXXXX) || {
+        echo "  WARNING: failed to create temp file for environment relocation — skipping" >&2
+        return 0
+    }
+
+    if cat "$src" > "$tmp" 2>/dev/null; then
+        # Mode AND owner BEFORE the rename: BusyBox mktemp creates 0600 and mv
+        # carries both mode and owner across, so setting them afterwards leaves
+        # a window at the wrong values. root:root is the whole point here; 0644
+        # is all any consumer needs, and nothing but root ever writes it.
+        chmod 644 "$tmp"
+        chown root:root "$tmp" 2>/dev/null || true
+        mv "$tmp" "$dst"
+        rm -f "$src" 2>/dev/null || true
+        echo "  Relocated daemon environment to $dst (root:root 0644)"
+    else
+        rm -f "$tmp"
+        echo "  WARNING: failed to copy $src — leaving original in place" >&2
     fi
 }
 

@@ -8,7 +8,11 @@ Wants=qmanager-ping.service
 Type=simple
 ExecStartPre=/bin/sh -c 'i=0; while [ $i -lt 30 ] && [ ! -e /dev/smd11 ]; do sleep 1; i=$((i+1)); done; [ -e /dev/smd11 ] || { echo "AT device /dev/smd11 not found after 30s"; exit 1; }'
 ExecStart=/usr/bin/qmanager_poller
-EnvironmentFile=-/etc/qmanager/environment
+# Outside /etc/qmanager deliberately — that directory is www-data-owned, and a
+# directory's owner can replace any file in it whatever the file's own mode is.
+# systemd injects every KEY=VALUE here into this ROOT daemon. See the long note
+# in qmanager-ping.service.
+EnvironmentFile=-/etc/qmanager.env
 TimeoutStartSec=35
 TimeoutStopSec=10
 Restart=on-failure

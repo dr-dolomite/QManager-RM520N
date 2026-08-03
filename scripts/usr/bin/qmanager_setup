@@ -80,6 +80,21 @@ chown www-data:www-data /tmp/qmanager_sessions
 chmod 700 /tmp/qmanager_sessions
 
 # Config directory — www-data needs write access for auth.json, profiles
+#
+# WARNING: this is recursive and has NO exclusion list, so it runs on EVERY
+# boot and flattens the ownership of everything under /etc/qmanager. Any file
+# here that an installer pins to root:root is silently re-owned to www-data at
+# the next reboot — the pin has a lifetime of exactly one boot cycle. This
+# already cost us one real privilege-escalation bug: the systemd
+# EnvironmentFile for four root daemons used to live at
+# /etc/qmanager/environment with an install-time root:root carve-out, and
+# fielded devices were found with it www-data-owned and directly writable.
+#
+# So: a file that must NOT be www-data-writable does not belong in this
+# directory at all. Move it out (the EnvironmentFile now lives at
+# /etc/qmanager.env) rather than adding an exclusion here. Adding exclusions
+# does not scale — the directory is www-data-owned, so www-data can unlink and
+# replace any file in it regardless of that file's own owner or mode.
 chown -R www-data:www-data /etc/qmanager
 
 # Make all qmanager binaries executable

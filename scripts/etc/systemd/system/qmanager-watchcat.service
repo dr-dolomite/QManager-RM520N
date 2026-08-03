@@ -8,7 +8,11 @@ Wants=qmanager-poller.service qmanager-ping.service
 Type=simple
 ExecStartPre=/bin/sh -c '[ -f /usr/lib/qmanager/config.sh ] && . /usr/lib/qmanager/config.sh && val=$(qm_config_get watchcat enabled 0) && [ "$val" = "1" ]'
 ExecStart=/usr/bin/qmanager_watchcat
-EnvironmentFile=-/etc/qmanager/environment
+# Outside /etc/qmanager deliberately — that directory is www-data-owned, and a
+# directory's owner can replace any file in it whatever the file's own mode is.
+# systemd injects every KEY=VALUE here into this ROOT daemon. See the long note
+# in qmanager-ping.service.
+EnvironmentFile=-/etc/qmanager.env
 ExecStopPost=/bin/sh -c 'rm -f /tmp/qmanager_watchcat.pid /tmp/qmanager_watchcat.lock /tmp/qmanager_recovery_active'
 TimeoutStopSec=10
 Restart=on-failure

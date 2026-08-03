@@ -7,7 +7,11 @@ Wants=network-online.target
 [Service]
 Type=simple
 ExecStart=/usr/bin/qmanager_discord
-EnvironmentFile=-/etc/qmanager/environment
+# Outside /etc/qmanager deliberately — that directory is www-data-owned, and a
+# directory's owner can replace any file in it whatever the file's own mode is.
+# systemd injects every KEY=VALUE here into this ROOT daemon. See the long note
+# in qmanager-ping.service.
+EnvironmentFile=-/etc/qmanager.env
 TimeoutStartSec=30
 TimeoutStopSec=10
 Restart=on-failure

@@ -17,8 +17,16 @@ ExecStart=/usr/bin/qmanager_ping
 # hardcoded defaults (Cloudflare 1.1.1.1 / 2606:4700:4700::1111; relaxed
 # profile) cover fresh boots before the JSON exists. Operators who
 # genuinely need a manual override can drop values into
-# /etc/qmanager/environment (PING_PROFILE, PING_TARGET_IPV4, PING_TARGET_IPV6).
-EnvironmentFile=-/etc/qmanager/environment
+# /etc/qmanager.env (PING_PROFILE, PING_TARGET_IPV4, PING_TARGET_IPV6).
+#
+# That file lives OUTSIDE /etc/qmanager on purpose: /etc/qmanager is owned by
+# www-data (the CGI writes auth.json, profiles/, ping_profile.json there), and
+# the owner of a directory can unlink and replace ANY file in it regardless of
+# that file's own mode or owner. Since systemd injects every KEY=VALUE here
+# into a ROOT daemon that shells out, a www-data-writable EnvironmentFile is
+# root code execution (PATH=, LD_PRELOAD=). /etc is root-owned 0755, so the
+# web user cannot reach it. Do not move this back.
+EnvironmentFile=-/etc/qmanager.env
 TimeoutStopSec=10
 Restart=on-failure
 RestartSec=5s
