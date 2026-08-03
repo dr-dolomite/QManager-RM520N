@@ -169,19 +169,40 @@ parse_cgcontrdp() {
     printf '%s\n' "$1" | tr '\r' '\n' | awk -F'"' '
         /\+CGCONTRDP:/ {
             addr = $4; sub(/ .*/, "", addr)
-            gw = $5; gsub(/[^0-9.:]/, "", gw)
-            d1 = $6
-            d2 = $8
+
+            # Field positions are NOT fixed: the gateway may be quoted or bare,
+            # and that shifts everything after it by two -F(") fields. Observed
+            # live on this firmware, same CID minutes apart:
+            #   IPv4 ctx: ...,"apn","addr",,"dns1","dns2"        <- bare gw
+            #   IPv6 ctx: ...,"apn","addr","gw","dns1","dns2"    <- quoted gw
+            # Reading a fixed $6/$8 therefore returned the GATEWAY as dns1 and
+            # dropped dns2 entirely on any context with a quoted gateway.
+            # Count the quoted tokens instead (they sit on even fields, so
+            # int(NF/2)): 5 tokens means apn/addr/gw/dns1/dns2, 4 means the
+            # gateway was bare and lives in the separator run at $5.
+            nq = int(NF / 2)
+            if (nq >= 5) { gw = $6; d1 = $8; d2 = $10 }
+            else         { gw = $5; d1 = $6; d2 = $8 }
+            gsub(/[^0-9.:]/, "", gw)
+
             n = split(addr, _oct, "[.]")
-            if (addr ~ /:/) {
-                if (v6 == "") v6 = addr
-            } else if (n == 16) {
+            if ((addr ~ /:/) || n == 16) {
                 if (v6 == "") v6 = addr
             } else if (n == 4) {
-                if (v4 == "") { v4 = addr; v4gw = gw; v4d1 = d1; v4d2 = d2 }
+                # Gateway is address-family-specific (the consumer emits it as
+                # ipv4_gateway), so it is only ever taken from an IPv4 record.
+                if (v4 == "") { v4 = addr; v4gw = gw }
             }
+            # DNS is NOT family-specific in the consumer contract — apn.sh
+            # emits plain dns1/dns2, not ipv4_dns1 — so take them from
+            # whichever record supplies them. Without this, an IPv6-only
+            # context (which this SIM does hand out) would report no DNS at
+            # all. First non-empty wins, so a dual-stack context still
+            # prefers the IPv4 record that arrives first.
+            if (d1 != "" && dns1 == "") dns1 = d1
+            if (d2 != "" && dns2 == "") dns2 = d2
         }
-        END { printf "%s\t%s\t%s\t%s\t%s\n", v4, v4gw, v4d1, v4d2, v6 }'
+        END { printf "%s\t%s\t%s\t%s\t%s\n", v4, v4gw, dns1, dns2, v6 }'
 }
 
 # ---------------------------------------------------------------------------
