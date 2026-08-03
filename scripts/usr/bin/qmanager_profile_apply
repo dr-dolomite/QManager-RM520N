@@ -61,7 +61,12 @@ STATE_FILE="/tmp/qmanager_profile_state.json"
 # WS6 single-APN sidecar (same file apn.sh's write_setting_json/read_setting_
 # json manage) — kept in sync here, best-effort, after a successful APN step
 # so /cellular/settings -> APN does not render stale after a profile apply.
-APN_SETTING_FILE="/usrdata/qmanager/apn_setting.json"
+# Lives in /etc/qmanager (www-data-owned), NOT /usrdata/qmanager (0755
+# root:root). This binary is spawned WITHOUT sudo by profiles/apply.sh on the
+# UI path, so it runs as www-data there and could never create its temp file
+# under /usrdata/qmanager — the same silent no-op that affected apn.sh. Both
+# writers must stay on this one path or they diverge onto separate files.
+APN_SETTING_FILE="/etc/qmanager/apn_setting.json"
 # Recovery flag — SAME path watchcat (Tier 1/2/3), qmanager_ping
 # (during_recovery), alert_engine.sh, and events.sh already read/react to.
 # ONLY this root worker ever creates or clears this flag (never apn.sh or
@@ -389,7 +394,7 @@ apn_pdp_at_to_frontend() {
 }
 
 # _apn_sidecar_converge <cid> <negotiated_apn> <pdp_at> — best-effort,
-# warn-only sync of the WS6 single-APN sidecar (/usrdata/qmanager/
+# warn-only sync of the WS6 single-APN sidecar (/etc/qmanager/
 # apn_setting.json) after a successful profile apply. apn.sh is the only
 # other writer of this file; a failure here must NEVER fail the apply step
 # (mirrors apn.sh's own write_setting_json warn-only pattern). Writes the

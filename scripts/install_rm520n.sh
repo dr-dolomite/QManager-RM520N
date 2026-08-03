@@ -1417,6 +1417,7 @@ install_backend() {
     prune_stale_ping_environment
     migrate_ping_targets
     migrate_sim_registry
+    migrate_apn_sidecars
 
     info "Backend installed"
 }
@@ -1560,6 +1561,69 @@ migrate_ping_targets() {
         rm -f "$tmp"
         echo "  WARNING: failed to migrate legacy ping targets in $target" >&2
     fi
+}
+
+# --- Migrate APN Sidecars from /usrdata/qmanager to /etc/qmanager ------------
+
+# The two APN sidecars (apn_names.json — the per-CID profile-name map; and
+# apn_setting.json — the WS6 single-APN record) used to live in
+# /usrdata/qmanager. That directory is pinned 0755 root:root for security (the
+# root-run qmanager-console.service executes ttyd from a subdirectory, so a
+# writable parent is a root-escalation path), and BOTH writers of these files
+# run as www-data: cellular/apn.sh is CGI, and qmanager_profile_apply is
+# spawned WITHOUT sudo by profiles/apply.sh on the UI path. Creating a file
+# needs write permission on the parent directory, so both writers' atomic
+# tmp+rename silently no-opped and the settings never persisted.
+#
+# They now live in /etc/qmanager, which install_backend() already owns as
+# www-data:www-data. Nothing root sources or executes from there, so this adds
+# no privilege surface — these are inert JSON blobs read only via jq.
+#
+# Migration is needed, not merely tidy: apn_setting.json shipped while
+# /usrdata/qmanager was still 0777, so devices installed in that window carry
+# a real file with real user data. apn_names.json is older still and is known
+# to exist in the field (see the orphan-cleanup note in uninstall_rm520n.sh).
+#
+# Idempotent: no-op when the source is absent or the destination already
+# exists, so re-running an install or OTA never clobbers newer state.
+migrate_apn_sidecars() {
+    local f src dst tmp
+    for f in apn_names.json apn_setting.json; do
+        src="/usrdata/qmanager/$f"
+        dst="/etc/qmanager/$f"
+
+        [ -f "$src" ] || continue
+        if [ -e "$dst" ]; then
+            # Already migrated on an earlier run; drop the stale original so a
+            # later reader can never pick up the abandoned copy.
+            rm -f "$src" 2>/dev/null || true
+            continue
+        fi
+
+        echo "  Migrating $src -> $dst ..."
+        # Temp file MUST live in the DESTINATION directory. /usrdata and /etc
+        # are separate UBIFS volumes, so a direct `mv` across them is not
+        # rename(2) — it degrades to copy+unlink and loses crash-atomicity on
+        # flash. Same reasoning as migrate_ping_targets() above; lighttpd is
+        # not stopped during an OTA, so a concurrent CGI reader is possible.
+        tmp=$(mktemp /etc/qmanager/.${f}.XXXXXX) || {
+            echo "  WARNING: failed to create temp file for $f migration — skipping" >&2
+            continue
+        }
+        if cat "$src" > "$tmp" 2>/dev/null; then
+            # Mode AND owner set BEFORE the rename: BusyBox mktemp creates
+            # 0600 root:root and mv carries both across, which would leave the
+            # file unreadable and unwritable by the www-data CGI that owns it.
+            chmod 644 "$tmp"
+            chown www-data:www-data "$tmp" 2>/dev/null || true
+            mv "$tmp" "$dst"
+            rm -f "$src" 2>/dev/null || true
+            echo "  Migrated $f to /etc/qmanager"
+        else
+            rm -f "$tmp"
+            echo "  WARNING: failed to copy $src — leaving original in place" >&2
+        fi
+    done
 }
 
 # --- Seed SIM Registry from Legacy known_iccids ------------------------------

@@ -577,6 +577,12 @@ if [ "$PURGE" = "1" ]; then
     # apn_names.json was a pre-existing orphan bug: it was never removed on
     # --purge, so it silently blocked the rmdir below from ever succeeding
     # and left /usrdata/qmanager/ behind after every purge uninstall.
+    #
+    # Both sidecars now live in $CONF_DIR, which the `rm -rf` above already
+    # removes. This line is kept for the LEGACY path: a device uninstalled
+    # before it ever OTA'd through migrate_apn_sidecars() still has them here,
+    # and leaving either one behind re-strands /usrdata/qmanager/. Do not drop
+    # it just because the new location is covered.
     rm -f "$QMANAGER_ROOT/apn_setting.json" "$QMANAGER_ROOT/apn_names.json"
     info "Purged APN sidecar state (apn_setting.json, apn_names.json)"
 

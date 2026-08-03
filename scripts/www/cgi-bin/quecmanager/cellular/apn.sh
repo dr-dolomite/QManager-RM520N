@@ -66,8 +66,8 @@ APN_APPLY_LOCK_WAIT=5
 # None of the existing 6-slot `profiles[]`/`toggle` output is touched.
 #
 # The single stored APN setting lives in its own flat sidecar,
-# /usrdata/qmanager/apn_setting.json (sibling of apn_names.json, same
-# world-writable dir, same atomic tmp+mv write pattern) — NOT the source's v2
+# /etc/qmanager/apn_setting.json (sibling of apn_names.json, same www-data-
+# owned dir, same atomic tmp+mv write pattern) — NOT the source's v2
 # apn_profiles.json store, which has no migration primitive on this platform.
 #
 # POST action=save gets a NEW branch, selected when the request body has no
@@ -100,11 +100,18 @@ fi
 
 # --- Configuration -----------------------------------------------------------
 MAX_PROFILES=6
-NAME_FILE="/usrdata/qmanager/apn_names.json"
-# WS6 single-APN sidecar (see addendum above). Sibling of NAME_FILE, same dir
-# perms (/usrdata/qmanager is 0777), same lazy-create-on-first-save pattern —
-# no installer seeding needed.
-SETTING_FILE="/usrdata/qmanager/apn_setting.json"
+# Both sidecars live in /etc/qmanager, NOT /usrdata/qmanager. /etc/qmanager is
+# owned www-data:www-data by install_backend(), which is what lets this CGI
+# create its atomic temp file there. /usrdata/qmanager is deliberately pinned
+# 0755 root:root (the root-run console service executes from a subdirectory of
+# it), and creating a file needs write permission on the PARENT — so every
+# write here silently no-opped for as long as the sidecars lived there.
+# install_rm520n.sh's migrate_apn_sidecars() moves fielded devices across.
+# /etc is persistent UBIFS on this platform, so this survives reboots and OTA.
+NAME_FILE="/etc/qmanager/apn_names.json"
+# WS6 single-APN sidecar (see addendum above). Sibling of NAME_FILE, same dir,
+# same lazy-create-on-first-save pattern — no installer seeding needed.
+SETTING_FILE="/etc/qmanager/apn_setting.json"
 
 # =============================================================================
 # Helpers
@@ -184,7 +191,7 @@ read_names_json() {
 }
 
 # write_name <cid> <name> — merge one {cid:name} entry into the sidecar.
-# Written by www-data (CGI runs as www-data; /usrdata/qmanager is 0777),
+# Written by www-data (CGI runs as www-data; /etc/qmanager is www-data-owned),
 # then chmod 644 explicitly so the mode does not depend on umask.
 write_name() {
     _wc="$1"
