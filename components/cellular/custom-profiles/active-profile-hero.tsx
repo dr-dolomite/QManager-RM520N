@@ -83,6 +83,17 @@ export interface ActiveProfileHeroProps {
   currentIccid: string | null;
   /** One clock for the whole page, so needle and caption cannot disagree. */
   now: Date;
+  /**
+   * A mutation the modem is still working through — a deactivate round trip or
+   * an apply in flight. Both of the card's actions go dead while it is true.
+   *
+   * This is not cosmetic. Deactivate is a blocking 8-12s attach cycle and apply
+   * is a four-step worker; firing a second mutation into a modem that is
+   * mid-`AT+COPS` either collides with the APN lock (a wasted `apn_busy`) or
+   * queues a second detach behind the first. The card cannot know this on its
+   * own — it is 100% props and fetches nothing — so the coordinator tells it.
+   */
+  busy?: boolean;
   onEdit: () => void;
   onDeactivate: () => void;
   onEditSchedule: () => void;
@@ -95,6 +106,7 @@ export function ActiveProfileHero({
   applyState,
   currentIccid,
   now,
+  busy = false,
   onEdit,
   onDeactivate,
   onEditSchedule,
@@ -207,15 +219,24 @@ export function ActiveProfileHero({
         </div>
 
         <div className="flex flex-none items-center gap-2.5">
+          {/* Both actions go dead while the modem is mid-mutation. Editing is
+              disabled too, not just Deactivate: saving an ACTIVE profile now
+              auto-reapplies it, so Edit is a modem mutation as well. */}
           <Button
             variant="tonal-neutral"
             className={PILL_ACTION}
             onClick={onEdit}
+            disabled={busy}
           >
             <MaterialSymbol name="edit" size={17} />
             {t("custom_profiles.hero.edit")}
           </Button>
-          <Button variant="tonal" className={PILL_ACTION} onClick={onDeactivate}>
+          <Button
+            variant="tonal"
+            className={PILL_ACTION}
+            onClick={onDeactivate}
+            disabled={busy}
+          >
             <MaterialSymbol name="power_settings_new" size={17} />
             {t("custom_profiles.hero.deactivate")}
           </Button>

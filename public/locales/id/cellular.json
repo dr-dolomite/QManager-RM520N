@@ -591,9 +591,24 @@
     },
     "deactivate_dialog": {
       "title": "Nonaktifkan Profil",
+      "working_title": "Menonaktifkan Profil",
       "description": "Nonaktifkan profil ini? APN akan dikembalikan ke default operator, sehingga koneksi seluler terputus sejenak. Pengaturan IMEI dan TTL tidak diubah.",
       "confirm": "Menonaktifkan",
-      "deactivating": "Menonaktifkan…"
+      "unknown_profile": "Tanpa nama profil",
+      "confirm_headline": "Kembalikan ke APN default operator?",
+      "working_headline": "Mengembalikan APN dan menyambung ulang ke jaringan",
+      "working_sub": "Modem sedang memutus sambungan, menulis APN default operator, dan menyambung ulang ke jaringan. Proses ini biasanya memakan waktu sekitar 10 detik, dan koneksi seluler terputus selama berlangsung. Mohon jangan tinggalkan halaman ini.",
+      "toast": {
+        "success": "{{name}} dinonaktifkan",
+        "busy_title": "Modem sibuk — tidak ada yang diubah",
+        "busy_body": "Operasi APN lain sedang memegang kunci, sehingga tidak ada perintah yang dikirim. Coba lagi sebentar lagi.",
+        "deregistered_title": "Modem mungkin lepas dari jaringan",
+        "deregistered_body": "APN sudah dikembalikan tetapi modem gagal menyambung ulang setelah tiga kali percobaan. Profil masih aktif. Periksa koneksi, lalu reboot modem jika tidak pulih.",
+        "unconfirmed_title": "Tersambung ulang, tetapi belum terkonfirmasi",
+        "unconfirmed_body": "Modem tersambung ulang tetapi tidak pernah melaporkan koneksi data yang aktif. Profil masih aktif — periksa koneksi sebelum mencoba lagi.",
+        "failed_title": "Tidak dapat menonaktifkan profil",
+        "failed_body": "Pengembalian APN gagal. Modem tidak berubah dan masih terdaftar, dan profil masih aktif."
+      }
     },
     "apply_dialog": {
       "title": "Menerapkan Profil",

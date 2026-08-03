@@ -39,7 +39,7 @@ points (boot, SIM switch, watchdog) and are still current.
 | Frontend hook | `hooks/use-sim-profiles.ts`, `hooks/use-active-profile.ts`, `hooks/use-current-settings.ts`, `hooks/use-profile-suggestions.ts` |
 | Frontend types | `types/sim-profile.ts` |
 | Frontend page | `app/cellular/custom-profiles/` — **the single route for this feature.** `app/cellular/custom-profiles/connection-scenarios/page.tsx` is a retired route that now client-side redirects here |
-| Frontend components | `components/cellular/custom-profiles/` (coordinator `custom-profile.tsx`, hero `active-profile-hero.tsx`, ribbon `schedule-ribbon.tsx`, wizard `custom-profile-form.tsx` hosted by `profile-form-dialog.tsx`, list `custom-profile-view.tsx` — which also renders suggestion rows — dialog `apply-progress-dialog.tsx`, geometry/tone contract `shapes.ts`) |
+| Frontend components | `components/cellular/custom-profiles/` (coordinator `custom-profile.tsx`, hero `active-profile-hero.tsx`, ribbon `schedule-ribbon.tsx`, wizard `custom-profile-form.tsx` hosted by `profile-form-dialog.tsx`, list `custom-profile-view.tsx` — which also renders suggestion rows — dialogs `apply-progress-dialog.tsx` and `deactivate-progress-dialog.tsx`, geometry/tone contract `shapes.ts`) |
 | Schedule strip math | `lib/schedule-timeline.ts` (`buildDayTimeline`, `nextScenarioChange`, `formatMinute`) |
 | Suggestion data / matcher | `constants/profile-suggestions.ts`, `lib/carrier-match.ts` |
 | Apply steps | 4: `apn` → `ttl_hl` → `scenario` → `imei` |
@@ -434,6 +434,75 @@ throughout, and the bearer address changed — confirming a genuine re-attach
 rather than a local re-allocation. A repeat apply correctly reported `skipped` in
 3.0s versus 11.1s for a real apply.
 
+##### The frontend contract: one blocking request, no status endpoint
+
+**Short version:** deactivate is not a spawned worker with a progress file. It
+is a single HTTP request that does not answer for 8-12 seconds, and the UI has
+nothing to poll while it waits.
+
+That asymmetry with the apply path is the whole design constraint. `apply.sh`
+spawns `qmanager_profile_apply` and returns immediately, so the dialog can poll
+`apply_status.sh` and draw a real ledger. `deactivate.sh` calls
+`apn_apply_write` **synchronously, in the CGI process**, so the browser is
+holding an open connection for the entire attach cycle. Adding up
+`apn_apply.sh`'s own sleep constants (3 after `AT+CGDCONT`, 1 after
+`AT+COPS=2`, 3 after `AT+COPS=0`) the **hard floor is 7 s**; the realistic band
+is 8-12 s, and the worst case with all three attach retries plus a full
+`AT+CGCONTRDP` poll ceiling is ~25-33 s.
+
+`components/cellular/custom-profiles/deactivate-progress-dialog.tsx` is the
+surface. It has a `confirm` → `working` phase, refuses to close while `working`
+(the request keeps running whether or not the dialog is on screen, and closing
+mid-flight strands the user with no route back to the only feedback there is),
+and names the WAN interruption in its body copy.
+
+> ⚠️ WARNING: **The deactivate dialog deliberately renders no step ledger.**
+> There is no status endpoint, so any step rows here would be invented rows
+> advanced by a timer — exactly the theatre the State-Honesty Rule forbids. What
+> is honestly known is "the request is in flight" and "roughly how long that
+> takes", and that is precisely, and only, what it says. Do not "improve" it
+> into a sibling of `ApplyProgressDialog` without first giving `deactivate.sh` a
+> real worker + state file.
+
+The reason this needed a purpose-built dialog at all is worth recording:
+deactivate previously lived on a Radix `<AlertDialogAction>`, which **closes the
+dialog synchronously on click**. The `isDeactivating` pending state was
+therefore rendering into an unmounted dialog, and there was no toast either
+(`custom-profile.tsx` imported no `sonner` and discarded the return value). The
+user pressed Deactivate and watched nothing happen for ten seconds.
+
+##### Four readings of five backend codes
+
+`deactivateProfile` in `hooks/use-sim-profiles.ts` returns a structured
+`DeactivateResult { ok, error?, detail? }` rather than a bare boolean. A boolean
+collapsed four materially different modem states into one message:
+
+| Backend `error` | rc | What the modem is actually in | UI reading |
+|-----------------|----|-------------------------------|------------|
+| `apn_busy` | 7 | The bracket lock was held. **No AT command was issued; nothing changed.** | **Warning** toast, explicitly retryable, deliberately non-alarming |
+| `cops_attach_failed`, `detail` contains `"may be DEREGISTERED"` | 3 | `AT+COPS=0` failed all three retries — the modem may have no data | **Error** toast. The only destructive-tone state here |
+| `cops_attach_failed`, any other detail | 5 | Re-attached, but `AT+CGCONTRDP` never confirmed. Ambiguous | **Warning** toast. Unknown future codes under this error default here — the safer mistake |
+| `cgdcont_failed` / `cops_detach_failed` / `apn_revert_failed` / `network_error` | 1 / 2 / other / n/a | Modem untouched and still registered | **Error** toast carrying the backend `detail` verbatim |
+
+`network_error` is synthetic: the hook sets it when the request never produced a
+JSON envelope at all, so a caller can always branch on a code rather than on the
+absence of one.
+
+> ⚠️ WARNING: **The failure path must never refetch, and no blanket
+> `finally { refresh() }` may be added.** `deactivate.sh:91–102` deliberately
+> `exit 0`s *before* `clear_active_profile` on any revert failure, so on a
+> failure the profile really **is** still active and its schedule timer really
+> **is** still armed. The hook therefore returns **before** `fetchProfiles()` on
+> both the error and the network-failure branch. An "always refetch after a
+> mutation" reflex would destroy the honest half-state this ordering exists to
+> preserve — see the ordering note above.
+
+A successful deactivate needs no cache invalidation either: it clears the active
+marker, so `activeProfileId` genuinely changes and every effect keyed on it
+re-runs on its own. (Contrast this with the edit-while-active path, where the id
+does *not* change — see
+[Saving an active profile auto-reapplies it](#saving-an-active-profile-auto-reapplies-it).)
+
 ### Why scenario MUST come before IMEI
 
 `AT+CFUN=1,1` reboots the modem's radio stack. Anything written via
@@ -724,6 +793,150 @@ summaries **do** carry the full `scenario.schedule.blocks[]`
 active profile through `profiles/get.sh` for its config pills, and list rows
 keep their per-row `getProfile` prefetch.
 
+#### The hero's detail fetch needs a nonce — `refresh()` cannot invalidate it
+
+**Short version:** editing the profile that is already active changes nothing
+the hero's fetch effect was watching, so the hero showed the pre-edit record
+forever. A counter in the dep array is the fix.
+
+The effect in `custom-profile.tsx` that calls `getProfile(activeProfileId)` was
+keyed `[activeProfileId, getProfile]`. Both dependencies refuse to move on
+exactly the event that most needs to invalidate the record:
+
+- `activeProfileId` is the **same id** before and after an edit — the profile
+  that was active is still active.
+- `getProfile` is a `useCallback(…, [])` in `hooks/use-sim-profiles.ts`, so it
+  is stable for the lifetime of the hook.
+
+So the effect never re-ran, and "indefinitely" is literal: there is no poll on
+this page to bail it out. `useActiveProfile`'s 30 s timer is **disabled** under
+`SimProfilesProvider`, and nothing else refreshes this surface in the
+background. Everything derived from `activeProfile` went stale with it —
+`activeScenario`, `nextFireByScenarioId`, `radioOwnedByProfile`, and the hero's
+whole `ScheduleRibbon`.
+
+> ℹ️ NOTE: **Calling the hook's `refresh()` does not fix this**, which is the
+> non-obvious part. `refresh()` re-runs `fetchProfiles()`, which repopulates the
+> *summary* list — and `list.sh` deliberately omits the `settings` object the
+> hero renders (see above). It also cannot change `activeProfileId` while the
+> same profile is still active, so the effect still would not fire.
+
+The mechanism is a `detailNonce` counter bumped by `invalidateActiveProfile()`.
+A monotonic counter is used precisely because it is the one signal that is
+unequal to its predecessor **by construction** — no value equality, no reference
+identity, nothing about the profile itself. It is bumped on save-of-active and
+on apply-dialog close, and **deliberately not on deactivate**: a successful
+deactivate genuinely changes `activeProfileId` to `null` so the effect re-runs
+on its own, and a *failed* deactivate must not refetch at all (see
+[the frontend contract](#the-frontend-contract-one-blocking-request-no-status-endpoint)).
+
+Two smaller corrections ride along in the same effect:
+
+- A detail `GET` that returns `null` no longer blanks the hero. `getProfile`
+  returns `null` for a network failure and a missing record alike, and the
+  **list** is the authority on what is in force — it still names this id. The
+  effect keeps the previous record when it belongs to the same id, so a dropped
+  request cannot flash `NoActiveProfile`. This matters more now that the nonce
+  re-runs the fetch after every mutation instead of once per id change.
+- `showHeroSkeleton` is now `!pageReady` alone, not `!heroLocallyReady ||
+  !pageReady`. `pageReady` already ANDs `heroLocallyReady` into its latch, so
+  the first reveal is unchanged — but the redundant term made every *later*
+  `refresh()` tear the hero down to a skeleton and rebuild it, contradicting the
+  latch's own adjacent comment. Auto-reapply-on-save makes that refresh routine
+  rather than rare.
+
+The hero ↔ `NoActiveProfile` swap also cross-fades now, via
+`<AnimatePresence mode="wait" initial={false}>` on `DUR.quick` (360 ms) and
+`EASE_STANDARD` from `lib/motion.ts`, following the
+`components/local-network/ip-passthrough/ip-passthrough-card.tsx:295–372`
+precedent. Against DESIGN.md's Enter-Only Rule: that rule governs **conditions**
+and **navigation**, where something leaving means the condition cleared. This is
+neither — the hero is a permanent anchor **slot** that always renders one of two
+full states, and `mode="wait"` requires an exit by construction (without one the
+two full-height cards co-mount for a frame and shove the page down and back).
+Enter is opacity + `y:6`; exit is opacity only. The skeleton stays *outside* the
+`AnimatePresence`, so the page's mount cascade is not doubled up with a
+skeleton→hero cross-fade.
+
+### Saving an active profile auto-reapplies it
+
+**Short version:** `profiles/save.sh` only writes a file. It never touches the
+modem and never re-arms the scenario schedule timer — so editing the profile
+that is currently active used to change the record and nothing else. Saving an
+active profile now re-runs the full apply pipeline.
+
+> ⚠️ WARNING: **Do not "fix" the stale hero without also fixing the stale
+> timer.** These are two separate defects that had to be closed together.
+> `scenario_install_schedule` is called from **exactly one place in the entire
+> tree** — `qmanager_profile_apply:1112`, on the success branch of a run. It is
+> not called by `save.sh`, which is a pure disk write (<400 ms, zero AT
+> commands). So editing an active profile's schedule from 18:00 to 20:00 left
+> the JSON on flash saying 20:00 while the armed `OnCalendar` timer still fired
+> at **18:00**, and any APN / TTL / IMEI edit never reached the modem at all.
+>
+> Repairing only the hero's staleness (the `detailNonce` above) would have made
+> the UI confidently draw a **20:00 ribbon for a timer that fires at 18:00** —
+> a regression dressed as a fix, and strictly worse than the visibly stale card
+> it replaced. The ribbon is only honest because the timer behind it is honest;
+> anything that changes what the ribbon shows must also change what the timer
+> does.
+
+Re-applying is the only operation that brings both the modem **and** the timer
+back in line, so `custom-profile.tsx` latches the edited id in
+`pendingReapplyId` when the saved profile was the active one, and fires
+`applyProfile` through the existing `profiles/apply.sh` → `apply_status.sh`
+flow, opening the existing `ApplyProgressDialog`.
+
+Two properties make this safe and cheap, both verified in the backend:
+
+- **`apply.sh` has no "already active" rejection.** Its only block is the
+  `apply_in_progress` PID lock, which `useProfileApply` already handles by
+  following the run that is in flight.
+- **A re-apply of an unchanged profile is nearly free.** Three of the four steps
+  are self-comparing, and the APN step compares against `AT+CGCONTRDP` — the
+  *negotiated* view — and marks itself `skipped` **without detaching** when it
+  already matches. A rename-only save therefore re-applies in ~3 s with **no WAN
+  drop**; only a genuine APN change pays the attach cycle.
+
+**Ordering.** The wizard's `onSave` contract (`profile-form-dialog.tsx:59`,
+`(data) => Promise<string | null>`) is unchanged — a non-null id closes the
+wizard, `null` keeps it open so the user's typing survives. The apply is *not*
+awaited inside `onSave`; it is fired by `handleFormOpenChange` once the wizard
+has actually closed, so the two modals never overlap. `pendingReapplyId` is
+cleared before firing, so a cancelled-then-reopened wizard cannot replay someone
+else's apply.
+
+**No toast was added** to either save or apply. `custom-profile-form.tsx:541–559`
+already toasts the save, and `ApplyProgressDialog` is the apply path's feedback
+channel; a toast on either would double-report the same event.
+
+While a deactivate round trip or an apply is in flight, the hero's **Edit** and
+**Deactivate** buttons both go dead (`ActiveProfileHero`'s new `busy` prop —
+the card is 100% props and fetches nothing, so the coordinator has to tell it).
+Edit is disabled too, not just Deactivate: saving an active profile is now a
+modem mutation.
+
+> ⚠️ WARNING: **A totally-failed auto-reapply deactivates the profile the user
+> just edited.** `qmanager_profile_apply:1113–1117` calls `clear_active_profile`
+> + `scenario_teardown_schedule` + `scenario_reset_to_default` whenever a run's
+> terminal status is `failed` (i.e. *all* steps failed). This is documented
+> risk, not a defect: it is pre-existing behaviour on the Activate and Reapply
+> buttons, and auto-reapply adds a **trigger**, not a new failure mode. The UI
+> reports it truthfully — the dialog shows the `failed` verdict with its
+> destructive banner and a **Reapply profile** action, and closing it refreshes
+> both the list and the detail nonce so the hero swaps to `NoActiveProfile`
+> instead of continuing to claim the profile is in force. Nothing anywhere calls
+> this outcome a success. See also the per-step-retry warning under
+> [Apply-progress dialog](#apply-progress-dialog-apply-progress-dialogtsx),
+> which is the same finalize block.
+
+> ℹ️ NOTE: **Known follow-up, not a defect.** `custom-profile-view.tsx`'s
+> per-row Deactivate button takes no busy prop, so it is asymmetric with the
+> hero's. It is safe today only because the dialog is modal — a second click
+> cannot fire a second request. Separately, `heroLocallyReady` still gates
+> `pageReady`, so if the very first `getProfile` fails the skeleton is
+> permanent; that is pre-existing and unchanged.
+
 ### Historical context: the RM551E-parity redesign
 
 The sections below describe the redesign that preceded the merge. The three
@@ -808,6 +1021,77 @@ Three details of this dialog are deliberate and each has bitten someone:
 The bar animates `scaleX` from a left origin — transform only, no per-frame
 layout.
 
+#### Why the ledger overflowed, and which single class fixes it
+
+**Short version:** the ledger's outer block was the dialog's grid item and was
+missing `min-w-0`, so the dialog sized itself to the longest string the modem
+happened to return instead of to its own `sm:max-w-md`.
+
+A long `ApplyStep.detail` — `"APN already negotiated: internet.globe.com.ph"`, a
+raw `+CME ERROR:` payload — pushed the ledger past the 448 px panel, where
+`overflow-hidden` sheared it off mid-word and the progress bar stretched out
+past the padding with it. Three facts make this counter-intuitive, and each one
+is why the guards that *were* already in place could not help:
+
+1. **`truncate` does not bound an element's intrinsic width — it maximizes
+   it.** It expands to `overflow:hidden; text-overflow:ellipsis;
+   white-space:nowrap`, and `white-space:nowrap` makes the element's min-content
+   width equal to the **full string**. Truncation is a paint-time clip that only
+   happens once some ancestor has already imposed a width.
+2. **`min-w-0` removes an item's *automatic minimum size*** (the content-based
+   floor an item gets while `min-width: auto`). It does not shrink that item's
+   own min-content contribution to its parent — so it has to sit on the box
+   whose width is being resolved. `min-w-0` on `LEDGER_SHAPE.LIST` and `.STEP`
+   never helped, because neither is that box.
+3. **A percentage `max-width` resolves to `none` during intrinsic sizing**, so
+   `max-w-[52%]` contributes nothing to a min-content pass and cannot cap a
+   blowout on its own.
+
+`DialogContent` is `display:grid` with one implicit `auto` track, and an `auto`
+track's minimum sizing function is its item's minimum contribution. The ledger's
+outer block *is* that grid item. `LEDGER_SHAPE.ROOT` therefore carries the
+`min-w-0` that zeroes the contribution and pins the track to `sm:max-w-md`.
+Every guard below it then has a **definite** width to resolve against, which is
+what finally makes (1) and (3) do their jobs.
+
+> ⚠️ WARNING: **`max-w-[52%]` on the detail span was kept, not removed** — and
+> it is not redundant with the fix. Once the track width is definite, the step
+> label is `flex-1` = `flex: 1 1 0%`; a zero flex-basis gives it a scaled shrink
+> factor of `1 × 0 = 0`, so it absorbs no shrinkage and has no positive free
+> space to grow into. Without the percentage cap on the detail, a 200-character
+> payload takes every pixel and ellipsizes the step's **name** away to nothing.
+> The cap is what keeps positive free space available for the label. The detail
+> span is also `shrink`, never `flex-none` — a non-shrinkable sibling is
+> guaranteed to push the row past its box.
+>
+> `shapes.ts` carries this reasoning in full under **THE MIN-CONTENT CHAIN**. An
+> earlier version of that comment blamed the `min-w-0` on `STEP`, which was
+> wrong and cost a live investigation; the doc comment and the fix now agree.
+
+#### The panel fill: `bg-surface`, not `bg-background`
+
+The dialog painted `bg-background` from the `DialogContent` base — the same
+token `app/globals.css:420` gives the page `body`. The panel was literally the
+colour of the page behind it, and the caller's `border-0` removed the last edge,
+so it dissolved. It now uses the elevated `bg-surface` that every card on this
+surface already sits on (`PROFILE_CARD_PEER`, `HERO_CARD`), via the
+`APPLY_DIALOG_PANEL` constant in `shapes.ts`. `border-0` is retained
+deliberately — No-Hairline-On-Fill: a real tonal fill separates on its own, and
+the incumbent hairline was doing the work the missing fill should have been
+doing.
+
+> ℹ️ NOTE: `components/ui/dialog.tsx` was **not** changed — this was scoped to
+> the one dialog on purpose. `components/cellular/sms/delete-dialogs.tsx` has
+> the same latent `bg-background`-equals-body issue and is a known, deliberate
+> follow-up rather than an oversight.
+
+Separately, `components/ui/tonal-banner.tsx` gained `break-words` on its body
+span. Banners render raw device strings that carry no break opportunities;
+`min-w-0` stops such a string widening the banner's *parent*, but not from
+painting past the banner's own box to be clipped by an ancestor
+`overflow-hidden`. Only an explicit break opportunity keeps it inside. Text that
+already fits is unaffected.
+
 > ⚠️ WARNING: **The retry action reads "Reapply profile", not the mock's "Retry
 > IMEI".** Per-step retry is **not implemented, deliberately**, and a label
 > promising it would claim a capability the backend does not have. Three
@@ -817,7 +1101,7 @@ layout.
 >    scoped run to resume from.
 > 2. `total_steps` is hardcoded to 4 with a monotonic `current_step`; the state
 >    schema cannot describe "step 4 only."
-> 3. **The finalize block at `qmanager_profile_apply:690–694` calls
+> 3. **The finalize block at `qmanager_profile_apply:1113–1117` calls
 >    `clear_active_profile` + `scenario_teardown_schedule` +
 >    `scenario_reset_to_default` whenever a run's status is `failed`.** A failed
 >    single-step "Retry IMEI" would therefore **deactivate a healthy profile and

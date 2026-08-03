@@ -156,7 +156,16 @@ export function TonalBanner({
         ) : null}
         <span
           className={cn(
-            "min-w-0 text-[13px]",
+            // `break-words` is load-bearing, not tidiness. Banners carry raw
+            // device strings — `+CME ERROR: 4`, a negotiated APN, an apply
+            // failure detail — which have no break opportunities. `min-w-0`
+            // stops such a string widening the banner's PARENT, but it does
+            // not stop the string itself painting past the banner's own box,
+            // where an ancestor `overflow-hidden` (every dialog on this
+            // surface sets one) then clips it mid-word. Only an explicit
+            // break opportunity keeps it inside. Text that already fits is
+            // unaffected — this rule only engages on an overlong single word.
+            "min-w-0 break-words text-[13px]",
             // The body is a supporting line under a title, and the sole line
             // without one — so it carries a touch more weight when it is
             // standing alone, matching the compact banner in the mock.

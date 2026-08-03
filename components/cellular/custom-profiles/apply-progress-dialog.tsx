@@ -17,6 +17,7 @@ import { TonalBanner } from "@/components/ui/tonal-banner";
 import { cn } from "@/lib/utils";
 import { transitionStandard } from "@/lib/motion";
 import {
+  APPLY_DIALOG_PANEL,
   LEDGER_BAR,
   LEDGER_SHAPE,
   LEDGER_VALUE,
@@ -252,7 +253,7 @@ export function ApplyProgressDialog({
       }}
     >
       <DialogContent
-        className="overflow-hidden rounded-card border-0 sm:max-w-md"
+        className={APPLY_DIALOG_PANEL}
         showCloseButton={dismissable}
         // Radix's `onOpenChange` guard above already refuses the close; these
         // cancel the gesture at source so an outside click while applying does
@@ -279,7 +280,7 @@ export function ApplyProgressDialog({
             One focal point. The text block reserves a fixed two-line height so
             advancing from step to step never resizes the dialog under the
             pointer. */}
-        <div className="flex flex-col items-center gap-3 py-1 text-center">
+        <div className="flex min-w-0 flex-col items-center gap-3 py-1 text-center">
           <span
             className={cn(
               "grid size-14 flex-none place-items-center rounded-pill",
@@ -348,7 +349,13 @@ export function ApplyProgressDialog({
             `DeleteProgress` precedent split a genuine backend call rather than
             animate a two-step UI over one opaque request. */}
         {steps.length > 0 && (
-          <div className="flex flex-col gap-[7px]">
+          // `LEDGER_SHAPE.ROOT` carries `min-w-0`, and this element is the
+          // direct grid item of `DialogContent` (`display:grid`, one implicit
+          // `auto` track). That `min-w-0` is what pins the track to
+          // `sm:max-w-md` instead of to the longest `detail` string the modem
+          // returns — see THE MIN-CONTENT CHAIN in `shapes.ts`. It is not
+          // interchangeable with the `min-w-0` on the list or the step.
+          <div className={LEDGER_SHAPE.ROOT}>
             <p className="text-on-surface-variant px-1 text-xs font-medium">
               {t("custom_profiles.apply_dialog.details_label")}
             </p>
@@ -375,20 +382,22 @@ export function ApplyProgressDialog({
                         spin && "animate-spin motion-reduce:animate-none",
                       )}
                     />
-                    <span className="min-w-0 flex-1 truncate text-[13px] font-semibold">
+                    <span className={LEDGER_SHAPE.LABEL}>
                       {stepLabels[step.name] ?? step.name}
                     </span>
                     {/* `ApplyStep.detail`, VERBATIM. Never synthesized: an
-                        empty detail renders an empty slot. `min-w-0` lets the
-                        long form ("Set APN to telstra.internet (CID 1)") give
-                        way to the label rather than pushing it out of the row,
-                        and `title` keeps the full string reachable. */}
+                        empty detail renders an empty slot.
+
+                        The slot is SHRINKABLE (`LEDGER_SHAPE.VALUE`), never
+                        `flex-none`. A non-shrinkable sibling cannot give way,
+                        so the long form ("Set APN to telstra.internet (CID 1)",
+                        or a raw `+CME ERROR:` payload) pushed the row past the
+                        panel and got sheared off at the padding edge instead of
+                        ellipsizing inside its own row. `title` keeps the full
+                        string reachable either way. */}
                     {step.detail ? (
                       <span
-                        className={cn(
-                          LEDGER_VALUE,
-                          "max-w-[52%] flex-none truncate text-right",
-                        )}
+                        className={cn(LEDGER_VALUE, LEDGER_SHAPE.VALUE)}
                         title={step.detail}
                       >
                         {step.detail}

@@ -591,9 +591,24 @@
     },
     "deactivate_dialog": {
       "title": "Disattiva profilo",
+      "working_title": "Disattivazione del profilo",
       "description": "Disattivare questo profilo? L'APN verrà ripristinato al valore predefinito dell'operatore, interrompendo brevemente la connessione mobile. Le impostazioni IMEI e TTL restano invariate.",
       "confirm": "Disattiva",
-      "deactivating": "Disattivazione…"
+      "unknown_profile": "Nessun nome profilo",
+      "confirm_headline": "Ripristinare l'APN predefinito dell'operatore?",
+      "working_headline": "Ripristino dell'APN e riaggancio alla rete",
+      "working_sub": "Il modem si sta scollegando, sta scrivendo l'APN predefinito dell'operatore e si sta ricollegando alla rete. Di norma richiede circa 10 secondi e la connessione mobile resta assente per tutta la durata. Non allontanarti da questa pagina.",
+      "toast": {
+        "success": "{{name}} disattivato",
+        "busy_title": "Modem occupato: nessuna modifica effettuata",
+        "busy_body": "Un'altra operazione APN deteneva il blocco, quindi non è stato inviato alcun comando. Riprova tra un momento.",
+        "deregistered_title": "Il modem potrebbe essere fuori dalla rete",
+        "deregistered_body": "L'APN è stato ripristinato ma il modem non è riuscito a ricollegarsi dopo tre tentativi. Il profilo è ancora attivo. Controlla la connessione, poi riavvia il modem se non si ripristina.",
+        "unconfirmed_title": "Ricollegato, ma non confermato",
+        "unconfirmed_body": "Il modem si è ricollegato ma non ha mai segnalato una connessione dati attiva. Il profilo è ancora attivo: controlla la connessione prima di riprovare.",
+        "failed_title": "Impossibile disattivare il profilo",
+        "failed_body": "Il ripristino dell'APN non è riuscito. Il modem è invariato e ancora registrato, e il profilo è ancora attivo."
+      }
     },
     "apply_dialog": {
       "title": "Applicazione del profilo",

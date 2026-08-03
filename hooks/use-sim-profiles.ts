@@ -43,6 +43,38 @@ import type {
 
 const CGI_BASE = "/cgi-bin/quecmanager/profiles";
 
+/**
+ * The outcome of a deactivate attempt, structured rather than boolean.
+ *
+ * WHY THIS IS NOT A BOOLEAN. `deactivate.sh` distinguishes five materially
+ * different failures, and flattening them into one `error` string made a
+ * retryable "the modem was busy and nothing was touched" render identically to
+ * "your WAN may be down". The caller needs the CODE to pick a tone, and the
+ * `detail` string to tell the two `cops_attach_failed` sub-cases apart:
+ *
+ *   apn_busy            rc=7. Another APN bracket holds the lock; NO AT command
+ *                       was issued at all. Fully retryable, nothing changed.
+ *   cops_attach_failed  rc=3 (detail says "may be DEREGISTERED") — `AT+COPS=0`
+ *                       failed all three retries and the modem may have no data.
+ *                       The one case that earns a destructive tone.
+ *                       rc=5 (detail says "returned no data after") — it DID
+ *                       re-attach but `AT+CGCONTRDP` never confirmed. Ambiguous,
+ *                       so warning, not destructive.
+ *   cgdcont_failed      rc=1. The write failed; the modem is untouched.
+ *   cops_detach_failed  rc=2. The detach failed; the modem is untouched.
+ *   apn_revert_failed   catch-all.
+ *
+ * `error` is also set to a synthetic `network_error` when the request itself
+ * never reached a JSON envelope, so a caller can always branch on a code.
+ */
+export interface DeactivateResult {
+  ok: boolean;
+  /** The backend's `error` code, or `network_error`. Absent on success. */
+  error?: string;
+  /** The backend's `detail` message. Absent on success. */
+  detail?: string;
+}
+
 export interface UseSimProfilesReturn {
   /** Array of profile summaries (for list view) */
   profiles: ProfileSummary[];
@@ -60,8 +92,15 @@ export interface UseSimProfilesReturn {
   deleteProfile: (id: string) => Promise<boolean>;
   /** Fetch a single profile by ID (full data for edit form). */
   getProfile: (id: string) => Promise<SimProfile | null>;
-  /** Deactivate the current active profile (clears marker only, no modem changes). */
-  deactivateProfile: () => Promise<boolean>;
+  /**
+   * Deactivate the current active profile.
+   *
+   * NOT a marker-only write, despite what this line used to claim:
+   * `deactivate.sh` reverts CID 1's APN to the carrier default through the
+   * shared attach-cycle primitive BEFORE it clears any profile state, so it
+   * costs a full detach/attach round trip on the modem.
+   */
+  deactivateProfile: () => Promise<DeactivateResult>;
   /** Manually refresh the profile list */
   refresh: () => void;
 }
@@ -266,7 +305,7 @@ function useSimProfilesInternal({
   // ---------------------------------------------------------------------------
   // Deactivate active profile
   // ---------------------------------------------------------------------------
-  const deactivateProfile = useCallback(async (): Promise<boolean> => {
+  const deactivateProfile = useCallback(async (): Promise<DeactivateResult> => {
     setError(null);
     try {
       const resp = await authFetch(`${CGI_BASE}/deactivate.sh`, {
@@ -283,16 +322,28 @@ function useSimProfilesInternal({
         setError(
           result.detail || result.error || "Failed to deactivate profile"
         );
-        return false;
+        // DELIBERATELY RETURNS BEFORE `fetchProfiles()`, and no `finally` may
+        // ever be added here. `deactivate.sh` exits 0 on any APN-revert failure
+        // BEFORE `clear_active_profile` runs, so on this path the profile
+        // genuinely IS still active and its schedule timer is still armed. A
+        // blanket refetch would be honest by accident at best; leaving the list
+        // untouched keeps the hero showing exactly what the device still has.
+        return {
+          ok: false,
+          error: result.error || "deactivate_failed",
+          detail: result.detail,
+        };
       }
 
       await fetchProfiles();
-      return true;
+      return { ok: true };
     } catch (err) {
       const msg =
         err instanceof Error ? err.message : "Failed to deactivate profile";
       setError(msg);
-      return false;
+      // The request never produced an envelope, so the device's real state is
+      // unknown — same reasoning as above: do not refetch, do not guess.
+      return { ok: false, error: "network_error", detail: msg };
     }
   }, [fetchProfiles]);
 

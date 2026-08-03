@@ -3,11 +3,16 @@
 import React, { useState, useCallback, useEffect, useMemo } from "react";
 import { useSearchParams } from "next/navigation";
 import { useTranslation } from "react-i18next";
-import { motion } from "motion/react";
+import { AnimatePresence, motion } from "motion/react";
+import { toast } from "sonner";
 
 import CustomProfileViewComponent from "@/components/cellular/custom-profiles/custom-profile-view";
 import { ProfileFormDialog } from "@/components/cellular/custom-profiles/profile-form-dialog";
 import { ApplyProgressDialog } from "@/components/cellular/custom-profiles/apply-progress-dialog";
+import {
+  DeactivateProgressDialog,
+  type DeactivatePhase,
+} from "@/components/cellular/custom-profiles/deactivate-progress-dialog";
 import {
   ActiveProfileHero,
   ActiveProfileHeroSkeleton,
@@ -46,7 +51,12 @@ import {
   PILL_ACTION_PLAIN,
   HERO_CARD,
 } from "@/components/cellular/custom-profiles/shapes";
-import { staggerContainer, staggerItem } from "@/lib/motion";
+import {
+  DUR,
+  EASE_STANDARD,
+  staggerContainer,
+  staggerItem,
+} from "@/lib/motion";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -67,6 +77,34 @@ import { cn } from "@/lib/utils";
 // composes the `default` variant rather than `destructive`.
 const CONFIRM_ACTION = cn(buttonVariants({ variant: "default" }), PILL_ACTION);
 const CANCEL_ACTION = PILL_ACTION_PLAIN;
+
+/**
+ * The hero <-> NoActiveProfile cross-fade.
+ *
+ * TODO(shapes): promote to shapes.ts if a second surface wants it. Kept local
+ * for now — WS1 owns that file concurrently and this has exactly one consumer.
+ *
+ * WHY THIS HAS AN EXIT AT ALL, given the Enter-Only Rule. That rule governs
+ * CONDITIONS and NAVIGATION: a banner leaving means the condition cleared and
+ * that should feel immediate. This is neither. The hero is the page's permanent
+ * anchor SLOT — it is never empty, it always renders one of two full states, and
+ * a deactivate swaps which one. `mode="wait"` needs an exit by construction, and
+ * without one the two full-height cards co-mount for a frame and shove the
+ * entire page down and back. This is the same shape
+ * `components/local-network/ip-passthrough/ip-passthrough-card.tsx:295-372`
+ * already establishes for two mutually-exclusive full states.
+ *
+ * `quick` (360ms) each way rather than `standard`: the swap follows a mutation
+ * the user just waited 8-12 seconds for, so the result must land, not saunter.
+ * Transform + opacity only — this runs on the modem's own CPU while it carries
+ * the user's traffic.
+ */
+const HERO_SWAP = {
+  initial: { opacity: 0, y: 6 },
+  animate: { opacity: 1, y: 0 },
+  exit: { opacity: 0 },
+  transition: { duration: DUR.quick, ease: EASE_STANDARD },
+} as const;
 
 // =============================================================================
 // CustomProfileComponent — the merged SIM Profiles surface
@@ -179,6 +217,36 @@ const CustomProfilePageBody = () => {
   // needs the full record and has to ask for it by id.
   const [activeProfile, setActiveProfile] = useState<SimProfile | null>(null);
 
+  // -------------------------------------------------------------------------
+  // THE DETAIL NONCE — the only thing that can re-run the fetch below
+  // -------------------------------------------------------------------------
+  // The effect's two natural dependencies BOTH refuse to change on the one
+  // event that most needs to invalidate this record: editing the profile that
+  // is already active. `activeProfileId` is the same id before and after, and
+  // `getProfile` is a `useCallback(…, [])` in `use-sim-profiles.ts` — stable for
+  // the lifetime of the hook. So the effect never re-ran and the hero showed the
+  // pre-edit record INDEFINITELY. Not "until the next poll": `useActiveProfile`'s
+  // 30s poll is disabled under `SimProfilesProvider`, and there is no other
+  // background refresh on this surface. Everything derived from `activeProfile`
+  // went stale with it — `activeScenario`, `nextFireByScenarioId`,
+  // `radioOwnedByProfile`, and the hero's whole `ScheduleRibbon`.
+  //
+  // Calling the hook's `refresh()` does NOT fix it. `refresh()` re-runs
+  // `fetchProfiles()`, which repopulates the SUMMARY list — and `list.sh`
+  // deliberately omits the `settings` object the hero renders. It also cannot
+  // change `activeProfileId` when the same profile is still active, so the
+  // effect below still would not fire.
+  //
+  // A monotonically-incrementing counter is the mechanism because it is the one
+  // signal that is unequal to its predecessor BY CONSTRUCTION — no value
+  // equality, no reference identity, nothing about the profile itself. Bump it
+  // and the fetch re-runs, whether or not anything else moved.
+  const [detailNonce, setDetailNonce] = useState(0);
+  const invalidateActiveProfile = useCallback(
+    () => setDetailNonce((n) => n + 1),
+    [],
+  );
+
   useEffect(() => {
     let cancelled = false;
     if (!activeProfileId) {
@@ -186,15 +254,27 @@ const CustomProfilePageBody = () => {
       return;
     }
     // Keep the previous hero mounted while the detail lands, rather than
-    // blanking it — the Enter-Only Rule, and a hero that flickers on every
-    // list refresh reads as the page reloading.
+    // blanking it — a hero that flickers on every refresh reads as the page
+    // reloading.
     void getProfile(activeProfileId).then((p) => {
-      if (!cancelled) setActiveProfile(p ?? null);
+      if (cancelled) return;
+      if (p) {
+        setActiveProfile(p);
+        return;
+      }
+      // A detail GET that came back empty is NOT evidence that nothing is
+      // active — `getProfile` returns null for a network failure and for a
+      // missing record alike, and the LIST is the authority on what is in force
+      // (it still names this id). Blanking here would flash `NoActiveProfile`
+      // on a dropped request, which matters more now that the nonce re-runs
+      // this after every mutation rather than once per id change.
+      setActiveProfile((prev) => (prev?.id === activeProfileId ? prev : null));
     });
     return () => {
       cancelled = true;
     };
-  }, [activeProfileId, getProfile]);
+    // `detailNonce` is the invalidation channel — see the block above.
+  }, [activeProfileId, getProfile, detailNonce]);
 
   const activeScenario = useMemo(() => {
     if (!activeProfile) return null;
@@ -281,7 +361,14 @@ const CustomProfilePageBody = () => {
     setScenariosLocallyReady(ready);
   }, []);
 
-  const showHeroSkeleton = !heroLocallyReady || !pageReady;
+  // `!pageReady` ALONE, deliberately. `pageReady` already ANDs `heroLocallyReady`
+  // into its latch, so the first reveal is unchanged — but keeping
+  // `!heroLocallyReady` in this expression as well made every LATER refresh
+  // (`refresh()` sets `isLoading` back to true) tear the hero down to a skeleton
+  // and build it again, which is exactly the re-triggered shared skeleton the
+  // latch comment above says it exists to prevent. Auto-reapply-on-save makes
+  // that refresh routine rather than rare, so the contradiction had to go.
+  const showHeroSkeleton = !pageReady;
 
   // ---------------------------------------------------------------------------
   // "Recommended for your SIM" — carrier-matched suggestions
@@ -374,25 +461,69 @@ const CustomProfilePageBody = () => {
     }
   }, [activeProfile]);
 
+  // ---------------------------------------------------------------------------
+  // Auto-reapply on save
+  // ---------------------------------------------------------------------------
+  // `save.sh` is a pure disk write (<400ms). It issues NO AT commands and — the
+  // part that actually bites — never calls `scenario_install_schedule`, which is
+  // reached from exactly one place in the whole tree:
+  // `qmanager_profile_apply:1112`. So editing the ACTIVE profile's schedule from
+  // 18:00 to 20:00 left the record saying 20:00 while the armed systemd timer
+  // still fired at 18:00, and any APN/TTL/IMEI edit never reached the modem at
+  // all. Saving an active profile therefore re-runs the apply pipeline, which is
+  // the only thing that brings BOTH the modem and the timer in line.
+  //
+  // It is cheap: three of the four apply steps are self-comparing, and the APN
+  // step compares against `AT+CGCONTRDP` (the NEGOTIATED view) and marks itself
+  // `skipped` WITHOUT detaching when it already matches. A rename-only save
+  // therefore re-applies in ~3s with no WAN drop; only a genuine APN change pays
+  // the attach cycle. `apply.sh` has no "already active" rejection — its only
+  // block is the `apply_in_progress` PID lock, which `useProfileApply` already
+  // handles by following along.
+  //
+  // THE RISK, STATED PLAINLY: `qmanager_profile_apply:1113-1117` calls
+  // `clear_active_profile` + `scenario_teardown_schedule` +
+  // `scenario_reset_to_default` when a run's terminal status is `failed` (ALL
+  // steps failed). So a totally-failed auto-reapply DEACTIVATES the profile the
+  // user just edited. That is pre-existing behavior on the Activate and Reapply
+  // buttons — this adds a trigger, not a new failure mode — and the UI's job is
+  // to report it truthfully: the dialog shows the `failed` verdict with its
+  // destructive banner, and `handleApplyProgressClose` refreshes the list so the
+  // hero swaps to `NoActiveProfile` instead of continuing to claim the profile
+  // is in force. Nothing anywhere calls this outcome a success.
+  //
+  // ORDERING. The wizard's `onSave` contract (`profile-form-dialog.tsx:59`) is
+  // preserved exactly: a non-null id means SAVED, and the form dialog closes on
+  // it. The apply is not awaited inside `onSave` — it is latched here and fired
+  // by `handleFormOpenChange` once the wizard has actually closed, so the two
+  // modals never overlap.
+  const [pendingReapplyId, setPendingReapplyId] = useState<string | null>(null);
+
   const handleSave = useCallback(
     async (data: ProfileFormData): Promise<string | null> => {
-      if (editingProfile) {
-        const success = await updateProfile(editingProfile.id, data);
-        if (success) {
-          setEditingProfile(null);
-          return editingProfile.id;
-        }
-        return null;
-      }
-      return await createProfile(data);
-    },
-    [editingProfile, createProfile, updateProfile],
-  );
+      if (!editingProfile) return await createProfile(data);
 
-  const handleFormOpenChange = useCallback((open: boolean) => {
-    setFormOpen(open);
-    if (!open) setEditingProfile(null);
-  }, []);
+      const editedId = editingProfile.id;
+      const wasActive = editedId === activeProfileId;
+
+      const success = await updateProfile(editedId, data);
+      if (!success) return null;
+
+      setEditingProfile(null);
+      // Bug 1's fix, at the site that most needed it: the id did not change, so
+      // nothing else in the detail effect's dep array moved.
+      invalidateActiveProfile();
+      if (wasActive) setPendingReapplyId(editedId);
+      return editedId;
+    },
+    [
+      editingProfile,
+      activeProfileId,
+      createProfile,
+      updateProfile,
+      invalidateActiveProfile,
+    ],
+  );
 
   const handleDelete = useCallback(
     async (id: string): Promise<boolean> => {
@@ -414,8 +545,10 @@ const CustomProfilePageBody = () => {
     name: string;
   } | null>(null);
   const [showApplyProgress, setShowApplyProgress] = useState(false);
-  const [showDeactivateConfirm, setShowDeactivateConfirm] = useState(false);
-  const [isDeactivating, setIsDeactivating] = useState(false);
+  const [showDeactivateDialog, setShowDeactivateDialog] = useState(false);
+  const [deactivatePhase, setDeactivatePhase] =
+    useState<DeactivatePhase>("confirm");
+  const isDeactivating = showDeactivateDialog && deactivatePhase === "working";
 
   const handleActivateRequest = useCallback(
     (id: string) => {
@@ -436,8 +569,16 @@ const CustomProfilePageBody = () => {
     setShowApplyProgress(false);
     // Intentionally NOT calling resetApply() — leaving applyState in memory so
     // the row can show "Applied at HH:MM" until the next activation.
+    //
+    // BOTH refreshes are load-bearing, and they answer different questions.
+    // `refresh()` re-reads the LIST, which is the only thing that can tell us
+    // the worker cleared the active marker on a `failed` run — without it the
+    // hero would keep claiming a deactivated profile is in force. The nonce
+    // re-reads the active profile's FULL record, which `list.sh` omits and which
+    // a completed apply may have changed (the reboot flag, a rewritten IMEI).
     refresh();
-  }, [refresh]);
+    invalidateActiveProfile();
+  }, [refresh, invalidateActiveProfile]);
 
   /**
    * Re-run the apply pipeline.
@@ -468,16 +609,130 @@ const CustomProfilePageBody = () => {
     await applyProfile(applyState.profile_id);
   }, [applyState, applyProfile]);
 
+  /**
+   * The wizard's open/close, and the launch point for auto-reapply.
+   *
+   * Declared here rather than up beside the other wizard handlers because it
+   * reads `applyProfile` and `setShowApplyProgress`, both of which belong to
+   * this section — a `useCallback` dep array is evaluated immediately, so
+   * naming a `const` declared further down the component would hit its TDZ.
+   */
+  const handleFormOpenChange = useCallback(
+    (open: boolean) => {
+      setFormOpen(open);
+      if (open) return;
+      setEditingProfile(null);
+      if (!pendingReapplyId) return;
+      // Cleared before firing so a cancelled-then-reopened wizard can never
+      // replay someone else's apply.
+      const id = pendingReapplyId;
+      setPendingReapplyId(null);
+      setShowApplyProgress(true);
+      void applyProfile(id);
+    },
+    [pendingReapplyId, applyProfile],
+  );
+
   const handleDeactivateRequest = useCallback(() => {
-    setShowDeactivateConfirm(true);
+    setDeactivatePhase("confirm");
+    setShowDeactivateDialog(true);
   }, []);
 
+  const handleDeactivateOpenChange = useCallback((open: boolean) => {
+    if (!open) setShowDeactivateDialog(false);
+  }, []);
+
+  /**
+   * Deactivate, from click to terminal toast.
+   *
+   * The dialog STAYS OPEN for the whole request — that is the entire point of
+   * replacing the old `AlertDialogAction`, which closed synchronously on click
+   * and left the 8-12s attach cycle running behind a dismissed dialog with no
+   * feedback whatsoever. There is no status endpoint to poll here; it is one
+   * blocking HTTP request, so the dialog reports "in flight" and this function
+   * owns the verdict.
+   *
+   * THE FIVE BACKEND CODES GET FOUR DIFFERENT READINGS, because they describe
+   * four different modem states (see `DeactivateResult` in `use-sim-profiles.ts`
+   * for the rc-to-code mapping):
+   *
+   *   apn_busy            nothing was touched — the APN lock was held and not a
+   *                       single AT command went out. Retryable, and it must not
+   *                       look alarming, or the user will hesitate to retry the
+   *                       one action that is guaranteed safe.
+   *   cops_attach_failed  TWO different outcomes behind one code, told apart by
+   *     + "DEREGISTERED"  the detail string. rc=3 means `AT+COPS=0` failed all
+   *                       three retries and the modem may be off the network —
+   *                       the ONLY case here that earns a destructive tone.
+   *     + anything else   rc=5 means it re-attached but `AT+CGCONTRDP` never
+   *                       confirmed. Attached, unconfirmed: ambiguous, so
+   *                       warning. Any future rc under this code defaults here
+   *                       too, which is the safer of the two mistakes.
+   *   everything else     `cgdcont_failed` / `cops_detach_failed` /
+   *                       `apn_revert_failed` / `network_error`. The modem is
+   *                       untouched and still registered — a plain failure.
+   *
+   * On EVERY failure the profile is still active: `deactivate.sh:91-102` exits 0
+   * before `clear_active_profile`, and the hook returns before `fetchProfiles()`
+   * to preserve that. So the hero correctly keeps showing the profile, and none
+   * of the copy below implies otherwise.
+   */
   const handleDeactivateConfirm = useCallback(async () => {
-    setIsDeactivating(true);
-    await deactivateProfile();
-    setIsDeactivating(false);
-    setShowDeactivateConfirm(false);
-  }, [deactivateProfile]);
+    const name = activeProfile?.name ?? "";
+    setDeactivatePhase("working");
+
+    const result = await deactivateProfile();
+
+    setShowDeactivateDialog(false);
+    setDeactivatePhase("confirm");
+
+    if (result.ok) {
+      // No nonce bump needed: a successful deactivate cleared the marker, so
+      // `activeProfileId` genuinely changed and the detail effect re-runs on
+      // its own.
+      toast.success(t("custom_profiles.deactivate_dialog.toast.success", { name }));
+      return;
+    }
+
+    const detail = result.detail ?? "";
+
+    if (result.error === "apn_busy") {
+      toast.warning(t("custom_profiles.deactivate_dialog.toast.busy_title"), {
+        description: t("custom_profiles.deactivate_dialog.toast.busy_body"),
+      });
+      return;
+    }
+
+    if (result.error === "cops_attach_failed") {
+      if (detail.includes("may be DEREGISTERED")) {
+        toast.error(
+          t("custom_profiles.deactivate_dialog.toast.deregistered_title"),
+          {
+            description: t(
+              "custom_profiles.deactivate_dialog.toast.deregistered_body",
+            ),
+          },
+        );
+      } else {
+        toast.warning(
+          t("custom_profiles.deactivate_dialog.toast.unconfirmed_title"),
+          {
+            description: t(
+              "custom_profiles.deactivate_dialog.toast.unconfirmed_body",
+            ),
+          },
+        );
+      }
+      return;
+    }
+
+    toast.error(t("custom_profiles.deactivate_dialog.toast.failed_title"), {
+      // The backend's own `detail` verbatim when there is one — it names the AT
+      // command that failed, which is the only actionable thing we have.
+      description:
+        detail || t("custom_profiles.deactivate_dialog.toast.failed_body"),
+    });
+  }, [activeProfile, deactivateProfile, t]);
 
   const handleLoadCurrentSettings = useCallback(() => {
     refreshCurrentSettings();
@@ -486,6 +741,12 @@ const CustomProfilePageBody = () => {
   // The schedule lives inside the wizard's Scenario step, so "edit the
   // schedule" is "open this profile in the wizard".
   const handleEditSchedule = handleEditActive;
+
+  // Anything that has the modem mid-mutation. Both hero actions go dead while
+  // it holds: Edit as well as Deactivate, because saving an active profile now
+  // auto-reapplies and is therefore a modem mutation too.
+  const heroBusy =
+    isDeactivating || showApplyProgress || applyState?.status === "applying";
 
   return (
     <motion.div
@@ -525,23 +786,38 @@ const CustomProfilePageBody = () => {
       </motion.div>
 
       {/* --- What is in force right now ------------------------------------ */}
+      {/* The skeleton stays OUTSIDE the AnimatePresence on purpose. The page
+          already runs a stagger cascade on mount, and putting the skeleton in
+          the presence would cross-fade skeleton -> hero on top of it — the same
+          content animating twice. `initial={false}` then means whichever state
+          mounts first when the skeleton clears simply appears, and only a later
+          SWAP between the two animates. */}
       <motion.div variants={staggerItem}>
         {showHeroSkeleton ? (
           <ActiveProfileHeroSkeleton />
-        ) : activeProfile ? (
-          <ActiveProfileHero
-            profile={activeProfile}
-            scenarios={scenarios}
-            activeScenario={activeScenario}
-            applyState={applyState}
-            currentIccid={currentIccid}
-            now={now}
-            onEdit={handleEditActive}
-            onDeactivate={handleDeactivateRequest}
-            onEditSchedule={handleEditSchedule}
-          />
         ) : (
-          <NoActiveProfile />
+          <AnimatePresence mode="wait" initial={false}>
+            {activeProfile ? (
+              <motion.div key="hero-active" {...HERO_SWAP}>
+                <ActiveProfileHero
+                  profile={activeProfile}
+                  scenarios={scenarios}
+                  activeScenario={activeScenario}
+                  applyState={applyState}
+                  currentIccid={currentIccid}
+                  now={now}
+                  busy={heroBusy}
+                  onEdit={handleEditActive}
+                  onDeactivate={handleDeactivateRequest}
+                  onEditSchedule={handleEditSchedule}
+                />
+              </motion.div>
+            ) : (
+              <motion.div key="hero-empty" {...HERO_SWAP}>
+                <NoActiveProfile />
+              </motion.div>
+            )}
+          </AnimatePresence>
         )}
       </motion.div>
 
@@ -624,41 +900,16 @@ const CustomProfilePageBody = () => {
         </AlertDialogContent>
       </AlertDialog>
 
-      <AlertDialog
-        open={showDeactivateConfirm}
-        onOpenChange={(open) =>
-          !open && !isDeactivating && setShowDeactivateConfirm(false)
-        }
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>
-              {t("custom_profiles.deactivate_dialog.title")}
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              {t("custom_profiles.deactivate_dialog.description")}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel
-              variant="tonal"
-              disabled={isDeactivating}
-              className={CANCEL_ACTION}
-            >
-              {tc("actions.cancel")}
-            </AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleDeactivateConfirm}
-              disabled={isDeactivating}
-              className={CONFIRM_ACTION}
-            >
-              {isDeactivating
-                ? t("custom_profiles.deactivate_dialog.deactivating")
-                : t("custom_profiles.deactivate_dialog.confirm")}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      {/* Not an AlertDialog: `AlertDialogAction` closes synchronously on click,
+          so the pending state rendered into an unmounted dialog and the user
+          watched nothing at all for the 8-12s the backend actually takes. */}
+      <DeactivateProgressDialog
+        open={showDeactivateDialog}
+        phase={deactivatePhase}
+        profileName={activeProfile?.name}
+        onConfirm={handleDeactivateConfirm}
+        onOpenChange={handleDeactivateOpenChange}
+      />
 
       <ApplyProgressDialog
         open={showApplyProgress}

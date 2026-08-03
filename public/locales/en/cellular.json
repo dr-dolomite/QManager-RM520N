@@ -591,9 +591,24 @@
     },
     "deactivate_dialog": {
       "title": "Deactivate Profile",
+      "working_title": "Deactivating Profile",
       "description": "Deactivate this profile? The APN reverts to the carrier default, which briefly drops the mobile connection. IMEI and TTL settings are left unchanged.",
       "confirm": "Deactivate",
-      "deactivating": "Deactivating…"
+      "unknown_profile": "No profile name",
+      "confirm_headline": "Revert to the carrier default APN?",
+      "working_headline": "Reverting the APN and re-attaching",
+      "working_sub": "The modem is detaching, writing the carrier default APN, and re-attaching to the network. This usually takes about 10 seconds, and the mobile connection is down while it happens. Please don't navigate away.",
+      "toast": {
+        "success": "{{name}} deactivated",
+        "busy_title": "Modem busy — nothing was changed",
+        "busy_body": "Another APN operation held the lock, so no commands were sent. Try again in a moment.",
+        "deregistered_title": "The modem may be off the network",
+        "deregistered_body": "The APN was reverted but the modem failed to re-attach after three attempts. The profile is still active. Check the connection, then reboot the modem if it does not recover.",
+        "unconfirmed_title": "Re-attached, but not confirmed",
+        "unconfirmed_body": "The modem re-attached but never reported an active data connection. The profile is still active — check the connection before trying again.",
+        "failed_title": "Couldn't deactivate the profile",
+        "failed_body": "The APN revert failed. The modem is unchanged and still registered, and the profile is still active."
+      }
     },
     "apply_dialog": {
       "title": "Applying Profile",

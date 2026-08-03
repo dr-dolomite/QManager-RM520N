@@ -591,9 +591,24 @@
     },
     "deactivate_dialog": {
       "title": "停用配置文件",
+      "working_title": "正在停用配置文件",
       "description": "停用此配置文件？APN 将恢复为运营商默认值，移动网络会短暂中断。IMEI 和 TTL 设置保持不变。",
       "confirm": "停用",
-      "deactivating": "停用中…"
+      "unknown_profile": "无配置文件名称",
+      "confirm_headline": "恢复为运营商默认 APN？",
+      "working_headline": "正在恢复 APN 并重新附着网络",
+      "working_sub": "调制解调器正在断开连接、写入运营商默认 APN，并重新附着到网络。这通常需要约 10 秒，期间移动网络连接会中断。请不要离开此页面。",
+      "toast": {
+        "success": "已停用 {{name}}",
+        "busy_title": "调制解调器繁忙——未做任何更改",
+        "busy_body": "另一项 APN 操作正占用锁，因此未发送任何命令。请稍后重试。",
+        "deregistered_title": "调制解调器可能已脱离网络",
+        "deregistered_body": "APN 已恢复，但调制解调器三次尝试后仍未能重新附着网络。该配置文件仍处于激活状态。请检查连接，若仍未恢复，请重启调制解调器。",
+        "unconfirmed_title": "已重新附着，但未确认",
+        "unconfirmed_body": "调制解调器已重新附着网络，但从未报告存在活动的数据连接。该配置文件仍处于激活状态——请先检查连接再重试。",
+        "failed_title": "无法停用该配置文件",
+        "failed_body": "APN 恢复失败。调制解调器未被更改且仍处于注册状态，该配置文件仍处于激活状态。"
+      }
     },
     "apply_dialog": {
       "title": "正在应用配置文件",

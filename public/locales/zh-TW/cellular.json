@@ -591,9 +591,24 @@
     },
     "deactivate_dialog": {
       "title": "停用設定檔",
+      "working_title": "正在停用設定檔",
       "description": "停用此設定檔？APN 將恢復為電信業者預設值，行動網路會短暫中斷。IMEI 和 TTL 設定保持不變。",
       "confirm": "停用",
-      "deactivating": "停用中…"
+      "unknown_profile": "無設定檔名稱",
+      "confirm_headline": "恢復為電信業者預設 APN？",
+      "working_headline": "正在恢復 APN 並重新附著網路",
+      "working_sub": "數據機正在中斷連線、寫入電信業者預設 APN，並重新附著到網路。這通常需要約 10 秒，期間行動網路連線會中斷。請勿離開此頁面。",
+      "toast": {
+        "success": "已停用 {{name}}",
+        "busy_title": "數據機忙碌中——未做任何變更",
+        "busy_body": "另一項 APN 操作正佔用鎖定，因此未送出任何指令。請稍後再試。",
+        "deregistered_title": "數據機可能已脫離網路",
+        "deregistered_body": "APN 已恢復，但數據機三次嘗試後仍未能重新附著網路。該設定檔仍處於啟用狀態。請檢查連線，若仍未恢復，請重新啟動數據機。",
+        "unconfirmed_title": "已重新附著，但未確認",
+        "unconfirmed_body": "數據機已重新附著網路，但從未回報存在使用中的資料連線。該設定檔仍處於啟用狀態——請先檢查連線再重試。",
+        "failed_title": "無法停用該設定檔",
+        "failed_body": "APN 恢復失敗。數據機未被變更且仍處於註冊狀態，該設定檔仍處於啟用狀態。"
+      }
     },
     "apply_dialog": {
       "title": "正在套用設定檔",

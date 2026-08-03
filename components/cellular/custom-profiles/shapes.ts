@@ -290,21 +290,63 @@ export const CONFIG_CARD_SHAPE = {
  * rather than animate a two-step UI over one opaque request; a ledger that
  * invents stages is theatre, and the State-Honesty Rule forbids it.
  */
+/**
+ * THE MIN-CONTENT CHAIN (read before touching any width class below).
+ *
+ * An earlier version of this comment claimed the `min-w-0` on `STEP` was what
+ * stopped a long `detail` string blowing the dialog open. It is not, and that
+ * claim cost a live investigation — the dialog shipped overflowing. Three
+ * things are true and each one is counter-intuitive:
+ *
+ *   1. `truncate` does NOT bound an element's intrinsic width, it MAXIMIZES it.
+ *      It expands to `overflow:hidden; text-overflow:ellipsis; white-space:
+ *      nowrap`, and `white-space:nowrap` makes the element's min-content width
+ *      equal to the FULL string. Truncation is a paint-time clip; it happens
+ *      only once some ancestor has already imposed a width.
+ *   2. `min-w-0` removes an item's AUTOMATIC MINIMUM SIZE. It does not reduce
+ *      that item's own min-content contribution to its parent. So `min-w-0` on
+ *      a leaf is not a fix — it has to exist on the box whose width is being
+ *      resolved.
+ *   3. A PERCENTAGE `max-width` resolves to `none` during intrinsic sizing, so
+ *      `max-w-[52%]` contributes nothing to a min-content pass and cannot cap a
+ *      blowout on its own. It is load-bearing only once the row's width is
+ *      already definite.
+ *
+ * The dialog's `DialogContent` is `display:grid` with one implicit `auto`
+ * track, so an `auto` track's minimum is its item's minimum contribution — and
+ * the ledger's own outer block is that grid item. `ROOT` therefore carries the
+ * `min-w-0` that makes the minimum contribution zero, which pins the track to
+ * the dialog's `sm:max-w-md` instead of to the longest `+CME ERROR:` payload
+ * the modem happens to return. Everything below `ROOT` then has a DEFINITE
+ * width to resolve against, which is what finally makes (1) and (3) work: the
+ * detail's `max-w-[52%]` becomes a real cap, and `truncate` has an edge to clip
+ * at. Delete the `min-w-0` on `ROOT` and every guard downstream goes inert.
+ */
 export const LEDGER_SHAPE = {
-  LIST: "flex min-w-0 flex-col gap-2",
   /**
-   * `min-w-0` on the step itself, not just its label span. The label already
-   * carried `min-w-0 truncate`, but a `flex-none` sibling (the detail value)
-   * sizes to its own max-content by default UNLESS the row's own min-width is
-   * explicitly zeroed — without it, a long unbroken `detail` string (a raw
-   * `+CME ERROR:` string, an AT-reported APN with no natural break point) can
-   * push the row's intrinsic width past the dialog's `max-w-md`, which then
-   * has nothing clipping it since `DialogContent` does not set
-   * `overflow-hidden` by default. `max-w-[52%]` on the detail span is a hint
-   * to the flex algorithm, not a hard clip on its own.
+   * The ledger's outer block, and the DIRECT GRID ITEM of `DialogContent`. Its
+   * `min-w-0` is the single load-bearing width guard on this surface — see THE
+   * MIN-CONTENT CHAIN above.
    */
+  ROOT: "flex min-w-0 flex-col gap-[7px]",
+  LIST: "flex min-w-0 flex-col gap-2",
   STEP: "flex min-w-0 items-center gap-3 rounded-field px-4 py-3 text-sm",
   GLYPH: "size-[1.125rem] flex-none",
+  /**
+   * The step's human label. `flex-1` (basis 0) so it absorbs the whole row when
+   * the step reports no detail, rather than leaving a dead gap.
+   */
+  LABEL: "min-w-0 flex-1 truncate text-[13px] font-semibold",
+  /**
+   * The detail slot. `shrink` — NOT `flex-none`: a non-shrinkable sibling is
+   * guaranteed to push the row past its box, which is precisely the bug this
+   * file used to describe incorrectly. `max-w-[52%]` is the label's floor: with
+   * the label on basis 0 the flex algorithm would otherwise hand the detail
+   * every pixel it asked for and collapse the label to nothing, so a 200-char
+   * payload would ellipsize the step's NAME away. The cap is honest here
+   * because `ROOT` has already made this row's width definite.
+   */
+  VALUE: "min-w-0 max-w-[52%] shrink truncate text-right",
 } as const;
 
 /**
@@ -582,6 +624,29 @@ export const SCENARIO_META_CHIP =
 // -----------------------------------------------------------------------------
 // Apply-dialog ledger additions
 // -----------------------------------------------------------------------------
+
+/**
+ * The apply dialog's own panel.
+ *
+ * `bg-surface`, not the `bg-background` the `DialogContent` base paints. Those
+ * are two different tokens with one job between them, and `globals.css` gives
+ * `body` the SAME `bg-background` — so the stock dialog is exactly the colour of
+ * the page behind it, and the panel dissolves. Every card on this surface
+ * (`PROFILE_CARD_PEER`, `HERO_CARD`) already sits on the elevated `surface`
+ * step; the dialog is the most elevated thing on the page and cannot be the one
+ * element that reads as flat.
+ *
+ * `border-0` deletes the base `border` deliberately — No-Hairline-On-Fill. A
+ * real tonal fill separates on its own; the incumbent hairline was doing the
+ * work the missing fill should have been doing. (The base `shadow-lg` is a
+ * black shadow and contributes nothing on a dark surface either — the fill is
+ * the whole separation.)
+ *
+ * `overflow-hidden` stays as a belt-and-braces clip behind the width guards in
+ * THE MIN-CONTENT CHAIN, not as the primary fix.
+ */
+export const APPLY_DIALOG_PANEL =
+  "overflow-hidden rounded-card border-0 bg-surface sm:max-w-md";
 
 /**
  * The right-aligned value a ledger step carries — the APN that landed, the AT
