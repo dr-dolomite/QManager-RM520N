@@ -191,7 +191,10 @@ printf "  ═══════════════════════�
 
 confirm_uninstall
 
-# Remount rootfs read-write — /usr, /etc, /lib live on the read-only root
+# Remount rootfs read-write — /usr and /lib live on the read-only root (ubi0).
+# NOT /etc: that is a bind mount of ubi2_0, always rw, unaffected by this call.
+# Left rw afterwards, matching install_rm520n.sh and qmanager_setup — the tree's
+# convention is "remount rw once, never restore ro". See docs/BACKEND.md.
 mount -o remount,rw / 2>/dev/null || true
 
 # =============================================================================

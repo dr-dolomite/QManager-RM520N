@@ -24,8 +24,11 @@ do_install() {
     # Download ttyd binary
     if [ -x "$TTYD_BIN" ]; then
         echo "ttyd already installed at $TTYD_BIN"
+        # No ro-restore: rootfs stays rw for the rest of uptime by project
+        # convention (see qmanager_auto_update_arm's "Left rw afterwards"
+        # comment) since qmanager_setup already remounted rw at boot and
+        # never restores. `sync` alone is enough to make this a durable no-op.
         sync
-        mount -o remount,ro / 2>/dev/null || true
         return 0
     fi
 
@@ -33,8 +36,9 @@ do_install() {
     if ! curl -fSL -o "$TTYD_BIN" "$DOWNLOAD_URL" 2>/dev/null; then
         echo "ERROR: Failed to download ttyd" >&2
         rm -f "$TTYD_BIN"
+        # No ro-restore here either — see comment above; `sync` flushes the
+        # rm so a failed download doesn't leave a partial file after a crash.
         sync
-        mount -o remount,ro / 2>/dev/null || true
         return 1
     fi
 
@@ -56,8 +60,12 @@ do_install() {
         /bin/systemctl start qmanager-console 2>/dev/null || true
     fi
 
+    # No ro-restore: rootfs stays rw for the rest of uptime by project
+    # convention (see qmanager_auto_update_arm's "Left rw afterwards" comment)
+    # since qmanager_setup already remounted rw at boot and never restores.
+    # `sync` still flushes the binary/unit writes above to survive an
+    # unclean power loss.
     sync
-    mount -o remount,ro / 2>/dev/null || true
     echo "ttyd v${TTYD_VERSION} installed successfully"
 }
 
@@ -71,8 +79,11 @@ do_uninstall() {
 
     rm -f "$TTYD_BIN"
 
+    # No ro-restore: rootfs stays rw for the rest of uptime by project
+    # convention (see qmanager_auto_update_arm's "Left rw afterwards" comment)
+    # since qmanager_setup already remounted rw at boot and never restores.
+    # `sync` still flushes the removals above to survive an unclean power loss.
     sync
-    mount -o remount,ro / 2>/dev/null || true
     echo "ttyd uninstalled"
 }
 

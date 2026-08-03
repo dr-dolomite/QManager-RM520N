@@ -110,11 +110,17 @@ LOG_FILE="/tmp/qmanager_tailscale_install.log"
 exec >> "$LOG_FILE" 2>&1
 
 remount_rw() { mount -o remount,rw / 2>/dev/null || true; }
-remount_ro() { sync; mount -o remount,ro / 2>/dev/null || true; }
 write_status() { printf '%s' "$1" > "$STATUS_FILE"; }
 
+# No ro-restore here by design: qmanager_setup already remounts rw at boot and
+# never remounts ro (see qmanager_auto_update_arm's "Left rw afterwards"
+# comment), so the whole tree has converged on "remount rw once, leave it."
+# Restoring ro from here would just create a brief, anomalous ro window that
+# svc_enable/svc_disable (platform.sh) aren't written to expect. `sync` still
+# runs — it flushes dirty UBIFS pages so the PID-file cleanup and any writes
+# above survive an unclean power cycle, which is independent of mount mode.
 # Ensure the PID file is cleaned up no matter how we exit (success, error, kill).
-trap 'rm -f "$INSTALL_PID"; remount_ro' EXIT
+trap 'rm -f "$INSTALL_PID"; sync' EXIT
 
 # Claim the PID file as the inner script — this is the process the CGI's
 # pid_alive check tracks for the full install lifetime.
@@ -287,7 +293,7 @@ else
     echo "=== ERROR: binaries not found after install ==="
 fi
 
-# EXIT trap handles: rm -f INSTALL_PID + sync + remount ro
+# EXIT trap handles: rm -f INSTALL_PID + sync (no ro-restore — rootfs stays rw)
 exit 0
 INNER_EOF
 
@@ -369,8 +375,11 @@ do_uninstall() {
     # Remove QManager-owned SSH intent flag so a reinstall starts off (explicit opt-in).
     rm -f /etc/qmanager/tailscale_ssh
 
+    # No ro-restore: rootfs stays rw for the rest of uptime by project
+    # convention (see qmanager_auto_update_arm's "Left rw afterwards" comment)
+    # since qmanager_setup already remounted rw at boot and never restores.
+    # `sync` still flushes the removals above to survive an unclean power loss.
     sync
-    mount -o remount,ro / 2>/dev/null || true
 }
 
 # =============================================================================
@@ -390,8 +399,12 @@ do_ensure_units() {
         fi
     done
 
+    # No ro-restore: rootfs stays rw for the rest of uptime by project
+    # convention (see qmanager_auto_update_arm's "Left rw afterwards" comment)
+    # since qmanager_setup already remounted rw at boot and never restores.
+    # `sync` still flushes the staged unit files above to survive an unclean
+    # power loss.
     sync
-    mount -o remount,ro / 2>/dev/null || true
 }
 
 # =============================================================================
