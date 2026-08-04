@@ -1594,6 +1594,13 @@ migrate_ping_targets() {
 #
 # Idempotent: no-op when the source is absent or the destination already
 # exists, so re-running an install or OTA never clobbers newer state.
+#
+# Never aborts the installer: called bare from install_backend() under `set -e`,
+# after stop_services() has already torn every qmanager service down, so every
+# failure path must warn and continue rather than return non-zero. The original
+# is unlinked only after the copy AND the rename have both succeeded — a failure
+# leaves the old file exactly where it was, still readable, rather than losing
+# the user's APN settings.
 migrate_apn_sidecars() {
     local f src dst tmp
     for f in apn_names.json apn_setting.json; do
@@ -1601,7 +1608,25 @@ migrate_apn_sidecars() {
         dst="/etc/qmanager/$f"
 
         [ -f "$src" ] || continue
-        if [ -e "$dst" ]; then
+
+        # Guard the pathological case BEFORE anything else touches $src.
+        # Nothing in this tree ever creates a directory at $dst — the two
+        # writers (cellular/apn.sh, qmanager_profile_apply) only ever mkdir the
+        # PARENT — but if one existed it would poison both checks below. `[ -e ]`
+        # would read it as "already migrated" and delete the original outright,
+        # while falling through is worse still: `mv file dir` does not fail, it
+        # moves the file INSIDE the directory where nothing reads it, returns 0,
+        # and the unlink would then run believing the rename succeeded. Bail out
+        # and keep $src instead. Same guard, same reason, as
+        # migrate_environment_location() below.
+        if [ -d "$dst" ]; then
+            echo "  WARNING: $dst exists and is a directory — skipping migration of $f, leaving $src in place" >&2
+            continue
+        fi
+
+        # `-f`, not `-e`: only a regular file counts as already-migrated, so the
+        # unlink below can never be reached by a non-file squatting on $dst.
+        if [ -f "$dst" ]; then
             # Already migrated on an earlier run; drop the stale original so a
             # later reader can never pick up the abandoned copy.
             rm -f "$src" 2>/dev/null || true
@@ -1622,11 +1647,37 @@ migrate_apn_sidecars() {
             # Mode AND owner set BEFORE the rename: BusyBox mktemp creates
             # 0600 root:root and mv carries both across, which would leave the
             # file unreadable and unwritable by the www-data CGI that owns it.
-            chmod 644 "$tmp"
+            # Both guarded, not just the chown: a bare `chmod` here would abort
+            # the whole in-flight OTA under `set -e` — after stop_services() has
+            # torn every service down — which is exactly what this function's
+            # header promises it will never do. Degrading is safe and
+            # self-healing: the file lands 0600, but the chown below (and
+            # qmanager_setup's `chown -R www-data:www-data /etc/qmanager` on
+            # every boot, qmanager_setup:139) makes www-data the owner, and
+            # www-data is the ONLY reader/writer — cellular/apn.sh is CGI and
+            # qmanager_profile_apply is spawned without sudo. So 0600 www-data
+            # is functionally equivalent here; nothing else needs the read bit.
+            chmod 644 "$tmp" 2>/dev/null || true
             chown www-data:www-data "$tmp" 2>/dev/null || true
-            mv "$tmp" "$dst"
-            rm -f "$src" 2>/dev/null || true
-            echo "  Migrated $f to /etc/qmanager"
+            # The rename is guarded and the original is unlinked ONLY inside the
+            # success branch. General rule, and the reason this function had a
+            # data-loss bug: an unlink of the LAST REMAINING COPY must live
+            # inside the success branch of whatever created the new copy — never
+            # as a sibling statement after it. A bare `mv` here was doubly wrong:
+            # on a genuine failure it would abort the whole in-flight OTA under
+            # `set -e`, after stop_services() has torn every service down (this
+            # function is called bare from install_backend(), so it must never
+            # return non-zero — see the same convention at the top of
+            # migrate_sim_registry()); and on the `mv file dir` case it returns 0
+            # while doing the wrong thing, which no exit-status check can catch —
+            # hence the [ -d "$dst" ] guard above as well.
+            if mv "$tmp" "$dst"; then
+                rm -f "$src" 2>/dev/null || true
+                echo "  Migrated $f to /etc/qmanager"
+            else
+                rm -f "$tmp" 2>/dev/null || true
+                echo "  WARNING: failed to install $dst — leaving $src in place" >&2
+            fi
         else
             rm -f "$tmp"
             echo "  WARNING: failed to copy $src — leaving original in place" >&2

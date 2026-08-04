@@ -496,15 +496,62 @@ sidecars are inert JSON blobs read only through `jq`.
 Fielded devices are moved across by `migrate_apn_sidecars()` in
 `install_rm520n.sh`, which runs on every install and OTA:
 
-- Idempotent — no-op when the source is absent or the destination already
-  exists, so re-running an install never clobbers newer state. If both exist,
-  the stale original is deleted so no later reader can pick it up.
+- Idempotent — no-op when the source is absent or the destination is already a
+  regular file, so re-running an install never clobbers newer state. If both
+  exist, the stale original is deleted so no later reader can pick it up.
 - The temp file is created in the **destination** directory. `/usrdata` and
   `/etc` are separate UBIFS volumes, so a cross-volume `mv` is not an atomic
   `rename(2)` — BusyBox degrades it to copy + unlink and loses crash-atomicity
   on flash.
 - Mode and owner are set on the temp file *before* the rename, because BusyBox
-  `mktemp` creates `0600 root:root` and `mv` carries both across.
+  `mktemp` creates `0600 root:root` and `mv` carries both across. Both are
+  guarded with `|| true`: the function is called bare from `install_backend()`
+  under `set -e`, *after* `stop_services()`, so a bare `chmod` that failed
+  would abort a half-torn-down OTA. Degrading is harmless — the file lands
+  `0600` and the boot-time `chown -R www-data:www-data /etc/qmanager` in
+  `qmanager_setup` hands it to its only reader anyway.
+- **The unlink lives inside the rename's success branch**, and the destination
+  is type-checked before either.
+
+### Migration guard semantics
+
+The three checks below all defend the same pathological state — a
+**directory** sitting at `$dst` — and each is load-bearing on its own:
+
+| Check | Guards against |
+|-------|----------------|
+| `[ -d "$dst" ]` → warn + `continue` | A directory at the destination. Bail out first, before anything touches `$src`. |
+| `[ -f "$dst" ]` (not `-e`) for "already migrated" | `-e` is true for a directory, so the function would conclude "already migrated" and `rm -f "$src"` without ever reading it. |
+| `if mv "$tmp" "$dst"; then rm -f "$src"; else …` | `mv file dir` **does not fail** — it moves the file *inside* the directory and returns 0. A bare `mv` with a sibling `rm -f "$src"` therefore unlinks the source while the destination is never written. |
+
+> ℹ️ NOTE: This is a **latent** guard, not a fix for observed loss. Nothing in
+> the tree can create a directory at either sidecar path — both writers
+> (`cellular/apn.sh`, `qmanager_profile_apply`) only ever `mkdir` the *parent*
+> — so the state has almost certainly never occurred in the field. The guard
+> exists because the failure is silent and unrecoverable if it ever does.
+
+The general rule worth carrying beyond this function: **an unlink of the last
+remaining copy must live inside the success branch of whatever created the new
+copy — never as a sibling statement after it.** `mv` is the classic trap here
+because its "success" is defined more loosely than the caller usually assumes.
+
+Blast radius, had it fired:
+
+- **`apn_names.json`** — cosmetic. Missing entries fall back to `""`
+  (`apn.sh:360-362`), so WAN profile rows render with blank name labels.
+  Nothing regenerates the file.
+- **`apn_setting.json`** — serious, and non-obvious. See below.
+
+> ⚠️ WARNING: `apn_setting.json` is the **sole** source of truth for "is a
+> custom APN active". If it goes missing, `read_setting_json()` returns
+> `{"active":0}` — so the UI reports carrier default while the modem is still
+> running the custom APN, **and** `action=deactivate` short-circuits at
+> `apn.sh:479-483` on `cur_active != 1`, returning `{success:true, active:0}`
+> *without touching the modem*. The user presses "revert to carrier default",
+> sees success, and nothing happens. `_apn_sidecar_converge()`
+> (`qmanager_profile_apply:518`) rebuilds the file, but only on the next
+> successful Custom-Profile apply. This is true of any loss of that file, not
+> just a migration failure.
 
 > ⚠️ WARNING: The uninstaller's `--purge` still removes
 > `$QMANAGER_ROOT/apn_setting.json` and `$QMANAGER_ROOT/apn_names.json` by
