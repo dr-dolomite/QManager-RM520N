@@ -19,7 +19,10 @@ The Alerts subsystem consolidates the three previously-independent notification 
 | Discord daemon | `/usr/bin/qmanager_discord` (source: `discord-bot/`) |
 | Reboot breadcrumb helper | `/usr/bin/qmanager_crash_log_append` (sudoers-gated root helper) |
 | Routing config | `/etc/qmanager/alert_routing.json` (**persistent**, version 1) |
-| Channel configs | `/etc/qmanager/{sms_alerts,email_alerts,discord_bot}.json` (**persistent**) |
+| Channel configs | `/etc/qmanager/{sms_alerts,email_alerts,discord_bot}.json` (**persistent**, **no secrets**) |
+| Secrets store | `/etc/qmanager-secrets/` (`0700 root:root`) — `discord_bot_token`, `email_app_password`, `msmtprc` (each `0600 root:root`) |
+| Secret helper | `/usr/bin/qmanager_secret_set` (sudoers-gated root helper; value on **stdin**) |
+| Test-email helper | `/usr/bin/qmanager_email_send` (sudoers-gated root helper; one verb, `test`) |
 | Reboot ledger | `/etc/qmanager/reboot_history.json` (**persistent**, NDJSON, cap 10) |
 | Boot-id state | `/etc/qmanager/last_boot_id` (**persistent**) |
 | Crash log (read-only here) | `/etc/qmanager/crash.log` (**persistent**, written by watchdog / root helper) |
@@ -90,7 +93,9 @@ All three must hold. Because capability is checked *first*, a routing cell the u
 
 ## Config files & on-disk shapes
 
-All config is **additive** — no existing channel config key was renamed or removed, so an OTA-upgraded device keeps its SMS/email/Discord settings untouched. The only *new* file is `alert_routing.json`, and it defaults-on-missing, so a device that upgrades without one behaves exactly as if every capable cell were routed true.
+Config was additive through the centralized-alerts consolidation: no channel key was renamed or removed, so an OTA-upgraded device kept its SMS/email/Discord settings untouched, and the only *new* file, `alert_routing.json`, defaults-on-missing.
+
+> ⚠️ WARNING: **v0.1.14 broke that additive streak, deliberately and exactly once.** `bot_token` and `app_password` are now `del()`ed from their config JSONs and replaced by the marker booleans `token_set` / `app_password_set`; the credentials moved to a root-only directory. `migrate_alert_secrets()` performs the conversion on install and on every OTA. See [Secret storage](#secret-storage-etcqmanager-secrets) — including why a permission fix would not have worked.
 
 ### `alert_routing.json` (new, version 1)
 
@@ -111,15 +116,121 @@ All config is **additive** — no existing channel config key was renamed or rem
 - `events.<event>.<channel>` — routing boolean. The `connection_lost.email` and `connection_lost.discord` cells are **server-authoritative false** — the CGI clamps them on every write regardless of what the client submits.
 - **Defaults-on-missing:** both the engine (`_AE_ROUTING_DEFAULT`) and the CGI (`ROUTING_DEFAULT`) carry an identical literal used verbatim when the file is absent or fails to parse.
 
-### Channel configs (unchanged shapes)
+### Channel configs (no secrets, as of v0.1.14)
 
 | File | Keys | Secret handling |
 |------|------|-----------------|
 | `sms_alerts.json` | `enabled`, `recipient_phone`, `threshold_minutes` | none |
-| `email_alerts.json` | `enabled`, `sender_email`, `recipient_email`, `app_password`, `threshold_minutes` | `app_password` never returned by GET (only `app_password_set` bool) |
-| `discord_bot.json` | `enabled`, `owner_discord_id`, `threshold_minutes`, `bot_token`, `autonomous_notify` | `bot_token` never returned by GET (only `token_set` bool) |
+| `email_alerts.json` | `enabled`, `sender_email`, `recipient_email`, `app_password_set`, `threshold_minutes` | the password is **not in this file** — `app_password_set` is a non-secret marker boolean |
+| `discord_bot.json` | `enabled`, `owner_discord_id`, `threshold_minutes`, `token_set`, `autonomous_notify` | the token is **not in this file** — `token_set` is a non-secret marker boolean |
 
-`msmtprc` (`/etc/qmanager/msmtprc`, mode `0600`) is regenerated from `email_alerts.json` on every email save — see [Email save & msmtp](#email-save--msmtp).
+These three files stay `www-data:www-data 0644` on purpose: the CGI must keep rewriting them, and they no longer hold anything worth protecting. The credentials themselves live in a separate root-only directory — see below.
+
+---
+
+## Secret storage (`/etc/qmanager-secrets/`)
+
+**Short version: the Discord bot token and the Gmail app password used to sit in plaintext inside `/etc/qmanager`, a directory `www-data` owns, so every local account on the modem could read them. They now live in a sibling directory that only root can enter, and `www-data` writes them exclusively through one narrow root helper.**
+
+### What was wrong
+
+`/etc/qmanager/discord_bot.json` shipped mode `0644` with a live Discord bot token stored as a plain JSON string; `/etc/qmanager/email_alerts.json` did the same with the operator's Gmail app password; and the generated `/etc/qmanager/msmtprc` held that password a second time, because msmtp has no other way to receive it non-interactively.
+
+> ℹ️ NOTE: Scope it accurately. This was **local-process disclosure**, not an unauthenticated web fetch. The lighttpd docroot is `/usrdata/qmanager/www` — `/etc/qmanager` was never served, and no CGI endpoint ever returned either secret (`GET` has always surfaced only the `*_set` booleans). What could read them was any local account on the device: the web console shell, any Entware daemon, `www-data`, and anything that obtained a shell through an unrelated CGI bug. Overstating this as "the token was on the web" is as wrong as understating it.
+
+### Why a `chmod` was NOT the fix
+
+This is the load-bearing rationale. Do not "simplify" this back to a permission pin.
+
+- **Directory write permission governs unlink and rename, not the file's mode.** `www-data` *owns* `/etc/qmanager`, so it can delete a `root:root 0600` file there and drop in its own — or simply `chmod` a file it owns back to `0644`. A per-file pin inside that directory is decorative.
+- **A root-owned *subdirectory* does not help either.** The parent's owner can rename the subdirectory out of the way and put its own in its place. Nor does the sticky bit: the sticky-bit exemption covers the directory's owner, which *is* `www-data`.
+- **`qmanager_setup:139` runs a bare `chown -R www-data:www-data /etc/qmanager` on every boot**, with no exclusion list. Any ownership pin applied at install time therefore survives exactly one boot cycle.
+- **This was already learned the hard way.** The systemd `EnvironmentFile` used to live in that directory with a `root:root` carve-out; fielded devices were found with the pin flipped, and it was relocated to `/etc/qmanager.env`. `install_rm520n.sh:1333-1344` carries a standing instruction not to reintroduce carve-outs. Live evidence that relocation works: `/etc/qmanager.env` is still `root:root` today, after many boots.
+
+### The layout
+
+```
+/etc/qmanager-secrets/          0700 root:root   ← a SIBLING of /etc/qmanager, not a child
+├── discord_bot_token           0600 root:root   raw value, no trailing newline
+├── email_app_password          0600 root:root   raw value, no trailing newline
+└── msmtprc                     0600 root:root   moved from /etc/qmanager/msmtprc
+/usr/bin/qmanager_secret_set    0755 root:root   root helper (sudoers-gated)
+/usr/bin/qmanager_email_send    0755 root:root   root helper (sudoers-gated)
+```
+
+> ⚠️ WARNING: **The sibling relationship is the whole fix.** `qmanager_setup:139` chowns the literal path `/etc/qmanager`, so `-R` cannot descend into `/etc/qmanager-secrets`. That is a *structural* property — it holds for files that do not exist yet. A carve-out list inside the chown would fail open the moment someone adds a new secret and forgets to list it. Never move this directory under `/etc/qmanager`.
+
+The installer creates the directory with `install -d -m 0700` (never `mkdir -p`, which no-ops on an existing directory and would let a drifted mode persist across every future OTA), then re-asserts `chown root:root` + `chmod 0700`. Every step is non-fatal — an abort inside `install_backend()` would kill an in-flight OTA with services already stopped.
+
+### `qmanager_secret_set` — the write path
+
+`www-data` never writes the secrets directory itself. The CGI shells out over one bare-path sudoers grant:
+
+```
+www-data ALL=(root) NOPASSWD: /usr/bin/qmanager_secret_set
+```
+
+No arguments in the grant, no wildcards — matching `qmanager_crash_log_append` and the `qmanager_*_arm` helpers. All validation lives inside the helper, where it can be read and tested; a sudoers wildcard cannot express a whitelist, a length cap, or a symlink refusal.
+
+| Invocation | Behavior |
+|------------|----------|
+| `qmanager_secret_set set <name>` | Reads the value from **stdin**, validates it, writes it `0600 root:root`, renders `msmtprc` (email only), then sets the `*_set` marker |
+| `qmanager_secret_set clear <name>` | Removes the secret file (and `msmtprc` + any legacy copy, for email), then sets the marker `false` |
+| `qmanager_secret_set refresh email_app_password` | Re-renders `msmtprc` from the **already-stored** password plus the current `sender_email`. Exists because the user can change `sender_email` without re-typing the password, and `msmtprc` embeds both |
+
+`<name>` is a hard two-literal whitelist: `discord_bot_token` or `email_app_password`. Nothing from argv is ever interpolated into a path. Output is exactly one line of JSON (`{"success":true}` or `{"success":false,"error":…,"detail":…}`), matching every other `qmanager_*` root helper.
+
+> ⚠️ WARNING: **The value goes on stdin, never on argv.** `/proc/<pid>/cmdline` is world-readable, so passing a credential as an argument would recreate the exact disclosure this change removed — for the lifetime of the call, to every local process. The CGI's `root_helper_call_stdin` pipes it (`printf '%s' "$val" | $_SUDO …`), which is the same idiom `cgi_auth.sh` uses for `qmanager_set_ssh_password`.
+
+Other invariants worth not "fixing" away:
+
+- **Store the secret first, marker last.** `msmtprc` and the `*_set` marker are both *derived* artifacts. Writing the credential first means a failure anywhere downstream still leaves the credential durably on disk, so the resulting error is safely retryable and an interrupted save can never lose what the user typed.
+- **A failed marker write is a hard `marker_write_failed` error, not a warning.** See [The `*_set` marker is load-bearing](#the-_set-marker-is-load-bearing) below.
+- **Symlink refusal on every path written**, including inside the root-owned directory. `www-data` owns `/etc/qmanager` and could pre-plant a config path as a symlink to a root-owned target; a root write would otherwise follow it.
+- **`mktemp` inside the destination directory**, with mode *and* owner set on the temp before the rename. A bare `mktemp` lands in `/tmp` (tmpfs — a different filesystem from `/etc`'s UBIFS), where `mv` degrades to copy+unlink and a power cut can tear the file. Setting the mode before the rename means the plaintext is never briefly world-readable at the final path.
+- **No Oniguruma in the device's `jq`** — `gsub`/`test`/`match` abort at runtime. The helper uses only plain filters, `del()`, `//`, assignment and `--arg`/`--argjson`.
+
+### `qmanager_email_send` — why a second helper exists
+
+The email test-send used to run `msmtp -C <msmtprc>` **inline in the CGI, as `www-data`**. Once `msmtprc` became `0600 root:root` inside a `0700` directory, that stopped working — and `www-data` cannot even `stat` the file to explain why, so a `[ -f ]` precondition in the CGI could no longer tell "absent" from "forbidden". Relocating the credential therefore relocated the send:
+
+```
+www-data ALL=(root) NOPASSWD: /usr/bin/qmanager_email_send
+```
+
+One verb, `test`. Nothing is read from stdin. Subject and body are canned constants inside `email_alerts.sh` (`_ea_send_test_email` → `_ea_build_test_html`), so the helper cannot be driven into sending arbitrary content. Sender and recipient come from `email_alerts.json`, which root reads directly.
+
+> ℹ️ NOTE: **This grants `www-data` no new capability.** It already owns `email_alerts.json`, so it already controlled the sender and recipient and could already trigger a test send — that button has always existed. The helper only removes its *need to read the credential*. It strictly narrows the web process's reach. It is kept separate from `qmanager_secret_set` on purpose: custody of secrets and sending mail are different privileges and should stay separately auditable.
+
+The poller and `alert_engine.sh` already run as root and keep calling `email_alerts.sh` directly — they need nothing from this helper. A useful side effect: every writer of `/tmp/qmanager_email_log.json` is now root, and `www-data` only ever reads it (see [tmp-file-ownership.md](tmp-file-ownership.md)).
+
+### The `*_set` marker is load-bearing
+
+`app_password_set` / `token_set` started life as cosmetic UI hints. They are now the **sole authority** on whether a channel is configured, because nothing outside root can look at the credential any more:
+
+- `email_alerts.sh:_ea_read_config` forces `_ea_enabled=false` when `app_password_set` is not `true`. (Before the relocation this tested the plaintext `$_ea_app_password`; leaving it that way would have silently disabled email on every device the moment the secret left the JSON.)
+- The CGI's `GET` renders `app_password_set` / `token_set` straight through, and `save_settings` carries the existing marker forward when the user saves without re-typing a secret.
+- The Go daemon's `Config` struct has **no `BotToken` field at all** — only `TokenSet bool`. The token is read from `/etc/qmanager-secrets/discord_bot_token` by `loadBotToken()`, which `TrimSpace`s it (a stray `\n` fails Discord auth with an opaque 401). Without a struct field the JSON physically cannot carry the token again, even if a future writer tries.
+
+That is why a secret stored *without* its marker is a hard error: the operator would see a green save and then silently receive no alerts, with the explanation buried in a `detail` field the UI does not surface. The credential is already durable when the marker write is attempted, so the error is safely retryable — and the message is deliberately verb-neutral ("the credential store was updated"), because it is reachable from `clear` as well as `set`.
+
+### Migration & OTA behavior
+
+`migrate_alert_secrets()` in `install_rm520n.sh` (modeled on `migrate_environment_location()`) moves any existing plaintext out of the two config JSONs and out of `/etc/qmanager/msmtprc`, then `del()`s the secret keys and writes the marker in their place.
+
+- **The `del()` is the point.** `/etc/qmanager` is an additive-only bucket — nothing in this tree prunes stale keys. Copying the secret to the new store and leaving the key behind would make the whole change cosmetic.
+- **Ordering is safe against interruption.** The secret is durably at its new home *before* the key is deleted, so a power cut mid-migration can never lose the credential.
+- **OTA self-heals.** `qmanager_update` re-runs the whole installer (`install_rm520n.sh --force --skip-packages --no-reboot`), so already-deployed devices sitting at `0644` are repaired on their next update. A second OTA is a clean no-op: once the key is gone there is nothing left to extract.
+- **A `--purge` uninstall removes it.** `/etc/qmanager-secrets` is outside `$CONF_DIR`, so `uninstall_rm520n.sh` deletes it explicitly — otherwise a purge would leave a live bot token and a plaintext Gmail password on a device the user believes is clean.
+
+### Support-bundle rules (two ways to leak this by accident)
+
+`qmanager_health_check`'s bundle builder has two non-obvious constraints:
+
+1. **`discord_bot_token` and `email_app_password` are deliberately NOT collected.** Redaction works by `sed`-matching a pattern *within* a line; these files are raw values with no surrounding structure, so **the entire file is the secret and there is no line for redaction to match**. `_purge_raw_secrets()` runs over the staged bundle immediately before redaction as a backstop against a future collector adding them by accident — but the primary control is that nothing collects them in the first place.
+2. **`msmtprc` must keep its exact basename in the bundle.** `_redact_tree` finds it with `-name 'msmtprc'` and strips the `password` line. Copying it in as `msmtprc-secrets` or `email-msmtprc` would silently ship the SMTP password in cleartext. The collector reads from `/etc/qmanager-secrets/msmtprc` with the legacy path as a fallback, and stages both as plain `msmtprc`.
+
+The `bot_token` / `app_password` JSON-key redaction patterns are still in `_redact_tree`, but they are now only reachable on a device whose migration has not run or failed — after a successful migration those keys do not exist in the configs at all.
 
 ### Reboot ledger
 
@@ -200,7 +311,9 @@ On `alert_engine_init`, `_ae_init_boot_check`:
 - **`user`** — a user-initiated reboot (via `system/reboot.sh`) wrote the `user` breadcrumb through the sudoers-gated root helper (below).
 - **`unplanned`** — the fallback when there's no positive breadcrumb: power loss, kernel panic, hardware watchdog. There is no hardware signal for this — it's inferred from the *absence* of an intentional-reboot tag.
 
-> ℹ️ NOTE: The engine reads `crash.log` but never writes it. It is root-owned (`root:root 644`); a www-data CGI writing it directly is a symlink-escalation hole (see the root helper below). The engine only ever `tail`s it.
+> ℹ️ NOTE: The engine reads `crash.log` but never writes it — it only ever `tail`s it. A www-data CGI writing it directly would be a symlink-escalation hole, which is why the `user` breadcrumb goes through a root helper (below).
+>
+> ⚠️ WARNING: `crash.log` is **not** root-owned in practice, whatever older comments claim. Like everything else in `/etc/qmanager` it is flipped back to `www-data:www-data 0644` by `qmanager_setup`'s boot-time `chown -R` (verified live). The root helper's value is **validation and integrity** — fixed path, fixed reason enum, symlink refusal, bounded trim — not exclusivity of write access. Do not build new logic on a "root-owned" premise for this file; if something genuinely must be out of www-data's reach, relocate it outside `/etc/qmanager` (see [Secret storage](#secret-storage-etcqmanager-secrets)).
 
 ### The `user` breadcrumb root helper
 
@@ -214,7 +327,7 @@ It exists solely so a user-initiated reboot leaves a `user` breadcrumb *before* 
 
 - **Reason whitelist:** the only accepted argument is the literal string `user`. Anything else is rejected with a JSON error — caller text is never interpolated.
 - **Symlink guard:** a symlinked `crash.log` is removed rather than followed.
-- **Self-heal on every call:** re-asserts `root:root 644` on `crash.log` each invocation, because the installer's `chown -R www-data:www-data /etc/qmanager` pass flips it back on every OTA re-run. Re-asserting on every call (not just at creation) is what keeps the root-owned invariant intact across upgrades.
+- **Re-asserts `root:root 644` on every call**, not just at creation, because the `chown -R www-data:www-data /etc/qmanager` pass flips it back. Note that this only holds until the next boot chown — see the warning above; treat it as hygiene, not as an ownership guarantee.
 - Trims to the last 20 lines, matching the watchdog's own convention.
 
 ### Delivery & coalescing
@@ -274,7 +387,7 @@ One endpoint replaces eight legacy ones (`email_alerts.sh`, `email_alert_log.sh`
 
 ### `GET` — aggregated state
 
-Returns all three channels' settings, the routing matrix, the capability table, and reboot history in one payload. **Never returns secrets** — `app_password` and `bot_token` are surfaced only as `*_set` / `token_set` booleans.
+Returns all three channels' settings, the routing matrix, the capability table, and reboot history in one payload. **Never returns secrets** — the email password and the bot token are surfaced only as `app_password_set` / `token_set` booleans. Since the [secrets relocation](#secret-storage-etcqmanager-secrets) this endpoint could not return them even by accident: the credentials are no longer in the config directory at all, and `www-data` cannot read them.
 
 ```json
 {
@@ -313,9 +426,9 @@ Returns all three channels' settings, the routing matrix, the capability table, 
 - Booleans (`sms.enabled` etc.) must be literal `true`/`false`.
 - `threshold_minutes` per channel: integer 1–60.
 - SMS phone (when enabled): 7–15 digits, optional leading `+`, must start with a country code (not `0`).
-- Email (when enabled): valid sender + recipient addresses; **control-character gate first** (a newline in any field templated into `msmtprc` would inject arbitrary msmtp directives — config-injection defense); password required.
-- Discord (when enabled): numeric snowflake owner id (15–25 digits); bot token required.
-- **Secret preservation:** an omitted/empty `app_password` or `bot_token` reuses the value already on disk — the client sends a secret only when the user typed a new one.
+- Email (when enabled): valid sender + recipient addresses; **control-character gate first** (a newline in any field templated into `msmtprc` would inject arbitrary msmtp directives — config-injection defense); a password is required only when `app_password_set` is not already `true`. The gate can check only a *newly typed* password — an already-stored one was validated by the helper when it was set, and this process can no longer read it. `qmanager_secret_set` re-validates the password and `sender_email` itself before templating, so nothing reaches `msmtprc` unchecked.
+- Discord (when enabled): numeric snowflake owner id (15–25 digits); a bot token is required only when `token_set` is not already `true`.
+- **Marker carry-forward (replaces the old secret preservation):** the CGI can no longer read a stored secret, so an omitted/empty `app_password` or `bot_token` carries the existing `*_set` marker forward and leaves the credential untouched at its root-only path. The client still sends a secret only when the user typed a new one; the error slugs (`missing_app_password` / `missing_bot_token`) are unchanged so the frontend's handling and i18n still fire.
 - **Routing clamp:** the submitted routing is merged over the default (`$def * $usr`), then `connection_lost.email` and `connection_lost.discord` are hard-set to `false` — server-authoritative, mirroring `_ae_capable`.
 - **Discord service state:** enabling restarts `qmanager_discord` (a *restart*, not start — the daemon caches token/owner/DM-channel in memory at startup); disabling stops it.
 - **Reload signalling:** touches all four reload flags (`sms`, `email`, `discord`, `routing`) so the poller's `check_alerts` picks up the new config on its next cycle.
@@ -324,12 +437,23 @@ Returns all three channels' settings, the routing matrix, the capability table, 
 
 ### Email save & msmtp
 
-On email save, if a sender + password are present, the CGI regenerates `/etc/qmanager/msmtprc` for `smtp.gmail.com:587` STARTTLS. The credential file is created `0600` from the start — `umask 077` inside a subshell closes the TOCTOU window where the plaintext Gmail app password would briefly be world-readable before `chmod`.
+The CGI no longer renders `msmtprc` itself — it has no `MSMTP_CONFIG` constant at all, deliberately, because a path constant would only invite a `[ -f ]` check that is always false and means nothing. On email save it:
+
+1. Writes `email_alerts.json` **first**, carrying the existing `app_password_set` marker forward. Ordering matters: the helper reads `sender_email` out of this file to render `msmtprc`, and it owns the marker — writing the JSON afterwards would clobber whatever the helper just set.
+2. Calls `qmanager_secret_set set email_app_password` (value piped on stdin) when the user typed a new password, or `qmanager_secret_set refresh email_app_password` when they did not — a `sender_email` change alone still has to be re-templated into `msmtprc`.
+
+The helper renders `/etc/qmanager-secrets/msmtprc` for `smtp.gmail.com:587` STARTTLS, `0600 root:root`, from a temp file that carries the final mode and owner *before* the rename, then removes any pre-relocation copy at `/etc/qmanager/msmtprc`.
+
+The Discord token is stored the same way (`qmanager_secret_set set discord_bot_token`), and — importantly — **before** the `qmanager-discord` service restart further down, because the daemon reads the secret file at startup. Storing after the restart would race the daemon against a token that is not on disk yet.
+
+A helper failure surfaces as a normal `cgi_error`, reusing the helper's own slug and detail. A save that *looks* successful but silently did not store the credential is worse than a visible error.
+
+> ℹ️ NOTE: `msmtprc` must still never contain a `logfile` directive — msmtp returns `rc=1` if it cannot write its log, even when the mail was sent.
 
 ### `send_test` per channel
 
 - **SMS** — bypasses the registration guard for this one call (the CGI context has no poller globals to satisfy it, and the user explicitly asked to test), then calls `sms_alert_send`.
-- **Email** — requires `msmtprc` to exist ("save settings first"), then `email_alert_send`.
+- **Email** — the *only* branch that cannot do the work itself. It shells out to `sudo qmanager_email_send test` and returns whatever the helper says; the whole send, including its NDJSON log entry, happens root-side. No precondition is duplicated in the CGI on purpose — the helper's `_ea_read_config` is the single authority on whether email is configured, and two checks that can disagree are worse than one that cannot. The error slugs (`library_missing` / `not_configured` / `msmtp_missing` / `send_failed`) come straight back from the helper, so the frontend is unchanged.
 - **Discord** — requires the daemon running (`da_is_running`), then `discord_dispatch_message`. Success is NOT logged by the CGI — the daemon logs it once it completes the API call (fire-and-forget hand-off).
 
 ---
@@ -387,4 +511,5 @@ The alert engine *reads* the connectivity verdict indirectly (via the poller's `
 - Discord bot internals (daemon lifecycle, DM channel resolution, OAuth) — [discord-bot.md](discord-bot.md)
 - AT command transport (`sms_tool`, `flock` serialization for the SMS channel) — [at-command-transport.md](at-command-transport.md)
 - QManager independence (email/SMS alert install, msmtp, poller PATH, sudoers) — [qmanager-independence.md](qmanager-independence.md)
+- `/tmp` cross-UID ownership rules (why every writer of `/tmp/qmanager_email_log.json` is now root) — [tmp-file-ownership.md](tmp-file-ownership.md)
 - Platform architecture, poller, boot sequence — `../rm520n-gl-architecture.md`

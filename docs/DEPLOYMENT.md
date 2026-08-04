@@ -232,8 +232,12 @@ cat /etc/qmanager/VERSION
 ├── tower_lock.json
 ├── band_lock.json
 ├── imei_backup.json
-├── last_iccid
-└── msmtprc                # Email SMTP config (no logfile directive)
+└── last_iccid
+
+/etc/qmanager-secrets/     # Root-only alert credentials (0700 root:root)
+├── discord_bot_token      # Raw Discord bot token (0600)
+├── email_app_password     # Raw Gmail app password (0600)
+└── msmtprc                # Email SMTP config, embeds the password (0600, no logfile directive)
 
 /etc/sudoers.d/qmanager    # www-data privilege escalation rules (includes qmanager_update)
 

@@ -620,6 +620,9 @@ t_cfg_cgi_path_opt() {
 # Apply redaction in-place to all files under a given directory.
 # Patterns:
 #   - msmtprc password lines
+#   - JSON secret keys (bot_token / app_password) — only reachable on a device
+#     whose migrate_alert_secrets() relocation has not run or failed; after a
+#     successful migration those keys no longer exist in the configs at all
 #   - tskey-* tokens (Tailscale auth keys)
 #   - Cookie / Authorization HTTP headers
 _redact_tree() {
@@ -632,6 +635,8 @@ _redact_tree() {
             -e 's/tskey-[A-Za-z0-9_-]\{20,\}/tskey-REDACTED/g' \
             -e 's/\(Cookie:[[:space:]]\).*/\1REDACTED/I' \
             -e 's/\(Authorization:[[:space:]]\).*/\1REDACTED/I' \
+            -e 's/\("bot_token"[[:space:]]*:[[:space:]]*\)"[^"]*"/\1"REDACTED"/g' \
+            -e 's/\("app_password"[[:space:]]*:[[:space:]]*\)"[^"]*"/\1"REDACTED"/g' \
             "$f" 2>/dev/null || true
     done
 }
@@ -703,7 +708,35 @@ _collect_configs() {
     [ -f /opt/etc/sudoers.d/qmanager ]    && cp /opt/etc/sudoers.d/qmanager    "$dir/sudoers-qmanager" 2>/dev/null
     [ -f /etc/qmanager/sms_alerts.json ]  && cp /etc/qmanager/sms_alerts.json  "$dir/sms_alerts.json"  2>/dev/null
     [ -f /etc/qmanager/email_alerts.json ]&& cp /etc/qmanager/email_alerts.json "$dir/email_alerts.json" 2>/dev/null
-    [ -f /etc/qmanager/msmtprc ]          && cp /etc/qmanager/msmtprc          "$dir/msmtprc"          2>/dev/null
+    # msmtprc moved to the root-only secrets store (see migrate_alert_secrets()
+    # in install_rm520n.sh). The basename MUST stay `msmtprc` in the bundle:
+    # _redact_tree's find matches on `-name 'msmtprc'`, so renaming it here
+    # would silently ship the SMTP password unredacted. The legacy path is kept
+    # as a fallback for a device whose relocation has not run yet.
+    if [ -f /etc/qmanager-secrets/msmtprc ]; then
+        cp /etc/qmanager-secrets/msmtprc "$dir/msmtprc" 2>/dev/null
+    elif [ -f /etc/qmanager/msmtprc ]; then
+        cp /etc/qmanager/msmtprc "$dir/msmtprc" 2>/dev/null
+    fi
+
+    # DELIBERATELY NOT COLLECTED: /etc/qmanager-secrets/discord_bot_token and
+    # /etc/qmanager-secrets/email_app_password. Those files are raw values with
+    # no surrounding structure — there is no line for the redaction sed to
+    # match, because the ENTIRE file is the secret. They must never enter a
+    # support bundle at all. Nothing else in the collection path walks
+    # /etc/qmanager-secrets (every copy above names a single file explicitly,
+    # and t_cfg_qmanager_dir's `ls -la /etc/qmanager` lists a sibling
+    # directory, not this one) — _purge_raw_secrets() below is the backstop.
+}
+
+# Backstop against a raw secret ever reaching the tarball. Runs over the staged
+# bundle immediately before redaction, so it also catches anything a future
+# collector adds by accident. This is a safety net, not the primary control —
+# the primary control is that nothing above collects these files.
+_purge_raw_secrets() {
+    local dir="$1"
+    find "$dir" -type f \( -name 'discord_bot_token' -o -name 'email_app_password' \) \
+        -exec rm -f {} + 2>/dev/null || true
 }
 
 _collect_logs() {
@@ -741,6 +774,7 @@ _build_bundle() {
     cp -r "$TESTS_DIR/." "$stage/tests/" 2>/dev/null || true
     [ -f /tmp/qmanager_status.json ] && cp /tmp/qmanager_status.json "$stage/poller-cache.json" 2>/dev/null
 
+    _purge_raw_secrets "$stage"
     _redact_tree "$stage"
     _build_report_json "$stage/report.json"
 

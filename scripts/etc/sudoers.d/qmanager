@@ -25,8 +25,14 @@ www-data ALL=(root) NOPASSWD: /sbin/reboot
 
 # Crash-log breadcrumb (used by system/reboot.sh to classify a user-initiated
 # reboot). The helper hardcodes the log path + validates the reason against a
-# fixed enum and refuses to follow a symlink — www-data cannot write
-# /etc/qmanager/crash.log directly (root-owned; see qmanager_crash_log_append).
+# fixed enum and refuses to follow a symlink.
+#
+# NOTE (corrected): /etc/qmanager/crash.log is NOT root-owned in practice.
+# qmanager_setup's boot-time `chown -R www-data:www-data /etc/qmanager` flips it
+# back on every boot, and it was verified live as www-data:www-data 0644. The
+# grant therefore exists for VALIDATION and INTEGRITY (fixed reason enum, fixed
+# path, symlink refusal, bounded trim) — not because www-data lacks write
+# access. Do not build any new logic on a "root-owned" premise for this file.
 www-data ALL=(root) NOPASSWD: /usr/bin/qmanager_crash_log_append
 
 # Auto-update timer live-arming (arms/disarms qmanager-auto-update.timer when the
@@ -51,6 +57,37 @@ www-data ALL=(root) NOPASSWD: /usr/bin/qmanager_tower_schedule_arm
 
 # SSH password management (reads password from stdin, updates /etc/shadow)
 www-data ALL=(root) NOPASSWD: /usr/bin/qmanager_set_ssh_password
+
+# Alert-channel secret storage (Discord bot token / Gmail app password, plus the
+# generated msmtprc). These credentials used to sit in plaintext inside
+# /etc/qmanager/*.json — a directory www-data owns — so any file-read bug in any
+# CGI endpoint disclosed them. They now live in /etc/qmanager-secrets/ (0700
+# root:root), which www-data cannot traverse at all; only this helper can write
+# there.
+#
+# Bare path, no arguments, no wildcard: ALL validation (action verb, secret-name
+# whitelist, control-character and length limits, symlink refusal, atomic
+# private write) lives INSIDE the helper, where it can be read and tested. A
+# sudoers wildcard cannot express any of that, and the secret VALUE never
+# appears in argv — it is piped on stdin, because argv is world-readable via
+# /proc/<pid>/cmdline and that would recreate the very leak this fixes.
+www-data ALL=(root) NOPASSWD: /usr/bin/qmanager_secret_set
+
+# Alert test email (Monitoring -> Alerts -> "Send test"). Consequence of the
+# grant above: msmtprc embeds the Gmail app password, so it moved into the same
+# 0700 root:root directory — and the CGI can no longer run `msmtp -C` itself,
+# which is what it used to do inline as www-data.
+#
+# This grants www-data NO new capability. It already owns email_alerts.json, so
+# it already controls the sender/recipient and could already trigger this send;
+# the helper only removes its need to read the credential. Kept as a SEPARATE
+# helper from qmanager_secret_set on purpose: custody of secrets and sending
+# mail are different privileges and should stay separately auditable.
+#
+# The helper takes exactly one literal verb (`test`), reads nothing from stdin,
+# and the subject/body are canned constants — it cannot be driven to send
+# arbitrary content.
+www-data ALL=(root) NOPASSWD: /usr/bin/qmanager_email_send
 
 # Tailscale VPN management
 www-data ALL=(root) NOPASSWD: /usr/bin/qmanager_tailscale_mgr
@@ -80,9 +117,15 @@ www-data ALL=(root) NOPASSWD: /usr/bin/qmanager_timezone_apply
 # root-owned persistent store + served web-root copy; remove mode too)
 www-data ALL=(root) NOPASSWD: /usr/bin/qmanager_language_pack_apply
 
-# SIM Registry apply (commits carrier/phone_number/dismissed fields into the
-# root-owned /etc/qmanager/sim_registry.json — the helper hardcodes the path
-# and validates the ICCID/field values itself)
+# SIM Registry apply (commits carrier/phone_number/dismissed fields into
+# /etc/qmanager/sim_registry.json — the helper hardcodes the path and validates
+# the ICCID/field values itself).
+#
+# NOTE (corrected): that file is NOT root-owned. Like every other file in
+# /etc/qmanager it is re-chowned to www-data:www-data 0644 by qmanager_setup on
+# every boot (verified live). The grant exists for VALIDATION and INTEGRITY —
+# hardcoded path, symlink refusal, per-field validation, atomic replace — not
+# because www-data lacks write access.
 www-data ALL=(root) NOPASSWD: /usr/bin/qmanager_sim_registry_apply
 
 # Custom DNS management (dnsmasq config atomic swap + reload)

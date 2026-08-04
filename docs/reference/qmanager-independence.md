@@ -425,7 +425,7 @@ PID tracking spans the full install lifetime to keep the CGI's `pid_alive` concu
 ### Email alerts
 
 - MTA: `msmtp`, installed from Entware at `/opt/bin/msmtp`.
-- Config file: `/etc/qmanager/msmtprc`
+- Config file: `/etc/qmanager-secrets/msmtprc` (`0600 root:root`, inside the `0700 root:root` alert-secrets store — it embeds the Gmail app password by construction). Relocated from `/etc/qmanager/msmtprc` in v0.1.14; `www-data` cannot read it, which is why the test send goes through the `qmanager_email_send` root helper. See [alerts.md](alerts.md#secret-storage-etcqmanager-secrets).
 - **Do NOT include a `logfile` directive** in msmtprc. If msmtp cannot write its log file, it returns `rc=1` even when the email was sent successfully. This causes false failures.
 - The `email_alerts.sh` library detects msmtp at `/opt/bin/msmtp` explicitly — the poller's `PATH` does not include `/opt/bin`.
 - Recovery emails wait **30 seconds** after connectivity returns before the first send attempt, to allow DNS and SMTP to stabilize.

@@ -945,7 +945,7 @@ Unified endpoint for all three alert channels (SMS, email, Discord) plus the rou
 
 | Action | Purpose |
 |--------|---------|
-| `save_settings` | Persist all three channel configs + routing atomically. `app_password` / `bot_token` sent only when changed; omitted secrets reuse the stored value. `connection_lost.email` and `connection_lost.discord` routing cells are hard-clamped to `false` server-side. |
+| `save_settings` | Persist all three channel configs + routing atomically. `app_password` / `bot_token` are sent only when the user typed a new one; an omitted secret leaves the stored credential untouched and carries its `*_set` marker forward. The secrets are written by a root helper into `/etc/qmanager-secrets/` and never land in the config JSONs. `connection_lost.email` and `connection_lost.discord` routing cells are hard-clamped to `false` server-side. |
 | `send_test` | `{ "channel": "sms" \| "email" \| "discord" }` — send a real test alert via that channel's live transport. |
 | `get_log` | Merged NDJSON activity log across all three channels, newest first, cap 100. |
 | `install_msmtp` | Background `opkg` install of the `msmtp` mailer (optional email dependency). |

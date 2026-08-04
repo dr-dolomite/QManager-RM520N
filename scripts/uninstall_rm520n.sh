@@ -587,6 +587,17 @@ if [ "$PURGE" = "1" ]; then
     rm -f /etc/qmanager.env
     info "Purged daemon environment file (/etc/qmanager.env)"
 
+    # Alert secrets store — the Discord bot token, the Gmail app password, and
+    # msmtprc (which holds that password in cleartext by construction). Same
+    # orphan class as /etc/qmanager.env above: it deliberately lives OUTSIDE
+    # $CONF_DIR — /etc/qmanager is www-data-owned, so nothing secret can be
+    # protected inside it (see migrate_alert_secrets() in install_rm520n.sh) —
+    # so the `rm -rf "$CONF_DIR"` above does not reach it. Without this line a
+    # purge uninstall leaves a LIVE bot token and a plaintext Gmail app
+    # password on disk after the user believes QManager is gone.
+    rm -rf /etc/qmanager-secrets
+    info "Purged alert secrets store (/etc/qmanager-secrets)"
+
     # Sidecar state files that live directly under $QMANAGER_ROOT (siblings
     # of www/, not inside it — install_frontend's www-wipe-and-recopy never
     # touches these, so they must be cleaned up here explicitly).
@@ -609,7 +620,8 @@ if [ "$PURGE" = "1" ]; then
     rm -rf "$QMANAGER_ROOT/locales-packs" "$QMANAGER_ROOT/locales-staging"
     info "Purged language-pack store (locales-packs, locales-staging)"
 elif [ -d "$CONF_DIR" ]; then
-    warn "Config preserved at $CONF_DIR and /etc/qmanager.env (use --purge to remove)"
+    warn "Config preserved at $CONF_DIR, /etc/qmanager.env and /etc/qmanager-secrets (use --purge to remove)"
+    warn "/etc/qmanager-secrets still holds the Discord token / email app password (root-only, 0700)"
 fi
 
 # Custom DNS staging dir (/etc/data/qmanager) — installer-created scratch space

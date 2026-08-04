@@ -80,6 +80,11 @@ detect_sudo() {
 }
 detect_sudo
 CONF_DIR="/etc/qmanager"
+# Root-only store for alert secrets (Discord bot token, Gmail app password,
+# msmtprc). Deliberately a SIBLING of $CONF_DIR, not a subdirectory: www-data
+# owns $CONF_DIR, so it could rename any subdirectory of it out of the way.
+# See migrate_alert_secrets().
+SECRETS_DIR="/etc/qmanager-secrets"
 CERT_DIR="/usrdata/qmanager/certs"
 SESSION_DIR="/tmp/qmanager_sessions"
 BACKUP_DIR="/etc/qmanager/backups"
@@ -1257,10 +1262,67 @@ install_backend() {
             echo "#includedir $SUDOERS_DIR" >> "$SUDOERS_CONF"
             info "Added #includedir $SUDOERS_DIR to $SUDOERS_CONF"
         fi
-        install_file "$SRC_SCRIPTS/etc/sudoers.d/qmanager" "$SUDOERS_DIR/qmanager" 440 \
-            || die "Failed to install sudoers rules"
-        chown root:root "$SUDOERS_DIR/qmanager"
-        info "Sudoers rules installed to $SUDOERS_DIR (440)"
+        # SYNTAX-GATE the drop-in before it goes live. sudo parses the whole
+        # of sudoers.d as one unit: a single malformed line here does not
+        # disable one grant, it makes sudo reject the ENTIRE directory — which
+        # takes out every privileged CGI action at once (reboot, OTA, Tailscale,
+        # ethernet, timezone, secret writes). Installing an unvalidated file was
+        # survivable while the content was static; it is not now that grants are
+        # being added to it.
+        #
+        # Staged in the DESTINATION directory so the final `mv` is a true
+        # rename(2) on the same filesystem, and so a validation failure leaves
+        # the previously-installed (known-good) file completely untouched.
+        # Safe to stage in-place: sudo SKIPS any file in an include directory
+        # whose name contains a '.', so `qmanager.qm_stage.$$` is never parsed
+        # even if we crash before cleaning it up (same property install_file's
+        # own `.qm_install.$$` temp relies on).
+        _sudo_stage="$SUDOERS_DIR/qmanager.qm_stage.$$"
+        _sudoers_ok=0
+        if install_file "$SRC_SCRIPTS/etc/sudoers.d/qmanager" "$_sudo_stage" 440; then
+            chown root:root "$_sudo_stage" 2>/dev/null || true
+            # visudo lives in sbin, which is not always on PATH for this
+            # script; probe both the Entware and the system location. If the
+            # binary is genuinely absent (sudo installed without visudo) we
+            # proceed unvalidated rather than blocking the install — the
+            # pre-existing behaviour — but say so loudly.
+            _visudo=""
+            for _c in /opt/sbin/visudo /opt/bin/visudo /usr/sbin/visudo /usr/bin/visudo; do
+                [ -x "$_c" ] && { _visudo="$_c"; break; }
+            done
+            [ -z "$_visudo" ] && _visudo=$(command -v visudo 2>/dev/null) || true
+            if [ -n "$_visudo" ]; then
+                if "$_visudo" -c -f "$_sudo_stage" >/dev/null 2>&1; then
+                    _sudoers_ok=1
+                else
+                    warn "sudoers drop-in FAILED visudo syntax check — refusing to install it"
+                    warn "Existing $SUDOERS_DIR/qmanager left untouched; privileged CGI actions unchanged"
+                    "$_visudo" -c -f "$_sudo_stage" 2>&1 | head -5 || true
+                fi
+            else
+                warn "visudo not found — installing sudoers drop-in WITHOUT syntax validation"
+                _sudoers_ok=1
+            fi
+        else
+            # Same hard failure as before this gate existed: if the file cannot
+            # even be staged, the install is broken in a way the operator must
+            # see.
+            rm -f "$_sudo_stage" 2>/dev/null || true
+            die "Failed to install sudoers rules"
+        fi
+
+        if [ "$_sudoers_ok" = "1" ]; then
+            if mv "$_sudo_stage" "$SUDOERS_DIR/qmanager"; then
+                chown root:root "$SUDOERS_DIR/qmanager" 2>/dev/null || true
+                chmod 440 "$SUDOERS_DIR/qmanager" 2>/dev/null || true
+                info "Sudoers rules installed to $SUDOERS_DIR (440, visudo-checked)"
+            else
+                rm -f "$_sudo_stage" 2>/dev/null || true
+                die "Failed to install sudoers rules"
+            fi
+        else
+            rm -f "$_sudo_stage" 2>/dev/null || true
+        fi
     elif [ -z "$SUDOERS_DIR" ]; then
         warn "sudo not found — install Entware sudo: $OPKG install sudo"
         warn "Skipping sudoers rules (CGI privilege escalation will not work)"
@@ -1342,6 +1404,34 @@ install_backend() {
     # survived until the next reboot anyway. Do not reintroduce a carve-out
     # here for any file that must not be www-data-writable — move it out of
     # $CONF_DIR instead.
+
+    # --- Alert secrets store (root-only, OUTSIDE $CONF_DIR) -------------------
+    # The Discord bot token and the Gmail app password used to live as plain
+    # strings inside $CONF_DIR/discord_bot.json and $CONF_DIR/email_alerts.json,
+    # both 0644 and both inside the directory www-data OWNS — so any local user
+    # could read them and www-data could rewrite them at will. As with the
+    # daemon EnvironmentFile above, no mode or ownership pin INSIDE $CONF_DIR
+    # can fix that (qmanager_setup re-runs `chown -R www-data:www-data
+    # /etc/qmanager` on every boot, and owning the parent directory beats any
+    # per-file mode). The only real fix is relocation, which is what
+    # migrate_alert_secrets() performs.
+    #
+    # 0700 root:root: only root reads these. www-data writes them exclusively
+    # through the /usr/bin/qmanager_secret_set sudoers grant, which takes the
+    # value on stdin and never on argv.
+    #
+    # `install -d`, never `mkdir -p`: mkdir -p honours the ambient umask and is
+    # a silent no-op on an existing directory, so a mode that drifted once would
+    # persist across every future OTA. install -d re-applies the mode on EVERY
+    # run, so one OTA self-heals a drifted device. The explicit chmod/chown
+    # afterwards do not assume `install -o/-g/-m` semantics are uniform, and
+    # everything here is non-fatal: an abort inside install_backend would kill
+    # an in-flight OTA with services already stopped.
+    install -d -m 0700 "$SECRETS_DIR" 2>/dev/null || warn "Could not create $SECRETS_DIR"
+    if [ -d "$SECRETS_DIR" ]; then
+        chown root:root "$SECRETS_DIR" 2>/dev/null || true
+        chmod 0700 "$SECRETS_DIR" 2>/dev/null || true
+    fi
 
     # Custom DNS needs a www-data-owned staging dir on /dev/ubi2_0 (same volume
     # as /etc/data/dnsmasq.conf) so the CGI can write the candidate config and
@@ -1426,6 +1516,11 @@ install_backend() {
     migrate_ping_targets
     migrate_sim_registry
     migrate_apn_sidecars
+    # Relocates the Discord token / Gmail app password / msmtprc out of the
+    # www-data-owned $CONF_DIR into $SECRETS_DIR. Depends only on $SECRETS_DIR
+    # existing (created earlier in this function); see the ordering note in
+    # migrate_alert_secrets().
+    migrate_alert_secrets
 
     info "Backend installed"
 }
@@ -2109,6 +2204,256 @@ migrate_environment_location() {
     fi
 }
 
+# --- Relocate alert secrets out of the www-data-owned config dir -------------
+
+# WHY THIS EXISTS — the same story as migrate_environment_location() above, one
+# directory over.
+#
+# /etc/qmanager/discord_bot.json shipped mode 0644 with a LIVE Discord bot token
+# stored as a plain JSON string, and /etc/qmanager/email_alerts.json did the same
+# with the operator's Gmail app password. /etc/qmanager/msmtprc held that
+# password a second time. Two independent problems:
+#
+#   1. World-readable. 0644 means every local account — the web console shell,
+#      any Entware daemon, anything that gets a shell through a CGI bug — can
+#      read a bot token that controls the operator's Discord bot, and an app
+#      password that is full IMAP/SMTP access to their Google account.
+#   2. www-data-writable. www-data OWNS /etc/qmanager, and directory write
+#      permission governs unlink/rename of entries, so no per-file mode or
+#      ownership pin inside it means anything. qmanager_setup then runs a bare
+#      `chown -R www-data:www-data /etc/qmanager` on EVERY boot, so even a
+#      root:root pin only survives until the next reboot.
+#
+# Neither is fixable in place, for exactly the reasons spelled out in
+# migrate_environment_location(): the directory has to stay www-data-writable
+# for the CGI to work, a root-owned SUBdirectory is renameable by the parent's
+# owner, and the sticky bit exempts the directory's owner — which is www-data.
+# So the fix is relocation to /etc/qmanager-secrets (0700 root:root, a SIBLING
+# of /etc/qmanager under root-owned /etc), with www-data writing values only
+# through the qmanager_secret_set sudoers grant.
+#
+# THE del() IS THE WHOLE FIX. /etc/qmanager is the additive-only bucket —
+# nothing in this tree ever prunes stale keys out of a config there. Copying the
+# secret to the new store and leaving the key behind would make the entire
+# change cosmetic: the plaintext would sit world-readable in the old file
+# forever. The JSON is therefore rewritten with `del(.bot_token)` /
+# `del(.app_password)`, and a non-secret boolean marker (`token_set` /
+# `app_password_set`) is written in its place so the CGI's GET can still tell
+# the UI whether a secret is configured without ever handling the value.
+#
+# ORDERING — this runs LAST in install_backend's migration block, after
+# migrate_environment_location() and the sidecar migrations. Nothing else reads
+# or writes these two keys during install, so there is no dependency in either
+# direction; running last simply keeps the "historical one-time conversions
+# first, relocations after" shape the block already has. It DOES depend on
+# $SECRETS_DIR existing, which install_backend creates far earlier in the same
+# function.
+#
+# Idempotent, and a permanent no-op after the first success: once the secret key
+# is gone from the JSON there is nothing left to extract, and once msmtprc is at
+# the new path the old one no longer exists. Never aborts the installer — this
+# file runs under `set -e` and this function is called bare from
+# install_backend(), so an unguarded failure would kill an in-flight OTA with
+# services already stopped. Every failure path warns and returns 0, and every
+# command substitution carries a `|| var=default`.
+migrate_alert_secrets() {
+    if [ ! -d "$SECRETS_DIR" ]; then
+        echo "  WARNING: $SECRETS_DIR missing — skipping alert secret relocation" >&2
+        return 0
+    fi
+
+    _migrate_one_secret "$CONF_DIR/discord_bot.json"  bot_token     token_set        discord_bot_token
+    _migrate_one_secret "$CONF_DIR/email_alerts.json" app_password  app_password_set email_app_password
+    _migrate_msmtprc
+}
+
+# _migrate_one_secret <config.json> <secret_key> <marker_key> <secret_filename>
+#
+# Extract $secret_key out of the JSON into $SECRETS_DIR/$secret_filename, then
+# rewrite the JSON without it and with $marker_key set to a boolean. If there is
+# no secret to move, still ensure $marker_key exists so the CGI's GET has a
+# defined value rather than `null` (a `null` would render the UI's "configured"
+# state as neither true nor false).
+_migrate_one_secret() {
+    local cfg="$1" key="$2" marker="$3" fname="$4"
+    local dst="$SECRETS_DIR/$fname"
+    local val tmp
+
+    [ -f "$cfg" ] || return 0
+
+    # Guarded: corrupt JSON makes jq exit non-zero, and a bare command
+    # substitution under `set -e` would abort the OTA right here.
+    val=$(jq -r --arg k "$key" '.[$k] // ""' "$cfg" 2>/dev/null) || val=""
+
+    if [ -n "$val" ] && [ "$val" != "null" ]; then
+        # Guard the pathological case BEFORE touching anything. `mv file dir`
+        # does NOT fail — it moves the file INSIDE the directory — so falling
+        # through would leave the secret somewhere nothing reads while we
+        # happily deleted the key from the JSON, destroying the only copy.
+        if [ -d "$dst" ]; then
+            echo "  WARNING: $dst is a directory — skipping $key relocation" >&2
+            return 0
+        fi
+
+        # Temp file in the DESTINATION directory. /etc, /etc/qmanager and
+        # /etc/qmanager-secrets are all the same UBIFS volume (/dev/ubi2_0), so
+        # `mv` between them is a true atomic rename(2). A bare `mktemp` lands in
+        # /tmp, which is tmpfs — a DIFFERENT filesystem, where mv silently
+        # degrades to copy+unlink and a power cut can tear the file.
+        tmp=$(mktemp "$SECRETS_DIR/.secret.XXXXXX" 2>/dev/null) || {
+            echo "  WARNING: failed to create temp file in $SECRETS_DIR — skipping $key" >&2
+            return 0
+        }
+
+        # printf '%s' (no trailing newline) — the contract is a raw value, and a
+        # stray \n would be sent verbatim as part of the Discord Authorization
+        # header / SMTP password.
+        if printf '%s' "$val" > "$tmp" 2>/dev/null; then
+            # Mode AND owner BEFORE the rename: mv carries both across, so
+            # setting them afterwards leaves a window at the wrong values. Both
+            # are `|| true` — a bare failure here would abort the OTA, and this
+            # function promises it never does. BusyBox mktemp already creates
+            # 0600, and we run as root, so the degraded state is still correct.
+            chmod 600 "$tmp" 2>/dev/null || true
+            chown root:root "$tmp" 2>/dev/null || true
+            if mv "$tmp" "$dst" 2>/dev/null; then
+                # Only NOW is it safe to drop the key: the secret is durably at
+                # its new home. Rewriting the JSON first and failing the move
+                # would lose the operator's token outright.
+                _strip_secret_key "$cfg" "$key" "$marker" true
+            else
+                rm -f "$tmp" 2>/dev/null || true
+                echo "  WARNING: failed to install $dst — leaving $key in $cfg" >&2
+            fi
+        else
+            rm -f "$tmp" 2>/dev/null || true
+            echo "  WARNING: failed to write $dst — leaving $key in $cfg" >&2
+        fi
+        return 0
+    fi
+
+    # No secret in the config. Two sub-cases: the key is present but empty (drop
+    # it — an empty string is still a key the new readers must not see), or it
+    # was never there. Either way the marker must end up defined. Its value
+    # depends on whether a secret file already exists at the new path, so a
+    # device that migrated on an earlier OTA does not get its marker reset to
+    # false and prompt the user to re-enter a secret that is in fact configured.
+    local have=false
+    [ -s "$dst" ] && have=true
+
+    local marker_now
+    marker_now=$(jq -r --arg m "$marker" '.[$m] // "absent"' "$cfg" 2>/dev/null) || marker_now="absent"
+
+    local key_present
+    key_present=$(jq -r --arg k "$key" 'has($k)' "$cfg" 2>/dev/null) || key_present="false"
+
+    if [ "$marker_now" = "absent" ] || [ "$key_present" = "true" ]; then
+        _strip_secret_key "$cfg" "$key" "$marker" "$have"
+    fi
+    return 0
+}
+
+# _strip_secret_key <config.json> <secret_key> <marker_key> <true|false>
+#
+# Atomically rewrite the JSON with the secret key DELETED and the marker set.
+# Ownership/mode are deliberately re-applied from the ORIGINAL file rather than
+# pinned: this file stays www-data-owned 0644 (it holds no secret any more) and
+# the CGI must keep being able to write it.
+_strip_secret_key() {
+    local cfg="$1" key="$2" marker="$3" val="$4"
+    local tmp
+
+    # SECURITY: mktemp, never a predictable "${cfg}.something.$$" name.
+    #
+    # $cfg lives in $CONF_DIR, which www-data OWNS. A shell `>` redirect
+    # FOLLOWS SYMLINKS, so a predictable temp name lets an already-compromised
+    # www-data pre-plant that path as a symlink to any root-owned file
+    # (/etc/sudoers.d/qmanager, a systemd unit, /etc/shadow) and have root's jq
+    # below truncate and overwrite the target — an arbitrary-root-write
+    # primitive reachable on every OTA. mktemp creates with O_EXCL, so it FAILS
+    # on a pre-planted path instead of following it. This is why every other
+    # migration in this file uses mktemp inside the destination directory; the
+    # `mv` further down is already safe, because rename(2) does not follow
+    # symlinks the way redirection does.
+    tmp=$(mktemp "${CONF_DIR}/.qmsecret.XXXXXX" 2>/dev/null) || {
+        echo "  WARNING: could not create temp file for $cfg — $key NOT removed" >&2
+        return 0
+    }
+
+    if ! jq --arg k "$key" --arg m "$marker" --argjson v "$val" \
+            'del(.[$k]) | .[$m] = $v' "$cfg" > "$tmp" 2>/dev/null; then
+        rm -f "$tmp" 2>/dev/null || true
+        echo "  WARNING: could not rewrite $cfg (invalid JSON?) — $key NOT removed" >&2
+        return 0
+    fi
+
+    # Refuse to install an empty result. A jq that wrote nothing but still
+    # exited 0 (disk full mid-write) would otherwise truncate the config.
+    if [ ! -s "$tmp" ]; then
+        rm -f "$tmp" 2>/dev/null || true
+        echo "  WARNING: rewrite of $cfg produced an empty file — leaving original" >&2
+        return 0
+    fi
+
+    chmod 644 "$tmp" 2>/dev/null || true
+    chown www-data:www-data "$tmp" 2>/dev/null || true
+    if mv "$tmp" "$cfg" 2>/dev/null; then
+        echo "  Removed $key from $cfg (now $marker=$val)"
+    else
+        rm -f "$tmp" 2>/dev/null || true
+        echo "  WARNING: failed to replace $cfg — $key NOT removed" >&2
+    fi
+    return 0
+}
+
+# Relocate the msmtp config, which contains the SMTP password in cleartext by
+# construction (msmtp has no other way to supply it non-interactively).
+_migrate_msmtprc() {
+    local src="$CONF_DIR/msmtprc"
+    local dst="$SECRETS_DIR/msmtprc"
+    local tmp
+
+    [ -f "$src" ] || return 0
+
+    # Same `mv file dir` trap as above — bail rather than scatter the file.
+    if [ -d "$dst" ]; then
+        echo "  WARNING: $dst is a directory — leaving $src in place" >&2
+        return 0
+    fi
+
+    if [ -f "$dst" ]; then
+        # Already relocated on an earlier run. Drop the stale original so the
+        # cleartext password stops sitting in a world-readable, www-data-owned
+        # directory, and so no downgraded reader picks up the abandoned copy.
+        rm -f "$src" 2>/dev/null || true
+        return 0
+    fi
+
+    tmp=$(mktemp "$SECRETS_DIR/.msmtprc.XXXXXX" 2>/dev/null) || {
+        echo "  WARNING: failed to create temp file in $SECRETS_DIR — leaving $src in place" >&2
+        return 0
+    }
+
+    if cat "$src" > "$tmp" 2>/dev/null; then
+        chmod 600 "$tmp" 2>/dev/null || true
+        chown root:root "$tmp" 2>/dev/null || true
+        # The original is removed ONLY after the destination is confirmed in
+        # place — msmtp refuses to run with no config at all, so losing it
+        # would silently break every email alert.
+        if mv "$tmp" "$dst" 2>/dev/null; then
+            rm -f "$src" 2>/dev/null || true
+            echo "  Relocated msmtprc to $dst (root:root 0600)"
+        else
+            rm -f "$tmp" 2>/dev/null || true
+            echo "  WARNING: failed to install $dst — leaving $src in place" >&2
+        fi
+    else
+        rm -f "$tmp" 2>/dev/null || true
+        echo "  WARNING: failed to copy $src — leaving original in place" >&2
+    fi
+    return 0
+}
+
 # --- Cleanup Legacy Scripts --------------------------------------------------
 
 # Removes scripts, units, and libraries that no longer exist in the source tree.
@@ -2552,7 +2897,11 @@ start_services() {
 
     # Start Discord bot if binary present, config exists, and enabled flag is true
     if [ -x "$BIN_DIR/qmanager_discord" ] && [ -f /etc/qmanager/discord_bot.json ]; then
-        _dc_enabled=$(jq -r '.enabled // false' /etc/qmanager/discord_bot.json 2>/dev/null)
+        # `|| _dc_enabled=false` is load-bearing: this file runs under `set -e`,
+        # so a corrupt discord_bot.json makes jq exit non-zero and aborts the
+        # installer HERE — mid-OTA, with services already stopped. Matches the
+        # guarded read in the enable block above.
+        _dc_enabled=$(jq -r '.enabled // false' /etc/qmanager/discord_bot.json 2>/dev/null) || _dc_enabled=false
         if [ "$_dc_enabled" = "true" ]; then
             systemctl start qmanager-discord 2>/dev/null || warn "Could not start qmanager-discord"
             info "Discord bot started"

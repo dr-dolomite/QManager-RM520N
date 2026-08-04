@@ -42,15 +42,23 @@ func main() {
 		log.Println("Discord bot is disabled in config. Exiting.")
 		os.Exit(0)
 	}
-	if cfg.BotToken == "" || cfg.OwnerDiscordID == "" {
-		log.Fatal("bot_token and owner_discord_id must be set in config")
+	if cfg.OwnerDiscordID == "" {
+		log.Fatal("owner_discord_id must be set in config")
 	}
 
-	appID := appIDFromToken(cfg.BotToken)
+	// The token is NOT in the config JSON — it is read from the root-only
+	// secret file so the www-data-owned config directory never holds it.
+	botToken, err := loadBotToken(secretTokenPath)
+	if err != nil {
+		writeStatus(statusPath, BotStatus{Connected: false, Error: "missing_token"})
+		log.Fatalf("failed to load bot token: %v", err)
+	}
+
+	appID := appIDFromToken(botToken)
 
 	writeStatus(statusPath, BotStatus{Connected: false, Error: "starting", AppID: appID})
 
-	s, err := newSession(cfg.BotToken)
+	s, err := newSession(botToken)
 	if err != nil {
 		writeStatus(statusPath, BotStatus{Connected: false, Error: "session_error", AppID: appID})
 		log.Fatalf("failed to create Discord session: %v", err)

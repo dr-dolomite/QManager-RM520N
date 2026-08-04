@@ -12,7 +12,10 @@
 # GET:
 #   Aggregated channel settings + routing + capability table + reboot
 #   history. Never returns secrets (app_password / bot_token) — only
-#   *_set booleans.
+#   *_set booleans. As of the secrets relocation this endpoint cannot
+#   return them even by accident: the secrets no longer live in the config
+#   directory at all (see /etc/qmanager-secrets below), and www-data cannot
+#   read them. The config JSONs carry only the marker booleans.
 #
 # POST actions:
 #   save_settings   — persist sms/email/discord config + routing, atomically
@@ -26,9 +29,20 @@
 #   /etc/qmanager/email_alerts.json
 #   /etc/qmanager/discord_bot.json
 #   /etc/qmanager/alert_routing.json
-#   /etc/qmanager/msmtprc            (generated on email save)
 #   /etc/qmanager/reboot_history.json (read-only here — written by
 #                                      alert_engine.sh)
+#
+# Secrets (NOT written or readable here — 0700 root:root, owned by the root
+# helpers this endpoint calls over sudo):
+#   /etc/qmanager-secrets/email_app_password
+#   /etc/qmanager-secrets/discord_bot_token
+#   /etc/qmanager-secrets/msmtprc     (rendered on email save)
+#
+# Root helpers (each a bare-path sudoers grant):
+#   qmanager_secret_set  — stores/clears the two secrets, renders msmtprc,
+#                          maintains the non-secret *_set markers
+#   qmanager_email_send  — sends the canned test email, because msmtprc is
+#                          unreadable from this process
 #
 # Reload flags (touched on save_settings, consumed by alert_engine.sh):
 #   /tmp/qmanager_sms_reload
@@ -49,7 +63,12 @@ EMAIL_CONFIG="/etc/qmanager/email_alerts.json"
 DISCORD_CONFIG="/etc/qmanager/discord_bot.json"
 ROUTING_CONFIG="/etc/qmanager/alert_routing.json"
 REBOOT_HISTORY="/etc/qmanager/reboot_history.json"
-MSMTP_CONFIG="/etc/qmanager/msmtprc"
+# NOTE: there is deliberately no MSMTP_CONFIG constant. www-data cannot read or
+# even stat /etc/qmanager-secrets/msmtprc, so a path constant here would only
+# invite a `[ -f ]` check that is always false and means nothing. Both helpers
+# below own that file.
+SECRET_HELPER="/usr/bin/qmanager_secret_set"
+EMAIL_SEND_HELPER="/usr/bin/qmanager_email_send"
 
 SMS_RELOAD="/tmp/qmanager_sms_reload"
 EMAIL_RELOAD="/tmp/qmanager_email_reload"
@@ -69,6 +88,60 @@ MSMTP_INSTALL_PID="/tmp/qmanager_msmtp_install.pid"
 # what's written here. Enforcing it again here just keeps the persisted
 # routing file honest for the GET response / future engine changes.
 ROUTING_DEFAULT='{"connection_lost":{"sms":true,"email":false,"discord":false},"connection_restored":{"sms":true,"email":true,"discord":true},"reboot":{"sms":true,"email":true,"discord":true}}'
+
+# =============================================================================
+# Root-helper invocation — shared by both privileged helpers this endpoint uses
+# =============================================================================
+# Both qmanager_secret_set and qmanager_email_send follow the same contract:
+# one line of JSON on stdout, exit 0/1. These three functions are the whole
+# calling convention. ($_SUDO comes from platform.sh, which cgi_base.sh already
+# sourced; it is empty when we happen to run as root.)
+#
+# Each call leaves the helper's JSON in ROOT_HELPER_OUT for root_helper_fail.
+ROOT_HELPER_OUT=""
+
+# root_helper_call <helper_path> [arg...] — no stdin.
+root_helper_call() {
+    ROOT_HELPER_OUT=$($_SUDO "$@" </dev/null 2>/dev/null)
+    return $?
+}
+
+# root_helper_call_stdin <value> <helper_path> [arg...]
+#
+# The value is PIPED, never passed as an argument: argv is world-readable via
+# /proc/<pid>/cmdline, so an argument would leak the credential to every local
+# process for the lifetime of the call.
+root_helper_call_stdin() {
+    _rh_val="$1"
+    shift
+    ROOT_HELPER_OUT=$(printf '%s' "$_rh_val" | $_SUDO "$@" 2>/dev/null)
+    _rh_rc=$?
+    _rh_val=""
+    return "$_rh_rc"
+}
+
+# Surface a helper failure as a normal cgi_error, reusing the helper's own
+# slug/detail so the frontend's error handling and i18n strings keep working.
+# A save that LOOKS successful but silently did not store the credential — or a
+# test send that reports OK without sending — is worse than a visible error.
+root_helper_fail() {
+    _rhf_default="$1"
+    _rhf_err=$(printf '%s' "$ROOT_HELPER_OUT" | jq -r '.error // ""' 2>/dev/null)
+    _rhf_detail=$(printf '%s' "$ROOT_HELPER_OUT" | jq -r '.detail // ""' 2>/dev/null)
+    [ -z "$_rhf_err" ] && _rhf_err="helper_failed"
+    [ -z "$_rhf_detail" ] && _rhf_detail="$_rhf_default"
+    qlog_error "root helper failed: $_rhf_err"
+    cgi_error "$_rhf_err" "$_rhf_detail"
+}
+
+# secret_helper <verb> <name> [value] — thin wrapper over the two above.
+secret_helper() {
+    if [ -n "$3" ]; then
+        root_helper_call_stdin "$3" "$SECRET_HELPER" "$1" "$2"
+    else
+        root_helper_call "$SECRET_HELPER" "$1" "$2"
+    fi
+}
 
 # Detect package manager (Entware on RM520N-GL, system opkg on OpenWRT)
 if [ -x /opt/bin/opkg ]; then
@@ -101,8 +174,9 @@ if [ "$REQUEST_METHOD" = "GET" ]; then
         email_enabled=$(jq -r '(.enabled) | if . == null then "false" else tostring end' "$EMAIL_CONFIG" 2>/dev/null)
         email_sender=$(jq -r '.sender_email // ""' "$EMAIL_CONFIG" 2>/dev/null)
         email_recipient=$(jq -r '.recipient_email // ""' "$EMAIL_CONFIG" 2>/dev/null)
-        _pw=$(jq -r '.app_password // ""' "$EMAIL_CONFIG" 2>/dev/null)
-        [ -n "$_pw" ] && email_pw_set="true"
+        # Marker boolean only — the password itself is unreadable from here.
+        _pw_set=$(jq -r '(.app_password_set) | if . == true then "true" else "false" end' "$EMAIL_CONFIG" 2>/dev/null)
+        [ "$_pw_set" = "true" ] && email_pw_set="true"
         email_threshold=$(jq -r '.threshold_minutes // 5' "$EMAIL_CONFIG" 2>/dev/null)
     fi
     case "$email_enabled" in true|false) ;; *) email_enabled="false" ;; esac
@@ -117,8 +191,9 @@ if [ "$REQUEST_METHOD" = "GET" ]; then
     if [ -f "$DISCORD_CONFIG" ]; then
         discord_enabled=$(jq -r '(.enabled) | if . == null then "false" else tostring end' "$DISCORD_CONFIG" 2>/dev/null)
         discord_owner=$(jq -r '.owner_discord_id // ""' "$DISCORD_CONFIG" 2>/dev/null)
-        _tok=$(jq -r '.bot_token // ""' "$DISCORD_CONFIG" 2>/dev/null)
-        [ -n "$_tok" ] && discord_token_set="true"
+        # Marker boolean only — the token itself is unreadable from here.
+        _tok_set=$(jq -r '(.token_set) | if . == true then "true" else "false" end' "$DISCORD_CONFIG" 2>/dev/null)
+        [ "$_tok_set" = "true" ] && discord_token_set="true"
         discord_threshold=$(jq -r '.threshold_minutes // 5' "$DISCORD_CONFIG" 2>/dev/null)
     fi
     case "$discord_enabled" in true|false) ;; *) discord_enabled="false" ;; esac
@@ -295,11 +370,16 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
             esac
         fi
 
-        # --- Email: shape + secret preservation --------------------------------
-        _existing_email_pw=""
-        [ -f "$EMAIL_CONFIG" ] && _existing_email_pw=$(jq -r '.app_password // ""' "$EMAIL_CONFIG" 2>/dev/null)
-        _final_email_pw="$email_password_in"
-        [ -z "$_final_email_pw" ] && _final_email_pw="$_existing_email_pw"
+        # --- Email: shape + marker carry-forward -------------------------------
+        # The password itself is out of reach now (0700 root:root). All this
+        # endpoint can know is the NON-SECRET marker written by the helper —
+        # which is also what it must carry forward when the user saves without
+        # re-typing a password.
+        _existing_email_pw_set="false"
+        if [ -f "$EMAIL_CONFIG" ]; then
+            _existing_email_pw_set=$(jq -r '(.app_password_set) | if . == true then "true" else "false" end' "$EMAIL_CONFIG" 2>/dev/null)
+        fi
+        case "$_existing_email_pw_set" in true) ;; *) _existing_email_pw_set="false" ;; esac
 
         if [ "$email_enabled_in" = "true" ]; then
             if [ -z "$email_sender_in" ] || [ -z "$email_recipient_in" ]; then
@@ -307,11 +387,18 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
                 exit 0
             fi
             # Reject control characters / newlines in any field that gets
-            # templated verbatim into msmtprc (sender, recipient, password).
-            # A newline would otherwise inject arbitrary msmtp directives —
-            # the glob email checks below match across embedded newlines, so
-            # this control-char gate must run FIRST. (Security: config injection.)
-            case "${email_sender_in}${email_recipient_in}${_final_email_pw}" in
+            # templated verbatim into msmtprc (sender, recipient, and a
+            # NEWLY-TYPED password). A newline would otherwise inject arbitrary
+            # msmtp directives — the glob email checks below match across
+            # embedded newlines, so this control-char gate must run FIRST.
+            # (Security: config injection.)
+            #
+            # Only a newly-typed password can be checked here; an already-stored
+            # one was validated by the helper when it was set, and this process
+            # can no longer read it. The helper re-validates both the password
+            # and sender_email itself before templating, so nothing reaches
+            # msmtprc unchecked.
+            case "${email_sender_in}${email_recipient_in}${email_password_in}" in
                 *[[:cntrl:]]*)
                     cgi_error "invalid_email" "email fields must not contain control characters"
                     exit 0
@@ -323,17 +410,21 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
             if ! printf '%s' "$email_recipient_in" | grep -qE '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$'; then
                 cgi_error "invalid_email" "email.recipient_email is not a valid email address"; exit 0
             fi
-            if [ -z "$_final_email_pw" ]; then
-                cgi_error "missing_app_password" "email.app_password is required to enable email alerts"
+            # Required unless already set: a saved password stays in place when
+            # the user edits some other field, so only demand one when nothing
+            # is stored yet. Slug unchanged so the frontend handling still fires.
+            if [ -z "$email_password_in" ] && [ "$_existing_email_pw_set" != "true" ]; then
+                cgi_error "missing_app_password" "email.app_password is required unless one is already saved"
                 exit 0
             fi
         fi
 
-        # --- Discord: owner id + secret preservation ---------------------------
-        _existing_discord_token=""
-        [ -f "$DISCORD_CONFIG" ] && _existing_discord_token=$(jq -r '.bot_token // ""' "$DISCORD_CONFIG" 2>/dev/null)
-        _final_discord_token="$discord_token_in"
-        [ -z "$_final_discord_token" ] && _final_discord_token="$_existing_discord_token"
+        # --- Discord: owner id + marker carry-forward --------------------------
+        _existing_discord_token_set="false"
+        if [ -f "$DISCORD_CONFIG" ]; then
+            _existing_discord_token_set=$(jq -r '(.token_set) | if . == true then "true" else "false" end' "$DISCORD_CONFIG" 2>/dev/null)
+        fi
+        case "$_existing_discord_token_set" in true) ;; *) _existing_discord_token_set="false" ;; esac
 
         if [ "$discord_enabled_in" = "true" ]; then
             case "$discord_owner_in" in
@@ -347,8 +438,8 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
                 cgi_error "invalid_discord_id" "discord.owner_discord_id does not look like a Discord snowflake ID"
                 exit 0
             fi
-            if [ -z "$_final_discord_token" ]; then
-                cgi_error "missing_bot_token" "discord.bot_token is required to enable Discord alerts"
+            if [ -z "$discord_token_in" ] && [ "$_existing_discord_token_set" != "true" ]; then
+                cgi_error "missing_bot_token" "discord.bot_token is required unless one is already saved"
                 exit 0
             fi
         fi
@@ -385,14 +476,18 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
         fi
         mv "${SMS_CONFIG}.tmp" "$SMS_CONFIG"
 
-        # --- Write email config (atomic) + regenerate msmtprc -------------------
+        # --- Write email config (atomic, NO secret) ----------------------------
+        # Ordering matters: the JSON goes down FIRST, carrying the existing
+        # marker forward, and only then does the helper run. The helper reads
+        # sender_email out of this file to render msmtprc, and it owns the
+        # marker — so writing afterwards would clobber whatever it just set.
         if ! jq -n \
             --argjson enabled "$email_enabled_in" \
             --arg sender_email "$email_sender_in" \
             --arg recipient_email "$email_recipient_in" \
-            --arg app_password "$_final_email_pw" \
+            --argjson app_password_set "$_existing_email_pw_set" \
             --argjson threshold_minutes "$email_threshold_in" \
-            '{enabled:$enabled, sender_email:$sender_email, recipient_email:$recipient_email, app_password:$app_password, threshold_minutes:$threshold_minutes}' \
+            '{enabled:$enabled, sender_email:$sender_email, recipient_email:$recipient_email, app_password_set:$app_password_set, threshold_minutes:$threshold_minutes}' \
             > "${EMAIL_CONFIG}.tmp"; then
             rm -f "${EMAIL_CONFIG}.tmp"
             cgi_error "write_failed" "Failed to write email config"
@@ -400,43 +495,47 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
         fi
         mv "${EMAIL_CONFIG}.tmp" "$EMAIL_CONFIG"
 
-        if [ -n "$email_sender_in" ] && [ -n "$_final_email_pw" ]; then
-            # Create the credential file 0600 from the start — umask 077 in a
-            # subshell closes the TOCTOU window where the plaintext Gmail app
-            # password would briefly be world-readable before chmod. (Security.)
-            ( umask 077; cat > "${MSMTP_CONFIG}.tmp" <<MSMTPEOF
-defaults
-auth           on
-tls            on
-tls_starttls   on
-tls_trust_file /etc/ssl/certs/ca-certificates.crt
-
-account        default
-host           smtp.gmail.com
-port           587
-from           ${email_sender_in}
-user           ${email_sender_in}
-password       ${_final_email_pw}
-MSMTPEOF
-            )
-            chmod 600 "${MSMTP_CONFIG}.tmp"
-            mv "${MSMTP_CONFIG}.tmp" "$MSMTP_CONFIG"
-            qlog_info "msmtp config regenerated at $MSMTP_CONFIG"
+        # Store a newly-typed password, or re-render msmtprc from the stored one
+        # (a sender_email change alone still has to be templated into msmtprc).
+        if [ -n "$email_password_in" ]; then
+            if ! secret_helper set email_app_password "$email_password_in"; then
+                email_password_in=""
+                root_helper_fail "The privileged secret helper could not store the email app password"
+                exit 0
+            fi
+        else
+            if ! secret_helper refresh email_app_password; then
+                root_helper_fail "The privileged secret helper could not regenerate the msmtp configuration"
+                exit 0
+            fi
         fi
+        email_password_in=""
 
-        # --- Write Discord config (atomic) + drive service state ----------------
+        # --- Write Discord config (atomic, NO secret) + drive service state -----
         if ! jq -n \
             --argjson enabled "$discord_enabled_in" \
             --arg owner_discord_id "$discord_owner_in" \
             --argjson threshold_minutes "$discord_threshold_in" \
-            --arg bot_token "$_final_discord_token" \
-            '{enabled:$enabled, owner_discord_id:$owner_discord_id, threshold_minutes:$threshold_minutes, bot_token:$bot_token}' \
+            --argjson token_set "$_existing_discord_token_set" \
+            '{enabled:$enabled, owner_discord_id:$owner_discord_id, threshold_minutes:$threshold_minutes, token_set:$token_set}' \
             > "${DISCORD_CONFIG}.tmp"; then
             rm -f "${DISCORD_CONFIG}.tmp"
             cgi_error "write_failed" "Failed to write Discord config"
             exit 0
         fi
         mv "${DISCORD_CONFIG}.tmp" "$DISCORD_CONFIG"
+
+        # Store the token BEFORE the service restart below — the daemon reads
+        # the secret file at startup, so restarting first would race it against
+        # a token that is not on disk yet.
+        if [ -n "$discord_token_in" ]; then
+            if ! secret_helper set discord_bot_token "$discord_token_in"; then
+                discord_token_in=""
+                root_helper_fail "The privileged secret helper could not store the Discord bot token"
+                exit 0
+            fi
+        fi
+        discord_token_in=""
 
         # The daemon caches token/owner/dmChannel in memory at startup, so a
         # restart (not just "start") is needed to pick up new settings —
@@ -504,25 +603,23 @@ MSMTPEOF
                 fi
                 ;;
             email)
-                . /usr/lib/qmanager/email_alerts.sh 2>/dev/null || {
-                    cgi_error "library_missing" "Email alerts library not found"
-                    exit 0
-                }
-                _ea_read_config
-                if [ "$_ea_enabled" != "true" ]; then
-                    cgi_error "not_configured" "Email alerts must be enabled and fully configured before sending a test"
-                    exit 0
-                fi
-                if [ ! -f "$MSMTP_CONFIG" ]; then
-                    cgi_error "msmtp_missing" "Save settings first to generate msmtp configuration"
-                    exit 0
-                fi
-                if email_alert_send "Test Alert" "This is a test alert from your QManager device. Your email alert configuration is working."; then
-                    _ea_log_event "Test email" "sent" "$_ea_recipient"
+                # Unlike sms) and discord), this branch cannot do the work
+                # itself any more. msmtprc holds the plaintext app password and
+                # now lives 0600 root:root inside a 0700 dir, so www-data can
+                # neither read it nor even stat it — a `[ -f ]` precondition
+                # here could not tell "absent" from "forbidden". The whole send,
+                # including its NDJSON log entry, happens root-side.
+                #
+                # No precondition is duplicated here on purpose: the helper's
+                # _ea_read_config is the single authority on whether email is
+                # configured, and two checks that can disagree are worse than
+                # one that cannot. Slugs (library_missing / not_configured /
+                # msmtp_missing / send_failed) come straight back from the
+                # helper, so the frontend's handling and i18n are unchanged.
+                if root_helper_call "$EMAIL_SEND_HELPER" test; then
                     cgi_success
                 else
-                    _ea_log_event "Test email" "failed" "$_ea_recipient"
-                    cgi_error "send_failed" "Failed to send test email. Check msmtp configuration and network connectivity."
+                    root_helper_fail "Failed to send test email. Check msmtp configuration and network connectivity."
                 fi
                 ;;
             discord)

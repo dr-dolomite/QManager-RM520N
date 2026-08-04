@@ -335,7 +335,8 @@ There is **no UCI** on this platform. Structured config lives in a single JSON f
 | Ping profile | `/etc/qmanager/ping_profile.json` | JSON |
 | Quality thresholds | `/etc/qmanager/quality_thresholds.json` | JSON |
 | Last SIM ICCID | `/etc/qmanager/last_iccid` | Plain text |
-| Email SMTP config | `/etc/qmanager/msmtprc` | msmtp config (chmod 600) |
+| Email SMTP config | `/etc/qmanager-secrets/msmtprc` | msmtp config (`0600 root:root`, in the `0700` root-only secrets store — see [BACKEND.md](BACKEND.md#alert-secrets-store-etcqmanager-secrets)) |
+| Alert channel secrets | `/etc/qmanager-secrets/{discord_bot_token,email_app_password}` | Raw credentials (`0600 root:root`); the config JSONs carry only `*_set` markers |
 | Persistent data-usage counter | `/usrdata/qmanager/data_used.json` | JSON |
 | Sessions | `/tmp/qmanager_sessions/<token>` | One file per session (RAM) |
 
