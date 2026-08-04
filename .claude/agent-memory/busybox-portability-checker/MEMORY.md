@@ -2,3 +2,4 @@
 - [/tmp sticky bit breaks cross-user mv in test seeds](feedback_tmp_sticky_bit_seed_as_owner.md) — seed throwaway config files as the same user (www-data) that will mv over them, or get a false-positive permission failure
 - [/tmp cross-UID rules + stat/arithmetic facts](reference_tmp_crossuid_and_stat_facts.md) — /bin/stat is BusyBox and works under the stripped CGI PATH; /bin/sh arithmetic is 32-bit signed; root CANNOT write a www-data-owned /tmp file; mv fails, `cat >` preserves the inode
 - [ping_profile.sh has a pre-existing malformed-config merge bug](project_ping_profile_malformed_config_merge_bug.md) — latent, not introduced by the profile-optional fix, confirmed present at HEAD too; worth a follow-up ticket
+- [BusyBox mv onto a directory returns 0, nests file inside](reference_busybox_mv_onto_directory.md) — confirmed live; `test -f $dst` (not `-e`, not mv's exit code) is the only reliable "did this actually migrate to a regular file" check
