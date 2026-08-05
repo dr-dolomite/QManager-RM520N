@@ -46,10 +46,7 @@ import {
   DEFAULT_SCENARIOS,
   type ConnectionScenario,
 } from "@/types/connection-scenario";
-import {
-  buildDayTimeline,
-  formatMinute,
-} from "@/lib/schedule-timeline";
+import { buildDayTimeline, formatMinute } from "@/lib/schedule-timeline";
 import {
   PAGE_TITLE,
   PAGE_DESCRIPTION,
@@ -605,7 +602,10 @@ const CustomProfilePageBody = () => {
   const [showDeactivateDialog, setShowDeactivateDialog] = useState(false);
   const [deactivatePhase, setDeactivatePhase] =
     useState<DeactivatePhase>("confirm");
-  const isDeactivating = showDeactivateDialog && deactivatePhase === "working";
+  // Both non-confirm phases hold the modem: `working` is the request itself,
+  // `verifying` is the reconcile poll that follows a lost response. Every
+  // action on the page stays dead through both.
+  const isDeactivating = showDeactivateDialog && deactivatePhase !== "confirm";
 
   // ---------------------------------------------------------------------------
   // ADOPTING AN APPLY NOBODY ON THIS PAGE STARTED
@@ -781,7 +781,12 @@ const CustomProfilePageBody = () => {
     const name = activeProfile?.name ?? "";
     setDeactivatePhase("working");
 
-    const result = await deactivateProfile();
+    const result = await deactivateProfile({
+      // The response was lost in the modem's own LAN link drop and the hook is
+      // now reading the device back. Name that, rather than leaving the
+      // spinner on a request that has, from the browser's side, already died.
+      onReconcile: () => setDeactivatePhase("verifying"),
+    });
 
     setShowDeactivateDialog(false);
     setDeactivatePhase("confirm");
@@ -790,7 +795,9 @@ const CustomProfilePageBody = () => {
       // No nonce bump needed: a successful deactivate cleared the marker, so
       // `activeProfileId` genuinely changed and the detail effect re-runs on
       // its own.
-      toast.success(t("custom_profiles.deactivate_dialog.toast.success", { name }));
+      toast.success(
+        t("custom_profiles.deactivate_dialog.toast.success", { name }),
+      );
       return;
     }
 
@@ -800,6 +807,24 @@ const CustomProfilePageBody = () => {
       toast.warning(t("custom_profiles.deactivate_dialog.toast.busy_title"), {
         description: t("custom_profiles.deactivate_dialog.toast.busy_body"),
       });
+      return;
+    }
+
+    // The response never arrived AND the marker was still set when the hook
+    // stopped asking. Genuinely unknown — a failed APN revert and an
+    // unreachable device look identical from here — so the copy asks the user
+    // to look rather than asserting either one. `warning`, per the same split
+    // the rc=3/rc=5 branch below makes: ambiguity is warning, confirmed
+    // failure is destructive.
+    if (result.error === "link_lost") {
+      toast.warning(
+        t("custom_profiles.deactivate_dialog.toast.link_lost_title"),
+        {
+          description: t(
+            "custom_profiles.deactivate_dialog.toast.link_lost_body",
+          ),
+        },
+      );
       return;
     }
 

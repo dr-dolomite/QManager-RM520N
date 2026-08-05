@@ -2021,6 +2021,92 @@ finishing.
 
 ---
 
+## The attach cycle drops the LAN link (and with it, the HTTP response)
+
+**Every** `apn_apply_write` bracket — the profile apply's step 1, the APN
+editor's save, and `profiles/deactivate.sh`'s carrier-default revert — makes the
+modem re-attach with `AT+COPS=0`. Measured on a live RM520N-GL, the stock
+firmware responds to that re-attach by restarting `dnsmasq` twice and **dropping
+the Ethernet PHY for roughly four seconds**:
+
+```
+13:33:42  [cgi_profile_deactivate] Profile deactivate request
+[1214.930] r8125: eth0: link down            -> 13:33:49   browser's TCP dies
+13:33:50  [cgi_profile_deactivate] EVENT [apn_apply_done] CID 1 reverted
+13:33:52  [cgi_profile_deactivate] EVENT [profile_deactivated] 'Globe'
+[1218.838] r8125: eth0: link up              -> 13:33:53
+```
+
+Reproduced identically on a second run 30 minutes later (link down at
+`[3005.010]`, the same second `apn_apply_done` logged). Nothing in QManager
+causes it and nothing in QManager can prevent it; IP passthrough is **not**
+involved (`IPPassthroughEnable` is `0` on the measured device — this is the
+plain bridged-LAN path).
+
+**The consequence is a transport rule, not an AT rule: any endpoint that runs an
+attach cycle inline cannot reliably deliver its own response.** The work always
+completes; the answer is written into a socket that no longer exists ~3s into a
+~4s outage, and the browser reports a bare `TypeError` ("NetworkError when
+attempting to fetch resource" in Firefox).
+
+Why apply survives it and deactivate did not:
+
+| Path | Shape | Behaviour under the drop |
+| ---- | ----- | ------------------------ |
+| `apply.sh` | spawns a detached worker, UI polls `apply_status.sh` | one poll fails, `pollStatus`'s `catch` swallows it, the next poll reconnects |
+| `deactivate.sh` | one blocking request that answers itself | the response is lost; the UI used to report `network_error` on an operation that had **succeeded** |
+
+`useSimProfiles.deactivateProfile` therefore **reconciles** instead of guessing:
+a fetch that never produced a status line is not evidence of anything, so the
+hook polls `list.sh` (a plain disk read — no AT lock, no modem contact) every 2s
+for up to 45s and reads the verdict off the device.
+
+- marker cleared → `{ ok: true }`, success toast, list refetched
+- still set at the ceiling → `link_lost`. A failed APN revert (the endpoint
+  exits before `clear_active_profile`) and an unreachable device are
+  indistinguishable from the browser, so the code says "unknown" and the toast
+  asks the user to look, rather than picking one.
+- an HTTP **status** error is a real answer from a reachable device and is
+  reported straight through — it never enters the reconcile.
+
+The dialog's third phase, `verifying`, exists to name that second wait
+(`cloud_off`, deliberately not spinning — nothing is progressing).
+
+**If you add another endpoint that brackets an attach cycle inline, it inherits
+this problem.** `cellular/apn.sh`'s save is the remaining one; the durable fix
+for both is the apply pipeline's shape (detached worker + status file).
+
+---
+
+## The hero's cascade must control its own variants
+
+`ActiveProfileHero`'s root carries `initial="hidden" animate="visible"`
+explicitly. Removing them makes the entire card render blank — a full-height
+hero-shaped hole — whenever it mounts on a **swap** rather than on first paint.
+
+A `motion.div` with only `variants` is a passive variant *child*: it waits for
+its parent's cascade to propagate rather than animating itself. Motion decides
+which it is from `manuallyAnimateOnMount = Boolean(parent && parent.current)` —
+"was my parent already in the DOM when I was constructed?". The hero's parent is
+the `key="hero-active"` `AnimatePresence` wrapper in `custom-profile.tsx`,
+created in the same render pass, so its ref is still `null` and the answer is
+**no**. The card then waited on the page-level cascade, which runs once on page
+load and never again, leaving every `staggerItem` at `opacity: 0` forever.
+Opacity-0 children still occupy layout, hence a hole rather than a missing card.
+
+It never showed on first load because `<AnimatePresence initial={false}>` sets
+`blockInitialAnimation`, which paints the children at rest and skips the
+question. Only the empty → active swap (activating a profile) reached it —
+deactivating looked fine because `NoActiveProfile` is plain markup with no
+cascade to get stuck in.
+
+**Rule for this surface: any `AnimatePresence` child that is itself the root of
+a variant cascade must declare `initial`/`animate` itself.** A cascade root
+whose parent was already mounted (the Saved Profiles list, which swaps out of a
+skeleton) is unaffected — its parent has a `current`, so it animates itself.
+
+---
+
 ## Related
 
 - [wan-profile-management.md](wan-profile-management.md) — APN editor, the underlying mechanism step 1 uses (and the APN gating note).

@@ -53,18 +53,36 @@ import { PILL_ACTION, PILL_ACTION_PLAIN } from "./shapes";
  */
 const DIALOG_DISC = "grid size-14 flex-none place-items-center rounded-pill";
 
-export type DeactivatePhase = "confirm" | "working";
+/**
+ * `verifying` is the third phase, and it is not cosmetic.
+ *
+ * Measured on a live RM520N-GL: when `apn_apply_write` re-attaches the data
+ * call, the stock firmware restarts dnsmasq and drops the Ethernet PHY for
+ * ~4 seconds (`r8125: eth0: link down`), which destroys the browser's TCP
+ * connection about 3 seconds before this endpoint writes its response. So the
+ * answer to a SUCCESSFUL deactivate is routinely lost in transit, and
+ * `use-sim-profiles.ts` reconciles by polling `list.sh` until the device can be
+ * read again.
+ *
+ * That reconcile is a second wait, with a different cause, and saying nothing
+ * would leave the spinner looking stuck. This phase names what is actually
+ * happening — the modem's own LAN link is down — instead of inventing progress.
+ */
+export type DeactivatePhase = "confirm" | "working" | "verifying";
 
 export interface DeactivateProgressDialogProps {
   open: boolean;
-  /** "confirm" asks; "working" reports the in-flight request. */
+  /**
+   * "confirm" asks; "working" reports the in-flight request; "verifying"
+   * reports the reconcile that follows a response lost to the link drop.
+   */
   phase: DeactivatePhase;
   /** The profile being deactivated, for the description line. */
   profileName?: string;
   /** Fires the request. The caller flips `phase` to "working". */
   onConfirm: () => void;
   /**
-   * Dismissal. The dialog refuses to close while `phase === "working"` — see
+   * Dismissal. The dialog refuses to close on any non-confirm phase — see
    * the trap note on `ApplyProgressDialog`: the request keeps running whether
    * or not the dialog is on screen, and closing mid-flight strands the user
    * with no route back to the only feedback there is.
@@ -82,7 +100,10 @@ export function DeactivateProgressDialog({
   const { t } = useTranslation("cellular");
   const { t: tc } = useTranslation("common");
 
-  const working = phase === "working";
+  // Both non-confirm phases are "a request the user cannot cancel is in
+  // flight": the dialog stays locked and offers no actions in either.
+  const verifying = phase === "verifying";
+  const working = phase === "working" || verifying;
 
   return (
     <Dialog
@@ -107,9 +128,11 @@ export function DeactivateProgressDialog({
       >
         <DialogHeader>
           <DialogTitle>
-            {working
-              ? t("custom_profiles.deactivate_dialog.working_title")
-              : t("custom_profiles.deactivate_dialog.title")}
+            {verifying
+              ? t("custom_profiles.deactivate_dialog.verifying_title")
+              : working
+                ? t("custom_profiles.deactivate_dialog.working_title")
+                : t("custom_profiles.deactivate_dialog.title")}
           </DialogTitle>
           {/* Always rendered — an omitted DialogDescription leaves the Radix
               dialog without an accessible description. */}
@@ -128,15 +151,28 @@ export function DeactivateProgressDialog({
           <span
             className={cn(DIALOG_DISC, "bg-primary text-primary-foreground")}
           >
+            {/* Each of the three phases carries a DISTINCT glyph — they share
+                one fill, so the glyph is the only channel separating them.
+                `verifying` deliberately does not spin: nothing is progressing
+                during it, we are waiting for a link that is down, and a
+                spinner would claim otherwise. */}
             <MaterialSymbol
-              name={working ? "progress_activity" : "power_settings_new"}
+              name={
+                verifying
+                  ? "cloud_off"
+                  : working
+                    ? "progress_activity"
+                    : "power_settings_new"
+              }
               filled
               size={28}
               className={cn(
                 // ONE-SCALE exception, as in `ApplyProgressDialog`: a
                 // continuous in-progress loop with its own ambient tempo, not a
                 // transition on the 360/600/800 scale.
-                working && "animate-spin motion-reduce:animate-none",
+                working &&
+                  !verifying &&
+                  "animate-spin motion-reduce:animate-none",
               )}
             />
           </span>
@@ -148,14 +184,18 @@ export function DeactivateProgressDialog({
             aria-live="polite"
           >
             <p className="text-base leading-tight font-semibold tracking-tight text-balance">
-              {working
-                ? t("custom_profiles.deactivate_dialog.working_headline")
-                : t("custom_profiles.deactivate_dialog.confirm_headline")}
+              {verifying
+                ? t("custom_profiles.deactivate_dialog.verifying_headline")
+                : working
+                  ? t("custom_profiles.deactivate_dialog.working_headline")
+                  : t("custom_profiles.deactivate_dialog.confirm_headline")}
             </p>
             <p className="text-on-surface-variant text-sm leading-relaxed text-pretty">
-              {working
-                ? t("custom_profiles.deactivate_dialog.working_sub")
-                : t("custom_profiles.deactivate_dialog.description")}
+              {verifying
+                ? t("custom_profiles.deactivate_dialog.verifying_sub")
+                : working
+                  ? t("custom_profiles.deactivate_dialog.working_sub")
+                  : t("custom_profiles.deactivate_dialog.description")}
             </p>
           </div>
         </div>

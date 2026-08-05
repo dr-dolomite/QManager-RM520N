@@ -162,7 +162,10 @@ export function ActiveProfileHero({
   const nrBands = React.useMemo(() => {
     const cfg = activeScenario?.config;
     if (!cfg) return "";
-    const merged = [...cfg.nsa_nr_bands.split(":"), ...cfg.sa_nr_bands.split(":")]
+    const merged = [
+      ...cfg.nsa_nr_bands.split(":"),
+      ...cfg.sa_nr_bands.split(":"),
+    ]
       .map((b) => b.trim())
       .filter(Boolean);
     return Array.from(new Set(merged))
@@ -173,7 +176,37 @@ export function ActiveProfileHero({
   const mismatchBadge = PROFILE_STATUS_BADGE.mismatch;
 
   return (
-    <motion.div variants={staggerContainer} className={HERO_CARD}>
+    // `initial`/`animate` are stated EXPLICITLY here rather than inherited, and
+    // that is load-bearing — without them this card renders completely blank
+    // every time it mounts on a SWAP rather than on first paint.
+    //
+    // Why. A motion element with only `variants` is a passive variant CHILD: it
+    // waits for its parent's cascade to propagate instead of animating itself.
+    // Motion decides which of the two it is from `manuallyAnimateOnMount =
+    // Boolean(parent && parent.current)` — i.e. "was my parent already in the
+    // DOM when I was constructed?". This card's parent is the `key="hero-active"`
+    // swap wrapper in `custom-profile.tsx`, which is created in the SAME render
+    // pass, so its `current` is still null and the answer is no. The card
+    // therefore waited on the page-level cascade — which ran once, on page load,
+    // and never runs again — and every `staggerItem` below sat at `hidden`
+    // (`opacity: 0`) indefinitely. Opacity-0 children still occupy layout, so the
+    // symptom was a full-height hero-shaped hole, not a missing card.
+    //
+    // It was invisible on first load because `<AnimatePresence initial={false}>`
+    // sets `blockInitialAnimation`, which paints the card at rest and skips the
+    // question entirely. Only the empty -> active swap (activating a profile)
+    // reached it, which is why deactivating looked fine: `NoActiveProfile` is
+    // plain markup with no cascade to get stuck in.
+    //
+    // Declaring the labels makes this a variant-CONTROLLING node: it animates
+    // itself on every mount and orchestrates its own children's stagger. First
+    // paint is unchanged — `blockInitialAnimation` still wins there.
+    <motion.div
+      variants={staggerContainer}
+      initial="hidden"
+      animate="visible"
+      className={HERO_CARD}
+    >
       {/* --- Identity line --------------------------------------------- */}
       <motion.div
         variants={staggerItem}
@@ -184,7 +217,9 @@ export function ActiveProfileHero({
         </span>
 
         <div className="flex min-w-0 flex-1 flex-col gap-1.5">
-          <span className={HERO_EYEBROW}>{t("custom_profiles.hero.eyebrow")}</span>
+          <span className={HERO_EYEBROW}>
+            {t("custom_profiles.hero.eyebrow")}
+          </span>
           <span className="flex min-w-0 flex-wrap items-center gap-2.5">
             <span className="min-w-0 truncate text-xl font-semibold tracking-[-0.01em]">
               {profile.name}
@@ -211,7 +246,9 @@ export function ActiveProfileHero({
                   className="bg-outline size-[0.1875rem] flex-none rounded-pill"
                 />
                 <span className={cn(MACHINE_VALUE, "min-w-0 truncate text-xs")}>
-                  {t("custom_profiles.hero.iccid", { value: profile.sim_iccid })}
+                  {t("custom_profiles.hero.iccid", {
+                    value: profile.sim_iccid,
+                  })}
                 </span>
               </>
             ) : null}
@@ -248,7 +285,10 @@ export function ActiveProfileHero({
         <motion.div
           variants={staggerItem}
           aria-live="polite"
-          className={cn(HERO_NOTICE, "bg-primary-container text-on-primary-container")}
+          className={cn(
+            HERO_NOTICE,
+            "bg-primary-container text-on-primary-container",
+          )}
         >
           <MaterialSymbol
             name="progress_activity"
@@ -269,7 +309,10 @@ export function ActiveProfileHero({
       ) : isPartial ? (
         <motion.div
           variants={staggerItem}
-          className={cn(HERO_NOTICE, "bg-warning-container text-on-warning-container")}
+          className={cn(
+            HERO_NOTICE,
+            "bg-warning-container text-on-warning-container",
+          )}
         >
           <MaterialSymbol
             name="do_not_disturb_on"
@@ -280,7 +323,8 @@ export function ActiveProfileHero({
           <span className="text-[0.8125rem] leading-relaxed text-pretty">
             {t("custom_profiles.hero.notice.partial_lead")}{" "}
             <span className={cn(MACHINE_VALUE, "text-xs")}>
-              {failedStep?.name ?? t("custom_profiles.hero.notice.unknown_step")}
+              {failedStep?.name ??
+                t("custom_profiles.hero.notice.unknown_step")}
             </span>{" "}
             {t("custom_profiles.hero.notice.partial_tail")}{" "}
             <span className={cn(MACHINE_VALUE, "text-xs")}>
@@ -291,9 +335,17 @@ export function ActiveProfileHero({
       ) : isMismatch ? (
         <motion.div
           variants={staggerItem}
-          className={cn(HERO_NOTICE, "bg-warning-container text-on-warning-container")}
+          className={cn(
+            HERO_NOTICE,
+            "bg-warning-container text-on-warning-container",
+          )}
         >
-          <MaterialSymbol name="warning" size={19} filled className="flex-none" />
+          <MaterialSymbol
+            name="warning"
+            size={19}
+            filled
+            className="flex-none"
+          />
           <span className="text-[0.8125rem] leading-relaxed text-pretty">
             {t("custom_profiles.hero.notice.mismatch_lead")}{" "}
             <span className={cn(MACHINE_VALUE, "text-xs")}>{currentIccid}</span>{" "}
