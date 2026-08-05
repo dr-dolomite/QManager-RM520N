@@ -124,12 +124,30 @@ export const CARD_PAD = "px-6";
 // -----------------------------------------------------------------------------
 
 /**
- * The hero's leading glyph disc. 52px, brand fill with its own `-foreground`
- * ink — the hero shell is plain `surface` rather than a container, so the disc
- * takes the FILL pair directly (a container tile would invert this).
+ * The hero's two-column shape ("2a" of the Band Locking Hero Options design
+ * exploration — `claude.ai/design/p/681e72a4-…`, "Compact tile grid").
+ *
+ * The single-column hero this replaced stacked "on air now", failover and the
+ * posture summary as three unrelated full-width strips inside one card, so the
+ * tallest element on the page was also the emptiest, and the most valuable
+ * live fact (what the radio is actually camped on) sat last and smallest.
+ *
+ * Both panels are `rounded-card` (36px), ONE STEP BELOW the outer section's
+ * `rounded-hero` (40px) — not a second hero. `BAND_HERO` still claims the
+ * page's one hero exception on its own; nesting two hero-radius panels inside
+ * it would spend that exception twice. The step-down is the same nesting the
+ * incumbent already used for `HERO_ROW` (`rounded-field` inside the hero).
  */
-export const HERO_DISC =
-  "grid size-13 flex-none place-items-center rounded-pill bg-primary text-primary-foreground";
+export const HERO_SPLIT = "flex flex-col gap-4 @2xl/hero:flex-row @2xl/hero:items-stretch";
+
+/** The left panel: on-air carrier tiles. Grows; the rail is the fixed side. */
+export const HERO_ONAIR_PANEL =
+  "@container/onair min-w-0 flex-1 flex flex-col gap-4 rounded-card bg-surface-container px-6 py-6";
+
+/** The right panel: the posture rail. Fixed width on a wide container, full
+ *  width once the hero drops to one column. */
+export const HERO_RAIL_PANEL =
+  "flex w-full flex-none flex-col gap-3.5 rounded-card bg-surface-container px-5 py-6 @2xl/hero:w-[25rem]";
 
 /**
  * The eyebrow above the lock-posture line.
@@ -137,32 +155,104 @@ export const HERO_DISC =
  * The generic craft floor treats an eyebrow as a reflex to delete. It is kept
  * because the committed world ships one: DESIGN.md's tile anatomy is literally
  * `eyebrow -> value -> caption`, and the custom-profiles hero already carries
- * the identical step. The committed world outranks a generic default, and the
- * label earns itself here — "Locked to 4 of 21 bands" alone does not say
- * whether you are reading the modem's state or your own pending selection, and
- * on this page those are different numbers.
+ * the identical step.
  */
 export const HERO_EYEBROW =
   "text-xs font-medium tracking-[0.06em] text-on-surface-variant";
 
-/** The posture value under the eyebrow. Headline step. */
-export const HERO_VALUE = "text-xl font-semibold tracking-[-0.01em]";
+/**
+ * The rail's own leading glyph disc — 44px, one step below `HERO_DISC`'s 52px
+ * everywhere else in the product, because the rail is a nested panel rather
+ * than the hero's own top-level anchor point.
+ */
+export const HERO_RAIL_DISC =
+  "grid size-11 flex-none place-items-center rounded-pill bg-primary text-primary-foreground";
+
+/** The rail's title (next to the disc) and its dynamic subtitle underneath. */
+export const HERO_RAIL_TITLE = "text-base font-semibold";
+export const HERO_RAIL_SUBTITLE = "text-[13px] text-on-surface-variant";
 
 /**
- * The failover row. `rounded-field` (20px) rather than a metric-row pill,
- * because this row WRAPS: it carries a label, a help affordance, a switch and a
- * status chip, and on a narrow container those fall to a second line. A pill
- * that has wrapped to two lines is a stadium, not a pill, and the
+ * One clickable category row in the rail: label + ratio, a status badge, and
+ * a chevron. The chevron is a REAL affordance, not decoration — clicking the
+ * row scrolls the matching category card into view, because "Lock posture"
+ * and the three cards below it describe the same three facts and a rail that
+ * only summarised them without linking to where they are changed would be
+ * restating information the cards already carry, just one layer removed.
+ */
+export const HERO_RAIL_ROW =
+  "group flex w-full items-center gap-3 rounded-field bg-surface px-4 py-3 text-left transition-colors duration-[var(--duration-quick)] ease-out hover:bg-surface-container-high focus-visible:ring-ring/50 focus-visible:ring-[3px] focus-visible:outline-none";
+
+export const HERO_RAIL_ROW_LABEL = "text-sm font-semibold";
+export const HERO_RAIL_ROW_RATIO =
+  "font-mono text-xs text-on-surface-variant tabular-nums";
+
+/**
+ * The failover row, now sized to match the rail's own rows rather than the
+ * old full-bleed hero strip. `rounded-field` (20px) rather than a metric-row
+ * pill, because this row WRAPS: it carries a label, a help affordance, a
+ * switch and a status chip, and on a narrow container those fall to a second
+ * line. A pill that has wrapped to two lines is a stadium, not a pill, and the
  * Radius-Follows-Size Rule puts a two-line block on the field step.
  */
-export const HERO_ROW = "flex flex-wrap items-center gap-x-4 gap-y-3 rounded-field bg-surface-container px-4 py-3";
+export const HERO_ROW =
+  "mt-auto flex flex-wrap items-center gap-x-4 gap-y-3 rounded-field bg-surface px-4 py-3";
 
-/** The "on air now" block under the failover row. */
-export const HERO_ONAIR = {
-  ROOT: "flex flex-col gap-2.5",
-  /** Chips wrap; the row never scrolls horizontally. */
-  LIST: "flex flex-wrap items-center gap-2",
+// -----------------------------------------------------------------------------
+// The on-air carrier tile
+// -----------------------------------------------------------------------------
+
+/**
+ * The wrapping tile grid. `minmax(160px,1fr)` is copied verbatim from the
+ * design exploration's own reasoning: 4x LTE-CA plus an NR leg (5 carriers) is
+ * this modem's realistic ceiling, and a fixed 2/3-column layout either combs
+ * at 5 or wastes width at 1. Auto-fit wraps whatever count the radio reports
+ * without a second layout to maintain.
+ */
+export const HERO_ONAIR_GRID =
+  "grid gap-2.5 [grid-template-columns:repeat(auto-fit,minmax(160px,1fr))]";
+
+/** One tile. Single metric line (band, RSRP + PCI, a quality bar) — the
+ *  design exploration's deliberate cut from the dashboard CA card's fuller
+ *  per-carrier grid, which is the right amount of detail for ITS OWN card but
+ *  would crowd a panel that is half of a hero, not the whole page. */
+export const HERO_ONAIR_TILE = {
+  ROOT: "flex flex-col gap-2 rounded-tile px-3.5 py-3",
+  METER_TRACK: "h-[5px] overflow-hidden rounded-pill bg-surface",
+  METER_FILL: "h-full origin-left rounded-pill",
 } as const;
+
+/**
+ * Tile tone: identity (LTE violet / NR blue), never quality — the SAME rule
+ * `components/dashboard/carrier-aggregation.tsx`'s `tileTone()` already
+ * enforces, restated here rather than imported so this surface takes no
+ * dependency on the dashboard's module graph. `isLead` (this carrier's own
+ * `type === "PCC"`) gets the STRONG fill so the anchor tile stays findable in
+ * a 5-tile grid; every other tile — SCC of either radio — gets its CONTAINER
+ * fill. A quality-coloured tile would collide with the identity fill it sits
+ * on, which is exactly the "two container fills stacked" problem
+ * `active-bands-card.tsx` already ruled out for its own status chip.
+ */
+export function carrierTileTone(
+  technology: "LTE" | "NR",
+  isLead: boolean,
+): string {
+  if (technology === "NR") {
+    return isLead
+      ? "bg-primary text-primary-foreground"
+      : "bg-primary-container text-on-primary-container";
+  }
+  return isLead
+    ? "bg-lte text-lte-foreground"
+    : "bg-lte-container text-on-lte-container";
+}
+
+/** The meter fill matches the tile's identity hue at full strength — same
+ *  simplification `carrier-aggregation.tsx`'s `meterFillTone()` already made:
+ *  the bar reports which radio, the label already reports how weak. */
+export function carrierMeterTone(technology: "LTE" | "NR"): string {
+  return technology === "NR" ? "bg-primary" : "bg-lte";
+}
 
 // -----------------------------------------------------------------------------
 // The band chip
@@ -261,7 +351,17 @@ export function bandChipA11yKey(selected: boolean, live: boolean): string {
     : "band_locking.a11y.band_unselected";
 }
 
-/** The legend under a grid that has at least one live band. */
+/**
+ * The legend under a grid that has at least one live band.
+ *
+ * The live swatch's label is "Currently locked", not "On the modem now" — the
+ * hero above this card has its own, unrelated "On air now" block reading
+ * `carrier_components` (what the radio is actually camped on this instant).
+ * This ring reads `ue_capability_band` (what is CONFIGURED, whether or not the
+ * radio is using it right now). Two different data sources, both describable
+ * as "on the modem now" in the loose sense, which is exactly how they got
+ * conflated — so the label names the CONFIGURATION fact explicitly instead.
+ */
 export const BAND_LEGEND = {
   ROOT: "flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-on-surface-variant",
   ITEM: "inline-flex items-center gap-1.5",
@@ -316,13 +416,19 @@ export const PILL_ACTION_PLAIN =
   "h-[2.625rem] rounded-pill px-5 text-sm font-semibold";
 
 /**
- * The quick-select affordances (Select all / Clear). Deliberately smaller and
- * quieter than the two real actions: they change a selection, they do not write
- * to the modem, and sizing them like `Apply` would put three equal-weight pills
- * in one footer and lose which of them is consequential.
+ * The quick-select affordances (Select all / Clear). Deliberately smaller than
+ * the two real actions: they change a selection, they do not write to the
+ * modem, and sizing them like `Apply` would put three equal-weight pills in
+ * one footer and lose which of them is consequential.
+ *
+ * Carries no fill or ink of its own — pair with `variant="tonal-neutral"` on
+ * `Button`, never `variant="ghost"`. A ghost button has no resting fill at
+ * all, so next to a filled `Apply` and an outlined `Restore all` it read as
+ * disabled rather than as a third, quieter action. `tonal-neutral` gives it a
+ * real (if muted) presence — `surface-container` — instead of asking the
+ * reader to discover it by hovering.
  */
-export const PILL_QUIET =
-  "h-9 rounded-pill px-3.5 text-xs font-semibold text-on-surface-variant";
+export const PILL_QUIET = "h-9 rounded-pill px-3.5 text-xs font-semibold";
 
 // -----------------------------------------------------------------------------
 // Status chips
@@ -366,16 +472,42 @@ export const FAILOVER_BADGE: Record<
  * standing condition, not a fault.
  */
 export const CATEGORY_BADGE: Record<
-  "scenario" | "unrestricted" | "locked",
+  "scenario" | "unrestricted" | "locked" | "unknown",
   { variant: BadgeVariant; glyph: MaterialSymbolName }
 > = {
   scenario: { variant: "info", glyph: "shield" },
   unrestricted: { variant: "success", glyph: "lock_open" },
   locked: { variant: "warning", glyph: "lock" },
+  // A category the modem has not reported a supported-band list for yet — see
+  // `categoryPosture`. Muted, same as any other "nothing to report" state.
+  unknown: { variant: "muted", glyph: "schedule" },
 };
 
 /** Badge glyph size. Matches the `[&>svg]:size-3` slot `Badge` reserves. */
 export const BADGE_GLYPH_SIZE = 12;
+
+export type BandPosture = "locked" | "unrestricted" | "unknown";
+
+/**
+ * One category's posture, derived the same way in the hero's per-category
+ * summary and `BandGridCard`'s own status badge — a single definition so the
+ * two can never quietly disagree about what "unrestricted" means.
+ *
+ * `unknown` is a real state, not a loading placeholder: a modem that has not
+ * reported a supported-band list yet must not be called "unrestricted" — that
+ * would assert "all supported bands available" about a list nobody has seen.
+ */
+export function categoryPosture(
+  locked: number[],
+  supported: number[],
+): BandPosture {
+  if (supported.length === 0) return "unknown";
+  if (locked.length === 0) return "locked";
+  return locked.length >= supported.length &&
+    locked.every((b) => supported.includes(b))
+    ? "unrestricted"
+    : "locked";
+}
 
 /**
  * The hero's leading glyph, by posture. `settings_input_antenna` for a
@@ -395,6 +527,14 @@ export const POSTURE_GLYPH: Record<
   unrestricted: "cell_tower",
   unknown: "schedule",
 };
+
+/** The rail row's own short badge label, distinct from the category card's
+ *  ("Locked" vs the card's "{{count}} of {{total}} locked") — the rail already
+ *  prints the ratio on its own line, so repeating it inside the badge would be
+ *  the same number twice in one row. */
+export function railStatusKey(posture: BandPosture): string {
+  return `band_locking.live.rail_status_${posture}`;
+}
 
 // -----------------------------------------------------------------------------
 // Skeleton mirrors
@@ -423,13 +563,13 @@ export const SKELETON_SHAPE = {
   /** The footer's primary action, at the real 42px pill height. */
   ACTION: "h-[2.625rem] w-36 rounded-pill",
   ACTION_SECONDARY: "h-[2.625rem] w-44 rounded-pill",
-  /** Hero: disc, eyebrow, posture value. */
-  HERO_DISC: "size-13 rounded-pill",
+  /** Hero rail: disc, eyebrow, one category row. */
+  HERO_DISC: "size-11 rounded-pill",
   HERO_EYEBROW: "h-3 w-24",
-  HERO_VALUE: "h-6 w-56",
-  /** Hero: the failover row and one on-air chip. */
+  RAIL_ROW: "h-[3.375rem] w-full rounded-field",
+  /** Hero: the failover row and one on-air tile. */
   HERO_ROW: "h-[3.25rem] w-full rounded-field",
-  ONAIR_CHIP: "h-5 w-14 rounded-pill",
+  ONAIR_TILE: "h-[6.5rem] rounded-tile",
 } as const;
 
 // -----------------------------------------------------------------------------

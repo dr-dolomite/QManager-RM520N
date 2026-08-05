@@ -88,6 +88,17 @@ Chips also carry `aria-pressed={selected}`, and the grid is a `role="group"` lab
 
 The chip paints at **40px** (`h-10`, matching the metric-row-pill height so a band chip and a glance row read as one family) with a `before:` overlay expanding the hit area to the project's 44px coarse-pointer floor without adding a layout box. The incumbent target was a `size-4` checkbox — 16px, on a page used roadside, in sun, on a tablet, on a device whose connection you are about to reconfigure.
 
+### The legend names the CONFIGURATION fact
+
+The legend under a chip grid (`BAND_LEGEND`, rendered only when at least one band is live) labels the ring swatch **"Currently locked"** (`band_locking.card.legend_live`). It used to read "On the modem now" — and the hero directly above the card has its own, unrelated **"On air now"** block. Two near-identical phrases, one metre apart, describing different data:
+
+| Label | Source | Fact |
+| ----- | ------ | ---- |
+| Hero, "On air now" | `network.carrier_components` (poller) | Where the radio is **actually camped** this instant |
+| Card legend, "Currently locked" | `ue_capability_band` (`current.sh`) | What is **configured** — whether or not the radio is using it right now |
+
+Both are loosely describable as "on the modem now", which is exactly how they got conflated. The rename is copy-only: no props, no components and no keys changed, just the English string plus its translated equivalents in the other four locales, and the rationale comment above `BAND_LEGEND` in `shapes.ts`.
+
 ## `unlockAll` is a WRITE, not a clear
 
 **"Restore all supported" does not clear anything — it writes the full supported band list to the modem.** `useBandLocking.unlockAll` (`hooks/use-band-locking.ts:265-279`) is a thin wrapper that calls `lockBands(category, supportedBands)`. The same `lock.sh` endpoint, the same `AT+QNWPREFCFG` write, the same failover watcher arming. "Unlock" on this page means "lock to everything", because the modem has no concept of an empty band restriction.
@@ -96,7 +107,7 @@ The incumbent labelled it "unlock/reset" behind an unlabelled `restart_alt` icon
 
 **It deliberately has no confirmation dialog.** It is the one band write on this page that can only ever *widen* what the modem may use, so it is the recovery action — the thing you reach for when a lock you just applied left you with no service. Gating recovery behind a dialog while `Apply` (the write that can actually cost you the connection) fires freely would invert the risk gradient this product is built around.
 
-It is disabled only when it would be a no-op (`isUnrestricted`) or when the card is frozen.
+It is disabled only when it would be a no-op (`categoryPosture(...) === "unrestricted"`) or when the card is frozen. That check goes through the shared helper in `shapes.ts`, so the button's enabled-ness, the card's header chip and the hero's badge for this category all read one definition of "unrestricted".
 
 ## The `prevLockedKey` render-phase sync
 
@@ -237,17 +248,29 @@ Those are different facts, and the gap between them is exactly the class of bug 
 
 On-air chips use the `nr` / `lte` **identity** variants — the fill says which radio the band belongs to and never that it is healthy. They are deduplicated (a band can legitimately appear twice, as PCC and as SCC) and sorted numerically with the `B`/`N` prefix stripped, because a lexical sort puts B12 before B3 and a technician notices immediately. LTE is listed first: the LTE leg is the anchor in NSA, so it is what a reader looks for when a 5G connection misbehaves.
 
-### Lock posture
+### Lock posture: three per-category badges, not one summed count
 
-The hero's headline is **derived, never asserted** (`Posture` in `live-band-hero.tsx`):
+**The headline used to be a single number summed across all three categories, and that number could not be acted on.** It read `lockedTotal` / `supportedTotal` — LTE, NSA-NR5G and SA-NR5G band counts added together — producing a sentence like "Locked to 12 of 34 bands". Three unrelated band lists do not add up to anything a reader can use: "LTE fully locked, both NR categories open" and "NR narrowed a little, LTE untouched" are very different radio states that can sum to the identical headline, and neither tells you *which* category to go fix.
 
-| Condition | Posture | Copy |
-| --------- | ------- | ---- |
-| `supportedTotal === 0` | `unknown` | "Not reported yet" |
-| `lockedTotal >= supportedTotal` | `unrestricted` | "All supported bands available" |
-| otherwise | `locked` | "Locked to {count} of {total} bands" |
+It is now a row of **three per-category badges** (`HERO_POSTURE_ROW` in `shapes.ts`), one per `BAND_CATEGORIES` entry, each showing that category's own short name + glyph and reusing `CATEGORY_BADGE`. The visible chip carries only the short name; the full sentence goes to assistive technology as the badge's `aria-label` via `band_locking.live.category_{posture}` with a `{{category}}` interpolation.
 
-`unknown` is a real state, not a loading state. A modem that has not reported a supported-band list yet must not be described as unrestricted, because "all supported bands available" would be a claim about a list nobody has seen. Each posture gets its **own** glyph (`POSTURE_GLYPH`): `settings_input_antenna`, `cell_tower`, `schedule`. Two states in one slot never share a mark.
+Posture is **derived, never asserted**, by one shared helper — `categoryPosture(locked, supported)` in `shapes.ts`:
+
+| Condition | Posture | Badge (`CATEGORY_BADGE`) | `aria-label` key |
+| --------- | ------- | ------------------------ | ---------------- |
+| `supported.length === 0` | `unknown` | `muted` / `schedule` | `category_unknown` → "{{category}} not reported" |
+| `locked` covers the whole supported list | `unrestricted` | `success` / `lock_open` | `category_unrestricted` → "{{category}} unrestricted" |
+| otherwise (incl. an empty `locked` list) | `locked` | `warning` / `lock` | `category_locked` → "{{category}} band-restricted" |
+
+`unknown` is a real state, not a loading state. A modem that has not reported a supported-band list yet must not be described as unrestricted, because "all supported bands available" would be a claim about a list nobody has seen.
+
+**`categoryPosture` is shared with `BandGridCard` on purpose.** The card's own header chip reads the same helper (`isUnrestricted` is now a call, not a local re-derivation), so the hero's per-category badge and the card's status chip can never quietly disagree about what "unrestricted" means. Before, they were two independent comparisons that happened to agree.
+
+#### The one combined fact that stayed
+
+The hero's leading glyph disc still shows **one** posture, computed as `overallPosture` in `live-band-hero.tsx`: `unknown` if any category is unknown, else `locked` if any category is locked, else `unrestricted`. That is an **OR across categories** ("is anything restricted?"), which is a coherent question in a way the old SUM never was — and `unknown` outranking everything preserves the same honesty rule as above. Each posture gets its **own** glyph (`POSTURE_GLYPH`): `settings_input_antenna`, `cell_tower`, `schedule`. Two states in one slot never share a mark.
+
+> ℹ️ NOTE: `BAND_CATEGORIES` is exported from `types/band-locking.ts` and imported by both `band-locking.tsx` and `live-band-hero.tsx`. It was previously a local const inside the coordinator; two iterations over three categories must not be able to disagree about order.
 
 ### Why failover lives in the hero
 
@@ -274,15 +297,20 @@ Everything shape- or tone-bearing on this surface lives in `components/cellular/
 | -------- | ------- |
 | `BAND_HERO` | The one hero card, `rounded-hero` (40px). A second hero on this page spends the Consistent-Layout Rule's glance-surface exception twice |
 | `BAND_CARD` | One category card, `rounded-card` (36px). Imported by all three branches |
-| `CARD_PAD`, `HERO_DISC`, `HERO_EYEBROW`, `HERO_VALUE`, `HERO_ROW`, `HERO_ONAIR` | Hero internals. `HERO_ROW` is `rounded-field` (20px) because that row genuinely wraps — a pill that has wrapped to two lines is a stadium |
-| `BAND_CHIP`, `BAND_CHIP_LIVE_RING`, `bandChipFill`, `bandChipClass`, `bandChipA11yKey`, `BAND_LEGEND` | The chip contract (above) |
+| `CARD_PAD`, `HERO_DISC`, `HERO_EYEBROW`, `HERO_VALUE`, `HERO_POSTURE_ROW`, `HERO_ROW`, `HERO_ONAIR` | Hero internals. `HERO_POSTURE_ROW` is the wrapping badge row that replaced the summed headline (see Lock posture); `HERO_ROW` is `rounded-field` (20px) because that row genuinely wraps — a pill that has wrapped to two lines is a stadium |
+| `BAND_CHIP`, `BAND_CHIP_LIVE_RING`, `bandChipFill`, `bandChipClass`, `bandChipA11yKey`, `BAND_LEGEND` | The chip contract (above). `BAND_LEGEND`'s rationale comment carries the "Currently locked" naming rule — see The legend names the CONFIGURATION fact |
 | `NOTICE`, `NOTICE_TONE` | The card-scoped error slot |
-| `PILL_ACTION`, `PILL_ACTION_PLAIN`, `PILL_QUIET` | Action sizing. `PILL_QUIET` is deliberately smaller: Select all / Clear change a selection, they do not write to the modem, and three equal-weight pills in one footer loses which is consequential |
+| `PILL_ACTION`, `PILL_ACTION_PLAIN`, `PILL_QUIET` | Action sizing. `PILL_QUIET` is deliberately smaller: Select all / Clear change a selection, they do not write to the modem, and three equal-weight pills in one footer loses which is consequential. It carries **size only** — no fill, no ink |
 | `FAILOVER_BADGE`, `CATEGORY_BADGE`, `POSTURE_GLYPH`, `BADGE_GLYPH_SIZE` | Tone + glyph maps, keyed onto the exported `BadgeVariant` type so an unmapped state fails the build |
-| `SKELETON_SHAPE` | Loaded geometry restated once so skeletons mirror by import, not by estimate |
+| `categoryPosture` | `(locked, supported) => BandPosture`. The single derivation shared by the hero's per-category badges and the card's header chip |
+| `SKELETON_SHAPE` | Loaded geometry restated once so skeletons mirror by import, not by estimate. Includes `POSTURE_CHIP`, the mirror for one hero posture badge |
 | `categoryTitleKey`, `categoryDescriptionKey`, `categoryShortKey` | Category → i18n key (above) |
 
-`CATEGORY_BADGE` reads the functional contract, not a value judgement about locking: `unrestricted` is `success`, `locked` is `warning` (a narrowed band list is the state that can cost you the connection — `warning` means *constrained*, not *you did something wrong*), and `scenario` is `info` (something else owns the setting; a standing condition, not a fault).
+`CATEGORY_BADGE` reads the functional contract, not a value judgement about locking: `unrestricted` is `success`, `locked` is `warning` (a narrowed band list is the state that can cost you the connection — `warning` means *constrained*, not *you did something wrong*), and `scenario` is `info` (something else owns the setting; a standing condition, not a fault). It carries a **fourth** entry, `unknown` (`muted` / `schedule`), because the hero's per-category badges have to render a category the modem has not reported a supported-band list for — the card never reaches that state (it renders its Empty branch instead).
+
+### Select all / Clear are `tonal-neutral`, never `ghost`
+
+`PILL_QUIET` sizes those two footer buttons but deliberately carries **no fill and no ink of its own** — the `variant="tonal-neutral"` Button supplies both. It used to be `variant="ghost"` plus a hardcoded `text-on-surface-variant` in the constant, and a ghost button has no resting fill at all: sitting beside a filled `Apply` and an outlined `Restore all supported`, it read as *disabled or absent* rather than as a third, quieter action. `tonal-neutral` gives it a real but muted presence (`surface-container`) instead of asking the reader to discover it by hovering.
 
 Both chip hovers are `enabled:`-scoped. Tailwind's `hover:` does not exclude a disabled element on its own, so an unscoped hover would light up every chip on a gated card — advertising an interaction that is switched off.
 
@@ -306,8 +334,8 @@ It is deliberately **not** `components/cellular/radio/page-header.tsx`. That com
 | ---- | ---- | ----- |
 | `failover` | `FailoverState` | `{ enabled, activated, watcher_running }` |
 | `carrierComponents` | `CarrierComponent[]` | From `useModemStatus`; the ACTUAL view |
-| `lockedTotal` | `number` | Configured bands summed across all three categories |
-| `supportedTotal` | `number` | Hardware-supported bands summed across all three |
+| `supportedBands` | `Record<BandCategory, number[]>` | Hardware-supported bands **per category** (`policy_band`). Replaced the summed `supportedTotal: number` |
+| `lockedBands` | `Record<BandCategory, number[]>` | Configured bands **per category** (`ue_capability_band`). Replaced the summed `lockedTotal: number` |
 | `onToggleFailover` | `(enabled: boolean) => Promise<boolean>` | Returns success; the hero owns its own toast |
 | `isLoading` | `boolean` | Page-level (`statusLoading \|\| bandsLoading \|\| scenariosLoading`) |
 | `isGated` | `boolean?` | Disables the failover switch — see Known gaps |

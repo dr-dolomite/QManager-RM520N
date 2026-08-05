@@ -15,6 +15,7 @@ import { nextChangeAt, resolveScheduledScenario } from "@/lib/scenario-schedule"
 import { staggerContainer, staggerItem } from "@/lib/motion";
 import { DEFAULT_SCENARIOS } from "@/types/connection-scenario";
 import {
+  BAND_CATEGORIES,
   getBandsForCategory,
   parseBandString,
   type BandCategory,
@@ -64,8 +65,6 @@ import LiveBandHero from "./live-band-hero";
 // `AT+QNWPREFCFG` writes, so this is a genuine last-writer-wins conflict, not an
 // advisory hint.
 // =============================================================================
-
-const BAND_CATEGORIES: BandCategory[] = ["lte", "nsa_nr5g", "sa_nr5g"];
 
 const BandLockingComponent = () => {
   const { t } = useTranslation("cellular");
@@ -174,15 +173,6 @@ const BandLockingComponent = () => {
     [currentBands],
   );
 
-  const supportedTotal = BAND_CATEGORIES.reduce(
-    (sum, c) => sum + supportedBands[c].length,
-    0,
-  );
-  const lockedTotal = BAND_CATEGORIES.reduce(
-    (sum, c) => sum + lockedBands[c].length,
-    0,
-  );
-
   const carrierComponents = data?.network.carrier_components ?? [];
   const isPageLoading = statusLoading || bandsLoading || scenariosLoading;
 
@@ -247,8 +237,8 @@ const BandLockingComponent = () => {
           <LiveBandHero
             failover={failover}
             carrierComponents={carrierComponents}
-            lockedTotal={lockedTotal}
-            supportedTotal={supportedTotal}
+            supportedBands={supportedBands}
+            lockedBands={lockedBands}
             onToggleFailover={toggleFailover}
             isLoading={isPageLoading}
             isGated={isGated}
@@ -266,8 +256,11 @@ const BandLockingComponent = () => {
           {BAND_CATEGORIES.map((category) => (
             <motion.div
               key={category}
+              id={`band-locking-card-${category}`}
               variants={staggerItem}
-              className="h-full *:data-[slot=card]:h-full"
+              // `scroll-mt` so a smooth-scroll from the hero's rail row lands
+              // the card below the sticky shell header instead of under it.
+              className="h-full scroll-mt-20 *:data-[slot=card]:h-full"
             >
               <BandGridCard
                 bandCategory={category}

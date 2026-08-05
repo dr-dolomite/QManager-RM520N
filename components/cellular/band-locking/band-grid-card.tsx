@@ -37,6 +37,7 @@ import {
   bandChipA11yKey,
   bandChipClass,
   categoryDescriptionKey,
+  categoryPosture,
   categoryShortKey,
   categoryTitleKey,
 } from "./shapes";
@@ -187,14 +188,8 @@ export function BandGridCard({
     [currentLockedBands],
   );
 
-  const isUnrestricted = useMemo(() => {
-    if (supportedBands.length === 0 || currentLockedBands.length === 0)
-      return false;
-    return (
-      currentLockedBands.length === supportedBands.length &&
-      currentLockedBands.every((b) => supportedBands.includes(b))
-    );
-  }, [supportedBands, currentLockedBands]);
+  const isUnrestricted =
+    categoryPosture(currentLockedBands, supportedBands) === "unrestricted";
 
   /** How many chips differ from what is on the modem — the pending-change count. */
   const pendingCount = useMemo(() => {
@@ -441,7 +436,7 @@ export function BandGridCard({
           ) : null}
           <Button
             type="button"
-            variant="ghost"
+            variant="tonal-neutral"
             onClick={() => setCheckedBands(new Set(supportedBands))}
             disabled={isFrozen}
             className={PILL_QUIET}
@@ -450,7 +445,7 @@ export function BandGridCard({
           </Button>
           <Button
             type="button"
-            variant="ghost"
+            variant="tonal-neutral"
             onClick={() => setCheckedBands(new Set())}
             disabled={isFrozen || noneSelected}
             className={PILL_QUIET}

@@ -18,6 +18,10 @@
 /** Discriminator for the three independent band locking cards */
 export type BandCategory = "lte" | "nsa_nr5g" | "sa_nr5g";
 
+/** The three categories, in display order. Single copy — see the coordinator
+ *  and the hero, which both iterate this list and must agree on its order. */
+export const BAND_CATEGORIES: BandCategory[] = ["lte", "nsa_nr5g", "sa_nr5g"];
+
 /** Display labels for each band category */
 export const BAND_CATEGORY_LABELS: Record<BandCategory, string> = {
   lte: "LTE",
