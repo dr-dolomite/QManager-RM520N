@@ -171,8 +171,84 @@
   },
   "band_locking": {
     "controls_label": "頻段鎖定",
+    "page": {
+      "title": "頻段鎖定",
+      "description": "限制此數據機可以使用的 LTE 與 5G 頻段。"
+    },
+    "gate": {
+      "scenario_title": "頻段由 {{scenario}} 場景管理。",
+      "scenario_note": "切換至均衡場景即可手動控制。",
+      "profile_note": "目前的場景預定於 {{time}} 變更。"
+    },
+    "live": {
+      "title": "即時設定",
+      "eyebrow": "鎖定狀態",
+      "posture_unrestricted": "所有支援的頻段皆可使用",
+      "posture_locked": "已鎖定 {{total}} 個頻段中的 {{count}} 個",
+      "posture_unknown": "尚未回報",
+      "on_air": "目前使用中",
+      "on_air_empty": "未回報載波",
+      "failover_label": "頻段容錯移轉",
+      "failover_help_label": "關於頻段容錯移轉",
+      "failover_help": "啟用後，若鎖定的頻段持續約 30 秒無法使用，數據機會自動恢復為預設頻段。",
+      "failover_state": {
+        "disabled": "已停用",
+        "fallback": "已啟用備援",
+        "monitoring": "監控中",
+        "ready": "就緒"
+      },
+      "failover_toast_enabled": "已啟用頻段容錯移轉",
+      "failover_toast_disabled": "已停用頻段容錯移轉",
+      "failover_toast_error": "無法更新頻段容錯移轉"
+    },
+    "categories": {
+      "lte": {
+        "title": "LTE",
+        "description": "數據機可用於 4G 連線的頻段。"
+      },
+      "nsa_nr5g": {
+        "title": "5G NSA",
+        "description": "搭配 LTE 錨點使用的 5G 頻段。"
+      },
+      "sa_nr5g": {
+        "title": "5G SA",
+        "description": "無須 LTE 錨點、獨立使用的 5G 頻段。"
+      }
+    },
+    "short": {
+      "lte": "LTE",
+      "nsa_nr5g": "5G NSA",
+      "sa_nr5g": "5G SA"
+    },
+    "card": {
+      "status_scenario": "由場景控制",
+      "status_unrestricted": "全部頻段",
+      "status_locked": "{{total}} 個中已鎖定 {{count}} 個",
+      "pending_one": "{{count}} 項待套用的變更",
+      "pending_other": "{{count}} 項待套用的變更",
+      "legend_selected": "已選取",
+      "legend_live": "目前在數據機上",
+      "empty_title": "此處沒有可鎖定的頻段",
+      "empty_body": "數據機未回報此類別中支援的頻段。"
+    },
     "actions": {
-      "lock_selected": "鎖定所選頻段"
+      "lock_selected": "鎖定所選頻段",
+      "restore_all": "恢復所有支援的頻段",
+      "select_all": "全選",
+      "select_none": "清除選取"
+    },
+    "toast": {
+      "locked": "{{category}} 頻段已鎖定",
+      "unlocked": "{{category}} 頻段已恢復",
+      "lock_error": "無法套用 {{category}} 頻段鎖定",
+      "unlock_error": "無法恢復 {{category}} 頻段",
+      "none_selected": "請至少選取一個要鎖定的頻段"
+    },
+    "a11y": {
+      "applying": "正在套用 {{category}} 頻段鎖定…",
+      "band_selected": "{{band}}，已選取",
+      "band_unselected": "{{band}}，未選取",
+      "band_live": "{{band}}，已選取並在數據機上生效"
     }
   },
   "core_settings": {

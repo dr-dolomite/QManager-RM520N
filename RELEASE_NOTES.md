@@ -80,6 +80,11 @@ Custom SIM Profiles gets a full redesign and absorbs Connection Scenarios, so on
 - **Pressing Enter to save no longer loses your place.** Saving used to switch the button off for a moment, which knocked keyboard focus back to the top of the page; the button now stays focused for the whole save and simply ignores a second press.
 - **Your settings survive a power cut during an update.** Config files rewritten by an update are now swapped into place in a single step instead of being rewritten in the open, so losing power mid-update can no longer leave one half-written on flash (also cleans up leftover scheduling entries from pre-timer versions, which a bug could previously skip entirely).
 
+- **Band Locking has been redesigned.** **Cellular → Band Locking** now opens with a single status card at the top — your lock posture, the band-failover safety net and its state, and the bands actually on air — above one card per radio type instead of a status panel wedged into the same grid as the controls.
+- **Bands are now tappable chips, and you can see a change before you apply it.** Each band is a chip you tap rather than a tiny checkbox: a filled chip is one you've selected, and a chip with a ring around it is one your modem is running right now — so a band you're about to add and one you're about to drop both read at a glance, with a pending-changes count beside the buttons. The old "unlock" button is now labelled **Restore all supported**, which is what it actually does.
+- **Band Locking now speaks all five languages.** Every label, status, toast and screen-reader announcement on the page is translated into English, Simplified Chinese (简体中文), Traditional Chinese (繁體中文), Italian (Italiano), and Indonesian (Bahasa Indonesia) — previously the page was almost entirely hardcoded English.
+- **Tower Locking and Frequency Locking got matching page headers.** All three pages under **Cellular → Cell Locking** now share one header shape, so moving between them no longer feels like moving between three different products.
+
 ## 🐛 Fixes
 
 - **Buttons work the instant a dialog closes.** Closing any dialog used to leave the page ignoring clicks for about a second — most noticeable on **Cellular → Custom SIM Profiles**, where you're opening and closing dialogs constantly — so a second tap simply did nothing. Dialogs, alerts and side panels now close in a third of the time and the page is live again as soon as they're gone (the underlying dialog library disables clicks on the whole page until the close animation finishes, and the backdrop was fading out well before that, which made the app look ready when it wasn't).
@@ -150,6 +155,9 @@ Custom SIM Profiles gets a full redesign and absorbs Connection Scenarios, so on
 
 - **Features you switch on no longer quietly switch themselves off at the next reboot.** Turning on **Monitoring → Watchdog**, **Cellular → SMS Forwarding**, tower failover or Discord alerts could report success, visibly start working, and then be gone after a restart — most often on a modem where Tailscale had been installed or updated at some point (that left the system partition read-only for the rest of the session, so the boot entry silently failed to write). If it genuinely can't be saved for boot now, the page tells you instead of pretending.
 - **Devices that already lost a setting this way repair themselves on this update.** If your Watchdog, SMS Forwarding or tower failover stopped surviving reboots, installing this release turns them back on from your saved settings — previously the loss was carried forward through every future update.
+
+- **A band-lock error no longer appears under all three radio types.** If an LTE lock failed on **Cellular → Band Locking**, the same red message was also printed under 5G NSA and 5G SA, leaving you to guess which one actually failed. The error now shows only on the card you pressed.
+- **Applying one band lock now pauses the other two.** All three cards go quiet while any lock is being applied, instead of letting you fire a second one seconds later — which used to cancel the safety net watching the first, leaving that change unmonitored for the rest of its 30-second window.
 
 ## 📥 Installation
 

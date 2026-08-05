@@ -1,5 +1,6 @@
 "use client";
 
+import { CellularPageHeader } from "@/components/cellular/page-header";
 import LteFreqLockingComponent from "./lte-freq-locking";
 import NrFreqLockingComponent from "./nr-freq-locking";
 import { useFrequencyLocking } from "@/hooks/use-frequency-locking";
@@ -10,13 +11,16 @@ const FrequencyLockingComponent = () => {
   const { data: modemData } = useModemStatus();
 
   return (
-    <div className="@container/main mx-auto p-2">
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold mb-2">Frequency Locking</h1>
-        <p className="text-muted-foreground">
-          Lock to specific EARFCNs/NR-ARFCNs. Experimental — use with caution.
-        </p>
-      </div>
+    <div className="@container/main mx-auto flex flex-col gap-5 p-2">
+      {/* Header-only migration. Band Locking, Tower Locking and Frequency
+          Locking are one sub-tree a user crosses three times in a single task,
+          so they share the header shape even though the cards below this one
+          are not yet migrated. Copy is unchanged and still an English literal —
+          converting it is its own change, not a side effect of this one. */}
+      <CellularPageHeader
+        title="Frequency Locking"
+        description="Lock to specific EARFCNs/NR-ARFCNs. Experimental — use with caution."
+      />
       <div className="grid grid-cols-1 @3xl/main:grid-cols-2 grid-flow-row gap-4">
         <LteFreqLockingComponent
           modemState={freqLock.modemState}
