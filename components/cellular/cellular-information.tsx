@@ -36,10 +36,13 @@ import { ActiveBandsCard } from "@/components/cellular/radio/active-bands-card";
 // screen saying so. All five are taken now — `error` raises the stale banner,
 // `isStale` de-pulses the liveness chip, `refresh` backs the primary action.
 //
-// Layout keeps the incumbent container-query grid (`@container/main` +
-// `@3xl/main:grid-cols-2`) rather than the mock's fixed 1320px `1fr 1.12fr`.
-// The mock has no responsive story at all, and this page is read on a tablet in
-// the field as often as on a desk monitor.
+// Layout is a single-column stack of full-width sections, ordered by CADENCE:
+// what moves every poll (Spectrum in use) above what moves on handover
+// (Connection details). It was a 2-up container-query grid with both cards
+// height-locked to each other, which is a split by symmetry — and symmetry is
+// not a property either card has. See the note on the stack below.
+// `@container/main` stays because the summary tiles and the header still query
+// it; only the two-column rule is gone.
 //
 // Entrance is the shared `staggerContainer` / `staggerItem` pair, which IS the
 // mock's `qm-cascade` (10px rise, 300ms, standard curve) — its four hardcoded
@@ -148,7 +151,14 @@ const CellularInformationComponent = () => {
       animate="visible"
     >
       <motion.div variants={staggerItem}>
-        <RadioPageHeader buildDiagnostics={buildDiagnostics} />
+        <RadioPageHeader
+          buildDiagnostics={buildDiagnostics}
+          // `isStale` was destructured here and used only to freeze the carrier
+          // list — the user was never told. A frozen page looked identical to a
+          // live one, on the surface whose whole job is telling those apart.
+          isStale={isStale}
+          isLoading={isLoading}
+        />
       </motion.div>
 
       {/* Outside the cascade on purpose: the banner carries its own
@@ -177,29 +187,28 @@ const CellularInformationComponent = () => {
         // Nested container: inherits `visible` from the page cascade and then
         // runs its own step over the two cards. No initial/animate of its own —
         // that would detach it from the parent's clock.
+        //
+        // A single-column STACK, not a 2-up grid, and neither card is height-
+        // locked to the other any more. The old `h-full` pair forced a static
+        // reference card and a live telemetry card to the same height, which
+        // left ~200px of dead space in whichever one had less to say — and
+        // which one that was flipped with the carrier count. Splitting the page
+        // by cadence instead of by symmetry removes the constraint rather than
+        // tuning it: spectrum first because it is what moves, connection
+        // details second because it is what you look up.
         <motion.div
-          className="grid grid-cols-1 gap-5 @3xl/main:grid-cols-2"
+          className="flex flex-col gap-5"
           variants={staggerContainer}
         >
-          <motion.div
-            variants={staggerItem}
-            className="h-full *:data-[slot=card]:h-full"
-          >
-            <CellularInformationCard
-              data={data}
-              summary={summary}
-              isLoading={isLoading}
-            />
-          </motion.div>
-          <motion.div
-            variants={staggerItem}
-            className="h-full *:data-[slot=card]:h-full"
-          >
+          <motion.div variants={staggerItem}>
             <ActiveBandsCard
               carriers={carriers}
               summary={summary}
               isLoading={isLoading}
             />
+          </motion.div>
+          <motion.div variants={staggerItem}>
+            <CellularInformationCard data={data} isLoading={isLoading} />
           </motion.div>
         </motion.div>
       )}

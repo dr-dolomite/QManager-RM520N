@@ -13,7 +13,6 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { SwapLabel } from "@/components/ui/swap-label";
 import { TickGroup } from "@/components/ui/tick-group";
@@ -26,14 +25,35 @@ import {
 } from "@/components/ui/tooltip";
 
 import { compressIPv6, decToHex } from "@/lib/ipv6";
-import type { RadioSummary } from "@/lib/radio-info";
 import { staggerRowItem, staggerRows } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 import type { ModemStatus } from "@/types/modem-status";
+import {
+  calculateLteDistance,
+  calculateNrDistance,
+  formatDistance,
+  formatUptime,
+} from "@/types/modem-status";
+import { useUnitPreferences } from "@/hooks/use-system-settings";
 
 // =============================================================================
-// Cellular information — the left card of /cellular/ Radio Information
+// Connection details — the HANDOVER-cadence half of /cellular/ Radio Information
 // =============================================================================
+// Everything here changes on attach or handover; nothing here changes per poll.
+// That is why it is no longer a column beside the live card, height-locked to
+// it: the page is split by cadence now, and this half lays its three groups out
+// side by side so a static reference card cannot dictate the page's height.
+//
+// Two rows were DELETED rather than moved. `Network type` and `Carrier
+// aggregation` each restated a summary tile sitting ~200px above them on the
+// same screen, and the CA row additionally re-derived a count that
+// `summariseRadio` already owned — a second derivation of one fact is a
+// contradiction waiting for the poll where the two sources disagree.
+//
+// Three rows were ADDED from data the poller already returned and this page
+// threw away: link uptime, the address family actually carrying traffic, and
+// the timing-advance distance estimate.
+//
 // Re-skin of the outgoing `components/cellular/cell-data.tsx`. The domain logic
 // (which RAT owns Cell ID, why eNodeB/Sector are never computed here, the IPv6
 // compression) is carried over unchanged; only the vocabulary is new.
@@ -94,9 +114,18 @@ export const EYEBROW_CLASS =
  */
 export const GROUP_SHAPES = {
   connection: ["row", "row", "row", "row"],
-  identity: ["row", "split", "row"],
+  identity: ["row", "split", "row", "row"],
   addressing: ["row", "row", "row", "row"],
 } as const satisfies Record<string, readonly ("row" | "split")[]>;
+
+/**
+ * The three groups sit side by side rather than stacked. Container queries
+ * against the card's own `@container/cellinfo`, not the viewport — this card is
+ * now full-width on the page, so its width is the page's width and a viewport
+ * breakpoint would be measuring the wrong box.
+ */
+export const GROUP_GRID =
+  "grid grid-cols-1 items-start gap-x-6 gap-y-5 @2xl/cellinfo:grid-cols-2 @4xl/cellinfo:grid-cols-3";
 
 // -----------------------------------------------------------------------------
 // Props
@@ -105,30 +134,8 @@ export const GROUP_SHAPES = {
 export interface CellularInformationCardProps {
   /** The full poller snapshot; `null` before the first successful fetch. */
   data: ModemStatus | null;
-  /**
-   * The authoritative carrier summary, derived by `summariseRadio` from
-   * `carrier_components[]`. Passed in rather than recomputed so this card and
-   * the summary tiles cannot disagree about the carrier count: they render
-   * simultaneously, and an earlier draft of this file derived the row from
-   * `ca_count` / `nr_ca_count` instead, which is a genuinely different number.
-   * See the comment on the Carrier aggregation row.
-   */
-  summary: RadioSummary;
   /** True during the very first fetch, before any data exists. */
   isLoading: boolean;
-}
-
-// -----------------------------------------------------------------------------
-// Derivations (carried over from cell-data.tsx)
-// -----------------------------------------------------------------------------
-
-type NetworkTypeTone = "nr" | "lte" | "muted";
-
-/** The radio a network-type chip belongs to — identity, never health. */
-function networkTypeTone(type: string): NetworkTypeTone {
-  if (type === "5G-NSA" || type === "5G-SA") return "nr";
-  if (type === "LTE") return "lte";
-  return "muted";
 }
 
 // -----------------------------------------------------------------------------
@@ -372,7 +379,7 @@ function CellularInformationSkeleton({
 }) {
   return (
     <CardShell title={title} description={description}>
-      <div className="flex flex-col gap-5">
+      <div className={GROUP_GRID}>
         <SkeletonGroup shape={GROUP_SHAPES.connection} />
         <SkeletonGroup shape={GROUP_SHAPES.identity} />
         <SkeletonGroup shape={GROUP_SHAPES.addressing} />
@@ -397,7 +404,9 @@ function CardShell({
   return (
     // No border: the card already carries a tonal fill, and a hairline on top of
     // a fill is the doubled-container the migration removes.
-    <Card className="@container/cellinfo h-full gap-5 rounded-hero border-0 bg-surface py-[1.625rem] shadow-sm">
+    // `h-full` is gone with the page's height lock: this card is reference
+    // material and now ends where its content ends.
+    <Card className="@container/cellinfo gap-5 rounded-hero border-0 bg-surface py-[1.625rem] shadow-sm">
       <CardHeader className="gap-1 px-7">
         {/* The comp draws 22px; the product's Headline step is `text-xl` (20px)
             and 22px is not on the ramp. Fidelity to the comp is not worth a new
@@ -418,10 +427,12 @@ function CardShell({
 
 export function CellularInformationCard({
   data,
-  summary,
   isLoading,
 }: CellularInformationCardProps) {
   const { t } = useTranslation("cellular");
+  // Returns the prefs object directly (or null while it loads), not a query
+  // envelope — `formatDistance` already treats an undefined unit as "km".
+  const unitPrefs = useUnitPreferences();
 
   const title = t("radio_info.cellular_card.title");
   const description = t("radio_info.cellular_card.description");
@@ -454,15 +465,32 @@ export function CellularInformationCard({
   const unknown = t("radio_info.value.unknown");
   const notAssigned = t("radio_info.value.not_assigned");
 
-  const networkTypeLabel = formatNetworkType(network?.type ?? "", t);
-  const tone = networkTypeTone(network?.type ?? "");
-  const caSummary = network ? formatCarrierAggregation(summary, t) : unknown;
-  const caTickKey = network
-    ? `${network.ca_active}:${network.ca_count}:${network.nr_ca_active}:${network.nr_ca_count}`
-    : "none";
-
   const ipv4Label = t("radio_info.rows.wan_ipv4");
   const ipv6Label = t("radio_info.rows.wan_ipv6");
+
+  // How long THIS attach has been up — not device uptime. A link that has been
+  // up four minutes on a modem that has been up four days is the single most
+  // useful thing this card can say about an intermittent connection, and the
+  // poller has been reporting it all along with nobody reading it here.
+  const connUptime = data?.device?.conn_uptime_seconds ?? 0;
+
+  // Which address family actually carried the last successful probe. `ipv6`
+  // means the IPv4 leg failed and the fallback took over — a real finding on a
+  // page two rows below "WAN IPv4", and invisible until now.
+  const lastFamily = data?.connectivity?.last_family ?? null;
+
+  // Timing-advance distance. Same RAT branch as the identity rows above, so the
+  // estimate always describes the cell whose ID is printed beside it. The value
+  // is DERIVED — TA is quantised in ~78m steps on LTE — so it carries the same
+  // focusable marker the inferred-SCS field uses rather than being printed as
+  // though the modem measured it.
+  const distanceKm = isSA
+    ? calculateNrDistance(nr?.ta ?? null)
+    : calculateLteDistance(lte?.ta ?? null);
+  const distance =
+    distanceKm === null
+      ? null
+      : formatDistance(distanceKm, unitPrefs?.distanceUnit);
 
   return (
     <CardShell title={title} description={description}>
@@ -470,7 +498,7 @@ export function CellularInformationCard({
           a user perceives together, never to a page. */}
       <TickGroup>
         <motion.div
-          className="flex flex-col gap-5"
+          className={GROUP_GRID}
           initial="hidden"
           animate="visible"
           variants={staggerRows}
@@ -499,24 +527,31 @@ export function CellularInformationCard({
                 </Link>
               </Row>
 
-              <Row label={t("radio_info.rows.network_type")}>
-                <Badge
-                  variant={tone}
-                  className="px-[0.6875rem] py-1 text-xs font-semibold"
-                >
-                  <SwapLabel swapKey={`${tone}:${networkTypeLabel}`}>
-                    {networkTypeLabel}
-                  </SwapLabel>
-                </Badge>
+              {/* `Network type` and `Carrier aggregation` used to sit here.
+                  Both restated a summary tile on the same screen, so they were
+                  deleted rather than moved — see the file header. */}
+
+              <Row label={t("radio_info.rows.link_uptime")}>
+                {connUptime > 0 ? (
+                  <TickingValue
+                    value={formatUptime(connUptime)}
+                    className={cn(ROW_VALUE, "font-mono tabular-nums")}
+                  >
+                    {formatUptime(connUptime)}
+                  </TickingValue>
+                ) : (
+                  <Value value={null} fallback={unknown} />
+                )}
               </Row>
 
-              <Row label={t("radio_info.rows.carrier_aggregation")}>
-                <TickingValue
-                  value={caTickKey}
-                  className={cn(ROW_VALUE, "text-right")}
-                >
-                  {caSummary}
-                </TickingValue>
+              <Row label={t("radio_info.rows.traffic_family")}>
+                {lastFamily === null ? (
+                  <Value value={null} fallback={unknown} />
+                ) : (
+                  <SwapLabel swapKey={lastFamily} className={ROW_VALUE}>
+                    {t(`radio_info.value.family_${lastFamily}`)}
+                  </SwapLabel>
+                )}
               </Row>
             </div>
           </div>
@@ -565,6 +600,45 @@ export function CellularInformationCard({
                   </span>
                 ) : null}
               </Row>
+
+              <Row label={t("radio_info.rows.distance")}>
+                {distance === null ? (
+                  <Value value={null} fallback={unknown} />
+                ) : (
+                  <>
+                    {/* The marker is FIRST and focusable, so the caveat is read
+                        before the number rather than after it, and is reachable
+                        by keyboard. Same construction as the derived-SCS field
+                        on the spectrum card — one pattern for "this is our
+                        arithmetic, not the modem's reading". */}
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <button
+                          type="button"
+                          className="inline-flex shrink-0 items-center gap-1 rounded-pill text-on-surface-variant outline-none focus-visible:ring-ring/50 focus-visible:ring-[3px]"
+                        >
+                          <span className="text-xs font-semibold tracking-wide uppercase">
+                            {t("radio_info.value.estimated")}
+                          </span>
+                          <MaterialSymbol name="help" size={14} />
+                          <span className="sr-only">
+                            {t("radio_info.value.distance_hint")}
+                          </span>
+                        </button>
+                      </TooltipTrigger>
+                      <TooltipContent className="max-w-64">
+                        {t("radio_info.value.distance_hint")}
+                      </TooltipContent>
+                    </Tooltip>
+                    <TickingValue
+                      value={distance}
+                      className={cn(ROW_VALUE, "font-mono tabular-nums")}
+                    >
+                      {distance}
+                    </TickingValue>
+                  </>
+                )}
+              </Row>
             </div>
           </div>
 
@@ -608,67 +682,17 @@ export function CellularInformationCard({
 }
 
 // -----------------------------------------------------------------------------
-// i18n-aware formatters (kept below the component so the reading order is
-// card-first; both are pure)
+// Retired formatters
 // -----------------------------------------------------------------------------
-
-type Translate = ReturnType<typeof useTranslation>["t"];
-
-/** Map the poller's network-type enum to a human label. */
-function formatNetworkType(type: string, t: Translate): string {
-  switch (type) {
-    case "5G-NSA":
-      return t("radio_info.network_type.nsa");
-    case "5G-SA":
-      return t("radio_info.network_type.sa");
-    case "LTE":
-      return t("radio_info.network_type.lte");
-    default:
-      return t("radio_info.network_type.unknown");
-  }
-}
-
-/**
- * Build the carrier-aggregation summary from the SAME `summariseRadio` result
- * the tiles render, so the two can never disagree.
- *
- * An earlier revision of this function was carried over near-verbatim from the
- * deleted `cell-data.tsx` and derived its counts from `network.ca_count` /
- * `nr_ca_count` with a `+ 1` rule for the primary. That is wrong here for two
- * separate reasons:
- *
- *  1. Those fields count SECONDARY carriers under an NSA minus-one rule, so
- *     they are not the carrier count and cannot be made into one by adding one.
- *     The live device reports `nr_ca_count: 0` while carrying a real NR
- *     carrier, which the `+ 1` rule renders as a bare "NR" rather than "NR (1
- *     carrier)".
- *  2. They come from a different source than the tiles. `carrier_components[]`
- *     is emptied wholesale by any failed AT read while `ca_count` persists, so
- *     on exactly the poll where things go wrong the tile would say "0 carriers"
- *     and this row would insist "LTE (2 carriers) + NR". Two contradictory
- *     claims, one screen, at the worst possible moment.
- *
- * `summary` already excludes released carriers, so this row describes what the
- * radio has now, matching the tile above it.
- */
-function formatCarrierAggregation(summary: RadioSummary, t: Translate): string {
-  const parts: string[] = [];
-
-  if (summary.lteCount > 1) {
-    parts.push(t("radio_info.ca.lte_carriers", { count: summary.lteCount }));
-  } else if (summary.lteCount === 1) {
-    parts.push(t("radio_info.ca.lte_only"));
-  }
-
-  if (summary.nrCount > 1) {
-    parts.push(t("radio_info.ca.nr_carriers", { count: summary.nrCount }));
-  } else if (summary.nrCount === 1) {
-    parts.push(t("radio_info.ca.nr_only"));
-  }
-
-  if (parts.length === 0) return t("radio_info.ca.inactive");
-  // " + " is punctuation joining two already-translated fragments, not copy.
-  return parts.join(" + ");
-}
+// `formatNetworkType` and `formatCarrierAggregation` lived here and are gone
+// with the two rows that consumed them. The CA formatter carried a long note
+// about why its counts had to come from `summariseRadio` rather than
+// `ca_count` / `nr_ca_count` — that argument now survives where it is still
+// load-bearing, on `summariseRadio` itself in `lib/radio-info.ts` and on the
+// carrier tile in `summary-tiles.tsx`. Their i18n keys
+// (`radio_info.rows.network_type`, `radio_info.rows.carrier_aggregation`,
+// `radio_info.ca.*`) are left in the locale files: `network_type.*` is still
+// read by the tiles, and pruning the rest across five locales is churn with no
+// user-visible effect.
 
 export default CellularInformationCard;

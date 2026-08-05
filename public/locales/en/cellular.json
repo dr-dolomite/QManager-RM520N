@@ -771,7 +771,7 @@
       }
     },
     "cellular_card": {
-      "title": "Cellular information",
+      "title": "Connection details",
       "description": "Reported by the network on the current attach."
     },
     "groups": {
@@ -792,7 +792,10 @@
       "wan_ipv4": "WAN IPv4",
       "wan_ipv6": "WAN IPv6",
       "primary_dns": "Primary DNS",
-      "secondary_dns": "Secondary DNS"
+      "secondary_dns": "Secondary DNS",
+      "link_uptime": "Link uptime",
+      "traffic_family": "Carrying traffic on",
+      "distance": "Distance to site"
     },
     "actions": {
       "edit_apn": "Edit"
@@ -808,7 +811,12 @@
     },
     "value": {
       "unknown": "Not reported",
-      "not_assigned": "Not assigned"
+      "not_assigned": "Not assigned",
+      "family_ipv4": "IPv4",
+      "family_ipv6": "IPv6",
+      "family_none": "Nothing answering",
+      "estimated": "Estimated",
+      "distance_hint": "Calculated from the network's timing-advance value, which the radio reports in coarse steps. Read it as a rough range to the serving cell, not a measured distance."
     },
     "copy": {
       "aria": "Copy {{label}} to clipboard",
@@ -820,9 +828,9 @@
       "show_full_address": "Show the full, uncompressed {{label}}"
     },
     "bands": {
-      "title": "Active cellular bands",
-      "description_one": "{{count}} active carrier. Open a band for its signal metrics.",
-      "description_other": "{{count}} active carriers. Open a band for its signal metrics.",
+      "title": "Spectrum in use",
+      "description_one": "{{count}} active carrier, with its live signal metrics below.",
+      "description_other": "{{count}} active carriers, with live signal metrics for each one.",
       "cadence": "Updates every few seconds",
       "stale": "Readings paused",
       "role": {
@@ -857,7 +865,8 @@
         "scs": "Subcarrier spacing",
         "unknown": "Unknown",
         "scs_derived": "Derived",
-        "scs_derived_hint": "The modem reports subcarrier spacing only for the serving NR cell. This value is derived from the band's duplex mode, not read from the radio."
+        "scs_derived_hint": "The modem reports subcarrier spacing only for the serving NR cell. This value is derived from the band's duplex mode, not read from the radio.",
+        "duplex": "Duplex"
       },
       "units": {
         "mhz": "{{value}} MHz",
@@ -871,6 +880,10 @@
       "scanner": {
         "body": "Looking for carriers the modem is not using? The cell scanner sweeps every band the radio supports.",
         "link": "Open cell scanner"
+      },
+      "reference": {
+        "show": "Show band reference",
+        "hide": "Hide band reference"
       }
     }
   },

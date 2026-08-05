@@ -271,8 +271,15 @@ export function SummaryTiles({ mode, summary, mimo }: SummaryTilesProps) {
         </span>
       </Tile>
 
+      {/* `alt_route`, not `settings_input_antenna`. The aerial glyph is already
+          worn by BOTH surfaces this tile links out to
+          (`antenna-statistics/context-tiles.tsx` and
+          `antenna-alignment/states.tsx`), so the tile was wearing its own
+          destination's mark — and it drew a rabbit-ear TV aerial for a 4x4
+          spatial-multiplexing readout. `alt_route` draws one path splitting
+          into parallel legs, which is what MIMO physically is. */}
       <Tile
-        glyph="settings_input_antenna"
+        glyph="alt_route"
         label={t("radio_info.tiles.mimo.label")}
         tone={MIMO_TILE}
         disc={MIMO_DISC}
@@ -301,7 +308,8 @@ export function SummaryTiles({ mode, summary, mimo }: SummaryTilesProps) {
                 className={cn(
                   "truncate font-mono font-semibold tabular-nums",
                   // Two legs drop one ramp step (Headline -> Title) so the pair
-                  // still fits the 84px tile the skeleton mirrors.
+                  // still fits the 92px tile TILE_SHAPE pins and the skeleton
+                  // mirrors.
                   mimoParts.length > 1 ? "text-base" : "text-xl",
                 )}
               >

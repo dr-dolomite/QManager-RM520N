@@ -771,7 +771,7 @@
       }
     },
     "cellular_card": {
-      "title": "蜂窩資訊",
+      "title": "連線詳情",
       "description": "由網路在本次附著中回報。"
     },
     "groups": {
@@ -792,7 +792,10 @@
       "wan_ipv4": "WAN IPv4",
       "wan_ipv6": "WAN IPv6",
       "primary_dns": "主要 DNS",
-      "secondary_dns": "次要 DNS"
+      "secondary_dns": "次要 DNS",
+      "link_uptime": "連線持續時間",
+      "traffic_family": "目前承載流量",
+      "distance": "到基地台的距離"
     },
     "actions": {
       "edit_apn": "編輯"
@@ -808,7 +811,12 @@
     },
     "value": {
       "unknown": "未回報",
-      "not_assigned": "未指派"
+      "not_assigned": "未指派",
+      "family_ipv4": "IPv4",
+      "family_ipv6": "IPv6",
+      "family_none": "無回應",
+      "estimated": "估算",
+      "distance_hint": "根據網路的時間提前量（TA）推算，該值由射頻以較粗的步長回報。請將其視為到服務細胞的大致範圍，而非實測距離。"
     },
     "copy": {
       "aria": "將{{label}}複製到剪貼簿",
@@ -820,9 +828,9 @@
       "show_full_address": "顯示完整未壓縮的 {{label}}"
     },
     "bands": {
-      "title": "啟用中的蜂窩頻段",
-      "description_one": "{{count}} 個啟用中的載波。展開某個頻段可查看其訊號指標。",
-      "description_other": "{{count}} 個啟用中的載波。展開某個頻段可查看其訊號指標。",
+      "title": "使用中的頻譜",
+      "description_one": "{{count}} 個作用中載波，下方為其即時訊號指標。",
+      "description_other": "{{count}} 個作用中載波，均顯示各自的即時訊號指標。",
       "cadence": "每隔幾秒更新一次",
       "stale": "讀數已暫停",
       "role": {
@@ -857,7 +865,8 @@
         "scs": "子載波間隔",
         "unknown": "未知",
         "scs_derived": "推算值",
-        "scs_derived_hint": "數據機只對服務中的 NR 小區回報子載波間隔。此數值由該頻段的雙工模式推算得出，並非直接讀自射頻。"
+        "scs_derived_hint": "數據機只對服務中的 NR 小區回報子載波間隔。此數值由該頻段的雙工模式推算得出，並非直接讀自射頻。",
+        "duplex": "雙工模式"
       },
       "units": {
         "mhz": "{{value}} MHz",
@@ -871,6 +880,10 @@
       "scanner": {
         "body": "想找出數據機未使用的載波？小區掃描會遍歷射頻支援的每一個頻段。",
         "link": "開啟小區掃描"
+      },
+      "reference": {
+        "show": "顯示頻段參考",
+        "hide": "隱藏頻段參考"
       }
     }
   },

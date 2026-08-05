@@ -771,7 +771,7 @@
       }
     },
     "cellular_card": {
-      "title": "蜂窝信息",
+      "title": "连接详情",
       "description": "由网络在本次附着中上报。"
     },
     "groups": {
@@ -792,7 +792,10 @@
       "wan_ipv4": "WAN IPv4",
       "wan_ipv6": "WAN IPv6",
       "primary_dns": "主 DNS",
-      "secondary_dns": "备用 DNS"
+      "secondary_dns": "备用 DNS",
+      "link_uptime": "连接持续时间",
+      "traffic_family": "当前承载流量",
+      "distance": "到基站的距离"
     },
     "actions": {
       "edit_apn": "编辑"
@@ -808,7 +811,12 @@
     },
     "value": {
       "unknown": "未上报",
-      "not_assigned": "未分配"
+      "not_assigned": "未分配",
+      "family_ipv4": "IPv4",
+      "family_ipv6": "IPv6",
+      "family_none": "无响应",
+      "estimated": "估算",
+      "distance_hint": "根据网络的时间提前量（TA）推算，该值由射频以较粗的步长上报。请将其视为到服务小区的大致范围，而非实测距离。"
     },
     "copy": {
       "aria": "将{{label}}复制到剪贴板",
@@ -820,9 +828,9 @@
       "show_full_address": "显示完整未压缩的 {{label}}"
     },
     "bands": {
-      "title": "活动蜂窝频段",
-      "description_one": "{{count}} 个活动载波。展开某个频段可查看其信号指标。",
-      "description_other": "{{count}} 个活动载波。展开某个频段可查看其信号指标。",
+      "title": "使用中的频谱",
+      "description_one": "{{count}} 个活动载波，下方为其实时信号指标。",
+      "description_other": "{{count}} 个活动载波，均显示各自的实时信号指标。",
       "cadence": "每隔几秒更新一次",
       "stale": "读数已暂停",
       "role": {
@@ -857,7 +865,8 @@
         "scs": "子载波间隔",
         "unknown": "未知",
         "scs_derived": "推算值",
-        "scs_derived_hint": "调制解调器只对服务中的 NR 小区上报子载波间隔。此数值由该频段的双工模式推算得出，并非直接读自射频。"
+        "scs_derived_hint": "调制解调器只对服务中的 NR 小区上报子载波间隔。此数值由该频段的双工模式推算得出，并非直接读自射频。",
+        "duplex": "双工模式"
       },
       "units": {
         "mhz": "{{value}} MHz",
@@ -871,6 +880,10 @@
       "scanner": {
         "body": "想找出调制解调器未使用的载波？小区扫描会遍历射频支持的每一个频段。",
         "link": "打开小区扫描"
+      },
+      "reference": {
+        "show": "显示频段参考",
+        "hide": "隐藏频段参考"
       }
     }
   },

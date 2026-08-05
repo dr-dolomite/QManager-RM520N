@@ -771,7 +771,7 @@
       }
     },
     "cellular_card": {
-      "title": "Informasi seluler",
+      "title": "Detail koneksi",
       "description": "Dilaporkan oleh jaringan pada attach saat ini."
     },
     "groups": {
@@ -792,7 +792,10 @@
       "wan_ipv4": "WAN IPv4",
       "wan_ipv6": "WAN IPv6",
       "primary_dns": "DNS utama",
-      "secondary_dns": "DNS sekunder"
+      "secondary_dns": "DNS sekunder",
+      "link_uptime": "Durasi koneksi",
+      "traffic_family": "Lalu lintas melalui",
+      "distance": "Jarak ke menara"
     },
     "actions": {
       "edit_apn": "Edit"
@@ -808,7 +811,12 @@
     },
     "value": {
       "unknown": "Tidak dilaporkan",
-      "not_assigned": "Tidak ditetapkan"
+      "not_assigned": "Tidak ditetapkan",
+      "family_ipv4": "IPv4",
+      "family_ipv6": "IPv6",
+      "family_none": "Tidak ada yang merespons",
+      "estimated": "Perkiraan",
+      "distance_hint": "Dihitung dari nilai timing advance jaringan, yang dilaporkan radio dalam langkah kasar. Baca sebagai perkiraan rentang ke sel yang melayani, bukan jarak terukur."
     },
     "copy": {
       "aria": "Salin {{label}} ke papan klip",
@@ -820,9 +828,9 @@
       "show_full_address": "Tampilkan {{label}} lengkap tanpa pemampatan"
     },
     "bands": {
-      "title": "Band seluler aktif",
-      "description_one": "{{count}} carrier aktif. Buka sebuah band untuk melihat metrik sinyalnya.",
-      "description_other": "{{count}} carrier aktif. Buka sebuah band untuk melihat metrik sinyalnya.",
+      "title": "Spektrum yang digunakan",
+      "description_one": "{{count}} carrier aktif, dengan metrik sinyal langsungnya.",
+      "description_other": "{{count}} carrier aktif, masing-masing dengan metrik sinyal langsungnya.",
       "cadence": "Diperbarui setiap beberapa detik",
       "stale": "Pembacaan dijeda",
       "role": {
@@ -857,7 +865,8 @@
         "scs": "Jarak subcarrier",
         "unknown": "Tidak diketahui",
         "scs_derived": "Turunan",
-        "scs_derived_hint": "Modem melaporkan jarak subcarrier hanya untuk sel NR yang melayani. Nilai ini diturunkan dari mode duplex band tersebut, bukan dibaca dari radio."
+        "scs_derived_hint": "Modem melaporkan jarak subcarrier hanya untuk sel NR yang melayani. Nilai ini diturunkan dari mode duplex band tersebut, bukan dibaca dari radio.",
+        "duplex": "Dupleks"
       },
       "units": {
         "mhz": "{{value}} MHz",
@@ -871,6 +880,10 @@
       "scanner": {
         "body": "Mencari carrier yang tidak sedang dipakai modem? Pemindai sel menyapu setiap band yang didukung radio.",
         "link": "Buka pemindai sel"
+      },
+      "reference": {
+        "show": "Tampilkan referensi band",
+        "hide": "Sembunyikan referensi band"
       }
     }
   },

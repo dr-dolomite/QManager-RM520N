@@ -25,7 +25,7 @@ import { TICK_STAGGER_STEP } from "@/lib/motion";
  *
  * So rank is assigned over only the values that actually moved this commit. A
  * poll that moves four figures produces a four-step cascade with no gaps and a
- * 300ms tail, whichever four they were. The cost is that one row's absolute
+ * 600ms tail, whichever four they were. The cost is that one row's absolute
  * delay shifts between polls; what never shifts is its position relative to its
  * neighbours, which is the thing the eye is actually reading.
  *
@@ -47,7 +47,7 @@ import { TICK_STAGGER_STEP } from "@/lib/motion";
  * whole commit's layout effects regardless of which components rendered, so the
  * group sees the true set of values that moved together.
  *
- * The step is `TICK_STAGGER_STEP` (100ms, lib/motion.ts), which is neither of
+ * The step is `TICK_STAGGER_STEP` (200ms, lib/motion.ts), which is neither of
  * the two entrance steps. This shipped first at the 40ms row step, on the
  * reading that these are rows inside one card's border — true, but the entrance
  * steps are tuned against a different failure. An entrance cascade is racing the
@@ -55,7 +55,9 @@ import { TICK_STAGGER_STEP } from "@/lib/motion";
  * the card is already on screen. At 40ms four dips spanned 120ms against a dip
  * lasting several times that, so they overlapped almost entirely and the group
  * still read as one flash — the exact symptom the cascade was built to fix. See
- * `TICK_STAGGER_STEP` for why 100ms rather than the demo's 350ms.
+ * `TICK_STAGGER_STEP` for why 200ms rather than the demo's 350ms — and note
+ * that the step rode the 2x scale retune, so any figure quoted here in
+ * milliseconds is a derived number, never the source of truth.
  *
  * Rank is clamped at `MAX_RANK` so a group larger than the guide's ~8-item
  * cascade ceiling shares the tail slot instead of growing an ever-longer tail.

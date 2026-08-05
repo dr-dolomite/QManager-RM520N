@@ -4,6 +4,7 @@
     "account_circle",
     "add",
     "airplanemode_active",
+    "alt_route",
     "arrow_circle_down",
     "arrow_circle_up",
     "arrow_downward",
@@ -102,6 +103,6 @@
     "wifi_tethering_off",
     "work"
   ],
-  "bytes": 38588,
-  "sha256": "0071a8e7aeaf7abbacdebe8a968b19efe3271a4419b4dae78ad4fbdb079a470d"
+  "bytes": 38992,
+  "sha256": "825fb36dd30dcadf31b1b9cbf8bab292f232597acc766c65e3b19d4724a1223f"
 }

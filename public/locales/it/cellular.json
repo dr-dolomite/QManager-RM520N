@@ -771,7 +771,7 @@
       }
     },
     "cellular_card": {
-      "title": "Informazioni cellulari",
+      "title": "Dettagli della connessione",
       "description": "Riportate dalla rete sull'aggancio corrente."
     },
     "groups": {
@@ -792,7 +792,10 @@
       "wan_ipv4": "WAN IPv4",
       "wan_ipv6": "WAN IPv6",
       "primary_dns": "DNS primario",
-      "secondary_dns": "DNS secondario"
+      "secondary_dns": "DNS secondario",
+      "link_uptime": "Durata della connessione",
+      "traffic_family": "Traffico instradato su",
+      "distance": "Distanza dal sito"
     },
     "actions": {
       "edit_apn": "Modifica"
@@ -808,7 +811,12 @@
     },
     "value": {
       "unknown": "Non riportato",
-      "not_assigned": "Non assegnato"
+      "not_assigned": "Non assegnato",
+      "family_ipv4": "IPv4",
+      "family_ipv6": "IPv6",
+      "family_none": "Nessuna risposta",
+      "estimated": "Stimata",
+      "distance_hint": "Calcolata dal valore di timing advance della rete, che la radio riporta a passi grossolani. Consideralo un intervallo approssimativo dalla cella servente, non una distanza misurata."
     },
     "copy": {
       "aria": "Copia {{label}} negli appunti",
@@ -820,9 +828,9 @@
       "show_full_address": "Mostra il {{label}} completo, non compresso"
     },
     "bands": {
-      "title": "Bande cellulari attive",
-      "description_one": "{{count}} portante attiva. Apri una banda per vedere le sue metriche di segnale.",
-      "description_other": "{{count}} portanti attive. Apri una banda per vedere le sue metriche di segnale.",
+      "title": "Spettro in uso",
+      "description_one": "{{count}} portante attiva, con le sue metriche di segnale in tempo reale.",
+      "description_other": "{{count}} portanti attive, ciascuna con le sue metriche di segnale in tempo reale.",
       "cadence": "Si aggiorna ogni pochi secondi",
       "stale": "Letture in pausa",
       "role": {
@@ -857,7 +865,8 @@
         "scs": "Spaziatura delle sottoportanti",
         "unknown": "Sconosciuta",
         "scs_derived": "Derivata",
-        "scs_derived_hint": "Il modem riporta la spaziatura delle sottoportanti solo per la cella NR di servizio. Questo valore è derivato dalla modalità duplex della banda, non letto dalla radio."
+        "scs_derived_hint": "Il modem riporta la spaziatura delle sottoportanti solo per la cella NR di servizio. Questo valore è derivato dalla modalità duplex della banda, non letto dalla radio.",
+        "duplex": "Duplex"
       },
       "units": {
         "mhz": "{{value}} MHz",
@@ -871,6 +880,10 @@
       "scanner": {
         "body": "Cerchi portanti che il modem non sta usando? Lo scanner celle esamina tutte le bande supportate dalla radio.",
         "link": "Apri lo scanner celle"
+      },
+      "reference": {
+        "show": "Mostra dati di banda",
+        "hide": "Nascondi dati di banda"
       }
     }
   },

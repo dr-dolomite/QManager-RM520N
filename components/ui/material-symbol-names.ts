@@ -45,6 +45,11 @@ export const MATERIAL_SYMBOL_NAMES = [
   "account_circle",
   "add",
   "airplanemode_active",
+  // Active MIMO. `settings_input_antenna` drew a rabbit-ear aerial AND is
+  // already worn by both surfaces that tile links to (antenna-statistics,
+  // antenna-alignment), so the tile had no mark of its own. `alt_route` draws
+  // one path splitting into parallel legs, which is what MIMO physically is.
+  "alt_route",
   "arrow_circle_down",
   "arrow_circle_up",
   "arrow_downward",
