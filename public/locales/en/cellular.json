@@ -171,8 +171,84 @@
   },
   "band_locking": {
     "controls_label": "Band locking",
+    "page": {
+      "title": "Band Locking",
+      "description": "Restrict which LTE and 5G bands this modem is allowed to use."
+    },
+    "gate": {
+      "scenario_title": "Bands are managed by the {{scenario}} scenario.",
+      "scenario_note": "Switch to the Balanced scenario to take manual control.",
+      "profile_note": "The active scenario is scheduled to change at {{time}}."
+    },
+    "live": {
+      "title": "Live configuration",
+      "eyebrow": "Lock posture",
+      "posture_unrestricted": "All supported bands available",
+      "posture_locked": "Locked to {{count}} of {{total}} bands",
+      "posture_unknown": "Not reported yet",
+      "on_air": "On air now",
+      "on_air_empty": "No carriers reported",
+      "failover_label": "Band failover",
+      "failover_help_label": "About band failover",
+      "failover_help": "When enabled, the modem returns to its default bands automatically if the locked bands stay unavailable for about 30 seconds.",
+      "failover_state": {
+        "disabled": "Disabled",
+        "fallback": "Fallback active",
+        "monitoring": "Monitoring",
+        "ready": "Ready"
+      },
+      "failover_toast_enabled": "Band failover enabled",
+      "failover_toast_disabled": "Band failover disabled",
+      "failover_toast_error": "Couldn't update band failover"
+    },
+    "categories": {
+      "lte": {
+        "title": "LTE",
+        "description": "Bands the modem may use for its 4G connection."
+      },
+      "nsa_nr5g": {
+        "title": "5G NSA",
+        "description": "5G bands used alongside an LTE anchor."
+      },
+      "sa_nr5g": {
+        "title": "5G SA",
+        "description": "5G bands used standalone, without an LTE anchor."
+      }
+    },
+    "short": {
+      "lte": "LTE",
+      "nsa_nr5g": "5G NSA",
+      "sa_nr5g": "5G SA"
+    },
+    "card": {
+      "status_scenario": "Scenario controlled",
+      "status_unrestricted": "All bands",
+      "status_locked": "{{count}} of {{total}} locked",
+      "pending_one": "{{count}} pending change",
+      "pending_other": "{{count}} pending changes",
+      "legend_selected": "Selected",
+      "legend_live": "On the modem now",
+      "empty_title": "Nothing to lock here",
+      "empty_body": "The modem reports no supported bands in this category."
+    },
     "actions": {
-      "lock_selected": "Lock Selected Bands"
+      "lock_selected": "Lock Selected Bands",
+      "restore_all": "Restore all supported",
+      "select_all": "Select all",
+      "select_none": "Clear selection"
+    },
+    "toast": {
+      "locked": "{{category}} bands locked",
+      "unlocked": "{{category}} bands restored",
+      "lock_error": "Couldn't apply the {{category}} band lock",
+      "unlock_error": "Couldn't restore {{category}} bands",
+      "none_selected": "Select at least one band to lock"
+    },
+    "a11y": {
+      "applying": "Applying the {{category}} band lock…",
+      "band_selected": "{{band}}, selected",
+      "band_unselected": "{{band}}, not selected",
+      "band_live": "{{band}}, selected and active on the modem"
     }
   },
   "core_settings": {

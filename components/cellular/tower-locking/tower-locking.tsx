@@ -2,6 +2,7 @@
 
 import React from "react";
 import { toast } from "sonner";
+import { CellularPageHeader } from "@/components/cellular/page-header";
 import TowerLockingSettingsComponent from "@/components/cellular/tower-locking/tower-settings";
 import ScheduleTowerLockingComponent from "./schedule-locking";
 import LTELockingComponent from "./lte-locking";
@@ -14,13 +15,14 @@ const TowerLockingComponent = () => {
   const { data: modemData } = useModemStatus();
 
   return (
-    <div className="@container/main mx-auto p-2">
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold mb-2">Tower Locking</h1>
-        <p className="text-muted-foreground">
-          Lock onto specific cell towers by PCI and EARFCN.
-        </p>
-      </div>
+    <div className="@container/main mx-auto flex flex-col gap-5 p-2">
+      {/* Header-only migration — see the note in `frequency-locking.tsx`. The
+          three cell-locking routes share a header shape so the sub-tree does
+          not read as three different products. */}
+      <CellularPageHeader
+        title="Tower Locking"
+        description="Lock onto specific cell towers by PCI and EARFCN."
+      />
       <div className="grid grid-cols-1 gap-4">
         <div className="grid grid-cols-1 @3xl/main:grid-cols-2 grid-flow-row gap-4">
           <TowerLockingSettingsComponent

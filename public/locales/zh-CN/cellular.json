@@ -171,8 +171,84 @@
   },
   "band_locking": {
     "controls_label": "频段锁定",
+    "page": {
+      "title": "频段锁定",
+      "description": "限制此调制解调器可以使用的 LTE 和 5G 频段。"
+    },
+    "gate": {
+      "scenario_title": "频段由 {{scenario}} 场景管理。",
+      "scenario_note": "切换到均衡场景即可手动控制。",
+      "profile_note": "当前场景计划在 {{time}} 变更。"
+    },
+    "live": {
+      "title": "实时配置",
+      "eyebrow": "锁定状态",
+      "posture_unrestricted": "所有受支持的频段均可用",
+      "posture_locked": "已锁定 {{total}} 个频段中的 {{count}} 个",
+      "posture_unknown": "尚未上报",
+      "on_air": "当前在用",
+      "on_air_empty": "未上报载波",
+      "failover_label": "频段故障转移",
+      "failover_help_label": "关于频段故障转移",
+      "failover_help": "启用后，如果锁定的频段持续约 30 秒不可用，调制解调器会自动恢复到其默认频段。",
+      "failover_state": {
+        "disabled": "已禁用",
+        "fallback": "回退已生效",
+        "monitoring": "监测中",
+        "ready": "就绪"
+      },
+      "failover_toast_enabled": "已启用频段故障转移",
+      "failover_toast_disabled": "已禁用频段故障转移",
+      "failover_toast_error": "无法更新频段故障转移"
+    },
+    "categories": {
+      "lte": {
+        "title": "LTE",
+        "description": "调制解调器可用于 4G 连接的频段。"
+      },
+      "nsa_nr5g": {
+        "title": "5G NSA",
+        "description": "与 LTE 锚点配合使用的 5G 频段。"
+      },
+      "sa_nr5g": {
+        "title": "5G SA",
+        "description": "无需 LTE 锚点、独立使用的 5G 频段。"
+      }
+    },
+    "short": {
+      "lte": "LTE",
+      "nsa_nr5g": "5G NSA",
+      "sa_nr5g": "5G SA"
+    },
+    "card": {
+      "status_scenario": "由场景控制",
+      "status_unrestricted": "全部频段",
+      "status_locked": "{{total}} 个中已锁定 {{count}} 个",
+      "pending_one": "{{count}} 项待应用的更改",
+      "pending_other": "{{count}} 项待应用的更改",
+      "legend_selected": "已选择",
+      "legend_live": "当前在调制解调器上",
+      "empty_title": "此处没有可锁定的频段",
+      "empty_body": "调制解调器未上报此类别中受支持的频段。"
+    },
     "actions": {
-      "lock_selected": "锁定所选频段"
+      "lock_selected": "锁定所选频段",
+      "restore_all": "恢复所有受支持频段",
+      "select_all": "全选",
+      "select_none": "清除选择"
+    },
+    "toast": {
+      "locked": "{{category}} 频段已锁定",
+      "unlocked": "{{category}} 频段已恢复",
+      "lock_error": "无法应用 {{category}} 频段锁定",
+      "unlock_error": "无法恢复 {{category}} 频段",
+      "none_selected": "请至少选择一个要锁定的频段"
+    },
+    "a11y": {
+      "applying": "正在应用 {{category}} 频段锁定…",
+      "band_selected": "{{band}}，已选择",
+      "band_unselected": "{{band}}，未选择",
+      "band_live": "{{band}}，已选择并在调制解调器上生效"
     }
   },
   "core_settings": {

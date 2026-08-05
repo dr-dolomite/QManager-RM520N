@@ -171,8 +171,84 @@
   },
   "band_locking": {
     "controls_label": "Penguncian band",
+    "page": {
+      "title": "Penguncian Band",
+      "description": "Batasi band LTE dan 5G yang boleh digunakan modem ini."
+    },
+    "gate": {
+      "scenario_title": "Band dikelola oleh skenario {{scenario}}.",
+      "scenario_note": "Beralih ke skenario Seimbang untuk mengambil kendali manual.",
+      "profile_note": "Skenario aktif dijadwalkan berubah pada {{time}}."
+    },
+    "live": {
+      "title": "Konfigurasi langsung",
+      "eyebrow": "Status penguncian",
+      "posture_unrestricted": "Semua band yang didukung tersedia",
+      "posture_locked": "Terkunci ke {{count}} dari {{total}} band",
+      "posture_unknown": "Belum dilaporkan",
+      "on_air": "Sedang mengudara",
+      "on_air_empty": "Tidak ada carrier yang dilaporkan",
+      "failover_label": "Failover band",
+      "failover_help_label": "Tentang failover band",
+      "failover_help": "Jika diaktifkan, modem otomatis kembali ke band bawaannya bila band yang dikunci tetap tidak tersedia selama sekitar 30 detik.",
+      "failover_state": {
+        "disabled": "Nonaktif",
+        "fallback": "Fallback aktif",
+        "monitoring": "Memantau",
+        "ready": "Siap"
+      },
+      "failover_toast_enabled": "Failover band diaktifkan",
+      "failover_toast_disabled": "Failover band dinonaktifkan",
+      "failover_toast_error": "Tidak dapat memperbarui failover band"
+    },
+    "categories": {
+      "lte": {
+        "title": "LTE",
+        "description": "Band yang boleh dipakai modem untuk koneksi 4G-nya."
+      },
+      "nsa_nr5g": {
+        "title": "5G NSA",
+        "description": "Band 5G yang dipakai bersama anchor LTE."
+      },
+      "sa_nr5g": {
+        "title": "5G SA",
+        "description": "Band 5G yang dipakai standalone, tanpa anchor LTE."
+      }
+    },
+    "short": {
+      "lte": "LTE",
+      "nsa_nr5g": "5G NSA",
+      "sa_nr5g": "5G SA"
+    },
+    "card": {
+      "status_scenario": "Dikendalikan skenario",
+      "status_unrestricted": "Semua band",
+      "status_locked": "{{count}} dari {{total}} terkunci",
+      "pending_one": "{{count}} perubahan tertunda",
+      "pending_other": "{{count}} perubahan tertunda",
+      "legend_selected": "Dipilih",
+      "legend_live": "Aktif di modem sekarang",
+      "empty_title": "Tidak ada yang bisa dikunci di sini",
+      "empty_body": "Modem tidak melaporkan band yang didukung pada kategori ini."
+    },
     "actions": {
-      "lock_selected": "Kunci pita terpilih"
+      "lock_selected": "Kunci pita terpilih",
+      "restore_all": "Pulihkan semua yang didukung",
+      "select_all": "Pilih semua",
+      "select_none": "Bersihkan pilihan"
+    },
+    "toast": {
+      "locked": "Band {{category}} dikunci",
+      "unlocked": "Band {{category}} dipulihkan",
+      "lock_error": "Tidak dapat menerapkan penguncian band {{category}}",
+      "unlock_error": "Tidak dapat memulihkan band {{category}}",
+      "none_selected": "Pilih setidaknya satu band untuk dikunci"
+    },
+    "a11y": {
+      "applying": "Menerapkan penguncian band {{category}}…",
+      "band_selected": "{{band}}, dipilih",
+      "band_unselected": "{{band}}, tidak dipilih",
+      "band_live": "{{band}}, dipilih dan aktif di modem"
     }
   },
   "core_settings": {

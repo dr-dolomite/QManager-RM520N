@@ -171,8 +171,84 @@
   },
   "band_locking": {
     "controls_label": "Blocco delle bande",
+    "page": {
+      "title": "Blocco delle bande",
+      "description": "Limita le bande LTE e 5G che questo modem può utilizzare."
+    },
+    "gate": {
+      "scenario_title": "Le bande sono gestite dallo scenario {{scenario}}.",
+      "scenario_note": "Passa allo scenario Equilibrato per assumere il controllo manuale.",
+      "profile_note": "Lo scenario attivo cambierà alle {{time}}."
+    },
+    "live": {
+      "title": "Configurazione attiva",
+      "eyebrow": "Stato del blocco",
+      "posture_unrestricted": "Tutte le bande supportate sono disponibili",
+      "posture_locked": "Bloccato su {{count}} bande su {{total}}",
+      "posture_unknown": "Non ancora segnalato",
+      "on_air": "In onda adesso",
+      "on_air_empty": "Nessuna portante segnalata",
+      "failover_label": "Failover delle bande",
+      "failover_help_label": "Informazioni sul failover delle bande",
+      "failover_help": "Se attivo, il modem torna automaticamente alle bande predefinite quando le bande bloccate restano non disponibili per circa 30 secondi.",
+      "failover_state": {
+        "disabled": "Disattivato",
+        "fallback": "Fallback attivo",
+        "monitoring": "Monitoraggio",
+        "ready": "Pronto"
+      },
+      "failover_toast_enabled": "Failover delle bande attivato",
+      "failover_toast_disabled": "Failover delle bande disattivato",
+      "failover_toast_error": "Impossibile aggiornare il failover delle bande"
+    },
+    "categories": {
+      "lte": {
+        "title": "LTE",
+        "description": "Bande che il modem può usare per la connessione 4G."
+      },
+      "nsa_nr5g": {
+        "title": "5G NSA",
+        "description": "Bande 5G usate insieme a un ancoraggio LTE."
+      },
+      "sa_nr5g": {
+        "title": "5G SA",
+        "description": "Bande 5G usate in modalità standalone, senza ancoraggio LTE."
+      }
+    },
+    "short": {
+      "lte": "LTE",
+      "nsa_nr5g": "5G NSA",
+      "sa_nr5g": "5G SA"
+    },
+    "card": {
+      "status_scenario": "Gestito dallo scenario",
+      "status_unrestricted": "Tutte le bande",
+      "status_locked": "{{count}} di {{total}} bloccate",
+      "pending_one": "{{count}} modifica in sospeso",
+      "pending_other": "{{count}} modifiche in sospeso",
+      "legend_selected": "Selezionate",
+      "legend_live": "Attive sul modem",
+      "empty_title": "Nessuna banda da bloccare",
+      "empty_body": "Il modem non segnala bande supportate in questa categoria."
+    },
     "actions": {
-      "lock_selected": "Blocca le bande selezionate"
+      "lock_selected": "Blocca le bande selezionate",
+      "restore_all": "Ripristina tutte le supportate",
+      "select_all": "Seleziona tutto",
+      "select_none": "Cancella selezione"
+    },
+    "toast": {
+      "locked": "Bande {{category}} bloccate",
+      "unlocked": "Bande {{category}} ripristinate",
+      "lock_error": "Impossibile applicare il blocco delle bande {{category}}",
+      "unlock_error": "Impossibile ripristinare le bande {{category}}",
+      "none_selected": "Seleziona almeno una banda da bloccare"
+    },
+    "a11y": {
+      "applying": "Applicazione del blocco delle bande {{category}}…",
+      "band_selected": "{{band}}, selezionata",
+      "band_unselected": "{{band}}, non selezionata",
+      "band_live": "{{band}}, selezionata e attiva sul modem"
     }
   },
   "core_settings": {
