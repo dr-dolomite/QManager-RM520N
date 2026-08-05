@@ -57,6 +57,13 @@ interface ProfileFormDialogProps {
    * profile id on success, `null` on failure.
    */
   onSave: (data: ProfileFormData) => Promise<string | null>;
+  /**
+   * True when this save is about to trigger an auto-reapply (editing the
+   * currently active profile). Passed straight through so the wizard can
+   * withhold its own "Profile updated" toast and let the reapply's
+   * `ApplyProgressDialog` own the verdict instead of racing it.
+   */
+  willAutoReapply?: boolean;
 }
 
 export function ProfileFormDialog({
@@ -66,6 +73,7 @@ export function ProfileFormDialog({
   currentSettings = null,
   onLoadCurrentSettings,
   onSave,
+  willAutoReapply = false,
 }: ProfileFormDialogProps) {
   const { t } = useTranslation("cellular");
   const isEditing = Boolean(editingProfile);
@@ -128,6 +136,7 @@ export function ProfileFormDialog({
             onLoadCurrentSettings={onLoadCurrentSettings}
             onSave={handleSave}
             onCancel={handleCancel}
+            willAutoReapply={willAutoReapply}
           />
         </div>
       </DialogContent>

@@ -87,6 +87,13 @@ interface CustomProfileFormProps {
   currentSettings?: CurrentModemSettings | null;
   /** Callback to trigger loading current modem settings */
   onLoadCurrentSettings?: () => void;
+  /**
+   * True when this save is about to trigger an auto-reapply. Withholds the
+   * save toast below — the reapply's own `ApplyProgressDialog` reports the
+   * real outcome seconds later, and a toast claiming success first was
+   * exactly the "activated" toast landing before the dialog finished.
+   */
+  willAutoReapply?: boolean;
 }
 
 // Up to two daily schedule windows per profile — mirrors the device cron
@@ -195,6 +202,7 @@ const CustomProfileFormComponent = ({
   onCancel,
   currentSettings,
   onLoadCurrentSettings,
+  willAutoReapply = false,
 }: CustomProfileFormProps) => {
   const { t } = useTranslation("cellular");
   const {
@@ -540,11 +548,14 @@ const CustomProfileFormComponent = ({
 
     if (result) {
       markSaved();
-      toast.success(
-        isEditing
-          ? t("custom_profiles.form.toast.update_success")
-          : t("custom_profiles.form.toast.create_success"),
-      );
+      // Withheld when a reapply is about to run — see `willAutoReapply` above.
+      if (!willAutoReapply) {
+        toast.success(
+          isEditing
+            ? t("custom_profiles.form.toast.update_success")
+            : t("custom_profiles.form.toast.create_success"),
+        );
+      }
       if (!isEditing) {
         setForm(DEFAULT_FORM_STATE);
         setTab("identity");

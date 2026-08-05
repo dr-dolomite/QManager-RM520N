@@ -75,6 +75,7 @@ export function InboxToolbar({
               className={cn(
                 "rounded-pill h-9 gap-2 border-0 px-4 text-sm font-medium",
                 "text-on-surface-variant data-[state=active]:text-primary-foreground",
+                "dark:data-[state=active]:text-primary-foreground",
                 "data-[state=active]:bg-primary dark:data-[state=active]:bg-primary",
                 "data-[state=active]:shadow-none",
                 "pointer-coarse:h-11",

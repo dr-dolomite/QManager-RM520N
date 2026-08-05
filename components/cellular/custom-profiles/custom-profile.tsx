@@ -1025,6 +1025,13 @@ const CustomProfilePageBody = () => {
         currentSettings={currentSettings}
         onLoadCurrentSettings={handleLoadCurrentSettings}
         onSave={handleSave}
+        // Saving the ACTIVE profile queues an auto-reapply (see "Auto-reapply
+        // on save" above) that opens `ApplyProgressDialog` the instant this
+        // wizard closes. That dialog is the honest verdict for THIS save — a
+        // save toast firing first claimed success seconds before the modem
+        // was actually reconciled. Suppress it here; the reapply's own ledger
+        // reports the outcome once, same as the rest of this page's actions.
+        willAutoReapply={editingProfile?.id === activeProfileId}
       />
 
       <AlertDialog
