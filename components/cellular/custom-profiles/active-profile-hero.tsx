@@ -235,23 +235,26 @@ export function ActiveProfileHero({
               </Badge>
             ) : null}
           </span>
+          {/* The heading line above already carries the profile's own name —
+              rendering `profile.mno` here as well just repeats it back
+              whenever the two happen to match (a profile named after its
+              carrier, the common case). The ICCID is the one fact this line
+              can say that the heading can't, so it is the only thing shown
+              once it's known; `mno` is still the honest fallback for a
+              profile saved before ICCID capture, where there is nothing else
+              to report. */}
           <span className="text-on-surface-variant flex min-w-0 flex-wrap items-center gap-2.5 text-[0.8125rem]">
-            <span className="min-w-0 truncate">
-              {profile.mno || t("custom_profiles.hero.unknown_operator")}
-            </span>
             {profile.sim_iccid ? (
-              <>
-                <span
-                  aria-hidden="true"
-                  className="bg-outline size-[0.1875rem] flex-none rounded-pill"
-                />
-                <span className={cn(MACHINE_VALUE, "min-w-0 truncate text-xs")}>
-                  {t("custom_profiles.hero.iccid", {
-                    value: profile.sim_iccid,
-                  })}
-                </span>
-              </>
-            ) : null}
+              <span className={cn(MACHINE_VALUE, "min-w-0 truncate text-xs")}>
+                {t("custom_profiles.hero.iccid", {
+                  value: profile.sim_iccid,
+                })}
+              </span>
+            ) : (
+              <span className="min-w-0 truncate">
+                {profile.mno || t("custom_profiles.hero.unknown_operator")}
+              </span>
+            )}
           </span>
         </div>
 

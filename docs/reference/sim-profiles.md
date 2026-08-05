@@ -1074,10 +1074,26 @@ Two properties make this safe and cheap, both verified in the backend:
 **Ordering.** The wizard's `onSave` contract (`profile-form-dialog.tsx:59`,
 `(data) => Promise<string | null>`) is unchanged — a non-null id closes the
 wizard, `null` keeps it open so the user's typing survives. The apply is *not*
-awaited inside `onSave`; it is fired by `handleFormOpenChange` once the wizard
-has actually closed, so the two modals never overlap. `pendingReapplyId` is
+awaited inside `onSave`, so the two modals never overlap. `pendingReapplyId` is
 cleared before firing, so a cancelled-then-reopened wizard cannot replay someone
 else's apply.
+
+> ⚠️ WARNING: **The apply used to be fired inline from `handleFormOpenChange`,
+> reading `pendingReapplyId` off its own closure — and that closure was stale.**
+> `handleSave` calls `setPendingReapplyId(editedId)` and
+> `ProfileFormDialog.handleSave` calls `onOpenChange(false)` (i.e.
+> `handleFormOpenChange`) in the same synchronous continuation, before React
+> re-renders. `handleFormOpenChange`'s closure therefore still saw the
+> *previous* render's `pendingReapplyId` (`null`), its `if (!pendingReapplyId)
+> return;` guard exited, and `applyProfile` never fired on that call — the
+> dialog only appeared once something else happened to re-invoke the callback
+> later with a fresher closure, which read as a several-second, inconsistent
+> "nothing happens, then the Applying dialog finally shows up." Fixed by
+> splitting the two concerns: `handleFormOpenChange` now only writes `formOpen`,
+> and a `useEffect` keyed on `[formOpen, pendingReapplyId, applyProfile]` fires
+> the reapply once React has actually **committed** both facts — no closure to
+> go stale, no race, and the dialog now opens immediately once the wizard
+> closes.
 
 **No toast was added** to either save or apply. `custom-profile-form.tsx:541–559`
 already toasts the save, and `ApplyProgressDialog` is the apply path's feedback

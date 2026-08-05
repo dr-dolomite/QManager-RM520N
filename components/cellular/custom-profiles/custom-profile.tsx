@@ -710,28 +710,44 @@ const CustomProfilePageBody = () => {
   }, [applyState, applyProfile]);
 
   /**
-   * The wizard's open/close, and the launch point for auto-reapply.
+   * The wizard's open/close.
    *
-   * Declared here rather than up beside the other wizard handlers because it
-   * reads `applyProfile` and `setShowApplyProgress`, both of which belong to
-   * this section — a `useCallback` dep array is evaluated immediately, so
-   * naming a `const` declared further down the component would hit its TDZ.
+   * This used to also be the launch point for auto-reapply: it read
+   * `pendingReapplyId` directly and fired `applyProfile` inline. That read a
+   * STALE closure. `handleSave` calls `setPendingReapplyId(editedId)` and
+   * `ProfileFormDialog.handleSave` calls this handler (as `onOpenChange(false)`)
+   * in the very same synchronous continuation, before React has re-rendered —
+   * so `handleFormOpenChange`'s closure still had `pendingReapplyId` from the
+   * PREVIOUS render (null) and its `if (!pendingReapplyId) return;` guard
+   * exited without ever calling `applyProfile`. The apply only ever fired once
+   * something ELSE later happened to re-invoke this same stale-free callback
+   * (a second `onOpenChange` from Radix, a re-render racing the close
+   * animation) — which is exactly the several-second, inconsistent gap this
+   * page was showing instead of an instant dialog.
+   *
+   * The fix is to stop relying on a closure racing a state update at all:
+   * this handler only ever WRITES `formOpen`, and the effect below reads the
+   * COMMITTED value of both `formOpen` and `pendingReapplyId` once React has
+   * actually applied them — no ordering assumption, no race.
    */
-  const handleFormOpenChange = useCallback(
-    (open: boolean) => {
-      setFormOpen(open);
-      if (open) return;
-      setEditingProfile(null);
-      if (!pendingReapplyId) return;
-      // Cleared before firing so a cancelled-then-reopened wizard can never
-      // replay someone else's apply.
-      const id = pendingReapplyId;
-      setPendingReapplyId(null);
-      setShowApplyProgress(true);
-      void applyProfile(id);
-    },
-    [pendingReapplyId, applyProfile],
-  );
+  const handleFormOpenChange = useCallback((open: boolean) => {
+    setFormOpen(open);
+    if (!open) setEditingProfile(null);
+  }, []);
+
+  // Fires the moment BOTH the wizard has actually closed and a save latched a
+  // reapply — i.e. as soon as React commits those two facts, not on whatever
+  // stale snapshot `handleFormOpenChange` happened to close over. This is what
+  // makes the apply dialog appear instantly instead of several seconds late.
+  useEffect(() => {
+    if (formOpen || !pendingReapplyId) return;
+    // Cleared before firing so a cancelled-then-reopened wizard can never
+    // replay someone else's apply.
+    const id = pendingReapplyId;
+    setPendingReapplyId(null);
+    setShowApplyProgress(true);
+    void applyProfile(id);
+  }, [formOpen, pendingReapplyId, applyProfile]);
 
   const handleDeactivateRequest = useCallback(() => {
     setDeactivatePhase("confirm");
