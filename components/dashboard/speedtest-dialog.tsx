@@ -70,7 +70,7 @@ import {
 //     trapped the user for the ~40s a full run takes. `onOpenChange` now passes
 //     straight through.
 //
-//  2. THE NUMBER NEVER EASES. Live Mbps/ms are Geist Mono + `tabular-nums`,
+//  2. THE NUMBER NEVER EASES. Live Mbps/ms are JetBrains Mono + `tabular-nums`,
 //     repainted on the 500ms poll tick with no tween. A tweened figure is a lie
 //     about what the modem reported. This is also why `TickGroup`/`useValueTick`
 //     is deliberately absent: that primitive is a 700ms dip staggered at 100ms,

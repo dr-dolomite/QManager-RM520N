@@ -21,7 +21,7 @@ Do not re-document it here; point to it.
 | Topic | Authority |
 |-------|-----------|
 | OKLCH color tokens (light + dark), functional colors, chart ramp, signal-quality ramp | `DESIGN.md` §2 Colors |
-| Typography (Euclid Circular B, Geist Mono machine voice, weight discipline) | `DESIGN.md` §3 Typography |
+| Typography (Euclid Circular B, JetBrains Mono machine voice, weight discipline) | `DESIGN.md` §3 Typography |
 | Radius (`0.65rem` base) and spacing scale | `DESIGN.md` frontmatter (`rounded`, `spacing`) |
 | Elevation, shadows, tonal layering | `DESIGN.md` §4 Elevation |
 | Motion system (durations, springs, reduced-motion, presets) | `DESIGN.md` §4a Motion System |
@@ -34,7 +34,7 @@ Do not re-document it here; point to it.
 > `bg-{role}-container` + `text-on-{role}-container`, no border, pill radius, and an icon. Both the
 > old solid `variant="default"`/`variant="destructive"` fills and the outline-plus-tint pattern that
 > briefly replaced them are retired; see `DESIGN.md` > The Filled-Chip Rule. (2) The fonts are
-> **Euclid Circular B** (UI) and **Geist Mono** (machine voice, bound to `--font-geist-mono`);
+> **Euclid Circular B** (UI) and **JetBrains Mono** (machine voice, bound to `--font-jetbrains-mono`);
 > the previously-loaded-but-unbound Manrope has been removed. See `DESIGN.md` §3.
 
 ---

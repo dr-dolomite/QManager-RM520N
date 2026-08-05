@@ -2,16 +2,16 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 import Euclid from "next/font/local";
-import { Geist_Mono } from "next/font/google";
+import { JetBrains_Mono } from "next/font/google";
 import { ThemeProvider } from "@/components/theme-provider";
 import { MotionProvider } from "@/components/motion-provider";
 import { I18nProvider } from "@/components/i18n/i18n-provider";
 import { Toaster } from "@/components/ui/sonner";
 
-// Machine-voice mono font — bound to --font-geist-mono, which globals.css
+// Machine-voice mono font — bound to --font-jetbrains-mono, which globals.css
 // maps to --font-mono (font-mono utility). Self-hosted at build time.
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
+const jetbrainsMono = JetBrains_Mono({
+  variable: "--font-jetbrains-mono",
   subsets: ["latin"],
 });
 
@@ -90,7 +90,7 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body
-        className={`${euclid.variable} ${geistMono.variable} ${materialSymbols.variable} ${euclid.className} antialiased`}
+        className={`${euclid.variable} ${jetbrainsMono.variable} ${materialSymbols.variable} ${euclid.className} antialiased`}
       >
         <ThemeProvider
           attribute="class"

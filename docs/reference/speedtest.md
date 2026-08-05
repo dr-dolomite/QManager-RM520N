@@ -258,7 +258,7 @@ A download figure is never violet and an upload figure is never blue, **in any s
 
 > ℹ️ NOTE: This **changed shipped UI**. The dashboard tile's upload figure used to be drawn in `text-uplink`, which left the dialog's latency reading with no hue of its own. Uplink is now latency's, everywhere.
 
-These are **identity** fills under DESIGN.md's Identity-Chip Rule — they say *which* measurement, never *how good* it was — so each one also carries a direction glyph (`arrow_downward` / `arrow_upward` / `network_ping`) and the reading itself is machine voice (Geist Mono + `tabular-nums`).
+These are **identity** fills under DESIGN.md's Identity-Chip Rule — they say *which* measurement, never *how good* it was — so each one also carries a direction glyph (`arrow_downward` / `arrow_upward` / `network_ping`) and the reading itself is machine voice (JetBrains Mono + `tabular-nums`).
 
 ### Live figures deliberately do not tick
 

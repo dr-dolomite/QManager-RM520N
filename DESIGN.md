@@ -146,11 +146,11 @@ typography:
     fontWeight: 500
     lineHeight: "1.333"
   numeric:
-    fontFamily: "var(--font-geist-mono), ui-monospace, monospace"
+    fontFamily: "var(--font-jetbrains-mono), ui-monospace, monospace"
     fontWeight: 600
     fontFeature: "'tnum' 1"
   mono:
-    fontFamily: "var(--font-geist-mono), ui-monospace, monospace"
+    fontFamily: "var(--font-jetbrains-mono), ui-monospace, monospace"
     fontSize: "0.8125rem"
     fontWeight: 600
     fontFeature: "'tnum' 1"
@@ -291,7 +291,7 @@ because a surface looked empty.
 - The palette is **derived from the mark**, not chosen alongside it.
 - Three identity hues (blue, violet, cyan) plus the functional four. No hue is decorative and
   functional at the same time.
-- Euclid Circular B is the interface voice; Geist Mono is the machine voice. There is no third.
+- Euclid Circular B is the interface voice; JetBrains Mono is the machine voice. There is no third.
 - Depth is tonal. Shadows exist, are optional, and are never load-bearing.
 - Motion is expressive in duration and curve, capped at `emphasized`, and never overshoots.
 - Light and dark are first-class equals; dark mode is genuinely colored, not desaturated.
@@ -441,12 +441,12 @@ retuned; meanings never move.
 
 **Interface font:** Euclid Circular B (`--font-sans`, WOFF2 via `next/font/local`), with
 `system-ui, sans-serif` fallback.
-**Machine font:** Geist Mono (`--font-geist-mono` → `font-mono`), self-hosted at build time.
+**Machine font:** JetBrains Mono (`--font-jetbrains-mono` → `font-mono`), self-hosted at build time.
 **Icon typefaces:** Material Symbols Rounded on the shell and converted routes; lucide elsewhere. An
 icon font is not a voice and does not count against the Two-Voice Rule.
 
 **Character:** Euclid's geometric humanist forms read as engineered rather than corporate — circular
-bowls and a low-contrast stroke keep dense label stacks legible at 12px. Geist Mono is the machine's
+bowls and a low-contrast stroke keep dense label stacks legible at 12px. JetBrains Mono is the machine's
 voice: every measurement, identifier, and raw device string. The pairing is the product's thesis in
 two fonts — a human interface reporting machine truth, with the boundary visible.
 
@@ -508,7 +508,7 @@ agree:** when one of these steps changes, it changes on both in the same commit.
 
 ### Named Rules
 
-**The Two-Voice Rule.** Euclid is the interface, Geist Mono is the machine. There is no third
+**The Two-Voice Rule.** Euclid is the interface, JetBrains Mono is the machine. There is no third
 typeface. Pairing Euclid with another UI sans (Inter, Geist Sans, IBM Plex, Roboto) is forbidden.
 
 **The Machine-Voice Rule.** `font-mono` is scoped to machine truth: measurements with units (RSRP,
