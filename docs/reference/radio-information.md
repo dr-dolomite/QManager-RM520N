@@ -74,7 +74,7 @@ The page distinguishes three, and collapsing any two of them produces a confiden
 
 ### `bandwidth_mhz === 0` is an unrecognised enum, not zero width
 
-`enrichCarriers` maps it to `null`. `summariseRadio` then filters nulls out of `breakdownMhz` before summing, so a carrier the parser could not decode contributes neither a stray `+ 0` to the "15 + 20 + 60" caption nor a drag on the total. In the row's meta line the width is simply **omitted** when null, and anywhere a label is required it renders the localized "Unknown" rather than `0 MHz` — because "0 MHz" is a claim the modem never made.
+`enrichCarriers` maps it to `null`. `summariseRadio` then filters nulls out of `breakdownMhz` before summing, so a carrier the parser could not decode contributes neither a stray `+ 0` to the "15 + 20 + 60" caption nor a drag on the total. In the band-reference disclosure's Bandwidth field a `null` width renders the localized "Unknown" rather than `0 MHz` — because "0 MHz" is a claim the modem never made.
 
 ### `percent: null` is not `percent: 0`
 
@@ -188,16 +188,16 @@ The Active MIMO tile's glyph is **`alt_route`**, not `settings_input_antenna`. T
 
 `ActiveBandsCard` renders every carrier as an **always-expanded** row. Each row is two blocks side by side:
 
-- **Identity block** (`IDENTITY_BLOCK`) — a **fixed** `16.5rem` column from the `@3xl/bands` breakpoint up. It carries the role chip, the band identity `Badge` ("NR n78" / "LTE B3" — NR bands are lowercased for display because 3GPP writes them that way), the quality status chip, and a mono meta line reading `PCI 295 · EARFCN 1650 · 20 MHz`. Any part with no value drops out of the line rather than printing a placeholder.
+- **Identity block** (`IDENTITY_BLOCK`) — a **fixed** `16.5rem` column from the `@3xl/bands` breakpoint up. It carries the role chip, the band identity `Badge` ("NR n78" / "LTE B3" — NR bands are lowercased for display because 3GPP writes them that way), the quality status chip, and a mono meta line reading `PCI 295 · EARFCN 1650`. Any part with no value drops out of the line rather than printing a placeholder.
 - **Metric grid** (`METRIC_GRID`) — `grid-cols-2`, widening to a **fixed** `grid-cols-4` at `@4xl/bands`. Never `auto-fit`.
 
-**The fixed columns are the entire point.** RSRP sits at the same x-offset on every row, so a weak leg is visible without reading a number — and that alignment evaporates the moment either block is allowed to size to its content. Bandwidth moved out of the old per-carrier detail pills and into the meta line because it is an identity fact a technician reads alongside the ARFCN, not reference material.
+**The fixed columns are the entire point.** RSRP sits at the same x-offset on every row, so a weak leg is visible without reading a number — and that alignment evaporates the moment either block is allowed to size to its content. Bandwidth lives in the band-reference disclosure below, alongside band name and duplex — it never changes for a given band, so it reads as static spec rather than a per-handover reading. (A 2026-08 polish pass moved it back there from the meta line; the meta line now carries just PCI and EARFCN.)
 
 Two conditional notices can appear under a row: a `destructive` low-SNR notice (threshold-triggered, and it states the **reading only** — the comp went on to claim "the scheduler may drop it under load", which QManager cannot verify), and a neutral "released N seconds ago" note.
 
 ### The band-reference disclosure
 
-Band name, duplex mode, DL frequency, UL frequency and SCS are **reference material**: they never change for a given band. They used to be six per-carrier detail pills behind an accordion. They are now behind **one card-level button** in the header — `Show band reference` / `Hide band reference` — which opens the reference block on **every** row at once.
+Band name, duplex mode, bandwidth, DL frequency, UL frequency and SCS are **reference material**: they never change for a given band. They used to be six per-carrier detail pills behind an accordion. They are now behind **one card-level button** in the header — `Show band reference` / `Hide band reference` — which opens the reference block on **every** row at once.
 
 It is a **plain conditional render**, deliberately not a height animation. See the next section.
 
@@ -334,7 +334,6 @@ These are present in all five locales with **no call site**, left in place delib
 | Key | Why it is dead |
 | --- | -------------- |
 | `radio_info.rows.network_type`, `radio_info.rows.carrier_aggregation`, `radio_info.ca.*` | The two Connection-details rows that used them were deleted |
-| `radio_info.bands.detail.bandwidth` | Bandwidth moved from a labelled detail pill to the unlabelled meta line |
 | `radio_info.bands.cadence`, `radio_info.bands.stale` | The card-level cadence caption was cut; staleness is told once, in the header |
 | `radio_info.header.cadence`, `radio_info.header.refresh` | The cadence chip and the header Refresh pill were both cut |
 

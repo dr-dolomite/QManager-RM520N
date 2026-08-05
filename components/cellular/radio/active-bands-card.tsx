@@ -388,10 +388,11 @@ export function ActiveBandsCard({
 }: ActiveBandsCardProps) {
   const { t } = useTranslation("cellular");
 
-  // ONE card-level disclosure, not one per row. Band name, duplex, DL/UL
-  // frequency and SCS never change for a given band, so they are reference
-  // material rather than readings — the thing a technician wants once, for
-  // every carrier at the same time, not per row on the way to a metric.
+  // ONE card-level disclosure, not one per row. Band name, duplex, bandwidth,
+  // DL/UL frequency and SCS never change for a given band, so they are
+  // reference material rather than readings — the thing a technician wants
+  // once, for every carrier at the same time, not per row on the way to a
+  // metric.
   const [showReference, setShowReference] = React.useState(false);
 
   if (isLoading) return <BandsSkeleton />;
@@ -489,17 +490,18 @@ export function ActiveBandsCard({
                   ? t("radio_info.bands.released")
                   : t(`radio_info.bands.quality.${c.quality}`);
 
-                // The meta line carries the three facts that identify WHICH
-                // cell this is, on one mono line under the chips: PCI, the
-                // ARFCN under its correct label, and the width. Bandwidth moved
-                // here out of the old detail pills — it is an identity fact a
-                // technician reads alongside the ARFCN, not reference material.
+                // The meta line carries the two facts that identify WHICH cell
+                // this is, on one mono line under the chips: PCI and the ARFCN
+                // under its correct label. Bandwidth lives in the band
+                // reference disclosure below with the rest of the carrier's
+                // static spec — it never changes for a given band, so it reads
+                // as reference material alongside band name and duplex, not as
+                // an identity fact a technician reads per handover.
                 const metaLine = [
                   c.pci === null
                     ? null
                     : `${t("radio_info.bands.detail.pci")} ${c.pci}`,
                   c.earfcn === null ? null : `${c.arfcnLabel} ${c.earfcn}`,
-                  c.bandwidthMhz === null ? null : mhz(c.bandwidthMhz),
                 ]
                   .filter(Boolean)
                   .join(" · ");
@@ -639,6 +641,14 @@ export function ActiveBandsCard({
                           label={t("radio_info.bands.detail.duplex")}
                         >
                           {c.duplex ?? unknown}
+                        </ReferenceField>
+
+                        <ReferenceField
+                          label={t("radio_info.bands.detail.bandwidth")}
+                        >
+                          <span className="truncate font-mono tabular-nums">
+                            {mhz(c.bandwidthMhz)}
+                          </span>
                         </ReferenceField>
 
                         <ReferenceField

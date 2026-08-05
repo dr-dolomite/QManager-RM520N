@@ -86,9 +86,16 @@ import { useUnitPreferences } from "@/hooks/use-system-settings";
 export const ROW_SHAPE =
   "flex items-center justify-between gap-4 rounded-pill bg-surface-container px-4 py-[0.6875rem]";
 
-/** The half-width eNodeB / Sector pair sits one notch tighter, per the comp. */
+/**
+ * The half-width eNodeB / Sector pair. Same vertical padding and type size as
+ * `ROW_SHAPE` — the comp drew this pair a notch tighter with 12px text, but
+ * that reads as a demotion sitting inside a card where every other row is
+ * 13px, and nothing about eNodeB/Sector is less important than the rows
+ * around it. Only the horizontal gap and padding are tuned for the half
+ * width, so the pair matches its neighbors' height exactly.
+ */
 export const ROW_SHAPE_COMPACT =
-  "flex min-w-0 flex-1 items-center justify-between gap-2.5 rounded-pill bg-surface-container px-4 py-[0.5625rem]";
+  "flex min-w-0 flex-1 items-center justify-between gap-2.5 rounded-pill bg-surface-container px-4 py-[0.6875rem]";
 
 /** Vertical rhythm: 5px between rows, 9px between an eyebrow and its rows. */
 export const ROW_STACK = "flex flex-col gap-[0.3125rem]";
@@ -569,26 +576,16 @@ export function CellularInformationCard({
                 className="flex gap-[0.3125rem]"
               >
                 <div className={ROW_SHAPE_COMPACT}>
-                  <span className={cn(ROW_LABEL, "shrink-0 text-xs")}>
+                  <span className={cn(ROW_LABEL, "shrink-0")}>
                     {nodeLabel}
                   </span>
-                  <Value
-                    value={enodebId}
-                    fallback={unknown}
-                    mono
-                    className="text-xs"
-                  />
+                  <Value value={enodebId} fallback={unknown} mono />
                 </div>
                 <div className={ROW_SHAPE_COMPACT}>
-                  <span className={cn(ROW_LABEL, "shrink-0 text-xs")}>
+                  <span className={cn(ROW_LABEL, "shrink-0")}>
                     {t("radio_info.rows.sector")}
                   </span>
-                  <Value
-                    value={sectorId}
-                    fallback={unknown}
-                    mono
-                    className="text-xs"
-                  />
+                  <Value value={sectorId} fallback={unknown} mono />
                 </div>
               </motion.div>
 
