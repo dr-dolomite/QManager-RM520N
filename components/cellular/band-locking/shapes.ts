@@ -203,22 +203,69 @@ export const HERO_ROW =
 // -----------------------------------------------------------------------------
 
 /**
- * The wrapping tile grid. `minmax(160px,1fr)` is copied verbatim from the
- * design exploration's own reasoning: 4x LTE-CA plus an NR leg (5 carriers) is
- * this modem's realistic ceiling, and a fixed 2/3-column layout either combs
- * at 5 or wastes width at 1. Auto-fit wraps whatever count the radio reports
- * without a second layout to maintain.
+ * The wrapping tile grid: a fixed 3-column ceiling rather than `auto-fit`.
+ * The tile grew a full metric anatomy (EARFCN/PCI/Cell, RSRP+RSRQ+SINR) in
+ * the "full detail" pass, so `minmax(160px,1fr)` no longer fits its content —
+ * `auto-fit` was combing five *thin* tiles across the panel where three
+ * *legible* ones read better. A carrier count under 3 leaves empty cells
+ * rather than stretching, which is the deliberate trade: whitespace below a
+ * mostly-empty grid reads as "nothing more to report", where a stretched
+ * tile reads as a layout bug.
+ *
+ * Columns step in with the on-air panel's OWN container width
+ * (`@container/onair`, declared on `HERO_ONAIR_PANEL`), not the viewport —
+ * the panel narrows independently of the page whenever the hero drops to one
+ * column below `@2xl/hero`.
  */
 export const HERO_ONAIR_GRID =
-  "grid gap-2.5 [grid-template-columns:repeat(auto-fit,minmax(160px,1fr))]";
+  "grid grid-cols-1 gap-3 @sm/onair:grid-cols-2 @lg/onair:grid-cols-3";
 
-/** One tile. Single metric line (band, RSRP + PCI, a quality bar) — the
- *  design exploration's deliberate cut from the dashboard CA card's fuller
- *  per-carrier grid, which is the right amount of detail for ITS OWN card but
- *  would crowd a panel that is half of a hero, not the whole page. */
+/**
+ * The absent-leg cell that fills the solo layout's remaining third. Names the
+ * radio that is NOT on air and offers the one action that would find it.
+ *
+ * `rounded-tile` and `bg-surface` match the empty state directly above it in
+ * this file's consumer: both are "the thing that is not a carrier", and they
+ * sit one step recessed from the panel's `surface-container` so a reader can
+ * see at a glance which cells are live radios and which are not.
+ */
+export const HERO_ONAIR_ABSENT = {
+  ROOT: "flex flex-col gap-2 rounded-tile bg-surface px-4 py-3.5",
+  DISC: "grid size-9 flex-none place-items-center rounded-pill bg-surface-container-high text-on-surface-variant",
+  TITLE: "text-sm font-semibold",
+  BODY: "text-on-surface-variant text-xs leading-relaxed text-pretty",
+  LINK: "mt-auto inline-flex items-center gap-1.5 text-xs font-semibold text-primary transition-colors duration-[var(--duration-quick)] ease-out hover:text-primary/80 focus-visible:ring-ring/50 focus-visible:ring-[3px] focus-visible:outline-none rounded-pill",
+} as const;
+
+/**
+ * One tile's full anatomy: identity + aggregation pills with bandwidth,
+ * band + centre frequency, an EARFCN/PCI/Cell detail line, RSRP paired with
+ * RSRQ/SINR, then the quality bar. This replaced the single-metric-line cut
+ * (band, RSRP + PCI, a bar) once the hero moved to a fixed 3-column grid —
+ * three columns of the old thin tile under-used the width the grid now
+ * grants each carrier, so the tile grew to use it rather than sit padded
+ * and empty.
+ *
+ * METER_TRACK carries NO fill of its own — see `carrierMeterTone`. PILL
+ * carries NO tone of its own — see `carrierPillTone`, which resolves it
+ * against the tile's own ink for the same reason the meter does.
+ */
 export const HERO_ONAIR_TILE = {
-  ROOT: "flex flex-col gap-2 rounded-tile px-3.5 py-3",
-  METER_TRACK: "h-[5px] overflow-hidden rounded-pill bg-surface",
+  ROOT: "flex flex-col gap-2.5 rounded-tile px-5 py-4",
+  /** The identity + aggregation pill(s) atop each tile. Sized to the Label
+   *  typographic step (12px/500) — the same weight and size `chip-identity`
+   *  ships, restated rather than imported because these pills carry no
+   *  status/identity ROLE of their own, only the tile's own ink. */
+  PILL: "inline-flex items-center rounded-pill px-3 py-1 text-xs font-medium",
+  /**
+   * `mt-auto` pins the meter to the tile's floor. Grid items stretch to the
+   * tallest cell in their row, and content length varies per carrier — a
+   * carrier missing PCI, EARFCN or a cell ID has fewer detail-row segments,
+   * and one missing RSRQ/SINR reading shortens the metric row. Without this
+   * the meter floats wherever the text stops and a row of tiles combs.
+   * Bottom-aligned, the meters read as one comparable scale across the row.
+   */
+  METER_TRACK: "mt-auto h-[5px] overflow-hidden rounded-pill",
   METER_FILL: "h-full origin-left rounded-pill",
 } as const;
 
@@ -247,11 +294,79 @@ export function carrierTileTone(
     : "bg-lte-container text-on-lte-container";
 }
 
-/** The meter fill matches the tile's identity hue at full strength — same
- *  simplification `carrier-aggregation.tsx`'s `meterFillTone()` already made:
- *  the bar reports which radio, the label already reports how weak. */
-export function carrierMeterTone(technology: "LTE" | "NR"): string {
-  return technology === "NR" ? "bg-primary" : "bg-lte";
+/**
+ * The identity/aggregation pill's tone, resolved against the tile's own ink —
+ * the SAME construction as `carrierMeterTone`'s track, and for the same
+ * reason: a pill sitting inside a saturated identity fill needs a background
+ * distinguishable from that fill without introducing a second colour. An
+ * alpha over the tile's own ink reads as "the tile's fill, one step up" in
+ * both themes, where a literal `surface`/`surface-container` chip would fight
+ * the identity fill it sits on.
+ *
+ * This is not a Solid-Container Rule violation for the reason `carrierMeterTone`
+ * already states: the alpha resolves over a KNOWN opaque fill (the tile), not
+ * an unknown page background.
+ */
+export function carrierPillTone(
+  technology: "LTE" | "NR",
+  isLead: boolean,
+): string {
+  if (isLead) {
+    return technology === "NR"
+      ? "bg-primary-foreground/15 text-primary-foreground"
+      : "bg-lte-foreground/15 text-lte-foreground";
+  }
+  return technology === "NR"
+    ? "bg-on-primary-container/12 text-on-primary-container"
+    : "bg-on-lte-container/12 text-on-lte-container";
+}
+
+/**
+ * The meter's track AND fill, resolved RELATIVE TO THE TILE THEY SIT IN.
+ *
+ * THIS TAKES `isLead` FOR A REASON — the previous signature took only the
+ * technology, and that missing parameter WAS the bug. A lead tile paints
+ * `bg-lte` (or `bg-primary`); the meter fill also painted `bg-lte`. Same colour
+ * on same colour, so on every PCC tile — the one carrier that is always
+ * present — the fill was invisible and all a reader saw was the bare track.
+ * The track made it worse by being a fixed `bg-surface`: correct against the
+ * hero card, but inside a saturated identity fill it is not "recessed", it is
+ * a hole punched through the tile.
+ *
+ * The rule the design exploration uses, and the only one that composes: a meter
+ * nested in a tonal container draws itself in that container's OWN INK — the
+ * `on-` token, which is the single colour guaranteed to contrast with the fill
+ * in both themes. Track is the same ink at low alpha, fill is the ink at full
+ * strength.
+ *
+ *   lead (strong fill)      track `*-foreground/25`     fill `*-foreground`
+ *   secondary (container)   track `on-*-container/15`   fill `*` (strong)
+ *
+ * Tone stays IDENTITY, never quality — the same rule `carrierTileTone` and
+ * `components/dashboard/carrier-aggregation.tsx`'s `meterFillTone()` enforce.
+ * The design mock tints its weak carrier's bar with `--wa`; that is a mock
+ * inconsistency, not a spec. The bar reports WHICH RADIO and the dBm label
+ * directly above it already reports HOW WEAK, and a quality-toned bar sitting
+ * on an identity-toned fill is the "two container fills stacked" collision
+ * `active-bands-card.tsx` already ruled out.
+ *
+ * The alphas are the one sanctioned use of opacity here, and they are not the
+ * wash the Solid-Container Rule bans: a track is a groove, not a surface
+ * carrying content, and both alphas resolve over a KNOWN opaque fill (the tile)
+ * rather than over an unknown page background.
+ */
+export function carrierMeterTone(
+  technology: "LTE" | "NR",
+  isLead: boolean,
+): { track: string; fill: string } {
+  if (isLead) {
+    return technology === "NR"
+      ? { track: "bg-primary-foreground/25", fill: "bg-primary-foreground" }
+      : { track: "bg-lte-foreground/25", fill: "bg-lte-foreground" };
+  }
+  return technology === "NR"
+    ? { track: "bg-on-primary-container/15", fill: "bg-primary" }
+    : { track: "bg-on-lte-container/15", fill: "bg-lte" };
 }
 
 // -----------------------------------------------------------------------------

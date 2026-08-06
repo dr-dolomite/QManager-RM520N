@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-07-30T04:45:14.296Z",
+  "generatedAt": "2026-08-05T13:47:02.402Z",
   "title": "Design System: QManager (RM520N-GL)",
   "extensions": {
     "colorMeta": {
@@ -308,7 +308,7 @@
       },
       "mono": {
         "displayName": "Machine Voice",
-        "purpose": "Measurements with units, identifiers (band, EARFCN, PCI, ICCID, IMEI), raw AT responses, log lines, copyable commands. Never a human-authored label."
+        "purpose": "JetBrains Mono, self-hosted at build time. Measurements with units, identifiers (band, EARFCN, PCI, ICCID, IMEI), raw AT responses, log lines, copyable commands. Never a human-authored label."
       }
     },
     "shadows": [
@@ -410,13 +410,13 @@
     "iconLibraries": [
       {
         "name": "Material Symbols Rounded",
-        "scope": "The sidebar, /dashboard, the two pre-auth routes (/ and /login/), and the /cellular/ index.",
+        "scope": "The sidebar, /dashboard, the two pre-auth routes (/ and /login/), and the entire /cellular/ family — index plus all 17 sub-routes.",
         "note": "Ligature-driven and self-hosted, subset at build time from a shared glyph list. Sets fontSize as an inline style, so a parent's [&>svg]:size-3 cannot reach it — pass size explicitly at every call site. Always aria-hidden beside a real text label."
       },
       {
         "name": "lucide-react",
-        "scope": "Every other route, plus the page-level Banner (which mounts everywhere).",
-        "note": "A lucide glyph on an unconverted route is correct code, not a defect. The boundary is per ROUTE, never per directory."
+        "scope": "Every other route — /local-network/, /monitoring/, /system-settings/, /about-device, /support, onboarding — plus every route-agnostic primitive (the page-level Banner, the apply-progress dialog) wherever it mounts.",
+        "note": "A lucide glyph on an unconverted route is correct code, not a defect, and a route-agnostic component stays on lucide even when it mounts inside a Material route, because it cannot know where it will appear. The boundary is per ROUTE, never per directory. Convert a whole route or none of it."
       },
       {
         "name": "react-icons/md",
@@ -514,9 +514,9 @@
       "OKLCH only. `#000` and `#fff` never appear as literals; every neutral is tinted toward hue 258.",
       "The palette is derived from the mark, not chosen alongside it.",
       "Three identity hues (blue, violet, cyan) plus the functional four. No hue is decorative and functional at the same time.",
-      "Euclid Circular B is the interface voice; Geist Mono is the machine voice. There is no third.",
+      "Euclid Circular B is the interface voice; JetBrains Mono is the machine voice. There is no third.",
       "Depth is tonal. Shadows exist, are optional, and are never load-bearing.",
-      "Motion is expressive in duration and curve, capped at 400ms, and never overshoots.",
+      "Motion is expressive in duration and curve, capped at `emphasized`, and never overshoots.",
       "Light and dark are first-class equals; dark mode is genuinely colored, not desaturated.",
       "Responsive behavior is driven by container queries, not viewport breakpoints.",
       "No runtime asset fetches. Fonts and the icon font are self-hosted and subset at build time — the modem may have no internet.",
@@ -559,8 +559,13 @@
         "section": "colors"
       },
       {
+        "name": "The Functional-Color Promise",
+        "section": "colors",
+        "body": "A user who learns green means healthy on the dashboard finds the same green meaning the same thing in Watchdog, in Profile Apply, and in the alert logs. Hues get retuned; meanings never move."
+      },
+      {
         "name": "The Two-Voice Rule",
-        "body": "Euclid is the interface, Geist Mono is the machine. There is no third typeface. Pairing Euclid with another UI sans (Inter, Geist Sans, IBM Plex, Roboto) is forbidden.",
+        "body": "Euclid is the interface, JetBrains Mono is the machine. There is no third typeface. Pairing Euclid with another UI sans (Inter, Geist Sans, IBM Plex, Roboto) is forbidden.",
         "section": "typography"
       },
       {
@@ -630,8 +635,13 @@
       },
       {
         "name": "The Motion-Ceiling Rule",
-        "body": "Nothing exceeds 400ms. `emphasized` is the ceiling, not a starting point.",
+        "body": "Nothing exceeds `emphasized` (800ms), and `emphasized` is the ceiling, not a starting point. State the rule as *the token*, never as the number — the number moved once already and every place it had been written out longhand had to be hunted down.",
         "section": "motion"
+      },
+      {
+        "name": "The One-Scale Rule",
+        "section": "motion",
+        "body": "A duration in a component is a bug. Every transition reads `duration-[var(--duration-standard)]` (or `-quick` / `-emphasized`) in a className, or `DUR.standard` (etc.) in a `motion/react` transition; a bare `duration-200`, an inline `{ duration: 0.25 }`, or a `transition-all` with no duration at all (which silently inherits Tailwind's 150ms) is off the scale and will not retune with it. The exceptions are narrow and each carries a comment: continuous loops with their own tempo (spinners, the OTP caret) and linear data-driven progress bars. `{ duration: 0 }` as a reduced-motion escape is always fine."
       },
       {
         "name": "The Non-Load-Bearing Rule",
@@ -650,13 +660,18 @@
       },
       {
         "name": "The No-Overshoot Rule",
-        "body": "Never springy, never elastic, never rubber-banding. The one sanctioned overshoot in the entire product is the save-confirmation check at 1.03 scale.",
+        "body": "Never springy, never elastic, never rubber-banding. The one sanctioned overshoot in the entire product is the save-confirmation check at 1.03 scale — and it is a **number**, not a sentence: `SAVE_CHECK_OVERSHOOT` / `SAVE_CHECK_KEYFRAMES` / `transitionSaveCheck` in `lib/motion.ts`. Anything that wants the pop imports the constant; a second overshoot has to be written out in the open to exist. This rule and that file both cited the save check as the sanctioned exception while the button underneath was running an underdamped spring (`stiffness: 400, damping: 22`) whose peak is a function of its two dials and is bounded by nothing — a ceiling enforced only by prose is not a ceiling.",
         "section": "motion"
       },
       {
         "name": "The Enter-Only Rule",
         "body": "Conditions and navigation have no exit animation. A banner leaving means the condition cleared and that should feel immediate; an outgoing route is already gone, and animating it out only delays the incoming one.",
         "section": "motion"
+      },
+      {
+        "name": "The Modal-Exit Rule",
+        "section": "motion",
+        "body": "A modal's exit duration is an **input-latency budget**, not a taste call, and every modal surface therefore writes its two directions separately: `data-[state=open]:` on `emphasized`, `data-[state=closed]:` on `quick`. Never one unqualified `duration-*` for both. The reason is mechanical rather than aesthetic: Radix sets `pointer-events: none` on `<body>` for as long as a modal layer is mounted and releases it in an unmount cleanup, and `<Presence>` holds that layer mounted until `animationend` fires on the content node — so the entire page is click-dead for exactly the length of the exit animation. Two consequences, each violated on its own: the scrim shares the content's clock in **both** directions (an overlay with no duration is a One-Scale violation and the thing that turns a slow exit into an apparently broken one), and `quick` is the ceiling for a modal exit, not a suggestion (distance does not buy budget — a sheet travels a full viewport edge and still exits on `quick`)."
       },
       {
         "name": "The Filled-Chip Rule",
@@ -731,9 +746,11 @@
       "Don't use the numbered `--chart-1..6`; they do not theme.",
       "Don't stack alpha to build concentric shapes — use the explicit `--tone-{role}-{1,2,3}` steps.",
       "Don't put a border on a tonal container, or use `--outline` as a card edge.",
-      "Don't animate `width` (the aggregation segment is the sole exception) or exceed 400ms.",
+      "Don't animate `width` (the aggregation segment is the sole exception) or exceed `emphasized`.",
+      "Don't write a raw duration (`duration-200`, `{ duration: 0.25 }`) or a `transition-all` with no duration — see The One-Scale Rule.",
       "Don't add a third stagger step, a fifth duration, or a spring.",
       "Don't add an exit animation to a banner or a route transition.",
+      "Don't give a modal one unqualified `duration-*` for both directions, or leave its scrim without one — the exit clock is how long the page stays click-dead. See The Modal-Exit Rule.",
       "Don't loop an animation where nothing is genuinely live.",
       "Don't put an icon in a `CardHeader`.",
       "Don't invent a bespoke hero-driven layout for one screen.",

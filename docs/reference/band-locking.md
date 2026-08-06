@@ -2,7 +2,9 @@
 
 **Band Locking is the page where a user narrows what their radio is allowed to use — and it is one of the few surfaces in QManager where a wrong click can take the connection away while you are standing on it.** Locking a band writes `AT+QNWPREFCFG="lte_band",…` (or the NSA / SA equivalent) to the modem; if the bands you picked are not actually serving your location, the modem has nowhere to camp and the link drops. That single risk shapes everything below: the two-axis band chip that shows you a pending change *before* you write it, the deliberately un-gated "Restore all supported" recovery action, and the failover watcher that reverts your lock automatically when no carrier appears.
 
-The 2026-08 redesign is **frontend-only**. `hooks/use-band-locking.ts`, `types/band-locking.ts` and all four CGI scripts under `scripts/www/cgi-bin/quecmanager/bands/` are untouched. What changed is the shape of the page (a read-only hero over three peer control cards, replacing a four-way grid that treated a status panel and three control surfaces as peers), the control itself (a two-axis chip replacing a checkbox), and the copy (2 i18n keys → 54, in all five locales).
+The 2026-08 redesign is **frontend-only**. `hooks/use-band-locking.ts`, `types/band-locking.ts` and all four CGI scripts under `scripts/www/cgi-bin/quecmanager/bands/` are untouched. What changed is the shape of the page (a read-only hero over three peer control cards, replacing a four-way grid that treated a status panel and three control surfaces as peers), the control itself (a two-axis chip replacing a checkbox), and the copy (2 i18n keys → 67, in all five locales).
+
+The hero itself was then rebuilt a second time, onto shape **"2a" ("Compact tile grid")** of the *Band Locking Hero Options* design exploration (`claude.ai/design/p/681e72a4-f061-4bb2-857a-408c64670b36`). It is now **two side-by-side panels inside one hero section** — a wrapping grid of on-air carrier tiles on the left, a clickable "Lock posture" rail on the right — replacing the single-column stack of eyebrow + posture badges + failover strip + on-air text. See [The hero: two panels, one section](#the-hero-two-panels-one-section).
 
 This doc records the invariants that a future contributor will otherwise "clean up": why the live ring is a shadow and not a border, why `unlockAll` is a write, why one render-phase state sync must never become an effect, why the busy flag blocks all three categories, and why a string-surgery toast was a translation bug waiting to fire.
 
@@ -23,9 +25,10 @@ This doc records the invariants that a future contributor will otherwise "clean 
 | Failover toggle / poll | `POST …/failover_toggle.sh`, `GET …/failover_status.sh` |
 | Failover watcher | `scripts/usr/bin/qmanager_band_failover` |
 | Supported bands + on-air bands | `hooks/use-modem-status.ts` (`device.supported_*_bands`, `network.carrier_components`) |
-| i18n | `band_locking.*` in `public/locales/{en,zh-CN,zh-TW,it,id}/cellular.json` (**54 keys per locale**, key paths verified identical across all five) |
+| i18n | `band_locking.*` in `public/locales/{en,zh-CN,zh-TW,it,id}/cellular.json` (**71 keys per locale**, key paths verified identical across all five) |
+| Scroll anchors the hero rail targets | `id="band-locking-card-{category}"` on each card wrapper in `band-locking.tsx` |
 
-> ℹ️ NOTE: `band-settings.tsx` and `band-cards.tsx` are **deleted**, not renamed. `live-band-hero.tsx` and `band-grid-card.tsx` are their replacements, and neither is a port — the hero dropped two of its four rows and the card replaced its control.
+> ℹ️ NOTE: `band-settings.tsx` and `band-cards.tsx` are **deleted**, not renamed. `live-band-hero.tsx` and `band-grid-card.tsx` are their replacements, and neither is a port — the card replaced its control, and the hero has since been rebuilt a second time into the two-panel split described below.
 
 ## Component tree
 
@@ -34,12 +37,14 @@ BandLockingComponent                      ← owns every hook; no child talks to
 ├── CellularPageHeader                     (shared, components/cellular/page-header.tsx)
 ├── ProfileOverrideAlert | Banner          (the two gates, one primitive)
 └── motion cascade
-    ├── LiveBandHero                       ← read-only: posture, failover, on-air bands
+    ├── LiveBandHero                       ← read-only: on-air tile grid | lock-posture rail + failover
     └── grid (1 col → 2 at @3xl/main)
-        ├── BandGridCard  category="lte"
-        ├── BandGridCard  category="nsa_nr5g"
-        └── BandGridCard  category="sa_nr5g"
+        ├── BandGridCard  category="lte"        id="band-locking-card-lte"
+        ├── BandGridCard  category="nsa_nr5g"   id="band-locking-card-nsa_nr5g"
+        └── BandGridCard  category="sa_nr5g"    id="band-locking-card-sa_nr5g"
 ```
+
+The three `id`s are not decoration: each category-card wrapper `motion.div` in `band-locking.tsx` carries `id={`band-locking-card-${category}`}` plus `scroll-mt-20`, because the hero's rail rows scroll to them (see [The lock-posture rail](#the-lock-posture-rail)). The `scroll-mt-20` is what keeps a smooth-scroll landing *below* the sticky shell header instead of underneath it.
 
 The coordinator is the only component that calls a hook. It reads `useModemStatus`, `useBandLocking`, `useConnectionScenarios` and `useSimProfiles`, and hands everything down as props. There are three band categories because there are three AT parameters — `lte_band`, `nsa_nr5g_band`, `nr5g_band` — and `lock.sh` maps `BandCategory` onto them one-to-one.
 
@@ -229,52 +234,156 @@ categoryShortKey("nsa_nr5g")  // "band_locking.short.nsa_nr5g"             → "
 
 `band-grid-card.tsx` reads `shortName` once and interpolates it into all five toast keys and the `sr-only` applying announcement. The title and the short name are now derived from the same enum in every locale, so they cannot drift.
 
-## The hero: what was cut, and why the rest stayed
+## The hero: two panels, one section
 
-`LiveBandHero` replaces `band-settings.tsx`, which was six label/value rows held apart by seven `<Separator>` elements (one of them trailing, with nothing after it) sitting in the same grid as the three interactive cards — as though a read-only status panel and a control surface were the same kind of object.
+`LiveBandHero` replaced `band-settings.tsx` — six label/value rows held apart by seven `<Separator>` elements (one of them trailing, with nothing after it) sitting in the same grid as the three interactive cards, as though a read-only status panel and a control surface were the same kind of object.
 
-The incumbent rendered four rows from `carrier_components`: Active LTE Bands, **Active LTE Channels**, Active 5G Bands, **Active 5G Channels**.
+Its current shape is **"2a" ("Compact tile grid")** from the *Band Locking Hero Options* design exploration. The single-column hero it replaced stacked three unrelated full-width strips inside one card, so the tallest element on the page was also the emptiest, the most valuable live fact (what the radio is actually camped on) sat last and smallest, and a posture summary restated what each category card's own corner badge already said.
 
-**The two ARFCN / channel rows are gone.** `components/cellular/radio/active-bands-card.tsx` already renders every ARFCN per carrier, with the correct RAT-specific label, a per-carrier quality chip and released-carrier handling (see [radio-information.md](radio-information.md)). Four comma-joined strings here were a worse copy of a better surface one click away. The incumbent helper also documented "includes duplicates since different carriers can share the same ARFCN" and then deduplicated on the very next line, so it did not do what it said.
+`HERO_SPLIT` lays the two panels out: `flex-col` below `@2xl/hero`, `flex-row` above it — a **container** query against `@container/hero`, which `BAND_HERO` itself declares, so the split responds to the hero's own width rather than the viewport.
 
-**The two BAND rows stayed, as identity chips**, because they are the only on-page evidence that a lock actually took:
+```
+<section BAND_HERO>                      rounded-hero (40px) — the ONE hero on this page
+  <div HERO_SPLIT>
+    ├── HERO_ONAIR_PANEL   rounded-card   flex-1  — live-dot header, tile grid, footnote
+    └── HERO_RAIL_PANEL    rounded-card   25rem   — disc + title + subtitle,
+                                                    3 clickable category rows,
+                                                    HERO_ROW (failover) pinned by mt-auto
+```
+
+### Why both panels are `rounded-card`, not `rounded-hero`
+
+The panels sit at **36px, one step below** the outer section's 40px. `BAND_HERO` still solely claims the Consistent-Layout Rule's "a genuine glance surface may earn a hero card" exception; nesting two hero-radius panels inside it would spend that exception twice on one page. The step-down is the same nesting the surface already used for `HERO_ROW` (`rounded-field`, 20px, inside the hero) and for `HERO_ONAIR_TILE` (`rounded-tile`) inside the panel — each level of containment drops a step on the role scale.
+
+### The on-air tile grid
+
+The left panel answers one question: **is this band actually on air right now?** It is the only on-page evidence that a lock actually took.
 
 | View | Source | What it proves |
 | ---- | ------ | -------------- |
 | **CONFIGURED** | `ue_capability_band` via `current.sh` | What you asked the modem for |
 | **ACTUAL** | `network.carrier_components` via the poller | Where the modem is actually camped |
 
-Those are different facts, and the gap between them is exactly the class of bug that bit APN management, where `AT+CGDCONT?` reported a context the modem had never attached with (see [wan-profile-management.md](wan-profile-management.md)). Delete the on-air chips and applying a band lock gives you a green button and no evidence.
+Those are different facts, and the gap between them is exactly the class of bug that bit APN management, where `AT+CGDCONT?` reported a context the modem had never attached with (see [wan-profile-management.md](wan-profile-management.md)). Delete this panel and applying a band lock gives you a green button and no evidence.
 
-On-air chips use the `nr` / `lte` **identity** variants — the fill says which radio the band belongs to and never that it is healthy. They are deduplicated (a band can legitimately appear twice, as PCC and as SCC) and sorted numerically with the `B`/`N` prefix stripped, because a lexical sort puts B12 before B3 and a technician notices immediately. LTE is listed first: the LTE leg is the anchor in NSA, so it is what a reader looks for when a 5G connection misbehaves.
+**One tile per RAW `CarrierComponent`, not per unique band.** The previous round deduplicated by band designator (a `useOnAirBands` memo producing an `OnAirBand[]`); both that helper and its interface are **gone**. A band legitimately appears twice — as PCC and as SCC — and those are two separate carriers with their own bandwidth, RSRP and PCI, so collapsing them threw away the per-carrier facts the tile now shows.
 
-### Lock posture: three per-category badges, not one summed count
+Each tile (`HERO_ONAIR_TILE`) carries, top to bottom:
 
-**The headline used to be a single number summed across all three categories, and that number could not be acted on.** It read `lockedTotal` / `supportedTotal` — LTE, NSA-NR5G and SA-NR5G band counts added together — producing a sentence like "Locked to 12 of 34 bands". Three unrelated band lists do not add up to anything a reader can use: "LTE fully locked, both NR categories open" and "NR narrowed a little, LTE untouched" are very different radio states that can sum to the identical headline, and neither tells you *which* category to go fix.
+| Line | Content | i18n |
+| ---- | ------- | ---- |
+| Pills + bandwidth | `"LTE PCC"` / `"5G NR SCC"` pill (`tile_tech_{technology}` plus the raw `type` field), a second `"No aggregation"` pill when `onAir.length === 1`, and the bandwidth right-aligned | `band_locking.live.tile_tech_LTE` / `_NR`, `tile_no_aggregation`, `radio_info.bands.units.mhz` |
+| Band + frequency | The designator (mono, 2xl, tabular) beside its centre frequency from `bandFrequencyMhz()` (`lib/band-frequency.ts`), when the band is in the static 3GPP lookup | `radio_info.bands.units.mhz` |
+| Detail | `EARFCN {{earfcn}}` and `PCI {{pci}}` as separate flex children with a real gap between them (not a joined separator glyph), each omitted individually when the modem did not report it for THIS component | `band_locking.live.tile_earfcn`, `radio_info.bands.detail.pci` |
+| Signal | RSRP (`{{value}} dBm`, or `–` when null) plus the `RSRP` word, beside `RSRQ {{value}} dB` and `SINR {{value}} dB` as separate flex children when reported | `band_locking.live.tile_rsrp` / `tile_no_value` / `tile_rsrq` / `tile_sinr`, `radio_info.bands.metric.rsrp` / `rsrq` / `sinr` |
+| Meter | A 5px track, `mt-auto`, with a fill scaled to `rsrpToPercent(c.rsrp)` — see [The meter is toned against its tile](#the-meter-is-toned-against-its-tile) | — |
 
-It is now a row of **three per-category badges** (`HERO_POSTURE_ROW` in `shapes.ts`), one per `BAND_CATEGORIES` entry, each showing that category's own short name + glyph and reusing `CATEGORY_BADGE`. The visible chip carries only the short name; the full sentence goes to assistive technology as the badge's `aria-label` via `band_locking.live.category_{posture}` with a `{{category}}` interpolation.
+**This is a reversal of a documented decision, not an oversight.** The tile used to be deliberately Turn 2's compact single-metric-line cut, on the stated reasoning that the hero is "half of a hero, not the whole page" and a fuller tile anatomy would need a second thing to keep in sync with the dashboard's own carrier card. The 2026-08 pass took Turn 3's full-detail tile anyway, because the grid it sits in changed at the same time: `HERO_ONAIR_GRID` moved from `auto-fit, minmax(160px,1fr)` to a fixed 3-column grid (below), and a thin single-line tile inside a wider fixed column sat padded and mostly empty. The width the grid now grants each tile is what makes the fuller anatomy the right call, not a change of mind about density on its own.
+
+**No poller or CGI change was needed for this pass.** EARFCN, PCI, RSRQ and SINR were already on `CarrierComponent` and simply unused by the old compact tile — `AT+QCAINFO` already reports all four per carrier (see `parse_at.sh`'s `parse_qcainfo()`). The tile deliberately does **not** show a cell ID: `AT+QCAINFO` never reports one per component, only the serving-cell query does (`data.lte.cell_id` / `data.nr.cell_id`), and that value describes ONE cell — the PCC's. Showing it correctly would mean showing it on some tiles and not others for a reason a reader has no way to know, so the line was dropped rather than shipped half-right.
+
+**Detail and signal segments are separate flex children, not a joined string.** The first pass joined `EARFCN 9410`, `PCI 214` etc. with `" · "`. That reads fine in isolation but ties the visual gap to a glyph that renders differently across the interface and machine fonts and does not scale with the container query the way a flex `gap` does. Both rows now map their segment array to individual `<span>`s inside a `flex flex-wrap gap-x-3 gap-y-0.5` row, so the spacing is a layout property, not a character.
+
+**Centre frequency is a static lookup, not a poll.** `bandFrequencyMhz(technology, band)` in `lib/band-frequency.ts` maps a 3GPP band designator to its commonly-cited centre frequency (e.g. `"B28"` → 700). It is reference data fixed by spec, not something the modem could report differently, so it is a plain object lookup rather than a hook. A band absent from the table (a rare regional allocation this modem's SKUs do not ship) renders without the frequency line rather than guessing.
+
+#### The meter is toned against its tile
+
+**Short version: a progress bar drawn inside a coloured tile has to take its colours from that tile, not from the page — and the first version of this tile did not, so on every PCC tile the bar was invisible.**
+
+The original pair was a fixed `bg-surface` track with `carrierMeterTone(technology)` returning `bg-lte` / `bg-primary` for the fill. Both halves were wrong in the same place:
+
+- The **fill** collided with the tile. A lead tile paints `bg-lte`; the fill also painted `bg-lte`. Identical colour, 1.00:1 — and the PCC is the one carrier that is always present, so the defect was on screen for every user, in every state, in both themes.
+- The **track** was a hole. `surface` is the correct recessed colour against the hero card, but inside a saturated identity fill it is not "one step down", it is a near-black slot punched through the tile.
+
+`carrierMeterTone(technology, isLead)` now returns a `{ track, fill }` pair resolved **against the tile's own ink** — the `on-` token, which is the one colour guaranteed to contrast with that fill in both themes:
+
+| Tile | Track | Fill |
+| ---- | ----- | ---- |
+| Lead (`bg-lte` / `bg-primary`) | `*-foreground/25` | `*-foreground` |
+| Secondary (`*-container`) | `on-*-container/15` | `*` (strong) |
+
+> ⚠️ WARNING: `isLead` is load-bearing in this signature. Dropping it — which reads like a harmless simplification, since "the bar reports which radio" — restores the invisible-bar bug exactly.
+
+Two notes on what this is *not*. The alphas are not the wash the Solid-Container Rule bans: a track is a groove rather than a surface carrying content, and both resolve over a **known opaque fill** (the tile) rather than over an unknown page background. And the tone is still **identity, never quality** — the design mock tints its weakest carrier's bar with `--wa`, which is a mock inconsistency and not a spec; the dBm label directly above the bar already reports how weak, and a quality-toned bar on an identity-toned fill is the same two-fills collision `active-bands-card.tsx` ruled out.
+
+`METER_TRACK` also carries `mt-auto`. Grid items stretch to the tallest cell in their row and that height is uneven for two independent reasons — a carrier reporting no PCI has one fewer line, and in the solo layout below the tile is stretched by the cell beside it — so without it the meters comb across a row and the lone tile gets a slab of dead colour under its bar.
+
+#### The absent-leg cell fills a spare column, it no longer reshapes the grid
+
+The original `auto-fit` grid hit a specific failure at exactly one carrier: `auto-fit` hands a single item the whole row, so one carrier stretched a 160px tile to the full panel width and read as a broken layout. The fix at the time (Turn 3 of the exploration) was a dedicated solo layout, `HERO_ONAIR_GRID_SOLO` — `2fr 1fr` above `@sm/onair`, one column below it.
+
+**That layout no longer exists.** Once the grid became a fixed 3-column `HERO_ONAIR_GRID` (below), a lone tile simply occupies one of the three columns like any other item — nothing stretches, so nothing needs a second layout to prevent it. `AbsentLegCell` still renders at `onAir.length === 1`, filling the grid's second cell rather than leaving it bare, and still names the radio leg that is **not** on air: NR when the lone carrier is LTE, LTE when it is NR. It links to `/cellular/cell-scanner`, the one action that would find the missing cell.
+
+**It renders only in the solo case, and that is a decision rather than an oversight.** It exists so the row reads at all; that it is also informative is a bonus. With four LTE carriers aggregated the grid already fills its row honestly, and adding a fifth "no 5G" cell there would be an editorial claim that the absence is a fault — on a modem whose SKU may not even have an NR list, it often is not.
+
+> ℹ️ NOTE: the cell reuses **`radio_info.bands.scanner.link`** ("Open cell scanner") rather than adding a `band_locking.*` key, and `signal_cellular_off` rather than the mock's `signal_cellular_nodata`. The first is the same borrow-don't-duplicate convention as `units.mhz` / `detail.pci` above. The second is because the allowlist in `components/ui/material-symbol-names.ts` has no `signal_cellular_nodata`, and adding one costs a font re-subset that `icons:subset` can only perform online. Sharing the glyph with the on-air **empty** state is safe rather than sloppy: the empty state replaces the entire grid, this cell only exists when the grid has exactly one tile, so the two can never share a frame.
+
+> ℹ️ NOTE: `radio_info.bands.units.mhz` and `radio_info.bands.detail.pci` are **deliberately borrowed from another feature's namespace** rather than duplicated under `band_locking.*`. "MHz" and "PCI" are the identical word in every locale QManager ships, so a second key would only create a second thing to translate and a second thing to drift.
+
+**Tone is identity, never quality.** `carrierTileTone(technology, isLead)` and `carrierMeterTone(technology)` give LTE the violet `lte` / `lte-container` pair and NR the blue `primary` / `primary-container` pair; `isLead` (this carrier's own `type === "PCC"`) gets the STRONG fill so the anchor tile stays findable in a five-tile grid. This restates the rule `components/dashboard/carrier-aggregation.tsx`'s `tileTone()` / `meterFillTone()` already enforce — a quality-coloured tile would put two container fills on top of each other, which is the same collision `active-bands-card.tsx` already ruled out for its own status chip. See [carrier-aggregation.md](carrier-aggregation.md).
+
+**It does NOT go through `enrichCarriers()`.** `lib/radio-info.ts`'s pipeline — the dashboard's own — needs a release-reconciliation history, the current network type and the serving NR ARFCN/SCS, none of which this hero receives or needs. A tile here disappears the instant the modem stops reporting the carrier; it has no reason to remember one existed a moment ago. What it *does* reuse are the two pure, dependency-free primitives: `rsrpToPercent` from `lib/carrier-aggregation.ts`, and the identity-tone convention above. So the two surfaces cannot quietly disagree about what a tile's colour means, even though neither imports the other's component.
+
+**Ordering** is `sortCarriers()`, a local helper: PCC first, then LTE before NR. `Array.prototype.sort` is stable, so carriers of equal rank keep the order the radio reported them in. LTE leads because the LTE leg is the anchor in NSA — it is what a reader looks for when a 5G connection misbehaves.
+
+**Grid geometry.** `HERO_ONAIR_GRID` is a fixed 3-column ceiling (`grid-cols-1 @sm/onair:grid-cols-2 @lg/onair:grid-cols-3`, against the panel's own `@container/onair`), not `auto-fit`. This is a reversal of the previous `repeat(auto-fit, minmax(160px, 1fr))`: that geometry suited the compact single-line tile, but the full-detail tile (above) needs real width to lay out five lines legibly, and `auto-fit` was combing up to five *thin* tiles across the panel rather than giving three tiles room to read. A carrier count under 3 leaves the remaining grid cells empty — accepted whitespace, not a bug, and no different in spirit from the empty space `HERO_ONAIR_GRID_SOLO` used to reserve on purpose for exactly one carrier.
+
+#### The panel's header and footer
+
+The header row carries a live-pulse dot, the `on_air` eyebrow, and a right-aligned count summary.
+
+> ⚠️ WARNING: the dot uses **`.animate-live-ping`**, the project's own keyframe in `app/globals.css` (running on `--duration-ambient` / `--ease-ambient`), **not** Tailwind's built-in `animate-ping`. They look similar and time differently; a `animate-ping` here is an off-scale duration under The One-Scale Rule. It is `motion-reduce:animate-none`-guarded, and `globals.css` disables it under reduced motion as well.
+
+The summary reads `{{count}} carriers · {{mhz}} MHz` via **real i18next pluralization** — `on_air_summary_one` / `on_air_summary_other`, replacing the previous singular-only key. `mhz` is the sum of every reported `bandwidth_mhz` (negative/zero values contribute nothing).
+
+The footer caption (`on_air_note`) exists to pre-empt the single most likely misreading of this panel: *"Reported by the radio, not by your lock list. A locked band only appears here once the modem camps on it."* Without it, a user who just locked B3 and does not see a B3 tile concludes the lock failed. It carries `mt-auto` so it pins to the panel's own bottom edge regardless of how many tiles are above it — a 2-3 carrier camp inside a 3-column grid leaves whitespace, and that whitespace belongs between the grid and the footer, not between the footer and the panel's edge (which would leave the note floating mid-panel instead of reading as a footer).
+
+The empty state (`on_air_empty_title` / `on_air_empty_body`) is a glyph disc plus two lines, replacing the previous plain-text "No carriers reported". It is a real state — the modem genuinely is not camped on anything — and it says so while making clear the locks below still apply once it attaches.
+
+### The lock-posture rail
+
+The right panel names each category with its real ratio and links to the card that changes it.
+
+**The headline used to be a single number summed across all three categories, and that number could not be acted on.** It read `lockedTotal` / `supportedTotal` — LTE, NSA-NR5G and SA-NR5G band counts added together — producing a sentence like "Locked to 12 of 34 bands". Three unrelated band lists do not add up to anything a reader can use: "LTE fully locked, both NR categories open" and "NR narrowed a little, LTE untouched" are very different radio states that sum to the identical headline, and neither tells you *which* category to go fix. The round after that replaced it with a badges-only summary row (`HERO_POSTURE_ROW`), which named the categories but still did not go anywhere.
+
+The rail's head is `HERO_RAIL_DISC` — **44px, one step below the 52px `HERO_DISC`** used everywhere else in the product, because the rail is a nested panel and not the hero's own top-level anchor — beside `HERO_RAIL_TITLE` (the existing `band_locking.live.eyebrow` key, "Lock posture", restyled but not renamed) and a **dynamic** subtitle:
+
+| Condition | Key | English |
+| --------- | --- | ------- |
+| No category has a reported supported list | `rail_subtitle_unknown` | "Not reported yet" |
+| No category is restricted | `rail_subtitle_none` | "No band restrictions in place" |
+| All three are restricted | `rail_subtitle_all` | "All three radios are restricted" |
+| Some are | `rail_subtitle_partial` | "{{count}} of {{total}} radios restricted" |
+
+Below it sit **three clickable rows**, one per `BAND_CATEGORIES` entry (`HERO_RAIL_ROW`): the category short name, a `rail_ratio` caption (`{{count}} of {{total}} bands allowed`), a `CATEGORY_BADGE` status chip, and a `chevron_right`.
+
+**The chevron is a real affordance.** Clicking a row calls `scrollToCategory(category)`, which is a plain `document.getElementById('band-locking-card-${category}')?.scrollIntoView({ behavior: "smooth", block: "start" })`. A rail that summarised the three cards without linking to them would be restating information the cards already carry, one layer removed — the exact failing of the badges-only round it replaced.
+
+> ⚠️ WARNING: the scroll target is looked up by **string-built DOM id**, so nothing mechanical links `scrollToCategory()` in `live-band-hero.tsx` to the `id={`band-locking-card-${category}`}` in `band-locking.tsx`. Rename either template and the rows silently stop scrolling — no type error, no lint error, no failed build. The optional-chain (`?.`) means a missed match is a no-op rather than a crash, which is the right runtime behaviour and also the reason the breakage would be quiet.
+
+The row's badge uses **new, shorter labels** — `rail_status_locked` / `_unrestricted` / `_unknown` ("Locked" / "Unrestricted" / "Not reported"), resolved through `railStatusKey(posture)`. They are deliberately distinct from the category card's own longer badge text (`{{count}} of {{total}} locked`), because the row already prints the ratio on its own line and repeating it inside the badge would be the same number twice in one row. The full sentence goes to assistive technology as the button's `aria-label`: short name — ratio — status.
+
+> ℹ️ NOTE: the previous round's aria-only keys `band_locking.live.category_locked` / `category_unrestricted` / `category_unknown` and the singular `on_air_empty` are **removed**. Nothing reads them.
 
 Posture is **derived, never asserted**, by one shared helper — `categoryPosture(locked, supported)` in `shapes.ts`:
 
-| Condition | Posture | Badge (`CATEGORY_BADGE`) | `aria-label` key |
-| --------- | ------- | ------------------------ | ---------------- |
-| `supported.length === 0` | `unknown` | `muted` / `schedule` | `category_unknown` → "{{category}} not reported" |
-| `locked` covers the whole supported list | `unrestricted` | `success` / `lock_open` | `category_unrestricted` → "{{category}} unrestricted" |
-| otherwise (incl. an empty `locked` list) | `locked` | `warning` / `lock` | `category_locked` → "{{category}} band-restricted" |
+| Condition | Posture | Badge (`CATEGORY_BADGE`) | Rail label |
+| --------- | ------- | ------------------------ | ---------- |
+| `supported.length === 0` | `unknown` | `muted` / `schedule` | "Not reported" |
+| `locked` covers the whole supported list | `unrestricted` | `success` / `lock_open` | "Unrestricted" |
+| otherwise (incl. an empty `locked` list) | `locked` | `warning` / `lock` | "Locked" |
 
 `unknown` is a real state, not a loading state. A modem that has not reported a supported-band list yet must not be described as unrestricted, because "all supported bands available" would be a claim about a list nobody has seen.
 
-**`categoryPosture` is shared with `BandGridCard` on purpose.** The card's own header chip reads the same helper (`isUnrestricted` is now a call, not a local re-derivation), so the hero's per-category badge and the card's status chip can never quietly disagree about what "unrestricted" means. Before, they were two independent comparisons that happened to agree.
-
-#### The one combined fact that stayed
-
-The hero's leading glyph disc still shows **one** posture, computed as `overallPosture` in `live-band-hero.tsx`: `unknown` if any category is unknown, else `locked` if any category is locked, else `unrestricted`. That is an **OR across categories** ("is anything restricted?"), which is a coherent question in a way the old SUM never was — and `unknown` outranking everything preserves the same honesty rule as above. Each posture gets its **own** glyph (`POSTURE_GLYPH`): `settings_input_antenna`, `cell_tower`, `schedule`. Two states in one slot never share a mark.
+**`categoryPosture` is shared with `BandGridCard` on purpose.** The card's own header chip reads the same helper (`isUnrestricted` is a call, not a local re-derivation), so the rail row and the card's status chip can never quietly disagree about what "unrestricted" means. Before, they were two independent comparisons that happened to agree.
 
 > ℹ️ NOTE: `BAND_CATEGORIES` is exported from `types/band-locking.ts` and imported by both `band-locking.tsx` and `live-band-hero.tsx`. It was previously a local const inside the coordinator; two iterations over three categories must not be able to disagree about order.
 
 ### Why failover lives in the hero
 
 Band failover is not a fourth setting alongside the three categories — it is the safety net under all of them. `lock.sh` arms **one** watcher for the most recent lock regardless of which category it belonged to, so failover is a property of the modem, not of a card. Rendering it as a peer of the category cards said otherwise.
+
+It now sits at the **foot of the rail** (`HERO_ROW`, pinned with `mt-auto`), sized like the rail's own category rows rather than as the full-bleed hero strip it used to be — it is the safety net for the three locks directly above it, so it belongs with them rather than spanning the whole hero.
 
 Its chip is a genuine four-state indicator (`FAILOVER_BADGE`), derived by `failoverKey()` in a **significant order**:
 
@@ -295,18 +404,27 @@ Everything shape- or tone-bearing on this surface lives in `components/cellular/
 
 | Constant | Purpose |
 | -------- | ------- |
-| `BAND_HERO` | The one hero card, `rounded-hero` (40px). A second hero on this page spends the Consistent-Layout Rule's glance-surface exception twice |
+| `BAND_HERO` | The one hero card, `rounded-hero` (40px). Also declares `@container/hero`, which `HERO_SPLIT` queries. A second hero on this page spends the Consistent-Layout Rule's glance-surface exception twice |
 | `BAND_CARD` | One category card, `rounded-card` (36px). Imported by all three branches |
-| `CARD_PAD`, `HERO_DISC`, `HERO_EYEBROW`, `HERO_VALUE`, `HERO_POSTURE_ROW`, `HERO_ROW`, `HERO_ONAIR` | Hero internals. `HERO_POSTURE_ROW` is the wrapping badge row that replaced the summed headline (see Lock posture); `HERO_ROW` is `rounded-field` (20px) because that row genuinely wraps — a pill that has wrapped to two lines is a stadium |
+| `CARD_PAD`, `HERO_EYEBROW` | Card padding (24px peer / 28px hero) and the eyebrow type step |
+| `HERO_SPLIT` | The hero's two-panel layout: `flex-col`, becoming `flex-row items-stretch` at `@2xl/hero` |
+| `HERO_ONAIR_PANEL`, `HERO_ONAIR_GRID`, `HERO_ONAIR_TILE`, `HERO_ONAIR_ABSENT` | The left panel. Panel is `rounded-card` on `surface-container` and declares its own `@container/onair`; the grid is a fixed 3-column ceiling (`grid-cols-1 @sm/onair:grid-cols-2 @lg/onair:grid-cols-3`); the tile is `rounded-tile`, `px-5 py-4`, with a `PILL` (identity/aggregation pills, toned by `carrierPillTone`) and a `METER_TRACK` (`mt-auto`, no fill of its own) / `METER_FILL` pair; `HERO_ONAIR_ABSENT` is the lone-carrier absent-leg cell |
+| `HERO_RAIL_PANEL`, `HERO_RAIL_DISC`, `HERO_RAIL_TITLE`, `HERO_RAIL_SUBTITLE`, `HERO_RAIL_ROW`, `HERO_RAIL_ROW_LABEL`, `HERO_RAIL_ROW_RATIO` | The right panel. Fixed `25rem` above `@2xl/hero`, full width below it. `HERO_RAIL_DISC` is 44px — one step below the product-wide 52px `HERO_DISC`, because the rail is a nested panel |
+| `HERO_ROW` | The failover row at the foot of the rail. `mt-auto` pins it; `rounded-field` (20px) because this row genuinely wraps, and a pill that has wrapped to two lines is a stadium |
+| `carrierTileTone` | `(technology, isLead) => string`. Identity tone only — LTE violet, NR blue, strong fill for the PCC. Never quality |
+| `carrierMeterTone` | `(technology, isLead) => { track, fill }`. **`isLead` is load-bearing** — dropping it makes the bar invisible on every PCC tile. See The meter is toned against its tile |
+| `carrierPillTone` | `(technology, isLead) => string`. Same construction as `carrierMeterTone`'s track: an alpha over the tile's own ink, resolved against the tile's KNOWN opaque fill rather than an unknown page background |
 | `BAND_CHIP`, `BAND_CHIP_LIVE_RING`, `bandChipFill`, `bandChipClass`, `bandChipA11yKey`, `BAND_LEGEND` | The chip contract (above). `BAND_LEGEND`'s rationale comment carries the "Currently locked" naming rule — see The legend names the CONFIGURATION fact |
 | `NOTICE`, `NOTICE_TONE` | The card-scoped error slot |
 | `PILL_ACTION`, `PILL_ACTION_PLAIN`, `PILL_QUIET` | Action sizing. `PILL_QUIET` is deliberately smaller: Select all / Clear change a selection, they do not write to the modem, and three equal-weight pills in one footer loses which is consequential. It carries **size only** — no fill, no ink |
-| `FAILOVER_BADGE`, `CATEGORY_BADGE`, `POSTURE_GLYPH`, `BADGE_GLYPH_SIZE` | Tone + glyph maps, keyed onto the exported `BadgeVariant` type so an unmapped state fails the build |
-| `categoryPosture` | `(locked, supported) => BandPosture`. The single derivation shared by the hero's per-category badges and the card's header chip |
-| `SKELETON_SHAPE` | Loaded geometry restated once so skeletons mirror by import, not by estimate. Includes `POSTURE_CHIP`, the mirror for one hero posture badge |
+| `FAILOVER_BADGE`, `CATEGORY_BADGE`, `BADGE_GLYPH_SIZE` | Tone + glyph maps, keyed onto the exported `BadgeVariant` type so an unmapped state fails the build |
+| `POSTURE_GLYPH` | **Currently unreferenced.** It mapped an `overallPosture` onto the old hero's single leading glyph disc; the rail's disc is now a fixed `settings_input_antenna` because the disc is no longer a state indicator — the three rows and the dynamic subtitle carry the state instead. Kept as an export, but nothing imports it |
+| `categoryPosture` | `(locked, supported) => BandPosture`. The single derivation shared by the rail's rows, the rail subtitle and the card's header chip |
+| `railStatusKey` | `(posture) => "band_locking.live.rail_status_{posture}"`. The rail row's short badge label, distinct from the card's longer one |
+| `SKELETON_SHAPE` | Loaded geometry restated once so skeletons mirror by import, not by estimate. `HERO_DISC` (44px), `RAIL_ROW`, `HERO_ROW` and `ONAIR_TILE` are the hero's four mirrors |
 | `categoryTitleKey`, `categoryDescriptionKey`, `categoryShortKey` | Category → i18n key (above) |
 
-`CATEGORY_BADGE` reads the functional contract, not a value judgement about locking: `unrestricted` is `success`, `locked` is `warning` (a narrowed band list is the state that can cost you the connection — `warning` means *constrained*, not *you did something wrong*), and `scenario` is `info` (something else owns the setting; a standing condition, not a fault). It carries a **fourth** entry, `unknown` (`muted` / `schedule`), because the hero's per-category badges have to render a category the modem has not reported a supported-band list for — the card never reaches that state (it renders its Empty branch instead).
+`CATEGORY_BADGE` reads the functional contract, not a value judgement about locking: `unrestricted` is `success`, `locked` is `warning` (a narrowed band list is the state that can cost you the connection — `warning` means *constrained*, not *you did something wrong*), and `scenario` is `info` (something else owns the setting; a standing condition, not a fault). It carries a **fourth** entry, `unknown` (`muted` / `schedule`), because the hero rail's rows have to render a category the modem has not reported a supported-band list for — the card never reaches that state (it renders its Empty branch instead).
 
 ### Select all / Clear are `tonal-neutral`, never `ghost`
 
@@ -333,7 +451,7 @@ It is deliberately **not** `components/cellular/radio/page-header.tsx`. That com
 | Prop | Type | Notes |
 | ---- | ---- | ----- |
 | `failover` | `FailoverState` | `{ enabled, activated, watcher_running }` |
-| `carrierComponents` | `CarrierComponent[]` | From `useModemStatus`; the ACTUAL view |
+| `carrierComponents` | `CarrierComponent[]` | From `useModemStatus`; the ACTUAL view. Rendered **raw** — one tile per component, sorted but not deduplicated |
 | `supportedBands` | `Record<BandCategory, number[]>` | Hardware-supported bands **per category** (`policy_band`). Replaced the summed `supportedTotal: number` |
 | `lockedBands` | `Record<BandCategory, number[]>` | Configured bands **per category** (`ue_capability_band`). Replaced the summed `lockedTotal: number` |
 | `onToggleFailover` | `(enabled: boolean) => Promise<boolean>` | Returns success; the hero owns its own toast |
@@ -373,6 +491,8 @@ The footer separates two different truths: the header chip reports the **modem's
 - **`hasChanges` blocks re-applying an identical lock.** `SaveButton` is disabled when `pendingCount === 0`, which is right for avoiding a pointless modem write — but it also means the **failover watcher cannot be re-armed without changing the selection**. If a watcher's 30-second window has expired and the user wants to re-arm it, they must toggle a band off and back on.
 - **`components/onboarding/steps/step-band-locking.tsx` is a fully independent implementation** that this redesign did not touch. It still uses checkboxes, its own preset radio group, hardcoded English copy, its own `authFetch` POSTs straight to `lock.sh`, and a `Promise.allSettled` fan-out of up to three concurrent locks (the watcher-starvation pathology described above). A user's **first** band-lock experience therefore diverges from every later one.
 - **The failover help copy said 15 seconds — FIXED in this pass, and worth knowing why it was wrong.** The incumbent tooltip claimed the modem falls back "after 15 seconds", and the new i18n key inherited the figure verbatim before anyone checked it against the daemon. `qmanager_band_failover` is `SETTLE_DELAY=5` then `MAX_CHECKS=5 × CHECK_INTERVAL=5` — a **~30 second** window, which the script's own log line at `:84` states outright. All five locales now say "about 30 seconds". The lesson generalises: a number in user-facing copy is a claim about the device, and the State-Honesty Rule applies to it exactly as it does to a status chip. If `SETTLE_DELAY`, `CHECK_INTERVAL` or `MAX_CHECKS` is ever retuned, `band_locking.live.failover_help` has to move in the same change, in all five locales — nothing links them mechanically.
+- **Two exports in `shapes.ts` are now unreferenced**: `POSTURE_GLYPH` and `SKELETON_SHAPE.HERO_EYEBROW`, both left behind by the hero rebuild. They are harmless (dead constants, not dead code paths) and are documented rather than deleted so a future contributor does not re-derive `POSTURE_GLYPH`'s three-distinct-glyph rule from scratch if a single-slot posture indicator ever returns.
+- **The rail's scroll targets are coupled by string, not by type** — see the warning in [The lock-posture rail](#the-lock-posture-rail). A shared `bandCardDomId(category)` helper in `shapes.ts` would close this; it was not added because the two call sites are one file apart and adding a third indirection for two usages was judged worse than the warning.
 - **Tower Locking's and Frequency Locking's header strings are hardcoded English.** The header-only migration passed literals to `CellularPageHeader` rather than `t()` calls; those two routes are not yet in the i18n sweep.
 
 ## Related
@@ -380,8 +500,8 @@ The footer separates two different truths: the header chip reports the **modem's
 - [sim-profiles.md](sim-profiles.md) — the profile/scenario gate's other half, the scheduled-scenario resolution, and the band-failover watcher on the apply path
 - [scheduled-timers.md](scheduled-timers.md) — the on-device timer that applies a windowed scenario, and why a schedule is authoritative over a static binding
 - [radio-information.md](radio-information.md) — `active-bands-card.tsx` (which owns ARFCN rendering), and the compiler-backed `react-hooks` bail-on-first-violation behaviour
-- [carrier-aggregation.md](carrier-aggregation.md) — `carrier_components[]`, the ACTUAL view the hero's on-air chips read
-- [wan-profile-management.md](wan-profile-management.md) — the configured-vs-actual gap that motivated keeping the on-air chips
+- [carrier-aggregation.md](carrier-aggregation.md) — `carrier_components[]`, the ACTUAL view the hero's on-air tiles read, and the `tileTone()` / `meterFillTone()` identity convention they restate
+- [wan-profile-management.md](wan-profile-management.md) — the configured-vs-actual gap that motivated keeping the on-air panel
 - [i18n.md](i18n.md) — the locale pipeline and why `i18n:check` is not a gate
 - [icon-system.md](icon-system.md) — `/cellular/` is a Material Symbols route; every glyph used here is already in the subset allowlist
 - `DESIGN.md` > Named Rules (Consistent-Layout, Identity-Chip, Filled-Chip, Glyph-Disc, Skeleton-Mirror, One-Scale, Solid-Container)
