@@ -1389,5 +1389,191 @@
         "caption": "兩個儲存區共用的插槽"
       }
     }
+  },
+  "tower_locking": {
+    "page": {
+      "title": "基站鎖定",
+      "description": "依 PCI 與頻點將數據機固定至特定的實體小區。"
+    },
+    "live": {
+      "title": "即時基站狀態",
+      "camped_on": "目前駐留",
+      "camped_summary_one": "{{count}} 個載波 · {{mhz}} MHz",
+      "camped_summary_other": "{{count}} 個載波 · {{mhz}} MHz",
+      "camped_empty_title": "目前無在網載波",
+      "camped_empty_body": "數據機目前未駐留在任何小區。鎖定仍會在其附著後生效。",
+      "camped_note": "此資訊來自無線電模組。選取一個小區，即可將其詳細參數填入下方的鎖定表單。",
+      "absent_nr_title": "無 5G 載波",
+      "absent_nr_body": "數據機僅使用 LTE。目前範圍內沒有 NR 小區。",
+      "absent_lte_title": "無 LTE 錨點",
+      "absent_lte_body": "數據機處於 5G 獨立組網。未使用任何 LTE 載波。",
+      "tile_tech_LTE": "LTE",
+      "tile_tech_NR": "5G NR",
+      "tile_pci": "PCI",
+      "tile_earfcn": "EARFCN",
+      "tile_arfcn": "ARFCN",
+      "tile_rsrp": "{{value}} dBm",
+      "tile_rsrq": "{{value}} dB",
+      "tile_sinr": "{{value}} dB",
+      "tile_no_value": "—",
+      "tile_no_aggregation": "無聚合",
+      "tile_use": "使用此小區",
+      "tile_use_a11y": "將頻段 {{band}}、PCI {{pci}} 用作 {{leg}} 鎖定目標",
+      "tile_blocked_nsa": "5G 鎖定需要獨立組網模式",
+      "tile_blocked_lte_only": "無 5G 連線可鎖定",
+      "tile_blocked_slots_full": "三個 LTE 小區均已設定",
+      "eyebrow": "鎖定狀態",
+      "rail_subtitle_none": "目前未設定基站鎖定",
+      "rail_subtitle_lte": "LTE 已固定至某個小區",
+      "rail_subtitle_nr": "5G 已固定至某個小區",
+      "rail_subtitle_both": "兩個無線電均已固定",
+      "rail_subtitle_unknown": "尚未回報",
+      "rail_target_none": "無鎖定目標",
+      "rail_target_pair": "{{channel}} · PCI {{pci}}",
+      "rail_target_cells_one": "已鎖定 {{count}} 個小區",
+      "rail_target_cells_other": "已鎖定 {{count}} 個小區",
+      "leg_status_locked": "已鎖定",
+      "leg_status_unlocked": "未鎖定",
+      "leg_status_unknown": "尚未回報",
+      "synced_at": "鎖定狀態更新於 {{time}}",
+      "synced_never": "尚未讀取鎖定狀態",
+      "refresh": "從數據機重新讀取鎖定狀態",
+      "persist_label": "重新啟動後保持鎖定",
+      "persist_help": "將鎖定儲存在數據機本身，重新啟動後會自動還原。",
+      "persist_state_on": "已開啟",
+      "persist_state_off": "已關閉",
+      "persist_state_split": "僅一個無線電",
+      "persist_state_unknown": "尚未回報",
+      "persist_split_help": "數據機回報僅為一個無線電儲存了此設定。請關閉後重新開啟，以重寫兩者。",
+      "persist_toast_enabled": "重新啟動後將保持鎖定",
+      "persist_toast_disabled": "重新啟動後將不保持鎖定",
+      "persist_toast_error": "無法更新重新啟動設定",
+      "failover_label": "訊號容錯移轉",
+      "failover_help_label": "關於訊號容錯移轉",
+      "failover_help": "若訊號品質持續低於門檻值，則自動解除基站鎖定，避免劣質小區導致連線中斷。解除時會同時釋放兩個無線電，而不僅是訊號弱的那個。",
+      "failover_state_disabled": "已停用",
+      "failover_state_standby": "無鎖定可守護",
+      "failover_state_armed": "監控中",
+      "failover_state_fallback": "已解除 — 訊號弱",
+      "failover_no_lock": "鎖定一個無線電以啟用",
+      "failover_toast_enabled": "已啟用訊號容錯移轉",
+      "failover_toast_disabled": "已停用訊號容錯移轉",
+      "failover_toast_error": "無法更新訊號容錯移轉",
+      "threshold_label": "低於此值時解除",
+      "threshold_help": "由 RSRP 換算的訊號品質百分比：−140 dBm 為 0%，−80 dBm 為 100%。",
+      "threshold_invalid": "請輸入 0 到 100 之間的數值",
+      "threshold_toast_saved": "已更新容錯移轉門檻值",
+      "threshold_toast_error": "無法更新門檻值",
+      "quality_label": "目前訊號品質",
+      "quality_value": "{{value}}%",
+      "quality_unknown": "尚未回報"
+    },
+    "legs": {
+      "lte": {
+        "title": "LTE 基站",
+        "description": "依頻點與 PCI 將 4G 無線電固定至最多三個小區。"
+      },
+      "nr_sa": {
+        "title": "5G NR-SA 基站",
+        "description": "將 5G 獨立組網無線電固定至單一小區。"
+      }
+    },
+    "short": {
+      "lte": "LTE",
+      "nr_sa": "5G NR-SA"
+    },
+    "fields": {
+      "earfcn": "頻點 (EARFCN)",
+      "arfcn": "頻點 (NR-ARFCN)",
+      "pci": "小區 ID (PCI)",
+      "band": "NR 頻段",
+      "scs": "子載波間隔",
+      "slot": "小區 {{index}}",
+      "slot_clear": "清除小區 {{index}}",
+      "scs_guess": "已依頻段 {{band}} 的預設值填入。若鎖定失敗，請對照您的基站核實。",
+      "scs_from_serving": "讀取自數據機目前駐留的小區。",
+      "pick_placeholder": "選擇一個在網載波",
+      "custom_value": "自訂：{{channel}} · PCI {{pci}}",
+      "slot_in_use": "位於小區 {{index}}"
+    },
+    "card": {
+      "enable_label": "基站鎖定",
+      "status_locked": "已鎖定",
+      "status_unlocked": "未鎖定",
+      "status_unknown": "尚未回報",
+      "gate_nsa_title": "5G NSA 下無法使用",
+      "gate_nsa_body": "獨立組網鎖定需要數據機處於 SA 模式。目前 5G 錨定於一個 LTE 小區上。",
+      "gate_lte_title": "無 5G 連線",
+      "gate_lte_body": "數據機僅使用 LTE，因此沒有可固定的 NR 小區。",
+      "empty_title": "尚無小區目標",
+      "empty_body": "從上方方塊中選取一個小區，或手動輸入頻點與 PCI。",
+      "simple_mode": "從在網載波中選擇",
+      "simple_mode_help": "選取無線電目前可見的小區，無須手動輸入數值。"
+    },
+    "schedule": {
+      "title": "鎖定排程",
+      "description": "僅在每日時段內套用基站鎖定。",
+      "enable_label": "排程鎖定",
+      "start": "開始",
+      "end": "結束",
+      "days": "重複於",
+      "days_a11y": "星期",
+      "day_selected": "{{day}}，已選取",
+      "day_unselected": "{{day}}，未選取",
+      "day_0": "日",
+      "day_1": "一",
+      "day_2": "二",
+      "day_3": "三",
+      "day_4": "四",
+      "day_5": "五",
+      "day_6": "六",
+      "status_active": "生效中",
+      "status_inactive": "未生效",
+      "toast_saved": "已更新排程",
+      "toast_error": "無法儲存排程",
+      "toast_no_targets": "請先設定鎖定目標再進行排程",
+      "arm_warning": "已儲存，但排程未啟用：{{reason}}",
+      "arm_reason_unit_absent": "此裝置尚未安裝排程服務 — 請更新至最新韌體以啟用",
+      "arm_reason_unknown": "原因不明",
+      "no_days": "請至少選擇一天"
+    },
+    "actions": {
+      "lock": "鎖定基站",
+      "unlock": "解除鎖定",
+      "clear_fields": "清空欄位"
+    },
+    "dialog": {
+      "lock_lte_title": "將 LTE 鎖定至此小區？",
+      "lock_lte_body_one": "數據機將短暫中斷連線並重新附著至 {{summary}}。若該小區無法接入，在解除鎖定前可能會失去服務。",
+      "lock_lte_body_other": "數據機將短暫中斷連線並重新附著至 {{count}} 個小區中的一個。若均無法接入，在解除鎖定前可能會失去服務。",
+      "lock_nr_title": "將 5G 鎖定至此小區？",
+      "lock_nr_body": "數據機將短暫中斷連線並重新附著至 {{summary}}。若該小區無法接入，在解除鎖定前可能會失去服務。",
+      "unlock_title": "解除 {{leg}} 基站鎖定？",
+      "unlock_body": "無線電將恢復自行選擇小區。重新附著期間連線會短暫中斷。"
+    },
+    "toast": {
+      "locked": "已套用 {{leg}} 基站鎖定",
+      "unlocked": "已清除 {{leg}} 基站鎖定",
+      "lock_error": "無法套用 {{leg}} 基站鎖定",
+      "unlock_error": "無法解除 {{leg}} 基站鎖定",
+      "incomplete": "請填寫所有欄位後再鎖定",
+      "no_targets": "請先輸入頻點與小區 ID",
+      "filled": "已從頻段 {{band}}、PCI {{pci}} 填入 {{leg}}",
+      "slots_full": "三個 LTE 小區均已設定"
+    },
+    "warning": {
+      "service_enable_failed": "鎖定目前已生效，但重新啟動後不會保留 — 數據機拒絕了儲存指令。",
+      "persist_command_failed": "「重新啟動後保持鎖定」未生效。數據機拒絕了儲存指令。",
+      "dismiss": "忽略"
+    },
+    "error": {
+      "title": "無法讀取基站鎖定狀態",
+      "body": "數據機經三次嘗試仍無回應。在此操作成功之前，下方內容均不反映無線電真實的鎖定狀態。",
+      "retry": "重試"
+    },
+    "a11y": {
+      "applying": "正在套用 {{leg}} 基站鎖定…",
+      "refreshing": "正在重新讀取基站鎖定狀態…"
+    }
   }
 }

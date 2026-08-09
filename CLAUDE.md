@@ -140,6 +140,7 @@ Each feature below has a reference doc holding its invariants, gotchas, and rati
 | **Antenna Alignment** | `/cellular/antenna-alignment`, the composite aim score / recorder sampling gate, and the two shared `/cellular/` primitives it extracted: `components/cellular/condition-screen.tsx` and `components/cellular/signal-quality-display.ts` | `antenna-alignment.md` |
 | **Antenna Statistics** | `/cellular/antenna-statistics`, `signal_per_antenna`, and the shared `SIGNAL_SENTINELS` / `normalizeSignalValue` / `isPortReporting` boundary in `types/modem-status.ts` (both antenna pages read through it) | `antenna-statistics.md` |
 | **Band Locking** | `/cellular/cell-locking`, the two-axis band chip (fill=selected, inset ring=live), `unlockAll` as a write, the single failover watcher `lock.sh` arms, or the profile/scenario gate chain | `band-locking.md` |
+| **Tower Locking** | `/cellular/cell-locking/tower-locking`, `AT+QNWLOCK` (`common/4g` / `common/5g` / `save_ctrl`), the unpolled `status.sh` read-back and its AT-mutex cost, the **unbounded** `qmanager_tower_failover` watcher, or the one-directional frequency-lock gate | `tower-locking.md` |
 | **Carrier Aggregation** | `AT+QCAINFO`, `network.carrier_components[]`, the dashboard CA strip | `carrier-aggregation.md` |
 | **Radio Information** | `/cellular/` index, `lib/radio-info.ts`, `components/cellular/radio/**` | `radio-information.md` |
 | **Recent Activities** | `events.sh`, `/tmp/qmanager_events.json`, the dashboard event feed, event tone/freshness | `recent-activities.md` |

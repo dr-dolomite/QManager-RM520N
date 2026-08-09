@@ -1389,5 +1389,191 @@
         "caption": "Slot usati su entrambe le memorie"
       }
     }
+  },
+  "tower_locking": {
+    "page": {
+      "title": "Blocco BTS",
+      "description": "Fissa il modem a una cella fisica precisa tramite PCI e canale."
+    },
+    "live": {
+      "title": "Stato attuale della BTS",
+      "camped_on": "Agganciato adesso",
+      "camped_summary_one": "{{count}} portante · {{mhz}} MHz",
+      "camped_summary_other": "{{count}} portanti · {{mhz}} MHz",
+      "camped_empty_title": "Nessuna portante attiva",
+      "camped_empty_body": "Il modem non è agganciato a nessuna cella al momento. Il blocco si applica comunque non appena si aggancia.",
+      "camped_note": "Dato riportato dalla radio. Scegli una cella per compilarne i dati nel modulo di blocco qui sotto.",
+      "absent_nr_title": "Nessuna portante 5G",
+      "absent_nr_body": "Il modem è solo su LTE. Nessuna cella NR è in copertura al momento.",
+      "absent_lte_title": "Nessun ancoraggio LTE",
+      "absent_lte_body": "Il modem è in 5G standalone. Nessuna portante LTE è in uso.",
+      "tile_tech_LTE": "LTE",
+      "tile_tech_NR": "5G NR",
+      "tile_pci": "PCI",
+      "tile_earfcn": "EARFCN",
+      "tile_arfcn": "ARFCN",
+      "tile_rsrp": "{{value}} dBm",
+      "tile_rsrq": "{{value}} dB",
+      "tile_sinr": "{{value}} dB",
+      "tile_no_value": "—",
+      "tile_no_aggregation": "Nessuna aggregazione",
+      "tile_use": "Usa cella",
+      "tile_use_a11y": "Usa la banda {{band}}, PCI {{pci}} come destinazione del blocco {{leg}}",
+      "tile_blocked_nsa": "Il blocco 5G richiede la modalità standalone",
+      "tile_blocked_lte_only": "Nessuna connessione 5G da bloccare",
+      "tile_blocked_slots_full": "Tutte e tre le celle LTE sono impostate",
+      "eyebrow": "Stato del blocco",
+      "rail_subtitle_none": "Nessun blocco BTS attivo",
+      "rail_subtitle_lte": "LTE fissato a una cella",
+      "rail_subtitle_nr": "5G fissato a una cella",
+      "rail_subtitle_both": "Entrambe le radio fissate",
+      "rail_subtitle_unknown": "Non ancora segnalato",
+      "rail_target_none": "Nessuna destinazione",
+      "rail_target_pair": "{{channel}} · PCI {{pci}}",
+      "rail_target_cells_one": "{{count}} cella bloccata",
+      "rail_target_cells_other": "{{count}} celle bloccate",
+      "leg_status_locked": "Bloccato",
+      "leg_status_unlocked": "Sbloccato",
+      "leg_status_unknown": "Non segnalato",
+      "synced_at": "Stato del blocco alle {{time}}",
+      "synced_never": "Stato del blocco non ancora letto",
+      "refresh": "Rileggi lo stato del blocco dal modem",
+      "persist_label": "Mantieni il blocco dopo il riavvio",
+      "persist_help": "Salva il blocco sul modem stesso, così viene ripristinato automaticamente dopo un riavvio.",
+      "persist_state_on": "Attivo",
+      "persist_state_off": "Disattivo",
+      "persist_state_split": "Una sola radio",
+      "persist_state_unknown": "Non segnalato",
+      "persist_split_help": "Il modem lo segnala salvato per una radio ma non per l'altra. Disattivalo e riattivalo per riscriverle entrambe.",
+      "persist_toast_enabled": "Il blocco sarà mantenuto dopo il riavvio",
+      "persist_toast_disabled": "Il blocco non sarà mantenuto dopo il riavvio",
+      "persist_toast_error": "Impossibile aggiornare l'impostazione di riavvio",
+      "failover_label": "Failover del segnale",
+      "failover_help_label": "Informazioni sul failover del segnale",
+      "failover_help": "Rimuove automaticamente il blocco BTS se la qualità del segnale resta sotto la soglia, così una cella scadente non può isolare la connessione. Rilascia entrambe le radio, non solo quella debole.",
+      "failover_state_disabled": "Disattivato",
+      "failover_state_standby": "Nessun blocco",
+      "failover_state_armed": "Monitoraggio",
+      "failover_state_fallback": "Rilasciato — debole",
+      "failover_no_lock": "Blocca una radio per attivarlo",
+      "failover_toast_enabled": "Failover del segnale attivato",
+      "failover_toast_disabled": "Failover del segnale disattivato",
+      "failover_toast_error": "Impossibile aggiornare il failover del segnale",
+      "threshold_label": "Rilascia sotto",
+      "threshold_help": "Qualità del segnale in percentuale derivata dall'RSRP: −140 dBm è 0%, −80 dBm è 100%.",
+      "threshold_invalid": "Inserisci un valore tra 0 e 100",
+      "threshold_toast_saved": "Soglia di failover aggiornata",
+      "threshold_toast_error": "Impossibile aggiornare la soglia",
+      "quality_label": "Qualità del segnale ora",
+      "quality_value": "{{value}}%",
+      "quality_unknown": "Non segnalato"
+    },
+    "legs": {
+      "lte": {
+        "title": "BTS LTE",
+        "description": "Fissa la radio 4G fino a un massimo di tre celle, per canale e PCI."
+      },
+      "nr_sa": {
+        "title": "BTS 5G NR-SA",
+        "description": "Fissa la radio 5G standalone a una singola cella."
+      }
+    },
+    "short": {
+      "lte": "LTE",
+      "nr_sa": "5G NR-SA"
+    },
+    "fields": {
+      "earfcn": "Canale (EARFCN)",
+      "arfcn": "Canale (NR-ARFCN)",
+      "pci": "ID cella (PCI)",
+      "band": "Banda NR",
+      "scs": "Spaziatura sottoportanti",
+      "slot": "Cella {{index}}",
+      "slot_clear": "Cancella cella {{index}}",
+      "scs_guess": "Compilato con il valore predefinito della banda {{band}}. Verificalo con la tua BTS se il blocco non riesce.",
+      "scs_from_serving": "Letto dalla cella a cui il modem è agganciato.",
+      "pick_placeholder": "Scegli una portante attiva",
+      "custom_value": "Personalizzato: {{channel}} · PCI {{pci}}",
+      "slot_in_use": "Nella cella {{index}}"
+    },
+    "card": {
+      "enable_label": "Blocco BTS",
+      "status_locked": "Bloccato",
+      "status_unlocked": "Sbloccato",
+      "status_unknown": "Non segnalato",
+      "gate_nsa_title": "Non disponibile in 5G NSA",
+      "gate_nsa_body": "Il blocco standalone richiede il modem in modalità SA. Attualmente usa il 5G ancorato a una cella LTE.",
+      "gate_lte_title": "Nessuna connessione 5G",
+      "gate_lte_body": "Il modem è solo su LTE, quindi non c'è alcuna cella NR da fissare.",
+      "empty_title": "Nessuna cella di destinazione",
+      "empty_body": "Scegli una cella dai riquadri qui sopra, oppure digita canale e PCI.",
+      "simple_mode": "Scegli tra le portanti attive",
+      "simple_mode_help": "Scegli una cella che la radio vede in questo momento invece di digitarne i numeri."
+    },
+    "schedule": {
+      "title": "Pianificazione del blocco",
+      "description": "Applica il blocco BTS solo entro una finestra giornaliera.",
+      "enable_label": "Blocco pianificato",
+      "start": "Inizio",
+      "end": "Fine",
+      "days": "Ripeti il",
+      "days_a11y": "Giorni della settimana",
+      "day_selected": "{{day}}, selezionato",
+      "day_unselected": "{{day}}, non selezionato",
+      "day_0": "Dom",
+      "day_1": "Lun",
+      "day_2": "Mar",
+      "day_3": "Mer",
+      "day_4": "Gio",
+      "day_5": "Ven",
+      "day_6": "Sab",
+      "status_active": "Attiva",
+      "status_inactive": "Inattiva",
+      "toast_saved": "Pianificazione aggiornata",
+      "toast_error": "Impossibile salvare la pianificazione",
+      "toast_no_targets": "Imposta una destinazione di blocco prima di pianificare",
+      "arm_warning": "Salvata, ma la pianificazione non è attiva: {{reason}}",
+      "arm_reason_unit_absent": "il servizio di pianificazione non è ancora installato su questo dispositivo — aggiorna al firmware più recente per abilitarlo",
+      "arm_reason_unknown": "motivo sconosciuto",
+      "no_days": "Scegli almeno un giorno"
+    },
+    "actions": {
+      "lock": "Blocca BTS",
+      "unlock": "Rimuovi blocco",
+      "clear_fields": "Cancella campi"
+    },
+    "dialog": {
+      "lock_lte_title": "Bloccare l'LTE su questa cella?",
+      "lock_lte_body_one": "Il modem interrompe brevemente la connessione e si riaggancia a {{summary}}. Se quella cella non è raggiungibile potresti restare senza servizio finché il blocco non viene rimosso.",
+      "lock_lte_body_other": "Il modem interrompe brevemente la connessione e si riaggancia a una di {{count}} celle. Se nessuna è raggiungibile potresti restare senza servizio finché il blocco non viene rimosso.",
+      "lock_nr_title": "Bloccare il 5G su questa cella?",
+      "lock_nr_body": "Il modem interrompe brevemente la connessione e si riaggancia a {{summary}}. Se quella cella non è raggiungibile potresti restare senza servizio finché il blocco non viene rimosso.",
+      "unlock_title": "Rimuovere il blocco BTS {{leg}}?",
+      "unlock_body": "La radio torna a scegliere la cella da sola. La connessione si interrompe brevemente durante il riaggancio."
+    },
+    "toast": {
+      "locked": "Blocco BTS {{leg}} applicato",
+      "unlocked": "Blocco BTS {{leg}} rimosso",
+      "lock_error": "Impossibile applicare il blocco BTS {{leg}}",
+      "unlock_error": "Impossibile rimuovere il blocco BTS {{leg}}",
+      "incomplete": "Compila tutti i campi prima di bloccare",
+      "no_targets": "Inserisci prima canale e ID cella",
+      "filled": "{{leg}} compilato da banda {{band}}, PCI {{pci}}",
+      "slots_full": "Tutte e tre le celle LTE sono già impostate"
+    },
+    "warning": {
+      "service_enable_failed": "Il blocco è attivo adesso, ma non sopravvivrà a un riavvio: il modem ha rifiutato il comando di salvataggio.",
+      "persist_command_failed": "«Mantieni il blocco dopo il riavvio» non è stato applicato. Il modem ha rifiutato il comando di salvataggio.",
+      "dismiss": "Chiudi"
+    },
+    "error": {
+      "title": "Impossibile leggere lo stato del blocco BTS",
+      "body": "Il modem non ha risposto dopo tre tentativi. Finché l'operazione non riesce, nulla di quanto segue riflette il reale stato di blocco della radio.",
+      "retry": "Riprova"
+    },
+    "a11y": {
+      "applying": "Applicazione del blocco BTS {{leg}}…",
+      "refreshing": "Rilettura dello stato del blocco BTS…"
+    }
   }
 }

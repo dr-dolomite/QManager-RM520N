@@ -1389,5 +1389,191 @@
         "caption": "两个存储区共用的槽位"
       }
     }
+  },
+  "tower_locking": {
+    "page": {
+      "title": "基站锁定",
+      "description": "按 PCI 和频点将调制解调器固定到特定的物理小区。"
+    },
+    "live": {
+      "title": "实时基站状态",
+      "camped_on": "当前驻留",
+      "camped_summary_one": "{{count}} 个载波 · {{mhz}} MHz",
+      "camped_summary_other": "{{count}} 个载波 · {{mhz}} MHz",
+      "camped_empty_title": "当前无在网载波",
+      "camped_empty_body": "调制解调器目前未驻留在任何小区。锁定仍会在其附着后生效。",
+      "camped_note": "此信息来自无线电模块。选择一个小区，即可将其详细参数填入下方的锁定表单。",
+      "absent_nr_title": "无 5G 载波",
+      "absent_nr_body": "调制解调器仅使用 LTE。当前范围内没有 NR 小区。",
+      "absent_lte_title": "无 LTE 锚点",
+      "absent_lte_body": "调制解调器处于 5G 独立组网。未使用任何 LTE 载波。",
+      "tile_tech_LTE": "LTE",
+      "tile_tech_NR": "5G NR",
+      "tile_pci": "PCI",
+      "tile_earfcn": "EARFCN",
+      "tile_arfcn": "ARFCN",
+      "tile_rsrp": "{{value}} dBm",
+      "tile_rsrq": "{{value}} dB",
+      "tile_sinr": "{{value}} dB",
+      "tile_no_value": "—",
+      "tile_no_aggregation": "无聚合",
+      "tile_use": "使用此小区",
+      "tile_use_a11y": "将频段 {{band}}、PCI {{pci}} 用作 {{leg}} 锁定目标",
+      "tile_blocked_nsa": "5G 锁定需要独立组网模式",
+      "tile_blocked_lte_only": "无 5G 连接可锁定",
+      "tile_blocked_slots_full": "三个 LTE 小区均已设置",
+      "eyebrow": "锁定状态",
+      "rail_subtitle_none": "当前未设置基站锁定",
+      "rail_subtitle_lte": "LTE 已固定到某个小区",
+      "rail_subtitle_nr": "5G 已固定到某个小区",
+      "rail_subtitle_both": "两个无线电均已固定",
+      "rail_subtitle_unknown": "尚未上报",
+      "rail_target_none": "无锁定目标",
+      "rail_target_pair": "{{channel}} · PCI {{pci}}",
+      "rail_target_cells_one": "已锁定 {{count}} 个小区",
+      "rail_target_cells_other": "已锁定 {{count}} 个小区",
+      "leg_status_locked": "已锁定",
+      "leg_status_unlocked": "未锁定",
+      "leg_status_unknown": "尚未上报",
+      "synced_at": "锁定状态更新于 {{time}}",
+      "synced_never": "尚未读取锁定状态",
+      "refresh": "从调制解调器重新读取锁定状态",
+      "persist_label": "重启后保持锁定",
+      "persist_help": "将锁定保存在调制解调器上，重启后会自动恢复。",
+      "persist_state_on": "已开启",
+      "persist_state_off": "已关闭",
+      "persist_state_split": "仅一个无线电",
+      "persist_state_unknown": "尚未上报",
+      "persist_split_help": "调制解调器报告仅为一个无线电保存了此设置。请关闭后重新开启，以重写两者。",
+      "persist_toast_enabled": "重启后将保持锁定",
+      "persist_toast_disabled": "重启后将不保持锁定",
+      "persist_toast_error": "无法更新重启设置",
+      "failover_label": "信号故障转移",
+      "failover_help_label": "关于信号故障转移",
+      "failover_help": "若信号质量持续低于阈值，则自动解除基站锁定，避免劣质小区导致连接中断。解除时会同时释放两个无线电，而不仅是信号弱的那个。",
+      "failover_state_disabled": "已禁用",
+      "failover_state_standby": "无锁定可守护",
+      "failover_state_armed": "监测中",
+      "failover_state_fallback": "已解除 — 信号弱",
+      "failover_no_lock": "锁定一个无线电以启用",
+      "failover_toast_enabled": "已启用信号故障转移",
+      "failover_toast_disabled": "已禁用信号故障转移",
+      "failover_toast_error": "无法更新信号故障转移",
+      "threshold_label": "低于此值时解除",
+      "threshold_help": "由 RSRP 换算的信号质量百分比：−140 dBm 为 0%，−80 dBm 为 100%。",
+      "threshold_invalid": "请输入 0 到 100 之间的数值",
+      "threshold_toast_saved": "已更新故障转移阈值",
+      "threshold_toast_error": "无法更新阈值",
+      "quality_label": "当前信号质量",
+      "quality_value": "{{value}}%",
+      "quality_unknown": "尚未上报"
+    },
+    "legs": {
+      "lte": {
+        "title": "LTE 基站",
+        "description": "按频点和 PCI 将 4G 无线电固定到最多三个小区。"
+      },
+      "nr_sa": {
+        "title": "5G NR-SA 基站",
+        "description": "将 5G 独立组网无线电固定到单个小区。"
+      }
+    },
+    "short": {
+      "lte": "LTE",
+      "nr_sa": "5G NR-SA"
+    },
+    "fields": {
+      "earfcn": "频点 (EARFCN)",
+      "arfcn": "频点 (NR-ARFCN)",
+      "pci": "小区 ID (PCI)",
+      "band": "NR 频段",
+      "scs": "子载波间隔",
+      "slot": "小区 {{index}}",
+      "slot_clear": "清除小区 {{index}}",
+      "scs_guess": "已按频段 {{band}} 的默认值填写。若锁定失败，请对照您的基站核实。",
+      "scs_from_serving": "读取自调制解调器当前驻留的小区。",
+      "pick_placeholder": "选择一个在网载波",
+      "custom_value": "自定义：{{channel}} · PCI {{pci}}",
+      "slot_in_use": "位于小区 {{index}}"
+    },
+    "card": {
+      "enable_label": "基站锁定",
+      "status_locked": "已锁定",
+      "status_unlocked": "未锁定",
+      "status_unknown": "尚未上报",
+      "gate_nsa_title": "5G NSA 下不可用",
+      "gate_nsa_body": "独立组网锁定要求调制解调器处于 SA 模式。当前 5G 锚定在一个 LTE 小区上。",
+      "gate_lte_title": "无 5G 连接",
+      "gate_lte_body": "调制解调器仅使用 LTE，因此没有可固定的 NR 小区。",
+      "empty_title": "尚无小区目标",
+      "empty_body": "从上方磁贴中选择一个小区，或手动输入频点和 PCI。",
+      "simple_mode": "从在网载波中选择",
+      "simple_mode_help": "选择无线电当前可见的小区，无需手动输入数值。"
+    },
+    "schedule": {
+      "title": "锁定计划",
+      "description": "仅在每日时段内应用基站锁定。",
+      "enable_label": "计划锁定",
+      "start": "开始",
+      "end": "结束",
+      "days": "重复于",
+      "days_a11y": "星期",
+      "day_selected": "{{day}}，已选择",
+      "day_unselected": "{{day}}，未选择",
+      "day_0": "日",
+      "day_1": "一",
+      "day_2": "二",
+      "day_3": "三",
+      "day_4": "四",
+      "day_5": "五",
+      "day_6": "六",
+      "status_active": "生效中",
+      "status_inactive": "未生效",
+      "toast_saved": "已更新计划",
+      "toast_error": "无法保存计划",
+      "toast_no_targets": "请先设置锁定目标再制定计划",
+      "arm_warning": "已保存，但计划未启用：{{reason}}",
+      "arm_reason_unit_absent": "此设备尚未安装计划服务 — 请更新到最新固件以启用",
+      "arm_reason_unknown": "原因未知",
+      "no_days": "请至少选择一天"
+    },
+    "actions": {
+      "lock": "锁定基站",
+      "unlock": "解除锁定",
+      "clear_fields": "清空字段"
+    },
+    "dialog": {
+      "lock_lte_title": "将 LTE 锁定到此小区？",
+      "lock_lte_body_one": "调制解调器将短暂断开连接并重新附着到 {{summary}}。如果该小区无法接入，在解除锁定前可能会失去服务。",
+      "lock_lte_body_other": "调制解调器将短暂断开连接并重新附着到 {{count}} 个小区中的一个。如果均无法接入，在解除锁定前可能会失去服务。",
+      "lock_nr_title": "将 5G 锁定到此小区？",
+      "lock_nr_body": "调制解调器将短暂断开连接并重新附着到 {{summary}}。如果该小区无法接入，在解除锁定前可能会失去服务。",
+      "unlock_title": "解除 {{leg}} 基站锁定？",
+      "unlock_body": "无线电将恢复自行选择小区。重新附着期间连接会短暂中断。"
+    },
+    "toast": {
+      "locked": "已应用 {{leg}} 基站锁定",
+      "unlocked": "已清除 {{leg}} 基站锁定",
+      "lock_error": "无法应用 {{leg}} 基站锁定",
+      "unlock_error": "无法解除 {{leg}} 基站锁定",
+      "incomplete": "请填写所有字段后再锁定",
+      "no_targets": "请先输入频点和小区 ID",
+      "filled": "已从频段 {{band}}、PCI {{pci}} 填充 {{leg}}",
+      "slots_full": "三个 LTE 小区均已设置"
+    },
+    "warning": {
+      "service_enable_failed": "锁定当前已生效，但重启后不会保留 — 调制解调器拒绝了保存命令。",
+      "persist_command_failed": "“重启后保持锁定”未生效。调制解调器拒绝了保存命令。",
+      "dismiss": "忽略"
+    },
+    "error": {
+      "title": "无法读取基站锁定状态",
+      "body": "调制解调器经三次尝试仍无响应。在此操作成功之前，下方内容均不反映无线电的真实锁定状态。",
+      "retry": "重试"
+    },
+    "a11y": {
+      "applying": "正在应用 {{leg}} 基站锁定…",
+      "refreshing": "正在重新读取基站锁定状态…"
+    }
   }
 }

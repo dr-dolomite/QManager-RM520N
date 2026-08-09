@@ -1389,5 +1389,191 @@
         "caption": "Slots used across both memories"
       }
     }
+  },
+  "tower_locking": {
+    "page": {
+      "title": "Tower Locking",
+      "description": "Pin the modem to a specific physical cell by PCI and channel."
+    },
+    "live": {
+      "title": "Live tower state",
+      "camped_on": "Camped on now",
+      "camped_summary_one": "{{count}} carrier · {{mhz}} MHz",
+      "camped_summary_other": "{{count}} carriers · {{mhz}} MHz",
+      "camped_empty_title": "No carrier on air",
+      "camped_empty_body": "The modem is not camped on any cell right now. A lock still applies once it attaches.",
+      "camped_note": "Reported by the radio. Pick a cell to fill its details into the lock form below.",
+      "absent_nr_title": "No 5G carrier",
+      "absent_nr_body": "The modem is on LTE alone. No NR cell is in range right now.",
+      "absent_lte_title": "No LTE anchor",
+      "absent_lte_body": "The modem is on 5G standalone. No LTE carrier is in use.",
+      "tile_tech_LTE": "LTE",
+      "tile_tech_NR": "5G NR",
+      "tile_pci": "PCI",
+      "tile_earfcn": "EARFCN",
+      "tile_arfcn": "ARFCN",
+      "tile_rsrp": "{{value}} dBm",
+      "tile_no_value": "—",
+      "tile_no_aggregation": "No aggregation",
+      "tile_use": "Use this cell",
+      "tile_use_a11y": "Use band {{band}}, PCI {{pci}} as the {{leg}} lock target",
+      "tile_blocked_nsa": "5G locking needs standalone mode",
+      "tile_blocked_lte_only": "No 5G connection to lock",
+      "tile_blocked_slots_full": "All three LTE cells are set",
+      "eyebrow": "Lock posture",
+      "rail_subtitle_none": "No tower lock in place",
+      "rail_subtitle_lte": "LTE pinned to a cell",
+      "rail_subtitle_nr": "5G pinned to a cell",
+      "rail_subtitle_both": "Both radios pinned",
+      "rail_subtitle_unknown": "Not reported yet",
+      "rail_target_none": "No lock target",
+      "rail_target_pair": "{{channel}} · PCI {{pci}}",
+      "rail_target_cells_one": "{{count}} cell locked",
+      "rail_target_cells_other": "{{count}} cells locked",
+      "leg_status_locked": "Locked",
+      "leg_status_unlocked": "Unlocked",
+      "leg_status_unknown": "Not reported",
+      "synced_at": "Lock state as of {{time}}",
+      "synced_never": "Lock state not read yet",
+      "refresh": "Re-read lock state from the modem",
+      "persist_label": "Keep lock after reboot",
+      "persist_help": "Stores the lock on the modem itself, so it is restored automatically after a restart.",
+      "persist_state_on": "On",
+      "persist_state_off": "Off",
+      "persist_state_split": "Only one radio",
+      "persist_state_unknown": "Not reported",
+      "persist_split_help": "The modem reports this saved for one radio but not the other. Switch it off and on again to rewrite both.",
+      "persist_toast_enabled": "Lock will be kept after reboot",
+      "persist_toast_disabled": "Lock will not be kept after reboot",
+      "persist_toast_error": "Couldn't update the reboot setting",
+      "failover_label": "Signal failover",
+      "failover_help_label": "About signal failover",
+      "failover_help": "Releases the tower lock automatically if signal quality stays below the threshold, so a bad cell cannot strand the connection. It releases both radios, not just the weak one.",
+      "failover_state_disabled": "Disabled",
+      "failover_state_standby": "No lock to guard",
+      "failover_state_armed": "Watching",
+      "failover_state_fallback": "Released — weak signal",
+      "failover_no_lock": "Lock a radio to arm it",
+      "failover_toast_enabled": "Signal failover enabled",
+      "failover_toast_disabled": "Signal failover disabled",
+      "failover_toast_error": "Couldn't update signal failover",
+      "threshold_label": "Release below",
+      "threshold_help": "Signal quality as a percentage derived from RSRP: −140 dBm is 0%, −80 dBm is 100%.",
+      "threshold_invalid": "Enter a value between 0 and 100",
+      "threshold_toast_saved": "Failover threshold updated",
+      "threshold_toast_error": "Couldn't update the threshold",
+      "quality_label": "Signal quality now",
+      "quality_value": "{{value}}%",
+      "quality_unknown": "Not reported",
+      "tile_rsrq": "{{value}} dB",
+      "tile_sinr": "{{value}} dB"
+    },
+    "legs": {
+      "lte": {
+        "title": "LTE Tower",
+        "description": "Pin the 4G radio to as many as three cells, by channel and PCI."
+      },
+      "nr_sa": {
+        "title": "5G NR-SA Tower",
+        "description": "Pin the 5G standalone radio to a single cell."
+      }
+    },
+    "short": {
+      "lte": "LTE",
+      "nr_sa": "5G NR-SA"
+    },
+    "fields": {
+      "earfcn": "Channel (EARFCN)",
+      "arfcn": "Channel (NR-ARFCN)",
+      "pci": "Cell ID (PCI)",
+      "band": "NR band",
+      "scs": "Subcarrier spacing",
+      "slot": "Cell {{index}}",
+      "slot_clear": "Clear cell {{index}}",
+      "scs_guess": "Filled from the band {{band}} default. Verify it against your tower if the lock fails.",
+      "scs_from_serving": "Read from the cell the modem is camped on.",
+      "pick_placeholder": "Pick a carrier on air",
+      "custom_value": "Custom: {{channel}} · PCI {{pci}}",
+      "slot_in_use": "In cell {{index}}"
+    },
+    "card": {
+      "enable_label": "Tower lock",
+      "status_locked": "Locked",
+      "status_unlocked": "Unlocked",
+      "status_unknown": "Not reported",
+      "gate_nsa_title": "Not available in 5G NSA",
+      "gate_nsa_body": "Standalone locking needs the modem in SA mode. It is currently using 5G anchored to an LTE cell.",
+      "gate_lte_title": "No 5G connection",
+      "gate_lte_body": "The modem is on LTE only, so there is no NR cell to pin.",
+      "empty_title": "No cell targets yet",
+      "empty_body": "Pick a cell from the tiles above, or type a channel and PCI.",
+      "simple_mode": "Pick from carriers on air",
+      "simple_mode_help": "Choose a cell the radio can currently see instead of typing its numbers."
+    },
+    "schedule": {
+      "title": "Lock Schedule",
+      "description": "Apply the tower lock only inside a daily window.",
+      "enable_label": "Scheduled locking",
+      "start": "Start",
+      "end": "End",
+      "days": "Repeat on",
+      "days_a11y": "Days of the week",
+      "day_selected": "{{day}}, selected",
+      "day_unselected": "{{day}}, not selected",
+      "day_0": "Sun",
+      "day_1": "Mon",
+      "day_2": "Tue",
+      "day_3": "Wed",
+      "day_4": "Thu",
+      "day_5": "Fri",
+      "day_6": "Sat",
+      "status_active": "Active",
+      "status_inactive": "Inactive",
+      "toast_saved": "Schedule updated",
+      "toast_error": "Couldn't save the schedule",
+      "toast_no_targets": "Set a lock target before scheduling",
+      "arm_warning": "Saved, but the schedule isn't armed: {{reason}}",
+      "arm_reason_unit_absent": "the scheduling service isn't installed on this device yet — update to the latest firmware to enable it",
+      "arm_reason_unknown": "reason unknown",
+      "no_days": "Pick at least one day"
+    },
+    "actions": {
+      "lock": "Lock Tower",
+      "unlock": "Remove Lock",
+      "clear_fields": "Clear fields"
+    },
+    "dialog": {
+      "lock_lte_title": "Lock LTE to this cell?",
+      "lock_lte_body_one": "The modem drops its connection briefly and reattaches to {{summary}}. If that cell is unreachable you may lose service until the lock is removed.",
+      "lock_lte_body_other": "The modem drops its connection briefly and reattaches to one of {{count}} cells. If none are reachable you may lose service until the lock is removed.",
+      "lock_nr_title": "Lock 5G to this cell?",
+      "lock_nr_body": "The modem drops its connection briefly and reattaches to {{summary}}. If that cell is unreachable you may lose service until the lock is removed.",
+      "unlock_title": "Remove the {{leg}} tower lock?",
+      "unlock_body": "The radio goes back to choosing its own cell. The connection drops briefly while it reattaches."
+    },
+    "toast": {
+      "locked": "{{leg}} tower lock applied",
+      "unlocked": "{{leg}} tower lock cleared",
+      "lock_error": "Couldn't apply the {{leg}} tower lock",
+      "unlock_error": "Couldn't remove the {{leg}} tower lock",
+      "incomplete": "Fill in every field before locking",
+      "no_targets": "Enter a channel and cell ID first",
+      "filled": "Filled {{leg}} from band {{band}}, PCI {{pci}}",
+      "slots_full": "All three LTE cells are already set"
+    },
+    "warning": {
+      "service_enable_failed": "The lock is active now, but it will not survive a reboot — the modem rejected the save command.",
+      "persist_command_failed": "\"Keep lock after reboot\" did not take. The modem rejected the save command.",
+      "dismiss": "Dismiss"
+    },
+    "error": {
+      "title": "Couldn't read tower lock state",
+      "body": "The modem did not answer after three attempts. Nothing below reflects the radio's real lock state until this succeeds.",
+      "retry": "Try again"
+    },
+    "a11y": {
+      "applying": "Applying the {{leg}} tower lock…",
+      "refreshing": "Re-reading tower lock state…"
+    }
   }
 }
