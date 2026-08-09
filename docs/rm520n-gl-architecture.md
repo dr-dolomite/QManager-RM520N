@@ -81,7 +81,7 @@ For AT command access, QManager uses the `atcli_smd11` binary talking to `/dev/s
 | **Config storage** | `/usrdata/` (persistent, writable) |
 | **LAN config** | `/etc/data/mobileap_cfg.xml` — parsed with **`xmllint`** (`/usr/bin/xmllint`, system-bundled). `xmlstarlet` is **NOT** installed by default; if a feature truly needs it, add `opkg install xmlstarlet` to the installer. |
 | **Root filesystem** | ubifs (`ubi0:rootfs`), boots read-only (`ro` in `/proc/cmdline`). `mount -o remount,rw /` before any rootfs write, `sync` after; **never remount back to `ro`** — see [BACKEND.md §2.1](BACKEND.md#21-rootfs-mount-mode-contract) |
-| **`/etc/`** | tmpfs — **volatile** (lost on reboot); exception: `/etc/qmanager/` is on rootfs |
+| **`/etc/`** | `/dev/ubi2_0` ubifs — **persistent, mounted `rw` at boot**, no remount needed (same volume as `/usrdata` and `/opt`). Not tmpfs. Only exception: `/etc/machine-id` is a single-file `ro` tmpfs bind |
 | **Persistent partition** | `/usrdata/` |
 | **Package manager** | Entware opkg at `/opt` (bind-mounted from `/usrdata/opt`) |
 | **Firewall** | iptables (direct rules, no framework like fw4) |
@@ -108,7 +108,7 @@ This table contrasts every major subsystem between the **legacy RM551E-on-OpenWR
 | **TTL interface** | `wwan0` | `rmnet+` (wildcard) | Update interface names in rules |
 | **CGI shell** | `/bin/sh` (BusyBox ash) | `/bin/sh` is also BusyBox ash here; `/bin/bash` (3.2.57) available for explicit `#!/bin/bash` scripts | Same POSIX baseline as OpenWRT — bash 3.2 lacks modern bashisms (no `mapfile`, `${var,,}`, `declare -A`, `wait -n`) |
 | **Config system** | UCI (`/etc/config/`) | Files in `/usrdata/` + XML for LAN | Replace all `uci` calls |
-| **Persistent storage** | `/overlay/`, `/etc/` | `/usrdata/`, rootfs (`/lib/systemd/`, `/etc/qmanager/`). `/etc/` itself is tmpfs (volatile). | Different backup/restore paths |
+| **Persistent storage** | `/overlay/`, `/etc/` | `/usrdata/` and `/etc/` (both `ubi2_0`, incl. `/etc/qmanager/`), plus rootfs `/lib/systemd/`. `/etc/` is persistent ubifs, **not** tmpfs. | Different backup/restore paths |
 | **Auth** | Cookie-based multi-session | HTTP Basic Auth (`.htpasswd`) | Different auth middleware |
 | **LAN config** | UCI network config | XML (`mobileap_cfg.xml`) via xmlstarlet | Completely different API |
 | **Compound AT** | Semicolon batching via `qcmd` | Supported, but needs serialization | Add `flock` around compound commands |
@@ -161,13 +161,18 @@ This is **the** layout to internalize before any code that touches persistent pa
 
 ```
 ubi0:rootfs       → /                   (~100 MB ubifs, boots ro, remount rw before writes)
-                    ├── /etc            (tmpfs root + /dev/ubi2_0 bind for some subdirs — see below)
                     ├── /lib/systemd    (persistent — service unit files live here)
                     └── /usr            (persistent system binaries)
+                    NOTE: /etc is NOT part of this volume — it is a separate
+                    mount from ubi2_0 (see below).
 
-/dev/ubi2_0       → /usrdata, /opt, /etc (parts), /data, /cache, /persist, /systemrw
+/dev/ubi2_0       → /etc, /usrdata, /opt, /data, /cache, /persist, /systemrw
                     ALL OF THESE ARE THE SAME 124 MB UBIFS VOLUME, BIND-MOUNTED
+                    and all are mounted rw at boot — no remount needed.
                     Writes anywhere drain the same pool.
+                    /etc is mounted in its ENTIRETY (not "parts"): /etc,
+                    /etc/qmanager, /etc/data and /etc/systemd/system all
+                    report the same device id as /usrdata.
 
 ubi1:firmware     → /firmware           (~91 MB, modem firmware blobs)
 
@@ -181,8 +186,10 @@ tmpfs             → /tmp                (89 MB, volatile, fs.protected_regular
 
 **Implications for backend code:**
 
-- `/var/lib/` is a tmpfs. Anything written there is lost on reboot. Use `/etc/qmanager/` (rootfs) or `/usrdata/qmanager/` for persistence.
-- `/etc/qmanager/` is on the rootfs (ubi0) — the rest of `/etc/` content from the OEM firmware is shipped as part of the rootfs ubifs image, not tmpfs as the older docs implied. The "/etc is tmpfs" claim is **partially incorrect** for this device — verify behavior of any new `/etc/` write before relying on persistence.
+- `/var/lib/` is a tmpfs. Anything written there is lost on reboot. Use `/etc/qmanager/` or `/usrdata/qmanager/` (both `ubi2_0`) for persistence.
+- **`/etc/` is persistent, always-`rw` ubifs on `ubi2_0` — it is NOT tmpfs.** The "/etc is tmpfs / volatile" claim that appeared throughout the older docs is simply wrong, and it caused real design errors (reboot-surviving state being pushed to `/usrdata` or `/tmp` to dodge a volatility that does not exist). `/etc/qmanager/` persists because all of `/etc/` persists — it is not an exception carved out of a volatile parent, and it is **not** on the rootfs.
+- **Only the rootfs needs a remount.** `/` boots `ro` and `qmanager-setup` runs exactly one `mount -o remount,rw /`. Nothing remounts `/etc`, `/usrdata` or `/opt`, because the kernel already mounts `ubi2_0` `rw`. If you are writing under `/etc/**`, you need no mount handling at all.
+- **The rootfs is the volume that is not reliably writable.** It boots `ro`, is remounted `rw` once at boot, and a third-party installer (notably Tailscale) can leave it `ro` again for the rest of the session — which is how boot symlinks under `/lib/systemd/system/` silently failed to write. Treat "is `/` writable right now?" as something to verify, never assume; `/etc` carries no such caveat.
 - All write-heavy operations (logs, backups, SMS spool) compete for the same 124 MB ubifs pool spanning `/usrdata + /opt + /data + /cache + /persist + /systemrw`. Quota one feature at a time.
 - The rootfs (`/`) is a **separate** ubifs volume with its own ~100 MB budget — installer changes to `/lib/systemd/system/`, `/usr/bin/`, `/usr/lib/qmanager/` consume there.
 
@@ -212,7 +219,7 @@ These are issues observed on a running device; they should be fixed in code or t
 
 - **`qmanager-firewall.service` uses a dedicated `QMANAGER_FW` user chain** (since 2026-05). Probe-validated layout: `iptables -L QMANAGER_FW -n -v` is the single source of truth; `INPUT` carries one `-j QMANAGER_FW` jump and nothing else QManager-owned. The script also drains pre-chain orphan rules (e.g. legacy `DROP -i rmnet_data0`) on every `start`/`stop` so upgrades self-heal. See `docs/BACKEND.md` §14 for the full pattern.
 - **`qmanager-imei-check.service` is in `failed` state** on the dev device alongside expected OEM service failures (`pcie-diag`, `pcie`, `ql_ctcc_selfreg`, `r8168`). Worth investigating whether this is environmental or a real regression.
-- **Doc claim `/etc/ is tmpfs` / `/etc is read-only rootfs`** is wrong. Probing shows `/dev/ubi2_0 on /etc type ubifs (rw,...)`, i.e. `/etc` is its **own persistent read-write UBIFS volume** (the same `ubi2_0` pool as `/usrdata` and `/opt`), separate from the read-only rootfs `/` (`ubi0`). Files written under `/etc` (for example `/etc/localtime`, `/etc/qmanager/`, `/etc/data/dnsmasq.conf`) persist across reboot with no rootfs remount. Only specific single-file subpaths (`/etc/machine-id`) are tmpfs-backed. Code that relies on `/etc/` being volatile, or on remounting the rootfs to write `/etc`, should be re-checked.
+- **Doc claim `/etc/ is tmpfs` / `/etc is read-only rootfs`** is wrong. Probing shows `/dev/ubi2_0 on /etc type ubifs (rw,...)`, i.e. `/etc` is its **own persistent read-write UBIFS volume** (the same `ubi2_0` pool as `/usrdata` and `/opt`), separate from the read-only rootfs `/` (`ubi0`). Files written under `/etc` (for example `/etc/localtime`, `/etc/qmanager/`, `/etc/data/dnsmasq.conf`) persist across reboot with no rootfs remount. Only specific single-file subpaths (`/etc/machine-id`) are tmpfs-backed. Code that relies on `/etc/` being volatile, or on remounting the rootfs to write `/etc`, should be re-checked. **Status: re-confirmed by reboot probe on 2026-08-10 and the rest of this document has been corrected to match** — this finding sat here contradicting the tables above it for months.
 - **Kernel version is `5.4.210-perf`** on the probed device, not `5.4.180` as older docs say. Update references when convenient.
 
 ---
@@ -803,7 +810,7 @@ ln -sf "$UNIT_DIR/qmanager-ping.service" "$WANTS_DIR/qmanager-ping.service"
 
 > **WARNING:** Do not rely on `systemctl enable` for boot persistence on the RM520N-GL. Always use `svc_enable`/`svc_disable` from `platform.sh` (or direct symlink creation in install scripts). `systemctl start/stop/restart` works fine for runtime control; only enable/disable is broken.
 
-> **NOTE:** Service files are installed to `/lib/systemd/system/` (persistent rootfs), NOT `/etc/systemd/system/` (which is tmpfs and does not survive reboots on this platform). The wants directory is `/lib/systemd/system/multi-user.target.wants/`.
+> **NOTE:** Service files are installed to `/lib/systemd/system/` (persistent rootfs); the wants directory is `/lib/systemd/system/multi-user.target.wants/`. Earlier revisions of this doc justified that by claiming `/etc/systemd/system/` is tmpfs and does not survive reboots — **that is false**. `/etc/systemd/system/` exists, sits on the same persistent `ubi2_0` volume as the rest of `/etc`, and is populated by the OEM. `/lib/systemd/system/` is the project convention (it matches where the OEM ships its own units and where `svc_enable`/`svc_disable` look), not a persistence workaround. Keep using it — but do not repeat the tmpfs rationale.
 
 ### `/dev/smd11` Permissions — udev Rule
 
@@ -1326,10 +1333,14 @@ The `qcmd` wrapper should accept an optional timeout parameter or use command-sp
 │   ├── smd11               ← Secondary AT channel (raw SMD)
 │   ├── ttyIN, ttyOUT       ← socat PTY pair for smd11
 │   └── ttyIN2, ttyOUT2     ← socat PTY pair for smd7
-├── etc/                    ← tmpfs — VOLATILE, lost on reboot
+├── etc/                    ← SEPARATE MOUNT: /dev/ubi2_0 ubifs, rw at boot,
+│   │                         PERSISTENT (not tmpfs, not part of rootfs)
 │   ├── data/
-│   │   └── mobileap_cfg.xml  ← LAN/DHCP config (xmlstarlet)
-│   └── qmanager/           ← ON rootfs (ubifs), persists despite /etc/ being tmpfs
+│   │   └── mobileap_cfg.xml  ← LAN/DHCP config (xmllint; xmlstarlet is NOT installed)
+│   ├── systemd/system/     ← exists and persists, but QManager ships units to
+│   │                         /lib/systemd/system by convention
+│   ├── machine-id          ← the one volatile item: single-file ro tmpfs bind
+│   └── qmanager/           ← QManager config — persists because ALL of /etc does
 ├── lib/
 │   └── systemd/system/     ← ON rootfs — service files and symlinks PERSIST
 │       └── multi-user.target.wants/  ← Boot symlinks (svc_enable/svc_disable)
@@ -1360,14 +1371,19 @@ The `qcmd` wrapper should accept an optional timeout parameter or use command-sp
 |-------------|------|-----------|-------|
 | `/` (rootfs) | ubifs (`ubi0:rootfs`) | **Yes** | Boots **`ro`** — proof is `ro` in `/proc/cmdline`, not `/proc/mounts` (which shows QManager's own boot-time remount) and **not** the `assert=read-only` mount option, which is UBIFS's assertion-failure policy and appears on `rw` volumes too. `mount -o remount,rw /` before writes, never back to `ro` — [BACKEND.md §2.1](BACKEND.md#21-rootfs-mount-mode-contract) |
 | `/lib/systemd/system/` | On rootfs | **Yes** | Service files and boot symlinks survive reboots |
-| `/etc/` | tmpfs | **No** | Volatile — lost on reboot |
-| `/etc/qmanager/` | On rootfs (ubifs) | **Yes** | Exception: resides on rootfs despite `/etc/` being tmpfs |
+| `/etc/` | ubifs (`/dev/ubi2_0`) | **Yes** | Separate mount, **`rw` from boot, no remount needed**. Not tmpfs — verified by planting a marker file, rebooting, and reading it back (2026-08-10) |
+| `/etc/qmanager/` | ubifs (`/dev/ubi2_0`) | **Yes** | Not an exception and **not** on the rootfs — it persists because all of `/etc/` does. Same device id as `/usrdata` |
+| `/etc/machine-id` | tmpfs (`ro` bind) | **No** | The only volatile path under `/etc/` |
 | `/usrdata/` | Persistent partition | **Yes** | Primary writable storage for config, Entware, etc. |
 | `/tmp/` | tmpfs | **No** | Always writable, volatile |
 
 > **WARNING:** Always run `sync` after writing to the rootfs before rebooting. ubifs writes may not flush to NAND immediately, and data written just before reboot can be lost.
 
-**Key difference from OpenWRT:** On OpenWRT, `/etc/config/` (UCI) is the canonical config store and survives reboots via the overlay filesystem. On the RM520N-GL, `/etc/` is tmpfs (volatile). QManager's config directory is `/etc/qmanager/` which persists because it resides on the ubifs rootfs, not the tmpfs overlay. Bulk persistent data lives under `/usrdata/`.
+**Key difference from OpenWRT:** On OpenWRT, `/etc/config/` (UCI) is the canonical config store and survives reboots via the overlay filesystem. On the RM520N-GL there is no overlay — `/etc/` is a plain persistent ubifs mount (`/dev/ubi2_0`, the same volume as `/usrdata`), mounted `rw` at boot. QManager's config directory `/etc/qmanager/` therefore persists for the ordinary reason: the filesystem under it is persistent. Bulk data lives under `/usrdata/` for space budgeting, not persistence.
+
+> **Historical correction:** every "`/etc` is tmpfs / volatile / lost on reboot" statement in earlier revisions of this document was wrong. The rootfs `ro` boot contract is real and unchanged — the two facts were conflated. See the verification note below.
+
+**How this was verified (2026-08-10, live RM520N-GL):** `stat -c %d` reports the same device id for `/etc`, `/etc/qmanager`, `/etc/data`, `/etc/systemd/system`, `/usrdata` and `/opt`, and a different one for `/` and `/lib/systemd/system`. `/proc/mounts` shows `/dev/ubi2_0 /etc ubifs rw`. A marker file written to `/etc/`, plus one each to `/usrdata/`, `/var/lib/` and `/tmp/`, survived a real reboot in `/etc/` and `/usrdata/` (still carrying the *previous* boot's `boot_id`) and was gone from `/var/lib/` and `/tmp/`. `qmanager_setup` contains exactly one remount, `mount -o remount,rw /` — nothing remounts `/etc`.
 
 ### Service Hierarchy
 
