@@ -1389,5 +1389,191 @@
         "caption": "Slot terpakai di kedua memori"
       }
     }
+  },
+  "tower_locking": {
+    "page": {
+      "title": "Penguncian Tower",
+      "description": "Kunci modem ke sel fisik tertentu berdasarkan PCI dan kanal."
+    },
+    "live": {
+      "title": "Status tower langsung",
+      "camped_on": "Terhubung saat ini",
+      "camped_summary_one": "{{count}} carrier · {{mhz}} MHz",
+      "camped_summary_other": "{{count}} carrier · {{mhz}} MHz",
+      "camped_empty_title": "Tidak ada carrier aktif",
+      "camped_empty_body": "Modem sedang tidak terhubung ke sel mana pun. Kunci tetap berlaku begitu modem terhubung.",
+      "camped_note": "Dilaporkan oleh radio. Pilih sebuah sel untuk mengisi detailnya ke formulir kunci di bawah.",
+      "absent_nr_title": "Tidak ada carrier 5G",
+      "absent_nr_body": "Modem hanya memakai LTE. Tidak ada sel NR dalam jangkauan saat ini.",
+      "absent_lte_title": "Tidak ada anchor LTE",
+      "absent_lte_body": "Modem berada di 5G standalone. Tidak ada carrier LTE yang dipakai.",
+      "tile_tech_LTE": "LTE",
+      "tile_tech_NR": "5G NR",
+      "tile_pci": "PCI",
+      "tile_earfcn": "EARFCN",
+      "tile_arfcn": "ARFCN",
+      "tile_rsrp": "{{value}} dBm",
+      "tile_rsrq": "{{value}} dB",
+      "tile_sinr": "{{value}} dB",
+      "tile_no_value": "—",
+      "tile_no_aggregation": "Tanpa agregasi",
+      "tile_use": "Pakai sel",
+      "tile_use_a11y": "Pakai band {{band}}, PCI {{pci}} sebagai target kunci {{leg}}",
+      "tile_blocked_nsa": "Penguncian 5G perlu mode standalone",
+      "tile_blocked_lte_only": "Tidak ada koneksi 5G untuk dikunci",
+      "tile_blocked_slots_full": "Ketiga sel LTE sudah terisi",
+      "eyebrow": "Status penguncian",
+      "rail_subtitle_none": "Tidak ada kunci tower",
+      "rail_subtitle_lte": "LTE dikunci ke satu sel",
+      "rail_subtitle_nr": "5G dikunci ke satu sel",
+      "rail_subtitle_both": "Kedua radio dikunci",
+      "rail_subtitle_unknown": "Belum dilaporkan",
+      "rail_target_none": "Tidak ada target kunci",
+      "rail_target_pair": "{{channel}} · PCI {{pci}}",
+      "rail_target_cells_one": "{{count}} sel terkunci",
+      "rail_target_cells_other": "{{count}} sel terkunci",
+      "leg_status_locked": "Terkunci",
+      "leg_status_unlocked": "Tidak terkunci",
+      "leg_status_unknown": "Belum dilaporkan",
+      "synced_at": "Status kunci per {{time}}",
+      "synced_never": "Status kunci belum dibaca",
+      "refresh": "Baca ulang status kunci dari modem",
+      "persist_label": "Pertahankan kunci setelah reboot",
+      "persist_help": "Menyimpan kunci di modem itu sendiri, sehingga dipulihkan otomatis setelah dinyalakan ulang.",
+      "persist_state_on": "Aktif",
+      "persist_state_off": "Nonaktif",
+      "persist_state_split": "Hanya satu radio",
+      "persist_state_unknown": "Belum dilaporkan",
+      "persist_split_help": "Modem melaporkan pengaturan ini tersimpan untuk satu radio saja. Matikan lalu nyalakan lagi untuk menulis ulang keduanya.",
+      "persist_toast_enabled": "Kunci akan dipertahankan setelah reboot",
+      "persist_toast_disabled": "Kunci tidak akan dipertahankan setelah reboot",
+      "persist_toast_error": "Tidak dapat memperbarui pengaturan reboot",
+      "failover_label": "Failover sinyal",
+      "failover_help_label": "Tentang failover sinyal",
+      "failover_help": "Melepas kunci tower secara otomatis jika kualitas sinyal tetap di bawah ambang, agar sel yang buruk tidak memutus koneksi. Kedua radio dilepas, bukan hanya yang lemah.",
+      "failover_state_disabled": "Nonaktif",
+      "failover_state_standby": "Tidak ada kunci",
+      "failover_state_armed": "Memantau",
+      "failover_state_fallback": "Dilepas — lemah",
+      "failover_no_lock": "Kunci satu radio untuk mengaktifkannya",
+      "failover_toast_enabled": "Failover sinyal diaktifkan",
+      "failover_toast_disabled": "Failover sinyal dinonaktifkan",
+      "failover_toast_error": "Tidak dapat memperbarui failover sinyal",
+      "threshold_label": "Lepas di bawah",
+      "threshold_help": "Kualitas sinyal dalam persen yang diturunkan dari RSRP: −140 dBm adalah 0%, −80 dBm adalah 100%.",
+      "threshold_invalid": "Masukkan nilai antara 0 dan 100",
+      "threshold_toast_saved": "Ambang failover diperbarui",
+      "threshold_toast_error": "Tidak dapat memperbarui ambang",
+      "quality_label": "Kualitas sinyal saat ini",
+      "quality_value": "{{value}}%",
+      "quality_unknown": "Belum dilaporkan"
+    },
+    "legs": {
+      "lte": {
+        "title": "Tower LTE",
+        "description": "Kunci radio 4G ke maksimal tiga sel, berdasarkan kanal dan PCI."
+      },
+      "nr_sa": {
+        "title": "Tower 5G NR-SA",
+        "description": "Kunci radio 5G standalone ke satu sel saja."
+      }
+    },
+    "short": {
+      "lte": "LTE",
+      "nr_sa": "5G NR-SA"
+    },
+    "fields": {
+      "earfcn": "Kanal (EARFCN)",
+      "arfcn": "Kanal (NR-ARFCN)",
+      "pci": "ID sel (PCI)",
+      "band": "Band NR",
+      "scs": "Jarak subcarrier",
+      "slot": "Sel {{index}}",
+      "slot_clear": "Kosongkan sel {{index}}",
+      "scs_guess": "Diisi dari nilai bawaan band {{band}}. Periksa terhadap tower Anda jika penguncian gagal.",
+      "scs_from_serving": "Dibaca dari sel tempat modem terhubung.",
+      "pick_placeholder": "Pilih carrier yang mengudara",
+      "custom_value": "Kustom: {{channel}} · PCI {{pci}}",
+      "slot_in_use": "Di sel {{index}}"
+    },
+    "card": {
+      "enable_label": "Kunci tower",
+      "status_locked": "Terkunci",
+      "status_unlocked": "Tidak terkunci",
+      "status_unknown": "Belum dilaporkan",
+      "gate_nsa_title": "Tidak tersedia di 5G NSA",
+      "gate_nsa_body": "Penguncian standalone memerlukan modem dalam mode SA. Saat ini modem memakai 5G yang di-anchor ke sel LTE.",
+      "gate_lte_title": "Tidak ada koneksi 5G",
+      "gate_lte_body": "Modem hanya memakai LTE, jadi tidak ada sel NR yang bisa dikunci.",
+      "empty_title": "Belum ada target sel",
+      "empty_body": "Pilih sel dari kartu di atas, atau ketik kanal dan PCI.",
+      "simple_mode": "Pilih dari carrier yang mengudara",
+      "simple_mode_help": "Pilih sel yang saat ini terlihat oleh radio, alih-alih mengetikkan angkanya."
+    },
+    "schedule": {
+      "title": "Jadwal Penguncian",
+      "description": "Terapkan kunci tower hanya di dalam jendela harian.",
+      "enable_label": "Penguncian terjadwal",
+      "start": "Mulai",
+      "end": "Selesai",
+      "days": "Ulangi pada",
+      "days_a11y": "Hari dalam seminggu",
+      "day_selected": "{{day}}, dipilih",
+      "day_unselected": "{{day}}, tidak dipilih",
+      "day_0": "Min",
+      "day_1": "Sen",
+      "day_2": "Sel",
+      "day_3": "Rab",
+      "day_4": "Kam",
+      "day_5": "Jum",
+      "day_6": "Sab",
+      "status_active": "Aktif",
+      "status_inactive": "Nonaktif",
+      "toast_saved": "Jadwal diperbarui",
+      "toast_error": "Tidak dapat menyimpan jadwal",
+      "toast_no_targets": "Tetapkan target kunci sebelum menjadwalkan",
+      "arm_warning": "Tersimpan, tetapi jadwal belum aktif: {{reason}}",
+      "arm_reason_unit_absent": "layanan penjadwalan belum terpasang di perangkat ini — perbarui ke firmware terbaru untuk mengaktifkannya",
+      "arm_reason_unknown": "alasan tidak diketahui",
+      "no_days": "Pilih setidaknya satu hari"
+    },
+    "actions": {
+      "lock": "Kunci Tower",
+      "unlock": "Hapus Kunci",
+      "clear_fields": "Kosongkan isian"
+    },
+    "dialog": {
+      "lock_lte_title": "Kunci LTE ke sel ini?",
+      "lock_lte_body_one": "Modem memutus koneksi sejenak lalu terhubung ulang ke {{summary}}. Jika sel itu tidak terjangkau, layanan bisa hilang sampai kunci dihapus.",
+      "lock_lte_body_other": "Modem memutus koneksi sejenak lalu terhubung ulang ke salah satu dari {{count}} sel. Jika tidak ada yang terjangkau, layanan bisa hilang sampai kunci dihapus.",
+      "lock_nr_title": "Kunci 5G ke sel ini?",
+      "lock_nr_body": "Modem memutus koneksi sejenak lalu terhubung ulang ke {{summary}}. Jika sel itu tidak terjangkau, layanan bisa hilang sampai kunci dihapus.",
+      "unlock_title": "Hapus kunci tower {{leg}}?",
+      "unlock_body": "Radio kembali memilih selnya sendiri. Koneksi terputus sejenak saat terhubung ulang."
+    },
+    "toast": {
+      "locked": "Kunci tower {{leg}} diterapkan",
+      "unlocked": "Kunci tower {{leg}} dihapus",
+      "lock_error": "Tidak dapat menerapkan kunci tower {{leg}}",
+      "unlock_error": "Tidak dapat menghapus kunci tower {{leg}}",
+      "incomplete": "Isi semua kolom sebelum mengunci",
+      "no_targets": "Masukkan kanal dan ID sel terlebih dahulu",
+      "filled": "{{leg}} diisi dari band {{band}}, PCI {{pci}}",
+      "slots_full": "Ketiga sel LTE sudah terisi"
+    },
+    "warning": {
+      "service_enable_failed": "Kunci aktif sekarang, tetapi tidak akan bertahan setelah reboot — modem menolak perintah penyimpanan.",
+      "persist_command_failed": "\"Pertahankan kunci setelah reboot\" tidak diterapkan. Modem menolak perintah penyimpanan.",
+      "dismiss": "Tutup"
+    },
+    "error": {
+      "title": "Tidak dapat membaca status kunci tower",
+      "body": "Modem tidak menjawab setelah tiga kali percobaan. Selama ini belum berhasil, semua yang tampil di bawah tidak mencerminkan status kunci radio yang sebenarnya.",
+      "retry": "Coba lagi"
+    },
+    "a11y": {
+      "applying": "Menerapkan kunci tower {{leg}}…",
+      "refreshing": "Membaca ulang status kunci tower…"
+    }
   }
 }

@@ -42,6 +42,23 @@ export type { TowerScheduleSaveResult } from "@/types/tower-locking";
 const CGI_BASE = "/cgi-bin/quecmanager/tower";
 const FAILOVER_POLL_INTERVAL = 3000; // 3s — watcher sleeps 20s then checks
 
+/**
+ * A non-fatal partial success reported by the backend: the operation landed on
+ * the modem, but something alongside it did not.
+ *
+ * Both codes were already being emitted and silently discarded —
+ * `service_enable_failed` was not even declared in the response type, and
+ * `persist_command_failed` was declared with zero consumers. The visible symptom
+ * was a switch that stayed ON after its AT write had failed.
+ *
+ * The hook reports the CODE, not a sentence: rendered copy lives in the
+ * components, where `useTranslation` is, so a warning cannot ship as an English
+ * literal from inside a hook that has no namespace.
+ */
+export type TowerWarningCode =
+  | "service_enable_failed"
+  | "persist_command_failed";
+
 export interface UseTowerLockingReturn {
   /** Tower lock configuration from config file */
   config: TowerLockConfig | null;
@@ -51,6 +68,8 @@ export interface UseTowerLockingReturn {
   failoverState: TowerFailoverState | null;
   /** True during initial data fetch */
   isLoading: boolean;
+  /** True during a manual `refresh()`. Distinct from `isLoading` — see `refresh`. */
+  isRefreshing: boolean;
   /** True while an LTE lock/unlock operation is in progress */
   isLteLocking: boolean;
   /** True while an NR-SA lock/unlock operation is in progress */
@@ -59,6 +78,26 @@ export interface UseTowerLockingReturn {
   isSavingFailover: boolean;
   /** Error message from the last operation */
   error: string | null;
+  /**
+   * Partial success from the last write, or null. See `TowerWarningCode`.
+   * Cleared at the start of every subsequent write.
+   */
+  lastWarning: TowerWarningCode | null;
+  /** Dismiss the current warning. */
+  clearWarning: () => void;
+  /**
+   * `Date.now()` of the last successful full status read, or null before the
+   * first one lands.
+   *
+   * This exists because `status.sh` is fetched ONCE on mount and never polled —
+   * it costs three AT commands on the shared `/tmp/qmanager_at.lock` mutex the
+   * poller already contends for, so putting it on an interval is a backend cost
+   * decision, not a frontend one. The lock state on screen can therefore be
+   * arbitrarily old, and three things change it out of band: the schedule
+   * timers, the failover watcher, and a second browser tab. The surface prints
+   * this timestamp rather than implying the number beside it is live.
+   */
+  lastSyncedAt: number | null;
 
   /**
    * Lock LTE to specific cells (1-3 EARFCN+PCI pairs).
@@ -96,8 +135,8 @@ export interface UseTowerLockingReturn {
   /** True while the failover watcher is running (anti-spam guard) */
   isWatcherRunning: boolean;
 
-  /** Manually refresh all tower lock state. */
-  refresh: () => void;
+  /** Quietly re-read all tower lock state. Raises `isRefreshing`, not `isLoading`. */
+  refresh: () => Promise<void>;
 }
 
 export function useTowerLocking(): UseTowerLockingReturn {
@@ -110,11 +149,22 @@ export function useTowerLocking(): UseTowerLockingReturn {
   const [isNrLocking, setIsNrLocking] = useState(false);
   const [isSavingFailover, setIsSavingFailover] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [lastWarning, setLastWarning] = useState<TowerWarningCode | null>(null);
+  const [lastSyncedAt, setLastSyncedAt] = useState<number | null>(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  const clearWarning = useCallback(() => setLastWarning(null), []);
 
   const mountedRef = useRef(true);
   const failoverPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const retryCountRef = useRef(0);
   const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /**
+   * True while ANY lock/unlock request is in flight. A ref rather than state
+   * because `sendLockRequest` reads it at call time and must not re-create
+   * itself (and therefore every `useCallback` downstream) on each flip.
+   */
+  const lockInFlightRef = useRef(false);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -164,6 +214,7 @@ export function useTowerLocking(): UseTowerLockingReturn {
         setFailoverState(data.failover_state);
       }
       setError(null);
+      setLastSyncedAt(Date.now());
       retryCountRef.current = 0; // Reset retry counter on success
     } catch (err) {
       if (!mountedRef.current) return;
@@ -253,15 +304,33 @@ export function useTowerLocking(): UseTowerLockingReturn {
       body: Record<string, unknown>,
       setLocking: (v: boolean) => void
     ): Promise<boolean> => {
-      // Anti-spam: block new LOCK operations while failover watcher is running.
-      // Unlock operations are allowed through — the backend will stop the
-      // watcher before sending the AT unlock command.
-      if (body.action === "lock" && failoverState?.watcher_running) {
-        setError("Please wait — failover check is still in progress");
+      // -----------------------------------------------------------------------
+      // Anti-spam: block a second write while one is already in flight.
+      //
+      // THIS USED TO BLOCK ON `failoverState?.watcher_running`, AND THAT WAS A
+      // LIVE BUG, not a conservative guard. It was copied from band locking,
+      // where the watcher is bounded — `qmanager_band_failover` runs
+      // MAX_CHECKS=5 at CHECK_INTERVAL=5 and exits after ~30s, so "wait for the
+      // watcher" is a real, short wait.
+      //
+      // The TOWER watcher is `while true` (`qmanager_tower_failover`:
+      // SETTLE=20, INTERVAL=20) and exits only once NO lock is active, which it
+      // re-checks every sixth cycle (~120s). So with failover on and either leg
+      // locked, `watcher_running` is permanently true — and this guard made
+      // BOTH lock switches permanently dead behind a toast reading "Signal
+      // quality check is running, please wait." It never stopped running.
+      //
+      // In-flight is the fact the guard actually wanted. Unlock still passes
+      // freely: it is the recovery action, and the backend stops the watcher
+      // before sending the AT command.
+      if (body.action === "lock" && lockInFlightRef.current) {
+        setError("Another tower lock operation is still in progress");
         return false;
       }
 
       setError(null);
+      setLastWarning(null);
+      lockInFlightRef.current = true;
       setLocking(true);
 
       try {
@@ -281,6 +350,13 @@ export function useTowerLocking(): UseTowerLockingReturn {
         if (!data.success) {
           setError(data.detail || data.error || "Tower lock operation failed");
           return false;
+        }
+
+        // The lock landed, but the persistence unit may not have. Reported as a
+        // warning rather than an error: the write succeeded and the radio IS
+        // locked — it just will not come back after a reboot.
+        if (data.service_enable_failed) {
+          setLastWarning("service_enable_failed");
         }
 
         // Wait for modem to reconnect after lock/unlock command (3-5s typical).
@@ -323,12 +399,13 @@ export function useTowerLocking(): UseTowerLockingReturn {
         );
         return false;
       } finally {
+        lockInFlightRef.current = false;
         if (mountedRef.current) {
           setLocking(false);
         }
       }
     },
-    [fetchStatus, startFailoverPolling, failoverState?.watcher_running]
+    [fetchStatus, startFailoverPolling]
   );
 
   // ---------------------------------------------------------------------------
@@ -391,6 +468,7 @@ export function useTowerLocking(): UseTowerLockingReturn {
       failover: { enabled: boolean; threshold: number }
     ): Promise<boolean> => {
       setError(null);
+      setLastWarning(null);
 
       const isTogglingFailover = failover.enabled !== config?.failover?.enabled;
       const isDisablingFailover =
@@ -421,6 +499,16 @@ export function useTowerLocking(): UseTowerLockingReturn {
         if (!data.success) {
           setError(data.detail || data.error || "Failed to update settings");
           return false;
+        }
+
+        // Config was written but the modem rejected the `save_ctrl` AT write —
+        // "Keep lock after reboot" did NOT take. Previously this flag came back
+        // true and the switch simply stayed on, claiming a setting the modem
+        // never accepted.
+        if (data.persist_command_failed) {
+          setLastWarning("persist_command_failed");
+        } else if (data.service_enable_failed || data.service_disable_failed) {
+          setLastWarning("service_enable_failed");
         }
 
         // Optimistic update of config
@@ -535,9 +623,25 @@ export function useTowerLocking(): UseTowerLockingReturn {
   // ---------------------------------------------------------------------------
   // Manual refresh
   // ---------------------------------------------------------------------------
-  const refresh = useCallback(() => {
-    setIsLoading(true);
-    fetchStatus();
+  /**
+   * A QUIET re-read: it does NOT raise `isLoading`.
+   *
+   * `isLoading` is the page's first-paint gate, so raising it here would drop
+   * the whole surface back to skeletons — a jarring full-page flash in response
+   * to a single "re-read the lock state" press, and it would throw away the
+   * numbers already on screen to show placeholders in their place. `isRefreshing`
+   * lets the rail spin its own glyph and leave the rest of the page standing.
+   *
+   * Nothing called `refresh` before this change, so there is no consumer relying
+   * on the old skeleton behaviour.
+   */
+  const refresh = useCallback(async () => {
+    setIsRefreshing(true);
+    try {
+      await fetchStatus();
+    } finally {
+      if (mountedRef.current) setIsRefreshing(false);
+    }
   }, [fetchStatus]);
 
   return {
@@ -545,11 +649,15 @@ export function useTowerLocking(): UseTowerLockingReturn {
     modemState,
     failoverState,
     isLoading,
+    isRefreshing,
     isLteLocking,
     isNrLocking,
     isSavingFailover,
     isWatcherRunning,
     error,
+    lastWarning,
+    clearWarning,
+    lastSyncedAt,
     lockLte,
     unlockLte,
     lockNrSa,

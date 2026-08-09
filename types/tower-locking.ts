@@ -99,6 +99,16 @@ export interface TowerLockResponse {
   action?: string;
   num_cells?: number;
   failover_armed?: boolean;
+  /**
+   * The lock landed on the modem but `systemctl enable` of the persistence
+   * unit failed — so the lock is live NOW and will NOT survive a reboot.
+   *
+   * `lock.sh` has emitted this since it was written (`lock.sh:151`, `:270`) and
+   * nothing declared it, so nothing could read it. That is the whole failure
+   * mode: a partial success the backend reports honestly and the UI rendered as
+   * an unqualified success.
+   */
+  service_enable_failed?: boolean;
   error?: string;
   detail?: string;
 }
@@ -112,6 +122,10 @@ export interface TowerSettingsResponse {
   persist_command_failed?: boolean;
   /** True if the failover watcher was spawned during this settings update */
   watcher_spawned?: boolean;
+  /** `systemctl enable`/`disable` of the persistence unit failed — see
+   *  `TowerLockResponse.service_enable_failed`. Emitted by `settings.sh:157`. */
+  service_enable_failed?: boolean;
+  service_disable_failed?: boolean;
   error?: string;
   detail?: string;
 }
