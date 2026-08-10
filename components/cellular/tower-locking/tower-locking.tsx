@@ -14,16 +14,18 @@ import { staggerContainer, staggerItem } from "@/lib/motion";
 import type { CarrierComponent } from "@/types/modem-status";
 import type { LteLockCell, NrSaLockCell } from "@/types/tower-locking";
 
+import TowerAutomationTiles from "./automation-tiles";
+import TowerLiveStrip from "./live-strip";
 import LteTowerCard from "./lte-tower-card";
 import NrSaTowerCard from "./nr-sa-tower-card";
-import ScheduleCard from "./schedule-card";
-import TowerLockHero from "./tower-lock-hero";
 import { defaultScsForBand } from "./simple-mode-utils";
 import {
+  HERO_DESCRIPTION,
   NOTICE,
   NOTICE_TONE,
   PILL_ACTION,
   TOWER_CARD,
+  TOWER_HERO,
   CARD_PAD,
   type TowerLeg,
 } from "./shapes";
@@ -40,11 +42,40 @@ import {
 // -----------------------------------------------------------------------------
 // PAGE ANATOMY
 // -----------------------------------------------------------------------------
-// A page header, then one hero, then a grid of peer cards — the same shape as
-// Band Locking, and the same shape as every other feature page in this product.
-// The incumbent put a read-only status card and three control surfaces into a
-// single 2x2 grid, which said all four were the same kind of object. The hero
-// reports what the modem IS doing; the cards change what it WILL do.
+// A page header, then one hero, then cards — the same shape as Band Locking and
+// as every other feature page in this product. Two objects:
+//
+//   1. HERO       the STANDING ORDERS, "while nobody is watching": what the lock
+//                 does across a reboot, in bad signal, and on a clock. Its three
+//                 tiles are the page's subject, and the LIVE STRIP above them is
+//                 the premise those orders act on — the verdict, and what the
+//                 radio is camped on right now.
+//   2. LEG CARDS  a 2-up of the two AT lock parameters. Where the target changes,
+//                 and the single place a leg's own state is reported.
+//
+// THIS COORDINATOR OWNS THE HERO SHELL rather than delegating it to a child, and
+// that is what the composition is for: the strip and the tiles are two parts of
+// one section, so a single `TOWER_HERO` wraps both. A child rendering its own
+// `Card` would put a card inside a hero and split one idea across two surfaces.
+//
+// Three earlier arrangements are worth not restoring.
+//
+// A 2x2 grid put a read-only status card and three control surfaces on the page
+// as visual peers, which said all four were the same kind of object. Replacing it
+// with a hero fixed that but left the schedule as an orphaned third cell in a
+// 2-up grid, beside empty space, at the same rank as the two lock forms — so the
+// page still read as "status, controls, and a leftover".
+//
+// Grouping the three unattended behaviours into a card of their own fixed the
+// orphan, but left the page led by a three-column MATCH LINE whose left panel
+// restated, one layer removed, the two facts the leg cards already carry: which
+// leg is locked, and to what. A reader met the same pair of numbers twice before
+// reaching a single control, and the read-only half of a settings page was the
+// tallest thing on it. So that panel is gone, its one non-duplicated fact (the
+// modem's AT read-back, as against the config the forms are seeded from) moved
+// into the leg card that owns it, and the automation group was promoted from the
+// page's last card to its hero — which is also the honest order for a page whose
+// target is set once and whose unattended behaviour is checked every visit.
 //
 // -----------------------------------------------------------------------------
 // THE PREFILL BUS
@@ -308,41 +339,67 @@ const TowerLockingComponent = () => {
         animate="visible"
         variants={staggerContainer}
       >
+        {/* The hero: what this lock does unattended, over the live premise it
+            acts on. `aria-labelledby` rather than an `aria-label` — the heading
+            is already on screen, and duplicating it as an attribute is how the
+            two silently drift apart in translation. */}
         <motion.div variants={staggerItem}>
-          <TowerLockHero
-            modemState={tower.modemState}
-            failover={tower.failoverState}
-            configPersist={tower.config?.persist ?? false}
-            failoverThreshold={tower.config?.failover?.threshold ?? 20}
-            carrierComponents={carriers}
-            activeRsrp={activeRsrp}
-            canTarget={canTarget}
-            isLoading={tower.isLoading}
-            isRefreshing={tower.isRefreshing}
-            isSavingFailover={tower.isSavingFailover}
-            lastSyncedAt={tower.lastSyncedAt}
-            onPickCarrier={handlePickCarrier}
-            onTogglePersist={handlePersist}
-            onToggleFailover={handleFailover}
-            onThresholdChange={handleThreshold}
-            onRefresh={() => void tower.refresh()}
-          />
+          <section className={TOWER_HERO} aria-labelledby="tower-hero-title">
+            <div className="flex min-w-0 flex-col gap-1">
+              <h2 id="tower-hero-title" className="text-lg font-semibold">
+                {t("tower_locking.automation.title")}
+              </h2>
+              <p className={HERO_DESCRIPTION}>
+                {t("tower_locking.automation.description")}
+              </p>
+            </div>
+
+            <TowerLiveStrip
+              modemState={tower.modemState}
+              carrierComponents={carriers}
+              canTarget={canTarget}
+              isLoading={tower.isLoading}
+              isRefreshing={tower.isRefreshing}
+              lastSyncedAt={tower.lastSyncedAt}
+              onPickCarrier={handlePickCarrier}
+              onRefresh={() => void tower.refresh()}
+            />
+
+            <TowerAutomationTiles
+              config={tower.config}
+              modemState={tower.modemState}
+              failover={tower.failoverState}
+              configPersist={tower.config?.persist ?? false}
+              failoverThreshold={tower.config?.failover?.threshold ?? 20}
+              activeRsrp={activeRsrp}
+              isLoading={tower.isLoading}
+              isSavingFailover={tower.isSavingFailover}
+              onTogglePersist={handlePersist}
+              onToggleFailover={handleFailover}
+              onThresholdChange={handleThreshold}
+              onScheduleChange={tower.updateSchedule}
+            />
+          </section>
         </motion.div>
 
         {/* Nested cascade container: it inherits `visible` from its parent and
             must NOT declare its own initial/animate, or it detaches from the
             parent's clock. `h-full` on each cell so a card whose data has not
-            landed matches its row-mates instead of sizing to its own content. */}
+            landed matches its row-mates instead of sizing to its own content.
+
+            The cells carried `id="tower-locking-card-<leg>"` and a `scroll-mt-20`
+            until this change. Both existed for ONE caller: the retired hero
+            panel's leg rows, which smooth-scrolled the matching card into view.
+            With that panel gone nothing linked here, so the anchors were two ids
+            referenced only by themselves and an offset correcting for a scroll
+            that no longer happens. */}
         <motion.div
           className="grid grid-cols-1 gap-4 @3xl/main:grid-cols-2"
           variants={staggerContainer}
         >
           <motion.div
-            id="tower-locking-card-lte"
             variants={staggerItem}
-            // `scroll-mt` so a smooth-scroll from a hero rail row lands the card
-            // below the sticky shell header instead of under it.
-            className="h-full scroll-mt-20 *:data-[slot=card]:h-full"
+            className="h-full *:data-[slot=card]:h-full"
           >
             <LteTowerCard
               config={tower.config}
@@ -358,9 +415,8 @@ const TowerLockingComponent = () => {
           </motion.div>
 
           <motion.div
-            id="tower-locking-card-nr_sa"
             variants={staggerItem}
-            className="h-full scroll-mt-20 *:data-[slot=card]:h-full"
+            className="h-full *:data-[slot=card]:h-full"
           >
             <NrSaTowerCard
               config={tower.config}
@@ -377,17 +433,6 @@ const TowerLockingComponent = () => {
               prefill={nrPrefill}
               onLock={tower.lockNrSa}
               onUnlock={tower.unlockNrSa}
-            />
-          </motion.div>
-
-          <motion.div
-            variants={staggerItem}
-            className="h-full *:data-[slot=card]:h-full"
-          >
-            <ScheduleCard
-              config={tower.config}
-              isLoading={tower.isLoading}
-              onScheduleChange={tower.updateSchedule}
             />
           </motion.div>
         </motion.div>

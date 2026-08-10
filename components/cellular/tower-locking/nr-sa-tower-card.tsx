@@ -63,8 +63,10 @@ import {
   LEG_BADGE,
   NOTICE,
   NOTICE_TONE,
+  PILL_ACTION,
   PILL_ACTION_PLAIN,
   PILL_QUIET,
+  READBACK,
   SKELETON_SHAPE,
   TOWER_CARD,
   legDescriptionKey,
@@ -178,8 +180,30 @@ type ScsSource = "manual" | "band_default" | "servingcell";
 const CARD_ROW =
   "flex flex-wrap items-center justify-between gap-x-4 gap-y-2 rounded-field bg-surface-container px-4 py-3";
 
-/** The row's leading label. Matches `HERO_RAIL_ROW_LABEL`'s typographic step. */
+/**
+ * The row's leading label. Same typographic step as band locking's
+ * `HERO_RAIL_ROW_LABEL` — which lives in THAT surface's `shapes.ts`, not this
+ * one. Named in full because the bare constant reads as a local import that a
+ * grep of this directory will never find.
+ */
 const CARD_ROW_LABEL = "text-sm font-semibold";
+
+/**
+ * The 44px coarse-pointer target for a `Switch`.
+ *
+ * The primitive paints at 18x32px, which is well under this project's floor. An
+ * overlay reaches the target without adding a layout box that would push the
+ * row's label off its baseline.
+ *
+ * Byte-identical to the LTE card's `SWITCH_TARGET` and restated for the house
+ * reason — but the reason it exists AT ALL is that this card never had one. Both
+ * its switches paint under the floor; retiring the "Tower lock" switch left this
+ * one as the only control in the row, directly beside an LTE card whose
+ * equivalent switch does meet it. Two cards in one grid row must not disagree
+ * about how big a tap target is.
+ */
+const SWITCH_TARGET =
+  "relative before:absolute before:-inset-x-3 before:-inset-y-3.5 before:content-['']";
 
 /**
  * `FIELD_CONTROL` + the one thing it cannot win on its own, for a SelectTrigger.
@@ -449,7 +473,6 @@ export default function NrSaTowerCard({
   };
 
   // --- Derived posture -------------------------------------------------------
-  const isEnabled = modemState?.nr_locked ?? config?.nr_sa?.enabled ?? false;
 
   /** `unknown` is a real state: `status.sh` cannot tell a failed `AT+QNWLOCK`
    *  read from "not locked", so a confident "Unlocked" would be an assertion
@@ -459,6 +482,41 @@ export default function NrSaTowerCard({
     : modemState.nr_locked
       ? "locked"
       : "unlocked";
+
+  /**
+   * THE CELL THE MODEM REPORTS AS LOCKED — which is `nr_cell` AND `nr_locked`,
+   * never `nr_cell` alone.
+   *
+   * `status.sh` can return a populated `nr_cell` while `nr_locked` is false (a
+   * last-known target that outlived its release), so every reader on this
+   * surface has to apply the same guard: `matchVerdict` does, and `hasChanges`
+   * below now does too — see the trap named there.
+   */
+  const lockedCell = useMemo(
+    () => (modemState?.nr_locked ? modemState.nr_cell : null),
+    [modemState],
+  );
+
+  /**
+   * The read-back list. One entry at most — `AT+QNWLOCK="common/5g"` takes a
+   * single cell — but kept as an array so this card and its LTE row-mate render
+   * the read-back through the same shape. See `shapes.ts` > READBACK.
+   */
+  const readbackCells = useMemo<NrSaLockCell[]>(
+    () => (lockedCell ? [lockedCell] : []),
+    [lockedCell],
+  );
+
+  /**
+   * Is the radio camped on this exact pair right now?
+   *
+   * `carriers` arrives pre-filtered to NR by the parent (see the prop's
+   * contract), so no technology test belongs here. ABSENCE of the resulting chip
+   * is what says "configured, not currently in use" — there is deliberately no
+   * second chip for the negative case.
+   */
+  const isOnAir = (channel: number, cellPci: number): boolean =>
+    carriers.some((c) => c.earfcn === channel && c.pci === cellPci);
 
   const parsedCell = useMemo(() => {
     const a = parseInt(arfcn, 10);
@@ -476,19 +534,27 @@ export default function NrSaTowerCard({
     return { arfcn: a, pci: p, band: b, scs: s } satisfies NrSaLockCell;
   }, [arfcn, pci, band, scs]);
 
-  /** True when the form describes something other than what the radio reports.
-   *  Drives the apply button, the same way band locking's pending count does. */
+  /**
+   * True when the form describes something other than what is LOCKED.
+   *
+   * THE TRAP: this used to compare against `modemState.nr_cell` directly, which
+   * is populated even when `nr_locked` is false. On an unlocked modem whose
+   * last-known cell happened to equal the form, `hasChanges` came out false and
+   * the Lock button went dead — there was simply no way to lock. The "enable"
+   * switch was the accidental escape hatch, so deleting the switch is what turned
+   * a latent bug into a dead end. Compare against `lockedCell`, which carries the
+   * `nr_locked` guard, and gate the button on `posture` (see the footer).
+   */
   const hasChanges = useMemo(() => {
     if (!parsedCell) return false;
-    const live = modemState?.nr_cell ?? null;
-    if (!live) return true;
+    if (!lockedCell) return true;
     return (
-      live.arfcn !== parsedCell.arfcn ||
-      live.pci !== parsedCell.pci ||
-      live.band !== parsedCell.band ||
-      live.scs !== parsedCell.scs
+      lockedCell.arfcn !== parsedCell.arfcn ||
+      lockedCell.pci !== parsedCell.pci ||
+      lockedCell.band !== parsedCell.band ||
+      lockedCell.scs !== parsedCell.scs
     );
-  }, [parsedCell, modemState]);
+  }, [parsedCell, lockedCell]);
 
   const hasAnyInput = Boolean(arfcn || pci || band || scs);
 
@@ -516,6 +582,18 @@ export default function NrSaTowerCard({
     ].join(" · ");
   };
 
+  /**
+   * The one and only entry point to the lock dialog: the footer's Lock action.
+   *
+   * There used to be a second — an "enable" `Switch` whose `checked` came from
+   * the modem read-back while its ON action wrote whatever was sitting UNSAVED in
+   * the fields above. It was simultaneously a state display and two different
+   * writes, and a switch promises instant, cheap and reversible.
+   * `AT+QNWLOCK="common/5g"` pins the radio to a single physical cell and bounces
+   * the link for 3-5 seconds — on the device serving this very page. That is a
+   * deliberate button with a confirmation, which is what band locking already
+   * settled on. The header `Badge` keeps reporting the state.
+   */
   const requestLock = () => {
     if (!parsedCell) {
       toast.warning(t("tower_locking.toast.incomplete"));
@@ -523,11 +601,6 @@ export default function NrSaTowerCard({
     }
     setPendingCell(parsedCell);
     setShowLockDialog(true);
-  };
-
-  const handleToggle = (checked: boolean) => {
-    if (checked) requestLock();
-    else setShowUnlockDialog(true);
   };
 
   const confirmLock = async () => {
@@ -576,8 +649,11 @@ export default function NrSaTowerCard({
           </div>
         </CardHeader>
         <CardContent className={`${CARD_PAD} flex flex-col gap-4`}>
-          <Skeleton className={SKELETON_SHAPE.HERO_ROW} />
-          <Skeleton className={SKELETON_SHAPE.HERO_ROW} />
+          {/* The read-back line, then Simple Mode: two children, two mirrors.
+              Both measurements come from SKELETON_SHAPE, so neither can drift
+              from the geometry it stands in for. */}
+          <Skeleton className={SKELETON_SHAPE.READBACK} />
+          <Skeleton className={SKELETON_SHAPE.SETTINGS_ROW} />
           <div className={FIELD_GRID}>
             {Array.from({ length: 4 }).map((_, i) => (
               <div key={i} className="flex flex-col gap-2">
@@ -587,9 +663,16 @@ export default function NrSaTowerCard({
             ))}
           </div>
         </CardContent>
-        <CardFooter className={`${CARD_PAD} gap-2`}>
-          <Skeleton className={SKELETON_SHAPE.ACTION} />
-          <Skeleton className={SKELETON_SHAPE.ACTION_SECONDARY} />
+        {/* Mirrors the loaded footer's grouping too, not just its controls: two
+            writes together, the form reset at the far edge. */}
+        <CardFooter
+          className={`${CARD_PAD} flex flex-wrap items-center justify-between gap-x-2 gap-y-3`}
+        >
+          <div className="flex flex-wrap items-center gap-2">
+            <Skeleton className={SKELETON_SHAPE.ACTION} />
+            <Skeleton className={SKELETON_SHAPE.ACTION_SECONDARY} />
+          </div>
+          <Skeleton className={SKELETON_SHAPE.ACTION_QUIET} />
         </CardFooter>
       </Card>
     );
@@ -692,6 +775,52 @@ export default function NrSaTowerCard({
             initial="hidden"
             animate="visible"
           >
+            {/* --- Modem read-back ---------------------------------------
+                The one fact the retired locked-target panel carried that
+                nothing else did, printed inches from the fields it may
+                disagree with. Rendered only when there is a pair: the header
+                chip already says "Unlocked", and an empty captioned box is
+                noise. Its inner anatomy is byte-identical to the LTE card's —
+                only the wrapper differs, because this card's whole body is one
+                stagger cascade and a plain `div` here would break the rhythm. */}
+            {readbackCells.length > 0 ? (
+              <motion.div variants={staggerRowItem} className={READBACK.ROOT}>
+                <span className={READBACK.LABEL}>
+                  <MaterialSymbol
+                    name="cell_tower"
+                    size={14}
+                    className="flex-none"
+                  />
+                  {t("tower_locking.card.readback_label")}
+                </span>
+                <ul className={READBACK.LIST}>
+                  {readbackCells.map((cell) => (
+                    <li
+                      key={`${cell.arfcn}-${cell.pci}`}
+                      className={READBACK.ROW}
+                    >
+                      <span className={READBACK.VALUE}>
+                        {t("tower_locking.live.rail_target_pair", {
+                          channel: `${t("tower_locking.live.tile_arfcn")} ${cell.arfcn}`,
+                          pci: cell.pci,
+                        })}
+                      </span>
+                      {isOnAir(cell.arfcn, cell.pci) ? (
+                        <Badge variant="success" className="ml-auto flex-none">
+                          <MaterialSymbol
+                            name="cell_tower"
+                            size={BADGE_GLYPH_SIZE}
+                            filled
+                          />
+                          {t("tower_locking.live.target_serving")}
+                        </Badge>
+                      ) : null}
+                    </li>
+                  ))}
+                </ul>
+              </motion.div>
+            ) : null}
+
             {/* --- Simple Mode ------------------------------------------- */}
             <motion.div variants={staggerRowItem} className="flex flex-col gap-1.5">
               <div className={CARD_ROW}>
@@ -708,6 +837,7 @@ export default function NrSaTowerCard({
                   </span>
                   <Switch
                     id={`${fieldId}-simple`}
+                    className={SWITCH_TARGET}
                     checked={pickerActive}
                     onCheckedChange={handleSimpleModeToggle}
                     disabled={!hasOptions || isLocking}
@@ -719,28 +849,6 @@ export default function NrSaTowerCard({
                   {t("tower_locking.live.absent_nr_title")}
                 </p>
               ) : null}
-            </motion.div>
-
-            {/* --- Enable ------------------------------------------------- */}
-            <motion.div variants={staggerRowItem} className={CARD_ROW}>
-              <Label htmlFor={`${fieldId}-enable`} className={CARD_ROW_LABEL}>
-                <MaterialSymbol
-                  name={isEnabled ? "lock" : "lock_open"}
-                  size={18}
-                />
-                {t("tower_locking.card.enable_label")}
-              </Label>
-              <div className="flex items-center gap-2">
-                <span className="text-on-surface-variant text-xs font-medium">
-                  {isEnabled ? tc("state.enabled") : tc("state.disabled")}
-                </span>
-                <Switch
-                  id={`${fieldId}-enable`}
-                  checked={isEnabled}
-                  onCheckedChange={handleToggle}
-                  disabled={isLocking}
-                />
-              </div>
             </motion.div>
 
             {/* --- Fields -------------------------------------------------- */}
@@ -905,18 +1013,46 @@ export default function NrSaTowerCard({
         {/* `mt-auto` pins the actions to the card's floor. These cards sit in an
             equal-height grid row, so a short card (this one has four fields to
             LTE's three slots) would otherwise leave its buttons floating in the
-            middle with a void beneath them. */}
+            middle with a void beneath them.
+
+            TWO WRITES, THEN A FORM RESET. The two consequential actions are
+            grouped and `Clear fields` is pushed to the far edge, so the footer
+            cannot read as three equal pills — same construction as
+            `band-grid-card.tsx`'s footer, which this surface is converging on. */}
         <CardFooter
-          className={`${CARD_PAD} mt-auto flex flex-wrap items-center gap-x-2 gap-y-3`}
+          className={`${CARD_PAD} mt-auto flex flex-wrap items-center justify-between gap-x-2 gap-y-3`}
         >
-          <SaveButton
-            onClick={requestLock}
-            isSaving={isLocking}
-            saved={saved}
-            label={t("tower_locking.actions.lock")}
-            disabled={isLocking || !hasChanges}
-            className={PILL_ACTION_PLAIN}
-          />
+          <div className="flex flex-wrap items-center gap-2">
+            {/* `!hasChanges` alone would dead-end an UNLOCKED modem whose
+                last-known cell matches the form — see the trap named on
+                `hasChanges`. A form that parses is always lockable while nothing
+                is locked; only a leg already holding these exact values has
+                nothing left to write. */}
+            <SaveButton
+              onClick={requestLock}
+              isSaving={isLocking}
+              saved={saved}
+              label={t("tower_locking.actions.lock")}
+              disabled={
+                isLocking || !parsedCell || (posture === "locked" && !hasChanges)
+              }
+              className={PILL_ACTION_PLAIN}
+            />
+            {/* Gated on `posture`, NOT on `config.nr_sa.enabled`: offering to
+                remove a lock the modem does not report is offering an action
+                with no effect, and `unknown` means nobody has successfully read
+                the modem — so it is disabled rather than optimistically live. */}
+            <Button
+              type="button"
+              variant="outline"
+              className={PILL_ACTION}
+              onClick={() => setShowUnlockDialog(true)}
+              disabled={isLocking || posture !== "locked"}
+            >
+              <MaterialSymbol name="lock_open" size={18} />
+              {t("tower_locking.actions.unlock")}
+            </Button>
+          </div>
           <Button
             type="button"
             variant="tonal-neutral"

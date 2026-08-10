@@ -58,8 +58,10 @@ import {
   LEG_BADGE,
   NOTICE,
   NOTICE_TONE,
+  PILL_ACTION,
   PILL_ACTION_PLAIN,
   PILL_QUIET,
+  READBACK,
   SKELETON_SHAPE,
   TOWER_CARD,
   legDescriptionKey,
@@ -384,7 +386,56 @@ export default function LteTowerCard({
         ? t("tower_locking.card.status_unlocked")
         : t("tower_locking.card.status_unknown");
 
-  const isEnabled = modemState?.lte_locked ?? config?.lte?.enabled ?? false;
+  /**
+   * The pairs the MODEM reports as its lock targets, read ONLY when it also
+   * reports the leg as locked.
+   *
+   * Never `config` and never the form: those two say what was asked for, and
+   * this line exists to say what the radio was actually told — see `shapes.ts`
+   * > READBACK. The `lte_locked` guard is the same one `matchVerdict` applies,
+   * and for the same reason: `lte_cells` can outlive a release, so printing it
+   * unconditionally would caption a stale target with "Modem reports".
+   */
+  const readbackCells = useMemo<LteLockCell[]>(
+    () => (modemState?.lte_locked ? (modemState.lte_cells ?? []) : []),
+    [modemState],
+  );
+
+  /**
+   * Is the radio camped on this exact pair right now?
+   *
+   * `carriers` arrives pre-filtered to LTE by the parent (see the prop's
+   * contract), so no technology test belongs here. ABSENCE of the resulting chip
+   * is what says "configured, not currently in use" — there is deliberately no
+   * second chip for the negative case.
+   */
+  const isOnAir = (channel: number, cellPci: number): boolean =>
+    carriers.some((c) => c.earfcn === channel && c.pci === cellPci);
+
+  /**
+   * Does the form describe something other than what the modem is already
+   * holding? Gates the Lock action, the same way band locking's pending count
+   * gates "Lock selected" and the NR card's own `hasChanges` gates its apply.
+   *
+   * THIS IS NOT COSMETIC. Re-sending the identical target still runs
+   * `AT+QNWLOCK="common/4g"` and still bounces the link for 3-5 seconds on the
+   * device serving this page — a real cost for a guaranteed no-op. Leaving the
+   * button live also made the two leg cards disagree while both read "Locked",
+   * which a reader can only interpret as one of them being broken.
+   *
+   * Order-insensitive: the three slots are a SET of acceptable cells, and the
+   * radio only has to camp on one of them, so slot 1 and slot 2 swapping places
+   * is not a change worth a link bounce. Compared as sorted `earfcn:pci` keys
+   * rather than by index for exactly that reason.
+   */
+  const hasChanges = useMemo(() => {
+    const key = (cells: LteLockCell[]) =>
+      cells
+        .map((c) => `${c.earfcn}:${c.pci}`)
+        .sort()
+        .join("|");
+    return key(validCells) !== key(readbackCells);
+  }, [validCells, readbackCells]);
 
   // --- Handlers --------------------------------------------------------------
 
@@ -419,12 +470,16 @@ export default function LteTowerCard({
   };
 
   /**
-   * The one entry point to the lock dialog, shared by the enable switch and the
-   * footer's Lock action.
+   * The one and only entry point to the lock dialog: the footer's Lock action.
    *
-   * The dialog is not optional ceremony. `AT+QNWLOCK="common/4g"` pins the radio
-   * to a single physical cell and bounces the link for 3-5 seconds — on a device
-   * that is serving this very page. It stays deliberate.
+   * There used to be a second — an "enable" `Switch` whose `checked` came from
+   * the modem read-back while its ON action wrote whatever was sitting UNSAVED
+   * in the fields below. It was simultaneously a state display and two different
+   * writes, and a switch promises instant, cheap and reversible.
+   * `AT+QNWLOCK="common/4g"` pins the radio to a single physical cell and
+   * bounces the link for 3-5 seconds — on the device serving this very page.
+   * That is a deliberate button with a confirmation, which is what band locking
+   * already settled on. The header `Badge` keeps reporting the state.
    */
   const requestLock = () => {
     if (validCells.length === 0) {
@@ -433,11 +488,6 @@ export default function LteTowerCard({
     }
     setPendingCells(validCells);
     setShowLockDialog(true);
-  };
-
-  const handleToggle = (checked: boolean) => {
-    if (checked) requestLock();
-    else setShowUnlockDialog(true);
   };
 
   const confirmLock = async () => {
@@ -477,8 +527,11 @@ export default function LteTowerCard({
           </div>
         </CardHeader>
         <CardContent className={`${CARD_PAD} flex flex-col gap-4`}>
-          <Skeleton className={SKELETON_SHAPE.HERO_ROW} />
-          <Skeleton className={SKELETON_SHAPE.HERO_ROW} />
+          {/* The read-back line, then Simple Mode: two children, two mirrors.
+              Both measurements come from SKELETON_SHAPE, so neither can drift
+              from the geometry it stands in for. */}
+          <Skeleton className={SKELETON_SHAPE.READBACK} />
+          <Skeleton className={SKELETON_SHAPE.SETTINGS_ROW} />
           <div className="flex flex-col gap-3">
             {Array.from({ length: SLOT_COUNT }).map((_, index) => (
               <div key={index} className={FIELD_SLOT}>
@@ -497,9 +550,16 @@ export default function LteTowerCard({
             ))}
           </div>
         </CardContent>
-        <CardFooter className={`${CARD_PAD} gap-2`}>
-          <Skeleton className={SKELETON_SHAPE.ACTION} />
-          <Skeleton className={SKELETON_SHAPE.ACTION_SECONDARY} />
+        {/* Mirrors the loaded footer's grouping too, not just its controls: two
+            writes together, the form reset at the far edge. */}
+        <CardFooter
+          className={`${CARD_PAD} flex flex-wrap items-center justify-between gap-x-2 gap-y-3`}
+        >
+          <div className="flex flex-wrap items-center gap-2">
+            <Skeleton className={SKELETON_SHAPE.ACTION} />
+            <Skeleton className={SKELETON_SHAPE.ACTION_SECONDARY} />
+          </div>
+          <Skeleton className={SKELETON_SHAPE.ACTION_QUIET} />
         </CardFooter>
       </Card>
     );
@@ -527,28 +587,48 @@ export default function LteTowerCard({
         </CardHeader>
 
         <CardContent className={`${CARD_PAD} flex flex-col gap-4`}>
-          {/* --- Enable ------------------------------------------------------ */}
-          <div className={CONTROL_ROW}>
-            <Label htmlFor="lte-tower-lock" className="min-w-0">
-              {t("tower_locking.card.enable_label")}
-            </Label>
-            <div className="flex items-center gap-3">
-              {isLocking ? (
+          {/* --- Modem read-back --------------------------------------------
+              The one fact the retired locked-target panel carried that nothing
+              else did, printed inches from the fields it may disagree with.
+              Rendered only when there is a pair: the header chip already says
+              "Unlocked", and an empty captioned box is noise. */}
+          {readbackCells.length > 0 ? (
+            <div className={READBACK.ROOT}>
+              <span className={READBACK.LABEL}>
                 <MaterialSymbol
-                  name="progress_activity"
-                  size={18}
-                  className="text-on-surface-variant animate-spin motion-reduce:animate-none"
+                  name="cell_tower"
+                  size={14}
+                  className="flex-none"
                 />
-              ) : null}
-              <Switch
-                id="lte-tower-lock"
-                className={SWITCH_TARGET}
-                checked={isEnabled}
-                onCheckedChange={handleToggle}
-                disabled={isLocking}
-              />
+                {t("tower_locking.card.readback_label")}
+              </span>
+              <ul className={READBACK.LIST}>
+                {readbackCells.map((cell) => (
+                  <li
+                    key={`${cell.earfcn}-${cell.pci}`}
+                    className={READBACK.ROW}
+                  >
+                    <span className={READBACK.VALUE}>
+                      {t("tower_locking.live.rail_target_pair", {
+                        channel: `${t("tower_locking.live.tile_earfcn")} ${cell.earfcn}`,
+                        pci: cell.pci,
+                      })}
+                    </span>
+                    {isOnAir(cell.earfcn, cell.pci) ? (
+                      <Badge variant="success" className="ml-auto flex-none">
+                        <MaterialSymbol
+                          name="cell_tower"
+                          size={BADGE_GLYPH_SIZE}
+                          filled
+                        />
+                        {t("tower_locking.live.target_serving")}
+                      </Badge>
+                    ) : null}
+                  </li>
+                ))}
+              </ul>
             </div>
-          </div>
+          ) : null}
 
           {/* --- Simple Mode ------------------------------------------------- */}
           <div className="flex flex-col gap-1.5">
@@ -559,9 +639,13 @@ export default function LteTowerCard({
                   size={18}
                   className="text-on-surface-variant"
                 />
-                {t("tower_locking.card.simple_mode_label", {
-                  defaultValue: "Pick from carriers on air",
-                })}
+                {/* No `defaultValue`. This line used to key off
+                    `simple_mode_label`, which exists in no locale, with the
+                    English text supplied inline — so it rendered English in all
+                    five languages and `i18n:check` could not see it (it grades a
+                    missing key as a warning and exits 0, and a literal has no
+                    key to be missing). A defaultValue is how that hides. */}
+                {t("tower_locking.card.simple_mode")}
               </Label>
               <Switch
                 id="lte-simple-mode"
@@ -785,18 +869,46 @@ export default function LteTowerCard({
 
         {/* `mt-auto` pins the actions to the card's floor — these cards sit in
             an equal-height grid row, so without it a card shorter than its
-            row-mate leaves its buttons floating above a void. */}
+            row-mate leaves its buttons floating above a void.
+
+            TWO WRITES, THEN A FORM RESET. The two consequential actions are
+            grouped and `Clear fields` is pushed to the far edge, so the footer
+            cannot read as three equal pills — same construction as
+            `band-grid-card.tsx`'s footer, which this surface is converging on. */}
         <CardFooter
           className={`${CARD_PAD} mt-auto flex flex-wrap items-center justify-between gap-x-2 gap-y-3`}
         >
-          <SaveButton
-            onClick={requestLock}
-            isSaving={isLocking}
-            saved={saved}
-            label={t("tower_locking.actions.lock")}
-            disabled={isLocking || validCells.length === 0}
-            className={PILL_ACTION_PLAIN}
-          />
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Symmetrical with the NR card: a form that parses is always
+                lockable while nothing is locked, and only a leg already holding
+                these exact cells has nothing left to write. See `hasChanges`. */}
+            <SaveButton
+              onClick={requestLock}
+              isSaving={isLocking}
+              saved={saved}
+              label={t("tower_locking.actions.lock")}
+              disabled={
+                isLocking ||
+                validCells.length === 0 ||
+                (posture === "locked" && !hasChanges)
+              }
+              className={PILL_ACTION_PLAIN}
+            />
+            {/* Gated on `posture`, NOT on `config.lte.enabled`: offering to
+                remove a lock the modem does not report is offering an action
+                with no effect, and `unknown` means nobody has successfully read
+                the modem — so it is disabled rather than optimistically live. */}
+            <Button
+              type="button"
+              variant="outline"
+              className={PILL_ACTION}
+              onClick={() => setShowUnlockDialog(true)}
+              disabled={isLocking || posture !== "locked"}
+            >
+              <MaterialSymbol name="lock_open" size={18} />
+              {t("tower_locking.actions.unlock")}
+            </Button>
+          </div>
           <Button
             type="button"
             variant="tonal-neutral"
