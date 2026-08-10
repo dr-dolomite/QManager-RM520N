@@ -51,10 +51,6 @@ import {
   BADGE_GLYPH_SIZE,
   CARD_PAD,
   FIELD_CONTROL,
-  FIELD_GRID,
-  FIELD_LABEL,
-  FIELD_SLOT,
-  FIELD_SLOT_HEAD,
   LEG_BADGE,
   NOTICE,
   NOTICE_TONE,
@@ -63,6 +59,7 @@ import {
   PILL_QUIET,
   READBACK,
   SKELETON_SHAPE,
+  SLOT_ROW,
   TOWER_CARD,
   legDescriptionKey,
   legShortKey,
@@ -96,6 +93,15 @@ import {
 // fields that sentence points at. So "no targets yet" renders as a block ABOVE
 // the slot list rather than instead of it. Same three states, same shell — the
 // empty one just keeps its own exit route on screen.
+//
+// -----------------------------------------------------------------------------
+// A SLOT IS A ROW (see `shapes.ts` > SLOT_ROW)
+// -----------------------------------------------------------------------------
+// The three slots render as three ~58px rows, not as three stacked panels. The
+// row is the only place on this surface where a visible field label is spent to
+// buy density — see the comment on the slot list itself for what replaces it and
+// why that trade is safe. Everything the panels hosted survives: both inputs,
+// Simple Mode's carrier `Select`, the per-slot clear, and the "Serving" chip.
 //
 // -----------------------------------------------------------------------------
 // WHY SIMPLE MODE SURVIVES THE REBUILD
@@ -156,6 +162,24 @@ const SLOT_CLEAR =
  * has to be written in the same variant to replace it.
  */
 const SELECT_CONTROL = `${FIELD_CONTROL} w-full data-[size=default]:h-[2.625rem]`;
+
+/**
+ * THE TWO FIELD WIDTHS INSIDE A SLOT ROW.
+ *
+ * `SLOT_ROW.FIELDS` is a wrapping flex line, so each field declares a `flex`
+ * shorthand rather than a width: a basis for the comfortable case, `1` to grow
+ * into a wide card, and shrink so the pair narrows BEFORE `SLOT_ROW.META` gets
+ * pushed off the row. Once the card is narrower than roughly `8.5rem + 5.5rem`
+ * plus the index label, the line wraps and the two fields drop under `Slot N`
+ * intact — which is the degradation the row was designed for, and the reason
+ * neither of these carries a fixed `w-`.
+ *
+ * The channel gets twice the growth of the PCI: an EARFCN runs to five digits
+ * and a PCI to three, and in Simple Mode the same box hosts a `Select` whose
+ * option text is far longer than either.
+ */
+const SLOT_FIELD_CHANNEL = "flex min-w-0 flex-[2_1_8.5rem] flex-col";
+const SLOT_FIELD_PCI = "flex min-w-0 flex-[1_1_5.5rem] flex-col";
 
 /** One slot's two raw field values. Strings, because the user is mid-typing. */
 interface SlotValue {
@@ -532,19 +556,25 @@ export default function LteTowerCard({
               from the geometry it stands in for. */}
           <Skeleton className={SKELETON_SHAPE.READBACK} />
           <Skeleton className={SKELETON_SHAPE.SETTINGS_ROW} />
-          <div className="flex flex-col gap-3">
+          {/* THE SLOT SKELETON IS THE REAL ROW, COMPOSED.
+              `SLOT_ROW.ROOT` only sets a `min-h-14` floor — a loaded row hosts
+              a 42px `FIELD_CONTROL` inside its vertical padding and settles
+              taller than that. So there is no flat `SKELETON_SHAPE.SLOT_ROW`
+              to reach for: the placeholder is built from `SLOT_ROW.ROOT` plus
+              the same `FIELD_CONTROL` mirror the loaded row uses, which makes
+              the two agree by construction rather than by two numbers someone
+              has to keep in step by hand. */}
+          <div className="flex flex-col gap-2">
             {Array.from({ length: SLOT_COUNT }).map((_, index) => (
-              <div key={index} className={FIELD_SLOT}>
-                <Skeleton className={SKELETON_SHAPE.FIELD_LABEL} />
-                <div className={FIELD_GRID}>
-                  <div className="flex flex-col gap-2">
-                    <Skeleton className={SKELETON_SHAPE.FIELD_LABEL} />
-                    <Skeleton className={SKELETON_SHAPE.FIELD_CONTROL} />
-                  </div>
-                  <div className="flex flex-col gap-2">
-                    <Skeleton className={SKELETON_SHAPE.FIELD_LABEL} />
-                    <Skeleton className={SKELETON_SHAPE.FIELD_CONTROL} />
-                  </div>
+              <div key={index} className={SLOT_ROW.ROOT}>
+                <Skeleton className={`${SKELETON_SHAPE.FIELD_LABEL} flex-none`} />
+                <div className={SLOT_ROW.FIELDS}>
+                  <Skeleton
+                    className={`${SKELETON_SHAPE.FIELD_CONTROL} min-w-0 flex-[2_1_8.5rem]`}
+                  />
+                  <Skeleton
+                    className={`${SKELETON_SHAPE.FIELD_CONTROL} min-w-0 flex-[1_1_5.5rem]`}
+                  />
                 </div>
               </div>
             ))}
@@ -679,9 +709,30 @@ export default function LteTowerCard({
             </div>
           ) : null}
 
-          {/* --- Slots ------------------------------------------------------- */}
+          {/* --- Slots -------------------------------------------------------
+              ONE ROW PER SLOT, AND THE FIELDS INSIDE IT STAY EDITABLE.
+
+              This replaces three stacked panels — each a heading row over a
+              two-up field grid — that put roughly 130px of card between "Cell
+              1" and "Cell 2" and made a three-slot lock taller than the whole
+              section above it. A slot holds two short numbers and a status, so
+              it is a row.
+
+              The compaction costs the two VISIBLE field labels, which move to
+              `sr-only` with the short name carried by the placeholder instead.
+              That is the one thing a compact row cannot keep, and it is spent
+              carefully: assistive technology still gets the full "Channel
+              (EARFCN)" / "Cell ID (PCI)" wording, and each row is a
+              `role="group"` labelled by its own "Cell N" heading, so a value is
+              announced as the slot it belongs to rather than as one of three
+              identically-named boxes.
+
+              The dashed `SLOT_ROW.EMPTY` marks an unfilled slot. The fields
+              inside it are live regardless — the mock only ever drew the
+              settled state, and reading it literally would delete this card's
+              primary input path. */}
           <motion.div
-            className="flex flex-col gap-3"
+            className="flex flex-col gap-2"
             variants={staggerRows}
             initial="hidden"
             animate="visible"
@@ -690,6 +741,7 @@ export default function LteTowerCard({
               const slotLabel = t("tower_locking.fields.slot", {
                 index: index + 1,
               });
+              const headingId = `lte-slot-${index}`;
               const earfcnId = `lte-earfcn-${index}`;
               const pciId = `lte-pci-${index}`;
               const composite = slotComposites[index] ?? "";
@@ -697,31 +749,28 @@ export default function LteTowerCard({
                 (option) =>
                   compositeValue(option.earfcn, option.pci) === composite,
               );
+              const blank = isSlotBlank(slot);
+              const cell = slotToCell(slot);
+              /** ABSENCE of this chip is the negative case. There is
+               *  deliberately no second chip for "configured, not in use" — a
+               *  chip in both states halves the signal of the positive one. */
+              const serving = cell !== null && isOnAir(cell.earfcn, cell.pci);
 
               return (
                 <motion.div
                   key={index}
                   variants={staggerRowItem}
-                  className={FIELD_SLOT}
+                  role="group"
+                  aria-labelledby={headingId}
+                  className={blank ? SLOT_ROW.EMPTY : SLOT_ROW.ROOT}
                 >
-                  <div className={FIELD_SLOT_HEAD}>
-                    <span>{slotLabel}</span>
-                    <button
-                      type="button"
-                      className={SLOT_CLEAR}
-                      aria-label={t("tower_locking.fields.slot_clear", {
-                        index: index + 1,
-                      })}
-                      onClick={() => clearSlot(index)}
-                      disabled={isLocking || isSlotBlank(slot)}
-                    >
-                      <MaterialSymbol name="close" size={16} />
-                    </button>
-                  </div>
+                  <span id={headingId} className={SLOT_ROW.INDEX}>
+                    {slotLabel}
+                  </span>
 
-                  <div className={FIELD_GRID}>
-                    <div className="flex min-w-0 flex-col gap-2">
-                      <Label htmlFor={earfcnId} className={FIELD_LABEL}>
+                  <div className={SLOT_ROW.FIELDS}>
+                    <div className={SLOT_FIELD_CHANNEL}>
+                      <Label htmlFor={earfcnId} className="sr-only">
                         {t("tower_locking.fields.earfcn")}
                       </Label>
                       {simpleActive ? (
@@ -739,9 +788,11 @@ export default function LteTowerCard({
                                 still a legitimate lock target, so the trigger
                                 prints it rather than falling back to the
                                 placeholder and implying the slot is empty. */}
-                            {inList || slotToCell(slot) === null ? (
+                            {inList || cell === null ? (
                               <SelectValue
-                                placeholder={t("tower_locking.fields.earfcn")}
+                                placeholder={t(
+                                  "tower_locking.fields.pick_placeholder",
+                                )}
                               />
                             ) : (
                               <span className="text-on-surface-variant line-clamp-1 min-w-0 font-mono text-sm italic tabular-nums">
@@ -788,9 +839,13 @@ export default function LteTowerCard({
                                         })}
                                       </span>
                                     ) : null}
+                                    {/* `slot_in_use`, not `slot`: on its own,
+                                        "Cell 2" beside a disabled option reads
+                                        as a second name for the option rather
+                                        than as the reason it is disabled. */}
                                     {usedIn !== -1 ? (
                                       <span className="text-on-surface-variant text-xs">
-                                        {t("tower_locking.fields.slot", {
+                                        {t("tower_locking.fields.slot_in_use", {
                                           index: usedIn + 1,
                                         })}
                                       </span>
@@ -807,6 +862,7 @@ export default function LteTowerCard({
                           type="text"
                           inputMode="numeric"
                           autoComplete="off"
+                          placeholder={t("tower_locking.live.tile_earfcn")}
                           className={`${FIELD_CONTROL} font-mono tabular-nums`}
                           value={slot.earfcn}
                           onChange={(event) =>
@@ -820,8 +876,8 @@ export default function LteTowerCard({
                     {/* PCI stays a text input in every mode: picking a carrier
                         fills it, but a user reading a PCI off a scan must always
                         be able to type it. */}
-                    <div className="flex min-w-0 flex-col gap-2">
-                      <Label htmlFor={pciId} className={FIELD_LABEL}>
+                    <div className={SLOT_FIELD_PCI}>
+                      <Label htmlFor={pciId} className="sr-only">
                         {t("tower_locking.fields.pci")}
                       </Label>
                       <Input
@@ -829,6 +885,7 @@ export default function LteTowerCard({
                         type="text"
                         inputMode="numeric"
                         autoComplete="off"
+                        placeholder={t("tower_locking.live.tile_pci")}
                         className={`${FIELD_CONTROL} font-mono tabular-nums`}
                         value={slot.pci}
                         onChange={(event) =>
@@ -837,6 +894,30 @@ export default function LteTowerCard({
                         disabled={isLocking}
                       />
                     </div>
+                  </div>
+
+                  <div className={SLOT_ROW.META}>
+                    {serving ? (
+                      <Badge variant="success">
+                        <MaterialSymbol
+                          name="cell_tower"
+                          size={BADGE_GLYPH_SIZE}
+                          filled
+                        />
+                        {t("tower_locking.live.target_serving")}
+                      </Badge>
+                    ) : null}
+                    <button
+                      type="button"
+                      className={SLOT_CLEAR}
+                      aria-label={t("tower_locking.fields.slot_clear", {
+                        index: index + 1,
+                      })}
+                      onClick={() => clearSlot(index)}
+                      disabled={isLocking || blank}
+                    >
+                      <MaterialSymbol name="close" size={16} />
+                    </button>
                   </div>
                 </motion.div>
               );

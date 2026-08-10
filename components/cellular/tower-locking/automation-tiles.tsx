@@ -58,21 +58,26 @@ import {
 // into one thing a reader can hold.
 //
 // -----------------------------------------------------------------------------
-// THESE ARE NOW THE HERO, AND THEY USED TO BE THE PAGE'S LAST CARD
+// THEY SIT SECOND, AND THEY USED TO BE THE PAGE'S LAST CARD
 // -----------------------------------------------------------------------------
 // The earlier order was: see where you are, choose where to point, then decide
 // what happens unattended. That is the FIRST SESSION, and only the first. After
 // one setup the target rarely moves, while everything a returning reader wants is
 // here — does the lock survive a reboot, is the safety net armed, is the window
-// still right. Leading with the answer and putting the three-field forms below it
-// matches how the page is actually used.
+// still right. Putting these directly under "Right now", and the three-field
+// forms below them, matches how the page is actually used.
 //
-// This component therefore renders NO CARD SHELL AND NO HEADER. It is the body
-// of a section the page coordinator owns, which is what lets the live strip sit
-// above these tiles inside one `rounded-hero` container instead of the page
-// stacking two competing surfaces. Nesting a `Card` in that section would put a
-// card inside a hero for no gain — and `AUTO_GRID` queries `@container/hero`
-// precisely because there is no longer a `card` container to query.
+// This component renders NO CARD SHELL AND NO HEADER. It is the body of
+// `TOWER_SECTION`, a section the page coordinator owns along with its
+// `SECTION_HEAD` title and description — so the two sections on this surface
+// cannot drift apart in header geometry. Nesting a `Card` here would put a card
+// inside a section for no gain.
+//
+// THESE TILES ARE NOT INSIDE THE HERO. They were, for one revision, and
+// `AUTO_GRID` still carried a `@container/hero` query from it. Both sections now
+// declare `@container/section` instead, so the grid responds to whichever one is
+// hosting it without this file having to know which — see `AUTO_GRID`. Nothing
+// here imports a container name, which is the point.
 //
 // -----------------------------------------------------------------------------
 // WHY FAILOVER BELONGS HERE AND NOT ON A LEG CARD

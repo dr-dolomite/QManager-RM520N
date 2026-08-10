@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useMemo, useState } from "react";
 import { motion } from "motion/react";
 import { useTranslation } from "react-i18next";
@@ -8,6 +9,7 @@ import { toast } from "sonner";
 import { CellularPageHeader } from "@/components/cellular/page-header";
 import { MaterialSymbol } from "@/components/ui/material-symbol";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useModemStatus } from "@/hooks/use-modem-status";
 import { useTowerLocking } from "@/hooks/use-tower-locking";
 import { staggerContainer, staggerItem } from "@/lib/motion";
@@ -20,12 +22,15 @@ import LteTowerCard from "./lte-tower-card";
 import NrSaTowerCard from "./nr-sa-tower-card";
 import { defaultScsForBand } from "./simple-mode-utils";
 import {
-  HERO_DESCRIPTION,
+  HERO_REFRESH_BUTTON,
   NOTICE,
   NOTICE_TONE,
   PILL_ACTION,
+  SECTION_HEAD,
+  SKELETON_SHAPE,
   TOWER_CARD,
   TOWER_HERO,
+  TOWER_SECTION,
   CARD_PAD,
   type TowerLeg,
 } from "./shapes";
@@ -42,21 +47,38 @@ import {
 // -----------------------------------------------------------------------------
 // PAGE ANATOMY
 // -----------------------------------------------------------------------------
-// A page header, then one hero, then cards — the same shape as Band Locking and
-// as every other feature page in this product. Two objects:
+// A page header, then TWO SIBLING SECTIONS, then the leg cards:
 //
-//   1. HERO       the STANDING ORDERS, "while nobody is watching": what the lock
-//                 does across a reboot, in bad signal, and on a clock. Its three
-//                 tiles are the page's subject, and the LIVE STRIP above them is
-//                 the premise those orders act on — the verdict, and what the
-//                 radio is camped on right now.
-//   2. LEG CARDS  a 2-up of the two AT lock parameters. Where the target changes,
-//                 and the single place a leg's own state is reported.
+//   1. "RIGHT NOW"     (`TOWER_HERO`) the PREMISE: the lock verdict, and every
+//                      carrier the radio is camped on as a uniform tile grid.
+//                      It leads because it is the only part of the page that
+//                      changes on its own — everything below it changes only
+//                      when the reader changes it. It takes the surface's one
+//                      `rounded-hero` anchor for that reason.
+//   2. "WHILE NOBODY
+//      IS WATCHING"    (`TOWER_SECTION`) the STANDING ORDERS: what this lock
+//                      does unattended — across a reboot, during a signal
+//                      collapse, and on a clock. `rounded-card`, because it is
+//                      a peer of the leg cards and not a second anchor.
+//   3. LEG CARDS       a 2-up of the two AT lock parameters. Where the target
+//                      changes, and the single place a leg's own state is
+//                      reported.
 //
-// THIS COORDINATOR OWNS THE HERO SHELL rather than delegating it to a child, and
-// that is what the composition is for: the strip and the tiles are two parts of
-// one section, so a single `TOWER_HERO` wraps both. A child rendering its own
-// `Card` would put a card inside a hero and split one idea across two surfaces.
+// DO NOT RE-MERGE 1 AND 2. They were one hero for a revision, and the merge is
+// what forced the freshness stamp down onto the verdict block: a stamp at the
+// top of a card that ALSO contained three settings tiles would have appeared to
+// date the settings. Split, the stamp heads the section it actually describes —
+// both of the verdict's operands (the ~4s carrier list and the once-on-mount
+// `AT+QNWLOCK` read-back) live in section 1, and nothing else does. A merged
+// hero also gave the page a single title, which had to be the automation copy,
+// leaving the live strip as an unlabelled preamble under a heading about
+// reboots.
+//
+// THIS COORDINATOR OWNS BOTH SECTION SHELLS AND BOTH SECTION HEADERS. The two
+// children render only their bodies, via the shared `SECTION_HEAD` object here.
+// A child rendering its own `Card` would put a card inside a section, and a
+// child rendering its own heading would let the two sections' header geometry
+// drift apart.
 //
 // Three earlier arrangements are worth not restoring.
 //
@@ -66,16 +88,19 @@ import {
 // 2-up grid, beside empty space, at the same rank as the two lock forms — so the
 // page still read as "status, controls, and a leftover".
 //
-// Grouping the three unattended behaviours into a card of their own fixed the
+// Grouping the three unattended behaviours into a section of their own fixed the
 // orphan, but left the page led by a three-column MATCH LINE whose left panel
 // restated, one layer removed, the two facts the leg cards already carry: which
 // leg is locked, and to what. A reader met the same pair of numbers twice before
 // reaching a single control, and the read-only half of a settings page was the
-// tallest thing on it. So that panel is gone, its one non-duplicated fact (the
-// modem's AT read-back, as against the config the forms are seeded from) moved
-// into the leg card that owns it, and the automation group was promoted from the
-// page's last card to its hero — which is also the honest order for a page whose
-// target is set once and whose unattended behaviour is checked every visit.
+// tallest thing on it. So that panel is gone and its one non-duplicated fact
+// (the modem's AT read-back, as against the config the forms are seeded from)
+// moved into the leg card that owns it.
+//
+// The order — premise, then standing orders, then forms — is the honest one for
+// a page whose target is set once and whose unattended behaviour is checked
+// every visit. The three-field forms come last because after the first session
+// they are the part nobody opens.
 //
 // -----------------------------------------------------------------------------
 // THE PREFILL BUS
@@ -88,7 +113,7 @@ import {
 // =============================================================================
 
 const TowerLockingComponent = () => {
-  const { t } = useTranslation("cellular");
+  const { t, i18n } = useTranslation("cellular");
   const { data: modemData } = useModemStatus();
   const tower = useTowerLocking();
 
@@ -258,6 +283,22 @@ const TowerLockingComponent = () => {
     ? `tower_locking.warning.${tower.lastWarning}`
     : null;
 
+  /**
+   * How stale the "Right now" section is. It dates BOTH of the verdict's
+   * operands, which is why it heads the section rather than sitting on the
+   * verdict block: `AT+QNWLOCK` is read once on mount and never polled, while
+   * the carrier list under it refreshes every ~4s.
+   */
+  const syncedLabel =
+    tower.lastSyncedAt === null
+      ? t("tower_locking.live.synced_never")
+      : t("tower_locking.live.synced_at", {
+          time: new Date(tower.lastSyncedAt).toLocaleTimeString(i18n.language, {
+            hour: "2-digit",
+            minute: "2-digit",
+          }),
+        });
+
   return (
     // Root shape shared with the migrated `/cellular/` surfaces: the page gutter
     // on this family is `p-2` over the shell's own padding, and every sub-route
@@ -267,6 +308,21 @@ const TowerLockingComponent = () => {
       <CellularPageHeader
         title={t("tower_locking.page.title")}
         description={t("tower_locking.page.description")}
+        actions={
+          /* The scanner is where a target comes from when the cell you want is
+             not one the modem is already camped on, so it belongs beside the
+             page it feeds rather than only in the sidebar. `variant="tonal"`
+             and not `default`: this navigates, it does not write to the radio,
+             and the page's real primary actions are the leg cards' Lock
+             buttons. Same key and same route as the band-locking hero's link —
+             one translated sentence for one destination. */
+          <Button asChild variant="tonal" className={PILL_ACTION}>
+            <Link href="/cellular/cell-scanner">
+              <MaterialSymbol name="radar" size={18} />
+              {t("radio_info.bands.scanner.link")}
+            </Link>
+          </Button>
+        }
       />
 
       {/* The surface had NO error state: `tower.error` was returned by the hook
@@ -339,19 +395,58 @@ const TowerLockingComponent = () => {
         animate="visible"
         variants={staggerContainer}
       >
-        {/* The hero: what this lock does unattended, over the live premise it
-            acts on. `aria-labelledby` rather than an `aria-label` — the heading
-            is already on screen, and duplicating it as an attribute is how the
-            two silently drift apart in translation. */}
+        {/* --- 1. Right now ------------------------------------------------
+            The premise: the verdict, and every carrier on air as a picker.
+            `aria-labelledby` rather than an `aria-label` — the heading is
+            already on screen, and duplicating it as an attribute is how the two
+            silently drift apart in translation. */}
         <motion.div variants={staggerItem}>
-          <section className={TOWER_HERO} aria-labelledby="tower-hero-title">
-            <div className="flex min-w-0 flex-col gap-1">
-              <h2 id="tower-hero-title" className="text-lg font-semibold">
-                {t("tower_locking.automation.title")}
+          <section className={TOWER_HERO} aria-labelledby="tower-now-title">
+            <div className={SECTION_HEAD.ROOT}>
+              <h2 id="tower-now-title" className={SECTION_HEAD.TITLE}>
+                {t("tower_locking.live.title")}
               </h2>
-              <p className={HERO_DESCRIPTION}>
-                {t("tower_locking.automation.description")}
-              </p>
+
+              {/* The stamp dates this whole section, and the button re-reads
+                  the half of it that has no clock of its own. */}
+              <div className={SECTION_HEAD.META}>
+                {tower.isLoading ? (
+                  <Skeleton className={SKELETON_SHAPE.SECTION_META} />
+                ) : (
+                  <>
+                    <span className={SECTION_HEAD.STAMP}>
+                      <MaterialSymbol
+                        name="schedule"
+                        size={14}
+                        className="flex-none"
+                      />
+                      <span className="min-w-0 truncate">{syncedLabel}</span>
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => void tower.refresh()}
+                      disabled={tower.isRefreshing}
+                      aria-label={t("tower_locking.live.refresh")}
+                      className={HERO_REFRESH_BUTTON}
+                    >
+                      <MaterialSymbol
+                        name="refresh"
+                        size={18}
+                        className={
+                          tower.isRefreshing
+                            ? "animate-spin motion-reduce:animate-none"
+                            : undefined
+                        }
+                      />
+                    </button>
+                    <span className="sr-only" aria-live="polite">
+                      {tower.isRefreshing
+                        ? t("tower_locking.a11y.refreshing")
+                        : ""}
+                    </span>
+                  </>
+                )}
+              </div>
             </div>
 
             <TowerLiveStrip
@@ -359,11 +454,32 @@ const TowerLockingComponent = () => {
               carrierComponents={carriers}
               canTarget={canTarget}
               isLoading={tower.isLoading}
-              isRefreshing={tower.isRefreshing}
-              lastSyncedAt={tower.lastSyncedAt}
               onPickCarrier={handlePickCarrier}
-              onRefresh={() => void tower.refresh()}
             />
+          </section>
+        </motion.div>
+
+        {/* --- 2. While nobody is watching -----------------------------------
+            The standing orders. `TOWER_SECTION`, not a second `TOWER_HERO`:
+            one anchor per surface, and it belongs to the section that leads. */}
+        <motion.div variants={staggerItem}>
+          <section
+            className={TOWER_SECTION}
+            aria-labelledby="tower-automation-title"
+          >
+            <div className={SECTION_HEAD.ROOT}>
+              <h2
+                id="tower-automation-title"
+                className={SECTION_HEAD.TITLE}
+              >
+                {t("tower_locking.automation.title")}
+              </h2>
+              {/* On the title's ROW, not under it — a section header is a
+                  signpost over content the reader can already see. */}
+              <p className={SECTION_HEAD.DESCRIPTION}>
+                {t("tower_locking.automation.description")}
+              </p>
+            </div>
 
             <TowerAutomationTiles
               config={tower.config}

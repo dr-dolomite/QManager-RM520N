@@ -16,7 +16,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Badge } from "@/components/ui/badge";
+import { Badge, type BadgeVariant } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -57,7 +57,6 @@ import { SCS_OPTIONS } from "@/types/tower-locking";
 import {
   BADGE_GLYPH_SIZE,
   CARD_PAD,
-  FIELD_CONTROL,
   FIELD_GRID,
   FIELD_LABEL,
   LEG_BADGE,
@@ -89,7 +88,7 @@ import {
 // owns every CGI call and every poll; this card owns the form and calls back.
 //
 // -----------------------------------------------------------------------------
-// THE GATE IS A CONDITION, NOT A DIMMER
+// THE GATE IS A CONDITION, NOT A DIMMER — AND NOT A DELETION EITHER
 // -----------------------------------------------------------------------------
 // The incumbent's answer to "you cannot lock SA right now" was `opacity-60` on
 // the whole `<Card>` plus a sentence appended to the `CardDescription`. That is
@@ -98,12 +97,23 @@ import {
 // explanation below readable contrast. The one piece of text the user needs in
 // order to act was the text made hardest to read.
 //
-// So the gate now REPLACES the card body with a tonal condition block, at the
-// same contrast as everything else on the page, in the condition's own role
-// colour. The shape mirrors `components/cellular/condition-screen.tsx` at card
-// scale rather than importing it: that component is `rounded-hero` (40px) with
-// 56px of vertical padding, sized to replace a whole page body, and nesting it
-// inside a `rounded-card` (36px) leg card would out-round its own host.
+// Its replacement swung too far the other way: the gate REPLACED the whole card
+// body with a condition block, which took `Remove Lock` off the screen with it.
+// That is the one control this card cannot lose. QManager runs ON the modem it
+// configures, so a lock pinned to an unreachable cell takes down the page you
+// would use to fix it, and `Remove Lock` is the only in-UI recovery — and a
+// gated card is exactly where a stale NR lock lives, since `nr_locked` can be
+// true while the network has since moved the modem to NSA.
+//
+// So the gate is now a STATE OF THE CARD, not a substitute for it:
+//
+//   * full contrast everywhere — no wash, on the card or on any child
+//   * a `muted` status chip carrying its own glyph, so the header says which
+//     condition is in force
+//   * a tonal NOTICE at the top of the body, stating the reason in full
+//   * `disabled` on the individual controls, which carry the primitives' own
+//     disabled treatment — EXCEPT `Remove Lock`, which stays live whenever the
+//     modem reports a lock
 //
 // Tone is chosen per condition, not per aesthetics, following the radio page's
 // canonical mapping:
@@ -117,9 +127,9 @@ import {
 //                    claim something is wrong when nothing is.
 //
 // Neither carries a spinner: a spinner on a standing condition advertises work
-// that is not happening. They carry DIFFERENT glyphs, because
-// `warning-container` and `primary-container` are two container fills and the
-// glyph is the channel that survives grayscale.
+// that is not happening. They carry DIFFERENT glyphs, in the notice AND in the
+// chip, because `warning-container` and `primary-container` are two container
+// fills and the glyph is the channel that survives grayscale.
 //
 // -----------------------------------------------------------------------------
 // networkType === "" IS NOT "CAPABLE"
@@ -206,73 +216,127 @@ const SWITCH_TARGET =
   "relative before:absolute before:-inset-x-3 before:-inset-y-3.5 before:content-['']";
 
 /**
- * `FIELD_CONTROL` + the one thing it cannot win on its own, for a SelectTrigger.
+ * ONE VALUE CELL IN THE 2x2 GRID.
  *
- * `components/ui/select.tsx` sets its height as `data-[size=default]:h-9`, which
- * compiles to `.data-\[size\=default\]\:h-9[data-size="default"]` — a class PLUS
- * an attribute, so it outranks `FIELD_CONTROL`'s bare `h-[2.625rem]` on
- * specificity and tailwind-merge cannot fold the two (different modifier
- * scopes). Left alone, the two Selects in this grid render 36px beside four
- * 42px controls: visibly combed, and under the project's control-height floor.
+ * The label and its control are ONE filled block, rather than a 12px label
+ * floating over a separate 42px box. That is the mock's denser treatment, and it
+ * buys back the ~16px of dead air per row that four stacked label/control pairs
+ * were spending — enough to keep this card level with its three-row row-mate.
  *
- * So the height is restated AT THE SAME SPECIFICITY. It is the only value
- * duplicated from `FIELD_CONTROL`, and it is duplicated because a class name has
- * to exist literally in the source for Tailwind to emit it. `Input` needs none
- * of this — its `h-9` is a bare utility, which tailwind-merge resolves.
+ * The control inside is painted transparent so the tile's own
+ * `surface-container` is the field's fill: two nested container steps in a 56px
+ * block would read as a box inside a box. THE FOCUS RING MOVES WITH IT —
+ * `focus-within` on the tile, `focus-visible:ring-0` on the control — because a
+ * transparent control with its ring suppressed and nothing taking it over is a
+ * field a keyboard user cannot find.
+ *
+ * `min-h-14` (56px) with a 32px control inside a full-width `<label>` clears the
+ * 44px coarse-pointer floor: a tap anywhere on the label or the control lands on
+ * the control, and the two stack to 48px of live surface.
  */
-const SELECT_CONTROL = `w-full data-[size=default]:h-[2.625rem] ${FIELD_CONTROL}`;
+const FIELD_TILE = [
+  "flex min-h-14 min-w-0 flex-col justify-center gap-0.5 rounded-field bg-surface-container px-4 py-2",
+  "transition-[box-shadow] duration-[var(--duration-quick)] ease-out",
+  "focus-within:ring-ring/50 focus-within:ring-[3px]",
+].join(" ");
+
+/** The tile's own label step. `w-full` so clicking anywhere along it focuses
+ *  the control beneath — that is what makes the 56px block one target. */
+const FIELD_TILE_LABEL = `${FIELD_LABEL} w-full`;
 
 /**
- * The gate block: `condition-screen.tsx`'s anatomy (disc → title → body) at card
- * scale. `rounded-tile` (28px) so it stays a step inside the `rounded-card`
- * (36px) shell hosting it.
+ * The control inside a tile.
  *
- * THE BODY IS `surface-container`, NOT THE ROLE'S CONTAINER, and that is a
- * deliberate step down from `condition-screen.tsx`. That component replaces a
- * whole PAGE body, where a full tonal wash is proportionate. This block fills a
- * card in a 2-up grid, and painting ~170px of `warning-container` there made the
- * gate the loudest object on a page whose actual job is elsewhere — it read as
- * an error the user had caused rather than a standing fact about the network
- * mode.
+ * Every value here is a device identifier, so it wears the machine's voice —
+ * the same `font-mono … tabular-nums` the read-back line uses two blocks up, so
+ * a channel reads identically whether the modem reported it or the user typed
+ * it.
  *
- * The signal moves to the two channels that survive the change: the filled disc
- * (Glyph-Disc Rule — the disc is what still reads when a container fill washes
- * out in sunlight) and the title, tinted with the role's `-on-surface` token.
- * That token exists for exactly this case: DESIGN.md defines `--{role}-on-surface`
- * as "tinted text on a plain card, where no container is used".
+ * `dark:bg-transparent` is NOT redundant: `input.tsx` ships `dark:bg-input/30`
+ * and `select.tsx` adds `dark:hover:bg-input/50`, both compiled at (0,2,0) by
+ * the `dark` custom variant, so a bare `bg-transparent` loses to them and the
+ * control renders as a visible second box in dark mode only.
  */
-const GATE = {
-  ROOT: "bg-surface-container flex flex-col items-center gap-3 rounded-tile px-6 py-8 text-center",
-  DISC: "grid size-11 flex-none place-items-center rounded-pill",
-  TITLE: "text-base font-semibold",
-  BODY: "text-on-surface-variant max-w-[44ch] text-sm leading-relaxed text-pretty",
-} as const;
+const FIELD_TILE_CONTROL = [
+  "h-8 w-full min-w-0 rounded-none border-0 bg-transparent px-0 py-0 shadow-none",
+  "dark:bg-transparent",
+  "font-mono text-sm font-semibold tabular-nums",
+  "focus-visible:ring-0",
+].join(" ");
 
-/** The role tint for the gate's title. See GATE.ROOT for why this is
- *  `-on-surface` rather than an `on-*-container` ink. */
-const GATE_TITLE_TONE: Record<"warning" | "info", string> = {
-  warning: "text-warning-on-surface",
-  info: "text-primary",
-};
+/**
+ * The same control as a `SelectTrigger`.
+ *
+ * Two overrides an `Input` does not need, both because `select.tsx` writes them
+ * inside a variant scope that a bare utility cannot reach: `data-[size=default]:h-9`
+ * (a class plus an attribute, so it outranks a plain `h-8` and tailwind-merge
+ * cannot fold the two) and `dark:hover:bg-input/50`.
+ */
+const TILE_SELECT = [
+  FIELD_TILE_CONTROL,
+  "data-[size=default]:h-8 dark:hover:bg-transparent",
+].join(" ");
+
+/**
+ * The control's line box, for the loading mirror. Declared HERE, beside the
+ * `h-8` it stands in for, rather than in `SKELETON_SHAPE` — that map mirrors the
+ * shared 42px `FIELD_CONTROL`, which this card no longer renders. The tile
+ * itself is mirrored by composing `FIELD_TILE`, so only this one measurement is
+ * restated at all.
+ */
+const SKELETON_TILE_VALUE = "h-8 w-24 rounded-field";
+
+/**
+ * ONE LABELLED READING, in a picker option or a confirmation dialog.
+ *
+ * The wrapper is the machine's voice — a channel, a PCI and a dBm figure are
+ * device readings — and the NAME inside it steps back to `font-sans
+ * font-normal`, because "ARFCN" is a word this product is saying, not a value
+ * the modem reported. That split is what lets these stand next to each other on
+ * one line with nothing but a gap between them: the reader can see where each
+ * reading starts without a middot marking the boundary.
+ */
+const PICKER_READING =
+  "flex items-baseline gap-1 font-mono text-xs font-medium tabular-nums text-on-surface-variant";
 
 /** Which gate, if any, is standing between the user and an SA lock. */
 type GateKind = "nsa" | "lte_only";
 
 /**
- * Gate → tone + glyph.
+ * Gate → tone + the two glyphs it needs.
  *
  * The FILL and DISC come from `NOTICE_TONE` so the block can never drift from
- * the surface's other tonal containers. The GLYPH is overridden for `lte_only`:
- * `NOTICE_TONE.info.glyph` is the generic `info` mark, and
- * `signal_cellular_off` says the actual thing — there is no NR signal to pin.
- * `nsa` keeps the role's own `warning` glyph. The two must differ, and do.
+ * the surface's other tonal containers. `NOTICE` is overridden for `lte_only`:
+ * `NOTICE_TONE.info.glyph` is the generic `info` mark, and `signal_cellular_off`
+ * says the actual thing — there is no NR signal to pin. `nsa` keeps the role's
+ * own `warning` glyph. The two must differ, and do.
+ *
+ * `BADGE` is the header chip's glyph, and it is a SEPARATE field rather than a
+ * reuse of `NOTICE`, because the chip shares its slot with `LEG_BADGE`'s three
+ * postures. `do_not_disturb_on` and `signal_cellular_off` are distinct from each
+ * other AND from `lock` / `lock_open` / `schedule`, which is the rule: two states
+ * that can appear in one slot never share a mark. `warning` could not be used
+ * for `nsa` here — it is `LEG_BADGE.locked`'s tone partner elsewhere on the
+ * surface, and an amber-looking mark on a `muted` chip reads as a fault.
  */
 const GATE_SPEC: Record<
   GateKind,
-  { tone: "warning" | "info"; glyph: MaterialSymbolName }
+  {
+    tone: "warning" | "info";
+    NOTICE: MaterialSymbolName;
+    BADGE: MaterialSymbolName;
+  }
 > = {
-  nsa: { tone: "warning", glyph: NOTICE_TONE.warning.glyph },
-  lte_only: { tone: "info", glyph: "signal_cellular_off" },
+  nsa: {
+    tone: "warning",
+    NOTICE: NOTICE_TONE.warning.glyph,
+    BADGE: "do_not_disturb_on",
+  },
+  lte_only: {
+    tone: "info",
+    NOTICE: "signal_cellular_off",
+    BADGE: "signal_cellular_off",
+  },
 };
 
 /**
@@ -564,23 +628,35 @@ export default function NrSaTowerCard({
   const [showUnlockDialog, setShowUnlockDialog] = useState(false);
 
   /**
-   * The cell, in machine voice, for the confirmation body.
+   * The cell as ONE SHORT IDENTIFIER, for the confirmation SENTENCE.
    *
-   * SCS IS IN HERE and was not in the incumbent's. It is the one field of the
-   * four that is routinely a guess, and the confirmation is the last screen
-   * before the modem drops its connection — omitting it meant the number most
-   * likely to be wrong was the number the user never saw.
+   * This used to join four values on a middot — band, channel, PCI, SCS — into
+   * a run of machine voice dropped mid-prose. A middot earns its place only
+   * between two peers in a single machine-voice run with no room for labels; a
+   * four-term chain is a table that has been flattened to fit a sentence, and
+   * the reader has to work out which number is which from position alone.
+   *
+   * So the sentence takes the pair that NAMES the cell, through the same shared
+   * key the read-back line uses — and the other two values move to the labelled
+   * grid below it (`DIALOG_DETAIL`), where layout does the separating.
+   *
+   * SCS IS STILL IN THE CONFIRMATION, which is the part that must not regress.
+   * It is the one field of the four that is routinely a guess, and this is the
+   * last screen before the modem drops its connection — omitting it meant the
+   * number most likely to be wrong was the number the user never saw. It is now
+   * shown under its own label rather than as an unexplained "30 kHz" at the end
+   * of a chain.
    */
-  const summarise = (cell: NrSaLockCell) => {
-    const scsLabel =
-      SCS_OPTIONS.find((o) => o.value === cell.scs)?.label ?? String(cell.scs);
-    return [
-      `N${cell.band}`,
-      `${t("tower_locking.live.tile_arfcn")} ${cell.arfcn}`,
-      `${t("tower_locking.live.tile_pci")} ${cell.pci}`,
-      scsLabel,
-    ].join(" · ");
-  };
+  const summarise = (cell: NrSaLockCell) =>
+    t("tower_locking.live.rail_target_pair", {
+      channel: `${t("tower_locking.live.tile_arfcn")} ${cell.arfcn}`,
+      pci: cell.pci,
+    });
+
+  /** The SCS option's own label ("30 kHz"), or the raw value if the modem ever
+   *  reports a spacing outside `SCS_OPTIONS`. */
+  const scsLabelFor = (value: number) =>
+    SCS_OPTIONS.find((o) => o.value === value)?.label ?? String(value);
 
   /**
    * The one and only entry point to the lock dialog: the footer's Lock action.
@@ -654,11 +730,14 @@ export default function NrSaTowerCard({
               from the geometry it stands in for. */}
           <Skeleton className={SKELETON_SHAPE.READBACK} />
           <Skeleton className={SKELETON_SHAPE.SETTINGS_ROW} />
+          {/* Four value tiles, mirrored by COMPOSING `FIELD_TILE` rather than
+              by restating its height — the tile is the geometry, so the
+              placeholder cannot drift from it. */}
           <div className={FIELD_GRID}>
             {Array.from({ length: 4 }).map((_, i) => (
-              <div key={i} className="flex flex-col gap-2">
+              <div key={i} className={FIELD_TILE}>
                 <Skeleton className={SKELETON_SHAPE.FIELD_LABEL} />
-                <Skeleton className={SKELETON_SHAPE.FIELD_CONTROL} />
+                <Skeleton className={SKELETON_TILE_VALUE} />
               </div>
             ))}
           </div>
@@ -679,49 +758,22 @@ export default function NrSaTowerCard({
   }
 
   // ===========================================================================
-  // Gated — the card shell and header survive, the BODY is the condition.
+  // Loaded — including the two GATED conditions, which are states of this card
+  // rather than a replacement for it. See the header block.
   // ===========================================================================
   const gate: GateKind | null =
     networkType === "5G-NSA" ? "nsa" : networkType === "LTE" ? "lte_only" : null;
+  const gateSpec = gate ? GATE_SPEC[gate] : null;
 
-  if (gate) {
-    const spec = GATE_SPEC[gate];
-    const tone = NOTICE_TONE[spec.tone];
-    return (
-      <Card className={TOWER_CARD}>
-        <CardHeader className={CARD_PAD}>
-          <CardTitle className="text-lg">{title}</CardTitle>
-          <CardDescription className="text-pretty">
-            {description}
-          </CardDescription>
-        </CardHeader>
-        <CardContent className={CARD_PAD}>
-          <div role="status" className={GATE.ROOT}>
-            <span aria-hidden="true" className={`${GATE.DISC} ${tone.disc}`}>
-              <MaterialSymbol name={spec.glyph} filled size={22} />
-            </span>
-            {/* Copy resolved with a literal key on each branch, not
-                `gate_${gate}_title` — see `statusLabel` below for why an
-                interpolated key is a key no gate can ever report on. */}
-            <p className={`${GATE.TITLE} ${GATE_TITLE_TONE[spec.tone]}`}>
-              {gate === "nsa"
-                ? t("tower_locking.card.gate_nsa_title")
-                : t("tower_locking.card.gate_lte_title")}
-            </p>
-            <p className={GATE.BODY}>
-              {gate === "nsa"
-                ? t("tower_locking.card.gate_nsa_body")
-                : t("tower_locking.card.gate_lte_body")}
-            </p>
-          </div>
-        </CardContent>
-      </Card>
-    );
-  }
+  /**
+   * Every control on the card except `Remove Lock`.
+   *
+   * A gated card can still be HOLDING a lock — `nr_locked` survives the network
+   * moving the modem out of SA — and removing it is the one thing that must
+   * stay reachable from a page served by the modem it is unlocking.
+   */
+  const formDisabled = isLocking || gate !== null;
 
-  // ===========================================================================
-  // Loaded
-  // ===========================================================================
   const status = LEG_BADGE[posture];
   /** Written out rather than interpolated (`status_${posture}`): `i18n:check`
    *  grades a missing key as a warning and exits 0, so a key it cannot see
@@ -733,19 +785,56 @@ export default function NrSaTowerCard({
         ? t("tower_locking.card.status_unlocked")
         : t("tower_locking.card.status_unknown");
 
-  /** The provenance mark beside the SCS label. Two sources, two glyphs, two
-   *  tones — never the same mark for "we read this" and "we guessed this". */
+  /**
+   * THE HEADER CHIP REPORTS ONE FACT, AND A LOCK OUTRANKS A GATE.
+   *
+   * Two things want this slot when the card is gated: the lock posture and the
+   * condition. A locked leg wins, because it is the fact with an action attached
+   * — the reader needs to see that a lock is in force before they can decide to
+   * remove it — and because the gate is stated in full by the NOTICE at the top
+   * of the body either way, where it has room for its reason. An unlocked or
+   * unread leg yields the slot to the gate, since "Unlocked" beside an inert
+   * form explains nothing.
+   *
+   * The variant keys onto `BadgeVariant`, never a class string, so a tone
+   * without a matching chip role fails the build.
+   */
+  const headerChip: {
+    variant: BadgeVariant;
+    glyph: MaterialSymbolName;
+    label: string;
+  } =
+    gateSpec && posture !== "locked"
+      ? {
+          variant: "muted",
+          glyph: gateSpec.BADGE,
+          label:
+            gate === "nsa"
+              ? t("tower_locking.card.status_gated_nsa")
+              : t("tower_locking.card.status_gated_lte"),
+        }
+      : { variant: status.variant, glyph: status.glyph, label: statusLabel };
+
+  /**
+   * The provenance mark beside the SCS label. Two sources, two glyphs, two
+   * tones — never the same mark for "we read this" and "we guessed this".
+   *
+   * The tones are the `-on-surface` steps, not the solid `--warning` / `--success`
+   * role tokens: those are container FILLS and measure below AA as ink on a
+   * card. `--{role}-on-surface` exists for exactly this case — a tinted mark on
+   * a plain surface, where no container is used.
+   */
   const scsProvenance =
     scsSource === "band_default" && band
       ? {
           glyph: "warning" as MaterialSymbolName,
-          className: "text-warning",
+          className: "text-warning-on-surface",
           tip: t("tower_locking.fields.scs_guess", { band }),
         }
       : scsSource === "servingcell"
         ? {
             glyph: "check_circle" as MaterialSymbolName,
-            className: "text-success",
+            className: "text-success-on-surface",
             tip: t("tower_locking.fields.scs_from_serving"),
           }
         : null;
@@ -761,9 +850,9 @@ export default function NrSaTowerCard({
                 {description}
               </CardDescription>
             </div>
-            <Badge variant={status.variant} className="flex-none">
-              <MaterialSymbol name={status.glyph} size={BADGE_GLYPH_SIZE} />
-              {statusLabel}
+            <Badge variant={headerChip.variant} className="flex-none">
+              <MaterialSymbol name={headerChip.glyph} size={BADGE_GLYPH_SIZE} />
+              {headerChip.label}
             </Badge>
           </div>
         </CardHeader>
@@ -775,6 +864,43 @@ export default function NrSaTowerCard({
             initial="hidden"
             animate="visible"
           >
+            {/* --- The gate ----------------------------------------------
+                LEADS THE BODY, because it is the reason everything under it is
+                inert. Full contrast — no `opacity` on the card, on this notice,
+                or on the copy that explains the condition, which is the exact
+                failure this treatment replaces (see the header block).
+
+                Copy is resolved with a literal key on each branch, never
+                `gate_${gate}_title`: `i18n:check` grades a missing key as a
+                warning and exits 0, so an interpolated key is one no gate can
+                ever report on. */}
+            {gate && gateSpec ? (
+              <motion.div
+                variants={staggerRowItem}
+                role="status"
+                className={`${NOTICE.ROOT} ${NOTICE_TONE[gateSpec.tone].fill}`}
+              >
+                <span
+                  aria-hidden="true"
+                  className={`${NOTICE.DISC} ${NOTICE_TONE[gateSpec.tone].disc}`}
+                >
+                  <MaterialSymbol name={gateSpec.NOTICE} filled size={16} />
+                </span>
+                <div className="flex min-w-0 flex-1 flex-col gap-1">
+                  <p className="font-semibold">
+                    {gate === "nsa"
+                      ? t("tower_locking.card.gate_nsa_title")
+                      : t("tower_locking.card.gate_lte_title")}
+                  </p>
+                  <p className="leading-relaxed">
+                    {gate === "nsa"
+                      ? t("tower_locking.card.gate_nsa_body")
+                      : t("tower_locking.card.gate_lte_body")}
+                  </p>
+                </div>
+              </motion.div>
+            ) : null}
+
             {/* --- Modem read-back ---------------------------------------
                 The one fact the retired locked-target panel carried that
                 nothing else did, printed inches from the fields it may
@@ -835,12 +961,15 @@ export default function NrSaTowerCard({
                   <span className="text-on-surface-variant text-xs font-medium">
                     {pickerActive ? tc("state.on") : tc("state.off")}
                   </span>
+                  {/* Also off while gated: the picker fills a form that
+                      cannot be written, so leaving it live would advertise a
+                      path to a dead end. The NOTICE above says why. */}
                   <Switch
                     id={`${fieldId}-simple`}
                     className={SWITCH_TARGET}
                     checked={pickerActive}
                     onCheckedChange={handleSimpleModeToggle}
-                    disabled={!hasOptions || isLocking}
+                    disabled={!hasOptions || formDisabled}
                   />
                 </div>
               </div>
@@ -851,24 +980,33 @@ export default function NrSaTowerCard({
               ) : null}
             </motion.div>
 
-            {/* --- Fields -------------------------------------------------- */}
-            {/* Nested cascade container: it inherits `visible` from the stack
+            {/* --- Fields --------------------------------------------------
+                FOUR VALUE TILES, 2x2. The label lives inside the filled block
+                with its control rather than floating above a separate one —
+                the mock's denser treatment, adopted for its geometry only.
+                Every cell is still a live control: the mock drew a settled,
+                read-only card and stopped.
+
+                Nested cascade container: it inherits `visible` from the stack
                 above and must NOT declare its own initial/animate, or the
                 children would start their own timeline. */}
             <motion.div className={FIELD_GRID} variants={staggerRows}>
-              <motion.div variants={staggerRowItem} className="flex flex-col gap-2">
-                <Label htmlFor={`${fieldId}-arfcn`} className={FIELD_LABEL}>
+              <motion.div variants={staggerRowItem} className={FIELD_TILE}>
+                <Label
+                  htmlFor={`${fieldId}-arfcn`}
+                  className={FIELD_TILE_LABEL}
+                >
                   {t("tower_locking.fields.arfcn")}
                 </Label>
                 {pickerActive ? (
                   <Select
                     value={pickedOption ? currentComposite : ""}
                     onValueChange={handleCarrierPick}
-                    disabled={isLocking}
+                    disabled={formDisabled}
                   >
                     <SelectTrigger
                       id={`${fieldId}-arfcn`}
-                      className={SELECT_CONTROL}
+                      className={TILE_SELECT}
                     >
                       {pickedOption ? (
                         <SelectValue />
@@ -877,12 +1015,24 @@ export default function NrSaTowerCard({
                         // valid, it just did not come from the picker. Shown
                         // rather than blanked, so switching modes never looks
                         // like it lost the user's values.
-                        <span className="text-on-surface-variant line-clamp-1 min-w-0 font-mono text-xs tabular-nums italic">
-                          {`${t("tower_locking.live.tile_arfcn")} ${arfcn} · ${t("tower_locking.live.tile_pci")} ${pci}`}
+                        //
+                        // Through the shared `rail_target_pair` rather than a
+                        // locally joined middot string: a trigger is the one
+                        // place with genuinely no room for two labels, which is
+                        // exactly the case that key exists to serve — and
+                        // routing it through the key means the separator is a
+                        // translator's decision instead of a hardcoded glyph.
+                        <span className="text-on-surface-variant line-clamp-1 min-w-0 font-mono text-sm font-semibold tabular-nums italic">
+                          {t("tower_locking.live.rail_target_pair", {
+                            channel: `${t("tower_locking.live.tile_arfcn")} ${arfcn}`,
+                            pci,
+                          })}
                         </span>
                       ) : (
                         <SelectValue
-                          placeholder={t("tower_locking.live.tile_use")}
+                          placeholder={t(
+                            "tower_locking.fields.pick_placeholder",
+                          )}
                         />
                       )}
                     </SelectTrigger>
@@ -891,16 +1041,32 @@ export default function NrSaTowerCard({
                         const value = compositeValue(opt.earfcn, opt.pci);
                         return (
                           <SelectItem key={value} value={value}>
-                            <span className="flex min-w-0 items-center gap-2">
+                            {/* A dropdown row HAS room for labels, so it gets
+                                them: each reading is announced by name and the
+                                gap does the separating. This replaces a
+                                middot-joined `ARFCN n · PCI n` run, which asked
+                                the reader to work out which number was which
+                                from position. */}
+                            <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5">
                               <Badge variant="secondary">{opt.type}</Badge>
                               <span className="font-medium">
-                                {opt.band || t("tower_locking.live.tile_no_value")}
+                                {opt.band ||
+                                  t("tower_locking.live.tile_no_value")}
                               </span>
-                              <span className="text-on-surface-variant font-mono text-xs tabular-nums">
-                                {`${t("tower_locking.live.tile_arfcn")} ${opt.earfcn} · ${t("tower_locking.live.tile_pci")} ${opt.pci}`}
+                              <span className={PICKER_READING}>
+                                <span className="font-sans font-normal">
+                                  {t("tower_locking.live.tile_arfcn")}
+                                </span>
+                                {opt.earfcn}
+                              </span>
+                              <span className={PICKER_READING}>
+                                <span className="font-sans font-normal">
+                                  {t("tower_locking.live.tile_pci")}
+                                </span>
+                                {opt.pci}
                               </span>
                               {opt.rsrp !== null ? (
-                                <span className="text-on-surface-variant font-mono text-xs tabular-nums">
+                                <span className={PICKER_READING}>
                                   {t("tower_locking.live.tile_rsrp", {
                                     value: opt.rsrp,
                                   })}
@@ -916,45 +1082,42 @@ export default function NrSaTowerCard({
                   <Input
                     id={`${fieldId}-arfcn`}
                     inputMode="numeric"
+                    autoComplete="off"
                     value={arfcn}
                     onChange={(e) => setArfcn(e.target.value)}
-                    disabled={isLocking}
-                    className={FIELD_CONTROL}
+                    disabled={formDisabled}
+                    className={FIELD_TILE_CONTROL}
                   />
                 )}
               </motion.div>
 
-              <motion.div variants={staggerRowItem} className="flex flex-col gap-2">
-                <Label htmlFor={`${fieldId}-pci`} className={FIELD_LABEL}>
+              <motion.div variants={staggerRowItem} className={FIELD_TILE}>
+                <Label htmlFor={`${fieldId}-pci`} className={FIELD_TILE_LABEL}>
                   {t("tower_locking.fields.pci")}
                 </Label>
                 <Input
                   id={`${fieldId}-pci`}
                   inputMode="numeric"
+                  autoComplete="off"
                   value={pci}
                   onChange={(e) => setPci(e.target.value)}
-                  disabled={isLocking}
-                  className={FIELD_CONTROL}
+                  disabled={formDisabled}
+                  className={FIELD_TILE_CONTROL}
                 />
               </motion.div>
 
-              <motion.div variants={staggerRowItem} className="flex flex-col gap-2">
-                <Label htmlFor={`${fieldId}-band`} className={FIELD_LABEL}>
-                  {t("tower_locking.fields.band")}
-                </Label>
-                <Input
-                  id={`${fieldId}-band`}
-                  inputMode="numeric"
-                  value={band}
-                  onChange={(e) => setBand(e.target.value)}
-                  disabled={isLocking}
-                  className={FIELD_CONTROL}
-                />
-              </motion.div>
-
-              <motion.div variants={staggerRowItem} className="flex flex-col gap-2">
-                <Label htmlFor={`${fieldId}-scs`} className={FIELD_LABEL}>
-                  {t("tower_locking.fields.scs")}
+              {/* SCS sits third, ahead of the band, because it is the field
+                  most likely to be wrong and the only one whose provenance the
+                  card can report. See the header block. */}
+              <motion.div variants={staggerRowItem} className={FIELD_TILE}>
+                {/* The provenance button is a SIBLING of the label, not a child
+                    of it. Nested inside, every click on the mark also fired the
+                    label's own activation and opened the select underneath the
+                    tooltip. */}
+                <div className="flex w-full items-center gap-1.5">
+                  <Label htmlFor={`${fieldId}-scs`} className={FIELD_LABEL}>
+                    {t("tower_locking.fields.scs")}
+                  </Label>
                   {scsProvenance ? (
                     <Tooltip>
                       <TooltipTrigger asChild>
@@ -978,19 +1141,16 @@ export default function NrSaTowerCard({
                       </TooltipContent>
                     </Tooltip>
                   ) : null}
-                </Label>
+                </div>
                 <Select
                   value={scs}
                   onValueChange={(v) => {
                     setScs(v);
                     setScsSource("manual");
                   }}
-                  disabled={isLocking}
+                  disabled={formDisabled}
                 >
-                  <SelectTrigger
-                    id={`${fieldId}-scs`}
-                    className={SELECT_CONTROL}
-                  >
+                  <SelectTrigger id={`${fieldId}-scs`} className={TILE_SELECT}>
                     <SelectValue placeholder={t("tower_locking.fields.scs")} />
                   </SelectTrigger>
                   <SelectContent>
@@ -1001,6 +1161,21 @@ export default function NrSaTowerCard({
                     ))}
                   </SelectContent>
                 </Select>
+              </motion.div>
+
+              <motion.div variants={staggerRowItem} className={FIELD_TILE}>
+                <Label htmlFor={`${fieldId}-band`} className={FIELD_TILE_LABEL}>
+                  {t("tower_locking.fields.band")}
+                </Label>
+                <Input
+                  id={`${fieldId}-band`}
+                  inputMode="numeric"
+                  autoComplete="off"
+                  value={band}
+                  onChange={(e) => setBand(e.target.value)}
+                  disabled={formDisabled}
+                  className={FIELD_TILE_CONTROL}
+                />
               </motion.div>
             </motion.div>
           </motion.div>
@@ -1034,14 +1209,23 @@ export default function NrSaTowerCard({
               saved={saved}
               label={t("tower_locking.actions.lock")}
               disabled={
-                isLocking || !parsedCell || (posture === "locked" && !hasChanges)
+                formDisabled ||
+                !parsedCell ||
+                (posture === "locked" && !hasChanges)
               }
               className={PILL_ACTION_PLAIN}
             />
             {/* Gated on `posture`, NOT on `config.nr_sa.enabled`: offering to
                 remove a lock the modem does not report is offering an action
                 with no effect, and `unknown` means nobody has successfully read
-                the modem — so it is disabled rather than optimistically live. */}
+                the modem — so it is disabled rather than optimistically live.
+
+                AND NOT ON `formDisabled` EITHER. This is the only control on
+                the card that survives a gate, and deliberately so: the app is
+                served BY the modem it is unlocking, `nr_locked` outlives the
+                network moving out of SA, and a lock pinned to a cell that is no
+                longer reachable takes the page down with it. Removing it must
+                never require the very condition that broke it to clear first. */}
             <Button
               type="button"
               variant="outline"
@@ -1057,7 +1241,7 @@ export default function NrSaTowerCard({
             type="button"
             variant="tonal-neutral"
             onClick={handleClear}
-            disabled={isLocking || !hasAnyInput}
+            disabled={formDisabled || !hasAnyInput}
             className={PILL_QUIET}
           >
             {t("tower_locking.actions.clear_fields")}
@@ -1078,6 +1262,43 @@ export default function NrSaTowerCard({
               })}
             </AlertDialogDescription>
           </AlertDialogHeader>
+
+          {/* THE FULL CELL, AS FOUR LABELLED VALUES.
+              The sentence above names the cell; this says everything that is
+              about to be written, each value under its own label. It replaces a
+              four-term middot chain flattened into that sentence — the band and
+              the SCS were in there as bare "N78" and "30 kHz", which the reader
+              had to decode by position. */}
+          {pendingCell ? (
+            <dl className="grid grid-cols-2 gap-2">
+              {[
+                {
+                  label: t("tower_locking.fields.band"),
+                  value: `N${pendingCell.band}`,
+                },
+                {
+                  label: t("tower_locking.fields.arfcn"),
+                  value: String(pendingCell.arfcn),
+                },
+                {
+                  label: t("tower_locking.fields.pci"),
+                  value: String(pendingCell.pci),
+                },
+                {
+                  label: t("tower_locking.fields.scs"),
+                  value: scsLabelFor(pendingCell.scs),
+                },
+              ].map((row) => (
+                <div key={row.label} className={FIELD_TILE}>
+                  <dt className={FIELD_TILE_LABEL}>{row.label}</dt>
+                  <dd className="font-mono text-sm font-semibold tabular-nums">
+                    {row.value}
+                  </dd>
+                </div>
+              ))}
+            </dl>
+          ) : null}
+
           {/* The guess, restated at the point of no return. A wrong SCS does
               not fail loudly — the modem accepts the command and never camps —
               so this is the last moment it can be caught cheaply. */}

@@ -15,22 +15,31 @@ import type { MaterialSymbolName } from "@/components/ui/material-symbol";
 // band-locking contract's. That is the house convention rather than an
 // oversight — a surface takes no dependency on a sibling route's module graph,
 // so band locking can be re-shaped without silently re-shaping this page. The
-// one thing that must NOT drift is the carrier tile's tone rule, so those three
-// functions carry the full rationale rather than a pointer to it.
+// one thing that must NOT drift is the carrier tile's tone rule, so it carries
+// the full rationale rather than a pointer to it.
 //
 // -----------------------------------------------------------------------------
 // WHAT THIS SURFACE IS
 // -----------------------------------------------------------------------------
-// Two kinds of object:
+// Three kinds of object, in reading order:
 //
-//   1. THE HERO is the STANDING ORDERS — what this lock does when nobody is
-//      watching: across a reboot, during a signal collapse, and on a clock.
-//      Its three tiles are the page's headline, and above them a compact LIVE
-//      STRIP states the premise those orders act on: the verdict, and what the
-//      radio is camped on right now. See THE LIVE STRIP below.
-//   2. THE LEG CARDS are where the target changes, and the single place a leg's
+//   1. "RIGHT NOW" (`TOWER_HERO`) is the PREMISE: the lock verdict, and every
+//      carrier the radio is actually camped on, as a uniform tile grid. It is
+//      the page's anchor because it is the only part that changes on its own —
+//      everything below it changes only when the reader changes it.
+//   2. "WHILE NOBODY IS WATCHING" (`TOWER_SECTION`) is the STANDING ORDERS —
+//      what this lock does unattended: across a reboot, during a signal
+//      collapse, and on a clock. Three tiles, one question.
+//   3. THE LEG CARDS are where the target changes, and the single place a leg's
 //      own state is reported. One per AT lock parameter
 //      (`AT+QNWLOCK="common/4g"`, `="common/5g"`).
+//
+// THE TWO SECTIONS ARE SIBLINGS, NOT ONE MERGED HERO. They were merged for one
+// revision, and the merge was what forced the freshness stamp down onto the
+// verdict block: a stamp at the top of a card that also contained three settings
+// tiles would have appeared to date the settings. Split, the stamp can head the
+// section it actually describes. Only `TOWER_HERO` keeps `rounded-hero` — one
+// anchor per surface, and it is the section that leads the page.
 //
 // Three earlier arrangements are worth recording as things NOT to restore.
 //
@@ -47,11 +56,10 @@ import type { MaterialSymbolName } from "@/components/ui/material-symbol";
 // A reader met the same pair of numbers twice before reaching a single control.
 // So the locked-target column is gone, its one non-duplicated fact (the modem's
 // AT read-back, as against the config the forms are seeded from) moved INTO the
-// leg card that owns it, and the automation group was promoted from the page's
-// last card to its hero. What is left of the match line is a strip, not a grid.
+// leg card that owns it. What is left of the match line is a strip, not a grid.
 //
 // -----------------------------------------------------------------------------
-// THE TWO CLOCKS (read before touching the hero)
+// THE TWO CLOCKS (read before touching the "Right now" section)
 // -----------------------------------------------------------------------------
 // The two facts the live strip compares are fed by sources that refresh at
 // wildly different rates, and pretending otherwise would be the surface's
@@ -67,7 +75,7 @@ import type { MaterialSymbolName } from "@/components/ui/material-symbol";
 //              frontend one.
 //
 // Three things change the lock out of band: the schedule apply/clear timers,
-// the failover watcher, and a second browser tab. So the verdict prints an
+// the failover watcher, and a second browser tab. So the section prints an
 // explicit "as of HH:MM" and offers a refresh, rather than letting a number
 // that could be an hour old sit beside one that is four seconds old with
 // nothing to tell them apart. This is the State-Honesty Rule applied to
@@ -79,7 +87,7 @@ import type { MaterialSymbolName } from "@/components/ui/material-symbol";
 // tell which is which has no way to interpret a disagreement between them.
 //
 // -----------------------------------------------------------------------------
-// THE CAMPED CELL IS A PICKER, AND WHY THE BLOCK ITSELF IS NOT A BUTTON
+// EVERY CAMPED CARRIER IS A PICKER, AND WHY THE TILE ITSELF IS NOT A BUTTON
 // -----------------------------------------------------------------------------
 // Tower locking targets an (EARFCN, PCI) pair. A carrier component already
 // carries `earfcn`, `pci`, `band` and `rsrp` — so every carrier the radio
@@ -87,20 +95,19 @@ import type { MaterialSymbolName } from "@/components/ui/material-symbol";
 // those same digits into a text box underneath is the whole reason "Simple
 // Mode" had to be invented as a second, parallel input path.
 //
-// The block stays a REPORT and carries a small labelled action inside it, never
-// becoming one big button. A block holding six discrete numbers is ambiguous as
-// a single click target: a reader cannot tell whether the RSRP figure is itself
-// actionable. One labelled control removes the guess.
+// A tile stays a REPORT and carries a small labelled action inside it, never
+// becoming one big button. A block holding four discrete numbers is ambiguous
+// as a single click target: a reader cannot tell whether the RSRP figure is
+// itself actionable. One control removes the guess.
 //
-// NEITHER THE LEAD BLOCK NOR THE ROWS ARE IDENTITY-FILLED ANY MORE, and that is
-// what lets both pickers be ordinary neutral controls. The lead used to paint
-// `bg-primary` / `bg-lte` at 172px tall, which made it the largest object on a
-// page whose subject is a settings group, and forced its own controls and meter
-// to be drawn as alphas over the fill (`carrierPillTone`, `carrierMeterTone` —
-// both retired with it). Identity now travels on the `Badge variant="nr"|"lte"`
-// each row already carries, which is the one element in this system whose fill
-// and ink are guaranteed to agree, and the lead is distinguished by ANATOMY
-// instead of by area: two lines against the secondaries' one.
+// NO CARRIER IS IDENTITY-FILLED, and that is what lets every picker be an
+// ordinary neutral control. The retired lead block painted `bg-primary` /
+// `bg-lte` at 172px tall, which made the read-only half of a settings page the
+// largest object on it, and forced its own controls and meter to be drawn as
+// alphas over the fill (`carrierPillTone`, `carrierMeterTone` — both retired
+// with it). Identity now travels on the `Badge variant="nr"|"lte"` each tile
+// carries, which is the one element in this system whose fill and ink are
+// guaranteed to agree.
 //
 // A carrier the user cannot currently lock to gets its control in a DISABLED
 // state with a reason, never a missing control — an NR carrier is visible but
@@ -109,31 +116,81 @@ import type { MaterialSymbolName } from "@/components/ui/material-symbol";
 // =============================================================================
 
 // -----------------------------------------------------------------------------
-// Card shells
+// Section and card shells
 // -----------------------------------------------------------------------------
 
 /**
- * The page's anchor card. `rounded-hero` (40px) — one per surface.
+ * The "Right now" section, and the page's anchor. `rounded-hero` (40px) — one
+ * per surface, claimed by the section that LEADS the page.
+ *
+ * It establishes `@container/section`, which is what `STRIP_GRID` below queries.
+ * The container name is deliberately `section` rather than the old `hero`: two
+ * sibling sections now declare it, and a query written against `/hero` would
+ * silently never match inside `TOWER_SECTION`.
  *
  * `shadow-whisper` as a bare utility does NOT resolve; it must go through the
  * custom property, as written.
  */
 export const TOWER_HERO =
-  "@container/hero flex flex-col gap-5 rounded-hero border-0 bg-surface p-7 shadow-[var(--shadow-whisper)]";
+  "@container/section flex flex-col gap-5 rounded-hero border-0 bg-surface p-7 shadow-[var(--shadow-whisper)]";
 
 /**
- * One leg card (LTE / NR-SA / Schedule). `rounded-card` (36px) — a peer in a
- * grid, never a second hero. Imported by the loaded, loading AND gated branches
- * so the three can never again disagree about their own radius.
+ * The "While nobody is watching" section. Identical to `TOWER_HERO` in every
+ * respect except its radius: `rounded-card` (36px), because it is a peer of the
+ * leg cards below it and not a second anchor.
+ *
+ * It declares the SAME `@container/section` name, so `SECTION_HEAD` and
+ * `AUTO_GRID` behave identically in either section without either constant
+ * having to know which one is hosting it.
+ */
+export const TOWER_SECTION =
+  "@container/section flex flex-col gap-5 rounded-card border-0 bg-surface p-7 shadow-[var(--shadow-whisper)]";
+
+/**
+ * One leg card (LTE / NR-SA). `rounded-card` (36px) — a peer in a grid, never a
+ * second hero. Imported by the loaded, loading AND gated branches so the three
+ * can never again disagree about their own radius.
  */
 export const TOWER_CARD =
   "@container/card flex flex-col gap-5 rounded-card border-0 bg-surface py-6 shadow-[var(--shadow-whisper)]";
 
-/** Card padding: 24px on a peer card, 28px on the hero (baked into TOWER_HERO). */
+/** Card padding: 24px on a peer card, 28px on a section (baked into the shells). */
 export const CARD_PAD = "px-6";
 
+/**
+ * The header row both sections share.
+ *
+ * THE DESCRIPTION SITS ON THE TITLE'S ROW, not under it, and that is the one
+ * place this departs from the leg cards' `CardHeader`. A section header is a
+ * signpost over content the reader can already see; stacking it would spend two
+ * lines of vertical rhythm restating what the tiles beneath it demonstrate. The
+ * leg cards keep the stacked form because their descriptions explain a control
+ * whose effect is NOT visible until it is used.
+ *
+ * `META` is the right-aligned slot, and on the "Right now" section it holds the
+ * freshness stamp plus `HERO_REFRESH_BUTTON`. It carries `ml-auto` rather than
+ * `justify-between` on the root, because the row wraps: with three children and
+ * `justify-between`, a wrap leaves the description marooned against the right
+ * edge of its own line.
+ */
+export const SECTION_HEAD = {
+  ROOT: "flex flex-wrap items-center gap-x-3 gap-y-1.5",
+  TITLE: "text-base font-semibold",
+  DESCRIPTION: "text-sm leading-relaxed text-pretty text-on-surface-variant",
+  META: "ml-auto flex flex-none items-center gap-2.5",
+  /**
+   * The freshness stamp that sits in `META`. A 28px pill, which is what
+   * `SKELETON_SHAPE.SECTION_META` mirrors.
+   *
+   * `tabular-nums` but NOT `font-mono`: the machine's voice covers the
+   * timestamp, not the sentence wrapped around it.
+   */
+  STAMP:
+    "bg-surface-container text-on-surface-variant flex h-7 min-w-0 items-center gap-1.5 rounded-pill px-3 text-xs tabular-nums",
+} as const;
+
 // -----------------------------------------------------------------------------
-// The hero's premise: THE LIVE STRIP
+// "Right now": THE LIVE STRIP
 // -----------------------------------------------------------------------------
 // Two parts, read left to right as one clause:
 //
@@ -142,42 +199,44 @@ export const CARD_PAD = "px-6";
 // The verdict is the only genuinely NEW fact this page can compute — neither the
 // modem's lock read-back nor the poller's carrier list carries it alone — so it
 // leads. What the radio is camped on is the evidence behind it, and it stays on
-// screen because every row in it is a lock target one click from a form.
+// screen because every tile in it is a lock target one click from a form.
 //
-// It is a STRIP and not the page's subject. The three-column match line this
-// replaces was 400px tall and led the page with a comparison whose left operand
-// the leg cards below already printed; the tiles under this strip are what the
-// reader came to set. So the verdict drops from a 176px centred tile to a
-// left-aligned block, and the camped lead from a 172px identity-filled tile to
-// two compressed lines. Every READING survives — the PCI headline, the channel,
-// RSRP, RSRQ and SINR are all still on the lead — at roughly a third of the
-// area. The lead's signal meter is the one thing genuinely cut; see
-// `CAMPED_LEAD` for why it was a false border rather than a gauge.
+// The three-column match line this replaces was 400px tall and led the page with
+// a comparison whose left operand the leg cards below already printed. So the
+// verdict drops from a 176px centred tile to a left-aligned block, and the
+// camped carriers from one identity-filled lead plus a list of rows to a
+// uniform wrapping tile grid. Every READING survives at roughly a third of the
+// area; the lead's signal meter is the one thing genuinely cut, and see
+// `CARRIER_TILE` for why it was a false border rather than a gauge.
 // -----------------------------------------------------------------------------
 
 /**
  * The strip's two columns.
  *
- * The verdict column is a fixed `15rem`: it holds a state word and one line of
+ * The verdict column is a fixed `18.5rem`: it holds a state word and one line of
  * consequence, so letting it flex would stretch a two-word conclusion across
- * half the hero. Everything else goes to the carrier list, which is the part
- * with a variable number of rows.
+ * half the section. Everything else goes to the carrier grid, which is the part
+ * with a variable number of tiles.
  *
  * `items-start`, NOT `items-stretch`, and that is a correction rather than a
- * preference. Stretching made the verdict as tall as a three-carrier list and
- * left ~90px of empty container between its body copy and its stamp — on a
- * SATURATED `success-container`, where a void is the loudest thing in the hero.
- * A conclusion sizes to itself; only the list it judges grows.
+ * preference. Stretching made the verdict as tall as a three-carrier grid and
+ * left ~90px of empty container between its body copy and its floor — on a
+ * SATURATED `success-container`, where a void is the loudest thing in the
+ * section. A conclusion sizes to itself; only the grid it judges grows.
  */
 export const STRIP_GRID =
-  "grid grid-cols-1 gap-3 @3xl/hero:grid-cols-[15rem_minmax(0,1fr)] @3xl/hero:items-start";
+  "grid grid-cols-1 gap-3 @3xl/section:grid-cols-[18.5rem_minmax(0,1fr)] @3xl/section:items-start";
 
 /**
  * The carrier half of the strip. `rounded-tile` (28px) rather than the retired
  * match panel's `rounded-card` (36px) — Radius-Follows-Size, and it makes the
- * strip a peer of the automation tiles below it rather than a third rank between
- * them and the `rounded-hero` section. `TOWER_HERO` claims the page's one hero
- * exception on its own.
+ * strip a peer of the automation tiles in the next section rather than a third
+ * rank between them and the `rounded-hero` shell. `TOWER_HERO` claims the page's
+ * one hero exception on its own.
+ *
+ * It establishes `@container/panel`, which `CARRIER_GRID` queries. The grid must
+ * respond to the PANEL and not to the section: this column's width is set by
+ * `STRIP_GRID`'s fixed left track, so it narrows and widens on its own schedule.
  */
 export const STRIP_PANEL =
   "@container/panel flex min-w-0 flex-col gap-2.5 rounded-tile bg-surface-container px-4 py-3.5";
@@ -196,24 +255,23 @@ export const STRIP_FOOTNOTE =
 /**
  * The verdict block.
  *
- * A condition block at strip scale: a filled glyph disc, a state word, one line
- * of consequence, and the freshness stamp. The disc is mandatory rather than
- * decorative — the Glyph-Disc Rule exists because `success-container` and
- * `warning-container` measure 1.03:1 apart and are the SAME surface under
- * deuteranopia, so the container fill cannot be the channel that separates "on
- * target" from "not on target". The disc, painted on the role's STRONG fill, is.
+ * A condition block at strip scale: a filled glyph disc, a state word, and one
+ * line of consequence. The disc is mandatory rather than decorative — the
+ * Glyph-Disc Rule exists because `success-container` and `warning-container`
+ * measure 1.03:1 apart and are the SAME surface under deuteranopia, so the
+ * container fill cannot be the channel that separates "on target" from "not on
+ * target". The disc, painted on the role's STRONG fill, is.
  *
  * LEFT-ALIGNED, where the retired tile was centred. Centring is what made that
  * block read as the page's headline metric; at strip scale the verdict is a
- * sentence about the tiles below it, and a sentence starts at the left margin.
+ * sentence about the section it opens, and a sentence starts at the left margin.
  *
- * STAMP is load-bearing and is the reason this is not just a chip. The verdict
- * compares a reading that is ~4s old (the camped carriers, from the poller)
- * against one fetched ONCE ON MOUNT and never polled (the lock read-back), so it
- * is only ever as fresh as its stalest operand — and the stamp plus the re-read
- * control therefore live ON it rather than in a corner of the page. It carries
- * NO `mt-auto`: the block sizes to its content now (see `STRIP_GRID`), so
- * pinning the stamp to a floor would only reopen the void that removed.
+ * NO STAMP. The freshness line and its re-read control used to live here, on the
+ * argument that a verdict is only ever as fresh as its stalest operand (see THE
+ * TWO CLOCKS). That argument is intact and is exactly why the stamp moved UP to
+ * `SECTION_HEAD.META`: BOTH operands — the ~4s carrier list and the once-on-
+ * mount lock read-back — now sit inside the one section the stamp heads, so it
+ * dates all of them instead of only the conclusion drawn from them.
  */
 export const VERDICT_BLOCK = {
   ROOT: "flex min-w-0 flex-col gap-2 rounded-tile px-4 py-3.5",
@@ -221,7 +279,6 @@ export const VERDICT_BLOCK = {
   DISC: "grid size-9 flex-none place-items-center rounded-pill",
   TITLE: "text-sm font-semibold",
   BODY: "text-xs leading-relaxed text-pretty opacity-90",
-  STAMP: "flex items-center gap-1.5 pt-0.5 text-xs",
 } as const;
 
 /** Whether the radio is on the cell the modem says it was told to hold. */
@@ -247,9 +304,10 @@ export type TowerMatchVerdict =
  * be?", and with no lock in force there was no ask — so the honest answer is
  * "nothing to match", which is neither good news nor bad.
  *
- * The neutral fill is `surface-container`, matching the two panels beside it, so
- * a neutral verdict reads as a third panel rather than as a hole in the hero.
- * `bg-surface` would be the hero's own fill and would render the block invisible.
+ * The neutral fill is `surface-container`, matching the panel beside it, so a
+ * neutral verdict reads as a second panel rather than as a hole in the section.
+ * `bg-surface` would be the section's own fill and would render the block
+ * invisible.
  */
 export const VERDICT_TONE: Record<
   TowerMatchVerdict,
@@ -338,14 +396,13 @@ export function matchVerdict(
   const lteOk =
     lteTargets.length === 0 ||
     lteTargets.some((cell) => camped("LTE", cell.earfcn, cell.pci));
-  const nrOk =
-    nrTarget === null || camped("NR", nrTarget.arfcn, nrTarget.pci);
+  const nrOk = nrTarget === null || camped("NR", nrTarget.arfcn, nrTarget.pci);
 
   return lteOk && nrOk ? "on_target" : "off_target";
 }
 
 /**
- * The eyebrow above a hero panel's content.
+ * The eyebrow above a panel's content.
  *
  * The generic craft floor treats an eyebrow as a reflex to delete. It is kept
  * because the committed world ships one: DESIGN.md's tile anatomy is literally
@@ -354,10 +411,6 @@ export function matchVerdict(
  */
 export const HERO_EYEBROW =
   "text-xs font-medium tracking-[0.06em] text-on-surface-variant";
-
-/** The line under the hero's own title. */
-export const HERO_DESCRIPTION =
-  "text-sm text-on-surface-variant leading-relaxed text-pretty";
 
 /**
  * The MODEM READ-BACK line inside a leg card, directly under its status chip.
@@ -370,9 +423,10 @@ export const HERO_DESCRIPTION =
  * its status chip reports `modemState.*_locked`. Neither says WHICH cells the
  * modem itself reports as its targets, so a config that drifted from the radio
  * (a schedule timer fired, the failover watcher released the lock, a second tab
- * wrote something else) was previously visible only in the hero, one scroll away
- * from the fields it contradicted. Printed here it sits inches from the values
- * it disagrees with, which is the only place a disagreement is actionable.
+ * wrote something else) was previously visible only in the strip, one scroll
+ * away from the fields it contradicted. Printed here it sits inches from the
+ * values it disagrees with, which is the only place a disagreement is
+ * actionable.
  *
  * It is a captioned list and not a chip row, because LTE can hold three pairs
  * and the caption is doing real work: see THE TWO CLOCKS on why "Modem reports"
@@ -395,16 +449,16 @@ export const READBACK = {
 } as const;
 
 /**
- * The refresh button beside the freshness stamp. A 22px glyph whose `before:`
- * overlay reaches the 44px this project requires on coarse pointers, without
- * adding a layout box that would push the timestamp off its baseline. Same
- * construction as the `Banner` dismiss button.
+ * The refresh button beside the freshness stamp, in `SECTION_HEAD.META`. A 22px
+ * glyph whose `before:` overlay reaches the 44px this project requires on coarse
+ * pointers, without adding a layout box that would push the timestamp off its
+ * baseline. Same construction as the `Banner` dismiss button.
  *
- * Colour is inherited rather than declared: this button sits inside the verdict
- * block, whose fill changes with the verdict, and a hardcoded
- * `on-surface-variant` would be a neutral grey on a warning container. The stamp
- * that hosts it is `VERDICT_BLOCK.STAMP`, which inherits for the same reason —
- * they were two constants until the freshness line stopped being reusable.
+ * Colour is inherited rather than declared. It sat inside the verdict block
+ * until the stamp moved up, and a hardcoded `on-surface-variant` would have been
+ * a neutral grey on a warning container; inheritance survived that move
+ * unchanged, and keeping it means the button can be dropped into a tonal host
+ * again without a second look.
  */
 export const HERO_REFRESH_BUTTON =
   "relative grid size-[1.375rem] flex-none place-items-center rounded-pill opacity-80 transition-opacity duration-[var(--duration-quick)] ease-out before:absolute before:-inset-[11px] before:content-[''] hover:opacity-100 focus-visible:ring-[3px] focus-visible:ring-current/40 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-45";
@@ -418,111 +472,198 @@ export const HERO_REFRESH_BUTTON =
 export const HERO_HELP_BUTTON = HERO_REFRESH_BUTTON;
 
 // -----------------------------------------------------------------------------
-// The camped-on carrier tile
+// The camped-on carrier grid
 // -----------------------------------------------------------------------------
 
-// ONE CARRIER LEADS, THE REST ARE A LIST.
+// EVERY CAMPED CARRIER IS A PEER TILE. NO CARRIER LEADS.
 //
-// Aggregation is context here, not the subject. `AT+QNWLOCK` pins a PRIMARY
-// cell; the SCCs are carriers the network attached alongside it, and a reader
-// looks at them to answer "what else is on air", never "which of these am I
-// locking to". So the PCC keeps the full anatomy and the SCCs stay one line
-// each — still individually pickable, because a secondary IS a legitimate lock
-// target once the network reselects, but never competing with the cell that
-// leads.
+// The arrangement this replaces was one full-anatomy lead block over a list of
+// one-line secondary rows, and its governing rule was recorded as THE LEAD IS
+// DISTINGUISHED BY ANATOMY, NOT BY AREA — a correction of an earlier version
+// that made the primary a 172px saturated identity tile, i.e. the largest object
+// on a settings page. That rule is worth keeping in mind and is now taken one
+// step further: the lead is distinguished by NEITHER. Every camped carrier gets
+// the same two-line tile, and primacy is carried by the identity chip alone
+// ("LTE PCC" against "LTE SCC", "NR PCC" against "NR SCC").
 //
-// THE LEAD IS DISTINGUISHED BY ANATOMY, NOT BY AREA. It was a 172px block in a
-// saturated identity fill, which made the read-only half of a settings page the
-// largest object on it. It is now two lines against the secondaries' one — a
-// difference a reader resolves instantly, at a fifth of the area.
+// That is the honest shape, because aggregation is context here rather than the
+// subject. `AT+QNWLOCK` pins a PRIMARY cell; the SCCs are carriers the network
+// attached alongside it, and a reader looks at them to answer "what else is on
+// air". A secondary IS a legitimate lock target once the network reselects, so
+// it needs the same affordance — and giving it a visibly lesser one implied a
+// ranking the AT layer does not have.
 //
-// ITS METER IS GONE, AND NOT MERELY BECAUSE OF THE SHRINK. Rebuilt at row scale
-// it drew a 4px identity-coloured bar across the block's full width directly
-// under the detail line, and on screen that reads as a coloured bottom border
-// rather than as a gauge — the exact tell the craft floor bans. It was also a
-// third channel saying what two already said: the `Badge variant="nr"|"lte"`
-// reports which radio, and the dBm figure beside it reports how weak. The
-// secondary rows never carried one, so dropping it is also what makes every
-// carrier row on this surface report signal the same single way.
+// THE MEASUREMENTS THAT SURVIVE ARE PCI AND RSRP, AND THAT IS DELIBERATE. The
+// mock this grid comes from carried a third line — `EARFCN · RSRQ · SINR` — and
+// it is cut for two reasons. The channel and its quality figures are already
+// printed by the leg card that owns the lock, inches below; and the NR variant
+// of that line printed a subcarrier spacing looked up from a BAND TABLE, which
+// is a guess wearing the typeface of a measurement.
+//
+// THE SIGNAL METER IS GONE, AND NOT MERELY BECAUSE OF THE SHRINK. Rebuilt at
+// tile scale it drew a 4px identity-coloured bar across the tile's full width
+// directly under the detail line, and on screen that reads as a coloured bottom
+// border rather than as a gauge — the exact tell the craft floor bans. It was
+// also a third channel saying what two already said: the `Badge
+// variant="nr"|"lte"` reports which radio, and the dBm figure beside it reports
+// how weak.
 
 /**
- * The lead (PCC) block: identity badge and band, the PCI headline, the channel
- * and quality detail, and the labelled action that makes this cell a lock
- * target.
+ * The wrapping tile grid inside `STRIP_PANEL`.
+ *
+ * Queries `@container/panel`, never the section: this grid lives in the right
+ * track of `STRIP_GRID`, whose left track is a fixed 18.5rem, so the space it
+ * actually has is not a function of the section's width alone.
+ *
+ * `gap-3` (12px) and NOT the 8px the mock draws. Each tile's action carries a
+ * `before:` overlay that reaches 6px past its paint on every side to make the
+ * 44px coarse-pointer floor; at 8px the overlays of two horizontally adjacent
+ * tiles would leave a 0px dead lane between them, and on a tablet a tap in that
+ * lane resolves to whichever tile won the stacking order. 12px keeps a real gap.
+ */
+export const CARRIER_GRID =
+  "grid grid-cols-1 gap-3 @md/panel:grid-cols-2 @2xl/panel:grid-cols-3";
+
+/**
+ * One camped carrier. Two lines: identity + band + action, then the PCI headline
+ * with the RSRP reading pushed right.
  *
  * PCI IS THE HEADLINE HERE, not the band — the one place this deliberately
  * departs from its band-locking sibling. On that surface the reader is choosing
  * a frequency, so the band designator is the answer; on this one they are
  * choosing a physical cell, and PCI is its name.
  *
- * `bg-surface` — one step recessed from the panel's `surface-container`, the
- * same relationship the secondary rows use. NOT an identity fill: the retired
- * version painted `bg-primary`/`bg-lte` and had to draw its own pill, action and
- * meter as alphas over that fill, because a role colour on a saturated identity
- * ground is either invisible or brand-on-brand. Dropping the fill retires all
- * three of those alpha helpers and lets every control here be an ordinary
- * neutral one. Identity travels on the `Badge variant="nr"|"lte"` instead.
+ * `bg-surface` — one step RECESSED from the panel's `surface-container`, rather
+ * than climbing to `surface-container-high` as the mock does. Two reasons. It
+ * keeps the top rung of the tonal ramp in reserve for the things that genuinely
+ * sit above the page's ground (the action pill, the disabled disc), and it is
+ * the relationship the retired lead block and secondary rows both already used,
+ * so nothing about the tone changed when the anatomy did.
+ *
+ * NOT an identity fill: the retired lead painted `bg-primary`/`bg-lte` and had
+ * to draw its own pill, action and meter as alphas over that fill, because a
+ * role colour on a saturated identity ground is either invisible or
+ * brand-on-brand. Identity travels on the `Badge variant="nr"|"lte"` instead.
+ *
+ * `RSRP` carries NO colour of its own. The reading's tone is chosen by the
+ * component from the signal-quality scale and MUST be one of
+ * `text-success-on-surface` / `text-warning-on-surface` /
+ * `text-destructive-on-surface` — the solid `--success` / `--warning` role
+ * tokens measure below AA as ink on these surfaces.
  */
-export const CAMPED_LEAD = {
-  ROOT: "flex flex-col gap-2 rounded-tile bg-surface px-3.5 py-3",
-  HEAD: "flex flex-wrap items-center gap-x-2.5 gap-y-1.5",
-  LABEL: "text-xs font-medium text-on-surface-variant",
-  /** The PCI headline. 20px — two steps down from the retired tile's 30px, still
-   *  two steps clear of the secondaries' 13px, so the rank survives the shrink. */
-  VALUE: "font-mono text-xl leading-none font-semibold tabular-nums",
-  BAND: "font-mono text-xs font-semibold tabular-nums text-on-surface-variant",
-  DETAIL:
-    "flex flex-wrap gap-x-3 gap-y-0.5 font-mono text-xs tabular-nums text-on-surface-variant",
+export const CARRIER_TILE = {
   /**
-   * The "use this cell" control. A real button, 34px tall with a `before:`
-   * overlay reaching the 44px coarse-pointer floor.
-   *
-   * IT SWITCHES WIDTH ON THE PANEL, NOT THE VIEWPORT. On a wide panel `ml-auto`
-   * parks it at the head row's right edge, so it never sits between two
-   * readings. Once the panel is under `@sm` the head row wraps, and a
-   * right-parked auto-width pill then floats alone on its own line looking like
-   * a stray chip between the PCI and the detail — so it goes `w-full` instead
-   * and reads as the deliberate action of the block. Wrapping is the trigger,
-   * and the panel is what wraps: this block also sits in a hero column that
-   * collapses independently of the window.
+   * The transition names `box-shadow` explicitly, for `MATCH` below. A bare
+   * `transition-all` would silently inherit Tailwind's off-scale 150ms and stop
+   * responding to a retune of `--duration-standard` (The One-Scale Rule).
+   */
+  ROOT: [
+    "flex min-w-0 flex-col gap-2 rounded-tile bg-surface px-3.5 py-3",
+    "transition-[box-shadow] duration-[var(--duration-standard)] ease-standard",
+  ].join(" "),
+  HEAD: "flex items-center gap-2",
+  /** The band designator. A device identifier, so it wears the machine's voice. */
+  BAND: "min-w-0 truncate font-mono text-xs font-semibold tabular-nums text-on-surface-variant",
+  BODY: "flex items-baseline gap-2",
+  PCI_LABEL: "flex-none text-xs text-on-surface-variant",
+  PCI_VALUE: "font-mono text-xl leading-none font-semibold tabular-nums",
+  /** Pair with a `*-on-surface` signal tone — see the note above. */
+  RSRP: "ml-auto flex-none font-mono text-[13px]/5 font-semibold tabular-nums",
+  /**
+   * The per-tile picker. 32px of paint, 44px of target via the `before:`
+   * overlay — the same construction the retired secondary rows used, kept
+   * verbatim because it is the one control geometry on this surface that has
+   * already been measured against the coarse-pointer floor.
    */
   ACTION:
-    "relative inline-flex h-[2.125rem] w-full flex-none items-center justify-center gap-1.5 rounded-pill bg-surface-container-high px-3.5 text-xs font-semibold text-on-surface transition-colors duration-[var(--duration-quick)] ease-out before:absolute before:-inset-y-1.5 before:inset-x-0 before:content-[''] enabled:hover:bg-primary-container enabled:hover:text-on-primary-container focus-visible:ring-ring/50 focus-visible:ring-[3px] focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-55 @sm/panel:ml-auto @sm/panel:w-auto",
+    "relative ml-auto grid size-8 flex-none place-items-center rounded-pill bg-surface-container-high text-on-surface-variant transition-colors duration-[var(--duration-quick)] ease-out before:absolute before:-inset-1.5 before:content-[''] hover:bg-primary-container hover:text-on-primary-container focus-visible:ring-ring/50 focus-visible:ring-[3px] focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:bg-surface-container-high disabled:hover:text-on-surface-variant",
+  /**
+   * Marks the tile whose carrier IS the current lock target.
+   *
+   * A 2px INSET BOX-SHADOW, not the mock's `outline: 2px solid var(--ok)`. Two
+   * separate rules land on that outline: Fill-Over-Stroke forbids a coloured
+   * stroke on a tonal container, and a functional role (`--success`) is never a
+   * legal stroke colour in the first place. The inset shadow is the sibling
+   * route's answer to the identical problem — see `BAND_CHIP_LIVE_RING` in
+   * `components/cellular/band-locking/shapes.ts`. It costs no layout box, it
+   * paints in `--primary` rather than in a health role, and it is a SHAPE
+   * signal, so it survives grayscale and every colour-vision deficiency.
+   *
+   * It is never the only channel: the component pairs it with a filled `lock`
+   * glyph in place of the tile's `add` action, and announces the state in words
+   * to assistive technology.
+   */
+  MATCH: "shadow-[inset_0_0_0_2px_var(--primary)]",
 } as const;
 
 /**
- * A secondary carrier, one per line.
+ * The aggregation note, occupying the ragged remainder of `CARRIER_GRID`.
  *
- * `rounded-pill` at 44px is the canonical metric row from DESIGN.md, and it
- * fits here where `HERO_ROW`'s field step did not, for the reason that rule
- * gives: these rows carry short mono values and a single icon target, so they
- * do not wrap to a second line. `bg-surface` sits one step recessed from the
- * panel's `surface-container`, the same relationship `CAMPED_LEAD` above uses.
+ * Its job is to say what the empty cells MEAN — "no carrier aggregation right
+ * now", or "aggregation is live, only the primary cell can be locked" — rather
+ * than leaving the grid to trail off. That is also why it is the one dashed
+ * stroke sanctioned on this surface: Fill-Over-Stroke bans a border drawn
+ * AROUND CONTENT, and this border is drawn around an ABSENCE. It is
+ * `border-outline`, the canon stroke token, at 1px.
  *
- * The identity is a real `Badge variant="nr"|"lte"`, never a tinted fill on the
- * row itself. That is now true of the LEAD as well — it was the one element on
- * this surface painted in a saturated identity fill, and the alpha-over-own-ink
- * helpers that existed to put controls on top of it retired with it. One rule for
- * every carrier row: identity lives on the badge, the row stays neutral, and
- * every control on it is an ordinary neutral control.
+ * It is deliberately not a filled tile. With every real carrier on `bg-surface`,
+ * a filled note would enter the reading order as a sixth carrier; unfilled, it
+ * reads as the edge of the set.
  */
-export const CAMPED_SCC = {
-  LIST: "flex flex-col gap-1.5",
-  ROW: "flex min-h-11 items-center gap-2.5 rounded-pill bg-surface px-3 py-1.5",
-  LABEL: "text-xs font-medium text-on-surface-variant",
-  VALUE: "font-mono text-[13px]/5 font-semibold tabular-nums",
-  META: "ml-auto font-mono text-xs text-on-surface-variant tabular-nums",
-  /** The compact picker. 32px paint, 44px target via the `before:` overlay. */
-  PICK: "relative grid size-8 flex-none place-items-center rounded-pill bg-surface-container-high text-on-surface-variant transition-colors duration-[var(--duration-quick)] ease-out before:absolute before:-inset-1.5 before:content-[''] hover:bg-primary-container hover:text-on-primary-container focus-visible:ring-ring/50 focus-visible:ring-[3px] focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:bg-surface-container-high disabled:hover:text-on-surface-variant",
+export const CARRIER_NOTE_TILE = {
+  ROOT: "flex min-w-0 flex-col justify-center gap-1.5 rounded-tile border border-dashed border-outline px-4 py-3.5 text-on-surface-variant",
+  /** The count line ("3 LTE · 2 NR"), optionally led by a glyph. A tally is a
+   *  measurement, so it wears the machine's voice. */
+  COUNT: "flex items-center gap-2 font-mono text-xs font-medium tabular-nums",
+  BODY: "text-xs leading-relaxed text-pretty",
 } as const;
 
 /**
- * The note that stands in for the SCC list when the radio reports a single
+ * The note tile's column span, so it fills the remainder of the grid's last row
+ * instead of leaving a hole beside it.
+ *
+ * CSS cannot compute this on its own — there is no "span to the end of the row"
+ * for an item whose start column is implicit — so the span is derived from the
+ * carrier count against each of `CARRIER_GRID`'s three column counts. A count
+ * that divides evenly means the note starts a fresh row and takes the whole of
+ * it, which is exactly what a 3-carrier, 3-column layout should do.
+ *
+ * The classes are written out as literals rather than interpolated: Tailwind
+ * scans source text, and `@2xl/panel:col-span-${n}` would compile to nothing.
+ * The base 1-column case needs no class at all, since one column IS the row.
+ */
+const NOTE_SPAN_TWO_UP: Record<number, string> = {
+  1: "@md/panel:col-span-1",
+  2: "@md/panel:col-span-2",
+};
+
+const NOTE_SPAN_THREE_UP: Record<number, string> = {
+  1: "@2xl/panel:col-span-1",
+  2: "@2xl/panel:col-span-2",
+  3: "@2xl/panel:col-span-3",
+};
+
+export function carrierNoteSpan(carrierCount: number): string {
+  const remainder = (columns: number): number => {
+    if (carrierCount <= 0) return columns;
+    const used = carrierCount % columns;
+    return used === 0 ? columns : columns - used;
+  };
+  return [
+    NOTE_SPAN_TWO_UP[remainder(2)] ?? "",
+    NOTE_SPAN_THREE_UP[remainder(3)] ?? "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+}
+
+/**
+ * The note that stands in for the carrier grid when the radio reports a single
  * carrier — naming the radio leg that is NOT on air rather than leaving the
  * space blank.
  *
- * It is a note and not a tile: with the lead block already carrying the panel,
- * a second block claiming "no 5G" would read as an editorial judgement that the
+ * It is a note and not a tile: with the grid already carrying the panel, a
+ * second block claiming "no 5G" would read as an editorial judgement that the
  * absence is a fault, and on a modem whose SKU may not support SA it often is
  * not.
  */
@@ -563,42 +704,55 @@ export const FIELD_LABEL =
  * on this surface silently renders `input/30` in dark mode instead of the
  * container step — the fill looks approximately right, which is exactly why it
  * would have survived review.
+ *
+ * A `SelectTrigger` needs two MORE overrides than an `Input` does, because
+ * `components/ui/select.tsx` sets its height as `data-[size=default]:h-9` and
+ * its hover as `dark:hover:bg-input/50`, both at (0,2,0). Those live at the two
+ * call sites that actually render a select; a shared constant for them was
+ * exported here and never imported once, so it is gone.
  */
 export const FIELD_CONTROL =
   "h-[2.625rem] rounded-field border-0 bg-surface-container dark:bg-surface-container px-3.5 text-sm shadow-none focus-visible:ring-ring/50 focus-visible:ring-[3px]";
 
 /**
- * The same field shape for a `SelectTrigger`, which needs two more overrides
- * than an `Input` does.
+ * ONE LTE CELL SLOT, AS A ROW.
  *
- * `components/ui/select.tsx` sets its height as `data-[size=default]:h-9` —
- * again (0,2,0) via the attribute selector, so a bare `h-[2.625rem]` loses and
- * every select renders 36px beside 42px inputs. The height therefore has to be
- * restated AT MATCHING SPECIFICITY rather than just repeated. It also ships
- * `dark:hover:bg-input/50`, which has to be neutralised for the same reason as
- * the resting fill — and because the canon is explicit that a field's fill does
- * not change on interaction.
+ * This replaces the three stacked `rounded-tile` panels the LTE card used to
+ * grow — each one a heading row over a two-up field grid, which put roughly
+ * 130px of card between "Cell 1" and "Cell 2" and made a three-slot lock taller
+ * than the section above it. A slot holds two short numbers and a status; it is
+ * a row, and at `min-h-14` (56px) it clears the 44px floor with room for the
+ * controls it hosts.
  *
- * Both leg cards hit this independently and patched it locally; it lives here
- * so they cannot drift apart.
+ * IT HOSTS EDITABLE INPUTS, NOT READ-ONLY TEXT. The mock only ever drew the
+ * settled state, and reading it literally would delete the surface's primary
+ * input path — the whole point of a slot is that the pair inside it can be typed
+ * as well as picked from a carrier tile. `FIELDS` therefore carries `min-w-0` so
+ * two `FIELD_CONTROL` inputs can shrink rather than push `META` off the row, and
+ * `ROOT` wraps rather than overflowing once the card is narrow.
+ *
+ * `INDEX` is `min-w-`, not a hard `w-`. The three labels are the same word with
+ * a different digit, so they are the same width in every locale and the column
+ * combs correctly — but a locale whose word for "Slot" is longer than 52px gets
+ * more room instead of a clipped label.
+ *
+ * `EMPTY` is the unfilled variant, and its dashed stroke is legal for the same
+ * reason `CARRIER_NOTE_TILE`'s is: the border is drawn around an ABSENCE, which
+ * is the one sanctioned dash in this canon. Note it takes NO fill — a dashed
+ * border over `surface-container` would read as a disabled control rather than
+ * as an open slot.
  */
-export const SELECT_CONTROL = [
-  FIELD_CONTROL,
-  "w-full justify-between",
-  "data-[size=default]:h-[2.625rem]",
-  "dark:hover:bg-surface-container",
-].join(" ");
-
-/** A slot's grouping block inside the LTE card — three of these stack. */
-export const FIELD_SLOT =
-  "flex flex-col gap-3 rounded-tile bg-surface-container/60 p-4";
-
-/** The slot's own heading row ("Cell 1", plus its clear affordance). */
-export const FIELD_SLOT_HEAD =
-  "flex items-center justify-between gap-2 text-xs font-semibold text-on-surface-variant";
+export const SLOT_ROW = {
+  ROOT: "flex min-h-14 flex-wrap items-center gap-x-3 gap-y-2 rounded-field bg-surface-container px-4 py-2.5",
+  EMPTY:
+    "flex min-h-14 flex-wrap items-center gap-x-3 gap-y-2 rounded-field border border-dashed border-outline px-4 py-2.5",
+  INDEX: "min-w-[3.25rem] flex-none text-xs font-semibold text-on-surface-variant",
+  FIELDS: "flex min-w-0 flex-1 flex-wrap items-center gap-2",
+  META: "ml-auto flex flex-none items-center gap-2",
+} as const;
 
 // -----------------------------------------------------------------------------
-// The hero's subject: THE STANDING ORDERS ("While nobody is watching")
+// "While nobody is watching": THE STANDING ORDERS
 // -----------------------------------------------------------------------------
 // THREE ANSWERS TO ONE QUESTION.
 //
@@ -613,20 +767,18 @@ export const FIELD_SLOT_HEAD =
 // signal collapse, and on a clock. Grouping them is what turns "three settings"
 // into one thing a reader can hold.
 //
-// THEY ARE NOW THE HERO, where they used to be the page's last card. The earlier
-// order — see where you are, choose where to point, then decide what happens
-// unattended — described the FIRST SESSION only. After that one setup the target
-// rarely moves, and everything a returning reader wants is here: does the lock
-// survive a reboot, is the safety net armed, is the window still right. Putting
-// the answer at the top and the three-field forms below it matches how the page
-// is actually used, and it is what freed the space the retired match line spent
-// restating the leg cards.
+// THEY SIT SECOND, DIRECTLY UNDER "RIGHT NOW", where they used to be the page's
+// last card. The original order — see where you are, choose where to point, then
+// decide what happens unattended — described the FIRST SESSION only. After that
+// one setup the target rarely moves, and everything a returning reader wants is
+// in the top two sections: is the lock holding, does it survive a reboot, is the
+// safety net armed, is the window still right. The three-field forms come after.
 //
 // It also resolves where failover belongs. `qmanager_tower_failover` releases
 // BOTH radios and has only one device-wide RSRP to work from, so rendering it
 // inside the LTE card would claim it protects LTE. These tiles are not leg
-// cards, which is exactly the property that made the hero rail the right home
-// before and makes the hero proper the right home now.
+// cards, which is exactly the property that makes a section of their own the
+// right home.
 
 /**
  * Three tiles, stepped rather than equal: the schedule carries seven 44px day
@@ -634,19 +786,20 @@ export const FIELD_SLOT_HEAD =
  * a label and a switch. Equal thirds would either wrap the weekday row or leave
  * the first tile mostly empty.
  *
- * QUERIES `@container/hero`, NOT `/card`. These tiles moved out of a `TOWER_CARD`
- * and into `TOWER_HERO`; a `/card` variant left behind here would silently never
- * match — the hero declares no `card` container — so the grid would stay
- * single-column at every width and the collapse would look like a design choice.
+ * QUERIES `@container/section`, NOT `/card` and no longer `/hero`. These tiles
+ * live in `TOWER_SECTION`, which — like `TOWER_HERO` — declares `section`. A
+ * stale `/hero` or `/card` variant left behind here would silently never match,
+ * so the grid would stay single-column at every width and the collapse would
+ * look like a design choice rather than a dead query.
  */
 export const AUTO_GRID =
-  "grid grid-cols-1 gap-3 @xl/hero:grid-cols-2 @4xl/hero:grid-cols-[1fr_1fr_1.5fr] @xl/hero:items-stretch";
+  "grid grid-cols-1 gap-3 @xl/section:grid-cols-2 @4xl/section:grid-cols-[1fr_1fr_1.5fr] @xl/section:items-stretch";
 
 /**
- * One automation tile. `rounded-tile` (28px) inside the 40px hero, per
+ * One automation tile. `rounded-tile` (28px) inside the 36px section, per
  * Radius-Follows-Size, on the `surface-container` step so it reads as an inner
  * unit of the section rather than as a card of its own — and so it matches the
- * live strip's two panels, which are its peers directly above.
+ * live strip's panels in the section above.
  *
  * Note this is deliberately NOT the retired `HERO_ROW`: that shape painted
  * `bg-surface`, which was correct on the old hero's `surface-container` panels
@@ -681,8 +834,7 @@ export const AUTO_METER = {
    */
   ROOT: "relative h-1.5 w-full",
   /** The clipped bar. `overflow-hidden` lives here, where the FILL is. */
-  TRACK:
-    "h-full w-full overflow-hidden rounded-pill bg-surface-container-high",
+  TRACK: "h-full w-full overflow-hidden rounded-pill bg-surface-container-high",
   FILL: "h-full origin-left rounded-pill transition-transform duration-[var(--duration-standard)] ease-standard",
   MARK: "absolute inset-y-[-0.25rem] w-0.5 -translate-x-1/2 rounded-pill bg-warning",
 } as const;
@@ -739,7 +891,7 @@ export function dayChipFill(selected: boolean): string {
 // -----------------------------------------------------------------------------
 
 /**
- * The card- and hero-scoped notice.
+ * The card- and section-scoped notice.
  *
  * This replaces two legacy tells at once: `carrier-label.tsx`'s
  * `border-success/40 text-success bg-success/10` — a 10% wash propped up by a
@@ -827,11 +979,7 @@ export const PILL_QUIET = "h-9 rounded-pill px-3.5 text-xs font-semibold";
 export const BADGE_GLYPH_SIZE = 12;
 
 /** Which failover state is in force. See `FAILOVER_BADGE` for why there are four. */
-export type TowerFailoverKey =
-  | "disabled"
-  | "standby"
-  | "armed"
-  | "fallback";
+export type TowerFailoverKey = "disabled" | "standby" | "armed" | "fallback";
 
 /**
  * Failover state -> Badge variant + glyph.
@@ -977,6 +1125,25 @@ export const SKELETON_SHAPE = {
   CARD_DESC: "h-4 w-52",
   /** The status chip in a card header. */
   CARD_CHIP: "h-5 w-24",
+  /**
+   * `SECTION_HEAD`'s three parts. The title is 16px/600 and the description
+   * 14px, both a step up from a leg card's — a section heads more content, so
+   * its skeleton must not mirror the card scale.
+   */
+  SECTION_TITLE: "h-6 w-36",
+  SECTION_DESC: "h-5 w-72",
+  /**
+   * The right-hand meta slot: freshness stamp plus `HERO_REFRESH_BUTTON`.
+   * MEASURED at 28px tall. The width is a 28px stamp pill (76px at en-GB's
+   * `07:31 PM`) plus the 22px refresh button and its 10px gap — about 108px.
+   *
+   * `w-32` (128px) is deliberately WIDER than that, because the stamp's width
+   * is set by the locale's time format and this mirror cannot see it. Erring
+   * wide is free here: the slot is `ml-auto`, so a placeholder a few pixels
+   * over only eats empty header space, while one that is too narrow lets the
+   * header's right edge jump on handoff.
+   */
+  SECTION_META: "h-7 w-32 rounded-pill",
   /** One form field: its 12px label line box, then the 42px control. */
   FIELD_LABEL: "h-3 w-24",
   FIELD_CONTROL: "h-[2.625rem] w-full rounded-field",
@@ -1004,21 +1171,39 @@ export const SKELETON_SHAPE = {
    */
   READBACK: "h-[4.25rem] w-full rounded-field",
   /**
-   * The verdict block. MEASURED, not estimated: 143px in the loaded state — a
-   * 36px disc row, a two-line body and the 22px stamp inside 28px of vertical
-   * padding — so the strip does not resize under the reader when the modem
-   * answers.
+   * The verdict block.
    *
-   * Two lines is the case it mirrors because four of the five verdict bodies wrap
-   * to two at this column's fixed 15rem. `unverified` runs to three and will
-   * grow by one line on load; that is the right direction to be wrong in, since a
-   * skeleton that SHRINKS pulls the tiles below it upward into space the reader
-   * had already started on.
+   * MEASURED in-browser across the verdict states at 18.5rem: 92px for the
+   * one-line bodies (`on_target`), 111px for the two-line ones (`unlocked`).
+   * This figure is deliberately 2px above the tallest measurement rather than
+   * an average of the two.
+   *
+   * The taller case is the one to mirror. A skeleton that SHRINKS on load pulls
+   * the panel beside it upward into space the reader had already started on,
+   * whereas one that grows only pushes down into space nobody has read yet.
    */
-  VERDICT: "h-[8.9375rem] w-full rounded-tile",
-  /** The lead carrier block (measured: 82px), and one secondary row. */
-  PCC_BLOCK: "h-[5.125rem] w-full rounded-tile",
-  SCC_ROW: "h-11 w-full rounded-pill",
+  VERDICT: "h-[7.0625rem] w-full rounded-tile",
+  /**
+   * One camped-carrier tile. MEASURED in-browser at 87px.
+   *
+   * Every carrier tile is the same height, so unlike the retired
+   * lead-plus-rows pair this needs exactly one mirror. Note that a tile can
+   * render TALLER than this when it shares a grid row with the note tile —
+   * grid rows stretch to their tallest cell. That is the row stretching the
+   * tile, not the tile growing, so it is not what this mirrors.
+   */
+  CARRIER_TILE: "h-[5.4375rem] w-full rounded-tile",
+  /*
+   * There is deliberately NO `SLOT_ROW` mirror here.
+   *
+   * `SLOT_ROW.ROOT` sets a `min-h-14` floor, but a loaded row hosts a 42px
+   * `FIELD_CONTROL` inside its vertical padding and settles taller than that
+   * floor. A flat number here would be a second measurement of the same row,
+   * kept in step by hand. `lte-tower-card.tsx` instead builds its placeholder
+   * out of `SLOT_ROW.ROOT` plus the same `FIELD_CONTROL` mirror the loaded row
+   * uses, so the two agree by construction. Composing beats mirroring wherever
+   * the real shape is available to compose — do not add the constant back.
+   */
   /** One automation tile, and one weekday chip. */
   AUTO_TILE: "h-[9.5rem] w-full rounded-tile",
   DAY_CHIP: DAY_CHIP.SKELETON,

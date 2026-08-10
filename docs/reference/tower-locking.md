@@ -2,19 +2,20 @@
 
 **Tower Locking pins the radio to one specific physical cell — an (EARFCN, PCI) pair on LTE, or a (PCI, ARFCN, SCS, band) tuple on 5G SA — and it is the sharpest instrument in QManager.** Where [Band Locking](band-locking.md) narrows which *frequencies* the modem may use, this page names the *tower*. Get it right and a marginal fixed-wireless install becomes stable; get it wrong and the modem is pinned to a cell it cannot reach, on a device that is serving the very page you are reading. That asymmetry shapes everything below: the confirmation dialog in front of every lock and every unlock, the failover watcher that releases the lock when signal collapses, and the deliberate honesty about *when* the lock state on screen was last read.
 
-The 2026-08 rebuild is **frontend-only**. `hooks/use-tower-locking.ts` gained state and one bug fix but kept its contract; `types/tower-locking.ts` gained two response fields that the backend was already emitting; the five CGI scripts under `scripts/www/cgi-bin/quecmanager/tower/`, `qmanager_tower_failover` and `tower_lock_mgr.sh` are untouched. What changed is the page shape, the input path (the camped-on carriers are now the picker), the number of ways to apply a lock (**one**), and the copy (0 i18n keys → **148 per locale**, in all five).
+The 2026-08 rebuild is **frontend-only**. `hooks/use-tower-locking.ts` gained state and one bug fix but kept its contract; `types/tower-locking.ts` gained two response fields that the backend was already emitting; the five CGI scripts under `scripts/www/cgi-bin/quecmanager/tower/`, `qmanager_tower_failover` and `tower_lock_mgr.sh` are untouched. What changed is the page shape, the input path (the camped-on carriers are now the picker), the number of ways to apply a lock (**one**), and the copy (0 i18n keys → **155 per locale**, in all five).
 
-The page shape moved three times, and every move is worth knowing so none of them is undone:
+The page shape moved four times, and every move is worth knowing so none of them is undone:
 
 1. **2×2 grid → hero over three peer cards.** The grid put a read-only status card and three control surfaces on the page as visual peers, which said all four were the same kind of object.
 2. **Hero → the MATCH LINE, and the three unattended behaviours → one automation card.** The hero still held two facts (the lock target, the camped cells) with nothing between them, so the reader diffed an EARFCN by eye; and it carried three settings rows in a rail while the schedule sat as an orphaned third cell in a 2-up grid beside empty space.
-3. **The page inverted: the automation group became the hero, and the match line shrank to a strip above it.** The three unattended behaviours moved from the page's last card to its `rounded-hero` section, the match line's locked-target column was deleted outright, and what remains of it — the verdict and the camped-on carriers — is now a compact **live strip** sitting above the three tiles inside that same section. See [The hero is the standing orders](#the-hero-is-the-standing-orders) and [The live strip](#the-live-strip).
+3. **The page inverted: the automation group became the hero, and the match line shrank to a strip above it.** The three unattended behaviours moved from the page's last card to its `rounded-hero` section, the match line's locked-target column was deleted outright, and what remains of it — the verdict and the camped-on carriers — is now a compact **live strip**. See [The modem read-back line](#the-modem-read-back-line).
+4. **The merged hero split into two sibling sections.** The live strip and the three automation tiles briefly shared one `rounded-hero` card. They are now `TOWER_HERO` ("Right now") and `TOWER_SECTION` ("While nobody is watching"), and the freshness stamp moved out of the verdict block and up into the first section's header. See [Two sections, not one merged hero](#two-sections-not-one-merged-hero).
 
-**Short version of that third move: the read-only half of a settings page had become the tallest thing on it, and most of what it printed was already on the leg cards below.** The locked-target column named which leg was locked and to what — the same two facts a leg card's status chip and form fields already carry — so a reader met the same pair of numbers twice before reaching a single control. The one fact it carried *alone* (the modem's own `AT+QNWLOCK` read-back, as against the `config` the forms are seeded from) did not disappear; it moved into the leg card that owns it, inches from the values it can contradict. See [The modem read-back line](#the-modem-read-back-line).
+**Short version of the third move: the read-only half of a settings page had become the tallest thing on it, and most of what it printed was already on the leg cards below.** The locked-target column named which leg was locked and to what — the same two facts a leg card's status chip and form fields already carry — so a reader met the same pair of numbers twice before reaching a single control. The one fact it carried *alone* (the modem's own `AT+QNWLOCK` read-back, as against the `config` the forms are seeded from) did not disappear; it moved into the leg card that owns it, inches from the values it can contradict. See [The modem read-back line](#the-modem-read-back-line).
 
-Promoting the automation group is the other half of the same argument. The task order the old layout encoded — see where you are, choose where to point, then decide what happens unattended — describes the **first session only**. After one setup the target rarely moves, while what a returning reader checks every visit is exactly the unattended behaviour: does the lock survive a reboot, is the safety net armed, is the window still right. So that is what leads now, and the two three-field forms sit below it.
+**Short version of the fourth: a merged hero has exactly one title, and that title had to be the automation copy — so the live strip sat as an unlabelled preamble under a heading about reboots and schedules.** A heading names the thing beneath it, and this one named the wrong thing. Split, each section states its own subject and the freshness stamp can head the section it actually dates. The task-order argument that promoted the automation group survives the split intact: the target is chosen once, while the unattended behaviour is checked every visit, so the two read-and-decide sections lead and the two three-field forms come last.
 
-This doc records the things a future contributor will otherwise "clean up": why the lock read-back is deliberately *not* polled, why the freshness stamp lives on the verdict, why the failover chip is a shield rather than a spinner, why there is exactly **one** way to apply a lock and no `Switch` anywhere near it, why `sendLockRequest`'s guard is an in-flight ref and must never go back to `watcher_running`, and why unlocking quietly turns the user's failover preference off.
+This doc records the things a future contributor will otherwise "clean up": why the lock read-back is deliberately *not* polled, why the freshness stamp heads the "Right now" section rather than sitting on the verdict, why the failover chip is a shield rather than a spinner, why there is exactly **one** way to apply a lock and no `Switch` anywhere near it, why `sendLockRequest`'s guard is an in-flight ref and must never go back to `watcher_running`, and why unlocking quietly turns the user's failover preference off.
 
 ## Quick Reference
 
@@ -23,10 +24,11 @@ This doc records the things a future contributor will otherwise "clean up": why 
 | Route | `/cellular/cell-locking/tower-locking` (`app/cellular/cell-locking/tower-locking/page.tsx`) |
 | Page coordinator | `components/cellular/tower-locking/tower-locking.tsx` |
 | Geometry + tone contract | `components/cellular/tower-locking/shapes.ts` |
-| Hero shell ("While nobody is watching") | the `<section>` in `tower-locking.tsx` — **no child renders it** |
-| Automation tiles (the hero's subject) | `components/cellular/tower-locking/automation-tiles.tsx` |
+| Section 1 shell + header ("Right now") | the `TOWER_HERO` `<section>` in `tower-locking.tsx` — **no child renders it** |
+| Section 2 shell + header ("While nobody is watching") | the `TOWER_SECTION` `<section>` in `tower-locking.tsx` — **no child renders it** |
+| Live strip (section 1's body, read-only) | `components/cellular/tower-locking/live-strip.tsx` |
+| Automation tiles (section 2's body) | `components/cellular/tower-locking/automation-tiles.tsx` |
 | Schedule tile (the third automation tile) | `components/cellular/tower-locking/schedule-tile.tsx` |
-| Live strip (read-only, above the tiles) | `components/cellular/tower-locking/live-strip.tsx` |
 | LTE leg card | `components/cellular/tower-locking/lte-tower-card.tsx` |
 | NR-SA leg card | `components/cellular/tower-locking/nr-sa-tower-card.tsx` |
 | Simple Mode helpers | `components/cellular/tower-locking/simple-mode-utils.ts` |
@@ -43,7 +45,8 @@ This doc records the things a future contributor will otherwise "clean up": why 
 | Schedule timer arm helper (root) | `scripts/usr/bin/qmanager_tower_schedule_arm` |
 | Config file | `/etc/qmanager/tower_lock.json` |
 | Live carriers (the ACTUAL view) | `hooks/use-modem-status.ts` → `network.carrier_components` |
-| i18n | `tower_locking.*` in `public/locales/{en,zh-CN,zh-TW,it,id}/cellular.json` (**148 keys per locale**, identical key paths across all five) |
+| i18n | `tower_locking.*` in `public/locales/{en,zh-CN,zh-TW,it,id}/cellular.json` (**155 keys per locale**, identical key paths across all five) |
+| Cell Scanner link (page header action) | `radio_info.bands.scanner.link` → `/cellular/cell-scanner` — see [The page header gained one action](#the-page-header-gained-one-action) |
 | Leg-card DOM anchors | None. The `id="tower-locking-card-{leg}"` pair and its `scroll-mt-20` were removed with their only caller — see [Three columns became two](#three-columns-became-two-and-what-happened-to-the-third) |
 
 ### AT commands this surface issues
@@ -64,14 +67,18 @@ This doc records the things a future contributor will otherwise "clean up": why 
 ```
 TowerLockingComponent                     ← owns every hook; no child talks to CGI
 ├── CellularPageHeader                     (shared, components/cellular/page-header.tsx)
+│   └── actions: "Open cell scanner" → /cellular/cell-scanner
 ├── error notice + Retry                   (tower.error && !tower.isLoading)
 ├── warning notice + dismiss               (tower.lastWarning)
 └── motion cascade
-    ├── <section TOWER_HERO>               ← the ONE hero, owned by the coordinator
-    │   ├── h2 "While nobody is watching" + HERO_DESCRIPTION
-    │   ├── TowerLiveStrip                 ← read-only premise:
-    │   │                                    verdict | camped on now
-    │   └── TowerAutomationTiles           ← the subject; NO card, NO header
+    ├── <section TOWER_HERO>               ← "Right now"; rounded-hero, the ONE anchor
+    │   ├── SECTION_HEAD                     h2 + META (freshness STAMP + refresh)
+    │   └── TowerLiveStrip                 ← body only; NO shell, NO header
+    │       ├── VERDICT_BLOCK
+    │       └── STRIP_PANEL → CARRIER_GRID (tiles + CARRIER_NOTE_TILE)
+    ├── <section TOWER_SECTION>            ← "While nobody is watching"; rounded-card
+    │   ├── SECTION_HEAD                     h2 + DESCRIPTION
+    │   └── TowerAutomationTiles           ← body only; NO card, NO header
     │       ├── persist tile
     │       ├── failover tile (switch + threshold + gated meter)
     │       └── ScheduleTile
@@ -80,22 +87,42 @@ TowerLockingComponent                     ← owns every hook; no child talks to
         └── NrSaTowerCard
 ```
 
-The order is **what the lock does unattended** (hero), then **where it points** (leg cards). Two objects, not four: one `rounded-hero` section and one 2-up of peers.
+The reading order is **what is happening now** (section 1), then **what happens unattended** (section 2), then **where the lock points** (the leg cards). Three objects: one `rounded-hero` section, one `rounded-card` section, and one 2-up of peer cards.
 
-**The coordinator owns the hero shell rather than delegating it to a child, and that is what the composition is for.** The strip and the tiles are two parts of one section — the premise and the standing orders that act on it — so a single `TOWER_HERO` wraps both. `TowerAutomationTiles` therefore renders no `Card` and no header at all: a child rendering its own card shell would put a card inside a hero and split one idea across two surfaces. This is also why `AUTO_GRID` queries `@container/hero` and not `@container/card` — there is no longer a `card` container anywhere in that subtree for a `/card` variant to match.
+### Two sections, not one merged hero
+
+For one revision the strip and the tiles shared a single `TOWER_HERO`, and the doc argued they were "the premise and the standing orders that act on it". The split reverses that, and the reason is a heading rather than a shape: **a card has one title, so the merged hero's title had to be the automation copy — which left the live strip as an unlabelled preamble under a heading about reboots, failover and schedules.** A heading is a promise about what sits under it, and that one was false for the first thing a reader met.
+
+Splitting also frees the freshness stamp. Merged, a stamp in the card header would have appeared to date the three settings tiles as well; the only honest home left for it was the verdict block. Split, `SECTION_HEAD.META` on "Right now" dates exactly the content that has a clock — see [Freshness heads the section](#freshness-heads-the-section).
+
+Only `TOWER_HERO` keeps `rounded-hero` (40px). One anchor per surface, claimed by the section that **leads** the page; `TOWER_SECTION` is `rounded-card` (36px), a peer of the leg cards below it. The two shells are otherwise byte-identical, including the container name.
+
+> ⚠️ WARNING: **both sections declare `@container/section`, and neither declares `@container/hero` any more.** That is what lets `SECTION_HEAD` and `AUTO_GRID` behave identically in either section without the constant knowing which one is hosting it. A stale `@container/hero` or `@container/card` variant left behind in this subtree would silently never match — the grid would stay single-column at every width, and the collapse would look like a design choice rather than a dead query.
+
+**The coordinator owns both section shells and both section headers.** The two children render only their bodies. A child rendering its own `Card` would put a card inside a section; a child rendering its own heading would let the two headers' geometry drift apart. The header slots are used asymmetrically and deliberately so: "Right now" fills `SECTION_HEAD.META` (stamp + refresh) and skips the description, because the tiles under it demonstrate what it is; "While nobody is watching" fills `SECTION_HEAD.DESCRIPTION` and has no meta, because nothing in it has a clock.
+
+Each section is labelled with `aria-labelledby` pointing at its own `<h2>`, never an `aria-label` — the heading is already on screen, and duplicating it as an attribute is how the two silently drift apart in translation.
 
 The coordinator is the only component that calls a hook. It reads `useModemStatus` and `useTowerLocking` and hands everything down as props. There is no profile/scenario gate chain here — unlike Band Locking, no SIM profile or Connection Scenario writes `AT+QNWLOCK`.
 
+### The page header gained one action
+
+`CellularPageHeader`'s `actions` slot now carries a link to the Cell Scanner: `<Button asChild variant="tonal" className={PILL_ACTION}>` wrapping a `next/link` to `/cellular/cell-scanner`, with the `radar` glyph.
+
+The scanner is where a target comes from when the cell you want is *not* one the modem is already camped on — the strip can only offer what is on air — so it belongs beside the page it feeds rather than only in the sidebar. `variant="tonal"` and not `default`: this navigates, it does not write to the radio, and the page's real primary actions are the leg cards' Lock buttons.
+
+**It reuses `radio_info.bands.scanner.link` rather than adding a `tower_locking.*` key of its own.** One translated sentence pointing at one route; a second key would be the same English words translated twice, drifting the moment one of them is edited. `components/cellular/band-locking/live-band-hero.tsx` records the identical rationale for the identical borrow, and `components/cellular/radio/active-bands-card.tsx` is the key's original home.
+
 ## The two clocks
 
-**Short version: two readings on this page sit inches apart, and one of them can be an hour old.** Pretending otherwise would be the surface's biggest lie, so the verdict prints an explicit "as of HH:MM" and offers a manual refresh instead.
+**Short version: two readings on this page sit inches apart, and one of them can be an hour old.** Pretending otherwise would be the surface's biggest lie, so the "Right now" section prints an explicit "as of HH:MM" in its header and offers a manual refresh instead.
 
 | Reading | Source | Freshness |
 | ------- | ------ | --------- |
 | **The lock target** — the verdict's left operand, and the leg cards' "Modem reports" line | `modemState.lte_cells` / `.nr_cell`, read back from `AT+QNWLOCK` by `status.sh` | Fetched **once on mount**, never polled |
-| **Camped on now** — the strip's right column, and each leg card's `Serving` chip | `network.carrier_components` from the poller snapshot | Live, ~4s (see [poller cadence](radio-information.md)) |
+| **Camped on now** — the strip's carrier grid, and each leg card's `Serving` chip | `network.carrier_components` from the poller snapshot | Live, ~4s (see [poller cadence](radio-information.md)) |
 
-**The stamp lives on the verdict block, not in a corner of the page**, and that placement is an argument rather than a layout preference. The verdict is computed from *both* readings, so it is only ever as fresh as its **stalest** operand — a conclusion drawn across two clocks has to wear the slower one. Moving the timestamp away from the verdict would leave the page's single loudest claim as the only thing on it with no freshness qualifier.
+**The stamp heads the "Right now" section, not a corner of the page**, and that placement is an argument rather than a layout preference. The original argument was that the verdict is computed from *both* readings, so it is only ever as fresh as its **stalest** operand — a conclusion drawn across two clocks has to wear the slower one. That argument is intact, and it is exactly *why* the stamp moved up out of `VERDICT_BLOCK` when the page split into two sections: **both** operands — the ~4s carrier grid and the once-on-mount lock read-back — now live inside the one section the stamp heads, and nothing else does. So it dates all of them rather than only the conclusion drawn from them.
 
 The same fact is why the leg cards' read-back line is **captioned** rather than printed bare: that line is on the slow clock while the form fields directly beside it are the config's live view, and a reader who cannot tell which is which has no way to interpret a disagreement between them. See [The modem read-back line](#the-modem-read-back-line).
 
@@ -205,7 +232,7 @@ tower_config_update '.lte.enabled = false | .nr_sa.enabled = false'
 
 It has no per-leg RSRP to work from either — it reads `.lte.rsrp` from the poller cache and falls back to `.nr.rsrp`, giving one quality figure for the device, not one per leg.
 
-**That is why the failover control lives in the hero's automation tiles and not on either leg card.** Rendering it as a row inside the LTE card would say it protects LTE; it protects the modem. It sits with `persist` and the schedule in the one group whose three members are exactly the settings that belong to no single leg. See [The hero is the standing orders](#the-hero-is-the-standing-orders).
+**That is why the failover control lives in the automation tiles and not on either leg card.** Rendering it as a row inside the LTE card would say it protects LTE; it protects the modem. It sits with `persist` and the schedule in the one group whose three members are exactly the settings that belong to no single leg. See [The standing orders](#the-standing-orders).
 
 ### Tower unlock silently disables the user's failover preference
 
@@ -266,7 +293,7 @@ The hook exposes them as a `TowerWarningCode`:
 export type TowerWarningCode = "service_enable_failed" | "persist_command_failed";
 ```
 
-It reports **the code, not a sentence** — rendered copy lives in the components, where `useTranslation` is, so a warning can never ship as an English literal from inside a hook that has no namespace. The coordinator maps it to `tower_locking.warning.{code}` and renders a dismissible `role="status"` notice above the hero (`clearWarning()`), and every subsequent write clears it first.
+It reports **the code, not a sentence** — rendered copy lives in the components, where `useTranslation` is, so a warning can never ship as an English literal from inside a hook that has no namespace. The coordinator maps it to `tower_locking.warning.{code}` and renders a dismissible `role="status"` notice above both sections (`clearWarning()`), and every subsequent write clears it first.
 
 **Both are `warning`, never `destructive`.** The operation landed on the modem — the radio *is* locked. Painting that red would tell the user their lock failed when it did not. `NOTICE_TONE.warning` is the partial-success channel on this surface.
 
@@ -297,32 +324,31 @@ Neither reads the other's flag file, and neither knows the other exists. In prac
 
 Noted here so the interaction is written down somewhere. Resolving it (a shared recovery claim, in the spirit of the `/tmp/qmanager_recovery_active` protocol in [tmp-file-ownership.md](tmp-file-ownership.md)) is a backend change and out of scope for a frontend rebuild.
 
-## The hero is the standing orders
+## The standing orders
 
 **Three answers to one question.** Persistence, signal failover and the schedule were three separate objects on this page: two rows buried at the foot of an old hero rail, and a whole card of its own sitting in a 2-up grid as the orphaned third cell beside empty space. Nothing said they were related, and the schedule in particular read as a feature parked wherever there happened to be room — at the same visual rank as the two lock forms, while answering a different question from either of them.
 
 They are all the same question — **what does this lock do when nobody is looking?** — asked about three different absences: across a reboot, during a signal collapse, and on a clock. Grouping them is what turns "three settings" into one thing a reader can hold.
 
-**They are the *hero* because they are what a returning reader came for.** A target is chosen once and then rarely touched; whether the lock survived last night's reboot, whether the safety net is armed, and whether the window is still right are checked every visit. Leading with the answer and putting the two three-field forms below it matches how the page is actually used — and it is what freed the vertical space the retired match line was spending on a restatement of those forms.
+**They sit second, directly under "Right now", where they used to be the page's last card.** The order the old layout encoded — see where you are, choose where to point, then decide what happens unattended — describes the **first session only**. After one setup the target rarely moves, while everything a returning reader wants is in the top two sections: is the lock holding, does it survive a reboot, is the safety net armed, is the window still right. The two three-field forms come last because after the first session they are the part nobody opens.
 
 ```
-<section TOWER_HERO>                      rounded-hero (40px) — the ONE hero on this page
-  ├── h2 "While nobody is watching" + HERO_DESCRIPTION
-  ├── <div STRIP_GRID>                    the premise — see The live strip
-  └── <div AUTO_GRID>                     1 → 2 at @xl/hero → [1fr 1fr 1.5fr] at @4xl/hero
+<section TOWER_SECTION>                   rounded-card (36px) — a peer, not a second anchor
+  ├── SECTION_HEAD                        h2 "While nobody is watching" + DESCRIPTION
+  └── <div AUTO_GRID>                     1 → 2 at @xl/section → [1fr 1fr 1.5fr] at @4xl/section
       ├── AUTO_TILE     restart_alt       persist: switch + PERSIST_BADGE + help copy
       ├── AUTO_TILE     shield            failover: switch + FAILOVER_BADGE +
       │                                     threshold Input/SaveButton + AUTO_METER
       └── ScheduleTile  (AUTO_TILE)       enable + window + day chips
 ```
 
-Every tile inside the section is `rounded-tile` (28px) on `surface-container` — **two steps below** the outer section's `rounded-hero` (40px), per Radius-Follows-Size, and the same step the live strip's panels use so the strip reads as a peer of the tiles rather than as a third rank between them and the section. `TOWER_HERO` claims the Consistent-Layout Rule's "a genuine glance surface may earn a hero card" exception on its own; nesting card- or hero-radius panels inside it would spend that exception twice on one page.
+Every tile inside the section is `rounded-tile` (28px) on `surface-container` — a step below the section's `rounded-card` (36px), per Radius-Follows-Size, and the same step the live strip's panel uses in the section above, so the two sections' inner units read as peers. `TOWER_HERO` claims the Consistent-Layout Rule's "a genuine glance surface may earn a hero card" exception on its own; nesting card- or hero-radius panels inside either section would spend that exception twice on one page.
 
 The columns are **stepped, not equal thirds**: the schedule carries seven 44px day chips plus two time fields and genuinely needs the room, where persistence is a label and a switch. Equal thirds either wrap the weekday row or leave the first tile mostly empty.
 
 `AUTO_TILE` is deliberately **not** the retired `HERO_ROW`. That shape painted `bg-surface`, correct on an old hero's `surface-container` panels and invisible here, where the host section *is* `bg-surface`. Same failure mode `CONTROL_ROW` / `CARD_ROW` already documents for the leg cards.
 
-> ⚠️ WARNING: `AUTO_GRID` queries **`@container/hero`**, not `@container/card`. These tiles moved out of a `TOWER_CARD` and into `TOWER_HERO`, and a `/card` variant left behind here would silently never match — the hero declares no `card` container — so the grid would stay single-column at every width and the collapse would look like a design choice rather than a bug.
+> ⚠️ WARNING: `AUTO_GRID` queries **`@container/section`** — not `@container/card`, and no longer `@container/hero`. These tiles have now lived in a `TOWER_CARD`, in a `TOWER_HERO`, and in a `TOWER_SECTION`; every move left a dead query behind it. `section` is declared by *both* shells, which is what makes the tiles portable between them. Nothing in `automation-tiles.tsx` imports a container name, and that is the point.
 
 ### A switch on this page means one thing
 
@@ -376,28 +402,33 @@ The day chips replace the surface's single worst line — a `Toggle variant="out
 
 ## The live strip
 
-**The question this page exists to answer is not "what is the modem doing" and not "what did I ask for" — it is whether those two are the same thing.** The strip is the premise the standing orders act on, and it is two parts read as one clause:
+**The question this page exists to answer is not "what is the modem doing" and not "what did I ask for" — it is whether those two are the same thing.** The strip is the body of the "Right now" section, and it is two parts read as one clause:
 
 ```
 VERDICT   ▸   CAMPED ON NOW
 ```
 
-The verdict is the only genuinely *new* fact the page can compute — neither the modem's lock read-back nor the poller's carrier list carries it alone — so it leads. The camped list is the evidence behind it, and it stays on screen rather than collapsing to a count because **every row in it is a lock target one click from a form**.
+The verdict is the only genuinely *new* fact the page can compute — neither the modem's lock read-back nor the poller's carrier list carries it alone — so it leads. The camped grid is the evidence behind it, and it stays on screen rather than collapsing to a count because **every tile in it is a lock target one click from a form**.
+
+`TowerLiveStrip` renders **no shell and no header**. The `TOWER_HERO` section, its `<h2>` and the freshness stamp all belong to the coordinator; this component is content only.
 
 ```
-<div STRIP_GRID>                          1 col → [15rem minmax(0,1fr)] at @3xl/hero
-  ├── VERDICT_BLOCK   rounded-tile        disc + title + body + freshness STAMP
-  └── STRIP_PANEL     rounded-tile        CAMPED ON NOW: live-dot header,
-                                            CAMPED_LEAD block,
-                                            CAMPED_SCC rows (or CAMPED_ABSENT),
-                                            STRIP_FOOTNOTE pinned with mt-auto
+<div STRIP_GRID>                          1 col → [18.5rem minmax(0,1fr)] at @3xl/section
+  ├── VERDICT_BLOCK   rounded-tile        disc + title + body   (no stamp)
+  └── STRIP_PANEL     rounded-tile        CAMPED ON NOW: live-dot header + count,
+        │                                   @container/panel
+        ├── CARRIER_GRID                  1 → 2 at @md/panel → 3 at @2xl/panel
+        │   ├── CARRIER_TILE  × n         one per camped carrier
+        │   └── CARRIER_NOTE_TILE         fills the grid's ragged remainder
+        ├── CAMPED_ABSENT                 only when exactly one carrier is on air
+        └── STRIP_FOOTNOTE                pinned with mt-auto
 ```
 
-The split is a **container** query against `@container/hero`, which `TOWER_HERO` declares, so it responds to the hero's own width rather than the viewport.
+**Two container scopes, and the distinction is load-bearing.** `STRIP_GRID` queries `@container/section`, which both section shells declare, so the two-column split responds to the section's width. `CARRIER_GRID` queries `@container/panel`, declared by `STRIP_PANEL` itself — because the carrier column sits in the *right* track of a grid whose left track is a fixed `18.5rem`, so the space it actually has is not a function of the section's width alone. A `/section` query on the tile grid would count space the verdict column has already taken.
 
-The verdict column is a **fixed `15rem`**: it holds a state word and one line of consequence, so letting it flex would stretch a two-word conclusion across half the hero. Everything else goes to the carrier list, which is the part with a variable number of rows.
+The verdict column is a **fixed `18.5rem`**: it holds a state word and one line of consequence, so letting it flex would stretch a two-word conclusion across half the section. Everything else goes to the carrier grid, which is the part with a variable number of tiles.
 
-`STRIP_GRID` is **`items-start`, not `items-stretch`**, and that is a correction rather than a preference. Stretching made the verdict as tall as a three-carrier list and left ~90px of empty container between its body copy and its stamp — on a *saturated* `success-container`, where a void is the loudest thing in the hero. A conclusion sizes to itself; only the list it judges grows. (`VERDICT_BLOCK.STAMP` carries no `mt-auto` for the same reason: pinning the stamp to a floor would reopen exactly that void.)
+`STRIP_GRID` is **`items-start`, not `items-stretch`**, and that is a correction rather than a preference. Stretching made the verdict as tall as a three-carrier grid and left ~90px of empty container between its body copy and its floor — on a *saturated* `success-container`, where a void is the loudest thing in the section. A conclusion sizes to itself; only the grid it judges grows.
 
 ### Three columns became two, and what happened to the third
 
@@ -407,7 +438,7 @@ The single fact it carried alone moved to the leg cards — see [The modem read-
 
 > ⚠️ WARNING: do not reintroduce a locked-target panel, a "match line", or a target-summary rail as a tidy-up. It looks like the honest thing to add to a page whose subject is a lock, and it has been tried twice. The facts it would carry are on the leg cards; the only reading that was ever unique to it is now printed inside the card that owns it.
 
-**Smaller, not lesser.** The verdict dropped from a 176px centred tile to a left-aligned block, and the camped lead from a 172px identity-filled tile to two compressed lines. Every *reading* survived — PCI still leads, and the channel, RSRP, RSRQ and SINR are all still on the lead. Rank now comes from **anatomy** (two lines against the secondaries' one) rather than from area. Centring is what made the old verdict read as the page's headline metric; at strip scale it is a sentence about the tiles below it, and a sentence starts at the left margin.
+**Smaller, not lesser.** The verdict dropped from a 176px centred tile to a left-aligned block, and the camped carriers from one 172px identity-filled lead block plus a list of one-line rows to a uniform grid of 87px tiles. Every *reading* that identifies a cell survived. Centring is what made the old verdict read as the page's headline metric; at strip scale it is a sentence about the section it opens, and a sentence starts at the left margin.
 
 ### The verdict, and what makes it honest
 
@@ -426,39 +457,71 @@ Four properties are load-bearing:
 - **A leg matches when SOME target matches, not all of them.** `AT+QNWLOCK="common/4g"` takes up to three cells and the radio only has to be on *one* of them — that is what the three slots mean. Requiring all three would report a working multi-cell lock as a fault.
 - **A leg locked to a radio family with nothing on air resolves to `off_target`**, and that is correct rather than pedantic. An LTE lock the modem is not honouring because it registered 5G-SA is a lock that is not in force, and saying so is the point of the verdict.
 - **`unlocked` is NEUTRAL, and that is deliberately the opposite reading from `LEG_BADGE`,** which paints an unlocked leg green. The two answer different questions. `LEG_BADGE` asks *"is this radio constrained?"*, where unconstrained is the safe state. The verdict asks *"are you where you asked to be?"* — with no lock in force there was no ask, so the honest answer is "nothing to match", which is neither good news nor bad.
-- **The neutral fill is `surface-container`, matching the carrier panel beside it.** `bg-surface` would be the hero's own fill and would render the block invisible.
+- **The neutral fill is `surface-container`, matching the carrier panel beside it.** `bg-surface` would be the section's own fill and would render the block invisible.
 
 The disc is mandatory rather than decorative. `success-container` and `warning-container` measure 1.03:1 apart and are the same surface under deuteranopia, so the container fill *cannot* be the channel separating "on target" from "not on target". The filled disc on the role's **strong** fill is (Glyph-Disc Rule). The three neutral verdicts share one fill, so each carries a distinct glyph for the same reason.
 
-#### Freshness sits on the verdict
+#### Freshness heads the section
 
-`VERDICT_BLOCK.STAMP` holds a `schedule` glyph, the `as of HH:MM` label (or `synced_never`), and `HERO_REFRESH_BUTTON`. See [The two clocks](#the-two-clocks) for why it is here: the verdict spans both sources, so it wears the slower one.
+**`VERDICT_BLOCK.STAMP` no longer exists.** The `schedule` glyph, the `as of HH:MM` label (or `synced_never`) and `HERO_REFRESH_BUTTON` now sit in `SECTION_HEAD.META` on the "Right now" header, rendered by the coordinator.
+
+**The argument that put the stamp on the verdict is what moved it.** A verdict is only ever as fresh as its **stalest** operand — a conclusion drawn across two clocks has to wear the slower one — and while the strip and the automation tiles shared one card, the verdict block was the only place that could say so without appearing to date three unrelated settings. Split into two sections, *both* operands (the ~4s carrier grid and the once-on-mount `AT+QNWLOCK` read-back) live inside the section the stamp heads, and nothing else does. So the stamp now dates all of the evidence rather than only the conclusion drawn from it. See [The two clocks](#the-two-clocks).
+
+The stamp itself is `SECTION_HEAD.STAMP`: a 28px `surface-container` pill, `tabular-nums` but deliberately **not** `font-mono` — the machine's voice covers the timestamp, not the sentence wrapped around it. `META` carries `ml-auto` rather than putting `justify-between` on the header root, because that row wraps: with three children and `justify-between`, a wrap leaves the description marooned against the right edge of its own line.
 
 The refresh button is a 22px glyph whose `before:` overlay reaches the project's 44px coarse-pointer floor without adding a layout box that would push the timestamp off its baseline. Its spinning state is `motion-reduce`-guarded and mirrored to an `sr-only` `aria-live` region.
 
-> ⚠️ WARNING: the stamp and `HERO_REFRESH_BUTTON` **inherit their colour** (`text-current`, opacity-stepped) rather than declaring `on-surface-variant`. They sit on a fill that changes with the verdict; a hardcoded neutral grey would be a grey label on an amber container. Do not "restore" an explicit ink here.
+> ⚠️ WARNING: `HERO_REFRESH_BUTTON` still **inherits its colour** (`text-current`, opacity-stepped) rather than declaring `on-surface-variant`, even though it no longer sits on a tonal fill. That inheritance was written for the verdict block, where a hardcoded neutral grey would have been a grey glyph on an amber container; it survived the move unchanged and is kept so the button can be dropped back into a tonal host without a second look. Do not "tidy" it to an explicit ink.
 
-### The camped cell: one carrier leads, the rest are a list
+### Every camped carrier is a peer tile
 
-**`AT+QNWLOCK` pins a PRIMARY cell.** The SCCs are carriers the network attached alongside it — context for "what else is on air", never the answer to "which of these am I locking to". Drawing all of them as peer 168px tiles in a 3-up grid made the live-status half of the page the tallest thing on it and buried the PCC among its own secondaries.
+**No carrier leads.** Every camped carrier gets the same two-line `CARRIER_TILE` in a wrapping `CARRIER_GRID`, and primacy is carried by the identity chip alone — `LTE PCC` against `LTE SCC`, `NR PCC` against `NR SCC` — and by nothing else: not by area, not by anatomy, not by fill.
 
-So the lead carrier gets the full anatomy (`CAMPED_LEAD`), and the secondaries drop to one line each (`CAMPED_SCC`). The lead is `onAir[0]` — derived from the sort rather than re-tested, so the panel and `sortCarriers()` cannot disagree about which carrier leads.
+That is the honest shape, and reaching it took two corrections in a row. The first replaced a 3-up grid of 168px identity-filled tiles with one full-anatomy lead block over a list of one-line secondary rows, and its governing rule was recorded as **the lead is distinguished by ANATOMY, not by area** — a correction of a version that had made the primary a 172px saturated identity tile, i.e. the largest object on a settings page. That rule is what makes the uniform grid work, taken one step further: *the lead is distinguished by neither*. A shape that has to shout to establish rank has already spent more paint than the rank is worth, and the identity chip was doing the job on its own by the time the anatomy shrank to two lines.
 
-**The lead is distinguished by ANATOMY, not by area.** It was a 172px block in a saturated identity fill; it is now two lines against the secondaries' one, at roughly a fifth of the paint, and a reader resolves that difference instantly.
+**`AT+QNWLOCK` pins a PRIMARY cell**, so the ranking was never wrong — but aggregation is *context* here rather than the subject. A reader looks at the SCCs to answer "what else is on air", and **a secondary is a legitimate lock target the moment the network reselects**. Giving it a visibly lesser affordance implied a ranking the AT layer does not have.
 
-**Nothing in this panel is identity-filled any more, and that is what lets every picker be an ordinary neutral control.** A saturated `bg-primary` / `bg-lte` block forces every element inside it to be drawn as an alpha over its own ink, because a role colour on an identity ground is either invisible or brand-on-brand — three tone helpers (`carrierTileTone`, `carrierPillTone`, `carrierMeterTone`) existed only to serve that, and all three retired with the fill. On `bg-surface` the "use this cell" control is a plain `surface-container-high` button, and identity travels on the `Badge variant="nr"|"lte"` each row already carried: the one element in this system whose fill and ink are guaranteed to agree.
+Tower locking targets an (EARFCN, PCI) pair. A `CarrierComponent` already carries `earfcn`, `pci`, `band` and `rsrp` — so **every carrier the radio reports is describing a cell the user could lock to**, and making them retype those same digits into a text box underneath is the whole reason a parallel "Simple Mode" dropdown had to be invented as a second input path.
 
-**Secondaries stay individually pickable.** A secondary becomes a legitimate lock target the moment the network reselects, so hiding its picker would be a guess about the future.
+**One entry per raw `CarrierComponent`, not per unique cell.** Ordering is `sortCarriers()`: PCC first, then LTE before NR. `Array.prototype.sort` is stable, so carriers of equal rank keep the order the radio reported them in. LTE leads because the LTE leg is the anchor in NSA — it is what a reader looks for when a 5G connection misbehaves.
 
-Tower locking targets an (EARFCN, PCI) pair. A `CarrierComponent` already carries `earfcn`, `pci`, `band`, `rsrp`, `rsrq` and `sinr` — so **every carrier the radio reports is describing a cell the user could lock to**, and making them retype those same digits into a text box underneath is the whole reason a parallel "Simple Mode" dropdown had to be invented as a second input path.
+Tile anatomy, top to bottom:
 
-#### Why the lead block itself is not a button
+| Line | Content |
+| ---- | ------- |
+| `HEAD` | `Badge variant="lte"\|"nr"` reading `"LTE PCC"`, the band designator (`BAND`, mono), then the action — the pick button, or the filled `lock` chip when this tile *is* the lock target |
+| `BODY` | the `PCI` label and its value (`PCI_VALUE`, `text-xl`), with `RSRP` pushed right by `ml-auto` |
 
-**A block holding six discrete numbers is ambiguous as a single click target** — a reader cannot tell whether the RSRP figure is itself actionable. So the block stays a report and carries one labelled control, which removes the guess.
+**Nothing in this grid is identity-filled, and that is what lets every picker be an ordinary neutral control.** A saturated `bg-primary` / `bg-lte` block forces every element inside it to be drawn as an alpha over its own ink, because a role colour on an identity ground is either invisible or brand-on-brand — three tone helpers (`carrierTileTone`, `carrierPillTone`, `carrierMeterTone`) existed only to serve that, and all three retired with the fill. `CARRIER_TILE.ROOT` is plain `bg-surface`, one step *recessed* from the panel's `surface-container` rather than climbing to `surface-container-high` as the mock does: that keeps the top rung of the tonal ramp in reserve for the things that genuinely sit above the page's ground (the action pill, the disabled disc), and it is the same relationship the retired lead block and secondary rows already used, so nothing about the tone changed when the anatomy did. Identity travels on the `Badge variant="nr"|"lte"` each tile carries — the one element in this system whose fill and ink are guaranteed to agree.
 
-This used to be an accessibility-and-tone argument as well: while the block was identity-filled, a whole-block button would have been a violet control, which the Identity-Never-Acts Rule forbids outright. That constraint is gone with the fill, and the UX argument is the one that keeps the shape.
+`CARRIER_GRID` uses **`gap-3` (12px), not the mock's 8px.** Each tile's action carries a `before:` overlay reaching 6px past its paint on every side to make the 44px coarse-pointer floor; at 8px the overlays of two horizontally adjacent tiles would leave a 0px dead lane between them, and on a tablet a tap in that lane resolves to whichever tile won the stacking order.
 
-`CAMPED_LEAD.ACTION` **switches width on the panel, not the viewport.** Above `@sm/panel` an `ml-auto` parks it at the head row's right edge, so it never sits between two readings; below that the head row wraps, and a right-parked auto-width pill floating alone on its own line reads as a stray chip between the PCI and the detail — so it goes `w-full` instead. Wrapping is the trigger and the *panel* is what wraps, because this block also sits in a hero column that collapses independently of the window.
+#### The third metric line was cut, and one of the reasons was a correctness hazard
+
+The mock this grid comes from carried a third line per tile — `EARFCN · RSRQ · SINR` — and it is gone for two reasons, only one of which is about density.
+
+- **It was redundant.** The channel and its quality figures are already printed by the leg card that owns the lock, inches below.
+- **Its NR form printed a guess in the typeface of a measurement.** `CarrierComponent` has no subcarrier spacing, so an NR tile could only fill that slot by looking the SCS up in a **band table** — the same `defaultScsForBand` fallback the NR card is careful to flag as a guess. Rendered in mono, tabular, beside two real readings, it would have claimed the authority of something the modem reported. That is a state-honesty failure, not a layout one, and it is the reason this line must not come back even if the density budget later allows it.
+
+The two readings that survive are **PCI and RSRP**, which are exactly the pair that names a cell and says whether it is worth having.
+
+#### The locked-target marker: three channels, never colour alone
+
+A camped tile whose carrier *is* the cell the modem currently reports as its lock target gets marked three ways at once:
+
+1. **`CARRIER_TILE.MATCH`** — a 2px **inset box-shadow in `--primary`**, painted on the tile.
+2. **A filled `lock` chip replaces the pick button** — a `size-8` `primary-container` disc with a filled `lock` glyph, non-interactive, in the exact slot the `add` button would occupy. There is nothing to pick, so there is no button.
+3. **An `sr-only` sentence** (`tile_locked_a11y`, "Band {{band}}, PCI {{pci}} is the current lock target"), because a ring is a shape signal with no name.
+
+`isLockTarget()` in `live-strip.tsx` is the same comparison `matchVerdict()` makes in `shapes.ts`, read from the other end: `matchVerdict` asks "is any camped carrier a target" to produce one page-level verdict, `isLockTarget` asks "is *this* carrier a target" to mark one tile. Both gate on `*_locked` first — a stale `lte_cells` array behind a false `lte_locked` is not a target — and both compare the exact (channel, PCI) pair, so a tile can never be ringed by a rule the verdict above it disagrees with.
+
+> ⚠️ WARNING: the marker is deliberately **not** the mock's `outline: 2px solid var(--ok)`. Two separate rules land on that outline: Fill-Over-Stroke forbids a coloured stroke on a tonal container, and a functional role (`--success`) is never a legal stroke colour in the first place. The inset shadow is the sibling route's answer to the identical problem — see `BAND_CHIP_LIVE_RING` in `components/cellular/band-locking/shapes.ts`. It costs no layout box, it paints in `--primary` rather than in a health role, and it is a *shape* signal, so it survives greyscale and every colour-vision deficiency. `CARRIER_TILE.ROOT` names `box-shadow` explicitly in its transition for this reason; a bare `transition-all` would inherit Tailwind's off-scale 150ms and stop responding to a retune of `--duration-standard` (The One-Scale Rule).
+
+#### Why the tile itself is not a button
+
+**A block holding four discrete numbers is ambiguous as a single click target** — a reader cannot tell whether the RSRP figure is itself actionable. So the tile stays a *report* and carries one small labelled action inside it, which removes the guess. When the tile is already the lock target that action becomes the filled `lock` chip above: a report needs no control.
+
+This used to be an accessibility-and-tone argument as well: while the lead block was identity-filled, a whole-block button would have been a violet control, which the Identity-Never-Acts Rule forbids outright. That constraint went with the fill, and the UX argument is the one that keeps the shape.
 
 **A carrier that cannot currently be targeted gets its control DISABLED with a reason, never a missing control.** `canTarget` in the coordinator computes the gate per leg:
 
@@ -468,50 +531,49 @@ This used to be an accessibility-and-tone argument as well: while the block was 
 | `nr_sa` | `networkType === "5G-NSA"` | `tile_blocked_nsa` |
 | `nr_sa` | `networkType === "LTE"` or `""` | `tile_blocked_lte_only` |
 
-An NR carrier is visible but not SA-lockable while the modem is in NSA mode; silently dropping the control there would leave the user to infer the rule. The reason renders in a tooltip on the disabled control.
+An NR carrier is visible but not SA-lockable while the modem is in NSA mode; silently dropping the control there would leave the user to infer the rule. The reason renders in a tooltip on the disabled control (but see [Known gaps](#known-gaps) — the HTML `disabled` attribute makes that tooltip unreliable in Chrome).
+
+**The glyph, not the opacity, is what separates the two states.** A pickable tile's action carries `add`; a blocked one carries `do_not_disturb_on`. The primitive's 45% disabled opacity is the first thing to go in sunlight, which is the ambient condition this product is designed against.
 
 A carrier with no PCI **or** no channel gets no control at all (`addressable`), because the AT command needs both halves of the pair — there is nothing to disable-with-a-reason, the cell simply is not addressable.
 
 #### PCI is the headline here, where band is the headline on Band Locking
 
-This is the one place the block deliberately departs from its Band Locking sibling, which is otherwise the same anatomy. On that surface the reader is choosing a **frequency**, so the band designator is the answer. On this one they are choosing a **physical cell**, and PCI is its name. Same anatomy, different value promoted, because the question the surface asks is different.
+This is the one place the tile deliberately departs from its Band Locking sibling, which is otherwise the same anatomy. On that surface the reader is choosing a **frequency**, so the band designator is the answer. On this one they are choosing a **physical cell**, and PCI is its name. Same anatomy, different value promoted, because the question the surface asks is different.
 
-It is set at `text-xl` (20px) — down from the retired tile's 30px, but still two steps clear of the secondaries' 13px, so the rank survives the shrink.
+`CARRIER_TILE.PCI_VALUE` is `text-xl` (20px) mono/tabular, against the band designator's 12px and the RSRP's 13px — two steps of rank inside a tile 87px tall.
 
-Lead block anatomy, top to bottom:
+**The RSRP tint is never the only channel.** `CARRIER_TILE.RSRP` ships **no colour of its own**; the component tones it from the shared signal scale via `getValueColorClass(quality)` (`components/dashboard/signal-card-utils.ts`) and pairs it with an `sr-only` quality word from `radio_info.bands.quality.*`. Two reasons the split matters: `success-on-surface` and `warning-on-surface` measure ~1.01:1 apart and are the same ink in greyscale, so the word is the non-chromatic half; and the tone must be an `*-on-surface` step, never the solid `--success` / `--warning` role tokens, which are container *fills* and measure below AA as ink on these surfaces. `radio/active-bands-card.tsx` uses the same mapping, so the two surfaces cannot disagree about what a tint means.
 
-| Line | Content |
-| ---- | ------- |
-| Head | `Badge variant="lte"\|"nr"` reading `"LTE PCC"`, band designator, the `PCI` label and its value, then the action |
-| Detail | `EARFCN`/`ARFCN` + channel, RSRP, RSRQ, SINR — separate flex children with a real gap, each omitted individually when unreported |
+#### The signal meter is retired, and should not come back
 
-A secondary row carries the identity Badge, band, `PCI nnn`, RSRP, and the `CAMPED_SCC.PICK` icon button — 32px of paint reaching the 44px coarse-pointer floor through a `before:` overlay.
+The old lead tile drew a 6px quality bar under its detail line, toned by `carrierMeterTone`. Rebuilt at tile scale it draws a 4px identity-coloured bar across the tile's full width directly under the detail line, and **on screen that reads as a coloured bottom border rather than as a gauge** — the exact tell the craft floor bans. It was also a third channel reporting what two elements already report: the `Badge variant="nr"|"lte"` says *which radio*, and the dBm figure beside it says *how weak*.
 
-**One entry per raw `CarrierComponent`, not per unique cell.** Ordering is `sortCarriers()`: PCC first, then LTE before NR. `Array.prototype.sort` is stable, so carriers of equal rank keep the order the radio reported them in. LTE leads because the LTE leg is the anchor in NSA — it is what a reader looks for when a 5G connection misbehaves.
+The secondary rows never carried one, so dropping it is also what makes every carrier tile on this surface report signal exactly one way. `rsrpToPercent` is consequently no longer called anywhere on this page; the only meter left is `AUTO_METER` in the failover tile, which reports a **device-wide** quality against a threshold and is a different object entirely.
 
-#### The lead's signal meter is retired, and should not come back
+#### The note tile, the absent-leg note, and the empty state
 
-The old tile drew a 6px quality bar under its detail line, toned by `carrierMeterTone`. At row scale that bar spans the block's full width at 4px, and **on screen it reads as a coloured bottom border rather than as a gauge** — the exact tell the craft floor bans. It was also a third channel reporting what two elements already report: the `Badge variant="nr"|"lte"` says *which radio*, and the dBm figure beside it says *how weak*.
+Three different absences, three different treatments, and they are deliberately not interchangeable.
 
-The secondary rows never carried one, so dropping it is also what makes every carrier row on this surface report signal exactly one way. `rsrpToPercent` is consequently no longer called anywhere on this page; the only meter left is `AUTO_METER` in the failover tile, which reports a **device-wide** quality against a threshold and is a different object entirely.
+**`CARRIER_NOTE_TILE` always renders, as the last child of the grid**, and its job is to say what the empty cells *mean* rather than letting the grid trail off. Two readings: with more than one carrier on air it prints `note_ca_counts` ("3 LTE, 2 NR") over `note_ca_body` ("Aggregation is live. Only the primary cell can be locked."); with one or none it prints `note_solo_title` / `note_solo_body`. It carries `role="listitem"` even though it is not a carrier — every child of a `role="list"` must be a list item, and this one genuinely belongs to the set, because it describes where the set stops.
 
-#### The absent-leg note and the empty state
+It is the **one dashed stroke sanctioned on this surface**. Fill-Over-Stroke bans a border drawn *around content*; this border is drawn around an *absence*. It is `border-outline` at 1px, and it is deliberately **not** a filled tile: with every real carrier on `bg-surface`, a filled note would enter the reading order as one more carrier.
 
-`CAMPED_ABSENT` renders **only** when exactly one carrier is on air — in the slot the secondary list would occupy — and names the radio leg that is *not* present (NR when the lone carrier is LTE, and vice versa). With several carriers aggregated the list already fills honestly.
+**`carrierNoteSpan(carrierCount)` makes it fill the grid's ragged remainder.** CSS cannot do this on its own — there is no "span to the end of the row" for an item whose start column is implicit — so the span is computed from the carrier count against each of `CARRIER_GRID`'s three column counts. A count that divides evenly means the note starts a fresh row and takes the whole of it, which is exactly what a 3-carrier, 3-column layout should do. The classes are written out as **literals** in two lookup tables, never interpolated: Tailwind scans source text, so `@2xl/panel:col-span-${n}` would compile to nothing. The base one-column case needs no class at all, since one column *is* the row.
 
-It is a **note, not a block**. With the lead block already carrying the panel, a second block claiming "no 5G" would read as an editorial claim that the absence is a fault — on a modem whose SKU may not even support SA, it often is not.
+**`CAMPED_ABSENT` renders only when exactly one carrier is on air**, below the grid, and names the radio leg that is *not* present (NR when the lone carrier is LTE, and vice versa). With several carriers aggregated the grid already fills honestly. It is a **note, not a tile**: a second tile claiming "no 5G" would enter the reading order as a carrier, and would read as an editorial claim that the absence is a fault — on a modem whose SKU may not even support SA, it often is not.
 
-The empty state (`camped_empty_title` / `camped_empty_body`) replaces the whole panel body when nothing is camped, so it and the absent-leg note can never share a frame — which is why both can safely use the `signal_cellular_off` glyph.
+**The empty state** (`camped_empty_title` / `camped_empty_body`) replaces the grid entirely when nothing is camped — the panel's header and footnote survive, the tiles and both notes do not. It and the absent-leg note therefore can never share a frame, which is why both can safely use the `signal_cellular_off` glyph.
 
-The panel header carries a live-pulse dot using **`.animate-live-ping`**, the project's own keyframe in `app/globals.css` (running on `--duration-ambient` / `--ease-ambient`), **not** Tailwind's built-in `animate-ping`. They look similar and time differently; `animate-ping` here is an off-scale duration under The One-Scale Rule. It is `motion-reduce:animate-none`-guarded.
+The panel header carries a live-pulse dot using **`.animate-live-ping`**, the project's own keyframe in `app/globals.css` (running on `--duration-ambient` / `--ease-ambient`), **not** Tailwind's built-in `animate-ping`. They look similar and time differently; `animate-ping` here is an off-scale duration under The One-Scale Rule. It is `motion-reduce:animate-none`-guarded. Beside it, `ml-auto` parks the `camped_summary` count ("3 carriers across 60 MHz"), summed from each carrier's `bandwidth_mhz`.
 
 The panel's footnote (`camped_note`, on `STRIP_FOOTNOTE`) pre-empts the single most likely misreading: these are the cells the radio reports, not the cells you locked. A locked cell only appears here once the modem camps on it — and the cells you *did* lock are printed on the leg cards, under "Modem reports".
 
 ## The prefill bus
 
-Clicking "use this cell" on a live-strip row has to reach a form owned by a **sibling** card, so the coordinator brokers it: `handlePickCarrier` routes the picked `CarrierComponent` to `ltePrefill` or `nrPrefill`, each `{ cell, nonce }`.
+Clicking "use this cell" on a live-strip carrier tile has to reach a form owned by a **sibling** card, so the coordinator brokers it: `handlePickCarrier` routes the picked `CarrierComponent` to `ltePrefill` or `nrPrefill`, each `{ cell, nonce }`.
 
-**The payload carries a nonce because picking the same cell twice must still register.** Without it, a second click produces an identical object and the receiving card's render-time comparison sees no change — yet re-picking a row after editing the fields is a meaningful gesture (it restores that carrier's values).
+**The payload carries a nonce because picking the same cell twice must still register.** Without it, a second click produces an identical object and the receiving card's render-time comparison sees no change — yet re-picking a tile after editing the fields is a meaningful gesture (it restores that carrier's values).
 
 The NR path has to source a field the strip does not carry. `carrier_components` has **no SCS**, so:
 
@@ -538,7 +600,7 @@ The deleted control was a per-leg "Tower lock" `Switch`. It failed on three coun
 
 Both confirmation dialogs are unchanged, and the header `Badge` still reports state — that half of the switch's job was always the `LEG_BADGE`'s. `tower_locking.card.enable_label` was deleted from all five locales.
 
-The corollary is on the hero: the only switches that write anything are now the three automation settings, each of which saves the instant it moves. See [A switch on this page means one thing](#a-switch-on-this-page-means-one-thing).
+The corollary is in the standing-orders section: the only switches that write anything are now the three automation settings, each of which saves the instant it moves. See [A switch on this page means one thing](#a-switch-on-this-page-means-one-thing).
 
 > ⚠️ WARNING: do not reintroduce an enable `Switch` on a leg card as a convenience. It reads as the tidier control and it is the one shape this operation cannot honestly wear. It also *hid* a real bug for as long as it existed — see the NR dirty-gate trap below, where the switch was the accidental escape hatch from a dead Lock button.
 
@@ -591,7 +653,37 @@ This chip is also what gates **Remove Lock**, which is disabled unless `posture 
 
 - **A slot contributes a cell only when BOTH halves parse.** A half-filled slot is silently dropped on write by the backend, so the card renders a warning notice (`toast.incomplete` copy) saying so rather than letting the drop go unremarked.
 - **Free-slot count is reported upward** via `onFreeSlotsChange`, because slot occupancy includes local unsaved edits and the coordinator cannot derive it from `config`. That is what lets the live strip disable its picker with `tile_blocked_slots_full` instead of letting a click land on a card that will silently discard it. It is an **effect**, not a render-time call, because it writes to a parent's state.
-- **The empty state is inline, not a branch.** Band Locking can replace its whole content region when a category reports no supported bands; this card cannot, because its empty copy is "Pick a cell from the list above, or type a channel and PCI" and swapping out the slots would remove the very fields that sentence points at. So "no targets yet" renders *above* the slot list. (`empty_body` says "the list above" in all five locales — it was reworded from "the tiles above" when the hero's 3-up tile grid became the strip's lead-plus-list.)
+- **The empty state is inline, not a branch.** Band Locking can replace its whole content region when a category reports no supported bands; this card cannot, because its empty copy is "Pick a cell from the list above, or type a channel and PCI" and swapping out the slots would remove the very fields that sentence points at. So "no targets yet" renders *above* the slot list.
+
+#### A slot is a ROW, not a panel
+
+`FIELD_SLOT` and `FIELD_SLOT_HEAD` are gone. A slot is now a single row on `SLOT_ROW`:
+
+| Key | Role |
+| --- | ---- |
+| `ROOT` | The filled row — `min-h-14` (56px), `rounded-field`, `bg-surface-container`, wrapping |
+| `EMPTY` | The unfilled variant: same geometry, **no fill**, 1px dashed `border-outline` |
+| `INDEX` | The `Cell N` heading, `min-w-[3.25rem]` |
+| `FIELDS` | The wrapping flex line holding the two controls, `min-w-0` |
+| `META` | `ml-auto` — the `Serving` chip (when applicable) and the per-slot clear button |
+
+**This replaces three stacked `rounded-tile` panels**, each a heading row over a two-up field grid, which put roughly 130px of card between "Cell 1" and "Cell 2" and made a three-slot lock taller than the whole section above it. A slot holds two short numbers and a status; it is a row, and at 56px it clears the 44px coarse-pointer floor with room for the controls it hosts.
+
+**The inputs stay live in every state, including the dashed empty one.** The mock only ever drew the settled, read-only card, and reading it literally would delete this card's primary input path — the whole point of a slot is that the pair inside it can be *typed* as well as picked from a carrier tile. `EMPTY` takes no fill for a related reason: a dashed border over `surface-container` reads as a disabled control rather than as an open slot.
+
+`FIELDS` carries `min-w-0` so the two controls shrink before `META` gets pushed off the row, and each declares a `flex` shorthand rather than a width — `SLOT_FIELD_CHANNEL` is `flex-[2_1_8.5rem]`, `SLOT_FIELD_PCI` is `flex-[1_1_5.5rem]`. The channel gets twice the growth because an EARFCN runs to five digits against a PCI's three, and in Simple Mode the same box hosts a `Select` whose option text is far longer than either. Below roughly `8.5rem + 5.5rem` plus the index label the line wraps and the two fields drop under `Cell N` intact — the degradation the row was designed for, and the reason neither carries a fixed `w-`. `INDEX` is `min-w-`, not a hard `w-`, so a locale whose word for "Cell" is longer than 52px gets more room instead of a clipped label.
+
+##### What the row cost, and how it was paid for
+
+**The two visible field labels.** This is the one thing a compact row cannot keep, and it is the only place on this surface where a visible label is spent to buy density — so the trade is documented rather than assumed:
+
+- The per-field `<Label>`s are now `sr-only`, still carrying the full wording (`Channel (EARFCN)`, `Cell ID (PCI)`) for assistive technology and still bound by `htmlFor`/`id`.
+- Sighted users get the short names from the **placeholders** (`EARFCN`, `PCI`) instead.
+- Each row is a **`role="group"` with `aria-labelledby`** pointing at its own `Cell N` heading (`id="lte-slot-{index}"`), so a screen reader announces a value as the slot it belongs to rather than as one of three identically-named boxes.
+
+The placeholder is doing real work here, which is normally a smell: a placeholder disappears the moment a value lands. It is acceptable *only* because the field's name is also carried by the row heading and the `sr-only` label, and because both values are digits whose format is unambiguous once typed. Do not extend this pattern to a field whose value could be mistaken for a different quantity.
+
+> ℹ️ NOTE: there is deliberately **no** `SKELETON_SHAPE.SLOT_ROW`. See [Constants that no longer exist](#constants-that-no-longer-exist) — the loading branch composes the real `SLOT_ROW.ROOT` around the same `FIELD_CONTROL` mirror the loaded row uses, so the two agree by construction rather than by two numbers someone has to keep in step.
 
 #### The render-phase config/prefill sync
 
@@ -614,7 +706,7 @@ Two reasons this is one call and not two setters:
 
 #### Simple Mode survives the rebuild
 
-The strip's carrier picker is what Simple Mode was invented to work around, and for the common case the `prefill` prop replaces it. It stays because it is the only way to fill **slot 2 and slot 3** from the carrier list without leaving the card, and because a user who has scrolled past the hero should not have to scroll back.
+The strip's carrier picker is what Simple Mode was invented to work around, and for the common case the `prefill` prop replaces it. It stays because it is the only way to fill **slot 2 and slot 3** from the carrier list without leaving the card, and because a user who has scrolled past the strip should not have to scroll back.
 
 It is a per-card, `localStorage`-backed preference (`qmanager_tower_lte_simple_mode`, `qmanager_tower_nr_simple_mode`), read in a **lazy initialiser with a `typeof window` guard** — this component renders during the static export's prerender, and reading storage in an effect instead would flip the switch under the user on first client paint.
 
@@ -628,20 +720,37 @@ Both cards' Simple Mode switches carry the shared `SWITCH_TARGET` overlay, which
 
 ### NR-SA — the gate, and SCS provenance
 
-#### The gate is a condition, not a dimmer
+#### The gate is a STATE of the card, not a dimmer and not a deletion
 
-The incumbent's answer to "you cannot lock SA right now" was `opacity-60` on the whole `<Card>` plus a sentence appended to the `CardDescription`. That is two failures in one gesture: a banned opacity wash, and — worse — it dimmed **its own explanation** below readable contrast. The one piece of text the user needs in order to act was the text made hardest to read.
+This treatment has been wrong twice, in opposite directions, and both failures are worth carrying.
 
-The gate now **replaces the card body** with a tonal condition block at full contrast, mirroring `components/cellular/condition-screen.tsx`'s anatomy (disc → title → body) at card scale rather than importing it: that component is `rounded-hero` with 56px of vertical padding, sized to replace a whole page body, and nesting it inside a `rounded-card` leg card would out-round its own host.
+**First failure — the dimmer.** The incumbent's answer to "you cannot lock SA right now" was `opacity-60` on the whole `<Card>` plus a sentence appended to the `CardDescription`. Two failures in one gesture: a banned opacity wash, and — worse — it dimmed **its own explanation** below readable contrast. The one piece of text the user needs in order to act was the text made hardest to read.
 
-| `networkType` | Gate | Tone | Glyph | Why |
-| ------------- | ---- | ---- | ----- | --- |
-| `"5G-NSA"` | `nsa` | `warning` | `warning` | A real condition the user can change in situ, by switching the modem's network mode. Not a fault — hence not `destructive` |
-| `"LTE"` | `lte_only` | `info` | `signal_cellular_off` | A standing fact. There is no NR carrier to pin and nothing on this page changes that; amber would claim something is wrong when nothing is |
+**Second failure — the replacement.** Its fix swung too far: an early return swapped the whole card body for a `GATE` condition block. That took **Remove Lock off the screen with it**, and Remove Lock is the one control this card cannot lose.
 
-The block's body is `surface-container`, **not** the role's container — a deliberate step down from `condition-screen.tsx`. Painting ~170px of `warning-container` in a 2-up grid cell made the gate the loudest object on a page whose actual job is elsewhere. The signal moves to the two channels that survive: the filled disc (Glyph-Disc Rule) and the title, tinted with the role's `-on-surface` token, which DESIGN.md defines for exactly this case.
+> ⚠️ WARNING: **do not restore an early return that replaces the NR card's body.** It reads as the cleaner branch and it is a trap specific to this device. QManager runs *on* the modem it configures, so a lock pinned to an unreachable cell takes down the page you would use to fix it, and Remove Lock is the only in-UI recovery. A gated card is also **exactly where a stale NR lock lives**: `nr_locked` outlives the network moving the modem out of SA, so the branch removed the only recovery control precisely in the state that needs it.
 
-Neither gate carries a spinner: a spinner on a standing condition advertises work that is not happening.
+Gated now means four things, and no fifth:
+
+- **Full contrast everywhere** — no `opacity` wash on the card, on the notice, or on the copy that explains the condition.
+- **A `muted` header chip carrying its own glyph**, so the header says which condition is in force.
+- **A tonal `NOTICE` leading the card body**, stating the reason in full — it leads because it is the reason everything under it is inert.
+- **`formDisabled` on every control _except_ Remove Lock.** `formDisabled = isLocking || gate !== null` reaches the Simple Mode switch, all four field controls and Clear fields. Remove Lock is gated on `isLocking || posture !== "locked"` alone, so it stays live whenever the modem reports a lock — including under a gate.
+
+| `networkType` | Gate | Tone | Notice glyph | Chip glyph | Why |
+| ------------- | ---- | ---- | ------------ | ---------- | --- |
+| `"5G-NSA"` | `nsa` | `warning` | `warning` | `do_not_disturb_on` | A real condition the user can change in situ, by switching the modem's network mode. Not a fault — hence not `destructive` |
+| `"LTE"` | `lte_only` | `info` | `signal_cellular_off` | `signal_cellular_off` | A standing fact. There is no NR carrier to pin and nothing on this page changes that; amber would claim something is wrong when nothing is |
+
+`GATE_SPEC` in `nr-sa-tower-card.tsx` holds the mapping, taking its fill and disc from `NOTICE_TONE` so the block can never drift from the surface's other tonal containers. Three details in that table are load-bearing:
+
+- **`lte_only` is `info`, not `warning`, by decision.** No NR carrier to pin is a *standing fact*, not a fault. Amber here would tell a user on an LTE-only site that something had gone wrong on a page that cannot fix it either way. `nsa` earns `warning` because it is a condition the user can actually clear.
+- **The notice glyph is overridden for `lte_only`.** `NOTICE_TONE.info.glyph` is the generic `info` mark; `signal_cellular_off` says the actual thing. `nsa` keeps its role's own `warning` glyph. The two must differ, and do.
+- **The chip glyph is a separate field, not a reuse of the notice glyph.** The header chip shares its slot with `LEG_BADGE`'s three postures, so `do_not_disturb_on` and `signal_cellular_off` have to be distinct from each other *and* from `lock` / `lock_open` / `schedule` — two states that can appear in one slot never share a mark.
+
+**A lock outranks a gate in the header chip.** Two facts want that slot when the card is gated, and `headerChip` resolves it: the gate chip renders only while `posture !== "locked"`. A locked leg keeps its `LEG_BADGE`, because that is the fact with an action attached — the reader has to see a lock is in force before deciding to remove it — and the gate is stated in full by the notice below either way, where it has room for its reason. An unlocked or unread leg yields the slot to the gate, since "Unlocked" beside an inert form explains nothing.
+
+Neither gate carries a spinner: a spinner on a standing condition advertises work that is not happening. Both gate titles and bodies are resolved with a **literal key per branch**, never `gate_${gate}_title` — `i18n:check` grades a missing key as a warning and exits 0, so an interpolated key is one no gate can ever report on.
 
 #### `networkType === ""` is not "capable"
 
@@ -661,13 +770,37 @@ An NR-SA lock takes a subcarrier spacing, and **a wrong SCS does not fail loudly
 
 `resolveScs(cell, servingNr)` is pure and takes the whole cell rather than reading component state, so the render-time prefill path and the Simple Mode `onValueChange` path cannot drift apart — they were two separate copies of this rule in the incumbent. It deliberately **ignores** the picked cell's own `scs` (which `prefill` carries) and re-derives, so the provenance label is always true of the number beside it.
 
-The guess is flagged **twice**: beside the field, and again inside the lock confirmation dialog — the last screen before the modem drops its connection, and the last moment the mistake can be caught cheaply. The confirmation's `summarise()` includes SCS for the same reason: omitting it meant the number most likely to be wrong was the number the user never saw.
+The guess is flagged **twice**: beside the field, and again inside the lock confirmation dialog — the last screen before the modem drops its connection, and the last moment the mistake can be caught cheaply. **SCS is still in the confirmation, and that is the part that must not regress:** it is the one field of the four that is routinely a guess, and omitting it meant the number most likely to be wrong was the number the user never saw. It is now shown under its own label in the dialog's `<dl>` rather than as an unexplained "30 kHz" at the end of a joined chain — see [The middot rule](#the-middot-rule).
 
 #### Both cards: the lock dialog is not ceremony
 
 `requestLock()` → `AlertDialog` is the **only** path to a lock on either leg, now that the footer button is the only entry point to it. `AT+QNWLOCK` pins the radio to a single physical cell and bounces the link for 3–5 seconds, on a device that is serving this very page. It stays deliberate. Remove Lock has its own confirmation for the same reason.
 
 Status labels are written out per branch (`status_locked` / `status_unlocked` / `status_unknown`) rather than interpolated as `` status_${posture} ``: `i18n:check` grades a missing key as a warning and exits 0, so a key it cannot see statically is a key nothing will ever tell you about (see [i18n.md](i18n.md)).
+
+## The middot rule
+
+A user-requested pass removed most of this surface's middots. The rule it applied is worth more than the list of edits, because the next contributor will otherwise reintroduce them one at a time:
+
+> **A middot survives only where it separates two peers inside a single machine-voice run with no room for labels. Everywhere else the value gets a label, and layout does the separating.**
+
+A middot is a *substitute* for structure. It is fine between two equal readings in a space too small for anything else — a `SelectTrigger`, a chip — because there the reader can hold two items in order. It fails the moment there are three or four, because a joined chain is a table that has been flattened to fit a sentence, and the reader has to work out which number is which from position alone.
+
+What the pass changed, and what each change demonstrates:
+
+| Where | Change | Which half of the rule |
+| ----- | ------ | ---------------------- |
+| `camped_summary_one` / `_other` | `{{count}} carriers · {{mhz}} MHz` → `{{count}} carriers across {{mhz}} MHz` | Not a machine-voice run at all — it is a sentence, so it gets sentence connectives |
+| `rail_target_pair` | `{{channel}} · PCI {{pci}}` → `{{channel}}, PCI {{pci}}` | Two peers, and it **keeps** its separator — just a comma instead of a glyph, because the second term already carries a label |
+| `note_ca_counts` | `{{lte}} LTE, {{nr}} NR` (and `、` in `zh-CN` / `zh-TW`) | The separator is a **translator's** decision; a hardcoded `·` in the component would have been the same mark in every script |
+| `fields.custom_value` | Deleted | Orphaned — it had no caller left |
+| `nr-sa-tower-card.tsx`, three literals | See below | All three replaced by labels plus layout |
+
+The NR card carried the surface's only hardcoded middots, and each one resolved differently:
+
+- **`summarise()`** used to join four values — band, channel, PCI, SCS — into one run dropped mid-prose in the lock confirmation. It now returns only the pair that *names* the cell, through the shared `rail_target_pair` key, and the full cell moves to a labelled `<dl>` beneath the sentence, each value under its own `<dt>`. Four terms is a table; the dialog now draws one.
+- **The `SelectTrigger` fallback** — the value shown when the typed pair is not one of the carriers on air — routes through `rail_target_pair` instead of a locally joined string. A trigger is the one place with genuinely no room for two labels, which is exactly the case that key exists to serve, and routing it through the key means the separator is a translator's decision rather than a hardcoded glyph.
+- **Each `SelectItem` reading gets its own name.** A dropdown row *has* room for labels, so `ARFCN 632628` and `PCI 421` are announced by name with a gap doing the separating. `PICKER_READING` is the shape: the wrapper is the machine's voice, and the *name* inside it steps back to `font-sans font-normal`, because "ARFCN" is a word this product is saying, not a value the modem reported. That typographic split is what lets two readings sit on one line with nothing but a gap between them.
 
 ## Geometry and tone
 
@@ -677,54 +810,79 @@ Everything shape- or tone-bearing lives in `components/cellular/tower-locking/sh
 
 | Constant | Purpose |
 | -------- | ------- |
-| `TOWER_HERO` | The one hero card, `rounded-hero` (40px), declares `@container/hero`. `shadow-whisper` must go through the custom property — the bare utility does not resolve |
+| `TOWER_HERO` | The "Right now" section and the page's one anchor, `rounded-hero` (40px). Declares **`@container/section`** — deliberately not `hero`, because two sibling sections now declare it and a `/hero` query would never match inside `TOWER_SECTION`. `shadow-whisper` must go through the custom property; the bare utility does not resolve |
 | `TOWER_CARD` | One peer card, `rounded-card` (36px). Imported by the loaded, loading **and** gated branches |
-| `CARD_PAD` | 24px on a peer card (the hero's 28px is baked into `TOWER_HERO`) |
-| `STRIP_GRID` | The live strip: one column, becoming `[15rem minmax(0,1fr)]` at `@3xl/hero`. The verdict track is FIXED, and the grid is `items-start` so a two-word conclusion does not stretch to the height of the carrier list |
+| `CARD_PAD` | 24px on a peer card; the sections' 28px is baked into `TOWER_HERO` / `TOWER_SECTION` |
+| `TOWER_SECTION` | The "While nobody is watching" section. Byte-identical to `TOWER_HERO` except its radius — `rounded-card` (36px), a peer of the leg cards, not a second anchor. Declares the **same** `@container/section` name |
+| `SECTION_HEAD` | The header both sections share: `ROOT` / `TITLE` / `DESCRIPTION` / `META` / `STAMP`. The description sits on the title's **row**, not under it — a section header signposts content the reader can already see, where a leg card's `CardHeader` explains a control whose effect is not visible until used. `META` is `ml-auto`, not `justify-between` on the root, because the row wraps |
+| `STRIP_GRID` | The live strip: one column, becoming `[18.5rem minmax(0,1fr)]` at `@3xl/section`. The verdict track is FIXED, and the grid is `items-start` so a two-word conclusion does not stretch to the height of the carrier grid |
 | `STRIP_PANEL`, `STRIP_HEAD`, `STRIP_FOOTNOTE` | The carrier half of the strip, `rounded-tile` on `surface-container`, declaring `@container/panel`. The footnote is `mt-auto` so it stays pinned to the panel's floor |
-| `VERDICT_BLOCK`, `VERDICT_TONE`, `matchVerdict`, `TowerMatchVerdict` | The verdict half. `ROOT` / `HEAD` / `DISC` / `TITLE` / `BODY` / `STAMP`, left-aligned and with **no** `mt-auto` on the stamp; the tone map keys five verdicts, three of which share a neutral fill and are separated **by glyph alone** |
+| `VERDICT_BLOCK`, `VERDICT_TONE`, `matchVerdict`, `TowerMatchVerdict` | The verdict half. `ROOT` / `HEAD` / `DISC` / `TITLE` / `BODY` — **no `STAMP`**, which moved to `SECTION_HEAD.META`. Left-aligned; the tone map keys five verdicts, three of which share a neutral fill and are separated **by glyph alone** |
 | `READBACK` | The leg cards' "Modem reports" line: `ROOT` / `LABEL` / `LIST` / `ROW` / `VALUE`. `ROW` is `min-h-8`, not the 44px metric floor — it carries no control |
-| `CAMPED_LEAD`, `CAMPED_SCC`, `CAMPED_ABSENT` | The camped-on list: the lead block (`ROOT` / `HEAD` / `LABEL` / `VALUE` / `BAND` / `DETAIL` / `ACTION`) on plain `bg-surface`, the secondaries as 44px pill rows, and the one-line note standing in for an empty secondary list. **No identity fills and no meter** — see the strip section |
-| `AUTO_GRID`, `AUTO_TILE`, `AUTO_METER` | The hero's three automation tiles. `AUTO_GRID` queries **`@container/hero`**; columns are stepped because the schedule tile needs the room; `AUTO_METER.ROOT` carries no `overflow-hidden` so the threshold marker can overhang the track |
-| `HERO_EYEBROW`, `HERO_DESCRIPTION` | The strip panel's eyebrow and the hero's own description line |
-| `HERO_REFRESH_BUTTON`, `HERO_HELP_BUTTON` | The two 22px-glyph/44px-target buttons. Both **inherit their ink** (`text-current`), because the refresh sits inside the verdict's role fill. `HERO_HELP_BUTTON` is an **alias by value, restated in intent** — the two are the same size by coincidence of the 44px floor, not by shared meaning |
-| `FIELD_GRID`, `FIELD_LABEL`, `FIELD_CONTROL`, `SELECT_CONTROL`, `FIELD_SLOT`, `FIELD_SLOT_HEAD` | The leg cards' form shapes. See the specificity note below |
+| `CARRIER_GRID`, `CARRIER_TILE`, `CARRIER_NOTE_TILE`, `carrierNoteSpan`, `CAMPED_ABSENT` | The camped-on grid. `CARRIER_GRID` queries **`@container/panel`** (1 → 2 at `@md` → 3 at `@2xl`) at `gap-3`; `CARRIER_TILE` is `ROOT` / `HEAD` / `BAND` / `BODY` / `PCI_LABEL` / `PCI_VALUE` / `RSRP` / `ACTION` / `MATCH` on plain `bg-surface`; the note tile fills the ragged remainder via `carrierNoteSpan()`. **No identity fills and no meter** — see the strip section |
+| `AUTO_GRID`, `AUTO_TILE`, `AUTO_METER` | The standing-orders section's three tiles. `AUTO_GRID` queries **`@container/section`**; columns are stepped because the schedule tile needs the room; `AUTO_METER.ROOT` carries no `overflow-hidden` so the threshold marker can overhang the track |
+| `HERO_EYEBROW` | The strip panel's eyebrow. Kept rather than deleted as a reflex: DESIGN.md's tile anatomy is literally `eyebrow → value → caption`, and the band-locking and custom-profiles heroes ship the identical step |
+| `HERO_REFRESH_BUTTON`, `HERO_HELP_BUTTON` | The two 22px-glyph/44px-target buttons. Both **inherit their ink** (`text-current`) — see [Freshness heads the section](#freshness-heads-the-section). `HERO_HELP_BUTTON` is an **alias by value, restated in intent** — the two are the same size by coincidence of the 44px floor, not by shared meaning |
+| `FIELD_GRID`, `FIELD_LABEL`, `FIELD_CONTROL` | The leg cards' shared form shapes. `FIELD_GRID` is the NR card's 2×2 of value tiles. See the specificity note below |
+| `SLOT_ROW` | One LTE cell slot, as a row: `ROOT` / `EMPTY` / `INDEX` / `FIELDS` / `META`. `EMPTY` is dashed and unfilled; the inputs inside stay live in both variants |
 | `DAY_CHIP`, `dayChipFill` | The weekday toggle. Both hovers are `enabled:`-scoped |
 | `NOTICE`, `NOTICE_TONE` | The card- and page-scoped notice, three roles / three glyphs / no shared marks. `warning` is the partial-success channel |
 | `PILL_ACTION`, `PILL_ACTION_PLAIN`, `PILL_QUIET` | Action sizing. `PILL_ACTION_PLAIN` is the Lock `SaveButton`, `PILL_ACTION` the glyph-bearing Remove Lock; `PILL_QUIET` is deliberately smaller for Clear fields and carries **no fill or ink** — pair with `variant="tonal-neutral"`, never `ghost` |
 | `FAILOVER_BADGE`, `LEG_BADGE`, `PERSIST_BADGE`, `BADGE_GLYPH_SIZE` | Tone + glyph maps, keyed onto the exported `BadgeVariant` type so an unmapped state fails the build |
 | `failoverKey`, `persistPosture` | The two derivations the automation tiles read |
-| `SKELETON_SHAPE` | Loaded geometry restated once so skeletons mirror by import, not by estimate |
+| `SKELETON_SHAPE` | Loaded geometry restated once so skeletons mirror by import, not by estimate — see [Skeleton figures are measured, not estimated](#skeleton-figures-are-measured-not-estimated) |
 | `TOWER_LEGS`, `TowerLeg`, `legTitleKey`, `legDescriptionKey`, `legShortKey` | Leg identity and its i18n key stems |
 
 ### Constants that no longer exist
 
-Retired with the match line and the identity-filled carrier tile. They are listed so a search that turns up an old reference — in a stale worktree, a comment, or this doc's history — resolves to "gone on purpose" rather than "missing":
+Retired across the match-line deletion, the identity-fill removal, the section split and the tile-grid rebuild. They are listed so a search that turns up an old reference — in a stale worktree, a comment, or this doc's history — resolves to "gone on purpose" rather than "missing":
 
 | Gone | Was |
 | ---- | --- |
 | `MATCH_GRID`, `MATCH_PANEL`, `MATCH_PANEL_HEAD`, `MATCH_FOOTNOTE` | The three-column match line and its two side panels → `STRIP_GRID` / `STRIP_PANEL` / `STRIP_HEAD` / `STRIP_FOOTNOTE` |
 | `VERDICT_TILE` | The centred verdict tile → `VERDICT_BLOCK`, left-aligned and self-sizing |
-| `CAMPED_PCC` | The identity-filled 172px lead tile → `CAMPED_LEAD` on `bg-surface`, two lines, no meter |
+| `VERDICT_BLOCK.STAMP` | The freshness line and its re-read control inside the verdict → `SECTION_HEAD.META` on the "Right now" header. The argument that put it on the verdict is what moved it: both operands now sit in the section the stamp heads |
+| `CAMPED_PCC` | The identity-filled 172px lead tile → superseded twice, ending at `CARRIER_TILE` |
+| `CAMPED_LEAD`, `CAMPED_SCC` | The lead-block-plus-secondary-rows arrangement → `CARRIER_GRID` + a uniform `CARRIER_TILE`. **No carrier leads any more**; primacy is the `LTE PCC` / `NR PCC` identity chip alone |
 | `TARGET_ROW`, `TARGET_ROW_LABEL`, `TARGET_ROW_TARGET`, `TARGET_CELL` | The locked-target panel's clickable leg rows and cell lists → deleted; the modem's pairs are now `READBACK` inside each leg card |
-| `HERO_STALENESS` | The freshness line → folded into `VERDICT_BLOCK.STAMP`, which was the only place it was used |
-| `HERO_RAIL_SUBTITLE` | The hero's dynamic lock-posture subtitle → `HERO_DESCRIPTION`, a static line about the automation group |
+| `HERO_STALENESS` | The freshness line → folded into the stamp, which then moved to `SECTION_HEAD` |
+| `HERO_RAIL_SUBTITLE` | The hero's dynamic lock-posture subtitle → a static description line |
+| `HERO_DESCRIPTION` | The merged hero's own description → `SECTION_HEAD.DESCRIPTION`, which "While nobody is watching" uses and "Right now" deliberately does not |
+| `SELECT_CONTROL` | A shared `SelectTrigger` shape that **had zero consumers**. Both leg cards already declared their own local constant and never imported this one, because the two selects are not the same size: the LTE slot row's is a 42px `SELECT_CONTROL` built on `FIELD_CONTROL`, the NR card's is a 32px `TILE_SELECT` living inside a `FIELD_TILE`. A shared constant for two different geometries is a false economy — see the specificity note below |
+| `FIELD_SLOT`, `FIELD_SLOT_HEAD` | The three stacked slot panels (a heading row over a two-up field grid) → `SLOT_ROW`, one row per slot |
 | `carrierTileTone`, `carrierPillTone`, `carrierMeterTone` | The three identity-fill tone helpers. **They exist only to put controls on a saturated identity ground**; with no identity fill left on this surface, every control here is an ordinary neutral one and none of the three has a caller |
 
-`SKELETON_SHAPE` lost `.TARGET_ROW` and gained `.READBACK`, `.VERDICT` (re-measured at 143px) and `.AUTO_TILE` for the same reasons.
+`SKELETON_SHAPE` lost `.TARGET_ROW`, `.PCC_BLOCK` and `.SCC_ROW`, and gained `.READBACK`, `.VERDICT`, `.CARRIER_TILE`, `.SECTION_TITLE`, `.SECTION_DESC`, `.SECTION_META` and `.AUTO_TILE`. `.PCC_BLOCK` and `.SCC_ROW` were two mirrors for two carrier shapes; there is one shape now, so there is one mirror.
 
-### The two field-specificity traps
+> ⚠️ WARNING: there is deliberately **no `SKELETON_SHAPE.SLOT_ROW`, and adding one is a regression.** `SLOT_ROW.ROOT` sets only a `min-h-14` floor, and a loaded row hosts a 42px `FIELD_CONTROL` inside its vertical padding, so it settles *taller* than that floor. A flat number here would be a second measurement of the same row, kept in step by hand. `lte-tower-card.tsx` instead builds its placeholder out of `SLOT_ROW.ROOT` plus the same `FIELD_CONTROL` mirror the loaded row uses — including the two `flex-[…]` shorthands — so the two agree by construction. **Composing beats mirroring wherever the real shape is available to compose.** The NR card makes the same call for its value tiles, composing `FIELD_TILE` and restating only the 32px control's line box as a local `SKELETON_TILE_VALUE`.
 
-Both are in `FIELD_CONTROL` / `SELECT_CONTROL`, and both produce a result that *looks approximately right* — which is exactly why they would survive review.
+### Skeleton figures are measured, not estimated
+
+Two of the strip's mirrors are in-browser measurements rather than reasoned guesses, and both round the same direction on purpose.
+
+| Constant | Value | Measured |
+| -------- | ----- | -------- |
+| `SKELETON_SHAPE.VERDICT` | `h-[7.0625rem]` (**113px**) | 92px for one-line verdict bodies (`on_target`), 111px for two-line (`unlocked`), at the 18.5rem track width |
+| `SKELETON_SHAPE.CARRIER_TILE` | `h-[5.4375rem]` (**87px**) | 87px, and every carrier tile is the same height |
+
+**`VERDICT` sits 2px above the tallest measurement, not at an average of the two**, and that is the rule to keep: **a skeleton that shrinks on load pulls the panel beside it upward into space the reader had already started on, whereas one that grows only pushes down into space nobody has read yet.** The same reasoning sizes `SKELETON_SHAPE.READBACK` for the caption plus *one* pair even though the LTE card can render three, and sets the strip's tile count to `onAir.length + 1` with a floor of 1 — the carrier list comes from a different hook than `isLoading`, so the real count is usually already known while the skeleton renders.
+
+A carrier tile can render *taller* than 87px when it shares a grid row with the note tile, because grid rows stretch to their tallest cell. That is the row stretching the tile, not the tile growing, so it is not what the mirror stands in for.
+
+**`SKELETON_SHAPE.SECTION_META` is deliberately wider than its content.** The real slot is a 28px stamp pill (76px at en-GB's `07:31 PM`) plus the 22px refresh button and its 10px gap — about 108px — and the mirror is `w-32` (128px). The stamp's width is set by **the locale's time format**, which the mirror cannot see. Erring wide is free here: the slot is `ml-auto`, so a placeholder a few pixels over only eats empty header space, while one that is too narrow lets the header's right edge jump on handoff.
+
+### The field-specificity traps
+
+Both produce a result that *looks approximately right*, which is exactly why they would survive review. The shared `FIELD_CONTROL` carries the first; the second lives at the two call sites that actually render a select, since the shared constant for it had no consumers and is gone.
 
 - **`dark:bg-surface-container` is not redundant.** `components/ui/input.tsx` ships `dark:bg-input/30`, and `@custom-variant dark (&:is(.dark *))` compiles that to a `(0,2,0)` selector against a bare `bg-surface-container`'s `(0,1,0)`. `tailwind-merge` cannot fold them either — they sit in different modifier scopes, and it only collapses conflicts within one scope. Without the explicit restatement, every field on this surface silently renders `input/30` in dark mode.
-- **A `SelectTrigger`'s height must be restated at matching specificity.** `components/ui/select.tsx` sets `data-[size=default]:h-9` — again `(0,2,0)` via the attribute selector — so a bare `h-[2.625rem]` loses and every select renders 36px beside 42px inputs: visibly combed, and under the project's control-height floor. Hence `data-[size=default]:h-[2.625rem]` in `SELECT_CONTROL`, plus a `dark:hover:` neutralisation for the same reason.
+- **A `SelectTrigger`'s height must be restated at matching specificity.** `components/ui/select.tsx` sets `data-[size=default]:h-9` — again `(0,2,0)` via the attribute selector — so a bare height utility loses and the select renders 36px beside its sibling inputs: visibly combed, and under the project's control-height floor. The LTE card writes `data-[size=default]:h-[2.625rem]` in its local `SELECT_CONTROL`; the NR card writes `data-[size=default]:h-8` in `TILE_SELECT`, plus a `dark:hover:bg-transparent` neutralisation of `select.tsx`'s `dark:hover:bg-input/50`.
 
-Both leg cards hit these independently and patched them locally before the shared constants existed.
+Both leg cards hit these independently, and both keep their own answer because their two selects are different sizes.
 
 ### A tile on a `bg-surface` host is NOT a hero row
 
-`CONTROL_ROW` (LTE card), `CARD_ROW` (NR card) and `AUTO_TILE` (the hero's automation tiles) are all the same anatomy as the long-retired `HERO_ROW`, and all paint `bg-surface-container` where it painted `bg-surface`. `HERO_ROW`'s fill was correct on an old hero's `surface-container` *panels*; it is **invisible** on a card or a section that *is* `bg-surface` — which both `TOWER_CARD` and `TOWER_HERO` are. Same shape, one step up the tonal ladder. This is the single easiest way to render a row that is there and cannot be seen.
+`CONTROL_ROW` (LTE card), `CARD_ROW` (NR card) and `AUTO_TILE` (the automation tiles) are all the same anatomy as the long-retired `HERO_ROW`, and all paint `bg-surface-container` where it painted `bg-surface`. `HERO_ROW`'s fill was correct on an old hero's `surface-container` *panels*; it is **invisible** on a card or a section that *is* `bg-surface` — which `TOWER_CARD`, `TOWER_HERO` and `TOWER_SECTION` all are. Same shape, one step up the tonal ladder. This is the single easiest way to render a row that is there and cannot be seen.
 
 ## Props contracts
 
@@ -732,19 +890,19 @@ Both leg cards hit these independently and patched them locally before the share
 
 The strip is **read-only end to end**: it takes no setting, no writer, and no save-state. Its only outbound edge is the prefill bus. That is the point of the split — this reports, the cards and the tiles change.
 
+**Five props, down from seven.** `lastSyncedAt`, `isRefreshing` and `onRefresh` moved to the coordinator when the freshness stamp moved into `SECTION_HEAD.META`; the strip no longer knows the surface has a clock at all.
+
 | Prop | Type | Notes |
 | ---- | ---- | ----- |
 | `modemState` | `TowerModemState \| null` | The AT read-back. `null` = never read → the verdict is `unknown` |
-| `carrierComponents` | `CarrierComponent[]` | The ACTUAL view. Rendered **raw** — sorted, not deduplicated; `[0]` is the lead |
-| `canTarget` | `Record<TowerLeg, { ok, reasonKey }>` | Per-leg picker gate + the reason to show when blocked |
-| `isLoading` / `isRefreshing` | `boolean` | First paint / quiet re-read |
-| `lastSyncedAt` | `number \| null` | Drives "as of HH:MM" on the verdict block |
-| `onPickCarrier` | `(c: CarrierComponent) => void` | Into the prefill bus |
-| `onRefresh` | `() => void` | |
+| `carrierComponents` | `CarrierComponent[]` | The ACTUAL view. Rendered **raw** — sorted by `sortCarriers()`, not deduplicated; one tile per raw component |
+| `canTarget` | `Record<TowerLeg, { ok: boolean; reasonKey: string \| null }>` | Per-leg picker gate + the reason to show when blocked |
+| `isLoading` | `boolean` | First paint. Gates the verdict skeleton and the tile skeletons |
+| `onPickCarrier` | `(carrier: CarrierComponent) => void` | Into the prefill bus |
 
 ### `TowerAutomationTilesProps`
 
-Renders **no card shell and no header** — those belong to the hero `<section>` the coordinator owns. Everything else is as it was when this was a card.
+Renders **no card shell and no header** — those belong to the `TOWER_SECTION` the coordinator owns. Everything else is as it was when this was a card.
 
 | Prop | Type | Notes |
 | ---- | ---- | ----- |
@@ -774,20 +932,29 @@ Renders **no card shell and no header** — those belong to the hero `<section>`
 
 | Prop | Type | Notes |
 | ---- | ---- | ----- |
+| `config` / `modemState` | `TowerLockConfig \| null` / `TowerModemState \| null` | Config seeds the four fields (keyed on a **value string**, never object identity); modem drives the badge, the read-back line and the dirty gate |
 | `carriers` | `CarrierComponent[]` | Pre-filtered to `technology === "NR"` by the caller, so two components cannot disagree about what "an NR carrier" is |
 | `networkType` | `NetworkType` | Drives the gate **and** the loading branch — `""` is "not reported yet", never "capable" |
 | `servingNr` | `{ arfcn, pci, scs }` | For SCS provenance |
 | `prefill` | `{ cell: NrSaLockCell; nonce: number } \| null` | Nonce-keyed; the cell's own `scs` is deliberately re-derived |
 | `onLock` / `onUnlock` | `(cell) => Promise<boolean>` / `() => Promise<boolean>` | |
+| `isLoading` / `isLocking` | `boolean` | `isLocking` feeds `formDisabled`; **Remove Lock reads it directly** and never reads `formDisabled` |
 
 ## Card states
 
-Both leg cards render `TOWER_CARD` + `CARD_PAD` in **every** branch, so the shell cannot drift. The hero `<section>` renders `TOWER_HERO` unconditionally in the coordinator, and its two halves skeleton independently: the strip mirrors `SKELETON_SHAPE.VERDICT` + `.PCC_BLOCK` + `.SCC_ROW`, the tiles mirror three `SKELETON_SHAPE.AUTO_TILE`s in the same `AUTO_GRID`. Each leg card additionally mirrors `SKELETON_SHAPE.READBACK` above its settings row.
+Both leg cards render `TOWER_CARD` + `CARD_PAD` in **every** branch, so the shell cannot drift. Both `<section>`s render their shell unconditionally in the coordinator, and each body skeletons independently:
 
-> ℹ️ NOTE: `SKELETON_SHAPE.READBACK` is sized for **the caption plus one pair**, even though the LTE card can render three. The skeleton cannot know how many will land, and a placeholder sized for three collapses on the common single-cell case — a skeleton that *shrinks* is worse than one that grows, because the content below it jumps upward into space the reader had already started on. `.VERDICT` makes the same call: two body lines, where `unverified` runs to three.
+| Surface | Loading render |
+| ------- | -------------- |
+| "Right now" header | `SKELETON_SHAPE.SECTION_META` replaces the stamp + refresh button |
+| Live strip | `SKELETON_SHAPE.VERDICT`, then `onAir.length + 1` (floor 1) × `SKELETON_SHAPE.CARRIER_TILE` inside the real `CARRIER_GRID` |
+| Automation tiles | three `SKELETON_SHAPE.AUTO_TILE`s inside the real `AUTO_GRID` |
+| Leg cards | `.CARD_TITLE` / `.CARD_DESC` / `.CARD_CHIP`, then `.READBACK`, `.SETTINGS_ROW`, the per-card field mirrors, and `.ACTION` / `.ACTION_SECONDARY` / `.ACTION_QUIET` in the footer's real grouping |
 
-- **Loading** — every measurement from `SKELETON_SHAPE`, so the placeholder mirrors the loaded geometry by import. The incumbent guessed `h-9 w-full rounded-md` for inputs that render at 42px with a 20px radius, and `h-5 w-20` for a Switch-plus-Label pair. Sizes are the loaded element's **line box**, not its font size: a skeleton sized to the glyph reflows the moment real text lands.
-- **Gated** (NR only) — the card shell and header survive; the **body** becomes the condition block.
+> ℹ️ NOTE: `SKELETON_SHAPE.READBACK` is sized for **the caption plus one pair**, even though the LTE card can render three. The skeleton cannot know how many will land, and a placeholder sized for three collapses on the common single-cell case — a skeleton that *shrinks* is worse than one that grows, because the content below it jumps upward into space the reader had already started on. `.VERDICT` makes the same call against a real measurement — see [Skeleton figures are measured, not estimated](#skeleton-figures-are-measured-not-estimated).
+
+- **Loading** — every measurement from `SKELETON_SHAPE`, except where the real shape can be *composed* instead (the LTE slot rows, the NR value tiles). The incumbent guessed `h-9 w-full rounded-md` for inputs that render at 42px with a 20px radius, and `h-5 w-20` for a Switch-plus-Label pair. Sizes are the loaded element's **line box**, not its font size: a skeleton sized to the glyph reflows the moment real text lands.
+- **Gated** (NR only) — the card shell, header, read-back, fields and footer all survive at full contrast; a tonal `NOTICE` leads the body and `formDisabled` reaches every control except Remove Lock.
 - **Empty** (LTE) — inline, above the slots, never instead of them.
 - **Loaded** — header chip, controls, conditional notices, `sr-only` `aria-live` applying announcement, footer pinned with `mt-auto` (these cards sit in an equal-height grid row, so without it a short card leaves its buttons floating above a void).
 
@@ -795,6 +962,22 @@ Page level adds two more, both of which the surface previously lacked entirely:
 
 - **Error** — `tower.error && !tower.isLoading` renders a destructive notice plus a Retry button. Before this, `tower.error` was returned by the hook and passed to nobody, so a `status.sh` that failed all three retries rendered empty defaults as though they were real readings. (`fetchStatus` auto-retries three times with 2s/4s/8s backoff before the notice appears.)
 - **Warning** — the dismissible partial-success notice described above.
+
+## Proposed in the mockup, deliberately not built
+
+The current shape comes from a mockup, and several of its proposals were rejected on inspection. **This is the highest-value section in this doc**, because every item below looks like an obvious improvement and will be re-proposed by anyone reading the mock beside the shipped page.
+
+| Mockup proposal | Why it is not built |
+| --------------- | ------------------- |
+| **"held 2 h 14 min"** under the verdict | **No timestamp exists anywhere in the tower pipeline.** Nothing in `status.sh`, `tower_lock_mgr.sh` or `/etc/qmanager/tower_lock.json` records when a lock was applied, so this is not a missing field — it is a new mechanism. Worse, stamping one collides with the RM520N's **no-RTC 1970 boot window**: wall-clock arithmetic across a boot is meaningless until `ql_time_daemon` steps the clock ~24s in. An honest implementation would need `/proc/uptime` plus explicit invalidation on reboot (see [scheduled-timers.md](scheduled-timers.md)), which is a backend design, not a label |
+| **Per-tile SCS** in the carrier grid | Not on `CarrierComponent`. The only available source is the band table, so the tile would print a **guess in the typeface of a measurement** — the same hazard the NR card spends a whole provenance mechanism avoiding |
+| **"B3, 1800 MHz"** under a configured slot | `LteLockCell` is `{ earfcn, pci }` and nothing more. Reaching a centre frequency means two chained derivations (EARFCN → band → centre frequency), the second returning `null` for any unmapped band, in order to print a **marketing** figure in machine voice beside a hard EARFCN the user can verify |
+| **"Apply when SA becomes available"** on the gated NR card | A new config key plus an NSA→SA transition detector. `config.sh` has **no key-migration primitive** — `qm_config_init` only seeds an empty file — so a new key silently breaks every OTA-upgraded device until a migration step is written for it |
+| **"Standby" chip** on a filled-but-not-serving slot | **Chip absence is this codebase's negative case.** The `Serving` chip's whole signal is that it appears; a chip in both states halves it. Same rule the read-back line already follows |
+| **Read-only leg cards with no footer** | The mock drew only the settled state. Every control survives — and Remove Lock especially, since it is the only in-UI recovery from a lock pinned to an unreachable cell, on a device that serves this very page |
+| **Green "Locked" / neutral "Unlocked"** | Kept as shipped (`locked` = `warning`, `unlocked` = `success`) **by explicit user decision**, matching Band Locking next door. Pinning the radio is the *constrained* state, not the healthy one, and a user crossing the three `/cellular/cell-locking/` routes in one task must not have to relearn the colour language |
+| **`opacity: .85`** on the whole gated NR card | Banned outright, and specifically the treatment this card already retired: the incumbent's `opacity-60` dimmed its own explanation below readable contrast. See [the gate](#the-gate-is-a-state-of-the-card-not-a-dimmer-and-not-a-deletion) |
+| **Folding the modem read-back into the form rows** | The two are **on different clocks** — the form is the config's live view, the read-back is `AT+QNWLOCK` fetched once on mount and never polled — and a reader who cannot tell them apart cannot interpret a disagreement between them. That is exactly why `READBACK` keeps its own captioned block. See [The two clocks](#the-two-clocks) |
 
 ## Known gaps
 
@@ -805,14 +988,16 @@ Page level adds two more, both of which the surface previously lacked entirely:
 - **The carrier identity-tone helpers still exist in two places, and this surface is no longer one of them.** `components/dashboard/carrier-aggregation.tsx` (as `tileTone()` / `meterFillTone()`) and `components/cellular/band-locking/shapes.ts` still carry their own copies; tower locking dropped its three when the lead block lost its identity fill. Extraction into a shared module (e.g. `lib/carrier-tone.ts`) is now a two-copy trade rather than a three-copy one. The rule that must never drift, wherever it lives, is *identity, never quality* plus the `isLead` signature — a lead tile paints `bg-lte`, so a fill that also paints `bg-lte` is invisible at 1.00:1.
 - **`types/tower-locking.ts` is shared.** `components/cellular/frequency-locking/nr-freq-locking.tsx` imports `SCS_OPTIONS` from it. "Tidying" these types while working on Tower Locking breaks another route, and TypeScript will not tell you until the build.
 - **Two exports in `types/tower-locking.ts` are now unreferenced**: `qualityLevel()` and `DAY_LABELS` (the schedule tile resolves day names through `tower_locking.schedule.day_{index}` instead, and `DAY_LABELS` here is a duplicate of the identical constant in `types/system-settings.ts`, which *is* used). Harmless dead constants, documented rather than deleted so the duplication is visible if someone reaches for one.
-- **There is no longer any way to jump from the strip to a leg card.** The retired locked-target panel's rows were clickable and `scrollToLeg()` smooth-scrolled the matching card into view; the two DOM `id`s and the `scroll-mt-20` that served it were removed with it, since they had become ids referenced only by themselves plus an offset correcting for a scroll that no longer happens. Nothing is broken — the cards are one short scroll below the hero — but if a "jump to this leg" affordance is ever wanted again, both the anchors and the header offset have to come back together, and the offset is the half that gets forgotten.
+- **There is no longer any way to jump from the strip to a leg card.** The retired locked-target panel's rows were clickable and `scrollToLeg()` smooth-scrolled the matching card into view; the two DOM `id`s and the `scroll-mt-20` that served it were removed with it, since they had become ids referenced only by themselves plus an offset correcting for a scroll that no longer happens. Nothing is broken — the cards are one short scroll below the two sections — but if a "jump to this leg" affordance is ever wanted again, both the anchors and the header offset have to come back together, and the offset is the half that gets forgotten.
 - **The threshold row has no direct evidence the daemon adopted the new value.** `qmanager_tower_failover` re-reads `.failover.threshold` only every sixth cycle (~120s), so a save can be up to two minutes ahead of the running watcher. The UI does not say so, and the `AUTO_METER` marker moves the instant the save lands — so for up to two minutes it draws a line the daemon is not yet enforcing.
-- **The verdict inherits the lock read-back's staleness and can only say so, not fix it.** `VERDICT_BLOCK.STAMP` marks it honestly, but a lock cleared out of band (schedule timer, failover watcher, a second tab) will keep reading `on_target` against a target the modem no longer holds until someone presses refresh. The leg cards' "Modem reports" line inherits exactly the same staleness, from the same fetch. Closing this needs a *poller-side* field, never a second client on the AT mutex — see [The two clocks](#the-two-clocks).
+- **The verdict inherits the lock read-back's staleness and can only say so, not fix it.** The stamp in `SECTION_HEAD.META` marks it honestly, but a lock cleared out of band (schedule timer, failover watcher, a second tab) will keep reading `on_target` against a target the modem no longer holds until someone presses refresh. The leg cards' "Modem reports" line and the tiles' `CARRIER_TILE.MATCH` rings inherit exactly the same staleness, from the same fetch. Closing this needs a *poller-side* field, never a second client on the AT mutex — see [The two clocks](#the-two-clocks).
 - **`hasChanges` blocks re-applying an identical lock on either leg.** Correct for avoiding a pointless modem write and a 3–5s link bounce, but it also means the failover watcher cannot be re-armed from a leg card without changing a field. (`lock.sh` spawns the watcher on a lock write, so a re-lock is currently the only UI path to a respawn.)
+- **The NR card carries roughly 196px of slack above its footer in its sparsest state.** With SA available, nothing locked and the fields staged from config, the NR card renders a header, a Simple Mode row and four value tiles against an LTE card holding a header, a Simple Mode row and three slot rows — and the 2-up grid forces equal height. The **footers align**, which is what equal height is for and is the property worth keeping; the slack is what it costs. It closes on its own in the two states where the card has more to say: a gate adds a `NOTICE`, and a live lock adds the `READBACK` block. Filling it in the sparse case would mean inventing content for a card that genuinely has none, which is worse than empty space.
+- **The disabled pick button's tooltip is not reliably hoverable in Chrome.** `CARRIER_TILE.ACTION` uses the HTML `disabled` attribute, and a disabled element does not dispatch pointer events — so the tooltip carrying the *reason* a carrier cannot be targeted (`tile_blocked_nsa`, `tile_blocked_lte_only`, `tile_blocked_slots_full`) may never open. The glyph swap to `do_not_disturb_on` still says *that* it is blocked, so nothing is silently broken, but the *why* can be unreachable by mouse. **Pre-existing and unchanged by this pass** — the retired secondary rows had the identical construction. The fix is `aria-disabled="true"` plus a no-op `onClick` guard instead of `disabled`, which keeps the element focusable and hoverable while still announcing as unavailable.
 
 ## Related
 
-- [band-locking.md](band-locking.md) — the sibling surface, and the footer construction this one converged on (one primary write, one outline write, one quiet form reset; its only `Switch` is failover). Band locking keeps the 3-up carrier tile grid this surface replaced with a lead-plus-list, and its failover watcher is **bounded**
+- [band-locking.md](band-locking.md) — the sibling surface: the footer construction this one converged on (one primary write, one outline write, one quiet form reset; its only `Switch` is failover), the `BAND_CHIP_LIVE_RING` inset-shadow pattern `CARRIER_TILE.MATCH` borrows, the shared `radio_info.bands.scanner.link` key, and a failover watcher that is **bounded** where this one is not
 - [scheduled-timers.md](scheduled-timers.md) — the runtime `OnCalendar` timer model, `qmanager_tower_schedule_arm`, and the 1970 boot-window fire guard every new timer must pass
 - [carrier-aggregation.md](carrier-aggregation.md) — `carrier_components[]`, the source of the camped-on carriers, and the identity-tone convention this surface's lead block no longer needs
 - [radio-information.md](radio-information.md) — the poller cadence behind the ~4s clock, and the compiler-backed `react-hooks` bail-on-first-violation behaviour
