@@ -16,9 +16,26 @@ import type {
 // modem, applying/clearing LTE and NR5G frequency locks.
 //
 // Simpler than useTowerLocking — no config file, no failover, no schedule.
-// State lives entirely in the modem (LTE auto-saves, NR5G via save_ctrl).
+// State lives entirely in the modem and is read back on demand.
 //
-// Also returns tower lock state for mutual exclusion gating.
+// PERSISTENCE IS UNKNOWN, AND THIS COMMENT USED TO CLAIM OTHERWISE. It read
+// "LTE auto-saves, NR5G via save_ctrl". That is wrong on both halves: a live
+// enumeration of all 90 `AT+QNWCFG` keys contains no save, persist or store
+// key of any kind, and `save_ctrl` belongs to `AT+QNWLOCK` — the TOWER lock —
+// where `tower_lock_mgr.sh` is its only caller. `frequency/lock.sh` issues
+// exactly one AT write per action and nothing else. Whether an earfcn lock
+// survives a reboot has never been tested, so no UI copy on this surface may
+// claim that it does.
+//
+// THE GATE IS ONE-DIRECTIONAL. `frequency/lock.sh` refuses to run while a
+// tower lock is active, so `towerLock*Active` gates this page's writes. There
+// is NO reciprocal guard in `tower/lock.sh`, which means a tower lock applied
+// from the other page silently replaces a live frequency lock. This hook
+// cannot observe that happening; it only sees the aftermath on the next
+// `refresh()`, which is why `lastSyncedAt` is exported — a surface reporting a
+// lock has to be able to say how old that reading is.
+//
+// Also returns tower lock state for the gate above.
 //
 // Backend endpoints:
 //   GET  /cgi-bin/quecmanager/frequency/status.sh  → full state + tower gate
@@ -32,6 +49,24 @@ export interface UseFrequencyLockingReturn {
   modemState: FreqLockModemState | null;
   /** True during initial data fetch */
   isLoading: boolean;
+  /**
+   * True during a refresh that is NOT the first load, so the surface can show a
+   * spinner on the refresh control without tearing the loaded layout down to
+   * skeletons.
+   */
+  isRefreshing: boolean;
+  /**
+   * When `status.sh` last answered, as an epoch ms stamp, or null if it never
+   * has.
+   *
+   * Load-bearing rather than decorative. This surface does NOT poll — the read
+   * costs three AT round-trips through a mutex shared with the poller, so it
+   * runs once on mount and once after each write. That makes every reading
+   * potentially stale, and a tower lock applied elsewhere can invalidate it
+   * silently (see the header). A page that prints "Locked" from a reading of
+   * unknown age is asserting something nobody checked recently.
+   */
+  lastSyncedAt: number | null;
   /** True while an LTE freq lock/unlock is in progress */
   isLteLocking: boolean;
   /** True while an NR freq lock/unlock is in progress */
@@ -60,6 +95,8 @@ export interface UseFrequencyLockingReturn {
 export function useFrequencyLocking(): UseFrequencyLockingReturn {
   const [modemState, setModemState] = useState<FreqLockModemState | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [lastSyncedAt, setLastSyncedAt] = useState<number | null>(null);
   const [isLteLocking, setIsLteLocking] = useState(false);
   const [isNrLocking, setIsNrLocking] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -103,6 +140,10 @@ export function useFrequencyLocking(): UseFrequencyLockingReturn {
         setModemState(data.modem_state);
       }
       setError(null);
+      // Stamped only on a SUCCESSFUL read. A failed fetch must leave the old
+      // stamp alone, so the age shown on screen keeps counting up from the last
+      // reading that actually happened rather than resetting on every retry.
+      setLastSyncedAt(Date.now());
       retryCountRef.current = 0;
     } catch (err) {
       if (!mountedRef.current) return;
@@ -125,6 +166,7 @@ export function useFrequencyLocking(): UseFrequencyLockingReturn {
     } finally {
       if (mountedRef.current) {
         setIsLoading(false);
+        setIsRefreshing(false);
       }
     }
   }, []);
@@ -246,13 +288,19 @@ export function useFrequencyLocking(): UseFrequencyLockingReturn {
   // Manual refresh
   // ---------------------------------------------------------------------------
   const refresh = useCallback(() => {
-    setIsLoading(true);
+    // `setIsRefreshing`, NOT `setIsLoading`. The old code raised the initial-load
+    // flag here, which collapsed a fully-rendered page back to skeletons on every
+    // manual refresh — the one moment the user is looking at a value and wants to
+    // watch it change. A refresh keeps the loaded layout and spins the control.
+    setIsRefreshing(true);
     fetchStatus();
   }, [fetchStatus]);
 
   return {
     modemState,
     isLoading,
+    isRefreshing,
+    lastSyncedAt,
     isLteLocking,
     isNrLocking,
     error,

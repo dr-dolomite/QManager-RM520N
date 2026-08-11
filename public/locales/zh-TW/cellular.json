@@ -797,6 +797,176 @@
       "label_updated": "更新時間"
     }
   },
+  "frequency_locking": {
+    "page": {
+      "title": "頻點鎖定",
+      "description": "將無線電限制在特定頻點上。僅限頻點，不含 PCI，因此小區仍由數據機選擇。",
+      "experimental": "實驗性功能"
+    },
+    "live": {
+      "title": "目前狀態",
+      "refresh": "重新整理",
+      "camped_title": "目前駐留",
+      "camped_meta": "{{count}} 個載波 · {{bandwidth}} MHz",
+      "camped_empty_title": "未回報載波",
+      "camped_empty_body": "數據機未回報服務中的小區。仍可手動輸入頻點。",
+      "camped_note": "此資訊來自無線電模組，每隔幾秒更新一次。",
+      "add_hint": "「新增」會將該頻點加入下方清單。頻點鎖定不涉及 PCI，因此小區仍由數據機選擇。",
+      "compare_hint": "基站鎖定會同時固定頻點與小區。頻點鎖定較為寬鬆：相同頻點，任意小區。",
+      "add_blocked": "在解除基站鎖定之前無法新增。"
+    },
+    "verdict": {
+      "unlocked_title": "允許所有頻點",
+      "unlocked_body": "數據機可使用其已啟用頻段提供的任意頻點，並可自由重選。允許某個頻點即可縮小範圍。",
+      "locked_title": "已鎖定至你的頻點清單",
+      "locked_body": "數據機只能使用下方列出的頻點。小區仍由它自行選擇，因此 PCI 可能會變動。",
+      "blocked_title": "基站鎖定正在占用無線電",
+      "blocked_body": "基站鎖定生效期間，QManager 不會寫入頻點鎖定。請先解除基站鎖定，再使用此頁面。",
+      "unknown_title": "尚未回報鎖定狀態",
+      "unknown_body": "數據機未回應上次的狀態讀取。請重新整理後再試。",
+      "serving_in_list": "駐留頻點在清單內",
+      "serving_out_of_list": "駐留頻點在清單之外",
+      "tower_lock_off": "基站鎖定已關閉，因此此功能可用",
+      "no_recovery": "無自動復原",
+      "open_tower_locking": "開啟基站鎖定"
+    },
+    "legs": {
+      "lte": {
+        "title": "LTE 頻點",
+        "description": "最多 2 個 EARFCN。數據機只能使用這些頻點。"
+      },
+      "nr": {
+        "title": "5G NR 頻點",
+        "description": "最多 32 個 ARFCN，每個都帶有其子載波間隔。"
+      }
+    },
+    "short": {
+      "lte": "LTE",
+      "nr": "5G NR"
+    },
+    "card": {
+      "status_locked": "已鎖定",
+      "status_unlocked": "未鎖定",
+      "status_blocked": "已阻擋",
+      "status_unknown": "尚未回報",
+      "status_applying": "套用中",
+      "empty_title": "清單中沒有頻點",
+      "empty_body_lte": "從上方新增一個載波，或輸入 EARFCN。",
+      "empty_body_nr": "新增上方的 NR 載波，或輸入 ARFCN 並選擇其間隔。",
+      "blocked_body": "解除基站鎖定後才能編輯此清單。",
+      "scs_warning": "間隔填錯看起來仍是有效項目，但數據機永遠不會使用它。從上方新增載波時，此值會一併複製過來。",
+      "no_pci_note": "頻點鎖定絕不會固定小區。數據機會在你允許的頻點範圍內持續重選。",
+      "count": "{{used}} / {{max}}"
+    },
+    "slots": {
+      "slot": "插槽 {{index}}",
+      "earfcn_placeholder": "EARFCN",
+      "arfcn_placeholder": "NR-ARFCN",
+      "optional": "選填。第二個頻點會擴大允許範圍。",
+      "scs_label": "間隔",
+      "scs_unit": "{{value}} kHz",
+      "serving": "駐留中",
+      "aggregated": "已聚合",
+      "staged": "待套用",
+      "in_list": "在清單中",
+      "remove": "移除項目",
+      "staged_count": "已暫存 {{count}} / {{max}} 個項目。尚未寫入數據機。"
+    },
+    "actions": {
+      "use_current": "使用目前",
+      "use_current_none": "目前無在網載波",
+      "use_current_hint": "以數據機目前使用的頻點填入",
+      "add": "新增",
+      "add_channel": "新增頻點",
+      "apply": "套用鎖定",
+      "apply_lte": "套用 LTE 鎖定",
+      "apply_nr": "套用 NR 鎖定",
+      "clear_all": "全部清除",
+      "clear_lte": "清除 LTE 鎖定",
+      "clear_nr": "清除 NR 鎖定",
+      "clear_fields": "清空欄位",
+      "refresh": "重新整理"
+    },
+    "apply": {
+      "disclaimer": "套用時無線電會重新註冊，連線將短暫中斷。若所選頻點沒有涵蓋範圍，在清除鎖定前數據機將沒有服務。",
+      "no_recovery": "頻點鎖定沒有容錯移轉監控。與頻段鎖定和基站鎖定不同，若這些頻點失去涵蓋範圍，沒有任何機制會自動恢復服務。",
+      "readback_label": "數據機回報",
+      "readback_none": "數據機上沒有頻點鎖定",
+      "readback_lte": "LTE {{channels}}",
+      "readback_nr": "NR {{channels}}",
+      "readback_serving": "駐留 {{channel}}",
+      "live_title": "鎖定已在數據機上生效",
+      "blocked_title": "基站鎖定生效期間無法套用",
+      "blocked_readback": "基站鎖定生效中 · 頻點鎖定無法使用",
+      "applying_title": "正在等待數據機恢復",
+      "applying_readback": "已傳送 {{seconds}} 秒",
+      "clobbered_title": "頻點鎖定已消失",
+      "clobbered_body": "數據機不再回報此頁面套用的鎖定。設定基站鎖定會在無提示的情況下取代頻點鎖定，這很可能就是原因。"
+    },
+    "progress": {
+      "title": "正在寫入頻點",
+      "accepted": "指令已接受",
+      "reregistering": "無線電重新註冊中",
+      "verifying": "正在核實駐留頻點",
+      "wait_note": "這需要幾秒鐘。請勿重新啟動。",
+      "no_service_title": "短暫無服務",
+      "carriers_dropped": "載波已中斷",
+      "carriers_return": "數據機註冊到允許的頻點後，載波會重新出現。",
+      "stuck_warning": "若一分鐘內仍未恢復，表示所選頻點在此處沒有涵蓋範圍。清除鎖定即可恢復正常搜尋網路。",
+      "paused": "在數據機回應前，編輯已暫停。",
+      "sent": "已傳送"
+    },
+    "dialog": {
+      "lock_lte_title": "鎖定 LTE 頻點？",
+      "lock_lte_body": "數據機將只使用 {{channels}}，重新註冊期間可能會短暫中斷連線。",
+      "lock_nr_title": "鎖定 5G NR 頻點？",
+      "lock_nr_body": "數據機將只使用 {{channels}}，重新註冊期間可能會短暫中斷連線。",
+      "unlock_lte_title": "清除 LTE 鎖定？",
+      "unlock_lte_body": "數據機將可自由使用其已啟用頻段提供的任意頻點，並可能短暫中斷連線。",
+      "unlock_nr_title": "清除 5G NR 鎖定？",
+      "unlock_nr_body": "數據機將可自由使用其已啟用頻段提供的任意頻點，並可能短暫中斷連線。",
+      "unsupported_title": "這些頻點不在你的數據機支援的頻段內",
+      "unsupported_body": "鎖定至數據機不支援的頻段可能導致其意外重新啟動，而且這裡沒有任何機制會自動復原。",
+      "unsupported_matched": "相符的頻段",
+      "unsupported_supported": "支援的頻段",
+      "unsupported_unknown": "未知",
+      "unsupported_confirm": "仍要鎖定",
+      "cancel": "取消",
+      "confirm_lock": "鎖定頻點",
+      "confirm_unlock": "清除鎖定"
+    },
+    "bands": {
+      "possible": "可能的頻段：",
+      "none": "沒有與 {{label}} 相符的頻段",
+      "this_frequency": "此頻點",
+      "unsupported_suffix": "不支援"
+    },
+    "toast": {
+      "lte_locked": "已套用 LTE 頻點鎖定",
+      "lte_lock_failed": "無法套用 LTE 頻點鎖定",
+      "lte_cleared": "已清除 LTE 頻點鎖定",
+      "lte_clear_failed": "無法清除 LTE 頻點鎖定",
+      "nr_locked": "已套用 5G NR 頻點鎖定",
+      "nr_lock_failed": "無法套用 5G NR 頻點鎖定",
+      "nr_cleared": "已清除 5G NR 頻點鎖定",
+      "nr_clear_failed": "無法清除 5G NR 頻點鎖定",
+      "filled_from_current": "已從在網載波填入",
+      "no_channels_title": "未輸入頻點",
+      "no_channels_body": "請至少輸入一個頻點後再套用。"
+    },
+    "error": {
+      "load_title": "無法讀取鎖定狀態",
+      "load_body": "數據機未回應。請重新整理後再試。",
+      "tower_lock_active": "基站鎖定已生效，因此數據機不會接受頻點鎖定。",
+      "invalid_channel": "頻點編號只能是數字。",
+      "retry": "重試"
+    },
+    "a11y": {
+      "refresh": "重新整理鎖定狀態",
+      "remove_entry": "移除此頻點",
+      "add_carrier": "將此載波加入清單"
+    }
+  },
   "radio_info": {
     "common": {
       "not_available": "—"

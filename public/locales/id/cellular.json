@@ -797,6 +797,176 @@
       "label_updated": "Diperbarui"
     }
   },
+  "frequency_locking": {
+    "page": {
+      "title": "Penguncian Frekuensi",
+      "description": "Batasi radio ke kanal tertentu. Hanya kanal, tanpa PCI, jadi modem tetap memilih selnya sendiri.",
+      "experimental": "Eksperimental"
+    },
+    "live": {
+      "title": "Saat ini",
+      "refresh": "Muat Ulang",
+      "camped_title": "Terhubung saat ini",
+      "camped_meta": "{{count}} carrier · {{bandwidth}} MHz",
+      "camped_empty_title": "Tidak ada carrier dilaporkan",
+      "camped_empty_body": "Modem tidak melaporkan sel layanan. Kanal tetap bisa dimasukkan secara manual.",
+      "camped_note": "Dilaporkan oleh radio, diperbarui setiap beberapa detik.",
+      "add_hint": "Tambah menyalin kanal tersebut ke daftar di bawah. Kunci frekuensi tidak memakai PCI, jadi modem tetap memilih selnya sendiri.",
+      "compare_hint": "Kunci tower mengikat kanal sekaligus sel. Kunci frekuensi lebih longgar: kanal yang sama, sel mana pun.",
+      "add_blocked": "Penambahan dinonaktifkan sampai kunci tower dilepas."
+    },
+    "verdict": {
+      "unlocked_title": "Semua kanal diizinkan",
+      "unlocked_body": "Modem boleh memakai kanal apa pun yang tersedia dari band aktifnya, dan berpindah sel dengan bebas. Izinkan sebuah kanal untuk mempersempitnya.",
+      "locked_title": "Terkunci ke daftar kanal Anda",
+      "locked_body": "Modem hanya boleh memakai kanal di bawah ini. Selnya tetap dipilih sendiri, jadi PCI bisa berubah.",
+      "blocked_title": "Kunci tower sedang menahan radio",
+      "blocked_body": "QManager tidak akan menulis kunci frekuensi selama kunci tower aktif. Lepas kunci tower untuk memakai halaman ini.",
+      "unknown_title": "Status kunci belum dilaporkan",
+      "unknown_body": "Modem tidak menjawab pembacaan status terakhir. Muat ulang untuk mencoba lagi.",
+      "serving_in_list": "Kanal yang digunakan ada di daftar",
+      "serving_out_of_list": "Kanal yang digunakan ada di luar daftar",
+      "tower_lock_off": "Kunci tower nonaktif, jadi fitur ini tersedia",
+      "no_recovery": "Tidak ada pemulihan otomatis",
+      "open_tower_locking": "Buka Penguncian Tower"
+    },
+    "legs": {
+      "lte": {
+        "title": "Kanal LTE",
+        "description": "Maksimal 2 EARFCN. Modem hanya boleh memakai kanal ini."
+      },
+      "nr": {
+        "title": "Kanal 5G NR",
+        "description": "Maksimal 32 ARFCN, masing-masing dengan jarak subcarrier-nya."
+      }
+    },
+    "short": {
+      "lte": "LTE",
+      "nr": "5G NR"
+    },
+    "card": {
+      "status_locked": "Terkunci",
+      "status_unlocked": "Tidak terkunci",
+      "status_blocked": "Diblokir",
+      "status_unknown": "Belum dilaporkan",
+      "status_applying": "Menerapkan",
+      "empty_title": "Belum ada kanal di daftar",
+      "empty_body_lte": "Tambahkan carrier dari atas, atau ketik sebuah EARFCN.",
+      "empty_body_nr": "Tambahkan carrier NR di atas, atau masukkan ARFCN dan pilih jaraknya.",
+      "blocked_body": "Lepas kunci tower untuk mengedit daftar ini.",
+      "scs_warning": "Jarak yang salah tampak seperti entri yang valid, tetapi modem tidak akan pernah memakainya. Nilainya disalin dari carrier saat Anda menambahkannya dari atas.",
+      "no_pci_note": "Kunci frekuensi tidak pernah mengikat sel. Modem terus berpindah sel di dalam kanal yang Anda izinkan.",
+      "count": "{{used}} dari {{max}}"
+    },
+    "slots": {
+      "slot": "Slot {{index}}",
+      "earfcn_placeholder": "EARFCN",
+      "arfcn_placeholder": "NR-ARFCN",
+      "optional": "Opsional. Kanal kedua memperluas daftar yang diizinkan.",
+      "scs_label": "Jarak",
+      "scs_unit": "{{value}} kHz",
+      "serving": "Digunakan",
+      "aggregated": "Teragregasi",
+      "staged": "Disiapkan",
+      "in_list": "Di daftar",
+      "remove": "Hapus entri",
+      "staged_count": "{{count}} dari {{max}} entri disiapkan. Belum ada yang ditulis ke modem."
+    },
+    "actions": {
+      "use_current": "Pakai saat ini",
+      "use_current_none": "Tidak ada carrier aktif",
+      "use_current_hint": "Isi dari kanal yang sedang dipakai modem",
+      "add": "Tambah",
+      "add_channel": "Tambah kanal",
+      "apply": "Terapkan kunci",
+      "apply_lte": "Terapkan kunci LTE",
+      "apply_nr": "Terapkan kunci NR",
+      "clear_all": "Hapus semua",
+      "clear_lte": "Hapus kunci LTE",
+      "clear_nr": "Hapus kunci NR",
+      "clear_fields": "Kosongkan isian",
+      "refresh": "Muat Ulang"
+    },
+    "apply": {
+      "disclaimer": "Menerapkan kunci akan memutus koneksi sejenak saat radio mendaftar ulang. Kanal tanpa jangkauan membuat modem kehilangan layanan sampai kunci dihapus.",
+      "no_recovery": "Penguncian frekuensi tidak punya pemantau failover. Berbeda dengan penguncian band dan tower, tidak ada apa pun yang memulihkan layanan dengan sendirinya jika kanal ini kehilangan jangkauan.",
+      "readback_label": "Laporan modem",
+      "readback_none": "Tidak ada kunci frekuensi di modem",
+      "readback_lte": "LTE {{channels}}",
+      "readback_nr": "NR {{channels}}",
+      "readback_serving": "digunakan {{channel}}",
+      "live_title": "Kunci aktif di modem",
+      "blocked_title": "Terapkan tidak tersedia selama kunci tower aktif",
+      "blocked_readback": "Kunci tower aktif · kunci frekuensi tidak tersedia",
+      "applying_title": "Menunggu modem kembali",
+      "applying_readback": "Dikirim {{seconds}} dtk lalu",
+      "clobbered_title": "Kunci frekuensi sudah hilang",
+      "clobbered_body": "Modem tidak lagi melaporkan kunci yang diterapkan halaman ini. Menetapkan kunci tower akan menggantikan kunci frekuensi tanpa peringatan, jadi itu penyebab yang paling mungkin."
+    },
+    "progress": {
+      "title": "Menulis kanal",
+      "accepted": "Perintah diterima",
+      "reregistering": "Radio mendaftar ulang",
+      "verifying": "Memverifikasi kanal yang digunakan",
+      "wait_note": "Ini butuh beberapa detik. Jangan reboot.",
+      "no_service_title": "Tanpa layanan sejenak",
+      "carriers_dropped": "carrier terputus",
+      "carriers_return": "Carrier muncul kembali begitu modem terdaftar pada kanal yang diizinkan.",
+      "stuck_warning": "Jika tidak ada yang kembali dalam satu menit, kanal yang dipilih tidak punya jangkauan di sini. Menghapus kunci akan memulihkan pemindaian normal.",
+      "paused": "Pengeditan dijeda sampai modem menjawab.",
+      "sent": "Terkirim"
+    },
+    "dialog": {
+      "lock_lte_title": "Kunci kanal LTE?",
+      "lock_lte_body": "Modem hanya akan memakai {{channels}} dan mungkin terputus sejenak saat mendaftar ulang.",
+      "lock_nr_title": "Kunci kanal 5G NR?",
+      "lock_nr_body": "Modem hanya akan memakai {{channels}} dan mungkin terputus sejenak saat mendaftar ulang.",
+      "unlock_lte_title": "Hapus kunci LTE?",
+      "unlock_lte_body": "Modem akan bebas memakai kanal apa pun yang tersedia dari band aktifnya, dan mungkin terputus sejenak.",
+      "unlock_nr_title": "Hapus kunci 5G NR?",
+      "unlock_nr_body": "Modem akan bebas memakai kanal apa pun yang tersedia dari band aktifnya, dan mungkin terputus sejenak.",
+      "unsupported_title": "Kanal ini berada di luar band modem Anda",
+      "unsupported_body": "Mengunci ke band yang tidak didukung modem bisa membuatnya restart tak terduga, dan tidak ada apa pun di sini yang akan memulihkannya secara otomatis.",
+      "unsupported_matched": "Band yang cocok",
+      "unsupported_supported": "Band yang didukung",
+      "unsupported_unknown": "Tidak diketahui",
+      "unsupported_confirm": "Tetap kunci",
+      "cancel": "Batal",
+      "confirm_lock": "Kunci kanal",
+      "confirm_unlock": "Hapus kunci"
+    },
+    "bands": {
+      "possible": "Kemungkinan band:",
+      "none": "Tidak ada band yang cocok untuk {{label}}",
+      "this_frequency": "kanal ini",
+      "unsupported_suffix": "tidak didukung"
+    },
+    "toast": {
+      "lte_locked": "Kunci frekuensi LTE diterapkan",
+      "lte_lock_failed": "Tidak dapat menerapkan kunci frekuensi LTE",
+      "lte_cleared": "Kunci frekuensi LTE dihapus",
+      "lte_clear_failed": "Tidak dapat menghapus kunci frekuensi LTE",
+      "nr_locked": "Kunci frekuensi 5G NR diterapkan",
+      "nr_lock_failed": "Tidak dapat menerapkan kunci frekuensi 5G NR",
+      "nr_cleared": "Kunci frekuensi 5G NR dihapus",
+      "nr_clear_failed": "Tidak dapat menghapus kunci frekuensi 5G NR",
+      "filled_from_current": "Diisi dari carrier yang mengudara",
+      "no_channels_title": "Belum ada kanal yang dimasukkan",
+      "no_channels_body": "Masukkan setidaknya satu kanal sebelum menerapkan."
+    },
+    "error": {
+      "load_title": "Tidak dapat membaca status kunci",
+      "load_body": "Modem tidak menjawab. Muat ulang untuk mencoba lagi.",
+      "tower_lock_active": "Kunci tower sedang aktif, jadi modem tidak akan menerima kunci frekuensi.",
+      "invalid_channel": "Nomor kanal hanya boleh berupa angka.",
+      "retry": "Coba lagi"
+    },
+    "a11y": {
+      "refresh": "Muat ulang status kunci",
+      "remove_entry": "Hapus kanal ini",
+      "add_carrier": "Tambahkan carrier ini ke daftar"
+    }
+  },
   "radio_info": {
     "common": {
       "not_available": "—"

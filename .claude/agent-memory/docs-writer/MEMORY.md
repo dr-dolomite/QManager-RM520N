@@ -2,3 +2,5 @@
 - [1970 boot window / timer fire guard](reference_1970_boot_window_timer_guard.md) — any new systemd .timer must be checked against this; full mechanism + non-fixes list in scheduled-timers.md
 - [Rootfs mount-mode evidence trap](reference_rootfs_mount_mode_evidence_trap.md) — `/` boots ro; only /proc/cmdline proves it, /proc/mounts and `assert=read-only` both mislead; contract in BACKEND.md §2.1
 - [Replace, don't append, on UI rewrites](feedback_replace_dont_append_on_ui_rewrites.md) — rewrite the anatomy in place; keep "do not restore" notes only for shapes someone would helpfully reinvent
+- [AT+QNWCFG has no persistence key](reference_qnwcfg_has_no_persistence_key.md) — `save_ctrl` is QNWLOCK-only; never claim a frequency lock survives a reboot; wire-format traps in frequency-locking.md
+- [tower/lock.sh reciprocal gate deliberately deferred](project_tower_lock_reciprocal_gate_deferred.md) — a tower lock silently wipes a frequency lock; 2026-08-11 decision was to warn in the UI, not fix the backend

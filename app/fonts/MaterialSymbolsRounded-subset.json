@@ -11,6 +11,7 @@
     "arrow_upward",
     "auto_awesome",
     "badge",
+    "block",
     "bolt",
     "call",
     "cancel",
@@ -54,10 +55,12 @@
     "memory",
     "more_horiz",
     "more_vert",
+    "my_location",
     "network_ping",
     "open_in_new",
     "pets",
     "play_arrow",
+    "playlist_add",
     "power_settings_new",
     "priority_high",
     "progress_activity",
@@ -69,6 +72,7 @@
     "route",
     "router",
     "schedule",
+    "science",
     "search",
     "send",
     "settings",
@@ -81,6 +85,7 @@
     "signal_cellular_4_bar",
     "signal_cellular_alt",
     "signal_cellular_off",
+    "signal_disconnected",
     "sim_card",
     "sim_card_alert",
     "sms",
@@ -103,6 +108,6 @@
     "wifi_tethering_off",
     "work"
   ],
-  "bytes": 38992,
-  "sha256": "825fb36dd30dcadf31b1b9cbf8bab292f232597acc766c65e3b19d4724a1223f"
+  "bytes": 40628,
+  "sha256": "f43cc60e70651d69410df1c8e7f452dc0751426a23e9b864716039a9394a73e0"
 }
