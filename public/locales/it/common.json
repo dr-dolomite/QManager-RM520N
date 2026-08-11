@@ -17,7 +17,14 @@
     "reboot_device": "Riavvia il dispositivo",
     "reconnect_modem": "Riconnetti modem",
     "change_display_name": "Modifica nome visualizzato",
-    "change_password": "Cambia password"
+    "change_password": "Cambia password",
+    "toggle_theme": "Cambia tema"
+  },
+  "motion": {
+    "label": "Animazioni",
+    "system": "Sistema",
+    "full": "Complete",
+    "reduced": "Ridotte"
   },
   "state": {
     "loading": "Caricamento…",

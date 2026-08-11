@@ -17,7 +17,14 @@
     "reboot_device": "Reboot Perangkat",
     "reconnect_modem": "Sambungkan Ulang Modem",
     "change_display_name": "Ubah Nama Tampilan",
-    "change_password": "Ubah Kata Sandi"
+    "change_password": "Ubah Kata Sandi",
+    "toggle_theme": "Ganti Tema"
+  },
+  "motion": {
+    "label": "Animasi",
+    "system": "Sistem",
+    "full": "Penuh",
+    "reduced": "Dikurangi"
   },
   "state": {
     "loading": "Memuat…",

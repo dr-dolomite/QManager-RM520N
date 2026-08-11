@@ -110,7 +110,7 @@ const NeighbourCellScanner = () => {
                 onLockCell={handleLockCell}
               />
             ) : isScanning ? (
-              <ScannerSkeleton headerCols={5} rowCols={4} />
+              <ScannerSkeleton rows={4} />
             ) : status === "error" ? (
               <div className="flex flex-col items-center justify-center py-16 text-center gap-4">
                 <div className="flex size-12 items-center justify-center rounded-full bg-destructive/10">

@@ -17,7 +17,14 @@
     "reboot_device": "Reboot Device",
     "reconnect_modem": "Reconnect Modem",
     "change_display_name": "Change Display Name",
-    "change_password": "Change Password"
+    "change_password": "Change Password",
+    "toggle_theme": "Toggle Theme"
+  },
+  "motion": {
+    "label": "Animations",
+    "system": "System",
+    "full": "Full",
+    "reduced": "Reduced"
   },
   "state": {
     "loading": "Loading…",

@@ -2,21 +2,32 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { toast } from "sonner";
+import { useTranslation } from "react-i18next";
+
 import { authFetch } from "@/lib/auth-fetch";
-import type { CellScanResult } from "@/components/cellular/cell-scanner/scan-result";
+import type {
+  CellScanResult,
+  CellScanStatusResponse,
+  ScanStatus,
+} from "@/types/cell-scanner";
 
 // Poll interval while a scan is running (ms)
 const SCAN_POLL_INTERVAL = 2000;
 // sessionStorage key for persisting scan start time across navigations
 const SCAN_START_KEY = "qm_cell_scan_start";
 
-type ScanStatus = "idle" | "running" | "complete" | "error";
-
-interface CellScanStatusResponse {
-  status: ScanStatus;
-  results?: CellScanResult[];
-  message?: string;
-}
+/**
+ * How many consecutive failed polls before the surface calls it.
+ *
+ * The poll's catch block used to be EMPTY, with a comment reading "keep
+ * retrying". That is a defensible policy for one dropped request and an
+ * indefensible one for a modem that has gone away: the page kept the spinner up
+ * and the elapsed clock counting for as long as the tab stayed open, and told
+ * the user nothing. Five at a 2s cadence is ~10s of silence, which is long
+ * enough to ride out a single reload of lighttpd and short enough that a real
+ * loss surfaces while the user is still watching.
+ */
+const MAX_POLL_FAILURES = 5;
 
 interface UseCellScannerReturn {
   status: ScanStatus;
@@ -27,12 +38,15 @@ interface UseCellScannerReturn {
 }
 
 export function useCellScanner(): UseCellScannerReturn {
+  const { t } = useTranslation("cellular");
+
   const [status, setStatus] = useState<ScanStatus>("idle");
   const [results, setResults] = useState<CellScanResult[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const failureCountRef = useRef(0);
   // Ref to always hold the latest pollStatus for use in setInterval callbacks,
   // avoiding stale closures when pollStatus is recreated by useCallback.
   const pollStatusRef = useRef<() => Promise<void>>(null!);
@@ -66,6 +80,7 @@ export function useCellScanner(): UseCellScannerReturn {
   const finishScan = useCallback(() => {
     stopPolling();
     stopTimer();
+    failureCountRef.current = 0;
     sessionStorage.removeItem(SCAN_START_KEY);
   }, [stopPolling, stopTimer]);
 
@@ -87,6 +102,7 @@ export function useCellScanner(): UseCellScannerReturn {
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
       const data: CellScanStatusResponse = await res.json();
+      failureCountRef.current = 0;
 
       switch (data.status) {
         case "running":
@@ -112,8 +128,10 @@ export function useCellScanner(): UseCellScannerReturn {
           setError(null);
           finishScan();
           if (cells.length > 0) {
-            toast.success("Scan complete", {
-              description: `${cells.length} ${cells.length === 1 ? "cell" : "cells"} found`,
+            toast.success(t("cell_scanner.toast.scan_complete_title"), {
+              description: t("cell_scanner.toast.scan_complete_desc", {
+                count: cells.length,
+              }),
             });
           }
           break;
@@ -121,7 +139,7 @@ export function useCellScanner(): UseCellScannerReturn {
 
         case "error":
           setStatus("error");
-          setError(data.message ?? "Scan failed");
+          setError(data.message ?? t("cell_scanner.error.scan_failed"));
           finishScan();
           break;
 
@@ -135,9 +153,22 @@ export function useCellScanner(): UseCellScannerReturn {
           break;
       }
     } catch {
-      // Network error during poll — keep retrying
+      // A dropped poll is not on its own a failed scan — the sweep runs on the
+      // modem, not in this tab. But silence is not an answer either: after
+      // MAX_POLL_FAILURES consecutive misses the run is reported as lost rather
+      // than left spinning forever behind an empty catch.
+      failureCountRef.current += 1;
+      if (failureCountRef.current < MAX_POLL_FAILURES) return;
+      if (!pollRef.current) return;
+
+      setStatus("error");
+      setError(t("cell_scanner.error.poll_lost"));
+      finishScan();
+      toast.error(t("cell_scanner.toast.poll_failed_title"), {
+        description: t("cell_scanner.toast.poll_failed_desc"),
+      });
     }
-  }, [ensurePolling, finishScan, startTimer]);
+  }, [ensurePolling, finishScan, startTimer, t]);
 
   // Keep the ref in sync so interval callbacks always use the latest pollStatus
   pollStatusRef.current = pollStatus;
@@ -146,6 +177,7 @@ export function useCellScanner(): UseCellScannerReturn {
   const startScan = useCallback(async () => {
     setStatus("running");
     setError(null);
+    failureCountRef.current = 0;
 
     try {
       const res = await authFetch(
@@ -166,11 +198,13 @@ export function useCellScanner(): UseCellScannerReturn {
           startTimer(startTime);
           ensurePolling();
           return;
-        } else {
-          setStatus("error");
-          setError(data.detail || data.error || "Failed to start scan");
-          return;
         }
+
+        setStatus("error");
+        setError(
+          data.detail || data.error || t("cell_scanner.error.start_failed"),
+        );
+        return;
       }
 
       // Store scan start time for elapsed timer persistence
@@ -186,9 +220,9 @@ export function useCellScanner(): UseCellScannerReturn {
       );
     } catch {
       setStatus("error");
-      setError("Failed to connect to scanner");
+      setError(t("cell_scanner.error.start_unreachable"));
     }
-  }, [startTimer, stopPolling]);
+  }, [ensurePolling, startTimer, stopPolling, t]);
 
   // --- Check for existing results on mount -----------------------------------
   useEffect(() => {

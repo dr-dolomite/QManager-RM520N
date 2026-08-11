@@ -6,6 +6,54 @@
 @custom-variant dark (&:is(.dark *));
 
 /* ---------------------------------------------------------------------------
+   Animations preference (System / Full / Reduced).
+
+   The OS media query is only the DEFAULT answer. A user who has made an
+   explicit choice in the sidebar gets `data-motion="full"` or
+   `data-motion="reduced"` stamped on <html> (pre-paint, by the boot script in
+   app/layout.tsx); "System" REMOVES the attribute, and its absence is what
+   lets the bare media query decide below.
+
+   Tailwind's stock `motion-reduce:` / `motion-safe:` variants compile to a bare
+   `@media (prefers-reduced-motion: …)` with no selector hook, so an attribute
+   on <html> physically cannot override them — the ~64 utilities across the
+   components would ignore the user's choice entirely. Redefining the two
+   variants here rewires all of them at once, at the source, instead of
+   rewriting 64 call sites onto a bespoke variant name.
+
+   Both definitions emit @slot twice — once media-gated and once attribute-
+   gated — which is the shape Tailwind v4's own `dark` example uses. The guards
+   are wrapped in `:where()` so they contribute ZERO specificity: a redefined
+   utility keeps the exact weight it had before, and cascade order is unchanged.
+
+   Note both variants can match simultaneously (OS says reduce AND the user
+   chose Reduced). Duplicate identical declarations are harmless.
+--------------------------------------------------------------------------- */
+@custom-variant motion-reduce {
+  @media (prefers-reduced-motion: reduce) {
+    /* The OS asked for less motion — honour it unless the user overrode it. */
+    &:not(:where([data-motion="full"], [data-motion="full"] *)) {
+      @slot;
+    }
+  }
+  /* …and honour an explicit Reduced choice even when the OS says nothing. */
+  &:where([data-motion="reduced"], [data-motion="reduced"] *) {
+    @slot;
+  }
+}
+
+@custom-variant motion-safe {
+  @media (prefers-reduced-motion: no-preference) {
+    &:not(:where([data-motion="reduced"], [data-motion="reduced"] *)) {
+      @slot;
+    }
+  }
+  &:where([data-motion="full"], [data-motion="full"] *) {
+    @slot;
+  }
+}
+
+/* ---------------------------------------------------------------------------
    Design system: Material-3-inspired tonal system derived from the QManager
    mark (public/qmanager-mark.svg). THIS FILE IS NORMATIVE — DESIGN.md's
    frontmatter mirrors it, not the other way around. Retune a value here and
@@ -451,9 +499,14 @@
     var(--ease-standard);
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .material-symbol {
-    transition: none;
+/* Written once and applied under BOTH gates — the OS media query and an
+   explicit `data-motion="reduced"` — via the redefined variant at the top of
+   this file. `:root` is only here to give `@variant` a `&` to attach to. */
+:root {
+  @variant motion-reduce {
+    & .material-symbol {
+      transition: none;
+    }
   }
 }
 
@@ -478,9 +531,11 @@
   transition: none;
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .nav-indicator {
-    transition: opacity var(--duration-quick) ease-out;
+:root {
+  @variant motion-reduce {
+    & .nav-indicator {
+      transition: opacity var(--duration-quick) ease-out;
+    }
   }
 }
 
@@ -550,11 +605,13 @@
 }
 
 /* Movement goes, opacity stays, nothing here is load-bearing. */
-@media (prefers-reduced-motion: reduce) {
-  .animate-pulse-ring,
-  .animate-live-ping,
-  .animate-banner-in {
-    animation: none;
+:root {
+  @variant motion-reduce {
+    & .animate-pulse-ring,
+    & .animate-live-ping,
+    & .animate-banner-in {
+      animation: none;
+    }
   }
 }
 
@@ -748,24 +805,26 @@
    its final width and the meter its final scale, they simply arrive there
    without travelling. The crossfade survives — movement goes, opacity stays,
    and a crossfade is still legible information where a slide is not. */
-@media (prefers-reduced-motion: reduce) {
-  .ca-segment,
-  .ca-meter {
-    transition: none;
-  }
+:root {
+  @variant motion-reduce {
+    & .ca-segment,
+    & .ca-meter {
+      transition: none;
+    }
 
-  .ca-segment-enter,
-  .ca-meter {
-    animation: none;
-  }
+    & .ca-segment-enter,
+    & .ca-meter {
+      animation: none;
+    }
 
-  /* The line must not be left dashed: `stroke-dasharray` is the mechanism, not
-     the appearance, so it is cleared here rather than merely stopping the
-     keyframe. */
-  .chart-draw .recharts-line-curve,
-  .chart-draw .recharts-area-curve,
-  .chart-draw .recharts-area-area {
-    animation: none;
-    stroke-dasharray: none;
+    /* The line must not be left dashed: `stroke-dasharray` is the mechanism,
+       not the appearance, so it is cleared here rather than merely stopping the
+       keyframe. */
+    & .chart-draw .recharts-line-curve,
+    & .chart-draw .recharts-area-curve,
+    & .chart-draw .recharts-area-area {
+      animation: none;
+      stroke-dasharray: none;
+    }
   }
 }

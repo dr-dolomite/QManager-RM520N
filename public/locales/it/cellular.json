@@ -272,6 +272,109 @@
       "band_live": "{{band}}, selezionata e attiva sul modem"
     }
   },
+  "cell_scanner": {
+    "page": {
+      "title": "Scanner celle",
+      "description": "Analizza tutte le bande supportate per trovare le celle nel raggio. Risultati migliori senza SIM inserita."
+    },
+    "run": {
+      "title": "Scansione completa delle bande",
+      "description": "Un passaggio su ogni banda supportata dal modem.",
+      "cost": "Una scansione completa sintonizza una per una tutte le bande supportate. Richiede 2–3 minuti e sospende ogni altra operazione del modem: letture del segnale, SMS e scritture delle impostazioni attendono la fine.",
+      "start": "Analizza tutte le bande",
+      "rerun": "Ripeti la scansione",
+      "scanning_action": "Scansione…",
+      "download": "Scarica CSV",
+      "chip_idle": "Pronto",
+      "chip_scanning": "In corso",
+      "chip_complete": "Completata",
+      "chip_failed": "Non riuscita",
+      "idle_title": "Nessuna scansione",
+      "idle_body": "Da quando la pagina è stata aperta non è stata eseguita nessuna scansione. Una scansione elenca ogni cella nel raggio, su tutte le bande.",
+      "scanning_title": "Sintonizzazione di ogni banda",
+      "scanning_body": "Lascia aperta questa scheda: i risultati compaiono qui quando il modem termina.",
+      "complete_title": "Scansione terminata",
+      "complete_body_one": "{{count}} cella nel raggio.",
+      "complete_body_other": "{{count}} celle nel raggio.",
+      "failed_title": "Scansione non riuscita",
+      "failed_body": "Il modem potrebbe essere occupato o irraggiungibile. Controlla la connessione e ripeti la scansione."
+    },
+    "results": {
+      "title": "Celle trovate",
+      "description": "Ordina per segnale, filtra per operatore, blocca qualsiasi riga.",
+      "filter_placeholder": "Filtra per operatore",
+      "columns": "Colonne",
+      "previous": "Precedente",
+      "next": "Successivo",
+      "count_one": "{{count}} cella",
+      "count_other": "{{count}} celle",
+      "filtered_one": "{{count}} di {{total}} cella",
+      "filtered_other": "{{count}} di {{total}} celle",
+      "no_match_title": "Nessuna cella corrisponde al filtro",
+      "no_match_body": "Azzera il filtro operatore per vedere tutte le celle di questa scansione.",
+      "empty_title": "Ancora nessuna cella",
+      "empty_body": "Esegui una scansione per elencare ogni cella nel raggio, con banda, canale e segnale.",
+      "error_title": "Scansione non riuscita",
+      "error_body": "Il modem potrebbe essere occupato o irraggiungibile. Controlla la connessione e ripeti la scansione.",
+      "error_retry": "Riprova la scansione"
+    },
+    "columns": {
+      "network": "Rete",
+      "provider": "Operatore",
+      "band": "Banda",
+      "earfcn": "EARFCN",
+      "pci": "PCI",
+      "cell_id": "ID cella",
+      "tac": "TAC",
+      "bandwidth": "Larghezza di banda",
+      "signal": "Segnale"
+    },
+    "cells": {
+      "bandwidth": "{{value}} MHz",
+      "signal": "{{value}} dBm"
+    },
+    "signal": {
+      "good": "Buono",
+      "fair": "Discreto",
+      "poor": "Debole",
+      "none": "Nessun dato"
+    },
+    "actions": {
+      "lock_cell": "Blocca su questa cella"
+    },
+    "a11y": {
+      "network_codes": "Codici di rete",
+      "row_menu": "Azioni cella",
+      "elapsed": "Tempo trascorso della scansione: {{time}}"
+    },
+    "lock": {
+      "title": "Bloccare sulla cella {{pci}}?",
+      "description": "Il modem resterà agganciato solo a questa cella e non passerà a una più forte finché non rimuovi il blocco.",
+      "target": "{{network}} · PCI {{pci}} · canale {{earfcn}}",
+      "target_with_provider": "{{network}} · PCI {{pci}} · canale {{earfcn}} · {{provider}}",
+      "confirm": "Blocca cella",
+      "cancel": "Annulla",
+      "locking": "Blocco in corso…"
+    },
+    "toast": {
+      "scan_complete_title": "Scansione completata",
+      "scan_complete_desc_one": "{{count}} cella trovata",
+      "scan_complete_desc_other": "{{count}} celle trovate",
+      "poll_failed_title": "Contatto perso con il modem",
+      "poll_failed_desc": "La scansione potrebbe essere ancora in corso. Ricarica la pagina per riprenderla.",
+      "locked_title": "Cella bloccata",
+      "locked_desc": "Agganciato a {{network}} PCI {{pci}}, canale {{earfcn}}.",
+      "lock_failed_title": "Blocco non riuscito",
+      "lock_failed_unknown": "Il modem ha rifiutato il blocco.",
+      "lock_failed_network": "Impossibile raggiungere il modem."
+    },
+    "error": {
+      "scan_failed": "Scansione non riuscita",
+      "poll_lost": "Contatto perso con il modem durante la scansione.",
+      "start_failed": "Il modem non ha avviato la scansione.",
+      "start_unreachable": "Impossibile raggiungere lo scanner. Verifica che il modem risponda."
+    }
+  },
   "core_settings": {
     "apn": {
       "page": {

@@ -272,6 +272,109 @@
       "band_live": "{{band}}, dipilih dan aktif di modem"
     }
   },
+  "cell_scanner": {
+    "page": {
+      "title": "Pemindai Sel",
+      "description": "Pindai semua band yang didukung untuk menemukan menara di sekitar. Hasil terbaik tanpa SIM terpasang."
+    },
+    "run": {
+      "title": "Pemindaian seluruh band",
+      "description": "Satu putaran pada setiap band yang didukung modem.",
+      "cost": "Pemindaian penuh menyetel setiap band yang didukung satu per satu. Butuh 2–3 menit dan menghentikan sementara semua operasi modem lain — pembacaan sinyal, SMS, dan penyimpanan pengaturan menunggu sampai selesai.",
+      "start": "Pindai semua band",
+      "rerun": "Pindai lagi",
+      "scanning_action": "Memindai…",
+      "download": "Unduh CSV",
+      "chip_idle": "Siap",
+      "chip_scanning": "Memindai",
+      "chip_complete": "Selesai",
+      "chip_failed": "Gagal",
+      "idle_title": "Belum ada pemindaian",
+      "idle_body": "Belum ada yang dipindai sejak halaman ini dibuka. Satu pemindaian mendaftar setiap menara di sekitar, pada semua band.",
+      "scanning_title": "Menyetel setiap band",
+      "scanning_body": "Biarkan tab ini terbuka — hasilnya muncul di sini setelah modem selesai.",
+      "complete_title": "Pemindaian selesai",
+      "complete_body_one": "{{count}} sel dalam jangkauan.",
+      "complete_body_other": "{{count}} sel dalam jangkauan.",
+      "failed_title": "Pemindaian gagal",
+      "failed_body": "Modem mungkin sedang sibuk atau tidak dapat dihubungi. Periksa koneksi lalu pindai ulang."
+    },
+    "results": {
+      "title": "Sel yang ditemukan",
+      "description": "Urutkan berdasarkan sinyal, saring per operator, kunci baris mana pun.",
+      "filter_placeholder": "Saring berdasarkan operator",
+      "columns": "Kolom",
+      "previous": "Sebelumnya",
+      "next": "Berikutnya",
+      "count_one": "{{count}} sel",
+      "count_other": "{{count}} sel",
+      "filtered_one": "{{count}} dari {{total}} sel",
+      "filtered_other": "{{count}} dari {{total}} sel",
+      "no_match_title": "Tidak ada sel yang cocok dengan filter",
+      "no_match_body": "Hapus filter operator untuk melihat semua sel dari pemindaian ini.",
+      "empty_title": "Belum ada sel",
+      "empty_body": "Jalankan pemindaian untuk mendaftar setiap menara di sekitar, lengkap dengan band, kanal, dan sinyalnya.",
+      "error_title": "Pemindaian gagal",
+      "error_body": "Modem mungkin sedang sibuk atau tidak dapat dihubungi. Periksa koneksi lalu pindai ulang.",
+      "error_retry": "Coba pindai lagi"
+    },
+    "columns": {
+      "network": "Jaringan",
+      "provider": "Operator",
+      "band": "Band",
+      "earfcn": "EARFCN",
+      "pci": "PCI",
+      "cell_id": "ID Sel",
+      "tac": "TAC",
+      "bandwidth": "Lebar pita",
+      "signal": "Sinyal"
+    },
+    "cells": {
+      "bandwidth": "{{value}} MHz",
+      "signal": "{{value}} dBm"
+    },
+    "signal": {
+      "good": "Baik",
+      "fair": "Cukup",
+      "poor": "Lemah",
+      "none": "Tidak ada data"
+    },
+    "actions": {
+      "lock_cell": "Kunci ke sel ini"
+    },
+    "a11y": {
+      "network_codes": "Kode jaringan",
+      "row_menu": "Tindakan sel",
+      "elapsed": "Waktu berjalan pemindaian: {{time}}"
+    },
+    "lock": {
+      "title": "Kunci ke sel {{pci}}?",
+      "description": "Modem hanya akan menempel pada sel ini dan tidak berpindah ke sel yang lebih kuat sampai kuncinya dilepas.",
+      "target": "{{network}} · PCI {{pci}} · kanal {{earfcn}}",
+      "target_with_provider": "{{network}} · PCI {{pci}} · kanal {{earfcn}} · {{provider}}",
+      "confirm": "Kunci sel",
+      "cancel": "Batal",
+      "locking": "Mengunci…"
+    },
+    "toast": {
+      "scan_complete_title": "Pemindaian selesai",
+      "scan_complete_desc_one": "{{count}} sel ditemukan",
+      "scan_complete_desc_other": "{{count}} sel ditemukan",
+      "poll_failed_title": "Kehilangan kontak dengan modem",
+      "poll_failed_desc": "Pemindaian mungkin masih berjalan. Muat ulang halaman untuk melanjutkannya.",
+      "locked_title": "Sel terkunci",
+      "locked_desc": "Menempel pada {{network}} PCI {{pci}}, kanal {{earfcn}}.",
+      "lock_failed_title": "Penguncian gagal",
+      "lock_failed_unknown": "Modem menolak penguncian.",
+      "lock_failed_network": "Tidak dapat menghubungi modem."
+    },
+    "error": {
+      "scan_failed": "Pemindaian gagal",
+      "poll_lost": "Kehilangan kontak dengan modem saat pemindaian berjalan.",
+      "start_failed": "Modem tidak mau memulai pemindaian.",
+      "start_unreachable": "Tidak dapat menghubungi pemindai. Pastikan modem merespons."
+    }
+  },
   "core_settings": {
     "apn": {
       "page": {

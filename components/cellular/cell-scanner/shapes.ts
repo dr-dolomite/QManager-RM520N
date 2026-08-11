@@ -126,6 +126,13 @@ export const HERO_SPLIT =
  * The posture rail — a centred empty-state stack, one radius step DOWN from its
  * host (`rounded-tile` inside a `rounded-hero`).
  *
+ * ALSO THE RESULTS CARD'S EMPTY AND ERROR PANELS (`scan-states.tsx`). Those are
+ * the same object at a different address: a disc, a title, a line of body copy,
+ * centred in a tile inside a section. Giving them a second, near-identical
+ * constant is exactly how the incumbent ended up with three hand-authored
+ * centred stacks whose paddings disagreed by 8px. One shape, three call sites,
+ * and `SKELETON_SHAPE.POSTURE` mirrors all of them at once.
+ *
  * Counter-rule, learned on the frequency-locking surface: never put `mt-auto` on
  * the last child of this stack. It eats the free space and silently cancels the
  * centring the stack exists to provide.
@@ -197,6 +204,24 @@ export const TOOLBAR = {
   COUNT: "text-xs tabular-nums text-on-surface-variant",
 } as const;
 
+/**
+ * Pagination, under the table.
+ *
+ * ADDED after the contract's first draft: `TOOLBAR` owns the row ABOVE the
+ * table and the pager is a second row below it, so hanging the page controls off
+ * `TOOLBAR.ACTIONS` would have put them in the wrong row or forced a second,
+ * silently different flex string at the call site. The count moved down here
+ * with them — it describes what the pager is paging through, and reading
+ * "12 of 40 cells" directly above Previous/Next is what makes the pager's
+ * position in the set legible at all.
+ */
+export const PAGER = {
+  ROOT: "flex flex-wrap items-center gap-3",
+  ACTIONS: "ms-auto flex items-center gap-2",
+  /** `chevron_left` is not in the subset. Rotating the right chevron is the house precedent. */
+  BACK_GLYPH: "rotate-180",
+} as const;
+
 // -----------------------------------------------------------------------------
 // Actions
 // -----------------------------------------------------------------------------
@@ -240,6 +265,35 @@ export const RUN_BADGE: Record<
   complete: { variant: "success", glyph: "check_circle", filled: true },
   failed: { variant: "destructive", glyph: "error", filled: true },
 };
+
+/**
+ * The worker's transport status -> the surface's posture.
+ *
+ * ADDED because both scanning routes need it and neither should own it. The
+ * parameter is a structural union rather than an import of `ScanStatus` from
+ * `types/cell-scanner.ts`, so this module keeps its no-imports-from-app-code
+ * property (it already imports two types and nothing else) while the two unions
+ * still have to agree — a transport state added there without a posture here
+ * fails the build at the call site.
+ *
+ * The two vocabularies are deliberately different words. "running" is what the
+ * modem is doing; "scanning" is what the page is showing. Collapsing them would
+ * make a rename of one a silent rename of the other.
+ */
+export function runPosture(
+  status: "idle" | "running" | "complete" | "error",
+): RunPosture {
+  switch (status) {
+    case "running":
+      return "scanning";
+    case "complete":
+      return "complete";
+    case "error":
+      return "failed";
+    default:
+      return "idle";
+  }
+}
 
 /**
  * The posture disc's fill, one tone step into the role rather than an opacity

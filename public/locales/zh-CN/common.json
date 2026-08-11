@@ -17,7 +17,14 @@
     "reboot_device": "重启设备",
     "reconnect_modem": "重新连接调制解调器",
     "change_display_name": "更改显示名称",
-    "change_password": "更改密码"
+    "change_password": "更改密码",
+    "toggle_theme": "切换主题"
+  },
+  "motion": {
+    "label": "动画",
+    "system": "跟随系统",
+    "full": "完整",
+    "reduced": "减弱"
   },
   "state": {
     "loading": "加载中…",

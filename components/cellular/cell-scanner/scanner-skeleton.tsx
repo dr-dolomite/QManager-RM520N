@@ -1,52 +1,51 @@
 import { Skeleton } from "@/components/ui/skeleton";
 
-/**
- * Skeleton loading state for scanner tables.
- * Shows a filter bar, table header, rows, and footer.
- *
- * @param headerCols - Number of columns in the table header skeleton
- * @param rowCols    - Number of data columns per row (excludes the leading badge)
- */
-export function ScannerSkeleton({
-  headerCols = 8,
-  rowCols = 7,
-}: {
-  headerCols?: number;
-  rowCols?: number;
-}) {
+import { PAGER, SKELETON_SHAPE, TOOLBAR } from "./shapes";
+
+// =============================================================================
+// The results card's loading state
+// =============================================================================
+// MIRRORS THE LOADED GEOMETRY BY IMPORT. The incumbent restated it by estimate —
+// `h-9 w-64` for a filter that renders at 42px tall and 288px wide, `h-4` bars
+// for 40px rows, `rounded-md` and `rounded-lg` for a card built from the role
+// scale — so the skeleton and the table it stood in for disagreed about every
+// dimension they shared, and the swap reflowed the whole card.
+//
+// Every number below now comes from `SKELETON_SHAPE`, which is derived from the
+// same constants the loaded table uses. A retune of the row height moves both.
+// =============================================================================
+
+export interface ScannerSkeletonProps {
+  /**
+   * How many row placeholders to draw. Five is the honest default: it is what a
+   * neighbour read typically returns, and over-drawing rows makes the card
+   * shrink when the real, shorter result lands — pulling the page up under a
+   * reader who has already started on it.
+   */
+  rows?: number;
+}
+
+export function ScannerSkeleton({ rows = 5 }: ScannerSkeletonProps) {
   return (
-    <div className="space-y-3">
-      {/* Filter bar skeleton */}
-      <div className="flex items-center justify-between">
-        <Skeleton className="h-9 w-64 rounded-md" />
-        <Skeleton className="h-9 w-28 rounded-md" />
-      </div>
-      {/* Table skeleton */}
-      <div className="rounded-lg border overflow-hidden">
-        {/* Header */}
-        <div className="bg-muted px-4 py-3 flex gap-4">
-          {Array.from({ length: headerCols }).map((_, i) => (
-            <Skeleton key={i} className="h-4 flex-1 rounded" />
-          ))}
+    <div className="flex min-w-0 flex-col gap-4">
+      <div className={TOOLBAR.ROOT}>
+        <Skeleton className={SKELETON_SHAPE.FILTER} />
+        <div className={TOOLBAR.ACTIONS}>
+          <Skeleton className={SKELETON_SHAPE.CHIP} />
         </div>
-        {/* Rows */}
-        {Array.from({ length: 5 }).map((_, rowIdx) => (
-          <div key={rowIdx} className="px-4 py-3 flex gap-4 border-t">
-            <Skeleton className="h-5 w-12 rounded-full" />
-            {Array.from({ length: rowCols }).map((_, colIdx) => (
-              <Skeleton key={colIdx} className="h-4 flex-1 rounded" />
-            ))}
-          </div>
+      </div>
+
+      <div className="flex flex-col gap-2">
+        {Array.from({ length: rows }).map((_, index) => (
+          <Skeleton key={index} className={SKELETON_SHAPE.ROW} />
         ))}
       </div>
-      {/* Footer skeleton */}
-      <div className="flex items-center justify-between">
-        <Skeleton className="h-4 w-32" />
-        <div className="flex gap-2">
-          <Skeleton className="h-8 w-20 rounded-md" />
-          <Skeleton className="h-8 w-16 rounded-md" />
-        </div>
+
+      <div className={PAGER.ROOT}>
+        <Skeleton className={SKELETON_SHAPE.DESC} />
       </div>
     </div>
   );
 }
+
+export default ScannerSkeleton;

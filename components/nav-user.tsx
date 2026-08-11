@@ -18,7 +18,15 @@ import { useTranslation } from "react-i18next";
 import { logout } from "@/hooks/use-auth";
 import { authFetch } from "@/lib/auth-fetch";
 import { LanguageSwitcher } from "@/components/i18n/language-switcher";
-import { MaterialSymbol } from "@/components/ui/material-symbol";
+import {
+  MaterialSymbol,
+  type MaterialSymbolName,
+} from "@/components/ui/material-symbol";
+import { useMotionPreference } from "@/components/motion-preference";
+import {
+  MOTION_PREFERENCES,
+  type MotionPreference,
+} from "@/lib/motion-preference";
 
 import {
   Avatar,
@@ -64,9 +72,32 @@ import { ChangePasswordDialog } from "@/components/auth/change-password-dialog";
 /** Shown until the device hostname arrives, and if it never does. */
 const FALLBACK_NAME = "Admin";
 
+// Animations preference, presented beside the theme row: both are appearance
+// choices that live on this device only, so they belong in the same group.
+//
+// The keys are written out as LITERALS rather than built with
+// t(`motion.${preference}`). lib/i18n/check.ts scans source text for key
+// stems, and an interpolated key is invisible to it — a missing translation
+// would then ship as the raw key string with a green check run.
+const MOTION_LABEL_KEY: Record<MotionPreference, string> = {
+  system: "motion.system",
+  full: "motion.full",
+  reduced: "motion.reduced",
+};
+
+// All three glyphs are already in the subset (components/ui/material-symbol-names.ts),
+// so this row needs no font regeneration.
+const MOTION_ICON: Record<MotionPreference, MaterialSymbolName> = {
+  system: "settings",
+  full: "auto_awesome",
+  reduced: "do_not_disturb_on",
+};
+
 export function NavUser() {
   const { isMobile } = useSidebar();
   const { theme, setTheme } = useTheme();
+  const { preference: motionPreference, setPreference: setMotionPreference } =
+    useMotionPreference();
   const { t } = useTranslation("common");
   const { t: tSidebar } = useTranslation("sidebar");
 
@@ -320,7 +351,39 @@ export function NavUser() {
                 >
                   <Sun className="dark:hidden" />
                   <Moon className="hidden dark:block" />
-                  Toggle Theme
+                  {t("actions.toggle_theme")}
+                </DropdownMenuItem>
+                {/* Animations sits directly under Theme: the two device-local
+                    appearance preferences read as one pair.
+
+                    Three states cycle in place rather than through a submenu,
+                    which keeps the theme row's interaction shape. The default
+                    close is suppressed so reaching Reduced from System is one
+                    open and two clicks, not two opens. The current state is
+                    shown as a trailing value because a glyph alone cannot
+                    distinguish "following the OS" from "explicitly Full". */}
+                <DropdownMenuItem
+                  onSelect={(event) => event.preventDefault()}
+                  onClick={() =>
+                    setMotionPreference(
+                      MOTION_PREFERENCES[
+                        (MOTION_PREFERENCES.indexOf(motionPreference) + 1) %
+                          MOTION_PREFERENCES.length
+                      ]
+                    )
+                  }
+                >
+                  <MaterialSymbol
+                    name={MOTION_ICON[motionPreference]}
+                    size={16}
+                  />
+                  {t("motion.label")}
+                  <span
+                    aria-live="polite"
+                    className="text-muted-foreground ml-auto text-xs"
+                  >
+                    {t(MOTION_LABEL_KEY[motionPreference])}
+                  </span>
                 </DropdownMenuItem>
               </DropdownMenuGroup>
               <DropdownMenuSeparator />

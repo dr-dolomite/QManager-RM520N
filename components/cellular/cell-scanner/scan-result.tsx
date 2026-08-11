@@ -1,406 +1,282 @@
 "use client";
 
 import * as React from "react";
-import { motion } from "motion/react";
-import {
-  flexRender,
-  getCoreRowModel,
-  getFilteredRowModel,
-  getPaginationRowModel,
-  getSortedRowModel,
-  useReactTable,
-  type ColumnDef,
-  type ColumnFiltersState,
-  type SortingState,
-  type VisibilityState,
-  type Row,
-} from "@tanstack/react-table";
-import { MaterialSymbol } from "@/components/ui/material-symbol";
+import { useTranslation } from "react-i18next";
+import type { ColumnDef, VisibilityState } from "@tanstack/react-table";
 
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
-  DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Input } from "@/components/ui/input";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-
-const MotionTableRow = motion.create(TableRow);
-import { SignalBadge, NetworkTypeBadge } from "./signal-badges";
+import { MaterialSymbol } from "@/components/ui/material-symbol";
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { DUR, EASE_STANDARD, rowCascadeDelay } from "@/lib/motion";
+import type { CellScanResult } from "@/types/cell-scanner";
 
-export interface CellScanResult {
-  id: string;
-  networkType: string;
-  earfcn: number;
-  pci: number;
-  band: number;
-  bandwidth: number;
-  cellID: number;
-  tac: number;
-  signalStrength: number;
-  mcc: number;
-  mnc: number;
-  provider: string;
-  scs?: number | null;
-}
+import ScanTable from "./scan-table";
+import { NetworkTypeBadge, SignalBadge } from "./signal-badges";
+import { TABLE } from "./shapes";
 
-interface ScanResultViewProps {
-  data: CellScanResult[];
-  onLockCell?: (cell: CellScanResult) => void;
-}
+// =============================================================================
+// The full scan's columns
+// =============================================================================
+// Definitions only. The toolbar, filter, column menu, sorting, pagination, count
+// and row cascade all live in `scan-table.tsx`, which the neighbour route reads
+// too — this file's job is to say what a scanned cell's columns ARE.
+//
+// THE MACHINE-VOICE SPLIT IS PER COLUMN, not per table. Band, EARFCN, PCI, Cell
+// ID and TAC are identifiers that hold steady until something reconfigures them,
+// so they take `TABLE.IDENT` (mono). Signal is a READING that moves on its own,
+// so it takes `TABLE.FIGURE` — the interface font with tabular figures. The
+// incumbent set every cell to `font-semibold` and neither.
+// =============================================================================
 
-
-const createColumns = (
-  onLockCell?: (cell: CellScanResult) => void,
-): ColumnDef<CellScanResult>[] => [
-  {
-    accessorKey: "networkType",
-    header: () => <div>Network</div>,
-    cell: ({ row }) => (
-      <div><NetworkTypeBadge type={row.getValue("networkType")} /></div>
-    ),
-  },
-  {
-    accessorKey: "provider",
-    header: ({ column }) => (
-      <Button
-        variant="ghost"
-        onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-      >
-        Provider
-        <MaterialSymbol name="unfold_more" size={16} />
-      </Button>
-    ),
-    cell: ({ row }) => {
-      const cell = row.original;
-      return (
-        <div className="flex items-center gap-1">
-          <span className="font-semibold">{cell.provider}</span>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <button type="button" className="inline-flex p-2 -m-2" aria-label="MCC/MNC details">
-                <MaterialSymbol name="info" size={12} />
-              </button>
-            </TooltipTrigger>
-            <TooltipContent>
-              <p>
-                {cell.mcc} {cell.mnc}
-              </p>
-            </TooltipContent>
-          </Tooltip>
-        </div>
-      );
-    },
-  },
-  {
-    accessorKey: "band",
-    header: "Band",
-    cell: ({ row }) => {
-      const networkType = row.original.networkType;
-      const band = row.getValue("band") as number;
-      const prefix = networkType === "NR5G-SA" ? "N" : "B";
-      return (
-        <div className="font-semibold">
-          {prefix}
-          {band}
-        </div>
-      );
-    },
-  },
-  {
-    accessorKey: "earfcn",
-    header: "EARFCN",
-    cell: ({ row }) => (
-      <div className="font-semibold">{row.getValue("earfcn")}</div>
-    ),
-  },
-  {
-    accessorKey: "pci",
-    header: "PCI",
-    cell: ({ row }) => (
-      <div className="font-semibold">{row.getValue("pci")}</div>
-    ),
-  },
-  {
-    accessorKey: "cellID",
-    header: "Cell ID",
-    cell: ({ row }) => (
-      <div className="font-medium">{row.getValue("cellID")}</div>
-    ),
-  },
-  {
-    accessorKey: "tac",
-    header: "TAC",
-    cell: ({ row }) => <div className="font-medium">{row.getValue("tac")}</div>,
-  },
-  {
-    accessorKey: "bandwidth",
-    header: "BW",
-    cell: ({ row }) => (
-      <div className="font-medium">{row.getValue("bandwidth")} MHz</div>
-    ),
-  },
-  {
-    accessorKey: "signalStrength",
-    header: ({ column }) => (
-      <Button
-        variant="ghost"
-        onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-      >
-        Signal
-        <MaterialSymbol name="unfold_more" size={16} />
-      </Button>
-    ),
-    cell: ({ row }) => {
-      const strength = row.getValue("signalStrength") as number;
-      return (
-        <div className="flex items-center gap-2">
-          <SignalBadge strength={strength} />
-          <span className="font-semibold">{strength} dBm</span>
-        </div>
-      );
-    },
-  },
-  {
-    id: "actions",
-    header: () => null,
-    enableHiding: false,
-    cell: ({ row }: { row: Row<CellScanResult> }) => {
-      const cellData = row.original;
-      return (
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button
-              variant="ghost"
-              className="data-[state=open]:bg-muted text-muted-foreground flex size-8"
-              size="icon"
-            >
-              <MaterialSymbol name="more_vert" size={16} />
-              <span className="sr-only">Open menu</span>
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-40">
-            <DropdownMenuItem onClick={() => onLockCell?.(cellData)}>
-              <MaterialSymbol name="lock" size={16} />
-              Lock Cell
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      );
-    },
-  },
-];
-
-// Columns hidden on narrow containers (<640px) — users can toggle them back
-const NARROW_HIDDEN: VisibilityState = {
+/** Columns folded away below the narrow breakpoint. Identifiers first: they are
+ *  the ones a reader can recover from the CSV export. */
+export const CELL_SCAN_NARROW_HIDDEN: VisibilityState = {
   cellID: false,
   tac: false,
   bandwidth: false,
   earfcn: false,
 };
-const NARROW_BREAKPOINT = 640;
 
-const COLUMN_LABELS: Record<string, string> = {
-  networkType: "Network",
-  provider: "Provider",
-  band: "Band",
-  earfcn: "EARFCN",
-  pci: "PCI",
-  cellID: "Cell ID",
-  tac: "TAC",
-  bandwidth: "Bandwidth",
-  signalStrength: "Signal",
+/**
+ * A type alias, not an interface, and that is load-bearing: TypeScript gives an
+ * anonymous object type an implicit index signature but never gives an
+ * `interface` one, so an interface here would not be assignable to the shell's
+ * `Record<string, string>` column-label map and the two would have to be
+ * maintained separately — which is precisely the drift this replaces.
+ */
+export type CellScanColumnCopy = {
+  network: string;
+  provider: string;
+  band: string;
+  earfcn: string;
+  pci: string;
+  cellID: string;
+  tac: string;
+  bandwidth: string;
+  signalStrength: string;
 };
 
-const ScanResultView = ({ data, onLockCell }: ScanResultViewProps) => {
-  const containerRef = React.useRef<HTMLDivElement>(null);
-  // Only animate rows on initial mount — skip on sort/filter/page changes
-  const hasAnimated = React.useRef(false);
-  React.useEffect(() => { hasAnimated.current = true; }, []);
-  const [sorting, setSorting] = React.useState<SortingState>([]);
-  const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>(
-    [],
-  );
-  const [columnVisibility, setColumnVisibility] =
-    React.useState<VisibilityState>({});
-  const columns = React.useMemo(() => createColumns(onLockCell), [onLockCell]);
-
-  // Auto-hide secondary columns on narrow containers
-  React.useEffect(() => {
-    const el = containerRef.current;
-    if (!el) return;
-
-    const ro = new ResizeObserver(([entry]) => {
-      const wide = entry.contentRect.width >= NARROW_BREAKPOINT;
-      setColumnVisibility((prev) => {
-        // Only auto-set if user hasn't manually toggled (all keys default)
-        const isDefault = Object.keys(prev).length === 0 ||
-          Object.keys(prev).every((k) => k in NARROW_HIDDEN);
-        if (!isDefault) return prev;
-        return wide ? {} : NARROW_HIDDEN;
-      });
-    });
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, []);
-
-  const table = useReactTable({
-    data,
-    columns,
-    onSortingChange: setSorting,
-    onColumnFiltersChange: setColumnFilters,
-    getCoreRowModel: getCoreRowModel(),
-    getPaginationRowModel: getPaginationRowModel(),
-    getSortedRowModel: getSortedRowModel(),
-    getFilteredRowModel: getFilteredRowModel(),
-    onColumnVisibilityChange: setColumnVisibility,
-    state: {
-      sorting,
-      columnFilters,
-      columnVisibility,
+export function createCellScanColumns(
+  copy: CellScanColumnCopy,
+  labels: { networkCodes: string; rowMenu: string; lockCell: string },
+  format: { bandwidth: (value: number) => string; signal: (value: number) => string },
+  onLockCell?: (cell: CellScanResult) => void,
+): ColumnDef<CellScanResult>[] {
+  return [
+    {
+      accessorKey: "networkType",
+      header: () => <span>{copy.network}</span>,
+      cell: ({ row }) => (
+        <NetworkTypeBadge type={row.original.networkType} />
+      ),
     },
-  });
-
-  return (
-    <div ref={containerRef} className="relative flex flex-col gap-4 overflow-hidden">
-      <div className="flex flex-col @sm/card:flex-row items-start @sm/card:items-center gap-2">
-        <Input
-          placeholder="Filter by provider..."
-          value={
-            (table.getColumn("provider")?.getFilterValue() as string) ?? ""
-          }
-          onChange={(event) =>
-            table.getColumn("provider")?.setFilterValue(event.target.value)
-          }
-          className="w-full @sm/card:max-w-sm"
-        />
-
+    {
+      accessorKey: "provider",
+      header: ({ column }) => (
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+        >
+          {copy.provider}
+          <MaterialSymbol name="unfold_more" size={16} />
+        </Button>
+      ),
+      cell: ({ row }) => (
+        <span className="flex items-center gap-1">
+          <span className="font-semibold">{row.original.provider}</span>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                className="-m-2 inline-flex p-2"
+                aria-label={labels.networkCodes}
+              >
+                <MaterialSymbol name="info" size={12} />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent>
+              <span className={TABLE.IDENT}>
+                {row.original.mcc} {row.original.mnc}
+              </span>
+            </TooltipContent>
+          </Tooltip>
+        </span>
+      ),
+    },
+    {
+      accessorKey: "band",
+      header: () => <span>{copy.band}</span>,
+      cell: ({ row }) => (
+        <span className={TABLE.IDENT}>
+          {/* `N` for a 5G band, `B` for an LTE one — the carrier's own notation,
+              and the only thing that tells B3 from n3. */}
+          {row.original.networkType.toUpperCase().startsWith("NR") ? "N" : "B"}
+          {row.original.band}
+        </span>
+      ),
+    },
+    {
+      accessorKey: "earfcn",
+      header: () => <span>{copy.earfcn}</span>,
+      cell: ({ row }) => (
+        <span className={TABLE.IDENT}>{row.original.earfcn}</span>
+      ),
+    },
+    {
+      accessorKey: "pci",
+      header: () => <span>{copy.pci}</span>,
+      cell: ({ row }) => <span className={TABLE.IDENT}>{row.original.pci}</span>,
+    },
+    {
+      accessorKey: "cellID",
+      header: () => <span>{copy.cellID}</span>,
+      cell: ({ row }) => (
+        <span className={TABLE.IDENT}>{row.original.cellID}</span>
+      ),
+    },
+    {
+      accessorKey: "tac",
+      header: () => <span>{copy.tac}</span>,
+      cell: ({ row }) => <span className={TABLE.IDENT}>{row.original.tac}</span>,
+    },
+    {
+      accessorKey: "bandwidth",
+      header: () => <span>{copy.bandwidth}</span>,
+      cell: ({ row }) => (
+        <span className={TABLE.FIGURE}>
+          {format.bandwidth(row.original.bandwidth)}
+        </span>
+      ),
+    },
+    {
+      accessorKey: "signalStrength",
+      header: ({ column }) => (
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+        >
+          {copy.signalStrength}
+          <MaterialSymbol name="unfold_more" size={16} />
+        </Button>
+      ),
+      cell: ({ row }) => (
+        <span className="flex items-center gap-2">
+          <SignalBadge strength={row.original.signalStrength} />
+          <span className={TABLE.FIGURE}>
+            {format.signal(row.original.signalStrength)}
+          </span>
+        </span>
+      ),
+    },
+    {
+      id: "actions",
+      header: () => null,
+      enableHiding: false,
+      cell: ({ row }) => (
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="outline" className="@sm/card:ml-auto">
-              Columns <MaterialSymbol name="expand_more" size={16} />
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              className="text-on-surface-variant data-[state=open]:bg-surface-container-high rounded-pill"
+              aria-label={labels.rowMenu}
+            >
+              <MaterialSymbol name="more_vert" size={16} />
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            {table
-              .getAllColumns()
-              .filter((column) => column.getCanHide())
-              .map((column) => {
-                return (
-                  <DropdownMenuCheckboxItem
-                    key={column.id}
-                    checked={column.getIsVisible()}
-                    onCheckedChange={(value) =>
-                      column.toggleVisibility(!!value)
-                    }
-                  >
-                    {COLUMN_LABELS[column.id] ?? column.id}
-                  </DropdownMenuCheckboxItem>
-                );
-              })}
+          <DropdownMenuContent align="end" className="w-48">
+            <DropdownMenuItem onClick={() => onLockCell?.(row.original)}>
+              <MaterialSymbol name="lock" size={16} />
+              {labels.lockCell}
+            </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
-      </div>
-      <div className="overflow-x-auto rounded-lg border">
-        <Table className="min-w-[480px]">
-          <TableHeader className="bg-muted sticky top-0 z-10">
-            {table.getHeaderGroups().map((headerGroup) => (
-              <TableRow key={headerGroup.id}>
-                {headerGroup.headers.map((header) => {
-                  return (
-                    <TableHead key={header.id}>
-                      {header.isPlaceholder
-                        ? null
-                        : flexRender(
-                            header.column.columnDef.header,
-                            header.getContext(),
-                          )}
-                    </TableHead>
-                  );
-                })}
-              </TableRow>
-            ))}
-          </TableHeader>
-          <TableBody>
-            {table.getRowModel().rows?.length ? (
-              table.getRowModel().rows.map((row, index) => (
-                <MotionTableRow
-                  key={row.id}
-                  initial={hasAnimated.current ? false : { opacity: 0, x: -8 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={hasAnimated.current ? undefined : { duration: DUR.standard, delay: rowCascadeDelay(index), ease: EASE_STANDARD }}
-                >
-                  {row.getVisibleCells().map((cell) => (
-                    <TableCell key={cell.id}>
-                      {flexRender(
-                        cell.column.columnDef.cell,
-                        cell.getContext(),
-                      )}
-                    </TableCell>
-                  ))}
-                </MotionTableRow>
-              ))
-            ) : (
-              <TableRow>
-                <TableCell
-                  colSpan={columns.length}
-                  className="h-24 text-center"
-                >
-                  No results found.
-                </TableCell>
-              </TableRow>
-            )}
-          </TableBody>
-        </Table>
-      </div>
-      <div className="flex items-center justify-end space-x-2 py-4">
-        <div className="text-muted-foreground flex-1 text-sm">
-          {(() => {
-            const filtered = table.getFilteredRowModel().rows.length;
-            const total = data.length;
-            const label = filtered === 1 ? "cell" : "cells";
-            return filtered < total
-              ? `${filtered} of ${total} ${label}`
-              : `${total} ${label} found`;
-          })()}
-        </div>
-        <div className="space-x-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => table.previousPage()}
-            disabled={!table.getCanPreviousPage()}
-          >
-            Previous
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => table.nextPage()}
-            disabled={!table.getCanNextPage()}
-          >
-            Next
-          </Button>
-        </div>
-      </div>
-    </div>
+      ),
+    },
+  ];
+}
+
+export interface ScanResultViewProps {
+  data: CellScanResult[];
+  onLockCell?: (cell: CellScanResult) => void;
+}
+
+/** The full scan's table: this route's columns poured into the shared shell. */
+export function ScanResultView({ data, onLockCell }: ScanResultViewProps) {
+  const { t } = useTranslation("cellular");
+
+  const columnCopy: CellScanColumnCopy = React.useMemo(
+    () => ({
+      network: t("cell_scanner.columns.network"),
+      provider: t("cell_scanner.columns.provider"),
+      band: t("cell_scanner.columns.band"),
+      earfcn: t("cell_scanner.columns.earfcn"),
+      pci: t("cell_scanner.columns.pci"),
+      cellID: t("cell_scanner.columns.cell_id"),
+      tac: t("cell_scanner.columns.tac"),
+      bandwidth: t("cell_scanner.columns.bandwidth"),
+      signalStrength: t("cell_scanner.columns.signal"),
+    }),
+    [t],
   );
-};
+
+  const columns = React.useMemo(
+    () =>
+      createCellScanColumns(
+        columnCopy,
+        {
+          networkCodes: t("cell_scanner.a11y.network_codes"),
+          rowMenu: t("cell_scanner.a11y.row_menu"),
+          lockCell: t("cell_scanner.actions.lock_cell"),
+        },
+        {
+          bandwidth: (value) => t("cell_scanner.cells.bandwidth", { value }),
+          signal: (value) => t("cell_scanner.cells.signal", { value }),
+        },
+        onLockCell,
+      ),
+    [columnCopy, onLockCell, t],
+  );
+
+  return (
+    <ScanTable
+      data={data}
+      columns={columns}
+      // The menu's labels ARE the headers, so they cannot drift apart: the
+      // incumbent maintained a second hand-written map and the neighbour fork
+      // had none at all, which is why its menu offered "signalStrength".
+      columnLabels={columnCopy}
+      filterColumnId="provider"
+      narrowHidden={CELL_SCAN_NARROW_HIDDEN}
+      labels={{
+        filterPlaceholder: t("cell_scanner.results.filter_placeholder"),
+        columns: t("cell_scanner.results.columns"),
+        previous: t("cell_scanner.results.previous"),
+        next: t("cell_scanner.results.next"),
+        noMatchTitle: t("cell_scanner.results.no_match_title"),
+        noMatchBody: t("cell_scanner.results.no_match_body"),
+      }}
+      countLabel={(filtered, total) =>
+        filtered < total
+          ? t("cell_scanner.results.filtered", { count: filtered, total })
+          : t("cell_scanner.results.count", { count: total })
+      }
+    />
+  );
+}
 
 export default ScanResultView;

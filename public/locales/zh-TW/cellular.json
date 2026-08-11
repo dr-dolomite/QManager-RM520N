@@ -272,6 +272,109 @@
       "band_live": "{{band}}，已選取並在數據機上生效"
     }
   },
+  "cell_scanner": {
+    "page": {
+      "title": "小區掃描",
+      "description": "掃描本模組支援的所有頻段，找出周邊的基地台。取出 SIM 卡後結果最完整。"
+    },
+    "run": {
+      "title": "全頻段掃描",
+      "description": "在模組支援的每個頻段上各掃描一遍。",
+      "cost": "全頻段掃描會逐一調諧所有支援的頻段，需時 2–3 分鐘，期間暫停模組的其他所有作業——訊號讀取、簡訊與設定寫入都要等它結束。",
+      "start": "掃描全部頻段",
+      "rerun": "重新掃描",
+      "scanning_action": "掃描中…",
+      "download": "下載 CSV",
+      "chip_idle": "就緒",
+      "chip_scanning": "掃描中",
+      "chip_complete": "已完成",
+      "chip_failed": "已失敗",
+      "idle_title": "尚未掃描",
+      "idle_body": "本頁開啟後還沒有掃描過。一次掃描會列出所有頻段上範圍內的每個基地台。",
+      "scanning_title": "正在逐一調諧頻段",
+      "scanning_body": "請保持此分頁開啟——模組完成後結果會顯示在這裡。",
+      "complete_title": "掃描完成",
+      "complete_body_one": "範圍內有 {{count}} 個小區。",
+      "complete_body_other": "範圍內有 {{count}} 個小區。",
+      "failed_title": "掃描失敗",
+      "failed_body": "模組可能正忙或無法連線。請檢查連線後重新掃描。"
+    },
+    "results": {
+      "title": "掃描到的小區",
+      "description": "可依訊號排序、依電信業者篩選，並鎖定任一列。",
+      "filter_placeholder": "依電信業者篩選",
+      "columns": "欄位",
+      "previous": "上一頁",
+      "next": "下一頁",
+      "count_one": "{{count}} 個小區",
+      "count_other": "{{count}} 個小區",
+      "filtered_one": "{{total}} 個小區中的 {{count}} 個",
+      "filtered_other": "{{total}} 個小區中的 {{count}} 個",
+      "no_match_title": "沒有符合該篩選條件的小區",
+      "no_match_body": "清除電信業者篩選即可看到本次掃描的全部小區。",
+      "empty_title": "尚無小區",
+      "empty_body": "執行一次掃描，列出範圍內每個基地台及其頻段、頻點與訊號。",
+      "error_title": "掃描失敗",
+      "error_body": "模組可能正忙或無法連線。請檢查連線後重新掃描。",
+      "error_retry": "重新掃描"
+    },
+    "columns": {
+      "network": "制式",
+      "provider": "電信業者",
+      "band": "頻段",
+      "earfcn": "頻點",
+      "pci": "PCI",
+      "cell_id": "小區 ID",
+      "tac": "TAC",
+      "bandwidth": "頻寬",
+      "signal": "訊號"
+    },
+    "cells": {
+      "bandwidth": "{{value}} MHz",
+      "signal": "{{value}} dBm"
+    },
+    "signal": {
+      "good": "良好",
+      "fair": "普通",
+      "poor": "較弱",
+      "none": "無資料"
+    },
+    "actions": {
+      "lock_cell": "鎖定到此小區"
+    },
+    "a11y": {
+      "network_codes": "網路代碼",
+      "row_menu": "小區操作",
+      "elapsed": "掃描已用時間：{{time}}"
+    },
+    "lock": {
+      "title": "鎖定到小區 {{pci}}？",
+      "description": "模組將只駐留在此小區，在解除鎖定之前不會切換到訊號更強的小區。",
+      "target": "{{network}} · PCI {{pci}} · 頻點 {{earfcn}}",
+      "target_with_provider": "{{network}} · PCI {{pci}} · 頻點 {{earfcn}} · {{provider}}",
+      "confirm": "鎖定小區",
+      "cancel": "取消",
+      "locking": "鎖定中…"
+    },
+    "toast": {
+      "scan_complete_title": "掃描完成",
+      "scan_complete_desc_one": "找到 {{count}} 個小區",
+      "scan_complete_desc_other": "找到 {{count}} 個小區",
+      "poll_failed_title": "與模組失去聯繫",
+      "poll_failed_desc": "掃描可能仍在進行。重新整理頁面即可接手。",
+      "locked_title": "小區已鎖定",
+      "locked_desc": "已駐留在 {{network}} PCI {{pci}}，頻點 {{earfcn}}。",
+      "lock_failed_title": "鎖定失敗",
+      "lock_failed_unknown": "模組拒絕了此次鎖定。",
+      "lock_failed_network": "無法連線到模組。"
+    },
+    "error": {
+      "scan_failed": "掃描失敗",
+      "poll_lost": "掃描期間與模組失去聯繫。",
+      "start_failed": "模組無法啟動掃描。",
+      "start_unreachable": "無法連線到掃描服務。請確認模組正在回應。"
+    }
+  },
   "core_settings": {
     "apn": {
       "page": {

@@ -1,35 +1,68 @@
-import { MaterialSymbol } from "@/components/ui/material-symbol";
-import { Badge } from "@/components/ui/badge";
+"use client";
 
-// These three chips share one table column, so they are read against each other
-// rather than in isolation. `success-container` and `warning-container` sit
-// 1.03:1 apart in measured contrast — the same surface to the eye, and identical
-// under deuteranopia — so Good and Fair cannot be told apart by fill. The signal
-// glyph encodes the verdict by bar count, which survives both a colourblind
-// reader and a greyscale print.
-export function SignalBadge({ strength }: { strength: number }) {
-  if (strength >= -85)
-    return (
-      <Badge variant="success">
-        <MaterialSymbol name="signal_cellular_3_bar" size={12} />
-        Good
-      </Badge>
-    );
-  if (strength >= -100)
-    return (
-      <Badge variant="warning">
-        <MaterialSymbol name="signal_cellular_2_bar" size={12} />
-        Fair
-      </Badge>
-    );
+import { useTranslation } from "react-i18next";
+
+import { Badge } from "@/components/ui/badge";
+import { MaterialSymbol } from "@/components/ui/material-symbol";
+
+import {
+  BADGE_GLYPH_SIZE,
+  SIGNAL_BADGE,
+  networkIdentity,
+  signalTier,
+  type SignalTier,
+} from "./shapes";
+
+// =============================================================================
+// The two chips every scan row carries
+// =============================================================================
+// Both are shared by the full scan and the neighbour read, which is why the
+// thresholds, tones and glyphs live in `shapes.ts` rather than in the branches
+// below: one vocabulary for "fair" across the whole family.
+//
+// The tiers were previously inlined here as a three-branch `if` on raw dBm, with
+// no `none` case at all — so a neighbour cell reporting 0 dBm for an unmeasured
+// port rendered as "Bad", which is a verdict rather than the absence of one.
+// =============================================================================
+
+/**
+ * Signal quality, told apart by GLYPH first and tone second.
+ *
+ * `success-container` and `warning-container` measure 1.03:1 apart — the same
+ * surface to the eye and identical under deuteranopia — so Good and Fair cannot
+ * be separated by fill. The bar count survives a colourblind reader, a greyscale
+ * print, and the modem's own low-contrast field display.
+ */
+export function SignalBadge({ strength }: { strength: number | null }) {
+  const { t } = useTranslation("cellular");
+  const tier = signalTier(strength);
+  const spec = SIGNAL_BADGE[tier];
+
+  // Literal key stems. `i18n:check` grades a missing key as a warning and exits
+  // 0, so an interpolated stem is a key nothing will ever report on.
+  const LABEL_KEY: Record<SignalTier, string> = {
+    good: "cell_scanner.signal.good",
+    fair: "cell_scanner.signal.fair",
+    poor: "cell_scanner.signal.poor",
+    none: "cell_scanner.signal.none",
+  };
+
   return (
-    <Badge variant="destructive">
-      <MaterialSymbol name="signal_cellular_1_bar" size={12} />
-      Bad
+    <Badge variant={spec.variant}>
+      <MaterialSymbol name={spec.glyph} size={BADGE_GLYPH_SIZE} />
+      {t(LABEL_KEY[tier])}
     </Badge>
   );
 }
 
+/**
+ * Which RADIO the row belongs to. An IDENTITY variant, never a status role.
+ *
+ * This shipped as `variant="default"` — solid `bg-primary`, the brand's one
+ * acting colour — for BOTH radios at once. Identity was unreadable (LTE and NR
+ * rows looked identical), and a passive label wearing the primary fill
+ * advertised a click target it does not have.
+ */
 export function NetworkTypeBadge({ type }: { type: string }) {
-  return <Badge variant="default">{type}</Badge>;
+  return <Badge variant={networkIdentity(type)}>{type}</Badge>;
 }

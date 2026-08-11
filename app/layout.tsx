@@ -5,6 +5,8 @@ import localFont from "next/font/local";
 import { JetBrains_Mono } from "next/font/google";
 import { ThemeProvider } from "@/components/theme-provider";
 import { MotionProvider } from "@/components/motion-provider";
+import { MotionPreferenceProvider } from "@/components/motion-preference";
+import { MOTION_BOOT_SCRIPT } from "@/lib/motion-preference";
 import { I18nProvider } from "@/components/i18n/i18n-provider";
 import { Toaster } from "@/components/ui/sonner";
 
@@ -73,22 +75,35 @@ export default function RootLayout({
       <body
         className={`${rethinkSans.variable} ${jetbrainsMono.variable} ${materialSymbols.variable} ${rethinkSans.className} antialiased`}
       >
+        {/* Render-blocking: stamps data-motion on <html> from localStorage
+            BEFORE anything paints, the same way next-themes avoids a theme
+            flash. Without it a user on "Reduced" would see exactly one frame of
+            the entrance animations they asked to suppress. <html> already
+            carries suppressHydrationWarning for the theme script's sake. */}
+        <script
+          dangerouslySetInnerHTML={{ __html: MOTION_BOOT_SCRIPT }}
+        />
         <ThemeProvider
           attribute="class"
           defaultTheme="system"
           enableSystem
           disableTransitionOnChange
         >
-          <MotionProvider>
-            {/* Client-only i18next provider — wraps BOTH the pre-auth (login /
-                setup) shell and the authenticated app so every surface can call
-                t(). Nested under MotionProvider because the root layout is a
-                server component and the provider is "use client". */}
-            <I18nProvider>
-              {children}
-              <Toaster />
-            </I18nProvider>
-          </MotionProvider>
+          {/* Owns the System/Full/Reduced choice. Must sit OUTSIDE
+              MotionProvider, which reads it to pick MotionConfig's
+              `reducedMotion` value. */}
+          <MotionPreferenceProvider>
+            <MotionProvider>
+              {/* Client-only i18next provider — wraps BOTH the pre-auth (login /
+                  setup) shell and the authenticated app so every surface can call
+                  t(). Nested under MotionProvider because the root layout is a
+                  server component and the provider is "use client". */}
+              <I18nProvider>
+                {children}
+                <Toaster />
+              </I18nProvider>
+            </MotionProvider>
+          </MotionPreferenceProvider>
         </ThemeProvider>
       </body>
     </html>

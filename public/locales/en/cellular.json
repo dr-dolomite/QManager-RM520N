@@ -272,6 +272,109 @@
       "band_live": "{{band}}, selected and active on the modem"
     }
   },
+  "cell_scanner": {
+    "page": {
+      "title": "Cell Scanner",
+      "description": "Sweep every supported band for the towers in range. Best results with the SIM removed."
+    },
+    "run": {
+      "title": "Full band sweep",
+      "description": "One pass across every band this modem supports.",
+      "cost": "A full sweep tunes every supported band in turn. It takes 2–3 minutes and pauses all other modem operations — signal readings, SMS and settings writes wait until it finishes.",
+      "start": "Sweep all bands",
+      "rerun": "Sweep again",
+      "scanning_action": "Sweeping…",
+      "download": "Download CSV",
+      "chip_idle": "Ready",
+      "chip_scanning": "Sweeping",
+      "chip_complete": "Complete",
+      "chip_failed": "Failed",
+      "idle_title": "No sweep yet",
+      "idle_body": "Nothing has been scanned since this page loaded. A sweep lists every tower in range, on every band.",
+      "scanning_title": "Tuning every band",
+      "scanning_body": "Keep this tab open — the results land here when the modem finishes.",
+      "complete_title": "Sweep finished",
+      "complete_body_one": "{{count}} cell in range.",
+      "complete_body_other": "{{count}} cells in range.",
+      "failed_title": "Sweep failed",
+      "failed_body": "The modem may be busy or unreachable. Check the connection and run the sweep again."
+    },
+    "results": {
+      "title": "Cells found",
+      "description": "Sort by signal, filter by carrier, lock onto any row.",
+      "filter_placeholder": "Filter by provider",
+      "columns": "Columns",
+      "previous": "Previous",
+      "next": "Next",
+      "count_one": "{{count}} cell",
+      "count_other": "{{count}} cells",
+      "filtered_one": "{{count}} of {{total}} cell",
+      "filtered_other": "{{count}} of {{total}} cells",
+      "no_match_title": "No cell matches that filter",
+      "no_match_body": "Clear the provider filter to see every cell from this sweep.",
+      "empty_title": "No cells yet",
+      "empty_body": "Run a sweep to list every tower in range, with its band, channel and signal.",
+      "error_title": "Sweep failed",
+      "error_body": "The modem may be busy or unreachable. Check the connection and run the sweep again.",
+      "error_retry": "Retry sweep"
+    },
+    "columns": {
+      "network": "Network",
+      "provider": "Provider",
+      "band": "Band",
+      "earfcn": "EARFCN",
+      "pci": "PCI",
+      "cell_id": "Cell ID",
+      "tac": "TAC",
+      "bandwidth": "Bandwidth",
+      "signal": "Signal"
+    },
+    "cells": {
+      "bandwidth": "{{value}} MHz",
+      "signal": "{{value}} dBm"
+    },
+    "signal": {
+      "good": "Good",
+      "fair": "Fair",
+      "poor": "Weak",
+      "none": "No data"
+    },
+    "actions": {
+      "lock_cell": "Lock to this cell"
+    },
+    "a11y": {
+      "network_codes": "Network codes",
+      "row_menu": "Cell actions",
+      "elapsed": "Sweep elapsed time: {{time}}"
+    },
+    "lock": {
+      "title": "Lock to cell {{pci}}?",
+      "description": "The modem will camp on this cell only, and will not move to a stronger one until you clear the lock.",
+      "target": "{{network}} · PCI {{pci}} · channel {{earfcn}}",
+      "target_with_provider": "{{network}} · PCI {{pci}} · channel {{earfcn}} · {{provider}}",
+      "confirm": "Lock cell",
+      "cancel": "Cancel",
+      "locking": "Locking…"
+    },
+    "toast": {
+      "scan_complete_title": "Sweep complete",
+      "scan_complete_desc_one": "{{count}} cell found",
+      "scan_complete_desc_other": "{{count}} cells found",
+      "poll_failed_title": "Lost contact with the modem",
+      "poll_failed_desc": "The sweep may still be running. Reload the page to pick it back up.",
+      "locked_title": "Cell locked",
+      "locked_desc": "Camped on {{network}} PCI {{pci}}, channel {{earfcn}}.",
+      "lock_failed_title": "Lock failed",
+      "lock_failed_unknown": "The modem rejected the lock.",
+      "lock_failed_network": "Could not reach the modem."
+    },
+    "error": {
+      "scan_failed": "Sweep failed",
+      "poll_lost": "Lost contact with the modem while the sweep was running.",
+      "start_failed": "The modem would not start a sweep.",
+      "start_unreachable": "Could not reach the scanner. Check that the modem is responding."
+    }
+  },
   "core_settings": {
     "apn": {
       "page": {
