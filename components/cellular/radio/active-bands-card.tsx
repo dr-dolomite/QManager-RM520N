@@ -504,7 +504,7 @@ export function ActiveBandsCard({
                   c.earfcn === null ? null : `${c.arfcnLabel} ${c.earfcn}`,
                 ]
                   .filter(Boolean)
-                  .join(" · ");
+                  .join("    ");
 
                 const sinr = c.metrics.find((m) => m.id === "sinr");
                 const showLowSnr =

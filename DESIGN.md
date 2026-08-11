@@ -984,6 +984,11 @@ service state — never the half-edited form. A control that cannot currently wo
 of sitting there dead. A test only runs against saved config. An ambient animation only loops where
 something is genuinely live.
 
+**The No-Dot-Separator Rule.** A meta line joining two or more short facts (`PCI 135`, `EARFCN 9485`)
+uses plain spacing, never a `·` glue character — dots read as sloppy filler, not structure. Give the
+facts room (multiple spaces, or separate flex/inline items with a gap) instead of punctuating between
+them.
+
 ## Do's and Don'ts
 
 ### Do:
