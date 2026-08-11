@@ -22,7 +22,6 @@ import {
   SKELETON_SHAPE,
   VERDICT,
   VERDICT_TONE,
-  channelFrequencyLabel,
   isChannelAllowed,
   type LockPosture,
 } from "./shapes";
@@ -87,14 +86,15 @@ function heroPosture(
 }
 
 /**
- * The subcarrier spacing to show on a carrier tile, or null to omit the clause.
+ * The subcarrier spacing to seed an NR entry with when this carrier is added,
+ * or null when the device has not published one for it.
  *
  * `AT+QCAINFO` does NOT report SCS per carrier — the poller's ten per-carrier
  * fields do not include it. The only SCS the device publishes is `nr.scs`, for
- * the SERVING NR cell, singular. So a tile may show spacing only when it IS
- * that cell. An NR secondary carrier genuinely has no spacing available, and
- * printing the serving cell's value there would be a fabrication rather than an
- * approximation.
+ * the SERVING NR cell, singular. So a carrier carries a real spacing only when
+ * it IS that cell; for any other, returning the serving cell's value would be a
+ * fabrication rather than an approximation. Null makes the page shell fall back
+ * to the common 30 kHz default, which the NR card then lets the user correct.
  */
 function carrierScs(
   carrier: CarrierComponent,
@@ -119,34 +119,31 @@ function LiveDot() {
   );
 }
 
+/**
+ * One carrier the radio is on right now.
+ *
+ * THE TILE SHOWS THE CHANNEL AND NOTHING THAT ISN'T THE CHANNEL. It used to
+ * carry a meta line — centre frequency, bandwidth, SCS, PCI — and every one of
+ * those was true but none of them was actionable HERE: the only thing this tile
+ * does is push its channel number into an allow list, and a frequency lock
+ * takes no PCI, no bandwidth and no frequency. Four correct figures competing
+ * with the one figure the button acts on made the user work out which number
+ * mattered. Band, radio and RSRP stay because they identify and qualify the
+ * carrier rather than restate it.
+ */
 function CarrierTile({
   carrier,
   allowed,
-  scs,
   canAdd,
   onAdd,
 }: {
   carrier: CarrierComponent;
   allowed: boolean;
-  scs: number | null;
   canAdd: boolean;
   onAdd: () => void;
 }) {
   const { t } = useTranslation("cellular");
   const isNr = carrier.technology === "NR";
-  const frequency = channelFrequencyLabel(
-    carrier.earfcn,
-    isNr ? "NR" : "LTE",
-  );
-
-  // The meta line is assembled from what the backend actually has, so a missing
-  // field drops its clause instead of printing a dash that looks like data.
-  const meta = [
-    frequency,
-    carrier.bandwidth_mhz ? `${carrier.bandwidth_mhz} MHz` : null,
-    scs !== null ? t("frequency_locking.slots.scs_unit", { value: scs }) : null,
-    carrier.pci !== null ? `PCI ${carrier.pci}` : null,
-  ].filter(Boolean);
 
   return (
     <div className={cn(CARRIER_TILE.ROOT, allowed && CARRIER_TILE.MATCH)}>
@@ -201,10 +198,6 @@ function CarrierTile({
           </span>
         ) : null}
       </div>
-
-      {meta.length > 0 ? (
-        <span className={CARRIER_TILE.META}>{meta.join(" · ")}</span>
-      ) : null}
     </div>
   );
 }
@@ -410,7 +403,6 @@ export function FreqLockHero({
                       carrier.earfcn,
                       carrier.technology === "NR" ? allowedNr : allowedLte,
                     )}
-                    scs={carrierScs(carrier, modemData)}
                     canAdd={!towerLockActive}
                     onAdd={() => {
                       if (carrier.earfcn === null) return;

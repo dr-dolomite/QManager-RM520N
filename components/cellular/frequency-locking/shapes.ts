@@ -138,7 +138,14 @@ export const CARD_FOOT =
  */
 export const HERO = {
   ROOT: "rounded-hero border-0 bg-surface shadow-none",
-  BODY: "flex flex-col gap-3.5 p-5 @lg/card:p-6",
+  /**
+   * Tighter vertically than horizontally. The hero's two children are already
+   * padded panels, so a symmetric `p-6` stacks 24px of card padding on top of
+   * 20px of panel padding at the seam and the strip reads as floating inside an
+   * oversized frame. The side gutter keeps the full measure — that one is doing
+   * real work against the page edge.
+   */
+  BODY: "flex flex-col gap-3.5 px-5 py-4 @lg/card:px-6 @lg/card:py-5",
   HEAD: "flex flex-wrap items-center gap-2.5",
   TITLE: "text-base font-semibold",
   /**
@@ -162,12 +169,27 @@ export const HERO = {
  * same kind of thing.
  */
 export const VERDICT = {
-  ROOT: "flex flex-col gap-3 rounded-tile p-5",
+  /**
+   * CENTRED, on the shadcn `Empty` model: disc, title, body and chips are one
+   * centred group, vertically centred in whatever height the carrier rail
+   * opposite forces.
+   *
+   * The rail sets the row height and always outgrows this panel, so a
+   * top-aligned stack left a growing void under the chips — the panel looked
+   * like it had failed to load its last element. Centring turns that slack into
+   * symmetric breathing room, which is exactly the empty-state read this panel
+   * wants: one glyph, one sentence, done.
+   *
+   * Note the FOOT deliberately does NOT carry `mt-auto` any more. `mt-auto` on
+   * the last child eats all the free space before it, which pins the group to
+   * the top and silently cancels `justify-center`.
+   */
+  ROOT: "flex flex-col items-center justify-center gap-3 rounded-tile p-5 text-center",
   DISC: "flex size-10 items-center justify-center rounded-pill",
   TITLE: "text-lg font-semibold text-balance",
-  BODY: "text-[13px]/5 text-pretty",
-  /** Chip row pinned to the panel floor so panels of unequal copy still align. */
-  FOOT: "mt-auto flex flex-wrap items-center gap-1.5",
+  BODY: "max-w-[17rem] text-[13px]/5 text-pretty",
+  /** Chip row, centred under the sentence it qualifies. */
+  FOOT: "flex flex-wrap items-center justify-center gap-1.5",
 } as const;
 
 export const VERDICT_TONE: Record<
@@ -505,8 +527,12 @@ export const SKELETON_SHAPE = {
   CHIP: "h-[1.375rem] w-24 rounded-pill",
   /** A slot row, mirroring `SLOT.ROW`'s min-height exactly. */
   SLOT_ROW: "h-[3.625rem] w-full rounded-field",
-  /** A carrier tile, mirroring `CARRIER_TILE.ROOT`. */
-  CARRIER: "h-[6.75rem] w-full rounded-field",
+  /**
+   * A carrier tile, mirroring `CARRIER_TILE.ROOT`: 14px pad, a 28px head row,
+   * 8px gap, the 22px channel figure, 14px pad. Two rows now, not three — it
+   * lost its meta line when the tile narrowed to the channel number.
+   */
+  CARRIER: "h-[5.375rem] w-full rounded-field",
   /** The verdict panel. */
   VERDICT: "h-[13rem] w-full rounded-tile",
   /** An action pill at `PILL_ACTION`'s 42px height. */
