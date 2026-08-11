@@ -31,10 +31,15 @@ ERROR_FILE="/tmp/qmanager_cell_scan_error"
 RAW_FILE="/tmp/qmanager_cell_scan_raw.tmp"
 PARSED_FILE="/tmp/qmanager_cell_scan_parsed.tmp"
 OPERATOR_LIST="/usrdata/qmanager/www/cgi-bin/quecmanager/operator-list.json"
+# Maintenance marker. AT+QSCAN holds the single global AT mutex for up to 180s,
+# so qmanager_poller drops to ping-only (scan_in_progress) and qmanager_watchcat
+# parks in LOCKED while this exists. Both only test for existence; the poller
+# expires it after LONG_FLAG_MAX_AGE (300s) if this worker dies without cleanup.
+LONG_FLAG="/tmp/qmanager_long_running"
 
 # --- Cleanup on exit ---------------------------------------------------------
 cleanup() {
-    rm -f "$PID_FILE" "$RAW_FILE" "$PARSED_FILE"
+    rm -f "$PID_FILE" "$RAW_FILE" "$PARSED_FILE" "$LONG_FLAG"
 }
 trap cleanup EXIT INT TERM
 
@@ -48,6 +53,10 @@ qlog_info "Cell scanner started (PID: $$)"
 # STEP 1: Execute AT+QSCAN=3,1 via qcmd
 # =============================================================================
 # Mode 3 = LTE + NR5G, ext 1 = show all extension parameters
+# Raise the maintenance marker BEFORE taking the AT mutex, so the poller and the
+# watchdog back off for the whole sweep rather than racing it and logging
+# modem_busy on every read. cleanup() clears it on any exit path.
+: > "$LONG_FLAG"
 raw_output=$(qcmd 'AT+QSCAN=3,1')
 scan_rc=$?
 
