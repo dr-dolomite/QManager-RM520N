@@ -229,7 +229,14 @@ export const FrequencyLockingComponent = () => {
       className={PAGE_SHELL}
       variants={staggerContainer}
       initial="hidden"
-      animate="show"
+      // "visible", NOT "show". `staggerContainer`/`staggerItem` in `lib/motion.ts`
+      // name their settled state `visible`. A name that matches no variant is not
+      // an error in Motion — it simply has nothing to animate to, so every
+      // `staggerItem` child stays pinned at `hidden` (`opacity: 0`) forever and
+      // the whole page renders as a correct, fully-populated, INVISIBLE DOM. It
+      // type-checks, builds, and passes every static gate, because `animate`
+      // takes an arbitrary string. The only detector is looking at it.
+      animate="visible"
     >
       <motion.div variants={staggerItem}>
         <CellularPageHeader
