@@ -196,7 +196,7 @@ export function BandRow({
       {/* QUALITY value — tinted by this carrier's own reading, not the aggregate. */}
       <span
         className={cn(
-          "flex-none text-right font-mono text-xs font-semibold tabular-nums",
+          "flex-none text-right text-xs font-semibold tabular-nums",
           "transition-colors duration-[var(--duration-standard)] ease-[var(--ease-standard)]",
           VALUE_W,
           textClass,
@@ -257,7 +257,7 @@ export function AggregateBandRow({
       />
       <span
         className={cn(
-          "flex-none text-right font-mono text-xs font-semibold tabular-nums",
+          "flex-none text-right text-xs font-semibold tabular-nums",
           VALUE_W,
           textClass,
         )}

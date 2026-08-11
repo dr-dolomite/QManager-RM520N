@@ -87,9 +87,9 @@ export function InboxToolbar({
                 // rather than taking a chip role of its own. A `default` badge
                 // here would be `bg-primary` on a `bg-primary` active pill
                 // (invisible), and a status role would claim a meaning this
-                // number does not carry. A count is a measurement, so it is mono
-                // and tabular.
-                <span className="font-mono text-xs tabular-nums opacity-80">
+                // number does not carry. A count is a changing figure, so it
+                // stays tabular-nums.
+                <span className="text-xs tabular-nums opacity-80">
                   {unreadCount > 99 ? "99+" : unreadCount}
                 </span>
               )}

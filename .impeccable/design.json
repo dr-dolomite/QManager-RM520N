@@ -432,7 +432,7 @@
       "refersTo": "button-primary",
       "description": "The main action on any surface — Record, Save, Apply. Full-round pill, 42px, brand fill.",
       "html": "<button class=\"ds-btn-primary\">Apply profile</button>",
-      "css": ".ds-btn-primary{display:inline-flex;align-items:center;justify-content:center;gap:.5rem;height:2.625rem;padding:0 1.25rem;border:none;border-radius:9999px;background:var(--primary);color:var(--primary-foreground);font-family:var(--font-sans,'Euclid Circular B',system-ui,sans-serif);font-size:.875rem;font-weight:600;cursor:pointer;transition:background-color 300ms cubic-bezier(0.2,0,0,1),box-shadow 180ms ease-out}.ds-btn-primary:hover{background:color-mix(in oklab,var(--primary) 90%,transparent)}.ds-btn-primary:focus-visible{outline:none;box-shadow:0 0 0 3px color-mix(in oklab,var(--ring) 50%,transparent)}"
+      "css": ".ds-btn-primary{display:inline-flex;align-items:center;justify-content:center;gap:.5rem;height:2.625rem;padding:0 1.25rem;border:none;border-radius:9999px;background:var(--primary);color:var(--primary-foreground);font-family:var(--font-sans,'Rethink Sans',system-ui,sans-serif);font-size:.875rem;font-weight:600;cursor:pointer;transition:background-color 300ms cubic-bezier(0.2,0,0,1),box-shadow 180ms ease-out}.ds-btn-primary:hover{background:color-mix(in oklab,var(--primary) 90%,transparent)}.ds-btn-primary:focus-visible{outline:none;box-shadow:0 0 0 3px color-mix(in oklab,var(--ring) 50%,transparent)}"
     },
     {
       "name": "Tonal Button",
@@ -440,7 +440,7 @@
       "refersTo": "button-tonal",
       "description": "A secondary action of equal standing. The container pair, so it reads as a peer of the primary rather than a weaker copy.",
       "html": "<button class=\"ds-btn-tonal\">Copy diagnostics</button>",
-      "css": ".ds-btn-tonal{display:inline-flex;align-items:center;justify-content:center;gap:.5rem;height:2.625rem;padding:0 1.25rem;border:none;border-radius:9999px;background:var(--primary-container);color:var(--on-primary-container);font-family:var(--font-sans,'Euclid Circular B',system-ui,sans-serif);font-size:.875rem;font-weight:600;cursor:pointer;transition:background-color 300ms cubic-bezier(0.2,0,0,1),box-shadow 180ms ease-out}.ds-btn-tonal:hover{background:color-mix(in oklab,var(--primary-container) 80%,transparent)}.ds-btn-tonal:focus-visible{outline:none;box-shadow:0 0 0 3px color-mix(in oklab,var(--ring) 50%,transparent)}"
+      "css": ".ds-btn-tonal{display:inline-flex;align-items:center;justify-content:center;gap:.5rem;height:2.625rem;padding:0 1.25rem;border:none;border-radius:9999px;background:var(--primary-container);color:var(--on-primary-container);font-family:var(--font-sans,'Rethink Sans',system-ui,sans-serif);font-size:.875rem;font-weight:600;cursor:pointer;transition:background-color 300ms cubic-bezier(0.2,0,0,1),box-shadow 180ms ease-out}.ds-btn-tonal:hover{background:color-mix(in oklab,var(--primary-container) 80%,transparent)}.ds-btn-tonal:focus-visible{outline:none;box-shadow:0 0 0 3px color-mix(in oklab,var(--ring) 50%,transparent)}"
     },
     {
       "name": "Status Chip",
@@ -448,7 +448,7 @@
       "refersTo": "chip-status",
       "description": "The only correct status indicator: a role container, that container's ink, no border, pill radius, and a mandatory 12px glyph. The glyph is load-bearing — success and warning containers measure 1.03:1 apart.",
       "html": "<span class=\"ds-chip-status\"><svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M21.801 10A10 10 0 1 1 17 3.335\"/><path d=\"m9 11 3 3L22 4\"/></svg>Connected</span>",
-      "css": ".ds-chip-status{display:inline-flex;align-items:center;justify-content:center;gap:.25rem;width:fit-content;padding:.125rem .5rem;border:1px solid transparent;border-radius:9999px;background:var(--success-container);color:var(--on-success-container);font-family:var(--font-sans,'Euclid Circular B',system-ui,sans-serif);font-size:.75rem;font-weight:500;white-space:nowrap;transition:color 300ms cubic-bezier(0.2,0,0,1),background-color 300ms cubic-bezier(0.2,0,0,1),box-shadow 180ms ease-out}.ds-chip-status>svg{width:.75rem;height:.75rem;pointer-events:none}"
+      "css": ".ds-chip-status{display:inline-flex;align-items:center;justify-content:center;gap:.25rem;width:fit-content;padding:.125rem .5rem;border:1px solid transparent;border-radius:9999px;background:var(--success-container);color:var(--on-success-container);font-family:var(--font-sans,'Rethink Sans',system-ui,sans-serif);font-size:.75rem;font-weight:500;white-space:nowrap;transition:color 300ms cubic-bezier(0.2,0,0,1),background-color 300ms cubic-bezier(0.2,0,0,1),box-shadow 180ms ease-out}.ds-chip-status>svg{width:.75rem;height:.75rem;pointer-events:none}"
     },
     {
       "name": "Identity Chip",
@@ -464,7 +464,7 @@
       "refersTo": "card-hero",
       "description": "The anchor card on a surface: 40px radius, no border, tonal separation only, with an optional whisper shadow that is never load-bearing.",
       "html": "<section class=\"ds-card-hero\"><h3 class=\"ds-card-hero__title\">Network Status</h3><p class=\"ds-card-hero__desc\">Registration, carrier, and link state.</p></section>",
-      "css": ".ds-card-hero{display:flex;flex-direction:column;gap:.375rem;padding:1.5rem 1.75rem;border:none;border-radius:2.5rem;background:var(--surface);color:var(--on-surface);box-shadow:var(--shadow-whisper,0 1px 2px oklch(0.19 0.032 258/6%))}.ds-card-hero__title{margin:0;font-family:var(--font-sans,'Euclid Circular B',system-ui,sans-serif);font-size:1.125rem;font-weight:600;line-height:1.55}.ds-card-hero__desc{margin:0;font-family:var(--font-sans,'Euclid Circular B',system-ui,sans-serif);font-size:.875rem;font-weight:400;line-height:1.5;color:var(--on-surface-variant)}"
+      "css": ".ds-card-hero{display:flex;flex-direction:column;gap:.375rem;padding:1.5rem 1.75rem;border:none;border-radius:2.5rem;background:var(--surface);color:var(--on-surface);box-shadow:var(--shadow-whisper,0 1px 2px oklch(0.19 0.032 258/6%))}.ds-card-hero__title{margin:0;font-family:var(--font-sans,'Rethink Sans',system-ui,sans-serif);font-size:1.125rem;font-weight:600;line-height:1.55}.ds-card-hero__desc{margin:0;font-family:var(--font-sans,'Rethink Sans',system-ui,sans-serif);font-size:.875rem;font-weight:400;line-height:1.5;color:var(--on-surface-variant)}"
     },
     {
       "name": "Summary Tile",
@@ -472,15 +472,15 @@
       "refersTo": "tile",
       "description": "The inner unit of a glance surface: a 28px block, 92px tall, holding a 52px glyph disc beside eyebrow, value, and caption. The disc always INVERTS the tile's pairing so the icon pops instead of dissolving.",
       "html": "<div class=\"ds-tile\"><span class=\"ds-tile__disc\"><svg viewBox=\"0 0 24 24\" fill=\"currentColor\"><path d=\"M12 2 8 8h3v6H5l-3 8h20l-3-8h-6V8h3z\"/></svg></span><div class=\"ds-tile__col\"><span class=\"ds-tile__eyebrow\">Bandwidth</span><span class=\"ds-tile__value\">70<span class=\"ds-tile__unit\">MHz</span></span><span class=\"ds-tile__caption\">20 + 30 + 20</span></div></div>",
-      "css": ".ds-tile{display:flex;align-items:center;gap:.875rem;min-height:5.75rem;padding:1rem 1.25rem;border-radius:1.75rem;background:var(--primary-container);color:var(--on-primary-container);font-family:var(--font-sans,'Euclid Circular B',system-ui,sans-serif)}.ds-tile__disc{display:grid;place-items:center;flex:none;width:3.25rem;height:3.25rem;border-radius:9999px;background:var(--primary);color:var(--primary-foreground)}.ds-tile__disc>svg{width:1.75rem;height:1.75rem}.ds-tile__col{display:flex;min-width:0;flex-direction:column;gap:3px}.ds-tile__eyebrow{font-size:.75rem;font-weight:600;opacity:.85}.ds-tile__value{font-family:var(--font-mono,ui-monospace,monospace);font-size:1.25rem;font-weight:600;line-height:1.1;font-variant-numeric:tabular-nums;display:inline-flex;align-items:baseline;gap:.25rem}.ds-tile__unit{font-family:var(--font-sans,'Euclid Circular B',system-ui,sans-serif);font-size:.875rem;font-weight:600}.ds-tile__caption{font-family:var(--font-mono,ui-monospace,monospace);font-size:.75rem;font-variant-numeric:tabular-nums;opacity:.85;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}"
+      "css": ".ds-tile{display:flex;align-items:center;gap:.875rem;min-height:5.75rem;padding:1rem 1.25rem;border-radius:1.75rem;background:var(--primary-container);color:var(--on-primary-container);font-family:var(--font-sans,'Rethink Sans',system-ui,sans-serif)}.ds-tile__disc{display:grid;place-items:center;flex:none;width:3.25rem;height:3.25rem;border-radius:9999px;background:var(--primary);color:var(--primary-foreground)}.ds-tile__disc>svg{width:1.75rem;height:1.75rem}.ds-tile__col{display:flex;min-width:0;flex-direction:column;gap:3px}.ds-tile__eyebrow{font-size:.75rem;font-weight:600;opacity:.85}.ds-tile__value{font-family:var(--font-sans,'Rethink Sans',system-ui,sans-serif);font-size:1.25rem;font-weight:600;line-height:1.1;font-variant-numeric:tabular-nums;display:inline-flex;align-items:baseline;gap:.25rem}.ds-tile__unit{font-family:var(--font-sans,'Rethink Sans',system-ui,sans-serif);font-size:.875rem;font-weight:600}.ds-tile__caption{font-family:var(--font-sans,'Rethink Sans',system-ui,sans-serif);font-size:.75rem;font-variant-numeric:tabular-nums;opacity:.85;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}"
     },
     {
       "name": "Metric Row Pill",
       "kind": "custom",
       "refersTo": "metric-row-pill",
-      "description": "The glance-surface metric row: a 40px full-round pill on surface-container, a 13px/600 muted key against a 13px mono value. The 20px line box is load-bearing — it holds the row at exactly 40px so its skeleton keeps matching.",
+      "description": "The glance-surface metric row: a 40px full-round pill on surface-container, a 13px/600 muted key against a 13px tabular-nums value. The 20px line box is load-bearing — it holds the row at exactly 40px so its skeleton keeps matching.",
       "html": "<dl class=\"ds-row\"><dt class=\"ds-row__key\">RSRP</dt><dd class=\"ds-row__val\">-87 dBm</dd></dl>",
-      "css": ".ds-row{display:flex;align-items:center;justify-content:space-between;gap:.75rem;margin:0;height:2.5rem;padding:.625rem 1rem;border-radius:9999px;background:var(--surface-container);font-family:var(--font-sans,'Euclid Circular B',system-ui,sans-serif)}.ds-row__key{font-size:.8125rem;line-height:1.25rem;font-weight:600;color:var(--on-surface-variant)}.ds-row__val{margin:0;font-family:var(--font-mono,ui-monospace,monospace);font-size:.8125rem;line-height:1.25rem;font-weight:600;font-variant-numeric:tabular-nums;color:var(--success-on-surface);transition:color 180ms ease-out}"
+      "css": ".ds-row{display:flex;align-items:center;justify-content:space-between;gap:.75rem;margin:0;height:2.5rem;padding:.625rem 1rem;border-radius:9999px;background:var(--surface-container);font-family:var(--font-sans,'Rethink Sans',system-ui,sans-serif)}.ds-row__key{font-size:.8125rem;line-height:1.25rem;font-weight:600;color:var(--on-surface-variant)}.ds-row__val{margin:0;font-family:var(--font-sans,'Rethink Sans',system-ui,sans-serif);font-size:.8125rem;line-height:1.25rem;font-weight:600;font-variant-numeric:tabular-nums;color:var(--success-on-surface);transition:color 180ms ease-out}"
     },
     {
       "name": "Sidebar Nav Item (active)",
@@ -488,7 +488,7 @@
       "refersTo": "nav-item-active",
       "description": "One primary-container pill per group, which SLIDES between rows rather than appearing. The active row also thickens its glyph's FILL axis — an accessibility affordance, so the state survives grayscale.",
       "html": "<a class=\"ds-nav ds-nav--active\" href=\"#\"><svg viewBox=\"0 0 24 24\" fill=\"currentColor\"><path d=\"M12 2 8 8h3v6H5l-3 8h20l-3-8h-6V8h3z\"/></svg>Radio Information</a>",
-      "css": ".ds-nav{position:relative;display:flex;align-items:center;gap:.75rem;height:2.25rem;padding:0 1rem;border-radius:9999px;background:transparent;color:var(--on-surface-variant);font-family:var(--font-sans,'Euclid Circular B',system-ui,sans-serif);font-size:.875rem;font-weight:400;text-decoration:none;transition:color 180ms ease-out,background-color 180ms ease-out,font-weight 180ms ease-out}.ds-nav>svg{width:1.25rem;height:1.25rem;flex:none}.ds-nav:hover{background:var(--surface-container-high);color:var(--on-surface)}.ds-nav.ds-nav--active{background:var(--primary-container);color:var(--on-primary-container);font-weight:600}.ds-nav:focus-visible{outline:none;box-shadow:0 0 0 2px var(--ring)}"
+      "css": ".ds-nav{position:relative;display:flex;align-items:center;gap:.75rem;height:2.25rem;padding:0 1rem;border-radius:9999px;background:transparent;color:var(--on-surface-variant);font-family:var(--font-sans,'Rethink Sans',system-ui,sans-serif);font-size:.875rem;font-weight:400;text-decoration:none;transition:color 180ms ease-out,background-color 180ms ease-out,font-weight 180ms ease-out}.ds-nav>svg{width:1.25rem;height:1.25rem;flex:none}.ds-nav:hover{background:var(--surface-container-high);color:var(--on-surface)}.ds-nav.ds-nav--active{background:var(--primary-container);color:var(--on-primary-container);font-weight:600}.ds-nav:focus-visible{outline:none;box-shadow:0 0 0 2px var(--ring)}"
     },
     {
       "name": "Input Field",
@@ -496,7 +496,7 @@
       "refersTo": "input",
       "description": "20px radius, 42px tall, a surface-container fill and no visible border at rest. Focus adds a ring; the fill does not change.",
       "html": "<input class=\"ds-input\" type=\"text\" placeholder=\"internet.carrier.com\" />",
-      "css": ".ds-input{width:100%;height:2.625rem;padding:0 .875rem;border:1px solid transparent;border-radius:1.25rem;background:var(--surface-container);color:var(--on-surface);font-family:var(--font-sans,'Euclid Circular B',system-ui,sans-serif);font-size:.875rem;outline:none;transition:box-shadow 180ms ease-out,border-color 180ms ease-out}.ds-input::placeholder{color:var(--on-surface-variant)}.ds-input:focus-visible{border-color:var(--ring);box-shadow:0 0 0 3px color-mix(in oklab,var(--ring) 50%,transparent)}.ds-input[aria-invalid=true]{border-color:var(--destructive);box-shadow:0 0 0 3px color-mix(in oklab,var(--destructive) 20%,transparent)}"
+      "css": ".ds-input{width:100%;height:2.625rem;padding:0 .875rem;border:1px solid transparent;border-radius:1.25rem;background:var(--surface-container);color:var(--on-surface);font-family:var(--font-sans,'Rethink Sans',system-ui,sans-serif);font-size:.875rem;outline:none;transition:box-shadow 180ms ease-out,border-color 180ms ease-out}.ds-input::placeholder{color:var(--on-surface-variant)}.ds-input:focus-visible{border-color:var(--ring);box-shadow:0 0 0 3px color-mix(in oklab,var(--ring) 50%,transparent)}.ds-input[aria-invalid=true]{border-color:var(--destructive);box-shadow:0 0 0 3px color-mix(in oklab,var(--destructive) 20%,transparent)}"
     },
     {
       "name": "Tonal Banner",
@@ -504,7 +504,7 @@
       "refersTo": "banner",
       "description": "A solid role container — never a wash — at 20px radius so it cannot out-round its host, with the glyph in a filled disc on the role's STRONG fill. The disc is what survives when the container washes out in sunlight.",
       "html": "<div class=\"ds-banner\" role=\"alert\"><span class=\"ds-banner__disc\"><svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3\"/><path d=\"M12 9v4\"/><path d=\"M12 17h.01\"/></svg></span><div class=\"ds-banner__body\"><p class=\"ds-banner__title\">No SIM detected</p><p class=\"ds-banner__desc\">Insert a SIM and reseat the tray, then retry.</p></div></div>",
-      "css": ".ds-banner{display:flex;align-items:flex-start;gap:.75rem;padding:.875rem 1rem;border-radius:1.25rem;background:var(--warning-container);color:var(--on-warning-container);font-family:var(--font-sans,'Euclid Circular B',system-ui,sans-serif);animation:ds-banner-in 400ms cubic-bezier(0.05,0.7,0.1,1)}.ds-banner__disc{display:grid;place-items:center;flex:none;width:2rem;height:2rem;border-radius:9999px;background:var(--warning);color:var(--warning-foreground)}.ds-banner__disc>svg{width:1.125rem;height:1.125rem}.ds-banner__body{display:flex;flex-direction:column;gap:.125rem}.ds-banner__title{margin:0;font-size:.875rem;font-weight:600}.ds-banner__desc{margin:0;font-size:.8125rem;line-height:1.5;opacity:.9}@keyframes ds-banner-in{from{opacity:0;transform:translateY(-6px)}}@media (prefers-reduced-motion:reduce){.ds-banner{animation:none}}"
+      "css": ".ds-banner{display:flex;align-items:flex-start;gap:.75rem;padding:.875rem 1rem;border-radius:1.25rem;background:var(--warning-container);color:var(--on-warning-container);font-family:var(--font-sans,'Rethink Sans',system-ui,sans-serif);animation:ds-banner-in 400ms cubic-bezier(0.05,0.7,0.1,1)}.ds-banner__disc{display:grid;place-items:center;flex:none;width:2rem;height:2rem;border-radius:9999px;background:var(--warning);color:var(--warning-foreground)}.ds-banner__disc>svg{width:1.125rem;height:1.125rem}.ds-banner__body{display:flex;flex-direction:column;gap:.125rem}.ds-banner__title{margin:0;font-size:.875rem;font-weight:600}.ds-banner__desc{margin:0;font-size:.8125rem;line-height:1.5;opacity:.9}@keyframes ds-banner-in{from{opacity:0;transform:translateY(-6px)}}@media (prefers-reduced-motion:reduce){.ds-banner{animation:none}}"
     }
   ],
   "narrative": {
@@ -514,7 +514,7 @@
       "OKLCH only. `#000` and `#fff` never appear as literals; every neutral is tinted toward hue 258.",
       "The palette is derived from the mark, not chosen alongside it.",
       "Three identity hues (blue, violet, cyan) plus the functional four. No hue is decorative and functional at the same time.",
-      "Euclid Circular B is the interface voice; JetBrains Mono is the machine voice. There is no third.",
+      "Rethink Sans is the interface voice; JetBrains Mono is the machine voice. There is no third.",
       "Depth is tonal. Shadows exist, are optional, and are never load-bearing.",
       "Motion is expressive in duration and curve, capped at `emphasized`, and never overshoots.",
       "Light and dark are first-class equals; dark mode is genuinely colored, not desaturated.",
@@ -565,12 +565,12 @@
       },
       {
         "name": "The Two-Voice Rule",
-        "body": "Euclid is the interface, JetBrains Mono is the machine. There is no third typeface. Pairing Euclid with another UI sans (Inter, Geist Sans, IBM Plex, Roboto) is forbidden.",
+        "body": "Rethink Sans is the interface, JetBrains Mono is the machine. There is no third typeface. Pairing Rethink Sans with another UI sans (Inter, Geist Sans, IBM Plex, Roboto, Manrope) is forbidden.",
         "section": "typography"
       },
       {
         "name": "The Machine-Voice Rule",
-        "body": "`font-mono` is scoped to machine truth: measurements with units (RSRP, bandwidth, latency, dBm), identifiers (band, EARFCN, PCI, ICCID, IMEI), raw AT responses, log lines, and copyable commands. A human-authored label never wears it. A count is a measurement; a nav item is not.",
+        "body": "`font-mono` is scoped to machine truth that is not itself a changing figure: identifiers (band, EARFCN, PCI, ICCID, IMEI, MAC/IP addresses), static facts read back from config rather than sampled live (a band's reference bandwidth in a disclosure table, a resolved timezone offset, a fixed scoring weight), raw AT responses, log lines, and copyable commands. A human-authored label never wears it. A live measurement — RSRP, throughput, a countdown, a ticking relative-time caption — is the interface reporting a number rather than the machine's raw output, so it takes `--font-sans` and `tabular-nums` instead of `font-mono`. A count is a changing figure and stays `font-sans`; a nav item is neither and gets no font-family override at all.",
         "section": "typography"
       },
       {
@@ -580,7 +580,7 @@
       },
       {
         "name": "The Tabular-Number Rule",
-        "body": "Any figure that can change while on screen is `tabular-nums`. A latency readout whose digits shift width reads as the layout twitching, not as the value moving — and a tonal pill makes that jitter more visible, not less.",
+        "body": "Any figure that can change while on screen is `tabular-nums`, in whichever voice it's already in — a live measurement keeps `tabular-nums` in `font-sans`, and an identifier column that needs vertical alignment keeps it in `font-mono`. The class controls digit-width jitter; it does not decide which voice owns the value. A latency readout whose digits shift width reads as the layout twitching, not as the value moving — and a tonal pill makes that jitter more visible, not less.",
         "section": "typography"
       },
       {
@@ -728,7 +728,7 @@
       "Do write responsive behavior as a container query against `@container/main`.",
       "Do wrap a settings group in a card and let the page arrange cards.",
       "Do put `min-w-0 truncate` on every text node in a paired card's header.",
-      "Do mark every changing figure `font-mono tabular-nums`.",
+      "Do mark every changing figure `tabular-nums` in the interface font; reserve `font-mono` for identifiers and raw machine strings.",
       "Do mirror a skeleton's geometry from the same exported shape constant the loaded view uses.",
       "Do build the loading, empty, and error state in the same change as the loaded one.",
       "Do pass `size` explicitly at every `MaterialSymbol` call site.",

@@ -230,7 +230,7 @@ export const CAMPED = {
   ROOT: "flex flex-col gap-3 rounded-tile bg-surface-container p-5",
   HEAD: "flex flex-wrap items-center gap-2",
   LABEL: "text-sm font-semibold",
-  META: "ms-auto font-mono text-xs tabular-nums text-on-surface-variant",
+  META: "ms-auto text-xs tabular-nums text-on-surface-variant",
   /** Auto-fit so 1–3 carriers fill the rail without a dead third column. */
   GRID: "grid grid-cols-1 gap-2 @xl/main:grid-cols-2 @4xl/main:grid-cols-3",
   /** Trailing note pinned to the floor, matching the verdict panel opposite. */

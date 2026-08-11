@@ -511,7 +511,7 @@ export function CarrierAggregationComponent({
                         cannot afford to leave to the user's memory. */}
                     <TickingValue
                       value={c.rsrp}
-                      className="font-mono text-xs font-semibold"
+                      className="text-xs font-semibold"
                     >
                       {c.rsrp != null ? `${c.rsrp} dBm` : "—"}
                     </TickingValue>

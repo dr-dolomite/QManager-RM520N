@@ -278,7 +278,7 @@ function SpeedtestFigure({
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1 rounded-pill py-[5px] pl-2 pr-[11px] font-mono text-sm font-semibold tabular-nums",
+        "inline-flex items-center gap-1 rounded-pill py-[5px] pl-2 pr-[11px] text-sm font-semibold tabular-nums",
         className,
       )}
     >
@@ -545,7 +545,7 @@ const LiveLatencyComponent = ({
               Badge's `[&>svg]` selector reaches. */}
           <MaterialSymbol name={tone.glyph} size={12} filled />
           {hasReading ? (
-            <TickingValue value={latencyMs} className="font-mono">
+            <TickingValue value={latencyMs}>
               {latencyMs} {t("latency.unit_ms")}
             </TickingValue>
           ) : (
@@ -646,7 +646,7 @@ const LiveLatencyComponent = ({
                       : name === "packetloss"
                         ? t("latency.chart_packetloss")
                         : name}
-                    <div className="ml-auto flex items-baseline gap-0.5 font-mono font-medium tabular-nums text-foreground">
+                    <div className="ml-auto flex items-baseline gap-0.5 font-medium tabular-nums text-foreground">
                       {value}
                       <span className="font-normal text-muted-foreground">
                         {name === "latency" ? "ms" : "%"}
@@ -799,7 +799,7 @@ const LiveLatencyComponent = ({
               : t("speedtest.tile_running_label")}
           </span>
         ) : agoLabel ? (
-          <span className="ml-auto font-mono text-[11px] tabular-nums text-on-surface-variant">
+          <span className="ml-auto text-[11px] tabular-nums text-on-surface-variant">
             {agoLabel}
           </span>
         ) : null}
@@ -831,7 +831,7 @@ const LiveLatencyComponent = ({
                 states. Do not "correct" these to text-base/text-xs — that
                 would reflow the tile and break the skeleton mirror. */}
             <span className="flex items-baseline gap-1 leading-[22px]">
-              <span className="font-mono text-[17px] font-semibold tabular-nums">
+              <span className="text-[17px] font-semibold tabular-nums">
                 {reading ? reading.value : "—"}
               </span>
               {reading ? (

@@ -542,7 +542,7 @@ export function CellularInformationCard({
                 {connUptime > 0 ? (
                   <TickingValue
                     value={formatUptime(connUptime)}
-                    className={cn(ROW_VALUE, "font-mono tabular-nums")}
+                    className={cn(ROW_VALUE, "tabular-nums")}
                   >
                     {formatUptime(connUptime)}
                   </TickingValue>
@@ -629,7 +629,7 @@ export function CellularInformationCard({
                     </Tooltip>
                     <TickingValue
                       value={distance}
-                      className={cn(ROW_VALUE, "font-mono tabular-nums")}
+                      className={cn(ROW_VALUE, "tabular-nums")}
                     >
                       {distance}
                     </TickingValue>

@@ -28,8 +28,16 @@ const LTEStatusComponent = ({ data, isLoading }: LTEStatusComponentProps) => {
       value: data?.band || "-",
       asIdentity: true,
     },
-    { label: t("signal_status.earfcn"), value: data?.earfcn?.toString() ?? "-" },
-    { label: t("signal_status.pci"), value: data?.pci?.toString() ?? "-" },
+    {
+      label: t("signal_status.earfcn"),
+      value: data?.earfcn?.toString() ?? "-",
+      isIdentifier: true,
+    },
+    {
+      label: t("signal_status.pci"),
+      value: data?.pci?.toString() ?? "-",
+      isIdentifier: true,
+    },
     {
       label: t("signal_status.rsrp"),
       value: fmt(data?.rsrp, "dBm"),

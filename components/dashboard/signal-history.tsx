@@ -457,7 +457,7 @@ export function SignalHistoryComponent() {
           // different chart, which is the correct reading of "first paint only".
           key={signalType}
           config={chartConfig}
-          className={`${drawIn} aspect-auto w-full ${CHART_H} [&_.recharts-cartesian-axis-tick_text]:fill-on-surface-variant [&_.recharts-cartesian-axis-tick_text]:font-mono [&_.recharts-cartesian-axis-tick_text]:text-xs [&_.recharts-cartesian-axis-tick_text]:font-medium`}
+          className={`${drawIn} aspect-auto w-full ${CHART_H} [&_.recharts-cartesian-axis-tick_text]:fill-on-surface-variant [&_.recharts-cartesian-axis-tick_text]:tabular-nums [&_.recharts-cartesian-axis-tick_text]:text-xs [&_.recharts-cartesian-axis-tick_text]:font-medium`}
         >
           {/* `accessibilityLayer` is recharts' opt-in for a keyboard-reachable
               plot: arrow keys walk the samples and the tooltip is announced.

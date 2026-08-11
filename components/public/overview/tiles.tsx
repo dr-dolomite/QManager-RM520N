@@ -45,7 +45,7 @@ export function TonalTile({
       <span
         className={cn(
           "text-sm font-semibold tracking-[-0.005em] whitespace-nowrap",
-          mono && "font-mono tabular-nums",
+          mono && "tabular-nums",
           truncate && "overflow-hidden text-ellipsis",
         )}
         title={title ?? value}
@@ -96,7 +96,7 @@ export function StatusTile({
       <span
         className={cn(
           "flex items-center gap-1.5 text-[0.9375rem] leading-none font-semibold tracking-[-0.01em]",
-          mono && "font-mono tabular-nums",
+          mono && "tabular-nums",
         )}
       >
         {icon && <MaterialSymbol name={icon} filled size={17} />}

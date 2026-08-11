@@ -114,39 +114,39 @@ colors:
   chart-threshold-dark: "oklch(0.865 0.155 80)"
 typography:
   display:
-    fontFamily: "Euclid Circular B, system-ui, sans-serif"
+    fontFamily: "Rethink Sans, system-ui, sans-serif"
     fontSize: "1.875rem"
     fontWeight: 700
     lineHeight: "1.2"
     letterSpacing: "-0.02em"
   headline:
-    fontFamily: "Euclid Circular B, system-ui, sans-serif"
+    fontFamily: "Rethink Sans, system-ui, sans-serif"
     fontSize: "1.25rem"
     fontWeight: 600
     lineHeight: "1.1"
     letterSpacing: "-0.01em"
   title:
-    fontFamily: "Euclid Circular B, system-ui, sans-serif"
+    fontFamily: "Rethink Sans, system-ui, sans-serif"
     fontSize: "1.125rem"
     fontWeight: 600
     lineHeight: "1.55"
   body:
-    fontFamily: "Euclid Circular B, system-ui, sans-serif"
+    fontFamily: "Rethink Sans, system-ui, sans-serif"
     fontSize: "0.875rem"
     fontWeight: 400
     lineHeight: "1.5"
   row:
-    fontFamily: "Euclid Circular B, system-ui, sans-serif"
+    fontFamily: "Rethink Sans, system-ui, sans-serif"
     fontSize: "0.8125rem"
     fontWeight: 600
     lineHeight: "1.25rem"
   label:
-    fontFamily: "Euclid Circular B, system-ui, sans-serif"
+    fontFamily: "Rethink Sans, system-ui, sans-serif"
     fontSize: "0.75rem"
     fontWeight: 500
     lineHeight: "1.333"
   numeric:
-    fontFamily: "var(--font-jetbrains-mono), ui-monospace, monospace"
+    fontFamily: "Rethink Sans, system-ui, sans-serif"
     fontWeight: 600
     fontFeature: "'tnum' 1"
   mono:
@@ -291,7 +291,7 @@ because a surface looked empty.
 - The palette is **derived from the mark**, not chosen alongside it.
 - Three identity hues (blue, violet, cyan) plus the functional four. No hue is decorative and
   functional at the same time.
-- Euclid Circular B is the interface voice; JetBrains Mono is the machine voice. There is no third.
+- Rethink Sans is the interface voice; JetBrains Mono is the machine voice. There is no third.
 - Depth is tonal. Shadows exist, are optional, and are never load-bearing.
 - Motion is expressive in duration and curve, capped at `emphasized`, and never overshoots.
 - Light and dark are first-class equals; dark mode is genuinely colored, not desaturated.
@@ -439,19 +439,25 @@ retuned; meanings never move.
 
 ## Typography
 
-**Interface font:** Euclid Circular B (`--font-sans`, WOFF2 via `next/font/local`), with
+**Interface font:** Rethink Sans (`--font-sans`, WOFF2 variable font via `next/font/local`), with
 `system-ui, sans-serif` fallback.
 **Machine font:** JetBrains Mono (`--font-jetbrains-mono` → `font-mono`), self-hosted at build time.
 **Icon typefaces:** Material Symbols Rounded on the shell and converted routes; lucide elsewhere. An
 icon font is not a voice and does not count against the Two-Voice Rule.
 
-**Character:** Euclid's geometric humanist forms read as engineered rather than corporate — circular
-bowls and a low-contrast stroke keep dense label stacks legible at 12px. JetBrains Mono is the machine's
-voice: every measurement, identifier, and raw device string. The pairing is the product's thesis in
-two fonts — a human interface reporting machine truth, with the boundary visible.
+**Character:** Rethink Sans's rounder terminals and open counters read as warmer and more approachable
+than the geometric humanist forms it replaces — a deliberate trade of some engineered crispness for
+friendliness, while keeping enough weight contrast to stay legible in dense label stacks at 12px.
+JetBrains Mono is the machine's voice: identifiers and raw strings the device emits verbatim. The
+pairing is still the product's thesis in two fonts — a human interface reporting machine truth — but the
+boundary moved: a changing numeric figure (a measurement, a live count, a timer) now reads in the human
+voice too, because reporting a live number is the interface's job, not a quote of the machine's own
+output. See the Machine-Voice Rule below for where the line actually falls.
 
-**Loaded weights:** 300 oversized numerals only · 400 body, inputs, descriptions · 500 labels, chips,
-buttons, table headers · 600 card titles, section headings, numeric readouts · 700 page titles only.
+**Loaded weights:** 400 body, inputs, descriptions · 500 labels, chips, buttons, table headers · 600
+card titles, section headings, numeric readouts · 700 page titles only. Rethink Sans is a true variable
+font (wght 400–800), so it self-hosts as two files — normal and italic — rather than a static cut per
+weight.
 
 ### Hierarchy
 
@@ -470,13 +476,14 @@ buttons, table headers · 600 card titles, section headings, numeric readouts ·
 - **Label** (500, 0.75rem / 12px): chips, table headers, button text, form labels, tile eyebrows
   (600 where the eyebrow sits on a colored tile). Tiny uppercase section labels run 11px with
   `tracking-wider` in the sidebar.
-- **Numeric** (600, `tabular-nums`, mono): any figure that changes. **This is the one step that is
-  deliberately not a fixed ramp** — a numeral is read at the distance its container implies, so its
-  size derives from the slot holding it, and a literal `text-[Npx]` on a `tabular-nums` numeral is
-  correct by construction. Shipped: 52px live throughput and 44px live latency in the Speed Test
-  dialog's running phase, 26px in its three result tiles, 17px with an 11px unit suffix in the
-  dashboard Speed Test tile (load-bearing — the tile height is mirrored into its own skeleton).
-  A numeral *not* sized to a slot still takes the ramp, and prose never qualifies.
+- **Numeric** (600, `tabular-nums`): any figure that changes — a signal reading, throughput, a
+  countdown, a live count. **This is the one step that is deliberately not a fixed ramp** — a numeral
+  is read at the distance its container implies, so its size derives from the slot holding it, and a
+  literal `text-[Npx]` on a `tabular-nums` numeral is correct by construction. It renders in
+  `--font-sans`, not `font-mono` — see the Machine-Voice Rule. Shipped: 52px live throughput and 44px
+  live latency in the Speed Test dialog's running phase, 26px in its three result tiles, 17px with an
+  11px unit suffix in the dashboard Speed Test tile (load-bearing — the tile height is mirrored into
+  its own skeleton). A numeral *not* sized to a slot still takes the ramp, and prose never qualifies.
 
 ### The banner-scoped step
 
@@ -508,20 +515,30 @@ agree:** when one of these steps changes, it changes on both in the same commit.
 
 ### Named Rules
 
-**The Two-Voice Rule.** Euclid is the interface, JetBrains Mono is the machine. There is no third
-typeface. Pairing Euclid with another UI sans (Inter, Geist Sans, IBM Plex, Roboto) is forbidden.
+**The Two-Voice Rule.** Rethink Sans is the interface, JetBrains Mono is the machine. There is no third
+typeface. Pairing Rethink Sans with another UI sans (Inter, Geist Sans, IBM Plex, Roboto, Manrope) is
+forbidden.
 
-**The Machine-Voice Rule.** `font-mono` is scoped to machine truth: measurements with units (RSRP,
-bandwidth, latency, dBm), identifiers (band, EARFCN, PCI, ICCID, IMEI), raw AT responses, log lines,
-and copyable commands. A human-authored label never wears it. A count is a measurement; a nav item is
-not.
+**The Machine-Voice Rule.** `font-mono` is scoped to machine truth that is not itself a changing
+figure: identifiers (band, EARFCN, PCI, ICCID, IMEI, MAC/IP addresses), static facts read back from
+config rather than sampled live (a band's reference bandwidth in a disclosure table, a resolved
+timezone offset, a fixed scoring weight), raw AT responses, log lines, and copyable commands. A
+human-authored label never wears it. A live measurement — RSRP, throughput, a countdown, a "3 min ago"
+caption that ticks — is the interface *reporting* a number rather than the machine's raw output, so it
+takes `--font-sans` and `tabular-nums` instead of `font-mono`. The tell: does the value change while the
+user watches without them taking an action, or does it hold steady until something reconfigures it? The
+former is `font-sans`; the latter is `font-mono`. A count is a changing figure and stays `font-sans`; a
+nav item is neither and gets no font-family override at all.
 
 **The Weight-Discipline Rule.** 400 body, 500 labels and medium emphasis, 600 headings and numerics,
 700 page titles only.
 
-**The Tabular-Number Rule.** Any figure that can change while on screen is `tabular-nums`. A latency
-readout whose digits shift width reads as the layout twitching, not as the value moving — and a tonal
-pill makes that jitter more visible, not less.
+**The Tabular-Number Rule.** Any figure that can change while on screen is `tabular-nums`, in whichever
+voice it's already in — a live measurement keeps `tabular-nums` in `font-sans`, and an identifier
+column that needs vertical alignment (a PCI/EARFCN read-back list, stacked ICCIDs) keeps it in
+`font-mono`. The class controls digit-width jitter; it does not decide which voice owns the value — a
+latency readout whose digits shift width reads as the layout twitching, not as the value moving, and a
+tonal pill makes that jitter more visible, not less.
 
 **The Truncation-Pair Rule.** Where two cards sit side by side as a pair, every text node in their
 headers carries `min-w-0` and `truncate`. One card wrapping to two lines while its sibling stays at

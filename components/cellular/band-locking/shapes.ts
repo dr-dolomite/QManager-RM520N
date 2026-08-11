@@ -185,7 +185,7 @@ export const HERO_RAIL_ROW =
 
 export const HERO_RAIL_ROW_LABEL = "text-sm font-semibold";
 export const HERO_RAIL_ROW_RATIO =
-  "font-mono text-xs text-on-surface-variant tabular-nums";
+  "text-xs text-on-surface-variant tabular-nums";
 
 /**
  * The failover row, now sized to match the rail's own rows rather than the

@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 
-import Euclid from "next/font/local";
+import localFont from "next/font/local";
 import { JetBrains_Mono } from "next/font/google";
 import { ThemeProvider } from "@/components/theme-provider";
 import { MotionProvider } from "@/components/motion-provider";
@@ -27,7 +27,7 @@ const jetbrainsMono = JetBrains_Mono({
 //
 // display: "block" (not "swap") for the same reason: during the brief load
 // window an icon font must render nothing rather than its ligature source text.
-const materialSymbols = Euclid({
+const materialSymbols = localFont({
   variable: "--font-material-symbols",
   display: "block",
   src: [
@@ -39,38 +39,19 @@ const materialSymbols = Euclid({
   ],
 });
 
-// Font files can be colocated inside of `app`
-const euclid = Euclid({
-  variable: "--font-euclid",
+// Interface font — a true variable font (wght 400-800), so one file per style
+// covers every weight the app uses instead of a static cut per weight.
+const rethinkSans = localFont({
+  variable: "--font-rethink-sans",
   src: [
     {
-      path: "./fonts/EuclidCircularB-Light.woff2",
-      weight: "300",
+      path: "./fonts/RethinkSans-Variable.woff2",
+      weight: "400 800",
       style: "normal",
     },
     {
-      path: "./fonts/EuclidCircularB-Regular.woff2",
-      weight: "400",
-      style: "normal",
-    },
-    {
-      path: "./fonts/EuclidCircularB-Medium.woff2",
-      weight: "500",
-      style: "normal",
-    },
-    {
-      path: "./fonts/EuclidCircularB-SemiBold.woff2",
-      weight: "600",
-      style: "normal",
-    },
-    {
-      path: "./fonts/EuclidCircularB-Bold.woff2",
-      weight: "700",
-      style: "normal",
-    },
-    {
-      path: "./fonts/EuclidCircularB-Italic.woff2",
-      weight: "400",
+      path: "./fonts/RethinkSans-Italic-Variable.woff2",
+      weight: "400 800",
       style: "italic",
     },
   ],
@@ -90,7 +71,7 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body
-        className={`${euclid.variable} ${jetbrainsMono.variable} ${materialSymbols.variable} ${euclid.className} antialiased`}
+        className={`${rethinkSans.variable} ${jetbrainsMono.variable} ${materialSymbols.variable} ${rethinkSans.className} antialiased`}
       >
         <ThemeProvider
           attribute="class"

@@ -288,7 +288,7 @@ function MetricCell({
         </span>
         <span
           className={cn(
-            "truncate font-mono text-[13px] font-semibold tabular-nums",
+            "truncate text-[13px] font-semibold tabular-nums",
             // The `*-on-surface` ink steps, never the solid role tokens. The
             // solid pair measures 4.29:1 (success) and 3.74:1 (warning) on
             // `surface-container` in light mode — both below AA — which is why

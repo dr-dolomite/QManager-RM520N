@@ -96,6 +96,9 @@ export interface SignalStatusRow {
   /** Render the value as an identity-toned pill rather than plain ink. Used for
    *  the band, which is an identifier rather than a measurement. */
   asIdentity?: boolean;
+  /** Plain-ink identifier that isn't pill-worthy (EARFCN, PCI, SCS): keeps
+   *  font-mono without the asIdentity pill treatment band gets. */
+  isIdentifier?: boolean;
 }
 
 interface SignalStatusCardProps {
@@ -284,7 +287,8 @@ export function SignalStatusCard({
                   // colour is the `quick` clock; only containers get `standard`.
                   <dd
                     className={cn(
-                      "m-0 font-mono text-[13px]/5 font-semibold transition-colors duration-(--duration-quick) ease-quick",
+                      "m-0 text-[13px]/5 font-semibold transition-colors duration-(--duration-quick) ease-quick",
+                      row.isIdentifier && "font-mono",
                       valueColor,
                     )}
                   >

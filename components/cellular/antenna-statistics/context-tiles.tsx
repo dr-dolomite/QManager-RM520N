@@ -46,7 +46,7 @@ const COUNT_DISC = "bg-uplink text-uplink-foreground";
 
 const EYEBROW = "text-xs font-semibold";
 const VALUE = "text-xl font-semibold leading-[1.1]";
-const MONO_VALUE = cn(VALUE, "font-mono tabular-nums");
+const TABULAR_VALUE = cn(VALUE, "tabular-nums");
 const CAPTION = "text-xs";
 
 function Tile({
@@ -162,7 +162,7 @@ export function ContextTiles({
             ))}
           </span>
         ) : (
-          <span className={cn(MONO_VALUE, "truncate")}>
+          <span className={cn(TABULAR_VALUE, "truncate")}>
             {t("antenna_statistics.context.mimo.unavailable")}
           </span>
         )}
@@ -185,7 +185,7 @@ export function ContextTiles({
         eyebrow={t("antenna_statistics.context.chains.label")}
         caption={t("antenna_statistics.context.chains.caption")}
       >
-        <span className={cn(MONO_VALUE, "truncate")}>
+        <span className={cn(TABULAR_VALUE, "truncate")}>
           {t("antenna_statistics.context.chains.value", {
             live,
             total: ANTENNA_PORTS.length,

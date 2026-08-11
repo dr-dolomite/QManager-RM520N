@@ -361,7 +361,7 @@ export function TowerAutomationTiles({
           <span className={AUTO_TILE.BODY}>
             {t("tower_locking.live.quality_label")}
             {": "}
-            <span className="font-mono tabular-nums">
+            <span className="tabular-nums">
               {qualityPct === null
                 ? t("tower_locking.live.quality_unknown")
                 : t("tower_locking.live.quality_value", { value: qualityPct })}

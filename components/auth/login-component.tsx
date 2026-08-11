@@ -45,7 +45,7 @@ import { cn } from "@/lib/utils";
 //      opacity change. The previous implementation swapped three strings of
 //      three different widths inside an auto-width button; on a full-width
 //      button the box held, but the label still jumped. Motion Guide recipe 15
-//      forbids the reflow, and the countdown digits ride in tabular mono so the
+//      forbids the reflow, and the countdown digits ride in tabular-nums so the
 //      sentence does not twitch once a second either.
 //
 //   4. EVERY STRING IS KEYED. `common:login.*` has been fully translated in all
@@ -55,12 +55,12 @@ import { cn } from "@/lib/utils";
 // =============================================================================
 
 /**
- * The countdown in the machine voice. Both the banner and the button render
+ * The countdown as a tabular figure. Both the banner and the button render
  * the same formatted value through the same treatment, so a user reading one
  * and then the other is never asked to reconcile two differently-shaped clocks.
  */
-function monoCount(value: string) {
-  return <span className="font-mono font-semibold tabular-nums">{value}</span>;
+function tabularCount(value: string) {
+  return <span className="font-semibold tabular-nums">{value}</span>;
 }
 
 /**
@@ -250,7 +250,7 @@ export default function LoginComponent() {
         >
           {withSlot(
             t("login.locked_body", { seconds: SLOT }),
-            monoCount(lockoutLabel),
+            tabularCount(lockoutLabel),
           )}
         </TonalBanner>
       ) : null}
@@ -429,7 +429,7 @@ export default function LoginComponent() {
                     in all five locales, so both surfaces agree past 60s. */}
                 {withSlot(
                   t("login.locked", { seconds: SLOT }),
-                  monoCount(lockoutLabel),
+                  tabularCount(lockoutLabel),
                 )}
               </span>
             </SubmitLabel>

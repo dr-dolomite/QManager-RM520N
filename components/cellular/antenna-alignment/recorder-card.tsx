@@ -75,7 +75,7 @@ export const SLOT_SHAPE = {
    */
   BEST: "bg-primary-container text-on-primary-container",
   HEAD: "flex items-center gap-2",
-  SCORE: "font-mono text-[40px] font-semibold leading-none tabular-nums",
+  SCORE: "text-[40px] font-semibold leading-none tabular-nums",
   BODY: "flex flex-1 flex-col items-center justify-center gap-2 text-center",
 } as const;
 

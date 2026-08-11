@@ -28,8 +28,16 @@ const NrStatusComponent = ({ data, isLoading }: NrStatusComponentProps) => {
       value: data?.band || "-",
       asIdentity: true,
     },
-    { label: t("signal_status.arfcn"), value: data?.arfcn?.toString() ?? "-" },
-    { label: t("signal_status.pci"), value: data?.pci?.toString() ?? "-" },
+    {
+      label: t("signal_status.arfcn"),
+      value: data?.arfcn?.toString() ?? "-",
+      isIdentifier: true,
+    },
+    {
+      label: t("signal_status.pci"),
+      value: data?.pci?.toString() ?? "-",
+      isIdentifier: true,
+    },
     {
       label: t("signal_status.rsrp"),
       value: fmt(data?.rsrp, "dBm"),
@@ -48,7 +56,11 @@ const NrStatusComponent = ({ data, isLoading }: NrStatusComponentProps) => {
       rawValue: data?.sinr,
       thresholds: SINR_THRESHOLDS,
     },
-    { label: t("signal_status.scs"), value: fmt(data?.scs, "kHz") },
+    {
+      label: t("signal_status.scs"),
+      value: fmt(data?.scs, "kHz"),
+      isIdentifier: true,
+    },
   ];
 
   return (

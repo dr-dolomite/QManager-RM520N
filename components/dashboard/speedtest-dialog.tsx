@@ -603,7 +603,7 @@ function PingBody({
           aria-live="polite"
           aria-atomic="true"
         >
-          <span className="font-mono text-[44px] leading-none font-semibold tracking-[-0.02em] tabular-nums">
+          <span className="text-[44px] leading-none font-semibold tracking-[-0.02em] tabular-nums">
             {latency === null ? "—" : latency.toFixed(1)}
           </span>
           <span className="text-on-surface-variant text-sm">
@@ -654,7 +654,7 @@ function TransferBody({
           {t(STEP_LABEL_KEY[step])}
         </span>
         {bytes !== null ? (
-          <span className="ml-auto font-mono text-xs tabular-nums opacity-80">
+          <span className="ml-auto text-xs tabular-nums opacity-80">
             {t("speedtest.bytes_transferred", { bytes: formatBytes(bytes) })}
           </span>
         ) : null}
@@ -666,7 +666,7 @@ function TransferBody({
         aria-live="polite"
         aria-atomic="true"
       >
-        <span className="font-mono text-[52px] leading-none font-semibold tracking-[-0.03em] tabular-nums">
+        <span className="text-[52px] leading-none font-semibold tracking-[-0.03em] tabular-nums">
           {bandwidth === null ? "—" : mbpsText(bandwidth)}
         </span>
         <span className="text-base font-semibold opacity-75">
@@ -683,7 +683,7 @@ function TransferBody({
         trackClassName="bg-white/45"
         fillClassName={role.strong}
       />
-      <span className="font-mono text-xs tabular-nums opacity-80">{pct}%</span>
+      <span className="text-xs tabular-nums opacity-80">{pct}%</span>
     </div>
   );
 }
@@ -718,7 +718,7 @@ function ResultTile({
       </span>
       <span className="flex items-baseline gap-1">
         {/* Display numeral — see the DISPLAY NUMERALS note in the header. */}
-        <span className="font-mono text-[26px] leading-none font-semibold tabular-nums">
+        <span className="text-[26px] leading-none font-semibold tabular-nums">
           {value}
         </span>
         <span className="text-xs opacity-75">{unit}</span>
@@ -742,7 +742,7 @@ function MetricPill({
       <dt className="text-on-surface-variant text-xs font-semibold">{label}</dt>
       <dd
         className={cn(
-          "font-mono text-xs font-semibold tabular-nums",
+          "text-xs font-semibold tabular-nums",
           good && "text-success",
         )}
       >
@@ -834,7 +834,7 @@ function CompleteBody({
           {result.server.name} · {result.server.location},{" "}
           {result.server.country}
         </span>
-        <span className="ml-auto flex-none font-mono text-xs font-semibold tabular-nums">
+        <span className="ml-auto flex-none text-xs font-semibold tabular-nums">
           <span className="sr-only">{t("speedtest.metric_dl_data")}: </span>
           {formatBytes(result.download.bytes)}
           <span aria-hidden="true"> · </span>

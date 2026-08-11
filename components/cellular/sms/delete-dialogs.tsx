@@ -106,7 +106,7 @@ function DeleteProgress({ steps }: { steps: DeleteStep[] }) {
               memory: t(`sms.inbox.memory.${step.storage.toLowerCase()}`),
             })}
           </span>
-          <span className="ml-auto font-mono text-xs tabular-nums">
+          <span className="ml-auto text-xs tabular-nums">
             {t(
               step.status === "done"
                 ? "sms.inbox.delete_progress.count_done"

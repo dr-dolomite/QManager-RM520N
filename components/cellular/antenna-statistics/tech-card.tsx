@@ -106,7 +106,8 @@ export const PORT_SHAPE = {
     "inline-flex shrink-0 items-center rounded-pill bg-surface-container-high px-2 py-0.5 text-xs font-semibold uppercase tracking-[0.06em] text-on-surface-variant",
   /** Metric-row key. 12px, matching the shipped band-row key. */
   KEY: "w-10 shrink-0 text-xs font-semibold uppercase tracking-[0.09em] text-on-surface-variant",
-  VALUE: "w-[5.25rem] shrink-0 text-right font-mono text-[13px]/5 font-semibold",
+  VALUE:
+    "w-[5.25rem] shrink-0 text-right text-[13px]/5 font-semibold tabular-nums",
 } as const;
 
 // =============================================================================

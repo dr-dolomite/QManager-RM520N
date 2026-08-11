@@ -63,7 +63,7 @@ export const PORT_SHAPE = {
   RX: "inline-flex shrink-0 items-center rounded-pill bg-surface-container-high px-2 py-0.5 text-xs font-semibold uppercase tracking-[0.06em] text-on-surface-variant",
   ROW: "flex items-baseline gap-2",
   KEY: "w-8 shrink-0 text-xs font-semibold uppercase tracking-[0.09em] text-on-surface-variant",
-  VALUE: "font-mono text-[13px]/5 font-semibold tabular-nums",
+  VALUE: "text-[13px]/5 font-semibold tabular-nums",
 } as const;
 
 /** Floor height for a port block, mirrored by the skeleton. Sum of line boxes. */

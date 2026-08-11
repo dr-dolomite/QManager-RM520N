@@ -1,14 +1,22 @@
 ---
 name: feedback-signal-card-13px-off-ramp
-description: The 13px row type on the signal cards is an approved off-ramp size; the impeccable design hook flags it every time and it should stay
+description: Approved off-ramp font sizes on the dashboard (13px signal rows, 44/52/26px speedtest numerals, 11/17px latency tile) — the impeccable hook flags them every edit and they stay
 metadata:
   type: feedback
 ---
 
-`signal-status-card.tsx` rows use `text-[13px]/5` for both `dt` and `dd`. 13px is
-**not** on DESIGN.md's type ramp, so the `impeccable` PostToolUse hook raises
-`design-system-font-size` on every edit to that file. It is approved and should
-stay; no ignore-rule has been persisted, so expect the finding to recur.
+Several dashboard surfaces carry literal font sizes that are **not** on
+DESIGN.md's type ramp, so the `impeccable` PostToolUse hook raises
+`design-system-font-size` on every edit to those files. All are approved and
+should stay; no ignore-rule has been persisted, so expect the findings to recur:
+
+- `signal-status-card.tsx` — `text-[13px]/5` on both `dt` and `dd`
+- `speedtest-dialog.tsx` — 44px ping / 52px live throughput / 26px result tile
+- `live-latency.tsx` — 11px `agoLabel` + unit, 17px speedtest-tile figure
+
+The speedtest and latency values are self-documenting: each file carries a
+header/inline note ("DISPLAY NUMERALS", and "Do not 'correct' these to
+text-base/text-xs") explaining why. Read the note before acting on the hook.
 
 **Why:** the value came from the approved mock (`QManager Dashboard Final.dc.html`
 lines 106-112) and it is what lets seven rows fit the paired-card height without

@@ -464,7 +464,7 @@ function renderBody({
             ns="common"
             values={{ age: formatAge(ageSeconds) }}
             components={{
-              age: <span className="font-mono font-semibold tabular-nums" />,
+              age: <span className="font-semibold tabular-nums" />,
             }}
           />
         </TonalBanner>

@@ -604,7 +604,7 @@ export const CARRIER_TILE = {
   PCI_LABEL: "flex-none text-xs text-on-surface-variant",
   PCI_VALUE: "font-mono text-xl leading-none font-semibold tabular-nums",
   /** Pair with a `*-on-surface` signal tone — see the note above. */
-  RSRP: "ml-auto flex-none font-mono text-[13px]/5 font-semibold tabular-nums",
+  RSRP: "ml-auto flex-none text-[13px]/5 font-semibold tabular-nums",
   /**
    * The per-tile picker. 32px of paint, 44px of target via the `before:`
    * overlay — the same construction the retired secondary rows used, kept

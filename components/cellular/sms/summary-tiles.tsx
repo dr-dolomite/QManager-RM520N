@@ -78,7 +78,7 @@ const SM_DISC = "bg-uplink text-uplink-foreground";
 
 /** Headline step (600 / 20px). The mock's 19px belongs to the pre-auth scale. */
 const VALUE = "text-xl font-semibold leading-[1.1]";
-const MONO_VALUE = cn(VALUE, "font-mono tabular-nums");
+const TABULAR_VALUE = cn(VALUE, "tabular-nums");
 
 function Tile({
   glyph,
@@ -131,12 +131,12 @@ function StorageMeter({
   const safeUsed = Number.isFinite(used) ? used : 0;
 
   if (!hasCapacity) {
-    return <span className={MONO_VALUE}>{unknownLabel}</span>;
+    return <span className={TABULAR_VALUE}>{unknownLabel}</span>;
   }
 
   return (
     <>
-      <span className={MONO_VALUE}>
+      <span className={TABULAR_VALUE}>
         {safeUsed} / {total}
       </span>
       {/* A storage meter is data visualization — a share-of-capacity readout
@@ -207,7 +207,7 @@ export function SmsSummaryTiles({
             separate sizes precisely so the near-100% case reads as a normal
             sentence rather than as a broken ratio. */}
         <span className="flex items-baseline gap-1.5">
-          <span className={MONO_VALUE}>{unreadCount}</span>
+          <span className={TABULAR_VALUE}>{unreadCount}</span>
           <span className="text-sm font-semibold">
             {t("sms.tiles.unread.of", { total: totalCount })}
           </span>

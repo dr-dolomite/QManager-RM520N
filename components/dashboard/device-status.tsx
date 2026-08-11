@@ -239,7 +239,7 @@ const DeviceStatusComponent = ({
                 {t("device_status.conn_uptime_short")}
               </span>
               <TickingValue
-                className="font-mono text-base font-semibold"
+                className="text-base font-semibold"
                 value={connUptime > 0 ? formatUptime(connUptime) : "-"}
               >
                 {connUptime > 0 ? formatUptime(connUptime) : "-"}
@@ -250,7 +250,7 @@ const DeviceStatusComponent = ({
                 {t("device_status.device_uptime_short")}
               </span>
               <TickingValue
-                className="font-mono text-base font-semibold"
+                className="text-base font-semibold"
                 value={deviceUptime > 0 ? formatUptime(deviceUptime) : "-"}
               >
                 {deviceUptime > 0 ? formatUptime(deviceUptime) : "-"}

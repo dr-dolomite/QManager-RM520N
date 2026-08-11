@@ -275,7 +275,7 @@ export function TowerLiveStrip({
             {t("tower_locking.live.camped_on")}
           </span>
           {onAir.length > 0 ? (
-            <span className="text-on-surface-variant ml-auto font-mono text-xs tabular-nums">
+            <span className="text-on-surface-variant ml-auto text-xs tabular-nums">
               {t("tower_locking.live.camped_summary", {
                 count: onAir.length,
                 mhz: totalMhz,

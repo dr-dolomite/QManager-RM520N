@@ -277,7 +277,7 @@ export function LiveBandHero({
               {t("band_locking.live.on_air")}
             </span>
             {onAir.length > 0 ? (
-              <span className="ml-auto font-mono text-xs text-on-surface-variant tabular-nums">
+              <span className="ml-auto text-xs text-on-surface-variant tabular-nums">
                 {t("band_locking.live.on_air_summary", {
                   count: onAir.length,
                   mhz: totalMhz,
@@ -387,7 +387,7 @@ export function LiveBandHero({
                     {/* RSRP (the tile's own headline reading) beside RSRQ/SINR. */}
                     <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
                       <div className="flex items-baseline gap-1.5">
-                        <span className="font-mono text-lg font-semibold tabular-nums">
+                        <span className="text-lg font-semibold tabular-nums">
                           {c.rsrp === null
                             ? t("band_locking.live.tile_no_value")
                             : t("band_locking.live.tile_rsrp", {
@@ -399,7 +399,7 @@ export function LiveBandHero({
                         </span>
                       </div>
                       {secondaryMetrics.length > 0 ? (
-                        <div className="flex flex-wrap gap-x-3 gap-y-0.5 font-mono text-xs tabular-nums opacity-70">
+                        <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-xs tabular-nums opacity-70">
                           {secondaryMetrics.map((segment) => (
                             <span key={segment}>{segment}</span>
                           ))}

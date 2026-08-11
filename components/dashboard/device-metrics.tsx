@@ -137,7 +137,7 @@ function PillRow({
   );
 }
 
-const VALUE_CLASS = "font-mono text-sm font-semibold text-on-surface";
+const VALUE_CLASS = "text-sm font-semibold text-on-surface";
 
 /**
  * Skeleton (Skeleton-Mirror Rule): four meter groups and three pills, i.e. the

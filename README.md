@@ -172,7 +172,7 @@ This removes the stored password hash (`/etc/qmanager/auth.json`) and the active
 | Layer | Technology |
 |-------|-----------|
 | **Frontend** | Next.js 16, React 19, TypeScript 5 |
-| **Styling** | Tailwind CSS v4, OKLCH colors, Euclid Circular B + JetBrains Mono |
+| **Styling** | Tailwind CSS v4, OKLCH colors, Rethink Sans + JetBrains Mono |
 | **Components** | shadcn/ui (42+ components), Recharts, React Hook Form + Zod |
 | **Backend** | Shell scripts (Bash), CGI endpoints via lighttpd |
 | **AT Commands** | `qcmd` wrapper with `atcli_smd11` on `/dev/smd11` (direct, no socat) |

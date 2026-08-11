@@ -131,7 +131,7 @@ export default function SmsComposeDialog({
                 </Badge>
                 <span
                   className={cn(
-                    "font-mono text-xs font-semibold tabular-nums",
+                    "text-xs font-semibold tabular-nums",
                     isOverLimit
                       ? "text-destructive-on-surface"
                       : isNearLimit

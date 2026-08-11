@@ -304,7 +304,7 @@ function EventRow({
             colour or another size step. */}
         <span
           className={cn(
-            "font-mono text-xs leading-4 tabular-nums",
+            "text-xs leading-4 tabular-nums",
             presentation.metaClass,
           )}
         >

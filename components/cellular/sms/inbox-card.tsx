@@ -337,7 +337,7 @@ export default function SmsInboxCard({
               {selectedCount > 0 ? (
                 <>
                   <span className="bg-primary-container text-on-primary-container rounded-pill flex h-9 items-center gap-2 pr-1.5 pl-4 text-sm font-semibold">
-                    <span className="font-mono tabular-nums">
+                    <span className="tabular-nums">
                       {selectedCount}
                     </span>
                     {t("sms.inbox.selection.label")}

@@ -193,7 +193,7 @@ function CarrierTile({
         </span>
         <span className={CARRIER_TILE.VALUE}>{carrier.earfcn ?? "—"}</span>
         {carrier.rsrp !== null ? (
-          <span className="text-on-surface-variant ms-auto font-mono text-[13px] font-semibold tabular-nums">
+          <span className="text-on-surface-variant ms-auto text-[13px] font-semibold tabular-nums">
             {carrier.rsrp} dBm
           </span>
         ) : null}
@@ -280,7 +280,7 @@ export function FreqLockHero({
           <span className={HERO.TITLE}>{t("frequency_locking.live.title")}</span>
 
           {syncedLabel ? (
-            <Badge variant="muted" className="ms-auto font-mono tabular-nums">
+            <Badge variant="muted" className="ms-auto tabular-nums">
               <MaterialSymbol name="schedule" size={BADGE_GLYPH_SIZE} />
               {syncedLabel}
             </Badge>

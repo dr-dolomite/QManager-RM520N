@@ -67,12 +67,13 @@ export const AIM_SHAPE = {
    * the type ramp. 52px is the product's existing "live figure being watched"
    * step, shared with the Speed Test dialog's running phase.
    */
-  SCORE: "font-mono text-[52px] font-semibold leading-none tabular-nums",
+  SCORE: "text-[52px] font-semibold leading-none tabular-nums",
   SCORE_BOX: "h-[52px]",
   METER_TRACK: "relative h-2 w-full",
   LEG_ROW: "flex items-center gap-3 rounded-pill bg-surface-container px-4 py-2.5",
   LEG_KEY: "w-24 shrink-0 text-xs font-semibold uppercase tracking-[0.09em] text-on-surface-variant",
-  LEG_VALUE: "w-[5.25rem] shrink-0 text-right font-mono text-[13px]/5 font-semibold",
+  LEG_VALUE:
+    "w-[5.25rem] shrink-0 text-right text-[13px]/5 font-semibold tabular-nums",
   EYEBROW: "text-xs font-semibold text-on-surface-variant",
 } as const;
 
@@ -151,7 +152,7 @@ function LegRow({
         {/* The weight is part of the claim: a user who sees 60% next to RSRP can
             work out why a strong RSRP with a weak SINR still scores well, which
             is the difference between an instrument and an oracle. */}
-        <span className="ml-1.5 font-mono tabular-nums opacity-70">
+        <span className="ml-1.5 tabular-nums opacity-70">
           {Math.round(weight * 100)}%
         </span>
       </span>
@@ -282,7 +283,7 @@ export function LiveAimCard({
                       size={12}
                       filled
                     />
-                    <span className="font-mono tabular-nums">
+                    <span className="tabular-nums">
                       {delta! > 0 ? `+${delta}` : `${delta}`}
                     </span>
                     <span className="sr-only">
@@ -310,7 +311,7 @@ export function LiveAimCard({
               {peak !== null && (
                 <span className="text-xs text-on-surface-variant">
                   {t("antenna_alignment.aim.peak")}{" "}
-                  <span className="font-mono font-semibold tabular-nums text-on-surface">
+                  <span className="font-semibold tabular-nums text-on-surface">
                     {peak}
                   </span>
                 </span>
@@ -318,7 +319,7 @@ export function LiveAimCard({
               {updatedAt && (
                 <span className="text-xs text-on-surface-variant">
                   {t("antenna_alignment.aim.updated")}{" "}
-                  <span className="font-mono tabular-nums">{updatedAt}</span>
+                  <span className="tabular-nums">{updatedAt}</span>
                 </span>
               )}
             </div>

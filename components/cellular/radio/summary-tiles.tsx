@@ -103,7 +103,7 @@ function Tile({
 // Headline step (600 / text-xl). The mock's 19px belongs to the pre-auth card
 // scale, which DESIGN.md scopes to `/` and `/login/` and nowhere else.
 const VALUE = "text-xl font-semibold leading-[1.1]";
-const MONO_VALUE = cn(VALUE, "font-mono tabular-nums");
+const TABULAR_VALUE = cn(VALUE, "tabular-nums");
 
 // -----------------------------------------------------------------------------
 // Network type — the one identity tile
@@ -232,18 +232,18 @@ export function SummaryTiles({ mode, summary, mimo }: SummaryTilesProps) {
         }
         captionClassName={cn(
           "text-xs opacity-85",
-          hasBandwidth && breakdown.length > 0 && "font-mono tabular-nums",
+          hasBandwidth && breakdown.length > 0 && "tabular-nums",
         )}
       >
         {hasBandwidth ? (
           <span className="flex items-baseline gap-1">
-            <span className={MONO_VALUE}>{summary.totalMhz}</span>
+            <span className={TABULAR_VALUE}>{summary.totalMhz}</span>
             <span className="text-sm font-semibold">
               {t("radio_info.tiles.bandwidth.unit")}
             </span>
           </span>
         ) : (
-          <span className={MONO_VALUE}>{t("radio_info.common.not_available")}</span>
+          <span className={TABULAR_VALUE}>{t("radio_info.common.not_available")}</span>
         )}
       </Tile>
 
@@ -318,7 +318,7 @@ export function SummaryTiles({ mode, summary, mimo }: SummaryTilesProps) {
             ))}
           </span>
         ) : (
-          <span className={MONO_VALUE}>{t("radio_info.common.not_available")}</span>
+          <span className={TABULAR_VALUE}>{t("radio_info.common.not_available")}</span>
         )}
       </Tile>
     </div>

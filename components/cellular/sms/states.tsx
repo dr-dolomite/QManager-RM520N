@@ -211,7 +211,7 @@ export function InboxStaleChip({ atMs }: { atMs: number }) {
   return (
     <Badge variant="warning">
       <MaterialSymbol name="warning" filled size={12} aria-hidden="true" />
-      <span className="font-mono tabular-nums">
+      <span className="tabular-nums">
         {t("sms.inbox.stale_chip", { time: clock })}
       </span>
     </Badge>
