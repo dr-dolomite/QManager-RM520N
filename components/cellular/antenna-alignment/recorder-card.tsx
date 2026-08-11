@@ -20,7 +20,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { MaterialSymbol } from "@/components/ui/material-symbol";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { TonalBanner } from "@/components/ui/tonal-banner";
 import { cn } from "@/lib/utils";
 import { staggerRowItem, staggerRows } from "@/lib/motion";
 import type { SignalPerAntenna } from "@/types/modem-status";
@@ -169,7 +168,19 @@ function SlotTile({
           aria-label={t("antenna_alignment.recorder.label_sr", {
             index: slotIndex + 1,
           })}
-          className="h-[2.625rem] rounded-field border-0 bg-surface-container-high px-3 text-sm font-medium"
+          className={cn(
+            "h-[2.625rem] rounded-field border-0 px-3 text-sm font-medium",
+            // A frozen label on the winning tile sits directly on
+            // `primary-container`, not on a card — `bg-surface-container-high`
+            // there reads as a mismatched patch of the wrong blue, and the
+            // base Input's `disabled:opacity-50` washes it out further. Once
+            // recorded, the field is read-only text with nothing left to
+            // signal as an editable control, so it drops the box entirely
+            // and inherits the tile's own ink at full strength instead.
+            isBest && snapshot
+              ? "bg-transparent disabled:opacity-100"
+              : "bg-surface-container-high"
+          )}
           placeholder={
             antennaType === "directional"
               ? t("antenna_alignment.recorder.placeholder_angle")
@@ -473,29 +484,51 @@ export function RecorderCard({
           ))}
         </motion.div>
 
+        {/* The winning tile above already carries the "this one won" fact —
+            full primary-container fill, trophy badge, "Best by N" — the same
+            selection language `SCENARIO_TILE_ACTIVE` and `HERO_TILE_SCENARIO`
+            use elsewhere in the app. A second full-bleed `info` banner
+            restating the same headline directly beneath it stacked two
+            equally-loud blue blocks for one fact. `tone="info"` was also the
+            wrong tone for this content in the first place: DESIGN.md scopes
+            `info` to something IN PROGRESS (applying, downloading), and this
+            is a completed comparison's footnote, not a live status. What is
+            genuinely new here — the advisory sentence, the mixed-radios
+            caveat, the remaining-slot count — reads as a neutral row instead,
+            matching this file's own `twin_hint` caption precedent. */}
         {best && (
-          <TonalBanner
-            tone="info"
-            icon="trophy"
-            title={t("antenna_alignment.recommendation.title", {
-              label: labelFor(best.index),
-            })}
+          <div
+            role="status"
+            className="flex items-start gap-2.5 rounded-tile bg-surface-container px-4 py-3.5"
           >
-            {antennaType === "directional"
-              ? t("antenna_alignment.recommendation.body_directional")
-              : t("antenna_alignment.recommendation.body_omni")}
-            {best.mixedRadios && (
-              <> {t("antenna_alignment.recommendation.mixed_radios")}</>
-            )}
-            {remaining > 0 && (
-              <>
-                {" "}
-                {t("antenna_alignment.recommendation.remaining", {
-                  count: remaining,
+            <MaterialSymbol
+              name="trophy"
+              size={16}
+              filled
+              className="mt-0.5 shrink-0 text-primary"
+            />
+            <p className="min-w-0 text-xs leading-relaxed text-pretty text-on-surface-variant">
+              <span className="font-semibold text-on-surface">
+                {t("antenna_alignment.recommendation.title", {
+                  label: labelFor(best.index),
                 })}
-              </>
-            )}
-          </TonalBanner>
+              </span>{" "}
+              {antennaType === "directional"
+                ? t("antenna_alignment.recommendation.body_directional")
+                : t("antenna_alignment.recommendation.body_omni")}
+              {best.mixedRadios && (
+                <> {t("antenna_alignment.recommendation.mixed_radios")}</>
+              )}
+              {remaining > 0 && (
+                <>
+                  {" "}
+                  {t("antenna_alignment.recommendation.remaining", {
+                    count: remaining,
+                  })}
+                </>
+              )}
+            </p>
+          </div>
         )}
       </CardContent>
 
