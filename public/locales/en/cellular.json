@@ -441,6 +441,69 @@
         "start_failed": "The modem would not start a read.",
         "start_unreachable": "Could not reach the scanner. Check that the modem is responding."
       }
+    },
+    "calculator": {
+      "page": {
+        "title": "Frequency Calculator",
+        "description": "Convert an EARFCN or NR-ARFCN into its frequency and operating band, for LTE and 5G NR."
+      },
+      "form": {
+        "title": "E/ARFCN Calculator",
+        "description": "Enter a channel number to get its frequency and band.",
+        "mode_auto": "Auto",
+        "mode_lte": "LTE",
+        "mode_nr": "NR",
+        "label_auto": "E/ARFCN value",
+        "label_lte": "E-ARFCN",
+        "label_nr": "NR-ARFCN",
+        "placeholder": "Enter channel number",
+        "submit": "Calculate"
+      },
+      "error": {
+        "empty": "Enter a channel number first — the field is empty.",
+        "not_a_number": "That is not a number. Enter a whole channel number, such as 1850.",
+        "no_band": "No band matches {{value}}. Check the number, or pick LTE or NR instead of Auto.",
+        "unexpected": "The calculation failed: {{message}}. Check the value and try again."
+      },
+      "result": {
+        "title": "Result",
+        "network_type": "Network type",
+        "earfcn": "EARFCN",
+        "nrarfcn": "NR-ARFCN",
+        "frequency": "Frequency",
+        "bands_title": "Possible operating bands",
+        "band_lte": "Band {{band}}",
+        "band_nr": "n{{band}}",
+        "duplex": "Duplex mode",
+        "downlink_range": "Downlink range",
+        "uplink_range": "Uplink range",
+        "earfcn_range": "EARFCN range",
+        "nrarfcn_range": "NR-ARFCN range",
+        "dl_frequency": "DL frequency",
+        "ul_frequency": "UL frequency",
+        "ul_earfcn": "UL EARFCN",
+        "downlink_only": "Downlink only",
+        "method": "Calculated per {{spec}}."
+      },
+      "units": {
+        "mhz": "{{value}} MHz",
+        "range_mhz": "{{low}} – {{high}} MHz",
+        "range": "{{low}} – {{high}}"
+      },
+      "history": {
+        "title": "Calculation History",
+        "description": "Your last ten calculations, saved in this browser.",
+        "clear": "Clear",
+        "empty_title": "No calculations yet",
+        "empty_body": "Calculate a channel number and it lands here, so you can compare a few without retyping them.",
+        "bands": "Bands",
+        "band_lte": "B{{band}}",
+        "band_nr": "n{{band}}",
+        "no_timestamp": "No timestamp"
+      },
+      "a11y": {
+        "delete_entry": "Delete this history entry"
+      }
     }
   },
   "core_settings": {

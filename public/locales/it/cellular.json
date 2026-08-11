@@ -441,6 +441,69 @@
         "start_failed": "Il modem non ha avviato la lettura.",
         "start_unreachable": "Impossibile raggiungere lo scanner. Verifica che il modem risponda."
       }
+    },
+    "calculator": {
+      "page": {
+        "title": "Calcolatore di frequenza",
+        "description": "Converte un EARFCN o un NR-ARFCN nella sua frequenza e nella banda operativa, per LTE e 5G NR."
+      },
+      "form": {
+        "title": "Calcolatore E/ARFCN",
+        "description": "Inserisci un numero di canale per ottenerne la frequenza e la banda.",
+        "mode_auto": "Auto",
+        "mode_lte": "LTE",
+        "mode_nr": "NR",
+        "label_auto": "Valore E/ARFCN",
+        "label_lte": "E-ARFCN",
+        "label_nr": "NR-ARFCN",
+        "placeholder": "Inserisci il numero di canale",
+        "submit": "Calcola"
+      },
+      "error": {
+        "empty": "Inserisci prima un numero di canale: il campo è vuoto.",
+        "not_a_number": "Questo non è un numero. Inserisci un numero di canale intero, ad esempio 1850.",
+        "no_band": "Nessuna banda corrisponde a {{value}}. Controlla il numero oppure seleziona LTE o NR invece di Auto.",
+        "unexpected": "Calcolo non riuscito: {{message}}. Controlla il valore e riprova."
+      },
+      "result": {
+        "title": "Risultato",
+        "network_type": "Tipo di rete",
+        "earfcn": "EARFCN",
+        "nrarfcn": "NR-ARFCN",
+        "frequency": "Frequenza",
+        "bands_title": "Bande operative possibili",
+        "band_lte": "Banda {{band}}",
+        "band_nr": "n{{band}}",
+        "duplex": "Modo duplex",
+        "downlink_range": "Intervallo downlink",
+        "uplink_range": "Intervallo uplink",
+        "earfcn_range": "Intervallo EARFCN",
+        "nrarfcn_range": "Intervallo NR-ARFCN",
+        "dl_frequency": "Frequenza DL",
+        "ul_frequency": "Frequenza UL",
+        "ul_earfcn": "EARFCN uplink",
+        "downlink_only": "Solo downlink",
+        "method": "Calcolato secondo {{spec}}."
+      },
+      "units": {
+        "mhz": "{{value}} MHz",
+        "range_mhz": "{{low}} – {{high}} MHz",
+        "range": "{{low}} – {{high}}"
+      },
+      "history": {
+        "title": "Cronologia dei calcoli",
+        "description": "Gli ultimi dieci calcoli, salvati in questo browser.",
+        "clear": "Svuota",
+        "empty_title": "Nessun calcolo",
+        "empty_body": "Calcola un numero di canale e comparirà qui, così puoi confrontarne alcuni senza riscriverli.",
+        "bands": "Bande",
+        "band_lte": "B{{band}}",
+        "band_nr": "n{{band}}",
+        "no_timestamp": "Nessuna data"
+      },
+      "a11y": {
+        "delete_entry": "Elimina questa voce della cronologia"
+      }
     }
   },
   "core_settings": {

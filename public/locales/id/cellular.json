@@ -441,6 +441,69 @@
         "start_failed": "Modem tidak mau memulai pembacaan.",
         "start_unreachable": "Tidak dapat menjangkau pemindai. Pastikan modem merespons."
       }
+    },
+    "calculator": {
+      "page": {
+        "title": "Kalkulator Frekuensi",
+        "description": "Ubah EARFCN atau NR-ARFCN menjadi frekuensi dan band operasinya, untuk LTE dan 5G NR."
+      },
+      "form": {
+        "title": "Kalkulator E/ARFCN",
+        "description": "Masukkan nomor kanal untuk mendapatkan frekuensi dan band-nya.",
+        "mode_auto": "Otomatis",
+        "mode_lte": "LTE",
+        "mode_nr": "NR",
+        "label_auto": "Nilai E/ARFCN",
+        "label_lte": "E-ARFCN",
+        "label_nr": "NR-ARFCN",
+        "placeholder": "Masukkan nomor kanal",
+        "submit": "Hitung"
+      },
+      "error": {
+        "empty": "Masukkan nomor kanal dulu — kolomnya masih kosong.",
+        "not_a_number": "Itu bukan angka. Masukkan nomor kanal bulat, misalnya 1850.",
+        "no_band": "Tidak ada band yang cocok dengan {{value}}. Periksa angkanya, atau pilih LTE atau NR alih-alih Otomatis.",
+        "unexpected": "Perhitungan gagal: {{message}}. Periksa nilainya lalu coba lagi."
+      },
+      "result": {
+        "title": "Hasil",
+        "network_type": "Jenis jaringan",
+        "earfcn": "EARFCN",
+        "nrarfcn": "NR-ARFCN",
+        "frequency": "Frekuensi",
+        "bands_title": "Kemungkinan band operasi",
+        "band_lte": "Band {{band}}",
+        "band_nr": "n{{band}}",
+        "duplex": "Mode duplex",
+        "downlink_range": "Rentang downlink",
+        "uplink_range": "Rentang uplink",
+        "earfcn_range": "Rentang EARFCN",
+        "nrarfcn_range": "Rentang NR-ARFCN",
+        "dl_frequency": "Frekuensi DL",
+        "ul_frequency": "Frekuensi UL",
+        "ul_earfcn": "EARFCN uplink",
+        "downlink_only": "Hanya downlink",
+        "method": "Dihitung menurut {{spec}}."
+      },
+      "units": {
+        "mhz": "{{value}} MHz",
+        "range_mhz": "{{low}} – {{high}} MHz",
+        "range": "{{low}} – {{high}}"
+      },
+      "history": {
+        "title": "Riwayat Perhitungan",
+        "description": "Sepuluh perhitungan terakhir, tersimpan di peramban ini.",
+        "clear": "Hapus",
+        "empty_title": "Belum ada perhitungan",
+        "empty_body": "Hitung sebuah nomor kanal dan hasilnya muncul di sini, agar bisa dibandingkan tanpa mengetik ulang.",
+        "bands": "Band",
+        "band_lte": "B{{band}}",
+        "band_nr": "n{{band}}",
+        "no_timestamp": "Tanpa waktu"
+      },
+      "a11y": {
+        "delete_entry": "Hapus entri riwayat ini"
+      }
     }
   },
   "core_settings": {

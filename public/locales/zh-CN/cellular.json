@@ -441,6 +441,69 @@
         "start_failed": "调制解调器无法启动读取。",
         "start_unreachable": "无法访问扫描器。请检查调制解调器是否响应。"
       }
+    },
+    "calculator": {
+      "page": {
+        "title": "频率计算器",
+        "description": "将 EARFCN 或 NR-ARFCN 换算为对应的频率和工作频段，适用于 LTE 与 5G NR。"
+      },
+      "form": {
+        "title": "E/ARFCN 计算器",
+        "description": "输入信道号，即可得到对应的频率和频段。",
+        "mode_auto": "自动",
+        "mode_lte": "LTE",
+        "mode_nr": "NR",
+        "label_auto": "E/ARFCN 值",
+        "label_lte": "E-ARFCN",
+        "label_nr": "NR-ARFCN",
+        "placeholder": "输入信道号",
+        "submit": "计算"
+      },
+      "error": {
+        "empty": "请先输入信道号——该字段为空。",
+        "not_a_number": "这不是数字。请输入整数信道号，例如 1850。",
+        "no_band": "没有频段与 {{value}} 匹配。请检查数值，或不用「自动」而直接选择 LTE 或 NR。",
+        "unexpected": "计算失败：{{message}}。请检查数值后重试。"
+      },
+      "result": {
+        "title": "计算结果",
+        "network_type": "网络类型",
+        "earfcn": "EARFCN",
+        "nrarfcn": "NR-ARFCN",
+        "frequency": "频率",
+        "bands_title": "可能的工作频段",
+        "band_lte": "频段 {{band}}",
+        "band_nr": "n{{band}}",
+        "duplex": "双工模式",
+        "downlink_range": "下行范围",
+        "uplink_range": "上行范围",
+        "earfcn_range": "EARFCN 范围",
+        "nrarfcn_range": "NR-ARFCN 范围",
+        "dl_frequency": "下行频率",
+        "ul_frequency": "上行频率",
+        "ul_earfcn": "上行 EARFCN",
+        "downlink_only": "仅下行",
+        "method": "依据 {{spec}} 计算。"
+      },
+      "units": {
+        "mhz": "{{value}} MHz",
+        "range_mhz": "{{low}} – {{high}} MHz",
+        "range": "{{low}} – {{high}}"
+      },
+      "history": {
+        "title": "计算历史",
+        "description": "最近十次计算，保存在此浏览器中。",
+        "clear": "清空",
+        "empty_title": "暂无计算记录",
+        "empty_body": "计算一个信道号后就会显示在这里，方便对比而不必重新输入。",
+        "bands": "频段",
+        "band_lte": "B{{band}}",
+        "band_nr": "n{{band}}",
+        "no_timestamp": "无时间戳"
+      },
+      "a11y": {
+        "delete_entry": "删除这条历史记录"
+      }
     }
   },
   "core_settings": {
