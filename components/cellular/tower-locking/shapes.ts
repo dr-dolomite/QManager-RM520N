@@ -267,9 +267,29 @@ export const STRIP_FOOTNOTE =
  * container fill cannot be the channel that separates "on target" from "not on
  * target". The disc, painted on the role's STRONG fill, is.
  *
- * LEFT-ALIGNED, where the retired tile was centred. Centring is what made that
- * block read as the page's headline metric; at strip scale the verdict is a
- * sentence about the section it opens, and a sentence starts at the left margin.
+ * AN EMPTY-STATE STACK, NOT A HEADED BLOCK: a centred disc over one centred
+ * sentence, with NO visible state word. That is a deliberate reversal of the
+ * left-aligned head-plus-body arrangement this replaces, and the reasoning that
+ * killed the arrangement before THAT one — "a sentence starts at the left
+ * margin" — is what makes it work. The state word was never the sentence; it was
+ * a two-word label ("No lock", "Not on target") sitting above a body that
+ * already said the same thing in full ("The modem picks its own cell and
+ * reselects freely"). Two headings for one fact is what made the block read as a
+ * metric tile rather than as the verdict on the section it opens.
+ *
+ * THE STATE WORD IS NOT DELETED, IT IS MOVED OFF SCREEN. `TITLE` is `sr-only`,
+ * so the block still ANNOUNCES "No lock. The modem picks its own cell…" through
+ * its `role="status"`. Sighted readers get the state from the disc's glyph and
+ * fill; everyone else gets it in words. Dropping the key outright would have
+ * left the five verdicts distinguishable to assistive tech only by whatever the
+ * body copy happened to imply, in five locales, with nothing to catch a
+ * translation that blurred two of them.
+ *
+ * The disc steps up to 48px from 36px, because it is now the only thing carrying
+ * the state visually and it leads the stack rather than sharing a row with a
+ * heading. The body steps up to 13px for the same reason: it is the only copy
+ * left, and at 12px centred in an 18.5rem column it read as a caption for a
+ * missing headline.
  *
  * NO STAMP. The freshness line and its re-read control used to live here, on the
  * argument that a verdict is only ever as fresh as its stalest operand (see THE
@@ -285,11 +305,16 @@ export const STRIP_FOOTNOTE =
  * floor and read as a block that ran out of content. See `STRIP_GRID`.
  */
 export const VERDICT_BLOCK = {
-  ROOT: "flex min-w-0 flex-col justify-center gap-2 rounded-tile px-4 py-3.5",
-  HEAD: "flex items-center gap-2.5",
-  DISC: "grid size-9 flex-none place-items-center rounded-pill",
-  TITLE: "text-sm font-semibold",
-  BODY: "text-xs leading-relaxed text-pretty opacity-90",
+  ROOT: "flex min-w-0 flex-col items-center justify-center gap-3 rounded-tile px-5 py-6 text-center",
+  DISC: "grid size-12 flex-none place-items-center rounded-pill",
+  /** The state word, announced but not drawn. See the note above. */
+  TITLE: "sr-only",
+  /**
+   * `text-balance`, not `text-pretty`. Both bodies are short enough to be
+   * BALANCED rather than merely widow-proofed, and a centred two-line sentence
+   * whose lines are wildly unequal is the one place the difference is visible.
+   */
+  BODY: "text-[13px]/5 text-balance opacity-90",
 } as const;
 
 /** Whether the radio is on the cell the modem says it was told to hold. */
@@ -608,24 +633,37 @@ export const CARRIER_TILE = {
 } as const;
 
 /**
- * The aggregation note, occupying the ragged remainder of `CARRIER_GRID`.
+ * The hint note, occupying the ragged remainder of `CARRIER_GRID`.
  *
- * Its job is to say what the empty cells MEAN — "no carrier aggregation right
- * now", or "aggregation is live, only the primary cell can be locked" — rather
- * than leaving the grid to trail off. That is also why it is the one dashed
- * stroke sanctioned on this surface: Fill-Over-Stroke bans a border drawn
- * AROUND CONTENT, and this border is drawn around an ABSENCE. It is
- * `border-outline`, the canon stroke token, at 1px.
+ * It exists so the grid ENDS rather than trailing off into empty cells, and it
+ * is the one dashed stroke sanctioned on this surface: Fill-Over-Stroke bans a
+ * border drawn AROUND CONTENT, and this border is drawn around an ABSENCE. It
+ * is `border-outline`, the canon stroke token, at 1px.
  *
  * It is deliberately not a filled tile. With every real carrier on `bg-surface`,
- * a filled note would enter the reading order as a sixth carrier; unfilled, it
+ * a filled note would enter the reading order as a further carrier; unfilled, it
  * reads as the edge of the set.
+ *
+ * WHAT IT SAYS CHANGED, AND THAT MATTERS MORE THAN THE SHAPE DID. It used to be
+ * a TALLY — "3 LTE, 2 NR" over "Aggregation is live. Only the primary cell can
+ * be locked." Both halves were wrong for this spot. The count restated the
+ * summary the panel head already prints two inches above it ("2 carriers ·
+ * 35 MHz"), and the sentence contradicted the grid it sat in: every addressable
+ * tile here carries a picker, SECONDARIES INCLUDED, precisely because a
+ * secondary becomes a legitimate target the moment the network reselects (see
+ * EVERY CAMPED CARRIER IS A PICKER). A note claiming only the primary can be
+ * locked, printed beside four enabled + buttons, teaches the reader to distrust
+ * the controls.
+ *
+ * It now does what its `frequency-locking` counterpart does — states what the
+ * picker does and the one rule of the feature that is not guessable from the UI
+ * — because that is the same job in the same slot on a sibling route, and the
+ * two surfaces should not answer it in two different shapes. The glyph leads on
+ * its own line rather than inline with a heading, since there is no longer a
+ * heading for it to lead.
  */
 export const CARRIER_NOTE_TILE = {
-  ROOT: "flex min-w-0 flex-col justify-center gap-1.5 rounded-tile border border-dashed border-outline px-4 py-3.5 text-on-surface-variant",
-  /** The count line ("3 LTE · 2 NR"), optionally led by a glyph. A tally is a
-   *  measurement, so it wears the machine's voice. */
-  COUNT: "flex items-center gap-2 font-mono text-xs font-medium tabular-nums",
+  ROOT: "flex min-w-0 flex-col justify-center gap-2 rounded-tile border border-dashed border-outline px-4 py-3.5 text-on-surface-variant",
   BODY: "text-xs leading-relaxed text-pretty",
 } as const;
 
@@ -1201,10 +1239,14 @@ export const SKELETON_SHAPE = {
   /**
    * The verdict block.
    *
-   * MEASURED in-browser across the verdict states at 18.5rem: 92px for the
-   * one-line bodies (`on_target`), 111px for the two-line ones (`unlocked`).
-   * This figure is deliberately 2px above the tallest measurement rather than
-   * an average of the two.
+   * MEASURED in-browser across the verdict states at 18.5rem: 128px for the
+   * one-line bodies (`on_target`), 148px for the two-line ones (`unlocked`).
+   * This figure is the TALLER measurement, not an average of the two.
+   *
+   * Both numbers grew ~35px when the block became a centred empty-state stack:
+   * the disc went 36px -> 48px and moved OFF the title's row onto one of its
+   * own, and the padding went `py-3.5` -> `py-6`. A mirror left at the old
+   * 113px would now under-shoot every state.
    *
    * The taller case is the one to mirror. A skeleton that SHRINKS on load pulls
    * the panel beside it upward into space the reader had already started on,
@@ -1216,7 +1258,7 @@ export const SKELETON_SHAPE = {
    * strip would visibly re-square itself on load. `min-h-` keeps the measured
    * floor for the stacked layout and lets the stretch take over above `@3xl`.
    */
-  VERDICT: "min-h-[7.0625rem] w-full rounded-tile",
+  VERDICT: "min-h-[9.25rem] w-full rounded-tile",
   /**
    * One camped-carrier tile. MEASURED in-browser at 87px.
    *

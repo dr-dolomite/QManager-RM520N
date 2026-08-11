@@ -218,9 +218,6 @@ export function TowerLiveStrip({
     [onAir],
   );
 
-  const lteCount = onAir.filter((c) => c.technology === "LTE").length;
-  const nrCount = onAir.length - lteCount;
-
   const verdict = matchVerdict(modemState, onAir);
   const verdictTone = VERDICT_TONE[verdict];
   const verdictCopy = VERDICT_COPY[verdict];
@@ -252,15 +249,17 @@ export function TowerLiveStrip({
           role="status"
           className={`${VERDICT_BLOCK.ROOT} ${verdictTone.fill}`}
         >
-          <div className={VERDICT_BLOCK.HEAD}>
-            <span
-              aria-hidden="true"
-              className={`${VERDICT_BLOCK.DISC} ${verdictTone.disc}`}
-            >
-              <MaterialSymbol name={verdictTone.glyph} size={20} filled />
-            </span>
-            <span className={VERDICT_BLOCK.TITLE}>{t(verdictCopy.title)}</span>
-          </div>
+          <span
+            aria-hidden="true"
+            className={`${VERDICT_BLOCK.DISC} ${verdictTone.disc}`}
+          >
+            <MaterialSymbol name={verdictTone.glyph} size={26} filled />
+          </span>
+          {/* The state word is announced, never drawn — the disc's glyph and
+              fill carry it visually, and the body says it in full underneath.
+              See `VERDICT_BLOCK` for why the key survives rather than the
+              copy being folded into the body. */}
+          <span className={VERDICT_BLOCK.TITLE}>{t(verdictCopy.title)}</span>
           <p className={VERDICT_BLOCK.BODY}>{t(verdictCopy.body)}</p>
         </div>
       )}
@@ -423,8 +422,12 @@ export function TowerLiveStrip({
               })}
 
               {/* The note fills the grid's ragged remainder, so the set ends
-                  rather than trailing off. Two cases: nothing is aggregated,
-                  or something is and only the primary can be pinned.
+                  rather than trailing off — and it spends that space on the
+                  one rule of this feature the grid cannot demonstrate: what
+                  the + does, and that a tower lock pins BOTH halves of the
+                  pair. It used to print a carrier tally over a claim that only
+                  the primary is lockable; see `CARRIER_NOTE_TILE` for why both
+                  halves of that were wrong in this slot.
 
                   `role="listitem"` even though it is not a carrier: every child
                   of a `role="list"` must be a list item, and this one genuinely
@@ -434,19 +437,13 @@ export function TowerLiveStrip({
                 role="listitem"
                 className={`${CARRIER_NOTE_TILE.ROOT} ${carrierNoteSpan(onAir.length)}`}
               >
-                <span className={CARRIER_NOTE_TILE.COUNT}>
-                  <MaterialSymbol name="info" size={16} className="flex-none" />
-                  {onAir.length > 1
-                    ? t("tower_locking.live.note_ca_counts", {
-                        lte: lteCount,
-                        nr: nrCount,
-                      })
-                    : t("tower_locking.live.note_solo_title")}
-                </span>
+                <MaterialSymbol
+                  name="cell_tower"
+                  size={18}
+                  className="flex-none"
+                />
                 <span className={CARRIER_NOTE_TILE.BODY}>
-                  {onAir.length > 1
-                    ? t("tower_locking.live.note_ca_body")
-                    : t("tower_locking.live.note_solo_body")}
+                  {t("tower_locking.live.note_hint")}
                 </span>
               </div>
             </div>
