@@ -706,10 +706,51 @@ arithmetic before raising the scale again or making the poller faster. Only *mea
 identifiers (band, PCI, EARFCN) take the container morph instead, because dipping a value that holds
 steady for minutes invents an event. A value that moves again mid-dip retargets rather than queueing.
 
-**Reduced motion** is handled by one global switch — `<MotionConfig reducedMotion="user">` in
-`components/motion-provider.tsx` — which is why every shared variant is pure transform and opacity.
-Raw CSS keyframes carry their own `@media (prefers-reduced-motion: reduce)` block beside them.
-Movement goes, opacity stays: a crossfade is still legible information where a slide is not.
+**Reduced motion** is handled by one global switch in `components/motion-provider.tsx`, which is why
+every shared variant is pure transform and opacity. Raw CSS keyframes carry their own
+`@media (prefers-reduced-motion: reduce)` block beside them. Movement goes, opacity stays: a crossfade
+is still legible information where a slide is not.
+
+That switch has **three** states, not two. `MotionConfig reducedMotion="user"` — deferring to the OS
+media query — is only the *default*; the animations preference below can outrank it in either
+direction.
+
+### The animations preference
+
+The sidebar account dropdown carries an **Animations** row cycling System / Full / Reduced, beside the
+theme row. OS-level `prefers-reduced-motion` was already honoured in five layers; what was missing was
+any way for the user to choose. The whole contract is one attribute on `<html>`:
+
+| Choice | Attribute | `MotionConfig reducedMotion` |
+| ------ | --------- | ---------------------------- |
+| System (default) | **absent** | `"user"` |
+| Full | `data-motion="full"` | `"never"` |
+| Reduced | `data-motion="reduced"` | `"always"` |
+
+**The absence of the attribute is load-bearing.** "System" *removes* it rather than writing
+`data-motion="system"`, and that absence is what lets the bare media query decide. The key, the type
+and the pre-paint boot script live together in `lib/motion-preference.ts` so the string
+`qmanager_motion` is written exactly once; `app/layout.tsx` injects the boot script render-blocking,
+because an attribute landing in a mount effect arrives *after* first paint — a user on Reduced would
+see one frame of every entrance animation, which is precisely the frame they asked not to see.
+
+**The load-bearing part is the CSS half.** Tailwind's stock `motion-reduce:` compiles to a bare
+`@media (prefers-reduced-motion: reduce)` with no selector hook, so an attribute on `<html>`
+*physically cannot* override it — the ~64 `motion-reduce:` / `motion-safe:` utilities across the
+components would ignore the user's choice entirely. Both variants are therefore redefined as
+`@custom-variant`s at the top of `globals.css` (`app/globals.css:32-54`), each emitting `@slot` twice —
+once media-gated with the opposing attribute excluded, once attribute-gated — which is the shape
+Tailwind v4's own `dark` example uses. Redefining the two variants rewires all ~64 utilities at the
+source instead of rewriting them onto a bespoke variant name.
+
+> ⚠️ **`motion-safe` needs the same treatment, and this is the half that is easy to skip.** Without it,
+> a user on OS-reduce who explicitly picks **Full** gets every `motion-safe:` spinner frozen — the exact
+> inverse of what they asked for. Redefine both or neither.
+
+Both guards are wrapped in `:where()` so they contribute **zero** specificity: a redefined utility keeps
+the exact weight it had before and cascade order is unchanged. Note the two variants can match
+simultaneously (the OS says reduce *and* the user chose Reduced); duplicate identical declarations are
+harmless.
 
 ### Named Rules
 
@@ -847,7 +888,9 @@ the icon pops instead of dissolving into a same-tone circle, and it survives gra
 Two answers, and this is the one place the system deliberately has two.
 
 - **Glance surfaces** use full-round pills on `surface-container`: 40px tall, 16px horizontal padding,
-  a 13px/600 `on-surface-variant` key against a 13px mono value. No dividers.
+  a 13px/600 `on-surface-variant` key against a 13px value — `font-mono` when that value is an
+  identifier, `font-sans tabular-nums` when it is a live measurement, per the Machine-Voice Rule. No
+  dividers.
 - **Genuine data tables** (cell scanner results, SMS inbox, log views) keep hairline rows on
   `--outline`, because density survives there where pills would not.
 
@@ -879,8 +922,9 @@ Material glyphs.
 Both share the rules. A banner is `bg-{role}-container` with `text-on-{role}-container` — never a
 wash, because a 10% alpha over a tinted surface collapses in dark mode and washes out first in
 sunlight. Its icon always sits in a filled disc on the role's **strong** fill. Radius is 20px, so it
-never out-rounds its host. Informational banners use `primary-container`. Any figure that ticks inside
-banner copy is `font-mono tabular-nums`. Entrance is `.animate-banner-in` (`emphasized`, 6px rise
+never out-rounds its host. Informational banners use `primary-container`. A figure that ticks inside
+banner copy is `tabular-nums` in the interface font — a ticking figure is exactly what the
+Machine-Voice Rule keeps out of `font-mono`; an identifier quoted in banner copy still takes it. Entrance is `.animate-banner-in` (`emphasized`, 6px rise
 plus fade); there is no exit.
 
 ### Signature surfaces
@@ -1001,7 +1045,7 @@ them.
 - **Do** write responsive behavior as a container query against `@container/main`.
 - **Do** wrap a settings group in a card and let the page arrange cards.
 - **Do** put `min-w-0 truncate` on every text node in a paired card's header.
-- **Do** mark every changing figure `font-mono tabular-nums`.
+- **Do** mark every changing figure `tabular-nums` in `font-sans`, and reserve `font-mono` for identifiers.
 - **Do** mirror a skeleton's geometry from the same exported shape constant the loaded view uses.
 - **Do** build the loading, empty, and error state in the same change as the loaded one.
 - **Do** pass `size` explicitly at every `MaterialSymbol` call site.

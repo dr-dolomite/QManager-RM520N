@@ -30,7 +30,7 @@ Before building any page, card, or component, read:
 - **Framework**: Next.js (App Router)
 - **Components**: shadcn/ui (Radix primitives)
 - **Styling**: Tailwind CSS with OKLCH color system
-- **Typography**: Euclid Circular B (UI voice), Geist Mono (machine voice via `font-mono`) — no other typefaces
+- **Typography**: Rethink Sans (UI voice, `--font-sans`), JetBrains Mono (`--font-jetbrains-mono` → `font-mono`) — no other typefaces. `font-mono` is scoped to **identifiers and raw machine strings** (band, EARFCN, PCI, ICCID, IMEI, MAC/IP, AT responses, log lines); a figure that changes while the user watches — a live measurement, a count, a countdown — takes `font-sans tabular-nums` instead. See DESIGN.md > The Machine-Voice Rule
 - **Border radius**: 0.65rem base
 - **Package manager**: bun (never npx)
 

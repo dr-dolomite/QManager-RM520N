@@ -1272,7 +1272,7 @@ Cleared on every reboot (tmpfs). Files pre-created by `qmanager_setup` are marke
 | `/tmp/qmanager_tailscale_install.log` | root | qmanager_tailscale_mgr | Tailscale install log |
 | `/tmp/qmanager_tailscale_install.pid` | root | qmanager_tailscale_mgr | Tailscale install PID |
 | `/tmp/qmanager_low_power_active` | root | low-power cron | Flag: low-power window active; suppresses events/alerts |
-| `/tmp/qmanager_long_running` | root | qmanager_poller | Flag: long AT command in progress |
+| `/tmp/qmanager_long_running` | www-data | **qmanager_cell_scanner** | Existence-only maintenance marker: a full `AT+QSCAN` sweep is holding the AT mutex. `qmanager_poller` and `qmanager_watchcat` are **readers** (root), never writers — the poller also expires it after `LONG_FLAG_MAX_AGE` (300s). The neighbour scanner does not raise it. See [reference/cell-scanner.md](reference/cell-scanner.md) |
 | `/tmp/qmanager_cc_data.tmp` | root | parse_at.sh | Carrier component parse scratch file |
 | `/tmp/qmanager_ca_parse.tmp` | root | parse_at.sh | CA parse scratch file |
 | `/tmp/qmanager_mtu_reapply.pid` | root | tower_lock_mgr.sh | MTU re-apply watcher PID |
