@@ -218,14 +218,19 @@ export const SECTION_HEAD = {
  * half the section. Everything else goes to the carrier grid, which is the part
  * with a variable number of tiles.
  *
- * `items-start`, NOT `items-stretch`, and that is a correction rather than a
- * preference. Stretching made the verdict as tall as a three-carrier grid and
- * left ~90px of empty container between its body copy and its floor — on a
- * SATURATED `success-container`, where a void is the loudest thing in the
- * section. A conclusion sizes to itself; only the grid it judges grows.
+ * The two columns STRETCH to the taller of them, so the verdict and the carrier
+ * panel read as one strip rather than as a short block parked beside a tall one.
+ *
+ * That is only safe because `VERDICT_BLOCK.ROOT` centres its own content. The
+ * arrangement this replaces stretched the block while its copy stayed pinned to
+ * the top, which left ~90px of empty container between the body line and the
+ * floor — on a SATURATED `success-container`, where an asymmetric void is the
+ * loudest thing in the section. Centring is what makes the extra height read as
+ * breathing room instead of as truncation, and the two changes only work as a
+ * pair: reverting one without the other brings the void back.
  */
 export const STRIP_GRID =
-  "grid grid-cols-1 gap-3 @3xl/section:grid-cols-[18.5rem_minmax(0,1fr)] @3xl/section:items-start";
+  "grid grid-cols-1 gap-3 @3xl/section:grid-cols-[18.5rem_minmax(0,1fr)]";
 
 /**
  * The carrier half of the strip. `rounded-tile` (28px) rather than the retired
@@ -272,9 +277,15 @@ export const STRIP_FOOTNOTE =
  * `SECTION_HEAD.META`: BOTH operands — the ~4s carrier list and the once-on-
  * mount lock read-back — now sit inside the one section the stamp heads, so it
  * dates all of them instead of only the conclusion drawn from them.
+ *
+ * CONTENT IS VERTICALLY CENTRED, which is load-bearing rather than cosmetic.
+ * `STRIP_GRID` stretches this column to the carrier panel's height, so on any
+ * grid taller than two lines of copy there is spare container underneath.
+ * Centring splits it above and below; top-aligning would pool all of it at the
+ * floor and read as a block that ran out of content. See `STRIP_GRID`.
  */
 export const VERDICT_BLOCK = {
-  ROOT: "flex min-w-0 flex-col gap-2 rounded-tile px-4 py-3.5",
+  ROOT: "flex min-w-0 flex-col justify-center gap-2 rounded-tile px-4 py-3.5",
   HEAD: "flex items-center gap-2.5",
   DISC: "grid size-9 flex-none place-items-center rounded-pill",
   TITLE: "text-sm font-semibold",
@@ -747,7 +758,24 @@ export const SLOT_ROW = {
   EMPTY:
     "flex min-h-14 flex-wrap items-center gap-x-3 gap-y-2 rounded-field border border-dashed border-outline px-4 py-2.5",
   INDEX: "min-w-[3.25rem] flex-none text-xs font-semibold text-on-surface-variant",
-  FIELDS: "flex min-w-0 flex-1 flex-wrap items-center gap-2",
+  /**
+   * The pair of controls. `flex-[1_1_11rem]`, and the BASIS is the load-bearing
+   * part rather than the grow.
+   *
+   * `META` beside it is `flex-none`, so with a basis of `0` this column was the
+   * only thing on the row that could give — and it gave all the way down to
+   * ~111px on a narrow card, which is under what the channel control needs.
+   * `line-clamp-1` then swallowed the second half of the number: a slot reading
+   * `B28 – 9` where the reader has no way to know a digit is missing. A clipped
+   * measurement is worse than a wrapped row, because only one of the two is
+   * visible as damage.
+   *
+   * Declaring a real basis makes the ROOT's `flex-wrap` fire first: once the
+   * line cannot seat `INDEX + 11rem + META`, the meta drops to its own line and
+   * both fields keep their full width. The row grows by one line instead of
+   * eating a digit.
+   */
+  FIELDS: "flex min-w-0 flex-[1_1_11rem] flex-wrap items-center gap-2",
   META: "ml-auto flex flex-none items-center gap-2",
 } as const;
 
@@ -1181,8 +1209,14 @@ export const SKELETON_SHAPE = {
    * The taller case is the one to mirror. A skeleton that SHRINKS on load pulls
    * the panel beside it upward into space the reader had already started on,
    * whereas one that grows only pushes down into space nobody has read yet.
+   *
+   * A FLOOR, NOT A FIXED HEIGHT. `STRIP_GRID` stretches this column to the
+   * carrier panel beside it, and a `h-` would win against that stretch — so the
+   * placeholder would sit at 113px while the loaded block fills the row, and the
+   * strip would visibly re-square itself on load. `min-h-` keeps the measured
+   * floor for the stacked layout and lets the stretch take over above `@3xl`.
    */
-  VERDICT: "h-[7.0625rem] w-full rounded-tile",
+  VERDICT: "min-h-[7.0625rem] w-full rounded-tile",
   /**
    * One camped-carrier tile. MEASURED in-browser at 87px.
    *

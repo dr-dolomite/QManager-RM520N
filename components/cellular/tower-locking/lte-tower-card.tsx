@@ -745,10 +745,15 @@ export default function LteTowerCard({
               const earfcnId = `lte-earfcn-${index}`;
               const pciId = `lte-pci-${index}`;
               const composite = slotComposites[index] ?? "";
-              const inList = carrierOptions.some(
-                (option) =>
-                  compositeValue(option.earfcn, option.pci) === composite,
-              );
+              /** The camped carrier this slot currently names, if any. Held as
+               *  the OPTION and not as a boolean, because the trigger prints its
+               *  band and channel itself rather than echoing the option row —
+               *  see the trigger for why the two cannot be the same markup. */
+              const pickedOption =
+                carrierOptions.find(
+                  (option) =>
+                    compositeValue(option.earfcn, option.pci) === composite,
+                ) ?? null;
               const blank = isSlotBlank(slot);
               const cell = slotToCell(slot);
               /** ABSENCE of this chip is the negative case. There is
@@ -775,7 +780,7 @@ export default function LteTowerCard({
                       </Label>
                       {simpleActive ? (
                         <Select
-                          value={inList ? composite : ""}
+                          value={pickedOption ? composite : ""}
                           onValueChange={(value) => handleSlotPick(index, value)}
                           disabled={isLocking}
                         >
@@ -784,18 +789,47 @@ export default function LteTowerCard({
                             className={SELECT_CONTROL}
                             aria-label={t("tower_locking.fields.earfcn")}
                           >
-                            {/* A value the radio is not currently reporting is
-                                still a legitimate lock target, so the trigger
-                                prints it rather than falling back to the
-                                placeholder and implying the slot is empty. */}
-                            {inList || cell === null ? (
+                            {/* THE TRIGGER PRINTS THE READING, NOT THE OPTION
+                                ROW — which is why this is a hand-rolled span
+                                and not the `SelectValue` it used to be.
+                                `SelectValue` mirrors the selected item's whole
+                                markup, so the option's PCC/SCC chip came with
+                                it, and a slot row that is also carrying its
+                                index, a PCI field, a "Serving" chip and a clear
+                                button has nowhere to put a chip: the channel
+                                truncated to `PCC B28 …`, losing the one number
+                                the control exists to show. The chip stays in
+                                the dropdown, where the row is full-width and
+                                the distinction is actually being used. */}
+                            {pickedOption ? (
+                              /* `truncate`, not `line-clamp-1`: a clamp cuts on
+                                 the glyph and leaves no mark, so a squeezed
+                                 `B28 – 9485` reads as the complete value `B28 –
+                                 9`. An ellipsis at least says a digit is
+                                 missing. `SLOT_ROW.FIELDS` is what keeps it from
+                                 coming up. */
+                              <span className="text-on-surface min-w-0 truncate font-mono text-sm font-semibold tabular-nums">
+                                {t("tower_locking.live.tile_band_channel", {
+                                  band:
+                                    pickedOption.band ||
+                                    t("tower_locking.live.tile_no_value"),
+                                  channel: pickedOption.earfcn,
+                                })}
+                              </span>
+                            ) : cell === null ? (
                               <SelectValue
                                 placeholder={t(
                                   "tower_locking.fields.pick_placeholder",
                                 )}
                               />
                             ) : (
-                              <span className="text-on-surface-variant line-clamp-1 min-w-0 font-mono text-sm italic tabular-nums">
+                              /* A value the radio is not currently reporting is
+                                 still a legitimate lock target, so the trigger
+                                 prints it rather than falling back to the
+                                 placeholder and implying the slot is empty. It
+                                 keeps its PCI: with no band to name it by, the
+                                 pair is all this cell has. */
+                              <span className="text-on-surface-variant min-w-0 truncate font-mono text-sm italic tabular-nums">
                                 {t("tower_locking.live.rail_target_pair", {
                                   channel: slot.earfcn,
                                   pci: slot.pci,
@@ -819,32 +853,77 @@ export default function LteTowerCard({
                                   disabled={usedIn !== -1}
                                 >
                                   <span className="flex min-w-0 items-center gap-2">
-                                    <span className="text-xs font-semibold">
-                                      {option.band ||
-                                        t("tower_locking.live.tile_no_value")}
-                                    </span>
-                                    <span className="text-on-surface-variant font-mono text-xs tabular-nums">
+                                    {/* BAND AND CHANNEL, AND NOTHING ELSE.
+                                        This row used to run band, then
+                                        `9485, PCI 135`, then `-107 dBm` — four
+                                        readings across a control whose whole job
+                                        is to name ONE cell. The PCI is not
+                                        dropped, it is relocated: picking an
+                                        option writes it into the PCI field
+                                        inches to the right, where it is both
+                                        visible and editable, so printing it here
+                                        too asked the reader to reconcile two
+                                        copies of the same number. The RSRP was
+                                        never a choosing criterion at all — the
+                                        camped tiles above already rank the
+                                        carriers by signal.
+
+                                        `text-sm` rather than the retired
+                                        `text-xs`: with one reading left, the
+                                        line can carry the trigger's own size
+                                        instead of shrinking to fit a crowd.
+
+                                        The PCC/SCC chip stays, and is the one
+                                        thing on the row that is NOT a reading:
+                                        it says whether the cell is the primary
+                                        carrier or one the network aggregated
+                                        alongside it, which is the difference
+                                        between "the anchor this lock will hold"
+                                        and "a cell that only exists while the
+                                        aggregation does". Same chip, same
+                                        variant, same position as the NR card's
+                                        picker — the two legs sit on one page.
+
+                                        `lte`, the IDENTITY variant, and never
+                                        `secondary`: this codebase's `secondary`
+                                        is byte-identical to `surface-container`,
+                                        so on a dropdown row painted in the same
+                                        family the chip disappeared into its own
+                                        background. The violet is the same one
+                                        the camped tiles wear in the strip above,
+                                        which is the point — it is the SAME chip
+                                        for the same carrier, one section apart.
+                                        It says which radio, never "healthy";
+                                        PCC vs SCC is carried by the word. */}
+                                    <Badge variant="lte" className="flex-none">
+                                      {option.type}
+                                    </Badge>
+                                    <span className="text-on-surface min-w-0 truncate font-mono text-sm font-semibold tabular-nums">
                                       {t(
-                                        "tower_locking.live.rail_target_pair",
+                                        "tower_locking.live.tile_band_channel",
                                         {
+                                          band:
+                                            option.band ||
+                                            t(
+                                              "tower_locking.live.tile_no_value",
+                                            ),
                                           channel: option.earfcn,
-                                          pci: option.pci,
                                         },
                                       )}
                                     </span>
-                                    {option.rsrp != null ? (
-                                      <span className="text-on-surface-variant font-mono text-xs tabular-nums">
-                                        {t("tower_locking.live.tile_rsrp", {
-                                          value: option.rsrp,
-                                        })}
-                                      </span>
-                                    ) : null}
+                                    {/* The PCI still reaches assistive tech,
+                                        which cannot glance right at the field
+                                        the pick fills. */}
+                                    <span className="sr-only">
+                                      {t("tower_locking.fields.pci")}{" "}
+                                      {option.pci}
+                                    </span>
                                     {/* `slot_in_use`, not `slot`: on its own,
                                         "Cell 2" beside a disabled option reads
                                         as a second name for the option rather
                                         than as the reason it is disabled. */}
                                     {usedIn !== -1 ? (
-                                      <span className="text-on-surface-variant text-xs">
+                                      <span className="text-on-surface-variant flex-none text-xs">
                                         {t("tower_locking.fields.slot_in_use", {
                                           index: usedIn + 1,
                                         })}

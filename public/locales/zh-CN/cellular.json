@@ -1594,6 +1594,7 @@
       "tile_blocked_nsa": "5G 锁定需要独立组网模式",
       "tile_blocked_lte_only": "无 5G 连接可锁定",
       "tile_blocked_slots_full": "三个 LTE 小区均已设置",
+      "tile_band_channel": "{{band}} – {{channel}}",
       "rail_target_pair": "{{channel}}，PCI {{pci}}",
       "synced_at": "锁定状态更新于 {{time}}",
       "synced_never": "尚未读取锁定状态",

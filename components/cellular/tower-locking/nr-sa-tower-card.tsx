@@ -286,19 +286,6 @@ const TILE_SELECT = [
  */
 const SKELETON_TILE_VALUE = "h-8 w-24 rounded-field";
 
-/**
- * ONE LABELLED READING, in a picker option or a confirmation dialog.
- *
- * The wrapper is the machine's voice — a channel, a PCI and a dBm figure are
- * device readings — and the NAME inside it steps back to `font-sans
- * font-normal`, because "ARFCN" is a word this product is saying, not a value
- * the modem reported. That split is what lets these stand next to each other on
- * one line with nothing but a gap between them: the reader can see where each
- * reading starts without a middot marking the boundary.
- */
-const PICKER_READING =
-  "flex items-baseline gap-1 font-mono text-xs font-medium tabular-nums text-on-surface-variant";
-
 /** Which gate, if any, is standing between the user and an SA lock. */
 type GateKind = "nsa" | "lte_only";
 
@@ -1041,37 +1028,47 @@ export default function NrSaTowerCard({
                         const value = compositeValue(opt.earfcn, opt.pci);
                         return (
                           <SelectItem key={value} value={value}>
-                            {/* A dropdown row HAS room for labels, so it gets
-                                them: each reading is announced by name and the
-                                gap does the separating. This replaces a
-                                middot-joined `ARFCN n · PCI n` run, which asked
-                                the reader to work out which number was which
-                                from position. */}
-                            <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5">
-                              <Badge variant="secondary">{opt.type}</Badge>
-                              <span className="font-medium">
-                                {opt.band ||
-                                  t("tower_locking.live.tile_no_value")}
+                            {/* ONE READING: the band and the channel that
+                                identify the cell. Matched to the LTE card's
+                                picker deliberately — the two legs sit on the
+                                same page and a user filling both should not
+                                have to re-learn the row.
+
+                                This replaces a labelled `ARFCN n / PCI n /
+                                -107 dBm` run. The labels were the right answer
+                                to a middot-joined pair before it, but the real
+                                problem was the number of readings, not their
+                                signposting: the PCI lands in its own field the
+                                moment an option is picked, and the RSRP was
+                                never how a cell gets chosen here. With one
+                                reading left there is nothing to disambiguate,
+                                so the labels go with the values they named. */}
+                            <span className="flex min-w-0 items-center gap-x-2">
+                              {/* `nr`, the IDENTITY variant, and never
+                                  `secondary`: that token is byte-identical to
+                                  `surface-container` here, so the chip vanished
+                                  into the dropdown row behind it. This is the
+                                  same blue the camped tiles wear in the strip
+                                  above — the same chip for the same carrier. It
+                                  says which radio, never "healthy"; PCC vs SCC
+                                  is carried by the word inside it. */}
+                              <Badge variant="nr" className="flex-none">
+                                {opt.type}
+                              </Badge>
+                              <span className="text-on-surface min-w-0 truncate font-mono text-sm font-semibold tabular-nums">
+                                {t("tower_locking.live.tile_band_channel", {
+                                  band:
+                                    opt.band ||
+                                    t("tower_locking.live.tile_no_value"),
+                                  channel: opt.earfcn,
+                                })}
                               </span>
-                              <span className={PICKER_READING}>
-                                <span className="font-sans font-normal">
-                                  {t("tower_locking.live.tile_arfcn")}
-                                </span>
-                                {opt.earfcn}
+                              {/* The PCI still reaches assistive tech, which
+                                  cannot glance down at the field the pick
+                                  fills. */}
+                              <span className="sr-only">
+                                {t("tower_locking.fields.pci")} {opt.pci}
                               </span>
-                              <span className={PICKER_READING}>
-                                <span className="font-sans font-normal">
-                                  {t("tower_locking.live.tile_pci")}
-                                </span>
-                                {opt.pci}
-                              </span>
-                              {opt.rsrp !== null ? (
-                                <span className={PICKER_READING}>
-                                  {t("tower_locking.live.tile_rsrp", {
-                                    value: opt.rsrp,
-                                  })}
-                                </span>
-                              ) : null}
                             </span>
                           </SelectItem>
                         );

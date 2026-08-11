@@ -1594,6 +1594,7 @@
       "tile_blocked_nsa": "Il blocco 5G richiede la modalità standalone",
       "tile_blocked_lte_only": "Nessuna connessione 5G da bloccare",
       "tile_blocked_slots_full": "Tutte e tre le celle LTE sono impostate",
+      "tile_band_channel": "{{band}} – {{channel}}",
       "rail_target_pair": "{{channel}}, PCI {{pci}}",
       "synced_at": "Stato del blocco alle {{time}}",
       "synced_never": "Stato del blocco non ancora letto",

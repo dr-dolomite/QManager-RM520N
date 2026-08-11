@@ -1592,6 +1592,7 @@
       "tile_blocked_nsa": "5G locking needs standalone mode",
       "tile_blocked_lte_only": "No 5G connection to lock",
       "tile_blocked_slots_full": "All three LTE cells are set",
+      "tile_band_channel": "{{band}} – {{channel}}",
       "rail_target_pair": "{{channel}}, PCI {{pci}}",
       "synced_at": "Lock state as of {{time}}",
       "synced_never": "Lock state not read yet",
