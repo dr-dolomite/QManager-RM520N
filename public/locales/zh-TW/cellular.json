@@ -373,6 +373,74 @@
       "poll_lost": "掃描期間與模組失去聯繫。",
       "start_failed": "模組無法啟動掃描。",
       "start_unreachable": "無法連線到掃描服務。請確認模組正在回應。"
+    },
+    "neighbour": {
+      "page": {
+        "title": "鄰區",
+        "description": "讀取服務細胞已在追蹤的基地台，無需掃描任何頻段。"
+      },
+      "run": {
+        "title": "鄰區讀取",
+        "description": "向服務細胞提出一個問題，以它已測量的資料作答。",
+        "cost": "這會向服務細胞索取它已經追蹤的鄰區清單。大約需要兩秒，不掃描任何頻段，其他數據機作業全部照常執行。",
+        "start": "讀取鄰區",
+        "rerun": "重新讀取",
+        "scanning_action": "讀取中…",
+        "chip_idle": "就緒",
+        "chip_scanning": "讀取中",
+        "chip_complete": "已完成",
+        "chip_failed": "失敗",
+        "idle_title": "尚未讀取",
+        "idle_body": "本頁載入後尚未讀取。讀取會列出服務細胞正在測量的鄰區。",
+        "scanning_title": "正在詢問服務細胞",
+        "scanning_body": "幾秒內即可完成。",
+        "complete_title": "讀取完成",
+        "complete_body_one": "回報了 {{count}} 個鄰區。",
+        "complete_body_other": "回報了 {{count}} 個鄰區。",
+        "failed_title": "讀取失敗",
+        "failed_body": "數據機可能忙碌或無法存取。請檢查連線後重新讀取。"
+      },
+      "results": {
+        "title": "已回報的鄰區",
+        "description": "依訊號排序、依通道篩選，可鎖定任一 LTE 列。",
+        "filter_placeholder": "依通道篩選",
+        "empty_title": "尚無鄰區",
+        "empty_body": "執行一次讀取，即可列出服務基地台正在測量的細胞及其通道與訊號。",
+        "error_title": "讀取失敗",
+        "error_retry": "重新讀取"
+      },
+      "columns": {
+        "cell_type": "關係",
+        "frequency": "通道",
+        "rsrq": "RSRQ",
+        "rssi": "RSSI",
+        "sinr": "SINR"
+      },
+      "cell_type": {
+        "intra": "同頻",
+        "inter": "異頻",
+        "nr5g": "5G NR"
+      },
+      "cells": {
+        "unreported": "未回報",
+        "decibel": "{{value}} dB"
+      },
+      "actions": {
+        "lock_lte_only": "鎖定 — 僅限 LTE 細胞"
+      },
+      "toast": {
+        "complete_title": "讀取完成",
+        "complete_desc_one": "回報了 {{count}} 個鄰區",
+        "complete_desc_other": "回報了 {{count}} 個鄰區",
+        "poll_failed_title": "與數據機失去聯繫",
+        "poll_failed_desc": "讀取可能仍在進行。重新載入頁面即可繼續。"
+      },
+      "error": {
+        "failed": "讀取失敗",
+        "poll_lost": "讀取過程中與數據機失去聯繫。",
+        "start_failed": "數據機無法啟動讀取。",
+        "start_unreachable": "無法存取掃描器。請檢查數據機是否回應。"
+      }
     }
   },
   "core_settings": {

@@ -1,160 +1,246 @@
 "use client";
 
 import * as React from "react";
-import {
-  flexRender,
-  getCoreRowModel,
-  getFilteredRowModel,
-  getPaginationRowModel,
-  getSortedRowModel,
-  useReactTable,
-  type ColumnDef,
-  type ColumnFiltersState,
-  type SortingState,
-  type VisibilityState,
-  type Row,
-} from "@tanstack/react-table";
-import { MaterialSymbol } from "@/components/ui/material-symbol";
+import { useTranslation } from "react-i18next";
+import type { ColumnDef, VisibilityState } from "@tanstack/react-table";
 
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
-  DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Input } from "@/components/ui/input";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { motion } from "motion/react";
+import { MaterialSymbol } from "@/components/ui/material-symbol";
+import type {
+  NeighbourCellResult,
+  NeighbourCellType,
+} from "@/types/cell-scanner";
 
-const MotionTableRow = motion.create(TableRow);
-import { Badge } from "@/components/ui/badge";
-import { SignalBadge, NetworkTypeBadge } from "../signal-badges";
-import { DUR, EASE_STANDARD, rowCascadeDelay } from "@/lib/motion";
+import ScanTable from "../scan-table";
+import { NetworkTypeBadge, SignalBadge } from "../signal-badges";
+import { TABLE } from "../shapes";
 
-export interface NeighbourCellResult {
-  id: string;
+// =============================================================================
+// The neighbour read's columns
+// =============================================================================
+// Definitions only; the shell is `scan-table.tsx`. Three defects the incumbent
+// fork carried are fixed here rather than inherited:
+//
+//   1. RSRQ, RSSI and SINR were FETCHED and written to the CSV export, but no
+//      column displayed them. They were downloadable and invisible — the one
+//      thing a neighbour read is actually for, available only by opening a
+//      spreadsheet. They are columns now, folded away on narrow widths.
+//   2. The text filter was bound to `cellType`, whose entire domain is three
+//      values the user cannot type. It is bound to the channel now.
+//   3. `cellType` rendered raw as `intra` / `inter` / `nr5g`.
+//
+// THE MACHINE-VOICE SPLIT IS PER COLUMN. Channel and PCI are identifiers that
+// hold steady until something reconfigures them, so they take `TABLE.IDENT`
+// (mono). RSRP, RSRQ, RSSI and SINR are READINGS, so they take `TABLE.FIGURE` —
+// the interface font with tabular figures.
+// =============================================================================
+
+/**
+ * The measurements fold away first. They are the columns a reader can recover
+ * from the CSV export, and the identity columns are what makes a row findable.
+ */
+export const NEIGHBOUR_NARROW_HIDDEN: VisibilityState = {
+  rsrq: false,
+  rssi: false,
+  sinr: false,
+  cellType: false,
+};
+
+/** `intra` / `inter` / `nr5g` -> its copy key, spelled out as LITERALS so
+ *  `i18n:check` can see every one of them. An interpolated stem is invisible to
+ *  it, and a key it cannot see is a key nothing will ever report as missing. */
+const CELL_TYPE_KEY: Record<NeighbourCellType, string> = {
+  intra: "cell_scanner.neighbour.cell_type.intra",
+  inter: "cell_scanner.neighbour.cell_type.inter",
+  nr5g: "cell_scanner.neighbour.cell_type.nr5g",
+};
+
+/** See the note on `CellScanColumnCopy` — a type alias, not an interface, so it
+ *  satisfies the shell's `Record<string, string>` column-label map. */
+export type NeighbourColumnCopy = {
   networkType: string;
   cellType: string;
-  frequency: number;
-  pci: number;
-  signalStrength: number;
-  rsrq?: number | null;
-  rssi?: number | null;
-  sinr?: number | null;
+  frequency: string;
+  pci: string;
+  signalStrength: string;
+  rsrq: string;
+  rssi: string;
+  sinr: string;
+};
+
+/** An unreported value. The workers emit 0 for channel/PCI/RSRP and null for the
+ *  rest, so both funnel to one mark rather than rendering a real-looking `0`. */
+function Unreported({ label }: { label: string }) {
+  return (
+    <span className="text-on-surface-variant" aria-label={label}>
+      &mdash;
+    </span>
+  );
 }
 
-interface NeighbourScanResultViewProps {
-  data: NeighbourCellResult[];
-  onLockCell?: (cell: NeighbourCellResult) => void;
-}
-
-
-function getColumns(
+export function createNeighbourColumns(
+  copy: NeighbourColumnCopy,
+  labels: {
+    rowMenu: string;
+    lockCell: string;
+    lockUnavailable: string;
+    unreported: string;
+    cellType: (value: NeighbourCellType) => string;
+  },
+  format: { signal: (value: number) => string; decibel: (value: number) => string },
   onLockCell?: (cell: NeighbourCellResult) => void,
 ): ColumnDef<NeighbourCellResult>[] {
   return [
     {
       accessorKey: "networkType",
-      header: () => <div className="pl-4">Network</div>,
-      cell: ({ row }) => (
-        <div className="pl-4">
-          <NetworkTypeBadge type={row.getValue("networkType")} />
-        </div>
-      ),
+      header: () => <span>{copy.networkType}</span>,
+      cell: ({ row }) => <NetworkTypeBadge type={row.original.networkType} />,
     },
     {
       accessorKey: "cellType",
-      header: "Cell Type",
-      cell: ({ row }) => (
-        <div className="font-medium">{row.getValue("cellType")}</div>
-      ),
+      header: () => <span>{copy.cellType}</span>,
+      cell: ({ row }) => <span>{labels.cellType(row.original.cellType)}</span>,
     },
     {
       accessorKey: "frequency",
       header: ({ column }) => (
         <Button
+          type="button"
           variant="ghost"
+          size="sm"
           onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
         >
-          Frequency
+          {copy.frequency}
           <MaterialSymbol name="unfold_more" size={16} />
         </Button>
       ),
-      cell: ({ row }) => {
-        const freq = row.getValue("frequency") as number;
-        return <div className="font-semibold">{freq === 0 ? "-" : freq}</div>;
-      },
+      cell: ({ row }) =>
+        row.original.frequency === 0 ? (
+          <Unreported label={labels.unreported} />
+        ) : (
+          <span className={TABLE.IDENT}>{row.original.frequency}</span>
+        ),
     },
     {
       accessorKey: "pci",
-      header: "PCI",
-      cell: ({ row }) => {
-        const pci = row.getValue("pci") as number;
-        return <div className="font-semibold">{pci === 0 ? "-" : pci}</div>;
-      },
+      header: () => <span>{copy.pci}</span>,
+      cell: ({ row }) =>
+        row.original.pci === 0 ? (
+          <Unreported label={labels.unreported} />
+        ) : (
+          <span className={TABLE.IDENT}>{row.original.pci}</span>
+        ),
     },
     {
       accessorKey: "signalStrength",
       header: ({ column }) => (
         <Button
+          type="button"
           variant="ghost"
+          size="sm"
           onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
         >
-          Signal
+          {copy.signalStrength}
           <MaterialSymbol name="unfold_more" size={16} />
         </Button>
       ),
-      cell: ({ row }) => {
-        const strength = row.getValue("signalStrength") as number;
-        if (strength === 0) {
-          return (
-            <Badge variant="warning">
-              <MaterialSymbol name="signal_cellular_off" size={12} />
-              No data
-            </Badge>
-          );
-        }
-        return (
-          <div className="flex items-center gap-2">
-            <SignalBadge strength={strength} />
-            <span className="font-semibold">{strength} dBm</span>
-          </div>
-        );
-      },
+      cell: ({ row }) => (
+        <span className="flex items-center gap-2">
+          {/* `signalTier` maps 0 to the `none` tier, so an unmeasured port shows
+              a muted "No data" chip rather than the destructive "Bad" the
+              incumbent rendered — a verdict where there was no reading. */}
+          <SignalBadge strength={row.original.signalStrength} />
+          {row.original.signalStrength !== 0 ? (
+            <span className={TABLE.FIGURE}>
+              {format.signal(row.original.signalStrength)}
+            </span>
+          ) : null}
+        </span>
+      ),
+    },
+    {
+      accessorKey: "rsrq",
+      header: () => <span>{copy.rsrq}</span>,
+      cell: ({ row }) =>
+        row.original.rsrq === null ? (
+          <Unreported label={labels.unreported} />
+        ) : (
+          <span className={TABLE.FIGURE}>
+            {format.decibel(row.original.rsrq)}
+          </span>
+        ),
+    },
+    {
+      accessorKey: "rssi",
+      header: () => <span>{copy.rssi}</span>,
+      // RSSI is dBm, where RSRQ and SINR are dB — so this one takes the signal
+      // formatter, not the decibel one. Also: NR5G rows never carry RSSI, the
+      // worker leaves the field empty by design, so a null here is an absence
+      // rather than a fault.
+      cell: ({ row }) =>
+        row.original.rssi === null ? (
+          <Unreported label={labels.unreported} />
+        ) : (
+          <span className={TABLE.FIGURE}>
+            {format.signal(row.original.rssi)}
+          </span>
+        ),
+    },
+    {
+      accessorKey: "sinr",
+      header: () => <span>{copy.sinr}</span>,
+      cell: ({ row }) =>
+        row.original.sinr === null ? (
+          <Unreported label={labels.unreported} />
+        ) : (
+          <span className={TABLE.FIGURE}>
+            {format.decibel(row.original.sinr)}
+          </span>
+        ),
     },
     {
       id: "actions",
       header: () => null,
       enableHiding: false,
-      cell: ({ row }: { row: Row<NeighbourCellResult> }) => {
-        const cellData = row.original;
-        // Only LTE cells can be locked — NR5G lacks required scs/band params
-        if (cellData.networkType !== "LTE") return null;
+      cell: ({ row }) => {
+        // Only LTE neighbours are lockable: `tower/lock.sh`'s NR branch needs a
+        // band and an SCS, and a neighbour report carries neither.
+        const lockable =
+          row.original.networkType.toUpperCase().startsWith("LTE") &&
+          row.original.pci !== 0 &&
+          row.original.frequency !== 0;
+
         return (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button
+                type="button"
                 variant="ghost"
-                className="data-[state=open]:bg-muted text-muted-foreground flex size-8"
-                size="icon"
+                size="icon-sm"
+                className="text-on-surface-variant data-[state=open]:bg-surface-container-high rounded-pill"
+                aria-label={labels.rowMenu}
               >
                 <MaterialSymbol name="more_vert" size={16} />
-                <span className="sr-only">Open menu</span>
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-40">
-              <DropdownMenuItem onClick={() => onLockCell?.(cellData)}>
+            <DropdownMenuContent align="end" className="w-56">
+              {/* The incumbent SUPPRESSED this row entirely for non-LTE cells.
+                  A control that cannot work explains itself rather than
+                  vanishing — an absent affordance leaves the reader to infer
+                  the rule, which is the one thing the product's honesty
+                  principle rules out. */}
+              <DropdownMenuItem
+                disabled={!lockable}
+                onClick={() => onLockCell?.(row.original)}
+              >
                 <MaterialSymbol name="lock" size={16} />
-                Lock Cell
+                {lockable ? labels.lockCell : labels.lockUnavailable}
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -164,157 +250,79 @@ function getColumns(
   ];
 }
 
-const NeighbourScanResultView = ({
+export interface NeighbourScanResultViewProps {
+  data: NeighbourCellResult[];
+  onLockCell?: (cell: NeighbourCellResult) => void;
+}
+
+export function NeighbourScanResultView({
   data,
   onLockCell,
-}: NeighbourScanResultViewProps) => {
-  // Only animate rows on initial mount — skip on sort/filter/page changes
-  const hasAnimated = React.useRef(false);
-  React.useEffect(() => { hasAnimated.current = true; }, []);
-  const [sorting, setSorting] = React.useState<SortingState>([]);
-  const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>(
-    [],
-  );
-  const [columnVisibility, setColumnVisibility] =
-    React.useState<VisibilityState>({});
-  const columns = React.useMemo(() => getColumns(onLockCell), [onLockCell]);
+}: NeighbourScanResultViewProps) {
+  const { t } = useTranslation("cellular");
 
-  const table = useReactTable({
-    data,
-    columns,
-    onSortingChange: setSorting,
-    onColumnFiltersChange: setColumnFilters,
-    getCoreRowModel: getCoreRowModel(),
-    getPaginationRowModel: getPaginationRowModel(),
-    getSortedRowModel: getSortedRowModel(),
-    getFilteredRowModel: getFilteredRowModel(),
-    onColumnVisibilityChange: setColumnVisibility,
-    state: {
-      sorting,
-      columnFilters,
-      columnVisibility,
-    },
-  });
+  const columnCopy: NeighbourColumnCopy = React.useMemo(
+    () => ({
+      networkType: t("cell_scanner.columns.network"),
+      cellType: t("cell_scanner.neighbour.columns.cell_type"),
+      frequency: t("cell_scanner.neighbour.columns.frequency"),
+      pci: t("cell_scanner.columns.pci"),
+      signalStrength: t("cell_scanner.columns.signal"),
+      rsrq: t("cell_scanner.neighbour.columns.rsrq"),
+      rssi: t("cell_scanner.neighbour.columns.rssi"),
+      sinr: t("cell_scanner.neighbour.columns.sinr"),
+    }),
+    [t],
+  );
+
+  const columns = React.useMemo(
+    () =>
+      createNeighbourColumns(
+        columnCopy,
+        {
+          rowMenu: t("cell_scanner.a11y.row_menu"),
+          lockCell: t("cell_scanner.actions.lock_cell"),
+          lockUnavailable: t("cell_scanner.neighbour.actions.lock_lte_only"),
+          unreported: t("cell_scanner.neighbour.cells.unreported"),
+          cellType: (value) => t(CELL_TYPE_KEY[value]),
+        },
+        {
+          signal: (value) => t("cell_scanner.cells.signal", { value }),
+          decibel: (value) => t("cell_scanner.neighbour.cells.decibel", { value }),
+        },
+        onLockCell,
+      ),
+    [columnCopy, onLockCell, t],
+  );
 
   return (
-    <div className="relative flex flex-col gap-4 overflow-hidden">
-      <div className="flex flex-col @sm/card:flex-row items-start @sm/card:items-center gap-2">
-        <Input
-          placeholder="Filter by cell type..."
-          value={
-            (table.getColumn("cellType")?.getFilterValue() as string) ?? ""
-          }
-          onChange={(event) =>
-            table.getColumn("cellType")?.setFilterValue(event.target.value)
-          }
-          className="w-full @sm/card:max-w-sm"
-        />
-
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="outline" className="@sm/card:ml-auto">
-              Columns <MaterialSymbol name="expand_more" size={16} />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            {table
-              .getAllColumns()
-              .filter((column) => column.getCanHide())
-              .map((column) => {
-                return (
-                  <DropdownMenuCheckboxItem
-                    key={column.id}
-                    className="capitalize"
-                    checked={column.getIsVisible()}
-                    onCheckedChange={(value) =>
-                      column.toggleVisibility(!!value)
-                    }
-                  >
-                    {column.id}
-                  </DropdownMenuCheckboxItem>
-                );
-              })}
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </div>
-      <div className="overflow-x-auto rounded-lg border">
-        <Table className="min-w-[600px]">
-          <TableHeader className="bg-muted sticky top-0 z-10">
-            {table.getHeaderGroups().map((headerGroup) => (
-              <TableRow key={headerGroup.id}>
-                {headerGroup.headers.map((header) => {
-                  return (
-                    <TableHead key={header.id}>
-                      {header.isPlaceholder
-                        ? null
-                        : flexRender(
-                            header.column.columnDef.header,
-                            header.getContext(),
-                          )}
-                    </TableHead>
-                  );
-                })}
-              </TableRow>
-            ))}
-          </TableHeader>
-          <TableBody>
-            {table.getRowModel().rows?.length ? (
-              table.getRowModel().rows.map((row, index) => (
-                <MotionTableRow
-                  key={row.id}
-                  initial={hasAnimated.current ? false : { opacity: 0, x: -8 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={hasAnimated.current ? undefined : { duration: DUR.standard, delay: rowCascadeDelay(index), ease: EASE_STANDARD }}
-                >
-                  {row.getVisibleCells().map((cell) => (
-                    <TableCell key={cell.id}>
-                      {flexRender(
-                        cell.column.columnDef.cell,
-                        cell.getContext(),
-                      )}
-                    </TableCell>
-                  ))}
-                </MotionTableRow>
-              ))
-            ) : (
-              <TableRow>
-                <TableCell
-                  colSpan={columns.length}
-                  className="h-24 text-center"
-                >
-                  No results found.
-                </TableCell>
-              </TableRow>
-            )}
-          </TableBody>
-        </Table>
-      </div>
-      <div className="flex items-center justify-end space-x-2 py-4">
-        <div className="text-muted-foreground flex-1 text-sm">
-          {table.getFilteredRowModel().rows.length}{" "}
-          {table.getFilteredRowModel().rows.length === 1 ? "cell" : "cells"} found
-        </div>
-        <div className="space-x-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => table.previousPage()}
-            disabled={!table.getCanPreviousPage()}
-          >
-            Previous
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => table.nextPage()}
-            disabled={!table.getCanNextPage()}
-          >
-            Next
-          </Button>
-        </div>
-      </div>
-    </div>
+    <ScanTable
+      data={data}
+      columns={columns}
+      columnLabels={columnCopy}
+      // Bound to the channel, not `cellType`. The incumbent filtered on a column
+      // whose whole domain is three words the reader cannot guess; the channel is
+      // how the rest of the product (band locking, frequency locking) reasons
+      // about a cell.
+      filterColumnId="frequency"
+      narrowHidden={NEIGHBOUR_NARROW_HIDDEN}
+      labels={{
+        filterPlaceholder: t(
+          "cell_scanner.neighbour.results.filter_placeholder",
+        ),
+        columns: t("cell_scanner.results.columns"),
+        previous: t("cell_scanner.results.previous"),
+        next: t("cell_scanner.results.next"),
+        noMatchTitle: t("cell_scanner.results.no_match_title"),
+        noMatchBody: t("cell_scanner.results.no_match_body"),
+      }}
+      countLabel={(filtered, total) =>
+        filtered < total
+          ? t("cell_scanner.results.filtered", { count: filtered, total })
+          : t("cell_scanner.results.count", { count: total })
+      }
+    />
   );
-};
+}
 
 export default NeighbourScanResultView;

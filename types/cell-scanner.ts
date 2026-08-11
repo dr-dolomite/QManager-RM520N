@@ -50,3 +50,47 @@ export interface CellScanStatusResponse {
   results?: CellScanResult[];
   message?: string;
 }
+
+// -----------------------------------------------------------------------------
+// The neighbour read
+// -----------------------------------------------------------------------------
+// A DIFFERENT SHAPE FROM `CellScanResult`, deliberately not merged with it. The
+// two workers ask the modem different questions and get different answers back:
+// a sweep reports a cell's full identity (operator, MCC/MNC, cell ID, TAC,
+// bandwidth), a neighbour read reports a measurement of a cell the serving tower
+// already knows about (RSRQ, RSSI, SINR, and whether it is on this frequency or
+// another). Only `id`, `networkType`, `pci` and `signalStrength` genuinely
+// overlap, and they even disagree on what to call the channel — `earfcn` here is
+// `frequency`.
+//
+// Widening one type to cover both would make ten fields optional and push the
+// "which of these is actually populated?" question into every call site. The
+// SHELL is shared; the shapes are not.
+
+/** How the neighbour was reported, relative to the serving cell's own frequency. */
+export type NeighbourCellType = "intra" | "inter" | "nr5g";
+
+/** One cell reported by `AT+QENG="neighbourcell"` / `AT+QNWCFG="nr5g_meas_info"`. */
+export interface NeighbourCellResult {
+  id: string;
+  /** `LTE` or `NR5G`. Only LTE neighbours are lockable — see the actions column. */
+  networkType: string;
+  cellType: NeighbourCellType;
+  /** EARFCN / NR-ARFCN. The worker emits 0 when the modem did not report one. */
+  frequency: number;
+  /** The worker emits 0 for an unreported PCI. */
+  pci: number;
+  /** RSRP in dBm. 0 means unmeasured, NOT 0 dBm — see `signalTier`. */
+  signalStrength: number;
+  /** These three are `null` when unreported. NR5G rows never carry RSSI by design. */
+  rsrq: number | null;
+  rssi: number | null;
+  sinr: number | null;
+}
+
+/** The envelope returned by `at_cmd/neighbour_scan_status.sh`. */
+export interface NeighbourScanStatusResponse {
+  status: ScanStatus;
+  results?: NeighbourCellResult[];
+  message?: string;
+}

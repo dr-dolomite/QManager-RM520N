@@ -373,6 +373,74 @@
       "poll_lost": "Kehilangan kontak dengan modem saat pemindaian berjalan.",
       "start_failed": "Modem tidak mau memulai pemindaian.",
       "start_unreachable": "Tidak dapat menghubungi pemindai. Pastikan modem merespons."
+    },
+    "neighbour": {
+      "page": {
+        "title": "Sel Tetangga",
+        "description": "Membaca menara yang sudah dilacak oleh sel pelayan, tanpa memindai pita mana pun."
+      },
+      "run": {
+        "title": "Pembacaan sel tetangga",
+        "description": "Satu pertanyaan ke sel pelayan, dijawab dari apa yang sudah diukurnya.",
+        "cost": "Ini meminta daftar sel tetangga yang sudah dilacak oleh sel pelayan. Perlu sekitar dua detik, tidak memindai pita apa pun, dan membiarkan semua operasi modem lain tetap berjalan.",
+        "start": "Baca sel tetangga",
+        "rerun": "Baca lagi",
+        "scanning_action": "Membaca…",
+        "chip_idle": "Siap",
+        "chip_scanning": "Membaca",
+        "chip_complete": "Selesai",
+        "chip_failed": "Gagal",
+        "idle_title": "Belum ada pembacaan",
+        "idle_body": "Belum ada pembacaan sejak halaman ini dimuat. Pembacaan menampilkan sel tetangga yang sedang diukur oleh sel pelayan.",
+        "scanning_title": "Menanyai sel pelayan",
+        "scanning_body": "Selesai dalam beberapa detik.",
+        "complete_title": "Pembacaan selesai",
+        "complete_body_one": "{{count}} sel tetangga dilaporkan.",
+        "complete_body_other": "{{count}} sel tetangga dilaporkan.",
+        "failed_title": "Pembacaan gagal",
+        "failed_body": "Modem mungkin sibuk atau tidak terjangkau. Periksa koneksi lalu baca lagi."
+      },
+      "results": {
+        "title": "Sel tetangga yang dilaporkan",
+        "description": "Urutkan per sinyal, saring per kanal, kunci baris LTE mana pun.",
+        "filter_placeholder": "Saring per kanal",
+        "empty_title": "Belum ada sel tetangga",
+        "empty_body": "Jalankan pembacaan untuk menampilkan sel yang sedang diukur menara pelayan, beserta kanal dan sinyalnya.",
+        "error_title": "Pembacaan gagal",
+        "error_retry": "Coba baca lagi"
+      },
+      "columns": {
+        "cell_type": "Relasi",
+        "frequency": "Kanal",
+        "rsrq": "RSRQ",
+        "rssi": "RSSI",
+        "sinr": "SINR"
+      },
+      "cell_type": {
+        "intra": "Frekuensi sama",
+        "inter": "Frekuensi lain",
+        "nr5g": "5G NR"
+      },
+      "cells": {
+        "unreported": "Tidak dilaporkan",
+        "decibel": "{{value}} dB"
+      },
+      "actions": {
+        "lock_lte_only": "Kunci — hanya sel LTE"
+      },
+      "toast": {
+        "complete_title": "Pembacaan selesai",
+        "complete_desc_one": "{{count}} sel tetangga dilaporkan",
+        "complete_desc_other": "{{count}} sel tetangga dilaporkan",
+        "poll_failed_title": "Kehilangan kontak dengan modem",
+        "poll_failed_desc": "Pembacaan mungkin masih berjalan. Muat ulang halaman untuk melanjutkan."
+      },
+      "error": {
+        "failed": "Pembacaan gagal",
+        "poll_lost": "Kehilangan kontak dengan modem saat pembacaan berjalan.",
+        "start_failed": "Modem tidak mau memulai pembacaan.",
+        "start_unreachable": "Tidak dapat menjangkau pemindai. Pastikan modem merespons."
+      }
     }
   },
   "core_settings": {

@@ -373,6 +373,74 @@
       "poll_lost": "扫描期间与模块失去联系。",
       "start_failed": "模块无法启动扫描。",
       "start_unreachable": "无法连接扫描服务。请确认模块正在响应。"
+    },
+    "neighbour": {
+      "page": {
+        "title": "邻区",
+        "description": "读取服务小区已在跟踪的基站，无需扫描任何频段。"
+      },
+      "run": {
+        "title": "邻区读取",
+        "description": "向服务小区提出一个问题，用它已测量的数据作答。",
+        "cost": "这会向服务小区索取它已经跟踪的邻区列表。大约需要两秒，不扫描任何频段，其他调制解调器操作全部照常运行。",
+        "start": "读取邻区",
+        "rerun": "重新读取",
+        "scanning_action": "读取中…",
+        "chip_idle": "就绪",
+        "chip_scanning": "读取中",
+        "chip_complete": "已完成",
+        "chip_failed": "失败",
+        "idle_title": "尚未读取",
+        "idle_body": "本页加载后尚未读取。读取会列出服务小区正在测量的邻区。",
+        "scanning_title": "正在询问服务小区",
+        "scanning_body": "几秒内即可完成。",
+        "complete_title": "读取完成",
+        "complete_body_one": "报告了 {{count}} 个邻区。",
+        "complete_body_other": "报告了 {{count}} 个邻区。",
+        "failed_title": "读取失败",
+        "failed_body": "调制解调器可能繁忙或无法访问。请检查连接后重新读取。"
+      },
+      "results": {
+        "title": "已报告的邻区",
+        "description": "按信号排序、按信道筛选，可锁定任意 LTE 行。",
+        "filter_placeholder": "按信道筛选",
+        "empty_title": "暂无邻区",
+        "empty_body": "执行一次读取，即可列出服务基站正在测量的小区及其信道和信号。",
+        "error_title": "读取失败",
+        "error_retry": "重新读取"
+      },
+      "columns": {
+        "cell_type": "关系",
+        "frequency": "信道",
+        "rsrq": "RSRQ",
+        "rssi": "RSSI",
+        "sinr": "SINR"
+      },
+      "cell_type": {
+        "intra": "同频",
+        "inter": "异频",
+        "nr5g": "5G NR"
+      },
+      "cells": {
+        "unreported": "未报告",
+        "decibel": "{{value}} dB"
+      },
+      "actions": {
+        "lock_lte_only": "锁定 — 仅限 LTE 小区"
+      },
+      "toast": {
+        "complete_title": "读取完成",
+        "complete_desc_one": "报告了 {{count}} 个邻区",
+        "complete_desc_other": "报告了 {{count}} 个邻区",
+        "poll_failed_title": "与调制解调器失去联系",
+        "poll_failed_desc": "读取可能仍在进行。重新加载页面即可继续。"
+      },
+      "error": {
+        "failed": "读取失败",
+        "poll_lost": "读取过程中与调制解调器失去联系。",
+        "start_failed": "调制解调器无法启动读取。",
+        "start_unreachable": "无法访问扫描器。请检查调制解调器是否响应。"
+      }
     }
   },
   "core_settings": {

@@ -373,6 +373,74 @@
       "poll_lost": "Lost contact with the modem while the sweep was running.",
       "start_failed": "The modem would not start a sweep.",
       "start_unreachable": "Could not reach the scanner. Check that the modem is responding."
+    },
+    "neighbour": {
+      "page": {
+        "title": "Neighboring Cells",
+        "description": "Read the towers the serving cell already tracks, without sweeping any bands."
+      },
+      "run": {
+        "title": "Neighbour read",
+        "description": "One question to the serving cell, answered from what it already measures.",
+        "cost": "This asks the serving cell for the neighbours it already tracks. It takes about two seconds, sweeps no bands, and leaves every other modem operation running.",
+        "start": "Read neighbours",
+        "rerun": "Read again",
+        "scanning_action": "Reading…",
+        "chip_idle": "Ready",
+        "chip_scanning": "Reading",
+        "chip_complete": "Complete",
+        "chip_failed": "Failed",
+        "idle_title": "No read yet",
+        "idle_body": "Nothing has been read since this page loaded. A read lists the neighbours the serving cell is already measuring.",
+        "scanning_title": "Asking the serving cell",
+        "scanning_body": "This finishes in a couple of seconds.",
+        "complete_title": "Read finished",
+        "complete_body_one": "{{count}} neighbour reported.",
+        "complete_body_other": "{{count}} neighbours reported.",
+        "failed_title": "Read failed",
+        "failed_body": "The modem may be busy or unreachable. Check the connection and read again."
+      },
+      "results": {
+        "title": "Neighbours reported",
+        "description": "Sort by signal, filter by channel, lock onto any LTE row.",
+        "filter_placeholder": "Filter by channel",
+        "empty_title": "No neighbours yet",
+        "empty_body": "Run a read to list the cells the serving tower is already measuring, with their channel and signal.",
+        "error_title": "Read failed",
+        "error_retry": "Retry read"
+      },
+      "columns": {
+        "cell_type": "Relation",
+        "frequency": "Channel",
+        "rsrq": "RSRQ",
+        "rssi": "RSSI",
+        "sinr": "SINR"
+      },
+      "cell_type": {
+        "intra": "Same frequency",
+        "inter": "Other frequency",
+        "nr5g": "5G NR"
+      },
+      "cells": {
+        "unreported": "Not reported",
+        "decibel": "{{value}} dB"
+      },
+      "actions": {
+        "lock_lte_only": "Lock — LTE cells only"
+      },
+      "toast": {
+        "complete_title": "Read complete",
+        "complete_desc_one": "{{count}} neighbour reported",
+        "complete_desc_other": "{{count}} neighbours reported",
+        "poll_failed_title": "Lost contact with the modem",
+        "poll_failed_desc": "The read may still be running. Reload the page to pick it back up."
+      },
+      "error": {
+        "failed": "Read failed",
+        "poll_lost": "Lost contact with the modem while the read was running.",
+        "start_failed": "The modem would not start a read.",
+        "start_unreachable": "Could not reach the scanner. Check that the modem is responding."
+      }
     }
   },
   "core_settings": {

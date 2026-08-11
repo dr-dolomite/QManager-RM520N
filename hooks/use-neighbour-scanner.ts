@@ -1,19 +1,54 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { authFetch } from "@/lib/auth-fetch";
-import type { NeighbourCellResult } from "@/components/cellular/cell-scanner/neighbourcell/neighbour-scan-result";
+import { toast } from "sonner";
+import { useTranslation } from "react-i18next";
 
-// Poll interval while a scan is running (ms)
+import { authFetch } from "@/lib/auth-fetch";
+import type {
+  NeighbourCellResult,
+  NeighbourScanStatusResponse,
+  ScanStatus,
+} from "@/types/cell-scanner";
+
+// =============================================================================
+// The neighbour read's transport
+// =============================================================================
+// Deliberately a SEPARATE hook from `useCellScanner`, not a shared generic. The
+// two drive different endpoints with different lifetimes, and the parts that
+// looked shareable are exactly the parts that should differ (see the interval
+// note below). What genuinely was shared — the table, the hero, the lock dialog,
+// the state panels — is shared as components. Merging the transports too would
+// buy one fewer file and cost the ability to tune either.
+//
+// This hook USED to be the weaker twin of `useCellScanner`, and the gap was not
+// stylistic: it had no `pollStatusRef`, so every `setInterval` callback captured
+// the first render's `pollStatus` and its closure went stale; and its poll catch
+// block was empty, so a modem that stopped answering left the surface spinning
+// silently for as long as the tab stayed open. Both are fixed here.
+// =============================================================================
+
+/**
+ * 1s, and NOT the parent's 2s.
+ *
+ * This is the one place the two transports should genuinely disagree. A neighbour
+ * read is three short AT commands and a `sleep 1` — it finishes in about two
+ * seconds, so a 2s cadence would routinely spend a whole extra poll after the
+ * result was already on disk and make a fast operation feel slow. The parent
+ * sweeps for up to 180s, where a 1s cadence would be 180 pointless requests
+ * against a modem that is deliberately busy.
+ */
 const SCAN_POLL_INTERVAL = 1000;
 
-type ScanStatus = "idle" | "running" | "complete" | "error";
-
-interface NeighbourScanStatusResponse {
-  status: ScanStatus;
-  results?: NeighbourCellResult[];
-  message?: string;
-}
+/**
+ * Consecutive failed polls before the run is called lost.
+ *
+ * Five at a 1s cadence is ~5s of silence. The parent allows ~10s because a sweep
+ * has a legitimate reason to be unreachable — it is holding the AT mutex — while
+ * a neighbour read does not, so this surface can be less patient without risking
+ * a false negative.
+ */
+const MAX_POLL_FAILURES = 5;
 
 interface UseNeighbourScannerReturn {
   status: ScanStatus;
@@ -23,12 +58,38 @@ interface UseNeighbourScannerReturn {
 }
 
 export function useNeighbourScanner(): UseNeighbourScannerReturn {
+  const { t } = useTranslation("cellular");
+
   const [status, setStatus] = useState<ScanStatus>("idle");
   const [results, setResults] = useState<NeighbourCellResult[]>([]);
   const [error, setError] = useState<string | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const failureCountRef = useRef(0);
+  // Always holds the latest `pollStatus`, so an interval callback armed on one
+  // render never calls the closure from an earlier one.
+  const pollStatusRef = useRef<() => Promise<void>>(null!);
 
-  // --- Poll for scan status --------------------------------------------------
+  const stopPolling = useCallback(() => {
+    if (pollRef.current) {
+      clearInterval(pollRef.current);
+      pollRef.current = null;
+    }
+  }, []);
+
+  const finishScan = useCallback(() => {
+    stopPolling();
+    failureCountRef.current = 0;
+  }, [stopPolling]);
+
+  /** Arm the interval through the ref, never through a captured callback. */
+  const ensurePolling = useCallback(() => {
+    if (pollRef.current) return;
+    pollRef.current = setInterval(
+      () => pollStatusRef.current(),
+      SCAN_POLL_INTERVAL,
+    );
+  }, []);
+
   const pollStatus = useCallback(async () => {
     try {
       const res = await authFetch(
@@ -37,49 +98,70 @@ export function useNeighbourScanner(): UseNeighbourScannerReturn {
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
       const data: NeighbourScanStatusResponse = await res.json();
+      failureCountRef.current = 0;
 
       switch (data.status) {
         case "running":
           setStatus("running");
+          // Mount-time detection: a read started on another route may still be
+          // in flight, and without this it would never be polled.
+          ensurePolling();
           break;
 
-        case "complete":
+        case "complete": {
+          const cells = data.results ?? [];
           setStatus("complete");
-          setResults(data.results ?? []);
+          setResults(cells);
           setError(null);
-          if (pollRef.current) {
-            clearInterval(pollRef.current);
-            pollRef.current = null;
+          finishScan();
+          if (cells.length > 0) {
+            toast.success(t("cell_scanner.neighbour.toast.complete_title"), {
+              description: t("cell_scanner.neighbour.toast.complete_desc", {
+                count: cells.length,
+              }),
+            });
           }
           break;
+        }
 
         case "error":
           setStatus("error");
-          setError(data.message ?? "Scan failed");
-          if (pollRef.current) {
-            clearInterval(pollRef.current);
-            pollRef.current = null;
-          }
+          setError(data.message ?? t("cell_scanner.neighbour.error.failed"));
+          finishScan();
           break;
 
         default:
-          // "idle" — scan might have finished between start and first poll
+          // "idle". If an interval was armed, the worker died without writing
+          // either a result or an error.
           if (pollRef.current) {
             setStatus("idle");
-            clearInterval(pollRef.current);
-            pollRef.current = null;
+            finishScan();
           }
           break;
       }
     } catch {
-      // Network error during poll — keep retrying
-    }
-  }, []);
+      // One dropped poll is not a failed read — the worker runs on the modem,
+      // not in this tab. Sustained silence is, and it gets reported rather than
+      // swallowed.
+      failureCountRef.current += 1;
+      if (failureCountRef.current < MAX_POLL_FAILURES) return;
+      if (!pollRef.current) return;
 
-  // --- Start a new scan ------------------------------------------------------
+      setStatus("error");
+      setError(t("cell_scanner.neighbour.error.poll_lost"));
+      finishScan();
+      toast.error(t("cell_scanner.neighbour.toast.poll_failed_title"), {
+        description: t("cell_scanner.neighbour.toast.poll_failed_desc"),
+      });
+    }
+  }, [ensurePolling, finishScan, t]);
+
+  pollStatusRef.current = pollStatus;
+
   const startScan = useCallback(async () => {
     setStatus("running");
     setError(null);
+    failureCountRef.current = 0;
 
     try {
       const res = await authFetch(
@@ -92,33 +174,44 @@ export function useNeighbourScanner(): UseNeighbourScannerReturn {
 
       if (!data.success) {
         if (data.error === "already_running") {
+          // Someone else's read is in flight. Attach to it rather than
+          // reporting a failure the user cannot act on.
           setStatus("running");
-        } else {
-          setStatus("error");
-          setError(data.detail || data.error || "Failed to start scan");
+          ensurePolling();
           return;
         }
+
+        setStatus("error");
+        setError(
+          data.detail ||
+            data.error ||
+            t("cell_scanner.neighbour.error.start_failed"),
+        );
+        return;
       }
 
-      // Begin polling for results
-      if (pollRef.current) clearInterval(pollRef.current);
-      pollRef.current = setInterval(pollStatus, SCAN_POLL_INTERVAL);
+      stopPolling();
+      pollRef.current = setInterval(
+        () => pollStatusRef.current(),
+        SCAN_POLL_INTERVAL,
+      );
     } catch {
       setStatus("error");
-      setError("Failed to connect to scanner");
+      setError(t("cell_scanner.neighbour.error.start_unreachable"));
     }
-  }, [pollStatus]);
+  }, [ensurePolling, stopPolling, t]);
 
-  // --- Check for existing results on mount -----------------------------------
+  // Pick up a result or an in-flight read left by a previous visit.
   useEffect(() => {
     pollStatus();
-    return () => {
-      if (pollRef.current) {
-        clearInterval(pollRef.current);
-        pollRef.current = null;
-      }
-    };
-  }, [pollStatus]);
+    return () => stopPolling();
+  }, [pollStatus, stopPolling]);
+
+  // NO `beforeunload` GUARD, and that is deliberate. The parent installs one
+  // because losing a 3-minute sweep is expensive and the modem stays busy after
+  // the tab closes. A neighbour read costs two seconds and can simply be run
+  // again; prompting "are you sure you want to leave?" over it would be the
+  // interface inventing a stake it does not have.
 
   return { status, results, error, startScan };
 }

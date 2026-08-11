@@ -373,6 +373,74 @@
       "poll_lost": "Contatto perso con il modem durante la scansione.",
       "start_failed": "Il modem non ha avviato la scansione.",
       "start_unreachable": "Impossibile raggiungere lo scanner. Verifica che il modem risponda."
+    },
+    "neighbour": {
+      "page": {
+        "title": "Celle vicine",
+        "description": "Legge le torri che la cella di servizio già monitora, senza scansionare alcuna banda."
+      },
+      "run": {
+        "title": "Lettura celle vicine",
+        "description": "Una domanda alla cella di servizio, con risposta basata su ciò che già misura.",
+        "cost": "Chiede alla cella di servizio l'elenco delle celle vicine che già monitora. Richiede circa due secondi, non scansiona alcuna banda e lascia attive tutte le altre operazioni del modem.",
+        "start": "Leggi le celle vicine",
+        "rerun": "Leggi di nuovo",
+        "scanning_action": "Lettura…",
+        "chip_idle": "Pronto",
+        "chip_scanning": "Lettura",
+        "chip_complete": "Completata",
+        "chip_failed": "Non riuscita",
+        "idle_title": "Nessuna lettura",
+        "idle_body": "Nessuna lettura da quando la pagina è stata caricata. Una lettura elenca le celle vicine che la cella di servizio sta già misurando.",
+        "scanning_title": "Interrogazione della cella di servizio",
+        "scanning_body": "Si completa in un paio di secondi.",
+        "complete_title": "Lettura completata",
+        "complete_body_one": "{{count}} cella vicina rilevata.",
+        "complete_body_other": "{{count}} celle vicine rilevate.",
+        "failed_title": "Lettura non riuscita",
+        "failed_body": "Il modem potrebbe essere occupato o irraggiungibile. Verifica la connessione e riprova."
+      },
+      "results": {
+        "title": "Celle vicine rilevate",
+        "description": "Ordina per segnale, filtra per canale, blocca qualsiasi riga LTE.",
+        "filter_placeholder": "Filtra per canale",
+        "empty_title": "Nessuna cella vicina",
+        "empty_body": "Esegui una lettura per elencare le celle che la torre di servizio sta già misurando, con canale e segnale.",
+        "error_title": "Lettura non riuscita",
+        "error_retry": "Riprova la lettura"
+      },
+      "columns": {
+        "cell_type": "Relazione",
+        "frequency": "Canale",
+        "rsrq": "RSRQ",
+        "rssi": "RSSI",
+        "sinr": "SINR"
+      },
+      "cell_type": {
+        "intra": "Stessa frequenza",
+        "inter": "Altra frequenza",
+        "nr5g": "5G NR"
+      },
+      "cells": {
+        "unreported": "Non rilevato",
+        "decibel": "{{value}} dB"
+      },
+      "actions": {
+        "lock_lte_only": "Blocca — solo celle LTE"
+      },
+      "toast": {
+        "complete_title": "Lettura completata",
+        "complete_desc_one": "{{count}} cella vicina rilevata",
+        "complete_desc_other": "{{count}} celle vicine rilevate",
+        "poll_failed_title": "Contatto con il modem perso",
+        "poll_failed_desc": "La lettura potrebbe essere ancora in corso. Ricarica la pagina per riprenderla."
+      },
+      "error": {
+        "failed": "Lettura non riuscita",
+        "poll_lost": "Contatto con il modem perso durante la lettura.",
+        "start_failed": "Il modem non ha avviato la lettura.",
+        "start_unreachable": "Impossibile raggiungere lo scanner. Verifica che il modem risponda."
+      }
     }
   },
   "core_settings": {
