@@ -34,10 +34,16 @@ PID_FILE="/tmp/qmanager_neighbour_scan.pid"
 RESULT_FILE="/tmp/qmanager_neighbour_scan_result.json"
 ERROR_FILE="/tmp/qmanager_neighbour_scan_error"
 PARSED_FILE="/tmp/qmanager_neighbour_scan_parsed.tmp"
+# Captured stderr per AT leg — qcmd (non -j mode) writes "ERROR: <reason>" to
+# stderr and exits 1 on failure (qcmd:94-96), including "ERROR: modem_busy"
+# when it couldn't acquire /tmp/qmanager_at.lock in time (qcmd:166-170). We
+# need that text to tell a busy-mutex collision apart from a real AT failure.
+LTE_ERR_FILE="/tmp/qmanager_neighbour_scan_lte_err.tmp"
+NR_ERR_FILE="/tmp/qmanager_neighbour_scan_nr_err.tmp"
 
 # --- Cleanup on exit ---------------------------------------------------------
 cleanup() {
-    rm -f "$PID_FILE" "$PARSED_FILE"
+    rm -f "$PID_FILE" "$PARSED_FILE" "$LTE_ERR_FILE" "$NR_ERR_FILE"
 }
 trap cleanup EXIT INT TERM
 
@@ -54,7 +60,7 @@ qlog_info "Neighbour scanner started (PID: $$)"
 #   +QENG: "neighbourcell intra","LTE",<earfcn>,<pcid>,<rsrq>,<rsrp>,<rssi>,<sinr>,<srxlev>,<cell_resel_priority>,<s_non_intra_search>,<thresh_serving_low>,<s_intra_search>
 #   +QENG: "neighbourcell inter","LTE",<earfcn>,<pcid>,<rsrq>,<rsrp>,<rssi>,<sinr>,<srxlev>,<cell_resel_priority>,<threshX_low>,<threshX_high>
 
-lte_output=$(qcmd 'AT+QENG="neighbourcell"')
+lte_output=$(qcmd 'AT+QENG="neighbourcell"' 2>"$LTE_ERR_FILE")
 lte_rc=$?
 
 : > "$PARSED_FILE"
@@ -116,7 +122,7 @@ qcmd 'AT+QNWCFG="nr5g_meas_info",1' >/dev/null 2>&1
 # Brief pause to allow measurement data to populate
 sleep 1
 
-nr_output=$(qcmd 'AT+QNWCFG="nr5g_meas_info"')
+nr_output=$(qcmd 'AT+QNWCFG="nr5g_meas_info"' 2>"$NR_ERR_FILE")
 nr_rc=$?
 
 if [ $nr_rc -ne 0 ]; then
@@ -158,19 +164,75 @@ fi
 # =============================================================================
 # STEP 3: Check if any data was parsed
 # =============================================================================
+# leg_busy <rc> <err_file> — true if that leg failed because it couldn't get
+# the shared AT mutex (/tmp/qmanager_at.lock), not because the command itself
+# errored. See qcmd:166-170 / qcmd:94-96 for the "ERROR: modem_busy" text.
+leg_busy() {
+    [ "$1" -ne 0 ] && grep -q 'modem_busy' "$2" 2>/dev/null
+}
+
 if [ ! -s "$PARSED_FILE" ]; then
-    # Check if both commands failed entirely
     if [ $lte_rc -ne 0 ] && [ $nr_rc -ne 0 ]; then
-        qlog_error "Both neighbour cell queries failed"
-        echo "Both AT commands failed" > "$ERROR_FILE"
+        # -------------------------------------------------------------------
+        # FULL COLLISION — both legs failed. Say WHY: a busy AT mutex (some
+        # other AT consumer — most likely a cell scan holding it for up to
+        # 180s) reads very differently to the user than "the modem errored",
+        # and only one of those is worth retrying immediately.
+        # -------------------------------------------------------------------
+        if leg_busy "$lte_rc" "$LTE_ERR_FILE" || leg_busy "$nr_rc" "$NR_ERR_FILE"; then
+            qlog_error "Neighbour scan: modem busy on both legs"
+            echo "The modem is busy with another operation. Wait a moment and try again." > "$ERROR_FILE"
+        else
+            qlog_error "Both neighbour cell queries failed"
+            echo "Both AT commands failed" > "$ERROR_FILE"
+        fi
         exit 1
     fi
 
+    if [ $lte_rc -ne 0 ] || [ $nr_rc -ne 0 ]; then
+        # -------------------------------------------------------------------
+        # PARTIAL COLLISION, zero rows from the leg that DID run. We cannot
+        # tell "this leg genuinely has no neighbours right now" apart from
+        # "this leg never got queried" — reporting "complete, 0 cells" here
+        # would look authoritative while silently dropping half the read.
+        # Report it as an error naming the failed leg instead, so the UI
+        # surfaces something actionable rather than a falsely-clean empty
+        # table. (This does not change the envelope shape: still
+        # {"status":"error","message":...} — no new top-level status.)
+        # -------------------------------------------------------------------
+        if [ $lte_rc -ne 0 ]; then
+            failed_leg="LTE"; failed_rc="$lte_rc"; failed_err="$LTE_ERR_FILE"
+        else
+            failed_leg="NR5G"; failed_rc="$nr_rc"; failed_err="$NR_ERR_FILE"
+        fi
+
+        if leg_busy "$failed_rc" "$failed_err"; then
+            qlog_warn "Neighbour scan: $failed_leg leg blocked by busy modem, other leg found no cells"
+            echo "The modem was busy during the $failed_leg read. Results are incomplete — try again." > "$ERROR_FILE"
+        else
+            qlog_warn "Neighbour scan: $failed_leg leg failed, other leg found no cells"
+            echo "The $failed_leg neighbour read failed. Results are incomplete — try again." > "$ERROR_FILE"
+        fi
+        exit 1
+    fi
+
+    # Both legs genuinely succeeded and genuinely found nothing.
     qlog_info "No neighbour cells found"
     echo "[]" > "${RESULT_FILE}.tmp"
     mv "${RESULT_FILE}.tmp" "$RESULT_FILE"
     qlog_info "Neighbour scanner complete — 0 cells"
     exit 0
+fi
+
+# One or both legs failed but the other still produced real rows (PARSED_FILE
+# is non-empty) — that's genuine partial data, not a lie, so fall through to
+# STEP 4 and report it as-is. Log which leg was missing so it's visible in
+# qlog even though the JSON envelope has no field for it.
+if [ $lte_rc -ne 0 ]; then
+    qlog_warn "Neighbour scan: LTE leg failed, reporting NR5G-only partial results"
+fi
+if [ $nr_rc -ne 0 ]; then
+    qlog_warn "Neighbour scan: NR5G leg failed, reporting LTE-only partial results"
 fi
 
 # =============================================================================

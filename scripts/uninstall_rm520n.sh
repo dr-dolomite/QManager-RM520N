@@ -495,18 +495,24 @@ info "Firewall rules cleared"
 
 step "Removing runtime state and temporary files"
 
-rm -f /tmp/qmanager_*.json  2>/dev/null || true
-rm -f /tmp/qmanager.log*    2>/dev/null || true
-rm -f /tmp/qmanager_*.pid   2>/dev/null || true
-rm -f /tmp/qmanager_*.lock  2>/dev/null || true
-rm -f /tmp/qmanager_speedtest_output /tmp/qmanager_speedtest_run.sh 2>/dev/null || true
-rm -f /tmp/qmanager_email_reload /tmp/qmanager_sms_reload          2>/dev/null || true
-rm -f /tmp/qmanager_sms_forward_reload /tmp/qmanager_sms_forward_seen 2>/dev/null || true
-rm -f /tmp/qmanager_sms_forward_failures.json                       2>/dev/null || true
-rm -f /tmp/qmanager_ping_reload /tmp/qmanager_ping_history          2>/dev/null || true
-rm -f /tmp/qmanager_imei_check_done                                 2>/dev/null || true
-rm -f /tmp/qmanager_low_power_active /tmp/qmanager_recovery_active  2>/dev/null || true
-rm -f /tmp/qmanager_staged.tar.gz /tmp/qmanager_staged_version      2>/dev/null || true
+# One glob, not a maintained list. The previous form matched only *.json, *.pid
+# and *.lock plus a hand-kept roster of named files, so every EXTENSION-LESS
+# runtime file survived an uninstall until the next reboot — the scan error
+# files, the long-running maintenance marker, three watchcat flags and the
+# events reload flag were all leaking, and the roster had already been extended
+# three times without closing the class. A prefix glob closes it permanently:
+# every file this product writes to /tmp is named `qmanager_*` by convention.
+#
+# Safe because uninstall is terminal and standalone — it is never invoked from
+# the OTA path (`qmanager_update`), so there is no in-flight staging state to
+# protect. Directories under the prefix (`qmanager_install`, the session dir)
+# fail this `rm -f` with EISDIR, which `|| true` swallows exactly as before;
+# `$SESSION_DIR` is still removed explicitly below.
+#
+# `qmanager.log*` needs its own line: a dot follows the prefix there, not an
+# underscore, so `qmanager_*` does not match it.
+rm -f  /tmp/qmanager_*   2>/dev/null || true
+rm -f  /tmp/qmanager.log* 2>/dev/null || true
 rm -rf "$SESSION_DIR"
 
 # Update artifacts that live under /etc/qmanager but are runtime, not config
