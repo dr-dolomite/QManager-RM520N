@@ -210,12 +210,11 @@ export function ScanTable<TData>({
                 {headerGroup.headers.map((header, index) => (
                   <TableHead
                     key={header.id}
-                    // The first column's own `px-2` stacks on top of the card's
-                    // 28px padding, so its content sits 8px further in than the
-                    // title and description above it. `ps-0` collapses that to
-                    // one inset, so the Network column lines up with everything
-                    // else the card already left-aligns to.
-                    className={index === 0 ? "ps-0" : undefined}
+                    // The Network column's badge sat right at the shell's
+                    // default `px-2` inset, noticeably tighter than the gap
+                    // between every other column pair. `ps-4` gives it the
+                    // same breathing room the rest of the row already has.
+                    className={index === 0 ? "ps-4" : undefined}
                   >
                     {header.isPlaceholder
                       ? null
@@ -259,7 +258,7 @@ export function ScanTable<TData>({
                   {row.getVisibleCells().map((cell, index) => (
                     <TableCell
                       key={cell.id}
-                      className={index === 0 ? "ps-0" : undefined}
+                      className={index === 0 ? "ps-4" : undefined}
                     >
                       {flexRender(
                         cell.column.columnDef.cell,
