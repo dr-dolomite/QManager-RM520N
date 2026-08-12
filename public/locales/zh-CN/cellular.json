@@ -372,7 +372,9 @@
       "scan_failed": "扫描失败",
       "poll_lost": "扫描期间与模块失去联系。",
       "start_failed": "模块无法启动扫描。",
-      "start_unreachable": "无法连接扫描服务。请确认模块正在响应。"
+      "start_unreachable": "无法连接扫描服务。请确认模块正在响应。",
+      "other_scan_running": "邻区读取正在占用模块。它几秒钟就会结束——到时候再重新开始扫描。",
+      "scan_vanished": "扫描结束了，但没有返回任何结果。请重新开始扫描。"
     },
     "neighbour": {
       "page": {
@@ -439,7 +441,9 @@
         "failed": "读取失败",
         "poll_lost": "读取过程中与调制解调器失去联系。",
         "start_failed": "调制解调器无法启动读取。",
-        "start_unreachable": "无法访问扫描器。请检查调制解调器是否响应。"
+        "start_unreachable": "无法访问扫描器。请检查调制解调器是否响应。",
+        "other_scan_running": "全频段扫描正在占用调制解调器。它最长需要三分钟——等它结束后再读取邻区。",
+        "scan_vanished": "读取结束了，但没有返回任何结果。请重新读取。"
       }
     },
     "calculator": {

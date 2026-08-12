@@ -372,7 +372,9 @@
       "scan_failed": "掃描失敗",
       "poll_lost": "掃描期間與模組失去聯繫。",
       "start_failed": "模組無法啟動掃描。",
-      "start_unreachable": "無法連線到掃描服務。請確認模組正在回應。"
+      "start_unreachable": "無法連線到掃描服務。請確認模組正在回應。",
+      "other_scan_running": "鄰區讀取正在佔用模組。它幾秒鐘就會結束——屆時再重新開始掃描。",
+      "scan_vanished": "掃描結束了，但沒有回傳任何結果。請重新開始掃描。"
     },
     "neighbour": {
       "page": {
@@ -439,7 +441,9 @@
         "failed": "讀取失敗",
         "poll_lost": "讀取過程中與數據機失去聯繫。",
         "start_failed": "數據機無法啟動讀取。",
-        "start_unreachable": "無法存取掃描器。請檢查數據機是否回應。"
+        "start_unreachable": "無法存取掃描器。請檢查數據機是否回應。",
+        "other_scan_running": "全頻段掃描正在佔用數據機。它最長需時三分鐘——等它結束後再讀取鄰區。",
+        "scan_vanished": "讀取結束了，但沒有回傳任何結果。請重新讀取。"
       }
     },
     "calculator": {

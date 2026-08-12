@@ -372,7 +372,9 @@
       "scan_failed": "Scansione non riuscita",
       "poll_lost": "Contatto perso con il modem durante la scansione.",
       "start_failed": "Il modem non ha avviato la scansione.",
-      "start_unreachable": "Impossibile raggiungere lo scanner. Verifica che il modem risponda."
+      "start_unreachable": "Impossibile raggiungere lo scanner. Verifica che il modem risponda.",
+      "other_scan_running": "Una lettura delle celle vicine sta occupando il modem. Finisce in pochi secondi: riavvia la scansione allora.",
+      "scan_vanished": "La scansione è terminata senza restituire alcun risultato. Avviala di nuovo per riprovare."
     },
     "neighbour": {
       "page": {
@@ -439,7 +441,9 @@
         "failed": "Lettura non riuscita",
         "poll_lost": "Contatto con il modem perso durante la lettura.",
         "start_failed": "Il modem non ha avviato la lettura.",
-        "start_unreachable": "Impossibile raggiungere lo scanner. Verifica che il modem risponda."
+        "start_unreachable": "Impossibile raggiungere lo scanner. Verifica che il modem risponda.",
+        "other_scan_running": "Una scansione completa delle bande sta occupando il modem. Può richiedere fino a tre minuti: rileggi le celle vicine quando ha finito.",
+        "scan_vanished": "La lettura è terminata senza restituire alcun risultato. Eseguila di nuovo per riprovare."
       }
     },
     "calculator": {

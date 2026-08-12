@@ -50,6 +50,26 @@ export function useCellScanner(): UseCellScannerReturn {
   // Ref to always hold the latest pollStatus for use in setInterval callbacks,
   // avoiding stale closures when pollStatus is recreated by useCallback.
   const pollStatusRef = useRef<() => Promise<void>>(null!);
+  /**
+   * The latest `t`, held in a ref so it can be READ inside the callbacks
+   * without being a DEPENDENCY of them.
+   *
+   * i18next is initialised with the default `bindI18n: 'languageChanged'`, so
+   * `useTranslation` hands back a new `t` identity the moment the user switches
+   * language. When `t` sat in `pollStatus`'s dep array, that new identity
+   * rebuilt `pollStatus`, which rebuilt the mount effect below, whose cleanup
+   * calls `stopPolling()` — so changing language mid-sweep tore down the poll
+   * interval and nothing ever armed it again. The sweep kept running on the
+   * modem for its full three minutes while the UI stopped watching, forever.
+   *
+   * The ref keeps the messages fresh (a translation is only read at the moment
+   * an error is raised, never cached) while making `pollStatus` identity-stable,
+   * which is what the interval and the mount effect actually need. Removing `t`
+   * from the deps WITHOUT this ref would be the stale-closure bug instead:
+   * errors raised after a language switch would still be worded in the old one.
+   */
+  const tRef = useRef(t);
+  tRef.current = t;
 
   // --- Helpers: interval management ------------------------------------------
   const stopPolling = useCallback(() => {
@@ -128,8 +148,8 @@ export function useCellScanner(): UseCellScannerReturn {
           setError(null);
           finishScan();
           if (cells.length > 0) {
-            toast.success(t("cell_scanner.toast.scan_complete_title"), {
-              description: t("cell_scanner.toast.scan_complete_desc", {
+            toast.success(tRef.current("cell_scanner.toast.scan_complete_title"), {
+              description: tRef.current("cell_scanner.toast.scan_complete_desc", {
                 count: cells.length,
               }),
             });
@@ -139,15 +159,26 @@ export function useCellScanner(): UseCellScannerReturn {
 
         case "error":
           setStatus("error");
-          setError(data.message ?? t("cell_scanner.error.scan_failed"));
+          setError(data.message ?? tRef.current("cell_scanner.error.scan_failed"));
           finishScan();
           break;
 
         default:
-          // "idle" — no scan running, no results
-          // If we had a polling interval, the scan process died silently
+          // "idle". Two very different situations arrive here and they must not
+          // be answered the same way:
+          //
+          //  - No interval armed. This is the mount poll on a page where nothing
+          //    has ever run. Genuinely idle; say nothing.
+          //  - An interval IS armed. A sweep was in flight and the status file
+          //    now reports nothing at all — no result, no error. The run
+          //    vanished. This used to drop the surface silently back to `idle`,
+          //    which reads to the user exactly as if the button had never been
+          //    pressed: the spinner disappears, the empty state returns, and the
+          //    interface volunteers no account of the three minutes it just
+          //    spent. Report it as the failure it is.
           if (pollRef.current) {
-            setStatus("idle");
+            setStatus("error");
+            setError(tRef.current("cell_scanner.error.scan_vanished"));
             finishScan();
           }
           break;
@@ -162,13 +193,13 @@ export function useCellScanner(): UseCellScannerReturn {
       if (!pollRef.current) return;
 
       setStatus("error");
-      setError(t("cell_scanner.error.poll_lost"));
+      setError(tRef.current("cell_scanner.error.poll_lost"));
       finishScan();
-      toast.error(t("cell_scanner.toast.poll_failed_title"), {
-        description: t("cell_scanner.toast.poll_failed_desc"),
+      toast.error(tRef.current("cell_scanner.toast.poll_failed_title"), {
+        description: tRef.current("cell_scanner.toast.poll_failed_desc"),
       });
     }
-  }, [ensurePolling, finishScan, startTimer, t]);
+  }, [ensurePolling, finishScan, startTimer]);
 
   // Keep the ref in sync so interval callbacks always use the latest pollStatus
   pollStatusRef.current = pollStatus;
@@ -200,9 +231,27 @@ export function useCellScanner(): UseCellScannerReturn {
           return;
         }
 
+        // The OTHER scan type holds the modem — a neighbour read, in this
+        // direction. This is emphatically NOT the `already_running` case above
+        // and must never fall into it: attaching would arm the poll loop against
+        // a sweep status file that does not exist, which answers `idle` one
+        // second later and drops the surface back to rest. The user would press
+        // Sweep, watch a spinner for a second, and be told nothing at all.
+        //
+        // The CGI sends a `detail` string, but it is English-only, so it is
+        // deliberately discarded in favour of translated copy that also says how
+        // long the wait is worth.
+        if (data.error === "other_scan_running") {
+          setStatus("error");
+          setError(tRef.current("cell_scanner.error.other_scan_running"));
+          return;
+        }
+
         setStatus("error");
         setError(
-          data.detail || data.error || t("cell_scanner.error.start_failed"),
+          data.detail ||
+            data.error ||
+            tRef.current("cell_scanner.error.start_failed"),
         );
         return;
       }
@@ -220,9 +269,9 @@ export function useCellScanner(): UseCellScannerReturn {
       );
     } catch {
       setStatus("error");
-      setError(t("cell_scanner.error.start_unreachable"));
+      setError(tRef.current("cell_scanner.error.start_unreachable"));
     }
-  }, [ensurePolling, startTimer, stopPolling, t]);
+  }, [ensurePolling, startTimer, stopPolling]);
 
   // --- Check for existing results on mount -----------------------------------
   useEffect(() => {

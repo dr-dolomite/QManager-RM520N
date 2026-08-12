@@ -372,7 +372,9 @@
       "scan_failed": "Pemindaian gagal",
       "poll_lost": "Kehilangan kontak dengan modem saat pemindaian berjalan.",
       "start_failed": "Modem tidak mau memulai pemindaian.",
-      "start_unreachable": "Tidak dapat menghubungi pemindai. Pastikan modem merespons."
+      "start_unreachable": "Tidak dapat menghubungi pemindai. Pastikan modem merespons.",
+      "other_scan_running": "Pembacaan sel tetangga sedang memakai modem. Ini selesai dalam beberapa detik — mulai pemindaian lagi setelah itu.",
+      "scan_vanished": "Pemindaian berakhir tanpa mengembalikan hasil apa pun. Mulai lagi untuk mencoba ulang."
     },
     "neighbour": {
       "page": {
@@ -439,7 +441,9 @@
         "failed": "Pembacaan gagal",
         "poll_lost": "Kehilangan kontak dengan modem saat pembacaan berjalan.",
         "start_failed": "Modem tidak mau memulai pembacaan.",
-        "start_unreachable": "Tidak dapat menjangkau pemindai. Pastikan modem merespons."
+        "start_unreachable": "Tidak dapat menjangkau pemindai. Pastikan modem merespons.",
+        "other_scan_running": "Pemindaian pita penuh sedang memakai modem. Ini bisa memakan waktu sampai tiga menit — baca sel tetangga lagi setelah selesai.",
+        "scan_vanished": "Pembacaan berakhir tanpa mengembalikan hasil apa pun. Jalankan lagi untuk mencoba ulang."
       }
     },
     "calculator": {

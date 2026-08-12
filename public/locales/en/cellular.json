@@ -372,7 +372,9 @@
       "scan_failed": "Sweep failed",
       "poll_lost": "Lost contact with the modem while the sweep was running.",
       "start_failed": "The modem would not start a sweep.",
-      "start_unreachable": "Could not reach the scanner. Check that the modem is responding."
+      "start_unreachable": "Could not reach the scanner. Check that the modem is responding.",
+      "other_scan_running": "A neighbour read is using the modem right now. It finishes in a few seconds — start the sweep again then.",
+      "scan_vanished": "The sweep ended without returning a result. Start it again to retry."
     },
     "neighbour": {
       "page": {
@@ -439,7 +441,9 @@
         "failed": "Read failed",
         "poll_lost": "Lost contact with the modem while the read was running.",
         "start_failed": "The modem would not start a read.",
-        "start_unreachable": "Could not reach the scanner. Check that the modem is responding."
+        "start_unreachable": "Could not reach the scanner. Check that the modem is responding.",
+        "other_scan_running": "A full band sweep is using the modem right now. It can take up to three minutes — read the neighbours again once it finishes.",
+        "scan_vanished": "The read ended without returning a result. Run it again to retry."
       }
     },
     "calculator": {

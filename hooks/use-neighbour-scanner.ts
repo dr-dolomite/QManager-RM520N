@@ -68,6 +68,20 @@ export function useNeighbourScanner(): UseNeighbourScannerReturn {
   // Always holds the latest `pollStatus`, so an interval callback armed on one
   // render never calls the closure from an earlier one.
   const pollStatusRef = useRef<() => Promise<void>>(null!);
+  /**
+   * The latest `t`, held so the callbacks can READ it without DEPENDING on it.
+   *
+   * i18next runs with the default `bindI18n: 'languageChanged'`, so switching
+   * language hands back a fresh `t` identity. With `t` in `pollStatus`'s dep
+   * array that rebuilt `pollStatus`, which rebuilt the mount effect, whose
+   * cleanup calls `stopPolling()` — a language change mid-read killed the
+   * interval and nothing re-armed it. The ref keeps every message current
+   * (translations are read at the moment an error is raised, never cached)
+   * while leaving `pollStatus` identity-stable, which is the only property the
+   * interval and the mount effect care about.
+   */
+  const tRef = useRef(t);
+  tRef.current = t;
 
   const stopPolling = useCallback(() => {
     if (pollRef.current) {
@@ -115,26 +129,40 @@ export function useNeighbourScanner(): UseNeighbourScannerReturn {
           setError(null);
           finishScan();
           if (cells.length > 0) {
-            toast.success(t("cell_scanner.neighbour.toast.complete_title"), {
-              description: t("cell_scanner.neighbour.toast.complete_desc", {
-                count: cells.length,
-              }),
-            });
+            toast.success(
+              tRef.current("cell_scanner.neighbour.toast.complete_title"),
+              {
+                description: tRef.current(
+                  "cell_scanner.neighbour.toast.complete_desc",
+                  { count: cells.length },
+                ),
+              },
+            );
           }
           break;
         }
 
         case "error":
           setStatus("error");
-          setError(data.message ?? t("cell_scanner.neighbour.error.failed"));
+          setError(
+            data.message ?? tRef.current("cell_scanner.neighbour.error.failed"),
+          );
           finishScan();
           break;
 
         default:
-          // "idle". If an interval was armed, the worker died without writing
-          // either a result or an error.
+          // "idle", and which of the two idles matters.
+          //
+          // No interval armed: the mount poll on a page where nothing has run.
+          // Genuinely idle, and silence is the right answer.
+          //
+          // An interval armed: a read WAS in flight and the worker died without
+          // writing either a result or an error. Resetting to `idle` here — the
+          // old behaviour — is indistinguishable from never having pressed the
+          // button, so the surface owes the user an account instead.
           if (pollRef.current) {
-            setStatus("idle");
+            setStatus("error");
+            setError(tRef.current("cell_scanner.neighbour.error.scan_vanished"));
             finishScan();
           }
           break;
@@ -148,13 +176,18 @@ export function useNeighbourScanner(): UseNeighbourScannerReturn {
       if (!pollRef.current) return;
 
       setStatus("error");
-      setError(t("cell_scanner.neighbour.error.poll_lost"));
+      setError(tRef.current("cell_scanner.neighbour.error.poll_lost"));
       finishScan();
-      toast.error(t("cell_scanner.neighbour.toast.poll_failed_title"), {
-        description: t("cell_scanner.neighbour.toast.poll_failed_desc"),
-      });
+      toast.error(
+        tRef.current("cell_scanner.neighbour.toast.poll_failed_title"),
+        {
+          description: tRef.current(
+            "cell_scanner.neighbour.toast.poll_failed_desc",
+          ),
+        },
+      );
     }
-  }, [ensurePolling, finishScan, t]);
+  }, [ensurePolling, finishScan]);
 
   pollStatusRef.current = pollStatus;
 
@@ -181,11 +214,24 @@ export function useNeighbourScanner(): UseNeighbourScannerReturn {
           return;
         }
 
+        // The other scan type holds the modem — a full band sweep, in this
+        // direction, which is the expensive one to wait on. It must NOT fall
+        // through to `already_running` above: attaching would poll a neighbour
+        // status file that does not exist, read `idle` a second later, and reset
+        // the surface as though the button had never been pressed. The CGI's
+        // `detail` is English-only and is dropped in favour of copy that names
+        // the wait.
+        if (data.error === "other_scan_running") {
+          setStatus("error");
+          setError(tRef.current("cell_scanner.neighbour.error.other_scan_running"));
+          return;
+        }
+
         setStatus("error");
         setError(
           data.detail ||
             data.error ||
-            t("cell_scanner.neighbour.error.start_failed"),
+            tRef.current("cell_scanner.neighbour.error.start_failed"),
         );
         return;
       }
@@ -197,9 +243,9 @@ export function useNeighbourScanner(): UseNeighbourScannerReturn {
       );
     } catch {
       setStatus("error");
-      setError(t("cell_scanner.neighbour.error.start_unreachable"));
+      setError(tRef.current("cell_scanner.neighbour.error.start_unreachable"));
     }
-  }, [ensurePolling, stopPolling, t]);
+  }, [ensurePolling, stopPolling]);
 
   // Pick up a result or an in-flight read left by a previous visit.
   useEffect(() => {
