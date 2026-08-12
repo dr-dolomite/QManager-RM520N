@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 import {
   SKELETON_SHAPE,
   SUMMARY,
+  summaryTileTone,
   VERDICT,
   VERDICT_TONE,
   type VerdictTone,
@@ -102,8 +103,11 @@ export function RunSummary({
         <p className={SUMMARY.DETAIL_FIGURE}>{emptyText}</p>
       ) : (
         <div className={SUMMARY.GRID}>
-          {tiles.map((tile) => (
-            <div key={tile.id} className={SUMMARY.TILE}>
+          {tiles.map((tile, index) => (
+            <div
+              key={tile.id}
+              className={cn(SUMMARY.TILE, summaryTileTone(index))}
+            >
               <span className={SUMMARY.LABEL}>{tile.label}</span>
               <span className={SUMMARY.VALUE}>{tile.value}</span>
               {tile.details.length > 0 ? (

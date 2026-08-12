@@ -207,8 +207,16 @@ export function ScanTable<TData>({
           <TableHeader className={TABLE.HEAD}>
             {table.getHeaderGroups().map((headerGroup) => (
               <TableRow key={headerGroup.id}>
-                {headerGroup.headers.map((header) => (
-                  <TableHead key={header.id}>
+                {headerGroup.headers.map((header, index) => (
+                  <TableHead
+                    key={header.id}
+                    // The first column's own `px-2` stacks on top of the card's
+                    // 28px padding, so its content sits 8px further in than the
+                    // title and description above it. `ps-0` collapses that to
+                    // one inset, so the Network column lines up with everything
+                    // else the card already left-aligns to.
+                    className={index === 0 ? "ps-0" : undefined}
+                  >
                     {header.isPlaceholder
                       ? null
                       : flexRender(
@@ -248,8 +256,11 @@ export function ScanTable<TData>({
                     TABLE.ROW_HOVER,
                   )}
                 >
-                  {row.getVisibleCells().map((cell) => (
-                    <TableCell key={cell.id}>
+                  {row.getVisibleCells().map((cell, index) => (
+                    <TableCell
+                      key={cell.id}
+                      className={index === 0 ? "ps-0" : undefined}
+                    >
                       {flexRender(
                         cell.column.columnDef.cell,
                         cell.getContext(),

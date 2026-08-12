@@ -281,8 +281,19 @@ export const SUMMARY = {
   ROOT: "flex min-h-[13.5rem] flex-col gap-3 rounded-tile bg-surface-container p-5",
   TITLE: "text-sm font-semibold",
   GRID: "grid grid-cols-1 gap-2 @md/section:grid-cols-2 @3xl/section:grid-cols-3",
-  TILE: "flex min-w-0 flex-col gap-1.5 rounded-field bg-surface-container-high px-4 py-3",
-  LABEL: "truncate text-xs font-semibold text-on-surface-variant",
+  /**
+   * Background and ink are NOT here — they come from `summaryTileTone(index)`
+   * below, one per tile. The tile stays a container-shape constant; the tone is
+   * the one thing that legitimately varies per tile.
+   */
+  TILE: "flex min-w-0 flex-col gap-1.5 rounded-field px-4 py-3",
+  /**
+   * `opacity-85` on the tile's OWN ink rather than a fixed `text-on-surface-variant`
+   * — the tile's tone now varies per index (see `summaryTileTone`), so a hardcoded
+   * neutral would sit wrong on a solid `bg-primary` tile. Same idiom the SMS
+   * summary strip uses for its tile labels.
+   */
+  LABEL: "truncate text-xs font-semibold opacity-85",
   /** The count. A changing figure, so interface font — see `TABLE.FIGURE`. */
   VALUE: "text-xl font-semibold leading-none tabular-nums",
   /**
@@ -297,10 +308,36 @@ export const SUMMARY = {
    * a new type step invented for one caption is exactly what the ramp exists to
    * prevent. Caption is the smallest documented step and it is the right one.
    */
-  DETAIL_IDENT: "font-mono text-xs tabular-nums text-on-surface-variant",
+  DETAIL_IDENT: "font-mono text-xs tabular-nums opacity-85",
   /** Readings and counts — interface font with tabular figures. */
-  DETAIL_FIGURE: "text-xs tabular-nums text-on-surface-variant",
+  DETAIL_FIGURE: "text-xs tabular-nums opacity-85",
 } as const;
+
+/**
+ * Tile tone triad, rotating by index — the SMS summary strip's fill/container/
+ * uplink pattern (`components/cellular/sms/summary-tiles.tsx`), applied here
+ * because this panel had the opposite problem: every tile sat on the identical
+ * `surface-container-high`, so three (or nine) peer facts read as one grey
+ * block with numbers in it rather than as distinct findings.
+ *
+ * Tile 0 is always the FILL pair — the group the reader's eye lands on first.
+ * Every tile after it alternates the two CONTAINER pairs, so the panel never
+ * runs out of distinct tones however many groups a sweep returns (up to nine,
+ * per the file header). `lte-container` is deliberately never used here: it is
+ * the 4G identity hue and none of these tiles mean "LTE" (DESIGN.md > The
+ * Identity-Chip Rule) — `uplink-container` is the system's spare identity hue
+ * for exactly this "counts and supporting readouts" role.
+ */
+const SUMMARY_TILE_TONE = [
+  "bg-primary text-primary-foreground",
+  "bg-primary-container text-on-primary-container",
+  "bg-uplink-container text-on-uplink-container",
+] as const;
+
+export function summaryTileTone(index: number): string {
+  if (index === 0) return SUMMARY_TILE_TONE[0];
+  return SUMMARY_TILE_TONE[1 + ((index - 1) % 2)];
+}
 
 /**
  * The verdict strip under the tiles: one line explaining what the numbers
