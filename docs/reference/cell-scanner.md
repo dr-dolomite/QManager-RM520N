@@ -2,7 +2,7 @@
 
 **Three routes share one prefix and one visual vocabulary, and exactly two of them talk to the modem — at costs that differ by roughly 100x.** A full sweep (`AT+QSCAN=3,1`) holds the single global AT mutex for 30–180 seconds and pauses every other modem operation on the device, including the poller that feeds the dashboard you are reading the page on. A neighbour read (`AT+QENG="neighbourcell"`) holds the same mutex for about two seconds. The frequency calculator holds nothing — it is browser arithmetic. That asymmetry is the organising idea of the whole surface, and most of what follows exists to keep it visible.
 
-This doc records the invariants and sharp edges a contributor needs **before** touching the family: why the two scanning routes are deliberately not merged, the `/tmp/qmanager_long_running` maintenance contract that until 2026-08-11 was described in two docs but implemented nowhere, why this surface keeps signal thresholds that disagree with the rest of the product, why `0` is a sentinel rather than a reading, and why the two result types were not widened into one.
+This doc records the invariants and sharp edges a contributor needs **before** touching the family: the single `flock` that makes the two scanning routes mutually exclusive and how it survives the CGI that took it, why the two routes are deliberately not merged, the `/tmp/qmanager_long_running` maintenance contract that was described in two docs long before anything implemented it, why this surface keeps signal thresholds that disagree with the rest of the product, why `0` is a sentinel rather than a reading, and why the two result types were not widened into one.
 
 The rationale for the individual design moves lives in the commits (`a2394ee`, `e4e5441`, `5871e8c`, `16d129c`) and in the long file header of `components/cellular/cell-scanner/shapes.ts`. This doc does not restate them.
 
@@ -32,20 +32,24 @@ The rationale for the individual design moves lives in the commits (`a2394ee`, `
 | Sweep worker | `scripts/usr/bin/qmanager_cell_scanner` |
 | Neighbour worker | `scripts/usr/bin/qmanager_neighbour_scanner` |
 | Lock a scanned cell | `POST …/tower/lock.sh` — see [tower-locking.md](tower-locking.md) |
-| i18n | `cell_scanner.*` in `public/locales/{en,zh-CN,zh-TW,it,id}/cellular.json` (**174 keys per locale**, covering all three routes — `cell_scanner.neighbour.*` and `cell_scanner.calculator.*` are subtrees. The whole family had **zero** i18n before 2026-08-12) |
+| i18n | `cell_scanner.*` in `public/locales/{en,zh-CN,zh-TW,it,id}/cellular.json` (**178 keys per locale**, covering all three routes — `cell_scanner.neighbour.*` and `cell_scanner.calculator.*` are subtrees. The whole family had **zero** i18n before 2026-08-12) |
 
 ### Runtime files
 
 | Path | Owner | Written by | Meaning |
 | ---- | ----- | ---------- | ------- |
-| `/tmp/qmanager_cell_scan.pid` | www-data | `qmanager_cell_scanner` | Sweep in flight (singleton gate) |
+| `/tmp/qmanager_scan.lock` | www-data | either start endpoint (lazily, empty) | **The singleton.** One `flock` shared by both scan types — see [The scan singleton](#the-scan-singleton-one-flock-two-routes) |
+| `/tmp/qmanager_cell_scan.pid` | www-data | `cell_scan_start.sh`, then `qmanager_cell_scanner` (same value) | **Identification only** — which sweep holds the lock, never whether one is running |
 | `/tmp/qmanager_cell_scan_result.json` | www-data | `qmanager_cell_scanner` | Final JSON array of cells |
-| `/tmp/qmanager_cell_scan_error` | www-data | `qmanager_cell_scanner` | Error text; consumed **destructively** by `cell_scan_status.sh:42` |
-| `/tmp/qmanager_neighbour_scan.pid` | www-data | `qmanager_neighbour_scanner` | Neighbour read in flight |
+| `/tmp/qmanager_cell_scan_error` | www-data | `qmanager_cell_scanner` | Error text; read **non-destructively**, cleared by the next scan start |
+| `/tmp/qmanager_neighbour_scan.pid` | www-data | `neighbour_scan_start.sh`, then `qmanager_neighbour_scanner` (same value) | Identification only, as above |
 | `/tmp/qmanager_neighbour_scan_result.json` | www-data | `qmanager_neighbour_scanner` | Final JSON array |
-| `/tmp/qmanager_neighbour_scan_error` | www-data | `qmanager_neighbour_scanner` | Error text, destructively consumed |
+| `/tmp/qmanager_neighbour_scan_error` | www-data | `qmanager_neighbour_scanner` | Error text, read non-destructively |
+| `/tmp/qmanager_neighbour_scan_{lte,nr}_err.tmp` | www-data | `qmanager_neighbour_scanner` | Per-leg captured `qcmd` stderr; how `modem_busy` is told apart from a real AT failure. Removed by the worker's `EXIT` trap |
 | `/tmp/qmanager_long_running` | www-data | `qmanager_cell_scanner` **only** | Maintenance marker — see below |
 | `/tmp/qmanager_at.lock` | mode 0666 | `qcmd` | The single global AT mutex |
+
+> ℹ️ **The pid files are not a gate.** Both start endpoints used to enforce "one at a time" by testing their own pid file; they now enforce it with the `flock` above and keep the pid file only to decide *which* of two messages to show. `pid_alive()` is `[ -d /proc/$1 ]` (`platform.sh`) — it proves *a* process with that number exists, never that it is our worker, so it must never be load-bearing for exclusion again.
 
 ### AT commands this surface issues
 
@@ -69,22 +73,99 @@ The frequency calculator issues **nothing**. It has no fetch and no AT contact, 
 | Long | `*QSCAN*`, `*QSCANFREQ*`, `*QFOTADL*` | `LOCK_WAIT_LONG=10` s |
 | Everything else | — | `LOCK_WAIT_SHORT=5` s |
 
-`AT+QENG` is **not** long. So firing a neighbour read while a sweep is in flight gives the neighbour worker five seconds against a lock that will be held for up to three minutes; `flock_wait` gives up, `qcmd` exits 2, and `output_result "" "modem_busy"` (`qcmd:165-169`) is what the worker sees. The neighbour worker treats a non-zero `qcmd` exit as "skip this half" (`qmanager_neighbour_scanner:62`, `:122`), so the run finishes fast and reports zero cells — a *plausible empty result* rather than an error.
+`AT+QENG` is **not** long. So firing a neighbour read while a sweep is in flight gives the neighbour worker five seconds against a lock that will be held for up to three minutes; `flock_wait` gives up, `qcmd` exits 2, and `output_result "" "modem_busy"` (`qcmd:165-169`) is what the worker sees. The neighbour worker treats a non-zero `qcmd` exit as "skip this half" (`qmanager_neighbour_scanner:62`, `:122`).
 
-> ⚠️ **Known sharp edge, unfixed by design-of-omission.** The two start endpoints enforce singletons against **separate** pid files and **neither checks the other**: `cell_scan_start.sh:34` tests only `/tmp/qmanager_cell_scan.pid`, and `neighbour_scan_start.sh:33` tests only `/tmp/qmanager_neighbour_scan.pid`. Nothing prevents a neighbour read from being started during a sweep, and its failure mode is a silently empty table rather than a stated "the modem is busy". If you add a cross-check, add it in both start endpoints (a neighbour read is short enough that a sweep started during one is also worth refusing), and give the UI the `modem_busy` error code rather than an empty result.
+**What that produced depended on how the two runs overlapped, and the distinction matters when you are debugging one.** A neighbour read makes *two* separately-locked AT calls with a `sleep 1` between them, so a sweep can block one leg and miss the other:
 
-**This is why the two routes are deliberately NOT merged.** They read as one feature and share seven modules, but merging them into one route with a mode toggle would put a three-minute modem freeze one click away from a two-second read. `COST` (`shapes.ts:164`) is therefore a *required* slot in the run hero, not an optional flourish: same shape on both routes, different content. Before the 2026-08 rebuild both routes shipped a button reading the identical string "Start New Scan"; the sweep's action now reads "Sweep all bands" and states its cost in plain language.
+| Overlap | `lte_rc` / `nr_rc` | Old outcome | Now |
+| ------- | ------------------ | ----------- | --- |
+| **Total** — the sweep holds the mutex across both legs | both non-zero | A **real error**: the `[ $lte_rc -ne 0 ] && [ $nr_rc -ne 0 ]` branch wrote `"Both AT commands failed"` to the error file and exited 1 | Same branch, but it now names the cause: if either leg's captured stderr says `modem_busy`, the message is *"The modem is busy with another operation"* rather than a generic AT failure |
+| **Partial** — the sweep releases the mutex between the legs, so one leg runs and finds nothing | exactly one non-zero | The **silent lie**: `both failed` was false, so the worker fell through to "no neighbour cells found", wrote `[]`, and the UI reported a confident *"complete — 0 cells"* | A new branch reports it as an error naming the failed leg (*"The modem was busy during the LTE read. Results are incomplete"*) |
+| **Partial, and the surviving leg found real rows** | exactly one non-zero | Reported as-is | Still reported as-is — genuine partial data is not a lie. The missing leg is logged to `qlog` (the JSON envelope has no field for it) |
+
+> ℹ️ Earlier revisions of this doc claimed that *any* neighbour read fired during a sweep failed silently with a plausible empty table. That was only ever true of the partial overlap. If you are chasing a report of an empty neighbour table, the thing to check is whether the sweep released the mutex between the two legs — a total collision has always written a real error and always will.
+
+Since 2026-08-12 none of this should be reachable from the UI at all: the [scan singleton](#the-scan-singleton-one-flock-two-routes) refuses the second scan up front with `other_scan_running`. The behaviour above remains the fallback for a worker started outside the CGI (by hand over SSH, say), and for any AT consumer other than a scan holding the mutex.
+
+**The cost asymmetry is also why the two routes are deliberately NOT merged.** They read as one feature and share seven modules, but merging them into one route with a mode toggle would put a three-minute modem freeze one click away from a two-second read. `COST` (`shapes.ts:164`) is therefore a *required* slot in the run hero, not an optional flourish: same shape on both routes, different content. Before the 2026-08 rebuild both routes shipped a button reading the identical string "Start New Scan"; the sweep's action now reads "Sweep all bands" and states its cost in plain language.
 
 Corollaries that follow from the same asymmetry, and should not be "harmonised" away:
 
 - The sweep hook polls every **2 s** and runs an elapsed clock; the neighbour hook polls every **1 s** and has none (`use-cell-scanner.ts:15`, `use-neighbour-scanner.ts:41`). A timer on a two-second operation has finished before the eye reaches it.
 - The sweep route has a `beforeunload` guard (`use-cell-scanner.ts:236-245`); the neighbour route deliberately does not. Losing a two-second read costs nothing, so prompting over it would invent a stake the operation does not have.
 
+## The scan singleton: one `flock`, two routes
+
+**Short version: both start endpoints take an exclusive lock on the same file, `/tmp/qmanager_scan.lock`, and then hand that lock to the worker they spawn. Whichever scan gets there first owns the modem until it finishes; the second one is refused immediately with a stated reason instead of being launched into a three-minute wait it cannot explain.**
+
+`flock` is an advisory lock — a do-not-disturb sign on a file that only one process may hold at a time. The non-obvious part here is *who* holds it. Both endpoints do the same four things:
+
+```sh
+[ -e "$SCAN_LOCK" ] || : > "$SCAN_LOCK"   # 1. create it lazily — the redirect below fails if absent
+exec 9<"$SCAN_LOCK"                        # 2. open it READ-ONLY on fd 9
+flock -x -n 9 || { … refuse … }            # 3. take it exclusively, non-blocking
+( "$SCANNER_BIN" … & echo $! > "$PID_FILE" )  # 4. spawn the worker, which INHERITS fd 9
+```
+
+Then the CGI exits — and the lock stays held.
+
+**That works because a `flock` lives on the *open file description*, not on the process that acquired it.** An open file description is the kernel's record of "this file, opened this way, at this offset"; a file descriptor is just a numbered handle pointing at one. `fork` and `exec` copy the handle without duplicating the description, so the child ends up pointing at the very same lock. The kernel releases that lock only when the **last** descriptor referring to the description closes. Nothing in these scripts closes fd 9, so the lock travels to the worker and is held for the worker's whole run.
+
+Two consequences worth having in mind before you change anything here:
+
+- **It is self-healing.** Because the release is the kernel closing a descriptor, it happens on *every* exit path — a clean finish, a crash, or a `SIGKILL` that runs no trap. There is no stale-lock state to detect and no cleanup code to write. Do not add any.
+- **Acquire-then-spawn is atomic from the client's point of view.** The old design checked a pid file, spawned, then `sleep 0.8` waiting for the worker to write that pid — a ~0.8 s window in which a second POST saw no pid and happily spawned a second worker. Taking the lock *before* spawning closes it: there is no instant at which a scan is running but unclaimed.
+
+> ℹ️ **Verified on-device (BusyBox v1.31.1, 2026-08-12).** Its usage line is `flock [-sxun] FD|{FILE [-c] PROG ARGS}`, so the bare-FD form is real on this platform and not a GNU-only spelling. A **read-only** fd is sufficient for `-x`: `/proc/<pid>/fdinfo/9` shows `lock: 1: FLOCK ADVISORY WRITE` with no write bit on the descriptor. The read-only open is deliberate, not incidental — `fs.protected_regular=1` blocks **root** from write-opening a world-writable `/tmp` file it does not own (see [tmp-file-ownership.md](tmp-file-ownership.md)), so `9<` keeps the design intact if a root component is ever added to this path. Switching it to `9>` would work today and break the day someone adds a root writer.
+
+> ⚠️ **Never `unlink` this lock file while a request could be in flight.** Deleting the name does **not** release the lock — it detaches the name from the inode the lock lives on. The next opener creates a brand-new inode and takes an entirely independent lock on it, so both scans acquire "the" lock and mutual exclusion silently disappears with nothing in any log to say so. `uninstall_rm520n.sh` is safe only because its `/tmp` sweep runs eight steps after it has stopped lighttpd and killed every worker; a boot-time or periodic "tidy `/tmp`" job would not be.
+
+### Refusal messages, and why `other_scan_running` is its own code
+
+When `flock -x -n` fails, the endpoint consults the (cosmetic) pid file purely to pick a message:
+
+| Condition | Error code | Meaning |
+| --------- | ---------- | ------- |
+| Our own pid file names a live process | `already_running` | The **same** scan type is in flight |
+| It does not | `other_scan_running` | The **other** scan type holds the modem |
+
+**`other_scan_running` must never be collapsed into `already_running`.** The hooks treat `already_running` as "someone else started my scan — attach to it and start polling" (`use-cell-scanner.ts`, `use-neighbour-scanner.ts`). Reuse the code for a cross-scan collision and the neighbour hook attaches a poll loop to a *sweep*: it polls `neighbour_scan_status.sh`, whose pid, result and error files do not exist, gets `idle` one second later, and resets the surface. The user presses the button, watches a spinner for a second, and is told nothing at all — strictly worse than the failure it was meant to report.
+
+Both hooks discard the CGI's `detail` string for this code and use translated copy instead, because `detail` is English-only and the useful part of the message is *how long the wait is worth* (~2 s for a neighbour read, up to three minutes for a sweep).
+
+## The status endpoints are non-destructive, and that forced an ordering rule
+
+Both status endpoints are `GET`s, and a `GET` must not mutate server state. They used to `rm` the error file as they read it, which meant **exactly one poll in the world ever saw a failure**: a second browser tab, a page reload, or a dropped response and the error was gone forever, leaving the surface to report `idle` for a scan that had definitively failed. The `rm` is gone. The error file is now cleared by the *next* scan start instead — both start endpoints and both workers already do this — so an error persists until it is superseded.
+
+**That change forced the result check ABOVE the error check, and the order is load-bearing.** A non-destructive read means both a result file and an error file can be present at once: worker A fails early and writes the error, worker B succeeds late and writes the result. (The singleton should prevent that pairing, but this ordering is the belt to its braces.)
+
+- **Result first** — a genuine completed sweep is delivered, and a stale error is superseded by the next start. Worst case, an error is reported *late*.
+- **Error first** — the good result would be shadowed for as long as the stale error sits there, i.e. delivered **never** rather than merely late.
+
+Checking result first cannot suppress a real failure, because on a real failure there is no result file to find: the start endpoint deletes it before spawning, and a worker that failed never wrote one.
+
+> ℹ️ Related, and deliberately left alone: the `PID_FILE` branch above both checks is *not* ordered after the result check, even though `speedtest_status.sh:155-166` documents a `running → idle → complete` flicker from exactly that shape. It is unreachable here because each worker writes its result and removes its own pid file inside one process, with the `rm` in an `EXIT` trap that is the process's last act — so `pid_alive` can only go false after the result already exists. Both status scripts carry this note at the source; do not "harmonise" them with speedtest without re-deriving it.
+
+### Start-endpoint responses
+
+| Outcome | Body |
+| ------- | ---- |
+| Started | `{"success": true}` |
+| Same scan type already running | `{"success": false, "error": "already_running", "detail": "…"}` |
+| Other scan type holds the modem | `{"success": false, "error": "other_scan_running", "detail": "…"}` |
+| Worker spawned but died immediately | `{"success": false, "error": "start_failed", "detail": "…"}` |
+
+The success body **dropped its `pid` field** (`{"success": true, "pid": N}` → `{"success": true}`). Nothing consumed it: the client polls a status endpoint, it never addresses a process.
+
+`start_failed` is narrower than it looks. The endpoint spawns, waits 0.2 s, and checks the pid is alive — which detects only an install-integrity failure (binary missing or not executable), because a healthy worker holds the modem for seconds to minutes and cannot plausibly be dead that early. It replaced a `sleep 0.8` that was there to let the *worker* write its own pid file; the CGI now writes the pid itself from `$!`, which is the same value the worker later writes as `$$`, so the two are idempotent rather than racing. Without that, the endpoint could return before the pid file existed and the client's first poll would read `idle` for a scan that was running perfectly well.
+
 ## The `/tmp/qmanager_long_running` contract
 
-**Short version: the marker tells the two root daemons "a long AT command is in flight — stand down", and until 2026-08-11 it had three readers, two deleters and zero writers.** `docs/ARCHITECTURE.md` and `docs/BACKEND.md` both described the guard; nothing in the tree created the file. During a real sweep the poller kept issuing serving-cell and `QCAINFO` reads that each waited five seconds on the lock and returned `modem_busy`, and the watchdog — the thing that reboots the modem when it believes the connection died — never saw maintenance mode at all.
+**Short version: the marker tells the two root daemons "a long AT command is in flight — stand down", and for most of this product's life it had three readers, two deleters and zero writers.** `docs/ARCHITECTURE.md` and `docs/BACKEND.md` both described the guard; nothing in the tree created the file. During a real sweep the poller kept issuing serving-cell and `QCAINFO` reads that each waited five seconds on the lock and returned `modem_busy`, and the watchdog — the thing that reboots the modem when it believes the connection died — never saw maintenance mode at all.
 
-The contract now:
+> ⚠️ **A writer landing in the repo is not the same as a marker that works, and this doc previously conflated the two.** The `qmanager_cell_scanner` writer was committed on 2026-08-11, but the deployed device was still running the old binary, so on hardware the marker continued to have zero writers and the poller continued not to back off. **Verified end-to-end on 2026-08-12**: with the current binary deployed, starting a sweep raises the marker, `/tmp/qmanager_status.json` reports `system_state: "scan_in_progress"` for the duration, and it returns to `"normal"` once the sweep completes. When you are checking this guard, check the binary on the device — `/usr/bin/qmanager_cell_scanner` — not the file in the tree.
+
+The contract:
 
 | Role | Who | Where |
 | ---- | --- | ----- |
@@ -172,12 +253,20 @@ One i18n trap it fixed is worth generalising: `calculateFrequency` is a module-l
 
 The result count must be assembled by the i18n layer's plural machinery, never by a JS ternary. The incumbent hardcoded `filtered === 1 ? "cell" : "cells"` in *both* copies, which is wrong in four of the five shipped locales before a translator ever sees it.
 
+## `idle` means two different things, and the hooks must tell them apart
+
+Both hooks receive `{"status":"idle"}` in two unrelated situations, and answering them the same way is how a three-minute sweep disappeared without comment:
+
+- **No poll interval armed** — the mount poll on a page where nothing has ever run. Genuinely idle; say nothing.
+- **A poll interval IS armed** — a run was in flight and the status file now reports no pid, no result and no error. The run vanished. Resetting to `idle` here is indistinguishable from never having pressed the button: the spinner disappears, the empty state returns, and the interface volunteers no account of the time it just spent. Both hooks now raise `cell_scanner.error.scan_vanished` (and its `neighbour.` twin) instead.
+
+> ⚠️ **`t` must not sit in the dep array of anything that owns the poll interval.** i18next runs with the default `bindI18n: 'languageChanged'`, so switching language hands back a fresh `t` identity. With `t` in `pollStatus`'s deps, that identity change rebuilt `pollStatus`, which rebuilt the mount effect, whose cleanup calls `stopPolling()` — so **changing language mid-scan tore down the poll interval and nothing ever re-armed it**, while the modem carried on sweeping for its full three minutes. Both hooks now read `t` through a `tRef` that is reassigned on every render: messages stay current (a translation is read at the moment an error is raised, never cached) and `pollStatus` stays identity-stable. Removing `t` from the deps *without* the ref would be the mirror bug — errors raised after a language switch worded in the old language.
+
 ## Known gaps
 
-- **The two start endpoints do not check each other's pid file.** Documented above; a neighbour read started during a sweep returns an empty table rather than `modem_busy`.
 - **`AT+QSCAN` has no cancel.** Once the sweep is in flight the only way to end it early is to kill the worker; the UI has no stop control, and adding one means killing the pid and relying on the `TERM` trap (`qmanager_cell_scanner:44`) to clear the marker.
 - **NR5G bandwidth is passed through raw.** `qmanager_cell_scanner:170-175` keeps the NR carrier bandwidth as the modem's resource-block count, because the MHz conversion depends on SCS. LTE *is* converted (`:158-169`). The two columns therefore print different units under one header.
-- **The error files are consumed destructively.** `cell_scan_status.sh:42` and its neighbour twin `rm` the error file as they read it, so exactly one poll ever sees a failure. Two clients polling the same run means one of them silently misses the error — the same class of bug the speedtest surface solved with a `flock`ed harvest (see [speedtest.md](speedtest.md)).
+- **A partial neighbour read reports as an error, not as partial data.** The envelope has no third state between `complete` and `error`, so a leg that was blocked while the other found zero rows is surfaced as a failure with a message naming the leg. That is the honest answer available today, but a `partial` status carrying the rows that *did* arrive would be better — it needs a transport-shape change on both sides.
 
 ## Related
 

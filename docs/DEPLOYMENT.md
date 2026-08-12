@@ -415,6 +415,7 @@ The uninstaller:
 - Removes the web console (`/usrdata/qmanager/console/`) by default
 - With `--purge`: also tears down Tailscale (stops `tailscaled`, removes unit, removes `/usrdata/tailscale/` and symlinks)
 - Cleans up `/etc/qmanager/VERSION.pending` and `/etc/qmanager/updates/previous_version`
+- Wipes runtime state with a single prefix glob, `rm -f /tmp/qmanager_*` (plus `/tmp/qmanager.log*`, which has a dot rather than an underscore after the prefix) — see [Uninstaller coverage](reference/qmanager-independence.md#uninstaller-coverage)
 - **Entware (`/opt/`) is always preserved** even with `--purge` — remove it manually if needed
 
 ---

@@ -193,9 +193,9 @@ Worth recording on its own, because a passing gate is what let it through. The S
 | `sms.compose.*` | 3 |
 | `sms.page.forwarding` | 1 |
 
-`bun run i18n:check` said nothing, because it grades a **missing key as a warning, not an error** — English fallback is a deliberate design choice for community packs, and the same leniency applies to the bundled five, where it is not one. All 98 are now backfilled with real translations; every locale is back at 100% and `i18n:check` reports **0 errors / 0 warnings**, down from 392 warnings.
+`bun run i18n:check` said nothing, because **at the time** it graded a missing key as a warning and exited 0 — English fallback is a deliberate design choice for community packs, and the same leniency was applied to the bundled five, where it is not one. All 98 are now backfilled with real translations; every locale is back at 100% and `i18n:check` reports **0 errors / 0 warnings**, down from 392 warnings.
 
-> ⚠️ WARNING: **a green `i18n:check` does not prove your keys landed.** Read the warning count, not the exit code. This is how a whole feature shipped English-only through a passing gate. See [`i18n.md`](i18n.md) > Validation policy.
+> ℹ️ NOTE: **this hole is closed.** Since 2026-08-12 `bun run i18n:check` exits **1** on a missing key or an empty value, so the exit code is load-bearing again and the 392-warning state above could not recur silently. If you genuinely need to carry that kind of tracked debt through a run, use `--warn-only` (or `QM_I18N_WARN_ONLY=1`) — that is the sanctioned way to say "I know", and it leaves the default gate strict for everyone else. The contributor-facing CI policy is unchanged and stays lenient on purpose. See [`i18n.md`](i18n.md) > The repo gate.
 
 ---
 

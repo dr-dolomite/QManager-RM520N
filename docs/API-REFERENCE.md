@@ -352,29 +352,40 @@ Execute a raw AT command.
 
 ### POST `/at_cmd/cell_scan_start.sh`
 
-Start the cell scanner daemon.
+Start the cell scanner worker. Takes an exclusive `flock` on `/tmp/qmanager_scan.lock` — shared with the neighbour scanner — before spawning, and the worker inherits it.
 
 **Response:**
 ```json
 { "success": true }
 ```
 
+**Errors** (`{"success": false, "error": …, "detail": …}`):
+
+| `error` | Meaning |
+|---------|---------|
+| `already_running` | The **same** scan type is in flight. The client should attach and poll. |
+| `other_scan_running` | The **other** scan type holds the modem. The client must **not** attach — it would poll a status file that does not exist and read `idle` a second later. |
+| `start_failed` | The worker was spawned but was dead 0.2 s later (missing or non-executable binary). |
+
 ### GET `/at_cmd/cell_scan_status.sh`
 
-Get cell scan results.
+Get cell scan results. **Non-destructive** — it does not delete the error file on read, so two tabs or a page reload can both see a failure. The error is cleared by the next scan start.
 
-**Response:**
+**Response** (one of):
 ```json
-{
-  "success": true,
-  "status": "complete",
-  "cells": [...]
-}
+{ "status": "running" }
+{ "status": "complete", "results": [...] }
+{ "status": "error", "message": "…" }
+{ "status": "idle" }
 ```
+
+> ⚠️ The result check sits **above** the error check, and the order matters: if both files are ever present, error-first would mean a good result is delivered *never* rather than merely late. Result-first cannot mask a real failure, because a real failure means the start endpoint already deleted the result file.
+
+> ℹ️ `idle` on a client that is actively polling means the run vanished — no pid, no result, no error. Both hooks report that as an error rather than resetting the surface to rest.
 
 ### POST `/at_cmd/neighbour_scan_start.sh` / GET `neighbour_scan_status.sh`
 
-Same pattern as cell scanner for neighbor cells.
+Same pattern, same lock, same four error codes and the same status envelope. A neighbour read whose LTE or NR leg was blocked while the other found no cells returns `{"status":"error"}` naming the failed leg, **not** an empty `complete`.
 
 ### POST `/at_cmd/speedtest_start.sh` / GET `speedtest_status.sh` / GET `speedtest_check.sh`
 

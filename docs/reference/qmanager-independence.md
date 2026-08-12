@@ -560,6 +560,21 @@ The uninstaller's last act (Step 12) is `rmdir "$QMANAGER_ROOT"` (`/usrdata/qman
 | `locales-packs/`, `locales-staging/` | `--purge` only (config) | Language-pack persistent store + staging quarantine, siblings of `www/` (see [i18n runtime downloader](i18n.md)) |
 | `/etc/data/qmanager/` | **Every uninstall** (unconditional) | Installer-created DNS staging scratch dir (`www-data:www-data` 0700) — not user config, so it isn't gated on `--purge` (see [custom-dns](custom-dns.md)) |
 
+### `/tmp` runtime state: one prefix glob, not a roster
+
+Step 11's `/tmp` cleanup is **one line**: `rm -f /tmp/qmanager_*`, plus a second line for `/tmp/qmanager.log*` because a dot rather than an underscore follows the prefix there and the first glob does not match it.
+
+It used to be twelve lines: three extension globs (`*.json`, `*.pid`, `*.lock`) and a hand-kept roster of named files. **Every extension-less runtime file the product writes therefore leaked through an uninstall** and survived until the next reboot cleared the tmpfs — both scan error files, the `/tmp/qmanager_long_running` maintenance marker, three watchcat flags, `qmanager_events_reload` and `qmanager_install.log` among them. The roster had already been extended three times without anyone noticing that the *class* was open; a prefix glob closes it permanently, because every file this product writes to `/tmp` is named `qmanager_*` by convention.
+
+Two things make the broader glob safe rather than reckless:
+
+- **Uninstall is terminal and standalone.** It is never invoked from the OTA path (`qmanager_update`), so there is no in-flight staging state (`qmanager_staged.tar.gz`, `VERSION.pending`'s companions) that a live update still needs.
+- **Directories under the prefix are skipped harmlessly.** `qmanager_install/` and the session directory fail a plain `rm -f` with `EISDIR`, which the trailing `|| true` swallows exactly as the old form did; `$SESSION_DIR` is still removed explicitly by the `rm -rf` on the next line.
+
+> ⚠️ This step is also what makes deleting `/tmp/qmanager_scan.lock` safe *here and nowhere else*. Unlinking a lock file detaches the name without releasing the lock, so a later opener gets an independent lock on a fresh inode and mutual exclusion silently disappears. The uninstaller gets away with it only because it stopped lighttpd and killed every worker eight steps earlier. Do not copy this `rm` into a boot-time or periodic `/tmp` tidy-up. See [cell-scanner.md](cell-scanner.md).
+
+### Same bug class, twice
+
 The language-pack store and the older APN sidecars are the same bug class: `apn_names.json` was a pre-existing orphan that was never purged, so it silently blocked the `rmdir` and left `/usrdata/qmanager/` behind after every `--purge` uninstall. The rule for any new persistent state written outside `www/`: **if the installer or a runtime feature creates it under `$QMANAGER_ROOT` but outside `www/`, the uninstaller must remove it explicitly** — on `--purge` if it's user config, unconditionally if it's scratch/derived state.
 
 ---

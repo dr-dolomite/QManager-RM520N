@@ -698,16 +698,16 @@ These are started on-demand by CGI actions and stop when their task completes.
 #### `qmanager_cell_scanner`
 
 **Location:** `/usr/bin/qmanager_cell_scanner`
-**State files:** `/tmp/qmanager_cell_scan.json`, `/tmp/qmanager_cell_scan.pid`
+**State files:** `/tmp/qmanager_cell_scan_result.json`, `/tmp/qmanager_cell_scan_error`, `/tmp/qmanager_cell_scan.pid`, `/tmp/qmanager_long_running`
 
-Runs `AT+QSCAN` (may take >60 seconds). Writes scan results with MCC/MNC lookups from `/usrdata/qmanager/www/cgi-bin/quecmanager/operator-list.json`. Spawned by `at_cmd/cell_scan_start.sh`; polled by `at_cmd/cell_scan_status.sh`.
+Runs `AT+QSCAN` (may take >60 seconds). Writes scan results with MCC/MNC lookups from `/usrdata/qmanager/www/cgi-bin/quecmanager/operator-list.json`. Spawned by `at_cmd/cell_scan_start.sh`; polled by `at_cmd/cell_scan_status.sh`. Raises the `/tmp/qmanager_long_running` maintenance marker before taking the AT mutex and clears it in its `EXIT` trap. It inherits the `/tmp/qmanager_scan.lock` `flock` from the start endpoint and holds it for its whole run.
 
 #### `qmanager_neighbour_scanner`
 
 **Location:** `/usr/bin/qmanager_neighbour_scanner`
-**State files:** `/tmp/qmanager_neighbour_scan.json`, `/tmp/qmanager_neighbour_scan.pid`
+**State files:** `/tmp/qmanager_neighbour_scan_result.json`, `/tmp/qmanager_neighbour_scan_error`, `/tmp/qmanager_neighbour_scan.pid`
 
-Runs `AT+QENG="neighbourcell"`. Spawned by `at_cmd/neighbour_scan_start.sh`; polled by `at_cmd/neighbour_scan_status.sh`.
+Runs `AT+QENG="neighbourcell"` (LTE leg) then `AT+QNWCFG="nr5g_meas_info"` (NR leg). Spawned by `at_cmd/neighbour_scan_start.sh`; polled by `at_cmd/neighbour_scan_status.sh`. Inherits the same `/tmp/qmanager_scan.lock` `flock`. It captures each leg's `qcmd` stderr to a `*_err.tmp` file so a `modem_busy` collision is reported differently from a real AT failure, and a leg that was blocked while the other found zero rows is reported as an **error**, never as "complete — 0 cells". It deliberately does **not** raise `/tmp/qmanager_long_running` (~2 s hold). See [reference/cell-scanner.md](reference/cell-scanner.md).
 
 #### `qmanager_band_failover`
 
@@ -1098,14 +1098,14 @@ For request/response schemas, see `API-REFERENCE.md`.
 
 | Script | Method | Description |
 |--------|--------|-------------|
-| `at_cmd/cell_scan_start.sh` | POST | Spawn `qmanager_cell_scanner`; return PID |
-| `at_cmd/cell_scan_status.sh` | GET | Poll cell scan progress and results |
+| `at_cmd/cell_scan_start.sh` | POST | Take `/tmp/qmanager_scan.lock` and spawn `qmanager_cell_scanner`; `{"success":true}`, or `already_running` / `other_scan_running` / `start_failed` |
+| `at_cmd/cell_scan_status.sh` | GET | Poll cell scan progress and results (**non-destructive**: it no longer deletes the error file on read, so the result check must stay above the error check — see [reference/cell-scanner.md](reference/cell-scanner.md)) |
 | `at_cmd/fetch_data.sh` | GET | Return current poller status cache (`qmanager_status.json`) |
 | `at_cmd/fetch_events.sh` | GET | Return recent events as JSON array |
 | `at_cmd/fetch_ping_history.sh` | GET | Return ping history data for latency chart |
 | `at_cmd/fetch_signal_history.sh` | GET | Return signal history data for RSRP/SINR chart |
-| `at_cmd/neighbour_scan_start.sh` | POST | Spawn `qmanager_neighbour_scanner`; return PID |
-| `at_cmd/neighbour_scan_status.sh` | GET | Poll neighbour scan progress and results |
+| `at_cmd/neighbour_scan_start.sh` | POST | Takes the **same** `/tmp/qmanager_scan.lock` as the sweep, then spawns `qmanager_neighbour_scanner`; same four responses |
+| `at_cmd/neighbour_scan_status.sh` | GET | Poll neighbour scan progress and results (**non-destructive**) |
 | `at_cmd/send_command.sh` | POST | Send arbitrary AT command via `qcmd`; returns raw response |
 | `at_cmd/speedtest_check.sh` | GET | Check if Ookla speedtest CLI is installed |
 | `at_cmd/speedtest_servers.sh` | GET | List nearest speedtest servers |
@@ -1248,10 +1248,13 @@ Cleared on every reboot (tmpfs). Files pre-created by `qmanager_setup` are marke
 | `/tmp/qmanager_profile_apply.pid` (S) | root | qmanager_setup | Profile apply singleton lock. Truncated (`: >`) on cleanup, never unlinked — an unlink voids the seed for the rest of the boot |
 | `/tmp/qmanager_sessions/` | www-data | qmanager_setup | Session token directory (mode 700) |
 | `/tmp/qmanager_auth_attempts.json` | www-data | cgi_auth.sh | Login rate limiting state |
-| `/tmp/qmanager_cell_scan.json` | root | qmanager_cell_scanner | Cell scan results |
-| `/tmp/qmanager_cell_scan.pid` | root | qmanager_cell_scanner | Cell scanner PID |
-| `/tmp/qmanager_neighbour_scan.json` | root | qmanager_neighbour_scanner | Neighbour scan results |
-| `/tmp/qmanager_neighbour_scan.pid` | root | qmanager_neighbour_scanner | Neighbour scanner PID |
+| `/tmp/qmanager_scan.lock` | www-data | `cell_scan_start.sh` / `neighbour_scan_start.sh` (lazily, empty) | **The scan singleton.** One `flock -x` shared by both scan types, opened read-only on fd 9 and **inherited by the spawned worker**, so the kernel releases it when the worker exits (including on `SIGKILL`). Never `unlink` it while a request could be in flight — that detaches the name without releasing the lock and the next opener gets an independent lock on a new inode. See [reference/cell-scanner.md](reference/cell-scanner.md) |
+| `/tmp/qmanager_cell_scan_result.json` | www-data | qmanager_cell_scanner | Cell sweep results |
+| `/tmp/qmanager_cell_scan_error` | www-data | qmanager_cell_scanner | Sweep error text; read non-destructively, cleared by the next scan start |
+| `/tmp/qmanager_cell_scan.pid` | www-data | `cell_scan_start.sh`, then qmanager_cell_scanner (same value) | **Identification only** — which sweep holds the lock, never whether one is running |
+| `/tmp/qmanager_neighbour_scan_result.json` | www-data | qmanager_neighbour_scanner | Neighbour read results |
+| `/tmp/qmanager_neighbour_scan_error` | www-data | qmanager_neighbour_scanner | Neighbour error text, read non-destructively |
+| `/tmp/qmanager_neighbour_scan.pid` | www-data | `neighbour_scan_start.sh`, then qmanager_neighbour_scanner | Identification only, as above |
 | `/tmp/qmanager_tower_failover.json` | root | qmanager_tower_failover | Failover daemon state |
 | `/tmp/qmanager_tower_failover.pid` | root | qmanager_tower_failover | Failover daemon PID |
 | `/tmp/qmanager_tower_failover` | root | qmanager_tower_failover | Failover active flag |

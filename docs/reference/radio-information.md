@@ -337,7 +337,7 @@ These are present in all five locales with **no call site**, left in place delib
 | `radio_info.bands.cadence`, `radio_info.bands.stale` | The card-level cadence caption was cut; staleness is told once, in the header |
 | `radio_info.header.cadence`, `radio_info.header.refresh` | The cadence chip and the header Refresh pill were both cut |
 
-> ⚠️ WARNING: `bun run i18n:check` grades **missing** keys as warnings and exits 0, so a green run does not prove a locale landed. It also cannot see a hardcoded literal at all. Verify new keys by reading the locale files, not by trusting the gate.
+> ⚠️ WARNING: `bun run i18n:check` now exits **1** on a missing key or an empty value (since 2026-08-12), so a green run *does* prove your keys landed in every locale. What it still cannot see is a **hardcoded literal** — a string that never went through `t()` has no key to be missing. That class of bug is invisible to every gate in this repo; only reading the component catches it.
 
 ## Icon boundary
 
@@ -362,5 +362,5 @@ Glyphs used on this page: `cell_tower`, `graphic_eq`, `layers`, `alt_route`, `co
 - [dashboard-state-motion.md](dashboard-state-motion.md): `TickGroup`, `useValueTick` and `SwapLabel`
 - [dashboard-chart-cards.md](dashboard-chart-cards.md): the CSS-animation replay bug class the row entrances avoid by construction
 - [overview-splash.md](overview-splash.md): the `resolveBodyMode()` precedent for a single-owner state machine
-- [i18n.md](i18n.md): the locale pipeline and why `i18n:check` is not a gate
+- [i18n.md](i18n.md): the locale pipeline, and the two severity policies `i18n:check` and CI apply over one engine
 - `DESIGN.md` > Named Rules (Icon-Boundary, Identity-Chip, Filled-Chip, Glyph-Disc, Skeleton-Mirror, Transform-Only, One-Loop, Solid-Container)

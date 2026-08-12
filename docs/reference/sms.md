@@ -289,7 +289,9 @@ Clearing happens in the **handlers, not an effect**: `setState` inside `useEffec
 
 The SMS Center and SMS Forwarding rebuild added **96 new English keys** to `public/locales/en/cellular.json` (51 SMS Center + 45 Forwarding) and **rewrote 2 existing ones** — `sms.inbox.delete_all_confirm.title` and `.description`, which gained new `{{count}}` / `{{me}}` / `{{sm}}` interpolation slots.
 
-The 96 new keys were added to **English only**. `zh-CN`, `zh-TW`, `it` and `id` were deliberately left without them: i18next falls back to English at runtime, and an *absent* key surfaces as a visible `i18n:check` warning, whereas English pasted into a locale file would report a fake "100% translated". `bun run i18n:check` reports **0 errors, 392 warnings** — that warning count is the intended, tracked debt.
+The 96 new keys were added to **English only**. `zh-CN`, `zh-TW`, `it` and `id` were deliberately left without them: i18next falls back to English at runtime, and an *absent* key surfaces in `i18n:check` output, whereas English pasted into a locale file would report a fake "100% translated". At the time `bun run i18n:check` reported **0 errors, 392 warnings** — that warning count was the intended, tracked debt, and all 98 keys were backfilled shortly after (see [sms-forwarding.md](sms-forwarding.md) > i18n).
+
+> ℹ️ NOTE: since 2026-08-12 a missing key is a **hard error** that exits 1, so the state described above would now fail the gate outright. Deliberate, tracked debt is carried with `--warn-only` / `QM_I18N_WARN_ONLY=1`, never by reading past a red run. See [i18n.md](i18n.md) > The repo gate.
 
 The 2 rewritten keys were **removed from all four other locales** rather than left in place. A placeholder mismatch is a hard *error* in `i18n:check`, and more importantly the old translation no longer says what the new English says.
 

@@ -620,7 +620,7 @@ The block renders **only when there is at least one pair** — the header chip a
 
 `READBACK.ROW` is `min-h-8` rather than the 44px metric-row floor: it carries no control, so no coarse-pointer target applies. The values are mono and tabular — a channel and a PCI are device identifiers, which the Machine-Voice Rule puts in the machine's typeface.
 
-> ℹ️ NOTE: the copy still comes from `tower_locking.live.rail_target_pair`, a **fossil** of the long-retired lock-posture rail and now the only surviving `rail_*` key. It was deliberately not renamed: a rename touches five locale files, re-translates nothing, and `i18n:check` grades a missing key as a *warning* that exits 0 — so the tidy-up buys nothing and risks a silent breakage. Read `rail_target_pair` as "one channel/PCI pair".
+> ℹ️ NOTE: the copy still comes from `tower_locking.live.rail_target_pair`, a **fossil** of the long-retired lock-posture rail and now the only surviving `rail_*` key. It was deliberately not renamed: a rename touches five locale files and re-translates nothing, so the tidy-up buys nothing and risks breaking five files to no end. (When this was written the risk was *silent* — `i18n:check` graded a missing key as a warning and exited 0. Since 2026-08-12 a half-finished rename would fail the gate loudly instead, which lowers the risk but does not create a reason to do it.) Read `rail_target_pair` as "one channel/PCI pair".
 
 #### The `LEG_BADGE` inversion: `locked` is a warning, `unlocked` is a success
 
@@ -714,7 +714,7 @@ It **force-disables itself** when the radio reports no carrier for that technolo
 
 A value the radio is not currently reporting is still a legitimate lock target, so the `SelectTrigger` prints it in italic mono rather than falling back to the placeholder and implying the slot is empty.
 
-> ⚠️ WARNING: this row's label is `t("tower_locking.card.simple_mode")` with **no `defaultValue`**, and it must stay that way. It used to read `t("tower_locking.card.simple_mode_label", { defaultValue: "Pick from carriers on air" })` — a key present in **no** locale, with the English supplied inline — so it rendered English in all five languages and no gate could see it: `i18n:check` grades a missing key as a warning and exits 0, and a `defaultValue` means the key is never missing in the first place. A `defaultValue` on a user-visible string is how an untranslated literal hides in plain sight (see [i18n.md](i18n.md)).
+> ⚠️ WARNING: this row's label is `t("tower_locking.card.simple_mode")` with **no `defaultValue`**, and it must stay that way. It used to read `t("tower_locking.card.simple_mode_label", { defaultValue: "Pick from carriers on air" })` — a key present in **no** locale, with the English supplied inline — so it rendered English in all five languages and no gate could see it — **and still cannot**. `i18n:check` is now a hard gate on missing keys, but a `defaultValue` means the key is never *reported* missing: i18next resolves it from the inline English and the checker only ever compares locale files against `en`, where the key does not appear either. A `defaultValue` on a user-visible string is how an untranslated literal hides in plain sight, and it is one of the few i18n bugs a stricter exit code did nothing to close (see [i18n.md](i18n.md)).
 
 Both cards' Simple Mode switches carry the shared `SWITCH_TARGET` overlay, which lifts the primitive's 18×32px paint to the project's 44px coarse-pointer floor without adding a layout box that would push the row label off its baseline. The NR card had no overlay at all until retiring the "Tower lock" switch left this one alone in its row — beside an LTE card whose equivalent switch did meet the floor. Two cards in one grid row must not disagree about how big a tap target is.
 
@@ -750,7 +750,7 @@ Gated now means four things, and no fifth:
 
 **A lock outranks a gate in the header chip.** Two facts want that slot when the card is gated, and `headerChip` resolves it: the gate chip renders only while `posture !== "locked"`. A locked leg keeps its `LEG_BADGE`, because that is the fact with an action attached — the reader has to see a lock is in force before deciding to remove it — and the gate is stated in full by the notice below either way, where it has room for its reason. An unlocked or unread leg yields the slot to the gate, since "Unlocked" beside an inert form explains nothing.
 
-Neither gate carries a spinner: a spinner on a standing condition advertises work that is not happening. Both gate titles and bodies are resolved with a **literal key per branch**, never `gate_${gate}_title` — `i18n:check` grades a missing key as a warning and exits 0, so an interpolated key is one no gate can ever report on.
+Neither gate carries a spinner: a spinner on a standing condition advertises work that is not happening. Both gate titles and bodies are resolved with a **literal key per branch**, never `gate_${gate}_title` — `i18n:check` compares key *sets*, so a key that exists only as a runtime concatenation appears in no file and no gate, however strict, can report on it.
 
 #### `networkType === ""` is not "capable"
 
@@ -776,7 +776,7 @@ The guess is flagged **twice**: beside the field, and again inside the lock conf
 
 `requestLock()` → `AlertDialog` is the **only** path to a lock on either leg, now that the footer button is the only entry point to it. `AT+QNWLOCK` pins the radio to a single physical cell and bounces the link for 3–5 seconds, on a device that is serving this very page. It stays deliberate. Remove Lock has its own confirmation for the same reason.
 
-Status labels are written out per branch (`status_locked` / `status_unlocked` / `status_unknown`) rather than interpolated as `` status_${posture} ``: `i18n:check` grades a missing key as a warning and exits 0, so a key it cannot see statically is a key nothing will ever tell you about (see [i18n.md](i18n.md)).
+Status labels are written out per branch (`status_locked` / `status_unlocked` / `status_unknown`) rather than interpolated as `` status_${posture} ``: `i18n:check` compares key sets, so a key it cannot see statically is a key nothing will ever tell you about — that stays true no matter how strict the exit code gets (see [i18n.md](i18n.md)).
 
 ## The middot rule
 
@@ -1003,6 +1003,6 @@ The current shape comes from a mockup, and several of its proposals were rejecte
 - [radio-information.md](radio-information.md) — the poller cadence behind the ~4s clock, and the compiler-backed `react-hooks` bail-on-first-violation behaviour
 - [at-command-transport.md](at-command-transport.md) — the `/tmp/qmanager_at.lock` mutex that makes polling `status.sh` expensive
 - [tmp-file-ownership.md](tmp-file-ownership.md) — the flag/PID files the watcher and `failover_status.sh` share
-- [i18n.md](i18n.md) — why `i18n:check` is not a gate, and why keys are never interpolated on this surface
+- [i18n.md](i18n.md) — the two severity policies over one engine, and why keys are never interpolated on this surface
 - [icon-system.md](icon-system.md) — `/cellular/` is a Material Symbols route; every glyph used here is already in the subset allowlist
 - `DESIGN.md` > Named Rules (Consistent-Layout, Identity-Never-Acts, Identity-Chip, Filled-Chip, Glyph-Disc, Skeleton-Mirror, One-Scale, One-Loop, Solid-Container, Radius-Follows-Size, Machine-Voice)

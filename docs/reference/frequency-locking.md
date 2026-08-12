@@ -397,7 +397,7 @@ The page previously had **zero** i18n keys — every string was an English liter
 
 Two conventions from [i18n.md](i18n.md) are applied throughout:
 
-- **Status labels are written out per branch** (`status_locked` / `status_unlocked` / `status_blocked` / `status_unknown`) rather than interpolated as `` status_${posture} ``. `i18n:check` grades a missing key as a *warning* and exits 0, so a key it cannot see statically is a key nothing will ever tell you about.
+- **Status labels are written out per branch** (`status_locked` / `status_unlocked` / `status_blocked` / `status_unknown`) rather than interpolated as `` status_${posture} ``. The reason survives the gate getting stricter: `i18n:check` compares the **key sets** of the locale files, so it can only ever grade a key that is written down somewhere. An interpolated key exists in no file, so no gate — however strict — can report it missing.
 - **No `defaultValue` anywhere.** A `defaultValue` means the key is never "missing", which is how an untranslated English literal hides in plain sight.
 
 `BandMatchDisplay`'s `noMatchLabel` prop stays a plain string rather than a key, because the caller knows whether it is describing an EARFCN or an ARFCN — but it must arrive **already translated**, never as a key name for the component to interpolate.
@@ -515,6 +515,6 @@ Both leg cards render `CARD_SHELL` + `CARD_PAD` in **every** branch, so the shel
 - [carrier-aggregation.md](carrier-aggregation.md) — `carrier_components[]`, the source of the carriers on air and of the ten per-carrier fields that do **not** include SCS
 - [radio-information.md](radio-information.md) — the poller cadence behind the ~4s clock, the serving-cell-only `nr.scs`, and the compiler-backed `react-hooks` bail-on-first-violation behaviour
 - [at-command-transport.md](at-command-transport.md) — the `/tmp/qmanager_at.lock` mutex that makes polling `status.sh` expensive
-- [i18n.md](i18n.md) — why `i18n:check` is not a gate, and why keys are never interpolated on this surface
+- [i18n.md](i18n.md) — the two severity policies over one engine, and why keys are never interpolated on this surface
 - [icon-system.md](icon-system.md) — `/cellular/` is a Material Symbols route; the five new glyphs are in the subset
 - `DESIGN.md` > Named Rules (Fill-Over-Stroke, Filled-Chip, Glyph-Disc, Skeleton-Mirror, Machine-Voice, Radius-Follows-Size, Identity-Chip, One-Scale)

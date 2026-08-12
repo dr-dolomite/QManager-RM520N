@@ -222,7 +222,7 @@ The first thing any i18n pass does is translate the card titles — they are the
 
 No gate catches this:
 
-- `bun run i18n:check` grades **missing** keys as warnings and exits 0, so a green run proves nothing about a locale landing (see [i18n.md](i18n.md)).
+- `bun run i18n:check` exits **1** on a missing key since 2026-08-12, so a green run does now prove every locale landed — but it can only grade keys that *exist*, so a hardcoded English literal remains invisible to it (see [i18n.md](i18n.md)).
 - A hardcoded literal has **no key to be missing** in the first place, so the check cannot see it at all.
 
 The fix is `categoryShortKey(category)` in `shapes.ts`, alongside `categoryTitleKey` and `categoryDescriptionKey`. Each resolves an i18n key from the **`BandCategory` discriminator**, never from rendered copy:
@@ -502,6 +502,6 @@ The footer separates two different truths: the header chip reports the **modem's
 - [radio-information.md](radio-information.md) — `active-bands-card.tsx` (which owns ARFCN rendering), and the compiler-backed `react-hooks` bail-on-first-violation behaviour
 - [carrier-aggregation.md](carrier-aggregation.md) — `carrier_components[]`, the ACTUAL view the hero's on-air tiles read, and the `tileTone()` / `meterFillTone()` identity convention they restate
 - [wan-profile-management.md](wan-profile-management.md) — the configured-vs-actual gap that motivated keeping the on-air panel
-- [i18n.md](i18n.md) — the locale pipeline and why `i18n:check` is not a gate
+- [i18n.md](i18n.md) — the locale pipeline, and the two severity policies `i18n:check` and CI apply over one engine
 - [icon-system.md](icon-system.md) — `/cellular/` is a Material Symbols route; every glyph used here is already in the subset allowlist
 - `DESIGN.md` > Named Rules (Consistent-Layout, Identity-Chip, Filled-Chip, Glyph-Disc, Skeleton-Mirror, One-Scale, Solid-Container)
