@@ -285,17 +285,27 @@
       "rerun": "Ripeti la scansione",
       "scanning_action": "Scansione…",
       "download": "Scarica CSV",
-      "chip_idle": "Pronto",
-      "chip_scanning": "In corso",
-      "chip_complete": "Completata",
-      "chip_failed": "Non riuscita",
+      "link_neighbour": "Celle vicine",
+      "link_blocked": "Disponibile al termine della scansione.",
+      "summary_title": "Cosa ha trovato questa scansione",
+      "summary_empty": "La scansione è terminata senza elencare nemmeno una cella, quindi non c'è nulla da analizzare.",
+      "summary_provider_unknown": "Operatore senza nome",
+      "summary_best": "migliore {{value}} dBm",
+      "summary_no_reading": "nessun segnale riportato",
+      "summary_others_one": "1 altro operatore",
+      "summary_others_other": "altri {{count}} operatori",
+      "verdict_all_good_one": "L'unica cella che ha riportato un livello risulta buona. Una scansione misura senza l'aiuto della cella di servizio, quindi una lettura a questo livello indica una candidata davvero forte.",
+      "verdict_all_good_other": "Tutte le {{count}} celle che hanno riportato un livello risultano buone. Una scansione misura senza l'aiuto della cella di servizio, quindi letture a questo livello indicano candidate davvero forti.",
+      "verdict_all_fair_one": "L'unica cella che ha riportato un livello si attesta su discreto. Una scansione misura senza l'aiuto della cella di servizio e un passaggio in interni legge di solito da 10 a 15 dB sotto quanto mostra la panoramica.",
+      "verdict_all_fair_other": "Tutte le {{count}} celle che hanno riportato un livello si attestano su discreto. Una scansione misura senza l'aiuto della cella di servizio e un passaggio in interni legge di solito da 10 a 15 dB sotto quanto mostra la panoramica.",
+      "verdict_all_poor_one": "L'unica cella che ha riportato un livello risulta debole. Una scansione misura senza l'aiuto della cella di servizio e un passaggio in interni legge di solito da 10 a 15 dB sotto quanto mostra la panoramica: non è quindi lo stesso giudizio sulla debolezza della tua connessione.",
+      "verdict_all_poor_other": "Tutte le {{count}} celle che hanno riportato un livello risultano deboli, quindi l'intera tabella si colloca in fondo alla scala. Una scansione misura senza l'aiuto della cella di servizio e un passaggio in interni legge di solito da 10 a 15 dB sotto quanto mostra la panoramica: non è quindi lo stesso giudizio sulla debolezza della tua connessione.",
+      "verdict_no_readings": "Il modem ha elencato queste celle ma non ha riportato alcun livello di segnale per nessuna di esse, quindi nessuna può essere valutata.",
       "idle_title": "Nessuna scansione",
       "idle_body": "Da quando la pagina è stata aperta non è stata eseguita nessuna scansione. Una scansione elenca ogni cella nel raggio, su tutte le bande.",
       "scanning_title": "Sintonizzazione di ogni banda",
       "scanning_body": "Lascia aperta questa scheda: i risultati compaiono qui quando il modem termina.",
       "complete_title": "Scansione terminata",
-      "complete_body_one": "{{count}} cella nel raggio.",
-      "complete_body_other": "{{count}} celle nel raggio.",
       "failed_title": "Scansione non riuscita",
       "failed_body": "Il modem potrebbe essere occupato o irraggiungibile. Controlla la connessione e ripeti la scansione."
     },
@@ -316,7 +326,18 @@
       "empty_body": "Esegui una scansione per elencare ogni cella nel raggio, con banda, canale e segnale.",
       "error_title": "Scansione non riuscita",
       "error_body": "Il modem potrebbe essere occupato o irraggiungibile. Controlla la connessione e ripeti la scansione.",
-      "error_retry": "Riprova la scansione"
+      "error_retry": "Riprova la scansione",
+      "note_lock": "Bloccando una riga se ne copiano banda, EARFCN e PCI in Blocco BTS, e il modem resta agganciato a quella cella finché non rimuovi il blocco.",
+      "tally_rows_one": "1 riga",
+      "tally_rows_other": "{{count}} righe",
+      "tally_good_one": "1 buona",
+      "tally_good_other": "{{count}} buone",
+      "tally_fair_one": "1 discreta",
+      "tally_fair_other": "{{count}} discrete",
+      "tally_poor_one": "1 debole",
+      "tally_poor_other": "{{count}} deboli",
+      "tally_none_one": "1 non valutata",
+      "tally_none_other": "{{count}} non valutate"
     },
     "columns": {
       "network": "Rete",
@@ -344,8 +365,7 @@
     },
     "a11y": {
       "network_codes": "Codici di rete",
-      "row_menu": "Azioni cella",
-      "elapsed": "Tempo trascorso della scansione: {{time}}"
+      "row_menu": "Azioni cella"
     },
     "lock": {
       "title": "Bloccare sulla cella {{pci}}?",
@@ -388,17 +408,22 @@
         "start": "Leggi le celle vicine",
         "rerun": "Leggi di nuovo",
         "scanning_action": "Lettura…",
-        "chip_idle": "Pronto",
-        "chip_scanning": "Lettura",
-        "chip_complete": "Completata",
-        "chip_failed": "Non riuscita",
+        "link_sweep": "Scanner celle",
+        "link_blocked": "Disponibile al termine di questa lettura.",
+        "summary_title": "Cosa ha restituito questa lettura",
+        "summary_empty": "La lettura è terminata senza indicare nemmeno una cella vicina, quindi non c'è nulla da analizzare.",
+        "summary_measured_label": "Con misurazioni",
+        "summary_channels_one": "1 canale",
+        "summary_channels_other": "{{count}} canali",
+        "summary_channel_only_one": "1 con solo canale",
+        "summary_channel_only_other": "{{count}} con solo canale",
+        "verdict_channel_only_one": "1 cella vicina è stata restituita con il solo canale: la cella di servizio sa che è lì ma non ne ha una misurazione attuale, quindi non porta alcuna qualità e non può essere bloccata.",
+        "verdict_channel_only_other": "{{count}} celle vicine sono state restituite con il solo canale: la cella di servizio sa che sono lì ma non ne ha misurazioni attuali, quindi non portano alcuna qualità e non possono essere bloccate.",
         "idle_title": "Nessuna lettura",
         "idle_body": "Nessuna lettura da quando la pagina è stata caricata. Una lettura elenca le celle vicine che la cella di servizio sta già misurando.",
         "scanning_title": "Interrogazione della cella di servizio",
         "scanning_body": "Si completa in un paio di secondi.",
         "complete_title": "Lettura completata",
-        "complete_body_one": "{{count}} cella vicina rilevata.",
-        "complete_body_other": "{{count}} celle vicine rilevate.",
         "failed_title": "Lettura non riuscita",
         "failed_body": "Il modem potrebbe essere occupato o irraggiungibile. Verifica la connessione e riprova."
       },
@@ -409,7 +434,12 @@
         "empty_title": "Nessuna cella vicina",
         "empty_body": "Esegui una lettura per elencare le celle che la torre di servizio sta già misurando, con canale e segnale.",
         "error_title": "Lettura non riuscita",
-        "error_retry": "Riprova la lettura"
+        "error_retry": "Riprova la lettura",
+        "note_channel_only": "Una cella vicina riportata con il solo canale non ha dietro alcuna misurazione, quindi non porta alcuna qualità e la sua azione di blocco resta disattivata. Bloccando una riga LTE misurata se ne copiano canale e PCI in Blocco BTS.",
+        "tally_measured_one": "1 misurata",
+        "tally_measured_other": "{{count}} misurate",
+        "tally_channel_only_one": "1 con solo canale",
+        "tally_channel_only_other": "{{count}} con solo canale"
       },
       "columns": {
         "cell_type": "Relazione",
@@ -449,7 +479,8 @@
     "calculator": {
       "page": {
         "title": "Calcolatore di frequenza",
-        "description": "Converte un EARFCN o un NR-ARFCN nella sua frequenza e nella banda operativa, per LTE e 5G NR."
+        "description": "Converte un EARFCN o un NR-ARFCN nella sua frequenza e nella banda operativa, per LTE e 5G NR.",
+        "sibling": "Scanner celle"
       },
       "form": {
         "title": "Calcolatore E/ARFCN",
@@ -461,13 +492,16 @@
         "label_lte": "E-ARFCN",
         "label_nr": "NR-ARFCN",
         "placeholder": "Inserisci il numero di canale",
-        "submit": "Calcola"
+        "submit": "Calcola",
+        "hint_auto": "Auto sceglie LTE o NR in base all'intervallo del numero. Seleziona una scheda per forzarne uno."
       },
       "error": {
         "empty": "Inserisci prima un numero di canale: il campo è vuoto.",
         "not_a_number": "Questo non è un numero. Inserisci un numero di canale intero, ad esempio 1850.",
         "no_band": "Nessuna banda corrisponde a {{value}}. Controlla il numero oppure seleziona LTE o NR invece di Auto.",
-        "unexpected": "Calcolo non riuscito: {{message}}. Controlla il valore e riprova."
+        "unexpected": "Calcolo non riuscito: {{message}}. Controlla il valore e riprova.",
+        "negative": "I numeri di canale partono da 0. Inserisci un valore positivo.",
+        "auto_gap": "Auto non riesce a collocare {{value}}: tra {{low}} e {{high}} non è definito nulla. Seleziona LTE o NR per calcolarlo comunque."
       },
       "result": {
         "title": "Risultato",
@@ -487,12 +521,22 @@
         "ul_frequency": "Frequenza UL",
         "ul_earfcn": "EARFCN uplink",
         "downlink_only": "Solo downlink",
-        "method": "Calcolato secondo {{spec}}."
+        "method": "Calcolato secondo {{spec}}.",
+        "bands_description": "Ogni banda il cui intervallo di canali contiene questo numero, con ciò che ciascuna comporta per l'uplink.",
+        "bands_empty_title": "Ancora nessuna banda",
+        "bands_empty_body": "Calcola un numero di canale e qui compariranno le bande che possono trasportarlo.",
+        "bands_failed_title": "Nessuna banda da elencare",
+        "bands_failed_body": "Il numero di canale qui sopra non è stato risolto, quindi non c'è nulla da confrontare.",
+        "bands_agree_one": "{{count}} banda corrisponde a questo canale.",
+        "bands_agree_other": "{{count}} bande condividono questo numero di canale e concordano sul modo duplex, quindi l'uplink qui sopra vale per tutte.",
+        "bands_conflict_one": "{{count}} banda corrisponde a questo canale.",
+        "bands_conflict_other": "{{count}} bande condividono questo numero di canale ma non concordano sul modo duplex: l'uplink cambia a seconda di quale usa davvero la tua rete."
       },
       "units": {
         "mhz": "{{value}} MHz",
         "range_mhz": "{{low}} – {{high}} MHz",
-        "range": "{{low}} – {{high}}"
+        "range": "{{low}} – {{high}}",
+        "mhz_short": "MHz"
       },
       "history": {
         "title": "Cronologia dei calcoli",
@@ -507,6 +551,16 @@
       },
       "a11y": {
         "delete_entry": "Elimina questa voce della cronologia"
+      },
+      "readout": {
+        "idle_title": "Ancora nessun canale",
+        "idle_body": "Inserisci un EARFCN o un NR-ARFCN e qui compare la sua frequenza, con tutte le bande che possono trasportarlo.",
+        "failed_title": "Niente da mostrare",
+        "failed_body": "Correggi il numero di canale e calcola di nuovo.",
+        "channel_lte": "EARFCN {{value}}",
+        "channel_nr": "NR-ARFCN {{value}}",
+        "several_bands_one": "{{count}} banda può trasportare questo canale.",
+        "several_bands_other": "{{count}} bande possono trasportare questo canale."
       }
     }
   },

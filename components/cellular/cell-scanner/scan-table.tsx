@@ -33,6 +33,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { staggerRowItem, staggerRows } from "@/lib/motion";
+import { cn } from "@/lib/utils";
 
 import { PAGER, PILL_QUIET, TABLE, TOOLBAR } from "./shapes";
 
@@ -99,6 +100,11 @@ export interface ScanTableProps<TData> {
   labels: ScanTableLabels;
   /** `(filtered, total) => string`, so the caller owns the plural rule. */
   countLabel: (filtered: number, total: number) => string;
+  /**
+   * The strip under the table — what a row can do, and what the rows add up to.
+   * A `ScanTableNote`, built by the route because both halves are route copy.
+   */
+  footer?: React.ReactNode;
 }
 
 export function ScanTable<TData>({
@@ -109,6 +115,7 @@ export function ScanTable<TData>({
   narrowHidden = NO_NARROW_HIDDEN,
   labels,
   countLabel,
+  footer,
 }: ScanTableProps<TData>) {
   const shellRef = React.useRef<HTMLDivElement>(null);
   const [sorting, setSorting] = React.useState<SortingState>([]);
@@ -225,11 +232,21 @@ export function ScanTable<TData>({
             animate="visible"
           >
             {rows.length ? (
-              rows.map((row) => (
+              rows.map((row, index) => (
                 <MotionTableRow
                   key={row.id}
                   variants={staggerRowItem}
-                  className={TABLE.ROW}
+                  className={cn(
+                    TABLE.ROW,
+                    // Striped from the RENDERED index, not the data index, so
+                    // the banding stays alternating after a sort, a filter or a
+                    // page change instead of showing two stripes in a row.
+                    index % 2 === 1 && TABLE.ROW_STRIPE,
+                    // After the stripe: an unvariant base class always loses to
+                    // a `hover:`/`focus-within:` one, whatever order Tailwind
+                    // emits the two pseudo-class variants in.
+                    TABLE.ROW_HOVER,
+                  )}
                 >
                   {row.getVisibleCells().map((cell) => (
                     <TableCell key={cell.id}>
@@ -259,6 +276,8 @@ export function ScanTable<TData>({
           </MotionTableBody>
         </Table>
       </div>
+
+      {footer}
 
       <div className={PAGER.ROOT}>
         <span className={TOOLBAR.COUNT} aria-live="polite">

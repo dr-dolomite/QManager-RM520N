@@ -285,17 +285,27 @@
       "rerun": "重新掃描",
       "scanning_action": "掃描中…",
       "download": "下載 CSV",
-      "chip_idle": "就緒",
-      "chip_scanning": "掃描中",
-      "chip_complete": "已完成",
-      "chip_failed": "已失敗",
+      "link_neighbour": "鄰區",
+      "link_blocked": "掃描結束後可用。",
+      "summary_title": "本次掃描的發現",
+      "summary_empty": "本次掃描結束時未列出任何小區，因此沒有可分析的內容。",
+      "summary_provider_unknown": "未命名電信業者",
+      "summary_best": "最佳 {{value}} dBm",
+      "summary_no_reading": "未回報訊號",
+      "summary_others_one": "另有 1 家電信業者",
+      "summary_others_other": "另有 {{count}} 家電信業者",
+      "verdict_all_good_one": "唯一回報了電平的小區結果為良好。掃描是在沒有服務細胞協助的情況下測量的，因此達到該電平的讀數是確實很強的候選。",
+      "verdict_all_good_other": "回報了電平的 {{count}} 個小區全部為良好。掃描是在沒有服務細胞協助的情況下測量的，因此達到該電平的讀數都是確實很強的候選。",
+      "verdict_all_fair_one": "唯一回報了電平的小區處於普通水準。掃描是在沒有服務細胞協助的情況下測量的，室內掃描通常比儀表板顯示的低 10 到 15 dB。",
+      "verdict_all_fair_other": "回報了電平的 {{count}} 個小區全部處於普通水準。掃描是在沒有服務細胞協助的情況下測量的，室內掃描通常比儀表板顯示的低 10 到 15 dB。",
+      "verdict_all_poor_one": "唯一回報了電平的小區結果為較弱。掃描是在沒有服務細胞協助的情況下測量的，室內掃描通常比儀表板顯示的低 10 到 15 dB——因此這與你自己的連線較弱並不是同一回事。",
+      "verdict_all_poor_other": "回報了電平的 {{count}} 個小區全部為較弱，因此整張表都位於量程底部。掃描是在沒有服務細胞協助的情況下測量的，室內掃描通常比儀表板顯示的低 10 到 15 dB——因此這與你自己的連線較弱並不是同一回事。",
+      "verdict_no_readings": "模組列出了這些小區，但沒有回報其中任何一個的訊號電平，因此無法為它們評級。",
       "idle_title": "尚未掃描",
       "idle_body": "本頁開啟後還沒有掃描過。一次掃描會列出所有頻段上範圍內的每個基地台。",
       "scanning_title": "正在逐一調諧頻段",
       "scanning_body": "請保持此分頁開啟——模組完成後結果會顯示在這裡。",
       "complete_title": "掃描完成",
-      "complete_body_one": "範圍內有 {{count}} 個小區。",
-      "complete_body_other": "範圍內有 {{count}} 個小區。",
       "failed_title": "掃描失敗",
       "failed_body": "模組可能正忙或無法連線。請檢查連線後重新掃描。"
     },
@@ -316,7 +326,18 @@
       "empty_body": "執行一次掃描，列出範圍內每個基地台及其頻段、頻點與訊號。",
       "error_title": "掃描失敗",
       "error_body": "模組可能正忙或無法連線。請檢查連線後重新掃描。",
-      "error_retry": "重新掃描"
+      "error_retry": "重新掃描",
+      "note_lock": "鎖定某一列會把它的頻段、頻點與 PCI 複製到基站鎖定，模組隨後會一直駐留在該小區，直到你解除鎖定。",
+      "tally_rows_one": "1 列",
+      "tally_rows_other": "{{count}} 列",
+      "tally_good_one": "1 個良好",
+      "tally_good_other": "{{count}} 個良好",
+      "tally_fair_one": "1 個普通",
+      "tally_fair_other": "{{count}} 個普通",
+      "tally_poor_one": "1 個較弱",
+      "tally_poor_other": "{{count}} 個較弱",
+      "tally_none_one": "1 個未評級",
+      "tally_none_other": "{{count}} 個未評級"
     },
     "columns": {
       "network": "制式",
@@ -344,8 +365,7 @@
     },
     "a11y": {
       "network_codes": "網路代碼",
-      "row_menu": "小區操作",
-      "elapsed": "掃描已用時間：{{time}}"
+      "row_menu": "小區操作"
     },
     "lock": {
       "title": "鎖定到小區 {{pci}}？",
@@ -388,17 +408,22 @@
         "start": "讀取鄰區",
         "rerun": "重新讀取",
         "scanning_action": "讀取中…",
-        "chip_idle": "就緒",
-        "chip_scanning": "讀取中",
-        "chip_complete": "已完成",
-        "chip_failed": "失敗",
+        "link_sweep": "小區掃描",
+        "link_blocked": "本次讀取結束後可用。",
+        "summary_title": "本次讀取的結果",
+        "summary_empty": "本次讀取結束時未列出任何鄰區，因此沒有可分析的內容。",
+        "summary_measured_label": "有測量值",
+        "summary_channels_one": "1 個通道",
+        "summary_channels_other": "{{count}} 個通道",
+        "summary_channel_only_one": "1 個僅通道",
+        "summary_channel_only_other": "{{count}} 個僅通道",
+        "verdict_channel_only_one": "1 個鄰區僅回傳了通道：服務細胞知道它存在，但沒有對它的目前測量值，因此它不帶品質資訊，也無法鎖定。",
+        "verdict_channel_only_other": "{{count}} 個鄰區僅回傳了通道：服務細胞知道它們存在，但沒有對它們的目前測量值，因此它們不帶品質資訊，也無法鎖定。",
         "idle_title": "尚未讀取",
         "idle_body": "本頁載入後尚未讀取。讀取會列出服務細胞正在測量的鄰區。",
         "scanning_title": "正在詢問服務細胞",
         "scanning_body": "幾秒內即可完成。",
         "complete_title": "讀取完成",
-        "complete_body_one": "回報了 {{count}} 個鄰區。",
-        "complete_body_other": "回報了 {{count}} 個鄰區。",
         "failed_title": "讀取失敗",
         "failed_body": "數據機可能忙碌或無法存取。請檢查連線後重新讀取。"
       },
@@ -409,7 +434,12 @@
         "empty_title": "尚無鄰區",
         "empty_body": "執行一次讀取，即可列出服務基地台正在測量的細胞及其通道與訊號。",
         "error_title": "讀取失敗",
-        "error_retry": "重新讀取"
+        "error_retry": "重新讀取",
+        "note_channel_only": "僅以通道形式回報的鄰區背後沒有測量值，因此它不帶品質資訊，其鎖定操作維持停用。鎖定一個有測量值的 LTE 列會把它的通道與 PCI 複製到基站鎖定。",
+        "tally_measured_one": "1 個有測量值",
+        "tally_measured_other": "{{count}} 個有測量值",
+        "tally_channel_only_one": "1 個僅通道",
+        "tally_channel_only_other": "{{count}} 個僅通道"
       },
       "columns": {
         "cell_type": "關係",
@@ -449,7 +479,8 @@
     "calculator": {
       "page": {
         "title": "頻率計算器",
-        "description": "將 EARFCN 或 NR-ARFCN 換算為對應的頻率與工作頻段，適用於 LTE 與 5G NR。"
+        "description": "將 EARFCN 或 NR-ARFCN 換算為對應的頻率與工作頻段，適用於 LTE 與 5G NR。",
+        "sibling": "小區掃描"
       },
       "form": {
         "title": "E/ARFCN 計算器",
@@ -461,13 +492,16 @@
         "label_lte": "E-ARFCN",
         "label_nr": "NR-ARFCN",
         "placeholder": "輸入通道號碼",
-        "submit": "計算"
+        "submit": "計算",
+        "hint_auto": "自動會依數值範圍判斷是 LTE 還是 NR。選擇某個分頁即可強制指定。"
       },
       "error": {
         "empty": "請先輸入通道號碼——此欄位是空的。",
         "not_a_number": "這不是數字。請輸入整數通道號碼，例如 1850。",
         "no_band": "沒有頻段符合 {{value}}。請檢查數值，或不使用「自動」而直接選擇 LTE 或 NR。",
-        "unexpected": "計算失敗：{{message}}。請檢查數值後再試一次。"
+        "unexpected": "計算失敗：{{message}}。請檢查數值後再試一次。",
+        "negative": "通道號碼從 0 開始。請輸入正數。",
+        "auto_gap": "自動無法定位 {{value}}——{{low}} 與 {{high}} 之間沒有定義任何頻段。選擇 LTE 或 NR 即可強制計算。"
       },
       "result": {
         "title": "計算結果",
@@ -487,12 +521,22 @@
         "ul_frequency": "上行頻率",
         "ul_earfcn": "上行 EARFCN",
         "downlink_only": "僅下行",
-        "method": "依據 {{spec}} 計算。"
+        "method": "依據 {{spec}} 計算。",
+        "bands_description": "通道範圍包含此數值的所有頻段，以及各自對上行的影響。",
+        "bands_empty_title": "尚無頻段",
+        "bands_empty_body": "計算一個通道號碼，能夠承載它的頻段就會列在這裡。",
+        "bands_failed_title": "沒有可列出的頻段",
+        "bands_failed_body": "上方的通道號碼未能解析，因此沒有可比對的對象。",
+        "bands_agree_one": "有 {{count}} 個頻段符合此通道。",
+        "bands_agree_other": "有 {{count}} 個頻段共用此通道號碼，且雙工模式一致，因此上方的上行資訊對它們都適用。",
+        "bands_conflict_one": "有 {{count}} 個頻段符合此通道。",
+        "bands_conflict_other": "有 {{count}} 個頻段共用此通道號碼，但雙工模式不一致——上行會因網路實際使用的頻段而異。"
       },
       "units": {
         "mhz": "{{value}} MHz",
         "range_mhz": "{{low}} – {{high}} MHz",
-        "range": "{{low}} – {{high}}"
+        "range": "{{low}} – {{high}}",
+        "mhz_short": "MHz"
       },
       "history": {
         "title": "計算紀錄",
@@ -507,6 +551,16 @@
       },
       "a11y": {
         "delete_entry": "刪除這筆紀錄"
+      },
+      "readout": {
+        "idle_title": "尚無通道",
+        "idle_body": "輸入 EARFCN 或 NR-ARFCN，其頻率會顯示在這裡，並列出所有能夠承載它的頻段。",
+        "failed_title": "沒有可顯示的內容",
+        "failed_body": "修正通道號碼後再計算一次。",
+        "channel_lte": "EARFCN {{value}}",
+        "channel_nr": "NR-ARFCN {{value}}",
+        "several_bands_one": "有 {{count}} 個頻段可以承載此通道。",
+        "several_bands_other": "有 {{count}} 個頻段可以承載此通道。"
       }
     }
   },

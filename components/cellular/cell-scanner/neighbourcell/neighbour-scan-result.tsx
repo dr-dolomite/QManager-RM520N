@@ -18,8 +18,10 @@ import type {
 } from "@/types/cell-scanner";
 
 import ScanTable from "../scan-table";
+import ScanTableNote from "../table-note";
 import { NetworkTypeBadge, SignalBadge } from "../signal-badges";
 import { TABLE } from "../shapes";
+import { summariseNeighbours } from "../summaries";
 
 // =============================================================================
 // The neighbour read's columns
@@ -295,10 +297,32 @@ export function NeighbourScanResultView({
     [columnCopy, onLockCell, t],
   );
 
+  // Measured versus channel-only, over the whole read. The pager's own count
+  // below already describes what the channel filter left.
+  const tally = React.useMemo(() => {
+    const summary = summariseNeighbours(data);
+    return [
+      t("cell_scanner.results.tally_rows", { count: summary.total }),
+      t("cell_scanner.neighbour.results.tally_measured", {
+        count: summary.measured,
+      }),
+      t("cell_scanner.neighbour.results.tally_channel_only", {
+        count: summary.channelOnly,
+      }),
+    ];
+  }, [data, t]);
+
   return (
     <ScanTable
       data={data}
       columns={columns}
+      footer={
+        <ScanTableNote
+          glyph="lock"
+          text={t("cell_scanner.neighbour.results.note_channel_only")}
+          tally={tally}
+        />
+      }
       columnLabels={columnCopy}
       // Bound to the channel, not `cellType`. The incumbent filtered on a column
       // whose whole domain is three words the reader cannot guess; the channel is

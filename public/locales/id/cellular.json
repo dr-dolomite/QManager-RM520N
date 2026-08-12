@@ -285,17 +285,27 @@
       "rerun": "Pindai lagi",
       "scanning_action": "Memindai…",
       "download": "Unduh CSV",
-      "chip_idle": "Siap",
-      "chip_scanning": "Memindai",
-      "chip_complete": "Selesai",
-      "chip_failed": "Gagal",
+      "link_neighbour": "Sel Tetangga",
+      "link_blocked": "Tersedia setelah pemindaian selesai.",
+      "summary_title": "Yang ditemukan pemindaian ini",
+      "summary_empty": "Pemindaian selesai tanpa mendaftar satu sel pun, jadi tidak ada yang bisa diuraikan.",
+      "summary_provider_unknown": "Operator tanpa nama",
+      "summary_best": "terbaik {{value}} dBm",
+      "summary_no_reading": "tidak ada sinyal yang dilaporkan",
+      "summary_others_one": "1 operator lagi",
+      "summary_others_other": "{{count}} operator lagi",
+      "verdict_all_good_one": "Satu-satunya sel yang melaporkan level hasilnya baik. Pemindaian mengukur tanpa bantuan sel pelayan, jadi pembacaan pada level ini benar-benar kandidat yang kuat.",
+      "verdict_all_good_other": "Semua {{count}} sel yang melaporkan level hasilnya baik. Pemindaian mengukur tanpa bantuan sel pelayan, jadi pembacaan pada level ini benar-benar kandidat yang kuat.",
+      "verdict_all_fair_one": "Satu-satunya sel yang melaporkan level berada di tingkat cukup. Pemindaian mengukur tanpa bantuan sel pelayan, dan satu putaran di dalam ruangan biasanya terbaca 10 sampai 15 dB di bawah yang ditampilkan dashboard.",
+      "verdict_all_fair_other": "Semua {{count}} sel yang melaporkan level berada di tingkat cukup. Pemindaian mengukur tanpa bantuan sel pelayan, dan satu putaran di dalam ruangan biasanya terbaca 10 sampai 15 dB di bawah yang ditampilkan dashboard.",
+      "verdict_all_poor_one": "Satu-satunya sel yang melaporkan level hasilnya lemah. Pemindaian mengukur tanpa bantuan sel pelayan, dan satu putaran di dalam ruangan biasanya terbaca 10 sampai 15 dB di bawah yang ditampilkan dashboard — jadi ini bukan penilaian yang sama dengan koneksi Anda sendiri yang lemah.",
+      "verdict_all_poor_other": "Semua {{count}} sel yang melaporkan level hasilnya lemah, sehingga seluruh tabel berada di dasar skala. Pemindaian mengukur tanpa bantuan sel pelayan, dan satu putaran di dalam ruangan biasanya terbaca 10 sampai 15 dB di bawah yang ditampilkan dashboard — jadi ini bukan penilaian yang sama dengan koneksi Anda sendiri yang lemah.",
+      "verdict_no_readings": "Modem mendaftar sel-sel ini tetapi tidak melaporkan level sinyal untuk satu pun, jadi tidak ada yang bisa dinilai.",
       "idle_title": "Belum ada pemindaian",
       "idle_body": "Belum ada yang dipindai sejak halaman ini dibuka. Satu pemindaian mendaftar setiap menara di sekitar, pada semua band.",
       "scanning_title": "Menyetel setiap band",
       "scanning_body": "Biarkan tab ini terbuka — hasilnya muncul di sini setelah modem selesai.",
       "complete_title": "Pemindaian selesai",
-      "complete_body_one": "{{count}} sel dalam jangkauan.",
-      "complete_body_other": "{{count}} sel dalam jangkauan.",
       "failed_title": "Pemindaian gagal",
       "failed_body": "Modem mungkin sedang sibuk atau tidak dapat dihubungi. Periksa koneksi lalu pindai ulang."
     },
@@ -316,7 +326,18 @@
       "empty_body": "Jalankan pemindaian untuk mendaftar setiap menara di sekitar, lengkap dengan band, kanal, dan sinyalnya.",
       "error_title": "Pemindaian gagal",
       "error_body": "Modem mungkin sedang sibuk atau tidak dapat dihubungi. Periksa koneksi lalu pindai ulang.",
-      "error_retry": "Coba pindai lagi"
+      "error_retry": "Coba pindai lagi",
+      "note_lock": "Mengunci sebuah baris akan menyalin band, EARFCN, dan PCI-nya ke Penguncian Tower, dan modem akan menempel pada sel itu sampai kuncinya dilepas.",
+      "tally_rows_one": "1 baris",
+      "tally_rows_other": "{{count}} baris",
+      "tally_good_one": "1 baik",
+      "tally_good_other": "{{count}} baik",
+      "tally_fair_one": "1 cukup",
+      "tally_fair_other": "{{count}} cukup",
+      "tally_poor_one": "1 lemah",
+      "tally_poor_other": "{{count}} lemah",
+      "tally_none_one": "1 tanpa nilai",
+      "tally_none_other": "{{count}} tanpa nilai"
     },
     "columns": {
       "network": "Jaringan",
@@ -344,8 +365,7 @@
     },
     "a11y": {
       "network_codes": "Kode jaringan",
-      "row_menu": "Tindakan sel",
-      "elapsed": "Waktu berjalan pemindaian: {{time}}"
+      "row_menu": "Tindakan sel"
     },
     "lock": {
       "title": "Kunci ke sel {{pci}}?",
@@ -388,17 +408,22 @@
         "start": "Baca sel tetangga",
         "rerun": "Baca lagi",
         "scanning_action": "Membaca…",
-        "chip_idle": "Siap",
-        "chip_scanning": "Membaca",
-        "chip_complete": "Selesai",
-        "chip_failed": "Gagal",
+        "link_sweep": "Pemindai Sel",
+        "link_blocked": "Tersedia setelah pembacaan ini selesai.",
+        "summary_title": "Yang dikembalikan pembacaan ini",
+        "summary_empty": "Pembacaan selesai tanpa menyebut satu sel tetangga pun, jadi tidak ada yang bisa diuraikan.",
+        "summary_measured_label": "Dengan pengukuran",
+        "summary_channels_one": "1 kanal",
+        "summary_channels_other": "{{count}} kanal",
+        "summary_channel_only_one": "1 hanya kanal",
+        "summary_channel_only_other": "{{count}} hanya kanal",
+        "verdict_channel_only_one": "1 sel tetangga dikembalikan hanya sebagai kanal: sel pelayan tahu sel itu ada tetapi tidak punya pengukuran terkini untuknya, jadi ia tidak membawa kualitas dan tidak bisa dikunci.",
+        "verdict_channel_only_other": "{{count}} sel tetangga dikembalikan hanya sebagai kanal: sel pelayan tahu sel-sel itu ada tetapi tidak punya pengukuran terkini untuknya, jadi mereka tidak membawa kualitas dan tidak bisa dikunci.",
         "idle_title": "Belum ada pembacaan",
         "idle_body": "Belum ada pembacaan sejak halaman ini dimuat. Pembacaan menampilkan sel tetangga yang sedang diukur oleh sel pelayan.",
         "scanning_title": "Menanyai sel pelayan",
         "scanning_body": "Selesai dalam beberapa detik.",
         "complete_title": "Pembacaan selesai",
-        "complete_body_one": "{{count}} sel tetangga dilaporkan.",
-        "complete_body_other": "{{count}} sel tetangga dilaporkan.",
         "failed_title": "Pembacaan gagal",
         "failed_body": "Modem mungkin sibuk atau tidak terjangkau. Periksa koneksi lalu baca lagi."
       },
@@ -409,7 +434,12 @@
         "empty_title": "Belum ada sel tetangga",
         "empty_body": "Jalankan pembacaan untuk menampilkan sel yang sedang diukur menara pelayan, beserta kanal dan sinyalnya.",
         "error_title": "Pembacaan gagal",
-        "error_retry": "Coba baca lagi"
+        "error_retry": "Coba baca lagi",
+        "note_channel_only": "Sel tetangga yang dilaporkan hanya sebagai kanal tidak punya pengukuran di baliknya, jadi ia tidak membawa kualitas dan tombol kuncinya tetap nonaktif. Mengunci baris LTE yang terukur akan menyalin kanal dan PCI-nya ke Penguncian Tower.",
+        "tally_measured_one": "1 terukur",
+        "tally_measured_other": "{{count}} terukur",
+        "tally_channel_only_one": "1 hanya kanal",
+        "tally_channel_only_other": "{{count}} hanya kanal"
       },
       "columns": {
         "cell_type": "Relasi",
@@ -449,7 +479,8 @@
     "calculator": {
       "page": {
         "title": "Kalkulator Frekuensi",
-        "description": "Ubah EARFCN atau NR-ARFCN menjadi frekuensi dan band operasinya, untuk LTE dan 5G NR."
+        "description": "Ubah EARFCN atau NR-ARFCN menjadi frekuensi dan band operasinya, untuk LTE dan 5G NR.",
+        "sibling": "Pemindai Sel"
       },
       "form": {
         "title": "Kalkulator E/ARFCN",
@@ -461,13 +492,16 @@
         "label_lte": "E-ARFCN",
         "label_nr": "NR-ARFCN",
         "placeholder": "Masukkan nomor kanal",
-        "submit": "Hitung"
+        "submit": "Hitung",
+        "hint_auto": "Otomatis memilih LTE atau NR dari rentang angkanya. Pilih salah satu tab untuk memaksakannya."
       },
       "error": {
         "empty": "Masukkan nomor kanal dulu — kolomnya masih kosong.",
         "not_a_number": "Itu bukan angka. Masukkan nomor kanal bulat, misalnya 1850.",
         "no_band": "Tidak ada band yang cocok dengan {{value}}. Periksa angkanya, atau pilih LTE atau NR alih-alih Otomatis.",
-        "unexpected": "Perhitungan gagal: {{message}}. Periksa nilainya lalu coba lagi."
+        "unexpected": "Perhitungan gagal: {{message}}. Periksa nilainya lalu coba lagi.",
+        "negative": "Nomor kanal dimulai dari 0. Masukkan nilai positif.",
+        "auto_gap": "Otomatis tidak bisa menempatkan {{value}} — tidak ada yang didefinisikan antara {{low}} dan {{high}}. Pilih LTE atau NR untuk tetap menghitungnya."
       },
       "result": {
         "title": "Hasil",
@@ -487,12 +521,22 @@
         "ul_frequency": "Frekuensi UL",
         "ul_earfcn": "EARFCN uplink",
         "downlink_only": "Hanya downlink",
-        "method": "Dihitung menurut {{spec}}."
+        "method": "Dihitung menurut {{spec}}.",
+        "bands_description": "Setiap band yang rentang kanalnya memuat angka ini, beserta implikasinya masing-masing terhadap uplink.",
+        "bands_empty_title": "Belum ada band",
+        "bands_empty_body": "Hitung sebuah nomor kanal dan band yang bisa membawanya akan tercantum di sini.",
+        "bands_failed_title": "Tidak ada band untuk ditampilkan",
+        "bands_failed_body": "Nomor kanal di atas tidak terpecahkan, jadi tidak ada yang bisa dicocokkan.",
+        "bands_agree_one": "{{count}} band cocok dengan kanal ini.",
+        "bands_agree_other": "{{count}} band memakai nomor kanal yang sama dan sepakat soal mode duplex, jadi uplink di atas berlaku untuk semuanya.",
+        "bands_conflict_one": "{{count}} band cocok dengan kanal ini.",
+        "bands_conflict_other": "{{count}} band memakai nomor kanal yang sama tetapi berbeda mode duplex — uplink-nya berbeda tergantung mana yang benar-benar dipakai jaringanmu."
       },
       "units": {
         "mhz": "{{value}} MHz",
         "range_mhz": "{{low}} – {{high}} MHz",
-        "range": "{{low}} – {{high}}"
+        "range": "{{low}} – {{high}}",
+        "mhz_short": "MHz"
       },
       "history": {
         "title": "Riwayat Perhitungan",
@@ -507,6 +551,16 @@
       },
       "a11y": {
         "delete_entry": "Hapus entri riwayat ini"
+      },
+      "readout": {
+        "idle_title": "Belum ada kanal",
+        "idle_body": "Masukkan EARFCN atau NR-ARFCN dan frekuensinya muncul di sini, beserta setiap band yang bisa membawanya.",
+        "failed_title": "Tidak ada yang bisa ditampilkan",
+        "failed_body": "Perbaiki nomor kanalnya lalu hitung lagi.",
+        "channel_lte": "EARFCN {{value}}",
+        "channel_nr": "NR-ARFCN {{value}}",
+        "several_bands_one": "{{count}} band bisa membawa kanal ini.",
+        "several_bands_other": "{{count}} band bisa membawa kanal ini."
       }
     }
   },

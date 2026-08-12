@@ -2,7 +2,7 @@
 
 **Three routes share one prefix and one visual vocabulary, and exactly two of them talk to the modem — at costs that differ by roughly 100x.** A full sweep (`AT+QSCAN=3,1`) holds the single global AT mutex for 30–180 seconds and pauses every other modem operation on the device, including the poller that feeds the dashboard you are reading the page on. A neighbour read (`AT+QENG="neighbourcell"`) holds the same mutex for about two seconds. The frequency calculator holds nothing — it is browser arithmetic. That asymmetry is the organising idea of the whole surface, and most of what follows exists to keep it visible.
 
-This doc records the invariants and sharp edges a contributor needs **before** touching the family: the single `flock` that makes the two scanning routes mutually exclusive and how it survives the CGI that took it, why the two routes are deliberately not merged, the `/tmp/qmanager_long_running` maintenance contract that was described in two docs long before anything implemented it, why this surface keeps signal thresholds that disagree with the rest of the product, why `0` is a sentinel rather than a reading, and why the two result types were not widened into one.
+This doc records the invariants and sharp edges a contributor needs **before** touching the family: the single `flock` that makes the two scanning routes mutually exclusive and how it survives the CGI that took it, why the two routes are deliberately not merged, the `/tmp/qmanager_long_running` maintenance contract that was described in two docs long before anything implemented it, why this surface keeps signal thresholds that disagree with the rest of the product, why `0` is a sentinel rather than a reading, why the two result types were not widened into one, and why the calculator takes the family's anchor geometry while taking none of its run vocabulary.
 
 The rationale for the individual design moves lives in the commits (`a2394ee`, `e4e5441`, `5871e8c`, `16d129c`) and in the long file header of `components/cellular/cell-scanner/shapes.ts`. This doc does not restate them.
 
@@ -13,11 +13,21 @@ The rationale for the individual design moves lives in the commits (`a2394ee`, `
 | Full sweep route | `/cellular/cell-scanner` (`app/cellular/cell-scanner/page.tsx`) |
 | Neighbour read route | `/cellular/cell-scanner/neighbourcell-scanner` |
 | Frequency calculator route | `/cellular/cell-scanner/frequency-calculator` |
+| Calculator coordinator | `components/cellular/cell-scanner/freq-calculator/calculator.tsx` |
+| Calculator types + arithmetic (pure, no copy) | `components/cellular/cell-scanner/freq-calculator/calc-model.ts` |
+| Calculator readout rail (the anchor's left column) | `components/cellular/cell-scanner/freq-calculator/calc-readout.tsx` |
+| Calculator band grid + agreement verdict | `components/cellular/cell-scanner/freq-calculator/band-tiles.tsx` |
+| Calculator history list | `components/cellular/cell-scanner/freq-calculator/history-list.tsx` |
+| Band tables + channel↔frequency maths | `lib/earfcn.ts` |
 | Geometry + tone contract (all three routes) | `components/cellular/cell-scanner/shapes.ts` |
 | Result + transport types | `types/cell-scanner.ts` |
 | Full-sweep coordinator | `components/cellular/cell-scanner/scanner.tsx` |
 | Neighbour coordinator | `components/cellular/cell-scanner/neighbourcell/neighbour-scanner.tsx` |
 | Shared run hero | `components/cellular/cell-scanner/run-hero.tsx` |
+| Shared run summary ("What this sweep found") | `components/cellular/cell-scanner/run-summary.tsx` |
+| **All** derived aggregates (pure, no copy) | `components/cellular/cell-scanner/summaries.ts` |
+| Shared cross-route link | `components/cellular/cell-scanner/sibling-link.tsx` |
+| Shared under-table strip | `components/cellular/cell-scanner/table-note.tsx` |
 | Shared empty / error panels | `components/cellular/cell-scanner/scan-states.tsx` |
 | Shared results table | `components/cellular/cell-scanner/scan-table.tsx` |
 | Shared skeleton | `components/cellular/cell-scanner/scanner-skeleton.tsx` |
@@ -32,7 +42,7 @@ The rationale for the individual design moves lives in the commits (`a2394ee`, `
 | Sweep worker | `scripts/usr/bin/qmanager_cell_scanner` |
 | Neighbour worker | `scripts/usr/bin/qmanager_neighbour_scanner` |
 | Lock a scanned cell | `POST …/tower/lock.sh` — see [tower-locking.md](tower-locking.md) |
-| i18n | `cell_scanner.*` in `public/locales/{en,zh-CN,zh-TW,it,id}/cellular.json` (**178 keys per locale**, covering all three routes — `cell_scanner.neighbour.*` and `cell_scanner.calculator.*` are subtrees. The whole family had **zero** i18n before 2026-08-12) |
+| i18n | `cell_scanner.*` in `public/locales/{en,zh-CN,zh-TW,it,id}/cellular.json` (**230 paths in `en`**, covering all three routes — `cell_scanner.neighbour.*` and `cell_scanner.calculator.*` (**69 paths**) are subtrees. The whole family had **zero** i18n before 2026-08-12). All five locales now carry the same 230, and `bun run i18n:check` is clean at `strict` |
 
 ### Runtime files
 
@@ -60,7 +70,7 @@ The rationale for the individual design moves lives in the commits (`a2394ee`, `
 | Enable NR5G measurement reporting | `AT+QNWCFG="nr5g_meas_info",1` | `qmanager_neighbour_scanner:115` |
 | Read NR5G measurements | `AT+QNWCFG="nr5g_meas_info"` | `qmanager_neighbour_scanner:119` |
 
-The frequency calculator issues **nothing**. It has no fetch and no AT contact, which is why it has no run hero, no posture chip and no cost statement — see [The calculator is not a scanner](#the-calculator-is-not-a-scanner).
+The frequency calculator issues **nothing**. It has no fetch and no AT contact, which is why it has no posture chip, no elapsed clock, no spinner and no cost statement — nothing is spent. It *does* take the family's anchor card, at `rounded-hero`, via `CALC_HERO` and the shared `HERO_SPLIT` — see [The calculator takes the anchor, not the run](#the-calculator-takes-the-anchor-not-the-run).
 
 ## The cost asymmetry, and why the routes are not merged
 
@@ -91,8 +101,19 @@ Since 2026-08-12 none of this should be reachable from the UI at all: the [scan 
 
 Corollaries that follow from the same asymmetry, and should not be "harmonised" away:
 
-- The sweep hook polls every **2 s** and runs an elapsed clock; the neighbour hook polls every **1 s** and has none (`use-cell-scanner.ts:15`, `use-neighbour-scanner.ts:41`). A timer on a two-second operation has finished before the eye reaches it.
+- The sweep hook polls every **2 s**; the neighbour hook polls every **1 s** (`use-cell-scanner.ts:15`, `use-neighbour-scanner.ts:41`). A sweep that answers in 180 s does not deserve 180 requests; a read that answers in 2 s should not spend a whole extra poll waiting.
 - The sweep route has a `beforeunload` guard (`use-cell-scanner.ts:236-245`); the neighbour route deliberately does not. Losing a two-second read costs nothing, so prompting over it would invent a stake the operation does not have.
+- `useCellScanner` still computes and returns `elapsedSeconds`, and **no component consumes it** — see [The running state carries no numbers](#the-running-state-carries-no-numbers). That is not dead code left behind by accident: leaving the transport intact is what keeps the number-free running state a *surface* decision, revisitable without touching a hook that also owns the poll loop, the failure counter and the `sessionStorage` restore.
+
+## Cross-navigation between the two routes
+
+Until 2026-08-12 there was **no path between the sweep and the neighbour read except the sidebar**, on a surface whose whole argument is that these are two answers to one question at prices that differ by 100x. Each hero header now carries a link to the sibling route (`sibling-link.tsx`), in the slot the retired posture chip used to occupy.
+
+The calculator's anchor carries the same component in the same slot, pointing at the full sweep — and it passes **no** `blockedReason`, because nothing runs there to block it.
+
+The link is blocked while a run is in flight on that route, because the [scan singleton](#the-scan-singleton-one-flock-two-routes) would refuse the second scan with `other_scan_running` anyway. It is blocked with `aria-disabled` and a tooltip carrying the reason, **never** with `disabled`: a disabled button is not focusable and receives no pointer events, so the reason would be unreachable by exactly the users who most need it (DESIGN.md > The State-Honesty Rule).
+
+> ℹ️ **The block is keyed on the route's OWN posture, not on the singleton.** A sweep running on the other route is not observable from here — there is no cross-scan status endpoint, and polling the sibling's status file to find out would add a request per second to a modem that is deliberately busy. So the link stays enabled during the other route's run and the refusal is reported at the far end, by the hook, with copy that names the wait. Closing that gap needs a transport change, not a UI one.
 
 ## The scan singleton: one `flock`, two routes
 
@@ -233,25 +254,172 @@ Only `id`, `networkType`, `pci` and `signalStrength` genuinely overlap, and the 
 
 ## What is shared, and what is deliberately not
 
-Seven modules are shared by the two scanning routes: `lock-cell-dialog.tsx`, `run-hero.tsx`, `scan-states.tsx`, `scan-table.tsx`, `scanner-skeleton.tsx`, `signal-badges.tsx` and `shapes.ts`.
+Eleven modules are shared by the two scanning routes: `lock-cell-dialog.tsx`, `run-hero.tsx`, `run-summary.tsx`, `sibling-link.tsx`, `table-note.tsx`, `summaries.ts`, `scan-states.tsx`, `scan-table.tsx`, `scanner-skeleton.tsx`, `signal-badges.tsx` and `shapes.ts`.
+
+The four added in 2026-08-12's refinement follow the same rule as the hero: **shape shared, words not**. `run-summary.tsx`, `sibling-link.tsx` and `table-note.tsx` take every string as a prop; `summaries.ts` returns numbers, tiers and identifiers and never a sentence.
+
+Three of the eleven reach across to the **calculator** as well: `shapes.ts` (which holds the calculator's own section), `sibling-link.tsx` (its anchor's cross-route link) and `scan-states.tsx` (`ScanEmptyState`, for the bands card and the empty history). The calculator's own four modules live under `freq-calculator/` and are used by nothing else.
 
 `lock-cell-dialog.tsx` is the one worth calling out: **it owns the write, not just the confirmation.** A component that only asked the question and handed back a callback would have left both routes holding their own identical `fetch`, payload builder and toast set — which is the duplication that actually cost something. The caller owns exactly one thing: which cell is targeted, cleared when the dialog closes. `kind: "nr_sa" | "lte"` is a discriminator on the *target* rather than a flag on the request, because `AT+QNWLOCK` takes two different shapes and the modem rejects the wrong one outright.
 
 **The CSV builders are NOT shared, and should not be.** Each route keeps its own `buildCsvRows` and header constant (`scanner.tsx:41`/`:59`, `neighbour-scanner.tsx:45`/`:60`) because the two row shapes have different columns; both go through the shared `lib/download-csv.ts` for the actual download. Sharing the *builder* would require the widened type this doc argues against.
 
-## The calculator is not a scanner
+## The calculator takes the anchor, not the run
 
-`/cellular/cell-scanner/frequency-calculator` shares the route prefix and the canon — `CellularPageHeader`, `SECTION_HEAD`, role radii, the `nr`/`lte` identity variants, the machine-voice split — but **not the run vocabulary**. It gets no run hero, no posture chip and no `COST` statement, because it makes no request and holds no lock. It has no cost to state. Both of its files say so in their headers so a later canon pass does not restore the family's run vocabulary onto a page that does arithmetic in the browser.
+`/cellular/cell-scanner/frequency-calculator` shares the route prefix and the canon — `CellularPageHeader`, `SECTION_HEAD`, role radii, the `nr`/`lte` identity variants, the machine-voice split — and now also the family's **anchor geometry**. It takes `CALC_HERO` (which *is* `RUN_HERO`, deliberately the same exported value rather than a copy of its class string) and the shared `HERO_SPLIT`. What it does **not** take is the **run vocabulary**: no posture chip, no elapsed clock, no spinner, no `COST` statement — it makes no request, holds no lock and spends nothing.
 
-One i18n trap it fixed is worth generalising: `calculateFrequency` is a module-level pure function outside `t()`, and it used to return English sentences **as data** (`{ error: "Please enter a valid number" }`) that travelled through React state into the DOM with no key ever involved. `bun run i18n:check` only sees keys, so this was invisible to the gate. It now returns a `CalcErrorCode` mapped to a literal key at the call site, with runtime values interpolated rather than concatenated so a locale can place them where its grammar wants.
+**This inverts what this doc and both of those files used to say**, and the old argument is worth keeping because the interesting part of it was the mistake: it held that a `rounded-hero` radius here was "a promise of importance the page cannot keep", on the grounds that the family's heroes are *run* heroes and nothing here runs. Right about runs, wrong about heroes. What an anchor promises is not that something ran — it is that **one object on the page is the thing the reader came for**, and everything else on the page reports on it. That is unambiguous here: you came to turn a channel number into a frequency, and the bands grid and the history are both readings of that one answer. The incumbent's two peer cards claimed the converter and its own history were equally important, which is the single thing this page is certain they are not.
+
+The layout that follows is three cards: the anchor (readout rail + form), the matching bands, the history. **The middle card never disappears** — it carries an empty state before the first calculation, exactly as the sweep's results card does, so the page fills in rather than assembling itself.
+
+`shapes.ts` (`components/cellular/cell-scanner/shapes.ts`, "The frequency calculator" section) carries the long form of the decision, plus module-level `IDENT` and `FIGURE` — the machine-voice pair that was previously nested inside `TABLE` and is now hoisted so the calculator's tiles and history rows can key off the same two strings the scan table does.
+
+### The readout rail
+
+The anchor's left column (`calc-readout.tsx`) sits exactly where the scanning routes put their posture rail, and it reuses `POSTURE.ROOT` and `POSTURE.DISC` outright rather than restating their sizes. Same object, same corner, same hero — they must never drift apart by a padding step. What differs is the tone map: `READOUT_DISC` instead of `POSTURE_DISC`.
+
+**Four states, four distinct glyphs**: `tune` when nothing has been calculated, `graphic_eq` for a resolved frequency on **either** radio, `error` for a failure. Idle and resolved share a slot and must not share a glyph.
+
+`READOUT_DISC.lte` (`bg-lte-container`) and `.nr` (`bg-primary-container`) are **IDENTITY fills, not status roles** — they say which radio family owns the answer. Per DESIGN.md's Identity-Chip Rule that meaning has to be carried non-chromatically too, and it is: the `NetworkTypeBadge` and the band label directly beneath the disc say "NR" and "n78" in words.
+
+The frequency is `READOUT.FIGURE` at **44px**, not `POSTURE.CLOCK`'s 48 — a frequency runs to seven characters (`3489.42`) where an elapsed clock runs to four, and at 48px the longest value collides with the 17rem rail on the phone-width view. The unit is a separate node at label size, so "MHz" does not shout as loudly as the number.
+
+### Band agreement: a channel number does not identify a band
+
+`bandAgreement()` (`calc-model.ts:121`) exists because a channel number can be claimed by several bands at once. The two radios behave differently:
+
+- **LTE EARFCN ranges are disjoint.** `findAllMatchingLTEBands` therefore always returns exactly one entry, and the verdict is always `single`.
+- **NR-ARFCN ranges overlap.** NR-ARFCN 528030 sits inside n7 (FDD), n41 (TDD) and n90 (TDD) simultaneously.
+
+The top-level `frequency` field is safe to show regardless of how many bands matched, and that is a fact about the spec rather than a convenience: the NR downlink frequency comes from the **global raster** in 3GPP TS 38.104 §5.4.2.1 and is a function of the ARFCN alone. Bands sharing an ARFCN agree about the downlink. They do **not** agree about duplex mode or where the uplink is — n7 and n41 differ by a duplex scheme and 120 MHz.
+
+| Verdict | When | Rendered as |
+| ------- | ---- | ----------- |
+| `single` | one matching band | **nothing** — a "1 band matched" line under a list of one is noise |
+| `agree` | several bands, all one duplex type | `muted` strip, `layers` glyph — a curiosity |
+| `conflict` | several bands, duplex types differ | `warning` strip, `warning` glyph — the uplink shown below is only correct for whichever band the network actually uses |
+
+### The `ulEarfcnOffset` correctness fix
+
+**Short version: the old calculator computed the uplink channel number as `earfcn + 18000`, which is right for most FDD bands and wrong for three shipped ones — and it printed the wrong answer in `font-mono`, the voice this product reserves for things the device actually said.**
+
+The real rule (3GPP TS 36.101 §5.7.3) is `N_UL = N_Offs-UL + (N_DL − N_Offs-DL)`, and `N_Offs-UL` is a **table value**, not a constant gap. `LTEBandEntry` now carries it as `ulEarfcnOffset` (`lib/earfcn.ts:34`), sourced from TS 36.101 Table 5.7.3-1, and `lteULEarfcn(band, earfcn)` (`:220`) applies the formula.
+
+Verified against the shipped table, the gap is 18000 for every FDD band except:
+
+| Band | `N_Offs-DL` | `N_Offs-UL` | Actual gap | Old `+18000` was off by |
+| ---- | ----------- | ----------- | ---------- | ----------------------- |
+| B30 (WCS 2300) | 9770 | 27660 | **17890** | +110 |
+| B66 (AWS-3) | 66436 | 131972 | **65536** | −47536 |
+| B71 (600 MHz) | 68586 | 133122 | **64536** | −46536 |
+
+Two smaller corrections came with it. `lteULEarfcn` takes the band **as an argument** rather than looking it up, so a caller iterating several matching bands gets each band's own answer instead of the first match's. And it returns `null` for SDL bands (B29, B32), which have no uplink carrier at all — the old expression fell through to `earfcn` unchanged and printed a UL channel for a downlink-only band. `MatchingBand.ulChannel` is `null` for both SDL and NR, and `band-tiles.tsx:151` omits the row entirely rather than printing a placeholder. NR has no second channel number to omit: it numbers the uplink on the same global raster as the downlink.
+
+### Auto's dead zone has a name
+
+Auto mode picks LTE or NR by magnitude. The LTE table stops at EARFCN **56739** and the NR table starts at ARFCN **123400** (`MAX_LTE_EARFCN` / `MIN_NR_ARFCN`, both derived from the band tables rather than hardcoded). Everything in **56740–123399** belongs to neither.
+
+That gap used to fall off the end of auto's own if/else and report the generic `no_band` — "no band matches your number", which reads as *your number is wrong* when the true answer is *Auto cannot tell which scheme you meant here*. It now has its own code, `auto_gap`, whose sentence names the range and points at the LTE and NR tabs. The gap is a fact about our band tables, not about the input, and the copy says so.
+
+> ℹ️ The error strip and the quiet method note share **one slot** and are never both shown (`calculator.tsx:312`). Both reachable failure codes already end with the recovery, so leaving the hint up under a red strip prints the same advice twice in two voices.
+
+### Errors are codes, and why that rule generalises
+
+`calculateFrequency` is a module-level pure function outside `t()`, and it used to return English sentences **as data** (`{ error: "Please enter a valid number" }`) that travelled through React state into the DOM with no key ever involved. `bun run i18n:check` only sees keys, so this was invisible to the gate. It now returns a `CalcErrorCode` (`empty` | `not_a_number` | `negative` | `auto_gap` | `no_band` | `unexpected`) mapped to a **literal** key at the call site (`ERROR_KEY`, `calculator.tsx:76`), with runtime values interpolated rather than concatenated so a locale can place them where its grammar wants.
 
 > ℹ️ Any pure function that returns user-visible English is an i18n hole the checker cannot see. Return a code.
 
+The same rule holds for the spec citations: `NR_SPEC` and `LTE_SPEC` (`calc-model.ts:45-46`) are **proper nouns** and live in code rather than in the five locale files, so a translator cannot accidentally localise a clause number. `t()` receives the surrounding sentence and interpolates them verbatim.
+
+### Motion on the calculator
+
+There is exactly **one authored moment**, and everything else arrives with the page's entrance cascade and then holds still.
+
+- **The readout swap.** The calculation is user-initiated and instantaneous — no request, no spinner, nothing to wait for — so without motion the 44px figure simply becomes a different 44px figure between two frames, and a reader who mistyped one digit cannot tell whether the button did anything. The shared `SwapLabel` gives the outgoing value an exit and the incoming one an entrance offset by one stagger step. The swap key is `networkType:channelLabel:figure`, not the figure alone: two calculations resolving to the same MHz on different radios must still read as a change.
+- **Band tiles cascade on `staggerRows`** (80 ms step, 5px rise — the *row* cascade, not the card one; these are siblings a few pixels apart and a 10px lift would read as the card reflowing). The container declares `initial`/`animate` explicitly rather than inheriting them, because it mounts on a swap long after the page's entrance clock has settled — a variants-only child mounting on a swap stays pinned at `hidden` forever, which renders a complete DOM at zero opacity and passes every checker. Its `key` is the channel, so a **second** calculation replays the cascade instead of React quietly reconciling four tiles into four tiles.
+- **History rows enter on `standard` and exit on `quick`.** `AnimatePresence initial={false}` keeps the first paint silent, so ten rows restored from `localStorage` do not claim ten things just happened.
+
+> ℹ️ **The history exit is not an Enter-Only Rule violation.** That rule governs **conditions** and **navigation** — a banner leaving means the condition cleared and should feel immediate, and an outgoing route is already gone. Neither applies to a row the user just deleted: here the deletion *is* the event and the row is the thing that was acted on, and a row vanishing between two frames while the rows below it jump up is indistinguishable from having deleted the wrong one. The exit is the *faster* leg for the same reason the Modal-Exit Rule gives — confirmation of something already decided should not be slower than the decision.
+
+### History persistence and its silent migration
+
+History lives in `localStorage` under `earfcnHistory` (`HISTORY_KEY`), capped at `HISTORY_LIMIT` = 10, most recent first.
+
+The stored row shape **narrowed**: it used to be a whole `CalculationResult` (`earfcn` for the channel, `possibleBands` as an array of full band *objects*), and is now `HistoryEntry` (`channel`, and `bands` as plain numbers). That cuts the payload by roughly 90% and stops a schema change in the band tables from resurrecting a stale duplex mode out of the browser.
+
+**The key did not change, and `readHistory()` normalises the legacy shape on read** (`calc-model.ts:268`) — it accepts `channel` or `earfcn`, and `bands` as numbers or `possibleBands` as objects — so nobody loses saved history on upgrade. A row that survives neither shape is dropped **individually** rather than failing the whole parse; a corrupt or unreadable store is an empty history, never a crash. `writeHistory` swallows quota and private-mode failures for the same reason: the history is a convenience and the calculation itself already succeeded.
+
+Two smaller rules the coordinator holds:
+
+- **Only an asked-for calculation is recorded.** Pressing Calculate or Enter is a request and lands in the history; switching the mode tab re-answers a question already on screen and does not, or ten tab presses would bury the ten calculations the reader actually made (`run(…, record)`, `calculator.tsx:126`).
+- **The saved history is read after mount, in an effect, not in a lazy `useState` initialiser.** On a statically exported page the initialiser runs during render, so the server produces an empty list and the client's first render produces ten rows — a hydration mismatch React resolves by throwing the server's markup away.
+
 ## Machine voice on this surface
 
-`TABLE.IDENT` (`shapes.ts:186`) is `font-mono` and carries band, EARFCN, PCI, Cell ID and TAC — identifiers that hold steady until something reconfigures them. `TABLE.FIGURE` (`:188`) is interface-font `tabular-nums` and carries RSRP, RSRQ, SINR and RSSI — readings. `POSTURE.CLOCK` (`:156`) and `TOOLBAR.COUNT` (`:204`) are changing figures and therefore also interface-font `tabular-nums`, never mono. This is DESIGN.md's Machine-Voice Rule applied per value; see DESIGN.md > Named Rules.
+The two voices are now **module-level** `IDENT` and `FIGURE` (`shapes.ts:355`, `:358`), because only one of the three routes is a table; `TABLE.IDENT` / `TABLE.FIGURE` alias them, and the calculator's tiles, input and history rows key off the same two strings.
 
-The result count must be assembled by the i18n layer's plural machinery, never by a JS ternary. The incumbent hardcoded `filtered === 1 ? "cell" : "cells"` in *both* copies, which is wrong in four of the five shipped locales before a translator ever sees it.
+`TABLE.IDENT` is `font-mono` and carries band, EARFCN, PCI, Cell ID and TAC — identifiers that hold steady until something reconfigures them. `TABLE.FIGURE` is interface-font `tabular-nums` and carries RSRP, RSRQ, SINR and RSSI — readings. `POSTURE.CLOCK`, `TOOLBAR.COUNT`, `SUMMARY.VALUE` and `TABLE_NOTE.TALLY` are changing figures and therefore also interface-font `tabular-nums`, never mono. This is DESIGN.md's Machine-Voice Rule applied per value; see DESIGN.md > Named Rules.
+
+The split runs **per detail, not per tile**, inside the run summary: a provider's band list and a relation's channel numbers are identifiers (`SUMMARY.DETAIL_IDENT`, mono), while "best −113 dBm" and "5 channel only" are readings and counts (`SUMMARY.DETAIL_FIGURE`). The caller tags each detail with its voice, because only the caller knows what the string is.
+
+Every count on this surface must be assembled by the i18n layer's plural machinery, never by a JS ternary — the table's row count, the four tier tallies, the verdict, the summary tiles' overflow and channel labels. The incumbent hardcoded `filtered === 1 ? "cell" : "cells"` in *both* copies, which is wrong in four of the five shipped locales before a translator ever sees it. That is also why the tally is a **list of separate strings** rather than one sentence: one plural rule cannot carry four independent counts, and the No-Dot-Separator Rule bans the `·` that would otherwise glue them (DESIGN.md > Named Rules).
+
+## The posture chip is gone
+
+The hero header carried a `Badge` reading Ready / Sweeping / Complete / Failed, morphing its fill on the `standard` clock while its label crossfaded on `quick`. It was a well-built **restatement**: the posture rail immediately below it already says the same thing with a tinted disc, a spinning glyph, a title and a line of body copy. Two objects, one fact, ~200 px apart — and the chip was the one with no room to explain itself.
+
+Removed on both routes and all four postures (user decision, 2026-08-12). What follows from it:
+
+- `RUN_BADGE` became `POSTURE_GLYPH` and **dropped its `BadgeVariant` field**. The disc still needs the glyph and its fill; nothing needed the badge role once there was no badge, and an exported field with no reader is exactly the dead contract `shapes.ts` exists to prevent. The disc's tone is `POSTURE_DISC`, unchanged.
+- `cell_scanner.run.chip_*` and `cell_scanner.neighbour.run.chip_*` were deleted from all five locales.
+- `SKELETON_SHAPE.CHIP` stayed — `scanner-skeleton.tsx` still mirrors the column menu with it.
+- The vacated header slot now holds the [cross-route link](#cross-navigation-between-the-two-routes).
+
+## The running state carries no numbers
+
+While a sweep is in flight the rail shows a spinning disc, a title and a body line. **No `m:ss`, no count, no percentage, no ETA** — the elapsed clock was removed and nothing replaced it (user decision, 2026-08-12).
+
+The reason is what the modem reports, which is nothing at all: `AT+QSCAN=3,1` publishes no per-band progress, no partial rows and no remaining time, and the status endpoint returns only `idle|running|complete|error`. The results arrive exactly once, as one JSON array, at completion. So every figure a running state could show would be either the one honest number available (elapsed) or a number the page invented about a process it cannot see — and elapsed itself invites the reader to estimate a remaining time that does not exist.
+
+The "is it hung?" risk is answered by the **disc's ambient spin** (the surface's single sanctioned loop, and now the only thing carrying "still working") and by copy that sets the expectation, not by a figure.
+
+`POSTURE.CLOCK` survives under its old name with one occupant, the completed result count; its doc comment records the change. Restoring a clock means restoring `formatElapsed` and `cell_scanner.a11y.elapsed`, both deleted for the same reason.
+
+## The completed rail is two marks, not five
+
+Also a user decision, 2026-08-12, and the second half of the same argument. The completed posture used to stack **disc → count → context line → title → body**:
+
+> ( ✓ ) · **8** · "across 3 providers on 7 bands" · "Sweep finished" · "8 cells in range."
+
+Three of those five say the same thing. The body sentence restated the figure directly above it, and the context line re-derived a provider and band breakdown that the summary panel two hundred pixels to its right already gives provider by provider. Both lines are **gone on the complete posture only** — `postureBody` is still rendered for idle, scanning and failed, where it is the only copy explaining what is happening — and the two survivors were sized up to carry the rail alone: `POSTURE.DISC` 52 → **64 px** with a 24 → **32 px** glyph, `POSTURE.CLOCK` 28 → **48 px**. `POSTURE.ROOT`'s `min-h` and its mirror `SKELETON_SHAPE.POSTURE` moved 11rem → **13rem** together; they are written as literals in both places because Tailwind's JIT scans source text and an interpolated `min-h-[${X}]` compiles to nothing.
+
+What went with the lines:
+
+- `POSTURE.CONTEXT` and `RunHeroProps.metricContext`, deleted.
+- `SweepSummary.providerCount` / `.bandCount` and `NeighbourSummary.channelCount`, deleted — the context caption was their only reader, and an aggregate with no consumer is an untested aggregate.
+- Ten locale keys across all five packs: `cell_scanner.run.context_providers_*`, `context_bands_*`, `complete_body_*` and `cell_scanner.neighbour.run.context_channels_*`, `complete_body_*`.
+
+**The figure now carries no unit**, and that is deliberate rather than an oversight: the summary panel beside it is headed "What this sweep found", and the results card below it is headed "Cells found". A later canon pass should restore neither line, and should not "recover" the unit with a new caption under the figure.
+
+The 32 px glyph propagates to `scan-states.tsx`, which shares `POSTURE.DISC` for the results card's empty and error panels — they are the same object at a different address, so a 24 px glyph would have floated inside an oversized circle on exactly those two surfaces.
+
+## The run summary, the verdict and the tally
+
+Three additions of the same 2026-08-12 pass, all derived from rows the surface already has — no new endpoint, no new poll.
+
+| Object | Where | Sweep | Neighbour |
+| ------ | ----- | ----- | --------- |
+| **Summary panel** | hero, right column, above `COST` | one tile per provider: cell count, bands seen, best RSRP (capped at `MAX_PROVIDER_TILES` + one overflow tile) | one tile per relation that appeared, plus a measured-vs-channel-only tile |
+| **Verdict strip** | under the tiles, only when true | shown only when every *measured* cell shares one tier; explains that a sweep measures without the serving cell's help and reads low indoors | explains the channel-only rows: named by the serving cell, unmeasured, so no quality and not lockable |
+| **Tally** | under the table, beside the lock explainer | rows + per-tier counts, tiers with 0 omitted | rows, measured, channel-only |
+| **Context line** | under the result count | "across N providers on M bands" | "on N channels around the serving cell" |
+
+Two rules hold this together:
+
+- **All arithmetic lives in `summaries.ts`, and it contains no copy.** `Math.max()` of an empty list is `-Infinity`, a mean over zero rows is `NaN`, and both render as confident text beside real numbers. One pure, total function per route means "survives an empty array, a single row and all-sentinel data" is a property of one file rather than of a rendering path nobody re-reads. And a pure function that returns English is an i18n hole the checker cannot see — the frequency calculator on this same prefix shipped exactly that bug once.
+- **A mixed spread gets NO verdict.** "The readings vary" is not an explanation, and a strip that is always present stops being read. The tone follows the tier being described (`destructive` when every reading is weak, `muted` when nothing was measured at all), and each verdict carries a distinct bar-count glyph — three of them can appear in one slot, and `success-container` / `warning-container` are 1.03:1 apart.
+
+`run-summary.tsx`, like `run-hero.tsx`, is **copy-blind**: every string arrives as a prop and every number pre-derived, because the two routes disagree about all of them.
 
 ## `idle` means two different things, and the hooks must tell them apart
 
@@ -265,6 +433,8 @@ Both hooks receive `{"status":"idle"}` in two unrelated situations, and answerin
 ## Known gaps
 
 - **`AT+QSCAN` has no cancel.** Once the sweep is in flight the only way to end it early is to kill the worker; the UI has no stop control, and adding one means killing the pid and relying on the `TERM` trap (`qmanager_cell_scanner:44`) to clear the marker.
+- **The two result sets cannot be cross-referenced.** A sweep and a neighbour read write separate files with separate lifetimes and no shared row identity, so "this neighbour was also seen by the last sweep" is not answerable today. It would need either a correlation the workers do not compute or a client-side join across two results of unknown relative age — and an age-blind join would confidently pair a fresh read against a sweep from three days ago.
+- **A completed result has no timestamp the UI can trust.** Both status endpoints re-present a stored result on reload, so any "finished at HH:MM" the surface stamped client-side would be the time the *page* saw it, not the time the run ended. The surface therefore states no finish time at all.
 - **NR5G bandwidth is passed through raw.** `qmanager_cell_scanner:170-175` keeps the NR carrier bandwidth as the modem's resource-block count, because the MHz conversion depends on SCS. LTE *is* converted (`:158-169`). The two columns therefore print different units under one header.
 - **A partial neighbour read reports as an error, not as partial data.** The envelope has no third state between `complete` and `error`, so a leg that was blocked while the other found zero rows is surfaced as a failure with a message naming the leg. That is the honest answer available today, but a `partial` status carrying the rows that *did* arrive would be better — it needs a transport-shape change on both sides.
 

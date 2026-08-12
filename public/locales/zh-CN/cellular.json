@@ -285,17 +285,27 @@
       "rerun": "重新扫描",
       "scanning_action": "扫描中…",
       "download": "下载 CSV",
-      "chip_idle": "就绪",
-      "chip_scanning": "扫描中",
-      "chip_complete": "已完成",
-      "chip_failed": "已失败",
+      "link_neighbour": "邻区",
+      "link_blocked": "扫描结束后可用。",
+      "summary_title": "本次扫描的发现",
+      "summary_empty": "本次扫描结束时未列出任何小区，因此没有可分析的内容。",
+      "summary_provider_unknown": "未命名运营商",
+      "summary_best": "最佳 {{value}} dBm",
+      "summary_no_reading": "未报告信号",
+      "summary_others_one": "另有 1 家运营商",
+      "summary_others_other": "另有 {{count}} 家运营商",
+      "verdict_all_good_one": "唯一报告了电平的小区结果为良好。扫描是在没有服务小区协助的情况下测量的，因此达到该电平的读数是确实很强的候选。",
+      "verdict_all_good_other": "报告了电平的 {{count}} 个小区全部为良好。扫描是在没有服务小区协助的情况下测量的，因此达到该电平的读数都是确实很强的候选。",
+      "verdict_all_fair_one": "唯一报告了电平的小区处于一般水平。扫描是在没有服务小区协助的情况下测量的，室内扫描通常比仪表板显示的低 10 到 15 dB。",
+      "verdict_all_fair_other": "报告了电平的 {{count}} 个小区全部处于一般水平。扫描是在没有服务小区协助的情况下测量的，室内扫描通常比仪表板显示的低 10 到 15 dB。",
+      "verdict_all_poor_one": "唯一报告了电平的小区结果为较弱。扫描是在没有服务小区协助的情况下测量的，室内扫描通常比仪表板显示的低 10 到 15 dB——因此这与你自己的连接较弱并不是一回事。",
+      "verdict_all_poor_other": "报告了电平的 {{count}} 个小区全部为较弱，因此整张表都位于量程底部。扫描是在没有服务小区协助的情况下测量的，室内扫描通常比仪表板显示的低 10 到 15 dB——因此这与你自己的连接较弱并不是一回事。",
+      "verdict_no_readings": "模块列出了这些小区，但没有报告其中任何一个的信号电平，因此无法对它们评级。",
       "idle_title": "尚未扫描",
       "idle_body": "本页打开后还没有扫描过。一次扫描会列出所有频段上范围内的每个基站。",
       "scanning_title": "正在逐个频段调谐",
       "scanning_body": "请保持此标签页打开——模块完成后结果会显示在这里。",
       "complete_title": "扫描完成",
-      "complete_body_one": "范围内有 {{count}} 个小区。",
-      "complete_body_other": "范围内有 {{count}} 个小区。",
       "failed_title": "扫描失败",
       "failed_body": "模块可能正忙或无法访问。请检查连接后重新扫描。"
     },
@@ -316,7 +326,18 @@
       "empty_body": "执行一次扫描，列出范围内每个基站及其频段、频点和信号。",
       "error_title": "扫描失败",
       "error_body": "模块可能正忙或无法访问。请检查连接后重新扫描。",
-      "error_retry": "重新扫描"
+      "error_retry": "重新扫描",
+      "note_lock": "锁定某一行会把它的频段、频点与 PCI 复制到基站锁定，模块随后会一直驻留在该小区，直到你解除锁定。",
+      "tally_rows_one": "1 行",
+      "tally_rows_other": "{{count}} 行",
+      "tally_good_one": "1 个良好",
+      "tally_good_other": "{{count}} 个良好",
+      "tally_fair_one": "1 个一般",
+      "tally_fair_other": "{{count}} 个一般",
+      "tally_poor_one": "1 个较弱",
+      "tally_poor_other": "{{count}} 个较弱",
+      "tally_none_one": "1 个未评级",
+      "tally_none_other": "{{count}} 个未评级"
     },
     "columns": {
       "network": "制式",
@@ -344,8 +365,7 @@
     },
     "a11y": {
       "network_codes": "网络代码",
-      "row_menu": "小区操作",
-      "elapsed": "扫描已用时间：{{time}}"
+      "row_menu": "小区操作"
     },
     "lock": {
       "title": "锁定到小区 {{pci}}？",
@@ -388,17 +408,22 @@
         "start": "读取邻区",
         "rerun": "重新读取",
         "scanning_action": "读取中…",
-        "chip_idle": "就绪",
-        "chip_scanning": "读取中",
-        "chip_complete": "已完成",
-        "chip_failed": "失败",
+        "link_sweep": "小区扫描",
+        "link_blocked": "本次读取结束后可用。",
+        "summary_title": "本次读取的结果",
+        "summary_empty": "本次读取结束时未列出任何邻区，因此没有可分析的内容。",
+        "summary_measured_label": "有测量值",
+        "summary_channels_one": "1 个信道",
+        "summary_channels_other": "{{count}} 个信道",
+        "summary_channel_only_one": "1 个仅信道",
+        "summary_channel_only_other": "{{count}} 个仅信道",
+        "verdict_channel_only_one": "1 个邻区仅返回了信道：服务小区知道它存在，但没有对它的当前测量值，因此它不带质量信息，也无法锁定。",
+        "verdict_channel_only_other": "{{count}} 个邻区仅返回了信道：服务小区知道它们存在，但没有对它们的当前测量值，因此它们不带质量信息，也无法锁定。",
         "idle_title": "尚未读取",
         "idle_body": "本页加载后尚未读取。读取会列出服务小区正在测量的邻区。",
         "scanning_title": "正在询问服务小区",
         "scanning_body": "几秒内即可完成。",
         "complete_title": "读取完成",
-        "complete_body_one": "报告了 {{count}} 个邻区。",
-        "complete_body_other": "报告了 {{count}} 个邻区。",
         "failed_title": "读取失败",
         "failed_body": "调制解调器可能繁忙或无法访问。请检查连接后重新读取。"
       },
@@ -409,7 +434,12 @@
         "empty_title": "暂无邻区",
         "empty_body": "执行一次读取，即可列出服务基站正在测量的小区及其信道和信号。",
         "error_title": "读取失败",
-        "error_retry": "重新读取"
+        "error_retry": "重新读取",
+        "note_channel_only": "仅以信道形式报告的邻区背后没有测量值，因此它不带质量信息，其锁定操作保持禁用。锁定一个有测量值的 LTE 行会把它的信道与 PCI 复制到基站锁定。",
+        "tally_measured_one": "1 个有测量值",
+        "tally_measured_other": "{{count}} 个有测量值",
+        "tally_channel_only_one": "1 个仅信道",
+        "tally_channel_only_other": "{{count}} 个仅信道"
       },
       "columns": {
         "cell_type": "关系",
@@ -449,7 +479,8 @@
     "calculator": {
       "page": {
         "title": "频率计算器",
-        "description": "将 EARFCN 或 NR-ARFCN 换算为对应的频率和工作频段，适用于 LTE 与 5G NR。"
+        "description": "将 EARFCN 或 NR-ARFCN 换算为对应的频率和工作频段，适用于 LTE 与 5G NR。",
+        "sibling": "小区扫描"
       },
       "form": {
         "title": "E/ARFCN 计算器",
@@ -461,13 +492,16 @@
         "label_lte": "E-ARFCN",
         "label_nr": "NR-ARFCN",
         "placeholder": "输入信道号",
-        "submit": "计算"
+        "submit": "计算",
+        "hint_auto": "自动会根据数值范围判断是 LTE 还是 NR。选择某个标签页可强制指定。"
       },
       "error": {
         "empty": "请先输入信道号——该字段为空。",
         "not_a_number": "这不是数字。请输入整数信道号，例如 1850。",
         "no_band": "没有频段与 {{value}} 匹配。请检查数值，或不用「自动」而直接选择 LTE 或 NR。",
-        "unexpected": "计算失败：{{message}}。请检查数值后重试。"
+        "unexpected": "计算失败：{{message}}。请检查数值后重试。",
+        "negative": "信道号从 0 开始。请输入正数。",
+        "auto_gap": "自动无法定位 {{value}}——{{low}} 与 {{high}} 之间没有定义任何频段。选择 LTE 或 NR 即可强行计算。"
       },
       "result": {
         "title": "计算结果",
@@ -487,12 +521,22 @@
         "ul_frequency": "上行频率",
         "ul_earfcn": "上行 EARFCN",
         "downlink_only": "仅下行",
-        "method": "依据 {{spec}} 计算。"
+        "method": "依据 {{spec}} 计算。",
+        "bands_description": "信道范围包含该数值的所有频段，以及各自对上行的影响。",
+        "bands_empty_title": "暂无频段",
+        "bands_empty_body": "计算一个信道号，能够承载它的频段就会列在这里。",
+        "bands_failed_title": "没有可列出的频段",
+        "bands_failed_body": "上面的信道号未能解析，因此没有可匹配的对象。",
+        "bands_agree_one": "有 {{count}} 个频段与该信道匹配。",
+        "bands_agree_other": "有 {{count}} 个频段共用该信道号，且双工模式一致，因此上面的上行信息对它们都适用。",
+        "bands_conflict_one": "有 {{count}} 个频段与该信道匹配。",
+        "bands_conflict_other": "有 {{count}} 个频段共用该信道号，但双工模式不一致——上行会因网络实际使用的频段而异。"
       },
       "units": {
         "mhz": "{{value}} MHz",
         "range_mhz": "{{low}} – {{high}} MHz",
-        "range": "{{low}} – {{high}}"
+        "range": "{{low}} – {{high}}",
+        "mhz_short": "MHz"
       },
       "history": {
         "title": "计算历史",
@@ -507,6 +551,16 @@
       },
       "a11y": {
         "delete_entry": "删除这条历史记录"
+      },
+      "readout": {
+        "idle_title": "尚无信道",
+        "idle_body": "输入 EARFCN 或 NR-ARFCN，其频率会显示在这里，并列出所有能够承载它的频段。",
+        "failed_title": "无内容可显示",
+        "failed_body": "修正信道号后重新计算。",
+        "channel_lte": "EARFCN {{value}}",
+        "channel_nr": "NR-ARFCN {{value}}",
+        "several_bands_one": "有 {{count}} 个频段可以承载该信道。",
+        "several_bands_other": "有 {{count}} 个频段可以承载该信道。"
       }
     }
   },

@@ -14,16 +14,13 @@ import type { CellScanResult } from "@/types/cell-scanner";
 
 import LockCellDialog, { type LockCellTarget } from "./lock-cell-dialog";
 import RunHero from "./run-hero";
+import RunSummary, { type SummaryTile, type SummaryVerdict } from "./run-summary";
 import ScanResultView from "./scan-result";
 import { ScanEmptyState, ScanErrorState } from "./scan-states";
 import { ScannerSkeleton } from "./scanner-skeleton";
-import {
-  PILL_ACTION,
-  RESULTS_CARD,
-  SECTION_HEAD,
-  formatElapsed,
-  runPosture,
-} from "./shapes";
+import SiblingRouteLink from "./sibling-link";
+import { PILL_ACTION, RESULTS_CARD, SECTION_HEAD, runPosture } from "./shapes";
+import { summariseSweep } from "./summaries";
 
 // =============================================================================
 // Full band scan — the run and its results
@@ -68,31 +65,59 @@ const CELL_SCAN_CSV_HEADER =
  */
 const POSTURE_COPY = {
   idle: {
-    chip: "cell_scanner.run.chip_idle",
     title: "cell_scanner.run.idle_title",
     body: "cell_scanner.run.idle_body",
   },
   scanning: {
-    chip: "cell_scanner.run.chip_scanning",
     title: "cell_scanner.run.scanning_title",
     body: "cell_scanner.run.scanning_body",
   },
-  complete: {
-    chip: "cell_scanner.run.chip_complete",
-    title: "cell_scanner.run.complete_title",
-    body: "cell_scanner.run.complete_body",
-  },
+  // No `body` on `complete`: the rail's figure IS the count, so a sentence
+  // restating it was the same fact twice, 40px apart. See `shapes.ts`'s header.
+  complete: { title: "cell_scanner.run.complete_title" },
   failed: {
-    chip: "cell_scanner.run.chip_failed",
     title: "cell_scanner.run.failed_title",
     body: "cell_scanner.run.failed_body",
   },
 } as const;
 
+/** The neighbour route, for the header cross-link. Literal, not built at runtime. */
+const NEIGHBOUR_ROUTE = "/cellular/cell-scanner/neighbourcell-scanner";
+
+/**
+ * A uniform tier -> its verdict copy and mark, spelled out as LITERALS.
+ *
+ * `i18n:check` only sees keys it can read statically, so an interpolated
+ * `` `verdict_all_${tier}` `` is a key nothing will ever report as missing. The
+ * glyphs are the bar-count marks: three verdicts can appear in one slot and
+ * `success-container` / `warning-container` are 1.03:1 apart, so the mark is
+ * what tells them apart in sunlight, in greyscale and under deuteranopia.
+ */
+const VERDICT_COPY = {
+  good: {
+    key: "cell_scanner.run.verdict_all_good",
+    tone: "success",
+    glyph: "signal_cellular_3_bar",
+  },
+  fair: {
+    key: "cell_scanner.run.verdict_all_fair",
+    tone: "warning",
+    glyph: "signal_cellular_2_bar",
+  },
+  poor: {
+    key: "cell_scanner.run.verdict_all_poor",
+    tone: "destructive",
+    glyph: "signal_cellular_1_bar",
+  },
+} as const;
+
 export function FullScanner() {
   const { t } = useTranslation("cellular");
-  const { status, results, error, elapsedSeconds, startScan } =
-    useCellScanner();
+  // `elapsedSeconds` is deliberately NOT destructured. The hook still computes
+  // and returns it — the transport was left alone so this stays a surface
+  // decision — but the running state carries no numbers at all now. See
+  // `run-hero.tsx`.
+  const { status, results, error, startScan } = useCellScanner();
   const [lockTarget, setLockTarget] = React.useState<LockCellTarget | null>(
     null,
   );
@@ -125,15 +150,79 @@ export function FullScanner() {
 
   const copy = POSTURE_COPY[posture];
 
+  // Every aggregate on this page, derived once. `summariseSweep` is pure and
+  // total: an empty array, a single row and an all-sentinel result set all
+  // return a well-formed summary rather than `NaN` or `-Infinity`.
+  const summary = React.useMemo(() => summariseSweep(results), [results]);
+
+  const summaryTiles = React.useMemo<SummaryTile[]>(() => {
+    const tiles: SummaryTile[] = summary.groups.map((group) => ({
+      // The worker can report a cell with no operator name at all. An empty
+      // label would render as a blank tile with a number under it.
+      id: group.provider || "__unnamed",
+      label: group.provider || t("cell_scanner.run.summary_provider_unknown"),
+      value: group.cells,
+      details: [
+        ...(group.bands.length > 0
+          ? [{ text: group.bands.join(" "), voice: "ident" as const }]
+          : []),
+        {
+          text:
+            group.best === null
+              ? t("cell_scanner.run.summary_no_reading")
+              : t("cell_scanner.run.summary_best", { value: group.best }),
+          voice: "figure" as const,
+        },
+      ],
+    }));
+
+    // A dense urban sweep returns roaming partners nobody asked about. The
+    // grid caps itself and says so rather than growing into a list.
+    if (summary.overflowProviders > 0) {
+      tiles.push({
+        id: "__overflow",
+        label: t("cell_scanner.run.summary_others", {
+          count: summary.overflowProviders,
+        }),
+        value: summary.overflowCells,
+        details: [],
+      });
+    }
+
+    return tiles;
+  }, [summary, t]);
+
+  const verdict = React.useMemo<SummaryVerdict | null>(() => {
+    if (results.length === 0) return null;
+
+    // Nothing at all was measured: every row is the 0 sentinel. Muted, because
+    // that is an absence of readings, not a bad reading.
+    if (summary.measured === 0) {
+      return {
+        tone: "muted",
+        glyph: "signal_cellular_off",
+        text: t("cell_scanner.run.verdict_no_readings"),
+      };
+    }
+
+    // A mixed spread gets NO verdict. "The readings vary" explains nothing, and
+    // a strip that is always present stops being read.
+    if (!summary.uniform) return null;
+
+    const spec = VERDICT_COPY[summary.uniform];
+    return {
+      tone: spec.tone,
+      glyph: spec.glyph,
+      text: t(spec.key, { count: summary.measured }),
+    };
+  }, [results.length, summary, t]);
+
   // The failed posture's title is the MODEM'S message when it gave one. A
   // generic "Scan failed" over a specific reason is a downgrade.
   const postureTitle =
     posture === "failed" && error ? error : t(copy.title);
 
-  const postureBody =
-    posture === "complete"
-      ? t("cell_scanner.run.complete_body", { count: results.length })
-      : t(copy.body);
+  const postureBody = "body" in copy ? t(copy.body) : null;
 
   return (
     <>
@@ -142,23 +231,35 @@ export function FullScanner() {
           posture={posture}
           title={t("cell_scanner.run.title")}
           description={t("cell_scanner.run.description")}
-          chipLabel={t(copy.chip)}
+          link={
+            <SiblingRouteLink
+              href={NEIGHBOUR_ROUTE}
+              glyph="cell_tower"
+              label={t("cell_scanner.run.link_neighbour")}
+              // The scan singleton is one `flock` across both routes, so the
+              // neighbour read would be refused with `other_scan_running`
+              // anyway. Say so here rather than at the far end.
+              blockedReason={
+                isScanning ? t("cell_scanner.run.link_blocked") : null
+              }
+            />
+          }
           postureTitle={postureTitle}
           postureBody={postureBody}
-          clock={
-            isScanning
-              ? {
-                  seconds: elapsedSeconds,
-                  // The label must CARRY the time: an aria-label replaces the
-                  // element's text outright, so "Sweep elapsed time" alone
-                  // would announce the clock and hide the reading.
-                  ariaLabel: t("cell_scanner.a11y.elapsed", {
-                    time: formatElapsed(elapsedSeconds),
-                  }),
-                }
-              : null
-          }
           metric={hasResults ? results.length : null}
+          summary={
+            isScanning || posture === "complete" ? (
+              <RunSummary
+                // While a sweep runs, the panel would otherwise show the LAST
+                // run's numbers under this run's posture.
+                isLoading={isScanning}
+                title={t("cell_scanner.run.summary_title")}
+                tiles={summaryTiles}
+                verdict={verdict}
+                emptyText={t("cell_scanner.run.summary_empty")}
+              />
+            ) : null
+          }
           costText={t("cell_scanner.run.cost")}
           actions={
             <>
@@ -218,7 +319,12 @@ export function FullScanner() {
             <ScannerSkeleton />
           ) : posture === "failed" ? (
             <ScanErrorState
-              message={error}
+              // NO `message` HERE, deliberately. The hero rail 200px above
+              // already carries the modem's own words as its posture title;
+              // passing them again made the failed state two identical
+              // disc-title-body stacks on one screen, which is the same "two
+              // objects, one fact" duplication that retired the posture chip.
+              // The rail names the problem, this panel offers the recovery.
               title={t("cell_scanner.results.error_title")}
               body={t("cell_scanner.results.error_body")}
               retryLabel={t("cell_scanner.results.error_retry")}

@@ -2,24 +2,20 @@
 
 import * as React from "react";
 
-import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { MaterialSymbol } from "@/components/ui/material-symbol";
 import { Skeleton } from "@/components/ui/skeleton";
-import { SwapLabel } from "@/components/ui/swap-label";
 import { cn } from "@/lib/utils";
 
 import {
-  BADGE_GLYPH_SIZE,
   COST,
   HERO_SPLIT,
   POSTURE,
   POSTURE_DISC,
-  RUN_BADGE,
+  POSTURE_GLYPH,
   RUN_HERO,
   SECTION_HEAD,
   SKELETON_SHAPE,
-  formatElapsed,
   type RunPosture,
 } from "./shapes";
 
@@ -33,7 +29,7 @@ import {
 // what a run costs.
 //
 // This is that stable object. It is always mounted and it MORPHS through its
-// posture rather than being replaced: same rail, same disc, same clock slot,
+// posture rather than being replaced: same rail, same disc, same count slot,
 // same cost statement, same action row — only the tone, the glyph and the copy
 // move. That is what makes the posture change legible as one thing changing
 // state instead of as a navigation.
@@ -44,6 +40,27 @@ import {
 // seconds. The SHAPE is what they share; pretending the words were shared too is
 // how both routes ended up shipping a button that read "Start New Scan" for runs
 // that differ by 100x in cost.
+//
+// -----------------------------------------------------------------------------
+// THE POSTURE CHIP IS GONE, ON PURPOSE (2026-08-12)
+// -----------------------------------------------------------------------------
+// The header used to carry a `Badge` reading "Ready" / "Sweeping" / "Complete" /
+// "Failed", morphing on the `standard` clock while its label crossfaded on
+// `quick`. It was a well-built restatement of something the rail below it
+// already says with a tinted disc, a spinning glyph, a title and a line of body
+// copy — two objects, one fact, ~200px apart, and the chip was the one with no
+// room to explain itself.
+//
+// The RAIL is the posture carrier now, on all four postures and both routes.
+// What moved into the vacated header slot is the thing this surface genuinely
+// lacked: a path to the sibling route.
+//
+// THE RUNNING STATE CARRIES NO NUMBERS. There is no `clock` prop any more and
+// nothing replaced it. `AT+QSCAN` reports nothing at all between dispatch and
+// completion, so an elapsed timer was the only honest figure available and even
+// it invited the reader to estimate a remaining time the modem never provides.
+// The disc's ambient spin says "alive"; the copy says "this takes a few
+// minutes". See `shapes.ts`'s file header.
 // =============================================================================
 
 export interface RunHeroProps {
@@ -52,21 +69,27 @@ export interface RunHeroProps {
   title: string;
   /** One line beside the title, on its row rather than under it. */
   description?: string;
-  /** The posture chip's label. Swaps on the `quick` clock when the posture moves. */
-  chipLabel: string;
-  postureTitle: string;
-  postureBody: string;
   /**
-   * The elapsed clock, while a run is in flight. Interface font with tabular
-   * figures, never mono: it changes while the reader watches without them
-   * acting, which is exactly the Machine-Voice Rule's test.
+   * The cross-link to the sibling scanning route, in the header slot the
+   * posture chip used to occupy. Route-owned, because only the route knows
+   * where it is going and why it may not go there right now.
    */
-  clock?: { seconds: number; ariaLabel: string } | null;
+  link?: React.ReactNode;
+  postureTitle: string;
+  /** Omitted on the complete posture — see `metric`. */
+  postureBody?: string | null;
   /**
-   * The clock slot's occupant when no run is in flight — a result count, say.
-   * Ignored while `clock` is set, so the two can never stack.
+   * The one large figure in the posture rail: a completed run's result count.
+   * Absent while nothing has completed.
+   *
+   * It is now the rail's SUBJECT rather than one line of five — the context
+   * caption under it and the body sentence under that were both removed by user
+   * decision (see `shapes.ts`'s file header), so the figure and the disc carry
+   * the complete posture between them.
    */
   metric?: React.ReactNode;
+  /** "What this run found". Route-owned, and drawn from the rows. */
+  summary?: React.ReactNode;
   /** Required. See `COST` in the shapes contract for why this is not optional. */
   costText: string;
   /** Route-owned buttons. They style themselves with `PILL_ACTION` and friends. */
@@ -79,27 +102,22 @@ export function RunHero({
   posture,
   title,
   description,
-  chipLabel,
+  link,
   postureTitle,
   postureBody,
-  clock,
   metric,
+  summary,
   costText,
   actions,
   isLoading = false,
 }: RunHeroProps) {
-  const tone = RUN_BADGE[posture];
+  const mark = POSTURE_GLYPH[posture];
 
   // The one ambient motion on this surface, and it is not decorative: a sweep
   // publishes nothing for up to three minutes, so a still page is
-  // indistinguishable from a hung one.
-  //
-  // IT RUNS ON THE DISC ONLY, never also on the chip glyph. Both slots draw the
-  // same `progress_activity` mark from `RUN_BADGE`, so spinning both put two
-  // synchronised loops ~200px apart in one hero — which reads as a busy
-  // interface rather than a live one, and spends the One-Loop Rule's whole
-  // budget for this surface twice over. The disc wins because it is the focal
-  // element; the chip's 12px mark reads as an in-progress badge while static.
+  // indistinguishable from a hung one. It is also now the ONLY thing carrying
+  // "still working" — there is no clock beside it — which is precisely the
+  // "only where something is genuinely live" case the One-Loop Rule allows.
   const spin =
     posture === "scanning"
       ? "animate-spin motion-reduce:animate-none"
@@ -113,32 +131,13 @@ export function RunHero({
           <p className={SECTION_HEAD.DESC}>{description}</p>
         ) : null}
 
-        <div className={SECTION_HEAD.META}>
-          {isLoading ? (
-            <Skeleton className={SKELETON_SHAPE.CHIP} />
-          ) : (
-            <Badge variant={tone.variant}>
-              {/* Recipe 05: the fill and ink morph on `standard` inside
-                  badge.tsx while the label crossfades on `quick` here. The
-                  GLYPH travels with the label because it changes with it — two
-                  postures never share one, since success-container and
-                  warning-container are the same surface to the eye. The key
-                  carries the variant as well as the text so a posture change
-                  that keeps its wording still swaps. */}
-              <SwapLabel
-                swapKey={`${tone.variant}:${chipLabel}`}
-                className="gap-1"
-              >
-                <MaterialSymbol
-                  name={tone.glyph}
-                  size={BADGE_GLYPH_SIZE}
-                  filled={tone.filled}
-                />
-                {chipLabel}
-              </SwapLabel>
-            </Badge>
-          )}
-        </div>
+        {isLoading ? (
+          <div className={SECTION_HEAD.META}>
+            <Skeleton className={SKELETON_SHAPE.LINK} />
+          </div>
+        ) : link ? (
+          <div className={SECTION_HEAD.META}>{link}</div>
+        ) : null}
       </div>
 
       <div className={HERO_SPLIT}>
@@ -149,36 +148,30 @@ export function RunHero({
           <div className={POSTURE.ROOT}>
             <span className={cn(POSTURE.DISC, POSTURE_DISC[posture])}>
               <MaterialSymbol
-                name={tone.glyph}
-                size={24}
-                filled={tone.filled}
+                name={mark.glyph}
+                size={32}
+                filled={mark.filled}
                 className={spin}
               />
             </span>
 
-            {clock ? (
-              <p
-                className={POSTURE.CLOCK}
-                role="timer"
-                // `off`, not `polite`: a clock that announces itself once a
-                // second makes a screen reader unusable for the three minutes
-                // the sweep runs. The label carries it on demand.
-                aria-live="off"
-                aria-label={clock.ariaLabel}
-              >
-                {formatElapsed(clock.seconds)}
-              </p>
-            ) : metric ? (
+            {metric !== null && metric !== undefined ? (
               <p className={POSTURE.CLOCK}>{metric}</p>
             ) : null}
 
             <span className={POSTURE.TITLE}>{postureTitle}</span>
-            <span className={POSTURE.BODY}>{postureBody}</span>
+            {/* Absent on the complete posture, where the figure above already
+                is the count and a sentence restating it was duplication. */}
+            {postureBody ? (
+              <span className={POSTURE.BODY}>{postureBody}</span>
+            ) : null}
           </div>
         )}
 
-        {/* ---- Cost and actions -------------------------------------------- */}
+        {/* ---- Summary, cost and actions ----------------------------------- */}
         <div className="flex flex-col gap-4">
+          {summary}
+
           {isLoading ? (
             <Skeleton className={SKELETON_SHAPE.COST} />
           ) : (

@@ -54,7 +54,10 @@ export function ScanStatePanel({
   return (
     <div className={POSTURE.ROOT} role={tone === "error" ? "alert" : undefined}>
       <span className={cn(POSTURE.DISC, spec.disc)}>
-        <MaterialSymbol name={spec.glyph} size={24} filled={spec.filled} />
+        {/* 32, matching the hero rail's disc. `POSTURE.DISC` grew to 64px and
+            these panels are the same object at a different address, so a 24px
+            glyph would float inside an oversized circle here only. */}
+        <MaterialSymbol name={spec.glyph} size={32} filled={spec.filled} />
       </span>
       <span className={POSTURE.TITLE}>{title}</span>
       <span className={POSTURE.BODY}>{body}</span>

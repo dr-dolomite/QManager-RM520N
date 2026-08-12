@@ -285,17 +285,27 @@
       "rerun": "Sweep again",
       "scanning_action": "Sweeping…",
       "download": "Download CSV",
-      "chip_idle": "Ready",
-      "chip_scanning": "Sweeping",
-      "chip_complete": "Complete",
-      "chip_failed": "Failed",
+      "link_neighbour": "Neighboring Cells",
+      "link_blocked": "Available once the sweep finishes.",
+      "summary_title": "What this sweep found",
+      "summary_empty": "The sweep finished without listing a single cell, so there is nothing to break down.",
+      "summary_provider_unknown": "Unnamed operator",
+      "summary_best": "best {{value}} dBm",
+      "summary_no_reading": "no signal reported",
+      "summary_others_one": "1 more provider",
+      "summary_others_other": "{{count}} more providers",
+      "verdict_all_good_one": "The one cell that reported a level came back good. A sweep measures without the serving cell's help, so a reading at this level is a genuinely strong candidate.",
+      "verdict_all_good_other": "All {{count}} cells that reported a level came back good. A sweep measures without the serving cell's help, so readings at this level are genuinely strong candidates.",
+      "verdict_all_fair_one": "The one cell that reported a level sits at fair. A sweep measures without the serving cell's help, and an indoor pass usually reads 10 to 15 dB below what the dashboard shows.",
+      "verdict_all_fair_other": "All {{count}} cells that reported a level sit at fair. A sweep measures without the serving cell's help, and an indoor pass usually reads 10 to 15 dB below what the dashboard shows.",
+      "verdict_all_poor_one": "The one cell that reported a level came back weak. A sweep measures without the serving cell's help, and an indoor pass usually reads 10 to 15 dB below what the dashboard shows — so this is not the same judgement as your own connection being weak.",
+      "verdict_all_poor_other": "All {{count}} cells that reported a level came back weak, so the whole table sits at the bottom of the ramp. A sweep measures without the serving cell's help, and an indoor pass usually reads 10 to 15 dB below what the dashboard shows — so this is not the same judgement as your own connection being weak.",
+      "verdict_no_readings": "The modem listed these cells but reported no signal level for any of them, so none of them can be rated.",
       "idle_title": "No sweep yet",
       "idle_body": "Nothing has been scanned since this page loaded. A sweep lists every tower in range, on every band.",
       "scanning_title": "Tuning every band",
       "scanning_body": "Keep this tab open — the results land here when the modem finishes.",
       "complete_title": "Sweep finished",
-      "complete_body_one": "{{count}} cell in range.",
-      "complete_body_other": "{{count}} cells in range.",
       "failed_title": "Sweep failed",
       "failed_body": "The modem may be busy or unreachable. Check the connection and run the sweep again."
     },
@@ -316,7 +326,18 @@
       "empty_body": "Run a sweep to list every tower in range, with its band, channel and signal.",
       "error_title": "Sweep failed",
       "error_body": "The modem may be busy or unreachable. Check the connection and run the sweep again.",
-      "error_retry": "Retry sweep"
+      "error_retry": "Retry sweep",
+      "note_lock": "Locking a row copies its band, EARFCN and PCI into Tower Locking, and the modem camps on that cell until you clear the lock.",
+      "tally_rows_one": "1 row",
+      "tally_rows_other": "{{count}} rows",
+      "tally_good_one": "1 good",
+      "tally_good_other": "{{count}} good",
+      "tally_fair_one": "1 fair",
+      "tally_fair_other": "{{count}} fair",
+      "tally_poor_one": "1 weak",
+      "tally_poor_other": "{{count}} weak",
+      "tally_none_one": "1 unrated",
+      "tally_none_other": "{{count}} unrated"
     },
     "columns": {
       "network": "Network",
@@ -344,8 +365,7 @@
     },
     "a11y": {
       "network_codes": "Network codes",
-      "row_menu": "Cell actions",
-      "elapsed": "Sweep elapsed time: {{time}}"
+      "row_menu": "Cell actions"
     },
     "lock": {
       "title": "Lock to cell {{pci}}?",
@@ -388,17 +408,22 @@
         "start": "Read neighbours",
         "rerun": "Read again",
         "scanning_action": "Reading…",
-        "chip_idle": "Ready",
-        "chip_scanning": "Reading",
-        "chip_complete": "Complete",
-        "chip_failed": "Failed",
+        "link_sweep": "Cell Scanner",
+        "link_blocked": "Available once this read finishes.",
+        "summary_title": "What this read returned",
+        "summary_empty": "The read finished without naming a single neighbour, so there is nothing to break down.",
+        "summary_measured_label": "With measurements",
+        "summary_channels_one": "1 channel",
+        "summary_channels_other": "{{count}} channels",
+        "summary_channel_only_one": "1 channel only",
+        "summary_channel_only_other": "{{count}} channel only",
+        "verdict_channel_only_one": "1 neighbour came back as a channel only: the serving cell knows it is there but has no current measurement for it, so it carries no quality and cannot be locked.",
+        "verdict_channel_only_other": "{{count}} neighbours came back as a channel only: the serving cell knows they are there but has no current measurements for them, so they carry no quality and cannot be locked.",
         "idle_title": "No read yet",
         "idle_body": "Nothing has been read since this page loaded. A read lists the neighbours the serving cell is already measuring.",
         "scanning_title": "Asking the serving cell",
         "scanning_body": "This finishes in a couple of seconds.",
         "complete_title": "Read finished",
-        "complete_body_one": "{{count}} neighbour reported.",
-        "complete_body_other": "{{count}} neighbours reported.",
         "failed_title": "Read failed",
         "failed_body": "The modem may be busy or unreachable. Check the connection and read again."
       },
@@ -409,7 +434,12 @@
         "empty_title": "No neighbours yet",
         "empty_body": "Run a read to list the cells the serving tower is already measuring, with their channel and signal.",
         "error_title": "Read failed",
-        "error_retry": "Retry read"
+        "error_retry": "Retry read",
+        "note_channel_only": "A neighbour reported as a channel only has no measurement behind it, so it carries no quality and its lock action stays disabled. Locking a measured LTE row copies its channel and PCI into Tower Locking.",
+        "tally_measured_one": "1 measured",
+        "tally_measured_other": "{{count}} measured",
+        "tally_channel_only_one": "1 channel only",
+        "tally_channel_only_other": "{{count}} channel only"
       },
       "columns": {
         "cell_type": "Relation",
@@ -449,7 +479,8 @@
     "calculator": {
       "page": {
         "title": "Frequency Calculator",
-        "description": "Convert an EARFCN or NR-ARFCN into its frequency and operating band, for LTE and 5G NR."
+        "description": "Convert an EARFCN or NR-ARFCN into its frequency and operating band, for LTE and 5G NR.",
+        "sibling": "Cell Scanner"
       },
       "form": {
         "title": "E/ARFCN Calculator",
@@ -461,13 +492,16 @@
         "label_lte": "E-ARFCN",
         "label_nr": "NR-ARFCN",
         "placeholder": "Enter channel number",
-        "submit": "Calculate"
+        "submit": "Calculate",
+        "hint_auto": "Auto picks LTE or NR from the number's range. Pick a tab to force one."
       },
       "error": {
         "empty": "Enter a channel number first — the field is empty.",
         "not_a_number": "That is not a number. Enter a whole channel number, such as 1850.",
         "no_band": "No band matches {{value}}. Check the number, or pick LTE or NR instead of Auto.",
-        "unexpected": "The calculation failed: {{message}}. Check the value and try again."
+        "unexpected": "The calculation failed: {{message}}. Check the value and try again.",
+        "negative": "Channel numbers start at 0. Enter a positive value.",
+        "auto_gap": "Auto can't place {{value}} — nothing is defined between {{low}} and {{high}}. Pick LTE or NR to calculate it anyway."
       },
       "result": {
         "title": "Result",
@@ -487,12 +521,22 @@
         "ul_frequency": "UL frequency",
         "ul_earfcn": "UL EARFCN",
         "downlink_only": "Downlink only",
-        "method": "Calculated per {{spec}}."
+        "method": "Calculated per {{spec}}.",
+        "bands_description": "Every band whose channel range contains this number, with what each one implies for the uplink.",
+        "bands_empty_title": "No bands yet",
+        "bands_empty_body": "Calculate a channel number and the bands that can carry it are listed here.",
+        "bands_failed_title": "No bands to list",
+        "bands_failed_body": "The channel number above didn't resolve, so there is nothing to match against.",
+        "bands_agree_one": "{{count}} band matches this channel.",
+        "bands_agree_other": "{{count}} bands share this channel number and agree on duplex mode, so the uplink above holds for all of them.",
+        "bands_conflict_one": "{{count}} band matches this channel.",
+        "bands_conflict_other": "{{count}} bands share this channel number but disagree on duplex mode — the uplink differs depending on which one your network actually uses."
       },
       "units": {
         "mhz": "{{value}} MHz",
         "range_mhz": "{{low}} – {{high}} MHz",
-        "range": "{{low}} – {{high}}"
+        "range": "{{low}} – {{high}}",
+        "mhz_short": "MHz"
       },
       "history": {
         "title": "Calculation History",
@@ -507,6 +551,16 @@
       },
       "a11y": {
         "delete_entry": "Delete this history entry"
+      },
+      "readout": {
+        "idle_title": "No channel yet",
+        "idle_body": "Enter an EARFCN or NR-ARFCN and its frequency appears here, with every band that can carry it.",
+        "failed_title": "Nothing to show",
+        "failed_body": "Fix the channel number and calculate again.",
+        "channel_lte": "EARFCN {{value}}",
+        "channel_nr": "NR-ARFCN {{value}}",
+        "several_bands_one": "{{count}} band can carry this channel.",
+        "several_bands_other": "{{count}} bands can carry this channel."
       }
     }
   },

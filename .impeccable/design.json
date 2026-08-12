@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-08-05T13:47:02.402Z",
+  "generatedAt": "2026-08-12T09:21:34.000Z",
   "title": "Design System: QManager (RM520N-GL)",
   "extensions": {
     "colorMeta": {
@@ -275,6 +275,82 @@
           "oklch(0.836 0.013 258)",
           "oklch(0.950 0.004 258)"
         ]
+      },
+      "success-on-surface-light": {
+        "role": "success",
+        "displayName": "Link Green, on plain surface",
+        "canonical": "oklch(0.45 0.155 149)",
+        "note": "Tinted text on a plain card where no container is used — the fifth of the five functional tokens each role ships. Never crossed with `-container` ink.",
+        "tonalRamp": [
+          "oklch(0.150 0.068 149)",
+          "oklch(0.264 0.109 149)",
+          "oklch(0.379 0.139 149)",
+          "oklch(0.493 0.155 149)",
+          "oklch(0.607 0.142 149)",
+          "oklch(0.721 0.113 149)",
+          "oklch(0.836 0.073 149)",
+          "oklch(0.950 0.024 149)"
+        ]
+      },
+      "warning-on-surface-light": {
+        "role": "warning",
+        "displayName": "Degraded Amber, on plain surface",
+        "canonical": "oklch(0.475 0.14 70)",
+        "note": "Tinted text on a plain card where no container is used. Measures ~1.01:1 against success-on-surface — same luminance, hue only — so any tinted metric value also carries an sr-only quality word.",
+        "tonalRamp": [
+          "oklch(0.150 0.061 70)",
+          "oklch(0.264 0.098 70)",
+          "oklch(0.379 0.125 70)",
+          "oklch(0.493 0.140 70)",
+          "oklch(0.607 0.128 70)",
+          "oklch(0.721 0.102 70)",
+          "oklch(0.836 0.066 70)",
+          "oklch(0.950 0.022 70)"
+        ]
+      },
+      "destructive-on-surface-light": {
+        "role": "destructive",
+        "displayName": "Fault Red, on plain surface",
+        "canonical": "oklch(0.475 0.21 27)",
+        "note": "Tinted text on a plain card where no container is used.",
+        "tonalRamp": [
+          "oklch(0.150 0.092 27)",
+          "oklch(0.264 0.147 27)",
+          "oklch(0.379 0.188 27)",
+          "oklch(0.493 0.210 27)",
+          "oklch(0.607 0.192 27)",
+          "oklch(0.721 0.153 27)",
+          "oklch(0.836 0.099 27)",
+          "oklch(0.950 0.033 27)"
+        ]
+      },
+      "info-light": {
+        "role": "primary",
+        "displayName": "Info (Signal Blue alias)",
+        "canonical": "oklch(0.488 0.243 264.376)",
+        "note": "Not a fifth hue — a byte-identical alias of `primary-light`, per the Info-Is-Brand Rule. \"In progress\" renders as the brand's own tonal container; an info chip differs from a primary button by shape and glyph only, never by owning a second blue.",
+        "aliasOf": "primary-light"
+      },
+      "chart-nr-light": {
+        "role": "primary",
+        "displayName": "Chart — NR series",
+        "canonical": "oklch(0.488 0.243 264.376)",
+        "note": "Alias of primary-light, one hue per radio family so a color learned on one card holds on the next. Never the numbered --chart-1..6, which are byte-identical across themes and don't separate NR from LTE under a color-vision deficiency.",
+        "aliasOf": "primary-light"
+      },
+      "chart-lte-light": {
+        "role": "secondary",
+        "displayName": "Chart — LTE series",
+        "canonical": "oklch(0.495 0.205 296)",
+        "note": "Alias of lte-light, one hue per radio family.",
+        "aliasOf": "lte-light"
+      },
+      "chart-threshold-light": {
+        "role": "warning",
+        "displayName": "Chart — threshold guide",
+        "canonical": "oklch(0.585 0.16 72)",
+        "note": "Alias of warning-light. Dashed, low-opacity threshold guide lines only.",
+        "aliasOf": "warning-light"
       }
     },
     "typographyMeta": {
@@ -405,6 +481,26 @@
         "name": "desktop",
         "value": "68.75rem",
         "purpose": "The one named viewport breakpoint, for shell-level concerns."
+      }
+    ],
+    "toneSteps": [
+      {
+        "name": "tone-success",
+        "lightSteps": ["oklch(0.935 0.065 149)", "oklch(0.875 0.1 149)", "oklch(0.795 0.14 149)"],
+        "darkSteps": ["oklch(0.275 0.075 149)", "oklch(0.375 0.105 149)", "oklch(0.505 0.14 149)"],
+        "purpose": "Per the Explicit-Tone Rule: concentric rings, halo discs, and nested tonal surfaces use these three explicit steps instead of stacked alpha, because stacked alpha compounds differently over a card than over a container tile."
+      },
+      {
+        "name": "tone-warning",
+        "lightSteps": ["oklch(0.95 0.055 80)", "oklch(0.905 0.09 78)", "oklch(0.835 0.13 78)"],
+        "darkSteps": ["oklch(0.275 0.06 70)", "oklch(0.365 0.09 74)", "oklch(0.49 0.12 78)"],
+        "purpose": "Per the Explicit-Tone Rule: concentric rings, halo discs, and nested tonal surfaces use these three explicit steps instead of stacked alpha."
+      },
+      {
+        "name": "tone-destructive",
+        "lightSteps": ["oklch(0.945 0.05 25)", "oklch(0.905 0.08 25)", "oklch(0.835 0.12 25)"],
+        "darkSteps": ["oklch(0.275 0.07 25)", "oklch(0.365 0.105 25)", "oklch(0.49 0.15 25)"],
+        "purpose": "Per the Explicit-Tone Rule: concentric rings, halo discs, and nested tonal surfaces use these three explicit steps instead of stacked alpha."
       }
     ],
     "iconLibraries": [
@@ -716,6 +812,11 @@
       {
         "name": "The State-Honesty Rule",
         "body": "A status surface reports what is actually running — saved settings, live service state — never the half-edited form. A control that cannot currently work explains why instead of sitting there dead. A test only runs against saved config. An ambient animation only loops where something is genuinely live.",
+        "section": "components"
+      },
+      {
+        "name": "The No-Dot-Separator Rule",
+        "body": "A meta line joining two or more short facts (`PCI 135`, `EARFCN 9485`) uses plain spacing, never a `·` glue character — dots read as sloppy filler, not structure. Give the facts room (multiple spaces, or separate flex/inline items with a gap) instead of punctuating between them.",
         "section": "components"
       }
     ],

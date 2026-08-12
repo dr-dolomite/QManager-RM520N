@@ -20,8 +20,10 @@ import {
 import type { CellScanResult } from "@/types/cell-scanner";
 
 import ScanTable from "./scan-table";
+import ScanTableNote from "./table-note";
 import { NetworkTypeBadge, SignalBadge } from "./signal-badges";
 import { TABLE } from "./shapes";
+import { summariseSweep } from "./summaries";
 
 // =============================================================================
 // The full scan's columns
@@ -175,9 +177,17 @@ export function createCellScanColumns(
       cell: ({ row }) => (
         <span className="flex items-center gap-2">
           <SignalBadge strength={row.original.signalStrength} />
-          <span className={TABLE.FIGURE}>
-            {format.signal(row.original.signalStrength)}
-          </span>
+          {/* The worker's 0 is "unreported", not 0 dBm — `signalTier` already
+              maps it to the muted "No data" chip, but the value beside the chip
+              was printed unconditionally, so an unmeasured cell read "No data
+              0 dBm": a sentinel rendered as a confident measurement, directly
+              contradicting the chip next to it. The neighbour table has always
+              suppressed it here; this column now agrees. */}
+          {row.original.signalStrength !== 0 ? (
+            <span className={TABLE.FIGURE}>
+              {format.signal(row.original.signalStrength)}
+            </span>
+          ) : null}
         </span>
       ),
     },
@@ -252,10 +262,38 @@ export function ScanResultView({ data, onLockCell }: ScanResultViewProps) {
     [columnCopy, onLockCell, t],
   );
 
+  // The tier tally under the table. Derived from the WHOLE result set rather
+  // than the filtered page: it describes what the sweep found, and the pager's
+  // own count directly beneath it already describes what the filter left.
+  const tally = React.useMemo(() => {
+    const summary = summariseSweep(data);
+    const items = [
+      t("cell_scanner.results.tally_rows", { count: summary.total }),
+    ];
+    // Only tiers that actually occurred. A row of zeroes is noise, and "0 good"
+    // beside "8 weak" reads as a scoreboard rather than a description.
+    if (summary.tiers.good > 0)
+      items.push(t("cell_scanner.results.tally_good", { count: summary.tiers.good }));
+    if (summary.tiers.fair > 0)
+      items.push(t("cell_scanner.results.tally_fair", { count: summary.tiers.fair }));
+    if (summary.tiers.poor > 0)
+      items.push(t("cell_scanner.results.tally_poor", { count: summary.tiers.poor }));
+    if (summary.tiers.none > 0)
+      items.push(t("cell_scanner.results.tally_none", { count: summary.tiers.none }));
+    return items;
+  }, [data, t]);
+
   return (
     <ScanTable
       data={data}
       columns={columns}
+      footer={
+        <ScanTableNote
+          glyph="lock"
+          text={t("cell_scanner.results.note_lock")}
+          tally={tally}
+        />
+      }
       // The menu's labels ARE the headers, so they cannot drift apart: the
       // incumbent maintained a second hand-written map and the neighbour fork
       // had none at all, which is why its menu offered "signalStrength".

@@ -10,13 +10,22 @@ import { MaterialSymbol } from "@/components/ui/material-symbol";
 import { useNeighbourScanner } from "@/hooks/use-neighbour-scanner";
 import { downloadCSV } from "@/lib/download-csv";
 import { staggerItem } from "@/lib/motion";
-import type { NeighbourCellResult } from "@/types/cell-scanner";
+import type {
+  NeighbourCellResult,
+  NeighbourCellType,
+} from "@/types/cell-scanner";
 
 import LockCellDialog, { type LockCellTarget } from "../lock-cell-dialog";
 import RunHero from "../run-hero";
+import RunSummary, {
+  type SummaryTile,
+  type SummaryVerdict,
+} from "../run-summary";
 import { ScanEmptyState, ScanErrorState } from "../scan-states";
 import { ScannerSkeleton } from "../scanner-skeleton";
+import SiblingRouteLink from "../sibling-link";
 import { PILL_ACTION, RESULTS_CARD, SECTION_HEAD, runPosture } from "../shapes";
+import { MAX_TILE_CHANNELS, summariseNeighbours } from "../summaries";
 import NeighbourScanResultView from "./neighbour-scan-result";
 
 // =============================================================================
@@ -63,26 +72,34 @@ const NEIGHBOUR_CSV_HEADER =
 /** Posture -> its copy keys, spelled out as LITERALS for `i18n:check`. */
 const POSTURE_COPY = {
   idle: {
-    chip: "cell_scanner.neighbour.run.chip_idle",
     title: "cell_scanner.neighbour.run.idle_title",
     body: "cell_scanner.neighbour.run.idle_body",
   },
   scanning: {
-    chip: "cell_scanner.neighbour.run.chip_scanning",
     title: "cell_scanner.neighbour.run.scanning_title",
     body: "cell_scanner.neighbour.run.scanning_body",
   },
-  complete: {
-    chip: "cell_scanner.neighbour.run.chip_complete",
-    title: "cell_scanner.neighbour.run.complete_title",
-    body: "cell_scanner.neighbour.run.complete_body",
-  },
+  // No `body` on `complete` — the rail's figure is the count. See `shapes.ts`.
+  complete: { title: "cell_scanner.neighbour.run.complete_title" },
   failed: {
-    chip: "cell_scanner.neighbour.run.chip_failed",
     title: "cell_scanner.neighbour.run.failed_title",
     body: "cell_scanner.neighbour.run.failed_body",
   },
 } as const;
+
+/** The full-sweep route, for the header cross-link. */
+const SWEEP_ROUTE = "/cellular/cell-scanner";
+
+/**
+ * Relation -> its tile label key, as LITERALS. Same reasoning as the column
+ * map in `neighbour-scan-result.tsx`: `i18n:check` cannot see an interpolated
+ * stem, so a key built at runtime is a key nothing will ever report as missing.
+ */
+const RELATION_LABEL_KEY: Record<NeighbourCellType, string> = {
+  intra: "cell_scanner.neighbour.cell_type.intra",
+  inter: "cell_scanner.neighbour.cell_type.inter",
+  nr5g: "cell_scanner.neighbour.cell_type.nr5g",
+};
 
 export function NeighbourScanner() {
   const { t } = useTranslation("cellular");
@@ -117,13 +134,87 @@ export function NeighbourScanner() {
 
   const copy = POSTURE_COPY[posture];
 
+  // Pure and total: an empty read, a single row and an all-sentinel read all
+  // produce a well-formed summary rather than `NaN` or `-Infinity`.
+  const summary = React.useMemo(() => summariseNeighbours(results), [results]);
+
+  const summaryTiles = React.useMemo<SummaryTile[]>(() => {
+    // One tile per relation the read actually returned, then the measurement
+    // split. `nr5g` gets a tile of its own when it appears rather than being
+    // silently absent from an intra/inter pair that would then not add up.
+    const tiles: SummaryTile[] = summary.groups.map((group) => ({
+      id: group.type,
+      label: t(RELATION_LABEL_KEY[group.type]),
+      value: group.count,
+      details: [
+        ...(group.channels.length > 0
+          ? [
+              group.channels.length <= MAX_TILE_CHANNELS
+                ? // Few enough to name: channel numbers are identifiers, so
+                  // machine voice, separated by space rather than glued.
+                  {
+                    text: group.channels.join(" "),
+                    voice: "ident" as const,
+                  }
+                : // Too many to name: a count is a figure, not an identifier.
+                  {
+                    text: t("cell_scanner.neighbour.run.summary_channels", {
+                      count: group.channels.length,
+                    }),
+                    voice: "figure" as const,
+                  },
+            ]
+          : []),
+        {
+          text:
+            group.best === null
+              ? t("cell_scanner.run.summary_no_reading")
+              : t("cell_scanner.run.summary_best", { value: group.best }),
+          voice: "figure" as const,
+        },
+      ],
+    }));
+
+    if (summary.total > 0) {
+      tiles.push({
+        id: "__measured",
+        label: t("cell_scanner.neighbour.run.summary_measured_label"),
+        value: summary.measured,
+        details: [
+          {
+            text: t("cell_scanner.neighbour.run.summary_channel_only", {
+              count: summary.channelOnly,
+            }),
+            voice: "figure" as const,
+          },
+        ],
+      });
+    }
+
+    return tiles;
+  }, [summary, t]);
+
+  // One verdict, and only when there is something to explain: the rows the
+  // serving cell named but did not measure. They carry no quality and cannot be
+  // locked, which is otherwise learned by clicking a disabled menu item.
+  const verdict = React.useMemo<SummaryVerdict | null>(
+    () =>
+      summary.channelOnly > 0
+        ? {
+            tone: "muted",
+            glyph: "visibility_off",
+            text: t("cell_scanner.neighbour.run.verdict_channel_only", {
+              count: summary.channelOnly,
+            }),
+          }
+        : null,
+    [summary.channelOnly, t],
+  );
+
   // The modem's own message beats a generic failure line when it gave one.
   const postureTitle = posture === "failed" && error ? error : t(copy.title);
 
-  const postureBody =
-    posture === "complete"
-      ? t("cell_scanner.neighbour.run.complete_body", { count: results.length })
-      : t(copy.body);
+  const postureBody = "body" in copy ? t(copy.body) : null;
 
   return (
     <>
@@ -132,11 +223,30 @@ export function NeighbourScanner() {
           posture={posture}
           title={t("cell_scanner.neighbour.run.title")}
           description={t("cell_scanner.neighbour.run.description")}
-          chipLabel={t(copy.chip)}
+          link={
+            <SiblingRouteLink
+              href={SWEEP_ROUTE}
+              glyph="radar"
+              label={t("cell_scanner.neighbour.run.link_sweep")}
+              blockedReason={
+                isScanning ? t("cell_scanner.neighbour.run.link_blocked") : null
+              }
+            />
+          }
           postureTitle={postureTitle}
           postureBody={postureBody}
-          clock={null}
           metric={hasResults ? results.length : null}
+          summary={
+            isScanning || posture === "complete" ? (
+              <RunSummary
+                isLoading={isScanning}
+                title={t("cell_scanner.neighbour.run.summary_title")}
+                tiles={summaryTiles}
+                verdict={verdict}
+                emptyText={t("cell_scanner.neighbour.run.summary_empty")}
+              />
+            ) : null
+          }
           costText={t("cell_scanner.neighbour.run.cost")}
           actions={
             <>
@@ -193,7 +303,8 @@ export function NeighbourScanner() {
             <ScannerSkeleton />
           ) : posture === "failed" ? (
             <ScanErrorState
-              message={error}
+              // No `message`: the hero rail above already carries the modem's
+              // own words. See the sweep route for the full reasoning.
               title={t("cell_scanner.neighbour.results.error_title")}
               body={t("cell_scanner.results.error_body")}
               retryLabel={t("cell_scanner.neighbour.results.error_retry")}
