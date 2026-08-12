@@ -393,10 +393,14 @@ export function compareLang(lang: string, base: BaseIndex, opts: { emptyIsMissin
     for (const [k, enVal] of baseKeys) {
       const has = targetKeys.has(k);
       const val = targetKeys.get(k) ?? "";
-      const translated = has && (!emptyIsMissing || val.trim() !== "");
+      // An English source string that is itself empty (e.g. an accessibility-only
+      // table header) can never be "untranslated" — an empty value there is the
+      // correct translation, so `emptyIsMissing` must not fire on it.
+      const enIsEmpty = enVal.trim() === "";
+      const translated = has && (!emptyIsMissing || enIsEmpty || val.trim() !== "");
       if (translated) report.translatedKeys++;
 
-      if (!has || (emptyIsMissing && val.trim() === "")) {
+      if (!has || (emptyIsMissing && !enIsEmpty && val.trim() === "")) {
         const issue: Issue = {
           lang,
           ns,
