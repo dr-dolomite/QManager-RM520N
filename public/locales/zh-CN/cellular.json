@@ -641,6 +641,117 @@
         },
         "save_button": "保存配置文件"
       }
+    },
+    "basic": {
+      "page": {
+        "title": "蜂窝基本设置",
+        "description": "SIM 卡插槽、射频状态和网络模式偏好。",
+        "error_title": "无法读取调制解调器",
+        "error_body": "显示的值可能已过时。",
+        "retry": "重试"
+      },
+      "radio": {
+        "title": "调制解调器射频设置",
+        "description": "保存时更改会写入调制解调器。以下设置都不会让它重启。"
+      },
+      "rows": {
+        "sim_slot": {
+          "label": "SIM 卡插槽",
+          "consequence": "切换插槽会中断连接约 15 秒。",
+          "options": {
+            "slot_1": "SIM 1",
+            "slot_2": "SIM 2"
+          }
+        },
+        "cfun": {
+          "label": "射频电源",
+          "consequence": "关闭射频同时会切断 SIM 卡供电。飞行模式在关闭射频的同时保持 SIM 卡供电。两种情况下控制台都仍可通过 Ethernet 访问。",
+          "options": {
+            "normal": "正常",
+            "radio_off": "关闭射频",
+            "airplane": "飞行模式"
+          }
+        },
+        "mode_pref": {
+          "label": "首选网络类型",
+          "consequence": "自动模式由调制解调器自行选择。仅在排查故障时才固定某一种技术。",
+          "options": {
+            "auto": "自动",
+            "lte_nr": "LTE + 5G",
+            "nr_only": "仅 5G",
+            "lte_only": "仅 LTE"
+          }
+        },
+        "nr5g_mode": {
+          "label": "5G 架构",
+          "consequence": "独立组网让 5G 独立运行；非独立组网将其锚定到 LTE。除非运营商有要求，否则请保持自动。",
+          "options": {
+            "auto": "自动",
+            "nsa": "仅 NSA",
+            "sa": "仅 SA"
+          }
+        },
+        "roam_pref": {
+          "label": "漫游偏好",
+          "consequence": "任意网络会允许接入合作网络，这些网络可能单独计费。",
+          "options": {
+            "any": "任意网络",
+            "home": "仅归属网络",
+            "partner": "合作网络"
+          }
+        },
+        "sim_detect": {
+          "label": "SIM 卡热插拔检测",
+          "consequence": "让调制解调器在运行过程中察觉 SIM 卡的插入或拔出。不启用时，更换过的 SIM 卡要到下次重启才会被发现。",
+          "on": "开启",
+          "off": "关闭"
+        }
+      },
+      "save_bar": {
+        "count_one": "{{count}} 项更改待应用",
+        "count_other": "{{count}} 项更改待应用",
+        "note": "应用时连接会短暂中断。调制解调器不会重启。",
+        "discard": "放弃",
+        "save": "保存设置",
+        "failed": "无法应用 {{fields}}。您的其他更改已保存。"
+      },
+      "apply": {
+        "writing": "正在写入调制解调器",
+        "recovering": "正在等待射频稳定",
+        "verifying": "正在确认调制解调器已应用的设置"
+      },
+      "footer": {
+        "reread": "从调制解调器重新读取",
+        "in_sync": "已保存的设置与调制解调器一致。"
+      },
+      "readout": {
+        "title": "调制解调器当前报告的状态",
+        "registered_on": "注册于",
+        "active_slot": "活动插槽",
+        "serving_tech": "服务技术",
+        "slot_n": "SIM {{slot}}",
+        "unknown": "未知"
+      },
+      "sim_status": {
+        "ready": "就绪",
+        "pin_required": "需要 PIN",
+        "puk_required": "需要 PUK",
+        "not_inserted": "无 SIM 卡",
+        "error": "错误",
+        "unknown": "未知"
+      },
+      "ambr": {
+        "title": "数据速率限制",
+        "description": "运营商为每条数据连接允许的最高速率。由网络策略设定，而非调制解调器。",
+        "lte_title": "LTE 速率",
+        "nr_title": "5G 速率",
+        "lte_empty_title": "未报告 LTE 速率",
+        "lte_empty_body": "调制解调器仅在 LTE 承载建立期间才发布 LTE 限速。",
+        "nr_empty_title": "未报告 5G 速率",
+        "nr_empty_body": "调制解调器仅在 NR 承载建立期间才发布 5G 限速。",
+        "download": "下载",
+        "upload": "上传"
+      }
     }
   },
   "custom_profiles": {

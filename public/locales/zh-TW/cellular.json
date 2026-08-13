@@ -641,6 +641,117 @@
         },
         "save_button": "儲存設定檔"
       }
+    },
+    "basic": {
+      "page": {
+        "title": "蜂窩基本設定",
+        "description": "SIM 卡插槽、射頻狀態與網路模式偏好。",
+        "error_title": "無法讀取數據機",
+        "error_body": "顯示的值可能已過時。",
+        "retry": "重試"
+      },
+      "radio": {
+        "title": "數據機射頻設定",
+        "description": "儲存時變更會寫入數據機。以下設定都不會讓它重新啟動。"
+      },
+      "rows": {
+        "sim_slot": {
+          "label": "SIM 卡插槽",
+          "consequence": "切換插槽會中斷連線約 15 秒。",
+          "options": {
+            "slot_1": "SIM 1",
+            "slot_2": "SIM 2"
+          }
+        },
+        "cfun": {
+          "label": "射頻電源",
+          "consequence": "關閉射頻同時會切斷 SIM 卡供電。飛航模式在關閉射頻的同時仍為 SIM 卡供電。兩種情況下主控台都仍可透過 Ethernet 存取。",
+          "options": {
+            "normal": "正常",
+            "radio_off": "關閉射頻",
+            "airplane": "飛航模式"
+          }
+        },
+        "mode_pref": {
+          "label": "偏好網路類型",
+          "consequence": "自動模式由數據機自行選擇。僅在排查問題時才固定某一種技術。",
+          "options": {
+            "auto": "自動",
+            "lte_nr": "LTE + 5G",
+            "nr_only": "僅 5G",
+            "lte_only": "僅 LTE"
+          }
+        },
+        "nr5g_mode": {
+          "label": "5G 架構",
+          "consequence": "獨立組網讓 5G 獨立運作；非獨立組網將其錨定至 LTE。除非電信商有要求，否則請保持自動。",
+          "options": {
+            "auto": "自動",
+            "nsa": "僅 NSA",
+            "sa": "僅 SA"
+          }
+        },
+        "roam_pref": {
+          "label": "漫遊偏好",
+          "consequence": "任意網路會允許接入合作網路，這些網路可能單獨計費。",
+          "options": {
+            "any": "任意網路",
+            "home": "僅歸屬網路",
+            "partner": "合作網路"
+          }
+        },
+        "sim_detect": {
+          "label": "SIM 卡熱插拔偵測",
+          "consequence": "讓數據機在運作過程中察覺 SIM 卡的插入或拔出。未啟用時，更換過的 SIM 卡要到下次重新啟動才會被發現。",
+          "on": "開啟",
+          "off": "關閉"
+        }
+      },
+      "save_bar": {
+        "count_one": "{{count}} 項變更待套用",
+        "count_other": "{{count}} 項變更待套用",
+        "note": "套用時連線會短暫中斷。數據機不會重新啟動。",
+        "discard": "捨棄",
+        "save": "儲存設定",
+        "failed": "無法套用 {{fields}}。您的其他變更已儲存。"
+      },
+      "apply": {
+        "writing": "正在寫入數據機",
+        "recovering": "正在等待射頻穩定",
+        "verifying": "正在確認數據機已套用的設定"
+      },
+      "footer": {
+        "reread": "從數據機重新讀取",
+        "in_sync": "已儲存的設定與數據機一致。"
+      },
+      "readout": {
+        "title": "數據機目前回報的狀態",
+        "registered_on": "註冊於",
+        "active_slot": "使用中插槽",
+        "serving_tech": "服務技術",
+        "slot_n": "SIM {{slot}}",
+        "unknown": "未知"
+      },
+      "sim_status": {
+        "ready": "就緒",
+        "pin_required": "需要 PIN",
+        "puk_required": "需要 PUK",
+        "not_inserted": "無 SIM 卡",
+        "error": "錯誤",
+        "unknown": "未知"
+      },
+      "ambr": {
+        "title": "資料速率限制",
+        "description": "電信商為每條資料連線允許的最高速率。由網路政策設定，而非數據機。",
+        "lte_title": "LTE 速率",
+        "nr_title": "5G 速率",
+        "lte_empty_title": "未回報 LTE 速率",
+        "lte_empty_body": "數據機僅在 LTE 承載建立期間才發布 LTE 限速。",
+        "nr_empty_title": "未回報 5G 速率",
+        "nr_empty_body": "數據機僅在 NR 承載建立期間才發布 5G 限速。",
+        "download": "下載",
+        "upload": "上傳"
+      }
     }
   },
   "custom_profiles": {

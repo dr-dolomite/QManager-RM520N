@@ -641,6 +641,117 @@
         },
         "save_button": "Simpan Profil"
       }
+    },
+    "basic": {
+      "page": {
+        "title": "Pengaturan Dasar Seluler",
+        "description": "Preferensi slot SIM, status radio, dan mode jaringan.",
+        "error_title": "Gagal membaca modem",
+        "error_body": "Nilai yang ditampilkan mungkin sudah usang.",
+        "retry": "Coba lagi"
+      },
+      "radio": {
+        "title": "Pengaturan Radio Modem",
+        "description": "Perubahan ditulis ke modem saat Anda menyimpan. Tidak ada satu pun yang membuatnya reboot."
+      },
+      "rows": {
+        "sim_slot": {
+          "label": "Slot SIM",
+          "consequence": "Berpindah slot memutus koneksi sekitar 15 detik.",
+          "options": {
+            "slot_1": "SIM 1",
+            "slot_2": "SIM 2"
+          }
+        },
+        "cfun": {
+          "label": "Daya Radio",
+          "consequence": "Radio nonaktif juga mematikan daya SIM. Mode pesawat tetap memberi daya pada SIM dengan radio nonaktif. Konsol tetap dapat diakses melalui Ethernet pada kedua kondisi.",
+          "options": {
+            "normal": "Normal",
+            "radio_off": "Radio nonaktif",
+            "airplane": "Mode pesawat"
+          }
+        },
+        "mode_pref": {
+          "label": "Tipe Jaringan Pilihan",
+          "consequence": "Otomatis membiarkan modem memilih. Kunci satu teknologi hanya saat memecahkan masalah.",
+          "options": {
+            "auto": "Otomatis",
+            "lte_nr": "LTE + 5G",
+            "nr_only": "Hanya 5G",
+            "lte_only": "Hanya LTE"
+          }
+        },
+        "nr5g_mode": {
+          "label": "Arsitektur 5G",
+          "consequence": "Standalone menjalankan 5G secara mandiri; non-standalone menambatkannya ke LTE. Biarkan pada Otomatis kecuali operator Anda mengharuskan salah satunya.",
+          "options": {
+            "auto": "Otomatis",
+            "nsa": "Hanya NSA",
+            "sa": "Hanya SA"
+          }
+        },
+        "roam_pref": {
+          "label": "Preferensi Roaming",
+          "consequence": "Jaringan apa pun mengizinkan jaringan mitra, yang mungkin ditagih terpisah.",
+          "options": {
+            "any": "Jaringan apa pun",
+            "home": "Hanya jaringan asal",
+            "partner": "Jaringan mitra"
+          }
+        },
+        "sim_detect": {
+          "label": "Deteksi Hot-Swap SIM",
+          "consequence": "Membuat modem mengenali SIM yang dipasang atau dilepas saat modem sedang berjalan. Tanpa ini, SIM yang diganti tidak terdeteksi sampai reboot berikutnya.",
+          "on": "Aktif",
+          "off": "Nonaktif"
+        }
+      },
+      "save_bar": {
+        "count_one": "{{count}} perubahan tertunda",
+        "count_other": "{{count}} perubahan tertunda",
+        "note": "Menerapkan akan memutus koneksi sebentar. Modem tidak melakukan reboot.",
+        "discard": "Buang",
+        "save": "Simpan Pengaturan",
+        "failed": "Gagal menerapkan {{fields}}. Perubahan Anda yang lain telah disimpan."
+      },
+      "apply": {
+        "writing": "Menulis ke modem",
+        "recovering": "Menunggu radio stabil",
+        "verifying": "Memastikan apa yang diterapkan modem"
+      },
+      "footer": {
+        "reread": "Baca ulang dari modem",
+        "in_sync": "Pengaturan tersimpan cocok dengan modem."
+      },
+      "readout": {
+        "title": "Yang dilaporkan modem saat ini",
+        "registered_on": "Terdaftar di",
+        "active_slot": "Slot aktif",
+        "serving_tech": "Teknologi yang melayani",
+        "slot_n": "SIM {{slot}}",
+        "unknown": "Tidak diketahui"
+      },
+      "sim_status": {
+        "ready": "Siap",
+        "pin_required": "Perlu PIN",
+        "puk_required": "Perlu PUK",
+        "not_inserted": "Tanpa SIM",
+        "error": "Kesalahan",
+        "unknown": "Tidak diketahui"
+      },
+      "ambr": {
+        "title": "Batas Kecepatan Data",
+        "description": "Kecepatan maksimum yang diizinkan operator Anda untuk setiap koneksi data. Nilai ini ditetapkan oleh kebijakan jaringan, bukan oleh modem.",
+        "lte_title": "Kecepatan LTE",
+        "nr_title": "Kecepatan 5G",
+        "lte_empty_title": "Tidak ada kecepatan LTE dilaporkan",
+        "lte_empty_body": "Modem hanya menerbitkan batas LTE selama bearer LTE aktif.",
+        "nr_empty_title": "Tidak ada kecepatan 5G dilaporkan",
+        "nr_empty_body": "Modem hanya menerbitkan batas 5G selama bearer NR aktif.",
+        "download": "Unduh",
+        "upload": "Unggah"
+      }
     }
   },
   "custom_profiles": {

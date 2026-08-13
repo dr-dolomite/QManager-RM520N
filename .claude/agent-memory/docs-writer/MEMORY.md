@@ -5,4 +5,5 @@
 - [AT+QNWCFG has no persistence key](reference_qnwcfg_has_no_persistence_key.md) — `save_ctrl` is QNWLOCK-only; never claim a frequency lock survives a reboot; wire-format traps in frequency-locking.md
 - [A documented guard with no writer](reference_documented_guard_had_no_writer.md) — `/tmp/qmanager_long_running` had three readers and zero writers for years; classify every hit as write/read/delete, and remember a writer in the tree ≠ a working guard on the device
 - [i18n:check is a hard gate again (2026-08-12)](reference_i18n_check_now_hard_gate.md) — missing key/empty value exit 1; `--warn-only` carries tracked debt; the holes that remain are hardcoded literals, `defaultValue`, and interpolated keys
+- [AT+QSIMDET reboot persistence unverified (2026-08-13)](project_qsimdet_persistence_unverified.md) — device only ever read the factory default `0,1`, so "NV settings persist" is inference not evidence; settling it needs a write + reboot
 - [tower/lock.sh reciprocal gate deliberately deferred](project_tower_lock_reciprocal_gate_deferred.md) — a tower lock silently wipes a frequency lock; 2026-08-11 decision was to warn in the UI, not fix the backend

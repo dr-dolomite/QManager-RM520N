@@ -1509,12 +1509,14 @@ The RM520N-GL ships with these CGI endpoints. They represent the existing firmwa
 | `set_watchcat` | `GET ?WATCHCAT_ENABLED=&...` | — | Create/destroy watchcat systemd service |
 | `watchcat_maker` | `GET ?WATCHCAT_ENABLED=&...` | — | Older watchcat (systemd unit writer) |
 
-**Dashboard polling:** The existing dashboard issues a single compound AT command every 3 seconds:
+**Dashboard polling:** The **SimpleAdmin** dashboard issues a single compound AT command every 3 seconds:
 
 ```
 AT+QTEMP;+QUIMSLOT?;+QSPN;+CGCONTRDP=1;+QMAP="WWANIP";
 +QENG="servingcell";+QCAINFO;+QSIMSTAT?;+CSQ;+QGDNRCNT?;+QGDCNT?
 ```
+
+> ℹ️ NOTE: This is SimpleAdmin's command string, kept here for historical reference — **QManager does not execute it**. QManager's own poller uses tiered compounds of its own (`qmanager_poller`), and only added `+QSIMSTAT?` to its Tier 2 compound with the Cellular Basic Settings work. See `reference/cellular-basic-settings.md` for QManager's actual compound and the ordering rule that puts `+QSIMSTAT?` before `+CPIN?`.
 
 Responses are parsed by line-prefix matching (e.g., `line.includes('+QTEMP')`) and CSV-splitting on fixed field indices — similar to QManager's poller but done in the browser instead of a backend daemon.
 

@@ -99,7 +99,7 @@ The table below contrasts RM520N-GL against the legacy RM551E (OpenWRT) target �
 
 Read these only when working on the relevant subsystem:
 
-- **AT command transport** (`atcli_smd11`, `qcmd`, SMS, flock serialization) — `docs/reference/at-command-transport.md`
+- **AT command transport** (`atcli_smd11`, `qcmd`, SMS, flock serialization, and **why QManager can never consume AT URCs** — no resident listener, `smd11` is not a selectable URC port, and enabling one corrupts unrelated responses) — `docs/reference/at-command-transport.md`
 - **QManager standalone install & runtime internals** (Entware bootstrap, udev permissions, CGI auth, service persistence, firewall, Tailscale, web console, email/SMS alerts, OTA pipeline incl. opt-in auto-update timer gated on `update.auto_update_enabled` — armed at install/OTA AND live by the Software Update UI toggle via the `qmanager_auto_update_arm` root helper) — `docs/reference/qmanager-independence.md`
 - **Full platform architecture** (platform internals, Entware bootstrapping, lighttpd config, boot sequences, troubleshooting) — `docs/rm520n-gl-architecture.md`
 
@@ -145,6 +145,7 @@ Each feature below has a reference doc holding its invariants, gotchas, and rati
 | **Cell Scanner family** | Any of the three routes under `/cellular/cell-scanner/` (full sweep, neighbour read, frequency calculator), `AT+QSCAN` / `AT+QENG="neighbourcell"`, the `/tmp/qmanager_long_running` maintenance marker and who writes it, or this surface's deliberately divergent signal thresholds | `cell-scanner.md` |
 | **Carrier Aggregation** | `AT+QCAINFO`, `network.carrier_components[]`, the dashboard CA strip | `carrier-aggregation.md` |
 | **Radio Information** | `/cellular/` index, `lib/radio-info.ts`, `components/cellular/radio/**` | `radio-information.md` |
+| **Cellular Basic Settings** | `/cellular/settings`, `cellular/settings.sh`, the six writable fields (`AT+QUIMSLOT` / `AT+CFUN` / `AT+QNWPREFCFG` / `AT+QSIMDET`), the dirty-state merge rule in `use-cellular-settings.ts`, the ~35s SIM-slot apply, the poller's new `.sim` block, or `network.type` now being legitimately `""` | `cellular-basic-settings.md` |
 | **Recent Activities** | `events.sh`, `/tmp/qmanager_events.json`, the dashboard event feed, event tone/freshness | `recent-activities.md` |
 | **Dashboard chart cards** | Device Metrics, Live Latency, Signal History, `hooks/use-chart-motion.ts`, recharts | `dashboard-chart-cards.md` |
 | **Dashboard state-change motion** | `TickGroup`/`useValueTick`, `SwapLabel`, status-chip morph, live value ticks, and `SaveButton`'s save flow | `dashboard-state-motion.md` |

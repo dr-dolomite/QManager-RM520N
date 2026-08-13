@@ -177,6 +177,7 @@ boot_lan_gateway=""
 t2_temperature=""
 t2_carrier=""
 t2_sim_status=""
+t2_sim_inserted=""
 t2_sim_slot="1"
 t2_ca_active=false
 t2_ca_count=0
@@ -1151,14 +1152,16 @@ poll_tier2() {
 
     # Compound AT: status queries in one call.
     # CPIN? is last — it can ERROR when SIM is absent; placing it last
-    # ensures earlier responses (QTEMP, COPS, QUIMSLOT, CNUM) are preserved
-    # even if the modem aborts on CPIN ERROR.
-    result=$(qcmd 'AT+QTEMP;+COPS?;+QUIMSLOT?;+CNUM;+CPIN?' 2>/dev/null)
+    # ensures earlier responses (QTEMP, COPS, QUIMSLOT, CNUM, QSIMSTAT) are
+    # preserved even if the modem aborts on CPIN ERROR. QSIMSTAT? must sit
+    # BEFORE CPIN? for the same reason it can't go last itself.
+    result=$(qcmd 'AT+QTEMP;+COPS?;+QUIMSLOT?;+CNUM;+QSIMSTAT?;+CPIN?' 2>/dev/null)
 
     if [ -n "$result" ]; then
         parse_temperature "$result"
         parse_carrier "$result"
         parse_sim_slot "$result"
+        parse_sim_inserted "$result"
 
         # Phone number refresh (may change on SIM swap). Always RESET (no
         # `[ -n ] &&` guard) so a blank CNUM after a failover to a SIM with
@@ -1769,7 +1772,7 @@ write_cache() {
         --argjson modem_reachable "$modem_reachable" \
         --argjson errors "$errors_json" \
         --argjson cfun "${t1_cfun:-1}" \
-        --arg net_type "${network_type:-LTE}" \
+        --arg net_type "${network_type:-}" \
         --argjson sim_slot "${t2_sim_slot:-1}" \
         --arg carrier "$t2_carrier" \
         --arg service_status "$service_status" \
@@ -1874,6 +1877,8 @@ write_cache() {
         --argjson wc_total "${wc_total_recoveries:-0}" \
         --argjson wc_cooldown "${wc_cooldown_remaining:-0}" \
         --argjson wc_reboots "${wc_reboots_this_hour:-0}" \
+        --arg sim_status "${t2_sim_status:-unknown}" \
+        --argjson sim_inserted "${t2_sim_inserted:-null}" \
         --argjson sf_active "${sim_fo_active:-false}" \
         --argjson sf_orig "${sim_fo_original_slot:-null}" \
         --argjson sf_curr "${sim_fo_current_slot:-null}" \
@@ -2002,6 +2007,10 @@ write_cache() {
                 total_recoveries: $wc_total,
                 cooldown_remaining: $wc_cooldown,
                 reboots_this_hour: $wc_reboots
+            },
+            sim: {
+                status: $sim_status,
+                inserted: $sim_inserted
             },
             sim_failover: {
                 active: $sf_active,

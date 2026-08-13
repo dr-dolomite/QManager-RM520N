@@ -14,6 +14,7 @@
 #   AT+QNWPREFCFG="roam_pref"          -> Roaming preference (1, 3, 255)
 #   AT+QNWCFG="lte_ambr"               -> LTE AMBR per APN
 #   AT+QNWCFG="nr5g_ambr"              -> NR5G AMBR per DNN
+#   AT+QSIMDET?                        -> SIM detect enable + insert level
 #
 # AT commands used (POST):
 #   AT+QUIMSLOT=<1|2>
@@ -21,6 +22,7 @@
 #   AT+QNWPREFCFG="mode_pref",<value>
 #   AT+QNWPREFCFG="nr5g_disable_mode",<0|1|2>
 #   AT+QNWPREFCFG="roam_pref",<1|3|255>
+#   AT+QSIMDET=<0|1>,<insert_level>    -> insert_level preserved from read, else 1
 #
 # Endpoint: GET/POST /cgi-bin/quecmanager/cellular/settings.sh
 # Install location: /www/cgi-bin/quecmanager/cellular/settings.sh
@@ -55,7 +57,7 @@ if [ "$REQUEST_METHOD" = "GET" ]; then
     qlog_info "Fetching cellular settings"
 
     # --- Compound AT: fetch all settings in one call ---
-    raw=$(qcmd 'AT+QUIMSLOT?;+CFUN?;+QNWPREFCFG="mode_pref";+QNWPREFCFG="nr5g_disable_mode";+QNWPREFCFG="roam_pref";+QNWCFG="lte_ambr";+QNWCFG="nr5g_ambr"' 2>/dev/null)
+    raw=$(qcmd 'AT+QUIMSLOT?;+CFUN?;+QNWPREFCFG="mode_pref";+QNWPREFCFG="nr5g_disable_mode";+QNWPREFCFG="roam_pref";+QNWCFG="lte_ambr";+QNWCFG="nr5g_ambr";+QSIMDET?' 2>/dev/null)
     [ -z "$raw" ] && qlog_warn "Compound AT query returned empty response"
 
     # --- SIM Slot ---
@@ -83,11 +85,21 @@ if [ "$REQUEST_METHOD" = "GET" ]; then
     val=$(printf '%s\n' "$raw" | grep '+QNWPREFCFG:.*"roam_pref"' | head -1 | sed 's/.*"roam_pref",//' | tr -d ' \r')
     [ -n "$val" ] && roam_pref="$val"
 
+    # --- SIM Detect ---
+    sim_detect="0"
+    sim_detect_level="1"
+    val=$(printf '%s\n' "$raw" | grep '+QSIMDET:' | head -1 | sed 's/+QSIMDET: //' | tr -d ' \r')
+    if [ -n "$val" ]; then
+        sim_detect=$(printf '%s' "$val" | cut -d',' -f1)
+        lvl=$(printf '%s' "$val" | cut -d',' -f2)
+        [ -n "$lvl" ] && sim_detect_level="$lvl"
+    fi
+
     # --- LTE AMBR ---
     lte_ambr_json="[]"
     lte_ambr_lines=$(printf '%s\n' "$raw" | grep '+QNWCFG: "lte_ambr"')
     if [ -n "$lte_ambr_lines" ]; then
-        lte_tmpfile="/tmp/qmanager_lte_ambr.tmp"
+        lte_tmpfile="/tmp/qmanager_lte_ambr.tmp.$$"
         : > "$lte_tmpfile"
         printf '%s\n' "$lte_ambr_lines" | while IFS= read -r line; do
             csv=$(printf '%s' "$line" | sed 's/+QNWCFG: "lte_ambr",//g' | tr -d ' \r')
@@ -111,7 +123,7 @@ if [ "$REQUEST_METHOD" = "GET" ]; then
     nr5g_ambr_json="[]"
     nr5g_ambr_lines=$(printf '%s\n' "$raw" | grep '+QNWCFG: "nr5g_ambr"')
     if [ -n "$nr5g_ambr_lines" ]; then
-        nr5g_tmpfile="/tmp/qmanager_nr5g_ambr.tmp"
+        nr5g_tmpfile="/tmp/qmanager_nr5g_ambr.tmp.$$"
         : > "$nr5g_tmpfile"
         printf '%s\n' "$nr5g_ambr_lines" | while IFS= read -r line; do
             csv=$(printf '%s' "$line" | sed 's/+QNWCFG: "nr5g_ambr",//g' | tr -d ' \r')
@@ -121,13 +133,27 @@ if [ "$REQUEST_METHOD" = "GET" ]; then
             unit_ul=$(printf '%s' "$csv" | cut -d',' -f4)
             session_ul=$(printf '%s' "$csv" | cut -d',' -f5)
 
-            mult_dl=$(nr5g_unit_to_kbps "$unit_dl")
-            mult_ul=$(nr5g_unit_to_kbps "$unit_ul")
-            dl_kbps=$((mult_dl * session_dl))
-            ul_kbps=$((mult_ul * session_ul))
+            # Guard BEFORE arithmetic (mirrors the LTE branch above) — a
+            # short/truncated +QNWCFG: "nr5g_ambr" line leaves session_dl or
+            # session_ul empty, and `$((mult_dl * ))` is a shell syntax error
+            # that prints straight to stdout inside this CGI's JSON body.
+            if [ -n "$dnn" ] && [ -n "$session_dl" ] && [ -n "$session_ul" ]; then
+                mult_dl=$(nr5g_unit_to_kbps "$unit_dl")
+                mult_ul=$(nr5g_unit_to_kbps "$unit_ul")
 
-            [ -n "$dnn" ] && \
+                # awk, NOT $(( )). This script is #!/bin/sh = BusyBox ash, whose
+                # arithmetic is 32-bit and wraps SILENTLY with no error:
+                #   $ sh -c 'echo $((256000000 * 255))'  ->  855490560
+                # (true value 65,280,000,000). The nr5g_unit_to_kbps table tops
+                # out at 256000000 and `session_dl` is an unvalidated raw value
+                # from the modem, so a large unit paired with a modest session
+                # count silently corrupts the rate shown to the user rather than
+                # failing loudly. awk uses doubles — exact for integers well
+                # past the theoretical max product here.
+                dl_kbps=$(awk -v m="$mult_dl" -v s="$session_dl" 'BEGIN{printf "%.0f", m*s}')
+                ul_kbps=$(awk -v m="$mult_ul" -v s="$session_ul" 'BEGIN{printf "%.0f", m*s}')
                 printf '%s\t%s\t%s\n' "$dnn" "$dl_kbps" "$ul_kbps" >> "$nr5g_tmpfile"
+            fi
         done
         if [ -s "$nr5g_tmpfile" ]; then
             nr5g_ambr_json=$(jq -Rsc '
@@ -140,13 +166,15 @@ if [ "$REQUEST_METHOD" = "GET" ]; then
     fi
 
     # --- Build response ---
-    qlog_info "Settings: slot=$sim_slot cfun=$cfun mode=$mode_pref nr5g=$nr5g_mode roam=$roam_pref"
+    qlog_info "Settings: slot=$sim_slot cfun=$cfun mode=$mode_pref nr5g=$nr5g_mode roam=$roam_pref sim_detect=$sim_detect"
     jq -n \
         --arg sim_slot "$sim_slot" \
         --arg cfun "$cfun" \
         --arg mode_pref "$mode_pref" \
         --arg nr5g_mode "$nr5g_mode" \
         --arg roam_pref "$roam_pref" \
+        --arg sim_detect "$sim_detect" \
+        --arg sim_detect_level "$sim_detect_level" \
         --argjson lte_ambr "$lte_ambr_json" \
         --argjson nr5g_ambr "$nr5g_ambr_json" \
         '{
@@ -156,7 +184,9 @@ if [ "$REQUEST_METHOD" = "GET" ]; then
                 cfun: ($cfun | tonumber),
                 mode_pref: $mode_pref,
                 nr5g_mode: ($nr5g_mode | tonumber),
-                roam_pref: ($roam_pref | tonumber)
+                roam_pref: ($roam_pref | tonumber),
+                sim_detect: ($sim_detect | tonumber),
+                sim_detect_level: ($sim_detect_level | tonumber)
             },
             ambr: {
                 lte: $lte_ambr,
@@ -179,8 +209,9 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
     MODE_PREF=$(printf '%s' "$POST_DATA" | jq -r 'if has("mode_pref") then .mode_pref else "unset" end')
     NR5G_MODE=$(printf '%s' "$POST_DATA" | jq -r 'if has("nr5g_mode") then (.nr5g_mode | tostring) else "unset" end')
     ROAM_PREF=$(printf '%s' "$POST_DATA" | jq -r 'if has("roam_pref") then (.roam_pref | tostring) else "unset" end')
+    SIM_DETECT=$(printf '%s' "$POST_DATA" | jq -r 'if has("sim_detect") then (.sim_detect | tostring) else "unset" end')
 
-    qlog_info "Apply settings: slot=$SIM_SLOT cfun=$CFUN mode=$MODE_PREF nr5g=$NR5G_MODE roam=$ROAM_PREF"
+    qlog_info "Apply settings: slot=$SIM_SLOT cfun=$CFUN mode=$MODE_PREF nr5g=$NR5G_MODE roam=$ROAM_PREF sim_detect=$SIM_DETECT"
 
     # --- Validate ---
     if [ "$SIM_SLOT" != "unset" ]; then
@@ -233,7 +264,17 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
         esac
     fi
 
-    # --- Apply in safe order: nr5g_mode, mode_pref, sim_slot (w/ CFUN procedure), cfun ---
+    if [ "$SIM_DETECT" != "unset" ]; then
+        case "$SIM_DETECT" in
+            0|1) ;;
+            *)
+                cgi_error "invalid_sim_detect" "SIM detect must be 0 or 1"
+                exit 0
+                ;;
+        esac
+    fi
+
+    # --- Apply in safe order: nr5g_mode, roam_pref, sim_detect, mode_pref, sim_slot (w/ CFUN procedure), cfun ---
     errors=""
     applied=""
     sim_cfun_restored=""
@@ -271,7 +312,34 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
         sleep "$CMD_GAP"
     fi
 
-    # 3. Network mode
+    # 3. SIM detect (least disruptive, NVM write). insert_level is not
+    #    user-exposed in this change — read the modem's current level back
+    #    first and preserve it; only fall back to 1 when the read is empty
+    #    (e.g. compound GET never ran / unsupported), so this write never
+    #    silently resets a level someone set outside the UI.
+    if [ "$SIM_DETECT" != "unset" ]; then
+        sd_level="1"
+        sd_read=$(qcmd 'AT+QSIMDET?' 2>/dev/null)
+        sd_val=$(printf '%s\n' "$sd_read" | grep '+QSIMDET:' | head -1 | sed 's/+QSIMDET: //' | tr -d ' \r')
+        if [ -n "$sd_val" ]; then
+            sd_existing_level=$(printf '%s' "$sd_val" | cut -d',' -f2)
+            [ -n "$sd_existing_level" ] && sd_level="$sd_existing_level"
+        fi
+        result=$(qcmd "AT+QSIMDET=$SIM_DETECT,$sd_level" 2>/dev/null)
+        case "$result" in
+            *ERROR*)
+                qlog_error "Failed to set sim_detect=$SIM_DETECT,$sd_level: $result"
+                errors="${errors}sim_detect,"
+                ;;
+            *)
+                qlog_info "Set sim_detect=$SIM_DETECT,$sd_level"
+                applied="${applied}sim_detect,"
+                ;;
+        esac
+        sleep "$CMD_GAP"
+    fi
+
+    # 4. Network mode
     if [ "$MODE_PREF" != "unset" ]; then
         result=$(qcmd "AT+QNWPREFCFG=\"mode_pref\",$MODE_PREF" 2>/dev/null)
         case "$result" in
@@ -287,7 +355,7 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
         sleep "$CMD_GAP"
     fi
 
-    # 4. SIM slot change (CFUN=0 -> sleep 2 -> QUIMSLOT -> sleep 2 -> CFUN=1,
+    # 5. SIM slot change (CFUN=0 -> sleep 2 -> QUIMSLOT -> sleep 2 -> CFUN=1,
     #    then a read-back verification). AT+QUIMSLOT=N can return OK while the
     #    modem silently STAYS on the old slot under qcmd lock contention;
     #    trusting that OK would auto-apply the wrong SIM's profile. So the
@@ -381,7 +449,7 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
         fi
     fi
 
-    # 5. CFUN change (skip if SIM procedure already restored to user's desired value)
+    # 6. CFUN change (skip if SIM procedure already restored to user's desired value)
     if [ "$CFUN" != "unset" ]; then
         if [ -n "$sim_cfun_restored" ] && [ "$CFUN" = "1" ]; then
             # SIM slot procedure already set CFUN=1

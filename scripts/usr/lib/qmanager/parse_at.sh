@@ -340,6 +340,42 @@ parse_sim_status() {
 }
 
 # -----------------------------------------------------------------------------
+# Parse AT+QSIMSTAT?
+# Response shape: +QSIMSTAT: <enable>,<inserted_status>
+# Populates: t2_sim_inserted (1 = inserted, 0 = not inserted, "" = unknown)
+# -----------------------------------------------------------------------------
+parse_sim_inserted() {
+    local raw="$1"
+    local line
+    local val
+
+    line=$(printf '%s\n' "$raw" | grep '+QSIMSTAT:' | head -1)
+    if [ -z "$line" ]; then
+        t2_sim_inserted=""
+        return
+    fi
+
+    val=$(printf '%s' "$line" | sed 's/+QSIMSTAT: //g' | tr -d ' \r' | cut -d',' -f2)
+
+    # `cut -d',' -f2` on a string with NO comma returns the WHOLE string, not
+    # an empty one. So a truncated or garbled `+QSIMSTAT:` line (the same class
+    # of short compound-AT line the NR5G AMBR guard above exists for) hands back
+    # arbitrary text like `OK`.
+    #
+    # That value is passed to `jq --argjson` in the poller's write_cache(), and
+    # --argjson on non-JSON text is a hard parse error that aborts the ENTIRE
+    # single jq invocation building /tmp/qmanager_status.json — so one malformed
+    # line would not merely drop `.sim`, it would stop the poller publishing any
+    # snapshot at all for that cycle. Constrain the value to the only three
+    # things the caller can safely serialize: "0", "1", or "" (which the
+    # caller's `${t2_sim_inserted:-null}` turns into a literal JSON null).
+    case "$val" in
+        0 | 1) t2_sim_inserted="$val" ;;
+        *) t2_sim_inserted="" ;;
+    esac
+}
+
+# -----------------------------------------------------------------------------
 # Parse AT+QUIMSLOT?
 # Populates: t2_sim_slot
 # -----------------------------------------------------------------------------

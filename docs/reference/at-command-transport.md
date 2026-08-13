@@ -52,6 +52,41 @@ SMS send/receive/delete operations use `sms_tool`, a bundled ARM binary (not `at
 
 ---
 
+## QManager cannot consume AT URCs
+
+**Short version: QManager has no process listening on the AT channel, so it can never receive an unsolicited modem message. Every modem event must be discovered by polling for it.** This is a hard architectural boundary, not a gap waiting to be filled.
+
+A **URC** (Unsolicited Result Code) is the modem spontaneously pushing a line onto the AT channel without being asked — a doorbell rather than a conversation. `AT+QSIMSTAT=1`, `AT+CREG=2`, `AT+QINDCFG` and friends all work this way: you enable them once, and the modem emits a line whenever the underlying state changes.
+
+Catching one requires a process **sitting on the AT channel with the device held open**. QManager has none, by design:
+
+- `qcmd` opens `/dev/smd11`, sends one command, reads to its terminator, and closes. Between commands, nothing holds the device.
+- A live scan of every `/proc/*/fd/*` on the device — with the poller, the ping daemon, and lighttpd all running — found **zero** processes holding `smd11` open.
+- `AT+QURCCFG="urcport"` offers only `usbat`, `usbmodem`, `uart1`, and `all`. **`smd11` is not a selectable URC destination**, so even a hypothetical listener could not be pointed at the channel QManager uses.
+
+### Enabling URCs would be worse than useless
+
+Turning on a URC source (e.g. `AT+QSIMSTAT=1`) does not merely fail to deliver events — it **injects unsolicited lines into unrelated AT responses**. A URC lands wherever the modem happens to be in a read: mid-response, or as the first line of the *next* command's reply.
+
+Most QManager parsers survive that, because they `grep` for their own token and ignore everything else. Two do not:
+
+- **`qcmd:175-180`** classifies the *whole* response buffer with `case "$result" in *ERROR*)`. Any unsolicited line containing `ERROR` anywhere in the buffer turns a successful command into a reported failure.
+- **`qmanager_poller:1028`** (`read_sim_identity`) picks the IMSI out of a bare-number response with `grep -x '[0-9]\{15\}'` — there is no `+CIMI:` prefix to key on. Any unsolicited bare 15-digit line would be adopted as the device's IMSI.
+
+### The polled alternative
+
+Every URC-shaped source on this modem has a query form. Use it.
+
+| Instead of | Poll |
+| ---------- | ---- |
+| `AT+QSIMSTAT=1` (SIM insert/remove URC) | `AT+QSIMSTAT?` → `+QSIMSTAT: <enable>,<inserted_status>` |
+
+`AT+QSIMSTAT?` returns the same `<inserted_status>` payload synchronously, and that is how the poller reads it (Tier 2 compound; see [cellular-basic-settings.md](cellular-basic-settings.md)).
+
+> ⚠️ WARNING: If someone proposes an event-driven modem feature — "the modem can just tell us when X happens" — this section is the answer. It requires a resident AT listener, which requires a URC port QManager cannot use, and enabling it without one corrupts unrelated command responses.
+
+---
+
 ## PID and cross-user process checks
 
 - `pid_alive()` in `platform.sh` replaces `kill -0` for cross-user PID checks. This is necessary because `www-data` (the CGI user) cannot send signals to root-owned PIDs.

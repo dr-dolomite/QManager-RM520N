@@ -40,6 +40,20 @@ export interface ModemStatus {
   sim_swap: SimSwapStatus;
   /** Persistent data-usage counter (optional — absent on older firmware or before first poller write) */
   data_used?: DataUsedBlock;
+  /**
+   * SIM readiness snapshot (optional — a device OTA-upgraded from an older
+   * poller will not emit this block, so every consumer must tolerate `undefined`
+   * rather than assuming a card is present).
+   */
+  sim?: SimBlock;
+}
+
+/** SIM readiness block published by the poller from AT+CPIN?. */
+export interface SimBlock {
+  /** Classified readiness state */
+  status: SimStatus;
+  /** Whether a card is physically present (false when `status` is "not_inserted") */
+  inserted: boolean;
 }
 
 // --- Enums & Unions ----------------------------------------------------------
@@ -76,7 +90,49 @@ export type ConnectionState =
   | "unknown"
   | "error";
 
+/**
+ * Access technology the poller could positively identify.
+ *
+ * `""` means "not determined" — it is NOT a synonym for LTE. The poller used to
+ * fall back to `"LTE"` for any technology it could not parse (GSM, WCDMA, no
+ * service), which made an unparsed reading indistinguishable from a real 4G
+ * attach. That fallback is now `""`; treat it as unknown and render it as such.
+ */
 export type NetworkType = "LTE" | "5G-NSA" | "5G-SA" | "";
+
+/** Display label for a {@link NetworkType}. */
+export type NetworkTypeLabel = "LTE" | "5G NSA" | "5G SA" | "Unknown";
+
+/**
+ * Map an access technology to its display label.
+ *
+ * Never invents a technology: an empty/unrecognised value returns `"Unknown"`
+ * rather than guessing LTE.
+ */
+export function networkTypeLabel(type: NetworkType): NetworkTypeLabel {
+  switch (type) {
+    case "LTE":
+      return "LTE";
+    case "5G-NSA":
+      return "5G NSA";
+    case "5G-SA":
+      return "5G SA";
+    default:
+      return "Unknown";
+  }
+}
+
+/**
+ * SIM readiness from AT+CPIN? as classified by `parse_at.sh`.
+ * These are the exact strings the poller emits — do not add synonyms.
+ */
+export type SimStatus =
+  | "ready"
+  | "pin_required"
+  | "puk_required"
+  | "not_inserted"
+  | "error"
+  | "unknown";
 
 // --- Sub-Interfaces ----------------------------------------------------------
 

@@ -641,6 +641,117 @@
         },
         "save_button": "Save Profile"
       }
+    },
+    "basic": {
+      "page": {
+        "title": "Cellular Basic Settings",
+        "description": "SIM slot, radio state, and network mode preferences.",
+        "error_title": "Couldn't read the modem",
+        "error_body": "The values shown may be out of date.",
+        "retry": "Try again"
+      },
+      "radio": {
+        "title": "Modem Radio Settings",
+        "description": "Changes are written to the modem when you save. None of these reboot it."
+      },
+      "rows": {
+        "sim_slot": {
+          "label": "SIM Slot",
+          "consequence": "Switching slots drops the connection for about 15 seconds.",
+          "options": {
+            "slot_1": "SIM 1",
+            "slot_2": "SIM 2"
+          }
+        },
+        "cfun": {
+          "label": "Radio Power",
+          "consequence": "Radio off also powers down the SIM. Airplane keeps the SIM powered with the radio off. The console stays reachable over Ethernet either way.",
+          "options": {
+            "normal": "Normal",
+            "radio_off": "Radio off",
+            "airplane": "Airplane"
+          }
+        },
+        "mode_pref": {
+          "label": "Preferred Network Type",
+          "consequence": "Automatic lets the modem choose. Pin a technology only while troubleshooting.",
+          "options": {
+            "auto": "Automatic",
+            "lte_nr": "LTE + 5G",
+            "nr_only": "5G only",
+            "lte_only": "LTE only"
+          }
+        },
+        "nr5g_mode": {
+          "label": "5G Architecture",
+          "consequence": "Standalone runs 5G on its own; non-standalone anchors it to LTE. Leave this on Auto unless your carrier requires one.",
+          "options": {
+            "auto": "Auto",
+            "nsa": "NSA only",
+            "sa": "SA only"
+          }
+        },
+        "roam_pref": {
+          "label": "Roaming Preference",
+          "consequence": "Any network allows partner networks, which may be billed separately.",
+          "options": {
+            "any": "Any network",
+            "home": "Home only",
+            "partner": "Partner networks"
+          }
+        },
+        "sim_detect": {
+          "label": "SIM Hot-Swap Detection",
+          "consequence": "Lets the modem notice a SIM being inserted or removed while it is running. Without it, a swapped SIM goes unnoticed until the next reboot.",
+          "on": "On",
+          "off": "Off"
+        }
+      },
+      "save_bar": {
+        "count_one": "{{count}} change pending",
+        "count_other": "{{count}} changes pending",
+        "note": "Applying interrupts the connection briefly. The modem does not reboot.",
+        "discard": "Discard",
+        "save": "Save Settings",
+        "failed": "Couldn't apply {{fields}}. Your other changes were saved."
+      },
+      "apply": {
+        "writing": "Writing to the modem",
+        "recovering": "Waiting for the radio to settle",
+        "verifying": "Confirming what the modem applied"
+      },
+      "footer": {
+        "reread": "Re-read from modem",
+        "in_sync": "Saved settings match the modem."
+      },
+      "readout": {
+        "title": "What the modem reports now",
+        "registered_on": "Registered on",
+        "active_slot": "Active slot",
+        "serving_tech": "Serving technology",
+        "slot_n": "SIM {{slot}}",
+        "unknown": "Unknown"
+      },
+      "sim_status": {
+        "ready": "Ready",
+        "pin_required": "PIN required",
+        "puk_required": "PUK required",
+        "not_inserted": "No SIM",
+        "error": "Error",
+        "unknown": "Unknown"
+      },
+      "ambr": {
+        "title": "Data Rate Limits",
+        "description": "The maximum speeds your carrier allows for each data connection. These are set by network policy, not by the modem.",
+        "lte_title": "LTE Rates",
+        "nr_title": "5G Rates",
+        "lte_empty_title": "No LTE rates reported",
+        "lte_empty_body": "The modem publishes LTE limits only while an LTE bearer is up.",
+        "nr_empty_title": "No 5G rates reported",
+        "nr_empty_body": "The modem publishes 5G limits only while an NR bearer is up.",
+        "download": "Download",
+        "upload": "Upload"
+      }
     }
   },
   "custom_profiles": {
