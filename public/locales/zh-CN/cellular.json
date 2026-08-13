@@ -1679,8 +1679,6 @@
       "modem_unreachable": "无法连接调制解调器 — 显示的是最后收到的数值。"
     },
     "header": {
-      "live": "实时",
-      "stale": "数据已过期",
       "cadence": "每隔几秒更新一次",
       "refresh": "立即刷新",
       "copy": "复制诊断信息",

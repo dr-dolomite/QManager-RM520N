@@ -1679,8 +1679,6 @@
       "modem_unreachable": "Can't reach the modem — showing the last values received."
     },
     "header": {
-      "live": "Live",
-      "stale": "Data is stale",
       "cadence": "Updates every few seconds",
       "refresh": "Refresh now",
       "copy": "Copy diagnostics",

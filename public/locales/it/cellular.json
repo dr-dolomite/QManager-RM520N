@@ -1679,8 +1679,6 @@
       "modem_unreachable": "Impossibile raggiungere il modem — vengono mostrati gli ultimi valori ricevuti."
     },
     "header": {
-      "live": "In tempo reale",
-      "stale": "I dati non sono aggiornati",
       "cadence": "Si aggiorna ogni pochi secondi",
       "refresh": "Aggiorna ora",
       "copy": "Copia diagnostica",

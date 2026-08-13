@@ -14,7 +14,7 @@ This doc records the invariants that are cheap to break and expensive to notice:
 | Page shell | `components/cellular/cellular-information.tsx` |
 | View model (pure, no React) | `lib/radio-info.ts` |
 | IPv6 / hex helpers (pure) | `lib/ipv6.ts` |
-| Page header + freshness chip + Copy diagnostics | `components/cellular/radio/page-header.tsx` |
+| Page header + Copy diagnostics | `components/cellular/radio/page-header.tsx` |
 | Four summary tiles | `components/cellular/radio/summary-tiles.tsx` |
 | Non-registered state screens + tile skeleton | `components/cellular/radio/states.tsx` |
 | Spectrum in use (live cadence, per-carrier rows) | `components/cellular/radio/active-bands-card.tsx` |
@@ -254,16 +254,11 @@ The shell takes all five values from `useModemStatus()`. An earlier version dest
 
 | Surface | Bound to | Behaviour |
 | ------- | -------- | --------- |
-| Freshness chip (`page-header.tsx`, beside the `<h1>`) | `isStale` | Live: `Badge variant="success"` with a pulsing `LiveDot` and no glyph. Stale: `Badge variant="warning"` with a **static** `schedule` glyph. Rendered only when `!isLoading` |
 | Page banner (`cellular-information.tsx`) | `error && !isLoading` | `Banner role="stale"`, outside the entrance cascade because a condition should never wait its turn |
 | Carrier list | `isStale \|\| receivedAtMs === null` | Freezes rather than reconciling (see The stale freeze) |
 | `refresh` | — | Backs the retry action on every condition screen. There is **no** Refresh pill in the header — it was cut as a duplicate of the sidebar's passive refresh |
 
-**The pulse is conditional on being live, and that is the whole reason it exists at all.** An unconditional pulsing dot was cut from an earlier draft on the grounds that *a pulse over frozen numbers is a worse lie than no indicator*. That reasoning still binds: `animate-live-ping` runs only on the live branch, it is this page's only ambient loop (the One-Loop Rule), and `globals.css` already disables it under `prefers-reduced-motion`.
-
-`LiveDot` is built from two stacked spans rather than one animated dot, because the dot itself must stay put — scaling the mark would make the chip's own metrics breathe.
-
-The two states never share a mark: live is a pulsing disc with no glyph, stale is a static glyph. `success-container` and `warning-container` are one surface under deuteranopia, so the mark is the only channel that survives.
+The header's Live/Stale freshness chip (a `Badge` with a pulsing `LiveDot` on live, a static `schedule` glyph on stale) was removed per direct request — `isStale` still drives the carrier-list freeze and is not itself gone, only its visible chip. `animate-live-ping` remains in `globals.css` and stays in use elsewhere (dashboard, tower-locking, band-locking, frequency-locking); it was not touched by this removal.
 
 The comp's **"Updates every 30s"** cadence chip stays cut. The client polls at 2 s and the modem's CA data refreshes every ~3.7-4.0 s measured across 103 consecutive polls, so the claim was false by roughly 8×. A cadence a user can set a watch by is worse than no cadence at all.
 
@@ -324,8 +319,6 @@ All copy lives under `radio_info.*` in the `cellular` namespace: **126 keys per 
 | `radio_info.tiles.network.*` (via `NETWORK_TILE`) | `summary-tiles.tsx`, resolved by mode |
 
 The network-type **value** is read from the shared `radio_info.network_type.*` keys, which is why deleting the Connection-details "Network type" row did not delete them: an earlier draft with a second key set had the tile saying "5G standalone" while the row said "5G NR SA". Tile **captions** stay tile-local, because they are elaboration rather than a restatement of the same fact.
-
-`radio_info.header.live` and `.stale` existed in all five locales already and are consumed for the first time by the freshness chip.
 
 ### Dead-but-retained keys
 

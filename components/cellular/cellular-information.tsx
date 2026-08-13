@@ -151,14 +151,7 @@ const CellularInformationComponent = () => {
       animate="visible"
     >
       <motion.div variants={staggerItem}>
-        <RadioPageHeader
-          buildDiagnostics={buildDiagnostics}
-          // `isStale` was destructured here and used only to freeze the carrier
-          // list — the user was never told. A frozen page looked identical to a
-          // live one, on the surface whose whole job is telling those apart.
-          isStale={isStale}
-          isLoading={isLoading}
-        />
+        <RadioPageHeader buildDiagnostics={buildDiagnostics} />
       </motion.div>
 
       {/* Outside the cascade on purpose: the banner carries its own

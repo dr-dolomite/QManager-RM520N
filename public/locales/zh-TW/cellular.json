@@ -1679,8 +1679,6 @@
       "modem_unreachable": "無法連線數據機 — 顯示的是最後收到的數值。"
     },
     "header": {
-      "live": "即時",
-      "stale": "資料已過期",
       "cadence": "每隔幾秒更新一次",
       "refresh": "立即重新整理",
       "copy": "複製診斷資訊",
