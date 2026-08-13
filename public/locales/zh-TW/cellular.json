@@ -196,7 +196,6 @@
       "on_air_summary_other": "{{count}} 個載波 · {{mhz}} MHz",
       "on_air_empty_title": "目前無在網載波",
       "on_air_empty_body": "數據機目前未駐留在任何小區。鎖定仍會在其附著後生效。",
-      "on_air_note": "此資訊來自無線電模組，而非您的鎖定清單。鎖定的頻段只有在數據機駐留後才會顯示於此。",
       "absent_nr_title": "無 5G 載波",
       "absent_nr_body": "數據機僅使用 LTE。目前範圍內沒有 NR 小區。",
       "absent_lte_title": "無 LTE 錨點",
@@ -280,7 +279,6 @@
     "run": {
       "title": "全頻段掃描",
       "description": "在模組支援的每個頻段上各掃描一遍。",
-      "cost": "全頻段掃描會逐一調諧所有支援的頻段，需時 2–3 分鐘，期間暫停模組的其他所有作業——訊號讀取、簡訊與設定寫入都要等它結束。",
       "start": "掃描全部頻段",
       "rerun": "重新掃描",
       "scanning_action": "掃描中…",
@@ -404,7 +402,6 @@
       "run": {
         "title": "鄰區讀取",
         "description": "向服務細胞提出一個問題，以它已測量的資料作答。",
-        "cost": "這會向服務細胞索取它已經追蹤的鄰區清單。大約需要兩秒，不掃描任何頻段，其他數據機作業全部照常執行。",
         "start": "讀取鄰區",
         "rerun": "重新讀取",
         "scanning_action": "讀取中…",
@@ -492,8 +489,7 @@
         "label_lte": "E-ARFCN",
         "label_nr": "NR-ARFCN",
         "placeholder": "輸入通道號碼",
-        "submit": "計算",
-        "hint_auto": "自動會依數值範圍判斷是 LTE 還是 NR。選擇某個分頁即可強制指定。"
+        "submit": "計算"
       },
       "error": {
         "empty": "請先輸入通道號碼——此欄位是空的。",
@@ -701,14 +697,18 @@
     "basic": {
       "page": {
         "title": "蜂窩基本設定",
-        "description": "SIM 卡插槽、射頻狀態與網路模式偏好。",
+        "description": "變更數據機使用 SIM 卡、射頻以及連線網路的方式。",
         "error_title": "無法讀取數據機",
         "error_body": "顯示的值可能已過時。",
         "retry": "重試"
       },
-      "radio": {
-        "title": "數據機射頻設定",
-        "description": "儲存時變更會寫入數據機。以下設定都不會讓它重新啟動。"
+      "sim_card": {
+        "title": "SIM 卡與射頻電源",
+        "description": "數據機使用哪張 SIM 卡，以及射頻是否供電。"
+      },
+      "network_card": {
+        "title": "網路模式與漫遊",
+        "description": "數據機如何選擇要連線的網路。"
       },
       "rows": {
         "sim_slot": {
@@ -721,7 +721,7 @@
         },
         "cfun": {
           "label": "射頻電源",
-          "consequence": "關閉射頻同時會切斷 SIM 卡供電。飛航模式在關閉射頻的同時仍為 SIM 卡供電。兩種情況下主控台都仍可透過 Ethernet 存取。",
+          "consequence": "關閉射頻同時會切斷 SIM 卡供電，飛航模式則仍為 SIM 卡供電，兩種情況下主控台都仍可透過 Ethernet 存取。",
           "options": {
             "normal": "正常",
             "radio_off": "關閉射頻",
@@ -730,7 +730,7 @@
         },
         "mode_pref": {
           "label": "偏好網路類型",
-          "consequence": "自動模式由數據機自行選擇。僅在排查問題時才固定某一種技術。",
+          "consequence": "僅在排查問題時才固定某一種技術。",
           "options": {
             "auto": "自動",
             "lte_nr": "LTE + 5G",
@@ -740,7 +740,7 @@
         },
         "nr5g_mode": {
           "label": "5G 架構",
-          "consequence": "獨立組網讓 5G 獨立運作；非獨立組網將其錨定至 LTE。除非電信商有要求，否則請保持自動。",
+          "consequence": "除非電信商要求獨立組網（5G 獨立運作）或非獨立組網（5G 錨定至 LTE），否則請保持自動。",
           "options": {
             "auto": "自動",
             "nsa": "僅 NSA",
@@ -749,7 +749,7 @@
         },
         "roam_pref": {
           "label": "漫遊偏好",
-          "consequence": "任意網路會允許接入合作網路，這些網路可能單獨計費。",
+          "consequence": "合作網路可能單獨計費。",
           "options": {
             "any": "任意網路",
             "home": "僅歸屬網路",
@@ -758,7 +758,7 @@
         },
         "sim_detect": {
           "label": "SIM 卡熱插拔偵測",
-          "consequence": "讓數據機在運作過程中察覺 SIM 卡的插入或拔出。未啟用時，更換過的 SIM 卡要到下次重新啟動才會被發現。",
+          "consequence": "未啟用時，更換過的 SIM 卡要到下次重新啟動才會被發現。",
           "on": "開啟",
           "off": "關閉"
         }
@@ -780,20 +780,31 @@
         "reread": "從數據機重新讀取",
         "in_sync": "已儲存的設定與數據機一致。"
       },
+      "hero": {
+        "title": "目前連線",
+        "description": "數據機目前連上的網路，以及該網路為它設定的速率上限。",
+        "params_heading": "目前參數",
+        "rates_note": "速率上限是網路授予的上限值，不是實測速度。它們在頁面開啟時讀取，每次儲存後再讀取一次。",
+        "sr_rate_block": "{{radio}}：{{state}}",
+        "live": "即時",
+        "stale": "已過時",
+        "carrier_none": "未回報電信業者",
+        "unavailable_title": "無法讀取數據機",
+        "unavailable_retrying": "上次讀取失敗。QManager 仍在重試。",
+        "unavailable_static": "上次讀取失敗。請使用下方的「從數據機重新讀取」再試一次。"
+      },
       "readout": {
-        "title": "數據機目前回報的狀態",
-        "registered_on": "註冊於",
         "active_slot": "使用中插槽",
-        "serving_tech": "服務技術",
         "slot_n": "SIM {{slot}}",
         "unknown": "未知",
-        "radio_power": "射頻狀態",
-        "active_apn": "目前 APN",
+        "radio_power_label": "射頻狀態",
+        "apn_label": "目前 APN",
         "no_apn": "未回報",
         "carrier_aggregation": "載波聚合",
-        "ca_inactive": "未啟用",
-        "ca_count_one": "{{count}} 個額外載波",
-        "ca_count_other": "{{count}} 個額外載波"
+        "ca_none": "未啟用",
+        "ca_breakdown": "LTE {{lte}} + NR {{nr}}",
+        "ca_lte_only": "LTE {{lte}}",
+        "ca_nr_only": "NR {{nr}}"
       },
       "sim_status": {
         "ready": "就緒",
@@ -804,16 +815,18 @@
         "unknown": "未知"
       },
       "ambr": {
-        "title": "資料速率限制",
-        "description": "電信商為每條資料連線允許的最高速率。由網路政策設定，而非數據機。",
-        "lte_title": "LTE 速率",
-        "nr_title": "5G 速率",
+        "lte_heading": "LTE 速率上限",
+        "nr_heading": "5G 速率上限",
+        "governing": "生效中",
+        "not_governing": "未生效",
+        "nsa_note": "5G 非獨立組網走 LTE 資料工作階段，因此以這條上限為準。",
         "lte_empty_title": "未回報 LTE 速率",
-        "lte_empty_body": "數據機僅在 LTE 承載建立期間才發布 LTE 限速。",
+        "lte_empty_reason": "數據機僅在 LTE 資料工作階段建立期間才發布 LTE 上限。",
         "nr_empty_title": "未回報 5G 速率",
-        "nr_empty_body": "數據機僅在 NR 承載建立期間才發布 5G 限速。",
+        "nr_empty_reason": "數據機僅在 5G 資料工作階段建立期間才發布 5G 上限。",
         "download": "下載",
-        "upload": "上傳"
+        "upload": "上傳",
+        "governing_unread": "您的連線正在使用此射頻。開啟本頁時未讀到它的上限。"
       }
     },
     "fplmn": {
@@ -1510,7 +1523,6 @@
       "camped_meta": "{{count}} 個載波 · {{bandwidth}} MHz",
       "camped_empty_title": "未回報載波",
       "camped_empty_body": "數據機未回報服務中的小區。仍可手動輸入頻點。",
-      "camped_note": "此資訊來自無線電模組，每隔幾秒更新一次。",
       "add_hint": "「新增」會將該頻點加入下方清單。頻點鎖定不涉及 PCI，因此小區仍由數據機選擇。",
       "compare_hint": "基站鎖定會同時固定頻點與小區。頻點鎖定較為寬鬆：相同頻點，任意小區。",
       "add_blocked": "在解除基站鎖定之前無法新增。"
@@ -2266,11 +2278,8 @@
     "live": {
       "title": "此刻狀態",
       "camped_on": "目前駐留",
-      "camped_summary_one": "{{count}} 個載波，共 {{mhz}} MHz",
-      "camped_summary_other": "{{count}} 個載波，共 {{mhz}} MHz",
       "camped_empty_title": "目前無在網載波",
       "camped_empty_body": "數據機目前未駐留在任何小區。鎖定仍會在其附著後生效。",
-      "camped_note": "此資訊來自無線電模組。選取一個小區，即可將其詳細參數填入下方的鎖定表單。",
       "note_hint": "「新增」會將該小區填入下方的鎖定表單。基站鎖定會同時固定頻點與 PCI，因此數據機只會駐留在該小區。",
       "absent_nr_title": "無 5G 載波",
       "absent_lte_title": "無 LTE 錨點",
@@ -2291,8 +2300,6 @@
       "tile_blocked_slots_full": "三個 LTE 小區均已設定",
       "tile_band_channel": "{{band}} – {{channel}}",
       "rail_target_pair": "{{channel}}，PCI {{pci}}",
-      "synced_at": "鎖定狀態更新於 {{time}}",
-      "synced_never": "尚未讀取鎖定狀態",
       "refresh": "從數據機重新讀取鎖定狀態",
       "persist_label": "重新啟動後保持鎖定",
       "persist_help": "將鎖定儲存在數據機本身，重新啟動後會自動還原。",

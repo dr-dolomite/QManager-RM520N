@@ -196,7 +196,6 @@
       "on_air_summary_other": "{{count}} carrier · {{mhz}} MHz",
       "on_air_empty_title": "Tidak ada carrier aktif",
       "on_air_empty_body": "Modem sedang tidak terhubung ke sel mana pun. Kunci di bawah tetap berlaku begitu modem terhubung.",
-      "on_air_note": "Dilaporkan oleh radio, bukan dari daftar kunci Anda. Band yang dikunci hanya muncul di sini setelah modem terhubung ke band tersebut.",
       "absent_nr_title": "Tidak ada carrier 5G",
       "absent_nr_body": "Modem hanya memakai LTE. Tidak ada sel NR dalam jangkauan saat ini.",
       "absent_lte_title": "Tidak ada anchor LTE",
@@ -280,7 +279,6 @@
     "run": {
       "title": "Pemindaian seluruh band",
       "description": "Satu putaran pada setiap band yang didukung modem.",
-      "cost": "Pemindaian penuh menyetel setiap band yang didukung satu per satu. Butuh 2–3 menit dan menghentikan sementara semua operasi modem lain — pembacaan sinyal, SMS, dan penyimpanan pengaturan menunggu sampai selesai.",
       "start": "Pindai semua band",
       "rerun": "Pindai lagi",
       "scanning_action": "Memindai…",
@@ -404,7 +402,6 @@
       "run": {
         "title": "Pembacaan sel tetangga",
         "description": "Satu pertanyaan ke sel pelayan, dijawab dari apa yang sudah diukurnya.",
-        "cost": "Ini meminta daftar sel tetangga yang sudah dilacak oleh sel pelayan. Perlu sekitar dua detik, tidak memindai pita apa pun, dan membiarkan semua operasi modem lain tetap berjalan.",
         "start": "Baca sel tetangga",
         "rerun": "Baca lagi",
         "scanning_action": "Membaca…",
@@ -492,8 +489,7 @@
         "label_lte": "E-ARFCN",
         "label_nr": "NR-ARFCN",
         "placeholder": "Masukkan nomor kanal",
-        "submit": "Hitung",
-        "hint_auto": "Otomatis memilih LTE atau NR dari rentang angkanya. Pilih salah satu tab untuk memaksakannya."
+        "submit": "Hitung"
       },
       "error": {
         "empty": "Masukkan nomor kanal dulu — kolomnya masih kosong.",
@@ -701,14 +697,18 @@
     "basic": {
       "page": {
         "title": "Pengaturan Dasar Seluler",
-        "description": "Preferensi slot SIM, status radio, dan mode jaringan.",
+        "description": "Ubah cara modem menggunakan SIM, radio, dan jaringan yang dihubunginya.",
         "error_title": "Gagal membaca modem",
         "error_body": "Nilai yang ditampilkan mungkin sudah usang.",
         "retry": "Coba lagi"
       },
-      "radio": {
-        "title": "Pengaturan Radio Modem",
-        "description": "Perubahan ditulis ke modem saat Anda menyimpan. Tidak ada satu pun yang membuatnya reboot."
+      "sim_card": {
+        "title": "SIM & Daya Radio",
+        "description": "SIM mana yang dipakai modem, dan apakah radionya diberi daya."
+      },
+      "network_card": {
+        "title": "Mode Jaringan & Roaming",
+        "description": "Cara modem memilih jaringan untuk dihubungi."
       },
       "rows": {
         "sim_slot": {
@@ -721,7 +721,7 @@
         },
         "cfun": {
           "label": "Daya Radio",
-          "consequence": "Radio nonaktif juga mematikan daya SIM. Mode pesawat tetap memberi daya pada SIM dengan radio nonaktif. Konsol tetap dapat diakses melalui Ethernet pada kedua kondisi.",
+          "consequence": "Radio nonaktif juga mematikan daya SIM, mode pesawat tetap memberi daya pada SIM, dan konsol tetap dapat diakses melalui Ethernet pada kedua kondisi.",
           "options": {
             "normal": "Normal",
             "radio_off": "Radio nonaktif",
@@ -730,7 +730,7 @@
         },
         "mode_pref": {
           "label": "Tipe Jaringan Pilihan",
-          "consequence": "Otomatis membiarkan modem memilih. Kunci satu teknologi hanya saat memecahkan masalah.",
+          "consequence": "Kunci satu teknologi hanya saat memecahkan masalah.",
           "options": {
             "auto": "Otomatis",
             "lte_nr": "LTE + 5G",
@@ -740,7 +740,7 @@
         },
         "nr5g_mode": {
           "label": "Arsitektur 5G",
-          "consequence": "Standalone menjalankan 5G secara mandiri; non-standalone menambatkannya ke LTE. Biarkan pada Otomatis kecuali operator Anda mengharuskan salah satunya.",
+          "consequence": "Biarkan pada Otomatis kecuali operator Anda mengharuskan standalone (5G berjalan mandiri) atau non-standalone (5G ditambatkan ke LTE).",
           "options": {
             "auto": "Otomatis",
             "nsa": "Hanya NSA",
@@ -749,7 +749,7 @@
         },
         "roam_pref": {
           "label": "Preferensi Roaming",
-          "consequence": "Jaringan apa pun mengizinkan jaringan mitra, yang mungkin ditagih terpisah.",
+          "consequence": "Jaringan mitra mungkin ditagih terpisah.",
           "options": {
             "any": "Jaringan apa pun",
             "home": "Hanya jaringan asal",
@@ -758,7 +758,7 @@
         },
         "sim_detect": {
           "label": "Deteksi Hot-Swap SIM",
-          "consequence": "Membuat modem mengenali SIM yang dipasang atau dilepas saat modem sedang berjalan. Tanpa ini, SIM yang diganti tidak terdeteksi sampai reboot berikutnya.",
+          "consequence": "Tanpa ini, SIM yang diganti tidak terdeteksi sampai reboot berikutnya.",
           "on": "Aktif",
           "off": "Nonaktif"
         }
@@ -780,20 +780,31 @@
         "reread": "Baca ulang dari modem",
         "in_sync": "Pengaturan tersimpan cocok dengan modem."
       },
+      "hero": {
+        "title": "Koneksi Saat Ini",
+        "description": "Jaringan yang sedang dipakai modem sekarang, dan batas kecepatan yang diberikan jaringan itu.",
+        "params_heading": "Parameter aktif",
+        "rates_note": "Batas kecepatan adalah plafon yang diberikan jaringan, bukan kecepatan terukur. Nilainya dibaca saat halaman dibuka dan sekali lagi setiap kali selesai menyimpan.",
+        "sr_rate_block": "{{radio}}: {{state}}",
+        "live": "Langsung",
+        "stale": "Usang",
+        "carrier_none": "Tidak ada operator yang dilaporkan",
+        "unavailable_title": "Gagal membaca modem",
+        "unavailable_retrying": "Pembacaan terakhir gagal. QManager masih mencoba.",
+        "unavailable_static": "Pembacaan terakhir gagal. Gunakan \"Baca ulang dari modem\" di bawah untuk mencoba lagi."
+      },
       "readout": {
-        "title": "Yang dilaporkan modem saat ini",
-        "registered_on": "Terdaftar di",
         "active_slot": "Slot aktif",
-        "serving_tech": "Teknologi yang melayani",
         "slot_n": "SIM {{slot}}",
         "unknown": "Tidak diketahui",
-        "radio_power": "Daya radio",
-        "active_apn": "APN aktif",
+        "radio_power_label": "Daya radio",
+        "apn_label": "APN aktif",
         "no_apn": "Tidak dilaporkan",
         "carrier_aggregation": "Agregasi carrier",
-        "ca_count_one": "{{count}} carrier tambahan",
-        "ca_count_other": "{{count}} carrier tambahan",
-        "ca_inactive": "Tidak aktif"
+        "ca_none": "Tidak aktif",
+        "ca_breakdown": "LTE {{lte}} + NR {{nr}}",
+        "ca_lte_only": "LTE {{lte}}",
+        "ca_nr_only": "NR {{nr}}"
       },
       "sim_status": {
         "ready": "Siap",
@@ -804,16 +815,18 @@
         "unknown": "Tidak diketahui"
       },
       "ambr": {
-        "title": "Batas Kecepatan Data",
-        "description": "Kecepatan maksimum yang diizinkan operator Anda untuk setiap koneksi data. Nilai ini ditetapkan oleh kebijakan jaringan, bukan oleh modem.",
-        "lte_title": "Kecepatan LTE",
-        "nr_title": "Kecepatan 5G",
+        "lte_heading": "Batas kecepatan LTE",
+        "nr_heading": "Batas kecepatan 5G",
+        "governing": "Berlaku",
+        "not_governing": "Tidak berlaku",
+        "nsa_note": "5G non-standalone berjalan di atas sesi data LTE, jadi batas inilah yang berlaku.",
         "lte_empty_title": "Tidak ada kecepatan LTE dilaporkan",
-        "lte_empty_body": "Modem hanya menerbitkan batas LTE selama bearer LTE aktif.",
+        "lte_empty_reason": "Modem hanya menerbitkan batas LTE selama sesi data LTE aktif.",
         "nr_empty_title": "Tidak ada kecepatan 5G dilaporkan",
-        "nr_empty_body": "Modem hanya menerbitkan batas 5G selama bearer NR aktif.",
+        "nr_empty_reason": "Modem hanya menerbitkan batas 5G selama sesi data 5G aktif.",
         "download": "Unduh",
-        "upload": "Unggah"
+        "upload": "Unggah",
+        "governing_unread": "Koneksi Anda memakai radio ini. Tidak ada batas yang terbaca untuknya saat halaman dibuka."
       }
     },
     "fplmn": {
@@ -1510,7 +1523,6 @@
       "camped_meta": "{{count}} carrier · {{bandwidth}} MHz",
       "camped_empty_title": "Tidak ada carrier dilaporkan",
       "camped_empty_body": "Modem tidak melaporkan sel layanan. Kanal tetap bisa dimasukkan secara manual.",
-      "camped_note": "Dilaporkan oleh radio, diperbarui setiap beberapa detik.",
       "add_hint": "Tambah menyalin kanal tersebut ke daftar di bawah. Kunci frekuensi tidak memakai PCI, jadi modem tetap memilih selnya sendiri.",
       "compare_hint": "Kunci tower mengikat kanal sekaligus sel. Kunci frekuensi lebih longgar: kanal yang sama, sel mana pun.",
       "add_blocked": "Penambahan dinonaktifkan sampai kunci tower dilepas."
@@ -2266,11 +2278,8 @@
     "live": {
       "title": "Saat ini",
       "camped_on": "Terhubung saat ini",
-      "camped_summary_one": "{{count}} carrier di {{mhz}} MHz",
-      "camped_summary_other": "{{count}} carrier mencakup {{mhz}} MHz",
       "camped_empty_title": "Tidak ada carrier aktif",
       "camped_empty_body": "Modem sedang tidak terhubung ke sel mana pun. Kunci tetap berlaku begitu modem terhubung.",
-      "camped_note": "Dilaporkan oleh radio. Pilih sebuah sel untuk mengisi detailnya ke formulir kunci di bawah.",
       "note_hint": "Tambah menyalin sel ini ke formulir di bawah. Kunci tower mengikat kanal dan PCI-nya sekaligus, jadi modem bertahan tepat di sel itu.",
       "absent_nr_title": "Tidak ada carrier 5G",
       "absent_lte_title": "Tidak ada anchor LTE",
@@ -2291,8 +2300,6 @@
       "tile_blocked_slots_full": "Ketiga sel LTE sudah terisi",
       "tile_band_channel": "{{band}} – {{channel}}",
       "rail_target_pair": "{{channel}}, PCI {{pci}}",
-      "synced_at": "Status kunci per {{time}}",
-      "synced_never": "Status kunci belum dibaca",
       "refresh": "Baca ulang status kunci dari modem",
       "persist_label": "Pertahankan kunci setelah reboot",
       "persist_help": "Menyimpan kunci di modem itu sendiri, sehingga dipulihkan otomatis setelah dinyalakan ulang.",

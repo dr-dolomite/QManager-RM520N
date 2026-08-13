@@ -39,11 +39,13 @@ import NeighbourScanResultView from "./neighbour-scan-result";
 // all four rather than restating them, and what remains here is only what is
 // genuinely different about a neighbour read.
 //
-// WHAT IS GENUINELY DIFFERENT IS THE COST, AND THE PAGE SAYS SO. A sweep holds
-// the modem's single AT channel for up to three minutes; this asks the serving
-// cell for a list it already maintains and is done in about two. Both routes
-// previously shipped a button reading the identical string "Start New Scan",
-// which is precisely the confusion the cost slot exists to remove.
+// WHAT IS GENUINELY DIFFERENT IS THE COST, AND THE BUTTONS SAY SO. A sweep
+// holds the modem's single AT channel for up to three minutes; this asks the
+// serving cell for a list it already maintains and is done in about two. Both
+// routes previously shipped a button reading the identical string "Start New
+// Scan"; they now read "Sweep all bands" and "Read neighbours". The standing
+// cost PARAGRAPH that used to sit in the hero was removed on 2026-08-14 by user
+// decision — see `shapes.ts`'s file header.
 //
 // THERE IS NO ELAPSED CLOCK HERE, deliberately. A timer on a two-second
 // operation is a progress indicator for something that has already finished by
@@ -247,7 +249,6 @@ export function NeighbourScanner() {
               />
             ) : null
           }
-          costText={t("cell_scanner.neighbour.run.cost")}
           actions={
             <>
               <Button

@@ -50,19 +50,23 @@ import type { MaterialSymbolName } from "@/components/ui/material-symbol";
 // while remaining two routes.
 //
 // -----------------------------------------------------------------------------
-// THE COST ASYMMETRY IS DESIGN, NOT TRIVIA
+// THE COST STATEMENT IS GONE (2026-08-14), AND SO IS ITS SLOT
 // -----------------------------------------------------------------------------
-// These two runs differ by roughly 100x in what they cost the modem.
-// `AT+QSCAN=3,1` holds the single global AT mutex for 30-180 seconds and pauses
-// every other modem operation; `AT+QENG="neighbourcell"` holds it for about two
-// seconds. The incumbent expressed that difference NOWHERE — both routes shipped
-// a button reading the identical string "Start New Scan".
+// The hero used to carry a required `COST` paragraph on both routes — three
+// lines explaining that a sweep tunes every band, takes 2-3 minutes and pauses
+// the modem, versus two seconds for a neighbour read. USER DECISION: it read as
+// a lecture on a surface whose buttons already name the two acts distinctly
+// ("Sweep all bands" / "Read neighbours"), and the posture rail's own body copy
+// already sets the duration expectation while a run is in flight.
 //
-// So `COST` is a required slot in the hero, not an optional flourish. Same
-// shape on both routes, different content: the surface teaches the difference
-// instead of leaving the reader to discover it by locking up their modem. This
-// is the product's "make the dangerous obvious, the safe effortless" principle
-// applied to the one axis where these two pages genuinely disagree.
+// The asymmetry itself is still real — `AT+QSCAN=3,1` holds the single global AT
+// mutex for 30-180 seconds where `AT+QENG="neighbourcell"` holds it for about
+// two — and it is still expressed, by the button labels, by the cross-link that
+// disables itself with its reason while a run is in flight, and by each route's
+// `scanning_body`. What went away is the standing paragraph, not the honesty.
+//
+// A later canon pass should not restore `COST`, `SKELETON_SHAPE.COST` or the
+// hero's `costText` prop.
 //
 // -----------------------------------------------------------------------------
 // TWO THINGS THIS SURFACE DELIBERATELY DOES NOT HAVE (2026-08-12)
@@ -119,7 +123,7 @@ export const PAGE_SHELL = "@container/main mx-auto flex flex-col gap-5 p-2";
  * The run hero, and the page's anchor. `rounded-hero` (40px) — one per surface,
  * claimed by the section that leads the page.
  *
- * It declares `@container/section`, which `HERO_SPLIT` and `COST` query. The
+ * It declares `@container/section`, which `HERO_SPLIT` and `SUMMARY` query. The
  * container is named `section` rather than `hero` deliberately: the frequency
  * calculator hosts two sibling sections at this level, and a query written
  * against `/hero` would silently never match inside `RESULTS_CARD`.
@@ -231,14 +235,25 @@ export const POSTURE = {
 } as const;
 
 /**
- * The cost statement. A required slot, for the reason given in the file header.
- * `rounded-field` and a container fill rather than a tinted wash, so it reads as
- * a stated fact rather than as a warning the reader must clear.
+ * The full-sweep results card's "nothing has run yet" panel — the shared
+ * `Empty` primitive rather than `scan-states.tsx`'s posture stack.
+ *
+ * The two are deliberately different objects now. The neighbour route's empty
+ * state is still a posture stack, because a neighbour read's primary action sits
+ * two hundred pixels above it in the hero and a second copy of it in the card
+ * would be one act with two buttons. The sweep's empty state OWNS its action:
+ * it is the only thing on the page before a run, so the button belongs in the
+ * middle of it where the reader is already looking.
+ *
+ * The dashed stroke is this codebase's vocabulary for a slot with nothing in it
+ * yet (see `custom-profiles/empty-profile.tsx`), not a compensation for a weak
+ * fill, so No-Hairline-On-Fill does not apply. `rounded-tile` — one radius step
+ * DOWN from the `rounded-card` results card that hosts it. The min-height
+ * mirrors `POSTURE.ROOT`, so swapping in the skeleton or the table does not jump
+ * the page.
  */
-export const COST = {
-  ROOT: "flex items-start gap-2.5 rounded-field bg-surface-container px-4 py-3",
-  TEXT: "text-xs/relaxed text-on-surface-variant text-pretty",
-} as const;
+export const EMPTY_PANEL =
+  "min-h-[13rem] rounded-tile border border-dashed border-outline";
 
 /**
  * The cross-link to the sibling scanning route, in the hero header.
@@ -344,7 +359,7 @@ export function summaryTileTone(index: number): string {
  * above it actually mean, shown ONLY when it has something true to say.
  *
  * A container fill and `rounded-field`, no border — it is a STATED FACT, not an
- * alarm the reader must clear, which is the same reasoning `COST` is built on.
+ * alarm the reader must clear.
  * Its glyph must differ from every other glyph that can appear in this slot, so
  * the tier variants take the bar-count marks (which also survive greyscale).
  */
@@ -681,8 +696,6 @@ export const SKELETON_SHAPE = {
   CHIP: "h-[1.375rem] w-24 rounded-pill",
   /** Mirrors `POSTURE.ROOT`'s min-height. Move both or neither. */
   POSTURE: "h-[13rem] w-full rounded-tile",
-  /** Mirrors `COST.ROOT` at one line of copy. */
-  COST: "h-[3.25rem] w-full rounded-field",
   /**
    * Mirrors `SUMMARY.ROOT`'s min-height.
    *
@@ -772,10 +785,13 @@ export const READOUT_DISC: Record<"idle" | "lte" | "nr" | "failed", string> = {
 /**
  * The form column of the anchor.
  *
- * `NOTE` and the scanner's `COST` are the same shape deliberately: both are the
- * quiet sentence under the controls that says what the thing you are about to
- * press actually does. They are not aliased because the calculator's note is a
- * spec citation that changes with the mode, not a fixed cost.
+ * `NOTE` is the quiet sentence under the controls, and it is now a SPEC CITATION
+ * ONLY — it names the standard a computed frequency came from, and it renders
+ * only once there is a result to cite. The pre-calculation hint that used to
+ * occupy the same slot ("Auto picks LTE or NR from the number's range") went
+ * away with the scanner's cost statement, in the same 2026-08-14 pass and for
+ * the same reason: the three mode tabs sitting directly above it already say
+ * that Auto is one of three choices.
  */
 export const FORM = {
   /**

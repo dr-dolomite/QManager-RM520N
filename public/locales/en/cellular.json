@@ -196,7 +196,6 @@
       "on_air_summary_other": "{{count}} carriers · {{mhz}} MHz",
       "on_air_empty_title": "No carrier on air",
       "on_air_empty_body": "The modem is not camped on any cell right now. Locks below still apply once it attaches.",
-      "on_air_note": "Reported by the radio, not by your lock list. A locked band only appears here once the modem camps on it.",
       "absent_nr_title": "No 5G carrier",
       "absent_nr_body": "The modem is on LTE alone. No NR cell is in range right now.",
       "absent_lte_title": "No LTE anchor",
@@ -280,7 +279,6 @@
     "run": {
       "title": "Full band sweep",
       "description": "One pass across every band this modem supports.",
-      "cost": "A full sweep tunes every supported band in turn. It takes 2–3 minutes and pauses all other modem operations — signal readings, SMS and settings writes wait until it finishes.",
       "start": "Sweep all bands",
       "rerun": "Sweep again",
       "scanning_action": "Sweeping…",
@@ -404,7 +402,6 @@
       "run": {
         "title": "Neighbour read",
         "description": "One question to the serving cell, answered from what it already measures.",
-        "cost": "This asks the serving cell for the neighbours it already tracks. It takes about two seconds, sweeps no bands, and leaves every other modem operation running.",
         "start": "Read neighbours",
         "rerun": "Read again",
         "scanning_action": "Reading…",
@@ -492,8 +489,7 @@
         "label_lte": "E-ARFCN",
         "label_nr": "NR-ARFCN",
         "placeholder": "Enter channel number",
-        "submit": "Calculate",
-        "hint_auto": "Auto picks LTE or NR from the number's range. Pick a tab to force one."
+        "submit": "Calculate"
       },
       "error": {
         "empty": "Enter a channel number first — the field is empty.",
@@ -701,14 +697,18 @@
     "basic": {
       "page": {
         "title": "Cellular Basic Settings",
-        "description": "SIM slot, radio state, and network mode preferences.",
+        "description": "Change how the modem uses its SIMs, its radio, and the networks it attaches to.",
         "error_title": "Couldn't read the modem",
         "error_body": "The values shown may be out of date.",
         "retry": "Try again"
       },
-      "radio": {
-        "title": "Modem Radio Settings",
-        "description": "Changes are written to the modem when you save. None of these reboot it."
+      "sim_card": {
+        "title": "SIM & Radio Power",
+        "description": "Which SIM the modem uses, and whether the radio is powered."
+      },
+      "network_card": {
+        "title": "Network Mode & Roaming",
+        "description": "How the modem chooses a network to attach to."
       },
       "rows": {
         "sim_slot": {
@@ -721,7 +721,7 @@
         },
         "cfun": {
           "label": "Radio Power",
-          "consequence": "Radio off also powers down the SIM. Airplane keeps the SIM powered with the radio off. The console stays reachable over Ethernet either way.",
+          "consequence": "Radio off also powers down the SIM, Airplane keeps it powered, and the console stays reachable over Ethernet either way.",
           "options": {
             "normal": "Normal",
             "radio_off": "Radio off",
@@ -730,7 +730,7 @@
         },
         "mode_pref": {
           "label": "Preferred Network Type",
-          "consequence": "Automatic lets the modem choose. Pin a technology only while troubleshooting.",
+          "consequence": "Pin a technology only while troubleshooting.",
           "options": {
             "auto": "Automatic",
             "lte_nr": "LTE + 5G",
@@ -740,7 +740,7 @@
         },
         "nr5g_mode": {
           "label": "5G Architecture",
-          "consequence": "Standalone runs 5G on its own; non-standalone anchors it to LTE. Leave this on Auto unless your carrier requires one.",
+          "consequence": "Leave this on Auto unless your carrier requires standalone (5G on its own) or non-standalone (5G anchored to LTE).",
           "options": {
             "auto": "Auto",
             "nsa": "NSA only",
@@ -749,7 +749,7 @@
         },
         "roam_pref": {
           "label": "Roaming Preference",
-          "consequence": "Any network allows partner networks, which may be billed separately.",
+          "consequence": "Partner networks may be billed separately.",
           "options": {
             "any": "Any network",
             "home": "Home only",
@@ -758,7 +758,7 @@
         },
         "sim_detect": {
           "label": "SIM Hot-Swap Detection",
-          "consequence": "Lets the modem notice a SIM being inserted or removed while it is running. Without it, a swapped SIM goes unnoticed until the next reboot.",
+          "consequence": "Without it, a swapped SIM goes unnoticed until the next reboot.",
           "on": "On",
           "off": "Off"
         }
@@ -780,20 +780,31 @@
         "reread": "Re-read from modem",
         "in_sync": "Saved settings match the modem."
       },
+      "hero": {
+        "title": "Current Connection",
+        "description": "What the modem is running on right now, and the rate limits the network grants it.",
+        "params_heading": "Active parameters",
+        "rates_note": "Rate limits are ceilings the network grants, not measured speed. They are read when the page opens and again after each save.",
+        "sr_rate_block": "{{radio}}: {{state}}",
+        "live": "Live",
+        "stale": "Stale",
+        "carrier_none": "No carrier reported",
+        "unavailable_title": "Couldn't read the modem",
+        "unavailable_retrying": "The last read failed. QManager is still trying.",
+        "unavailable_static": "The last read failed. Use \"Re-read from modem\" below to try again."
+      },
       "readout": {
-        "title": "What the modem reports now",
-        "registered_on": "Registered on",
         "active_slot": "Active slot",
-        "serving_tech": "Serving technology",
         "slot_n": "SIM {{slot}}",
         "unknown": "Unknown",
-        "radio_power": "Radio power",
-        "active_apn": "Active APN",
+        "radio_power_label": "Radio power",
+        "apn_label": "Active APN",
         "no_apn": "None reported",
         "carrier_aggregation": "Carrier aggregation",
-        "ca_count_one": "{{count}} extra carrier",
-        "ca_count_other": "{{count}} extra carriers",
-        "ca_inactive": "Not active"
+        "ca_none": "Not active",
+        "ca_breakdown": "LTE {{lte}} + NR {{nr}}",
+        "ca_lte_only": "LTE {{lte}}",
+        "ca_nr_only": "NR {{nr}}"
       },
       "sim_status": {
         "ready": "Ready",
@@ -804,16 +815,18 @@
         "unknown": "Unknown"
       },
       "ambr": {
-        "title": "Data Rate Limits",
-        "description": "The maximum speeds your carrier allows for each data connection. These are set by network policy, not by the modem.",
-        "lte_title": "LTE Rates",
-        "nr_title": "5G Rates",
+        "lte_heading": "LTE rate limits",
+        "nr_heading": "5G rate limits",
+        "governing": "In use",
+        "not_governing": "Not in use",
+        "nsa_note": "5G non-standalone runs over the LTE data session, so this limit applies.",
         "lte_empty_title": "No LTE rates reported",
-        "lte_empty_body": "The modem publishes LTE limits only while an LTE bearer is up.",
+        "lte_empty_reason": "The modem publishes an LTE limit only while an LTE data session is up.",
         "nr_empty_title": "No 5G rates reported",
-        "nr_empty_body": "The modem publishes 5G limits only while an NR bearer is up.",
+        "nr_empty_reason": "The modem publishes a 5G limit only while a 5G data session is up.",
         "download": "Download",
-        "upload": "Upload"
+        "upload": "Upload",
+        "governing_unread": "Your connection uses this radio. No limit was read for it when the page opened."
       }
     },
     "fplmn": {
@@ -1510,7 +1523,6 @@
       "camped_meta": "{{count}} carriers · {{bandwidth}} MHz",
       "camped_empty_title": "No carriers reported",
       "camped_empty_body": "The modem is not reporting a serving cell. Channels can still be entered by hand.",
-      "camped_note": "Reported by the radio, refreshed every few seconds.",
       "add_hint": "Add copies the channel into the list below. A frequency lock takes no PCI, so the modem still chooses the cell.",
       "compare_hint": "A tower lock already pins a channel and a cell. A frequency lock is the looser option: same channel, any cell.",
       "add_blocked": "Adding is disabled until the tower lock is released."
@@ -2266,11 +2278,8 @@
     "live": {
       "title": "Right now",
       "camped_on": "Camped on now",
-      "camped_summary_one": "{{count}} carrier on {{mhz}} MHz",
-      "camped_summary_other": "{{count}} carriers across {{mhz}} MHz",
       "camped_empty_title": "No carrier on air",
       "camped_empty_body": "The modem is not camped on any cell right now. A lock still applies once it attaches.",
-      "camped_note": "Reported by the radio. Pick a cell to fill its details into the lock form below.",
       "note_hint": "Add copies this cell into the form below. A tower lock pins the channel and its PCI together, so the modem holds this exact cell.",
       "absent_nr_title": "No 5G carrier",
       "absent_lte_title": "No LTE anchor",
@@ -2289,8 +2298,6 @@
       "tile_blocked_slots_full": "All three LTE cells are set",
       "tile_band_channel": "{{band}} – {{channel}}",
       "rail_target_pair": "{{channel}}, PCI {{pci}}",
-      "synced_at": "Lock state as of {{time}}",
-      "synced_never": "Lock state not read yet",
       "refresh": "Re-read lock state from the modem",
       "persist_label": "Keep lock after reboot",
       "persist_help": "Stores the lock on the modem itself, so it is restored automatically after a restart.",

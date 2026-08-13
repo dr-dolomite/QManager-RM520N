@@ -960,11 +960,6 @@ export default function NrSaTowerCard({
                   />
                 </div>
               </div>
-              {!hasOptions ? (
-                <p className="text-on-surface-variant px-4 text-xs">
-                  {t("tower_locking.live.absent_nr_title")}
-                </p>
-              ) : null}
             </motion.div>
 
             {/* --- Fields --------------------------------------------------

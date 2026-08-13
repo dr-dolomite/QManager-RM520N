@@ -113,7 +113,7 @@ import {
 // =============================================================================
 
 const TowerLockingComponent = () => {
-  const { t, i18n } = useTranslation("cellular");
+  const { t } = useTranslation("cellular");
   const { data: modemData } = useModemStatus();
   const tower = useTowerLocking();
 
@@ -283,22 +283,6 @@ const TowerLockingComponent = () => {
     ? `tower_locking.warning.${tower.lastWarning}`
     : null;
 
-  /**
-   * How stale the "Right now" section is. It dates BOTH of the verdict's
-   * operands, which is why it heads the section rather than sitting on the
-   * verdict block: `AT+QNWLOCK` is read once on mount and never polled, while
-   * the carrier list under it refreshes every ~4s.
-   */
-  const syncedLabel =
-    tower.lastSyncedAt === null
-      ? t("tower_locking.live.synced_never")
-      : t("tower_locking.live.synced_at", {
-          time: new Date(tower.lastSyncedAt).toLocaleTimeString(i18n.language, {
-            hour: "2-digit",
-            minute: "2-digit",
-          }),
-        });
-
   return (
     // Root shape shared with the migrated `/cellular/` surfaces: the page gutter
     // on this family is `p-2` over the shell's own padding, and every sub-route
@@ -407,21 +391,14 @@ const TowerLockingComponent = () => {
                 {t("tower_locking.live.title")}
               </h2>
 
-              {/* The stamp dates this whole section, and the button re-reads
-                  the half of it that has no clock of its own. */}
+              {/* The freshness stamp that used to sit here was cut per direct
+                  design feedback — too verbose for what it added. The refresh
+                  button, its only other occupant, stays. */}
               <div className={SECTION_HEAD.META}>
                 {tower.isLoading ? (
                   <Skeleton className={SKELETON_SHAPE.SECTION_META} />
                 ) : (
                   <>
-                    <span className={SECTION_HEAD.STAMP}>
-                      <MaterialSymbol
-                        name="schedule"
-                        size={14}
-                        className="flex-none"
-                      />
-                      <span className="min-w-0 truncate">{syncedLabel}</span>
-                    </span>
                     <button
                       type="button"
                       onClick={() => void tower.refresh()}

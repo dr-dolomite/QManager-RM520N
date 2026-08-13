@@ -297,8 +297,9 @@ export function NeighbourScanResultView({
     [columnCopy, onLockCell, t],
   );
 
-  // Measured versus channel-only, over the whole read. The pager's own count
-  // below already describes what the channel filter left.
+  // Measured versus channel-only, over the WHOLE read — not over what the
+  // channel filter left. This is the only count on the surface now (the pager's
+  // "N cells" was removed on 2026-08-14), so it counts the read, not the view.
   const tally = React.useMemo(() => {
     const summary = summariseNeighbours(data);
     return [
@@ -340,11 +341,10 @@ export function NeighbourScanResultView({
         noMatchTitle: t("cell_scanner.results.no_match_title"),
         noMatchBody: t("cell_scanner.results.no_match_body"),
       }}
-      countLabel={(filtered, total) =>
-        filtered < total
-          ? t("cell_scanner.results.filtered", { count: filtered, total })
-          : t("cell_scanner.results.count", { count: total })
-      }
+      // NO `countLabel`, deliberately (2026-08-14). The footer note directly
+      // above already tallies this read three ways, and a fourth line reading
+      // "10 cells" under it was the same count in a different noun. The sweep
+      // route keeps its count — see `ScanTableProps.countLabel`.
     />
   );
 }

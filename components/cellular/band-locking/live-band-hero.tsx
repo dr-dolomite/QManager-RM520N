@@ -425,16 +425,6 @@ export function LiveBandHero({
               ) : null}
             </div>
           )}
-
-          {/* Footer note, pinned to the panel's floor with `mt-auto` so it
-              reads as a footer regardless of how few tiles are above it — a
-              2-3 carrier camp inside a 3-column grid leaves real whitespace,
-              and that whitespace belongs ABOVE the note, not between the note
-              and the panel's own bottom edge. */}
-          <div className="text-on-surface-variant mt-auto flex items-center gap-2.5 text-xs">
-            <MaterialSymbol name="info" size={16} className="flex-none" />
-            <span>{t("band_locking.live.on_air_note")}</span>
-          </div>
         </div>
 
         {/* --- Lock posture rail --------------------------------------------- */}

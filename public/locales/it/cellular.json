@@ -196,7 +196,6 @@
       "on_air_summary_other": "{{count}} portanti · {{mhz}} MHz",
       "on_air_empty_title": "Nessuna portante attiva",
       "on_air_empty_body": "Il modem non è agganciato a nessuna cella al momento. I blocchi qui sotto si applicheranno comunque non appena si aggancia.",
-      "on_air_note": "Dato riportato dalla radio, non dall'elenco dei blocchi. Una banda bloccata compare qui solo quando il modem vi si aggancia.",
       "absent_nr_title": "Nessuna portante 5G",
       "absent_nr_body": "Il modem è solo su LTE. Nessuna cella NR è in copertura al momento.",
       "absent_lte_title": "Nessun ancoraggio LTE",
@@ -280,7 +279,6 @@
     "run": {
       "title": "Scansione completa delle bande",
       "description": "Un passaggio su ogni banda supportata dal modem.",
-      "cost": "Una scansione completa sintonizza una per una tutte le bande supportate. Richiede 2–3 minuti e sospende ogni altra operazione del modem: letture del segnale, SMS e scritture delle impostazioni attendono la fine.",
       "start": "Analizza tutte le bande",
       "rerun": "Ripeti la scansione",
       "scanning_action": "Scansione…",
@@ -404,7 +402,6 @@
       "run": {
         "title": "Lettura celle vicine",
         "description": "Una domanda alla cella di servizio, con risposta basata su ciò che già misura.",
-        "cost": "Chiede alla cella di servizio l'elenco delle celle vicine che già monitora. Richiede circa due secondi, non scansiona alcuna banda e lascia attive tutte le altre operazioni del modem.",
         "start": "Leggi le celle vicine",
         "rerun": "Leggi di nuovo",
         "scanning_action": "Lettura…",
@@ -492,8 +489,7 @@
         "label_lte": "E-ARFCN",
         "label_nr": "NR-ARFCN",
         "placeholder": "Inserisci il numero di canale",
-        "submit": "Calcola",
-        "hint_auto": "Auto sceglie LTE o NR in base all'intervallo del numero. Seleziona una scheda per forzarne uno."
+        "submit": "Calcola"
       },
       "error": {
         "empty": "Inserisci prima un numero di canale: il campo è vuoto.",
@@ -701,14 +697,18 @@
     "basic": {
       "page": {
         "title": "Impostazioni cellulari di base",
-        "description": "Preferenze di slot SIM, stato della radio e modalità di rete.",
+        "description": "Modifica come il modem usa le sue SIM, la radio e le reti a cui si collega.",
         "error_title": "Impossibile leggere il modem",
         "error_body": "I valori visualizzati potrebbero essere obsoleti.",
         "retry": "Riprova"
       },
-      "radio": {
-        "title": "Impostazioni radio del modem",
-        "description": "Le modifiche vengono scritte sul modem al salvataggio. Nessuna di esse lo riavvia."
+      "sim_card": {
+        "title": "SIM e Alimentazione radio",
+        "description": "Quale SIM usa il modem e se la radio è alimentata."
+      },
+      "network_card": {
+        "title": "Modalità di rete e roaming",
+        "description": "Come il modem sceglie la rete a cui collegarsi."
       },
       "rows": {
         "sim_slot": {
@@ -721,7 +721,7 @@
         },
         "cfun": {
           "label": "Alimentazione radio",
-          "consequence": "Radio spenta toglie alimentazione anche alla SIM. Modalità aereo mantiene la SIM alimentata con la radio spenta. In entrambi i casi la console resta raggiungibile via Ethernet.",
+          "consequence": "Radio spenta toglie alimentazione anche alla SIM, modalità aereo la mantiene alimentata e in entrambi i casi la console resta raggiungibile via Ethernet.",
           "options": {
             "normal": "Normale",
             "radio_off": "Radio spenta",
@@ -730,7 +730,7 @@
         },
         "mode_pref": {
           "label": "Tipo di rete preferito",
-          "consequence": "Automatico lascia scegliere al modem. Fissa una tecnologia solo durante la diagnostica.",
+          "consequence": "Fissa una tecnologia solo durante la diagnostica.",
           "options": {
             "auto": "Automatico",
             "lte_nr": "LTE + 5G",
@@ -740,7 +740,7 @@
         },
         "nr5g_mode": {
           "label": "Architettura 5G",
-          "consequence": "Standalone fa funzionare il 5G da solo; non-standalone lo ancora all'LTE. Lascia su Auto a meno che il tuo operatore non ne richieda una.",
+          "consequence": "Lascia su Auto a meno che il tuo operatore non richieda standalone (5G da solo) o non-standalone (5G ancorato all'LTE).",
           "options": {
             "auto": "Auto",
             "nsa": "Solo NSA",
@@ -749,7 +749,7 @@
         },
         "roam_pref": {
           "label": "Preferenza di roaming",
-          "consequence": "Qualsiasi rete consente le reti partner, che possono essere fatturate a parte.",
+          "consequence": "Le reti partner possono essere fatturate a parte.",
           "options": {
             "any": "Qualsiasi rete",
             "home": "Solo rete di casa",
@@ -758,7 +758,7 @@
         },
         "sim_detect": {
           "label": "Rilevamento sostituzione SIM a caldo",
-          "consequence": "Permette al modem di accorgersi dell'inserimento o della rimozione di una SIM mentre è in funzione. Senza, una SIM sostituita resta ignorata fino al riavvio successivo.",
+          "consequence": "Senza, una SIM sostituita resta ignorata fino al riavvio successivo.",
           "on": "Attivo",
           "off": "Disattivo"
         }
@@ -780,20 +780,31 @@
         "reread": "Rileggi dal modem",
         "in_sync": "Le impostazioni salvate corrispondono al modem."
       },
+      "hero": {
+        "title": "Connessione attuale",
+        "description": "Su cosa sta funzionando il modem in questo momento e i limiti di velocità che la rete gli concede.",
+        "params_heading": "Parametri attivi",
+        "rates_note": "I limiti di velocità sono tetti concessi dalla rete, non velocità misurate. Vengono letti all'apertura della pagina e di nuovo dopo ogni salvataggio.",
+        "sr_rate_block": "{{radio}}: {{state}}",
+        "live": "In tempo reale",
+        "stale": "Obsoleto",
+        "carrier_none": "Nessun operatore riportato",
+        "unavailable_title": "Impossibile leggere il modem",
+        "unavailable_retrying": "L'ultima lettura non è riuscita. QManager sta ancora provando.",
+        "unavailable_static": "L'ultima lettura non è riuscita. Usa «Rileggi dal modem» qui sotto per riprovare."
+      },
       "readout": {
-        "title": "Cosa riporta il modem ora",
-        "registered_on": "Registrato su",
         "active_slot": "Slot attivo",
-        "serving_tech": "Tecnologia in uso",
         "slot_n": "SIM {{slot}}",
         "unknown": "Sconosciuto",
-        "radio_power": "Stato radio",
-        "active_apn": "APN attivo",
+        "radio_power_label": "Stato radio",
+        "apn_label": "APN attivo",
         "no_apn": "Non segnalato",
         "carrier_aggregation": "Aggregazione portanti",
-        "ca_count_one": "{{count}} portante aggiuntiva",
-        "ca_count_other": "{{count}} portanti aggiuntive",
-        "ca_inactive": "Non attiva"
+        "ca_none": "Non attiva",
+        "ca_breakdown": "LTE {{lte}} + NR {{nr}}",
+        "ca_lte_only": "LTE {{lte}}",
+        "ca_nr_only": "NR {{nr}}"
       },
       "sim_status": {
         "ready": "Pronta",
@@ -804,16 +815,18 @@
         "unknown": "Sconosciuto"
       },
       "ambr": {
-        "title": "Limiti di velocità dati",
-        "description": "Le velocità massime che il tuo operatore consente per ogni connessione dati. Sono stabilite dalle politiche di rete, non dal modem.",
-        "lte_title": "Velocità LTE",
-        "nr_title": "Velocità 5G",
+        "lte_heading": "Limiti di velocità LTE",
+        "nr_heading": "Limiti di velocità 5G",
+        "governing": "In uso",
+        "not_governing": "Non in uso",
+        "nsa_note": "Il 5G non-standalone viaggia sulla sessione dati LTE, quindi vale questo limite.",
         "lte_empty_title": "Nessuna velocità LTE riportata",
-        "lte_empty_body": "Il modem pubblica i limiti LTE solo mentre un bearer LTE è attivo.",
+        "lte_empty_reason": "Il modem pubblica un limite LTE solo mentre è attiva una sessione dati LTE.",
         "nr_empty_title": "Nessuna velocità 5G riportata",
-        "nr_empty_body": "Il modem pubblica i limiti 5G solo mentre un bearer NR è attivo.",
+        "nr_empty_reason": "Il modem pubblica un limite 5G solo mentre è attiva una sessione dati 5G.",
         "download": "Download",
-        "upload": "Upload"
+        "upload": "Upload",
+        "governing_unread": "La tua connessione usa questa radio. Nessun limite è stato letto per essa all’apertura della pagina."
       }
     },
     "fplmn": {
@@ -1510,7 +1523,6 @@
       "camped_meta": "{{count}} portanti · {{bandwidth}} MHz",
       "camped_empty_title": "Nessuna portante segnalata",
       "camped_empty_body": "Il modem non segnala alcuna cella di servizio. I canali si possono comunque inserire a mano.",
-      "camped_note": "Dato riportato dalla radio, aggiornato ogni pochi secondi.",
       "add_hint": "Aggiungi copia il canale nell'elenco qui sotto. Un blocco delle frequenze non usa il PCI, quindi la cella la sceglie ancora il modem.",
       "compare_hint": "Un blocco BTS fissa sia il canale sia la cella. Il blocco delle frequenze è l'opzione più permissiva: stesso canale, qualsiasi cella.",
       "add_blocked": "L'aggiunta è disattivata finché il blocco BTS non viene rimosso."
@@ -2266,11 +2278,8 @@
     "live": {
       "title": "In questo momento",
       "camped_on": "Agganciato adesso",
-      "camped_summary_one": "{{count}} portante su {{mhz}} MHz",
-      "camped_summary_other": "{{count}} portanti su {{mhz}} MHz in totale",
       "camped_empty_title": "Nessuna portante attiva",
       "camped_empty_body": "Il modem non è agganciato a nessuna cella al momento. Il blocco si applica comunque non appena si aggancia.",
-      "camped_note": "Dato riportato dalla radio. Scegli una cella per compilarne i dati nel modulo di blocco qui sotto.",
       "note_hint": "Aggiungi copia questa cella nel modulo qui sotto. Un blocco BTS fissa insieme il canale e il suo PCI, quindi il modem resta esattamente su quella cella.",
       "absent_nr_title": "Nessuna portante 5G",
       "absent_lte_title": "Nessun ancoraggio LTE",
@@ -2291,8 +2300,6 @@
       "tile_blocked_slots_full": "Tutte e tre le celle LTE sono impostate",
       "tile_band_channel": "{{band}} – {{channel}}",
       "rail_target_pair": "{{channel}}, PCI {{pci}}",
-      "synced_at": "Stato del blocco alle {{time}}",
-      "synced_never": "Stato del blocco non ancora letto",
       "refresh": "Rileggi lo stato del blocco dal modem",
       "persist_label": "Mantieni il blocco dopo il riavvio",
       "persist_help": "Salva il blocco sul modem stesso, così viene ripristinato automaticamente dopo un riavvio.",

@@ -6,6 +6,14 @@ import { useTranslation } from "react-i18next";
 
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import {
+  Empty,
+  EmptyContent,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from "@/components/ui/empty";
 import { MaterialSymbol } from "@/components/ui/material-symbol";
 import { useCellScanner } from "@/hooks/use-cell-scanner";
 import { downloadCSV } from "@/lib/download-csv";
@@ -16,23 +24,37 @@ import LockCellDialog, { type LockCellTarget } from "./lock-cell-dialog";
 import RunHero from "./run-hero";
 import RunSummary, { type SummaryTile, type SummaryVerdict } from "./run-summary";
 import ScanResultView from "./scan-result";
-import { ScanEmptyState, ScanErrorState } from "./scan-states";
+import { ScanErrorState } from "./scan-states";
 import { ScannerSkeleton } from "./scanner-skeleton";
 import SiblingRouteLink from "./sibling-link";
-import { PILL_ACTION, RESULTS_CARD, SECTION_HEAD, runPosture } from "./shapes";
+import {
+  EMPTY_PANEL,
+  PILL_ACTION,
+  PILL_ACTION_PLAIN,
+  RESULTS_CARD,
+  SECTION_HEAD,
+  runPosture,
+} from "./shapes";
 import { summariseSweep } from "./summaries";
 
 // =============================================================================
 // Full band scan — the run and its results
 // =============================================================================
 // Two objects, and the split is the redesign. The HERO owns the run: its
-// posture, its clock, its cost and its buttons, always mounted, morphing rather
-// than being replaced. The RESULTS CARD owns the rows and nothing else, showing
-// a skeleton, a state panel or the table.
+// posture and its buttons, always mounted, morphing rather than being replaced.
+// The RESULTS CARD owns the rows and nothing else, showing a skeleton, a state
+// panel or the table.
 //
 // The incumbent swapped one card body between four unrelated full-height
 // layouts, so the action row appeared and disappeared with the state it happened
-// to be rendered beside, and there was nowhere stable to say what a sweep costs.
+// to be rendered beside.
+//
+// THE PRE-SWEEP STATE IS AN `Empty` WITH ITS OWN BUTTON (2026-08-14). This is
+// the one place the card is allowed to act: before a run there are no rows for
+// it to own, so it is the whole page, and a reader looking at an empty table
+// should not have to travel back up to the hero to start one. The neighbour
+// route keeps the quieter `ScanEmptyState` posture stack — a two-second read is
+// not a thing the page needs to invite twice. See `EMPTY_PANEL` in `shapes.ts`.
 // =============================================================================
 
 function buildCsvRows(results: CellScanResult[]): string[] {
@@ -260,7 +282,6 @@ export function FullScanner() {
               />
             ) : null
           }
-          costText={t("cell_scanner.run.cost")}
           actions={
             <>
               <Button
@@ -333,10 +354,33 @@ export function FullScanner() {
           ) : results.length > 0 ? (
             <ScanResultView data={results} onLockCell={handleLockCell} />
           ) : (
-            <ScanEmptyState
-              title={t("cell_scanner.results.empty_title")}
-              body={t("cell_scanner.results.empty_body")}
-            />
+            /* Reached before the first sweep AND after a sweep that returned
+               nothing, which is why the button reads "Sweep again" in the
+               second case — the same three-labels-for-three-acts rule the hero
+               applies. `isScanning` cannot be true here (that branch renders
+               the skeleton above), so the button needs no disabled state. */
+            <Empty className={EMPTY_PANEL}>
+              <EmptyHeader>
+                <EmptyMedia variant="icon">
+                  <MaterialSymbol name="radar" size={24} aria-hidden />
+                </EmptyMedia>
+                <EmptyTitle>{t("cell_scanner.results.empty_title")}</EmptyTitle>
+                <EmptyDescription className="text-pretty">
+                  {t("cell_scanner.results.empty_body")}
+                </EmptyDescription>
+              </EmptyHeader>
+              <EmptyContent>
+                <Button
+                  type="button"
+                  onClick={startScan}
+                  className={PILL_ACTION_PLAIN}
+                >
+                  {posture === "complete"
+                    ? t("cell_scanner.run.rerun")
+                    : t("cell_scanner.run.start")}
+                </Button>
+              </EmptyContent>
+            </Empty>
           )}
         </Card>
       </motion.div>

@@ -98,8 +98,17 @@ export interface ScanTableProps<TData> {
   /** Columns to hide below `NARROW_BREAKPOINT`. Omit to never auto-hide. */
   narrowHidden?: VisibilityState;
   labels: ScanTableLabels;
-  /** `(filtered, total) => string`, so the caller owns the plural rule. */
-  countLabel: (filtered: number, total: number) => string;
+  /**
+   * `(filtered, total) => string`, so the caller owns the plural rule.
+   *
+   * OPTIONAL as of 2026-08-14. The neighbour route omits it: its footer note
+   * already tallies the read three ways ("N rows", "N measured", "N channel
+   * only") directly above this row, so a fourth count reading "N cells" was the
+   * same fact a second time, twelve pixels lower. The sweep keeps it — its
+   * tally is by signal tier, not by row count, and a sweep is long enough to
+   * page.
+   */
+  countLabel?: (filtered: number, total: number) => string;
   /**
    * The strip under the table — what a row can do, and what the rows add up to.
    * A `ScanTableNote`, built by the route because both halves are route copy.
@@ -289,40 +298,46 @@ export function ScanTable<TData>({
 
       {footer}
 
-      <div className={PAGER.ROOT}>
-        <span className={TOOLBAR.COUNT} aria-live="polite">
-          {countLabel(filteredCount, data.length)}
-        </span>
+      {/* Skipped entirely when there is neither a count to show nor a page to
+          turn — an empty flex row still spends the shell's gap. */}
+      {countLabel || table.getPageCount() > 1 ? (
+        <div className={PAGER.ROOT}>
+          {countLabel ? (
+            <span className={TOOLBAR.COUNT} aria-live="polite">
+              {countLabel(filteredCount, data.length)}
+            </span>
+          ) : null}
 
-        {table.getPageCount() > 1 ? (
-          <div className={PAGER.ACTIONS}>
-            <Button
-              type="button"
-              variant="tonal-neutral"
-              className={PILL_QUIET}
-              onClick={() => table.previousPage()}
-              disabled={!table.getCanPreviousPage()}
-            >
-              <MaterialSymbol
-                name="chevron_right"
-                size={16}
-                className={PAGER.BACK_GLYPH}
-              />
-              {labels.previous}
-            </Button>
-            <Button
-              type="button"
-              variant="tonal-neutral"
-              className={PILL_QUIET}
-              onClick={() => table.nextPage()}
-              disabled={!table.getCanNextPage()}
-            >
-              {labels.next}
-              <MaterialSymbol name="chevron_right" size={16} />
-            </Button>
-          </div>
-        ) : null}
-      </div>
+          {table.getPageCount() > 1 ? (
+            <div className={PAGER.ACTIONS}>
+              <Button
+                type="button"
+                variant="tonal-neutral"
+                className={PILL_QUIET}
+                onClick={() => table.previousPage()}
+                disabled={!table.getCanPreviousPage()}
+              >
+                <MaterialSymbol
+                  name="chevron_right"
+                  size={16}
+                  className={PAGER.BACK_GLYPH}
+                />
+                {labels.previous}
+              </Button>
+              <Button
+                type="button"
+                variant="tonal-neutral"
+                className={PILL_QUIET}
+                onClick={() => table.nextPage()}
+                disabled={!table.getCanNextPage()}
+              >
+                {labels.next}
+                <MaterialSymbol name="chevron_right" size={16} />
+              </Button>
+            </div>
+          ) : null}
+        </div>
+      ) : null}
     </div>
   );
 }

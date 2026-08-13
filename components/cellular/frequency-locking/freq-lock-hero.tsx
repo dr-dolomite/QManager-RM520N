@@ -207,7 +207,6 @@ export function FreqLockHero({
   modemData,
   isLoading,
   isRefreshing,
-  lastSyncedAt,
   towerLockActive,
   onRefresh,
   onAddChannel,
@@ -265,31 +264,16 @@ export function FreqLockHero({
     );
   }, [posture, carriers, allowedLte, allowedNr]);
 
-  const syncedLabel =
-    lastSyncedAt === null
-      ? null
-      : new Date(lastSyncedAt).toLocaleTimeString(undefined, {
-          hour: "2-digit",
-          minute: "2-digit",
-        });
-
   return (
     <Card className={HERO.ROOT}>
       <div className={HERO.BODY}>
         <div className={HERO.HEAD}>
           <span className={HERO.TITLE}>{t("frequency_locking.live.title")}</span>
 
-          {syncedLabel ? (
-            <Badge variant="muted" className="ms-auto tabular-nums">
-              <MaterialSymbol name="schedule" size={BADGE_GLYPH_SIZE} />
-              {syncedLabel}
-            </Badge>
-          ) : null}
-
           <Button
             type="button"
             variant="tonal-neutral"
-            className={cn(PILL_QUIET, !syncedLabel && "ms-auto")}
+            className={cn(PILL_QUIET, "ms-auto")}
             onClick={onRefresh}
             disabled={isLoading || isRefreshing}
             aria-label={t("frequency_locking.a11y.refresh")}
@@ -434,11 +418,11 @@ export function FreqLockHero({
               </div>
             )}
 
-            <span className={CAMPED.NOTE}>
-              {towerLockActive
-                ? t("frequency_locking.live.add_blocked")
-                : t("frequency_locking.live.camped_note")}
-            </span>
+            {towerLockActive ? (
+              <span className={CAMPED.NOTE}>
+                {t("frequency_locking.live.add_blocked")}
+              </span>
+            ) : null}
           </div>
         </div>
       </div>

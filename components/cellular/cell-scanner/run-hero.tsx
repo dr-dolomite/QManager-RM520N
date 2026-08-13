@@ -8,7 +8,6 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 
 import {
-  COST,
   HERO_SPLIT,
   POSTURE,
   POSTURE_DISC,
@@ -25,14 +24,13 @@ import {
 // The incumbent had no hero. It swapped the ENTIRE card body between an empty
 // state, a centred spinner stack, a centred error stack and a table, so "start a
 // scan", "a scan is running" and "a scan failed" were three different pages
-// sharing a route, with nothing stable across them and no shared place to say
-// what a run costs.
+// sharing a route, with nothing stable across them.
 //
 // This is that stable object. It is always mounted and it MORPHS through its
 // posture rather than being replaced: same rail, same disc, same count slot,
-// same cost statement, same action row — only the tone, the glyph and the copy
-// move. That is what makes the posture change legible as one thing changing
-// state instead of as a navigation.
+// same action row — only the tone, the glyph and the copy move. That is what
+// makes the posture change legible as one thing changing state instead of as a
+// navigation.
 //
 // IT IS DELIBERATELY COPY-BLIND. Every string arrives as a prop, because the two
 // scanning routes disagree about almost all of them — one sweeps every band for
@@ -90,8 +88,13 @@ export interface RunHeroProps {
   metric?: React.ReactNode;
   /** "What this run found". Route-owned, and drawn from the rows. */
   summary?: React.ReactNode;
-  /** Required. See `COST` in the shapes contract for why this is not optional. */
-  costText: string;
+  /**
+   * NO `costText`. The hero used to carry a required cost paragraph on both
+   * routes; it was removed by user decision on 2026-08-14 along with its `COST`
+   * shape and skeleton mirror. See `shapes.ts`'s file header for what still
+   * expresses the sweep/read asymmetry in its place — a later pass should not
+   * put the slot back.
+   */
   /** Route-owned buttons. They style themselves with `PILL_ACTION` and friends. */
   actions?: React.ReactNode;
   /** First paint, before the worker's status is known. */
@@ -107,7 +110,6 @@ export function RunHero({
   postureBody,
   metric,
   summary,
-  costText,
   actions,
   isLoading = false,
 }: RunHeroProps) {
@@ -168,22 +170,9 @@ export function RunHero({
           </div>
         )}
 
-        {/* ---- Summary, cost and actions ----------------------------------- */}
+        {/* ---- Summary and actions ----------------------------------------- */}
         <div className="flex flex-col gap-4">
           {summary}
-
-          {isLoading ? (
-            <Skeleton className={SKELETON_SHAPE.COST} />
-          ) : (
-            <div className={COST.ROOT}>
-              <MaterialSymbol
-                name="info"
-                size={18}
-                className="text-on-surface-variant flex-none"
-              />
-              <p className={COST.TEXT}>{costText}</p>
-            </div>
-          )}
 
           {isLoading ? (
             <Skeleton className={SKELETON_SHAPE.ACTION} />

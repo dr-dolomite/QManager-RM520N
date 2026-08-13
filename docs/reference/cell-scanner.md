@@ -97,7 +97,9 @@ The frequency calculator issues **nothing**. It has no fetch and no AT contact, 
 
 Since 2026-08-12 none of this should be reachable from the UI at all: the [scan singleton](#the-scan-singleton-one-flock-two-routes) refuses the second scan up front with `other_scan_running`. The behaviour above remains the fallback for a worker started outside the CGI (by hand over SSH, say), and for any AT consumer other than a scan holding the mutex.
 
-**The cost asymmetry is also why the two routes are deliberately NOT merged.** They read as one feature and share seven modules, but merging them into one route with a mode toggle would put a three-minute modem freeze one click away from a two-second read. `COST` (`shapes.ts:164`) is therefore a *required* slot in the run hero, not an optional flourish: same shape on both routes, different content. Before the 2026-08 rebuild both routes shipped a button reading the identical string "Start New Scan"; the sweep's action now reads "Sweep all bands" and states its cost in plain language.
+**The cost asymmetry is also why the two routes are deliberately NOT merged.** They read as one feature and share seven modules, but merging them into one route with a mode toggle would put a three-minute modem freeze one click away from a two-second read. Before the 2026-08 rebuild both routes shipped a button reading the identical string "Start New Scan"; the sweep's action now reads "Sweep all bands" and the neighbour route's reads "Read neighbours".
+
+> ⚠️ **The `COST` slot is gone (2026-08-14, user decision).** The run hero used to carry a *required* `costText` paragraph on both routes — three lines explaining the sweep's 2–3 minute modem freeze, two explaining that a neighbour read costs nothing. It read as a lecture, and it was removed along with `COST`, `SKELETON_SHAPE.COST` and the hero's `costText` prop, plus the `cell_scanner.run.cost` / `cell_scanner.neighbour.run.cost` keys in all five locale packs. The asymmetry is still expressed — by the two distinct button labels, by each route's `scanning_body`, and by the cross-link that disables itself *with its reason* while a run is in flight — but it is no longer a standing paragraph. **Do not restore the slot in a later canon pass.**
 
 Corollaries that follow from the same asymmetry, and should not be "harmonised" away:
 
@@ -254,7 +256,7 @@ Only `id`, `networkType`, `pci` and `signalStrength` genuinely overlap, and the 
 
 ## What is shared, and what is deliberately not
 
-Eleven modules are shared by the two scanning routes: `lock-cell-dialog.tsx`, `run-hero.tsx`, `run-summary.tsx`, `sibling-link.tsx`, `table-note.tsx`, `summaries.ts`, `scan-states.tsx`, `scan-table.tsx`, `scanner-skeleton.tsx`, `signal-badges.tsx` and `shapes.ts`.
+Eleven modules are shared by the two scanning routes: `lock-cell-dialog.tsx`, `run-hero.tsx`, `run-summary.tsx`, `sibling-link.tsx`, `table-note.tsx`, `summaries.ts`, `scan-states.tsx`, `scan-table.tsx`, `scanner-skeleton.tsx`, `signal-badges.tsx` and `shapes.ts`. (The sweep takes only `ScanErrorState` from `scan-states.tsx` — its empty panel is the shared `Empty` primitive instead; see [The sweep's empty state owns its action](#the-sweeps-empty-state-owns-its-action).)
 
 The four added in 2026-08-12's refinement follow the same rule as the hero: **shape shared, words not**. `run-summary.tsx`, `sibling-link.tsx` and `table-note.tsx` take every string as a prop; `summaries.ts` returns numbers, tiers and identifiers and never a sentence.
 
@@ -266,11 +268,13 @@ Three of the eleven reach across to the **calculator** as well: `shapes.ts` (whi
 
 ## The calculator takes the anchor, not the run
 
-`/cellular/cell-scanner/frequency-calculator` shares the route prefix and the canon — `CellularPageHeader`, `SECTION_HEAD`, role radii, the `nr`/`lte` identity variants, the machine-voice split — and now also the family's **anchor geometry**. It takes `CALC_HERO` (which *is* `RUN_HERO`, deliberately the same exported value rather than a copy of its class string) and the shared `HERO_SPLIT`. What it does **not** take is the **run vocabulary**: no posture chip, no elapsed clock, no spinner, no `COST` statement — it makes no request, holds no lock and spends nothing.
+`/cellular/cell-scanner/frequency-calculator` shares the route prefix and the canon — `CellularPageHeader`, `SECTION_HEAD`, role radii, the `nr`/`lte` identity variants, the machine-voice split — and now also the family's **anchor geometry**. It takes `CALC_HERO` (which *is* `RUN_HERO`, deliberately the same exported value rather than a copy of its class string) and the shared `HERO_SPLIT`. What it does **not** take is the **run vocabulary**: no posture chip, no elapsed clock, no spinner, no cost statement — it makes no request, holds no lock and spends nothing.
+
+Its form column's `FORM.NOTE` is now a **spec citation only**, rendered once there is a result to cite. The pre-calculation hint that used to fill the same slot (`cell_scanner.calculator.form.hint_auto`, *"Auto picks LTE or NR from the number's range"*) was removed on 2026-08-14 in the same pass as the scanner's cost statement: the three mode tabs directly above it already say Auto is one of three choices. `noteText` is `string | null` and the note block is suppressed when it is null, so the slot is empty before the first calculation rather than pre-filled with instruction.
 
 **This inverts what this doc and both of those files used to say**, and the old argument is worth keeping because the interesting part of it was the mistake: it held that a `rounded-hero` radius here was "a promise of importance the page cannot keep", on the grounds that the family's heroes are *run* heroes and nothing here runs. Right about runs, wrong about heroes. What an anchor promises is not that something ran — it is that **one object on the page is the thing the reader came for**, and everything else on the page reports on it. That is unambiguous here: you came to turn a channel number into a frequency, and the bands grid and the history are both readings of that one answer. The incumbent's two peer cards claimed the converter and its own history were equally important, which is the single thing this page is certain they are not.
 
-The layout that follows is three cards: the anchor (readout rail + form), the matching bands, the history. **The middle card never disappears** — it carries an empty state before the first calculation, exactly as the sweep's results card does, so the page fills in rather than assembling itself.
+The layout that follows is three cards: the anchor (readout rail + form), the matching bands, the history. **The middle card never disappears** — it carries an empty state before the first calculation, as the sweep's results card does, so the page fills in rather than assembling itself. (The two empties are no longer the *same* object: see [The sweep's empty state owns its action](#the-sweeps-empty-state-owns-its-action).)
 
 `shapes.ts` (`components/cellular/cell-scanner/shapes.ts`, "The frequency calculator" section) carries the long form of the decision, plus module-level `IDENT` and `FIGURE` — the machine-voice pair that was previously nested inside `TABLE` and is now hoisted so the calculator's tiles and history rows can key off the same two strings the scan table does.
 
@@ -401,7 +405,26 @@ What went with the lines:
 
 **The figure now carries no unit**, and that is deliberate rather than an oversight: the summary panel beside it is headed "What this sweep found", and the results card below it is headed "Cells found". A later canon pass should restore neither line, and should not "recover" the unit with a new caption under the figure.
 
-The 32 px glyph propagates to `scan-states.tsx`, which shares `POSTURE.DISC` for the results card's empty and error panels — they are the same object at a different address, so a 24 px glyph would have floated inside an oversized circle on exactly those two surfaces.
+The 32 px glyph propagates to `scan-states.tsx`, which shares `POSTURE.DISC` for the results card's error panel — the same object at a different address, so a 24 px glyph would have floated inside an oversized circle there.
+
+## The sweep's empty state owns its action
+
+Since 2026-08-14 the two routes' "nothing has run yet" panels are **deliberately different objects**, and this is the one place the family's shape-sharing is broken on purpose.
+
+| Route | Panel | Action |
+| ----- | ----- | ------ |
+| **Full sweep** | the shared `Empty` primitive (`components/ui/empty.tsx`) on `EMPTY_PANEL` — a dashed `rounded-tile` slot with an `EmptyMedia` disc, title, description and an `EmptyContent` button | **yes** — "Sweep all bands" (or "Sweep again" after a run that returned nothing), wired to the same `startScan` the hero's button uses |
+| **Neighbour read** | `ScanEmptyState`, i.e. the `POSTURE` stack | **no** — the hero's button, two hundred pixels up, is the only one |
+
+The split is about what is *on the page*. Before the first sweep the results card is the whole page — there are no rows for it to own — so a reader looking at an empty table should not have to travel back up to the hero to start one. A neighbour read is two seconds and its hero sits directly above; a second button there would be one act with two triggers.
+
+Three things about the sweep's panel that are load-bearing:
+
+- **It reuses `startScan`.** No second handler, no second request path. The hero's button and this one are the same act.
+- **It needs no `disabled` state.** The branch is only reachable when the posture is *not* `scanning` (that branch renders `ScannerSkeleton`) and *not* `failed` (that renders `ScanErrorState`), so `isScanning` is false by construction here.
+- **`EMPTY_PANEL` mirrors `POSTURE.ROOT`'s `min-h-[13rem]`**, so swapping in the skeleton, the error panel or the table does not jump the page. Move one and move the other.
+
+The dashed stroke is this codebase's vocabulary for a slot with nothing in it yet (the same idiom as `custom-profiles/empty-profile.tsx`), not a compensation for a weak fill — No-Hairline-On-Fill does not apply.
 
 ## The run summary, the verdict and the tally
 
@@ -409,9 +432,9 @@ Three additions of the same 2026-08-12 pass, all derived from rows the surface a
 
 | Object | Where | Sweep | Neighbour |
 | ------ | ----- | ----- | --------- |
-| **Summary panel** | hero, right column, above `COST` | one tile per provider: cell count, bands seen, best RSRP (capped at `MAX_PROVIDER_TILES` + one overflow tile) | one tile per relation that appeared, plus a measured-vs-channel-only tile |
+| **Summary panel** | hero, right column, above the action row | one tile per provider: cell count, bands seen, best RSRP (capped at `MAX_PROVIDER_TILES` + one overflow tile) | one tile per relation that appeared, plus a measured-vs-channel-only tile |
 | **Verdict strip** | under the tiles, only when true | shown only when every *measured* cell shares one tier; explains that a sweep measures without the serving cell's help and reads low indoors | explains the channel-only rows: named by the serving cell, unmeasured, so no quality and not lockable |
-| **Tally** | under the table, beside the lock explainer | rows + per-tier counts, tiers with 0 omitted | rows, measured, channel-only |
+| **Tally** | under the table, beside the lock explainer | rows + per-tier counts, tiers with 0 omitted | rows, measured, channel-only — and since 2026-08-14 this is the route's **only** count: `ScanTableProps.countLabel` is now optional and the neighbour table omits it, because the pager's "N cells" restated the tally's row count twelve pixels lower. The sweep still passes one |
 | **Context line** | under the result count | "across N providers on M bands" | "on N channels around the serving cell" |
 
 Two rules hold this together:

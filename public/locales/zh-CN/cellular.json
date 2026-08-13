@@ -196,7 +196,6 @@
       "on_air_summary_other": "{{count}} 个载波 · {{mhz}} MHz",
       "on_air_empty_title": "当前无在网载波",
       "on_air_empty_body": "调制解调器目前未驻留在任何小区。锁定仍会在其附着后生效。",
-      "on_air_note": "此信息来自无线电模块，而非您的锁定列表。锁定的频段只有在调制解调器驻留后才会显示在此处。",
       "absent_nr_title": "无 5G 载波",
       "absent_nr_body": "调制解调器仅使用 LTE。当前范围内没有 NR 小区。",
       "absent_lte_title": "无 LTE 锚点",
@@ -280,7 +279,6 @@
     "run": {
       "title": "全频段扫描",
       "description": "在模块支持的每个频段上各扫描一遍。",
-      "cost": "全频段扫描会逐个调谐所有支持的频段，耗时 2–3 分钟，期间暂停模块的其他所有操作——信号读取、短信和设置写入都要等它结束。",
       "start": "扫描全部频段",
       "rerun": "重新扫描",
       "scanning_action": "扫描中…",
@@ -404,7 +402,6 @@
       "run": {
         "title": "邻区读取",
         "description": "向服务小区提出一个问题，用它已测量的数据作答。",
-        "cost": "这会向服务小区索取它已经跟踪的邻区列表。大约需要两秒，不扫描任何频段，其他调制解调器操作全部照常运行。",
         "start": "读取邻区",
         "rerun": "重新读取",
         "scanning_action": "读取中…",
@@ -492,8 +489,7 @@
         "label_lte": "E-ARFCN",
         "label_nr": "NR-ARFCN",
         "placeholder": "输入信道号",
-        "submit": "计算",
-        "hint_auto": "自动会根据数值范围判断是 LTE 还是 NR。选择某个标签页可强制指定。"
+        "submit": "计算"
       },
       "error": {
         "empty": "请先输入信道号——该字段为空。",
@@ -701,14 +697,18 @@
     "basic": {
       "page": {
         "title": "蜂窝基本设置",
-        "description": "SIM 卡插槽、射频状态和网络模式偏好。",
+        "description": "更改调制解调器使用 SIM 卡、射频以及接入网络的方式。",
         "error_title": "无法读取调制解调器",
         "error_body": "显示的值可能已过时。",
         "retry": "重试"
       },
-      "radio": {
-        "title": "调制解调器射频设置",
-        "description": "保存时更改会写入调制解调器。以下设置都不会让它重启。"
+      "sim_card": {
+        "title": "SIM 卡与射频电源",
+        "description": "调制解调器使用哪张 SIM 卡，以及射频是否供电。"
+      },
+      "network_card": {
+        "title": "网络模式与漫游",
+        "description": "调制解调器如何选择要接入的网络。"
       },
       "rows": {
         "sim_slot": {
@@ -721,7 +721,7 @@
         },
         "cfun": {
           "label": "射频电源",
-          "consequence": "关闭射频同时会切断 SIM 卡供电。飞行模式在关闭射频的同时保持 SIM 卡供电。两种情况下控制台都仍可通过 Ethernet 访问。",
+          "consequence": "关闭射频同时会切断 SIM 卡供电，飞行模式则保持 SIM 卡供电，两种情况下控制台都仍可通过 Ethernet 访问。",
           "options": {
             "normal": "正常",
             "radio_off": "关闭射频",
@@ -730,7 +730,7 @@
         },
         "mode_pref": {
           "label": "首选网络类型",
-          "consequence": "自动模式由调制解调器自行选择。仅在排查故障时才固定某一种技术。",
+          "consequence": "仅在排查故障时才固定某一种技术。",
           "options": {
             "auto": "自动",
             "lte_nr": "LTE + 5G",
@@ -740,7 +740,7 @@
         },
         "nr5g_mode": {
           "label": "5G 架构",
-          "consequence": "独立组网让 5G 独立运行；非独立组网将其锚定到 LTE。除非运营商有要求，否则请保持自动。",
+          "consequence": "除非运营商要求独立组网（5G 独立运行）或非独立组网（5G 锚定到 LTE），否则请保持自动。",
           "options": {
             "auto": "自动",
             "nsa": "仅 NSA",
@@ -749,7 +749,7 @@
         },
         "roam_pref": {
           "label": "漫游偏好",
-          "consequence": "任意网络会允许接入合作网络，这些网络可能单独计费。",
+          "consequence": "合作网络可能单独计费。",
           "options": {
             "any": "任意网络",
             "home": "仅归属网络",
@@ -758,7 +758,7 @@
         },
         "sim_detect": {
           "label": "SIM 卡热插拔检测",
-          "consequence": "让调制解调器在运行过程中察觉 SIM 卡的插入或拔出。不启用时，更换过的 SIM 卡要到下次重启才会被发现。",
+          "consequence": "不启用时，更换过的 SIM 卡要到下次重启才会被发现。",
           "on": "开启",
           "off": "关闭"
         }
@@ -780,20 +780,31 @@
         "reread": "从调制解调器重新读取",
         "in_sync": "已保存的设置与调制解调器一致。"
       },
+      "hero": {
+        "title": "当前连接",
+        "description": "调制解调器当前接入的网络，以及该网络为它设定的速率上限。",
+        "params_heading": "当前参数",
+        "rates_note": "速率上限是网络授予的上限值，不是实测速度。它们在页面打开时读取，每次保存后再读取一次。",
+        "sr_rate_block": "{{radio}}：{{state}}",
+        "live": "实时",
+        "stale": "已过时",
+        "carrier_none": "未报告运营商",
+        "unavailable_title": "无法读取调制解调器",
+        "unavailable_retrying": "上次读取失败。QManager 仍在重试。",
+        "unavailable_static": "上次读取失败。请使用下方的“从调制解调器重新读取”再试一次。"
+      },
       "readout": {
-        "title": "调制解调器当前报告的状态",
-        "registered_on": "注册于",
         "active_slot": "活动插槽",
-        "serving_tech": "服务技术",
         "slot_n": "SIM {{slot}}",
         "unknown": "未知",
-        "radio_power": "射频状态",
-        "active_apn": "当前 APN",
+        "radio_power_label": "射频状态",
+        "apn_label": "当前 APN",
         "no_apn": "未报告",
         "carrier_aggregation": "载波聚合",
-        "ca_inactive": "未启用",
-        "ca_count_one": "{{count}} 个额外载波",
-        "ca_count_other": "{{count}} 个额外载波"
+        "ca_none": "未启用",
+        "ca_breakdown": "LTE {{lte}} + NR {{nr}}",
+        "ca_lte_only": "LTE {{lte}}",
+        "ca_nr_only": "NR {{nr}}"
       },
       "sim_status": {
         "ready": "就绪",
@@ -804,16 +815,18 @@
         "unknown": "未知"
       },
       "ambr": {
-        "title": "数据速率限制",
-        "description": "运营商为每条数据连接允许的最高速率。由网络策略设定，而非调制解调器。",
-        "lte_title": "LTE 速率",
-        "nr_title": "5G 速率",
+        "lte_heading": "LTE 速率上限",
+        "nr_heading": "5G 速率上限",
+        "governing": "生效中",
+        "not_governing": "未生效",
+        "nsa_note": "5G 非独立组网走 LTE 数据会话，因此以这条上限为准。",
         "lte_empty_title": "未报告 LTE 速率",
-        "lte_empty_body": "调制解调器仅在 LTE 承载建立期间才发布 LTE 限速。",
+        "lte_empty_reason": "调制解调器仅在 LTE 数据会话建立期间才发布 LTE 上限。",
         "nr_empty_title": "未报告 5G 速率",
-        "nr_empty_body": "调制解调器仅在 NR 承载建立期间才发布 5G 限速。",
+        "nr_empty_reason": "调制解调器仅在 5G 数据会话建立期间才发布 5G 上限。",
         "download": "下载",
-        "upload": "上传"
+        "upload": "上传",
+        "governing_unread": "您的连接正在使用该射频。打开本页时未读到它的上限。"
       }
     },
     "fplmn": {
@@ -1510,7 +1523,6 @@
       "camped_meta": "{{count}} 个载波 · {{bandwidth}} MHz",
       "camped_empty_title": "未上报载波",
       "camped_empty_body": "调制解调器未上报服务小区。仍可手动输入频点。",
-      "camped_note": "此信息来自无线电模块，每隔几秒刷新一次。",
       "add_hint": "“添加”会将该频点加入下方列表。频点锁定不涉及 PCI，因此小区仍由调制解调器选择。",
       "compare_hint": "基站锁定会同时固定频点和小区。频点锁定更宽松：同一频点，任意小区。",
       "add_blocked": "在解除基站锁定之前无法添加。"
@@ -2266,11 +2278,8 @@
     "live": {
       "title": "此刻状态",
       "camped_on": "当前驻留",
-      "camped_summary_one": "{{count}} 个载波，共 {{mhz}} MHz",
-      "camped_summary_other": "{{count}} 个载波，共 {{mhz}} MHz",
       "camped_empty_title": "当前无在网载波",
       "camped_empty_body": "调制解调器目前未驻留在任何小区。锁定仍会在其附着后生效。",
-      "camped_note": "此信息来自无线电模块。选择一个小区，即可将其详细参数填入下方的锁定表单。",
       "note_hint": "“添加”会将该小区填入下方的锁定表单。基站锁定会同时固定频点和 PCI，因此调制解调器只会驻留在该小区。",
       "absent_nr_title": "无 5G 载波",
       "absent_lte_title": "无 LTE 锚点",
@@ -2291,8 +2300,6 @@
       "tile_blocked_slots_full": "三个 LTE 小区均已设置",
       "tile_band_channel": "{{band}} – {{channel}}",
       "rail_target_pair": "{{channel}}，PCI {{pci}}",
-      "synced_at": "锁定状态更新于 {{time}}",
-      "synced_never": "尚未读取锁定状态",
       "refresh": "从调制解调器重新读取锁定状态",
       "persist_label": "重启后保持锁定",
       "persist_help": "将锁定保存在调制解调器上，重启后会自动恢复。",

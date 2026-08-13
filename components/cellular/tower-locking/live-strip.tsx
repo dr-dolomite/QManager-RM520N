@@ -27,7 +27,6 @@ import {
   CARRIER_TILE,
   HERO_EYEBROW,
   SKELETON_SHAPE,
-  STRIP_FOOTNOTE,
   STRIP_GRID,
   STRIP_HEAD,
   STRIP_PANEL,
@@ -209,14 +208,6 @@ export function TowerLiveStrip({
     () => sortCarriers(carrierComponents),
     [carrierComponents],
   );
-  const totalMhz = useMemo(
-    () =>
-      onAir.reduce(
-        (sum, c) => sum + (c.bandwidth_mhz > 0 ? c.bandwidth_mhz : 0),
-        0,
-      ),
-    [onAir],
-  );
 
   const verdict = matchVerdict(modemState, onAir);
   const verdictTone = VERDICT_TONE[verdict];
@@ -274,14 +265,6 @@ export function TowerLiveStrip({
           <span className={HERO_EYEBROW}>
             {t("tower_locking.live.camped_on")}
           </span>
-          {onAir.length > 0 ? (
-            <span className="text-on-surface-variant ml-auto text-xs tabular-nums">
-              {t("tower_locking.live.camped_summary", {
-                count: onAir.length,
-                mhz: totalMhz,
-              })}
-            </span>
-          ) : null}
         </div>
 
         {isLoading ? (
@@ -469,11 +452,6 @@ export function TowerLiveStrip({
             ) : null}
           </div>
         )}
-
-        <p className={STRIP_FOOTNOTE}>
-          <MaterialSymbol name="info" size={16} className="flex-none" />
-          <span>{t("tower_locking.live.camped_note")}</span>
-        </p>
       </div>
     </div>
   );

@@ -207,11 +207,16 @@ const FrequencyCalculator = () => {
     };
   }, [result, error, t]);
 
+  // The spec citation, and ONLY once there is a result to cite. The
+  // pre-calculation hint that used to fill this slot ("Auto picks LTE or NR from
+  // the number's range") was removed on 2026-08-14 by user decision — the three
+  // mode tabs sitting directly above it already say Auto is one of three
+  // choices. The slot stays empty until the reader has an answer.
   const noteText = result
     ? t("cell_scanner.calculator.result.method", {
         spec: result.networkType === "NR" ? NR_SPEC : LTE_SPEC,
       })
-    : t("cell_scanner.calculator.form.hint_auto");
+    : null;
 
   return (
     <>
@@ -309,7 +314,7 @@ const FrequencyCalculator = () => {
                * disagree. The error is the more specific of the two, so it wins
                * and the hint stands down until it clears.
                */}
-              {errorText ? null : (
+              {errorText || !noteText ? null : (
                 <div className={FORM.NOTE}>
                   <MaterialSymbol
                     name="info"
