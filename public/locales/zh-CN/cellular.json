@@ -730,7 +730,14 @@
         "active_slot": "活动插槽",
         "serving_tech": "服务技术",
         "slot_n": "SIM {{slot}}",
-        "unknown": "未知"
+        "unknown": "未知",
+        "radio_power": "射频状态",
+        "active_apn": "当前 APN",
+        "no_apn": "未报告",
+        "carrier_aggregation": "载波聚合",
+        "ca_inactive": "未启用",
+        "ca_count_one": "{{count}} 个额外载波",
+        "ca_count_other": "{{count}} 个额外载波"
       },
       "sim_status": {
         "ready": "就绪",

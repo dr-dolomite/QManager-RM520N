@@ -730,7 +730,14 @@
         "active_slot": "Slot attivo",
         "serving_tech": "Tecnologia in uso",
         "slot_n": "SIM {{slot}}",
-        "unknown": "Sconosciuto"
+        "unknown": "Sconosciuto",
+        "radio_power": "Stato radio",
+        "active_apn": "APN attivo",
+        "no_apn": "Non segnalato",
+        "carrier_aggregation": "Aggregazione portanti",
+        "ca_count_one": "{{count}} portante aggiuntiva",
+        "ca_count_other": "{{count}} portanti aggiuntive",
+        "ca_inactive": "Non attiva"
       },
       "sim_status": {
         "ready": "Pronta",

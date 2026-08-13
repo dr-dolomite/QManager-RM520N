@@ -8,11 +8,12 @@ import { TonalBanner } from "@/components/ui/tonal-banner";
 import CellularPageHeader from "@/components/cellular/page-header";
 import { useCellularSettings } from "@/hooks/use-cellular-settings";
 import { useModemStatus } from "@/hooks/use-modem-status";
+import { cn } from "@/lib/utils";
 
 import CellularAMBRCard from "./cellular-ambr";
 import CellularSettingsCard from "./cellular-settings-card";
 import ModemReportsCard from "./modem-reports-card";
-import { PAGE_GRID, PAGE_ROOT } from "./shapes";
+import { CARD_CELL, PAGE_GRID, PAGE_ROOT } from "./shapes";
 
 // =============================================================================
 // Cellular Basic Settings — the route shell
@@ -78,11 +79,24 @@ const CellularSettingsComponent = () => {
       ) : null}
 
       <div className={PAGE_GRID}>
-        <CellularSettingsCard form={form} />
+        <div className={CARD_CELL}>
+          <CellularSettingsCard form={form} />
+        </div>
 
-        <div className="flex flex-col gap-4">
-          <CellularAMBRCard ambr={form.ambr} isLoading={form.isLoading} />
-          <ModemReportsCard status={status} isLoading={statusLoading} />
+        {/* The right column matches the settings card's height (grid's
+            default row stretch, carried down by `CARD_CELL`). AMBR keeps its
+            own content height; the reports card is the one that GROWS to
+            take up the remainder, so a taller settings card never leaves a
+            gap of dead space at the bottom of this column. */}
+        <div className="flex h-full flex-col gap-4">
+          <CellularAMBRCard
+            ambr={form.ambr}
+            isLoading={form.isLoading}
+            networkType={status?.network.type ?? ""}
+          />
+          <div className={cn("flex-1", CARD_CELL)}>
+            <ModemReportsCard status={status} isLoading={statusLoading} />
+          </div>
         </div>
       </div>
     </div>

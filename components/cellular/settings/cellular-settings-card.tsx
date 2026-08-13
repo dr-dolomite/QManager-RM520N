@@ -13,13 +13,13 @@ import {
 import { Button } from "@/components/ui/button";
 import { MaterialSymbol } from "@/components/ui/material-symbol";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 import type {
   CfunMode,
   ModePref,
   Nr5gMode,
   RoamPref,
+  SimDetect,
   SimSlot,
   WritableSettingKey,
 } from "@/types/cellular-settings";
@@ -99,6 +99,11 @@ export function CellularSettingsCard({ form }: CellularSettingsCardProps) {
   const simSlotOptions: SegmentedOption<string>[] = [
     { value: "1", label: t(`${K}.rows.sim_slot.options.slot_1`) },
     { value: "2", label: t(`${K}.rows.sim_slot.options.slot_2`) },
+  ];
+
+  const simDetectOptions: SegmentedOption<string>[] = [
+    { value: "1", label: t(`${K}.rows.sim_detect.on`) },
+    { value: "0", label: t(`${K}.rows.sim_detect.off`) },
   ];
 
   const radioPowerOptions: SegmentedOption<string>[] = [
@@ -243,6 +248,36 @@ export function CellularSettingsCard({ form }: CellularSettingsCardProps) {
 
           <div className={ROW_GROUP.DIVIDER} />
 
+          {/* SIM hot-swap detection is binary (on/off), same as every other
+              row on this card is a closed set of named states — so it takes
+              the same SegmentedField the rest of the card uses, not a bare
+              Switch. A Switch communicates state through track colour alone;
+              every sibling row here keeps its selection legible as TEXT
+              ("✓ SIM 1", "✓ Normal"), and this row now matches that. Placed
+              right after SIM Slot because both rows are about the same
+              physical thing (the SIM), before the radio-behaviour rows that
+              follow. */}
+          <SettingRow
+            label={t(`${K}.rows.sim_detect.label`)}
+            consequence={t(`${K}.rows.sim_detect.consequence`)}
+            dirty={rowDirty("sim_detect")}
+            delta={deltaFor("sim_detect", simDetectOptions)}
+            control={
+              <SegmentedField
+                value={String(draft.sim_detect)}
+                onValueChange={(next) =>
+                  setField("sim_detect", Number(next) as SimDetect)
+                }
+                options={simDetectOptions}
+                ariaLabel={t(`${K}.rows.sim_detect.label`)}
+                disabled={isSaving}
+                onFill={rowDirty("sim_detect")}
+              />
+            }
+          />
+
+          <div className={ROW_GROUP.DIVIDER} />
+
           <SettingRow
             label={t(`${K}.rows.cfun.label`)}
             consequence={t(`${K}.rows.cfun.consequence`)}
@@ -321,42 +356,6 @@ export function CellularSettingsCard({ form }: CellularSettingsCardProps) {
                 ariaLabel={t(`${K}.rows.roam_pref.label`)}
                 disabled={isSaving}
                 onFill={rowDirty("roam_pref")}
-              />
-            }
-          />
-
-          <div className={ROW_GROUP.DIVIDER} />
-
-          {/* SIM hot-swap detection is the one genuinely BINARY row — a
-              capability you turn on, not a choice between peers. A Switch says
-              that; a two-segment pill would have implied SIM 1 / SIM 2's
-              "pick one of these" semantics for something that is really
-              on/off. */}
-          <SettingRow
-            label={t(`${K}.rows.sim_detect.label`)}
-            consequence={t(`${K}.rows.sim_detect.consequence`)}
-            dirty={rowDirty("sim_detect")}
-            delta={
-              rowDirty("sim_detect")
-                ? `${t(
-                    settings.sim_detect === 1
-                      ? `${K}.rows.sim_detect.on`
-                      : `${K}.rows.sim_detect.off`,
-                  )} → ${t(
-                    draft.sim_detect === 1
-                      ? `${K}.rows.sim_detect.on`
-                      : `${K}.rows.sim_detect.off`,
-                  )}`
-                : null
-            }
-            control={
-              <Switch
-                checked={draft.sim_detect === 1}
-                onCheckedChange={(checked) =>
-                  setField("sim_detect", checked ? 1 : 0)
-                }
-                disabled={isSaving}
-                aria-label={t(`${K}.rows.sim_detect.label`)}
               />
             }
           />

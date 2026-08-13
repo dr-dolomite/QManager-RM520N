@@ -730,7 +730,14 @@
         "active_slot": "Active slot",
         "serving_tech": "Serving technology",
         "slot_n": "SIM {{slot}}",
-        "unknown": "Unknown"
+        "unknown": "Unknown",
+        "radio_power": "Radio power",
+        "active_apn": "Active APN",
+        "no_apn": "None reported",
+        "carrier_aggregation": "Carrier aggregation",
+        "ca_count_one": "{{count}} extra carrier",
+        "ca_count_other": "{{count}} extra carriers",
+        "ca_inactive": "Not active"
       },
       "sim_status": {
         "ready": "Ready",

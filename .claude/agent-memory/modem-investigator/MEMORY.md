@@ -1,5 +1,7 @@
 # MEMORY.md index
 
+- [URCs are uncapturable — nothing holds /dev/smd11](urc_capture_impossible_no_smd11_listener.md) — zero `/proc/*/fd` hits for smd11; atcli opens per-command, so `AT+QSIMSTAT=1` URCs are dropped AND risk interleaving into unrelated qcmd responses; always prefer the vendor's `?` read form + an existing poller tier
+
 - [Rootfs ro-remount probe recipe + EROFS exit codes](rootfs_ro_remount_probe_recipe.md) — `mount -o remount,ro /` round-trips cleanly (no EBUSY, nothing notices); `ln -sf` AND `rm -f` both return **1** under EROFS (busybox -f masks only ENOENT); probe symlink must be named `qmanager*` or the sudoers grant fails first
 
 - [/tmp ownership + protected_regular + PID churn](tmp_ownership_protected_regular_facts.md) — protected_regular=1 blocks ROOT from O_CREAT on www-data-owned /tmp files (no cap override; read-only opens exempt, which is why qcmd's `9<lock` works); protected_fifo does NOT exist on this kernel; PID churn measured 100/s → 32768 wraps in 325s; orphaned `*.tmp` siblings are the fingerprint of a failed cross-UID `mv`

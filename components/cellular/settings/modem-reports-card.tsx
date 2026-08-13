@@ -54,6 +54,21 @@ import {
 //
 // NO DOT SEPARATORS anywhere in here. The comp glued facts with `·`; the
 // No-Dot-Separator Rule gives them a real gap instead.
+//
+// THREE MORE ROWS, AND WHY THESE THREE. This card sits beside the settings
+// card in the right column and is the one that GROWS to match its height
+// (see `CARD_CELL` in `cellular-settings.tsx`) — three extra facts turn that
+// growth into more signal instead of dead space, and each was picked because
+// it answers a question the settings card raises rather than duplicating a
+// page that already owns the number:
+//   Radio power  → the modem's OWN read of `AT+CFUN?`, next to the Radio
+//                  Power row above it in the settings card. A pending draft
+//                  edit and this value can legitimately disagree until saved.
+//   Active APN   → which bearer is actually up, not configured — APN
+//                  Management owns editing it, this card only reports it.
+//   Carrier      → whether the current Network Type / 5G Architecture
+//   aggregation    choice is actually bearing more than one carrier right
+//                  now, tying back to `mode_pref` / `nr5g_mode` above.
 // =============================================================================
 
 export interface ModemReportsCardProps {
@@ -71,9 +86,11 @@ export function ModemReportsCard({ status, isLoading }: ModemReportsCardProps) {
         <CardHeader className={CARD_PAD}>
           <CardTitle className="text-base">{t(`${K}.title`)}</CardTitle>
         </CardHeader>
-        <CardContent className={CARD_PAD}>
+        <CardContent
+          className={cn(CARD_PAD, "flex flex-1 flex-col justify-center")}
+        >
           <div className={READOUT_ROW.LIST}>
-            {Array.from({ length: 3 }).map((_, index) => (
+            {Array.from({ length: 6 }).map((_, index) => (
               <Skeleton
                 key={index}
                 className={cn(READOUT_ROW.HEIGHT, "rounded-pill")}
@@ -98,13 +115,38 @@ export function ModemReportsCard({ status, isLoading }: ModemReportsCardProps) {
   const techLabel = networkTypeLabel(status.network.type);
   const techIsKnown = techLabel !== "Unknown";
 
+  // Radio power reuses the SETTINGS card's own option labels
+  // (`core_settings.basic.rows.cfun.options.*`) rather than a second copy of
+  // "Normal" / "Radio off" / "Airplane" — one string, one place it can drift.
+  // `cfun` is optional (older poller), same absence contract as `.sim`.
+  const cfunKey =
+    status.network.cfun === 1
+      ? "normal"
+      : status.network.cfun === 0
+        ? "radio_off"
+        : status.network.cfun === 4
+          ? "airplane"
+          : null;
+  const radioPowerLabel = cfunKey
+    ? t(`core_settings.basic.rows.cfun.options.${cfunKey}`)
+    : unknown;
+
+  const apn = status.network.apn?.trim() || null;
+
+  const caCount =
+    (status.network.ca_count ?? 0) + (status.network.nr_ca_count ?? 0);
+  const caActive =
+    (status.network.ca_active || status.network.nr_ca_active) && caCount > 0;
+
   return (
     <Card className={cn(CARD_SHELL)}>
       <CardHeader className={CARD_PAD}>
         <CardTitle className="text-base">{t(`${K}.title`)}</CardTitle>
       </CardHeader>
 
-      <CardContent className={CARD_PAD}>
+      <CardContent
+        className={cn(CARD_PAD, "flex flex-1 flex-col justify-center")}
+      >
         <div className={READOUT_ROW.LIST}>
           {/* Registered on — a carrier name is human-authored, so it is NOT
               set in mono (The Machine-Voice Rule). */}
@@ -145,6 +187,63 @@ export function ModemReportsCard({ status, isLoading }: ModemReportsCardProps) {
                 )}
               >
                 {techIsKnown ? techLabel : unknown}
+              </span>
+            </div>
+          </div>
+
+          {/* Radio power — the modem's OWN read-back of AT+CFUN?, not the
+              settings card's draft. A human-authored label ("Normal" /
+              "Radio off" / "Airplane"), so it is NOT mono. */}
+          <div className={READOUT_ROW.ROOT}>
+            <span className={READOUT_ROW.LABEL}>
+              {t(`${K}.radio_power`)}
+            </span>
+            <div className={READOUT_ROW.VALUE_GROUP}>
+              <span
+                className={cn(
+                  READOUT_ROW.VALUE_TEXT,
+                  !cfunKey && "text-on-surface-variant",
+                )}
+              >
+                {radioPowerLabel}
+              </span>
+            </div>
+          </div>
+
+          {/* Active APN — the bearer actually up, reported by the modem.
+              APN Management owns editing it; this row only reports it, so
+              it is a machine string (mono) like the other identifiers here. */}
+          <div className={READOUT_ROW.ROOT}>
+            <span className={READOUT_ROW.LABEL}>{t(`${K}.active_apn`)}</span>
+            <div className={READOUT_ROW.VALUE_GROUP}>
+              <span
+                className={cn(
+                  READOUT_ROW.VALUE_MONO,
+                  !apn && "text-on-surface-variant",
+                )}
+              >
+                {apn ?? t(`${K}.no_apn`)}
+              </span>
+            </div>
+          </div>
+
+          {/* Carrier aggregation — whether the current Network Type / 5G
+              Architecture choice is actually bearing more than one carrier
+              right now. Ties back to `mode_pref` / `nr5g_mode` above. */}
+          <div className={READOUT_ROW.ROOT}>
+            <span className={READOUT_ROW.LABEL}>
+              {t(`${K}.carrier_aggregation`)}
+            </span>
+            <div className={READOUT_ROW.VALUE_GROUP}>
+              <span
+                className={cn(
+                  READOUT_ROW.VALUE_TEXT,
+                  !caActive && "text-on-surface-variant",
+                )}
+              >
+                {caActive
+                  ? t(`${K}.ca_count`, { count: caCount })
+                  : t(`${K}.ca_inactive`)}
               </span>
             </div>
           </div>

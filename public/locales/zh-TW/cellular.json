@@ -730,7 +730,14 @@
         "active_slot": "使用中插槽",
         "serving_tech": "服務技術",
         "slot_n": "SIM {{slot}}",
-        "unknown": "未知"
+        "unknown": "未知",
+        "radio_power": "射頻狀態",
+        "active_apn": "目前 APN",
+        "no_apn": "未回報",
+        "carrier_aggregation": "載波聚合",
+        "ca_inactive": "未啟用",
+        "ca_count_one": "{{count}} 個額外載波",
+        "ca_count_other": "{{count}} 個額外載波"
       },
       "sim_status": {
         "ready": "就緒",

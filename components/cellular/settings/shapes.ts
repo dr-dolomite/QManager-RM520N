@@ -55,9 +55,23 @@ export const PAGE_ROOT = "@container/main mx-auto flex flex-col gap-6 p-2";
  * The two-column body. The comp runs 1.35fr / 1fr; expressed here as a
  * container query so it responds to the content column rather than the window
  * (the sidebar expanding must not restack the page).
+ *
+ * NO `items-start`. CSS grid's default `align-items: stretch` is what we want
+ * here (DESIGN.md's Equal Heights rule) — the right column (AMBR + modem
+ * reports) should rise to match the settings card's height rather than
+ * leaving it visibly taller. `CARD_CELL` below is what actually carries that
+ * stretch down into each `Card`.
  */
 export const PAGE_GRID =
-  "grid grid-cols-1 gap-4 @4xl/main:grid-cols-[1.35fr_1fr] @4xl/main:items-start";
+  "grid grid-cols-1 gap-4 @4xl/main:grid-cols-[1.35fr_1fr]";
+
+/**
+ * Wraps a grid cell so the stretched row height reaches the `Card` inside it.
+ * A grid cell stretches by default, but a block child does not inherit that
+ * as its own height unless told to — see DESIGN.md > Layout > "Equal heights
+ * are explicit".
+ */
+export const CARD_CELL = "h-full *:data-[slot=card]:h-full";
 
 /** A card on this surface. Peer role — no hero anchor here. */
 export const CARD_SHELL =
@@ -343,23 +357,52 @@ export const AMBR_BLOCK = {
 /**
  * A single down/up rate chip.
  *
- * Direction is carried by an ARROW as well as by position, so the pair survives
- * colour-blindness — down and up sit on the same fill by design; the glyph is
- * the differentiator, not the hue.
+ * DIRECTION IS THE COLOUR, NOT THE RADIO. An earlier draft coloured both
+ * chips after the block's radio identity (`bg-lte` inside the LTE block,
+ * `bg-primary` inside the 5G block) — which is why an LTE download chip and
+ * an LTE upload chip were the same purple, distinguished only by their arrow
+ * glyph. A figure's DIRECTION now reads the same colour regardless of which
+ * radio block it sits in — the radio identity still lives in the block's own
+ * container fill (`AMBR_BLOCK.LTE` / `AMBR_BLOCK.NR`), one layer out from the
+ * chip — but the two hues carrying that direction are `primary` (download)
+ * and `lte` (upload), not `primary` and `uplink`.
+ *
+ * WHY `lte` (VIOLET) AND NOT `uplink` (CYAN). A first pass reused Uplink Cyan
+ * here because DESIGN.md names it as the hue that owns "the upload leg of
+ * any paired readout," and `device-metrics.tsx` does exactly that. But this
+ * card lives beside — and inside — the LTE/5G identity blocks, which are
+ * themselves blue and violet; a cyan third accent read as an outlier next to
+ * that pair rather than as part of the same family, and read especially
+ * discordant sitting inside the violet LTE block. `speedtest-dialog.tsx`
+ * already settled the same question the other way: its three-way
+ * ping/download/upload contract assigns `upload -> lte`, `ping -> uplink`,
+ * precisely because a third measurement needed a third hue and violet fit the
+ * pair better than cyan did. This card only has two directions, so it takes
+ * that same `primary`/`lte` pair rather than reaching for cyan — one blue
+ * shade, one violet shade, both already load-bearing hues in this product's
+ * palette instead of a new accent introduced for this one card. (Cyan is not
+ * wrong on `device-metrics.tsx` — a lone tile on a neutral dashboard card
+ * has no adjacent purple to clash with. It just doesn't fit a card whose own
+ * container fill is the LTE violet.)
+ *
+ * The arrow glyph stays as the direction's SECOND channel (never the only
+ * one — PRODUCT.md requires a paired readout to survive colour-blindness),
+ * so the pairing degrades gracefully rather than depending on hue alone even
+ * where it lands inside the LTE block and one chip shares its family.
  *
  * ON THE FILL CHOICE. An earlier draft wrote `bg-lte/25` and `bg-primary/25`.
  * Both are alpha washes and both are wrong for the same reason as
  * `SEGMENTED.TRACK_ON_FILL` above. The correct move for a chip that must lift
- * off a CONTAINER is the role's own FILL pair — `bg-lte` carries
- * `text-lte-foreground`, `bg-primary` carries `text-primary-foreground`. That
- * is a real pair in both themes, where an alpha is a different perceived
+ * off a CONTAINER is the role's own FILL pair — `bg-primary` carries
+ * `text-primary-foreground`, `bg-lte` carries `text-lte-foreground`. That is
+ * a real pair in both themes, where an alpha is a different perceived
  * lightness in each. Note the pairs are declared here, so consumers must NOT
  * also set an ink class on the chip.
  */
 export const RATE_CHIP = {
   ROOT: "inline-flex h-[1.875rem] items-center gap-1.5 rounded-pill px-3 font-mono text-[0.8125rem] font-semibold tabular-nums",
-  ON_LTE: "bg-lte text-lte-foreground",
-  ON_NR: "bg-primary text-primary-foreground",
+  ON_DOWNLOAD: "bg-primary text-primary-foreground",
+  ON_UPLOAD: "bg-lte text-lte-foreground",
   GLYPH: 15,
 } as const;
 
@@ -376,7 +419,6 @@ export const AMBR_EMPTY = {
   GLYPH: 26,
   TITLE: "text-sm font-semibold",
   BODY: "text-on-surface-variant max-w-[19rem] text-[0.78125rem] leading-relaxed text-pretty",
-  HEIGHT: "h-[7.75rem]",
 } as const;
 
 // -----------------------------------------------------------------------------
