@@ -105,8 +105,8 @@ constants/                      # Static configuration data
 | `/cellular/settings` | CellularSettings | Mode, roaming, AMBR settings |
 | `/cellular/settings/apn-management` | APNSettings | APN profile CRUD |
 | `/cellular/settings/imei-settings` | IMEISettings | IMEI read/write/backup |
-| `/cellular/settings/network-priority` | NetworkPriority | LTE/NR mode preferences |
-| `/cellular/settings/fplmn-settings` | FPLMNSettings | Forbidden network cleanup |
+| `/cellular/settings/network-priority` | NetworkPriority | RAT acquisition order (`AT+QNWPREFCFG="rat_acq_order"`), reorderable |
+| `/cellular/settings/fplmn-settings` | FPLMNSettings | **Blocked Networks** — forbidden-PLMN (FPLMN) list read + clear |
 | `/cellular/cell-locking` | BandLocking | LTE/NR band selection |
 | `/cellular/cell-locking/tower-locking` | TowerLocking | PCI-based tower lock (with Simple Mode dropdowns sourced from live QCAINFO) |
 | `/cellular/cell-locking/frequency-locking` | FrequencyLocking | EARFCN/ARFCN lock |
@@ -430,7 +430,7 @@ document.cookie = "qm_logged_in=; Path=/; Max-Age=0";
 window.location.href = "/reboot/";
 ```
 
-Reference implementations: `components/nav-user.tsx` (manual reboot), `components/cellular/settings/apn-management/mbn-card.tsx` (MBN apply), `components/local-network/ip-passthrough/ip-passthrough-card.tsx` (IPPT save). The countdown page itself lives at `components/reboot/reboot-countdown.tsx` and fires the `reboot_ack` request on mount.
+Reference implementations: `components/nav-user.tsx` (manual reboot), `components/cellular/settings/apn-management/mbn-card.tsx` (MBN apply), `components/local-network/ip-passthrough/ip-passthrough-card.tsx` (IPPT save), `hooks/use-imei-settings.ts` (`rebootDevice`, which returns `void` — a reboot is never awaitable; see [reference/cellular-settings-family.md](reference/cellular-settings-family.md)). The countdown page itself lives at `components/reboot/reboot-countdown.tsx` and fires the `reboot_ack` request on mount.
 
 ### Self-Contained Cards
 

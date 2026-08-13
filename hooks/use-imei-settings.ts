@@ -39,8 +39,13 @@ export interface UseImeiSettingsReturn {
   saveImei: (imei: string) => Promise<boolean>;
   /** Save backup IMEI configuration. Returns true on success. */
   saveBackup: (config: BackupImeiConfig) => Promise<boolean>;
-  /** Trigger device reboot. Returns true if command was sent. */
-  rebootDevice: () => Promise<boolean>;
+  /**
+   * Hand off to the reboot countdown page and fire the reboot.
+   *
+   * Returns nothing on purpose — see the implementation note below. A reboot is
+   * never something this app can await.
+   */
+  rebootDevice: () => void;
   /** Re-fetch IMEI data */
   refresh: () => void;
 }
@@ -204,25 +209,32 @@ export function useImeiSettings(): UseImeiSettingsReturn {
   );
 
   // ---------------------------------------------------------------------------
-  // Reboot device (separate from save — called from reboot dialog)
+  // Reboot device (separate from save — called from the reboot dialog/banner)
   // ---------------------------------------------------------------------------
-  const rebootDevice = useCallback(async (): Promise<boolean> => {
-    try {
-      const resp = await authFetch(CGI_ENDPOINT, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "reboot" }),
-      });
+  // QManager is served BY the modem it reboots, so the request that starts the
+  // reboot kills its own HTTP response. Awaiting it can only ever resolve to a
+  // network error, and the incumbent implementation did exactly that: it
+  // reported "Reboot failed" on a reboot that was in fact already underway, and
+  // left the user sitting on a page whose backend had gone away.
+  //
+  // The product-wide handoff (nav-user.tsx, mbn-card.tsx, ip-passthrough-card.tsx,
+  // use-software-update.ts) is: mark the session, drop the login indicator
+  // cookie, fire the request `keepalive` so it survives the navigation, and go
+  // to /reboot/ immediately so the countdown page is already in browser memory
+  // when the device disappears. This is that flow, nothing more.
+  const rebootDevice = useCallback((): void => {
+    sessionStorage.setItem("qm_rebooting", "1");
+    document.cookie = "qm_logged_in=; Path=/; Max-Age=0";
 
-      if (!resp.ok) {
-        throw new Error(`HTTP ${resp.status}: ${resp.statusText}`);
-      }
+    const request: ImeiSaveRequest = { action: "reboot" };
+    fetch(CGI_ENDPOINT, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(request),
+      keepalive: true,
+    }).catch(() => {});
 
-      const data: ImeiSaveResponse = await resp.json();
-      return data.success;
-    } catch {
-      return false;
-    }
+    window.location.href = "/reboot/";
   }, []);
 
   return {

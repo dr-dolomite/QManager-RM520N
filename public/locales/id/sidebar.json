@@ -25,7 +25,7 @@
     "apn_management": "Manajemen APN",
     "network_priority": "Prioritas Jaringan",
     "imei_settings": "Pengaturan IMEI",
-    "fplmn_settings": "Pengaturan FPLMN",
+    "fplmn_settings": "Jaringan Diblokir",
     "ethernet_status": "Status Ethernet",
     "local_network_settings": "Pengaturan",
     "ip_passthrough": "IP Passthrough",

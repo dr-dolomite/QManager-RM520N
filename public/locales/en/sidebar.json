@@ -25,7 +25,7 @@
     "apn_management": "APN Management",
     "network_priority": "Network Priority",
     "imei_settings": "IMEI Settings",
-    "fplmn_settings": "FPLMN Settings",
+    "fplmn_settings": "Blocked Networks",
     "ethernet_status": "Ethernet Status",
     "local_network_settings": "Settings",
     "ip_passthrough": "IP Passthrough",

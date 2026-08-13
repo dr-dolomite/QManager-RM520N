@@ -579,8 +579,7 @@
       "status": {
         "active": "已激活",
         "not_live": "未生效",
-        "carrier_default": "运营商默认",
-        "network_using": "网络正在使用：{{apn}}"
+        "carrier_default": "运营商默认"
       },
       "save_connection_notice": "保存时调制解调器重连期间蜂窝连接会短暂中断。",
       "carrier_default": {
@@ -600,11 +599,6 @@
       },
       "controls_label": "APN 配置",
       "managed_by_profile_fallback": "活动的自定义 SIM 配置",
-      "list": {
-        "live": {
-          "mismatch_default": "网络正在使用运营商默认值"
-        }
-      },
       "edit": {
         "fields": {
           "apn": {
@@ -638,8 +632,70 @@
           "description_sos": "CID {{cid}} 被保留用于紧急（SOS）呼叫。在此写入数据 APN 可能会中断紧急呼叫。仍要继续吗？",
           "confirm": "仍然使用",
           "cancel": "取消"
+        }
+      },
+      "rows": {
+        "apn": {
+          "label": "APN 名称",
+          "consequence": "此值由运营商决定。如果不确定，请交由运营商设置。"
         },
-        "save_button": "保存配置文件"
+        "pdp_type": {
+          "label": "IP 协议",
+          "consequence": "IPv4v6 几乎在任何网络下都适用。只有运营商要求时才固定单一协议族。"
+        },
+        "cid": {
+          "label": "数据上下文",
+          "consequence": "APN 将写入哪个 PDP 上下文。写入保留上下文时会要求确认。"
+        }
+      },
+      "save_apn": "保存 APN",
+      "cid_in_use": "CID {{cid}} 正用于互联网",
+      "cid_unknown": "未报告互联网上下文",
+      "readout": {
+        "title": "网络授予的内容",
+        "description": "实时读取自调制解调器，而非已保存的设置。",
+        "serving_apn": "生效的 APN",
+        "granted_ip": "已授予的 IP",
+        "bearer_state": "承载状态",
+        "ipv4": "IPv4 地址",
+        "ipv6": "IPv6 地址",
+        "attached": "已附着",
+        "not_attached": "未附着",
+        "ip_v4_only": "仅 IPv4",
+        "ip_v6_only": "仅 IPv6",
+        "ip_both": "IPv4 和 IPv6",
+        "ip_none": "未分配",
+        "error_title": "无法获取实时状态",
+        "error_body": "调制解调器状态源未响应。下方的值可能缺失。"
+      },
+      "mbn": {
+        "title": "运营商配置文件 (MBN)",
+        "description": "为每家运营商设定 APN、IMS 和频段默认值的固件包。",
+        "auto": {
+          "label": "自动选择",
+          "consequence": "调制解调器根据 SIM 卡自动选择配置包。关闭后可自行指定。"
+        },
+        "list_label": "可用配置包",
+        "selected_caption": "已选择，自上次启动起生效",
+        "reboot_notice": "配置包需重启后才会生效。QManager 只会提示重启，绝不擅自重启。",
+        "pending_note": "更改将在重启后生效。",
+        "save": "应用配置文件",
+        "empty": {
+          "title": "未报告任何配置包",
+          "body": "此固件未返回运营商配置文件列表。目前只能使用自动选择。"
+        },
+        "error_title": "加载运营商配置文件失败",
+        "toast": {
+          "applied": "运营商配置文件已更新 — 需要重启",
+          "error": "应用运营商配置文件失败"
+        },
+        "reboot": {
+          "title": "需要重启",
+          "description": "运营商配置文件更改需重启后生效。现在重启吗？",
+          "later": "稍后重启",
+          "now": "立即重启",
+          "rebooting": "正在重启…"
+        }
       }
     },
     "basic": {
@@ -758,6 +814,240 @@
         "nr_empty_body": "调制解调器仅在 NR 承载建立期间才发布 5G 限速。",
         "download": "下载",
         "upload": "上传"
+      }
+    },
+    "fplmn": {
+      "page": {
+        "title": "被阻止的网络",
+        "description": "SIM 卡会保存曾经拒绝过本设备的网络列表。清除该列表可以恢复连接并改善漫游。",
+        "note": "清除操作写入的是 SIM 卡而非调制解调器，并且不会重启任何设备。如果某个网络再次拒绝本设备，该列表会重新生成。"
+      },
+      "card": {
+        "title": "禁用网络列表",
+        "description": "每次打开本页面时，QManager 都会直接从 SIM 卡读取该列表。",
+        "learn_more": "了解更多"
+      },
+      "states": {
+        "loading": {
+          "title": "正在检查 SIM 卡",
+          "description": "正在读取卡上存储的禁用网络列表。"
+        },
+        "clean": {
+          "title": "没有被阻止的网络",
+          "description": "SIM 卡的禁用列表为空，无需任何操作。"
+        },
+        "entries": {
+          "title": "发现被阻止的网络",
+          "description": "SIM 卡正在拒绝一个或多个网络，这可能导致调制解调器无法注册。建议清除该列表。"
+        },
+        "error": {
+          "title": "无法检查 SIM 卡"
+        },
+        "unknown": {
+          "title": "状态未知",
+          "description": "QManager 无法确定此 SIM 卡是否存在被阻止的网络。未作任何更改，请重试读取。"
+        }
+      },
+      "actions": {
+        "refresh": "刷新状态",
+        "clear": "清除被阻止的网络",
+        "clearing": "正在清除…"
+      },
+      "confirm": {
+        "title": "要清除被阻止的网络列表吗？",
+        "description": "此操作将擦除存储在 SIM 卡上的禁用网络列表，且无法撤销。设备不会重启，调制解调器保持连接。如果某个网络再次拒绝本设备，该列表会重新生成。",
+        "confirm": "清除列表"
+      },
+      "toast": {
+        "cleared": "已清除被阻止的网络",
+        "clear_failed": "无法清除被阻止的网络"
+      },
+      "errors": {
+        "read_failed": "设备无法读取 SIM 卡的禁用网络列表。",
+        "unreachable": "无法连接到设备。"
+      }
+    },
+    "imei": {
+      "page": {
+        "title": "IMEI 设置",
+        "description": "查看、写入并验证调制解调器向网络出示的标识符。",
+        "error_title": "无法读取 IMEI 设置",
+        "error_body": "调制解调器没有响应：{{detail}}"
+      },
+      "legal": {
+        "title": "多数国家对修改 IMEI 有法律限制",
+        "body": "在许多司法辖区，写入不属于自己的标识符属于违法行为。修改本页任何内容之前，请先了解当地法律。"
+      },
+      "reboot": {
+        "banner": {
+          "title": "需要重启才能应用新的 IMEI",
+          "description": "标识符已写入。在重启之前，调制解调器仍会出示原来的 IMEI。",
+          "review": "查看",
+          "reboot": "重启"
+        },
+        "dialog": {
+          "title": "重启以应用新的 IMEI",
+          "description": "IMEI 已保存，但在重启之前调制解调器仍会出示原来的 IMEI。重启会中断连接约一分钟。",
+          "now": "立即重启",
+          "later": "稍后重启"
+        }
+      },
+      "device": {
+        "title": "设备 IMEI",
+        "description": "调制解调器当前上报的值，以及下次启动后将上报的值。",
+        "rows": {
+          "current": {
+            "label": "当前",
+            "consequence": "直接从调制解调器读取，而非来自本地存储。",
+            "unavailable": "尚未上报"
+          },
+          "write": {
+            "label": "写入新 IMEI",
+            "consequence": "15 位数字。仅在重启后生效。",
+            "placeholder": "15 位数字"
+          }
+        },
+        "errors": {
+          "length": "IMEI 必须正好是 15 位数字，您已输入 {{entered}} 位。",
+          "luhn": "这 15 位数字未通过校验位检验，网络会拒绝该号码。请修改最后一位，或在“IMEI 工具”中生成一个有效号码。"
+        },
+        "status": {
+          "empty": "没有可写入的内容，输入框为空。",
+          "unchanged": "这已经是调制解调器上的 IMEI。",
+          "ready": "可以写入。在重启之前，调制解调器仍保持当前身份。"
+        },
+        "actions": {
+          "write": "写入 IMEI",
+          "reset": "恢复为调制解调器上的 IMEI",
+          "copy": "复制当前 IMEI"
+        },
+        "toasts": {
+          "saved": "IMEI 已写入，将在下次重启后生效。",
+          "failed": "调制解调器未接受该 IMEI。",
+          "copied": "IMEI 已复制。",
+          "copy_failed": "无法复制 IMEI。"
+        }
+      },
+      "backup": {
+        "title": "备用 IMEI",
+        "description": "第二个标识符；当固件事件导致主 IMEI 失效时，设备会自动恢复使用它。",
+        "rows": {
+          "keep": {
+            "label": "保留备用 IMEI",
+            "consequence_off": "已关闭。未保存任何备用标识符。",
+            "consequence_on": "已开启。若主 IMEI 被拒绝，设备将恢复使用 {{imei}}。"
+          },
+          "value": {
+            "label": "备用标识符",
+            "consequence": "15 位数字。仅在主 IMEI 被拒绝时使用。",
+            "placeholder": "15 位数字"
+          }
+        },
+        "errors": {
+          "length": "IMEI 必须正好是 15 位数字，您已输入 {{entered}} 位。",
+          "luhn": "这 15 位数字未通过校验位检验，网络同样会拒绝该备用号码。请修改最后一位，或在“IMEI 工具”中生成一个有效号码。"
+        },
+        "actions": {
+          "save": "保存备用设置",
+          "reset": "恢复为已保存的备用设置"
+        },
+        "toasts": {
+          "saved": "备用设置已保存。",
+          "failed": "无法保存备用设置。"
+        },
+        "dialog": {
+          "title": "关于备用恢复",
+          "description": "保存备用 IMEI 后，设备会在每次重启后检查网络是否拒绝了当前 IMEI。若被拒绝，设备会自动切换到备用标识符并再次重启。",
+          "confirm": "保留备用 IMEI"
+        }
+      },
+      "tools": {
+        "title": "IMEI 工具",
+        "description": "根据型号分配码生成符合 Luhn 校验的号码，或检验已有的号码。",
+        "generate": {
+          "tac_label": "型号分配码",
+          "tac_consequence": "前八位数字，用于表明该号码所声称的机型。",
+          "tac_placeholder": "选择机型",
+          "custom": "自定义代码",
+          "prefix_label": "前缀",
+          "prefix_consequence": "8 至 12 位数字。其余部分会自动补全。",
+          "prefix_placeholder": "8–12 位数字",
+          "prefix_error": "前缀应为 8 至 12 位数字，您已输入 {{entered}} 位。",
+          "action": "生成"
+        },
+        "check": {
+          "label": "检验号码",
+          "placeholder": "粘贴或生成 15 位数字",
+          "valid": "Luhn 校验通过",
+          "invalid": "Luhn 校验失败",
+          "empty": "输入 15 位数字即可查看该号码的构成。",
+          "lookup": "在线查询"
+        },
+        "actions": {
+          "copy": "复制该号码"
+        },
+        "toasts": {
+          "copied": "号码已复制。",
+          "copy_failed": "无法复制该号码。"
+        },
+        "breakdown": {
+          "tac": "TAC",
+          "serial": "序列号",
+          "check": "校验位"
+        },
+        "footnote": "结构有效并不代表你有权使用该号码。此处的内容不会写入调制解调器。"
+      }
+    },
+    "network_priority": {
+      "page": {
+        "title": "网络优先级",
+        "description": "调制解调器注册网络时尝试各种无线技术的顺序。"
+      },
+      "card": {
+        "title": "搜网顺序",
+        "description": "拖动即可调整顺序。保存后调制解调器会重新注册网络，连接会中断几秒钟。"
+      },
+      "rats": {
+        "NR5G": "5G NR",
+        "LTE": "LTE",
+        "WCDMA": "WCDMA"
+      },
+      "hints": {
+        "WCDMA": "此技术的数据速率会大幅下降。"
+      },
+      "position": {
+        "first": "最先尝试。若此处没有小区响应，会自动回退。",
+        "middle": "当上方技术均无法注册时，接着尝试。",
+        "last": "最后的备用选择。仅当上方技术均无法注册时才使用。",
+        "only": "调制解调器唯一会尝试的技术。"
+      },
+      "serving_now": "当前使用中",
+      "handle_aria": "重新排序 {{name}}，当前第 {{rank}} 项，共 {{total}} 项",
+      "save_bar": {
+        "count_one": "有 {{count}} 项更改待保存",
+        "count_other": "有 {{count}} 项更改待保存",
+        "note": "保存后调制解调器会重新注册网络，预计约 3 秒无数据连接。",
+        "discard": "放弃更改",
+        "save": "保存优先级"
+      },
+      "apply": {
+        "writing": "正在写入新顺序",
+        "recovering": "正在重新注册网络",
+        "verifying": "正在读回顺序"
+      },
+      "states": {
+        "error": {
+          "title": "无法读取优先级顺序",
+          "description": "调制解调器未响应搜网顺序查询。它可能正忙，请稍后重试。"
+        },
+        "empty": {
+          "title": "未报告任何无线技术",
+          "description": "调制解调器返回的搜网顺序为空，因此没有可排序的项目。请重新读取，或确认射频是否已开启。"
+        }
+      },
+      "toast": {
+        "saved": "网络优先级已更新",
+        "save_error": "无法设置网络优先级"
       }
     }
   },

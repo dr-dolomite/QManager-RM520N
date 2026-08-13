@@ -25,7 +25,7 @@
     "apn_management": "APN 管理",
     "network_priority": "网络优先级",
     "imei_settings": "IMEI 设置",
-    "fplmn_settings": "FPLMN 设置",
+    "fplmn_settings": "被阻止的网络",
     "ethernet_status": "以太网状态",
     "local_network_settings": "设置",
     "ip_passthrough": "IP 穿透",

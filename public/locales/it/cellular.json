@@ -579,8 +579,7 @@
       "status": {
         "active": "Attivo",
         "not_live": "Non attivo",
-        "carrier_default": "Predefinito operatore",
-        "network_using": "La rete sta usando: {{apn}}"
+        "carrier_default": "Predefinito operatore"
       },
       "save_connection_notice": "Il salvataggio interrompe brevemente la connessione cellulare durante la riconnessione del modem.",
       "carrier_default": {
@@ -600,11 +599,6 @@
       },
       "controls_label": "Configurazione APN",
       "managed_by_profile_fallback": "profilo SIM personalizzato attivo",
-      "list": {
-        "live": {
-          "mismatch_default": "La rete sta usando il valore predefinito dell'operatore"
-        }
-      },
       "edit": {
         "fields": {
           "apn": {
@@ -638,8 +632,70 @@
           "description_sos": "Il CID {{cid}} è riservato alle chiamate di emergenza (SOS). Scrivere qui un APN dati può compromettere le chiamate di emergenza. Continuare comunque?",
           "confirm": "Usa comunque",
           "cancel": "Annulla"
+        }
+      },
+      "rows": {
+        "apn": {
+          "label": "Nome APN",
+          "consequence": "Questo valore lo decide il tuo operatore. Se non sei sicuro, lascia decidere a lui."
         },
-        "save_button": "Salva profilo"
+        "pdp_type": {
+          "label": "Protocollo IP",
+          "consequence": "IPv4v6 è sicuro quasi ovunque. Fissa una sola famiglia solo se l'operatore lo richiede."
+        },
+        "cid": {
+          "label": "Contesto dati",
+          "consequence": "In quale contesto PDP viene scritto l'APN. I contesti riservati richiedono una conferma."
+        }
+      },
+      "save_apn": "Salva APN",
+      "cid_in_use": "CID {{cid}} in uso per Internet",
+      "cid_unknown": "Contesto Internet non riportato",
+      "readout": {
+        "title": "Cosa ha concesso la rete",
+        "description": "Letto dal modem in tempo reale, non dai valori salvati.",
+        "serving_apn": "APN in uso",
+        "granted_ip": "IP concesso",
+        "bearer_state": "Stato del bearer",
+        "ipv4": "Indirizzo IPv4",
+        "ipv6": "Indirizzo IPv6",
+        "attached": "Collegato",
+        "not_attached": "Non collegato",
+        "ip_v4_only": "Solo IPv4",
+        "ip_v6_only": "Solo IPv6",
+        "ip_both": "IPv4 e IPv6",
+        "ip_none": "Non assegnato",
+        "error_title": "Stato in tempo reale non disponibile",
+        "error_body": "Il feed di stato del modem non ha risposto. I valori sotto potrebbero mancare."
+      },
+      "mbn": {
+        "title": "Profilo operatore (MBN)",
+        "description": "Pacchetti firmware che impostano APN, IMS e bande predefinite per ogni operatore.",
+        "auto": {
+          "label": "Selezione automatica",
+          "consequence": "Il modem sceglie un pacchetto in base alla SIM. Disattiva per fissarne uno tu."
+        },
+        "list_label": "Pacchetti disponibili",
+        "selected_caption": "Selezionato, attivo dall'ultimo avvio",
+        "reboot_notice": "Un pacchetto ha effetto dopo un riavvio. QManager lo propone, non lo esegue mai da solo.",
+        "pending_note": "Le modifiche hanno effetto dopo un riavvio.",
+        "save": "Applica profilo",
+        "empty": {
+          "title": "Nessun pacchetto riportato",
+          "body": "Questo firmware non ha restituito un elenco di profili operatore. L'unica opzione disponibile è la selezione automatica."
+        },
+        "error_title": "Impossibile caricare i profili operatore",
+        "toast": {
+          "applied": "Profilo operatore aggiornato — riavvio necessario",
+          "error": "Impossibile applicare il profilo operatore"
+        },
+        "reboot": {
+          "title": "Riavvio necessario",
+          "description": "Le modifiche al profilo operatore hanno effetto dopo un riavvio. Riavviare ora?",
+          "later": "Riavvia più tardi",
+          "now": "Riavvia ora",
+          "rebooting": "Riavvio in corso…"
+        }
       }
     },
     "basic": {
@@ -758,6 +814,240 @@
         "nr_empty_body": "Il modem pubblica i limiti 5G solo mentre un bearer NR è attivo.",
         "download": "Download",
         "upload": "Upload"
+      }
+    },
+    "fplmn": {
+      "page": {
+        "title": "Reti bloccate",
+        "description": "La tua SIM conserva un elenco di reti che in passato hanno rifiutato questo dispositivo. Cancellarlo può ripristinare la connettività e migliorare il roaming.",
+        "note": "La cancellazione scrive sulla SIM, non sul modem, e nulla viene riavviato. L'elenco si ricostruisce se una rete rifiuta di nuovo il dispositivo."
+      },
+      "card": {
+        "title": "Elenco delle reti vietate",
+        "description": "QManager legge questo elenco direttamente dalla SIM ogni volta che apri questa pagina.",
+        "learn_more": "Scopri di più"
+      },
+      "states": {
+        "loading": {
+          "title": "Controllo della SIM",
+          "description": "Lettura dell'elenco delle reti vietate memorizzato sulla scheda."
+        },
+        "clean": {
+          "title": "Nessuna rete bloccata",
+          "description": "La SIM non ha nulla nel suo elenco di reti vietate. Nessuna azione necessaria."
+        },
+        "entries": {
+          "title": "Rilevate reti bloccate",
+          "description": "La SIM sta rifiutando una o più reti, il che può impedire al modem di registrarsi. Si consiglia di cancellare l'elenco."
+        },
+        "error": {
+          "title": "Impossibile controllare la SIM"
+        },
+        "unknown": {
+          "title": "Stato sconosciuto",
+          "description": "QManager non è riuscito a determinare se questa SIM ha reti bloccate. Non è stato modificato nulla: riprova la lettura."
+        }
+      },
+      "actions": {
+        "refresh": "Aggiorna stato",
+        "clear": "Cancella le reti bloccate",
+        "clearing": "Cancellazione…"
+      },
+      "confirm": {
+        "title": "Cancellare l'elenco delle reti bloccate?",
+        "description": "Questa operazione cancella in modo definitivo l'elenco delle reti vietate memorizzato sulla scheda SIM. Nulla viene riavviato e il modem resta connesso. L'elenco si ricostruisce se una rete rifiuta di nuovo questo dispositivo.",
+        "confirm": "Cancella elenco"
+      },
+      "toast": {
+        "cleared": "Reti bloccate cancellate",
+        "clear_failed": "Impossibile cancellare le reti bloccate"
+      },
+      "errors": {
+        "read_failed": "Il dispositivo non è riuscito a leggere l'elenco delle reti vietate della SIM.",
+        "unreachable": "Impossibile raggiungere il dispositivo."
+      }
+    },
+    "imei": {
+      "page": {
+        "title": "Impostazioni IMEI",
+        "description": "Leggi, scrivi e verifica l'identificativo che il modem presenta alla rete.",
+        "error_title": "Impossibile leggere le impostazioni IMEI",
+        "error_body": "Il modem non ha risposto: {{detail}}"
+      },
+      "legal": {
+        "title": "La modifica dell'IMEI è regolamentata nella maggior parte dei paesi",
+        "body": "In molte giurisdizioni scrivere un identificativo che non ti appartiene costituisce reato. Verifica la legge locale prima di modificare qualsiasi voce in questa pagina."
+      },
+      "reboot": {
+        "banner": {
+          "title": "È necessario un riavvio per applicare il nuovo IMEI",
+          "description": "L'identificativo è stato scritto. Il modem continua a presentare quello precedente finché non si riavvia.",
+          "review": "Rivedi",
+          "reboot": "Riavvia"
+        },
+        "dialog": {
+          "title": "Riavvia per applicare il nuovo IMEI",
+          "description": "L'IMEI è memorizzato, ma il modem continua a presentare quello precedente finché non si riavvia. Il riavvio interrompe la connessione per circa un minuto.",
+          "now": "Riavvia ora",
+          "later": "Riavvia più tardi"
+        }
+      },
+      "device": {
+        "title": "IMEI del dispositivo",
+        "description": "Ciò che il modem riporta ora e ciò che riporterà dopo il prossimo avvio.",
+        "rows": {
+          "current": {
+            "label": "Attuale",
+            "consequence": "Letto dal modem, non dall'archivio locale.",
+            "unavailable": "Non ancora riportato"
+          },
+          "write": {
+            "label": "Scrivi nuovo IMEI",
+            "consequence": "15 cifre. Ha effetto solo dopo un riavvio.",
+            "placeholder": "15 cifre"
+          }
+        },
+        "errors": {
+          "length": "Un IMEI è composto esattamente da 15 cifre. Ne hai inserite {{entered}}.",
+          "luhn": "Queste 15 cifre non superano il controllo della cifra di controllo, quindi la rete le rifiuterà. Cambia l'ultima cifra o genera un numero valido in Strumenti IMEI."
+        },
+        "status": {
+          "empty": "Niente da scrivere. Il campo è vuoto.",
+          "unchanged": "Questo è già l'IMEI presente sul modem.",
+          "ready": "Pronto per la scrittura. Il modem mantiene l'identità attuale fino al riavvio."
+        },
+        "actions": {
+          "write": "Scrivi IMEI",
+          "reset": "Ripristina l'IMEI presente sul modem",
+          "copy": "Copia l'IMEI attuale"
+        },
+        "toasts": {
+          "saved": "IMEI scritto. Si applica al prossimo riavvio.",
+          "failed": "Il modem non ha accettato quell'IMEI.",
+          "copied": "IMEI copiato.",
+          "copy_failed": "Impossibile copiare l'IMEI."
+        }
+      },
+      "backup": {
+        "title": "IMEI di riserva",
+        "description": "Un secondo identificativo che il dispositivo ripristina se quello primario viene perso dopo un evento del firmware.",
+        "rows": {
+          "keep": {
+            "label": "Conserva una riserva",
+            "consequence_off": "Disattivato. Nessun identificativo di riserva è memorizzato.",
+            "consequence_on": "Attivo. Il dispositivo ripristina {{imei}} se quello primario viene rifiutato."
+          },
+          "value": {
+            "label": "Identificativo di riserva",
+            "consequence": "15 cifre. Usato solo se quello primario viene rifiutato.",
+            "placeholder": "15 cifre"
+          }
+        },
+        "errors": {
+          "length": "Un IMEI è composto esattamente da 15 cifre. Ne hai inserite {{entered}}.",
+          "luhn": "Queste 15 cifre non superano il controllo della cifra di controllo, quindi la rete rifiuterebbe anche la riserva. Cambia l'ultima cifra o genera un numero valido in Strumenti IMEI."
+        },
+        "actions": {
+          "save": "Salva riserva",
+          "reset": "Ripristina la riserva salvata"
+        },
+        "toasts": {
+          "saved": "Impostazioni di riserva salvate.",
+          "failed": "Impossibile salvare le impostazioni di riserva."
+        },
+        "dialog": {
+          "title": "Informazioni sul ripristino di riserva",
+          "description": "Con una riserva memorizzata, dopo ogni riavvio il dispositivo verifica se la rete ha rifiutato il suo IMEI. In tal caso passa all'identificativo di riserva e si riavvia da solo.",
+          "confirm": "Conserva una riserva"
+        }
+      },
+      "tools": {
+        "title": "Strumenti IMEI",
+        "description": "Genera un numero valido secondo Luhn da un type allocation code, oppure verifica un numero che hai già.",
+        "generate": {
+          "tac_label": "Codice di allocazione tipo",
+          "tac_consequence": "Le prime otto cifre, che indicano il modello dichiarato dal numero.",
+          "tac_placeholder": "Scegli un modello",
+          "custom": "Codice personalizzato",
+          "prefix_label": "Prefisso",
+          "prefix_consequence": "Da 8 a 12 cifre. Tutto il resto viene compilato automaticamente.",
+          "prefix_placeholder": "8–12 cifre",
+          "prefix_error": "Un prefisso è di 8-12 cifre. Ne hai inserite {{entered}}.",
+          "action": "Genera"
+        },
+        "check": {
+          "label": "Verifica un numero",
+          "placeholder": "Incolla o genera 15 cifre",
+          "valid": "Luhn valido",
+          "invalid": "Luhn non valido",
+          "empty": "Inserisci 15 cifre per vedere come è composto il numero.",
+          "lookup": "Cerca online"
+        },
+        "actions": {
+          "copy": "Copia questo numero"
+        },
+        "toasts": {
+          "copied": "Numero copiato.",
+          "copy_failed": "Impossibile copiare il numero."
+        },
+        "breakdown": {
+          "tac": "TAC",
+          "serial": "Seriale",
+          "check": "Controllo"
+        },
+        "footnote": "Una struttura valida non significa che il numero sia tuo da usare. Nulla di quanto sta qui viene scritto sul modem."
+      }
+    },
+    "network_priority": {
+      "page": {
+        "title": "Priorità di rete",
+        "description": "L'ordine in cui il modem prova le tecnologie radio quando si registra."
+      },
+      "card": {
+        "title": "Ordine di acquisizione",
+        "description": "Trascina per riordinare. Al salvataggio il modem si registra di nuovo e la connessione cade per qualche secondo."
+      },
+      "rats": {
+        "NR5G": "5G NR",
+        "LTE": "LTE",
+        "WCDMA": "WCDMA"
+      },
+      "hints": {
+        "WCDMA": "Qui la velocità dei dati cala nettamente."
+      },
+      "position": {
+        "first": "Provata per prima. Ripiega automaticamente se nessuna cella risponde.",
+        "middle": "Provata subito dopo, se nessuna di quelle sopra si registra.",
+        "last": "Ultima risorsa. Usata solo se nessuna di quelle sopra si registra.",
+        "only": "L'unica tecnologia che il modem proverà."
+      },
+      "serving_now": "In uso ora",
+      "handle_aria": "Riordina {{name}}, posizione {{rank}} di {{total}}",
+      "save_bar": {
+        "count_one": "{{count}} modifica in sospeso",
+        "count_other": "{{count}} modifiche in sospeso",
+        "note": "Al salvataggio il modem si registra di nuovo. Prevedi circa 3 secondi senza dati.",
+        "discard": "Scarta",
+        "save": "Salva priorità"
+      },
+      "apply": {
+        "writing": "Scrittura del nuovo ordine",
+        "recovering": "Nuova registrazione sulla rete",
+        "verifying": "Rilettura dell'ordine"
+      },
+      "states": {
+        "error": {
+          "title": "Impossibile leggere l'ordine di priorità",
+          "description": "Il modem non ha risposto alla richiesta dell'ordine di acquisizione. Potrebbe essere occupato: riprova tra poco."
+        },
+        "empty": {
+          "title": "Nessuna tecnologia riportata",
+          "description": "Il modem ha restituito un ordine di acquisizione vuoto, quindi non c'è nulla da ordinare. Rileggilo o verifica che la radio sia accesa."
+        }
+      },
+      "toast": {
+        "saved": "Priorità di rete aggiornata",
+        "save_error": "Impossibile impostare la priorità di rete"
       }
     }
   },

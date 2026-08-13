@@ -1,10 +1,7 @@
-import FPLMNSettingsComponent from '@/components/cellular/settings/fplmn-settings/fplmn-settings'
-import React from 'react'
+import FPLMNSettingsComponent from "@/components/cellular/settings/fplmn-settings/fplmn-settings";
 
-const FLPMNSettingsPage = () => {
-  return (
-    <FPLMNSettingsComponent />
-  )
-}
+const FPLMNSettingsPage = () => {
+  return <FPLMNSettingsComponent />;
+};
 
-export default FLPMNSettingsPage
+export default FPLMNSettingsPage;

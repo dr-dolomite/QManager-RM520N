@@ -19,7 +19,7 @@ import type { NetworkType } from "@/types/modem-status";
 
 import {
   AMBR_BLOCK,
-  AMBR_EMPTY,
+  EMPTY_BLOCK,
   CARD_PAD,
   CARD_SHELL,
   RATE_CHIP,
@@ -221,16 +221,16 @@ export function CellularAMBRCard({
             })}
           </div>
         ) : (
-          <div className={AMBR_EMPTY.ROOT}>
+          <div className={EMPTY_BLOCK.ROOT}>
             <MaterialSymbol
               name="signal_cellular_off"
-              size={AMBR_EMPTY.GLYPH}
+              size={EMPTY_BLOCK.GLYPH}
               className="text-on-surface-variant"
             />
-            <span className={AMBR_EMPTY.TITLE}>
+            <span className={EMPTY_BLOCK.TITLE}>
               {t(isLte ? `${K}.lte_empty_title` : `${K}.nr_empty_title`)}
             </span>
-            <span className={AMBR_EMPTY.BODY}>
+            <span className={EMPTY_BLOCK.BODY}>
               {t(isLte ? `${K}.lte_empty_body` : `${K}.nr_empty_body`)}
             </span>
           </div>

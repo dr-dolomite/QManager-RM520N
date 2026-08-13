@@ -579,8 +579,7 @@
       "status": {
         "active": "Aktif",
         "not_live": "Tidak live",
-        "carrier_default": "Default operator",
-        "network_using": "Jaringan menggunakan: {{apn}}"
+        "carrier_default": "Default operator"
       },
       "save_connection_notice": "Menyimpan akan memutus koneksi seluler sebentar saat modem menyambung ulang.",
       "carrier_default": {
@@ -600,11 +599,6 @@
       },
       "controls_label": "Konfigurasi APN",
       "managed_by_profile_fallback": "Profil SIM Kustom aktif",
-      "list": {
-        "live": {
-          "mismatch_default": "Jaringan menggunakan default operator"
-        }
-      },
       "edit": {
         "fields": {
           "apn": {
@@ -638,8 +632,70 @@
           "description_sos": "CID {{cid}} dicadangkan untuk panggilan darurat (SOS). Menulis APN data di sini dapat mengganggu panggilan darurat. Tetap lanjutkan?",
           "confirm": "Tetap gunakan",
           "cancel": "Batal"
+        }
+      },
+      "rows": {
+        "apn": {
+          "label": "Nama APN",
+          "consequence": "Nilai ini ditentukan operator Anda. Jika ragu, biarkan operator yang menentukan."
         },
-        "save_button": "Simpan Profil"
+        "pdp_type": {
+          "label": "Protokol IP",
+          "consequence": "IPv4v6 aman di hampir semua jaringan. Kunci satu keluarga saja jika diminta operator."
+        },
+        "cid": {
+          "label": "Konteks Data",
+          "consequence": "Konteks PDP mana yang menerima APN ini. Konteks yang dicadangkan akan meminta konfirmasi."
+        }
+      },
+      "save_apn": "Simpan APN",
+      "cid_in_use": "CID {{cid}} dipakai untuk Internet",
+      "cid_unknown": "Konteks Internet tidak dilaporkan",
+      "readout": {
+        "title": "Yang diberikan jaringan",
+        "description": "Dibaca langsung dari modem, bukan dari nilai yang disimpan.",
+        "serving_apn": "APN aktif",
+        "granted_ip": "IP yang diberikan",
+        "bearer_state": "Status bearer",
+        "ipv4": "Alamat IPv4",
+        "ipv6": "Alamat IPv6",
+        "attached": "Terhubung",
+        "not_attached": "Tidak terhubung",
+        "ip_v4_only": "Hanya IPv4",
+        "ip_v6_only": "Hanya IPv6",
+        "ip_both": "IPv4 dan IPv6",
+        "ip_none": "Belum ditetapkan",
+        "error_title": "Status langsung tidak tersedia",
+        "error_body": "Umpan status modem tidak merespons. Nilai di bawah mungkin tidak lengkap."
+      },
+      "mbn": {
+        "title": "Profil Operator (MBN)",
+        "description": "Paket firmware yang menetapkan APN, IMS, dan band bawaan untuk tiap operator.",
+        "auto": {
+          "label": "Pemilihan otomatis",
+          "consequence": "Modem memilih paket berdasarkan SIM. Matikan untuk menguncinya sendiri."
+        },
+        "list_label": "Paket tersedia",
+        "selected_caption": "Terpilih, aktif sejak boot terakhir",
+        "reboot_notice": "Paket berlaku setelah reboot. QManager hanya menawarkan reboot, tidak pernah melakukannya sendiri.",
+        "pending_note": "Perubahan berlaku setelah reboot.",
+        "save": "Terapkan profil",
+        "empty": {
+          "title": "Tidak ada paket dilaporkan",
+          "body": "Firmware ini tidak mengembalikan daftar profil operator. Hanya pemilihan otomatis yang tersedia."
+        },
+        "error_title": "Gagal memuat profil operator",
+        "toast": {
+          "applied": "Profil operator diperbarui — perlu reboot",
+          "error": "Gagal menerapkan profil operator"
+        },
+        "reboot": {
+          "title": "Perlu reboot",
+          "description": "Perubahan profil operator berlaku setelah reboot. Reboot sekarang?",
+          "later": "Reboot nanti",
+          "now": "Reboot sekarang",
+          "rebooting": "Sedang reboot…"
+        }
       }
     },
     "basic": {
@@ -758,6 +814,240 @@
         "nr_empty_body": "Modem hanya menerbitkan batas 5G selama bearer NR aktif.",
         "download": "Unduh",
         "upload": "Unggah"
+      }
+    },
+    "fplmn": {
+      "page": {
+        "title": "Jaringan Diblokir",
+        "description": "SIM Anda menyimpan daftar jaringan yang sebelumnya menolak perangkat ini. Menghapusnya dapat memulihkan konektivitas dan memperbaiki roaming.",
+        "note": "Penghapusan menulis ke SIM, bukan ke modem, dan tidak ada yang di-reboot. Daftar akan terbentuk kembali jika sebuah jaringan menolak perangkat ini lagi."
+      },
+      "card": {
+        "title": "Daftar jaringan terlarang",
+        "description": "QManager membaca daftar ini langsung dari SIM setiap kali Anda membuka halaman ini.",
+        "learn_more": "Pelajari lebih lanjut"
+      },
+      "states": {
+        "loading": {
+          "title": "Memeriksa SIM",
+          "description": "Membaca daftar jaringan terlarang yang tersimpan di kartu."
+        },
+        "clean": {
+          "title": "Tidak ada jaringan yang diblokir",
+          "description": "Daftar terlarang pada SIM kosong. Tidak ada tindakan yang diperlukan."
+        },
+        "entries": {
+          "title": "Ditemukan jaringan yang diblokir",
+          "description": "SIM menolak satu atau beberapa jaringan, yang dapat membuat modem gagal terhubung. Sebaiknya hapus daftar tersebut."
+        },
+        "error": {
+          "title": "Tidak dapat memeriksa SIM"
+        },
+        "unknown": {
+          "title": "Status tidak diketahui",
+          "description": "QManager tidak dapat memastikan apakah SIM ini memiliki jaringan yang diblokir. Tidak ada yang diubah — coba baca ulang."
+        }
+      },
+      "actions": {
+        "refresh": "Perbarui status",
+        "clear": "Hapus jaringan yang diblokir",
+        "clearing": "Menghapus…"
+      },
+      "confirm": {
+        "title": "Hapus daftar jaringan yang diblokir?",
+        "description": "Tindakan ini menghapus daftar jaringan terlarang yang tersimpan di kartu SIM dan tidak dapat dibatalkan. Tidak ada yang di-reboot dan modem tetap terhubung. Daftar akan terbentuk kembali jika sebuah jaringan menolak perangkat ini lagi.",
+        "confirm": "Hapus daftar"
+      },
+      "toast": {
+        "cleared": "Jaringan yang diblokir telah dihapus",
+        "clear_failed": "Gagal menghapus jaringan yang diblokir"
+      },
+      "errors": {
+        "read_failed": "Perangkat tidak dapat membaca daftar jaringan terlarang pada SIM.",
+        "unreachable": "Tidak dapat menghubungi perangkat."
+      }
+    },
+    "imei": {
+      "page": {
+        "title": "Pengaturan IMEI",
+        "description": "Baca, tulis, dan verifikasi identitas yang ditampilkan modem ke jaringan.",
+        "error_title": "Tidak dapat membaca pengaturan IMEI",
+        "error_body": "Modem tidak menjawab: {{detail}}"
+      },
+      "legal": {
+        "title": "Perubahan IMEI diatur undang-undang di sebagian besar negara",
+        "body": "Di banyak yurisdiksi, menulis identitas yang bukan milik Anda adalah pelanggaran hukum. Periksa hukum setempat sebelum mengubah apa pun di halaman ini."
+      },
+      "reboot": {
+        "banner": {
+          "title": "Diperlukan mulai ulang untuk menerapkan IMEI baru",
+          "description": "Identitas sudah ditulis. Modem masih menampilkan yang lama sampai dimulai ulang.",
+          "review": "Tinjau",
+          "reboot": "Mulai ulang"
+        },
+        "dialog": {
+          "title": "Mulai ulang untuk menerapkan IMEI baru",
+          "description": "IMEI sudah tersimpan, tetapi modem tetap menampilkan yang lama sampai dimulai ulang. Memulai ulang memutus koneksi sekitar satu menit.",
+          "now": "Mulai ulang sekarang",
+          "later": "Mulai ulang nanti"
+        }
+      },
+      "device": {
+        "title": "IMEI Perangkat",
+        "description": "Yang dilaporkan modem sekarang, dan yang akan dilaporkan setelah boot berikutnya.",
+        "rows": {
+          "current": {
+            "label": "Saat ini",
+            "consequence": "Dibaca dari modem, bukan dari penyimpanan.",
+            "unavailable": "Belum dilaporkan"
+          },
+          "write": {
+            "label": "Tulis IMEI baru",
+            "consequence": "15 digit. Baru berlaku setelah mulai ulang.",
+            "placeholder": "15 digit"
+          }
+        },
+        "errors": {
+          "length": "IMEI terdiri dari tepat 15 digit. Anda memasukkan {{entered}}.",
+          "luhn": "15 digit ini gagal uji digit pemeriksa, sehingga jaringan akan menolaknya. Ubah digit terakhir, atau buat nomor yang valid di Alat IMEI."
+        },
+        "status": {
+          "empty": "Tidak ada yang ditulis. Kolom masih kosong.",
+          "unchanged": "Ini sudah menjadi IMEI pada modem.",
+          "ready": "Siap ditulis. Modem tetap memakai identitas saat ini sampai dimulai ulang."
+        },
+        "actions": {
+          "write": "Tulis IMEI",
+          "reset": "Kembalikan ke IMEI pada modem",
+          "copy": "Salin IMEI saat ini"
+        },
+        "toasts": {
+          "saved": "IMEI ditulis. Berlaku pada mulai ulang berikutnya.",
+          "failed": "Modem tidak menerima IMEI tersebut.",
+          "copied": "IMEI disalin.",
+          "copy_failed": "Tidak dapat menyalin IMEI."
+        }
+      },
+      "backup": {
+        "title": "IMEI Cadangan",
+        "description": "Identitas kedua yang dipulihkan perangkat jika yang utama hilang setelah peristiwa firmware.",
+        "rows": {
+          "keep": {
+            "label": "Simpan cadangan",
+            "consequence_off": "Nonaktif. Tidak ada identitas cadangan yang disimpan.",
+            "consequence_on": "Aktif. Perangkat memulihkan {{imei}} jika yang utama ditolak."
+          },
+          "value": {
+            "label": "Identitas cadangan",
+            "consequence": "15 digit. Dipakai hanya jika yang utama ditolak.",
+            "placeholder": "15 digit"
+          }
+        },
+        "errors": {
+          "length": "IMEI terdiri dari tepat 15 digit. Anda memasukkan {{entered}}.",
+          "luhn": "15 digit ini gagal uji digit pemeriksa, sehingga jaringan juga akan menolak cadangannya. Ubah digit terakhir, atau buat nomor yang valid di Alat IMEI."
+        },
+        "actions": {
+          "save": "Simpan cadangan",
+          "reset": "Kembalikan ke cadangan tersimpan"
+        },
+        "toasts": {
+          "saved": "Pengaturan cadangan disimpan.",
+          "failed": "Tidak dapat menyimpan pengaturan cadangan."
+        },
+        "dialog": {
+          "title": "Tentang pemulihan cadangan",
+          "description": "Dengan cadangan tersimpan, perangkat memeriksa setelah setiap mulai ulang apakah jaringan menolak IMEI-nya. Jika ditolak, perangkat beralih ke identitas cadangan dan memulai ulang sendiri.",
+          "confirm": "Simpan cadangan"
+        }
+      },
+      "tools": {
+        "title": "Alat IMEI",
+        "description": "Buat nomor yang lolos uji Luhn dari type allocation code, atau periksa nomor yang sudah Anda miliki.",
+        "generate": {
+          "tac_label": "Kode alokasi tipe",
+          "tac_consequence": "Delapan digit pertama, yang menyatakan model yang diklaim nomor ini.",
+          "tac_placeholder": "Pilih model",
+          "custom": "Kode khusus",
+          "prefix_label": "Awalan",
+          "prefix_consequence": "8 sampai 12 digit. Sisanya diisikan otomatis.",
+          "prefix_placeholder": "8–12 digit",
+          "prefix_error": "Awalan terdiri dari 8 sampai 12 digit. Anda memasukkan {{entered}}.",
+          "action": "Buat"
+        },
+        "check": {
+          "label": "Periksa sebuah nomor",
+          "placeholder": "Tempel atau buat 15 digit",
+          "valid": "Luhn sah",
+          "invalid": "Luhn tidak valid",
+          "empty": "Masukkan 15 digit untuk melihat susunan nomornya.",
+          "lookup": "Cari daring"
+        },
+        "actions": {
+          "copy": "Salin nomor ini"
+        },
+        "toasts": {
+          "copied": "Nomor disalin.",
+          "copy_failed": "Tidak dapat menyalin nomor."
+        },
+        "breakdown": {
+          "tac": "TAC",
+          "serial": "Serial",
+          "check": "Pemeriksa"
+        },
+        "footnote": "Struktur yang valid tidak berarti nomor itu boleh Anda pakai. Tidak ada di sini yang ditulis ke modem."
+      }
+    },
+    "network_priority": {
+      "page": {
+        "title": "Prioritas Jaringan",
+        "description": "Urutan modem mencoba teknologi radio saat mendaftar ke jaringan."
+      },
+      "card": {
+        "title": "Urutan Pencarian",
+        "description": "Seret untuk mengubah urutan. Modem mendaftar ulang saat Anda menyimpan, sehingga koneksi terputus beberapa detik."
+      },
+      "rats": {
+        "NR5G": "5G NR",
+        "LTE": "LTE",
+        "WCDMA": "WCDMA"
+      },
+      "hints": {
+        "WCDMA": "Kecepatan data turun tajam di sini."
+      },
+      "position": {
+        "first": "Dicoba pertama. Otomatis mundur bila tidak ada sel yang menjawab.",
+        "middle": "Dicoba berikutnya bila tidak ada di atasnya yang berhasil mendaftar.",
+        "last": "Pilihan terakhir. Dipakai hanya bila tidak ada di atasnya yang mendaftar.",
+        "only": "Satu-satunya teknologi yang akan dicoba modem."
+      },
+      "serving_now": "Sedang dipakai",
+      "handle_aria": "Ubah urutan {{name}}, posisi {{rank}} dari {{total}}",
+      "save_bar": {
+        "count_one": "{{count}} perubahan menunggu",
+        "count_other": "{{count}} perubahan menunggu",
+        "note": "Modem mendaftar ulang saat disimpan. Perkirakan sekitar 3 detik tanpa data.",
+        "discard": "Buang",
+        "save": "Simpan Prioritas"
+      },
+      "apply": {
+        "writing": "Menulis urutan baru",
+        "recovering": "Mendaftar ulang ke jaringan",
+        "verifying": "Membaca kembali urutan"
+      },
+      "states": {
+        "error": {
+          "title": "Tidak bisa membaca urutan prioritas",
+          "description": "Modem tidak menjawab kueri urutan pencarian. Mungkin sedang sibuk — coba lagi sebentar."
+        },
+        "empty": {
+          "title": "Tidak ada teknologi yang dilaporkan",
+          "description": "Modem mengembalikan urutan pencarian yang kosong, jadi tidak ada yang bisa diurutkan. Baca ulang, atau pastikan radio menyala."
+        }
+      },
+      "toast": {
+        "saved": "Prioritas jaringan diperbarui",
+        "save_error": "Tidak bisa mengatur prioritas jaringan"
       }
     }
   },

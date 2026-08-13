@@ -1,7 +1,12 @@
 "use client";
 
-import { useState, type ChangeEvent } from "react";
+import * as React from "react";
+import { motion } from "motion/react";
 import { toast } from "sonner";
+import { useTranslation } from "react-i18next";
+
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
@@ -9,20 +14,8 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import {
-  Field,
-  FieldDescription,
-  FieldError,
-  FieldGroup,
-  FieldLabel,
-  FieldSet,
-} from "@/components/ui/field";
-import {
-  InputGroup,
-  InputGroupAddon,
-  InputGroupButton,
-  InputGroupInput,
-} from "@/components/ui/input-group";
+import { FieldError } from "@/components/ui/field";
+import { MaterialSymbol } from "@/components/ui/material-symbol";
 import {
   Select,
   SelectContent,
@@ -32,253 +25,306 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { MaterialSymbol } from "@/components/ui/material-symbol";
-import {
-  IMEI_TAC_PRESETS,
   IMEI_CUSTOM_ID,
+  IMEI_TAC_PRESETS,
   getImeiTacPreset,
 } from "@/constants/imei-presets";
 import {
   generateImei,
-  validateImei,
   parseImeiBreakdown,
+  validateImei,
 } from "@/lib/imei-utils";
+import { DUR, EASE_STANDARD } from "@/lib/motion";
+import { cn } from "@/lib/utils";
+
+import SettingRow from "../setting-row";
+import {
+  BADGE_GLYPH_SIZE,
+  CARD_PAD,
+  CARD_SHELL,
+  FIELD_SHELL,
+  INLINE_ERROR,
+  PILL_ACTION,
+  READOUT_ROW,
+  ROW_GROUP,
+  SECTION_DIVIDER,
+  SELECT_TRIGGER,
+  SETTING_ROW,
+  SETTING_ROW_DIRTY,
+} from "../shapes";
+
+// =============================================================================
+// IMEI Tools — the workbench
+// =============================================================================
+// Two jobs, in the order a user meets them: make a structurally valid number
+// from a type allocation code, then inspect one. NOTHING on this card writes to
+// the modem, which is why it lives in its own column away from the two write
+// surfaces and says so in its own footnote.
+//
+// ON THE TWO BUTTONS. "Generate IMEI" and "Check IMEI Info" shipped as two
+// default-variant buttons side by side — two equal primaries, so the card had no
+// primary at all. Generate is the action this card exists for; the external
+// lookup opens somebody else's website and is secondary by every measure.
+//
+// ON THE BREAKDOWN'S COLOUR. The validity readout used raw `text-green-500` /
+// `text-red-500`. Those are not tokens: they do not move with the theme, they
+// have no measured `on-` partner, and they are the exact hues the functional
+// roles own. Validity is now a status chip on the `success`/`destructive` roles,
+// each with its own glyph — the two containers are close enough in lightness
+// that the glyph, not the fill, is what separates them.
+// =============================================================================
+
+// NOTE ON THE FIELD SHELL. This card's fields take the NEUTRAL `FIELD_SHELL`
+// only, with no `_ON_FILL` sibling — nothing on this card writes to the modem,
+// so no row here carries a `dirty` prop and none can promote to
+// `primary-container`. The check field is not even inside a `SettingRow`.
+
+/** One breakdown cell. The `accent` one is the check digit — the derived part. */
+const BREAKDOWN_CELL = "flex flex-col gap-0.75 rounded-field px-4 py-3";
 
 const IMEIToolsCard = () => {
-  const [selectedPresetId, setSelectedPresetId] = useState<string>(
-    IMEI_TAC_PRESETS[0].id
-  );
-  const [customPrefix, setCustomPrefix] = useState("");
-  const [imei, setImei] = useState("");
+  const { t } = useTranslation("cellular");
+  const K = "core_settings.imei.tools";
 
-  const isCustom = selectedPresetId === IMEI_CUSTOM_ID;
-  const activePrefix = isCustom
+  const [presetId, setPresetId] = React.useState(IMEI_TAC_PRESETS[0].id);
+  const [customPrefix, setCustomPrefix] = React.useState("");
+  const [candidate, setCandidate] = React.useState("");
+
+  const isCustom = presetId === IMEI_CUSTOM_ID;
+  const prefix = isCustom
     ? customPrefix
-    : (getImeiTacPreset(selectedPresetId)?.tac ?? "");
-  const isValidPrefix = /^\d{8,12}$/.test(activePrefix);
-  const showPrefixError = isCustom && customPrefix.length > 0 && !isValidPrefix;
+    : (getImeiTacPreset(presetId)?.tac ?? "");
+  const isValidPrefix = /^\d{8,12}$/.test(prefix);
+  const prefixError = isCustom && customPrefix.length > 0 && !isValidPrefix;
 
-  // Validation — derived, no state
-  const is15Digits = /^\d{15}$/.test(imei);
-  const isValid: boolean | null = is15Digits ? validateImei(imei) : null;
-  const breakdown = is15Digits ? parseImeiBreakdown(imei) : null;
-
-  const handlePresetChange = (value: string) => {
-    setSelectedPresetId(value);
-  };
-
-  const handleCustomPrefixChange = (e: ChangeEvent<HTMLInputElement>) => {
-    setCustomPrefix(e.target.value.replace(/\D/g, "").slice(0, 12));
-  };
+  const isComplete = /^\d{15}$/.test(candidate);
+  const isLuhnValid = isComplete && validateImei(candidate);
+  const breakdown = isComplete ? parseImeiBreakdown(candidate) : null;
 
   const handleGenerate = () => {
     if (!isValidPrefix) return;
-    setImei(generateImei(activePrefix));
+    setCandidate(generateImei(prefix));
   };
 
-  const handleImeiChange = (e: ChangeEvent<HTMLInputElement>) => {
-    setImei(e.target.value.replace(/\D/g, "").slice(0, 15));
-  };
-
-  const handleCopy = () => {
-    if (!imei) return;
-    navigator.clipboard.writeText(imei).then(
-      () => toast.success("Copied to clipboard"),
-      () => {
-        const ta = document.createElement("textarea");
-        ta.value = imei;
-        ta.style.position = "fixed";
-        ta.style.opacity = "0";
-        document.body.appendChild(ta);
-        ta.select();
-        document.execCommand("copy");
-        document.body.removeChild(ta);
-        toast.success("Copied to clipboard");
-      },
-    );
+  const handleCopy = async () => {
+    if (!candidate) return;
+    try {
+      await navigator.clipboard.writeText(candidate);
+      toast.success(t(`${K}.toasts.copied`));
+    } catch {
+      toast.error(t(`${K}.toasts.copy_failed`));
+    }
   };
 
   return (
-    <Card className="@container/card @3xl/main:col-span-2">
-      <CardHeader>
-        <CardTitle>IMEI Tools</CardTitle>
-        <CardDescription>
-          Generate and validate IMEI numbers using the Luhn algorithm. For
-          educational purposes only.
-        </CardDescription>
+    <Card className={cn(CARD_SHELL)}>
+      <CardHeader className={CARD_PAD}>
+        <CardTitle>{t(`${K}.title`)}</CardTitle>
+        <CardDescription>{t(`${K}.description`)}</CardDescription>
       </CardHeader>
-      <CardContent>
-        <form
-          className="grid gap-4 content-start"
-          onSubmit={(e) => {
-            e.preventDefault();
-            handleGenerate();
-          }}
-        >
-          <div className="grid grid-cols-1 @xl/card:grid-cols-2 gap-6">
-            <FieldSet>
-              <FieldGroup>
-                <Field>
-                  <FieldLabel>Device Preset</FieldLabel>
-                  <Select
-                    value={selectedPresetId}
-                    onValueChange={handlePresetChange}
+
+      <CardContent className={cn(CARD_PAD, "flex flex-col gap-5")}>
+        {/* --- Generate ------------------------------------------------------ */}
+        <div className="flex flex-col gap-3">
+          <div className={ROW_GROUP.ROOT}>
+            <SettingRow
+              label={t(`${K}.generate.tac_label`)}
+              consequence={t(`${K}.generate.tac_consequence`)}
+              labelId="imei-tac-label"
+              control={
+                <Select value={presetId} onValueChange={setPresetId}>
+                  <SelectTrigger
+                    className={cn(SELECT_TRIGGER, "@2xl/card:w-[13rem]")}
+                    aria-labelledby="imei-tac-label"
                   >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select a device" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {IMEI_TAC_PRESETS.map((preset) => (
-                        <SelectItem key={preset.id} value={preset.id}>
-                          {preset.label}
-                        </SelectItem>
-                      ))}
-                      <SelectSeparator />
-                      <SelectItem value={IMEI_CUSTOM_ID}>
-                        Custom Prefix
+                    <SelectValue
+                      placeholder={t(`${K}.generate.tac_placeholder`)}
+                    />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {IMEI_TAC_PRESETS.map((preset) => (
+                      <SelectItem key={preset.id} value={preset.id}>
+                        {preset.label}
                       </SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <FieldDescription>
-                    Select a device TAC or enter a custom 8–12 digit prefix.
-                  </FieldDescription>
-                </Field>
+                    ))}
+                    <SelectSeparator />
+                    <SelectItem value={IMEI_CUSTOM_ID}>
+                      {t(`${K}.generate.custom`)}
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              }
+            />
 
-                {isCustom && (
-                  <Field>
-                    <FieldLabel>Custom Prefix</FieldLabel>
-                    <InputGroup>
-                      <InputGroupInput
-                        placeholder="Enter 8–12 digit prefix"
-                        value={customPrefix}
-                        onChange={handleCustomPrefixChange}
-                        maxLength={12}
-                        inputMode="numeric"
-                        aria-invalid={showPrefixError}
-                      />
-                    </InputGroup>
-                    {showPrefixError ? (
-                      <FieldError>
-                        Prefix must be 8–12 digits ({customPrefix.length}{" "}
-                        entered)
-                      </FieldError>
-                    ) : (
-                      <FieldDescription>
-                        The remaining digits and check digit are generated
-                        automatically.
-                      </FieldDescription>
-                    )}
-                  </Field>
-                )}
-              </FieldGroup>
-            </FieldSet>
+            <div className={ROW_GROUP.DIVIDER} />
 
-            <FieldSet>
-              <FieldGroup>
-                <Field>
-                  <FieldLabel>IMEI</FieldLabel>
-
-                  <div className="flex items-center gap-2">
-                    <InputGroup className="flex-1">
-                      <InputGroupInput
-                        placeholder="Generate or enter a 15-digit IMEI"
-                        value={imei}
-                        onChange={handleImeiChange}
-                        maxLength={15}
-                        inputMode="numeric"
-                        className="font-mono"
-                      />
-                      {imei.length > 0 && (
-                        <InputGroupAddon align="inline-end">
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <InputGroupButton
-                                type="button"
-                                size="icon-xs"
-                                aria-label="Copy IMEI"
-                                onClick={handleCopy}
-                              >
-                                <MaterialSymbol name="content_copy" size={12} />
-                              </InputGroupButton>
-                            </TooltipTrigger>
-                            <TooltipContent>Copy to clipboard</TooltipContent>
-                          </Tooltip>
-                        </InputGroupAddon>
-                      )}
-                    </InputGroup>
-                  </div>
-                  <FieldDescription>
-                    Luhn validation runs automatically at 15 digits. You can
-                    also type or paste any IMEI to validate it.
-                  </FieldDescription>
-                </Field>
-              </FieldGroup>
-            </FieldSet>
+            <SettingRow
+              label={t(`${K}.generate.prefix_label`)}
+              consequence={t(`${K}.generate.prefix_consequence`)}
+              labelId="imei-prefix-label"
+              control={
+                <input
+                  id="imei-prefix-input"
+                  type="text"
+                  inputMode="numeric"
+                  autoComplete="off"
+                  maxLength={12}
+                  value={prefix}
+                  // A preset's TAC is a fact, not a draft: it is shown in the
+                  // same field so the user can see what the Select resolved to,
+                  // and only the Custom option makes it editable.
+                  readOnly={!isCustom}
+                  aria-readonly={!isCustom}
+                  onChange={(event) =>
+                    setCustomPrefix(
+                      event.target.value.replace(/\D/g, "").slice(0, 12),
+                    )
+                  }
+                  placeholder={t(`${K}.generate.prefix_placeholder`)}
+                  aria-labelledby="imei-prefix-label"
+                  aria-invalid={prefixError}
+                  aria-describedby={
+                    prefixError ? "imei-prefix-error" : undefined
+                  }
+                  className={cn(
+                    FIELD_SHELL,
+                    "@2xl/card:w-[13rem]",
+                    !isCustom && "text-on-surface-variant",
+                  )}
+                />
+              }
+            />
           </div>
 
-          {breakdown && (
-            <Field>
-              <FieldLabel>Breakdown</FieldLabel>
-              <div className="grid grid-cols-4 gap-2 rounded-md border bg-muted/30 px-3 py-2 font-mono text-sm">
-                <div>
-                  <p className="text-xs text-muted-foreground">Validity</p>
-                  <p className="font-medium flex items-center gap-1">
-                    {isValid ? (
-                      <>
-                        <MaterialSymbol name="check_circle" size={16} className="text-green-500" />
-                        Valid IMEI
-                      </>
-                    ) : (
-                      <>
-                        <MaterialSymbol name="cancel" size={16} className="text-red-500" />
-                        Invalid IMEI
-                      </>
-                    )}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">TAC (1–8)</p>
-                  <p className="font-medium">{breakdown.tac}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">SNR (9–14)</p>
-                  <p className="font-medium">{breakdown.snr}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">Check (15)</p>
-                  <p className="font-medium">{breakdown.checkDigit}</p>
-                </div>
-              </div>
-            </Field>
-          )}
+          {prefixError ? (
+            <FieldError id="imei-prefix-error" className={INLINE_ERROR}>
+              {t(`${K}.generate.prefix_error`, { entered: customPrefix.length })}
+            </FieldError>
+          ) : null}
 
-          <div className="flex items-center gap-x-4">
-            <Button type="submit" disabled={!isValidPrefix}>
-              Generate IMEI
-            </Button>
-
+          <div>
             <Button
               type="button"
-              disabled={!is15Digits}
-              onClick={() =>
-                window.open(
-                  `https://www.imei.info/?imei=${imei}`,
-                  "_blank",
-                  "noopener,noreferrer",
-                )
-              }
+              onClick={handleGenerate}
+              disabled={!isValidPrefix}
+              className={PILL_ACTION}
             >
-              <MaterialSymbol name="open_in_new" size={16} />
-              Check IMEI Info
+              {t(`${K}.generate.action`)}
             </Button>
           </div>
-        </form>
+        </div>
+
+        <div className={SECTION_DIVIDER} />
+
+        {/* --- Check --------------------------------------------------------- */}
+        <div className="flex flex-col gap-3">
+          <div className="flex flex-wrap items-center gap-2.5">
+            <span className={SETTING_ROW.LABEL}>{t(`${K}.check.label`)}</span>
+            {isComplete ? (
+              <Badge variant={isLuhnValid ? "success" : "destructive"}>
+                <MaterialSymbol
+                  name={isLuhnValid ? "check_circle" : "cancel"}
+                  size={BADGE_GLYPH_SIZE}
+                />
+                {isLuhnValid
+                  ? t(`${K}.check.valid`)
+                  : t(`${K}.check.invalid`)}
+              </Badge>
+            ) : null}
+          </div>
+
+          <div className="flex flex-col gap-2.5 @2xl/card:flex-row @2xl/card:items-center">
+            <input
+              id="imei-check-input"
+              type="text"
+              inputMode="numeric"
+              autoComplete="off"
+              maxLength={15}
+              value={candidate}
+              onChange={(event) =>
+                setCandidate(event.target.value.replace(/\D/g, "").slice(0, 15))
+              }
+              placeholder={t(`${K}.check.placeholder`)}
+              aria-label={t(`${K}.check.label`)}
+              className={cn(FIELD_SHELL, "@2xl/card:flex-1")}
+            />
+
+            <div className="flex flex-none items-center gap-2">
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                onClick={handleCopy}
+                disabled={!candidate}
+                aria-label={t(`${K}.actions.copy`)}
+                className="rounded-pill"
+              >
+                <MaterialSymbol name="content_copy" size={18} />
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                disabled={!isComplete}
+                onClick={() =>
+                  window.open(
+                    `https://www.imei.info/?imei=${candidate}`,
+                    "_blank",
+                    "noopener,noreferrer",
+                  )
+                }
+                className={PILL_ACTION}
+              >
+                <MaterialSymbol name="open_in_new" size={17} />
+                {t(`${K}.check.lookup`)}
+              </Button>
+            </div>
+          </div>
+
+          {breakdown ? (
+            <motion.div
+              // Declared initial AND animate on the cascade root: a
+              // variants-only child that mounts on a state swap renders blank.
+              initial={{ opacity: 0, y: 5 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: DUR.standard, ease: EASE_STANDARD }}
+              className="grid grid-cols-1 gap-1.5 @2xl/card:grid-cols-3"
+            >
+              <div className={cn(BREAKDOWN_CELL, "bg-surface-container")}>
+                <span className={SETTING_ROW.CONSEQUENCE}>
+                  {t(`${K}.breakdown.tac`)}
+                </span>
+                <span className={READOUT_ROW.VALUE_MONO}>{breakdown.tac}</span>
+              </div>
+              <div className={cn(BREAKDOWN_CELL, "bg-surface-container")}>
+                <span className={SETTING_ROW.CONSEQUENCE}>
+                  {t(`${K}.breakdown.serial`)}
+                </span>
+                <span className={READOUT_ROW.VALUE_MONO}>{breakdown.snr}</span>
+              </div>
+              {/* The accent cell: the check digit is the only part of an IMEI
+                  the machine derives rather than the manufacturer assigns, and
+                  it is what the chip above is judging. `primary-container` is
+                  emphasis here, never a health signal. */}
+              <div
+                className={cn(
+                  BREAKDOWN_CELL,
+                  "bg-primary-container text-on-primary-container",
+                )}
+              >
+                <span className={SETTING_ROW_DIRTY.CONSEQUENCE_ON_FILL}>
+                  {t(`${K}.breakdown.check`)}
+                </span>
+                <span className={READOUT_ROW.VALUE_MONO}>
+                  {breakdown.checkDigit}
+                </span>
+              </div>
+            </motion.div>
+          ) : (
+            <p className={SETTING_ROW.CONSEQUENCE}>{t(`${K}.check.empty`)}</p>
+          )}
+        </div>
+
+        <p className={SETTING_ROW.CONSEQUENCE}>{t(`${K}.footnote`)}</p>
       </CardContent>
     </Card>
   );

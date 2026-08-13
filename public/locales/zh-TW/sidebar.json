@@ -25,7 +25,7 @@
     "apn_management": "APN 管理",
     "network_priority": "網路優先順序",
     "imei_settings": "IMEI 設定",
-    "fplmn_settings": "FPLMN 設定",
+    "fplmn_settings": "被封鎖的網路",
     "ethernet_status": "乙太網狀態",
     "local_network_settings": "設定",
     "ip_passthrough": "IP 直通",

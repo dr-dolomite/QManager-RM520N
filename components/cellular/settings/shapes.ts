@@ -2,11 +2,20 @@ import type { BadgeVariant } from "@/components/ui/badge";
 import type { MaterialSymbolName } from "@/components/ui/material-symbol";
 
 // =============================================================================
-// Cellular Basic Settings — shared geometry and tone contract
+// Cellular settings — shared geometry and tone contract
 // =============================================================================
-// Single source of truth for this surface's shapes. Every consumer imports from
-// here, INCLUDING the skeletons — a skeleton that restates a number has left the
-// contract (The Skeleton-Mirror Rule).
+// Single source of truth for this surface family's shapes. Every consumer
+// imports from here, INCLUDING the skeletons — a skeleton that restates a
+// number has left the contract (The Skeleton-Mirror Rule).
+//
+// SCOPE. This began as the contract for Cellular Basic Settings alone. It now
+// governs five routes under `/cellular/settings/`: the basic settings page,
+// APN Management, Network Priority, IMEI Settings and Blocked Networks. The
+// four latecomers were each carrying their own hand-rolled geometry (legacy
+// `rounded-xl`, `text-muted-foreground`, `bg-muted/30` washes) — adopting this
+// file is what makes them one surface rather than four that merely sit under
+// one nav group. Anything genuinely shared belongs here; anything true of ONE
+// page stays in that page's own module.
 //
 // This file exists because the surface it replaces had the defect in miniature:
 // the loading branch of `cellular-settings-card.tsx` hand-restated `h-4 w-36`
@@ -240,6 +249,40 @@ export const SELECT_TRIGGER =
   "h-[2.625rem] w-full rounded-pill border-0 bg-surface-container-high px-4 text-[0.84375rem] font-medium @2xl/card:w-auto";
 
 /**
+ * A free-text field on this surface, as a RAW `<input>` rather than
+ * `components/ui/input.tsx`.
+ *
+ * WHY THE PRIMITIVE IS NOT USED. `input.tsx` ships `dark:bg-input/30` and
+ * `md:text-sm`. `tailwind-merge` groups by class type *including the modifier*,
+ * so an unprefixed `bg-surface-container-high` from `SELECT_TRIGGER` does not
+ * displace a `dark:`-scoped fill and an unprefixed text size does not displace
+ * an `md:`-scoped one — tailwind-merge keeps BOTH and the last one wins at the
+ * breakpoint. The field therefore reverts to the primitive's fill in dark mode
+ * and to its type size above 768px, silently, on exactly the two axes a
+ * desktop light-mode review never looks at. Overriding them at the call site
+ * means restating `SELECT_TRIGGER`'s own numbers as `dark:` and `md:` variants,
+ * which is the drift this file exists to prevent.
+ *
+ * Two independent builders hit this on two different pages in the same change
+ * and each wrote their own local constant; this is that constant, promoted once
+ * so the third page cannot write a fourth version of it.
+ *
+ * MONO IS CORRECT HERE and is not a costume: every consumer holds an identifier
+ * the device emits verbatim (an IMEI, a TAC, an APN). The letter-spacing is
+ * what makes fifteen undifferentiated digits scannable. The placeholder
+ * deliberately drops back to the interface voice — a placeholder is
+ * human-authored instruction, not machine output, and mono'd prompt text reads
+ * as though the field were already filled.
+ */
+export const FIELD_INPUT = [
+  "font-mono tracking-[0.06em] tabular-nums",
+  "placeholder:font-sans placeholder:tracking-normal placeholder:text-on-surface-variant",
+  "focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none",
+  "aria-invalid:ring-[3px] aria-invalid:ring-destructive/40",
+  "disabled:cursor-not-allowed disabled:opacity-50",
+].join(" ");
+
+/**
  * The same trigger on a PROMOTED row.
  *
  * Same cross-pair trap as `SEGMENTED.SEGMENT_ON_FILL`, one level down and
@@ -251,6 +294,47 @@ export const SELECT_TRIGGER =
  */
 export const SELECT_TRIGGER_ON_FILL =
   "h-[2.625rem] w-full rounded-pill border-0 bg-primary px-4 text-[0.84375rem] font-medium text-primary-foreground @2xl/card:w-auto";
+
+/**
+ * A complete text field, at rest and promoted. Compose with a width and nothing
+ * else.
+ *
+ * THESE EXIST AS A PAIR BECAUSE THE FIELD IS WHAT MAKES THE ROW DIRTY. Every
+ * other control on this surface got an `_ON_FILL` variant the moment it could
+ * land on a promoted row, and a free-text field is the one control where that
+ * is guaranteed rather than possible: the user typing in it is precisely what
+ * flips the row to `primary-container`. A field that keeps the neutral
+ * `surface-container-high` fill there is a dead grey hole punched in the brand
+ * fill — the same failure `SELECT_TRIGGER_ON_FILL` above documents, except that
+ * one only surfaces below the segmented breakpoint while this one is visible at
+ * every width, on the primary interaction of the card.
+ *
+ * The placeholder ink has to move too, and it must be appended LAST: it lands
+ * in the same tailwind-merge group as `FIELD_INPUT`'s own placeholder colour,
+ * so order decides the winner.
+ */
+export const FIELD_SHELL = `${SELECT_TRIGGER} ${FIELD_INPUT}`;
+
+export const FIELD_SHELL_ON_FILL = `${SELECT_TRIGGER_ON_FILL} ${FIELD_INPUT} placeholder:text-primary-foreground/70`;
+
+/**
+ * Inline validation copy on a plain card.
+ *
+ * `--destructive` is the STRONG FILL and belongs only under
+ * `--destructive-foreground`. Tinted error text sitting directly on a card is
+ * the `--{role}-on-surface` slot — picking the wrong one of the five is the
+ * failure DESIGN.md calls "the most common contrast failure in this system",
+ * and it bites hardest in dark mode where `--destructive` is a LIGHT fill.
+ *
+ * `shadcn`'s `FieldError` hardcodes `text-destructive`, so this is passed as a
+ * `className` override at the call site rather than being fixed in the
+ * primitive — `field.tsx` is route-agnostic and shared with unconverted
+ * surfaces that still want the legacy token.
+ */
+export const INLINE_ERROR = "text-destructive-on-surface";
+
+/** A hairline rule between sections INSIDE a card, not between rows. */
+export const SECTION_DIVIDER = "h-px bg-surface-container-high";
 
 // -----------------------------------------------------------------------------
 // The pending-changes save bar
@@ -323,6 +407,168 @@ export const READOUT_ROW = {
   VALUE_TEXT: "text-[0.8125rem] font-semibold truncate",
   /** Mirrors ROOT's resolved height for the skeleton. */
   HEIGHT: "h-[2.5625rem]",
+  /**
+   * Two-up readout rows, for a strip reporting more facts than a single column
+   * can hold at a comfortable measure.
+   *
+   * WHY THIS IS NOT A TILE GRID. The APN comp drew "what the network granted"
+   * as `repeat(5, 1fr)` stat tiles. Two of those five cells hold a full APN
+   * (`internet.talkntext.ph`, 21 chars) and a full IPv6 (up to 39 chars after
+   * RFC 5952 compression) — at 1fr of a card column each, both truncate to
+   * noise, and the two that truncate are the two a technician actually opened
+   * the page to read. A label-left/value-right row gives the value the whole
+   * remaining width and degrades by truncating the LONG tail of one value
+   * rather than all five at once. Tiles are for figures that are short by
+   * construction (a count, a bandwidth, a signal reading); these are
+   * identifiers, and identifiers get rows.
+   */
+  GRID: "grid grid-cols-1 gap-1.5 @2xl/card:grid-cols-2 @2xl/card:gap-x-2.5",
+} as const;
+
+// -----------------------------------------------------------------------------
+// Network Priority — the reorderable rank list
+// -----------------------------------------------------------------------------
+
+/**
+ * One draggable priority row.
+ *
+ * Geometry follows SETTING_ROW rather than inventing a second row shape, but
+ * it is deliberately SHORTER: a priority row carries no control, so the 4.75rem
+ * floor that exists to clear a 42px pill would leave a visibly hollow row.
+ *
+ * DRAGGING IS NOT THE ONLY WAY IN. `dnd-kit`'s KeyboardSensor is already wired,
+ * and the handle is a real focusable button with an `sr-only` label — a rank
+ * list that can only be reordered by pointer is unusable to exactly the
+ * technician most likely to be on a tablet with a keyboard case.
+ */
+export const REORDER_ROW = {
+  ROOT: "flex items-center gap-3.5 rounded-field px-3 py-3.5",
+  /** Mirrors ROOT's resolved height for the skeleton. */
+  HEIGHT: "h-[4.25rem]",
+  /**
+   * The grab handle.
+   *
+   * `size-8` is the visual size; the coarse-pointer bump to 44px is NOT
+   * optional and lives here rather than at the call site. This is the one
+   * control on the surface whose whole job is being dragged, and 32px is under
+   * the touch floor — on the tablet where someone is actually reordering RATs
+   * in a van, a 32px target next to a scrolling list is a miss. `touch-none` is
+   * set by the consumer alongside dnd-kit's activator ref, not here, because it
+   * is a gesture-routing concern rather than a shape one.
+   */
+  HANDLE:
+    "flex size-8 flex-none cursor-grab items-center justify-center rounded-pill text-on-surface-variant hover:bg-surface-container-high active:cursor-grabbing focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none [@media(pointer:coarse)]:size-11",
+  HANDLE_GLYPH: 20,
+  TEXT: "flex min-w-0 flex-1 flex-col gap-0.75",
+  LABEL: "text-[0.9375rem] font-semibold",
+  CONSEQUENCE:
+    "text-on-surface-variant text-[0.78125rem] leading-relaxed text-pretty",
+  /** The trailing chip cluster ("Serving now"). */
+  META: "flex flex-none items-center gap-2",
+  /**
+   * Lifted while dragging.
+   *
+   * `bg-surface` is load-bearing, not decoration. A resting row paints no fill
+   * of its own — it reads as a row because the GROUP under it is
+   * `surface-container`. Lift that row without giving it a fill and the shadow
+   * ends up drawn around a transparent box, so the "raised" row shows the group
+   * straight through itself: a shadow with nothing casting it. Promoting it to
+   * `surface` is also the honest tonal statement — the row has left the group's
+   * step and risen to the card plane, which is exactly what Tonal-Elevation
+   * says depth is.
+   *
+   * The shadow is then the ONE place on this surface a shadow is load-bearing.
+   * Everywhere else a tone step carries elevation; here the row has to read as
+   * off the stack entirely while it is under the pointer, and there is no
+   * higher step to promote it to.
+   */
+  DRAGGING:
+    "relative z-10 bg-surface opacity-80 shadow-[0_12px_28px_-8px_oklch(0.19_0.032_258/0.35)]",
+} as const;
+
+/**
+ * The rank numeral.
+ *
+ * THE NUMERAL WEARS THE RADIO FAMILY'S HUE. This is the comp's "identity hues
+ * per radio family, rank stated as a numeral" read literally, and it replaces
+ * a real defect: the shipped `RAT_COLORS` map painted LTE `bg-success` and
+ * WCDMA `bg-destructive`, so a perfectly healthy 4G row rendered green-for-good
+ * and a perfectly functional 3G fallback rendered red-for-broken. Those are the
+ * functional roles being spent on identity, which is precisely what
+ * The Functional-Color Promise forbids — a user who learns red means failure on
+ * the dashboard found it meaning "3G" here.
+ *
+ * WCDMA gets a NEUTRAL, not a third identity hue. The palette ships exactly
+ * three identity hues (primary/NR, lte/violet, uplink/cyan) and cyan is spoken
+ * for; inventing a fourth by eye is what The Source-Color Rule exists to stop.
+ * A neutral rank pill is also honest — WCDMA is the fallback of last resort,
+ * and it is the one leg with no brand identity in this product.
+ *
+ * Each entry is a complete FILL pair, so it stays correct sitting on a neutral
+ * row or on a promoted `primary-container` one (same reasoning as RATE_CHIP).
+ *
+ * `tabular-nums` in font-sans, NOT mono: the rank changes while the user drags
+ * it, which is the Machine-Voice Rule's tell for the interface voice.
+ */
+export const RANK_PILL = {
+  ROOT: "grid size-[1.875rem] flex-none place-items-center rounded-pill text-[0.8125rem] font-semibold tabular-nums",
+  NR5G: "bg-primary text-primary-foreground",
+  LTE: "bg-lte text-lte-foreground",
+  NEUTRAL: "bg-surface-container-high text-on-surface-variant",
+} as const;
+
+/** Radio-family tone for a rank pill, keyed by the modem's own RAT token. */
+export const RAT_RANK_TONE: Record<string, string> = {
+  NR5G: RANK_PILL.NR5G,
+  LTE: RANK_PILL.LTE,
+  WCDMA: RANK_PILL.NEUTRAL,
+};
+
+// -----------------------------------------------------------------------------
+// The single-select choice list (Carrier Profile / MBN)
+// -----------------------------------------------------------------------------
+
+/**
+ * A list of mutually-exclusive options where the SELECTED one is promoted.
+ *
+ * WHY NOT RADIO CIRCLES. The comp drew Material's `radio_button_checked` /
+ * `radio_button_unchecked` pair. Neither glyph is in the font subset, and
+ * adding them means a Google Fonts round-trip plus a committed binary — for an
+ * affordance this system already expresses better. Selection here is the same
+ * promotion the settings rows use for pendingness' sibling state: the chosen
+ * row IS a `primary-container` block. That reads at a glance across the card,
+ * where an 18px circle does not, and it survives grayscale.
+ *
+ * SCROLL_CAP is not cosmetic. Some carrier firmware ships twenty-plus MBN
+ * bundles; an uncapped list runs off the card and takes the save action with
+ * it. The cap is in rem so it scales with the user's text size rather than
+ * clipping the fifth row at 200% zoom.
+ */
+export const CHOICE_ROW = {
+  SCROLL_CAP: "max-h-[17rem] overflow-y-auto",
+  ROOT: "flex w-full items-center gap-3 rounded-field px-4 py-3 text-left transition-[background-color,color] duration-[--duration-standard] ease-[--ease-standard] focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none",
+  REST: "hover:bg-surface-container-high",
+  SELECTED: "bg-primary-container text-on-primary-container",
+  /** Mirrors ROOT's resolved height for the skeleton. */
+  HEIGHT: "h-[3.25rem]",
+  TEXT: "flex min-w-0 flex-1 flex-col gap-0.5",
+  /** Bundle names are machine strings read back from firmware. */
+  NAME: "font-mono text-[0.84375rem] font-semibold truncate",
+  /**
+   * The caption reports the LIVE state ("running since last boot"), which is a
+   * different question from which row the user has currently drafted — so it
+   * can land on a promoted row or a neutral one depending on whether the draft
+   * agrees with the modem.
+   *
+   * It therefore sets no ink of its own and dims whatever the row already
+   * carries. That is what makes it correct on both: `on-primary-container` when
+   * promoted, `on-surface` when not. An earlier version of this comment claimed
+   * only the selected row could carry a caption and so no on-fill variant was
+   * needed — that was wrong the moment a user picked a bundle the modem is not
+   * yet running, which is the entire point of the control.
+   */
+  CAPTION: "text-[0.71875rem] opacity-90",
+  GLYPH: 18,
 } as const;
 
 // -----------------------------------------------------------------------------
@@ -414,7 +660,7 @@ export const RATE_CHIP = {
  * any device where the serving-technology parse failed. Removed by product
  * decision; the remaining sentence states only what is verifiable.
  */
-export const AMBR_EMPTY = {
+export const EMPTY_BLOCK = {
   ROOT: "flex flex-col items-center gap-1.5 rounded-tile bg-surface-container px-4 py-5 text-center",
   GLYPH: 26,
   TITLE: "text-sm font-semibold",

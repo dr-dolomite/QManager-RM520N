@@ -25,7 +25,7 @@
     "apn_management": "Gestione APN",
     "network_priority": "Priorità di rete",
     "imei_settings": "Impostazioni IMEI",
-    "fplmn_settings": "Impostazioni FPLMN",
+    "fplmn_settings": "Reti bloccate",
     "ethernet_status": "Stato Ethernet",
     "local_network_settings": "Impostazioni",
     "ip_passthrough": "IP Passthrough",

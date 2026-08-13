@@ -264,6 +264,27 @@ export const transitionEmphasized: Transition = {
   ease: EASE_EMPHASIZED,
 };
 
+/**
+ * `dnd-kit`'s sortable transition, on this scale.
+ *
+ * `useSortable` defaults to `{ duration: 200, easing: "ease" }` and writes the
+ * result out as an inline `style.transition` string, so a reorder animates at
+ * 200ms on a curve that is not one of the three in this file — a One-Scale
+ * violation nobody typed, and one that would survive a retune of everything
+ * else. It is the only place in the product where a third-party hook authors a
+ * duration on our behalf, which is exactly why the conversion belongs here
+ * rather than at the call site: dnd-kit wants MILLISECONDS and a CSS easing
+ * STRING, and both of those translations should be written once.
+ *
+ * `standard` is the right step by the same reasoning as everywhere else — a row
+ * settling into a new rank is an everyday state change, not a container
+ * reshaping itself.
+ */
+export const SORTABLE_TRANSITION = {
+  duration: DUR.standard * 1000,
+  easing: EASE_STANDARD_CSS,
+} as const;
+
 // -----------------------------------------------------------------------------
 // The save-confirmation check (Motion Guide recipe 15)
 // -----------------------------------------------------------------------------

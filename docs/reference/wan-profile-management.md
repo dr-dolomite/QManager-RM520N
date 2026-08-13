@@ -29,7 +29,7 @@ Backed by the CGI endpoint `cellular/apn.sh`. The frontend UI lives under
 | Frontend hook (6-slot) | `hooks/use-wan-profiles.ts` |
 | Frontend types (single-APN, page-active) | `types/apn-settings.ts` |
 | Frontend hook (single-APN, page-active) | `hooks/use-apn-settings.ts` |
-| Frontend components | `components/cellular/settings/apn-management/` (page uses `apn-settings-card.tsx`; `wan-profile-list.tsx`/`wan-profile-edit.tsx` retained but not rendered on the page) |
+| Frontend components | `components/cellular/settings/apn-management/` (page renders `apn-settings-card.tsx` + `mbn-card.tsx` + a read-only poller strip; the legacy `wan-profile-list.tsx`/`wan-profile-edit.tsx` are **deleted**) |
 | `data_source` | Always `"at"` on RM520N-GL |
 
 A "PDP context" is the modem's record of a data connection — which APN to dial,
@@ -589,10 +589,17 @@ controls that have no AT equivalent: **Default Route**, **IP Passthrough**, and
 |------|------|
 | `types/wan-profiles.ts` | `WanProfilesResponse` (carries `data_source`), `WanProfile` (carries `has_password`) |
 | `hooks/use-wan-profiles.ts` | Exposes `dataSource`; on the AT path, skips the optimistic-reconcile background fetch because the CGI write is synchronous |
-| `components/cellular/settings/apn-management/apn-settings.tsx` | Page container |
-| `components/cellular/settings/apn-management/wan-profile-list.tsx` | Slot list |
-| `components/cellular/settings/apn-management/wan-profile-edit.tsx` | Edit form; hides Default Route / IP Passthrough / VLAN controls when `data_source === "at"` |
-| `components/cellular/settings/apn-management/mbn-card.tsx` | MBN sub-feature (`AT+QMBNCFG`) — AT-native, unchanged |
+| `components/cellular/settings/apn-management/apn-settings.tsx` | Page container; also owns the read-only "What the network granted" strip fed by `useModemStatus` |
+| `components/cellular/settings/apn-management/apn-settings-card.tsx` | The single-APN write surface (WS6 contract) |
+| `components/cellular/settings/apn-management/mbn-card.tsx` | MBN sub-feature (`AT+QMBNCFG`) — AT-native backend unchanged; the card was rebuilt (Switch + choice list, sequential `auto_sel` → `apply_profile` save) |
+
+> ℹ️ NOTE: `wan-profile-list.tsx` and `wan-profile-edit.tsx` **no longer exist** — they were deleted once they had zero importers. `types/wan-profiles.ts` and `hooks/use-wan-profiles.ts` remain, and the 6-slot AT machinery in `apn.sh` is untouched, so the legacy contract is still reachable if a future page wants it.
+
+The page's geometry, tone and field shells now come from the shared
+`components/cellular/settings/shapes.ts` contract — see
+[cellular-settings-family.md](cellular-settings-family.md), which also records
+the `detect_active_cid()` confidence gap that constrains how the CID chip is
+worded.
 
 ---
 
@@ -627,8 +634,8 @@ The APN Settings page (`components/cellular/settings/apn-management/apn-settings
 now renders **only** `apn-settings-card.tsx` (+ the MBN card) — a pixel-strict
 port of RM551E's single-APN model, matching that build's `use-apn-settings.ts`
 contract exactly. The legacy 6-slot list/edit UI
-(`wan-profile-list.tsx`/`wan-profile-edit.tsx`) is **retired from this page**
-but not deleted — other code may still reference the components — and the
+(`wan-profile-list.tsx`/`wan-profile-edit.tsx`) was retired from this page and
+has since been **deleted outright** — it had no importers left — while the
 backend's 6-slot AT machinery underneath is fully retained (see
 [AT command surface](#at-command-surface) above, unchanged).
 

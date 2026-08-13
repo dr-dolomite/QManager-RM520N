@@ -146,6 +146,10 @@ Each feature below has a reference doc holding its invariants, gotchas, and rati
 | **Carrier Aggregation** | `AT+QCAINFO`, `network.carrier_components[]`, the dashboard CA strip | `carrier-aggregation.md` |
 | **Radio Information** | `/cellular/` index, `lib/radio-info.ts`, `components/cellular/radio/**` | `radio-information.md` |
 | **Cellular Basic Settings** | `/cellular/settings`, `cellular/settings.sh`, the six writable fields (`AT+QUIMSLOT` / `AT+CFUN` / `AT+QNWPREFCFG` / `AT+QSIMDET`), the dirty-state merge rule in `use-cellular-settings.ts`, the ~35s SIM-slot apply, the poller's new `.sim` block, or `network.type` now being legitimately `""` | `cellular-basic-settings.md` |
+| **Cellular Settings family (shared contract)** | `components/cellular/settings/shapes.ts` — it now governs all five `/cellular/settings/` routes, so any shared export, the dirty-row tone rule, or the `FIELD_SHELL` pair that replaces the `Input` primitive | `cellular-settings-family.md` |
+| **Network Priority** | `/cellular/settings/network-priority`, `cellular/network_priority.sh`, `rat_acq_order`, the reorder list, or `RAT_RANK_TONE` | `cellular-settings-family.md` |
+| **IMEI Settings** | `/cellular/settings/imei-settings`, `cellular/imei.sh`, `use-imei-settings.ts`, Luhn gating, or the `qm_imei_reboot_pending` deferred-reboot contract | `cellular-settings-family.md` |
+| **Blocked Networks (FPLMN)** | `/cellular/settings/fplmn-settings`, `cellular/fplmn.sh`, `AT+CRSM` EF_FPLMN, the five condition states, or the unused `raw_data` payload | `cellular-settings-family.md` |
 | **Recent Activities** | `events.sh`, `/tmp/qmanager_events.json`, the dashboard event feed, event tone/freshness | `recent-activities.md` |
 | **Dashboard chart cards** | Device Metrics, Live Latency, Signal History, `hooks/use-chart-motion.ts`, recharts | `dashboard-chart-cards.md` |
 | **Dashboard state-change motion** | `TickGroup`/`useValueTick`, `SwapLabel`, status-chip morph, live value ticks, and `SaveButton`'s save flow | `dashboard-state-motion.md` |
@@ -154,7 +158,7 @@ Each feature below has a reference doc holding its invariants, gotchas, and rati
 | **Ethernet Status & Link Speed** | `/local-network/ethernet`, `eth0`, `ethtool`, `qmanager_ethernet_apply` | `ethernet.md` |
 | **Centralized Alerts** | `/monitoring/alerts`, `alert_engine.sh`, SMS/email/Discord routing — **and** alert-channel secret storage: `/etc/qmanager-secrets/`, the `qmanager_secret_set` / `qmanager_email_send` root helpers, the `token_set` / `app_password_set` markers, and why a chmod inside `/etc/qmanager` is never the fix | `alerts.md` |
 | **Discord Bot** | `discord-bot/`, `qmanager_discord` | `discord-bot.md` |
-| **WAN Profile Management** | `cellular/apn.sh`, PDP contexts, the APN Settings page, or the shared `apn_apply.sh` attach-cycle primitive any APN write must go through | `wan-profile-management.md` |
+| **WAN Profile Management** | `cellular/apn.sh`, PDP contexts, the APN Management page (incl. the MBN card and the poller-fed "what the network granted" strip), or the shared `apn_apply.sh` attach-cycle primitive any APN write must go through | `wan-profile-management.md`, `cellular-settings-family.md` |
 | **Custom SIM Profiles & Connection Scenarios** | One merged page at `/cellular/custom-profiles` (the `connection-scenarios` sub-route is retired to a client-side redirect): profile create/apply, scenarios + schedule ribbon, band locks via scenarios, suggested profiles, `current_settings.sh`, or any geometry/tone on the surface (governed by `shapes.ts`) | `sim-profiles.md` |
 | **SIM Detection** | `known_iccids`, `sim_registry.json`, the SIM-swap banner, Tracked SIMs | `sim-detection.md` |
 | **Connection Watchdog** | `/monitoring/watchdog`, `qmanager_watchcat`, the 4-tier recovery ladder | `connection-watchdog.md` |
