@@ -101,7 +101,7 @@ The table below contrasts RM520N-GL against the legacy RM551E (OpenWRT) target �
 
 Read these only when working on the relevant subsystem:
 
-- **AT command transport** (`atcli_smd11`, `qcmd`, SMS, flock serialization, and **why QManager can never consume AT URCs** — no resident listener, `smd11` is not a selectable URC port, and enabling one corrupts unrelated responses) — `docs/reference/at-command-transport.md`
+- **AT command transport** (`atcli_smd11`, `qcmd`, SMS, flock serialization, **how to detect a `qcmd` failure** — exit status only; `ERROR` never reaches stdout, so `case "$result" in *ERROR*)` is dead code, still unfixed in ~7 scripts — and **why QManager can never consume AT URCs**: no resident listener, `smd11` is not a selectable URC port, and enabling one corrupts unrelated responses) — `docs/reference/at-command-transport.md`
 - **QManager standalone install & runtime internals** (Entware bootstrap, udev permissions, CGI auth, service persistence, firewall, Tailscale, web console, email/SMS alerts, OTA pipeline incl. opt-in auto-update timer gated on `update.auto_update_enabled` — armed at install/OTA AND live by the Software Update UI toggle via the `qmanager_auto_update_arm` root helper) — `docs/reference/qmanager-independence.md`
 - **Full platform architecture** (platform internals, Entware bootstrapping, lighttpd config, boot sequences, troubleshooting) — `docs/rm520n-gl-architecture.md`
 

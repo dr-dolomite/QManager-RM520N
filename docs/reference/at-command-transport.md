@@ -42,6 +42,102 @@ Note: this is the **opposite** of the Discord bot rule — the Go binary (`qmana
 
 ---
 
+## How to detect a qcmd failure
+
+**Short version: `qcmd` reports failure through its exit status and `stderr`. It never puts the word `ERROR` on `stdout`, and it never returns a non-empty `stdout` on failure. Check `$?`. Everything else is guesswork.**
+
+Why it works that way: `qcmd` is a gatekeeper, not a pass-through. It classifies the modem's raw reply itself (`qcmd:174-196`) and then re-emits a *clean* result — payload on `stdout` for the caller to parse, or a diagnostic on `stderr` plus `exit 1`. Keeping the two streams separate is deliberate: a CGI script's `stdout` **is** its HTTP response body, so anything diagnostic that leaks there corrupts the JSON.
+
+### The four outcomes
+
+| Outcome | exit | stdout | stderr |
+| ------- | ---- | ------ | ------ |
+| Success | 0 | **command echo** + payload + `OK` | — |
+| Lock timeout | 1 | *empty* | `ERROR: modem_busy` |
+| Modem returned `ERROR` / `+CME ERROR:` | 1 | *empty* | `ERROR: command_failed` |
+| Empty modem response | 1 | *empty* | `ERROR: command_failed` |
+
+Lock wait before the timeout fires is **5 s** (`LOCK_WAIT_SHORT`), or **10 s** (`LOCK_WAIT_LONG`) for the long commands `*QSCAN*`, `*QSCANFREQ*`, `*QFOTADL*` (`qcmd:41-42`, `is_long_command()` at `qcmd:104-109`). The wait is a poll loop of one-second `flock -x -n` attempts plus one final try (`flock_wait()`, `qcmd:116-131`), because BusyBox `flock` has no `-w`.
+
+### Two consequences that bite
+
+**1. Empty `stdout` ⇔ failure, unconditionally.** `atcli_smd11` echoes the command line back before the payload, so a *successful* read structurally cannot produce empty output — even a query that matches nothing still returns the echo and `OK`. There is no "succeeded but returned nothing" case to worry about.
+
+**2. `case "$result" in *ERROR*)` is dead code.** Wherever that idiom is matched against `qcmd`'s captured `stdout`, the first arm can never be taken: on failure `stdout` is empty, and on success the modem's own reply contained no `ERROR` (that is precisely what `qcmd` already checked). Every rejected write silently falls through to the `*)` "success" arm.
+
+```sh
+# WRONG — the *ERROR* arm is unreachable; a rejected write reports as applied.
+result=$(qcmd "AT+QNWPREFCFG=\"roam_pref\",255" 2>/dev/null)
+case "$result" in
+    *ERROR*) errors="roam_pref" ;;
+    *)       applied="roam_pref" ;;
+esac
+
+# RIGHT — check the exit status.
+if qcmd "AT+QNWPREFCFG=\"roam_pref\",255" >/dev/null 2>&1; then
+    applied="roam_pref"
+else
+    errors="roam_pref"
+fi
+```
+
+> ⚠️ WARNING: **`$?` is clobbered by the very next command.** A line like `[ -z "$raw" ] && qlog_warn "empty"` placed after the assignment overwrites `$?` before you can read it — the status you then capture belongs to the `[` test or the log call, not to `qcmd`. Capture `rc=$?` on the **statement immediately following** the assignment, then do everything else.
+
+```sh
+raw=$(qcmd 'AT+QUIMSLOT?' 2>/dev/null)
+rc=$?                                    # must be the very next statement
+[ -z "$raw" ] && qlog_warn "empty response"
+[ $rc -ne 0 ] && { cgi_error "read_failed" "Modem read failed"; exit 0; }
+```
+
+### The cleaner option for new callers: `qcmd -j`
+
+`qcmd -j "AT+..."` wraps the outcome in JSON on **`stdout`** in both directions (`output_result()`, `qcmd:81-101`):
+
+```json
+{"success": true,  "response": "...", "command": "AT+QUIMSLOT?"}
+{"success": false, "error": "modem_busy", "command": "AT+QUIMSLOT?"}
+```
+
+New callers that already have `jq` in hand should prefer this — one stream, one shape, no `$?` discipline to get wrong. (The exit status is still `1` on the error envelope in non-JSON mode only; in `-j` mode read the `success` field.)
+
+### Read failures must not become fabricated values
+
+The second half of this bug class is on the *read* side. A GET that seeds defaults (`sim_slot="1"`, `mode_pref="AUTO"`, …) and then overwrites them only when a `grep` matches will, on a failed `qcmd`, emit the entire seeded set as if it were the modem's state — with `success: true` on top. This was reproduced live: a modem genuinely on SIM slot 2 reported `"sim_slot": 1` during lock contention.
+
+The rule is **guard the transport result, not the individual fields**:
+
+- If `rc != 0`, return an error envelope and emit **no data object at all**. Absence is the honest signal.
+- If `rc == 0` but one line is missing from an otherwise good response, **keep the seeded default**. A missing individual line is usually a legitimate firmware difference; nulling per-field would turn a working page into a permanently broken one on that firmware.
+
+`scripts/www/cgi-bin/quecmanager/cellular/settings.sh` is the reference implementation (see [cellular-basic-settings.md](cellular-basic-settings.md) > *The read contract*).
+
+### ⚠️ This is NOT fixed repo-wide
+
+`cellular/settings.sh` is the **first and only** script migrated. Do not assume the rest of the tree follows this contract — verified as of 2026-08-14:
+
+**Failure genuinely undetected — 20 sites across 7 files.** These match `*ERROR*` against `qcmd` stdout with no `rc` check and no emptiness guard, so a lock timeout or modem rejection is reported as success:
+
+| File | Sites |
+| ---- | ----- |
+| `scripts/www/cgi-bin/quecmanager/network/ip_passthrough.sh` | 7 |
+| `scripts/www/cgi-bin/quecmanager/cellular/mbn.sh` | 4 |
+| `scripts/usr/bin/qmanager_tower_schedule` | 4 |
+| `scripts/usr/bin/qmanager_tower_failover` | 2 |
+| `scripts/www/cgi-bin/quecmanager/cellular/network_priority.sh` | 1 |
+| `scripts/www/cgi-bin/quecmanager/cellular/imei.sh` | 1 |
+| `scripts/usr/bin/qmanager_imei_check` | 1 |
+
+**Safe by accident — 2 sites.** `scripts/www/cgi-bin/quecmanager/cellular/fplmn.sh` guards with `[ -z "$resp" ]` first. Because empty stdout ⇔ failure, that guard catches every failure; its `*ERROR*` arm is merely unreachable. Fine today, fragile if someone removes the emptiness check.
+
+**Already correct.** `cgi_at.sh` (`run_at()`), `qmanager_poller` (`qcmd_exec()`), `scenario_mgr.sh`, `bands/lock.sh`, `bands/current.sh`, `frequency/lock.sh`, `tower/lock.sh` and `tower/settings.sh` all test `[ $rc -ne 0 ] || [ -z "$result" ]` before the `case`. Their `*ERROR*` arms are unreachable belt-and-braces, not bugs — **prefer `run_at()` from `cgi_at.sh` in new CGI code** rather than open-coding the check.
+
+**Not qcmd output at all — leave alone.** `qcmd` itself (`qcmd:175`) classifies `atcli_smd11`'s raw reply, which is exactly where `ERROR` legitimately appears. `parse_at.sh:337` classifies raw `AT+CPIN?` text handed to it by the poller.
+
+Separately, roughly **26 `qcmd` call sites across 19 files** never capture `$?` at all. Many are the pipe form (`qcmd ... | grep ...`), where an empty result is falsy and the caller happens to handle it; that is luck, not contract.
+
+---
+
 ## SMS operations
 
 SMS send/receive/delete operations use `sms_tool`, a bundled ARM binary (not `atcli_smd11`).
