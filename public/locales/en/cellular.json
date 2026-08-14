@@ -710,6 +710,9 @@
         "title": "Network Mode & Roaming",
         "description": "How the modem chooses a network to attach to."
       },
+      "cards": {
+        "unread": "Nothing was read from the modem, so there's nothing to change here yet."
+      },
       "rows": {
         "sim_slot": {
           "label": "SIM Slot",

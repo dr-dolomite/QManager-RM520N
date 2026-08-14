@@ -710,6 +710,9 @@
         "title": "Mode Jaringan & Roaming",
         "description": "Cara modem memilih jaringan untuk dihubungi."
       },
+      "cards": {
+        "unread": "Belum ada data yang terbaca dari modem, jadi di sini belum ada yang bisa diubah."
+      },
       "rows": {
         "sim_slot": {
           "label": "Slot SIM",

@@ -89,6 +89,284 @@ export const CARD_SHELL =
 /** Card padding: 28px, matching the sibling `/cellular/` surfaces. */
 export const CARD_PAD = "px-7";
 
+/**
+ * A peer card's title: the Title step (18px), plus the truncation pair.
+ *
+ * `CardTitle` ships only `leading-none font-semibold` and takes its size from
+ * the call site, so an unsized one inherits 16px — which is what these cards
+ * shipped, leaving them the same size as the hero anchor above them and
+ * flattening the surface's whole type ramp.
+ *
+ * `min-w-0` is the other half. These two cards are peers in a grid and are
+ * height-locked to each other by `CARD_CELL`; without it a long title in one
+ * locale (Italian is the one that trips it) pushes its own header box wider
+ * than the grid track instead of wrapping inside it. It WRAPS rather than
+ * truncating — a card title that silently loses its last word is worse than a
+ * two-line one — which is why `leading-none` has to go with it.
+ */
+export const CARD_TITLE = "min-w-0 text-lg leading-tight";
+
+// -----------------------------------------------------------------------------
+// The read-only hero (modem reports + AMBR), basic settings page
+// -----------------------------------------------------------------------------
+
+/**
+ * The page's anchor card. `rounded-hero` (40px) — one per surface, under the
+ * Consistent-Layout Rule's "a genuine glance surface may earn a hero card"
+ * exception (same ruling as `band-locking/shapes.ts`). The merged reports +
+ * rate-limits readout is exactly that glance surface: it answers "what is the
+ * modem doing right now and what will the network let it do" before the user
+ * touches a setting.
+ *
+ * `py-7` (28px) rather than the peer card's `py-6` — the hero carries more
+ * content and the extra vertical padding is what lets it read as the anchor.
+ */
+export const HERO_SHELL =
+  "@container/hero flex flex-col gap-5 rounded-hero border-0 bg-surface py-7 shadow-[var(--shadow-whisper)]";
+
+/** Hero card padding: 28px horizontal, matching CARD_PAD. */
+export const HERO_PAD = "px-7";
+
+// -----------------------------------------------------------------------------
+// The hero — Band 1: the identity rail
+// -----------------------------------------------------------------------------
+
+/**
+ * The hero's anchor statement: a HORIZONTAL rail, not a centred big-figure
+ * stack. Glyph disc → serving technology → carrier → freshness chip, on one
+ * baseline.
+ *
+ * WHY A RAIL AND NOT A HERO METRIC. The obvious shape here is the hero-metric
+ * template — one large figure over a small label with supporting stats beneath.
+ * It is refused on two grounds. First, the value is a CATEGORY ("5G NSA"), not
+ * a magnitude, and setting a four-character category at display size buys
+ * emphasis it cannot spend. Second, the template's small-label-above-big-value
+ * arrangement is an eyebrow, and an eyebrow over a heading is banned outright
+ * on this product. The rail states the technology at the Headline+1 step with
+ * the carrier as its own supporting line and no label above either.
+ *
+ * THE FILL IS IDENTITY, NEVER HEALTH (The Identity-Chip Rule). NR takes the
+ * brand blue, LTE the identity violet, and an UNIDENTIFIED technology takes the
+ * NEUTRAL pair — an unknown radio must never claim the 5G blue. The freshness
+ * chip riding at the rail's end is a status Badge with its own container pair,
+ * so quality is reported chromatically only inside that chip and never by the
+ * rail's own fill.
+ *
+ * HEIGHT IS THE TILE FLOOR, NOT A DERIVATION. DESIGN.md defines a tile as "a
+ * 28px-radius block, 92px minimum height, holding a 52px full-round glyph disc
+ * beside a text column" — which is exactly this rail, down to the disc size and
+ * the inverted pairing. An earlier draft derived 84px from `52 + py-4 x2` and
+ * shipped the product's most prominent instance of the pattern as the one that
+ * is short. 92 -> 5.75rem, which gives the 52px disc 20px of air either side
+ * (`py-4` still applies; the floor is what wins). The text column measures
+ * tech 29 + gap 4 + carrier 18 = 51 and clears it either way.
+ *
+ * HEIGHT carries the RADIUS as well as the height. A skeleton that mirrors the
+ * height from the contract and then hand-writes `rounded-tile` beside it has
+ * kept half the contract (The Skeleton-Mirror Rule).
+ */
+export const HERO_RAIL = {
+  ROOT: "flex min-h-[5.75rem] items-center gap-4 rounded-tile px-5 py-4",
+  /** Mirrors ROOT's resolved height AND radius, for the skeleton. */
+  HEIGHT: "h-[5.75rem] rounded-tile",
+  /** The 52px glyph disc. Tone INVERTS the rail's pairing at the call site. */
+  DISC: "grid size-[3.25rem] flex-none place-items-center rounded-pill",
+  /** The glyph inside the disc. Exported so retuning DISC cannot desync it. */
+  GLYPH: 28,
+  TEXT: "flex min-w-0 flex-1 flex-col gap-1",
+  /**
+   * The serving technology. One step above the tile Headline (`text-xl`)
+   * because this is the page's single dominant statement and the tiles it
+   * replaces no longer exist to compete with it. `truncate` is mandatory:
+   * "5G NSA" is short in English and is not short in every locale.
+   */
+  TECH: "truncate text-2xl font-semibold leading-[1.05] tracking-[-0.01em]",
+  /**
+   * The carrier. Human-authored, so `font-sans` (The Machine-Voice Rule) — an
+   * operator name is not a machine string even though the modem reports it.
+   * `opacity-90`, not 85: this line carries a FACT, not decoration, and 90 is
+   * the step the family already uses for on-fill body text
+   * (`SETTING_ROW_DIRTY.CONSEQUENCE_ON_FILL`, `CHOICE_ROW.CAPTION`).
+   */
+  CARRIER: "truncate text-[0.8125rem] font-medium opacity-90",
+  /**
+   * The rail's statement when the read FAILED — a sentence, not a category,
+   * so it takes the Title step instead of `TECH`'s 24px (a sentence at 24px
+   * truncates on its first word in a rail that also holds a 52px disc).
+   *
+   * The rail keeps its geometry in this state rather than collapsing to a
+   * skeleton: a skeleton is a promise that data is on its way, and holding one
+   * indefinitely over a dead poller is the same class of misstatement as the
+   * whole-card "Live" chip this hero was rebuilt to remove.
+   */
+  NOTICE: "truncate text-lg font-semibold",
+  META: "flex flex-none items-center gap-2",
+} as const;
+
+/**
+ * Rail tone pairs. A rail is a FILL pair and its disc is the matching
+ * CONTAINER pair — the inversion `radio/summary-tiles.tsx` makes, so the glyph
+ * pops off its own surface and survives grayscale.
+ */
+export const HERO_RAIL_TONE = {
+  NR: "bg-primary text-primary-foreground",
+  NR_DISC: "bg-primary-container text-on-primary-container",
+  LTE: "bg-lte text-lte-foreground",
+  LTE_DISC: "bg-lte-container text-on-lte-container",
+  NEUTRAL: "bg-surface-container text-on-surface",
+  NEUTRAL_DISC: "bg-surface-container-high text-on-surface-variant",
+} as const;
+
+// -----------------------------------------------------------------------------
+// The hero — Band 2: the three-column body
+// -----------------------------------------------------------------------------
+
+/**
+ * Rates, rates, parameters — the column order the surface was designed to.
+ *
+ * The third column is WIDER (1.15fr) because it holds identifiers: an APN can
+ * run 21 characters and a carrier-aggregation breakdown is two facts on one
+ * line, while a rate column holds a heading and two 8-character chips. Equal
+ * thirds would truncate the only column whose contents a technician opened the
+ * page to read (the `READOUT_ROW.GRID` argument, one level up).
+ *
+ * KEYED OFF `@container/hero`, NEVER `/main`. The hero's own width decides
+ * whether three columns fit; the sidebar expanding must not restack the page.
+ * Every step is written out literally — a template-interpolated step compiles
+ * to no rule at all (see `SEGMENTED_BREAKPOINTS`).
+ *
+ * THE THREE-COLUMN STEP IS `@5xl` (64rem), NOT `@4xl`. It was measured, not
+ * chosen: at a 56rem hero the first rate column resolves to 258px and its
+ * content box to 222px, which is narrower than a 20px heading plus the
+ * governing chip beside it (~235px) — so the heading wrapped under the chip at
+ * every width in the 896-1024px band. At 64rem the column is 298px / 262px
+ * inner and the header sits on one line. Below the step the two-column layout
+ * gives each block ~301px, which also clears it.
+ */
+export const HERO_BODY =
+  "grid grid-cols-1 gap-3.5 @2xl/hero:grid-cols-2 @5xl/hero:grid-cols-[1fr_1fr_1.15fr]";
+
+/**
+ * The parameters cell. At the two-column step it spans the full width UNDER
+ * the rate pair, which is the only arrangement that keeps the two rate blocks
+ * as visual peers — putting one rate block beside the parameters would imply a
+ * pairing between them that does not exist.
+ */
+export const HERO_BODY_PARAMS_CELL = "@2xl/hero:col-span-2 @5xl/hero:col-span-1";
+
+/**
+ * One cell of `HERO_BODY`. Carries the row's stretch down to the block inside.
+ *
+ * THIS IS `CARD_CELL`'S LESSON ONE LEVEL DOWN, and it shipped broken: a grid
+ * item stretches to the row height by default, but a BLOCK CHILD of that item
+ * does not inherit the height unless told to (DESIGN.md > Layout > "Equal
+ * heights are explicit"). Each cell here is a `motion.div` wrapper, so the
+ * wrapper was full height while the `<section>` inside it stayed content-sized.
+ *
+ * Caught on screen, not in review, and only at the THREE-column step: the
+ * parameters column runs four rows plus a heading (~180px) while a rate block
+ * with one bearer is ~118px, so the two rate blocks floated with ~70px of dead
+ * space beneath them and the row ended on three different bottom edges. At the
+ * two-column step the parameters column sits on its own full-width row and the
+ * two rate blocks are natural peers, which is why every narrower width looked
+ * correct and the defect was invisible below 64rem.
+ *
+ * `*:h-full` rather than a class on each block: the cell has exactly one child
+ * in every branch (block, empty block, unavailable block, or skeleton), and
+ * naming it here means a new branch cannot forget it.
+ */
+export const HERO_BODY_CELL = "h-full *:h-full";
+
+/**
+ * The provenance line under all three columns.
+ *
+ * It exists because the hero has TWO CLOCKS and one of them does not tick. The
+ * freshness chip on the rail is honest about the poller and says nothing about
+ * the rate columns, which are fetched on mount and re-fetched only around a
+ * save. A single "Live" chip over a card whose visual majority can be
+ * arbitrarily old is a straightforward misstatement, and this line is the fix.
+ * It also names what an AMBR figure IS — a ceiling the network grants, not a
+ * speed the modem is achieving — which nothing else on this page does.
+ */
+export const HERO_FOOTNOTE =
+  "text-on-surface-variant text-[0.75rem] leading-relaxed text-pretty";
+
+/**
+ * Column 3: the active parameters block.
+ *
+ * A NEUTRAL block beside two identity-filled ones, deliberately. These facts
+ * belong to no radio, and giving them a hue would invent a fourth identity.
+ *
+ * ROW STEPS UP ONE TONE. `READOUT_ROW.ROOT` is `bg-surface-container`, which
+ * is this block's own fill — nesting them would make the rows invisible. The
+ * rows take `surface-container-high`, one step up, which is what Tonal
+ * Elevation means by depth. The row geometry is otherwise identical to
+ * `READOUT_ROW.ROOT`, so `READOUT_ROW.HEIGHT` remains its skeleton mirror.
+ *
+ * `min-h-[9rem]` matches `AMBR_BLOCK.COL_MIN` so the three columns share a
+ * floor and an empty rate column never reads as a layout bug.
+ *
+ * HEADING IS THE TITLE STEP (18px), NOT `text-sm`. It shipped at 14px, which is
+ * the same size as the `CardDescription` two nodes above it and one pixel off
+ * the 13px rows below it — the hero's whole type ladder collapsed into 24 -> 16
+ * -> 14 -> 14 -> 13 with the 18 and 20 steps unused. It is a peer of the two
+ * rate-block headings and carries the same class, so retuning one retunes all
+ * three (see `AMBR_BLOCK.TITLE`).
+ */
+export const HERO_PARAMS = {
+  ROOT: "flex min-h-[9rem] flex-col gap-1.5 rounded-tile bg-surface-container p-3",
+  HEADING: "px-1 pb-0.5 text-lg font-semibold",
+  ROW: "flex items-center gap-3 rounded-pill bg-surface-container-high px-4 py-2.5",
+} as const;
+
+// -----------------------------------------------------------------------------
+// The governing-block marker
+// -----------------------------------------------------------------------------
+
+/**
+ * Which rate block governs the bearer the modem is actually using.
+ *
+ * WHY THIS EXISTS. LTE AMBR governs `LTE` and `5G-NSA` (NSA's NR leg is a
+ * secondary carrier on the LTE-anchored PDN, with no AMBR of its own); NR5G
+ * AMBR governs `5G-SA` only. The old hero encoded that by rendering exactly
+ * one block. Rendering both is a better read — the user can see what each
+ * radio would grant — but it drops the fact that only one of them is in force,
+ * and that fact has to come back somewhere.
+ *
+ * IT MUST NOT COME BACK AS A HUE. `AMBR_BLOCK`'s own comment names the
+ * constraint it is now cashing: the violet fill is doing identity work alone
+ * and is safe there ONLY because the block reports no quality — "if a health
+ * state is ever added to this block it needs a non-chromatic channel." This is
+ * that state and this is that channel: a GLYPH plus a WORD, in two shapes
+ * (filled chip vs plain inline text). Both survive grayscale and deuteranopia,
+ * and the fill of each block stays exactly what it was.
+ *
+ * THE CHIP WEARS ITS OWN BLOCK'S FILL PAIR, not a status role. `info` renders
+ * `primary-container`, which is invisible on the 5G block; `success` would
+ * claim health, and governance is not health. The block's container inverted
+ * to its own fill is the pairing the tile discipline already uses, it declares
+ * both halves so consumers set no ink, and it reads as "this block, emphasised"
+ * rather than as a verdict.
+ *
+ * ABSENCE IS NOT THE SIGNAL. The non-governing block states its state in
+ * words too. A marker that only ever appears once would leave the other block
+ * ambiguous between "not in use" and "we didn't check".
+ */
+export const GOVERNING_MARK = {
+  CHIP: "inline-flex h-[1.375rem] flex-none items-center gap-1.5 rounded-pill px-2.5 text-[0.6875rem] font-semibold",
+  ON_LTE: "bg-lte text-lte-foreground",
+  ON_NR: "bg-primary text-primary-foreground",
+  /** The non-governing state: no chip, no fill, the block's own ink dimmed. */
+  IDLE: "inline-flex flex-none items-center gap-1.5 text-[0.6875rem] font-semibold opacity-90",
+  GLYPH: 13,
+} as const;
+
+/** Glyphs. Both already in the font subset — this change adds no glyph. */
+export const GOVERNING_GLYPH = {
+  governing: "check_circle",
+  idle: "do_not_disturb_on",
+} as const satisfies Record<string, MaterialSymbolName>;
+
 /** The Display triple every migrated page `h1` carries. */
 export const PAGE_TITLE = "text-3xl font-bold tracking-[-0.02em]";
 
@@ -154,6 +432,35 @@ export const SETTING_ROW = {
   /** The control cluster. `@2xl/card:ml-auto` right-aligns only once side by side. */
   CONTROL: "flex flex-none items-center @2xl/card:ml-auto",
 } as const;
+
+/**
+ * The line a write card shows INSTEAD of its rows when the modem was never
+ * read — one quiet sentence occupying exactly one row's slot inside the group.
+ *
+ * WHY IT EXISTS. The card's loading branch is `isLoading || !draft || !settings`,
+ * and on a failed read `isLoading` goes false while `settings` stays `null`. So
+ * both write cards held their skeleton FOREVER, shimmering with no explanation —
+ * a skeleton is a promise that data is on its way, and this is where that promise
+ * is broken. Same defect the hero fixed with its `unavailable` branches
+ * (`HERO_RAIL.NOTICE`), arriving one card over.
+ *
+ * IT IS DELIBERATELY QUIET, NOT A SECOND ALARM. The route shell already renders a
+ * `destructive` `TonalBanner` with the retry action when `error` is set; the page
+ * says "Couldn't read the modem" once, and a card repeating it in a functional
+ * role would say it three times on a page with two cards. This states only why
+ * THIS card has nothing to show — no glyph, no chip, no role colour.
+ *
+ * A LATER failure does not use this branch. The hook leaves the previous
+ * snapshot in place on a failed re-read, so the card keeps rendering real values
+ * and the banner is what says they may be stale. Only the never-read case has
+ * nothing to draw.
+ *
+ * GEOMETRY IS COMPOSED, NEVER RESTATED. It wears `SETTING_ROW.ROOT`'s own box
+ * (radius, padding, the 4.75rem floor) and `SETTING_ROW.CONSEQUENCE`'s ink and
+ * size, so the card holds its height and the notice cannot drift from the rows
+ * it replaces.
+ */
+export const CARD_NOTICE = `${SETTING_ROW.ROOT} ${SETTING_ROW.CONSEQUENCE}`;
 
 /**
  * A row promoted because it holds an unsaved edit.
@@ -239,10 +546,48 @@ export const SEGMENTED = {
  * an option on a surface field techs use on a tablet. The Select is the honest
  * fallback and is bound to the same state.
  */
-export const SEGMENTED_BREAKPOINT = {
-  GROUP: "hidden @2xl/card:flex",
-  SELECT: "flex w-full @2xl/card:hidden",
+/**
+ * The pill-group / Select switch, parameterised by the card step it keys off.
+ *
+ * WHY A FACTORY. The basic settings page used to hold all six rows in one wide
+ * card; it now holds three rows in each of two narrower peers, and the family's
+ * default `@2xl/card` step (42rem) would push a half-width card onto the Select
+ * fallback at desktop widths where the old single card showed the pill group —
+ * a silent control change on exactly the widths a desktop review looks at.
+ *
+ * THE CLASSES MUST BE LITERAL. Tailwind's scanner only compiles class names it
+ * finds verbatim in source, so the map below is written out in full — a
+ * template string like `` @${step}/card:flex `` produces NO rule, which once
+ * shipped as exactly that: the pill group silently vanished at every width and
+ * every SegmentedField rendered only its Select. If a step is added, the four
+ * strings for it must be spelled out, never interpolated.
+ *
+ * The ROW keeps its own `@2xl/card` step: between the two breakpoints a row is
+ * stacked (text above control) and the pill group renders full-width under it,
+ * which is the same arrangement a phone already shows.
+ */
+const SEGMENTED_BREAKPOINTS = {
+  lg: {
+    GROUP: "hidden @lg/card:flex",
+    SELECT: "flex w-full @lg/card:hidden",
+    /** The wrapper: full width in stacked-row mode, natural width side by side. */
+    WRAP: "flex w-full @lg/card:w-auto",
+  },
+  xl: {
+    GROUP: "hidden @xl/card:flex",
+    SELECT: "flex w-full @xl/card:hidden",
+    WRAP: "flex w-full @xl/card:w-auto",
+  },
+  "2xl": {
+    GROUP: "hidden @2xl/card:flex",
+    SELECT: "flex w-full @2xl/card:hidden",
+    WRAP: "flex w-full @2xl/card:w-auto",
+  },
 } as const;
+
+/** Literal strings only — see the header comment. Never interpolate. */
+export const segmentedBreakpoint = (step: "lg" | "xl" | "2xl" = "2xl") =>
+  SEGMENTED_BREAKPOINTS[step];
 
 /** The dropdown trigger for rows that stay a Select at every width. */
 export const SELECT_TRIGGER =
@@ -358,6 +703,28 @@ export const SECTION_DIVIDER = "h-px bg-surface-container-high";
  */
 export const SAVE_BAR = {
   ROOT: "flex flex-col gap-3 rounded-tile bg-surface-container px-5 py-4 @2xl/card:flex-row @2xl/card:items-center @2xl/card:gap-4",
+  /**
+   * The wrapper a save bar needs when it is NOT rendered inside a card.
+   *
+   * `ROOT` and `ACTIONS` key off `@2xl/card`, which is correct for the three
+   * call sites that live inside a `CARD_SHELL` (`@container/card` is declared
+   * there). The basic-settings shell renders `PendingSaveBar` under the card
+   * grid instead, where the only container ancestor is `@container/main` — so
+   * the query matched NOTHING at any width and the bar shipped as a
+   * left-aligned stacked column on full desktop, count above note above
+   * buttons.
+   *
+   * The fix is to give the bar the container it is written against rather than
+   * to re-key it: re-keying would need `@2xl/main` spelled beside every
+   * `@2xl/card` utility, and a bar sitting in a HALF-WIDTH card on a wide page
+   * would then go side-by-side at a width where it does not fit.
+   *
+   * `empty:hidden` is load-bearing. The bar only exists while something is
+   * pending, so this wrapper is an empty flex item the rest of the time — and
+   * an empty flex item still claims its parent's `gap-4`, leaving 16px of dead
+   * air above the re-read footer.
+   */
+  HOST: "@container/card empty:hidden",
   TEXT: "flex min-w-0 flex-col gap-0.5",
   COUNT: "text-sm font-semibold tabular-nums",
   NOTE: "text-on-surface-variant text-[0.78125rem] leading-relaxed text-pretty",
@@ -403,10 +770,16 @@ export const READOUT_ROW = {
   /** Machine strings: identifiers, MCCMNC, slot names. */
   VALUE_MONO:
     "font-mono text-[0.8125rem] font-semibold tabular-nums truncate",
-  /** Human-authored labels never take mono (The Machine-Voice Rule). */
-  VALUE_TEXT: "text-[0.8125rem] font-semibold truncate",
-  /** Mirrors ROOT's resolved height for the skeleton. */
-  HEIGHT: "h-[2.5625rem]",
+  /**
+   * Human-authored labels never take mono (The Machine-Voice Rule) — but this
+   * slot also carries CHANGING FIGURES that are not identifiers: a slot number
+   * and a carrier-aggregation breakdown, both of which the poller re-writes
+   * under the reader. `tabular-nums` is the Numeric step's defining property
+   * and belongs on any figure that ticks, mono or not.
+   */
+  VALUE_TEXT: "text-[0.8125rem] font-semibold tabular-nums truncate",
+  /** Mirrors ROOT's resolved height AND radius for the skeleton. */
+  HEIGHT: "h-[2.5625rem] rounded-pill",
   /**
    * Two-up readout rows, for a strip reporting more facts than a single column
    * can hold at a comfortable measure.
@@ -592,12 +965,55 @@ export const CHOICE_ROW = {
 export const AMBR_BLOCK = {
   LTE: "flex flex-col gap-3 rounded-tile bg-lte-container px-4.5 py-4 text-on-lte-container",
   NR: "flex flex-col gap-3 rounded-tile bg-primary-container px-4.5 py-4 text-on-primary-container",
-  TITLE: "text-sm font-semibold",
+  /**
+   * The block heading, at the Title step (18px).
+   *
+   * It shipped at `text-sm` — 14px, identical to the `CardDescription` above it
+   * — so the three column headings had no more weight than the card's own
+   * subtitle. `HERO_PARAMS.HEADING` is its peer and carries the same class.
+   */
+  TITLE: "text-lg font-semibold",
   /** The bearer/DNN name. Machine string. */
   APN: "font-mono text-[0.84375rem] font-medium truncate",
-  ROW: "flex items-center gap-3.5",
-  RATES: "ml-auto flex flex-none gap-2",
+  /**
+   * One entry: the bearer name on its own line, its two rate chips under it.
+   *
+   * IT WAS A ROW AND THE ROW DID NOT FIT. `flex items-center` with an
+   * `ml-auto flex-none` chip pair overflowed its own block at the gridded
+   * step: a rate chip measures ~115px (`px-3` 24 + glyph 15 + `gap-1.5` 6 +
+   * nine mono digits at 13px ~70), so the pair plus its gap is ~238px against
+   * a 222-262px content box — and because the pair is `flex-none`, the
+   * overflow was paid entirely by `APN`, truncating the one identifier a
+   * technician opened the page to read down to nothing. This is the
+   * `READOUT_ROW.GRID` argument arriving one level in: identifiers get their
+   * own line rather than competing with figures for a shared one.
+   *
+   * RATES therefore drops `ml-auto` and `flex-none` and takes `flex-wrap`, so
+   * on a phone-width hero the second chip wraps instead of overflowing.
+   */
+  ROW: "flex flex-col gap-2",
+  RATES: "flex flex-wrap gap-2",
   HEIGHT: "h-[6.5rem]",
+  /**
+   * Heading + governing marker on one baseline. `items-start` so a wrapped
+   * heading does not drag the chip down with it.
+   */
+  HEADER: "flex items-start justify-between gap-2",
+  /** The NSA gloss, and any other one-line explanation on the fill. */
+  NOTE: "text-[0.71875rem] leading-relaxed text-pretty opacity-90",
+  /** The entry list. `gap-2.5` because a multi-PDN device shows two rows. */
+  LIST: "flex flex-col gap-2.5",
+  /**
+   * The three-column floor. Derived: heading 26 + gap 12 + one stacked entry
+   * (name 20 + gap 8 + chips 30 = 58) + py-4 either side 32 = 128 -> 8rem;
+   * rounded up to 9rem so a two-entry block and a one-entry block sit closer
+   * in height and an EMPTY_BLOCK column is not visibly shorter than its
+   * populated neighbour. `HEIGHT` (6.5rem) stays the SKELETON mirror for the
+   * stacked case; this is the floor for the gridded case.
+   */
+  COL_MIN: "min-h-[9rem]",
+  /** Mirrors COL_MIN's height AND the block's radius, for the skeleton. */
+  COL_HEIGHT: "h-[9rem] rounded-tile",
 } as const;
 
 /**

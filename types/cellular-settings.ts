@@ -135,11 +135,26 @@ export interface AmbrData {
 
 // --- API Responses -----------------------------------------------------------
 
-/** Response from GET /cgi-bin/quecmanager/cellular/settings.sh */
+/**
+ * Response from GET /cgi-bin/quecmanager/cellular/settings.sh
+ *
+ * `settings` and `ambr` are OPTIONAL because the CGI omits them entirely when
+ * the compound AT read fails (`success:false`, `error:"modem_busy"`). Their
+ * absence IS the signal that nothing was read — the endpoint used to fabricate
+ * defaults (`sim_slot:1`, `cfun:1`, `mode_pref:"AUTO"`) and still report
+ * `success:true`, so a client could not tell a real slot 1 from an unanswered
+ * modem.
+ *
+ * The guard belongs at THIS level and not inside `CellularSettings`: making its
+ * fields nullable would make `null` a legal value in `CellularSettingsPatch`
+ * (which derives from it), `setField` would stage it, and the backend validator
+ * would reject the POST as `invalid_sim_slot`. Read the envelope, then trust the
+ * snapshot.
+ */
 export interface CellularSettingsResponse {
   success: boolean;
-  settings: CellularSettings;
-  ambr: AmbrData;
+  settings?: CellularSettings;
+  ambr?: AmbrData;
   error?: string;
 }
 

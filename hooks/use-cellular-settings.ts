@@ -114,7 +114,10 @@ export interface UseCellularSettingsReturn {
   // --- Actions ---
   /** Apply the staged edits. Applied fields are cleared; failed fields stay dirty. */
   saveSettings: () => Promise<CellularSettingsApplyResult>;
-  /** Re-fetch from the modem. Never disturbs a dirty field. */
+  /**
+   * Re-fetch from the modem. Never disturbs a dirty field, and always shows
+   * the loading state — it is safe to hand straight to an `onClick`.
+   */
   refresh: () => void;
 }
 
@@ -257,6 +260,16 @@ export function useCellularSettings(): UseCellularSettingsReturn {
         return;
       }
 
+      // A successful envelope with no payload is a contract violation, and it
+      // is treated as a failed read rather than partially applied: the CGI
+      // omits `settings`/`ambr` exactly when the compound AT read produced
+      // nothing, and writing `undefined` into the snapshot here would revive
+      // the fabricated-defaults problem one layer up.
+      if (!data.settings || !data.ambr) {
+        setError(data.error || "Failed to fetch cellular settings");
+        return;
+      }
+
       setSettings(data.settings);
       setAmbr(data.ambr);
     } catch (err) {
@@ -274,6 +287,26 @@ export function useCellularSettings(): UseCellularSettingsReturn {
   // Fetch on mount
   useEffect(() => {
     fetchSettings();
+  }, [fetchSettings]);
+
+  /**
+   * The user-initiated re-read. It exists so `fetchSettings` is never handed
+   * straight to an `onClick`.
+   *
+   * THE MOUSEEVENT TRAP. `fetchSettings` is `(silent = false) => Promise<void>`
+   * and was exported directly as `refresh`, typed `() => void`. Both call sites
+   * pass it as a bare handler (`onClick={form.refresh}`), so React handed it the
+   * click event — a truthy object landing in `silent`. Every Retry and every
+   * "Re-read from modem" press therefore ran in SILENT mode and showed no
+   * loading state at all, which is the opposite of what a button the user just
+   * pressed should do. The wrapper takes no arguments, so a handler cannot leak
+   * one in again.
+   *
+   * `fetchSettings` keeps its own signature: the post-save verification read at
+   * the end of `saveSettings` genuinely wants the silent form.
+   */
+  const refresh = useCallback(() => {
+    void fetchSettings(false);
   }, [fetchSettings]);
 
   // ---------------------------------------------------------------------------
@@ -436,7 +469,7 @@ export function useCellularSettings(): UseCellularSettingsReturn {
     error,
     lastApply,
     saveSettings,
-    refresh: fetchSettings,
+    refresh,
   };
 }
 

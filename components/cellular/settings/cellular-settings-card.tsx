@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { motion } from "motion/react";
 import { useTranslation } from "react-i18next";
 
 import {
@@ -10,9 +11,8 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { MaterialSymbol } from "@/components/ui/material-symbol";
 import { Skeleton } from "@/components/ui/skeleton";
+import { staggerRowItem, staggerRows } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 import type {
   CfunMode,
@@ -25,21 +25,31 @@ import type {
 } from "@/types/cellular-settings";
 import type { UseCellularSettingsReturn } from "@/hooks/use-cellular-settings";
 
-import PendingSaveBar from "./pending-save-bar";
 import SegmentedField, { type SegmentedOption } from "./segmented-field";
 import SettingRow from "./setting-row";
 import {
+  CARD_NOTICE,
   CARD_PAD,
   CARD_SHELL,
-  PILL_ACTION,
+  CARD_TITLE,
   ROW_GROUP,
   SETTING_ROW,
 } from "./shapes";
 
 // =============================================================================
-// Modem Radio Settings — the write surface
+// Modem Radio Settings — the write surface, split into two section cards
 // =============================================================================
-// Six settings as grouped rows rather than six labels over six dropdowns.
+// One card per section of three grouped rows rather than six labels over six
+// dropdowns. The two sections are "SIM & Radio Power" (SIM Slot, SIM Hot-Swap
+// Detection, Radio Power) and "Network Mode & Roaming" (Preferred Network
+// Type, 5G Architecture, Roaming Preference) — the split follows the physical
+// thing being configured, not the backend's field order.
+//
+// THE SAVE BAR LIVES UPSTAIRS. Both cards share ONE form state, one save bar
+// and one re-read footer; they are rendered by the route shell below the
+// cards, not here — a per-card save bar would show the same "N changes
+// pending" twice, and the backend accepts any subset of fields in a single
+// POST, so one save is the honest unit.
 //
 // ON THE OPTION SETS. Three of these rows have more options than the approved
 // comp drew. That is deliberate and it is a correctness fix, not scope creep:
@@ -58,39 +68,48 @@ import {
 // exists, and the real difference between the two is SIM power, not wattage.
 // The incumbent label ("Radio Off") was already correct and is kept. It also
 // avoids colliding with the removed Low Power Mode feature by name.
+//
+// ON THE SEGMENTED BREAKPOINT. These two cards are roughly half the width of
+// the single card they replace, so `SegmentedField` is told to keep its pill
+// group down to the card's `lg` step instead of the family default `2xl` —
+// otherwise the primary control would silently become a Select on desktop
+// widths where the old layout showed the pill group. See
+// `segmentedBreakpoint()` in shapes.ts.
 // =============================================================================
 
 export interface CellularSettingsCardProps {
   form: UseCellularSettingsReturn;
+  /** Which half of the six rows this card renders. */
+  section: "sim" | "network";
 }
 
-export function CellularSettingsCard({ form }: CellularSettingsCardProps) {
+/** One declarative row. The value/onChange pair binds the modem's own strings. */
+interface RowDef {
+  key: WritableSettingKey;
+  label: string;
+  consequence: string;
+  options: SegmentedOption<string>[];
+  value: string;
+  onValueChange: (next: string) => void;
+}
+
+export function CellularSettingsCard({
+  form,
+  section,
+}: CellularSettingsCardProps) {
   const { t } = useTranslation("cellular");
   const {
     draft,
     settings,
     dirtyFields,
+    error,
     isLoading,
     isSaving,
-    applyPhase,
-    changeCount,
-    lastApply,
     setField,
-    discard,
-    saveSettings,
-    refresh,
   } = form;
 
-  const [saved, setSaved] = React.useState(false);
-  const savedTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
-  React.useEffect(
-    () => () => {
-      if (savedTimer.current) clearTimeout(savedTimer.current);
-    },
-    [],
-  );
-
   const K = "core_settings.basic";
+  const HEADER = section === "sim" ? `${K}.sim_card` : `${K}.network_card`;
 
   // --- Option sets -----------------------------------------------------------
   // Built inside the component because the labels are translated. Values are
@@ -139,26 +158,61 @@ export function CellularSettingsCard({ form }: CellularSettingsCardProps) {
     { value: "3", label: t(`${K}.rows.roam_pref.options.partner`) },
   ];
 
+  // --- Never read ------------------------------------------------------------
+  // A failed FIRST read is a third state, not a longer loading state. The hook
+  // clears `isLoading` and leaves `settings` at `null`, so the skeleton below
+  // used to shimmer forever with no explanation. The card states why it has
+  // nothing to show, quietly — the route shell's banner already carries the
+  // alarm and the retry action, and repeating it here would say it twice per
+  // card. See `CARD_NOTICE` in shapes.ts.
+  //
+  // Only the NEVER-READ case lands here: a failed re-read leaves the previous
+  // snapshot in place, so the card keeps rendering real values and the banner is
+  // what says they may be stale.
+
+  if (!isLoading && !settings && error) {
+    return (
+      <Card className={cn(CARD_SHELL)}>
+        <CardHeader className={CARD_PAD}>
+          <CardTitle className={CARD_TITLE}>{t(`${HEADER}.title`)}</CardTitle>
+          <CardDescription className="min-w-0">
+            {t(`${HEADER}.description`)}
+          </CardDescription>
+        </CardHeader>
+        <CardContent className={cn(CARD_PAD, "flex flex-col gap-4")}>
+          <div className={ROW_GROUP.ROOT}>
+            <p className={CARD_NOTICE}>{t(`${K}.cards.unread`)}</p>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
   // --- Loading ---------------------------------------------------------------
-  // Geometry is MIRRORED from the shape constants, never restated. The old
-  // skeleton hand-wrote `h-4 w-36` per field and titled itself "Cellular Basic
-  // Settings" while the loaded card said "Modem Radio Settings" — a visible
-  // title swap on every load. The header text is real in both states now.
+  // Geometry is MIRRORED from the shape constants, never restated, and the
+  // header text is real in both states — the old skeleton titled itself
+  // "Cellular Basic Settings" while the loaded card said "Modem Radio
+  // Settings", a visible title swap on every load.
 
   if (isLoading || !draft || !settings) {
     return (
       <Card className={cn(CARD_SHELL)}>
         <CardHeader className={CARD_PAD}>
-          <CardTitle>{t(`${K}.radio.title`)}</CardTitle>
-          <CardDescription>{t(`${K}.radio.description`)}</CardDescription>
+          <CardTitle className={CARD_TITLE}>{t(`${HEADER}.title`)}</CardTitle>
+          <CardDescription className="min-w-0">
+            {t(`${HEADER}.description`)}
+          </CardDescription>
         </CardHeader>
         <CardContent className={cn(CARD_PAD, "flex flex-col gap-4")}>
+          {/* The dividers are part of the mirror. The loaded group interleaves
+              two of them between its three rows; a skeleton that renders three
+              bare rows is ~6px shorter, so every load ended in a visible jump. */}
           <div className={ROW_GROUP.ROOT}>
-            {Array.from({ length: 6 }).map((_, index) => (
-              <Skeleton
-                key={index}
-                className={cn(SETTING_ROW.HEIGHT, "rounded-field")}
-              />
+            {Array.from({ length: 3 }).map((_, index) => (
+              <React.Fragment key={index}>
+                {index > 0 ? <div className={ROW_GROUP.DIVIDER} /> : null}
+                <Skeleton className={cn(SETTING_ROW.HEIGHT, "rounded-field")} />
+              </React.Fragment>
             ))}
           </div>
         </CardContent>
@@ -203,207 +257,120 @@ export function CellularSettingsCard({ form }: CellularSettingsCardProps) {
     return `${from} → ${to}`;
   };
 
-  const failedLabels = (lastApply?.failedFields ?? []).map((key) =>
-    t(`${K}.rows.${key}.label`),
-  );
-
-  const handleSave = async () => {
-    const result = await saveSettings();
-    if (result.success) {
-      setSaved(true);
-      if (savedTimer.current) clearTimeout(savedTimer.current);
-      savedTimer.current = setTimeout(() => setSaved(false), 1800);
-    }
-  };
-
   const rowDirty = (key: WritableSettingKey) => dirtyFields.has(key);
+
+  const simRows: RowDef[] = [
+    {
+      key: "sim_slot",
+      label: t(`${K}.rows.sim_slot.label`),
+      consequence: t(`${K}.rows.sim_slot.consequence`),
+      options: simSlotOptions,
+      value: String(draft.sim_slot),
+      onValueChange: (next) => setField("sim_slot", Number(next) as SimSlot),
+    },
+    // SIM hot-swap detection is binary (on/off), same as every other row on
+    // this card is a closed set of named states — so it takes the same
+    // SegmentedField the rest of the card uses, not a bare Switch. A Switch
+    // communicates state through track colour alone; every sibling row keeps
+    // its selection legible as TEXT ("✓ SIM 1", "✓ Normal"), and this row
+    // matches that. Placed right after SIM Slot because both rows are about
+    // the same physical thing (the SIM), before the radio-behaviour rows that
+    // follow.
+    {
+      key: "sim_detect",
+      label: t(`${K}.rows.sim_detect.label`),
+      consequence: t(`${K}.rows.sim_detect.consequence`),
+      options: simDetectOptions,
+      value: String(draft.sim_detect),
+      onValueChange: (next) => setField("sim_detect", Number(next) as SimDetect),
+    },
+    {
+      key: "cfun",
+      label: t(`${K}.rows.cfun.label`),
+      consequence: t(`${K}.rows.cfun.consequence`),
+      options: radioPowerOptions,
+      value: String(draft.cfun),
+      onValueChange: (next) => setField("cfun", Number(next) as CfunMode),
+    },
+  ];
+
+  const networkRows: RowDef[] = [
+    {
+      key: "mode_pref",
+      label: t(`${K}.rows.mode_pref.label`),
+      consequence: t(`${K}.rows.mode_pref.consequence`),
+      options: modePrefOptions,
+      value: draft.mode_pref,
+      onValueChange: (next) => setField("mode_pref", next as ModePref),
+    },
+    {
+      key: "nr5g_mode",
+      label: t(`${K}.rows.nr5g_mode.label`),
+      consequence: t(`${K}.rows.nr5g_mode.consequence`),
+      options: nr5gModeOptions,
+      value: String(draft.nr5g_mode),
+      onValueChange: (next) => setField("nr5g_mode", Number(next) as Nr5gMode),
+    },
+    {
+      key: "roam_pref",
+      label: t(`${K}.rows.roam_pref.label`),
+      consequence: t(`${K}.rows.roam_pref.consequence`),
+      options: roamPrefOptions,
+      value: String(draft.roam_pref),
+      onValueChange: (next) => setField("roam_pref", Number(next) as RoamPref),
+    },
+  ];
+
+  const rows = section === "sim" ? simRows : networkRows;
 
   return (
     <Card className={cn(CARD_SHELL)}>
       <CardHeader className={CARD_PAD}>
-        <CardTitle>{t(`${K}.radio.title`)}</CardTitle>
-        <CardDescription>{t(`${K}.radio.description`)}</CardDescription>
+        <CardTitle className={CARD_TITLE}>{t(`${HEADER}.title`)}</CardTitle>
+        <CardDescription className="min-w-0">
+          {t(`${HEADER}.description`)}
+        </CardDescription>
       </CardHeader>
 
       <CardContent className={cn(CARD_PAD, "flex flex-col gap-4")}>
-        <div className={ROW_GROUP.ROOT}>
-          <SettingRow
-            label={t(`${K}.rows.sim_slot.label`)}
-            consequence={t(`${K}.rows.sim_slot.consequence`)}
-            dirty={rowDirty("sim_slot")}
-            delta={deltaFor("sim_slot", simSlotOptions)}
-            control={
-              <SegmentedField
-                value={String(draft.sim_slot)}
-                onValueChange={(next) =>
-                  setField("sim_slot", Number(next) as SimSlot)
-                }
-                options={simSlotOptions}
-                ariaLabel={t(`${K}.rows.sim_slot.label`)}
-                disabled={isSaving}
-                onFill={rowDirty("sim_slot")}
-              />
-            }
-          />
-
-          <div className={ROW_GROUP.DIVIDER} />
-
-          {/* SIM hot-swap detection is binary (on/off), same as every other
-              row on this card is a closed set of named states — so it takes
-              the same SegmentedField the rest of the card uses, not a bare
-              Switch. A Switch communicates state through track colour alone;
-              every sibling row here keeps its selection legible as TEXT
-              ("✓ SIM 1", "✓ Normal"), and this row now matches that. Placed
-              right after SIM Slot because both rows are about the same
-              physical thing (the SIM), before the radio-behaviour rows that
-              follow. */}
-          <SettingRow
-            label={t(`${K}.rows.sim_detect.label`)}
-            consequence={t(`${K}.rows.sim_detect.consequence`)}
-            dirty={rowDirty("sim_detect")}
-            delta={deltaFor("sim_detect", simDetectOptions)}
-            control={
-              <SegmentedField
-                value={String(draft.sim_detect)}
-                onValueChange={(next) =>
-                  setField("sim_detect", Number(next) as SimDetect)
-                }
-                options={simDetectOptions}
-                ariaLabel={t(`${K}.rows.sim_detect.label`)}
-                disabled={isSaving}
-                onFill={rowDirty("sim_detect")}
-              />
-            }
-          />
-
-          <div className={ROW_GROUP.DIVIDER} />
-
-          <SettingRow
-            label={t(`${K}.rows.cfun.label`)}
-            consequence={t(`${K}.rows.cfun.consequence`)}
-            dirty={rowDirty("cfun")}
-            delta={deltaFor("cfun", radioPowerOptions)}
-            control={
-              <SegmentedField
-                value={String(draft.cfun)}
-                onValueChange={(next) =>
-                  setField("cfun", Number(next) as CfunMode)
-                }
-                options={radioPowerOptions}
-                ariaLabel={t(`${K}.rows.cfun.label`)}
-                disabled={isSaving}
-                onFill={rowDirty("cfun")}
-              />
-            }
-          />
-
-          <div className={ROW_GROUP.DIVIDER} />
-
-          <SettingRow
-            label={t(`${K}.rows.mode_pref.label`)}
-            consequence={t(`${K}.rows.mode_pref.consequence`)}
-            dirty={rowDirty("mode_pref")}
-            delta={deltaFor("mode_pref", modePrefOptions)}
-            control={
-              <SegmentedField
-                value={draft.mode_pref}
-                onValueChange={(next) =>
-                  setField("mode_pref", next as ModePref)
-                }
-                options={modePrefOptions}
-                ariaLabel={t(`${K}.rows.mode_pref.label`)}
-                disabled={isSaving}
-                onFill={rowDirty("mode_pref")}
-              />
-            }
-          />
-
-          <div className={ROW_GROUP.DIVIDER} />
-
-          <SettingRow
-            label={t(`${K}.rows.nr5g_mode.label`)}
-            consequence={t(`${K}.rows.nr5g_mode.consequence`)}
-            dirty={rowDirty("nr5g_mode")}
-            delta={deltaFor("nr5g_mode", nr5gModeOptions)}
-            control={
-              <SegmentedField
-                value={String(draft.nr5g_mode)}
-                onValueChange={(next) =>
-                  setField("nr5g_mode", Number(next) as Nr5gMode)
-                }
-                options={nr5gModeOptions}
-                ariaLabel={t(`${K}.rows.nr5g_mode.label`)}
-                disabled={isSaving}
-                onFill={rowDirty("nr5g_mode")}
-              />
-            }
-          />
-
-          <div className={ROW_GROUP.DIVIDER} />
-
-          <SettingRow
-            label={t(`${K}.rows.roam_pref.label`)}
-            consequence={t(`${K}.rows.roam_pref.consequence`)}
-            dirty={rowDirty("roam_pref")}
-            delta={deltaFor("roam_pref", roamPrefOptions)}
-            control={
-              <SegmentedField
-                value={String(draft.roam_pref)}
-                onValueChange={(next) =>
-                  setField("roam_pref", Number(next) as RoamPref)
-                }
-                options={roamPrefOptions}
-                ariaLabel={t(`${K}.rows.roam_pref.label`)}
-                disabled={isSaving}
-                onFill={rowDirty("roam_pref")}
-              />
-            }
-          />
-        </div>
-
-        <PendingSaveBar
-          changeCount={changeCount}
-          isSaving={isSaving}
-          applyPhase={applyPhase}
-          failedLabels={failedLabels}
-          onDiscard={discard}
-          onSave={handleSave}
-          saved={saved}
-          copy={{
-            count: t(`${K}.save_bar.count`, { count: changeCount }),
-            note: t(`${K}.save_bar.note`),
-            discard: t(`${K}.save_bar.discard`),
-            save: t(`${K}.save_bar.save`),
-            failed: t(`${K}.save_bar.failed`, {
-              fields: failedLabels.join(", "),
-            }),
-            steps: {
-              writing: t(`${K}.apply.writing`),
-              recovering: t(`${K}.apply.recovering`),
-              verifying: t(`${K}.apply.verifying`),
-            },
-          }}
-        />
-
-        {/* The resting footer. Only shown when nothing is pending — otherwise
-            the save bar owns this slot and two status lines would contradict
-            each other. */}
-        {changeCount === 0 && !isSaving ? (
-          <div className="flex flex-wrap items-center gap-3">
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={refresh}
-              className={PILL_ACTION}
-            >
-              <MaterialSymbol name="refresh" size={17} />
-              {t(`${K}.footer.reread`)}
-            </Button>
-            <span className="text-on-surface-variant text-xs">
-              {t(`${K}.footer.in_sync`)}
-            </span>
-          </div>
-        ) : null}
+        <motion.div
+          // Declared initial AND animate on the cascade root: a variants-only
+          // child that mounts on a state swap renders blank, and this group
+          // mounts when the settings read lands.
+          className={ROW_GROUP.ROOT}
+          variants={staggerRows}
+          initial="hidden"
+          animate="visible"
+        >
+          {rows.map((row, index) => (
+            <React.Fragment key={row.key}>
+              {index > 0 ? <div className={ROW_GROUP.DIVIDER} /> : null}
+              <motion.div variants={staggerRowItem}>
+                <SettingRow
+                  label={row.label}
+                  consequence={row.consequence}
+                  dirty={rowDirty(row.key)}
+                  delta={deltaFor(row.key, row.options)}
+                  control={
+                    <SegmentedField
+                      value={row.value}
+                      onValueChange={row.onValueChange}
+                      options={row.options}
+                      ariaLabel={row.label}
+                      disabled={isSaving}
+                      onFill={rowDirty(row.key)}
+                      // These two cards are half the width of the single card
+                      // they replaced — keep the pill group down to the card's
+                      // `lg` step instead of the family default. See the
+                      // header comment and `segmentedBreakpoint()`.
+                      breakpoint="lg"
+                    />
+                  }
+                />
+              </motion.div>
+            </React.Fragment>
+          ))}
+        </motion.div>
       </CardContent>
     </Card>
   );

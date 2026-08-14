@@ -57,8 +57,22 @@ if [ "$REQUEST_METHOD" = "GET" ]; then
     qlog_info "Fetching cellular settings"
 
     # --- Compound AT: fetch all settings in one call ---
+    # qcmd signals failure three ways at once: exit 1, "ERROR: <code>" on
+    # stderr, and empty stdout. On success it always echoes the command line
+    # back before the payload, so a genuine success can never produce empty
+    # stdout — `rc` (captured on the very next statement, before anything
+    # else touches $?) is the honest signal, not an `-z "$raw"` guess. Without
+    # this, a lock-timeout or modem ERROR here fell through to the seeded
+    # defaults below and reported success:true with fabricated settings.
     raw=$(qcmd 'AT+QUIMSLOT?;+CFUN?;+QNWPREFCFG="mode_pref";+QNWPREFCFG="nr5g_disable_mode";+QNWPREFCFG="roam_pref";+QNWCFG="lte_ambr";+QNWCFG="nr5g_ambr";+QSIMDET?' 2>/dev/null)
+    rc=$?
     [ -z "$raw" ] && qlog_warn "Compound AT query returned empty response"
+
+    if [ $rc -ne 0 ]; then
+        qlog_error "Compound AT query failed (rc=$rc); refusing to fabricate settings"
+        cgi_error "read_failed" "Unable to read cellular settings from modem"
+        exit 0
+    fi
 
     # --- SIM Slot ---
     sim_slot="1"
@@ -203,6 +217,19 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
 
     cgi_read_post
 
+    # qcmd puts "ERROR: <code>" on STDERR and leaves stdout empty on failure
+    # (exit 1 too) — it never writes "ERROR" into stdout. So the historic
+    # `case "$result" in *ERROR*)` idiom used below at every write site was
+    # matching against stdout and could NEVER take that arm: a rejected write
+    # always fell through to the `*)` "success" branch. at_write is the fix —
+    # it checks the actual exit status. No `local` in BusyBox ash, so the
+    # working vars are `_aw_`-prefixed to avoid clobbering caller scope.
+    at_write() {
+        _aw_out=$(qcmd "$1" 2>/dev/null)
+        _aw_rc=$?
+        return $_aw_rc
+    }
+
     # --- Extract fields (use "unset" sentinel for missing keys) ---
     SIM_SLOT=$(printf '%s' "$POST_DATA" | jq -r 'if has("sim_slot") then (.sim_slot | tostring) else "unset" end')
     CFUN=$(printf '%s' "$POST_DATA" | jq -r 'if has("cfun") then (.cfun | tostring) else "unset" end')
@@ -282,33 +309,25 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
 
     # 1. NR5G mode (least disruptive, NVM write)
     if [ "$NR5G_MODE" != "unset" ]; then
-        result=$(qcmd "AT+QNWPREFCFG=\"nr5g_disable_mode\",$NR5G_MODE" 2>/dev/null)
-        case "$result" in
-            *ERROR*)
-                qlog_error "Failed to set nr5g_disable_mode=$NR5G_MODE: $result"
-                errors="${errors}nr5g_mode,"
-                ;;
-            *)
-                qlog_info "Set nr5g_disable_mode=$NR5G_MODE"
-                applied="${applied}nr5g_mode,"
-                ;;
-        esac
+        if at_write "AT+QNWPREFCFG=\"nr5g_disable_mode\",$NR5G_MODE"; then
+            qlog_info "Set nr5g_disable_mode=$NR5G_MODE"
+            applied="${applied}nr5g_mode,"
+        else
+            qlog_error "Failed to set nr5g_disable_mode=$NR5G_MODE (rc=$_aw_rc)"
+            errors="${errors}nr5g_mode,"
+        fi
         sleep "$CMD_GAP"
     fi
 
     # 2. Roaming preference (NVM write, takes effect immediately)
     if [ "$ROAM_PREF" != "unset" ]; then
-        result=$(qcmd "AT+QNWPREFCFG=\"roam_pref\",$ROAM_PREF" 2>/dev/null)
-        case "$result" in
-            *ERROR*)
-                qlog_error "Failed to set roam_pref=$ROAM_PREF: $result"
-                errors="${errors}roam_pref,"
-                ;;
-            *)
-                qlog_info "Set roam_pref=$ROAM_PREF"
-                applied="${applied}roam_pref,"
-                ;;
-        esac
+        if at_write "AT+QNWPREFCFG=\"roam_pref\",$ROAM_PREF"; then
+            qlog_info "Set roam_pref=$ROAM_PREF"
+            applied="${applied}roam_pref,"
+        else
+            qlog_error "Failed to set roam_pref=$ROAM_PREF (rc=$_aw_rc)"
+            errors="${errors}roam_pref,"
+        fi
         sleep "$CMD_GAP"
     fi
 
@@ -320,38 +339,42 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
     if [ "$SIM_DETECT" != "unset" ]; then
         sd_level="1"
         sd_read=$(qcmd 'AT+QSIMDET?' 2>/dev/null)
-        sd_val=$(printf '%s\n' "$sd_read" | grep '+QSIMDET:' | head -1 | sed 's/+QSIMDET: //' | tr -d ' \r')
-        if [ -n "$sd_val" ]; then
-            sd_existing_level=$(printf '%s' "$sd_val" | cut -d',' -f2)
-            [ -n "$sd_existing_level" ] && sd_level="$sd_existing_level"
-        fi
-        result=$(qcmd "AT+QSIMDET=$SIM_DETECT,$sd_level" 2>/dev/null)
-        case "$result" in
-            *ERROR*)
-                qlog_error "Failed to set sim_detect=$SIM_DETECT,$sd_level: $result"
-                errors="${errors}sim_detect,"
-                ;;
-            *)
+        sd_read_rc=$?
+        # qcmd's failure contract (exit!=0 / stderr ERROR / empty stdout) means
+        # rc, not just an empty grep match, is what tells a genuine read
+        # failure (lock timeout, modem busy) apart from "line legitimately
+        # absent". Only the latter is safe to paper over with sd_level=1 —
+        # the former must abort the write, or we'd silently stomp a level the
+        # user set outside this UI with a fabricated "1".
+        if [ $sd_read_rc -ne 0 ]; then
+            qlog_error "Failed to read AT+QSIMDET? before write (rc=$sd_read_rc); skipping sim_detect write to avoid clobbering insert_level"
+            errors="${errors}sim_detect,"
+        else
+            sd_val=$(printf '%s\n' "$sd_read" | grep '+QSIMDET:' | head -1 | sed 's/+QSIMDET: //' | tr -d ' \r')
+            if [ -n "$sd_val" ]; then
+                sd_existing_level=$(printf '%s' "$sd_val" | cut -d',' -f2)
+                [ -n "$sd_existing_level" ] && sd_level="$sd_existing_level"
+            fi
+            if at_write "AT+QSIMDET=$SIM_DETECT,$sd_level"; then
                 qlog_info "Set sim_detect=$SIM_DETECT,$sd_level"
                 applied="${applied}sim_detect,"
-                ;;
-        esac
+            else
+                qlog_error "Failed to set sim_detect=$SIM_DETECT,$sd_level (rc=$_aw_rc)"
+                errors="${errors}sim_detect,"
+            fi
+        fi
         sleep "$CMD_GAP"
     fi
 
     # 4. Network mode
     if [ "$MODE_PREF" != "unset" ]; then
-        result=$(qcmd "AT+QNWPREFCFG=\"mode_pref\",$MODE_PREF" 2>/dev/null)
-        case "$result" in
-            *ERROR*)
-                qlog_error "Failed to set mode_pref=$MODE_PREF: $result"
-                errors="${errors}mode_pref,"
-                ;;
-            *)
-                qlog_info "Set mode_pref=$MODE_PREF"
-                applied="${applied}mode_pref,"
-                ;;
-        esac
+        if at_write "AT+QNWPREFCFG=\"mode_pref\",$MODE_PREF"; then
+            qlog_info "Set mode_pref=$MODE_PREF"
+            applied="${applied}mode_pref,"
+        else
+            qlog_error "Failed to set mode_pref=$MODE_PREF (rc=$_aw_rc)"
+            errors="${errors}mode_pref,"
+        fi
         sleep "$CMD_GAP"
     fi
 
@@ -369,39 +392,37 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
         sim_proceed="1"
 
         # Step 1: Switch to minimum functionality
-        result=$(qcmd "AT+CFUN=0" 2>/dev/null)
-        case "$result" in *ERROR*) sim_proceed="" ;; esac
+        # (at_write, not the dead `*ERROR*` stdout match — see the at_write
+        # comment above. qcmd's failure signal is exit status, never stdout.)
+        if ! at_write "AT+CFUN=0"; then
+            sim_proceed=""
+        fi
 
         if [ -z "$sim_proceed" ]; then
-            qlog_error "SIM procedure: CFUN=0 failed: $result"
+            qlog_error "SIM procedure: CFUN=0 failed (rc=$_aw_rc)"
             errors="${errors}sim_slot,"
         else
             qlog_info "SIM procedure: CFUN=0 OK"
             sleep 2
 
-            # Step 2: Change SIM slot
-            result=$(qcmd "AT+QUIMSLOT=$SIM_SLOT" 2>/dev/null)
-            case "$result" in
-                *ERROR*)
-                    qlog_error "SIM procedure: QUIMSLOT=$SIM_SLOT failed: $result"
-                    ;;
-                *)
-                    qlog_info "SIM procedure: QUIMSLOT=$SIM_SLOT accepted (pending read-back)"
-                    ;;
-            esac
+            # Step 2: Change SIM slot. The write's own accept/reject is only
+            # logged here — verify_quimslot below (Step 4) is the sole
+            # authority on whether the switch actually applied, per the
+            # comment block above this procedure.
+            if at_write "AT+QUIMSLOT=$SIM_SLOT"; then
+                qlog_info "SIM procedure: QUIMSLOT=$SIM_SLOT accepted (pending read-back)"
+            else
+                qlog_error "SIM procedure: QUIMSLOT=$SIM_SLOT failed (rc=$_aw_rc)"
+            fi
             sleep 2
 
             # Step 3: Restore full functionality
-            result=$(qcmd "AT+CFUN=1" 2>/dev/null)
-            case "$result" in
-                *ERROR*)
-                    qlog_error "SIM procedure: CFUN=1 restore failed: $result"
-                    ;;
-                *)
-                    qlog_info "SIM procedure: CFUN=1 restored"
-                    sim_cfun_restored="1"
-                    ;;
-            esac
+            if at_write "AT+CFUN=1"; then
+                qlog_info "SIM procedure: CFUN=1 restored"
+                sim_cfun_restored="1"
+            else
+                qlog_error "SIM procedure: CFUN=1 restore failed (rc=$_aw_rc)"
+            fi
 
             # Step 4: Read-back verification. AT+QUIMSLOT? becomes readable
             # shortly after CFUN=1, before full SIM init.
@@ -414,11 +435,11 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
                 sleep 2
                 qcmd "AT+QUIMSLOT=$SIM_SLOT" >/dev/null 2>&1
                 sleep 2
-                result=$(qcmd 'AT+CFUN=1' 2>/dev/null)
-                case "$result" in
-                    *ERROR*) qlog_error "SIM procedure: CFUN=1 restore (retry) failed: $result" ;;
-                    *) sim_cfun_restored="1" ;;
-                esac
+                if at_write 'AT+CFUN=1'; then
+                    sim_cfun_restored="1"
+                else
+                    qlog_error "SIM procedure: CFUN=1 restore (retry) failed (rc=$_aw_rc)"
+                fi
                 sim_switch_verified=$(verify_quimslot "$SIM_SLOT")
             fi
 
@@ -457,17 +478,13 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
             applied="${applied}cfun,"
         else
             sleep "$CMD_GAP"
-            result=$(qcmd "AT+CFUN=$CFUN" 2>/dev/null)
-            case "$result" in
-                *ERROR*)
-                    qlog_error "Failed to set CFUN=$CFUN: $result"
-                    errors="${errors}cfun,"
-                    ;;
-                *)
-                    qlog_info "Set CFUN=$CFUN"
-                    applied="${applied}cfun,"
-                    ;;
-            esac
+            if at_write "AT+CFUN=$CFUN"; then
+                qlog_info "Set CFUN=$CFUN"
+                applied="${applied}cfun,"
+            else
+                qlog_error "Failed to set CFUN=$CFUN (rc=$_aw_rc)"
+                errors="${errors}cfun,"
+            fi
         fi
     fi
 

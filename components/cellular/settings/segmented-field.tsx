@@ -17,7 +17,7 @@ import { cn } from "@/lib/utils";
 
 import {
   SEGMENTED,
-  SEGMENTED_BREAKPOINT,
+  segmentedBreakpoint,
   SELECT_TRIGGER,
   SELECT_TRIGGER_ON_FILL,
 } from "./shapes";
@@ -68,6 +68,14 @@ export interface SegmentedFieldProps<T extends string> {
    * the segments is redundant. See `SEGMENTED.TRACK_ON_FILL`.
    */
   onFill?: boolean;
+  /**
+   * The card container step the pill-group / Select switch keys off
+   * (default `"2xl"`). A surface whose cards are narrower than the family
+   * default — the basic settings page's two half-width cards — passes `"lg"`
+   * so the pill group survives where it already fits. See
+   * `segmentedBreakpoint()` in shapes.ts.
+   */
+  breakpoint?: "lg" | "xl" | "2xl";
   className?: string;
 }
 
@@ -78,9 +86,11 @@ export function SegmentedField<T extends string>({
   ariaLabel,
   disabled = false,
   onFill = false,
+  breakpoint = "2xl",
   className,
 }: SegmentedFieldProps<T>) {
   const instanceId = React.useId();
+  const bp = segmentedBreakpoint(breakpoint);
 
   const [settled, setSettled] = React.useState(false);
   React.useEffect(() => {
@@ -92,7 +102,7 @@ export function SegmentedField<T extends string>({
     options.find((option) => option.value === value)?.label ?? "";
 
   return (
-    <div className={cn("flex w-full @2xl/card:w-auto", className)}>
+    <div className={cn(bp.WRAP, className)}>
       <ToggleGroup
         type="single"
         value={value}
@@ -105,7 +115,7 @@ export function SegmentedField<T extends string>({
         aria-label={ariaLabel}
         className={cn(
           onFill ? SEGMENTED.TRACK_ON_FILL : SEGMENTED.TRACK,
-          SEGMENTED_BREAKPOINT.GROUP,
+          bp.GROUP,
         )}
       >
         {options.map((option) => {
@@ -152,7 +162,7 @@ export function SegmentedField<T extends string>({
           aria-label={ariaLabel}
           className={cn(
             onFill ? SELECT_TRIGGER_ON_FILL : SELECT_TRIGGER,
-            SEGMENTED_BREAKPOINT.SELECT,
+            bp.SELECT,
           )}
         >
           <SelectValue>{activeLabel}</SelectValue>

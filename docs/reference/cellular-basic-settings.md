@@ -32,6 +32,8 @@
 
 ### GET response shape
 
+**On a successful read** — `settings` and `ambr` are both present:
+
 ```json
 {
   "success": true,
@@ -51,11 +53,19 @@
 }
 ```
 
+**On a failed read** — no `settings`, no `ambr`, no partial object:
+
+```json
+{ "success": false, "error": "read_failed", "message": "Unable to read cellular settings from modem" }
+```
+
 The GET issues one compound AT read:
 
 ```
 AT+QUIMSLOT?;+CFUN?;+QNWPREFCFG="mode_pref";+QNWPREFCFG="nr5g_disable_mode";+QNWPREFCFG="roam_pref";+QNWCFG="lte_ambr";+QNWCFG="nr5g_ambr";+QSIMDET?
 ```
+
+See [The read contract](#the-read-contract-guard-raw-not-the-fields) for why absence — rather than a defaulted object — is the failure signal.
 
 ### POST body and response
 
@@ -65,11 +75,26 @@ POST accepts any subset of the six writable fields. Absent keys are literally un
 { "sim_slot": 2, "mode_pref": "LTE:NR5G" }
 ```
 
+Every field applied:
+
 ```json
-{ "success": false, "applied_fields": ["mode_pref"], "failed_fields": ["sim_slot"] }
+{ "success": true }
 ```
 
-Partial success is a first-class outcome, not an error case — see [Partial applies](#partial-applies-are-normal).
+Some field rejected — `failed_fields` is populated and `success` is `false`:
+
+```json
+{
+  "success": false,
+  "error": "partial_failure",
+  "applied_fields": ["mode_pref"],
+  "failed_fields": ["sim_slot"]
+}
+```
+
+A malformed value never reaches the modem at all; the validator returns `{"success": false, "error": "invalid_<field>"}` and writes nothing.
+
+Partial success is a first-class outcome, not an error case — see [Partial applies](#5-partial-applies-are-normal).
 
 ---
 
@@ -78,6 +103,85 @@ Partial success is a first-class outcome, not an error case — see [Partial app
 The page is a **decision surface**, not a form. Every one of the six rows changes radio behaviour, and four of them can drop the connection the browser is using. So the UI is built as grouped rows (the Pixel Settings pattern): each row carries a label, a one-sentence **consequence** line, and its control — and no row is allowed to ship without the consequence sentence. That sentence is what turns "Radio Power: [Normal]" into a decision the user can make without guessing.
 
 Nothing on this page reboots the modem. The most disruptive operation, a SIM slot change, is a **radio cycle** (`AT+CFUN=0` → `AT+QUIMSLOT` → `AT+CFUN=1`), which drops the cellular link but leaves the LAN/HTTP path alive — which is why it is safe to run inline inside the CGI request rather than deferred behind a banner the way a real reboot must be.
+
+---
+
+## The read contract: guard `raw`, not the fields
+
+**Short version: if the modem read fails, the endpoint says so and returns nothing. If the read succeeds but one line is missing, the seeded default stands.** Those are two different failures and they get two different treatments — the distinction is the single most important thing on this page to not "simplify".
+
+### Why the old shape was dangerous
+
+The GET seeds six defaults (`sim_slot="1"`, `cfun="1"`, `mode_pref="AUTO"`, `nr5g_mode="0"`, `roam_pref="255"`, `sim_detect="0"`) and then overwrites each one only when its `grep` finds a line. If the compound AT read itself fails, no `grep` matches anything, so **all six defaults survive and get published as though they were the modem's state** — with `success: true` on top.
+
+That is not theoretical. On a modem genuinely running SIM slot 2, a GET issued during `qcmd` lock contention returned `"sim_slot": 1, "success": true`, and both AMBR arrays came back silently empty. A user looking at that page would have believed the wrong SIM was active.
+
+### The guard
+
+`settings.sh` now captures the transport's exit status and refuses to invent anything:
+
+```sh
+raw=$(qcmd 'AT+QUIMSLOT?;…;+QSIMDET?' 2>/dev/null)
+rc=$?                                     # MUST be the very next statement
+[ -z "$raw" ] && qlog_warn "Compound AT query returned empty response"
+
+if [ $rc -ne 0 ]; then
+    cgi_error "read_failed" "Unable to read cellular settings from modem"
+    exit 0
+fi
+```
+
+Two mechanics make this work, both documented in [at-command-transport.md](at-command-transport.md#how-to-detect-a-qcmd-failure):
+
+- **`rc` is the honest signal, not `[ -z "$raw" ]`.** `qcmd` reports failure via exit status and `stderr`; it never puts `ERROR` on `stdout`. (An `-z` test would happen to work here — empty stdout does imply failure — but it is an inference, and it stops being true the moment someone pipes the result through `grep`.)
+- **`rc=$?` must be the statement immediately after the assignment.** The `qlog_warn` line sits *after* the capture on purpose: put it first and it clobbers `$?` with the exit status of `[` or of the log call.
+
+### Why the six seeded defaults are RETAINED
+
+> ⚠️ WARNING: Do not "finish the job" by nulling the individual fields. That is the wrong fix, and it is the change a future editor is most likely to make.
+
+Once `rc == 0`, the response is real — the modem answered. If one `grep` then finds nothing, the most likely cause is a **firmware difference**: a build that doesn't implement `+QSIMDET?`, or names a `QNWPREFCFG` key differently. Nulling per-field in that case would propagate `null` into `CellularSettings`, break the controls that render it, and turn a working page into a permanently broken one on that firmware — for a modem that is otherwise perfectly healthy.
+
+So the rule is: **the transport result is guarded; the individual fields are not.** A failed read yields nothing; a partial read yields best-effort values.
+
+---
+
+## Write failures are now actually detected
+
+**Short version: until this change, the POST could not fail. Every rejected write was reported as applied.**
+
+Every write site used this idiom:
+
+```sh
+result=$(qcmd "AT+..." 2>/dev/null)
+case "$result" in
+    *ERROR*) errors="..." ;;   # unreachable
+    *)       applied="..." ;;  # always taken
+esac
+```
+
+`qcmd` writes `ERROR: <code>` to **stderr** and leaves `stdout` empty on failure, so the `*ERROR*` arm could never match — the `2>/dev/null` threw away the only place the word ever appeared. Nine sites were converted to a small helper that reads the exit status instead:
+
+```sh
+at_write() {
+    _aw_out=$(qcmd "$1" 2>/dev/null)
+    _aw_rc=$?
+    return $_aw_rc
+}
+```
+
+(The `_aw_` prefix exists because BusyBox `ash` has no `local`; unprefixed names would clobber caller scope.)
+
+**What this changes for consumers:** the `partial_failure` envelope with a populated `failed_fields` is now genuinely reachable. Before, a modem that rejected `AT+CFUN=4` returned `success: true` with `cfun` in `applied_fields`, and the UI cleared the row as saved. The frontend's partial-failure handling existed all along — it just had no way to fire.
+
+### The `sim_detect` read-failure path
+
+The `AT+QSIMDET?` read that preserves `insert_level` (see [SIM hot-swap detection](#sim-hot-swap-detection-atqsimdet)) had the same defect in reverse: when the read failed, it fell back to `insert_level=1` and wrote it — **silently rewriting a level someone had set outside the UI** to a fabricated value.
+
+It now separates the two cases, exactly as the GET does:
+
+- **Read failed** (`rc != 0`) → record `sim_detect` in `failed_fields` and **skip the write entirely**. Better to not apply the user's toggle than to apply it while stomping an unrelated setting.
+- **Read succeeded but no `+QSIMDET:` line** → fall back to `1`. That is the legitimate firmware-difference case.
 
 ---
 
@@ -131,6 +235,22 @@ The failure is asymmetric: an unnecessary 8 s wait costs the user nothing, while
 
 `fetchSettings()` clears `error` on entry, so a partial-failure message must be re-asserted *after* the verification refetch or the save bar goes quiet about the fields that did not land. The hook does this explicitly; do not remove it.
 
+> ℹ️ NOTE: This path was **unreachable in practice** until the backend learned to detect failed writes — see [Write failures are now actually detected](#write-failures-are-now-actually-detected). The frontend code is unchanged; it simply started receiving the envelope it was always written for.
+
+### 6. Absence is the "nothing was read" signal, and it is typed that way
+
+`CellularSettingsResponse.settings` and `.ambr` are **optional** in `types/cellular-settings.ts` — their absence is exactly what a failed read looks like on the wire.
+
+`CellularSettings`, `WritableCellularSettings` and `CellularSettingsPatch` are deliberately **not** nullable. Making the read fields nullable would be the obvious-looking move and it is wrong: `null` would flow into the patch type, `setField` would happily stage it, and the POST would carry `{"sim_slot": null}` — which the backend validator rejects as `invalid_sim_slot`. The uncertainty lives at the envelope boundary, not inside the value types.
+
+The hook enforces the same thing at runtime, because a `success: true` envelope with no payload is a contract violation the types cannot catch:
+
+```ts
+if (!data.settings || !data.ambr) {
+  // treated as a failed read, not as an empty one
+}
+```
+
 ---
 
 ## The ~35 second SIM-slot apply
@@ -159,7 +279,9 @@ Related: [wan-profile-management.md](wan-profile-management.md) (the profile aut
 
 `AT+QSIMDET=<enable>,<insert_level>` tells the modem to watch the SIM detect pin so a card inserted or removed while the modem is running is noticed, rather than going unnoticed until the next reboot.
 
-The write **preserves `insert_level` from a read-back** rather than hardcoding it. `settings.sh` issues `AT+QSIMDET?` immediately before the write, extracts the existing level, and only falls back to `1` when that read comes back empty — so a level someone set outside the UI is never silently reset. `insert_level` is not user-exposed.
+The write **preserves `insert_level` from a read-back** rather than hardcoding it. `settings.sh` issues `AT+QSIMDET?` immediately before the write and extracts the existing level, so a level someone set outside the UI is never silently reset. `insert_level` is not user-exposed.
+
+If that read-back *fails*, the write is skipped rather than guessed at — see [The `sim_detect` read-failure path](#the-sim_detect-read-failure-path).
 
 The UI renders this row as a **Switch**, not a two-segment pill. It is the one genuinely binary row on the page — a capability you turn on, not a choice between peers. A two-segment pill would have implied the "pick one of these" semantics that SIM 1 / SIM 2 carries.
 
@@ -195,7 +317,7 @@ AT+QTEMP;+COPS?;+QUIMSLOT?;+CNUM;+QSIMSTAT?;+CPIN?
 
 `status` is the `AT+CPIN?` classification from `parse_sim_status()` — one of `ready`, `pin_required`, `puk_required`, `not_inserted`, `error`, `unknown`. These are the exact strings the poller emits; the `SimStatus` union in `types/modem-status.ts` must not acquire synonyms.
 
-`ModemStatus.sim` is **optional**. A device OTA-upgraded from an older poller will not emit the block at all, so every consumer must tolerate `undefined` rather than assuming a card is present. `ModemReportsCard` falls back to the `unknown` tone — never to "Ready".
+`ModemStatus.sim` is **optional**. A device OTA-upgraded from an older poller will not emit the block at all, so every consumer must tolerate `undefined` rather than assuming a card is present. `ModemHeroCard` falls back to the `unknown` tone — never to "Ready".
 
 The tone map (`SIM_STATUS_BADGE` in `shapes.ts`) gives every state its own glyph, because `success-container` and `warning-container` measure 1.03:1 apart and are identical under deuteranopia. `not_inserted` is `muted`, not `destructive` — an empty slot is a configuration, not a fault.
 
@@ -232,19 +354,52 @@ See also [tmp-file-ownership.md](tmp-file-ownership.md) for the cross-UID rules 
 ```
 app/cellular/settings/            route
 └─ components/cellular/settings/
-   ├─ cellular-settings.tsx       route shell — header, error banner, PAGE_GRID
-   ├─ cellular-settings-card.tsx  the write surface (six SettingRows + save bar)
+   ├─ cellular-settings.tsx       route shell — header, error banner, the card
+   │                              cascade, and the SHARED save bar + footer
+   ├─ modem-hero-card.tsx         the read-only hero above the write cards:
+   │                              four stat tiles (Radio Information's
+   │                              summary-tile anatomy) over a connection rail
+   │                              (active APN + rate limits)
+   ├─ cellular-settings-card.tsx  the write surface, split into two section
+   │                              cards ("SIM & Radio Power", "Network Mode &
+   │                              Roaming") — three SettingRows each
    ├─ setting-row.tsx             label + consequence + control, promotes when dirty
    ├─ segmented-field.tsx         ToggleGroup above the card breakpoint, Select below
    ├─ pending-save-bar.tsx        "N changes pending" → three-step apply ledger
-   ├─ modem-reports-card.tsx      read-only poller readout
-   ├─ cellular-ambr.tsx           carrier rate limits
    └─ shapes.ts                   geometry + tone contract (all of the above import it)
 ```
 
 ### Two data sources, deliberately separate
 
-`useCellularSettings` owns the writable CGI surface; `useModemStatus` owns the read-only poller snapshot. They run on different clocks — the settings hook re-reads only around a save, the poller ticks continuously — and must not be collapsed into one. The settings page had never consumed the poller snapshot before this change; `ModemReportsCard` is a genuinely new data dependency, not just a new layout.
+`useCellularSettings` owns the writable CGI surface; `useModemStatus` owns the read-only poller snapshot. They run on different clocks — the settings hook re-reads only around a save, the poller ticks continuously — and must not be collapsed into one. The settings page had never consumed the poller snapshot before this change; `ModemHeroCard` is a genuinely new data dependency, not just a new layout. The hero's two halves load independently: the readout half keys off the poller clock, the rate-limits half off the settings GET, and each shows its own skeleton rather than making the other wait.
+
+### The three read states of the write card
+
+`cellular-settings-card.tsx` branches on three distinct conditions, in this order:
+
+| Condition | Renders |
+| --------- | ------- |
+| `!isLoading && !settings && error` | **Never read** — the card title plus a single notice line (`core_settings.basic.cards.unread`), no controls |
+| `isLoading \|\| !draft \|\| !settings` | Skeleton |
+| otherwise | The loaded rows |
+
+The never-read branch exists because that state used to have no home: the card fell into the skeleton branch and **shimmered forever**, presenting a permanent "loading" that would never resolve. Controls are withheld rather than disabled — there is no snapshot to diff a change against, so a control here could only fabricate one.
+
+Crucially, **a *later* failure does not reach this branch.** The hook leaves the previous snapshot in place when a refresh fails, so the card keeps rendering real values and the page-level banner carries the "these may be stale" message. Showing last-known-good data with a staleness warning beats blanking a page the user was mid-task on.
+
+The notice line uses `CARD_NOTICE` from `shapes.ts`, composed as `` `${SETTING_ROW.ROOT} ${SETTING_ROW.CONSEQUENCE}` `` — the empty state borrows the *row's* type scale and inset so it sits where a row would, rather than introducing a fourth text treatment to the surface.
+
+### `refresh` must be a wrapper, never the bare fetcher
+
+```ts
+const refresh = useCallback(() => {
+  void fetchSettings(false);
+}, [fetchSettings]);
+```
+
+`fetchSettings(silent = false)` was previously exported directly as `refresh`. Both call sites pass it as a bare handler (`onClick={form.refresh}`), so React handed it a `MouseEvent` as the `silent` argument — and a `MouseEvent` is truthy. **Try again** and **Re-read from modem** therefore both ran in silent mode by accident: no spinner, no loading feedback, a button that looked inert while working.
+
+This is a general trap, not a one-off. Any function with an optional leading boolean is unsafe to hand straight to `onClick`; wrap it.
 
 ### `shapes.ts` is the geometry contract
 
@@ -260,12 +415,16 @@ A row promotes to `bg-primary-container` when it holds an unsaved edit. That pro
 
 ### `SegmentedField`
 
-A pill group above the card's `@2xl` container breakpoint, a `Select` below it. The Select is **not a degraded fallback** — four segments do not fit one row on a phone, and shrinking them below a 44 px touch target is not an option on a surface field techs use on a tablet. Both controls bind to the same state.
+A pill group above the card's container breakpoint, a `Select` below it. The Select is **not a degraded fallback** — four segments do not fit one row on a phone, and shrinking them below a 44 px touch target is not an option on a surface field techs use on a tablet. Both controls bind to the same state.
+
+The breakpoint is a parameter now (`segmentedBreakpoint()` in `shapes.ts`): the family default is `2xl`, while the basic settings page's two half-width section cards pass `breakpoint="lg"` so the pill group survives where it already fits — at the family default a ~600 px card would silently fall back to a `Select` on desktop widths where the old single card showed the group.
+
+**The breakpoint classes must stay LITERAL strings.** Tailwind's scanner only compiles class names it finds verbatim in source; a template string like `` @${step}/card:flex `` produces no rule. That shipped once and every SegmentedField in the family silently rendered only its Select at every width — if a step is added to the map in `shapes.ts`, spell its four classes out, never interpolate.
 
 The active fill is a travelling `motion.span` carrying a `layoutId`, so Motion tweens the *box* between positions rather than cross-fading two stacked fills (segments have unequal label widths, so a cross-fade visibly jumps). Two rules ride on that:
 
 - Nothing animates `width`.
-- **The `layoutId` must be instance-scoped** (`React.useId()`). This surface renders three segmented controls at once; a module-constant id puts all three thumbs in one layout group and flings them across the card on first paint.
+- **The `layoutId` must be instance-scoped** (`React.useId()`). This surface renders six segmented controls at once (three per section card); a module-constant id puts all thumbs in one layout group and flings them across the card on first paint.
 
 Radix `ToggleGroup` emits `""` when the active item is clicked again. A settings row has no empty state, so the deselect is swallowed (`onValueChange={(next) => next && …}`) rather than allowed to write an invalid value.
 
@@ -273,7 +432,7 @@ Radix `ToggleGroup` emits `""` when the active item is clicked again. A settings
 
 ## i18n
 
-The surface previously had **zero** i18n — every string was a hardcoded English literal. It now carries ~69 keys under `cellular` → `core_settings.basic.*`, in all five locales (en, zh-CN, zh-TW, it, id).
+The surface previously had **zero** i18n — every string was a hardcoded English literal. It now carries ~70 keys under `cellular` → `core_settings.basic.*`, in all five locales (en, zh-CN, zh-TW, it, id) — including `core_settings.basic.cards.unread`, the never-read notice.
 
 Option labels are built inside the component because they are translated, and the option `value`s remain the modem's own strings, cast back on write. The keys are named after the **field name**, not a friendlier alias — `rows.cfun.*`, not `rows.radio_power.*`. The row's label, consequence, and failed-field lookup all key on the field name, so one alias is enough to make an option set silently resolve to nothing.
 

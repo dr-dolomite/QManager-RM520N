@@ -710,6 +710,9 @@
         "title": "Modalità di rete e roaming",
         "description": "Come il modem sceglie la rete a cui collegarsi."
       },
+      "cards": {
+        "unread": "Non è stato letto nulla dal modem, quindi qui non c'è ancora nulla da modificare."
+      },
       "rows": {
         "sim_slot": {
           "label": "Slot SIM",
