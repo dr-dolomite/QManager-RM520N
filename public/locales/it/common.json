@@ -42,6 +42,69 @@
   "connection": {
     "reconnecting": "Connessione al dispositivo persa. Riconnessione…"
   },
+  "ethernet": {
+    "page": {
+      "title": "Stato Ethernet",
+      "description": "Controlla il collegamento ethernet dell'host e configura la velocità negoziata."
+    },
+    "header": {
+      "refresh": "Aggiorna"
+    },
+    "loading_sr": "Caricamento stato Ethernet",
+    "tiles": {
+      "link": {
+        "label": "Stato collegamento",
+        "value_up": "Connesso",
+        "value_down": "Disconnesso",
+        "value_unknown": "Sconosciuto",
+        "caption_up": "Cavo collegato alla porta host",
+        "caption_down": "Nessun cavo rilevato sulla porta host",
+        "caption_unknown": "In attesa dello stato del collegamento"
+      },
+      "speed": {
+        "label": "Velocità attiva",
+        "value_na": "N/D",
+        "caption": "Negoziata con il peer",
+        "caption_down": "Richiede un collegamento attivo"
+      },
+      "duplex": {
+        "label": "Duplex",
+        "value_na": "N/D",
+        "caption": "Modalità trasmissione e ricezione",
+        "caption_down": "Richiede un collegamento attivo"
+      },
+      "negotiation": {
+        "label": "Negoziazione",
+        "value_auto": "Automatica",
+        "value_manual": "Manuale",
+        "value_na": "N/D",
+        "caption_auto": "Velocità decisa con il peer",
+        "caption_manual": "Imposta dal limite di velocità",
+        "caption_na": "Nessun dato sulla velocità"
+      }
+    },
+    "settings": {
+      "title": "Limite velocità collegamento",
+      "description": "Imposta la porta host a una velocità fissa. Il collegamento si interrompe brevemente durante la ri-negoziazione.",
+      "row_label": "Limite velocità",
+      "placeholder": "Seleziona velocità",
+      "applying": "Applicazione…",
+      "saved": "Salvato",
+      "group_label": "Limite velocità",
+      "option_auto": "Auto (max)",
+      "option_10": "10 Mbps",
+      "option_100": "100 Mbps",
+      "option_1000": "1 Gbps",
+      "option_2500": "2.5 Gbps",
+      "toast_success": "Velocità collegamento aggiornata",
+      "toast_error": "Impossibile impostare la velocità del collegamento",
+      "toast_confirm_error": "Impossibile confermare la nuova velocità. Controlla il collegamento."
+    },
+    "error": {
+      "title": "Impossibile raggiungere il modem",
+      "body": "Impossibile caricare lo stato Ethernet. Prova ad aggiornare."
+    }
+  },
   "profile_override": {
     "banner": "{{controls}}: gestione affidata al profilo SIM personalizzato <strong>{{profile_name}}</strong>."
   },

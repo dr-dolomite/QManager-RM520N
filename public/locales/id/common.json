@@ -42,6 +42,69 @@
   "connection": {
     "reconnecting": "Kehilangan kontak dengan perangkat. Menyambungkan ulang…"
   },
+  "ethernet": {
+    "page": {
+      "title": "Status Ethernet",
+      "description": "Pantau tautan ethernet host dan konfigurasikan kecepatan negosiasinya."
+    },
+    "header": {
+      "refresh": "Segarkan"
+    },
+    "loading_sr": "Memuat status Ethernet",
+    "tiles": {
+      "link": {
+        "label": "Status tautan",
+        "value_up": "Terhubung",
+        "value_down": "Terputus",
+        "value_unknown": "Tidak diketahui",
+        "caption_up": "Kabel terhubung ke port host",
+        "caption_down": "Tidak ada kabel terdeteksi di port host",
+        "caption_unknown": "Menunggu status tautan"
+      },
+      "speed": {
+        "label": "Kecepatan aktif",
+        "value_na": "N/A",
+        "caption": "Dinogosiasikan dengan perangkat lawan",
+        "caption_down": "Memerlukan tautan aktif"
+      },
+      "duplex": {
+        "label": "Dupleks",
+        "value_na": "N/A",
+        "caption": "Mode kirim dan terima",
+        "caption_down": "Memerlukan tautan aktif"
+      },
+      "negotiation": {
+        "label": "Negosiasi",
+        "value_auto": "Otomatis",
+        "value_manual": "Manual",
+        "value_na": "N/A",
+        "caption_auto": "Kecepatan ditentukan dengan perangkat lawan",
+        "caption_manual": "Dipaksa oleh batas kecepatan",
+        "caption_na": "Belum ada data kecepatan"
+      }
+    },
+    "settings": {
+      "title": "Batas kecepatan tautan",
+      "description": "Paksa port host ke kecepatan tetap. Tautan akan terputus sebentar saat negosiasi ulang.",
+      "row_label": "Batas kecepatan",
+      "placeholder": "Pilih kecepatan",
+      "applying": "Menerapkan…",
+      "saved": "Tersimpan",
+      "group_label": "Batas kecepatan",
+      "option_auto": "Otomatis (maks)",
+      "option_10": "10 Mbps",
+      "option_100": "100 Mbps",
+      "option_1000": "1 Gbps",
+      "option_2500": "2.5 Gbps",
+      "toast_success": "Kecepatan tautan diperbarui",
+      "toast_error": "Gagal mengatur kecepatan tautan",
+      "toast_confirm_error": "Tidak dapat mengonfirmasi kecepatan baru. Periksa tautan."
+    },
+    "error": {
+      "title": "Tidak dapat menjangkau modem",
+      "body": "Tidak dapat memuat status Ethernet. Coba segarkan."
+    }
+  },
   "profile_override": {
     "banner": "{{controls}} dikelola oleh Profil SIM Khusus <strong>{{profile_name}}</strong>."
   },

@@ -1,8 +1,7 @@
 "use client";
 
-import { useState, useCallback, useRef, useEffect, useMemo } from "react";
-import { toast } from "sonner";
-import { authFetch } from "@/lib/auth-fetch";
+import * as React from "react";
+import { useTranslation } from "react-i18next";
 
 import {
   Card,
@@ -11,7 +10,8 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-
+import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Select,
   SelectContent,
@@ -21,27 +21,56 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-
-import { CgEthernet } from "react-icons/cg";
 import {
-  RefreshCcwIcon,
-  Loader2,
-  AlertCircle,
-  CheckIcon,
+  ArrowLeftRightIcon,
   CheckCircle2Icon,
-  XCircleIcon,
+  CheckIcon,
+  CircleAlertIcon,
+  GaugeIcon,
+  HelpCircleIcon,
+  Loader2Icon,
+  RefreshCcwIcon,
+  SlidersHorizontalIcon,
+  UnplugIcon,
+  type LucideIcon,
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { useSaveFlash } from "@/components/ui/save-button";
-import { Badge } from "@/components/ui/badge";
-import { Skeleton } from "@/components/ui/skeleton";
+import { cn } from "@/lib/utils";
 
-import { AnimatedBeam } from "../ui/animated-beam";
-import { Separator } from "../ui/separator";
+// =============================================================================
+// Ethernet Status — presentational body of `/local-network/ethernet`
+// =============================================================================
+// This module owns NO data. The page shell (`ethernet-status.tsx`) fetches,
+// polls and applies the speed limit; everything here renders what it is given.
+//
+// The layout follows the Radio Information page's vocabulary, which is the
+// DESIGN.md canon for a glance surface:
+//
+//   1. A four-tile summary strip. The link-state tile CARRIES the state — its
+//      container fill is `success-container` when the cable is up and
+//      `destructive-container` when it is not ("Disconnected link" is the
+//      canon's own destructive example). The other three tiles are static
+//      container pairs: `uplink-container` for the data-rate figure (cyan is
+//      the counts/upload family), `primary-container` for the negotiation
+//      setting, neutral for duplex. The glyph disc always inverts the tile's
+//      pairing (a container tile gets a strong-fill disc) so the icon pops,
+//      and each link state carries a DIFFERENT glyph so the state survives
+//      grayscale (Every-Chip-Has-A-Glyph Rule, applied to tiles).
+//
+//   2. A single settings card holding the speed-limit Select. The Select
+//      APPLIES ON CHANGE (the backend contract: POST speed_limit → PHY bounce
+//      → confirm-poll), so the trigger itself carries the three-state
+//      confirmation — spinner "Applying…" → check "Saved" — instead of a
+//      separate save button. This is the same in-place confirmation the old
+//      page used; only the shape is new (pill trigger on
+//      `surface-container-high`).
+//
+// The skeleton mirrors the loaded tile geometry through the shared
+// `ETH_TILE_SHAPE` constant (Skeleton-Mirror Rule), and the whole route stays
+// on lucide per the Icon-Boundary Rule.
+// =============================================================================
 
-const CGI_ENDPOINT = "/cgi-bin/quecmanager/network/ethernet.sh";
-
-interface EthernetStatus {
+/** The CGI response shape. Kept here so the shell and the body agree on it. */
+export interface EthernetStatus {
   link_status: string;
   speed: string;
   duplex: string;
@@ -50,500 +79,390 @@ interface EthernetStatus {
   supports_2500?: boolean;
 }
 
-const EthernetStatusCard = () => {
-  const [status, setStatus] = useState<EthernetStatus | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isSaving, setIsSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const { saved, markSaved } = useSaveFlash();
+// -----------------------------------------------------------------------------
+// Geometry — exported so the skeleton cannot drift from the real tiles
+// -----------------------------------------------------------------------------
 
-  const containerRef = useRef<HTMLDivElement>(null);
-  const deviceRef = useRef<HTMLDivElement>(null);
-  const ringsRef = useRef<HTMLDivElement>(null);
-  const ethernetRef = useRef<HTMLDivElement>(null);
-  const mountedRef = useRef(true);
-  const hasDataRef = useRef(false);
+/**
+ * Same geometry as the Radio Information tiles (`TILE_SHAPE`), restated here
+ * rather than imported: `/local-network/` is a separate route family and must
+ * not reach into `components/cellular/radio/`. The values are the system's,
+ * and the skeleton mirrors them through this constant.
+ */
+export const ETH_TILE_SHAPE = {
+  GRID: "grid grid-cols-1 gap-3.5 @xl/main:grid-cols-2 @5xl/main:grid-cols-4",
+  ROOT: "flex min-h-[5.75rem] items-center gap-3.5 rounded-tile px-5 py-4",
+  /** Mirrors ROOT's resolved height, for the skeleton. */
+  HEIGHT: "h-[5.75rem]",
+  DISC: "grid size-[3.25rem] flex-none place-items-center rounded-pill",
+} as const;
 
-  useEffect(() => {
-    mountedRef.current = true;
-    return () => {
-      mountedRef.current = false;
-    };
-  }, []);
+const NEUTRAL_TILE = "bg-surface-container text-on-surface";
+const NEUTRAL_DISC = "bg-surface-container-high text-on-surface-variant";
 
-  // ---------------------------------------------------------------------------
-  // Fetch ethernet status
-  // ---------------------------------------------------------------------------
-  const fetchStatus = useCallback(async (silent = false) => {
-    if (!silent) setIsLoading(true);
+/** Link-state tiles. The state IS the tone; the disc inverts to the strong fill. */
+const LINK_UP_TILE = "bg-success-container text-on-success-container";
+const LINK_UP_DISC = "bg-success text-success-foreground";
+const LINK_DOWN_TILE = "bg-destructive-container text-on-destructive-container";
+const LINK_DOWN_DISC = "bg-destructive text-destructive-foreground";
 
-    try {
-      const resp = await authFetch(CGI_ENDPOINT);
-      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+const SPEED_TILE = "bg-uplink-container text-on-uplink-container";
+const SPEED_DISC = "bg-uplink text-uplink-foreground";
+const NEGOTIATION_TILE = "bg-primary-container text-on-primary-container";
+const NEGOTIATION_DISC = "bg-primary text-primary-foreground";
 
-      const data = await resp.json();
-      if (!mountedRef.current) return;
+const LABEL = "text-xs font-semibold";
+const VALUE = "text-xl font-semibold leading-[1.1]";
+const TABULAR_VALUE = cn(VALUE, "tabular-nums");
+const CAPTION = "truncate text-xs";
+const CAPTION_CLASS = "text-xs text-on-surface-variant";
 
-      if (data.success) {
-        hasDataRef.current = true;
-        setError(null);
-        setStatus({
-          link_status: data.link_status,
-          speed: data.speed,
-          duplex: data.duplex,
-          auto_negotiation: data.auto_negotiation,
-          speed_limit: data.speed_limit,
-          supports_2500: data.supports_2500,
-        });
-      }
-    } catch {
-      // Only surface errors when we have no data to show
-      if (mountedRef.current && !hasDataRef.current) {
-        setError("Unable to reach the modem");
-      }
-    } finally {
-      if (mountedRef.current && !silent) {
-        setIsLoading(false);
-      }
-    }
-  }, []);
-
-  useEffect(() => {
-    fetchStatus();
-
-    const interval = setInterval(() => {
-      fetchStatus(true);
-    }, 10000);
-
-    return () => clearInterval(interval);
-  }, [fetchStatus]);
-
-  // ---------------------------------------------------------------------------
-  // Set link speed limit
-  // ---------------------------------------------------------------------------
-  const handleSpeedChange = async (value: string) => {
-    setIsSaving(true);
-    // Optimistic update so the dropdown shows the requested value during PHY bounce.
-    setStatus((prev) => prev ? { ...prev, speed_limit: value } : prev);
-
-    const MAX_POLLS = 6;
-    const POLL_INTERVAL_MS = 1500;
-
-    // Polls until the link comes back up at the requested speed, or gives up.
-    // Returns true if confirmed, false if exhausted.
-    const confirmSpeedChange = async (requestedValue: string, windowSec: number): Promise<boolean> => {
-      await new Promise((resolve) => setTimeout(resolve, windowSec * 1000));
-
-      for (let i = 0; i < MAX_POLLS; i++) {
-        if (!mountedRef.current) return false;
-        try {
-          const pollResp = await authFetch(CGI_ENDPOINT);
-          if (pollResp.ok) {
-            const pollData = await pollResp.json();
-            if (!mountedRef.current) return false;
-            if (
-              pollData.success === true &&
-              pollData.speed_limit === requestedValue &&
-              pollData.link_status === "up" &&
-              pollData.speed &&
-              pollData.speed !== "Unknown"
-            ) {
-              setStatus({
-                link_status: pollData.link_status,
-                speed: pollData.speed,
-                duplex: pollData.duplex,
-                auto_negotiation: pollData.auto_negotiation,
-                speed_limit: pollData.speed_limit,
-                supports_2500: pollData.supports_2500,
-              });
-              setError(null);
-              hasDataRef.current = true;
-              return true;
-            }
-          }
-        } catch {
-          // PHY may still be renegotiating; retry.
-        }
-        if (i < MAX_POLLS - 1) {
-          await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
-        }
-      }
-
-      // Exhausted — re-sync to whatever the modem currently reports.
-      if (mountedRef.current) await fetchStatus(true);
-      return false;
-    };
-
-    try {
-      const resp = await authFetch(CGI_ENDPOINT, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ speed_limit: value }),
-      });
-
-      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-
-      const data = await resp.json();
-      if (!mountedRef.current) return;
-
-      if (data.success) {
-        // Backend reports how long the PHY link bounce takes. Fall back to
-        // 8 s if the field is missing (older builds / non-ethtool paths).
-        const windowSec =
-          typeof data.disconnect_window_seconds === "number"
-            ? data.disconnect_window_seconds
-            : 8;
-
-        await confirmSpeedChange(value, windowSec);
-
-        // markSaved() must fire after the confirm-poll resolves, in the same
-        // synchronous continuation as the finally block's setIsSaving(false)
-        // below — otherwise isSaving stays true (and wins the render ternary
-        // over saved) for the whole ~8s poll window. See issue #10.
-        if (mountedRef.current) {
-          markSaved();
-          toast.success("Link speed updated");
-        }
-      } else {
-        toast.error(data.detail || "Failed to set link speed");
-      }
-    } catch {
-      // Network error during POST likely means the PHY bounced mid-request.
-      // Confirm silently rather than showing a false-negative error.
-      if (mountedRef.current) {
-        const confirmed = await confirmSpeedChange(value, 8);
-        if (confirmed) {
-          markSaved();
-          toast.success("Link speed updated");
-        } else {
-          toast.error("Couldn't confirm new speed — check the link");
-        }
-      }
-    } finally {
-      if (mountedRef.current) {
-        setIsSaving(false);
-      }
-    }
-  };
-
-  // ---------------------------------------------------------------------------
-  // Derived state
-  // ---------------------------------------------------------------------------
-  const isConnected = status?.link_status === "up";
-
-  // Colors based on connection state
-  const ringColors = isConnected
-    ? {
-        outer: "bg-success/15",
-        mid: "bg-success/25",
-        inner: "bg-success/40",
-        center: "bg-success",
-      }
-    : {
-        outer: "bg-muted-foreground/10",
-        mid: "bg-muted-foreground/15",
-        inner: "bg-muted-foreground/25",
-        center: "bg-muted-foreground/50",
-      };
-
-  // Resolve CSS custom properties to computed values for SVG stopColor
-  const beamColors = useMemo(() => {
-    if (typeof document === "undefined") {
-      return { start: "#3b82f6", stop: "#22c55e" };
-    }
-    const styles = getComputedStyle(document.documentElement);
-    const primary = styles.getPropertyValue("--primary").trim();
-    const success = styles.getPropertyValue("--success").trim();
-    const muted = styles.getPropertyValue("--muted-foreground").trim();
-
-    return isConnected
-      ? { start: primary || "#3b82f6", stop: success || "#22c55e" }
-      : { start: muted || "#9ca3af", stop: muted || "#6b7280" };
-  }, [isConnected]);
-
-  // Format display values
-  const formatSpeed = (speed: string) => {
-    if (!speed || speed === "Unknown") return "N/A";
-    // If already formatted like "1000Mb/s", convert to friendlier display
-    const match = speed.match(/^(\d+)Mb\/s$/);
-    if (match) {
-      const mbps = parseInt(match[1], 10);
-      if (mbps >= 1000) return `${mbps / 1000} Gbps`;
-      return `${mbps} Mbps`;
-    }
-    return speed;
-  };
-
-  const formatDuplex = (duplex: string) => {
-    if (!duplex || duplex === "Unknown") return "N/A";
-    return duplex.charAt(0).toUpperCase() + duplex.slice(1);
-  };
-
-  // Reflects user intent: "auto" speed_limit means autoneg is on, fixed value means manual.
-  const formatNegotiationMode = (speedLimit?: string) => {
-    if (!speedLimit) return "N/A";
-    return speedLimit === "auto" ? "Automatic" : "Manual";
-  };
-
-  // ---------------------------------------------------------------------------
-  // Loading skeleton
-  // ---------------------------------------------------------------------------
-  if (isLoading) {
-    return (
-      <Card className="@container/card">
-        <CardHeader>
-          <CardTitle>Ethernet Status</CardTitle>
-          <CardDescription>
-            Live link state and speed limit for the host ethernet interface.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid space-y-6">
-            <div className="flex items-center justify-between">
-              <Skeleton className="size-16 @xs/card:size-32 rounded-full" />
-              <Skeleton className="size-12 @xs/card:size-24 rounded-full" />
-              <Skeleton className="size-16 @xs/card:size-32 rounded-full" />
-            </div>
-            <div className="grid gap-2 w-full">
-              <Skeleton className="h-5 w-full" />
-              <Skeleton className="h-5 w-full" />
-              <Skeleton className="h-5 w-full" />
-              <Skeleton className="h-5 w-full" />
-              <Skeleton className="h-9 w-full" />
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-    );
-  }
-
-  // ---------------------------------------------------------------------------
-  // Error state (only when no data has ever loaded)
-  // ---------------------------------------------------------------------------
-  if (error && !status) {
-    return (
-      <Card className="@container/card">
-        <CardHeader>
-          <CardTitle>Ethernet Status</CardTitle>
-          <CardDescription>
-            Live link state and speed limit for the host ethernet interface.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="flex flex-col items-center justify-center gap-4 py-8 text-center">
-            <AlertCircle className="size-10 text-muted-foreground" />
-            <div className="space-y-1">
-              <p className="font-medium">{error}</p>
-              <p className="text-sm text-muted-foreground">
-                Couldn&apos;t load ethernet status. Try refreshing.
-              </p>
-            </div>
-            <Button variant="outline" onClick={() => fetchStatus()}>
-              <RefreshCcwIcon className="mr-2 size-4" />
-              Retry
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-    );
-  }
-
-  // ---------------------------------------------------------------------------
-  // Render
-  // ---------------------------------------------------------------------------
+function Tile({
+  glyph: Glyph,
+  label,
+  children,
+  caption,
+  tone = NEUTRAL_TILE,
+  disc = NEUTRAL_DISC,
+  captionClassName = CAPTION_CLASS,
+  animate = false,
+}: {
+  glyph: LucideIcon;
+  label: string;
+  children: React.ReactNode;
+  caption: React.ReactNode;
+  tone?: string;
+  disc?: string;
+  captionClassName?: string;
+  /** True when the tone can change at runtime (the link tile) — the fill and
+   *  ink then transition on the standard clock so a link event reads as a
+   *  state change rather than a repaint. Never `transition-all`. */
+  animate?: boolean;
+}) {
   return (
-    <Card className="@container/card">
+    <div
+      className={cn(
+        ETH_TILE_SHAPE.ROOT,
+        animate &&
+          "transition-[background-color,color] duration-[--duration-standard] ease-[--ease-standard]",
+        tone,
+      )}
+    >
+      <span
+        className={cn(
+          ETH_TILE_SHAPE.DISC,
+          animate &&
+            "transition-[background-color,color] duration-[--duration-standard] ease-[--ease-standard]",
+          disc,
+        )}
+      >
+        <Glyph className="size-7" aria-hidden="true" />
+      </span>
+      <div className="flex min-w-0 flex-col gap-[3px]">
+        <span
+          className={cn(
+            LABEL,
+            tone === NEUTRAL_TILE ? "text-on-surface-variant" : "opacity-85",
+          )}
+        >
+          {label}
+        </span>
+        {children}
+        <span className={cn(CAPTION, captionClassName)}>{caption}</span>
+      </div>
+    </div>
+  );
+}
+
+// -----------------------------------------------------------------------------
+// Formatting helpers
+// -----------------------------------------------------------------------------
+
+function formatSpeed(speed: string): string {
+  if (!speed || speed === "Unknown") return "N/A";
+  // If already formatted like "1000Mb/s", convert to a friendlier display.
+  const match = speed.match(/^(\d+)Mb\/s$/);
+  if (match) {
+    const mbps = parseInt(match[1], 10);
+    if (mbps >= 1000) return `${mbps / 1000} Gbps`;
+    return `${mbps} Mbps`;
+  }
+  return speed;
+}
+
+function formatDuplex(duplex: string): string {
+  if (!duplex || duplex === "Unknown") return "N/A";
+  return duplex.charAt(0).toUpperCase() + duplex.slice(1);
+}
+
+// -----------------------------------------------------------------------------
+// Summary tiles
+// -----------------------------------------------------------------------------
+
+export interface EthernetTilesProps {
+  status: EthernetStatus;
+}
+
+export function EthernetTiles({ status }: EthernetTilesProps) {
+  const { t } = useTranslation("common");
+  const K = "ethernet.tiles";
+
+  const isConnected = status.link_status === "up";
+
+  // The link tile's tone and glyph follow the link, not aesthetics: up is
+  // `success-container`, down is `destructive-container` (a disconnected link
+  // is a failure state, per DESIGN.md), unknown stays neutral. The three
+  // states never share a glyph.
+  const linkSpec = isConnected
+    ? {
+        tone: LINK_UP_TILE,
+        disc: LINK_UP_DISC,
+        glyph: CheckCircle2Icon,
+        value: t(`${K}.link.value_up`),
+        caption: t(`${K}.link.caption_up`),
+      }
+    : status.link_status === "down"
+      ? {
+          tone: LINK_DOWN_TILE,
+          disc: LINK_DOWN_DISC,
+          glyph: UnplugIcon,
+          value: t(`${K}.link.value_down`),
+          caption: t(`${K}.link.caption_down`),
+        }
+      : {
+          tone: NEUTRAL_TILE,
+          disc: NEUTRAL_DISC,
+          glyph: HelpCircleIcon,
+          value: t(`${K}.link.value_unknown`),
+          caption: t(`${K}.link.caption_unknown`),
+        };
+
+  // The speed and duplex figures only mean anything while the link is up; when
+  // it is down they report "N/A" with a caption that says why, instead of
+  // pretending a negotiation happened.
+  const speed = isConnected ? formatSpeed(status.speed) : t(`${K}.speed.value_na`);
+  const duplex = isConnected ? formatDuplex(status.duplex) : t(`${K}.duplex.value_na`);
+
+  // `speed_limit` reflects the SAVED setting, which is valid with or without a
+  // link — so the negotiation tile never blanks out on a down link.
+  const speedLimit = status.speed_limit;
+  const negotiation =
+    speedLimit === "auto"
+      ? {
+          value: t(`${K}.negotiation.value_auto`),
+          caption: t(`${K}.negotiation.caption_auto`),
+        }
+      : speedLimit
+        ? {
+            value: t(`${K}.negotiation.value_manual`),
+            caption: t(`${K}.negotiation.caption_manual`),
+          }
+        : {
+            value: t(`${K}.negotiation.value_na`),
+            caption: t(`${K}.negotiation.caption_na`),
+          };
+
+  return (
+    <div className={ETH_TILE_SHAPE.GRID}>
+      <Tile
+        glyph={linkSpec.glyph}
+        label={t(`${K}.link.label`)}
+        tone={linkSpec.tone}
+        disc={linkSpec.disc}
+        caption={linkSpec.caption}
+        captionClassName={
+          linkSpec.tone === NEUTRAL_TILE ? CAPTION_CLASS : "text-xs opacity-85"
+        }
+        animate
+      >
+        <span className={cn(VALUE, "truncate")}>{linkSpec.value}</span>
+      </Tile>
+
+      <Tile
+        glyph={GaugeIcon}
+        label={t(`${K}.speed.label`)}
+        tone={SPEED_TILE}
+        disc={SPEED_DISC}
+        caption={
+          isConnected
+            ? t(`${K}.speed.caption`)
+            : t(`${K}.speed.caption_down`)
+        }
+        captionClassName="text-xs opacity-85"
+      >
+        <span className={TABULAR_VALUE}>{speed}</span>
+      </Tile>
+
+      <Tile
+        glyph={ArrowLeftRightIcon}
+        label={t(`${K}.duplex.label`)}
+        tone={NEUTRAL_TILE}
+        disc={NEUTRAL_DISC}
+        caption={
+          isConnected
+            ? t(`${K}.duplex.caption`)
+            : t(`${K}.duplex.caption_down`)
+        }
+      >
+        <span className={VALUE}>{duplex}</span>
+      </Tile>
+
+      <Tile
+        glyph={SlidersHorizontalIcon}
+        label={t(`${K}.negotiation.label`)}
+        tone={NEGOTIATION_TILE}
+        disc={NEGOTIATION_DISC}
+        caption={negotiation.caption}
+        captionClassName="text-xs opacity-85"
+      >
+        <span className={cn(VALUE, "truncate")}>{negotiation.value}</span>
+      </Tile>
+    </div>
+  );
+}
+
+// -----------------------------------------------------------------------------
+// Settings card — the speed-limit Select
+// -----------------------------------------------------------------------------
+
+/** The family's canonical Select shape (see `cellular/settings/shapes.ts`). */
+const SELECT_TRIGGER =
+  "h-[2.625rem] w-full rounded-pill border-0 bg-surface-container-high px-4 text-[0.84375rem] font-medium @2xl/card:w-auto";
+
+const SPEED_LIMIT_LABEL_ID = "ethernet-speed-limit-label";
+
+export interface EthernetSettingsCardProps {
+  speedLimit: string;
+  supports2500: boolean;
+  isSaving: boolean;
+  saved: boolean;
+  onSpeedChange: (value: string) => void;
+}
+
+export function EthernetSettingsCard({
+  speedLimit,
+  supports2500,
+  isSaving,
+  saved,
+  onSpeedChange,
+}: EthernetSettingsCardProps) {
+  const { t } = useTranslation("common");
+  const K = "ethernet.settings";
+
+  return (
+    <Card className="@container/card gap-5 rounded-hero border-0 bg-surface py-[1.625rem] shadow-sm">
       <CardHeader>
-        <div className="flex items-center justify-between">
-          <div>
-            <CardTitle>Ethernet Status</CardTitle>
-            <CardDescription>
-              Live link state and speed limit for the host ethernet interface.
-            </CardDescription>
-          </div>
-          <Button
-            variant="outline"
-            size="icon"
-            aria-label="Refresh ethernet status"
-            onClick={() => fetchStatus()}
-            disabled={isSaving}
-          >
-            <RefreshCcwIcon className="size-4" />
-          </Button>
-        </div>
+        <CardTitle>{t(`${K}.title`)}</CardTitle>
+        <CardDescription>{t(`${K}.description`)}</CardDescription>
       </CardHeader>
       <CardContent>
-        <div className="grid space-y-6">
-          <div
-            ref={containerRef}
-            className="relative flex items-center justify-between"
+        <div className="flex flex-col gap-3 @2xl/card:flex-row @2xl/card:items-center @2xl/card:justify-between @2xl/card:gap-6">
+          <span
+            id={SPEED_LIMIT_LABEL_ID}
+            className="text-[0.8125rem] font-semibold leading-5 text-on-surface-variant"
           >
-            <div
-              ref={deviceRef}
-              className="size-16 @xs/card:size-24 bg-primary/15 rounded-full p-3 @xs/card:p-4 flex items-center justify-center"
+            {t(`${K}.row_label`)}
+          </span>
+          <Select
+            value={speedLimit}
+            onValueChange={onSpeedChange}
+            disabled={isSaving}
+          >
+            <SelectTrigger
+              aria-labelledby={SPEED_LIMIT_LABEL_ID}
+              className={SELECT_TRIGGER}
             >
-              <img
-                src="/device-icon.svg"
-                alt="Device"
-                className="size-full drop-shadow-md object-contain"
-                loading="lazy"
-              />
-            </div>
-
-            <div
-              ref={ringsRef}
-              className="relative flex items-center justify-center size-12 @xs/card:size-24"
-            >
-              {/* Outer rings - pulsating when connected, static when disconnected */}
-              <div
-                className={`absolute rounded-full size-12 @xs/card:size-24 ${ringColors.outer} ${
-                  isConnected ? "animate-pulse-ring" : ""
-                }`}
-              />
-              <div
-                className={`absolute rounded-full size-9 @xs/card:size-16 ${ringColors.mid} ${
-                  isConnected ? "animate-pulse-ring" : ""
-                }`}
-                style={isConnected ? { animationDelay: "0.3s" } : undefined}
-              />
-              <div
-                className={`absolute rounded-full size-6 @xs/card:size-12 ${ringColors.inner} ${
-                  isConnected ? "animate-pulse-ring" : ""
-                }`}
-                style={isConnected ? { animationDelay: "0.6s" } : undefined}
-              />
-              {/* Center circle */}
-              <div
-                className={`relative rounded-full size-4 ${ringColors.center}`}
-              />
-            </div>
-
-            <div
-              ref={ethernetRef}
-              className={`size-16 @xs/card:size-24 rounded-full p-3 @xs/card:p-6 flex items-center justify-center ${
-                isConnected ? "bg-primary" : "bg-muted-foreground/50"
-              }`}
-            >
-              <CgEthernet className="size-full text-primary-foreground" />
-            </div>
-
-            {/* Animated beams connecting the elements */}
-            <AnimatedBeam
-              containerRef={containerRef}
-              fromRef={deviceRef}
-              toRef={ringsRef}
-              duration={2}
-              pathWidth={3}
-              gradientStartColor={beamColors.start}
-              gradientStopColor={beamColors.stop}
-              startXOffset={72}
-              endXOffset={-56}
-            />
-            <AnimatedBeam
-              containerRef={containerRef}
-              fromRef={ringsRef}
-              toRef={ethernetRef}
-              duration={2}
-              pathWidth={3}
-              gradientStartColor={beamColors.stop}
-              gradientStopColor={beamColors.start}
-              startXOffset={56}
-              endXOffset={-72}
-            />
-          </div>
-          <div className="grid gap-2 w-full">
-            <Separator />
-            <div className="flex items-center justify-between">
-              <p className="font-semibold text-muted-foreground @sm/card:text-base text-sm">
-                Link Status
-              </p>
-              {isConnected ? (
-                <Badge variant="success">
-                  <CheckCircle2Icon className="h-3 w-3" />
-                  Connected
-                </Badge>
+              {isSaving ? (
+                <span className="flex items-center gap-2">
+                  <Loader2Icon className="size-3.5 animate-spin motion-reduce:animate-none" />
+                  {t(`${K}.applying`)}
+                </span>
+              ) : saved ? (
+                <span className="flex items-center gap-2">
+                  <CheckIcon className="size-3.5" />
+                  {t(`${K}.saved`)}
+                </span>
               ) : (
-                <Badge variant="destructive">
-                  <XCircleIcon className="h-3 w-3" />
-                  Disconnected
-                </Badge>
+                <SelectValue placeholder={t(`${K}.placeholder`)} />
               )}
-            </div>
-            <Separator />
-            <div className="flex items-center justify-between">
-              <p className="font-semibold text-muted-foreground @sm/card:text-base text-sm">
-                Auto-Negotiation
-              </p>
-              <p className="font-semibold @sm/card:text-base text-sm">
-                {formatNegotiationMode(status?.speed_limit)}
-              </p>
-            </div>
-            <Separator />
-            <div className="flex items-center justify-between">
-              <p className="font-semibold text-muted-foreground @sm/card:text-base text-sm">
-                Active Link Speed
-              </p>
-              <p className="font-semibold @sm/card:text-base text-sm">
-                {isConnected ? formatSpeed(status?.speed ?? "") : "N/A"}
-              </p>
-            </div>
-            <Separator />
-            <div className="flex items-center justify-between">
-              <p className="font-semibold text-muted-foreground @sm/card:text-base text-sm">
-                Duplex
-              </p>
-              <p className="font-semibold @sm/card:text-base text-sm">
-                {isConnected ? formatDuplex(status?.duplex ?? "") : "N/A"}
-              </p>
-            </div>
-            <Separator />
-            <div className="flex items-center justify-between">
-              <p className="font-semibold text-muted-foreground @sm/card:text-base text-sm">
-                Set Link Speed
-              </p>
-              <Select
-                value={status?.speed_limit ?? "auto"}
-                onValueChange={handleSpeedChange}
-                disabled={isSaving}
-              >
-                <SelectTrigger
-                  aria-label="Set link speed limit"
-                  className="w-full max-w-[50%] font-semibold text-muted-foreground @sm/card:text-base text-sm"
-                >
-                  {isSaving ? (
-                    <span className="flex items-center gap-2">
-                      <Loader2 className="h-3 w-3 animate-spin" />
-                      Applying...
-                    </span>
-                  ) : saved ? (
-                    <span className="flex items-center gap-2">
-                      <CheckIcon className="h-3 w-3" />
-                      Saved
-                    </span>
-                  ) : (
-                    <SelectValue placeholder="Select speed" />
-                  )}
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectGroup className="font-semibold text-muted-foreground @sm/card:text-base text-sm">
-                    <SelectLabel>Speed Limit</SelectLabel>
-                    <SelectItem value="auto">Auto (max)</SelectItem>
-                    <SelectItem value="10">10 Mbps</SelectItem>
-                    <SelectItem value="100">100 Mbps</SelectItem>
-                    <SelectItem value="1000">1 Gbps</SelectItem>
-                    {status?.supports_2500 ? (
-                      <SelectItem value="2500">2.5 Gbps</SelectItem>
-                    ) : null}
-                  </SelectGroup>
-                </SelectContent>
-              </Select>
-            </div>
-            <Separator />
-          </div>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectGroup>
+                <SelectLabel>{t(`${K}.group_label`)}</SelectLabel>
+                <SelectItem value="auto">{t(`${K}.option_auto`)}</SelectItem>
+                <SelectItem value="10">{t(`${K}.option_10`)}</SelectItem>
+                <SelectItem value="100">{t(`${K}.option_100`)}</SelectItem>
+                <SelectItem value="1000">{t(`${K}.option_1000`)}</SelectItem>
+                {supports2500 ? (
+                  <SelectItem value="2500">{t(`${K}.option_2500`)}</SelectItem>
+                ) : null}
+              </SelectGroup>
+            </SelectContent>
+          </Select>
         </div>
       </CardContent>
     </Card>
   );
-};
+}
 
-export default EthernetStatusCard;
+// -----------------------------------------------------------------------------
+// Loading skeleton
+// -----------------------------------------------------------------------------
+// Mirrors the loaded tile geometry exactly — same grid, same 92px block, same
+// 28px radius — by importing ETH_TILE_SHAPE rather than restating numbers. The
+// settings card is not skeletonised: it appears with the loaded state, the way
+// Radio Information's cards do.
+
+export function EthernetTilesSkeleton({ label }: { label?: string }) {
+  return (
+    <div className={ETH_TILE_SHAPE.GRID}>
+      {label && <span className="sr-only">{label}</span>}
+      {[0, 1, 2, 3].map((i) => (
+        <Skeleton key={i} className={cn(ETH_TILE_SHAPE.HEIGHT, "rounded-tile")} />
+      ))}
+    </div>
+  );
+}
+
+// -----------------------------------------------------------------------------
+// Error state — only shown when no data has ever loaded
+// -----------------------------------------------------------------------------
+
+export interface EthernetErrorStateProps {
+  title: string;
+  body: string;
+  retryLabel: string;
+  onRetry: () => void;
+}
+
+export function EthernetErrorState({
+  title,
+  body,
+  retryLabel,
+  onRetry,
+}: EthernetErrorStateProps) {
+  return (
+    <Card className="gap-5 rounded-hero border-0 bg-surface py-[1.625rem] shadow-sm">
+      <CardContent>
+        <div className="flex flex-col items-center justify-center gap-4 py-8 text-center">
+          <span className="grid size-14 place-items-center rounded-pill bg-surface-container-high text-on-surface-variant">
+            <CircleAlertIcon className="size-7" aria-hidden="true" />
+          </span>
+          <div className="space-y-1">
+            <p className="font-semibold">{title}</p>
+            <p className="text-sm text-on-surface-variant">{body}</p>
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={onRetry}
+            className="h-[2.625rem] gap-2 rounded-pill px-5 text-sm font-semibold"
+          >
+            <RefreshCcwIcon className="size-4" />
+            {retryLabel}
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}

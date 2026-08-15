@@ -42,6 +42,69 @@
   "connection": {
     "reconnecting": "Lost contact with the device. Reconnecting…"
   },
+  "ethernet": {
+    "page": {
+      "title": "Ethernet Status",
+      "description": "Monitor the host ethernet link and configure its negotiated speed."
+    },
+    "header": {
+      "refresh": "Refresh"
+    },
+    "loading_sr": "Loading ethernet status",
+    "tiles": {
+      "link": {
+        "label": "Link state",
+        "value_up": "Connected",
+        "value_down": "Disconnected",
+        "value_unknown": "Unknown",
+        "caption_up": "Cable connected to the host port",
+        "caption_down": "No cable detected on the host port",
+        "caption_unknown": "Waiting for link state"
+      },
+      "speed": {
+        "label": "Active speed",
+        "value_na": "N/A",
+        "caption": "Negotiated with the peer",
+        "caption_down": "Needs an active link"
+      },
+      "duplex": {
+        "label": "Duplex",
+        "value_na": "N/A",
+        "caption": "Transmit and receive mode",
+        "caption_down": "Needs an active link"
+      },
+      "negotiation": {
+        "label": "Negotiation",
+        "value_auto": "Automatic",
+        "value_manual": "Manual",
+        "value_na": "N/A",
+        "caption_auto": "Speed decided with the peer",
+        "caption_manual": "Forced by the speed limit",
+        "caption_na": "No speed data yet"
+      }
+    },
+    "settings": {
+      "title": "Link speed limit",
+      "description": "Force the host port to a fixed speed. The link drops briefly while it renegotiates.",
+      "row_label": "Speed limit",
+      "placeholder": "Select speed",
+      "applying": "Applying…",
+      "saved": "Saved",
+      "group_label": "Speed limit",
+      "option_auto": "Auto (max)",
+      "option_10": "10 Mbps",
+      "option_100": "100 Mbps",
+      "option_1000": "1 Gbps",
+      "option_2500": "2.5 Gbps",
+      "toast_success": "Link speed updated",
+      "toast_error": "Failed to set link speed",
+      "toast_confirm_error": "Couldn't confirm the new speed. Check the link."
+    },
+    "error": {
+      "title": "Unable to reach the modem",
+      "body": "Couldn't load ethernet status. Try refreshing."
+    }
+  },
   "profile_override": {
     "banner": "{{controls}} is managed by the <strong>{{profile_name}}</strong> Custom SIM Profile."
   },

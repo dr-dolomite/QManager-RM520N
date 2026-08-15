@@ -26,6 +26,10 @@ The split is deliberate: sysfs answers "is there a cable" without paying for an 
 | Root helper | `scripts/usr/bin/qmanager_ethernet_apply` |
 | Unit | `scripts/etc/systemd/system/qmanager-ethernet.service` |
 
+## Page anatomy (frontend)
+
+`ethernet-status.tsx` is the data shell: it owns the fetch, the 10 s poll, and the speed-limit apply with its confirm-poll, and renders the page header with a Refresh pill. `ethernet-card.tsx` is presentational — four summary tiles (link state carries the tone: `success-container` when up, `destructive-container` when down, neutral when unknown) and the speed-limit card, whose Select applies on change with an in-place **Applying… → Saved** flash (the trigger doubles as the confirmation; there is no separate Save button). The skeleton mirrors the tiles through the shared `ETH_TILE_SHAPE` constant, and the whole route stays on lucide icons per the Icon-Boundary Rule. All copy lives in `common.json` under `ethernet.*`, keyed across all five locales.
+
 ## Applying a speed limit
 
 Forcing a link speed requires privileges `www-data` does not have, so the CGI never calls `ethtool` to *write*. It goes through the **`qmanager_ethernet_apply` root helper** (bare-path sudoers line, all validation inside the helper) — the same pattern used by `qmanager_timezone_apply`, `qmanager_scenario_schedule_arm`, and the other privileged appliers.

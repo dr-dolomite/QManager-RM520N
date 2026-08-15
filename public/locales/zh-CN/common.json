@@ -42,6 +42,69 @@
   "connection": {
     "reconnecting": "与设备失去联系，正在重新连接…"
   },
+  "ethernet": {
+    "page": {
+      "title": "以太网状态",
+      "description": "监控主机以太网链路并配置协商速度。"
+    },
+    "header": {
+      "refresh": "刷新"
+    },
+    "loading_sr": "正在加载以太网状态",
+    "tiles": {
+      "link": {
+        "label": "链路状态",
+        "value_up": "已连接",
+        "value_down": "已断开",
+        "value_unknown": "未知",
+        "caption_up": "线缆已连接到主机端口",
+        "caption_down": "未在主机端口检测到线缆",
+        "caption_unknown": "等待链路状态"
+      },
+      "speed": {
+        "label": "当前速度",
+        "value_na": "N/A",
+        "caption": "与对端协商确定",
+        "caption_down": "需要活动链路"
+      },
+      "duplex": {
+        "label": "双工模式",
+        "value_na": "N/A",
+        "caption": "收发模式",
+        "caption_down": "需要活动链路"
+      },
+      "negotiation": {
+        "label": "协商模式",
+        "value_auto": "自动",
+        "value_manual": "手动",
+        "value_na": "N/A",
+        "caption_auto": "速度由对端协商决定",
+        "caption_manual": "由速度限制强制",
+        "caption_na": "暂无速度数据"
+      }
+    },
+    "settings": {
+      "title": "链路速度限制",
+      "description": "将主机端口强制为固定速度。重新协商期间链路会短暂断开。",
+      "row_label": "速度限制",
+      "placeholder": "选择速度",
+      "applying": "正在应用…",
+      "saved": "已保存",
+      "group_label": "速度限制",
+      "option_auto": "自动（最大）",
+      "option_10": "10 Mbps",
+      "option_100": "100 Mbps",
+      "option_1000": "1 Gbps",
+      "option_2500": "2.5 Gbps",
+      "toast_success": "链路速度已更新",
+      "toast_error": "设置链路速度失败",
+      "toast_confirm_error": "无法确认新速度。请检查链路。"
+    },
+    "error": {
+      "title": "无法连接调制解调器",
+      "body": "无法加载以太网状态。请尝试刷新。"
+    }
+  },
   "profile_override": {
     "banner": "{{controls}} 由自定义 SIM 配置文件 <strong>{{profile_name}}</strong> 管理。"
   },

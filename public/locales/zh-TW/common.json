@@ -42,6 +42,69 @@
   "connection": {
     "reconnecting": "與裝置失去聯絡，正在重新連線…"
   },
+  "ethernet": {
+    "page": {
+      "title": "乙太網路狀態",
+      "description": "監控主機乙太網路鏈路並設定協商速度。"
+    },
+    "header": {
+      "refresh": "重新整理"
+    },
+    "loading_sr": "正在載入乙太網路狀態",
+    "tiles": {
+      "link": {
+        "label": "鏈路狀態",
+        "value_up": "已連線",
+        "value_down": "已中斷",
+        "value_unknown": "未知",
+        "caption_up": "纜線已連接到主機連接埠",
+        "caption_down": "未在主機連接埠偵測到纜線",
+        "caption_unknown": "等待鏈路狀態"
+      },
+      "speed": {
+        "label": "目前速度",
+        "value_na": "N/A",
+        "caption": "與對端協商決定",
+        "caption_down": "需要作用中鏈路"
+      },
+      "duplex": {
+        "label": "雙工模式",
+        "value_na": "N/A",
+        "caption": "收發模式",
+        "caption_down": "需要作用中鏈路"
+      },
+      "negotiation": {
+        "label": "協商模式",
+        "value_auto": "自動",
+        "value_manual": "手動",
+        "value_na": "N/A",
+        "caption_auto": "速度由對端協商決定",
+        "caption_manual": "由速度限制強制",
+        "caption_na": "暫無速度資料"
+      }
+    },
+    "settings": {
+      "title": "鏈路速度限制",
+      "description": "將主機連接埠強制為固定速度。重新協商期間鏈路會短暫中斷。",
+      "row_label": "速度限制",
+      "placeholder": "選擇速度",
+      "applying": "正在套用…",
+      "saved": "已儲存",
+      "group_label": "速度限制",
+      "option_auto": "自動（最大）",
+      "option_10": "10 Mbps",
+      "option_100": "100 Mbps",
+      "option_1000": "1 Gbps",
+      "option_2500": "2.5 Gbps",
+      "toast_success": "鏈路速度已更新",
+      "toast_error": "設定鏈路速度失敗",
+      "toast_confirm_error": "無法確認新速度。請檢查鏈路。"
+    },
+    "error": {
+      "title": "無法連線數據機",
+      "body": "無法載入乙太網路狀態。請嘗試重新整理。"
+    }
+  },
   "profile_override": {
     "banner": "{{controls}} 由自訂 SIM 設定檔 <strong>{{profile_name}}</strong> 管理。"
   },
