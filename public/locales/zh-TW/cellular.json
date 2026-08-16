@@ -1684,7 +1684,8 @@
   },
   "radio_info": {
     "common": {
-      "not_available": "—"
+      "not_available": "—",
+      "value_unavailable": "未回報"
     },
     "page": {
       "title": "蜂窩與射頻資訊",
@@ -1720,13 +1721,14 @@
       "bandwidth": {
         "label": "使用中的頻寬",
         "unit": "MHz",
-        "caption_unavailable": "數據機未回報"
+        "caption_unavailable": "數據機未回報",
+        "caption_breakdown": "{{parts}} MHz"
       },
       "carriers": {
         "label": "載波聚合",
         "value_one": "{{count}} 個載波",
         "value_other": "{{count}} 個載波",
-        "caption": "LTE {{lte}} · NR {{nr}}",
+        "caption": "LTE {{lte}}    NR {{nr}}",
         "caption_none": "未回報任何載波"
       },
       "mimo": {
@@ -1839,7 +1841,8 @@
         "snr": "SNR",
         "rssi": "RSSI",
         "rssi_caption": "寬頻接收功率",
-        "not_reported": "此載波未回報"
+        "not_reported": "此載波未回報",
+        "not_reported_short": "未回報"
       },
       "detail": {
         "band_name": "頻段名稱",
@@ -1847,6 +1850,8 @@
         "dl_frequency": "下行頻率",
         "ul_frequency": "上行頻率",
         "pci": "PCI",
+        "arfcn": "ARFCN",
+        "earfcn": "EARFCN",
         "scs": "子載波間隔",
         "unknown": "未知",
         "scs_derived": "推算值",

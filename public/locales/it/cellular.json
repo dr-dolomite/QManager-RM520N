@@ -1684,7 +1684,8 @@
   },
   "radio_info": {
     "common": {
-      "not_available": "—"
+      "not_available": "—",
+      "value_unavailable": "Non riportato"
     },
     "page": {
       "title": "Informazioni cellulari e radio",
@@ -1720,13 +1721,14 @@
       "bandwidth": {
         "label": "Larghezza di banda in uso",
         "unit": "MHz",
-        "caption_unavailable": "Non riportata dal modem"
+        "caption_unavailable": "Non riportata dal modem",
+        "caption_breakdown": "{{parts}} MHz"
       },
       "carriers": {
         "label": "Aggregazione di portanti",
         "value_one": "{{count}} portante",
         "value_other": "{{count}} portanti",
-        "caption": "LTE {{lte}} · NR {{nr}}",
+        "caption": "LTE {{lte}}    NR {{nr}}",
         "caption_none": "Nessuna portante riportata"
       },
       "mimo": {
@@ -1839,7 +1841,8 @@
         "snr": "SNR",
         "rssi": "RSSI",
         "rssi_caption": "Potenza ricevuta a banda larga",
-        "not_reported": "Non riportato per questa portante"
+        "not_reported": "Non riportato per questa portante",
+        "not_reported_short": "Non riportato"
       },
       "detail": {
         "band_name": "Nome della banda",
@@ -1847,6 +1850,8 @@
         "dl_frequency": "Frequenza DL",
         "ul_frequency": "Frequenza UL",
         "pci": "PCI",
+        "arfcn": "ARFCN",
+        "earfcn": "EARFCN",
         "scs": "Spaziatura delle sottoportanti",
         "unknown": "Sconosciuta",
         "scs_derived": "Derivata",

@@ -34,7 +34,13 @@ import { ActiveBandsCard } from "@/components/cellular/radio/active-bands-card";
 // a live bug, not just an omission: when the poller stopped responding the page
 // kept rendering the last numbers it had, at full confidence, with nothing on
 // screen saying so. All five are taken now — `error` raises the stale banner,
-// `isStale` de-pulses the liveness chip, `refresh` backs the primary action.
+// `isStale` freezes the carrier list AND swaps the Spectrum card's description
+// line to say so, `refresh` backs the condition-state retry.
+//
+// That second half was missing until now: the liveness chip this comment used
+// to name was cut, and `isStale` was left driving the freeze with no visual
+// output at all — so the honesty fix described above had quietly regressed into
+// a quieter version of the same bug.
 //
 // Layout is a single-column stack of full-width sections, ordered by CADENCE:
 // what moves every poll (Spectrum in use) above what moves on handover
@@ -194,10 +200,14 @@ const CellularInformationComponent = () => {
           variants={staggerContainer}
         >
           <motion.div variants={staggerItem}>
+            {/* `isStale` goes to the card, not the header. This card is the
+                one that froze (see the `resolved` ternary above), so it is the
+                one that reports it. */}
             <ActiveBandsCard
               carriers={carriers}
               summary={summary}
               isLoading={isLoading}
+              isStale={isStale}
             />
           </motion.div>
           <motion.div variants={staggerItem}>

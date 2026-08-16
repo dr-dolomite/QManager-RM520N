@@ -189,8 +189,17 @@ export interface EnrichedCarrier {
   roleKey: string;
   sccIndex: number | null; // 1-based ordinal among SCCs, else null
   earfcn: number | null;
-  /** "ARFCN" for NR, "EARFCN" for LTE — a label discriminator, not display text. */
-  arfcnLabel: "ARFCN" | "EARFCN";
+  /**
+   * i18n key suffix under `radio_info.bands.detail.*`: "arfcn" for NR,
+   * "earfcn" for LTE. Same shape as `roleKey` above — the component renders
+   * `t()`, this file never holds display text.
+   *
+   * It USED to be the literal "ARFCN" / "EARFCN" while its own comment claimed
+   * to be "a label discriminator, not display text". It was rendered verbatim,
+   * so one hardcoded English word sat on the same line as a translated `PCI`
+   * label in all five locales.
+   */
+  arfcnLabelKey: "arfcn" | "earfcn";
   duplex: "FDD" | "TDD" | null;
   bandwidthMhz: number | null; // null when 0 / unrecognised enum
   pci: number | null;
@@ -299,7 +308,7 @@ export function enrichCarriers(
       earfcn: carrier.earfcn,
       // carrier_components[].earfcn carries the NR-ARFCN for NR components under
       // an LTE-sounding key. The field keeps its name; only the label is fixed.
-      arfcnLabel: carrier.technology === "NR" ? "ARFCN" : "EARFCN",
+      arfcnLabelKey: carrier.technology === "NR" ? "arfcn" : "earfcn",
       duplex: normaliseDuplex(carrier.band, carrier.technology),
       bandwidthMhz,
       pci: carrier.pci,
@@ -417,7 +426,14 @@ export function buildDiagnosticsText(input: {
       pad(role, 6),
       pad(c.technology, 4),
       pad(c.band, 6),
-      pad(`${c.arfcnLabel} ${c.earfcn ?? "-"}`, 15),
+      // The clipboard blob is a deliberately English, fixed-width machine
+      // payload for a forum post or a support ticket — it does not go through
+      // `t()`. So the key maps back to a literal HERE, at the one call site
+      // that wants display text, rather than the contract carrying one.
+      pad(
+        `${c.arfcnLabelKey === "arfcn" ? "ARFCN" : "EARFCN"} ${c.earfcn ?? "-"}`,
+        15,
+      ),
       pad(c.bandwidthMhz !== null ? `BW ${c.bandwidthMhz} MHz` : "BW -", 12),
       c.pci !== null ? `PCI ${c.pci}` : "PCI -",
     ].join(" ");

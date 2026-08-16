@@ -1684,7 +1684,8 @@
   },
   "radio_info": {
     "common": {
-      "not_available": "—"
+      "not_available": "—",
+      "value_unavailable": "Tidak dilaporkan"
     },
     "page": {
       "title": "Informasi Seluler dan Radio",
@@ -1720,13 +1721,14 @@
       "bandwidth": {
         "label": "Bandwidth yang dipakai",
         "unit": "MHz",
-        "caption_unavailable": "Tidak dilaporkan oleh modem"
+        "caption_unavailable": "Tidak dilaporkan oleh modem",
+        "caption_breakdown": "{{parts}} MHz"
       },
       "carriers": {
         "label": "Carrier aggregation",
         "value_one": "{{count}} carrier",
         "value_other": "{{count}} carrier",
-        "caption": "LTE {{lte}} · NR {{nr}}",
+        "caption": "LTE {{lte}}    NR {{nr}}",
         "caption_none": "Tidak ada carrier yang dilaporkan"
       },
       "mimo": {
@@ -1839,7 +1841,8 @@
         "snr": "SNR",
         "rssi": "RSSI",
         "rssi_caption": "Daya terima pita lebar",
-        "not_reported": "Tidak dilaporkan untuk carrier ini"
+        "not_reported": "Tidak dilaporkan untuk carrier ini",
+        "not_reported_short": "Tidak dilaporkan"
       },
       "detail": {
         "band_name": "Nama band",
@@ -1847,6 +1850,8 @@
         "dl_frequency": "Frekuensi DL",
         "ul_frequency": "Frekuensi UL",
         "pci": "PCI",
+        "arfcn": "ARFCN",
+        "earfcn": "EARFCN",
         "scs": "Jarak subcarrier",
         "unknown": "Tidak diketahui",
         "scs_derived": "Turunan",

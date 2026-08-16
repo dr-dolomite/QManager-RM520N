@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-08-12T09:21:34.000Z",
+  "generatedAt": "2026-08-15T00:00:00.000Z",
   "title": "Design System: QManager (RM520N-GL)",
   "extensions": {
     "colorMeta": {
@@ -486,20 +486,44 @@
     "toneSteps": [
       {
         "name": "tone-success",
-        "lightSteps": ["oklch(0.935 0.065 149)", "oklch(0.875 0.1 149)", "oklch(0.795 0.14 149)"],
-        "darkSteps": ["oklch(0.275 0.075 149)", "oklch(0.375 0.105 149)", "oklch(0.505 0.14 149)"],
+        "lightSteps": [
+          "oklch(0.935 0.065 149)",
+          "oklch(0.875 0.1 149)",
+          "oklch(0.795 0.14 149)"
+        ],
+        "darkSteps": [
+          "oklch(0.275 0.075 149)",
+          "oklch(0.375 0.105 149)",
+          "oklch(0.505 0.14 149)"
+        ],
         "purpose": "Per the Explicit-Tone Rule: concentric rings, halo discs, and nested tonal surfaces use these three explicit steps instead of stacked alpha, because stacked alpha compounds differently over a card than over a container tile."
       },
       {
         "name": "tone-warning",
-        "lightSteps": ["oklch(0.95 0.055 80)", "oklch(0.905 0.09 78)", "oklch(0.835 0.13 78)"],
-        "darkSteps": ["oklch(0.275 0.06 70)", "oklch(0.365 0.09 74)", "oklch(0.49 0.12 78)"],
+        "lightSteps": [
+          "oklch(0.95 0.055 80)",
+          "oklch(0.905 0.09 78)",
+          "oklch(0.835 0.13 78)"
+        ],
+        "darkSteps": [
+          "oklch(0.275 0.06 70)",
+          "oklch(0.365 0.09 74)",
+          "oklch(0.49 0.12 78)"
+        ],
         "purpose": "Per the Explicit-Tone Rule: concentric rings, halo discs, and nested tonal surfaces use these three explicit steps instead of stacked alpha."
       },
       {
         "name": "tone-destructive",
-        "lightSteps": ["oklch(0.945 0.05 25)", "oklch(0.905 0.08 25)", "oklch(0.835 0.12 25)"],
-        "darkSteps": ["oklch(0.275 0.07 25)", "oklch(0.365 0.105 25)", "oklch(0.49 0.15 25)"],
+        "lightSteps": [
+          "oklch(0.945 0.05 25)",
+          "oklch(0.905 0.08 25)",
+          "oklch(0.835 0.12 25)"
+        ],
+        "darkSteps": [
+          "oklch(0.275 0.07 25)",
+          "oklch(0.365 0.105 25)",
+          "oklch(0.49 0.15 25)"
+        ],
         "purpose": "Per the Explicit-Tone Rule: concentric rings, halo discs, and nested tonal surfaces use these three explicit steps instead of stacked alpha."
       }
     ],
@@ -566,9 +590,9 @@
       "name": "Summary Tile",
       "kind": "custom",
       "refersTo": "tile",
-      "description": "The inner unit of a glance surface: a 28px block, 92px tall, holding a 52px glyph disc beside eyebrow, value, and caption. The disc always INVERTS the tile's pairing so the icon pops instead of dissolving.",
-      "html": "<div class=\"ds-tile\"><span class=\"ds-tile__disc\"><svg viewBox=\"0 0 24 24\" fill=\"currentColor\"><path d=\"M12 2 8 8h3v6H5l-3 8h20l-3-8h-6V8h3z\"/></svg></span><div class=\"ds-tile__col\"><span class=\"ds-tile__eyebrow\">Bandwidth</span><span class=\"ds-tile__value\">70<span class=\"ds-tile__unit\">MHz</span></span><span class=\"ds-tile__caption\">20 + 30 + 20</span></div></div>",
-      "css": ".ds-tile{display:flex;align-items:center;gap:.875rem;min-height:5.75rem;padding:1rem 1.25rem;border-radius:1.75rem;background:var(--primary-container);color:var(--on-primary-container);font-family:var(--font-sans,'Rethink Sans',system-ui,sans-serif)}.ds-tile__disc{display:grid;place-items:center;flex:none;width:3.25rem;height:3.25rem;border-radius:9999px;background:var(--primary);color:var(--primary-foreground)}.ds-tile__disc>svg{width:1.75rem;height:1.75rem}.ds-tile__col{display:flex;min-width:0;flex-direction:column;gap:3px}.ds-tile__eyebrow{font-size:.75rem;font-weight:600;opacity:.85}.ds-tile__value{font-family:var(--font-sans,'Rethink Sans',system-ui,sans-serif);font-size:1.25rem;font-weight:600;line-height:1.1;font-variant-numeric:tabular-nums;display:inline-flex;align-items:baseline;gap:.25rem}.ds-tile__unit{font-family:var(--font-sans,'Rethink Sans',system-ui,sans-serif);font-size:.875rem;font-weight:600}.ds-tile__caption{font-family:var(--font-sans,'Rethink Sans',system-ui,sans-serif);font-size:.75rem;font-variant-numeric:tabular-nums;opacity:.85;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}"
+      "description": "The inner unit of a glance surface: a 28px block, 92px tall, holding a 52px glyph disc beside eyebrow, value, and caption. NEUTRAL is the default — a tile earns a container fill only when the hue encodes something true of that figure, and a tile that sums across radios cannot wear either radio's identity. Where a fill IS earned, the disc always INVERTS the tile's pairing so the glyph pops instead of dissolving into a same-tone circle.",
+      "html": "<div class=\"ds-tile\"><span class=\"ds-tile__disc\"><svg viewBox=\"0 0 24 24\" fill=\"currentColor\"><path d=\"M12 2 8 8h3v6H5l-3 8h20l-3-8h-6V8h3z\"/></svg></span><div class=\"ds-tile__col\"><span class=\"ds-tile__eyebrow\">Bandwidth</span><span class=\"ds-tile__value\">70<span class=\"ds-tile__unit\">MHz</span></span><span class=\"ds-tile__caption\">20 + 30 + 20 MHz</span></div></div>",
+      "css": ".ds-tile{display:flex;align-items:center;gap:.875rem;min-height:5.75rem;padding:1rem 1.25rem;border-radius:1.75rem;background:var(--surface-container);color:var(--on-surface);font-family:var(--font-sans,'Rethink Sans',system-ui,sans-serif)}.ds-tile__disc{display:grid;place-items:center;flex:none;width:3.25rem;height:3.25rem;border-radius:9999px;background:var(--surface-container-high);color:var(--on-surface-variant)}.ds-tile__disc>svg{width:1.75rem;height:1.75rem}.ds-tile__col{display:flex;min-width:0;flex-direction:column;gap:3px}.ds-tile__eyebrow{font-size:.75rem;font-weight:600;color:var(--on-surface-variant)}.ds-tile__value{font-family:var(--font-sans,'Rethink Sans',system-ui,sans-serif);font-size:1.25rem;font-weight:600;line-height:1.1;font-variant-numeric:tabular-nums;display:inline-flex;align-items:baseline;gap:.25rem}.ds-tile__unit{font-family:var(--font-sans,'Rethink Sans',system-ui,sans-serif);font-size:.875rem;font-weight:600}.ds-tile__caption{font-family:var(--font-sans,'Rethink Sans',system-ui,sans-serif);font-size:.75rem;font-variant-numeric:tabular-nums;color:var(--on-surface-variant);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}"
     },
     {
       "name": "Metric Row Pill",
@@ -697,6 +721,11 @@
       {
         "name": "The Container-Query Rule",
         "body": "New responsive behavior is a container query against `@container/main` or a card-local `@container/card`. Reach for a viewport breakpoint only for the page gutter or the shell itself.",
+        "section": "layout"
+      },
+      {
+        "name": "The Cadence-Not-Symmetry Rule",
+        "body": "Radio Information was a symmetric 2-up (`@3xl/main:grid-cols-2`) with both cards `h-full`-locked to each other. That is a split by symmetry, and symmetry is not a property either card has: the lock forced a static reference card and a live telemetry card to one height, stranding ~200px of dead space in whichever had less to say — and which one that was flipped with the carrier count. Split a page by cadence, not by symmetry, and let each card size to its own content.",
         "section": "layout"
       },
       {

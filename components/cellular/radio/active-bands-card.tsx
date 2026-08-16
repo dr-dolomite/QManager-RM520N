@@ -15,10 +15,7 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@/components/ui/empty";
-import {
-  MaterialSymbol,
-  type MaterialSymbolName,
-} from "@/components/ui/material-symbol";
+import { MaterialSymbol } from "@/components/ui/material-symbol";
 import { MetricBar, type MetricBarTone } from "@/components/ui/metric-bar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { SwapLabel } from "@/components/ui/swap-label";
@@ -112,6 +109,46 @@ const METRIC_GRID =
  *  occupy the same band and the value baselines stay level across the row. */
 const METER_LANE = "flex h-4 items-center";
 
+/**
+ * The identity line: PCI and the ARFCN, as LABELLED FIELDS in a fixed 2-column
+ * grid.
+ *
+ * This replaced a single `font-mono` paragraph joining both facts with four
+ * non-breaking spaces (`PCI 407    EARFCN 9485`). Four things were wrong with
+ * it, and the separator — already swapped once, from ` · ` — was none of them:
+ *
+ *   1. It set a HUMAN-AUTHORED LABEL in the machine voice. `PCI` comes from an
+ *      i18n string; `407` is the modem's. DESIGN.md > The Machine-Voice Rule
+ *      is explicit: "a human-authored label never wears it." With one font,
+ *      one weight, one size and one ink across both, the line stopped reading
+ *      as labelled data and started reading as a terminal dump — which is
+ *      PRODUCT.md's anti-reference #2 by name.
+ *   2. Nothing marked which half was the key. Proximity told you where the
+ *      pairs split; it never told you which side was the label.
+ *   3. It did not ALIGN. PCI is 0-503 on LTE and 0-1007 on NR, so the second
+ *      fact started at a different x on every row. This card's whole thesis is
+ *      that a technician "scans the column", and METRIC_GRID below is fixed —
+ *      never `auto-fit` — precisely so RSRP lands at one offset. The meta line
+ *      was the single block on the row abandoning the row's own principle.
+ *   4. Absence was silent: a null PCI let the ARFCN slide left into the slot
+ *      PCI had vacated. Same position, different meaning, no marker.
+ *
+ * Two fixed columns, so the second field's label starts at the same x on every
+ * row and a missing value holds its column instead of collapsing. The No-Dot-
+ * Separator Rule already sanctioned exactly this — "multiple spaces, OR
+ * separate flex/inline items with a gap"; the card had taken the first option,
+ * and this is the one that also solves alignment.
+ */
+const IDENTITY_GRID = "m-0 grid grid-cols-2 gap-x-4";
+/** Sans, per the Machine-Voice Rule. The label is the interface talking. */
+const IDENTITY_LABEL =
+  "shrink-0 text-xs font-semibold tracking-[0.04em] text-on-surface-variant uppercase";
+/** Mono, per the same rule — an identifier is machine truth. Promoted to
+ *  `on-surface`: the value and its own label used to share one ink, which left
+ *  the data as quiet as its caption. */
+const IDENTITY_VALUE =
+  "m-0 min-w-0 truncate font-mono text-xs tabular-nums text-on-surface";
+
 // -----------------------------------------------------------------------------
 // Tone
 // -----------------------------------------------------------------------------
@@ -159,49 +196,33 @@ function bandIdentityVariant(c: EnrichedCarrier): BadgeVariant {
 const ROLE_CHIP =
   "inline-flex shrink-0 items-center rounded-pill bg-surface-container-high px-2.5 py-1 text-xs font-bold tracking-[0.06em] text-on-surface-variant uppercase";
 
-function qualityVariant(quality: SignalQuality): BadgeVariant {
-  switch (quality) {
-    case "excellent":
-    case "good":
-      return "success";
-    case "fair":
-      return "warning";
-    case "poor":
-      return "destructive";
-    default:
-      return "muted";
-  }
-}
-
 /**
- * The wedge ladder, NOT the `signal_cellular_alt*` family the comp draws.
+ * The per-row aggregate QUALITY CHIP IS GONE — removed by direct user request.
  *
- * Mirrors `getQualityGlyph()` in `components/dashboard/signal-status-card.tsx`,
- * where the same call was already argued out and settled: `alt_1_bar` is a
- * single 120x240-unit mark (~2x4px at size 16, indistinguishable from a failed
- * icon load) and there is no `alt_0_bar`, so the alt ladder's ink mass runs
- * large -> medium -> speck -> large -> large and quality reads non-monotone.
+ * What used to sit beside the band badge ("Excellent" / "Good" / "Fair" /
+ * "Poor") was `worstSignalQuality()` rendered as a status Badge. It is not
+ * coming back without a fresh design pass, and `qualityVariant()` /
+ * `qualityGlyph()` were deleted with it rather than left dangling.
  *
- * The comp also used ONE glyph for both Excellent and Good. That is
- * unshippable: `success-container` and `warning-container` measure 1.03:1 apart
- * and are the same surface under deuteranopia, so the glyph is the only channel
- * separating a healthy carrier from a degraded one. Two states in one slot never
- * share a glyph.
+ * Two consequences were handled here rather than left to rot:
+ *
+ *   1. RELEASED still needs a word. `chipText` was the ONLY render site of
+ *      `radio_info.bands.released`, and DESIGN.md makes carrier retention a
+ *      named contract — "a released carrier stays visible and greyed rather
+ *      than silently disappearing". A retained carrier with no label does not
+ *      read as "recently dropped", it reads as an active carrier whose metrics
+ *      went blank, which is a worse diagnosis on the page opened to diagnose
+ *      exactly that. So the chip survives for released carriers ONLY. The rule
+ *      is now "a chip appears when there is an exception to report", which is
+ *      tighter than the one it replaces.
+ *
+ *   2. The aggregate still needs a NON-VISUAL channel. The chip's glyph ladder
+ *      was the row's only greyscale-safe health signal — `success-on-surface`
+ *      and `warning-on-surface` measure ~1.01:1 apart, i.e. the same ink to
+ *      anyone reading in greyscale. `c.quality` now rides the row's accessible
+ *      name instead, which costs zero pixels and keeps screen-reader parity.
+ *      Per-metric bar LENGTH remains the sighted non-chromatic channel.
  */
-function qualityGlyph(quality: SignalQuality): MaterialSymbolName {
-  switch (quality) {
-    case "excellent":
-      return "signal_cellular_4_bar";
-    case "good":
-      return "signal_cellular_3_bar";
-    case "fair":
-      return "signal_cellular_2_bar";
-    case "poor":
-      return "signal_cellular_1_bar";
-    default:
-      return "signal_cellular_off";
-  }
-}
 
 /** Meter fill tone. Pinned from the metric's own quality rather than left to
  *  MetricBar's threshold arithmetic, because `percent` is already a normalised
@@ -227,6 +248,26 @@ export interface ActiveBandsCardProps {
   carriers: EnrichedCarrier[];
   summary: RadioSummary;
   isLoading: boolean;
+  /**
+   * The poller has gone quiet. THIS CARD IS THE THING THAT FROZE, so this card
+   * is where it says so.
+   *
+   * `cellular-information.tsx` freezes the carrier list while stale rather than
+   * reconciling — any failed AT read empties `carrier_components` wholesale,
+   * and announcing "released" for carriers that never moved would be a lie. The
+   * freeze is correct. What was missing is that it was INVISIBLE: only a hard
+   * `error` raised the page banner, so a stale-but-not-errored poll rendered
+   * frozen numbers at full confidence with nothing on screen saying so. That is
+   * the State-Honesty Rule inverted by omission, on the page whose own shell
+   * comment calls this exact class of bug "a live bug, not just an omission".
+   *
+   * It is deliberately NOT a reinstatement of the page-header Live/Stale chip,
+   * which was cut by direct request. A chip in the header marks the whole
+   * route; this marks the one surface that actually stopped updating, costs no
+   * new geometry, and spends a `radio_info.bands.stale` key that already ships
+   * translated in all five locales with zero consumers.
+   */
+  isStale?: boolean;
 }
 
 // -----------------------------------------------------------------------------
@@ -352,6 +393,49 @@ function MetricCell({
 }
 
 // -----------------------------------------------------------------------------
+// Identity field
+// -----------------------------------------------------------------------------
+
+/**
+ * One labelled identifier on the row's identity line.
+ *
+ * The tick is per FIELD, not per line. The old single `TickingValue` wrapped
+ * the whole joined string, so a handover that moved only PCI flashed both
+ * facts and made the technician diff them to find out which one actually
+ * changed. (The comment defending that choice cited "three facts"; bandwidth
+ * had already moved into the band reference, so it was two.)
+ *
+ * A null value prints `Not reported` rather than vanishing — the same answer
+ * `MetricCell` gives, and the same reason `cellular-information-card.tsx`
+ * refuses a bare dash: an empty slot reads as a rendering failure, not as a
+ * fact the radio declined to report.
+ */
+function IdentityField({
+  label,
+  value,
+}: {
+  label: string;
+  value: number | null;
+}) {
+  const { t } = useTranslation("cellular");
+
+  return (
+    <div className="flex min-w-0 items-baseline gap-1.5">
+      <dt className={IDENTITY_LABEL}>{label}</dt>
+      {value === null ? (
+        <dd className={cn(IDENTITY_VALUE, "font-sans text-on-surface-variant")}>
+          {t("radio_info.bands.metric.not_reported_short")}
+        </dd>
+      ) : (
+        <dd className={IDENTITY_VALUE}>
+          <TickingValue value={value}>{value}</TickingValue>
+        </dd>
+      )}
+    </div>
+  );
+}
+
+// -----------------------------------------------------------------------------
 // Band reference
 // -----------------------------------------------------------------------------
 
@@ -385,6 +469,7 @@ export function ActiveBandsCard({
   carriers,
   summary,
   isLoading,
+  isStale = false,
 }: ActiveBandsCardProps) {
   const { t } = useTranslation("cellular");
 
@@ -423,10 +508,24 @@ export function ActiveBandsCard({
           <h3 className="text-xl leading-tight font-semibold">
             {t("radio_info.bands.title")}
           </h3>
-          <p className="text-[13px] text-on-surface-variant">
-            {t("radio_info.bands.description", {
-              count: summary.carrierCount,
-            })}
+          {/* The description slot doubles as the freshness line. `SwapLabel`
+              because the two states replace each other in place — the same
+              treatment the row chips use — and `warning` ink because a paused
+              reading is degraded, not failed: the numbers above it are real,
+              they are just not current. */}
+          <p
+            className={cn(
+              "text-[13px]",
+              isStale ? "text-warning-on-surface" : "text-on-surface-variant",
+            )}
+          >
+            <SwapLabel swapKey={isStale ? "stale" : "live"}>
+              {isStale
+                ? t("radio_info.bands.stale")
+                : t("radio_info.bands.description", {
+                    count: summary.carrierCount,
+                  })}
+            </SwapLabel>
           </p>
         </div>
 
@@ -482,29 +581,28 @@ export function ActiveBandsCard({
               animate="visible"
             >
               {carriers.map((c) => {
-                const metricBase = c.released ? null : c.quality;
-                const chipVariant = c.released
-                  ? "muted"
-                  : qualityVariant(c.quality);
-                const chipText = c.released
-                  ? t("radio_info.bands.released")
-                  : t(`radio_info.bands.quality.${c.quality}`);
+                // The aggregate the chip used to print. It still exists on the
+                // contract and is still worth reporting — it just reports
+                // through the row's accessible name now, not a fourth chip.
+                const qualityWord = t(`radio_info.bands.quality.${c.quality}`);
+                const rowLabel = c.released
+                  ? `${roleLabel(c)} ${bandLabel(c)}, ${t("radio_info.bands.released")}`
+                  : `${roleLabel(c)} ${bandLabel(c)}, ${qualityWord}`;
 
-                // The meta line carries the two facts that identify WHICH cell
-                // this is, on one mono line under the chips: PCI and the ARFCN
-                // under its correct label. Bandwidth lives in the band
+                // The two facts that identify WHICH cell this is: PCI and the
+                // ARFCN under its correct label. Bandwidth lives in the band
                 // reference disclosure below with the rest of the carrier's
                 // static spec — it never changes for a given band, so it reads
                 // as reference material alongside band name and duplex, not as
                 // an identity fact a technician reads per handover.
-                const metaLine = [
-                  c.pci === null
-                    ? null
-                    : `${t("radio_info.bands.detail.pci")} ${c.pci}`,
-                  c.earfcn === null ? null : `${c.arfcnLabel} ${c.earfcn}`,
-                ]
-                  .filter(Boolean)
-                  .join("    ");
+                //
+                // `arfcnLabelKey` rather than a literal: the contract used to
+                // hand down the display string "ARFCN"/"EARFCN" directly, which
+                // put one hardcoded English word on the same line as a
+                // translated `PCI` label. It is a key now and resolves here.
+                const arfcnLabel = t(
+                  `radio_info.bands.detail.${c.arfcnLabelKey}`,
+                );
 
                 const sinr = c.metrics.find((m) => m.id === "sinr");
                 const showLowSnr =
@@ -524,6 +622,11 @@ export function ActiveBandsCard({
                     variants={staggerRowItem}
                     className={ROW_SHELL}
                     style={{ minHeight: BAND_ROW_HEIGHT }}
+                    // Carries the aggregate the deleted chip used to print, and
+                    // gives an otherwise undifferentiated stack of divs a
+                    // boundary a screen reader can announce between carriers.
+                    role="group"
+                    aria-label={rowLabel}
                   >
                     <div className={ROW_LAYOUT}>
                       <div className={IDENTITY_BLOCK}>
@@ -537,42 +640,44 @@ export function ActiveBandsCard({
                             {bandLabel(c)}
                           </Badge>
 
-                          <Badge variant={chipVariant}>
-                            {/* Glyph INSIDE the swap: it is the only greyscale
-                                channel between success and warning at 1.03:1,
-                                so it has to travel with the word it qualifies.
-                                Key encodes text AND variant, because both move
-                                together. */}
-                            <SwapLabel
-                              swapKey={`${chipVariant}:${chipText}`}
-                              className="gap-1.5"
-                            >
-                              <MaterialSymbol
-                                name={
-                                  metricBase === null
-                                    ? "do_not_disturb_on"
-                                    : qualityGlyph(metricBase)
-                                }
-                                size={15}
-                                filled
-                              />
-                              {chipText}
-                            </SwapLabel>
-                          </Badge>
+                          {/* Exception-only. An ACTIVE carrier now carries no
+                              third chip at all — its health reads from the four
+                              metric bars to its right. A RELEASED one keeps its
+                              word, because "greyed but still listed" is a
+                              contract the band badge's `muted` fill cannot
+                              carry on its own. */}
+                          {c.released ? (
+                            <Badge variant="muted">
+                              <SwapLabel
+                                swapKey="released"
+                                className="gap-1.5"
+                              >
+                                <MaterialSymbol
+                                  name="do_not_disturb_on"
+                                  size={15}
+                                  filled
+                                />
+                                {t("radio_info.bands.released")}
+                              </SwapLabel>
+                            </Badge>
+                          ) : null}
                         </div>
 
-                        {metaLine ? (
-                          <p className="truncate font-mono text-xs text-on-surface-variant">
-                            {/* Keyed on the WHOLE line, not just the ARFCN. A
-                                handover can move PCI or width while the ARFCN
-                                holds, and keying the tick to one of the three
-                                facts printed here would leave the other two
-                                changing silently. */}
-                            <TickingValue value={metaLine}>
-                              {metaLine}
-                            </TickingValue>
-                          </p>
-                        ) : null}
+                        {/* Rendered unconditionally. The old line disappeared
+                            when both facts were null, which left that row's
+                            identity block one line shorter than its neighbours
+                            and broke the very alignment this block exists to
+                            hold. Two `Not reported` cells keep the geometry. */}
+                        <dl className={IDENTITY_GRID}>
+                          <IdentityField
+                            label={t("radio_info.bands.detail.pci")}
+                            value={c.pci}
+                          />
+                          <IdentityField
+                            label={arfcnLabel}
+                            value={c.earfcn}
+                          />
+                        </dl>
                       </div>
 
                       <div className={METRIC_GRID}>

@@ -17,11 +17,28 @@ import type { RadioMode, RadioSummary } from "@/lib/radio-info";
 // 53-87. Anatomy is kept (52px circular glyph disc → eyebrow → large value →
 // caption); every VALUE in the mock is a fabrication and is re-derived here.
 //
-// COLOUR DISCIPLINE (matches the mock 1:1).
-// All four tiles carry colour: Network type is the identity FILL (`bg-primary`
-// / `bg-lte`, whichever radio is actually registered), Bandwidth is
-// `primary-container`, Carrier aggregation is `uplink-container`, and Active
-// MIMO is `lte-container` (the mock's `--sc`).
+// COLOUR DISCIPLINE. Two tiles carry colour, two are neutral, and which is
+// which is decided by ONE question: does the hue encode something true?
+//
+//   Network type  — identity FILL (`bg-primary` / `bg-lte`, whichever radio is
+//                   actually registered). The hue IS the fact. Keep.
+//   Carriers      — `uplink-container`. DESIGN.md defines Uplink Cyan as owning
+//                   "counts and upload direction", and this is a count. Keep.
+//   Bandwidth     — NEUTRAL. It was `primary-container`, i.e. NR blue, while
+//                   `totalMhz` is the sum ACROSS LTE and NR carriers.
+//   Active MIMO   — NEUTRAL. It was `lte-container`, i.e. the 4G identity,
+//                   while its own value is `LTE 1x2 | NR 2x4` — both radios.
+//
+// The two demoted tiles were the mock's colours (Active MIMO's was literally
+// `--sc`) that later acquired semantic token NAMES they did not honour. Under
+// The Functional-Color-Promise a user who learned violet = LTE on the dashboard
+// CA strip reads a violet tile and concludes it is an LTE readout. It is not.
+// A fill that does not encode something is spending contrast for nothing
+// (PRODUCT.md, Principle 1), and here it was spending it to say something false.
+//
+// This is a CORRECTNESS floor, not the strip's final form — the composition
+// itself (glyph disc → eyebrow → big number → caption, x4) is still under
+// review as a separate pass. Do not read this as ratification of the anatomy.
 //
 // Ink pairing: a tile is either a FILL pair (`bg-primary` + `text-primary-
 // foreground`) or a CONTAINER pair, never crossed. The glyph disc always
@@ -53,14 +70,10 @@ const NEUTRAL_TILE = "bg-surface-container text-on-surface";
 const NEUTRAL_DISC = "bg-surface-container-high text-on-surface-variant";
 const CAPTION = "text-xs text-on-surface-variant";
 
-// Bandwidth / Carrier aggregation / Active MIMO container tones. Each disc
-// inverts to the tile's FILL pair so the glyph pops off its own container.
-const BANDWIDTH_TILE = "bg-primary-container text-on-primary-container";
-const BANDWIDTH_DISC = "bg-primary text-primary-foreground";
+// The one surviving container tone. Its disc inverts to the tile's FILL pair so
+// the glyph pops off its own container.
 const CARRIERS_TILE = "bg-uplink-container text-on-uplink-container";
 const CARRIERS_DISC = "bg-uplink text-uplink-foreground";
-const MIMO_TILE = "bg-lte-container text-on-lte-container";
-const MIMO_DISC = "bg-lte text-lte-foreground";
 
 function Tile({
   glyph,
@@ -223,15 +236,18 @@ export function SummaryTiles({ mode, summary, mimo }: SummaryTilesProps) {
       <Tile
         glyph="graphic_eq"
         label={t("radio_info.tiles.bandwidth.label")}
-        tone={BANDWIDTH_TILE}
-        disc={BANDWIDTH_DISC}
         caption={
           hasBandwidth && breakdown.length > 0
-            ? breakdown.join(" + ")
+            ? // Was `breakdown.join(" + ")` → "20 + 20 + 100", unitless and
+              // unattributed, which reads as an arithmetic expression rather
+              // than a per-carrier breakdown of the figure above it.
+              t("radio_info.tiles.bandwidth.caption_breakdown", {
+                parts: breakdown.join(" + "),
+              })
             : t("radio_info.tiles.bandwidth.caption_unavailable")
         }
         captionClassName={cn(
-          "text-xs opacity-85",
+          CAPTION,
           hasBandwidth && breakdown.length > 0 && "tabular-nums",
         )}
       >
@@ -243,7 +259,15 @@ export function SummaryTiles({ mode, summary, mimo }: SummaryTilesProps) {
             </span>
           </span>
         ) : (
-          <span className={TABULAR_VALUE}>{t("radio_info.common.not_available")}</span>
+          /* A WORD, not the bare em dash this used to print. `not_available`
+             (—) rendered at 20px/600 as a tile's HEADLINE value, and unlike
+             MetricCell's dash it was not aria-hidden, so a screen reader
+             announced "em dash". `cellular-information-card.tsx` already
+             argues the case: a bare dash reads as a rendering failure rather
+             than as a fact the modem declined to report. */
+          <span className={cn(VALUE, "truncate text-on-surface-variant")}>
+            {t("radio_info.common.value_unavailable")}
+          </span>
         )}
       </Tile>
 
@@ -281,9 +305,7 @@ export function SummaryTiles({ mode, summary, mimo }: SummaryTilesProps) {
       <Tile
         glyph="alt_route"
         label={t("radio_info.tiles.mimo.label")}
-        tone={MIMO_TILE}
-        disc={MIMO_DISC}
-        captionClassName="text-xs opacity-85"
+        captionClassName={CAPTION}
         caption={
           mimoParts.length > 0 ? (
             <Link
@@ -318,7 +340,15 @@ export function SummaryTiles({ mode, summary, mimo }: SummaryTilesProps) {
             ))}
           </span>
         ) : (
-          <span className={TABULAR_VALUE}>{t("radio_info.common.not_available")}</span>
+          /* A WORD, not the bare em dash this used to print. `not_available`
+             (—) rendered at 20px/600 as a tile's HEADLINE value, and unlike
+             MetricCell's dash it was not aria-hidden, so a screen reader
+             announced "em dash". `cellular-information-card.tsx` already
+             argues the case: a bare dash reads as a rendering failure rather
+             than as a fact the modem declined to report. */
+          <span className={cn(VALUE, "truncate text-on-surface-variant")}>
+            {t("radio_info.common.value_unavailable")}
+          </span>
         )}
       </Tile>
     </div>

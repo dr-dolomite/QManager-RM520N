@@ -188,10 +188,29 @@ The Active MIMO tile's glyph is **`alt_route`**, not `settings_input_antenna`. T
 
 `ActiveBandsCard` renders every carrier as an **always-expanded** row. Each row is two blocks side by side:
 
-- **Identity block** (`IDENTITY_BLOCK`) — a **fixed** `16.5rem` column from the `@3xl/bands` breakpoint up. It carries the role chip, the band identity `Badge` ("NR n78" / "LTE B3" — NR bands are lowercased for display because 3GPP writes them that way), the quality status chip, and a mono meta line reading `PCI 295 · EARFCN 1650`. Any part with no value drops out of the line rather than printing a placeholder.
+- **Identity block** (`IDENTITY_BLOCK`) — a **fixed** `16.5rem` column from the `@3xl/bands` breakpoint up. It carries the role chip, the band identity `Badge` ("NR n78" / "LTE B3" — NR bands are lowercased for display because 3GPP writes them that way), a `muted` **Released** chip *only on a released carrier*, and the identity grid (`IDENTITY_GRID`) below them.
 - **Metric grid** (`METRIC_GRID`) — `grid-cols-2`, widening to a **fixed** `grid-cols-4` at `@4xl/bands`. Never `auto-fit`.
 
-**The fixed columns are the entire point.** RSRP sits at the same x-offset on every row, so a weak leg is visible without reading a number — and that alignment evaporates the moment either block is allowed to size to its content. Bandwidth lives in the band-reference disclosure below, alongside band name and duplex — it never changes for a given band, so it reads as static spec rather than a per-handover reading. (A 2026-08 polish pass moved it back there from the meta line; the meta line now carries just PCI and EARFCN.)
+**The fixed columns are the entire point.** RSRP sits at the same x-offset on every row, so a weak leg is visible without reading a number — and that alignment evaporates the moment either block is allowed to size to its content. Bandwidth lives in the band-reference disclosure below, alongside band name and duplex — it never changes for a given band, so it reads as static spec rather than a per-handover reading. (A 2026-08 polish pass moved it back there from the meta line.)
+
+### The identity grid replaced the meta line (2026-08-15)
+
+PCI and the ARFCN used to render as **one `font-mono` paragraph** joining both facts — first with `·`, then (after the No-Dot-Separator Rule landed) with four `U+00A0`. Both were separator fixes for a problem that was never the separator:
+
+| Fault | Why it mattered |
+| ----- | --------------- |
+| **Label in the machine voice** | `PCI` comes from an i18n string; `407` is the modem's. Both sat in one `font-mono` run, which DESIGN.md > The Machine-Voice Rule forbids in as many words — *"a human-authored label never wears it."* With one font, weight, size and ink across both, the line read as a terminal dump rather than as labelled data |
+| **No key/value distinction** | Nothing but prior knowledge marked which half was the label. Proximity told you where the pairs split; it never told you which side was which |
+| **No cross-row alignment** | PCI is 0–503 (LTE) / 0–1007 (NR), so the second fact started at a different x on *every* row — on a card whose thesis is "scan the column", and whose `METRIC_GRID` is fixed precisely so RSRP does not do this |
+| **Silent absence** | A null PCI let the ARFCN slide left into the vacated slot: same position, different meaning, no marker |
+
+It is now a two-column `<dl>`: **sans label** (`IDENTITY_LABEL`, `on-surface-variant`, uppercase) + **mono value** (`IDENTITY_VALUE`, promoted to `on-surface` — previously the value and its own caption shared one ink). The grid is **rendered unconditionally**, and a null field prints `Not reported` rather than collapsing, so a row missing both facts keeps its neighbours' geometry.
+
+Each field carries **its own `TickingValue`**. The old single tick wrapped the joined string, so a handover moving only PCI flashed both facts and left the reader to diff them.
+
+> The No-Dot-Separator Rule already sanctioned this: *"multiple spaces, **or separate flex/inline items with a gap**."* The card had taken the first option; the second is the one that also fixes alignment.
+
+`EnrichedCarrier.arfcnLabelKey` (`"arfcn"` / `"earfcn"`) replaced `arfcnLabel` (`"ARFCN"` / `"EARFCN"`). The old field's own docstring claimed to be "a label discriminator, not display text" while being rendered verbatim — one hardcoded English word beside a translated `PCI` in all five locales. `buildDiagnosticsText` maps the key back to a literal at its call site, because the clipboard blob is deliberately English.
 
 Two conditional notices can appear under a row: a `destructive` low-SNR notice (threshold-triggered, and it states the **reading only** — the comp went on to claim "the scheduler may drop it under load", which QManager cannot verify), and a neutral "released N seconds ago" note.
 
@@ -207,7 +226,7 @@ It is a **plain conditional render**, deliberately not a height animation. See t
 
 - Row entrances are `staggerRows` / `staggerRowItem` motion variants, not a CSS `animation:` class. A raw keyframe class replays on every re-render unless something unmounts and remounts the node — which the accordion used to do for free and nothing does now. This is the same bug class `useChartDrawIn()` exists to solve on the dashboard (see [dashboard-chart-cards.md](dashboard-chart-cards.md)).
 - The page cascade is the shared `staggerContainer` / `staggerItem` pair, which *is* the comp's `qm-cascade` — its hardcoded 0/60/120/180 ms delays are exactly the 60 ms card step, so the variants reproduce the choreography without restating a number.
-- `SwapLabel` animates the quality chip's label, with the **glyph inside the swap**: the glyph is the only greyscale channel between success and warning, so it must travel with the word it qualifies. The swap key encodes text *and* variant, because both move together.
+- `SwapLabel` animates the **Released** chip's label (glyph inside the swap) and the card description's live↔stale swap. It used to animate the per-row quality chip, where the glyph-inside-swap rule was load-bearing: the glyph was the only greyscale channel between `success` and `warning` at 1.03:1. That chip is gone (see below), so the rule now survives as a pattern to reapply, not as an active constraint on this card.
 
 ## Connection details — the handover half
 
@@ -260,6 +279,16 @@ The shell takes all five values from `useModemStatus()`. An earlier version dest
 
 The header's Live/Stale freshness chip (a `Badge` with a pulsing `LiveDot` on live, a static `schedule` glyph on stale) was removed per direct request — `isStale` still drives the carrier-list freeze and is not itself gone, only its visible chip. `animate-live-ping` remains in `globals.css` and stays in use elsewhere (dashboard, tower-locking, band-locking, frequency-locking); it was not touched by this removal.
 
+**Staleness is reported on the Spectrum card, not in the header (2026-08-15).** Between the chip's removal and this change, `isStale` had **no visual output at all** — it froze the carrier list and said nothing, so a stale-but-not-errored poll rendered frozen numbers at full confidence. Only a hard `error` raised the page `Banner`. That is the honesty fix this page's own shell comment describes, quietly regressed into a subtler version of the same bug.
+
+`ActiveBandsCard` now takes `isStale` and swaps its **description line** to `radio_info.bands.stale` ("Readings paused") in `warning-on-surface` ink via `SwapLabel`. Three reasons this is not a reinstatement of the vetoed chip:
+
+- It marks **the surface that actually froze**, not the whole route. The Connection Details card is not stale in the same sense — nothing there is being suppressed.
+- It costs **no new geometry**. The description line already exists and already reserves its height.
+- It spends a key that already shipped, translated, with **zero consumers**.
+
+`warning`, not `destructive`: the numbers above the line are real, they are simply not current. That is degraded, not failed.
+
 The comp's **"Updates every 30s"** cadence chip stays cut. The client polls at 2 s and the modem's CA data refreshes every ~3.7-4.0 s measured across 103 consecutive polls, so the claim was false by roughly 8×. A cadence a user can set a watch by is worse than no cadence at all.
 
 ## Copy diagnostics is radio metrics only
@@ -292,7 +321,7 @@ Both cards export their shapes so the skeleton and the loaded state read the sam
 
 | Constant | File | Value / meaning |
 | -------- | ---- | --------------- |
-| `BAND_ROW_HEIGHT` | `active-bands-card.tsx` | `82` — identity block (chip line 26 + gap 8 + meta line 16 = 50) plus `py-4` either side |
+| `BAND_ROW_HEIGHT` | `active-bands-card.tsx` | `82` — identity block (chip line 26 + gap 8 + identity grid 16 = 50) plus `py-4` either side. The identity grid replaced a single meta line at the **same 16px line box**, which is why the two-column rework cost no height and needed no skeleton edit |
 | `BAND_SKELETON_ROWS` | `active-bands-card.tsx` | `3` |
 | `TILE_SHAPE` | `summary-tiles.tsx` | `.GRID` / `.ROOT` / `.HEIGHT` / `.DISC`; `states.tsx` imports it so the tile skeleton cannot drift |
 | `ROW_SHAPE`, `ROW_SHAPE_COMPACT`, `ROW_STACK`, `GROUP_STACK`, `ROW_LINE`, `ROW_LABEL`, `ROW_VALUE`, `EYEBROW_CLASS` | `cellular-information-card.tsx` | Row and group geometry, shared with the skeleton |
@@ -327,7 +356,7 @@ These are present in all five locales with **no call site**, left in place delib
 | Key | Why it is dead |
 | --- | -------------- |
 | `radio_info.rows.network_type`, `radio_info.rows.carrier_aggregation`, `radio_info.ca.*` | The two Connection-details rows that used them were deleted |
-| `radio_info.bands.cadence`, `radio_info.bands.stale` | The card-level cadence caption was cut; staleness is told once, in the header |
+| `radio_info.bands.cadence` | The card-level cadence caption was cut |
 | `radio_info.header.cadence`, `radio_info.header.refresh` | The cadence chip and the header Refresh pill were both cut |
 
 > ⚠️ WARNING: `bun run i18n:check` now exits **1** on a missing key or an empty value (since 2026-08-12), so a green run *does* prove your keys landed in every locale. What it still cannot see is a **hardcoded literal** — a string that never went through `t()` has no key to be missing. That class of bug is invisible to every gate in this repo; only reading the component catches it.
@@ -338,7 +367,9 @@ These are present in all five locales with **no call site**, left in place delib
 
 The shipped subset is `app/fonts/MaterialSymbolsRounded-subset.{woff2,json}`, currently **101 glyphs**, and the allowlist is `components/ui/material-symbol-names.ts`. Adding a name to the allowlist without regenerating the subset ships a name the font cannot draw. `alt_route` was added for the Active MIMO tile in this change.
 
-Glyphs used on this page: `cell_tower`, `graphic_eq`, `layers`, `alt_route`, `content_copy`, `check`, `schedule`, `visibility`, `visibility_off`, `help`, `warning`, `info`, `radar`, `chevron_right`, `sim_card`, `do_not_disturb_on`, `progress_activity`, and the `signal_cellular_{1..4}_bar` / `signal_cellular_off` ladder.
+Glyphs used on this page: `cell_tower`, `graphic_eq`, `layers`, `alt_route`, `content_copy`, `check`, `schedule`, `visibility`, `visibility_off`, `help`, `warning`, `info`, `radar`, `chevron_right`, `sim_card`, `do_not_disturb_on`, `progress_activity`, and `signal_cellular_off` (the no-service condition screen, `states.tsx`).
+
+The graded `signal_cellular_{1..4}_bar` ladder is **no longer used on this page** — it went with the per-row quality chip. It stays in the subset and the allowlist because `signal-status-card.tsx`, `antenna-statistics/tech-card.tsx`, `band-locking/live-band-hero.tsx`, `cell-scanner/` and `tower-locking/live-strip.tsx` all still own it; do not prune it from the font on this page's account.
 
 ## Known gaps
 

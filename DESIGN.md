@@ -559,9 +559,15 @@ only: the gutter (`px-4 lg:px-6`) and the sidebar's own collapse.
 
 **The grids that ship.** The dashboard is a 5-column container grid (`@4xl/main:grid-cols-5`) with a
 3-column left stack and a 2-column right rail, then full-width rows beneath. Radio Information is a
-symmetric 2-up (`@3xl/main:grid-cols-2`) under a 4-up tile strip
-(`@xl/main:grid-cols-2 @5xl/main:grid-cols-4`). Both collapse to a single column with no
-special-casing.
+**single-column stack of full-width cards ordered by cadence** — what moves every poll above what
+moves on handover — under a 4-up tile strip (`@xl/main:grid-cols-2 @5xl/main:grid-cols-4`). Both
+collapse to a single column with no special-casing.
+
+> Radio Information was a symmetric 2-up (`@3xl/main:grid-cols-2`) with both cards `h-full`-locked to
+> each other. That is a split by **symmetry**, and symmetry is not a property either card has: the
+> lock forced a static reference card and a live telemetry card to one height, stranding ~200px of
+> dead space in whichever had less to say — and which one that was flipped with the carrier count.
+> **Split a page by cadence, not by symmetry**, and let each card size to its own content.
 
 **Spacing rhythm.** Page gutter 16px rising to 24px. Card grid gap 16-24px; tile grid gap 14px;
 in-card row gap 6px; inline element gap 8-10px. Card padding is 24px (`px-6`) standard and 28px

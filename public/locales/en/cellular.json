@@ -1684,7 +1684,8 @@
   },
   "radio_info": {
     "common": {
-      "not_available": "—"
+      "not_available": "—",
+      "value_unavailable": "Not reported"
     },
     "page": {
       "title": "Cellular and Radio Information",
@@ -1720,13 +1721,14 @@
       "bandwidth": {
         "label": "Bandwidth in use",
         "unit": "MHz",
-        "caption_unavailable": "Not reported by the modem"
+        "caption_unavailable": "Not reported by the modem",
+        "caption_breakdown": "{{parts}} MHz"
       },
       "carriers": {
         "label": "Carrier aggregation",
         "value_one": "{{count}} carrier",
         "value_other": "{{count}} carriers",
-        "caption": "LTE {{lte}} · NR {{nr}}",
+        "caption": "LTE {{lte}}    NR {{nr}}",
         "caption_none": "No carriers reported"
       },
       "mimo": {
@@ -1839,7 +1841,8 @@
         "snr": "SNR",
         "rssi": "RSSI",
         "rssi_caption": "Wideband received power",
-        "not_reported": "Not reported for this carrier"
+        "not_reported": "Not reported for this carrier",
+        "not_reported_short": "Not reported"
       },
       "detail": {
         "band_name": "Band name",
@@ -1847,6 +1850,8 @@
         "dl_frequency": "DL frequency",
         "ul_frequency": "UL frequency",
         "pci": "PCI",
+        "arfcn": "ARFCN",
+        "earfcn": "EARFCN",
         "scs": "Subcarrier spacing",
         "unknown": "Unknown",
         "scs_derived": "Derived",
