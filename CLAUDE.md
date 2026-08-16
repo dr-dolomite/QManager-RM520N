@@ -135,6 +135,7 @@ Each feature below has a reference doc holding its invariants, gotchas, and rati
 | Feature | Touch it when you're working on | Doc |
 | ------- | ------------------------------- | --- |
 | **Cross-UID `/tmp` file ownership** | Any file in `/tmp` written by both root daemons and www-data CGI — seeding, which direction `fs.protected_regular` actually blocks, the never-`mv` rule, the recovery-flag claim protocol | `tmp-file-ownership.md` |
+| **Colour System / tokens** | Any colour token in `globals.css`, a new role, a `Badge` tone, or a surface that reads too loud — hue-slot arithmetic, the direction-vs-radio axis split, the CVD floor, and the two tokens that must never be "levelled" | `color-system.md` |
 | **Icon System / Icon-Boundary Rule** | Any icon, anywhere. The Material-vs-lucide boundary is ROUTE-scoped; Material now covers the sidebar, dashboard, pre-auth routes, and all of `/cellular/` (index + all 17 sub-routes) — the boundary is no longer partial inside `/cellular/` | `icon-system.md` |
 | **Auth Rate Limiting** | `cgi_auth.sh`, login lockout, `auth/check.sh` | `auth-rate-limiting.md` |
 | **Antenna Alignment** | `/cellular/antenna-alignment`, the composite aim score / recorder sampling gate, and the two shared `/cellular/` primitives it extracted: `components/cellular/condition-screen.tsx` and `components/cellular/signal-quality-display.ts` | `antenna-alignment.md` |

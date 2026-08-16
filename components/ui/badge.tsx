@@ -89,6 +89,20 @@ const badgeVariants = cva(
           "border-transparent bg-primary-container text-on-primary-container [a&]:hover:bg-primary-container/80",
         lte:
           "border-transparent bg-lte-container text-on-lte-container [a&]:hover:bg-lte-container/80",
+        // ── Direction roles: also NOT status chips ──────────────────────────
+        // Which WAY the bytes are going, and nothing else. They are a separate
+        // axis from `nr`/`lte` on purpose: a download figure on the LTE leg is
+        // rose-on-violet, and neither hue is guessing about the other.
+        //
+        // A direction chip must still pair its hue with an arrow glyph. At
+        // container lightness in dark mode every tonal pair in this system
+        // collapses under deuteranopia and protanopia simulation — measured,
+        // including the pairs that already ship — so on a dark tile the hue is
+        // decoration and the glyph is the information.
+        downlink:
+          "border-transparent bg-downlink-container text-on-downlink-container [a&]:hover:bg-downlink-container/80",
+        uplink:
+          "border-transparent bg-uplink-container text-on-uplink-container [a&]:hover:bg-uplink-container/80",
         outline:
           "text-foreground [a&]:hover:bg-accent [a&]:hover:text-accent-foreground",
       },

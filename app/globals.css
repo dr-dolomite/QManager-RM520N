@@ -136,8 +136,14 @@
   --color-on-lte-container: var(--on-lte-container);
   --color-uplink: var(--uplink);
   --color-uplink-foreground: var(--uplink-foreground);
+  --color-uplink-on-surface: var(--uplink-on-surface);
   --color-uplink-container: var(--uplink-container);
   --color-on-uplink-container: var(--on-uplink-container);
+  --color-downlink: var(--downlink);
+  --color-downlink-foreground: var(--downlink-foreground);
+  --color-downlink-on-surface: var(--downlink-on-surface);
+  --color-downlink-container: var(--downlink-container);
+  --color-on-downlink-container: var(--on-downlink-container);
   --color-surface: var(--surface);
   --color-surface-container: var(--surface-container);
   --color-surface-container-high: var(--surface-container-high);
@@ -234,17 +240,48 @@
   /* Carrier Violet: the 4G LTE identity (DESIGN.md "secondary") */
   --lte: oklch(0.495 0.205 296);
   --lte-foreground: oklch(0.99 0.012 296);
-  --lte-container: oklch(0.9 0.085 296);
+  /* L 0.855, down from 0.90. This is a CORRECTNESS fix, not a tone change.
+     At 0.90 this container measured 0.007 separation from --primary-container
+     (L 0.885) under protanopia simulation — against a 0.05 collapse floor.
+     Light-mode NR and LTE were the SAME OBJECT to a red-blind user, which is
+     the exact failure DESIGN.md > Data visualization bans --chart-1..5 for.
+     Dropping 0.045 takes it to 0.156. Ink holds at 10.1:1. */
+  --lte-container: oklch(0.855 0.095 296);
   --on-lte-container: oklch(0.265 0.15 296);
-  /* Uplink Cyan: counts, upload direction, minor accents (DESIGN.md "tertiary") */
+  /* Uplink Cyan: the UPLOAD direction, and counts (DESIGN.md "tertiary") */
   /* Hue 200, not the bundle's 185. At 185 this sat 36 degrees from success
      (149), breaking DESIGN.md's own 40-degree separation rule. Turn 2a rejects
      teal for exactly that reason ("sits only 36 degrees from success-green").
      Lightness and chroma are unchanged; only the hue moved. */
   --uplink: oklch(0.49 0.13 200);
   --uplink-foreground: oklch(0.99 0.01 200);
+  --uplink-on-surface: oklch(0.45 0.115 200);
   --uplink-container: oklch(0.885 0.09 200);
   --on-uplink-container: oklch(0.26 0.09 200);
+  /* Downlink Rose: the DOWNLOAD direction. See The Direction-Is-Not-A-Radio
+     Rule in DESIGN.md.
+
+     Hue 341 is not a taste pick — it is the only slot left. Sweeping all 360
+     degrees against the taken hues (destructive 27, warning 72, success 149,
+     uplink 200, primary/NR/info 264, lte 296) leaves exactly ONE window
+     clearing the 40-degree floor: h in [336, 347]. Everything else in the
+     circle sits inside 40 degrees of something that already means a thing.
+
+     It exists because "download" had been borrowing --primary, which is also
+     the 5G NR identity AND the brand AND "in progress". A user who learned
+     blue = download on the speedtest dialog met blue = NR on the radio page
+     two clicks later. Direction and radio are orthogonal facts and they now
+     hold orthogonal hues.
+
+     Verified under deuteranopia and protanopia simulation against every other
+     role in both themes; the tightest adjacency is rose vs destructive red
+     (0.47 dark / 0.25 light against a 0.05 collapse floor), which was the one
+     flagged as riskiest before it was measured. */
+  --downlink: oklch(0.52 0.2 341);
+  --downlink-foreground: oklch(0.99 0.012 341);
+  --downlink-on-surface: oklch(0.475 0.185 341);
+  --downlink-container: oklch(0.9 0.075 341);
+  --on-downlink-container: oklch(0.28 0.145 341);
 
   /* --- shadcn neutrals: NOT the canon's secondary/tertiary roles --- */
   --secondary: oklch(0.952 0.026 258);
@@ -348,19 +385,46 @@
   --popover: oklch(0.215 0.03 258);
   --popover-foreground: oklch(0.96 0.012 258);
 
-  --primary: oklch(0.79 0.16 262);
+  /* --- Dark identity fills: TONED DOWN, 2026-08-16 ---------------------------
+     The three identity fills were L 0.79-0.81 sitting on an L 0.155 ground:
+     the brightest objects in the interface were the ones carrying the least
+     information. They now land at 0.72-0.74.
+
+     Measured, not eyeballed. Ink holds at 7.2-7.7:1 (was 9.1-9.2), so the pair
+     is still comfortably past AA with the Paired-Theme Rule intact — the fills
+     moved, their inks did not need to, because both stay on the same side of
+     the flip. 0.76 is the one value deliberately skipped: NR and LTE measure
+     0.047 separation under protanopia there, just under the collapse floor.
+     At 0.72/0.73 they measure 0.094.
+
+     The CONTAINERS are untouched, and --primary-container's L 0.40 against its
+     five siblings' 0.30-0.325 is NOT the calibration defect it looks like. It
+     is the only thing keeping NR blue and LTE violet apart for a red-green
+     colour-blind user: their hues are 32 degrees apart, INSIDE this system's
+     own 40-degree floor, so lightness is carrying the distinction. Equalising
+     them measures 0.049 (collapsed) against the shipped pair's 0.216. Anyone
+     tempted to "fix" that outlier should re-run the simulation first. */
+  --primary: oklch(0.72 0.155 262);
   --primary-foreground: oklch(0.2 0.12 258);
-  --primary-container: oklch(0.4 0.165 260);
+  --primary-container: oklch(0.365 0.145 260);
   --on-primary-container: oklch(0.92 0.09 262);
 
-  --lte: oklch(0.8 0.145 296);
+  --lte: oklch(0.73 0.14 296);
   --lte-foreground: oklch(0.21 0.1 296);
-  --lte-container: oklch(0.325 0.11 296);
+  --lte-container: oklch(0.305 0.105 296);
   --on-lte-container: oklch(0.91 0.075 296);
-  --uplink: oklch(0.81 0.11 200);
+  --uplink: oklch(0.74 0.105 200);
   --uplink-foreground: oklch(0.21 0.06 200);
+  --uplink-on-surface: oklch(0.8 0.1 200);
   --uplink-container: oklch(0.3 0.08 200);
   --on-uplink-container: oklch(0.9 0.07 200);
+  /* Rose sits one step BELOW the other containers (0.29 vs 0.30-0.325) so it
+     holds separation from lte-container, its nearest hue neighbour at 45deg. */
+  --downlink: oklch(0.75 0.155 341);
+  --downlink-foreground: oklch(0.22 0.09 341);
+  --downlink-on-surface: oklch(0.8 0.145 341);
+  --downlink-container: oklch(0.29 0.105 341);
+  --on-downlink-container: oklch(0.91 0.075 341);
 
   --secondary: oklch(0.262 0.04 258);
   --secondary-foreground: oklch(0.96 0.012 258);
@@ -416,10 +480,10 @@
   --destructive-on-surface: oklch(0.79 0.16 22);
   --destructive-container: oklch(0.325 0.115 25);
   --on-destructive-container: oklch(0.91 0.075 22);
-  --info: oklch(0.79 0.16 262);
+  --info: oklch(0.72 0.155 262);
   --info-foreground: oklch(0.2 0.12 258);
   --info-on-surface: oklch(0.82 0.14 262);
-  --info-container: oklch(0.4 0.165 260);
+  --info-container: oklch(0.365 0.145 260);
   --on-info-container: oklch(0.92 0.09 262);
 
   --tone-success-1: oklch(0.275 0.075 149);
@@ -435,7 +499,7 @@
   --outline: oklch(0.365 0.04 258);
   --border: oklch(1 0 0 / 10%);
   --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.79 0.16 262);
+  --ring: oklch(0.72 0.155 262);
 
   --chart-1: oklch(0.809 0.105 251.813);
   --chart-2: oklch(0.623 0.214 259.815);
@@ -443,18 +507,18 @@
   --chart-4: oklch(0.488 0.243 264.376);
   --chart-5: oklch(0.424 0.199 265.638);
   --chart-6: oklch(0.705 0.213 47.604);
-  --chart-nr: oklch(0.79 0.16 262);
-  --chart-lte: oklch(0.8 0.145 296);
+  --chart-nr: oklch(0.72 0.155 262);
+  --chart-lte: oklch(0.73 0.14 296);
   --chart-threshold: oklch(0.865 0.155 80);
 
   --sidebar: oklch(0.215 0.03 258);
   --sidebar-foreground: oklch(0.96 0.012 258);
-  --sidebar-primary: oklch(0.79 0.16 262);
+  --sidebar-primary: oklch(0.72 0.155 262);
   --sidebar-primary-foreground: oklch(0.2 0.12 258);
   --sidebar-accent: oklch(0.312 0.05 258);
   --sidebar-accent-foreground: oklch(0.96 0.012 258);
   --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.79 0.16 262);
+  --sidebar-ring: oklch(0.72 0.155 262);
 
   /* Tonal elevation only in dark: the whisper is absent. */
   --shadow-whisper: 0 0 #0000;

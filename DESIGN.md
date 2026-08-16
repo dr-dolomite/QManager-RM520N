@@ -10,31 +10,46 @@ colors:
   mark-ring: "oklch(0.623 0.214 259.815)"
   # --- Primary: the mark's tail. The only hue that acts. ---
   primary-light: "oklch(0.488 0.243 264.376)"
-  primary-dark: "oklch(0.79 0.16 262)"
+  primary-dark: "oklch(0.72 0.155 262)"
   primary-foreground-light: "oklch(0.99 0.014 264)"
   primary-foreground-dark: "oklch(0.2 0.12 258)"
   primary-container-light: "oklch(0.885 0.1 264)"
-  primary-container-dark: "oklch(0.4 0.165 260)"
+  primary-container-dark: "oklch(0.365 0.145 260)"
   on-primary-container-light: "oklch(0.275 0.17 264)"
   on-primary-container-dark: "oklch(0.92 0.09 262)"
   # --- Carrier Violet (`--lte-*`): the 4G LTE identity. Never acts. ---
   lte-light: "oklch(0.495 0.205 296)"
-  lte-dark: "oklch(0.8 0.145 296)"
+  lte-dark: "oklch(0.73 0.14 296)"
   lte-foreground-light: "oklch(0.99 0.012 296)"
   lte-foreground-dark: "oklch(0.21 0.1 296)"
-  lte-container-light: "oklch(0.9 0.085 296)"
-  lte-container-dark: "oklch(0.325 0.11 296)"
+  lte-container-light: "oklch(0.855 0.095 296)"
+  lte-container-dark: "oklch(0.305 0.105 296)"
   on-lte-container-light: "oklch(0.265 0.15 296)"
   on-lte-container-dark: "oklch(0.91 0.075 296)"
   # --- Uplink Cyan (`--uplink-*`): counts, upload direction. Never acts. ---
   uplink-light: "oklch(0.49 0.13 200)"
-  uplink-dark: "oklch(0.81 0.11 200)"
+  uplink-dark: "oklch(0.74 0.105 200)"
   uplink-foreground-light: "oklch(0.99 0.01 200)"
   uplink-foreground-dark: "oklch(0.21 0.06 200)"
   uplink-container-light: "oklch(0.885 0.09 200)"
   uplink-container-dark: "oklch(0.3 0.08 200)"
   on-uplink-container-light: "oklch(0.26 0.09 200)"
   on-uplink-container-dark: "oklch(0.9 0.07 200)"
+  uplink-on-surface-light: "oklch(0.45 0.115 200)"
+  uplink-on-surface-dark: "oklch(0.8 0.1 200)"
+  # --- Downlink Rose (`--downlink-*`): the download direction, and capacity. ---
+  # Hue 341 is the ONLY window in the circle clearing 40 degrees from every
+  # taken hue. See Colors > The Direction-Is-Not-A-Radio Rule.
+  downlink-light: "oklch(0.52 0.2 341)"
+  downlink-dark: "oklch(0.75 0.155 341)"
+  downlink-foreground-light: "oklch(0.99 0.012 341)"
+  downlink-foreground-dark: "oklch(0.22 0.09 341)"
+  downlink-on-surface-light: "oklch(0.475 0.185 341)"
+  downlink-on-surface-dark: "oklch(0.8 0.145 341)"
+  downlink-container-light: "oklch(0.9 0.075 341)"
+  downlink-container-dark: "oklch(0.29 0.105 341)"
+  on-downlink-container-light: "oklch(0.28 0.145 341)"
+  on-downlink-container-dark: "oklch(0.91 0.075 341)"
   # --- The functional four. Five tokens each; see Colors > The functional four. ---
   success-light: "oklch(0.52 0.18 149)"
   success-dark: "oklch(0.82 0.17 149)"
@@ -68,7 +83,7 @@ colors:
   on-destructive-container-dark: "oklch(0.91 0.075 22)"
   # `info` is an ALIAS of the brand ramp, not a fifth hue.
   info-light: "oklch(0.488 0.243 264.376)"
-  info-dark: "oklch(0.79 0.16 262)"
+  info-dark: "oklch(0.72 0.155 262)"
   # --- Surfaces. Every neutral carries a trace of the mark's hue (258). ---
   background-light: "oklch(0.978 0.014 258)"
   background-dark: "oklch(0.155 0.024 258)"
@@ -107,9 +122,9 @@ colors:
   tone-destructive-3-dark: "oklch(0.49 0.15 25)"
   # --- Charts: one hue per radio family. Never the numbered --chart-1..6. ---
   chart-nr-light: "oklch(0.488 0.243 264.376)"
-  chart-nr-dark: "oklch(0.79 0.16 262)"
+  chart-nr-dark: "oklch(0.72 0.155 262)"
   chart-lte-light: "oklch(0.495 0.205 296)"
-  chart-lte-dark: "oklch(0.8 0.145 296)"
+  chart-lte-dark: "oklch(0.73 0.14 296)"
   chart-threshold-light: "oklch(0.585 0.16 72)"
   chart-threshold-dark: "oklch(0.865 0.155 80)"
 typography:
@@ -337,10 +352,24 @@ state.** `app/globals.css` is the normative source; the frontmatter above mirror
 
 ### Tertiary
 
-- **Uplink Cyan** (`--uplink-*`) — counts, upload direction, minor accents. Deliberately low-chroma
-  so it reads as a supporting mark, not a third brand. Owns the carrier-count tile and the upload leg
-  of any paired readout. Hue 200 is the nearest value clearing 40 degrees from every functional hue
-  and from both other identity hues.
+- **Uplink Cyan** (`--uplink-*`) — **the upload direction**, and counts. Deliberately low-chroma so it
+  reads as a supporting mark, not a third brand. Owns the carrier-count tile and the upload leg of
+  every paired readout. Hue 200 is the nearest value clearing 40 degrees from every functional hue
+  and from both identity hues.
+
+### Direction
+
+- **Downlink Rose** (`--downlink-*`) — **the download direction**, and capacity. Owns the download leg
+  of every paired readout, the aggregate-bandwidth tile, and the negotiated Ethernet link rate. The
+  second meaning is exactly parallel to cyan's: cyan is *upload and counts*, rose is *download and
+  capacity*.
+- Hue 341 is arithmetic, not taste. Sweeping all 360 degrees against the taken hues — destructive 27,
+  warning 72, success 149, uplink 200, primary/NR/info 264, lte 296 — leaves exactly **one** window
+  clearing the 40-Degree Rule: h ∈ [336, 347]. There is no second slot, so there will never be a
+  second decorative hue in this system without retiring an existing one.
+- Verified under deuteranopia and protanopia simulation against every other role in both themes. The
+  tightest adjacency is rose against destructive red — the one that looks riskiest before it is
+  measured — at 0.47 (dark) and 0.25 (light) against a 0.05 collapse floor.
 
 ### Neutral
 
@@ -424,9 +453,41 @@ occupy 264 / 296 / 200; functional hues occupy 149 / 72 / 27 plus the brand ramp
 tonal container, so an informational chip and a primary button differ by **shape and glyph** (pill
 plus clock vs. filled button plus label), never by owning two different blues.
 
-**The Identity-Never-Acts Rule.** Carrier Violet and Uplink Cyan carry identity, never affordance. A
-violet surface is never clickable *because* it is violet, and no control is ever tinted by them. The
-corollary: `nr` and `lte` never mean "healthy".
+**The Identity-Never-Acts Rule.** Carrier Violet, Uplink Cyan and Downlink Rose carry identity or
+direction, never affordance. A violet surface is never clickable *because* it is violet, and no
+control is ever tinted by them. The corollary: `nr` and `lte` never mean "healthy".
+
+**The Direction-Is-Not-A-Radio Rule.** Which way the bytes are going and which radio is carrying them
+are orthogonal facts, and they hold orthogonal hues. Download is **always** Downlink Rose and upload
+is **always** Uplink Cyan, on every surface, in every state — never `primary`, never `lte`. A rose
+download chip sitting inside a violet LTE container is correct and reads as two independent facts.
+
+This rule exists because the product shipped the opposite for months and it only failed *across*
+pages: download was `--primary`, which is simultaneously the brand, the 5G NR identity and "in
+progress", so a user learned blue = download on the speedtest dialog and met blue = NR on the radio
+page two clicks later. Upload was worse — Carrier Violet in the speedtest dialog and the AMBR chips,
+Uplink Cyan in Device Metrics, so the product disagreed with itself. An identity hue borrowed for a
+non-identity fact is the most expensive kind of colour bug: every individual screen looks deliberate.
+
+**The Lightness-Carries-NR-vs-LTE Rule.** `--primary-container` sits at L 0.40 in dark while its five
+sibling containers sit at 0.30–0.325. **This is not a calibration defect and must not be "fixed".**
+NR 264 and LTE 296 are 32 degrees apart — the tightest pair in the palette and *inside* this system's
+own 40-degree floor — so lightness is the channel actually separating them. Measured under
+protanopia: the shipped pair scores 0.216; equalised to a common lightness it scores 0.049, below the
+0.05 collapse floor. Blue and violet become one object for a red-green colour-blind user. Anyone
+tempted to even up that ladder runs the simulation first. The same defect shipped undetected in
+*light* mode until 2026-08-16, where the two containers sat 0.015 apart and measured **0.007**;
+`--lte-container` dropped to L 0.855 to fix it.
+
+**The Dark-Container-Cannot-Carry-Meaning Rule.** Simulating deuteranopia and protanopia across this
+system's container tones in **dark** mode, nearly every pair collapses below the 0.05 separation
+floor — success against warning, warning against destructive, uplink against a plain
+`surface-container`. These are shipped pairs, not hypothetical ones. Light mode is clean, and strong
+fills separate cleanly in both themes. So on a dark tonal tile the body tint is *reinforcement* and
+the glyph, the label and the ink are the information. Colour that has to survive belongs on the small
+strong-filled disc, not on the large container behind it. This is the mechanical reason every status
+chip carries an icon, and the reason a glance surface must not encode a distinction in body tint
+alone.
 
 **The Explicit-Tone Rule.** Layered translucency is banned for stacked shapes. Concentric rings, halo
 discs, and nested tonal surfaces use the explicit `--tone-{role}-{1,2,3}` steps, because stacked alpha
@@ -946,9 +1007,50 @@ plus fade); there is no exit.
   a state dot, then a stack of metric row pills with quality-tinted mono values. Every tinted value
   carries an `sr-only` quality word, because `success-on-surface` and `warning-on-surface` measure
   ~1.01:1 apart — same luminance, hue only.
-- **Summary tiles** — the four-tile strip above Radio Information's two cards. All four carry color:
-  the network-type tile is the identity *fill* of whichever radio is actually registered; the other
-  three are `primary-container`, `uplink-container`, and `lte-container`.
+- **The radio summary strip** — the four-tile grid above Radio Information's two cards
+  (`radio/summary-tiles.tsx`, geometry from `components/cellular/tile-shape.ts` > `TILE_SHAPE`). Four
+  92px tiles at `rounded-tile`, each a 52px inverted glyph disc beside an eyebrow → value → caption
+  column, one per track at `@xl` and four across at `@5xl`. The same `TILE_SHAPE` backs the Antenna
+  Statistics context tiles and the SMS Center strip, so all three are dimensionally identical and each
+  skeleton is a real mirror rather than an estimate.
+
+  **The body is a container; only the disc takes the fill.** This is the single rule that took the
+  loudness out, and it did more than any token retune could. An earlier version put `bg-lte` — the
+  *strong* fill — across a whole tile, and at anchor scale that measured **7.2% ink coverage**:
+  132,033px² carrying 9,526px² of glyph. In dark mode `--lte` was `oklch(0.8 …)` against an
+  `oklch(0.155)` ground, so the largest object on the page was also the brightest and it was the one
+  restating what the sidebar already said. M3 spends strong fills on *compact* emphasis — FABs, chips,
+  selected states — and gives large surfaces containers. Every tile body is now a container and the
+  strong fill survives only on the 52px disc, a ~0.47 lightness drop on the loudest block in dark mode.
+  Any block above roughly 20,000px² should be reaching for a container tone.
+
+  **A tile is tinted only if the hue encodes something true.** Network type takes the identity
+  container of whichever radio is actually registered — the hue *is* the fact, and it is the only tile
+  allowed a radio hue. Bandwidth takes Downlink Rose, because `totalMhz` sums across both legs so no
+  radio hue can be honest, but capacity is rose's own second meaning. Carriers takes Uplink Cyan, which
+  already owns counts. **Active MIMO takes the neutral and that is the point**: its value literally
+  reads `LTE 1x2 | NR 2x4`, naming both radios in its own string, and it is neither a count nor a
+  capacity. There is no true hue for it, so it does not get a false one.
+
+  Three tinted plus one neutral is **not** the "two filled, two flat" checkerboard an earlier
+  generation was built to escape. A checkerboard is an *alternating* pattern that reads as a rendering
+  fault; a single trailing neutral in the last slot reads as "this figure has no category", which is
+  exactly what is being said.
+
+  **What the colour is actually doing here.** Under deuteranopia and protanopia simulation these body
+  tints do not separate in dark mode — see The Dark-Container-Cannot-Carry-Meaning Rule. That is not an
+  argument against tinting them; it is an argument about what the tint is *for*. Each tile carries a
+  distinct glyph and a distinct label, the disc carries a strong fill where the same simulation shows
+  every pair separating cleanly, and the body tint is the thing that makes the grid legible at a glance
+  to everyone else. No tile encodes anything in body tint alone.
+
+  **A block's height must be its own.** A previous composition sized its identity block to 212px, which
+  was three 60px rows plus padding — a number owned by the *sibling* element, which it stretched to
+  match. A fourth row would have made it emptier with nobody touching it. Four equal tiles have no such
+  coupling: `TILE_SHAPE.ROOT` pins the floor and `TILE_SHAPE.HEIGHT` mirrors it. When a block looks
+  empty, check whether it is being sized by something that is not its content before reaching for a
+  smaller size.
+
 - **Condition state screens** — non-registered modes *replace* the body rather than render it empty. A
   40px-radius container in the condition's tone, a 56px filled disc, a headline, a description, and an
   optional retry pill drawn from the container's **own** ink at 10-15% — never a white wash, which is
