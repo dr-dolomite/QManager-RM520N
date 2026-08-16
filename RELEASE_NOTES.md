@@ -34,6 +34,8 @@ Custom SIM Profiles gets a full redesign and absorbs Connection Scenarios, so on
 
 - **Your modem can now notice a SIM swap while it's running.** A new **SIM Hot-Swap Detection** switch under **Cellular → Cellular Basic Settings** lets the modem spot a card being inserted or removed without a reboot — previously a swapped SIM went unnoticed until the next restart (it also reports whether a card is actually present, which now shows on the same page).
 
+- **See what's in both SIM slots at a glance.** **Cellular → Cellular Basic Settings** now shows a **SIM slots** line at the top of the page listing each physical slot, which one the modem is using, and the last four digits of the card in it — so you can tell whether your second slot is empty without pulling the modem apart (read live from the modem; only the last four digits are ever shown, and the line is simply left out on firmware that can't report it).
+
 - **See what your carrier actually handed you, not just what you asked for.** **Cellular → APN Settings** now ends with a **What the network granted** strip showing the APN you're really attached on, whether a bearer is up, and your IPv4 and IPv6 addresses — so a setting that saved but didn't take is visible on the same page (read live from the modem's own reporting, separately from your stored settings).
 - **"Reboot Later" on the IMEI page now actually remembers.** Write a new IMEI, choose Reboot Later, and the page keeps an amber reminder at the top with **Review** and **Reboot** buttons until you restart — previously the choice was thrown away and nothing told you the modem was still on its old identity (the reminder lasts for the browser session and clears itself once you reboot).
 

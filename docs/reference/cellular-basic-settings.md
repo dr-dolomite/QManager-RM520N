@@ -15,7 +15,7 @@
 | Components | `components/cellular/settings/**` |
 | Geometry/tone contract | `components/cellular/settings/shapes.ts` |
 | Poller fields consumed | `.network.carrier`, `.network.sim_slot`, `.network.type`, `.sim` |
-| i18n namespace | `cellular` → `core_settings.basic.*` (~69 keys, all five locales) |
+| i18n namespace | `cellular` → `core_settings.basic.*` (~95 keys, all five locales) |
 
 ### The six writable fields
 
@@ -49,9 +49,15 @@
   "ambr": {
     "lte": [{ "apn": "internet", "dl_kbps": 200000, "ul_kbps": 100000 }],
     "nr5g": [{ "dnn": "internet", "dl_kbps": 1000000, "ul_kbps": 500000 }]
-  }
+  },
+  "dual_slot": [
+    { "slot": 1, "active": true,  "iccid": "8901260882290051069" },
+    { "slot": 2, "active": false, "iccid": "" }
+  ]
 }
 ```
+
+`dual_slot` is an **optional sibling** of `settings` and `ambr`, not a member of either. It is present only when the modem answered `AT+QSIMCFG="dual_slot_status"` *and* the response parsed; otherwise the key is **omitted entirely** — never `null`, never a one-element array. Its absence is not a failed read: see [Dual-SIM slot status](#dual-sim-slot-status-atqsimcfgdual_slot_status).
 
 **On a failed read** — no `settings`, no `ambr`, no partial object:
 
@@ -66,6 +72,16 @@ AT+QUIMSLOT?;+CFUN?;+QNWPREFCFG="mode_pref";+QNWPREFCFG="nr5g_disable_mode";+QNW
 ```
 
 See [The read contract](#the-read-contract-guard-raw-not-the-fields) for why absence — rather than a defaulted object — is the failure signal.
+
+The GET then issues **one further, separate** read for the dual-slot readout:
+
+```
+AT+QSIMCFG="dual_slot_status"
+```
+
+> ⚠️ WARNING: Do not "tidy this up" by appending it to the compound above. `qcmd` fails its **entire** compound buffer if any single sub-command errors — the modem stops at the bad one and the transport reports failure for the whole line. `AT+QSIMCFG="dual_slot_status"` is not in the mainstream Quectel AT manual (see [No authoritative field spec exists](#no-authoritative-field-spec-exists)), so a firmware build that rejects it is entirely plausible. Appended to the compound, that rejection would trip the `rc != 0` guard and blank **all six settings plus both AMBR arrays** on a modem that is otherwise perfectly healthy. Isolated in its own call, the same rejection costs exactly one optional field.
+
+This is the general rule for the surface: **a speculative AT read never shares a buffer with a load-bearing one.** Blast radius, not round-trip count, decides where a command goes.
 
 ### POST body and response
 
@@ -251,6 +267,8 @@ if (!data.settings || !data.ambr) {
 }
 ```
 
+> ℹ️ NOTE: `dual_slot` is **optional for a different reason** and is deliberately outside that guard — see [Why absence here is NOT a failed read](#why-absence-here-is-not-a-failed-read). Adding it to this condition would break the settings page on every firmware that cannot answer the dual-slot query.
+
 ---
 
 ## The ~35 second SIM-slot apply
@@ -292,6 +310,127 @@ The UI renders this row as a **Switch**, not a two-segment pill. It is the one g
 Verifying requires a write plus a reboot on hardware. Until someone does that, do not document this as persistent.
 
 **Fallback if it turns out not to persist:** seed a `sim_detect.json` in `/etc/qmanager/` and re-apply it at boot, mirroring the `qmanager_auto_update_arm` pattern in [qmanager-independence.md](qmanager-independence.md) — a root helper invoked from the boot path that re-asserts the stored value. Do not reach for that until the persistence question is actually answered; a redundant boot-time write of an already-persistent NV setting is a needless AT command on the shared mutex every boot.
+
+---
+
+## Dual-SIM slot status (`AT+QSIMCFG="dual_slot_status"`)
+
+**Short version: a read-only row in `ModemHeroCard` that says what is in each of the two physical SIM slots — which one the modem is switched to, and the last four digits of the card sitting in it.** It answers a question the rest of the page cannot: `sim_slot` tells you which slot the modem is *using*, but nothing else on the surface tells you whether the *other* slot even has a card in it.
+
+Nothing here is writable. The slot the modem uses is still changed through `sim_slot` / `AT+QUIMSLOT` like every other field on the page.
+
+### Wire shape
+
+The response carries **12 comma-separated tokens** after the `"dual_slot_status"` tag:
+
+```
++QSIMCFG: "dual_slot_status",<1>,<1>,<3>,<ATR>,<5>,<ICCID>,<1>,<0>,<3>,<ATR>,<5>,<ICCID>
+                             └────────── slot 1 ──────────┘└────────── slot 2 ──────────┘
+```
+
+Two positional **6-field groups**, slot 1 first, slot 2 second.
+
+> ⚠️ WARNING: **There is no slot-index token in the data.** Slot number is derived purely from position — fields 1–6 are slot 1, fields 7–12 are slot 2. Any parser that looks for a slot number to key on will find one of the unconfirmed fields instead and silently mislabel the pair.
+
+Two fields per group are surfaced, and only those two are confirmed:
+
+| Group index | Meaning | How it was confirmed |
+| ----------- | ------- | -------------------- |
+| 2 | `active_status` — `1` = the slot the modem is switched to, `0` = standby | Cross-checked live against `AT+QUIMSLOT?` |
+| 6 | ICCID (Integrated Circuit Card Identifier — the card's serial number), or empty | Cross-checked live against `AT+QCCID` and the poller's `.device.iccid` |
+| 4 | ATR (Answer To Reset — the card's power-on identification string). Recognisable, but not read, not parsed, not surfaced. | — |
+
+### No authoritative field spec exists
+
+> ⚠️ WARNING: State this plainly to anyone extending this parser: **fields 1, 3 and 5 of each group have unconfirmed semantics and are deliberately not exposed.** This sub-command is documented only in Quectel *release-note prose* for this firmware family — there is no field table for it in the mainstream AT command manual. The 12-token layout above is a shape observed on one live RM520N-GL, cross-checked where cross-checking was possible, not a specification.
+
+Field 3 in particular has a plausible-looking reading that **collides with a different, separately documented sub-command** (`AT+QSIMCFG="sim_state"`). Two sub-commands cannot both own that meaning, and guessing which one does would put a wrong label on a user-facing readout. So it stays out.
+
+The rule this follows is the same one the rest of the page follows: **the backend reports what it read and nothing else.** A field whose meaning is a guess is dropped at the CGI boundary rather than shipped with a hedged label — a hedge in the UI is still a claim, and a wrong claim about which SIM is which is exactly the class of error [the read contract](#why-the-old-shape-was-dangerous) exists to prevent.
+
+This is an **open item in the same sense as** [reboot persistence for `sim_detect`](#open-item-reboot-persistence-is-unverified). Settling it needs either a Quectel field table or a second device with a differently-populated slot pair to disambiguate against. Until then, do not add fields 1/3/5 to `DualSlotEntry`.
+
+### Parsing and the absence contract
+
+`settings.sh` guards the read the same way the compound read is guarded — exit status first — and then guards the *shape* as well:
+
+- `rc != 0` or empty output → omit `dual_slot`, log a warning.
+- Output present but the token count is not exactly `12` → omit `dual_slot`, log a warning. A short or truncated line is a firmware whose layout differs from the one above, and positional parsing of a differently-shaped line would mislabel every field.
+- Any of the four extracted values empty → omit `dual_slot`.
+
+Omission means the JSON key is not emitted at all. The response builder composes it conditionally:
+
+```sh
+dual_slot_arg="${dual_slot_json:-null}"
+jq -n … --argjson dual_slot "$dual_slot_arg" \
+  '(if $dual_slot == null then {} else {dual_slot: $dual_slot} end) as $extra | { … } + $extra'
+```
+
+> ℹ️ NOTE: The `null` here is a **shell-side sentinel only** — `--argjson` needs valid JSON to bind, and `null` is the cheapest placeholder. It never reaches the wire; the `if` collapses it to an absent key. A consumer will never see `"dual_slot": null`.
+
+### Why absence here is NOT a failed read
+
+[Invariant 6](#6-absence-is-the-nothing-was-read-signal-and-it-is-typed-that-way) says absence is the "nothing was read" signal — and `dual_slot` uses the same absence encoding for a **different** reason, which is the one thing on this feature easiest to get wrong.
+
+`settings` and `ambr` are absent when the modem *failed to answer a question it can answer*. `dual_slot` is absent when the modem **cannot answer the question at all**. That is a capability fact about the firmware, not a fault, and it must not fail the page. So `use-cellular-settings.ts` sets it **outside** the payload guard:
+
+```ts
+if (!data.settings || !data.ambr) {
+  // failed read — dual_slot is not consulted here, by design
+}
+setSettings(data.settings);
+setAmbr(data.ambr);
+setDualSlot(data.dual_slot ?? null);   // absence is legitimate, not fatal
+```
+
+An OTA-upgraded device on older firmware therefore gets a **fully working settings page** — every control, both AMBR blocks, one readout fewer.
+
+`setDualSlot` **writes on every read and never merges.** A modem that stops reporting the slots stops being reported on, rather than the UI holding a stale pair indefinitely.
+
+### Types
+
+`DualSlotEntry` (`types/cellular-settings.ts`) is `{ slot: 1 | 2; active: boolean; iccid: string }`, and `dual_slot?: DualSlotEntry[]` hangs off `CellularSettingsResponse` as a sibling of `settings` / `ambr`.
+
+> ⚠️ WARNING: It is deliberately **not** inside `CellularSettings`, `WritableCellularSettings`, or `WRITABLE_SETTING_KEYS`. That placement is what makes it structurally impossible for a read-only field to enter the dirty set, the patch type, or a POST body — the same precedent `sim_detect_level` set one level up. Moving it "for tidiness" would give the surface a field the UI can stage and the backend validator will reject.
+
+There is no `detected` / `present` flag. **Occupancy is derived as "non-empty `iccid`"**, because inventing a boolean would mean reading one of the unconfirmed fields.
+
+### The UI row
+
+The readout renders as a `ParamRow` labelled **SIM slots** in `ModemHeroCard`'s existing parameters column, behind the same `readoutReady` gate as Active SIM Slot and Radio Power — `dualSlot` arrives on the settings-GET clock, identical to `saved`, so the two slot readouts can never disagree because one was read later.
+
+**The row is omitted entirely when `dualSlot` is `null` or empty** — no placeholder, no "Unknown". The hero's existing `readout.unknown` branch is for a field the modem is *always asked for* and may fail to answer once; "this firmware does not implement the query" is a different statement, and rendering it as an unknown *value* would imply a fact was missing when no fact was ever available.
+
+Both slots always render when the row renders. Showing only the active one would leave the other ambiguous between "empty" and "not read", which is the entire reason the row exists.
+
+#### Tone: `SLOT_CHIP` and `SLOT_GLYPH`
+
+Two new exports in `components/cellular/settings/shapes.ts`. The active slot is a **filled `bg-primary` chip** with a `check_circle` glyph; every other slot is **plain inline text** with `sim_card` (card present, standby) or `sim_card_alert` (no card). All three glyphs are already in the font subset.
+
+> ⚠️ WARNING: This is **not** a status Badge and must never become one. "The modem is switched to this slot" is not a health claim — a standby SIM is not degraded and an empty second slot is a configuration, not a fault — so `success` and `muted` are both wrong roles here. The correct sibling pattern is `GOVERNING_MARK` one row up: shape, glyph and fill move **together**, so the operative peer survives grayscale and deuteranopia without borrowing a functional colour.
+
+`bg-primary` rather than a container fill because the chip sits on `HERO_PARAMS.ROW` (`surface-container-high`), and a container on a container is the step collision `HERO_PARAMS` already documents. The fill pair declares its own ink, so consumers set none.
+
+#### ICCID masking is a product decision
+
+ICCIDs render as `•••1069` — the last four digits only. **The full number was considered and rejected.** Four digits is enough to tell two cards apart, which is the only question a glance readout answers.
+
+The masking lives in a local `maskIccid()` helper **in the component, not the CGI**: the backend reports the fact it read, and how much of it a given surface shows is a display decision. Tracked SIMs shows more. The tail is `font-mono tabular-nums` — a raw device-emitted identifier is machine voice (DESIGN.md's Machine-Voice Rule), and the tabular figures keep two slots' tails aligned.
+
+Visible text stays terse (`SIM 1 •••1069`), so each chip carries an `aria-label` that restates the whole fact as a sentence: *"SIM 1, active, card ending 1069"* rather than a stream of bullets.
+
+### Relationship to SIM detection
+
+This readout and [sim-detection.md](sim-detection.md) both handle ICCIDs, and they are **not the same feature**:
+
+| | Dual-slot readout (here) | SIM detection |
+| --- | --- | --- |
+| Source | `AT+QSIMCFG="dual_slot_status"`, read per settings GET | ICCID captured on a *verified* slot switch, plus the poller |
+| Storage | None — never persisted | `/etc/qmanager/sim_registry.json` (`known_iccids`) |
+| Question | "What is in each slot **right now**?" | "Have we **seen this card before**, and did it change?" |
+| Surfaces | One hero row on `/cellular/settings` | The SIM-swap banner, Tracked SIMs |
+
+Neither feeds the other. If you are changing how a known SIM is recognised or how the swap banner fires, that is `sim-detection.md`; this row is a live readout with no memory.
 
 ---
 
@@ -359,7 +498,11 @@ app/cellular/settings/            route
    ├─ modem-hero-card.tsx         the read-only hero above the write cards:
    │                              four stat tiles (Radio Information's
    │                              summary-tile anatomy) over a connection rail
-   │                              (active APN + rate limits)
+   │                              (active APN + rate limits). Also owns the
+   │                              SIM-slots row: `SlotChip` + `maskIccid()`,
+   │                              both local to this file
+   │                              (props: `status`, `networkType`, `isStale`,
+   │                              `saved`, `dualSlot`)
    ├─ cellular-settings-card.tsx  the write surface, split into two section
    │                              cards ("SIM & Radio Power", "Network Mode &
    │                              Roaming") — three SettingRows each
@@ -367,7 +510,19 @@ app/cellular/settings/            route
    ├─ segmented-field.tsx         ToggleGroup above the card breakpoint, Select below
    ├─ pending-save-bar.tsx        "N changes pending" → three-step apply ledger
    └─ shapes.ts                   geometry + tone contract (all of the above import it)
+                                  — incl. SLOT_CHIP / SLOT_GLYPH for the
+                                  SIM-slots row
 ```
+
+`ModemHeroCard`'s props, and where each comes from:
+
+| Prop | Source | Absence means |
+| ---- | ------ | ------------- |
+| `status` | `useModemStatus` (poller) | Poller snapshot not yet read |
+| `networkType` | `useModemStatus` | `""` is "not determined" — never LTE |
+| `isStale` | `useModemStatus` | — |
+| `saved` | `useCellularSettings.settings` | Settings GET has not succeeded yet |
+| `dualSlot` | `useCellularSettings.dualSlot` | `null` — the modem **cannot** report the slots. Row omitted; card otherwise complete |
 
 ### Two data sources, deliberately separate
 
@@ -432,7 +587,19 @@ Radix `ToggleGroup` emits `""` when the active item is clicked again. A settings
 
 ## i18n
 
-The surface previously had **zero** i18n — every string was a hardcoded English literal. It now carries ~70 keys under `cellular` → `core_settings.basic.*`, in all five locales (en, zh-CN, zh-TW, it, id) — including `core_settings.basic.cards.unread`, the never-read notice.
+The surface previously had **zero** i18n — every string was a hardcoded English literal. It now carries ~95 keys under `cellular` → `core_settings.basic.*`, in all five locales (en, zh-CN, zh-TW, it, id) — including `core_settings.basic.cards.unread`, the never-read notice.
+
+The SIM-slots row added five of them, under `core_settings.basic.sim_slots.*`:
+
+| Key | Used for |
+| --- | -------- |
+| `label` | The `ParamRow` label ("SIM slots") |
+| `empty` | Visible text for a slot with no ICCID |
+| `sr_active` | `aria-label` — `"SIM {{slot}}, active, card ending {{last4}}"` |
+| `sr_standby` | `aria-label` — card present, not selected |
+| `sr_empty` | `aria-label` — `"SIM {{slot}}, no card detected"` |
+
+The slot number itself reuses the existing `core_settings.basic.readout.slot_n` (`"SIM {{slot}}"`) rather than adding a sixth key — the hero already renders that phrase for Active SIM Slot, and two independently translated spellings of "SIM 1" on one card is exactly the drift the shared key prevents.
 
 Option labels are built inside the component because they are translated, and the option `value`s remain the modem's own strings, cast back on write. The keys are named after the **field name**, not a friendlier alias — `rows.cfun.*`, not `rows.radio_power.*`. The row's label, consequence, and failed-field lookup all key on the field name, so one alias is enough to make an option set silently resolve to nothing.
 
@@ -443,7 +610,7 @@ See [i18n.md](i18n.md) for the `bun run i18n:check` gate, which exits non-zero o
 ## Related docs
 
 - [at-command-transport.md](at-command-transport.md) — how `qcmd` issues these commands, and **why QManager cannot consume AT URCs** (directly relevant: `AT+QSIMSTAT=1` event mode is unavailable and unsafe here)
-- [sim-detection.md](sim-detection.md) — the known-SIMs set and SIM-swap banner that a verified slot switch feeds
+- [sim-detection.md](sim-detection.md) — the known-SIMs set and SIM-swap banner that a verified slot switch feeds. **Not the same feature as the hero's dual-slot readout** — see [Relationship to SIM detection](#relationship-to-sim-detection) for why ICCIDs appear in both places
 - [wan-profile-management.md](wan-profile-management.md) — the APN/profile auto-apply a slot switch triggers
 - [tmp-file-ownership.md](tmp-file-ownership.md) — `/tmp` rules for CGI scratch files
 - [radio-information.md](radio-information.md) — the `/cellular/` index page, the other consumer of `network.type`
