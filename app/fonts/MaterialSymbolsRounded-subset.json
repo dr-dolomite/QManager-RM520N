@@ -79,6 +79,7 @@
     "settings_ethernet",
     "settings_input_antenna",
     "shield",
+    "signal_cellular_0_bar",
     "signal_cellular_1_bar",
     "signal_cellular_2_bar",
     "signal_cellular_3_bar",
@@ -108,6 +109,6 @@
     "wifi_tethering_off",
     "work"
   ],
-  "bytes": 40628,
-  "sha256": "f43cc60e70651d69410df1c8e7f452dc0751426a23e9b864716039a9394a73e0"
+  "bytes": 40636,
+  "sha256": "29e93b20aa45db499341970fbdf3b9e1a1172e72833af6c61f396cbb886f5a3e"
 }

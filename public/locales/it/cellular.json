@@ -29,6 +29,7 @@
       "good": "Buono",
       "fair": "Discreto",
       "poor": "Scarso",
+      "bad": "Molto debole",
       "none": "Nessuna lettura"
     },
     "recorder": {
@@ -156,6 +157,7 @@
       "good": "Buono",
       "fair": "Discreto",
       "poor": "Scarso",
+      "bad": "Molto debole",
       "none": "Nessuna lettura"
     },
     "states": {
@@ -1840,6 +1842,7 @@
         "good": "Buono",
         "fair": "Discreto",
         "poor": "Scarso",
+        "bad": "Molto debole",
         "none": "Nessuna lettura"
       },
       "metric": {

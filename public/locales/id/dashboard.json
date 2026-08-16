@@ -107,6 +107,7 @@
     "quality_good": "Baik",
     "quality_fair": "Cukup",
     "quality_poor": "Buruk",
+    "quality_bad": "Sangat lemah",
     "quality_none": "Tidak Ada Sinyal"
   },
   "signal_history": {

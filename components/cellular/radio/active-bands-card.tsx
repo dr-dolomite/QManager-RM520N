@@ -16,7 +16,7 @@ import {
   EmptyTitle,
 } from "@/components/ui/empty";
 import { MaterialSymbol } from "@/components/ui/material-symbol";
-import { MetricBar, type MetricBarTone } from "@/components/ui/metric-bar";
+import { MetricBar } from "@/components/ui/metric-bar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { SwapLabel } from "@/components/ui/swap-label";
 import { Tag, type TagVariant } from "@/components/ui/tag";
@@ -28,10 +28,12 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { getValueColorClass } from "@/components/dashboard/signal-card-utils";
+import {
+  qualityInkClass,
+  qualityMeterTone,
+} from "@/components/cellular/signal-quality-display";
 import { staggerRowItem, staggerRows } from "@/lib/motion";
 import { cn } from "@/lib/utils";
-import type { SignalQuality } from "@/types/modem-status";
 import type {
   EnrichedCarrier,
   RadioMetric,
@@ -220,19 +222,23 @@ const ROLE_CHIP =
  *      Per-metric bar LENGTH remains the sighted non-chromatic channel.
  */
 
-/** Meter fill tone. Pinned from the metric's own quality rather than left to
- *  MetricBar's threshold arithmetic, because `percent` is already a normalised
- *  0-100 and its thresholds live in `types/modem-status`, not here. */
-function meterTone(quality: SignalQuality): MetricBarTone {
-  switch (quality) {
-    case "fair":
-      return "warning";
-    case "poor":
-      return "destructive";
-    default:
-      return "success";
-  }
-}
+/**
+ * Meter fill tone and numeral ink both come from
+ * `components/cellular/signal-quality-display.ts` — the canonical map — rather
+ * than from a private switch here.
+ *
+ * The private one this replaces was a LIVE BUG, not just duplication. It had a
+ * three-arm switch (`fair` -> warning, `poor` -> destructive, `default` ->
+ * success), so `none` — "the radio reported nothing" — fell through the default
+ * arm and painted an unread metric GREEN. `qualityMeterTone()` returns `null`
+ * for `none` precisely so that cannot be expressed: there is no fill colour for
+ * an absent reading, and the bar renders as an EMPTY TRACK instead
+ * (DESIGN.md > Quality bars).
+ *
+ * Tone is still pinned from the metric's own quality rather than left to
+ * MetricBar's threshold arithmetic, because `percent` is already a normalised
+ * 0-100 and its thresholds live in `types/modem-status`, not here.
+ */
 
 // -----------------------------------------------------------------------------
 // Props
@@ -316,6 +322,9 @@ function MetricCell({
     metric.id === "sinr" && technology === "NR" ? "snr" : metric.labelKey;
 
   const hasValue = metric.value !== null;
+  // `null` for `none`, which is the API refusing to name a colour for a reading
+  // that does not exist. It drives BOTH channels below: no fill, and no ramp ink.
+  const tone = qualityMeterTone(metric.quality);
 
   return (
     <div className="flex min-w-0 flex-col gap-1.5">
@@ -326,11 +335,13 @@ function MetricCell({
         <span
           className={cn(
             "truncate text-[13px] font-semibold tabular-nums",
-            // The `*-on-surface` ink steps, never the solid role tokens. The
-            // solid pair measures 4.29:1 (success) and 3.74:1 (warning) on
-            // `surface-container` in light mode — both below AA — which is why
-            // the darkened steps exist at 5.88/5.95.
-            getValueColorClass(metric.quality),
+            // The five-stop ramp's NUMERAL ink (`--quality-N`), not the
+            // functional three. Legal here only because the bar directly
+            // beneath carries the same reading as LENGTH: adjacent ramp stops
+            // sit below the 0.05 CVD separation floor by design, so a ramp
+            // colour with no bar beside it is a bug. The `sr-only` quality word
+            // at the foot of this cell is the third channel.
+            qualityInkClass(metric.quality),
           )}
         >
           {hasValue ? (
@@ -350,15 +361,19 @@ function MetricCell({
           <span className="truncate text-xs leading-4 text-on-surface-variant">
             {t("radio_info.bands.metric.rssi_caption")}
           </span>
-        ) : metric.percent === null ? (
-          // A null metric is NOT zero percent. A zero-width bar reads as
-          // "signal is zero", which is a different and alarming claim about a
-          // value the radio simply did not report — SCCs routinely report only
-          // a subset.
-          <span className="truncate text-xs leading-4 text-on-surface-variant">
-            {t("radio_info.bands.metric.not_reported")}
-          </span>
         ) : (
+          // A null metric is NOT zero percent, and `MetricBar` now says so in
+          // the one channel that cannot be misread: `value={null}` renders the
+          // TRACK ALONE, with no fill element at all. A zero-length fill would
+          // read as "signal is zero", which is a different and alarming claim
+          // about a value the radio simply did not report — SCCs routinely
+          // report only a subset.
+          //
+          // This replaces a "Not reported" caption in the meter lane. The words
+          // did not disappear: they moved to the `sr-only` line below, so the
+          // lane now holds a bar on every metric row and the four bars in a
+          // carrier's grid stay scannable as one column instead of one of them
+          // turning into a sentence.
           <MetricBar
             value={metric.percent}
             max={100}
@@ -366,7 +381,11 @@ function MetricCell({
             // these two only exist to satisfy the required props.
             warnAt={101}
             dangerAt={101}
-            colorOverride={meterTone(metric.quality)}
+            // Null passes straight through, never a fallback COLOUR. When
+            // `tone` is null there is no reading, `value` is null in the same
+            // breath, and MetricBar renders no fill for this prop to tint.
+            // A `?? "success"` here is exactly the bug this file used to ship.
+            colorOverride={tone}
             size="md"
             track="surface-container-high"
             index={index}
@@ -374,14 +393,17 @@ function MetricCell({
         )}
       </div>
 
-      {/* The tint on the value above is the only channel carrying this metric's
-          own quality, and `success-on-surface` / `warning-on-surface` measure
-          ~1.01:1 apart — the same ink to anyone reading in greyscale. The word
-          is the non-chromatic channel. Same treatment as
-          `antenna-statistics/tech-card.tsx`. */}
-      {!metric.barless && hasValue ? (
+      {/* Colour is not an accessible channel. The ramp's adjacent stops sit
+          below the CVD separation floor on purpose (bar length carries the
+          distinction), so every tinted figure states its verdict in words here.
+          An absent reading says so too — otherwise an empty track and a
+          full-length one differ only by pixels a screen reader cannot see.
+          Same treatment as `antenna-statistics/tech-card.tsx`. */}
+      {!metric.barless ? (
         <span className="sr-only">
-          {t(`radio_info.bands.quality.${metric.quality}`)}
+          {tone === null
+            ? t("radio_info.bands.metric.not_reported")
+            : t(`radio_info.bands.quality.${metric.quality}`)}
         </span>
       ) : null}
     </div>

@@ -2,7 +2,7 @@
 
 import { motion } from "motion/react";
 import { useTranslation } from "react-i18next";
-import { Badge, type BadgeVariant } from "@/components/ui/badge";
+import { Badge } from "@/components/ui/badge";
 import {
   Card,
   CardContent,
@@ -19,11 +19,16 @@ import {
   EmptyTitle,
 } from "@/components/ui/empty";
 import { MaterialSymbol } from "@/components/ui/material-symbol";
-import { MetricBar, type MetricBarTone } from "@/components/ui/metric-bar";
+import { MetricBar } from "@/components/ui/metric-bar";
 import { SwapLabel } from "@/components/ui/swap-label";
 import TickGroup from "@/components/ui/tick-group";
 import { TickingValue } from "@/components/ui/ticking-value";
-import { getValueColorClass } from "@/components/dashboard/signal-card-utils";
+import {
+  QUALITY_GLYPH,
+  qualityBadgeVariant,
+  qualityInkClass,
+  qualityMeterTone,
+} from "@/components/cellular/signal-quality-display";
 import { staggerRowItem, staggerRows } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 import {
@@ -114,61 +119,14 @@ export const PORT_SHAPE = {
 // =============================================================================
 // Tone maps
 // =============================================================================
-
-/**
- * The quality ladder as GLYPHS, which is the whole point of this map.
- *
- * `success-container` and `warning-container` measure 1.03:1 apart and are
- * identical under deuteranopia, so colour cannot be the channel that separates
- * a healthy chain from a degraded one. The wedge family is monotonically
- * decreasing, so the bar count reads in greyscale and at a glance — and every
- * quality gets its OWN glyph, because two states sharing one slot must never
- * share a mark (DESIGN.md > The Every-Chip-Has-A-Glyph Rule).
- *
- * The `signal_cellular_alt` family is deliberately not used: it is non-monotone,
- * its 1-bar mark is a 2x4px speck, and it has no 0-bar member at all.
- */
-const QUALITY_GLYPH = {
-  excellent: "signal_cellular_4_bar",
-  good: "signal_cellular_3_bar",
-  fair: "signal_cellular_2_bar",
-  poor: "signal_cellular_1_bar",
-  none: "signal_cellular_off",
-} as const satisfies Record<SignalQuality, string>;
-
-/**
- * Verdict chip role. Excellent and Good deliberately share `success`: the
- * alternative in DESIGN.md's ramp is `primary`, but blue is simultaneously the
- * brand, the only hue that acts, and the 5G NR identity — so a blue quality
- * chip inside the LTE card would put one radio's identity on the other radio's
- * content. The two tiers are separated by their glyphs instead, which is the
- * channel that survives greyscale anyway.
- */
-function verdictVariant(quality: SignalQuality): BadgeVariant {
-  switch (quality) {
-    case "excellent":
-    case "good":
-      return "success";
-    case "fair":
-      return "warning";
-    case "poor":
-      return "destructive";
-    default:
-      return "muted";
-  }
-}
-
-function meterTone(quality: SignalQuality): MetricBarTone {
-  switch (quality) {
-    case "excellent":
-    case "good":
-      return "success";
-    case "fair":
-      return "warning";
-    default:
-      return "destructive";
-  }
-}
+//
+// There are none here any more. This file used to carry value-identical private
+// copies of `QUALITY_GLYPH`, `verdictVariant` and `meterTone`; they now come
+// from `components/cellular/signal-quality-display.ts`, which is the canonical
+// home for all three. Quality → glyph / chip role / meter tone / numeral ink are
+// SYSTEM decisions DESIGN.md legislates by name, and two per-antenna surfaces
+// disagreeing about what "fair" looks like is exactly what the shared module
+// exists to make impossible. Do not re-introduce a local map here.
 
 // =============================================================================
 // Metric row
@@ -194,6 +152,14 @@ function MetricRow({
   const value = normalizeSignalValue(raw, metric);
   const quality = getSignalQuality(value, thresholds);
 
+  // The meter tone and the numeral are driven off ONE decision, so they can
+  // never disagree about whether there is a reading. `qualityMeterTone` returns
+  // `null` for `"none"` — the sentinel-suppressed case AND the out-of-physical-
+  // range case, which `value === null` alone would miss — and that null is what
+  // selects the empty track below rather than a colour.
+  const tone = qualityMeterTone(quality);
+  const reading = tone === null ? null : value;
+
   // 3GPP calls the same measurement SNR on the NR side and SINR on the LTE
   // side, so the NR card must not label it SINR. Reuses the Radio Information
   // keys rather than minting new ones, so the two pages cannot disagree about
@@ -212,50 +178,61 @@ function MetricRow({
           empty value while "Not reported" arrived as loose text outside the
           pair. */}
       <dd className="m-0 flex flex-1 items-center gap-3">
-        {value === null ? (
-          // A null metric is NOT zero percent. A zero-width bar reads as
-          // "signal is zero", which is a different and more alarming claim than
-          // "the radio did not report this" — and on this page the usual cause
-          // is an idle receive chain, not a weak one.
-          <span className="flex-1 truncate text-xs text-on-surface-variant">
-            {t("antenna_statistics.port.not_reported")}
-          </span>
-        ) : (
-          // aria-hidden: the meter is a redundant view of the number and
-          // quality word immediately to its right, both of which are real text.
-          // Exposing it as a progressbar would make a screen reader announce
-          // the same fact twice, once as an unlabelled percentage.
-          <div className="flex-1" aria-hidden="true">
-            <MetricBar
-              value={signalToProgress(value, thresholds)}
-              max={100}
-              /* Unreachable on purpose: `colorOverride` pins the tone from the
-                 quality bucket, so the built-in warn/danger steps never apply. */
-              warnAt={101}
-              dangerAt={101}
-              colorOverride={meterTone(quality)}
-              size="md"
-              track="surface-container-high"
-              /* The row's position, so the three meters in a block cascade
-                 against each other. Passing the PORT index here would spend the
-                 60ms card step on an in-card element and fire all three bars
-                 simultaneously. */
-              index={rowIndex}
-            />
-          </div>
-        )}
+        {/* aria-hidden: the meter is a redundant view of the number and quality
+            word immediately to its right, both of which are real text. Exposing
+            it as a progressbar would make a screen reader announce the same fact
+            twice, once as an unlabelled percentage. */}
+        <div className="flex-1" aria-hidden="true">
+          <MetricBar
+            /* A missing reading renders the TRACK ALONE — no fill element at
+               all — never a zero-length one. A zero-width fill reads as "signal
+               is zero", a different and more alarming claim than "the radio did
+               not report this", and on this page the usual cause is an idle
+               receive chain rather than a weak one (DESIGN.md > Quality bars). */
+            value={reading === null ? null : signalToProgress(reading, thresholds)}
+            max={100}
+            /* Unreachable on purpose: `colorOverride` pins the tone from the
+               quality bucket, so the built-in warn/danger steps never apply. */
+            warnAt={101}
+            dangerAt={101}
+            /* `qualityMeterTone()`'s `null` passes straight through — there is
+               deliberately no `??` fallback here. A null tone means no reading,
+               `value` is null in the same breath, and MetricBar renders no fill
+               element at all in that branch. */
+            colorOverride={tone}
+            /* 4px, the quality-bar spec. Length is the primary encoding here;
+               the ramp hue is reinforcement, which is what makes adjacent stops
+               safe below the colour separation floor. */
+            size="sm"
+            /* The row sits ON `surface-container`, so the track has to be the
+               step above it or it disappears into the tile. */
+            track="surface-container-high"
+            /* The row's position, so the three meters in a block cascade
+               against each other. Passing the PORT index here would spend the
+               60ms card step on an in-card element and fire all three bars
+               simultaneously. */
+            index={rowIndex}
+          />
+        </div>
 
-        <span className={cn(PORT_SHAPE.VALUE, getValueColorClass(quality))}>
-          {value === null ? (
-            <span aria-hidden="true">—</span>
+        <span className={cn(PORT_SHAPE.VALUE, qualityInkClass(quality))}>
+          {reading === null ? (
+            <>
+              <span aria-hidden="true">—</span>
+              {/* The dash is decoration; the finding is a word. */}
+              <span className="sr-only">
+                {t("antenna_statistics.port.not_reported")}
+              </span>
+            </>
           ) : (
             <>
-              <TickingValue value={value}>
-                {value} {unit}
+              <TickingValue value={reading}>
+                {reading} {unit}
               </TickingValue>
-              {/* The tinted value's only non-chromatic channel:
-                  `success-on-surface` and `warning-on-surface` measure ~1.01:1
-                  apart — same luminance, hue only. */}
+              {/* The ramp ink's only non-chromatic channel. Adjacent ramp stops
+                  sit deliberately BELOW the 0.05 separation floor by design —
+                  bar length carries the distinction for sighted users — so the
+                  word is what a screen reader and a colour-blind reader get. */}
               <span className="sr-only">
                 {" "}
                 {t(`antenna_statistics.quality.${quality}`)}
@@ -318,9 +295,9 @@ function PortBlock({
           {port.name}
         </span>
         <span className={PORT_SHAPE.RX_CHIP}>{port.rx}</span>
-        <Badge variant={verdictVariant(verdict)} className="ml-auto shrink-0">
+        <Badge variant={qualityBadgeVariant(verdict)} className="ml-auto shrink-0">
           <SwapLabel
-            swapKey={`${verdictVariant(verdict)}:${verdictLabel}`}
+            swapKey={`${qualityBadgeVariant(verdict)}:${verdictLabel}`}
             className="gap-1"
           >
             <MaterialSymbol name={QUALITY_GLYPH[verdict]} size={12} filled />

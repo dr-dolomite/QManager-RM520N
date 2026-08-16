@@ -107,6 +107,7 @@
     "quality_good": "良好",
     "quality_fair": "一般",
     "quality_poor": "較差",
+    "quality_bad": "極弱",
     "quality_none": "無訊號"
   },
   "signal_history": {

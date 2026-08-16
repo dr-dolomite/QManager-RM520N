@@ -15,10 +15,15 @@ import {
   SINR_THRESHOLDS,
   getSignalQuality,
   signalToProgress,
+  worstSignalQuality,
 } from "@/types/modem-status";
 import type { SignalPerAntenna, SignalThresholds } from "@/types/modem-status";
-import { getValueColorClass } from "@/components/dashboard/signal-card-utils";
-import { QUALITY_GLYPH, qualityBadgeVariant, qualityMeterTone } from "../signal-quality-display";
+import {
+  QUALITY_GLYPH,
+  qualityBadgeVariant,
+  qualityInkClass,
+  qualityMeterTone,
+} from "../signal-quality-display";
 import { SCORE_WEIGHTS, normalizeValue, scoreLive } from "./utils";
 
 // =============================================================================
@@ -146,6 +151,12 @@ function LegRow({
   const { t } = useTranslation("cellular");
   const quality = getSignalQuality(value, thresholds);
 
+  // One decision drives both the fill and the ink, so they cannot disagree about
+  // whether there is a reading. `null` covers the sentinel-suppressed case AND
+  // the out-of-physical-range case, which `value === null` alone would miss.
+  const tone = qualityMeterTone(quality);
+  const reading = tone === null ? null : value;
+
   return (
     <div className={AIM_SHAPE.LEG_ROW}>
       <span className={AIM_SHAPE.LEG_KEY}>
@@ -158,32 +169,49 @@ function LegRow({
         </span>
       </span>
 
-      {value === null ? (
-        <span className="flex-1 truncate text-xs text-on-surface-variant">
-          {t("antenna_alignment.aim.not_reported")}
-        </span>
-      ) : (
-        <div className="flex-1" aria-hidden="true">
-          <MetricBar
-            value={signalToProgress(value, thresholds)}
-            max={100}
-            warnAt={101}
-            dangerAt={101}
-            colorOverride={qualityMeterTone(quality)}
-            size="md"
-            track="surface-container-high"
-            index={index}
-          />
-        </div>
-      )}
+      <div className="flex-1" aria-hidden="true">
+        <MetricBar
+          /* A missing leg gets the TRACK ALONE, never a zero-length fill: an
+             idle chain drawn as an empty red bar reads as a signal problem the
+             user should go and fix (DESIGN.md > Quality bars). `?? undefined`
+             below is only reachable in that same branch, where MetricBar paints
+             no fill at all — it is not a fallback colour. */
+          value={reading === null ? null : signalToProgress(reading, thresholds)}
+          max={100}
+          warnAt={101}
+          dangerAt={101}
+          colorOverride={tone}
+          /* 4px — the quality-bar spec. Length is the primary encoding; the ramp
+             hue reinforces it, which is what keeps adjacent stops legible
+             despite sitting below the colour separation floor. Deliberately
+             lighter than the 8px composite meter above, which is this card's
+             subject rather than one of its legs. */
+          size="sm"
+          track="surface-container-high"
+          index={index}
+        />
+      </div>
 
-      <span className={cn(AIM_SHAPE.LEG_VALUE, getValueColorClass(quality))}>
-        {value === null ? "—" : `${value} ${unit}`}
-        {/* `success-on-surface` and `warning-on-surface` measure ~1.01:1 apart —
-            same luminance, hue only — so the tint is not a channel a
-            screen-reader or a colour-blind user can read. The word is. */}
-        {value !== null && (
-          <span className="sr-only"> {t(`antenna_alignment.quality.${quality}`)}</span>
+      <span className={cn(AIM_SHAPE.LEG_VALUE, qualityInkClass(quality))}>
+        {reading === null ? (
+          <>
+            <span aria-hidden="true">—</span>
+            <span className="sr-only">
+              {t("antenna_alignment.aim.not_reported")}
+            </span>
+          </>
+        ) : (
+          <>
+            {reading} {unit}
+            {/* Adjacent ramp stops sit deliberately below the 0.05 separation
+                floor — bar length carries the distinction for sighted users — so
+                the tint is not a channel a screen-reader or a colour-blind user
+                can read. The word is. */}
+            <span className="sr-only">
+              {" "}
+              {t(`antenna_alignment.quality.${quality}`)}
+            </span>
+          </>
         )}
       </span>
     </div>
@@ -218,10 +246,29 @@ export function LiveAimCard({
   // two antenna pages cannot disagree about what a row is called.
   const sinrLabelKey = radio === "nr" ? "snr" : "sinr";
 
-  const overallQuality = getSignalQuality(
-    rsrp,
-    RSRP_THRESHOLDS
+  /**
+   * The primary chain's verdict: the WORST of the legs that actually reported.
+   *
+   * This used to read RSRP alone, which left a hole once the meter took its fill
+   * from the ramp. `scoreSnapshot` reweights around a missing leg, so a SINR-only
+   * snapshot still produces a real composite — but an RSRP-only verdict called
+   * that same snapshot `"none"`, and `qualityMeterTone("none")` is `null`, which
+   * is the empty-track signal. A live score would have been drawn on an empty
+   * track.
+   *
+   * `worstSignalQuality` skips `"none"` entries, so it returns a level whenever
+   * ANY leg reported and `"none"` only when neither did — which is exactly when
+   * `score.value` is null too. Tone, track and numeral can therefore never
+   * disagree about whether there is a reading. It is also the better verdict on
+   * its own terms, and matches `port-strip.tsx`: this chip sits directly above
+   * both leg rows, and a summary that contradicts the rows beneath it is worse
+   * than no summary.
+   */
+  const overallQuality = worstSignalQuality(
+    getSignalQuality(rsrp, RSRP_THRESHOLDS),
+    getSignalQuality(sinr, SINR_THRESHOLDS)
   );
+  const overallTone = qualityMeterTone(overallQuality);
 
   const showDelta = delta !== null && Math.abs(delta) >= 1;
 
@@ -256,12 +303,27 @@ export function LiveAimCard({
               <span className={AIM_SHAPE.EYEBROW}>
                 {t("antenna_alignment.aim.score_label")}
               </span>
+              {/* The one figure the aiming user steers by, so it takes the ramp
+                  ink — and it is legal to tint precisely because the composite
+                  meter sits directly beneath it. A ramp colour with no bar
+                  beside it is a bug, not a shortcut.
+
+                  The quality word rides the `aria-label` rather than an `sr-only`
+                  span: an `aria-label` REPLACES an element's contents for
+                  assistive tech, so a nested `sr-only` here would never be
+                  announced at all. */}
               <span
-                className={cn(AIM_SHAPE.SCORE, AIM_SHAPE.SCORE_BOX)}
+                className={cn(
+                  AIM_SHAPE.SCORE,
+                  AIM_SHAPE.SCORE_BOX,
+                  qualityInkClass(overallQuality)
+                )}
                 aria-label={
                   score.value === null
                     ? t("antenna_alignment.aim.no_reading")
-                    : t("antenna_alignment.aim.score_sr", { score: score.value })
+                    : `${t("antenna_alignment.aim.score_sr", {
+                        score: score.value,
+                      })} ${t(`antenna_alignment.quality.${overallQuality}`)}`
                 }
               >
                 {score.value === null ? "—" : score.value}
@@ -328,26 +390,33 @@ export function LiveAimCard({
 
           {/* --- Composite meter with the session peak mark ----------------- */}
           <div className={AIM_SHAPE.METER_TRACK}>
-            {/* A null composite is NOT zero percent, and it does not get a track.
-                An empty track reads as "the score is zero" — a different and more
-                alarming claim than "nothing was measured", and it is the exact
-                misreading the shared sentinel boundary exists to prevent. The
-                "—" above already says it was not measured, so only the height is
-                reserved, keeping this block's geometry identical either way.
-                Precedent: the null branch of the meter this card replaces. */}
-            {score.value === null ? (
-              <div aria-hidden="true" className="h-2" />
-            ) : (
-              <MetricBar
-                value={score.value}
-                max={100}
-                warnAt={101}
-                dangerAt={101}
-                colorOverride={qualityMeterTone(overallQuality)}
-                size="md"
-                track="surface-container-high"
-              />
-            )}
+            {/* A null composite is NOT zero percent — it is an EMPTY TRACK.
+                MetricBar renders the track alone and omits the fill element
+                entirely for `value={null}`, which is the one channel — length —
+                the ramp is explicitly not allowed to carry on its own.
+
+                This block previously reserved bare height instead, on the
+                reasoning that an empty track reads as "the score is zero". The
+                canon settled that the other way: a zero-length RAMP-COLOURED
+                fill is what reads as zero, and an unpainted track is how the
+                system says "nothing was measured" everywhere else on both
+                antenna pages. Reserving invisible height also said nothing at
+                all, where a track at least shows the scale the missing reading
+                would have been placed on. Geometry is identical either way. */}
+            <MetricBar
+              value={score.value}
+              max={100}
+              warnAt={101}
+              dangerAt={101}
+              /* Only reachable when `score.value` is null too (see
+                 `overallQuality`), where no fill is painted from it. */
+              colorOverride={overallTone}
+              /* 8px, not the 4px row-level quality bar: this meter is the card's
+                 subject, read at arm's length outdoors, and it is the bar the
+                 peak mark is registered against. */
+              size="md"
+              track="surface-container-high"
+            />
             {/* The peak mark is positioned with `left`, and it is deliberately
                 NOT transitioned. DESIGN.md's Transform-Only Rule keeps layout
                 properties out of animations (the aggregation segment is the one

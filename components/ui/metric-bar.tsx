@@ -27,6 +27,22 @@ const TONE_CLASS = {
   // cyan tile. Identity-Never-Acts still holds: this is a readout, not a
   // control.
   uplink: "bg-uplink",
+
+  // The five-stop signal quality ramp (DESIGN.md > The signal quality ramp).
+  // These are the `-bar` values, one lightness step bolder than the `--quality-N`
+  // numeral ink, because a 4px fill needs more weight than a text figure to read
+  // as the same colour.
+  //
+  // The ramp is a LIGHTNESS STAIRCASE, not a hue wheel: under deuteranopia hues
+  // 27/45/72/115/149 collapse onto one yellow axis, so adjacent stops sit
+  // deliberately below the 0.05 separation floor. Bar LENGTH is what makes that
+  // safe — which is why a ramp tone here is only ever correct on a bar whose
+  // length also encodes the value. A ramp tone on a fixed-width fill is a bug.
+  "quality-1": "bg-quality-1-bar",
+  "quality-2": "bg-quality-2-bar",
+  "quality-3": "bg-quality-3-bar",
+  "quality-4": "bg-quality-4-bar",
+  "quality-5": "bg-quality-5-bar",
 } as const;
 
 export type MetricBarTone = keyof typeof TONE_CLASS;
@@ -55,12 +71,38 @@ export function MetricBar({
   track = "muted",
   index = 0,
 }: {
-  value: number;
+  /**
+   * The measurement, or `null` for "we have no reading" — which renders the
+   * track ALONE, with no fill element at all.
+   *
+   * This is not the same as `value={0}`, and the difference is the whole point
+   * (DESIGN.md > Quality bars): an unused antenna drawn as a zero-length red
+   * fill labelled "−140 dBm" reads as a signal problem the user should go and
+   * fix, when in fact nothing is wrong and nothing was measured. An empty track
+   * says "no reading" in the one channel — length — that the colour ramp is
+   * explicitly not allowed to carry on its own.
+   *
+   * Callers get here from `normalizeSignalValue()` / `isPortReporting()` in
+   * `types/modem-status.ts`, which are what decide that a value is a sentinel
+   * rather than a measurement. Do not re-derive that test locally.
+   */
+  value: number | null;
   max?: number;
   warnAt: number;
   dangerAt: number;
-  /** Hard override — pins the fill regardless of where `value` sits. */
-  colorOverride?: MetricBarTone;
+  /**
+   * Hard override — pins the fill regardless of where `value` sits.
+   *
+   * Accepts `null` so `qualityMeterTone()`'s return type can be passed straight
+   * through. That function returns `null` for a missing reading, and threading
+   * it through a `?? undefined` at every call site invited exactly the mistake
+   * the `null` exists to prevent — one site eventually writes `?? "success"`
+   * and paints an unread antenna green again, which is the bug this whole
+   * migration removed. `null` and `undefined` mean the same thing here (no
+   * override), and neither can paint anything when `value` is also `null`,
+   * because no fill element is rendered at all.
+   */
+  colorOverride?: MetricBarTone | null;
   /**
    * The tone the fill carries BELOW `warnAt`. Defaults to `primary`; the
    * dashboard's temperature meter passes `success`, because a cool modem is
@@ -75,15 +117,17 @@ export function MetricBar({
   /** Position in a stack of meters, for the arrival cascade. */
   index?: number;
 }) {
-  const pct = Math.min((value / max) * 100, 100);
+  const hasReading = value !== null;
+  const pct = hasReading ? Math.min((value / max) * 100, 100) : 0;
 
-  const tone: MetricBarTone =
-    colorOverride ??
-    (value >= dangerAt
-      ? "destructive"
-      : value >= warnAt
-        ? "warning"
-        : baseTone);
+  const tone: MetricBarTone = !hasReading
+    ? baseTone // unused — no fill is rendered without a reading
+    : (colorOverride ??
+      (value >= dangerAt
+        ? "destructive"
+        : value >= warnAt
+          ? "warning"
+          : baseTone));
   const colorClass = TONE_CLASS[tone];
   return (
     <div
@@ -133,16 +177,18 @@ export function MetricBar({
           of `animate` would have quietly re-introduced an unstoppable
           animation for reduced-motion users. The bar still lands on the right
           width; it just arrives there instantly. */}
-      <motion.div
-        className={cn(
-          "h-full rounded-full transition-[width,background-color] duration-(--duration-standard) ease-standard motion-reduce:transition-none",
-          colorClass,
-        )}
-        initial={{ scaleX: 0 }}
-        animate={{ scaleX: 1 }}
-        style={{ originX: 0, width: `${pct}%` }}
-        transition={{ ...transitionMeterFill, delay: index * STAGGER_STEP }}
-      />
+      {hasReading && (
+        <motion.div
+          className={cn(
+            "h-full rounded-full transition-[width,background-color] duration-(--duration-standard) ease-standard motion-reduce:transition-none",
+            colorClass,
+          )}
+          initial={{ scaleX: 0 }}
+          animate={{ scaleX: 1 }}
+          style={{ originX: 0, width: `${pct}%` }}
+          transition={{ ...transitionMeterFill, delay: index * STAGGER_STEP }}
+        />
+      )}
     </div>
   );
 }

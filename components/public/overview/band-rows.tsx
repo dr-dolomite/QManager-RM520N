@@ -20,8 +20,8 @@ import {
   BAND_METRIC_THRESHOLDS,
   isNrBand,
   minusSign,
-  qualityTone,
-  TONE_CLASSES,
+  qualityBarClass,
+  qualityValueClass,
   type BandMetric,
   type TranslateFn,
 } from "./tone";
@@ -115,13 +115,21 @@ function QualityMeter({
   barClass,
   entranceIndex,
 }: {
-  percent: number;
-  barClass: string;
+  /**
+   * Fill length, or `null` for "no reading" — which renders the TRACK ALONE,
+   * with no fill element at all. Not the same as `0`: a zero-length ramp-tinted
+   * bar says "we measured something terrible", and this state is "we measured
+   * nothing" (DESIGN.md > Quality bars). Arrives paired with a `null`
+   * `barClass`, because it is the same absence seen from the colour side.
+   */
+  percent: number | null;
+  barClass: string | null;
   /** Stagger slot for the first-paint fill, or null once the card is painted. */
   entranceIndex: number | null;
 }) {
   const reduceMotion = useReducedMotion();
   const firstPaint = entranceIndex != null && !reduceMotion;
+  const hasReading = percent != null && barClass != null;
 
   return (
     <div
@@ -130,22 +138,27 @@ function QualityMeter({
         METER_H,
       )}
     >
-      <motion.div
-        className={cn(
-          "h-full origin-left rounded-pill",
-          "transition-colors duration-[var(--duration-standard)] ease-[var(--ease-standard)]",
-          barClass,
-        )}
-        initial={firstPaint ? { scaleX: 0 } : false}
-        animate={{ scaleX: percent / 100 }}
-        transition={
-          reduceMotion
-            ? { duration: 0 }
-            : firstPaint
-              ? { ...transitionMeterFill, delay: entranceIndex * STAGGER_SECONDS }
-              : transitionStandard
-        }
-      />
+      {hasReading && (
+        <motion.div
+          className={cn(
+            "h-full origin-left rounded-pill",
+            "transition-colors duration-[var(--duration-standard)] ease-[var(--ease-standard)]",
+            barClass,
+          )}
+          initial={firstPaint ? { scaleX: 0 } : false}
+          animate={{ scaleX: percent / 100 }}
+          transition={
+            reduceMotion
+              ? { duration: 0 }
+              : firstPaint
+                ? {
+                    ...transitionMeterFill,
+                    delay: entranceIndex * STAGGER_SECONDS,
+                  }
+                : transitionStandard
+          }
+        />
+      )}
     </div>
   );
 }
@@ -180,9 +193,12 @@ export function BandRow({
   const quality: SignalQuality = reachable
     ? getSignalQuality(value, thresholds)
     : "none";
-  const percent = reachable ? signalToProgress(value, thresholds) : 0;
-  const { text: textClass, bar: barClass } =
-    TONE_CLASSES[qualityTone(quality, reachable)];
+  const textClass = qualityValueClass(quality, reachable);
+  // Colour and length are decided ONCE, together: the bar is drawn exactly when
+  // the ramp has a stop to draw it in. Deriving the percentage independently is
+  // how an unread carrier ends up with a zero-length tinted fill.
+  const barClass = qualityBarClass(quality, reachable);
+  const percent = barClass != null ? signalToProgress(value, thresholds) : null;
 
   return (
     <div className={cn("flex items-center", ROW_GAP)}>
@@ -219,6 +235,15 @@ export function BandRow({
               [metric]: minusSign(value),
             })
           : t("overview.field.empty")}
+        {/* Adjacent ramp stops sit deliberately BELOW the 0.05 CVD separation
+            floor — bar length is what tells them apart, and length is not a
+            channel a screen reader has. The word is the ramp's non-visual half,
+            so a tinted figure without it is a bug, not a nicety. Only rendered
+            where the tint is a ramp stop: an untinted "—" has no verdict to
+            announce. */}
+        {barClass != null && (
+          <span className="sr-only"> {t(`overview.quality.${quality}`)}</span>
+        )}
       </span>
     </div>
   );
@@ -237,6 +262,7 @@ export function AggregateBandRow({
   thresholds,
   reachable,
   entranceIndex,
+  t,
 }: {
   label: string;
   value: number | null;
@@ -244,13 +270,14 @@ export function AggregateBandRow({
   thresholds: SignalThresholds;
   reachable: boolean;
   entranceIndex: number | null;
+  t: TranslateFn;
 }) {
   const quality: SignalQuality = reachable
     ? getSignalQuality(value, thresholds)
     : "none";
-  const percent = reachable ? signalToProgress(value, thresholds) : 0;
-  const { text: textClass, bar: barClass } =
-    TONE_CLASSES[qualityTone(quality, reachable)];
+  const textClass = qualityValueClass(quality, reachable);
+  const barClass = qualityBarClass(quality, reachable);
+  const percent = barClass != null ? signalToProgress(value, thresholds) : null;
 
   return (
     <div className={cn("flex items-center", ROW_GAP)}>
@@ -281,6 +308,9 @@ export function AggregateBandRow({
         )}
       >
         {value != null ? `${minusSign(value)} ${unit}` : "—"}
+        {barClass != null && (
+          <span className="sr-only"> {t(`overview.quality.${quality}`)}</span>
+        )}
       </span>
     </div>
   );

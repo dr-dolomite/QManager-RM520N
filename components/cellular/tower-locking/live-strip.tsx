@@ -3,8 +3,12 @@
 import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
-import { getValueColorClass } from "@/components/dashboard/signal-card-utils";
+import {
+  qualityInkClass,
+  qualityMeterTone,
+} from "@/components/cellular/signal-quality-display";
 import { MaterialSymbol } from "@/components/ui/material-symbol";
+import { MetricBar } from "@/components/ui/metric-bar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tag } from "@/components/ui/tag";
 import {
@@ -15,6 +19,7 @@ import {
 import {
   RSRP_THRESHOLDS,
   getSignalQuality,
+  signalToProgress,
   type CarrierComponent,
   type SignalQuality,
 } from "@/types/modem-status";
@@ -76,12 +81,17 @@ import {
 // inches below, and the NR variant of that line printed a subcarrier spacing
 // looked up from a BAND TABLE — a guess wearing the typeface of a measurement.
 //
-// THE RSRP TINT IS NEVER THE ONLY CHANNEL. `success-on-surface` and
-// `warning-on-surface` measure ~1.01:1 apart and are the same ink in greyscale,
-// so every tinted reading carries an `sr-only` quality word beside it. Same
-// treatment as `radio/active-bands-card.tsx`, and the same shared
-// `getValueColorClass` mapping, so the two surfaces cannot disagree about what a
-// tint means.
+// THE RSRP TINT IS NEVER THE ONLY CHANNEL, AND UNDER THE FIVE-STOP RAMP IT CAN
+// NEVER BE. The ramp is a LIGHTNESS STAIRCASE, not a hue wheel: adjacent stops
+// sit deliberately below the 0.05 CVD separation floor, on the understanding
+// that bar LENGTH carries the adjacent distinctions. So each reading here runs
+// on three channels — the ramp numeral ink, a 56px meter pinned to that figure,
+// and an `sr-only` quality word — and a missing reading renders an EMPTY TRACK
+// rather than a zero-length fill at the bottom of the scale.
+//
+// Every one of those comes from `components/cellular/signal-quality-display.ts`
+// (`qualityInkClass` / `qualityMeterTone`), the same module `radio/active-bands-
+// card.tsx` reads, so the two surfaces cannot disagree about what a tint means.
 // =============================================================================
 
 export interface TowerLiveStripProps {
@@ -139,6 +149,12 @@ const QUALITY_LABEL_KEY: Record<SignalQuality, string> = {
   good: "radio_info.bands.quality.good",
   fair: "radio_info.bands.quality.fair",
   poor: "radio_info.bands.quality.poor",
+  // The fifth ramp stop, below `poor`. RSRP under −120 dBm is not "try harder"
+  // territory — the cell is effectively not being received — and this is the
+  // surface where that matters most, because the reader is deciding whether to
+  // LOCK to the cell in question. `Record<SignalQuality, …>` is what forced this
+  // member to be written rather than silently defaulting.
+  bad: "radio_info.bands.quality.bad",
   none: "radio_info.bands.quality.none",
 };
 
@@ -294,6 +310,14 @@ export function TowerLiveStrip({
                 const { addressable, gate, pickable } = pickState(c);
                 const locked = isLockTarget(c, modemState);
                 const quality = getSignalQuality(c.rsrp, RSRP_THRESHOLDS);
+                // `null` for `none`, and that single null drives all three
+                // channels below: no fill, no ramp ink, and the "no reading"
+                // word instead of a quality verdict.
+                const rsrpTone = qualityMeterTone(quality);
+                const rsrpPercent =
+                  rsrpTone === null
+                    ? null
+                    : signalToProgress(c.rsrp, RSRP_THRESHOLDS);
                 return (
                   <div
                     key={`${c.technology}-${c.type}-${c.band}-${c.earfcn ?? "x"}`}
@@ -381,24 +405,59 @@ export function TowerLiveStrip({
                       <span className={CARRIER_TILE.PCI_VALUE}>
                         {c.pci ?? t("tower_locking.live.tile_no_value")}
                       </span>
-                      {/* `CARRIER_TILE.RSRP` ships no colour — the tone comes
-                          from the shared signal scale, and only ever as an
-                          `*-on-surface` step. The solid `--success`/`--warning`
-                          role tokens measure below AA as ink here. */}
-                      <span
-                        className={`${CARRIER_TILE.RSRP} ${getValueColorClass(quality)}`}
-                      >
-                        {c.rsrp === null
-                          ? t("tower_locking.live.tile_no_value")
-                          : t("tower_locking.live.tile_rsrp", {
-                              value: c.rsrp,
-                            })}
-                      </span>
-                      {c.rsrp === null ? null : (
-                        <span className="sr-only">
-                          {t(QUALITY_LABEL_KEY[quality])}
+                      {/* THE GAUGE AND THE FIGURE ARE ONE OBJECT, and they have
+                          to be. `CARRIER_TILE.RSRP` ships no colour of its own;
+                          the tone is now the five-stop ramp's numeral ink, and a
+                          ramp colour is only legal beside a bar whose LENGTH
+                          carries the same reading — adjacent stops sit below the
+                          0.05 CVD separation floor by design.
+
+                          The bar is a 56px lane pinned to the figure, NOT the
+                          full-width rule under the tile body that `shapes.ts`
+                          records as cut. That objection was twofold and both
+                          halves are answered: it drew an IDENTITY colour (a
+                          third channel restating the `nr`/`lte` Tag), where this
+                          draws a measurement; and full-bleed under the last line
+                          it read as a coloured bottom border rather than a
+                          gauge, where a short lane inside the row reads as
+                          belonging to the number it sits against. Staying inside
+                          the existing row also keeps the tile at the 87px
+                          `SKELETON_SHAPE.CARRIER_TILE` mirrors. */}
+                      {/* `div`, not `span`: `MetricBar` renders a `div` track,
+                          and a block inside an inline element is invalid markup
+                          browsers silently reflow around. */}
+                      <div className="ml-auto flex min-w-0 items-center gap-2 self-center">
+                        <div className="w-14 min-w-6 shrink" aria-hidden="true">
+                          <MetricBar
+                            value={rsrpPercent}
+                            max={100}
+                            // Unreachable: `colorOverride` pins the tone. Present
+                            // only to satisfy the required props.
+                            warnAt={101}
+                            dangerAt={101}
+                            // Null passes straight through, never a fallback
+                            // colour — with no reading there is no fill for it
+                            // to tint.
+                            colorOverride={rsrpTone}
+                            track="surface-container-high"
+                          />
+                        </div>
+                        <span
+                          className={`${CARRIER_TILE.RSRP} ${qualityInkClass(quality)}`}
+                        >
+                          {c.rsrp === null
+                            ? t("tower_locking.live.tile_no_value")
+                            : t("tower_locking.live.tile_rsrp", {
+                                value: c.rsrp,
+                              })}
                         </span>
-                      )}
+                      </div>
+                      {/* The non-chromatic channel. Announced for an absent
+                          reading too: an empty track and a full one differ by
+                          pixels no screen reader can see. */}
+                      <span className="sr-only">
+                        {t(QUALITY_LABEL_KEY[quality])}
+                      </span>
                     </div>
                   </div>
                 );

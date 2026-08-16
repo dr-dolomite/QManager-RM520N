@@ -221,6 +221,7 @@
       "good": "良好",
       "fair": "一般",
       "poor": "较差",
+      "bad": "极弱",
       "none": "无信号"
     },
     "connection": {

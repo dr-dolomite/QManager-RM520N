@@ -107,6 +107,7 @@
     "quality_good": "Buono",
     "quality_fair": "Discreto",
     "quality_poor": "Scarso",
+    "quality_bad": "Molto debole",
     "quality_none": "Nessun segnale"
   },
   "signal_history": {

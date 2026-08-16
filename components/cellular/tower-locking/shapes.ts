@@ -536,13 +536,30 @@ export const HERO_HELP_BUTTON = HERO_REFRESH_BUTTON;
 // of that line printed a subcarrier spacing looked up from a BAND TABLE, which
 // is a guess wearing the typeface of a measurement.
 //
-// THE SIGNAL METER IS GONE, AND NOT MERELY BECAUSE OF THE SHRINK. Rebuilt at
-// tile scale it drew a 4px identity-coloured bar across the tile's full width
-// directly under the detail line, and on screen that reads as a coloured bottom
-// border rather than as a gauge — the exact tell the craft floor bans. It was
-// also a third channel saying what two already said: the `Tag
-// variant="nr"|"lte"` reports which radio, and the dBm figure beside it reports
-// how weak.
+// THE SIGNAL METER CAME BACK, AS A 56px LANE — and the history matters, because
+// the objection that killed it the first time was correct and is still correct
+// about the shape it killed.
+//
+// It was cut when, rebuilt at tile scale, it drew a 4px IDENTITY-coloured bar
+// across the tile's full width directly under the detail line: on screen that
+// reads as a coloured bottom border rather than as a gauge, the exact tell the
+// craft floor bans. It was also a third channel saying what two already said —
+// the `Tag variant="nr"|"lte"` reports which radio, the dBm figure reports how
+// weak.
+//
+// What changed is the five-stop quality ramp. Its adjacent stops sit BELOW the
+// 0.05 CVD separation floor deliberately, on the explicit understanding that bar
+// LENGTH carries the fine distinctions — so the ramp ink on the RSRP figure is
+// only legal beside a bar. The redundancy is now the safety mechanism rather
+// than clutter. The alternative was to drop the tint entirely; keeping it was a
+// deliberate call, on the grounds that this is the surface where "weak but
+// recoverable" vs "not this cell" decides whether the reader locks.
+//
+// BOTH HALVES OF THE OLD OBJECTION STILL BIND THE NEW SHAPE. It draws a
+// MEASUREMENT, never identity. And it is a short lane INSIDE the body row,
+// immediately left of the figure it belongs to — never a full-bleed rule under
+// the last line. Staying in the row also keeps the tile at the 87px
+// `SKELETON_SHAPE.CARRIER_TILE` mirrors; a new row would break that mirror.
 
 /**
  * The wrapping tile grid inside `STRIP_PANEL`.
@@ -581,11 +598,22 @@ export const CARRIER_GRID =
  * role colour on a saturated identity ground is either invisible or
  * brand-on-brand. Identity travels on the outline `Tag variant="nr"|"lte"` instead.
  *
- * `RSRP` carries NO colour of its own. The reading's tone is chosen by the
- * component from the signal-quality scale and MUST be one of
- * `text-success-on-surface` / `text-warning-on-surface` /
- * `text-destructive-on-surface` — the solid `--success` / `--warning` role
- * tokens measure below AA as ink on these surfaces.
+ * `RSRP` carries NO colour of its own. The reading's tone comes from
+ * `qualityInkClass()` in `components/cellular/signal-quality-display.ts` — the
+ * five-stop quality ramp (`text-quality-1` … `text-quality-5`), whose light-mode
+ * values are already tuned to clear AA as ink on these surfaces.
+ *
+ * It used to be one of `text-success-on-surface` / `text-warning-on-surface` /
+ * `text-destructive-on-surface`, the functional three. Those had four levels and
+ * so could not separate "weak but recoverable" from "not this cell" — the exact
+ * call a reader is making on this surface, because they are deciding whether to
+ * LOCK to the cell in question.
+ *
+ * IT IS PAIRED WITH A GAUGE, AND THAT IS NOT OPTIONAL. See the note on the
+ * signal meter above: it was cut once, and it came back under the ramp because
+ * adjacent ramp stops sit BELOW the 0.05 CVD separation floor by design, on the
+ * understanding that bar LENGTH carries the fine distinctions. Ramp ink without
+ * a bar beside it is a bug (DESIGN.md > Quality bars).
  */
 export const CARRIER_TILE = {
   /**

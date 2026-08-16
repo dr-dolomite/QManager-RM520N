@@ -221,6 +221,7 @@
       "good": "Good",
       "fair": "Fair",
       "poor": "Poor",
+      "bad": "Very weak",
       "none": "No signal"
     },
     "connection": {

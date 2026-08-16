@@ -22,7 +22,7 @@ This doc records the invariants that are cheap to break and expensive to notice.
 | Port metadata | `ANTENNA_PORTS` in `types/modem-status.ts` |
 | Data source | `hooks/use-modem-status.ts` > `/tmp/qmanager_status.json` > `signal_per_antenna` |
 | Recorder storage | `localStorage` key `qmanager:antenna-alignment:v1` |
-| i18n | `antenna_alignment.*` in `public/locales/{en,zh-CN,zh-TW,it,id}/cellular.json` (**77 leaf keys per locale**) |
+| i18n | `antenna_alignment.*` in `public/locales/{en,zh-CN,zh-TW,it,id}/cellular.json` (**78 leaf keys per locale**) |
 | Icon set | Material Symbols (the whole `/cellular/` family — see [icon-system.md](icon-system.md)) |
 
 ### Its twin: Antenna Statistics
@@ -44,6 +44,16 @@ That is a deliberate inversion. The page used to lead with four full per-port ca
 `live-aim.tsx` shows the live 0–100 composite for the primary chain, and `PRODUCT.md` bans the hero-metric template by name ("big number, small label, gradient accent"). What keeps this card legal is **decomposability**: the score never appears alone. It arrives with the two weighted legs that produced it (RSRP at 60%, SINR/SNR at 40%, each as a `MetricBar` row with its weight printed), its session peak, its change since the last measurement, and the modem's own snapshot clock time. A number you can take apart is an instrument; a number you can only admire is decoration.
 
 **Exported geometry:** `AIM_SHELL`, `AIM_SHAPE`, `AIM_SCORE_BLOCK_HEIGHT` — imported by `states.tsx` so the skeleton mirrors by import rather than by number.
+
+### The verdict chip is the worst of both legs, not RSRP alone
+
+`overallQuality` in `live-aim.tsx` is `worstSignalQuality(getSignalQuality(rsrp, …), getSignalQuality(sinr, …))`. It drives three things at once: the card's big meter tone, the score numeral's ramp ink, and the primary-chain verdict chip.
+
+**Short version:** it used to read RSRP alone, and that left a hole the moment the meter started taking its fill from the ramp. `scoreSnapshot` reweights around a missing leg, so a **SINR-only** snapshot still produces a real composite score — but an RSRP-only verdict called that same snapshot `"none"`, and `qualityMeterTone("none")` is `null`, which is the empty-track signal. The card would have drawn a live score on an empty track: a number and a bar disagreeing about whether a reading exists.
+
+`worstSignalQuality()` skips `"none"` entries, so it returns a level whenever **any** leg reported, and `"none"` only when neither did — which is exactly when `score.value` is null too. Tone, track and numeral can therefore never disagree.
+
+> ℹ️ NOTE: this changed what the verdict chip *says*, not just what colour it is. It was RSRP-only and is now worst-of-both-legs, so a strong RSRP with a weak SINR now reads as the weaker verdict. That was the intended trade: the chip sits directly above both leg rows, and a summary that contradicts the rows beneath it is worse than no summary. It also matches `port-strip.tsx`, which was already worst-of.
 
 ### Peak-hold and delta are session-scoped on purpose
 
@@ -79,7 +89,7 @@ The bars you see and the number that picks "Best" use **different** percentage s
 
 | Helper | Range | Used by |
 | ------ | ----- | ------- |
-| `signalToProgress(value, thresholds)` (`types/modem-status.ts`) | The narrow quality window, `poor`..`excellent` | Every **display** bar on this page |
+| `signalToProgress(value, thresholds)` (`types/modem-status.ts`) | The narrow quality window, `floor`..`excellent` | Every **display** bar on this page |
 | `rsrpToScorePercent(value: number)` / `sinrToScorePercent(value: number)` (`utils.ts`) | The full 3GPP range (RSRP -140..-44 dBm, SINR -23..30 dB) | `scoreSnapshot` **only** |
 
 The two answer different questions. A bar asks *"where in the usable range is this reading"*, so clamping at the top of the window is correct — anything better than about -80 dBm is simply good, and the bar should say so. The composite score asks something else: it has to **rank three recorded positions against each other**. Under the quality window every position better than -80 dBm scores 100, so two genuinely different good aims come out identical and `findBestSlot` stops discriminating *exactly when* the user has found a promising spot and is fine-tuning it. Ranking needs the full spread; display needs the honest "how good is this".
@@ -196,17 +206,30 @@ Note the fallback: with no NR data and no LTE data it returns `"lte"`. That is w
 
 ## Quality mappings are shared, not local
 
-`components/cellular/signal-quality-display.ts` owns the three mappings that turn a `SignalQuality` into something visible, so two per-antenna surfaces cannot disagree about what "fair" looks like:
+`components/cellular/signal-quality-display.ts` owns the four mappings that turn a `SignalQuality` into something visible, so two per-antenna surfaces cannot disagree about what "fair" looks like:
 
 | Export | Job |
 | ------ | --- |
-| `QUALITY_GLYPH` | The monotonic wedge ladder `signal_cellular_4_bar` → `3_bar` → `2_bar` → `1_bar` → `signal_cellular_off`. The non-chromatic channel |
+| `QUALITY_GLYPH` | The monotonic wedge ladder `signal_cellular_4_bar` → `3_bar` → `2_bar` → `1_bar` → `0_bar` → `signal_cellular_off`. The non-chromatic channel |
 | `qualityBadgeVariant(quality)` | Keys onto the exported `BadgeVariant` type, so a tone with no matching role fails the build instead of rendering transparent |
-| `qualityMeterTone(quality)` | Keys onto `MetricBarTone` |
+| `qualityMeterTone(quality)` | Keys onto `MetricBarTone` — `quality-1`…`quality-5`, and **`null` for `none`** |
+| `qualityInkClass(quality)` | The ramp's numeral ink, `text-quality-1`…`text-quality-5`; `text-on-surface-variant` for `none` |
 
-`success-container` and `warning-container` measure roughly **1.03:1** apart — the same surface to the eye, and identical under deuteranopia. So every quality chip on this page carries a glyph, and every tinted value carries an `sr-only` quality word (`success-on-surface` and `warning-on-surface` measure ~1.01:1 apart: same luminance, hue only). Excellent and Good deliberately share the `success` role rather than promoting Excellent to `primary`, because blue is simultaneously the brand, the only hue that acts, and the 5G NR identity — a blue quality chip would put one radio's identity on the other radio's content. The glyph ladder separates the tiers instead.
+`success-container` and `warning-container` measure roughly **1.03:1** apart — the same surface to the eye, and identical under deuteranopia. So every quality chip on this page carries a glyph, and every tinted value carries an `sr-only` quality word. Excellent and Good deliberately share the `success` role rather than promoting Excellent to `primary`, because blue is simultaneously the brand, the only hue that acts, and the 5G NR identity — a blue quality chip would put one radio's identity on the other radio's content. Poor and Bad likewise share `destructive`: the ramp is a five-stop **scale** living on numerals and bars, while chips are **categories** living on the functional roles, and `BadgeVariant` has no fifth failure step. In both pairs the glyph ladder separates the tiers.
 
-`getSignalQuality()` returns **lowercase** strings: `"excellent"`, `"good"`, `"fair"`, `"poor"`, `"none"`. All `switch` / map consumers and all i18n keys (`antenna_alignment.quality.<quality>`) MUST use lowercase. Title-case keys fail silently.
+### The fifth level exists for this page
+
+`getSignalQuality()` returns **five** levels above `none`: `"excellent"`, `"good"`, `"fair"`, `"poor"`, `"bad"`. The fifth one, `bad`, was minted for exactly the call this surface makes.
+
+**Short version:** the ladder used to stop at `poor`, so everything below −110 dBm RSRP landed in one bucket — −111 dBm and −140 dBm rendered identically. The first means *nudge the antenna*; the second means *it is pointing at a wall*. On the one page whose entire job is telling those apart, that was a hole.
+
+The new cut sits at RSRP **−120**, RSRQ **−18**, SINR **−10**. It is a product call rather than a measurement: −110 to −120 is cell edge, a weak link that aiming, a band lock or a different antenna can plausibly recover, and below −120 the cell is effectively not being received. Those numbers live in `RSRP_THRESHOLDS` / `RSRQ_THRESHOLDS` / `SINR_THRESHOLDS` and every consumer derives from them.
+
+`bad`'s glyph is `signal_cellular_0_bar`, which had to be added to the Material Symbols subset for it. It could not borrow either neighbour: `signal_cellular_off` means `none` ("nothing was measured"), and sharing `1_bar` with `poor` would put two states behind one glyph. That matters more here than anywhere else, because `poor` and `bad` are **adjacent** ramp stops and adjacent stops sit deliberately below the 0.05 colour-separation floor — strip the glyph and the two become genuinely indistinguishable.
+
+> ⚠️ WARNING: `SignalThresholds` has a `poor` field **and** a `floor` field, and they are not the same kind of thing. Every named member except `floor` is a **cut** — the lowest value that still earns that level. `floor` is the bottom of `signalToProgress()`'s 0–100 scale and classifies nothing. The field now called `floor` used to be called `poor`, while `getSignalQuality()` never read it at all; it was renamed *before* a real `poor` cut was added, precisely so a cut and a floor would not share one name. Keep them distinct if you add a metric.
+
+`getSignalQuality()` returns **lowercase** strings. All `switch` / map consumers and all i18n keys (`antenna_alignment.quality.<quality>`) MUST use lowercase. Title-case keys fail silently.
 
 ## Motion
 
@@ -242,7 +265,7 @@ Two things the old loading state got wrong and this one does not: it **skeletoni
 
 ## i18n
 
-`antenna_alignment.*` in the **`cellular`** namespace — **77 leaf keys per locale**, present in all five of `public/locales/{en,zh-CN,zh-TW,it,id}/cellular.json`. `bun run i18n:check` passes at 100% parity (1136/1136).
+`antenna_alignment.*` in the **`cellular`** namespace — **78 leaf keys per locale**, present in all five of `public/locales/{en,zh-CN,zh-TW,it,id}/cellular.json`. `bun run i18n:check` passes at 100% parity with 0 errors. The 78th is `quality.bad` ("Very weak" in English; 极弱 / 極弱 / "Molto debole" / "Sangat lemah"), added with the fifth ramp stop — the word had to read as *worse than* Poor without reading as *absent*, because "None" would collide with the `none` level.
 
 The metric labels are the exception: they come from `radio_info.bands.metric.*`, reused rather than duplicated, so two pages one click apart cannot disagree about what a measurement is called. That includes the SNR-vs-SINR discriminator — 3GPP calls the same measurement **SNR** on the NR side and **SINR** on the LTE side, so Live Aim picks `snr` when the score's radio is NR.
 
@@ -254,7 +277,7 @@ The metric labels are the exception: they come from `radio_info.bands.metric.*`,
 
 Recorded honestly — each of these is a decision that was made, not an oversight.
 
-- **`antenna-statistics/tech-card.tsx` has not adopted `signal-quality-display.ts`.** It still carries private, value-identical copies of `QUALITY_GLYPH`, `verdictVariant` and `meterTone`. The shared module is the canonical home; that file should adopt it the next time the antenna family is touched. It was left alone only to keep a design migration from editing a shipped surface it had no other reason to open.
+- **RESOLVED — `antenna-statistics/tech-card.tsx` has adopted `signal-quality-display.ts`.** Its private copies of `QUALITY_GLYPH`, `verdictVariant` and `meterTone` were deleted in the five-stop ramp migration (2026-08-17). No private copy of the quality mappings remains anywhere in the antenna family, and re-introducing one is what the module's header now forbids by name.
 - **`ANTENNA_PORTS[].name` / `.description` are still hardcoded English** (`types/modem-status.ts`) and render on **both** antenna pages. Deliberately deferred: localizing one page alone makes the twins disagree about a port's name. Must be done for both in one change.
 - **Peak-hold and delta are session-scoped and deliberately not persisted.** A peak from a previous session would outrank what the antenna is doing now. If persistence is ever added it needs a scoping decision (per SIM? per day?), not just a storage key.
 - **A pre-existing snapshot recorded before the sentinel fix can still hold a raw `-20`.** It is normalized on read — by both the renderer and `scoreSnapshot` — so it renders and ranks correctly. But the stored bytes are still the raw value; see *Two scales* and the storage-version reasoning above before deciding to rewrite them.

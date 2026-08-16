@@ -124,6 +124,13 @@ export const MATERIAL_SYMBOL_NAMES = [
   "settings_ethernet",
   "settings_input_antenna",
   "shield",
+  // The 0-bar member completes the wedge ladder for the fifth quality stop.
+  // `bad` cannot borrow `signal_cellular_off` — that is `none`, "we have no
+  // reading" — and it cannot share `1_bar` with `poor`, because no two states
+  // in one slot may share a glyph (DESIGN.md > The Glyph-Carries-The-State
+  // Rule). With adjacent ramp stops deliberately below the colour separation
+  // floor, bar count is the only channel that actually separates them.
+  "signal_cellular_0_bar",
   "signal_cellular_1_bar",
   "signal_cellular_2_bar",
   "signal_cellular_3_bar",

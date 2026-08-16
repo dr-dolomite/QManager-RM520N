@@ -221,6 +221,7 @@
       "good": "Baik",
       "fair": "Cukup",
       "poor": "Buruk",
+      "bad": "Sangat lemah",
       "none": "Tidak ada sinyal"
     },
     "connection": {

@@ -221,6 +221,7 @@
       "good": "Buono",
       "fair": "Discreto",
       "poor": "Scarso",
+      "bad": "Molto debole",
       "none": "Nessun segnale"
     },
     "connection": {

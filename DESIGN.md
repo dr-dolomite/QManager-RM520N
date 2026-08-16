@@ -238,32 +238,28 @@ Both themes are first-class and each is authored. Dark is a near-black instrumen
 | ~~`--*-on-surface` ink tokens missing~~ | `primary` and `lte` were the gap | **Landed** |
 | ~~Quality ramp tokens do not exist~~ | `--quality-{1..5}` / `--quality-{1..5}-bar` | **Landed** |
 | ~~Outline-tag tokens do not exist~~ | `--tag-*-text` / `--tag-*-border` | **Landed** |
-| `getSignalQuality()` returns four levels | `types/modem-status.ts` — needs a fifth (`bad`) below `poor` | Open |
-| Quality "Good" still maps to the brand blue | every consumer of the quality scale | Open |
+| ~~`getSignalQuality()` returns four levels~~ | `types/modem-status.ts` — the ladder returns five (`bad` below `poor`), `SIGNAL_QUALITY_RANK` ranks all six members, and `SignalThresholds.poor` was renamed to `floor` so the progress-scale bottom and the new classification cut no longer share a name | **Landed** 2026-08-17 |
+| ~~Quality "Good" still maps to the brand blue~~ | every consumer of the quality scale now reads `components/cellular/signal-quality-display.ts`; the four rival maps were deleted and `--primary` appears nowhere on the scale | **Landed** 2026-08-17 |
 | ~~Identity chips are filled containers~~ | `components/ui/tag.tsx` is the outline-tag primitive (`nr` / `lte` / `spatial` / `neutral`); all 11 identity sites migrated, and `nr` / `lte` / `downlink` / `uplink` / `spatial` were deleted from `components/ui/badge.tsx` | **Landed** 2026-08-17 |
 | ~~Radio summary tiles are four tinted containers~~ | `components/cellular/radio/summary-tiles.tsx` — all four bodies are neutral; colour survives only on the 52px disc, and `Tile` no longer accepts a `tone` prop | **Landed** 2026-08-17 |
-| Quality bars are not built | no component consumes `--quality-*` yet | Open |
+| ~~Quality bars are not built~~ | `components/ui/metric-bar.tsx` carries `quality-1`…`quality-5` in its static `TONE_CLASS`, and `value={null}` renders an empty track with no fill element. Ten surfaces consume the ramp; `bg-quality-*-bar` also appears in `public/overview/tone.ts`, whose band meter is a hand-built 7px `motion.div` rather than a `MetricBar` but takes its tone from the same `qualityMeterTone()` | **Landed** 2026-08-17 |
 | ~~`--primary` used as a health state~~ | `components/public/overview/tone.ts` and `fplmn-settings/fplmn-card.tsx:114` both moved to `success` (`ConditionTone` gained a `success` member to make the second one possible) | **Landed** 2026-08-17 |
-| `.impeccable/design.json` sidecar is stale | Still carries the previous canonical values and tonal ramps (e.g. `primary` at `oklch(0.488 0.243 264.376)`). It is generated from the built world by the impeccable documenter, so it is regenerated after the component layer lands — patching it by hand mid-migration would make it wrong in a subtler way | Open |
+| `.impeccable/design.json` sidecar is stale | Still carries the previous canonical values and tonal ramps (e.g. `primary` at `oklch(0.488 0.243 264.376)`). It is generated from the built world by the impeccable documenter, so it is regenerated after the component layer lands — patching it by hand mid-migration would make it wrong in a subtler way. **The component layer is now complete (2026-08-17), so this is ready to regenerate**; it is the last row keeping this table open | Open — ready |
 | Legacy `--chart-1..6` still present | `app/globals.css` — **blocked**: `--chart-3` and `--chart-6` have live consumers in `latency-monitoring-card.tsx` and `signal-storm-game.tsx`. Both are retargeted onto the new palette and given real dark values so those surfaces theme; the block is deletable only once both callers move to `--chart-nr` / a quality stop | Blocked |
 
-**The token layer is in, and the component layer is half in: the identity half is done and the quality half is not.** Every surface renders the new neutrals, inks and fills automatically, because components resolve `bg-surface`, `text-on-surface-variant`, `bg-primary` and so on. On top of that, the shapes that were wrong rather than merely mis-coloured have been rebuilt on the identity axis — identity and metadata now render as outline tags through `components/ui/tag.tsx`, the radio summary strip is neutral-bodied with colour only on its discs, and `--primary` no longer stands in for a health state anywhere.
+**The token layer is in and the component layer is complete: both halves — identity and quality — have landed.** Every surface renders the new neutrals, inks and fills automatically, because components resolve `bg-surface`, `text-on-surface-variant`, `bg-primary` and so on. On top of that, the shapes that were wrong rather than merely mis-coloured have been rebuilt on the identity axis — identity and metadata now render as outline tags through `components/ui/tag.tsx`, the radio summary strip is neutral-bodied with colour only on its discs, and `--primary` no longer stands in for a health state anywhere.
 
 Removing `nr` / `lte` / `spatial` (and the two unused direction variants) from `badge.tsx` means `BadgeVariant` no longer contains an identity or direction member at all, so **the Two-Form Rule is now enforced by the compiler rather than by reviewer discipline**: a status tone map cannot key onto an identity name, and a `variant="nr"` on a `Badge` fails the build.
 
-What remains is the quality half. The `--quality-{1..5}` ramp tokens still have no consumer, `getSignalQuality()` still returns four levels rather than five, and every surface of the quality scale still routes its colour through `success` / `warning` / `destructive`. Those are the open rows above.
+The quality half landed on 2026-08-17. `getSignalQuality()` returns five levels above `none`, the `--quality-{1..5}` ramp has real consumers on ten surfaces, and no surface of the scale routes its colour through `success` / `warning` / `destructive` any more. What is left in the table above is the generated sidecar and the `--chart-*` block, neither of which is component work.
 
-> ℹ️ NOTE for whoever picks up the quality wave: **five independent quality→colour maps exist and must be reconciled in one change**, or the ramp will land unevenly across the app.
+Two facts from that migration are worth carrying forward, because they are the ones a future change can undo by accident.
+
+> ℹ️ NOTE: **there is exactly one quality→colour map, and re-forking it is the failure mode.** `components/cellular/signal-quality-display.ts` owns `QUALITY_GLYPH`, `qualityBadgeVariant()`, `qualityMeterTone()` and `qualityInkClass()`. Four rival copies used to exist — in `antenna-statistics/tech-card.tsx`, `radio/active-bands-card.tsx`, `public/overview/tone.ts` and `dashboard/signal-card-utils.ts` — and they were deleted, not merely aligned. One of them had already drifted: its `meterTone()` sent `none` through a `default:` arm to `success`, so **an antenna with no reading painted green**. That is why `qualityMeterTone()` returns `null` rather than a colour for `none`, and why `MetricBar` accepts `value={null}` — the absence is a value the caller must handle, not a case it can fall through.
 >
-> | Map | File | State |
-> | --- | --- | --- |
-> | `QUALITY_GLYPH` / `qualityBadgeVariant` / `qualityMeterTone` | `components/cellular/signal-quality-display.ts` | **Canonical** |
-> | `QUALITY_GLYPH` / `verdictVariant` / `meterTone` | `components/cellular/antenna-statistics/tech-card.tsx` | Private copy, value-identical to the canonical one |
-> | `bandIdentityVariant` / `meterTone` | `components/cellular/radio/active-bands-card.tsx` | **Divergent** — its `meterTone()` maps `none` → `success`, so an unread antenna currently paints green, where the canonical map sends `none` → `destructive` |
-> | Tile tone verdicts | `components/public/overview/tone.ts` | Separate copy |
-> | Signal-card tone helpers | `components/dashboard/signal-card-utils.ts` | Separate copy |
->
-> `components/cellular/cell-scanner/shapes.ts` carries a deliberately separate **3-tier** scale for scan results. It is not a sixth copy of this map and must **not** be unified with it.
+> `components/cellular/cell-scanner/shapes.ts` carries a deliberately separate **3-tier** scale for scan results. A scan row compares candidate cells to each other; a serving-cell readout compares one cell to physics. It is not a fifth copy of this map and must **not** be unified with it.
+
+> ℹ️ NOTE: the ramp is a **scale**, and status chips are **categories** — the two axes did not merge. `BadgeVariant` still has only the five status roles, so `bad` and `poor` both key onto `destructive` and are separated by their glyphs (`signal_cellular_0_bar` vs `signal_cellular_1_bar`). Giving chips a fifth failure step would mean minting a `--quality-N-container` / `--on-quality-N-container` pair for every stop — a token-layer change with its own CVD and contrast work, deliberately not attempted here. Until someone does that work, the glyph is the channel, which is what the Every-Chip-Has-A-Glyph Rule is for.
 
 ## Colors
 
@@ -334,7 +330,9 @@ A **five-stop continuous scale** for measured signal quality — RSRP, RSRQ, SIN
 
 Two things changed and both are substantive.
 
-**A fifth level exists.** `getSignalQuality()` returns four, so today everything below −110 dBm RSRP lands in one `poor` bucket: −111 and −140 render identically, when the first means nudge the antenna and the second means it is pointing at a wall. On an alignment meter that is the difference between a task and a dead end.
+**A fifth level exists.** `getSignalQuality()` used to return four, so everything below −110 dBm RSRP landed in one `poor` bucket: −111 and −140 rendered identically, when the first means nudge the antenna and the second means it is pointing at a wall. On an alignment meter that is the difference between a task and a dead end. The cut sits at RSRP −120, RSRQ −18, SINR −10 — a product call, not a measurement: −110 to −120 is cell edge, a link that aiming or a band lock can plausibly recover, and below that the honest message is "not this cell".
+
+`SignalThresholds` names every member except `floor` as a **cut** (the lowest value that still earns that level). `floor` is the bottom of `signalToProgress()`'s 0–100 scale and classifies nothing. Keep the two distinct: the field now called `floor` was called `poor` while `getSignalQuality()` never read it, and adding a real `poor` cut beside it would have left a cut and a floor sharing one name.
 
 **The ramp contains no identity hue.** Removing brand blue from the middle of a health scale is the whole reason the ramp is worth minting.
 
@@ -630,11 +628,11 @@ Two answers, and this is the one place the system deliberately has two.
 
 The row-level data graphic, and the non-chromatic half of the quality ramp.
 
-- A full-round track on `surface-container`, 4px tall, spanning the row's full width.
+- A full-round track on `surface-container`, 4px tall. It spans the row where the row is the bar's own line, and shrinks to a **56px lane** where it has to sit inline beside the figure it belongs to (the dashboard signal rows, the tower-locking carrier tiles). A lane is the right answer when a full-width bar under the last line would read as a coloured bottom border rather than as a gauge.
 - The fill is `--quality-N-bar`, its **length** proportional to the value within the metric's physical range.
-- Length is the primary encoding and colour is the reinforcement — which is what makes adjacent ramp stops safe below the separation floor.
-- A missing reading renders an empty track, never a zero-length red fill: an unused antenna drawn as an empty red bar labelled "−140 dBm" reads as a signal problem the user should go and fix.
-- Animate `scaleX`, never `width`.
+- Length is the primary encoding and colour is the reinforcement — which is what makes adjacent ramp stops safe below the separation floor. **Ramp ink on a numeral without a bar beside it is a bug**, and so is a ramp tone on a fill whose length does not encode the value.
+- A missing reading renders an empty track, never a zero-length red fill: an unused antenna drawn as an empty red bar labelled "−140 dBm" reads as a signal problem the user should go and fix. In code that is `MetricBar value={null}`, which omits the fill element entirely — and `qualityMeterTone()` returning `null` rather than a colour, so no caller can `??` a fallback in.
+- The **entrance** is `scaleX` (compositor-only, once, on mount). The **value retarget** is layout `width`, not `scaleX`: a transform scales the whole box including its `border-radius`, so at low percentages a `scaleX`-only fill squashed its own pill cap into a near-flat ellipse. Width changes only on a poll retarget, not per frame, so the usual objection to animating width does not apply here. See the comment in `components/ui/metric-bar.tsx` before changing this back.
 
 ### Inputs / Fields
 

@@ -397,22 +397,47 @@ export function normalizeMetricValue(
   return value < min || value > max ? null : value;
 }
 
-/** Signal quality thresholds for UI indicators */
+/**
+ * Signal quality thresholds for UI indicators.
+ *
+ * Every named member except `floor` is a CUT: the lowest value that still
+ * earns that level. `floor` is not a cut — it is the bottom of the 0–100
+ * scale `signalToProgress()` maps into, and no value is ever classified by
+ * comparing against it.
+ *
+ * That distinction used to be invisible: the field now called `floor` was
+ * called `poor`, while `getSignalQuality()` never read it at all — `poor` was
+ * the fallthrough return. Adding a real `poor` cut beside a `poor` floor would
+ * have left two different meanings sharing one name, so the floor was renamed
+ * first. Keep them distinct if you add a metric.
+ */
 export interface SignalThresholds {
   excellent: number;
   good: number;
   fair: number;
   poor: number;
+  /** Bottom of the progress scale — NOT a classification cut. See above. */
+  floor: number;
   /** Physical range for this metric — see METRIC_RANGES. */
   range: { min: number; max: number };
 }
 
-/** RSRP thresholds (dBm) — higher (less negative) is better */
+/**
+ * RSRP thresholds (dBm) — higher (less negative) is better.
+ *
+ * The `poor` cut at −120 is a product call, not a measurement: −110 to −120 is
+ * cell edge, a weak link that aiming, a band lock or a different antenna can
+ * plausibly recover. Below −120 the cell is effectively not being received and
+ * the honest message is "not this cell", not "try a bit harder". That is the
+ * distinction the alignment meter exists to draw, and it could not draw it
+ * while everything under −110 shared one bucket.
+ */
 export const RSRP_THRESHOLDS: SignalThresholds = {
   excellent: -80,
   good: -100,
   fair: -110,
-  poor: -140,
+  poor: -120,
+  floor: -140,
   range: METRIC_RANGES.rsrp,
 };
 
@@ -421,7 +446,8 @@ export const RSRQ_THRESHOLDS: SignalThresholds = {
   excellent: -5,
   good: -10,
   fair: -15,
-  poor: -20,
+  poor: -18,
+  floor: -20,
   range: METRIC_RANGES.rsrq,
 };
 
@@ -430,7 +456,8 @@ export const SINR_THRESHOLDS: SignalThresholds = {
   excellent: 20,
   good: 13,
   fair: 0,
-  poor: -20,
+  poor: -10,
+  floor: -20,
   range: METRIC_RANGES.sinr,
 };
 
@@ -448,23 +475,25 @@ export const SINR_THRESHOLDS: SignalThresholds = {
 export function getSignalQuality(
   value: number | null,
   thresholds: SignalThresholds
-): "excellent" | "good" | "fair" | "poor" | "none" {
+): "excellent" | "good" | "fair" | "poor" | "bad" | "none" {
   if (value === null || value === undefined || !Number.isFinite(value)) return "none";
   // Out of physical range is "we have no reading", never the top of the ladder.
   if (value < thresholds.range.min || value > thresholds.range.max) return "none";
   if (value >= thresholds.excellent) return "excellent";
   if (value >= thresholds.good) return "good";
   if (value >= thresholds.fair) return "fair";
-  return "poor";
+  if (value >= thresholds.poor) return "poor";
+  return "bad";
 }
 
 export type SignalQuality = ReturnType<typeof getSignalQuality>;
 
 const SIGNAL_QUALITY_RANK: Record<SignalQuality, number> = {
-  excellent: 4,
-  good: 3,
-  fair: 2,
-  poor: 1,
+  excellent: 5,
+  good: 4,
+  fair: 3,
+  poor: 2,
+  bad: 1,
   none: 0,
 };
 
@@ -965,10 +994,12 @@ export function signalToProgress(
   thresholds: SignalThresholds
 ): number {
   if (value === null || value === undefined) return 0;
-  // Map from [poor, excellent] → [0, 100]
-  const range = thresholds.excellent - thresholds.poor;
+  // Map from [floor, excellent] → [0, 100]. `floor`, never `poor`: `poor` is a
+  // classification cut partway up the ladder, and scaling from it would report
+  // 0% for every reading at or below cell edge.
+  const range = thresholds.excellent - thresholds.floor;
   if (range === 0) return 50;
-  const pct = ((value - thresholds.poor) / range) * 100;
+  const pct = ((value - thresholds.floor) / range) * 100;
   return Math.max(0, Math.min(100, pct));
 }
 

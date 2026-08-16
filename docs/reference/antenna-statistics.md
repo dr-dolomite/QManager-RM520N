@@ -16,12 +16,12 @@ This doc records the invariants that are cheap to break and expensive to notice.
 | 3-tile context strip | `components/cellular/antenna-statistics/context-tiles.tsx` |
 | Skeleton + unreachable screen | `components/cellular/antenna-statistics/states.tsx` |
 | Shared condition-screen primitive (shell + tone spec) | `components/cellular/condition-screen.tsx` |
-| Canonical quality → glyph / chip / meter mappings | `components/cellular/signal-quality-display.ts` (not yet adopted here — see Known gaps) |
+| Canonical quality → glyph / chip / meter / ink mappings | `components/cellular/signal-quality-display.ts` |
 | **Sentinel boundary** (shared with antenna-alignment) | `types/modem-status.ts` — `SIGNAL_SENTINELS`, `normalizeSignalValue`, `isPortReporting`, `hasAntennaData` |
 | Port metadata | `ANTENNA_PORTS` in `types/modem-status.ts` |
 | Data source | `hooks/use-modem-status.ts` > `/tmp/qmanager_status.json` > `signal_per_antenna` |
 | Backend producer | `scripts/usr/lib/qmanager/parse_at.sh` — `parse_qrsrp` / `parse_qrsrq` / `parse_qsinr` (`AT+QRSRP`, `AT+QRSRQ`, `AT+QSINR`) |
-| i18n | `antenna_statistics.*` in `public/locales/{en,zh-CN,zh-TW,it,id}/cellular.json` (37 keys per locale) |
+| i18n | `antenna_statistics.*` in `public/locales/{en,zh-CN,zh-TW,it,id}/cellular.json` (38 keys per locale) |
 | Icon set | Material Symbols (the whole `/cellular/` family — see [icon-system.md](icon-system.md)) |
 
 ## Layout
@@ -58,16 +58,16 @@ const SIGNAL_SENTINELS: Record<SignalMetric, ReadonlySet<number>> = {
 
 ### Why the sets differ per metric
 
-They are **not thresholds** and they are **not interchangeable**. The hazard is specifically that a sentinel lands exactly on that metric's `poor` floor: `getSignalQuality()` then scores it "poor" and `signalToProgress()` returns 0, producing an empty red bar labelled `-140 dBm`. That is worse than a blank, because it looks like a signal problem the user should go and fix.
+They are **not thresholds** and they are **not interchangeable**. The hazard is specifically that a sentinel lands exactly on that metric's `floor` — the bottom of the progress scale in `SignalThresholds`, which is a different field from the `poor` cut and was renamed apart from it during the five-stop ramp migration. Without the sentinel set, `getSignalQuality()` scores such a value `bad` and `signalToProgress()` returns 0, producing an empty bar in the ramp's darkest ink labelled `-140 dBm`. That is worse than a blank, because it looks like a signal problem the user should go and fix.
 
 Verified against a **117-sample live capture** on `RM520NGLAAR03A03M4G_A0.303`:
 
 - **`-32768` is the *documented* sentinel** — it is the one `parse_at.sh:20-23` already maps to `null` in `_sig_val()`. It occurred **zero times**. It stays in every set for firmware that does emit it, but it is not the case that bites.
 - **`-140` (RSRP)** is the 3GPP floor. In the capture it lands in the same sample *and the same port index* as `null` in that port's RSRQ and SINR — the modem saying "port off" three ways at once, of which the poller understands one.
 - **`-20` (SINR)** appears **without** a corroborating null, so it is the only available signal that an NR chain is idle. A genuine -20 dB SINR is unusable by definition (it is the bottom of the scale), so suppressing the real value costs nothing a user could act on.
-- **`-20` is deliberately NOT a sentinel for RSRQ**, even though it is RSRQ's `poor` floor. The same capture contains a legitimate **`-19` dB** RSRQ, so that region of the range is genuinely reachable by real data. Only `-32768` is suppressed there.
+- **`-20` is deliberately NOT a sentinel for RSRQ**, even though it is RSRQ's `floor`. The same capture contains a legitimate **`-19` dB** RSRQ, so that region of the range is genuinely reachable by real data. Only `-32768` is suppressed there.
 
-> ⚠️ WARNING: do not "simplify" this into one shared set. The three sets encode three different measured facts about one firmware build, and collapsing them either re-introduces the false "poor" reading or silently discards real RSRQ data.
+> ⚠️ WARNING: do not "simplify" this into one shared set. The three sets encode three different measured facts about one firmware build, and collapsing them either re-introduces the false bottom-of-scale reading or silently discards real RSRQ data.
 
 ### A null metric is not zero percent
 
@@ -85,9 +85,9 @@ The previous page dimmed idle ports to `opacity-25`. That is gone. **An idle cha
 
 `success-container` and `warning-container` measure roughly **1.03:1** apart — the same surface to the eye, and identical under deuteranopia (the most common form of colour blindness). So colour cannot be the channel that separates a healthy chain from a degraded one.
 
-- **Verdict chips** carry the monotonic wedge ladder: `signal_cellular_4_bar` → `3_bar` → `2_bar` → `1_bar` → `signal_cellular_off`. Bar count reads in greyscale and at a glance, and every quality gets its **own** glyph (DESIGN.md > The Every-Chip-Has-A-Glyph Rule). The `signal_cellular_alt` family is deliberately unused: it is non-monotone, its 1-bar mark is a 2×4px speck, and it has no 0-bar member.
-- **Excellent and Good deliberately share the `success` role.** DESIGN.md's ramp would assign Good → `primary`, but blue is simultaneously the brand, the only hue that acts, *and* the 5G NR identity — so a blue quality chip inside the LTE card would put one radio's identity on the other radio's content. The two tiers are separated by their glyphs instead, which is the channel that survives greyscale anyway.
-- **Every tinted value carries an `sr-only` quality word.** `success-on-surface` and `warning-on-surface` measure ~1.01:1 apart: same luminance, hue only. Without the hidden word, a screen-reader user gets no quality signal at all.
+- **Verdict chips** carry the monotonic wedge ladder: `signal_cellular_4_bar` → `3_bar` → `2_bar` → `1_bar` → `0_bar` → `signal_cellular_off`. Bar count reads in greyscale and at a glance, and every quality gets its **own** glyph (DESIGN.md > The Every-Chip-Has-A-Glyph Rule). `signal_cellular_0_bar` is `bad`'s glyph and was added to the Material Symbols subset for it; it could not borrow either neighbour, because `signal_cellular_off` is `none` ("nothing was measured") and sharing `1_bar` with `poor` would put two states behind one glyph. The `signal_cellular_alt` family is deliberately unused: it is non-monotone, its 1-bar mark is a 2×4px speck, and it has no 0-bar member.
+- **Two pairs of levels share a chip role, and the glyph is what separates them.** Excellent and Good both take `success`: DESIGN.md's ramp assigns Good → hue 115, but on a *chip* that would resolve through `primary`, and blue is simultaneously the brand, the only hue that acts, *and* the 5G NR identity — a blue quality chip inside the LTE card puts one radio's identity on the other radio's content. Poor and Bad both take `destructive` for a structural reason: the ramp is a five-stop **scale** and lives on numerals and bars, while chips are **categories** and live on the functional three plus `muted`. `BadgeVariant` has no fifth failure role, and minting one is a token-layer change. In both pairs the glyph carries the distinction, which is the channel that survives greyscale anyway.
+- **Every tinted value carries an `sr-only` quality word.** The metric values take their ink from `qualityInkClass()` — the ramp's `--quality-N` numeral colour — and adjacent ramp stops sit *deliberately* below the 0.05 separation floor, on the understanding that bar length carries the fine distinction. Without the hidden word, a screen-reader user gets no quality signal at all, and without the `MetricBar` beside it the tint is a bug rather than a shortcut.
 - **Meters are `aria-hidden`.** The bar is a redundant view of the number and quality word immediately to its right, both of which are real text. Exposing it as a `progressbar` would announce the same fact twice, once as an unlabelled percentage.
 
 The card's own identity chip (an outline `Tag variant="nr" | "lte"`, `components/ui/tag.tsx`) says **which radio the card is about** and never means "healthy" — see DESIGN.md > Identity-Chip Rule. Quality lives only in the per-port verdict chips.
@@ -150,7 +150,7 @@ The page inherits the shared primitives; nothing here is hand-rolled. The previo
 
 ## i18n
 
-New `antenna_statistics.*` subtree in the **`cellular`** namespace — **37 leaf keys per locale**, present in all five of `public/locales/{en,zh-CN,zh-TW,it,id}/cellular.json`. `bun run i18n:check` passes at 100% parity. The metric labels are the exception: they come from `radio_info.bands.metric.*` (see above).
+New `antenna_statistics.*` subtree in the **`cellular`** namespace — **38 leaf keys per locale** (`quality.bad`, "Very weak", was the 38th — added with the fifth ramp stop), present in all five of `public/locales/{en,zh-CN,zh-TW,it,id}/cellular.json`. `bun run i18n:check` passes at 100% parity. The metric labels are the exception: they come from `radio_info.bands.metric.*` (see above).
 
 > ⚠️ WARNING: several key families are reached through **template literals** and are invisible to static extraction. Deleting one because grep found no call site ships a raw key string to a device: `antenna_statistics.quality.<quality>`, `antenna_statistics.card.<prefix>.{title,description,identity}`, `antenna_statistics.empty.<prefix>.{title,description}`, `antenna_statistics.context.mode.<mode>`.
 
@@ -161,12 +161,12 @@ New `antenna_statistics.*` subtree in the **`cellular`** namespace — **37 leaf
 Recorded honestly — each of these is a decision that was made, not an oversight.
 
 - **`ANTENNA_PORTS[].name` and `.description` are hardcoded English** (`types/modem-status.ts`) and render on **both** antenna pages. Left alone deliberately: localizing on one page only would make the twins disagree about a port's name. Should be done for both in one change.
-- **A two-leg MIMO value grows its tile past the skeleton.** `LTE 1x4 | NR 2x4` stacks into two lines and resolves to ~107px against `TILE_SHAPE.HEIGHT`'s 92px floor — a ~15px jump at the skeleton-to-data handoff. This is **systemic**, shared with `components/cellular/radio/summary-tiles.tsx`, whose own comment makes the same incorrect "still fits" claim. The fix belongs in `components/cellular/tile-shape.ts` for every consumer at once; a local-only fix would desynchronise them.
+- **RESOLVED — the context tile no longer grows past its skeleton.** This used to read as a live defect: a two-leg `LTE 1x4 | NR 2x4` value stacks into two lines, and against `TILE_SHAPE.HEIGHT`'s *92px floor* it resolved taller than the skeleton, jumping at the handoff. **A floor cannot be a mirror; only a pin can** — that is the whole finding. `components/cellular/tile-shape.ts` now PINS the tile at 104px (`h-[6.5rem]`, on both `ROOT` and `HEIGHT`), a figure derived from the text column rather than the 52px disc: eyebrow 16 + 3 + value + 3 + caption 16, plus `py-4` either side, leaves a 34px value budget that fits every shape these strips render. Its comment records the four measured states that forced the pin (two-leg MIMO 118px, LTE single-carrier 98, degraded 95, against a 92px mirror — a 26px worst case). Nothing clips at the pin either: the eyebrow, caption, value and MIMO legs all carry `truncate`, so a long translation shortens rather than overflows. The fix landed in `tile-shape.ts`, so it covers every consumer at once — this strip, the radio summary strip, and the SMS Center's.
 - **RESOLVED — the unreachable screen is now a shared primitive.** It used to duplicate `components/cellular/radio/states.tsx`'s condition screen almost verbatim. The shell and the tone→class mapping were extracted into **`components/cellular/condition-screen.tsx`**, and this file, `radio/states.tsx` and the two new antenna-alignment condition screens all consume it. The primitive carries no i18n namespace of its own, which is what lets `radio_info.states.*`, `antenna_statistics.states.*` and `antenna_alignment.states.*` share one screen; callers own the glyph, the tone and the copy. Pure refactor, zero visual change. See [antenna-alignment.md](antenna-alignment.md) > Three states.
 
   > ⚠️ WARNING: this page's glyph is `error`, while the radio page's `no-service` screen uses `signal_cellular_off`. That divergence is deliberate — no two states in one slot may share a glyph, because the tonal containers sit ~1.03:1 apart. Do not "unify" the glyphs as part of adopting the primitive.
 
-- **`tech-card.tsx` still carries private copies of the quality mappings.** `QUALITY_GLYPH`, `verdictVariant` and `meterTone` live in this file locally, and are value-identical to the canonical exports in **`components/cellular/signal-quality-display.ts`** (`QUALITY_GLYPH`, `qualityBadgeVariant`, `qualityMeterTone`), which the antenna-alignment surfaces already consume. `tech-card.tsx` should adopt that module the next time it is touched; it was left alone only to keep a design migration from editing a shipped surface it had no other reason to open.
+- **RESOLVED — `tech-card.tsx`'s private quality mappings are gone.** It carried local, value-identical copies of `QUALITY_GLYPH`, `verdictVariant` and `meterTone`. All three were **deleted**, not aligned, and the file now imports `QUALITY_GLYPH`, `qualityBadgeVariant()`, `qualityMeterTone()` and `qualityInkClass()` from **`components/cellular/signal-quality-display.ts`**. There are no private copies left anywhere in the antenna family, and re-introducing one is the failure mode the module's own header warns about: a fifth stop added on one side only would make two surfaces disagree about what "fair" looks like.
 - **The parser-level fix was deliberately not taken.** Mapping `-140` and `-20` to `null` inside `parse_at.sh`'s `_sig_val()` would make this correct by construction for every consumer. But it is a **Tier 3 backend change** that also rewrites the meaning of existing lines in `/tmp/qmanager_signal_history.json` mid-file, so it needs its own recon and validator pass. The frontend boundary is the safe fix, not the final one.
 - **`parse_at.sh:734`'s comment is wrong.** It documents `-32768` as *the* inactive-port sentinel — which is precisely the one that never occurs on the observed firmware. Worth correcting when the parser is next touched.
 

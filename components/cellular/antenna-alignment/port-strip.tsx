@@ -7,6 +7,7 @@ import { useTranslation } from "react-i18next";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { MaterialSymbol } from "@/components/ui/material-symbol";
+import { MetricBar } from "@/components/ui/metric-bar";
 import { cn } from "@/lib/utils";
 import { staggerRowItem, staggerRows } from "@/lib/motion";
 import {
@@ -17,12 +18,17 @@ import {
   getSignalQuality,
   isPortReporting,
   normalizeSignalValue,
+  signalToProgress,
   worstSignalQuality,
 } from "@/types/modem-status";
 import type { SignalPerAntenna } from "@/types/modem-status";
-import { getValueColorClass } from "@/components/dashboard/signal-card-utils";
 
-import { QUALITY_GLYPH, qualityBadgeVariant } from "../signal-quality-display";
+import {
+  QUALITY_GLYPH,
+  qualityBadgeVariant,
+  qualityInkClass,
+  qualityMeterTone,
+} from "../signal-quality-display";
 import { countReportingPorts } from "./utils";
 import type { RadioMode } from "./utils";
 
@@ -61,31 +67,92 @@ export const PORT_SHAPE = {
   HEAD: "flex items-center gap-2",
   NAME: "min-w-0 truncate text-sm font-semibold",
   RX: "inline-flex shrink-0 items-center rounded-pill bg-surface-container-high px-2 py-0.5 text-xs font-semibold uppercase tracking-[0.06em] text-on-surface-variant",
-  ROW: "flex items-baseline gap-2",
+  /**
+   * `items-center`, not `items-baseline`: the row now carries a quality bar
+   * between the key and the value, and a 4px bar has no baseline to sit on. The
+   * 20px `text-[13px]/5` value box still governs the row height, so the block's
+   * pinned floor below is unchanged by the bar's arrival.
+   */
+  ROW: "flex items-center gap-2",
   KEY: "w-8 shrink-0 text-xs font-semibold uppercase tracking-[0.09em] text-on-surface-variant",
-  VALUE: "text-[13px]/5 font-semibold tabular-nums",
+  VALUE: "w-[4.75rem] shrink-0 text-right text-[13px]/5 font-semibold tabular-nums",
 } as const;
 
 /** Floor height for a port block, mirrored by the skeleton. Sum of line boxes. */
 export const PORT_BLOCK_MIN_HEIGHT = 108;
 
+/**
+ * One radio's RSRP for this port: key, quality bar, ramp-inked value.
+ *
+ * The bar is not decoration and it is not optional. The ramp is a LIGHTNESS
+ * STAIRCASE rather than a hue wheel — under deuteranopia its hues collapse onto
+ * one yellow axis, so adjacent stops sit deliberately below the 0.05 separation
+ * floor and BAR LENGTH is what carries the adjacent distinction. A ramp colour
+ * with no bar beside it is a bug, not a shortcut, which is what this row was
+ * before: a tinted dBm figure with nothing non-chromatic next to it. The row
+ * height is unchanged — a 4px bar fits inside the value's 20px line box.
+ */
 function PortRsrpRow({
   radio,
   value,
   quality,
+  index,
 }: {
   radio: "lte" | "nr";
   value: number | null;
   quality: ReturnType<typeof getSignalQuality>;
+  /** Position among this port's rows, for the meter arrival cascade. */
+  index: number;
 }) {
   const { t } = useTranslation("cellular");
+
+  // One decision behind both channels, so the bar and the ink can never
+  // disagree about whether there is a reading. `null` also covers an in-range
+  // sentinel escapee that `value === null` alone would miss.
+  const tone = qualityMeterTone(quality);
+  const reading = tone === null ? null : value;
+
   return (
     <div className={PORT_SHAPE.ROW}>
       <span className={PORT_SHAPE.KEY}>{t(`antenna_alignment.mode.${radio}_short`)}</span>
-      <span className={cn(PORT_SHAPE.VALUE, getValueColorClass(quality))}>
-        {value === null ? "—" : `${value} dBm`}
-        {value !== null && (
-          <span className="sr-only"> {t(`antenna_alignment.quality.${quality}`)}</span>
+
+      {/* aria-hidden: the meter restates the number and the quality word to its
+          right, both of which are real text. Exposing it as a progressbar would
+          announce the same fact twice, once as an unlabelled percentage. */}
+      <div className="min-w-0 flex-1" aria-hidden="true">
+        <MetricBar
+          /* No reading renders the track ALONE, never a zero-length fill: an
+             idle chain drawn as an empty red bar reads as a signal problem the
+             user should go and fix (DESIGN.md > Quality bars). `?? undefined`
+             is only reachable in that same branch, where no fill is painted. */
+          value={reading === null ? null : signalToProgress(reading, RSRP_THRESHOLDS)}
+          max={100}
+          /* Unreachable on purpose — `colorOverride` pins the ramp stop, so the
+             built-in warn/danger steps never apply. */
+          warnAt={101}
+          dangerAt={101}
+          colorOverride={tone}
+          size="sm"
+          /* The tile is already `surface-container`, so the track takes the step
+             above it or it vanishes into its own background. */
+          track="surface-container-high"
+          index={index}
+        />
+      </div>
+
+      <span className={cn(PORT_SHAPE.VALUE, qualityInkClass(quality))}>
+        {reading === null ? (
+          <>
+            <span aria-hidden="true">—</span>
+            <span className="sr-only">
+              {t("antenna_alignment.aim.not_reported")}
+            </span>
+          </>
+        ) : (
+          <>
+            {reading} dBm
+            <span className="sr-only"> {t(`antenna_alignment.quality.${quality}`)}</span>
+          </>
         )}
       </span>
     </div>
@@ -185,6 +252,7 @@ function PortBlock({
                 normalizeSignalValue(spa.lte_rsrp[index], "rsrp"),
                 RSRP_THRESHOLDS
               )}
+              index={0}
             />
           )}
           {showNr && (
@@ -195,6 +263,10 @@ function PortBlock({
                 normalizeSignalValue(spa.nr_rsrp[index], "rsrp"),
                 RSRP_THRESHOLDS
               )}
+              /* The row's position within the port block, not the port index:
+                 the port index is already spent by `staggerRows` on the tile
+                 itself, and re-spending it here would double the delay. */
+              index={showLte ? 1 : 0}
             />
           )}
         </div>

@@ -1,6 +1,6 @@
 ---
 name: project-material-subset-gaps
-description: The Material Symbols subset does NOT carry fingerprint, edit_calendar, or sim_card_alert — mocks for /cellular/custom-profiles call for all three
+description: Adding a Material glyph is a two-part change a component-scoped builder cannot finish — grep the sorted allowlist before promising one; the specific 2026-08-02 gap list is CLOSED
 metadata:
   type: project
 ---
@@ -15,13 +15,11 @@ was wrong): `content_copy`, `layers`, `sim_card`, `badge`, `power_settings_new`,
 `do_not_disturb_on`, `progress_activity`, `schedule`, `dark_mode`,
 `sports_esports`, `bolt`.
 
-Confirmed **absent**, and each is called for by the approved
-`reimagine/SIM Profiles and Scenarios.dc.html` mock:
-
-- `fingerprint` — the "IMEI override" pill. Substituted with `badge`.
-- `edit_calendar` — the "Edit schedule" affordance. Substituted with `schedule`.
-- `sim_card_alert` — the no-active-profile empty state. `sim_card` is the
-  nearest available.
+**The 2026-08-02 gap list is CLOSED — re-verified 2026-08-17.** `fingerprint`,
+`edit_calendar` and `sim_card_alert` are all in the array now, as is
+`signal_cellular_0_bar` (the quality ramp's `bad` stop). The list is 107 glyphs
+and `bun run icons:check` reports the font matching the manifest. Do not quote
+the old substitutions — grep instead; this list churns.
 
 **Why:** adding a glyph is a two-part change (edit the sorted array, then
 `bun run icons:subset && bun run icons:check`, which produces a binary commit).

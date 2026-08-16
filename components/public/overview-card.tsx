@@ -530,6 +530,7 @@ function renderBody({
             thresholds={BAND_METRIC_THRESHOLDS[bandMetric]}
             reachable={reachable}
             entranceIndex={entrance(0)}
+            t={t}
           />
         )}
       </div>

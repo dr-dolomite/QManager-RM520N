@@ -29,6 +29,7 @@
       "good": "Good",
       "fair": "Fair",
       "poor": "Poor",
+      "bad": "Very weak",
       "none": "No reading"
     },
     "recorder": {
@@ -156,6 +157,7 @@
       "good": "Good",
       "fair": "Fair",
       "poor": "Poor",
+      "bad": "Very weak",
       "none": "No reading"
     },
     "states": {
@@ -1840,6 +1842,7 @@
         "good": "Good",
         "fair": "Fair",
         "poor": "Poor",
+        "bad": "Very weak",
         "none": "No reading"
       },
       "metric": {

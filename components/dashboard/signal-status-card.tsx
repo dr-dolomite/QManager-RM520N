@@ -2,13 +2,14 @@
 
 import { motion } from "motion/react";
 import { useTranslation } from "react-i18next";
-import { Badge } from "@/components/ui/badge";
 import { Tag, type TagVariant } from "@/components/ui/tag";
 import { Card } from "@/components/ui/card";
+import { MaterialSymbol } from "@/components/ui/material-symbol";
 import {
-  MaterialSymbol,
-  type MaterialSymbolName,
-} from "@/components/ui/material-symbol";
+  QUALITY_GLYPH,
+  qualityMeterTone,
+} from "@/components/cellular/signal-quality-display";
+import { MetricBar } from "@/components/ui/metric-bar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { SwapLabel } from "@/components/ui/swap-label";
 import { TickGroup } from "@/components/ui/tick-group";
@@ -17,6 +18,7 @@ import { cn } from "@/lib/utils";
 import {
   RSRP_THRESHOLDS,
   getSignalQuality,
+  signalToProgress,
   type SignalThresholds,
 } from "@/types/modem-status";
 import { TickingValue } from "@/components/ui/ticking-value";
@@ -43,31 +45,18 @@ export type RadioFamily = "nr" | "lte";
  * indicator; `nr`/`lte` are identity roles and never mean "healthy".
  */
 /*
- * The `signal_cellular_{1..4}_bar` wedge family, NOT the `signal_cellular_alt*`
- * bar family the mock draws. The mock only ever rendered Excellent and Good, so
- * it never exposed what the alt family does at the bottom: `alt_1_bar` is a
- * single 120×240-unit mark (~2×4px at size 16, indistinguishable from a failed
- * icon load), and there is no `alt_0_bar` at all — Poor and None have to fall
- * back to full-size wedges, which makes ink mass go large → medium → speck →
- * large → large. Quality would read as non-monotone, and since the chip fill
- * was reassigned to radio identity, the bar count is the ONLY channel left
- * carrying it. The wedge family keeps one constant silhouette and grows the
- * solid fill, so every rung shares a footprint and scans as a meter.
+ * The glyph ladder is the canonical `QUALITY_GLYPH`, imported rather than
+ * restated. It was a private copy here, and the copy had already gone wrong:
+ * its `default:` arm sent the new `bad` stop to `signal_cellular_off`, putting
+ * "the antenna is pointing at a wall" and "nothing was measured" behind one
+ * glyph — on the one chip where the glyph is the ONLY channel carrying quality,
+ * because the fill is pinned to radio identity.
+ *
+ * The rationale for the family choice lives with the map now. In short: the
+ * `signal_cellular_{0..4}_bar` wedges, never `signal_cellular_alt*` — `alt` has
+ * no 0-bar member and its 1-bar mark is a ~2×4px speck, so ink mass would run
+ * large → medium → speck → large and quality would read as non-monotone.
  */
-function getQualityGlyph(quality: string): MaterialSymbolName {
-  switch (quality) {
-    case "excellent":
-      return "signal_cellular_4_bar";
-    case "good":
-      return "signal_cellular_3_bar";
-    case "fair":
-      return "signal_cellular_2_bar";
-    case "poor":
-      return "signal_cellular_1_bar";
-    default:
-      return "signal_cellular_off";
-  }
-}
 
 /** Returns the state dot's fill plus the `signal_card` key for its label. */
 function getStateDisplay(state: string) {
@@ -214,7 +203,7 @@ export function SignalStatusCard({
               its size as an inline fontSize, and the swap wrapper puts the glyph
               one level deeper than Badge's `[&>svg]:size-3` can reach. */}
           <SwapLabel swapKey={`${identityVariant}-${quality}`} className="gap-1">
-            <MaterialSymbol name={getQualityGlyph(quality)} size={16} filled />
+            <MaterialSymbol name={QUALITY_GLYPH[quality]} size={16} filled />
             {t(`signal_card.quality_${quality}`)}
           </SwapLabel>
         </Tag>
@@ -248,7 +237,23 @@ export function SignalStatusCard({
             const rowQuality = isTinted
               ? getSignalQuality(row.rawValue!, row.thresholds!)
               : "none";
-            const valueColor = getValueColorClass(rowQuality);
+            // Untinted rows pass NO class at all. `getValueColorClass` used to
+            // return `""` for everything it didn't recognise, so an identifier
+            // row happened to inherit the card's ink; on the ramp, `none` is a
+            // real token (`on-surface-variant`, "we have no reading") and
+            // handing it to a PCI would grey out a perfectly good identifier.
+            const valueColor = isTinted
+              ? getValueColorClass(rowQuality)
+              : undefined;
+            // The bar half of the ramp. Derived from the SAME `rowQuality` the
+            // ink is, so length and hue can never disagree, and only ever for a
+            // tinted row — an ARFCN has no position on a quality scale, so it
+            // gets no gauge and no ink.
+            const rowTone = isTinted ? qualityMeterTone(rowQuality) : null;
+            const rowPercent =
+              rowTone === null
+                ? null
+                : signalToProgress(row.rawValue!, row.thresholds!);
 
             return (
               <motion.div
@@ -288,23 +293,64 @@ export function SignalStatusCard({
                   // colour is the `quick` clock; only containers get `standard`.
                   <dd
                     className={cn(
-                      "m-0 text-[13px]/5 font-semibold transition-colors duration-(--duration-quick) ease-quick",
+                      "m-0 flex items-center gap-2.5 text-[13px]/5 font-semibold transition-colors duration-(--duration-quick) ease-quick",
                       row.isIdentifier && "font-mono",
                       valueColor,
                     )}
                   >
-                    {/* Keyed on the rendered string rather than `rawValue`: the
-                        quality thresholds mean a raw RSRP can drift by a tenth
-                        of a dB every poll and format to the same text, and a dip
-                        on an unchanged reading is the tick announcing nothing.
-                        `tabular-nums` is baked into TickingValue. */}
-                    <TickingValue value={row.value}>{row.value}</TickingValue>
-                    {/* The tint is the only thing separating a "good" SINR from a
-                        "fair" one, and `success-on-surface` vs
-                        `warning-on-surface` measure ~1.01:1 apart — same
-                        luminance, hue only, and they converge under
-                        deuteranopia. The word restores the meaning in greyscale
-                        and to a screen reader. */}
+                    {/* THE GAUGE IS WHAT MAKES THE INK LEGAL. Adjacent ramp
+                        stops sit BELOW the 0.05 CVD separation floor by design,
+                        on the explicit understanding that bar LENGTH carries the
+                        fine distinctions — so a tinted figure without a bar is
+                        a bug, not a shortcut (DESIGN.md > Quality bars).
+
+                        It is a 56px lane INSIDE the `dd`, not a row of its own.
+                        Two reasons, both load-bearing: the row is pinned at 40px
+                        and the skeleton mirrors it with `h-10`, so a second line
+                        would silently break that mirror; and `dl > div > dt/dd`
+                        is the valid definition-list shape, so the `dd` has to
+                        stay a direct child of the wrapper rather than getting
+                        nested inside a new flex box. A 4px bar in a 20px line
+                        box changes no height. */}
+                    {isTinted && (
+                      <div className="w-14 shrink-0" aria-hidden="true">
+                        <MetricBar
+                          value={rowPercent}
+                          max={100}
+                          // Unreachable — `colorOverride` pins the tone. Present
+                          // only because the props are required.
+                          warnAt={101}
+                          dangerAt={101}
+                          // Null passes straight through; never a fallback
+                          // colour. No reading means no fill element at all.
+                          colorOverride={rowTone}
+                          // 4px, the quality-bar spec.
+                          size="sm"
+                          // `-high`, not `surface-container`: the row pill is
+                          // already `bg-surface-container`, so a same-step track
+                          // would be invisible against it.
+                          track="surface-container-high"
+                        />
+                      </div>
+                    )}
+                    {/* Fixed width and right-aligned ONLY on tinted rows, so the
+                        gauges line up in a column instead of jittering with the
+                        width of each figure. Identifiers keep their natural
+                        width — an ARFCN is longer than "8 dB" and must not be
+                        clipped to match it. */}
+                    <span
+                      className={cn(isTinted && "w-[4.75rem] text-right")}
+                    >
+                      {/* Keyed on the rendered string rather than `rawValue`: the
+                          quality thresholds mean a raw RSRP can drift by a tenth
+                          of a dB every poll and format to the same text, and a dip
+                          on an unchanged reading is the tick announcing nothing.
+                          `tabular-nums` is baked into TickingValue. */}
+                      <TickingValue value={row.value}>{row.value}</TickingValue>
+                    </span>
+                    {/* The third channel. The bar and the ink both fail in
+                        greyscale-plus-low-vision together, and neither reaches a
+                        screen reader at all. Never drop it from a tinted row. */}
                     {isTinted && (
                       <span className="sr-only">
                         {" "}

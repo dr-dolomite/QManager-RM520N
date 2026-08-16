@@ -86,7 +86,7 @@ If `/` trusted that cookie blindly, it would forward a logged-out visitor to `/d
 
 | File | Holds |
 |------|-------|
-| `tone.ts` | The whole tone vocabulary — `qualityTone`, `TONE_CLASSES`, `TILE_CLASSES`, `OVERALL_TILE` / `CONNECTION_TILE` / `TEMPERATURE_TILE` verdict maps, `temperatureBand`, `BAND_METRIC_THRESHOLDS`, `EYEBROW_CLASS`, `TILE_SHAPE`, `formatAge`, `isNrBand` |
+| `tone.ts` | The whole tone vocabulary — `qualityValueClass()` / `qualityBarClass()` / `RAMP_BAR_CLASS`, `TILE_CLASSES`, `OVERALL_TILE` / `CONNECTION_TILE` / `TEMPERATURE_TILE` verdict maps, `temperatureBand`, `BAND_METRIC_THRESHOLDS`, `EYEBROW_CLASS`, `TILE_SHAPE`, `formatAge`, `isNrBand` |
 | `tiles.tsx` | `TonalTile`, `StatusTile` — the status-trio cells |
 | `band-rows.tsx` | `BandRow`, `AggregateBandRow`, `SegmentedMetricToggle`, plus the shared `BAND_ROW_SHAPE` / `ROW_GAP` / `ROW_STACK_GAP` geometry constants |
 | `states.tsx` | `ReadingChip`, `SkeletonBody`, `UnreachableState` |
@@ -94,6 +94,23 @@ If `/` trusted that cookie blindly, it would forward a logged-out visitor to `/d
 Total across the five files is roughly 1235 lines — **more** than before. The extraction was not a line-count exercise; the retarget genuinely adds surface (tonal maps, a segmented toggle, a real skeleton that mirrors the loaded geometry), and the split is what keeps the shell readable.
 
 Every map in `tone.ts` is keyed on a **union type**, never on a raw class string, so a new state without a matching role fails the build rather than rendering untinted.
+
+#### The quality half of that vocabulary is not declared here
+
+`tone.ts` used to own a private `Tone` union with its own `qualityTone()` and `TONE_CLASSES` — one of five rival quality→colour maps in the tree. All three were **deleted**. The canonical map now lives in `components/cellular/signal-quality-display.ts`, and `tone.ts` keeps only two thin wrappers that fold in this surface's extra **`reachable`** axis before delegating:
+
+| Export | Delegates to | Extra behaviour |
+| ------ | ------------ | --------------- |
+| `qualityValueClass(quality, reachable)` | `qualityInkClass()` | An unreachable modem returns `text-on-surface-variant`, never a ramp stop |
+| `qualityBarClass(quality, reachable)` | `qualityMeterTone()` → `RAMP_BAR_CLASS` | Returns `null` — the empty-track signal — when unreachable, or when the tone is `null` |
+
+The `reachable` axis is the point of the wrappers, and it is a real distinction: **an unreachable modem is not a bad reading, it is NO reading.** Painting it the bottom of the scale would tell a visitor their signal is terrible when in fact nothing was measured.
+
+`RAMP_BAR_CLASS` is the one place the ramp's `bg-quality-N-bar` classes are restated outside `metric-bar.tsx`, because this surface's band meter is a hand-built 7px `motion.div` (first-paint-only `scaleX`, staggered 40ms), not a `MetricBar` — swapping it for one would change both its geometry and its entrance. The restatement is kept safe by keying on `MetricBarTone` rather than on `SignalQuality`: the *source* of the tone is still `qualityMeterTone()`, so a sixth ramp stop cannot be added on one side only.
+
+> ⚠️ WARNING: `qualityBarClass()` returning `null` means **draw no fill element**, not "draw a zero-length one". A 0%-wide bar in the ramp's darkest ink beside a "−140 dBm" label reads as a fault the visitor should go and fix. A caller that `??`-es a fallback colour in re-creates exactly the bug this migration removed on `active-bands-card.tsx`, where `none` fell through to `success` and an unread antenna painted green.
+
+`OVERALL_TILE` stays a `Record<SignalQuality, TileVerdict>` on the **container** axis, which is a different axis from the ramp: filled tonal tiles run on the functional roles, and those have no fifth failure step. So `bad` shares `destructive` with `poor` and is separated only by its glyph — `signal_cellular_0_bar`, the same glyph the canonical `QUALITY_GLYPH` gives it, so the tile and the band rows name the state the same way. `priority_high` stays `poor`'s alone.
 
 ### `resolveBodyMode()` — one decision, two consumers
 
@@ -135,7 +152,7 @@ While the first read is in flight a `ReadingChip` replaces the theme toggle at t
 
 **The modem-unreachable empty state is `warning`, not `destructive`**, and its footer says *"signing in still works"*. The distinction is the whole point of the state: the status feed is gone, the login is not, and a red card would tell a visitor the device is broken when it is merely quiet. `overview.empty.subtitle` was rewritten to name cause and recovery ("The modem has not reported in for a minute. It may be rebooting — the reading resumes on its own.") instead of the old "Log in for diagnostic details.", which offered a next step that does not help.
 
-**Band chips carry IDENTITY, not quality.** Per DESIGN.md's Identity-Chip Rule the chip says which radio the row belongs to, while the meter and the value carry the functional-colour verdict. As of 2026-08-17 it renders as an outline `Tag variant="nr" | "lte"` (`components/ui/tag.tsx`) rather than a hand-rolled container fill — identity never takes a large tinted block. `AggregateBandRow`'s summary pill became `<Tag variant="neutral">` in the same change.
+**Band chips carry IDENTITY, not quality.** Per DESIGN.md's Identity-Chip Rule the chip says which radio the row belongs to, while the meter and the value carry the **five-stop quality ramp**, which contains no identity hue at all. That is the point of the ramp here: these two channels used to run through a four-tone functional map whose healthy end resolved to `--primary` — i.e. to 5G NR's own identity colour — so an LTE-only visitor was shown "all good" in the 5G blue. As of 2026-08-17 it renders as an outline `Tag variant="nr" | "lte"` (`components/ui/tag.tsx`) rather than a hand-rolled container fill — identity never takes a large tinted block. `AggregateBandRow`'s summary pill became `<Tag variant="neutral">` in the same change.
 
 > ⚠️ WARNING — the comp calls the LTE role `--sc` (secondary-container). **Do not use `secondary-container` here.** This repo ships Carrier Violet under the non-canon name `--lte-*` specifically to avoid colliding with the shadcn neutral secondary. See `DESIGN.md` > Colors > Secondary.
 

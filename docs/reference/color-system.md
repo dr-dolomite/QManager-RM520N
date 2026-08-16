@@ -16,6 +16,7 @@ Read this before adding a colour, retuning one, or looking at a token that seems
 | Chip roles | `components/ui/badge.tsx` |
 | Separation floor, decorative vs **functional** | **40 degrees** (one-directional — see below) |
 | CVD collapse floor between two tones | **0.05** simulated separation |
+| Signal-quality ramp (the one scale, not a role) | `--quality-{1..5}` / `--quality-{1..5}-bar`; mapped by `components/cellular/signal-quality-display.ts` |
 
 ## The role families
 
@@ -142,6 +143,43 @@ Three design consequences follow, and they are not optional:
 4. **Identity never renders as a container at all.** It renders as **ink** or as an **outline tag** (`components/ui/tag.tsx`, variants `nr` / `lte` / `spatial` / `neutral`, consuming `--tag-*-text` / `--tag-*-border`), or as a strong **fill** on a glyph disc. Those tag tokens shipped without consumers on 2026-08-16 and were wired up on 2026-08-17, when all 11 identity chip sites moved off `Badge`; `nr` / `lte` / `spatial` / `downlink` / `uplink` were then deleted from `badge.tsx`, so `BadgeVariant` is now status-only and the split is compiler-enforced.
 
 A useful way to hold it: on a dark surface, a container tint groups things; a strong fill and a glyph distinguish them. Ask a tint to distinguish and it will fail for one reader in twelve.
+
+## The signal-quality ramp
+
+**Short version: this is the one scale in the system that deliberately breaks the 0.05 floor above — and it is only safe because bar length carries the distinction the colour cannot.**
+
+`--quality-1` … `--quality-5` (plus a `-bar` sibling for each) are a **five-stop continuous scale** for measured signal quality: RSRP, RSRQ, SINR, aim score. Every other colour in this document is a *category* — it answers "what kind of thing is this". The ramp is a **position on a scale**, and that difference drives everything below.
+
+They shipped in `fefba29` with no consumer at all. As of **2026-08-17** ten surfaces read them, through the single canonical map in `components/cellular/signal-quality-display.ts`.
+
+### Two channels, one step apart
+
+| Token | Drawn as | Reached through |
+| ----- | -------- | --------------- |
+| `--quality-N` | The **numeral** ink | `qualityInkClass()` → `text-quality-N` |
+| `--quality-N-bar` | The **bar** fill, one lightness step bolder | `qualityMeterTone()` → `MetricBar`'s `TONE_CLASS` |
+
+The bar value is bolder because a 4px fill needs more weight than a text figure to read as the same colour. They are not interchangeable.
+
+### It is a lightness staircase, not a hue wheel
+
+This is the load-bearing fact. Under deuteranopia, hues 27 / 45 / 72 / 115 / 149 flatten onto a **single yellow axis** — the ramp cannot separate by hue *at all* for those readers. So each ramp is monotone in lightness (light 0.385 → 0.505 in 0.030 steps; dark 0.620 → 0.800 in 0.045 steps), and the staircase is what carries it.
+
+**Adjacent stops sit deliberately below the 0.05 floor.** Every non-adjacent pair clears it (worst: 0.055 light, 0.077 dark). That is a designed trade, not an oversight — and the thing bought with it is resolution, five levels where the functional roles could only afford four.
+
+> ⚠️ WARNING: the trade only pays if **bar length is present**. Ramp ink on a numeral with no bar beside it is a **bug**, not a shortcut — it leaves adjacent levels genuinely indistinguishable for one reader in twelve, with nothing else to fall back on. Two independent guards exist in code: `qualityMeterTone()` returns `null` rather than a colour for `none`, and `MetricBar value={null}` draws the track with no fill element at all. A caller that `??`-es a fallback colour past either one re-creates the exact bug this migration removed, where an unread antenna painted green.
+
+### Light-mode stops 1–3 are deep reds and browns, and that is a ceiling
+
+4.5:1 against a near-white ground caps those hues at **L ≈ 0.50**, and the non-adjacent floor then forces the whole span downward from that cap. The result reads as maroon and umber rather than vivid red-orange. **Do not "fix" it by brightening** — the contrast requirement is what put it there. Dark mode is genuinely vivid (#ed4b43 → #42e071) because a dark ground has the headroom light does not. Verified on screen in both themes, 2026-08-17.
+
+Where a numeral is large enough to fall under the 3:1 threshold instead of 4.5:1, use the `-bar` value as its ink.
+
+### The ramp is a scale; chips are categories. They did not merge
+
+`BadgeVariant` still carries only the five status roles. So `bad` and `poor` both key onto `destructive`, and their **glyphs** separate them (`signal_cellular_0_bar` vs `signal_cellular_1_bar`) — the same Every-Chip-Has-A-Glyph obligation the CVD floor imposes on every other chip above.
+
+Giving chips a fifth failure step would mean minting a `--quality-N-container` / `--on-quality-N-container` pair for every stop, each needing its own contrast and CVD work against both grounds. That was deliberately not attempted. If a future pass wants it, it is a token-layer change with the arithmetic in this document, not a component tweak.
 
 ## Related docs
 

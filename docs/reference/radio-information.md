@@ -22,7 +22,8 @@ This doc records the invariants that are cheap to break and expensive to notice:
 | Data source | `hooks/use-modem-status.ts` > `/tmp/qmanager_status.json` |
 | Upstream helpers it composes | `lib/carrier-aggregation.ts`, `lib/earfcn.ts`, `types/modem-status.ts` |
 | Shared condition screen | `components/cellular/condition-screen.tsx` |
-| i18n | `radio_info.*` in `public/locales/{en,zh-CN,zh-TW,it,id}/cellular.json` (126 keys per locale) |
+| i18n | `radio_info.*` in `public/locales/{en,zh-CN,zh-TW,it,id}/cellular.json` (131 keys per locale) |
+| Quality → glyph / chip role / bar tone / numeral ink | `components/cellular/signal-quality-display.ts` (the canonical map — no private copies) |
 
 > ℹ️ NOTE: the old `components/cellular/cell-data.tsx` and `components/cellular/active-bands.tsx` are gone. Their domain logic survives: the IPv6 compression moved verbatim to `lib/ipv6.ts`, and the RAT-owns-which-identity-field rule moved into `CellularInformationCard` (the `isSA` branch).
 
@@ -78,15 +79,17 @@ The page distinguishes three, and collapsing any two of them produces a confiden
 
 ### `percent: null` is not `percent: 0`
 
-`buildMetrics` sets `percent: null` whenever the underlying value is null, and `MetricCell` renders the "not reported" caption in the meter lane where the bar would be.
+`buildMetrics` sets `percent: null` whenever the underlying value is null, and `MetricCell` hands that straight to `MetricBar` as `value={null}` — which renders **the track alone, with no fill element at all** (2026-08-17).
 
-The reason is arithmetic, not taste. `rsrpToPercent` (`lib/carrier-aggregation.ts`) **floors its output at 2%** precisely so that a genuinely terrible carrier still shows a visible stub rather than an empty track. `0` is therefore a width no *real* reading can produce — the function returns it for exactly one input, a null RSRP, which is the case `buildMetrics` intercepts before ever calling it. Feeding a null metric through it, or defaulting to `0` on the way to `MetricBar`, would render the one bar width reserved for a different meaning entirely, and it would render it as an assertion about signal strength. SCCs (secondary component carriers) routinely report only a subset of metrics, so this is the common path, not the edge.
+That replaced a "Not reported" caption drawn in the meter lane where the bar would be. The words did not disappear; they moved into the cell's `sr-only` line, which now says either the quality word or `not_reported`. The reason for the move is scannability: a lane holding a *sentence* on one metric and a *bar* on the other two turns one column of a four-column grid into prose, and the whole argument for fixed columns (below) is that a reader compares bars down a column without reading. Every barred metric now holds a bar in every state, and "no reading" is said by an empty track — length, the one channel the colour ramp is explicitly not allowed to carry alone.
+
+The underlying arithmetic is what makes an empty track necessary rather than merely tidier. `rsrpToPercent` (`lib/carrier-aggregation.ts`) **floors its output at 2%** precisely so that a genuinely terrible carrier still shows a visible stub rather than an empty track. `0` is therefore a width no *real* reading can produce — the function returns it for exactly one input, a null RSRP, which is the case `buildMetrics` intercepts before ever calling it. Feeding a null metric through it, or defaulting to `0` on the way to `MetricBar`, would render the one bar width reserved for a different meaning entirely, and it would render it as an assertion about signal strength. SCCs (secondary component carriers) routinely report only a subset of metrics, so this is the common path, not the edge.
 
 ### An absent row is not a null value
 
-RSSI is emitted **only** for LTE carriers that actually reported it (`buildMetrics`). `AT+QCAINFO`'s NR line shapes carry no RSSI field at all, so every NR component would report null forever; emitting the row anyway would invent a permanently-empty metric and invite the reader to wonder what is wrong with it. RSSI is also `barless: true`: it has no meaningful 0-100 scale to plot against, so it gets a caption where the track would be rather than a bar that means nothing.
+RSSI is emitted **only** for LTE carriers that actually reported it (`buildMetrics`). `AT+QCAINFO`'s NR line shapes carry no RSSI field at all, so every NR component would report null forever; emitting the row anyway would invent a permanently-empty metric and invite the reader to wonder what is wrong with it. RSSI is also `barless: true`: it has no meaningful 0-100 scale to plot against.
 
-Because the metric grid is **fixed at four columns**, an NR carrier's missing RSSI leaves its fourth cell genuinely **empty** — there is no rendered dash and no placeholder. That is deliberate: a dash in a fixed column reads as "this failed to load", whereas an empty cell in an otherwise perfectly aligned grid reads as "there is nothing here to report".
+> ℹ️ NOTE: the view model still builds that RSSI metric, but **the card no longer renders it** — `ActiveBandsCard` filters `m.id !== "rssi"` before mapping. It was cut by direct request: a bare value with no bar beneath it read as an afterthought beside three real readings, and it was the one cell that existed on LTE rows and not on NR ones. The fourth column now belongs to `ArfcnCell`, so the grid is **RSRP / RSRQ / SINR / EARFCN** on every carrier of either technology, and an NR row no longer carries a silently empty slot. `ArfcnCell` keeps the meter lane's height but draws nothing in it: an ARFCN is an identifier, not a reading, so it takes the machine voice (`font-mono`) and no bar. That is the one cell in the grid a bar would be wrong on.
 
 ### A fourth: out of physical range is not a reading at all (2026-08-16)
 
@@ -187,11 +190,25 @@ So the shipped assignment is:
 | The row itself | Neutral `bg-surface-container`, no tint (`ROW_SHELL`) |
 | Technology identity | The band label, as an outline `Tag variant="nr" \| "lte"` (`bandIdentityVariant`, returning `TagVariant`; `neutral` when released) |
 | Role | The role chip's **words** (PCC / ANCHOR / SCC n), on the neutral ramp (`ROLE_CHIP`) |
-| Quality | The status chip's fill, on a plain surface where it can be seen (`qualityVariant`) |
+| Quality | **Per metric**, on the five-stop ramp: bar length, ramp numeral ink, and an `sr-only` word. The row-level quality chip is gone — `c.quality` rides the row's accessible name instead |
 
-Three facts, three channels, no channel doing two jobs. The quality glyph is the **wedge** ladder (`signal_cellular_{1..4}_bar` + `signal_cellular_off`, `qualityGlyph`), never the `signal_cellular_alt*` family: `alt_1_bar` is a single 120×240-unit mark (about 2×4px at size 16, indistinguishable from a failed icon load) and there is no `alt_0_bar`, so the alt ladder's ink mass runs large → medium → speck → large → large and quality reads non-monotone. Two states in one slot never share a glyph, for the 1.03:1 reason above.
+Three facts, three channels, no channel doing two jobs.
 
-**Value ink uses the `*-on-surface` steps, never the solid role tokens.** `MetricCell` routes its value colour through `getValueColorClass` for exactly this: the solid pair measures 4.29:1 (success) and 3.74:1 (warning) on `surface-container` in light mode, both below AA. The darkened `-on-surface` steps exist at 5.88 / 5.95. And because `success-on-surface` and `warning-on-surface` sit ~1.01:1 apart — the same ink in greyscale — each bar-carrying metric also emits its quality **word** in an `sr-only` span. The tint is never the only channel.
+### Quality moved onto the five-stop ramp (2026-08-17)
+
+**Short version: the functional three (success / warning / destructive) had four levels to spend on signal, which is one too few to separate "weak but recoverable" from "not this cell". `SignalQuality` gained a fifth level, `bad`, and the tint on this page now comes from a five-stop lightness ramp instead of the status roles.** The cuts, the renamed `SignalThresholds.floor` field and the token arithmetic live in [color-system.md](color-system.md) and `types/modem-status.ts`; what follows is what changed on this card.
+
+`MetricCell` reads **both** of its colour channels from `components/cellular/signal-quality-display.ts` — `qualityMeterTone()` for the bar fill (`quality-1`…`quality-5`) and `qualityInkClass()` for the numeral ink (`text-quality-1`…`text-quality-5`). It carries no private switch of its own, and re-introducing one is what that module's header forbids by name.
+
+**The private switch it replaced was a live bug, not just duplication.** `active-bands-card.tsx` used to own a `meterTone()` with three arms — `fair` → warning, `poor` → destructive, `default` → success — so `none`, meaning *the radio reported nothing*, fell through the default arm and painted an **unread metric green**. The canonical map of the day disagreed in the opposite direction and sent `none` to `destructive`; neither was right, because there is no correct fill colour for a reading that does not exist. That is precisely why `qualityMeterTone()` returns **`null`** for `none` rather than a colour: the absence is a value the caller has to handle, not a case it can fall through — and `MetricBar`'s `colorOverride` accepts `null` straight through so no call site is tempted to write `?? "success"` on the way past. When the tone is null the `value` is null in the same breath, and `MetricBar` renders no fill for anything to tint.
+
+> ⚠️ WARNING: four rival copies of these maps existed across the product and all four were **deleted**, not aligned. If a future cell needs a tone, import it. A local `switch` over `SignalQuality` on this page is the exact shape of the bug above.
+
+**Ramp ink is only legal beside a bar.** The ramp is a lightness staircase rather than a hue wheel, so adjacent stops sit *deliberately* below the 0.05 CVD separation floor and **bar length is what makes the fine distinction safe** ([color-system.md](color-system.md) > The signal-quality ramp). A tinted numeral with no bar next to it is a bug on this page, not a shortcut — which is a second, independent reason every barred metric keeps its bar in every state. The third channel is the `sr-only` word each cell emits: the quality label, or `not_reported` when there is no reading, because an empty track and a full one differ only by pixels a screen reader cannot see.
+
+The quality **glyph** ladder (`QUALITY_GLYPH`, six members) is not drawn on this page — it went with the per-row quality chip — but it is the same canonical map, and `bad` took `signal_cellular_0_bar` there. It is the **wedge** family, never `signal_cellular_alt*`: `alt_1_bar` is a single 120×240-unit mark (about 2×4px at size 16, indistinguishable from a failed icon load) and there is no `alt_0_bar`, so the alt ladder's ink mass runs large → medium → speck → large → large and quality reads non-monotone. Two states in one slot never share a glyph, for the 1.03:1 reason above.
+
+> ℹ️ NOTE: the retired rule this replaces was **"value ink uses the `*-on-surface` steps, never the solid role tokens"**, routed through `getValueColorClass`. The measurement behind it stands — solid `--success` / `--warning` sit at 4.29:1 and 3.74:1 on `surface-container` in light mode, both below AA — and the ramp respects it by construction: `--quality-N` is tuned as ink against a near-white ground, which is why its light-mode low stops resolve to deep reds and browns. Do not "fix" that by brightening; it is a gamut ceiling. `getValueColorClass` still exists in `components/dashboard/signal-card-utils.ts` as a thin delegate to `qualityInkClass()`, so the dashboard cannot drift from this page.
 
 ### The four summary tiles
 
@@ -259,9 +276,11 @@ PCI and the ARFCN used to render as **one `font-mono` paragraph** joining both f
 | **No cross-row alignment** | PCI is 0–503 (LTE) / 0–1007 (NR), so the second fact started at a different x on *every* row — on a card whose thesis is "scan the column", and whose `METRIC_GRID` is fixed precisely so RSRP does not do this |
 | **Silent absence** | A null PCI let the ARFCN slide left into the vacated slot: same position, different meaning, no marker |
 
-It is now a two-column `<dl>`: **sans label** (`IDENTITY_LABEL`, `on-surface-variant`, uppercase) + **mono value** (`IDENTITY_VALUE`, promoted to `on-surface` — previously the value and its own caption shared one ink). The grid is **rendered unconditionally**, and a null field prints `Not reported` rather than collapsing, so a row missing both facts keeps its neighbours' geometry.
+It is now a `<dl>`: **sans label** (`IDENTITY_LABEL`, `on-surface-variant`, uppercase) + **mono value** (`IDENTITY_VALUE`, promoted to `on-surface` — previously the value and its own caption shared one ink). The grid is **rendered unconditionally**, and a null field prints `Not reported` rather than collapsing, so a row missing both facts keeps its neighbours' geometry.
 
 Each field carries **its own `TickingValue`**. The old single tick wrapped the joined string, so a handover moving only PCI flashed both facts and left the reader to diff them.
+
+The identity block now holds **PCI alone**: the ARFCN moved into `METRIC_GRID` as `ArfcnCell`, taking the column RSSI vacated. That grid is the one place on the row with fixed columns, and a channel number is exactly the kind of figure a reader wants to compare down a column — while the identity block's job (confirm *which physical cell this is*) needed only the one field. The two-column `<dl>` reasoning above still holds for the field that remains.
 
 > The No-Dot-Separator Rule already sanctioned this: *"multiple spaces, **or separate flex/inline items with a gap**."* The card had taken the first option; the second is the one that also fixes alignment.
 
@@ -389,7 +408,9 @@ Neither card is height-locked any more. The old `h-full *:data-[slot=card]:h-ful
 
 ## i18n
 
-All copy lives under `radio_info.*` in the `cellular` namespace: **126 keys per locale**, present in all five of `public/locales/{en,zh-CN,zh-TW,it,id}/cellular.json`.
+All copy lives under `radio_info.*` in the `cellular` namespace: **131 keys per locale**, present in all five of `public/locales/{en,zh-CN,zh-TW,it,id}/cellular.json`.
+
+`radio_info.bands.quality.bad` ("Very weak" in English) is the newest of them, added with the fifth ramp stop. The word had to read as *worse than* Poor without reading as *absent* — "None" would collide with the `none` level, which means the radio measured nothing at all. It is the same key `antenna-alignment`, `antenna-statistics` and `tower-locking`'s live strip all borrow, so the five levels are named identically wherever they appear.
 
 > ⚠️ WARNING: several key families are reached through **template literals** and are invisible to any static extraction or unused-key scan. Deleting one because grep found no call site will ship a raw key string to a device.
 
@@ -420,7 +441,7 @@ These are present in all five locales with **no call site**, left in place delib
 
 `/cellular/` is a Material Symbols route (see [icon-system.md](icon-system.md) and DESIGN.md > Icon-Boundary Rule). Every `MaterialSymbol` call site on this page passes `size` explicitly — the component does not infer one, and an omitted size renders at the font's default rather than the intended step.
 
-The shipped subset is `app/fonts/MaterialSymbolsRounded-subset.{woff2,json}`, currently **101 glyphs**, and the allowlist is `components/ui/material-symbol-names.ts`. Adding a name to the allowlist without regenerating the subset ships a name the font cannot draw. `alt_route` was added for the Active MIMO tile in this change.
+The shipped subset is `app/fonts/MaterialSymbolsRounded-subset.{woff2,json}`, currently **107 glyphs**, and the allowlist is `components/ui/material-symbol-names.ts`. Adding a name to the allowlist without regenerating the subset ships a name the font cannot draw. `alt_route` was added for the Active MIMO tile; `signal_cellular_0_bar` was added with the fifth ramp stop, as `bad`'s member of `QUALITY_GLYPH` — it is not drawn on this page, but it is drawn by the antenna surfaces that share the map.
 
 Glyphs used on this page: `cell_tower`, `graphic_eq`, `layers`, `alt_route`, `content_copy`, `check`, `schedule`, `visibility`, `visibility_off`, `help`, `warning`, `info`, `radar`, `chevron_right`, `sim_card`, `do_not_disturb_on`, `progress_activity`, and `signal_cellular_off` (the no-service condition screen, `states.tsx`).
 
@@ -432,6 +453,7 @@ The graded `signal_cellular_{1..4}_bar` ladder is **no longer used on this page*
 - **16 `react-hooks/refs` errors are visible and unfixed** (14 in `carrier-aggregation.tsx`, 2 in `cellular-information.tsx`), unmasked by fixing the `react-hooks/purity` asymmetry. They flag the deliberate `usePrevious`-style pattern behind the stale freeze; a real decision (suppress with rationale, or restructure) is still owed. This is *not* new breakage.
 - **SA mode is implemented but unobserved.** `resolveRadioMode`'s `registered-sa` branch, the `isSA` identity-field switch, the SA distance branch (`calculateNrDistance`), and the NR-holds-the-PCC role assignment have never run against live hardware. Treat them as designed-but-untested, exactly as [carrier-aggregation.md](carrier-aggregation.md) does.
 - **Two stale code comments**, cosmetic only: `cellular-information.tsx`'s file header still describes the deleted `@3xl/main:grid-cols-2` two-up layout; and `tick-group.tsx`'s docblock still quotes `TICK_STAGGER_STEP` as 100 ms, where `lib/motion.ts` now defines it as 0.2 s. The last one matters most, because the cascade budget above is derived from that constant.
+- **The Network tile's value clips at 4-up.** `summary-tiles.tsx:271` renders `{t(net.valueKey)}` with `truncate`, so at the `@5xl/main:grid-cols-4` breakpoint a long `radio_info.network_type.*` string is cut with an ellipsis rather than wrapping — `5G  5G NR …`. This is **not a regression** and not an overflow: `truncate` is exactly what `TILE_SHAPE`'s pinned 104px height relies on to keep a long translation from breaking the geometry ("a long translation shortens rather than overflows"). The cost is legibility, not layout, and Italian is the worst case. The fix belongs in `components/cellular/tile-shape.ts`, which four surfaces share — this strip, Antenna Statistics' context tiles, and the SMS Center's strip and skeleton — so it should be made once for all of them rather than locally here.
 
 ## Related
 

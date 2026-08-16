@@ -107,6 +107,7 @@
     "quality_good": "Good",
     "quality_fair": "Fair",
     "quality_poor": "Poor",
+    "quality_bad": "Very weak",
     "quality_none": "No signal"
   },
   "signal_history": {
