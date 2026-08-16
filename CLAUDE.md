@@ -22,8 +22,6 @@ Every code-change request in this repo follows a tier-routed, 6-phase flow (Tria
 
 This doc is deliberately **not** inlined here: it's read once by the orchestrator per code-change request, not carried by every dispatched agent's auto-loaded `CLAUDE.md`. Builders/validators get only the relevant excerpt inlined in their brief (per the doc's Hard Rules), never the whole flow.
 
-In Reasonix sessions, the specialist agents are dispatched as subagent profiles from `.reasonix/skills/` — see `REASONIX.md` for the native wiring (model mapping, dispatch, sync rules).
-
 ## Design Context
 
 See **`PRODUCT.md`** (strategic: what QManager is, users, brand personality, aesthetic references/anti-references, design principles) and **`DESIGN.md`** (visual: OKLCH tokens, typography, status-badge pattern, layout rules, component conventions, motion, Do's and Don'ts). Read them before any UI or product-facing work.

@@ -52,10 +52,6 @@ RELEASE_NOTE.md
 /.superpowers
 /docs/superpowers
 /.claude
-# Reasonix local tooling (mirrors /.claude): subagent profiles + local config
-/.reasonix
-/reasonix.toml
-/reasonix
 
 # simpleadmin source
 /simpleadmin-source
