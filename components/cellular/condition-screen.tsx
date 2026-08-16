@@ -38,7 +38,12 @@ import { cn } from "@/lib/utils";
 // glyph is the only channel that survives grayscale.
 // =============================================================================
 
-export type ConditionTone = "warning" | "destructive" | "primary" | "neutral";
+export type ConditionTone =
+  | "success"
+  | "warning"
+  | "destructive"
+  | "primary"
+  | "neutral";
 
 type ToneSpec = {
   container: string;
@@ -49,6 +54,12 @@ type ToneSpec = {
 };
 
 const TONE: Record<ConditionTone, ToneSpec> = {
+  success: {
+    container: "bg-success-container text-on-success-container",
+    disc: "bg-success text-success-foreground",
+    action:
+      "bg-on-success-container/10 hover:bg-on-success-container/15 focus-visible:ring-on-success-container",
+  },
   warning: {
     container: "bg-warning-container text-on-warning-container",
     disc: "bg-warning text-warning-foreground",

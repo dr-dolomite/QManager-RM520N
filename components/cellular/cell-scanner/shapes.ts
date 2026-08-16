@@ -1,5 +1,6 @@
 import type { BadgeVariant } from "@/components/ui/badge";
 import type { MaterialSymbolName } from "@/components/ui/material-symbol";
+import type { TagVariant } from "@/components/ui/tag";
 
 // =============================================================================
 // Cell Scanner family — shared geometry and tone contract
@@ -660,8 +661,14 @@ export function signalTier(strength: number | null | undefined): SignalTier {
  * the brand's one acting colour, spent on a passive label, for both radios at
  * once. Identity was unreadable and the chip advertised an action it did not
  * have.
+ *
+ * It then spent a spell as a filled `Badge` tone, which is the Two-Form Rule
+ * violation this return type now forbids: a filled chip says whether a thing is
+ * WELL, and "this row is NR" is not a verdict. Identity is an outline `Tag`, so
+ * this keys onto `TagVariant` — a scan row renders BOTH forms side by side (the
+ * `SIGNAL_BADGE` chip beside this tag), and the two must not be one object.
  */
-export function networkIdentity(networkType: string): BadgeVariant {
+export function networkIdentity(networkType: string): TagVariant {
   return networkType.toUpperCase().startsWith("NR") ? "nr" : "lte";
 }
 

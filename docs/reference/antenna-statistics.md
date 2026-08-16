@@ -90,7 +90,7 @@ The previous page dimmed idle ports to `opacity-25`. That is gone. **An idle cha
 - **Every tinted value carries an `sr-only` quality word.** `success-on-surface` and `warning-on-surface` measure ~1.01:1 apart: same luminance, hue only. Without the hidden word, a screen-reader user gets no quality signal at all.
 - **Meters are `aria-hidden`.** The bar is a redundant view of the number and quality word immediately to its right, both of which are real text. Exposing it as a `progressbar` would announce the same fact twice, once as an unlabelled percentage.
 
-The card's own identity chip (`Badge variant="nr" | "lte"`) says **which radio the card is about** and never means "healthy" — see DESIGN.md > Identity-Chip Rule. Quality lives only in the per-port verdict chips.
+The card's own identity chip (an outline `Tag variant="nr" | "lte"`, `components/ui/tag.tsx`) says **which radio the card is about** and never means "healthy" — see DESIGN.md > Identity-Chip Rule. Quality lives only in the per-port verdict chips.
 
 ### The verdict is the worst of the three metrics
 

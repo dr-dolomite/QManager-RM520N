@@ -135,7 +135,7 @@ While the first read is in flight a `ReadingChip` replaces the theme toggle at t
 
 **The modem-unreachable empty state is `warning`, not `destructive`**, and its footer says *"signing in still works"*. The distinction is the whole point of the state: the status feed is gone, the login is not, and a red card would tell a visitor the device is broken when it is merely quiet. `overview.empty.subtitle` was rewritten to name cause and recovery ("The modem has not reported in for a minute. It may be rebooting — the reading resumes on its own.") instead of the old "Log in for diagnostic details.", which offered a next step that does not help.
 
-**Band chips carry IDENTITY, not quality.** Per DESIGN.md's Identity-Chip Rule the chip fill says which radio the row belongs to — NR gets `primary-container`, LTE gets `lte-container` — while the meter and the value carry the functional-colour verdict.
+**Band chips carry IDENTITY, not quality.** Per DESIGN.md's Identity-Chip Rule the chip says which radio the row belongs to, while the meter and the value carry the functional-colour verdict. As of 2026-08-17 it renders as an outline `Tag variant="nr" | "lte"` (`components/ui/tag.tsx`) rather than a hand-rolled container fill — identity never takes a large tinted block. `AggregateBandRow`'s summary pill became `<Tag variant="neutral">` in the same change.
 
 > ⚠️ WARNING — the comp calls the LTE role `--sc` (secondary-container). **Do not use `secondary-container` here.** This repo ships Carrier Violet under the non-canon name `--lte-*` specifically to avoid colliding with the shadcn neutral secondary. See `DESIGN.md` > Colors > Secondary.
 

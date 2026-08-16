@@ -4,9 +4,9 @@ import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
 import { getValueColorClass } from "@/components/dashboard/signal-card-utils";
-import { Badge } from "@/components/ui/badge";
 import { MaterialSymbol } from "@/components/ui/material-symbol";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Tag } from "@/components/ui/tag";
 import {
   Tooltip,
   TooltipContent,
@@ -303,12 +303,12 @@ export function TowerLiveStrip({
                     <div className={CARRIER_TILE.HEAD}>
                       {/* IDENTITY, not health: `nr`/`lte` say which radio this
                           tile belongs to and never mean "healthy". */}
-                      <Badge
+                      <Tag
                         variant={c.technology === "LTE" ? "lte" : "nr"}
                         className="flex-none"
                       >
                         {t(techKey(c.technology))} {c.type}
-                      </Badge>
+                      </Tag>
                       <span className={CARRIER_TILE.BAND}>{c.band}</span>
 
                       {locked ? (

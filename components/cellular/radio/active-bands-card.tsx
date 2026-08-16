@@ -5,7 +5,7 @@ import Link from "next/link";
 import { motion } from "motion/react";
 import { useTranslation } from "react-i18next";
 
-import { Badge, type BadgeVariant } from "@/components/ui/badge";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import {
@@ -19,6 +19,7 @@ import { MaterialSymbol } from "@/components/ui/material-symbol";
 import { MetricBar, type MetricBarTone } from "@/components/ui/metric-bar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { SwapLabel } from "@/components/ui/swap-label";
+import { Tag, type TagVariant } from "@/components/ui/tag";
 import { TickingValue } from "@/components/ui/ticking-value";
 import { TickGroup } from "@/components/ui/tick-group";
 import {
@@ -154,14 +155,27 @@ const IDENTITY_VALUE =
  * at.
  *
  * So: neutral `surface-container` row, technology carried by the band label
- * rendered as an identity Badge (`nr` / `lte` — the same blue/violet pair the
+ * rendered as an identity Tag (`nr` / `lte` — the same blue/violet pair the
  * dashboard uses, and the same treatment Signal Status gives its band via
  * `asIdentity`), role carried by the role chip's WORDS, and quality carried by
  * the status chip that now has a plain surface to sit on. Three facts, three
  * channels, no channel doing two jobs.
+ *
+ * IDENTITY IS AN OUTLINE TAG, NOT A FILLED CHIP. "This row is the NR leg" is
+ * not a verdict about the row's health, and the Two-Form Rule keeps the two
+ * forms apart so the released chip beside this one still reads as the row's one
+ * status object.
+ *
+ * A RELEASED carrier drops to `neutral`, and tone is the WEAKEST half of that
+ * signal on purpose: `lte` and a neutral metadata tone are close enough that a
+ * deuteranope separates them barely or not at all, so "dropped" must never rest
+ * on hue. It does not here — the released row already renders a filled `muted`
+ * status chip carrying the `do_not_disturb_on` glyph AND the translated word,
+ * plus the elapsed-time note beneath. Glyph and word first, tone as
+ * reinforcement (DESIGN.md > Signature surfaces > Carrier Aggregation strip).
  */
-function bandIdentityVariant(c: EnrichedCarrier): BadgeVariant {
-  if (c.released) return "muted";
+function bandIdentityVariant(c: EnrichedCarrier): TagVariant {
+  if (c.released) return "neutral";
   return c.technology === "NR" ? "nr" : "lte";
 }
 
@@ -651,19 +665,22 @@ export function ActiveBandsCard({
                         <div className="flex flex-wrap items-center gap-2">
                           <span className={ROLE_CHIP}>{roleLabel(c)}</span>
 
-                          <Badge
+                          <Tag
                             variant={bandIdentityVariant(c)}
                             className="shrink-0 px-2.5 py-1 text-sm font-semibold"
                           >
                             {bandLabel(c)}
-                          </Badge>
+                          </Tag>
 
                           {/* Exception-only. An ACTIVE carrier now carries no
                               third chip at all — its health reads from the four
                               metric bars to its right. A RELEASED one keeps its
                               word, because "greyed but still listed" is a
-                              contract the band badge's `muted` fill cannot
-                              carry on its own. */}
+                              contract the band tag's neutral tone cannot carry
+                              on its own — and now less than ever, since an
+                              outline tag's released state differs from a live
+                              LTE one by border hue alone. The glyph and the
+                              word are what actually carry it. */}
                           {c.released ? (
                             <Badge variant="muted">
                               <SwapLabel

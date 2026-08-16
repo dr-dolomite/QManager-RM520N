@@ -3,6 +3,7 @@
 import { motion } from "motion/react";
 import { useTranslation } from "react-i18next";
 import { Badge } from "@/components/ui/badge";
+import { Tag, type TagVariant } from "@/components/ui/tag";
 import { Card } from "@/components/ui/card";
 import {
   MaterialSymbol,
@@ -122,12 +123,11 @@ export function SignalStatusCard({
   const stateDisplay = getStateDisplay(state);
   const isInactive = state === "inactive";
   const quality = isInactive ? "none" : getSignalQuality(rsrp, RSRP_THRESHOLDS);
-  const identityVariant = family === "nr" ? "nr" : "lte";
-
-  const identityTone =
-    family === "nr"
-      ? "bg-primary-container text-on-primary-container"
-      : "bg-lte-container text-on-lte-container";
+  // Identity renders as an OUTLINE TAG on both of this card's identity slots —
+  // the header chip and the band pill. It was two filled `*-container` blocks,
+  // which the Data-Ink Rule forbids for identity: identity is ink, outline and
+  // disc only, never a large tinted block. See DESIGN.md > The three layers.
+  const identityVariant: TagVariant = family === "nr" ? "nr" : "lte";
 
   if (isLoading) {
     return (
@@ -196,11 +196,11 @@ export function SignalStatusCard({
             now it is the ONLY channel carrying quality, since the fill is
             pinned to the radio. `size={16}` is explicit because MaterialSymbol
             sets fontSize inline and Badge's `[&>svg]:size-3` cannot reach it. */}
-        <Badge
+        <Tag
           variant={identityVariant}
-          // No transition here: `badge.tsx` now writes the two-clock longhand
-          // (fill and ink on `standard`, focus ring on `quick`) for every
-          // Badge. A `transition-colors` utility layered on top would re-declare
+          // No transition here: `tag.tsx` writes the two-clock longhand (ink
+          // and BORDER on `standard`, focus ring on `quick`). A
+          // `transition-colors` utility layered on top would re-declare
           // transition-property and silently drop the ring's separate clock.
           className="shrink-0 px-3 py-1.5 font-semibold"
         >
@@ -217,7 +217,7 @@ export function SignalStatusCard({
             <MaterialSymbol name={getQualityGlyph(quality)} size={16} filled />
             {t(`signal_card.quality_${quality}`)}
           </SwapLabel>
-        </Badge>
+        </Tag>
       </div>
 
       {/* The rows are a single-column grid (`grid` with no `grid-cols-*`), so
@@ -271,14 +271,15 @@ export function SignalStatusCard({
                   // handover, not on a poll. So it takes the container morph
                   // (`standard`) and NOT the live tick — dipping a value that
                   // holds steady for minutes would invent an event.
-                  <dd
-                    className={cn(
-                      "m-0 shrink-0 rounded-pill px-2.5 py-1 font-mono text-xs font-semibold transition-colors duration-(--duration-standard) ease-standard",
-                      identityTone,
-                    )}
-                  >
-                    {row.value}
-                  </dd>
+                  // `asChild` so the tag IS the <dd> rather than wrapping one —
+                  // a <span> inside a <dd> would be a redundant box, and the
+                  // definition-list semantics have to survive the form swap.
+                  // The transition lives in `tag.tsx`'s longhand now.
+                  <Tag asChild variant={identityVariant}>
+                    <dd className="m-0 shrink-0 px-2.5 py-1 font-mono text-xs font-semibold">
+                      {row.value}
+                    </dd>
+                  </Tag>
                 ) : (
                   // Measurements, and the reason this card needed the tick at
                   // all: RSRP/RSRQ/SINR redraw every ~2s. Without the dip the

@@ -16,9 +16,13 @@ import {
 // Two colour axes are kept deliberately separate, per DESIGN.md's
 // Identity-Chip Rule:
 //
-//   · the band CHIP carries IDENTITY   — primary-container for NR,
-//     lte-container for LTE. It never means "healthy".
-//   · the METER and VALUE carry QUALITY — the functional-colour contract.
+//   · the band TAG carries IDENTITY    — the `nr` / `lte` outline tag, ink and
+//     stroke only. It never means "healthy", and per the Two-Form Rule it is
+//     never a large tinted container block.
+//   · the METER and VALUE carry QUALITY — the functional-colour contract, and
+//     `success` is the only tone that may say a reading is fine. The brand
+//     ramp is 5G identity as well, so painting a healthy state with it would
+//     show an LTE-only user "all good" in the 5G colour.
 // =============================================================================
 
 // Temperature warning thresholds — kept in sync with device-metrics.tsx
@@ -103,8 +107,8 @@ export interface TileVerdict {
  * identical under deuteranopia — no two states in one slot share a glyph.
  */
 export const OVERALL_TILE: Record<SignalQuality, TileVerdict> = {
-  excellent: { tone: "primary", icon: "signal_cellular_alt" },
-  good: { tone: "primary", icon: "signal_cellular_alt" },
+  excellent: { tone: "success", icon: "signal_cellular_alt" },
+  good: { tone: "success", icon: "signal_cellular_alt" },
   fair: { tone: "warning", icon: "warning" },
   poor: { tone: "destructive", icon: "priority_high" },
   none: { tone: "neutral", icon: "signal_cellular_off" },

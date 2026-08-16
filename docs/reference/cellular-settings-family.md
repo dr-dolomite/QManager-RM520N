@@ -283,11 +283,11 @@ This surface reports exactly one fact, so there is no loaded "layout" to fall ba
 | `loading` | `neutral` | `progress_activity` (spinning) | `status` |
 | `error` | `destructive` | `error` | `alert` |
 | `entries` | `destructive` | `cancel` | `alert` |
-| `clean` | `primary` | `check_circle` | `status` |
+| `clean` | `success` | `check_circle` | `status` |
 | `unknown` | `neutral` | `help` | `status` |
 
 - **Five states, five glyphs.** `entries` and `error` are both `destructive`, which makes `cancel` vs `error` load-bearing rather than decorative — they must never collapse to one glyph.
-- **The clean state is `primary`, not `neutral`.** `ConditionScreen`'s tone vocabulary has no `success` member, deliberately: a full-body success screen is a celebration, and "nothing is wrong" does not need one. Of the four tones it does carry, `neutral` is spoken for by `unknown` — and clean vs unknown are exactly the two states a user must never confuse, so they cannot share a fill and lean on the glyph alone. `primary-container` is this system's informational container (the Info-Is-Brand rule stated outright in `tonal-banner.tsx`).
+- **The clean state is `success`, not `neutral` — and it used to be `primary` only because `success` did not exist here.** `neutral` is spoken for by `unknown`, and clean vs unknown are exactly the two states a user must never confuse, so they cannot share a fill and lean on the glyph alone. That left `primary`, this system's *informational* container (the Info-Is-Brand rule stated outright in `tonal-banner.tsx`) — a stand-in, because `ConditionTone` carried no `success` member. On **2026-08-17** the `--primary`-as-a-health-state delta was closed: `ConditionTone` and `condition-screen.tsx`'s `TONE` map gained a `success` member (`container: bg-success-container text-on-success-container`, `disc: bg-success text-success-foreground`, plus the matching `action` alpha) and this state moved onto it. `primary` stays in the union for genuinely informational conditions.
 - **`spin` is honest here** for the same reason it is banned elsewhere: this condition really is transient work in flight.
 
 ### The `unknown` state is a bug fix

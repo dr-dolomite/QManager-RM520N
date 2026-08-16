@@ -40,6 +40,7 @@ import {
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
+import { Tag } from "@/components/ui/tag";
 import {
   Tooltip,
   TooltipContent,
@@ -1047,9 +1048,9 @@ export default function NrSaTowerCard({
                                   above — the same chip for the same carrier. It
                                   says which radio, never "healthy"; PCC vs SCC
                                   is carried by the word inside it. */}
-                              <Badge variant="nr" className="flex-none">
+                              <Tag variant="nr" className="flex-none">
                                 {opt.type}
-                              </Badge>
+                              </Tag>
                               <span className="text-on-surface min-w-0 truncate font-mono text-sm font-semibold tabular-nums">
                                 {t("tower_locking.live.tile_band_channel", {
                                   band:

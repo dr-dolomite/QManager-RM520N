@@ -230,7 +230,7 @@ Both themes are first-class and each is authored. Dark is a near-black instrumen
 
 ## Migration Deltas (tracked)
 
-**This document is ahead of the code.** The token set above is the target; `app/globals.css` still carries the previous palette. Until those land, expect the following gaps. This list is the implementation backlog, and a delta is removed only when the code matches.
+**This document is ahead of the code in the rows still marked Open.** The token set above has landed in `app/globals.css`; what remains is component work. This list is the implementation backlog, and a delta is removed only when the code matches.
 
 | Delta | Where | Status |
 | --- | --- | --- |
@@ -240,14 +240,30 @@ Both themes are first-class and each is authored. Dark is a near-black instrumen
 | ~~Outline-tag tokens do not exist~~ | `--tag-*-text` / `--tag-*-border` | **Landed** |
 | `getSignalQuality()` returns four levels | `types/modem-status.ts` — needs a fifth (`bad`) below `poor` | Open |
 | Quality "Good" still maps to the brand blue | every consumer of the quality scale | Open |
-| Identity chips are filled containers | `components/ui/badge.tsx` — `nr` / `lte` become outline tags; no `Tag` primitive exists yet | Open |
-| Radio summary tiles are four tinted containers | `components/cellular/radio/summary-tiles.tsx` | Open |
+| ~~Identity chips are filled containers~~ | `components/ui/tag.tsx` is the outline-tag primitive (`nr` / `lte` / `spatial` / `neutral`); all 11 identity sites migrated, and `nr` / `lte` / `downlink` / `uplink` / `spatial` were deleted from `components/ui/badge.tsx` | **Landed** 2026-08-17 |
+| ~~Radio summary tiles are four tinted containers~~ | `components/cellular/radio/summary-tiles.tsx` — all four bodies are neutral; colour survives only on the 52px disc, and `Tile` no longer accepts a `tone` prop | **Landed** 2026-08-17 |
 | Quality bars are not built | no component consumes `--quality-*` yet | Open |
-| `--primary` used as a health state | `components/public/overview/tone.ts:106-107`, `fplmn-settings/fplmn-card.tsx:114` | Open |
+| ~~`--primary` used as a health state~~ | `components/public/overview/tone.ts` and `fplmn-settings/fplmn-card.tsx:114` both moved to `success` (`ConditionTone` gained a `success` member to make the second one possible) | **Landed** 2026-08-17 |
 | `.impeccable/design.json` sidecar is stale | Still carries the previous canonical values and tonal ramps (e.g. `primary` at `oklch(0.488 0.243 264.376)`). It is generated from the built world by the impeccable documenter, so it is regenerated after the component layer lands — patching it by hand mid-migration would make it wrong in a subtler way | Open |
 | Legacy `--chart-1..6` still present | `app/globals.css` — **blocked**: `--chart-3` and `--chart-6` have live consumers in `latency-monitoring-card.tsx` and `signal-storm-game.tsx`. Both are retargeted onto the new palette and given real dark values so those surfaces theme; the block is deletable only once both callers move to `--chart-nr` / a quality stop | Blocked |
 
-**The token layer is in and the component layer is not.** Every surface now renders the new neutrals, inks and fills automatically, because components resolve `bg-surface`, `text-on-surface-variant`, `bg-primary` and so on. What does *not* change on its own is anything whose shape is wrong rather than whose colour is wrong: identity chips are still filled, the radio strip is still four tinted tiles, and no quality bar exists. Those are the open rows above.
+**The token layer is in, and the component layer is half in: the identity half is done and the quality half is not.** Every surface renders the new neutrals, inks and fills automatically, because components resolve `bg-surface`, `text-on-surface-variant`, `bg-primary` and so on. On top of that, the shapes that were wrong rather than merely mis-coloured have been rebuilt on the identity axis — identity and metadata now render as outline tags through `components/ui/tag.tsx`, the radio summary strip is neutral-bodied with colour only on its discs, and `--primary` no longer stands in for a health state anywhere.
+
+Removing `nr` / `lte` / `spatial` (and the two unused direction variants) from `badge.tsx` means `BadgeVariant` no longer contains an identity or direction member at all, so **the Two-Form Rule is now enforced by the compiler rather than by reviewer discipline**: a status tone map cannot key onto an identity name, and a `variant="nr"` on a `Badge` fails the build.
+
+What remains is the quality half. The `--quality-{1..5}` ramp tokens still have no consumer, `getSignalQuality()` still returns four levels rather than five, and every surface of the quality scale still routes its colour through `success` / `warning` / `destructive`. Those are the open rows above.
+
+> ℹ️ NOTE for whoever picks up the quality wave: **five independent quality→colour maps exist and must be reconciled in one change**, or the ramp will land unevenly across the app.
+>
+> | Map | File | State |
+> | --- | --- | --- |
+> | `QUALITY_GLYPH` / `qualityBadgeVariant` / `qualityMeterTone` | `components/cellular/signal-quality-display.ts` | **Canonical** |
+> | `QUALITY_GLYPH` / `verdictVariant` / `meterTone` | `components/cellular/antenna-statistics/tech-card.tsx` | Private copy, value-identical to the canonical one |
+> | `bandIdentityVariant` / `meterTone` | `components/cellular/radio/active-bands-card.tsx` | **Divergent** — its `meterTone()` maps `none` → `success`, so an unread antenna currently paints green, where the canonical map sends `none` → `destructive` |
+> | Tile tone verdicts | `components/public/overview/tone.ts` | Separate copy |
+> | Signal-card tone helpers | `components/dashboard/signal-card-utils.ts` | Separate copy |
+>
+> `components/cellular/cell-scanner/shapes.ts` carries a deliberately separate **3-tier** scale for scan results. It is not a sixth copy of this map and must **not** be unified with it.
 
 ## Colors
 

@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { MaterialSymbol } from "@/components/ui/material-symbol";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Tag } from "@/components/ui/tag";
 import { cn } from "@/lib/utils";
 import type { CarrierComponent, ModemStatus } from "@/types/modem-status";
 import type { FreqLockModemState } from "@/types/frequency-locking";
@@ -150,9 +151,9 @@ function CarrierTile({
       <div className={CARRIER_TILE.HEAD}>
         {/* Identity variant, not a status role: this says WHICH radio the tile
             belongs to, never that it is healthy. */}
-        <Badge variant={isNr ? "nr" : "lte"}>
+        <Tag variant={isNr ? "nr" : "lte"}>
           {carrier.technology} {carrier.type}
-        </Badge>
+        </Tag>
         <span className={CARRIER_TILE.META}>{carrier.band}</span>
         {allowed ? (
           <span

@@ -249,14 +249,16 @@ Orb geometry: a 152px disc with a 96px glyph (up from 74px), leaving roughly 28p
 
 ### Identity chips on the Primary Status cards (`signal-status-card.tsx`)
 
-The quality chip's **fill** now carries radio identity via two new `Badge` variants, and its **glyph** carries quality.
+The chip carries radio identity, and its **glyph** carries quality. As of 2026-08-17 identity renders as an **outline `Tag`** (`components/ui/tag.tsx`), not as a filled `Badge` container:
 
-| Variant | Renders | Means |
+| `Tag` variant | Renders | Means |
 |---------|---------|-------|
-| `nr` | `bg-primary-container text-on-primary-container` | 5G NR leg |
-| `lte` | `bg-lte-container text-on-lte-container` | 4G LTE leg |
+| `nr` | `--tag-nr-border` / `--tag-nr-text` on a transparent fill | 5G NR leg |
+| `lte` | `--tag-lte-border` / `--tag-lte-text` on a transparent fill | 4G LTE leg |
 
-`badge.tsx` also carries two **direction** variants — `downlink` (`bg-downlink-container`) and `uplink` (`bg-uplink-container`) — on a separate axis from the radio pair above. Neither pair is a status role. A direction chip must still pair its hue with an arrow glyph, for the same reason the identity chips pair with a quality glyph: at container lightness in dark mode this system's tonal pairs collapse under red-green colour-vision simulation, so the glyph is the information and the hue is reinforcement. See [color-system.md](color-system.md).
+> ℹ️ NOTE: the `nr`, `lte`, `downlink`, `uplink` and `spatial` variants were **deleted from `components/ui/badge.tsx`** in the same change, so `BadgeVariant` no longer contains an identity or direction member and `variant="nr"` on a `Badge` fails the build.
+
+The glyph obligation survives the move: a chip that carries identity must encode the quality it also reports **non-chromatically** — here, the Material glyph's bar count. At container lightness in dark mode this system's tonal pairs collapse under red-green colour-vision simulation, so the glyph is the information and the hue is reinforcement. See [color-system.md](color-system.md).
 
 | Quality | Glyph |
 |---------|-------|

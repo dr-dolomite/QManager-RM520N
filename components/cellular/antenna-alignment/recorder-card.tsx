@@ -19,6 +19,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { MaterialSymbol } from "@/components/ui/material-symbol";
+import { Tag } from "@/components/ui/tag";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { cn } from "@/lib/utils";
 import { staggerRowItem, staggerRows } from "@/lib/motion";
@@ -255,12 +256,12 @@ function SlotTile({
                 {score.value === null ? "—" : score.value}
               </span>
               {score.radio && (
-                <Badge
+                <Tag
                   variant={score.radio === "nr" ? "nr" : "lte"}
                   className="mb-1.5 shrink-0 px-2 py-0.5 text-xs font-semibold"
                 >
                   {t(`antenna_alignment.mode.${score.radio}`)}
-                </Badge>
+                </Tag>
               )}
             </div>
 

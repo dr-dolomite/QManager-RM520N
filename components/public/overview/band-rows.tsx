@@ -3,6 +3,7 @@
 import { useEffect, useId, useState } from "react";
 import { motion, useReducedMotion } from "motion/react";
 
+import { Tag } from "@/components/ui/tag";
 import { cn } from "@/lib/utils";
 import { transitionMeterFill, transitionStandard } from "@/lib/motion";
 import {
@@ -185,18 +186,20 @@ export function BandRow({
 
   return (
     <div className={cn("flex items-center", ROW_GAP)}>
-      {/* IDENTITY chip — which radio this carrier is, never how healthy it is. */}
-      <span
+      {/* IDENTITY tag — which radio this carrier is, never how healthy it is.
+          The Two-Form Rule: identity is ink and outline, never a large tinted
+          container block, so this is a `Tag` and not a filled `Badge`. The
+          11px step is the pre-auth scale's eyebrow and does not travel to the
+          app scale — it must survive the merge with `Tag`'s own `text-xs`. */}
+      <Tag
+        variant={isNrBand(band.band) ? "nr" : "lte"}
         className={cn(
-          "flex-none rounded-pill py-1 text-center font-mono text-[0.6875rem] font-semibold",
+          "flex-none rounded-pill px-0 py-1 font-mono text-[0.6875rem] font-semibold",
           CHIP_W,
-          isNrBand(band.band)
-            ? "bg-primary-container text-on-primary-container"
-            : "bg-lte-container text-on-lte-container",
         )}
       >
         {band.band}
-      </span>
+      </Tag>
       <QualityMeter
         percent={percent}
         barClass={barClass}
@@ -251,14 +254,20 @@ export function AggregateBandRow({
 
   return (
     <div className={cn("flex items-center", ROW_GAP)}>
-      <span
+      {/* `neutral`, not a filled chip: this sits in the SAME slot as the
+          per-band identity tags above it, and once those became outlines a
+          lone filled pill in the column read as a different kind of thing
+          rather than as the aggregate of the same thing. It is metadata with
+          no honest hue, which is exactly what the neutral tag is for. */}
+      <Tag
+        variant="neutral"
         className={cn(
-          "bg-surface-container-high text-on-surface-variant flex-none rounded-pill py-1 text-center font-mono text-[0.6875rem] font-semibold",
+          "flex-none px-0 py-1 text-center font-mono text-[0.6875rem] font-semibold",
           CHIP_W,
         )}
       >
         {label}
-      </span>
+      </Tag>
       <QualityMeter
         percent={percent}
         barClass={barClass}

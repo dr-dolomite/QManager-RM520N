@@ -10,6 +10,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Tag } from "@/components/ui/tag";
 import {
   Empty,
   EmptyDescription,
@@ -388,12 +389,12 @@ export function TechCard({
           </div>
           {/* Identity, never health: this chip says WHICH radio the card is
               about. Quality lives in the per-port verdict chips below. */}
-          <Badge
+          <Tag
             variant={prefix === "nr" ? "nr" : "lte"}
             className="shrink-0 px-2.5 py-1 text-xs font-semibold"
           >
             {t(`antenna_statistics.card.${prefix}.identity`)}
-          </Badge>
+          </Tag>
         </div>
       </CardHeader>
 

@@ -4,7 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 import { useTranslation } from "react-i18next";
 
-import { Badge } from "@/components/ui/badge";
+import { Tag, type TagVariant } from "@/components/ui/tag";
 import { MaterialSymbol } from "@/components/ui/material-symbol";
 import type { MaterialSymbolName } from "@/components/ui/material-symbol";
 import { TILE_SHAPE } from "@/components/cellular/tile-shape";
@@ -12,10 +12,9 @@ import { cn } from "@/lib/utils";
 import type { RadioMode, RadioSummary } from "@/lib/radio-info";
 
 // =============================================================================
-// Summary tiles — four figures, four tonal tiles
+// Summary tiles — four figures, four neutral tiles, four coloured discs
 // =============================================================================
-// 2026-08-16. This surface has now been through three compositions and is back
-// on the first one, deliberately and with different paint. The history matters
+// This surface has now been through five compositions. The history matters
 // because each generation fixed something real, and the version that ships has
 // to keep those fixes rather than rewind past them.
 //
@@ -25,75 +24,65 @@ import type { RadioMode, RadioSummary } from "@/lib/radio-info";
 //   Gen 2  one 2/5 tonal anchor + a 3/5 neutral box. Measured on the live
 //          device at 1914px the anchor was 623x212 = 132,033px^2 carrying
 //          9,526px^2 of ink — 7.2%. A large empty purple slab.
-//   Gen 3  a 1/5 identity rail + a 4/5 box of grouped rows. Correct by the
-//          canon and quieter (44,441px^2, -66%), but it traded the at-a-glance
-//          four-figure read for a list, and the four-tile grid is what the
-//          product actually wants here.
+//   Gen 3  a 1/5 identity rail + a 4/5 box of grouped rows. Quieter (44,441
+//          px^2, -66%), but it traded the at-a-glance four-figure read for a
+//          list, and the four-tile grid is what the product actually wants.
+//   Gen 4  Gen 1's LAYOUT with the strong fills demoted to the disc: four
+//          `*-container` bodies, four `*` discs.
 //
-// Gen 4 is Gen 1's LAYOUT with Gen 2/3's diagnosis applied to the paint.
+// GEN 5 REMOVES THE BODY TINT ENTIRELY. Every tile body is now `NEUTRAL_TILE`
+// and the disc is the only coloured element on the strip.
 //
-// WHAT ACTUALLY MADE GEN 1 LOUD — and it was not the tile count. It was that
-// the network tile used the STRONG FILL across a whole 92px tile. M3 spends
-// strong fills on compact emphasis (FABs, chips, selected states) and gives
-// large surfaces CONTAINERS; dark mode made the inversion shout, because
-// `--lte` was oklch(0.8 ...) on an oklch(0.155) ground. So every tile BODY is
-// now a container and the strong fill survives only on the 52px disc, which is
-// the one element small enough to want it. In dark mode that is a ~0.47
-// lightness drop on the loudest block — far more "toned down" than any token
-// nudge could deliver, and the tokens were quieted as well
-// (`app/globals.css` > Dark identity fills).
+// Gen 4's diagnosis was right about the strong fill and wrong about what was
+// left. Four pale bodies at near-identical container lightness encode CATEGORY
+// without encoding IMPORTANCE, so the strip flattened to equal weight and the
+// eye had nowhere to land — four things shouting politely at the same volume.
+// A neutral body with a saturated disc gives each tile a focal point at ~1/8th
+// the tinted area, and gives the strip a reading order again. This is The
+// Data-Ink Rule at tile scale: colour belongs to the reading, not to the
+// container holding it (DESIGN.md > Components > Tiles).
 //
-// COLOUR DISCIPLINE — a tile is tinted only if the hue encodes something TRUE.
+// It also settles an argument the tint kept losing. Gen 4's own comment had to
+// justify each body hue as "encoding something TRUE", and one of the four never
+// really did: Carriers wore UPLINK CYAN on the reasoning that cyan "owns counts
+// system-wide". A count is not a direction. That gave cyan a second meaning and
+// made the whole direction axis untrue — a carrier-count tile in upload cyan,
+// two clicks from a latency card where the same cyan meant upload beside an
+// up-arrow. Carriers is now NEUTRAL, per The Neutral-Default Rule: a figure
+// with no honest hue stays neutral.
 //
-//   Network type  IDENTITY. `primary-container` when an NR leg is registered,
-//                 `lte-container` when it is LTE-only. The hue IS the fact,
-//                 and it is the only tile allowed a radio hue.
+// WHAT EACH DISC ENCODES — and a disc is coloured only where the hue is true.
+//
+//   Network type  IDENTITY FILL. `bg-primary` when an NR leg is registered,
+//                 `bg-lte` when it is LTE-only. The only radio hue on the
+//                 strip. The Glyph-Disc Rule puts identity on the STRONG fill
+//                 rather than the pale container precisely here: in light mode
+//                 the identity containers collapse under simulation and the
+//                 fills do not.
 //   Bandwidth     DOWNLINK ROSE. `totalMhz` sums across both legs, so no radio
-//                 hue can be honest here — but rose does not mean a radio. It
-//                 means throughput and capacity, and aggregate channel width
-//                 is exactly the pipe. See The Direction-Is-Not-A-Radio Rule.
-//   Carriers      UPLINK CYAN, which already owns counts system-wide
-//                 (DESIGN.md > Tertiary). A count is what this tile reports.
+//                 hue is honest — but rose means direction, not radio, and
+//                 aggregate channel width is the pipe. Direction-Is-Not-A-Radio.
+//   Carriers      NEUTRAL. A count is not a direction and not a state.
 //   Active MIMO   SPATIAL AZURE. Its value literally reads `LTE 1x2 | NR 2x4`,
 //                 naming both radios in its own string, so no identity hue is
-//                 honest — and layers are neither a direction nor a capacity,
-//                 so neither of those axes fits either. It shipped neutral for
-//                 exactly one revision on that reasoning. The resolution was
-//                 not to bend one of the other three axes onto it but to give
-//                 the thing it actually reports — antennas and spatial streams
-//                 — an axis of its own, which the per-antenna surfaces share.
+//                 honest — and layers are neither a direction nor a state, so
+//                 spatial is its own axis, shared with the per-antenna surfaces.
 //
-// Under the Functional-Color Promise a user who learned violet = LTE on the
-// dashboard CA strip must not meet a violet block that means something else.
-// Gen 1 broke that twice (bandwidth in NR blue while summing NR+LTE, MIMO in
-// LTE violet while reporting both); that is the defect this generation keeps
-// fixed while getting the grid back.
-//
-// FOUR TILES, FOUR AXES, and that is the whole system on one surface: radio
-// identity, capacity, count, spatial. None of the four borrows a hue from
-// another's axis, which is the property that was missing when this strip last
-// had four colours — back then bandwidth wore NR blue while summing NR+LTE and
-// MIMO wore LTE violet while reporting both legs.
-//
-// The honest constraint worth recording: there was no free hue. Every gap in
-// the circle is inside 40 degrees of something, so Spatial Azure is a
-// deliberate, measured amendment to that rule rather than a slot that happened
-// to be open — see the token comment in `app/globals.css`.
+// IDENTITY IS NOW TWO CHANNELS, NEITHER OF THEM A BLOCK. The network tile
+// carries its radio in the disc's fill and in an OUTLINE TAG on the mark
+// ("5G" / "4G"), which is the Two-Form Rule's identity half. It was a filled
+// `Badge variant="nr"` — a pale `primary-container` block that was byte-
+// identical to `variant="info"`, so the 5G mark and an informational chip were
+// literally the same object.
 //
 // WHAT COLOUR CAN AND CANNOT DO HERE, measured rather than assumed. Simulating
-// deuteranopia and protanopia across this system's container tones in DARK
-// mode, nearly every pair collapses below the 0.05 separation floor — including
-// pairs that already ship (success/warning, warning/destructive, uplink vs a
-// plain surface-container). Light mode is clean. So on a dark tile the body
-// tint is decoration and the GLYPH plus the LABEL are the information. That is
-// why all four tiles carry distinct glyphs, and why the disc — a strong fill,
-// where the same simulation shows every pair separating cleanly — is where the
-// remaining colour is spent.
-//
-// Ink pairing: a tile is either a FILL pair (`bg-primary` + `text-primary-
-// foreground`) or a CONTAINER pair, never crossed. The glyph disc always
-// INVERTS its tile's pairing, so the icon pops instead of dissolving into a
-// same-tone circle, and it survives grayscale either way.
+// deuteranopia and protanopia across this system's CONTAINER tones in dark mode,
+// nearly every pair collapses below the 0.05 separation floor — including pairs
+// that already ship. The same simulation shows every STRONG-FILL pair separating
+// cleanly. That asymmetry is the whole argument for spending the strip's colour
+// on 52px discs instead of 104px bodies, and it is why all four tiles still
+// carry distinct glyphs: the glyph and the label are the information, and the
+// disc's hue is the reinforcement.
 //
 // Geometry lives in `components/cellular/tile-shape.ts` — shared with Antenna
 // Statistics' context tiles and the SMS Center strip, so the skeleton in
@@ -104,13 +93,10 @@ const NEUTRAL_TILE = "bg-surface-container text-on-surface";
 const NEUTRAL_DISC = "bg-surface-container-high text-on-surface-variant";
 const CAPTION = "text-xs text-on-surface-variant";
 
-// Each disc inverts to its tile's FILL pair so the glyph lifts off its own
-// container. `bg-*-container` bodies, `bg-*` discs — never the reverse.
-const BANDWIDTH_TILE = "bg-downlink-container text-on-downlink-container";
+// Disc fills. Each is a FILL pair (`bg-X` + `text-X-foreground`), never a
+// container pair — the disc is the one element on this strip small enough to
+// want a strong fill, and the pair is never crossed.
 const BANDWIDTH_DISC = "bg-downlink text-downlink-foreground";
-const CARRIERS_TILE = "bg-uplink-container text-on-uplink-container";
-const CARRIERS_DISC = "bg-uplink text-uplink-foreground";
-const MIMO_TILE = "bg-spatial-container text-on-spatial-container";
 const MIMO_DISC = "bg-spatial text-spatial-foreground";
 
 function Tile({
@@ -118,37 +104,39 @@ function Tile({
   label,
   children,
   caption,
-  tone = NEUTRAL_TILE,
   disc = NEUTRAL_DISC,
-  captionClassName = CAPTION,
+  captionClassName,
 }: {
   glyph: MaterialSymbolName;
   label: string;
   children: React.ReactNode;
   caption: React.ReactNode;
-  tone?: string;
+  /**
+   * The disc's fill pair. There is deliberately no `tone` prop: the body is
+   * neutral on every tile, so a caller cannot tint one back. Making the wrong
+   * thing unreachable is cheaper than a comment asking nobody to do it.
+   */
   disc?: string;
+  /**
+   * Extra caption classes. Type only — the caption's COLOUR is fixed at
+   * `on-surface-variant` by `CAPTION` and is not a caller's decision. The one
+   * live use is `tabular-nums` on the bandwidth breakdown.
+   */
   captionClassName?: string;
 }) {
   return (
-    <div className={cn(TILE_SHAPE.ROOT, tone)}>
+    <div className={cn(TILE_SHAPE.ROOT, NEUTRAL_TILE)}>
       <span className={cn(TILE_SHAPE.DISC, disc)}>
         <MaterialSymbol name={glyph} filled size={28} />
       </span>
       <div className="flex min-w-0 flex-col gap-[3px]">
-        <span
-          className={cn(
-            "text-xs font-semibold",
-            // On a tonal container the label is tinted from the container's
-            // own ink, never toward gray — `on-surface-variant` belongs to the
-            // neutral ramp and would be a cross-pair here.
-            tone === NEUTRAL_TILE ? "text-on-surface-variant" : "opacity-85",
-          )}
-        >
+        <span className="text-xs font-semibold text-on-surface-variant">
           {label}
         </span>
         {children}
-        <span className={cn("truncate", captionClassName)}>{caption}</span>
+        <span className={cn("truncate", CAPTION, captionClassName)}>
+          {caption}
+        </span>
       </div>
     </div>
   );
@@ -167,17 +155,17 @@ const TABULAR_VALUE = cn(VALUE, "tabular-nums");
 //
 // `5g` is not in MATERIAL_SYMBOL_NAMES, and per DESIGN.md the "5G"/"4G+" marks
 // are TYPOGRAPHIC, not icons — they ship as text. So the disc carries
-// `cell_tower` (the radio itself) and the mark is a Badge in the matching
-// identity variant.
+// `cell_tower` (the radio itself) and the mark is an outline `Tag` in the
+// matching identity variant.
 //
-// The tile body is the CONTAINER and the Badge is the container's own ink
-// inverted, which is what stops the mark from being a third statement of the
-// same fact at the same volume.
+// Two identity channels, neither of them a block: the disc's strong FILL and
+// the tag's OUTLINE, on a neutral body. The mark was a filled `Badge`, whose
+// pale `primary-container` fill was byte-identical to `variant="info"` — so the
+// 5G mark and an informational chip rendered as the same object.
 
 type NetworkTileSpec = {
-  tone: string;
   disc: string;
-  markVariant: "nr" | "lte" | "muted";
+  markVariant: TagVariant;
   markKey: string;
   valueKey: string;
   captionKey: string;
@@ -191,7 +179,6 @@ type NetworkTileSpec = {
 // are elaboration the row has no space for, not a restatement of the same fact.
 const NETWORK_TILE: Record<RadioMode, NetworkTileSpec> = (() => {
   const nsa: NetworkTileSpec = {
-    tone: "bg-primary-container text-on-primary-container",
     disc: "bg-primary text-primary-foreground",
     markVariant: "nr",
     markKey: "radio_info.tiles.network.mark_5g",
@@ -204,7 +191,6 @@ const NETWORK_TILE: Record<RadioMode, NetworkTileSpec> = (() => {
     captionKey: "radio_info.tiles.network.caption_sa",
   };
   const lte: NetworkTileSpec = {
-    tone: "bg-lte-container text-on-lte-container",
     disc: "bg-lte text-lte-foreground",
     markVariant: "lte",
     markKey: "radio_info.tiles.network.mark_4g",
@@ -215,9 +201,8 @@ const NETWORK_TILE: Record<RadioMode, NetworkTileSpec> = (() => {
   // screen instead), but the map is total so an unhandled mode can only ever
   // degrade to the honest neutral tile — never to a confident "5G NR + LTE".
   const unknown: NetworkTileSpec = {
-    tone: NEUTRAL_TILE,
     disc: NEUTRAL_DISC,
-    markVariant: "muted",
+    markVariant: "neutral",
     markKey: "radio_info.common.not_available",
     valueKey: "radio_info.network_type.unknown",
     captionKey: "radio_info.tiles.network.caption_unknown",
@@ -245,7 +230,6 @@ export function SummaryTiles({ mode, summary, mimo }: SummaryTilesProps) {
   const { t } = useTranslation("cellular");
 
   const net = NETWORK_TILE[mode] ?? NETWORK_TILE.unknown;
-  const isIdentityTile = net.tone !== NEUTRAL_TILE;
 
   // Bandwidth: `totalMhz` is legitimately null when the modem reports no usable
   // QCAINFO line. A null total renders as a word, never as 0 MHz.
@@ -267,7 +251,7 @@ export function SummaryTiles({ mode, summary, mimo }: SummaryTilesProps) {
      same case. Sized one step BELOW a real reading: an absent value should not
      out-weigh the figures beside it just because the sentence is longer. */
   const unavailable = (
-    <span className="text-sm font-semibold opacity-85">
+    <span className="text-sm font-semibold text-on-surface-variant">
       {t("radio_info.common.value_unavailable")}
     </span>
   );
@@ -277,18 +261,13 @@ export function SummaryTiles({ mode, summary, mimo }: SummaryTilesProps) {
       <Tile
         glyph="cell_tower"
         label={t("radio_info.tiles.network.label")}
-        tone={net.tone}
         disc={net.disc}
         caption={t(net.captionKey)}
-        captionClassName={isIdentityTile ? "text-xs opacity-85" : CAPTION}
       >
         <span className="flex items-baseline gap-2">
-          <Badge
-            variant={net.markVariant}
-            className={cn(VALUE, "px-2.5 py-0.5")}
-          >
+          <Tag variant={net.markVariant} className={cn(VALUE, "px-2.5 py-0.5")}>
             {t(net.markKey)}
-          </Badge>
+          </Tag>
           <span className={cn(VALUE, "truncate")}>{t(net.valueKey)}</span>
         </span>
       </Tile>
@@ -296,7 +275,6 @@ export function SummaryTiles({ mode, summary, mimo }: SummaryTilesProps) {
       <Tile
         glyph="graphic_eq"
         label={t("radio_info.tiles.bandwidth.label")}
-        tone={BANDWIDTH_TILE}
         disc={BANDWIDTH_DISC}
         caption={
           // A breakdown of ONE is not a breakdown: on a single-carrier link
@@ -314,7 +292,6 @@ export function SummaryTiles({ mode, summary, mimo }: SummaryTilesProps) {
             : t("radio_info.tiles.bandwidth.caption_unavailable")
         }
         captionClassName={cn(
-          "text-xs opacity-85",
           hasBandwidth && breakdown.length > 1 && "tabular-nums",
         )}
       >
@@ -333,9 +310,11 @@ export function SummaryTiles({ mode, summary, mimo }: SummaryTilesProps) {
       <Tile
         glyph="layers"
         label={t("radio_info.tiles.carriers.label")}
-        tone={CARRIERS_TILE}
-        disc={CARRIERS_DISC}
-        captionClassName="text-xs opacity-85"
+        /* No `disc` — Carriers is the one tile with no honest hue. It reports a
+           COUNT, which is neither a direction, a radio, nor a state. It wore
+           uplink cyan on the reasoning that cyan "owns counts"; that gave the
+           direction axis a second meaning and is the exact defect The
+           Direction-Is-Not-A-Radio Rule names. Neutral-Default Rule. */
         caption={
           summary.carrierCount > 0
             ? t("radio_info.tiles.carriers.caption", {
@@ -364,18 +343,19 @@ export function SummaryTiles({ mode, summary, mimo }: SummaryTilesProps) {
       <Tile
         glyph="alt_route"
         label={t("radio_info.tiles.mimo.label")}
-        tone={MIMO_TILE}
         disc={MIMO_DISC}
-        captionClassName="text-xs opacity-85"
         caption={
           mimoParts.length > 0 ? (
             <Link
               href="/cellular/antenna-statistics"
-              // Hover lifts the link toward the container's FULL ink rather
-              // than toward `on-surface`, which belongs to the neutral ramp and
-              // is a cross-pair on a tinted tile (Container-Pair Rule).
+              // The tile body is neutral now, so the link takes the brand INK
+              // on that neutral ground rather than an opacity step off a
+              // container's ink. Primary is the only hue in the system that
+              // acts, and this is the strip's one action — so the colour is
+              // honest here in a way it would not be on a static caption.
+              // Hover deepens the ink; opacity is not doing the work anymore.
               className={cn(
-                "font-semibold underline underline-offset-2 opacity-100",
+                "font-semibold text-primary-on-surface underline underline-offset-2",
                 "transition-opacity duration-(--duration-quick) ease-out hover:opacity-80",
                 "focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none",
               )}

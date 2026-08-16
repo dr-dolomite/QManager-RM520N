@@ -111,7 +111,7 @@ const SCREEN_TONE: Record<
   loading: { tone: "neutral", glyph: "progress_activity", ariaRole: "status" },
   error: { tone: "destructive", glyph: "error", ariaRole: "alert" },
   entries: { tone: "destructive", glyph: "cancel", ariaRole: "alert" },
-  clean: { tone: "primary", glyph: "check_circle", ariaRole: "status" },
+  clean: { tone: "success", glyph: "check_circle", ariaRole: "status" },
   unknown: { tone: "neutral", glyph: "help", ariaRole: "status" },
 };
 

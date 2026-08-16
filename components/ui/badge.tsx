@@ -68,45 +68,27 @@ const badgeVariants = cva(
         // failures. Failure is `destructive`.
         muted:
           "border-transparent bg-surface-container-high text-on-surface-variant [a&]:hover:bg-surface-container-high/80",
-        // ── Identity roles: NOT status chips ────────────────────────────────
-        // These carry which RADIO a chip belongs to — blue is the 5G NR leg,
-        // violet the 4G LTE leg — and never vary with health. They exist so a
-        // radio-identity tone can key onto `BadgeVariant` like every other tone
-        // map, instead of being hand-written as a class string at the call site.
+        // ── There are deliberately NO identity or direction roles here ──────
+        // `nr`, `lte`, `downlink`, `uplink` and `spatial` used to live in this
+        // map as filled `*-container` chips. They are gone, and the deletion is
+        // the point (The Two-Form Rule): a filled chip never carries identity,
+        // and identity never renders as a large tinted block.
         //
-        // They are not interchangeable with the five status roles above: an
-        // identity fill says "this is the NR card", not "this is fine". A status
-        // indicator must still be `success`/`warning`/`destructive`/`info`/
-        // `muted`. Where a chip carries identity, the quality it also reports
-        // has to be encoded somewhere non-chromatic — on the signal cards that
-        // is the Material glyph's bar count.
+        // Two concrete defects that removal fixes. First, `nr` was a
+        // byte-identical class string to `info` above — a 5G identity label and
+        // an "informational" chip were literally the same object, so the form
+        // could not tell the user which of the two it meant. Second, in light
+        // mode 8 of 10 identity-container pairs collapse under deuteranopia and
+        // protanopia simulation, because the usable pale-tint band is too
+        // narrow to hold five identity hues plus `surface-container-high` above
+        // the 0.05 floor. The strong fills do not collapse, which is why
+        // identity survives on a glyph disc and on an outline, not on a block.
         //
-        // Carrier Violet ships as `--lte-*`: `secondary` in this codebase is
-        // byte-identical to `surface-container`, so `text-secondary` on a row
-        // pill would be 1.00:1 — literally invisible (DESIGN.md > Token Names
-        // in Code).
-        nr:
-          "border-transparent bg-primary-container text-on-primary-container [a&]:hover:bg-primary-container/80",
-        lte:
-          "border-transparent bg-lte-container text-on-lte-container [a&]:hover:bg-lte-container/80",
-        // ── Direction roles: also NOT status chips ──────────────────────────
-        // Which WAY the bytes are going, and nothing else. They are a separate
-        // axis from `nr`/`lte` on purpose: a download figure on the LTE leg is
-        // rose-on-violet, and neither hue is guessing about the other.
-        //
-        // A direction chip must still pair its hue with an arrow glyph. At
-        // container lightness in dark mode every tonal pair in this system
-        // collapses under deuteranopia and protanopia simulation — measured,
-        // including the pairs that already ship — so on a dark tile the hue is
-        // decoration and the glyph is the information.
-        downlink:
-          "border-transparent bg-downlink-container text-on-downlink-container [a&]:hover:bg-downlink-container/80",
-        uplink:
-          "border-transparent bg-uplink-container text-on-uplink-container [a&]:hover:bg-uplink-container/80",
-        // Antenna / spatial-stream readouts. A third axis again, because a MIMO
-        // figure routinely names both radios at once and has no direction.
-        spatial:
-          "border-transparent bg-spatial-container text-on-spatial-container [a&]:hover:bg-spatial-container/80",
+        // Identity and metadata now render through `components/ui/tag.tsx`:
+        // `<Tag variant="nr">`, `lte`, `spatial`, `neutral`. If you reached for
+        // `variant="nr"` on a Badge and the build sent you here, `Tag` is what
+        // you want. If what you actually needed was a STATUS role, it is one of
+        // the five above and it takes a glyph.
         outline:
           "text-foreground [a&]:hover:bg-accent [a&]:hover:text-accent-foreground",
       },

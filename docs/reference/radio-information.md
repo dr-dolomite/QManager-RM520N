@@ -185,7 +185,7 @@ So the shipped assignment is:
 | Fact | Channel |
 | ---- | ------- |
 | The row itself | Neutral `bg-surface-container`, no tint (`ROW_SHELL`) |
-| Technology identity | The band label, as `Badge variant="nr" \| "lte"` (`bandIdentityVariant`; `muted` when released) |
+| Technology identity | The band label, as an outline `Tag variant="nr" \| "lte"` (`bandIdentityVariant`, returning `TagVariant`; `neutral` when released) |
 | Role | The role chip's **words** (PCC / ANCHOR / SCC n), on the neutral ramp (`ROLE_CHIP`) |
 | Quality | The status chip's fill, on a plain surface where it can be seen (`qualityVariant`) |
 
@@ -195,14 +195,15 @@ Three facts, three channels, no channel doing two jobs. The quality glyph is the
 
 ### The four summary tiles
 
-**Short version: the strip is a four-tile grid again — the same layout it launched with — but the paint underneath is not the paint it launched with, and that distinction is the whole point of this section.** Four compositions have shipped or nearly shipped here. Each one fixed something real, so the version on screen has to keep those fixes rather than rewind past them. The file header in `components/cellular/radio/summary-tiles.tsx:14` carries the same history beside the code.
+**Short version: the strip is a four-tile grid again — the same layout it launched with — but the paint underneath is not the paint it launched with, and that distinction is the whole point of this section.** Five compositions have shipped or nearly shipped here. Each one fixed something real, so the version on screen has to keep those fixes rather than rewind past them. The file header in `components/cellular/radio/summary-tiles.tsx:14` carries the same history beside the code.
 
 | Gen | Composition | Why it moved on |
 | --- | ----------- | --------------- |
 | 1 | Four tinted tiles; Network type on the **strong fill** (`bg-primary` / `bg-lte`) | Two tiles wore a **radio identity hue over a both-radios figure**; the strong fill covered a whole 92px block |
 | 2 | 2/5 tonal anchor + 3/5 neutral box | The anchor measured 623×212 = 132,033px² carrying 9,526px² of ink — **7.2%**. A large empty purple slab |
 | 3 | 1/5 identity rail + 4/5 grouped rows | Correct by the canon and much quieter (44,441px², −66%), but it traded the at-a-glance four-figure read for a **list** |
-| **4 (current)** | Four tinted tiles again — bodies are **containers**, strong fills live only on the 52px disc, one tile stays neutral | — |
+| 4 | Four tinted tiles again — bodies are **containers**, strong fills live only on the 52px disc, one tile stays neutral | The body tint was decoration in dark mode (see the admonition below) and the Carriers tile's hue was carrying a second, untrue meaning |
+| **5 (current, 2026-08-17)** | Four **neutral** tile bodies (`NEUTRAL_TILE` = `bg-surface-container text-on-surface`); colour survives only on the 52px disc, and only where the hue is true | — |
 
 **Why Gen 4 is Gen 1's layout without Gen 1's defect.** Gen 1 had two separate faults and only one of them was about layout:
 
@@ -213,22 +214,24 @@ Gen 2 and Gen 3 are what taught the middle lesson, and it is worth stating plain
 
 #### Tile tones
 
-| Tile | Tone | Why |
+Every tile **body** is `NEUTRAL_TILE` (`bg-surface-container text-on-surface`). `Tile` deliberately exposes **no `tone` prop** — only a `disc` — so a caller cannot tint a body back. The table below is therefore the **disc** palette:
+
+| Tile | Disc | Why |
 | ---- | ---- | --- |
-| Network type | `primary-container` (NR leg registered) / `lte-container` (LTE-only) | **Identity.** The hue *is* the fact. This is the only tile allowed a radio hue |
-| Bandwidth | `downlink-container` | `totalMhz` sums across both legs, so no radio hue is honest — but Downlink Rose means throughput and **capacity**, not a radio, and aggregate channel width is exactly the pipe |
-| Carriers | `uplink-container` | Uplink Cyan already owns **counts** system-wide, and a count is what this tile reports |
-| Active MIMO | **Neutral** | See below |
+| Network type | `bg-primary` (NR leg registered) / `bg-lte` (LTE-only) / `NEUTRAL_DISC` | **Identity.** The hue *is* the fact. This is the only tile allowed a radio hue. The "5G" / "4G" mark beside it is an outline `Tag`, not a filled chip |
+| Bandwidth | `bg-downlink` | `totalMhz` sums across both legs, so no radio hue is honest — but Downlink Rose means throughput and **capacity**, not a radio, and aggregate channel width is exactly the pipe |
+| Carriers | **Neutral** (`NEUTRAL_DISC`) | It used to wear Uplink Cyan on a "cyan owns counts" argument. **A count is not a direction**, and that second meaning was making the whole direction axis untrue — cyan meant *upload* one click away on the latency card. The count is neutral |
+| Active MIMO | `bg-spatial` | See below |
 
 **Active MIMO carries Spatial Azure, and that role exists because of this tile.** Its value literally reads `LTE 1x2 | NR 2x4` — it names both radios *in its own string* — so no identity hue can be honest on it; and layers are neither a direction nor a capacity, so neither Downlink Rose nor Uplink Cyan fits either. The tile shipped **neutral** for exactly one revision on that reasoning, which was sound as far as it went: given three axes and a figure belonging to none of them, neutral is the honest answer. The better answer was to notice that antennas and spatial streams are a whole *class* of readout with no axis — this tile, the per-antenna chains, the alignment surfaces — and give the class its own role rather than bend one of the other three onto one tile. See `color-system.md` for the hue arithmetic, which is the genuinely constrained part: there was no free slot, so 232 is a measured amendment to the 40-Degree Rule rather than an opening that happened to exist.
 
-The strip now reads **four tiles, four axes** — identity, capacity, count, spatial — with no tile borrowing a hue that belongs to another. That is the property Gen 1 lacked when it last had four colours: bandwidth wore NR blue while summing NR+LTE, MIMO wore LTE violet while reporting both legs. The tile count was never the defect; the borrowing was. `components/cellular/antenna-statistics/context-tiles.tsx` moved onto the same role in the same change, so the two MIMO tiles a user sees one click apart finally agree.
+The strip now reads **three coloured discs and one neutral one** — identity, capacity, spatial — with no tile borrowing a hue that belongs to another, and with the count claiming no axis at all. That is the property Gen 1 lacked when it last had four colours: bandwidth wore NR blue while summing NR+LTE, MIMO wore LTE violet while reporting both legs. The tile count was never the defect; the borrowing was. `components/cellular/antenna-statistics/context-tiles.tsx` moved onto the same role in the same change, so the two MIMO tiles a user sees one click apart finally agree.
 
-**Pairing, not restraint,** is what keeps four tinted blocks from becoming mud: a tile is either a FILL pair (`bg-primary` + `text-primary-foreground`) or a CONTAINER pair, never crossed — and the disc always **inverts** its tile's pairing, so the glyph pops instead of dissolving into a same-tone circle, and survives greyscale either way. On a tonal tile the eyebrow label is tinted from the container's *own* ink (`opacity-85`), never `on-surface-variant`, which belongs to the neutral ramp and would be a cross-pair.
+**Colour is spent only where it is small and only where it is true.** A disc is a FILL pair (`bg-downlink` + `text-downlink-foreground`, `bg-spatial` + `text-spatial-foreground`, and so on), never crossed with a container pair, so the glyph survives greyscale. Because the body is neutral, the eyebrow label is plain `on-surface-variant` — there is no container ink to tint it from any more.
 
-> ⚠️ **On a dark tile the body tint is decoration, not information.** Simulating deuteranopia and protanopia across this system's **container** tones in dark mode, nearly every pair collapses below the 0.05 separation floor — including pairs that already ship. The glyph and the label are what carry the tile apart, which is why all four tiles wear distinct glyphs, and why the remaining colour is spent on the **disc** (a strong fill, where the same simulation shows every pair separating cleanly). Full measurements: [color-system.md](color-system.md).
+> ⚠️ **This is why the body tint went away.** Simulating deuteranopia and protanopia across this system's **container** tones in dark mode, nearly every pair collapses below the 0.05 separation floor — including pairs that already shipped. So a tinted tile body was decoration that could not be read, while the same simulation shows the **strong fills** on the discs separating cleanly. The glyph and the label are what carry the tiles apart, which is why all four wear distinct glyphs. Full measurements: [color-system.md](color-system.md).
 
-`NETWORK_TILE` is a **total** map over `RadioMode`, so an unhandled mode can only ever degrade to the honest neutral tile, never to a confident "5G NR + LTE". Its **value** reads from the shared `radio_info.network_type.*` keys — the same ones the Cellular information card's "Network type" row uses, because both render simultaneously two inches apart and a second key set for one fact is a visible contradiction waiting to happen (an earlier draft had the tile saying "5G standalone" while the row said "5G NR SA"). The **captions** stay tile-local; they are elaboration the row has no room for.
+`NETWORK_TILE` is a **total** map over `RadioMode`, so an unhandled mode can only ever degrade to the honest neutral disc and a `neutral` mark `Tag`, never to a confident "5G NR + LTE". Its **value** reads from the shared `radio_info.network_type.*` keys — the same ones the Cellular information card's "Network type" row uses, because both render simultaneously two inches apart and a second key set for one fact is a visible contradiction waiting to happen (an earlier draft had the tile saying "5G standalone" while the row said "5G NR SA"). The **captions** stay tile-local; they are elaboration the row has no room for.
 
 The bandwidth caption distinguishes a real breakdown from a fake one: `caption_breakdown` ("20 + 20 + 100 MHz") renders only when more than one carrier reports a width. On a single-carrier link the strip uses `radio_info.tiles.bandwidth.caption_single` instead — a "breakdown" of one restates the value it sits beside and reads as a rendering fault. That key was added to all five locales.
 

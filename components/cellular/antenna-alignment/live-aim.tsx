@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { MaterialSymbol } from "@/components/ui/material-symbol";
 import { MetricBar } from "@/components/ui/metric-bar";
 import { SwapLabel } from "@/components/ui/swap-label";
+import { Tag } from "@/components/ui/tag";
 import { cn } from "@/lib/utils";
 import {
   RSRP_THRESHOLDS,
@@ -237,12 +238,12 @@ export function LiveAimCard({
             </CardDescription>
           </div>
           {radio && (
-            <Badge
+            <Tag
               variant={radio === "nr" ? "nr" : "lte"}
               className="shrink-0 px-2.5 py-1 text-xs font-semibold"
             >
               {t(`antenna_alignment.mode.${radio}`)}
-            </Badge>
+            </Tag>
           )}
         </div>
       </CardHeader>

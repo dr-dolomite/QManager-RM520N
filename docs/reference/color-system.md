@@ -138,16 +138,17 @@ Three design consequences follow, and they are not optional:
 
 1. **Every status chip carries an icon**, and two states in one slot never share a glyph. `success-container` and `warning-container` measure ~1.03:1 apart in ordinary vision *before* any simulation — the glyph is the only thing separating healthy from degraded.
 2. **Every direction chip carries an arrow.** Same mechanism, same non-negotiability.
-3. **Colour that must survive belongs on the small strong-filled element** — a 52px disc, a chip — not on the large tinted body. This is why the `/cellular/` tiles put the identity fill on the disc and the container on the block, and why the disc always *inverts* its parent's pairing.
+3. **Colour that must survive belongs on the small strong-filled element** — a 52px disc, a chip — not on the large tinted body. This is why the `/cellular/` summary tiles put the fill on the disc and leave the tile body neutral ([radio-information.md](radio-information.md)).
+4. **Identity never renders as a container at all.** It renders as **ink** or as an **outline tag** (`components/ui/tag.tsx`, variants `nr` / `lte` / `spatial` / `neutral`, consuming `--tag-*-text` / `--tag-*-border`), or as a strong **fill** on a glyph disc. Those tag tokens shipped without consumers on 2026-08-16 and were wired up on 2026-08-17, when all 11 identity chip sites moved off `Badge`; `nr` / `lte` / `spatial` / `downlink` / `uplink` were then deleted from `badge.tsx`, so `BadgeVariant` is now status-only and the split is compiler-enforced.
 
 A useful way to hold it: on a dark surface, a container tint groups things; a strong fill and a glyph distinguish them. Ask a tint to distinguish and it will fail for one reader in twelve.
 
 ## Related docs
 
-- [radio-information.md](radio-information.md) — the four summary tiles: the worked example of role choice beating token tuning, and of a tile that stays neutral because no hue would be honest.
+- [radio-information.md](radio-information.md) — the four summary tiles: the worked example of role choice beating token tuning, and of the tile bodies going neutral so colour survives only where it is true.
 - [speedtest.md](speedtest.md) — the direction contract from tile to dialog to result.
 - [dashboard-chart-cards.md](dashboard-chart-cards.md) — why the packet-loss series is neutral ink.
 - [ethernet.md](ethernet.md) — capacity vs direction on the link-speed tile.
 - [cellular-settings-family.md](cellular-settings-family.md) — the AMBR rate chips, and why direction chips sit *on* a radio container rather than borrowing from it.
-- [icon-system.md](icon-system.md) — the identity and direction `Badge` variants, and the glyph obligations that come with them.
+- [icon-system.md](icon-system.md) — the identity outline `Tag` variants, and the glyph obligations that come with them.
 - [recent-activities.md](recent-activities.md) — routing around the `primary-container` lightness outlier.

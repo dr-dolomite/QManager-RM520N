@@ -4,9 +4,9 @@ import * as React from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { useTranslation } from "react-i18next";
 
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { MaterialSymbol } from "@/components/ui/material-symbol";
+import { Tag } from "@/components/ui/tag";
 import { DUR, EASE_QUICK, EASE_STANDARD } from "@/lib/motion";
 
 import { HISTORY_ROW, networkIdentity } from "../shapes";
@@ -80,9 +80,9 @@ export function HistoryList({
             <div className={HISTORY_ROW.MAIN}>
               <div className={HISTORY_ROW.HEAD}>
                 <span className={HISTORY_ROW.CHANNEL}>{entry.channel}</span>
-                <Badge variant={networkIdentity(entry.networkType)}>
+                <Tag variant={networkIdentity(entry.networkType)}>
                   {entry.networkType}
-                </Badge>
+                </Tag>
                 <span className={HISTORY_ROW.FIGURE}>
                   {t("cell_scanner.calculator.units.mhz", {
                     value: entry.frequency,

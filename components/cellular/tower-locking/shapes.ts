@@ -105,9 +105,9 @@ import type { MaterialSymbolName } from "@/components/ui/material-symbol";
 // `bg-lte` at 172px tall, which made the read-only half of a settings page the
 // largest object on it, and forced its own controls and meter to be drawn as
 // alphas over the fill (`carrierPillTone`, `carrierMeterTone` — both retired
-// with it). Identity now travels on the `Badge variant="nr"|"lte"` each tile
-// carries, which is the one element in this system whose fill and ink are
-// guaranteed to agree.
+// with it). Identity now travels on the outline `Tag variant="nr"|"lte"` each tile
+// carries — a stroke and role ink on a neutral ground, which is the form the
+// Two-Form Rule reserves for identity.
 //
 // A carrier the user cannot currently lock to gets its control in a DISABLED
 // state with a reason, never a missing control — an NR carrier is visible but
@@ -540,7 +540,7 @@ export const HERO_HELP_BUTTON = HERO_REFRESH_BUTTON;
 // tile scale it drew a 4px identity-coloured bar across the tile's full width
 // directly under the detail line, and on screen that reads as a coloured bottom
 // border rather than as a gauge — the exact tell the craft floor bans. It was
-// also a third channel saying what two already said: the `Badge
+// also a third channel saying what two already said: the `Tag
 // variant="nr"|"lte"` reports which radio, and the dBm figure beside it reports
 // how weak.
 
@@ -579,7 +579,7 @@ export const CARRIER_GRID =
  * NOT an identity fill: the retired lead painted `bg-primary`/`bg-lte` and had
  * to draw its own pill, action and meter as alphas over that fill, because a
  * role colour on a saturated identity ground is either invisible or
- * brand-on-brand. Identity travels on the `Badge variant="nr"|"lte"` instead.
+ * brand-on-brand. Identity travels on the outline `Tag variant="nr"|"lte"` instead.
  *
  * `RSRP` carries NO colour of its own. The reading's tone is chosen by the
  * component from the signal-quality scale and MUST be one of

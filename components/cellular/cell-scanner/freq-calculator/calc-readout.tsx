@@ -2,9 +2,9 @@
 
 import * as React from "react";
 
-import { Badge } from "@/components/ui/badge";
 import { MaterialSymbol } from "@/components/ui/material-symbol";
 import { SwapLabel } from "@/components/ui/swap-label";
+import { Tag } from "@/components/ui/tag";
 import { cn } from "@/lib/utils";
 
 import {
@@ -36,7 +36,7 @@ import type { NetworkType } from "./calc-model";
 // `graphic_eq` for a resolved frequency on either radio, `error` for a failure.
 // Idle and resolved must not share a glyph even though they share a slot, and
 // the two radios must not be told apart by disc colour alone — the band label
-// and the identity badge directly beneath carry that in words.
+// and the identity tag directly beneath carry that in words.
 // =============================================================================
 
 type ReadoutState =
@@ -115,9 +115,9 @@ export function CalcReadout({
           <span className={READOUT.CHANNEL}>{state.channelLabel}</span>
 
           <span className="flex flex-wrap items-center justify-center gap-2">
-            <Badge variant={networkIdentity(state.networkType)}>
+            <Tag variant={networkIdentity(state.networkType)}>
               {state.networkType}
-            </Badge>
+            </Tag>
             {state.bandLabel ? (
               <span className={READOUT.BAND}>{state.bandLabel}</span>
             ) : null}

@@ -38,6 +38,7 @@ import {
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
+import { Tag } from "@/components/ui/tag";
 import { staggerRowItem, staggerRows } from "@/lib/motion";
 import type { CarrierComponent } from "@/types/modem-status";
 import type {
@@ -895,9 +896,9 @@ export default function LteTowerCard({
                                         for the same carrier, one section apart.
                                         It says which radio, never "healthy";
                                         PCC vs SCC is carried by the word. */}
-                                    <Badge variant="lte" className="flex-none">
+                                    <Tag variant="lte" className="flex-none">
                                       {option.type}
-                                    </Badge>
+                                    </Tag>
                                     <span className="text-on-surface min-w-0 truncate font-mono text-sm font-semibold tabular-nums">
                                       {t(
                                         "tower_locking.live.tile_band_channel",

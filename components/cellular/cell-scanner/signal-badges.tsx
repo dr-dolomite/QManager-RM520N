@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 
 import { Badge } from "@/components/ui/badge";
 import { MaterialSymbol } from "@/components/ui/material-symbol";
+import { Tag } from "@/components/ui/tag";
 
 import {
   BADGE_GLYPH_SIZE,
@@ -56,13 +57,19 @@ export function SignalBadge({ strength }: { strength: number | null }) {
 }
 
 /**
- * Which RADIO the row belongs to. An IDENTITY variant, never a status role.
+ * Which RADIO the row belongs to. An IDENTITY tag, never a status role.
  *
  * This shipped as `variant="default"` — solid `bg-primary`, the brand's one
  * acting colour — for BOTH radios at once. Identity was unreadable (LTE and NR
  * rows looked identical), and a passive label wearing the primary fill
  * advertised a click target it does not have.
+ *
+ * It is now an outline `Tag` rather than a filled `Badge`, which is the whole
+ * reason this file imports both forms: the row's quality verdict beside it is a
+ * filled chip with a glyph, and "NR" is not a verdict (The Two-Form Rule). The
+ * exported name is left alone on purpose — renaming it would touch four
+ * unrelated table files for no reader-visible gain.
  */
 export function NetworkTypeBadge({ type }: { type: string }) {
-  return <Badge variant={networkIdentity(type)}>{type}</Badge>;
+  return <Tag variant={networkIdentity(type)}>{type}</Tag>;
 }
