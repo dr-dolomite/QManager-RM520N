@@ -817,6 +817,13 @@
         "error": "错误",
         "unknown": "未知"
       },
+      "sim_slots": {
+        "label": "SIM 卡槽",
+        "empty": "空",
+        "sr_active": "SIM {{slot}}，使用中，卡号尾号 {{last4}}",
+        "sr_standby": "SIM {{slot}}，备用，卡号尾号 {{last4}}",
+        "sr_empty": "SIM {{slot}}，未检测到卡"
+      },
       "ambr": {
         "lte_heading": "LTE 速率上限",
         "nr_heading": "5G 速率上限",

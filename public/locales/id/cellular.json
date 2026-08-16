@@ -817,6 +817,13 @@
         "error": "Kesalahan",
         "unknown": "Tidak diketahui"
       },
+      "sim_slots": {
+        "label": "Slot SIM",
+        "empty": "Kosong",
+        "sr_active": "SIM {{slot}}, aktif, kartu berakhiran {{last4}}",
+        "sr_standby": "SIM {{slot}}, siaga, kartu berakhiran {{last4}}",
+        "sr_empty": "SIM {{slot}}, tidak ada kartu terdeteksi"
+      },
       "ambr": {
         "lte_heading": "Batas kecepatan LTE",
         "nr_heading": "Batas kecepatan 5G",

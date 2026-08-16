@@ -817,6 +817,13 @@
         "error": "Errore",
         "unknown": "Sconosciuto"
       },
+      "sim_slots": {
+        "label": "Slot SIM",
+        "empty": "Vuoto",
+        "sr_active": "SIM {{slot}}, attiva, scheda che termina con {{last4}}",
+        "sr_standby": "SIM {{slot}}, in standby, scheda che termina con {{last4}}",
+        "sr_empty": "SIM {{slot}}, nessuna scheda rilevata"
+      },
       "ambr": {
         "lte_heading": "Limiti di velocità LTE",
         "nr_heading": "Limiti di velocità 5G",

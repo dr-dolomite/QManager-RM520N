@@ -133,6 +133,30 @@ export interface AmbrData {
   nr5g: Nr5gAmbrEntry[];
 }
 
+// --- Dual-slot status --------------------------------------------------------
+
+/**
+ * One physical SIM slot, as reported by `AT+QSIMCFG="dual_slot_status"`.
+ *
+ * READ-ONLY, AND DELIBERATELY NOT PART OF {@link CellularSettings}. The slot the
+ * modem is *using* is written through `sim_slot` (AT+QUIMSLOT); this is what each
+ * slot *contains*, which the UI displays and never writes. Keeping it out of the
+ * settings object is what stops it from ever reaching the dirty set or a POST
+ * payload (same reasoning as `sim_detect_level`, one level up).
+ *
+ * There is no `detected` field. Occupancy is derived as "non-empty `iccid`" —
+ * the AT sub-command's other columns have unconfirmed semantics against live
+ * hardware, so inventing a flag for them would be fabrication.
+ */
+export interface DualSlotEntry {
+  /** Physical slot number. */
+  slot: 1 | 2;
+  /** True for the slot the modem is currently switched to. */
+  active: boolean;
+  /** Full ICCID digit string, or `""` when the slot reported none. */
+  iccid: string;
+}
+
 // --- API Responses -----------------------------------------------------------
 
 /**
@@ -150,11 +174,19 @@ export interface AmbrData {
  * (which derives from it), `setField` would stage it, and the backend validator
  * would reject the POST as `invalid_sim_slot`. Read the envelope, then trust the
  * snapshot.
+ *
+ * `dual_slot` follows the SAME absence contract for the same reason — it is
+ * omitted, never `null`, whenever the dual-slot AT read could not be parsed
+ * (older firmware, transport failure). Its absence must NOT fail the whole read:
+ * a device that cannot answer this question still has valid `settings`/`ambr`,
+ * and the page simply renders one readout fewer.
  */
 export interface CellularSettingsResponse {
   success: boolean;
   settings?: CellularSettings;
   ambr?: AmbrData;
+  /** Both physical slots, when the modem could report them. Absent otherwise. */
+  dual_slot?: DualSlotEntry[];
   error?: string;
 }
 

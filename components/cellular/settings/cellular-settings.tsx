@@ -152,6 +152,10 @@ const CellularSettingsComponent = () => {
             // source can currently express "not read" — see the hero's header
             // comment.
             saved={form.settings}
+            // Same GET as `saved`, so both slot readouts run on one clock.
+            // `null` on firmware that cannot report the slots at all — the hero
+            // omits the row rather than inventing a placeholder for it.
+            dualSlot={form.dualSlot}
           />
         </motion.div>
 

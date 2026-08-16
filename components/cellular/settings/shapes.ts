@@ -367,6 +367,63 @@ export const GOVERNING_GLYPH = {
   idle: "do_not_disturb_on",
 } as const satisfies Record<string, MaterialSymbolName>;
 
+// -----------------------------------------------------------------------------
+// The per-slot SIM chip (dual-slot readout)
+// -----------------------------------------------------------------------------
+
+/**
+ * One physical SIM slot in the hero's parameters column: which slot, and the
+ * tail of the card sitting in it.
+ *
+ * THIS IS `GOVERNING_MARK` ONE ROW DOWN, and it is deliberately built to the
+ * same rule rather than to a status role. "The modem is switched to this slot"
+ * is not a health claim — a standby SIM is not degraded, and an empty second
+ * slot is a configuration, not a fault — so `success` / `muted` are both wrong
+ * answers here (The Functional-Color Promise). The operative peer is marked
+ * exactly as the governing AMBR block is: a FILLED CHIP with its own glyph,
+ * against PLAIN INLINE TEXT with a different glyph. Shape, glyph and fill all
+ * move together, so the pair survives grayscale and deuteranopia.
+ *
+ * `bg-primary`, not a container: this chip sits on `HERO_PARAMS.ROW`
+ * (`surface-container-high`), and a container fill on a container row is the
+ * step-collision `HERO_PARAMS`'s own comment documents. The fill pair also
+ * declares its ink, so consumers set none.
+ *
+ * ABSENCE IS NOT THE SIGNAL — both slots always render. A readout that showed
+ * only the active slot would leave the other ambiguous between "empty" and "not
+ * read", which is the whole reason this row exists.
+ */
+export const SLOT_CHIP = {
+  /** The slot the modem is switched to. */
+  ACTIVE:
+    "inline-flex h-[1.375rem] flex-none items-center gap-1.5 rounded-pill bg-primary px-2.5 text-[0.6875rem] font-semibold text-primary-foreground",
+  /** Every other slot: no chip, no fill, the column's quieter ink. */
+  IDLE: "text-on-surface-variant inline-flex flex-none items-center gap-1.5 text-[0.6875rem] font-semibold",
+  /**
+   * The masked ICCID tail. A raw device-emitted identifier, so `font-mono`
+   * (The Machine-Voice Rule) — and `tabular-nums` because it sits beside a
+   * second slot's tail and the two should align.
+   */
+  ICCID: "font-mono tabular-nums",
+  GLYPH: 13,
+} as const;
+
+/**
+ * Glyphs for a slot chip. Presence and activity are ONE glyph slot, not two: a
+ * 13px chip has room for a single mark, and the tail text beside it already
+ * states occupancy in words when a slot is empty.
+ *
+ * All three are in the font subset — this change adds no glyph.
+ */
+export const SLOT_GLYPH = {
+  /** Switched to, card present. */
+  active: "check_circle",
+  /** Card present, standing by. */
+  present: "sim_card",
+  /** No ICCID reported for this slot. */
+  empty: "sim_card_alert",
+} as const satisfies Record<string, MaterialSymbolName>;
+
 /** The Display triple every migrated page `h1` carries. */
 export const PAGE_TITLE = "text-3xl font-bold tracking-[-0.02em]";
 

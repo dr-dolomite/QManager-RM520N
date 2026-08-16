@@ -16,6 +16,15 @@
 #   AT+QNWCFG="nr5g_ambr"              -> NR5G AMBR per DNN
 #   AT+QSIMDET?                        -> SIM detect enable + insert level
 #
+# AT+QSIMCFG="dual_slot_status"        -> Dual-SIM slot/ICCID status (read-only)
+#   Issued as its OWN independent qcmd call, deliberately NOT appended to the
+#   compound read above. It's undocumented outside release notes for this
+#   firmware family and may be rejected on an older/different build; qcmd
+#   fails its ENTIRE compound buffer if any one sub-command errors, so
+#   appending it there would blank out all six settings + AMBR on any
+#   firmware that doesn't support it. Isolated here, its failure only omits
+#   the `dual_slot` key from the response — everything else keeps working.
+#
 # AT commands used (POST):
 #   AT+QUIMSLOT=<1|2>
 #   AT+CFUN=<0|1|4>
@@ -179,6 +188,48 @@ if [ "$REQUEST_METHOD" = "GET" ]; then
         rm -f "$nr5g_tmpfile"
     fi
 
+    # --- Dual SIM Slot Status (independent, isolated failure) ----------------
+    # AT+QSIMCFG="dual_slot_status" is undocumented outside release notes for
+    # this firmware family and may be rejected on older/different builds.
+    # Issued as its own qcmd call (NOT appended to the compound read above)
+    # so a rejection here only omits this one field from the response — it
+    # can never blank out the six settings + AMBR that already work today.
+    #
+    # Wire shape (confirmed live): two 6-field groups, slot 1 then slot 2,
+    # with NO slot-index token — slot number is purely positional. Only
+    # index 2 (active_status, 1=selected/0=standby) and index 6 (ICCID) per
+    # group are confirmed meaning; fields 1/3/5 are unconfirmed (one
+    # candidate for field 3 collides with a different sub-command,
+    # "sim_state") and are deliberately never surfaced in the JSON.
+    dual_slot_json=""
+    ds_raw=$(qcmd 'AT+QSIMCFG="dual_slot_status"' 2>/dev/null)
+    ds_rc=$?
+    if [ $ds_rc -eq 0 ] && [ -n "$ds_raw" ]; then
+        ds_line=$(printf '%s\n' "$ds_raw" | grep '+QSIMCFG:.*"dual_slot_status"' | head -1 | sed 's/.*"dual_slot_status",//' | tr -d ' \r')
+        ds_count=$(printf '%s' "$ds_line" | awk -F',' '{print NF}')
+        if [ -n "$ds_line" ] && [ "$ds_count" = "12" ]; then
+            s1_active=$(printf '%s' "$ds_line" | cut -d',' -f2)
+            s1_iccid=$(printf '%s' "$ds_line" | cut -d',' -f6)
+            s2_active=$(printf '%s' "$ds_line" | cut -d',' -f8)
+            s2_iccid=$(printf '%s' "$ds_line" | cut -d',' -f12)
+            if [ -n "$s1_active" ] && [ -n "$s1_iccid" ] && [ -n "$s2_active" ] && [ -n "$s2_iccid" ]; then
+                dual_slot_json=$(jq -n \
+                    --arg s1a "$s1_active" --arg s1i "$s1_iccid" \
+                    --arg s2a "$s2_active" --arg s2i "$s2_iccid" \
+                    '[
+                        {slot: 1, active: ($s1a == "1"), iccid: $s1i},
+                        {slot: 2, active: ($s2a == "1"), iccid: $s2i}
+                    ]')
+            fi
+        fi
+        if [ -z "$dual_slot_json" ]; then
+            qlog_warn "dual_slot_status response did not parse as 12 comma-separated fields; omitting dual_slot"
+        fi
+    else
+        qlog_warn "AT+QSIMCFG=\"dual_slot_status\" read failed (rc=$ds_rc) or empty; omitting dual_slot"
+    fi
+    dual_slot_arg="${dual_slot_json:-null}"
+
     # --- Build response ---
     qlog_info "Settings: slot=$sim_slot cfun=$cfun mode=$mode_pref nr5g=$nr5g_mode roam=$roam_pref sim_detect=$sim_detect"
     jq -n \
@@ -191,7 +242,9 @@ if [ "$REQUEST_METHOD" = "GET" ]; then
         --arg sim_detect_level "$sim_detect_level" \
         --argjson lte_ambr "$lte_ambr_json" \
         --argjson nr5g_ambr "$nr5g_ambr_json" \
-        '{
+        --argjson dual_slot "$dual_slot_arg" \
+        '(if $dual_slot == null then {} else {dual_slot: $dual_slot} end) as $extra
+        | {
             success: true,
             settings: {
                 sim_slot: ($sim_slot | tonumber),
@@ -206,7 +259,7 @@ if [ "$REQUEST_METHOD" = "GET" ]; then
                 lte: $lte_ambr,
                 nr5g: $nr5g_ambr
             }
-        }'
+        } + $extra'
     exit 0
 fi
 

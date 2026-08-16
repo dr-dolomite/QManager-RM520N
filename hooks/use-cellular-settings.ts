@@ -10,6 +10,7 @@ import {
   type CellularSettingsApplyResult,
   type WritableSettingKey,
   type AmbrData,
+  type DualSlotEntry,
   type CellularSettingsResponse,
   type CellularSettingsApplyResponse,
 } from "@/types/cellular-settings";
@@ -73,6 +74,15 @@ export interface UseCellularSettingsReturn {
   settings: CellularSettings | null;
   /** AMBR data (null before first fetch) */
   ambr: AmbrData | null;
+  /**
+   * Both physical SIM slots, or `null` when the modem did not report them.
+   *
+   * `null` here is NOT a failed read — it is the legitimate answer on firmware
+   * that cannot answer the question at all, which is why its absence is
+   * deliberately excluded from the payload guard in `fetchSettings`. Consumers
+   * must degrade by rendering nothing, never by claiming an empty pair of slots.
+   */
+  dualSlot: DualSlotEntry[] | null;
 
   // --- Edit buffer ---
   /**
@@ -162,6 +172,7 @@ function narrowFields(fields: string[] | undefined): WritableSettingKey[] {
 export function useCellularSettings(): UseCellularSettingsReturn {
   const [settings, setSettings] = useState<CellularSettings | null>(null);
   const [ambr, setAmbr] = useState<AmbrData | null>(null);
+  const [dualSlot, setDualSlot] = useState<DualSlotEntry[] | null>(null);
   const [pending, setPending] = useState<CellularSettingsPatch>({});
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -272,6 +283,12 @@ export function useCellularSettings(): UseCellularSettingsReturn {
 
       setSettings(data.settings);
       setAmbr(data.ambr);
+      // NOT part of the guard above, deliberately. `dual_slot` is omitted on any
+      // firmware that cannot answer `AT+QSIMCFG="dual_slot_status"`, and an
+      // OTA-upgraded device in that position must still get a working settings
+      // page — just one readout fewer. Written on every read (never merged), so
+      // a modem that stops reporting it stops being reported on.
+      setDualSlot(data.dual_slot ?? null);
     } catch (err) {
       if (!mountedRef.current) return;
       setError(
@@ -455,6 +472,7 @@ export function useCellularSettings(): UseCellularSettingsReturn {
   return {
     settings,
     ambr,
+    dualSlot,
     draft,
     setField,
     dirtyFields,

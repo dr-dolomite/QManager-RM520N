@@ -22,7 +22,11 @@ import {
 } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 import { formatBitrate } from "@/types/cellular-settings";
-import type { AmbrData, CellularSettings } from "@/types/cellular-settings";
+import type {
+  AmbrData,
+  CellularSettings,
+  DualSlotEntry,
+} from "@/types/cellular-settings";
 import { networkTypeLabel } from "@/types/modem-status";
 import type { ModemStatus, NetworkType } from "@/types/modem-status";
 
@@ -44,6 +48,8 @@ import {
   RATE_CHIP,
   READOUT_ROW,
   SIM_STATUS_BADGE,
+  SLOT_CHIP,
+  SLOT_GLYPH,
 } from "./shapes";
 
 // =============================================================================
@@ -120,6 +126,11 @@ import {
 //                   express absence (emit `null`, return `success:false` on an
 //                   empty read). Do not delete it, and do not read the poller
 //                   instead — that source fabricates too.
+//   `dualSlot`      absent whenever the modem could not answer the dual-slot AT
+//                   query, which is the honest "we did not read this" — unlike
+//                   `cfun`/`sim_slot` above, the backend does NOT fabricate a
+//                   default here. The row is omitted entirely in that case
+//                   rather than rendered with a placeholder value.
 //   `.sim`          absent on any device OTA-upgraded from an older poller.
 //                   Falls back to the `unknown` tone. `sim.status` is the
 //                   reliable channel — `sim.inserted` is `0 | 1 | null` on the
@@ -156,6 +167,17 @@ export interface ModemHeroCardProps {
    * Rule). Supplies `cfun` and `sim_slot`.
    */
   saved: CellularSettings | null;
+  /**
+   * Both physical SIM slots from the SAME settings GET as `saved`, so the two
+   * run on one clock — the slot readouts never disagree about which slot is in
+   * use because one of them was read later.
+   *
+   * `null` is an EXPECTED state, not an error: the backend omits `dual_slot`
+   * entirely on firmware that cannot answer the dual-slot AT query, and an
+   * OTA-upgraded device in that position still renders a complete, working
+   * card. The row is omitted rather than rendered empty — see the call site.
+   */
+  dualSlot: DualSlotEntry[] | null;
 }
 
 type Governing = "lte" | "nr5g" | null;
@@ -412,6 +434,67 @@ function RateBlock({
   );
 }
 
+/**
+ * The masked tail of an ICCID: three bullets and the last four digits.
+ *
+ * NEVER THE FULL NUMBER. An ICCID identifies a subscriber's card and this is a
+ * glance readout, not an inventory screen — four digits is enough to tell two
+ * cards apart, which is the only question this row answers. The masking is done
+ * HERE and not in the CGI: the backend reports the fact it read, and how much of
+ * it a given surface shows is a display decision (Tracked SIMs shows more).
+ */
+function maskIccid(iccid: string): string | null {
+  const digits = iccid.trim();
+  if (!digits) return null;
+  return digits.length > 4 ? `•••${digits.slice(-4)}` : digits;
+}
+
+/**
+ * One physical slot. Active is a FILLED CHIP with its own glyph; every other
+ * slot is plain inline text with a different one — see `SLOT_CHIP` in shapes.ts
+ * for why this is not a status Badge.
+ *
+ * The visible text is deliberately terse ("SIM 1 •••9681"), so the accessible
+ * name restates the whole fact in a sentence: a screen reader gets "SIM 1,
+ * active, card ending 9681" rather than a stream of bullets.
+ */
+function SlotChip({ entry }: { entry: DualSlotEntry }) {
+  const { t } = useTranslation("cellular");
+  const K = "core_settings.basic";
+
+  const tail = maskIccid(entry.iccid);
+  const slotLabel = t(`${K}.readout.slot_n`, { slot: entry.slot });
+  const glyph = entry.active
+    ? SLOT_GLYPH.active
+    : tail
+      ? SLOT_GLYPH.present
+      : SLOT_GLYPH.empty;
+
+  // The empty case is a real one on a single-SIM install and must read as a
+  // fact, not as a blank: "SIM 2 Empty" beside "SIM 1 •••9681".
+  const srKey = tail
+    ? entry.active
+      ? "sr_active"
+      : "sr_standby"
+    : "sr_empty";
+
+  return (
+    <span
+      className={entry.active ? SLOT_CHIP.ACTIVE : SLOT_CHIP.IDLE}
+      aria-label={t(`${K}.sim_slots.${srKey}`, {
+        slot: entry.slot,
+        last4: tail ? tail.slice(-4) : "",
+      })}
+    >
+      <MaterialSymbol name={glyph} filled size={SLOT_CHIP.GLYPH} />
+      <span aria-hidden>{slotLabel}</span>
+      <span aria-hidden className={tail ? SLOT_CHIP.ICCID : undefined}>
+        {tail ?? t(`${K}.sim_slots.empty`)}
+      </span>
+    </span>
+  );
+}
+
 /** One label/value row in the parameters column. */
 function ParamRow({
   label,
@@ -438,6 +521,7 @@ export function ModemHeroCard({
   networkType,
   isStale,
   saved,
+  dualSlot,
 }: ModemHeroCardProps) {
   const { t } = useTranslation("cellular");
   const K = "core_settings.basic";
@@ -674,6 +758,21 @@ export function ModemHeroCard({
                       {t(`${K}.sim_status.${simStatus}`)}
                     </Badge>
                   </ParamRow>
+
+                  {/* OMITTED, NOT EMPTIED, when the modem did not report the
+                      slots. A "SIM slots — Unknown" row on the firmware
+                      majority that cannot answer this query at all is noise
+                      about a capability rather than a fact about this device;
+                      the `readout.unknown` branch above exists for a field the
+                      modem is always ASKED for and may fail to answer, which is
+                      a different statement. */}
+                  {dualSlot && dualSlot.length > 0 ? (
+                    <ParamRow label={t(`${K}.sim_slots.label`)}>
+                      {dualSlot.map((entry) => (
+                        <SlotChip key={entry.slot} entry={entry} />
+                      ))}
+                    </ParamRow>
+                  ) : null}
 
                   <ParamRow label={t(`${K}.readout.radio_power_label`)}>
                     <span className={READOUT_ROW.VALUE_TEXT}>

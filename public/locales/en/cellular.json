@@ -817,6 +817,13 @@
         "error": "Error",
         "unknown": "Unknown"
       },
+      "sim_slots": {
+        "label": "SIM slots",
+        "empty": "Empty",
+        "sr_active": "SIM {{slot}}, active, card ending {{last4}}",
+        "sr_standby": "SIM {{slot}}, standby, card ending {{last4}}",
+        "sr_empty": "SIM {{slot}}, no card detected"
+      },
       "ambr": {
         "lte_heading": "LTE rate limits",
         "nr_heading": "5G rate limits",
