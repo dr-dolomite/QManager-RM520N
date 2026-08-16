@@ -1,187 +1,188 @@
 ---
 name: QManager
-description: Modern web GUI for the Quectel RM520N-GL modem. The Operator's Console, in color — running on the modem it manages.
+description: Web GUI for the Quectel RM520N-GL modem. An instrument console — colour on the data, not on the furniture — running on the modem it manages.
 colors:
-  # Keys are the names that resolve in app/globals.css, which is NORMATIVE.
+  # Keys mirror the names that resolve in app/globals.css, which is NORMATIVE.
   # Where the Material vocabulary and shadcn's collide, the shipped name wins:
-  # Carrier Violet is `lte-*` (not `secondary-*`), Uplink Cyan is `uplink-*`
-  # (not `tertiary-*`). shadcn's own --secondary is a NEUTRAL in this codebase.
+  # Carrier Violet is `lte-*` (not `secondary-*`); shadcn's own --secondary is a
+  # NEUTRAL in this codebase.
+  #
+  # EVERY value below is inside the sRGB gamut by construction (chroma floored
+  # to 98.5% of the in-gamut maximum for its lightness and hue). That is a
+  # correctness property, not a nicety: Lightning CSS gamut-maps out-of-range
+  # oklch() at build time, so an out-of-gamut token ships a colour nobody
+  # authored. Here declared == shipped. See The In-Gamut Rule.
+  #
   # --- The mark: the source pair every other hue derives from ---
   mark-ring: "oklch(0.623 0.214 259.815)"
-  # --- Primary: the mark's tail. The only hue that acts. ---
-  primary-light: "oklch(0.488 0.243 264.376)"
-  primary-dark: "oklch(0.72 0.155 262)"
-  primary-foreground-light: "oklch(0.99 0.014 264)"
-  primary-foreground-dark: "oklch(0.2 0.12 258)"
-  primary-container-light: "oklch(0.885 0.1 264)"
-  primary-container-dark: "oklch(0.365 0.145 260)"
-  on-primary-container-light: "oklch(0.275 0.17 264)"
-  on-primary-container-dark: "oklch(0.92 0.09 262)"
+
+  # --- Neutrals: the ground everything else sits on ---
+  background-light: "oklch(0.985 0.003 258)"
+  background-dark: "oklch(0.120 0.008 258)"
+  foreground-light: "oklch(0.205 0.011 258)"
+  foreground-dark: "oklch(0.965 0.004 258)"
+  surface-light: "oklch(1.000 0.000 258)"
+  surface-dark: "oklch(0.170 0.009 258)"
+  card-light: "oklch(1.000 0.000 258)"
+  card-dark: "oklch(0.170 0.009 258)"
+  surface-container-light: "oklch(0.967 0.005 258)"
+  surface-container-dark: "oklch(0.200 0.010 258)"
+  surface-container-high-light: "oklch(0.938 0.007 258)"
+  surface-container-high-dark: "oklch(0.235 0.012 258)"
+  on-surface-light: "oklch(0.205 0.011 258)"
+  on-surface-dark: "oklch(0.965 0.004 258)"
+  on-surface-variant-light: "oklch(0.505 0.012 258)"
+  on-surface-variant-dark: "oklch(0.762 0.011 258)"
+  border-light: "oklch(0.905 0.006 258)"
+  border-dark: "oklch(0.288 0.012 258)"
+  input-light: "oklch(0.868 0.008 258)"
+  input-dark: "oklch(0.330 0.013 258)"
+
+  # --- Primary / NR / info / action: the mark's blue. The only hue that acts. ---
+  primary-light: "oklch(0.565 0.235 262)"
+  primary-dark: "oklch(0.605 0.200 262)"
+  primary-foreground-light: "oklch(0.985 0.006 262)"
+  primary-foreground-dark: "oklch(0.195 0.055 262)"
+  primary-on-surface-light: "oklch(0.535 0.220 262)"
+  primary-on-surface-dark: "oklch(0.650 0.183 262)"
+  primary-container-light: "oklch(0.890 0.052 262)"
+  primary-container-dark: "oklch(0.375 0.145 262)"
+  on-primary-container-light: "oklch(0.360 0.160 262)"
+  on-primary-container-dark: "oklch(0.900 0.047 262)"
+
   # --- Carrier Violet (`--lte-*`): the 4G LTE identity. Never acts. ---
-  lte-light: "oklch(0.495 0.205 296)"
-  lte-dark: "oklch(0.73 0.14 296)"
-  lte-foreground-light: "oklch(0.99 0.012 296)"
-  lte-foreground-dark: "oklch(0.21 0.1 296)"
-  lte-container-light: "oklch(0.855 0.095 296)"
-  lte-container-dark: "oklch(0.305 0.105 296)"
-  on-lte-container-light: "oklch(0.265 0.15 296)"
-  on-lte-container-dark: "oklch(0.91 0.075 296)"
-  # --- Uplink Cyan (`--uplink-*`): counts, upload direction. Never acts. ---
-  uplink-light: "oklch(0.49 0.13 200)"
-  uplink-dark: "oklch(0.74 0.105 200)"
-  uplink-foreground-light: "oklch(0.99 0.01 200)"
-  uplink-foreground-dark: "oklch(0.21 0.06 200)"
-  uplink-container-light: "oklch(0.885 0.09 200)"
-  uplink-container-dark: "oklch(0.3 0.08 200)"
-  on-uplink-container-light: "oklch(0.26 0.09 200)"
-  on-uplink-container-dark: "oklch(0.9 0.07 200)"
-  uplink-on-surface-light: "oklch(0.45 0.115 200)"
-  uplink-on-surface-dark: "oklch(0.8 0.1 200)"
-  # --- Downlink Rose (`--downlink-*`): the download direction, and capacity. ---
-  # Hue 341 is the ONLY window in the circle clearing 40 degrees from every
-  # taken hue. See Colors > The Direction-Is-Not-A-Radio Rule.
-  downlink-light: "oklch(0.52 0.2 341)"
-  downlink-dark: "oklch(0.75 0.155 341)"
-  downlink-foreground-light: "oklch(0.99 0.012 341)"
-  downlink-foreground-dark: "oklch(0.22 0.09 341)"
-  downlink-on-surface-light: "oklch(0.475 0.185 341)"
-  downlink-on-surface-dark: "oklch(0.8 0.145 341)"
-  downlink-container-light: "oklch(0.9 0.075 341)"
-  downlink-container-dark: "oklch(0.29 0.105 341)"
-  on-downlink-container-light: "oklch(0.28 0.145 341)"
-  on-downlink-container-dark: "oklch(0.91 0.075 341)"
+  lte-light: "oklch(0.510 0.240 296)"
+  lte-dark: "oklch(0.700 0.175 296)"
+  lte-foreground-light: "oklch(0.985 0.007 296)"
+  lte-foreground-dark: "oklch(0.195 0.055 296)"
+  lte-on-surface-light: "oklch(0.465 0.220 296)"
+  lte-on-surface-dark: "oklch(0.740 0.149 296)"
+  lte-container-light: "oklch(0.850 0.082 296)"
+  lte-container-dark: "oklch(0.270 0.145 296)"
+  on-lte-container-light: "oklch(0.360 0.160 296)"
+  on-lte-container-dark: "oklch(0.900 0.053 296)"
+
+  # --- Downlink Rose (`--downlink-*`): the download direction. Only that. ---
+  downlink-light: "oklch(0.480 0.204 341)"
+  downlink-dark: "oklch(0.660 0.200 341)"
+  downlink-foreground-light: "oklch(0.985 0.009 341)"
+  downlink-foreground-dark: "oklch(0.195 0.055 341)"
+  downlink-on-surface-light: "oklch(0.450 0.191 341)"
+  downlink-on-surface-dark: "oklch(0.700 0.200 341)"
+  downlink-container-light: "oklch(0.875 0.087 341)"
+  downlink-container-dark: "oklch(0.285 0.121 341)"
+  on-downlink-container-light: "oklch(0.360 0.153 341)"
+  on-downlink-container-dark: "oklch(0.900 0.068 341)"
+
+  # --- Uplink Cyan (`--uplink-*`): the upload direction. Only that. ---
+  uplink-light: "oklch(0.545 0.091 200)"
+  uplink-dark: "oklch(0.820 0.137 200)"
+  uplink-foreground-light: "oklch(0.985 0.012 200)"
+  uplink-foreground-dark: "oklch(0.195 0.032 200)"
+  uplink-on-surface-light: "oklch(0.515 0.086 200)"
+  uplink-on-surface-dark: "oklch(0.870 0.145 200)"
+  uplink-container-light: "oklch(0.915 0.105 200)"
+  uplink-container-dark: "oklch(0.345 0.057 200)"
+  on-uplink-container-light: "oklch(0.360 0.060 200)"
+  on-uplink-container-dark: "oklch(0.900 0.110 200)"
+
   # --- Spatial Azure (`--spatial-*`): antenna and spatial-stream readouts. ---
-  # Hue 232. Nearest FUNCTIONAL hue is success at 83 degrees; its 32-degree
-  # spacing from uplink/primary is decorative-only. See The 40-Degree Rule.
-  spatial-light: "oklch(0.49 0.135 232)"
-  spatial-dark: "oklch(0.745 0.115 232)"
-  spatial-foreground-light: "oklch(0.99 0.01 232)"
-  spatial-foreground-dark: "oklch(0.21 0.065 232)"
-  spatial-on-surface-light: "oklch(0.45 0.12 232)"
-  spatial-on-surface-dark: "oklch(0.8 0.105 232)"
-  spatial-container-light: "oklch(0.84 0.095 232)"
-  spatial-container-dark: "oklch(0.285 0.09 232)"
-  on-spatial-container-light: "oklch(0.26 0.1 232)"
-  on-spatial-container-dark: "oklch(0.9 0.07 232)"
-  # --- The functional four. Five tokens each; see Colors > The functional four. ---
-  success-light: "oklch(0.52 0.18 149)"
-  success-dark: "oklch(0.82 0.17 149)"
-  success-foreground-light: "oklch(0.99 0.02 149)"
-  success-foreground-dark: "oklch(0.22 0.075 149)"
-  success-on-surface-light: "oklch(0.45 0.155 149)"
-  success-on-surface-dark: "oklch(0.84 0.16 149)"
-  success-container-light: "oklch(0.89 0.115 149)"
-  success-container-dark: "oklch(0.3 0.095 149)"
-  on-success-container-light: "oklch(0.26 0.11 149)"
-  on-success-container-dark: "oklch(0.91 0.11 149)"
-  warning-light: "oklch(0.585 0.16 72)"
-  warning-dark: "oklch(0.865 0.155 80)"
-  warning-foreground-light: "oklch(0.99 0.02 80)"
-  warning-foreground-dark: "oklch(0.24 0.065 70)"
-  warning-on-surface-light: "oklch(0.475 0.14 70)"
-  warning-on-surface-dark: "oklch(0.88 0.145 80)"
-  warning-container-light: "oklch(0.905 0.125 82)"
-  warning-container-dark: "oklch(0.32 0.085 70)"
-  on-warning-container-light: "oklch(0.31 0.11 70)"
-  on-warning-container-dark: "oklch(0.93 0.11 80)"
-  destructive-light: "oklch(0.54 0.235 27)"
-  destructive-dark: "oklch(0.77 0.175 25)"
-  destructive-foreground-light: "oklch(0.99 0.01 27)"
-  destructive-foreground-dark: "oklch(0.24 0.07 27)"
-  destructive-on-surface-light: "oklch(0.475 0.21 27)"
-  destructive-on-surface-dark: "oklch(0.79 0.16 22)"
-  destructive-container-light: "oklch(0.905 0.08 25)"
-  destructive-container-dark: "oklch(0.325 0.115 25)"
-  on-destructive-container-light: "oklch(0.3 0.16 27)"
-  on-destructive-container-dark: "oklch(0.91 0.075 22)"
-  # `info` is an ALIAS of the brand ramp, not a fifth hue.
-  info-light: "oklch(0.488 0.243 264.376)"
-  info-dark: "oklch(0.72 0.155 262)"
-  # --- Surfaces. Every neutral carries a trace of the mark's hue (258). ---
-  background-light: "oklch(0.978 0.014 258)"
-  background-dark: "oklch(0.155 0.024 258)"
-  surface-light: "oklch(1 0 0)"
-  surface-dark: "oklch(0.215 0.03 258)"
-  surface-container-light: "oklch(0.952 0.026 258)"
-  surface-container-dark: "oklch(0.262 0.04 258)"
-  surface-container-high-light: "oklch(0.918 0.04 258)"
-  surface-container-high-dark: "oklch(0.312 0.05 258)"
-  on-surface-light: "oklch(0.19 0.032 258)"
-  on-surface-dark: "oklch(0.96 0.012 258)"
-  on-surface-variant-light: "oklch(0.435 0.05 258)"
-  on-surface-variant-dark: "oklch(0.782 0.03 258)"
-  outline-light: "oklch(0.86 0.028 258)"
-  outline-dark: "oklch(0.365 0.04 258)"
-  sidebar-light: "oklch(0.952 0.026 258)"
-  sidebar-dark: "oklch(0.215 0.03 258)"
-  # --- Concentric tone steps. Explicit tones, never stacked alpha. ---
-  tone-success-1-light: "oklch(0.935 0.065 149)"
-  tone-success-2-light: "oklch(0.875 0.1 149)"
-  tone-success-3-light: "oklch(0.795 0.14 149)"
-  tone-success-1-dark: "oklch(0.275 0.075 149)"
-  tone-success-2-dark: "oklch(0.375 0.105 149)"
-  tone-success-3-dark: "oklch(0.505 0.14 149)"
-  tone-warning-1-light: "oklch(0.95 0.055 80)"
-  tone-warning-2-light: "oklch(0.905 0.09 78)"
-  tone-warning-3-light: "oklch(0.835 0.13 78)"
-  tone-warning-1-dark: "oklch(0.275 0.06 70)"
-  tone-warning-2-dark: "oklch(0.365 0.09 74)"
-  tone-warning-3-dark: "oklch(0.49 0.12 78)"
-  tone-destructive-1-light: "oklch(0.945 0.05 25)"
-  tone-destructive-2-light: "oklch(0.905 0.08 25)"
-  tone-destructive-3-light: "oklch(0.835 0.12 25)"
-  tone-destructive-1-dark: "oklch(0.275 0.07 25)"
-  tone-destructive-2-dark: "oklch(0.365 0.105 25)"
-  tone-destructive-3-dark: "oklch(0.49 0.15 25)"
-  # --- Charts: one hue per radio family. Never the numbered --chart-1..6. ---
-  chart-nr-light: "oklch(0.488 0.243 264.376)"
-  chart-nr-dark: "oklch(0.72 0.155 262)"
-  chart-lte-light: "oklch(0.495 0.205 296)"
-  chart-lte-dark: "oklch(0.73 0.14 296)"
-  chart-threshold-light: "oklch(0.585 0.16 72)"
-  chart-threshold-dark: "oklch(0.865 0.155 80)"
+  spatial-light: "oklch(0.550 0.110 232)"
+  spatial-dark: "oklch(0.790 0.127 232)"
+  spatial-foreground-light: "oklch(0.985 0.008 232)"
+  spatial-foreground-dark: "oklch(0.195 0.039 232)"
+  spatial-on-surface-light: "oklch(0.515 0.103 232)"
+  spatial-on-surface-dark: "oklch(0.820 0.108 232)"
+  spatial-container-light: "oklch(0.855 0.085 232)"
+  spatial-container-dark: "oklch(0.265 0.053 232)"
+  on-spatial-container-light: "oklch(0.360 0.072 232)"
+  on-spatial-container-dark: "oklch(0.900 0.058 232)"
+
+  # --- The functional three ---
+  destructive-light: "oklch(0.480 0.192 27)"
+  destructive-dark: "oklch(0.640 0.200 27)"
+  destructive-foreground-light: "oklch(0.985 0.007 27)"
+  destructive-foreground-dark: "oklch(0.195 0.055 27)"
+  destructive-on-surface-light: "oklch(0.440 0.176 27)"
+  destructive-on-surface-dark: "oklch(0.680 0.200 27)"
+  destructive-container-light: "oklch(0.835 0.089 27)"
+  destructive-container-dark: "oklch(0.245 0.098 27)"
+  on-destructive-container-light: "oklch(0.360 0.144 27)"
+  on-destructive-container-dark: "oklch(0.900 0.051 27)"
+  warning-light: "oklch(0.560 0.118 72)"
+  warning-dark: "oklch(0.790 0.166 72)"
+  warning-foreground-light: "oklch(0.985 0.011 72)"
+  warning-foreground-dark: "oklch(0.195 0.041 72)"
+  warning-on-surface-light: "oklch(0.525 0.110 72)"
+  warning-on-surface-dark: "oklch(0.815 0.151 72)"
+  warning-container-light: "oklch(0.855 0.115 72)"
+  warning-container-dark: "oklch(0.410 0.086 72)"
+  on-warning-container-light: "oklch(0.360 0.075 72)"
+  on-warning-container-dark: "oklch(0.900 0.077 72)"
+  success-light: "oklch(0.540 0.150 149)"
+  success-dark: "oklch(0.740 0.200 149)"
+  success-foreground-light: "oklch(0.985 0.012 149)"
+  success-foreground-dark: "oklch(0.195 0.054 149)"
+  success-on-surface-light: "oklch(0.505 0.140 149)"
+  success-on-surface-dark: "oklch(0.780 0.200 149)"
+  success-container-light: "oklch(0.895 0.145 149)"
+  success-container-dark: "oklch(0.310 0.086 149)"
+  on-success-container-light: "oklch(0.360 0.100 149)"
+  on-success-container-dark: "oklch(0.900 0.110 149)"
+
+  # --- Signal quality ramp: a LIGHTNESS staircase, not a hue wheel ---
+  quality-1-light: "oklch(0.385 0.154 27)"
+  quality-1-dark: "oklch(0.640 0.200 27)"
+  quality-2-light: "oklch(0.415 0.116 45)"
+  quality-2-dark: "oklch(0.665 0.187 45)"
+  quality-3-light: "oklch(0.445 0.093 72)"
+  quality-3-dark: "oklch(0.710 0.149 72)"
+  quality-4-light: "oklch(0.475 0.106 115)"
+  quality-4-dark: "oklch(0.755 0.168 115)"
+  quality-5-light: "oklch(0.505 0.140 149)"
+  quality-5-dark: "oklch(0.800 0.200 149)"
+  quality-1-bar-light: "oklch(0.480 0.192 27)"
+  quality-1-bar-dark: "oklch(0.600 0.220 27)"
+  quality-2-bar-light: "oklch(0.510 0.143 45)"
+  quality-2-bar-dark: "oklch(0.645 0.181 45)"
+  quality-3-bar-light: "oklch(0.540 0.113 72)"
+  quality-3-bar-dark: "oklch(0.690 0.145 72)"
+  quality-4-bar-light: "oklch(0.570 0.127 115)"
+  quality-4-bar-dark: "oklch(0.735 0.164 115)"
+  quality-5-bar-light: "oklch(0.600 0.166 149)"
+  quality-5-bar-dark: "oklch(0.780 0.216 149)"
+
+  # --- Outline tags: identity and metadata, border + text, no fill ---
+  tag-nr-text-light: "oklch(0.535 0.220 262)"
+  tag-nr-text-dark: "oklch(0.650 0.183 262)"
+  tag-nr-border-light: "oklch(0.600 0.190 262)"
+  tag-nr-border-dark: "oklch(0.600 0.190 262)"
+  tag-lte-text-light: "oklch(0.465 0.220 296)"
+  tag-lte-text-dark: "oklch(0.740 0.149 296)"
+  tag-lte-border-light: "oklch(0.545 0.190 296)"
+  tag-lte-border-dark: "oklch(0.540 0.190 296)"
+  tag-spatial-text-light: "oklch(0.515 0.103 232)"
+  tag-spatial-text-dark: "oklch(0.820 0.108 232)"
+  tag-spatial-border-light: "oklch(0.615 0.123 232)"
+  tag-spatial-border-dark: "oklch(0.640 0.128 232)"
+  tag-neutral-text-light: "oklch(0.505 0.012 258)"
+  tag-neutral-text-dark: "oklch(0.762 0.011 258)"
+  tag-neutral-border-light: "oklch(0.620 0.012 258)"
+  tag-neutral-border-dark: "oklch(0.520 0.012 258)"
+
 typography:
-  display:
-    fontFamily: "Rethink Sans, system-ui, sans-serif"
-    fontSize: "1.875rem"
-    fontWeight: 700
-    lineHeight: "1.2"
-    letterSpacing: "-0.02em"
-  headline:
-    fontFamily: "Rethink Sans, system-ui, sans-serif"
-    fontSize: "1.25rem"
-    fontWeight: 600
-    lineHeight: "1.1"
-    letterSpacing: "-0.01em"
-  title:
-    fontFamily: "Rethink Sans, system-ui, sans-serif"
-    fontSize: "1.125rem"
-    fontWeight: 600
-    lineHeight: "1.55"
-  body:
-    fontFamily: "Rethink Sans, system-ui, sans-serif"
-    fontSize: "0.875rem"
-    fontWeight: 400
-    lineHeight: "1.5"
-  row:
-    fontFamily: "Rethink Sans, system-ui, sans-serif"
-    fontSize: "0.8125rem"
-    fontWeight: 600
-    lineHeight: "1.25rem"
-  label:
-    fontFamily: "Rethink Sans, system-ui, sans-serif"
-    fontSize: "0.75rem"
-    fontWeight: 500
-    lineHeight: "1.333"
-  numeric:
-    fontFamily: "Rethink Sans, system-ui, sans-serif"
-    fontWeight: 600
-    fontFeature: "'tnum' 1"
-  mono:
-    fontFamily: "var(--font-jetbrains-mono), ui-monospace, monospace"
-    fontSize: "0.8125rem"
-    fontWeight: 600
-    fontFeature: "'tnum' 1"
+  sans: "Rethink Sans (--font-sans, WOFF2 variable, next/font/local)"
+  mono: "JetBrains Mono (--font-jetbrains-mono → font-mono)"
+  icons: "Material Symbols Rounded (shell, /dashboard, pre-auth, all of /cellular/) · lucide-react (everywhere else)"
+  weights: "400 body · 500 labels · 600 titles and numerics · 700 page titles only"
+  display: "700 / 1.875rem / -0.02em"
+  headline: "600 / 1.25rem / -0.01em"
+  title: "600 / 1.125rem"
+  body: "400 / 0.875rem"
+  row: "600 / 0.8125rem on a 20px line box"
+  label: "500 / 0.75rem"
+  numeric: "600 tabular-nums in --font-sans, sized by its slot"
+
 rounded:
   inline: "0.75rem"
   field: "1.25rem"
@@ -189,434 +190,216 @@ rounded:
   card: "2.25rem"
   hero: "2.5rem"
   pill: "9999px"
+
 spacing:
-  xs: "0.5rem"
-  sm: "0.875rem"
-  md: "1rem"
-  lg: "1.25rem"
-  xl: "1.5rem"
-  xxl: "1.75rem"
+  page-gutter: "16px → 24px"
+  card-grid-gap: "16-24px"
+  tile-grid-gap: "14px"
+  in-card-row-gap: "6px"
+  inline-gap: "8-10px"
+  card-padding: "24px standard · 28px hero"
+
 components:
-  button-primary:
-    backgroundColor: "{colors.primary-light}"
-    textColor: "{colors.primary-foreground-light}"
-    rounded: "{rounded.pill}"
-    padding: "0 1.25rem"
-    height: "2.625rem"
-    typography: "{typography.body}"
-  button-tonal:
-    backgroundColor: "{colors.primary-container-light}"
-    textColor: "{colors.on-primary-container-light}"
-    rounded: "{rounded.pill}"
-    padding: "0 1.25rem"
-    height: "2.625rem"
-  button-destructive:
-    backgroundColor: "{colors.destructive-light}"
-    textColor: "{colors.destructive-foreground-light}"
-    rounded: "{rounded.pill}"
-    padding: "0 1.25rem"
-    height: "2.625rem"
-  button-ghost:
-    backgroundColor: "transparent"
-    textColor: "{colors.on-surface-variant-light}"
-    rounded: "{rounded.pill}"
-    height: "2.625rem"
-  chip-status:
-    backgroundColor: "{colors.success-container-light}"
-    textColor: "{colors.on-success-container-light}"
-    rounded: "{rounded.pill}"
-    padding: "0.125rem 0.5rem"
-    typography: "{typography.label}"
-  chip-identity:
-    backgroundColor: "{colors.lte-container-light}"
-    textColor: "{colors.on-lte-container-light}"
-    rounded: "{rounded.pill}"
-    padding: "0.375rem 0.75rem"
-    typography: "{typography.label}"
-  card-hero:
-    backgroundColor: "{colors.surface-light}"
-    textColor: "{colors.on-surface-light}"
-    rounded: "{rounded.hero}"
-    padding: "1.5rem 1.75rem"
-  card:
-    backgroundColor: "{colors.surface-light}"
-    textColor: "{colors.on-surface-light}"
-    rounded: "{rounded.card}"
-    padding: "1.5rem"
-  tile:
-    backgroundColor: "{colors.primary-container-light}"
-    textColor: "{colors.on-primary-container-light}"
-    rounded: "{rounded.tile}"
-    padding: "1rem 1.25rem"
-    height: "5.75rem"
-  tile-neutral:
-    backgroundColor: "{colors.surface-container-light}"
-    textColor: "{colors.on-surface-light}"
-    rounded: "{rounded.tile}"
-    padding: "1rem 1.25rem"
-  metric-row-pill:
-    backgroundColor: "{colors.surface-container-light}"
-    textColor: "{colors.on-surface-light}"
-    rounded: "{rounded.pill}"
-    padding: "0.625rem 1rem"
-    height: "2.5rem"
-    typography: "{typography.row}"
-  glyph-disc:
-    backgroundColor: "{colors.primary-light}"
-    textColor: "{colors.primary-foreground-light}"
-    rounded: "{rounded.pill}"
-    size: "3.25rem"
-  nav-item-active:
-    backgroundColor: "{colors.primary-container-light}"
-    textColor: "{colors.on-primary-container-light}"
-    rounded: "{rounded.pill}"
-    padding: "0 1rem"
-    height: "2.25rem"
-  banner:
-    backgroundColor: "{colors.primary-container-light}"
-    textColor: "{colors.on-primary-container-light}"
-    rounded: "{rounded.field}"
-    padding: "0.875rem 1rem"
-  input:
-    backgroundColor: "{colors.surface-container-light}"
-    textColor: "{colors.on-surface-light}"
-    rounded: "{rounded.field}"
-    padding: "0 0.875rem"
-    height: "2.625rem"
+  button: "pill, 42px tall, 20px horizontal, 600"
+  status-chip: "filled role container + on- ink, no border, pill, mandatory 12px glyph"
+  outline-tag: "1px role border + role text, transparent fill, pill, no glyph required"
+  card: "36px radius in a grid, 40px for an anchor; border-0; surface fill"
+  tile: "28px radius, 104px pinned height, 52px glyph disc + text column"
+  metric-row: "40px pill on surface-container, 16px horizontal"
+  input: "20px radius, 42px tall, surface-container fill, no rest border"
+  quality-bar: "full-round track, 4px tall, ramp-coloured fill, length carries the value"
 ---
 
 # Design System: QManager (RM520N-GL)
 
 ## Overview
 
-**Creative North Star: "The Operator's Console, in color."**
+QManager is an **instrument console**. It reports what a cellular modem is doing, on the modem itself, to someone who understands modems. The design language follows from three facts about that job.
 
-QManager is the calm, expert console an operator trusts when something matters. Color is not scarce
-here, it is **structured**: a Material-3-style tonal palette derived from the QManager mark, where
-content sits *inside* filled tonal containers rather than being sprinkled as colored text on white.
-Density is the job; color organizes the density instead of decorating it.
+**Colour belongs to the data, not to the furniture.** A card is a neutral surface. What is coloured is the reading: the numeral, the chart stroke, the quality bar, the glyph in its disc. This is the single largest change from the previous system, which spent its colour on large tonal container fills and left the live diagnostic values grey. That inversion was measured and it was backwards — on the surface built to showcase the colour system, four tinted tiles carried restated facts while RSRP and SINR sat in neutral text below them.
 
-The aesthetic is **tonal at rest, expressive in transition, dense in data, honest in state**. A
-surface tells you what kind of thing it is by its fill and its radius before you read a word of it.
-Nothing shouts, because everything is a container: hierarchy comes from tone, size, and shape rather
-than from one loud focal element competing for attention.
+It is also the accessible answer, which is not a coincidence. Across this palette, **ink colours separate in 0 of 28 pairs under deuteranopia and protanopia simulation. So do fills. Pale identity containers separate in 2 of 10.** Colour on ink works; colour on large pale surfaces does not. The design direction and the measurement agree, so the system commits to the layer that survives.
 
-It earns its restraint twice. Once as a stylistic principle, and again as a safety principle:
-QManager is served by the modem it manages, so the routine 90% should feel effortless and the risky
-10% should feel deliberate. A colorful interface is not permission to become a consumer router app.
+**Density is the product, and hierarchy is how it stays readable.** A modem console shows a lot at once. The answer is never to show less; it is to rank what is shown. Neutral surfaces, one coloured thing per row, and a consistent card grid are what let forty routes feel like one product.
 
-Dominant references: **Material 3** (Pixel Settings, Google Home) for the shape scale, container
-roles, and motion curves; **Apple System Settings** for the uniform page-header-plus-card-grid
-structure; **Vercel / Linear** for light-and-dark parity and typographic restraint; **Grafana** for
-data-viz density; **UniFi** for inline status density — a density reference only, never a badge or
-layout one. Anti-references: raw terminal aesthetics, legacy router admin panels, consumer-router
-cartoon oversimplification, the AI/SaaS hero-metric template, and **decorative color** — a hue used
-because a surface looked empty.
+**Every hue owns exactly one meaning.** A colour a user learns on the dashboard means the same thing on the cell scanner. Where a figure has no honest hue, it stays neutral rather than being given a decorative one.
 
-**Key Characteristics:**
+**Reference language:** WiFiman (Ubiquiti) and Firewalla — near-black canvas, saturated data strokes, coloured numerals, thin quality bars, outline metadata tags. **Structural reference:** the grouped-card, consistent-shape page from macOS System Settings and the Apple pro-app inspectors. **Not** a consumer router app, not a generic SaaS dashboard, not a terminal utility.
 
-- OKLCH only. `#000` and `#fff` never appear as literals; every neutral is tinted toward hue 258.
-- The palette is **derived from the mark**, not chosen alongside it.
-- Three identity hues (blue, violet, cyan) plus the functional four. No hue is decorative and
-  functional at the same time.
-- Rethink Sans is the interface voice; JetBrains Mono is the machine voice. There is no third.
-- Depth is tonal. Shadows exist, are optional, and are never load-bearing.
-- Motion is expressive in duration and curve, capped at `emphasized`, and never overshoots.
-- Light and dark are first-class equals; dark mode is genuinely colored, not desaturated.
-- Responsive behavior is driven by **container queries**, not viewport breakpoints.
-- No runtime asset fetches. Fonts and the icon font are self-hosted and subset at build time — the
-  modem may have no internet.
-- **Build on shadcn/ui first**, restyled with these tokens. Build custom only where shadcn has no
-  answer.
+Both themes are first-class and each is authored. Dark is a near-black instrument panel; light is a white-card console. Neither is a desaturated copy of the other, and every value in both was measured rather than derived by inversion.
 
 ## Migration Deltas (tracked)
 
-These are the places where correct-per-this-canon and what-a-primitive-currently-defaults-to disagree. **A new component follows the canon and overrides at the call site**; do not "fix" an unconverted surface as a side effect of unrelated work.
+**This document is ahead of the code.** The token set above is the target; `app/globals.css` still carries the previous palette. Until those land, expect the following gaps. This list is the implementation backlog, and a delta is removed only when the code matches.
 
-| Delta | Reality today | What new work does |
-| ----- | ------------- | ------------------ |
-| **Shape lives at the call site, not in the primitives** | `Card` defaults to `rounded-xl` + `border` + `shadow-sm`; `Button` to `rounded-md` + `h-9`; `Input` to `rounded-md` + transparent fill | Pass the role radius explicitly: cards ship `rounded-card`/`rounded-hero border-0`, actions ship a pill (`h-[2.625rem] rounded-pill px-5`, see `radio/page-header.tsx`'s `PILL_ACTION`) |
-| **Legacy radius chain is still live** | ~349 `rounded-{sm,md,lg,xl,full}` call sites resolve off `--radius: 0.65rem` | Use `rounded-inline/field/tile/card/hero/pill`. Never retarget the legacy chain globally |
-| **Icon-Boundary is partially applied** | Material Symbols owns the sidebar, `/dashboard`, `/` and `/login/`, and the **entire `/cellular/` family** (index + all 17 sub-routes, 53 files). Still lucide: `/local-network/`, `/monitoring/`, `/system-settings/`, `/about-device`, `/support`, onboarding | A lucide glyph on an unconverted route is **correct code**, and a route-agnostic primitive (page-level `Banner`, apply-progress dialog) stays lucide even inside a Material route. Convert a whole route or none of it. See `docs/reference/icon-system.md` |
-| **Opacity washes are unmigrated** | `bg-{role}/5`, `/10`, `/15` on icon discs, tiles, pulse rings, inline notices | Not chips — do not flip them as part of chip work. New concentric/stacked shapes use the explicit `--tone-{role}-{1,2,3}` steps |
-| **Popover-family layers nest flat inside dialogs** | `--surface`, `--card` and `--popover` are the same oklch value in both modes, and the dialog primitives now paint `bg-surface` — so a `SelectContent`/`PopoverContent` opened from inside a dialog lands on the same tonal step as the panel behind it (`connection-scenario-card.tsx:743`, `:924`; latent in `CommandDialog`, `ui/command.tsx:55`, which has no consumer). Their own border + shadow still separate them | The token is canon-correct — popovers ARE surface. The nesting is what's wrong: give the nested layer a container step (`bg-surface-container`), never a hairline. Do it on new work; sweeping every `Select` in every dialog is its own change |
-| **Status-first column is unbuilt** | No live-service page (Watchdog, Alerts, Discord) implements the read-only-status-hero → settings → activity-log order | It is a product intent in `PRODUCT.md`, not a `DESIGN.md` rule. Move toward it on new live-service pages; don't retrofit |
+| Delta | Where | Status |
+| --- | --- | --- |
+| ~~Token set not yet written~~ | `app/globals.css` — both themes, plus `@theme inline` | **Landed** 2026-08-16 |
+| ~~`--*-on-surface` ink tokens missing~~ | `primary` and `lte` were the gap | **Landed** |
+| ~~Quality ramp tokens do not exist~~ | `--quality-{1..5}` / `--quality-{1..5}-bar` | **Landed** |
+| ~~Outline-tag tokens do not exist~~ | `--tag-*-text` / `--tag-*-border` | **Landed** |
+| `getSignalQuality()` returns four levels | `types/modem-status.ts` — needs a fifth (`bad`) below `poor` | Open |
+| Quality "Good" still maps to the brand blue | every consumer of the quality scale | Open |
+| Identity chips are filled containers | `components/ui/badge.tsx` — `nr` / `lte` become outline tags; no `Tag` primitive exists yet | Open |
+| Radio summary tiles are four tinted containers | `components/cellular/radio/summary-tiles.tsx` | Open |
+| Quality bars are not built | no component consumes `--quality-*` yet | Open |
+| `--primary` used as a health state | `components/public/overview/tone.ts:106-107`, `fplmn-settings/fplmn-card.tsx:114` | Open |
+| `.impeccable/design.json` sidecar is stale | Still carries the previous canonical values and tonal ramps (e.g. `primary` at `oklch(0.488 0.243 264.376)`). It is generated from the built world by the impeccable documenter, so it is regenerated after the component layer lands — patching it by hand mid-migration would make it wrong in a subtler way | Open |
+| Legacy `--chart-1..6` still present | `app/globals.css` — **blocked**: `--chart-3` and `--chart-6` have live consumers in `latency-monitoring-card.tsx` and `signal-storm-game.tsx`. Both are retargeted onto the new palette and given real dark values so those surfaces theme; the block is deletable only once both callers move to `--chart-nr` / a quality stop | Blocked |
+
+**The token layer is in and the component layer is not.** Every surface now renders the new neutrals, inks and fills automatically, because components resolve `bg-surface`, `text-on-surface-variant`, `bg-primary` and so on. What does *not* change on its own is anything whose shape is wrong rather than whose colour is wrong: identity chips are still filled, the radio strip is still four tinted tiles, and no quality bar exists. Those are the open rows above.
 
 ## Colors
 
-**Governing rule: the mark sets the hue, containers carry the content, functional colors report
-state.** `app/globals.css` is the normative source; the frontmatter above mirrors it.
+### The three layers
 
-### Primary
+Every role in this system exists in up to three layers, and **each layer has one job**. Choosing the wrong layer is the standard failure, so the layers are named and their jobs are exclusive.
 
-- **Signal Blue** — the brand, the only hue that *acts*, and the identity of the 5G NR leg. It is
-  the mark's 45-degree tail used literally. Owns primary buttons, the focus ring, the active nav
-  container, NR chart series and carrier tiles, and every "in progress" surface.
-- **Signal Blue Container** — the tonal block carrying primary-flavored content: tonal buttons, the
-  active nav pill, informational banners, the bandwidth tile, in-progress rows.
+| Layer | Tokens | Job | Measured |
+| --- | --- | --- | --- |
+| **Ink** | `--X-on-surface` | Coloured text, numerals, chart strokes, bare glyphs, table values — on a **neutral** ground. **This is the primary mechanism.** | 0 of 28 pairs collapse, both themes |
+| **Fill** | `--X` + `--X-foreground` | Compact emphasis: glyph discs, quality-bar fills, primary buttons, the active nav pill, meter fills. Small and saturated. | 0 of 28 pairs collapse, both themes |
+| **Container** | `--X-container` + `--on-X-container` | Large tinted blocks. **Restricted to status chips, banners, and condition screens** — the functional roles only. | Status subset: 0 of 10. Identity: 8 of 10 collapse in light |
 
-### Secondary
+The restriction on containers is not taste. In light mode the usable pale-tint band (L 0.83–0.96 at low chroma) is too narrow to hold five identity hues plus `surface-container-high` above the 0.05 separation floor; an optimiser proved it infeasible rather than merely difficult. The functional roles fit because there are fewer of them and they are permitted to differ in lightness as well as hue. **So identity gets ink and outline, and never a large tinted block.**
 
-- **Carrier Violet** (`--lte-*`) — the 4G LTE identity, and nothing else. LTE chart series, LTE
-  carrier tiles and aggregation segments, the LTE signal card's identity chip, the Active MIMO tile.
-  Hue 296 because the mark forces blue to mean "QManager and its primary radio", so the second radio
-  family cannot also be a blue; violet is the nearest hue that stays unmistakably separate while
-  sharing the cool temperature.
+### The ground
 
-### Tertiary
+Neutrals carry a slight cool cast (hue 258, chroma ≤ 0.012) so they sit in the mark's family without reading as blue.
 
-- **Uplink Cyan** (`--uplink-*`) — **the upload direction**, and counts. Deliberately low-chroma so it
-  reads as a supporting mark, not a third brand. Owns the carrier-count tile and the upload leg of
-  every paired readout. Hue 200 is the nearest value clearing 40 degrees from every functional hue
-  and from both identity hues.
+| Step | Light | Dark | Owns |
+| --- | --- | --- | --- |
+| `--background` | 0.985 | **0.120** | The page canvas |
+| `--surface` / `--card` | 1.000 | 0.170 | Cards, the primary content plane |
+| `--surface-container` | 0.967 | 0.200 | Metric-row pills, inputs, recessed blocks |
+| `--surface-container-high` | 0.938 | 0.235 | One step further in: hover, stripes, muted chips |
 
-### Direction
+Dark mode is genuinely near-black (`#040608`) with cards barely lifted off it (`#0d1013`), per the reference language. Light mode inverts the relationship rather than the values: the canvas is a soft grey and cards are pure white, so a card still reads as the thing in front.
 
-- **Downlink Rose** (`--downlink-*`) — **the download direction**, and capacity. Owns the download leg
-  of every paired readout, the aggregate-bandwidth tile, and the negotiated Ethernet link rate. The
-  second meaning is exactly parallel to cyan's: cyan is *upload and counts*, rose is *download and
-  capacity*.
-- Hue 341 is arithmetic, not taste. Sweeping all 360 degrees against the taken hues — destructive 27,
-  warning 72, success 149, uplink 200, primary/NR/info 264, lte 296 — leaves exactly **one** window
-  clearing the 40-Degree Rule: h ∈ [336, 347]. There is no second slot, so there will never be a
-  second decorative hue in this system without retiring an existing one.
-- Verified under deuteranopia and protanopia simulation against every other role in both themes. The
-  tightest adjacency is rose against destructive red — the one that looks riskiest before it is
-  measured — at 0.47 (dark) and 0.25 (light) against a 0.05 collapse floor.
+### Identity — which radio
 
-### Neutral
+- **Primary / NR Blue** (`--primary-*`), hue **262**. The mark's blue, and the only hue in the system that *acts*. It is simultaneously the brand, the action accent, the `info` role, and the identity of the 5G NR leg. Those are one meaning wearing four hats, not four meanings — see The Info-Is-Brand Rule.
+- **Carrier Violet** (`--lte-*`), hue **296**. The 4G LTE leg. It never acts and never means healthy.
 
-Surfaces step tonally, and a card lifts by sitting one step above its parent in **both** themes.
+Identity renders as **ink** (a coloured value, a chart stroke) or as an **outline tag**. It does not render as a large tinted block. On a glyph disc it uses the **fill**, never the pale container — light-mode identity containers collapse under simulation and the fills do not.
 
-- **Canvas** — the page background.
-- **Surface** — cards, dialogs, popovers.
-- **Surface Container** — inner tiles, metric row pills, input fills, ghost-button hover, the sidebar
-  rail. In light this *recesses* below the canvas; in dark it *lifts* above it.
-- **Surface Container High** — muted chips, deliberately-off states, glyph discs on neutral tiles.
-- **On Surface** — primary text. **On Surface Variant** — descriptions, labels, eyebrows, row keys,
-  inactive nav.
-- **Outline** — input strokes and table rules only. Never a card border.
+### Direction — which way the bytes go
 
-### Spatial
+- **Downlink Rose** (`--downlink-*`), hue **341**. The download direction.
+- **Uplink Cyan** (`--uplink-*`), hue **200**. The upload direction.
 
-- **Spatial Azure** (`--spatial-*`) — **antenna and spatial-stream readouts**: MIMO layer counts,
-  per-antenna chains. It exists because a MIMO figure routinely reads `LTE 1x2 | NR 2x4`, naming both
-  radios in its own string, so no identity hue is honest on it — and layers are neither a direction
-  nor a capacity, so neither of those axes fits either. The tile shipped neutral for one revision on
-  that reasoning; the resolution was to give the thing it reports an axis rather than bend one of the
-  other three onto it.
-- Hue 232. Its nearest **functional** hue is success at 83 degrees, so it can never be read as a
-  state. It sits 32 degrees from Uplink Cyan and from the brand ramp — decorative-to-decorative
-  crowding, identical to the NR↔LTE spacing this system already ships. See The 40-Degree Rule below
-  for why that is permitted and hue ~110 is not, despite ~110 measuring wider on paper.
+**These mean direction and nothing else.** The previous system gave rose a second meaning ("and capacity") and cyan a second meaning ("and counts"), which made the axis untrue: a carrier-count tile wore upload cyan while reporting nothing about upload, two clicks from a latency card where the same cyan meant upload beside an up-arrow. A count is not a direction. A count is neutral.
 
-### The four axes
+Direction is primarily a **chart-stroke and numeral** pair now, so both carry vivid `-on-surface` inks. They always pair with an arrow glyph; hue alone never says which way.
 
-Every hue in this system belongs to exactly one axis, and **no surface borrows across them**:
+### Spatial — how many antennas
 
-| Axis | Hues | Answers |
-|------|------|---------|
-| **Radio identity** | Signal Blue (NR), Carrier Violet (LTE) | *which radio* |
-| **Direction** | Downlink Rose, Uplink Cyan | *which way the bytes go* |
-| **Spatial** | Spatial Azure | *how many antennas / layers* |
-| **State** | success, warning, destructive (+ info = brand) | *is it healthy* |
+**Spatial Azure** (`--spatial-*`), hue **232**. Antenna and spatial-stream readouts: MIMO layer counts, per-antenna chains, alignment surfaces. A MIMO figure routinely names both radios in one string (`LTE 1x2 | NR 2x4`), so no identity hue is honest, and layers are neither a direction nor a state.
 
-Anything that is none of these is **neutral**. A figure with no honest hue is left neutral rather
-than given a decorative one — that restraint is the rule, and the Spatial axis was minted only
-because a whole class of readout had no axis at all, not because one tile looked plain.
+### State — the functional three
 
-### The functional four (contract)
+`success` (149), `warning` (72), `destructive` (27). `info` resolves to the brand ramp rather than owning a fourth hue.
 
-| Role | Meaning | Icon |
-|------|---------|------|
-| **success** | Healthy: connected, service active, save succeeded, profile applied | `CheckCircle2Icon` / `check_circle` |
-| **warning** | Degraded: weak signal, searching, limited service, partial success, no SIM | `TriangleAlertIcon` / `warning` |
-| **info** | In progress: applying, downloading, rebooting. Reports, never alarms | `ClockIcon`, `DownloadIcon`, spinner |
-| **destructive** | Failed or irreversible: disconnected, apply failed, no service, reboot dialogs | `XCircleIcon` / `AlertCircleIcon` |
+**Only these report health.** An identity hue never means "fine"; a direction hue never means "degraded". This is the rule the previous system broke in its own canon, where the quality scale mapped "Good" to the brand blue — so an LTE-only user saw good signal rendered in the 5G identity colour, on every surface that read the scale.
 
-Each functional role ships **five** tokens, and picking the wrong one is the most common contrast
-failure in this system:
+`muted` (`surface-container-high` + `on-surface-variant`) is the fourth chip role and means **deliberately inactive** — Stopped, Disabled, Offline peer. It never carries live data. A live figure on a muted ground reads as switched off.
 
-| Token | Use |
-|-------|-----|
-| `--{role}` | The strong fill. Glyph discs, state dots, chart thresholds, meter fills |
-| `--{role}-foreground` | The **only** ink allowed on that fill |
-| `--{role}-on-surface` | Tinted *text on a plain card*, where no container is used |
-| `--{role}-container` | The tonal block. Status chips, banners, state screens, emphasized rows |
-| `--on-{role}-container` | The **only** ink allowed on that container |
+### The signal quality ramp
 
-### Signal quality ramp
+A **five-stop continuous scale** for measured signal quality — RSRP, RSRQ, SINR, aim score. It is a separate axis from the functional three, and it is the only place in the system where colour is read as a position on a scale rather than as a category.
 
-Thresholds live in `getSignalQuality()` (`types/modem-status.ts`) and are used identically on the
-dashboard, antenna statistics, and the alignment meter.
+| Stop | Hue | Level | Replaces |
+| --- | --- | --- | --- |
+| `--quality-1` | 27 | **bad** | *new — see below* |
+| `--quality-2` | 45 | poor | `destructive` |
+| `--quality-3` | 72 | fair | `warning` |
+| `--quality-4` | 115 | good | **`primary`** — the defect this fixes |
+| `--quality-5` | 149 | excellent | `success` |
 
-| Quality | Token | RSRP (dBm) | RSRQ (dB) | SINR (dB) |
-|---------|-------|------------|-----------|-----------|
-| Excellent | `success` | >= -80 | >= -5 | >= 20 |
-| Good | `primary` | >= -100 | >= -10 | >= 13 |
-| Fair | `warning` | >= -110 | >= -15 | >= 0 |
-| Poor | `destructive` | < -110 | < -15 | < 0 |
+Two things changed and both are substantive.
+
+**A fifth level exists.** `getSignalQuality()` returns four, so today everything below −110 dBm RSRP lands in one `poor` bucket: −111 and −140 render identically, when the first means nudge the antenna and the second means it is pointing at a wall. On an alignment meter that is the difference between a task and a dead end.
+
+**The ramp contains no identity hue.** Removing brand blue from the middle of a health scale is the whole reason the ramp is worth minting.
+
+**The ramp is a lightness staircase, not a hue wheel.** Under deuteranopia, hues 27 / 45 / 72 / 115 / 149 flatten onto a single yellow axis — the ramp cannot separate by hue *at all* for those users. So each ramp is monotone in lightness (light 0.385 → 0.505 in 0.030 steps; dark 0.620 → 0.800 in 0.045 steps) and the staircase is what carries it. Adjacent stops sit deliberately below the 0.05 floor because **bar length carries adjacent distinctions**; every non-adjacent pair clears it (worst: 0.055 light, 0.077 dark).
+
+`--quality-N` is the **numeral** ink; `--quality-N-bar` is the **bar fill**, one lightness step bolder. In light mode stops 1–3 resolve to deep reds and browns rather than vivid red-orange: 4.5:1 against a near-white ground caps those hues at L ≈ 0.50, and the non-adjacent floor then forces the span downward from that cap. This is a gamut ceiling, not a conservative choice. Where the numeral is large enough for the 3:1 threshold, use the `-bar` value as the ink instead.
+
+### Outline tags
+
+Identity and metadata render as **outline-and-tint**: a 1px role border, role text, transparent fill, pill radius.
+
+| Tag | Border | Text |
+| --- | --- | --- |
+| NR / 5G | `--tag-nr-border` | `--tag-nr-text` |
+| LTE / 4G | `--tag-lte-border` | `--tag-lte-text` |
+| Spatial | `--tag-spatial-border` | `--tag-spatial-text` |
+| Neutral metadata | `--tag-neutral-border` | `--tag-neutral-text` |
+
+Text clears 4.5:1 against every card ground; borders clear 3:1. Borders separate from each other in 0 of 6 pairs collapsed, both themes.
+
+An outline tag is **never a status indicator**. It labels *what a thing is* — a band number, a radio family, a channel width, a capability. Status is always a filled chip with a glyph. The two forms exist precisely so that "which radio" and "is it healthy" cannot be confused at a glance, which is the failure the previous single-form system kept producing.
 
 ### Data visualization
 
-One hue per radio family: **NR** uses `--chart-nr`, **LTE** uses `--chart-lte`, so a color learned on
-one card holds on the next. Area fills are a gradient of the series color (0.32 alpha falling to 0),
-monotone curves, horizontal gridlines only. Threshold guides use `--chart-threshold`, dashed, at low
-opacity. Any added series stays separable under deuteranopia and protanopia simulation before merge.
+Series colour comes from the **ink** tokens directly — `--primary-on-surface` for NR, `--lte-on-surface` for LTE, `--downlink-on-surface` / `--uplink-on-surface` for a directional pair. One hue per family, so a colour learned on one card holds on the next.
 
-**Never use the numbered `--chart-1..6`.** They are shadcn-starter inheritance with two disqualifying
-properties: their values are byte-identical in the light and dark blocks, so a chart built on them
-does not theme at all, and `--chart-1..5` sit in one hue family (blues 250-265), so LTE and NR would
-be separated by lightness alone — the first distinction to collapse under sun or a color-vision
-deficiency.
+- **Strokes are saturated and 2px.** A chart line is the boldest thing on its card; the card is neutral so it can be.
+- **Area fills** are a gradient of the series ink, 0.32 alpha falling to 0. Monotone curves, horizontal gridlines only.
+- **Threshold guides** are dashed, `--border`, low opacity.
+- **Legends** use a filled dot in the series ink beside the label, never a colour-only key.
+- Any added series is measured against every existing one under both simulations before merge.
+
+**Never use the numbered `--chart-1..6`.** They are shadcn-starter inheritance with two disqualifying properties: their values are byte-identical in the light and dark blocks, so a chart built on them does not theme at all; and `--chart-1..5` sit in one hue family, so LTE and NR would be separated by lightness alone.
 
 ### Named Rules
 
-**The Source-Color Rule.** Every new color derives from the mark's hue family or from an existing
-identity or functional role. Nobody picks a hue by eye and adds it to `globals.css`.
+**The Data-Ink Rule.** Colour belongs to the reading, not to the container holding it. A card is neutral; the numeral, stroke, bar, and glyph disc on it are coloured. Before tinting a surface, ask what fact the tint encodes — if the answer is "it looked plain", the surface stays neutral. Large tinted blocks are reserved for the functional roles, where the tint *is* the state.
 
-**The Container-Pair Rule.** A fill takes its own `-foreground`; a container takes its own `on-` ink.
-Never cross them. Crossing a fill with a container's ink is the single most common way to fail
-contrast here, and it is often invisible in light mode while breaking dark.
+**The Three-Layer Rule.** Ink for values and strokes on neutral ground; fill for compact emphasis; container for functional-role blocks only. Identity and direction have no container job. Never cross a pair: a fill takes its own `-foreground`, a container takes its own `on-` ink, and a neutral-ramp ink (`on-surface-variant`) on a tinted surface is always a bug.
 
-**The Paired-Theme Rule.** A role's fill and its ink move **together** across themes. Dark-mode fills
-are light (L 0.77-0.87), so their inks flip dark (L 0.22-0.24). Raising a dark fill without flipping
-its ink is what kept destructive measuring 2.42:1 through three migration steps. An alpha on a fill
-(`bg-destructive/60`) is a request to the canvas, not to the token, so the same control renders a
-different color on the page background, on a card, and on a container tile — never compensate with
-one. (A card, a dialog and a popover are the one exception, and only because `--card`, `--surface` and
-`--popover` resolve to the *same* oklch value in both modes.)
+**The In-Gamut Rule.** Every token is inside sRGB by construction. This is correctness, not polish: Lightning CSS gamut-maps out-of-range `oklch()` at build time and its mapping is not naive clipping, so an out-of-gamut token ships a colour nobody authored and measured separation computed from the source value is fiction. The previous palette had 87 such tokens; this one has zero, which is what makes "declared equals shipped" true. Any new value is checked for gamut before it is checked for anything else.
 
-**The 40-Degree Rule.** No decorative hue sits within 40 degrees of a **functional** one. Functional
-hues occupy 149 / 72 / 27 plus the brand ramp; the non-functional axes occupy 200 / 232 / 264 / 296 /
-341.
+**The Measured-Separation Rule.** Colour decisions are measured, never reasoned from hue arithmetic. This replaces the old 40-Degree Rule, which was a proxy for a measurement and behaved like one: it permitted pairs that collapsed and forbade pairs that were fine, and it needed an exception every time it met real data. Simulate deuteranopia and protanopia, compute OKLab ΔE, and hold the **0.05 floor** — on the layer the colour will actually ship on. Degrees of hue separation are not evidence.
 
-The constraint is deliberately one-directional, and 2026-08-16 is when that mattered. Decorative
-hues may crowd *each other* — NR 264 and LTE 296 have always been 32 degrees apart — because the
-failure this rule prevents is a decorative hue being mistaken for a **state**, which is a lie about
-the device. Two identity hues sitting close is a legibility question, and legibility has other
-channels: a glyph, a label, a lightness step.
+**The Identity-Never-Acts Rule.** `nr` and `lte` say which radio. They never mean healthy, never tint a control, and never appear in a quality scale. Where a surface carries identity *and* reports quality, the quality is encoded non-chromatically — the signal cards use the Material glyph's bar count.
 
-That distinction is load-bearing because **the circle is now full**. Every remaining gap is inside 40
-degrees of something. The widest unused position is hue ~110 at 38.5 degrees from *both* warning and
-success — which sounds like the best remaining slot and is in fact the worst one available: a
-yellow-green sitting exactly where deuteranopia merges amber and green, i.e. maximally confusable
-with the two functional states it is nearest. Spatial Azure at 232 measures 83 degrees from its
-nearest functional hue and crowds only decorative neighbours. Wider on paper lost to safer in
-practice.
+**The Info-Is-Brand Rule.** An informational state resolves to the brand ramp. It does not get its own hue. An info chip and a primary button differ by shape and glyph, not by owning two different blues.
 
-**A new hue now costs an existing one.** Anyone adding one measures both distances separately —
-functional first, decorative second — and states which existing role they are prepared to retire.
+**The Direction-Is-Not-A-Radio Rule.** Rose and cyan say which way the bytes are going, on either radio. A download figure on the LTE leg is rose-on-violet and neither hue is guessing about the other. Neither carries a second meaning: counts and capacities are neutral.
 
-**The Info-Is-Brand Rule.** There is no separate info hue. "In progress" renders as the brand's own
-tonal container, so an informational chip and a primary button differ by **shape and glyph** (pill
-plus clock vs. filled button plus label), never by owning two different blues.
+**The Glyph-Carries-The-State Rule.** Colour is never the sole carrier. Every status chip has a glyph, no two states in one slot share a glyph, every directional readout pairs its hue with an arrow, and the quality ramp always pairs its colour with bar length. This is load-bearing rather than decorative: adjacent ramp stops are intentionally below the separation floor, and the bar is what makes that safe.
 
-**The Identity-Never-Acts Rule.** Carrier Violet, Uplink Cyan, Downlink Rose and Spatial Azure carry
-identity, direction or domain, never affordance. A violet surface is never clickable *because* it is violet, and no
-control is ever tinted by them. The corollary: `nr` and `lte` never mean "healthy".
-
-**The Direction-Is-Not-A-Radio Rule.** Which way the bytes are going and which radio is carrying them
-are orthogonal facts, and they hold orthogonal hues. Download is **always** Downlink Rose and upload
-is **always** Uplink Cyan, on every surface, in every state — never `primary`, never `lte`. A rose
-download chip sitting inside a violet LTE container is correct and reads as two independent facts.
-
-This rule exists because the product shipped the opposite for months and it only failed *across*
-pages: download was `--primary`, which is simultaneously the brand, the 5G NR identity and "in
-progress", so a user learned blue = download on the speedtest dialog and met blue = NR on the radio
-page two clicks later. Upload was worse — Carrier Violet in the speedtest dialog and the AMBR chips,
-Uplink Cyan in Device Metrics, so the product disagreed with itself. An identity hue borrowed for a
-non-identity fact is the most expensive kind of colour bug: every individual screen looks deliberate.
-
-**The Lightness-Carries-NR-vs-LTE Rule.** `--primary-container` sits at L 0.40 in dark while its five
-sibling containers sit at 0.30–0.325. **This is not a calibration defect and must not be "fixed".**
-NR 264 and LTE 296 are 32 degrees apart — the tightest pair in the palette and *inside* this system's
-own 40-degree floor — so lightness is the channel actually separating them. Measured under
-protanopia: the shipped pair scores 0.216; equalised to a common lightness it scores 0.049, below the
-0.05 collapse floor. Blue and violet become one object for a red-green colour-blind user. Anyone
-tempted to even up that ladder runs the simulation first. The same defect shipped undetected in
-*light* mode until 2026-08-16, where the two containers sat 0.015 apart and measured **0.007**;
-`--lte-container` dropped to L 0.855 to fix it.
-
-**The Dark-Container-Cannot-Carry-Meaning Rule.** Simulating deuteranopia and protanopia across this
-system's container tones in **dark** mode, nearly every pair collapses below the 0.05 separation
-floor — success against warning, warning against destructive, uplink against a plain
-`surface-container`. These are shipped pairs, not hypothetical ones. Light mode is clean, and strong
-fills separate cleanly in both themes. So on a dark tonal tile the body tint is *reinforcement* and
-the glyph, the label and the ink are the information. Colour that has to survive belongs on the small
-strong-filled disc, not on the large container behind it. This is the mechanical reason every status
-chip carries an icon, and the reason a glance surface must not encode a distinction in body tint
-alone.
-
-**The Explicit-Tone Rule.** Layered translucency is banned for stacked shapes. Concentric rings, halo
-discs, and nested tonal surfaces use the explicit `--tone-{role}-{1,2,3}` steps, because stacked alpha
-compounds differently over each surface and yields a different color on a card than on a container
-tile.
-
-**The Functional-Color Promise.** A user who learns green means healthy on the dashboard finds the
-same green meaning the same thing in Watchdog, in Profile Apply, and in the alert logs. Hues get
-retuned; meanings never move.
+**The Neutral-Default Rule.** A figure with no honest hue stays neutral. Adding a colour because a block looked plain is the failure mode this whole system exists to prevent, and it is the one that recurs.
 
 ## Typography
 
-**Interface font:** Rethink Sans (`--font-sans`, WOFF2 variable font via `next/font/local`), with
-`system-ui, sans-serif` fallback.
+**Interface font:** Rethink Sans (`--font-sans`, WOFF2 variable font via `next/font/local`), with `system-ui, sans-serif` fallback.
 **Machine font:** JetBrains Mono (`--font-jetbrains-mono` → `font-mono`), self-hosted at build time.
-**Icon typefaces:** Material Symbols Rounded on the shell and converted routes; lucide elsewhere. An
-icon font is not a voice and does not count against the Two-Voice Rule.
+**Icon typefaces:** Material Symbols Rounded on the shell and converted routes; lucide elsewhere. An icon font is not a voice and does not count against the Two-Voice Rule.
 
-**Character:** Rethink Sans's rounder terminals and open counters read as warmer and more approachable
-than the geometric humanist forms it replaces — a deliberate trade of some engineered crispness for
-friendliness, while keeping enough weight contrast to stay legible in dense label stacks at 12px.
-JetBrains Mono is the machine's voice: identifiers and raw strings the device emits verbatim. The
-pairing is still the product's thesis in two fonts — a human interface reporting machine truth — but the
-boundary moved: a changing numeric figure (a measurement, a live count, a timer) now reads in the human
-voice too, because reporting a live number is the interface's job, not a quote of the machine's own
-output. See the Machine-Voice Rule below for where the line actually falls.
+**Character:** Rethink Sans's rounder terminals and open counters read as warmer than geometric humanist forms, while keeping enough weight contrast to stay legible in dense label stacks at 12px. JetBrains Mono is the machine's voice: identifiers and raw strings the device emits verbatim. The pairing is the product's thesis in two fonts — a human interface reporting machine truth.
 
-**Loaded weights:** 400 body, inputs, descriptions · 500 labels, chips, buttons, table headers · 600
-card titles, section headings, numeric readouts · 700 page titles only. Rethink Sans is a true variable
-font (wght 400–800), so it self-hosts as two files — normal and italic — rather than a static cut per
-weight.
+**Loaded weights:** 400 body, inputs, descriptions · 500 labels, chips, buttons, table headers · 600 card titles, section headings, numeric readouts · 700 page titles only. Rethink Sans is a true variable font (wght 400–800), so it self-hosts as two files — normal and italic — rather than a static cut per weight.
 
 ### Hierarchy
 
-- **Display** (700, 1.875rem / 30px, -0.02em): the `h1` at the top of every feature page, followed by
-  an `on-surface-variant` description. One per route.
-- **Headline** (600, 1.25rem / 20px, -0.01em): large tile values, state-screen labels, section
-  headings inside a hero card.
-- **Title** (600, 1.125rem / 18px): the card title on converted surfaces. `CardTitle` itself ships
-  only `leading-none font-semibold` and takes its size from the call site.
-- **Body** (400, 0.875rem / 14px): descriptions, prose, card copy, table cells. `leading-relaxed` and
-  `text-pretty` on any paragraph over one line.
-- **Row** (600, 0.8125rem / 13px on a **20px** line box): metric-row keys and values on a glance card.
-  **The explicit leading is not optional** — 13px is an arbitrary Tailwind size, so it would otherwise
-  inherit whatever leading the card sits in; pinning the line box is what holds the row at exactly
-  40px and keeps its skeleton's `h-10` mirroring it. Do not reach for 13px outside a dense metric row.
-- **Label** (500, 0.75rem / 12px): chips, table headers, button text, form labels, tile eyebrows
-  (600 where the eyebrow sits on a colored tile). Tiny uppercase section labels run 11px with
-  `tracking-wider` in the sidebar.
-- **Numeric** (600, `tabular-nums`): any figure that changes — a signal reading, throughput, a
-  countdown, a live count. **This is the one step that is deliberately not a fixed ramp** — a numeral
-  is read at the distance its container implies, so its size derives from the slot holding it, and a
-  literal `text-[Npx]` on a `tabular-nums` numeral is correct by construction. It renders in
-  `--font-sans`, not `font-mono` — see the Machine-Voice Rule. Shipped: 52px live throughput and 44px
-  live latency in the Speed Test dialog's running phase, 26px in its three result tiles, 17px with an
-  11px unit suffix in the dashboard Speed Test tile (load-bearing — the tile height is mirrored into
-  its own skeleton). A numeral *not* sized to a slot still takes the ramp, and prose never qualifies.
+- **Display** (700, 1.875rem / 30px, -0.02em): the `h1` at the top of every feature page, followed by an `on-surface-variant` description. One per route.
+- **Headline** (600, 1.25rem / 20px, -0.01em): large tile values, state-screen labels, section headings inside a hero card.
+- **Title** (600, 1.125rem / 18px): the card title. `CardTitle` itself ships only `leading-none font-semibold` and takes its size from the call site.
+- **Body** (400, 0.875rem / 14px): descriptions, prose, card copy, table cells. `leading-relaxed` and `text-pretty` on any paragraph over one line.
+- **Row** (600, 0.8125rem / 13px on a **20px** line box): metric-row keys and values on a glance card. **The explicit leading is not optional** — 13px is an arbitrary Tailwind size, so it would otherwise inherit whatever leading the card sits in; pinning the line box is what holds the row at exactly 40px and keeps its skeleton's `h-10` mirroring it. Do not reach for 13px outside a dense metric row.
+- **Label** (500, 0.75rem / 12px): chips, tags, table headers, button text, form labels, tile eyebrows. Tiny uppercase section labels run 11px with `tracking-wider` in the sidebar.
+- **Numeric** (600, `tabular-nums`): any figure that changes. **This is the one step deliberately not on a fixed ramp** — a numeral is read at the distance its container implies, so its size derives from the slot holding it, and a literal `text-[Npx]` on a `tabular-nums` numeral is correct by construction. It renders in `--font-sans`, not `font-mono`. A numeral *not* sized to a slot still takes the ramp, and prose never qualifies.
 
 ### The banner-scoped step
 
-A page-level `Banner` title is **15px / 600** with `tracking-[-0.005em]`; its description is 13px.
-15px is not on the ramp above, and it is deliberately **the only sanctioned literal outside the
-pre-auth scale**: a banner title has to out-weigh the copy beneath it without competing with the card
-heading above it, on a surface that mounts at any width on any route, and both 14px and 18px fail one
-of those two jobs. Do not reach for 15px anywhere else.
+A page-level `Banner` title is **15px / 600** with `tracking-[-0.005em]`; its description is 13px. 15px is deliberately **the only sanctioned literal outside the pre-auth scale**: a banner title has to out-weigh the copy beneath it without competing with the card heading above it, on a surface that mounts at any width on any route, and both 14px and 18px fail one of those two jobs.
 
 ### The pre-auth card exception (`/` and `/login/`)
 
-The two pre-auth surfaces run a **denser five-step scale of their own**. It applies only to the
-Overview splash and the login page; nothing else may reach for these steps.
+The two pre-auth surfaces run a **denser five-step scale of their own**. It applies only to the Overview splash and the login page.
 
 | Step | Size | Role |
 |------|------|------|
@@ -626,125 +409,62 @@ Overview splash and the login page; nothing else may reach for these steps.
 | Body | 400/500/600, 13px | subcopy, field labels, inline errors, banner body |
 | Eyebrow | 600, 11px, `tracking-[0.11em] uppercase` | the label above every tile and section |
 
-**Why.** Every other screen sits inside the app shell, where the sidebar, page title, and card grid
-establish scale before a card says anything. These two are the only screens that are a single card on
-an empty canvas, so the card must build five levels of hierarchy from nothing inside roughly 400px.
-The 14px/12px default flattens to two levels at that width. 11px is the floor — going below it would
-make uppercase text at 0.11em tracking the least legible thing in the product. **Both surfaces must
-agree:** when one of these steps changes, it changes on both in the same commit.
+**Why.** Every other screen sits inside the app shell, where the sidebar, page title, and card grid establish scale before a card says anything. These two are the only screens that are a single card on an empty canvas, so the card must build five levels of hierarchy from nothing inside roughly 400px. 11px is the floor. **Both surfaces must agree:** when one of these steps changes, it changes on both in the same commit.
 
 ### Named Rules
 
-**The Two-Voice Rule.** Rethink Sans is the interface, JetBrains Mono is the machine. There is no third
-typeface. Pairing Rethink Sans with another UI sans (Inter, Geist Sans, IBM Plex, Roboto, Manrope) is
-forbidden.
+**The Two-Voice Rule.** Rethink Sans is the interface, JetBrains Mono is the machine. There is no third typeface. Pairing Rethink Sans with another UI sans (Inter, Geist Sans, IBM Plex, Roboto, Manrope) is forbidden.
 
-**The Machine-Voice Rule.** `font-mono` is scoped to machine truth that is not itself a changing
-figure: identifiers (band, EARFCN, PCI, ICCID, IMEI, MAC/IP addresses), static facts read back from
-config rather than sampled live (a band's reference bandwidth in a disclosure table, a resolved
-timezone offset, a fixed scoring weight), raw AT responses, log lines, and copyable commands. A
-human-authored label never wears it. A live measurement — RSRP, throughput, a countdown, a "3 min ago"
-caption that ticks — is the interface *reporting* a number rather than the machine's raw output, so it
-takes `--font-sans` and `tabular-nums` instead of `font-mono`. The tell: does the value change while the
-user watches without them taking an action, or does it hold steady until something reconfigures it? The
-former is `font-sans`; the latter is `font-mono`. A count is a changing figure and stays `font-sans`; a
-nav item is neither and gets no font-family override at all.
+**The Machine-Voice Rule.** `font-mono` is scoped to machine truth that is not itself a changing figure: identifiers (band, EARFCN, PCI, ICCID, IMEI, MAC/IP), static facts read back from config, raw AT responses, log lines, copyable commands. A human-authored label never wears it. A live measurement — RSRP, throughput, a countdown — is the interface *reporting* a number, so it takes `--font-sans` and `tabular-nums`. The tell: does the value change while the user watches without them acting? Then `font-sans`. Does it hold steady until something reconfigures it? Then `font-mono`.
 
-**The Weight-Discipline Rule.** 400 body, 500 labels and medium emphasis, 600 headings and numerics,
-700 page titles only.
+**The Weight-Discipline Rule.** 400 body, 500 labels and medium emphasis, 600 headings and numerics, 700 page titles only.
 
-**The Tabular-Number Rule.** Any figure that can change while on screen is `tabular-nums`, in whichever
-voice it's already in — a live measurement keeps `tabular-nums` in `font-sans`, and an identifier
-column that needs vertical alignment (a PCI/EARFCN read-back list, stacked ICCIDs) keeps it in
-`font-mono`. The class controls digit-width jitter; it does not decide which voice owns the value — a
-latency readout whose digits shift width reads as the layout twitching, not as the value moving, and a
-tonal pill makes that jitter more visible, not less.
+**The Tabular-Number Rule.** Any figure that can change while on screen is `tabular-nums`, in whichever voice it is already in. The class controls digit-width jitter; it does not decide which voice owns the value. A latency readout whose digits shift width reads as the layout twitching, not as the value moving.
 
-**The Truncation-Pair Rule.** Where two cards sit side by side as a pair, every text node in their
-headers carries `min-w-0` and `truncate`. One card wrapping to two lines while its sibling stays at
-one breaks the paired baseline, and the pair stops reading as a pair. Italian is the locale that
-trips it.
+**The Truncation-Pair Rule.** Where two cards sit side by side as a pair, every text node in their headers carries `min-w-0` and `truncate`. One card wrapping to two lines while its sibling stays at one breaks the paired baseline. Italian is the locale that trips it.
 
 ## Layout
 
-**Every feature page is the same shape:** a page header (display title plus a muted one-line
-description, with optional pill actions right-aligned) followed by a uniform grid of self-contained
-cards. There is no bespoke per-screen composition. A user who learns one page has learned them all.
+**Every feature page is the same shape:** a page header (display title plus a muted one-line description, with optional pill actions right-aligned) followed by a uniform grid of self-contained cards. There is no bespoke per-screen composition. A user who learns one page has learned them all.
 
-**Responsive behavior is container-driven.** The content column declares `@container/main` and cards
-respond with `@3xl/main:`, `@4xl/main:`, `@5xl/main:`. A card that declares its own `@container/card`
-uses `@sm/card:` and `@md/card:` inside itself. Mixing viewport `sm:` with container `@sm/card:` in
-one card breaks on tablets and expanded sidebars. Viewport breakpoints stay for page-level concerns
-only: the gutter (`px-4 lg:px-6`) and the sidebar's own collapse.
+**Responsive behavior is container-driven.** The content column declares `@container/main` and cards respond with `@3xl/main:`, `@4xl/main:`, `@5xl/main:`. A card that declares its own `@container/card` uses `@sm/card:` and `@md/card:` inside itself. Mixing viewport `sm:` with container `@sm/card:` in one card breaks on tablets and expanded sidebars. Viewport breakpoints stay for page-level concerns only: the gutter (`px-4 lg:px-6`) and the sidebar's own collapse.
 
-**The grids that ship.** The dashboard is a 5-column container grid (`@4xl/main:grid-cols-5`) with a
-3-column left stack and a 2-column right rail, then full-width rows beneath. Radio Information is a
-**single-column stack of full-width cards ordered by cadence** — what moves every poll above what
-moves on handover — under a 4-up tile strip (`@xl/main:grid-cols-2 @5xl/main:grid-cols-4`). Both
-collapse to a single column with no special-casing.
+**The grids that ship.** The dashboard is a 5-column container grid (`@4xl/main:grid-cols-5`) with a 3-column left stack and a 2-column right rail, then full-width rows beneath. Radio Information is a **single-column stack of full-width cards ordered by cadence** — what moves every poll above what moves on handover — under a 4-up tile strip. Both collapse to a single column with no special-casing.
 
-> Radio Information was a symmetric 2-up (`@3xl/main:grid-cols-2`) with both cards `h-full`-locked to
-> each other. That is a split by **symmetry**, and symmetry is not a property either card has: the
-> lock forced a static reference card and a live telemetry card to one height, stranding ~200px of
-> dead space in whichever had less to say — and which one that was flipped with the carrier count.
-> **Split a page by cadence, not by symmetry**, and let each card size to its own content.
+> Radio Information was once a symmetric 2-up with both cards `h-full`-locked to each other. That is a split by **symmetry**, and symmetry is not a property either card has: the lock forced a static reference card and a live telemetry card to one height, stranding ~200px of dead space in whichever had less to say — and which one that was flipped with the carrier count. **Split a page by cadence, not by symmetry**, and let each card size to its own content.
 
-**Spacing rhythm.** Page gutter 16px rising to 24px. Card grid gap 16-24px; tile grid gap 14px;
-in-card row gap 6px; inline element gap 8-10px. Card padding is 24px (`px-6`) standard and 28px
-(`px-7`) on hero cards, with 24-26px vertical.
+**Spacing rhythm.** Page gutter 16px rising to 24px. Card grid gap 16-24px; tile grid gap 14px; in-card row gap 6px; inline element gap 8-10px. Card padding is 24px (`px-6`) standard and 28px (`px-7`) on hero cards, with 24-26px vertical.
 
-**Equal heights are explicit.** A grid row of cards uses `h-full *:data-[slot=card]:h-full` on each
-cell so cards match rather than each sizing to its own content. Without it, a card whose data hasn't
-landed is visibly shorter than its neighbor.
+**Equal heights are explicit.** A grid row of cards uses `h-full *:data-[slot=card]:h-full` on each cell so cards match rather than each sizing to its own content.
 
-**Field ergonomics.** Touch targets are a minimum 44px on coarse pointers; icon-only tab lists bump
-`TabsList` height rather than shrinking triggers. Toolbars `flex-wrap` so action clusters fall to a
-second row instead of overflowing. Tables wrap prose columns (`whitespace-normal break-words` with a
-container-stepped `max-w`) and treat horizontal scroll as a fallback.
+**Field ergonomics.** Touch targets are a minimum 44px on coarse pointers; icon-only tab lists bump `TabsList` height rather than shrinking triggers. Toolbars `flex-wrap`. Tables wrap prose columns and treat horizontal scroll as a fallback.
 
 ### Named Rules
 
-**The Consistent-Layout Rule.** Page header plus a uniform card grid, on every feature page. A
-bespoke hero-driven layout invented for a single screen is a consistency failure even when it looks
-good in isolation. A genuine glance surface may earn a hero card; it is a rare exception, never the
-default.
+**The Consistent-Layout Rule.** Page header plus a uniform card grid, on every feature page. A bespoke hero-driven layout invented for a single screen is a consistency failure even when it looks good in isolation. A genuine glance surface may earn a hero card; it is a rare exception, never the default.
 
-**The Card-Wrapped Surface Rule.** The unit of composition is the **card that wraps a settings
-group**, not the page. The card owns its whole content (`CardHeader` plus `CardContent` with every
-control); the page only arranges cards. A feature that scatters loose fragments across the viewport
-has skipped the card.
+**The Card-Wrapped Surface Rule.** The unit of composition is the **card that wraps a settings group**, not the page. The card owns its whole content; the page only arranges cards. A feature that scatters loose fragments across the viewport has skipped the card.
 
-**The Container-Query Rule.** New responsive behavior is a container query against `@container/main`
-or a card-local `@container/card`. Reach for a viewport breakpoint only for the page gutter or the
-shell itself.
+**The Container-Query Rule.** New responsive behavior is a container query against `@container/main` or a card-local `@container/card`. Reach for a viewport breakpoint only for the page gutter or the shell itself.
 
 ## Elevation & Depth
 
-**Depth is tonal, not cast.** A surface separates from its parent by sitting one step up the neutral
-ramp — canvas, then surface, then surface-container, then surface-container-high. This is what makes a
-card readable in direct sun, where a shadow is the first thing to disappear.
+**Depth is tonal, not cast.** A surface separates from its parent by sitting one step along the neutral ramp — canvas, then surface, then surface-container, then surface-container-high.
+
+The reason is now structural rather than environmental. The previous justification was sunlight legibility, and that requirement has been retired. What remains is stronger: **this system has no colour to spare for chrome.** Colour is spent on data, so a shadow would be the only other separation mechanism — and in near-black dark mode a shadow is invisible against the ground, which means a shadow-separated layout has no dark theme at all. The tonal step works identically in both themes. A shadow does not.
 
 ### Shadow Vocabulary
 
-- **Whisper** (`0 1px 2px oklch(0.19 0.032 258 / 6%)` in light, resolving to `0 0 #0000` in dark, where
-  the tonal step already does the work): an optional card lift. Never load-bearing.
-- **Popover Float** (`shadow-lg` and up, via shadcn defaults): dialogs, dropdowns, popovers, the
-  skip-to-content pill. This is the "not part of the page flow" signal, and it is the one place a
-  shadow carries real meaning.
+- **Whisper** (`0 1px 2px oklch(0.205 0.011 258 / 6%)` in light, resolving to `0 0 #0000` in dark): an optional card lift. Light mode's canvas-to-card step is 0.985 → 1.000, a deliberately narrow gap, and the whisper is what keeps that edge legible without a hairline. Never load-bearing.
+- **Popover Float** (`shadow-lg` and up, via shadcn defaults): dialogs, dropdowns, popovers, the skip-to-content pill. The "not part of the page flow" signal, and the one place a shadow carries real meaning.
 
 ### Named Rules
 
-**The Tonal-Elevation Rule.** Two surfaces at different conceptual elevations differ by at least one
-container step. If two surfaces are only distinguishable by their shadow, one of them is on the wrong
-step of the ramp.
+**The Tonal-Elevation Rule.** Two surfaces at different conceptual elevations differ by at least one container step. If two surfaces are only distinguishable by their shadow, one of them is on the wrong step of the ramp.
 
-**The No-Hairline-On-Fill Rule.** A tonal container never also carries a border. Cards on converted
-surfaces ship `border-0` explicitly, because a hairline over a fill reads as chrome around the color
-rather than as the edge of a block. `--outline` is for input strokes and genuine table rules only.
+**The No-Hairline-On-Fill Rule.** A tonal container never also carries a border. Cards ship `border-0` explicitly, because a hairline over a fill reads as chrome around the colour rather than as the edge of a block. **The outline tag is the one deliberate exception in the system** — there the border *is* the component, because there is no fill for it to sit on top of. `--border` is otherwise for input strokes and genuine table rules only.
 
-**The Highlight-by-Container Rule.** Emphasis promotes a surface one container step and changes its
-ink, rather than adding a translucent wash over a neutral card. A recommended alignment slot becomes a
-`primary-container` block; a running pipeline step becomes a `primary-container` row.
+**The Highlight-by-Container Rule.** Emphasis promotes a surface one container step and changes its ink, rather than adding a translucent wash over a neutral card. A recommended alignment slot becomes a `primary-container` block; a running pipeline step becomes a `primary-container` row.
 
 ## Shapes
 
@@ -757,95 +477,43 @@ Radius carries size hierarchy: the bigger and more important the surface, the so
 | `rounded-tile` | 1.75rem (28px) | Inner tiles, carrier tiles, alignment slots |
 | `rounded-card` | 2.25rem (36px) | Standard cards in a grid, dialogs |
 | `rounded-hero` | 2.5rem (40px) | The anchor card on a surface, the aggregation strip, state screens |
-| `rounded-pill` | 9999px | Chips, buttons, nav items, metric rows, meters, glyph discs, state dots |
+| `rounded-pill` | 9999px | Chips, tags, buttons, nav items, metric rows, meters, glyph discs, quality bars |
 
-The distinction between `card` and `hero` is real and used: a grid of peer cards takes `card`; the one
-card that anchors a surface — Network Status on the dashboard, the two cards on Radio Information, a
-state screen replacing a body — takes `hero`.
+The distinction between `card` and `hero` is real and used: a grid of peer cards takes `card`; the one card that anchors a surface takes `hero`.
 
-The silhouette this produces is deliberate: **soft, generously-rounded rectangles containing
-full-round elements**. Fills over strokes, round caps on every meter and progress track, no
-side-stripe accent borders. Nothing has a square corner except a table rule and a chart gridline. The
-mark follows the same construction — two shapes, two tones, one hue, no gradient, no shadow — and UI
-shapes should read as members of that family.
+The silhouette this produces is deliberate: **soft, generously-rounded rectangles containing full-round elements**. Fills over strokes, round caps on every meter and progress track, no side-stripe accent borders. Nothing has a square corner except a table rule and a chart gridline. The mark follows the same construction — two shapes, two tones, one hue, no gradient, no shadow — and UI shapes read as members of that family.
 
 ### Named Rules
 
-**The Radius-Follows-Size Rule.** A surface's radius is a function of its size and role, not of taste.
-A 28px tile never sits inside a 20px field, and a banner never out-rounds the card it sits on.
+**The Radius-Follows-Size Rule.** A surface's radius is a function of its size and role, not of taste. A 28px tile never sits inside a 20px field, and a banner never out-rounds the card it sits on.
 
-**The Fill-Over-Stroke Rule.** When a shape needs to be distinguished from its neighbor, change its
-fill, not its border. This system has one stroke color and it is for inputs and table rules.
+**The Fill-Over-Stroke Rule.** When a shape needs to be distinguished from its neighbour, change its fill, not its border. The outline tag is the sanctioned exception, and it is a *component*, not a technique to generalise.
 
-**The Role-Radius Rule.** New work uses the role scale above. The legacy `rounded-{sm,md,lg,xl}` chain
-off `--radius: 0.65rem` still resolves for ~349 unconverted call sites and keeps its old values, but it
-is never the correct choice in a new component.
+**The Role-Radius Rule.** New work uses the role scale above. The legacy `rounded-{sm,md,lg,xl}` chain off `--radius: 0.65rem` still resolves for unconverted call sites and keeps its old values, but it is never the correct choice in a new component.
 
 ## Motion
 
-**Character: expressive in duration and curve, and still settled.** The expressiveness is in the
-easing, never in overshoot — which is what keeps it compatible with a tool whose job is holding a
-connection alive. `lib/motion.ts` is the JS source of truth and mirrors the CSS custom properties in
-`globals.css`; retune one layer and you retune the other in the same change.
+**Character: expressive in duration and curve, and still settled.** The expressiveness is in the easing, never in overshoot — which is what keeps it compatible with a tool whose job is holding a connection alive. `lib/motion.ts` is the JS source of truth and mirrors the CSS custom properties in `globals.css`; retune one layer and you retune the other in the same change.
 
-**Durations.** `quick` 360ms (label swaps, value ticks, hover tints, focus rings) · `standard` 600ms
-(the default for a state change — card entrance, nav indicator, chip morph, meter retarget) ·
-`emphasized` 800ms (container size and shape, aggregation re-proportioning, banner arrival, meter
-first-fill) · `ambient` 2s (the two sanctioned loops only).
+**Durations.** `quick` 360ms (label swaps, value ticks, hover tints, focus rings) · `standard` 600ms (the default for a state change — card entrance, nav indicator, chip morph, meter retarget) · `emphasized` 800ms (container size and shape, aggregation re-proportioning, banner arrival, meter first-fill) · `ambient` 2s (the two sanctioned loops only).
 
-**Why these are double the Motion Guide's printed figures.** The guide's token table reads
-400/300/180ms, and those are the numbers it *renders at 1x* — but every demo in it is authored as
-`calc(<loop> * var(--sp))`, driven by a Playback control that sets `--sp` to `1 / speed`. Playback
-exists because, in the guide's own words, half or quarter speed "is the only way to actually inspect a
-180ms token". Reviewed at that 0.5 setting — which is exactly this scale — the system reads as
-deliberate rather than snappy, and that is the pace the product ships at. **The guide's figures are
-the inspection baseline; the figures above are the shipped scale, and this document wins.** The
-*ratios* are untouched (3 : 5 : 6.67), which is what keeps every composed gesture in shape.
+**Why these are double the Motion Guide's printed figures.** The guide's token table reads 400/300/180ms, and those are the numbers it *renders at 1x* — but every demo in it is authored as `calc(<loop> * var(--sp))`, driven by a Playback control that sets `--sp` to `1 / speed`. Playback exists because, in the guide's own words, half or quarter speed "is the only way to actually inspect a 180ms token". Reviewed at that 0.5 setting — exactly this scale — the system reads as deliberate rather than snappy. **The guide's figures are the inspection baseline; the figures above are the shipped scale, and this document wins.** The *ratios* are untouched (3 : 5 : 6.67), which is what keeps every composed gesture in shape.
 
-`ambient` is deliberately **not** doubled. A loop is not a transition, and it is the one animation
-that means "this is alive" — at 4s a breathing ring reads as a stalled UI rather than a calm one.
+`ambient` is deliberately **not** doubled. A loop is not a transition, and it is the one animation that means "this is alive" — at 4s a breathing ring reads as a stalled UI rather than a calm one.
 
-**Curves.** `emphasized` `cubic-bezier(0.05, 0.7, 0.1, 1)` — a deliberate departure and a long settle.
-`standard` `cubic-bezier(0.2, 0, 0, 1)` — the everyday state change. `quick` is a plain `ease-out`,
-deliberately: at the short end of the scale a bespoke cubic is indistinguishable from the built-in.
-**These two curves and `ease-out` are the whole vocabulary** — an `ease-[cubic-bezier(...)]` arbitrary
-value in a className is a violation, not a variant, and so is a bare `ease-linear` outside a
-data-driven progress bar.
+**Curves.** `emphasized` `cubic-bezier(0.05, 0.7, 0.1, 1)` — a deliberate departure and a long settle. `standard` `cubic-bezier(0.2, 0, 0, 1)` — the everyday state change. `quick` is a plain `ease-out`, deliberately: at the short end of the scale a bespoke cubic is indistinguishable from the built-in. **These two curves and `ease-out` are the whole vocabulary** — an `ease-[cubic-bezier(...)]` arbitrary value in a className is a violation, not a variant, and so is a bare `ease-linear` outside a data-driven progress bar.
 
-**Entrances.** Two stagger steps, and only two. Cards cascade at **120ms** with a 10px rise
-(`staggerContainer` / `staggerItem`); rows inside one card cascade at **80ms** with a 5px rise
-(`staggerRows` / `staggerRowItem`). A list cascade bounded by row count uses `rowCascadeDelay(index)`,
-which derives both the step and its ten-row cap from `STAGGER_STEP_ROWS` rather than restating them.
-Rows sit ~6px apart, so a 10px lift would move each row past its
-neighbor's resting position and read as the card reflowing rather than as content arriving. Nested
-containers inherit `visible` from their parent and must **not** declare their own `initial`/`animate`,
-or they detach from the parent's clock. Cascade children must be block boxes — a bare `span` silently
-drops the rise.
+**Entrances.** Two stagger steps, and only two. Cards cascade at **120ms** with a 10px rise (`staggerContainer` / `staggerItem`); rows inside one card cascade at **80ms** with a 5px rise (`staggerRows` / `staggerRowItem`). A list cascade bounded by row count uses `rowCascadeDelay(index)`, which derives both the step and its ten-row cap from `STAGGER_STEP_ROWS`. Rows sit ~6px apart, so a 10px lift would move each row past its neighbour's resting position and read as the card reflowing rather than as content arriving. Nested containers inherit `visible` from their parent and must **not** declare their own `initial`/`animate`, or they detach from the parent's clock. Cascade children must be block boxes — a bare `span` silently drops the rise.
 
-**The live value tick.** A poll-driven figure dips to 0.35 opacity and returns, asymmetrically —
-600ms down, 800ms up — so the dip is the event and the return is the settle. Figures within one
-`TickGroup` stagger 200ms apart by live DOM position, not by map index. **This is the tightest thing
-in the system against the poll:** a full seven-figure cascade runs 1.4s of lead plus a 1.4s dip, and
-the measured poll cadence is ~3.7-4.0s (not the ~2s the Motion Guide assumes — the poller's `sleep 2`
-runs *after* the cycle body). ~900ms of headroom, where the pre-retune scale had ~2.3s. Re-check that
-arithmetic before raising the scale again or making the poller faster. Only *measurements* tick;
-identifiers (band, PCI, EARFCN) take the container morph instead, because dipping a value that holds
-steady for minutes invents an event. A value that moves again mid-dip retargets rather than queueing.
+**The live value tick.** A poll-driven figure dips to 0.35 opacity and returns, asymmetrically — 600ms down, 800ms up — so the dip is the event and the return is the settle. Figures within one `TickGroup` stagger 200ms apart by live DOM position, not by map index. **This is the tightest thing in the system against the poll:** a full seven-figure cascade runs 1.4s of lead plus a 1.4s dip, and the measured poll cadence is ~3.7-4.0s (not the ~2s the Motion Guide assumes — the poller's `sleep 2` runs *after* the cycle body). ~900ms of headroom. Re-check that arithmetic before raising the scale again or making the poller faster. Only *measurements* tick; identifiers take the container morph instead, because dipping a value that holds steady for minutes invents an event. A value that moves again mid-dip retargets rather than queueing.
 
-**Reduced motion** is handled by one global switch in `components/motion-provider.tsx`, which is why
-every shared variant is pure transform and opacity. Raw CSS keyframes carry their own
-`@media (prefers-reduced-motion: reduce)` block beside them. Movement goes, opacity stays: a crossfade
-is still legible information where a slide is not.
+**Reduced motion** is handled by one global switch in `components/motion-provider.tsx`, which is why every shared variant is pure transform and opacity. Raw CSS keyframes carry their own `@media (prefers-reduced-motion: reduce)` block beside them. Movement goes, opacity stays: a crossfade is still legible information where a slide is not.
 
-That switch has **three** states, not two. `MotionConfig reducedMotion="user"` — deferring to the OS
-media query — is only the *default*; the animations preference below can outrank it in either
-direction.
+That switch has **three** states, not two. `MotionConfig reducedMotion="user"` is only the *default*; the animations preference below can outrank it in either direction.
 
 ### The animations preference
 
-The sidebar account dropdown carries an **Animations** row cycling System / Full / Reduced, beside the
-theme row. OS-level `prefers-reduced-motion` was already honoured in five layers; what was missing was
-any way for the user to choose. The whole contract is one attribute on `<html>`:
+The sidebar account dropdown carries an **Animations** row cycling System / Full / Reduced, beside the theme row. The whole contract is one attribute on `<html>`:
 
 | Choice | Attribute | `MotionConfig reducedMotion` |
 | ------ | --------- | ---------------------------- |
@@ -853,126 +521,54 @@ any way for the user to choose. The whole contract is one attribute on `<html>`:
 | Full | `data-motion="full"` | `"never"` |
 | Reduced | `data-motion="reduced"` | `"always"` |
 
-**The absence of the attribute is load-bearing.** "System" *removes* it rather than writing
-`data-motion="system"`, and that absence is what lets the bare media query decide. The key, the type
-and the pre-paint boot script live together in `lib/motion-preference.ts` so the string
-`qmanager_motion` is written exactly once; `app/layout.tsx` injects the boot script render-blocking,
-because an attribute landing in a mount effect arrives *after* first paint — a user on Reduced would
-see one frame of every entrance animation, which is precisely the frame they asked not to see.
+**The absence of the attribute is load-bearing.** "System" *removes* it rather than writing `data-motion="system"`, and that absence is what lets the bare media query decide. The key, the type and the pre-paint boot script live together in `lib/motion-preference.ts`; `app/layout.tsx` injects the boot script render-blocking, because an attribute landing in a mount effect arrives *after* first paint — a user on Reduced would see one frame of every entrance animation, precisely the frame they asked not to see.
 
-**The load-bearing part is the CSS half.** Tailwind's stock `motion-reduce:` compiles to a bare
-`@media (prefers-reduced-motion: reduce)` with no selector hook, so an attribute on `<html>`
-*physically cannot* override it — the ~64 `motion-reduce:` / `motion-safe:` utilities across the
-components would ignore the user's choice entirely. Both variants are therefore redefined as
-`@custom-variant`s at the top of `globals.css` (`app/globals.css:32-54`), each emitting `@slot` twice —
-once media-gated with the opposing attribute excluded, once attribute-gated — which is the shape
-Tailwind v4's own `dark` example uses. Redefining the two variants rewires all ~64 utilities at the
-source instead of rewriting them onto a bespoke variant name.
+**The load-bearing part is the CSS half.** Tailwind's stock `motion-reduce:` compiles to a bare media query with no selector hook, so an attribute on `<html>` *physically cannot* override it. Both variants are therefore redefined as `@custom-variant`s at the top of `globals.css`, each emitting `@slot` twice — once media-gated with the opposing attribute excluded, once attribute-gated.
 
-> ⚠️ **`motion-safe` needs the same treatment, and this is the half that is easy to skip.** Without it,
-> a user on OS-reduce who explicitly picks **Full** gets every `motion-safe:` spinner frozen — the exact
-> inverse of what they asked for. Redefine both or neither.
+> ⚠️ **`motion-safe` needs the same treatment, and this is the half that is easy to skip.** Without it, a user on OS-reduce who explicitly picks **Full** gets every `motion-safe:` spinner frozen — the exact inverse of what they asked for. Redefine both or neither.
 
-Both guards are wrapped in `:where()` so they contribute **zero** specificity: a redefined utility keeps
-the exact weight it had before and cascade order is unchanged. Note the two variants can match
-simultaneously (the OS says reduce *and* the user chose Reduced); duplicate identical declarations are
-harmless.
+Both guards are wrapped in `:where()` so they contribute **zero** specificity. The two variants can match simultaneously; duplicate identical declarations are harmless.
 
 ### Named Rules
 
-**The Motion-Ceiling Rule.** Nothing exceeds `emphasized` (800ms), and `emphasized` is the ceiling,
-not a starting point. State the rule as *the token*, never as the number — the number moved once
-already and every place it had been written out longhand had to be hunted down.
+**The Motion-Ceiling Rule.** Nothing exceeds `emphasized` (800ms), and `emphasized` is the ceiling, not a starting point. State the rule as *the token*, never as the number.
 
-**The One-Scale Rule.** A duration in a component is a bug. Every transition reads
-`duration-[var(--duration-standard)]` (or `-quick` / `-emphasized`) in a className, or `DUR.standard`
-(etc.) in a `motion/react` transition; a bare
-`duration-200`, an inline `{ duration: 0.25 }`, or a `transition-all` with no duration at all (which
-silently inherits Tailwind's 150ms) is off the scale and will not retune with it. The exceptions are
-narrow and each carries a comment: continuous loops with their own tempo (spinners, the OTP caret) and
-linear data-driven progress bars. `{ duration: 0 }` as a reduced-motion escape is always fine.
+**The One-Scale Rule.** A duration in a component is a bug. Every transition reads `duration-[var(--duration-standard)]` (or `-quick` / `-emphasized`) in a className, or `DUR.standard` in a `motion/react` transition; a bare `duration-200`, an inline `{ duration: 0.25 }`, or a `transition-all` with no duration (silently inheriting Tailwind's 150ms) is off the scale and will not retune with it. The exceptions are narrow and each carries a comment: continuous loops with their own tempo, and linear data-driven progress bars. `{ duration: 0 }` as a reduced-motion escape is always fine.
 
-**The Non-Load-Bearing Rule.** If a transition never runs — reduced motion, a backgrounded tab, a
-paint that beat the animation — the UI must already be correct. Every entrance keyframe in
-`globals.css` is written open-ended (`from` with no `to`) for exactly this reason: the resting value is
-the truth and the keyframe only describes the journey. A `requestAnimationFrame`-armed state flip
-breaks this rule, because rAF does not fire in a background tab.
+**The Non-Load-Bearing Rule.** If a transition never runs — reduced motion, a backgrounded tab, a paint that beat the animation — the UI must already be correct. Every entrance keyframe is written open-ended (`from` with no `to`): the resting value is the truth and the keyframe only describes the journey. A `requestAnimationFrame`-armed state flip breaks this rule, because rAF does not fire in a background tab.
 
-**The Transform-Only Rule.** Animate `transform` and `opacity`. The single sanctioned `width`
-animation in the product is the carrier-aggregation segment, where the width *is* the data and a
-`scaleX` would distort the band labels riding inside it. Meters animate `scaleX`, never `width` — on a
-CPU also carrying the user's traffic, a per-poll layout pass per meter is not free.
+**The Transform-Only Rule.** Animate `transform` and `opacity`. The single sanctioned `width` animation is the carrier-aggregation segment, where the width *is* the data and a `scaleX` would distort the band labels riding inside it. Meters animate `scaleX`, never `width` — on a CPU also carrying the user's traffic, a per-poll layout pass per meter is not free.
 
-**The One-Loop Rule.** At most one ambient loop per surface, and only where something is genuinely
-live. Two exist product-wide: the service-ring pulse and the live-ping dot.
+**The One-Loop Rule.** At most one ambient loop per surface, and only where something is genuinely live. Two exist product-wide: the service-ring pulse and the live-ping dot.
 
-**The No-Overshoot Rule.** Never springy, never elastic, never rubber-banding. The one sanctioned
-overshoot in the entire product is the save-confirmation check at 1.03 scale — and it is a **number**,
-not a sentence: `SAVE_CHECK_OVERSHOOT` / `SAVE_CHECK_KEYFRAMES` / `transitionSaveCheck` in
-`lib/motion.ts`. Anything that wants the pop imports the constant; a second overshoot has to be written
-out in the open to exist. This rule and that file both cited the save check as the sanctioned exception
-while the button underneath was running an underdamped spring (`stiffness: 400, damping: 22`) whose
-peak is a function of its two dials and is bounded by nothing — a ceiling enforced only by prose is not
-a ceiling.
+**The No-Overshoot Rule.** Never springy, never elastic, never rubber-banding. The one sanctioned overshoot is the save-confirmation check at 1.03 scale — and it is a **number**, not a sentence: `SAVE_CHECK_OVERSHOOT` / `SAVE_CHECK_KEYFRAMES` / `transitionSaveCheck` in `lib/motion.ts`. Anything that wants the pop imports the constant. A ceiling enforced only by prose is not a ceiling — this rule once cited the save check as the sanctioned exception while the button underneath ran an underdamped spring whose peak was bounded by nothing.
 
-**The Enter-Only Rule.** Conditions and navigation have no exit animation. A banner leaving means the
-condition cleared and that should feel immediate; an outgoing route is already gone, and animating it
-out only delays the incoming one.
+**The Enter-Only Rule.** Conditions and navigation have no exit animation. A banner leaving means the condition cleared and that should feel immediate; an outgoing route is already gone, and animating it out only delays the incoming one.
 
-**The Modal-Exit Rule.** A modal's exit duration is an **input-latency budget**, not a taste call, and
-every modal surface therefore writes its two directions separately: `data-[state=open]:` on
-`emphasized`, `data-[state=closed]:` on `quick`. Never one unqualified `duration-*` for both.
+**The Modal-Exit Rule.** A modal's exit duration is an **input-latency budget**, not a taste call, and every modal surface writes its two directions separately: `data-[state=open]:` on `emphasized`, `data-[state=closed]:` on `quick`. Never one unqualified `duration-*` for both.
 
-The reason is mechanical rather than aesthetic. Radix sets `pointer-events: none` on `<body>` for as
-long as a modal layer is mounted, and releases it in an unmount cleanup; `<Presence>` holds that layer
-mounted until `animationend` fires on the content node. So **the entire page is click-dead for exactly
-the length of the exit animation.** `dialog` and `alert-dialog` both shipped an unqualified
-`emphasized`, which bought 800ms of dead clicks every time a dialog closed — and their scrims carried
-no duration at all, so the backdrop left on tw-animate's off-scale 150ms default and the page *looked*
-live for the final 650ms of the lockout. On a dialog-dense surface (`/cellular/custom-profiles` holds
-nine of them) that reads as the app dropping input, not as an animation.
+The reason is mechanical. Radix sets `pointer-events: none` on `<body>` for as long as a modal layer is mounted, and `<Presence>` holds that layer mounted until `animationend` fires on the content node. So **the entire page is click-dead for exactly the length of the exit animation.** An unqualified `emphasized` buys 800ms of dead clicks every time a dialog closes; a scrim with no duration leaves the backdrop on tw-animate's off-scale 150ms default, so the page *looks* live for the final 650ms of the lockout. On a dialog-dense surface that reads as the app dropping input.
 
-Two consequences worth stating separately, because each was violated on its own:
-
-- **The scrim shares the content's clock in both directions.** They are one object arriving and
-  leaving; an overlay with no duration is a One-Scale violation *and* the thing that turns a slow exit
-  into an apparently broken one.
-- **`quick` is the ceiling for a modal exit, not a suggestion.** `sheet` was already correctly
-  state-qualified — it is where the pattern came from — but sat on `standard`, which is still 600ms of
-  dead page. Distance does not buy budget here: a sheet travels a full viewport edge and still exits on
-  `quick`.
-
-This is the one place the Motion-Ceiling Rule's "`emphasized` is a ceiling, not a starting point"
-has a hard floor underneath it too. If a future modal primitive is added, it inherits this shape.
+- **The scrim shares the content's clock in both directions.** They are one object arriving and leaving; an overlay with no duration is a One-Scale violation *and* the thing that turns a slow exit into an apparently broken one.
+- **`quick` is the ceiling for a modal exit, not a suggestion.** Distance does not buy budget: a sheet travels a full viewport edge and still exits on `quick`.
 
 ## Components
 
 ### Buttons
 
 - **Shape:** full-round pill, 42px tall (`h-[2.625rem]`), 20px horizontal padding, 600 weight.
-- **Primary:** brand fill with its own `-foreground` ink. The default for main actions — Record, Save,
-  Apply — never `outline`.
+- **Primary:** brand fill with its own `-foreground` ink. The default for main actions — Record, Save, Apply — never `outline`.
 - **Tonal:** `primary-container` with `on-primary-container`. Secondary actions of equal standing.
-- **Destructive:** destructive fill with `destructive-foreground`. Never `text-white` hardcoded —
-  dark-mode destructive is a *light* fill and white ink on it measures 2.4:1.
+- **Destructive:** destructive fill with `destructive-foreground`. Never `text-white` hardcoded — dark-mode destructive is a *light* fill.
 - **Ghost / outline:** transparent or hairline, `on-surface-variant` ink, `surface-container` hover.
 - **Focus:** a 3px `--ring` ring at 50% on the `quick` clock.
-- Use `SaveButton` for save actions. It owns all three states (idle label → spinner + "Saving…" → check
-  + "Saved!"), the 1.03 check, and the **width lock**: the three layers share one grid cell and stay
-  mounted, so the pill sizes to the widest of them per locale and a toolbar never reflows mid-save.
-  Never `AnimatePresence` around them — unmounting a layer removes its width contribution and breaks
-  the lock on the frame it matters. Pass a **translated** `label`; never an English literal. See
-  [`docs/reference/dashboard-state-motion.md`](docs/reference/dashboard-state-motion.md) > Part 3.
+- Use `SaveButton` for save actions. It owns all three states (idle label → spinner + "Saving…" → check + "Saved!"), the 1.03 check, and the **width lock**: the three layers share one grid cell and stay mounted, so the pill sizes to the widest of them per locale and a toolbar never reflows mid-save. Never `AnimatePresence` around them. Pass a **translated** `label`.
 
-### Chips
+### Chips and tags
 
-Two families, and confusing them is the standard failure.
+**Two forms with two jobs, and the split is the point.** The previous system had one form doing both, which is how "which radio" and "is it healthy" kept getting confused.
 
-**Status chips** are the five roles in `components/ui/badge.tsx` — `success`, `warning`,
-`destructive`, `info`, `muted`. A role container fill, that container's `on-` ink, no visible border,
-pill radius, and a **mandatory** 12px icon. The variant is the whole API: never hand-write the
-classes. Fill and ink transition on `standard`, the focus ring on `quick`. Hover is `[a&]:`-scoped, so
-a static status chip never responds to the cursor and advertises a click target that does not exist.
+**Status chips — filled.** The four roles in `components/ui/badge.tsx`: `success`, `warning`, `destructive`, `info`, plus `muted`. A role container fill, that container's `on-` ink, no border, pill radius, and a **mandatory** 12px glyph. The variant is the whole API: never hand-write the classes. Fill and ink transition on `standard`, the focus ring on `quick`. Hover is `[a&]:`-scoped, so a static chip never advertises a click target that does not exist.
 
 ```tsx
 <Badge variant="success">
@@ -981,44 +577,48 @@ a static status chip never responds to the cursor and advertises a click target 
 </Badge>
 ```
 
-`muted` is for deliberately-inactive states (Stopped, Disabled, Offline peer). Failure is
-`destructive`.
+**Outline tags — identity and metadata.** `nr`, `lte`, `spatial`, `neutral`. A 1px role border, role text, transparent fill, pill radius. A glyph is optional here, because an outline tag reports *what a thing is* rather than whether it is well — there is no second state for a glyph to disambiguate.
 
-**Identity chips** are `nr` and `lte`. They say which *radio* a chip belongs to and never vary with
-health. They are not interchangeable with the five status roles.
+```tsx
+<Tag variant="nr">5G NR</Tag>
+<Tag variant="neutral">n78</Tag>
+```
 
-`default` / `secondary` / `outline` remain for non-status labels: network type, category tags, counts.
+The forms are not interchangeable. **An outline tag is never a status indicator, and a filled chip never carries identity.** `muted` covers deliberately-inactive states (Stopped, Disabled, Offline peer); failure is `destructive`.
 
-Tone maps key onto the exported `BadgeVariant` type, never onto a class string, so a new tone without a
-matching role fails the build.
+Tone maps key onto the exported `BadgeVariant` / `TagVariant` types, never onto a class string, so a new tone without a matching role fails the build.
 
 ### Cards / Containers
 
 - **Corner:** 36px in a grid of peers, 40px for the anchor card on a surface.
 - **Background:** `surface`, with `border-0` explicit and `--shadow-whisper` optional in light.
 - **Padding:** 24px standard, 28px on hero cards.
-- **Header:** plain `CardTitle` plus `CardDescription`. **Never an icon in the card header** — icons
-  belong in badges, glyph discs, or a separate action area.
+- **Header:** plain `CardTitle` plus `CardDescription`. **Never an icon in the card header** — icons belong in glyph discs, tags, or a separate action area.
 
 ### Tiles
 
-The inner unit of a glance surface: a 28px-radius block, 92px minimum height, holding a 52px
-full-round glyph disc beside a text column of eyebrow → value → caption.
+The inner unit of a glance surface: a 28px-radius block at a **pinned** 104px height, holding a 52px full-round glyph disc beside a text column of eyebrow → value → caption.
 
-A tile is either a **fill** pair or a **container** pair, never crossed — and **the glyph disc always
-inverts its tile's pairing**. A fill tile gets a container disc; a container tile gets a fill disc, so
-the icon pops instead of dissolving into a same-tone circle, and it survives grayscale either way.
+**A tile body is neutral. The disc carries the colour.** This is The Data-Ink Rule at tile scale, and it is what the previous four-tinted-tile composition got wrong: four pale bodies at near-identical container lightness encode category without encoding importance, so the strip flattens to equal weight and the eye has nowhere to land. A neutral body with a saturated disc gives the tile a focal point at 1/8th the tinted area.
+
+**The height is pinned, not floored.** A `min-h-` made the skeleton a lie: measured live, tiles resolved to 118 / 98 / 95px against a 92px skeleton, a 26px jump at the handoff. A floor cannot be a mirror; only a pin can. Geometry lives in `components/cellular/tile-shape.ts` so a strip and its skeleton cannot drift.
 
 ### Metric rows
 
 Two answers, and this is the one place the system deliberately has two.
 
-- **Glance surfaces** use full-round pills on `surface-container`: 40px tall, 16px horizontal padding,
-  a 13px/600 `on-surface-variant` key against a 13px value — `font-mono` when that value is an
-  identifier, `font-sans tabular-nums` when it is a live measurement, per the Machine-Voice Rule. No
-  dividers.
-- **Genuine data tables** (cell scanner results, SMS inbox, log views) keep hairline rows on
-  `--outline`, because density survives there where pills would not.
+- **Glance surfaces** use full-round pills on `surface-container`: 40px tall, 16px horizontal padding, a 13px/600 `on-surface-variant` key against a 13px value — `font-mono` when that value is an identifier, `font-sans tabular-nums` when it is a live measurement. No dividers. **A value that carries quality takes its ramp ink here**, which is the row-level equivalent of WiFiman's coloured dBm figure.
+- **Genuine data tables** (cell scanner results, SMS inbox, log views) keep hairline rows on `--border`, because density survives there where pills would not.
+
+### Quality bars
+
+The row-level data graphic, and the non-chromatic half of the quality ramp.
+
+- A full-round track on `surface-container`, 4px tall, spanning the row's full width.
+- The fill is `--quality-N-bar`, its **length** proportional to the value within the metric's physical range.
+- Length is the primary encoding and colour is the reinforcement — which is what makes adjacent ramp stops safe below the separation floor.
+- A missing reading renders an empty track, never a zero-length red fill: an unused antenna drawn as an empty red bar labelled "−140 dBm" reads as a signal problem the user should go and fix.
+- Animate `scaleX`, never `width`.
 
 ### Inputs / Fields
 
@@ -1028,97 +628,31 @@ Two answers, and this is the one place the system deliberately has two.
 
 ### Navigation
 
-The sidebar rail sits one step off the canvas so it reads as chrome, not content — recessed in light,
-lifted in dark. Nav rows are full-round, 16px horizontal padding, `text-sm`.
+The sidebar rail sits one step off the canvas so it reads as chrome, not content. Nav rows are full-round, 16px horizontal padding, `text-sm`.
 
-The active row is the system's signature motion: **one** `primary-container` pill per group,
-absolutely positioned, whose transform is driven from React so it *slides* between rows rather than
-appearing. The row itself goes transparent and takes `on-primary-container` ink at 600 weight, and its
-Material glyph animates its `FILL` axis from 0 to 1. That FILL change is an accessibility affordance,
-not polish: it is what makes the active state survive grayscale. The pill's first paint is
-non-animated (`data-settling`), so it starts under the active row rather than sliding up from zero.
+The active row is the system's signature motion: **one** `primary-container` pill per group, absolutely positioned, whose transform is driven from React so it *slides* between rows rather than appearing. The row goes transparent and takes `on-primary-container` ink at 600 weight, and its Material glyph animates its `FILL` axis from 0 to 1. That FILL change is an accessibility affordance, not polish: it is what makes the active state survive grayscale. The pill's first paint is non-animated (`data-settling`), so it starts under the active row rather than sliding up from zero.
 
 ### Banners
 
-Two primitives, split by where they mount. **`Banner`** is page-level: eight named system roles, a CTA
-slot, a dismiss slot, a 36px disc, lucide glyphs (it mounts on every route, so the Icon-Boundary Rule
-pins it to lucide). **`TonalBanner`** is card-scoped: three tones, no CTA, no dismiss, a 32px disc,
-Material glyphs.
+Two primitives, split by where they mount. **`Banner`** is page-level: named system roles, a CTA slot, a dismiss slot, a 36px disc, lucide glyphs (it mounts on every route, so the Icon-Boundary Rule pins it to lucide). **`TonalBanner`** is card-scoped: three tones, no CTA, no dismiss, a 32px disc, Material glyphs.
 
-Both share the rules. A banner is `bg-{role}-container` with `text-on-{role}-container` — never a
-wash, because a 10% alpha over a tinted surface collapses in dark mode and washes out first in
-sunlight. Its icon always sits in a filled disc on the role's **strong** fill. Radius is 20px, so it
-never out-rounds its host. Informational banners use `primary-container`. A figure that ticks inside
-banner copy is `tabular-nums` in the interface font — a ticking figure is exactly what the
-Machine-Voice Rule keeps out of `font-mono`; an identifier quoted in banner copy still takes it. Entrance is `.animate-banner-in` (`emphasized`, 6px rise
-plus fade); there is no exit.
+Both share the rules. A banner is `bg-{role}-container` with `text-on-{role}-container` — never a wash, because a 10% alpha over a tinted surface collapses in dark mode. Its icon always sits in a filled disc on the role's **strong** fill. Radius is 20px, so it never out-rounds its host. Informational banners use `primary-container`. A figure that ticks inside banner copy is `tabular-nums` in the interface font. Entrance is `.animate-banner-in` (`emphasized`, 6px rise plus fade); there is no exit.
+
+Banners are one of the three sanctioned container uses, and the reason is that a banner *is* its state — the tint is the message, not decoration on top of one.
 
 ### Signature surfaces
 
-- **Carrier Aggregation strip** — a full-width 40px-radius hero whose segments are proportional to
-  each carrier's bandwidth. Segment width animates on `emphasized`; a newly-added carrier grows from
-  zero so the chain reads as "something arrived" rather than "everything shuffled". A released carrier
-  stays visible and greyed rather than silently disappearing, and the list **freezes** while data is
-  stale rather than announcing releases that never happened.
-- **Signal status cards** — the paired NR / LTE cards. An identity-toned quality chip whose **glyph bar
-  count** carries quality (five wedge glyphs, monotonically decreasing — the `signal_cellular_{1..4}_bar`
-  family, never the `alt` family, whose 1-bar mark is a 2×4px speck and which has no 0-bar at all),
-  a state dot, then a stack of metric row pills with quality-tinted mono values. Every tinted value
-  carries an `sr-only` quality word, because `success-on-surface` and `warning-on-surface` measure
-  ~1.01:1 apart — same luminance, hue only.
-- **The radio summary strip** — the four-tile grid above Radio Information's two cards
-  (`radio/summary-tiles.tsx`, geometry from `components/cellular/tile-shape.ts` > `TILE_SHAPE`). Four
-  92px tiles at `rounded-tile`, each a 52px inverted glyph disc beside an eyebrow → value → caption
-  column, one per track at `@xl` and four across at `@5xl`. The same `TILE_SHAPE` backs the Antenna
-  Statistics context tiles and the SMS Center strip, so all three are dimensionally identical and each
-  skeleton is a real mirror rather than an estimate.
+- **Carrier Aggregation strip** — a full-width 40px-radius hero whose segments are proportional to each carrier's bandwidth. Segment width animates on `emphasized`; a newly-added carrier grows from zero so the chain reads as "something arrived" rather than "everything shuffled". A released carrier stays visible and **explicitly marked** rather than silently disappearing, and the list **freezes** while data is stale rather than announcing releases that never happened.
 
-  **The body is a container; only the disc takes the fill.** This is the single rule that took the
-  loudness out, and it did more than any token retune could. An earlier version put `bg-lte` — the
-  *strong* fill — across a whole tile, and at anchor scale that measured **7.2% ink coverage**:
-  132,033px² carrying 9,526px² of glyph. In dark mode `--lte` was `oklch(0.8 …)` against an
-  `oklch(0.155)` ground, so the largest object on the page was also the brightest and it was the one
-  restating what the sidebar already said. M3 spends strong fills on *compact* emphasis — FABs, chips,
-  selected states — and gives large surfaces containers. Every tile body is now a container and the
-  strong fill survives only on the 52px disc, a ~0.47 lightness drop on the loudest block in dark mode.
-  Any block above roughly 20,000px² should be reaching for a container tone.
+  > A released carrier must not be distinguished from an active LTE carrier by tone alone. Measured, `lte-container` and `surface-container-high` were **identical** under deuteranopia — 0.0000 separation — so "dropped" and "live LTE" were one swatch. The distinction is now carried by a glyph or a strikethrough, with tone as reinforcement.
 
-  **A tile is tinted only if the hue encodes something true.** Network type takes the identity
-  container of whichever radio is actually registered — the hue *is* the fact, and it is the only tile
-  allowed a radio hue. Bandwidth takes Downlink Rose, because `totalMhz` sums across both legs so no
-  radio hue can be honest, but capacity is rose's own second meaning. Carriers takes Uplink Cyan, which
-  already owns counts. Active MIMO takes **Spatial Azure**: its value literally reads
-  `LTE 1x2 | NR 2x4`, naming both radios in its own string, and it is neither a count nor a capacity,
-  so it needed the axis that answers *how many antennas* rather than a borrowed one.
+- **Signal status cards** — the paired NR / LTE cards. An identity-tagged card whose **glyph bar count** carries quality (five wedge glyphs, monotonically decreasing — the `signal_cellular_{1..4}_bar` family, never the `alt` family, whose 1-bar mark is a 2×4px speck and which has no 0-bar at all), then a stack of metric row pills with **ramp-inked values and quality bars**. Every tinted value carries an `sr-only` quality word.
 
-  **Four tiles, four axes** — identity, capacity, count, spatial — and none of them borrows a hue
-  belonging to another. That is precisely the property missing the last time this strip carried four
-  colours, when bandwidth wore NR blue while summing NR+LTE and MIMO wore LTE violet while reporting
-  both legs. The tile count was never the defect; the borrowing was.
+- **The radio summary strip** — the four-tile grid above Radio Information's cards. Four 104px tiles at `rounded-tile`, one per track at `@xl` and four across at `@5xl`. Neutral bodies; each disc carries its axis colour — identity fill for Network, downlink for Bandwidth, neutral for Carriers (a count is not a direction), spatial for Active MIMO. The same `TILE_SHAPE` backs the Antenna Statistics context tiles and the SMS Center strip, so all three are dimensionally identical and each skeleton is a real mirror.
 
-  **What the colour is actually doing here.** Under deuteranopia and protanopia simulation these body
-  tints do not separate in dark mode — see The Dark-Container-Cannot-Carry-Meaning Rule. That is not an
-  argument against tinting them; it is an argument about what the tint is *for*. Each tile carries a
-  distinct glyph and a distinct label, the disc carries a strong fill where the same simulation shows
-  every pair separating cleanly, and the body tint is the thing that makes the grid legible at a glance
-  to everyone else. No tile encodes anything in body tint alone.
+- **Condition state screens** — non-registered modes *replace* the body rather than render it empty. A 40px-radius container in the condition's tone, a 56px filled disc, a headline, a description, and an optional retry pill drawn from the container's **own** ink at 10-15% — never a white wash, which is invisible on a light container. Tone is chosen per condition: no-SIM is `warning` (a real fault the user can fix in situ), no-service is `destructive` (the link is down), searching is `info` (transient), unknown is neutral. Only `searching` spins — a spinner on a standing condition advertises work that is not happening. No two states in one slot may share a glyph.
 
-  **A block's height must be its own.** A previous composition sized its identity block to 212px, which
-  was three 60px rows plus padding — a number owned by the *sibling* element, which it stretched to
-  match. A fourth row would have made it emptier with nobody touching it. Four equal tiles have no such
-  coupling: `TILE_SHAPE.ROOT` pins the floor and `TILE_SHAPE.HEIGHT` mirrors it. When a block looks
-  empty, check whether it is being sized by something that is not its content before reaching for a
-  smaller size.
-
-- **Condition state screens** — non-registered modes *replace* the body rather than render it empty. A
-  40px-radius container in the condition's tone, a 56px filled disc, a headline, a description, and an
-  optional retry pill drawn from the container's **own** ink at 10-15% — never a white wash, which is
-  invisible on a light container. Tone is chosen per condition, not per aesthetics: no-SIM is
-  `warning` (a real fault the user can fix in situ), no-service is `destructive` (the link is down),
-  searching is `primary` (transient and hopeful), unknown is neutral. Only `searching` spins — a
-  spinner on a standing condition advertises work that is not happening. The shell and the tone→class
-  mapping live in `components/cellular/condition-screen.tsx`; callers pass a tone, a glyph and their own
-  copy. No two states in one slot may share a glyph.
+  This is the third sanctioned container use, for the same reason as banners: the whole block *is* the state.
 
 ### Icons
 
@@ -1126,87 +660,54 @@ Two libraries, and the boundary is **per route**, never per directory.
 
 | Library | Owns |
 |---------|------|
-| **Material Symbols Rounded** | The sidebar, `/dashboard`, the two pre-auth routes (`/` and `/login/`), and the **entire `/cellular/` family** — index plus all 17 sub-routes |
-| **lucide-react** | Every other route: `/local-network/`, `/monitoring/`, `/system-settings/`, `/about-device`, `/support`, onboarding — plus every route-agnostic primitive (the page-level `Banner`, the apply-progress dialog) wherever it mounts |
+| **Material Symbols Rounded** | The sidebar, `/dashboard`, the two pre-auth routes, and the **entire `/cellular/` family** — index plus all 17 sub-routes |
+| **lucide-react** | Every other route: `/local-network/`, `/monitoring/`, `/system-settings/`, `/about-device`, `/support`, onboarding — plus every route-agnostic primitive wherever it mounts |
 
-Mixing two icon sets inside one screen is precisely what the rule prevents, so a lucide glyph on an
-unconverted route is *correct code*, not a defect — and a route-agnostic component stays on lucide
-even when it mounts inside a Material route, because it cannot know where it will appear. Convert a
-whole route or none of it.
+Mixing two icon sets inside one screen is precisely what the rule prevents, so a lucide glyph on an unconverted route is *correct code*, not a defect — and a route-agnostic component stays on lucide even when it mounts inside a Material route, because it cannot know where it will appear. Convert a whole route or none of it.
 
-`MaterialSymbol` sets `fontSize` as an inline style, which outranks any utility — so a parent's
-auto-sizing rule for lucide children (`[&>svg]:size-3`) cannot reach it. **Pass `size` explicitly at
-every Material call site.** The typeface is ligature-driven (the literal text `cell_tower` becomes one
-glyph), which is why these spans are always `aria-hidden` beside a real text label, and why the glyph
-list is a single source of truth shared with the font-subsetting script.
+`MaterialSymbol` sets `fontSize` as an inline style, which outranks any utility — so a parent's auto-sizing rule for lucide children (`[&>svg]:size-3`) cannot reach it. **Pass `size` explicitly at every Material call site.** The typeface is ligature-driven, which is why these spans are always `aria-hidden` beside a real text label, and why the glyph list is a single source of truth shared with the font-subsetting script.
 
-Three deliberate exceptions survive on the dashboard's Network Status card, a recognized landmark
-where re-glyphing buys nothing: the SIM orb keeps lucide `CardSimIcon`/`Plane`, and the RAT marks keep
-`react-icons/md`, because "5G", "4G+" and "3G" are typographic marks Material Symbols has no
-equivalent for.
+Three deliberate exceptions survive on the dashboard's Network Status card: the SIM orb keeps lucide `CardSimIcon`/`Plane`, and the RAT marks keep `react-icons/md`, because "5G", "4G+" and "3G" are typographic marks Material Symbols has no equivalent for.
 
 ### The three-state pattern
 
 Every data surface ships **loading**, **empty**, and **error** — never a blank panel.
 
-Skeletons mirror the loaded geometry *exactly*, and by shared constant rather than by estimate:
-`summary-tiles.tsx` exports `TILE_SHAPE` and `states.tsx` imports it, so the two cannot drift. Sizes
-are the loaded element's **line box**, not its font size — a skeleton sized to the glyph reflows the
-moment real text lands. The handoff is a pure crossfade on `quick` with the outgoing skeleton overlaid
-*on top of* real content, so the card is sized by its content from the first frame and the crossfade
-contributes zero layout shift.
+Skeletons mirror the loaded geometry *exactly*, and by shared constant rather than by estimate. Sizes are the loaded element's **line box**, not its font size — a skeleton sized to the glyph reflows the moment real text lands. The handoff is a pure crossfade on `quick` with the outgoing skeleton overlaid *on top of* real content, so the card is sized by its content from the first frame and the crossfade contributes zero layout shift.
 
 ### Named Rules
 
-**The Filled-Chip Rule.** Status chips are a role container plus that container's ink, no border, pill
-radius, always an icon. `variant="outline"` is never a status indicator.
+**The Two-Form Rule.** Status is a filled chip with a glyph. Identity and metadata are an outline tag. Neither form ever does the other's job, and a component that needs both renders both.
 
-**The Every-Chip-Has-A-Glyph Rule.** `success-container` and `warning-container` measure **1.03:1**
-apart — the same surface to the eye, and identical under deuteranopia. The glyph is the only thing
-separating healthy from degraded. Two states in the same slot must never share a glyph either.
+**The Every-Chip-Has-A-Glyph Rule.** Status containers are close by construction — the functional roles share a narrow tint band, and `success-container` against `warning-container` has measured as low as **1.03:1**. The glyph is what separates healthy from degraded. Two states in the same slot must never share a glyph either.
 
-**The Identity-Chip Rule.** Where a chip's fill carries identity, the quality it *also* reports must be
-encoded non-chromatically. On the signal cards that channel is the Material glyph's bar count.
+**The Identity-Chip Rule.** Where a surface carries identity *and* reports quality, the quality is encoded non-chromatically. On the signal cards that channel is the Material glyph's bar count; on a metric row it is the quality bar's length.
 
-**The Glyph-Disc Rule.** A state icon sits in a filled circle on the role's strong fill. The disc is
-what survives when the container fill washes out in sunlight; a bare glyph on the container does not.
+**The Glyph-Disc Rule.** A state or category icon sits in a filled circle on the role's **strong** fill, never on the pale container. In light mode the identity containers collapse under simulation and the fills do not, so the disc is the only place identity colour is reliably legible.
 
-**The Skeleton-Mirror Rule.** A skeleton mirrors the loaded geometry by importing the same shape
-constant, never by restating numbers.
+**The Skeleton-Mirror Rule.** A skeleton mirrors the loaded geometry by importing the same shape constant, never by restating numbers. A `min-h-` is not a mirror.
 
-**The Loader-and-Dots Rule.** Step or sample progress is a `Loader2Icon` spinner plus dot indicators.
-Fill and progress bars are reserved for data visualization — signal strength, quality meters,
-bandwidth share.
+**The Loader-and-Dots Rule.** Step or sample progress is a `Loader2Icon` spinner plus dot indicators. Fill and progress bars are reserved for data visualization — signal strength, quality meters, bandwidth share.
 
-**The Age-Gated Tone Rule.** On a surface listing *history*, two independent axes decide how a row is
-drawn. **Tone** is what kind of thing happened; it is a fact about the event, never expires, and is
-carried by a filled icon disc in the solid role color for as long as the row exists. **Weight** is how
-much the row still deserves attention, and it does expire: a row keeps its tonal container while it is
-fresh (one hour) **or** unresolved, then settles onto `surface-container` with its disc at full
-strength. The disc never consults the age gate — an hour-old recovery sits on a plain surface with its
-green check still green, and a still-standing outage never greys out merely because time passed. Note
-that `severity: "info"` here means *routine*, not *good*.
+**The Age-Gated Tone Rule.** On a surface listing *history*, two independent axes decide how a row is drawn. **Tone** is what kind of thing happened; it is a fact about the event, never expires, and is carried by a filled icon disc in the solid role colour for as long as the row exists. **Weight** is how much the row still deserves attention, and it does expire: a row keeps its tonal container while it is fresh (one hour) **or** unresolved, then settles onto `surface-container` with its disc at full strength. The disc never consults the age gate. Note that `severity: "info"` here means *routine*, not *good*.
 
-**The Dismiss-Only-Notices Rule.** A banner gets an X only when it is a *notification*. A standing
-condition has no dismiss, because dismissing it would hide a fact that is still true.
+**The Dismiss-Only-Notices Rule.** A banner gets an X only when it is a *notification*. A standing condition has no dismiss, because dismissing it would hide a fact that is still true.
 
-**The State-Honesty Rule.** A status surface reports what is actually running — saved settings, live
-service state — never the half-edited form. A control that cannot currently work explains why instead
-of sitting there dead. A test only runs against saved config. An ambient animation only loops where
-something is genuinely live.
+**The State-Honesty Rule.** A status surface reports what is actually running — saved settings, live service state — never the half-edited form. A control that cannot currently work explains why instead of sitting there dead. A test only runs against saved config. An ambient animation only loops where something is genuinely live.
 
-**The No-Dot-Separator Rule.** A meta line joining two or more short facts (`PCI 135`, `EARFCN 9485`)
-uses plain spacing, never a `·` glue character — dots read as sloppy filler, not structure. Give the
-facts room (multiple spaces, or separate flex/inline items with a gap) instead of punctuating between
-them.
+**The No-Dot-Separator Rule.** A meta line joining two or more short facts (`PCI 135`, `EARFCN 9485`) uses plain spacing, never a `·` glue character. Give the facts room instead of punctuating between them.
 
 ## Do's and Don'ts
 
 ### Do:
 
+- **Do** put the colour on the reading — the numeral, the stroke, the bar, the disc — and leave the card neutral.
+- **Do** pick a **layer** before a colour: ink for values on neutral ground, fill for compact emphasis, container for a functional-role block.
 - **Do** pick a **pair** — a fill with its own `-foreground`, or a container with its own `on-` ink.
-- **Do** give every status chip an icon, and give two states in the same slot two different icons.
-- **Do** use `--chart-nr` and `--chart-lte` for series color; one hue per radio family.
+- **Do** give every status chip a glyph, and give two states in the same slot two different glyphs.
+- **Do** use an outline tag for identity and metadata, and a filled chip for state.
+- **Do** pair the quality ramp with bar length, always.
+- **Do** measure a new colour — gamut first, then contrast, then deuteranopia and protanopia against the layer it will ship on.
 - **Do** reach for the role radii (`rounded-tile` / `card` / `hero` / `pill`) in new work.
 - **Do** ship `border-0` on a card and let the tone step carry the separation.
 - **Do** write responsive behavior as a container query against `@container/main`.
@@ -1223,26 +724,26 @@ them.
 
 ### Don't:
 
-- **Don't** put ink from one role on another role's surface, or a container's ink on a fill.
+- **Don't** tint a large surface because it looked plain — that is the failure this system exists to prevent.
+- **Don't** give identity or direction a large container block; they are ink, outline, and disc only.
+- **Don't** put ink from one role on another role's surface, or a neutral-ramp ink on a tinted one.
 - **Don't** hardcode `text-white` on a destructive fill — in dark mode that fill is *light*.
 - **Don't** compensate for a mismatched pair with an alpha (`bg-destructive/60`); fix the pair.
-- **Don't** use `variant="outline"` as a status indicator.
-- **Don't** use `nr` or `lte` to mean "healthy", or tint a control with an identity hue.
+- **Don't** use an outline tag as a status indicator, or a filled chip as an identity label.
+- **Don't** use `nr` or `lte` to mean "healthy", or put an identity hue anywhere in a quality scale.
+- **Don't** ship an out-of-gamut `oklch()` — the build will map it and you will not have authored what ships.
+- **Don't** argue a colour decision from degrees of hue separation; measure it.
 - **Don't** use the numbered `--chart-1..6`; they do not theme.
-- **Don't** stack alpha to build concentric shapes — use the explicit `--tone-{role}-{1,2,3}` steps.
-- **Don't** put a border on a tonal container, or use `--outline` as a card edge.
+- **Don't** put a border on a tonal container, or use `--border` as a card edge.
+- **Don't** distinguish two states by tone alone when one of them is a released, disabled, or absent thing.
 - **Don't** animate `width` (the aggregation segment is the sole exception) or exceed `emphasized`.
-- **Don't** write a raw duration (`duration-200`, `{ duration: 0.25 }`) or a `transition-all` with no
-  duration — see The One-Scale Rule.
+- **Don't** write a raw duration (`duration-200`, `{ duration: 0.25 }`) or a `transition-all` with no duration.
 - **Don't** add a third stagger step, a fifth duration, or a spring.
 - **Don't** add an exit animation to a banner or a route transition.
-- **Don't** give a modal one unqualified `duration-*` for both directions, or leave its scrim without
-  one — the exit clock is how long the page stays click-dead. See The Modal-Exit Rule.
+- **Don't** give a modal one unqualified `duration-*` for both directions, or leave its scrim without one.
 - **Don't** loop an animation where nothing is genuinely live.
 - **Don't** put an icon in a `CardHeader`.
 - **Don't** invent a bespoke hero-driven layout for one screen.
 - **Don't** mix Material Symbols and lucide inside a single route.
 - **Don't** introduce a third typeface, or set a human-authored label in mono.
-- **Don't** reach for 13px outside a dense metric row, or for the pre-auth scale outside `/` and
-  `/login/`.
-- **Don't** add a hue because a surface looked empty.
+- **Don't** reach for 13px outside a dense metric row, or for the pre-auth scale outside `/` and `/login/`.

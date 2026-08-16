@@ -54,24 +54,31 @@
 }
 
 /* ---------------------------------------------------------------------------
-   Design system: Material-3-inspired tonal system derived from the QManager
-   mark (public/qmanager-mark.svg). THIS FILE IS NORMATIVE — DESIGN.md's
-   frontmatter mirrors it, not the other way around. Retune a value here and
-   retune the DESIGN.md frontmatter (and lib/motion.ts, for the motion tokens)
-   in the same change.
+   Design system: the instrument palette, derived from the QManager mark
+   (public/qmanager-mark.svg). THIS FILE IS NORMATIVE — DESIGN.md's frontmatter
+   mirrors it, not the other way around. Retune a value here and retune the
+   DESIGN.md frontmatter (and lib/motion.ts, for the motion tokens) in the same
+   change.
+
+   Colour belongs to the DATA, not the furniture: a card is a neutral surface
+   and what is coloured is the reading — the numeral, the chart stroke, the
+   quality bar, the glyph in its disc. `--X-on-surface` is therefore the
+   primary mechanism, `--X` the compact-emphasis fill, and `--X-container` is
+   restricted to the functional roles. See DESIGN.md > Colors > The three
+   layers for why, with the measurements.
 
    Where the canon is ahead of the components that consume it, the gap is
-   tracked in CLAUDE.md > Design Context > Tracked migration deltas.
+   tracked in DESIGN.md > Migration Deltas.
 
    Naming notes where the canon and shadcn's vocabulary collide:
-   - DESIGN.md "secondary" (Carrier Violet, the 4G LTE identity) ships as the
-     --lte-* family. shadcn's --secondary is a neutral used for progress
-     tracks and secondary buttons, and identity hues must never act.
-   - DESIGN.md "tertiary" (Uplink Cyan) ships as the --uplink-* family.
-   - The new 12/20/28/36/40px shape scale ships as additive role radii
+   - Carrier Violet (the 4G LTE identity) ships as the --lte-* family.
+     shadcn's --secondary is a NEUTRAL used for progress tracks and secondary
+     buttons, and identity hues must never act.
+   - Uplink Cyan ships as the --uplink-* family.
+   - The 12/20/28/36/40px shape scale ships as additive role radii
      (--radius-inline/field/tile/card/hero/pill). The legacy --radius chain
-     stays live until step 2 retargets components; redefining rounded-md
-     under 114 existing call sites would be a regression, not a migration.
+     stays live until components are retargeted; redefining rounded-md under
+     its existing call sites would be a regression, not a migration.
 --------------------------------------------------------------------------- */
 
 @theme inline {
@@ -168,6 +175,36 @@
   --color-card-foreground: var(--card-foreground);
   --color-card: var(--card);
 
+  /* Ink tokens for the two identity roles. Every other role already had one;
+     these were the gap that forced identity to reach for a container fill.
+     DESIGN.md > The Three-Layer Rule: ink is the primary mechanism. */
+  --color-primary-on-surface: var(--primary-on-surface);
+  --color-lte-on-surface: var(--lte-on-surface);
+
+  /* Signal quality ramp. -N is the numeral ink, -N-bar the bar fill.
+     Always paired with bar LENGTH — adjacent stops sit below the
+     colour-blind separation floor by design. */
+  --color-quality-1: var(--quality-1);
+  --color-quality-2: var(--quality-2);
+  --color-quality-3: var(--quality-3);
+  --color-quality-4: var(--quality-4);
+  --color-quality-5: var(--quality-5);
+  --color-quality-1-bar: var(--quality-1-bar);
+  --color-quality-2-bar: var(--quality-2-bar);
+  --color-quality-3-bar: var(--quality-3-bar);
+  --color-quality-4-bar: var(--quality-4-bar);
+  --color-quality-5-bar: var(--quality-5-bar);
+
+  /* Outline tags: identity and metadata. Border + text, no fill. */
+  --color-tag-nr-text: var(--tag-nr-text);
+  --color-tag-nr-border: var(--tag-nr-border);
+  --color-tag-lte-text: var(--tag-lte-text);
+  --color-tag-lte-border: var(--tag-lte-border);
+  --color-tag-spatial-text: var(--tag-spatial-text);
+  --color-tag-spatial-border: var(--tag-spatial-border);
+  --color-tag-neutral-text: var(--tag-neutral-text);
+  --color-tag-neutral-border: var(--tag-neutral-border);
+
   /* Legacy radius chain: consumed by 240+ existing rounded-{sm,md,lg,xl}
      call sites. Retired in migration step 2, not before. */
   --radius-sm: calc(var(--radius) - 4px);
@@ -222,337 +259,374 @@
   /* Card cascade step. Wider and the last card feels late behind a slow poll. */
   --stagger-step: 120ms;
 
-  /* --- Surfaces: every neutral carries a trace of the mark's hue (258) --- */
-  --background: oklch(0.978 0.014 258);
-  --foreground: oklch(0.19 0.032 258);
-  --surface: oklch(1 0 0);
-  --surface-container: oklch(0.952 0.026 258);
-  --surface-container-high: oklch(0.918 0.04 258);
-  --on-surface: oklch(0.19 0.032 258);
-  --on-surface-variant: oklch(0.435 0.05 258);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.19 0.032 258);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.19 0.032 258);
+  /* ==========================================================================
+     COLOUR — the instrument palette, 2026-08-16
+     ==========================================================================
+     Rewritten wholesale against DESIGN.md > Colors. Three properties of this
+     set are load-bearing and none of them are taste:
 
-  /* --- Primary: the mark's tail, used literally. The only hue that acts. --- */
-  --primary: oklch(0.488 0.243 264.376);
-  --primary-foreground: oklch(0.99 0.014 264);
-  --primary-container: oklch(0.885 0.1 264);
-  --on-primary-container: oklch(0.275 0.17 264);
+     1. EVERY VALUE IS INSIDE sRGB. Chroma is floored to 98.5% of the in-gamut
+        maximum for its lightness and hue. This is correctness, not polish:
+        Lightning CSS gamut-maps out-of-range oklch() at build time and its
+        mapping is NOT naive clipping, so an out-of-gamut token ships a colour
+        nobody authored — and any separation measured from the source value is
+        fiction. The previous palette had 87 such tokens. This one has zero, so
+        declared == shipped and the numbers below are checkable in a browser.
 
-  /* --- Identity hues: carry meaning, never affordance --- */
-  /* Carrier Violet: the 4G LTE identity (DESIGN.md "secondary") */
-  --lte: oklch(0.495 0.205 296);
-  --lte-foreground: oklch(0.99 0.012 296);
-  /* L 0.855, down from 0.90. This is a CORRECTNESS fix, not a tone change.
-     At 0.90 this container measured 0.007 separation from --primary-container
-     (L 0.885) under protanopia simulation — against a 0.05 collapse floor.
-     Light-mode NR and LTE were the SAME OBJECT to a red-blind user, which is
-     the exact failure DESIGN.md > Data visualization bans --chart-1..5 for.
-     Dropping 0.045 takes it to 0.156. Ink holds at 10.1:1. */
-  --lte-container: oklch(0.855 0.095 296);
-  --on-lte-container: oklch(0.265 0.15 296);
-  /* Uplink Cyan: the UPLOAD direction, and counts (DESIGN.md "tertiary") */
-  /* Hue 200, not the bundle's 185. At 185 this sat 36 degrees from success
-     (149), breaking DESIGN.md's own 40-degree separation rule. Turn 2a rejects
-     teal for exactly that reason ("sits only 36 degrees from success-green").
-     Lightness and chroma are unchanged; only the hue moved. */
-  --uplink: oklch(0.49 0.13 200);
-  --uplink-foreground: oklch(0.99 0.01 200);
-  --uplink-on-surface: oklch(0.45 0.115 200);
-  --uplink-container: oklch(0.885 0.09 200);
-  --on-uplink-container: oklch(0.26 0.09 200);
-  /* Downlink Rose: the DOWNLOAD direction. See The Direction-Is-Not-A-Radio
-     Rule in DESIGN.md.
+     2. COLOUR LIVES ON INK. `--X-on-surface` is the primary mechanism: coloured
+        numerals, chart strokes, glyphs, on a NEUTRAL ground. Fills are for
+        compact emphasis (discs, bars, buttons). Containers are restricted to
+        the functional roles. Measured under Vienot deuteranopia/protanopia at a
+        0.05 OKLab floor: inks collapse in 0 of 28 pairs, fills 0 of 28, status
+        containers 0 of 10 — but light-mode IDENTITY containers collapse in 8 of
+        10 and cannot be fixed. The pale band in light mode is too narrow to
+        hold five identity hues plus surface-container-high; an optimiser proved
+        that infeasible, not merely hard. Hence: identity gets ink, outline and
+        a strong-fill disc, and never a large pale block.
 
-     Hue 341 is not a taste pick — it is the only slot left. Sweeping all 360
-     degrees against the taken hues (destructive 27, warning 72, success 149,
-     uplink 200, primary/NR/info 264, lte 296) leaves exactly ONE window
-     clearing the 40-degree floor: h in [336, 347]. Everything else in the
-     circle sits inside 40 degrees of something that already means a thing.
+     3. THE QUALITY RAMP IS A LIGHTNESS STAIRCASE. Deuteranopia flattens hues
+        27/45/72/115/149 onto one yellow axis, so the ramp cannot separate by
+        hue at all for those users. Each ramp is monotone in lightness and BAR
+        LENGTH carries adjacent stops — which is why adjacent pairs sit below
+        the floor deliberately while every non-adjacent pair clears it.
 
-     It exists because "download" had been borrowing --primary, which is also
-     the 5G NR identity AND the brand AND "in progress". A user who learned
-     blue = download on the speedtest dialog met blue = NR on the radio page
-     two clicks later. Direction and radio are orthogonal facts and they now
-     hold orthogonal hues.
+     WCAG: 0 failures across 166 measured pairs, both themes.
+     ========================================================================== */
 
-     Verified under deuteranopia and protanopia simulation against every other
-     role in both themes; the tightest adjacency is rose vs destructive red
-     (0.47 dark / 0.25 light against a 0.05 collapse floor), which was the one
-     flagged as riskiest before it was measured. */
-  --downlink: oklch(0.52 0.2 341);
-  --downlink-foreground: oklch(0.99 0.012 341);
-  --downlink-on-surface: oklch(0.475 0.185 341);
-  --downlink-container: oklch(0.9 0.075 341);
-  --on-downlink-container: oklch(0.28 0.145 341);
-  /* Spatial Azure: antenna and spatial-stream readouts — MIMO layer counts,
-     per-antenna chains. Not a radio (a MIMO figure routinely names both legs
-     at once) and not a direction (layers are neither up nor down), which is
-     exactly why neither of those axes could carry it.
+  /* --- Neutrals: a slight cool cast (258) without reading as blue --- */
+  --background: oklch(0.985 0.003 258);
+  --foreground: oklch(0.205 0.011 258);
+  --surface: oklch(1 0 258);
+  --surface-container: oklch(0.967 0.005 258);
+  --surface-container-high: oklch(0.938 0.007 258);
+  --on-surface: oklch(0.205 0.011 258);
+  --on-surface-variant: oklch(0.505 0.012 258);
+  --card: oklch(1 0 258);
+  --card-foreground: oklch(0.205 0.011 258);
+  --popover: oklch(1 0 258);
+  --popover-foreground: oklch(0.205 0.011 258);
 
-     Hue 232 and the 40-Degree Rule, honestly. Its nearest FUNCTIONAL hue is
-     success at 83 degrees, so it can never be mistaken for a state — which is
-     what that rule exists to prevent. It does sit 32 degrees from uplink 200
-     and from primary 264, and that crowding is decorative-to-decorative: the
-     identical spacing this system already ships and accepts between NR 264 and
-     LTE 296. See DESIGN.md > The 40-Degree Rule for the amended wording.
+  /* --- Primary: the mark's blue. NR identity, brand, action, and info.
+         Those are one meaning wearing four hats, not four meanings. --- */
+  --primary: oklch(0.565 0.235 262);
+  --primary-foreground: oklch(0.985 0.006 262);
+  --primary-on-surface: oklch(0.535 0.22 262);
+  --primary-container: oklch(0.89 0.052 262);
+  --on-primary-container: oklch(0.36 0.16 262);
 
-     The remaining position with a wider margin is hue ~110, at 38.5 degrees
-     from BOTH warning and success — a yellow-green sitting exactly where
-     deuteranopia merges amber and green. Wider on paper, unusable in practice.
+  /* --- Identity: which radio. Never means healthy, never acts. --- */
+  --lte: oklch(0.51 0.24 296);
+  --lte-foreground: oklch(0.985 0.007 296);
+  --lte-on-surface: oklch(0.465 0.22 296);
+  --lte-container: oklch(0.85 0.082 296);
+  --on-lte-container: oklch(0.36 0.16 296);
 
-     Light L 0.84 rather than 0.89: at 0.89 this measured 0.046 against
-     --primary-container under deuteranopia, a hair under the collapse floor.
-     0.84 measures 0.064. Same correctness class as the --lte-container fix. */
-  --spatial: oklch(0.49 0.135 232);
-  --spatial-foreground: oklch(0.99 0.01 232);
-  --spatial-on-surface: oklch(0.45 0.12 232);
-  --spatial-container: oklch(0.84 0.095 232);
-  --on-spatial-container: oklch(0.26 0.1 232);
+  /* --- Direction: which way the bytes go. ONLY that.
+         The previous system gave rose a second meaning ("and capacity") and
+         cyan a second ("and counts"), which made the axis untrue: a carrier
+         count wore upload cyan while reporting nothing about upload. A count
+         is neutral. --- */
+  --downlink: oklch(0.48 0.204 341);
+  --downlink-foreground: oklch(0.985 0.009 341);
+  --downlink-on-surface: oklch(0.45 0.191 341);
+  --downlink-container: oklch(0.875 0.087 341);
+  --on-downlink-container: oklch(0.36 0.153 341);
+  /* Light uplink chroma is 0.091 and that is the GAMUT CEILING, not caution:
+     cyan's sRGB cusp sits at high lightness, so 4.5:1 against a white card
+     forces L~0.52 where hue 200 has no more chroma to give. Dark uplink is
+     genuinely vivid (0.137). Do not "boldify" this value; it cannot move. */
+  --uplink: oklch(0.545 0.091 200);
+  --uplink-foreground: oklch(0.985 0.012 200);
+  --uplink-on-surface: oklch(0.515 0.086 200);
+  --uplink-container: oklch(0.915 0.105 200);
+  --on-uplink-container: oklch(0.36 0.06 200);
+
+  /* --- Spatial: antenna and spatial-stream readouts. A MIMO figure names
+         both radios in one string, so no identity hue is honest. --- */
+  --spatial: oklch(0.55 0.11 232);
+  --spatial-foreground: oklch(0.985 0.008 232);
+  --spatial-on-surface: oklch(0.515 0.103 232);
+  --spatial-container: oklch(0.855 0.085 232);
+  --on-spatial-container: oklch(0.36 0.072 232);
 
   /* --- shadcn neutrals: NOT the canon's secondary/tertiary roles --- */
-  --secondary: oklch(0.952 0.026 258);
-  --secondary-foreground: oklch(0.24 0.035 258);
-  --muted: oklch(0.952 0.026 258);
-  --muted-foreground: oklch(0.435 0.05 258);
-  --accent: oklch(0.918 0.04 258);
-  --accent-foreground: oklch(0.24 0.035 258);
+  --secondary: oklch(0.967 0.005 258);
+  --secondary-foreground: oklch(0.205 0.011 258);
+  --muted: oklch(0.967 0.005 258);
+  --muted-foreground: oklch(0.505 0.012 258);
+  --accent: oklch(0.938 0.007 258);
+  --accent-foreground: oklch(0.205 0.011 258);
 
-  /* --- Functional four --- */
-  --success: oklch(0.52 0.18 149);
-  --success-foreground: oklch(0.99 0.02 149);
-  /* On-surface text variant: reads at AA 4.5:1 against a white card. */
-  --success-on-surface: oklch(0.45 0.155 149);
-  --success-container: oklch(0.89 0.115 149);
-  --on-success-container: oklch(0.26 0.11 149);
-  /* Amber dropped from L 0.75 to L 0.585: the old fill measured 2.4:1 on a
-     white card and failed AA. Its ink flips to light with it. */
-  --warning: oklch(0.585 0.16 72);
-  --warning-foreground: oklch(0.99 0.02 80);
-  --warning-on-surface: oklch(0.475 0.14 70);
-  --warning-container: oklch(0.905 0.125 82);
-  --on-warning-container: oklch(0.31 0.11 70);
-  --destructive: oklch(0.54 0.235 27);
-  --destructive-foreground: oklch(0.99 0.01 27);
-  --destructive-on-surface: oklch(0.475 0.21 27);
-  --destructive-container: oklch(0.905 0.08 25);
-  --on-destructive-container: oklch(0.3 0.16 27);
-  /* Info collapses into the brand ramp: a saturated brand blue and a
-     saturated info blue cannot coexist without ambiguity. Meaning and icon
-     vocabulary are unchanged; "in progress" now differs from a primary
-     action by shape and glyph, not by hue. */
-  --info: oklch(0.488 0.243 264.376);
-  --info-foreground: oklch(0.99 0.014 264);
-  --info-on-surface: oklch(0.4 0.21 264);
-  --info-container: oklch(0.885 0.1 264);
-  --on-info-container: oklch(0.275 0.17 264);
+  /* --- The functional three (+ info = brand). Only these report health.
+         Note the three inks sit at three DISTINCT lightnesses (0.44 / 0.525 /
+         0.505) rather than one: deuteranopia collapses 27/72/149 toward a
+         single axis, so lightness is what separates them, not hue. --- */
+  --success: oklch(0.54 0.15 149);
+  --success-foreground: oklch(0.985 0.012 149);
+  --success-on-surface: oklch(0.505 0.14 149);
+  --success-container: oklch(0.895 0.145 149);
+  --on-success-container: oklch(0.36 0.1 149);
+  /* 0.56/0.118 against a 0.985 foreground measures 4.56:1. The previous pair
+     measured 4.15:1 and FAILED AA — it was the only failing pair in the old
+     set and it shipped. Re-measure before touching either half. */
+  --warning: oklch(0.56 0.118 72);
+  --warning-foreground: oklch(0.985 0.011 72);
+  --warning-on-surface: oklch(0.525 0.11 72);
+  --warning-container: oklch(0.855 0.115 72);
+  --on-warning-container: oklch(0.36 0.075 72);
+  --destructive: oklch(0.48 0.192 27);
+  --destructive-foreground: oklch(0.985 0.007 27);
+  --destructive-on-surface: oklch(0.44 0.176 27);
+  --destructive-container: oklch(0.835 0.089 27);
+  --on-destructive-container: oklch(0.36 0.144 27);
+  /* Info resolves to the brand ramp. A saturated brand blue and a saturated
+     info blue cannot coexist without ambiguity; "in progress" differs from a
+     primary action by shape and glyph, not by hue. */
+  --info: oklch(0.565 0.235 262);
+  --info-foreground: oklch(0.985 0.006 262);
+  --info-on-surface: oklch(0.535 0.22 262);
+  --info-container: oklch(0.89 0.052 262);
+  --on-info-container: oklch(0.36 0.16 262);
+
+  /* --- Signal quality ramp: five stops, red to green, NO identity hue.
+         The previous four-stop scale mapped "Good" to --primary, so an
+         LTE-only user saw good signal rendered in the 5G identity colour on
+         every surface that read the scale. That is the defect this replaces.
+
+         --quality-N is the NUMERAL ink; --quality-N-bar is the BAR fill, one
+         step bolder. Light stops 1-3 resolve to deep reds and browns rather
+         than vivid red-orange: 4.5:1 against a near-white ground caps those
+         hues at L~0.50, and the non-adjacent 0.05 floor then forces the span
+         downward from that cap. That is a gamut ceiling, not a soft choice.
+         Where a numeral is large enough for the 3:1 threshold, use the -bar
+         value as its ink instead. --- */
+  --quality-1: oklch(0.385 0.154 27);
+  --quality-2: oklch(0.415 0.116 45);
+  --quality-3: oklch(0.445 0.093 72);
+  --quality-4: oklch(0.475 0.106 115);
+  --quality-5: oklch(0.505 0.14 149);
+  --quality-1-bar: oklch(0.48 0.192 27);
+  --quality-2-bar: oklch(0.51 0.143 45);
+  --quality-3-bar: oklch(0.54 0.113 72);
+  --quality-4-bar: oklch(0.57 0.127 115);
+  --quality-5-bar: oklch(0.6 0.166 149);
+
+  /* --- Outline tags: identity and metadata. Border + text, no fill.
+         Text clears 4.5:1 on every card ground; borders clear 3:1. An outline
+         tag is NEVER a status indicator — it says what a thing IS. --- */
+  --tag-nr-text: oklch(0.535 0.22 262);
+  --tag-nr-border: oklch(0.6 0.19 262);
+  --tag-lte-text: oklch(0.465 0.22 296);
+  --tag-lte-border: oklch(0.545 0.19 296);
+  --tag-spatial-text: oklch(0.515 0.103 232);
+  --tag-spatial-border: oklch(0.615 0.123 232);
+  --tag-neutral-text: oklch(0.505 0.012 258);
+  --tag-neutral-border: oklch(0.62 0.012 258);
 
   /* --- Signal-quality ring steps: explicit tones, never stacked alpha --- */
-  --tone-success-1: oklch(0.935 0.065 149);
-  --tone-success-2: oklch(0.875 0.1 149);
-  --tone-success-3: oklch(0.795 0.14 149);
-  --tone-warning-1: oklch(0.95 0.055 80);
-  --tone-warning-2: oklch(0.905 0.09 78);
-  --tone-warning-3: oklch(0.835 0.13 78);
-  /* The failed ring used to borrow surface-container/-high + destructive-
-     container, which is a neutral ramp with one red note — it read as broken
-     chrome rather than a red state. Step 2 sits on --destructive-container so
-     the innermost halo still relates to the chip family. */
-  --tone-destructive-1: oklch(0.945 0.05 25);
-  --tone-destructive-2: oklch(0.905 0.08 25);
-  --tone-destructive-3: oklch(0.835 0.12 25);
+  --tone-success-1: oklch(0.945 0.055 149);
+  --tone-success-2: oklch(0.915 0.1 149);
+  --tone-success-3: oklch(0.87 0.145 149);
+  --tone-warning-1: oklch(0.95 0.037 72);
+  --tone-warning-2: oklch(0.91 0.069 72);
+  --tone-warning-3: oklch(0.86 0.111 72);
+  --tone-destructive-1: oklch(0.945 0.027 27);
+  --tone-destructive-2: oklch(0.9 0.051 27);
+  --tone-destructive-3: oklch(0.85 0.081 27);
 
-  /* --- Strokes. --outline is the canon token (inputs, table rules only);
-         --border stays quiet because cards still render one until step 3. --- */
-  --outline: oklch(0.86 0.028 258);
-  --border: oklch(0.905 0.022 258);
-  --input: oklch(0.86 0.028 258);
-  --ring: oklch(0.488 0.243 264.376);
+  /* --- Strokes. --outline is the canon token (inputs, table rules, and the
+         outline tag, which is the one sanctioned border-over-no-fill). --- */
+  --outline: oklch(0.868 0.008 258);
+  --border: oklch(0.905 0.006 258);
+  --input: oklch(0.868 0.008 258);
+  --ring: oklch(0.565 0.235 262);
 
-  /* --- Charts: one hue per radio family --- */
-  --chart-1: oklch(0.809 0.105 251.813);
-  --chart-2: oklch(0.623 0.214 259.815);
-  --chart-3: oklch(0.546 0.245 262.881);
+  /* --- Charts: series colour comes from the INK tokens (DESIGN.md > Data
+         visualization). One hue per radio family. --- */
+  --chart-nr: oklch(0.535 0.22 262);
+  --chart-lte: oklch(0.465 0.22 296);
+  --chart-threshold: oklch(0.525 0.11 72);
+  /* LEGACY --chart-1..6. Do not use in new work: they are shadcn-starter
+     inheritance, they sit in one hue family, and 1/2/4/5 are byte-identical in
+     both themes so a chart built on them does not theme at all. They survive
+     only because --chart-3 and --chart-6 still have live consumers
+     (latency-monitoring-card.tsx, signal-storm-game.tsx). Those two are
+     retargeted onto the new palette AND given real dark values so the surfaces
+     that read them theme correctly; delete the whole block once both callers
+     move to --chart-nr / a quality stop. */
+  --chart-1: oklch(0.809 0.097 251.813);
+  --chart-2: oklch(0.623 0.201 259.815);
+  --chart-3: oklch(0.535 0.22 262);
   --chart-4: oklch(0.488 0.243 264.376);
   --chart-5: oklch(0.424 0.199 265.638);
-  /* Orange for Chart 6 */
-  --chart-6: oklch(0.705 0.213 47.604);
-  --chart-nr: oklch(0.488 0.243 264.376);
-  --chart-lte: oklch(0.495 0.205 296);
-  --chart-threshold: oklch(0.585 0.16 72);
+  --chart-6: oklch(0.51 0.143 45);
 
   /* The rail sits one step off the canvas so it reads as chrome, not content.
-     Light recesses (rail 0.952 < canvas 0.978 < card 1.0); dark lifts
-     (canvas 0.155 < rail = card 0.215). Matching the rail to the canvas
-     leaves the hairline doing all the separating, which the No-Hairline-On-Fill
-     Rule retires. */
-  --sidebar: oklch(0.952 0.026 258);
-  --sidebar-foreground: oklch(0.19 0.032 258);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.99 0.014 264);
-  --sidebar-accent: oklch(0.918 0.04 258);
-  --sidebar-accent-foreground: oklch(0.24 0.035 258);
-  --sidebar-border: oklch(0.905 0.022 258);
-  --sidebar-ring: oklch(0.488 0.243 264.376);
+     Light recesses (rail 0.967 < canvas 0.985 < card 1.0); dark lifts
+     (canvas 0.120 < rail = card 0.170). Matching the rail to the canvas leaves
+     the hairline doing all the separating, which the No-Hairline-On-Fill Rule
+     retires. */
+  --sidebar: oklch(0.967 0.005 258);
+  --sidebar-foreground: oklch(0.205 0.011 258);
+  --sidebar-primary: oklch(0.565 0.235 262);
+  --sidebar-primary-foreground: oklch(0.985 0.006 262);
+  --sidebar-accent: oklch(0.938 0.007 258);
+  --sidebar-accent-foreground: oklch(0.205 0.011 258);
+  --sidebar-border: oklch(0.905 0.006 258);
+  --sidebar-ring: oklch(0.565 0.235 262);
 
-  /* Optional card lift. Never load-bearing: nothing breaks if it disappears. */
-  --shadow-whisper: 0 1px 2px oklch(0.19 0.032 258 / 6%);
+  /* Optional card lift. Never load-bearing. The canvas-to-card step in light
+     is 0.985 -> 1.000, deliberately narrow, and the whisper is what keeps that
+     edge legible without reaching for a hairline. */
+  --shadow-whisper: 0 1px 2px oklch(0.205 0.011 258 / 6%);
 }
 
 .dark {
-  --background: oklch(0.155 0.024 258);
-  --foreground: oklch(0.96 0.012 258);
-  --surface: oklch(0.215 0.03 258);
-  --surface-container: oklch(0.262 0.04 258);
-  --surface-container-high: oklch(0.312 0.05 258);
-  --on-surface: oklch(0.96 0.012 258);
-  --on-surface-variant: oklch(0.782 0.03 258);
-  --card: oklch(0.215 0.03 258);
-  --card-foreground: oklch(0.96 0.012 258);
-  --popover: oklch(0.215 0.03 258);
-  --popover-foreground: oklch(0.96 0.012 258);
+  /* Near-black instrument panel, per DESIGN.md > Overview. The canvas is
+     0.120 and cards sit barely lifted at 0.170 — the reference language is a
+     panel you read data off, not a page with cards on it. Depth is tonal
+     because in near-black a shadow is invisible against the ground, so a
+     shadow-separated layout would have no dark theme at all. */
+  --background: oklch(0.12 0.008 258);
+  --foreground: oklch(0.965 0.004 258);
+  --surface: oklch(0.17 0.009 258);
+  --surface-container: oklch(0.2 0.01 258);
+  --surface-container-high: oklch(0.235 0.012 258);
+  --on-surface: oklch(0.965 0.004 258);
+  --on-surface-variant: oklch(0.762 0.011 258);
+  --card: oklch(0.17 0.009 258);
+  --card-foreground: oklch(0.965 0.004 258);
+  --popover: oklch(0.2 0.01 258);
+  --popover-foreground: oklch(0.965 0.004 258);
 
-  /* --- Dark identity fills: TONED DOWN, 2026-08-16 ---------------------------
-     The three identity fills were L 0.79-0.81 sitting on an L 0.155 ground:
-     the brightest objects in the interface were the ones carrying the least
-     information. They now land at 0.72-0.74.
+  /* Dark chroma is bolder than the old set (primary 0.155 -> 0.200, success
+     0.17 -> 0.200, downlink 0.155 -> 0.200), which is the reference language's
+     saturation. --primary is capped at 0.200 by the gamut, not by restraint:
+     blue's sRGB cusp is at LOW lightness, so a bright dark-theme blue is
+     always chroma-poor. The dark lightness ladder is deliberately ordered
+     262 < 296 < 341 < 149 < 232 < 200 < 72 so each hue buys its colour-blind
+     separation on the axis where it can still afford chroma. An earlier
+     symmetric run put primary at L 0.810 and produced a pastel #a0c1fe; this
+     ordering is what recovered #3979f7. */
+  --primary: oklch(0.605 0.2 262);
+  --primary-foreground: oklch(0.195 0.055 262);
+  --primary-on-surface: oklch(0.65 0.183 262);
+  --primary-container: oklch(0.375 0.145 262);
+  --on-primary-container: oklch(0.9 0.047 262);
 
-     Measured, not eyeballed. Ink holds at 7.2-7.7:1 (was 9.1-9.2), so the pair
-     is still comfortably past AA with the Paired-Theme Rule intact — the fills
-     moved, their inks did not need to, because both stay on the same side of
-     the flip. 0.76 is the one value deliberately skipped: NR and LTE measure
-     0.047 separation under protanopia there, just under the collapse floor.
-     At 0.72/0.73 they measure 0.094.
+  --lte: oklch(0.7 0.175 296);
+  --lte-foreground: oklch(0.195 0.055 296);
+  --lte-on-surface: oklch(0.74 0.149 296);
+  --lte-container: oklch(0.27 0.145 296);
+  --on-lte-container: oklch(0.9 0.053 296);
 
-     The CONTAINERS are untouched, and --primary-container's L 0.40 against its
-     five siblings' 0.30-0.325 is NOT the calibration defect it looks like. It
-     is the only thing keeping NR blue and LTE violet apart for a red-green
-     colour-blind user: their hues are 32 degrees apart, INSIDE this system's
-     own 40-degree floor, so lightness is carrying the distinction. Equalising
-     them measures 0.049 (collapsed) against the shipped pair's 0.216. Anyone
-     tempted to "fix" that outlier should re-run the simulation first. */
-  --primary: oklch(0.72 0.155 262);
-  --primary-foreground: oklch(0.2 0.12 258);
-  --primary-container: oklch(0.365 0.145 260);
-  --on-primary-container: oklch(0.92 0.09 262);
+  --downlink: oklch(0.66 0.2 341);
+  --downlink-foreground: oklch(0.195 0.055 341);
+  --downlink-on-surface: oklch(0.7 0.2 341);
+  --downlink-container: oklch(0.285 0.121 341);
+  --on-downlink-container: oklch(0.9 0.068 341);
+  --uplink: oklch(0.82 0.137 200);
+  --uplink-foreground: oklch(0.195 0.032 200);
+  --uplink-on-surface: oklch(0.87 0.145 200);
+  --uplink-container: oklch(0.345 0.057 200);
+  --on-uplink-container: oklch(0.9 0.11 200);
 
-  --lte: oklch(0.73 0.14 296);
-  --lte-foreground: oklch(0.21 0.1 296);
-  --lte-container: oklch(0.305 0.105 296);
-  --on-lte-container: oklch(0.91 0.075 296);
-  --uplink: oklch(0.74 0.105 200);
-  --uplink-foreground: oklch(0.21 0.06 200);
-  --uplink-on-surface: oklch(0.8 0.1 200);
-  --uplink-container: oklch(0.3 0.08 200);
-  --on-uplink-container: oklch(0.9 0.07 200);
-  /* Rose sits one step BELOW the other containers (0.29 vs 0.30-0.325) so it
-     holds separation from lte-container, its nearest hue neighbour at 45deg. */
-  --downlink: oklch(0.75 0.155 341);
-  --downlink-foreground: oklch(0.22 0.09 341);
-  --downlink-on-surface: oklch(0.8 0.145 341);
-  --downlink-container: oklch(0.29 0.105 341);
-  --on-downlink-container: oklch(0.91 0.075 341);
-  --spatial: oklch(0.745 0.115 232);
-  --spatial-foreground: oklch(0.21 0.065 232);
-  --spatial-on-surface: oklch(0.8 0.105 232);
-  --spatial-container: oklch(0.285 0.09 232);
-  --on-spatial-container: oklch(0.9 0.07 232);
+  --spatial: oklch(0.79 0.127 232);
+  --spatial-foreground: oklch(0.195 0.039 232);
+  --spatial-on-surface: oklch(0.82 0.108 232);
+  --spatial-container: oklch(0.265 0.053 232);
+  --on-spatial-container: oklch(0.9 0.058 232);
 
-  --secondary: oklch(0.262 0.04 258);
-  --secondary-foreground: oklch(0.96 0.012 258);
-  --muted: oklch(0.262 0.04 258);
-  --muted-foreground: oklch(0.782 0.03 258);
-  --accent: oklch(0.312 0.05 258);
-  --accent-foreground: oklch(0.96 0.012 258);
+  --secondary: oklch(0.2 0.01 258);
+  --secondary-foreground: oklch(0.965 0.004 258);
+  --muted: oklch(0.2 0.01 258);
+  --muted-foreground: oklch(0.762 0.011 258);
+  --accent: oklch(0.235 0.012 258);
+  --accent-foreground: oklch(0.965 0.004 258);
 
-  --success: oklch(0.82 0.17 149);
   /* Dark fills are light, so their ink flips dark. Fill and ink always move
      together: a fill's -foreground is the only ink allowed on it. */
-  --success-foreground: oklch(0.22 0.075 149);
-  --success-on-surface: oklch(0.84 0.16 149);
-  --success-container: oklch(0.3 0.095 149);
-  --on-success-container: oklch(0.91 0.11 149);
-  --warning: oklch(0.865 0.155 80);
-  --warning-foreground: oklch(0.24 0.065 70);
-  --warning-on-surface: oklch(0.88 0.145 80);
-  --warning-container: oklch(0.32 0.085 70);
-  --on-warning-container: oklch(0.93 0.11 80);
-  /* Migration step 3b, landed. The canon value was blocked not by the fill but
-     by its ink: destructive was the one functional role still carrying the
-     LIGHT-mode shape in dark, a mid fill (L 0.62) under near-white ink
-     (L 0.99). Raising the fill alone to 0.77 would have measured 2.42:1 —
-     below even the large-text floor — which is what kept deferring it.
+  --success: oklch(0.74 0.2 149);
+  --success-foreground: oklch(0.195 0.054 149);
+  --success-on-surface: oklch(0.78 0.2 149);
+  --success-container: oklch(0.31 0.086 149);
+  --on-success-container: oklch(0.9 0.11 149);
+  --warning: oklch(0.79 0.166 72);
+  --warning-foreground: oklch(0.195 0.041 72);
+  --warning-on-surface: oklch(0.815 0.151 72);
+  --warning-container: oklch(0.41 0.086 72);
+  --on-warning-container: oklch(0.9 0.077 72);
+  --destructive: oklch(0.64 0.2 27);
+  --destructive-foreground: oklch(0.195 0.055 27);
+  --destructive-on-surface: oklch(0.68 0.2 27);
+  --destructive-container: oklch(0.245 0.098 27);
+  --on-destructive-container: oklch(0.9 0.051 27);
+  --info: oklch(0.605 0.2 262);
+  --info-foreground: oklch(0.195 0.055 262);
+  --info-on-surface: oklch(0.65 0.183 262);
+  --info-container: oklch(0.375 0.145 262);
+  --on-info-container: oklch(0.9 0.047 262);
 
-     The fix is the pair, exactly as the comment above this block requires and
-     as success (0.82 / 0.22) and warning (0.865 / 0.24) already do: the fill
-     goes light and the ink flips dark with it. ~6.3:1, and destructive finally
-     matches the shape of its three siblings instead of being the exception.
+  /* Dark ramp is genuinely vivid (#ed4b43 -> #42e071) where light is not;
+     the staircase runs 0.640 -> 0.800 in 0.045 steps. */
+  --quality-1: oklch(0.64 0.2 27);
+  --quality-2: oklch(0.665 0.187 45);
+  --quality-3: oklch(0.71 0.149 72);
+  --quality-4: oklch(0.755 0.168 115);
+  --quality-5: oklch(0.8 0.2 149);
+  --quality-1-bar: oklch(0.6 0.22 27);
+  --quality-2-bar: oklch(0.645 0.181 45);
+  --quality-3-bar: oklch(0.69 0.145 72);
+  --quality-4-bar: oklch(0.735 0.164 115);
+  --quality-5-bar: oklch(0.78 0.216 149);
 
-     Consequence, deliberately: `text-white` hardcoded on a destructive fill is
-     now the bug rather than the blocker, and both sites carrying it now read
-     `text-destructive-foreground` — Button's destructive variant, and the
-     hand-rolled copy of it on the delete-profile AlertDialogAction.
+  --tag-nr-text: oklch(0.65 0.183 262);
+  --tag-nr-border: oklch(0.6 0.19 262);
+  --tag-lte-text: oklch(0.74 0.149 296);
+  --tag-lte-border: oklch(0.54 0.19 296);
+  --tag-spatial-text: oklch(0.82 0.108 232);
+  --tag-spatial-border: oklch(0.64 0.128 232);
+  --tag-neutral-text: oklch(0.762 0.011 258);
+  --tag-neutral-border: oklch(0.52 0.012 258);
 
-     Badge is NOT one of them, though the older migration notes name it: its
-     destructive variant moved to `bg-destructive-container` /
-     `text-on-destructive-container` with the chip flip, so it never carried
-     ink on a fill at all.
+  --tone-success-1: oklch(0.245 0.04 149);
+  --tone-success-2: oklch(0.28 0.065 149);
+  --tone-success-3: oklch(0.32 0.09 149);
+  --tone-warning-1: oklch(0.27 0.04 72);
+  --tone-warning-2: oklch(0.335 0.065 72);
+  --tone-warning-3: oklch(0.41 0.086 72);
+  --tone-destructive-1: oklch(0.22 0.045 27);
+  --tone-destructive-2: oklch(0.25 0.075 27);
+  --tone-destructive-3: oklch(0.29 0.1 27);
 
-     Button's `dark:bg-destructive/60` went with it. That override was
-     compensation for the mismatched pair, not an intent: it softened a
-     saturated mid-tone fill while near-white ink stayed legible on the result.
-     Against the canon pair it INVERTS — compositing 60% of an L 0.77 fill over
-     a dark card lands near L 0.65, dropping ~6.3:1 to ~5.1:1 — and an alpha is
-     a request to the canvas rather than to the token, so the same button would
-     render a different red in a dialog, a card and a popover. Success and
-     warning already ship full-strength in dark; destructive no longer is the
-     exception. */
-  --destructive: oklch(0.77 0.175 25);
-  --destructive-foreground: oklch(0.24 0.07 27);
-  --destructive-on-surface: oklch(0.79 0.16 22);
-  --destructive-container: oklch(0.325 0.115 25);
-  --on-destructive-container: oklch(0.91 0.075 22);
-  --info: oklch(0.72 0.155 262);
-  --info-foreground: oklch(0.2 0.12 258);
-  --info-on-surface: oklch(0.82 0.14 262);
-  --info-container: oklch(0.365 0.145 260);
-  --on-info-container: oklch(0.92 0.09 262);
+  /* Solid strokes, not an alpha. `oklch(1 0 0 / 10%)` renders a different
+     colour on a card than on a popover, because an alpha is a request to
+     whatever happens to be behind it rather than to the token. */
+  --outline: oklch(0.33 0.013 258);
+  --border: oklch(0.288 0.012 258);
+  --input: oklch(0.33 0.013 258);
+  --ring: oklch(0.605 0.2 262);
 
-  --tone-success-1: oklch(0.275 0.075 149);
-  --tone-success-2: oklch(0.375 0.105 149);
-  --tone-success-3: oklch(0.505 0.14 149);
-  --tone-warning-1: oklch(0.275 0.06 70);
-  --tone-warning-2: oklch(0.365 0.09 74);
-  --tone-warning-3: oklch(0.49 0.12 78);
-  --tone-destructive-1: oklch(0.275 0.07 25);
-  --tone-destructive-2: oklch(0.365 0.105 25);
-  --tone-destructive-3: oklch(0.49 0.15 25);
-
-  --outline: oklch(0.365 0.04 258);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.72 0.155 262);
-
-  --chart-1: oklch(0.809 0.105 251.813);
-  --chart-2: oklch(0.623 0.214 259.815);
-  --chart-3: oklch(0.546 0.245 262.881);
+  --chart-nr: oklch(0.65 0.183 262);
+  --chart-lte: oklch(0.74 0.149 296);
+  --chart-threshold: oklch(0.815 0.151 72);
+  /* See the light block: 1/2/4/5 are legacy and deliberately do not theme.
+     3 and 6 do, because they still have live consumers. */
+  --chart-1: oklch(0.809 0.097 251.813);
+  --chart-2: oklch(0.623 0.201 259.815);
+  --chart-3: oklch(0.65 0.183 262);
   --chart-4: oklch(0.488 0.243 264.376);
   --chart-5: oklch(0.424 0.199 265.638);
-  --chart-6: oklch(0.705 0.213 47.604);
-  --chart-nr: oklch(0.72 0.155 262);
-  --chart-lte: oklch(0.73 0.14 296);
-  --chart-threshold: oklch(0.865 0.155 80);
+  --chart-6: oklch(0.645 0.181 45);
 
-  --sidebar: oklch(0.215 0.03 258);
-  --sidebar-foreground: oklch(0.96 0.012 258);
-  --sidebar-primary: oklch(0.72 0.155 262);
-  --sidebar-primary-foreground: oklch(0.2 0.12 258);
-  --sidebar-accent: oklch(0.312 0.05 258);
-  --sidebar-accent-foreground: oklch(0.96 0.012 258);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.72 0.155 262);
+  --sidebar: oklch(0.17 0.009 258);
+  --sidebar-foreground: oklch(0.965 0.004 258);
+  --sidebar-primary: oklch(0.605 0.2 262);
+  --sidebar-primary-foreground: oklch(0.195 0.055 262);
+  --sidebar-accent: oklch(0.235 0.012 258);
+  --sidebar-accent-foreground: oklch(0.965 0.004 258);
+  --sidebar-border: oklch(0.288 0.012 258);
+  --sidebar-ring: oklch(0.605 0.2 262);
 
   /* Tonal elevation only in dark: the whisper is absent. */
   --shadow-whisper: 0 0 #0000;
