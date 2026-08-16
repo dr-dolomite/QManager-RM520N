@@ -20,6 +20,7 @@ import {
   RSRQ_THRESHOLDS,
   SINR_THRESHOLDS,
   getSignalQuality,
+  normalizeMetricValue,
   signalToProgress,
   worstSignalQuality,
 } from "@/types/modem-status";
@@ -121,38 +122,46 @@ export interface RadioMetric {
  * "not reported" instead.
  */
 function buildMetrics(carrier: ResolvedCarrier): RadioMetric[] {
+  // Normalize ONCE, at the top, then read only the normalized locals below.
+  // The three channels a metric renders through — the printed number, the bar
+  // and the quality chip — have to agree, and the only way to guarantee that is
+  // for them to be derived from the same value rather than from the same field.
+  //
+  // This is where AT+QCAINFO's raw LTE RSSNR gets caught: field 10 arrives as
+  // 251 on a carrier whose real SINR is 8 dB (see METRIC_RANGES for the live
+  // capture). Before this, `value` printed "251", `percent` clamped to a full
+  // bar and `quality` said "excellent" — three channels agreeing loudly on a
+  // number the radio never measured.
+  const rsrp = normalizeMetricValue(carrier.rsrp, "rsrp");
+  const rsrq = normalizeMetricValue(carrier.rsrq, "rsrq");
+  const sinr = normalizeMetricValue(carrier.sinr, "sinr");
+
   const metrics: RadioMetric[] = [
     {
       id: "rsrp",
       labelKey: "rsrp",
-      value: carrier.rsrp ?? null,
+      value: rsrp,
       unit: "dBm",
-      percent: carrier.rsrp === null || carrier.rsrp === undefined
-        ? null
-        : rsrpToPercent(carrier.rsrp),
-      quality: getSignalQuality(carrier.rsrp ?? null, RSRP_THRESHOLDS),
+      percent: rsrp === null ? null : rsrpToPercent(rsrp),
+      quality: getSignalQuality(rsrp, RSRP_THRESHOLDS),
       barless: false,
     },
     {
       id: "rsrq",
       labelKey: "rsrq",
-      value: carrier.rsrq ?? null,
+      value: rsrq,
       unit: "dB",
-      percent: carrier.rsrq === null || carrier.rsrq === undefined
-        ? null
-        : signalToProgress(carrier.rsrq, RSRQ_THRESHOLDS),
-      quality: getSignalQuality(carrier.rsrq ?? null, RSRQ_THRESHOLDS),
+      percent: rsrq === null ? null : signalToProgress(rsrq, RSRQ_THRESHOLDS),
+      quality: getSignalQuality(rsrq, RSRQ_THRESHOLDS),
       barless: false,
     },
     {
       id: "sinr",
       labelKey: "sinr",
-      value: carrier.sinr ?? null,
+      value: sinr,
       unit: "dB",
-      percent: carrier.sinr === null || carrier.sinr === undefined
-        ? null
-        : signalToProgress(carrier.sinr, SINR_THRESHOLDS),
-      quality: getSignalQuality(carrier.sinr ?? null, SINR_THRESHOLDS),
+      percent: sinr === null ? null : signalToProgress(sinr, SINR_THRESHOLDS),
+      quality: getSignalQuality(sinr, SINR_THRESHOLDS),
       barless: false,
     },
   ];
@@ -161,11 +170,15 @@ function buildMetrics(carrier: ResolvedCarrier): RadioMetric[] {
   // at all, so every NR component reports null. Emitting the row anyway would
   // invent a permanently-empty metric. It is also barless — RSSI has no
   // meaningful 0-100 scale to plot against.
-  if (carrier.technology === "LTE" && carrier.rssi !== null && carrier.rssi !== undefined) {
+  // RSSI takes the same range guard even though it has no quality verdict to
+  // corrupt: an out-of-range RSSI would still PRINT, and a printed number is a
+  // claim regardless of whether a chip sits next to it.
+  const rssi = normalizeMetricValue(carrier.rssi, "rssi");
+  if (carrier.technology === "LTE" && rssi !== null) {
     metrics.push({
       id: "rssi",
       labelKey: "rssi",
-      value: carrier.rssi,
+      value: rssi,
       unit: "dBm",
       percent: null,
       quality: "none",

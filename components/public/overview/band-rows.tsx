@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 import { transitionMeterFill, transitionStandard } from "@/lib/motion";
 import {
   getSignalQuality,
+  normalizeMetricValue,
   signalToProgress,
   type SignalQuality,
   type SignalThresholds,
@@ -165,7 +166,15 @@ export function BandRow({
   t: TranslateFn;
   entranceIndex: number | null;
 }) {
-  const value = metric === "rsrp" ? band.rsrp : band.sinr;
+  // `overview.sh:48` forwards `carrier_components[].sinr` verbatim, which on an
+  // LTE carrier is AT+QCAINFO's RAW RSSNR field — 251 where the real SINR is
+  // 8 dB. `getSignalQuality()` now refuses to rate that, but the printed number
+  // and the meter read `value` directly, so the boundary has to be here too or
+  // the splash keeps showing the lie in two of its three channels.
+  const value = normalizeMetricValue(
+    metric === "rsrp" ? band.rsrp : band.sinr,
+    metric,
+  );
   const thresholds = BAND_METRIC_THRESHOLDS[metric];
   const quality: SignalQuality = reachable
     ? getSignalQuality(value, thresholds)

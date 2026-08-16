@@ -340,12 +340,71 @@ export interface DataUsedBlock {
 
 // --- Utility Types -----------------------------------------------------------
 
+/**
+ * Serving-cell / per-carrier metrics. The per-antenna arrays use `SignalMetric`
+ * below instead — that set has no RSSI, because AT+QRSRP/QRSRQ/QSINR report
+ * none.
+ */
+export type ServingMetric = "rsrp" | "rsrq" | "sinr" | "rssi";
+
+/**
+ * The 3GPP REPORTED range for each metric — the interval a real measurement can
+ * physically fall in. Anything outside it is not a bad reading, it is not a
+ * reading: an unavailable marker, a raw field in the wrong unit, or a parse
+ * that grabbed the wrong CSV column.
+ *
+ * WHY THIS EXISTS. `AT+QCAINFO`'s LTE line reports RSSNR in field 10 as a RAW
+ * value, while `AT+QENG="servingcell"` reports the same measurement in dB. The
+ * poller's NR branch rescales and rejects `-32768`; its LTE branch
+ * (`parse_at.sh:632`) takes the field verbatim. Live capture, one poll, one
+ * cell (B28 / EARFCN 9485 / PCI 407): `lte.sinr` = 8 while
+ * `carrier_components[0].sinr` = 251. RSRP and RSRQ agreed across the two
+ * sources to within 1; only SINR diverged — and 251 is outside RSSNR's reported
+ * range entirely, so it is not a scaled 8 either.
+ *
+ * That alone was survivable. What made it dangerous is that the ladder below
+ * used to have no CEILING: `value >= thresholds.excellent` scored 251 dB
+ * "excellent", so the page painted a full green bar and an Excellent chip next
+ * to a genuinely poor -115 dBm RSRP. On the surface a technician opens to
+ * diagnose exactly that, a fabricated healthy verdict is the worst available
+ * failure mode — strictly worse than showing nothing.
+ *
+ * Ranges are the reported ranges, not the comfortable ones: RSRP spans NR's
+ * extended -156…-31 because an NR carrier is read through the same path.
+ */
+export const METRIC_RANGES: Record<ServingMetric, { min: number; max: number }> = {
+  rsrp: { min: -156, max: -31 }, // 36.133 / 38.133 RSRP reporting range
+  rsrq: { min: -43, max: 20 },   // 36.133 extended RSRQ range
+  sinr: { min: -23, max: 40 },   // 36.133 RS-SINR reporting range
+  rssi: { min: -120, max: -25 },
+};
+
+/**
+ * The single read boundary for a serving-cell / per-carrier value, and the
+ * sibling of `normalizeSignalValue()` below (which does the same job for the
+ * per-antenna arrays, against a sentinel SET rather than a range).
+ *
+ * Returns `null` for anything outside the physical range, so the value, its
+ * bar and its quality verdict all resolve through the one already-correct
+ * "not reported" path instead of disagreeing with each other.
+ */
+export function normalizeMetricValue(
+  value: number | null | undefined,
+  metric: ServingMetric
+): number | null {
+  if (value === null || value === undefined || !Number.isFinite(value)) return null;
+  const { min, max } = METRIC_RANGES[metric];
+  return value < min || value > max ? null : value;
+}
+
 /** Signal quality thresholds for UI indicators */
 export interface SignalThresholds {
   excellent: number;
   good: number;
   fair: number;
   poor: number;
+  /** Physical range for this metric — see METRIC_RANGES. */
+  range: { min: number; max: number };
 }
 
 /** RSRP thresholds (dBm) — higher (less negative) is better */
@@ -354,6 +413,7 @@ export const RSRP_THRESHOLDS: SignalThresholds = {
   good: -100,
   fair: -110,
   poor: -140,
+  range: METRIC_RANGES.rsrp,
 };
 
 /** RSRQ thresholds (dB) — higher (less negative) is better */
@@ -362,6 +422,7 @@ export const RSRQ_THRESHOLDS: SignalThresholds = {
   good: -10,
   fair: -15,
   poor: -20,
+  range: METRIC_RANGES.rsrq,
 };
 
 /** SINR thresholds (dB) — higher is better */
@@ -370,17 +431,27 @@ export const SINR_THRESHOLDS: SignalThresholds = {
   good: 13,
   fair: 0,
   poor: -20,
+  range: METRIC_RANGES.sinr,
 };
 
 /**
  * Categorizes a signal value into a quality level based on thresholds.
  * Works for any metric where higher = better.
+ *
+ * The range check is deliberately INSIDE this function rather than left to
+ * every caller. Carrying the range on the thresholds object means the twelve
+ * existing call sites are covered without touching any of them, and a future
+ * surface cannot opt out of it by forgetting to normalize first — which is the
+ * exact way the per-antenna sentinel policy fragmented before
+ * `normalizeSignalValue()` centralized it.
  */
 export function getSignalQuality(
   value: number | null,
   thresholds: SignalThresholds
 ): "excellent" | "good" | "fair" | "poor" | "none" {
-  if (value === null || value === undefined) return "none";
+  if (value === null || value === undefined || !Number.isFinite(value)) return "none";
+  // Out of physical range is "we have no reading", never the top of the ladder.
+  if (value < thresholds.range.min || value > thresholds.range.max) return "none";
   if (value >= thresholds.excellent) return "excellent";
   if (value >= thresholds.good) return "good";
   if (value >= thresholds.fair) return "fair";
