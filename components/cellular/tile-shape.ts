@@ -1,7 +1,7 @@
 // =============================================================================
 // TILE_SHAPE — the shared `/cellular/` glance-tile geometry
 // =============================================================================
-// The 52px-disc-plus-text-column tile: a 28px-radius block, 92px minimum
+// The 52px-disc-plus-text-column tile: a 28px-radius block PINNED at 104px
 // height, holding a full-round glyph disc beside an eyebrow → value → caption
 // column. DESIGN.md > Components > Tiles describes it; this file is where the
 // numbers actually live, so a strip and its skeleton can never drift apart

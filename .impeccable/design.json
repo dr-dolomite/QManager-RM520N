@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-08-15T00:00:00.000Z",
+  "generatedAt": "2026-08-17",
   "title": "Design System: QManager (RM520N-GL)",
   "extensions": {
     "colorMeta": {
@@ -8,390 +8,996 @@
         "role": "primary",
         "displayName": "Mark Ring",
         "canonical": "oklch(0.623 0.214 259.815)",
-        "note": "The lighter half of the mark's source pair. Not consumed directly as a UI fill: its hue drives the dark-mode primary-container and the active-nav tone.",
-        "tonalRamp": [
-          "oklch(0.150 0.093 259.815)",
-          "oklch(0.264 0.150 259.815)",
-          "oklch(0.379 0.192 259.815)",
-          "oklch(0.493 0.214 259.815)",
-          "oklch(0.607 0.196 259.815)",
-          "oklch(0.721 0.156 259.815)",
-          "oklch(0.836 0.101 259.815)",
-          "oklch(0.950 0.033 259.815)"
-        ]
-      },
-      "primary-light": {
-        "role": "primary",
-        "displayName": "Signal Blue",
-        "canonical": "oklch(0.488 0.243 264.376)",
-        "note": "The brand, the only hue that acts, and the 5G NR identity. The mark's 45-degree tail used literally.",
-        "tonalRamp": [
-          "oklch(0.150 0.106 264.376)",
-          "oklch(0.264 0.170 264.376)",
-          "oklch(0.379 0.218 264.376)",
-          "oklch(0.493 0.243 264.376)",
-          "oklch(0.607 0.222 264.376)",
-          "oklch(0.721 0.177 264.376)",
-          "oklch(0.836 0.115 264.376)",
-          "oklch(0.950 0.038 264.376)"
-        ]
-      },
-      "primary-container-light": {
-        "role": "primary",
-        "displayName": "Signal Blue Container",
-        "canonical": "oklch(0.885 0.1 264)",
-        "note": "The tonal block carrying primary-flavored content: tonal buttons, the active nav pill, informational banners, in-progress rows.",
-        "tonalRamp": [
-          "oklch(0.150 0.043 264)",
-          "oklch(0.264 0.070 264)",
-          "oklch(0.379 0.090 264)",
-          "oklch(0.493 0.100 264)",
-          "oklch(0.607 0.091 264)",
-          "oklch(0.721 0.073 264)",
-          "oklch(0.836 0.047 264)",
-          "oklch(0.950 0.016 264)"
-        ]
-      },
-      "lte-light": {
-        "role": "secondary",
-        "displayName": "Carrier Violet",
-        "canonical": "oklch(0.495 0.205 296)",
-        "note": "The 4G LTE identity and nothing else. Hue 296 because the mark forces blue to mean the primary radio. It never acts.",
-        "tonalRamp": [
-          "oklch(0.150 0.089 296)",
-          "oklch(0.264 0.143 296)",
-          "oklch(0.379 0.184 296)",
-          "oklch(0.493 0.205 296)",
-          "oklch(0.607 0.188 296)",
-          "oklch(0.721 0.149 296)",
-          "oklch(0.836 0.097 296)",
-          "oklch(0.950 0.032 296)"
-        ]
-      },
-      "lte-container-light": {
-        "role": "secondary",
-        "displayName": "Carrier Violet Container",
-        "canonical": "oklch(0.9 0.085 296)",
-        "note": "LTE carrier tiles, LTE aggregation segments, the LTE identity chip, the Active MIMO tile.",
-        "tonalRamp": [
-          "oklch(0.150 0.037 296)",
-          "oklch(0.264 0.059 296)",
-          "oklch(0.379 0.076 296)",
-          "oklch(0.493 0.085 296)",
-          "oklch(0.607 0.078 296)",
-          "oklch(0.721 0.062 296)",
-          "oklch(0.836 0.040 296)",
-          "oklch(0.950 0.013 296)"
-        ]
-      },
-      "uplink-light": {
-        "role": "tertiary",
-        "displayName": "Uplink Cyan",
-        "canonical": "oklch(0.49 0.13 200)",
-        "note": "Counts, upload direction, minor accents. Hue 200 clears 40 degrees from every functional hue. It never acts.",
-        "tonalRamp": [
-          "oklch(0.150 0.057 200)",
-          "oklch(0.264 0.091 200)",
-          "oklch(0.379 0.116 200)",
-          "oklch(0.493 0.130 200)",
-          "oklch(0.607 0.119 200)",
-          "oklch(0.721 0.095 200)",
-          "oklch(0.836 0.061 200)",
-          "oklch(0.950 0.020 200)"
-        ]
-      },
-      "uplink-container-light": {
-        "role": "tertiary",
-        "displayName": "Uplink Cyan Container",
-        "canonical": "oklch(0.885 0.09 200)",
-        "note": "The carrier-count tile and the upload leg of a paired readout.",
-        "tonalRamp": [
-          "oklch(0.150 0.039 200)",
-          "oklch(0.264 0.063 200)",
-          "oklch(0.379 0.081 200)",
-          "oklch(0.493 0.090 200)",
-          "oklch(0.607 0.082 200)",
-          "oklch(0.721 0.066 200)",
-          "oklch(0.836 0.042 200)",
-          "oklch(0.950 0.014 200)"
-        ]
-      },
-      "success-light": {
-        "role": "success",
-        "displayName": "Link Green",
-        "canonical": "oklch(0.52 0.18 149)",
-        "note": "Healthy: connected, service active, save succeeded, profile applied. Always paired with a check glyph.",
-        "tonalRamp": [
-          "oklch(0.150 0.078 149)",
-          "oklch(0.264 0.126 149)",
-          "oklch(0.379 0.161 149)",
-          "oklch(0.493 0.180 149)",
-          "oklch(0.607 0.165 149)",
-          "oklch(0.721 0.131 149)",
-          "oklch(0.836 0.085 149)",
-          "oklch(0.950 0.028 149)"
-        ]
-      },
-      "warning-light": {
-        "role": "warning",
-        "displayName": "Degraded Amber",
-        "canonical": "oklch(0.585 0.16 72)",
-        "note": "Degraded: weak signal, searching, limited service, no SIM. Retuned down to L 0.585 in light because the old amber failed AA on a white card.",
-        "tonalRamp": [
-          "oklch(0.150 0.070 72)",
-          "oklch(0.264 0.112 72)",
-          "oklch(0.379 0.143 72)",
-          "oklch(0.493 0.160 72)",
-          "oklch(0.607 0.146 72)",
-          "oklch(0.721 0.117 72)",
-          "oklch(0.836 0.075 72)",
-          "oklch(0.950 0.025 72)"
-        ]
-      },
-      "destructive-light": {
-        "role": "destructive",
-        "displayName": "Fault Red",
-        "canonical": "oklch(0.54 0.235 27)",
-        "note": "Failed or irreversible: disconnected, apply failed, no service, reboot dialogs.",
-        "tonalRamp": [
-          "oklch(0.150 0.102 27)",
-          "oklch(0.264 0.164 27)",
-          "oklch(0.379 0.211 27)",
-          "oklch(0.493 0.235 27)",
-          "oklch(0.607 0.215 27)",
-          "oklch(0.721 0.171 27)",
-          "oklch(0.836 0.111 27)",
-          "oklch(0.950 0.036 27)"
-        ]
+        "note": "The mark's source hue (public/qmanager-mark.svg), recorded in DESIGN.md's frontmatter. It is NOT a custom property in app/globals.css and never resolves as a class — it is the derivation origin the primary family (hue 262) descends from. Nothing consumes it directly."
       },
       "background-light": {
         "role": "neutral",
         "displayName": "Canvas",
-        "canonical": "oklch(0.978 0.014 258)",
-        "note": "The page background. Tinted toward the mark's hue 258 like every neutral in the system.",
-        "tonalRamp": [
-          "oklch(0.150 0.006 258)",
-          "oklch(0.264 0.010 258)",
-          "oklch(0.379 0.013 258)",
-          "oklch(0.493 0.014 258)",
-          "oklch(0.607 0.013 258)",
-          "oklch(0.721 0.010 258)",
-          "oklch(0.836 0.007 258)",
-          "oklch(0.950 0.002 258)"
-        ]
+        "canonical": "oklch(0.985 0.003 258)",
+        "note": "The page canvas. Neutrals carry a slight cool cast (hue 258, chroma <= 0.012) so they sit in the mark's family without reading as blue. Dark is a genuinely near-black instrument panel at L 0.120, not a dimmed grey."
+      },
+      "background-dark": {
+        "role": "neutral",
+        "displayName": "Canvas (dark)",
+        "canonical": "oklch(0.12 0.008 258)",
+        "note": "Dark-theme value of `background`. Authored, not derived by inversion — both themes are first-class and every value in both was measured."
       },
       "surface-light": {
         "role": "neutral",
         "displayName": "Surface",
-        "canonical": "oklch(1 0 0)",
-        "note": "Cards, dialogs, popovers. The step a card sits on.",
-        "tonalRamp": [
-          "oklch(0.150 0.000 0)",
-          "oklch(0.264 0.000 0)",
-          "oklch(0.379 0.000 0)",
-          "oklch(0.493 0.000 0)",
-          "oklch(0.607 0.000 0)",
-          "oklch(0.721 0.000 0)",
-          "oklch(0.836 0.000 0)",
-          "oklch(0.950 0.000 0)"
-        ]
+        "canonical": "oklch(1 0 258)",
+        "note": "Cards, dialogs, popovers — the primary content plane. Light inverts the relationship rather than the values: the canvas is soft grey and the card is pure white. Dark lifts the card to 0.170 off a 0.120 canvas."
+      },
+      "surface-dark": {
+        "role": "neutral",
+        "displayName": "Surface (dark)",
+        "canonical": "oklch(0.17 0.009 258)",
+        "note": "Dark-theme value of `surface`. Authored, not derived by inversion — both themes are first-class and every value in both was measured."
       },
       "surface-container-light": {
         "role": "neutral",
         "displayName": "Surface Container",
-        "canonical": "oklch(0.952 0.026 258)",
-        "note": "Inner tiles, metric row pills, input fills, the sidebar rail. Recesses in light, lifts in dark.",
-        "tonalRamp": [
-          "oklch(0.150 0.011 258)",
-          "oklch(0.264 0.018 258)",
-          "oklch(0.379 0.023 258)",
-          "oklch(0.493 0.026 258)",
-          "oklch(0.607 0.024 258)",
-          "oklch(0.721 0.019 258)",
-          "oklch(0.836 0.012 258)",
-          "oklch(0.950 0.004 258)"
-        ]
+        "canonical": "oklch(0.967 0.005 258)",
+        "note": "Metric-row pills, input fills, recessed blocks, quality-bar tracks, and the sidebar rail — one step off the canvas so the rail reads as chrome, not content."
+      },
+      "surface-container-dark": {
+        "role": "neutral",
+        "displayName": "Surface Container (dark)",
+        "canonical": "oklch(0.2 0.01 258)",
+        "note": "Dark-theme value of `surface-container`. Authored, not derived by inversion — both themes are first-class and every value in both was measured."
       },
       "surface-container-high-light": {
         "role": "neutral",
         "displayName": "Surface Container High",
-        "canonical": "oklch(0.918 0.04 258)",
-        "note": "Muted chips, deliberately-off states, glyph discs on neutral tiles.",
-        "tonalRamp": [
-          "oklch(0.150 0.017 258)",
-          "oklch(0.264 0.028 258)",
-          "oklch(0.379 0.036 258)",
-          "oklch(0.493 0.040 258)",
-          "oklch(0.607 0.037 258)",
-          "oklch(0.721 0.029 258)",
-          "oklch(0.836 0.019 258)",
-          "oklch(0.950 0.006 258)"
-        ]
+        "canonical": "oklch(0.938 0.007 258)",
+        "note": "One step further in: hover, stripes, and the `muted` chip (paired with `on-surface-variant`), which means deliberately inactive and never carries live data."
+      },
+      "surface-container-high-dark": {
+        "role": "neutral",
+        "displayName": "Surface Container High (dark)",
+        "canonical": "oklch(0.235 0.012 258)",
+        "note": "Dark-theme value of `surface-container-high`. Authored, not derived by inversion — both themes are first-class and every value in both was measured."
       },
       "on-surface-light": {
         "role": "neutral",
         "displayName": "Ink",
-        "canonical": "oklch(0.19 0.032 258)",
-        "note": "Primary text.",
-        "tonalRamp": [
-          "oklch(0.150 0.014 258)",
-          "oklch(0.264 0.022 258)",
-          "oklch(0.379 0.029 258)",
-          "oklch(0.493 0.032 258)",
-          "oklch(0.607 0.029 258)",
-          "oklch(0.721 0.023 258)",
-          "oklch(0.836 0.015 258)",
-          "oklch(0.950 0.005 258)"
-        ]
+        "canonical": "oklch(0.205 0.011 258)",
+        "note": "Primary text."
+      },
+      "on-surface-dark": {
+        "role": "neutral",
+        "displayName": "Ink (dark)",
+        "canonical": "oklch(0.965 0.004 258)",
+        "note": "Dark-theme value of `on-surface`. Authored, not derived by inversion — both themes are first-class and every value in both was measured."
       },
       "on-surface-variant-light": {
         "role": "neutral",
         "displayName": "Muted Ink",
-        "canonical": "oklch(0.435 0.05 258)",
-        "note": "Descriptions, labels, eyebrows, row keys, inactive nav.",
-        "tonalRamp": [
-          "oklch(0.150 0.022 258)",
-          "oklch(0.264 0.035 258)",
-          "oklch(0.379 0.045 258)",
-          "oklch(0.493 0.050 258)",
-          "oklch(0.607 0.046 258)",
-          "oklch(0.721 0.036 258)",
-          "oklch(0.836 0.024 258)",
-          "oklch(0.950 0.008 258)"
-        ]
+        "canonical": "oklch(0.505 0.012 258)",
+        "note": "Descriptions, labels, row keys, inactive nav, and the neutral outline tag's ink. Also the ink for a quality value that has no reading — absent is neutral, never the bottom of the ramp."
+      },
+      "on-surface-variant-dark": {
+        "role": "neutral",
+        "displayName": "Muted Ink (dark)",
+        "canonical": "oklch(0.762 0.011 258)",
+        "note": "Dark-theme value of `on-surface-variant`. Authored, not derived by inversion — both themes are first-class and every value in both was measured."
       },
       "outline-light": {
         "role": "neutral",
         "displayName": "Hairline",
-        "canonical": "oklch(0.86 0.028 258)",
-        "note": "Input strokes and genuine table rules only. Never a card border.",
-        "tonalRamp": [
-          "oklch(0.150 0.012 258)",
-          "oklch(0.264 0.020 258)",
-          "oklch(0.379 0.025 258)",
-          "oklch(0.493 0.028 258)",
-          "oklch(0.607 0.026 258)",
-          "oklch(0.721 0.020 258)",
-          "oklch(0.836 0.013 258)",
-          "oklch(0.950 0.004 258)"
-        ]
+        "canonical": "oklch(0.868 0.008 258)",
+        "note": "The canon stroke token: input strokes, genuine table rules, and the outline tag — the one sanctioned border-over-no-fill. Never a card border."
+      },
+      "outline-dark": {
+        "role": "neutral",
+        "displayName": "Hairline (dark)",
+        "canonical": "oklch(0.33 0.013 258)",
+        "note": "Dark-theme value of `outline`. Authored, not derived by inversion — both themes are first-class and every value in both was measured."
+      },
+      "border-light": {
+        "role": "neutral",
+        "displayName": "Border",
+        "canonical": "oklch(0.905 0.006 258)",
+        "note": "shadcn's border token, applied globally by the base layer (`* { @apply border-border }`). Cards on converted surfaces override it with an explicit `border-0`; it also draws dashed chart threshold guides."
+      },
+      "border-dark": {
+        "role": "neutral",
+        "displayName": "Border (dark)",
+        "canonical": "oklch(0.288 0.012 258)",
+        "note": "Dark-theme value of `border`. Authored, not derived by inversion — both themes are first-class and every value in both was measured."
+      },
+      "ring-light": {
+        "role": "neutral",
+        "displayName": "Focus Ring",
+        "canonical": "oklch(0.565 0.235 262)",
+        "note": "A 3px ring at 50% on the `quick` clock. Byte-identical to `--primary` in both themes."
+      },
+      "ring-dark": {
+        "role": "neutral",
+        "displayName": "Focus Ring (dark)",
+        "canonical": "oklch(0.605 0.2 262)",
+        "note": "Dark-theme value of `ring`. Authored, not derived by inversion — both themes are first-class and every value in both was measured."
+      },
+      "primary-light": {
+        "role": "primary",
+        "displayName": "Signal Blue (NR / brand / action / info)",
+        "canonical": "oklch(0.565 0.235 262)",
+        "note": "The mark's blue at hue 262 and the only hue in the system that acts. Simultaneously brand, action accent, the `info` role, and the 5G NR identity — one meaning wearing four hats. This is the FILL layer: primary buttons, the active nav pill, glyph discs, meter fills."
+      },
+      "primary-dark": {
+        "role": "primary",
+        "displayName": "Signal Blue (NR / brand / action / info) (dark)",
+        "canonical": "oklch(0.605 0.2 262)",
+        "note": "Dark-theme value of `primary`. Authored, not derived by inversion — both themes are first-class and every value in both was measured."
+      },
+      "primary-foreground-light": {
+        "role": "primary",
+        "displayName": "Ink on Signal Blue",
+        "canonical": "oklch(0.985 0.006 262)",
+        "note": "The fill's own ink. Never crossed with `on-primary-container` — a fill takes its `-foreground`, a container takes its `on-` ink."
+      },
+      "primary-foreground-dark": {
+        "role": "primary",
+        "displayName": "Ink on Signal Blue (dark)",
+        "canonical": "oklch(0.195 0.055 262)",
+        "note": "Dark-theme value of `primary-foreground`. Authored, not derived by inversion — both themes are first-class and every value in both was measured."
+      },
+      "primary-on-surface-light": {
+        "role": "primary",
+        "displayName": "Signal Blue ink",
+        "canonical": "oklch(0.535 0.22 262)",
+        "note": "The INK layer, and the system's primary mechanism: coloured numerals, chart strokes and bare glyphs on a neutral ground. Inks separate in 0 of 28 pairs under deuteranopia and protanopia simulation, which is why colour lives here rather than on large pale blocks."
+      },
+      "primary-on-surface-dark": {
+        "role": "primary",
+        "displayName": "Signal Blue ink (dark)",
+        "canonical": "oklch(0.65 0.183 262)",
+        "note": "Dark-theme value of `primary-on-surface`. Authored, not derived by inversion — both themes are first-class and every value in both was measured."
+      },
+      "primary-container-light": {
+        "role": "primary",
+        "displayName": "Signal Blue Container",
+        "canonical": "oklch(0.89 0.052 262)",
+        "note": "The one identity-hue container the system permits, and only because primary doubles as `info`: info chips, informational banners, the active nav pill, `Highlight-by-Container` promotion. Identity as identity never gets a container."
+      },
+      "primary-container-dark": {
+        "role": "primary",
+        "displayName": "Signal Blue Container (dark)",
+        "canonical": "oklch(0.375 0.145 262)",
+        "note": "Dark-theme value of `primary-container`. Authored, not derived by inversion — both themes are first-class and every value in both was measured."
+      },
+      "on-primary-container-light": {
+        "role": "primary",
+        "displayName": "Ink on Signal Blue Container",
+        "canonical": "oklch(0.36 0.16 262)",
+        "note": "The container's own ink."
+      },
+      "on-primary-container-dark": {
+        "role": "primary",
+        "displayName": "Ink on Signal Blue Container (dark)",
+        "canonical": "oklch(0.9 0.047 262)",
+        "note": "Dark-theme value of `on-primary-container`. Authored, not derived by inversion — both themes are first-class and every value in both was measured."
+      },
+      "lte-light": {
+        "role": "secondary",
+        "displayName": "Carrier Violet",
+        "canonical": "oklch(0.51 0.24 296)",
+        "note": "The 4G LTE leg, hue 296. It never acts and never means healthy. Ships as `--lte-*` rather than `--secondary-*` because shadcn's `--secondary` is a NEUTRAL in this codebase."
+      },
+      "lte-dark": {
+        "role": "secondary",
+        "displayName": "Carrier Violet (dark)",
+        "canonical": "oklch(0.7 0.175 296)",
+        "note": "Dark-theme value of `lte`. Authored, not derived by inversion — both themes are first-class and every value in both was measured."
+      },
+      "lte-foreground-light": {
+        "role": "secondary",
+        "displayName": "Ink on Carrier Violet",
+        "canonical": "oklch(0.985 0.007 296)",
+        "note": "The fill's own ink."
+      },
+      "lte-foreground-dark": {
+        "role": "secondary",
+        "displayName": "Ink on Carrier Violet (dark)",
+        "canonical": "oklch(0.195 0.055 296)",
+        "note": "Dark-theme value of `lte-foreground`. Authored, not derived by inversion — both themes are first-class and every value in both was measured."
+      },
+      "lte-on-surface-light": {
+        "role": "secondary",
+        "displayName": "Carrier Violet ink",
+        "canonical": "oklch(0.465 0.22 296)",
+        "note": "LTE identity as ink: a violet numeral or chart stroke on a neutral card. This is how LTE identity normally renders."
+      },
+      "lte-on-surface-dark": {
+        "role": "secondary",
+        "displayName": "Carrier Violet ink (dark)",
+        "canonical": "oklch(0.74 0.149 296)",
+        "note": "Dark-theme value of `lte-on-surface`. Authored, not derived by inversion — both themes are first-class and every value in both was measured."
+      },
+      "lte-container-light": {
+        "role": "secondary",
+        "displayName": "Carrier Violet Container",
+        "canonical": "oklch(0.85 0.082 296)",
+        "note": "Present in the token layer but deliberately near-unused: in light mode 8 of 10 identity container pairs collapse under deuteranopia/protanopia, and `lte-container` against `surface-container-high` measured 0.0000 separation — a released carrier and a live LTE carrier were one swatch. Identity renders as ink, outline tag, or a strong-fill disc instead."
+      },
+      "lte-container-dark": {
+        "role": "secondary",
+        "displayName": "Carrier Violet Container (dark)",
+        "canonical": "oklch(0.27 0.145 296)",
+        "note": "Dark-theme value of `lte-container`. Authored, not derived by inversion — both themes are first-class and every value in both was measured."
+      },
+      "on-lte-container-light": {
+        "role": "secondary",
+        "displayName": "Ink on Carrier Violet Container",
+        "canonical": "oklch(0.36 0.16 296)",
+        "note": "The container's own ink."
+      },
+      "on-lte-container-dark": {
+        "role": "secondary",
+        "displayName": "Ink on Carrier Violet Container (dark)",
+        "canonical": "oklch(0.9 0.053 296)",
+        "note": "Dark-theme value of `on-lte-container`. Authored, not derived by inversion — both themes are first-class and every value in both was measured."
+      },
+      "downlink-light": {
+        "role": "tertiary",
+        "displayName": "Downlink Rose",
+        "canonical": "oklch(0.48 0.204 341)",
+        "note": "Hue 341. The download direction and NOTHING else — the previous system gave rose a second meaning ('and capacity'), which made the axis untrue. Always paired with an arrow glyph; hue alone never says which way."
+      },
+      "downlink-dark": {
+        "role": "tertiary",
+        "displayName": "Downlink Rose (dark)",
+        "canonical": "oklch(0.66 0.2 341)",
+        "note": "Dark-theme value of `downlink`. Authored, not derived by inversion — both themes are first-class and every value in both was measured."
+      },
+      "downlink-foreground-light": {
+        "role": "tertiary",
+        "displayName": "Ink on Downlink Rose",
+        "canonical": "oklch(0.985 0.009 341)",
+        "note": "The fill's own ink."
+      },
+      "downlink-foreground-dark": {
+        "role": "tertiary",
+        "displayName": "Ink on Downlink Rose (dark)",
+        "canonical": "oklch(0.195 0.055 341)",
+        "note": "Dark-theme value of `downlink-foreground`. Authored, not derived by inversion — both themes are first-class and every value in both was measured."
+      },
+      "downlink-on-surface-light": {
+        "role": "tertiary",
+        "displayName": "Downlink Rose ink",
+        "canonical": "oklch(0.45 0.191 341)",
+        "note": "The primary form for direction: a rose numeral or chart stroke. A download figure on the LTE leg is rose-on-violet and neither hue is guessing about the other."
+      },
+      "downlink-on-surface-dark": {
+        "role": "tertiary",
+        "displayName": "Downlink Rose ink (dark)",
+        "canonical": "oklch(0.7 0.2 341)",
+        "note": "Dark-theme value of `downlink-on-surface`. Authored, not derived by inversion — both themes are first-class and every value in both was measured."
+      },
+      "downlink-container-light": {
+        "role": "tertiary",
+        "displayName": "Downlink Rose Container",
+        "canonical": "oklch(0.875 0.087 341)",
+        "note": "Token-layer completeness only. Direction is ink and disc; a direction container is not a sanctioned use."
+      },
+      "downlink-container-dark": {
+        "role": "tertiary",
+        "displayName": "Downlink Rose Container (dark)",
+        "canonical": "oklch(0.285 0.121 341)",
+        "note": "Dark-theme value of `downlink-container`. Authored, not derived by inversion — both themes are first-class and every value in both was measured."
+      },
+      "on-downlink-container-light": {
+        "role": "tertiary",
+        "displayName": "Ink on Downlink Rose Container",
+        "canonical": "oklch(0.36 0.153 341)",
+        "note": "The container's own ink."
+      },
+      "on-downlink-container-dark": {
+        "role": "tertiary",
+        "displayName": "Ink on Downlink Rose Container (dark)",
+        "canonical": "oklch(0.9 0.068 341)",
+        "note": "Dark-theme value of `on-downlink-container`. Authored, not derived by inversion — both themes are first-class and every value in both was measured."
+      },
+      "uplink-light": {
+        "role": "tertiary",
+        "displayName": "Uplink Cyan",
+        "canonical": "oklch(0.545 0.091 200)",
+        "note": "Hue 200. The upload direction and nothing else — a COUNT is not a direction and stays neutral. Light chroma 0.091 is the sRGB gamut ceiling, not caution: cyan's cusp sits at high lightness, so 4.5:1 on a white card forces L ~ 0.52 where hue 200 has no chroma left. Do not boldify it. The one identity/direction fill sanctioned on a meter (the SMS Center's SIM-memory bar), because that bar sits inside an `uplink-container` tile."
+      },
+      "uplink-dark": {
+        "role": "tertiary",
+        "displayName": "Uplink Cyan (dark)",
+        "canonical": "oklch(0.82 0.137 200)",
+        "note": "Dark-theme value of `uplink`. Authored, not derived by inversion — both themes are first-class and every value in both was measured."
+      },
+      "uplink-foreground-light": {
+        "role": "tertiary",
+        "displayName": "Ink on Uplink Cyan",
+        "canonical": "oklch(0.985 0.012 200)",
+        "note": "The fill's own ink."
+      },
+      "uplink-foreground-dark": {
+        "role": "tertiary",
+        "displayName": "Ink on Uplink Cyan (dark)",
+        "canonical": "oklch(0.195 0.032 200)",
+        "note": "Dark-theme value of `uplink-foreground`. Authored, not derived by inversion — both themes are first-class and every value in both was measured."
+      },
+      "uplink-on-surface-light": {
+        "role": "tertiary",
+        "displayName": "Uplink Cyan ink",
+        "canonical": "oklch(0.515 0.086 200)",
+        "note": "Upload figures and the upload leg of a paired chart."
+      },
+      "uplink-on-surface-dark": {
+        "role": "tertiary",
+        "displayName": "Uplink Cyan ink (dark)",
+        "canonical": "oklch(0.87 0.145 200)",
+        "note": "Dark-theme value of `uplink-on-surface`. Authored, not derived by inversion — both themes are first-class and every value in both was measured."
+      },
+      "uplink-container-light": {
+        "role": "tertiary",
+        "displayName": "Uplink Cyan Container",
+        "canonical": "oklch(0.915 0.105 200)",
+        "note": "The SMS Center's SIM-memory tile. Otherwise direction stays on ink and disc."
+      },
+      "uplink-container-dark": {
+        "role": "tertiary",
+        "displayName": "Uplink Cyan Container (dark)",
+        "canonical": "oklch(0.345 0.057 200)",
+        "note": "Dark-theme value of `uplink-container`. Authored, not derived by inversion — both themes are first-class and every value in both was measured."
+      },
+      "on-uplink-container-light": {
+        "role": "tertiary",
+        "displayName": "Ink on Uplink Cyan Container",
+        "canonical": "oklch(0.36 0.06 200)",
+        "note": "The container's own ink."
+      },
+      "on-uplink-container-dark": {
+        "role": "tertiary",
+        "displayName": "Ink on Uplink Cyan Container (dark)",
+        "canonical": "oklch(0.9 0.11 200)",
+        "note": "Dark-theme value of `on-uplink-container`. Authored, not derived by inversion — both themes are first-class and every value in both was measured."
+      },
+      "spatial-light": {
+        "role": "tertiary",
+        "displayName": "Spatial Azure",
+        "canonical": "oklch(0.55 0.11 232)",
+        "note": "Hue 232. Antenna and spatial-stream readouts — MIMO layer counts, per-antenna chains, alignment surfaces. A third axis because a MIMO figure routinely names both radios in one string (`LTE 1x2 | NR 2x4`), so no identity hue is honest and layers are neither a direction nor a state."
+      },
+      "spatial-dark": {
+        "role": "tertiary",
+        "displayName": "Spatial Azure (dark)",
+        "canonical": "oklch(0.79 0.127 232)",
+        "note": "Dark-theme value of `spatial`. Authored, not derived by inversion — both themes are first-class and every value in both was measured."
+      },
+      "spatial-foreground-light": {
+        "role": "tertiary",
+        "displayName": "Ink on Spatial Azure",
+        "canonical": "oklch(0.985 0.008 232)",
+        "note": "The fill's own ink."
+      },
+      "spatial-foreground-dark": {
+        "role": "tertiary",
+        "displayName": "Ink on Spatial Azure (dark)",
+        "canonical": "oklch(0.195 0.039 232)",
+        "note": "Dark-theme value of `spatial-foreground`. Authored, not derived by inversion — both themes are first-class and every value in both was measured."
+      },
+      "spatial-on-surface-light": {
+        "role": "tertiary",
+        "displayName": "Spatial Azure ink",
+        "canonical": "oklch(0.515 0.103 232)",
+        "note": "Spatial figures on a neutral ground; also the outline tag's `spatial` text."
+      },
+      "spatial-on-surface-dark": {
+        "role": "tertiary",
+        "displayName": "Spatial Azure ink (dark)",
+        "canonical": "oklch(0.82 0.108 232)",
+        "note": "Dark-theme value of `spatial-on-surface`. Authored, not derived by inversion — both themes are first-class and every value in both was measured."
+      },
+      "spatial-container-light": {
+        "role": "tertiary",
+        "displayName": "Spatial Azure Container",
+        "canonical": "oklch(0.855 0.085 232)",
+        "note": "Token-layer completeness only; spatial renders as ink, outline tag, or disc."
+      },
+      "spatial-container-dark": {
+        "role": "tertiary",
+        "displayName": "Spatial Azure Container (dark)",
+        "canonical": "oklch(0.265 0.053 232)",
+        "note": "Dark-theme value of `spatial-container`. Authored, not derived by inversion — both themes are first-class and every value in both was measured."
+      },
+      "on-spatial-container-light": {
+        "role": "tertiary",
+        "displayName": "Ink on Spatial Azure Container",
+        "canonical": "oklch(0.36 0.072 232)",
+        "note": "The container's own ink."
+      },
+      "on-spatial-container-dark": {
+        "role": "tertiary",
+        "displayName": "Ink on Spatial Azure Container (dark)",
+        "canonical": "oklch(0.9 0.058 232)",
+        "note": "Dark-theme value of `on-spatial-container`. Authored, not derived by inversion — both themes are first-class and every value in both was measured."
+      },
+      "success-light": {
+        "role": "success",
+        "displayName": "Link Green",
+        "canonical": "oklch(0.54 0.15 149)",
+        "note": "Hue 149. Healthy: connected, service active, save succeeded, profile applied. As a FILL it is the glyph disc and the meter fill for a deliberately-good reading (the dashboard temperature meter passes `baseTone=\"success\"`)."
+      },
+      "success-dark": {
+        "role": "success",
+        "displayName": "Link Green (dark)",
+        "canonical": "oklch(0.74 0.2 149)",
+        "note": "Dark-theme value of `success`. Authored, not derived by inversion — both themes are first-class and every value in both was measured."
+      },
+      "success-foreground-light": {
+        "role": "success",
+        "displayName": "Ink on Link Green",
+        "canonical": "oklch(0.985 0.012 149)",
+        "note": "The fill's own ink. Never `text-white` — in dark mode this fill is light."
+      },
+      "success-foreground-dark": {
+        "role": "success",
+        "displayName": "Ink on Link Green (dark)",
+        "canonical": "oklch(0.195 0.054 149)",
+        "note": "Dark-theme value of `success-foreground`. Authored, not derived by inversion — both themes are first-class and every value in both was measured."
       },
       "success-on-surface-light": {
         "role": "success",
-        "displayName": "Link Green, on plain surface",
-        "canonical": "oklch(0.45 0.155 149)",
-        "note": "Tinted text on a plain card where no container is used — the fifth of the five functional tokens each role ships. Never crossed with `-container` ink.",
-        "tonalRamp": [
-          "oklch(0.150 0.068 149)",
-          "oklch(0.264 0.109 149)",
-          "oklch(0.379 0.139 149)",
-          "oklch(0.493 0.155 149)",
-          "oklch(0.607 0.142 149)",
-          "oklch(0.721 0.113 149)",
-          "oklch(0.836 0.073 149)",
-          "oklch(0.950 0.024 149)"
-        ]
+        "displayName": "Link Green ink",
+        "canonical": "oklch(0.505 0.14 149)",
+        "note": "Tinted text on a neutral card. Note the three functional inks sit at three DISTINCT lightnesses (0.505 / 0.525 / 0.440 in light) rather than one: deuteranopia collapses 149/72/27 toward a single axis, so lightness separates them, not hue."
+      },
+      "success-on-surface-dark": {
+        "role": "success",
+        "displayName": "Link Green ink (dark)",
+        "canonical": "oklch(0.78 0.2 149)",
+        "note": "Dark-theme value of `success-on-surface`. Authored, not derived by inversion — both themes are first-class and every value in both was measured."
+      },
+      "success-container-light": {
+        "role": "success",
+        "displayName": "Link Green Container",
+        "canonical": "oklch(0.895 0.145 149)",
+        "note": "One of the three sanctioned container uses: status chips, banners, condition screens. `success-container` against `warning-container` has measured as low as 1.03:1, which is why every status chip carries a glyph."
+      },
+      "success-container-dark": {
+        "role": "success",
+        "displayName": "Link Green Container (dark)",
+        "canonical": "oklch(0.31 0.086 149)",
+        "note": "Dark-theme value of `success-container`. Authored, not derived by inversion — both themes are first-class and every value in both was measured."
+      },
+      "on-success-container-light": {
+        "role": "success",
+        "displayName": "Ink on Link Green Container",
+        "canonical": "oklch(0.36 0.1 149)",
+        "note": "The container's own ink."
+      },
+      "on-success-container-dark": {
+        "role": "success",
+        "displayName": "Ink on Link Green Container (dark)",
+        "canonical": "oklch(0.9 0.11 149)",
+        "note": "Dark-theme value of `on-success-container`. Authored, not derived by inversion — both themes are first-class and every value in both was measured."
+      },
+      "warning-light": {
+        "role": "warning",
+        "displayName": "Degraded Amber",
+        "canonical": "oklch(0.56 0.118 72)",
+        "note": "Hue 72. Degraded: weak signal, searching, limited service, no SIM. 0.56/0.118 against its own foreground measures 4.56:1 — the previous pair measured 4.15:1 and FAILED AA while shipping. Re-measure before touching either half."
+      },
+      "warning-dark": {
+        "role": "warning",
+        "displayName": "Degraded Amber (dark)",
+        "canonical": "oklch(0.79 0.166 72)",
+        "note": "Dark-theme value of `warning`. Authored, not derived by inversion — both themes are first-class and every value in both was measured."
+      },
+      "warning-foreground-light": {
+        "role": "warning",
+        "displayName": "Ink on Degraded Amber",
+        "canonical": "oklch(0.985 0.011 72)",
+        "note": "The fill's own ink."
+      },
+      "warning-foreground-dark": {
+        "role": "warning",
+        "displayName": "Ink on Degraded Amber (dark)",
+        "canonical": "oklch(0.195 0.041 72)",
+        "note": "Dark-theme value of `warning-foreground`. Authored, not derived by inversion — both themes are first-class and every value in both was measured."
       },
       "warning-on-surface-light": {
         "role": "warning",
-        "displayName": "Degraded Amber, on plain surface",
-        "canonical": "oklch(0.475 0.14 70)",
-        "note": "Tinted text on a plain card where no container is used. Measures ~1.01:1 against success-on-surface — same luminance, hue only — so any tinted metric value also carries an sr-only quality word.",
-        "tonalRamp": [
-          "oklch(0.150 0.061 70)",
-          "oklch(0.264 0.098 70)",
-          "oklch(0.379 0.125 70)",
-          "oklch(0.493 0.140 70)",
-          "oklch(0.607 0.128 70)",
-          "oklch(0.721 0.102 70)",
-          "oklch(0.836 0.066 70)",
-          "oklch(0.950 0.022 70)"
-        ]
+        "displayName": "Degraded Amber ink",
+        "canonical": "oklch(0.525 0.11 72)",
+        "note": "Tinted text on a neutral card; also the chart threshold-guide ink."
+      },
+      "warning-on-surface-dark": {
+        "role": "warning",
+        "displayName": "Degraded Amber ink (dark)",
+        "canonical": "oklch(0.815 0.151 72)",
+        "note": "Dark-theme value of `warning-on-surface`. Authored, not derived by inversion — both themes are first-class and every value in both was measured."
+      },
+      "warning-container-light": {
+        "role": "warning",
+        "displayName": "Degraded Amber Container",
+        "canonical": "oklch(0.855 0.115 72)",
+        "note": "Status chips, banners, condition screens (no-SIM is `warning`: a real fault the user can fix in situ)."
+      },
+      "warning-container-dark": {
+        "role": "warning",
+        "displayName": "Degraded Amber Container (dark)",
+        "canonical": "oklch(0.41 0.086 72)",
+        "note": "Dark-theme value of `warning-container`. Authored, not derived by inversion — both themes are first-class and every value in both was measured."
+      },
+      "on-warning-container-light": {
+        "role": "warning",
+        "displayName": "Ink on Degraded Amber Container",
+        "canonical": "oklch(0.36 0.075 72)",
+        "note": "The container's own ink."
+      },
+      "on-warning-container-dark": {
+        "role": "warning",
+        "displayName": "Ink on Degraded Amber Container (dark)",
+        "canonical": "oklch(0.9 0.077 72)",
+        "note": "Dark-theme value of `on-warning-container`. Authored, not derived by inversion — both themes are first-class and every value in both was measured."
+      },
+      "destructive-light": {
+        "role": "destructive",
+        "displayName": "Fault Red",
+        "canonical": "oklch(0.48 0.192 27)",
+        "note": "Hue 27. Failed or irreversible: disconnected, apply failed, no service, reboot dialogs."
+      },
+      "destructive-dark": {
+        "role": "destructive",
+        "displayName": "Fault Red (dark)",
+        "canonical": "oklch(0.64 0.2 27)",
+        "note": "Dark-theme value of `destructive`. Authored, not derived by inversion — both themes are first-class and every value in both was measured."
+      },
+      "destructive-foreground-light": {
+        "role": "destructive",
+        "displayName": "Ink on Fault Red",
+        "canonical": "oklch(0.985 0.007 27)",
+        "note": "The fill's own ink. Never hardcode `text-white`: dark-mode destructive is a LIGHT fill."
+      },
+      "destructive-foreground-dark": {
+        "role": "destructive",
+        "displayName": "Ink on Fault Red (dark)",
+        "canonical": "oklch(0.195 0.055 27)",
+        "note": "Dark-theme value of `destructive-foreground`. Authored, not derived by inversion — both themes are first-class and every value in both was measured."
       },
       "destructive-on-surface-light": {
         "role": "destructive",
-        "displayName": "Fault Red, on plain surface",
-        "canonical": "oklch(0.475 0.21 27)",
-        "note": "Tinted text on a plain card where no container is used.",
-        "tonalRamp": [
-          "oklch(0.150 0.092 27)",
-          "oklch(0.264 0.147 27)",
-          "oklch(0.379 0.188 27)",
-          "oklch(0.493 0.210 27)",
-          "oklch(0.607 0.192 27)",
-          "oklch(0.721 0.153 27)",
-          "oklch(0.836 0.099 27)",
-          "oklch(0.950 0.033 27)"
-        ]
+        "displayName": "Fault Red ink",
+        "canonical": "oklch(0.44 0.176 27)",
+        "note": "Tinted text on a neutral card."
+      },
+      "destructive-on-surface-dark": {
+        "role": "destructive",
+        "displayName": "Fault Red ink (dark)",
+        "canonical": "oklch(0.68 0.2 27)",
+        "note": "Dark-theme value of `destructive-on-surface`. Authored, not derived by inversion — both themes are first-class and every value in both was measured."
+      },
+      "destructive-container-light": {
+        "role": "destructive",
+        "displayName": "Fault Red Container",
+        "canonical": "oklch(0.835 0.089 27)",
+        "note": "Status chips, banners, condition screens (no-service is `destructive`: the link is down)."
+      },
+      "destructive-container-dark": {
+        "role": "destructive",
+        "displayName": "Fault Red Container (dark)",
+        "canonical": "oklch(0.245 0.098 27)",
+        "note": "Dark-theme value of `destructive-container`. Authored, not derived by inversion — both themes are first-class and every value in both was measured."
+      },
+      "on-destructive-container-light": {
+        "role": "destructive",
+        "displayName": "Ink on Fault Red Container",
+        "canonical": "oklch(0.36 0.144 27)",
+        "note": "The container's own ink."
+      },
+      "on-destructive-container-dark": {
+        "role": "destructive",
+        "displayName": "Ink on Fault Red Container (dark)",
+        "canonical": "oklch(0.9 0.051 27)",
+        "note": "Dark-theme value of `on-destructive-container`. Authored, not derived by inversion — both themes are first-class and every value in both was measured."
       },
       "info-light": {
         "role": "primary",
-        "displayName": "Info (Signal Blue alias)",
-        "canonical": "oklch(0.488 0.243 264.376)",
-        "note": "Not a fifth hue — a byte-identical alias of `primary-light`, per the Info-Is-Brand Rule. \"In progress\" renders as the brand's own tonal container; an info chip differs from a primary button by shape and glyph only, never by owning a second blue.",
+        "displayName": "Info (brand alias)",
+        "canonical": "oklch(0.565 0.235 262)",
+        "note": "Not a fourth functional hue — byte-identical to `--primary` in both themes, per the Info-Is-Brand Rule. An info chip and a primary button differ by shape and glyph, never by owning two different blues.",
         "aliasOf": "primary-light"
+      },
+      "info-dark": {
+        "role": "primary",
+        "displayName": "Info (brand alias) (dark)",
+        "canonical": "oklch(0.605 0.2 262)",
+        "note": "Dark-theme value of `info`. Authored, not derived by inversion — both themes are first-class and every value in both was measured.",
+        "aliasOf": "primary-dark"
+      },
+      "info-foreground-light": {
+        "role": "primary",
+        "displayName": "Ink on Info",
+        "canonical": "oklch(0.985 0.006 262)",
+        "note": "Alias of `primary-foreground`.",
+        "aliasOf": "primary-foreground-light"
+      },
+      "info-foreground-dark": {
+        "role": "primary",
+        "displayName": "Ink on Info (dark)",
+        "canonical": "oklch(0.195 0.055 262)",
+        "note": "Dark-theme value of `info-foreground`. Authored, not derived by inversion — both themes are first-class and every value in both was measured.",
+        "aliasOf": "primary-foreground-dark"
+      },
+      "info-on-surface-light": {
+        "role": "primary",
+        "displayName": "Info ink",
+        "canonical": "oklch(0.535 0.22 262)",
+        "note": "Alias of `primary-on-surface`.",
+        "aliasOf": "primary-on-surface-light"
+      },
+      "info-on-surface-dark": {
+        "role": "primary",
+        "displayName": "Info ink (dark)",
+        "canonical": "oklch(0.65 0.183 262)",
+        "note": "Dark-theme value of `info-on-surface`. Authored, not derived by inversion — both themes are first-class and every value in both was measured.",
+        "aliasOf": "primary-on-surface-dark"
+      },
+      "info-container-light": {
+        "role": "primary",
+        "displayName": "Info Container",
+        "canonical": "oklch(0.89 0.052 262)",
+        "note": "Alias of `primary-container`. The `info` badge variant resolves to `bg-primary-container`.",
+        "aliasOf": "primary-container-light"
+      },
+      "info-container-dark": {
+        "role": "primary",
+        "displayName": "Info Container (dark)",
+        "canonical": "oklch(0.375 0.145 262)",
+        "note": "Dark-theme value of `info-container`. Authored, not derived by inversion — both themes are first-class and every value in both was measured.",
+        "aliasOf": "primary-container-dark"
+      },
+      "on-info-container-light": {
+        "role": "primary",
+        "displayName": "Ink on Info Container",
+        "canonical": "oklch(0.36 0.16 262)",
+        "note": "Alias of `on-primary-container`.",
+        "aliasOf": "on-primary-container-light"
+      },
+      "on-info-container-dark": {
+        "role": "primary",
+        "displayName": "Ink on Info Container (dark)",
+        "canonical": "oklch(0.9 0.047 262)",
+        "note": "Dark-theme value of `on-info-container`. Authored, not derived by inversion — both themes are first-class and every value in both was measured.",
+        "aliasOf": "on-primary-container-dark"
+      },
+      "quality-1-light": {
+        "role": "quality",
+        "displayName": "Quality 1 — bad (numeral ink)",
+        "canonical": "oklch(0.385 0.154 27)",
+        "note": "Stop 1 of the five-stop measured-signal-quality ramp (bad, hue 27). THE RAMP IS A LIGHTNESS STAIRCASE, NOT A HUE WHEEL: under deuteranopia hues 27/45/72/115/149 flatten onto one yellow axis, so each ramp is monotone in lightness (light 0.385 -> 0.505 in 0.030 steps; dark 0.640 -> 0.800 in 0.045 steps) and BAR LENGTH carries adjacent distinctions. Adjacent stops sit BELOW the 0.05 CVD separation floor deliberately; every non-adjacent pair clears it (worst 0.055 light, 0.077 dark). Do not 'fix' this to satisfy a contrast rule — the fix would destroy the scale. `--quality-N` is the NUMERAL ink; `--quality-N-bar` is the BAR fill, one lightness step bolder. In light, stops 1-3 resolve to deep reds and browns because 4.5:1 on a near-white ground caps those hues at L ~ 0.50 — a gamut ceiling, not a conservative choice."
+      },
+      "quality-1-dark": {
+        "role": "quality",
+        "displayName": "Quality 1 — bad (numeral ink) (dark)",
+        "canonical": "oklch(0.64 0.2 27)",
+        "note": "Dark-theme value of `quality-1`. The dark ramp is genuinely vivid where the light one cannot be; the staircase runs 0.640 -> 0.800 in 0.045 steps."
+      },
+      "quality-1-bar-light": {
+        "role": "quality",
+        "displayName": "Quality 1 — bad (bar fill)",
+        "canonical": "oklch(0.48 0.192 27)",
+        "note": "The BAR fill for stop 1, one lightness step bolder than `--quality-1` because a 4px fill needs more weight than a text figure to read as the same colour. Reached through `MetricBar`'s static `TONE_CLASS` (`quality-1` -> `bg-quality-1-bar`); a ramp tone on a fill whose LENGTH does not encode the value is a bug, and so is ramp ink on a numeral with no bar beside it."
+      },
+      "quality-1-bar-dark": {
+        "role": "quality",
+        "displayName": "Quality 1 — bad (bar fill) (dark)",
+        "canonical": "oklch(0.6 0.22 27)",
+        "note": "Dark-theme value of `quality-1-bar`."
+      },
+      "quality-2-light": {
+        "role": "quality",
+        "displayName": "Quality 2 — poor (numeral ink)",
+        "canonical": "oklch(0.415 0.116 45)",
+        "note": "Stop 2 of the five-stop measured-signal-quality ramp (poor, hue 45). THE RAMP IS A LIGHTNESS STAIRCASE, NOT A HUE WHEEL: under deuteranopia hues 27/45/72/115/149 flatten onto one yellow axis, so each ramp is monotone in lightness (light 0.385 -> 0.505 in 0.030 steps; dark 0.640 -> 0.800 in 0.045 steps) and BAR LENGTH carries adjacent distinctions. Adjacent stops sit BELOW the 0.05 CVD separation floor deliberately; every non-adjacent pair clears it (worst 0.055 light, 0.077 dark). Do not 'fix' this to satisfy a contrast rule — the fix would destroy the scale. `--quality-N` is the NUMERAL ink; `--quality-N-bar` is the BAR fill, one lightness step bolder. In light, stops 1-3 resolve to deep reds and browns because 4.5:1 on a near-white ground caps those hues at L ~ 0.50 — a gamut ceiling, not a conservative choice."
+      },
+      "quality-2-dark": {
+        "role": "quality",
+        "displayName": "Quality 2 — poor (numeral ink) (dark)",
+        "canonical": "oklch(0.665 0.187 45)",
+        "note": "Dark-theme value of `quality-2`. The dark ramp is genuinely vivid where the light one cannot be; the staircase runs 0.640 -> 0.800 in 0.045 steps."
+      },
+      "quality-2-bar-light": {
+        "role": "quality",
+        "displayName": "Quality 2 — poor (bar fill)",
+        "canonical": "oklch(0.51 0.143 45)",
+        "note": "The BAR fill for stop 2, one lightness step bolder than `--quality-2` because a 4px fill needs more weight than a text figure to read as the same colour. Reached through `MetricBar`'s static `TONE_CLASS` (`quality-2` -> `bg-quality-2-bar`); a ramp tone on a fill whose LENGTH does not encode the value is a bug, and so is ramp ink on a numeral with no bar beside it."
+      },
+      "quality-2-bar-dark": {
+        "role": "quality",
+        "displayName": "Quality 2 — poor (bar fill) (dark)",
+        "canonical": "oklch(0.645 0.181 45)",
+        "note": "Dark-theme value of `quality-2-bar`."
+      },
+      "quality-3-light": {
+        "role": "quality",
+        "displayName": "Quality 3 — fair (numeral ink)",
+        "canonical": "oklch(0.445 0.093 72)",
+        "note": "Stop 3 of the five-stop measured-signal-quality ramp (fair, hue 72). THE RAMP IS A LIGHTNESS STAIRCASE, NOT A HUE WHEEL: under deuteranopia hues 27/45/72/115/149 flatten onto one yellow axis, so each ramp is monotone in lightness (light 0.385 -> 0.505 in 0.030 steps; dark 0.640 -> 0.800 in 0.045 steps) and BAR LENGTH carries adjacent distinctions. Adjacent stops sit BELOW the 0.05 CVD separation floor deliberately; every non-adjacent pair clears it (worst 0.055 light, 0.077 dark). Do not 'fix' this to satisfy a contrast rule — the fix would destroy the scale. `--quality-N` is the NUMERAL ink; `--quality-N-bar` is the BAR fill, one lightness step bolder. In light, stops 1-3 resolve to deep reds and browns because 4.5:1 on a near-white ground caps those hues at L ~ 0.50 — a gamut ceiling, not a conservative choice."
+      },
+      "quality-3-dark": {
+        "role": "quality",
+        "displayName": "Quality 3 — fair (numeral ink) (dark)",
+        "canonical": "oklch(0.71 0.149 72)",
+        "note": "Dark-theme value of `quality-3`. The dark ramp is genuinely vivid where the light one cannot be; the staircase runs 0.640 -> 0.800 in 0.045 steps."
+      },
+      "quality-3-bar-light": {
+        "role": "quality",
+        "displayName": "Quality 3 — fair (bar fill)",
+        "canonical": "oklch(0.54 0.113 72)",
+        "note": "The BAR fill for stop 3, one lightness step bolder than `--quality-3` because a 4px fill needs more weight than a text figure to read as the same colour. Reached through `MetricBar`'s static `TONE_CLASS` (`quality-3` -> `bg-quality-3-bar`); a ramp tone on a fill whose LENGTH does not encode the value is a bug, and so is ramp ink on a numeral with no bar beside it."
+      },
+      "quality-3-bar-dark": {
+        "role": "quality",
+        "displayName": "Quality 3 — fair (bar fill) (dark)",
+        "canonical": "oklch(0.69 0.145 72)",
+        "note": "Dark-theme value of `quality-3-bar`."
+      },
+      "quality-4-light": {
+        "role": "quality",
+        "displayName": "Quality 4 — good (numeral ink)",
+        "canonical": "oklch(0.475 0.106 115)",
+        "note": "Stop 4 of the five-stop measured-signal-quality ramp (good, hue 115). THE RAMP IS A LIGHTNESS STAIRCASE, NOT A HUE WHEEL: under deuteranopia hues 27/45/72/115/149 flatten onto one yellow axis, so each ramp is monotone in lightness (light 0.385 -> 0.505 in 0.030 steps; dark 0.640 -> 0.800 in 0.045 steps) and BAR LENGTH carries adjacent distinctions. Adjacent stops sit BELOW the 0.05 CVD separation floor deliberately; every non-adjacent pair clears it (worst 0.055 light, 0.077 dark). Do not 'fix' this to satisfy a contrast rule — the fix would destroy the scale. `--quality-N` is the NUMERAL ink; `--quality-N-bar` is the BAR fill, one lightness step bolder. In light, stops 1-3 resolve to deep reds and browns because 4.5:1 on a near-white ground caps those hues at L ~ 0.50 — a gamut ceiling, not a conservative choice."
+      },
+      "quality-4-dark": {
+        "role": "quality",
+        "displayName": "Quality 4 — good (numeral ink) (dark)",
+        "canonical": "oklch(0.755 0.168 115)",
+        "note": "Dark-theme value of `quality-4`. The dark ramp is genuinely vivid where the light one cannot be; the staircase runs 0.640 -> 0.800 in 0.045 steps."
+      },
+      "quality-4-bar-light": {
+        "role": "quality",
+        "displayName": "Quality 4 — good (bar fill)",
+        "canonical": "oklch(0.57 0.127 115)",
+        "note": "The BAR fill for stop 4, one lightness step bolder than `--quality-4` because a 4px fill needs more weight than a text figure to read as the same colour. Reached through `MetricBar`'s static `TONE_CLASS` (`quality-4` -> `bg-quality-4-bar`); a ramp tone on a fill whose LENGTH does not encode the value is a bug, and so is ramp ink on a numeral with no bar beside it."
+      },
+      "quality-4-bar-dark": {
+        "role": "quality",
+        "displayName": "Quality 4 — good (bar fill) (dark)",
+        "canonical": "oklch(0.735 0.164 115)",
+        "note": "Dark-theme value of `quality-4-bar`."
+      },
+      "quality-5-light": {
+        "role": "quality",
+        "displayName": "Quality 5 — excellent (numeral ink)",
+        "canonical": "oklch(0.505 0.14 149)",
+        "note": "Stop 5 of the five-stop measured-signal-quality ramp (excellent, hue 149). THE RAMP IS A LIGHTNESS STAIRCASE, NOT A HUE WHEEL: under deuteranopia hues 27/45/72/115/149 flatten onto one yellow axis, so each ramp is monotone in lightness (light 0.385 -> 0.505 in 0.030 steps; dark 0.640 -> 0.800 in 0.045 steps) and BAR LENGTH carries adjacent distinctions. Adjacent stops sit BELOW the 0.05 CVD separation floor deliberately; every non-adjacent pair clears it (worst 0.055 light, 0.077 dark). Do not 'fix' this to satisfy a contrast rule — the fix would destroy the scale. `--quality-N` is the NUMERAL ink; `--quality-N-bar` is the BAR fill, one lightness step bolder. In light, stops 1-3 resolve to deep reds and browns because 4.5:1 on a near-white ground caps those hues at L ~ 0.50 — a gamut ceiling, not a conservative choice."
+      },
+      "quality-5-dark": {
+        "role": "quality",
+        "displayName": "Quality 5 — excellent (numeral ink) (dark)",
+        "canonical": "oklch(0.8 0.2 149)",
+        "note": "Dark-theme value of `quality-5`. The dark ramp is genuinely vivid where the light one cannot be; the staircase runs 0.640 -> 0.800 in 0.045 steps."
+      },
+      "quality-5-bar-light": {
+        "role": "quality",
+        "displayName": "Quality 5 — excellent (bar fill)",
+        "canonical": "oklch(0.6 0.166 149)",
+        "note": "The BAR fill for stop 5, one lightness step bolder than `--quality-5` because a 4px fill needs more weight than a text figure to read as the same colour. Reached through `MetricBar`'s static `TONE_CLASS` (`quality-5` -> `bg-quality-5-bar`); a ramp tone on a fill whose LENGTH does not encode the value is a bug, and so is ramp ink on a numeral with no bar beside it."
+      },
+      "quality-5-bar-dark": {
+        "role": "quality",
+        "displayName": "Quality 5 — excellent (bar fill) (dark)",
+        "canonical": "oklch(0.78 0.216 149)",
+        "note": "Dark-theme value of `quality-5-bar`."
+      },
+      "tag-nr-text-light": {
+        "role": "primary",
+        "displayName": "Tag NR / 5G — text",
+        "canonical": "oklch(0.535 0.22 262)",
+        "note": "The 5G NR leg, brand blue hue 262. The outline tag is the second of the system's two chip forms (components/ui/tag.tsx): a 1px role border, role text, transparent fill, Badge geometry. Text clears 4.5:1 against every card ground. Text and border are SEPARATE tokens on purpose — they sit at different lightnesses to clear different thresholds (4.5:1 ink, 3:1 stroke), so `border-current` would fail one of the two. An outline tag is NEVER a status indicator."
+      },
+      "tag-nr-text-dark": {
+        "role": "primary",
+        "displayName": "Tag NR / 5G — text (dark)",
+        "canonical": "oklch(0.65 0.183 262)",
+        "note": "Dark-theme value of `tag-nr-text`. Authored, not derived by inversion — both themes are first-class and every value in both was measured."
+      },
+      "tag-nr-border-light": {
+        "role": "primary",
+        "displayName": "Tag NR / 5G — border",
+        "canonical": "oklch(0.6 0.19 262)",
+        "note": "The stroke half of the NR / 5G outline tag. Clears 3:1; 0 of 6 border pairs collapse under deuteranopia or protanopia, both themes. This is the ONE sanctioned border-over-no-fill in the system — the No-Hairline-On-Fill Rule still bans a stroke on a tonal container."
+      },
+      "tag-nr-border-dark": {
+        "role": "primary",
+        "displayName": "Tag NR / 5G — border (dark)",
+        "canonical": "oklch(0.6 0.19 262)",
+        "note": "Dark-theme value of `tag-nr-border`. Authored, not derived by inversion — both themes are first-class and every value in both was measured."
+      },
+      "tag-lte-text-light": {
+        "role": "secondary",
+        "displayName": "Tag LTE / 4G — text",
+        "canonical": "oklch(0.465 0.22 296)",
+        "note": "The 4G LTE leg, Carrier Violet hue 296. Never means healthy. The outline tag is the second of the system's two chip forms (components/ui/tag.tsx): a 1px role border, role text, transparent fill, Badge geometry. Text clears 4.5:1 against every card ground. Text and border are SEPARATE tokens on purpose — they sit at different lightnesses to clear different thresholds (4.5:1 ink, 3:1 stroke), so `border-current` would fail one of the two. An outline tag is NEVER a status indicator."
+      },
+      "tag-lte-text-dark": {
+        "role": "secondary",
+        "displayName": "Tag LTE / 4G — text (dark)",
+        "canonical": "oklch(0.74 0.149 296)",
+        "note": "Dark-theme value of `tag-lte-text`. Authored, not derived by inversion — both themes are first-class and every value in both was measured."
+      },
+      "tag-lte-border-light": {
+        "role": "secondary",
+        "displayName": "Tag LTE / 4G — border",
+        "canonical": "oklch(0.545 0.19 296)",
+        "note": "The stroke half of the LTE / 4G outline tag. Clears 3:1; 0 of 6 border pairs collapse under deuteranopia or protanopia, both themes. This is the ONE sanctioned border-over-no-fill in the system — the No-Hairline-On-Fill Rule still bans a stroke on a tonal container."
+      },
+      "tag-lte-border-dark": {
+        "role": "secondary",
+        "displayName": "Tag LTE / 4G — border (dark)",
+        "canonical": "oklch(0.54 0.19 296)",
+        "note": "Dark-theme value of `tag-lte-border`. Authored, not derived by inversion — both themes are first-class and every value in both was measured."
+      },
+      "tag-spatial-text-light": {
+        "role": "tertiary",
+        "displayName": "Tag Spatial — text",
+        "canonical": "oklch(0.515 0.103 232)",
+        "note": "Antenna and spatial-stream metadata — MIMO layer counts, per-antenna chains. The outline tag is the second of the system's two chip forms (components/ui/tag.tsx): a 1px role border, role text, transparent fill, Badge geometry. Text clears 4.5:1 against every card ground. Text and border are SEPARATE tokens on purpose — they sit at different lightnesses to clear different thresholds (4.5:1 ink, 3:1 stroke), so `border-current` would fail one of the two. An outline tag is NEVER a status indicator."
+      },
+      "tag-spatial-text-dark": {
+        "role": "tertiary",
+        "displayName": "Tag Spatial — text (dark)",
+        "canonical": "oklch(0.82 0.108 232)",
+        "note": "Dark-theme value of `tag-spatial-text`. Authored, not derived by inversion — both themes are first-class and every value in both was measured."
+      },
+      "tag-spatial-border-light": {
+        "role": "tertiary",
+        "displayName": "Tag Spatial — border",
+        "canonical": "oklch(0.615 0.123 232)",
+        "note": "The stroke half of the Spatial outline tag. Clears 3:1; 0 of 6 border pairs collapse under deuteranopia or protanopia, both themes. This is the ONE sanctioned border-over-no-fill in the system — the No-Hairline-On-Fill Rule still bans a stroke on a tonal container."
+      },
+      "tag-spatial-border-dark": {
+        "role": "tertiary",
+        "displayName": "Tag Spatial — border (dark)",
+        "canonical": "oklch(0.64 0.128 232)",
+        "note": "Dark-theme value of `tag-spatial-border`. Authored, not derived by inversion — both themes are first-class and every value in both was measured."
+      },
+      "tag-neutral-text-light": {
+        "role": "neutral",
+        "displayName": "Tag Neutral metadata — text",
+        "canonical": "oklch(0.505 0.012 258)",
+        "note": "Metadata with no honest hue: a band number, a channel width, a count, a released carrier. The Neutral-Default Rule. The outline tag is the second of the system's two chip forms (components/ui/tag.tsx): a 1px role border, role text, transparent fill, Badge geometry. Text clears 4.5:1 against every card ground. Text and border are SEPARATE tokens on purpose — they sit at different lightnesses to clear different thresholds (4.5:1 ink, 3:1 stroke), so `border-current` would fail one of the two. An outline tag is NEVER a status indicator."
+      },
+      "tag-neutral-text-dark": {
+        "role": "neutral",
+        "displayName": "Tag Neutral metadata — text (dark)",
+        "canonical": "oklch(0.762 0.011 258)",
+        "note": "Dark-theme value of `tag-neutral-text`. Authored, not derived by inversion — both themes are first-class and every value in both was measured."
+      },
+      "tag-neutral-border-light": {
+        "role": "neutral",
+        "displayName": "Tag Neutral metadata — border",
+        "canonical": "oklch(0.62 0.012 258)",
+        "note": "The stroke half of the Neutral metadata outline tag. Clears 3:1; 0 of 6 border pairs collapse under deuteranopia or protanopia, both themes. This is the ONE sanctioned border-over-no-fill in the system — the No-Hairline-On-Fill Rule still bans a stroke on a tonal container."
+      },
+      "tag-neutral-border-dark": {
+        "role": "neutral",
+        "displayName": "Tag Neutral metadata — border (dark)",
+        "canonical": "oklch(0.52 0.012 258)",
+        "note": "Dark-theme value of `tag-neutral-border`. Authored, not derived by inversion — both themes are first-class and every value in both was measured."
       },
       "chart-nr-light": {
         "role": "primary",
         "displayName": "Chart — NR series",
-        "canonical": "oklch(0.488 0.243 264.376)",
-        "note": "Alias of primary-light, one hue per radio family so a color learned on one card holds on the next. Never the numbered --chart-1..6, which are byte-identical across themes and don't separate NR from LTE under a color-vision deficiency.",
-        "aliasOf": "primary-light"
+        "canonical": "oklch(0.535 0.22 262)",
+        "note": "Series colour comes from the INK tokens: this is `--primary-on-surface` by value. One hue per radio family, so a colour learned on one card holds on the next. Strokes are saturated and 2px; area fills are a gradient of the series ink at 0.32 alpha falling to 0.",
+        "aliasOf": "primary-on-surface-light"
+      },
+      "chart-nr-dark": {
+        "role": "primary",
+        "displayName": "Chart — NR series (dark)",
+        "canonical": "oklch(0.65 0.183 262)",
+        "note": "Dark-theme value of `chart-nr`. Authored, not derived by inversion — both themes are first-class and every value in both was measured.",
+        "aliasOf": "primary-on-surface-dark"
       },
       "chart-lte-light": {
         "role": "secondary",
         "displayName": "Chart — LTE series",
-        "canonical": "oklch(0.495 0.205 296)",
-        "note": "Alias of lte-light, one hue per radio family.",
-        "aliasOf": "lte-light"
+        "canonical": "oklch(0.465 0.22 296)",
+        "note": "`--lte-on-surface` by value.",
+        "aliasOf": "lte-on-surface-light"
+      },
+      "chart-lte-dark": {
+        "role": "secondary",
+        "displayName": "Chart — LTE series (dark)",
+        "canonical": "oklch(0.74 0.149 296)",
+        "note": "Dark-theme value of `chart-lte`. Authored, not derived by inversion — both themes are first-class and every value in both was measured.",
+        "aliasOf": "lte-on-surface-dark"
       },
       "chart-threshold-light": {
         "role": "warning",
         "displayName": "Chart — threshold guide",
-        "canonical": "oklch(0.585 0.16 72)",
-        "note": "Alias of warning-light. Dashed, low-opacity threshold guide lines only.",
-        "aliasOf": "warning-light"
+        "canonical": "oklch(0.525 0.11 72)",
+        "note": "`--warning-on-surface` by value. Dashed, low-opacity threshold guides only.",
+        "aliasOf": "warning-on-surface-light"
+      },
+      "chart-threshold-dark": {
+        "role": "warning",
+        "displayName": "Chart — threshold guide (dark)",
+        "canonical": "oklch(0.815 0.151 72)",
+        "note": "Dark-theme value of `chart-threshold`. Authored, not derived by inversion — both themes are first-class and every value in both was measured.",
+        "aliasOf": "warning-on-surface-dark"
+      },
+      "chart-3-light": {
+        "role": "primary",
+        "displayName": "Chart 3 (legacy, retargeted)",
+        "canonical": "oklch(0.535 0.22 262)",
+        "note": "Legacy shadcn-starter token, retained ONLY because latency-monitoring-card.tsx still consumes it. Retargeted onto the new palette and given a real dark value so that surface themes. `--chart-1`, `-2`, `-4`, `-5` are byte-identical across themes and do not theme at all — never use the numbered chart tokens in new work."
+      },
+      "chart-3-dark": {
+        "role": "primary",
+        "displayName": "Chart 3 (legacy, retargeted) (dark)",
+        "canonical": "oklch(0.65 0.183 262)",
+        "note": "Dark-theme value of `chart-3`. Authored, not derived by inversion — both themes are first-class and every value in both was measured."
+      },
+      "chart-6-light": {
+        "role": "quality",
+        "displayName": "Chart 6 (legacy, retargeted)",
+        "canonical": "oklch(0.51 0.143 45)",
+        "note": "Legacy token retained only for signal-storm-game.tsx. Retargeted onto quality stop 2's bar value. The whole `--chart-1..6` block is deletable once this and `--chart-3` move to `--chart-nr` / a quality stop."
+      },
+      "chart-6-dark": {
+        "role": "quality",
+        "displayName": "Chart 6 (legacy, retargeted) (dark)",
+        "canonical": "oklch(0.645 0.181 45)",
+        "note": "Dark-theme value of `chart-6`. Authored, not derived by inversion — both themes are first-class and every value in both was measured."
       }
     },
     "typographyMeta": {
       "display": {
         "displayName": "Display",
-        "purpose": "The h1 at the top of every feature page, followed by a muted description. One per route."
+        "purpose": "700 / 1.875rem (30px) / -0.02em. The h1 at the top of every feature page, followed by an `on-surface-variant` description. One per route."
       },
       "headline": {
         "displayName": "Headline",
-        "purpose": "Large tile values, state-screen labels, section headings inside a hero card."
+        "purpose": "600 / 1.25rem (20px) / -0.01em. Large tile values, state-screen labels, section headings inside a hero card."
       },
       "title": {
         "displayName": "Title",
-        "purpose": "The card title on converted surfaces. CardTitle itself ships only leading-none font-semibold and takes its size from the call site."
+        "purpose": "600 / 1.125rem (18px). The card title. `CardTitle` itself ships only `leading-none font-semibold` and takes its size from the call site."
       },
       "body": {
         "displayName": "Body",
-        "purpose": "Descriptions, prose, card copy, table cells. leading-relaxed and text-pretty on any paragraph over one line."
+        "purpose": "400 / 0.875rem (14px). Descriptions, prose, card copy, table cells. `leading-relaxed` and `text-pretty` on any paragraph over one line."
       },
       "row": {
         "displayName": "Metric Row",
-        "purpose": "Keys and values on a glance card's pill rows. The 20px line box is load-bearing: it holds the row at exactly 40px so its skeleton keeps matching. Never used outside a dense metric row."
+        "purpose": "600 / 0.8125rem (13px) on an explicit 20px line box. The leading is not optional: 13px is an arbitrary Tailwind size, so the pinned line box is what holds the row at exactly 40px and keeps its skeleton's `h-10` a real mirror. Never reach for 13px outside a dense metric row."
       },
       "label": {
         "displayName": "Label",
-        "purpose": "Chips, table headers, button text, form labels, tile eyebrows. 11px with tracking-wider for sidebar section labels."
+        "purpose": "500 / 0.75rem (12px). Chips, tags, table headers, button text, form labels, tile eyebrows. Sidebar section labels run 11px with `tracking-wider`."
       },
       "numeric": {
         "displayName": "Numeric",
-        "purpose": "Any figure that changes. The one step deliberately not on a fixed ramp: a numeral's size derives from the slot holding it."
+        "purpose": "600 with `tabular-nums`, in `--font-sans` rather than mono. The one step deliberately NOT on a fixed ramp: a numeral is read at the distance its container implies, so its size derives from the slot holding it and a literal `text-[Npx]` is correct by construction here."
+      },
+      "banner": {
+        "displayName": "Banner title (scoped)",
+        "purpose": "600 / 15px with `tracking-[-0.005em]`, description 13px. 15px is the only sanctioned literal outside the pre-auth scale: a banner title must out-weigh the copy beneath it without competing with the card heading above it, on a surface that mounts at any width on any route."
+      },
+      "preAuth": {
+        "displayName": "Pre-auth scale (`/` and `/login/` only)",
+        "purpose": "A denser five-step scale of its own: card title 600/19px/-0.01em, section title 600/17px, emphasis 600/15px, body 400-600/13px, eyebrow 600/11px `tracking-[0.11em]` uppercase. These are the only two screens that are a single card on an empty canvas, so they build five levels of hierarchy from nothing inside ~400px. Both surfaces change together in one commit."
       },
       "mono": {
         "displayName": "Machine Voice",
-        "purpose": "JetBrains Mono, self-hosted at build time. Measurements with units, identifiers (band, EARFCN, PCI, ICCID, IMEI), raw AT responses, log lines, copyable commands. Never a human-authored label."
+        "purpose": "JetBrains Mono, self-hosted at build time. Identifiers (band, EARFCN, PCI, ICCID, IMEI, MAC/IP), static facts read back from config, raw AT responses, log lines, copyable commands. The tell: does the value change while the user watches without them acting? Then `font-sans` with `tabular-nums`. Does it hold steady until something reconfigures it? Then `font-mono`. A human-authored label never wears it."
       }
     },
     "shadows": [
       {
         "name": "whisper",
-        "value": "0 1px 2px oklch(0.19 0.032 258 / 6%)",
-        "purpose": "Optional card lift in light mode. Resolves to 0 0 #0000 in dark, where the tonal step already does the work. Never load-bearing."
+        "value": "0 1px 2px oklch(0.205 0.011 258 / 6%)",
+        "purpose": "Optional card lift in light mode. Resolves to `0 0 #0000` in dark, where a shadow is invisible against a near-black ground and the tonal step does the work. Never load-bearing. Light's canvas-to-card step is 0.985 -> 1.000, deliberately narrow, and the whisper is what keeps that edge legible without reaching for a hairline."
       },
       {
         "name": "popover-float",
@@ -403,64 +1009,74 @@
       {
         "name": "ease-emphasized",
         "value": "cubic-bezier(0.05, 0.7, 0.1, 1)",
-        "purpose": "A deliberate departure and a long settle. Container size and shape, aggregation re-proportioning, banner arrival, meter first-fill."
+        "purpose": "A deliberate departure and a long settle. Container size and shape, aggregation re-proportioning, banner arrival, meter first-fill. Mirrored in lib/motion.ts as `EASE_EMPHASIZED`."
       },
       {
         "name": "ease-standard",
         "value": "cubic-bezier(0.2, 0, 0, 1)",
-        "purpose": "The everyday state change, and the right default. Card entrance, nav indicator, chip morph, meter retarget."
+        "purpose": "The everyday state change, and the right default. Card entrance, nav indicator, chip morph, meter retarget. Mirrored as `EASE_STANDARD`."
       },
       {
         "name": "ease-quick",
         "value": "ease-out",
-        "purpose": "Moves too brief to need shaping: label swaps, value ticks, hover tints, focus rings. At the short end of the scale a bespoke cubic is indistinguishable from the built-in."
+        "purpose": "Moves too brief to need shaping: label swaps, value ticks, hover tints, focus rings. At the short end of the scale a bespoke cubic is indistinguishable from the built-in. These two curves plus `ease-out` are the WHOLE vocabulary — an `ease-[cubic-bezier(...)]` arbitrary value is a violation, not a variant."
       },
       {
         "name": "ease-ambient",
         "value": "ease-in-out",
-        "purpose": "The two sanctioned ambient loops only, paired with alternate."
+        "purpose": "The two sanctioned ambient loops only, paired with `alternate` (the live-ping does not alternate: a radar sweep only travels outward)."
       },
       {
         "name": "duration-quick",
         "value": "360ms",
-        "purpose": "Label swaps, live value ticks, hover tints, focus rings."
+        "purpose": "Label swaps, live value ticks, hover tints, focus rings — and the exit clock for every modal surface, content and scrim alike. That second job is load-bearing: Radix pins `pointer-events: none` on `<body>` until the exit animation ends, so this number is literally how long the page ignores clicks after a dialog closes."
       },
       {
         "name": "duration-standard",
         "value": "600ms",
-        "purpose": "The default for a state change."
+        "purpose": "The default for a state change: card entrance, nav indicator, chip fill+ink morph, meter retarget."
       },
       {
         "name": "duration-emphasized",
         "value": "800ms",
-        "purpose": "Container size and shape, arrival. This is the ceiling for the whole product — state the rule as the token, never as the number."
+        "purpose": "Container size and shape, aggregation re-proportioning, banner arrival, meter first-fill, modal open. This is the ceiling for the whole product — state the rule as the token, never as the number."
       },
       {
         "name": "duration-ambient",
         "value": "2s",
-        "purpose": "The service-ring pulse and the live-ping dot. Nothing else loops. Deliberately NOT scaled with the transition tokens: a loop is not a transition."
+        "purpose": "The service-ring pulse and the live-ping dot. Nothing else loops. Deliberately NOT doubled with the transition tokens: a loop is not a transition, and at 4s a breathing ring reads as a stalled UI rather than a calm one."
       },
       {
         "name": "stagger-step",
         "value": "120ms",
-        "purpose": "The card cascade step, with a 10px rise. Wider and the last card reads as the page still loading."
+        "purpose": "The card cascade step, with a 10px rise (`staggerContainer` / `staggerItem`). Wider and the last card reads as the page still loading. Also drives the CA meter column's arrival cascade via `--meter-index`."
       },
       {
         "name": "stagger-step-rows",
         "value": "80ms",
-        "purpose": "The in-card row cascade, with a 5px rise. Rows sit ~6px apart, so a 10px lift would read as the card reflowing. `rowCascadeDelay(index)` derives both this step and its ten-row cap."
+        "purpose": "The in-card row cascade, with a 5px rise (`staggerRows` / `staggerRowItem`). Rows sit ~6px apart, so a 10px lift would move each row past its neighbour's resting position and read as the card reflowing. JS-only (`STAGGER_STEP_ROWS`); `rowCascadeDelay(index)` derives both this step and its ten-row cap from it."
       },
       {
         "name": "tick-stagger-step",
         "value": "200ms",
-        "purpose": "The step between two figures' dips inside one TickGroup. Not an entrance: the floor is ~1/8th of the dip, below which consecutive dips merge."
+        "purpose": "The step between two figures' dips inside one `TickGroup`, by live DOM position rather than map index. Not an entrance, which is why it does not violate the two-stagger-step rule: nothing is arriving. Floor is ~1/8th of the dip, below which consecutive dips merge."
+      },
+      {
+        "name": "tick",
+        "value": "600ms down / 800ms up, opacity 0.35",
+        "purpose": "The live value tick: asymmetric on purpose — the dip is the event, the return is the settle. The tightest thing in the system against the poll: a seven-figure cascade runs 1.4s of lead plus a 1.4s dip against a measured ~3.7-4.0s poll cadence, leaving ~900ms. Re-check that arithmetic before raising the scale or speeding up the poller. Only measurements tick; identifiers take the container morph instead."
+      },
+      {
+        "name": "save-check-overshoot",
+        "value": "1.03",
+        "purpose": "The one sanctioned overshoot in the entire product, exported as a NUMBER (`SAVE_CHECK_OVERSHOOT` / `SAVE_CHECK_KEYFRAMES` / `transitionSaveCheck`) rather than promised in prose. Keyframes, not a spring: the peak is the constant, not an emergent property of two dial settings. A ceiling enforced only by prose is not a ceiling."
       }
     ],
     "breakpoints": [
       {
         "name": "@xl/main",
         "value": "36rem",
-        "purpose": "Summary tile strip goes 2-up."
+        "purpose": "The 4-up glance-tile strip goes 2-up (`TILE_SHAPE.GRID`)."
       },
       {
         "name": "@3xl/main",
@@ -470,78 +1086,120 @@
       {
         "name": "@4xl/main",
         "value": "56rem",
-        "purpose": "The dashboard's 5-column grid engages."
+        "purpose": "The dashboard's 5-column grid engages (3-column left stack, 2-column right rail)."
       },
       {
         "name": "@5xl/main",
         "value": "64rem",
-        "purpose": "Summary tiles go 4-up; the three-card dashboard row goes 3-up."
+        "purpose": "Glance tiles go 4-up; the three-card dashboard row goes 3-up."
+      },
+      {
+        "name": "@container/card",
+        "value": "card-local",
+        "purpose": "A card that declares its own container uses `@sm/card:` / `@md/card:` inside itself. Mixing viewport `sm:` with container `@sm/card:` in one card breaks on tablets and expanded sidebars."
       },
       {
         "name": "desktop",
         "value": "68.75rem",
-        "purpose": "The one named viewport breakpoint, for shell-level concerns."
+        "purpose": "The one named viewport breakpoint (`--breakpoint-desktop`), for shell-level concerns. Viewport breakpoints otherwise stay for the page gutter (`px-4 lg:px-6`) and the sidebar's own collapse."
       }
     ],
     "toneSteps": [
       {
         "name": "tone-success",
         "lightSteps": [
-          "oklch(0.935 0.065 149)",
-          "oklch(0.875 0.1 149)",
-          "oklch(0.795 0.14 149)"
+          "oklch(0.945 0.055 149)",
+          "oklch(0.915 0.1 149)",
+          "oklch(0.87 0.145 149)"
         ],
         "darkSteps": [
-          "oklch(0.275 0.075 149)",
-          "oklch(0.375 0.105 149)",
-          "oklch(0.505 0.14 149)"
+          "oklch(0.245 0.04 149)",
+          "oklch(0.28 0.065 149)",
+          "oklch(0.32 0.09 149)"
         ],
-        "purpose": "Per the Explicit-Tone Rule: concentric rings, halo discs, and nested tonal surfaces use these three explicit steps instead of stacked alpha, because stacked alpha compounds differently over a card than over a container tile."
+        "purpose": "Per the Explicit-Tone Rule: concentric rings, halo discs and nested tonal surfaces use these three explicit steps instead of stacked alpha, because an alpha is a request to whatever happens to be behind it rather than to the token — the same control renders a different colour in a card, a dialog and a popover. Consumed by the service-ring pulse (three discs, offset 0 / .3s / .6s)."
       },
       {
         "name": "tone-warning",
         "lightSteps": [
-          "oklch(0.95 0.055 80)",
-          "oklch(0.905 0.09 78)",
-          "oklch(0.835 0.13 78)"
+          "oklch(0.95 0.037 72)",
+          "oklch(0.91 0.069 72)",
+          "oklch(0.86 0.111 72)"
         ],
         "darkSteps": [
-          "oklch(0.275 0.06 70)",
-          "oklch(0.365 0.09 74)",
-          "oklch(0.49 0.12 78)"
+          "oklch(0.27 0.04 72)",
+          "oklch(0.335 0.065 72)",
+          "oklch(0.41 0.086 72)"
         ],
-        "purpose": "Per the Explicit-Tone Rule: concentric rings, halo discs, and nested tonal surfaces use these three explicit steps instead of stacked alpha."
+        "purpose": "Per the Explicit-Tone Rule: concentric rings, halo discs and nested tonal surfaces use these three explicit steps instead of stacked alpha, because an alpha is a request to whatever happens to be behind it rather than to the token — the same control renders a different colour in a card, a dialog and a popover. Consumed by the service-ring pulse (three discs, offset 0 / .3s / .6s)."
       },
       {
         "name": "tone-destructive",
         "lightSteps": [
-          "oklch(0.945 0.05 25)",
-          "oklch(0.905 0.08 25)",
-          "oklch(0.835 0.12 25)"
+          "oklch(0.945 0.027 27)",
+          "oklch(0.9 0.051 27)",
+          "oklch(0.85 0.081 27)"
         ],
         "darkSteps": [
-          "oklch(0.275 0.07 25)",
-          "oklch(0.365 0.105 25)",
-          "oklch(0.49 0.15 25)"
+          "oklch(0.22 0.045 27)",
+          "oklch(0.25 0.075 27)",
+          "oklch(0.29 0.1 27)"
         ],
-        "purpose": "Per the Explicit-Tone Rule: concentric rings, halo discs, and nested tonal surfaces use these three explicit steps instead of stacked alpha."
+        "purpose": "Per the Explicit-Tone Rule: concentric rings, halo discs and nested tonal surfaces use these three explicit steps instead of stacked alpha, because an alpha is a request to whatever happens to be behind it rather than to the token — the same control renders a different colour in a card, a dialog and a popover. Consumed by the service-ring pulse (three discs, offset 0 / .3s / .6s)."
+      }
+    ],
+    "radii": [
+      {
+        "name": "rounded-inline",
+        "value": "0.75rem",
+        "purpose": "12px: small inline affordances, code blocks, skeleton slivers."
+      },
+      {
+        "name": "rounded-field",
+        "value": "1.25rem",
+        "purpose": "20px: inputs, selects, small popovers, banners — a banner never out-rounds the card it sits on."
+      },
+      {
+        "name": "rounded-tile",
+        "value": "1.75rem",
+        "purpose": "28px: inner tiles, carrier tiles, alignment slots."
+      },
+      {
+        "name": "rounded-card",
+        "value": "2.25rem",
+        "purpose": "36px: standard cards in a grid, dialogs."
+      },
+      {
+        "name": "rounded-hero",
+        "value": "2.5rem",
+        "purpose": "40px: the anchor card on a surface, the aggregation strip, condition state screens. The card/hero distinction is real and used: a grid of peers takes `card`, the one card that anchors a surface takes `hero`."
+      },
+      {
+        "name": "rounded-pill",
+        "value": "9999px",
+        "purpose": "Chips, tags, buttons, nav items, metric rows, meters, glyph discs, quality bars."
+      },
+      {
+        "name": "--radius (legacy)",
+        "value": "0.65rem",
+        "purpose": "The legacy `rounded-{sm,md,lg,xl}` chain still resolves for unconverted call sites and keeps its old values — including inside the shadcn primitives themselves (`Button` is `rounded-md h-9`, `Card` is `rounded-xl border shadow-sm`). Converted surfaces reach the role scale at the CALL SITE (`rounded-card border-0`, `h-[2.625rem] rounded-pill`). Never the correct choice in a new component."
       }
     ],
     "iconLibraries": [
       {
         "name": "Material Symbols Rounded",
         "scope": "The sidebar, /dashboard, the two pre-auth routes (/ and /login/), and the entire /cellular/ family — index plus all 17 sub-routes.",
-        "note": "Ligature-driven and self-hosted, subset at build time from a shared glyph list. Sets fontSize as an inline style, so a parent's [&>svg]:size-3 cannot reach it — pass size explicitly at every call site. Always aria-hidden beside a real text label."
+        "note": "Ligature-driven and self-hosted, subset at build time from a shared glyph list, so `font-feature-settings: 'liga'` is what makes an icon an icon. Sets `fontSize` as an inline style, which outranks any utility — a parent's `[&>svg]:size-3` cannot reach it, so pass `size` explicitly at every call site (12 in a dense chip, 16 where the glyph carries quality). Always `aria-hidden` beside a real text label. Its `FILL` axis is animatable and the active nav row thickens it 0 -> 1, which is what makes the active state survive grayscale."
       },
       {
         "name": "lucide-react",
-        "scope": "Every other route — /local-network/, /monitoring/, /system-settings/, /about-device, /support, onboarding — plus every route-agnostic primitive (the page-level Banner, the apply-progress dialog) wherever it mounts.",
-        "note": "A lucide glyph on an unconverted route is correct code, not a defect, and a route-agnostic component stays on lucide even when it mounts inside a Material route, because it cannot know where it will appear. The boundary is per ROUTE, never per directory. Convert a whole route or none of it."
+        "scope": "Every other route — /local-network/, /monitoring/, /system-settings/, /about-device, /support, onboarding — plus every route-agnostic primitive (the page-level `Banner`, the apply-progress dialog) wherever it mounts.",
+        "note": "The boundary is per ROUTE, never per directory. A lucide glyph on an unconverted route is correct code, not a defect, and a route-agnostic component stays on lucide even when it mounts inside a Material route, because it cannot know where it will appear. Convert a whole route or none of it."
       },
       {
         "name": "react-icons/md",
         "scope": "The dashboard Network Status card only.",
-        "note": "A sanctioned exception: '5G', '4G+' and '3G' are typographic marks Material Symbols has no equivalent for."
+        "note": "A sanctioned exception: '5G', '4G+' and '3G' are typographic marks Material Symbols has no equivalent for. The same card also keeps lucide `CardSimIcon` / `Plane` for the SIM orb."
       }
     ]
   },
@@ -550,344 +1208,399 @@
       "name": "Primary Button",
       "kind": "button",
       "refersTo": "button-primary",
-      "description": "The main action on any surface — Record, Save, Apply. Full-round pill, 42px, brand fill.",
+      "description": "The main action on any surface — Record, Save, Apply — never `outline`. Full-round pill, 42px, brand fill with its own `-foreground` ink. The `Button` primitive still carries shadcn's `rounded-md h-9` defaults; converted surfaces reach the canon geometry at the call site (`h-[2.625rem] rounded-pill px-5 text-sm font-semibold`).",
       "html": "<button class=\"ds-btn-primary\">Apply profile</button>",
-      "css": ".ds-btn-primary{display:inline-flex;align-items:center;justify-content:center;gap:.5rem;height:2.625rem;padding:0 1.25rem;border:none;border-radius:9999px;background:var(--primary);color:var(--primary-foreground);font-family:var(--font-sans,'Rethink Sans',system-ui,sans-serif);font-size:.875rem;font-weight:600;cursor:pointer;transition:background-color 300ms cubic-bezier(0.2,0,0,1),box-shadow 180ms ease-out}.ds-btn-primary:hover{background:color-mix(in oklab,var(--primary) 90%,transparent)}.ds-btn-primary:focus-visible{outline:none;box-shadow:0 0 0 3px color-mix(in oklab,var(--ring) 50%,transparent)}"
+      "css": ".ds-btn-primary{display:inline-flex;align-items:center;justify-content:center;gap:.5rem;height:2.625rem;padding:0 1.25rem;border:none;border-radius:9999px;background:var(--primary);color:var(--primary-foreground);font-family:var(--font-sans,'Rethink Sans',system-ui,sans-serif);font-size:.875rem;font-weight:600;cursor:pointer;transition:background-color var(--duration-quick,360ms) ease-out,box-shadow var(--duration-quick,360ms) ease-out}.ds-btn-primary:hover{background:color-mix(in oklab,var(--primary) 90%,transparent)}.ds-btn-primary:focus-visible{outline:none;box-shadow:0 0 0 3px color-mix(in oklab,var(--ring) 50%,transparent)}"
     },
     {
       "name": "Tonal Button",
       "kind": "button",
       "refersTo": "button-tonal",
-      "description": "A secondary action of equal standing. The container pair, so it reads as a peer of the primary rather than a weaker copy.",
+      "description": "A secondary action of equal standing (`variant=\"tonal\"`): the container pair, so it reads as a peer of the primary rather than a weaker copy. Never build it by hand as `ghost` plus a `bg-*-container` override — ghost's `dark:hover:bg-accent/50` compiles to a `:is(.dark *)`-qualified selector that outranks a plain `hover:` override, so the tonal hover silently loses in dark mode.",
       "html": "<button class=\"ds-btn-tonal\">Copy diagnostics</button>",
-      "css": ".ds-btn-tonal{display:inline-flex;align-items:center;justify-content:center;gap:.5rem;height:2.625rem;padding:0 1.25rem;border:none;border-radius:9999px;background:var(--primary-container);color:var(--on-primary-container);font-family:var(--font-sans,'Rethink Sans',system-ui,sans-serif);font-size:.875rem;font-weight:600;cursor:pointer;transition:background-color 300ms cubic-bezier(0.2,0,0,1),box-shadow 180ms ease-out}.ds-btn-tonal:hover{background:color-mix(in oklab,var(--primary-container) 80%,transparent)}.ds-btn-tonal:focus-visible{outline:none;box-shadow:0 0 0 3px color-mix(in oklab,var(--ring) 50%,transparent)}"
+      "css": ".ds-btn-tonal{display:inline-flex;align-items:center;justify-content:center;gap:.5rem;height:2.625rem;padding:0 1.25rem;border:none;border-radius:9999px;background:var(--primary-container);color:var(--on-primary-container);font-family:var(--font-sans,'Rethink Sans',system-ui,sans-serif);font-size:.875rem;font-weight:600;cursor:pointer;transition:background-color var(--duration-quick,360ms) ease-out,box-shadow var(--duration-quick,360ms) ease-out}.ds-btn-tonal:hover{background:color-mix(in oklab,var(--primary-container) 80%,transparent)}.ds-btn-tonal:focus-visible{outline:none;box-shadow:0 0 0 3px color-mix(in oklab,var(--ring) 50%,transparent)}"
     },
     {
       "name": "Status Chip",
       "kind": "chip",
       "refersTo": "chip-status",
-      "description": "The only correct status indicator: a role container, that container's ink, no border, pill radius, and a mandatory 12px glyph. The glyph is load-bearing — success and warning containers measure 1.03:1 apart.",
+      "description": "The only correct status indicator, and one of exactly two chip forms. A role container, that container's ink, no visible border, pill radius, and a mandatory 12px glyph. Five roles and no more: `success`, `warning`, `destructive`, `info` (which resolves to the brand container), `muted`. The glyph is load-bearing — `success-container` and `warning-container` have measured 1.03:1 apart. Fill and ink run on `standard`, the focus ring on `quick`. Hover is `[a&]:`-scoped so a static chip never advertises a click target that does not exist.",
       "html": "<span class=\"ds-chip-status\"><svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M21.801 10A10 10 0 1 1 17 3.335\"/><path d=\"m9 11 3 3L22 4\"/></svg>Connected</span>",
-      "css": ".ds-chip-status{display:inline-flex;align-items:center;justify-content:center;gap:.25rem;width:fit-content;padding:.125rem .5rem;border:1px solid transparent;border-radius:9999px;background:var(--success-container);color:var(--on-success-container);font-family:var(--font-sans,'Rethink Sans',system-ui,sans-serif);font-size:.75rem;font-weight:500;white-space:nowrap;transition:color 300ms cubic-bezier(0.2,0,0,1),background-color 300ms cubic-bezier(0.2,0,0,1),box-shadow 180ms ease-out}.ds-chip-status>svg{width:.75rem;height:.75rem;pointer-events:none}"
+      "css": ".ds-chip-status{display:inline-flex;align-items:center;justify-content:center;gap:.25rem;width:fit-content;padding:.125rem .5rem;border:1px solid transparent;border-radius:9999px;background:var(--success-container);color:var(--on-success-container);font-family:var(--font-sans,'Rethink Sans',system-ui,sans-serif);font-size:.75rem;font-weight:500;white-space:nowrap;overflow:hidden;transition:color var(--duration-standard,600ms) var(--ease-standard,cubic-bezier(0.2,0,0,1)),background-color var(--duration-standard,600ms) var(--ease-standard,cubic-bezier(0.2,0,0,1)),box-shadow var(--duration-quick,360ms) ease-out}.ds-chip-status>svg{width:.75rem;height:.75rem;pointer-events:none}"
     },
     {
-      "name": "Identity Chip",
+      "name": "Outline Tag",
       "kind": "chip",
-      "refersTo": "chip-identity",
-      "description": "Says which RADIO a surface belongs to — blue for the 5G NR leg, violet for 4G LTE. Never means healthy, and is never interchangeable with a status role.",
-      "html": "<span class=\"ds-chip-identity\">B3</span>",
-      "css": ".ds-chip-identity{display:inline-flex;align-items:center;justify-content:center;width:fit-content;padding:.375rem .75rem;border:1px solid transparent;border-radius:9999px;background:var(--lte-container);color:var(--on-lte-container);font-family:var(--font-mono,ui-monospace,monospace);font-size:.75rem;font-weight:600;font-variant-numeric:tabular-nums;white-space:nowrap;transition:color 300ms cubic-bezier(0.2,0,0,1),background-color 300ms cubic-bezier(0.2,0,0,1)}"
+      "refersTo": "tag-outline",
+      "description": "The second chip form, and the split is the point: a filled chip says whether a thing is WELL, an outline tag says what a thing IS — a band number, a radio family, a channel width, a capability. Four variants: `nr`, `lte`, `spatial`, `neutral`. Geometry mirrors `Badge` exactly so the two forms sit on one baseline when a surface renders both; what differs is the fill (none) and the border (visible, role-coloured). No glyph requirement, because there is no second state for a glyph to disambiguate. Text and border are separate tokens because they clear different thresholds (4.5:1 vs 3:1), so `border-current` would fail one of them. This replaced the filled identity chip: `nr` / `lte` / `spatial` / `downlink` / `uplink` were DELETED from `badge.tsx`, so `variant=\"nr\"` on a Badge now fails the build.",
+      "html": "<span class=\"ds-tag ds-tag--nr\">5G NR</span> <span class=\"ds-tag ds-tag--neutral\">n78</span>",
+      "css": ".ds-tag{display:inline-flex;align-items:center;justify-content:center;gap:.25rem;width:fit-content;padding:.125rem .5rem;border:1px solid;border-radius:9999px;background:transparent;font-family:var(--font-sans,'Rethink Sans',system-ui,sans-serif);font-size:.75rem;font-weight:500;white-space:nowrap;overflow:hidden;transition:color var(--duration-standard,600ms) var(--ease-standard,cubic-bezier(0.2,0,0,1)),border-color var(--duration-standard,600ms) var(--ease-standard,cubic-bezier(0.2,0,0,1)),box-shadow var(--duration-quick,360ms) ease-out}.ds-tag--nr{border-color:var(--tag-nr-border);color:var(--tag-nr-text)}.ds-tag--lte{border-color:var(--tag-lte-border);color:var(--tag-lte-text)}.ds-tag--spatial{border-color:var(--tag-spatial-border);color:var(--tag-spatial-text)}.ds-tag--neutral{border-color:var(--tag-neutral-border);color:var(--tag-neutral-text)}"
+    },
+    {
+      "name": "Quality Bar",
+      "kind": "custom",
+      "refersTo": "quality-bar",
+      "description": "The row-level data graphic and the non-chromatic half of the quality ramp. A full-round `surface-container` track 4px tall, spanning the row where the row is the bar's own line and shrinking to a 56px lane where it sits inline beside its figure. The fill is `--quality-N-bar` and its LENGTH is proportional to the value within the metric's physical range — length is the primary encoding and colour only reinforces it, which is what makes adjacent ramp stops safe below the separation floor. A missing reading renders an EMPTY TRACK with no fill element at all (`MetricBar value={null}`), never a zero-length red fill. The entrance is a compositor-only `scaleX` on mount; the value retarget is layout `width`, because a transform scales the border-radius too and squashed the pill cap into an ellipse at low percentages.",
+      "html": "<div class=\"ds-qbar\"><div class=\"ds-qbar__fill\" style=\"width:72%\"></div></div>",
+      "css": ".ds-qbar{width:100%;height:.25rem;overflow:hidden;border-radius:9999px;background:var(--surface-container)}.ds-qbar__fill{height:100%;border-radius:9999px;background:var(--quality-4-bar);transition:width var(--duration-standard,600ms) var(--ease-standard,cubic-bezier(0.2,0,0,1)),background-color var(--duration-standard,600ms) var(--ease-standard,cubic-bezier(0.2,0,0,1))}@media (prefers-reduced-motion:reduce){.ds-qbar__fill{transition:none}}"
     },
     {
       "name": "Hero Card",
       "kind": "card",
       "refersTo": "card-hero",
-      "description": "The anchor card on a surface: 40px radius, no border, tonal separation only, with an optional whisper shadow that is never load-bearing.",
+      "description": "The anchor card on a surface: 40px radius, `border-0` explicit, `surface` fill, 28px horizontal padding, tonal separation only, with an optional whisper shadow that is never load-bearing. A grid of peer cards takes `rounded-card` (36px) and 24px padding instead. The header is plain `CardTitle` plus `CardDescription` — never an icon in a card header.",
       "html": "<section class=\"ds-card-hero\"><h3 class=\"ds-card-hero__title\">Network Status</h3><p class=\"ds-card-hero__desc\">Registration, carrier, and link state.</p></section>",
-      "css": ".ds-card-hero{display:flex;flex-direction:column;gap:.375rem;padding:1.5rem 1.75rem;border:none;border-radius:2.5rem;background:var(--surface);color:var(--on-surface);box-shadow:var(--shadow-whisper,0 1px 2px oklch(0.19 0.032 258/6%))}.ds-card-hero__title{margin:0;font-family:var(--font-sans,'Rethink Sans',system-ui,sans-serif);font-size:1.125rem;font-weight:600;line-height:1.55}.ds-card-hero__desc{margin:0;font-family:var(--font-sans,'Rethink Sans',system-ui,sans-serif);font-size:.875rem;font-weight:400;line-height:1.5;color:var(--on-surface-variant)}"
+      "css": ".ds-card-hero{display:flex;flex-direction:column;gap:1.25rem;padding:1.625rem 1.75rem;border:none;border-radius:2.5rem;background:var(--surface);color:var(--on-surface);box-shadow:var(--shadow-whisper)}.ds-card-hero__title{margin:0;font-family:var(--font-sans,'Rethink Sans',system-ui,sans-serif);font-size:1.125rem;font-weight:600;line-height:1}.ds-card-hero__desc{margin:0;font-family:var(--font-sans,'Rethink Sans',system-ui,sans-serif);font-size:.875rem;font-weight:400;line-height:1.5;color:var(--on-surface-variant)}"
     },
     {
-      "name": "Summary Tile",
+      "name": "Glance Tile",
       "kind": "custom",
       "refersTo": "tile",
-      "description": "The inner unit of a glance surface: a 28px block, 92px tall, holding a 52px glyph disc beside eyebrow, value, and caption. NEUTRAL is the default — a tile earns a container fill only when the hue encodes something true of that figure, and a tile that sums across radios cannot wear either radio's identity. Where a fill IS earned, the disc always INVERTS the tile's pairing so the glyph pops instead of dissolving into a same-tone circle.",
+      "description": "The inner unit of a glance surface: a 28px block at a PINNED 104px height (`TILE_SHAPE` in components/cellular/tile-shape.ts), holding a 52px full-round glyph disc beside eyebrow -> value -> caption. THE BODY IS NEUTRAL AND THE DISC CARRIES THE COLOUR — the previous four-tinted-tile strip encoded category without encoding importance, so it flattened to equal weight with nowhere for the eye to land; a neutral body with a saturated disc gives the tile a focal point at 1/8th the tinted area. The disc uses the role's strong FILL, never the pale container. The height is pinned rather than floored because a floor cannot be a mirror: live tiles measured 118 / 98 / 95px against a 92px skeleton.",
       "html": "<div class=\"ds-tile\"><span class=\"ds-tile__disc\"><svg viewBox=\"0 0 24 24\" fill=\"currentColor\"><path d=\"M12 2 8 8h3v6H5l-3 8h20l-3-8h-6V8h3z\"/></svg></span><div class=\"ds-tile__col\"><span class=\"ds-tile__eyebrow\">Bandwidth</span><span class=\"ds-tile__value\">70<span class=\"ds-tile__unit\">MHz</span></span><span class=\"ds-tile__caption\">20 + 30 + 20 MHz</span></div></div>",
-      "css": ".ds-tile{display:flex;align-items:center;gap:.875rem;min-height:5.75rem;padding:1rem 1.25rem;border-radius:1.75rem;background:var(--surface-container);color:var(--on-surface);font-family:var(--font-sans,'Rethink Sans',system-ui,sans-serif)}.ds-tile__disc{display:grid;place-items:center;flex:none;width:3.25rem;height:3.25rem;border-radius:9999px;background:var(--surface-container-high);color:var(--on-surface-variant)}.ds-tile__disc>svg{width:1.75rem;height:1.75rem}.ds-tile__col{display:flex;min-width:0;flex-direction:column;gap:3px}.ds-tile__eyebrow{font-size:.75rem;font-weight:600;color:var(--on-surface-variant)}.ds-tile__value{font-family:var(--font-sans,'Rethink Sans',system-ui,sans-serif);font-size:1.25rem;font-weight:600;line-height:1.1;font-variant-numeric:tabular-nums;display:inline-flex;align-items:baseline;gap:.25rem}.ds-tile__unit{font-family:var(--font-sans,'Rethink Sans',system-ui,sans-serif);font-size:.875rem;font-weight:600}.ds-tile__caption{font-family:var(--font-sans,'Rethink Sans',system-ui,sans-serif);font-size:.75rem;font-variant-numeric:tabular-nums;color:var(--on-surface-variant);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}"
+      "css": ".ds-tile{display:flex;align-items:center;gap:.875rem;height:6.5rem;padding:1rem 1.25rem;border-radius:1.75rem;background:var(--surface-container);color:var(--on-surface);font-family:var(--font-sans,'Rethink Sans',system-ui,sans-serif)}.ds-tile__disc{display:grid;place-items:center;flex:none;width:3.25rem;height:3.25rem;border-radius:9999px;background:var(--downlink);color:var(--downlink-foreground)}.ds-tile__disc>svg{width:1.75rem;height:1.75rem}.ds-tile__col{display:flex;min-width:0;flex-direction:column;gap:3px}.ds-tile__eyebrow{font-size:.75rem;font-weight:600;color:var(--on-surface-variant);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.ds-tile__value{font-size:1.375rem;font-weight:600;line-height:1.1;font-variant-numeric:tabular-nums;display:inline-flex;align-items:baseline;gap:.25rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.ds-tile__unit{font-size:.875rem;font-weight:600}.ds-tile__caption{font-size:.75rem;font-variant-numeric:tabular-nums;color:var(--on-surface-variant);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}"
     },
     {
       "name": "Metric Row Pill",
       "kind": "custom",
       "refersTo": "metric-row-pill",
-      "description": "The glance-surface metric row: a 40px full-round pill on surface-container, a 13px/600 muted key against a 13px tabular-nums value. The 20px line box is load-bearing — it holds the row at exactly 40px so its skeleton keeps matching.",
-      "html": "<dl class=\"ds-row\"><dt class=\"ds-row__key\">RSRP</dt><dd class=\"ds-row__val\">-87 dBm</dd></dl>",
-      "css": ".ds-row{display:flex;align-items:center;justify-content:space-between;gap:.75rem;margin:0;height:2.5rem;padding:.625rem 1rem;border-radius:9999px;background:var(--surface-container);font-family:var(--font-sans,'Rethink Sans',system-ui,sans-serif)}.ds-row__key{font-size:.8125rem;line-height:1.25rem;font-weight:600;color:var(--on-surface-variant)}.ds-row__val{margin:0;font-family:var(--font-sans,'Rethink Sans',system-ui,sans-serif);font-size:.8125rem;line-height:1.25rem;font-weight:600;font-variant-numeric:tabular-nums;color:var(--success-on-surface);transition:color 180ms ease-out}"
+      "description": "The glance-surface metric row: a 40px full-round pill on `surface-container`, 16px horizontal, a 13px/600 `on-surface-variant` key against a 13px value. No dividers. The 20px line box is load-bearing — it holds the row at exactly 40px so its skeleton's `h-10` keeps mirroring it. The value is `font-mono` when it is an identifier and `font-sans tabular-nums` when it is a live measurement; A VALUE THAT CARRIES QUALITY TAKES ITS RAMP INK HERE, and then it must have a bar beside it and an `sr-only` quality word. Genuine data tables (scanner results, SMS inbox, log views) keep hairline rows on `--border` instead — this is the one place the system deliberately has two answers.",
+      "html": "<dl class=\"ds-row\"><dt class=\"ds-row__key\">RSRP</dt><dd class=\"ds-row__val\">-87 dBm<span class=\"ds-row__sr\">good</span></dd></dl>",
+      "css": ".ds-row{display:flex;align-items:center;justify-content:space-between;gap:.75rem;margin:0;height:2.5rem;padding:.625rem 1rem;border-radius:9999px;background:var(--surface-container);font-family:var(--font-sans,'Rethink Sans',system-ui,sans-serif)}.ds-row__key{font-size:.8125rem;line-height:1.25rem;font-weight:600;color:var(--on-surface-variant)}.ds-row__val{margin:0;font-size:.8125rem;line-height:1.25rem;font-weight:600;font-variant-numeric:tabular-nums;color:var(--quality-4)}.ds-row__sr{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}"
     },
     {
       "name": "Sidebar Nav Item (active)",
       "kind": "nav",
       "refersTo": "nav-item-active",
-      "description": "One primary-container pill per group, which SLIDES between rows rather than appearing. The active row also thickens its glyph's FILL axis — an accessibility affordance, so the state survives grayscale.",
+      "description": "The system's signature motion: ONE `primary-container` pill per group, absolutely positioned, whose transform is driven from React so it SLIDES between rows rather than appearing. The row goes transparent and takes `on-primary-container` ink at 600, and its Material glyph animates its FILL axis 0 -> 1 — an accessibility affordance, not polish, because that is what makes the active state survive grayscale. First paint is non-animated (`data-settling`) so the pill starts under the active row instead of sliding up from zero.",
       "html": "<a class=\"ds-nav ds-nav--active\" href=\"#\"><svg viewBox=\"0 0 24 24\" fill=\"currentColor\"><path d=\"M12 2 8 8h3v6H5l-3 8h20l-3-8h-6V8h3z\"/></svg>Radio Information</a>",
-      "css": ".ds-nav{position:relative;display:flex;align-items:center;gap:.75rem;height:2.25rem;padding:0 1rem;border-radius:9999px;background:transparent;color:var(--on-surface-variant);font-family:var(--font-sans,'Rethink Sans',system-ui,sans-serif);font-size:.875rem;font-weight:400;text-decoration:none;transition:color 180ms ease-out,background-color 180ms ease-out,font-weight 180ms ease-out}.ds-nav>svg{width:1.25rem;height:1.25rem;flex:none}.ds-nav:hover{background:var(--surface-container-high);color:var(--on-surface)}.ds-nav.ds-nav--active{background:var(--primary-container);color:var(--on-primary-container);font-weight:600}.ds-nav:focus-visible{outline:none;box-shadow:0 0 0 2px var(--ring)}"
+      "css": ".ds-nav{position:relative;display:flex;align-items:center;gap:.75rem;height:2.25rem;padding:0 1rem;border-radius:9999px;background:transparent;color:var(--on-surface-variant);font-family:var(--font-sans,'Rethink Sans',system-ui,sans-serif);font-size:.875rem;font-weight:400;text-decoration:none;transition:color var(--duration-standard,600ms) var(--ease-standard,cubic-bezier(0.2,0,0,1)),background-color var(--duration-standard,600ms) var(--ease-standard,cubic-bezier(0.2,0,0,1))}.ds-nav>svg{width:1.25rem;height:1.25rem;flex:none}.ds-nav:hover{background:var(--surface-container-high);color:var(--on-surface)}.ds-nav.ds-nav--active{background:var(--primary-container);color:var(--on-primary-container);font-weight:600}.ds-nav:focus-visible{outline:none;box-shadow:0 0 0 3px color-mix(in oklab,var(--ring) 50%,transparent)}"
     },
     {
       "name": "Input Field",
       "kind": "input",
       "refersTo": "input",
-      "description": "20px radius, 42px tall, a surface-container fill and no visible border at rest. Focus adds a ring; the fill does not change.",
+      "description": "20px radius, 42px tall, a `surface-container` fill and no visible border at rest. Focus adds a 3px `--ring` ring at 50%; the fill does not change. Invalid draws a destructive ring plus border, driven by `aria-invalid`.",
       "html": "<input class=\"ds-input\" type=\"text\" placeholder=\"internet.carrier.com\" />",
-      "css": ".ds-input{width:100%;height:2.625rem;padding:0 .875rem;border:1px solid transparent;border-radius:1.25rem;background:var(--surface-container);color:var(--on-surface);font-family:var(--font-sans,'Rethink Sans',system-ui,sans-serif);font-size:.875rem;outline:none;transition:box-shadow 180ms ease-out,border-color 180ms ease-out}.ds-input::placeholder{color:var(--on-surface-variant)}.ds-input:focus-visible{border-color:var(--ring);box-shadow:0 0 0 3px color-mix(in oklab,var(--ring) 50%,transparent)}.ds-input[aria-invalid=true]{border-color:var(--destructive);box-shadow:0 0 0 3px color-mix(in oklab,var(--destructive) 20%,transparent)}"
+      "css": ".ds-input{width:100%;height:2.625rem;padding:0 .875rem;border:1px solid transparent;border-radius:1.25rem;background:var(--surface-container);color:var(--on-surface);font-family:var(--font-sans,'Rethink Sans',system-ui,sans-serif);font-size:.875rem;outline:none;transition:box-shadow var(--duration-quick,360ms) ease-out,border-color var(--duration-quick,360ms) ease-out}.ds-input::placeholder{color:var(--on-surface-variant)}.ds-input:focus-visible{border-color:var(--ring);box-shadow:0 0 0 3px color-mix(in oklab,var(--ring) 50%,transparent)}.ds-input[aria-invalid=true]{border-color:var(--destructive);box-shadow:0 0 0 3px color-mix(in oklab,var(--destructive) 20%,transparent)}"
     },
     {
       "name": "Tonal Banner",
       "kind": "custom",
       "refersTo": "banner",
-      "description": "A solid role container — never a wash — at 20px radius so it cannot out-round its host, with the glyph in a filled disc on the role's STRONG fill. The disc is what survives when the container washes out in sunlight.",
+      "description": "One of the three sanctioned container uses, because a banner IS its state — the tint is the message, not decoration on top of one. A solid role container, never a wash (a 10% alpha over a tinted surface collapses in dark mode), at 20px radius so it cannot out-round its host, with the glyph in a filled disc on the role's STRONG fill. Two primitives split by where they mount: page-level `Banner` (named roles, CTA slot, dismiss slot, 36px disc, lucide because it mounts on every route) and card-scoped `TonalBanner` (three tones, no CTA, no dismiss, 32px disc, Material glyphs). Entrance is `emphasized` with a 6px rise; there is no exit. A dismiss X only where the banner is a notification — a standing condition has none.",
       "html": "<div class=\"ds-banner\" role=\"alert\"><span class=\"ds-banner__disc\"><svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3\"/><path d=\"M12 9v4\"/><path d=\"M12 17h.01\"/></svg></span><div class=\"ds-banner__body\"><p class=\"ds-banner__title\">No SIM detected</p><p class=\"ds-banner__desc\">Insert a SIM and reseat the tray, then retry.</p></div></div>",
-      "css": ".ds-banner{display:flex;align-items:flex-start;gap:.75rem;padding:.875rem 1rem;border-radius:1.25rem;background:var(--warning-container);color:var(--on-warning-container);font-family:var(--font-sans,'Rethink Sans',system-ui,sans-serif);animation:ds-banner-in 400ms cubic-bezier(0.05,0.7,0.1,1)}.ds-banner__disc{display:grid;place-items:center;flex:none;width:2rem;height:2rem;border-radius:9999px;background:var(--warning);color:var(--warning-foreground)}.ds-banner__disc>svg{width:1.125rem;height:1.125rem}.ds-banner__body{display:flex;flex-direction:column;gap:.125rem}.ds-banner__title{margin:0;font-size:.875rem;font-weight:600}.ds-banner__desc{margin:0;font-size:.8125rem;line-height:1.5;opacity:.9}@keyframes ds-banner-in{from{opacity:0;transform:translateY(-6px)}}@media (prefers-reduced-motion:reduce){.ds-banner{animation:none}}"
+      "css": ".ds-banner{display:flex;align-items:flex-start;gap:.75rem;padding:.875rem 1rem;border-radius:1.25rem;background:var(--warning-container);color:var(--on-warning-container);font-family:var(--font-sans,'Rethink Sans',system-ui,sans-serif);animation:ds-banner-in var(--duration-emphasized,800ms) var(--ease-emphasized,cubic-bezier(0.05,0.7,0.1,1))}.ds-banner__disc{display:grid;place-items:center;flex:none;width:2rem;height:2rem;border-radius:9999px;background:var(--warning);color:var(--warning-foreground)}.ds-banner__disc>svg{width:1.125rem;height:1.125rem}.ds-banner__body{display:flex;flex-direction:column;gap:.125rem}.ds-banner__title{margin:0;font-size:.9375rem;font-weight:600;letter-spacing:-0.005em}.ds-banner__desc{margin:0;font-size:.8125rem;line-height:1.5}@keyframes ds-banner-in{from{opacity:0;transform:translateY(-6px)}}@media (prefers-reduced-motion:reduce){.ds-banner{animation:none}}"
     }
   ],
   "narrative": {
-    "northStar": "The Operator's Console, in color.",
-    "overview": "QManager is the calm, expert console an operator trusts when something matters. Color is not scarce here, it is **structured**: a Material-3-style tonal palette derived from the QManager mark, where content sits *inside* filled tonal containers rather than being sprinkled as colored text on white. Density is the job; color organizes the density instead of decorating it.\n\nThe aesthetic is **tonal at rest, expressive in transition, dense in data, honest in state**. A surface tells you what kind of thing it is by its fill and its radius before you read a word of it. Nothing shouts, because everything is a container: hierarchy comes from tone, size, and shape rather than from one loud focal element competing for attention.\n\nIt earns its restraint twice. Once as a stylistic principle, and again as a safety principle: QManager is served by the modem it manages, so the routine 90% should feel effortless and the risky 10% should feel deliberate. A colorful interface is not permission to become a consumer router app.\n\nDominant references: **Material 3** (Pixel Settings, Google Home) for the shape scale, container roles, and motion curves; **Apple System Settings** for the uniform page-header-plus-card-grid structure; **Vercel / Linear** for light-and-dark parity and typographic restraint; **Grafana** for data-viz density; **UniFi** for inline status density — a density reference only, never a badge or layout one. Anti-references: raw terminal aesthetics, legacy router admin panels, consumer-router cartoon oversimplification, the AI/SaaS hero-metric template, and **decorative color** — a hue used because a surface looked empty.",
+    "northStar": "An instrument console — colour on the data, not on the furniture.",
+    "overview": "QManager reports what a cellular modem is doing, on the modem itself, to someone who understands modems. Three facts about that job set the whole language.\n\n**Colour belongs to the data, not to the furniture.** A card is a neutral surface. What is coloured is the reading: the numeral, the chart stroke, the quality bar, the glyph in its disc. This is the largest change from the previous system, which spent its colour on large tonal container fills and left the live diagnostic values grey — on the very surface built to showcase the palette, four tinted tiles carried restated facts while RSRP and SINR sat in neutral text below them.\n\nIt is also the accessible answer, which is not a coincidence. Across this palette, ink colours separate in 0 of 28 pairs under deuteranopia and protanopia simulation, and so do fills, while pale identity containers collapse in 8 of 10. Colour on ink works; colour on large pale surfaces does not, and an optimiser proved the light-mode pale band too narrow to hold five identity hues plus `surface-container-high` — infeasible, not merely hard. So the system commits to the layer that survives: identity gets ink, an outline, and a strong-fill disc, and never a large tinted block.\n\n**Density is the product, and hierarchy is how it stays readable.** A modem console shows a lot at once. The answer is never to show less; it is to rank what is shown. Neutral surfaces, one coloured thing per row, and a consistent card grid are what let forty routes feel like one product.\n\n**Every hue owns exactly one meaning.** A colour learned on the dashboard means the same thing on the cell scanner. Where a figure has no honest hue — a count, a capacity — it stays neutral rather than being given a decorative one.\n\nReference language: WiFiman (Ubiquiti) and Firewalla — near-black canvas, saturated data strokes, coloured numerals, thin quality bars, outline metadata tags. Structural reference: the grouped-card, consistent-shape page from macOS System Settings and the Apple pro-app inspectors. Not a consumer router app, not a generic SaaS dashboard, not a terminal utility. Both themes are first-class and each is authored; neither is a desaturated copy of the other.",
     "keyCharacteristics": [
-      "OKLCH only. `#000` and `#fff` never appear as literals; every neutral is tinted toward hue 258.",
-      "The palette is derived from the mark, not chosen alongside it.",
-      "Three identity hues (blue, violet, cyan) plus the functional four. No hue is decorative and functional at the same time.",
-      "Rethink Sans is the interface voice; JetBrains Mono is the machine voice. There is no third.",
-      "Depth is tonal. Shadows exist, are optional, and are never load-bearing.",
-      "Motion is expressive in duration and curve, capped at `emphasized`, and never overshoots.",
-      "Light and dark are first-class equals; dark mode is genuinely colored, not desaturated.",
+      "OKLCH only, and every token is inside sRGB by construction — chroma floored to 98.5% of the in-gamut maximum for its lightness and hue, so declared equals shipped.",
+      "Colour lives on INK first, FILL second, and CONTAINER only for the functional roles. Choosing the wrong layer is the standard failure.",
+      "Neutrals are tinted toward hue 258 at chroma <= 0.012; `#000` and `#fff` never appear as literals.",
+      "Three axes of hue that are not health: identity (which radio), direction (which way the bytes go), spatial (how many antennas). None of them ever acts or means healthy.",
+      "Measured signal quality is a five-stop ramp on numerals and bars — a lightness staircase, never a hue wheel, and never routed through the status roles.",
+      "Two chip forms, compiler-enforced: a filled Badge for state, an outline Tag for identity and metadata. `BadgeVariant` contains no identity member.",
+      "Rethink Sans is the interface voice; JetBrains Mono is the machine voice. There is no third. Material Symbols is an icon font, not a voice.",
+      "Depth is tonal. Shadows exist, are optional, and are never load-bearing — in near-black dark mode a shadow has nothing to cast against.",
+      "Motion is expressive in curve and duration, capped at `emphasized` (800ms), and never overshoots. One number, 1.03, is the sole sanctioned exception.",
       "Responsive behavior is driven by container queries, not viewport breakpoints.",
       "No runtime asset fetches. Fonts and the icon font are self-hosted and subset at build time — the modem may have no internet.",
-      "Build on shadcn/ui first, restyled with these tokens. Build custom only where shadcn has no answer."
+      "Build on shadcn/ui first, restyled with these tokens at the call site. Build custom only where shadcn has no answer."
     ],
     "rules": [
       {
-        "name": "The Source-Color Rule",
-        "body": "Every new color derives from the mark's hue family or from an existing identity or functional role. Nobody picks a hue by eye and adds it to `globals.css`.",
-        "section": "colors"
+        "name": "The Data-Ink Rule",
+        "section": "colors",
+        "body": "Colour belongs to the reading, not to the container holding it. A card is neutral; the numeral, stroke, bar and glyph disc on it are coloured. Before tinting a surface, ask what fact the tint encodes — if the answer is 'it looked plain', the surface stays neutral. Large tinted blocks are reserved for the functional roles, where the tint IS the state."
       },
       {
-        "name": "The Container-Pair Rule",
-        "body": "A fill takes its own `-foreground`; a container takes its own `on-` ink. Never cross them. Crossing a fill with a container's ink is the single most common way to fail contrast here, and it is often invisible in light mode while breaking dark.",
-        "section": "colors"
+        "name": "The Three-Layer Rule",
+        "section": "colors",
+        "body": "Ink (`--X-on-surface`) for values and strokes on neutral ground; fill (`--X` + `--X-foreground`) for compact emphasis; container (`--X-container` + `--on-X-container`) for functional-role blocks only. Identity and direction have no container job. Never cross a pair — a fill takes its own `-foreground`, a container takes its own `on-` ink, and a neutral-ramp ink on a tinted surface is always a bug."
       },
       {
-        "name": "The Paired-Theme Rule",
-        "body": "A role's fill and its ink move together across themes. Dark-mode fills are light (L 0.77-0.87), so their inks flip dark (L 0.22-0.24). Raising a dark fill without flipping its ink is what kept destructive measuring 2.42:1 through three migration steps. An alpha on a fill (`bg-destructive/60`) is a request to the canvas, not to the token, so the same control renders a different color in a card, a dialog, and a popover — never compensate with one.",
-        "section": "colors"
+        "name": "The In-Gamut Rule",
+        "section": "colors",
+        "body": "Every token is inside sRGB by construction. This is correctness, not polish: Lightning CSS gamut-maps out-of-range `oklch()` at build time and its mapping is not naive clipping, so an out-of-gamut token ships a colour nobody authored and any separation measured from the source value is fiction. The previous palette had 87 such tokens; this one has zero. Check a new value for gamut before checking it for anything else."
       },
       {
-        "name": "The 40-Degree Rule",
-        "body": "No decorative hue sits within 40 degrees of a functional one. Identity hues occupy 264 / 296 / 200; functional hues occupy 149 / 72 / 27 plus the brand ramp.",
-        "section": "colors"
-      },
-      {
-        "name": "The Info-Is-Brand Rule",
-        "body": "There is no separate info hue. \"In progress\" renders as the brand's own tonal container, so an informational chip and a primary button differ by shape and glyph (pill plus clock vs. filled button plus label), never by owning two different blues.",
-        "section": "colors"
+        "name": "The Measured-Separation Rule",
+        "section": "colors",
+        "body": "Colour decisions are measured, never reasoned from hue arithmetic. This replaces the old 40-Degree Rule, which was a proxy for a measurement and behaved like one — it permitted pairs that collapsed and forbade pairs that were fine. Simulate deuteranopia and protanopia, compute OKLab dE, and hold the 0.05 floor on the layer the colour will actually ship on. Degrees of hue separation are not evidence."
       },
       {
         "name": "The Identity-Never-Acts Rule",
-        "body": "Carrier Violet and Uplink Cyan carry identity, never affordance. A violet surface is never clickable *because* it is violet, and no control is ever tinted by them. The corollary: `nr` and `lte` never mean \"healthy\".",
-        "section": "colors"
+        "section": "colors",
+        "body": "`nr` and `lte` say which radio. They never mean healthy, never tint a control, and never appear in a quality scale. Where a surface carries identity AND reports quality, the quality is encoded non-chromatically — the signal cards use the Material glyph's bar count."
+      },
+      {
+        "name": "The Info-Is-Brand Rule",
+        "section": "colors",
+        "body": "An informational state resolves to the brand ramp; it does not get its own hue. An info chip and a primary button differ by shape and glyph, not by owning two different blues. `--info` is byte-identical to `--primary` in both themes."
+      },
+      {
+        "name": "The Direction-Is-Not-A-Radio Rule",
+        "section": "colors",
+        "body": "Rose and cyan say which way the bytes are going, on either radio. A download figure on the LTE leg is rose-on-violet and neither hue is guessing about the other. Neither carries a second meaning: counts and capacities are neutral. The previous system's cyan meant 'upload and counts', so a carrier-count tile wore upload cyan while reporting nothing about upload."
+      },
+      {
+        "name": "The Glyph-Carries-The-State Rule",
+        "section": "colors",
+        "body": "Colour is never the sole carrier. Every status chip has a glyph, no two states in one slot share a glyph, every directional readout pairs its hue with an arrow, and the quality ramp always pairs its colour with bar length. Load-bearing rather than decorative: adjacent ramp stops are intentionally below the separation floor, and the bar is what makes that safe."
       },
       {
         "name": "The Explicit-Tone Rule",
-        "body": "Layered translucency is banned for stacked shapes. Concentric rings, halo discs, and nested tonal surfaces use the explicit `--tone-{role}-{1,2,3}` steps, because stacked alpha compounds differently over each surface and yields a different color in a card than in a dialog.",
-        "section": "colors"
+        "section": "colors",
+        "body": "Layered translucency is banned for stacked shapes. Concentric rings, halo discs and nested tonal surfaces use the explicit `--tone-{role}-{1,2,3}` steps, because an alpha is a request to whatever happens to be behind it rather than to the token — the same shape compounds to a different colour over a card than over a dialog or a popover. The same reasoning is why dark-mode strokes are solid values rather than `oklch(1 0 0 / 10%)`."
       },
       {
-        "name": "The Functional-Color Promise",
+        "name": "The Neutral-Default Rule",
         "section": "colors",
-        "body": "A user who learns green means healthy on the dashboard finds the same green meaning the same thing in Watchdog, in Profile Apply, and in the alert logs. Hues get retuned; meanings never move."
+        "body": "A figure with no honest hue stays neutral. Adding a colour because a block looked plain is the failure mode this whole system exists to prevent, and it is the one that recurs."
       },
       {
         "name": "The Two-Voice Rule",
-        "body": "Rethink Sans is the interface, JetBrains Mono is the machine. There is no third typeface. Pairing Rethink Sans with another UI sans (Inter, Geist Sans, IBM Plex, Roboto, Manrope) is forbidden.",
-        "section": "typography"
+        "section": "typography",
+        "body": "Rethink Sans is the interface, JetBrains Mono is the machine. There is no third typeface. Pairing Rethink Sans with another UI sans (Inter, Geist Sans, IBM Plex, Roboto, Manrope) is forbidden. An icon font is not a voice and does not count."
       },
       {
         "name": "The Machine-Voice Rule",
-        "body": "`font-mono` is scoped to machine truth that is not itself a changing figure: identifiers (band, EARFCN, PCI, ICCID, IMEI, MAC/IP addresses), static facts read back from config rather than sampled live (a band's reference bandwidth in a disclosure table, a resolved timezone offset, a fixed scoring weight), raw AT responses, log lines, and copyable commands. A human-authored label never wears it. A live measurement — RSRP, throughput, a countdown, a ticking relative-time caption — is the interface reporting a number rather than the machine's raw output, so it takes `--font-sans` and `tabular-nums` instead of `font-mono`. A count is a changing figure and stays `font-sans`; a nav item is neither and gets no font-family override at all.",
-        "section": "typography"
+        "section": "typography",
+        "body": "`font-mono` is scoped to machine truth that is not itself a changing figure: identifiers (band, EARFCN, PCI, ICCID, IMEI, MAC/IP), static facts read back from config, raw AT responses, log lines, copyable commands. A human-authored label never wears it. The tell: does the value change while the user watches without them acting? Then `font-sans` with `tabular-nums`. Does it hold steady until something reconfigures it? Then `font-mono`."
       },
       {
         "name": "The Weight-Discipline Rule",
-        "body": "400 body, 500 labels and medium emphasis, 600 headings and numerics, 700 page titles only.",
-        "section": "typography"
+        "section": "typography",
+        "body": "400 body, 500 labels and medium emphasis, 600 headings and numerics, 700 page titles only."
       },
       {
         "name": "The Tabular-Number Rule",
-        "body": "Any figure that can change while on screen is `tabular-nums`, in whichever voice it's already in — a live measurement keeps `tabular-nums` in `font-sans`, and an identifier column that needs vertical alignment keeps it in `font-mono`. The class controls digit-width jitter; it does not decide which voice owns the value. A latency readout whose digits shift width reads as the layout twitching, not as the value moving — and a tonal pill makes that jitter more visible, not less.",
-        "section": "typography"
+        "section": "typography",
+        "body": "Any figure that can change while on screen is `tabular-nums`, in whichever voice it is already in. The class controls digit-width jitter; it does not decide which voice owns the value. A latency readout whose digits shift width reads as the layout twitching, not as the value moving."
       },
       {
         "name": "The Truncation-Pair Rule",
-        "body": "Where two cards sit side by side as a pair, every text node in their headers carries `min-w-0` and `truncate`. One card wrapping to two lines while its sibling stays at one breaks the paired baseline, and the pair stops reading as a pair. Italian is the locale that trips it.",
-        "section": "typography"
+        "section": "typography",
+        "body": "Where two cards sit side by side as a pair, every text node in their headers carries `min-w-0` and `truncate`. One card wrapping to two lines while its sibling stays at one breaks the paired baseline. Italian is the locale that trips it."
       },
       {
         "name": "The Consistent-Layout Rule",
-        "body": "Page header plus a uniform card grid, on every feature page. A bespoke hero-driven layout invented for a single screen is a consistency failure even when it looks good in isolation. A genuine glance surface may earn a hero card; it is a rare exception, never the default.",
-        "section": "layout"
+        "section": "layout",
+        "body": "Page header (display title plus a muted one-line description, optional pill actions right-aligned) plus a uniform grid of self-contained cards, on every feature page. A bespoke hero-driven layout invented for a single screen is a consistency failure even when it looks good in isolation. A genuine glance surface may earn a hero card; it is a rare exception, never the default."
       },
       {
         "name": "The Card-Wrapped Surface Rule",
-        "body": "The unit of composition is the card that wraps a settings group, not the page. The card owns its whole content (`CardHeader` plus `CardContent` with every control); the page only arranges cards. A feature that scatters loose fragments across the viewport has skipped the card.",
-        "section": "layout"
+        "section": "layout",
+        "body": "The unit of composition is the card that wraps a settings group, not the page. The card owns its whole content; the page only arranges cards. A feature that scatters loose fragments across the viewport has skipped the card."
       },
       {
         "name": "The Container-Query Rule",
-        "body": "New responsive behavior is a container query against `@container/main` or a card-local `@container/card`. Reach for a viewport breakpoint only for the page gutter or the shell itself.",
-        "section": "layout"
+        "section": "layout",
+        "body": "New responsive behavior is a container query against `@container/main` or a card-local `@container/card`. Reach for a viewport breakpoint only for the page gutter (`px-4 lg:px-6`) or the shell itself. Mixing viewport `sm:` with container `@sm/card:` inside one card breaks on tablets and expanded sidebars."
       },
       {
         "name": "The Cadence-Not-Symmetry Rule",
-        "body": "Radio Information was a symmetric 2-up (`@3xl/main:grid-cols-2`) with both cards `h-full`-locked to each other. That is a split by symmetry, and symmetry is not a property either card has: the lock forced a static reference card and a live telemetry card to one height, stranding ~200px of dead space in whichever had less to say — and which one that was flipped with the carrier count. Split a page by cadence, not by symmetry, and let each card size to its own content.",
-        "section": "layout"
+        "section": "layout",
+        "body": "Split a page by cadence — what moves every poll above what moves on handover — not by symmetry, and let each card size to its own content. Radio Information was once a symmetric 2-up with both cards `h-full`-locked to each other; the lock forced a static reference card and a live telemetry card to one height, stranding ~200px of dead space in whichever had less to say, and which one that was flipped with the carrier count."
       },
       {
         "name": "The Tonal-Elevation Rule",
-        "body": "Two surfaces at different conceptual elevations differ by at least one container step. If two surfaces are only distinguishable by their shadow, one of them is on the wrong step of the ramp.",
-        "section": "elevation-depth"
+        "section": "elevation-depth",
+        "body": "Two surfaces at different conceptual elevations differ by at least one container step. If two surfaces are only distinguishable by their shadow, one of them is on the wrong step of the ramp. This system has no colour to spare for chrome, and in near-black dark mode a shadow is invisible against the ground — a shadow-separated layout has no dark theme at all."
       },
       {
         "name": "The No-Hairline-On-Fill Rule",
-        "body": "A tonal container never also carries a border. Cards on converted surfaces ship `border-0` explicitly, because a hairline over a fill reads as chrome around the color rather than as the edge of a block. `--outline` is for input strokes and genuine table rules only.",
-        "section": "elevation-depth"
+        "section": "elevation-depth",
+        "body": "A tonal container never also carries a border. Cards ship `border-0` explicitly, because a hairline over a fill reads as chrome around the colour rather than as the edge of a block. The outline tag is the one deliberate exception in the system: there the border IS the component, because there is no fill for it to sit on top of. `--outline` / `--border` are otherwise for input strokes and genuine table rules only."
       },
       {
         "name": "The Highlight-by-Container Rule",
-        "body": "Emphasis promotes a surface one container step and changes its ink, rather than adding a translucent wash over a neutral card. A recommended alignment slot becomes a `primary-container` block; a running pipeline step becomes a `primary-container` row.",
-        "section": "elevation-depth"
+        "section": "elevation-depth",
+        "body": "Emphasis promotes a surface one container step and changes its ink, rather than adding a translucent wash over a neutral card. A recommended alignment slot becomes a `primary-container` block; a running pipeline step becomes a `primary-container` row."
       },
       {
         "name": "The Radius-Follows-Size Rule",
-        "body": "A surface's radius is a function of its size and role, not of taste. A 28px tile never sits inside a 20px field, and a banner never out-rounds the card it sits on.",
-        "section": "shapes"
+        "section": "shapes",
+        "body": "A surface's radius is a function of its size and role, not of taste. A 28px tile never sits inside a 20px field, and a banner never out-rounds the card it sits on."
       },
       {
         "name": "The Fill-Over-Stroke Rule",
-        "body": "When a shape needs to be distinguished from its neighbor, change its fill, not its border. This system has one stroke color and it is for inputs and table rules.",
-        "section": "shapes"
+        "section": "shapes",
+        "body": "When a shape needs to be distinguished from its neighbour, change its fill, not its border. The outline tag is the sanctioned exception, and it is a COMPONENT, not a technique to generalise."
       },
       {
         "name": "The Role-Radius Rule",
-        "body": "New work uses the role scale above. The legacy `rounded-{sm,md,lg,xl}` chain off `--radius: 0.65rem` still resolves for ~349 unconverted call sites and keeps its old values, but it is never the correct choice in a new component.",
-        "section": "shapes"
+        "section": "shapes",
+        "body": "New work uses the role scale (`rounded-inline/field/tile/card/hero/pill`). The legacy `rounded-{sm,md,lg,xl}` chain off `--radius: 0.65rem` still resolves for unconverted call sites — and inside the shadcn primitives themselves — but it is never the correct choice in a new component."
       },
       {
         "name": "The Motion-Ceiling Rule",
-        "body": "Nothing exceeds `emphasized` (800ms), and `emphasized` is the ceiling, not a starting point. State the rule as *the token*, never as the number — the number moved once already and every place it had been written out longhand had to be hunted down.",
-        "section": "motion"
+        "section": "motion",
+        "body": "Nothing exceeds `emphasized` (800ms), and `emphasized` is the ceiling, not a starting point. State the rule as the token, never as the number — the number moved once already and every place it had been written out longhand had to be hunted down."
       },
       {
         "name": "The One-Scale Rule",
         "section": "motion",
-        "body": "A duration in a component is a bug. Every transition reads `duration-[var(--duration-standard)]` (or `-quick` / `-emphasized`) in a className, or `DUR.standard` (etc.) in a `motion/react` transition; a bare `duration-200`, an inline `{ duration: 0.25 }`, or a `transition-all` with no duration at all (which silently inherits Tailwind's 150ms) is off the scale and will not retune with it. The exceptions are narrow and each carries a comment: continuous loops with their own tempo (spinners, the OTP caret) and linear data-driven progress bars. `{ duration: 0 }` as a reduced-motion escape is always fine."
+        "body": "A duration in a component is a bug. Every transition reads `duration-[var(--duration-standard)]` (or `-quick` / `-emphasized`) in a className, or `DUR.standard` in a `motion/react` transition; a bare `duration-200`, an inline `{ duration: 0.25 }`, or a `transition-all` with no duration (silently inheriting Tailwind's 150ms) is off the scale and will not retune with it. The exceptions are narrow and each carries a comment: continuous loops with their own tempo, and linear data-driven progress bars. `{ duration: 0 }` as a reduced-motion escape is always fine."
       },
       {
         "name": "The Non-Load-Bearing Rule",
-        "body": "If a transition never runs — reduced motion, a backgrounded tab, a paint that beat the animation — the UI must already be correct. Every entrance keyframe in `globals.css` is written open-ended (`from` with no `to`) for exactly this reason: the resting value is the truth and the keyframe only describes the journey. A `requestAnimationFrame`-armed state flip breaks this rule, because rAF does not fire in a background tab.",
-        "section": "motion"
+        "section": "motion",
+        "body": "If a transition never runs — reduced motion, a backgrounded tab, a paint that beat the animation — the UI must already be correct. Every entrance keyframe in `globals.css` is written open-ended (`from` with no `to`): the resting value is the truth and the keyframe only describes the journey. A `requestAnimationFrame`-armed state flip breaks this rule, because rAF does not fire in a background tab."
       },
       {
         "name": "The Transform-Only Rule",
-        "body": "Animate `transform` and `opacity`. The single sanctioned `width` animation in the product is the carrier-aggregation segment, where the width *is* the data and a `scaleX` would distort the band labels riding inside it. Meters animate `scaleX`, never `width` — on a CPU also carrying the user's traffic, a per-poll layout pass per meter is not free.",
-        "section": "motion"
+        "section": "motion",
+        "body": "Animate `transform` and `opacity`. The single sanctioned `width` animation is the carrier-aggregation segment, where the width IS the data and a `scaleX` would distort the band labels riding inside it. The quality meter is the narrow, documented second case: its ENTRANCE is `scaleX`, but its value retarget is layout `width`, because a transform scales the border-radius too and squashed the fill's pill cap into a near-flat ellipse at low percentages — and width changes only on a poll retarget, not per frame."
       },
       {
         "name": "The One-Loop Rule",
-        "body": "At most one ambient loop per surface, and only where something is genuinely live. Two exist product-wide: the service-ring pulse and the live-ping dot.",
-        "section": "motion"
+        "section": "motion",
+        "body": "At most one ambient loop per surface, and only where something is genuinely live. Two exist product-wide: the service-ring pulse and the live-ping dot."
       },
       {
         "name": "The No-Overshoot Rule",
-        "body": "Never springy, never elastic, never rubber-banding. The one sanctioned overshoot in the entire product is the save-confirmation check at 1.03 scale — and it is a **number**, not a sentence: `SAVE_CHECK_OVERSHOOT` / `SAVE_CHECK_KEYFRAMES` / `transitionSaveCheck` in `lib/motion.ts`. Anything that wants the pop imports the constant; a second overshoot has to be written out in the open to exist. This rule and that file both cited the save check as the sanctioned exception while the button underneath was running an underdamped spring (`stiffness: 400, damping: 22`) whose peak is a function of its two dials and is bounded by nothing — a ceiling enforced only by prose is not a ceiling.",
-        "section": "motion"
+        "section": "motion",
+        "body": "Never springy, never elastic, never rubber-banding. The one sanctioned overshoot is the save-confirmation check at 1.03 scale — and it is a NUMBER, not a sentence: `SAVE_CHECK_OVERSHOOT` / `SAVE_CHECK_KEYFRAMES` / `transitionSaveCheck` in `lib/motion.ts`. A ceiling enforced only by prose is not a ceiling: this rule once cited the save check as the sanctioned exception while the button underneath ran an underdamped spring whose peak was bounded by nothing."
       },
       {
         "name": "The Enter-Only Rule",
-        "body": "Conditions and navigation have no exit animation. A banner leaving means the condition cleared and that should feel immediate; an outgoing route is already gone, and animating it out only delays the incoming one.",
-        "section": "motion"
+        "section": "motion",
+        "body": "Conditions and navigation have no exit animation. A banner leaving means the condition cleared and that should feel immediate; an outgoing route is already gone, and animating it out only delays the incoming one."
       },
       {
         "name": "The Modal-Exit Rule",
         "section": "motion",
-        "body": "A modal's exit duration is an **input-latency budget**, not a taste call, and every modal surface therefore writes its two directions separately: `data-[state=open]:` on `emphasized`, `data-[state=closed]:` on `quick`. Never one unqualified `duration-*` for both. The reason is mechanical rather than aesthetic: Radix sets `pointer-events: none` on `<body>` for as long as a modal layer is mounted and releases it in an unmount cleanup, and `<Presence>` holds that layer mounted until `animationend` fires on the content node — so the entire page is click-dead for exactly the length of the exit animation. Two consequences, each violated on its own: the scrim shares the content's clock in **both** directions (an overlay with no duration is a One-Scale violation and the thing that turns a slow exit into an apparently broken one), and `quick` is the ceiling for a modal exit, not a suggestion (distance does not buy budget — a sheet travels a full viewport edge and still exits on `quick`)."
+        "body": "A modal's exit duration is an INPUT-LATENCY BUDGET, not a taste call, and every modal surface writes its two directions separately: `data-[state=open]:` on `emphasized`, `data-[state=closed]:` on `quick`. Never one unqualified `duration-*` for both. Radix pins `pointer-events: none` on `<body>` for as long as a modal layer is mounted and `<Presence>` holds it mounted until `animationend`, so the entire page is click-dead for exactly the length of the exit animation. The scrim shares the content's clock in both directions, and `quick` is the ceiling for a modal exit — distance does not buy budget: a sheet travels a full viewport edge and still exits on `quick`."
       },
       {
-        "name": "The Filled-Chip Rule",
-        "body": "Status chips are a role container plus that container's ink, no border, pill radius, always an icon. `variant=\"outline\"` is never a status indicator.",
-        "section": "components"
+        "name": "The Animations-Preference Rule",
+        "section": "motion",
+        "body": "The reduced-motion switch has THREE states, not two: System (no attribute, `MotionConfig reducedMotion=\"user\"`), Full (`data-motion=\"full\"`, `\"never\"`), Reduced (`data-motion=\"reduced\"`, `\"always\"`). The absence of the attribute is load-bearing — 'System' removes it rather than writing `data-motion=\"system\"`, and that absence is what lets the bare media query decide. Tailwind's stock `motion-reduce:` compiles to a bare media query with no selector hook, so BOTH `motion-reduce` and `motion-safe` are redefined as `@custom-variant`s in `globals.css`. Redefine both or neither: without the `motion-safe` half, a user on OS-reduce who explicitly picks Full gets every spinner frozen."
+      },
+      {
+        "name": "The Two-Form Rule",
+        "section": "components",
+        "body": "Status is a filled chip with a glyph. Identity and metadata are an outline tag. Neither form ever does the other's job, and a component that needs both renders both. This is now compiler-enforced: `nr` / `lte` / `spatial` / `downlink` / `uplink` were deleted from `badge.tsx`, so `BadgeVariant` contains no identity member and `variant=\"nr\"` on a Badge fails the build. The deletion fixed two concrete defects — `nr` was a byte-identical class string to `info`, and in light mode 8 of 10 identity-container pairs collapse under simulation."
       },
       {
         "name": "The Every-Chip-Has-A-Glyph Rule",
-        "body": "`success-container` and `warning-container` measure 1.03:1 apart — the same surface to the eye, and identical under deuteranopia. The glyph is the only thing separating healthy from degraded. Two states in the same slot must never share a glyph either.",
-        "section": "components"
+        "section": "components",
+        "body": "Status containers are close by construction — the functional roles share a narrow tint band, and `success-container` against `warning-container` has measured as low as 1.03:1, the same surface to the eye and identical under deuteranopia. The glyph is what separates healthy from degraded. Two states in the same slot must never share a glyph either: `poor` and `bad` both key onto `destructive` and are separated by `signal_cellular_1_bar` vs `signal_cellular_0_bar`."
       },
       {
         "name": "The Identity-Chip Rule",
-        "body": "Where a chip's fill carries identity, the quality it *also* reports must be encoded non-chromatically. On the signal cards that channel is the Material glyph's bar count.",
-        "section": "components"
+        "section": "components",
+        "body": "Where a surface carries identity AND reports quality, the quality is encoded non-chromatically. On the signal cards that channel is the Material glyph's bar count (the `signal_cellular_{0..4}_bar` family, never the `alt` family, whose 1-bar mark is a 2x4px speck and which has no 0-bar member at all); on a metric row it is the quality bar's length."
       },
       {
         "name": "The Glyph-Disc Rule",
-        "body": "A state icon sits in a filled circle on the role's strong fill. The disc is what survives when the container fill washes out in sunlight; a bare glyph on the container does not.",
-        "section": "components"
+        "section": "components",
+        "body": "A state or category icon sits in a filled circle on the role's STRONG fill, never on the pale container. In light mode the identity containers collapse under simulation and the fills do not, so the disc is the only place identity colour is reliably legible — and the disc is what survives when a container fill washes out in sunlight."
+      },
+      {
+        "name": "The One-Quality-Map Rule",
+        "section": "components",
+        "body": "There is exactly one quality->display map and re-forking it is the failure mode. `components/cellular/signal-quality-display.ts` owns `QUALITY_GLYPH`, `qualityBadgeVariant()`, `qualityMeterTone()` and `qualityInkClass()`. Four rival copies used to exist and were deleted, not merely aligned; one had already drifted, sending `none` through a `default:` arm to `success` so an antenna with NO READING painted green. That is why `qualityMeterTone()` returns `null` rather than a colour for `none` — the absence is a value the caller must handle, not a case it can fall through. `cell-scanner/**` keeps a deliberately separate 3-tier scale (a scan row compares candidate cells to each other; a serving-cell readout compares one cell to physics) and must NOT be unified with it."
+      },
+      {
+        "name": "The Ramp-Needs-A-Bar Rule",
+        "section": "components",
+        "body": "Ramp ink on a numeral with no bar beside it is a bug, and so is a ramp tone on a fill whose length does not encode the value. Length is the primary encoding and colour is the reinforcement, which is the whole reason adjacent stops are allowed below the separation floor. A missing reading is an empty track (`MetricBar value={null}`, which omits the fill element entirely), never a zero-length fill: an unused antenna drawn as an empty red bar labelled '-140 dBm' reads as a signal problem the user should go and fix."
       },
       {
         "name": "The Skeleton-Mirror Rule",
-        "body": "A skeleton mirrors the loaded geometry by importing the same shape constant, never by restating numbers.",
-        "section": "components"
+        "section": "components",
+        "body": "A skeleton mirrors the loaded geometry by importing the same shape constant (`TILE_SHAPE`), never by restating numbers, and sizes to the loaded element's LINE BOX rather than its font size. A `min-h-` is not a mirror: measured live, tiles resolved to 118 / 98 / 95px against a 92px floor-based skeleton. The handoff is a pure crossfade on `quick` with the outgoing skeleton overlaid on top of real content, so the card is sized by its content from the first frame and the crossfade contributes zero layout shift."
       },
       {
         "name": "The Loader-and-Dots Rule",
-        "body": "Step or sample progress is a `Loader2Icon` spinner plus dot indicators. Fill and progress bars are reserved for data visualization — signal strength, quality meters, bandwidth share.",
-        "section": "components"
+        "section": "components",
+        "body": "Step or sample progress is a `Loader2Icon` spinner plus dot indicators. Fill and progress bars are reserved for data visualization — signal strength, quality meters, bandwidth share."
       },
       {
         "name": "The Age-Gated Tone Rule",
-        "body": "On a surface listing *history*, two independent axes decide how a row is drawn. Tone is what kind of thing happened; it is a fact about the event, never expires, and is carried by a filled icon disc in the solid role color for as long as the row exists. Weight is how much the row still deserves attention, and it does expire: a row keeps its tonal container while it is fresh (one hour) or unresolved, then settles onto `surface-container` with its disc at full strength. The disc never consults the age gate — an hour-old recovery sits on a plain surface with its green check still green, and a still-standing outage never greys out merely because time passed. Note that `severity: \"info\"` here means *routine*, not *good*.",
-        "section": "components"
+        "section": "components",
+        "body": "On a surface listing history, two independent axes decide how a row is drawn. TONE is what kind of thing happened; it is a fact about the event, never expires, and is carried by a filled icon disc in the solid role colour for as long as the row exists. WEIGHT is how much the row still deserves attention, and it does expire: a row keeps its tonal container while it is fresh (one hour) or unresolved, then settles onto `surface-container` with its disc at full strength. The disc never consults the age gate. Note that `severity: \"info\"` here means routine, not good."
       },
       {
         "name": "The Dismiss-Only-Notices Rule",
-        "body": "A banner gets an X only when it is a *notification*. A standing condition has no dismiss, because dismissing it would hide a fact that is still true.",
-        "section": "components"
+        "section": "components",
+        "body": "A banner gets an X only when it is a notification. A standing condition has no dismiss, because dismissing it would hide a fact that is still true."
       },
       {
         "name": "The State-Honesty Rule",
-        "body": "A status surface reports what is actually running — saved settings, live service state — never the half-edited form. A control that cannot currently work explains why instead of sitting there dead. A test only runs against saved config. An ambient animation only loops where something is genuinely live.",
-        "section": "components"
+        "section": "components",
+        "body": "A status surface reports what is actually running — saved settings, live service state — never the half-edited form. A control that cannot currently work explains why instead of sitting there dead. A test only runs against saved config. An ambient animation only loops where something is genuinely live: only `searching` spins, because a spinner on a standing condition advertises work that is not happening."
+      },
+      {
+        "name": "The Released-Thing Rule",
+        "section": "components",
+        "body": "Do not distinguish two states by tone alone when one of them is a released, disabled or absent thing. Measured, `lte-container` and `surface-container-high` were IDENTICAL under deuteranopia — 0.0000 separation — so a dropped carrier and a live LTE carrier were one swatch. The distinction is carried by a glyph or a strikethrough, with tone as reinforcement, and a released carrier stays visible and explicitly marked rather than silently disappearing."
       },
       {
         "name": "The No-Dot-Separator Rule",
-        "body": "A meta line joining two or more short facts (`PCI 135`, `EARFCN 9485`) uses plain spacing, never a `·` glue character — dots read as sloppy filler, not structure. Give the facts room (multiple spaces, or separate flex/inline items with a gap) instead of punctuating between them.",
-        "section": "components"
+        "section": "components",
+        "body": "A meta line joining two or more short facts (`PCI 135`, `EARFCN 9485`) uses plain spacing, never a middle-dot glue character — dots read as sloppy filler, not structure. Give the facts room instead of punctuating between them."
+      },
+      {
+        "name": "The Three-State Rule",
+        "section": "components",
+        "body": "Every data surface ships loading, empty and error — never a blank panel. Non-registered modes REPLACE the body rather than render it empty: a 40px-radius container in the condition's tone, a 56px filled disc, a headline, a description, and an optional retry pill drawn from the container's own ink at 10-15% (never a white wash, which is invisible on a light container). Tone is chosen per condition: no-SIM is `warning`, no-service is `destructive`, searching is `info`, unknown is neutral."
       }
     ],
     "dos": [
-      "Do pick a pair — a fill with its own `-foreground`, or a container with its own `on-` ink.",
-      "Do give every status chip an icon, and give two states in the same slot two different icons.",
-      "Do use `--chart-nr` and `--chart-lte` for series color; one hue per radio family.",
+      "Do put the colour on the reading — the numeral, the stroke, the bar, the disc — and leave the card neutral.",
+      "Do pick a LAYER before a colour: ink for values on neutral ground, fill for compact emphasis, container for a functional-role block.",
+      "Do pick a PAIR — a fill with its own `-foreground`, or a container with its own `on-` ink.",
+      "Do give every status chip a glyph, and give two states in the same slot two different glyphs.",
+      "Do use an outline tag for identity and metadata, and a filled chip for state.",
+      "Do pair the quality ramp with bar length, always, and add an `sr-only` quality word beside a tinted figure.",
+      "Do measure a new colour — gamut first, then contrast, then deuteranopia and protanopia against the layer it will ship on.",
+      "Do route every quality->display decision through `components/cellular/signal-quality-display.ts`.",
       "Do reach for the role radii (`rounded-tile` / `card` / `hero` / `pill`) in new work.",
       "Do ship `border-0` on a card and let the tone step carry the separation.",
       "Do write responsive behavior as a container query against `@container/main`.",
       "Do wrap a settings group in a card and let the page arrange cards.",
       "Do put `min-w-0 truncate` on every text node in a paired card's header.",
-      "Do mark every changing figure `tabular-nums` in the interface font; reserve `font-mono` for identifiers and raw machine strings.",
-      "Do mirror a skeleton's geometry from the same exported shape constant the loaded view uses.",
-      "Do build the loading, empty, and error state in the same change as the loaded one.",
+      "Do mark every changing figure `tabular-nums` in `font-sans`, and reserve `font-mono` for identifiers and raw machine strings.",
+      "Do mirror a skeleton's geometry from the same exported shape constant the loaded view uses, and pin heights rather than flooring them.",
+      "Do build the loading, empty and error state in the same change as the loaded one.",
       "Do pass `size` explicitly at every `MaterialSymbol` call site.",
       "Do keep interactive targets at 44px on coarse pointers, and let toolbars wrap.",
-      "Do make a status surface report *saved* state, and make an incapable control explain itself.",
+      "Do make a status surface report SAVED state, and make an incapable control explain itself.",
       "Do defer anything that reboots the modem behind a dialog plus a persistent banner.",
       "Do key every new user-visible string across all five locales; `bun run i18n:check` gates it."
     ],
     "donts": [
-      "Don't put ink from one role on another role's surface, or a container's ink on a fill.",
-      "Don't hardcode `text-white` on a destructive fill — in dark mode that fill is *light*.",
+      "Don't tint a large surface because it looked plain — that is the failure this system exists to prevent.",
+      "Don't give identity or direction a large container block; they are ink, outline and disc only.",
+      "Don't put ink from one role on another role's surface, or a neutral-ramp ink on a tinted one.",
+      "Don't hardcode `text-white` on a destructive fill — in dark mode that fill is LIGHT.",
       "Don't compensate for a mismatched pair with an alpha (`bg-destructive/60`); fix the pair.",
-      "Don't use `variant=\"outline\"` as a status indicator.",
-      "Don't use `nr` or `lte` to mean \"healthy\", or tint a control with an identity hue.",
+      "Don't use an outline tag as a status indicator, or a filled chip as an identity label.",
+      "Don't use `nr` or `lte` to mean 'healthy', or put an identity hue anywhere in a quality scale.",
+      "Don't 'level' the quality ramp to satisfy a contrast rule — adjacent stops are below the CVD floor by design and bar length is what carries them.",
+      "Don't ship an out-of-gamut `oklch()` — the build will map it and you will not have authored what ships.",
+      "Don't argue a colour decision from degrees of hue separation; measure it.",
       "Don't use the numbered `--chart-1..6`; they do not theme.",
       "Don't stack alpha to build concentric shapes — use the explicit `--tone-{role}-{1,2,3}` steps.",
-      "Don't put a border on a tonal container, or use `--outline` as a card edge.",
-      "Don't animate `width` (the aggregation segment is the sole exception) or exceed `emphasized`.",
-      "Don't write a raw duration (`duration-200`, `{ duration: 0.25 }`) or a `transition-all` with no duration — see The One-Scale Rule.",
-      "Don't add a third stagger step, a fifth duration, or a spring.",
+      "Don't put a border on a tonal container, or use `--border` as a card edge.",
+      "Don't distinguish two states by tone alone when one of them is a released, disabled or absent thing.",
+      "Don't animate `width` (the aggregation segment is the sole exception; the meter's documented retarget is the one narrow second case) or exceed `emphasized`.",
+      "Don't write a raw duration (`duration-200`, `{ duration: 0.25 }`) or a `transition-all` with no duration.",
+      "Don't add a third entrance stagger step, a fifth duration, or a spring.",
       "Don't add an exit animation to a banner or a route transition.",
-      "Don't give a modal one unqualified `duration-*` for both directions, or leave its scrim without one — the exit clock is how long the page stays click-dead. See The Modal-Exit Rule.",
+      "Don't give a modal one unqualified `duration-*` for both directions, or leave its scrim without one.",
       "Don't loop an animation where nothing is genuinely live.",
       "Don't put an icon in a `CardHeader`.",
       "Don't invent a bespoke hero-driven layout for one screen.",
       "Don't mix Material Symbols and lucide inside a single route.",
       "Don't introduce a third typeface, or set a human-authored label in mono.",
-      "Don't reach for 13px outside a dense metric row, or for the pre-auth scale outside `/` and `/login/`.",
-      "Don't add a hue because a surface looked empty."
+      "Don't reach for 13px outside a dense metric row, or for the pre-auth scale outside `/` and `/login/`."
     ]
   }
 }
