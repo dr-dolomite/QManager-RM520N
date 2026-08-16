@@ -52,14 +52,26 @@ import {
 // COLOUR CONTRACT: one hue per measurement, held from the step chip to the live
 // meter to the result tile.
 //
-//   Download → primary blue     Upload → Carrier Violet (`--lte-*`)
-//   Latency  → Uplink Cyan (`--uplink-*`)
+//   Download → Downlink Rose (`--downlink-*`)
+//   Upload   → Uplink Cyan  (`--uplink-*`)
+//   Latency  → neutral, because latency has no direction
 //
-// A download figure is never violet and an upload figure is never blue, in any
+// A download figure is never cyan and an upload figure is never rose, in any
 // state. That is what lets someone glance at a finished run and know which
 // number is which without reading the labels — and it is why the active step
-// chip's fill is an IDENTITY role rather than a status role (DESIGN.md >
+// chip's fill is a DIRECTION role rather than a status role (DESIGN.md >
 // Identity-Chip Rule).
+//
+// 2026-08-16: this contract used to read `download -> primary blue`,
+// `upload -> Carrier Violet`, `latency -> Uplink Cyan`, and it was wrong in a
+// way that only shows up across pages. Blue is the 5G NR identity AND the brand
+// AND "in progress"; violet is the 4G LTE identity. So a user learned
+// blue = download here and met blue = NR two clicks later on the radio page,
+// and an LTE speedtest painted its upload figure in the LTE hue for reasons
+// that had nothing to do with LTE. Direction and radio are orthogonal facts and
+// they now hold orthogonal hues — see DESIGN.md > The Direction-Is-Not-A-Radio
+// Rule. Latency gave up cyan because cyan now means upload; a three-way readout
+// does not need three hues when one of the three is directionless.
 //
 // FOUR DECISIONS WORTH KEEPING
 // ----------------------------
@@ -130,21 +142,21 @@ interface RoleTokens {
 
 const ROLE: Record<SpeedtestStep, RoleTokens> = {
   ping: {
-    container: "bg-uplink-container text-on-uplink-container",
-    strong: "bg-uplink",
-    ink: "text-uplink",
+    container: "bg-surface-container-high text-on-surface",
+    strong: "bg-on-surface-variant",
+    ink: "text-on-surface-variant",
     glyph: "network_ping",
   },
   download: {
-    container: "bg-primary-container text-on-primary-container",
-    strong: "bg-primary",
-    ink: "text-primary",
+    container: "bg-downlink-container text-on-downlink-container",
+    strong: "bg-downlink",
+    ink: "text-downlink-on-surface",
     glyph: "arrow_downward",
   },
   upload: {
-    container: "bg-lte-container text-on-lte-container",
-    strong: "bg-lte",
-    ink: "text-lte",
+    container: "bg-uplink-container text-on-uplink-container",
+    strong: "bg-uplink",
+    ink: "text-uplink-on-surface",
     glyph: "arrow_upward",
   },
 };

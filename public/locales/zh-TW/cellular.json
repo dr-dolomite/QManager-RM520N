@@ -1722,6 +1722,7 @@
         "label": "使用中的頻寬",
         "unit": "MHz",
         "caption_unavailable": "數據機未回報",
+        "caption_single": "單載波",
         "caption_breakdown": "{{parts}} MHz"
       },
       "carriers": {

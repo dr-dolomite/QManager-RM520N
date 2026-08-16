@@ -1722,6 +1722,7 @@
         "label": "Bandwidth yang dipakai",
         "unit": "MHz",
         "caption_unavailable": "Tidak dilaporkan oleh modem",
+        "caption_single": "Carrier tunggal",
         "caption_breakdown": "{{parts}} MHz"
       },
       "carriers": {

@@ -1722,6 +1722,7 @@
         "label": "Larghezza di banda in uso",
         "unit": "MHz",
         "caption_unavailable": "Non riportata dal modem",
+        "caption_single": "Portante singola",
         "caption_breakdown": "{{parts}} MHz"
       },
       "carriers": {

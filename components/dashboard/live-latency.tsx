@@ -310,9 +310,18 @@ interface LiveLatencyComponentProps {
  *
  * The colours were `--chart-1` / `--chart-2`, which are byte-identical in the
  * light and dark blocks of globals.css — the chart did not theme at all. The two
- * role tokens below do. `--lte` rather than `--secondary` for packet loss:
- * shipped `--secondary` is a NEUTRAL (it backs progress tracks), so the intended
- * Carrier Violet would have rendered grey.
+ * role tokens below do.
+ *
+ * 2026-08-16: packet loss was `--lte`, i.e. the 4G LTE identity hue, on a
+ * series that has nothing to do with which radio is attached — a user who
+ * learned violet = LTE on the CA strip read a violet trace here and had to
+ * unlearn it. It is now the neutral ink. That is deliberate rather than a
+ * placeholder: packet loss has no direction (so neither Downlink Rose nor
+ * Uplink Cyan fits) and no radio (so neither identity hue does), and painting
+ * it from the functional ramp would make a healthy 0% line permanently red —
+ * "reports, never alarms" cuts against a fault-coloured series that is drawn
+ * even when nothing is wrong. Latency keeps `--primary` as the surface's one
+ * brand-weight data series.
  */
 const chartConfig = {
   latency: {
@@ -321,7 +330,7 @@ const chartConfig = {
   },
   packetloss: {
     label: "Packetloss",
-    color: "var(--lte)",
+    color: "var(--on-surface-variant)",
   },
 } satisfies ChartConfig;
 
@@ -724,7 +733,10 @@ const LiveLatencyComponent = ({
   const legend = (
     <div className="flex items-center gap-4 text-xs font-medium text-on-surface-variant">
       <LegendEntry className="bg-primary" label={t("latency.chart_latency")} />
-      <LegendEntry className="bg-lte" label={t("latency.chart_packetloss")} />
+      <LegendEntry
+        className="bg-on-surface-variant"
+        label={t("latency.chart_packetloss")}
+      />
     </div>
   );
 
@@ -873,14 +885,14 @@ const LiveLatencyComponent = ({
               <span className="sr-only">{t("speedtest.result_label")}</span>
               <SpeedtestFigure
                 glyph="arrow_downward"
-                className="bg-primary-container text-on-primary-container"
+                className="bg-downlink-container text-on-downlink-container"
                 srLabel={t("speedtest.result_download")}
                 value={formatSpeed(cachedResult.download.bandwidth)}
                 unit={t("speedtest.unit_mbps")}
               />
               <SpeedtestFigure
                 glyph="arrow_upward"
-                className="bg-lte-container text-on-lte-container"
+                className="bg-uplink-container text-on-uplink-container"
                 srLabel={t("speedtest.result_upload")}
                 value={formatSpeed(cachedResult.upload.bandwidth)}
                 unit={t("speedtest.unit_mbps")}

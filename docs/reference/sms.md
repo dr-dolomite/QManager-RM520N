@@ -278,7 +278,7 @@ Clearing happens in the **handlers, not an effect**: `setState` inside `useEffec
 
 ### Presentation notes
 
-- Skeletons import `TILE_SHAPE` (from the Radio Information strip), `SMS_TILE_GRID` and `TABLE_SHAPE` rather than restating geometry, per DESIGN.md's Skeleton-Mirror Rule. The card header renders **real text** while loading — the card's identity is known before its rows are.
+- Skeletons import `TILE_SHAPE` (from `components/cellular/tile-shape.ts`, the `/cellular/` family's shared tile geometry — it used to live inside the Radio Information strip and was extracted 2026-08-16), `SMS_TILE_GRID` and `TABLE_SHAPE` rather than restating geometry, per DESIGN.md's Skeleton-Mirror Rule. The card header renders **real text** while loading — the card's identity is known before its rows are.
 - The unread marker is a `mark_email_unread` **glyph** plus a font-weight change, in a reserved `size-4` slot, not the old bare primary dot. Colour was the dot's only channel, so it did not exist in greyscale or under deuteranopia. Read rows carry no glyph — two states in one slot must never share one.
 - The inbox stays a real `<table>` with hairline `--outline` rules (DESIGN.md names it as one of the genuine data tables), sized by container queries against the card's `@container/card`, not viewport breakpoints.
 - The card description reports usage honestly: split ME/SM figures when the breakdown is present, a bare "N slots used" when it is not, and "unknown" while a read is failing.

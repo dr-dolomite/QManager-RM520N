@@ -16,7 +16,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { TonalBanner } from "@/components/ui/tonal-banner";
 import { cn } from "@/lib/utils";
 
-import { TILE_SHAPE } from "@/components/cellular/radio/summary-tiles";
+import { TILE_SHAPE } from "@/components/cellular/tile-shape";
 import { SMS_TILE_GRID } from "./summary-tiles";
 import { TABLE_SHAPE } from "./inbox-table";
 

@@ -242,6 +242,8 @@ The instability rows at `:652` / `:664` / `:700` / `:711` are the exception that
 
 `primary-container` measures **L 0.400** in dark mode against **0.300 / 0.320 / 0.325** for success / warning / destructive. A routine handoff would be the brightest row on the card, louder than an outage. Inverted urgency.
 
+> ⚠️ That outlier is **not** a calibration defect to be levelled — it is the only thing keeping NR blue and LTE violet distinguishable under red-green colour blindness. The correct response to it is exactly what this card does: route around it. See the "never equalise" trap in [color-system.md](color-system.md).
+
 `surface-container-high` (L 0.918 light, 0.312 dark) is a step up from the resting surface without making a color claim, which is exactly the reading: noted, recent, not important. It is also already the shipped meaning of the `muted` badge role, so the vocabulary stays consistent across the product.
 
 **This decision is what keeps the card quiet.** A live device probe, taken before the producer-side debounce landed, found **48 of 50 events at `info` severity and 44 of 50 of type `band_change`**, with the whole ring spanning roughly 750 seconds of wall clock. The debounce has since removed most of that volume at the source, but the ratio argument survives it: routine handoffs remain the most common thing on a healthy device, and if routine were chromatic the common case would be a wall of color while the rare chromatic fills meant nothing.

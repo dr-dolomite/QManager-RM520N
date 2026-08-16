@@ -17,7 +17,8 @@ compiles.
 | Meter primitive | `components/ui/metric-bar.tsx` |
 | Draw-in animation | `.chart-draw` / `.chart-area` in `app/globals.css`, applied **only** via `useChartDrawIn()` |
 | Chart motion hooks | `hooks/use-chart-motion.ts` — `useChartDrawIn()` (entrance) + `useChartSeriesMotion()` (poll updates) |
-| Series colours | `--chart-nr` (5G NR), `--chart-lte` (4G LTE), plus `--primary` / `--lte` in Live Latency |
+| Series colours | `--chart-nr` (5G NR), `--chart-lte` (4G LTE); Live Latency draws `--primary` (latency) and `--on-surface-variant` (packet loss) |
+| Direction glyphs | Device Metrics' data-usage row: `text-downlink-on-surface` (rx) / `text-uplink-on-surface` (tx) — see [color-system.md](color-system.md) |
 | Mandatory chart props | `{...useChartSeriesMotion()}` and `pathLength={1}` on every animated series |
 | i18n namespace | `dashboard` (`metrics.*`, `latency.*`, `signal_history.*`) |
 | Design canon | `DESIGN.md` > Motion > "Chart draw-in", and > Color > "Data visualization" |
@@ -221,9 +222,24 @@ measurable height on the first frame, before the flex parent has resolved how mu
 
 ### Series colours
 
-`latency` uses `--primary`; `packetloss` uses `--lte`, **not** `--secondary`. Shipped `--secondary` is
-a neutral (it backs progress tracks), so reaching for it would have rendered the intended Carrier
-Violet as grey. See `DESIGN.md` > Colors > Secondary.
+`latency` uses `--primary` — the surface's one brand-weight data series. `packetloss` uses
+**`--on-surface-variant`**, the neutral ink.
+
+That neutral is a deliberate answer, not a placeholder. Packet loss was originally `--lte`, i.e. the
+**4G LTE identity hue**, on a series that has nothing to do with which radio is attached; a user who
+learned violet = LTE on the CA strip read a violet trace here and had to unlearn it. Nothing else in
+the palette fits either: packet loss has no **direction**, so neither Downlink Rose nor Uplink Cyan
+applies, and painting it from the **functional** ramp would make a healthy 0% line permanently red —
+"reports, never alarms" cuts hard against a fault-coloured series that is drawn even when nothing is
+wrong. The legend swatch moves with it (`bg-on-surface-variant`).
+
+> ℹ️ NOTE: the historical trap here is still worth keeping. `--secondary` is **not** Carrier Violet in
+> this repo — shipped `--secondary` is a shadcn neutral that backs progress tracks, so reaching for it
+> renders grey. Carrier Violet is `--lte-*`. See `DESIGN.md` > Colors > Secondary.
+
+The cached-speedtest result chips on this card follow the direction contract rather than the radio
+one: download is `downlink-container`, upload is `uplink-container`
+(`live-latency.tsx:888`). See [speedtest.md](speedtest.md) and [color-system.md](color-system.md).
 
 ## Device Metrics
 

@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 import { Card, CardHeader } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ConditionScreen } from "@/components/cellular/condition-screen";
-import { TILE_SHAPE } from "@/components/cellular/radio/summary-tiles";
+import { TILE_SHAPE } from "@/components/cellular/tile-shape";
 import { cn } from "@/lib/utils";
 import { ANTENNA_PORTS } from "@/types/modem-status";
 import { CONTEXT_GRID } from "./context-tiles";

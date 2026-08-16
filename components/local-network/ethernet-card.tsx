@@ -106,8 +106,16 @@ const LINK_UP_DISC = "bg-success text-success-foreground";
 const LINK_DOWN_TILE = "bg-destructive-container text-on-destructive-container";
 const LINK_DOWN_DISC = "bg-destructive text-destructive-foreground";
 
-const SPEED_TILE = "bg-uplink-container text-on-uplink-container";
-const SPEED_DISC = "bg-uplink text-uplink-foreground";
+/** Link speed is CAPACITY, which is Downlink Rose's second meaning — the same
+ *  reason the Radio Information bandwidth tile wears it. It was Uplink Cyan,
+ *  which since 2026-08-16 means the UPLOAD direction specifically; a negotiated
+ *  Ethernet link rate is bidirectional, so cyan was claiming a direction the
+ *  figure does not have. */
+const SPEED_TILE = "bg-downlink-container text-on-downlink-container";
+const SPEED_DISC = "bg-downlink text-downlink-foreground";
+/** Negotiation mode is a link SETTING, not a radio — but `primary` is also the
+ *  brand and this is a plain configuration readout, which is the one thing the
+ *  brand ramp is always allowed to be. */
 const NEGOTIATION_TILE = "bg-primary-container text-on-primary-container";
 const NEGOTIATION_DISC = "bg-primary text-primary-foreground";
 

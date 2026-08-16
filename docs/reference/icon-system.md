@@ -256,6 +256,8 @@ The quality chip's **fill** now carries radio identity via two new `Badge` varia
 | `nr` | `bg-primary-container text-on-primary-container` | 5G NR leg |
 | `lte` | `bg-lte-container text-on-lte-container` | 4G LTE leg |
 
+`badge.tsx` also carries two **direction** variants — `downlink` (`bg-downlink-container`) and `uplink` (`bg-uplink-container`) — on a separate axis from the radio pair above. Neither pair is a status role. A direction chip must still pair its hue with an arrow glyph, for the same reason the identity chips pair with a quality glyph: at container lightness in dark mode this system's tonal pairs collapse under red-green colour-vision simulation, so the glyph is the information and the hue is reinforcement. See [color-system.md](color-system.md).
+
 | Quality | Glyph |
 |---------|-------|
 | Excellent | `signal_cellular_4_bar` |

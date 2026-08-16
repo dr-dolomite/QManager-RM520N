@@ -1722,6 +1722,7 @@
         "label": "使用中的带宽",
         "unit": "MHz",
         "caption_unavailable": "调制解调器未上报",
+        "caption_single": "单载波",
         "caption_breakdown": "{{parts}} MHz"
       },
       "carriers": {

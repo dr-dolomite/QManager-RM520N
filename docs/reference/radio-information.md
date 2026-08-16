@@ -88,6 +88,25 @@ RSSI is emitted **only** for LTE carriers that actually reported it (`buildMetri
 
 Because the metric grid is **fixed at four columns**, an NR carrier's missing RSSI leaves its fourth cell genuinely **empty** — there is no rendered dash and no placeholder. That is deliberate: a dash in a fixed column reads as "this failed to load", whereas an empty cell in an otherwise perfectly aligned grid reads as "there is nothing here to report".
 
+### A fourth: out of physical range is not a reading at all (2026-08-16)
+
+The modem reports SINR **twice, in two different units**, and the page was showing the wrong one.
+
+`AT+QENG="servingcell"` reports LTE SINR in dB (field 17 → `lte.sinr`). `AT+QCAINFO` reports the same measurement as a **raw `RSSNR` field** (field 10 → `carrier_components[].sinr`). `parse_at.sh`'s **NR** branch rescales that field and rejects `-32768`; its **LTE** branch (`parse_at.sh:632`) takes it verbatim. One live poll, one cell (B28 / EARFCN 9485 / PCI 407): `lte.sinr` was **8** while `carrier_components[0].sinr` was **251**. RSRP and RSRQ agreed across the two sources to within 1 — only SINR diverged, and 251 sits outside RSSNR's reported range entirely, so it is not a scaled 8 either.
+
+What made that dangerous was `getSignalQuality()` having **no ceiling**: `value >= thresholds.excellent` scored 251 dB `"excellent"`, so the Spectrum card painted a full green meter and an Excellent chip beside a genuinely poor −115 dBm RSRP. Same latent hole on every metric — a +5 dBm RSRP would have read Excellent too.
+
+Two additions in `types/modem-status.ts`:
+
+- **`METRIC_RANGES`** — the 3GPP *reported* range per metric (`rsrp` −156…−31, `rsrq` −43…20, `sinr` −23…40, `rssi` −120…−25). RSRP spans NR's extended floor because NR carriers read through the same path.
+- **`normalizeMetricValue(value, metric)`** — the serving-cell/per-carrier sibling of `normalizeSignalValue()`, which does the same job for the per-antenna arrays against a sentinel *set* rather than a *range*.
+
+The range lives **on the `SignalThresholds` object**, so `getSignalQuality()` checks it unconditionally and all twelve existing call sites were fixed without being edited — and a future surface cannot opt out by forgetting to normalize. That is deliberately the opposite of the per-antenna history, where a per-call-site policy fragmented until `normalizeSignalValue()` centralized it.
+
+`buildMetrics` normalizes **once at the top** and the three render channels (printed number, bar percent, quality chip) all read the normalized local. Deriving them from the same *field* instead of the same *value* is what let them agree loudly on a number the radio never measured. `components/public/overview/band-rows.tsx` needed the same boundary: `overview.sh:48` forwards the raw carrier value to the pre-auth splash, which prints it directly.
+
+**Still outstanding (backend):** `parse_at.sh`'s LTE branch should give `cc_sinr` the same treatment the NR branch gives it. The display guard makes the page honest, but the snapshot still carries 251. That fix needs `busybox-portability-checker` plus on-device verification.
+
 ## Subcarrier spacing is not per-carrier
 
 `carrier_components[]` has no `scs` key. The only subcarrier-spacing value the modem gives us is `nr.scs`, which describes the **serving** NR cell. So exactly one carrier can honestly claim a reported SCS: the one whose `earfcn` equals `nr.arfcn` (`enrichCarriers`). Every other NR carrier gets a value from `inferScs` and is flagged `scsInferred: true`, which the band-reference block surfaces as a focusable **"Derived"** marker with a tooltip. Showing an inference as though the modem reported it would be the page lying quietly, which is the failure mode this page is built to avoid.
@@ -176,13 +195,44 @@ Three facts, three channels, no channel doing two jobs. The quality glyph is the
 
 ### The four summary tiles
 
-**All four tiles carry colour**, matching the approved comp 1:1: Network type is the identity **fill** (`bg-primary` for NR, `bg-lte` for LTE — whichever radio is actually registered), Bandwidth is `primary-container`, Carrier aggregation is `uplink-container`, Active MIMO is `lte-container`.
+**Short version: the strip is a four-tile grid again — the same layout it launched with — but the paint underneath is not the paint it launched with, and that distinction is the whole point of this section.** Four compositions have shipped or nearly shipped here. Each one fixed something real, so the version on screen has to keep those fixes rather than rewind past them. The file header in `components/cellular/radio/summary-tiles.tsx:14` carries the same history beside the code.
 
-The rule that keeps that from becoming mud is **pairing**, not restraint: a tile is either a FILL pair (`bg-primary` + `text-primary-foreground`) or a CONTAINER pair, never crossed — and the 52px glyph disc always **inverts** its tile's pairing, so a fill tile gets a container disc and vice versa. The glyph pops instead of dissolving into a same-tone circle, and it survives greyscale either way.
+| Gen | Composition | Why it moved on |
+| --- | ----------- | --------------- |
+| 1 | Four tinted tiles; Network type on the **strong fill** (`bg-primary` / `bg-lte`) | Two tiles wore a **radio identity hue over a both-radios figure**; the strong fill covered a whole 92px block |
+| 2 | 2/5 tonal anchor + 3/5 neutral box | The anchor measured 623×212 = 132,033px² carrying 9,526px² of ink — **7.2%**. A large empty purple slab |
+| 3 | 1/5 identity rail + 4/5 grouped rows | Correct by the canon and much quieter (44,441px², −66%), but it traded the at-a-glance four-figure read for a **list** |
+| **4 (current)** | Four tinted tiles again — bodies are **containers**, strong fills live only on the 52px disc, one tile stays neutral | — |
 
-`NETWORK_TILE` is a **total** map over `RadioMode`, so an unhandled mode can only ever degrade to the honest neutral tile, never to a confident "5G NR + LTE".
+**Why Gen 4 is Gen 1's layout without Gen 1's defect.** Gen 1 had two separate faults and only one of them was about layout:
 
-The Active MIMO tile's glyph is **`alt_route`**, not `settings_input_antenna`. Two reasons: the aerial glyph is already worn by both surfaces this tile links out to (`antenna-statistics/context-tiles.tsx` and `antenna-alignment/states.tsx`), so the tile was wearing its own destination's mark; and it drew a rabbit-ear TV aerial for a spatial-multiplexing readout. `alt_route` draws one path splitting into parallel legs, which is what MIMO physically is.
+1. **It put a STRONG FILL on a whole 92px tile.** Material 3 spends strong fills on *compact* emphasis (FABs, chips, selected states) and gives large surfaces **containers**. Dark mode made the inversion shout, because `--lte` was `oklch(0.8 …)` on an `oklch(0.155)` ground — the biggest block on the page was also the brightest. Gen 4 makes every tile **body** a container and lets the strong fill survive only on the 52px glyph disc, the one element small enough to want it. In dark mode that is roughly a **0.47 lightness drop on the loudest block** — far more "toned down" than any token nudge delivers, and the tokens were quieted as well (see [color-system.md](color-system.md)).
+2. **It gave two tiles a radio identity hue over a figure that spans both radios.** Bandwidth in NR blue while summing NR+LTE; MIMO in LTE violet while reporting both legs. That is a direct lie to the Functional-Color Promise — a user who learned violet = LTE on the dashboard CA strip meets a violet block here that means something else. Gen 4 keeps that fixed by giving the non-identity tiles hues that **do not name a radio at all**.
+
+Gen 2 and Gen 3 are what taught the middle lesson, and it is worth stating plainly because it is counter-intuitive: **correct colour in the wrong composition looks broken.** Demoting Gen 1's dishonest tiles to neutral was right, and it produced two filled tiles alternating with two flat ones — a checkerboard, which reads as a rendering fault. Gen 2 escaped the checkerboard by collapsing the grid, and paid for it with a mostly-empty saturated slab whose height it did not even own (212px was three 60px rows of the *sibling* box that the anchor stretched to match — a fourth row would have made it emptier with nobody touching it). Gen 3 fixed the proportion and lost the glance.
+
+#### Tile tones
+
+| Tile | Tone | Why |
+| ---- | ---- | --- |
+| Network type | `primary-container` (NR leg registered) / `lte-container` (LTE-only) | **Identity.** The hue *is* the fact. This is the only tile allowed a radio hue |
+| Bandwidth | `downlink-container` | `totalMhz` sums across both legs, so no radio hue is honest — but Downlink Rose means throughput and **capacity**, not a radio, and aggregate channel width is exactly the pipe |
+| Carriers | `uplink-container` | Uplink Cyan already owns **counts** system-wide, and a count is what this tile reports |
+| Active MIMO | **Neutral** | See below |
+
+**The neutral MIMO tile is deliberate, not an unfinished slot.** Its value literally reads `LTE 1x2 | NR 2x4` — it names both radios *in its own string* — so no identity hue can be honest; and it is neither a count nor a capacity, so neither direction hue fits either. There is no true hue for it, so it does not get a false one. Three tinted plus one trailing neutral is **not** the checkerboard Gen 2 was built to escape: a checkerboard is an *alternating* pattern that reads as a rendering fault, while a single neutral in the last slot reads as "this figure has no category", which is true. If a fourth hue is ever wanted more than the honesty is, the change is `MIMO_TILE` / `MIMO_DISC` in `summary-tiles.tsx:105` and nothing else.
+
+**Pairing, not restraint,** is what keeps four tinted blocks from becoming mud: a tile is either a FILL pair (`bg-primary` + `text-primary-foreground`) or a CONTAINER pair, never crossed — and the disc always **inverts** its tile's pairing, so the glyph pops instead of dissolving into a same-tone circle, and survives greyscale either way. On a tonal tile the eyebrow label is tinted from the container's *own* ink (`opacity-85`), never `on-surface-variant`, which belongs to the neutral ramp and would be a cross-pair.
+
+> ⚠️ **On a dark tile the body tint is decoration, not information.** Simulating deuteranopia and protanopia across this system's **container** tones in dark mode, nearly every pair collapses below the 0.05 separation floor — including pairs that already ship. The glyph and the label are what carry the tile apart, which is why all four tiles wear distinct glyphs, and why the remaining colour is spent on the **disc** (a strong fill, where the same simulation shows every pair separating cleanly). Full measurements: [color-system.md](color-system.md).
+
+`NETWORK_TILE` is a **total** map over `RadioMode`, so an unhandled mode can only ever degrade to the honest neutral tile, never to a confident "5G NR + LTE". Its **value** reads from the shared `radio_info.network_type.*` keys — the same ones the Cellular information card's "Network type" row uses, because both render simultaneously two inches apart and a second key set for one fact is a visible contradiction waiting to happen (an earlier draft had the tile saying "5G standalone" while the row said "5G NR SA"). The **captions** stay tile-local; they are elaboration the row has no room for.
+
+The bandwidth caption distinguishes a real breakdown from a fake one: `caption_breakdown` ("20 + 20 + 100 MHz") renders only when more than one carrier reports a width. On a single-carrier link the strip uses `radio_info.tiles.bandwidth.caption_single` instead — a "breakdown" of one restates the value it sits beside and reads as a rendering fault. That key was added to all five locales.
+
+The MIMO tile's glyph is **`alt_route`**, not `settings_input_antenna`. Two reasons: the aerial glyph is already worn by both surfaces this tile links out to (`antenna-statistics/context-tiles.tsx` and `antenna-alignment/states.tsx`), so the tile was wearing its own destination's mark; and it drew a rabbit-ear TV aerial for a spatial-multiplexing readout. `alt_route` draws one path splitting into parallel legs, which is what MIMO physically is.
+
+> ℹ️ NOTE: the earlier "Known token asymmetry" warning in this doc — that `--primary-container`'s dark L\* sits well above `--lte-container`'s and should be levelled in a token pass — is **retracted**. That gap is load-bearing and must not be closed. See the "never equalise" trap in [color-system.md](color-system.md).
 
 ## Spectrum in use — the live half
 
@@ -323,7 +373,7 @@ Both cards export their shapes so the skeleton and the loaded state read the sam
 | -------- | ---- | --------------- |
 | `BAND_ROW_HEIGHT` | `active-bands-card.tsx` | `82` — identity block (chip line 26 + gap 8 + identity grid 16 = 50) plus `py-4` either side. The identity grid replaced a single meta line at the **same 16px line box**, which is why the two-column rework cost no height and needed no skeleton edit |
 | `BAND_SKELETON_ROWS` | `active-bands-card.tsx` | `3` |
-| `TILE_SHAPE` | `summary-tiles.tsx` | `.GRID` / `.ROOT` / `.HEIGHT` / `.DISC`; `states.tsx` imports it so the tile skeleton cannot drift |
+| `TILE_SHAPE` | `components/cellular/tile-shape.ts` | `.GRID` / `.ROOT` / `.HEIGHT` / `.DISC` — the 52px-disc tile. **Moved out of `summary-tiles.tsx`**, where it was first written and where three other surfaces reached in to borrow it. `states.tsx` imports it so the tile skeleton cannot drift. `.ROOT`'s 92px floor is the text column's arithmetic: eyebrow 16 + 3 + value 22 + 3 + caption 16 = 60, plus `py-4` either side |
 | `ROW_SHAPE`, `ROW_SHAPE_COMPACT`, `ROW_STACK`, `GROUP_STACK`, `ROW_LINE`, `ROW_LABEL`, `ROW_VALUE`, `EYEBROW_CLASS` | `cellular-information-card.tsx` | Row and group geometry, shared with the skeleton |
 | `GROUP_SHAPES` | `cellular-information-card.tsx` | Literal row sequence per group |
 | `GROUP_GRID` | `cellular-information-card.tsx` | The three-group container grid |
@@ -376,7 +426,7 @@ The graded `signal_cellular_{1..4}_bar` ladder is **no longer used on this page*
 - **`components/ui/accordion.tsx` now has zero consumers product-wide.** The only remaining match for "accordion" outside that file is a prose comment in `components/cellular/custom-profiles/scenario-binding/schedule-rule-row.tsx`. It is a known dead file; deleting it was out of scope for this change.
 - **16 `react-hooks/refs` errors are visible and unfixed** (14 in `carrier-aggregation.tsx`, 2 in `cellular-information.tsx`), unmasked by fixing the `react-hooks/purity` asymmetry. They flag the deliberate `usePrevious`-style pattern behind the stale freeze; a real decision (suppress with rationale, or restructure) is still owed. This is *not* new breakage.
 - **SA mode is implemented but unobserved.** `resolveRadioMode`'s `registered-sa` branch, the `isSA` identity-field switch, the SA distance branch (`calculateNrDistance`), and the NR-holds-the-PCC role assignment have never run against live hardware. Treat them as designed-but-untested, exactly as [carrier-aggregation.md](carrier-aggregation.md) does.
-- **Three stale code comments**, cosmetic only: `cellular-information.tsx`'s file header still describes the deleted `@3xl/main:grid-cols-2` two-up layout; `summary-tiles.tsx` refers to "the 84px tile the skeleton mirrors" where `TILE_SHAPE.ROOT` resolves to 92px; and `tick-group.tsx`'s docblock still quotes `TICK_STAGGER_STEP` as 100 ms, where `lib/motion.ts` now defines it as 0.2 s. The last one matters most, because the cascade budget above is derived from that constant.
+- **Two stale code comments**, cosmetic only: `cellular-information.tsx`'s file header still describes the deleted `@3xl/main:grid-cols-2` two-up layout; and `tick-group.tsx`'s docblock still quotes `TICK_STAGGER_STEP` as 100 ms, where `lib/motion.ts` now defines it as 0.2 s. The last one matters most, because the cascade budget above is derived from that constant.
 
 ## Related
 

@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useTranslation } from "react-i18next";
 import { MaterialSymbol } from "@/components/ui/material-symbol";
-import { TILE_SHAPE } from "@/components/cellular/radio/summary-tiles";
+import { TILE_SHAPE } from "@/components/cellular/tile-shape";
 import { cn } from "@/lib/utils";
 import {
   ANTENNA_PORTS,
@@ -19,8 +19,9 @@ import {
 // literally "Per-antenna detail" — so the first thing this page owes them is the
 // bridge between that tile and these four chains: how many layers the modem says
 // it is running, which radios are up, and how many chains are actually
-// reporting. Geometry is imported from `radio/summary-tiles` rather than
-// restated, so the strip is dimensionally identical to the one they just left.
+// reporting. Geometry is imported from `components/cellular/tile-shape` rather
+// than restated, so this strip stays dimensionally identical to every other
+// tile strip in the `/cellular/` family.
 // =============================================================================
 
 /**
@@ -37,7 +38,11 @@ export const CONTEXT_GRID =
  *  a same-tone circle (DESIGN.md > Tiles). */
 const NEUTRAL_TILE = "bg-surface-container text-on-surface";
 const NEUTRAL_DISC = "bg-surface-container-high text-on-surface-variant";
-/** Matches the Radio Information MIMO tile exactly — same concept, same hue. */
+/** ⚠️ Inherited from the mock, and it is on notice. This tile's value is the same
+ *  compound `LTE 1x2 | NR 2x4` the Radio Information MIMO row carries, so the
+ *  violet says "LTE readout" about a figure spanning both radios — the exact
+ *  reason that row is neutral (`radio/summary-tiles.tsx` > COLOUR DISCIPLINE).
+ *  Demoting it belongs to a pass on this page, not to a change on that one. */
 const MIMO_TILE = "bg-lte-container text-on-lte-container";
 const MIMO_DISC = "bg-lte text-lte-foreground";
 /** Uplink Cyan owns counts (DESIGN.md > Tertiary). */

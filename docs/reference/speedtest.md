@@ -248,17 +248,19 @@ The old implementation swallowed the X, Escape and outside-click for the ~40 s a
 
 **One hue per measurement, held from the tile to the dialog to the result tile.**
 
-| Measurement | Role | Tokens |
+| Measurement | Role | Tokens (`ROLE` map, `speedtest-dialog.tsx:143`) |
 | ----------- | ---- | ------ |
-| Download | `primary` (blue) | `bg-primary-container` / `text-on-primary-container` / `bg-primary` |
-| Upload | Carrier Violet | `bg-lte-container` / `text-on-lte-container` / `bg-lte` |
-| Latency / Ping | Uplink | `bg-uplink-container` / `text-on-uplink-container` / `bg-uplink` |
+| Download | **Downlink Rose** | `bg-downlink-container` / `text-on-downlink-container` / `bg-downlink` / ink `text-downlink-on-surface` |
+| Upload | **Uplink Cyan** | `bg-uplink-container` / `text-on-uplink-container` / `bg-uplink` / ink `text-uplink-on-surface` |
+| Latency / Ping | **Neutral** | `bg-surface-container-high` / `text-on-surface` / `bg-on-surface-variant` |
 
-A download figure is never violet and an upload figure is never blue, **in any state**. That is what lets someone glance at a finished run and know which number is which without reading the labels.
+A download figure is never cyan and an upload figure is never rose, **in any state**. That is what lets someone glance at a finished run and know which number is which without reading the labels.
 
-> ℹ️ NOTE: This **changed shipped UI**. The dashboard tile's upload figure used to be drawn in `text-uplink`, which left the dialog's latency reading with no hue of its own. Uplink is now latency's, everywhere.
+**Why this is not blue and violet any more (2026-08-16).** The contract used to read *download → `primary` blue, upload → Carrier Violet (`--lte`), latency → Uplink Cyan*, and it was wrong in a way that only shows up across pages. `--primary` is simultaneously the 5G NR identity, the brand, and "in progress"; `--lte` is the 4G LTE identity. A user learned *blue = download* here and met *blue = NR* two clicks later on the Radio Information page — and an LTE speedtest painted its upload figure in the LTE hue for reasons that had nothing to do with LTE. **Direction and radio are orthogonal facts, so they now hold orthogonal hues.** See DESIGN.md > Colors > The Direction-Is-Not-A-Radio Rule and [color-system.md](color-system.md).
 
-These are **identity** fills under DESIGN.md's Identity-Chip Rule — they say *which* measurement, never *how good* it was — so each one also carries a direction glyph (`arrow_downward` / `arrow_upward` / `network_ping`) and the reading itself is machine voice (JetBrains Mono + `tabular-nums`).
+**Latency gave up cyan because cyan now means *upload*.** It went neutral rather than taking a fourth hue: latency has no direction, and a three-way readout does not need three hues when one of the three is directionless.
+
+These are **direction** fills under DESIGN.md's Identity-Chip Rule — they say *which* measurement, never *how good* it was — so each one also carries a direction glyph (`arrow_downward` / `arrow_upward` / `network_ping`) and the reading itself is machine voice (JetBrains Mono + `tabular-nums`). The glyph is not decoration: at container lightness in dark mode this system's tonal pairs collapse under red-green colour-vision simulation, so on a dark surface the arrow is the information and the hue is reinforcement.
 
 ### Live figures deliberately do not tick
 
@@ -274,7 +276,9 @@ Where a value is not yet known, both surfaces render an em-dash rather than `0.0
 
 The three step chips are **hand-composed containers, not `Badge` variants** — a documented departure from DESIGN.md's Filled-Chip Rule.
 
-Three of the four chip states would map cleanly (`success` / `destructive` / `muted`), but the **active** state carries the measurement's identity hue and `Badge` has no `uplink` role, so latency could not be cyan. `Badge`'s existing identity variants (`nr` / `lte`) are **radio identities** — using `lte` to mean "upload" would make the colour right and the semantics wrong. Splitting one three-chip row between `Badge` and hand-composed containers would be worse than composing all four consistently.
+Three of the four chip states would map cleanly (`success` / `destructive` / `muted`), but the **active** state carries the measurement's own hue, and at the time `Badge` offered only the two **radio** identity variants (`nr` / `lte`) — using `lte` to mean "upload" would have made the colour right and the semantics wrong. Splitting one three-chip row between `Badge` and hand-composed containers would be worse than composing all four consistently.
+
+> ℹ️ NOTE: `Badge` now *does* carry `downlink` and `uplink` variants (`components/ui/badge.tsx:102`), added with the direction token family. Two of the three active chips could migrate — but the ping chip is neutral, so the row would still be split, and the four non-chromatic marks below are what the rule actually protects. The departure stands; it is now a composition choice rather than a missing role.
 
 Everything the rule protects is still paid for. All four states carry a distinct **non-chromatic** mark plus an `sr-only` status word:
 
@@ -300,7 +304,7 @@ The old 88 px was already wrong by 2 px: the play button was inheriting `Button`
 | State | Condition | Renders |
 | ----- | --------- | ------- |
 | Running | `isRunning` | `primary-container` fill, spinner disc, live figure + phase-local progress meter, `animate-live-ping` dot with the phase name |
-| Cached | `cachedResult`, not running | Play button + two identity figure pills (download blue, upload violet) + a relative "14 min ago" caption |
+| Cached | `cachedResult`, not running | Play button + two direction figure pills (download rose, upload cyan) + a relative "14 min ago" caption |
 | Idle | neither | Play button + `speedtest.idle_description` |
 
 The relative timestamp ticks on its **own** 30 s clock (`useNowSec`), independent of the status poll — in `watch` mode the endpoint returns a byte-identical cached result each time, React bails out of the re-render, and the label would otherwise freeze at whatever it said when the result first arrived. Ages beyond `ABSURD_AGE_SEC` (365 days) or negative ages collapse to "just now", because the modem stamps the result with its own clock and the browser supplies `now` — on a device that has not reached NTP, a naive diff renders "20454 d ago".

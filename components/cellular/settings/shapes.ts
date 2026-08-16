@@ -1026,45 +1026,45 @@ export const AMBR_BLOCK = {
  * glyph. A figure's DIRECTION now reads the same colour regardless of which
  * radio block it sits in — the radio identity still lives in the block's own
  * container fill (`AMBR_BLOCK.LTE` / `AMBR_BLOCK.NR`), one layer out from the
- * chip — but the two hues carrying that direction are `primary` (download)
- * and `lte` (upload), not `primary` and `uplink`.
+ * chip — and the two hues carrying that direction belong to neither radio.
  *
- * WHY `lte` (VIOLET) AND NOT `uplink` (CYAN). A first pass reused Uplink Cyan
- * here because DESIGN.md names it as the hue that owns "the upload leg of
- * any paired readout," and `device-metrics.tsx` does exactly that. But this
- * card lives beside — and inside — the LTE/5G identity blocks, which are
- * themselves blue and violet; a cyan third accent read as an outlier next to
- * that pair rather than as part of the same family, and read especially
- * discordant sitting inside the violet LTE block. `speedtest-dialog.tsx`
- * already settled the same question the other way: its three-way
- * ping/download/upload contract assigns `upload -> lte`, `ping -> uplink`,
- * precisely because a third measurement needed a third hue and violet fit the
- * pair better than cyan did. This card only has two directions, so it takes
- * that same `primary`/`lte` pair rather than reaching for cyan — one blue
- * shade, one violet shade, both already load-bearing hues in this product's
- * palette instead of a new accent introduced for this one card. (Cyan is not
- * wrong on `device-metrics.tsx` — a lone tile on a neutral dashboard card
- * has no adjacent purple to clash with. It just doesn't fit a card whose own
- * container fill is the LTE violet.)
+ * WHY ROSE AND CYAN, AND NOT BLUE AND VIOLET. An earlier pass used `primary`
+ * (download) and `lte` (upload), reasoning that cyan read as a discordant third
+ * accent sitting inside the violet LTE block. That observation was true and the
+ * conclusion was still wrong: it fixed a local adjacency by spending the two
+ * RADIO identity hues on a fact that is not about radios. Inside the LTE block
+ * an upload chip then rendered in the LTE hue for reasons having nothing to do
+ * with LTE, and blue meant 5G NR, the brand, "in progress" AND download
+ * depending on which page you were reading.
+ *
+ * Direction now has its own axis: Downlink Rose (hue 341) and Uplink Cyan (hue
+ * 200), neither of which can be confused for a radio. The chips sit ON the
+ * block's radio container rather than borrowing from it, which is what makes a
+ * rose download chip inside the violet LTE block legible as two independent
+ * facts instead of one muddled one. Hue 341 is not a taste pick — sweeping the
+ * full circle against every taken hue leaves exactly one window clearing the
+ * 40-degree floor.
  *
  * The arrow glyph stays as the direction's SECOND channel (never the only
  * one — PRODUCT.md requires a paired readout to survive colour-blindness),
- * so the pairing degrades gracefully rather than depending on hue alone even
- * where it lands inside the LTE block and one chip shares its family.
+ * so the pairing degrades gracefully rather than depending on hue alone. That
+ * matters more than it looks: at container lightness in dark mode this
+ * system's tonal pairs collapse under deuteranopia and protanopia simulation,
+ * so on a dark block the arrow is the information and the hue is reinforcement.
  *
  * ON THE FILL CHOICE. An earlier draft wrote `bg-lte/25` and `bg-primary/25`.
  * Both are alpha washes and both are wrong for the same reason as
  * `SEGMENTED.TRACK_ON_FILL` above. The correct move for a chip that must lift
- * off a CONTAINER is the role's own FILL pair — `bg-primary` carries
- * `text-primary-foreground`, `bg-lte` carries `text-lte-foreground`. That is
+ * off a CONTAINER is the role's own FILL pair — `bg-downlink` carries
+ * `text-downlink-foreground`, `bg-uplink` carries `text-uplink-foreground`. That is
  * a real pair in both themes, where an alpha is a different perceived
  * lightness in each. Note the pairs are declared here, so consumers must NOT
  * also set an ink class on the chip.
  */
 export const RATE_CHIP = {
   ROOT: "inline-flex h-[1.875rem] items-center gap-1.5 rounded-pill px-3 font-mono text-[0.8125rem] font-semibold tabular-nums",
-  ON_DOWNLOAD: "bg-primary text-primary-foreground",
-  ON_UPLOAD: "bg-lte text-lte-foreground",
+  ON_DOWNLOAD: "bg-downlink text-downlink-foreground",
+  ON_UPLOAD: "bg-uplink text-uplink-foreground",
   GLYPH: 15,
 } as const;
 

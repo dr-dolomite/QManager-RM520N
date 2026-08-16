@@ -59,6 +59,19 @@ Two consequences that are easy to get wrong:
 
 Compute the dirty flag **once** and pass it to both the row and its control. Computing it twice is how the IMEI field ended up neutral on a promoted row.
 
+### `RATE_CHIP`: direction is not a radio
+
+The AMBR (Aggregate Maximum Bit Rate) chips on `/cellular/settings` carry **`bg-downlink` / `bg-uplink`** fill pairs — `RATE_CHIP.ON_DOWNLOAD` and `.ON_UPLOAD` at `components/cellular/settings/shapes.ts:1064`. The radio identity still lives one layer out, in the block's own container fill (`AMBR_BLOCK.LTE` / `AMBR_BLOCK.NR`).
+
+**They used to be `bg-primary` (download) and `bg-lte` (upload), and that was a real mistake worth not repeating.** The reasoning at the time was local and correct as far as it went: Uplink Cyan sitting inside the violet LTE block read as a discordant third accent, so the chips reached for blue and violet to match the block family. That fixed a local adjacency by **spending the two radio identity hues on a fact that is not about radios** — inside the LTE block, an upload chip then rendered in the LTE hue for reasons having nothing to do with LTE, and blue meant 5G NR, the brand, "in progress" *and* download depending on which page you were reading.
+
+Direction now has its own axis, so the chips sit **on** the block's radio container rather than borrowing from it. A rose download chip inside a violet LTE block is legible as two independent facts instead of one muddled one. See [color-system.md](color-system.md).
+
+Two invariants the chip carries regardless of hue:
+
+- **The arrow glyph is the direction's second channel**, never optional. At container lightness in dark mode this system's tonal pairs collapse under red-green colour-vision simulation, so on a dark block the arrow is the information and the hue is reinforcement.
+- **Fill pairs, never an alpha wash.** An earlier draft wrote `bg-lte/25`; an alpha is a different perceived lightness in each theme, where `bg-downlink` + `text-downlink-foreground` is a real pair in both. The pairs are declared in `shapes.ts`, so a consumer must **not** also set an ink class on the chip.
+
 ### The field-shell pair, and why `components/ui/input.tsx` is unusable here
 
 Free-text fields on this family are a **raw `<input>`** carrying `FIELD_SHELL` (or `FIELD_SHELL_ON_FILL` when its row is promoted) — not the shadcn `Input` primitive.
@@ -165,7 +178,7 @@ The rank numeral now wears the radio family's own identity hue:
 | `LTE` | `bg-lte text-lte-foreground` | LTE identity violet |
 | `WCDMA` | `bg-surface-container-high text-on-surface-variant` | **neutral** |
 
-**WCDMA gets a neutral, not a third identity hue.** The palette ships exactly three identity hues (primary/NR, lte/violet, uplink/cyan) and cyan is spoken for by the upload leg of paired readouts; inventing a fourth by eye is what the Source-Color Rule exists to stop. The neutral is also honest — WCDMA is the fallback of last resort and is the one leg with no brand identity in this product.
+**WCDMA gets a neutral, not a third identity hue.** The palette ships exactly **two radio identity hues** — `primary` (NR blue) and `lte` (violet). Cyan and rose are *direction* roles, not identities, and are unavailable here for that reason; inventing a fourth hue by eye is what the Source-Color Rule exists to stop. The neutral is also honest — WCDMA is the fallback of last resort and is the one leg with no brand identity in this product. See [color-system.md](color-system.md).
 
 Each entry is a complete fill **pair**, so it stays correct sitting on a neutral row or on a promoted one. Unknown RAT ids fall back to `RANK_PILL.NEUTRAL` rather than rendering unstyled.
 

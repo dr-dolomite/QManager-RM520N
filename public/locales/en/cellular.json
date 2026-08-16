@@ -1722,6 +1722,7 @@
         "label": "Bandwidth in use",
         "unit": "MHz",
         "caption_unavailable": "Not reported by the modem",
+        "caption_single": "Single carrier",
         "caption_breakdown": "{{parts}} MHz"
       },
       "carriers": {

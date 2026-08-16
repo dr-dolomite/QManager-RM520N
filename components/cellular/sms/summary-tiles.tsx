@@ -9,7 +9,7 @@ import { MetricBar } from "@/components/ui/metric-bar";
 import type { MetricBarTone } from "@/components/ui/metric-bar";
 import { cn } from "@/lib/utils";
 
-import { TILE_SHAPE } from "@/components/cellular/radio/summary-tiles";
+import { TILE_SHAPE } from "@/components/cellular/tile-shape";
 import type { SmsStorage } from "@/types/sms";
 
 // =============================================================================
@@ -17,8 +17,8 @@ import type { SmsStorage } from "@/types/sms";
 // =============================================================================
 // Mock reference: `reimagine/SMS Center.dc.html` lines 85-112. The ANATOMY is
 // kept verbatim (52px glyph disc → eyebrow → value → caption/meter) by importing
-// `TILE_SHAPE` from the Radio Information strip, which is the shipped reference
-// implementation of this shape. Nothing here restates a number that lives there,
+// `TILE_SHAPE` from `components/cellular/tile-shape.ts`, the `/cellular/`
+// family's shared tile geometry. Nothing here restates a number that lives there,
 // so `SmsSummaryTilesSkeleton` below is a true mirror rather than an estimate
 // (DESIGN.md > The Skeleton-Mirror Rule).
 //
@@ -35,7 +35,7 @@ import type { SmsStorage } from "@/types/sms";
 // clicks from the dashboard signal cards where a violet chip means "the LTE
 // leg". A violet tile labelled SIM moves that meaning. The SIM tile therefore
 // takes `uplink-container`, which is the system's third identity hue and already
-// owns "counts and supporting readouts" on the Radio Information strip.
+// owns "counts and upload direction" system-wide (DESIGN.md > Tertiary).
 //
 // The mock also draws each glyph disc as a white alpha wash of its own tile (an
 // 18% and a 50% pure-white overlay). That is wrong twice: pure white is a

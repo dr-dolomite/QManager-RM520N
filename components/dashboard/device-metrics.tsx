@@ -407,15 +407,21 @@ const DeviceMetricsComponent = ({
         >
           {/* Down/up are the one place a solid role colour is right on a
               container: they are accent GLYPHS, not text, and the figure beside
-              each keeps the container's ink. Uplink is `--uplink` (hue 200), not
-              the mock's literal hue 185 — 185 sits 36° from success and fails
-              the system's 40° separation floor. */}
+              each keeps the container's ink. Both take the `-on-surface`
+              variant, which is the tinted-ink token sized for a plain card.
+
+              Download used to be `text-primary` here — the 5G NR identity hue
+              on a figure that counts every byte the modem has received on any
+              radio. It is Downlink Rose now, and this tile is the one place in
+              the product that was already half-right: upload has been Uplink
+              Cyan here all along while the speedtest dialog and the AMBR chips
+              painted it Carrier Violet. All three agree now. */}
           <span className={cn(VALUE_CLASS, "flex items-center gap-1")}>
             <MaterialSymbol
               name="arrow_circle_down"
               size={20}
               filled
-              className="shrink-0 text-primary"
+              className="shrink-0 text-downlink-on-surface"
             />
             <TickingValue value={dataUsed?.accumulated_rx_bytes ?? 0}>
               {formatBytes(dataUsed?.accumulated_rx_bytes ?? 0)}
@@ -426,7 +432,7 @@ const DeviceMetricsComponent = ({
               name="arrow_circle_up"
               size={20}
               filled
-              className="shrink-0 text-uplink"
+              className="shrink-0 text-uplink-on-surface"
             />
             <TickingValue value={dataUsed?.accumulated_tx_bytes ?? 0}>
               {formatBytes(dataUsed?.accumulated_tx_bytes ?? 0)}

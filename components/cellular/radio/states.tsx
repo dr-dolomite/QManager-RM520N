@@ -10,7 +10,7 @@ import type { ConditionTone } from "@/components/cellular/condition-screen";
 import { cn } from "@/lib/utils";
 import type { RadioMode } from "@/lib/radio-info";
 
-import { TILE_SHAPE } from "./summary-tiles";
+import { TILE_SHAPE } from "@/components/cellular/tile-shape";
 
 // =============================================================================
 // Radio state screens
@@ -49,20 +49,19 @@ import { TILE_SHAPE } from "./summary-tiles";
 // -----------------------------------------------------------------------------
 // Skeleton
 // -----------------------------------------------------------------------------
-// Mirrors the loaded tile geometry exactly — same grid, same 84px block, same
-// 28px radius — by importing TILE_SHAPE rather than restating numbers, so the
-// two can never drift apart. The header above it is real text and is never
-// skeletonised: the page's identity is known before its readings are.
+// Mirrors the loaded tile geometry exactly — same grid, same 92px block, same
+// 28px radius — by importing TILE_SHAPE from the shared
+// `components/cellular/tile-shape.ts` rather than restating numbers, so the two
+// can never drift apart. Four blocks, because four tiles are what the eye sees
+// arrive. The header above is real text and is never skeletonised: the page's
+// identity is known before its readings are.
 
 export function SummaryTilesSkeleton({ label }: { label?: string }) {
   return (
     <div className={TILE_SHAPE.GRID}>
       {label && <span className="sr-only">{label}</span>}
       {[0, 1, 2, 3].map((i) => (
-        <Skeleton
-          key={i}
-          className={cn(TILE_SHAPE.HEIGHT, "rounded-tile")}
-        />
+        <Skeleton key={i} className={cn(TILE_SHAPE.HEIGHT, "rounded-tile")} />
       ))}
     </div>
   );
