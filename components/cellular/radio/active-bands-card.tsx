@@ -110,36 +110,18 @@ const METRIC_GRID =
 const METER_LANE = "flex h-4 items-center";
 
 /**
- * The identity line: PCI and the ARFCN, as LABELLED FIELDS in a fixed 2-column
- * grid.
+ * The identity line: PCI, as a LABELLED FIELD.
  *
- * This replaced a single `font-mono` paragraph joining both facts with four
- * non-breaking spaces (`PCI 407    EARFCN 9485`). Four things were wrong with
- * it, and the separator — already swapped once, from ` · ` — was none of them:
- *
- *   1. It set a HUMAN-AUTHORED LABEL in the machine voice. `PCI` comes from an
- *      i18n string; `407` is the modem's. DESIGN.md > The Machine-Voice Rule
- *      is explicit: "a human-authored label never wears it." With one font,
- *      one weight, one size and one ink across both, the line stopped reading
- *      as labelled data and started reading as a terminal dump — which is
- *      PRODUCT.md's anti-reference #2 by name.
- *   2. Nothing marked which half was the key. Proximity told you where the
- *      pairs split; it never told you which side was the label.
- *   3. It did not ALIGN. PCI is 0-503 on LTE and 0-1007 on NR, so the second
- *      fact started at a different x on every row. This card's whole thesis is
- *      that a technician "scans the column", and METRIC_GRID below is fixed —
- *      never `auto-fit` — precisely so RSRP lands at one offset. The meta line
- *      was the single block on the row abandoning the row's own principle.
- *   4. Absence was silent: a null PCI let the ARFCN slide left into the slot
- *      PCI had vacated. Same position, different meaning, no marker.
- *
- * Two fixed columns, so the second field's label starts at the same x on every
- * row and a missing value holds its column instead of collapsing. The No-Dot-
- * Separator Rule already sanctioned exactly this — "multiple spaces, OR
- * separate flex/inline items with a gap"; the card had taken the first option,
- * and this is the one that also solves alignment.
+ * The ARFCN/EARFCN used to sit here beside PCI in a fixed 2-column grid. It
+ * now renders as its own cell in `METRIC_GRID` — the same shape as an RSRP or
+ * SINR reading — because that grid is the one place on the row with FIXED
+ * columns, and the identity block's job (a technician scans PCI to confirm
+ * which physical cell this is) needed only the one field.  Moving EARFCN out
+ * also gave it the column RSSI vacated when RSSI was removed from the card
+ * (RSSI has no meaningful 0-100 scale and its bare-value row read as an
+ * afterthought); EARFCN now fills that slot instead of leaving it empty.
  */
-const IDENTITY_GRID = "m-0 grid grid-cols-2 gap-x-4";
+const IDENTITY_GRID = "m-0";
 /** Sans, per the Machine-Voice Rule. The label is the interface talking. */
 const IDENTITY_LABEL =
   "shrink-0 text-xs font-semibold tracking-[0.04em] text-on-surface-variant uppercase";
@@ -388,6 +370,42 @@ function MetricCell({
           {t(`radio_info.bands.quality.${metric.quality}`)}
         </span>
       ) : null}
+    </div>
+  );
+}
+
+// -----------------------------------------------------------------------------
+// ARFCN cell
+// -----------------------------------------------------------------------------
+
+/**
+ * EARFCN/ARFCN, rendered as its own column in `METRIC_GRID` — same label/value
+ * geometry as `MetricCell` so the column edges line up, but bar-less: it is an
+ * identifier, not a reading, so it keeps `font-mono` per the Machine-Voice
+ * Rule instead of borrowing `MetricCell`'s sans value. The empty `METER_LANE`
+ * spacer holds the row's shared height rather than every neighbouring bar
+ * shifting to fill it.
+ */
+function ArfcnCell({ label, value }: { label: string; value: number | null }) {
+  const { t } = useTranslation("cellular");
+
+  return (
+    <div className="flex min-w-0 flex-col gap-1.5">
+      <div className="flex items-baseline justify-between gap-2">
+        <span className="text-xs font-semibold text-on-surface-variant">
+          {label}
+        </span>
+        <span className="truncate font-mono text-[13px] font-semibold tabular-nums text-on-surface">
+          {value === null ? (
+            <span className="font-sans text-on-surface-variant">
+              {t("radio_info.bands.metric.not_reported_short")}
+            </span>
+          ) : (
+            <TickingValue value={value}>{value}</TickingValue>
+          )}
+        </span>
+      </div>
+      <div className={METER_LANE} />
     </div>
   );
 }
@@ -663,32 +681,35 @@ export function ActiveBandsCard({
                           ) : null}
                         </div>
 
-                        {/* Rendered unconditionally. The old line disappeared
-                            when both facts were null, which left that row's
-                            identity block one line shorter than its neighbours
-                            and broke the very alignment this block exists to
-                            hold. Two `Not reported` cells keep the geometry. */}
+                        {/* Rendered unconditionally, even when null — the same
+                            `Not reported` answer `MetricCell` and `ArfcnCell`
+                            give, so a missing PCI holds its line rather than
+                            collapsing the identity block a row short. */}
                         <dl className={IDENTITY_GRID}>
                           <IdentityField
                             label={t("radio_info.bands.detail.pci")}
                             value={c.pci}
                           />
-                          <IdentityField
-                            label={arfcnLabel}
-                            value={c.earfcn}
-                          />
                         </dl>
                       </div>
 
                       <div className={METRIC_GRID}>
-                        {c.metrics.map((m, i) => (
-                          <MetricCell
-                            key={m.id}
-                            metric={m}
-                            technology={c.technology}
-                            index={i}
-                          />
-                        ))}
+                        {/* RSSI removed by direct request — it had no 0-100
+                            scale to plot and read as an afterthought next to
+                            three real bars. EARFCN/ARFCN takes its column
+                            instead, so an NR carrier's 4th slot is no longer
+                            silently empty. */}
+                        {c.metrics
+                          .filter((m) => m.id !== "rssi")
+                          .map((m, i) => (
+                            <MetricCell
+                              key={m.id}
+                              metric={m}
+                              technology={c.technology}
+                              index={i}
+                            />
+                          ))}
+                        <ArfcnCell label={arfcnLabel} value={c.earfcn} />
                       </div>
                     </div>
 

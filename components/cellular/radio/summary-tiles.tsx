@@ -283,7 +283,10 @@ export function SummaryTiles({ mode, summary, mimo }: SummaryTilesProps) {
         captionClassName={isIdentityTile ? "text-xs opacity-85" : CAPTION}
       >
         <span className="flex items-baseline gap-2">
-          <Badge variant={net.markVariant} className="font-semibold">
+          <Badge
+            variant={net.markVariant}
+            className={cn(VALUE, "px-2.5 py-0.5")}
+          >
             {t(net.markKey)}
           </Badge>
           <span className={cn(VALUE, "truncate")}>{t(net.valueKey)}</span>
