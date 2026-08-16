@@ -50,6 +50,19 @@ colors:
   downlink-container-dark: "oklch(0.29 0.105 341)"
   on-downlink-container-light: "oklch(0.28 0.145 341)"
   on-downlink-container-dark: "oklch(0.91 0.075 341)"
+  # --- Spatial Azure (`--spatial-*`): antenna and spatial-stream readouts. ---
+  # Hue 232. Nearest FUNCTIONAL hue is success at 83 degrees; its 32-degree
+  # spacing from uplink/primary is decorative-only. See The 40-Degree Rule.
+  spatial-light: "oklch(0.49 0.135 232)"
+  spatial-dark: "oklch(0.745 0.115 232)"
+  spatial-foreground-light: "oklch(0.99 0.01 232)"
+  spatial-foreground-dark: "oklch(0.21 0.065 232)"
+  spatial-on-surface-light: "oklch(0.45 0.12 232)"
+  spatial-on-surface-dark: "oklch(0.8 0.105 232)"
+  spatial-container-light: "oklch(0.84 0.095 232)"
+  spatial-container-dark: "oklch(0.285 0.09 232)"
+  on-spatial-container-light: "oklch(0.26 0.1 232)"
+  on-spatial-container-dark: "oklch(0.9 0.07 232)"
   # --- The functional four. Five tokens each; see Colors > The functional four. ---
   success-light: "oklch(0.52 0.18 149)"
   success-dark: "oklch(0.82 0.17 149)"
@@ -384,6 +397,34 @@ Surfaces step tonally, and a card lifts by sitting one step above its parent in 
   inactive nav.
 - **Outline** — input strokes and table rules only. Never a card border.
 
+### Spatial
+
+- **Spatial Azure** (`--spatial-*`) — **antenna and spatial-stream readouts**: MIMO layer counts,
+  per-antenna chains. It exists because a MIMO figure routinely reads `LTE 1x2 | NR 2x4`, naming both
+  radios in its own string, so no identity hue is honest on it — and layers are neither a direction
+  nor a capacity, so neither of those axes fits either. The tile shipped neutral for one revision on
+  that reasoning; the resolution was to give the thing it reports an axis rather than bend one of the
+  other three onto it.
+- Hue 232. Its nearest **functional** hue is success at 83 degrees, so it can never be read as a
+  state. It sits 32 degrees from Uplink Cyan and from the brand ramp — decorative-to-decorative
+  crowding, identical to the NR↔LTE spacing this system already ships. See The 40-Degree Rule below
+  for why that is permitted and hue ~110 is not, despite ~110 measuring wider on paper.
+
+### The four axes
+
+Every hue in this system belongs to exactly one axis, and **no surface borrows across them**:
+
+| Axis | Hues | Answers |
+|------|------|---------|
+| **Radio identity** | Signal Blue (NR), Carrier Violet (LTE) | *which radio* |
+| **Direction** | Downlink Rose, Uplink Cyan | *which way the bytes go* |
+| **Spatial** | Spatial Azure | *how many antennas / layers* |
+| **State** | success, warning, destructive (+ info = brand) | *is it healthy* |
+
+Anything that is none of these is **neutral**. A figure with no honest hue is left neutral rather
+than given a decorative one — that restraint is the rule, and the Spatial axis was minted only
+because a whole class of readout had no axis at all, not because one tile looked plain.
+
 ### The functional four (contract)
 
 | Role | Meaning | Icon |
@@ -446,15 +487,33 @@ different color on the page background, on a card, and on a container tile — n
 one. (A card, a dialog and a popover are the one exception, and only because `--card`, `--surface` and
 `--popover` resolve to the *same* oklch value in both modes.)
 
-**The 40-Degree Rule.** No decorative hue sits within 40 degrees of a functional one. Identity hues
-occupy 264 / 296 / 200; functional hues occupy 149 / 72 / 27 plus the brand ramp.
+**The 40-Degree Rule.** No decorative hue sits within 40 degrees of a **functional** one. Functional
+hues occupy 149 / 72 / 27 plus the brand ramp; the non-functional axes occupy 200 / 232 / 264 / 296 /
+341.
+
+The constraint is deliberately one-directional, and 2026-08-16 is when that mattered. Decorative
+hues may crowd *each other* — NR 264 and LTE 296 have always been 32 degrees apart — because the
+failure this rule prevents is a decorative hue being mistaken for a **state**, which is a lie about
+the device. Two identity hues sitting close is a legibility question, and legibility has other
+channels: a glyph, a label, a lightness step.
+
+That distinction is load-bearing because **the circle is now full**. Every remaining gap is inside 40
+degrees of something. The widest unused position is hue ~110 at 38.5 degrees from *both* warning and
+success — which sounds like the best remaining slot and is in fact the worst one available: a
+yellow-green sitting exactly where deuteranopia merges amber and green, i.e. maximally confusable
+with the two functional states it is nearest. Spatial Azure at 232 measures 83 degrees from its
+nearest functional hue and crowds only decorative neighbours. Wider on paper lost to safer in
+practice.
+
+**A new hue now costs an existing one.** Anyone adding one measures both distances separately —
+functional first, decorative second — and states which existing role they are prepared to retire.
 
 **The Info-Is-Brand Rule.** There is no separate info hue. "In progress" renders as the brand's own
 tonal container, so an informational chip and a primary button differ by **shape and glyph** (pill
 plus clock vs. filled button plus label), never by owning two different blues.
 
-**The Identity-Never-Acts Rule.** Carrier Violet, Uplink Cyan and Downlink Rose carry identity or
-direction, never affordance. A violet surface is never clickable *because* it is violet, and no
+**The Identity-Never-Acts Rule.** Carrier Violet, Uplink Cyan, Downlink Rose and Spatial Azure carry
+identity, direction or domain, never affordance. A violet surface is never clickable *because* it is violet, and no
 control is ever tinted by them. The corollary: `nr` and `lte` never mean "healthy".
 
 **The Direction-Is-Not-A-Radio Rule.** Which way the bytes are going and which radio is carrying them
@@ -1028,14 +1087,14 @@ plus fade); there is no exit.
   container of whichever radio is actually registered — the hue *is* the fact, and it is the only tile
   allowed a radio hue. Bandwidth takes Downlink Rose, because `totalMhz` sums across both legs so no
   radio hue can be honest, but capacity is rose's own second meaning. Carriers takes Uplink Cyan, which
-  already owns counts. **Active MIMO takes the neutral and that is the point**: its value literally
-  reads `LTE 1x2 | NR 2x4`, naming both radios in its own string, and it is neither a count nor a
-  capacity. There is no true hue for it, so it does not get a false one.
+  already owns counts. Active MIMO takes **Spatial Azure**: its value literally reads
+  `LTE 1x2 | NR 2x4`, naming both radios in its own string, and it is neither a count nor a capacity,
+  so it needed the axis that answers *how many antennas* rather than a borrowed one.
 
-  Three tinted plus one neutral is **not** the "two filled, two flat" checkerboard an earlier
-  generation was built to escape. A checkerboard is an *alternating* pattern that reads as a rendering
-  fault; a single trailing neutral in the last slot reads as "this figure has no category", which is
-  exactly what is being said.
+  **Four tiles, four axes** — identity, capacity, count, spatial — and none of them borrows a hue
+  belonging to another. That is precisely the property missing the last time this strip carried four
+  colours, when bandwidth wore NR blue while summing NR+LTE and MIMO wore LTE violet while reporting
+  both legs. The tile count was never the defect; the borrowing was.
 
   **What the colour is actually doing here.** Under deuteranopia and protanopia simulation these body
   tints do not separate in dark mode — see The Dark-Container-Cannot-Carry-Meaning Rule. That is not an

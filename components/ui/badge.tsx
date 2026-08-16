@@ -103,6 +103,10 @@ const badgeVariants = cva(
           "border-transparent bg-downlink-container text-on-downlink-container [a&]:hover:bg-downlink-container/80",
         uplink:
           "border-transparent bg-uplink-container text-on-uplink-container [a&]:hover:bg-uplink-container/80",
+        // Antenna / spatial-stream readouts. A third axis again, because a MIMO
+        // figure routinely names both radios at once and has no direction.
+        spatial:
+          "border-transparent bg-spatial-container text-on-spatial-container [a&]:hover:bg-spatial-container/80",
         outline:
           "text-foreground [a&]:hover:bg-accent [a&]:hover:text-accent-foreground",
       },

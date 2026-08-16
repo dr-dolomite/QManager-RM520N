@@ -54,10 +54,14 @@ import type { RadioMode, RadioSummary } from "@/lib/radio-info";
 //                 is exactly the pipe. See The Direction-Is-Not-A-Radio Rule.
 //   Carriers      UPLINK CYAN, which already owns counts system-wide
 //                 (DESIGN.md > Tertiary). A count is what this tile reports.
-//   Active MIMO   NEUTRAL, and it is the honest holdout. Its value literally
-//                 reads `LTE 1x2 | NR 2x4` — it names both radios in its own
-//                 string — and it is neither a count nor a capacity. There is
-//                 no true hue for it, so it does not get a false one.
+//   Active MIMO   SPATIAL AZURE. Its value literally reads `LTE 1x2 | NR 2x4`,
+//                 naming both radios in its own string, so no identity hue is
+//                 honest — and layers are neither a direction nor a capacity,
+//                 so neither of those axes fits either. It shipped neutral for
+//                 exactly one revision on that reasoning. The resolution was
+//                 not to bend one of the other three axes onto it but to give
+//                 the thing it actually reports — antennas and spatial streams
+//                 — an axis of its own, which the per-antenna surfaces share.
 //
 // Under the Functional-Color Promise a user who learned violet = LTE on the
 // dashboard CA strip must not meet a violet block that means something else.
@@ -65,12 +69,16 @@ import type { RadioMode, RadioSummary } from "@/lib/radio-info";
 // LTE violet while reporting both); that is the defect this generation keeps
 // fixed while getting the grid back.
 //
-// ON THE ONE NEUTRAL TILE. Three tinted plus one neutral is NOT the "2 filled /
-// 2 flat checkerboard" that Gen 2 was built to escape. A checkerboard is an
-// alternating pattern that reads as a rendering fault; a single trailing
-// neutral in the last slot reads as "this figure has no category", which is
-// true. If the fourth hue is ever wanted more than the honesty is, the change
-// is MIMO_TILE/MIMO_DISC below and nothing else.
+// FOUR TILES, FOUR AXES, and that is the whole system on one surface: radio
+// identity, capacity, count, spatial. None of the four borrows a hue from
+// another's axis, which is the property that was missing when this strip last
+// had four colours — back then bandwidth wore NR blue while summing NR+LTE and
+// MIMO wore LTE violet while reporting both legs.
+//
+// The honest constraint worth recording: there was no free hue. Every gap in
+// the circle is inside 40 degrees of something, so Spatial Azure is a
+// deliberate, measured amendment to that rule rather than a slot that happened
+// to be open — see the token comment in `app/globals.css`.
 //
 // WHAT COLOUR CAN AND CANNOT DO HERE, measured rather than assumed. Simulating
 // deuteranopia and protanopia across this system's container tones in DARK
@@ -102,8 +110,8 @@ const BANDWIDTH_TILE = "bg-downlink-container text-on-downlink-container";
 const BANDWIDTH_DISC = "bg-downlink text-downlink-foreground";
 const CARRIERS_TILE = "bg-uplink-container text-on-uplink-container";
 const CARRIERS_DISC = "bg-uplink text-uplink-foreground";
-const MIMO_TILE = NEUTRAL_TILE;
-const MIMO_DISC = NEUTRAL_DISC;
+const MIMO_TILE = "bg-spatial-container text-on-spatial-container";
+const MIMO_DISC = "bg-spatial text-spatial-foreground";
 
 function Tile({
   glyph,
@@ -355,13 +363,17 @@ export function SummaryTiles({ mode, summary, mimo }: SummaryTilesProps) {
         label={t("radio_info.tiles.mimo.label")}
         tone={MIMO_TILE}
         disc={MIMO_DISC}
+        captionClassName="text-xs opacity-85"
         caption={
           mimoParts.length > 0 ? (
             <Link
               href="/cellular/antenna-statistics"
+              // Hover lifts the link toward the container's FULL ink rather
+              // than toward `on-surface`, which belongs to the neutral ramp and
+              // is a cross-pair on a tinted tile (Container-Pair Rule).
               className={cn(
-                "font-semibold underline underline-offset-2",
-                "transition-colors duration-(--duration-quick) ease-out hover:text-on-surface",
+                "font-semibold underline underline-offset-2 opacity-100",
+                "transition-opacity duration-(--duration-quick) ease-out hover:opacity-80",
                 "focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none",
               )}
             >
@@ -396,9 +408,7 @@ export function SummaryTiles({ mode, summary, mimo }: SummaryTilesProps) {
             ))}
           </span>
         ) : (
-          <span className="text-sm font-semibold text-on-surface-variant">
-            {t("radio_info.common.value_unavailable")}
-          </span>
+          unavailable
         )}
       </Tile>
     </div>

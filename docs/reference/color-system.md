@@ -14,7 +14,7 @@ Read this before adding a colour, retuning one, or looking at a token that seems
 | Tailwind mappings | `@theme inline` block in the same file |
 | Canon (meanings, values, rules) | `DESIGN.md` > Colors |
 | Chip roles | `components/ui/badge.tsx` |
-| Separation floor between hues | **40 degrees** |
+| Separation floor, decorative vs **functional** | **40 degrees** (one-directional — see below) |
 | CVD collapse floor between two tones | **0.05** simulated separation |
 
 ## The role families
@@ -25,6 +25,7 @@ Read this before adding a colour, retuning one, or looking at a token that seems
 | Carrier Violet | `--lte-*`, `--chart-lte` | 4G LTE **identity** | Identity |
 | **Downlink Rose** | `--downlink`, `-foreground`, `-on-surface`, `-container`, `--on-downlink-container` | The **download direction**, and **capacity / throughput** | Direction |
 | **Uplink Cyan** | `--uplink`, `-foreground`, `-on-surface`, `-container`, `--on-uplink-container` | The **upload direction**, and **counts** | Direction |
+| **Spatial Azure** | `--spatial`, `-foreground`, `-on-surface`, `-container`, `--on-spatial-container` | **Antenna and spatial-stream readouts** — MIMO layer counts, per-antenna chains | Spatial |
 | Success / Warning / Destructive | `--success-*`, `--warning-*`, `--destructive-*` | Functional verdicts only | Status |
 | Neutral ramp | `--surface-*`, `--on-surface*`, `--outline` | No claim at all | — |
 
@@ -56,7 +57,7 @@ Two consequences that are easy to get wrong:
 
 ## Hue-slot arithmetic: why 341, and why there is no room for a fifth
 
-The system enforces a **40-degree minimum separation** between any two role hues. Taken slots:
+The system enforces a **40-degree minimum separation** between a decorative role hue and a functional one. Taken slots:
 
 | Hue | Role |
 | --- | ---- |
@@ -67,7 +68,21 @@ The system enforces a **40-degree minimum separation** between any two role hues
 | 264 | primary / NR / info |
 | 296 | lte |
 
-Sweeping all 360 degrees against that set leaves **exactly one window** clearing the floor: **h ∈ [336, 347]**. Downlink Rose sits at **341**, the middle of it. Everything else on the circle is inside 40 degrees of something that already means a thing. Hue 341 was therefore not chosen by eye — it is the only slot left, and **the palette is now full**. A future role cannot get a new hue; it gets a neutral, a lightness step, or a non-chromatic channel.
+Sweeping all 360 degrees against that set leaves **exactly one window** clearing the floor against *every* taken hue: **h ∈ [336, 347]**. Downlink Rose sits at **341**, the middle of it. Hue 341 was therefore not chosen by eye — it was the only wholly-unconstrained slot left.
+
+### The amendment: the floor is one-directional (2026-08-16)
+
+Adding **Spatial Azure at hue 232** for MIMO and per-antenna readouts forced the rule to be stated precisely, because 232 sits 32 degrees from Uplink Cyan (200) and 32 from the brand ramp (264) — inside the floor as previously written.
+
+The resolution is not a carve-out, it is what the rule was always protecting against. **The failure mode is a decorative hue being mistaken for a functional one**, because that is a lie about the device: a tile that reads as `warning` when nothing is wrong. Two *decorative* hues sitting close is a legibility question, not an honesty one, and legibility has other channels — a glyph, a label, a lightness step. The system has always accepted exactly this: **NR 264 and LTE 296 are 32 degrees apart** and have been since the palette was written.
+
+So the floor is measured **against functional hues** (149 / 72 / 27 plus the brand ramp) and decorative crowding is permitted. Spatial Azure's nearest functional hue is success at **83 degrees** — it is one of the *safest* hues in the palette by the measure that matters.
+
+**The trap this exposes, and it is counter-intuitive.** The widest unused position on the whole circle is **hue ~110**, at 38.5 degrees from both warning (72) and success (149). It looks like the best remaining slot and it is the worst one available: a yellow-green sitting precisely where deuteranopia merges amber into green, i.e. maximally confusable with the two functional states it is nearest. Anyone hunting for "the biggest gap" will find 110 first. Do not take it.
+
+### What a fifth role costs now
+
+The circle is full in the sense that no wholly-unconstrained slot remains. A new role must therefore either accept decorative crowding — measuring **functional distance first, decorative second**, and stating both — or take a neutral, a lightness step, or a non-chromatic channel. It should also justify a *class* of readout rather than one surface: Spatial Azure was minted because MIMO layers, per-antenna chains and the alignment surfaces are a whole family with no axis, not because one tile looked plain.
 
 The tightest remaining adjacency is rose vs destructive red, which was flagged as the riskiest pairing *before* it was measured and then cleared comfortably: **0.47 separation in dark, 0.25 in light**, against a 0.05 floor.
 

@@ -144,6 +144,11 @@
   --color-downlink-on-surface: var(--downlink-on-surface);
   --color-downlink-container: var(--downlink-container);
   --color-on-downlink-container: var(--on-downlink-container);
+  --color-spatial: var(--spatial);
+  --color-spatial-foreground: var(--spatial-foreground);
+  --color-spatial-on-surface: var(--spatial-on-surface);
+  --color-spatial-container: var(--spatial-container);
+  --color-on-spatial-container: var(--on-spatial-container);
   --color-surface: var(--surface);
   --color-surface-container: var(--surface-container);
   --color-surface-container-high: var(--surface-container-high);
@@ -282,6 +287,30 @@
   --downlink-on-surface: oklch(0.475 0.185 341);
   --downlink-container: oklch(0.9 0.075 341);
   --on-downlink-container: oklch(0.28 0.145 341);
+  /* Spatial Azure: antenna and spatial-stream readouts — MIMO layer counts,
+     per-antenna chains. Not a radio (a MIMO figure routinely names both legs
+     at once) and not a direction (layers are neither up nor down), which is
+     exactly why neither of those axes could carry it.
+
+     Hue 232 and the 40-Degree Rule, honestly. Its nearest FUNCTIONAL hue is
+     success at 83 degrees, so it can never be mistaken for a state — which is
+     what that rule exists to prevent. It does sit 32 degrees from uplink 200
+     and from primary 264, and that crowding is decorative-to-decorative: the
+     identical spacing this system already ships and accepts between NR 264 and
+     LTE 296. See DESIGN.md > The 40-Degree Rule for the amended wording.
+
+     The remaining position with a wider margin is hue ~110, at 38.5 degrees
+     from BOTH warning and success — a yellow-green sitting exactly where
+     deuteranopia merges amber and green. Wider on paper, unusable in practice.
+
+     Light L 0.84 rather than 0.89: at 0.89 this measured 0.046 against
+     --primary-container under deuteranopia, a hair under the collapse floor.
+     0.84 measures 0.064. Same correctness class as the --lte-container fix. */
+  --spatial: oklch(0.49 0.135 232);
+  --spatial-foreground: oklch(0.99 0.01 232);
+  --spatial-on-surface: oklch(0.45 0.12 232);
+  --spatial-container: oklch(0.84 0.095 232);
+  --on-spatial-container: oklch(0.26 0.1 232);
 
   /* --- shadcn neutrals: NOT the canon's secondary/tertiary roles --- */
   --secondary: oklch(0.952 0.026 258);
@@ -425,6 +454,11 @@
   --downlink-on-surface: oklch(0.8 0.145 341);
   --downlink-container: oklch(0.29 0.105 341);
   --on-downlink-container: oklch(0.91 0.075 341);
+  --spatial: oklch(0.745 0.115 232);
+  --spatial-foreground: oklch(0.21 0.065 232);
+  --spatial-on-surface: oklch(0.8 0.105 232);
+  --spatial-container: oklch(0.285 0.09 232);
+  --on-spatial-container: oklch(0.9 0.07 232);
 
   --secondary: oklch(0.262 0.04 258);
   --secondary-foreground: oklch(0.96 0.012 258);

@@ -38,13 +38,14 @@ export const CONTEXT_GRID =
  *  a same-tone circle (DESIGN.md > Tiles). */
 const NEUTRAL_TILE = "bg-surface-container text-on-surface";
 const NEUTRAL_DISC = "bg-surface-container-high text-on-surface-variant";
-/** ⚠️ Inherited from the mock, and it is on notice. This tile's value is the same
- *  compound `LTE 1x2 | NR 2x4` the Radio Information MIMO row carries, so the
- *  violet says "LTE readout" about a figure spanning both radios — the exact
- *  reason that row is neutral (`radio/summary-tiles.tsx` > COLOUR DISCIPLINE).
- *  Demoting it belongs to a pass on this page, not to a change on that one. */
-const MIMO_TILE = "bg-lte-container text-on-lte-container";
-const MIMO_DISC = "bg-lte text-lte-foreground";
+/** Spatial Azure, matching the Radio Information MIMO tile exactly — same
+ *  figure, same axis. It was `lte-container`, inherited from the mock, and the
+ *  violet said "LTE readout" about a compound `LTE 1x2 | NR 2x4` that names
+ *  both radios in its own string. Antennas and spatial streams are neither a
+ *  radio, a direction, nor a state, which is precisely why they got their own
+ *  role rather than borrowing one (DESIGN.md > Colors > Spatial). */
+const MIMO_TILE = "bg-spatial-container text-on-spatial-container";
+const MIMO_DISC = "bg-spatial text-spatial-foreground";
 /** Uplink Cyan owns counts (DESIGN.md > Tertiary). */
 const COUNT_TILE = "bg-uplink-container text-on-uplink-container";
 const COUNT_DISC = "bg-uplink text-uplink-foreground";
