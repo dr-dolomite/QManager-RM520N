@@ -22,7 +22,7 @@
       "delta_down": "dropped since the last reading",
       "partial": "{{leg}} only",
       "not_reported": "Not reported",
-      "primary_chain": "Main / PRX — the chain the score is built from"
+      "primary_chain": "Main / PRX is the chain the score is built from"
     },
     "quality": {
       "excellent": "Excellent",

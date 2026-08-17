@@ -517,70 +517,10 @@ export function PositionsCard({
 
   return (
     <Card className={CARD_SHELL}>
-      <CardHeader className={cn(CARD_HEADER, "gap-3")}>
-        {/* Title and controls share one row; the description gets its own full
-            width beneath them. Sharing the row with the cluster squeezed it into
-            a ~220px column at desktop, where a two-line sentence wrapped to
-            five — a measure far below the readable floor, produced by a layout
-            constraint rather than by the copy. */}
-        <div className="flex flex-col gap-3 @2xl/main:flex-row @2xl/main:items-center @2xl/main:justify-between">
-          <CardTitle className={CARD_TITLE}>
-            {t("antenna_alignment.recorder.title")}
-          </CardTitle>
-
-          {/* The whole control cluster, one height each. It wraps to two rows on
-              a phone and sits on one at desktop. Reset is demoted to an icon:
-              it is a rare, destructive, confirmed action and has no business
-              competing with Record for width. */}
-          <div className="flex shrink-0 flex-wrap items-center gap-2">
-            <ToggleGroup
-              type="single"
-              variant="outline"
-              value={antennaType}
-              onValueChange={(value) => {
-                if (value) setAntennaType(value as AntennaType);
-              }}
-              className="rounded-pill"
-            >
-              <ToggleGroupItem value="directional" className={SEGMENTED_ITEM}>
-                <MaterialSymbol name={SLOT_GLYPH.directional} size={GLYPH.INLINE} />
-                {t("antenna_alignment.recorder.type_directional")}
-              </ToggleGroupItem>
-              <ToggleGroupItem value="omni" className={SEGMENTED_ITEM}>
-                <MaterialSymbol name={SLOT_GLYPH.omni} size={GLYPH.INLINE} />
-                {t("antenna_alignment.recorder.type_omni")}
-              </ToggleGroupItem>
-            </ToggleGroup>
-
-            {/* THE card's one primary button. It records into the next empty
-                slot, which is what removes two of the three saturated pills the
-                outgoing tile grid stacked down the phone. */}
-            <Button
-              className={PILL_ACTION}
-              disabled={recordBlockedReason !== null}
-              onClick={() => {
-                if (nextEmpty !== -1) recordInto(nextEmpty);
-              }}
-            >
-              <MaterialSymbol name={RECORD_GLYPH.idle} size={GLYPH.ACTION} />
-              {antennaType === "directional"
-                ? t("antenna_alignment.recorder.record_angle")
-                : t("antenna_alignment.recorder.record_position")}
-            </Button>
-
-            <Button
-              variant="ghost"
-              size="icon"
-              className={ICON_TARGET}
-              onClick={() => setPending({ kind: "reset" })}
-              disabled={isRecording || filledCount === 0}
-              aria-label={t("antenna_alignment.recorder.reset")}
-            >
-              <MaterialSymbol name="restart_alt" size={GLYPH.ACTION} />
-            </Button>
-          </div>
-        </div>
-
+      <CardHeader className={CARD_HEADER}>
+        <CardTitle className={CARD_TITLE}>
+          {t("antenna_alignment.recorder.title")}
+        </CardTitle>
         <CardDescription className={CARD_DESCRIPTION}>
           {antennaType === "directional"
             ? t("antenna_alignment.recorder.description_directional", {
@@ -590,6 +530,60 @@ export function PositionsCard({
                 samples: SAMPLES_PER_RECORDING,
               })}
         </CardDescription>
+      </CardHeader>
+
+      <CardContent className={cn(CARD_CONTENT, "@container/card gap-3")}>
+        {/* The whole control cluster, one height each. It wraps to two rows on
+            a phone and sits on one at desktop. Reset is demoted to an icon:
+            it is a rare, destructive, confirmed action and has no business
+            competing with Record for width. */}
+        <div className="flex flex-wrap items-center gap-2">
+          <ToggleGroup
+            type="single"
+            variant="outline"
+            value={antennaType}
+            onValueChange={(value) => {
+              if (value) setAntennaType(value as AntennaType);
+            }}
+            className="rounded-pill"
+          >
+            <ToggleGroupItem value="directional" className={SEGMENTED_ITEM}>
+              <MaterialSymbol name={SLOT_GLYPH.directional} size={GLYPH.INLINE} />
+              {t("antenna_alignment.recorder.type_directional")}
+            </ToggleGroupItem>
+            <ToggleGroupItem value="omni" className={SEGMENTED_ITEM}>
+              <MaterialSymbol name={SLOT_GLYPH.omni} size={GLYPH.INLINE} />
+              {t("antenna_alignment.recorder.type_omni")}
+            </ToggleGroupItem>
+          </ToggleGroup>
+
+          {/* THE card's one primary button. It records into the next empty
+              slot, which is what removes two of the three saturated pills the
+              outgoing tile grid stacked down the phone. */}
+          <Button
+            className={PILL_ACTION}
+            disabled={recordBlockedReason !== null}
+            onClick={() => {
+              if (nextEmpty !== -1) recordInto(nextEmpty);
+            }}
+          >
+            <MaterialSymbol name={RECORD_GLYPH.idle} size={GLYPH.ACTION} />
+            {antennaType === "directional"
+              ? t("antenna_alignment.recorder.record_angle")
+              : t("antenna_alignment.recorder.record_position")}
+          </Button>
+
+          <Button
+            variant="ghost"
+            size="icon"
+            className={ICON_TARGET}
+            onClick={() => setPending({ kind: "reset" })}
+            disabled={isRecording || filledCount === 0}
+            aria-label={t("antenna_alignment.recorder.reset")}
+          >
+            <MaterialSymbol name="restart_alt" size={GLYPH.ACTION} />
+          </Button>
+        </div>
 
         {recordBlockedReason && (
           <p
@@ -599,9 +593,7 @@ export function PositionsCard({
             {recordBlockedReason}
           </p>
         )}
-      </CardHeader>
 
-      <CardContent className={cn(CARD_CONTENT, "@container/card gap-3")}>
         <motion.div className={SLOT.STACK} variants={staggerRows}>
           {[0, 1, 2].map((index) => (
             <PositionRow

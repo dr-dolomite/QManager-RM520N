@@ -13,7 +13,6 @@ import {
 } from "@/components/ui/card";
 import { MaterialSymbol } from "@/components/ui/material-symbol";
 import { MetricBar } from "@/components/ui/metric-bar";
-import { SwapLabel } from "@/components/ui/swap-label";
 import { Tag } from "@/components/ui/tag";
 import { cn } from "@/lib/utils";
 import {
@@ -26,7 +25,6 @@ import {
 import type { SignalPerAntenna, SignalThresholds } from "@/types/modem-status";
 import {
   QUALITY_GLYPH,
-  qualityBadgeVariant,
   qualityInkClass,
   qualityMeterTone,
 } from "../signal-quality-display";
@@ -322,86 +320,72 @@ export function AimConsole({
       </CardHeader>
 
       <CardContent className="flex flex-col gap-5 px-0">
-        {/* --- Score, verdict, delta, peak --------------------------------- */}
+        {/* --- Score, delta, peak ------------------------------------------- */}
         <div className="flex flex-col gap-2.5">
           <div className="flex items-end gap-4">
             <div className="flex shrink-0 flex-col gap-1">
               <span className={CONSOLE.EYEBROW}>
                 {t("antenna_alignment.aim.score_label")}
               </span>
-              {/* The one figure the aiming user steers by, so it takes the ramp
-                  ink — and it is legal to tint precisely because the composite
-                  meter sits directly beneath it. A ramp colour with no bar
-                  beside it is a bug, not a shortcut.
+              <div className="flex items-baseline gap-1">
+                {/* The one figure the aiming user steers by, so it takes the
+                    ramp ink — and it is legal to tint precisely because the
+                    composite meter sits directly beneath it. A ramp colour
+                    with no bar beside it is a bug, not a shortcut.
 
-                  The quality word rides the `aria-label` rather than an `sr-only`
-                  span: an `aria-label` REPLACES an element's contents for
-                  assistive tech, so a nested `sr-only` here would never be
-                  announced at all. */}
-              <span
-                className={cn(
-                  CONSOLE.SCORE,
-                  CONSOLE.SCORE_BOX,
-                  qualityInkClass(overallQuality),
-                )}
-                aria-label={
-                  score.value === null
-                    ? t("antenna_alignment.aim.no_reading")
-                    : `${t("antenna_alignment.aim.score_sr", {
-                        score: score.value,
-                      })} ${t(`antenna_alignment.quality.${overallQuality}`)}`
-                }
-              >
-                {score.value === null ? "—" : score.value}
-              </span>
-            </div>
+                    The quality word rides the `aria-label` rather than an
+                    `sr-only` span: an `aria-label` REPLACES an element's
+                    contents for assistive tech, so a nested `sr-only` here
+                    would never be announced at all. */}
+                <span
+                  className={cn(
+                    CONSOLE.SCORE,
+                    CONSOLE.SCORE_BOX,
+                    qualityInkClass(overallQuality),
+                  )}
+                  aria-label={
+                    score.value === null
+                      ? t("antenna_alignment.aim.no_reading")
+                      : `${t("antenna_alignment.aim.score_sr", {
+                          score: score.value,
+                        })} ${t(`antenna_alignment.quality.${overallQuality}`)}`
+                  }
+                >
+                  {score.value === null ? "—" : score.value}
+                </span>
 
-            {/* The chips fill the rest of the numeral's line rather than being
-                pushed to an opposite edge, so the block reads as one object at
-                the console's pinned width. */}
-            <div className="flex min-w-0 flex-1 flex-col items-start gap-1.5 pb-1">
-              <div className="flex flex-wrap items-center gap-1.5">
-                {/* The primary chain's verdict, as a filled chip with its
-                    mandatory glyph — the non-chromatic channel that survives a
-                    container fill washed out by direct sun. */}
-                <Badge variant={qualityBadgeVariant(overallQuality)}>
-                  <SwapLabel swapKey={overallQuality} className="gap-1">
+                {/* The delta rides the numeral's own line at a minimal gap,
+                    rather than living in a chip a full row away from the
+                    figure it is a footnote to. It is NOT a status — signal
+                    dropping while you rotate is expected information, not a
+                    fault — so it stays a plain glyph-plus-figure pair and its
+                    DIRECTION rides the glyph rather than a hue, which is also
+                    what makes it survive deuteranopia and grayscale. */}
+                {showDelta && (
+                  <span
+                    className="mb-1.5 flex shrink-0 items-center gap-0.5 text-xs font-semibold tabular-nums text-on-surface-variant"
+                    aria-hidden="true"
+                  >
                     <MaterialSymbol
-                      name={QUALITY_GLYPH[overallQuality]}
+                      name={delta! > 0 ? "arrow_upward" : "arrow_downward"}
                       size={GLYPH.CHIP}
                       filled
                     />
-                    {t(`antenna_alignment.quality.${overallQuality}`)}
-                  </SwapLabel>
-                </Badge>
-
-                {/* A delta is NOT a status: signal dropping while you rotate is
-                    expected information, not a fault, so it must not wear
-                    `destructive`. It is a non-status label, and its DIRECTION
-                    rides the glyph rather than a hue — which is also what makes
-                    it survive deuteranopia and grayscale. */}
+                    {delta! > 0 ? `+${delta}` : `${delta}`}
+                  </span>
+                )}
                 {showDelta && (
-                  <Badge variant="secondary">
-                    <SwapLabel swapKey={`${delta}`} className="gap-1">
-                      <MaterialSymbol
-                        name={delta! > 0 ? "arrow_upward" : "arrow_downward"}
-                        size={GLYPH.CHIP}
-                        filled
-                      />
-                      <span className="tabular-nums">
-                        {delta! > 0 ? `+${delta}` : `${delta}`}
-                      </span>
-                      <span className="sr-only">
-                        {delta! > 0
-                          ? t("antenna_alignment.aim.delta_up")
-                          : t("antenna_alignment.aim.delta_down")}
-                      </span>
-                    </SwapLabel>
-                  </Badge>
+                  <span className="sr-only">
+                    {delta! > 0
+                      ? t("antenna_alignment.aim.delta_up")
+                      : t("antenna_alignment.aim.delta_down")}
+                  </span>
                 )}
               </div>
+            </div>
 
-              {score.partial && score.value !== null && (
+            {score.partial && score.value !== null && (
+              <div className="flex min-w-0 flex-1 flex-col items-start pb-1">
                 <Badge variant="muted">
                   <MaterialSymbol name="warning" size={GLYPH.CHIP} filled />
                   {t("antenna_alignment.aim.partial", {
@@ -412,8 +396,8 @@ export function AimConsole({
                     ),
                   })}
                 </Badge>
-              )}
-            </div>
+              </div>
+            )}
           </div>
 
           {/* Peak and timestamp caption the METER, and sit immediately above it
@@ -504,7 +488,7 @@ export function AimConsole({
         </div>
 
         {/* Which chain the whole card is about. It WRAPS — this line truncated
-            to "Main / PRX — the chain the score is …" in the outgoing build,
+            to "Main / PRX is the chain the score is …" in the outgoing build,
             which cut the sentence exactly where its meaning starts. */}
         <p className={cn(CONSOLE.CAPTION, "text-pretty leading-relaxed")}>
           {t("antenna_alignment.aim.primary_chain")}

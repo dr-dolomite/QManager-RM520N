@@ -22,7 +22,7 @@
       "delta_down": "menurun sejak bacaan terakhir",
       "partial": "Hanya {{leg}}",
       "not_reported": "Tidak dilaporkan",
-      "primary_chain": "Main / PRX — rantai yang menjadi dasar skor"
+      "primary_chain": "Main / PRX adalah rantai yang menjadi dasar skor"
     },
     "quality": {
       "excellent": "Sangat Baik",

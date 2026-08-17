@@ -22,7 +22,7 @@
       "delta_down": "较上次读数有下降",
       "partial": "仅 {{leg}}",
       "not_reported": "未上报",
-      "primary_chain": "Main / PRX — 评分所依据的链路"
+      "primary_chain": "Main / PRX 是评分所依据的链路"
     },
     "quality": {
       "excellent": "极佳",

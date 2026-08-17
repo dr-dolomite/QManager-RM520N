@@ -22,7 +22,7 @@
       "delta_down": "calato dall'ultima lettura",
       "partial": "Solo {{leg}}",
       "not_reported": "Non riportato",
-      "primary_chain": "Main / PRX — la catena su cui si basa il punteggio"
+      "primary_chain": "Main / PRX è la catena su cui si basa il punteggio"
     },
     "quality": {
       "excellent": "Eccellente",

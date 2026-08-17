@@ -56,13 +56,20 @@ export const PAGE_HEADER_BLOCK = "flex max-w-[41rem] flex-col gap-1.5";
  *
  * A sticky element travels inside its own containing block, which is its
  * parent. Under `items-start` the console column shrinks to the console's own
- * height, the sticky child has zero slack, and it never moves: the page would
- * look correct in a static screenshot and simply not stick. Under `stretch` the
- * column resolves to the taller work column's height, and that difference is
- * exactly the distance the console is allowed to ride.
+ * height and the sticky child never moves at all. `stretch` resolves the
+ * column to the taller work column's height and `CONSOLE.SHELL`'s `h-full`
+ * then fills that exactly, per the equal-height hard rule — so Live Aim and
+ * Positions match, `top-4` still pins the card's top edge, and there is no
+ * separate travel distance left for the console to ride.
  */
 export const CONSOLE_SPLIT = "grid grid-cols-1 gap-5 @4xl/main:grid-cols-12";
-export const CONSOLE_COLUMN = "@4xl/main:col-span-5";
+/**
+ * `flex flex-col`, not a bare grid cell: the sticky wrapper inside needs a
+ * flex parent to stretch into, which is what lets the console CARD match
+ * `Positions`' height exactly (the hard equal-height rule) rather than
+ * riding loose inside a taller column.
+ */
+export const CONSOLE_COLUMN = "flex flex-col @4xl/main:col-span-5";
 export const WORK_COLUMN = "flex flex-col gap-5 @4xl/main:col-span-7";
 
 /**
@@ -105,9 +112,17 @@ export const CARD_HEADER = "gap-1 px-0";
 export const CARD_CONTENT = "flex flex-col gap-4 px-0";
 
 export const CONSOLE = {
-  STICKY: "@4xl/main:sticky @4xl/main:top-4",
+  /**
+   * `flex-1`, so the wrapper fills `CONSOLE_COLUMN`'s stretched height rather
+   * than sizing to the console's own content. Paired with `SHELL`'s `h-full`
+   * this is what makes Live Aim match Positions exactly — the equal-height
+   * hard rule takes priority over the sticky card riding loose in extra
+   * column slack, so `top-4` still pins the card's top edge, but there is no
+   * longer any travel distance left to ride.
+   */
+  STICKY: "flex-1 @4xl/main:sticky @4xl/main:top-4",
   SHELL:
-    "gap-5 rounded-hero border-0 bg-surface px-7 py-6 shadow-[var(--shadow-whisper)]",
+    "h-full gap-5 rounded-hero border-0 bg-surface px-7 py-6 shadow-[var(--shadow-whisper)]",
   TITLE: "min-w-0 truncate text-lg font-semibold",
   DESCRIPTION: "min-w-0 text-sm leading-relaxed text-pretty",
 
@@ -217,7 +232,7 @@ export const CONDENSED = {
  * by reading three numerals against each other.
  */
 export const SLOT = {
-  STACK: "flex flex-col gap-1.5",
+  STACK: "flex flex-col gap-3",
   ROOT: "flex h-16 items-center gap-3 rounded-pill px-4 transition-colors duration-(--duration-standard) ease-standard",
   HEIGHT: "h-16",
   NEUTRAL: "bg-surface-container text-on-surface",
