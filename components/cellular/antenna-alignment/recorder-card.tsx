@@ -645,28 +645,34 @@ export function PositionsCard({
         {/* THE card's one primary button, at the bottom as its closing call to
             action. It records into the next empty slot, which is what removes
             two of the three saturated pills the outgoing tile grid stacked
-            down the phone. */}
-        <Button
-          className={cn(PILL_ACTION, "w-full @sm/card:w-fit @sm/card:self-end")}
-          disabled={recordBlockedReason !== null}
-          onClick={() => {
-            if (nextEmpty !== -1) recordInto(nextEmpty);
-          }}
-        >
-          <MaterialSymbol name={RECORD_GLYPH.idle} size={GLYPH.ACTION} />
-          {antennaType === "directional"
-            ? t("antenna_alignment.recorder.record_angle")
-            : t("antenna_alignment.recorder.record_position")}
-        </Button>
+            down the phone. Its disabled-reason hint shares the button's row,
+            justified apart and vertically centered against it, rather than
+            sitting in a line of its own underneath. */}
+        <div className="flex flex-col gap-2 @sm/card:flex-row @sm/card:items-center @sm/card:justify-between">
+          {recordBlockedReason ? (
+            <p
+              role="status"
+              className="text-xs leading-relaxed text-pretty text-on-surface-variant"
+            >
+              {recordBlockedReason}
+            </p>
+          ) : (
+            <span />
+          )}
 
-        {recordBlockedReason && (
-          <p
-            role="status"
-            className="text-xs leading-relaxed text-pretty text-on-surface-variant @sm/card:text-right"
+          <Button
+            className={cn(PILL_ACTION, "w-full @sm/card:w-fit @sm/card:shrink-0")}
+            disabled={recordBlockedReason !== null}
+            onClick={() => {
+              if (nextEmpty !== -1) recordInto(nextEmpty);
+            }}
           >
-            {recordBlockedReason}
-          </p>
-        )}
+            <MaterialSymbol name={RECORD_GLYPH.idle} size={GLYPH.ACTION} />
+            {antennaType === "directional"
+              ? t("antenna_alignment.recorder.record_angle")
+              : t("antenna_alignment.recorder.record_position")}
+          </Button>
+        </div>
       </CardContent>
 
       {/* Unrecoverable, and often reached after fifteen minutes on a ladder —
