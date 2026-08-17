@@ -33,7 +33,7 @@
       "none": "Nessuna lettura"
     },
     "recorder": {
-      "title": "Misuratore di allineamento",
+      "title": "Posizioni",
       "description_directional": "Registra fino a tre angoli e confrontali. Ogni registrazione media {{samples}} letture del modem e richiede qualche secondo.",
       "description_omni": "Registra fino a tre posizionamenti e confrontali. Ogni registrazione media {{samples}} letture del modem e richiede qualche secondo.",
       "type_directional": "Direzionale",
@@ -68,7 +68,11 @@
       "reset_confirm_action": "Cancella tutto",
       "clear_confirm_title": "Cancellare questa registrazione?",
       "clear_confirm_body": "La lettura registrata per {{label}} verrà eliminata. L'operazione non può essere annullata.",
-      "clear_confirm_action": "Cancella"
+      "clear_confirm_action": "Cancella",
+      "all_recorded_hint": "Tutte e tre le posizioni sono registrate. Cancellane una per registrare di nuovo.",
+      "recording_hint": "Completa o annulla prima la registrazione in corso.",
+      "record_slot": "Registra {{label}}",
+      "cancel_slot": "Annulla la registrazione di {{label}}"
     },
     "recommendation": {
       "title": "Migliore finora: {{label}}",
@@ -82,7 +86,6 @@
       "description": "Quali antenne contribuiscono al punteggio.",
       "reporting": "{{live}} di {{total}} riportano dati",
       "not_reporting": "Inattiva",
-      "idle_hint": "Questa catena non ha misurato nulla.",
       "twin_hint": "Per il dettaglio metrica per metrica di ogni catena, vedi",
       "twin_link": "Statistiche dell'antenna"
     },

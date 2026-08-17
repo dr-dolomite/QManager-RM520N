@@ -33,7 +33,7 @@
       "none": "Tidak ada bacaan"
     },
     "recorder": {
-      "title": "Meter Penyelarasan",
+      "title": "Posisi",
       "description_directional": "Rekam hingga tiga sudut lalu bandingkan. Setiap rekaman merata-ratakan {{samples}} bacaan dari modem, yang memerlukan beberapa detik.",
       "description_omni": "Rekam hingga tiga penempatan lalu bandingkan. Setiap rekaman merata-ratakan {{samples}} bacaan dari modem, yang memerlukan beberapa detik.",
       "type_directional": "Direksional",
@@ -68,7 +68,11 @@
       "reset_confirm_action": "Hapus semua",
       "clear_confirm_title": "Hapus rekaman ini?",
       "clear_confirm_body": "Bacaan yang direkam untuk {{label}} akan dihapus. Tindakan ini tidak dapat dibatalkan.",
-      "clear_confirm_action": "Hapus"
+      "clear_confirm_action": "Hapus",
+      "all_recorded_hint": "Ketiga posisi sudah direkam. Hapus salah satu untuk merekam lagi.",
+      "recording_hint": "Selesaikan atau batalkan dulu perekaman yang sedang berjalan.",
+      "record_slot": "Rekam {{label}}",
+      "cancel_slot": "Batalkan perekaman {{label}}"
     },
     "recommendation": {
       "title": "Terbaik sejauh ini: {{label}}",
@@ -82,7 +86,6 @@
       "description": "Antena mana yang berkontribusi pada skor.",
       "reporting": "{{live}} dari {{total}} melapor",
       "not_reporting": "Tidak aktif",
-      "idle_hint": "Rantai ini tidak mengukur apa pun.",
       "twin_hint": "Untuk detail per metrik pada setiap rantai, lihat",
       "twin_link": "Statistik Antena"
     },

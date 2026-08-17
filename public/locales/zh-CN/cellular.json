@@ -33,7 +33,7 @@
       "none": "无读数"
     },
     "recorder": {
-      "title": "对准测量仪",
+      "title": "位置记录",
       "description_directional": "记录最多三个角度并进行对比。每次记录会对调制解调器的 {{samples}} 次读数取平均，需要几秒钟。",
       "description_omni": "记录最多三个摆放位置并进行对比。每次记录会对调制解调器的 {{samples}} 次读数取平均，需要几秒钟。",
       "type_directional": "定向",
@@ -68,7 +68,11 @@
       "reset_confirm_action": "全部清除",
       "clear_confirm_title": "清除这条记录？",
       "clear_confirm_body": "为 {{label}} 记录的读数将被删除。此操作无法撤销。",
-      "clear_confirm_action": "清除"
+      "clear_confirm_action": "清除",
+      "all_recorded_hint": "三个位置均已记录。清除其中一个即可重新记录。",
+      "recording_hint": "请先完成或取消正在进行的记录。",
+      "record_slot": "记录 {{label}}",
+      "cancel_slot": "取消记录 {{label}}"
     },
     "recommendation": {
       "title": "目前最佳：{{label}}",
@@ -82,7 +86,6 @@
       "description": "哪些天线参与了评分。",
       "reporting": "{{total}} 个中有 {{live}} 个在上报",
       "not_reporting": "无数据",
-      "idle_hint": "该链路未测得任何数据。",
       "twin_hint": "如需查看每条链路的各项指标详情，请前往",
       "twin_link": "天线统计"
     },

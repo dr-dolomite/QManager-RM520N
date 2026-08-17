@@ -33,7 +33,7 @@
       "none": "無讀數"
     },
     "recorder": {
-      "title": "對準量測器",
+      "title": "位置記錄",
       "description_directional": "記錄最多三個角度並進行比較。每次記錄會將數據機的 {{samples}} 次讀數取平均，需要幾秒鐘。",
       "description_omni": "記錄最多三個擺放位置並進行比較。每次記錄會將數據機的 {{samples}} 次讀數取平均，需要幾秒鐘。",
       "type_directional": "定向",
@@ -68,7 +68,11 @@
       "reset_confirm_action": "全部清除",
       "clear_confirm_title": "清除這筆記錄？",
       "clear_confirm_body": "為 {{label}} 記錄的讀數會被刪除。此操作無法復原。",
-      "clear_confirm_action": "清除"
+      "clear_confirm_action": "清除",
+      "all_recorded_hint": "三個位置均已記錄。清除其中一個即可重新記錄。",
+      "recording_hint": "請先完成或取消正在進行的記錄。",
+      "record_slot": "記錄 {{label}}",
+      "cancel_slot": "取消記錄 {{label}}"
     },
     "recommendation": {
       "title": "目前最佳：{{label}}",
@@ -82,7 +86,6 @@
       "description": "有哪些天線參與評分。",
       "reporting": "{{total}} 個中有 {{live}} 個在回報",
       "not_reporting": "無資料",
-      "idle_hint": "這條鏈路未量測到任何資料。",
       "twin_hint": "若需每條鏈路的各項指標詳情，請前往",
       "twin_link": "天線統計"
     },

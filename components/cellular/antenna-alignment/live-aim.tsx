@@ -4,7 +4,13 @@ import * as React from "react";
 import { useTranslation } from "react-i18next";
 
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { MaterialSymbol } from "@/components/ui/material-symbol";
 import { MetricBar } from "@/components/ui/metric-bar";
 import { SwapLabel } from "@/components/ui/swap-label";
@@ -24,33 +30,38 @@ import {
   qualityInkClass,
   qualityMeterTone,
 } from "../signal-quality-display";
+import { CONDENSED, CONSOLE, GLYPH } from "./shapes";
 import { SCORE_WEIGHTS, normalizeValue, scoreLive } from "./utils";
 
 // =============================================================================
-// Live Aim — the anchor instrument
+// The aim console — the anchor instrument
 // =============================================================================
-// This card exists because the page's visual hierarchy was inverted. Aiming an
-// antenna is a closed physical loop: the user is outdoors with a phone in one
-// hand and hardware in the other, rotating and watching for change over minutes.
-// The only figure that serves that loop is the live composite for the primary
-// chain — and it used to be the SMALLEST type on the page (13px values under
-// 10px labels, in a washed sub-box, inside a card about something else), while
-// twelve numbers the user cannot act on mid-rotation got full card chrome.
+// Aiming an antenna is a closed physical loop: the user is outdoors with a phone
+// in one hand and hardware in the other, rotating and watching for change over
+// minutes. The only figure that serves that loop is the live composite for the
+// primary chain, so it is the one thing on this route that never leaves the
+// screen — pinned in a sticky column on a wide surface, and condensed into a
+// 64px pill readout on a phone once the card itself scrolls away.
 //
-// It is deliberately an INSTRUMENT, not a hero metric. PRODUCT.md bans the
-// hero-metric template by name — "big number, small label, gradient accent",
-// filed under generic AI/SaaS dashboard slop — and the distinction that keeps
-// this legal is decomposability: the
-// score never appears alone. It arrives with the two weighted legs that produced
-// it, its session peak, its change since the last measurement, and the modem's
-// own timestamp. A number you can take apart is an instrument; a number you can
-// only admire is decoration.
+// It is deliberately an INSTRUMENT, not a headline figure, and what earns a 52px
+// numeral here is DECOMPOSABILITY: the score never appears alone. It arrives
+// with the two weighted legs that produced it, the weights themselves, its
+// session peak, its change since the last measurement, and the modem's own
+// timestamp — and when a leg is missing, `partial` says so out loud rather than
+// letting a one-leg score pass as a two-leg one. A number you can take apart is
+// an instrument; a number you can only admire is decoration.
 //
 // The composite is the SAME function the recorder ranks by (`scoreLive` wraps
 // `scoreSnapshot`), so "what am I reading now" and "what did I record there" are
-// the same unit and can be compared directly. Surfacing it is not an invention:
-// the score was already computed and already decided which slot won — it was
-// simply never shown, so the user saw a verdict and never the margin.
+// the same unit and can be compared directly.
+//
+// WIDTH: the console is designed for its SLOT — ~400-430px in the sticky left
+// column at 1440, and full width on a phone. It is not a full-bleed row. The
+// build this replaces was laid out as one, which is how the radio identity tag
+// ended up ~1400px from the "Main / PRX" caption it labels, how the two leg bars
+// became ~1130px decorative rules, and how the right third of the score block
+// became dead band. Everything here is sized to the narrow slot and simply
+// stretches; nothing is anchored to an opposite edge that may be a metre away.
 //
 // NO VALUE TICK ON THIS CARD, deliberately, and this is the one place the
 // product's tick gesture is declined. The tick dips a figure to 0.35 opacity for
@@ -61,30 +72,6 @@ import { SCORE_WEIGHTS, normalizeValue, scoreLive } from "./utils";
 // meter retarget instead: one authored moment rather than a per-poll flicker on
 // the one number that matters.
 // =============================================================================
-
-export const AIM_SHELL =
-  "h-full gap-5 rounded-hero border-0 bg-surface px-7 py-6 shadow-[var(--shadow-whisper)]";
-
-export const AIM_SHAPE = {
-  /**
-   * 52px, mono, tabular. A literal px size on a `tabular-nums` numeral is
-   * correct by construction per DESIGN.md — a numeral is read at the distance
-   * its container implies, so its size derives from the slot rather than from
-   * the type ramp. 52px is the product's existing "live figure being watched"
-   * step, shared with the Speed Test dialog's running phase.
-   */
-  SCORE: "text-[52px] font-semibold leading-none tabular-nums",
-  SCORE_BOX: "h-[52px]",
-  METER_TRACK: "relative h-2 w-full",
-  LEG_ROW: "flex items-center gap-3 rounded-pill bg-surface-container px-4 py-2.5",
-  LEG_KEY: "w-24 shrink-0 text-xs font-semibold uppercase tracking-[0.09em] text-on-surface-variant",
-  LEG_VALUE:
-    "w-[5.25rem] shrink-0 text-right text-[13px]/5 font-semibold tabular-nums",
-  EYEBROW: "text-xs font-semibold text-on-surface-variant",
-} as const;
-
-/** Height of the whole score block, so the skeleton can mirror it by import. */
-export const AIM_SCORE_BLOCK_HEIGHT = 92;
 
 // -----------------------------------------------------------------------------
 // Session tracking: peak and delta
@@ -129,10 +116,77 @@ function useSessionTracking(score: number | null, snapshotTs: number | null) {
   return { peak, delta };
 }
 
+/**
+ * The whole reading, derived once.
+ *
+ * Both the console and the condensed bar render the same measurement, and they
+ * must never disagree about it — a pinned readout that contradicts the card it
+ * replaced is worse than no readout. Deriving both from one function is what
+ * makes that structural rather than a review discipline.
+ */
+function useAimReading(spa: SignalPerAntenna, snapshotTs: number | null) {
+  const score = scoreLive(spa);
+  const { peak, delta } = useSessionTracking(score.value, snapshotTs);
+
+  const radio = score.radio;
+  const rsrp = radio ? normalizeValue(spa[`${radio}_rsrp`][0], "rsrp") : null;
+  const sinr = radio ? normalizeValue(spa[`${radio}_sinr`][0], "sinr") : null;
+
+  /**
+   * The primary chain's verdict: the WORST of the legs that actually reported.
+   *
+   * This used to read RSRP alone, which left a hole once the meter took its fill
+   * from the ramp. `scoreSnapshot` reweights around a missing leg, so a SINR-only
+   * snapshot still produces a real composite — but an RSRP-only verdict called
+   * that same snapshot `"none"`, and `qualityMeterTone("none")` is `null`, which
+   * is the empty-track signal. A live score would have been drawn on an empty
+   * track.
+   *
+   * `worstSignalQuality` skips `"none"` entries, so it returns a level whenever
+   * ANY leg reported and `"none"` only when neither did — which is exactly when
+   * `score.value` is null too. Tone, track and numeral can therefore never
+   * disagree about whether there is a reading. It is also the better verdict on
+   * its own terms, and matches `port-strip.tsx`: this chip sits directly above
+   * both leg rows, and a summary that contradicts the rows beneath it is worse
+   * than no summary.
+   */
+  const overallQuality = worstSignalQuality(
+    getSignalQuality(rsrp, RSRP_THRESHOLDS),
+    getSignalQuality(sinr, SINR_THRESHOLDS),
+  );
+
+  return {
+    score,
+    radio,
+    rsrp,
+    sinr,
+    peak,
+    delta,
+    overallQuality,
+    overallTone: qualityMeterTone(overallQuality),
+    /** A chip that says "no change" is noise on a surface watched continuously. */
+    showDelta: delta !== null && Math.abs(delta) >= 1,
+    // 3GPP calls NR's metric SNR, not SINR. Reuse the radio-info labels so the
+    // two antenna pages cannot disagree about what a row is called.
+    sinrLabelKey: radio === "nr" ? ("snr" as const) : ("sinr" as const),
+  };
+}
+
 // -----------------------------------------------------------------------------
 // One weighted leg
 // -----------------------------------------------------------------------------
 
+/**
+ * A metric row: key, weight, a 56px inline lane, and the reading.
+ *
+ * The lane is INLINE and fixed, not a flexed full-width bar. At the console's
+ * pinned width a full-width bar was ~1130px of coloured rule for a figure the
+ * user reads at its right-hand end — length that encodes nothing extra past the
+ * first hundred pixels, and that pushed the key and the value to opposite sides
+ * of the card. 56px is enough travel to compare two legs at a glance, which is
+ * the only comparison this row is for; the composite meter above is the bar you
+ * are meant to watch.
+ */
 function LegRow({
   label,
   weight,
@@ -158,41 +212,39 @@ function LegRow({
   const reading = tone === null ? null : value;
 
   return (
-    <div className={AIM_SHAPE.LEG_ROW}>
-      <span className={AIM_SHAPE.LEG_KEY}>
+    <div className={CONSOLE.LEG_ROW}>
+      <span className={CONSOLE.LEG_KEY}>
         {label}
         {/* The weight is part of the claim: a user who sees 60% next to RSRP can
             work out why a strong RSRP with a weak SINR still scores well, which
-            is the difference between an instrument and an oracle. */}
-        <span className="ml-1.5 tabular-nums opacity-70">
-          {Math.round(weight * 100)}%
-        </span>
+            is the difference between an instrument and an oracle. It is rendered
+            at LABEL weight rather than value weight — at value weight a second
+            tabular figure in the row reads as a second reading. */}
+        <span className={CONSOLE.LEG_WEIGHT}>{Math.round(weight * 100)}%</span>
       </span>
 
-      <div className="flex-1" aria-hidden="true">
+      {/* `ml-auto` is what makes the lane and the value travel together as one
+          right-hand group instead of the lane stretching across the row. */}
+      <div className={cn(CONSOLE.LEG_LANE, "ml-auto")} aria-hidden="true">
         <MetricBar
           /* A missing leg gets the TRACK ALONE, never a zero-length fill: an
              idle chain drawn as an empty red bar reads as a signal problem the
-             user should go and fix (DESIGN.md > Quality bars). `?? undefined`
-             below is only reachable in that same branch, where MetricBar paints
-             no fill at all — it is not a fallback colour. */
+             user should go and fix (DESIGN.md > Quality bars). */
           value={reading === null ? null : signalToProgress(reading, thresholds)}
           max={100}
           warnAt={101}
           dangerAt={101}
           colorOverride={tone}
-          /* 4px — the quality-bar spec. Length is the primary encoding; the ramp
-             hue reinforces it, which is what keeps adjacent stops legible
-             despite sitting below the colour separation floor. Deliberately
-             lighter than the 8px composite meter above, which is this card's
-             subject rather than one of its legs. */
+          /* 4px — the quality-bar spec. Deliberately lighter than the 8px
+             composite meter above, which is this card's subject rather than one
+             of its legs. */
           size="sm"
           track="surface-container-high"
           index={index}
         />
       </div>
 
-      <span className={cn(AIM_SHAPE.LEG_VALUE, qualityInkClass(quality))}>
+      <span className={cn(CONSOLE.LEG_VALUE, qualityInkClass(quality))}>
         {reading === null ? (
           <>
             <span aria-hidden="true">—</span>
@@ -219,10 +271,10 @@ function LegRow({
 }
 
 // -----------------------------------------------------------------------------
-// The card
+// The console
 // -----------------------------------------------------------------------------
 
-export function LiveAimCard({
+export function AimConsole({
   spa,
   snapshotTs,
   updatedAt,
@@ -234,73 +286,47 @@ export function LiveAimCard({
   updatedAt: string | null;
 }) {
   const { t } = useTranslation("cellular");
-
-  const score = scoreLive(spa);
-  const { peak, delta } = useSessionTracking(score.value, snapshotTs);
-
-  const radio = score.radio;
-  const rsrp = radio ? normalizeValue(spa[`${radio}_rsrp`][0], "rsrp") : null;
-  const sinr = radio ? normalizeValue(spa[`${radio}_sinr`][0], "sinr") : null;
-
-  // 3GPP calls NR's metric SNR, not SINR. Reuse the radio-info labels so the
-  // two antenna pages cannot disagree about what a row is called.
-  const sinrLabelKey = radio === "nr" ? "snr" : "sinr";
-
-  /**
-   * The primary chain's verdict: the WORST of the legs that actually reported.
-   *
-   * This used to read RSRP alone, which left a hole once the meter took its fill
-   * from the ramp. `scoreSnapshot` reweights around a missing leg, so a SINR-only
-   * snapshot still produces a real composite — but an RSRP-only verdict called
-   * that same snapshot `"none"`, and `qualityMeterTone("none")` is `null`, which
-   * is the empty-track signal. A live score would have been drawn on an empty
-   * track.
-   *
-   * `worstSignalQuality` skips `"none"` entries, so it returns a level whenever
-   * ANY leg reported and `"none"` only when neither did — which is exactly when
-   * `score.value` is null too. Tone, track and numeral can therefore never
-   * disagree about whether there is a reading. It is also the better verdict on
-   * its own terms, and matches `port-strip.tsx`: this chip sits directly above
-   * both leg rows, and a summary that contradicts the rows beneath it is worse
-   * than no summary.
-   */
-  const overallQuality = worstSignalQuality(
-    getSignalQuality(rsrp, RSRP_THRESHOLDS),
-    getSignalQuality(sinr, SINR_THRESHOLDS)
-  );
-  const overallTone = qualityMeterTone(overallQuality);
-
-  const showDelta = delta !== null && Math.abs(delta) >= 1;
+  const {
+    score,
+    radio,
+    rsrp,
+    sinr,
+    peak,
+    delta,
+    overallQuality,
+    overallTone,
+    showDelta,
+    sinrLabelKey,
+  } = useAimReading(spa, snapshotTs);
 
   return (
-    <Card className={AIM_SHELL}>
+    <Card className={CONSOLE.SHELL}>
+      {/* The identity tag sits on the TITLE's line, immediately after the words
+          it qualifies — "Live Aim · 5G NR" is one phrase. Flung to the far right
+          of a wide card it was a floating label with no referent. No icon here:
+          icons belong to chips and actions, never to a CardHeader. */}
       <CardHeader className="gap-1 px-0">
-        <div className="flex items-start gap-3">
-          <div className="flex min-w-0 flex-1 flex-col gap-1">
-            <CardTitle className="min-w-0 truncate text-xl font-semibold">
-              {t("antenna_alignment.aim.title")}
-            </CardTitle>
-            <CardDescription className="min-w-0 text-[13px]">
-              {t("antenna_alignment.aim.description")}
-            </CardDescription>
-          </div>
+        <div className="flex min-w-0 items-center gap-2">
+          <CardTitle className={CONSOLE.TITLE}>
+            {t("antenna_alignment.aim.title")}
+          </CardTitle>
           {radio && (
-            <Tag
-              variant={radio === "nr" ? "nr" : "lte"}
-              className="shrink-0 px-2.5 py-1 text-xs font-semibold"
-            >
+            <Tag variant={radio === "nr" ? "nr" : "lte"} className="shrink-0">
               {t(`antenna_alignment.mode.${radio}`)}
             </Tag>
           )}
         </div>
+        <CardDescription className={CONSOLE.DESCRIPTION}>
+          {t("antenna_alignment.aim.description")}
+        </CardDescription>
       </CardHeader>
 
       <CardContent className="flex flex-col gap-5 px-0">
-        {/* --- Score, delta, peak ------------------------------------------- */}
-        <div className="flex flex-col gap-3">
-          <div className="flex flex-wrap items-end gap-x-4 gap-y-2">
-            <div className="flex flex-col gap-1">
-              <span className={AIM_SHAPE.EYEBROW}>
+        {/* --- Score, verdict, delta, peak --------------------------------- */}
+        <div className="flex flex-col gap-2.5">
+          <div className="flex items-end gap-4">
+            <div className="flex shrink-0 flex-col gap-1">
+              <span className={CONSOLE.EYEBROW}>
                 {t("antenna_alignment.aim.score_label")}
               </span>
               {/* The one figure the aiming user steers by, so it takes the ramp
@@ -314,9 +340,9 @@ export function LiveAimCard({
                   announced at all. */}
               <span
                 className={cn(
-                  AIM_SHAPE.SCORE,
-                  AIM_SHAPE.SCORE_BOX,
-                  qualityInkClass(overallQuality)
+                  CONSOLE.SCORE,
+                  CONSOLE.SCORE_BOX,
+                  qualityInkClass(overallQuality),
                 )}
                 aria-label={
                   score.value === null
@@ -330,104 +356,127 @@ export function LiveAimCard({
               </span>
             </div>
 
-            <div className="flex flex-col gap-1.5 pb-1">
-              {/* A delta is NOT a status: signal dropping while you rotate is
-                  expected information, not a fault, so it must not wear
-                  `destructive`. It is a non-status label per DESIGN.md, and its
-                  DIRECTION rides the glyph rather than a hue — which is also
-                  what makes it survive deuteranopia and grayscale. Rendered only
-                  when it moved at least a point; a chip that says "no change" is
-                  noise on a surface being watched continuously. */}
-              {showDelta && (
-                <Badge variant="secondary" className="w-fit px-2.5 py-1">
-                  <SwapLabel swapKey={`${delta}`} className="gap-1">
+            {/* The chips fill the rest of the numeral's line rather than being
+                pushed to an opposite edge, so the block reads as one object at
+                the console's pinned width. */}
+            <div className="flex min-w-0 flex-1 flex-col items-start gap-1.5 pb-1">
+              <div className="flex flex-wrap items-center gap-1.5">
+                {/* The primary chain's verdict, as a filled chip with its
+                    mandatory glyph — the non-chromatic channel that survives a
+                    container fill washed out by direct sun. */}
+                <Badge variant={qualityBadgeVariant(overallQuality)}>
+                  <SwapLabel swapKey={overallQuality} className="gap-1">
                     <MaterialSymbol
-                      name={delta! > 0 ? "arrow_upward" : "arrow_downward"}
-                      size={12}
+                      name={QUALITY_GLYPH[overallQuality]}
+                      size={GLYPH.CHIP}
                       filled
                     />
-                    <span className="tabular-nums">
-                      {delta! > 0 ? `+${delta}` : `${delta}`}
-                    </span>
-                    <span className="sr-only">
-                      {delta! > 0
-                        ? t("antenna_alignment.aim.delta_up")
-                        : t("antenna_alignment.aim.delta_down")}
-                    </span>
+                    {t(`antenna_alignment.quality.${overallQuality}`)}
                   </SwapLabel>
                 </Badge>
-              )}
+
+                {/* A delta is NOT a status: signal dropping while you rotate is
+                    expected information, not a fault, so it must not wear
+                    `destructive`. It is a non-status label, and its DIRECTION
+                    rides the glyph rather than a hue — which is also what makes
+                    it survive deuteranopia and grayscale. */}
+                {showDelta && (
+                  <Badge variant="secondary">
+                    <SwapLabel swapKey={`${delta}`} className="gap-1">
+                      <MaterialSymbol
+                        name={delta! > 0 ? "arrow_upward" : "arrow_downward"}
+                        size={GLYPH.CHIP}
+                        filled
+                      />
+                      <span className="tabular-nums">
+                        {delta! > 0 ? `+${delta}` : `${delta}`}
+                      </span>
+                      <span className="sr-only">
+                        {delta! > 0
+                          ? t("antenna_alignment.aim.delta_up")
+                          : t("antenna_alignment.aim.delta_down")}
+                      </span>
+                    </SwapLabel>
+                  </Badge>
+                )}
+              </div>
 
               {score.partial && score.value !== null && (
-                <Badge variant="muted" className="w-fit px-2.5 py-1">
-                  <MaterialSymbol name="warning" size={12} filled />
+                <Badge variant="muted">
+                  <MaterialSymbol name="warning" size={GLYPH.CHIP} filled />
                   {t("antenna_alignment.aim.partial", {
                     leg: t(
-                      `radio_info.bands.metric.${score.legs[0] === "sinr" ? sinrLabelKey : "rsrp"}`
+                      `radio_info.bands.metric.${
+                        score.legs[0] === "sinr" ? sinrLabelKey : "rsrp"
+                      }`,
                     ),
                   })}
                 </Badge>
               )}
             </div>
+          </div>
 
-            <div className="ml-auto flex flex-col items-end gap-0.5">
-              {peak !== null && (
-                <span className="text-xs text-on-surface-variant">
+          {/* Peak and timestamp caption the METER, and sit immediately above it
+              so "Peak 84" is adjacent to the tick that marks it. */}
+          {(peak !== null || updatedAt) && (
+            <div
+              className={cn(
+                "flex flex-wrap items-center justify-between gap-x-4 gap-y-1",
+                CONSOLE.CAPTION,
+              )}
+            >
+              {peak !== null ? (
+                <span>
                   {t("antenna_alignment.aim.peak")}{" "}
                   <span className="font-semibold tabular-nums text-on-surface">
                     {peak}
                   </span>
                 </span>
+              ) : (
+                <span />
               )}
               {updatedAt && (
-                <span className="text-xs text-on-surface-variant">
+                <span>
                   {t("antenna_alignment.aim.updated")}{" "}
                   <span className="tabular-nums">{updatedAt}</span>
                 </span>
               )}
             </div>
-          </div>
+          )}
 
           {/* --- Composite meter with the session peak mark ----------------- */}
-          <div className={AIM_SHAPE.METER_TRACK}>
+          <div className={CONSOLE.METER_LANE}>
             {/* A null composite is NOT zero percent — it is an EMPTY TRACK.
                 MetricBar renders the track alone and omits the fill element
                 entirely for `value={null}`, which is the one channel — length —
-                the ramp is explicitly not allowed to carry on its own.
-
-                This block previously reserved bare height instead, on the
-                reasoning that an empty track reads as "the score is zero". The
-                canon settled that the other way: a zero-length RAMP-COLOURED
-                fill is what reads as zero, and an unpainted track is how the
-                system says "nothing was measured" everywhere else on both
-                antenna pages. Reserving invisible height also said nothing at
-                all, where a track at least shows the scale the missing reading
-                would have been placed on. Geometry is identical either way. */}
-            <MetricBar
-              value={score.value}
-              max={100}
-              warnAt={101}
-              dangerAt={101}
-              /* Only reachable when `score.value` is null too (see
-                 `overallQuality`), where no fill is painted from it. */
-              colorOverride={overallTone}
-              /* 8px, not the 4px row-level quality bar: this meter is the card's
-                 subject, read at arm's length outdoors, and it is the bar the
-                 peak mark is registered against. */
-              size="md"
-              track="surface-container-high"
-            />
+                the ramp is explicitly not allowed to carry on its own. */}
+            <div className="min-w-0 flex-1" aria-hidden="true">
+              <MetricBar
+                value={score.value}
+                max={100}
+                warnAt={101}
+                dangerAt={101}
+                /* Only reachable when `score.value` is null too (see
+                   `overallQuality`), where no fill is painted from it. */
+                colorOverride={overallTone}
+                /* 8px, not the 4px row-level quality bar: this meter is the
+                   card's subject, read at arm's length outdoors, and it is the
+                   bar the peak mark is registered against. */
+                size="md"
+                track="surface-container-high"
+              />
+            </div>
             {/* The peak mark is positioned with `left`, and it is deliberately
                 NOT transitioned. DESIGN.md's Transform-Only Rule keeps layout
-                properties out of animations (the aggregation segment is the one
-                sanctioned exception), and an instant jump is also the honest
-                gesture: a new session high is a discrete event, and having the
-                mark snap is what makes it legible as "that is the best you have
-                managed" rather than as a second bar creeping along. */}
+                properties out of animations, and an instant jump is also the
+                honest gesture: a new session high is a discrete event, and
+                having the mark snap is what makes it legible as "that is the
+                best you have managed" rather than as a second bar creeping
+                along. */}
             {peak !== null && score.value !== null && peak > score.value && (
               <span
                 aria-hidden="true"
-                className="absolute top-[-2px] h-3 w-0.5 rounded-pill bg-on-surface-variant"
+                className={CONSOLE.PEAK_TICK}
                 style={{ left: `calc(${peak}% - 1px)` }}
               />
             )}
@@ -454,26 +503,143 @@ export function LiveAimCard({
           />
         </div>
 
-        {/* Quality verdict for the primary chain, as a filled chip with its
-            mandatory glyph — the non-chromatic channel that survives a container
-            fill washed out by direct sun. */}
-        <div className="flex items-center gap-2">
-          <Badge variant={qualityBadgeVariant(overallQuality)}>
-            <SwapLabel
-              swapKey={`${overallQuality}`}
-              className="gap-1"
-            >
-              <MaterialSymbol name={QUALITY_GLYPH[overallQuality]} size={12} filled />
-              {t(`antenna_alignment.quality.${overallQuality}`)}
-            </SwapLabel>
-          </Badge>
-          <span className="min-w-0 truncate text-xs text-on-surface-variant">
-            {t("antenna_alignment.aim.primary_chain")}
-          </span>
-        </div>
+        {/* Which chain the whole card is about. It WRAPS — this line truncated
+            to "Main / PRX — the chain the score is …" in the outgoing build,
+            which cut the sentence exactly where its meaning starts. */}
+        <p className={cn(CONSOLE.CAPTION, "text-pretty leading-relaxed")}>
+          {t("antenna_alignment.aim.primary_chain")}
+        </p>
       </CardContent>
     </Card>
   );
 }
 
-export default LiveAimCard;
+// -----------------------------------------------------------------------------
+// The condensed readout
+// -----------------------------------------------------------------------------
+
+/**
+ * The 64px pill that pins at the top of a phone once the console scrolls away.
+ *
+ * It exists so the user never loses the number, NOT to restate the card: key,
+ * score, verdict glyph, direction, meter. Nothing that needs reading twice. The
+ * peak, the legs, the weights and the timestamp all stay in the console — a
+ * pinned bar that reproduced them would be a second instrument disagreeing with
+ * the first one poll later.
+ *
+ * The KEY LABEL is not decoration and not a restatement. Without it this pill
+ * was anatomically a position row — same height, same pill, same numeral-plus-
+ * meter — pinned directly above three position rows, so a floating instrument
+ * read as a slot that had come loose. `CONDENSED.BAR`'s tonal step says "above";
+ * the label says which instrument. It reuses the console's own `score_label`, so
+ * the pinned bar and the card name the figure identically.
+ *
+ * The parent owns the sticky zero-height slot (`CONDENSED.ROOT`) and the
+ * IntersectionObserver behind `shown`; this component owns the shade, the bar
+ * and their shared crossfade.
+ *
+ * Opacity ONLY. No height animation (off the transform-and-opacity scale), no
+ * spring (the Settled-Motion Rule), no blur or backdrop-filter (an alpha over a
+ * scrolling page collapses in dark mode, and the tonal container step already
+ * says "this floats above that").
+ *
+ * When hidden it is `pointer-events-none` and `aria-hidden`, so it is neither a
+ * phantom tab stop nor a second screen-reader announcement of the score the user
+ * is already on.
+ */
+export function CondensedAim({
+  spa,
+  snapshotTs,
+  shown,
+}: {
+  spa: SignalPerAntenna;
+  /** The modem's own timestamp for this snapshot, in seconds. */
+  snapshotTs: number | null;
+  /** True once the full console has scrolled out from under this bar. */
+  shown: boolean;
+}) {
+  const { t } = useTranslation("cellular");
+  const { score, delta, overallQuality, overallTone, showDelta } = useAimReading(
+    spa,
+    snapshotTs,
+  );
+
+  const ink = qualityInkClass(overallQuality);
+
+  return (
+    // The shade is the opaque ground under the pill and across the gutter, and
+    // it carries the crossfade so ground and bar arrive as one object. Without
+    // it the page scrolls through the transparent band above the pill, which
+    // reads as a stacking bug rather than as a pinned element.
+    <div
+      className={cn(CONDENSED.SHADE, shown ? CONDENSED.SHOWN : CONDENSED.HIDDEN)}
+      aria-hidden={!shown}
+    >
+      <div className={CONDENSED.BAR}>
+        {/* Which instrument is floating. `shrink-0`, so at 390px the lane gives
+            up width before the label does — a pinned readout whose label wrapped
+            would be taller than the pill it lives in. */}
+        <span className={CONDENSED.KEY}>
+          {t("antenna_alignment.aim.score_label")}
+        </span>
+
+        <span
+          className={cn(CONDENSED.SCORE, ink)}
+          aria-label={
+            score.value === null
+              ? t("antenna_alignment.aim.no_reading")
+              : `${t("antenna_alignment.aim.score_sr", {
+                  score: score.value,
+                })} ${t(`antenna_alignment.quality.${overallQuality}`)}`
+          }
+        >
+          {score.value === null ? "—" : score.value}
+        </span>
+
+        {/* The glyph, not a chip: the ladder is the non-chromatic channel, and
+            at this size a full verdict chip would crowd out the meter that gives
+            the ramp ink its legal bar. */}
+        <MaterialSymbol
+          name={QUALITY_GLYPH[overallQuality]}
+          size={GLYPH.INLINE}
+          filled
+          className={cn("shrink-0", ink)}
+          aria-hidden="true"
+        />
+
+        {showDelta && (
+          <span className="flex shrink-0 items-center gap-0.5 text-xs font-semibold tabular-nums text-on-surface-variant">
+            <MaterialSymbol
+              name={delta! > 0 ? "arrow_upward" : "arrow_downward"}
+              size={GLYPH.CHIP}
+              filled
+              aria-hidden="true"
+            />
+            {delta! > 0 ? `+${delta}` : `${delta}`}
+            <span className="sr-only">
+              {delta! > 0
+                ? t("antenna_alignment.aim.delta_up")
+                : t("antenna_alignment.aim.delta_down")}
+            </span>
+          </span>
+        )}
+
+        <div className={CONDENSED.LANE} aria-hidden="true">
+          <MetricBar
+            value={score.value}
+            max={100}
+            warnAt={101}
+            dangerAt={101}
+            colorOverride={overallTone}
+            size="sm"
+            /* `muted`, not `surface-container-high`: the bar itself is now that
+               step, and a track the same tone as its ground is an invisible
+               track — the empty-track signal for a missing reading would have
+               been silently lost with it. */
+            track="muted"
+          />
+        </div>
+      </div>
+    </div>
+  );
+}

@@ -33,7 +33,7 @@
       "none": "No reading"
     },
     "recorder": {
-      "title": "Alignment Meter",
+      "title": "Positions",
       "description_directional": "Record up to three angles and compare them. Each recording averages {{samples}} readings from the modem, which takes a few seconds.",
       "description_omni": "Record up to three placements and compare them. Each recording averages {{samples}} readings from the modem, which takes a few seconds.",
       "type_directional": "Directional",
@@ -68,7 +68,11 @@
       "reset_confirm_action": "Clear all",
       "clear_confirm_title": "Clear this recording?",
       "clear_confirm_body": "The reading recorded for {{label}} will be deleted. This can't be undone.",
-      "clear_confirm_action": "Clear"
+      "clear_confirm_action": "Clear",
+      "all_recorded_hint": "All three positions are recorded. Clear one to record again.",
+      "recording_hint": "Finish or cancel the recording in progress first.",
+      "record_slot": "Record {{label}}",
+      "cancel_slot": "Cancel recording {{label}}"
     },
     "recommendation": {
       "title": "Best so far: {{label}}",
@@ -82,7 +86,6 @@
       "description": "Which antennas are contributing to the score.",
       "reporting": "{{live}} of {{total}} reporting",
       "not_reporting": "Not reporting",
-      "idle_hint": "This chain measured nothing.",
       "twin_hint": "For per-metric detail on every chain, see",
       "twin_link": "Antenna Statistics"
     },

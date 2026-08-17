@@ -14,90 +14,108 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import { MaterialSymbol } from "@/components/ui/material-symbol";
+import { MetricBar } from "@/components/ui/metric-bar";
 import { Tag } from "@/components/ui/tag";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { cn } from "@/lib/utils";
 import { staggerRowItem, staggerRows } from "@/lib/motion";
+import {
+  RSRP_THRESHOLDS,
+  SINR_THRESHOLDS,
+  getSignalQuality,
+  worstSignalQuality,
+} from "@/types/modem-status";
 import type { SignalPerAntenna } from "@/types/modem-status";
+import {
+  qualityInkClass,
+  qualityMeterTone,
+} from "../signal-quality-display";
 
 import { usePositionRecorder } from "./use-position-recorder";
+import {
+  CARD_CONTENT,
+  CARD_DESCRIPTION,
+  CARD_HEADER,
+  CARD_SHELL,
+  CARD_TITLE,
+  GLYPH,
+  ICON_TARGET,
+  PILL_ACTION,
+  RECORD_GLYPH,
+  SEGMENTED_ITEM,
+  SLOT,
+  SLOT_GLYPH,
+} from "./shapes";
 import {
   DEFAULT_ANGLES,
   POSITION_LETTERS,
   SAMPLES_PER_RECORDING,
   SLOT_COUNT,
   findBestSlot,
+  normalizeValue,
   scoreSnapshot,
 } from "./utils";
 import type { AntennaType, RecordingSnapshot } from "./utils";
 
 // =============================================================================
-// Alignment Meter — the 3-slot position recorder
+// Positions — the 3-slot comparison recorder
 // =============================================================================
-// Extracted from the old 713-line `alignment-meter.tsx`, which held the recorder,
-// the live readout, the hook and four sub-components in one file.
+// This card used to be three 290px tiles stacked down the phone: 923px, 39% of
+// the page, and 1.1 full phone screens for a surface that displays NOTHING until
+// it has been used. Each tile carried its own full-width saturated primary
+// "Record angle" button, so the loudest thing on the page was attached to the
+// state where the user has done nothing yet.
 //
-// The recorder answers a different question from the Live Aim card above it. Live
-// Aim is for SWEEPING — rotate and watch, with peak-hold carrying what you cannot
-// hold in your head while your hands are busy. The recorder is for COMMITTING:
-// stop at a position, average several genuine measurements, and compare three
-// candidates on one scale. Both now speak in the same composite score, so a slot
-// reading 78 and a live reading of 74 are directly comparable.
+// It is now three comparison ROWS at every width, and the rewrite turns on four
+// decisions:
 //
-// Three behaviours here are load-bearing and were preserved deliberately:
-//   - Step dots, never a progress bar. DESIGN.md reserves fill and progress bars
-//     for data visualisation (signal strength, quality meters); sample progress
-//     is a `Loader-and-Dots` gesture. Substituting a bar here would make sample
-//     count look like a measurement.
+//   1. ROWS, NOT TILES. All three rows carry a `MetricBar` on the SAME 0-100
+//      composite scale, so "which heading won" is answered by BAR LENGTH at a
+//      glance rather than by reading three numerals against one another. A tile
+//      grid cannot do that — three bars in three separate boxes are three
+//      readings, three bars in a stack are a comparison.
+//
+//   2. ONE PRIMARY BUTTON, NOT THREE. The header carries a single `Record` pill
+//      that records into the NEXT EMPTY slot. Per-slot re-record survives as
+//      each row's own quiet icon target, which is the affordance a user reaches
+//      for after they have already recorded something — i.e. once the card has
+//      content to justify it. When all three slots are full the pill is disabled
+//      AND says why, per DESIGN.md's State-Honesty Rule.
+//
+//   3. AN EMPTY SLOT IS AN EMPTY TRACK. `MetricBar value={null}` renders the
+//      track with no fill element at all, never a zero-length fill — "nothing
+//      recorded here" and "recorded, and it is terrible" must not draw the same
+//      mark (DESIGN.md > Quality bars).
+//
+//   4. THE RAMP LIVES ON THE NUMERAL AND THE BAR TOGETHER. Adjacent ramp stops
+//      sit below the CVD separation floor by design, so the tint is only legal
+//      here because the bar is beside it carrying the same value in length.
+//
+// Four behaviours are load-bearing and were preserved deliberately:
+//   - Step dots, never a progress bar, for sample progress. DESIGN.md reserves
+//     fill and progress bars for data visualisation; a bar here would make a
+//     sample COUNT look like a MEASUREMENT.
 //   - The label freezes once a slot is recorded, so a stored measurement can
 //     never be relabelled into claiming something it did not measure.
-//   - The recommendation appears only with two or more rankable slots. "Best" out
-//     of one is not a comparison.
+//   - A second recording while one is active is DISABLED, not queued: the sample
+//     accumulator is shared, so a second start would silently abandon the first.
+//   - The recommendation appears only with two or more rankable slots. "Best"
+//     out of one is not a comparison.
 // =============================================================================
-
-export const RECORDER_GRID = "grid grid-cols-1 gap-3.5 @xl/main:grid-cols-3";
-
-export const SLOT_SHAPE = {
-  ROOT: "relative flex flex-col gap-3 rounded-tile px-4 py-4 transition-colors duration-(--duration-standard) ease-standard",
-  NEUTRAL: "bg-surface-container text-on-surface",
-  /**
-   * The winning slot is promoted a container step and changes its ink, per
-   * DESIGN.md's Highlight-by-Container Rule — which names this exact case: "a
-   * recommended alignment slot becomes a `primary-container` block". It replaces
-   * a `ring-2 ring-primary` plus a badge notched over the tile's top edge; a ring
-   * is chrome drawn around a block, where the canon wants the block itself to
-   * carry the state.
-   */
-  BEST: "bg-primary-container text-on-primary-container",
-  HEAD: "flex items-center gap-2",
-  SCORE: "text-[40px] font-semibold leading-none tabular-nums",
-  BODY: "flex flex-1 flex-col items-center justify-center gap-2 text-center",
-} as const;
-
-/**
- * The slot tile's floor height, as a NUMBER because it is the sum of independent
- * line boxes (label field, score row, two leg rows, footnote) that no Tailwind
- * class can name honestly. Spent as an inline `minHeight` at both the live and
- * skeleton ends so the two cannot drift, and so the three tiles stay level
- * whatever mix of empty / recording / recorded states they are in.
- */
-export const SLOT_MIN_HEIGHT = 208;
-
-// -----------------------------------------------------------------------------
-// One recording slot
-// -----------------------------------------------------------------------------
 
 type PendingConfirm =
   | { kind: "reset" }
   | { kind: "clear"; index: number; label: string }
   | null;
 
-function SlotTile({
+// -----------------------------------------------------------------------------
+// One comparison row
+// -----------------------------------------------------------------------------
+
+function PositionRow({
   slotIndex,
   snapshot,
   antennaType,
@@ -106,7 +124,6 @@ function SlotTile({
   isRecording,
   samplesCollected,
   isBest,
-  margin,
   stalled,
   recordDisabled,
   onRecord,
@@ -121,7 +138,6 @@ function SlotTile({
   isRecording: boolean;
   samplesCollected: number;
   isBest: boolean;
-  margin: number | null;
   stalled: boolean;
   recordDisabled: boolean;
   onRecord: () => void;
@@ -132,6 +148,33 @@ function SlotTile({
 
   const score = snapshot ? scoreSnapshot(snapshot) : null;
 
+  /**
+   * The quality verdict, read from the SAME legs the composite was built from.
+   *
+   * `worstSignalQuality` skips `"none"` entries, so it returns a level whenever
+   * any leg reported and `"none"` only when neither did — which is exactly when
+   * `score.value` is null too. Numeral ink, bar tone and bar length therefore
+   * cannot disagree about whether there is a reading.
+   */
+  const rsrp =
+    snapshot && score
+      ? normalizeValue(
+          score.radio === "nr" ? snapshot.nr_rsrp[0] : snapshot.lte_rsrp[0],
+          "rsrp"
+        )
+      : null;
+  const sinr =
+    snapshot && score
+      ? normalizeValue(
+          score.radio === "nr" ? snapshot.nr_sinr[0] : snapshot.lte_sinr[0],
+          "sinr"
+        )
+      : null;
+  const quality = worstSignalQuality(
+    getSignalQuality(rsrp, RSRP_THRESHOLDS),
+    getSignalQuality(sinr, SINR_THRESHOLDS)
+  );
+
   const slotStatus = isRecording
     ? t("antenna_alignment.recorder.status.recording")
     : snapshot
@@ -140,183 +183,241 @@ function SlotTile({
         : t("antenna_alignment.recorder.status.recorded")
       : t("antenna_alignment.recorder.status.empty");
 
+  const progressCopy = stalled
+    ? t("antenna_alignment.recorder.waiting")
+    : t("antenna_alignment.recorder.sample_progress", {
+        current: samplesCollected,
+        total: SAMPLES_PER_RECORDING,
+      });
+
+  const caveat =
+    score && !isRecording
+      ? score.value === null
+        ? { glyph: "block" as const, text: t("antenna_alignment.recorder.not_comparable") }
+        : score.partial
+          ? { glyph: "info" as const, text: t("antenna_alignment.recorder.partial") }
+          : null
+      : null;
+
   return (
     <motion.div
       variants={staggerRowItem}
-      role="region"
+      role="group"
       aria-label={t("antenna_alignment.recorder.slot_sr", {
         index: slotIndex + 1,
         label,
         status: slotStatus,
       })}
-      style={{ minHeight: SLOT_MIN_HEIGHT }}
-      className={cn(
-        SLOT_SHAPE.ROOT,
-        isBest && snapshot ? SLOT_SHAPE.BEST : SLOT_SHAPE.NEUTRAL
-      )}
+      className={cn(SLOT.ROOT, isBest && snapshot ? SLOT.BEST : SLOT.NEUTRAL)}
     >
       {/* --- Label ------------------------------------------------------- */}
-      <div className={SLOT_SHAPE.HEAD}>
-        <MaterialSymbol
-          name={antennaType === "directional" ? "explore" : "location_on"}
-          size={16}
-          className="shrink-0 opacity-70"
-        />
-        <Input
-          value={label}
-          onChange={(event) => onLabelChange(event.target.value)}
-          disabled={isRecording || !!snapshot}
-          aria-label={t("antenna_alignment.recorder.label_sr", {
-            index: slotIndex + 1,
-          })}
-          className={cn(
-            "h-[2.625rem] rounded-field border-0 px-3 text-sm font-medium",
-            // A frozen label on the winning tile sits directly on
-            // `primary-container`, not on a card — `bg-surface-container-high`
-            // there reads as a mismatched patch of the wrong blue, and the
-            // base Input's `disabled:opacity-50` washes it out further. Once
-            // recorded, the field is read-only text with nothing left to
-            // signal as an editable control, so it drops the box entirely
-            // and inherits the tile's own ink at full strength instead.
-            isBest && snapshot
-              ? "bg-transparent disabled:opacity-100"
-              : "bg-surface-container-high"
-          )}
-          placeholder={
-            antennaType === "directional"
-              ? t("antenna_alignment.recorder.placeholder_angle")
-              : t("antenna_alignment.recorder.placeholder_position")
-          }
-        />
-        {snapshot && (
-          <Button
-            variant="ghost"
-            size="icon"
-            className="size-11 shrink-0 rounded-pill"
-            aria-label={t("antenna_alignment.recorder.clear", { label })}
-            onClick={onRequestClear}
-          >
-            <MaterialSymbol name="delete" size={18} />
-          </Button>
-        )}
-      </div>
+      {snapshot ? (
+        /* Frozen at capture. There is nothing left to signal as an editable
+           control, so it drops the box entirely and inherits the row's own ink
+           at full strength — which is also what keeps it legible on the
+           winning row's `primary-container` fill. */
+        <span className={SLOT.LABEL_STATIC} title={label}>
+          {label}
+        </span>
+      ) : (
+        /* A shell, not a bare field. At `border-0` on one tonal step the page's
+           ONLY text input read as a static chip in a row full of static chips,
+           so the one editable thing on the surface advertised nothing. DESIGN.md
+           keeps inputs borderless at rest, so the affordance is the `edit` mark
+           rather than a stroke; the shell owns the fill, radius, 44px height and
+           the focus ring. */
+        <div className={cn(SLOT.LABEL_SHELL, isRecording && "opacity-60")}>
+          <MaterialSymbol
+            name="edit"
+            size={GLYPH.CHIP}
+            aria-hidden="true"
+            className="shrink-0 text-on-surface-variant"
+          />
+          <input
+            value={label}
+            onChange={(event) => onLabelChange(event.target.value)}
+            disabled={isRecording}
+            aria-label={t("antenna_alignment.recorder.label_sr", {
+              index: slotIndex + 1,
+            })}
+            placeholder={
+              antennaType === "directional"
+                ? t("antenna_alignment.recorder.placeholder_angle")
+                : t("antenna_alignment.recorder.placeholder_position")
+            }
+            className={cn(
+              SLOT.LABEL_FIELD,
+              "text-on-surface placeholder:text-on-surface-variant"
+            )}
+          />
+        </div>
+      )}
 
-      {/* --- Recording --------------------------------------------------- */}
-      {isRecording && (
-        <div className={SLOT_SHAPE.BODY}>
-          <div className="flex items-center justify-center gap-2" aria-live="polite">
-            <MaterialSymbol
-              name="progress_activity"
-              size={16}
-              className="motion-safe:animate-spin"
-            />
-            <span className="text-xs">
-              {stalled
-                ? t("antenna_alignment.recorder.waiting")
-                : t("antenna_alignment.recorder.sample_progress", {
-                    current: samplesCollected,
-                    total: SAMPLES_PER_RECORDING,
-                  })}
-            </span>
-          </div>
-          {/* Step dots, not a progress bar — see the file header. */}
-          <div className="flex items-center justify-center gap-1.5">
+      {/* --- Score ------------------------------------------------------- */}
+      {/* Ramp ink is legal here ONLY because the bar sits immediately beside it
+          carrying the same value in length. On the winning row the numeral drops
+          the ramp and takes the container's own ink instead: `--quality-N` is
+          computed against a card ground, not against `primary-container`, and
+          the row's non-chromatic channels (bar length, the sr-only verdict) are
+          already carrying the quality. */}
+      <span
+        className={cn(
+          SLOT.SCORE,
+          snapshot && score?.value !== null && !isBest && qualityInkClass(quality)
+        )}
+      >
+        {score && score.value !== null && !isRecording
+          ? score.value
+          : /* A never-recorded row says so ONCE, in the lane. The em dash here
+               was the same statement a second time, and it was what pushed
+               "Not recorded" into wrapping across two lines inside a 64px pill.
+               Recording and unrankable rows keep the dash: there the lane is
+               showing progress or a track, so the dash is the only thing
+               holding the numeral column. */
+            snapshot || isRecording
+            ? "—"
+            : null}
+      </span>
+      {snapshot && score?.value !== null && (
+        <span className="sr-only">{t(`antenna_alignment.quality.${quality}`)}</span>
+      )}
+
+      {/* --- Lane -------------------------------------------------------- */}
+      {isRecording ? (
+        <div className={cn(SLOT.LANE, "flex items-center gap-2")}>
+          <MaterialSymbol
+            name={RECORD_GLYPH.recording}
+            size={GLYPH.INLINE}
+            className="shrink-0 motion-safe:animate-spin"
+          />
+          {/* Step dots, not a fill — see the file header. */}
+          <span className="flex shrink-0 items-center gap-1.5" aria-hidden="true">
             {Array.from({ length: SAMPLES_PER_RECORDING }, (_, i) => (
               <span
                 key={i}
-                aria-hidden="true"
                 className={cn(
-                  "size-2 rounded-pill transition-colors duration-(--duration-standard) ease-standard",
-                  i < samplesCollected
-                    ? "bg-primary"
-                    : "bg-surface-container-high"
+                  SLOT.DOT,
+                  i < samplesCollected ? "bg-primary" : "bg-surface-container-high"
                 )}
               />
             ))}
-          </div>
-          <Button
-            variant="ghost"
-            onClick={onCancel}
-            className="h-[2.625rem] w-full rounded-pill text-sm font-semibold"
+          </span>
+          <span
+            className={cn(SLOT.CAPTION, "hidden min-w-0 truncate @md/card:inline")}
+            aria-hidden="true"
           >
-            {t("antenna_alignment.recorder.cancel")}
-          </Button>
+            {progressCopy}
+          </span>
+          <span className="sr-only" aria-live="polite">
+            {progressCopy}
+          </span>
         </div>
-      )}
-
-      {/* --- Recorded ---------------------------------------------------- */}
-      {!isRecording && snapshot && score && (
-        <div className={SLOT_SHAPE.BODY}>
-          {/* This group — not the tile — owns the centering, so the footnote
-              below stays pinned to the tile's floor instead of being dragged
-              toward the middle by the same flex-1/justify-center pair. */}
-          <div className="flex flex-1 flex-col items-center justify-center gap-2 text-center">
-            <div className="flex items-end gap-2">
-              <span className={SLOT_SHAPE.SCORE}>
-                {score.value === null ? "—" : score.value}
-              </span>
-              {score.radio && (
+      ) : !snapshot ? (
+        /* A slot that has NEVER been recorded gets no track at all.
+           "Nothing has been measured here" and "this was measured and yielded
+           nothing" are different facts, and only the second one is a reading
+           with a place on the scale. Drawing an empty track for the first put
+           three ~470px rules of pure chrome across a desktop card that has no
+           comparison in it yet — the phone fix not travelling to 1440. The
+           unrankable case below keeps its empty track, because there the track
+           is the honest report of a measurement that came back with nothing. */
+        <span
+          className={cn(
+            SLOT.LANE,
+            SLOT.CAPTION,
+            "truncate whitespace-nowrap text-on-surface-variant",
+          )}
+        >
+          {t("antenna_alignment.recorder.not_recorded")}
+        </span>
+      ) : (
+        <div className={cn(SLOT.LANE, "flex flex-col gap-1.5")}>
+          {/* `value={null}` on an unrankable slot renders the track ALONE —
+              never a zero-length fill. */}
+          <MetricBar
+            value={score?.value ?? null}
+            max={100}
+            warnAt={101}
+            dangerAt={101}
+            colorOverride={qualityMeterTone(quality)}
+            size="md"
+            /* The winning row is `primary-container`, against which
+               `surface-container-high` renders LIGHTER than its own ground — so
+               the track read as a second, paler segment continuing past the end
+               of the fill, on the one row that answers "which position won".
+               `muted` is the same move the pinned readout needed for the same
+               class of collision. A track is only invisible chrome while it is
+               darker than what it sits on. */
+            track={isBest && snapshot ? "muted" : "surface-container-high"}
+            index={slotIndex}
+          />
+          {(score?.radio || caveat) && (
+            <div className="flex min-w-0 items-center gap-1.5">
+              {score?.radio && (
                 <Tag
                   variant={score.radio === "nr" ? "nr" : "lte"}
-                  className="mb-1.5 shrink-0 px-2 py-0.5 text-xs font-semibold"
+                  className="shrink-0 px-1.5 py-0"
                 >
-                  {t(`antenna_alignment.mode.${score.radio}`)}
+                  {t(`antenna_alignment.mode.${score.radio}_short`)}
                 </Tag>
               )}
+              {caveat && (
+                <>
+                  <MaterialSymbol
+                    name={caveat.glyph}
+                    size={GLYPH.CHIP}
+                    className="shrink-0 opacity-80"
+                    aria-hidden="true"
+                  />
+                  <span
+                    className={cn(SLOT.CAPTION, "hidden min-w-0 truncate @md/card:inline")}
+                    aria-hidden="true"
+                  >
+                    {caveat.text}
+                  </span>
+                  <span className="sr-only">{caveat.text}</span>
+                </>
+              )}
             </div>
-
-            {/* Why a slot is unrankable, or why its score is a weaker claim
-                than its neighbour's. Silence here is what let a position
-                lose the recommendation for a reason unrelated to where it
-                was pointing. */}
-            {score.value === null ? (
-              <span className="text-xs opacity-80">
-                {t("antenna_alignment.recorder.not_comparable")}
-              </span>
-            ) : score.partial ? (
-              <span className="text-xs opacity-80">
-                {t("antenna_alignment.recorder.partial")}
-              </span>
-            ) : null}
-
-            {isBest && score.value !== null && (
-              <Badge
-                variant="secondary"
-                className="w-fit gap-1 px-2 py-0.5 text-xs font-semibold"
-              >
-                <MaterialSymbol name="trophy" size={12} filled />
-                {margin === null
-                  ? t("antenna_alignment.recorder.best")
-                  : t("antenna_alignment.recorder.best_margin", { margin })}
-              </Badge>
-            )}
-          </div>
-
-          <span className="flex items-center gap-1 text-xs opacity-80">
-            <MaterialSymbol name="check_circle" size={12} filled />
-            {t("antenna_alignment.recorder.recorded_at", {
-              time: new Date(snapshot.ts).toLocaleTimeString(),
-            })}
-          </span>
+          )}
         </div>
       )}
 
-      {/* --- Empty ------------------------------------------------------- */}
-      {!isRecording && !snapshot && (
-        <div className={SLOT_SHAPE.BODY}>
-          <span className="text-center text-xs text-on-surface-variant">
-            {t("antenna_alignment.recorder.not_recorded")}
-          </span>
-          <Button
-            onClick={onRecord}
-            disabled={recordDisabled}
-            className="h-[2.625rem] w-full rounded-pill px-5 text-sm font-semibold"
-          >
-            {antennaType === "directional"
-              ? t("antenna_alignment.recorder.record_angle")
-              : t("antenna_alignment.recorder.record_position")}
-          </Button>
-        </div>
+      {/* --- The row's own action ---------------------------------------- */}
+      {/* One 44px target, three meanings: record this slot, cancel the run,
+          clear the recording. Quiet by construction — the card's single loud
+          affordance lives in the header. */}
+      {isRecording ? (
+        <Button
+          variant="ghost"
+          size="icon"
+          className={SLOT.ICON_TARGET}
+          aria-label={t("antenna_alignment.recorder.cancel_slot", { label })}
+          onClick={onCancel}
+        >
+          <MaterialSymbol name={RECORD_GLYPH.cancel} size={GLYPH.ACTION} />
+        </Button>
+      ) : snapshot ? (
+        <Button
+          variant="ghost"
+          size="icon"
+          className={SLOT.ICON_TARGET}
+          aria-label={t("antenna_alignment.recorder.clear", { label })}
+          onClick={onRequestClear}
+        >
+          <MaterialSymbol name={RECORD_GLYPH.clear} size={GLYPH.ACTION} />
+        </Button>
+      ) : (
+        <Button
+          variant="ghost"
+          size="icon"
+          className={SLOT.ICON_TARGET}
+          disabled={recordDisabled}
+          aria-label={t("antenna_alignment.recorder.record_slot", { label })}
+          onClick={onRecord}
+        >
+          <MaterialSymbol name={RECORD_GLYPH.idle} size={GLYPH.ACTION} />
+        </Button>
       )}
     </motion.div>
   );
@@ -326,7 +427,7 @@ function SlotTile({
 // The card
 // -----------------------------------------------------------------------------
 
-export function RecorderCard({
+export function PositionsCard({
   spa,
   snapshotTs,
   feedStalled,
@@ -349,11 +450,11 @@ export function RecorderCard({
   const { slots, activeSlot, antennaType, samplesCollected } = state;
 
   /**
-   * Label edits live HERE, keyed by `${antennaType}-${index}`, rather than inside
-   * each tile.
+   * Label edits live HERE, keyed by `${antennaType}-${index}`, rather than
+   * inside each row.
    *
-   * They used to be tile-local, and the tiles were keyed by the same composite
-   * string — so flipping Directional↔Omni REMOUNTED all three tiles and silently
+   * They used to be row-local, and the rows were keyed by the same composite
+   * string — so flipping Directional↔Omni REMOUNTED all three and silently
    * discarded whatever the user had typed but not yet recorded. Holding the map
    * one level up keeps the state across a flip while still scoping it per type,
    * so an angle typed in Directional does not leak into Omni's labels.
@@ -374,15 +475,23 @@ export function RecorderCard({
   const filledCount = slots.filter(Boolean).length;
   const best = filledCount >= 2 ? findBestSlot(slots) : null;
   const remaining = SLOT_COUNT - filledCount;
+  const nextEmpty = slots.findIndex((snapshot) => !snapshot);
+  const isRecording = activeSlot !== null;
 
   const labelFor = (index: number) => {
     const snapshot = slots[index];
     if (snapshot) {
-      // A stored label is user data unless it was never touched, in which case it
-      // follows the interface language like any other default.
+      // A stored label is user data unless it was never touched, in which case
+      // it follows the interface language like any other default.
       return snapshot.isDefaultLabel ? defaultLabel(index) : snapshot.label;
     }
     return labelEdits[`${antennaType}-${index}`] ?? defaultLabel(index);
+  };
+
+  const recordInto = (index: number) => {
+    const edited = labelEdits[`${antennaType}-${index}`];
+    const isDefault = edited === undefined || edited === defaultLabel(index);
+    startRecording(index, labelFor(index), isDefault);
   };
 
   const confirmPending = () => {
@@ -392,25 +501,37 @@ export function RecorderCard({
     setPending(null);
   };
 
-  return (
-    <Card className="h-full gap-5 rounded-card border-0 bg-surface px-6 py-6 shadow-[var(--shadow-whisper)]">
-      <CardHeader className="gap-1 px-0">
-        <div className="flex flex-col gap-3 @2xl/main:flex-row @2xl/main:items-start @2xl/main:justify-between">
-          <div className="flex min-w-0 flex-col gap-1">
-            <CardTitle className="min-w-0 truncate text-xl font-semibold">
-              {t("antenna_alignment.recorder.title")}
-            </CardTitle>
-            <CardDescription className="text-[13px] leading-relaxed text-pretty">
-              {antennaType === "directional"
-                ? t("antenna_alignment.recorder.description_directional", {
-                    samples: SAMPLES_PER_RECORDING,
-                  })
-                : t("antenna_alignment.recorder.description_omni", {
-                    samples: SAMPLES_PER_RECORDING,
-                  })}
-            </CardDescription>
-          </div>
+  /**
+   * Why the one primary action cannot currently work.
+   *
+   * DESIGN.md's State-Honesty Rule: "a control that cannot currently work
+   * explains why instead of sitting there dead." Both reasons are real and
+   * distinct — one is temporary and self-clearing, the other needs the user to
+   * free a slot — so they get different sentences rather than one hedge.
+   */
+  const recordBlockedReason = isRecording
+    ? t("antenna_alignment.recorder.recording_hint")
+    : nextEmpty === -1
+      ? t("antenna_alignment.recorder.all_recorded_hint")
+      : null;
 
+  return (
+    <Card className={CARD_SHELL}>
+      <CardHeader className={cn(CARD_HEADER, "gap-3")}>
+        {/* Title and controls share one row; the description gets its own full
+            width beneath them. Sharing the row with the cluster squeezed it into
+            a ~220px column at desktop, where a two-line sentence wrapped to
+            five — a measure far below the readable floor, produced by a layout
+            constraint rather than by the copy. */}
+        <div className="flex flex-col gap-3 @2xl/main:flex-row @2xl/main:items-center @2xl/main:justify-between">
+          <CardTitle className={CARD_TITLE}>
+            {t("antenna_alignment.recorder.title")}
+          </CardTitle>
+
+          {/* The whole control cluster, one height each. It wraps to two rows on
+              a phone and sits on one at desktop. Reset is demoted to an icon:
+              it is a rare, destructive, confirmed action and has no business
+              competing with Record for width. */}
           <div className="flex shrink-0 flex-wrap items-center gap-2">
             <ToggleGroup
               type="single"
@@ -421,38 +542,69 @@ export function RecorderCard({
               }}
               className="rounded-pill"
             >
-              <ToggleGroupItem
-                value="directional"
-                className="h-[2.625rem] gap-2 rounded-pill px-4 text-sm font-semibold"
-              >
-                <MaterialSymbol name="explore" size={16} />
+              <ToggleGroupItem value="directional" className={SEGMENTED_ITEM}>
+                <MaterialSymbol name={SLOT_GLYPH.directional} size={GLYPH.INLINE} />
                 {t("antenna_alignment.recorder.type_directional")}
               </ToggleGroupItem>
-              <ToggleGroupItem
-                value="omni"
-                className="h-[2.625rem] gap-2 rounded-pill px-4 text-sm font-semibold"
-              >
-                <MaterialSymbol name="location_on" size={16} />
+              <ToggleGroupItem value="omni" className={SEGMENTED_ITEM}>
+                <MaterialSymbol name={SLOT_GLYPH.omni} size={GLYPH.INLINE} />
                 {t("antenna_alignment.recorder.type_omni")}
               </ToggleGroupItem>
             </ToggleGroup>
+
+            {/* THE card's one primary button. It records into the next empty
+                slot, which is what removes two of the three saturated pills the
+                outgoing tile grid stacked down the phone. */}
             <Button
-              variant="outline"
-              onClick={() => setPending({ kind: "reset" })}
-              disabled={activeSlot !== null || filledCount === 0}
-              className="h-[2.625rem] gap-2 rounded-pill px-5 text-sm font-semibold"
+              className={PILL_ACTION}
+              disabled={recordBlockedReason !== null}
+              onClick={() => {
+                if (nextEmpty !== -1) recordInto(nextEmpty);
+              }}
             >
-              <MaterialSymbol name="restart_alt" size={16} />
-              {t("antenna_alignment.recorder.reset")}
+              <MaterialSymbol name={RECORD_GLYPH.idle} size={GLYPH.ACTION} />
+              {antennaType === "directional"
+                ? t("antenna_alignment.recorder.record_angle")
+                : t("antenna_alignment.recorder.record_position")}
+            </Button>
+
+            <Button
+              variant="ghost"
+              size="icon"
+              className={ICON_TARGET}
+              onClick={() => setPending({ kind: "reset" })}
+              disabled={isRecording || filledCount === 0}
+              aria-label={t("antenna_alignment.recorder.reset")}
+            >
+              <MaterialSymbol name="restart_alt" size={GLYPH.ACTION} />
             </Button>
           </div>
         </div>
+
+        <CardDescription className={CARD_DESCRIPTION}>
+          {antennaType === "directional"
+            ? t("antenna_alignment.recorder.description_directional", {
+                samples: SAMPLES_PER_RECORDING,
+              })
+            : t("antenna_alignment.recorder.description_omni", {
+                samples: SAMPLES_PER_RECORDING,
+              })}
+        </CardDescription>
+
+        {recordBlockedReason && (
+          <p
+            role="status"
+            className="text-xs leading-relaxed text-pretty text-on-surface-variant"
+          >
+            {recordBlockedReason}
+          </p>
+        )}
       </CardHeader>
 
-      <CardContent className="flex flex-col gap-4 px-0">
-        <motion.div className={RECORDER_GRID} variants={staggerRows}>
+      <CardContent className={cn(CARD_CONTENT, "@container/card gap-3")}>
+        <motion.div className={SLOT.STACK} variants={staggerRows}>
           {[0, 1, 2].map((index) => (
-            <SlotTile
+            <PositionRow
               key={index}
               slotIndex={index}
               snapshot={slots[index]}
@@ -467,16 +619,11 @@ export function RecorderCard({
               isRecording={activeSlot === index}
               samplesCollected={activeSlot === index ? samplesCollected : 0}
               isBest={best?.index === index}
-              margin={best?.index === index ? best.margin : null}
               stalled={feedStalled}
               // A second recording would silently abandon the first, because the
               // sample accumulator is shared. Say so by disabling instead.
-              recordDisabled={activeSlot !== null}
-              onRecord={() => {
-                const edited = labelEdits[`${antennaType}-${index}`];
-                const isDefault = edited === undefined || edited === defaultLabel(index);
-                startRecording(index, labelFor(index), isDefault);
-              }}
+              recordDisabled={isRecording}
+              onRecord={() => recordInto(index)}
               onCancel={cancelRecording}
               onRequestClear={() =>
                 setPending({ kind: "clear", index, label: labelFor(index) })
@@ -485,30 +632,23 @@ export function RecorderCard({
           ))}
         </motion.div>
 
-        {/* The winning tile above already carries the "this one won" fact —
-            full primary-container fill, trophy badge, "Best by N" — the same
-            selection language `SCENARIO_TILE_ACTIVE` and `HERO_TILE_SCENARIO`
-            use elsewhere in the app. A second full-bleed `info` banner
-            restating the same headline directly beneath it stacked two
-            equally-loud blue blocks for one fact. `tone="info"` was also the
-            wrong tone for this content in the first place: DESIGN.md scopes
-            `info` to something IN PROGRESS (applying, downloading), and this
-            is a completed comparison's footnote, not a live status. What is
-            genuinely new here — the advisory sentence, the mixed-radios
-            caveat, the remaining-slot count — reads as a neutral row instead,
-            matching this file's own `twin_hint` caption precedent. */}
+        {/* The winning row already carries "this one won" as a container fill and
+            the longest bar. What is genuinely new here is the advisory sentence,
+            the mixed-radios caveat and the remaining-slot count — one compact
+            neutral line, not a second loud block restating the same headline. */}
         {best && (
-          <div
+          <p
             role="status"
-            className="flex items-start gap-2.5 rounded-tile bg-surface-container px-4 py-3.5"
+            className="flex items-start gap-2 text-xs leading-relaxed text-pretty text-on-surface-variant"
           >
             <MaterialSymbol
-              name="trophy"
-              size={16}
+              name={RECORD_GLYPH.best}
+              size={GLYPH.CHIP}
               filled
               className="mt-0.5 shrink-0 text-primary"
+              aria-hidden="true"
             />
-            <p className="min-w-0 text-xs leading-relaxed text-pretty text-on-surface-variant">
+            <span className="min-w-0">
               <span className="font-semibold text-on-surface">
                 {t("antenna_alignment.recommendation.title", {
                   label: labelFor(best.index),
@@ -528,15 +668,15 @@ export function RecorderCard({
                   })}
                 </>
               )}
-            </p>
-          </div>
+            </span>
+          </p>
         )}
       </CardContent>
 
       {/* Unrecoverable, and often reached after fifteen minutes on a ladder —
           PRODUCT.md principle 6 puts the risk in front of the action rather than
-          behind it. One dialog serves both destructive paths so the copy can name
-          exactly what is about to be lost. */}
+          behind it. One dialog serves both destructive paths so the copy can
+          name exactly what is about to be lost. */}
       <AlertDialog open={pending !== null} onOpenChange={(open) => !open && setPending(null)}>
         <AlertDialogContent className="rounded-card">
           <AlertDialogHeader>
@@ -554,12 +694,18 @@ export function RecorderCard({
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel className="h-[2.625rem] rounded-pill px-5">
+            <AlertDialogCancel className={PILL_ACTION}>
               {t("antenna_alignment.recorder.confirm_cancel")}
             </AlertDialogCancel>
+            {/* The role's own pair, never `bg-destructive/90`: an alpha wash of
+                a role is not a role, and it drifts against whatever ground the
+                dialog happens to sit on. */}
             <AlertDialogAction
               onClick={confirmPending}
-              className="h-[2.625rem] rounded-pill bg-destructive px-5 text-destructive-foreground hover:bg-destructive/90"
+              className={cn(
+                PILL_ACTION,
+                "bg-destructive text-destructive-foreground hover:bg-destructive-container hover:text-on-destructive-container"
+              )}
             >
               {pending?.kind === "reset"
                 ? t("antenna_alignment.recorder.reset_confirm_action")
@@ -572,4 +718,4 @@ export function RecorderCard({
   );
 }
 
-export default RecorderCard;
+export default PositionsCard;
