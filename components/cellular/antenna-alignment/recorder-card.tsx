@@ -533,11 +533,14 @@ export function PositionsCard({
       </CardHeader>
 
       <CardContent className={cn(CARD_CONTENT, "@container/card gap-3")}>
-        {/* The whole control cluster, one height each. It wraps to two rows on
-            a phone and sits on one at desktop. Reset is demoted to an icon:
-            it is a rare, destructive, confirmed action and has no business
-            competing with Record for width. */}
-        <div className="flex flex-wrap items-center gap-2">
+        {/* Type selector and reset share the top row, justified apart: the
+            tabs frame what the rows below mean (angles vs. positions), reset
+            is the rare destructive escape hatch, and the two have nothing to
+            say to each other so they anchor opposite edges instead of
+            clustering. Record lives at the bottom of the card, after the rows
+            and the recommendation, as the card's closing call to action
+            rather than a control bar sitting above empty slots. */}
+        <div className="flex items-center justify-between gap-2">
           <ToggleGroup
             type="single"
             variant="outline"
@@ -557,22 +560,6 @@ export function PositionsCard({
             </ToggleGroupItem>
           </ToggleGroup>
 
-          {/* THE card's one primary button. It records into the next empty
-              slot, which is what removes two of the three saturated pills the
-              outgoing tile grid stacked down the phone. */}
-          <Button
-            className={PILL_ACTION}
-            disabled={recordBlockedReason !== null}
-            onClick={() => {
-              if (nextEmpty !== -1) recordInto(nextEmpty);
-            }}
-          >
-            <MaterialSymbol name={RECORD_GLYPH.idle} size={GLYPH.ACTION} />
-            {antennaType === "directional"
-              ? t("antenna_alignment.recorder.record_angle")
-              : t("antenna_alignment.recorder.record_position")}
-          </Button>
-
           <Button
             variant="ghost"
             size="icon"
@@ -584,15 +571,6 @@ export function PositionsCard({
             <MaterialSymbol name="restart_alt" size={GLYPH.ACTION} />
           </Button>
         </div>
-
-        {recordBlockedReason && (
-          <p
-            role="status"
-            className="text-xs leading-relaxed text-pretty text-on-surface-variant"
-          >
-            {recordBlockedReason}
-          </p>
-        )}
 
         <motion.div className={SLOT.STACK} variants={staggerRows}>
           {[0, 1, 2].map((index) => (
@@ -661,6 +639,32 @@ export function PositionsCard({
                 </>
               )}
             </span>
+          </p>
+        )}
+
+        {/* THE card's one primary button, at the bottom as its closing call to
+            action. It records into the next empty slot, which is what removes
+            two of the three saturated pills the outgoing tile grid stacked
+            down the phone. */}
+        <Button
+          className={cn(PILL_ACTION, "w-full @sm/card:w-fit @sm/card:self-end")}
+          disabled={recordBlockedReason !== null}
+          onClick={() => {
+            if (nextEmpty !== -1) recordInto(nextEmpty);
+          }}
+        >
+          <MaterialSymbol name={RECORD_GLYPH.idle} size={GLYPH.ACTION} />
+          {antennaType === "directional"
+            ? t("antenna_alignment.recorder.record_angle")
+            : t("antenna_alignment.recorder.record_position")}
+        </Button>
+
+        {recordBlockedReason && (
+          <p
+            role="status"
+            className="text-xs leading-relaxed text-pretty text-on-surface-variant @sm/card:text-right"
+          >
+            {recordBlockedReason}
           </p>
         )}
       </CardContent>
