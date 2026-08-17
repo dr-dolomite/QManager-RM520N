@@ -59,8 +59,19 @@ import {
 // estimate. Same idiom as `active-bands-card.tsx`'s `BAND_ROW_HEIGHT`.
 // =============================================================================
 
+/**
+ * `rounded-card` + 24px padding, not `rounded-hero` + 28px.
+ *
+ * The Radius-Follows-Size Rule reads the ROLE, not the route: 36px is "a
+ * standard card in a grid of peers" and 40px is "the one card that anchors a
+ * surface". These two are peers in a `grid-cols-2` — neither anchors anything,
+ * and there is no third card for them to out-rank. The hero step was inherited
+ * from `radio/active-bands-card.tsx`, which earns it honestly: that page is a
+ * single-column stack of full-width anchor cards. Copying its shell across a
+ * route boundary copied a size claim that does not hold here.
+ */
 export const CARD_SHELL =
-  "h-full gap-5 rounded-hero border-0 bg-surface px-7 py-6 shadow-[var(--shadow-whisper)]";
+  "h-full gap-5 rounded-card border-0 bg-surface px-6 py-6 shadow-[var(--shadow-whisper)]";
 
 /** The two-up card grid, shared with the skeleton so they cannot diverge. */
 export const CARD_GRID = "grid grid-cols-1 gap-5 @3xl/main:grid-cols-2";
@@ -375,13 +386,29 @@ export function TechCard({
         </div>
       </CardHeader>
 
-      <CardContent className="px-0">
+      {/* `flex flex-1 flex-col`, not the primitive's bare `px-6` block.
+          `Empty` already ships `flex-1 justify-center`, but that grow had
+          nothing to grow inside: a block-level CardContent gave it no flex
+          context, so on a card stretched to its taller sibling by
+          `*:data-[slot=card]:h-full` the empty message sat pinned to the top
+          with the rest of the card's height as dead air below it. The taller
+          the live card, the larger the void. */}
+      <CardContent className="flex flex-1 flex-col px-0">
         {!active ? (
           // `md:py-10` is not redundant: the primitive ships `md:p-12`, which
           // would otherwise silently win over `py-10` above 768px.
           <Empty className="rounded-tile border-0 bg-surface-container py-10 md:py-10">
             <EmptyHeader>
-              <EmptyMedia variant="icon">
+              {/* A full-round disc one container step above the block it sits
+                  on, not the primitive's `bg-muted rounded-lg` square-ish
+                  default. The Glyph-Disc Rule puts a state glyph in a filled
+                  circle, and the legacy `rounded-lg` radius is off the role
+                  scale (The Role-Radius Rule). Neutral tones because an absent
+                  radio is a deliberately-inactive state, not a fault. */}
+              <EmptyMedia
+                variant="icon"
+                className="size-11 rounded-pill bg-surface-container-high text-on-surface-variant"
+              >
                 <MaterialSymbol name="signal_cellular_off" size={24} />
               </EmptyMedia>
               <EmptyTitle>

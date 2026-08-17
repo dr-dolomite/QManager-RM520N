@@ -129,6 +129,30 @@ export function MetricBar({
           ? "warning"
           : baseTone));
   const colorClass = TONE_CLASS[tone];
+
+  /**
+   * A ramp fill never renders at zero length.
+   *
+   * `signalToProgress()` maps [floor, excellent] → [0, 100], so a reading AT the
+   * physical floor is a legitimate 0% — and RSRQ is the one metric whose floor
+   * (−20 dB) is not also a sentinel, so it reaches here as a real measurement.
+   * The fill then had zero width, which is byte-identical to `value={null}`:
+   * "measured, and it is as bad as this metric goes" and "the radio reported
+   * nothing" rendered as the same empty track, with only a red numeral beside it
+   * to tell them apart. That numeral is exactly what may not carry the meaning
+   * alone — adjacent ramp stops sit below the 0.05 CVD separation floor by
+   * design, and bar LENGTH is the channel that makes that safe (DESIGN.md >
+   * Quality bars, and The Glyph-Carries-The-State Rule).
+   *
+   * So a ramp reading floors at one track-height stub — a 4px dot, the shortest
+   * mark that still renders as a round cap rather than a squashed ellipse.
+   *
+   * Scoped to the ramp on purpose. On a CAPACITY meter (SIM memory, temperature)
+   * 0% means empty and a stub would be a lie; on a SCALE, 0% means "bottom of
+   * the scale" and there is a value to show.
+   */
+  const rampFloor = hasReading && tone.startsWith("quality-");
+
   return (
     <div
       className={cn(
@@ -181,6 +205,9 @@ export function MetricBar({
         <motion.div
           className={cn(
             "h-full rounded-full transition-[width,background-color] duration-(--duration-standard) ease-standard motion-reduce:transition-none",
+            // One track-height stub, so a reading at the bottom of a scale is
+            // still a mark rather than an empty track. See `rampFloor` above.
+            rampFloor && (size === "md" ? "min-w-2" : "min-w-1"),
             colorClass,
           )}
           initial={{ scaleX: 0 }}
