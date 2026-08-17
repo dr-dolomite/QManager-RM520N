@@ -38,7 +38,7 @@ qlog_init "qmanager_dpi_verify"
 . /usr/lib/qmanager/dpi_state.sh
 
 DPI_VERIFY_THROTTLE_MBPS="20"
-DPI_VERIFY_TIMEOUT="120"
+DPI_VERIFY_TIMEOUT="180"
 
 _dpi_verify_write() {
     # In-place write, never tmp+mv (pre-seeded root:root 0666 marker).
@@ -68,7 +68,7 @@ _dpi_speedtest_bw() {
     export TMPDIR="${TMPDIR:-/tmp}"
     export LANG="${LANG:-C}"
     export LC_ALL="${LC_ALL:-C}"
-    out=$(timeout 120 "$speedtest_bin" --accept-license --accept-gdpr \
+    out=$(timeout 180 "$speedtest_bin" --accept-license --accept-gdpr \
         -f json -p yes </dev/null 2>/dev/null) || out=""
     [ -n "$out" ] || return 1
     line=$(printf '%s\n' "$out" | grep '^{' | tail -n 1)

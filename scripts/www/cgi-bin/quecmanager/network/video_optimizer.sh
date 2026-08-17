@@ -42,12 +42,16 @@ cgi_handle_options
 
 # ---------------------------------------------------------------------------
 # Query param extraction (action / section)
+# NOTE: QUERY_STRING never carries a leading "?" or "&" — the RM551 pattern
+# s/.*action=\([^&]*\).*/\1/p must be used verbatim; an earlier port that
+# required [?&] silently matched NOTHING, so every action= GET fell through
+# to the plain status endpoint.
 # ---------------------------------------------------------------------------
 ACTION=""
 SECTION=""
 if [ -n "$QUERY_STRING" ]; then
-    ACTION=$(printf '%s' "$QUERY_STRING" | sed -n 's/.*[?&]action=\([^&]*\).*/\1/p')
-    SECTION=$(printf '%s' "$QUERY_STRING" | sed -n 's/.*[?&]section=\([^&]*\).*/\1/p')
+    ACTION=$(printf '%s' "$QUERY_STRING" | sed -n 's/.*action=\([^&]*\).*/\1/p')
+    SECTION=$(printf '%s' "$QUERY_STRING" | sed -n 's/.*section=\([^&]*\).*/\1/p')
 fi
 
 # ---------------------------------------------------------------------------
@@ -126,6 +130,24 @@ if [ "$REQUEST_METHOD" = "GET" ]; then
             exit 0
             ;;
         *)
+            if [ "$SECTION" = "hostlist" ]; then
+                # RM551-contract section: read the hostlist + the default
+                # list (for restore) as domain arrays, comments stripped.
+                if [ -f "$DPI_HOSTLIST" ]; then
+                    domains=$(grep -v '^[[:space:]]*#' "$DPI_HOSTLIST" | grep -v '^[[:space:]]*$' | jq -R . | jq -s .)
+                else
+                    domains='[]'
+                fi
+                if [ -f "$DPI_HOSTLIST_DEFAULT" ]; then
+                    default_domains=$(grep -v '^[[:space:]]*#' "$DPI_HOSTLIST_DEFAULT" | grep -v '^[[:space:]]*$' | jq -R . | jq -s .)
+                else
+                    default_domains='[]'
+                fi
+                count=$(printf '%s' "$domains" | jq 'length')
+                jq -n --argjson domains "$domains" --argjson default_domains "$default_domains" --argjson count "$count" \
+                    '{"success":true,"domains":$domains,"default_domains":$default_domains,"count":$count}'
+                exit 0
+            fi
             if [ "$SECTION" = "masquerade" ]; then
                 # sni_domain is stored for API-REFERENCE contract parity but is
                 # inert in the tpws engine (no fake-SNI mode) — see dpi_state.sh.
@@ -265,6 +287,19 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
                 printf '%s' "$DOMAINS" | jq -r '.[]'
             } > "$DPI_HOSTLIST.tmp" && mv "$DPI_HOSTLIST.tmp" "$DPI_HOSTLIST"
             qlog_info "save_hostlist: $(printf '%s' "$DOMAINS" | jq 'length') domains written"
+            cgi_success
+            exit 0
+            ;;
+        restore_hostlist)
+            # RM551-contract action: restore the factory default hostlist.
+            # The default file is seeded by qmanager_setup; www-data owns both
+            # files so no sudo is involved (same atomic tmp+mv pattern).
+            if [ ! -f "$DPI_HOSTLIST_DEFAULT" ]; then
+                cgi_error "no_default" "Default hostname list not found"
+                exit 0
+            fi
+            cp "$DPI_HOSTLIST_DEFAULT" "$DPI_HOSTLIST.tmp" && mv "$DPI_HOSTLIST.tmp" "$DPI_HOSTLIST"
+            qlog_info "restore_hostlist: restored factory default"
             cgi_success
             exit 0
             ;;

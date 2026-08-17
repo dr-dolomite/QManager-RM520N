@@ -44,7 +44,7 @@ export function useCdnHostlist(): UseCdnHostlistReturn {
     if (!silent) setIsLoading(true);
     setError(null);
     try {
-      const resp = await authFetch(`${CGI_ENDPOINT}?action=hostlist`);
+      const resp = await authFetch(`${CGI_ENDPOINT}?section=hostlist`);
       if (!resp.ok) throw new Error(`HTTP ${resp.status}: ${resp.statusText}`);
       const json = await resp.json();
       if (!mountedRef.current) return;

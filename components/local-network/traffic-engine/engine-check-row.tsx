@@ -22,7 +22,8 @@ import type { VerifyResult } from "@/types/traffic-engine";
 // engine-check-row — "Test bypass" (verify) action: runs the two-phase speed
 // comparison (?action=verify) and polls ?action=verify_status to completion.
 // The result (with/without bypass + improvement factor) renders in
-// ResultAlert.
+// ResultAlert. Poll window is 12 min: each phase can take two 3-min speedtest
+// attempts on a throttled link, so a tight window reported false timeouts.
 // =============================================================================
 
 const CGI_ENDPOINT = "/cgi-bin/quecmanager/network/video_optimizer.sh";
@@ -48,7 +49,7 @@ const EngineCheckRow = ({ binaryInstalled }: EngineCheckRowProps) => {
   }, []);
 
   const poll = useCallback(async () => {
-    for (let i = 0; i < 80; i++) {
+    for (let i = 0; i < 240; i++) {
       await new Promise((r) => setTimeout(r, POLL_MS));
       if (!mountedRef.current) return false;
       try {

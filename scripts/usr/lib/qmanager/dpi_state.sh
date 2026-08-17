@@ -61,6 +61,9 @@ DPI_PORT="989"
 DPI_BIND_ADDR="0.0.0.0"
 DPI_BINARY="/usrdata/qmanager/bin/tpws"
 DPI_HOSTLIST="/etc/qmanager/video_domains.txt"
+# Factory default hostlist (seeded by qmanager_setup) — restore_hostlist
+# copies it back over the live list. RM551-contract file name.
+DPI_HOSTLIST_DEFAULT="/etc/qmanager/video_domains_default.txt"
 # The RM520N kernel ships no xt_comment module ("Couldn't load match
 # `comment'"), so the engine rule cannot carry -m comment. The rule is
 # identified by its unique target instead: nothing else on the modem

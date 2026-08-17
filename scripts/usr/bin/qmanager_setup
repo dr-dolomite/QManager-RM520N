@@ -223,6 +223,15 @@ EOF
     chmod 644 "$DPI_HOSTLIST"
 fi
 
+# Factory-default copy for restore_hostlist. Always ensured (not just on the
+# fresh seed above), so an upgrade that predates this file gets it too.
+# www-data owns /etc/qmanager — the default file is data, never executed.
+if [ ! -f "/etc/qmanager/video_domains_default.txt" ]; then
+    cp "$DPI_HOSTLIST" "/etc/qmanager/video_domains_default.txt"
+    chown www-data:www-data "/etc/qmanager/video_domains_default.txt"
+    chmod 644 "/etc/qmanager/video_domains_default.txt"
+fi
+
 # Initialize default JSON config if missing
 if [ -f /usr/lib/qmanager/config.sh ]; then
     . /usr/lib/qmanager/config.sh
