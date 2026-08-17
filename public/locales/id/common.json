@@ -287,6 +287,7 @@
       "title": "Mesin Lalu Lintas",
       "description": "Lewati pembatasan DPI ISP pada streaming video dan lalu lintas lainnya dengan mesin bypass bawaan."
     },
+    "load_error": "Gagal memuat status mesin.",
     "tabs": {
       "video_optimizer": "Optimasi Video",
       "masquerade": "Penyamaran Lalu Lintas"

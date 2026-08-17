@@ -287,6 +287,7 @@
       "title": "流量引擎",
       "description": "通过内置的绕过引擎，规避运营商 DPI 对视频流媒体等流量的限速。"
     },
+    "load_error": "无法加载引擎状态。",
     "tabs": {
       "video_optimizer": "视频优化",
       "masquerade": "流量伪装"
