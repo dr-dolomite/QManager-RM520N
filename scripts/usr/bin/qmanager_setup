@@ -119,13 +119,19 @@ chmod 666 /tmp/qmanager_at.lock /tmp/qmanager_at.pid
 # blip as a genuine bad sample: the exact race the marker exists to prevent.
 touch /tmp/qmanager.log \
       /tmp/qmanager_profile_apply.pid /tmp/qmanager_profile_state.json \
-      /tmp/qmanager_events.json /tmp/qmanager_tower_write_inflight
+      /tmp/qmanager_events.json /tmp/qmanager_tower_write_inflight \
+      /tmp/qmanager_dpi_install.json /tmp/qmanager_dpi_install.pid \
+      /tmp/qmanager_dpi_verify.json /tmp/qmanager_dpi_verify.pid
 chown root:root /tmp/qmanager.log \
       /tmp/qmanager_profile_apply.pid /tmp/qmanager_profile_state.json \
-      /tmp/qmanager_events.json /tmp/qmanager_tower_write_inflight
+      /tmp/qmanager_events.json /tmp/qmanager_tower_write_inflight \
+      /tmp/qmanager_dpi_install.json /tmp/qmanager_dpi_install.pid \
+      /tmp/qmanager_dpi_verify.json /tmp/qmanager_dpi_verify.pid
 chmod 666 /tmp/qmanager.log \
       /tmp/qmanager_profile_apply.pid /tmp/qmanager_profile_state.json \
-      /tmp/qmanager_events.json /tmp/qmanager_tower_write_inflight
+      /tmp/qmanager_events.json /tmp/qmanager_tower_write_inflight \
+      /tmp/qmanager_dpi_install.json /tmp/qmanager_dpi_install.pid \
+      /tmp/qmanager_dpi_verify.json /tmp/qmanager_dpi_verify.pid
 
 # Session directory — www-data needs write access (cleared on reboot since /tmp is tmpfs)
 mkdir -p /tmp/qmanager_sessions
@@ -178,6 +184,43 @@ QSCAN
 QSCANFREQ
 QFOTADL
 EOF
+fi
+
+# Seed the default Video Optimizer hostlist if missing. www-data edits this
+# file directly from the UI (it lives in the www-data-owned /etc/qmanager
+# directory — it is DATA, never executed, so www-data ownership is fine),
+# so the seed is chowned immediately rather than waiting for the recursive
+# chown above on the next boot.
+DPI_HOSTLIST="/etc/qmanager/video_domains.txt"
+if [ ! -f "$DPI_HOSTLIST" ]; then
+    cat > "$DPI_HOSTLIST" << 'EOF'
+# QManager Video Optimizer hostlist — one domain per line, no wildcards.
+# Connections to these domains get desync treatment; everything else passes
+# through untouched.
+youtube.com
+googlevideo.com
+ytimg.com
+ggpht.com
+youtu.be
+facebook.com
+fbcdn.net
+instagram.com
+cdninstagram.com
+tiktok.com
+tiktokcdn.com
+tiktokv.com
+snapchat.com
+sc-cdn.net
+netflix.com
+nflxvideo.net
+disneyplus.com
+cloudfront.net
+akamaized.net
+speedtest.net
+ookla.com
+EOF
+    chown www-data:www-data "$DPI_HOSTLIST"
+    chmod 644 "$DPI_HOSTLIST"
 fi
 
 # Initialize default JSON config if missing

@@ -47,7 +47,8 @@
     "web_console": "Web 控制台",
     "about_device": "关于设备",
     "support": "支持",
-    "donate": "捐赠项目"
+    "donate": "捐赠项目",
+    "traffic_engine": "流量引擎"
   },
   "header": {
     "role": "管理员"

@@ -1,0 +1,69 @@
+# Traffic Engine (DPI bypass) — Video Optimizer & Traffic Masquerade
+
+The Traffic Engine re-ports the RM551-era "Video Optimizer / Traffic Masquerade" DPI bypass to the RM520N-GL using **zapret's `tpws`** (the transparent-proxy mode) instead of the RM551's `nfqws` (netfilter queue mode). The RM551 implementation was removed in the dev-rm520 branch (nftables/fw4 dependency, ARM32 nfqws unvalidated); tpws runs as a plain userspace proxy on vanilla Linux, so the RM520's iptables REDIRECT is enough.
+
+## Mental model
+
+ISPs that throttle by site name inspect the **SNI** (the plaintext site name at the start of every TLS connection, in the "ClientHello"). The engine sits between your LAN and the ISP: the firewall redirects all LAN port-80/443 traffic to `tpws`, which re-splits the ClientHello so the SNI lands in a later TCP segment, and applies packet-level tampering (disorder, out-of-band padding). The DPI box can no longer tell which site you opened, so it treats the connection as normal. No TLS is broken or decrypted — `tpws` is a transparent TCP proxy that forwards the untouched payload.
+
+## Architecture
+
+- One `tpws` instance on the modem, bound to `bridge0`, port **989** (`DPI_PORT`).
+- One iptables rule (installed/removed by `dpi_ensure_rule` / `dpi_remove_rule`):
+  `-t nat PREROUTING -i bridge0 -p tcp -m multiport --dports 80,443 -j REDIRECT --to-ports 989`
+  - **No `-m comment`**: the RM520N kernel ships **without `xt_comment`**, so the rule is identified by its `--to-ports 989` signature (`DPI_RULE_SIG`) in the `-S` listing, and its packet counter via `grep "redir ports 989"` in `iptables -L -v -x`.
+- Units:
+  - `qmanager-dpi.service` — runs `/usr/bin/qmanager_dpi_run` with the args built by `dpi_build_args()` (from `dpi_state.sh`). The unit is **not** enabled; starting is config-gated: the 60s `qmanager-dpi-ensure.timer` (monotonic `OnBootSec`, passes the 1970-clock fire guard) runs `qmanager_dpi_run --ensure`, which starts the engine only if `video_optimizer.enabled=1` or `traffic_masquerade.enabled=1`, and stops/removes the rule when both are off.
+- Binary: `/usrdata/qmanager/bin/tpws` — **root-owned** (`/usrdata/qmanager/www`, where the CGI writes, is www-data-owned; the binary lives in the root-owned `/usrdata/qmanager/bin` so a web compromise cannot swap the engine binary — the CGI only ever executes it via the root helper).
+
+## Modes
+
+| Mode | Config keys | Effect |
+|------|-------------|--------|
+| Video Optimizer | `video_optimizer.enabled`, `video_optimizer.strategy` | Desync only connections whose SNI matches the hostlist (`/etc/qmanager/video_domains.txt`, subdomains match automatically). `strategy` is reserved (`full`/`targeted`); current tpws builds have exactly one recipe, so it is stored but does not change the recipe. |
+| Traffic Masquerade | `traffic_masquerade.enabled`, `traffic_masquerade.sni_domain` | The **same** recipe applied to every 80/443 connection (no hostlist). |
+
+The two modes are **mutually exclusive** (CGI-enforced; enabling one disables the other). `sni_domain` is accepted and stored for API-contract compatibility with the RM551, but is **inert** — tpws has no fake-ClientHello mode (that is nfqws-only), so masquerade instead means "split everything."
+
+## The recipe (why it is what it is)
+
+```
+--filter-l7=tls,http --split-pos=1,midsld,sniext+1 --disorder=tls --oob=tls
+```
+
+- This is exactly the recipe Titan (an RM551E running the same official tpws v72.13 build 24/7, config at `/data/opt/lettucepi/zapret.sh`) runs, plus `--filter-l7=tls,http` (Titan also uses it; it scopes the engine to TLS/HTTP handshakes only).
+- **`--tlsrec=sniext+1` was dropped** after on-device A/B on this platform: it re-splits past SNI extraction and was observed to break established HTTPS transfers to a hostlist target (tele2 test server). Titan runs without it for the same reason.
+- **`--hostlist-auto-reload` is not used**: the flag does not exist in v72.13, but v72.13 re-stats and reloads the hostlist on every connection check by default (proven in `hostlist.c`, confirmed live: "Loaded 4 hosts" on reload). A CGI hostlist save applies immediately without restarting the engine.
+
+## Provisioning (install)
+
+`qmanager_dpi_install` downloads from GitHub releases:
+
+1. Fetch `zapret-<tag>` release assets; tag pinned to `DPI_DEFAULT_TAG="v72.13"`.
+2. Asset names carry no arch tags — the ARM build lives inside the tarball. Prefer `zapret-<tag>-openwrt-embedded.tar.gz`, fall back to `zapret-<tag>.tar.gz`; both contain `binaries/linux-arm/tpws`.
+3. **Two-layer verification**: the release's own `sha256sum.txt` manifest must contain `zapret-<tag>/binaries/linux-arm/tpws` with a sha256 matching the downloaded binary, **and** the binary must match the embedded pin `DPI_PINNED_SHA256` (hash of the official v72.13 linux-arm build). The pin is the identity anchor; the manifest is the freshness check.
+4. Installs to `/usrdata/qmanager/bin/tpws` (root-owned), `chmod 755`.
+
+## Verify ("Test bypass")
+
+`qmanager_dpi_verify` runs a two-phase comparison: (1) engine disabled + rule removed → speedtest; (2) engine started with the current recipe → speedtest; (3) restore the prior config in a `trap` (a crashed run can never leave the feature disabled). Result (with/without + improvement factor) is written to `/tmp/qmanager_dpi_verify.json` and polled by the UI. The UI gate is only `binary_installed` — the engine does not need to be running (it is started/restored by the verify helper itself).
+
+## Status contract
+
+`GET /cgi-bin/quecmanager/network/video_optimizer.sh` (with `?section=masquerade` for the masquerade view) returns: `enabled` (config intent), `status` (`running`/`stopped`), `uptime`, `packets_processed`, `domains_loaded`, `binary_installed`, `kernel_module_loaded` (rule present). Full contract in `docs/API-REFERENCE.md`.
+
+## Platform / ISP findings (tested on pilot, AT&T Wireless)
+
+- On the pilot connection the throttle is applied by **IP address, not SNI** — measured A/B (kernel.org 22→2.3 KB/s, tele2 42→29 KB/s, HTTPS to tele2 breaking under the old tlsrec recipe) shows the desync cannot restore speed on an IP-throttled link. The engine defeats SNI-based DPI; it is not a general VPN.
+- RM520N kernel lacks `xt_comment` and `xt_owner` (rule identification is by signature, see above).
+- tpws hot-reloads the hostlist per-connection; no restart needed on hostlist save.
+
+## Files
+
+- `scripts/usr/lib/qmanager/dpi_state.sh` — helpers (args build, rule ensure/remove, status probes, mode detection)
+- `scripts/usr/bin/qmanager_dpi_run` — engine supervisor (`--ensure` / `--start` / `--stop`)
+- `scripts/usr/bin/qmanager_dpi_install` — binary provisioning (pin + manifest verification)
+- `scripts/usr/bin/qmanager_dpi_verify` — two-phase speed comparison helper
+- `scripts/www/cgi-bin/quecmanager/network/video_optimizer.sh` — CGI (status / save / save_masquerade / verify / install / save_hostlist)
+- `app/local-network/traffic-engine/` + `components/local-network/traffic-engine/` — frontend
+- `hooks/use-video-optimizer.ts`, `hooks/use-traffic-masquerade.ts`, `hooks/use-cdn-hostlist.ts`

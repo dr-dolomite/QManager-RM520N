@@ -1,0 +1,30 @@
+# /lib/systemd/system/qmanager-dpi.service
+# Traffic Engine (tpws DPI bypass) — the engine process itself.
+#
+# Config-gated INSIDE the runner (qmanager_dpi_run exits 0 when disabled, so
+# the unit goes cleanly inactive instead of showing failed), with
+# ConditionPathExists on the binary so a not-yet-provisioned engine is
+# "inactive (condition)" rather than restart-looping. Once the binary lands
+# (qmanager_dpi_install), the qmanager-dpi-ensure.timer's periodic check
+# starts the unit on its own — no reboot or manual start needed.
+#
+# Restart policy: tpws is the only process in this unit (exec'd, so systemd
+# tracks it directly). A crash retries every 5s, and StartLimitIntervalSec
+# backs off for an hour after 5 rapid failures — a misconfigured engine
+# cannot burn the CPU forever, and the ensure timer keeps the REDIRECT rule
+# asserted independently of engine state.
+[Unit]
+Description=QManager Traffic Engine (tpws DPI bypass)
+After=network.target qmanager-setup.service
+ConditionPathExists=/usrdata/qmanager/bin/tpws
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/qmanager_dpi_run
+Restart=on-failure
+RestartSec=5
+StartLimitIntervalSec=3600
+StartLimitBurst=5
+
+[Install]
+WantedBy=multi-user.target

@@ -47,7 +47,8 @@
     "web_console": "Konsol Web",
     "about_device": "Tentang Perangkat",
     "support": "Dukungan",
-    "donate": "Donasi untuk Proyek"
+    "donate": "Donasi untuk Proyek",
+    "traffic_engine": "Mesin Lalu Lintas"
   },
   "header": {
     "role": "Admin"

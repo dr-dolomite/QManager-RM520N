@@ -1,0 +1,229 @@
+#!/bin/sh
+# =============================================================================
+# qmanager_dpi_install — tpws binary installer (root)
+# =============================================================================
+# Downloads the zapret `tpws` binary from the official bol-van/zapret GitHub
+# release and installs it to /usrdata/qmanager/bin/tpws (root:root 0755, on
+# the persistent ubi2_0 volume — survives updates, out of www-data's reach:
+# www-data owns /etc/qmanager, and a www-data-replaceable binary that the
+# root systemd unit execs would be a trivial root-code-execution vector).
+#
+# The repository ships no binaries; like the RM551 branch's on-demand nfqws
+# download, the modem fetches tpws from upstream releases at install time.
+#
+# Invoked by the CGI through sudo (bare-path grant, all validation inside).
+# The marker files /tmp/qmanager_dpi_install.{json,pid} are pre-seeded
+# root:root 0666 by qmanager_setup and written IN PLACE here (never
+# tmp+mv — see docs/reference/tmp-file-ownership.md).
+#
+# Marker JSON (polled by ?action=install_status, contract-shaped):
+#   running:  {"status":"running","message":"...","detail":""}
+#   complete: {"status":"complete","message":"tpws installed successfully","detail":"<version>"}
+#   error:    {"status":"error","message":"...","detail":"..."}
+#
+# Security: every release ships sha256sum.txt — a manifest of per-binary
+# hashes covering the tarball contents. The installer extracts the tpws
+# binary and verifies its sha256 against the manifest entry
+# "<tag>/binaries/linux-arm/tpws" BEFORE anything is installed. The embedded
+# pin map (populated during provisioning) is a second, offline check: when a
+# pin exists for the tag, the binary hash must match it too. A release
+# without a manifest entry, or a binary failing either check, is refused —
+# never install an unverified binary.
+#
+# Usage: qmanager_dpi_install install | (internal) --download
+# Install location: /usr/bin/qmanager_dpi_install
+# =============================================================================
+
+export PATH="/opt/bin:/opt/sbin:/usr/bin:/usr/sbin:/bin:/sbin:$PATH"
+
+. /usr/lib/qmanager/qlog.sh
+qlog_init "qmanager_dpi_install"
+. /usr/lib/qmanager/platform.sh
+. /usr/lib/qmanager/dpi_state.sh
+
+# --- Pinned release + embedded binary-hash map -------------------------------
+# KEY: "<tag>" → sha256 of the tpws BINARY (not the tarball). Populated
+# during provisioning: every pinned version is downloaded and verified once
+# on a trusted host against the release manifest, then its binary hash lands
+# here as an offline guard. Empty by default — the release manifest is the
+# primary verification; the pin only tightens it.
+DPI_DEFAULT_TAG="v72.13"
+# v72.13: linux-arm/tpws from the official release manifest (verified
+# 2026-08-16 on a trusted host).
+# shellcheck disable=SC2034
+DPI_PINNED_SHA256="v72.13 412032484525f7fef8ea7d69e7eefc2c972098aee8879a5f93c70dcfb75b1438"
+
+API_BASE="https://api.github.com/repos/bol-van/zapret"
+RELEASE_URL="$API_BASE/releases/latest"
+CURL="curl"
+
+_dpi_write_marker() {
+    # In-place write, never tmp+mv (marker is pre-seeded root:root 0666).
+    printf '%s\n' "$1" > "$DPI_INSTALL_FILE"
+}
+
+_dpi_marker_running() {
+    _dpi_write_marker "$(jq -n --arg m "$1" '{status:"running",message:$m,detail:""}')"
+}
+
+_dpi_marker_complete() {
+    _dpi_write_marker "$(jq -n --arg m "$1" --arg d "${2:-}" '{status:"complete",message:$m,detail:$d}')"
+}
+
+_dpi_marker_error() {
+    _dpi_write_marker "$(jq -n --arg m "$1" --arg d "${2:-}" '{status:"error",message:$m,detail:$d}')"
+    rm -f "$DPI_INSTALL_PID"
+}
+
+# --- Download + verify + install (runs in the background) --------------------
+# Failure model: any failure writes the error marker and exits non-zero.
+# The foreground `install` verb returns as soon as the job is spawned.
+_dpi_download() {
+    local tag api asset_url asset_name tarball manifest manifest_url
+    local extract_dir bin_path bin_sha manifest_sha expected
+    local manifest_ok
+
+    _dpi_marker_running "Resolving latest zapret release..."
+
+    api=$($CURL -fsSL --max-time 30 "$RELEASE_URL" 2>/dev/null) || {
+        _dpi_marker_error "Failed to query zapret releases" "GitHub API unreachable"
+        return 1
+    }
+    tag=$(printf '%s' "$api" | jq -r '.tag_name // empty' 2>/dev/null)
+    [ -n "$tag" ] || {
+        _dpi_marker_error "Failed to query zapret releases" "Malformed GitHub API response"
+        return 1
+    }
+
+    _dpi_marker_running "Downloading zapret $tag..."
+
+    # zapret release assets do not carry an arch tag — every tarball ships the
+    # prebuilt binaries/ tree. Prefer the compact openwrt-embedded tarball,
+    # fall back to the main tarball. Both contain binaries/linux-arm/tpws,
+    # both are covered by the release manifest.
+    asset_url=$(printf '%s' "$api" | jq -r '
+        [ .assets[]
+          | select(.name == "zapret-'$tag'-openwrt-embedded.tar.gz"
+                 or .name == "zapret-'$tag'.tar.gz")
+        ] | sort_by(.size) | first | .browser_download_url // empty' 2>/dev/null)
+    [ -n "$asset_url" ] || {
+        _dpi_marker_error "Binary not found in archive" "No tpws tarball in zapret $tag release"
+        return 1
+    }
+    asset_name=$(basename "$asset_url")
+
+    tarball="/tmp/${asset_name}.$$"
+    if ! $CURL -fsSL --max-time 300 -o "$tarball" "$asset_url" 2>/dev/null; then
+        rm -f "$tarball"
+        _dpi_marker_error "Download failed" "Could not fetch $asset_name"
+        return 1
+    fi
+
+    # The release manifest (sha256sum.txt) is the primary verification.
+    manifest_url=$(printf '%s' "$api" | jq -r '
+        [ .assets[] | select(.name == "sha256sum.txt") ]
+        | first | .browser_download_url // empty' 2>/dev/null)
+    manifest="/tmp/qmanager_dpi_sha256sum.$$"
+    if [ -n "$manifest_url" ] && $CURL -fsSL --max-time 60 -o "$manifest" "$manifest_url" 2>/dev/null; then
+        manifest_ok=1
+    else
+        manifest_ok=0
+    fi
+
+    # --- Extract and locate the ARM 32-bit tpws -------------------------------
+    extract_dir="/tmp/zapret_extract.$$"
+    mkdir -p "$extract_dir"
+    if ! tar -xzf "$tarball" -C "$extract_dir" 2>/dev/null; then
+        rm -rf "$tarball" "$manifest" "$extract_dir"
+        _dpi_marker_error "Extraction failed" "Corrupt tarball for $tag"
+        return 1
+    fi
+
+    bin_path=""
+    for cand in $(find "$extract_dir" -type f -name tpws 2>/dev/null); do
+        arch=$(file "$cand" 2>/dev/null | grep -o 'ARM, EABI[^,]*' | head -n1)
+        case "$arch" in
+            *ARM*) bin_path="$cand"; break ;;
+        esac
+    done
+    [ -n "$bin_path" ] || {
+        rm -rf "$tarball" "$manifest" "$extract_dir"
+        _dpi_marker_error "Binary not found in archive" "No ARM 32-bit tpws in $asset_name"
+        return 1
+    }
+
+    # --- Verify the BINARY against the release manifest + embedded pin -------
+    # Manifest entries: "<sha256>  zapret-<tag>/binaries/linux-arm/tpws"
+    bin_sha=$(sha256sum "$bin_path" 2>/dev/null | awk '{print $1}')
+    if [ "$manifest_ok" = "1" ]; then
+        manifest_sha=$(awk -v p="zapret-$tag/binaries/linux-arm/tpws" '$2 == p {print $1}' "$manifest" 2>/dev/null | head -n1)
+        if [ -n "$manifest_sha" ] && [ "$bin_sha" = "$manifest_sha" ]; then
+            qlog_info "binary sha256 verified against release manifest ($tag)"
+        else
+            rm -rf "$tarball" "$manifest" "$extract_dir"
+            _dpi_marker_error "Checksum mismatch" "$tag tpws does not match the release manifest"
+            return 1
+        fi
+    else
+        rm -rf "$tarball" "$manifest" "$extract_dir"
+        _dpi_marker_error "Verification failed" "Could not fetch sha256sum.txt manifest for $tag"
+        return 1
+    fi
+
+    expected=$(printf '%s\n' "$DPI_PINNED_SHA256" | sed -n "s/^$tag //p")
+    if [ -n "$expected" ]; then
+        if [ "$bin_sha" != "$expected" ]; then
+            rm -rf "$tarball" "$manifest" "$extract_dir"
+            _dpi_marker_error "Checksum mismatch" "$tag tpws does not match the embedded pin"
+            return 1
+        fi
+        qlog_info "binary sha256 verified against embedded pin ($tag)"
+    fi
+
+    # --- Install (persistent, root-owned) -------------------------------------
+    mkdir -p "$(dirname "$DPI_BINARY")"
+    if ! install -o root -g root -m 0755 "$bin_path" "$DPI_BINARY" 2>/dev/null; then
+        rm -rf "$tarball" "$manifest" "$extract_dir"
+        _dpi_marker_error "Install failed" "Could not write $DPI_BINARY"
+        return 1
+    fi
+    rm -rf "$tarball" "$manifest" "$extract_dir"
+
+    qlog_info "tpws $tag installed to $DPI_BINARY ($(dpi_binary_installed && echo ok || echo broken))"
+    _dpi_marker_complete "tpws installed successfully" "$tag"
+    rm -f "$DPI_INSTALL_PID"
+    return 0
+}
+
+# --- Foreground verb: install ------------------------------------------------
+# Spawns the background download job unless one is already running.
+# Mirrors the CGI POST contract: returns success + "started" when spawned,
+# "running" when an install is already in progress.
+verb="${1:-install}"
+case "$verb" in
+    install)
+        if [ -f "$DPI_INSTALL_PID" ] && pid_alive "$(cat "$DPI_INSTALL_PID" 2>/dev/null)"; then
+            _dpi_marker_running "Install already in progress..."
+            exit 0
+        fi
+        if dpi_binary_installed; then
+            _dpi_marker_complete "tpws already installed" "existing binary"
+            rm -f "$DPI_INSTALL_PID"
+            exit 0
+        fi
+        rm -f "$DPI_INSTALL_PID" "$DPI_INSTALL_FILE"
+        # Fully detached: setsid + nohup-style redirects so the job survives
+        # the sudo/CGI parent and lighttpd's lifecycle.
+        setsid /usr/bin/qmanager_dpi_install --download </dev/null >/dev/null 2>&1 &
+        echo $! > "$DPI_INSTALL_PID"
+        _dpi_marker_running "Starting zapret download..."
+        exit 0
+        ;;
+    --download)
+        _dpi_download
+        ;;
+    *)
+        echo "usage: qmanager_dpi_install install" >&2
+        exit 2
+        ;;
+esac

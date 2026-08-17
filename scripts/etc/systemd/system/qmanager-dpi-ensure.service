@@ -1,0 +1,22 @@
+# /lib/systemd/system/qmanager-dpi-ensure.service
+# Traffic Engine rule re-assert (oneshot payload for the ensure timer).
+#
+# QCMAP flushes the iptables nat table on every re-dial, silently dropping
+# the REDIRECT rule. This oneshot re-asserts it every 60s (monotonic — see
+# the .timer) and restarts the engine if it died while enabled. The payload
+# self-gates: when the feature is disabled it exits 0 doing nothing, so the
+# timer itself is unconditionally armed with no config coupling.
+#
+# Also runs once at boot via its multi-user.target.wants symlink (the
+# installer's unit glob covers it like every other qmanager-*.service).
+[Unit]
+Description=QManager Traffic Engine ensure (REDIRECT rule re-assert)
+After=qmanager-setup.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/qmanager_dpi_run --ensure
+RemainAfterExit=no
+
+[Install]
+WantedBy=multi-user.target

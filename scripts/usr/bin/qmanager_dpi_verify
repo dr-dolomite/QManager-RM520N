@@ -1,0 +1,153 @@
+#!/bin/sh
+# =============================================================================
+# qmanager_dpi_verify — Traffic Engine verification runner (root)
+# =============================================================================
+# Runs the two-phase speed comparison behind the Verify/Test Injection
+# contract (?action=verify / ?action=verify_status):
+#
+#   1. speedtest with the engine OFF (without_bypass)
+#   2. engine restored, speedtest again (with_bypass)
+#
+# and writes the result to /tmp/qmanager_dpi_verify.json. The engine is
+# restored in a trap, so a crashed run can never leave the feature disabled.
+#
+# Note on scope: with tpws there is no per-packet counters, so "verification"
+# is a real end-to-end throughput comparison rather than an injection replay.
+# "throttled" is a heuristic: a result under DPI_VERIFY_THROTTLE_MBPS (20)
+# counts as throttled. The improvement factor is with/without, one decimal.
+#
+# Marker JSON (polled by ?action=verify_status):
+#   running:  {"status":"running"}
+#   complete: {"status":"complete","timestamp":"...","without_bypass":{...},
+#              "with_bypass":{...},"improvement":"19.7x"}
+#   error:    {"status":"error","message":"...","detail":"..."}
+#
+# Uses the same Ookla `speedtest` CLI as the dashboard speedtest tile; if it
+# is not installed the marker reports error and the UI surfaces the mismatch.
+#
+# Usage: qmanager_dpi_verify start | (internal) --run
+# Install location: /usr/bin/qmanager_dpi_verify
+# =============================================================================
+
+export PATH="/opt/bin:/opt/sbin:/usr/bin:/usr/sbin:/bin:/sbin:$PATH"
+
+. /usr/lib/qmanager/qlog.sh
+qlog_init "qmanager_dpi_verify"
+. /usr/lib/qmanager/platform.sh
+. /usr/lib/qmanager/config.sh
+. /usr/lib/qmanager/dpi_state.sh
+
+DPI_VERIFY_THROTTLE_MBPS="20"
+DPI_VERIFY_TIMEOUT="120"
+
+_dpi_verify_write() {
+    # In-place write, never tmp+mv (pre-seeded root:root 0666 marker).
+    printf '%s\n' "$1" > "$DPI_VERIFY_FILE"
+}
+
+_dpi_verify_error() {
+    _dpi_verify_write "$(jq -n --arg m "$1" --arg d "${2:-}" '{status:"error",message:$m,detail:$d}')"
+    rm -f "$DPI_VERIFY_PID"
+    exit 1
+}
+
+# --- Two-phase run ------------------------------------------------------------
+_dpi_verify_run() {
+    local vo_before masq_before without_mbps with_mbps throttled ts
+    local speedtest_bin out bw secs
+
+    _dpi_verify_write "$(jq -n '{status:"running"}')"
+
+    command -v speedtest >/dev/null 2>&1 || \
+        _dpi_verify_error "speedtest-cli is not installed" "Install the Ookla speedtest binary first"
+
+    speedtest_bin=$(command -v speedtest)
+
+    # --- Remember + disable the engine ----------------------------------------
+    vo_before=$(qm_config_get video_optimizer enabled 0)
+    masq_before=$(qm_config_get traffic_masquerade enabled 0)
+
+    # Restore-on-exit: config, service, rule — in that order. Also used on
+    # normal completion, so the engine is guaranteed back up.
+    dpi_restore() {
+        qm_config_set video_optimizer enabled "$vo_before"
+        qm_config_set traffic_masquerade enabled "$masq_before"
+        if [ "$(dpi_active_mode)" != "none" ]; then
+            svc_start qmanager-dpi 2>/dev/null || true
+            dpi_apply_rule || true
+        fi
+    }
+    trap dpi_restore EXIT
+
+    qm_config_set video_optimizer enabled 0
+    qm_config_set traffic_masquerade enabled 0
+    svc_stop qmanager-dpi 2>/dev/null || true
+    dpi_remove_rule
+    sleep 2
+
+    # --- Phase 1: without bypass ----------------------------------------------
+    qlog_info "verify: phase 1 (without bypass)"
+    out=$($speedtest_bin --format=json 2>/dev/null || $speedtest_bin --format json 2>/dev/null)
+    [ -n "$out" ] || _dpi_verify_error "speedtest failed" "Phase 1 (without bypass) produced no result"
+    bw=$(printf '%s' "$out" | jq -r '.download.bandwidth // empty' 2>/dev/null)
+    case "$bw" in
+        ''|*[!0-9.]*) _dpi_verify_error "speedtest failed" "Phase 1 result had no download bandwidth" ;;
+    esac
+    without_mbps=$(awk -v b="$bw" 'BEGIN { printf "%.1f", b * 8 / 1000000 }')
+
+    # --- Phase 2: with bypass --------------------------------------------------
+    qlog_info "verify: phase 2 (with bypass)"
+    qm_config_set video_optimizer enabled "$vo_before"
+    qm_config_set traffic_masquerade enabled "$masq_before"
+    if [ "$(dpi_active_mode)" != "none" ]; then
+        svc_start qmanager-dpi 2>/dev/null || true
+        dpi_apply_rule || true
+    fi
+    sleep 3
+
+    out=$($speedtest_bin --format=json 2>/dev/null || $speedtest_bin --format json 2>/dev/null)
+    [ -n "$out" ] || _dpi_verify_error "speedtest failed" "Phase 2 (with bypass) produced no result"
+    bw=$(printf '%s' "$out" | jq -r '.download.bandwidth // empty' 2>/dev/null)
+    case "$bw" in
+        ''|*[!0-9.]*) _dpi_verify_error "speedtest failed" "Phase 2 result had no download bandwidth" ;;
+    esac
+    with_mbps=$(awk -v b="$bw" 'BEGIN { printf "%.1f", b * 8 / 1000000 }')
+
+    # --- Result ----------------------------------------------------------------
+    ts=$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date -u +%Y-%m-%dT%H:%M:%S)
+    _dpi_verify_write "$(jq -n \
+        --arg ts "$ts" \
+        --argjson wb "$without_mbps" \
+        --argjson wbt "$(awk -v s="$without_mbps" -v t="$DPI_VERIFY_THROTTLE_MBPS" 'BEGIN { print (s < t) ? "true" : "false" }')" \
+        --argjson w "$with_mbps" \
+        --argjson wt "$(awk -v s="$with_mbps" -v t="$DPI_VERIFY_THROTTLE_MBPS" 'BEGIN { print (s < t) ? "true" : "false" }')" \
+        --arg imp "$(awk -v w="$with_mbps" -v b="$without_mbps" 'BEGIN { printf "%.1fx", (b > 0) ? w / b : 0 }')" \
+        '{status:"complete",timestamp:$ts,without_bypass:{speed_mbps:$wb,throttled:$wbt},with_bypass:{speed_mbps:$w,throttled:$wt},improvement:$imp}')"
+
+    qlog_info "verify: complete without=${without_mbps}Mbps with=${with_mbps}Mbps"
+    rm -f "$DPI_VERIFY_PID"
+    trap - EXIT
+    exit 0
+}
+
+# --- Foreground verb: start ---------------------------------------------------
+# Spawns the background runner unless one is already running.
+verb="${1:-start}"
+case "$verb" in
+    start)
+        if [ -f "$DPI_VERIFY_PID" ] && pid_alive "$(cat "$DPI_VERIFY_PID" 2>/dev/null)"; then
+            exit 0
+        fi
+        rm -f "$DPI_VERIFY_PID" "$DPI_VERIFY_FILE"
+        setsid /usr/bin/qmanager_dpi_verify --run </dev/null >/dev/null 2>&1 &
+        echo $! > "$DPI_VERIFY_PID"
+        exit 0
+        ;;
+    --run)
+        _dpi_verify_run
+        ;;
+    *)
+        echo "usage: qmanager_dpi_verify start" >&2
+        exit 2
+        ;;
+esac

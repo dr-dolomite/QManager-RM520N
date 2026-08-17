@@ -103,6 +103,11 @@ const navLocalNetwork: NavItem[] = [
     icon: "settings_ethernet",
   },
   {
+    t_key: "traffic_engine",
+    url: "/local-network/traffic-engine",
+    icon: "monitor",
+  },
+  {
     t_key: "local_network_settings",
     url: "/local-network/ip-passthrough",
     icon: "tune",

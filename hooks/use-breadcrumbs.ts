@@ -37,6 +37,7 @@ const routeKeyMap: Record<string, string> = {
   'local-network': 'groups.local_network',
   'ip-passthrough': 'items.ip_passthrough',
   ethernet: 'items.ethernet_status',
+  'traffic-engine': 'items.traffic_engine',
   'ttl-settings': 'items.ttl_mtu_settings',
   'custom-dns': 'items.custom_dns',
   monitoring: 'groups.monitoring',

@@ -281,6 +281,17 @@ rm -f "$SYSTEMD_DIR/qmanager-auto-update.timer"
 systemctl daemon-reload 2>/dev/null || true
 info "Auto-update timer torn down"
 
+# Traffic Engine ensure timer teardown — same static-installer shape as the
+# auto-update timer above (shipped by the installer, timers.target.wants
+# symlink, not covered by the qmanager-*.service glob). The engine unit
+# files themselves are removed by the Step 2 glob; only the .timer needs
+# explicit handling.
+systemctl stop qmanager-dpi-ensure.timer 2>/dev/null || true
+rm -f /lib/systemd/system/timers.target.wants/qmanager-dpi-ensure.timer
+rm -f "$SYSTEMD_DIR/qmanager-dpi-ensure.timer"
+systemctl daemon-reload 2>/dev/null || true
+info "Traffic Engine ensure timer torn down"
+
 # SIGTERM first, then SIGKILL stragglers — uninstall is terminal so
 # we include update daemons that are normally excluded from service teardown
 for proc in $(ls "$BIN_DIR"/qmanager_* 2>/dev/null | xargs -I{} basename {} 2>/dev/null); do

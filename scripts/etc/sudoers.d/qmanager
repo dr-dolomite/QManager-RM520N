@@ -20,6 +20,20 @@ www-data ALL=(root) NOPASSWD: /bin/rm -f /lib/systemd/system/multi-user.target.w
 # Firewall rules (used by TTL, VPN firewall)
 www-data ALL=(root) NOPASSWD: /usr/sbin/iptables, /usr/sbin/iptables-restore, /usr/sbin/ip6tables, /usr/sbin/ip6tables-restore
 
+# Traffic Engine tpws installer (Local Network -> Traffic Engine -> install
+# binary). Bare path, no wildcards: ALL validation (pinned-release sha256
+# verification, asset selection, destination hardening) lives inside the
+# helper. The helper is root-owned in /usr/bin; the binary it installs goes
+# to /usrdata/qmanager/bin (root:root 0755, outside www-data's writable
+# /etc/qmanager) because the root systemd unit execs it.
+www-data ALL=(root) NOPASSWD: /usr/bin/qmanager_dpi_install
+
+# Traffic Engine verification runner (two-phase speedtest behind
+# ?action=verify). Bare path; the helper validates its own single verb and
+# restores the engine on exit via a trap — a crashed run can never leave the
+# feature disabled.
+www-data ALL=(root) NOPASSWD: /usr/bin/qmanager_dpi_verify
+
 # System reboot (used by system/reboot.sh, update installer)
 www-data ALL=(root) NOPASSWD: /sbin/reboot
 

@@ -281,5 +281,87 @@
       "confirm": "Disattiva l'avviso",
       "dismissing": "Disattivazione…"
     }
+  },
+  "trafficEngine": {
+    "page": {
+      "title": "Motore di traffico",
+      "description": "Aggira la limitazione DPI dell'operatore su streaming video e altro traffico con il motore di bypass integrato."
+    },
+    "tabs": {
+      "video_optimizer": "Ottimizzazione video",
+      "masquerade": "Mascheramento del traffico"
+    },
+    "status": {
+      "title": "Stato del motore",
+      "description": "Stato in tempo reale del motore di bypass.",
+      "state": "Stato del motore",
+      "running": "In esecuzione",
+      "stopped": "Fermato",
+      "restarting": "Riavvio",
+      "error": "Errore",
+      "uptime": "Attivo da",
+      "packets": "Pacchetti elaborati",
+      "packets_per_sec": "{{n}} pkt/s",
+      "domains": "Domini caricati",
+      "sni": "SNI falsificato",
+      "rule": "Regola di reindirizzamento",
+      "rule_active": "Attiva",
+      "rule_inactive": "Non applicata",
+      "binary_installed": "Binario del motore installato",
+      "binary_missing": "Binario del motore non installato",
+      "masq_scope": "Ambito",
+      "masq_all": "Ogni connessione TCP 80/443"
+    },
+    "enable": {
+      "video_optimizer": "Abilita Ottimizzazione video",
+      "masquerade": "Abilita Mascheramento del traffico",
+      "description_vo": "Desincronizza le connessioni ai domini di streaming e video nell'hostlist, contrastando la limitazione DPI dell'operatore.",
+      "description_masq": "Invia un falso ClientHello TLS con SNI falsificato per ogni connessione, nascondendo la destinazione reale al DPI.",
+      "toast_enabled_vo": "Ottimizzazione video abilitata",
+      "toast_disabled_vo": "Ottimizzazione video disabilitata",
+      "toast_enabled_masq": "Mascheramento del traffico abilitato",
+      "toast_disabled_masq": "Mascheramento del traffico disabilitato",
+      "toast_error": "Salvataggio impostazioni motore non riuscito"
+    },
+    "masquerade": {},
+    "hostlist": {
+      "title": "Domini video",
+      "description": "Domini che ricevono il trattamento di desincronizzazione. I sottodomini di un dominio elencato corrispondono automaticamente. Il motore ricarica l'elenco al volo: le modifiche si applicano subito.",
+      "empty": "Nessun dominio ancora — aggiungine uno per iniziare.",
+      "invalid": "Inserisci un dominio valido (lettere, cifre, punti, trattini).",
+      "duplicate": "Questo dominio è già nell'elenco.",
+      "limit": "L'elenco può contenere al massimo 300 domini.",
+      "add": "Aggiungi dominio",
+      "remove": "Rimuovi {{domain}}",
+      "saved": "Elenco domini salvato"
+    },
+    "verify": {
+      "title": "Prova il bypass",
+      "description": "Esegui un test di velocità in due fasi — senza il motore, poi con il motore — per misurare il miglioramento del bypass.",
+      "run": "Avvia test",
+      "running": "Test in corso…",
+      "timeout": "Il test non è terminato in tempo.",
+      "error": "Impossibile avviare il test",
+      "needs_binary": "Installa prima il binario del motore.",
+      "improvement": "Miglioramento",
+      "without": "Senza bypass",
+      "with": "Con bypass",
+      "throttled": "limitato",
+      "unthrottled": "non limitato"
+    },
+    "takeover": {
+      "title": "Passare a {{mode}}?",
+      "description": "Può essere attiva una sola modalità alla volta. Abilitarne una disabilita l'altra.",
+      "confirm": "Passa",
+      "cancel": "Annulla"
+    },
+    "onboarding": {
+      "title": "Installa il binario del motore",
+      "description": "Il motore necessita del binario tpws, scaricato dalla release ufficiale di zapret e verificato tramite checksum.",
+      "install": "Scarica e installa",
+      "installing": "Download in corso…",
+      "done": "Motore pronto",
+      "error": "Installazione non riuscita: {{detail}}"
+    }
   }
 }

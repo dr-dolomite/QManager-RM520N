@@ -49,6 +49,14 @@ qm_config_init() {
     "sched_reboot_time": "04:00",
     "sched_reboot_days": "0,1,2,3,4,5,6"
   },
+  "video_optimizer": {
+    "enabled": 0,
+    "strategy": "full"
+  },
+  "traffic_masquerade": {
+    "enabled": 0,
+    "sni_domain": "speedtest.net"
+  },
   "update": {
     "include_prerelease": 1,
     "auto_update_enabled": 0,

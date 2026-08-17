@@ -1,0 +1,81 @@
+#!/bin/sh
+# =============================================================================
+# qmanager_dpi_run — Traffic Engine runner (root)
+# =============================================================================
+# The single entry point for the Traffic Engine process lifecycle. Runs as
+# root via qmanager-dpi.service (systemd). Also invoked by the
+# qmanager-dpi-ensure.timer oneshot and by nothing else — CGI reaches the
+# engine through systemd, never through this binary directly.
+#
+# Modes:
+#   (default)  — config-gated engine start: if no mode is enabled, exit 0
+#                (the unit goes inactive cleanly instead of showing failed);
+#                otherwise apply the REDIRECT rule and exec tpws. A missing
+#                binary exits 1 so Restart=on-failure retries (bounded by
+#                StartLimitIntervalSec) until qmanager_dpi_install lands.
+#   --ensure   — re-assert the REDIRECT rule (QCMAP flushes iptables on every
+#                re-dial) and restart the engine if it died while enabled.
+#                Runs every 60s from qmanager-dpi-ensure.timer. Always exits
+#                0 when the feature is disabled — the timer is unconditionally
+#                armed and its payload self-gates.
+#   --clear    — remove the REDIRECT rule and stop the engine.
+#
+# Exit codes: 0 = clean (incl. gated), 1 = retryable failure.
+#
+# Install location: /usr/bin/qmanager_dpi_run
+# =============================================================================
+
+. /usr/lib/qmanager/qlog.sh
+qlog_init "qmanager_dpi"
+. /usr/lib/qmanager/platform.sh
+. /usr/lib/qmanager/config.sh
+. /usr/lib/qmanager/dpi_state.sh
+
+# Root daemon — qm_config_init just in case /etc/qmanager/qmanager.conf is
+# missing (systemd boot path, pre-setup edge).
+qm_config_init 2>/dev/null
+
+cmd="${1:-run}"
+
+case "$cmd" in
+    --ensure)
+        if dpi_is_enabled; then
+            if dpi_apply_rule; then
+                qlog_info "ensure: REDIRECT rule re-asserted (mode=$(dpi_active_mode))"
+            else
+                qlog_warn "ensure: REDIRECT rule apply failed"
+            fi
+            if ! svc_is_running qmanager-dpi; then
+                svc_start qmanager-dpi && qlog_info "ensure: restarted engine"
+            fi
+        fi
+        exit 0
+        ;;
+    --clear)
+        dpi_remove_rule
+        qlog_info "clear: REDIRECT rule removed"
+        svc_stop qmanager-dpi
+        exit 0
+        ;;
+    run)
+        if ! dpi_is_enabled; then
+            qlog_info "run: feature disabled, exiting cleanly"
+            exit 0
+        fi
+        if ! dpi_binary_installed; then
+            qlog_error "run: tpws binary missing ($DPI_BINARY) — run qmanager_dpi_install"
+            exit 1
+        fi
+        if ! dpi_apply_rule; then
+            qlog_error "run: REDIRECT rule apply failed"
+            exit 1
+        fi
+        qlog_info "run: starting tpws (mode=$(dpi_active_mode), port=$DPI_PORT)"
+        set -- $(dpi_build_args)
+        exec "$DPI_BINARY" "$@"
+        ;;
+    *)
+        qlog_error "run: unknown verb '$cmd'"
+        exit 2
+        ;;
+esac

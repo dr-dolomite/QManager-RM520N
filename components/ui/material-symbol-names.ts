@@ -98,6 +98,7 @@ export const MATERIAL_SYMBOL_NAMES = [
   "lock_open",
   "mark_email_unread",
   "memory",
+  "monitor",
   "more_horiz",
   "more_vert",
   "my_location",

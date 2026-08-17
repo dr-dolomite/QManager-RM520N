@@ -1,0 +1,21 @@
+# /lib/systemd/system/qmanager-dpi-ensure.timer
+# Traffic Engine periodic rule re-assert — 60s cadence.
+#
+# MONOTONIC ONLY (OnBootSec + OnUnitActiveSec, no OnCalendar): the modem has
+# no battery RTC, boots at Jan 1970, and ql_time_daemon steps the clock
+# ~24s in, which makes every armed OnCalendar timer misfire twice. A
+# monotonic schedule is immune by construction — see
+# docs/reference/scheduled-timers.md ("The 1970 boot window").
+#
+# Always armed (installer puts the timers.target.wants symlink in place
+# unconditionally); the payload self-gates on feature enablement.
+[Unit]
+Description=QManager Traffic Engine periodic rule re-assert
+
+[Timer]
+OnBootSec=60
+OnUnitActiveSec=60
+Unit=qmanager-dpi-ensure.service
+
+[Install]
+WantedBy=timers.target

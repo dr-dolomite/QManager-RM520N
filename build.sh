@@ -102,7 +102,9 @@ SYSTEMD_SCRIPTS_DIR="$SCRIPTS_DIR/etc/systemd/system"
 # qmanager-auto-update is default-off/gated (like qmanager-watchcat and
 # qmanager-tower-failover above it) but, unlike the Discord bot, is always
 # shipped rather than conditionally built — so it belongs in this list too.
-CORE_SERVICES="lighttpd qmanager-firewall qmanager-setup qmanager-ping qmanager-poller qmanager-ttl qmanager-mtu qmanager-imei-check qmanager-watchcat qmanager-tower-failover qmanager-auto-update"
+# qmanager-dpi / qmanager-dpi-ensure are the Traffic Engine units — always
+# shipped, so they belong here as well.
+CORE_SERVICES="lighttpd qmanager-firewall qmanager-setup qmanager-ping qmanager-poller qmanager-ttl qmanager-mtu qmanager-imei-check qmanager-watchcat qmanager-tower-failover qmanager-auto-update qmanager-dpi qmanager-dpi-ensure"
 LINT_ERRORS=0
 
 for svc in $CORE_SERVICES; do
@@ -120,10 +122,17 @@ if [ ! -f "$SYSTEMD_SCRIPTS_DIR/qmanager-auto-update.timer" ]; then
   LINT_ERRORS=$((LINT_ERRORS + 1))
 fi
 
+# qmanager-dpi-ensure.timer is the same static-installer shape — shipped by
+# the installer, symlinked into timers.target.wants unconditionally.
+if [ ! -f "$SYSTEMD_SCRIPTS_DIR/qmanager-dpi-ensure.timer" ]; then
+  printf "  ${RED}MISSING:${NC} qmanager-dpi-ensure.timer not found in scripts/etc/systemd/system/\n"
+  LINT_ERRORS=$((LINT_ERRORS + 1))
+fi
+
 if [ "$LINT_ERRORS" -gt 0 ]; then
   fail "Lint failed with $LINT_ERRORS missing service unit(s)"
 fi
-step "Lint passed ($CORE_SERVICES + qmanager-auto-update.timer)"
+step "Lint passed ($CORE_SERVICES + qmanager-auto-update.timer + qmanager-dpi-ensure.timer)"
 
 step "Copying bundled dependencies..."
 mkdir -p "$STAGING_DIR/dependencies"

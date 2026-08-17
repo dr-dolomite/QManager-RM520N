@@ -1473,6 +1473,15 @@ install_backend() {
     # owner/mode on EVERY run, so one OTA self-heals a drifted device.
     install -d -o root -g root -m 0755 "$QMANAGER_ROOT"
 
+    # --- Traffic Engine binary directory ---
+    # Home of the tpws engine binary (installed on demand by
+    # /usr/bin/qmanager_dpi_install from the official zapret release). Must
+    # stay root-owned 0755: the root systemd unit execs this binary, so
+    # www-data writability here would be a root-code-execution vector. It
+    # lives on the persistent ubi2_0 volume ($QMANAGER_ROOT) on purpose —
+    # unlike /usr/bin, it survives a rootfs wipe on OTA.
+    install -d -o root -g root -m 0755 "$QMANAGER_ROOT/bin"
+
     # --- Shared libraries ---
     # SECURITY: this directory MUST NOT be group/world-writable. Root helpers
     # (qmanager_*_apply, invoked by www-data through a NOPASSWD sudoers grant)
@@ -3124,6 +3133,17 @@ enable_services() {
         fi
     fi
 
+    # --- Traffic Engine ensure timer (unconditionally armed, payload self-gates)
+    # The qmanager-dpi-ensure.timer re-asserts the REDIRECT rule every 60s
+    # (QCMAP flushes iptables on re-dial). Unlike auto-update there is no
+    # config to gate on: the oneshot payload (qmanager_dpi_run --ensure)
+    # self-gates — it exits 0 doing nothing when the engine is disabled. So
+    # the timer is always armed here, unconditionally (additive ln -sf only).
+    if [ -f "$SYSTEMD_DIR/qmanager-dpi-ensure.timer" ]; then
+        ln -sf "$SYSTEMD_DIR/qmanager-dpi-ensure.timer" "$TIMERS_WANTS_DIR/qmanager-dpi-ensure.timer"
+        info "Traffic Engine ensure timer enabled"
+    fi
+
     # --- Scheduled Reboot / Tower Lock schedule timers (config-driven re-arm) --
     # Unlike qmanager-scenario-schedule (armed only when a profile activates
     # it), Scheduled Reboot and the Tower Lock schedule are NOT
@@ -3289,6 +3309,23 @@ start_services() {
         fi
     fi
     sleep 2
+
+    # Start Traffic Engine ensure timer (armed; payload self-gates on config).
+    # The engine itself starts from its own config gate below (or on next
+    # boot via the unit glob in enable_services).
+    systemctl start qmanager-dpi-ensure.timer 2>/dev/null || true
+
+    # Start Traffic Engine if enabled and the binary is provisioned. Mirrors
+    # the Discord bot start guard: binary present AND config enabled. A
+    # missing binary is non-fatal — the engine shows "stopped" in the UI
+    # until the user runs the on-demand install.
+    if [ -x "$BIN_DIR/qmanager_dpi_run" ]; then
+        command -v qm_config_get >/dev/null 2>&1 || . "$LIB_DIR/config.sh"
+        _dpi_enabled=$(qm_config_get video_optimizer enabled 0 2>/dev/null) || _dpi_enabled=0
+        if [ "$_dpi_enabled" = "1" ] && [ -x /usrdata/qmanager/bin/tpws ]; then
+            systemctl start qmanager-dpi 2>/dev/null || warn "Could not start qmanager-dpi"
+        fi
+    fi
 
     # Download ttyd for web console (non-fatal — console is optional)
     if [ ! -x /usrdata/qmanager/console/ttyd ]; then

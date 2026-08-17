@@ -281,5 +281,87 @@
       "confirm": "Hentikan peringatan",
       "dismissing": "Mematikan…"
     }
+  },
+  "trafficEngine": {
+    "page": {
+      "title": "Mesin Lalu Lintas",
+      "description": "Lewati pembatasan DPI ISP pada streaming video dan lalu lintas lainnya dengan mesin bypass bawaan."
+    },
+    "tabs": {
+      "video_optimizer": "Optimasi Video",
+      "masquerade": "Penyamaran Lalu Lintas"
+    },
+    "status": {
+      "title": "Status Mesin",
+      "description": "Status langsung mesin bypass lalu lintas.",
+      "state": "Status mesin",
+      "running": "Berjalan",
+      "stopped": "Berhenti",
+      "restarting": "Memulai ulang",
+      "error": "Kesalahan",
+      "uptime": "Aktif selama",
+      "packets": "Paket diproses",
+      "packets_per_sec": "{{n}} pkt/dtk",
+      "domains": "Domain dimuat",
+      "sni": "SNI palsu",
+      "rule": "Aturan redirect",
+      "rule_active": "Aktif",
+      "rule_inactive": "Tidak diterapkan",
+      "binary_installed": "Biner mesin terpasang",
+      "binary_missing": "Biner mesin belum terpasang",
+      "masq_scope": "Cakupan",
+      "masq_all": "Semua koneksi TCP 80/443"
+    },
+    "enable": {
+      "video_optimizer": "Aktifkan Optimasi Video",
+      "masquerade": "Aktifkan Penyamaran Lalu Lintas",
+      "description_vo": "Mendesinkronkan koneksi ke domain streaming dan video di daftar host, mengalahkan pembatasan DPI ISP.",
+      "description_masq": "Mengirim ClientHello TLS palsu dengan SNI tipuan untuk setiap koneksi, menyembunyikan tujuan asli dari DPI.",
+      "toast_enabled_vo": "Optimasi Video diaktifkan",
+      "toast_disabled_vo": "Optimasi Video dinonaktifkan",
+      "toast_enabled_masq": "Penyamaran Lalu Lintas diaktifkan",
+      "toast_disabled_masq": "Penyamaran Lalu Lintas dinonaktifkan",
+      "toast_error": "Gagal menyimpan pengaturan mesin"
+    },
+    "masquerade": {},
+    "hostlist": {
+      "title": "Domain video",
+      "description": "Domain yang mendapat perlakuan desync. Subdomain dari domain yang terdaftar ikut cocok secara otomatis. Mesin memuat ulang daftar ini secara langsung, perubahan langsung berlaku.",
+      "empty": "Belum ada domain — tambahkan satu untuk memulai.",
+      "invalid": "Masukkan domain yang valid (huruf, angka, titik, tanda hubung).",
+      "duplicate": "Domain ini sudah ada di daftar.",
+      "limit": "Daftar maksimal berisi 300 domain.",
+      "add": "Tambah domain",
+      "remove": "Hapus {{domain}}",
+      "saved": "Daftar host tersimpan"
+    },
+    "verify": {
+      "title": "Uji bypass",
+      "description": "Jalankan tes kecepatan dua fase — tanpa mesin, lalu dengan mesin — untuk mengukur peningkatan bypass.",
+      "run": "Jalankan tes",
+      "running": "Menguji…",
+      "timeout": "Tes tidak selesai tepat waktu.",
+      "error": "Tes tidak dapat dimulai",
+      "needs_binary": "Pasang dulu biner mesin.",
+      "improvement": "Peningkatan",
+      "without": "Tanpa bypass",
+      "with": "Dengan bypass",
+      "throttled": "dibatasi",
+      "unthrottled": "tidak dibatasi"
+    },
+    "takeover": {
+      "title": "Beralih ke {{mode}}?",
+      "description": "Hanya satu mode yang dapat berjalan sekaligus. Mengaktifkan mode ini menonaktifkan mode lainnya.",
+      "confirm": "Beralih",
+      "cancel": "Batal"
+    },
+    "onboarding": {
+      "title": "Pasang biner mesin",
+      "description": "Mesin lalu lintas memerlukan biner tpws, diunduh dari rilis resmi zapret dan diverifikasi dengan checksum.",
+      "install": "Unduh & pasang",
+      "installing": "Mengunduh…",
+      "done": "Mesin siap",
+      "error": "Pemasangan gagal: {{detail}}"
+    }
   }
 }

@@ -281,5 +281,87 @@
       "confirm": "停止提醒",
       "dismissing": "正在關閉…"
     }
+  },
+  "trafficEngine": {
+    "page": {
+      "title": "流量引擎",
+      "description": "透過內建的繞過引擎，規避電信商 DPI 對影片串流等流量的限速。"
+    },
+    "tabs": {
+      "video_optimizer": "影片最佳化",
+      "masquerade": "流量偽裝"
+    },
+    "status": {
+      "title": "引擎狀態",
+      "description": "流量繞過引擎的即時狀態。",
+      "state": "引擎狀態",
+      "running": "執行中",
+      "stopped": "已停止",
+      "restarting": "重新啟動中",
+      "error": "錯誤",
+      "uptime": "執行時間",
+      "packets": "已處理封包",
+      "packets_per_sec": "{{n}} 封包/秒",
+      "domains": "已載入網域",
+      "sni": "偽裝 SNI",
+      "rule": "重新導向規則",
+      "rule_active": "已生效",
+      "rule_inactive": "未套用",
+      "binary_installed": "引擎程式已安裝",
+      "binary_missing": "引擎程式未安裝",
+      "masq_scope": "範圍",
+      "masq_all": "所有 TCP 80/443 連線"
+    },
+    "enable": {
+      "video_optimizer": "啟用影片最佳化",
+      "masquerade": "啟用流量偽裝",
+      "description_vo": "對主機清單中的串流與影片網域連線進行失步處理，繞過電信商的深度封包檢測限速。",
+      "description_masq": "為每條連線傳送帶偽造 SNI 的假 TLS ClientHello，向 DPI 隱藏真實目的位址。",
+      "toast_enabled_vo": "已啟用影片最佳化",
+      "toast_disabled_vo": "已停用影片最佳化",
+      "toast_enabled_masq": "已啟用流量偽裝",
+      "toast_disabled_masq": "已停用流量偽裝",
+      "toast_error": "儲存引擎設定失敗"
+    },
+    "masquerade": {},
+    "hostlist": {
+      "title": "影片網域",
+      "description": "將進行失步處理的網域清單。列出之網域的子網域也會自動比對。引擎會熱重新載入此清單，修改立即生效。",
+      "empty": "尚無網域 — 請新增一個開始使用。",
+      "invalid": "請輸入有效網域（字母、數字、點、連字號）。",
+      "duplicate": "此網域已在清單中。",
+      "limit": "清單最多可容納 300 個網域。",
+      "add": "新增網域",
+      "remove": "移除 {{domain}}",
+      "saved": "網域清單已儲存"
+    },
+    "verify": {
+      "title": "測試繞過效果",
+      "description": "執行兩階段測速 — 先關閉引擎，再開啟引擎 — 以衡量繞過的提升幅度。",
+      "run": "執行測試",
+      "running": "測試中…",
+      "timeout": "測試未在限定時間內完成。",
+      "error": "無法啟動測試",
+      "needs_binary": "請先安裝引擎程式。",
+      "improvement": "提升幅度",
+      "without": "未繞過",
+      "with": "已繞過",
+      "throttled": "受限速",
+      "unthrottled": "未受限速"
+    },
+    "takeover": {
+      "title": "切換到{{mode}}？",
+      "description": "同一時間只能執行一種模式。啟用此模式將停用另一種。",
+      "confirm": "切換",
+      "cancel": "取消"
+    },
+    "onboarding": {
+      "title": "安裝引擎程式",
+      "description": "流量引擎需要 tpws 程式，將從官方 zapret 發行版下載並透過校驗和驗證。",
+      "install": "下載並安裝",
+      "installing": "正在下載…",
+      "done": "引擎已就緒",
+      "error": "安裝失敗：{{detail}}"
+    }
   }
 }

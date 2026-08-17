@@ -281,5 +281,87 @@
       "confirm": "Stop alerting",
       "dismissing": "Turning off…"
     }
+  },
+  "trafficEngine": {
+    "page": {
+      "title": "Traffic Engine",
+      "description": "Bypass ISP DPI throttling of video streaming and other traffic with the built-in bypass engine."
+    },
+    "tabs": {
+      "video_optimizer": "Video Optimizer",
+      "masquerade": "Traffic Masquerade"
+    },
+    "status": {
+      "title": "Engine Status",
+      "description": "Live state of the traffic bypass engine.",
+      "state": "Engine state",
+      "running": "Running",
+      "stopped": "Stopped",
+      "restarting": "Restarting",
+      "error": "Error",
+      "uptime": "Uptime",
+      "packets": "Packets processed",
+      "packets_per_sec": "{{n}} pkt/s",
+      "domains": "Domains loaded",
+      "sni": "Spoofed SNI",
+      "rule": "Redirect rule",
+      "rule_active": "Active",
+      "rule_inactive": "Not applied",
+      "binary_installed": "Engine binary installed",
+      "binary_missing": "Engine binary not installed",
+      "masq_scope": "Scope",
+      "masq_all": "Every TCP 80/443 connection"
+    },
+    "enable": {
+      "video_optimizer": "Enable Video Optimizer",
+      "masquerade": "Enable Traffic Masquerade",
+      "description_vo": "Desynchronizes connections to streaming and video domains in the hostlist, defeating ISP deep-packet-inspection throttling.",
+      "description_masq": "Sends a fake TLS ClientHello with a spoofed SNI for every connection, hiding the real destination from DPI.",
+      "toast_enabled_vo": "Video Optimizer enabled",
+      "toast_disabled_vo": "Video Optimizer disabled",
+      "toast_enabled_masq": "Traffic Masquerade enabled",
+      "toast_disabled_masq": "Traffic Masquerade disabled",
+      "toast_error": "Failed to save engine settings"
+    },
+    "masquerade": {},
+    "hostlist": {
+      "title": "Video domains",
+      "description": "Domains that receive desync treatment. Subdomains of a listed domain match automatically. The engine hot-reloads this list, so changes apply immediately.",
+      "empty": "No domains yet — add one to get started.",
+      "invalid": "Enter a valid domain (letters, digits, dots, dashes).",
+      "duplicate": "This domain is already in the list.",
+      "limit": "The list can hold at most 300 domains.",
+      "add": "Add domain",
+      "remove": "Remove {{domain}}",
+      "saved": "Hostlist saved"
+    },
+    "verify": {
+      "title": "Test bypass",
+      "description": "Run a two-phase speed test — without the engine, then with it — to measure the bypass improvement.",
+      "run": "Run test",
+      "running": "Testing…",
+      "timeout": "The test did not finish in time.",
+      "error": "The test could not be started",
+      "needs_binary": "Install the engine binary first.",
+      "improvement": "Improvement",
+      "without": "Without bypass",
+      "with": "With bypass",
+      "throttled": "throttled",
+      "unthrottled": "not throttled"
+    },
+    "takeover": {
+      "title": "Switch to {{mode}}?",
+      "description": "Only one mode can run at a time. Enabling this mode disables the other.",
+      "confirm": "Switch",
+      "cancel": "Cancel"
+    },
+    "onboarding": {
+      "title": "Install engine binary",
+      "description": "The traffic engine needs its tpws binary, downloaded from the official zapret release and verified by checksum.",
+      "install": "Download & install",
+      "installing": "Downloading…",
+      "done": "Engine ready",
+      "error": "Install failed: {{detail}}"
+    }
   }
 }

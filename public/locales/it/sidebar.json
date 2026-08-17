@@ -47,7 +47,8 @@
     "web_console": "Console Web",
     "about_device": "Informazioni sul dispositivo",
     "support": "Supporto",
-    "donate": "Dona al progetto"
+    "donate": "Dona al progetto",
+    "traffic_engine": "Motore di traffico"
   },
   "header": {
     "role": "Admin"

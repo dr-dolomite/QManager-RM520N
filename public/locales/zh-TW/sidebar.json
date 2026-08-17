@@ -47,7 +47,8 @@
     "web_console": "網頁主控台",
     "about_device": "關於裝置",
     "support": "支援",
-    "donate": "捐贈專案"
+    "donate": "捐贈專案",
+    "traffic_engine": "流量引擎"
   },
   "header": {
     "role": "管理員"
