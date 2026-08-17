@@ -73,13 +73,14 @@ import type {
 // notices. Exported so a page-level skeleton can reuse the same numbers.
 //
 // The height is the taller of the row's two blocks plus its padding. Identity
-// block: chip line (26) + gap (8) + meta line (16) = 50. Metric cell: label
-// line (16) + gap (6) + meter lane (16) = 38. So 50 + py-4 either side = 82.
+// block is now just the chip line (26) — PCI moved into the metric grid, see
+// `IdentityMetricCell` below. Metric cell governs instead: label line (16) +
+// gap (6) + meter lane (16) = 38. So 38 + py-4 either side = 70.
 // `docs/reference/antenna-statistics.md` and
 // `components/cellular/antenna-statistics/tech-card.tsx` both cite this export
 // as the canonical idiom for a skeleton that cannot drift — the NAME is
 // load-bearing beyond this file even though the number is not.
-export const BAND_ROW_HEIGHT = 82;
+export const BAND_ROW_HEIGHT = 70;
 export const BAND_SKELETON_ROWS = 3;
 
 const CARD_SHELL =
@@ -113,26 +114,13 @@ const METRIC_GRID =
 const METER_LANE = "flex h-4 items-center";
 
 /**
- * The identity line: PCI, as a LABELLED FIELD.
- *
- * The ARFCN/EARFCN used to sit here beside PCI in a fixed 2-column grid. It
- * now renders as its own cell in `METRIC_GRID` — the same shape as an RSRP or
- * SINR reading — because that grid is the one place on the row with FIXED
- * columns, and the identity block's job (a technician scans PCI to confirm
- * which physical cell this is) needed only the one field.  Moving EARFCN out
- * also gave it the column RSSI vacated when RSSI was removed from the card
- * (RSSI has no meaningful 0-100 scale and its bare-value row read as an
- * afterthought); EARFCN now fills that slot instead of leaving it empty.
+ * The identity block now carries ONLY the role chip, the band tag and the
+ * released marker. EARFCN and PCI both moved into `METRIC_GRID` — see
+ * `IdentityMetricCell` below — so the row's two identifiers and its three
+ * readings all sit in the one place on the row with FIXED columns, and the
+ * pair that answers "which physical cell is this" reads as ONE scannable
+ * column instead of splitting across the identity block and the metric grid.
  */
-const IDENTITY_GRID = "m-0";
-/** Sans, per the Machine-Voice Rule. The label is the interface talking. */
-const IDENTITY_LABEL =
-  "shrink-0 text-xs font-semibold tracking-[0.04em] text-on-surface-variant uppercase";
-/** Mono, per the same rule — an identifier is machine truth. Promoted to
- *  `on-surface`: the value and its own label used to share one ink, which left
- *  the data as quiet as its caption. */
-const IDENTITY_VALUE =
-  "m-0 min-w-0 truncate font-mono text-xs tabular-nums text-on-surface";
 
 // -----------------------------------------------------------------------------
 // Tone
@@ -411,60 +399,18 @@ function MetricCell({
 }
 
 // -----------------------------------------------------------------------------
-// ARFCN cell
+// Identity/ARFCN cell
 // -----------------------------------------------------------------------------
 
-/**
- * EARFCN/ARFCN, rendered as its own column in `METRIC_GRID` — same label/value
- * geometry as `MetricCell` so the column edges line up, but bar-less: it is an
- * identifier, not a reading, so it keeps `font-mono` per the Machine-Voice
- * Rule instead of borrowing `MetricCell`'s sans value. The empty `METER_LANE`
- * spacer holds the row's shared height rather than every neighbouring bar
- * shifting to fill it.
- */
-function ArfcnCell({ label, value }: { label: string; value: number | null }) {
-  const { t } = useTranslation("cellular");
-
-  return (
-    <div className="flex min-w-0 flex-col gap-1.5">
-      <div className="flex items-baseline justify-between gap-2">
-        <span className="text-xs font-semibold text-on-surface-variant">
-          {label}
-        </span>
-        <span className="truncate font-mono text-[13px] font-semibold tabular-nums text-on-surface">
-          {value === null ? (
-            <span className="font-sans text-on-surface-variant">
-              {t("radio_info.bands.metric.not_reported_short")}
-            </span>
-          ) : (
-            <TickingValue value={value}>{value}</TickingValue>
-          )}
-        </span>
-      </div>
-      <div className={METER_LANE} />
-    </div>
-  );
-}
-
-// -----------------------------------------------------------------------------
-// Identity field
-// -----------------------------------------------------------------------------
-
-/**
- * One labelled identifier on the row's identity line.
- *
- * The tick is per FIELD, not per line. The old single `TickingValue` wrapped
- * the whole joined string, so a handover that moved only PCI flashed both
- * facts and made the technician diff them to find out which one actually
- * changed. (The comment defending that choice cited "three facts"; bandwidth
- * had already moved into the band reference, so it was two.)
- *
- * A null value prints `Not reported` rather than vanishing — the same answer
- * `MetricCell` gives, and the same reason `cellular-information-card.tsx`
- * refuses a bare dash: an empty slot reads as a rendering failure, not as a
- * fact the radio declined to report.
- */
-function IdentityField({
+/** One label/value line, shared by both rows of `IdentityMetricCell` — the
+ *  same top-line geometry `MetricCell` uses, so the column's baselines line
+ *  up with its neighbours even though this cell has no meter lane of its
+ *  own. Mono per the Machine-Voice Rule: both PCI and EARFCN are identifiers,
+ *  not readings. A null value prints `Not reported` rather than vanishing —
+ *  the same answer `MetricCell` gives, and the same reason
+ *  `cellular-information-card.tsx` refuses a bare dash: an empty slot reads
+ *  as a rendering failure, not as a fact the radio declined to report. */
+function IdentityFieldLine({
   label,
   value,
 }: {
@@ -474,17 +420,50 @@ function IdentityField({
   const { t } = useTranslation("cellular");
 
   return (
-    <div className="flex min-w-0 items-baseline gap-1.5">
-      <dt className={IDENTITY_LABEL}>{label}</dt>
-      {value === null ? (
-        <dd className={cn(IDENTITY_VALUE, "font-sans text-on-surface-variant")}>
-          {t("radio_info.bands.metric.not_reported_short")}
-        </dd>
-      ) : (
-        <dd className={IDENTITY_VALUE}>
+    <div className="flex items-baseline justify-between gap-2">
+      <span className="text-xs font-semibold text-on-surface-variant">
+        {label}
+      </span>
+      <span className="truncate font-mono text-[13px] font-semibold tabular-nums text-on-surface">
+        {value === null ? (
+          <span className="font-sans text-on-surface-variant">
+            {t("radio_info.bands.metric.not_reported_short")}
+          </span>
+        ) : (
           <TickingValue value={value}>{value}</TickingValue>
-        </dd>
-      )}
+        )}
+      </span>
+    </div>
+  );
+}
+
+/**
+ * EARFCN/ARFCN and PCI, stacked as ONE column in `METRIC_GRID` — the two
+ * facts that identify WHICH cell a row is, read together instead of split
+ * across the identity block and the metric grid. It leads the grid, ahead of
+ * the three signal readings, because identity is what a technician confirms
+ * before judging quality.
+ *
+ * Two `IdentityFieldLine`s plus the `gap-1.5` between them land at the same
+ * total height as a `MetricCell` (label line + gap + meter lane), so this
+ * column's baseline matches its neighbours without needing a meter lane of
+ * its own — there is nothing here to plot on a 0-100 scale.
+ */
+function IdentityMetricCell({
+  arfcnLabel,
+  earfcn,
+  pciLabel,
+  pci,
+}: {
+  arfcnLabel: string;
+  earfcn: number | null;
+  pciLabel: string;
+  pci: number | null;
+}) {
+  return (
+    <div className="grid min-w-0 gap-1.5">
+      <IdentityFieldLine label={arfcnLabel} value={earfcn} />
+      <IdentityFieldLine label={pciLabel} value={pci} />
     </div>
   );
 }
@@ -719,25 +698,21 @@ export function ActiveBandsCard({
                             </Badge>
                           ) : null}
                         </div>
-
-                        {/* Rendered unconditionally, even when null — the same
-                            `Not reported` answer `MetricCell` and `ArfcnCell`
-                            give, so a missing PCI holds its line rather than
-                            collapsing the identity block a row short. */}
-                        <dl className={IDENTITY_GRID}>
-                          <IdentityField
-                            label={t("radio_info.bands.detail.pci")}
-                            value={c.pci}
-                          />
-                        </dl>
                       </div>
 
                       <div className={METRIC_GRID}>
-                        {/* RSSI removed by direct request — it had no 0-100
+                        {/* Identity leads the grid: EARFCN and PCI together,
+                            ahead of the readings, because confirming WHICH
+                            cell this is comes before judging how it is doing.
+                            RSSI removed by direct request — it had no 0-100
                             scale to plot and read as an afterthought next to
-                            three real bars. EARFCN/ARFCN takes its column
-                            instead, so an NR carrier's 4th slot is no longer
-                            silently empty. */}
+                            three real bars. */}
+                        <IdentityMetricCell
+                          arfcnLabel={arfcnLabel}
+                          earfcn={c.earfcn}
+                          pciLabel={t("radio_info.bands.detail.pci")}
+                          pci={c.pci}
+                        />
                         {c.metrics
                           .filter((m) => m.id !== "rssi")
                           .map((m, i) => (
@@ -748,7 +723,6 @@ export function ActiveBandsCard({
                               index={i}
                             />
                           ))}
-                        <ArfcnCell label={arfcnLabel} value={c.earfcn} />
                       </div>
                     </div>
 
