@@ -52,9 +52,36 @@ _dpi_verify_error() {
 }
 
 # --- Two-phase run ------------------------------------------------------------
+_dpi_speedtest_bw() {
+    # One Ookla speedtest run → download bandwidth (bytes/s), or nothing.
+    # The CLI is hostile to minimal environments (crashes / errors with
+    # "Cannot open socket" / "Cannot write" when env vars it expects are
+    # NULL — the dashboard tile sources /etc/profile for the same reason),
+    # and prints an EULA banner plus NDJSON progress lines on stdout, so we
+    # take the LAST JSON line. Retried once; a mid-run socket death (seen on
+    # lossy wireless links) is common enough to be worth a second attempt.
+    local out line bw
+    [ -f /etc/profile ] && . /etc/profile
+    export HOME="${HOME:-/root}"
+    export USER="${USER:-root}"
+    export LOGNAME="${LOGNAME:-root}"
+    export TMPDIR="${TMPDIR:-/tmp}"
+    export LANG="${LANG:-C}"
+    export LC_ALL="${LC_ALL:-C}"
+    out=$(timeout 120 "$speedtest_bin" --accept-license --accept-gdpr \
+        -f json -p yes </dev/null 2>/dev/null) || out=""
+    [ -n "$out" ] || return 1
+    line=$(printf '%s\n' "$out" | grep '^{' | tail -n 1)
+    bw=$(printf '%s' "$line" | jq -r '.download.bandwidth // empty' 2>/dev/null)
+    case "$bw" in
+        ''|*[!0-9.]*) return 1 ;;
+    esac
+    printf '%s' "$bw"
+}
+
 _dpi_verify_run() {
     local vo_before masq_before without_mbps with_mbps throttled ts
-    local speedtest_bin out bw secs
+    local speedtest_bin bw
 
     _dpi_verify_write "$(jq -n '{status:"running"}')"
 
@@ -87,12 +114,8 @@ _dpi_verify_run() {
 
     # --- Phase 1: without bypass ----------------------------------------------
     qlog_info "verify: phase 1 (without bypass)"
-    out=$($speedtest_bin --format=json 2>/dev/null || $speedtest_bin --format json 2>/dev/null)
-    [ -n "$out" ] || _dpi_verify_error "speedtest failed" "Phase 1 (without bypass) produced no result"
-    bw=$(printf '%s' "$out" | jq -r '.download.bandwidth // empty' 2>/dev/null)
-    case "$bw" in
-        ''|*[!0-9.]*) _dpi_verify_error "speedtest failed" "Phase 1 result had no download bandwidth" ;;
-    esac
+    bw=$(_dpi_speedtest_bw) || bw=$(_dpi_speedtest_bw)
+    [ -n "$bw" ] || _dpi_verify_error "speedtest failed" "Phase 1 (without bypass) produced no result"
     without_mbps=$(awk -v b="$bw" 'BEGIN { printf "%.1f", b * 8 / 1000000 }')
 
     # --- Phase 2: with bypass --------------------------------------------------
@@ -105,12 +128,9 @@ _dpi_verify_run() {
     fi
     sleep 3
 
-    out=$($speedtest_bin --format=json 2>/dev/null || $speedtest_bin --format json 2>/dev/null)
-    [ -n "$out" ] || _dpi_verify_error "speedtest failed" "Phase 2 (with bypass) produced no result"
-    bw=$(printf '%s' "$out" | jq -r '.download.bandwidth // empty' 2>/dev/null)
-    case "$bw" in
-        ''|*[!0-9.]*) _dpi_verify_error "speedtest failed" "Phase 2 result had no download bandwidth" ;;
-    esac
+    qlog_info "verify: phase 2 speedtest"
+    bw=$(_dpi_speedtest_bw) || bw=$(_dpi_speedtest_bw)
+    [ -n "$bw" ] || _dpi_verify_error "speedtest failed" "Phase 2 (with bypass) produced no result"
     with_mbps=$(awk -v b="$bw" 'BEGIN { printf "%.1f", b * 8 / 1000000 }')
 
     # --- Result ----------------------------------------------------------------
