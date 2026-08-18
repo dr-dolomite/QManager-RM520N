@@ -180,7 +180,10 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
     case "$ACTION" in
         save)
             # --- Video Optimizer save ---
-            EN=$(printf '%s' "$POST_DATA" | jq -r '.enabled // empty' 2>/dev/null)
+            # has() — NOT "// empty": jq's alternative operator treats `false`
+            # as absent (false // empty → no output), so a disable request
+            # read as an empty string and failed bool_of validation.
+            EN=$(printf '%s' "$POST_DATA" | jq -r 'if has("enabled") then .enabled else empty end' 2>/dev/null)
             EN_INT=$(bool_of "$EN") || {
                 cgi_error "invalid_enabled" "enabled must be true or false"
                 exit 0
@@ -205,7 +208,10 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
             ;;
         save_masquerade)
             # --- Traffic Masquerade save ---
-            EN=$(printf '%s' "$POST_DATA" | jq -r '.enabled // empty' 2>/dev/null)
+            # has() — NOT "// empty": jq's alternative operator treats `false`
+            # as absent (false // empty → no output), so a disable request
+            # read as an empty string and failed bool_of validation.
+            EN=$(printf '%s' "$POST_DATA" | jq -r 'if has("enabled") then .enabled else empty end' 2>/dev/null)
             EN_INT=$(bool_of "$EN") || {
                 cgi_error "invalid_enabled" "enabled must be true or false"
                 exit 0
