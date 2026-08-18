@@ -25,8 +25,13 @@
 # real engine is never touched, so the runner needs no engine state, no rule
 # toggling, and no restore trap beyond killing the socks instance.
 #
-# "throttled" is a heuristic: a result under DPI_VERIFY_THROTTLE_MBPS (20)
-# counts as throttled. The improvement factor is with/without, one decimal.
+# "throttled" is a heuristic. The without-bypass phase: a result under
+# DPI_VERIFY_THROTTLE_MBPS (20) counts as throttled — absolute speed only.
+# The with-bypass phase is improvement-aware: still throttled when under the
+# bar, UNLESS the bypass lifted it by at least DPI_VERIFY_IMPROVEMENT_MIN (2x)
+# over the without phase — the lift is the engine's whole point, so a 6.7x
+# gain from 2.5 Mbps should never read "throttled" even if it lands at 16.8.
+# The improvement factor is with/without, one decimal.
 #
 # Marker JSON (polled by ?action=verify_status):
 #   running:  {"status":"running"}
@@ -47,6 +52,7 @@ qlog_init "qmanager_dpi_verify"
 . /usr/lib/qmanager/dpi_state.sh
 
 DPI_VERIFY_THROTTLE_MBPS="20"
+DPI_VERIFY_IMPROVEMENT_MIN="2"
 DPI_VERIFY_SAMPLE_SECS="15"
 DPI_FAST_API="https://api.fast.com/netflix/speedtest/v2?https=true&token=YXNkZmFzZGxmbnNkYWZoYXNkZmhrYWxm"
 DPI_SOCKS_PORT="19890"
@@ -148,7 +154,10 @@ _dpi_verify_run() {
         --argjson wb "$without_mbps" \
         --argjson wbt "$(awk -v s="$without_mbps" -v t="$DPI_VERIFY_THROTTLE_MBPS" 'BEGIN { print (s < t) ? "true" : "false" }')" \
         --argjson w "$with_mbps" \
-        --argjson wt "$(awk -v s="$with_mbps" -v t="$DPI_VERIFY_THROTTLE_MBPS" 'BEGIN { print (s < t) ? "true" : "false" }')" \
+        --argjson wt "$(awk -v w="$with_mbps" -v b="$without_mbps" -v t="$DPI_VERIFY_THROTTLE_MBPS" -v m="$DPI_VERIFY_IMPROVEMENT_MIN" 'BEGIN {
+            if (w >= t) { print "false"; exit }
+            print (b > 0 && w / b >= m) ? "false" : "true"
+        }')" \
         --arg imp "$(awk -v w="$with_mbps" -v b="$without_mbps" 'BEGIN { printf "%.1fx", (b > 0) ? w / b : 0 }')" \
         '{status:"complete",timestamp:$ts,without_bypass:{speed_mbps:$wb,throttled:$wbt},with_bypass:{speed_mbps:$w,throttled:$wt},improvement:$imp}')"
 
