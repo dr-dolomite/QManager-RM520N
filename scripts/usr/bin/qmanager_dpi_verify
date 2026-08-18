@@ -5,14 +5,26 @@
 # Runs the two-phase speed comparison behind the Verify/Test Injection
 # contract (?action=verify / ?action=verify_status):
 #
-#   1. speedtest with the engine OFF (without_bypass)
-#   2. engine restored, speedtest again (with_bypass)
+#   1. direct curl download from a Netflix CDN target (without_bypass)
+#   2. same download through a temporary socks-mode tpws (with_bypass)
 #
-# and writes the result to /tmp/qmanager_dpi_verify.json. The engine is
-# restored in a trap, so a crashed run can never leave the feature disabled.
+# and writes the result to /tmp/qmanager_dpi_verify.json.
 #
-# Note on scope: with tpws there is no per-packet counters, so "verification"
-# is a real end-to-end throughput comparison rather than an injection replay.
+# Why fast.com instead of the Ookla CLI: many ISPs throttle by HOST — they
+# cap streaming CDNs (Netflix/YouTube/TikTok) while leaving Ookla's own
+# servers untouched. A speedtest.net run then measures "does the ISP throttle
+# Ookla?" (usually no) and reports a false "not throttled". fast.com measures
+# exactly the class of traffic the engine exists for. The CDN target URLs are
+# fetched fresh from fast.com's public API (the same endpoint the fast.com
+# web app uses) — they are signed with an expiry, so one fetch serves the
+# whole run. Both phases are measured from the modem itself, which never
+# passes through the engine's transparent rule, so the comparison is clean.
+#
+# The with-bypass leg is a THROWAWAY socks-mode tpws instance (same binary,
+# same tampering recipe minus --oob=tls, which breaks the socks path) — the
+# real engine is never touched, so the runner needs no engine state, no rule
+# toggling, and no restore trap beyond killing the socks instance.
+#
 # "throttled" is a heuristic: a result under DPI_VERIFY_THROTTLE_MBPS (20)
 # counts as throttled. The improvement factor is with/without, one decimal.
 #
@@ -21,9 +33,6 @@
 #   complete: {"status":"complete","timestamp":"...","without_bypass":{...},
 #              "with_bypass":{...},"improvement":"19.7x"}
 #   error:    {"status":"error","message":"...","detail":"..."}
-#
-# Uses the same Ookla `speedtest` CLI as the dashboard speedtest tile; if it
-# is not installed the marker reports error and the UI surfaces the mismatch.
 #
 # Usage: qmanager_dpi_verify start | (internal) --run
 # Install location: /usr/bin/qmanager_dpi_verify
@@ -38,7 +47,14 @@ qlog_init "qmanager_dpi_verify"
 . /usr/lib/qmanager/dpi_state.sh
 
 DPI_VERIFY_THROTTLE_MBPS="20"
-DPI_VERIFY_TIMEOUT="180"
+DPI_VERIFY_SAMPLE_SECS="15"
+DPI_FAST_API="https://api.fast.com/netflix/speedtest/v2?https=true&token=YXNkZmFzZGxmbnNkYWZoYXNkZmhrYWxm"
+DPI_SOCKS_PORT="19890"
+DPI_SOCKS_PID="/tmp/qmanager_tpws_socks.pid"
+# Tampering recipe for the socks leg — the engine recipe minus --oob=tls:
+# out-of-band injection fails on the socks path (connection dies), while
+# split + disorder deliver the full bypass effect (measured on hardware).
+DPI_SOCKS_ARGS="--filter-l7=tls,http --split-pos=1,midsld,sniext+1 --disorder=tls"
 
 _dpi_verify_write() {
     # In-place write, never tmp+mv (pre-seeded root:root 0666 marker).
@@ -52,85 +68,77 @@ _dpi_verify_error() {
 }
 
 # --- Two-phase run ------------------------------------------------------------
-_dpi_speedtest_bw() {
-    # One Ookla speedtest run → download bandwidth (bytes/s), or nothing.
-    # The CLI is hostile to minimal environments (crashes / errors with
-    # "Cannot open socket" / "Cannot write" when env vars it expects are
-    # NULL — the dashboard tile sources /etc/profile for the same reason),
-    # and prints an EULA banner plus NDJSON progress lines on stdout, so we
-    # take the LAST JSON line. Retried once; a mid-run socket death (seen on
-    # lossy wireless links) is common enough to be worth a second attempt.
-    local out line bw
-    [ -f /etc/profile ] && . /etc/profile
-    export HOME="${HOME:-/root}"
-    export USER="${USER:-root}"
-    export LOGNAME="${LOGNAME:-root}"
-    export TMPDIR="${TMPDIR:-/tmp}"
-    export LANG="${LANG:-C}"
-    export LC_ALL="${LC_ALL:-C}"
-    out=$(timeout 180 "$speedtest_bin" --accept-license --accept-gdpr \
-        -f json -p yes </dev/null 2>/dev/null) || out=""
-    [ -n "$out" ] || return 1
-    line=$(printf '%s\n' "$out" | grep '^{' | tail -n 1)
-    bw=$(printf '%s' "$line" | jq -r '.download.bandwidth // empty' 2>/dev/null)
-    case "$bw" in
-        ''|*[!0-9.]*) return 1 ;;
+_dpi_fast_url() {
+    # One fresh signed Netflix-CDN target URL from fast.com's API, or nothing.
+    local api url
+    api=$(curl -ksS -m 15 "$DPI_FAST_API" 2>/dev/null) || return 1
+    url=$(printf '%s' "$api" | jq -r '.targets[0].url // empty' 2>/dev/null)
+    case "$url" in
+        https://*) printf '%s' "$url" ;;
+        *) return 1 ;;
     esac
+}
+
+_dpi_curl_bw() {
+    # One curl download → bytes/s, or nothing. The sample is capped at
+    # DPI_VERIFY_SAMPLE_SECS: a timeout (exit 28) still yields a valid rate
+    # (bytes elapsed so far / time — measured at 303 KB/s on the throttled
+    # path), while a failed connect yields speed 0 and counts as failure.
+    # The 100 KB floor rejects near-empty/error samples.
+    local url socks out bw size
+    url="$1"
+    socks="${2:-}"
+    out=$(curl -ksS -m "$DPI_VERIFY_SAMPLE_SECS" \
+        ${socks:+--socks5-hostname "127.0.0.1:$socks"} \
+        -o /dev/null -w '%{speed_download} %{size_download}' "$url" 2>/dev/null) || true
+    bw=$(printf '%s' "$out" | awk '{print $1}')
+    size=$(printf '%s' "$out" | awk '{print $2}')
+    case "$bw" in
+        ''|0|0.*|*[!0-9.]*) return 1 ;;
+    esac
+    [ "${size:-0}" -gt 100000 ] || return 1
     printf '%s' "$bw"
 }
 
+_dpi_socks_start() {
+    # Throwaway socks-mode tpws on 127.0.0.1 — daemonized, own pidfile.
+    "$DPI_BINARY" --bind-addr=127.0.0.1 --port="$DPI_SOCKS_PORT" --socks \
+        $DPI_SOCKS_ARGS --daemon --pidfile="$DPI_SOCKS_PID" >/dev/null 2>&1
+    sleep 2
+    [ -f "$DPI_SOCKS_PID" ] && pid_alive "$(cat "$DPI_SOCKS_PID" 2>/dev/null)"
+}
+
+_dpi_socks_stop() {
+    [ -f "$DPI_SOCKS_PID" ] && kill "$(cat "$DPI_SOCKS_PID" 2>/dev/null)" 2>/dev/null
+    rm -f "$DPI_SOCKS_PID"
+}
+
 _dpi_verify_run() {
-    local vo_before masq_before without_mbps with_mbps throttled ts
-    local speedtest_bin bw
+    local url without_mbps with_mbps ts bw
 
     _dpi_verify_write "$(jq -n '{status:"running"}')"
+    trap _dpi_socks_stop EXIT
 
-    command -v speedtest >/dev/null 2>&1 || \
-        _dpi_verify_error "speedtest-cli is not installed" "Install the Ookla speedtest binary first"
-
-    speedtest_bin=$(command -v speedtest)
-
-    # --- Remember + disable the engine ----------------------------------------
-    vo_before=$(qm_config_get video_optimizer enabled 0)
-    masq_before=$(qm_config_get traffic_masquerade enabled 0)
-
-    # Restore-on-exit: config, service, rule — in that order. Also used on
-    # normal completion, so the engine is guaranteed back up.
-    dpi_restore() {
-        qm_config_set video_optimizer enabled "$vo_before"
-        qm_config_set traffic_masquerade enabled "$masq_before"
-        if [ "$(dpi_active_mode)" != "none" ]; then
-            svc_start qmanager-dpi 2>/dev/null || true
-            dpi_apply_rule || true
-        fi
+    # --- Fetch a fresh CDN target ---------------------------------------------
+    qlog_info "verify: fetching fast.com CDN target"
+    url=$(_dpi_fast_url) || {
+        sleep 5
+        url=$(_dpi_fast_url) || _dpi_verify_error "fast.com API unreachable" \
+            "The test needs the modem's internet connection — retry in a moment"
     }
-    trap dpi_restore EXIT
 
-    qm_config_set video_optimizer enabled 0
-    qm_config_set traffic_masquerade enabled 0
-    svc_stop qmanager-dpi 2>/dev/null || true
-    dpi_remove_rule
-    sleep 2
-
-    # --- Phase 1: without bypass ----------------------------------------------
+    # --- Phase 1: without bypass (direct) -------------------------------------
     qlog_info "verify: phase 1 (without bypass)"
-    bw=$(_dpi_speedtest_bw) || bw=$(_dpi_speedtest_bw)
-    [ -n "$bw" ] || _dpi_verify_error "speedtest failed" "Phase 1 (without bypass) produced no result"
+    bw=$(_dpi_curl_bw "$url") || bw=$(_dpi_curl_bw "$url")
+    [ -n "$bw" ] || _dpi_verify_error "download failed" "Phase 1 (without bypass) produced no result"
     without_mbps=$(awk -v b="$bw" 'BEGIN { printf "%.1f", b * 8 / 1000000 }')
 
-    # --- Phase 2: with bypass --------------------------------------------------
+    # --- Phase 2: with bypass (temporary socks tpws) --------------------------
     qlog_info "verify: phase 2 (with bypass)"
-    qm_config_set video_optimizer enabled "$vo_before"
-    qm_config_set traffic_masquerade enabled "$masq_before"
-    if [ "$(dpi_active_mode)" != "none" ]; then
-        svc_start qmanager-dpi 2>/dev/null || true
-        dpi_apply_rule || true
-    fi
-    sleep 3
-
-    qlog_info "verify: phase 2 speedtest"
-    bw=$(_dpi_speedtest_bw) || bw=$(_dpi_speedtest_bw)
-    [ -n "$bw" ] || _dpi_verify_error "speedtest failed" "Phase 2 (with bypass) produced no result"
+    _dpi_socks_start || _dpi_verify_error "tpws failed" "Could not start the temporary bypass proxy"
+    bw=$(_dpi_curl_bw "$url" "$DPI_SOCKS_PORT") || bw=$(_dpi_curl_bw "$url" "$DPI_SOCKS_PORT")
+    _dpi_socks_stop
+    [ -n "$bw" ] || _dpi_verify_error "download failed" "Phase 2 (with bypass) produced no result"
     with_mbps=$(awk -v b="$bw" 'BEGIN { printf "%.1f", b * 8 / 1000000 }')
 
     # --- Result ----------------------------------------------------------------

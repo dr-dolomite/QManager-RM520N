@@ -46,7 +46,7 @@ The two modes are **mutually exclusive** (CGI-enforced; enabling one disables th
 
 ## Verify ("Test bypass")
 
-`qmanager_dpi_verify` runs a two-phase comparison: (1) engine disabled + rule removed → speedtest; (2) engine started with the current recipe → speedtest; (3) restore the prior config in a `trap` (a crashed run can never leave the feature disabled). Result (with/without + improvement factor) is written to `/tmp/qmanager_dpi_verify.json` and polled by the UI. The UI gate is only `binary_installed` — the engine does not need to be running (it is started/restored by the verify helper itself).
+`qmanager_dpi_verify` runs a two-phase comparison against a **fast.com CDN target**: (1) direct curl download from a freshly fetched Netflix-CDN URL (fast.com's own API) → without-bypass rate; (2) the same URL through a throwaway socks-mode tpws instance → with-bypass rate. **Deliberate deviation from RM551**: the 551 uses the Ookla CLI, but ISPs throttle by host (streaming CDNs capped while Ookla's servers pass), so a speedtest.net comparison reads "not throttled" on the very links the engine fixes — fast.com measures the class of traffic the engine exists for. The with-bypass socks leg uses the engine recipe minus `--oob=tls` (oob breaks the socks path, measured on hardware; split+disorder alone deliver the full effect). The real engine is never touched — no state, no rules, no restore trap beyond killing the socks instance. Result (with/without + improvement factor) is written to `/tmp/qmanager_dpi_verify.json` and polled by the UI. The UI gate is only `binary_installed` — the engine does not need to be running.
 
 ## Status contract
 
@@ -54,7 +54,7 @@ The two modes are **mutually exclusive** (CGI-enforced; enabling one disables th
 
 ## Platform / ISP findings (tested on pilot, AT&T Wireless)
 
-- On the pilot connection the throttle is applied by **IP address, not SNI** — measured A/B (kernel.org 22→2.3 KB/s, tele2 42→29 KB/s, HTTPS to tele2 breaking under the old tlsrec recipe) shows the desync cannot restore speed on an IP-throttled link. The engine defeats SNI-based DPI; it is not a general VPN.
+- The pilot ISP throttles **by host/SNI for streaming CDNs**: fast.com (Netflix CDN) reads 2.4 Mbps on the bare path and ~30 Mbps with the tampered handshake — measured from the modem itself, direct vs socks-tpws, same signed CDN URL. Some other destinations (kernel.org, tele2) measured as IP-throttled — the engine defeats SNI-based DPI; it is not a general VPN.
 - RM520N kernel lacks `xt_comment` and `xt_owner` (rule identification is by signature, see above).
 - tpws hot-reloads the hostlist per-connection; no restart needed on hostlist save.
 
