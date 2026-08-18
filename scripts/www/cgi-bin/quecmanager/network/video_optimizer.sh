@@ -58,16 +58,21 @@ fi
 # Emit the engine status JSON shared by both modes
 # ---------------------------------------------------------------------------
 emit_status() {
-    local enabled status
+    local enabled status sni json
     if [ "$1" = "masquerade" ]; then
         enabled=$(qm_config_get traffic_masquerade enabled 0)
+        sni=$(qm_config_get traffic_masquerade sni_domain 'speedtest.net')
     else
         enabled=$(qm_config_get video_optimizer enabled 0)
     fi
     status=$(dpi_service_status)
     # "enabled" is the config intent; the engine may be stopped because the
     # binary isn't installed yet — the UI reads both, exactly like RM551.
-    jq -n \
+    # The masquerade view merges sni_domain in the SAME jq pass (RM551 emits
+    # a single self-contained document; a pipeline-merge with `input` would
+    # break, since `input` without -n consumes the one stdin line and then
+    # hits EOF).
+    json=$(jq -n \
         --argjson enabled "$([ "$enabled" = "1" ] && echo true || echo false)" \
         --arg status "$status" \
         --arg uptime "$(dpi_uptime_str)" \
@@ -75,7 +80,12 @@ emit_status() {
         --argjson domains "$(dpi_domains_loaded)" \
         --argjson bin "$(dpi_binary_installed && echo true || echo false)" \
         --argjson kmod "$(dpi_rule_present && echo true || echo false)" \
-        '{success:true,enabled:$enabled,status:$status,uptime:$uptime,packets_processed:$pkts,domains_loaded:$domains,binary_installed:$bin,kernel_module_loaded:$kmod}'
+        '{success:true,enabled:$enabled,status:$status,uptime:$uptime,packets_processed:$pkts,domains_loaded:$domains,binary_installed:$bin,kernel_module_loaded:$kmod}')
+    if [ "$1" = "masquerade" ]; then
+        printf '%s' "$json" | jq --arg sni_domain "$sni" '. + {sni_domain: $sni_domain}'
+    else
+        printf '%s' "$json"
+    fi
 }
 
 # ---------------------------------------------------------------------------
@@ -151,8 +161,7 @@ if [ "$REQUEST_METHOD" = "GET" ]; then
             if [ "$SECTION" = "masquerade" ]; then
                 # sni_domain is stored for API-REFERENCE contract parity but is
                 # inert in the tpws engine (no fake-SNI mode) — see dpi_state.sh.
-                emit_status masquerade | jq '. + {sni_domain: input}' \
-                    --arg sni "$(qm_config_get traffic_masquerade sni_domain 'speedtest.net')"
+                emit_status masquerade
             else
                 emit_status
             fi
