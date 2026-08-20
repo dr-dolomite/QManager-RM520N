@@ -16,6 +16,8 @@ import {
 } from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
 
+import { CONDITION_TONE } from "@/components/cellular/condition-screen";
+import { DELETE_STEP_TONE, PILL_ACTION } from "./shapes";
 import type { SmsMessage } from "@/types/sms";
 
 // =============================================================================
@@ -50,21 +52,13 @@ export interface DeleteStep {
 }
 
 /** The destructive pill, from the button variant — not three hand-written copies
- *  of `bg-destructive text-destructive-foreground hover:bg-destructive/90`. */
+ *  of `bg-destructive text-destructive-foreground hover:bg-destructive/90` — on
+ *  the family's own action geometry. */
 const DESTRUCTIVE_ACTION = cn(
   buttonVariants({ variant: "destructive" }),
-  "h-[2.625rem] gap-2 rounded-pill px-5 text-sm font-semibold",
+  PILL_ACTION,
 );
-const CANCEL_ACTION = "h-[2.625rem] rounded-pill px-5 text-sm font-semibold";
-
-/** Each status carries its own tonal container AND its own glyph — the two
- *  containers sit ~1.03:1 apart, so the glyph is the only separating channel. */
-const STEP_TONE: Record<DeleteStepStatus, string> = {
-  pending: "bg-surface-container text-on-surface-variant",
-  running: "bg-primary-container text-on-primary-container",
-  done: "bg-success-container text-on-success-container",
-  failed: "bg-destructive-container text-on-destructive-container",
-};
+const CANCEL_ACTION = PILL_ACTION;
 
 function DeleteProgress({ steps }: { steps: DeleteStep[] }) {
   const { t } = useTranslation("cellular");
@@ -74,9 +68,19 @@ function DeleteProgress({ steps }: { steps: DeleteStep[] }) {
       {steps.map((step) => (
         <li
           key={step.storage}
+          // A row reporting a step is a METRIC-ROW shape, so it takes the pill
+          // radius rather than the 20px field radius a text input wears.
+          //
+          // The tone comes from `DELETE_STEP_TONE`, which keys onto
+          // `ConditionTone` and resolves through the one exported container
+          // table — so a status with no matching role is a BUILD failure,
+          // rather than four hand-written class strings quietly drifting from
+          // their siblings. Each status still carries its OWN glyph:
+          // `success-container` and `warning-container` sit ~1.03:1 apart, so
+          // the glyph is the only separating channel.
           className={cn(
-            "rounded-field flex items-center gap-3 px-4 py-3",
-            STEP_TONE[step.status],
+            "rounded-pill flex items-center gap-3 px-4 py-3",
+            CONDITION_TONE[DELETE_STEP_TONE[step.status]].container,
           )}
         >
           {step.status === "running" ? (

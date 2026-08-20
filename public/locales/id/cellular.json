@@ -2243,8 +2243,8 @@
         "hint_blocked": "Aktifkan penerusan dan simpan nomor tujuan dulu — uji selalu memakai pengaturan yang tersimpan, bukan perubahan yang belum disimpan."
       },
       "failures": {
-        "title_one": "{{count}} kegagalan pengiriman",
-        "title_other": "{{count}} kegagalan pengiriman",
+        "title_one": "{{value}} kegagalan pengiriman",
+        "title_other": "{{value}} kegagalan pengiriman",
         "description": "Relai mencoba ulang tiga kali untuk masing-masing lalu menyerah, jadi pesannya tetap di kotak masuk. Penerusan masih berjalan.",
         "unknown_sender": "Pengirim tidak dikenal"
       },

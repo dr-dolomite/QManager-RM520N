@@ -45,7 +45,7 @@ export type ConditionTone =
   | "primary"
   | "neutral";
 
-type ToneSpec = {
+export type ToneSpec = {
   container: string;
   disc: string;
   /** Retry scrim drawn from the container's OWN ink: a white wash is invisible
@@ -53,7 +53,23 @@ type ToneSpec = {
   action: string;
 };
 
-const TONE: Record<ConditionTone, ToneSpec> = {
+/**
+ * The one container-tone table for `/cellular/`.
+ *
+ * EXPORTED because it was being re-forked. `sms/forwarding/delivery-health-card`
+ * alone carried SEVEN verbatim copies of these strings — four in a `HEALTH_SPEC`
+ * map plus three written inline — each keyed onto a class string rather than
+ * onto `ConditionTone`. That is the shape DESIGN.md > Chips and tags bans
+ * outright ("Tone maps key onto the exported types, never onto a class string")
+ * and the same failure that let four rival quality maps drift until one of them
+ * painted an unread antenna green.
+ *
+ * A consumer keys onto `ConditionTone` and reads `container` / `disc` here, so a
+ * tone without a matching role is a BUILD failure rather than a silent one.
+ * `action` is only meaningful where the block offers a retry affordance;
+ * a plain tonal block uses `container` + `disc` and ignores it.
+ */
+export const CONDITION_TONE: Record<ConditionTone, ToneSpec> = {
   success: {
     container: "bg-success-container text-on-success-container",
     disc: "bg-success text-success-foreground",
@@ -112,7 +128,7 @@ export function ConditionScreen({
   retryLabel,
   className,
 }: ConditionScreenProps): React.JSX.Element {
-  const spec = TONE[tone];
+  const spec = CONDITION_TONE[tone];
 
   return (
     <div

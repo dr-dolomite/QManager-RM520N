@@ -7,11 +7,13 @@ import { useTranslation } from "react-i18next";
 
 import { MaterialSymbol } from "@/components/ui/material-symbol";
 import { Button } from "@/components/ui/button";
+import { CellularPageHeader } from "@/components/cellular/page-header";
 import { staggerContainer, staggerItem } from "@/lib/motion";
 
 import { useSms } from "@/hooks/use-sms";
 import { useSmsReadState, parseSmsTimestamp } from "@/hooks/use-sms-read-state";
 
+import { PAGE_SHELL, PILL_ACTION } from "./shapes";
 import SmsInboxCard from "./inbox-card";
 import SmsComposeDialog from "./sms-compose-dialog";
 import { SmsSummaryTiles } from "./summary-tiles";
@@ -35,14 +37,13 @@ import { InboxLoadingState, SmsTilesSkeleton } from "./states";
 // The "Motion on this page" card: comp documentation, not product.
 // =============================================================================
 
-const PILL_ACTION = "h-[2.625rem] gap-2 rounded-pill px-5 text-sm font-semibold";
-
 const SmsCenterComponent = () => {
   const { t } = useTranslation("cellular");
   const {
     data,
     lastSuccessfulFetch,
     isLoading,
+    isFetching,
     isSaving,
     error,
     sendSms,
@@ -76,10 +77,16 @@ const SmsCenterComponent = () => {
   }, []);
 
   return (
+    // NO `aria-live` ON THE PAGE ROOT. It used to sit here, which made a live
+    // region of the ENTIRE surface: every filter change, every pagination click
+    // and every re-render was announced, in full, to a screen reader. A live
+    // region has to be the smallest thing that actually changed. The two things
+    // that genuinely need announcing already announce on their own: the
+    // delete-progress list carries `aria-live="polite"`, and the read-failure
+    // banner that raises the staleness chip carries `role="alert"`. So the root
+    // carries none.
     <motion.div
-      className="@container/main mx-auto flex flex-col gap-5 p-2"
-      aria-live="polite"
-      aria-atomic="false"
+      className={PAGE_SHELL}
       variants={staggerContainer}
       initial="hidden"
       animate="visible"
@@ -87,38 +94,35 @@ const SmsCenterComponent = () => {
       {/* Cascade children must be block boxes — a bare span silently drops the
           10px rise. */}
       <motion.div variants={staggerItem}>
-        <div className="flex flex-col gap-5 @3xl/main:flex-row @3xl/main:items-end">
-          <div className="flex max-w-[41rem] flex-col gap-1.5">
-            {/* Display step: 30px / 700. The mock's 32px/600 title and 15px
-                description are not ramp steps — 15px is banner-scoped, and the
-                denser pre-auth scale is scoped to `/` and `/login/`. */}
-            <h1 className="text-3xl font-bold tracking-[-0.02em]">
-              {t("sms.page.title")}
-            </h1>
-            <p className="text-on-surface-variant text-sm leading-relaxed text-pretty">
-              {t("sms.page.description")}
-            </p>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2.5 @3xl/main:ml-auto">
-            {/* `Link`, never an `<a>` — an anchor here would full-reload the
-                static export and drop every bit of client state. */}
-            <Button asChild variant="tonal" className={PILL_ACTION}>
-              <Link href="/cellular/sms/forwarding">
-                <MaterialSymbol name="send" size={18} />
-                {t("sms.page.forwarding")}
-              </Link>
-            </Button>
-            <Button
-              type="button"
-              onClick={() => openCompose()}
-              className={PILL_ACTION}
-            >
-              <MaterialSymbol name="edit" size={18} />
-              {t("sms.inbox.buttons.new_message")}
-            </Button>
-          </div>
-        </div>
+        {/* The shared primitive, not a copy of it. This page hand-rolled a
+            byte-identical duplicate of `CellularPageHeader`'s internals and was
+            the only one of twelve `/cellular/` families not using it — including
+            missing the `min-w-0` the primitive carries, which is what stops a
+            long Italian title from pushing the actions off the row. */}
+        <CellularPageHeader
+          title={t("sms.page.title")}
+          description={t("sms.page.description")}
+          actions={
+            <>
+              {/* `Link`, never an `<a>` — an anchor here would full-reload the
+                  static export and drop every bit of client state. */}
+              <Button asChild variant="tonal" className={PILL_ACTION}>
+                <Link href="/cellular/sms/forwarding">
+                  <MaterialSymbol name="send" size={18} />
+                  {t("sms.page.forwarding")}
+                </Link>
+              </Button>
+              <Button
+                type="button"
+                onClick={() => openCompose()}
+                className={PILL_ACTION}
+              >
+                <MaterialSymbol name="edit" size={18} />
+                {t("sms.inbox.buttons.new_message")}
+              </Button>
+            </>
+          }
+        />
       </motion.div>
 
       <motion.div variants={staggerItem}>
@@ -142,6 +146,7 @@ const SmsCenterComponent = () => {
             messages={sortedMessages}
             storage={data?.storage}
             isSaving={isSaving}
+            isFetching={isFetching}
             error={error}
             lastSuccessfulFetch={lastSuccessfulFetch}
             isRead={isRead}
@@ -149,7 +154,14 @@ const SmsCenterComponent = () => {
             markAllRead={markAllRead}
             unreadCount={unreadCount}
             onDelete={deleteSms}
-            onRefresh={() => refresh()}
+            // SILENT. `refresh()` defaults to a NON-silent fetch, which raises
+            // `isLoading`, which flips the ternary below and UNMOUNTS this card
+            // for the duration — wiping the tab, the search text, the sort
+            // direction, the row selection and the pagination page. Pressing
+            // Refresh therefore destroyed exactly the state the surface's own
+            // freeze-while-stale invariant exists to preserve. The in-flight
+            // state now shows on the button itself instead.
+            onRefresh={() => refresh(true)}
             onCompose={openCompose}
           />
         )}

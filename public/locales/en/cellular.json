@@ -2243,8 +2243,8 @@
         "hint_blocked": "Turn forwarding on and save a destination number first — the test always runs against saved settings, never against unsaved edits."
       },
       "failures": {
-        "title_one": "{{count}} delivery failure",
-        "title_other": "{{count}} delivery failures",
+        "title_one": "{{value}} delivery failure",
+        "title_other": "{{value}} delivery failures",
         "description": "The relay retried each of these three times and then gave up, so the message stayed in the inbox. Forwarding is still running.",
         "unknown_sender": "Unknown sender"
       },

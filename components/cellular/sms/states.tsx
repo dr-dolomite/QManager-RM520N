@@ -17,18 +17,45 @@ import { TonalBanner } from "@/components/ui/tonal-banner";
 import { cn } from "@/lib/utils";
 
 import { TILE_SHAPE } from "@/components/cellular/tile-shape";
-import { SMS_TILE_GRID } from "./summary-tiles";
-import { TABLE_SHAPE } from "./inbox-table";
+import {
+  INBOX_CARD,
+  INBOX_PAD,
+  INBOX_TITLE,
+  PAGINATION_SKELETON,
+  PILL_ACTION,
+  ROWS_PER_PAGE,
+  SKELETON_CHECKBOX,
+  SKELETON_LINE,
+  TABLE_SHAPE,
+  TILE_GRID,
+  TOOLBAR_SKELETON,
+} from "./shapes";
 
 // =============================================================================
 // SMS Center non-loaded states — skeletons, the read-failure notice, empty inbox
 // =============================================================================
-// Every shape here is IMPORTED, never restated: `TILE_SHAPE` from the Radio
-// Information strip, `SMS_TILE_GRID` from this page's own tile strip, and
-// `TABLE_SHAPE` from the table beside it. That is the Skeleton-Mirror Rule
-// working as intended — the incumbent skeleton hardcoded `h-8 w-9`, `size-4` and
-// `h-4 w-28`, none of which corresponded to anything in the loaded view, so the
-// handoff visibly jumped.
+// Every shape here is IMPORTED, never restated: `TILE_SHAPE` from the family's
+// shared tile geometry and everything else from `./shapes.ts`, which the loaded
+// views read too. That is the Skeleton-Mirror Rule working as intended.
+//
+// It had stopped working. The previous skeletons were a set of plausible-looking
+// numbers rather than a mirror, and every one of them was wrong against the view
+// it hands off to:
+//
+//   - a 44px tab strip against a real 38px one (`TabsList` is `h-auto gap-1 p-1`
+//     around `h-9` triggers, which resolves to 38, not 44);
+//   - ONE trailing pill where the loaded toolbar renders TWO (sort, and
+//     mark-all-read);
+//   - rows inset `px-3` against the loaded `px-4`;
+//   - FIVE rows against a real `pageSize` of ten, so the card grew by half its
+//     height at the handoff;
+//   - a checkbox at the 12px inline radius where the real Radix control is 4px —
+//     at 16px square that is a near-circle standing in for a near-square;
+//   - no pagination footer at all, against a loaded footer carrying a select, a
+//     page label and four icon buttons.
+//
+// None of those can recur now: the numbers live in one module and both ends
+// import them.
 //
 // THE ERROR STATE IS NOT A REPLACEMENT. The mock hides the table on a read
 // failure and says so in its own copy. That is the State-Honesty Rule read
@@ -41,27 +68,13 @@ import { TABLE_SHAPE } from "./inbox-table";
 // staleness chip dates what is on screen.
 // =============================================================================
 
-/**
- * The Inbox card shell. This is the page's anchor surface, so it takes the hero
- * radius, no border, and the whisper lift (`shadow-whisper` as a bare utility
- * does NOT resolve — it must go through the custom property).
- */
-export const INBOX_CARD =
-  "@container/card gap-5 rounded-hero border-0 bg-surface py-6 shadow-[var(--shadow-whisper)]";
-
-/** Hero-card padding: 28px, against the standard card's 24px. */
-export const INBOX_PAD = "px-7";
-
-/** The card title's own step: Title, 18px/600. The mock's 22px is not a step. */
-export const INBOX_TITLE = "text-lg";
-
 // -----------------------------------------------------------------------------
 // Tile strip skeleton
 // -----------------------------------------------------------------------------
 
 export function SmsTilesSkeleton({ label }: { label?: string }) {
   return (
-    <div className={SMS_TILE_GRID}>
+    <div className={TILE_GRID}>
       {label && <span className="sr-only">{label}</span>}
       {[0, 1, 2].map((i) => (
         <Skeleton key={i} className={cn(TILE_SHAPE.HEIGHT, "rounded-tile")} />
@@ -75,7 +88,7 @@ export function SmsTilesSkeleton({ label }: { label?: string }) {
 // -----------------------------------------------------------------------------
 // The header is REAL text, never skeletonised: the card's identity is known
 // before its rows are, and greying out a heading we can already render only adds
-// a flash. Only the toolbar and the rows are placeholders.
+// a flash. Only the toolbar, the rows and the footer are placeholders.
 
 export function InboxLoadingState() {
   const { t } = useTranslation("cellular");
@@ -87,43 +100,66 @@ export function InboxLoadingState() {
         <CardDescription>{t("sms.inbox.description_loading")}</CardDescription>
       </CardHeader>
       <CardContent className={cn(INBOX_PAD, "flex flex-col gap-3.5")}>
+        {/* Toolbar: tab strip, bounded search field, and BOTH trailing pills. */}
         <div className="flex flex-wrap items-center gap-3">
-          <Skeleton className="rounded-pill h-11 w-[17rem]" />
-          <div className="flex flex-1 items-center justify-end gap-2">
-            <Skeleton className="rounded-field h-9 w-full max-w-[15rem]" />
-            <Skeleton className="rounded-pill h-9 w-28" />
+          <Skeleton className={TOOLBAR_SKELETON.TABS} />
+          <div className="flex flex-1 flex-wrap items-center justify-end gap-2">
+            <Skeleton className={TOOLBAR_SKELETON.SEARCH} />
+            {Array.from({ length: TOOLBAR_SKELETON.PILL_COUNT }).map((_, i) => (
+              <Skeleton key={i} className={TOOLBAR_SKELETON.PILL} />
+            ))}
           </div>
         </div>
 
         <div className={TABLE_SHAPE.SHELL}>
-          <div className={cn(TABLE_SHAPE.HEAD, "flex h-10 items-center gap-3 px-3")}>
-            <Skeleton className="size-4 rounded-inline" />
-            <Skeleton className="h-3 w-12" />
-            <Skeleton className="hidden h-3 w-16 @md/card:block" />
-            <Skeleton className="ml-auto hidden h-3 w-12 @sm/card:block" />
+          <div
+            className={cn(TABLE_SHAPE.HEAD, "flex h-10 items-center gap-3 px-4")}
+          >
+            <Skeleton className={SKELETON_CHECKBOX} />
+            <Skeleton className={cn("h-3 w-12", SKELETON_LINE)} />
+            <Skeleton className={cn("hidden h-3 w-16 @md/card:block", SKELETON_LINE)} />
+            <Skeleton
+              className={cn("ml-auto hidden h-3 w-12 @sm/card:block", SKELETON_LINE)}
+            />
           </div>
-          {Array.from({ length: 5 }).map((_, i) => (
+          {Array.from({ length: ROWS_PER_PAGE }).map((_, i) => (
             <div
               key={i}
               className={cn(
                 TABLE_SHAPE.ROW,
                 TABLE_SHAPE.ROW_HEIGHT,
-                "flex items-center gap-3 px-3",
+                "flex items-center gap-3 px-4",
               )}
             >
-              <Skeleton className="size-4 rounded-inline" />
+              <Skeleton className={SKELETON_CHECKBOX} />
               <Skeleton className={cn(TABLE_SHAPE.FLAG, "rounded-pill")} />
-              <Skeleton className="h-4 w-28" />
-              <Skeleton className="hidden h-4 w-48 @md/card:block" />
-              <Skeleton className="ml-auto hidden h-4 w-32 @sm/card:block" />
+              <Skeleton className={cn("h-4 w-28", SKELETON_LINE)} />
+              <Skeleton className={cn("hidden h-4 w-48 @md/card:block", SKELETON_LINE)} />
+              <Skeleton
+                className={cn("ml-auto hidden h-4 w-32 @sm/card:block", SKELETON_LINE)}
+              />
               <Skeleton className="size-9 rounded-pill" />
             </div>
           ))}
         </div>
 
-        <div className="flex items-center justify-between px-1">
-          <Skeleton className="h-4 w-28" />
-          <Skeleton className="rounded-pill h-9 w-40" />
+        {/* Pagination footer: the total label on the left, then the rows-per-page
+            select, the page label and four icon buttons on the right. */}
+        <div className="flex flex-col gap-3 px-1 @lg/card:flex-row @lg/card:items-center @lg/card:justify-between">
+          <Skeleton className={PAGINATION_SKELETON.LABEL} />
+          <div className="flex flex-wrap items-center justify-between gap-4 @lg/card:justify-end @lg/card:gap-6">
+            <Skeleton
+              className={cn(PAGINATION_SKELETON.SELECT, "hidden @sm/card:block")}
+            />
+            <Skeleton className={PAGINATION_SKELETON.LABEL} />
+            <div className="flex items-center gap-1.5">
+              {Array.from({ length: PAGINATION_SKELETON.BUTTON_COUNT }).map(
+                (_, i) => (
+                  <Skeleton key={i} className={PAGINATION_SKELETON.BUTTON} />
+                ),
+              )}
+            </div>
+          </div>
         </div>
       </CardContent>
     </Card>
@@ -176,7 +212,7 @@ export function InboxErrorNotice({
           variant="destructive"
           onClick={onRetry}
           disabled={isRetrying}
-          className="h-[2.625rem] gap-2 rounded-pill px-5 text-sm font-semibold"
+          className={PILL_ACTION}
         >
           <MaterialSymbol
             name={isRetrying ? "progress_activity" : "refresh"}
@@ -232,12 +268,15 @@ export function InboxEmptyState({ isSaving, onCompose }: InboxEmptyStateProps) {
 
   return (
     <div className="flex flex-col items-center gap-4 py-12 text-center">
-      {/* Glyph-Disc Rule: a state icon sits in a filled circle on the role's
-          strong fill, which is what survives when a container washes out. An
-          empty inbox is not a fault, so the tone is the brand's own container. */}
+      {/* The Glyph-Disc Rule: a state icon sits in a filled circle on the role's
+          STRONG FILL, never on its pale container — in light mode the containers
+          collapse under CVD simulation and the fills do not, so the disc is the
+          one place a role colour is reliably legible. The comment here used to
+          cite that rule and then render `primary-container` anyway. An empty
+          inbox is not a fault, so the role is the brand's own. */}
       <span
         aria-hidden="true"
-        className="bg-primary-container text-on-primary-container grid size-[4.75rem] place-items-center rounded-pill"
+        className="bg-primary text-primary-foreground grid size-[4.75rem] place-items-center rounded-pill"
       >
         <MaterialSymbol name="sms" filled size={38} />
       </span>
@@ -249,11 +288,7 @@ export function InboxEmptyState({ isSaving, onCompose }: InboxEmptyStateProps) {
           {t("sms.inbox.empty_state.description")}
         </p>
       </div>
-      <Button
-        onClick={onCompose}
-        disabled={isSaving}
-        className="h-[2.625rem] gap-2 rounded-pill px-5 text-sm font-semibold"
-      >
+      <Button onClick={onCompose} disabled={isSaving} className={PILL_ACTION}>
         <MaterialSymbol name="edit" size={18} />
         {t("sms.inbox.buttons.new_message")}
       </Button>

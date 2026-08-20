@@ -130,6 +130,7 @@ Error codes: `invalid_phone`, `missing_action`, `invalid_action`, `send_failed`.
 | Center (lifted hook) | `components/cellular/sms/forwarding/forwarding-center.tsx` |
 | Control card | `components/cellular/sms/forwarding/sms-forwarding-card.tsx` |
 | Health card | `components/cellular/sms/forwarding/delivery-health-card.tsx` |
+| Shape module | `components/cellular/sms/shapes.ts` (shared with the parent SMS family — see [`sms.md`](sms.md#the-shape-module-shapests)) |
 
 ### Lifted-Hook Two-Card Layout
 
@@ -139,24 +140,48 @@ The hook uses `authFetch` (authenticated) — unlike the public Overview endpoin
 
 > ℹ️ NOTE: The three files above were rebuilt on the tonal design system (`DESIGN.md`) by analogy with the approved SMS Center comp. Every load-bearing contract survived the rebuild unchanged: the lifted single-hook shape with one `fwd` prop, the 20 s silent poll, phone validation gated on `isEnabled`, and Send test reading the target from **config** rather than the control input.
 
+**The page root no longer carries `aria-live="polite"`.** The hook re-fetches every 20 s and builds a fresh data object each time, so both card subtrees re-render on every cycle — a live region on the root handed a screen reader an announcement loop with no end. It also contradicted the product's stated channel for save results: `components/ui/save-button.tsx` records that the outcome is announced by the sonner toast every caller already fires, and "an `aria-live` here would double-announce". The states that genuinely need announcing declare it locally — `ConditionScreen` takes `ariaRole="alert"`, the failure banner is `role="alert"`, the loading branches carry `sr-only` strings, and the health block scopes its own `role="status"`.
+
+**The two cards are `rounded-card` (36px), not `rounded-hero`.** DESIGN.md > Shapes: a grid of peer cards takes `card`; the one card that anchors a surface takes `hero`. Two co-equal, height-locked peers in a 2-up grid means **neither** anchors, and giving both the hero radius spends the distinction without buying anything. (The Inbox card on the parent route keeps `rounded-hero` and is correct — it is the single card on its surface.) The shells also declare `@container/card`, which nothing queries yet; without it on the shell the first `@md/card:` a contributor writes inside one of these cards matches nothing at any width and ships as a silently unresponsive layout.
+
 ### Control card (`sms-forwarding-card.tsx`)
 
 Enable toggle + destination number + save. No status display, no test button, no failure history — those belong to the health card. Phone validation is gated on `isEnabled`, so turning forwarding **off** is never blocked by a stale/invalid number in the field.
 
 **The error branch widened from `error && !data` to `!data`.** Previously a first fetch that resolved with *no data and no error string* fell through to the form and rendered an unchecked toggle over a blank number field — which **asserts** that forwarding is off when the truth is that the config was never read. Any state without data now takes the error branch.
 
+#### The dark-mode field bug (`FIELD_SHELL`)
+
+The destination field is a **raw `<input>` on `FIELD_SHELL`**, not `components/ui/input.tsx`. This is a real rendering bug that shipped, not a stylistic preference.
+
+`components/ui/input.tsx` ships `dark:bg-input/30`. Tailwind's `dark:` variant compiles to the selector `&:is(.dark *)`, which has CSS **specificity** (0,2,0) — two class-level matches. (Specificity is the browser's tie-breaker when two rules set the same property: the more specific selector wins regardless of source order.) A plain `bg-surface-container` passed at the call site is (0,1,0), so it **loses**. And `tailwind-merge` — the utility `cn()` uses to drop a class that a later class overrides — cannot fold the two, because it only collapses classes in the *same* modifier scope, and `dark:bg-input/30` and `bg-surface-container` are in different ones. So the "override" was never an override: **every forwarding field rendered `input/30` in dark mode instead of the container step.** It looked approximately right, which is exactly why it survived review.
+
+The primitive carries two smaller problems on the same line: `md:text-sm` leaks a **viewport** breakpoint into a container-query surface, and `transition-[color,box-shadow]` has no duration, so it silently inherits Tailwind's off-scale 150ms and can never retune with the system. Handing `FIELD_SHELL` to a raw `<input>` closes all three at once. `settings/shapes.ts` and `tower-locking/shapes.ts` independently document the identical trap.
+
+#### Dirty-row promotion
+
+Dirtiness is now derived **per control** (`enabledDirty`, `phoneDirty`), not once for the card. It was previously a single `isDirty` spent only on `canSave`, so the entire surface-level signal for "you have an uncommitted edit" was a button that stopped being disabled.
+
+Each edited row now promotes to `primary-container` (`ROW_DIRTY`), matching the settings family. A pending edit is the brand **acting** — an action awaiting commit — and is explicitly **not** a status: a dirty row is neither "good" nor "warning", so no functional role may stand in for pendingness.
+
+> ⚠️ WARNING: a promoted row needs an **on-fill spelling for everything inside it**. `shapes.ts` ships `FIELD_SHELL` / `FIELD_SHELL_ON_FILL` and `INLINE_ERROR` / `INLINE_ERROR_ON_FILL` as pairs for exactly this reason, and the card composes a third (`FIELD_HELP_ON_FILL`) from the same two facts. A free-text field is the one control where an edit is *guaranteed* to make its row dirty, so ink that stayed neutral would land on another role's container — one role's ink on another role's surface, the most common way this pattern goes wrong.
+
 ### Health card (`delivery-health-card.tsx`)
 
-A single derived health state drives the whole card. The four states now differ on **both** tone and glyph:
+A single derived health state drives the whole card. The four states differ on **both** tone and glyph:
 
-| Health | Condition | Tone | Glyph |
+| Health | Condition | `ConditionTone` | Glyph |
 |---|---|---|---|
-| `active` | enabled, target set, no failures | `success-container` | `check_circle` |
-| `issue` | enabled, target set, ≥1 failure | `warning-container` | `warning` |
-| `unconfigured` | enabled, target empty | `primary-container` | `edit` |
-| `off` | disabled | `surface-container` (neutral) | `do_not_disturb_on` |
+| `active` | enabled, target set, no failures | `success` | `check_circle` |
+| `issue` | enabled, target set, ≥1 failure | `warning` | `warning` |
+| `unconfigured` | enabled, target empty | `primary` | `edit` |
+| `off` | disabled | `neutral` | `do_not_disturb_on` |
 
-Two things changed here and both are load-bearing.
+**The tone column is a type, not a class string — and that is the point.** `HEALTH_SPEC` used to carry a `container` and a `disc` class string per state; those four pairs were byte-identical to `condition-screen.tsx`'s own `success` / `warning` / `primary` / `neutral` tones, and three more copies were written inline further down the same file. **Seven verbatim copies of one table in one component.** `condition-screen.tsx` now exports that table as `CONDITION_TONE` (and `ToneSpec`), all seven copies are gone, `HEALTH_SPEC` is a glyph-only map (`HEALTH_GLYPH`), and tone resolves as `CONDITION_TONE[HEALTH_TONE[health]]`.
+
+`HEALTH_TONE` in `shapes.ts` is declared `satisfies Record<string, ConditionTone>`, so a state whose tone has no matching role is a **build failure** rather than a silent one. DESIGN.md is explicit that tone maps key onto the exported types and never onto a class string, because that is the exact shape that let four rival signal-quality maps drift until one of them painted an unread antenna green. The same treatment was applied to the delete-progress steps on the parent route (`DELETE_STEP_TONE`).
+
+Two further things are load-bearing here.
 
 **`unconfigured` moved off `warning` and onto the brand container.** An empty target is not a fault and not a failure — the daemon is enabled and idle, waiting on one field. That is the "reports rather than alarms" role, and DESIGN.md's Info-Is-Brand Rule renders it as `primary-container`. Previously `unconfigured` and `issue` both drew `warning`, *and* `unconfigured` and `off` both read as muted — so the state was ambiguous in two directions at once.
 
@@ -168,18 +193,43 @@ The state drives a focal icon + label + destination row (the single status surfa
 
 > ℹ️ NOTE: The failures block **lost its `AnimatePresence` height animation** and is now rendered conditionally. It animated `height` on both enter and exit, breaking DESIGN.md's Transform-Only Rule and Enter-Only Rule at once. Do not reintroduce it.
 
+#### The failure notice is a `TonalBanner`
+
+The failure block was a hand-rolled re-implementation of `components/ui/tonal-banner.tsx`: it matched the primitive on layout, padding, disc, glyph size, title step and body step, and differed in three ways that were all regressions.
+
+1. It took `rounded-tile` (28px) where the banner role is 20px — so a banner **out-rounded the card it sits on**, which reads as a second card rather than a notice inside one.
+2. It had no `animate-banner-in` entrance, so a failure appeared by snapping in.
+3. It had **no `break-words`** — which the primitive documents as load-bearing precisely because banners carry raw device strings. `f.last_error` is a daemon error string with no break opportunities, rendered inside a card with `overflow` ancestors, so a long one could push past its own edge.
+
+`TonalBanner` is Material end to end, so there is no icon-boundary cost on a `/cellular/` route. This is its first `/cellular/` consumer: it began pre-auth-only because `/` and `/login/` were the first routes brought under the Icon-Boundary Rule, but that rule now covers the sidebar, `/dashboard`, both pre-auth routes and all of `/cellular/`. **What still scopes it is the mount point, not the route** — inside one card, `TonalBanner`; at page level, `components/ui/banner.tsx`.
+
+Two details worth keeping:
+
+- The wrapper `<div>` around it exists only to pin the slot height. `TonalBanner` takes a `className`, not a `style`, and the floor is `HEALTH_HEIGHT.NOTICE` — a shared constant, not a number retyped as an arbitrary class. **Both branches of that slot carry it now**; only the empty one used to, so one slot was governed by two rules and the paired cards' baselines moved the moment a failure landed.
+- The empty twin is **not** a `TonalBanner`. The primitive carries three tones — warning, destructive, info — and no neutral, and a cleared failure log is not a status in any of those roles. That branch mirrors the banner's *box* on `surface-container` instead (`EMPTY_NOTICE`), rather than borrowing a functional role it has not earned.
+
 ### i18n
 
 **This route was internationalized for the first time in this change** — it previously had zero `useTranslation` calls and shipped hardcoded English. 45 new keys under `sms.forwarding` were added to `public/locales/en/cellular.json` **only**; the other four locales fall back to English and surface as `i18n:check` warnings rather than as a fake "translated" figure. See [`sms.md` > i18n](sms.md#i18n) for the full accounting of the shared key drop.
 
-> ⚠️ WARNING: this rebuild was verified **statically only** — `tsc`, `next build`, eslint, `i18n:check` and `icons:check` pass, but none of them render a page. Nothing on this route has been visually reviewed on a device.
+The 2026-08-20 conformance pass renamed exactly one placeholder — `sms.forwarding.failures.title_one` / `_other` moved from `{{count}}` to `{{value}}` in all five packs, so the live count could be its own `tabular-nums` element; plural selection still keys on the numeric `count` option, which is passed alongside `value`. Two keys on this surface are built by **template literal** and are invisible to a static scan (`` `sms.forwarding.health.${health}.label` `` / `` `.description` ``), and the missing `.description` on `active` and `issue` is intentional. Details in [`sms.md` > i18n](sms.md#the-2026-08-20-conformance-pass-was-parity-neutral).
 
-### Known gaps
+> ⚠️ WARNING: **this route has never been visually reviewed.** Static verification passes (`tsc`, `next build`, eslint, `i18n:check`, `icons:check`), and the 2026-08-20 pass visually verified the *parent* SMS Center on a fixture route — but the forwarding surface needs a live backend to reach its loaded state, so it was **not** checked. Treat its layout as mechanism-proven and visually unreviewed until someone loads it on the modem.
+
+### Open: two items deliberately left unfixed
+
+Both were found during the 2026-08-20 conformance pass and scoped out as unrelated to a design change. Neither is subtle once you look for it.
+
+**Ten sites in `hooks/use-sms-forwarding.ts` reach users as hardcoded English.** Four messages — `"Failed to fetch forwarding settings"`, `"Failed to save settings"`, `"Failed to send test message"`, `"Failed to clear alerts"` — are each written at two `setError` sites (the JSON-error branch and the `catch`), and the JSON-error branches additionally pass through `json.detail || json.error`, which is untranslated backend English. That `error` string is then **preferred over the translated fallback** by every consumer: `toast.error(error || t("sms.forwarding.toast.save_error"))` and `description={error ?? t("sms.forwarding.states.error.description")}`. So a non-English operator sees English on **any** backend failure — the fallback only fires when the hook's error is empty. Fixing this means keying the hook's error strings (or returning an error *code* and translating at the call site); the surface's own labels are fully translated.
+
+**`PHONE_REGEX` rejects a valid leading `0`.** `components/cellular/sms/forwarding/sms-forwarding-card.tsx` validates with `/^\+?[1-9]\d{6,14}$/`, so a locally-formatted number such as `0917…` fails client-side validation. That is inconsistent with the rest of the feature: `sms.sh`'s `normalize_phone()` explicitly supports the leading-`0` local format and maps it to a country code via the SIM's MCC (see [`sms.md` > Phone Number Normalization](sms.md#phone-number-normalization)). The daemon-side and CGI-side validation is the E.164-ish rule described above; only the client field is stricter than the pipeline behind it.
+
+### Closed gaps (kept for the record)
 
 Both gaps recorded here are now **closed**, and one of them turned out to be twice the size it was written up as.
 
 - ~~**`SaveButton` hardcodes its transient labels.**~~ **Fixed.** `components/ui/save-button.tsx` now reads `common.actions.saving` / `common.actions.saved` through `useTranslation`. The bigger half was never recorded: **16 of the 18 call sites hardcoded English *idle* labels too**, so an Italian user saw `"Lock Selected Bands"` → `"Salvataggio…"` → `"Salvato!"` → `"Lock Selected Bands"` — the transient states translated and the resting state not. All idle labels are now keyed (new `common.actions` keys `save_settings`, `save_and_apply`, `save_profile`, `update`; new `cellular.band_locking.actions.lock_selected`). This card's own save button is one of the fixed sites. See [`dashboard-state-motion.md`](dashboard-state-motion.md) > Part 3 for the rebuilt button.
-- ~~**The shadcn `Checkbox` renders a lucide glyph on Material routes.**~~ **Fixed.** `Checkbox` gained an opt-in `glyph?: MaterialSymbolName` slot; the Material-route call sites pass `glyph="check"`, and `check` was already in the 97-glyph subset so it cost zero bytes. See [`icon-system.md`](icon-system.md).
+- ~~**The shadcn `Checkbox` renders a lucide glyph on Material routes.**~~ **Fixed.** `Checkbox` gained an opt-in `glyph?: MaterialSymbolName` slot; the Material-route call sites pass `glyph="check"`, and `check` was already in the bundled Material subset so it cost zero bytes. See [`icon-system.md`](icon-system.md).
 
 ### The 98 keys this rebuild shipped English-only
 

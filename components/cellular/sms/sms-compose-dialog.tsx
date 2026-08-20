@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
 
 import { MaterialSymbol } from "@/components/ui/material-symbol";
-import { Badge } from "@/components/ui/badge";
+import { Tag } from "@/components/ui/tag";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -20,6 +20,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 
+import { PILL_ACTION } from "./shapes";
+
 // =============================================================================
 // SmsComposeDialog — compose and send
 // =============================================================================
@@ -33,7 +35,6 @@ import { cn } from "@/lib/utils";
 // counter is deliberately NOT added; that is new behaviour, not a restyle.
 // =============================================================================
 
-const PILL_ACTION = "h-[2.625rem] gap-2 rounded-pill px-5 text-sm font-semibold";
 const FIELD = "rounded-field bg-surface-container border-0";
 
 interface SmsComposeDialogProps {
@@ -122,16 +123,18 @@ export default function SmsComposeDialog({
                 {t("sms.compose.fields.message_label")}
               </Label>
               <span className="ml-auto flex items-center gap-2">
-                {/* The encoding is a CATEGORY label, not a status, so it takes
-                    `secondary` rather than one of the five status roles. */}
-                <Badge variant="secondary">
+                {/* An encoding is a CAPABILITY — what the payload IS, not
+                    whether it is well — which `components/ui/tag.tsx` names
+                    verbatim as tag territory (The Two-Form Rule). It was a
+                    filled `Badge variant="secondary"`. */}
+                <Tag variant="neutral">
                   {isUcs2
                     ? t("sms.compose.encoding.ucs2")
                     : t("sms.compose.encoding.gsm7")}
-                </Badge>
+                </Tag>
                 <span
                   className={cn(
-                    "text-xs font-semibold tabular-nums",
+                    "flex items-center gap-1 text-xs font-semibold tabular-nums",
                     isOverLimit
                       ? "text-destructive-on-surface"
                       : isNearLimit
@@ -139,6 +142,20 @@ export default function SmsComposeDialog({
                         : "text-on-surface-variant",
                   )}
                 >
+                  {/* The near-limit step used to change COLOUR AND NOTHING
+                      ELSE, so for a colour-blind reader it did not exist at
+                      all. It now carries a glyph too, and the two escalations
+                      take DIFFERENT glyphs: two states in one slot must never
+                      share one. */}
+                  {(isNearLimit || isOverLimit) && (
+                    <MaterialSymbol
+                      name={isOverLimit ? "error" : "warning"}
+                      filled
+                      size={13}
+                      className="flex-none"
+                      aria-hidden="true"
+                    />
+                  )}
                   {t("sms.compose.fields.char_counter", {
                     count: charCount,
                     max: maxChars,

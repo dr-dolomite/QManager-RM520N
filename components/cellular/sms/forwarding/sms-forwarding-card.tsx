@@ -19,7 +19,6 @@ import {
   FieldLabel,
 } from "@/components/ui/field";
 import { Switch } from "@/components/ui/switch";
-import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { SaveButton, useSaveFlash } from "@/components/ui/save-button";
 import { ConditionScreen } from "@/components/cellular/condition-screen";
@@ -27,6 +26,23 @@ import { staggerRowItem, staggerRows } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 import { type UseSmsForwardingReturn } from "@/hooks/use-sms-forwarding";
 import { type SmsForwardingData } from "@/types/sms-forwarding";
+import {
+  CARD_DESCRIPTION,
+  CARD_SHELL,
+  CARD_TITLE,
+  FIELD_HELP,
+  FIELD_LABEL,
+  FIELD_SHELL,
+  FIELD_SHELL_ON_FILL,
+  FORM_SKELETON,
+  HEADER_SHAPE,
+  INLINE_ERROR,
+  INLINE_ERROR_ON_FILL,
+  PILL_ACTION,
+  ROW_DIRTY,
+  TOGGLE_LABEL,
+  TOGGLE_ROW,
+} from "../shapes";
 
 // =============================================================================
 // SmsForwardingCard — the control surface for the daemon-backed SMS relay.
@@ -37,90 +53,41 @@ import { type SmsForwardingData } from "@/types/sms-forwarding";
 // is the State-Honesty Rule made structural: this card holds the half-edited
 // FORM, the health card reports the SAVED state, and neither is allowed to
 // speak for the other.
+//
+// EVERY GEOMETRY STRING ON THIS SURFACE NOW COMES FROM `../shapes`. This file
+// used to EXPORT the card shell, the page grid, the header shape, the pill
+// action and the form geometry, and the health card imported them sideways from
+// its sibling — so a component was another component's geometry source, and the
+// page grid was owned by one of the two cards it lays out. `components/cellular/
+// sms/shapes.ts` owns all of it now (DESIGN.md > Layout > "A per-family
+// `shapes.ts`"); what still crosses between the two files is the shared HEADER
+// COMPONENT below, which is a component, not a constant.
 // =============================================================================
 
-// -----------------------------------------------------------------------------
-// Shared geometry
-//
-// Exported so the health card, both skeletons and the page grid consume the same
-// strings rather than restating them (DESIGN.md > The Skeleton-Mirror Rule). The
-// two cards sit side by side as a PAIR, so any divergence in shell, header shape
-// or row height shows up immediately as a broken baseline.
-// -----------------------------------------------------------------------------
-
-/** Copied verbatim from `antenna-statistics/tech-card.tsx` — the anchor-card shell. */
-export const CARD_SHELL =
-  "h-full gap-5 rounded-hero border-0 bg-surface px-7 py-6 shadow-[var(--shadow-whisper)]";
-
-/** The two-up card grid. A container query, never a viewport breakpoint. */
-export const CARD_GRID = "grid grid-cols-1 gap-5 @3xl/main:grid-cols-2";
-
-/** Equal heights are explicit, so a card whose data hasn't landed isn't shorter. */
-export const CARD_CELL = "h-full *:data-[slot=card]:h-full";
-
 /**
- * The card header's line boxes, for both skeletons.
+ * The on-fill twin of `FIELD_HELP`.
  *
- * `CardTitle` ships `leading-none`, so `text-xl` is a 20px box rather than the
- * 24px a naive `h-6` would guess; the 13px description resolves to a 20px box.
+ * `shapes.ts` ships this pair for the error line (`INLINE_ERROR` /
+ * `INLINE_ERROR_ON_FILL`) but not for the hint, so it is composed here from the
+ * same two facts: the brand ink, and the 90% step that separates supporting copy
+ * from the control it describes. When the destination row promotes, a hint that
+ * kept `text-on-surface-variant` would be reading as neutral prose directly
+ * under a `bg-primary` field — the cross-pair `shapes.ts` names as the most
+ * common way the dirty-row pattern goes wrong.
  */
-export const HEADER_SHAPE = {
-  TITLE: "h-5 w-44",
-  DESCRIPTION: "h-5 w-60",
-  GAP: "gap-1",
-} as const;
-
-/**
- * The pill action, shared with `radio/page-header.tsx`'s `PILL_ACTION`. 42px is
- * the button height on the role scale and clears the 44px coarse-pointer target
- * once its 2px focus ring is counted.
- */
-export const PILL_ACTION =
-  "h-[2.625rem] gap-2 rounded-pill px-5 text-sm font-semibold";
-
-// A secondary-standing action is the `Button` `tonal` variant (never
-// `variant="secondary"` — shadcn's `--secondary` is a NEUTRAL in this
-// codebase and byte-identical to `surface-container`, so a "secondary" button
-// inside a card is a surface pretending to be a control); a neutral action on
-// a plain card surface is `tonal-neutral`. Never `variant="ghost"` plus a
-// hand-rolled `bg-*` override — `ghost`'s own `dark:hover:bg-accent/50`
-// outranks a plain `hover:` override on CSS specificity, so the override
-// silently loses in dark mode.
-
-export const FORM_SHAPE = {
-  /** The enable row, as a metric-row pill. 44px, so it is a coarse-pointer target. */
-  TOGGLE_ROW:
-    "flex h-11 w-full items-center gap-3 rounded-pill bg-surface-container px-4",
-  TOGGLE_LABEL: "min-w-0 flex-auto truncate text-sm font-semibold",
-  /**
-   * The input, restyled off the shadcn default per the Migration Delta: 20px
-   * radius, 42px tall, `surface-container` fill, no visible border at rest.
-   * `font-mono tabular-nums` because a phone number is machine truth.
-   */
-  INPUT:
-    "h-[2.625rem] max-w-sm rounded-field border-0 bg-surface-container px-4 font-mono text-sm tabular-nums shadow-none",
-  LABEL: "text-sm font-semibold",
-  HELP: "text-on-surface-variant text-[13px] leading-relaxed text-pretty",
-  /** Tinted text on a PLAIN card takes `-on-surface`, never the container ink. */
-  ERROR: "text-destructive-on-surface text-[13px] leading-relaxed",
-} as const;
-
-/** Skeleton line boxes for the form, mirroring FORM_SHAPE above. */
-export const FORM_SKELETON = {
-  TOGGLE: "h-11 w-full rounded-pill",
-  LABEL: "h-5 w-28 rounded-inline",
-  INPUT: "h-[2.625rem] w-full max-w-sm rounded-field",
-  HELP: "h-5 w-56 rounded-inline",
-  ACTION: "h-[2.625rem] w-36 rounded-pill",
-} as const;
+const FIELD_HELP_ON_FILL = cn(
+  FIELD_HELP,
+  "text-on-primary-container opacity-90",
+);
 
 // -----------------------------------------------------------------------------
 // The shared card header
 //
 // One implementation for both cards, which is what makes the Truncation-Pair
 // Rule structural rather than a review item: every text node here carries
-// `min-w-0 truncate`, so Italian cannot wrap one card's header to two lines
-// while its sibling stays at one and breaks the paired baseline.
+// `min-w-0 truncate` (via `CARD_TITLE` / `CARD_DESCRIPTION`), so Italian cannot
+// wrap one card's header to two lines while its sibling stays at one and breaks
+// the paired baseline.
 // -----------------------------------------------------------------------------
 
 export function ForwardingCardHeader({
@@ -133,10 +100,8 @@ export function ForwardingCardHeader({
   return (
     <CardHeader className={cn("px-0", HEADER_SHAPE.GAP)}>
       <div className="flex min-w-0 flex-col gap-1">
-        <CardTitle className="min-w-0 truncate text-xl font-semibold">
-          {title}
-        </CardTitle>
-        <CardDescription className="min-w-0 truncate text-[13px]">
+        <CardTitle className={CARD_TITLE}>{title}</CardTitle>
+        <CardDescription className={CARD_DESCRIPTION}>
           {description}
         </CardDescription>
       </div>
@@ -197,10 +162,18 @@ const SmsForwardingCard = ({ fwd }: { fwd: UseSmsForwardingReturn }) => {
       ? t("sms.forwarding.fields.target_invalid")
       : null;
 
-  const isDirty = data
-    ? isEnabled !== data.settings.enabled ||
-      targetPhone !== data.settings.target_phone
-    : false;
+  // Dirtiness is derived PER CONTROL, not once for the card.
+  //
+  // It was previously a single `isDirty` spent only on `canSave`, so the entire
+  // surface-level signal for "you have an uncommitted edit" was a button that
+  // stopped being disabled. The settings family's rule is that rows are neutral
+  // at rest and PROMOTE to `primary-container` when dirty — a pending edit is
+  // the brand acting, an action awaiting commit, and explicitly NOT a status
+  // (a dirty row is neither "good" nor "warning", so no functional role may
+  // stand in for pendingness).
+  const enabledDirty = !!data && isEnabled !== data.settings.enabled;
+  const phoneDirty = !!data && targetPhone !== data.settings.target_phone;
+  const isDirty = enabledDirty || phoneDirty;
 
   const canSave = !phoneError && isDirty && !isSaving && !isSendingTest;
 
@@ -252,9 +225,8 @@ const SmsForwardingCard = ({ fwd }: { fwd: UseSmsForwardingReturn }) => {
   // `off` with a blank number would ASSERT that forwarding is disabled, when the
   // truth is that we could not read the config at all.
   //
-  // `rounded-tile` overrides the primitive's `rounded-hero`: a 40px screen inside
-  // a 40px card out-rounds nothing but reads as a second card, and the
-  // Radius-Follows-Size Rule wants the inner shape a step down.
+  // `rounded-tile` overrides the primitive's `rounded-hero`: the Radius-Follows-
+  // Size Rule wants the inner shape a step down from the card that holds it.
   if (!data) {
     return (
       <Card className={CARD_SHELL}>
@@ -295,12 +267,20 @@ const SmsForwardingCard = ({ fwd }: { fwd: UseSmsForwardingReturn }) => {
           onSubmit={handleSave}
           variants={staggerRows}
         >
-          {/* Enable toggle */}
+          {/* Enable toggle. The row itself carries the promotion; the label
+              inside it declares no ink of its own, so it follows the container
+              rather than becoming a cross-pair when the row flips. */}
           <motion.div variants={staggerRowItem}>
-            <Field orientation="horizontal" className={FORM_SHAPE.TOGGLE_ROW}>
+            <Field
+              orientation="horizontal"
+              className={cn(
+                TOGGLE_ROW,
+                enabledDirty ? ROW_DIRTY : "bg-surface-container",
+              )}
+            >
               <FieldLabel
                 htmlFor="sms-forwarding-enabled"
-                className={FORM_SHAPE.TOGGLE_LABEL}
+                className={TOGGLE_LABEL}
               >
                 {t("sms.forwarding.fields.enabled_label")}
               </FieldLabel>
@@ -313,21 +293,36 @@ const SmsForwardingCard = ({ fwd }: { fwd: UseSmsForwardingReturn }) => {
             </Field>
           </motion.div>
 
-          {/* Target phone */}
+          {/* Target phone.
+
+              A RAW `<input>`, not `components/ui/input.tsx`. The primitive ships
+              `dark:bg-input/30`, which compiles to `&:is(.dark *)` — specificity
+              (0,2,0) against a bare `bg-surface-container`'s (0,1,0) — and
+              tailwind-merge cannot fold the two because they sit in different
+              modifier scopes. Every field on this card was rendering `input/30`
+              in dark mode instead of the container step. It looks approximately
+              right, which is exactly why it survived review. The primitive also
+              ships `md:text-sm` (a VIEWPORT breakpoint leaking into a
+              container-query surface) and `transition-[color,box-shadow]` with
+              no duration (an off-scale 150ms). `FIELD_SHELL` closes all three,
+              and is composed with a width and nothing else. */}
           <motion.div variants={staggerRowItem}>
             <Field className="gap-2">
               <FieldLabel
                 htmlFor="sms-forwarding-target"
-                className={FORM_SHAPE.LABEL}
+                className={FIELD_LABEL}
               >
                 {t("sms.forwarding.fields.target_label")}
               </FieldLabel>
-              <Input
+              <input
                 id="sms-forwarding-target"
                 type="tel"
                 inputMode="tel"
                 placeholder={t("sms.forwarding.fields.target_placeholder")}
-                className={FORM_SHAPE.INPUT}
+                className={cn(
+                  phoneDirty ? FIELD_SHELL_ON_FILL : FIELD_SHELL,
+                  "max-w-sm",
+                )}
                 value={targetPhone}
                 onChange={(e) => setTargetPhone(e.target.value)}
                 disabled={!isEnabled}
@@ -341,18 +336,19 @@ const SmsForwardingCard = ({ fwd }: { fwd: UseSmsForwardingReturn }) => {
                 autoComplete="tel"
               />
               {/* Validation is stated INLINE, not only in a toast: a toast that
-                  has already dismissed cannot tell you which field is wrong. */}
+                  has already dismissed cannot tell you which field is wrong.
+                  Both spellings follow the field's promotion. */}
               {phoneError ? (
                 <FieldError
                   id="sms-forwarding-target-error"
-                  className={FORM_SHAPE.ERROR}
+                  className={phoneDirty ? INLINE_ERROR_ON_FILL : INLINE_ERROR}
                 >
                   {phoneError}
                 </FieldError>
               ) : (
                 <FieldDescription
                   id="sms-forwarding-target-desc"
-                  className={FORM_SHAPE.HELP}
+                  className={phoneDirty ? FIELD_HELP_ON_FILL : FIELD_HELP}
                 >
                   {t("sms.forwarding.fields.target_hint")}
                 </FieldDescription>
@@ -361,7 +357,11 @@ const SmsForwardingCard = ({ fwd }: { fwd: UseSmsForwardingReturn }) => {
           </motion.div>
 
           {/* Save. `SaveButton` owns the loading animation and the product's one
-              sanctioned overshoot (the 1.03 confirmation check). */}
+              sanctioned overshoot (the 1.03 confirmation check). It stays
+              mounted in every state so its grid width-lock holds, and it is
+              never wrapped in `AnimatePresence`. Its glyphs are lucide, which is
+              correct: it is a route-agnostic primitive that the Icon-Boundary
+              Rule pins to lucide wherever it mounts. */}
           <motion.div variants={staggerRowItem}>
             <SaveButton
               type="submit"

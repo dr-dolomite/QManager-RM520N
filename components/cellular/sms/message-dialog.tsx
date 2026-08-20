@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
 
 import { MaterialSymbol } from "@/components/ui/material-symbol";
-import { Badge } from "@/components/ui/badge";
+import { Tag } from "@/components/ui/tag";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -15,8 +15,10 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { SLOT, withSlot } from "@/components/auth/interpolation-slot";
 import { cn } from "@/lib/utils";
 
+import { DIALOG_ACTION } from "./shapes";
 import type { SmsMessage } from "@/types/sms";
 
 // =============================================================================
@@ -35,11 +37,6 @@ import type { SmsMessage } from "@/types/sms";
 //    live messages are multi-part, so `indexes` frequently has length > 1 and
 //    the label has to say so.
 // =============================================================================
-
-/** Pill action, 40px — one step under the primary 42px pill. */
-const DIALOG_ACTION =
-  "h-10 gap-2 rounded-pill px-4 text-sm font-semibold pointer-coarse:h-11";
-const DIALOG_TONAL = DIALOG_ACTION;
 
 /**
  * Is this sender something the radio can actually address? A sender ID like
@@ -109,21 +106,33 @@ export function MessageDialog({
                 {message?.timestamp}
               </span>
               {message && (
-                // A slot is meaningless without its memory, so the chip always
-                // carries both. `secondary` because this is a location label,
-                // not a status role.
-                <Badge variant="secondary" className="font-mono tabular-nums">
-                  {t(
-                    slots.length > 1
-                      ? "sms.inbox.view_dialog.slots"
-                      : "sms.inbox.view_dialog.slot",
-                    {
-                      storage: message.storage,
-                      slots: slots.join(", "),
-                      count: slots.length,
-                    },
+                // A slot is meaningless without its memory, so the tag always
+                // carries both. A `Tag`, not a `Badge`: a physical location is
+                // metadata, not health (The Two-Form Rule).
+                //
+                // MONO IS SCOPED TO THE SLOT NUMBERS. The whole string used to
+                // carry `font-mono tabular-nums`, so the human word "slot" —
+                // and 槽位 / 插槽 / slot in the other four locales — shipped in
+                // JetBrains Mono. The memory name stays in the UI voice for the
+                // same reason the `SIM` tag beside it does: `ME`/`SM` is a
+                // label, while the index is a raw device slot number.
+                <Tag variant="neutral" className="flex-none">
+                  {withSlot(
+                    t(
+                      slots.length > 1
+                        ? "sms.inbox.view_dialog.slots"
+                        : "sms.inbox.view_dialog.slot",
+                      {
+                        storage: message.storage,
+                        slots: SLOT,
+                        count: slots.length,
+                      },
+                    ),
+                    <span className="font-mono tabular-nums">
+                      {slots.join(", ")}
+                    </span>,
                   )}
-                </Badge>
+                </Tag>
               )}
             </div>
           </DialogDescription>
@@ -150,7 +159,7 @@ export function MessageDialog({
             <Button
               type="button"
               variant="tonal-neutral"
-              className={DIALOG_TONAL}
+              className={DIALOG_ACTION}
               onClick={handleCopy}
             >
               <MaterialSymbol name={copied ? "check" : "content_copy"} size={17} />
@@ -163,7 +172,7 @@ export function MessageDialog({
               <Button
                 type="button"
                 variant="tonal-neutral"
-                className={DIALOG_TONAL}
+                className={DIALOG_ACTION}
                 onClick={() => onReply(message.sender)}
               >
                 <MaterialSymbol name="edit" size={17} />

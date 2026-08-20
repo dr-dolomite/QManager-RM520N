@@ -2243,8 +2243,8 @@
         "hint_blocked": "請先開啟轉發並儲存目標號碼 — 測試始終依據已儲存的設定執行，不會使用未儲存的修改。"
       },
       "failures": {
-        "title_one": "{{count}} 次送達失敗",
-        "title_other": "{{count}} 次送達失敗",
+        "title_one": "{{value}} 次送達失敗",
+        "title_other": "{{value}} 次送達失敗",
         "description": "中繼對每則訊息重試三次後放棄，因此訊息仍留在收件匣中。轉發功能仍在執行。",
         "unknown_sender": "未知寄件者"
       },

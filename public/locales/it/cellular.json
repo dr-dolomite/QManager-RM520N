@@ -2243,8 +2243,8 @@
         "hint_blocked": "Attiva prima l'inoltro e salva un numero di destinazione — il test usa sempre le impostazioni salvate, mai le modifiche non salvate."
       },
       "failures": {
-        "title_one": "{{count}} consegna fallita",
-        "title_other": "{{count}} consegne fallite",
+        "title_one": "{{value}} consegna fallita",
+        "title_other": "{{value}} consegne fallite",
         "description": "Il relay ha riprovato tre volte per ciascuno di questi e poi ha rinunciato, quindi il messaggio è rimasto in posta in arrivo. L'inoltro è comunque ancora attivo.",
         "unknown_sender": "Mittente sconosciuto"
       },

@@ -15,10 +15,18 @@ import { cn } from "@/lib/utils";
 //   Banner       page-level. Eight named system roles, a CTA slot, a dismiss
 //                slot, a 36px disc, lucide glyphs (it mounts on every route, so
 //                the Icon-Boundary Rule pins it to lucide).
-//   TonalBanner  inside a single card, on the pre-auth surfaces. Three tones,
-//                no CTA, no dismiss, a 32px disc, and Material Symbols — the
-//                product owner extended the Icon-Boundary Rule to cover `/` and
-//                `/login/`, so those two routes are Material end to end.
+//   TonalBanner  inside a single card, on any Material-side route. Three tones,
+//                no CTA, no dismiss, a 32px disc, and Material Symbols.
+//
+// It began pre-auth-only, because `/` and `/login/` were the first routes the
+// product owner brought under the Icon-Boundary Rule. That scope is no longer
+// the constraint: the rule now covers the sidebar, `/dashboard`, the two
+// pre-auth routes AND all of `/cellular/`, so this primitive is legal on every
+// one of them — `/cellular/sms/forwarding` is the first `/cellular/` consumer,
+// where it replaced a hand-rolled notice that had drifted to a 28px radius, no
+// entrance animation and no `break-words`. What still scopes it is the MOUNT
+// POINT, not the route: inside one card, `TonalBanner`; at page level,
+// `components/ui/banner.tsx`.
 //
 // It exists because a page-level Banner dropped inside a 404px login card is
 // the wrong instrument: its CTA lane, dismiss lane and 300px text basis all

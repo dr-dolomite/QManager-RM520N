@@ -48,7 +48,7 @@ All status indicators are **filled tonal chips**: a `Badge` variant carrying a r
 </Badge>
 ```
 
-- `components/ui/badge.tsx` is the shared wrapper: the five roles above live in its `cva`, so a status chip is correct by construction rather than by reviewer discipline. `default` / `secondary` / `outline` remain for non-status labels (network type, category tags, counts)
+- `components/ui/badge.tsx` is the shared wrapper: the five roles above live in its `cva`, so a status chip is correct by construction rather than by reviewer discipline. **`secondary` is not the home for metadata** — `components/ui/tag.tsx` is. A `Tag` says what a thing *is*: "a band number, a radio family, a channel width, **a capability**". That covers a storage label, a slot label, an encoding name and a network type, all of which are `<Tag variant="neutral">`. `default` / `secondary` / `outline` survive only for a genuine non-status, non-identity label with no `Tag` variant to key onto — and reaching for one is a signal to check the Two-Form Rule first
 - **Every status chip carries an icon.** `success-container` and `warning-container` measure **1.03:1** apart — the same surface to the eye, and identical under deuteranopia — so the glyph is the only thing separating a healthy state from a degraded one. Two states in the same slot must never share a glyph either
 - Tone maps key onto the exported `BadgeVariant` type, never onto a class string, so a new tone without a matching role fails the build (`REBOOT_TONE_BADGE`, `TONE_BADGE`, `qualityBadgeVariants`, `getQualityBadgeVariant`)
 - Choose muted for deliberately inactive states (Stopped, Offline peer, Disabled); destructive for failure/error states (Disconnected link, Failed email)
@@ -169,8 +169,8 @@ Each feature below has a reference doc holding its invariants, gotchas, and rati
 | **Scheduled Reboot & Tower Lock Schedule** | Any scheduled operation. **RM520N has no working `crond`** — everything is a runtime systemd `OnCalendar` timer. Any new timer must account for the 1970 boot window / clock-step fire guard | `scheduled-timers.md` |
 | **Overview Splash + `/login/`** | The two pre-auth routes, public CGI under `public/`, the pre-auth type scale | `overview-splash.md` |
 | **i18n / Language Picker** | Any user-visible string, `public/locales/**`, language packs | `i18n.md`, `docs/CONTRIBUTING-translations.md` |
-| **SMS Center** | `/cellular/sms`, `sms_tool`, CPMS storage routing | `sms.md` |
-| **SMS Forwarding** | `qmanager_sms_forward`, `/cellular/sms/forwarding` | `sms-forwarding.md` |
+| **SMS Center** | `/cellular/sms`, `sms_tool`, CPMS storage routing, the single-flight inbox GET, or anything on the surface (geometry and tone live in `components/cellular/sms/shapes.ts`) | `sms.md` |
+| **SMS Forwarding** | `qmanager_sms_forward`, `/cellular/sms/forwarding`, the dirty-row promotion, or the hook's untranslated error strings | `sms-forwarding.md` |
 | **Speed Test** | Ookla CLI, `at_cmd/speedtest_*.sh`, the dashboard tile and dialog | `speedtest.md` |
 
 All paths are relative to `docs/reference/` unless stated. If you add a substantial feature with non-obvious invariants, write `docs/reference/<feature>.md` and add **one row** here — do not summarize the doc in this file.
@@ -178,3 +178,4 @@ All paths are relative to `docs/reference/` unless stated. If you add a substant
 ## Shared Constants
 
 - **`ANTENNA_PORTS`** (`types/modem-status.ts`): Canonical metadata for 4 antenna ports (Main/PRX, Diversity/DRX, MIMO 3/RX2, MIMO 4/RX3). Used by `antenna-statistics` and `antenna-alignment`. Any new per-antenna UI must import from here — do not duplicate port definitions.
+- **`components/cellular/sms/shapes.ts`**: The SMS family's shape module — every geometry string, control height, tone map and skeleton line box for `/cellular/sms` **and** `/cellular/sms/forwarding`. Import from here; no component on the surface exports a shape constant, and the loaded views and their skeletons must read the same values. Tone maps key onto `ConditionTone` and resolve through `CONDITION_TONE` (`components/cellular/condition-screen.tsx`), never onto class strings. Sibling families restate geometry rather than importing it — anything genuinely family-wide belongs one level up in `components/cellular/`.

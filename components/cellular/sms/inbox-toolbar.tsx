@@ -17,6 +17,8 @@ import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 
+import { TOOLBAR_PILL } from "./shapes";
+
 // =============================================================================
 // InboxToolbar — tab filter, search, sort direction, and "mark all read"
 // =============================================================================
@@ -31,9 +33,6 @@ import { cn } from "@/lib/utils";
 export type SmsTab = "all" | "unread" | "read";
 
 export type SmsSortDir = "newest" | "oldest";
-
-/** Shared by both trailing actions, so the pair cannot drift apart. */
-const TOOLBAR_PILL = "h-9 gap-2 rounded-pill px-4 text-sm font-medium pointer-coarse:h-11";
 
 interface InboxToolbarProps {
   tab: SmsTab;
@@ -79,6 +78,14 @@ export function InboxToolbar({
                 "data-[state=active]:bg-primary dark:data-[state=active]:bg-primary",
                 "data-[state=active]:shadow-none",
                 "pointer-coarse:h-11",
+                // `components/ui/tabs.tsx` transitions `[color,box-shadow]` and
+                // nothing else — `background-color` is not in that list at all,
+                // so the active pill's fill CUT in with no transition while its
+                // ink faded. The two-clock longhand below is the same spelling
+                // `components/ui/badge.tsx` uses, and it is written here rather
+                // than in the primitive because Tabs is shared with other
+                // routes (The One-Scale Rule).
+                "[transition:color_var(--duration-standard)_var(--ease-standard),background-color_var(--duration-standard)_var(--ease-standard),box-shadow_var(--duration-quick)_ease-out]",
               )}
             >
               {t(`sms.inbox.tabs.${value}`)}

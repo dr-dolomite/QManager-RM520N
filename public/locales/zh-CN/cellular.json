@@ -2243,8 +2243,8 @@
         "hint_blocked": "请先开启转发并保存目标号码 — 测试始终基于已保存的设置运行，不会使用未保存的修改。"
       },
       "failures": {
-        "title_one": "{{count}} 次送达失败",
-        "title_other": "{{count}} 次送达失败",
+        "title_one": "{{value}} 次送达失败",
+        "title_other": "{{value}} 次送达失败",
         "description": "中继对每条消息重试了三次后放弃，因此消息仍留在收件箱中。转发功能仍在运行。",
         "unknown_sender": "未知发件人"
       },

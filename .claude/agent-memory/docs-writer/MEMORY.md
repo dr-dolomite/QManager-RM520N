@@ -1,4 +1,4 @@
-- [SMS tonal rebuild: visual check still pending](project_sms_tonal_rebuild_visual_check_pending.md) — closed 2026-07-31 statically verified only; sms.md / sms-forwarding.md carry "not visually reviewed" warnings to remove once the owner confirms
+- [SMS visual-verification status](project_sms_tonal_rebuild_visual_check_pending.md) — SMS Center cleared 2026-08-20 on a fixture route; Forwarding still unverified (needs a live backend), and the sibling warnings elsewhere stay open
 - [1970 boot window / timer fire guard](reference_1970_boot_window_timer_guard.md) — any new systemd .timer must be checked against this; full mechanism + non-fixes list in scheduled-timers.md
 - [Rootfs mount-mode evidence trap](reference_rootfs_mount_mode_evidence_trap.md) — `/` boots ro; only /proc/cmdline proves it, /proc/mounts and `assert=read-only` both mislead; contract in BACKEND.md §2.1
 - [Replace, don't append, on UI rewrites](feedback_replace_dont_append_on_ui_rewrites.md) — rewrite the anatomy in place; keep "do not restore" notes only for shapes someone would helpfully reinvent

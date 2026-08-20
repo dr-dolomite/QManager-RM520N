@@ -12,6 +12,7 @@ import { toast } from "sonner";
 
 import { MaterialSymbol } from "@/components/ui/material-symbol";
 import { Button } from "@/components/ui/button";
+import { Tag } from "@/components/ui/tag";
 import {
   Card,
   CardAction,
@@ -29,9 +30,13 @@ import { InboxTable, useSmsColumns } from "./inbox-table";
 import { MessageDialog } from "./message-dialog";
 import { SmsDeleteDialogs, type DeleteStep } from "./delete-dialogs";
 import {
+  ICON_PILL,
   INBOX_CARD,
   INBOX_PAD,
   INBOX_TITLE,
+  TOOLBAR_PILL,
+} from "./shapes";
+import {
   InboxEmptyState,
   InboxErrorNotice,
   InboxStaleChip,
@@ -80,6 +85,13 @@ interface SmsInboxCardProps {
   messages: SmsMessage[];
   storage: SmsStorage | undefined;
   isSaving: boolean;
+  /**
+   * True while an inbox GET is in flight — including a silent one. Distinct
+   * from `isSaving`, which only ever covers send/delete: the Retry button in
+   * the error notice was wired to `isSaving`, so its spinner could NEVER fire,
+   * because nothing on the refresh path sets that flag.
+   */
+  isFetching: boolean;
   /** Error from the hook (fetch or mutation failure) */
   error: string | null;
   /** Epoch ms of the last GET that returned an inbox, or null. */
@@ -98,6 +110,7 @@ export default function SmsInboxCard({
   messages,
   storage,
   isSaving,
+  isFetching,
   error,
   lastSuccessfulFetch,
   isRead,
@@ -336,25 +349,41 @@ export default function SmsInboxCard({
             <div className="flex flex-wrap items-center justify-end gap-2">
               {selectedCount > 0 ? (
                 <>
-                  <span className="bg-primary-container text-on-primary-container rounded-pill flex h-9 items-center gap-2 pr-1.5 pl-4 text-sm font-semibold">
-                    <span className="tabular-nums">
-                      {selectedCount}
-                    </span>
+                  {/* The count and the clear action are TWO objects, not one.
+                      This was a hand-written chip — `bg-primary-container
+                      text-on-primary-container rounded-pill flex h-9 ...` —
+                      with a 24px `<button>` nested inside it. Both halves were
+                      wrong: chip classes are never hand-written (the variant is
+                      the whole API), and a 24px control on a page read on a
+                      tablet in the field is under half the 44px coarse-pointer
+                      target every other control here already clears.
+
+                      A `Tag`, not a `Badge`: a selection count says what is
+                      true of the table, not whether anything is WELL, and a
+                      count has no honest hue (The Neutral-Default Rule). The
+                      emphasis on this row belongs to the destructive action
+                      beside it. */}
+                  <Tag
+                    variant="neutral"
+                    className="h-9 gap-1.5 px-4 text-sm font-semibold"
+                  >
+                    <span className="tabular-nums">{selectedCount}</span>
                     {t("sms.inbox.selection.label")}
-                    <button
-                      type="button"
-                      onClick={() => setRowSelection({})}
-                      aria-label={t("sms.inbox.selection.clear_aria")}
-                      className="bg-primary text-primary-foreground rounded-pill grid size-6 place-items-center"
-                    >
-                      <MaterialSymbol name="close" size={15} />
-                    </button>
-                  </span>
+                  </Tag>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => setRowSelection({})}
+                    aria-label={t("sms.inbox.selection.clear_aria")}
+                    className={ICON_PILL}
+                  >
+                    <MaterialSymbol name="close" size={18} />
+                  </Button>
                   <Button
                     variant="destructive"
                     onClick={() => setShowDeleteSelected(true)}
                     disabled={isSaving}
-                    className="rounded-pill h-9 gap-2 px-4 text-sm font-semibold pointer-coarse:h-11"
+                    className={TOOLBAR_PILL}
                     aria-label={t("sms.inbox.buttons.delete_selected_aria", {
                       count: selectedCount,
                     })}
@@ -371,11 +400,23 @@ export default function SmsInboxCard({
                     variant="ghost"
                     size="icon"
                     onClick={onRefresh}
-                    disabled={isSaving}
+                    disabled={isSaving || isFetching}
                     aria-label={t("sms.inbox.buttons.refresh_aria")}
-                    className="bg-surface-container text-on-surface-variant hover:bg-surface-container-high rounded-pill size-9 pointer-coarse:size-11"
+                    className={ICON_PILL}
                   >
-                    <MaterialSymbol name="refresh" size={18} />
+                    {/* A real in-flight state. Refresh is a silent re-fetch, so
+                        without this the button gave no feedback at all — the
+                        rows simply changed under the reader some seconds later,
+                        or did not. */}
+                    <MaterialSymbol
+                      name={isFetching ? "progress_activity" : "refresh"}
+                      size={18}
+                      className={
+                        isFetching
+                          ? "animate-spin motion-reduce:animate-none"
+                          : undefined
+                      }
+                    />
                   </Button>
                   {!isEmpty && (
                     <Button
@@ -383,7 +424,7 @@ export default function SmsInboxCard({
                       onClick={() => setShowDeleteAll(true)}
                       disabled={isSaving}
                       aria-label={t("sms.inbox.buttons.delete_all_aria")}
-                      className="rounded-pill h-9 gap-2 px-4 text-sm font-semibold pointer-coarse:h-11"
+                      className={TOOLBAR_PILL}
                     >
                       <MaterialSymbol name="delete_sweep" size={17} />
                       <span className="hidden @sm/card:inline">
@@ -403,7 +444,7 @@ export default function SmsInboxCard({
               error={error}
               hasStaleRows={hasStaleRows}
               onRetry={onRefresh}
-              isRetrying={isSaving}
+              isRetrying={isFetching}
             />
           )}
 

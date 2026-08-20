@@ -34,11 +34,12 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Badge } from "@/components/ui/badge";
+import { Tag } from "@/components/ui/tag";
 import { cn } from "@/lib/utils";
 
 import { staggerRows, staggerRowItem } from "@/lib/motion";
 import type { SmsMessage } from "@/types/sms";
+import { ICON_PILL, TABLE_SHAPE } from "./shapes";
 import type { SmsTab } from "./inbox-toolbar";
 
 const MotionTableRow = motion.create(TableRow);
@@ -66,45 +67,11 @@ const MotionTableBody = motion.create(TableBody);
 // indicator's mark for a `MaterialSymbol` while leaving the Radix root
 // untouched, so `glyph="check"` below satisfies the Icon-Boundary Rule (all of
 // `/cellular/` is Material) without giving up any of the behaviour above.
+//
+// GEOMETRY (`TABLE_SHAPE`, `ICON_PILL`) lives in `./shapes.ts`, this family's
+// shape module, so the loaded table and the skeleton in `states.tsx` read the
+// same numbers rather than two files agreeing by hand.
 // =============================================================================
-
-/**
- * Table geometry, exported so `states.tsx` can mirror it exactly instead of
- * restating numbers (DESIGN.md > The Skeleton-Mirror Rule). The incumbent
- * loading state hardcoded `h-8 w-9`, `size-4` and `h-4 w-28`, none of which
- * matched anything in the loaded view.
- */
-export const TABLE_SHAPE = {
-  /** The table's own container: one tonal step down from the hero card. */
-  SHELL: "overflow-hidden rounded-tile bg-surface-container",
-  /** Header strip, one further step up so it reads as a rule, not a row. */
-  HEAD: "bg-surface-container-high",
-  /** Header cell. 12px/500 label step. */
-  HEAD_CELL:
-    "h-10 px-4 text-xs font-medium text-on-surface-variant whitespace-nowrap",
-  /**
-   * The hairline. `--outline` is sanctioned for table rules (and input strokes)
-   * and nothing else — never as a card edge.
-   */
-  ROW: "border-outline border-b last:border-0",
-  /**
-   * Body cell padding — resolves the row to ROW_HEIGHT below. 16px, not the
-   * 12px a plain shadcn table would use, because this table sits inside its
-   * own `rounded-tile` (28px) shell rather than flush against a card's own
-   * padded edge — the first/last cell needs enough clearance to read as
-   * inset from that curve rather than clipped by it. Matches the 16px the
-   * cell-scanner table already uses for the same "dense real table" role.
-   */
-  CELL: "px-4 py-3 align-middle",
-  /** Mirrors the resolved height of one populated row, for the skeleton. */
-  ROW_HEIGHT: "h-[3.25rem]",
-  /** The 16px slot reserved for the unread glyph so senders stay aligned. */
-  FLAG: "size-4 flex-none",
-} as const;
-
-/** Pill icon button, on a fill rather than a stroke (the Fill-Over-Stroke Rule). */
-const ICON_PILL =
-  "size-9 rounded-pill bg-surface-container text-on-surface-variant hover:bg-surface-container-high pointer-coarse:size-11";
 
 interface UseSmsColumnsArgs {
   isRead: (msg: SmsMessage) => boolean;
@@ -180,7 +147,14 @@ export function useSmsColumns({
                       name="mark_email_unread"
                       filled
                       size={16}
-                      className="text-primary"
+                      // `text-primary` is the STRONG FILL used as ink; the ink
+                      // step for tinted text on a plain surface is
+                      // `primary-on-surface`. And because a selected row
+                      // promotes to `primary-container`, the neutral-surface ink
+                      // would land on another role's container — a cross-pair —
+                      // so the selected state swaps to that container's own ink.
+                      // The row carries `group` for exactly this.
+                      className="text-primary-on-surface group-data-[state=selected]:text-on-primary-container"
                     />
                   )}
                 </span>
@@ -202,12 +176,14 @@ export function useSmsColumns({
                   {row.original.sender}
                 </span>
                 {row.original.storage === "SM" && (
-                  // `secondary`, not `outline`: this is a category label, not a
-                  // status role — and `variant="outline"` is never a status
-                  // indicator anyway (the Filled-Chip Rule).
-                  <Badge variant="secondary" className="flex-none">
+                  // A `Tag`, not a `Badge`. Which memory a message physically
+                  // lives in is METADATA, not health: a filled Badge says
+                  // whether a thing is well, an outline Tag says what a thing
+                  // IS (The Two-Form Rule). `neutral` because a storage
+                  // location has no honest hue.
+                  <Tag variant="neutral" className="flex-none">
                     {t("sms.inbox.table.sim_badge")}
-                  </Badge>
+                  </Tag>
                 )}
               </div>
               <span className="text-on-surface-variant block pl-6 font-mono text-xs tabular-nums @sm/card:hidden">
@@ -345,7 +321,16 @@ export function InboxTable({
                   key={row.id}
                   className={cn(
                     TABLE_SHAPE.ROW,
-                    "hover:bg-surface-container-high data-[state=selected]:bg-primary-container data-[state=selected]:text-on-primary-container cursor-pointer",
+                    // `group` so the unread glyph can follow the row into its
+                    // selected container ink. `ROW_MOTION` because
+                    // `components/ui/table.tsx` is stock shadcn and ships a
+                    // bare `transition-colors` with NO duration — every hover
+                    // and selection here silently inherited Tailwind's
+                    // off-scale 150ms and could never retune with the system
+                    // (The One-Scale Rule). Fixed at the call site: the
+                    // primitive is shared with other routes.
+                    TABLE_SHAPE.ROW_MOTION,
+                    "group hover:bg-surface-container-high data-[state=selected]:bg-primary-container data-[state=selected]:text-on-primary-container cursor-pointer",
                   )}
                   data-state={row.getIsSelected() ? "selected" : undefined}
                   tabIndex={0}
@@ -430,7 +415,7 @@ export function InboxTable({
             </span>
             <div className="flex items-center gap-1.5">
               {/* `chevron_left` and `last_page` were deliberately REJECTED for
-                  the 97-glyph subset, so the two backward controls are the
+                  the Material subset, so the two backward controls are the
                   forward glyphs rotated. Every Material call site passes `size`
                   explicitly — the component sets fontSize inline, which outranks
                   any parent utility. */}

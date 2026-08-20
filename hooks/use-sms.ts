@@ -45,6 +45,17 @@ export interface UseSmsReturn {
   lastSuccessfulFetch: number | null;
   /** True while initial fetch is in progress */
   isLoading: boolean;
+  /**
+   * True while ANY inbox GET is in flight, silent ones included.
+   *
+   * `isLoading` cannot answer that question — it is deliberately scoped to the
+   * first, non-silent load, because it is what swaps the whole card for a
+   * skeleton. A refresh is silent by design (see `refresh`), so before this flag
+   * existed nothing on the refresh path was observable at all: the Retry button
+   * was wired to `isSaving`, which only send/delete ever sets, so its spinner
+   * could never fire.
+   */
+  isFetching: boolean;
   /** True while a send/delete operation is in progress */
   isSaving: boolean;
   /** Error message if any operation failed */
@@ -67,10 +78,30 @@ export function useSms(): UseSmsReturn {
     null,
   );
   const [isLoading, setIsLoading] = useState(true);
+  const [isFetching, setIsFetching] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const mountedRef = useRef(true);
+
+  /**
+   * The in-flight guard, and why this hook needs one.
+   *
+   * ONE inbox GET takes the shared AT lock SIX times and returned 13 KB on the
+   * live device. Concurrent GETs do not go faster — they queue behind each
+   * other on `/tmp/qmanager_at.lock`, contending with the status poller and the
+   * connection watchdog for the same lock, so a burst of Refresh clicks starves
+   * unrelated subsystems for the duration.
+   *
+   * `queuedRef` is the other half, and it is not optional. A re-fetch requested
+   * while another is in flight is usually a POST-MUTATION refresh, whose entire
+   * job is to replace rows the in-flight GET was issued *before* the delete or
+   * send happened. Dropping it outright would leave a deleted message on screen
+   * until the next manual refresh. So a coincident request is remembered and run
+   * once, silently, after the current one lands.
+   */
+  const inFlightRef = useRef(false);
+  const queuedRef = useRef(false);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -82,7 +113,16 @@ export function useSms(): UseSmsReturn {
   // ---------------------------------------------------------------------------
   // Fetch inbox messages + storage status
   // ---------------------------------------------------------------------------
-  const fetchInbox = useCallback(async (silent = false) => {
+  const fetchInbox = useCallback(async function runFetch(
+    silent = false,
+  ): Promise<void> {
+    if (inFlightRef.current) {
+      queuedRef.current = true;
+      return;
+    }
+    inFlightRef.current = true;
+
+    setIsFetching(true);
     if (!silent) setIsLoading(true);
     setError(null);
 
@@ -114,9 +154,18 @@ export function useSms(): UseSmsReturn {
         err instanceof Error ? err.message : "Failed to fetch SMS inbox"
       );
     } finally {
-      if (mountedRef.current && !silent) {
-        setIsLoading(false);
+      // Released unconditionally — an unmount must not strand the guard, or a
+      // remounted card would refuse to fetch for the life of the page.
+      inFlightRef.current = false;
+      if (mountedRef.current) {
+        setIsFetching(false);
+        if (!silent) setIsLoading(false);
       }
+    }
+
+    if (queuedRef.current && mountedRef.current) {
+      queuedRef.current = false;
+      await runFetch(true);
     }
   }, []);
 
@@ -263,6 +312,7 @@ export function useSms(): UseSmsReturn {
     data,
     lastSuccessfulFetch,
     isLoading,
+    isFetching,
     isSaving,
     error,
     sendSms,

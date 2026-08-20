@@ -20,13 +20,19 @@ const TONE_CLASS = {
   success: "bg-success",
   warning: "bg-warning",
   destructive: "bg-destructive",
-  // Uplink Cyan, added for the SMS Center's SIM-memory meter. It is the only
-  // identity hue that may fill a meter here, and it does so because the SM tile
-  // it sits in is an `uplink-container` — the fill has to be that container's
-  // own strong role or the meter reads as an unrelated colour dropped on a
-  // cyan tile. Identity-Never-Acts still holds: this is a readout, not a
-  // control.
-  uplink: "bg-uplink",
+  // NO IDENTITY HUE LIVES HERE, and the one that used to is why this note
+  // exists. `uplink: "bg-uplink"` was added for the SMS Center's SIM-memory
+  // meter, justified as "the fill has to be that container's own strong role,
+  // or the meter reads as an unrelated colour dropped on a cyan tile". The
+  // justification was sound and the premise was not: the tile should never have
+  // been cyan. A stored-message count is not a direction, and giving Uplink
+  // Cyan a second meaning made the whole direction axis untrue (DESIGN.md >
+  // Direction, and The Neutral-Default Rule). The tile is neutral now, this
+  // entry had exactly one consumer, and both are gone.
+  //
+  // The general shape is worth keeping in view: a tone added to a SHARED
+  // primitive to satisfy one call site inherits that call site's mistake, and
+  // outlives it. Fix the ground, not the fill.
 
   // The five-stop signal quality ramp (DESIGN.md > The signal quality ramp).
   // These are the `-bar` values, one lightness step bolder than the `--quality-N`
