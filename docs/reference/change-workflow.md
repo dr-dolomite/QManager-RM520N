@@ -38,6 +38,12 @@ Everything else still applies: the approval gate, `bun run i18n:check`, the type
 
 **It does NOT qualify — run the full flow — if the change touches** a CGI script, a poller field, a systemd unit, the installer, sudoers, `/usrdata/`, or the OTA path; or if the frontend symptom is *suspected to originate* in the backend. A frontend bug whose cause is an unknown backend value is a Tier 3 investigation wearing a Tier 2 costume, and the recon gate is exactly what tells those apart.
 
+## Design Redesigns Have Their Own Phase 1-2
+
+A request of the shape *"apply our finalized design language to surface X"* or *"redesign the Y page"* runs [redesign-proposal-playbook.md](redesign-proposal-playbook.md) for Phases 1 and 2 instead of the default triage. It adds one deliverable the standard flow has no slot for: **a published sample-design Artifact that the user approves before any component is written.** Everything from Phase 3 onward is unchanged, at whatever tier recon establishes.
+
+This does not cover a UI bug fix, a copy change, or adding one card to an existing page. Those are ordinary Tier 1-2 work.
+
 ## Agent Roster
 
 All agents are defined in `.claude/agents/`. Models are pinned per agent — the orchestrator does not choose them.
