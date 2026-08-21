@@ -77,6 +77,21 @@ _dpi_marker_error() {
 
 # --- Download + verify + install (runs in the background) --------------------
 # Failure model: any failure writes the error marker and exits non-zero.
+# _dpi_is_arm32 <path> — true if path is a 32-bit ARM ELF image. Reads the
+# first 20 header bytes directly (busybox dd+od; no file(1) on stock firmware):
+#   0x00: 7f 45 4c 46   ELF magic
+#   0x04: 01            ELFCLASS32
+#   0x12: 28 00         e_machine = EM_ARM (little-endian)
+_dpi_is_arm32() {
+    local h
+    h=$(dd if="$1" bs=1 count=20 2>/dev/null | od -An -tx1 2>/dev/null | tr -d ' \n')
+    [ "${#h}" -eq 40 ] || return 1
+    [ "${h:0:8}" = "7f454c46" ] || return 1
+    [ "${h:8:2}" = "01" ] || return 1
+    [ "${h:36:4}" = "2800" ] || return 1
+    return 0
+}
+
 # The foreground `install` verb returns as soon as the job is spawned.
 _dpi_download() {
     local tag api asset_url asset_name tarball manifest manifest_url
@@ -139,13 +154,27 @@ _dpi_download() {
         return 1
     fi
 
+    # Detection must not depend on optional tooling: stock firmware ships no
+    # `file`(1) — it's an Entware package, invisible to stripped CGI PATHs —
+    # so every candidate looked "unknown arch" and the install died with a
+    # misleading "Binary not found in archive". Try the canonical release
+    # layout first (every zapret tarball ships binaries/linux-arm/tpws), then
+    # fall back to scanning candidates via direct ELF-header inspection.
     bin_path=""
-    for cand in $(find "$extract_dir" -type f -name tpws 2>/dev/null); do
-        arch=$(file "$cand" 2>/dev/null | grep -o 'ARM, EABI[^,]*' | head -n1)
-        case "$arch" in
-            *ARM*) bin_path="$cand"; break ;;
-        esac
+    for cand in \
+        "$extract_dir"/binaries/linux-arm/tpws \
+        "$extract_dir"/*/binaries/linux-arm/tpws \
+        "$extract_dir"/zapret-*/binaries/linux-arm/tpws; do
+        [ -f "$cand" ] && { bin_path="$cand"; break; }
     done
+    if [ -z "$bin_path" ]; then
+        for cand in $(find "$extract_dir" -type f -name tpws 2>/dev/null); do
+            if _dpi_is_arm32 "$cand"; then
+                bin_path="$cand"
+                break
+            fi
+        done
+    fi
     [ -n "$bin_path" ] || {
         rm -rf "$tarball" "$manifest" "$extract_dir"
         _dpi_marker_error "Binary not found in archive" "No ARM 32-bit tpws in $asset_name"
