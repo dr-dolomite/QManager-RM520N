@@ -23,11 +23,19 @@ import {
   ActiveProfileHero,
   ActiveProfileHeroSkeleton,
 } from "@/components/cellular/custom-profiles/active-profile-hero";
-import ConnectionScenariosCard from "@/components/cellular/custom-profiles/connection-scenarios/connection-scenario-card";
+// The 24-hour strip is a PEER card now, not a band inside the hero — see the
+// header of `schedule-ribbon.tsx` for why it left. The page composes the two as
+// siblings, which is the whole of this file's involvement in the move.
+import {
+  ScheduleTodayCard,
+  ScheduleTodayCardSkeleton,
+} from "@/components/cellular/custom-profiles/schedule-ribbon";
 // `SCENARIO_CREATE_ACTION` is the literal the retired Connection Scenarios route
 // rewrites its old `?action=create` into. Imported rather than restated so the
 // page, the card and the redirect cannot drift on the string.
-import { SCENARIO_CREATE_ACTION } from "@/components/cellular/custom-profiles/connection-scenarios/connection-scenario";
+import ConnectionScenariosCard, {
+  SCENARIO_CREATE_ACTION,
+} from "@/components/cellular/custom-profiles/connection-scenarios/connection-scenario-card";
 import {
   useSimProfiles,
   SimProfilesProvider,
@@ -48,11 +56,10 @@ import {
 } from "@/types/connection-scenario";
 import { buildDayTimeline, formatMinute } from "@/lib/schedule-timeline";
 import {
-  PAGE_TITLE,
-  PAGE_DESCRIPTION,
   PILL_ACTION,
   PILL_ACTION_PLAIN,
   HERO_CARD,
+  HERO_DISC_TONE,
   MACHINE_VALUE,
 } from "@/components/cellular/custom-profiles/shapes";
 import {
@@ -71,6 +78,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { CellularPageHeader } from "@/components/cellular/page-header";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { MaterialSymbol } from "@/components/ui/material-symbol";
 import { cn } from "@/lib/utils";
@@ -901,29 +909,30 @@ const CustomProfilePageBody = () => {
       {/* Cascade children must be block boxes — a bare span silently drops the
           10px rise. */}
       <motion.div variants={staggerItem}>
-        <div className="flex flex-wrap items-end gap-4">
-          <div className="flex min-w-0 max-w-[41rem] flex-col gap-1.5">
-            <h1 className={PAGE_TITLE}>{t("custom_profiles.page.title")}</h1>
-            <p className={cn(PAGE_DESCRIPTION, "text-pretty")}>
-              {t("custom_profiles.page.description")}
-            </p>
-          </div>
-          {/* Toolbars wrap rather than overflow — field ergonomics. */}
-          <div className="ms-auto flex flex-wrap gap-2.5">
-            <Button
-              variant="tonal"
-              className={PILL_ACTION}
-              onClick={() => setScenarioCreateSignal((n) => n + 1)}
-            >
-              <MaterialSymbol name="auto_awesome" size={18} aria-hidden />
-              {t("custom_profiles.page.new_scenario")}
-            </Button>
-            <Button className={PILL_ACTION} onClick={handleNewProfile}>
-              <MaterialSymbol name="add" size={18} aria-hidden />
-              {t("custom_profiles.page.new_profile")}
-            </Button>
-          </div>
-        </div>
+        {/* The shared `/cellular/` header rather than a local `<h1>`: it owns
+            the Display step's `tracking-[-0.02em]`, which the hand-written
+            heading this replaced carried only because `PAGE_TITLE` happened to
+            include it. Toolbars wrap rather than overflow — field ergonomics. */}
+        <CellularPageHeader
+          title={t("custom_profiles.page.title")}
+          description={t("custom_profiles.page.description")}
+          actions={
+            <>
+              <Button
+                variant="tonal"
+                className={PILL_ACTION}
+                onClick={() => setScenarioCreateSignal((n) => n + 1)}
+              >
+                <MaterialSymbol name="auto_awesome" size={18} aria-hidden />
+                {t("custom_profiles.page.new_scenario")}
+              </Button>
+              <Button className={PILL_ACTION} onClick={handleNewProfile}>
+                <MaterialSymbol name="add" size={18} aria-hidden />
+                {t("custom_profiles.page.new_profile")}
+              </Button>
+            </>
+          }
+        />
       </motion.div>
 
       {/* --- What is in force right now ------------------------------------ */}
@@ -942,15 +951,12 @@ const CustomProfilePageBody = () => {
               <motion.div key="hero-active" {...HERO_SWAP}>
                 <ActiveProfileHero
                   profile={activeProfile}
-                  scenarios={scenarios}
                   activeScenario={activeScenario}
                   applyState={applyState}
                   currentIccid={currentIccid}
-                  now={now}
                   busy={heroBusy}
                   onEdit={handleEditActive}
                   onDeactivate={handleDeactivateRequest}
-                  onEditSchedule={handleEditSchedule}
                 />
               </motion.div>
             ) : heroDetailFailed ? (
@@ -962,12 +968,33 @@ const CustomProfilePageBody = () => {
               </motion.div>
             ) : (
               <motion.div key="hero-empty" {...HERO_SWAP}>
-                <NoActiveProfile />
+                <NoActiveProfile onCreate={handleNewProfile} />
               </motion.div>
             )}
           </AnimatePresence>
         )}
       </motion.div>
+
+      {/* --- The shape of today --------------------------------------------- */}
+      {/* A PEER card under the anchor, not a second hero. It renders only when
+          a profile is in force: an unscheduled profile still has a true strip
+          to draw (one scenario, all day), but a page with nothing active has no
+          schedule to be the shape of, and the hero's empty state has already
+          said so in words. */}
+      {showHeroSkeleton ? (
+        <motion.div variants={staggerItem}>
+          <ScheduleTodayCardSkeleton />
+        </motion.div>
+      ) : activeProfile ? (
+        <motion.div variants={staggerItem}>
+          <ScheduleTodayCard
+            profile={activeProfile}
+            scenarios={scenarios}
+            now={now}
+            onEditSchedule={handleEditSchedule}
+          />
+        </motion.div>
+      ) : null}
 
       {/* --- Saved profiles beside connection scenarios --------------------- */}
       <motion.div variants={staggerItem}>
@@ -1093,19 +1120,36 @@ const CustomProfilePageBody = () => {
  * about the device, not an absence of data. Neutral tone: no profile active is
  * a resting state, not a fault, so it takes no functional role.
  */
-function NoActiveProfile() {
+function NoActiveProfile({ onCreate }: { onCreate: () => void }) {
   const { t } = useTranslation("cellular");
   return (
-    <div className={cn(HERO_CARD, "items-center gap-3 py-9 text-center")}>
-      <span className="bg-surface-container text-on-surface-variant grid size-14 place-items-center rounded-pill">
-        <MaterialSymbol name="sim_card_alert" size={29} aria-hidden />
+    <div className={cn(HERO_CARD, "items-center gap-3.5 py-12 text-center")}>
+      {/* The same disc the loaded hero wears, on the `empty` step of its own
+          tone map — imported rather than restated, so the two states of one
+          slot can never drift onto different greys. */}
+      <span
+        className={cn(
+          "grid size-14 flex-none place-items-center rounded-pill",
+          HERO_DISC_TONE.empty,
+        )}
+      >
+        <MaterialSymbol name="sim_card_alert" size={29} filled aria-hidden />
       </span>
-      <span className="text-lg font-semibold">
+      <span className="text-xl font-semibold tracking-[-0.01em]">
         {t("custom_profiles.hero_empty.title")}
       </span>
-      <span className="text-on-surface-variant max-w-[32rem] text-sm leading-relaxed text-pretty">
+      <span className="text-on-surface-variant max-w-[34rem] text-sm leading-relaxed text-pretty">
         {t("custom_profiles.hero_empty.description")}
       </span>
+      {/* A default-variant primary action: this is the one thing to DO from an
+          empty anchor, and an empty state whose only affordance is a sentence
+          leaves the user hunting the toolbar for it. Activating an existing
+          profile happens in the list below, which is already on screen — this
+          button is for the case where there is nothing there to activate. */}
+      <Button className={PILL_ACTION} onClick={onCreate}>
+        <MaterialSymbol name="add" size={18} aria-hidden />
+        {t("custom_profiles.page.new_profile")}
+      </Button>
     </div>
   );
 }

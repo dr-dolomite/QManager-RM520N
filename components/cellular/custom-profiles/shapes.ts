@@ -1,3 +1,4 @@
+import { TILE_SHAPE } from "@/components/cellular/tile-shape";
 import type { BadgeVariant } from "@/components/ui/badge";
 import type { MaterialSymbolName } from "@/components/ui/material-symbol";
 import type { ApplyStepStatus } from "@/types/sim-profile";
@@ -6,45 +7,54 @@ import type { ApplyStepStatus } from "@/types/sim-profile";
 // Custom Profiles + Connection Scenarios — shared geometry and tone contract
 // =============================================================================
 // This file is the single source of truth for the surface's shapes and tones.
-// It exists because the pre-rebuild code carried the same defect in four places
-// at once — `ProfileRow`, `SuggestionRow`, `ScenarioItem` and `AddScenarioItem`
-// each hand-rolled a tonal container out of an opacity wash, and each skeleton
-// restated its partner's geometry as literal numbers instead of mirroring it.
-// Both classes of drift are invisible in review and obvious on screen.
-//
 // Every consumer IMPORTS from here. A skeleton that restates a number, or a row
 // that hand-writes `bg-success/5`, has left the contract.
+//
+// -----------------------------------------------------------------------------
+// WHAT THE 2026-08-21 RE-AUTHORING CHANGED, AND WHY
+// -----------------------------------------------------------------------------
+// The previous generation of this file was written against the *tonal* language
+// that preceded the finalized one. It was correct for its own system and is
+// wrong for this one in a single, consistent way: it spent COLOUR ON THE BOX.
+// A mismatched profile row painted its whole 76px fill `--tone-warning-1`; the
+// hero's scenario tile and the in-force scenario tile painted 104px and 144px
+// of `--primary-container`; band numbers rendered as filled neutral pills.
+//
+// The finalized canon assigns each of the three colour layers a size:
+//
+//   INK      (`--X-on-surface`)                  — values and strokes on neutral
+//                                                  ground. THE DEFAULT.
+//   FILL     (`--X` + `--X-foreground`)          — compact emphasis only: glyph
+//                                                  discs, bar fills, buttons.
+//   CONTAINER(`--X-container` + `--on-X-…`)      — status chips, banners and
+//                                                  condition screens. NOTHING
+//                                                  ELSE.
+//
+// A tile is not a chip and a row is not a banner, so neither may take the
+// container layer. The rule this file now enforces everywhere is the one the
+// SMS family states in one line: THE BODY IS NEUTRAL, THE DISC CARRIES THE
+// COLOUR. A row's fill is `surface-container` whatever its status; the status is
+// carried by its glyph disc and by a filled `Badge` that NAMES the state in
+// words. That is also what makes the state survive deuteranopia, where
+// `success-container` and `warning-container` are the same surface.
+//
+// Identity — an APN string, a band number, a scenario name, a PDP type — is not
+// status, so it never takes a Badge. It takes an outline `Tag`
+// (`components/ui/tag.tsx`), whose `nr` / `lte` / `neutral` roles make `n78`
+// read as NR on this page exactly as it does on the dashboard and the scanner.
+// The `CONFIG_PILL*` family that used to live here is gone for that reason: it
+// was a filled chip doing a tag's job, and the compiler cannot catch that as
+// long as a class string is available to reach for.
 //
 // -----------------------------------------------------------------------------
 // THE TONE RULE (why washes are not a matter of taste here)
 // -----------------------------------------------------------------------------
 // `bg-{role}/5` is alpha-over-neutral. It is not a token, it does not survive a
 // theme flip predictably, and two of them side by side land at different
-// perceived lightness depending on what happens to be underneath. The canon
-// gives three legitimate answers, and which one applies is decided by SHAPE, not
-// by preference:
-//
-//   1. STACKED / FILLED REGION (a row, a tile, a ledger step) -> `--tone-{role}-1`.
-//      Three families ship steps: success, warning, destructive. Step 1 is the
-//      quiet fill that carries `text-on-surface` ink at full contrast.
-//   2. CHIP or NOTICE (a Badge, a Banner, an inline callout) -> the CONTAINER
-//      PAIR, `bg-{role}-container` + `text-on-{role}-container`, never crossed.
-//   3. TINTED TEXT OR GLYPH ON A PLAIN CARD -> `text-{role}-on-surface`.
-//      NOT `text-{role}`. The bare role token is a FILL, tuned to sit under
-//      `-foreground` ink; used as ink on a card it is the single most common
-//      contrast failure in this system.
-//
-// `info` has NO tone steps by design — the Info-Is-Brand Rule routes every
-// in-progress surface to `primary-container`. If you reach for `--tone-info-1`
-// it does not exist, and that is the canon telling you to use the brand.
-//
-// -----------------------------------------------------------------------------
-// THE NO-HAIRLINE-ON-FILL RULE
-// -----------------------------------------------------------------------------
-// Once a row is a real tonal container it does NOT also carry a `border`. The
-// incumbent code paired `border-success/40` with `bg-success/5` — a hairline
-// drawn to compensate for a fill too weak to read on its own. Fix the fill and
-// the hairline becomes visual noise. Separation comes from tone, not stroke.
+// perceived lightness depending on what happens to be underneath. Where this
+// surface needs a stroke rather than a fill — the suggestion row, the add-tile —
+// it draws an INSET RING from a real token, so the element costs no extra layout
+// box and an active/inactive pair stays pixel-identical in size.
 // =============================================================================
 
 // -----------------------------------------------------------------------------
@@ -52,12 +62,9 @@ import type { ApplyStepStatus } from "@/types/sim-profile";
 // -----------------------------------------------------------------------------
 
 /**
- * A card on this surface. Both routes turned out to want the peer role rather
- * than a hero anchor — the profile list and the scenario grid each sit as one
- * card among siblings, not as the single dominant surface of their page. An
- * earlier draft also exported a `PROFILE_CARD` hero variant and a
- * `PROFILE_TITLE` step; neither found a consumer, so both are gone rather than
- * left as a menu of options nobody ordered from.
+ * A card on this surface. The profile list, the scenario grid and the Today
+ * strip each sit as one card among siblings, not as the single dominant surface
+ * of the page — only the hero is the anchor.
  *
  * `shadow-whisper` as a bare utility does NOT resolve — it must go through the
  * custom property, as written here.
@@ -84,73 +91,132 @@ export const PILL_ACTION =
 export const PILL_ACTION_PLAIN =
   "h-[2.625rem] rounded-pill px-5 text-sm font-semibold";
 
-/** The Display triple every migrated page `h1` carries. */
+/**
+ * The compact pill an inline action takes: the hero's Edit / Deactivate, a
+ * scenario tile's Apply. 36px, so a cluster of them beside a 22px status chip
+ * does not out-weigh the chip it sits next to.
+ */
+export const PILL_ACTION_SM =
+  "h-9 gap-1.5 rounded-pill px-3.5 text-[0.8125rem] font-semibold";
+
+/**
+ * A square icon-only button — the row's overflow menu. Same 36px height as
+ * `PILL_ACTION_SM` so a row's trailing cluster sits on one optical baseline.
+ */
+export const ICON_ACTION = "size-9 rounded-pill p-0";
+
+/**
+ * The Display triple every migrated page `h1` carries.
+ *
+ * Prefer `CellularPageHeader` (`components/cellular/page-header.tsx`), which
+ * owns this string plus the description step and the actions row. This export
+ * survives only for the dialog titles that need the tracking without the header
+ * component's layout.
+ */
 export const PAGE_TITLE = "text-3xl font-bold tracking-[-0.02em]";
 
 /** The page description directly under it. */
 export const PAGE_DESCRIPTION = "text-on-surface-variant";
+
+/** An eyebrow above a value, anywhere on this surface. */
+export const EYEBROW =
+  "text-xs font-medium tracking-[0.06em] text-on-surface-variant";
+
+/** The quiet caption under a tile's value — a schedule window, a hint. */
+export const TILE_CAPTION = "text-xs text-on-surface-variant";
+
+/**
+ * Machine-voice values — band lists, EARFCN, PCI, APN strings, ICCIDs, mode
+ * tokens. The Machine-Voice Rule: a value the device emits is set in mono, a
+ * label a human wrote is not.
+ */
+export const MACHINE_VALUE = "font-mono tabular-nums";
+
+/** Glyph size inside a `Badge` or a `Tag`. Matches their `[&>svg]:size-3` slot. */
+export const BADGE_GLYPH_SIZE = 12;
 
 // -----------------------------------------------------------------------------
 // Profile list rows
 // -----------------------------------------------------------------------------
 
 /**
- * One profile row in the list.
+ * One profile row.
  *
- * NOTE ON AN EARLIER DRAFT: this constant originally described a single-line
- * tile (`items-center`, a `min-h-[4.5rem]` floor, a leading glyph disc, a
- * trailing action cluster, and a `HEIGHT` mirror for the skeleton). That was
- * modelled on the Radio Information summary tile, NOT on the row this surface
- * actually renders — which is a multi-section stacked card: identity line,
- * scenario line, wrapped config pills, an optional mismatch notice, and a
- * footer. Every one of those members went unused, and a `HEIGHT` that mirrors
- * nothing makes the skeleton handoff jump *worse*, not better. The contract is
- * now written from the shipped component instead of from an assumed one.
+ * NOTE ON THE TWO EARLIER DRAFTS. The first modelled this on the Radio
+ * Information summary TILE — single-line, `items-center`, a `HEIGHT` mirror —
+ * and every member went unused because the shipped row was a stacked card. The
+ * second wrote the stacked card down faithfully: identity line, scenario line,
+ * a wrapped strip of five config pills, an optional notice, a footer. Recording
+ * it accurately was right; keeping it was not. Five filled pills per row over
+ * four rows is twenty filled boxes in a column, which is what forced the row's
+ * own fill to go coloured to stay distinguishable from its contents — the
+ * defect chased its own cause.
+ *
+ * The row is now single-line again, but on the right anatomy this time: a 40px
+ * glyph disc, a name over a wrapped strip of OUTLINE tags, the profile's
+ * schedule as an 8px condensed ribbon, a status chip, an overflow button. The
+ * tags are transparent, so the row's neutral fill is the only fill in it and
+ * never has to compete.
+ *
+ * RADIUS. `rounded-pill` at wide widths — a row that acts is a pill (the Shape
+ * Scale). It steps down to `rounded-tile` in a narrow container, where the tags
+ * wrap to a second line and a 38px end-cap on a 110px-tall box reads as a
+ * lozenge rather than a row.
+ *
+ * HEIGHT IS A FLOOR, DELIBERATELY. `TILE_SHAPE` pins because a tile's content
+ * is bounded; a row's is not — the tag strip wraps. The skeleton therefore
+ * mirrors by rendering `ROOT` itself with placeholder children (see
+ * `custom-profile-view.tsx`), not by restating a number, which is the only
+ * honest mirror for a variable-height box.
  */
 export const PROFILE_ROW_SHAPE = {
   /** The list wrapper. */
-  LIST: "flex flex-col gap-2.5",
-  /**
-   * One row. Stacked, not single-line. No border — the tonal fill from
-   * `profileRowTone` carries the separation (No-Hairline-On-Fill). Tile radius:
-   * an inner block inside a card, never a card in its own right.
-   */
-  ROOT: "flex flex-col gap-3 rounded-tile px-5 py-3.5",
+  LIST: "flex flex-col gap-3",
+  ROOT: "group/row flex min-h-[4.75rem] items-center gap-3.5 rounded-tile px-4 py-3 @lg/card:rounded-pill @lg/card:px-[1.125rem]",
+  /** The leading glyph disc. 40px — a row disc, not the hero's 52px. */
+  DISC: "grid size-10 flex-none place-items-center rounded-pill",
+  /** Name over tags. `min-w-0` so the name truncates instead of pushing. */
+  COL: "flex min-w-0 flex-1 flex-col gap-1.5",
+  NAME: "truncate text-[0.9375rem] font-semibold tracking-[-0.01em]",
+  META: "flex flex-wrap items-center gap-1.5",
+  /** The trailing cluster: chip + overflow. Never wraps under the name. */
+  ACTIONS: "flex flex-none items-center gap-2",
 } as const;
 
 /**
  * Row fill by profile status.
  *
- * WHY `active` IS NEUTRAL-PLUS-RING RATHER THAN A GREEN FILL. The first tonal
- * rebuild gave the active row `bg-tone-success-1`, which was the right call
- * against the opacity wash it replaced but the wrong one against what the row
- * actually contains: five or six `surface-container-high` config pills. Step 1
- * of a tone family is tuned to carry `on-surface` INK at full contrast, not to
- * host another neutral container inside itself — the pills landed on green and
- * lost the tonal separation that is the only thing distinguishing them from the
- * row. Emphasis moves to a channel the row's contents do not compete for: the
- * fill stays neutral and a 2px inset primary ring carries "this is the one".
+ * ALL THREE ARE NEUTRAL, AND THAT IS THE POINT. The previous generation gave
+ * `mismatch` a `--tone-warning-1` fill, which is a legitimate construction in
+ * the ramp's own idiom — the cell scanner still uses it correctly for a
+ * condition band. It is wrong HERE for two reasons. First, a mismatch is a
+ * property of the profile's binding, not of the row's existence, and painting
+ * the whole row makes the SIM the loudest object on a page whose subject is the
+ * profile. Second, warning is then spent twice in the same row: once on the fill
+ * and once on the chip that says "SIM changed" in words — and only the chip
+ * survives a colourblind read, so the fill is decoration paid for in contrast.
  *
- * This is NOT a No-Hairline-On-Fill violation. That rule bans a stroke drawn to
- * compensate for a fill too weak to read on its own. Here the fill is neutral by
- * intent, and the ring is the emphasis itself rather than a prop holding up a
- * failing fill. It is drawn as an INSET shadow, not a `border`, so it costs no
- * layout box and the active and inactive rows stay pixel-identical in size — a
- * real border would shift every child by 2px the moment a row activated.
+ * Emphasis instead moves to channels the row's contents do not compete for: the
+ * glyph disc (see `PROFILE_ROW_DISC_TONE`) and the status chip. `active` adds a
+ * 2px INSET primary ring, which costs no layout box, so an active and an
+ * inactive row stay pixel-identical in size — a real border would shift every
+ * child by 2px the moment a row activated.
  *
- * `mismatch` keeps its tonal fill: a mismatch is a genuine functional state the
- * whole row is reporting, not a selection.
+ * This is not a No-Hairline-On-Fill violation. That rule bans a stroke drawn to
+ * compensate for a fill too weak to read. Here the fill is neutral by intent and
+ * the ring IS the emphasis.
  */
 export function profileRowTone(
   status: "active" | "mismatch" | "inactive",
 ): string {
+  const base =
+    "bg-surface-container text-on-surface transition-colors duration-[var(--duration-standard)] ease-[var(--ease-standard)] hover:bg-surface-container-high";
   switch (status) {
     case "active":
-      return `bg-surface-container text-on-surface ${PROFILE_ROW_ACTIVE_RING}`;
+      return `${base} ${PROFILE_ROW_ACTIVE_RING}`;
     case "mismatch":
-      return "bg-tone-warning-1 text-on-surface";
     case "inactive":
-      return "bg-surface-container text-on-surface";
+      return base;
   }
 }
 
@@ -160,60 +226,377 @@ export function profileRowTone(
  * grid marks its in-force tile the same way, and the two must never disagree on
  * the ring's weight.
  */
-export const PROFILE_ROW_ACTIVE_RING =
-  "shadow-[inset_0_0_0_2px_var(--primary)]";
+export const PROFILE_ROW_ACTIVE_RING = "shadow-[inset_0_0_0_2px_var(--primary)]";
 
 /**
- * The live dot beside an active profile's name: a solid core with a ring that
- * expands and fades behind it.
+ * The row's glyph disc, by status. This is the surface's one coloured object
+ * per row, and it takes the FILL layer (`--X` + `--X-foreground`) rather than a
+ * container pair — the Glyph-Disc Rule: a state icon sits in a filled circle on
+ * the role's strong fill, never its pale container.
  *
- * THE ONE-LOOP RULE BUDGET FOR THIS SURFACE IS SPENT HERE. The approved mock
- * shows a second pulsing dot in a breadcrumb status chip; that chip is app-shell
- * chrome this page does not render, and even if it did, two loops on one surface
- * is the violation the rule names. If a future change wants an ambient loop
- * somewhere else on this page, this one has to go first.
+ * `mismatch` is `warning` here and NOT on the row body, which is the whole
+ * substitution this re-authoring makes.
+ */
+export const PROFILE_ROW_DISC_TONE: Record<
+  "active" | "applying" | "mismatch" | "inactive",
+  string
+> = {
+  active: "bg-primary text-primary-foreground",
+  applying: "bg-primary text-primary-foreground",
+  mismatch: "bg-warning text-warning-foreground",
+  inactive: "bg-surface-container-high text-on-surface-variant",
+};
+
+/**
+ * A suggested-profile row. A suggestion is an OFFER, not a state: nothing is
+ * applied, so it takes no fill at all. The dashed inset ring says "empty slot"
+ * — semantic, not a prop under a weak fill — and `--outline` is the canon
+ * stroke token, replacing the `border-primary/40` opacity wash that could not
+ * survive a theme flip.
  *
- * The ring animates `transform` + `opacity` only, on the `ambient` clock (2s,
- * deliberately NOT doubled with the rest of the scale — a loop is not a
- * transition, and a 4s breath reads as a stalled UI rather than a calm one).
+ * A `border` rather than an inset shadow, because CSS cannot dash a shadow. It
+ * is the one bordered box on this surface, and it is bordered precisely because
+ * it has no fill for a border to be redundant against.
+ */
+export const SUGGESTION_ROW =
+  "border-outline text-on-surface border border-dashed bg-transparent";
+
+/** Its disc: an outline ring, matching the row's own no-fill construction. */
+export const SUGGESTION_DISC =
+  "border-outline text-on-surface-variant border border-dashed bg-transparent";
+
+/**
+ * The live dot beside the armed schedule readout.
+ *
+ * THE ONE-LOOP RULE BUDGET FOR THIS SURFACE IS SPENT HERE. It moved out of the
+ * profile row and into the Today strip in the re-authoring: a dot per row is
+ * one loop per row, and the strip is where "armed" is actually asserted. If a
+ * future change wants an ambient loop somewhere else on this page, this one has
+ * to go first.
+ *
+ * `currentColor`, so the caller's ink decides the hue and the dot can never end
+ * up green beside destructive text. The ring animates `transform` + `opacity`
+ * only, on the `ambient` clock (2s, deliberately NOT doubled with the rest of
+ * the scale — a loop is not a transition, and a 4s breath reads as a stalled UI
+ * rather than a calm one).
  */
 export const LIVE_DOT = {
   ROOT: "relative inline-flex size-[0.4375rem] flex-none",
-  CORE: "relative size-[0.4375rem] rounded-pill bg-success",
-  RING: "absolute inset-0 rounded-pill bg-success motion-safe:animate-live-ping",
+  CORE: "relative size-[0.4375rem] rounded-pill bg-current",
+  RING: "absolute inset-0 rounded-pill bg-current motion-safe:animate-live-ping",
+} as const;
+
+// -----------------------------------------------------------------------------
+// Status chips
+// -----------------------------------------------------------------------------
+
+/**
+ * Profile / scenario status -> Badge variant + glyph.
+ *
+ * THIS MAP IS THE FIX FOR THE SURFACE'S ONE REAL ACCESSIBILITY BUG. The
+ * pre-rebuild `active-config-card.tsx` rendered its chips with a hand-drawn
+ * `<div className="rounded-full bg-success">` dot instead of a glyph.
+ * `success-container` and `warning-container` measure 1.03:1 apart — the same
+ * surface to the eye, and IDENTICAL under deuteranopia. A colour-only dot is
+ * precisely the signal the Every-Chip-Has-A-Glyph Rule exists to forbid, so
+ * "Active" and "Not Active" were indistinguishable to a colourblind user.
+ *
+ * Keying the tone onto `BadgeVariant` rather than a class string means a new
+ * state without a matching role fails the build instead of shipping untinted.
+ */
+export const PROFILE_STATUS_BADGE: Record<
+  "active" | "applying" | "inactive" | "mismatch" | "partial" | "failed",
+  { variant: BadgeVariant; glyph: MaterialSymbolName; spin?: boolean }
+> = {
+  active: { variant: "success", glyph: "check_circle" },
+  applying: { variant: "info", glyph: "progress_activity", spin: true },
+  inactive: { variant: "muted", glyph: "do_not_disturb_on" },
+  // The three degraded states are deliberately separated by GLYPH, not by tone.
+  // `mismatch` and `partial` are both `warning` — they are the same severity —
+  // and `success-container`/`warning-container` measure 1.03:1 apart, so the
+  // glyph is doing all of the work: `swap_horiz` (the modem is running a
+  // DIFFERENT profile than the one saved) versus `warning` (the profile IS the
+  // saved one, but a step of the apply did not land). `failed` is the only
+  // `destructive` member because it is the only total failure.
+  mismatch: { variant: "warning", glyph: "swap_horiz" },
+  partial: { variant: "warning", glyph: "warning" },
+  failed: { variant: "destructive", glyph: "cancel" },
+};
+
+// =============================================================================
+// The "in force now" hero
+// =============================================================================
+// The page's anchor card, and the ONE place `rounded-hero` is earned on this
+// surface: it answers the question the user arrived with (what is running on my
+// modem right now) before the list of things they could run instead.
+//
+// This is the exception the Consistent-Layout Rule allows, not a breach of it —
+// "a genuine glance surface may earn a hero card". The Today strip directly
+// below it is a PEER card (`PROFILE_CARD_PEER`, 36px) for exactly this reason,
+// even though it reads as a second banner: a surface gets one anchor, and the
+// hero has it.
+
+/** The hero shell. `rounded-hero` (40px) — one per surface. */
+export const HERO_CARD =
+  "@container/hero flex flex-col gap-5 rounded-hero border-0 bg-surface p-6 shadow-[var(--shadow-whisper)]";
+
+/** The hero's identity line: disc, name column, trailing chip + actions. */
+export const HERO_TOP = "flex flex-wrap items-start gap-[1.125rem]";
+
+/**
+ * The hero's leading glyph disc — geometry only. 52px, matching the tile disc
+ * one step below it so the hero and its own tiles read as one family.
+ */
+export const HERO_DISC =
+  "grid size-[3.25rem] flex-none place-items-center rounded-pill";
+
+/**
+ * Its fill, by what the hero is currently reporting. FILL layer, per the
+ * Glyph-Disc Rule — the hero shell is plain `surface`, so the disc takes the
+ * strong fill and its own `-foreground` ink directly.
+ *
+ * `applying` is BRAND, not a fourth hue: the Info-Is-Brand Rule. `partial` and
+ * `mismatch` are both genuinely degraded-but-running, so both are `warning` and
+ * the glyph is what separates them (see `HERO_NOTICE_TONE`).
+ */
+export const HERO_DISC_TONE: Record<
+  "live" | "applying" | "partial" | "mismatch" | "empty",
+  string
+> = {
+  live: "bg-primary text-primary-foreground",
+  applying: "bg-primary text-primary-foreground",
+  partial: "bg-warning text-warning-foreground",
+  mismatch: "bg-warning text-warning-foreground",
+  empty: "bg-surface-container-high text-on-surface-variant",
+};
+
+/**
+ * The eyebrow above the active profile's name.
+ *
+ * The generic craft floor treats an eyebrow as a reflex to delete. It is kept
+ * here because this surface's own canon ships one — DESIGN.md's tile anatomy is
+ * literally `eyebrow -> value -> caption` — and the label is doing real work:
+ * "Home Fixed Wireless" alone does not say whether you are looking at the active
+ * profile or a saved one.
+ */
+export const HERO_EYEBROW = EYEBROW;
+
+/** The active profile's name. */
+export const HERO_NAME = "truncate text-[1.375rem] font-semibold tracking-[-0.02em]";
+
+/**
+ * The three tiles under the hero's identity line.
+ *
+ * DISC and the 104px measure come from `components/cellular/tile-shape.ts` —
+ * the same block the Radio, Antenna and SMS strips render — so the hero's tiles
+ * and every other `/cellular/` tile share one geometry. GRID is local because it
+ * resolves against `@container/hero` rather than `@container/main`.
+ *
+ * THE ONE DELIBERATE DIVERGENCE: 104px is a FLOOR here, where `TILE_SHAPE.ROOT`
+ * makes it a PIN. Every tile on this strip carries a wrapping tag row under its
+ * value — the APN's PDP type, CID and IMEI-override tags; the scenario's band
+ * count; the radio's band tags — where the Radio/Antenna/SMS strips carry a
+ * single bounded reading. A pin on genuinely unbounded content is a lie that
+ * resolves as a clip, so this strip floors and top-aligns instead.
+ *
+ * It floors on ALL THREE, never a mix. A `h-` tile in a CSS grid opts out of
+ * `align-self: stretch`, so one floored sibling beside two pinned ones grows
+ * alone and leaves the row ragged; three floored siblings all stretch to the
+ * tallest and the row stays square. The skeleton renders this same ROOT.
+ */
+export const HERO_TILE_SHAPE = {
+  GRID: "grid grid-cols-1 gap-3.5 @2xl/hero:grid-cols-3",
+  /**
+   * 104px FLOOR, top-aligned — see the divergence note above. The measure is
+   * restated rather than interpolated from `TILE_SHAPE.HEIGHT`: Tailwind's JIT
+   * scans source text for class names, so a template-assembled arbitrary value
+   * never reaches the stylesheet and the tile ships with no minimum at all.
+   */
+  ROOT: "flex min-h-[6.5rem] items-start gap-3.5 rounded-tile px-5 py-4",
+  DISC: TILE_SHAPE.DISC,
+  /** The tile's text column. */
+  COL: "flex min-w-0 flex-1 flex-col gap-1",
+  VALUE: "truncate text-[0.9375rem] font-semibold tracking-[-0.01em]",
+  /** The wrapping tag row every tile ends with. */
+  TAGS: "flex min-w-0 flex-wrap items-center gap-1.5",
 } as const;
 
 /**
- * A suggested-profile row. Suggestions are an offer, not a state, so they take
- * the brand container rather than a functional tone — and keep the dashed
- * stroke, which here is semantic (nothing is applied yet) rather than a
- * compensation for a weak fill.
+ * THE TILE BODY IS NEUTRAL. THE DISC CARRIES THE COLOUR.
+ *
+ * There is deliberately no `HERO_TILE_SCENARIO` beside this. The previous
+ * generation exported one — `bg-primary-container text-on-primary-container` —
+ * and it painted 104px of brand container to say "this profile owns a
+ * scenario", which is the Container layer used at four times its sanctioned
+ * size. The scenario tile now looks exactly like the other two and marks itself
+ * with a `bg-primary` disc, which is both the smaller claim and the more legible
+ * one. Not exporting a tinted body is what stops a future caller tinting one
+ * back.
  */
-export const SUGGESTION_ROW =
-  "border-primary/40 bg-surface-container text-on-surface border border-dashed";
+export const HERO_TILE_BODY = "bg-surface-container text-on-surface";
 
-// -----------------------------------------------------------------------------
-// Identity / config pills
-// -----------------------------------------------------------------------------
+/** The scenario tile's disc, when a scenario is bound. FILL layer. */
+export const HERO_TILE_DISC_BRAND = "bg-primary text-primary-foreground";
 
-/**
- * The small key/value pills a profile row carries (APN, CID, PDP, TTL). These
- * are IDENTITY labels, not status, so they never take a functional role — a
- * `success` pill here would claim a health the value does not report.
- * Pill radius: anything that labels is a pill.
- */
-export const CONFIG_PILL =
-  "inline-flex items-center gap-1.5 rounded-pill px-2.5 py-1 text-xs font-medium";
-export const CONFIG_PILL_NEUTRAL =
+/** Every other tile disc: reporting, not owning. */
+export const HERO_TILE_DISC_NEUTRAL =
   "bg-surface-container-high text-on-surface-variant";
-export const CONFIG_PILL_BRAND = "bg-primary-container text-on-primary-container";
 
 /**
- * Machine-voice values inside a pill or a config row — band lists, EARFCN, PCI,
- * APN strings, mode tokens. The Machine-Voice Rule: a value the device emits is
- * set in mono, a label a human wrote is not.
+ * An inline notice inside the hero (mismatch / applying / partial).
+ *
+ * `rounded-field` (20px), so it never out-rounds the 40px hero hosting it —
+ * the Radius-Follows-Size Rule. Tone comes from the CONTAINER PAIR, which is
+ * sanctioned here and only here on this surface: a banner is one of the three
+ * things the container layer is for.
  */
-export const MACHINE_VALUE = "font-mono tabular-nums";
+export const HERO_NOTICE = "flex items-start gap-3 rounded-field px-4 py-3.5";
+
+/** The notice's own glyph disc: 32px, on the role's STRONG fill. */
+export const HERO_NOTICE_DISC =
+  "grid size-8 flex-none place-items-center rounded-pill";
+
+export const HERO_NOTICE_TITLE = "text-[0.8125rem] font-semibold";
+export const HERO_NOTICE_BODY =
+  "mt-0.5 text-[0.8125rem] leading-[1.45] text-pretty";
+
+/**
+ * Fill + disc + glyph for each hero notice, keyed on the condition rather than
+ * on a class string — the same construction as `ledgerStepTone` and
+ * `PROFILE_STATUS_BADGE`, and for the same reason: a fourth notice cannot
+ * quietly invent a fifth container pair, and a pair can never end up crossed.
+ *
+ * `applying` routes to the BRAND container, not to a fourth functional hue —
+ * the Info-Is-Brand Rule.
+ *
+ * Every state carries a DISTINCT glyph. `mismatch` and `partial` share a
+ * container — both are `warning`, correctly, since each is a degraded-but-
+ * running state — which makes the glyph the only channel separating them. That
+ * is exactly the case the Every-Chip-Has-A-Glyph Rule is written for.
+ */
+export const HERO_NOTICE_TONE: Record<
+  "mismatch" | "applying" | "partial",
+  { fill: string; disc: string; glyph: MaterialSymbolName; spin: boolean }
+> = {
+  mismatch: {
+    fill: "bg-warning-container text-on-warning-container",
+    disc: "bg-warning text-warning-foreground",
+    glyph: "swap_horiz",
+    spin: false,
+  },
+  applying: {
+    fill: "bg-primary-container text-on-primary-container",
+    disc: "bg-primary text-primary-foreground",
+    glyph: "progress_activity",
+    spin: true,
+  },
+  partial: {
+    fill: "bg-warning-container text-on-warning-container",
+    disc: "bg-warning text-warning-foreground",
+    glyph: "warning",
+    spin: false,
+  },
+};
+
+// =============================================================================
+// The Today strip — the 24-hour schedule, promoted out of the hero
+// =============================================================================
+// The ribbon used to be a band inside the hero, competing with three tiles and
+// two buttons for the same ~400px. At that width a 20-minute block is about
+// eight pixels: a proportional graphic with no room to be proportional. Given
+// the full page width it answers a question the old layout did not answer at
+// all — WHAT IS THE SHAPE OF TODAY — and DESIGN.md already sanctions the
+// full-width proportional strip as a signature surface.
+//
+// It is a PEER card, not a second hero. See the note on `HERO_CARD`.
+
+/** The strip's head: summary sentence left, armed readout right. */
+export const TODAY_HEAD = "flex flex-wrap items-center gap-3";
+
+/** "Balanced in force until 18:00, then Speed." */
+export const TODAY_SUMMARY = "flex flex-wrap items-center gap-2";
+export const TODAY_SUMMARY_NAME =
+  "text-[1.0625rem] font-semibold tracking-[-0.01em]";
+export const TODAY_SUMMARY_JOIN = "text-[0.8125rem] text-on-surface-variant";
+export const TODAY_SUMMARY_TIME = "text-[0.9375rem] font-semibold";
+
+/**
+ * The "Schedule armed" readout. INK layer on neutral ground — this is a small
+ * true statement about the schedule, not a status chip about the profile, and
+ * giving it a second filled chip beside the hero's would put two competing
+ * claims on one screen.
+ */
+export const TODAY_ARMED = "flex items-center gap-2 text-xs font-semibold";
+export const TODAY_ARMED_ON = "text-success-on-surface";
+export const TODAY_ARMED_OFF = "text-on-surface-variant";
+
+/**
+ * A profile's scenario schedule drawn as a 24-hour strip: one proportional
+ * segment per block, plus a marker at the current time.
+ *
+ * ONE TRACK, GAPPED SEGMENTS. The track is a single `surface-container` pill
+ * with `overflow-hidden`; the segments sit inside it separated by a 3px gap
+ * through which the track shows. That gap is what separates two adjacent idle
+ * blocks, so the segments themselves need no second tonal step and no hairline —
+ * an earlier mock separated them with an 18%-alpha inset ring, which is exactly
+ * the wash this file bans.
+ *
+ * Segments animate `scaleX` from a left origin, never `width` — the
+ * Transform-Only Rule. On a CPU that is also carrying the user's traffic, a
+ * per-segment layout pass is not free.
+ */
+export const RIBBON_SHAPE = {
+  /** The track. Segments are clipped by it, so they carry no radius of their own. */
+  TRACK:
+    "relative flex h-13 gap-[0.1875rem] overflow-hidden rounded-pill bg-surface-container",
+  SEGMENT:
+    "flex min-w-0 origin-left items-center gap-[0.4375rem] overflow-hidden px-3.5",
+  /** Collapsed segment — too narrow for a label, glyph only. */
+  SEGMENT_TIGHT: "grid min-w-0 origin-left place-items-center overflow-hidden",
+  SEGMENT_LABEL: "truncate text-[0.78125rem] font-semibold",
+  /** The "now" needle, drawn over the strip and bleeding past both edges. */
+  NEEDLE:
+    "absolute -top-1.5 -bottom-1.5 z-10 w-0.5 rounded-pill bg-on-surface pointer-events-none",
+  /** The dot capping the needle. */
+  NEEDLE_CAP:
+    "absolute -top-1 left-1/2 size-[0.5625rem] -translate-x-1/2 rounded-pill bg-on-surface",
+  /** The 00 / 03 / 06 … axis under the strip. */
+  AXIS: "mt-2.5 flex justify-between px-0.5 text-[0.6875rem] font-medium text-on-surface-variant",
+} as const;
+
+/** The resting ribbon segment. */
+export const RIBBON_SEGMENT_IDLE =
+  "bg-surface-container-high text-on-surface-variant";
+
+/**
+ * The segment in force at the marker. FILL layer — a bar fill is exactly what
+ * the fill layer is for, and at 52px tall against a neutral track the container
+ * pair the previous generation used was too quiet to find at a glance.
+ *
+ * `--primary` is the only hue this segment may take. A scenario is not identity,
+ * not direction, not state and not measured quality, so under the
+ * Neutral-Default Rule it has no honest hue of its own — the segments separate
+ * by their GLYPH, which is the decision `scenario-icons.ts` already made when it
+ * replaced a 12-entry gradient palette. Primary here does not describe the
+ * scenario; it marks which block is running.
+ */
+export const RIBBON_SEGMENT_LIVE = "bg-primary text-primary-foreground";
+
+/**
+ * The 8px condensed ribbon a profile ROW carries. Same proportions, same source
+ * data, no labels — it is a glyph for "this profile has a schedule and here is
+ * its shape", not a readable timeline. Both draw from `lib/schedule-timeline.ts`
+ * so the row and the strip can never disagree about where a block starts.
+ *
+ * Hidden below `@lg/card`: at narrow widths the row's tags already wrap, and an
+ * 88px graphic with no axis is the first thing that stops paying for its space.
+ */
+export const RIBBON_MINI = {
+  ROOT: "hidden h-2 w-22 flex-none gap-[0.125rem] overflow-hidden rounded-pill bg-surface-container-high @lg/card:flex",
+  SEGMENT: "min-w-0",
+  IDLE: "bg-surface-container-high",
+  LIVE: "bg-primary",
+} as const;
 
 // -----------------------------------------------------------------------------
 // Scenario tiles
@@ -221,42 +604,55 @@ export const MACHINE_VALUE = "font-mono tabular-nums";
 
 /**
  * A scenario tile and the "create scenario" tile beside it. Both import ROOT so
- * the two can never again disagree on their radius — the incumbent shipped
- * `rounded-card` next to `rounded-xl` in the same grid, and the skeleton
+ * the two can never again disagree on their radius — an earlier generation
+ * shipped `rounded-card` next to `rounded-xl` in the same grid, and the skeleton
  * shadowing them used a third value.
+ *
+ * `rounded-tile` (28px), corrected from `rounded-card` (36px): this is an inner
+ * block inside a card, and a child may not carry its parent's radius.
+ *
+ * `min-h-[6.5rem]` is a FLOOR and the skeleton mirrors by rendering ROOT, not by
+ * restating a height — the previous generation floored at `min-h-[9rem]` while
+ * its skeleton pinned `h-36`, so every tile whose band line wrapped jumped at
+ * the handoff.
  */
 export const SCENARIO_TILE_SHAPE = {
-  GRID: "grid grid-cols-1 gap-3.5 @md/card:grid-cols-2 @3xl/card:grid-cols-3",
-  /**
-   * `h-full` so a tile stretches to match its row-mates rather than sizing to
-   * its own content. The grid cell (the `motion.div` wrapper in
-   * `connection-scenario-card.tsx`) already stretches to the row's tallest
-   * cell by default CSS Grid behavior, but this inner element — the one that
-   * actually paints the fill and border-radius — did not inherit that height
-   * without saying so explicitly, so a tile with a longer band-lock line (e.g.
-   * a custom scenario wrapping to a second pill row) visibly outgrew its
-   * neighbor instead of both settling to the row's height.
-   */
-  ROOT: "relative flex h-full min-h-[9rem] flex-col justify-between overflow-hidden rounded-card p-4",
-  HEIGHT: "h-36",
+  GRID: "grid grid-cols-1 gap-3.5 @xl/card:grid-cols-2",
+  ROOT: "flex min-h-[6.5rem] items-start gap-3.5 rounded-tile px-5 py-4",
+  /** 44px — between the row's 40 and the hero tile's 52. */
   DISC: "grid size-11 flex-none place-items-center rounded-pill",
+  COL: "flex min-w-0 flex-1 flex-col gap-1.5",
+  NAME: "truncate text-[0.9375rem] font-semibold tracking-[-0.01em]",
+  META: "flex flex-wrap items-center gap-1.5",
 } as const;
 
-/** The resting scenario tile. */
+/** The resting scenario tile. Neutral body — the disc carries the colour. */
 export const SCENARIO_TILE_IDLE = "bg-surface-container text-on-surface";
 
-/** The selected/active scenario tile — brand container, never a functional tone. */
-export const SCENARIO_TILE_ACTIVE =
-  "bg-primary-container text-on-primary-container";
+/**
+ * The in-force scenario tile. SAME neutral body, plus the same 2px inset primary
+ * ring the active profile row takes — the two "this is the one" marks on this
+ * page are now literally the same constant.
+ *
+ * It used to be `bg-primary-container text-on-primary-container` across a 144px
+ * tile, and nothing consumed it: `scenario-item.tsx` hand-wrote the classes and
+ * kept a private ring constant beside them. Both are gone.
+ */
+export const SCENARIO_TILE_ACTIVE = `bg-surface-container text-on-surface ${PROFILE_ROW_ACTIVE_RING}`;
+
+/** The tile's glyph disc, in force vs at rest. */
+export const SCENARIO_DISC_ACTIVE = "bg-primary text-primary-foreground";
+export const SCENARIO_DISC_IDLE =
+  "bg-surface-container-high text-on-surface-variant";
 
 /**
  * The "create scenario" ghost tile. Dashed stroke is semantic here (an empty
- * slot), so it keeps its border — but the four stacked opacity washes the
- * incumbent used (`bg-muted/30 hover:bg-primary/5 border-muted-foreground/30
- * hover:border-primary/50`) collapse to one honest container.
+ * slot), so it keeps its border — but its hover no longer flips 144px to
+ * `primary-container`; it steps one tonal stop, which is what every other
+ * hoverable neutral box on this surface does.
  */
 export const SCENARIO_TILE_ADD =
-  "border-outline hover:border-primary hover:bg-primary-container hover:text-on-primary-container text-on-surface-variant border border-dashed";
+  "border-outline hover:border-primary hover:bg-surface-container-high text-on-surface-variant border border-dashed bg-transparent transition-colors duration-[var(--duration-standard)] ease-[var(--ease-standard)]";
 
 // -----------------------------------------------------------------------------
 // Active-config card
@@ -280,6 +676,12 @@ export const CONFIG_CARD_SHAPE = {
 // -----------------------------------------------------------------------------
 // Apply-progress step ledger
 // -----------------------------------------------------------------------------
+// UNTOUCHED BY THE RE-AUTHORING, ON PURPOSE. The apply and deactivate dialogs
+// were already migrated correctly — distinct glyph per state, honest container
+// pairs, a documented width chain — and rewriting a correct subsystem is churn,
+// not a win. The `--tone-{role}-1` fills below are the ramp used in its own
+// idiom (a stacked ledger of condition bands, exactly as the cell scanner uses
+// it), which is a different construction from painting a list row's fill.
 
 /**
  * The apply dialog's step ledger. Mirrors the shipped `DeleteProgress` pattern
@@ -414,217 +816,6 @@ export function ledgerStepTone(state: LedgerState): {
   }
 }
 
-// -----------------------------------------------------------------------------
-// Status chips
-// -----------------------------------------------------------------------------
-
-/**
- * Profile / scenario status -> Badge variant + glyph.
- *
- * THIS MAP IS THE FIX FOR THE SURFACE'S ONE REAL ACCESSIBILITY BUG. The
- * incumbent `active-config-card.tsx` rendered its three chips with a hand-drawn
- * `<div className="rounded-full bg-success">` dot instead of a glyph.
- * `success-container` and `warning-container` measure 1.03:1 apart — the same
- * surface to the eye, and IDENTICAL under deuteranopia. A colour-only dot is
- * precisely the signal the Every-Chip-Has-A-Glyph Rule exists to forbid, so
- * "Active" and "Not Active" were indistinguishable to a colourblind user.
- *
- * Keying the tone onto `BadgeVariant` rather than a class string means a new
- * state without a matching role fails the build instead of shipping untinted.
- */
-export const PROFILE_STATUS_BADGE: Record<
-  "active" | "applying" | "inactive" | "mismatch" | "failed",
-  { variant: BadgeVariant; glyph: MaterialSymbolName; spin?: boolean }
-> = {
-  active: { variant: "success", glyph: "check_circle" },
-  applying: { variant: "info", glyph: "progress_activity", spin: true },
-  inactive: { variant: "muted", glyph: "do_not_disturb_on" },
-  mismatch: { variant: "warning", glyph: "warning" },
-  failed: { variant: "destructive", glyph: "cancel" },
-};
-
-/** Badge glyph size. Matches the `[&>svg]:size-3` slot Badge reserves. */
-export const BADGE_GLYPH_SIZE = 12;
-
-// =============================================================================
-// The "in force now" hero
-// =============================================================================
-// The page's anchor card, and the one place `rounded-hero` is earned on this
-// surface: it answers the question the user arrived with (what is running on my
-// modem right now) before the list of things they could run instead.
-//
-// This is the exception the Consistent-Layout Rule allows, not a breach of it —
-// "a genuine glance surface may earn a hero card". Everything below the hero is
-// still the uniform card grid. If a future change gives the hero a second
-// sibling hero, that exception has been spent twice and one of them is wrong.
-
-/** The hero shell. `rounded-hero` (40px) — one per surface. */
-export const HERO_CARD =
-  "@container/hero flex flex-col gap-[1.125rem] rounded-hero border-0 bg-surface p-6 shadow-[var(--shadow-whisper)]";
-
-/**
- * The hero's leading glyph disc. 52px, brand fill with its own `-foreground`
- * ink — a CONTAINER tile would take a FILL disc and vice versa, but the hero
- * shell is plain `surface`, so the disc takes the fill pair directly.
- */
-export const HERO_DISC =
-  "grid size-13 flex-none place-items-center rounded-pill bg-primary text-primary-foreground";
-
-/**
- * The eyebrow above the active profile's name.
- *
- * The generic craft floor treats an eyebrow as a reflex to delete. It is kept
- * here because this surface's own canon ships one — DESIGN.md's tile anatomy is
- * literally `eyebrow -> value -> caption`, and the pre-auth scale names an
- * eyebrow step. The committed world outranks the generic default, and the label
- * is doing real work: "Home Fixed Wireless" alone does not say whether you are
- * looking at the active profile or a saved one.
- */
-export const HERO_EYEBROW =
-  "text-xs font-medium tracking-[0.06em] text-on-surface-variant";
-
-/** The three tiles under the hero's identity line. */
-export const HERO_TILE_SHAPE = {
-  GRID: "grid grid-cols-1 gap-3 @2xl/hero:grid-cols-3",
-  ROOT: "flex flex-col gap-2.5 rounded-tile p-4",
-  /** The tile's own eyebrow. Inherits ink from the tile, never restated. */
-  LABEL: "text-xs font-medium",
-  /** The scenario tile's inner disc — a CONTAINER tile takes a FILL disc. */
-  DISC: "grid size-[2.125rem] flex-none place-items-center rounded-pill bg-primary text-primary-foreground",
-} as const;
-
-/** Neutral hero tile (Identity, Radio). */
-export const HERO_TILE_NEUTRAL = "bg-surface-container text-on-surface";
-
-/**
- * The scenario tile. Brand container, because the bound scenario is the one
- * thing in the hero the profile actively OWNS — the other two tiles report.
- * Never a functional tone: a scenario is not a health state.
- */
-export const HERO_TILE_SCENARIO =
-  "bg-primary-container text-on-primary-container";
-
-/**
- * An inline notice inside the hero (mismatch / applying / partial).
- *
- * `rounded-field` (20px), so it never out-rounds the 40px hero hosting it —
- * the Radius-Follows-Size Rule. Tone comes from the CONTAINER PAIR, never a
- * wash: a 10% alpha over a tinted surface collapses in dark and is the first
- * thing to wash out in sunlight, which is the ambient condition this product
- * is explicitly designed against.
- */
-export const HERO_NOTICE = "flex items-start gap-3 rounded-field px-4 py-3.5";
-
-/**
- * Fill + glyph for each hero notice, keyed on the condition rather than on a
- * class string — the same construction as `ledgerStepTone` and
- * `PROFILE_STATUS_BADGE`, and for the same reason: a fourth notice cannot
- * quietly invent a fifth container pair, and a pair can never end up crossed.
- *
- * `applying` routes to the BRAND container, not to a fourth functional hue.
- * That is the Info-Is-Brand Rule: there is no separate info color in this
- * system, so an in-progress surface and a primary button differ by shape and
- * glyph, never by owning two different blues.
- *
- * Every state carries a DISTINCT glyph. `mismatch` and `partial` share a
- * container — both are `warning`, correctly, since each is a degraded-but-
- * running state — which makes the glyph the only channel separating them. That
- * is exactly the case the Every-Chip-Has-A-Glyph Rule is written for.
- */
-export const HERO_NOTICE_TONE: Record<
-  "mismatch" | "applying" | "partial",
-  { fill: string; glyph: MaterialSymbolName; spin: boolean }
-> = {
-  mismatch: {
-    fill: "bg-warning-container text-on-warning-container",
-    glyph: "warning",
-    spin: false,
-  },
-  applying: {
-    fill: "bg-primary-container text-on-primary-container",
-    glyph: "progress_activity",
-    spin: true,
-  },
-  partial: {
-    fill: "bg-warning-container text-on-warning-container",
-    glyph: "do_not_disturb_on",
-    spin: false,
-  },
-};
-
-// -----------------------------------------------------------------------------
-// The schedule ribbon
-// -----------------------------------------------------------------------------
-
-/**
- * A profile's scenario schedule drawn as a 24-hour strip: one proportional
- * segment per block, plus a marker at the current time.
- *
- * `rounded-field` (20px) on the segments rather than the mock's 16px, which is
- * not on the role scale. 20px is what the apply-dialog ledger step already
- * uses, so a horizontal band and a vertical band read as one family.
- *
- * Segments animate `scaleX` from a left origin, never `width` — the
- * Transform-Only Rule. On a CPU that is also carrying the user's traffic, a
- * per-segment layout pass is not free, and the aggregation strip is the single
- * sanctioned `width` animation in the product. It is not this.
- */
-export const RIBBON_SHAPE = {
-  ROOT: "relative flex h-13 gap-1",
-  SEGMENT:
-    "flex min-w-0 origin-left items-center gap-2 overflow-hidden rounded-field px-3.5",
-  /** Collapsed segment — too narrow for a label, glyph only. */
-  SEGMENT_TIGHT:
-    "grid min-w-0 origin-left place-items-center overflow-hidden rounded-field",
-  /** The "now" needle, drawn over the strip and bleeding past both edges. */
-  NEEDLE: "absolute -top-1.5 -bottom-1.5 w-0.5 rounded-pill bg-on-surface",
-  /** The time readout riding on top of the needle. */
-  NEEDLE_LABEL:
-    "absolute -top-4 -translate-x-1/2 rounded-pill bg-surface px-1.5 text-[0.6875rem] font-semibold text-on-surface",
-  /** The 00 / 06 / 12 / 18 / 24 axis under the strip. */
-  AXIS: "flex justify-between text-[0.6875rem] text-on-surface-variant",
-} as const;
-
-/** The resting ribbon segment. */
-export const RIBBON_SEGMENT_IDLE = "bg-surface-container text-on-surface-variant";
-
-/** The segment in force at the marker. Brand container — in force, not healthy. */
-export const RIBBON_SEGMENT_LIVE =
-  "bg-primary-container text-on-primary-container";
-
-/**
- * The 8px condensed ribbon a profile ROW carries. Same proportions, same source
- * data, no labels — it is a glyph for "this profile has a schedule and here is
- * its shape", not a readable timeline. Both draw from `lib/schedule-timeline.ts`
- * so the row and the hero can never disagree about where a block starts.
- */
-export const RIBBON_MINI = {
-  ROOT: "flex h-2 gap-[0.1875rem]",
-  SEGMENT: "min-w-0 rounded-pill",
-  IDLE: "bg-surface-container-high",
-  LIVE: "bg-primary",
-} as const;
-
-// -----------------------------------------------------------------------------
-// Scenario tile additions
-// -----------------------------------------------------------------------------
-
-/**
- * The mono config pills on a scenario tile (mode token, band list). Smaller
- * than `CONFIG_PILL` because a tile carries two of them in a narrower column
- * than a profile row carries five.
- */
-export const SCENARIO_PILL =
-  "inline-flex h-[1.375rem] items-center gap-1 rounded-pill px-2.5 text-[0.6875rem]";
-
-/** A scenario tile's meta chip: next-fire time, "locks bands", "Custom". */
-export const SCENARIO_META_CHIP =
-  "inline-flex items-center gap-1.5 rounded-pill px-2.5 py-1 text-[0.6875rem] font-medium";
-
-// -----------------------------------------------------------------------------
-// Apply-dialog ledger additions
-// -----------------------------------------------------------------------------
-
 /**
  * The apply dialog's own panel.
  *
@@ -637,11 +828,6 @@ export const SCENARIO_META_CHIP =
  * dialog painted at `--background` 0.155 while every card under it sits at
  * `--surface` 0.215, putting the most elevated element below the cards on the
  * tonal ramp. DESIGN.md:348-349 assigns dialogs to Surface, same step as cards.
- *
- * No `border-0` either, for the same reason: promoting the fill made the base
- * `border` a hairline on a tonal container, so the primitives dropped it too —
- * No-Hairline-On-Fill is now enforced at the source, and the override that used
- * to delete it here has nothing left to delete.
  *
  * `overflow-hidden` stays as a belt-and-braces clip behind the width guards in
  * THE MIN-CONTENT CHAIN, not as the primary fix.
@@ -656,12 +842,15 @@ export const APPLY_DIALOG_PANEL = "overflow-hidden rounded-card sm:max-w-md";
  * it did is exactly the opaque progress the State-Honesty Rule exists to stop.
  *
  * Ink is inherited from the step's container pair rather than restated, so the
- * value can never end up carrying one role's ink on another role's fill.
+ * value can never end up carrying one role's ink on another role's fill. The
+ * `opacity-85` an earlier draft carried is gone — a wash is not an ink token,
+ * and the container pair is already the quieter half of its role.
  */
-export const LEDGER_VALUE = "font-mono text-[0.6875rem] tabular-nums opacity-85";
+export const LEDGER_VALUE = "font-mono text-[0.6875rem] tabular-nums";
 
 /** The determinate apply bar. `scaleX` from a left origin — never `width`. */
 export const LEDGER_BAR = {
-  TRACK: "relative h-1.5 w-full overflow-hidden rounded-pill bg-surface-container",
+  TRACK:
+    "relative h-1.5 w-full overflow-hidden rounded-pill bg-surface-container",
   FILL: "h-full origin-left rounded-pill",
 } as const;

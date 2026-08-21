@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useTranslation } from "react-i18next";
 
 import { MaterialSymbol } from "@/components/ui/material-symbol";
-import { SCENARIO_CREATE_ACTION } from "@/components/cellular/custom-profiles/connection-scenarios/connection-scenario";
+import { SCENARIO_CREATE_ACTION } from "@/components/cellular/custom-profiles/connection-scenarios/connection-scenario-card";
 
 // =============================================================================
 // /cellular/custom-profiles/connection-scenarios — retired route, now a redirect

@@ -7,3 +7,4 @@
 - [i18n:check is a hard gate again (2026-08-12)](reference_i18n_check_now_hard_gate.md) — missing key/empty value exit 1; `--warn-only` carries tracked debt; the holes that remain are hardcoded literals, `defaultValue`, and interpolated keys
 - [AT+QSIMDET reboot persistence unverified (2026-08-13)](project_qsimdet_persistence_unverified.md) — device only ever read the factory default `0,1`, so "NV settings persist" is inference not evidence; settling it needs a write + reboot
 - [tower/lock.sh reciprocal gate deliberately deferred](project_tower_lock_reciprocal_gate_deferred.md) — a tower lock silently wipes a frequency lock; 2026-08-11 decision was to warn in the UI, not fix the backend
+- [Release-notes bullets from earlier passes go stale](reference_release_notes_earlier_bullets_go_stale.md) — one active entry spans many passes, so a later redesign can falsify a bullet already in the file; grep and correct in place at every close

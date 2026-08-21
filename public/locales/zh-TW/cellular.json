@@ -1109,12 +1109,13 @@
       "edit": "編輯",
       "deactivate": "停用",
       "notice": {
-        "applying": "正在套用 {{name}}。第 {{step}} / {{total}} 步。無線電重新附著期間連線可能短暫中斷。",
-        "partial_lead": "此設定檔僅部分套用。步驟",
-        "partial_tail": "未能生效，維持原樣。數據機回報：",
         "unknown_step": "未知",
-        "mismatch_lead": "插入的 SIM 卡讀取為",
-        "mismatch_tail": "，與此設定檔儲存時使用的 SIM 卡不同。APN 與 TTL 仍已套用。請更新此設定檔，或啟用與之相符的設定檔。"
+        "applying_title": "正在套用 {{name}}",
+        "applying_body": "第 {{step}} 步，共 {{total}} 步。射頻重新附著時連線可能會短暫中斷。",
+        "partial_title": "僅部分套用",
+        "partial_body": "步驟 {{step}} 未生效，維持原狀。模組回報：",
+        "mismatch_title": "插入了另一張 SIM 卡",
+        "mismatch_body": "這不是此設定檔儲存時對應的 SIM 卡。其 APN 與 TTL 仍在生效 — 請更新此設定檔，或啟用與之相符的設定檔。"
       },
       "tiles": {
         "identity": "身分",
@@ -1125,7 +1126,8 @@
         "band_locking": "頻段鎖定",
         "network_mode": "網路模式",
         "lte_bands": "LTE 頻段",
-        "nr_bands": "NR 頻段"
+        "nr_bands": "NR 頻段",
+        "bands_auto": "全部頻段"
       },
       "scenario": {
         "unknown": "未知場景",
@@ -1140,6 +1142,12 @@
         "aria_segment": "{{name}} 至 {{end}}",
         "aria_join": "，接著",
         "aria_empty": "今日沒有場景計劃"
+      },
+      "badge": {
+        "live": "已生效",
+        "applying": "套用中",
+        "partial": "部分套用",
+        "mismatch": "SIM 卡不相符"
       }
     },
     "hero_empty": {
@@ -1363,7 +1371,6 @@
       "submit_edit": "儲存更改",
       "cancel": "取消",
       "next": "下一步",
-      "clear": "清除",
       "tab_network": "網路",
       "network_desc": "modem 連線到運營商資料網路的方式。",
       "identity_load_hint": "為此設定檔命名並選擇適用的運營商。",
@@ -1694,6 +1701,25 @@
       "add_carrier": "將此載波加入清單"
     }
   },
+  "profiles": {
+    "list": {
+      "bands_more": "+{{n}}",
+      "bands_more_aria": "另有 {{n}} 個頻段",
+      "status": {
+        "sim_changed": "SIM 卡已更換"
+      },
+      "suggestion_meta": "為你的 SIM 卡推薦"
+    },
+    "today": {
+      "armed": "排程已啟用",
+      "not_armed": "未設定排程",
+      "summary": {
+        "until": "生效至 {{time}}，隨後切換至 {{next}}",
+        "rest_of_day": "在今天剩餘時間內生效",
+        "all_day": "全天生效"
+      }
+    }
+  },
   "radio_info": {
     "common": {
       "not_available": "—",
@@ -1988,8 +2014,11 @@
     },
     "tile": {
       "in_force": "生效中",
-      "next_fire_label": "下次計劃變更",
-      "locks_bands": "鎖定頻段",
+      "caption_in_force": "目前生效",
+      "caption_next": "下次 {{time}}",
+      "caption_unscheduled": "未排程",
+      "band_count_nr": "{{bands}} 個 NR",
+      "band_count_lte": "{{bands}} 個 LTE",
       "custom_tag": "自訂",
       "bands_auto": "頻段自動",
       "delete_aria": "刪除「{{name}}」場景",
@@ -2005,7 +2034,20 @@
     },
     "redirect": {
       "label": "正在開啟自訂 SIM 設定檔…"
-    }
+    },
+    "network_mode": {
+      "auto": "自動",
+      "lte_only": "僅 LTE",
+      "nr5g_only": "僅 5G SA",
+      "lte_nr5g": "5G SA / NSA"
+    },
+    "optimization": {
+      "balanced": "均衡",
+      "latency": "低延遲",
+      "throughput": "高吞吐",
+      "custom": "自訂"
+    },
+    "bands_auto": "自動"
   },
   "sms": {
     "page": {

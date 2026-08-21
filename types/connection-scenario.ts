@@ -15,26 +15,74 @@
 // =============================================================================
 
 // --- Network Mode Options ----------------------------------------------------
+//
+// THIS MODULE RETURNS KEYS, NEVER ENGLISH.
+//
+// It is a plain `.ts` constant module with no React and no `t()` in scope, so
+// anything it returns as a finished string ships to an Italian or Chinese user
+// in English no matter how well the surface around it is translated. Every
+// display helper below therefore hands the caller an i18n KEY, or `null` when
+// there is nothing to say and the caller owns the word.
+//
+// `null` rather than a fallback key is deliberate: a helper that quietly
+// substitutes a default cannot be told apart from one that found a real value,
+// and "Auto" means different things in the two places this used to return it
+// (an unrecognised AT mode versus an empty band lock).
 
 export const NETWORK_MODE_OPTIONS = [
-  { label: "Auto", value: "AUTO" },
-  { label: "LTE Only", value: "LTE" },
-  { label: "5G SA Only", value: "NR5G" },
-  { label: "5G SA / NSA", value: "LTE:NR5G" },
+  { labelKey: "scenarios.network_mode.auto", value: "AUTO" },
+  { labelKey: "scenarios.network_mode.lte_only", value: "LTE" },
+  { labelKey: "scenarios.network_mode.nr5g_only", value: "NR5G" },
+  { labelKey: "scenarios.network_mode.lte_nr5g", value: "LTE:NR5G" },
 ] as const;
 
-/** Map AT mode_pref value → display label */
-export function modeValueToLabel(atValue: string): string {
-  return (
-    NETWORK_MODE_OPTIONS.find((o) => o.value === atValue)?.label ?? atValue
-  );
+/**
+ * AT `mode_pref` value → the i18n key that names it, or `null` when the device
+ * reported a combination this build does not know.
+ *
+ * On `null` the caller prints the RAW AT value in machine voice — that is an
+ * honest "the modem said `LTE:NR5G:NBIOT` and we have no word for it", where
+ * the old fallback silently rendered the same raw token as if it were a label.
+ */
+export function modeValueToLabelKey(atValue: string): string | null {
+  return NETWORK_MODE_OPTIONS.find((o) => o.value === atValue)?.labelKey ?? null;
+}
+
+/**
+ * The four optimization values THIS APP writes → their i18n keys.
+ *
+ * `optimization` is a free-text field in the edit dialog, so a user's own word
+ * ("Rural", "Nonna's house") must survive verbatim — but the three built-in
+ * scenarios and the create dialog write fixed English tokens, and those are
+ * ours to translate. The stored string stays the stable machine token so no
+ * data migration is needed; only the DISPLAY resolves through this map.
+ */
+const OPTIMIZATION_LABEL_KEY: Record<string, string> = {
+  Balanced: "scenarios.optimization.balanced",
+  Latency: "scenarios.optimization.latency",
+  Throughput: "scenarios.optimization.throughput",
+  Custom: "scenarios.optimization.custom",
+};
+
+/**
+ * A stored `optimization` value → its i18n key, or `null` when the user typed
+ * their own word and the caller should print it unchanged.
+ */
+export function optimizationLabelKey(value: string): string | null {
+  return OPTIMIZATION_LABEL_KEY[value.trim()] ?? null;
 }
 
 // --- Band Format Helpers -----------------------------------------------------
 
-/** Colon-delimited storage → comma-separated display ("1:3:7" → "1, 3, 7") */
-export function bandsToDisplay(colonDelimited: string): string {
-  if (!colonDelimited) return "Auto";
+/**
+ * Colon-delimited storage → comma-separated display ("1:3:7" → "1, 3, 7").
+ *
+ * Returns `null` for an empty lock. The word for "no bands are locked" is
+ * "Auto" in English and this module has no way to say it in Indonesian, so the
+ * caller supplies it — see the module note above.
+ */
+export function bandsToDisplay(colonDelimited: string): string | null {
+  if (!colonDelimited) return null;
   return colonDelimited.split(":").join(", ");
 }
 
@@ -60,9 +108,34 @@ export function bandsToInput(colonDelimited: string): string {
 export interface ScenarioConfig {
   /** AT command value for mode_pref: "AUTO" | "LTE" | "NR5G" | "LTE:NR5G" */
   atModeValue: string;
-  /** Display-friendly network mode label (e.g., "Auto", "5G SA Only") */
+  /**
+   * DERIVED, PERSISTED, AND NEVER TO BE RENDERED. A redundant copy of
+   * `atModeValue`, kept beside it.
+   *
+   * It used to hold an ENGLISH LABEL ("5G SA Only"), written before this
+   * surface was translated, and reading it is why an Italian user saw English
+   * here. Everything this build writes — the create and edit dialogs, and the
+   * three `DEFAULT_SCENARIOS` — now puts the AT value in it, so the copy is at
+   * least self-describing to anyone reading the JSON on the device. **Records
+   * already saved on a device still hold the old English label**, which is
+   * harmless only because nothing renders this field: every display site goes
+   * through `modeValueToLabelKey(config.atModeValue)` instead.
+   *
+   * The field stays in the shape because it is already written into every
+   * stored scenario on every device and the config store has no key-migration
+   * primitive — dropping it here would strand it there.
+   *
+   * NOT the `mode` field `scenarios/activate.sh` parses out of the POST body.
+   * That one is built separately in `use-connection-scenarios.ts` as
+   * `body.mode = config.atModeValue`, and is unrelated to this.
+   */
   mode: string;
-  /** Display-friendly optimization label (e.g., "Balanced", "Latency") */
+  /**
+   * Optimization, as a stored token. FREE TEXT in the edit dialog, so it may be
+   * anything the user typed; the four values this app writes itself
+   * ("Balanced", "Latency", "Throughput", "Custom") are translated at display
+   * time via `optimizationLabelKey()`, and anything else prints verbatim.
+   */
   optimization: string;
   /** LTE bands, colon-delimited (e.g., "1:3:7:28"). Empty = Auto. */
   lte_bands: string;
@@ -80,7 +153,21 @@ export interface ConnectionScenario {
   name: string;
   /** Short description */
   description: string;
-  /** Identity glyph key — see `SCENARIO_ICONS`. Absent on pre-icon records. */
+  /**
+   * Identity glyph KEY — one of `SCENARIO_ICONS[].id`, never a ligature.
+   * Absent on pre-icon records, which resolve to the default glyph.
+   *
+   * THE ID/LIGATURE BOUNDARY IS AT THE RENDER SITE. This field holds the
+   * persisted key everywhere it travels — through `StoredScenario`, through the
+   * UI's `Scenario` view type, into the hero, the schedule ribbon and the
+   * scenario tile — and each render site calls `resolveScenarioIcon()` itself.
+   * Resolving early, so that a downstream consumer can render the field
+   * directly, is what produced the shipped defect this contract now prevents: a
+   * second inline copy of `DEFAULT_SCENARIOS` was written with ligature names
+   * ("bolt", "sports_esports", "play_arrow") in this id-shaped field, no option
+   * matched them, and all three built-in tiles fell back to the sparkle while
+   * the hero — reading THIS constant — rendered the right glyphs.
+   */
   icon?: string;
   /** SVG pattern type for the card overlay */
   pattern: "balanced" | "gaming" | "streaming" | "custom";
@@ -92,6 +179,20 @@ export interface ConnectionScenario {
 
 // --- Default Scenarios -------------------------------------------------------
 
+/**
+ * The three built-in scenarios. THE ONE DEFINITION — do not write a second copy
+ * beside a consumer. `connection-scenario-card.tsx` held an inline duplicate
+ * until 2026-08-21 and the two had drifted on `icon` (ids here, ligatures
+ * there), which is the whole reason every built-in tile rendered the fallback
+ * sparkle. A consumer that needs translated labels overlays `name` and
+ * `description` on top of these records via `t()` at render time — see that
+ * file's `defaultScenarios` memo — rather than restating the objects.
+ *
+ * `name` / `description` are ENGLISH FALLBACKS, deliberately. This is a
+ * module-level constant, so it cannot call `t()`; any surface that shows these
+ * strings to a user must translate them, and any surface that only needs the
+ * `id` / `config` / `icon` (e.g. `band-locking.tsx`) may read them as-is.
+ */
 export const DEFAULT_SCENARIOS: ConnectionScenario[] = [
   {
     id: "balanced",
@@ -101,7 +202,7 @@ export const DEFAULT_SCENARIOS: ConnectionScenario[] = [
     pattern: "balanced",
     config: {
       atModeValue: "AUTO",
-      mode: "Auto",
+      mode: "AUTO",
       optimization: "Balanced",
       lte_bands: "",
       nsa_nr_bands: "",
@@ -117,7 +218,7 @@ export const DEFAULT_SCENARIOS: ConnectionScenario[] = [
     pattern: "gaming",
     config: {
       atModeValue: "NR5G",
-      mode: "5G SA Only",
+      mode: "NR5G",
       optimization: "Latency",
       lte_bands: "",
       nsa_nr_bands: "",
@@ -133,7 +234,7 @@ export const DEFAULT_SCENARIOS: ConnectionScenario[] = [
     pattern: "streaming",
     config: {
       atModeValue: "LTE:NR5G",
-      mode: "5G SA / NSA",
+      mode: "LTE:NR5G",
       optimization: "Throughput",
       lte_bands: "",
       nsa_nr_bands: "",

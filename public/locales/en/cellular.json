@@ -1109,12 +1109,13 @@
       "edit": "Edit",
       "deactivate": "Deactivate",
       "notice": {
-        "applying": "Applying {{name}}. Step {{step}} of {{total}}. The connection may drop briefly while the radio reattaches.",
-        "partial_lead": "This profile is only partly applied. The step",
-        "partial_tail": "did not land and was left unchanged. The modem reported",
         "unknown_step": "unknown",
-        "mismatch_lead": "The inserted SIM reads",
-        "mismatch_tail": "which is not the SIM this profile was saved against. The APN and TTL are still applied. Update the profile, or activate the one that matches."
+        "applying_title": "Applying {{name}}",
+        "applying_body": "Step {{step}} of {{total}}. The connection may drop briefly while the radio reattaches.",
+        "partial_title": "Only partly applied",
+        "partial_body": "The step {{step}} did not land and was left unchanged. The modem reported:",
+        "mismatch_title": "A different SIM is inserted",
+        "mismatch_body": "This is not the SIM the profile was saved against. Its APN and TTL are still applied — update the profile, or activate the one that matches."
       },
       "tiles": {
         "identity": "Identity",
@@ -1125,7 +1126,8 @@
         "band_locking": "Band locking",
         "network_mode": "Network mode",
         "lte_bands": "LTE bands",
-        "nr_bands": "NR bands"
+        "nr_bands": "NR bands",
+        "bands_auto": "All bands"
       },
       "scenario": {
         "unknown": "Unknown scenario",
@@ -1140,6 +1142,12 @@
         "aria_segment": "{{name}} until {{end}}",
         "aria_join": ", then ",
         "aria_empty": "No scenario schedule for today"
+      },
+      "badge": {
+        "live": "Active",
+        "applying": "Applying",
+        "partial": "Partly applied",
+        "mismatch": "SIM mismatch"
       }
     },
     "hero_empty": {
@@ -1363,7 +1371,6 @@
       "submit_edit": "Save changes",
       "cancel": "Cancel",
       "next": "Next",
-      "clear": "Clear",
       "tab_network": "Network",
       "network_desc": "How the modem connects to the carrier data network.",
       "identity_load_hint": "Name this profile and pick the carrier it is for.",
@@ -1694,6 +1701,25 @@
       "add_carrier": "Add this carrier to the list"
     }
   },
+  "profiles": {
+    "list": {
+      "bands_more": "+{{n}}",
+      "bands_more_aria": "{{n}} more bands",
+      "status": {
+        "sim_changed": "SIM changed"
+      },
+      "suggestion_meta": "Recommended for your SIM"
+    },
+    "today": {
+      "armed": "Schedule armed",
+      "not_armed": "No schedule",
+      "summary": {
+        "until": "in force until {{time}}, then {{next}}",
+        "rest_of_day": "in force for the rest of today",
+        "all_day": "in force all day"
+      }
+    }
+  },
   "radio_info": {
     "common": {
       "not_available": "—",
@@ -1988,8 +2014,11 @@
     },
     "tile": {
       "in_force": "In force",
-      "next_fire_label": "Next scheduled change",
-      "locks_bands": "Locks bands",
+      "caption_in_force": "In force now",
+      "caption_next": "Next at {{time}}",
+      "caption_unscheduled": "Not scheduled",
+      "band_count_nr": "{{bands}} NR",
+      "band_count_lte": "{{bands}} LTE",
       "custom_tag": "Custom",
       "bands_auto": "Bands auto",
       "delete_aria": "Delete {{name}} scenario",
@@ -2005,7 +2034,20 @@
     },
     "redirect": {
       "label": "Opening Custom SIM Profiles…"
-    }
+    },
+    "network_mode": {
+      "auto": "Auto",
+      "lte_only": "LTE only",
+      "nr5g_only": "5G SA only",
+      "lte_nr5g": "5G SA / NSA"
+    },
+    "optimization": {
+      "balanced": "Balanced",
+      "latency": "Latency",
+      "throughput": "Throughput",
+      "custom": "Custom"
+    },
+    "bands_auto": "Auto"
   },
   "sms": {
     "page": {

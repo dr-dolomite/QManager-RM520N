@@ -570,16 +570,32 @@ const CustomProfileFormComponent = ({
     }
   };
 
-  const handleClear = () => {
-    if (isEditing && onCancel) {
+  /**
+   * The footer's secondary action. CLOSES THE DIALOG IN BOTH MODES.
+   *
+   * It used to branch: edit mode closed, create mode wiped every field and
+   * threw you back to the first tab. Both halves were defensible on their own
+   * and the button was even labelled honestly ("Clear" vs "Cancel") — but the
+   * pairing was not. The slot beside a submit button in a dialog footer is
+   * where a user reaches WITHOUT READING when they want out, and in create mode
+   * that reach silently destroyed a four-tab wizard's worth of typing with no
+   * undo. A destructive action that shares a position with a non-destructive
+   * one is a mis-click trap regardless of its label.
+   *
+   * `onCancel` is optional on the props, so the reset survives as the fallback
+   * for any caller that mounts this form outside a dialog. `ProfileFormDialog`
+   * — the only caller today — always passes it, in both modes.
+   */
+  const handleCancel = () => {
+    if (onCancel) {
       onCancel();
-    } else {
-      setForm(DEFAULT_FORM_STATE);
-      setErrors({});
-      setOpenBlockKey(null);
-      setTab("identity");
-      setTabDir(1);
+      return;
     }
+    setForm(DEFAULT_FORM_STATE);
+    setErrors({});
+    setOpenBlockKey(null);
+    setTab("identity");
+    setTabDir(1);
   };
 
   return (
@@ -1245,10 +1261,8 @@ const CustomProfileFormComponent = ({
                   {t("custom_profiles.form.next")}
                 </Button>
               )}
-              <Button variant="outline" type="button" onClick={handleClear}>
-                {isEditing
-                  ? t("custom_profiles.form.cancel")
-                  : t("custom_profiles.form.clear")}
+              <Button variant="outline" type="button" onClick={handleCancel}>
+                {t("custom_profiles.form.cancel")}
               </Button>
             </Field>
           </FieldGroup>

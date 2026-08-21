@@ -2,7 +2,7 @@ import React from "react";
 import { useTranslation } from "react-i18next";
 import { MaterialSymbol } from "@/components/ui/material-symbol";
 import { cn } from "@/lib/utils";
-import { SCENARIO_TILE_ADD, SCENARIO_TILE_SHAPE } from "../shapes";
+import { SCENARIO_TILE_ADD, SCENARIO_TILE_SHAPE, TILE_CAPTION } from "../shapes";
 
 // =============================================================================
 // AddScenarioItem — the ghost tile at the end of the scenario grid
@@ -12,14 +12,18 @@ import { SCENARIO_TILE_ADD, SCENARIO_TILE_SHAPE } from "../shapes";
 // Its accessible name comes from the visible title + caption, so it needs no
 // aria-label.
 //
-// Geometry is the SAME `SCENARIO_TILE_SHAPE.ROOT` the scenario tiles use, so
-// the ghost slot can never again disagree with its neighbours on radius or
-// height. Only the skin differs: `SCENARIO_TILE_ADD`'s dashed stroke, which is
-// semantic here (an empty slot) rather than a hairline propping up a weak fill.
+// Geometry is the SAME `SCENARIO_TILE_SHAPE.ROOT` / `.DISC` / `.COL` / `.NAME`
+// the scenario tiles use, so the ghost slot can never disagree with its
+// neighbours on radius, height or anatomy. Only the skin differs:
+// `SCENARIO_TILE_ADD`'s dashed stroke, which is semantic here (an empty slot)
+// rather than a hairline propping up a weak fill.
 //
-// Left-aligned and bottom-weighted to match the loaded tiles beside it — the
-// centred layout this carried before made the ghost read as a different kind of
-// object in the same grid.
+// Its hover steps ONE TONAL STOP (`surface-container-high`), which is what
+// every other hoverable neutral box on this surface does. It used to flip the
+// whole 144px tile to `primary-container` — the container layer used as a
+// hover state on a box four times its sanctioned size — which is why the ink
+// here was left to inherit. It no longer has to be: the caption takes
+// `TILE_CAPTION` like every other tile caption on the page.
 // =============================================================================
 
 interface AddScenarioItemProps {
@@ -36,22 +40,22 @@ export const AddScenarioItem = ({ onClick }: AddScenarioItemProps) => {
       className={cn(
         SCENARIO_TILE_SHAPE.ROOT,
         SCENARIO_TILE_ADD,
-        "w-full cursor-pointer items-start justify-end gap-1.5 text-left transition-[background-color,border-color,color] duration-[var(--duration-quick)] ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background",
+        "h-full w-full cursor-pointer text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background",
       )}
     >
-      {/* Ink is INHERITED throughout, never restated. `SCENARIO_TILE_ADD`
-          swaps the whole tile to `primary-container` on hover, and a child
-          pinned to `on-surface` would be that container's ink crossed with
-          another role's. Hierarchy comes from size and weight instead. */}
       <span
-        className={cn(SCENARIO_TILE_SHAPE.DISC, "bg-surface-container mb-auto")}
+        className={cn(SCENARIO_TILE_SHAPE.DISC, "bg-surface-container-high")}
       >
         <MaterialSymbol name="add" size={21} />
       </span>
-      <span className="text-[0.9375rem] font-semibold">
-        {t("scenarios.tile.add.title")}
+      <span className={SCENARIO_TILE_SHAPE.COL}>
+        <span className={SCENARIO_TILE_SHAPE.NAME}>
+          {t("scenarios.tile.add.title")}
+        </span>
+        <span className={TILE_CAPTION}>
+          {t("scenarios.tile.add.description")}
+        </span>
       </span>
-      <span className="text-xs">{t("scenarios.tile.add.description")}</span>
     </button>
   );
 };

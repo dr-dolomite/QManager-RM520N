@@ -3,14 +3,24 @@ import { useTranslation } from "react-i18next";
 import { MaterialSymbol } from "@/components/ui/material-symbol";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { bandsToDisplay } from "@/types/connection-scenario";
+import {
+  bandsLabel,
+  modeLabel,
+  optimizationLabel,
+} from "@/components/cellular/custom-profiles/scenario-labels";
 import { cn } from "@/lib/utils";
 import {
   BADGE_GLYPH_SIZE,
   CONFIG_CARD_SHAPE,
+  ICON_ACTION,
   MACHINE_VALUE,
+  PILL_ACTION_SM,
   PROFILE_STATUS_BADGE,
+  SCENARIO_DISC_ACTIVE,
+  SCENARIO_DISC_IDLE,
+  TILE_CAPTION,
 } from "../shapes";
+import { resolveScenarioIcon } from "./scenario-icons";
 import type { Scenario } from "./scenario-item";
 
 // =============================================================================
@@ -31,6 +41,17 @@ import type { Scenario } from "./scenario-item";
 // The status chips keep `PROFILE_STATUS_BADGE`. That map is the fix for this
 // file's one real accessibility bug (a hand-drawn colour-only dot for
 // Active/Not Active, indistinguishable under deuteranopia) — do not regress it.
+//
+// THE GLYPH IS RESOLVED HERE, not handed in pre-resolved. `Scenario.icon` is
+// the persisted id (see `scenario-icons.ts`), and every render site on this
+// surface crosses the id→ligature boundary itself via `resolveScenarioIcon`.
+// This block used to render `scenario.icon` directly as a ligature, which only
+// worked because its caller had already resolved it — and that pre-resolution
+// is precisely what let the caller ship ligature names in an id-shaped field.
+//
+// It also prints the scenario DESCRIPTION. The re-authored tile dropped it (the
+// tile now carries name / band tags / schedule caption), and a user-authored
+// sentence that appears nowhere in the UI is a sentence the user cannot check.
 // =============================================================================
 
 interface ActiveConfigCardProps {
@@ -89,20 +110,32 @@ export const ActiveConfigCard = ({
           cluster in a fight neither wins. */}
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="flex min-w-0 items-center gap-3">
-          {/* Same filled glyph disc the tile uses, so the scenario keeps one
-              identity across the picker and this detail block. */}
+          {/* Same glyph disc the tile uses — and the same TONE RULE: filled
+              only when the scenario is actually in force, neutral otherwise.
+              It was pinned to `bg-primary` here regardless, so a scenario the
+              user was merely inspecting wore the "this is running" fill while
+              its own tile, three inches above, correctly did not. */}
           <div
             className={cn(
               CONFIG_CARD_SHAPE.DISC,
-              "bg-primary text-primary-foreground",
+              isActive ? SCENARIO_DISC_ACTIVE : SCENARIO_DISC_IDLE,
             )}
           >
-            <MaterialSymbol name={scenario.icon} size={24} filled />
+            <MaterialSymbol
+              name={resolveScenarioIcon(scenario.icon)}
+              size={24}
+              filled
+            />
           </div>
           <div className="grid min-w-0 gap-1">
             <h4 className="min-w-0 truncate font-semibold">
               {t("scenarios.active_config.title", { name: scenario.name })}
             </h4>
+            {scenario.description && (
+              <p className={cn(TILE_CAPTION, "min-w-0 truncate")}>
+                {scenario.description}
+              </p>
+            )}
             <Badge variant={badge.variant} className="w-fit">
               <MaterialSymbol
                 name={badge.glyph}
@@ -119,18 +152,17 @@ export const ActiveConfigCard = ({
           {isCustom && (
             <Button
               variant="ghost"
-              size="icon"
               aria-label={t("scenarios.active_config.edit_aria")}
               onClick={onEdit}
+              className={ICON_ACTION}
             >
-              <MaterialSymbol name="settings" size={16} />
+              <MaterialSymbol name="settings" size={18} />
             </Button>
           )}
           {!isActive && !isActivating && (
             <Button
-              size="sm"
               onClick={onActivate}
-              className="gap-1.5"
+              className={PILL_ACTION_SM}
               disabled={activateDisabled}
               title={disabledTooltip}
             >
@@ -141,26 +173,31 @@ export const ActiveConfigCard = ({
       </div>
 
       {/* Config Details */}
+      {/* Every value here is RESOLVED, not read. `config.mode` and
+          `config.optimization` are stored English tokens (see
+          `types/connection-scenario.ts`), and `bandsToDisplay` returns `null`
+          for an empty lock rather than inventing the word "Auto" — so this
+          block is where the five rows become the reader's language. */}
       <div className="flex flex-col gap-2">
         <ConfigRow
           label={t("scenarios.active_config.rows.network_mode")}
-          value={scenario.config.mode}
+          value={modeLabel(t, scenario.config.atModeValue)}
         />
         <ConfigRow
           label={t("scenarios.active_config.rows.optimization")}
-          value={scenario.config.optimization}
+          value={optimizationLabel(t, scenario.config.optimization)}
         />
         <ConfigRow
           label={t("scenarios.active_config.rows.lte_bands")}
-          value={bandsToDisplay(scenario.config.lte_bands)}
+          value={bandsLabel(t, scenario.config.lte_bands)}
         />
         <ConfigRow
           label={t("scenarios.active_config.rows.nr_sa_bands")}
-          value={bandsToDisplay(scenario.config.sa_nr_bands)}
+          value={bandsLabel(t, scenario.config.sa_nr_bands)}
         />
         <ConfigRow
           label={t("scenarios.active_config.rows.nr_nsa_bands")}
-          value={bandsToDisplay(scenario.config.nsa_nr_bands)}
+          value={bandsLabel(t, scenario.config.nsa_nr_bands)}
         />
       </div>
     </section>

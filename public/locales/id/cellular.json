@@ -1109,12 +1109,13 @@
       "edit": "Edit",
       "deactivate": "Nonaktifkan",
       "notice": {
-        "applying": "Menerapkan {{name}}. Langkah {{step}} dari {{total}}. Koneksi dapat terputus sejenak saat radio menyambung ulang.",
-        "partial_lead": "Profil ini hanya diterapkan sebagian. Langkah",
-        "partial_tail": "tidak berhasil dan dibiarkan tidak berubah. Modem melaporkan",
         "unknown_step": "tidak diketahui",
-        "mismatch_lead": "SIM yang terpasang terbaca",
-        "mismatch_tail": "yang bukan SIM tempat profil ini disimpan. APN dan TTL tetap diterapkan. Perbarui profil, atau aktifkan profil yang cocok."
+        "applying_title": "Menerapkan {{name}}",
+        "applying_body": "Langkah {{step}} dari {{total}}. Koneksi mungkin terputus sebentar saat radio menyambung ulang.",
+        "partial_title": "Hanya diterapkan sebagian",
+        "partial_body": "Langkah {{step}} tidak berhasil dan dibiarkan tidak berubah. Modem melaporkan:",
+        "mismatch_title": "SIM yang terpasang berbeda",
+        "mismatch_body": "Ini bukan SIM yang menjadi dasar penyimpanan profil ini. APN dan TTL-nya tetap diterapkan — perbarui profil, atau aktifkan profil yang cocok."
       },
       "tiles": {
         "identity": "Identitas",
@@ -1125,7 +1126,8 @@
         "band_locking": "Penguncian band",
         "network_mode": "Mode jaringan",
         "lte_bands": "Band LTE",
-        "nr_bands": "Band NR"
+        "nr_bands": "Band NR",
+        "bands_auto": "Semua band"
       },
       "scenario": {
         "unknown": "Skenario tidak dikenal",
@@ -1140,6 +1142,12 @@
         "aria_segment": "{{name}} sampai {{end}}",
         "aria_join": ", lalu ",
         "aria_empty": "Tidak ada jadwal skenario untuk hari ini"
+      },
+      "badge": {
+        "live": "Aktif",
+        "applying": "Menerapkan",
+        "partial": "Diterapkan sebagian",
+        "mismatch": "SIM tidak cocok"
       }
     },
     "hero_empty": {
@@ -1363,7 +1371,6 @@
       "submit_edit": "Simpan perubahan",
       "cancel": "Batal",
       "next": "Berikutnya",
-      "clear": "Bersihkan",
       "tab_network": "Jaringan",
       "network_desc": "Cara modem terhubung ke jaringan data operator.",
       "identity_load_hint": "Beri nama profil ini dan pilih operator yang dituju.",
@@ -1694,6 +1701,25 @@
       "add_carrier": "Tambahkan carrier ini ke daftar"
     }
   },
+  "profiles": {
+    "list": {
+      "bands_more": "+{{n}}",
+      "bands_more_aria": "{{n}} band lainnya",
+      "status": {
+        "sim_changed": "SIM berubah"
+      },
+      "suggestion_meta": "Direkomendasikan untuk SIM Anda"
+    },
+    "today": {
+      "armed": "Jadwal aktif",
+      "not_armed": "Tidak ada jadwal",
+      "summary": {
+        "until": "berlaku hingga {{time}}, lalu {{next}}",
+        "rest_of_day": "berlaku untuk sisa hari ini",
+        "all_day": "berlaku sepanjang hari"
+      }
+    }
+  },
   "radio_info": {
     "common": {
       "not_available": "—",
@@ -1988,8 +2014,11 @@
     },
     "tile": {
       "in_force": "Berlaku",
-      "next_fire_label": "Perubahan terjadwal berikutnya",
-      "locks_bands": "Mengunci band",
+      "caption_in_force": "Berlaku sekarang",
+      "caption_next": "Berikutnya pukul {{time}}",
+      "caption_unscheduled": "Tidak dijadwalkan",
+      "band_count_nr": "{{bands}} NR",
+      "band_count_lte": "{{bands}} LTE",
       "custom_tag": "Kustom",
       "bands_auto": "Band otomatis",
       "delete_aria": "Hapus skenario {{name}}",
@@ -2005,7 +2034,20 @@
     },
     "redirect": {
       "label": "Membuka Profil SIM Kustom…"
-    }
+    },
+    "network_mode": {
+      "auto": "Otomatis",
+      "lte_only": "Hanya LTE",
+      "nr5g_only": "Hanya 5G SA",
+      "lte_nr5g": "5G SA / NSA"
+    },
+    "optimization": {
+      "balanced": "Seimbang",
+      "latency": "Latensi",
+      "throughput": "Kecepatan",
+      "custom": "Kustom"
+    },
+    "bands_auto": "Otomatis"
   },
   "sms": {
     "page": {

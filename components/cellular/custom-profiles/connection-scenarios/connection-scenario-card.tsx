@@ -33,7 +33,6 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { TonalBanner } from "@/components/ui/tonal-banner";
-import { AbstractPattern } from "./abstract-pattern";
 import { AddScenarioItem } from "./add-scenario-item";
 import { ActiveConfigCard } from "./active-config-card";
 import { ScenarioItem, Scenario } from "./scenario-item";
@@ -45,20 +44,23 @@ import {
 import { useConnectionScenarios } from "@/hooks/use-connection-scenarios";
 import { useActiveProfile } from "@/hooks/use-active-profile";
 import { ProfileOverrideAlert } from "@/components/cellular/custom-profiles/profile-override-alert";
-import { staggerRowItem, staggerRows } from "@/lib/motion";
+import { staggerContainer, staggerItem } from "@/lib/motion";
 import {
+  DEFAULT_SCENARIOS,
   NETWORK_MODE_OPTIONS,
-  modeValueToLabel,
   inputToBands,
   bandsToInput,
 } from "@/types/connection-scenario";
 import {
   PROFILE_CARD_PEER,
   PROFILE_PAD,
+  SCENARIO_DISC_ACTIVE,
+  SCENARIO_TILE_IDLE,
   SCENARIO_TILE_SHAPE,
   CONFIG_CARD_SHAPE,
   PILL_ACTION,
   PILL_ACTION_PLAIN,
+  TILE_CAPTION,
 } from "../shapes";
 
 // =============================================================================
@@ -91,6 +93,19 @@ import {
 // destructive `TonalBanner` explains and offers Retry. Only the very first
 // load (nothing on screen yet) shows the skeleton.
 // =============================================================================
+
+/**
+ * The `?action=` value that opens this card's "New scenario" dialog on mount.
+ *
+ * It lives HERE, beside the dialog it opens, rather than in a separate adapter
+ * module. There used to be a `connection-scenario.tsx` shell whose whole job was
+ * to read this param and pass `autoOpenAddDialog` down; the merged page shell
+ * absorbed that job and the shell was left exporting nothing anyone rendered.
+ * Two consumers remain — the page shell at `custom-profile.tsx`, and the retired
+ * `/connection-scenarios` route, which rewrites the old bare `?action=create`
+ * into this value on its way through.
+ */
+export const SCENARIO_CREATE_ACTION = "create-scenario";
 
 interface ConnectionScenariosCardProps {
   /** If true on mount, open the "New Scenario" dialog automatically. Used by
@@ -167,61 +182,31 @@ const ConnectionScenariosCard = ({
     refresh,
   } = useConnectionScenarios();
 
-  // Default (built-in) scenarios — icons are UI-only, not stored in backend.
-  // Names/descriptions are translated at render time (module-level constants
-  // can't call `t()`), keyed off each scenario's stable `id` so an existing
-  // `scenarios.default_*_name` key set already shipped keeps working.
+  // The three built-in scenarios.
+  // ---------------------------------------------------------------------------
+  // DERIVED from the shared `DEFAULT_SCENARIOS`, never restated. This block used
+  // to be a second, inline copy of that constant, and the two had drifted in the
+  // one field that matters: the shared copy holds the PERSISTED icon ids
+  // ("zap" / "gamepad" / "play"), while the inline copy held already-resolved
+  // LIGATURES ("bolt" / "sports_esports" / "play_arrow"). Every render site goes
+  // through `resolveScenarioIcon()`, which finds no option whose id is "bolt"
+  // and falls back to the sparkle — so all three built-in tiles rendered the
+  // same fallback glyph while the hero and the schedule ribbon, reading the
+  // shared copy, rendered the right ones. Overlaying only `name`/`description`
+  // is what keeps that impossible.
+  //
+  // Those two fields MUST stay `t()` calls at render time: `DEFAULT_SCENARIOS`
+  // is a module-level constant carrying English, and sourcing the labels from it
+  // directly would silently un-translate every locale. They are keyed off each
+  // scenario's stable `id`, so the `scenarios.default_*_name` key set that
+  // already shipped keeps working.
   const defaultScenarios: Scenario[] = useMemo(
-    () => [
-      {
-        id: "balanced",
-        name: t("scenarios.default_balanced_name"),
-        description: t("scenarios.default_balanced_description"),
-        icon: "bolt",
-        pattern: "balanced",
-        isDefault: true,
-        config: {
-          atModeValue: "AUTO",
-          mode: "Auto",
-          optimization: "Balanced",
-          lte_bands: "",
-          nsa_nr_bands: "",
-          sa_nr_bands: "",
-        },
-      },
-      {
-        id: "gaming",
-        name: t("scenarios.default_gaming_name"),
-        description: t("scenarios.default_gaming_description"),
-        icon: "sports_esports",
-        pattern: "gaming",
-        isDefault: true,
-        config: {
-          atModeValue: "NR5G",
-          mode: "5G SA Only",
-          optimization: "Latency",
-          lte_bands: "",
-          nsa_nr_bands: "",
-          sa_nr_bands: "",
-        },
-      },
-      {
-        id: "streaming",
-        name: t("scenarios.default_streaming_name"),
-        description: t("scenarios.default_streaming_description"),
-        icon: "play_arrow",
-        pattern: "streaming",
-        isDefault: true,
-        config: {
-          atModeValue: "LTE:NR5G",
-          mode: "5G SA / NSA",
-          optimization: "Throughput",
-          lte_bands: "",
-          nsa_nr_bands: "",
-          sa_nr_bands: "",
-        },
-      },
-    ],
+    () =>
+      DEFAULT_SCENARIOS.map((scenario) => ({
+        ...scenario,
+        name: t(`scenarios.default_${scenario.id}_name`),
+        description: t(`scenarios.default_${scenario.id}_description`),
+      })),
     [t],
   );
 
@@ -283,17 +268,19 @@ const ConnectionScenariosCard = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [locallyReady]);
 
-  // Convert backend StoredScenario[] → UI Scenario[] (add icon, pattern, isDefault)
+  // Convert backend StoredScenario[] → UI Scenario[] (add pattern, isDefault).
+  //
+  // `icon` PASSES THROUGH UNTOUCHED. It is the persisted key and it stays a key
+  // all the way to the render sites, each of which crosses the id→ligature
+  // boundary itself. Resolving it here — and carrying a second `iconId` field
+  // beside it so the edit dialog could still pre-select the picker — is exactly
+  // what allowed a ligature to end up in an id-shaped field. Records saved
+  // before the icon field existed carry no key at all and resolve to the
+  // default glyph downstream.
   const customScenarios: Scenario[] = useMemo(
     () =>
       storedScenarios.map((s) => ({
         ...s,
-        // Resolve the persisted glyph key to a component, but keep the key too:
-        // the edit dialog pre-selects by key, and a component reference cannot
-        // be compared back to a picker option. Records saved before the icon
-        // field existed have no key and resolve to the default glyph.
-        icon: resolveScenarioIcon(s.icon),
-        iconId: s.icon ?? DEFAULT_SCENARIO_ICON_ID,
         pattern: "custom" as const,
         isDefault: false,
       })),
@@ -442,7 +429,22 @@ const ConnectionScenariosCard = ({
       icon: addIcon,
       config: {
         atModeValue: addMode,
-        mode: modeValueToLabel(addMode),
+        // Legacy mirror of `atModeValue`, still written because every stored
+        // scenario on every device already carries the field and the config
+        // store has no key-migration primitive. It used to hold an English
+        // LABEL ("5G SA Only"), which is why an Italian user read English here;
+        // it now holds the AT value, so the copy is at least self-describing to
+        // anyone reading the JSON on the device. It is never rendered — display
+        // goes through `modeLabel(t, config.atModeValue)`. Note this is NOT the
+        // `mode` field `activate.sh` parses: that one is built separately in
+        // `use-connection-scenarios.ts` from `atModeValue`.
+        mode: addMode,
+        // A STABLE ENGLISH TOKEN, not a translated word, and that is the fix
+        // rather than the bug. The create dialog has no optimization field, so
+        // every scenario made here gets this value — writing `t(…)` would burn
+        // the author's language into the user's saved data permanently, and the
+        // scenario would still read "Personalizzato" after they switched the UI
+        // back to English. `optimizationLabel()` translates it at display time.
         optimization: "Custom",
         lte_bands: inputToBands(addLteBands),
         nsa_nr_bands: inputToBands(addNsaNrBands),
@@ -504,7 +506,7 @@ const ConnectionScenariosCard = ({
     setEditId(selectedScenario.id);
     setEditName(selectedScenario.name);
     setEditDescription(selectedScenario.description);
-    setEditIcon(selectedScenario.iconId ?? DEFAULT_SCENARIO_ICON_ID);
+    setEditIcon(selectedScenario.icon ?? DEFAULT_SCENARIO_ICON_ID);
     setEditMode(selectedScenario.config.atModeValue);
     setEditOptimization(selectedScenario.config.optimization);
     setEditLteBands(bandsToInput(selectedScenario.config.lte_bands));
@@ -524,7 +526,7 @@ const ConnectionScenariosCard = ({
       icon: editIcon,
       config: {
         atModeValue: editMode,
-        mode: modeValueToLabel(editMode),
+        mode: editMode,
         optimization: editOptimization,
         lte_bands: inputToBands(editLteBands),
         nsa_nr_bands: inputToBands(editNsaNrBands),
@@ -606,29 +608,39 @@ const ConnectionScenariosCard = ({
           always exist, so the grid can never render zero tiles. Loading and
           error are the only other reachable states. */}
       {showSkeleton ? (
+        // THE SKELETON MIRRORS BY RENDERING THE TILE, not by restating a
+        // height. `SCENARIO_TILE_SHAPE.ROOT` floors at 6.5rem and grows when a
+        // tag strip wraps, so a pinned `h-36` placeholder — what the previous
+        // generation used against a `min-h-[9rem]` tile — guaranteed a jump at
+        // the loading→loaded handoff for exactly the tiles that wrapped.
         <div className={SCENARIO_TILE_SHAPE.GRID}>
-          {[1, 2, 3].map((i) => (
-            <Skeleton
+          {[1, 2, 3, 4].map((i) => (
+            <div
               key={i}
-              className={cn(SCENARIO_TILE_SHAPE.HEIGHT, "rounded-card")}
-            />
+              className={cn(SCENARIO_TILE_SHAPE.ROOT, SCENARIO_TILE_IDLE)}
+            >
+              <Skeleton className={SCENARIO_TILE_SHAPE.DISC} />
+              <div className={SCENARIO_TILE_SHAPE.COL}>
+                <Skeleton className="h-[1.125rem] w-28" />
+                <Skeleton className="h-5 w-36 rounded-pill" />
+                <Skeleton className="h-3.5 w-20" />
+              </div>
+            </div>
           ))}
-          <Skeleton
-            className={cn(SCENARIO_TILE_SHAPE.HEIGHT, "rounded-card opacity-50")}
-          />
         </div>
       ) : (
         <div className={SCENARIO_TILE_SHAPE.GRID}>
-          {/* Row cascade (80ms), not the card step: these are tiles sharing one
-              card's border, not cards across a page. The container is
+          {/* The 120ms CARD step: these are tiles in a grid, the same cascade
+              the hero's tile strip and the Radio summary strip run, so the two
+              grids on this page reveal on one clock. The container is
               `display:contents` so the grid still sees the tiles as its own
               children; each child is a real block box, which is what the
               cascade needs to animate. Children carry ONLY `variants` — an
               `initial`/`animate` of their own would detach them from the
               page shell's clock. */}
-          <motion.div className="contents" variants={staggerRows}>
+          <motion.div className="contents" variants={staggerContainer}>
             {scenarios.map((scenario) => (
-              <motion.div key={scenario.id} variants={staggerRowItem}>
+              <motion.div key={scenario.id} variants={staggerItem}>
                 <ScenarioItem
                   scenario={scenario}
                   isActive={activeScenarioId === scenario.id}
@@ -639,7 +651,7 @@ const ConnectionScenariosCard = ({
                 />
               </motion.div>
             ))}
-            <motion.div variants={staggerRowItem}>
+            <motion.div variants={staggerItem}>
               <AddScenarioItem onClick={() => setShowAddDialog(true)} />
             </motion.div>
           </motion.div>
@@ -743,7 +755,7 @@ const ConnectionScenariosCard = ({
                 <SelectContent>
                   {NETWORK_MODE_OPTIONS.map((opt) => (
                     <SelectItem key={opt.value} value={opt.value}>
-                      {opt.label}
+                      {t(opt.labelKey)}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -826,23 +838,29 @@ const ConnectionScenariosCard = ({
             {/* Preview */}
             <div className="space-y-2">
               <Label>{t("scenarios.dialog.fields.preview_label")}</Label>
-              <div className="bg-surface-container text-on-surface rounded-card relative h-20 overflow-hidden">
-                <AbstractPattern
-                  type="custom"
-                  className="text-on-surface-variant absolute inset-0 h-full w-full"
-                />
-                <div className="relative flex items-center gap-3 p-4">
-                  <span className="bg-primary text-primary-foreground grid size-9 flex-none place-items-center rounded-pill">
-                    <MaterialSymbol name={resolveScenarioIcon(addIcon)} size={20} />
-                  </span>
-                  <div className="min-w-0">
-                    <p className="truncate font-medium">
-                      {addName || t("scenarios.dialog.fields.preview_name_fallback")}
-                    </p>
-                    <p className="text-on-surface-variant truncate text-sm">
-                      {addDescription || t("scenarios.dialog.fields.preview_description_fallback")}
-                    </p>
-                  </div>
+              {/* The preview IS a scenario tile — same ROOT / DISC / COL /
+                  NAME the grid renders, so what the dialog shows is what the
+                  grid will show. It carried a decorative `AbstractPattern`
+                  wash behind it before; colour belongs to the data, not to the
+                  furniture, and a texture layer is the definition of furniture. */}
+              <div className={cn(SCENARIO_TILE_SHAPE.ROOT, SCENARIO_TILE_IDLE)}>
+                <span
+                  className={cn(SCENARIO_TILE_SHAPE.DISC, SCENARIO_DISC_ACTIVE)}
+                >
+                  <MaterialSymbol
+                    name={resolveScenarioIcon(addIcon)}
+                    size={21}
+                    filled
+                  />
+                </span>
+                <div className={SCENARIO_TILE_SHAPE.COL}>
+                  <p className={SCENARIO_TILE_SHAPE.NAME}>
+                    {addName || t("scenarios.dialog.fields.preview_name_fallback")}
+                  </p>
+                  <p className={cn(TILE_CAPTION, "truncate")}>
+                    {addDescription ||
+                      t("scenarios.dialog.fields.preview_description_fallback")}
+                  </p>
                 </div>
               </div>
             </div>
@@ -924,7 +942,7 @@ const ConnectionScenariosCard = ({
                 <SelectContent>
                   {NETWORK_MODE_OPTIONS.map((opt) => (
                     <SelectItem key={opt.value} value={opt.value}>
-                      {opt.label}
+                      {t(opt.labelKey)}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -1020,23 +1038,26 @@ const ConnectionScenariosCard = ({
             {/* Preview */}
             <div className="space-y-2">
               <Label>{t("scenarios.dialog.fields.preview_label")}</Label>
-              <div className="bg-surface-container text-on-surface rounded-card relative h-20 overflow-hidden">
-                <AbstractPattern
-                  type="custom"
-                  className="text-on-surface-variant absolute inset-0 h-full w-full"
-                />
-                <div className="relative flex items-center gap-3 p-4">
-                  <span className="bg-primary text-primary-foreground grid size-9 flex-none place-items-center rounded-pill">
-                    <MaterialSymbol name={resolveScenarioIcon(editIcon)} size={20} />
-                  </span>
-                  <div className="min-w-0">
-                    <p className="truncate font-medium">
-                      {editName || t("scenarios.dialog.fields.preview_name_fallback")}
-                    </p>
-                    <p className="text-on-surface-variant truncate text-sm">
-                      {editDescription || t("scenarios.dialog.fields.preview_description_fallback")}
-                    </p>
-                  </div>
+              {/* Same tile geometry as the add dialog's preview and the grid
+                  itself — see the note there. */}
+              <div className={cn(SCENARIO_TILE_SHAPE.ROOT, SCENARIO_TILE_IDLE)}>
+                <span
+                  className={cn(SCENARIO_TILE_SHAPE.DISC, SCENARIO_DISC_ACTIVE)}
+                >
+                  <MaterialSymbol
+                    name={resolveScenarioIcon(editIcon)}
+                    size={21}
+                    filled
+                  />
+                </span>
+                <div className={SCENARIO_TILE_SHAPE.COL}>
+                  <p className={SCENARIO_TILE_SHAPE.NAME}>
+                    {editName || t("scenarios.dialog.fields.preview_name_fallback")}
+                  </p>
+                  <p className={cn(TILE_CAPTION, "truncate")}>
+                    {editDescription ||
+                      t("scenarios.dialog.fields.preview_description_fallback")}
+                  </p>
                 </div>
               </div>
             </div>

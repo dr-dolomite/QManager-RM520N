@@ -10,18 +10,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import {
-  Empty,
-  EmptyContent,
-  EmptyDescription,
-  EmptyHeader,
-  EmptyMedia,
-  EmptyTitle,
-} from "@/components/ui/empty";
-import { MaterialSymbol } from "@/components/ui/material-symbol";
-import { cn } from "@/lib/utils";
-import { PILL_ACTION } from "@/components/cellular/custom-profiles/shapes";
+import { ConditionScreen } from "@/components/cellular/condition-screen";
 
 // =============================================================================
 // EmptyProfileViewComponent — the TRUE empty state
@@ -32,10 +21,23 @@ import { PILL_ACTION } from "@/components/cellular/custom-profiles/shapes";
 // nor a recommendation there is no list for it to sit in — the card would be a
 // header over a void.
 //
-// The mock's empty state (lines 360–387) is the OTHER empty case: nothing saved
-// but a suggestion matched. That one renders as a dashed row INSIDE the list
-// and lives in `custom-profile-view.tsx`, because it still has content to
-// frame. Two different emptinesses, two different surfaces, deliberately.
+// The OTHER emptiness — nothing saved but a suggestion matched — renders as a
+// dashed row INSIDE the list and lives in `custom-profile-view.tsx`, because it
+// still has content to frame. Two different emptinesses, two different
+// surfaces, deliberately.
+//
+// WHY `ConditionScreen` AND NOT THE `Empty` PRIMITIVE. This is a condition the
+// page is reporting about itself, which is exactly the shape
+// `components/cellular/condition-screen.tsx` exists for, and routing through it
+// buys the surface the `CONDITION_TONE` container/disc pair rather than a
+// hand-written dashed box. `neutral` is the honest tone: having no profiles is
+// not a failure, not a warning and not a success, so it takes the neutral
+// container and a `surface-container-high` disc.
+//
+// THE COPY IS SCOPED TO WHAT IS ACTUALLY TRUE. "No profiles saved" — never "no
+// active profile". The two are different facts and this card only knows the
+// first one: the modem may well be running a perfectly good configuration that
+// simply was not saved as a profile, and the hero above is what reports that.
 //
 // NO LOCAL `initial`/`animate`. This component is returned from the same slot
 // as the Saved Profiles card, which the page wraps in its own `staggerItem`.
@@ -59,39 +61,24 @@ const EmptyProfileViewComponent = ({ onRefresh }: EmptyProfileViewProps) => {
         </CardDescription>
       </CardHeader>
       <CardContent className="flex h-full items-center justify-center">
-        {/* The dashed stroke is semantic here — this codebase's vocabulary for
-            a slot with nothing in it yet — not a compensation for a weak fill,
-            so No-Hairline-On-Fill does not apply. `rounded-card`: an inner
-            block that behaves as its own surface, never out-rounding the card
-            that hosts it. */}
-        <Empty className="border-outline rounded-card border border-dashed">
-          <EmptyHeader>
-            <EmptyMedia variant="icon">
-              <MaterialSymbol name="badge" size={24} aria-hidden />
-            </EmptyMedia>
-            <EmptyTitle>
-              {t("custom_profiles.empty_state.teaching_headline")}
-            </EmptyTitle>
-            {/* The teaching copy, not the one-liner: a user who has never made
-                a profile does not yet know what one bundles, and this is the
-                only place on the surface that can tell them. */}
-            <EmptyDescription className="text-pretty">
-              {t("custom_profiles.empty_state.teaching_body")}
-            </EmptyDescription>
-          </EmptyHeader>
-          {onRefresh && (
-            <EmptyContent>
-              <Button
-                variant="tonal"
-                className={cn(PILL_ACTION, "h-9 px-4 text-[0.8125rem]")}
-                onClick={onRefresh}
-              >
-                <MaterialSymbol name="refresh" size={16} aria-hidden />
-                {t("custom_profiles.empty_state.refresh")}
-              </Button>
-            </EmptyContent>
-          )}
-        </Empty>
+        {/* `rounded-tile` (28px): an inner block inside a `rounded-card` (36px)
+            card may not carry its parent's radius, and the primitive's own
+            `rounded-hero` (40px) would out-round the card hosting it.
+            `ariaRole="status"` — a polite report, not an alert: nothing has
+            gone wrong. */}
+        <ConditionScreen
+          tone="neutral"
+          glyph="sim_card"
+          ariaRole="status"
+          title={t("custom_profiles.empty_state.teaching_headline")}
+          /* The teaching copy, not the one-liner: a user who has never made a
+             profile does not yet know what one bundles, and this is the only
+             place on the surface that can tell them. */
+          description={t("custom_profiles.empty_state.teaching_body")}
+          onRetry={onRefresh}
+          retryLabel={t("custom_profiles.empty_state.refresh")}
+          className="w-full rounded-tile py-10"
+        />
       </CardContent>
     </Card>
   );

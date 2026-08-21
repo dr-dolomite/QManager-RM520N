@@ -3,8 +3,9 @@ import { motion } from "motion/react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
+import { Tag } from "@/components/ui/tag";
 import { buttonVariants } from "@/components/ui/button";
-import { MaterialSymbol, type MaterialSymbolName } from "@/components/ui/material-symbol";
+import { MaterialSymbol } from "@/components/ui/material-symbol";
 import { DUR, EASE_STANDARD } from "@/lib/motion";
 import {
   AlertDialog,
@@ -16,49 +17,56 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { bandsToDisplay, type ScenarioConfig } from "@/types/connection-scenario";
+import type { ConnectionScenario } from "@/types/connection-scenario";
+import { resolveScenarioIcon } from "./scenario-icons";
 import {
   BADGE_GLYPH_SIZE,
-  CONFIG_PILL_BRAND,
-  CONFIG_PILL_NEUTRAL,
   MACHINE_VALUE,
   PILL_ACTION,
   PILL_ACTION_PLAIN,
-  PROFILE_ROW_ACTIVE_RING,
   PROFILE_STATUS_BADGE,
-  SCENARIO_META_CHIP,
-  SCENARIO_PILL,
+  SCENARIO_DISC_ACTIVE,
+  SCENARIO_DISC_IDLE,
+  SCENARIO_TILE_ACTIVE,
   SCENARIO_TILE_IDLE,
   SCENARIO_TILE_SHAPE,
+  TILE_CAPTION,
 } from "../shapes";
 
 // =============================================================================
 // ScenarioItem — one selectable scenario tile
 // =============================================================================
-// The tile is a tonal surface, not a saturated gradient, and identity rides on
-// the GLYPH (see `scenario-icons.ts`) rather than on colour — every custom
-// scenario renders the same base tile, so a colour-blind user can still tell two
-// of them apart.
+// ANATOMY. `[ 44px disc ][ name / band tags / schedule caption ][ chip + trash ]`
+// — the same horizontal block every other `/cellular/` tile renders, imported
+// wholesale from `SCENARIO_TILE_SHAPE` so this tile can never again disagree
+// with the ghost tile beside it or the skeleton behind it on radius or height.
 //
-// WHY THE IN-FORCE TILE IS NEUTRAL-PLUS-RING RATHER THAN A BRAND FILL. The tile
-// carries two `surface-container-high` mono pills of its own. Dropping it onto
-// `primary-container` (what `SCENARIO_TILE_ACTIVE` does) puts a neutral
-// container inside a tinted one and the pills lose the tonal separation that is
-// the only thing distinguishing them from the tile. This is the identical
-// problem `profileRowTone` solved for the active profile row, so it takes the
-// identical answer: the fill stays neutral and `PROFILE_ROW_ACTIVE_RING` — the
-// SAME 2px inset ring, imported, never restated — carries "this is the one".
-// The ring is an inset shadow, so an activating tile does not resize.
+// IDENTITY RIDES ON THE GLYPH, never on colour (see `scenario-icons.ts`). The
+// tile therefore stores the PERSISTED icon id and resolves it here, at the one
+// boundary — `resolveScenarioIcon(scenario.icon)`. It used to receive an
+// already-resolved ligature from its caller, which is how the caller's private
+// copy of the built-in scenarios came to hold ligature names in an id-shaped
+// field and rendered all three built-ins as the fallback sparkle.
 //
-// Selection ("you are looking at this one") is the same geometry one tone down,
-// so the two states can never disagree on weight or shift the layout.
+// THREE STATES, THREE CHANNELS, NO OVERLAP:
+//   in force  — neutral body + `SCENARIO_TILE_ACTIVE`'s 2px inset primary ring,
+//               literally the same constant the active profile row takes.
+//   selected  — one tonal step (`surface-container-high`). "You are looking at
+//               this one" is a weaker claim than "this is running", so it gets
+//               the weaker channel.
+//   hover     — a 1.01 scale and nothing else. Giving hover the tonal step too
+//               would make a hovered idle tile identical to a selected one.
 //
-// The tile also reports, at most, ONE meta chip, in this precedence:
-//   in force → next scheduled fire → locks bands
-// The middle one is only ever rendered from `nextFireAt`, which the page shell
-// supplies from the active profile's schedule. There is no local fallback and no
-// default: a fabricated "18:00" on a scenario nothing has scheduled is exactly
-// the claim the State-Honesty Rule forbids.
+// The body is NEUTRAL in all three. The previous generation painted the
+// in-force tile `primary-container` across 144px — the container layer at four
+// times its sanctioned size — and hand-wrote the classes beside an exported
+// constant nothing consumed, plus a private ring constant of its own. All three
+// copies are gone; the tones come from `../shapes.ts` only.
+//
+// The tile reports the schedule as a CAPTION, not a chip, and only ever from
+// `nextFireAt`, which the page shell supplies from the active profile's
+// schedule. There is no local fallback: a fabricated "18:00" on a scenario
+// nothing has scheduled is exactly the claim the State-Honesty Rule forbids.
 // =============================================================================
 
 /** The destructive pill, from the button variant — matches
@@ -71,57 +79,40 @@ const DESTRUCTIVE_ACTION = cn(
 );
 const CANCEL_ACTION = PILL_ACTION_PLAIN;
 
-/**
- * The selected-but-not-in-force ring. Same 2px inset geometry as
- * `PROFILE_ROW_ACTIVE_RING`, one tone down, so "looking at" and "in force" are
- * the same shape at two weights instead of two unrelated treatments.
- *
- * NOTE (shapes.ts gap): there is no exported constant for this. It is written
- * here in the ring's own idiom rather than as a `ring-*` utility, because a
- * `ring` with an offset would reintroduce the layout box the inset shadow exists
- * to avoid.
- */
-const SCENARIO_TILE_SELECTED_RING = "shadow-[inset_0_0_0_2px_var(--outline)]";
-
-/**
- * Which band families a scenario pins, in the order the tile prints them.
- * Labels are band-class tokens the device itself uses, so they are machine
- * voice and deliberately not translated.
- */
-const LOCKED_BAND_GROUPS = [
-  { key: "lte_bands", label: "LTE" },
-  { key: "sa_nr_bands", label: "NR-SA" },
-  { key: "nsa_nr_bands", label: "NR-NSA" },
-] as const satisfies ReadonlyArray<{
-  key: keyof ScenarioConfig;
-  label: string;
-}>;
-
-/**
- * The tile's one-line band summary, or null when the scenario pins nothing.
- * Null is the honest "auto" signal — the caller prints a translated label for
- * it rather than this function inventing English.
- */
-function lockedBandSummary(config: ScenarioConfig): string | null {
-  const parts = LOCKED_BAND_GROUPS.map(({ key, label }) => {
-    const raw = config[key];
-    return raw ? `${label} ${bandsToDisplay(raw)}` : null;
-  }).filter((part): part is string => part !== null);
-  return parts.length > 0 ? parts.join(" · ") : null;
+/** Count the members of a colon-delimited band list. "" is zero, not one. */
+function bandCount(colonDelimited: string): number {
+  return colonDelimited ? colonDelimited.split(":").filter(Boolean).length : 0;
 }
 
-export interface Scenario {
-  id: string;
-  name: string;
-  description: string;
-  /** Resolved ligature name, for rendering. */
-  icon: MaterialSymbolName;
-  /** The persisted glyph KEY this was resolved from. Kept alongside the
-   *  component because the edit dialog needs to pre-select the stored choice,
-   *  and a component reference cannot be compared back to a picker option. */
-  iconId?: string;
-  pattern: "gaming" | "streaming" | "balanced" | "custom";
-  config: ScenarioConfig;
+/**
+ * The tile's band-lock counts.
+ *
+ * NR is the UNION of the SA and NSA lists, de-duplicated: a scenario that pins
+ * n78 on both legs pins one band, not two, and printing "2 NR" for it would
+ * overstate what the lock actually does.
+ */
+function bandCounts(config: ConnectionScenario["config"]): {
+  lte: number;
+  nr: number;
+} {
+  const nr = new Set(
+    [...config.sa_nr_bands.split(":"), ...config.nsa_nr_bands.split(":")].filter(
+      Boolean,
+    ),
+  );
+  return { lte: bandCount(config.lte_bands), nr: nr.size };
+}
+
+/**
+ * The UI's view of a scenario.
+ *
+ * DERIVED from the backend/shared type rather than restated, so the two can
+ * never drift apart the way they did before: `icon` here is the same optional
+ * PERSISTED KEY that `ConnectionScenario.icon` and `StoredScenario.icon` carry,
+ * not a ligature. `isDefault` is the one genuine difference — a record coming
+ * off `list.sh` has no such field, so the UI supplies it.
+ */
+export interface Scenario extends Omit<ConnectionScenario, "isDefault"> {
   isDefault?: boolean;
 }
 
@@ -134,7 +125,7 @@ interface ScenarioItemProps {
   /**
    * "HH:MM" of this scenario's next scheduled activation, when — and only when —
    * an active profile's `scenario.schedule` actually names it. Undefined/null
-   * renders NO schedule chip. Never derive this locally.
+   * renders the "not scheduled" caption. Never derive this locally.
    */
   nextFireAt?: string | null;
 }
@@ -152,20 +143,17 @@ export const ScenarioItem = ({
   const isCustom = scenario.pattern === "custom";
   const activeBadge = PROFILE_STATUS_BADGE.active;
 
-  const lockedBands = lockedBandSummary(scenario.config);
-  const locksBands = lockedBands !== null;
+  const { lte, nr } = bandCounts(scenario.config);
+  const locksBands = lte > 0 || nr > 0;
 
-  // At most one meta chip, in precedence order. `in_force` outranks a schedule
-  // time because what the modem is running now beats what it will run later;
-  // a schedule time outranks "locks bands" because the pills below already say
-  // which bands are pinned, and only the chip can say when it changes.
-  const metaChip: "in_force" | "schedule" | "locks_bands" | null = isActive
-    ? "in_force"
-    : nextFireAt
-      ? "schedule"
-      : locksBands
-        ? "locks_bands"
-        : null;
+  // The caption states what is knowable and nothing else. A next-fire time
+  // outranks "in force now" because the time is the newer information; with no
+  // time at all, an inactive scenario is genuinely unscheduled and says so.
+  const caption = nextFireAt
+    ? t("scenarios.tile.caption_next", { time: nextFireAt })
+    : isActive
+      ? t("scenarios.tile.caption_in_force")
+      : t("scenarios.tile.caption_unscheduled");
 
   const handleDeleteClick = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -192,13 +180,11 @@ export const ScenarioItem = ({
         aria-pressed={isSelected}
         className={cn(
           SCENARIO_TILE_SHAPE.ROOT,
-          SCENARIO_TILE_IDLE,
-          "group cursor-pointer gap-2.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background",
-          isActive
-            ? PROFILE_ROW_ACTIVE_RING
-            : isSelected
-              ? SCENARIO_TILE_SELECTED_RING
-              : "",
+          isActive ? SCENARIO_TILE_ACTIVE : SCENARIO_TILE_IDLE,
+          // Selection is one tonal step, applied AFTER the base tone so
+          // tailwind-merge drops the losing `bg-*` rather than stacking two.
+          !isActive && isSelected && "bg-surface-container-high",
+          "group h-full cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background",
         )}
         whileHover={!isActive && !isSelected ? { scale: 1.01 } : {}}
         whileTap={{ scale: 0.99 }}
@@ -208,125 +194,82 @@ export const ScenarioItem = ({
         onClick={() => onSelect(scenario.id)}
         onKeyDown={handleKeyDown}
       >
-        {/* Top row — identity disc, then the delete affordance and the single
-            meta chip. The delete button is always in the layout (opacity only,
-            never `hidden`) so revealing it on hover cannot shift the chip. */}
-        <div className="flex items-start gap-2">
-          {/* Glyph disc, matching the Banner primitive's Glyph-Disc Rule: a
-              filled circle survives when a tint washes out. */}
-          <span
-            className={cn(
-              SCENARIO_TILE_SHAPE.DISC,
-              "bg-primary text-primary-foreground",
-            )}
-          >
-            <MaterialSymbol name={scenario.icon} size={21} filled />
-          </span>
+        {/* The identity disc — THE ONE COLOURED OBJECT IN THE TILE. Filled
+            when the scenario is in force, neutral otherwise. */}
+        <span
+          className={cn(
+            SCENARIO_TILE_SHAPE.DISC,
+            isActive ? SCENARIO_DISC_ACTIVE : SCENARIO_DISC_IDLE,
+          )}
+        >
+          <MaterialSymbol
+            name={resolveScenarioIcon(scenario.icon)}
+            size={21}
+            filled
+          />
+        </span>
 
-          <div className="ml-auto flex items-center gap-1.5">
+        <div className={SCENARIO_TILE_SHAPE.COL}>
+          <h3 className={SCENARIO_TILE_SHAPE.NAME}>{scenario.name}</h3>
+
+          {/* Metadata, never status: the mode token the device takes, how many
+              bands each leg pins, and whether the record is the user's. All
+              outline tags — the tile's fill is the only fill in it. */}
+          <div className={SCENARIO_TILE_SHAPE.META}>
+            <Tag variant="neutral" className={MACHINE_VALUE}>
+              {scenario.config.atModeValue}
+            </Tag>
+            {locksBands ? (
+              <>
+                {nr > 0 && (
+                  <Tag variant="nr">
+                    {t("scenarios.tile.band_count_nr", { bands: nr })}
+                  </Tag>
+                )}
+                {lte > 0 && (
+                  <Tag variant="lte">
+                    {t("scenarios.tile.band_count_lte", { bands: lte })}
+                  </Tag>
+                )}
+              </>
+            ) : (
+              // Human voice — "Bands auto" is a sentence the UI wrote, not a
+              // value the device emitted, so it does not take the mono face.
+              <Tag variant="neutral">{t("scenarios.tile.bands_auto")}</Tag>
+            )}
             {isCustom && (
-              <button
-                type="button"
-                onClick={handleDeleteClick}
-                aria-label={t("scenarios.tile.delete_aria", {
-                  name: scenario.name,
-                })}
-                className="bg-surface-container-high text-on-surface-variant hover:bg-destructive hover:text-destructive-foreground rounded-pill p-1.5 opacity-0 transition-colors duration-[var(--duration-quick)] ease-out group-hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-current"
-              >
-                <MaterialSymbol name="delete" size={16} />
-              </button>
-            )}
-
-            {metaChip === "in_force" && (
-              <Badge variant={activeBadge.variant}>
-                <MaterialSymbol
-                  name={activeBadge.glyph}
-                  size={BADGE_GLYPH_SIZE}
-                  filled
-                />
-                {t("scenarios.tile.in_force")}
-              </Badge>
-            )}
-
-            {metaChip === "schedule" && (
-              <span
-                className={cn(
-                  SCENARIO_META_CHIP,
-                  "bg-surface-container-high text-on-surface-variant",
-                )}
-              >
-                <MaterialSymbol name="schedule" size={BADGE_GLYPH_SIZE} />
-                <span className="sr-only">
-                  {t("scenarios.tile.next_fire_label")}
-                </span>
-                <span className={MACHINE_VALUE}>{nextFireAt}</span>
-              </span>
-            )}
-
-            {metaChip === "locks_bands" && (
-              <span
-                className={cn(
-                  SCENARIO_META_CHIP,
-                  "bg-surface-container-high text-on-surface-variant",
-                )}
-              >
-                <MaterialSymbol name="lock" size={BADGE_GLYPH_SIZE} />
-                {t("scenarios.tile.locks_bands")}
-              </span>
+              <Tag variant="neutral">{t("scenarios.tile.custom_tag")}</Tag>
             )}
           </div>
+
+          <p className={cn(TILE_CAPTION, "truncate")}>{caption}</p>
         </div>
 
-        {/* Identity. Both lines are user input on a custom scenario, so both
-            truncate rather than reflowing the tile. */}
-        <div className="mt-auto flex min-w-0 flex-col gap-0.5">
-          <div className="flex min-w-0 items-center gap-2">
-            <h3 className="min-w-0 truncate text-[0.9375rem] font-semibold">
-              {scenario.name}
-            </h3>
-            {!scenario.isDefault && (
-              <span
-                className={cn(
-                  SCENARIO_META_CHIP,
-                  "bg-surface-container-high text-on-surface-variant flex-none py-0.5",
-                )}
-              >
-                {t("scenarios.tile.custom_tag")}
-              </span>
-            )}
-          </div>
-          <p className="text-on-surface-variant min-w-0 truncate text-xs">
-            {scenario.description}
-          </p>
-        </div>
-
-        {/* Config pills. The band pill takes the BRAND container when the
-            scenario pins bands, so the lock reads before the text does; an auto
-            scenario stays neutral, because "not locked" is not a state worth
-            tinting. */}
-        <div className="flex flex-wrap gap-1.5">
-          <span
-            className={cn(SCENARIO_PILL, CONFIG_PILL_NEUTRAL, MACHINE_VALUE)}
-          >
-            {scenario.config.atModeValue}
-          </span>
-          {locksBands ? (
-            <span
-              className={cn(
-                SCENARIO_PILL,
-                CONFIG_PILL_BRAND,
-                MACHINE_VALUE,
-                "min-w-0",
-              )}
+        {/* Trailing cluster: the status chip, and the delete affordance for a
+            custom record. The button is always in the layout (opacity only,
+            never `hidden`) so revealing it on hover cannot shift the chip. */}
+        <div className="flex flex-none items-center gap-1.5">
+          {isActive && (
+            <Badge variant={activeBadge.variant}>
+              <MaterialSymbol
+                name={activeBadge.glyph}
+                size={BADGE_GLYPH_SIZE}
+                filled
+              />
+              {t("scenarios.tile.in_force")}
+            </Badge>
+          )}
+          {isCustom && (
+            <button
+              type="button"
+              onClick={handleDeleteClick}
+              aria-label={t("scenarios.tile.delete_aria", {
+                name: scenario.name,
+              })}
+              className="bg-surface-container-high text-on-surface-variant hover:bg-destructive hover:text-destructive-foreground rounded-pill p-1.5 opacity-0 transition-colors duration-[var(--duration-quick)] ease-out group-hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-current"
             >
-              <span className="min-w-0 truncate">{lockedBands}</span>
-            </span>
-          ) : (
-            // Human voice — "Bands auto" is a sentence the UI wrote, not a
-            // value the device emitted, so it does not take the mono face.
-            <span className={cn(SCENARIO_PILL, CONFIG_PILL_NEUTRAL)}>
-              {t("scenarios.tile.bands_auto")}
-            </span>
+              <MaterialSymbol name="delete" size={16} />
+            </button>
           )}
         </div>
       </motion.div>

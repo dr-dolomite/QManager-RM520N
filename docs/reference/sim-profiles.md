@@ -37,9 +37,9 @@ points (boot, SIM switch, watchdog) and are still current.
 | Apply PID lock | `/tmp/qmanager_profile_apply.pid` |
 | CGI endpoints | `scripts/www/cgi-bin/quecmanager/profiles/*.sh` |
 | Frontend hook | `hooks/use-sim-profiles.ts`, `hooks/use-active-profile.ts`, `hooks/use-current-settings.ts`, `hooks/use-profile-suggestions.ts` |
-| Frontend types | `types/sim-profile.ts` |
+| Frontend types | `types/sim-profile.ts`; `types/connection-scenario.ts` — **the one definition of `DEFAULT_SCENARIOS`** |
 | Frontend page | `app/cellular/custom-profiles/` — **the single route for this feature.** `app/cellular/custom-profiles/connection-scenarios/page.tsx` is a retired route that now client-side redirects here |
-| Frontend components | `components/cellular/custom-profiles/` (coordinator `custom-profile.tsx`, hero `active-profile-hero.tsx`, ribbon `schedule-ribbon.tsx`, wizard `custom-profile-form.tsx` hosted by `profile-form-dialog.tsx`, list `custom-profile-view.tsx` — which also renders suggestion rows — dialogs `apply-progress-dialog.tsx` and `deactivate-progress-dialog.tsx`, geometry/tone contract `shapes.ts`) |
+| Frontend components | `components/cellular/custom-profiles/` (coordinator `custom-profile.tsx`, hero `active-profile-hero.tsx`, Today strip + ribbon `schedule-ribbon.tsx`, wizard `custom-profile-form.tsx` hosted by `profile-form-dialog.tsx`, list `custom-profile-view.tsx` — which also renders suggestion rows — dialogs `apply-progress-dialog.tsx` and `deactivate-progress-dialog.tsx`, geometry/tone contract `shapes.ts`, scenario label resolution `scenario-labels.ts`) |
 | Schedule strip math | `lib/schedule-timeline.ts` (`buildDayTimeline`, `nextScenarioChange`, `formatMinute`) |
 | Suggestion data / matcher | `constants/profile-suggestions.ts`, `lib/carrier-match.ts` |
 | Apply steps | 4: `apn` → `ttl_hl` → `scenario` → `imei` |
@@ -622,19 +622,31 @@ modified by the merge.
 
 ### Page anatomy, top to bottom
 
-1. **Page header + two pill actions** — "New scenario" (tonal) and "New profile"
-   (primary). Two creation verbs on one page, ranked by which one a user reaches
-   for more often.
+1. **`CellularPageHeader` + two pill actions** — "New scenario" (tonal) and
+   "New profile" (primary). Two creation verbs on one page, ranked by which one
+   a user reaches for more often. The shared `/cellular/` header component owns
+   the Display step's `tracking-[-0.02em]`; the page does **not** hand-write an
+   `<h1>` against `PAGE_TITLE` any more.
 2. **The "in force now" hero** (`active-profile-hero.tsx`, `rounded-hero`) —
    what the modem is running *right now*, answered before the list of things it
-   could run instead. Glyph disc, profile name, MNO + ICCID, Edit / Deactivate;
-   at most **one** inline notice; three tiles (identity config pills · scenario
-   in force · radio owned-by-scenario); and the 24-hour **schedule ribbon**.
-   When no profile is active the whole card is replaced by the `NoActiveProfile`
-   state screen — an empty hero would be a card reporting nothing.
-3. **A two-column grid** (`@4xl/main:grid-cols-[1.15fr_1fr]`) — saved profiles
+   could run instead. 52 px glyph disc, eyebrow + profile name, MNO + ICCID,
+   a status `Badge`, Edit / Deactivate; at most **one** inline notice; and three
+   tiles (Identity · Scenario in force · Radio owned-by-scenario). When no
+   profile is active the whole card is replaced by the `NoActiveProfile` state
+   screen — an empty hero would be a card reporting nothing.
+3. **The Today strip** (`ScheduleTodayCard` in `schedule-ribbon.tsx`,
+   `PROFILE_CARD_PEER`) — the 24-hour schedule, given the full page width. It is
+   a **peer** card, not a second hero, and it renders only while a profile is in
+   force. See [The 24-hour schedule ribbon](#the-24-hour-schedule-ribbon).
+4. **A two-column grid** (`@4xl/main:grid-cols-[1.15fr_1fr]`) — saved profiles
    beside the Connection Scenarios card. Container query, not a viewport
    breakpoint, per the project's responsive rule.
+
+> ℹ️ NOTE: **The hero owns the surface's only `rounded-hero`.** Everything
+> below it — the Today strip, the profile list, the scenario grid — is
+> `PROFILE_CARD_PEER` (36 px `rounded-card`). A surface gets exactly one anchor,
+> and the hero has it. That is why the Today strip, which reads as a second
+> banner, is deliberately a step down in radius.
 
 Everything the hero renders is **derived from real state**; there is no
 `showMismatchNotice`-style boolean prop, because a notice driven by a flag the
@@ -688,23 +700,31 @@ profile landed on the device and the input is safe to discard, while `null`
 means everything the user typed is still the only copy of it, so the dialog
 deliberately stays open.
 
-> ⚠️ WARNING: **Known wart.** In *create* mode the wizard's own Cancel button
-> **clears the form** rather than closing the dialog
-> (`custom-profile-form.tsx:563`) — that behaviour predates the dialog and was
-> not changed by the move. Dismissal is via the X, Esc, or the overlay.
+> ℹ️ NOTE: **The footer's secondary button closes the dialog in both modes.**
+> It used to branch — edit closed, *create* wiped every field and threw you back
+> to tab one — and it was labelled honestly for it ("Clear" vs "Cancel"). The
+> pairing was still wrong: the slot beside a submit button in a dialog footer is
+> where a user reaches **without reading** when they want out, and in create
+> mode that reach destroyed a four-tab wizard's worth of typing with no undo. A
+> destructive action sharing a position with a non-destructive one is a
+> mis-click trap regardless of its label. `handleCancel` now calls `onCancel()`
+> first; the field reset survives only as the fallback for a caller that mounts
+> the form outside a dialog, which `ProfileFormDialog` — the only caller today —
+> never is. The label is always `custom_profiles.form.cancel`, and
+> `custom_profiles.form.clear` was deleted from all five packs.
 
 ### The active row is neutral plus a ring, not a green fill
 
-`profileRowTone("active")` no longer returns `bg-tone-success-1`. The active row
-is now neutral `surface-container` carrying a **2 px inset primary ring**
-(`PROFILE_ROW_ACTIVE_RING`).
+`profileRowTone()` returns a neutral `surface-container` fill for **all three**
+statuses. The active row is distinguished by a **2 px inset primary ring**
+(`PROFILE_ROW_ACTIVE_RING`), not by a fill.
 
-The reason is what the row *contains*: five or six `surface-container-high`
-config pills. Step 1 of a tone family is tuned to carry `on-surface` ink at full
-contrast, not to host another neutral container inside itself — on a green row
-the pills lost the tonal separation that was the only thing distinguishing them
-from their background. Emphasis therefore moved to a channel the row's contents
-don't compete for.
+The reason is what the row *contains*: a wrapped strip of tags. Step 1 of a tone
+family is tuned to carry `on-surface` ink at full contrast, not to host another
+container inside itself — on a tinted row the tags lost the separation that was
+the only thing distinguishing them from their background. Emphasis therefore
+moved to channels the row's contents don't compete for: the ring, the 40 px
+glyph disc (`PROFILE_ROW_DISC_TONE`), and the status chip.
 
 > ℹ️ NOTE: **This is not a No-Hairline-On-Fill violation.** That rule bans a
 > stroke drawn to prop up a fill too weak to read on its own; here the fill is
@@ -715,18 +735,49 @@ don't compete for.
 > in-force tile with the same exported constant, so the two can never disagree
 > on the ring's weight.
 
-`mismatch` keeps its tonal fill: a mismatch is a genuine functional state the
-whole row is reporting, not a selection.
+> ⚠️ WARNING: **`mismatch` no longer keeps a tonal fill — do not restore one.**
+> An earlier generation painted the mismatched row `--tone-warning-1`, which is
+> a legitimate construction in the ramp's own idiom (the cell scanner still uses
+> it correctly for a stacked condition band) and wrong *here* for two reasons.
+> A mismatch is a property of the profile's **binding**, not of the row's
+> existence, so painting the whole row makes the SIM the loudest object on a page
+> whose subject is the profile. And warning would then be spent twice in the same
+> row — once on the fill, once on the chip that says "SIM changed" in words —
+> where only the chip survives a colourblind read. `mismatch` now shows as a
+> `bg-warning` glyph disc plus a `warning` `Badge`; the body stays neutral.
 
 ### The 24-hour schedule ribbon
 
 `lib/schedule-timeline.ts` + `components/cellular/custom-profiles/schedule-ribbon.tsx`
-render a profile's scenario schedule as a proportional strip of the day.
-`ScheduleRibbon` is the hero's labelled version (segment names, windows, a
-needle at the current minute, an hour axis); `ScheduleMiniBar` is the 8 px band
-a profile row carries — a *glyph* for "this profile has a schedule and here is
-its shape", not a readable timeline, which is why it animates nothing and stays
-`aria-hidden` (the row's own text line already states the schedule in words).
+render a profile's scenario schedule as a proportional strip of the day. The
+module exports three things:
+
+| Export | What it is |
+|--------|-----------|
+| `ScheduleTodayCard` | The **peer card** that sits directly under the hero — a summary sentence ("Balanced in force until 18:00, then Speed"), the "Schedule armed" readout, and the labelled ribbon. `ScheduleTodayCardSkeleton` mirrors it. |
+| `ScheduleRibbon` | The track itself: segment names, windows, a needle at the current minute, an hour axis. |
+| `ScheduleMiniBar` | The 8 px band a profile **row** carries — a *glyph* for "this profile has a schedule and here is its shape", not a readable timeline, which is why it animates nothing and stays `aria-hidden` (the row's own text line already states the schedule in words). Hidden below `@lg/card`. |
+
+> ℹ️ NOTE: **The ribbon left the hero on 2026-08-21 and should not be put back.**
+> It used to be a band at the bottom of the hero card, competing with three
+> tiles and two buttons for the same ~400 px — at that width a 20-minute block
+> resolves to about eight pixels, i.e. a proportional graphic with no room to be
+> proportional. Given the full page width it answers a question the old layout
+> did not answer at all: *what is the shape of today*. The hero consequently no
+> longer takes `now` or the scenario list, and builds no timeline.
+>
+> The card renders **only while a profile is in force**. An unscheduled profile
+> still has a true strip to draw (one scenario, all day), but a page with
+> nothing active has no schedule to be the shape of, and the hero's empty state
+> has already said so in words.
+
+The track is a single `surface-container` pill with `overflow-hidden`; segments
+sit inside it separated by a 3 px gap through which the track shows. That gap is
+what separates two adjacent idle blocks, so the segments need no second tonal
+step and no hairline. The in-force segment takes `--primary` (`RIBBON_SEGMENT_LIVE`)
+— the **fill** layer, since a bar fill is exactly what that layer is for. Primary
+here does not describe the scenario; it marks which block is running. Scenarios
+separate from each other by **glyph**, never by hue.
 
 `buildDayTimeline(schedule, fallbackScenarioId, now)` is pure and takes `now` as
 a **parameter**, never an implicit `new Date()`. One clock is passed down from
@@ -790,8 +841,9 @@ summaries **do** carry the full `scenario.schedule.blocks[]`
 (`profile_mgr.sh:139–142`) — which is what lets every row draw its own
 `ScheduleMiniBar` from list data alone — but they deliberately **omit
 `settings`**, to keep the list endpoint lightweight. So the hero fetches the
-active profile through `profiles/get.sh` for its config pills, and list rows
-keep their per-row `getProfile` prefetch.
+active profile through `profiles/get.sh` for its Identity tile, and list rows
+keep their per-row `getProfile` prefetch (which is also what feeds each row's
+IMEI-override tag).
 
 #### The hero's detail fetch needs a nonce — `refresh()` cannot invalidate it
 
@@ -812,8 +864,8 @@ So the effect never re-ran, and "indefinitely" is literal: there is no poll on
 this page to bail it out. `useActiveProfile`'s 30 s timer is **disabled** under
 `SimProfilesProvider`, and nothing else refreshes this surface in the
 background. Everything derived from `activeProfile` went stale with it —
-`activeScenario`, `nextFireByScenarioId`, `radioOwnedByProfile`, and the hero's
-whole `ScheduleRibbon`.
+`activeScenario`, `nextFireByScenarioId`, `radioOwnedByProfile`, and the whole
+`ScheduleTodayCard` below the hero.
 
 > ℹ️ NOTE: **Calling the hook's `refresh()` does not fix this**, which is the
 > non-obvious part. `refresh()` re-runs `fetchProfiles()`, which repopulates the
@@ -1163,17 +1215,41 @@ user only meant to advance a tab.
 ### Saved-profiles card list (`custom-profile-view.tsx`)
 
 The old TanStack **data table was removed** (`custom-profile-table.tsx` is
-deleted) in favor of a **stacked-card row list**. Each row shows:
+deleted) in favor of a **row list**. A row is single-line at wide widths
+(`PROFILE_ROW_SHAPE`), left to right:
 
-- Config pills — APN / CID / PDP / TTL / HL / IMEI-override.
-- A **pulsing live-dot** on the active row.
-- A filled tonal status badge — **Active** / **SIM-Mismatch** / **Inactive** —
-  via `PROFILE_STATUS_BADGE` (see [Tonal design rebuild](#tonal-design-rebuild-shapests-contract)
-  below), each status carrying its own glyph rather than relying on colour
-  alone.
-- The scenario-binding line and, when relevant, a SIM-mismatch inline banner.
-- A per-row audit line — **"Applied / Partial / Failed at HH:MM"** — backed by
-  the new `custom_profiles.view.audit.{applied,partial,failed}` i18n keys.
+| Slot | Contents |
+|------|----------|
+| 40 px glyph disc | Tinted by status via `PROFILE_ROW_DISC_TONE` — the row's one coloured object. |
+| Name + tag strip | The profile name over a **wrapping strip of outline `Tag`s**: APN (or "carrier default"), **IMEI override** when set, MNO, the scenario binding, band tags, and the audit note. |
+| `ScheduleMiniBar` | The 8 px condensed ribbon. An unscheduled profile renders the same box `invisible`, so the trailing cluster lands on one vertical line down the whole list. |
+| Status chip + overflow | `PROFILE_STATUS_BADGE` (each status carrying its own glyph rather than relying on colour alone) beside a 36 px icon-only menu button. |
+
+- The per-row audit note — **"Applied / Partial / Failed at HH:MM"** — is backed
+  by the `custom_profiles.view.audit.{applied,partial,failed}` i18n keys.
+- **Radius is width-dependent**: `rounded-pill` at `@lg/card` and above (a row
+  that acts is a pill), stepping down to `rounded-tile` in a narrow container,
+  where the tags wrap to a second line and a 38 px end-cap on a 110 px-tall box
+  would read as a lozenge rather than a row.
+- **Height is a floor, and the skeleton mirrors by rendering `ROOT` itself** with
+  placeholder children — not by restating a number. A tile pins because its
+  content is bounded; a row's tag strip wraps, so a pin would resolve as a clip.
+
+> ℹ️ NOTE: **Only IMEI override follows the APN down the tag strip.** PDP type,
+> CID, TTL and hop limit are deliberately *not* on the row — a saved profile can
+> be opened to read them, and nine tags per row buries the name. An overridden
+> IMEI is different in kind: it changes the identity the **network** sees, it is
+> invisible everywhere else in the list, and a user who has forgotten one is set
+> will misread every registration failure that follows. All five of those fields
+> *are* shown together on the hero's Identity tile, which is the one place the
+> full config is stated. `imeiOverridden` reads the row's already-prefetched
+> `full.settings`, so it costs no extra request.
+>
+> The **pulsing live-dot** is no longer on the active row. `LIVE_DOT` moved to
+> the Today strip's "Schedule armed" readout: a dot per row is one animation loop
+> per row, and the strip is where "armed" is actually asserted. That is the whole
+> ambient-loop budget for this surface — if a future change wants a loop
+> somewhere else here, this one has to go first.
 
 Row settings are hydrated on demand via a `getProfile` prefetch, because the
 `list.sh` summaries deliberately omit the `settings` object (the list endpoint
@@ -1354,10 +1430,16 @@ The Select uses one sentinel option value:
 > the action name has to say *which* thing to create: `?action=create` opens the
 > profile wizard, `?action=create-scenario` opens the scenario dialog. The
 > `create-scenario` literal is exported as `SCENARIO_CREATE_ACTION` from
-> `connection-scenarios/connection-scenario.tsx` and imported by every consumer
-> (`scenario-binding/scenario-picker.tsx`, the coordinator, and the retired
-> route's redirect) rather than restated — three copies of a string that must
-> match is how a deep link silently stops opening anything.
+> **`connection-scenarios/connection-scenario-card.tsx`** — beside the dialog it
+> opens — and imported by every consumer (the coordinator `custom-profile.tsx`
+> and the retired route's redirect) rather than restated; three copies of a
+> string that must match is how a deep link silently stops opening anything.
+>
+> It used to live in `connection-scenarios/connection-scenario.tsx`, a 40-line
+> adapter whose only job was to read the param and pass `autoOpenAddDialog`
+> down. The merged page shell absorbed that job, leaving the module's default
+> export with **zero importers**, so the file was deleted on 2026-08-21 and the
+> constant moved. Do not recreate the adapter.
 >
 > The page wraps `useSearchParams()` in `<Suspense>`, which is not defensive
 > tidiness: reading search params in a client component triggers a
@@ -1395,30 +1477,99 @@ stale RM551E 7-step list.
 > parity, 0 errors), and `eslint` (exit 0). On-device curl validation was not
 > run — no backend changed, so it is not required for this change.
 
-### Tonal design rebuild (`shapes.ts` contract)
+### Design-language contract (`shapes.ts`)
 
-Custom Profiles and Connection Scenarios were subsequently rebuilt onto the
-project's tonal design language (the same migration already applied to the
-Dashboard, Cellular/Radio Information, and SMS Center). This is again
-**frontend-only** — nothing in the data model, CGI contract, or apply
-pipeline above changed.
+**`components/cellular/custom-profiles/shapes.ts` is the single source of truth**
+for this surface's geometry and tones — card shells, row/tile shapes, pill
+geometry, the tone-per-status helpers (`profileRowTone`, `ledgerStepTone`) and
+the status→badge map (`PROFILE_STATUS_BADGE`). Any new work here (a new row
+variant, a new tile, a new status) extends this file rather than hand-rolling a
+class string, and a skeleton mirrors by importing the same constant rather than
+restating a number. This is **frontend-only** — nothing in the data model, CGI
+contract, or apply pipeline above changed.
 
-> ℹ️ NOTE: **`components/cellular/custom-profiles/shapes.ts` is now the
-> single source of truth** for this surface's geometry and tones — row/tile
-> shapes, pill and badge classes, the tone-per-status helpers
-> (`profileRowTone`, `ledgerStepTone`), and the status→badge map
-> (`PROFILE_STATUS_BADGE`). Any new work on this surface (a new row variant,
-> a new tile, a new status) should extend this file rather than hand-roll a
-> class string. The merge added the hero and ribbon vocabulary to it —
-> `HERO_CARD`, `HERO_DISC`, `HERO_EYEBROW`, `HERO_TILE_SHAPE`,
-> `HERO_TILE_NEUTRAL`, `HERO_TILE_SCENARIO`, `HERO_NOTICE`, `HERO_NOTICE_TONE`,
-> `RIBBON_SHAPE`, `RIBBON_SEGMENT_IDLE`, `RIBBON_SEGMENT_LIVE`, `RIBBON_MINI`,
-> `SCENARIO_PILL`, `SCENARIO_META_CHIP`, `LEDGER_VALUE`, `LEDGER_BAR`,
-> `LIVE_DOT`, and `PROFILE_ROW_ACTIVE_RING` — its header comments carry the reasoning (the tone rule: fills
-> use `--tone-{role}-1` for stacked rows, the container pair for chips/notices,
-> `text-{role}-on-surface` for tinted text; and the No-Hairline-On-Fill rule:
-> a real tonal fill doesn't also carry a border). Both page shells also moved
-> onto the shared `staggerContainer`/`staggerItem` cascade and `@container/main`.
+> ⚠️ WARNING: **The surface was re-authored onto the finalized design language
+> on 2026-08-21.** An earlier generation of `shapes.ts` was written against the
+> *tonal* language that preceded it — correct for its own system, and wrong for
+> this one in one consistent way. Any older note describing this surface as
+> "tonal", or citing `--tone-{role}-1` fills on rows and tiles, describes the
+> superseded generation.
+
+#### The Three-Layer Rule, as it applies here
+
+The finalized canon assigns each of the three colour layers a **size**, and the
+previous generation's defect was spending the largest layer on the largest box:
+
+| Layer | Tokens | Job on this surface |
+|-------|--------|--------------------|
+| **Ink** | `--X-on-surface` | Values and strokes on neutral ground. The default — e.g. the Today strip's "Schedule armed" readout. |
+| **Fill** | `--X` + `--X-foreground` | Compact emphasis only: glyph discs, the live ribbon segment, buttons. |
+| **Container** | `--X-container` + `--on-X-container` | Status chips, banners and condition screens, and **nothing else** — on this page that means `Badge` and `HERO_NOTICE_TONE`. |
+
+**THE BODY IS NEUTRAL, THE DISC CARRIES THE COLOUR.** A tile is not a chip and a
+row is not a banner, so neither may take the container layer. A row's fill is
+`surface-container` whatever its status; the status is carried by its glyph disc
+and by a filled `Badge` that names the state in words. That is also what makes
+the state survive deuteranopia, where `success-container` and `warning-container`
+are the same surface (they measure **1.03:1** apart).
+
+Identity — an APN string, a band number, a scenario name, a PDP type — is not
+status, so it never takes a `Badge`. It takes an outline `Tag`
+(`components/ui/tag.tsx`), whose `nr` / `lte` / `neutral` roles make `n78` read
+as NR here exactly as it does on the dashboard and the scanner.
+
+> ⚠️ WARNING: **These exports were deleted so the compiler forbids the defect.
+> Do not reintroduce them.**
+>
+> | Retired | Why |
+> |---------|-----|
+> | `CONFIG_PILL`, `CONFIG_PILL_NEUTRAL`, `CONFIG_PILL_BRAND` | A filled chip doing a tag's job. Config values are now `<Tag variant="neutral">`. |
+> | `HERO_TILE_SCENARIO` | Painted 104 px of `--primary-container` — the Container layer at four times its sanctioned size. The scenario tile now takes `HERO_TILE_BODY` like its siblings and marks itself with a `bg-primary` **disc**. |
+> | `SCENARIO_PILL`, `SCENARIO_META_CHIP` | Same defect on the scenario grid. |
+> | `SCENARIO_TILE_SHAPE.HEIGHT`, `HERO_TILE_SHAPE.LABEL`, `RIBBON_SHAPE.ROOT`, `RIBBON_SHAPE.NEEDLE_LABEL` | Dead members with no consumer; the skeletons that used to shadow `HEIGHT` now render `ROOT`. |
+> | `PAGE_TITLE` / `PAGE_DESCRIPTION` (for the page header) | The page uses `CellularPageHeader`. Both constants still exist in the file for dialog titles that need the tracking without the header's layout, but nothing on this surface imports them. |
+>
+> There is deliberately **no tinted tile body export** at all. Not exporting one
+> is what stops a future caller tinting one back.
+
+#### `HERO_TILE_SHAPE.ROOT` is a 104 px floor, not a pin
+
+This is the one deliberate divergence from `components/cellular/tile-shape.ts`,
+and it is documented on the constant itself. `TILE_SHAPE.ROOT` **pins** 104 px
+because a Radio / Antenna / SMS tile carries a single bounded reading. Every tile
+on *this* strip carries a wrapping tag row under its value — the Identity tile's
+PDP type, CID, TTL, hop limit and IMEI-override tags; the Scenario tile's
+schedule tag; the Radio tile's band tags. A pin on genuinely unbounded content is
+a lie that resolves as a clip, so this strip floors and top-aligns instead.
+
+It floors on **all three tiles, never a mix**. A `h-` tile in a CSS grid opts out
+of `align-self: stretch`, so one floored sibling beside two pinned ones grows
+alone and leaves the row ragged; three floored siblings all stretch to the tallest
+and the row stays square. The skeleton renders the same `ROOT`.
+
+> ℹ️ NOTE: the measure is **restated** as a literal rather than interpolated from
+> `TILE_SHAPE.HEIGHT`. Tailwind's JIT scans source text for class names, so a
+> template-assembled arbitrary value never reaches the stylesheet and the tile
+> would ship with no minimum at all.
+
+#### `PROFILE_STATUS_BADGE` gained a real `partial` member
+
+`partial` is its own member (`warning` + the `warning` glyph) rather than
+borrowing `failed`. A partial apply is degraded, not dead, and the hero notice
+directly beneath the chip is `warning`-toned — a `destructive` chip over a
+`warning` banner reads as two different verdicts on one condition. It shares the
+`warning` role with `mismatch` and is separated from it **by glyph alone**
+(`warning` vs `swap_horiz`), which is the only channel a deuteranopic user has.
+That is the Every-Chip-Has-A-Glyph Rule doing its job.
+
+#### The "Band locking" link on the Radio tile
+
+The Radio tile's eyebrow carries a link to the page that owns the lock it
+reports. **The href is `/cellular/cell-locking`, not `/cellular/band-locking`.**
+The pre-redesign hero linked the latter, which is not a route — `app/cellular/`
+has `cell-locking/` — and QManager ships as a **static export** served by
+lighttpd off the modem, so a missing route is a hard 404, not a soft client-side
+miss. The i18n label key is unchanged; only the destination was corrected.
 
 An accessibility bug was fixed in the process:
 `connection-scenarios/active-config-card.tsx` distinguished its three status
@@ -1439,6 +1590,128 @@ type makes that class of drift a compile error: add a status to
 `ApplyStepStatus` and `ledgerStepTone` stops compiling until every case is
 handled.
 
+#### `DEFAULT_SCENARIOS` has exactly one definition
+
+> ⚠️ WARNING: **`types/connection-scenario.ts` owns the three built-in
+> scenarios. Never write a second copy beside a consumer.**
+>
+> `connection-scenario-card.tsx` held an inline duplicate until 2026-08-21, and
+> the two had drifted in the one field that matters. The shared constant stores
+> the **persisted icon ids** (`"zap"` / `"gamepad"` / `"play"`); the inline copy
+> stored already-resolved **Material ligatures** (`"bolt"` /
+> `"sports_esports"` / `"play_arrow"`) in the same id-shaped field.
+> `resolveScenarioIcon()` finds no option whose `id` is `"bolt"` and falls back
+> to `auto_awesome`, so **all three built-in scenario tiles rendered the sparkle
+> glyph** while the hero and the schedule ribbon — reading the shared constant —
+> rendered the right ones.
+>
+> The id → ligature boundary is **at the render site**: `ConnectionScenario.icon`
+> carries the persisted key everywhere it travels, and each render site calls
+> `resolveScenarioIcon()` itself. Resolving early so a downstream consumer can
+> render the field directly is precisely what produced the defect.
+
+Two mechanisms now make that drift impossible rather than merely fixed:
+
+- The card derives its built-ins from `DEFAULT_SCENARIOS.map(...)`, overlaying
+  **only** `name` and `description` with `t()` calls at render time.
+  `DEFAULT_SCENARIOS` is a module-level constant holding English fallbacks and
+  cannot call `t()`, so sourcing labels from it directly would silently
+  un-translate every locale; the overlay is keyed off each scenario's stable
+  `id`, so the existing `scenarios.default_*_{name,description}` key set keeps
+  working. A consumer that only needs `id` / `config` / `icon` (e.g.
+  `band-locking.tsx`) reads the constant as-is.
+- The UI view type is now `Scenario extends Omit<ConnectionScenario, "isDefault">`
+  (`connection-scenarios/scenario-item.tsx`), so the two shapes are
+  compiler-linked and cannot drift apart again.
+
+#### `types/connection-scenario.ts` returns keys, never words
+
+> ⚠️ WARNING: **A `types/` module has no `t()` in scope, so any finished string
+> it returns ships in English to every locale** — however well translated the
+> surface around it is. This module rendered hardcoded English to Italian and
+> Chinese users in three places until 2026-08-21. The contract is now: **it
+> returns an i18n key, or `null`. Never a word.**
+
+| Was | Is | On no match |
+|-----|----|-------------|
+| `NETWORK_MODE_OPTIONS[].label` | `.labelKey` | — |
+| `modeValueToLabel()` | `modeValueToLabelKey()` | `null` — the caller prints the raw AT value in machine voice |
+| `bandsToDisplay()` returning `"Auto"` | returns `null` for an empty lock | `null` — the caller supplies the word |
+| *(new)* | `optimizationLabelKey()` | `null` — the caller prints the stored string verbatim |
+
+`null` rather than a fallback key is deliberate in each case: a helper that
+quietly substitutes a default **cannot be told apart from one that found a real
+value**, and `"Auto"` meant two different things in the two places this module
+used to return it (an unrecognised AT mode versus an empty band lock).
+
+**`components/cellular/custom-profiles/scenario-labels.ts` is the other half of
+the contract** — `modeLabel(t, …)`, `optimizationLabel(t, …)`, `bandsLabel(t, …)`
+take the reader's `t` and finish the job. Two placement decisions are
+load-bearing:
+
+- **It lives outside `types/`** so that importing `i18next` is not dragged into
+  `band-locking.tsx`, which reads `DEFAULT_SCENARIOS` purely for its `config`
+  values and displays none of these strings.
+- **It is shared, not local to one card.** The network mode used to be rendered
+  two ways — `config.mode` in the active-config card, `modeValueToLabel(config.atModeValue)`
+  in the hero — and one of those read a stale persisted copy. Two renderings of
+  one value is the drift this module exists to make impossible.
+
+> ℹ️ NOTE: every `t()` in `scenario-labels.ts` is called with a **variable**, so
+> none of these keys appears as a literal anywhere in the tree. `bun run
+> i18n:check` is unaffected (it compares each pack against the English superset
+> and never reads source), but a human grepping for `scenarios.network_mode.auto`
+> will find only the JSON. `NETWORK_MODE_OPTIONS` and `OPTIMIZATION_LABEL_KEY`
+> in `types/connection-scenario.ts` are the index — a new key goes there.
+
+**`ScenarioConfig.mode` is derived, persisted, and must never be rendered.**
+`atModeValue` is the truth; `mode` was an English label stored beside it since
+before this surface was translated, so reading it shows an Italian user
+"5G SA Only". It stays in the shape because every stored scenario on every
+device already carries it and the config store has no key-migration primitive —
+dropping it here would strand it there. Everything this build writes — the
+create dialog, the edit dialog, and the three `DEFAULT_SCENARIOS` constants —
+now puts `atModeValue` in that field, so the copy is at least self-describing to
+anyone reading the JSON on the device. **Records already saved on a device still
+hold the old English label**, which is harmless precisely because nothing
+renders it.
+
+> ⚠️ WARNING: **this is not the `mode` field `scenarios/activate.sh` parses out
+> of the POST body.** That one is built separately in
+> `hooks/use-connection-scenarios.ts` (`body.mode = config.atModeValue`) and is
+> unrelated to the persisted `ScenarioConfig.mode`. Verified before the change;
+> do not "unify" them.
+
+`optimization: "Custom"` written by the create dialog stays a **stable English
+token on purpose.** Writing `t(…)` there would burn the author's language
+permanently into the user's saved data — the scenario would still read
+"Personalizzato" after they switched the UI back to English. It is translated at
+display time instead, and `optimizationLabel()` falls back to the stored string
+verbatim because the edit dialog's optimization field is free text: anything
+outside the four tokens this app writes is the user's own word and must not be
+translated, trimmed or title-cased.
+
+New keys in all five packs: `scenarios.network_mode.{auto, lte_only, nr5g_only,
+lte_nr5g}`, `scenarios.optimization.{balanced, latency, throughput, custom}`,
+`scenarios.bands_auto`. Wording follows the vocabulary each pack already uses at
+`cellular.settings.network_type.options.*`.
+
+> ℹ️ NOTE: **Known drift, deliberately not fixed here.** This page now carries
+> **three** keys for "no band lock is set", with three different English
+> strings: `custom_profiles.hero.tiles.bands_auto` ("All bands"),
+> `scenarios.tile.bands_auto` ("Bands auto"), and `scenarios.bands_auto`
+> ("Auto"). The third is genuinely different copy — it is a row *value* under a
+> label that already says "bands", so "All bands" would read "LTE bands: All
+> bands". The first two are the same fact in the same kind of tag slot and are
+> real drift, pre-existing and not introduced by this change.
+
+#### Two files were deleted
+
+| Deleted | Why |
+|---------|-----|
+| `connection-scenarios/abstract-pattern.tsx` (175 lines) | Decorative SVG card overlays, with no place in the finalized language. |
+| `connection-scenarios/connection-scenario.tsx` (40 lines) | A vestigial adapter whose default export had **zero importers** once the merged page shell absorbed its job. Its `SCENARIO_CREATE_ACTION` constant moved to `connection-scenario-card.tsx`, beside the dialog it opens. |
+
 **i18n:** the Connection Scenarios surface (`scenarios.*` in the `cellular`
 namespace, `public/locales/*/cellular.json`) had shipped almost entirely
 hardcoded English — the subtree held 4 keys. It now holds **76 leaves across
@@ -1448,11 +1721,25 @@ been string literals inside the `SCENARIO_ICONS` data array in
 `scenario-icons.ts` — invisible to both `bun run i18n:check` and a plain
 JSX-text grep, since they never appeared as rendered text in source.
 
-> ℹ️ NOTE: This pass was validated with `tsc` (clean), `next build` (clean),
-> `eslint` (clean), `bun run icons:check` (97 glyphs, no font regeneration
-> needed), and `bun run i18n:check` (0/0, 76 leaves confirmed in every
-> locale by count). On-device curl validation was not run — no backend
-> changed.
+The 2026-08-21 re-authoring reshaped the hero's notice keys. Five orphaned
+**sentence-fragment** keys were removed from all five packs —
+`custom_profiles.hero.notice.{applying, partial_lead, partial_tail,
+mismatch_lead, mismatch_tail}` — and replaced by `{applying, partial,
+mismatch}_{title, body}` pairs, because a notice assembled from a lead and a
+tail around an interpolated value cannot be reordered by a translator.
+`notice.unknown_step` is still live (it fills `partial_body`'s `{{step}}` when
+the backend names no failing step). New `hero.badge.*`, `profiles.list.*` and
+`profiles.today.*` subtrees landed alongside.
+
+Two later fixes in the same pass removed the last hardcoded English from this
+surface: the `scenarios.*` key contract described above, and the deletion of
+`custom_profiles.form.clear`.
+
+> ℹ️ NOTE: Validated with `bun run i18n:check` — **0 errors, 100 % parity at
+> 2319/2319 in every locale** (en / id / it / zh-CN / zh-TW), alongside `tsc`
+> (exit 0), `next build` (49 pages), `eslint` (clean on the touched subtree) and
+> `bun run icons:check` (unchanged). On-device curl validation was not run — no
+> backend changed.
 
 ---
 
@@ -1619,15 +1906,26 @@ below the saved rows under a "Recommended for your SIM" divider. These are
 
 ### Why suggestions live in the list but not in `profiles[]`
 
-A suggestion row is structurally identical to a saved row — same border,
-radius, padding, motion, and the same four content bands (identity + status,
-scenario binding, config pills, action footer). Three differences carry the
-honesty, none of them colour-only:
+A suggestion row renders the same `PROFILE_ROW_SHAPE.ROOT` as a saved row —
+same geometry, padding, motion — and the same disclosure: the APN, PDP type,
+CID, any TTL / hop-limit override and any recommended bands all render as
+outline tags in the same `.META` strip, so the offer and the roster can be
+compared straight down the column. An earlier pass shipped the row carrying only
+"Recommended for your SIM", which is an unfalsifiable claim: a row asking
+permission to configure the modem has to say **what** it would configure before
+the user presses Create. Three differences carry the honesty, none of them
+colour-only:
 
-- the status slot reads **Suggested** (info-toned, `SparklesIcon`) where a saved
-  row reads Active / SIM mismatch / Inactive;
-- there is **no overflow menu**, because there is nothing yet to edit or delete;
-- the footer verb is **Create**, not Activate, above a "Not saved yet" label.
+- the row and its disc are **dashed and unfilled** (`SUGGESTION_ROW` /
+  `SUGGESTION_DISC`) — a suggestion is an *offer*, nothing has been applied, so
+  nothing is painted;
+- the leading tag reads **"Recommended for your SIM"** in words, where a saved
+  row's trailing slot carries an Active / SIM-changed / Inactive chip;
+- the trailing affordance is **Create** — not a status chip and **no overflow
+  menu**, because there is nothing yet to edit, delete or activate.
+
+The extra tag line is absorbed by `ROOT`'s `min-h-` floor. There is no height
+constant to keep in step, which is exactly why the shape is a floor.
 
 The surface stays `bg-muted/20` — the same wash an inactive saved row uses.
 Tinting it would re-create the visual quarantine the in-list design removes.
@@ -1910,7 +2208,7 @@ stay in sync**:
 | `scenario_mgr.sh::scenario_block_for_now` (jq, on-device) | Authoritative — resolves "what should be active right now" when the timer fires. |
 | `scenario_mgr.sh::_scenario_generate_oncalendar_lines` (jq, on-device) | Compiles a schedule into `OnCalendar=` lines (see below) — a from-scratch reimplementation of the same timeline logic, not a call into `scenario_block_for_now`. |
 | `lib/scenario-schedule.ts` (`resolveScheduledScenario`, `nextChangeAt`) | Display-only — drives the frontend's "locked" badge and "next change at HH:MM" line. The on-device timer is authoritative; this module exists only so the UI agrees with the device. |
-| `lib/schedule-timeline.ts` (`buildDayTimeline`, `nextScenarioChange`) | Display-only — paints the hero's 24-hour ribbon and every row's mini bar. Same rule, expressed as paint order over 1440 slots (blocks painted in reverse array order so the earliest match owns the slot = first-wins). Added with the merged page; see [The 24-hour schedule ribbon](#the-24-hour-schedule-ribbon). |
+| `lib/schedule-timeline.ts` (`buildDayTimeline`, `nextScenarioChange`) | Display-only — paints the Today strip's 24-hour ribbon and every row's mini bar. Same rule, expressed as paint order over 1440 slots (blocks painted in reverse array order so the earliest match owns the slot = first-wins). Added with the merged page; see [The 24-hour schedule ribbon](#the-24-hour-schedule-ribbon). |
 
 ### The systemd mechanism
 
@@ -1926,7 +2224,7 @@ lines are per-profile data, not a fixed schedule:
 | `scripts/usr/bin/qmanager_scenario_schedule` | The fire-worker. A systemd `OnCalendar` line can only encode **when** to fire, never **which** scenario (unlike a cron line, it carries no payload) — so every firing runs this one fixed worker, which resolves "what should be active right now" via `scenario_block_for_now` / `scenario_apply_resolved` rather than being told directly. Self-heals: if the active profile was deleted or its schedule disabled/edited since the timer was armed, it tears the timer down instead of erroring. |
 
 > ℹ️ NOTE: **The timer survives the 1970 boot window, and that is what makes the
-> hero's ribbon honest.** RM520N-GL has no battery-backed real-time clock, so
+> Today strip's ribbon honest.** RM520N-GL has no battery-backed real-time clock, so
 > every boot starts at Jan 1970 and every armed `OnCalendar` timer misfires twice
 > around the ~24 s clock step. `qmanager_scenario_schedule:54–60` calls
 > `_qm_timer_fire_allowed ""` — the **empty** argument means "I have no single

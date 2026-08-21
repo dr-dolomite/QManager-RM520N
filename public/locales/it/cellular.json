@@ -1109,12 +1109,13 @@
       "edit": "Modifica",
       "deactivate": "Disattiva",
       "notice": {
-        "applying": "Applicazione di {{name}}. Passaggio {{step}} di {{total}}. La connessione può cadere brevemente mentre la radio si riaggancia.",
-        "partial_lead": "Questo profilo è applicato solo in parte. Il passaggio",
-        "partial_tail": "non è stato applicato ed è rimasto invariato. Il modem ha riportato",
         "unknown_step": "sconosciuto",
-        "mismatch_lead": "La SIM inserita riporta",
-        "mismatch_tail": "che non è la SIM con cui questo profilo è stato salvato. APN e TTL restano applicati. Aggiorna il profilo oppure attiva quello corrispondente."
+        "applying_title": "Applicazione di {{name}}",
+        "applying_body": "Passaggio {{step}} di {{total}}. La connessione potrebbe interrompersi brevemente durante il riaggancio della radio.",
+        "partial_title": "Applicato solo in parte",
+        "partial_body": "Il passaggio {{step}} non è andato a buon fine ed è rimasto invariato. Il modem ha riportato:",
+        "mismatch_title": "È inserita una SIM diversa",
+        "mismatch_body": "Non è la SIM per cui è stato salvato il profilo. APN e TTL restano applicati: aggiorna il profilo oppure attiva quello corrispondente."
       },
       "tiles": {
         "identity": "Identità",
@@ -1125,7 +1126,8 @@
         "band_locking": "Blocco bande",
         "network_mode": "Modalità di rete",
         "lte_bands": "Bande LTE",
-        "nr_bands": "Bande NR"
+        "nr_bands": "Bande NR",
+        "bands_auto": "Tutte le bande"
       },
       "scenario": {
         "unknown": "Scenario sconosciuto",
@@ -1140,6 +1142,12 @@
         "aria_segment": "{{name}} fino alle {{end}}",
         "aria_join": ", poi ",
         "aria_empty": "Nessuna pianificazione di scenari per oggi"
+      },
+      "badge": {
+        "live": "Attivo",
+        "applying": "Applicazione",
+        "partial": "Applicato in parte",
+        "mismatch": "SIM non corrispondente"
       }
     },
     "hero_empty": {
@@ -1363,7 +1371,6 @@
       "submit_edit": "Salva modifiche",
       "cancel": "Annulla",
       "next": "Avanti",
-      "clear": "Cancella",
       "tab_network": "Rete",
       "network_desc": "Come il modem si connette alla rete dati dell'operatore.",
       "identity_load_hint": "Assegna un nome a questo profilo e scegli l'operatore a cui è destinato.",
@@ -1694,6 +1701,25 @@
       "add_carrier": "Aggiungi questa portante all'elenco"
     }
   },
+  "profiles": {
+    "list": {
+      "bands_more": "+{{n}}",
+      "bands_more_aria": "Altre {{n}} bande",
+      "status": {
+        "sim_changed": "SIM cambiata"
+      },
+      "suggestion_meta": "Consigliato per la tua SIM"
+    },
+    "today": {
+      "armed": "Pianificazione attiva",
+      "not_armed": "Nessuna pianificazione",
+      "summary": {
+        "until": "in vigore fino alle {{time}}, poi {{next}}",
+        "rest_of_day": "in vigore per il resto della giornata",
+        "all_day": "in vigore tutto il giorno"
+      }
+    }
+  },
   "radio_info": {
     "common": {
       "not_available": "—",
@@ -1988,8 +2014,11 @@
     },
     "tile": {
       "in_force": "Attivo",
-      "next_fire_label": "Prossimo cambio pianificato",
-      "locks_bands": "Blocca le bande",
+      "caption_in_force": "Attivo adesso",
+      "caption_next": "Prossimo alle {{time}}",
+      "caption_unscheduled": "Non pianificato",
+      "band_count_nr": "{{bands}} NR",
+      "band_count_lte": "{{bands}} LTE",
       "custom_tag": "Personalizzato",
       "bands_auto": "Bande automatiche",
       "delete_aria": "Elimina lo scenario {{name}}",
@@ -2005,7 +2034,20 @@
     },
     "redirect": {
       "label": "Apertura di Profilo SIM personalizzato…"
-    }
+    },
+    "network_mode": {
+      "auto": "Automatico",
+      "lte_only": "Solo LTE",
+      "nr5g_only": "Solo 5G SA",
+      "lte_nr5g": "5G SA / NSA"
+    },
+    "optimization": {
+      "balanced": "Bilanciato",
+      "latency": "Latenza",
+      "throughput": "Velocità",
+      "custom": "Personalizzato"
+    },
+    "bands_auto": "Automatico"
   },
   "sms": {
     "page": {
