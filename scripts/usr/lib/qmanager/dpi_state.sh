@@ -110,7 +110,10 @@ dpi_binary_installed() {
 # =============================================================================
 dpi_domains_loaded() {
     if [ -f "$DPI_HOSTLIST" ]; then
-        wc -l < "$DPI_HOSTLIST" | tr -d ' '
+        # Count real entries only — strip comments and blank lines (matches
+        # what the hostlist GET endpoint returns; a raw wc -l reports the
+        # comment header too, making the status card disagree with the UI).
+        sed -e '/^[[:space:]]*#/d' -e '/^[[:space:]]*$/d' "$DPI_HOSTLIST" | wc -l | tr -d ' '
     else
         echo 0
     fi
@@ -226,14 +229,21 @@ dpi_uptime_str() {
 
 # =============================================================================
 # dpi_build_args — tpws argv (without the binary), word-splittable
-# Video Optimizer mode: Titan-proven split/disorder/oob recipe + hostlist
-# filtering (only hostlist-matching connections are desync'd; subdomains of
-# listed domains match automatically). Titan (RM551E, running the same
-# official tpws build 24/7) runs exactly --filter-l7=tls,http
-# --split-pos=1,midsld,sniext+1 --disorder=tls --oob=tls — note that
-# --tlsrec=sniext+1 was DROPPED after on-device A/B: it re-splits the
-# ClientHello beyond SNI extraction and breaks established sessions on this
-# platform (observed: HTTPS to a hostlist target failing mid-transfer).
+# Video Optimizer mode: split/disorder recipe + hostlist filtering (only
+# hostlist-matching connections are desync'd; subdomains of listed domains
+# match automatically). Recipe proven by on-device A/B against fast.com's
+# nflxvideo.net targets (RM520N-GL, T-Mobile): --filter-l7=tls,http
+# --split-pos=1,midsld,sniext+1 --disorder=tls.
+# Two options were DROPPED after on-device A/B:
+#   --tlsrec=sniext+1 re-splits the ClientHello beyond SNI extraction and
+#   breaks established sessions on this platform (observed: HTTPS to a
+#   hostlist target failing mid-transfer).
+#   --oob=tls kills matched connections outright on this network — the
+#   browser fails with "could not reach our servers" while unmatched domains
+#   keep working. qmanager_dpi_verify has always excluded it for the same
+#   reason (see DPI_SOCKS_ARGS there); the live engine now matches the
+#   verified recipe. (Titan/RM551E reportedly tolerates --oob; the RM520N +
+#   T-Mobile path does not.)
 # --filter-l7=tls,http is what makes the engine only touch TLS/HTTP handshakes.
 # Masquerade mode: the SAME recipe applied to EVERY connection (no hostlist).
 # This is the tpws-native equivalent of the RM551 "fake TLS ClientHello with
@@ -252,13 +262,13 @@ dpi_build_args() {
             # immediately without restarting the engine.
             printf '%s' \
                 "--port=$DPI_PORT --bind-addr=$DPI_BIND_ADDR" \
-                " --filter-l7=tls,http --split-pos=1,midsld,sniext+1 --disorder=tls --oob=tls" \
+                " --filter-l7=tls,http --split-pos=1,midsld,sniext+1 --disorder=tls" \
                 " --hostlist=$DPI_HOSTLIST"
             ;;
         masquerade)
             printf '%s' \
                 "--port=$DPI_PORT --bind-addr=$DPI_BIND_ADDR" \
-                " --filter-l7=tls,http --split-pos=1,midsld,sniext+1 --disorder=tls --oob=tls"
+                " --filter-l7=tls,http --split-pos=1,midsld,sniext+1 --disorder=tls"
             ;;
         *)
             echo ""
