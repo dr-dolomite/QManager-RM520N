@@ -1103,11 +1103,11 @@
     },
     "hero": {
       "eyebrow": "ATTIVO ORA",
-      "badge_mismatch": "SIM non corrispondente",
       "unknown_operator": "Operatore sconosciuto",
       "iccid": "ICCID {{value}}",
       "edit": "Modifica",
       "deactivate": "Disattiva",
+      "reapply": "Riapplica il profilo",
       "notice": {
         "unknown_step": "sconosciuto",
         "applying_title": "Applicazione di {{name}}",
@@ -1152,7 +1152,9 @@
     },
     "hero_empty": {
       "title": "Nessun profilo attivo",
-      "description": "Il modem sta usando l'APN di fabbrica e lo scenario di connessione predefinito. Salva un profilo per fissare APN, TTL e pianificazione degli scenari su questa SIM."
+      "description": "Il modem sta usando l'APN di fabbrica e lo scenario di connessione predefinito. Salva un profilo per fissare APN, TTL e pianificazione degli scenari su questa SIM.",
+      "description_saved": "Al momento non è attivo nulla. Attiva uno dei tuoi profili salvati qui sotto per ripristinare un'identità nota e un comportamento radio noto.",
+      "activate_action": "Attiva un profilo"
     },
     "hero_error": {
       "title": "Dettagli del profilo non disponibili",
@@ -1485,16 +1487,12 @@
       "reboot_notice_deferred": "Questo profilo scrive un IMEI, che richiede un riavvio. Ora non viene riavviato nulla: riceverai un banner quando sarà pronto."
     },
     "empty_state": {
-      "title": "Nessun profilo personalizzato",
-      "description": "Gestisci i tuoi profili SIM personalizzati qui.",
-      "description_full": "Non hai ancora creato alcun profilo SIM personalizzato. Utilizza il modulo per creare il tuo primo profilo.",
       "refresh": "Aggiorna",
       "card_title": "Profili SIM personalizzati",
       "card_description": "Pacchetti di impostazioni APN, IMEI e TTL applicati al modem in un solo passaggio.",
       "teaching_headline": "Nessun profilo ancora",
       "teaching_body": "Un profilo SIM personalizzato raggruppa nome APN, protocollo IP, override TTL/HL e un IMEI opzionale in un preset salvato. Attivandolo si applicano tutte le impostazioni contemporaneamente, quindi cambiare operatore o slot SIM richiede pochi secondi.",
-      "cta_new": "Nuovo profilo",
-      "cta_refresh": "Aggiorna"
+      "cta_new": "Nuovo profilo"
     },
     "pills": {
       "ip_v4": "IPv4",
@@ -1506,16 +1504,6 @@
       "ttl": "TTL {{value}}",
       "hl": "HL {{value}}",
       "imei_override": "Override IMEI"
-    },
-    "active_card": {
-      "none_title": "Nessun profilo attivo",
-      "none_description": "Il modem usa le impostazioni correnti. Attiva un profilo salvato per applicare un pacchetto.",
-      "subtitle": "Applicato al modem ora",
-      "subtitle_with_mno": "Applicato ora · {{mno}}",
-      "scenario_default": "Scenario: {{name}}",
-      "scenario_scheduled": "Scenario: {{name}} (pianificato)",
-      "mismatch_note": "Questo profilo è stato creato per una SIM diversa da quella attualmente inserita. Riattivalo per questa SIM o attiva il profilo corrispondente.",
-      "edit_button": "Modifica"
     },
     "list": {
       "new_button": "Nuovo",

@@ -1103,11 +1103,11 @@
     },
     "hero": {
       "eyebrow": "目前生效",
-      "badge_mismatch": "SIM 卡不符",
       "unknown_operator": "未知電信業者",
       "iccid": "ICCID {{value}}",
       "edit": "編輯",
       "deactivate": "停用",
+      "reapply": "重新套用設定檔",
       "notice": {
         "unknown_step": "未知",
         "applying_title": "正在套用 {{name}}",
@@ -1152,7 +1152,9 @@
     },
     "hero_empty": {
       "title": "沒有啟用中的設定檔",
-      "description": "數據機正在使用原廠 APN 與預設連線場景。儲存一個設定檔，即可為此 SIM 卡固定 APN、TTL 與場景計劃。"
+      "description": "數據機正在使用原廠 APN 與預設連線場景。儲存一個設定檔，即可為此 SIM 卡固定 APN、TTL 與場景計劃。",
+      "description_saved": "目前沒有任何設定檔生效。啟用下方任一已儲存的設定檔，即可恢復已知的身分識別與已知的無線行為。",
+      "activate_action": "啟用設定檔"
     },
     "hero_error": {
       "title": "無法載入設定檔詳情",
@@ -1485,16 +1487,12 @@
       "reboot_notice_deferred": "此設定檔會寫入 IMEI，需要重新開機才能生效。現在不會重新開機——準備就緒後會顯示提示橫幅。"
     },
     "empty_state": {
-      "title": "暫無自訂設定檔",
-      "description": "在此管理您的自訂 SIM 設定檔。",
-      "description_full": "您尚未建立任何自訂 SIM 設定檔。請使用表單建立您的第一個設定檔。",
       "refresh": "重新整理",
       "card_title": "自訂 SIM 設定檔",
       "card_description": "將 APN、IMEI 和 TTL 設定打包，一步套用到數據機。",
       "teaching_headline": "尚無設定檔",
       "teaching_body": "自訂 SIM 設定檔將 APN 名稱、IP 協議、TTL/HL 覆蓋和可選 IMEI 打包為一個已儲存的預設。啟用後一次性套用所有設定，切換運營商或 SIM 卡槽只需數秒。",
-      "cta_new": "新建設定檔",
-      "cta_refresh": "重新整理"
+      "cta_new": "新建設定檔"
     },
     "pills": {
       "ip_v4": "IPv4",
@@ -1506,16 +1504,6 @@
       "ttl": "TTL {{value}}",
       "hl": "HL {{value}}",
       "imei_override": "IMEI 覆蓋"
-    },
-    "active_card": {
-      "none_title": "無活動配置",
-      "none_description": "數據機正在使用當前設定。啟用已儲存的配置以套用一組設定。",
-      "subtitle": "已套用到數據機",
-      "subtitle_with_mno": "已套用 · {{mno}}",
-      "scenario_default": "場景：{{name}}",
-      "scenario_scheduled": "場景：{{name}}（已排程）",
-      "mismatch_note": "此配置是為另一張 SIM 卡建立的，與當前插入的 SIM 卡不同。請為當前 SIM 卡重新啟用，或啟用匹配的配置。",
-      "edit_button": "編輯"
     },
     "list": {
       "new_button": "新建",

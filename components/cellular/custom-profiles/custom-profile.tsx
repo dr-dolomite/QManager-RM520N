@@ -9,11 +9,12 @@ import React, {
 } from "react";
 import { useSearchParams } from "next/navigation";
 import { useTranslation } from "react-i18next";
-import { AnimatePresence, motion } from "motion/react";
+import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { toast } from "sonner";
 
 import CustomProfileViewComponent from "@/components/cellular/custom-profiles/custom-profile-view";
 import { ProfileFormDialog } from "@/components/cellular/custom-profiles/profile-form-dialog";
+import type { WizardTab } from "@/components/cellular/custom-profiles/custom-profile-form";
 import { ApplyProgressDialog } from "@/components/cellular/custom-profiles/apply-progress-dialog";
 import {
   DeactivateProgressDialog,
@@ -59,8 +60,11 @@ import {
   PILL_ACTION,
   PILL_ACTION_PLAIN,
   HERO_CARD,
+  HERO_DISC,
   HERO_DISC_TONE,
+  HERO_STATE,
   MACHINE_VALUE,
+  SAVED_PROFILES_ANCHOR,
 } from "@/components/cellular/custom-profiles/shapes";
 import {
   DUR,
@@ -468,6 +472,10 @@ const CustomProfilePageBody = () => {
   // ---------------------------------------------------------------------------
   const [editingProfile, setEditingProfile] = useState<SimProfile | null>(null);
   const [formOpen, setFormOpen] = useState(false);
+  // Which wizard step the dialog opens on. "Edit schedule" is the one entry
+  // point that wants "scenario" instead of the default "identity" — see
+  // `handleEditSchedule` below.
+  const [formInitialTab, setFormInitialTab] = useState<WizardTab>("identity");
 
   // Deep links, latched once at mount.
   // ---------------------------------------------------------------------------
@@ -502,6 +510,7 @@ const CustomProfilePageBody = () => {
 
   const handleNewProfile = useCallback(() => {
     setEditingProfile(null);
+    setFormInitialTab("identity");
     setFormOpen(true);
   }, []);
 
@@ -510,6 +519,7 @@ const CustomProfilePageBody = () => {
       const profile = await getProfile(id);
       if (profile) {
         setEditingProfile(profile);
+        setFormInitialTab("identity");
         setFormOpen(true);
       }
     },
@@ -519,6 +529,7 @@ const CustomProfilePageBody = () => {
   const handleEditActive = useCallback(() => {
     if (activeProfile) {
       setEditingProfile(activeProfile);
+      setFormInitialTab("identity");
       setFormOpen(true);
     }
   }, [activeProfile]);
@@ -712,6 +723,23 @@ const CustomProfilePageBody = () => {
     [applyProfile],
   );
 
+  /**
+   * The hero's own Reapply, bound to whatever is currently in force.
+   *
+   * It routes through `handleReapply` and NOT through `handleRetry`, which is
+   * the near-identical-looking callback directly below. The difference is the
+   * one that matters: `handleReapply` sets `showApplyProgress(true)` before it
+   * fires, `handleRetry` does not — it is the apply DIALOG's own retry, called
+   * from inside a dialog that is already open. Wiring the hero to `handleRetry`
+   * would send four AT-writing steps at the modem with no ledger, no progress
+   * and no verdict on screen, which is the exact silent-mutation shape the
+   * State-Honesty Rule forbids.
+   */
+  const handleReapplyActive = useCallback(() => {
+    if (!activeProfile) return;
+    void handleReapply(activeProfile.id);
+  }, [activeProfile, handleReapply]);
+
   const handleRetry = useCallback(async () => {
     if (!applyState?.profile_id) return;
     await applyProfile(applyState.profile_id);
@@ -888,8 +916,44 @@ const CustomProfilePageBody = () => {
   }, [refreshCurrentSettings]);
 
   // The schedule lives inside the wizard's Scenario step, so "edit the
-  // schedule" is "open this profile in the wizard".
-  const handleEditSchedule = handleEditActive;
+  // schedule" is "open this profile in the wizard" — landed on that step
+  // directly, since the whole point of clicking here is the schedule, not
+  // the profile's identity fields three steps earlier.
+  const handleEditSchedule = useCallback(() => {
+    if (activeProfile) {
+      setEditingProfile(activeProfile);
+      setFormInitialTab("scenario");
+      setFormOpen(true);
+    }
+  }, [activeProfile]);
+
+  // ---------------------------------------------------------------------------
+  // "Activate a profile" — the hero-empty state's jump to the saved list
+  // ---------------------------------------------------------------------------
+  // With a populated roster, "nothing is in force" is not a create prompt: the
+  // thing to do is activate one of the profiles that already exist, and they are
+  // in the card directly below. The button therefore MOVES the user to that card
+  // rather than doing anything on its own — activation itself keeps its single
+  // home, the row's own Activate + its confirm dialog, so there is exactly one
+  // path to a modem mutation and one place that explains it.
+  //
+  // Focus moves with the scroll, and that is the half that is easy to skip. A
+  // pure scroll leaves a keyboard user's focus back on a button that has just
+  // scrolled off screen, so their next Tab lands somewhere they cannot see —
+  // the jump would be sighted-only. `preventScroll: true` because the
+  // `scrollIntoView` above already positioned the card; letting focus scroll
+  // too would double-jump past the `scroll-mt` offset.
+  const savedProfilesRef = useRef<HTMLDivElement>(null);
+  const reduceMotion = useReducedMotion();
+  const handleJumpToSavedProfiles = useCallback(() => {
+    const el = savedProfilesRef.current;
+    if (!el) return;
+    el.scrollIntoView({
+      behavior: reduceMotion ? "auto" : "smooth",
+      block: "start",
+    });
+    el.focus({ preventScroll: true });
+  }, [reduceMotion]);
 
   // Anything that has the modem mid-mutation. Both hero actions go dead while
   // it holds: Edit as well as Deactivate, because saving an active profile now
@@ -957,6 +1021,7 @@ const CustomProfilePageBody = () => {
                   busy={heroBusy}
                   onEdit={handleEditActive}
                   onDeactivate={handleDeactivateRequest}
+                  onReapply={handleReapplyActive}
                 />
               </motion.div>
             ) : heroDetailFailed ? (
@@ -968,7 +1033,15 @@ const CustomProfilePageBody = () => {
               </motion.div>
             ) : (
               <motion.div key="hero-empty" {...HERO_SWAP}>
-                <NoActiveProfile onCreate={handleNewProfile} />
+                {/* One key, two situations — see the branch inside. The roster
+                    is read from `profiles`, the SUMMARY list, which is the only
+                    thing here that knows whether there is anything to activate;
+                    `activeProfileId` being null says nothing about it. */}
+                <NoActiveProfile
+                  hasSavedProfiles={profiles.length > 0}
+                  onCreate={handleNewProfile}
+                  onActivateExisting={handleJumpToSavedProfiles}
+                />
               </motion.div>
             )}
           </AnimatePresence>
@@ -999,40 +1072,57 @@ const CustomProfilePageBody = () => {
       {/* --- Saved profiles beside connection scenarios --------------------- */}
       <motion.div variants={staggerItem}>
         <div className="grid grid-flow-row grid-cols-1 items-start gap-4 @4xl/main:grid-cols-[1.15fr_1fr]">
-          <CustomProfileViewComponent
-            profiles={profiles}
-            activeProfileId={activeProfileId}
-            isLoading={isLoading}
-            error={error}
-            onEdit={handleEdit}
-            onDelete={handleDelete}
-            onActivate={handleActivateRequest}
-            onDeactivate={handleDeactivateRequest}
-            onRefresh={refresh}
-            currentIccid={currentIccid}
-            lastApplyState={applyState}
-            scenarios={scenarios}
-            onReapply={handleReapply}
-            now={now}
-            // Recommended for your SIM — rendered as rows INSIDE the saved list,
-            // not as a separate card. They stay a sibling prop rather than being
-            // merged into `profiles`, which is what keeps the count badge, the
-            // detail prefetch, and the activate/delete wiring honest.
-            suggestions={suggestions}
-            creatingSuggestionId={creatingId}
-            suggestionError={suggestionsError ?? error}
-            onCreateSuggestion={handleCreateFromSuggestion}
-            // The same "modem is mid-mutation" signal the hero's actions take.
-            // Until the adoption effect above existed this was unreachable —
-            // both progress dialogs are modal and non-dismissable while a
-            // mutation runs, so the list was never clickable during one. An
-            // ADOPTED apply has no dialog until it opens, and the list's own
-            // `busy` is scoped to the profile being applied, so every OTHER
-            // row's Activate stayed live. The two fixes are one fix.
-            pageBusy={heroBusy}
-            holdSkeleton={!pageReady}
-            onLocalReadyChange={handleProfilesLocalReadyChange}
-          />
+          {/* The scroll/focus target of the hero-empty state's "Activate a
+              profile". A wrapper rather than an id on the card because the page
+              owns the jump and the card is not ours to annotate — and because
+              the focus stop has to be a box that is not itself interactive.
+              `SAVED_PROFILES_ANCHOR` carries the `h-full` that keeps the card
+              stretching now that it is no longer the direct grid item. */}
+          <div
+            ref={savedProfilesRef}
+            tabIndex={-1}
+            className={SAVED_PROFILES_ANCHOR}
+          >
+            <CustomProfileViewComponent
+              profiles={profiles}
+              activeProfileId={activeProfileId}
+              isLoading={isLoading}
+              error={error}
+              onEdit={handleEdit}
+              onDelete={handleDelete}
+              onActivate={handleActivateRequest}
+              onDeactivate={handleDeactivateRequest}
+              onRefresh={refresh}
+              currentIccid={currentIccid}
+              lastApplyState={applyState}
+              scenarios={scenarios}
+              onReapply={handleReapply}
+              now={now}
+              // Recommended for your SIM — rendered as rows INSIDE the saved list,
+              // not as a separate card. They stay a sibling prop rather than being
+              // merged into `profiles`, which is what keeps the count badge, the
+              // detail prefetch, and the activate/delete wiring honest.
+              suggestions={suggestions}
+              creatingSuggestionId={creatingId}
+              suggestionError={suggestionsError ?? error}
+              onCreateSuggestion={handleCreateFromSuggestion}
+              // The card's own empty state needs the same create action the page
+              // header carries. It is the SAME handler, so the wizard opens on
+              // `identity` from all three entry points and no second create path
+              // can drift away from this one.
+              onNewProfile={handleNewProfile}
+              // The same "modem is mid-mutation" signal the hero's actions take.
+              // Until the adoption effect above existed this was unreachable —
+              // both progress dialogs are modal and non-dismissable while a
+              // mutation runs, so the list was never clickable during one. An
+              // ADOPTED apply has no dialog until it opens, and the list's own
+              // `busy` is scoped to the profile being applied, so every OTHER
+              // row's Activate stayed live. The two fixes are one fix.
+              pageBusy={heroBusy}
+              holdSkeleton={!pageReady}
+              onLocalReadyChange={handleProfilesLocalReadyChange}
+            />
+          </div>
           <ConnectionScenariosCard
             autoOpenAddDialog={arrivedFromScenarioLink}
             openAddSignal={scenarioCreateSignal}
@@ -1052,6 +1142,7 @@ const CustomProfilePageBody = () => {
         currentSettings={currentSettings}
         onLoadCurrentSettings={handleLoadCurrentSettings}
         onSave={handleSave}
+        initialTab={formInitialTab}
         // Saving the ACTIVE profile queues an auto-reapply (see "Auto-reapply
         // on save" above) that opens `ApplyProgressDialog` the instant this
         // wizard closes. That dialog is the honest verdict for THIS save — a
@@ -1119,37 +1210,87 @@ const CustomProfilePageBody = () => {
  * instead (stock APN, default scenario), because "nothing is active" is a fact
  * about the device, not an absence of data. Neutral tone: no profile active is
  * a resting state, not a fault, so it takes no functional role.
+ *
+ * TWO SITUATIONS, ONE SLOT — and they want opposite verbs. This component
+ * renders whenever `activeProfileId` is null, which says nothing whatever about
+ * whether anything is SAVED, so it covers both:
+ *
+ *   roster populated  the common arrival, straight out of a deactivate. The
+ *                     thing to do is put one of the existing profiles back in
+ *                     force, so the action jumps to the list that holds them.
+ *                     It also stops the page rendering "New profile" TWICE — the
+ *                     header's primary already spends that exact key three
+ *                     inches above, and two identical primaries on one screen
+ *                     make the second one read as a mistake rather than a
+ *                     choice.
+ *   roster empty      "Activate a profile" would be a lie: there is nothing to
+ *                     activate. Create is the only honest route out.
+ *
+ * `role="status"` rather than the sibling error card's `role="alert"`. Both live
+ * inside the page root's `aria-live="polite"` region, but the roles are not
+ * interchangeable: `alert` is assertive and interrupts whatever the screen
+ * reader is saying, which is right for "a profile is in force and we cannot read
+ * it" and wrong for a resting state the user themselves just caused by pressing
+ * Deactivate. Severity picks the role; the empty state is not an error and must
+ * not announce like one. Having NO role at all — which is what shipped — meant
+ * the swap out of the loaded hero went unannounced entirely.
  */
-function NoActiveProfile({ onCreate }: { onCreate: () => void }) {
+function NoActiveProfile({
+  hasSavedProfiles,
+  onCreate,
+  onActivateExisting,
+}: {
+  /** Does the roster hold anything at all? Decides the verb — see above. */
+  hasSavedProfiles: boolean;
+  /** Open the wizard on a blank profile. */
+  onCreate: () => void;
+  /** Scroll + focus the Saved Profiles card. Never mutates the modem. */
+  onActivateExisting: () => void;
+}) {
   const { t } = useTranslation("cellular");
   return (
-    <div className={cn(HERO_CARD, "items-center gap-3.5 py-12 text-center")}>
+    <div role="status" className={cn(HERO_CARD, HERO_STATE.SHELL)}>
       {/* The same disc the loaded hero wears, on the `empty` step of its own
-          tone map — imported rather than restated, so the two states of one
-          slot can never drift onto different greys. */}
-      <span
-        className={cn(
-          "grid size-14 flex-none place-items-center rounded-pill",
-          HERO_DISC_TONE.empty,
-        )}
-      >
-        <MaterialSymbol name="sim_card_alert" size={29} filled aria-hidden />
+          tone map. BOTH halves are imported now — `HERO_DISC` for the geometry
+          and `HERO_DISC_TONE` for the fill. The previous version imported only
+          the fill and hand-wrote `size-14`, so the disc grew 4px and the glyph
+          3px across a cross-fade that is meant to be a swap in place. */}
+      <span className={cn(HERO_DISC, HERO_DISC_TONE.empty)}>
+        <MaterialSymbol
+          name="sim_card_alert"
+          size={HERO_STATE.GLYPH_SIZE}
+          filled
+          aria-hidden
+        />
       </span>
-      <span className="text-xl font-semibold tracking-[-0.01em]">
+      <span className={HERO_STATE.TITLE}>
         {t("custom_profiles.hero_empty.title")}
       </span>
-      <span className="text-on-surface-variant max-w-[34rem] text-sm leading-relaxed text-pretty">
-        {t("custom_profiles.hero_empty.description")}
+      <span className={HERO_STATE.BODY}>
+        {hasSavedProfiles
+          ? t("custom_profiles.hero_empty.description_saved")
+          : t("custom_profiles.hero_empty.description")}
       </span>
-      {/* A default-variant primary action: this is the one thing to DO from an
-          empty anchor, and an empty state whose only affordance is a sentence
-          leaves the user hunting the toolbar for it. Activating an existing
-          profile happens in the list below, which is already on screen — this
-          button is for the case where there is nothing there to activate. */}
-      <Button className={PILL_ACTION} onClick={onCreate}>
-        <MaterialSymbol name="add" size={18} aria-hidden />
-        {t("custom_profiles.page.new_profile")}
-      </Button>
+      {/* A default-variant primary action either way: this is the one thing to
+          DO from an empty anchor, and an empty state whose only affordance is a
+          sentence leaves the user hunting the toolbar for it.
+
+          The activate branch MOVES rather than acts. Activation is a modem
+          mutation that costs an attach cycle and it already has exactly one
+          home — the row's Activate plus its confirm dialog. Firing it from here
+          would need a profile to pick, and picking one for the user is the one
+          thing an empty state must not do. */}
+      {hasSavedProfiles ? (
+        <Button className={PILL_ACTION} onClick={onActivateExisting}>
+          <MaterialSymbol name="play_arrow" size={18} aria-hidden />
+          {t("custom_profiles.hero_empty.activate_action")}
+        </Button>
+      ) : (
+        <Button className={PILL_ACTION} onClick={onCreate}>
+          <MaterialSymbol name="add" size={18} aria-hidden />
+          {t("custom_profiles.page.new_profile")}
+        </Button>
+      )}
     </div>
   );
 }
@@ -1194,32 +1335,32 @@ function ActiveProfileUnavailable({
 }) {
   const { t } = useTranslation("cellular");
   return (
-    <div
-      role="alert"
-      className={cn(HERO_CARD, "items-center gap-3 py-9 text-center")}
-    >
+    <div role="alert" className={cn(HERO_CARD, HERO_STATE.SHELL)}>
       {/* Fill pair, not the container pair: the disc sits on the hero's plain
-          `bg-surface` shell, which is the same reasoning `HERO_DISC` carries. */}
-      <span className="bg-warning text-warning-foreground grid size-14 place-items-center rounded-pill">
-        <MaterialSymbol name="cloud_off" size={29} filled aria-hidden />
+          `bg-surface` shell, which is the same reasoning `HERO_DISC` carries.
+          Both the geometry AND the fill now resolve through shapes.ts — the
+          fill used to be `bg-warning text-warning-foreground` hand-written
+          here, which is a tone keyed onto a class string and therefore
+          invisible to the compiler. `HERO_DISC_TONE.error` is the same two
+          classes, reachable only through the map. */}
+      <span className={cn(HERO_DISC, HERO_DISC_TONE.error)}>
+        <MaterialSymbol
+          name="cloud_off"
+          size={HERO_STATE.GLYPH_SIZE}
+          filled
+          aria-hidden
+        />
       </span>
-      <span className="text-lg font-semibold">
+      <span className={HERO_STATE.TITLE}>
         {t("custom_profiles.hero_error.title")}
       </span>
-      <span className="text-on-surface-variant max-w-[32rem] text-sm leading-relaxed text-pretty">
+      <span className={HERO_STATE.BODY}>
         {t("custom_profiles.hero_error.description")}
       </span>
       {/* The backend's own words, verbatim and in machine voice. `break-words`
           because a `+CME ERROR:` payload has no break opportunity of its own. */}
       {detail ? (
-        <span
-          className={cn(
-            MACHINE_VALUE,
-            "text-on-surface-variant max-w-[32rem] text-xs break-words",
-          )}
-        >
-          {detail}
-        </span>
+        <span className={cn(MACHINE_VALUE, HERO_STATE.DETAIL)}>{detail}</span>
       ) : null}
       <Button variant="tonal" className={PILL_ACTION} onClick={onRetry}>
         <MaterialSymbol name="refresh" size={17} aria-hidden />

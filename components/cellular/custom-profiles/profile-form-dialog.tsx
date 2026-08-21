@@ -10,7 +10,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import CustomProfileFormComponent from "@/components/cellular/custom-profiles/custom-profile-form";
+import CustomProfileFormComponent, {
+  type WizardTab,
+} from "@/components/cellular/custom-profiles/custom-profile-form";
 import type { ProfileFormData } from "@/hooks/use-sim-profiles";
 import type {
   CurrentModemSettings,
@@ -64,6 +66,8 @@ interface ProfileFormDialogProps {
    * `ApplyProgressDialog` own the verdict instead of racing it.
    */
   willAutoReapply?: boolean;
+  /** Which wizard step to open on. Passed straight through; see the form's own doc. */
+  initialTab?: WizardTab;
 }
 
 export function ProfileFormDialog({
@@ -74,6 +78,7 @@ export function ProfileFormDialog({
   onLoadCurrentSettings,
   onSave,
   willAutoReapply = false,
+  initialTab,
 }: ProfileFormDialogProps) {
   const { t } = useTranslation("cellular");
   const isEditing = Boolean(editingProfile);
@@ -137,6 +142,7 @@ export function ProfileFormDialog({
             onSave={handleSave}
             onCancel={handleCancel}
             willAutoReapply={willAutoReapply}
+            initialTab={initialTab}
           />
         </div>
       </DialogContent>

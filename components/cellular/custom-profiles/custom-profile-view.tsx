@@ -259,6 +259,17 @@ export interface CustomProfileViewProps {
   onActivate: (id: string) => void;
   onDeactivate: () => void;
   onRefresh: () => void;
+  /**
+   * Open the profile editor on a blank profile.
+   *
+   * Only reaches the TRUE empty state (nothing saved AND no suggestion), which
+   * is the one branch of this card that has no other create affordance — the
+   * populated card's New button lives on the page header above it, and the
+   * suggestion row carries its own create action. Optional so the card still
+   * renders correctly in a caller that has no editor to open; the empty state
+   * simply shows Refresh alone, as it did before.
+   */
+  onNewProfile?: () => void;
   currentIccid?: string | null;
   /** Most recent apply state — drives the per-row spinner AND "Applied at HH:MM". */
   lastApplyState?: ProfileApplyState | null;
@@ -331,6 +342,7 @@ const CustomProfileViewComponent = ({
   onActivate,
   onDeactivate,
   onRefresh,
+  onNewProfile,
   currentIccid = null,
   lastApplyState = null,
   suggestions = [],
@@ -461,7 +473,12 @@ const CustomProfileViewComponent = ({
   // suggestions exist, the inline `none_saved_yet` line below carries the
   // "nothing stored yet" message instead.
   if (!showSkeleton && profiles.length === 0 && suggestions.length === 0) {
-    return <EmptyProfileViewComponent onRefresh={onRefresh} />;
+    return (
+      <EmptyProfileViewComponent
+        onRefresh={onRefresh}
+        onNewProfile={onNewProfile}
+      />
+    );
   }
 
   return (

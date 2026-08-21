@@ -358,9 +358,21 @@ export const HERO_DISC =
  * `applying` is BRAND, not a fourth hue: the Info-Is-Brand Rule. `partial` and
  * `mismatch` are both genuinely degraded-but-running, so both are `warning` and
  * the glyph is what separates them (see `HERO_NOTICE_TONE`).
+ *
+ * `error` is the slot's THIRD state — the list names an active profile and its
+ * detail GET came back empty. It is `warning`, not `destructive`, and the
+ * reasoning is on `ActiveProfileUnavailable`: nothing on the modem failed, our
+ * READ of it did, and `destructive` has to keep meaning "confirmed failure".
+ * The member exists at all because that card used to hand-write
+ * `bg-warning text-warning-foreground` inline, which is a tone keyed onto a
+ * class string — the one construction this file exists to make impossible. With
+ * it here, a future state without a matching fill fails the build instead of
+ * shipping untinted. NOTE that `error` and `empty` therefore differ ONLY in
+ * fill; the glyph is what separates them for a deuteranopic user, which is why
+ * `cloud_off` and `sim_card_alert` must never converge.
  */
 export const HERO_DISC_TONE: Record<
-  "live" | "applying" | "partial" | "mismatch" | "empty",
+  "live" | "applying" | "partial" | "mismatch" | "empty" | "error",
   string
 > = {
   live: "bg-primary text-primary-foreground",
@@ -368,7 +380,86 @@ export const HERO_DISC_TONE: Record<
   partial: "bg-warning text-warning-foreground",
   mismatch: "bg-warning text-warning-foreground",
   empty: "bg-surface-container-high text-on-surface-variant",
+  error: "bg-warning text-warning-foreground",
 };
+
+/**
+ * THE HERO SLOT'S NON-LOADED STATES — one scale for all three.
+ *
+ * The slot renders three components (`ActiveProfileHero`, `NoActiveProfile`,
+ * `ActiveProfileUnavailable`) and until now they agreed on nothing: 52 / 56 /
+ * 56px discs, 26 / 29 / 29px glyphs, and three different title steps
+ * (`text-[1.375rem]`/-0.02em, `text-xl`/-0.01em, `text-lg`/none). The empty
+ * state even carried a comment claiming its disc was "imported rather than
+ * restated" — only the FILL was imported, the geometry was hand-written 4px
+ * larger, so the comment described an intention rather than the code.
+ *
+ * They are three states of ONE box that cross-fade into each other in place, so
+ * every number they disagree on is a visible jump at the swap. `HERO_DISC` and
+ * `HERO_DISC_TONE` already carry the disc; this carries the rest.
+ *
+ * THE TITLE STEP IS THE LOADED HERO'S, and the two exceptional states move up
+ * to meet it rather than the reverse. Two reasons. The loaded state is what the
+ * user sees essentially always, so it is the one whose scale is already
+ * calibrated against the 40px `rounded-hero` shell hosting it — shrinking it to
+ * match a state that appears once would detune the common case to tidy the rare
+ * one. And the exceptional states are not LESS important than the loaded one: a
+ * profile that is in force but unreadable is the most urgent thing this page can
+ * say, and it was rendering at `text-lg` with tracking left unset, two steps
+ * below the state it interrupts. `-0.02em` is not decoration either — it is the
+ * Display tracking every heading at this optical size on `/cellular/` carries.
+ */
+export const HERO_STATE = {
+  /**
+   * The state screen's shell, composed ONTO `HERO_CARD` — it adds only the
+   * centring and the vertical air, never a second radius or fill. One padding
+   * for both states, so the slot's height barely moves across a swap; the error
+   * card used to sit 12px shorter than the empty one and the page nudged.
+   */
+  SHELL: "items-center gap-3.5 py-12 text-center",
+  /**
+   * The glyph inside `HERO_DISC`. Matches the loaded hero's, which is the whole
+   * point of exporting it — a 52px disc with a 29px glyph inside it has a
+   * different optical weight from the same disc with a 26px glyph, so importing
+   * the disc while restating the glyph would leave the drift half-fixed.
+   */
+  GLYPH_SIZE: 26,
+  /** The heading. See the step rationale above; `HERO_NAME` derives from it. */
+  TITLE: "text-[1.375rem] font-semibold tracking-[-0.02em]",
+  /** The sentence under it. */
+  BODY: "text-on-surface-variant max-w-[34rem] text-sm leading-relaxed text-pretty",
+  /**
+   * The backend's own error string, in machine voice. Same measure as `BODY` —
+   * two differently-capped columns stacked under one centred heading read as a
+   * layout mistake rather than a hierarchy.
+   */
+  DETAIL: "max-w-[34rem] text-xs break-words text-on-surface-variant",
+} as const;
+
+/**
+ * The Saved Profiles card's wrapper, and the target of the hero-empty state's
+ * "Activate a profile" jump.
+ *
+ * `h-full` is LOAD-BEARING, not padding on a decorative box. The card itself is
+ * `<Card className="@container/card h-full">` and was the direct grid item, so
+ * its `h-full` resolved against the grid AREA and stretched it to the taller of
+ * the two columns. Interposing a wrapper makes the WRAPPER the grid item, and
+ * `h-full` on a `height: auto` parent resolves to `auto` — so without this the
+ * card silently stops stretching and the two columns go ragged. Same shape as
+ * `band-locking.tsx:263`, which wraps its own scroll target the same way.
+ *
+ * `scroll-mt-20` clears the sticky shell header, so a `block: "start"` scroll
+ * lands on the card's title rather than under the chrome.
+ *
+ * The ring is `focus-visible` ONLY. The wrapper takes `tabIndex={-1}` and is
+ * focused programmatically so a keyboard user's next Tab continues from the
+ * card they were sent to; a plain `:focus` ring would then also fire on the
+ * mouse path, drawing a 3px halo around a whole card because someone clicked a
+ * button. `rounded-card` is here purely so the ring traces the card's own
+ * corners — the wrapper paints nothing.
+ */
+export const SAVED_PROFILES_ANCHOR =
+  "h-full scroll-mt-20 rounded-card outline-none focus-visible:ring-ring/50 focus-visible:ring-[3px]";
 
 /**
  * The eyebrow above the active profile's name.
@@ -381,8 +472,17 @@ export const HERO_DISC_TONE: Record<
  */
 export const HERO_EYEBROW = EYEBROW;
 
-/** The active profile's name. */
-export const HERO_NAME = "truncate text-[1.375rem] font-semibold tracking-[-0.02em]";
+/**
+ * The active profile's name — the loaded state's heading.
+ *
+ * DERIVED from `HERO_STATE.TITLE`, which is what makes "the three states of one
+ * slot share one title step" a property of the module rather than a promise in
+ * a comment. Concatenating two COMPLETE class strings is safe under Tailwind's
+ * JIT (it scans source text, and `text-[1.375rem]` appears verbatim in
+ * `HERO_STATE`); what is not safe is interpolating a VALUE into a bracket, and
+ * nothing here does that. `SCENARIO_TILE_ACTIVE` already composes this way.
+ */
+export const HERO_NAME = `truncate ${HERO_STATE.TITLE}`;
 
 /**
  * The three tiles under the hero's identity line.

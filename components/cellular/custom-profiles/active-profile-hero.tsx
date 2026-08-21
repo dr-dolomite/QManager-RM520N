@@ -191,6 +191,19 @@ export interface ActiveProfileHeroProps {
   busy?: boolean;
   onEdit: () => void;
   onDeactivate: () => void;
+  /**
+   * Re-run the whole four-step apply for THIS profile. Optional: omit it and the
+   * partial notice renders with no action, exactly as before.
+   *
+   * The backend can only re-run all four steps or none — there is no per-step
+   * endpoint — so this is "Reapply profile", never a per-step retry.
+   *
+   * It exists because closing the apply-progress dialog on a `partial` verdict
+   * used to STRAND the recovery: `showApplyProgress` cannot be re-set from here,
+   * so the hero was left naming a failed step with the only route back to it
+   * buried in a row's overflow menu, one card further down the page.
+   */
+  onReapply?: () => void;
 }
 
 export function ActiveProfileHero({
@@ -201,6 +214,7 @@ export function ActiveProfileHero({
   busy = false,
   onEdit,
   onDeactivate,
+  onReapply,
 }: ActiveProfileHeroProps) {
   const { t } = useTranslation("cellular");
 
@@ -216,8 +230,34 @@ export function ActiveProfileHero({
     Boolean(currentIccid) &&
     profile.sim_iccid !== currentIccid;
 
-  const isApplying = applyState?.status === "applying";
-  const isPartial = applyState?.status === "partial";
+  // THE APPLY STATE IS SCOPED TO *THIS* PROFILE BEFORE ANYTHING READS IT.
+  //
+  // `applyState` is the coordinator's ONE in-flight apply, whichever profile it
+  // belongs to — it is not this card's apply. Activate B while A is in force and
+  // the hero is still showing A (the list is not refreshed until
+  // `handleApplyProgressClose` runs), so an unscoped read painted A's identity
+  // line with the "Applying" chip and the spinning disc while the notice
+  // directly beneath it interpolated B's NAME: one card, two disagreeing claims
+  // about what the modem is doing. The `partial` case did not even expire —
+  // `handleApplyProgressClose` deliberately never resets `applyState`, so if the
+  // follow-up `refresh()` lost a race with AT-lock contention, a warning about
+  // B's failed step stayed pinned to A's name until the next activation.
+  //
+  // This is the guard every other consumer on the page already applies: the list
+  // row scopes the identical read on `profile_id` before deriving its own
+  // `audit` / `busy`. It is also this file's stated principle enforced one level
+  // deeper. The header above refuses a `showMismatchNotice` prop because "a
+  // notice driven by a boolean the caller passes in is a notice that can be
+  // wrong while looking right" — an UNSCOPED `applyState` is that same boolean
+  // wearing a struct's clothes, since the caller's choice of WHICH apply to pass
+  // silently decides whose verdict this card announces. Narrowing it once, here,
+  // and reading only `selfApply` below is what makes a borrowed verdict
+  // unrepresentable rather than merely unlikely.
+  const selfApply =
+    applyState && applyState.profile_id === profile.id ? applyState : null;
+
+  const isApplying = selfApply?.status === "applying";
+  const isPartial = selfApply?.status === "partial";
 
   const condition: HeroCondition = isApplying
     ? "applying"
@@ -228,10 +268,10 @@ export function ActiveProfileHero({
         : "live";
 
   const applyingStep = isApplying
-    ? applyState?.steps[(applyState.current_step ?? 1) - 1]
+    ? selfApply?.steps[(selfApply.current_step ?? 1) - 1]
     : undefined;
   const failedStep = isPartial
-    ? applyState?.steps.find((s) => s.status === "failed")
+    ? selfApply?.steps.find((s) => s.status === "failed")
     : undefined;
 
   const badgeSpec = HERO_CONDITION_BADGE[condition];
@@ -369,11 +409,11 @@ export function ActiveProfileHero({
           kind="applying"
           live
           title={t("custom_profiles.hero.notice.applying_title", {
-            name: applyState?.profile_name || profile.name,
+            name: selfApply?.profile_name || profile.name,
           })}
           body={t("custom_profiles.hero.notice.applying_body", {
-            step: applyState?.current_step ?? 1,
-            total: applyState?.total_steps ?? 1,
+            step: selfApply?.current_step ?? 1,
+            total: selfApply?.total_steps ?? 1,
           })}
           machine={applyingStep?.name}
         />
@@ -386,7 +426,27 @@ export function ActiveProfileHero({
               failedStep?.name ??
               t("custom_profiles.hero.notice.unknown_step"),
           })}
-          machine={failedStep?.detail || applyState?.error || undefined}
+          machine={failedStep?.detail || selfApply?.error || undefined}
+          // The action lives WITH its explanation, not in the identity line's
+          // button row. That row is Edit + Deactivate at `gap-2`, and Deactivate
+          // drops the data link for 8-12s; a third identically-weighted pill
+          // beside it that also fires a full four-step modem mutation would read
+          // as one more routine control rather than as the answer to the
+          // sentence above it. Rendered only when a caller actually supplied a
+          // handler — see `onReapply`.
+          action={
+            onReapply ? (
+              <Button
+                variant="tonal-neutral"
+                className={PILL_ACTION_SM}
+                onClick={onReapply}
+                disabled={busy}
+              >
+                <MaterialSymbol name="restart_alt" size={16} aria-hidden />
+                {t("custom_profiles.hero.reapply")}
+              </Button>
+            ) : undefined
+          }
         />
       ) : condition === "mismatch" ? (
         <HeroNotice
@@ -553,18 +613,34 @@ export function ActiveProfileHero({
  * face rather than being interpolated into the prose. That keeps the sentence a
  * single translatable unit AND keeps the identifier in machine voice, which no
  * flat `{{value}}` interpolation can do at once.
+ *
+ * `action` is the one affordance a notice may carry, and it sits at the FOOT OF
+ * THE TEXT COLUMN rather than as a trailing flex sibling. A right-aligned button
+ * on a `items-start` row would sit level with the title and read as a control
+ * for the whole card; under the sentence it reads as the answer to it. It also
+ * survives the narrow container, where a trailing sibling would squeeze the
+ * prose it is supposed to be secondary to.
  */
 function HeroNotice({
   kind,
   title,
   body,
   machine,
+  action,
   live = false,
 }: {
   kind: keyof typeof HERO_NOTICE_TONE;
   title: string;
   body: string;
   machine?: string;
+  /**
+   * An optional recovery affordance. Deliberately `tonal-neutral` at the call
+   * site: the notice is already a container pair, so a second ROLE container
+   * inside it would put two tonal fills on one banner, and a `default` (brand
+   * fill) button would out-weigh the hero's own actions from inside a warning.
+   * A neutral raised pill is legibly an affordance and legibly not the primary.
+   */
+  action?: React.ReactNode;
   /** Only the in-flight apply announces itself; a standing condition does not. */
   live?: boolean;
 }) {
@@ -593,6 +669,7 @@ function HeroNotice({
             {machine}
           </span>
         ) : null}
+        {action ? <div className="mt-2.5 flex">{action}</div> : null}
       </div>
     </motion.div>
   );

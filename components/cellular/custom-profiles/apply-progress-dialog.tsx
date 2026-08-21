@@ -293,13 +293,12 @@ export function ApplyProgressDialog({
               size={28}
               className={cn(
                 // ONE-SCALE exception: a continuous in-progress loop, not a
-                // transition. It has its own tempo (`--duration-ambient`) and
-                // is not on the 360/600/800 scale by design — a 2s breath reads
-                // as alive, a doubled 4s one reads as stalled. It is also the
-                // dialog's only ambient loop: the ledger's running row uses a
-                // rotating glyph, which is the same event told once more in a
-                // different register, and no third loop belongs here.
-                hero.loop && "animate-pulse motion-reduce:animate-none",
+                // transition. `progress_activity` is a spinner glyph — it
+                // reads as "working" by rotating, the same way the ledger's
+                // own running row spins its glyph below. `animate-spin` is
+                // the shared rotation clock; there is no ambient-duration
+                // variant of it to retune separately.
+                hero.loop && "animate-spin motion-reduce:animate-none",
               )}
             />
           </span>

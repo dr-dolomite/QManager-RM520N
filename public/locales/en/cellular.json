@@ -1103,11 +1103,11 @@
     },
     "hero": {
       "eyebrow": "IN FORCE NOW",
-      "badge_mismatch": "SIM mismatch",
       "unknown_operator": "Unknown operator",
       "iccid": "ICCID {{value}}",
       "edit": "Edit",
       "deactivate": "Deactivate",
+      "reapply": "Reapply profile",
       "notice": {
         "unknown_step": "unknown",
         "applying_title": "Applying {{name}}",
@@ -1152,7 +1152,9 @@
     },
     "hero_empty": {
       "title": "No profile is active",
-      "description": "The modem is running its stock APN and the default connection scenario. Save a profile to pin an APN, TTL and scenario schedule to this SIM."
+      "description": "The modem is running its stock APN and the default connection scenario. Save a profile to pin an APN, TTL and scenario schedule to this SIM.",
+      "description_saved": "Nothing is in force right now. Activate one of your saved profiles below to put a known identity and a known radio behaviour back in place.",
+      "activate_action": "Activate a profile"
     },
     "hero_error": {
       "title": "Profile details unavailable",
@@ -1485,16 +1487,12 @@
       "reboot_notice_deferred": "This profile writes an IMEI, which needs a reboot. Nothing reboots now — you will get a banner when it is ready."
     },
     "empty_state": {
-      "title": "No Custom Profiles",
-      "description": "Manage your custom SIM profiles here.",
-      "description_full": "You have not created any custom SIM profiles yet. Use the form to create your first profile.",
       "refresh": "Refresh",
       "card_title": "Custom SIM Profiles",
       "card_description": "Saved bundles of APN, IMEI, and TTL settings applied to the modem in one step.",
       "teaching_headline": "No profiles yet",
       "teaching_body": "A Custom SIM Profile bundles APN name, IP protocol, TTL/HL overrides, and an optional IMEI into one saved preset. Activating it applies every setting at once, so switching carriers or SIM slots takes seconds instead of manual re-entry.",
-      "cta_new": "New Profile",
-      "cta_refresh": "Refresh"
+      "cta_new": "New Profile"
     },
     "pills": {
       "ip_v4": "IPv4",
@@ -1506,16 +1504,6 @@
       "ttl": "TTL {{value}}",
       "hl": "HL {{value}}",
       "imei_override": "IMEI override"
-    },
-    "active_card": {
-      "none_title": "No active profile",
-      "none_description": "The modem is using its current settings. Activate a saved profile to apply a bundle.",
-      "subtitle": "Applied to the modem now",
-      "subtitle_with_mno": "Applied now · {{mno}}",
-      "scenario_default": "Scenario: {{name}}",
-      "scenario_scheduled": "Scenario: {{name}} (scheduled)",
-      "mismatch_note": "This profile was built for a different SIM than the one inserted now. Reactivate it for this SIM, or activate the profile that matches.",
-      "edit_button": "Edit"
     },
     "list": {
       "new_button": "New",

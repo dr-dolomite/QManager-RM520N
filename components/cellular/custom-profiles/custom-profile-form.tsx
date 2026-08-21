@@ -94,6 +94,14 @@ interface CustomProfileFormProps {
    * exactly the "activated" toast landing before the dialog finished.
    */
   willAutoReapply?: boolean;
+  /**
+   * Which step the wizard opens on. Defaults to "identity" — the normal
+   * create/edit entry. The Today strip's "Edit schedule" affordance opens
+   * straight into "scenario" instead, since that is the only step the
+   * schedule lives on and landing on Identity first made the user re-walk
+   * three steps to reach the thing they actually clicked for.
+   */
+  initialTab?: WizardTab;
 }
 
 // Up to two daily schedule windows per profile — mirrors the device cron
@@ -102,7 +110,7 @@ const MAX_WINDOWS = 2;
 
 // Wizard tab order — the "Next" button walks the user forward through these.
 const TAB_ORDER = ["identity", "network", "scenario", "review"] as const;
-type WizardTab = (typeof TAB_ORDER)[number];
+export type WizardTab = (typeof TAB_ORDER)[number];
 
 // Synthetic "Custom" value for the saved-APN quick-pick Select — shown when the
 // typed APN matches none of the saved slots. Picking it is a no-op (the APN Name
@@ -203,6 +211,7 @@ const CustomProfileFormComponent = ({
   currentSettings,
   onLoadCurrentSettings,
   willAutoReapply = false,
+  initialTab = "identity",
 }: CustomProfileFormProps) => {
   const { t } = useTranslation("cellular");
   const {
@@ -222,7 +231,7 @@ const CustomProfileFormComponent = ({
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [openBlockKey, setOpenBlockKey] = useState<string | null>(null);
 
-  const [tab, setTab] = useState<WizardTab>("identity");
+  const [tab, setTab] = useState<WizardTab>(initialTab);
   const [tabDir, setTabDir] = useState(1);
 
   const isEditing = !!editingProfile;

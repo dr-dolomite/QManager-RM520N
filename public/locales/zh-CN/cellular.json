@@ -1103,11 +1103,11 @@
     },
     "hero": {
       "eyebrow": "当前生效",
-      "badge_mismatch": "SIM 卡不匹配",
       "unknown_operator": "未知运营商",
       "iccid": "ICCID {{value}}",
       "edit": "编辑",
       "deactivate": "停用",
+      "reapply": "重新应用配置文件",
       "notice": {
         "unknown_step": "未知",
         "applying_title": "正在应用 {{name}}",
@@ -1152,7 +1152,9 @@
     },
     "hero_empty": {
       "title": "没有活动的配置文件",
-      "description": "调制解调器正在使用出厂 APN 和默认连接场景。保存一个配置文件，即可为此 SIM 卡固定 APN、TTL 和场景计划。"
+      "description": "调制解调器正在使用出厂 APN 和默认连接场景。保存一个配置文件，即可为此 SIM 卡固定 APN、TTL 和场景计划。",
+      "description_saved": "当前没有任何配置文件生效。激活下方任一已保存的配置文件，即可恢复已知的身份标识和已知的无线行为。",
+      "activate_action": "激活配置文件"
     },
     "hero_error": {
       "title": "无法加载配置文件详情",
@@ -1485,16 +1487,12 @@
       "reboot_notice_deferred": "此配置文件会写入 IMEI，需要重启才能生效。现在不会重启——准备就绪后会显示提示横幅。"
     },
     "empty_state": {
-      "title": "暂无自定义配置文件",
-      "description": "在此管理您的自定义 SIM 配置文件。",
-      "description_full": "您尚未创建任何自定义 SIM 配置文件。请使用表单创建您的第一个配置文件。",
       "refresh": "刷新",
       "card_title": "自定义 SIM 配置文件",
       "card_description": "将 APN、IMEI 和 TTL 设置打包，一步应用到调制解调器。",
       "teaching_headline": "尚无配置文件",
       "teaching_body": "自定义 SIM 配置文件将 APN 名称、IP 协议、TTL/HL 覆盖和可选 IMEI 打包为一个已保存的预设。激活后一次性应用所有设置，切换运营商或 SIM 卡槽只需数秒。",
-      "cta_new": "新建配置文件",
-      "cta_refresh": "刷新"
+      "cta_new": "新建配置文件"
     },
     "pills": {
       "ip_v4": "IPv4",
@@ -1506,16 +1504,6 @@
       "ttl": "TTL {{value}}",
       "hl": "HL {{value}}",
       "imei_override": "IMEI 覆盖"
-    },
-    "active_card": {
-      "none_title": "无活动配置",
-      "none_description": "调制解调器正在使用当前设置。激活已保存的配置以应用一组设置。",
-      "subtitle": "已应用到调制解调器",
-      "subtitle_with_mno": "已应用 · {{mno}}",
-      "scenario_default": "场景：{{name}}",
-      "scenario_scheduled": "场景：{{name}}（已排程）",
-      "mismatch_note": "此配置是为另一张 SIM 卡创建的，与当前插入的 SIM 卡不同。请为当前 SIM 卡重新激活，或激活匹配的配置。",
-      "edit_button": "编辑"
     },
     "list": {
       "new_button": "新建",

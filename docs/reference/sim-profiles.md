@@ -630,10 +630,15 @@ modified by the merge.
 2. **The "in force now" hero** (`active-profile-hero.tsx`, `rounded-hero`) —
    what the modem is running *right now*, answered before the list of things it
    could run instead. 52 px glyph disc, eyebrow + profile name, MNO + ICCID,
-   a status `Badge`, Edit / Deactivate; at most **one** inline notice; and three
-   tiles (Identity · Scenario in force · Radio owned-by-scenario). When no
-   profile is active the whole card is replaced by the `NoActiveProfile` state
-   screen — an empty hero would be a card reporting nothing.
+   a status `Badge`, Edit / Deactivate; at most **one** inline notice (which may
+   itself carry a recovery action — see [the partial notice
+   below](#closing-the-apply-dialog-on-partial-used-to-strand-the-recovery));
+   and three tiles (Identity · Scenario in force · Radio owned-by-scenario).
+   When no profile is active, or when its detail read fails, the whole card is
+   replaced by a state screen — an empty hero would be a card reporting nothing.
+   The slot has **three** components in it and they share one scale; see
+   [The hero slot is three components on one
+   scale](#the-hero-slot-is-three-components-on-one-scale-hero_state).
 3. **The Today strip** (`ScheduleTodayCard` in `schedule-ribbon.tsx`,
    `PROFILE_CARD_PEER`) — the 24-hour schedule, given the full page width. It is
    a **peer** card, not a second hero, and it renders only while a profile is in
@@ -655,6 +660,11 @@ priority is `applying → partial → mismatch`, at most one at a time: the in-f
 apply is the only fact still changing, a partial apply is a finished event the
 user must act on, and a SIM mismatch is a standing condition the identity badge
 already announces on its own.
+
+> ⚠️ WARNING: That principle has to be enforced one level deeper than the prop
+> list. `applyState` is a *struct*, but the caller's choice of **which** apply to
+> pass it is exactly the boolean the header refuses — see [The hero reads only
+> its own apply](#the-hero-reads-only-its-own-apply).
 
 ### The retired `connection-scenarios` route
 
@@ -754,7 +764,7 @@ module exports three things:
 
 | Export | What it is |
 |--------|-----------|
-| `ScheduleTodayCard` | The **peer card** that sits directly under the hero — a summary sentence ("Balanced in force until 18:00, then Speed"), the "Schedule armed" readout, and the labelled ribbon. `ScheduleTodayCardSkeleton` mirrors it. |
+| `ScheduleTodayCard` | The **peer card** that sits directly under the hero — a summary sentence ("Balanced in force until 18:00, then Speed"), the "Schedule armed" readout, the labelled ribbon, and an **Edit schedule** action in its `CardAction` slot. `ScheduleTodayCardSkeleton` mirrors it. |
 | `ScheduleRibbon` | The track itself: segment names, windows, a needle at the current minute, an hour axis. |
 | `ScheduleMiniBar` | The 8 px band a profile **row** carries — a *glyph* for "this profile has a schedule and here is its shape", not a readable timeline, which is why it animates nothing and stays `aria-hidden` (the row's own text line already states the schedule in words). Hidden below `@lg/card`. |
 
@@ -818,6 +828,13 @@ speaks the schedule in words ("Night Idle until 07:00, then Balanced until
 The ribbon is only honest because the on-device timer that enacts it is honest —
 see [Scenario schedule windows](#scenario-schedule-windows-systemd-timer-not-crond)
 and the fire guard note there.
+
+**Edit schedule** (`onEditSchedule` → `handleEditSchedule`) opens the active
+profile in the wizard **on the Scenario step**, not on Identity — see
+[The 4-tab create/edit wizard](#the-4-tab-createedit-wizard-custom-profile-formtsx).
+It is deliberately no longer an alias of `handleEditActive`: the two now differ
+only in the `initialTab` they set, and collapsing them back would silently undo
+the deep link.
 
 ### What the merged mount actually costs
 
@@ -1004,6 +1021,109 @@ Retry goes through the existing `invalidateActiveProfile` nonce (`:919`), **not*
 New keys `custom_profiles.hero_error.{title,description,retry}` ship in all five
 locales.
 
+#### The hero slot is three components on one scale (`HERO_STATE`)
+
+`ActiveProfileHero`, `NoActiveProfile` and `ActiveProfileUnavailable` are three
+states of **one box**, and they cross-fade **in place** through the slot's
+`AnimatePresence mode="wait"`. Every number the three disagree on is therefore a
+visible nudge at every swap, not a difference between three separate screens.
+
+They disagreed on all of them. Discs were 52 / 56 / 56 px, glyphs 26 / 29 / 29,
+and the title step was `text-[1.375rem]`/`-0.02em` / `text-xl`/`-0.01em` /
+`text-lg`/no tracking. `NoActiveProfile` even carried a comment claiming its disc
+was "imported rather than restated" — only the **fill** was imported; the
+geometry was hand-written 4 px larger, so the comment described an intention.
+
+`HERO_STATE` in `shapes.ts` now carries the rest of the slot alongside the
+existing `HERO_DISC` / `HERO_DISC_TONE`:
+
+| Member | What it pins |
+|--------|--------------|
+| `SHELL` | `items-center gap-3.5 py-12 text-center`, composed **onto** `HERO_CARD` — centring and vertical air only, never a second radius or fill. One padding for both state screens, so the slot's height barely moves across a swap (the error card used to sit 12 px shorter and the page nudged). |
+| `GLYPH_SIZE` | `26` — the loaded hero's glyph. A 52 px disc reads differently with a 29 px glyph inside it, so importing the disc while restating the glyph leaves the drift half-fixed. |
+| `TITLE` | `text-[1.375rem] font-semibold tracking-[-0.02em]`. |
+| `BODY` | The sentence under it, `max-w-[34rem]`. |
+| `DETAIL` | The backend's own error string in machine voice, at the **same** measure as `BODY` — two differently-capped columns under one centred heading read as a layout mistake, not a hierarchy. |
+
+`HERO_NAME` is now `` `truncate ${HERO_STATE.TITLE}` `` and is byte-identical to
+its previous hand-written value. Concatenating two *complete* class strings is
+safe under Tailwind's JIT (it scans source text and `text-[1.375rem]` appears
+verbatim in `HERO_STATE`); interpolating a **value** into a bracket is what is
+not, and nothing here does that.
+
+> ℹ️ NOTE: **The two exceptional states moved UP to the loaded hero's step, not
+> the reverse.** The loaded state is what the user sees essentially always, so it
+> is the one already calibrated against the 40 px `rounded-hero` shell hosting
+> it — shrinking it to match a state that appears once would detune the common
+> case to tidy the rare one. And the exceptional states are not *less* important:
+> "a profile is in force and we cannot read it" is the most urgent thing this page
+> can say, and it was rendering two steps below the state it interrupts.
+
+> ⚠️ WARNING: **`ActiveProfileUnavailable` used to hand-write `bg-warning
+> text-warning-foreground` inline** — a tone keyed onto a class string, which
+> `CLAUDE.md` and `DESIGN.md` ban by name. `HERO_DISC_TONE` gained an **`error`**
+> member holding those same two classes, and `"error"` is in the map's key union,
+> so a future state without a fill fails the build instead of shipping untinted.
+> `error` and `empty` therefore differ **only** in fill, which is exactly why
+> `cloud_off` and `sim_card_alert` must never converge — the glyph is the only
+> channel a deuteranopic user has here.
+
+**Aria roles are picked by severity, not by symmetry.** `ActiveProfileUnavailable`
+keeps `role="alert"` (assertive — it interrupts). `NoActiveProfile` takes
+`role="status"`: a resting state the user themselves just caused by pressing
+Deactivate must not interrupt a screen reader. Having **no** role at all, which
+is what shipped, meant the swap out of the loaded hero went unannounced entirely.
+
+#### "No profile is active" has two meanings, and they want opposite verbs
+
+`NoActiveProfile` renders whenever `activeProfileId` is null. That says **nothing
+whatever** about whether anything is *saved*, so one component covered two
+situations — and it offered one label for both,
+`custom_profiles.page.new_profile`.
+
+That was wrong twice over. In the common case (the user just pressed Deactivate
+on a populated roster) "New profile" is the wrong verb entirely — the thing to do
+is put an existing profile back in force. And it was the **second** "New profile"
+on screen: the page header's primary spends that exact key three inches above,
+and two identical primaries on one screen make the second read as a mistake
+rather than a choice.
+
+The component now takes `hasSavedProfiles` (read from `profiles`, the summary
+list — the only thing on the page that knows whether there is anything to
+activate) and branches:
+
+| Roster | Copy | Action |
+|--------|------|--------|
+| Populated | `hero_empty.description_saved` | **Activate a profile** (`play_arrow`) → jumps to the Saved Profiles card |
+| Empty | `hero_empty.description` (unchanged) | **New profile** (`add`) → `handleNewProfile` |
+
+> ⚠️ WARNING: **The activate branch MOVES; it does not act.** Activation is a
+> modem mutation that costs an attach cycle and it already has exactly one home —
+> the row's Activate plus its confirm dialog. Firing it from an empty state would
+> require picking a profile *for* the user, which is the one thing an empty state
+> must not do. `handleJumpToSavedProfiles` scrolls and focuses; it touches no
+> endpoint. Do not "improve" it into a one-click activate.
+
+Two details of the jump are load-bearing:
+
+- **Focus moves with the scroll**, via `el.focus({ preventScroll: true })` on a
+  `tabIndex={-1}` wrapper. A pure scroll leaves a keyboard user's focus on a
+  button that has just left the screen, so their next Tab lands somewhere they
+  cannot see — the jump would be sighted-only. `preventScroll` because
+  `scrollIntoView` has already positioned the card; letting focus scroll too
+  double-jumps past the `scroll-mt` offset. `useReducedMotion()` picks
+  `behavior: "auto"` over `"smooth"`.
+- **`SAVED_PROFILES_ANCHOR` carries an `h-full` that is not decoration.** The
+  Saved Profiles `<Card>` is `h-full` and *was* the direct grid item, so its
+  `h-full` resolved against the grid **area** and stretched it to the taller
+  column. Interposing a wrapper makes the wrapper the grid item, and `h-full` on
+  a `height: auto` parent resolves to `auto` — without it the card silently stops
+  stretching and the two columns go ragged. The constant also carries
+  `scroll-mt-20` (clears the sticky shell header) and a **`focus-visible`-only**
+  ring: a plain `:focus` ring would also fire on the mouse path, drawing a 3 px
+  halo round a whole card because someone clicked a button. Same shape as
+  `band-locking.tsx`'s own scroll-target wrapper.
+
 ### Adopting an apply nobody on this page started
 
 **Short version:** `useProfileApply` picks up an in-flight apply on mount, but
@@ -1056,10 +1176,12 @@ Two guards prevent that, and **both** are needed:
 The active row's **Deactivate** button had no `disabled` guard at all in any code
 path — the one control on this surface that could be clicked into a modem
 mid-mutation. It is now gated, along with Reapply and Activate, through
-`actionsLocked = busy || pageBusy` (`custom-profile-view.tsx:712`, applied at
-`:899`, `:910`, `:923`). `pageBusy` is a new prop
-(`custom-profile-view.tsx:224–243`) fed from the page's existing `heroBusy`
-signal (`custom-profile.tsx:848–849`, passed at `:964`).
+`actionsLocked = busy || pageBusy` (`custom-profile-view.tsx:761`, applied at
+`:913`, `:922`, `:941` — all three now live in the row's overflow menu, which is
+where the single-line row anatomy put them). `pageBusy` is a prop on
+`CustomProfileViewProps` fed from the page's existing `heroBusy` signal
+(`custom-profile.tsx:961`, passed at `:1121`; the hero takes the same signal as
+`busy` at `:1021`).
 
 > ⚠️ WARNING: **Do not OR `pageBusy` into `busy` at the source.** This is the
 > non-obvious invariant and the reason two flags exist for what looks like one
@@ -1082,6 +1204,83 @@ Before the adoption fix this gap was masked rather than absent — both progress
 dialogs are modal and non-dismissable while a mutation runs, so the list was
 never clickable during one. An adopted apply has no dialog until the effect opens
 it, which is what makes the unguarded button reachable. The two fixes are one fix.
+
+### The hero reads only its own apply
+
+**Short version:** `applyState` is the coordinator's **one** in-flight apply,
+whichever profile it belongs to. The hero read it without checking whose it was,
+so it could paint one profile's identity with another profile's verdict.
+
+The list row has always scoped the identical read on `profile_id` before deriving
+its `audit` / `busy`. The hero did not, in **six** places: `isApplying`,
+`isPartial`, `applyingStep`, `failedStep`, and the applying notice's
+`profile_name` and `current_step` / `total_steps`.
+
+The reachable symptom is one click away. Activate profile B while A is in force:
+the list is not refreshed until `handleApplyProgressClose` runs, so the hero is
+still showing **A** — and it painted A's name and ICCID with B's "Applying" chip
+and spinning disc, while the notice directly beneath interpolated **B's name**.
+One card, two disagreeing claims about what the modem is doing.
+
+> ⚠️ WARNING: **The `partial` case did not expire.** `handleApplyProgressClose`
+> deliberately never resets `applyState` — that is what lets a row keep showing
+> "Applied at HH:MM" until the next activation (see [the re-open
+> guard](#the-re-open-guard-is-the-subtle-part)). So if the follow-up `refresh()`
+> lost a race with AT-lock contention, a warning about **B's** failed step stayed
+> pinned to **A's** name indefinitely.
+
+The fix is one narrowing const at the top of the component, and every downstream
+read goes through it:
+
+```tsx
+const selfApply =
+  applyState && applyState.profile_id === profile.id ? applyState : null;
+```
+
+`applyState` itself is now mentioned exactly three times in the file — the prop
+declaration, the destructure, and this line. **A grep that finds a fourth is a
+regression**; add the read to `selfApply`'s derivation instead of reaching past
+it.
+
+#### Closing the apply dialog on `partial` used to strand the recovery
+
+`showApplyProgress` cannot be re-set from the hero, so once the dialog was
+dismissed on a `partial` verdict the hero was left naming a failed step with
+nothing to act on. The only route back was the *row's* overflow menu, one card
+further down the page.
+
+`HeroNotice` gained an optional `action` slot, and `ActiveProfileHeroProps` an
+optional `onReapply`. The partial notice renders **Reapply profile** inside
+itself. Three choices there are deliberate:
+
+- **It is in the notice, not the hero's action row.** That row is `Badge` + Edit
+  + Deactivate at `gap-2`; Deactivate drops the data link for 8–12 s, and a third
+  identically-weighted control beside it that also fires a four-step modem
+  mutation reads as one more routine button rather than as the answer to the
+  sentence above it. Inside the notice, the action sits at the **foot of the text
+  column** — a right-aligned trailing sibling on an `items-start` row would sit
+  level with the title and read as a control for the whole card, and would squeeze
+  the prose it is meant to be secondary to at narrow widths.
+- **It is `variant="tonal-neutral"`.** The notice is already a container pair, so
+  a second *role* container inside it would put two tonal fills on one banner, and
+  a `default` (brand fill) button would out-weigh the hero's own actions from
+  inside a warning. `ghost` is **not** a safe substitute for hand-building a tonal
+  button here: `ghost` carries `dark:hover:bg-accent/50`, which compiles to a
+  `:is(.dark *)`-qualified selector that outranks any plain `hover:` override on
+  specificity alone (the reasoning is on the `cva` in `components/ui/button.tsx`).
+- **It is wired to `handleReapplyActive` → `handleReapply`, never
+  `handleRetry`.** The two callbacks sit next to each other in `custom-profile.tsx`
+  and look near-identical; the difference is that `handleReapply` sets
+  `showApplyProgress(true)` and `handleRetry` does not — the latter is the
+  *dialog's* own retry, called from inside a dialog that is already open. Wiring
+  the hero to it would send four AT-writing steps at the modem with no ledger, no
+  progress and no verdict on screen: the exact silent mutation the State-Honesty
+  Rule forbids.
+
+`onReapply` is optional, and the notice renders with no action when it is omitted
+— the same clean degradation the rest of this card's optional handlers have. It
+is "Reapply profile", never a per-step retry, because the backend can only re-run
+all four steps or none.
 
 ### Saving an active profile auto-reapplies it
 
@@ -1171,12 +1370,15 @@ modem mutation.
 > [Apply-progress dialog](#apply-progress-dialog-apply-progress-dialogtsx),
 > which is the same finalize block.
 
-> ℹ️ NOTE: **Known follow-up, not a defect.** `custom-profile-view.tsx`'s
-> per-row Deactivate button takes no busy prop, so it is asymmetric with the
-> hero's. It is safe today only because the dialog is modal — a second click
-> cannot fire a second request. Separately, `heroLocallyReady` still gates
-> `pageReady`, so if the very first `getProfile` fails the skeleton is
-> permanent; that is pre-existing and unchanged.
+> ℹ️ NOTE: **Both follow-ups noted here have since been closed — do not
+> re-open them as known issues.** The per-row Deactivate is no longer asymmetric
+> with the hero's: it takes `actionsLocked` like Activate and Reapply (see
+> [`pageBusy` disables; `busy` narrates](#pagebusy-disables-busy-narrates)). And
+> `heroLocallyReady` now reads `heroDetailSettled` rather than
+> `activeProfile !== null` (`custom-profile.tsx:413–414`), so a failed first
+> `getProfile` renders `ActiveProfileUnavailable` instead of a permanent
+> skeleton — see [Settlement is not
+> success](#settlement-is-not-success--the-heros-permanent-skeleton).
 
 ### Historical context: the RM551E-parity redesign
 
@@ -1203,6 +1405,24 @@ now lives in a dialog](#the-createedit-wizard-now-lives-in-a-dialog)):
 | Network | APN name, CID, PDP type, TTL/HL, optional IMEI override. **"Use my saved APN"** quick-pick fills the APN from the current setting. |
 | Scenario | Scenario binding + optional daily schedule windows (see [scenario picker](#scenario-picker-and-the-create-new-deep-link) below). |
 | Review | Per-section summaries with edit-jump-back — clicking a section returns to its tab. Final Submit lives here. |
+
+**The wizard can be opened on a step other than the first.** `WizardTab` is
+exported from `custom-profile-form.tsx`, and an `initialTab` prop is threaded
+`custom-profile.tsx` → `profile-form-dialog.tsx` → `custom-profile-form.tsx`,
+defaulting to `"identity"`. Exactly one entry point uses anything else: the Today
+strip's **Edit schedule** (`ScheduleTodayCard`'s `onEditSchedule`) opens on
+`"scenario"`, because the schedule lives on that step and only that step —
+landing on Identity first made the user re-walk three tabs to reach the thing
+they had just clicked for. The coordinator therefore keeps `formInitialTab` in
+state and every other opener (`handleNewProfile`, `handleEdit`,
+`handleEditActive`) resets it to `"identity"` explicitly, so a schedule edit
+cannot leave the wizard stuck on Scenario for the next create.
+
+> ℹ️ NOTE: `initialTab` seeds `useState` and is **not** a controlled prop — it is
+> read on mount only. That is correct here because Radix unmounts `DialogContent`
+> when the dialog closes (nothing `forceMount`s it) and the form additionally
+> carries `key={editingProfile?.id ?? "new"}`, so every open is a fresh mount. A
+> caller that kept the form permanently mounted would not see the tab change.
 
 The wizard emits the same flat `ProfileFormData` the old form did
 (`name` / `mno` / `sim_iccid` / `cid` / `apn_name` / `pdp_type` / `imei` /
@@ -1255,6 +1475,40 @@ Row settings are hydrated on demand via a `getProfile` prefetch, because the
 `list.sh` summaries deliberately omit the `settings` object (the list endpoint
 stays lightweight; per-row config detail is fetched when a card needs it).
 
+#### The true empty state needs a create button, not just Refresh
+
+`EmptyProfileViewComponent` (`empty-profile.tsx`) replaces the whole card when
+`profiles.length === 0 && suggestions.length === 0` — nothing saved **and** no
+suggestion for the inserted SIM. It is the one branch of this card with no other
+create affordance: the populated card's New button lives on the page header
+above it, and a suggestion row carries its own create action.
+
+Its only affordance was **Refresh** — a button that reloads a list the user
+already knows is empty. It now renders a filled create button as well, adopting
+the pre-existing `custom_profiles.empty_state.cta_new` (already written and
+already translated in all five packs, with no call site until now — no sixth
+spelling of "New Profile" was minted). It is wired to the page's **same**
+`handleNewProfile`, threaded as an optional `onNewProfile` through
+`CustomProfileViewProps` → `EmptyProfileViewProps`, so all three create entry
+points open the wizard on `identity` and none can drift.
+
+> ⚠️ WARNING: **The create button is a SIBLING below the `ConditionScreen`, not
+> a prop on it.** That primitive's action slot is `onRetry` / `retryLabel` with a
+> **hard-coded `refresh` glyph** on a low-contrast `spec.action` wash — a retry
+> affordance by construction, which cannot express a filled primary. Widening it
+> would touch **nine** other call sites across six features (antenna alignment,
+> antenna statistics, radio info, FPLMN, network priority, SMS forwarding) to serve one, so
+> `condition-screen.tsx` was left untouched. Refresh stays the screen's retry and
+> Create sits beneath it as a peer — the shipped composition in
+> `components/cellular/settings/fplmn-settings/fplmn-card.tsx`. Do not "tidy" it
+> by adding a second action slot to the shared primitive.
+
+The ordering is also the honest one: the screen's copy teaches what a profile
+*is* (`empty_state.teaching_headline` / `teaching_body`, the only place on the
+surface that explains it), and the button is the answer to it — explanation then
+action, a filled pill under a tonal wash. Both handlers are optional and degrade
+cleanly: omit either and that affordance simply does not render.
+
 ### Apply-progress dialog (`apply-progress-dialog.tsx`)
 
 A hero disc per status, a determinate bar, and a **"Details" ledger**. It renders
@@ -1285,6 +1539,15 @@ Three details of this dialog are deliberate and each has bitten someone:
 
 The bar animates `scaleX` from a left origin — transform only, no per-frame
 layout.
+
+> ℹ️ NOTE: **The hero glyph rotates; it does not pulse.** The in-progress disc
+> renders `progress_activity`, which is a *spinner* glyph — it reads as "working"
+> by rotating, exactly as the ledger's own running row does below it. It carries
+> `animate-spin motion-reduce:animate-none`. An earlier version used
+> `animate-pulse` on the ambient duration; a breathing spinner glyph reads as
+> stalled rather than alive. `animate-spin` is the shared rotation clock and has
+> no ambient-duration variant to retune separately, so this stays a documented
+> One-Scale exception rather than a token.
 
 #### Why the ledger overflowed, and which single class fixes it
 
@@ -1448,7 +1711,12 @@ The Select uses one sentinel option value:
 
 ### Supporting components
 
-- `empty-profile.tsx` — restyled empty state, now i18n'd.
+- `empty-profile.tsx` — the Saved Profiles card's **true** empty state (nothing
+  saved *and* no suggestion), i18n'd, and since 2026-08-21 carrying a create
+  button beside its Refresh — see [The true empty state needs a create
+  button](#the-true-empty-state-needs-a-create-button-not-just-refresh). Not to
+  be confused with `NoActiveProfile`, which is the *hero's* empty state and
+  answers a different question.
 - `profile-override-alert.tsx` — the reusable gate banner (see
   [Gate matrix](#gate-matrix)), now i18n-wired. Its prop contract
   (`{ profileName, controls, note? }`) is **preserved** — it is shared by the
@@ -1466,8 +1734,9 @@ The Select uses one sentinel option value:
 
 The `custom_profiles` namespace was transplanted from RM551E's professional
 translations (minus the Verizon keys), growing from ~28 to **282 leaf keys**
-per locale across all five locales (`en` / `zh-CN` / `zh-TW` / `it` / `id`);
-`bun run i18n:check` reports 100% parity. Separately, the `ApplyStep.name`
+per locale at the time of that port (it stands at **353** today, across all five
+locales `en` / `zh-CN` / `zh-TW` / `it` / `id`); `bun run i18n:check` reports
+100% parity — 2309/2309 per pack. Separately, the `ApplyStep.name`
 doc comment in `types/sim-profile.ts` was corrected — it now documents the
 real 4-step RM520N set (`apn`, `ttl_hl`, `scenario`, `imei`), replacing a
 stale RM551E 7-step list.
@@ -1476,6 +1745,35 @@ stale RM551E 7-step list.
 > `/cellular/custom-profiles` routes prerender), `bun run i18n:check` (100%
 > parity, 0 errors), and `eslint` (exit 0). On-device curl validation was not
 > run — no backend changed, so it is not required for this change.
+
+#### Dead keys were deleted, not left as ballast
+
+Thirteen `custom_profiles.*` keys with no call site anywhere in the tree were
+removed from all five packs alongside the three new ones
+(`hero.reapply`, `hero_empty.description_saved`, `hero_empty.activate_action`):
+
+| Removed | Why it was dead |
+|---------|-----------------|
+| `hero.badge_mismatch` | The hero's mismatch chip renders through `PROFILE_STATUS_BADGE`, which owns its own label. |
+| `active_card.*` (8 keys) | The whole subtree belonged to the pre-merge active-config card, replaced by the hero. |
+| `empty_state.{title,description,description_full,cta_refresh}` | Superseded by `teaching_headline` / `teaching_body` / `refresh`. |
+
+`empty_state.cta_new` and `empty_state.refresh` were **kept**: the first is now
+consumed by the true empty state's create button (see [The true empty state needs
+a create button](#the-true-empty-state-needs-a-create-button-not-just-refresh)),
+the second is still the `ConditionScreen` retry label. `i18n:check` catches an
+**extra** key as a hard error but says nothing about a key that is present in all
+five packs and referenced by none, so this class of debt has to be grepped for
+deliberately.
+
+> ⚠️ WARNING: **The `public/locales/*/cellular.json` packs are CRLF and nothing
+> in `.gitattributes` covers `public/locales`.** A round-trip guard of the shape
+> `JSON.stringify(json, null, 2) + "\n" === original` therefore **fails on every
+> pack** and reads a one-character-per-line difference as "hand-formatted, do not
+> touch" — so a script written that way either aborts on all five files or, if
+> the guard is simply dropped, reformats ~3000 lines into an unreviewable diff.
+> The mechanism and the correct normalising guard are in
+> [i18n.md § Locale files are CRLF](i18n.md#locale-files-are-crlf--normalise-before-any-round-trip-guard).
 
 ### Design-language contract (`shapes.ts`)
 
@@ -1487,6 +1785,18 @@ variant, a new tile, a new status) extends this file rather than hand-rolling a
 class string, and a skeleton mirrors by importing the same constant rather than
 restating a number. This is **frontend-only** — nothing in the data model, CGI
 contract, or apply pipeline above changed.
+
+The hero slot's exports are worth naming here because three components share
+them and the drift they prevent is invisible until a swap:
+
+| Export | Owns |
+|--------|------|
+| `HERO_CARD` | The slot's shell — the surface's only `rounded-hero`. |
+| `HERO_DISC` | The glyph disc's **geometry**. |
+| `HERO_DISC_TONE` | Its **fill**, keyed `live` / `applying` / `partial` / `mismatch` / `empty` / **`error`**. A state without a member fails the build. |
+| `HERO_STATE` | Everything else the two state screens need — `SHELL`, `GLYPH_SIZE`, `TITLE`, `BODY`, `DETAIL`. See [The hero slot is three components on one scale](#the-hero-slot-is-three-components-on-one-scale-hero_state). |
+| `HERO_NAME` | The loaded hero's name, **derived** from `HERO_STATE.TITLE`. |
+| `SAVED_PROFILES_ANCHOR` | The Saved Profiles card's wrapper and scroll/focus target. Its `h-full` is load-bearing grid behaviour, not padding. |
 
 > ⚠️ WARNING: **The surface was re-authored onto the finalized design language
 > on 2026-08-21.** An earlier generation of `shapes.ts` was written against the

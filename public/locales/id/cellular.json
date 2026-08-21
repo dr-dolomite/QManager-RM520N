@@ -1103,11 +1103,11 @@
     },
     "hero": {
       "eyebrow": "BERLAKU SEKARANG",
-      "badge_mismatch": "SIM tidak cocok",
       "unknown_operator": "Operator tidak dikenal",
       "iccid": "ICCID {{value}}",
       "edit": "Edit",
       "deactivate": "Nonaktifkan",
+      "reapply": "Terapkan ulang profil",
       "notice": {
         "unknown_step": "tidak diketahui",
         "applying_title": "Menerapkan {{name}}",
@@ -1152,7 +1152,9 @@
     },
     "hero_empty": {
       "title": "Tidak ada profil aktif",
-      "description": "Modem menggunakan APN bawaan dan skenario koneksi default. Simpan profil untuk mengunci APN, TTL, dan jadwal skenario pada SIM ini."
+      "description": "Modem menggunakan APN bawaan dan skenario koneksi default. Simpan profil untuk mengunci APN, TTL, dan jadwal skenario pada SIM ini.",
+      "description_saved": "Saat ini tidak ada yang berlaku. Aktifkan salah satu profil tersimpan di bawah ini untuk mengembalikan identitas yang diketahui dan perilaku radio yang diketahui.",
+      "activate_action": "Aktifkan profil"
     },
     "hero_error": {
       "title": "Detail profil tidak tersedia",
@@ -1485,16 +1487,12 @@
       "reboot_notice_deferred": "Profil ini menulis IMEI, yang memerlukan reboot. Tidak ada yang direboot sekarang — Anda akan mendapat banner saat siap."
     },
     "empty_state": {
-      "title": "Tidak ada profil",
-      "description": "Kelola profil SIM kustom Anda di sini.",
-      "description_full": "Anda belum membuat profil SIM kustom. Gunakan formulir untuk membuat profil pertama Anda.",
       "refresh": "Muat Ulang",
       "card_title": "Profil SIM Kustom",
       "card_description": "Bundel APN, IMEI, dan pengaturan TTL yang diterapkan ke modem dalam satu langkah.",
       "teaching_headline": "Belum ada profil",
       "teaching_body": "Profil SIM Kustom menggabungkan nama APN, protokol IP, penggantian TTL/HL, dan IMEI opsional ke dalam satu preset tersimpan. Mengaktifkannya menerapkan semua pengaturan sekaligus, sehingga berpindah operator atau slot SIM hanya butuh detik.",
-      "cta_new": "Profil Baru",
-      "cta_refresh": "Muat Ulang"
+      "cta_new": "Profil Baru"
     },
     "pills": {
       "ip_v4": "IPv4",
@@ -1506,16 +1504,6 @@
       "ttl": "TTL {{value}}",
       "hl": "HL {{value}}",
       "imei_override": "Penggantian IMEI"
-    },
-    "active_card": {
-      "none_title": "Tidak ada profil aktif",
-      "none_description": "Modem menggunakan pengaturan saat ini. Aktifkan profil tersimpan untuk menerapkan bundel.",
-      "subtitle": "Diterapkan ke modem sekarang",
-      "subtitle_with_mno": "Diterapkan sekarang · {{mno}}",
-      "scenario_default": "Skenario: {{name}}",
-      "scenario_scheduled": "Skenario: {{name}} (terjadwal)",
-      "mismatch_note": "Profil ini dibuat untuk SIM yang berbeda dari yang terpasang sekarang. Aktifkan ulang untuk SIM ini, atau aktifkan profil yang sesuai.",
-      "edit_button": "Edit"
     },
     "list": {
       "new_button": "Baru",
