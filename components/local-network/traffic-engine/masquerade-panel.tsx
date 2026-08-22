@@ -11,10 +11,8 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { SaveButton, useSaveFlash } from "@/components/ui/save-button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { AlertCircleIcon } from "lucide-react";
-import { toast } from "sonner";
 
 import EngineEnableRow from "./engine-enable-row";
 import EngineCheckRow from "./engine-check-row";
@@ -40,7 +38,6 @@ export interface MasqueradePanelProps {
 
 const MasqueradePanel = ({ masquerade, videoOptimizerEnabled }: MasqueradePanelProps) => {
   const { t } = useTranslation("common");
-  const { saved, markSaved } = useSaveFlash();
 
   const data = masquerade.data;
   const [prevData, setPrevData] = useState(data);
@@ -51,20 +48,6 @@ const MasqueradePanel = ({ masquerade, videoOptimizerEnabled }: MasqueradePanelP
     setPrevData(data);
     setIsEnabled(data?.enabled ?? false);
   }
-
-  const handleSave = async () => {
-    const ok = await masquerade.save(isEnabled, "speedtest.net");
-    if (ok) {
-      markSaved();
-      toast.success(
-        isEnabled
-          ? t("trafficEngine.enable.toast_enabled_masq")
-          : t("trafficEngine.enable.toast_disabled_masq"),
-      );
-    } else {
-      toast.error(masquerade.error || t("trafficEngine.enable.toast_error"));
-    }
-  };
 
   if (masquerade.isLoading) {
     return (
@@ -102,38 +85,20 @@ const MasqueradePanel = ({ masquerade, videoOptimizerEnabled }: MasqueradePanelP
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <form
-            className="grid gap-4"
-            onSubmit={(e) => {
-              e.preventDefault();
-              handleSave();
-            }}
-          >
-            <EngineEnableRow
-              enabled={isEnabled}
-              otherEnabled={videoOptimizerEnabled}
-              isSaving={masquerade.isSaving}
-              otherModeLabel={t("trafficEngine.tabs.video_optimizer")}
-              title={t("trafficEngine.enable.masquerade")}
-              description={t("trafficEngine.enable.description_masq")}
-              toastEnabled={t("trafficEngine.enable.toast_enabled_masq")}
-              toastDisabled={t("trafficEngine.enable.toast_disabled_masq")}
-              onSave={async (v) => {
-                const ok = await masquerade.save(v, "speedtest.net");
-                if (ok) markSaved();
-                return ok;
-              }}
-            />
-
-            <div>
-              <SaveButton
-                type="submit"
-                isSaving={masquerade.isSaving}
-                saved={saved}
-                label={t("actions.apply")}
-              />
-            </div>
-          </form>
+          {/* The enable row saves on toggle (like the Video Optimizer tab) —
+              no explicit Apply button. The RM551 UI this was ported from
+              needed one for its SNI text field, which tpws made moot. */}
+          <EngineEnableRow
+            enabled={isEnabled}
+            otherEnabled={videoOptimizerEnabled}
+            isSaving={masquerade.isSaving}
+            otherModeLabel={t("trafficEngine.tabs.video_optimizer")}
+            title={t("trafficEngine.enable.masquerade")}
+            description={t("trafficEngine.enable.description_masq")}
+            toastEnabled={t("trafficEngine.enable.toast_enabled_masq")}
+            toastDisabled={t("trafficEngine.enable.toast_disabled_masq")}
+            onSave={async (v) => masquerade.save(v, "speedtest.net")}
+          />
         </CardContent>
       </Card>
 

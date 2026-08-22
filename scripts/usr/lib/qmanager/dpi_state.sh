@@ -155,6 +155,12 @@ dpi_packets_processed() {
 # Returns 0 on success (the -I exit status).
 # =============================================================================
 dpi_apply_rule() {
+    # Idempotent: if the rule is already installed, leave it alone.
+    # Re-creating it every ensure pass would reset its packet counter,
+    # making "Packets processed" visibly collapse to 0 once a minute.
+    if dpi_rule_present; then
+        return 0
+    fi
     local i=0
     while [ "$i" -lt 16 ]; do
         run_iptables -w 5 -t nat -D PREROUTING \
@@ -189,10 +195,26 @@ dpi_remove_rule() {
 #   else      → stopped
 # =============================================================================
 dpi_service_status() {
-    local st
-    st=$($_SUDO $_SYSTEMCTL show qmanager-dpi -p ActiveState --value 2>/dev/null)
+    # HYBRID liveness probe.
+    #
+    # Primary: is the tpws process actually alive? A process check works for
+    # every caller (www-data CGI included) on every supported model, needs no
+    # privileges, and does not depend on config.sh variable names — sibling
+    # builds (RM502Q-GL) ship different/empty $DPI_BINARY, hence the fallback
+    # to the path the installer itself writes to.
+    #
+    # Fallback: only when no process exists, ask systemd for the degraded
+    # states so the UI can still distinguish restarting/error from stopped.
+    # This read is a privilege lottery by model (direct query OK on RM520N,
+    # denied outright on RM502Q-GL), so it is best-effort: any failure maps
+    # to stopped, which is what those models reported anyway.
+    local _bin="${DPI_BINARY:-/usrdata/qmanager/bin/tpws}" st
+    if pgrep -f "^$_bin " >/dev/null 2>&1; then
+        echo "running"
+        return
+    fi
+    st=$(${_SYSTEMCTL:-systemctl} show qmanager-dpi -p ActiveState --value 2>/dev/null)
     case "$st" in
-        active) echo "running" ;;
         activating) echo "restarting" ;;
         failed) echo "error" ;;
         *) echo "stopped" ;;
@@ -200,20 +222,22 @@ dpi_service_status() {
 }
 
 # =============================================================================
-# dpi_uptime_str — human uptime of the qmanager-dpi unit, "2h 34m" style
-# Uses ActiveEnterTimestampMonotonic vs /proc/uptime (no clock-step issues).
+# dpi_uptime_str — human uptime of the running engine, "2h 34m" style
+# Derived from /proc/<pid>/stat field 22 (starttime in jiffies; HZ=100 on
+# these SoCs) vs /proc/uptime: same privilege-free reasoning as the status
+# probe above, and immune to clock steps. No process -> em dash placeholder.
 # =============================================================================
 dpi_uptime_str() {
-    local mono now_usec secs h m
-    mono=$($_SUDO $_SYSTEMCTL show qmanager-dpi -p ActiveEnterTimestampMonotonic --value 2>/dev/null) || mono=0
-    case "$mono" in
-        ''|*[!0-9]*) mono=0 ;;
+    local pid start_jiffies up_now secs h m _bin
+    _bin="${DPI_BINARY:-/usrdata/qmanager/bin/tpws}"
+    pid=$(pgrep -f "^$_bin " | head -n1)
+    [ -z "$pid" ] && { echo "—"; return; }
+    start_jiffies=$(awk '{print $22}' "/proc/$pid/stat" 2>/dev/null)
+    case "$start_jiffies" in
+        ''|*[!0-9]*) echo "—"; return ;;
     esac
-    [ "$mono" -le 0 ] && { echo "—"; return; }
-    now_usec=$(cut -d' ' -f1 /proc/uptime | cut -d. -f1)
-    secs=$(( now_usec * 1000000 - mono ))
-    [ "$secs" -lt 0 ] && secs=0
-    secs=$(( secs / 1000000 ))
+    up_now=$(cut -d' ' -f1 /proc/uptime | cut -d. -f1)
+    secs=$(( up_now - start_jiffies / 100 ))
     if [ "$secs" -lt 60 ]; then
         echo "${secs}s"
         return
