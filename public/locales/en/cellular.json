@@ -260,17 +260,21 @@
       "lock_selected": "Lock Selected Bands",
       "restore_all": "Restore all supported",
       "select_all": "Select all",
-      "select_none": "Clear selection"
+      "select_none": "Clear selection",
+      "refresh": "Refresh"
     },
     "toast": {
       "locked": "{{category}} bands locked",
       "unlocked": "{{category}} bands restored",
       "lock_error": "Couldn't apply the {{category}} band lock",
       "unlock_error": "Couldn't restore {{category}} bands",
+      "refresh_error": "Couldn't refresh the band configuration",
       "none_selected": "Select at least one band to lock"
     },
     "a11y": {
       "applying": "Applying the {{category}} band lock…",
+      "refreshing": "Refreshing band configuration…",
+      "refresh_blocked_watcher": "Refresh is paused while the failover watcher checks the radio.",
       "band_selected": "{{band}}, selected",
       "band_unselected": "{{band}}, not selected",
       "band_live": "{{band}}, selected and active on the modem"

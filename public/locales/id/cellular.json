@@ -260,17 +260,21 @@
       "lock_selected": "Kunci pita terpilih",
       "restore_all": "Pulihkan semua yang didukung",
       "select_all": "Pilih semua",
-      "select_none": "Bersihkan pilihan"
+      "select_none": "Bersihkan pilihan",
+      "refresh": "Segarkan"
     },
     "toast": {
       "locked": "Band {{category}} dikunci",
       "unlocked": "Band {{category}} dipulihkan",
       "lock_error": "Tidak dapat menerapkan penguncian band {{category}}",
       "unlock_error": "Tidak dapat memulihkan band {{category}}",
+      "refresh_error": "Tidak dapat menyegarkan konfigurasi band",
       "none_selected": "Pilih setidaknya satu band untuk dikunci"
     },
     "a11y": {
       "applying": "Menerapkan penguncian band {{category}}…",
+      "refreshing": "Menyegarkan konfigurasi band…",
+      "refresh_blocked_watcher": "Penyegaran dijeda saat failover band memeriksa radio.",
       "band_selected": "{{band}}, dipilih",
       "band_unselected": "{{band}}, tidak dipilih",
       "band_live": "{{band}}, dipilih dan aktif di modem"

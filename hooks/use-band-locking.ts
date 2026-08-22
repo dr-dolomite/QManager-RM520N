@@ -40,8 +40,18 @@ export interface UseBandLockingReturn {
   currentBands: CurrentBands | null;
   /** Failover safety mechanism state */
   failover: FailoverState;
-  /** True during initial data fetch */
+  /**
+   * True during the INITIAL data fetch only — "there is nothing to show yet".
+   * This is the flag that may drive skeletons. A manual refresh does NOT set
+   * it; see `isRefreshing`.
+   */
   isLoading: boolean;
+  /**
+   * True while a manual `refresh()` is in flight — "what is on screen is real
+   * but may be stale". Keep the loaded layout rendered and show a quiet
+   * in-place indicator. Never set by the failover poller.
+   */
+  isRefreshing: boolean;
   /** Which band category is currently being locked/unlocked (null = idle) */
   lockingCategory: BandCategory | null;
   /** Error message from the last operation */
@@ -67,8 +77,12 @@ export interface UseBandLockingReturn {
    * @returns success boolean
    */
   toggleFailover: (enabled: boolean) => Promise<boolean>;
-  /** Manually refresh current bands + failover state */
-  refresh: () => void;
+  /**
+   * Manually re-read current bands + failover state.
+   * @returns success boolean, so the caller can report a failed refresh — the
+   * shared `error` is scoped per-category by the page and would swallow it.
+   */
+  refresh: () => Promise<boolean>;
 }
 
 export function useBandLocking(): UseBandLockingReturn {
@@ -79,6 +93,8 @@ export function useBandLocking(): UseBandLockingReturn {
     watcher_running: false,
   });
   const [isLoading, setIsLoading] = useState(true);
+  /** Manual revalidation only. See `refresh` for why this is not `isLoading`. */
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [lockingCategory, setLockingCategory] = useState<BandCategory | null>(
     null,
   );
@@ -102,7 +118,12 @@ export function useBandLocking(): UseBandLockingReturn {
   // ---------------------------------------------------------------------------
   // Fetch current locked bands + failover state (full — touches modem)
   // ---------------------------------------------------------------------------
-  const fetchCurrent = useCallback(async () => {
+  // Returns whether the read SUCCEEDED, so a caller that needs to report the
+  // outcome (manual refresh) can. The boolean describes the FETCH, not the
+  // component: an unmount mid-flight still returns the true result and simply
+  // skips the state writes, because "the page went away" is not a failed read
+  // and must not be reported to the user as one.
+  const fetchCurrent = useCallback(async (): Promise<boolean> => {
     try {
       const resp = await authFetch(`${CGI_BASE}/current.sh?_t=${Date.now()}`);
       if (!resp.ok) {
@@ -110,25 +131,31 @@ export function useBandLocking(): UseBandLockingReturn {
       }
 
       const data: BandCurrentResponse = await resp.json();
-      if (!mountedRef.current) return;
 
       if (!data.success) {
-        setError(
-          data.detail || data.error || "Failed to fetch band configuration",
-        );
-        return;
+        if (mountedRef.current) {
+          setError(
+            data.detail || data.error || "Failed to fetch band configuration",
+          );
+        }
+        return false;
       }
+
+      if (!mountedRef.current) return true;
 
       setCurrentBands(data.current);
       setFailover(data.failover);
       setError(null);
+      return true;
     } catch (err) {
-      if (!mountedRef.current) return;
-      setError(
-        err instanceof Error
-          ? err.message
-          : "Failed to fetch band configuration",
-      );
+      if (mountedRef.current) {
+        setError(
+          err instanceof Error
+            ? err.message
+            : "Failed to fetch band configuration",
+        );
+      }
+      return false;
     } finally {
       if (mountedRef.current) {
         setIsLoading(false);
@@ -260,6 +287,30 @@ export function useBandLocking(): UseBandLockingReturn {
   );
 
   // ---------------------------------------------------------------------------
+  // Adopt a watcher this session did not start
+  // ---------------------------------------------------------------------------
+  // The poll above is armed by `lock.sh` returning `failover_armed`, so it only
+  // ever covers a watcher THIS tab started. But `current.sh` also reports
+  // `watcher_running`, and it can legitimately be true on a plain page load —
+  // another tab, another operator, or a reload during the ~30s window after a
+  // lock.
+  //
+  // Without this effect that state would never clear: nothing would be polling,
+  // so `watcher_running` would stay true until the component remounted. That is
+  // load-bearing now that the UI DISABLES controls on this flag — a guard that
+  // can latch on forever is worse than no guard, because the surface looks
+  // permanently broken rather than briefly busy.
+  //
+  // It cannot loop: `startFailoverPolling` stops itself the moment the watcher
+  // is gone and writes `watcher_running: false`, which makes this condition
+  // false. The guard on the ref keeps it from restarting a poll already running.
+  useEffect(() => {
+    if (failover.watcher_running && !failoverPollRef.current) {
+      startFailoverPolling();
+    }
+  }, [failover.watcher_running, startFailoverPolling]);
+
+  // ---------------------------------------------------------------------------
   // Unlock all bands for one category (set to full supported list)
   // ---------------------------------------------------------------------------
   const unlockAll = useCallback(
@@ -319,17 +370,45 @@ export function useBandLocking(): UseBandLockingReturn {
   );
 
   // ---------------------------------------------------------------------------
-  // Manual refresh
+  // Manual refresh — stale-while-revalidate, NOT a reload
   // ---------------------------------------------------------------------------
-  const refresh = useCallback(() => {
-    setIsLoading(true);
-    fetchCurrent();
+  // `isLoading` and `isRefreshing` are two different claims and must not be
+  // fused:
+  //
+  //   isLoading     THERE IS NO DATA TO SHOW YET. First load only. This is the
+  //                 flag that legitimately drives skeletons.
+  //   isRefreshing  The data on screen is REAL but possibly stale, and we are
+  //                 re-reading it. The loaded layout stays rendered.
+  //
+  // This used to call `setIsLoading(true)`, which made every manual refresh
+  // collapse the whole page — hero and all three category cards — back to
+  // skeletons, because the coordinator ORs `isLoading` into its page-level
+  // loading flag. A refresh that blanks the surface it is refreshing teaches
+  // the user not to press it, which defeats the staleness problem it exists to
+  // solve. Nothing else depended on that side effect: `refresh` has exactly one
+  // consumer, and `fetchCurrent`'s own `finally` already clears `isLoading` for
+  // the first load.
+  //
+  // `isRefreshing` responds to THIS function only. The 1s `failover_status.sh`
+  // poller calls `fetchCurrent` directly and can neither set nor clear it, so a
+  // watcher cycle can never make the header spin.
+  const refresh = useCallback(async (): Promise<boolean> => {
+    setIsRefreshing(true);
+    try {
+      return await fetchCurrent();
+    } finally {
+      // `fetchCurrent` swallows its own errors, but the flag is cleared in a
+      // `finally` regardless: a future throw must not strand the button
+      // spinning forever.
+      if (mountedRef.current) setIsRefreshing(false);
+    }
   }, [fetchCurrent]);
 
   return {
     currentBands,
     failover,
     isLoading,
+    isRefreshing,
     lockingCategory,
     error,
     lockBands,

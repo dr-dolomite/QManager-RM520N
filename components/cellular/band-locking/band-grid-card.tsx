@@ -5,6 +5,7 @@ import { motion, type Variants } from "motion/react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 
+import { ConditionScreen } from "@/components/cellular/condition-screen";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -281,6 +282,19 @@ export function BandGridCard({
   // --- Empty -----------------------------------------------------------------
   // A real state, not a failure: plenty of RM520N SKUs report no SA band list at
   // all. It keeps the card shell so the grid does not reflow around it.
+  //
+  // It renders through the shared `ConditionScreen` rather than a hand-rolled
+  // tile, for the reason that primitive exists: this surface had its own copy of
+  // the disc/headline/body stack, so its geometry and its tone were free to
+  // drift from the four `/cellular/` screens that say the same kind of thing.
+  //
+  // `neutral`, not `warning`. A SKU that reports no bands in a category is a
+  // fact about the hardware, not a fault the user can act on — and
+  // `condition-screen.tsx`'s own tone table reserves neutral for exactly this
+  // ("we do not know, and pretending otherwise would be the actual bug").
+  // `ariaRole="status"` follows from the same reading: nothing here is urgent.
+  // No `spin`: this is a standing condition, and a spinner would advertise work
+  // that is not happening.
   if (supportedBands.length === 0) {
     return (
       <Card className={BAND_CARD}>
@@ -289,17 +303,13 @@ export function BandGridCard({
           <CardDescription>{description}</CardDescription>
         </CardHeader>
         <CardContent className={CARD_PAD}>
-          <div className="bg-surface-container flex flex-col items-center gap-2 rounded-tile px-6 py-8 text-center">
-            <span className="bg-surface-container-high text-on-surface-variant grid size-11 place-items-center rounded-pill">
-              <MaterialSymbol name="do_not_disturb_on" size={22} />
-            </span>
-            <p className="text-sm font-semibold">
-              {t("band_locking.card.empty_title")}
-            </p>
-            <p className="text-on-surface-variant max-w-64 text-sm text-pretty">
-              {t("band_locking.card.empty_body")}
-            </p>
-          </div>
+          <ConditionScreen
+            tone="neutral"
+            glyph="do_not_disturb_on"
+            ariaRole="status"
+            title={t("band_locking.card.empty_title")}
+            description={t("band_locking.card.empty_body")}
+          />
         </CardContent>
       </Card>
     );

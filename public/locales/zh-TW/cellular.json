@@ -260,17 +260,21 @@
       "lock_selected": "鎖定所選頻段",
       "restore_all": "恢復所有支援的頻段",
       "select_all": "全選",
-      "select_none": "清除選取"
+      "select_none": "清除選取",
+      "refresh": "重新整理"
     },
     "toast": {
       "locked": "{{category}} 頻段已鎖定",
       "unlocked": "{{category}} 頻段已恢復",
       "lock_error": "無法套用 {{category}} 頻段鎖定",
       "unlock_error": "無法恢復 {{category}} 頻段",
+      "refresh_error": "無法重新整理頻段設定",
       "none_selected": "請至少選取一個要鎖定的頻段"
     },
     "a11y": {
       "applying": "正在套用 {{category}} 頻段鎖定…",
+      "refreshing": "正在重新整理頻段設定…",
+      "refresh_blocked_watcher": "頻段容錯移轉監控正在檢查無線電，重新整理已暫停。",
       "band_selected": "{{band}}，已選取",
       "band_unselected": "{{band}}，未選取",
       "band_live": "{{band}}，已選取並在數據機上生效"

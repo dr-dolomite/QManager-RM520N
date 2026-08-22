@@ -260,17 +260,21 @@
       "lock_selected": "Blocca le bande selezionate",
       "restore_all": "Ripristina tutte le supportate",
       "select_all": "Seleziona tutto",
-      "select_none": "Cancella selezione"
+      "select_none": "Cancella selezione",
+      "refresh": "Aggiorna"
     },
     "toast": {
       "locked": "Bande {{category}} bloccate",
       "unlocked": "Bande {{category}} ripristinate",
       "lock_error": "Impossibile applicare il blocco delle bande {{category}}",
       "unlock_error": "Impossibile ripristinare le bande {{category}}",
+      "refresh_error": "Impossibile aggiornare la configurazione delle bande",
       "none_selected": "Seleziona almeno una banda da bloccare"
     },
     "a11y": {
       "applying": "Applicazione del blocco delle bande {{category}}…",
+      "refreshing": "Aggiornamento della configurazione delle bande…",
+      "refresh_blocked_watcher": "L'aggiornamento è in pausa mentre il failover delle bande controlla la radio.",
       "band_selected": "{{band}}, selezionata",
       "band_unselected": "{{band}}, non selezionata",
       "band_live": "{{band}}, selezionata e attiva sul modem"

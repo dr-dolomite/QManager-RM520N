@@ -5,27 +5,39 @@ import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 
+import { ConditionScreen } from "@/components/cellular/condition-screen";
+import {
+  qualityInkClass,
+  qualityMeterTone,
+} from "@/components/cellular/signal-quality-display";
 import { Badge } from "@/components/ui/badge";
 import { MaterialSymbol } from "@/components/ui/material-symbol";
+import { MetricBar } from "@/components/ui/metric-bar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
+import { Tag } from "@/components/ui/tag";
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { bandFrequencyMhz } from "@/lib/band-frequency";
-import { rsrpToPercent } from "@/lib/carrier-aggregation";
 import {
   BAND_CATEGORIES,
   type BandCategory,
   type FailoverState,
 } from "@/types/band-locking";
-import type { CarrierComponent } from "@/types/modem-status";
+import {
+  RSRP_THRESHOLDS,
+  getSignalQuality,
+  signalToProgress,
+  type CarrierComponent,
+} from "@/types/modem-status";
 
 import {
   BADGE_GLYPH_SIZE,
   BAND_HERO,
+  CARRIER_DISC_GLYPH,
   CATEGORY_BADGE,
   FAILOVER_BADGE,
   HERO_EYEBROW,
@@ -41,14 +53,15 @@ import {
   HERO_RAIL_SUBTITLE,
   HERO_RAIL_TITLE,
   HERO_ROW,
+  HERO_ROW_LABEL,
   HERO_SPLIT,
+  POSTURE_GLYPH,
   SKELETON_SHAPE,
-  carrierMeterTone,
-  carrierPillTone,
-  carrierTileTone,
+  carrierDiscTone,
   categoryPosture,
   categoryShortKey,
   railStatusKey,
+  type BandPosture,
 } from "./shapes";
 
 // =============================================================================
@@ -65,22 +78,41 @@ import {
 // already said.
 //
 // -----------------------------------------------------------------------------
-// TWO PANELS, ONE HERO
+// TWO PANELS AND A ROW, ONE HERO
 // -----------------------------------------------------------------------------
 // Left: `HERO_ONAIR_PANEL`, a fixed 3-column grid of carrier tiles — what the
 // radio is doing right now, borrowed in spirit from the dashboard's own
-// carrier tiles (`components/dashboard/carrier-aggregation.tsx`). The tile's
-// own anatomy (identity + aggregation pills, band + centre frequency,
-// EARFCN/PCI/Cell, RSRP paired with RSRQ/SINR, a quality bar) is the design
-// exploration's Turn 3 "full-detail" variant, not Turn 2's single-line cut —
-// a 3-column grid gives each tile more width than the hero ever granted it
-// before, and a thin single-line tile would sit padded and empty inside it.
-// Right:
-// `HERO_RAIL_PANEL`, a posture rail naming each category with its real ratio
-// and a row that scrolls to the card that changes it, with failover at its
-// foot because it is the safety net for the locks beside it, not a fourth
-// setting. See `shapes.ts` for why both panels are `rounded-card`, not a
-// second `rounded-hero`.
+// carrier tiles (`components/dashboard/carrier-aggregation.tsx`).
+// Right: `HERO_RAIL_PANEL`, a posture rail naming each category with its real
+// ratio and a row that scrolls to the card that changes it.
+// Below both, spanning the hero: `HERO_ROW`, the failover switch — see that
+// constant for why it is no longer docked to the rail's foot.
+// See `shapes.ts` for why both panels are `rounded-card`, not a second
+// `rounded-hero`.
+//
+// -----------------------------------------------------------------------------
+// THE TILE BODY IS NEUTRAL AND THE DISC CARRIES THE COLOUR
+// -----------------------------------------------------------------------------
+// The tile used to paint a saturated identity fill across its whole body. That
+// composition is retired here for the reasons `HERO_ONAIR_TILE` records in
+// full: it forced a hand-rolled third chip form, it made the meter fight the
+// ground it was drawn on, and it structurally excluded the five-stop signal
+// ramp from the one measurement the tile exists to report. Colour belongs to
+// the reading, not to the container holding it.
+//
+// Two consequences worth naming at the call site:
+//
+//   PCC PRIMACY IS NOW ORDER, NOT COLOUR. The lead carrier used to be findable
+//   by its strong fill. `sortCarriers()` puts it first instead, which is a
+//   channel that survives grayscale, sunlight and every colour-vision
+//   deficiency — none of which the fill did.
+//
+//   THE RAMP REPLACES A RIVAL RSRP SCALE. This file used to length its meter
+//   with `lib/carrier-aggregation.ts`'s own dBm→percent mapping, which carries
+//   its own floor/ceiling constants beside the `RSRP_THRESHOLDS` every other
+//   `/cellular/` surface reads. Quality now routes through the ONE map
+//   (`components/cellular/signal-quality-display.ts`) that DESIGN.md names, so
+//   this tile and the antenna surfaces cannot disagree about what "fair" is.
 //
 // -----------------------------------------------------------------------------
 // THE ON-AIR GRID READS RAW `carrier_components`, NOT `EnrichedCarrier[]`
@@ -90,11 +122,7 @@ import {
 // serving NR ARFCN/SCS, none of which this hero receives or needs. A tile here
 // answers one question ("is this band actually on air") and disappears the
 // instant the modem stops reporting it; it does not need to remember that a
-// carrier existed a moment ago. Tone still comes from the SAME two shared
-// primitives the dashboard uses (`rsrpToPercent`, and the identity-not-quality
-// rule in `carrierTileTone`/`carrierMeterTone`), so the two surfaces cannot
-// quietly disagree about what a tile's colour means, even though neither
-// imports the other's component.
+// carrier existed a moment ago.
 // =============================================================================
 
 export interface LiveBandHeroProps {
@@ -128,6 +156,11 @@ function failoverKey(
  * the LTE leg is the anchor in NSA, so it is the one a reader looks for first
  * when a 5G connection misbehaves. `Array.prototype.sort` is stable, so
  * carriers within the same rank keep the order the radio reported them in.
+ *
+ * THIS IS NOW THE ONLY CHANNEL CARRYING LEAD PRIMACY. The tile body used to
+ * mark the PCC with a strong identity fill; the body is neutral now, so
+ * position is what says which carrier anchors the camp. Do not "tidy" this
+ * back to the order the modem reported.
  */
 function sortCarriers(components: CarrierComponent[]): CarrierComponent[] {
   return [...components].sort((a, b) => {
@@ -236,10 +269,37 @@ export function LiveBandHero({
   ).length;
   const reportedCount = restrictedCount + unrestrictedCount;
 
-  const subtitle =
+  /**
+   * The modem's AGGREGATE posture — a value this page did not previously have.
+   *
+   * `categoryPosture()` is per-category, and the subtitle below has FOUR
+   * branches where `POSTURE_GLYPH` has three keys, so there was nothing for the
+   * disc to index and it hard-coded `settings_input_antenna` for every state. A
+   * single-slot indicator that cannot indicate: locked, unrestricted and
+   * never-reported all wore one mark, and the disc's `bg-primary` fill said
+   * "brand", not "state".
+   *
+   * The collapse from four subtitle branches to three glyph states happens on
+   * one rule: ANY RESTRICTION AT ALL IS A LOCKED POSTURE. The disc answers "is
+   * this modem restricted?", and partial is still yes — so `all` and `partial`
+   * share `locked` while the subtitle keeps telling them apart in words.
+   *
+   * `unknown` means the modem has NEVER REPORTED a supported-band list, not that
+   * we are waiting for one: `categoryPosture` returns it only for an empty
+   * supported list, and a loading rail draws a skeleton disc instead of reaching
+   * this map at all.
+   */
+  const overallPosture: BandPosture =
     reportedCount === 0
-      ? t("band_locking.live.rail_subtitle_unknown")
+      ? "unknown"
       : restrictedCount === 0
+        ? "unrestricted"
+        : "locked";
+
+  const subtitle =
+    overallPosture === "unknown"
+      ? t("band_locking.live.rail_subtitle_unknown")
+      : overallPosture === "unrestricted"
         ? t("band_locking.live.rail_subtitle_none")
         : restrictedCount === postures.length
           ? t("band_locking.live.rail_subtitle_all")
@@ -293,26 +353,55 @@ export function LiveBandHero({
               ))}
             </div>
           ) : onAir.length === 0 ? (
-            <div className="flex items-center gap-3.5 rounded-tile bg-surface px-5 py-5">
-              <span className="bg-surface-container-high text-on-surface-variant grid size-11 flex-none place-items-center rounded-pill">
-                <MaterialSymbol name="signal_cellular_off" size={22} />
-              </span>
-              <div className="flex flex-col gap-0.5">
-                <p className="text-sm font-semibold">
-                  {t("band_locking.live.on_air_empty_title")}
-                </p>
-                <p className="text-on-surface-variant text-xs leading-relaxed">
-                  {t("band_locking.live.on_air_empty_body")}
-                </p>
-              </div>
-            </div>
+            /* The shared `/cellular/` condition primitive, not a hand-rolled
+               block — this surface was the last one on the route still drawing
+               its own.
+
+               `tone="neutral"` and `ariaRole="status"`: nothing is WRONG. The
+               modem simply is not camped on anything right now, which `warning`
+               would overstate and `destructive` would misreport as a fault the
+               user has to fix. Neutral is the honest reading, and it is the same
+               call `radio/states.tsx` makes for its own `unknown` mode.
+
+               No `spin`, deliberately — a spinner on a standing condition
+               advertises work that is not happening.
+
+               `rounded-tile` steps the block down from the primitive's own
+               `rounded-hero` (40px), which would out-round the `rounded-card`
+               panel hosting it. `bg-surface` overrides the neutral tone's
+               `bg-surface-container`, which is byte-identical to this panel's
+               own ground and would leave the block with no visible edge; it also
+               matches `HERO_ONAIR_ABSENT`, so every "not a carrier" cell in this
+               panel sits on one surface. */
+            <ConditionScreen
+              tone="neutral"
+              glyph="signal_cellular_off"
+              ariaRole="status"
+              title={t("band_locking.live.on_air_empty_title")}
+              description={t("band_locking.live.on_air_empty_body")}
+              className="rounded-tile bg-surface py-10"
+            />
           ) : (
             <div className={HERO_ONAIR_GRID} role="list">
               {onAir.map((c) => {
-                const isLead = c.type === "PCC";
-                const pct = rsrpToPercent(c.rsrp);
-                const meter = carrierMeterTone(c.technology, isLead);
-                const pill = carrierPillTone(c.technology, isLead);
+                const quality = getSignalQuality(c.rsrp, RSRP_THRESHOLDS);
+                // `null` for `none`, and that single null drives all three
+                // channels below: no meter fill, no ramp ink on the numeral, and
+                // the em-dash instead of a reading.
+                //
+                // THE NULL IS DECIDED HERE, UPSTREAM OF `signalToProgress`, and
+                // it has to be. That function returns 0 — not null — for a
+                // missing reading, so feeding it straight to `MetricBar` would
+                // make `hasReading` true, render a fill, and the ramp-floor
+                // branch would give it a visible stub: a red dot beside a red
+                // numeral, inventing a signal problem for a carrier the modem
+                // reported nothing about. `metric-bar.tsx` documents that exact
+                // bug on its own `value` prop.
+                const rsrpTone = qualityMeterTone(quality);
+                const rsrpPercent =
+                  rsrpTone === null
+                    ? null
+                    : signalToProgress(c.rsrp, RSRP_THRESHOLDS);
                 const freqMhz = bandFrequencyMhz(c.technology, c.band);
                 const detailSegments = [
                   c.earfcn === null
@@ -335,24 +424,45 @@ export function LiveBandHero({
                   <div
                     key={`${c.technology}-${c.type}-${c.band}-${c.earfcn ?? "x"}`}
                     role="listitem"
-                    className={`${HERO_ONAIR_TILE.ROOT} ${carrierTileTone(c.technology, isLead)}`}
+                    className={HERO_ONAIR_TILE.ROOT}
                   >
-                    {/* Identity + aggregation pills, bandwidth right-aligned. */}
-                    <div className="flex flex-wrap items-center gap-1.5">
-                      <span className={`${HERO_ONAIR_TILE.PILL} ${pill}`}>
-                        {t(`band_locking.live.tile_tech_${c.technology}`)}{" "}
-                        {c.type}
+                    {/* Identity disc, identity/aggregation tags, bandwidth. */}
+                    <div className={HERO_ONAIR_TILE.HEAD}>
+                      <span
+                        aria-hidden="true"
+                        className={`${HERO_ONAIR_TILE.DISC} ${carrierDiscTone(c.technology)}`}
+                      >
+                        <MaterialSymbol
+                          name={CARRIER_DISC_GLYPH[c.technology]}
+                          size={20}
+                          filled
+                        />
                       </span>
-                      {/* Only one carrier on air => nothing is being
-                          aggregated with it. Tied to the GRID's carrier
-                          count, not this tile alone, because "aggregation" is
-                          a fact about the whole camp, not one component. */}
-                      {onAir.length === 1 ? (
-                        <span className={`${HERO_ONAIR_TILE.PILL} ${pill}`}>
-                          {t("band_locking.live.tile_no_aggregation")}
-                        </span>
-                      ) : null}
-                      <span className="ml-auto font-mono text-xs font-semibold tabular-nums opacity-85">
+                      <div className={HERO_ONAIR_TILE.TAGS}>
+                        {/* IDENTITY, not health: `nr`/`lte` say which radio this
+                            tile belongs to and never mean "healthy". An outline
+                            `Tag`, per the Two-Form Rule — a filled `Badge` here
+                            would be byte-identical to `variant="info"`, so the
+                            radio family and "something is informational" would
+                            be literally the same object. */}
+                        <Tag variant={c.technology === "LTE" ? "lte" : "nr"}>
+                          {t(`band_locking.live.tile_tech_${c.technology}`)}
+                        </Tag>
+                        {/* PCC / SCC — a standard 3GPP identifier, printed raw
+                            and untranslated, as it has always been on this
+                            surface. Metadata with no honest hue, so `neutral`. */}
+                        <Tag variant="neutral">{c.type}</Tag>
+                        {/* Only one carrier on air => nothing is being
+                            aggregated with it. Tied to the GRID's carrier
+                            count, not this tile alone, because "aggregation" is
+                            a fact about the whole camp, not one component. */}
+                        {onAir.length === 1 ? (
+                          <Tag variant="neutral">
+                            {t("band_locking.live.tile_no_aggregation")}
+                          </Tag>
+                        ) : null}
+                      </div>
+                      <span className={HERO_ONAIR_TILE.BANDWIDTH}>
                         {t("radio_info.bands.units.mhz", {
                           value: c.bandwidth_mhz,
                         })}
@@ -361,11 +471,9 @@ export function LiveBandHero({
 
                     {/* Band designator + centre frequency. */}
                     <div className="flex items-baseline gap-2">
-                      <span className="font-mono text-2xl leading-none font-semibold tabular-nums">
-                        {c.band}
-                      </span>
+                      <span className={HERO_ONAIR_TILE.BAND}>{c.band}</span>
                       {freqMhz === null ? null : (
-                        <span className="text-xs font-medium opacity-75">
+                        <span className={HERO_ONAIR_TILE.FREQ}>
                           {t("radio_info.bands.units.mhz", { value: freqMhz })}
                         </span>
                       )}
@@ -377,7 +485,7 @@ export function LiveBandHero({
                         not a joined separator glyph, so the segments space
                         themselves consistently regardless of font metrics. */}
                     {detailSegments.length > 0 ? (
-                      <div className="flex flex-wrap gap-x-3 gap-y-0.5 font-mono text-xs tabular-nums opacity-70">
+                      <div className={HERO_ONAIR_TILE.DETAIL}>
                         {detailSegments.map((segment) => (
                           <span key={segment}>{segment}</span>
                         ))}
@@ -385,21 +493,43 @@ export function LiveBandHero({
                     ) : null}
 
                     {/* RSRP (the tile's own headline reading) beside RSRQ/SINR. */}
-                    <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+                    <div className={HERO_ONAIR_TILE.METRICS}>
                       <div className="flex items-baseline gap-1.5">
-                        <span className="text-lg font-semibold tabular-nums">
+                        {/* THE FIGURE AND THE BAR BELOW IT ARE ONE OBJECT. The
+                            ramp's numeral ink is only legal beside a bar whose
+                            LENGTH carries the same reading — adjacent ramp stops
+                            sit below the 0.05 CVD separation floor by design, so
+                            a tinted numeral alone would be a colour-only channel
+                            (DESIGN.md > The signal quality ramp). With no
+                            reading, `qualityInkClass("none")` returns neutral
+                            ink, so the em-dash carries no ramp colour at all. */}
+                        <span
+                          className={`${HERO_ONAIR_TILE.RSRP} ${qualityInkClass(quality)}`}
+                        >
                           {c.rsrp === null
                             ? t("band_locking.live.tile_no_value")
                             : t("band_locking.live.tile_rsrp", {
                                 value: c.rsrp,
                               })}
                         </span>
-                        <span className="text-xs font-medium opacity-75">
+                        <span className={HERO_ONAIR_TILE.RSRP_UNIT}>
                           {t("radio_info.bands.metric.rsrp")}
+                        </span>
+                        {/* The non-chromatic channel, and the third leg of the
+                            ink/bar pair. Announced for an absent reading too: an
+                            empty track and a full one differ by pixels no screen
+                            reader can see. Borrowed from `radio_info.bands.*`,
+                            the same convention this tile already uses for
+                            `units.mhz` and `detail.pci` — those six keys already
+                            match the `SignalQuality` union exactly, so a
+                            `band_locking.*` copy would only be a seventh thing
+                            to translate and a seventh thing to drift. */}
+                        <span className="sr-only">
+                          {t(`radio_info.bands.quality.${quality}`)}
                         </span>
                       </div>
                       {secondaryMetrics.length > 0 ? (
-                        <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-xs tabular-nums opacity-70">
+                        <div className={HERO_ONAIR_TILE.SECONDARY}>
                           {secondaryMetrics.map((segment) => (
                             <span key={segment}>{segment}</span>
                           ))}
@@ -407,12 +537,37 @@ export function LiveBandHero({
                       ) : null}
                     </div>
 
-                    <div
-                      className={`${HERO_ONAIR_TILE.METER_TRACK} ${meter.track}`}
-                    >
-                      <div
-                        className={`${HERO_ONAIR_TILE.METER_FILL} ${meter.fill}`}
-                        style={{ transform: `scaleX(${pct / 100})` }}
+                    {/* `aria-hidden`: the bar is the ramp ink's required second
+                        visual channel, and its reading is already announced in
+                        words by the `sr-only` quality label above.
+
+                        THE SCALE SATURATES, DELIBERATELY. `signalToProgress`
+                        maps [floor, excellent] => [0, 100], so the top of this
+                        bar is `RSRP_THRESHOLDS.excellent` (-80 dBm) and EVERY
+                        reading at or above it pins at 100% — a more optimistic
+                        read than the `lib/carrier-aggregation.ts` scale this
+                        replaced. Do not patch that here: the canonical map
+                        already lengths
+                        the bars on `tower-locking` and both antenna surfaces,
+                        so a local remap would be the sixth rival RSRP scale
+                        this change exists to delete. Fix it for the whole
+                        family or not at all. */}
+                    <div className={HERO_ONAIR_TILE.METER} aria-hidden="true">
+                      <MetricBar
+                        value={rsrpPercent}
+                        max={100}
+                        // Unreachable, and REQUIRED — `MetricBar` is
+                        // higher-is-worse, so omitting these or leaving them at
+                        // a real threshold would paint a strong signal
+                        // `destructive`. `colorOverride` pins the tone instead.
+                        warnAt={101}
+                        dangerAt={101}
+                        // Null passes straight through, never a fallback colour
+                        // — with no reading there is no fill for it to tint.
+                        colorOverride={rsrpTone}
+                        // The tile is `bg-surface`, so the default `muted` track
+                        // would nearly vanish against it.
+                        track="surface-container-high"
                       />
                     </div>
                   </div>
@@ -434,7 +589,13 @@ export function LiveBandHero({
               <Skeleton className={SKELETON_SHAPE.HERO_DISC} />
             ) : (
               <span className={HERO_RAIL_DISC} aria-hidden="true">
-                <MaterialSymbol name="settings_input_antenna" size={22} filled />
+                {/* Three postures, three glyphs. See `overallPosture` for why
+                    this stopped being a hard-coded mark. */}
+                <MaterialSymbol
+                  name={POSTURE_GLYPH[overallPosture]}
+                  size={22}
+                  filled
+                />
               </span>
             )}
             <div className="flex min-w-0 flex-col gap-0.5">
@@ -449,6 +610,10 @@ export function LiveBandHero({
             </div>
           </div>
 
+          {/* Natural height, deliberately. The rows are NOT stretched to fill
+              the panel — see `HERO_SPLIT` for why the panels align to
+              `items-start` instead now that the failover row has left the
+              rail's foot. */}
           <div className="flex flex-col gap-2">
             {isLoading
               ? Array.from({ length: 3 }).map((_, i) => (
@@ -491,62 +656,77 @@ export function LiveBandHero({
                   );
                 })}
           </div>
-
-          {/* --- Failover ---------------------------------------------------
-              The safety net for every category, so it lives at the foot of the
-              rail rather than with any one category row. */}
-          {isLoading ? (
-            <Skeleton className={SKELETON_SHAPE.HERO_ROW} />
-          ) : (
-            <div className={HERO_ROW}>
-              <div className="flex min-w-0 items-center gap-1.5">
-                <p className="text-sm font-semibold">
-                  {t("band_locking.live.failover_label")}
-                </p>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    {/* A 30px disc whose `before:` overlay reaches the 44px this
-                        project requires on coarse pointers, without adding a
-                        layout box that would push the label off-centre. */}
-                    <button
-                      type="button"
-                      aria-label={t("band_locking.live.failover_help_label")}
-                      className="text-on-surface-variant hover:text-on-surface focus-visible:ring-ring/50 relative grid size-[1.375rem] place-items-center rounded-pill transition-colors duration-[var(--duration-quick)] ease-out before:absolute before:-inset-[11px] before:content-[''] focus-visible:ring-[3px] focus-visible:outline-none"
-                    >
-                      <MaterialSymbol name="info" size={18} />
-                    </button>
-                  </TooltipTrigger>
-                  <TooltipContent className="max-w-72">
-                    <p>{t("band_locking.live.failover_help")}</p>
-                  </TooltipContent>
-                </Tooltip>
-              </div>
-
-              <div className="ml-auto flex items-center gap-3">
-                <Badge variant={status.variant}>
-                  <MaterialSymbol
-                    name={status.glyph}
-                    size={BADGE_GLYPH_SIZE}
-                    className={
-                      status.spin
-                        ? "animate-spin motion-reduce:animate-none"
-                        : undefined
-                    }
-                  />
-                  {t(`band_locking.live.failover_state.${failoverKey(failover)}`)}
-                </Badge>
-                <Switch
-                  id="band-failover"
-                  checked={failover.enabled}
-                  onCheckedChange={handleToggle}
-                  disabled={isGated}
-                  aria-label={t("band_locking.live.failover_label")}
-                />
-              </div>
-            </div>
-          )}
         </div>
       </div>
+
+      {/* --- Failover ---------------------------------------------------------
+          A HERO-LEVEL ROW, spanning both panels, not the rail's last child.
+
+          `lock.sh` arms ONE watcher for the modem regardless of which category
+          was written, so failover is a property of the modem rather than of any
+          one of the rail's three category rows — docked to that list it read as
+          a fourth category. And on a narrow container the hero drops to one
+          column and the rail stacks LAST, which buried the one control that
+          decides whether a mistaken lock is recoverable underneath everything it
+          protects.
+
+          THE HELP COPY STAYS IN ITS TOOLTIP. Promoting it to a standing line
+          was tried and reverted: `69df6ac` ("drop over-explanatory info copy
+          from lock/scanner surfaces") deliberately deleted a standing
+          explanatory line from this exact panel, and this copy is written in
+          on-demand-help register — it explains a hypothetical in 22 words and
+          restates the premise of the four-state chip beside the switch. Extra
+          width is not a reason to spend it on prose. */}
+      {isLoading ? (
+        <Skeleton className={SKELETON_SHAPE.HERO_ROW} />
+      ) : (
+        <div className={HERO_ROW}>
+          <div className="flex min-w-0 items-center gap-1.5">
+            <p className={HERO_ROW_LABEL}>
+              {t("band_locking.live.failover_label")}
+            </p>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                {/* A 22px disc whose `before:` overlay reaches the 44px this
+                    project requires on coarse pointers, without adding a
+                    layout box that would push the label off-centre. */}
+                <button
+                  type="button"
+                  aria-label={t("band_locking.live.failover_help_label")}
+                  className="text-on-surface-variant hover:text-on-surface focus-visible:ring-ring/50 relative grid size-[1.375rem] place-items-center rounded-pill transition-colors duration-[var(--duration-quick)] ease-out before:absolute before:-inset-[11px] before:content-[''] focus-visible:ring-[3px] focus-visible:outline-none"
+                >
+                  <MaterialSymbol name="info" size={18} />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent className="max-w-72">
+                <p>{t("band_locking.live.failover_help")}</p>
+              </TooltipContent>
+            </Tooltip>
+          </div>
+
+          <div className="ml-auto flex items-center gap-3">
+            <Badge variant={status.variant}>
+              <MaterialSymbol
+                name={status.glyph}
+                size={BADGE_GLYPH_SIZE}
+                className={
+                  status.spin
+                    ? "animate-spin motion-reduce:animate-none"
+                    : undefined
+                }
+              />
+              {t(`band_locking.live.failover_state.${failoverKey(failover)}`)}
+            </Badge>
+            <Switch
+              id="band-failover"
+              checked={failover.enabled}
+              onCheckedChange={handleToggle}
+              disabled={isGated}
+              aria-label={t("band_locking.live.failover_label")}
+            />
+          </div>
+        </div>
+      )}
     </section>
   );
 }

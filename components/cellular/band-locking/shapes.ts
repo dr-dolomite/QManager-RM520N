@@ -137,8 +137,32 @@ export const CARD_PAD = "px-6";
  * page's one hero exception on its own; nesting two hero-radius panels inside
  * it would spend that exception twice. The step-down is the same nesting the
  * incumbent already used for `HERO_ROW` (`rounded-field` inside the hero).
+ *
+ * `items-start`, NOT `items-stretch` — EACH PANEL ENDS WHERE ITS CONTENT ENDS.
+ *
+ * The panels used to stretch to the taller one, which was survivable only while
+ * the failover row sat at the rail's foot on `mt-auto` and absorbed the slack.
+ * With that row promoted to hero level, and the on-air panel grown taller (the
+ * carrier tile gained a 40px disc row), stretching left the rail as a disc block
+ * plus three rows floating in a tall empty box.
+ *
+ * The fix is NOT to inflate the rows to fill it. A rail row's content is fixed —
+ * a label, a ratio, a status badge, a chevron — so its height encodes nothing,
+ * and stretching it would make that height vary with how many carriers are on
+ * air, a completely unrelated fact. That is the Data-Ink Rule applied to
+ * geometry: a dimension that varies must vary with something it represents.
+ * Unequal panel heights are the honest outcome here, not a defect.
+ *
+ * It has to be SET, not merely un-set: `stretch` is the CSS default for
+ * `align-items`, so deleting the utility would change nothing at all.
+ *
+ * Both alignment utilities are `@2xl/hero:`-scoped, so neither reaches the
+ * stacked state. Below that breakpoint the container is `flex-col` with no
+ * align-items utility in force, leaving the default `stretch` on the CROSS axis
+ * — which is exactly what gives both panels their full width there. Written
+ * unscoped, `items-start` would collapse them to their content width instead.
  */
-export const HERO_SPLIT = "flex flex-col gap-4 @2xl/hero:flex-row @2xl/hero:items-stretch";
+export const HERO_SPLIT = "flex flex-col gap-4 @2xl/hero:flex-row @2xl/hero:items-start";
 
 /** The left panel: on-air carrier tiles. Grows; the rail is the fixed side. */
 export const HERO_ONAIR_PANEL =
@@ -188,15 +212,71 @@ export const HERO_RAIL_ROW_RATIO =
   "text-xs text-on-surface-variant tabular-nums";
 
 /**
- * The failover row, now sized to match the rail's own rows rather than the
- * old full-bleed hero strip. `rounded-field` (20px) rather than a metric-row
- * pill, because this row WRAPS: it carries a label, a help affordance, a
- * switch and a status chip, and on a narrow container those fall to a second
- * line. A pill that has wrapped to two lines is a stadium, not a pill, and the
- * Radius-Follows-Size Rule puts a two-line block on the field step.
+ * The failover row's height, shared with `SKELETON_SHAPE.HERO_ROW` so the loaded
+ * row and its placeholder cannot drift (Skeleton-Mirror Rule).
+ *
+ * A FLOOR SET ABOVE THE NATURAL CONTENT HEIGHT, which is how it gets a pin's
+ * mirroring guarantee without a pin's failure mode. The row's tallest child is
+ * the 22px help-tooltip trigger, so at `py-3` it resolves to ~46px and the 52px
+ * floor BINDS — every unwrapped row is exactly 52px and so is its skeleton, the
+ * same exactness `components/cellular/tile-shape.ts` gets from `h-`. But this
+ * row is `flex-wrap`: on a narrow container the label block and the
+ * badge-plus-switch group fall to two lines, and a hard `h-` would spill that
+ * second line out of the rounded box (nothing here clips). A floor grows
+ * instead.
+ *
+ * 52px is also the incumbent skeleton's measure, kept deliberately — the row's
+ * anatomy is unchanged by the move to hero level.
+ *
+ * Written as a verbatim literal because Tailwind's scanner reads source TEXT: an
+ * arbitrary value assembled from parts never reaches the stylesheet at all.
  */
-export const HERO_ROW =
-  "mt-auto flex flex-wrap items-center gap-x-4 gap-y-3 rounded-field bg-surface px-4 py-3";
+export const HERO_ROW_MIN_H = "min-h-[3.25rem]";
+
+/**
+ * The failover row, at HERO level — a direct child of `BAND_HERO` spanning the
+ * full width below both panels, not a member of `HERO_RAIL_PANEL`.
+ *
+ * WHY IT LEFT THE RAIL. `docs/reference/band-locking.md` argues for the rail
+ * foot, on the reading that failover is the safety net for the locks beside it.
+ * Two facts overrule that:
+ *
+ *   1. `lock.sh` arms exactly ONE watcher for the modem, regardless of which
+ *      category was written. Failover is a property of the MODEM, not of any
+ *      one of the rail's three category rows — and a control docked to a
+ *      three-row list reads as the fourth row of that list.
+ *   2. On a narrow container the hero drops to one column and the rail stacks
+ *      LAST, which buried the single control that decides whether a mistaken
+ *      lock is recoverable underneath everything it protects.
+ *
+ * Moving it cost the rail its only `mt-auto` floor pin, which is why `HERO_SPLIT`
+ * now aligns the panels to `items-start` — see that constant.
+ *
+ * `bg-surface-container`, NOT `bg-surface`: the row used to sit inside a
+ * `surface-container` panel and recessed to `surface` against it. At hero level
+ * its ground is `BAND_HERO`'s own `bg-surface`, so the same token would make it
+ * invisible. It steps UP now instead of down, which is the same one-step
+ * separation read in the other direction.
+ *
+ * THE HELP COPY STAYS IN ITS TOOLTIP. Promoting it to a standing line under the
+ * label was tried and reverted: commit `69df6ac` ("drop over-explanatory info
+ * copy from lock/scanner surfaces") deliberately removed a standing explanatory
+ * line from this exact panel, and `failover_help` is written in on-demand-help
+ * register — it explains a hypothetical ("When enabled, the modem returns to
+ * its default bands…") in 22 words, restating the premise of the four-state
+ * chip sitting beside the switch. The extra hero width is not a reason to spend
+ * it on prose.
+ *
+ * `rounded-field` (20px) rather than a metric-row pill, because this row WRAPS:
+ * it carries a label, a help affordance, a switch and a status chip, and on a
+ * narrow container those fall to a second line. A pill that has wrapped to two
+ * lines is a stadium, not a pill, and the Radius-Follows-Size Rule puts a
+ * two-line block on the field step.
+ */
+export const HERO_ROW = `flex ${HERO_ROW_MIN_H} flex-wrap items-center gap-x-4 gap-y-3 rounded-field bg-surface-container px-5 py-3`;
+
+/** The failover label, beside its help-tooltip trigger. */
+export const HERO_ROW_LABEL = "text-sm font-semibold";
 
 // -----------------------------------------------------------------------------
 // The on-air carrier tile
@@ -238,136 +318,162 @@ export const HERO_ONAIR_ABSENT = {
 } as const;
 
 /**
- * One tile's full anatomy: identity + aggregation pills with bandwidth,
- * band + centre frequency, an EARFCN/PCI/Cell detail line, RSRP paired with
- * RSRQ/SINR, then the quality bar. This replaced the single-metric-line cut
- * (band, RSRP + PCI, a bar) once the hero moved to a fixed 3-column grid —
- * three columns of the old thin tile under-used the width the grid now
- * grants each carrier, so the tile grew to use it rather than sit padded
- * and empty.
+ * The tile's height, shared with `SKELETON_SHAPE.ONAIR_TILE` so the loaded tile
+ * and its placeholder cannot drift (Skeleton-Mirror Rule).
  *
- * METER_TRACK carries NO fill of its own — see `carrierMeterTone`. PILL
- * carries NO tone of its own — see `carrierPillTone`, which resolves it
- * against the tile's own ink for the same reason the meter does.
+ * THE OLD 104px WAS AN 80px LIE, and the neutral-tile pass made it worse. The
+ * skeleton hard-coded `h-[6.5rem]` against a tile that carried no height at all,
+ * and the tile has since grown a 40px disc row. Measured against the anatomy:
+ *
+ *     py-4 x2                                    32
+ *     head row (the 40px disc sets it)           40
+ *     band designator (text-2xl, leading-none)   24
+ *     EARFCN / PCI detail line (text-xs)         16
+ *     metric row, RSRQ/SINR wrapped beneath      48
+ *     meter (MetricBar size="sm")                 4
+ *     four 10px gaps                             40
+ *                                               ---
+ *                                               204
+ *
+ * The metric row wraps in the 3-column case and not in the 1-column case, and a
+ * solo carrier's third tag wraps the head row, so the real range is ~184–210px
+ * across the container states this grid actually renders. No single `h-` is
+ * right for all of them.
+ *
+ * SO THIS IS A FLOOR SET ABOVE THE NATURAL CEILING, which buys a pin's guarantee
+ * without a pin's failure mode. At 216px the floor BINDS in every state, so
+ * every tile and every skeleton is exactly 216 and the handoff is exact — the
+ * property `components/cellular/tile-shape.ts` gets from `h-[6.5rem]`, where its
+ * content is bounded and every child truncates. Here nothing truncates and
+ * nothing clips, so a hard `h-` would spill a wrapped metric row out of the
+ * rounded box instead of jumping; a floor absorbs it. `HERO_ONAIR_TILE.METER`
+ * keeps `mt-auto`, so slack lands as breathing room above the bar rather than
+ * as a gap mid-tile.
+ *
+ * Verbatim literal, because Tailwind's scanner reads source TEXT: an arbitrary
+ * value assembled from parts never reaches the stylesheet at all.
+ */
+export const ONAIR_TILE_MIN_H = "min-h-[13.5rem]";
+
+/**
+ * One tile's full anatomy: an identity DISC beside identity/aggregation tags
+ * with bandwidth, band + centre frequency, an EARFCN/PCI detail line, RSRP
+ * paired with RSRQ/SINR, then the quality bar.
+ *
+ * THE TILE BODY IS NEUTRAL. THE DISC CARRIES THE COLOUR. This tile shipped a
+ * Gen-1 composition that `components/cellular/radio/summary-tiles.tsx` has since
+ * gone through five generations of and retired outright — read that file's
+ * header. The body was a saturated identity fill: `bg-primary`/`bg-lte` on the
+ * lead carrier, the matching container on every other. Three consequences, all
+ * of them structural rather than cosmetic:
+ *
+ *   1. The identity chip could not be a real `Tag`. An outline does not read on
+ *      a strong fill, so the pill had to be a hand-rolled alpha over the tile's
+ *      own ink — a third chip form, outside the Two-Form Rule entirely.
+ *   2. The meter collided with the ground it sat on. Its tone helper grew a
+ *      lead/secondary parameter and two alpha tracks purely to stop a `bg-lte`
+ *      fill being drawn on a `bg-lte` tile.
+ *   3. The five-stop signal ramp was STRUCTURALLY EXCLUDED. The retired comment
+ *      said so outright: a quality-toned bar on an identity-toned fill is "two
+ *      container fills stacked". So the one measurement in the tile — how good
+ *      this carrier actually is — was the one thing colour could not report.
+ *
+ * A neutral body dissolves all three at once. The tag becomes a real `Tag`, the
+ * meter becomes a real `MetricBar`, and the ramp lands on the numeral and the
+ * bar where DESIGN.md > The signal quality ramp puts it. This is The Data-Ink
+ * Rule at tile scale: colour belongs to the reading, not to the container
+ * holding it.
+ *
+ * `bg-surface`, one step recessed from `HERO_ONAIR_PANEL`'s `surface-container`,
+ * so a live carrier and the panel behind it stay distinguishable now that the
+ * tile no longer separates itself by hue. Same ground as `HERO_ONAIR_ABSENT`,
+ * deliberately: both are cells in one grid.
  */
 export const HERO_ONAIR_TILE = {
-  ROOT: "flex flex-col gap-2.5 rounded-tile px-5 py-4",
-  /** The identity + aggregation pill(s) atop each tile. Sized to the Label
-   *  typographic step (12px/500) — the same weight and size `chip-identity`
-   *  ships, restated rather than imported because these pills carry no
-   *  status/identity ROLE of their own, only the tile's own ink. */
-  PILL: "inline-flex items-center rounded-pill px-3 py-1 text-xs font-medium",
+  ROOT: `flex ${ONAIR_TILE_MIN_H} flex-col gap-2.5 rounded-tile bg-surface px-5 py-4`,
+  /** Disc + tag row + bandwidth. `items-start` so the 40px disc does not drag
+   *  a wrapped tag row's baseline down with it. */
+  HEAD: "flex items-start gap-2.5",
+  /**
+   * The identity disc — 40px, the only coloured element on the tile.
+   *
+   * One step below `HERO_RAIL_DISC`'s 44px and two below the product's 52px
+   * `TILE_SHAPE.DISC`, because this disc marks one cell inside a 3-up grid
+   * rather than anchoring a panel.
+   */
+  DISC: "grid size-10 flex-none place-items-center rounded-pill",
+  /** The wrapping identity/aggregation tag row. */
+  TAGS: "flex min-w-0 flex-wrap items-center gap-1.5",
+  /** Channel width. A machine figure, so it wears the machine's voice. */
+  BANDWIDTH:
+    "ml-auto flex-none font-mono text-xs font-semibold tabular-nums text-on-surface-variant",
+  /** The band designator — a device identifier (the Machine-Voice Rule). */
+  BAND: "font-mono text-2xl leading-none font-semibold tabular-nums text-on-surface",
+  /** Centre frequency, beside the designator. */
+  FREQ: "text-xs font-medium text-on-surface-variant",
+  /** The EARFCN / PCI line: raw machine strings, so mono. */
+  DETAIL:
+    "flex flex-wrap gap-x-3 gap-y-0.5 font-mono text-xs tabular-nums text-on-surface-variant",
+  /** The metric row holding RSRP and the RSRQ/SINR pair. */
+  METRICS: "flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1",
+  /**
+   * The headline RSRP figure. Carries NO colour of its own — the tone is the
+   * ramp's numeral ink (`qualityInkClass`), and a ramp colour is only legal
+   * beside a bar whose LENGTH carries the same reading, because adjacent stops
+   * sit below the 0.05 CVD separation floor by design.
+   *
+   * `tabular-nums` and NOT mono: this figure changes while the user watches, and
+   * the Machine-Voice Rule scopes mono to identifiers, not to live measurements.
+   */
+  RSRP: "text-lg font-semibold tabular-nums",
+  RSRP_UNIT: "text-xs font-medium text-on-surface-variant",
+  SECONDARY:
+    "flex flex-wrap gap-x-3 gap-y-0.5 text-xs tabular-nums text-on-surface-variant",
   /**
    * `mt-auto` pins the meter to the tile's floor. Grid items stretch to the
    * tallest cell in their row, and content length varies per carrier — a
-   * carrier missing PCI, EARFCN or a cell ID has fewer detail-row segments,
-   * and one missing RSRQ/SINR reading shortens the metric row. Without this
-   * the meter floats wherever the text stops and a row of tiles combs.
-   * Bottom-aligned, the meters read as one comparable scale across the row.
+   * carrier missing PCI or EARFCN has fewer detail-row segments, and one missing
+   * RSRQ/SINR shortens the metric row. Without this the meter floats wherever
+   * the text stops and a row of tiles combs. Bottom-aligned, the meters read as
+   * one comparable scale across the row.
    */
-  METER_TRACK: "mt-auto h-[5px] overflow-hidden rounded-pill",
-  METER_FILL: "h-full origin-left rounded-pill",
+  METER: "mt-auto",
 } as const;
 
 /**
- * Tile tone: identity (LTE violet / NR blue), never quality — the SAME rule
- * `components/dashboard/carrier-aggregation.tsx`'s `tileTone()` already
- * enforces, restated here rather than imported so this surface takes no
- * dependency on the dashboard's module graph. `isLead` (this carrier's own
- * `type === "PCC"`) gets the STRONG fill so the anchor tile stays findable in
- * a 5-tile grid; every other tile — SCC of either radio — gets its CONTAINER
- * fill. A quality-coloured tile would collide with the identity fill it sits
- * on, which is exactly the "two container fills stacked" problem
- * `active-bands-card.tsx` already ruled out for its own status chip.
+ * The identity disc's fill: LTE violet / NR blue, never quality.
+ *
+ * THE STRONG FILL, not the container. The Glyph-Disc Rule puts identity on the
+ * strong role precisely here — in light mode the identity CONTAINERS collapse
+ * under deuteranopia and protanopia simulation and the fills do not, which is
+ * the same measurement `radio/summary-tiles.tsx` records for its network tile.
+ *
+ * Quality is not in this function and must never be: the tile reports how good
+ * the carrier is on its numeral and its bar (DESIGN.md > The signal quality
+ * ramp), and the disc says only which radio the tile belongs to.
  */
-export function carrierTileTone(
-  technology: "LTE" | "NR",
-  isLead: boolean,
-): string {
-  if (technology === "NR") {
-    return isLead
-      ? "bg-primary text-primary-foreground"
-      : "bg-primary-container text-on-primary-container";
-  }
-  return isLead
-    ? "bg-lte text-lte-foreground"
-    : "bg-lte-container text-on-lte-container";
+export function carrierDiscTone(technology: "LTE" | "NR"): string {
+  return technology === "NR"
+    ? "bg-primary text-primary-foreground"
+    : "bg-lte text-lte-foreground";
 }
 
 /**
- * The identity/aggregation pill's tone, resolved against the tile's own ink —
- * the SAME construction as `carrierMeterTone`'s track, and for the same
- * reason: a pill sitting inside a saturated identity fill needs a background
- * distinguishable from that fill without introducing a second colour. An
- * alpha over the tile's own ink reads as "the tile's fill, one step up" in
- * both themes, where a literal `surface`/`surface-container` chip would fight
- * the identity fill it sits on.
+ * The disc's glyph, by radio family. TWO DISTINCT MARKS, because the disc is a
+ * single-slot indicator and the Every-Chip-Has-A-Glyph Rule forbids two states
+ * sharing one — the disc's own fills are the identity pair that most needs a
+ * second, non-chromatic channel.
  *
- * This is not a Solid-Container Rule violation for the reason `carrierMeterTone`
- * already states: the alpha resolves over a KNOWN opaque fill (the tile), not
- * an unknown page background.
+ * Keyed onto `MaterialSymbolName`, so a glyph missing from the font subset fails
+ * the build rather than rendering as its own literal name. Both are already in
+ * `components/ui/material-symbol-names.ts`, so this needs no font re-subset —
+ * which matters, because `icons:subset` fetches from Google and cannot run
+ * offline.
  */
-export function carrierPillTone(
-  technology: "LTE" | "NR",
-  isLead: boolean,
-): string {
-  if (isLead) {
-    return technology === "NR"
-      ? "bg-primary-foreground/15 text-primary-foreground"
-      : "bg-lte-foreground/15 text-lte-foreground";
-  }
-  return technology === "NR"
-    ? "bg-on-primary-container/12 text-on-primary-container"
-    : "bg-on-lte-container/12 text-on-lte-container";
-}
-
-/**
- * The meter's track AND fill, resolved RELATIVE TO THE TILE THEY SIT IN.
- *
- * THIS TAKES `isLead` FOR A REASON — the previous signature took only the
- * technology, and that missing parameter WAS the bug. A lead tile paints
- * `bg-lte` (or `bg-primary`); the meter fill also painted `bg-lte`. Same colour
- * on same colour, so on every PCC tile — the one carrier that is always
- * present — the fill was invisible and all a reader saw was the bare track.
- * The track made it worse by being a fixed `bg-surface`: correct against the
- * hero card, but inside a saturated identity fill it is not "recessed", it is
- * a hole punched through the tile.
- *
- * The rule the design exploration uses, and the only one that composes: a meter
- * nested in a tonal container draws itself in that container's OWN INK — the
- * `on-` token, which is the single colour guaranteed to contrast with the fill
- * in both themes. Track is the same ink at low alpha, fill is the ink at full
- * strength.
- *
- *   lead (strong fill)      track `*-foreground/25`     fill `*-foreground`
- *   secondary (container)   track `on-*-container/15`   fill `*` (strong)
- *
- * Tone stays IDENTITY, never quality — the same rule `carrierTileTone` and
- * `components/dashboard/carrier-aggregation.tsx`'s `meterFillTone()` enforce.
- * The design mock tints its weak carrier's bar with `--wa`; that is a mock
- * inconsistency, not a spec. The bar reports WHICH RADIO and the dBm label
- * directly above it already reports HOW WEAK, and a quality-toned bar sitting
- * on an identity-toned fill is the "two container fills stacked" collision
- * `active-bands-card.tsx` already ruled out.
- *
- * The alphas are the one sanctioned use of opacity here, and they are not the
- * wash the Solid-Container Rule bans: a track is a groove, not a surface
- * carrying content, and both alphas resolve over a KNOWN opaque fill (the tile)
- * rather than over an unknown page background.
- */
-export function carrierMeterTone(
-  technology: "LTE" | "NR",
-  isLead: boolean,
-): { track: string; fill: string } {
-  if (isLead) {
-    return technology === "NR"
-      ? { track: "bg-primary-foreground/25", fill: "bg-primary-foreground" }
-      : { track: "bg-lte-foreground/25", fill: "bg-lte-foreground" };
-  }
-  return technology === "NR"
-    ? { track: "bg-on-primary-container/15", fill: "bg-primary" }
-    : { track: "bg-on-lte-container/15", fill: "bg-lte" };
-}
+export const CARRIER_DISC_GLYPH: Record<"LTE" | "NR", MaterialSymbolName> = {
+  NR: "cell_tower",
+  LTE: "signal_cellular_alt",
+};
 
 // -----------------------------------------------------------------------------
 // The band chip
@@ -428,8 +534,13 @@ export const BAND_CHIP = {
  * That is the one sanctioned place for an alpha on a fill here: it is a
  * transient pointer tint on a surface whose resting colour is still the token,
  * not a compensation for a mismatched pair.
+ *
+ * MODULE-LOCAL on purpose. Its only consumer is `bandChipClass` below, and the
+ * full class is what a component should be reaching for: a caller that composed
+ * the fill by hand could pair it with the wrong `ROOT` or drop the live ring,
+ * which is exactly the two-axis chip's one failure mode.
  */
-export function bandChipFill(selected: boolean): string {
+function bandChipFill(selected: boolean): string {
   return selected
     ? "bg-primary-container text-on-primary-container enabled:hover:bg-primary-container/80"
     : "bg-surface-container text-on-surface-variant enabled:hover:bg-surface-container-high";
@@ -593,9 +704,14 @@ export const CATEGORY_BADGE: Record<
   scenario: { variant: "info", glyph: "shield" },
   unrestricted: { variant: "success", glyph: "lock_open" },
   locked: { variant: "warning", glyph: "lock" },
-  // A category the modem has not reported a supported-band list for yet — see
+  // A category the modem has never reported a supported-band list for — see
   // `categoryPosture`. Muted, same as any other "nothing to report" state.
-  unknown: { variant: "muted", glyph: "schedule" },
+  //
+  // `help`, not `schedule`: a clock reads as pending or scheduled, and this
+  // state is neither. It is also the mark `POSTURE_GLYPH.unknown` now carries,
+  // deliberately — the rail's disc summarises these rows and has to speak their
+  // vocabulary.
+  unknown: { variant: "muted", glyph: "help" },
 };
 
 /** Badge glyph size. Matches the `[&>svg]:size-3` slot `Badge` reserves. */
@@ -625,22 +741,41 @@ export function categoryPosture(
 }
 
 /**
- * The hero's leading glyph, by posture. `settings_input_antenna` for a
- * constrained radio, `cell_tower` for an unconstrained one — two distinct
- * glyphs, because the disc is a single-slot indicator and two states in one
- * slot must never share a mark.
+ * The rail disc's glyph, by the modem's OVERALL posture.
  *
- * Both are already in the subset allowlist (`components/ui/material-symbol-names.ts`),
- * so this surface needs no font regeneration — which matters, because
- * `icons:subset` fetches from Google and cannot run offline.
+ * THE EVERY-CHIP-HAS-A-GLYPH RULE IS HERO-SCOPED, NOT COMPONENT-SCOPED, and
+ * that is what set these three values. `unrestricted` was `cell_tower` — the
+ * same mark `CARRIER_DISC_GLYPH` gives the NR carrier, on the same `bg-primary`
+ * fill, one flex row away inside the same hero. A reader would have seen one
+ * glyph meaning "no band restrictions" and an identical glyph meaning "this is
+ * the 5G leg". `locked` was `settings_input_antenna`, which named the hardware
+ * rather than the state at all.
+ *
+ * They key onto `CATEGORY_BADGE`'s vocabulary instead — `lock` / `lock_open` —
+ * and that reuse is correct rather than a collision: the disc SUMMARISES the
+ * three rows directly beneath it, so saying the same thing in the same mark is
+ * the point. A disc that summarised those rows in a private vocabulary would be
+ * the actual defect.
+ *
+ * `unknown` is `help`, not `schedule`. A clock reads as pending or scheduled,
+ * and this state is neither: `categoryPosture` returns `unknown` only when the
+ * modem's SUPPORTED-band list is empty, which means "never reported", not "still
+ * loading" — a loading rail draws `SKELETON_SHAPE.HERO_DISC` and never reaches
+ * this map at all. `CATEGORY_BADGE.unknown` was moved to `help` in the same
+ * change so the disc and the rows it summarises cannot disagree.
+ *
+ * All three are already in the subset allowlist
+ * (`components/ui/material-symbol-names.ts`), so this surface needs no font
+ * regeneration — which matters, because `icons:subset` fetches from Google and
+ * cannot run offline. None of the three is used anywhere else in this hero.
  */
 export const POSTURE_GLYPH: Record<
   "locked" | "unrestricted" | "unknown",
   MaterialSymbolName
 > = {
-  locked: "settings_input_antenna",
-  unrestricted: "cell_tower",
-  unknown: "schedule",
+  locked: "lock",
+  unrestricted: "lock_open",
+  unknown: "help",
 };
 
 /** The rail row's own short badge label, distinct from the category card's
@@ -678,13 +813,21 @@ export const SKELETON_SHAPE = {
   /** The footer's primary action, at the real 42px pill height. */
   ACTION: "h-[2.625rem] w-36 rounded-pill",
   ACTION_SECONDARY: "h-[2.625rem] w-44 rounded-pill",
-  /** Hero rail: disc, eyebrow, one category row. */
+  /** Hero rail: disc and one category row. */
   HERO_DISC: "size-11 rounded-pill",
-  HERO_EYEBROW: "h-3 w-24",
   RAIL_ROW: "h-[3.375rem] w-full rounded-field",
-  /** Hero: the failover row and one on-air tile. */
-  HERO_ROW: "h-[3.25rem] w-full rounded-field",
-  ONAIR_TILE: "h-[6.5rem] rounded-tile",
+  /**
+   * The failover row and one on-air tile, mirroring the loaded element's height
+   * BY IMPORT rather than by a restated number.
+   *
+   * `ONAIR_TILE` used to read `h-[6.5rem]` — a FIXED 104px asserted about a tile
+   * that carried no height at all, and which now resolves to ~204px. The
+   * skeleton handoff jumped by ~80px, in the direction that makes the jump
+   * worse the more the modem has to report. See `ONAIR_TILE_MIN_H` for why the
+   * shared value is a binding floor rather than a pin.
+   */
+  HERO_ROW: `${HERO_ROW_MIN_H} w-full rounded-field`,
+  ONAIR_TILE: `${ONAIR_TILE_MIN_H} rounded-tile`,
 } as const;
 
 // -----------------------------------------------------------------------------

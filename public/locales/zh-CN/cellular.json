@@ -260,17 +260,21 @@
       "lock_selected": "锁定所选频段",
       "restore_all": "恢复所有受支持频段",
       "select_all": "全选",
-      "select_none": "清除选择"
+      "select_none": "清除选择",
+      "refresh": "刷新"
     },
     "toast": {
       "locked": "{{category}} 频段已锁定",
       "unlocked": "{{category}} 频段已恢复",
       "lock_error": "无法应用 {{category}} 频段锁定",
       "unlock_error": "无法恢复 {{category}} 频段",
+      "refresh_error": "无法刷新频段配置",
       "none_selected": "请至少选择一个要锁定的频段"
     },
     "a11y": {
       "applying": "正在应用 {{category}} 频段锁定…",
+      "refreshing": "正在刷新频段配置…",
+      "refresh_blocked_watcher": "频段故障转移监测正在检查无线电，刷新已暂停。",
       "band_selected": "{{band}}，已选择",
       "band_unselected": "{{band}}，未选择",
       "band_live": "{{band}}，已选择并在调制解调器上生效"

@@ -3,10 +3,13 @@
 import { useEffect, useMemo, useState } from "react";
 import { motion } from "motion/react";
 import { useTranslation } from "react-i18next";
+import { toast } from "sonner";
 
 import { CellularPageHeader } from "@/components/cellular/page-header";
 import { ProfileOverrideAlert } from "@/components/cellular/custom-profiles/profile-override-alert";
 import { Banner } from "@/components/ui/banner";
+import { Button } from "@/components/ui/button";
+import { MaterialSymbol } from "@/components/ui/material-symbol";
 import { useBandLocking } from "@/hooks/use-band-locking";
 import { useConnectionScenarios } from "@/hooks/use-connection-scenarios";
 import { useModemStatus } from "@/hooks/use-modem-status";
@@ -23,6 +26,7 @@ import {
 
 import BandGridCard from "./band-grid-card";
 import LiveBandHero from "./live-band-hero";
+import { PILL_ACTION } from "./shapes";
 
 // =============================================================================
 // BandLockingComponent — page coordinator for /cellular/cell-locking
@@ -54,6 +58,30 @@ import LiveBandHero from "./live-band-hero";
 // note (surface-container fill, `on-surface` ink) rather than a system condition.
 //
 // -----------------------------------------------------------------------------
+// WHY THIS PAGE HAS A REFRESH AND THE RADIO PAGE DOES NOT
+// -----------------------------------------------------------------------------
+// `radio/page-header.tsx` cut its "Refresh now" pill on purpose, because that
+// page reads `useModemStatus`, which polls — a manual refresh there duplicates
+// something already happening. This page does not have that property. Its band
+// configuration comes from `current.sh`, which `useBandLocking` fetches on mount
+// and after a successful lock, AND NOTHING ELSE. A scheduled Connection Scenario
+// rewriting the band lists on-device therefore leaves this page reporting the
+// previous configuration until someone reloads the browser — on a surface whose
+// header chip claims to report what the modem is actually set to. So the pill is
+// a State-Honesty fix, not a convenience, and it is not a candidate for the same
+// cut.
+//
+// It is disabled while `isBusy` for a hard reason: `current.sh` takes the AT
+// mutex, and firing it into an in-flight `lock.sh` races that write.
+//
+// It drives its spinner and its live region from `isRefreshing`, NOT from the
+// hook's `isLoading`, and the distinction is load-bearing rather than cosmetic.
+// `isLoading` is ORed into `isPageLoading` below, which every card and the hero
+// read — so driving the button from it made pressing Refresh collapse the whole
+// page to skeletons, blanking the very surface the user asked to re-read. See
+// `use-band-locking.ts` > Manual refresh for the two flags' definitions.
+//
+// -----------------------------------------------------------------------------
 // THE GATE CHAIN IS TIME-DEPENDENT — do not simplify it
 // -----------------------------------------------------------------------------
 // `resolveScheduledScenario(now, ...)` is deliberately not
@@ -75,9 +103,11 @@ const BandLockingComponent = () => {
     isLoading: bandsLoading,
     lockingCategory,
     error,
+    isRefreshing,
     lockBands,
     unlockAll,
     toggleFailover,
+    refresh,
   } = useBandLocking();
   const {
     activeScenarioId,
@@ -190,6 +220,43 @@ const BandLockingComponent = () => {
   /** True while ANY category is writing — see BandGridCard on why this blocks all. */
   const isBusy = lockingCategory !== null;
 
+  /**
+   * The failover watcher is live, so the UI must stay off the AT mutex.
+   *
+   * `isBusy` is NOT sufficient here and the gap is the dangerous part.
+   * `lockingCategory` clears the instant the `lock.sh` POST resolves — but that
+   * is precisely when `qmanager_band_failover` STARTS. It then spends ~30s
+   * running `AT+QCAINFO` up to five times, and its carrier check treats any
+   * failed `qcmd` — including one that simply lost the mutex race — as "no
+   * carrier". A `current.sh` read fired into that window can therefore push a
+   * check toward the branch that UNDOES the user's lock.
+   *
+   * So the button stays disabled for the whole watcher window, not just for the
+   * write. This is the one guard on this page where the cost of being wrong is
+   * the user's connection rather than their patience.
+   */
+  const isWatcherRunning = failover.watcher_running;
+  const watcherBlockedReason = t("band_locking.a11y.refresh_blocked_watcher");
+
+  /**
+   * A failed refresh is reported by TOAST, on purpose.
+   *
+   * The hook's `error` is a single shared string, and this page scopes it to
+   * one category via `lastAttempted` so a failed SA write does not paint a red
+   * notice under LTE and NSA as well. A refresh belongs to no category, so
+   * routing it through that channel would either land it under whichever card
+   * last wrote (wrong) or nowhere at all (worse — a silent failure on a page
+   * whose whole job is reporting what the modem is really set to). The toast
+   * sidesteps the scoping rather than weakening it.
+   *
+   * No success toast: a refresh that worked is evident from the page updating,
+   * and confirming every press would be noise.
+   */
+  const handleRefresh = async () => {
+    const ok = await refresh();
+    if (!ok) toast.error(t("band_locking.toast.refresh_error"));
+  };
+
   return (
     // Root shape copied from the migrated `/cellular/` index
     // (`cellular-information.tsx`) rather than re-derived: the page gutter on
@@ -200,7 +267,40 @@ const BandLockingComponent = () => {
       <CellularPageHeader
         title={t("band_locking.page.title")}
         description={t("band_locking.page.description")}
+        actions={
+          <Button
+            type="button"
+            variant="outline"
+            onClick={handleRefresh}
+            // `bandsLoading` appears HERE ONLY, and only as a disable. It does
+            // not reach the spinner or the live region, so it cannot re-create
+            // the blanking bug. It is here because during first load there is
+            // nothing on screen to revalidate, and a press would put a second
+            // `current.sh` on the AT mutex behind the mount fetch — the same
+            // hazard `isBusy` guards against.
+            disabled={isBusy || isRefreshing || bandsLoading || isWatcherRunning}
+            title={isWatcherRunning ? watcherBlockedReason : undefined}
+            aria-description={
+              isWatcherRunning ? watcherBlockedReason : undefined
+            }
+            className={PILL_ACTION}
+          >
+            <MaterialSymbol
+              name="refresh"
+              size={18}
+              className={isRefreshing ? "motion-safe:animate-spin" : undefined}
+            />
+            {t("band_locking.actions.refresh")}
+          </Button>
+        }
       />
+
+      {/* The refresh keeps the loaded layout on screen, so the spinning glyph
+          is the only visual tell — which is no tell at all for a screen-reader
+          user. Hence the live announcement. */}
+      <div className="sr-only" aria-live="polite" aria-atomic="true">
+        {isRefreshing ? t("band_locking.a11y.refreshing") : ""}
+      </div>
 
       {/* The two gates, one primitive. Profile outranks scenario. */}
       {!isPageLoading && isProfileControlled && profileGate ? (
