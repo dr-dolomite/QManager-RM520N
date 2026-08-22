@@ -275,6 +275,10 @@ Custom SIM Profiles gets a full redesign and absorbs Connection Scenarios, so on
 - **Rounded corners render at their intended size again.** Cards, fields and loading placeholders across the app were falling back to a smaller radius than the design calls for, so a placeholder didn't quite match the card that replaced it (about 174 places).
 - **A reboot can no longer leave the web interface unreachable.** On some boots a second, empty web server bundled with Entware started first and took the port, so QManager wouldn't load on either http:// or https:// until you fixed it over SSH. The installer now disables that one for good (it decided whether to start by looking only for a process *named* `lighttpd` — a check QManager's own startup happened to satisfy on some boots and miss on others).
 
+- **The Traffic Engine page no longer says "Stopped" while the engine is running.** The status card read the engine's state through a privilege ladder the web interface's user doesn't have on every modem model, so the card could report Stopped — with a live packet counter beneath it. The page now checks for the engine's actual process first, which works everywhere, and only asks systemd for finer detail (Restarting / Error) when that query is permitted.
+- **"Packets processed" no longer resets to zero once a minute.** The Traffic Engine's housekeeping timer re-created its redirect rule once a minute even when nothing was wrong, wiping the counter each time; traffic totals would visibly collapse mid-stream. The rule is now left alone unless it's actually missing.
+- **Traffic Masquerade lost a button it didn't need.** The tab kept an Apply button from the design this page was ported from, where a text field needed submitting; here the switch saves the moment you flip it, so the button is gone — matching the Video Optimizer tab.
+
 ## 📥 Installation
 
 ### Upgrading from v0.1.13
