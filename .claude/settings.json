@@ -21,6 +21,9 @@
       "Bash(bash .claude/check-crlf.sh scripts/www/cgi-bin/quecmanager/cellular/apn.sh)"
     ]
   },
+  "worktree": {
+    "baseRef": "head"
+  },
   "includeCoAuthoredBy": false,
   "gitAttribution": false
 }
