@@ -107,19 +107,36 @@ fi
 # Query tower lock state (for mutual exclusion gating)
 # =============================================================================
 qlog_debug "Checking tower lock state for gating"
-tower_lock_lte="false"
+# tower_lock_lte / tower_lock_nr are tri-state on the wire: true, false, or
+# the JSON literal null when the tower state could not be read at all. A
+# failed read must never be reported as "false" (no lock) — this feeds
+# frequency/lock.sh's own mutual-exclusion gate, and "unlocked" is a
+# fabricated fact that can walk a user straight into the stacked-lock
+# crash-dump path that file's header warns about. The frontend treats null
+# as blocking (fail-safe) with its own distinct copy.
 lte_tower_state=$(tower_read_lte_lock 2>/dev/null)
-case "$lte_tower_state" in
-    locked*) tower_lock_lte="true" ;;
-esac
+lte_tower_rc=$?
+if [ $lte_tower_rc -ne 0 ] || [ -z "$lte_tower_state" ] || [ "$lte_tower_state" = "error" ]; then
+    tower_lock_lte="null"
+else
+    tower_lock_lte="false"
+    case "$lte_tower_state" in
+        locked*) tower_lock_lte="true" ;;
+    esac
+fi
 
 sleep 0.1
 
-tower_lock_nr="false"
 nr_tower_state=$(tower_read_nr_lock 2>/dev/null)
-case "$nr_tower_state" in
-    locked*) tower_lock_nr="true" ;;
-esac
+nr_tower_rc=$?
+if [ $nr_tower_rc -ne 0 ] || [ -z "$nr_tower_state" ] || [ "$nr_tower_state" = "error" ]; then
+    tower_lock_nr="null"
+else
+    tower_lock_nr="false"
+    case "$nr_tower_state" in
+        locked*) tower_lock_nr="true" ;;
+    esac
+fi
 
 # =============================================================================
 # Build response JSON
@@ -147,5 +164,5 @@ if [ -n "$response_json" ]; then
     printf '%s\n' "$response_json"
 else
     qlog_error "Failed to build status JSON with jq, sending fallback"
-    printf '{"success":true,"modem_state":{"lte_locked":false,"lte_entries":[],"nr_locked":false,"nr_entries":[],"tower_lock_lte_active":false,"tower_lock_nr_active":false}}\n'
+    printf '{"success":true,"modem_state":{"lte_locked":false,"lte_entries":[],"nr_locked":false,"nr_entries":[],"tower_lock_lte_active":null,"tower_lock_nr_active":null}}\n'
 fi

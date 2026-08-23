@@ -253,6 +253,7 @@
       "status_unrestricted": "Semua band",
       "status_locked": "{{count}} dari {{total}} terkunci",
       "status_unavailable": "Tidak terbaca",
+      "unavailable_note": "Kunci band saat ini tidak dapat dibaca, jadi kontrol ini tidak aktif. Menerapkan pilihan sekarang akan menimpa kunci yang tidak dapat ditampilkan kartu ini. Gunakan Segarkan di atas setelah modem menjawab.",
       "pending_one": "{{count}} perubahan tertunda",
       "pending_other": "{{count}} perubahan tertunda",
       "legend_selected": "Dipilih",
@@ -1547,7 +1548,9 @@
       "camped_empty_body": "Modem tidak melaporkan sel layanan. Kanal tetap bisa dimasukkan secara manual.",
       "add_hint": "Tambah menyalin kanal tersebut ke daftar di bawah. Kunci frekuensi tidak memakai PCI, jadi modem tetap memilih selnya sendiri.",
       "compare_hint": "Kunci tower mengikat kanal sekaligus sel. Kunci frekuensi lebih longgar: kanal yang sama, sel mana pun.",
-      "add_blocked": "Penambahan dinonaktifkan sampai kunci tower dilepas."
+      "compare_hint_unknown": "Status kunci tower tidak dapat dibaca. Kunci frekuensi ditolak selama kunci tower aktif, jadi tidak ada yang bisa diterapkan di sini sampai pembacaan itu berhasil.",
+      "add_blocked": "Penambahan dinonaktifkan sampai kunci tower dilepas.",
+      "add_blocked_unknown": "Penambahan dinonaktifkan sampai status kunci tower dapat dibaca."
     },
     "verdict": {
       "unlocked_title": "Semua kanal diizinkan",
@@ -1556,6 +1559,8 @@
       "locked_body": "Modem hanya boleh memakai kanal di bawah ini. Selnya tetap dipilih sendiri, jadi PCI bisa berubah.",
       "blocked_title": "Kunci tower sedang menahan radio",
       "blocked_body": "QManager tidak akan menulis kunci frekuensi selama kunci tower aktif. Lepas kunci tower untuk memakai halaman ini.",
+      "blocked_unknown_title": "Status kunci tower belum dipastikan",
+      "blocked_unknown_body": "QManager tidak dapat membaca apakah kunci tower aktif. Perubahan kunci frekuensi tetap diblokir sampai pembacaan itu berhasil, karena menerapkannya saat kunci tower aktif bisa membuat modem crash. Muat ulang untuk mencoba lagi.",
       "unknown_title": "Status kunci belum dilaporkan",
       "unknown_body": "Modem tidak menjawab pembacaan status terakhir. Muat ulang untuk mencoba lagi.",
       "serving_in_list": "Kanal yang digunakan ada di daftar",
@@ -1632,6 +1637,8 @@
       "live_title": "Kunci aktif di modem",
       "blocked_title": "Terapkan tidak tersedia selama kunci tower aktif",
       "blocked_readback": "Kunci tower aktif · kunci frekuensi tidak tersedia",
+      "blocked_unknown_title": "Terapkan tidak tersedia sampai status kunci tower dapat dibaca",
+      "blocked_unknown_readback": "Status kunci tower tidak diketahui, jadi penulisan diblokir",
       "applying_title": "Menunggu modem kembali",
       "applying_readback": "Dikirim {{seconds}} dtk lalu",
       "clobbered_title": "Kunci frekuensi sudah hilang",
@@ -1699,6 +1706,9 @@
       "refresh": "Muat ulang status kunci",
       "remove_entry": "Hapus kanal ini",
       "add_carrier": "Tambahkan carrier ini ke daftar"
+    },
+    "errors": {
+      "tower_state_unknown": "Modem tidak melaporkan apakah kunci tower aktif, jadi kunci frekuensi tidak ditulis. Muat ulang lalu coba lagi."
     }
   },
   "profiles": {

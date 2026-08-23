@@ -456,14 +456,41 @@ execute_tier3() {
     # SIM in backup slot" fallback below has never actually run in
     # production. rc is captured immediately, before anything else touches
     # $?.
-    local cpin_result cpin_rc
-    cpin_result=$(qcmd 'AT+CPIN?' 2>/dev/null)
-    cpin_rc=$?
+    #
+    # AT+CPIN? right after AT+CFUN=1 can legitimately answer +CME ERROR: 14
+    # ("SIM busy") while SIM init is still running — wait_for_modem only
+    # waits for bare AT to answer, which happens well before that. A single
+    # failed read here is therefore routine, not proof the slot is empty.
+    # Retry 3x (1s apart), mirroring the ICCID retry above in this same
+    # function (see _orig_try).
+    local cpin_result cpin_rc cpin_try
+    cpin_result=""
+    cpin_rc=1
+    for cpin_try in 1 2 3; do
+        cpin_result=$(qcmd 'AT+CPIN?' 2>/dev/null)
+        cpin_rc=$?
+        [ $cpin_rc -eq 0 ] && [ -n "$cpin_result" ] && break
+        sleep 1
+    done
+
     if [ $cpin_rc -ne 0 ] || [ -z "$cpin_result" ]; then
-        qlog_error "TIER 3: No SIM in backup slot $CFG_BACKUP_SIM_SLOT (rc=$cpin_rc), falling back"
+        qlog_error "TIER 3: Could not confirm SIM state in backup slot $CFG_BACKUP_SIM_SLOT after 3 attempts (rc=$cpin_rc), falling back"
         sim_failover_fallback
         return 0
     fi
+
+    # A non-empty response that isn't "+CPIN: READY" is a real "SIM present
+    # but not usable" state (PIN/PUK required, etc.) — log the actual state
+    # rather than asserting "No SIM", but still fall back since we cannot use
+    # a locked SIM.
+    case "$cpin_result" in
+        *'+CPIN: READY'*) ;;
+        *)
+            qlog_error "TIER 3: Backup slot $CFG_BACKUP_SIM_SLOT SIM not ready ($cpin_result), falling back"
+            sim_failover_fallback
+            return 0
+            ;;
+    esac
 
     # Read new ICCID for logging
     local new_iccid_raw new_iccid iccid_suffix

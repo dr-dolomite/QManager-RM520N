@@ -114,6 +114,24 @@ export interface ConditionScreenProps {
   /** Omit to render no retry affordance. */
   onRetry?: () => void;
   retryLabel?: string;
+  /**
+   * Gates the retry affordance.
+   *
+   * Optional, and unset by default, so every existing call site is unchanged.
+   * It exists because a condition screen's retry re-runs the very read that
+   * failed, and on at least one surface that read is only safe in some windows:
+   * band locking gates its header Refresh on the failover watcher, and this
+   * button fires the same `current.sh`. A retry that routes around its page's
+   * write guard is the guard not existing.
+   *
+   * The control keeps its shape and drops to the house disabled treatment
+   * rather than merely going inert - an affordance that still looks pressable
+   * but is not is its own defect.
+   */
+  disabled?: boolean;
+  /** Why the retry is unavailable, surfaced on the control itself. Mirrors how
+   *  a gated header button carries its reason. */
+  disabledReason?: string;
   className?: string;
 }
 
@@ -126,9 +144,16 @@ export function ConditionScreen({
   description,
   onRetry,
   retryLabel,
+  disabled,
+  disabledReason,
   className,
 }: ConditionScreenProps): React.JSX.Element {
   const spec = CONDITION_TONE[tone];
+  // `aria-describedby` rather than `aria-description`: the latter is an ARIA
+  // 1.3 draft attribute that the `button` role does not support, so it lints
+  // and is not reliably announced. A visually-hidden node carries the reason.
+  const reasonId = React.useId();
+  const showReason = Boolean(disabled && disabledReason);
 
   return (
     <div
@@ -158,14 +183,25 @@ export function ConditionScreen({
         <button
           type="button"
           onClick={onRetry}
+          disabled={disabled}
+          title={disabled ? disabledReason : undefined}
+          aria-describedby={showReason ? reasonId : undefined}
           className={cn(
             "inline-flex h-10 items-center gap-2 rounded-pill px-5 text-sm font-semibold transition-colors duration-[var(--duration-quick)] ease-out focus-visible:ring-2 focus-visible:outline-none",
             spec.action,
+            // Same treatment `Button` ships for its disabled state, so a gated
+            // retry reads as gated on every surface that uses this primitive.
+            "disabled:pointer-events-none disabled:opacity-50",
           )}
         >
           <MaterialSymbol name="refresh" size={17} />
           {retryLabel}
         </button>
+      )}
+      {showReason && (
+        <span id={reasonId} className="sr-only">
+          {disabledReason}
+        </span>
       )}
     </div>
   );

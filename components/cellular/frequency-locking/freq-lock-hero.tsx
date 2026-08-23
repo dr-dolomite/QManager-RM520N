@@ -58,6 +58,16 @@ export interface FreqLockHeroProps {
   isRefreshing: boolean;
   lastSyncedAt: number | null;
   towerLockActive: boolean;
+  /**
+   * Whether `towerLockActive` is a READING or the hook's fail-safe default.
+   *
+   * The gate is one boolean on purpose - every other component on this page
+   * takes only that. This surface is one of the two that EXPLAIN the block, so
+   * it is the only place the difference is user-visible: "a tower lock is
+   * holding the radio" and "we could not read whether one is" are different
+   * facts, and the second must never be printed as the first.
+   */
+  towerLockStateKnown: boolean;
   onRefresh: () => void;
   /**
    * Stage a carrier into the matching list. `scs` is non-null only for an NR
@@ -209,6 +219,7 @@ export function FreqLockHero({
   isLoading,
   isRefreshing,
   towerLockActive,
+  towerLockStateKnown,
   onRefresh,
   onAddChannel,
 }: FreqLockHeroProps) {
@@ -216,6 +227,10 @@ export function FreqLockHero({
 
   const posture = heroPosture(modemState, towerLockActive);
   const tone = VERDICT_TONE[posture];
+
+  /** Blocked, but only because the tower state could not be read. Every copy
+   *  branch below has to say that rather than assert a lock we never saw. */
+  const blockedByUnknown = posture === "blocked" && !towerLockStateKnown;
 
   // Memoised, not a bare `?? []`: the fallback would allocate a fresh array on
   // every render and invalidate `servingInList` below on every poll tick.
@@ -237,7 +252,9 @@ export function FreqLockHero({
     posture === "locked"
       ? t("frequency_locking.verdict.locked_title")
       : posture === "blocked"
-        ? t("frequency_locking.verdict.blocked_title")
+        ? blockedByUnknown
+          ? t("frequency_locking.verdict.blocked_unknown_title")
+          : t("frequency_locking.verdict.blocked_title")
         : posture === "unknown"
           ? t("frequency_locking.verdict.unknown_title")
           : t("frequency_locking.verdict.unlocked_title");
@@ -246,7 +263,9 @@ export function FreqLockHero({
     posture === "locked"
       ? t("frequency_locking.verdict.locked_body")
       : posture === "blocked"
-        ? t("frequency_locking.verdict.blocked_body")
+        ? blockedByUnknown
+          ? t("frequency_locking.verdict.blocked_unknown_body")
+          : t("frequency_locking.verdict.blocked_body")
         : posture === "unknown"
           ? t("frequency_locking.verdict.unknown_body")
           : t("frequency_locking.verdict.unlocked_body");
@@ -295,10 +314,14 @@ export function FreqLockHero({
           ) : (
             <div className={cn(VERDICT.ROOT, tone.panel)}>
               <span className={cn(VERDICT.DISC, tone.disc)}>
+                {/* The panel tone stays `blocked`'s - the consequence is the
+                    same - but the MARK does not. `block` says "a tower lock is
+                    holding this"; the unread case has to say "we cannot see",
+                    and two states sharing one slot may never share a glyph. */}
                 <MaterialSymbol
-                  name={tone.glyph}
+                  name={blockedByUnknown ? "visibility_off" : tone.glyph}
                   size={22}
-                  filled={tone.filled}
+                  filled={blockedByUnknown ? false : tone.filled}
                 />
               </span>
               <span className={VERDICT.TITLE}>{verdictTitle}</span>
@@ -406,13 +429,21 @@ export function FreqLockHero({
                 {carriers.length < 3 ? (
                   <div className={CARRIER_NOTE_TILE}>
                     <MaterialSymbol
-                      name={towerLockActive ? "swap_horiz" : "graphic_eq"}
+                      name={
+                        blockedByUnknown
+                          ? "visibility_off"
+                          : towerLockActive
+                            ? "swap_horiz"
+                            : "graphic_eq"
+                      }
                       size={18}
                     />
                     <span className="text-xs/relaxed text-pretty">
-                      {towerLockActive
-                        ? t("frequency_locking.live.compare_hint")
-                        : t("frequency_locking.live.add_hint")}
+                      {blockedByUnknown
+                        ? t("frequency_locking.live.compare_hint_unknown")
+                        : towerLockActive
+                          ? t("frequency_locking.live.compare_hint")
+                          : t("frequency_locking.live.add_hint")}
                     </span>
                   </div>
                 ) : null}
@@ -421,7 +452,9 @@ export function FreqLockHero({
 
             {towerLockActive ? (
               <span className={CAMPED.NOTE}>
-                {t("frequency_locking.live.add_blocked")}
+                {blockedByUnknown
+                  ? t("frequency_locking.live.add_blocked_unknown")
+                  : t("frequency_locking.live.add_blocked")}
               </span>
             ) : null}
           </div>

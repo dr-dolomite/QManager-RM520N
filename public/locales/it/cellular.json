@@ -253,6 +253,7 @@
       "status_unrestricted": "Tutte le bande",
       "status_locked": "{{count}} di {{total}} bloccate",
       "status_unavailable": "Non leggibile",
+      "unavailable_note": "Non è stato possibile leggere il blocco delle bande attuale, quindi questi controlli sono disattivati. Applicare una selezione ora sovrascriverebbe un blocco che questa scheda non può mostrare. Usa Aggiorna in alto quando il modem risponde.",
       "pending_one": "{{count}} modifica in sospeso",
       "pending_other": "{{count}} modifiche in sospeso",
       "legend_selected": "Selezionate",
@@ -1547,7 +1548,9 @@
       "camped_empty_body": "Il modem non segnala alcuna cella di servizio. I canali si possono comunque inserire a mano.",
       "add_hint": "Aggiungi copia il canale nell'elenco qui sotto. Un blocco delle frequenze non usa il PCI, quindi la cella la sceglie ancora il modem.",
       "compare_hint": "Un blocco BTS fissa sia il canale sia la cella. Il blocco delle frequenze è l'opzione più permissiva: stesso canale, qualsiasi cella.",
-      "add_blocked": "L'aggiunta è disattivata finché il blocco BTS non viene rimosso."
+      "compare_hint_unknown": "Non è stato possibile leggere lo stato del blocco BTS. Un blocco delle frequenze viene rifiutato mentre è attivo un blocco BTS, quindi qui non si può applicare nulla finché quella lettura non riesce.",
+      "add_blocked": "L'aggiunta è disattivata finché il blocco BTS non viene rimosso.",
+      "add_blocked_unknown": "L'aggiunta è disattivata finché non si riesce a leggere lo stato del blocco BTS."
     },
     "verdict": {
       "unlocked_title": "Tutti i canali consentiti",
@@ -1556,6 +1559,8 @@
       "locked_body": "Il modem può usare solo i canali qui sotto. La cella la sceglie comunque lui, quindi il PCI può cambiare.",
       "blocked_title": "Il blocco BTS sta tenendo la radio",
       "blocked_body": "QManager non scrive un blocco delle frequenze mentre è attivo un blocco BTS. Rimuovi il blocco BTS per usare questa pagina.",
+      "blocked_unknown_title": "Stato del blocco BTS non confermato",
+      "blocked_unknown_body": "QManager non è riuscito a leggere se un blocco BTS è attivo. Le modifiche al blocco delle frequenze restano bloccate finché quella lettura non riesce, perché applicarne uno mentre è attivo un blocco BTS può mandare in crash il modem. Aggiorna per riprovare.",
       "unknown_title": "Stato del blocco non segnalato",
       "unknown_body": "Il modem non ha risposto all'ultima lettura di stato. Aggiorna per riprovare.",
       "serving_in_list": "Il canale in uso è nell'elenco",
@@ -1632,6 +1637,8 @@
       "live_title": "Blocco attivo sul modem",
       "blocked_title": "Applica non è disponibile mentre è attivo un blocco BTS",
       "blocked_readback": "Blocco BTS attivo · blocco delle frequenze non disponibile",
+      "blocked_unknown_title": "Applica non è disponibile finché non si riesce a leggere lo stato del blocco BTS",
+      "blocked_unknown_readback": "Stato del blocco BTS sconosciuto, quindi la scrittura è bloccata",
       "applying_title": "In attesa che il modem torni",
       "applying_readback": "Inviato {{seconds}} s fa",
       "clobbered_title": "Il blocco delle frequenze è sparito",
@@ -1699,6 +1706,9 @@
       "refresh": "Aggiorna lo stato del blocco",
       "remove_entry": "Rimuovi questo canale",
       "add_carrier": "Aggiungi questa portante all'elenco"
+    },
+    "errors": {
+      "tower_state_unknown": "Il modem non ha segnalato se un blocco BTS è attivo, quindi il blocco delle frequenze non è stato scritto. Aggiorna e riprova."
     }
   },
   "profiles": {

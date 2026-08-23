@@ -257,6 +257,22 @@ const BandLockingComponent = () => {
   const watcherBlockedReason = t("band_locking.a11y.refresh_blocked_watcher");
 
   /**
+   * The refresh gate, as ONE expression for BOTH refresh affordances.
+   *
+   * Deliberately not restated at either call site. The header button and the
+   * read-error block's retry fire the same `current.sh` read, so they carry the
+   * same hazard and must carry the same gate - and they did not: the retry was
+   * ungated entirely. That mattered more than it sounds, because the two are
+   * causally linked. `lockBands` re-reads immediately after a write, which is
+   * exactly when the failover watcher spawns and starts taking the AT mutex, so
+   * the likeliest way to be looking at the error block at all is the one moment
+   * pressing its retry is hazardous - and at that moment the header button is
+   * greyed out, leaving the unguarded retry as the only live refresh on screen.
+   */
+  const isRefreshBlocked =
+    isBusy || isRefreshing || bandsLoading || isWatcherRunning;
+
+  /**
    * A failed refresh is reported by TOAST, on purpose.
    *
    * The hook's `error` is a single shared string, and this page scopes it to
@@ -295,13 +311,14 @@ const BandLockingComponent = () => {
             type="button"
             variant="outline"
             onClick={handleRefresh}
-            // `bandsLoading` appears HERE ONLY, and only as a disable. It does
-            // not reach the spinner or the live region, so it cannot re-create
-            // the blanking bug. It is here because during first load there is
-            // nothing on screen to revalidate, and a press would put a second
-            // `current.sh` on the AT mutex behind the mount fetch — the same
-            // hazard `isBusy` guards against.
-            disabled={isBusy || isRefreshing || bandsLoading || isWatcherRunning}
+            // `bandsLoading` reaches the UI ONLY through `isRefreshBlocked`,
+            // and only as a disable. It does not reach the spinner or the live
+            // region, so it cannot re-create the blanking bug. It is in that
+            // expression because during first load there is nothing on screen
+            // to revalidate, and a press would put a second `current.sh` on the
+            // AT mutex behind the mount fetch — the same hazard `isBusy` guards
+            // against.
+            disabled={isRefreshBlocked}
             title={isWatcherRunning ? watcherBlockedReason : undefined}
             aria-description={
               isWatcherRunning ? watcherBlockedReason : undefined
@@ -358,6 +375,8 @@ const BandLockingComponent = () => {
           })}
           onRetry={handleRefresh}
           retryLabel={t("band_locking.actions.refresh")}
+          disabled={isRefreshBlocked}
+          disabledReason={isWatcherRunning ? watcherBlockedReason : undefined}
         />
       ) : null}
 
