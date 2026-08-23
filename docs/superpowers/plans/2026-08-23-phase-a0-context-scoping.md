@@ -213,13 +213,13 @@ git commit -m "docs(platform): add canonical per-device fact matrix"
 **Interfaces:**
 - Consumes: `docs/reference/platform-matrix.md` from T1 (links to it).
 
-- [ ] **Step 1: Read the current text**
+- [x] **Step 1: Read the current text**
 
 Run: `sed -n '1,12p' docs/BACKEND.md`
 
 Confirm it contains *"QManager ships for a single target"* and *"There is no multi-SKU product matrix."*
 
-- [ ] **Step 2: Replace the framing paragraph**
+- [x] **Step 2: Replace the framing paragraph**
 
 Replace the single-target assertion with:
 
@@ -236,7 +236,7 @@ on-modem Quectel userspace stack" — those claims are **unverified on RG501Q-EU
 
 Keep the existing sentence about the OEM build string saying `SDX65` while the part is X62 — it is accurate and RM520N-GL-scoped.
 
-- [ ] **Step 3: Fix the dangling cross-reference**
+- [x] **Step 3: Fix the dangling cross-reference**
 
 In `docs/rm520n-gl-architecture.md:121`, the phrase *"cross-referenced with PRAIRIE deviations called out in CLAUDE.md"* points at content that does not exist. Repoint it:
 
@@ -245,12 +245,12 @@ cross-referenced with PRAIRIE deviations recorded in
 [`reference/platform-matrix.md`](./reference/platform-matrix.md)
 ```
 
-- [ ] **Step 4: Verify the assertion is gone**
+- [x] **Step 4: Verify the assertion is gone**
 
 Run: `grep -rn "single target\|no multi-SKU\|only one target" docs/ CLAUDE.md`
 Expected: no output.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add docs/BACKEND.md docs/rm520n-gl-architecture.md
@@ -285,7 +285,7 @@ Batch C (13 files): `antenna-alignment.md`, `antenna-statistics.md`,
 `i18n-runtime-download-increment-b.md`, `overview-splash.md`,
 `radio-information.md`, `sim-detection.md`, `sms-forwarding.md`
 
-- [ ] **Step 1: Insert the header in each file**
+- [x] **Step 1: Insert the header in each file**
 
 Immediately after the `# Title` line, insert exactly (C1):
 
@@ -297,11 +297,11 @@ Immediately after the `# Title` line, insert exactly (C1):
 
 `README.md` links to `./platform-matrix.md` too — it is in the same directory.
 
-- [ ] **Step 2: Do not rewrite the bodies**
+- [x] **Step 2: Do not rewrite the bodies**
 
 This task adds headers ONLY. Do not requalify individual sentences, do not move facts into the matrix, do not correct anything. Body rewrites are deliberately deferred — a 2,743-line file like `sim-profiles.md` cannot be safely reworded in the same pass that adds a header.
 
-- [ ] **Step 3: Verify coverage — exactly 34**
+- [x] **Step 3: Verify coverage — exactly 34**
 
 ```bash
 cd docs/reference
@@ -309,14 +309,14 @@ grep -L '^> \*\*Applies to:\*\*' *.md
 ```
 Expected output: exactly the 7 excluded files above. Any other filename listed is a miss.
 
-- [ ] **Step 4: Verify no body drift**
+- [x] **Step 4: Verify no body drift**
 
 ```bash
 git diff --stat docs/reference/
 ```
 Expected: each of the 34 files shows `2 ++` (or `3 ++` counting the blank line). A file showing more changed lines means a body was edited — revert it.
 
-- [ ] **Step 5: Commit per batch**
+- [x] **Step 5: Commit per batch**
 
 ```bash
 git add docs/reference/
@@ -330,7 +330,7 @@ git commit -m "docs(reference): add device scope headers (batch A/B/C)"
 **Files:**
 - Modify: `CLAUDE.md` — routing table (37 rows), "RM520N-GL Platform" section, "System Differences" table
 
-- [ ] **Step 1: Add the scope column to the routing table**
+- [x] **Step 1: Add the scope column to the routing table**
 
 Current header, verbatim:
 ```
@@ -343,19 +343,19 @@ Becomes:
 
 Fill each of the 37 rows using C3's three values. `Matrix` for rows whose doc is `data-counter-platform-matrix.md`; `Both` for rows pointing at `color-system.md`, `icon-system.md`, `i18n.md`, `dashboard-chart-cards.md`, `dashboard-state-motion.md`; `RM520N` for all others. Cross-check against T3's exclusion list — a doc that got a scope header is `RM520N`.
 
-- [ ] **Step 2: Retitle and qualify the platform section**
+- [x] **Step 2: Retitle and qualify the platform section**
 
 `## RM520N-GL Platform` becomes `## Modem Platforms`, and its opening claim gains an explicit device scope plus a pointer to the matrix. The kernel version, SoC name, and ARMv7l claim are RM520N-GL measurements — say so.
 
-- [ ] **Step 3: Fix the binary framing of the System Differences table**
+- [x] **Step 3: Fix the binary framing of the System Differences table**
 
 The table is currently `RM551E (OpenWRT)` vs `RM520N-GL (Vanilla Linux)`. Its column header must become `RM520N-GL (SDX65)` and a sentence added beneath: RG501Q-EU values are unverified and live in `platform-matrix.md`. **Do not add an RG501Q column here** — the matrix owns that; two homes for the same fact is how drift starts.
 
-- [ ] **Step 4: Qualify the embedded device fact in the routing table**
+- [x] **Step 4: Qualify the embedded device fact in the routing table**
 
 The Scheduled Reboot row states *"RM520N has no working `crond`"* inline. Leave the fact but ensure it names the device (it already does) — flag it as a matrix duplicate for a later pass rather than deleting it now.
 
-- [ ] **Step 5: Verify**
+- [x] **Step 5: Verify**
 
 ```bash
 grep -c '^| ' CLAUDE.md                        # table rows unchanged in count
@@ -363,7 +363,7 @@ grep -n 'Scope' CLAUDE.md | head               # column present
 ```
 Expected: the routing table has the same row count as before (37 + header + separator).
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add CLAUDE.md
@@ -380,11 +380,11 @@ git commit -m "docs(claude-md): add device-scope column, qualify platform claims
 
 **Note:** `.claude/` is gitignored — these need `git add -f`.
 
-- [ ] **Step 1: Replace the repeated platform paragraph**
+- [x] **Step 1: Replace the repeated platform paragraph**
 
 All six repeat a variant of *"the RM520N-GL runs vanilla Linux (SDXLEMUR, ARMv7l, kernel 5.4.210) — NOT OpenWRT."* In each, qualify it and add the second device.
 
-- [ ] **Step 2: Add runtime detection to every agent that touches a device**
+- [x] **Step 2: Add runtime detection to every agent that touches a device**
 
 The census's sharpest finding: **no agent definition mentions `/etc/quectel-project-version`**, the detection sentinel the shipped code already uses. Add to `modem-investigator`, `busybox-portability-checker`, and `installer-safety-auditor`:
 
@@ -397,24 +397,24 @@ header says otherwise — check `docs/reference/platform-matrix.md` before
 applying one to a different device.
 ```
 
-- [ ] **Step 3: Fix the two-target framing**
+- [x] **Step 3: Fix the two-target framing**
 
 `busybox-portability-checker.md:15` and `cgi-endpoint-builder.md:13` frame the world as "current vanilla-Linux target vs. legacy OpenWRT target we migrated FROM", leaving no slot for a second vanilla-Linux target we now ship TO. Reword to three: legacy RM551E (OpenWRT, not a target), RM520N-GL, RG501Q-EU.
 
-- [ ] **Step 4: Record the credential gap — do not solve it here**
+- [x] **Step 4: Record the credential gap — do not solve it here**
 
 Three files (`CLAUDE.md`, `modem-investigator.md`, `busybox-portability-checker.md`) plus `.claude/agent-memory/modem-investigator/stale_env_ssh_password.md` hardcode the single triad `MODEM_IP` / `MODEM_SSH_USER` / `MODEM_SSH_PASSWORD`. A second device needs either a per-device prefix or a selector variable.
 
 **This is a Phase-B prerequisite, not an A0 deliverable** — picking a scheme without a second device to test against is guesswork. Add a note to `platform-matrix.md` recording the gap and the three files that must change. **Never print a credential value.**
 
-- [ ] **Step 5: Verify**
+- [x] **Step 5: Verify**
 
 ```bash
 grep -rln "quectel-project-version" .claude/agents/
 ```
 Expected: `modem-investigator.md`, `busybox-portability-checker.md`, `installer-safety-auditor.md`.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add -f .claude/agents/
@@ -438,18 +438,18 @@ plus their matching pointer lines in `MEMORY.md`:
 `reference_rm520n_hardfloat_vfp_ok.md`, `reference_rm520n_no_crond_use_systemd_timers.md`,
 `reference_tmp_protected_regular_blocks_root.md`
 
-- [ ] **Step 1: Prefix each `description:` with the device (C4)**
+- [x] **Step 1: Prefix each `description:` with the device (C4)**
 
 Example — `reference_jq_no_oniguruma_regex.md`:
 ```yaml
 description: "[RM520N-GL] Device jq has NO regex — gsub/test/match abort at runtime"
 ```
 
-- [ ] **Step 2: Mirror the prefix into `MEMORY.md`**
+- [x] **Step 2: Mirror the prefix into `MEMORY.md`**
 
 Each of the 15 has a one-line pointer in `MEMORY.md`. Add the same `[RM520N-GL]` prefix so it is visible in the index, not only after the file is opened.
 
-- [ ] **Step 3: Flag the one likely-inapplicable memory**
+- [x] **Step 3: Flag the one likely-inapplicable memory**
 
 `reference_attach_cycle_drops_eth0_link.md` records a ~4s link drop caused by the **r8125 PHY on the M.2 carrier board**. RG501Q-EU is LGA — different carrier board, possibly no onboard Ethernet. Its body gets one added line:
 
@@ -458,11 +458,11 @@ Each of the 15 has a one-line pointer in `MEMORY.md`. Add the same `[RM520N-GL]`
 not a modem behavior. Verify in Phase B before assuming it transfers.
 ```
 
-- [ ] **Step 4: Leave the other 45 alone**
+- [x] **Step 4: Leave the other 45 alone**
 
 22 QManager-design and 21 tooling memories are modem-independent. The 1 ambiguous memory (`project_apn_attach_cycle_missing_in_profile_apply.md`) stays unmodified and is raised at the gate.
 
-- [ ] **Step 5: Verify**
+- [x] **Step 5: Verify**
 
 ```bash
 cd "C:/Users/RUS-LEGION5/.claude/projects/D--Projects-QM-PROJECT-QManager-RM520N/memory"
@@ -470,7 +470,7 @@ grep -l '\[RM520N-GL\]' *.md | wc -l      # expect 15
 grep -c '\[RM520N-GL\]' MEMORY.md          # expect 15
 ```
 
-- [ ] **Step 6: No commit**
+- [x] **Step 6: No commit**
 
 This directory is outside the repo. Nothing to commit.
 
@@ -478,28 +478,28 @@ This directory is outside the repo. Nothing to commit.
 
 ### Task 7: Final verification
 
-- [ ] **Step 1: Confirm docs-only**
+- [x] **Step 1: Confirm docs-only**
 
 ```bash
 git diff --stat development -- . ':!docs' ':!CLAUDE.md'
 ```
 Expected: empty. Any `.sh` / `.ts` / `.tsx` / `.json` change is a Global Constraints violation.
 
-- [ ] **Step 2: Confirm no invented RG501Q measurements**
+- [x] **Step 2: Confirm no invented RG501Q measurements**
 
 ```bash
 grep -rn "RG501Q" docs/ CLAUDE.md | grep -viE "unverified|LGA|SDX55|PRAIRIE|Phase B|onboarding|platform-matrix|RG501Q-EU\)" 
 ```
 Review every hit by hand. A stated value is a bug.
 
-- [ ] **Step 3: Confirm scope-header coverage**
+- [x] **Step 3: Confirm scope-header coverage**
 
 ```bash
 cd docs/reference && grep -L '^> \*\*Applies to:\*\*' *.md
 ```
 Expected: exactly the 7 excluded files.
 
-- [ ] **Step 4: Confirm no line-ending churn**
+- [x] **Step 4: Confirm no line-ending churn**
 
 ```bash
 git diff --stat | tail -1
