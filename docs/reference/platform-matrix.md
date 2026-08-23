@@ -105,7 +105,7 @@ it is a real bug on the new target, not a cosmetic difference.
 | Ethernet during attach cycle | PHY drops ~4s on every `AT+COPS=0` re-attach | *unverified* — **likely inapplicable** | on-device, 2 runs |
 | TTL interface | `rmnet+` | *unverified* | on-device |
 | WAN data interface | Not fixed — the `rmnet_dataN` index migrates across attach cycles | *unverified* | on-device · `wan-profile-management.md:415` |
-| Counter orientation (`/proc/net/dev`) | normal (rx=DL, tx=UL) | reversed **if** `Branch Name` is `SDX55` | `data-counter-platform-matrix.md` — already per-SoC |
+| Counter orientation (`/proc/net/dev`) | normal (rx=DL, tx=UL) | *unverified* — see the orientation note below | `data-counter-platform-matrix.md` — already per-SoC |
 
 **The Ethernet rows carry the largest form-factor risk in this table.** RTL8125B
 sits on the **M.2 carrier board**, not inside the modem. RG501Q-EU is LGA — a
@@ -113,6 +113,16 @@ different carrier board entirely, which may route Ethernet differently or not at
 all. The ~4s attach-cycle link drop is therefore probably a property of *our
 board*, not of *the modem*, and should be treated as inapplicable until proven
 otherwise.
+
+**On counter orientation — a hypothesis, not a measurement.** An **RM502Q-AE**
+(SDX55, community tier) probe found `/proc/net/dev` rx/tx labels reversed on
+*some* IPA driver builds — the source hedges deliberately, and a slow-path test
+on the same part showed correct labels. Schema v5 keys a static orientation map
+on `Branch Name`, so an RG501Q-EU reporting `SDX55` **would inherit** the
+reversed map. Two reasons that is not a measurement: it was established on a
+different model, and `Branch Name` for RG501Q-EU is itself `*unverified*` (see
+the header table) — it is a map lookup on an unmeasured key. Treat as a Phase-B
+hypothesis to test, never as a known value.
 
 ## CPU & ABI
 

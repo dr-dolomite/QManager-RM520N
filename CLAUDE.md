@@ -168,7 +168,7 @@ Each feature below has a reference doc holding its invariants, gotchas, and rati
 | **Timezone / System Clock** | `/etc/localtime`, `qmanager_timezone_apply`, zoneinfo | RM520N | `timezone.md` |
 | **Scheduled Reboot & Tower Lock Schedule** | Any scheduled operation. **RM520N has no working `crond`** — everything is a runtime systemd `OnCalendar` timer. Any new timer must account for the 1970 boot window / clock-step fire guard | RM520N | `scheduled-timers.md` |
 | **Overview Splash + `/login/`** | The two pre-auth routes, public CGI under `public/`, the pre-auth type scale | RM520N | `overview-splash.md` |
-| **i18n / Language Picker** | Any user-visible string, `public/locales/**`, language packs | Both | `i18n.md`, `docs/CONTRIBUTING-translations.md` |
+| **i18n / Language Picker** | Any user-visible string, `public/locales/**`, language packs | RM520N | `i18n.md`, `docs/CONTRIBUTING-translations.md` |
 | **SMS Center** | `/cellular/sms`, `sms_tool`, CPMS storage routing, the single-flight inbox GET, or anything on the surface (geometry and tone live in `components/cellular/sms/shapes.ts`) | RM520N | `sms.md` |
 | **SMS Forwarding** | `qmanager_sms_forward`, `/cellular/sms/forwarding`, the dirty-row promotion, or the hook's untranslated error strings | RM520N | `sms-forwarding.md` |
 | **Speed Test** | Ookla CLI, `at_cmd/speedtest_*.sh`, the dashboard tile and dialog | RM520N | `speedtest.md` |
