@@ -188,26 +188,32 @@ while true; do
             qlog_warn "FAILOVER: ${BAD_LIMIT} consecutive bad — clearing locks"
 
             # qcmd failure is exit-status-first: ERROR never reaches stdout,
-            # so `case "$x" in *ERROR*)` never matches a real failure — it
-            # always fell into the `*)` branch and set ok=1 unconditionally.
-            # Require BOTH unlocks to actually succeed (rc=0 and non-empty
-            # stdout) before declaring the failover complete.
-            ok=1
+            # so `case "$x" in *ERROR*)` never matches a real failure — a
+            # single shared `ok` flag was previously forced to 1 unconditionally.
+            # Track each RAT separately (rc=0 AND non-empty stdout, since a
+            # successful qcmd always echoes the command back) and require BOTH
+            # before claiming the modem is actually clear — an OR'd single flag
+            # would report "FAILOVER COMPLETE" if e.g. only the NR unlock
+            # succeeded while LTE stayed locked.
+            lte_ok=0
             lte_r=$(tower_unlock_lte 2>/dev/null); lte_rc=$?
-            if [ "$lte_rc" -ne 0 ] || [ -z "$lte_r" ]; then
-                qlog_error "LTE unlock failed (rc=$lte_rc)"
-                ok=0
+            if [ "$lte_rc" -eq 0 ] && [ -n "$lte_r" ]; then
+                lte_ok=1
+            else
+                qlog_error "LTE unlock failed (rc=$lte_rc): $lte_r"
             fi
 
             sleep 0.2
 
+            nr_ok=0
             nr_r=$(tower_unlock_nr 2>/dev/null); nr_rc=$?
-            if [ "$nr_rc" -ne 0 ] || [ -z "$nr_r" ]; then
-                qlog_error "NR unlock failed (rc=$nr_rc)"
-                ok=0
+            if [ "$nr_rc" -eq 0 ] && [ -n "$nr_r" ]; then
+                nr_ok=1
+            else
+                qlog_error "NR unlock failed (rc=$nr_rc): $nr_r"
             fi
 
-            if [ "$ok" -eq 1 ]; then
+            if [ "$lte_ok" -eq 1 ] && [ "$nr_ok" -eq 1 ]; then
                 tower_config_update '.lte.enabled = false | .nr_sa.enabled = false'
                 echo "activated" > "$FLAG_FILE"
                 qlog_warn "FAILOVER COMPLETE — locks cleared"
@@ -215,13 +221,33 @@ while true; do
             else
                 qlog_error "FAILOVER FAILED — retrying in 5s"
                 sleep 5
-                tower_unlock_lte >/dev/null 2>&1
-                retry_lte_rc=$?
-                sleep 0.2
-                tower_unlock_nr >/dev/null 2>&1
-                retry_nr_rc=$?
 
-                if [ "$retry_lte_rc" -eq 0 ] && [ "$retry_nr_rc" -eq 0 ]; then
+                # Retry path — this was NEVER reachable before this fix (ok
+                # was always 1 above), so it ran unverified in production.
+                # It unconditionally claimed "FAILOVER COMPLETE (retry)" and
+                # wrote the activated flag even when the retry itself also
+                # failed. Give it the same real per-RAT rc check as the
+                # first attempt (both must succeed) instead of discarding
+                # the result.
+                lte_retry_ok=0
+                lte_retry=$(tower_unlock_lte 2>/dev/null); lte_retry_rc=$?
+                if [ "$lte_retry_rc" -eq 0 ] && [ -n "$lte_retry" ]; then
+                    lte_retry_ok=1
+                else
+                    qlog_error "LTE unlock retry failed (rc=$lte_retry_rc): $lte_retry"
+                fi
+
+                sleep 0.2
+
+                nr_retry_ok=0
+                nr_retry=$(tower_unlock_nr 2>/dev/null); nr_retry_rc=$?
+                if [ "$nr_retry_rc" -eq 0 ] && [ -n "$nr_retry" ]; then
+                    nr_retry_ok=1
+                else
+                    qlog_error "NR unlock retry failed (rc=$nr_retry_rc): $nr_retry"
+                fi
+
+                if [ "$lte_retry_ok" -eq 1 ] && [ "$nr_retry_ok" -eq 1 ]; then
                     tower_config_update '.lte.enabled = false | .nr_sa.enabled = false'
                     echo "activated" > "$FLAG_FILE"
                     qlog_warn "FAILOVER COMPLETE (retry)"
@@ -242,7 +268,7 @@ while true; do
                     # false instead of a confident answer — forcing
                     # enabled=false here would just be a second, equally
                     # unconfirmed guess layered on top.
-                    qlog_error "FAILOVER retry: unlock command(s) still unconfirmed (lte_rc=$retry_lte_rc nr_rc=$retry_nr_rc) — giving up without claiming success"
+                    qlog_error "FAILOVER retry: unlock command(s) still unconfirmed (lte_rc=$lte_retry_rc nr_rc=$nr_retry_rc) — giving up without claiming success"
                     append_event "tower_failover" "Tower lock failover FAILED — could not confirm unlock after retry (signal quality ${quality}% below ${threshold}% threshold)" "error"
                 fi
             fi

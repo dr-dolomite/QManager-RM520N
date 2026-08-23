@@ -109,6 +109,32 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
 
     cgi_read_post
 
+    # qcmd write helper — rc + positive OK assertion. qcmd never writes the
+    # literal string "ERROR" to stdout (failure = exit status + stderr,
+    # empty stdout), so `case "$result" in *ERROR*)` could never match and
+    # every write below fell through to "success". A write additionally
+    # needs to see the modem's own "OK" — qcmd's third exit arm can return 0
+    # with unconfirmed pass-through data for a response containing neither
+    # OK nor ERROR. No `local` in this script's existing style — `_aw_`
+    # prefixed vars avoid clobbering caller scope and stay readable for the
+    # caller's own log line right after the call.
+    at_write() {
+        _aw_out=$(qcmd "$1" 2>/dev/null)
+        _aw_rc=$?
+        if [ $_aw_rc -ne 0 ]; then
+            return $_aw_rc
+        fi
+        # Line-exact, not a *OK* substring glob: a response echoes the
+        # issued command back, so any AT argument containing the two
+        # characters "OK" would match itself and mask a real failure.
+        # Today's validators (hex MAC, fixed enums) cannot produce one,
+        # which makes this a latent landmine rather than a live bug.
+        if printf '%s' "$_aw_out" | tr -d '\r' | grep -qx 'OK'; then
+            return 0
+        fi
+        return 1
+    }
+
     # --- Extract action ---
     ACTION=$(printf '%s' "$POST_DATA" | jq -r '.action // empty')
 
@@ -180,68 +206,50 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
         # --- Step 1: Apply MPDN_RULE passthrough setting ---
         case "$PASSTHROUGH_MODE" in
             disabled)
-                result=$(qcmd 'AT+QMAP="MPDN_rule",0' 2>/dev/null)
-                case "$result" in
-                    *ERROR*)
-                        qlog_error "MPDN_rule disable failed: $result"
-                        cgi_error "mpdn_rule_failed" "Failed to reset MPDN_rule"
-                        exit 0
-                        ;;
-                esac
+                if ! at_write 'AT+QMAP="MPDN_rule",0'; then
+                    qlog_error "MPDN_rule disable failed (rc=$_aw_rc): $_aw_out"
+                    cgi_error "mpdn_rule_failed" "Failed to reset MPDN_rule"
+                    exit 0
+                fi
                 sleep "$CMD_GAP"
-                # WAC reset — required when disabling passthrough
-                result=$(qcmd 'AT+QMAPWAC=1' 2>/dev/null)
-                case "$result" in
-                    *ERROR*)
-                        qlog_warn "QMAPWAC=1 returned error (non-fatal): $result"
-                        ;;
-                esac
+                # WAC reset — required when disabling passthrough, non-fatal
+                if ! at_write 'AT+QMAPWAC=1'; then
+                    qlog_warn "QMAPWAC=1 failed (non-fatal, rc=$_aw_rc): $_aw_out"
+                fi
                 ;;
             eth)
-                result=$(qcmd "AT+QMAP=\"MPDN_rule\",0,1,0,1,1,\"${TARGET_MAC}\"" 2>/dev/null)
-                case "$result" in
-                    *ERROR*)
-                        qlog_error "MPDN_rule ETH failed: $result"
-                        cgi_error "mpdn_rule_failed" "Failed to set ETH passthrough rule"
-                        exit 0
-                        ;;
-                esac
+                if ! at_write "AT+QMAP=\"MPDN_rule\",0,1,0,1,1,\"${TARGET_MAC}\""; then
+                    qlog_error "MPDN_rule ETH failed (rc=$_aw_rc): $_aw_out"
+                    cgi_error "mpdn_rule_failed" "Failed to set ETH passthrough rule"
+                    exit 0
+                fi
                 ;;
             usb)
-                result=$(qcmd "AT+QMAP=\"MPDN_rule\",0,1,0,3,1,\"${TARGET_MAC}\"" 2>/dev/null)
-                case "$result" in
-                    *ERROR*)
-                        qlog_error "MPDN_rule USB failed: $result"
-                        cgi_error "mpdn_rule_failed" "Failed to set USB passthrough rule"
-                        exit 0
-                        ;;
-                esac
+                if ! at_write "AT+QMAP=\"MPDN_rule\",0,1,0,3,1,\"${TARGET_MAC}\""; then
+                    qlog_error "MPDN_rule USB failed (rc=$_aw_rc): $_aw_out"
+                    cgi_error "mpdn_rule_failed" "Failed to set USB passthrough rule"
+                    exit 0
+                fi
                 ;;
         esac
 
         sleep "$CMD_GAP"
 
         # --- Step 2: Apply IPPT_NAT mode ---
-        result=$(qcmd "AT+QMAP=\"IPPT_NAT\",${IPPT_NAT}" 2>/dev/null)
-        case "$result" in
-            *ERROR*)
-                qlog_error "IPPT_NAT failed: $result"
-                cgi_error "ippt_nat_failed" "Failed to set IPPT NAT mode"
-                exit 0
-                ;;
-        esac
+        if ! at_write "AT+QMAP=\"IPPT_NAT\",${IPPT_NAT}"; then
+            qlog_error "IPPT_NAT failed (rc=$_aw_rc): $_aw_out"
+            cgi_error "ippt_nat_failed" "Failed to set IPPT NAT mode"
+            exit 0
+        fi
 
         sleep "$CMD_GAP"
 
         # --- Step 3: Apply USB modem protocol ---
-        result=$(qcmd "AT+QCFG=\"usbnet\",${USB_MODE}" 2>/dev/null)
-        case "$result" in
-            *ERROR*)
-                qlog_error "QCFG usbnet failed: $result"
-                cgi_error "usbnet_failed" "Failed to set USB modem protocol"
-                exit 0
-                ;;
-        esac
+        if ! at_write "AT+QCFG=\"usbnet\",${USB_MODE}"; then
+            qlog_error "QCFG usbnet failed (rc=$_aw_rc): $_aw_out"
+            cgi_error "usbnet_failed" "Failed to set USB modem protocol"
+            exit 0
+        fi
 
         sleep "$CMD_GAP"
 
@@ -251,14 +259,11 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
             disabled) dns_cmd='AT+QMAP="DHCPV4DNS","disable"' ;;
         esac
 
-        result=$(qcmd "$dns_cmd" 2>/dev/null)
-        case "$result" in
-            *ERROR*)
-                qlog_error "DHCPV4DNS failed: $result"
-                cgi_error "dhcpv4dns_failed" "Failed to set DNS offloading"
-                exit 0
-                ;;
-        esac
+        if ! at_write "$dns_cmd"; then
+            qlog_error "DHCPV4DNS failed (rc=$_aw_rc): $_aw_out"
+            cgi_error "dhcpv4dns_failed" "Failed to set DNS offloading"
+            exit 0
+        fi
 
         qlog_info "All settings applied — saving config and rebooting"
 

@@ -64,12 +64,14 @@ export const FrequencyLockingComponent = () => {
     isLteLocking,
     isNrLocking,
     error,
+    errorCode,
     lockLte,
     unlockLte,
     lockNr,
     unlockNr,
     towerLockLteActive,
     towerLockNrActive,
+    towerLockStateKnown,
     towerLockLteReadOk,
     towerLockNrReadOk,
     refresh,
@@ -171,6 +173,24 @@ export const FrequencyLockingComponent = () => {
    */
   const [lastAttempted, setLastAttempted] = useState<"lte" | "nr" | null>(null);
 
+  /**
+   * Backend error CODES become sentences here, not in the hook.
+   *
+   * `use-frequency-locking` has no i18n namespace, so it reports the code and
+   * this coordinator - which already owns error scoping - resolves it. The one
+   * code with copy of its own is `tower_state_unknown`: `lock.sh` fails closed
+   * when it cannot confirm the tower lock state, and the raw code would reach
+   * the card as an untranslated identifier. Anything else falls through to the
+   * backend's `detail` string unchanged.
+   */
+  const scopedError = useMemo(() => {
+    if (!error) return null;
+    if (errorCode === "tower_state_unknown") {
+      return t("frequency_locking.errors.tower_state_unknown");
+    }
+    return error;
+  }, [error, errorCode, t]);
+
   const handleLockLte = useCallback(
     (earfcns: number[]) => {
       setLastAttempted("lte");
@@ -255,6 +275,7 @@ export const FrequencyLockingComponent = () => {
           isRefreshing={isRefreshing}
           lastSyncedAt={lastSyncedAt}
           towerLockActive={anyTowerLock}
+          towerLockStateKnown={towerLockStateKnown}
           onRefresh={refresh}
           onAddChannel={handleAddChannel}
         />
@@ -269,7 +290,7 @@ export const FrequencyLockingComponent = () => {
             modemData={modemData}
             isLoading={isLoading}
             isLocking={isLteLocking}
-            error={lastAttempted === "lte" ? error : null}
+            error={lastAttempted === "lte" ? scopedError : null}
             towerLockActive={towerLockLteActive}
             towerLockReadOk={towerLockLteReadOk}
             onLock={handleLockLte}
@@ -285,7 +306,7 @@ export const FrequencyLockingComponent = () => {
             modemData={modemData}
             isLoading={isLoading}
             isLocking={isNrLocking}
-            error={lastAttempted === "nr" ? error : null}
+            error={lastAttempted === "nr" ? scopedError : null}
             towerLockActive={towerLockNrActive}
             towerLockReadOk={towerLockNrReadOk}
             onLock={handleLockNr}
@@ -301,6 +322,7 @@ export const FrequencyLockingComponent = () => {
           isLoading={isLoading}
           isBusy={isBusy}
           towerLockActive={anyTowerLock}
+          towerLockStateKnown={towerLockStateKnown}
           onClearAll={handleClearAll}
         />
       </motion.div>

@@ -189,13 +189,16 @@
       "title": "实时配置",
       "eyebrow": "锁定状态",
       "rail_subtitle_unknown": "尚未上报",
+      "rail_subtitle_unavailable": "无法读取频段配置",
       "rail_subtitle_none": "当前无频段限制",
       "rail_subtitle_all": "三个无线电均受限",
       "rail_subtitle_partial": "{{total}} 个无线电中有 {{count}} 个受限",
       "rail_ratio": "允许 {{count}} / {{total}} 个频段",
+      "rail_unavailable": "无法读取该制式的频段",
       "rail_status_locked": "已锁定",
       "rail_status_unrestricted": "无限制",
       "rail_status_unknown": "尚未上报",
+      "rail_status_unavailable": "不可用",
       "on_air": "当前在用",
       "on_air_summary_one": "{{count}} 个载波 · {{mhz}} MHz",
       "on_air_summary_other": "{{count}} 个载波 · {{mhz}} MHz",
@@ -249,12 +252,18 @@
       "status_scenario": "由场景控制",
       "status_unrestricted": "全部频段",
       "status_locked": "{{total}} 个中已锁定 {{count}} 个",
+      "status_unavailable": "无法读取",
+      "unavailable_note": "无法读取当前的频段锁定，因此这些控件已停用。此时应用选择会覆盖本卡片无法显示的锁定。待调制解调器响应后，请使用上方的刷新。",
       "pending_one": "{{count}} 项待应用的更改",
       "pending_other": "{{count}} 项待应用的更改",
       "legend_selected": "已选择",
       "legend_live": "当前已锁定",
       "empty_title": "此处没有可锁定的频段",
       "empty_body": "调制解调器未上报此类别中受支持的频段。"
+    },
+    "states": {
+      "read_error_title": "无法读取频段配置",
+      "read_error_body": "调制解调器没有响应，因此本页无法显示当前锁定的频段。请稍后重试。{{reason}}"
     },
     "actions": {
       "lock_selected": "锁定所选频段",
@@ -1539,7 +1548,9 @@
       "camped_empty_body": "调制解调器未上报服务小区。仍可手动输入频点。",
       "add_hint": "“添加”会将该频点加入下方列表。频点锁定不涉及 PCI，因此小区仍由调制解调器选择。",
       "compare_hint": "基站锁定会同时固定频点和小区。频点锁定更宽松：同一频点，任意小区。",
-      "add_blocked": "在解除基站锁定之前无法添加。"
+      "compare_hint_unknown": "无法读取基站锁定状态。基站锁定生效期间频点锁定会被拒绝，因此在该读取成功之前，这里的任何设置都无法应用。",
+      "add_blocked": "在解除基站锁定之前无法添加。",
+      "add_blocked_unknown": "在能够读取基站锁定状态之前无法添加。"
     },
     "verdict": {
       "unlocked_title": "允许所有频点",
@@ -1548,6 +1559,8 @@
       "locked_body": "调制解调器只能使用下方列出的频点。小区仍由它自行选择，因此 PCI 可能会变化。",
       "blocked_title": "基站锁定正在占用无线电",
       "blocked_body": "当基站锁定生效时，QManager 不会写入频点锁定。请先解除基站锁定，再使用本页面。",
+      "blocked_unknown_title": "基站锁定状态未确认",
+      "blocked_unknown_body": "QManager 无法读取基站锁定是否生效。在该读取成功之前，频点锁定的更改将保持阻止状态，因为在基站锁定生效时应用频点锁定可能导致调制解调器崩溃。请刷新后重试。",
       "unknown_title": "尚未上报锁定状态",
       "unknown_body": "调制解调器未响应上次的状态读取。请刷新后重试。",
       "serving_in_list": "驻留频点在列表内",
@@ -1628,6 +1641,8 @@
       "live_title": "锁定已在调制解调器上生效",
       "blocked_title": "基站锁定生效期间无法应用",
       "blocked_readback": "基站锁定生效中 · 频点锁定不可用",
+      "blocked_unknown_title": "在能够读取基站锁定状态之前无法应用",
+      "blocked_unknown_readback": "基站锁定状态未知，因此写入已被阻止",
       "applying_title": "正在等待调制解调器恢复",
       "applying_readback": "已发送 {{seconds}} 秒",
       "clobbered_title": "频点锁定已消失",
@@ -1695,6 +1710,9 @@
       "refresh": "刷新锁定状态",
       "remove_entry": "移除此频点",
       "add_carrier": "将此载波添加到列表"
+    },
+    "errors": {
+      "tower_state_unknown": "调制解调器未报告基站锁定是否生效，因此未写入频点锁定。请刷新后重试。"
     }
   },
   "profiles": {

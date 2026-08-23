@@ -109,18 +109,21 @@ if [ "$MODE" = "apply" ]; then
             # doesn't misread this write's reconnect blip. See lock.sh /
             # tower_write_begin in tower_lock_mgr.sh.
             tower_write_begin
+            # tower_lock_lte already returns qcmd's real exit status (see
+            # tower_lock_mgr.sh) — the old `case "$result" in *ERROR*)` here
+            # matched stdout, which qcmd never populates with the literal
+            # string "ERROR" on failure, so a rejected lock always fell to
+            # the `*)` "applied" arm and lied about the schedule state. Check
+            # $rc (captured immediately, before any other command) AND that
+            # $result is non-empty (a successful qcmd always echoes back).
             result=$(tower_lock_lte "$num_cells" $at_args)
             rc=$?
-            # qcmd failure is exit-status-first: ERROR never reaches stdout,
-            # so a failed write is an EMPTY $result, not a string containing
-            # "ERROR". Check $rc (captured immediately, before any other
-            # command) — not the text of $result.
-            if [ "$rc" -ne 0 ] || [ -z "$result" ]; then
-                qlog_error "Schedule: LTE lock failed (rc=$rc)"
-            else
+            if [ "$rc" -eq 0 ] && [ -n "$result" ]; then
                 qlog_info "Schedule: LTE lock applied"
                 tower_config_update '.lte.enabled = true'
                 applied_any="true"
+            else
+                qlog_error "Schedule: LTE lock failed (rc=$rc): $result"
             fi
             sleep 0.2
         fi
@@ -146,12 +149,12 @@ if [ "$MODE" = "apply" ]; then
             tower_write_begin
             result=$(tower_lock_nr "$nr_pci" "$nr_arfcn" "$nr_scs" "$nr_band")
             rc=$?
-            if [ "$rc" -ne 0 ] || [ -z "$result" ]; then
-                qlog_error "Schedule: NR-SA lock failed (rc=$rc)"
-            else
+            if [ "$rc" -eq 0 ] && [ -n "$result" ]; then
                 qlog_info "Schedule: NR-SA lock applied"
                 tower_config_update '.nr_sa.enabled = true'
                 applied_any="true"
+            else
+                qlog_error "Schedule: NR-SA lock failed (rc=$rc): $result"
             fi
         fi
     fi
@@ -186,13 +189,14 @@ elif [ "$MODE" = "clear" ]; then
     # a schedule-managed lock — triggered by the schedule itself.
     tower_write_begin
 
-    # Clear LTE lock
+    # Clear LTE lock — tower_unlock_lte already returns qcmd's real exit
+    # status; the old text match against stdout could never see "ERROR".
     result=$(tower_unlock_lte 2>/dev/null)
     rc=$?
-    if [ "$rc" -ne 0 ] || [ -z "$result" ]; then
-        qlog_error "Schedule: Failed to clear LTE lock (rc=$rc)"
-    else
+    if [ "$rc" -eq 0 ] && [ -n "$result" ]; then
         qlog_info "Schedule: LTE lock cleared"
+    else
+        qlog_error "Schedule: Failed to clear LTE lock (rc=$rc): $result"
     fi
 
     sleep 0.2
@@ -203,10 +207,10 @@ elif [ "$MODE" = "clear" ]; then
     # Clear NR-SA lock
     result=$(tower_unlock_nr 2>/dev/null)
     rc=$?
-    if [ "$rc" -ne 0 ] || [ -z "$result" ]; then
-        qlog_error "Schedule: Failed to clear NR lock (rc=$rc)"
-    else
+    if [ "$rc" -eq 0 ] && [ -n "$result" ]; then
         qlog_info "Schedule: NR-SA lock cleared"
+    else
+        qlog_error "Schedule: Failed to clear NR lock (rc=$rc): $result"
     fi
 
     # NOTE: We intentionally do NOT set lte.enabled / nr_sa.enabled to false

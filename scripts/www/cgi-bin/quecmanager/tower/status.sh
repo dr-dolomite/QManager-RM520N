@@ -54,6 +54,18 @@ persist_rc=$?
 # those values are meaningless when the matching *_read_ok is false — the
 # frontend must gate on *_read_ok, not on success, before trusting them.
 #
+# This is deliberately per-field rather than an all-or-nothing refusal: one
+# transient AT read failure (e.g. the NR query) should not blind the UI to
+# the two reads that DID succeed. tower_read_lte_lock / tower_read_nr_lock /
+# tower_read_persist all return qcmd's real exit status — the old code below
+# only ever pattern-matched their printed text ("locked*" / "error"), which
+# silently defaulted a failed read to "unlocked, persistence off" and
+# reported success:true with a fabricated modem_state. That's actively
+# dangerous here — a UI showing "not locked" when the modem is actually
+# still locked (or its state is simply unknown) can lead a user straight
+# into frequency/lock.sh's mutual-exclusion gate believing it's clear.
+# Refuse to fabricate any INDIVIDUAL field's trustworthiness instead.
+#
 # PINNED CONTRACT — do not "tighten" this later: the frontend must treat an
 # ABSENT *_read_ok (an un-upgraded CGI that predates this field) as true —
 # i.e. test `=== false`, never `!== true`. This script always emits all
@@ -75,6 +87,10 @@ nr_read_ok="true"
 
 persist_read_ok="true"
 [ "$persist_rc" -ne 0 ] && persist_read_ok="false"
+
+if [ "$lte_rc" -ne 0 ] || [ "$nr_rc" -ne 0 ] || [ "$persist_rc" -ne 0 ]; then
+    qlog_error "Tower lock state query failed (lte_rc=$lte_rc nr_rc=$nr_rc persist_rc=$persist_rc) — reporting per-field read_ok=false, not fabricating state"
+fi
 
 # --- Parse LTE lock state into JSON ------------------------------------------
 lte_locked="false"
@@ -100,9 +116,6 @@ case "$lte_state" in
         done
         lte_cells_json="${lte_cells_json}]"
         ;;
-    error)
-        qlog_warn "Failed to read LTE lock state"
-        ;;
 esac
 
 # --- Parse NR-SA lock state into JSON ----------------------------------------
@@ -116,9 +129,6 @@ case "$nr_state" in
         set -- $nr_state
         shift  # remove "locked"
         nr_cell_json="{\"pci\":$1,\"arfcn\":$2,\"scs\":$3,\"band\":$4}"
-        ;;
-    error)
-        qlog_warn "Failed to read NR-SA lock state"
         ;;
 esac
 

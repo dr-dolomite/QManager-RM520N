@@ -45,6 +45,14 @@ export interface FreqApplyBarProps {
   /** True while either leg is mid-write. */
   isBusy: boolean;
   towerLockActive: boolean;
+  /**
+   * Whether `towerLockActive` is a READING or the hook's fail-safe default.
+   *
+   * This bar and the hero verdict are the only two surfaces that explain the
+   * block, so they are the only two that take this. Everything else on the page
+   * keeps a plain boolean gate.
+   */
+  towerLockStateKnown: boolean;
   onClearAll: () => void;
 }
 
@@ -54,6 +62,7 @@ export function FreqApplyBar({
   isLoading,
   isBusy,
   towerLockActive,
+  towerLockStateKnown,
   onClearAll,
 }: FreqApplyBarProps) {
   const { t } = useTranslation("cellular");
@@ -141,21 +150,30 @@ export function FreqApplyBar({
     );
   }
 
-  // ---- Blocked by a tower lock ---------------------------------------------
+  // ---- Blocked by a tower lock, or by not knowing ---------------------------
+  // Two different facts, one consequence. The write is refused either way, but
+  // the bar may only claim a tower lock is active when `status.sh` actually
+  // said so. `visibility_off` rather than `block` for the unread case, so the
+  // two never share a mark in the same slot.
   if (towerLockActive) {
+    const blockedByUnknown = !towerLockStateKnown;
     return (
       <div className={APPLY_BAR.ROOT}>
         <MaterialSymbol
-          name="block"
+          name={blockedByUnknown ? "visibility_off" : "block"}
           size={20}
           className="text-on-surface-variant"
         />
         <div className={APPLY_BAR.COPY}>
           <span className={APPLY_BAR.TITLE}>
-            {t("frequency_locking.apply.blocked_title")}
+            {blockedByUnknown
+              ? t("frequency_locking.apply.blocked_unknown_title")
+              : t("frequency_locking.apply.blocked_title")}
           </span>
           <span className={APPLY_BAR.READBACK}>
-            {t("frequency_locking.apply.blocked_readback")}
+            {blockedByUnknown
+              ? t("frequency_locking.apply.blocked_unknown_readback")
+              : t("frequency_locking.apply.blocked_readback")}
           </span>
         </div>
       </div>

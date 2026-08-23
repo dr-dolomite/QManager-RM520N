@@ -55,11 +55,18 @@ export interface FailoverState {
   watcher_running: boolean;
 }
 
-/** Response from GET /cgi-bin/quecmanager/bands/current.sh */
+/**
+ * Response from GET /cgi-bin/quecmanager/bands/current.sh
+ *
+ * `current` and `failover` are OPTIONAL because the error envelope omits them
+ * both. They were declared present, which made the type lie about the exact
+ * case the consumer has to handle; it only avoided a crash because the hook
+ * returns early on `!success`. Optional here forces that guard to stay.
+ */
 export interface BandCurrentResponse {
   success: boolean;
-  current: CurrentBands;
-  failover: FailoverState;
+  current?: CurrentBands;
+  failover?: FailoverState;
   error?: string;
   detail?: string;
 }

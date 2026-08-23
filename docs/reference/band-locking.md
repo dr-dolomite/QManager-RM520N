@@ -202,7 +202,7 @@ When `lock.sh` arms the failover watcher, it first **kills any watcher already r
 
 So two locks fired seconds apart leave the **first** narrowing completely unmonitored for the rest of its safety window. If that first lock was the one that killed your connection, nothing is watching for it any more. Blocking all three cards while any one writes is the cheapest way to make that unrepresentable from this page.
 
-> ⚠️ WARNING: a future "apply all three categories at once" button must be built as a **multi-category `lock.sh` that arms ONE watcher**, not as a client-side fan-out. Three concurrent POSTs would have each one kill the previous watcher, leaving two of the three narrowings unmonitored — strictly worse than the serialised behaviour this flag enforces. `components/onboarding/steps/step-band-locking.tsx` already demonstrates exactly this pathology: it fires up to three `lock.sh` POSTs under a single `Promise.allSettled`.
+> ⚠️ WARNING: a future "apply all three categories at once" button must be built as a **multi-category `lock.sh` that arms ONE watcher**, not as a client-side fan-out. Three concurrent POSTs would have each one kill the previous watcher, leaving two of the three narrowings unmonitored — strictly worse than the serialised behaviour this flag enforces. `components/onboarding/steps/step-band-locking.tsx` used to demonstrate exactly this pathology with a `Promise.allSettled` fan-out; it was serialised on 2026-08-23 (`578ddb2`) for this reason, and its loop carries a comment saying so. Serialising costs almost nothing here, because `lock.sh` issues a single AT command with no COPS bounce or attach cycle.
 
 ## Error scoping
 
@@ -535,6 +535,77 @@ Without adoption, nothing would be polling, so the flag would stay true until th
 
 It cannot loop: `startFailoverPolling` stops itself the moment the watcher is gone and writes `watcher_running: false`, which makes the condition false; the ref guard keeps it from restarting a poll already in flight. And adopting costs **no AT traffic** — `failover_status.sh` reads filesystem flags only and makes zero modem contact, which is exactly what makes it safe to run during the window it is watching.
 
+### 4. Both refresh affordances read ONE gate expression
+
+The guards in 2 and 3 are only worth what the *narrowest* path through them enforces, and for a while there were two paths. The page has two controls that fire the same `current.sh` read: the header Refresh pill, and the retry button on the read-error block (below). They were written at different times, and the retry was **ungated entirely** while the pill carried the full four-way disable.
+
+The gate is now one named const in `band-locking.tsx`, passed to both:
+
+```tsx
+const isRefreshBlocked =
+  isBusy || isRefreshing || bandsLoading || isWatcherRunning;
+```
+
+> ⚠️ WARNING: do not restate this expression at either call site, and do not let the two affordances take different gates. They are causally linked, which is what makes the drift dangerous rather than merely untidy. `lockBands` re-reads immediately after a successful write, and that is exactly the moment `qmanager_band_failover` spawns and starts taking the AT mutex. So the single likeliest way to be looking at the read-error block at all is the one moment when pressing its retry is hazardous, and at that moment the header pill is greyed out, which leaves an unguarded retry as the **only** live refresh on screen.
+
+## When the band read fails
+
+**Short version: a failed `current.sh` used to render as a fully loaded page reporting "Locked, 0 of 31 bands allowed", and the grid underneath it stayed clickable. Three changes make the failure visible, and make the controls that would write blind inert.** Shipped 2026-08-23 in `60e3100`, closing follow-up 6.
+
+### `readError` is a separate channel from the write `error`
+
+`useBandLocking` now exposes `readError` alongside `error`. They were one string, and fusing them was wrong in both directions:
+
+| Channel | Set by | Scoped to | Rendered as |
+| ------- | ------ | --------- | ----------- |
+| `error` | A **write**: lock, unlock, failover toggle | One category, via `lastAttempted` | A filled tonal notice inside that card |
+| `readError` | A **`current.sh` read**, on mount or refresh | Nothing. It belongs to no category | A page-level `ConditionScreen` |
+
+Fusing them meant a write that actually landed, followed by a re-read that lost the AT mutex, raised the green "Locked" toast **and** a red inline notice blaming the write that had worked. In the other direction, a first-load read failure had no category to attach to, because `lastAttempted` is null until the user writes something, so it was displayed to nobody at all.
+
+`fetchCurrent` also now guards the **payload** rather than the `success` flag alone (`!data.success || !data.current || !data.failover`). The error envelope omits both objects, so `BandCurrentResponse` marks them optional; the type previously declared them present and got away with it only because of the early return.
+
+### The page-level block
+
+`readError` renders a `ConditionScreen` at page level, independent of `lastAttempted`:
+
+- **`tone="destructive"`, not `warning`, with `ariaRole="alert"`.** Every band figure on the page is now stale or absent, and the page's entire job is reporting what the modem is set to.
+- **`glyph="visibility_off"`, not the `error` mark.** `error` means "your write failed" everywhere else on this surface, and the two blocks can be on screen together. Sharing the glyph of the "Not readable" chips it explains is what lets a reader see the block and the three chips as one fact.
+- **Retry is `handleRefresh`**, gated by `isRefreshBlocked` above, so the fix is one press rather than a browser reload.
+- **The refresh toast survives it** rather than being replaced by it. The block is a standing condition and looks identical before and after a failed retry; the toast is the only thing that tells the user their press did anything.
+
+### The grid freezes, and that is the load-bearing half
+
+`categoryPosture` returning `unavailable` was at first used only for **display**: the header chip said "Not readable" while the grid underneath drew 31 unselected, ring-less chips, which says the exact opposite, that nothing is locked. `isFrozen` therefore includes it:
+
+```tsx
+const isFrozen = isGated || isBusy || isUnavailable;
+```
+
+An unavailable read means the current lock is **unknown**, so any write from that card is blind: ticking one band and pressing Apply sends that band alone and silently destroys a lock the user was never shown. `aria-disabled` on the card carries `isGated || isUnavailable` and not `isBusy`, because those two are standing conditions and `isBusy` is transient.
+
+`unavailable` also **outranks the gate** when choosing the header chip. Both are standing conditions, but the gate says who may *change* the setting while `unavailable` says we do not know what the setting *is*, and a "Scenario controlled" chip over a grid drawn from a failed read asserts that the scenario's bands are the ones shown. The band count is **suppressed** rather than zeroed for the same reason: a zero is a claim where the truth is an absence.
+
+The card also renders a `role="status"` note next to the frozen controls, in `CONDITION_TONE.neutral` rather than `NOTICE_TONE`. The chip names the condition but never says the controls below it are inert or why, so a frozen grid read as a broken one. `NOTICE_TONE` is destructive and belongs to a failed **write**, which can be on screen at the same time; a missing reading is not a fault of the radio.
+
+> ⚠️ WARNING: `CATEGORY_BADGE.unavailable` and `POSTURE_GLYPH.unavailable` are both `visibility_off` and both `muted`. They must **not** borrow `unknown`'s `help`. "The modem carries no such list" and "we could not fetch the list it carries" are different facts with different fixes, and since the two chips share a variant the glyph is the only channel separating them, which is the Glyph-Carries-The-State Rule. Both maps are now keyed on `BandPosture` itself, so a new posture without a chip or a disc glyph fails the build rather than failing at the call site.
+
+### `ConditionScreen` gained a `disabled` contract
+
+`components/cellular/condition-screen.tsx` is a shared `/cellular/` primitive, so this is a route-wide addition rather than a band-locking one. Two optional props, unset by default, so every existing call site is unchanged:
+
+| Prop | Type | Notes |
+| ---- | ---- | ----- |
+| `disabled` | `boolean?` | Gates the retry button |
+| `disabledReason` | `string?` | Why. Surfaced on the control itself |
+
+The reason it exists generalises past this page: **a condition screen's retry re-runs the very read that failed**, and on some surfaces that read is only safe in some windows. A retry that routes around its page's write guard is the guard not existing.
+
+Two details are deliberate:
+
+- The control keeps its shape and takes the house `disabled:pointer-events-none disabled:opacity-50` treatment, the same pair `Button` ships. An affordance that still looks pressable but is not is its own defect.
+- The reason is carried by `title` plus an `sr-only` node referenced through **`aria-describedby`**, not `aria-description`. The latter is an ARIA 1.3 draft attribute that the `button` role does not support: it fails `jsx-a11y` lint and is not reliably announced.
+
 ## Both empty states use the shared `ConditionScreen`
 
 Both hand-rolled empty blocks on this surface — the hero's "no carriers on air" and the category card's "this SKU reports no bands" — now render through `components/cellular/condition-screen.tsx`. This was the last surface on the route still drawing its own disc/headline/body stack, so its geometry and tone were free to drift from the four `/cellular/` screens saying the same kind of thing.
@@ -603,6 +674,7 @@ Band Locking uses its optional `actions` slot for the Refresh pill (styled by th
 | `carrierComponents` | `CarrierComponent[]` | From `useModemStatus`; the ACTUAL view. Rendered **raw** — one tile per component, sorted but not deduplicated |
 | `supportedBands` | `Record<BandCategory, number[]>` | Hardware-supported bands **per category** (`policy_band`). Replaced the summed `supportedTotal: number` |
 | `lockedBands` | `Record<BandCategory, number[]>` | Configured bands **per category** (`ue_capability_band`). Replaced the summed `lockedTotal: number` |
+| `hasCurrentReading` | `boolean` | `currentBands !== null` at the coordinator. False means `lockedBands` is the `[]` fallback from a failed `current.sh`, not the modem's answer. Feeds `categoryPosture` |
 | `onToggleFailover` | `(enabled: boolean) => Promise<boolean>` | Returns success; the hero owns its own toast |
 | `isLoading` | `boolean` | Page-level (`statusLoading \|\| bandsLoading \|\| scenariosLoading`). The hook's `isRefreshing` is deliberately **not** ORed into this — that is the whole point of the split |
 | `isGated` | `boolean?` | Disables the failover switch — see Known gaps |
@@ -614,6 +686,7 @@ Band Locking uses its optional `actions` slot for the Refresh pill (styled by th
 | `bandCategory` | `BandCategory` | `"lte" \| "nsa_nr5g" \| "sa_nr5g"`; also the i18n key stem |
 | `supportedBands` | `number[]` | From `device.supported_*_bands` (`policy_band`), sorted |
 | `currentLockedBands` | `number[]` | From `ue_capability_band`, sorted. **New array identity every parent render** |
+| `hasCurrentReading` | `boolean` | False when `current.sh` failed. Drives the `unavailable` posture, which freezes the card. See [When the band read fails](#when-the-band-read-fails) |
 | `onLock` | `(bands: number[]) => Promise<boolean>` | Coordinator sets `lastAttempted`, then calls `lockBands` |
 | `onRestoreAll` | `() => Promise<boolean>` | Coordinator sets `lastAttempted`, then calls `unlockAll` |
 | `isLocking` | `boolean` | THIS category only — drives the spinner |
@@ -634,11 +707,13 @@ Three branches, all rendering `BAND_CARD` so the shell cannot drift:
 
 The footer separates two different truths: the header chip reports the **modem's** state (`{count} of {total} locked`), while the pending count beside Select all / Clear reports the **form's** (`{count} pending changes`). Merging them into one line would merge two facts.
 
+The **Loaded** branch has one further variant rather than a fourth branch: when the posture is `unavailable` it keeps the same shell and grid but freezes every control, swaps the header chip for "Not readable" with no count, and adds a `role="status"` note saying why. See [When the band read fails](#when-the-band-read-fails).
+
 ## Known gaps
 
 - **The failover switch is disabled while gated**, so a scenario-controlled page cannot turn the safety net **on** — arguably backwards, since a scenario-applied band lock is exactly the case where you most want the net. It is left unchanged deliberately: [sim-profiles.md](sim-profiles.md) documents that the profile-apply path arms the watcher itself, and changing the gate here without changing that path would create two owners for one flag.
 - **`hasChanges` blocks re-applying an identical lock.** `SaveButton` is disabled when `pendingCount === 0`, which is right for avoiding a pointless modem write — but it also means the **failover watcher cannot be re-armed without changing the selection**. If a watcher's 30-second window has expired and the user wants to re-arm it, they must toggle a band off and back on.
-- **`components/onboarding/steps/step-band-locking.tsx` is a fully independent implementation** that this redesign did not touch. It still uses checkboxes, its own preset radio group, hardcoded English copy, its own `authFetch` POSTs straight to `lock.sh`, and a `Promise.allSettled` fan-out of up to three concurrent locks (the watcher-starvation pathology described above). A user's **first** band-lock experience therefore diverges from every later one.
+- **`components/onboarding/steps/step-band-locking.tsx` is still a visually independent implementation** that this redesign did not touch. Its **write path was fixed** on 2026-08-23 (`578ddb2`) and now matches this page's serialised, `data.success`-judged behaviour (see follow-up 3 below). What has not been touched is everything above the wire: it still renders `Checkbox` primitives rather than the two-axis band chip, hand-rolls its own preset radio group out of `motion.button` with raw `border-primary` / `bg-primary/5` washes and a spring transition (both against `DESIGN.md`'s One-Scale Rule), carries **hardcoded English copy** with no `t()` calls at all, and POSTs to `lock.sh` through its own `authFetch` helper rather than through `useBandLocking`. It also has no notion of the modem's *current* lock, so it cannot show the live axis or a pending-change count. A user's **first** band-lock experience therefore still diverges visually from every later one.
 - **The failover help copy said 15 seconds — FIXED in this pass, and worth knowing why it was wrong.** The incumbent tooltip claimed the modem falls back "after 15 seconds", and the new i18n key inherited the figure verbatim before anyone checked it against the daemon. `qmanager_band_failover` is `SETTLE_DELAY=5` then `MAX_CHECKS=5 × CHECK_INTERVAL=5` — a **~30 second** window, which the script's own log line at `:84` states outright. All five locales now say "about 30 seconds". The lesson generalises: a number in user-facing copy is a claim about the device, and the State-Honesty Rule applies to it exactly as it does to a status chip. If `SETTLE_DELAY`, `CHECK_INTERVAL` or `MAX_CHECKS` is ever retuned, `band_locking.live.failover_help` has to move in the same change, in all five locales — nothing links them mechanically.
 - **RESOLVED — the two unreferenced `shapes.ts` exports are gone.** `POSTURE_GLYPH` is wired to the rail disc (see The disc is a real state indicator now) and `SKELETON_SHAPE.HERO_EYEBROW` is deleted. `bandChipFill` was also un-exported and is now module-local.
 - **The rail's scroll targets are coupled by string, not by type** — see the warning in [The lock-posture rail](#the-lock-posture-rail). A shared `bandCardDomId(category)` helper in `shapes.ts` would close this; it was not added because the two call sites are one file apart and adding a third indirection for two usages was judged worse than the warning.
@@ -648,12 +723,18 @@ The footer separates two different truths: the header chip reports the **modem's
 
 These are **recorded, not fixed**. Each was a deliberate scope call.
 
-1. **`signalToProgress` saturates above −80 dBm.** The tile's `MetricBar` maps `[floor, excellent]` → `[0, 100]`, and `RSRP_THRESHOLDS.excellent` is `-80`, so **every good reading pins at 100%** and the bar reads more optimistic than the `rsrpToPercent` scale it replaced. Kept deliberately: `signalToProgress` is the canonical shared map that `tower-locking` and both antenna surfaces already length their bars with, and remapping it here would create a **sixth** rival quality scale — the exact thing this change existed to delete. Fix it family-wide in `types/modem-status.ts` or not at all.
-2. **`tailwind-merge` cannot dedupe this repo's custom radius names.** `cn()` (`lib/utils.ts`) calls bare `twMerge` with no `extendTailwindMerge`, so `rounded-card` / `field` / `tile` / `hero` / `pill` are not recognised as members of the `border-radius` group. Both classes therefore ship and CSS source order decides the winner. Tailwind v4 emits the `rounded-*` utilities **alphabetically** — verified 2026-08-22 by grepping the real built stylesheet under `out/_next/static/chunks/`, which yields `card, field, full, hero, inline, lg, md, none, pill, sm, tile, xl, xs`. So `<Skeleton>`'s default `rounded-md` **beats `rounded-card`, `rounded-field`, `rounded-hero` and `rounded-inline`**, and **loses to `rounded-pill` and `rounded-tile`**. Any `<Skeleton className="rounded-card">` or `rounded-hero` is therefore silently rendering at `md` (6px) — a wider blast radius than a `field`/`inline`-only reading suggests, and it affects ~20 call sites across several surfaces. Conversely, this page's `rounded-tile` overrides on the tile skeleton and on `ConditionScreen` land **only because `tile` sorts after `md` and `hero`** — correct by luck, not by `twMerge`. The fix belongs in `components/ui/skeleton.tsx` (or in a shared `extendTailwindMerge` config), not on this page.
-3. **`components/onboarding/steps/step-band-locking.tsx` fires up to three concurrent `lock.sh` POSTs under `Promise.allSettled`** — the watcher-starvation pathology this page's `isBusy` flag exists to make unrepresentable, still live in a different feature. See [`isBusy` blocks all three categories during any lock](#isbusy-blocks-all-three-categories-during-any-lock).
-4. **`lock.sh` and `current.sh` carry the repo-wide dead `case "$result" in *ERROR*)` branch.** `qcmd` reports failure by **exit status and stderr** — `ERROR` never reaches stdout — so that branch never matches and a failed AT write can report success. This is a known repo-wide defect (~7 scripts), not specific to band locking; see `at-command-transport.md`.
+1. **`signalToProgress` saturates above −80 dBm — DECIDED 2026-08-23: accepted as correct, not a defect.** The map is `[floor, excellent]` → `[0, 100]` and `RSRP_THRESHOLDS.excellent` is `-80`, so every reading in the `excellent` stop draws a full bar. That is the intended behaviour: a bar answers *"where in the usable range is this"*, and past the top cut the honest answer is "as good as this scale measures". Discriminating above the cut is the **score** scale's job — `components/cellular/antenna-alignment/utils.ts:141-149` keeps a separate full-range map (`rsrpToScorePercent`, `sinrToScorePercent`) for exactly that, and `scoreSnapshot` never reads `signalToProgress`, so nothing about aim scoring depends on this. The repo previously contradicted itself here: `antenna-alignment.md:175` argued saturation is right while this list called it a defect. The tie is broken in favour of `antenna-alignment.md`.
+   **What the CVD argument actually supports.** Extending the map (e.g. to `[-140, -44]`) would *not* fix the concern that motivated this entry. At any cut a continuous map draws both sides nearly the same — −80 dBm is 100%, −81 dBm is 98.3% — and widening the range reproduces that at every cut while shortening every bar by 25–37 percentage points on seven surfaces. Two readings 1 dB apart genuinely *are* nearly the same signal; drawing them alike is honest. What separates one **stop** from the next is `QUALITY_GLYPH`'s monotonic wedge ladder, not bar length. `DESIGN.md` overstated this and has been corrected in the same pass.
+   **One real defect did fall out of the review, and is fixed:** `lib/radio-info.ts:145` lengthened its RSRP bar with `rsrpToPercent` (`[-125, -65]`, from `lib/carrier-aggregation.ts`) while colouring the same numeral from `RSRP_THRESHOLDS` — the last surviving rival RSRP scale, and inconsistent with the RSRQ and SINR rows directly beneath it in the same array. −80 dBm drew 100% on this page and 75% on `/cellular/`. It now routes through `signalToProgress`. `rsrpToPercent` survives only for `components/dashboard/carrier-aggregation.tsx:438`, which plots it under its own documented convention.
+2. **`tailwind-merge` could not dedupe this repo's custom radius names, RESOLVED 2026-08-23 in `10d5ab9`.** The bug, for the record, because the failure mode is invisible and will recur if the fix is ever reverted: `cn()` (`lib/utils.ts`) called bare `twMerge` with no `extendTailwindMerge`, so `rounded-card` / `field` / `hero` / `inline` / `pill` / `tile` were not recognised as members of the `border-radius` group. Both classes therefore shipped, and CSS source order decided the winner. Tailwind v4 emits the `rounded-*` utilities **alphabetically** — verified 2026-08-22 by grepping the real built stylesheet under `out/_next/static/chunks/`, which yields `card, field, full, hero, inline, lg, md, none, pill, sm, tile, xl, xs`. So `<Skeleton>`'s default `rounded-md` **beat `rounded-card`, `rounded-field`, `rounded-hero` and `rounded-inline`**, and **lost to `rounded-pill` and `rounded-tile`**, which means this page's `rounded-tile` overrides on the tile skeleton and on `ConditionScreen` were correct by luck, not by `twMerge`. `cn()` now registers all six names into tailwind-merge's `radius` group via `extendTailwindMerge`, so competing `rounded-*` classes dedupe and the **last class wins**, which is the behaviour every call site already assumed. About 174 call sites were affected. The fix is in `lib/utils.ts` rather than in `components/ui/skeleton.tsx`, because the defect was never Skeleton's: any primitive with a default radius had it.
+3. **The onboarding band-locking step's concurrent fan-out, RESOLVED 2026-08-23 in `578ddb2`.** `components/onboarding/steps/step-band-locking.tsx` fired up to three `lock.sh` POSTs under a single `Promise.allSettled`, which is the watcher-starvation pathology this page's `isBusy` flag exists to make unrepresentable: each `lock.sh` kills the watcher armed by the previous one, so two of three narrowings ended up unmonitored. Worse, it read `resp.ok` rather than `data.success`, and every failure path in `cgi_base.sh` answers HTTP 200 with `{"success":false,…}` and no `Status:` header, so a rejected lock structurally could not be seen, and the step called `onSuccess()` and advanced the wizard. The three writes are now **serialised** in `CATEGORY_ORDER`, each response is judged on `data.success`, applied and failed categories are tracked in one `SubmitOutcome`, `onSuccess()` fires only when everything the user selected actually applied, and a retry re-sends **only the categories that failed**. Serialising is cheap here: `lock.sh` issues a single AT command with no COPS bounce or attach cycle. See [`isBusy` blocks all three categories during any lock](#isbusy-blocks-all-three-categories-during-any-lock).
+4. **`lock.sh` and `current.sh` carried the repo-wide dead `case "$result" in *ERROR*)` branch, RESOLVED repo-wide 2026-08-23 in `b4d87ef`, and these two files were never actually broken.** `qcmd` reports failure by **exit status and stderr**; `ERROR` never reaches stdout, so that branch can never match. In `lock.sh` and `current.sh` the `case` sits *after* an `[ $rc -ne 0 ] || [ -z "$result" ]` guard, which makes their `*ERROR*` arms unreachable belt-and-braces rather than a hole. The 26 unguarded sites across 9 files elsewhere in the tree have been swept (11 files touched, two of them library companions). See [at-command-transport.md](at-command-transport.md) for the surviving inventory and the `grep -qx 'OK'` write assertion the sweep introduced.
 5. **`docs/reference/icon-system.md:63` still names the deleted `band-cards.tsx`** as a Material-route `Checkbox` call site. The file no longer exists and the chip grid no longer uses `Checkbox` at all.
-6. **`categoryPosture()` reports an empty lock list as "Locked".** With an empty `locked` array against a non-empty `supported` array, the posture rail renders **"LTE · Locked · 0 of 10 bands allowed"** — which reads as *deliberately restricted to nothing*, the opposite of the truth. Confirmed visually 2026-08-22, during verification of this pass — after the other five were recorded, which is why it is last rather than grouped with them. `unlockAll` represents "unlocked" as **all** supported bands, so an empty `locked` list is more likely a parse failure or an odd modem state than a normal one — but that is a guess, and the honest render depends on which it is. Needs a live probe of what `current.sh` / `ue_capability_band` actually return in each real state before a fix is chosen.
+6. **`categoryPosture()` reported an empty lock list as "Locked", RESOLVED 2026-08-23 in `60e3100`.** With an empty `locked` array against a non-empty `supported` array, the posture rail rendered **"LTE · Locked · 0 of 31 bands allowed"**, which reads as *deliberately restricted to nothing*: the opposite of the truth, on the one page whose whole job is saying what the radio is really set to. Confirmed visually 2026-08-22 during verification of this pass, which is why it was recorded last rather than grouped with the others.
+
+   The guess recorded here turned out to be right, and the reasoning is worth keeping. **`locked: []` is not a modem state.** The modem has no concept of an empty band restriction, and `unlockAll` represents "unlocked" as *all* supported bands rather than as none, so an empty array only ever arrives one way: `current.sh` failed and the caller fell back to `[]`. The supported list comes from a **different** source, the poller snapshot, so it stays fully populated straight through that failure, which is what produced the `locked=[] supported=[31]` signature. That failure is routine rather than exotic: `qcmd` gives a 5s flock budget and the poller re-takes the AT mutex every ~4 seconds, so a page load can simply lose the race.
+
+   Nothing in the two arrays can tell a failed read from a genuine one, so the caller now says. `categoryPosture(locked, supported, hasReading)` takes a third argument and returns a new `BandPosture` member, **`unavailable`**, when `hasReading` is false; the coordinator passes `currentBands !== null`. Everything downstream of that is covered under [When the band read fails](#when-the-band-read-fails). Every other branch is unchanged, so an empty locked list from a *successful* read still reads `locked`: contradictory, but genuinely reported, and therefore the honest render for that case.
 
 ## Related
 

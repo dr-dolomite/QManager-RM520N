@@ -77,14 +77,29 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
 
     qlog_info "Setting RAT acquisition order: $ORDER"
 
+    # qcmd never writes the literal string "ERROR" to stdout — a failure is
+    # signaled by exit status + stderr, with stdout left empty — so matching
+    # stdout for "*ERROR*" here could never fire and a rejected write always
+    # fell through to "success". rc is captured on the very next statement,
+    # before anything else touches $?. A write additionally needs to see the
+    # modem's own "OK": qcmd's third exit arm can return 0 with unconfirmed
+    # pass-through data for a response that contains neither OK nor ERROR.
+    # The assertion must match a LINE that IS "OK", not a substring —
+    # $result is the command echoed back plus its response, and $ORDER (only
+    # validated as uppercase/digits/colons) can legitimately contain the two
+    # characters "OK" itself, which would false-positive a `*OK*` glob. Same
+    # convention as strip_at_response's `/^OK$/d`.
     result=$(qcmd "AT+QNWPREFCFG=\"rat_acq_order\",$ORDER" 2>/dev/null)
-    case "$result" in
-        *ERROR*)
-            qlog_error "Failed to set rat_acq_order: $result"
-            cgi_error "at_failed" "AT+QNWPREFCFG returned ERROR"
-            exit 0
-            ;;
-    esac
+    rc=$?
+    order_ok="false"
+    if [ $rc -eq 0 ] && printf '%s' "$result" | tr -d '\r' | grep -qx 'OK'; then
+        order_ok="true"
+    fi
+    if [ "$order_ok" != "true" ]; then
+        qlog_error "Failed to set rat_acq_order (rc=$rc): $result"
+        cgi_error "at_failed" "Modem rejected the RAT acquisition order"
+        exit 0
+    fi
 
     qlog_info "RAT acquisition order set to: $ORDER"
     cgi_success
