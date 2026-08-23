@@ -189,13 +189,16 @@
       "title": "Live configuration",
       "eyebrow": "Lock posture",
       "rail_subtitle_unknown": "Not reported yet",
+      "rail_subtitle_unavailable": "Band configuration couldn't be read",
       "rail_subtitle_none": "No band restrictions in place",
       "rail_subtitle_all": "All three radios are restricted",
       "rail_subtitle_partial": "{{count}} of {{total}} radios restricted",
       "rail_ratio": "{{count}} of {{total}} bands allowed",
+      "rail_unavailable": "Couldn't read this radio's bands",
       "rail_status_locked": "Locked",
       "rail_status_unrestricted": "Unrestricted",
       "rail_status_unknown": "Not reported",
+      "rail_status_unavailable": "Unavailable",
       "on_air": "On air now",
       "on_air_summary_one": "{{count}} carrier · {{mhz}} MHz",
       "on_air_summary_other": "{{count}} carriers · {{mhz}} MHz",
@@ -249,12 +252,18 @@
       "status_scenario": "Scenario controlled",
       "status_unrestricted": "All bands",
       "status_locked": "{{count}} of {{total}} locked",
+      "status_unavailable": "Not readable",
+      "unavailable_note": "The current band lock could not be read, so these controls are inactive. Applying a selection now would write over a lock this card cannot show. Use Refresh above once the modem answers.",
       "pending_one": "{{count}} pending change",
       "pending_other": "{{count}} pending changes",
       "legend_selected": "Selected",
       "legend_live": "Currently locked",
       "empty_title": "Nothing to lock here",
       "empty_body": "The modem reports no supported bands in this category."
+    },
+    "states": {
+      "read_error_title": "Couldn't read the band configuration",
+      "read_error_body": "The modem didn't answer, so this page can't show which bands are currently locked. Try again in a moment. {{reason}}"
     },
     "actions": {
       "lock_selected": "Lock Selected Bands",
@@ -1539,7 +1548,9 @@
       "camped_empty_body": "The modem is not reporting a serving cell. Channels can still be entered by hand.",
       "add_hint": "Add copies the channel into the list below. A frequency lock takes no PCI, so the modem still chooses the cell.",
       "compare_hint": "A tower lock already pins a channel and a cell. A frequency lock is the looser option: same channel, any cell.",
-      "add_blocked": "Adding is disabled until the tower lock is released."
+      "compare_hint_unknown": "The tower lock state could not be read. A frequency lock is refused while a tower lock is active, so nothing here can be applied until that read succeeds.",
+      "add_blocked": "Adding is disabled until the tower lock is released.",
+      "add_blocked_unknown": "Adding is disabled until the tower lock state can be read."
     },
     "verdict": {
       "unlocked_title": "All channels allowed",
@@ -1548,6 +1559,8 @@
       "locked_body": "The modem may use only the channels below. It still chooses the cell, so the PCI can change.",
       "blocked_title": "Tower lock is holding the radio",
       "blocked_body": "QManager will not write a frequency lock while a tower lock is active. Release the tower lock to use this page.",
+      "blocked_unknown_title": "Tower lock state not confirmed",
+      "blocked_unknown_body": "QManager could not read whether a tower lock is active. Frequency lock changes stay blocked until that read succeeds, because applying one over a live tower lock can crash the modem. Refresh to try again.",
       "unknown_title": "Lock state not reported",
       "unknown_body": "The modem did not answer the last status read. Refresh to try again.",
       "serving_in_list": "Serving channel is in the list",
@@ -1624,6 +1637,8 @@
       "live_title": "Lock live on the modem",
       "blocked_title": "Apply is unavailable while a tower lock is active",
       "blocked_readback": "Tower lock active · frequency lock unavailable",
+      "blocked_unknown_title": "Apply is unavailable until the tower lock state can be read",
+      "blocked_unknown_readback": "Tower lock state unknown, so writing is blocked",
       "applying_title": "Waiting for the modem to come back",
       "applying_readback": "Sent {{seconds}} s ago",
       "clobbered_title": "The frequency lock is gone",
@@ -1691,6 +1706,9 @@
       "refresh": "Refresh the lock state",
       "remove_entry": "Remove this channel",
       "add_carrier": "Add this carrier to the list"
+    },
+    "errors": {
+      "tower_state_unknown": "The modem did not report whether a tower lock is active, so the frequency lock was not written. Refresh and try again."
     }
   },
   "profiles": {

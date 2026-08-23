@@ -100,15 +100,27 @@ fi
 if [ -n "$imei_rejected" ]; then
     qlog_warn "IMEI rejected: $imei_rejected — switching to backup IMEI: $backup_imei"
 
-    # Write backup IMEI
+    # Write backup IMEI. qcmd never puts the literal "ERROR" on stdout
+    # (failure = exit status + stderr, empty stdout), so matching stdout for
+    # "*ERROR*" could never fire and a rejected write always fell through as
+    # success — which here means proceeding to reboot on an IMEI that was
+    # never actually written. rc is captured immediately; a write also needs
+    # to see the modem's own "OK" since qcmd's third exit arm can return 0
+    # with unconfirmed data for a response containing neither OK nor ERROR.
     result=$(qcmd "AT+EGMR=1,7,\"${backup_imei}\"" 2>/dev/null)
-    case "$result" in
-        *ERROR*)
-            qlog_error "Failed to write backup IMEI: $result"
-            rm -f "$CHECK_PENDING"
-            exit 1
-            ;;
-    esac
+    rc=$?
+    egmr_ok="false"
+    # Line-exact, not a *OK* substring glob: the response echoes the
+    # issued command back, so an argument containing "OK" would match
+    # itself. A 15-digit IMEI cannot today, but the guard is free.
+    if [ $rc -eq 0 ] && printf '%s' "$result" | tr -d '\r' | grep -qx 'OK'; then
+        egmr_ok="true"
+    fi
+    if [ "$egmr_ok" != "true" ]; then
+        qlog_error "Failed to write backup IMEI (rc=$rc): $result"
+        rm -f "$CHECK_PENDING"
+        exit 1
+    fi
 
     # CRITICAL: Remove flag BEFORE reboot to prevent infinite loops
     rm -f "$CHECK_PENDING"

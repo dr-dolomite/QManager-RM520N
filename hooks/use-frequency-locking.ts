@@ -73,6 +73,18 @@ export interface UseFrequencyLockingReturn {
   isNrLocking: boolean;
   /** Error message from the last operation */
   error: string | null;
+  /**
+   * The backend's machine-readable `error` field from the last STRUCTURED
+   * failure (an HTTP 200 body with `success !== true`), or null.
+   *
+   * A code, not a sentence, following `use-tower-locking.ts`: rendered copy
+   * lives in the components where `useTranslation` is, so a message cannot ship
+   * as an English literal from inside a hook that has no namespace. The one
+   * code this surface currently translates is `tower_state_unknown`, which
+   * `lock.sh` returns when it cannot confirm the tower lock state and therefore
+   * refuses to write.
+   */
+  errorCode: string | null;
 
   /** Lock LTE to specific EARFCNs (1-2). */
   lockLte: (earfcns: number[]) => Promise<boolean>;
@@ -83,10 +95,23 @@ export interface UseFrequencyLockingReturn {
   /** Clear NR frequency lock. */
   unlockNr: () => Promise<boolean>;
 
-  /** Whether LTE tower lock is active (blocks LTE freq lock) */
+  /** Whether LTE tower lock is active (blocks LTE freq lock). An UNREADABLE
+   *  tower state reports true here - see the derived-state block. */
   towerLockLteActive: boolean;
-  /** Whether NR tower lock is active (blocks NR freq lock) */
+  /** Whether NR tower lock is active (blocks NR freq lock). Same fail-safe
+   *  rule as the LTE leg. */
   towerLockNrActive: boolean;
+  /**
+   * Whether the two flags above are a READING rather than a fail-safe default.
+   *
+   * False when `status.sh` has not answered, or answered with `null` for either
+   * leg. The gate stays conservative either way, but copy must not assert a
+   * tower lock is active when nobody read one: a surface may only claim a
+   * device fact it actually has. The two blocked-explanation surfaces (the hero
+   * verdict and the apply bar) branch on this; the per-leg cards keep a plain
+   * boolean gate on purpose.
+   */
+  towerLockStateKnown: boolean;
 
   /** Manually refresh state. */
   refresh: () => void;
@@ -100,6 +125,7 @@ export function useFrequencyLocking(): UseFrequencyLockingReturn {
   const [isLteLocking, setIsLteLocking] = useState(false);
   const [isNrLocking, setIsNrLocking] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [errorCode, setErrorCode] = useState<string | null>(null);
 
   const mountedRef = useRef(true);
   const retryCountRef = useRef(0);
@@ -132,7 +158,10 @@ export function useFrequencyLocking(): UseFrequencyLockingReturn {
       if (!mountedRef.current) return;
 
       if (!data.success) {
+        // `cgi_error` answers with HTTP 200, so a rejected read is only visible
+        // here, never through `resp.ok`.
         setError(data.error || "Failed to fetch frequency lock status");
+        setErrorCode(data.error ?? null);
         return;
       }
 
@@ -140,6 +169,7 @@ export function useFrequencyLocking(): UseFrequencyLockingReturn {
         setModemState(data.modem_state);
       }
       setError(null);
+      setErrorCode(null);
       // Stamped only on a SUCCESSFUL read. A failed fetch must leave the old
       // stamp alone, so the age shown on screen keeps counting up from the last
       // reading that actually happened rather than resetting on every retry.
@@ -152,6 +182,7 @@ export function useFrequencyLocking(): UseFrequencyLockingReturn {
           ? err.message
           : "Failed to fetch frequency lock status";
       setError(msg);
+      setErrorCode(null);
 
       // Auto-retry with exponential backoff (2s, 4s, 8s)
       if (retryCountRef.current < MAX_RETRIES) {
@@ -185,6 +216,7 @@ export function useFrequencyLocking(): UseFrequencyLockingReturn {
       setLocking: (v: boolean) => void
     ): Promise<boolean> => {
       setError(null);
+      setErrorCode(null);
       setLocking(true);
 
       try {
@@ -202,7 +234,10 @@ export function useFrequencyLocking(): UseFrequencyLockingReturn {
         if (!mountedRef.current) return false;
 
         if (!data.success) {
+          // Same HTTP 200 caveat as the read: `data.success !== true` is the
+          // only signal. `detail` is the human half, `error` the machine code.
           setError(data.detail || data.error || "Frequency lock operation failed");
+          setErrorCode(data.error ?? null);
           return false;
         }
 
@@ -281,8 +316,24 @@ export function useFrequencyLocking(): UseFrequencyLockingReturn {
   // ---------------------------------------------------------------------------
   // Derived state
   // ---------------------------------------------------------------------------
-  const towerLockLteActive = modemState?.tower_lock_lte_active ?? false;
-  const towerLockNrActive = modemState?.tower_lock_nr_active ?? false;
+  // FAIL SAFE, NOT FAIL OPEN. These fields are tri-state: `null` means
+  // `status.sh` could not read the tower lock state. The old `?? false` turned
+  // that unknown into "no tower lock", so `heroPosture` never reached "blocked"
+  // and Apply stayed live over a state nobody had read - while stacking a
+  // frequency lock on an active tower lock can crash-dump the modem. An
+  // unreadable state now blocks, exactly as an active one does. A null
+  // `modemState` (the read never answered at all) blocks for the same reason.
+  const towerLockLteActive = modemState?.tower_lock_lte_active ?? true;
+  const towerLockNrActive = modemState?.tower_lock_nr_active ?? true;
+
+  // But the gate and the COPY are different questions. Blocking on an unknown
+  // state is correct; saying "a tower lock is active" when nothing was read
+  // would be the UI asserting a device fact it does not have. The two surfaces
+  // that explain the block branch on this instead.
+  const towerLockStateKnown =
+    modemState != null &&
+    modemState.tower_lock_lte_active !== null &&
+    modemState.tower_lock_nr_active !== null;
 
   // ---------------------------------------------------------------------------
   // Manual refresh
@@ -304,12 +355,14 @@ export function useFrequencyLocking(): UseFrequencyLockingReturn {
     isLteLocking,
     isNrLocking,
     error,
+    errorCode,
     lockLte,
     unlockLte,
     lockNr,
     unlockNr,
     towerLockLteActive,
     towerLockNrActive,
+    towerLockStateKnown,
     refresh,
   };
 }

@@ -5,7 +5,10 @@ import { motion, type Variants } from "motion/react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 
-import { ConditionScreen } from "@/components/cellular/condition-screen";
+import {
+  CONDITION_TONE,
+  ConditionScreen,
+} from "@/components/cellular/condition-screen";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -89,6 +92,15 @@ export interface BandGridCardProps {
   supportedBands: number[];
   /** Bands currently configured on the modem (from `ue_capability_band`, sorted). */
   currentLockedBands: number[];
+  /**
+   * False when `current.sh` failed and `currentLockedBands` is the coordinator's
+   * `[]` fallback rather than the modem's answer.
+   *
+   * Without it this card printed "0 of 31 locked" for a failed read, because an
+   * empty locked list and a fully-restricted radio are indistinguishable from
+   * the array alone. See `categoryPosture` in `shapes.ts`.
+   */
+  hasCurrentReading: boolean;
   onLock: (bands: number[]) => Promise<boolean>;
   /** Restores the full supported list. NOT a clear — see `handleRestoreAll`. */
   onRestoreAll: () => Promise<boolean>;
@@ -135,6 +147,7 @@ export function BandGridCard({
   bandCategory,
   supportedBands,
   currentLockedBands,
+  hasCurrentReading,
   onLock,
   onRestoreAll,
   isLocking,
@@ -189,8 +202,15 @@ export function BandGridCard({
     [currentLockedBands],
   );
 
-  const isUnrestricted =
-    categoryPosture(currentLockedBands, supportedBands) === "unrestricted";
+  const posture = categoryPosture(
+    currentLockedBands,
+    supportedBands,
+    hasCurrentReading,
+  );
+  const isUnrestricted = posture === "unrestricted";
+  /** `current.sh` failed, so `currentLockedBands` is the coordinator's `[]`
+   *  fallback rather than the modem's answer. */
+  const isUnavailable = posture === "unavailable";
 
   /** How many chips differ from what is on the modem — the pending-change count. */
   const pendingCount = useMemo(() => {
@@ -203,8 +223,19 @@ export function BandGridCard({
 
   const hasChanges = pendingCount > 0;
   const noneSelected = checkedBands.size === 0;
-  /** Interaction block. Distinct from `isGated` — see the header note. */
-  const isFrozen = isGated || isBusy;
+  /**
+   * Interaction block. Distinct from `isGated` — see the header note.
+   *
+   * `isUnavailable` belongs in it, and leaving it out was the defect. That
+   * posture was used only for DISPLAY: the header chip said "Not readable"
+   * while the grid underneath drew 31 unselected, ring-less chips, which says
+   * the opposite — that nothing is locked. An unavailable read means the
+   * current lock is UNKNOWN, so any write from this card is BLIND: ticking one
+   * band and pressing Apply sends that band alone and silently destroys a lock
+   * the user was never shown. Freezing every control is the only honest state
+   * until the read succeeds.
+   */
+  const isFrozen = isGated || isBusy || isUnavailable;
 
   const toggleBand = (band: number) => {
     setCheckedBands((prev) => {
@@ -316,23 +347,42 @@ export function BandGridCard({
   }
 
   // --- Loaded ----------------------------------------------------------------
-  const statusKey = isGated
-    ? "scenario"
-    : isUnrestricted
-      ? "unrestricted"
-      : "locked";
+  // `unavailable` OUTRANKS the gate. Both are standing conditions, but the gate
+  // says who may CHANGE this setting while `unavailable` says we do not know
+  // what the setting IS — and a "Scenario controlled" chip over a grid drawn
+  // from a failed read asserts the scenario's bands are the ones shown.
+  //
+  // The count is suppressed rather than zeroed: "0 of 31 locked" is the exact
+  // fabrication this branch exists to delete, and a zero is a claim where the
+  // truth is an absence.
+  const statusKey: keyof typeof CATEGORY_BADGE =
+    posture === "unavailable"
+      ? "unavailable"
+      : isGated
+        ? "scenario"
+        : isUnrestricted
+          ? "unrestricted"
+          : "locked";
   const status = CATEGORY_BADGE[statusKey];
-  const statusLabel = isGated
-    ? t("band_locking.card.status_scenario")
-    : isUnrestricted
-      ? t("band_locking.card.status_unrestricted")
-      : t("band_locking.card.status_locked", {
-          count: currentLockedBands.length,
-          total: supportedBands.length,
-        });
+  const statusLabel =
+    posture === "unavailable"
+      ? t("band_locking.card.status_unavailable")
+      : isGated
+        ? t("band_locking.card.status_scenario")
+        : isUnrestricted
+          ? t("band_locking.card.status_unrestricted")
+          : t("band_locking.card.status_locked", {
+              count: currentLockedBands.length,
+              total: supportedBands.length,
+            });
 
   return (
-    <Card className={BAND_CARD} aria-disabled={isGated || undefined}>
+    // Both STANDING conditions, so both belong here; `isBusy` does not, being
+    // transient.
+    <Card
+      className={BAND_CARD}
+      aria-disabled={isGated || isUnavailable || undefined}
+    >
       <CardHeader className={CARD_PAD}>
         <div className="flex items-start justify-between gap-3">
           <div className="flex min-w-0 flex-col gap-1">
@@ -389,6 +439,32 @@ export function BandGridCard({
             <span className={BAND_LEGEND.ITEM}>
               <span className={BAND_LEGEND.SWATCH_LIVE} aria-hidden="true" />
               {t("band_locking.card.legend_live")}
+            </span>
+          </div>
+        ) : null}
+
+        {/* The gated path explains itself through the header chip AND a
+            page-level banner. The unavailable path had only the chip, which
+            names the condition but never says the controls below it are inert
+            or why — so a frozen grid read as a broken one. This is that reason,
+            in the card, next to the controls it applies to.
+
+            `neutral` from the shared tone table, not `NOTICE_TONE`: that one is
+            destructive and belongs to a failed WRITE, which can be on screen at
+            the same time. A missing reading is not a fault of the radio. */}
+        {isUnavailable ? (
+          <div
+            role="status"
+            className={`${NOTICE.ROOT} ${CONDITION_TONE.neutral.container}`}
+          >
+            <span
+              aria-hidden="true"
+              className={`${NOTICE.DISC} ${CONDITION_TONE.neutral.disc}`}
+            >
+              <MaterialSymbol name="visibility_off" size={16} />
+            </span>
+            <span className="min-w-0 flex-1 leading-relaxed">
+              {t("band_locking.card.unavailable_note")}
             </span>
           </div>
         ) : null}

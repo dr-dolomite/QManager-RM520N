@@ -336,8 +336,14 @@ tower_read_persist() {
     result=$(qcmd 'AT+QNWLOCK="save_ctrl"' 2>/dev/null)
     local rc=$?
 
+    # On failure, print "error" (matching the sibling tower_read_lte_lock /
+    # tower_read_nr_lock sentinel) instead of a fabricated "0 0". The only
+    # caller (tower/status.sh) now gates on this function's return status
+    # rather than parsing the printed text, but the text itself must not
+    # look like a legitimately-read "persistence off" value to any future
+    # caller that forgets to check $?.
     if [ $rc -ne 0 ] || [ -z "$result" ]; then
-        printf '0 0'
+        printf 'error'
         return 1
     fi
 
@@ -345,7 +351,7 @@ tower_read_persist() {
     line=$(printf '%s' "$result" | grep '+QNWLOCK:' | head -1 | tr -d '\r')
 
     if [ -z "$line" ]; then
-        printf '0 0'
+        printf 'error'
         return 1
     fi
 

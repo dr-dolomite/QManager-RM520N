@@ -240,7 +240,7 @@ The `scc.*` namespace in `public/locales/*/dashboard.json` is **replaced** by `c
 
 ## Related
 
-- The `/cellular/` Radio Information page, the second consumer of this view model: [radio-information.md](radio-information.md). It reuses `carrierKey`, `reconcileCarriers`, `rsrpToPercent` and `releasedForMs`, and adds the stale freeze that the dashboard strip does not have
+- The `/cellular/` Radio Information page, the second consumer of this view model: [radio-information.md](radio-information.md). It reuses `carrierKey`, `reconcileCarriers` and `releasedForMs`, and adds the stale freeze that the dashboard strip does not have. It stopped reusing `rsrpToPercent` on 2026-08-23 and now lengths its RSRP bar on the shared `signalToProgress()` window like its RSRQ and SINR siblings, which leaves the dashboard strip as `rsrpToPercent`'s only caller
 - Backend AT plumbing and `qcmd` serialization: [at-command-transport.md](at-command-transport.md)
 - Band locking reads active bands from the same `carrier_components` array (`types/band-locking.ts`): see [sim-profiles.md](sim-profiles.md) for how scenario-bound band locks interact
 - CA change alerts (`LTE CA activated`, band add/remove diffs): `scripts/usr/lib/qmanager/events.sh`, routed per [alerts.md](alerts.md)

@@ -57,7 +57,19 @@ if [ "$LOCK_TYPE" = "lte" ]; then
 
     if [ "$ACTION" = "lock" ]; then
         # --- Check tower lock mutual exclusion ---
+        # Fail CLOSED: if we cannot confirm the tower lock state, refuse the
+        # frequency lock write rather than let it fall through as "clear".
+        # tower_read_lte_lock prints the literal string "error" and returns 1
+        # on a failed read; that never matched "locked*" below, so an
+        # unreadable tower state used to silently pass the gate and send the
+        # frequency lock anyway — exactly the stacked-lock crash-dump
+        # path this file's header warns about.
         lte_tower_state=$(tower_read_lte_lock 2>/dev/null)
+        tower_rc=$?
+        if [ $tower_rc -ne 0 ] || [ -z "$lte_tower_state" ] || [ "$lte_tower_state" = "error" ]; then
+            cgi_error "tower_state_unknown" "Cannot confirm whether an LTE tower lock is active, so the frequency lock was not applied. Try again in a moment."
+            exit 0
+        fi
         case "$lte_tower_state" in
             locked*)
                 cgi_error "tower_lock_active" "Cannot use frequency lock while LTE tower lock is active. Disable tower lock first."
@@ -151,7 +163,14 @@ elif [ "$LOCK_TYPE" = "nr" ]; then
 
     if [ "$ACTION" = "lock" ]; then
         # --- Check tower lock mutual exclusion ---
+        # Fail CLOSED here too, same reasoning as the LTE branch above: an
+        # unreadable NR tower state must never be treated as "unlocked".
         nr_tower_state=$(tower_read_nr_lock 2>/dev/null)
+        tower_rc=$?
+        if [ $tower_rc -ne 0 ] || [ -z "$nr_tower_state" ] || [ "$nr_tower_state" = "error" ]; then
+            cgi_error "tower_state_unknown" "Cannot confirm whether an NR tower lock is active, so the frequency lock was not applied. Try again in a moment."
+            exit 0
+        fi
         case "$nr_tower_state" in
             locked*)
                 cgi_error "tower_lock_active" "Cannot use frequency lock while NR tower lock is active. This command cannot be used together with AT+QNWLOCK common/5g."
