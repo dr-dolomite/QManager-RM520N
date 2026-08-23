@@ -391,7 +391,7 @@ Series colour comes from the **ink** tokens directly — `--primary-on-surface` 
 
 **The Direction-Is-Not-A-Radio Rule.** Rose and cyan say which way the bytes are going, on either radio. A download figure on the LTE leg is rose-on-violet and neither hue is guessing about the other. Neither carries a second meaning: counts and capacities are neutral.
 
-**The Glyph-Carries-The-State Rule.** Colour is never the sole carrier. Every status chip has a glyph, no two states in one slot share a glyph, every directional readout pairs its hue with an arrow, and the quality ramp always pairs its colour with bar length. This is load-bearing rather than decorative: adjacent ramp stops are intentionally below the separation floor, and the bar is what makes that safe.
+**The Glyph-Carries-The-State Rule.** Colour is never the sole carrier. Every status chip has a glyph, no two states in one slot share a glyph, every directional readout pairs its hue with an arrow, and the quality ramp always pairs its colour with bar length. This is load-bearing rather than decorative: adjacent ramp stops are intentionally below the separation floor, so colour is never the only channel there. The bar carries magnitude within the scale, and `QUALITY_GLYPH` carries the stop itself.
 
 **The Neutral-Default Rule.** A figure with no honest hue stays neutral. Adding a colour because a block looked plain is the failure mode this whole system exists to prevent, and it is the one that recurs.
 

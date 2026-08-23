@@ -146,7 +146,7 @@ A useful way to hold it: on a dark surface, a container tint groups things; a st
 
 ## The signal-quality ramp
 
-**Short version: this is the one scale in the system that deliberately breaks the 0.05 floor above — and it is only safe because bar length carries the distinction the colour cannot.**
+**Short version: this is the one scale in the system that deliberately breaks the 0.05 floor above, and it is only safe because colour is never the ramp's only channel. A bar carries the magnitude and `QUALITY_GLYPH` carries the stop.**
 
 `--quality-1` … `--quality-5` (plus a `-bar` sibling for each) are a **five-stop continuous scale** for measured signal quality: RSRP, RSRQ, SINR, aim score. Every other colour in this document is a *category* — it answers "what kind of thing is this". The ramp is a **position on a scale**, and that difference drives everything below.
 
@@ -167,7 +167,9 @@ This is the load-bearing fact. Under deuteranopia, hues 27 / 45 / 72 / 115 / 149
 
 **Adjacent stops sit deliberately below the 0.05 floor.** Every non-adjacent pair clears it (worst: 0.055 light, 0.077 dark). That is a designed trade, not an oversight — and the thing bought with it is resolution, five levels where the functional roles could only afford four.
 
-> ⚠️ WARNING: the trade only pays if **bar length is present**. Ramp ink on a numeral with no bar beside it is a **bug**, not a shortcut — it leaves adjacent levels genuinely indistinguishable for one reader in twelve, with nothing else to fall back on. Two independent guards exist in code: `qualityMeterTone()` returns `null` rather than a colour for `none`, and `MetricBar value={null}` draws the track with no fill element at all. A caller that `??`-es a fallback colour past either one re-creates the exact bug this migration removed, where an unread antenna painted green.
+**What each channel actually carries.** Bar **length** carries *magnitude within the scale*, not the stop boundary. `signalToProgress()` is a continuous map, so at any cut it draws both sides nearly the same (an RSRP of -80 dBm is 100% and -81 dBm is 98.3%), and that is honest: two readings 1 dB apart *are* nearly the same signal. What separates one **stop** from the next is `QUALITY_GLYPH`'s monotonic wedge ladder, which survives greyscale and every CVD type. Widening the map would not change this; it would reproduce the same near-identity at every cut while shortening every bar. Recorded 2026-08-23 after a review proposed exactly that widening.
+
+> ⚠️ WARNING: the trade only pays if a **second channel is present**. Ramp ink on a numeral with no bar beside it is a **bug**, not a shortcut: it leaves colour as the only carrier, which for one reader in twelve is no carrier at all. Two independent guards exist in code: `qualityMeterTone()` returns `null` rather than a colour for `none`, and `MetricBar value={null}` draws the track with no fill element at all. A caller that `??`-es a fallback colour past either one re-creates the exact bug this migration removed, where an unread antenna painted green.
 
 ### Light-mode stops 1–3 are deep reds and browns, and that is a ceiling
 

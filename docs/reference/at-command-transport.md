@@ -112,25 +112,39 @@ The rule is **guard the transport result, not the individual fields**:
 
 `scripts/www/cgi-bin/quecmanager/cellular/settings.sh` is the reference implementation (see [cellular-basic-settings.md](cellular-basic-settings.md) > *The read contract*).
 
-### ⚠️ This is NOT fixed repo-wide
+### The repo-wide sweep, and what is left
 
-`cellular/settings.sh` is the **first and only** script migrated. Do not assume the rest of the tree follows this contract — verified as of 2026-08-14:
+The broken half of this was swept on **2026-08-23 in `b4d87ef`**: 26 sites across 9 files, plus companion fixes in two library functions, for 11 files touched. Every `*ERROR*` arm that had no `rc` check and no emptiness guard in front of it is gone, replaced by `rc` capture on the statement immediately following the assignment. Inventory below re-verified against `grep -rn 'in \*ERROR\*\|\*ERROR\*)' scripts/` on **2026-08-23**.
 
-**Failure genuinely undetected — 20 sites across 7 files.** These match `*ERROR*` against `qcmd` stdout with no `rc` check and no emptiness guard, so a lock timeout or modem rejection is reported as success:
+What the sweep bought, in the terms a user would have seen it: `qmanager_tower_schedule` used to flip config to `enabled:true`, spawn the failover watcher and re-apply MTU for a scheduled lock that never reached the modem. `imei.sh` and `qmanager_imei_check` returned `reboot_required:true` for a rejected `AT+EGMR` and cleared the pending flag, so the user rebooted for nothing and it never retried. `ip_passthrough.sh` persisted and served back a config whose every AT command had been rejected, then rebooted the device. And `frequency/status.sh` and `tower/status.sh` asserted "no lock active" on a failed read, which is the fabrication that made `frequency/lock.sh`'s mutual-exclusion gate **fail open** on a path whose own header warns that stacking a frequency lock on a tower lock can crash-dump the modem.
 
-| File | Sites |
-| ---- | ----- |
-| `scripts/www/cgi-bin/quecmanager/network/ip_passthrough.sh` | 7 |
-| `scripts/www/cgi-bin/quecmanager/cellular/mbn.sh` | 4 |
-| `scripts/usr/bin/qmanager_tower_schedule` | 4 |
-| `scripts/usr/bin/qmanager_tower_failover` | 2 |
-| `scripts/www/cgi-bin/quecmanager/cellular/network_priority.sh` | 1 |
-| `scripts/www/cgi-bin/quecmanager/cellular/imei.sh` | 1 |
-| `scripts/usr/bin/qmanager_imei_check` | 1 |
+> ℹ️ NOTE: fixing detection **activates** branches that had never executed, so each newly-reachable body needs reviewing rather than assuming. That is not a formality: the sweep surfaced a live latent bug in `qmanager_tower_failover` (one shared `ok` flag OR'd across both RATs) and a second in `qmanager_watchcat`'s Tier 3 SIM check, where a single failed `AT+CPIN?` concluded "no SIM in the backup slot" and reverted a working failover. See [connection-watchdog.md](connection-watchdog.md).
 
-**Safe by accident — 2 sites.** `scripts/www/cgi-bin/quecmanager/cellular/fplmn.sh` guards with `[ -z "$resp" ]` first. Because empty stdout ⇔ failure, that guard catches every failure; its `*ERROR*` arm is merely unreachable. Fine today, fragile if someone removes the emptiness check.
+**Writes now assert the modem's own `OK`.** Five files gained the assertion:
+
+```sh
+if [ $rc -eq 0 ] && printf '%s' "$result" | tr -d '\r' | grep -qx 'OK'; then
+```
+
+It is **`grep -qx`, line-exact, never a `*OK*` glob.** A `qcmd` response echoes the issued command back on its own line, so a glob would match any argument containing the letters "OK" and confirm a write against its own echo. The `tr -d '\r'` is there because the modem terminates lines with CRLF and `-x` anchors the whole line. Current call sites: `qmanager_imei_check:116`, `cellular/imei.sh:127`, `cellular/mbn.sh:142`, `cellular/network_priority.sh:95`, `network/ip_passthrough.sh:132`.
+
+**Open follow-up: the assertion is not universal yet.** The write sites in `tower/lock.sh`, `frequency/lock.sh`, `bands/lock.sh`, `tower/settings.sh`, `qmanager_tower_schedule` and `qmanager_tower_failover` are `rc`-guarded but carry **no** `OK` assertion. `rc` alone is not quite enough, because `qcmd`'s third exit arm returns **0 with unconfirmed data**: a response that contains neither `OK` nor `ERROR` and is non-empty is passed through for the caller to judge (`qcmd:184-194`), on purpose, since some compound queries answer without a trailing `OK`. A write that lands in that arm reports success it has not been told about.
+
+**Safe by accident: leave alone, but know why they are safe.**
+
+| File | Why it works |
+| ---- | ------------ |
+| `cellular/fplmn.sh` (2 sites) | Guards with `[ -z "$resp" ]` **before** the `case`. Empty stdout ⇔ failure, so that guard catches every failure and the `*ERROR*` arm is merely unreachable |
+| `qmanager_band_failover` (3 sites, `:122`, `:136`, `:150`) | The `case` arms are `*ERROR*\|""`: the **empty-string arm** is what catches every real failure. Correct behaviour reached through the wrong test |
+
+Both are fragile in the same way: delete the emptiness half and the failure detection goes with it, silently, with no gate able to see it. `qmanager_band_failover` is the weaker of the two, because all three of its sites are **writes** (`AT+QNWPREFCFG="lte_band"` and friends) and none of them assert the modem's `OK`, so a `qcmd` third-arm pass-through still logs "LTE bands reset OK".
 
 **Already correct.** `cgi_at.sh` (`run_at()`), `qmanager_poller` (`qcmd_exec()`), `scenario_mgr.sh`, `bands/lock.sh`, `bands/current.sh`, `frequency/lock.sh`, `tower/lock.sh` and `tower/settings.sh` all test `[ $rc -ne 0 ] || [ -z "$result" ]` before the `case`. Their `*ERROR*` arms are unreachable belt-and-braces, not bugs — **prefer `run_at()` from `cgi_at.sh` in new CGI code** rather than open-coding the check.
+
+**`qmanager_poller` was deliberately excluded from the sweep**, and both of its issues are recorded here rather than fixed:
+
+- `qcmd_exec`'s `*ERROR*` arm (`:441`) sits behind the correct guard, so it is unreachable; its `return 2` is therefore dead, and so is the `[ $rc -eq 2 ]` branch in `poll_serving_cell` (`:1044`) that treats rc 2 as "modem reachable". Harmless today. It was left alone because this is the ~4s hot path that feeds the entire app, and touching it is a change with its own blast radius.
+- `:2114` seeds carrier-aggregation defaults on a failed read: `ca_active:false`, `count:0`, `carrier_components:[]`. That is the **same fabrication class** the sweep just removed elsewhere, published as fact into `/tmp/qmanager_status.json`. A separate change; see [carrier-aggregation.md](carrier-aggregation.md).
 
 **Not qcmd output at all — leave alone.** `qcmd` itself (`qcmd:175`) classifies `atcli_smd11`'s raw reply, which is exactly where `ERROR` legitimately appears. `parse_at.sh:337` classifies raw `AT+CPIN?` text handed to it by the poller.
 

@@ -47,7 +47,7 @@ Every one is a `AT+QNWCFG` parameter. **The key is `lte_earfcn_lock` / `nr5g_ear
 | Clear LTE | `AT+QNWCFG="lte_earfcn_lock",0` | `lock.sh:123` |
 | Lock NR (1–32 entries) | `AT+QNWCFG="nr5g_earfcn_lock",<n>,<arfcn1>:<scs1>[:<arfcn2>:<scs2>…]` | `lock.sh:205` |
 | Clear NR | `AT+QNWCFG="nr5g_earfcn_lock",0` | `lock.sh:227` |
-| Tower-lock gate read (both legs) | `AT+QNWLOCK="common/4g"` / `="common/5g"` via `tower_read_lte_lock` / `tower_read_nr_lock` | `status.sh:99,107`; `lock.sh:60,154` |
+| Tower-lock gate read (both legs) | `AT+QNWLOCK="common/4g"` / `="common/5g"` via `tower_read_lte_lock` / `tower_read_nr_lock` | `status.sh` (tri-state, publishes `null` on a failed read); `lock.sh` (fails closed with `tower_state_unknown`) |
 
 Three things about that syntax are load-bearing and have each cost a recon round:
 
@@ -111,6 +111,8 @@ So the strip's head carries an explicit `as of HH:MM` chip and a **Refresh** con
 
 `fetchStatus` auto-retries three times with 2s/4s/8s backoff before the error notice appears.
 
+It also exposes **`errorCode`**, the backend's machine-readable `error` field from the last *structured* failure (an HTTP 200 body with `success !== true`), alongside the human `error` string. It is a **code, not a sentence**, following `use-tower-locking.ts`: rendered copy belongs in the components, where `useTranslation` is, so a message cannot ship as an English literal out of a hook that has no namespace. `frequency-locking.tsx` translates exactly one code today, `tower_state_unknown`. Note that `cgi_error` answers with HTTP 200, so `resp.ok` structurally cannot see any of this; `data.success` is the only honest signal on both the read and the write path.
+
 ## No persistence, and no timestamp
 
 **Short version: nobody knows whether a frequency lock survives a reboot, and until somebody tests it on hardware no copy on this surface may claim that it does.**
@@ -133,8 +135,13 @@ Recorded as an [open question](#known-gaps): reboot survival is untested.
 `frequency/lock.sh` sources `tower_lock_mgr.sh` and refuses to run while a tower lock is active, **before any `qcmd` runs**:
 
 ```sh
-# lock.sh:60 (LTE)
+# lock.sh (LTE); the NR branch is identical against tower_read_nr_lock
 lte_tower_state=$(tower_read_lte_lock 2>/dev/null)
+tower_rc=$?
+if [ $tower_rc -ne 0 ] || [ -z "$lte_tower_state" ] || [ "$lte_tower_state" = "error" ]; then
+    cgi_error "tower_state_unknown" "Cannot confirm whether an LTE tower lock is active, so the frequency lock was not applied. Try again in a moment."
+    exit 0
+fi
 case "$lte_tower_state" in
     locked*)
         cgi_error "tower_lock_active" "Cannot use frequency lock while LTE tower lock is active. Disable tower lock first."
@@ -142,7 +149,13 @@ case "$lte_tower_state" in
 esac
 ```
 
-`lock.sh:154` does the same for NR. `status.sh` also reports `tower_lock_lte_active` / `tower_lock_nr_active` so the page can explain itself before the user tries.
+### The gate failed OPEN until 2026-08-23, and that is why the `rc` capture is not optional
+
+**Short version: an unreadable tower state used to pass the gate, and the write went out anyway.** `tower_read_lte_lock` and `tower_read_nr_lock` print the literal string `error` and return 1 when the read fails. `error` does not match the `locked*` arm, and the `case` had no default, so the script fell straight through and sent the frequency lock. That is precisely the stacked-lock path `lock.sh`'s own file header warns can **crash-dump the modem**: the one outcome the gate exists to prevent was the outcome an unlucky read produced.
+
+It now **fails closed** on both legs, with a new machine code `tower_state_unknown`. Failure is `rc != 0`, empty output, or the `error` sentinel; any of the three refuses the write. Note that the sentinel check alone would not be enough, and neither would `rc` alone: `qcmd` reports failure by exit status and stderr and never writes `ERROR` to stdout ([at-command-transport.md](at-command-transport.md)), so all three tests are there because each catches a case the others do not.
+
+`status.sh` reports `tower_lock_lte_active` / `tower_lock_nr_active` so the page can explain itself before the user tries. Those fields are **tri-state** and the frontend gate is fail-safe in the same direction; see [The tri-state tower-lock contract](#the-tri-state-tower-lock-contract).
 
 Two facts about that gate must not drift:
 
@@ -154,6 +167,28 @@ That asymmetry is why `LOCK_BADGE` carries a **`blocked`** posture, and it is th
 > ℹ️ NOTE: closing the gap means a symmetrical guard in `tower/lock.sh` (read the frequency state, refuse or warn). That is a **backend** change and was explicitly scoped **out** of this frontend rebuild by choice, with the decision to warn in the UI instead. See [Known gaps](#known-gaps) and [tower-locking.md](tower-locking.md#frequency-locking-is-hard-gated-on-tower-lock--one-directionally).
 
 **The gate disables writes, never the card.** A `towerLockActive` card renders a neutral (`info`-glyph, `surface-container`) notice, its inputs go read-only and Apply/Clear go dead — but the whole card is never dimmed with an opacity wash, and **"Use current" stays live**. Prefilling is exactly how a user captures the channel they already validated under the tower lock in order to migrate to the looser one; greying it would disable the single control that helps them.
+
+### The tri-state tower-lock contract
+
+**Short version: "no tower lock is active" and "we could not read whether one is" are different facts, they now stay different all the way from the AT read to the copy on screen, and the gate treats the second one exactly like the first.** Shipped 2026-08-23.
+
+End to end, one field at a time:
+
+| Layer | Shape | Rule |
+| ----- | ----- | ---- |
+| `status.sh` | `true` / `false` / JSON `null` | `null` when `tower_read_*_lock` returns non-zero, empty, or the `error` sentinel. The jq-failure `printf` fallback also emits `null` |
+| `types/frequency-locking.ts` | `boolean \| null` | Both `tower_lock_lte_active` and `tower_lock_nr_active` |
+| `use-frequency-locking.ts` | `boolean` | `modemState?.tower_lock_*_active ?? true`. **Unknown blocks.** A null `modemState` (the read never answered at all) blocks for the same reason |
+| `use-frequency-locking.ts` | `towerLockStateKnown: boolean` | False when `modemState` is null or either leg is `null`. Keeps the *copy* honest, separately from the gate |
+| `lock.sh` | `tower_state_unknown` | Refuses the write independently, on its own fresh read |
+
+Three things about that table are load-bearing.
+
+**`?? true`, not `?? false`.** The old default turned an unread state into "no tower lock", so `heroPosture` never reached `blocked` and Apply stayed live over a state nobody had read. Given what a stacked lock can do to the modem, the safe default is the restrictive one.
+
+**The gate and the copy are separate questions.** Blocking on an unknown state is correct. Printing "a tower lock is active" when nothing was read would be the UI asserting a device fact it does not have, which is the State-Honesty Rule. So `towerLockStateKnown` is a separate derived value, and **only the two surfaces that explain the block read it**: the hero verdict (`freq-lock-hero.tsx`) and the apply bar (`apply-bar.tsx`). The per-leg cards keep a plain boolean gate deliberately, because a card that merely goes read-only does not need to say which of the two reasons applied. The unread branch also swaps the mark from `block` to `visibility_off` while keeping the `blocked` panel tone: the consequence is the same, the fact is not, and two states in one slot may never share a glyph.
+
+**Both layers enforce it, and neither is redundant.** The CGI gate is the real one, because it is the only thing standing between a bad state and the modem, and it runs on its own read rather than trusting anything the client sends. The UI gate exists so the user is told **before** they try, rather than pressing Apply and being refused. Removing either one leaves a real hole: without the CGI gate a stale page can still send the write, and without the UI gate the page invites an action it knows will fail.
 
 ## There is no failover watcher
 
@@ -410,7 +445,7 @@ Five Material Symbols glyphs were added to the subset for this surface: `my_loca
 
 ## Backend contract
 
-**Nothing in the backend was touched by this work.** Both scripts are as they were.
+The 2026-08-22 frontend rebuild touched neither script. Both were changed on **2026-08-23**, for the read-honesty reasons under [The gate failed OPEN](#the-gate-failed-open-until-2026-08-23-and-that-is-why-the-rc-capture-is-not-optional) and [The tri-state tower-lock contract](#the-tri-state-tower-lock-contract).
 
 ### `GET /frequency/status.sh`
 
@@ -425,12 +460,16 @@ Three AT round-trips (one compound `QNWCFG` read plus the two `QNWLOCK` gate rea
     "nr_locked": false,
     "nr_entries": [],
     "tower_lock_lte_active": false,
-    "tower_lock_nr_active": false
+    "tower_lock_nr_active": null
   }
 }
 ```
 
-`nr_entries` elements are `{ "arfcn": 504990, "scs": 30 }`. On a jq failure the script prints a hardcoded all-false fallback (`status.sh:138`) rather than an error, so an unreadable modem renders as "not locked" at the JSON layer — which is why the client treats a null `modemState` as the `unknown` posture rather than as "unlocked".
+`nr_entries` elements are `{ "arfcn": 504990, "scs": 30 }`. `tower_lock_lte_active` and `tower_lock_nr_active` are **tri-state**: `true`, `false`, or `null` meaning the tower read failed. See [The tri-state tower-lock contract](#the-tri-state-tower-lock-contract).
+
+**A failed transport read is an error envelope, not a data object.** If the compound `AT+QNWCFG` read returns non-zero or empty, the script logs and answers `{"success":false,"error":"read_failed","detail":"Unable to read frequency lock state from modem"}` with **no `modem_state` at all**, following the guard-the-transport-result rule in [at-command-transport.md](at-command-transport.md). Absence is the honest signal: the parses below that read are all `grep`-and-default, so on an empty `raw` every one of them would have produced `lte_locked:false` / `nr_locked:false` and published "not locked" as a fact about the modem. That fabrication also fed `lock.sh`'s gate, which is how the gate came to fail open.
+
+The jq-failure fallback `printf` (near the end of the script) still exists for the case where the response cannot be assembled, and it now emits `null` for both tower fields rather than `false`. The client treats a null `modemState` as the `unknown` posture, and as blocking.
 
 > ℹ️ NOTE: `status.sh`'s own header comment says it "Queries 4 AT commands (with sleep between each)". That is stale: the two `QNWCFG` reads were merged into one compound command at `status.sh:31`, and there is a single `sleep 0.1`. Three round-trips, not four.
 
@@ -448,6 +487,7 @@ Success: `{"success":true,"type":"lte","action":"lock","count":2}`. Errors carry
 | Code | Meaning |
 | ---- | ------- |
 | `tower_lock_active` | The one-directional gate refused. **QManager's refusal — the modem never saw the command** |
+| `tower_state_unknown` | The gate could not **read** the tower lock state, so it failed closed. Also QManager's refusal, and also before any `qcmd` write. Retryable: it usually means the AT mutex was lost. This is the one code the surface translates, via `errorCode` |
 | `invalid_count` | LTE outside 1–2, or NR outside 1–32 |
 | `invalid_earfcn` / `invalid_arfcn` | Not a positive integer |
 | `invalid_scs` | Not one of 15, 30, 60, 120, 240 |
@@ -467,7 +507,8 @@ Read-only except for one outbound edge — `onAddChannel` — which is the whole
 | `modemData` | `ModemStatus \| null` | The poller snapshot; source of the carriers and of `nr.scs` |
 | `isLoading` / `isRefreshing` | `boolean` | First paint / quiet re-read |
 | `lastSyncedAt` | `number \| null` | Drives the `as of HH:MM` chip |
-| `towerLockActive` | `boolean` | The **union** of both legs — the verdict it renders is page-level |
+| `towerLockActive` | `boolean` | The **union** of both legs — the verdict it renders is page-level. Already fail-safe: an unread state arrives here as `true` |
+| `towerLockStateKnown` | `boolean` | False when either leg's tower state is `null`. Switches the verdict copy and the disc mark to the "we could not read this" wording. One of only two components that takes it |
 | `onRefresh` | `() => void` | |
 | `onAddChannel` | `(technology, channel, scs \| null) => void` | `scs` is non-null only for an NR carrier whose spacing the modem actually reported |
 
@@ -484,7 +525,7 @@ Read-only except for one outbound edge — `onAddChannel` — which is the whole
 
 ### `FreqApplyBarProps`
 
-`{ modemState, modemData, isLoading, isBusy, towerLockActive, onClearAll }`. It renders four mutually exclusive branches: loading, applying (`isBusy`), blocked, and locked-or-free.
+`{ modemState, modemData, isLoading, isBusy, towerLockActive, towerLockStateKnown, onClearAll }`. It renders four mutually exclusive branches: loading, applying (`isBusy`), blocked, and locked-or-free. The blocked branch splits its copy and its glyph on `towerLockStateKnown`; it is the second and last consumer of that prop.
 
 ## Card states
 
