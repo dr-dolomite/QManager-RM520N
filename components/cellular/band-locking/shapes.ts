@@ -696,9 +696,13 @@ export const FAILOVER_BADGE: Record<
  * and `warning` means "degraded / constrained", not "you did something wrong".
  * `scenario` is `info` because something else owns the setting right now — a
  * standing condition, not a fault.
+ *
+ * Keyed on `BandPosture` plus the one non-posture state this map also serves,
+ * so a new posture without a chip fails the build here rather than at the two
+ * call sites that index it.
  */
 export const CATEGORY_BADGE: Record<
-  "scenario" | "unrestricted" | "locked" | "unknown",
+  BandPosture | "scenario",
   { variant: BadgeVariant; glyph: MaterialSymbolName }
 > = {
   scenario: { variant: "info", glyph: "shield" },
@@ -712,12 +716,23 @@ export const CATEGORY_BADGE: Record<
   // deliberately — the rail's disc summarises these rows and has to speak their
   // vocabulary.
   unknown: { variant: "muted", glyph: "help" },
+  // The band READ failed. Also `muted` — nothing about the radio is degraded,
+  // we simply do not have the answer — but it must not share `help` with
+  // `unknown`: the two say different things ("the modem carries no such list"
+  // vs "we could not fetch the list it carries"), and no two states in one slot
+  // may share a glyph. `visibility_off` is the "we cannot see it" mark and is
+  // unused anywhere else on this surface.
+  unavailable: { variant: "muted", glyph: "visibility_off" },
 };
 
 /** Badge glyph size. Matches the `[&>svg]:size-3` slot `Badge` reserves. */
 export const BADGE_GLYPH_SIZE = 12;
 
-export type BandPosture = "locked" | "unrestricted" | "unknown";
+export type BandPosture =
+  | "locked"
+  | "unrestricted"
+  | "unknown"
+  | "unavailable";
 
 /**
  * One category's posture, derived the same way in the hero's per-category
@@ -727,11 +742,39 @@ export type BandPosture = "locked" | "unrestricted" | "unknown";
  * `unknown` is a real state, not a loading placeholder: a modem that has not
  * reported a supported-band list yet must not be called "unrestricted" — that
  * would assert "all supported bands available" about a list nobody has seen.
+ *
+ * -----------------------------------------------------------------------------
+ * WHY `hasReading` IS A PARAMETER AND NOT AN INFERENCE
+ * -----------------------------------------------------------------------------
+ * `locked: []` IS NOT A MODEM STATE. The modem has no concept of an empty band
+ * restriction, and `unlockAll` refuses an empty supported list — so an empty
+ * locked array only ever arrives one way: `current.sh` failed and the caller
+ * fell back to `[]`. That failure is routine rather than exotic (`qcmd` gives a
+ * 5s flock budget and the poller re-takes the AT mutex every ~4s, so a page load
+ * can simply lose the race).
+ *
+ * The supported list comes from a DIFFERENT source — the poller snapshot — so it
+ * stays fully populated through that failure. The two branches below therefore
+ * saw `locked=[] supported=[31 bands]` and reported "Locked · 0 of 31 bands
+ * allowed": a failure signature dressed up as a radio state, on the one page
+ * whose job is saying what the radio is really set to.
+ *
+ * Nothing in the two arrays can tell that case apart from a genuine read, which
+ * is why the caller has to say. `hasReading` is `currentBands !== null` at the
+ * coordinator — a boolean, deliberately, rather than making `locked` nullable
+ * and rippling optionality into the chip grids and the pending-change count for
+ * no additional truth.
+ *
+ * The `!hasReading` branch is FIRST and every branch below it is unchanged: an
+ * empty locked list from a SUCCESSFUL read still reads `locked`, which is
+ * correct for that (contradictory, but genuinely reported) case.
  */
 export function categoryPosture(
   locked: number[],
   supported: number[],
+  hasReading: boolean,
 ): BandPosture {
+  if (!hasReading) return "unavailable";
   if (supported.length === 0) return "unknown";
   if (locked.length === 0) return "locked";
   return locked.length >= supported.length &&
@@ -744,7 +787,7 @@ export function categoryPosture(
  * The rail disc's glyph, by the modem's OVERALL posture.
  *
  * THE EVERY-CHIP-HAS-A-GLYPH RULE IS HERO-SCOPED, NOT COMPONENT-SCOPED, and
- * that is what set these three values. `unrestricted` was `cell_tower` — the
+ * that is what set these values. `unrestricted` was `cell_tower` — the
  * same mark `CARRIER_DISC_GLYPH` gives the NR carrier, on the same `bg-primary`
  * fill, one flex row away inside the same hero. A reader would have seen one
  * glyph meaning "no band restrictions" and an identical glyph meaning "this is
@@ -764,18 +807,22 @@ export function categoryPosture(
  * this map at all. `CATEGORY_BADGE.unknown` was moved to `help` in the same
  * change so the disc and the rows it summarises cannot disagree.
  *
- * All three are already in the subset allowlist
+ * `unavailable` is `visibility_off` and shares `CATEGORY_BADGE.unavailable`'s
+ * mark for the same summarising reason — the disc speaks the rows' vocabulary.
+ * It must not borrow `unknown`'s `help`: "the modem carries no such list" and
+ * "we could not fetch the list it carries" are different facts with different
+ * fixes, and the glyph is the only channel separating two `muted` chips.
+ *
+ * All four are already in the subset allowlist
  * (`components/ui/material-symbol-names.ts`), so this surface needs no font
  * regeneration — which matters, because `icons:subset` fetches from Google and
- * cannot run offline. None of the three is used anywhere else in this hero.
+ * cannot run offline. None of the four is used anywhere else in this hero.
  */
-export const POSTURE_GLYPH: Record<
-  "locked" | "unrestricted" | "unknown",
-  MaterialSymbolName
-> = {
+export const POSTURE_GLYPH: Record<BandPosture, MaterialSymbolName> = {
   locked: "lock",
   unrestricted: "lock_open",
   unknown: "help",
+  unavailable: "visibility_off",
 };
 
 /** The rail row's own short badge label, distinct from the category card's

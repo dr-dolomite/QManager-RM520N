@@ -133,6 +133,16 @@ export interface LiveBandHeroProps {
   supportedBands: Record<BandCategory, number[]>;
   /** Bands currently configured on the modem per category (`ue_capability_band`). */
   lockedBands: Record<BandCategory, number[]>;
+  /**
+   * False when `current.sh` failed and `lockedBands` is the coordinator's `[]`
+   * fallback rather than the modem's answer.
+   *
+   * `supportedBands` comes from the poller snapshot and survives that failure
+   * intact, so without this flag the rail printed a fully-populated denominator
+   * against a fabricated zero — "Locked · 0 of 31 bands allowed". See
+   * `categoryPosture` in `shapes.ts`.
+   */
+  hasCurrentReading: boolean;
   onToggleFailover: (enabled: boolean) => Promise<boolean>;
   isLoading: boolean;
   /** True when a Custom SIM Profile or Connection Scenario owns radio config. */
@@ -236,6 +246,7 @@ export function LiveBandHero({
   carrierComponents,
   supportedBands,
   lockedBands,
+  hasCurrentReading,
   onToggleFailover,
   isLoading,
   isGated = false,
@@ -258,9 +269,13 @@ export function LiveBandHero({
     () =>
       BAND_CATEGORIES.map((category) => ({
         category,
-        posture: categoryPosture(lockedBands[category], supportedBands[category]),
+        posture: categoryPosture(
+          lockedBands[category],
+          supportedBands[category],
+          hasCurrentReading,
+        ),
       })),
-    [lockedBands, supportedBands],
+    [lockedBands, supportedBands, hasCurrentReading],
   );
 
   const restrictedCount = postures.filter((p) => p.posture === "locked").length;
@@ -288,25 +303,34 @@ export function LiveBandHero({
    * we are waiting for one: `categoryPosture` returns it only for an empty
    * supported list, and a loading rail draws a skeleton disc instead of reaching
    * this map at all.
+   *
+   * `unavailable` is checked FIRST and cannot be derived from the counts. A
+   * failed read makes all three categories `unavailable`, which leaves both
+   * counters at zero — arithmetically identical to "the modem reported no
+   * supported bands", so the disc would have claimed `unknown` while the
+   * supported lists sat fully populated one column away.
    */
-  const overallPosture: BandPosture =
-    reportedCount === 0
+  const overallPosture: BandPosture = !hasCurrentReading
+    ? "unavailable"
+    : reportedCount === 0
       ? "unknown"
       : restrictedCount === 0
         ? "unrestricted"
         : "locked";
 
   const subtitle =
-    overallPosture === "unknown"
-      ? t("band_locking.live.rail_subtitle_unknown")
-      : overallPosture === "unrestricted"
-        ? t("band_locking.live.rail_subtitle_none")
-        : restrictedCount === postures.length
-          ? t("band_locking.live.rail_subtitle_all")
-          : t("band_locking.live.rail_subtitle_partial", {
-              count: restrictedCount,
-              total: postures.length,
-            });
+    overallPosture === "unavailable"
+      ? t("band_locking.live.rail_subtitle_unavailable")
+      : overallPosture === "unknown"
+        ? t("band_locking.live.rail_subtitle_unknown")
+        : overallPosture === "unrestricted"
+          ? t("band_locking.live.rail_subtitle_none")
+          : restrictedCount === postures.length
+            ? t("band_locking.live.rail_subtitle_all")
+            : t("band_locking.live.rail_subtitle_partial", {
+                count: restrictedCount,
+                total: postures.length,
+              });
 
   const handleToggle = async (checked: boolean) => {
     const ok = await onToggleFailover(checked);
@@ -589,8 +613,8 @@ export function LiveBandHero({
               <Skeleton className={SKELETON_SHAPE.HERO_DISC} />
             ) : (
               <span className={HERO_RAIL_DISC} aria-hidden="true">
-                {/* Three postures, three glyphs. See `overallPosture` for why
-                    this stopped being a hard-coded mark. */}
+                {/* One glyph per posture, no sharing. See `overallPosture` for
+                    why this stopped being a hard-coded mark. */}
                 <MaterialSymbol
                   name={POSTURE_GLYPH[overallPosture]}
                   size={22}
@@ -621,10 +645,18 @@ export function LiveBandHero({
                 ))
               : postures.map(({ category, posture }) => {
                   const badge = CATEGORY_BADGE[posture];
-                  const ratio = t("band_locking.live.rail_ratio", {
-                    count: lockedBands[category].length,
-                    total: supportedBands[category].length,
-                  });
+                  // No ratio for a failed read. The denominator is real (it
+                  // comes from the poller) and the numerator is not, so pairing
+                  // them produced "0 of 31 bands allowed" — a fabricated count
+                  // wearing the authority of a measured one. The row says it
+                  // could not read instead, which is the fact we actually have.
+                  const ratio =
+                    posture === "unavailable"
+                      ? t("band_locking.live.rail_unavailable")
+                      : t("band_locking.live.rail_ratio", {
+                          count: lockedBands[category].length,
+                          total: supportedBands[category].length,
+                        });
                   const statusLabel = t(railStatusKey(posture));
                   return (
                     <button

@@ -89,6 +89,15 @@ export interface BandGridCardProps {
   supportedBands: number[];
   /** Bands currently configured on the modem (from `ue_capability_band`, sorted). */
   currentLockedBands: number[];
+  /**
+   * False when `current.sh` failed and `currentLockedBands` is the coordinator's
+   * `[]` fallback rather than the modem's answer.
+   *
+   * Without it this card printed "0 of 31 locked" for a failed read, because an
+   * empty locked list and a fully-restricted radio are indistinguishable from
+   * the array alone. See `categoryPosture` in `shapes.ts`.
+   */
+  hasCurrentReading: boolean;
   onLock: (bands: number[]) => Promise<boolean>;
   /** Restores the full supported list. NOT a clear — see `handleRestoreAll`. */
   onRestoreAll: () => Promise<boolean>;
@@ -135,6 +144,7 @@ export function BandGridCard({
   bandCategory,
   supportedBands,
   currentLockedBands,
+  hasCurrentReading,
   onLock,
   onRestoreAll,
   isLocking,
@@ -189,8 +199,12 @@ export function BandGridCard({
     [currentLockedBands],
   );
 
-  const isUnrestricted =
-    categoryPosture(currentLockedBands, supportedBands) === "unrestricted";
+  const posture = categoryPosture(
+    currentLockedBands,
+    supportedBands,
+    hasCurrentReading,
+  );
+  const isUnrestricted = posture === "unrestricted";
 
   /** How many chips differ from what is on the modem — the pending-change count. */
   const pendingCount = useMemo(() => {
@@ -316,20 +330,34 @@ export function BandGridCard({
   }
 
   // --- Loaded ----------------------------------------------------------------
-  const statusKey = isGated
-    ? "scenario"
-    : isUnrestricted
-      ? "unrestricted"
-      : "locked";
+  // `unavailable` OUTRANKS the gate. Both are standing conditions, but the gate
+  // says who may CHANGE this setting while `unavailable` says we do not know
+  // what the setting IS — and a "Scenario controlled" chip over a grid drawn
+  // from a failed read asserts the scenario's bands are the ones shown.
+  //
+  // The count is suppressed rather than zeroed: "0 of 31 locked" is the exact
+  // fabrication this branch exists to delete, and a zero is a claim where the
+  // truth is an absence.
+  const statusKey: keyof typeof CATEGORY_BADGE =
+    posture === "unavailable"
+      ? "unavailable"
+      : isGated
+        ? "scenario"
+        : isUnrestricted
+          ? "unrestricted"
+          : "locked";
   const status = CATEGORY_BADGE[statusKey];
-  const statusLabel = isGated
-    ? t("band_locking.card.status_scenario")
-    : isUnrestricted
-      ? t("band_locking.card.status_unrestricted")
-      : t("band_locking.card.status_locked", {
-          count: currentLockedBands.length,
-          total: supportedBands.length,
-        });
+  const statusLabel =
+    posture === "unavailable"
+      ? t("band_locking.card.status_unavailable")
+      : isGated
+        ? t("band_locking.card.status_scenario")
+        : isUnrestricted
+          ? t("band_locking.card.status_unrestricted")
+          : t("band_locking.card.status_locked", {
+              count: currentLockedBands.length,
+              total: supportedBands.length,
+            });
 
   return (
     <Card className={BAND_CARD} aria-disabled={isGated || undefined}>
