@@ -54,6 +54,28 @@ All agents are defined in `.claude/agents/`. Models are pinned per agent — the
 - **Validator (Phase 5):** `busybox-portability-checker` — static audit (shebang, CRLF, BusyBox applet limits, 32-bit arithmetic) **and** scoped on-device verification of the deployed change.
 - **Closer (Phase 6):** `docs-writer`.
 
+### Model Tiering — who gets Opus
+
+**Project agents pin their own model. Dispatch them with NO `model` argument.** The frontmatter in `.claude/agents/*.md` is the decision, already made: `modem-investigator`, `ui-builder` and `docs-writer` are `opus`; `cgi-endpoint-builder`, `busybox-portability-checker` and `installer-safety-auditor` are `sonnet`. A `model` override on the Agent call **silently outranks the pin**, so the only safe habit is not to send one.
+
+**The orchestrator chooses only for the built-ins** — `Explore`, `general-purpose`, `fork` — which carry no pin. The test is what the deliverable IS, not how large the task feels:
+
+| The deliverable is... | Tier | Why |
+| --- | --- | --- |
+| A **list** — census every call site, classify into fixed buckets, trace a known path A→B, sweep for a pattern, apply an already-decided spec, run a build and grep the output | **Sonnet** | The failure mode is *missing an item*. That is diligence, and it is bought with an exhaustive brief, not with model depth. |
+| A **judgment** — adversarial review, breaking a tie between contradictory constraints, sub-architecting a multi-file change, pricing design options, deciding whether a reported defect is real | **Opus** | The failure mode is *concluding something wrong*, and a confident wrong conclusion costs more than the whole run. |
+
+One-line version: **legwork is Sonnet, deciding is Opus.** If the brief can be written as "find every X and put each in one of these buckets", it is Sonnet. If it says "work out whether...", it is Opus.
+
+Three corollaries:
+
+- **Volume is not complexity.** A big task is not automatically an Opus task — an exhaustive census is still legwork no matter how many files it spans. Reach for Opus when the work is *ambiguous*, not when it is *long*.
+- **Never re-tier a running agent.** Killing a near-complete Opus agent to re-run it on Sonnet spends the tokens twice and delays the gate. Let it land; apply the tiering to the next dispatch.
+- **Always pay for the devil's advocate.** Orchestration Mode requires one on every investigation, and it is the definitive judgment role — it is the one built-in dispatch that should be Opus by default, never trimmed for cost.
+
+> ℹ️ NOTE: measured on the 2026-08-23 band-locking follow-up run, which dispatched **six** Opus agents. Only two earned it: the devil's advocate — which overturned or re-scoped four of the six tracked items, including proving one was correct behaviour reported as a defect — and the design-decision lead. Three were exhaustive censuses paying Opus rates for enumeration, and one was a pinned agent whose override was a no-op.
+
+
 ## Hard Rules
 
 - **Tier is decided once, up-front.** If tempted to skip the recon or a validator mid-flow, re-triage rather than skip.
