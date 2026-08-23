@@ -137,17 +137,36 @@ Recorded as an [open question](#known-gaps): reboot survival is untested.
 ```sh
 # lock.sh (LTE); the NR branch is identical against tower_read_nr_lock
 lte_tower_state=$(tower_read_lte_lock 2>/dev/null)
-tower_rc=$?
-if [ $tower_rc -ne 0 ] || [ -z "$lte_tower_state" ] || [ "$lte_tower_state" = "error" ]; then
-    cgi_error "tower_state_unknown" "Cannot confirm whether an LTE tower lock is active, so the frequency lock was not applied. Try again in a moment."
-    exit 0
+tower_rc=$?                       # captured on the NEXT line - a `[` test clobbers $?
+
+# One failed AT read is a transient hiccup, not proof of a lock we cannot see.
+# Retry exactly once, at the same 0.1s spacing tower/status.sh uses between reads.
+if [ "$tower_rc" -ne 0 ] || [ -z "$lte_tower_state" ] || [ "$lte_tower_state" = "error" ]; then
+    sleep 0.1
+    lte_tower_state=$(tower_read_lte_lock 2>/dev/null)
+    tower_rc=$?
+fi
+
+# Normalise every failure signal to the one token the case below refuses on,
+# so no failure can reach a catch-all and be read as "no tower lock".
+if [ "$tower_rc" -ne 0 ] || [ -z "$lte_tower_state" ]; then
+    lte_tower_state="error"
 fi
 case "$lte_tower_state" in
+    error)
+        cgi_error "tower_state_unknown" "Cannot confirm whether an LTE tower lock is active, so the frequency lock was not applied. Try again in a moment."
+        exit 0 ;;
     locked*)
         cgi_error "tower_lock_active" "Cannot use frequency lock while LTE tower lock is active. Disable tower lock first."
         exit 0 ;;
 esac
 ```
+
+Three details in that block are each load-bearing:
+
+- **`tower_rc=$?` sits on the line immediately after the assignment.** `$?` is clobbered by *any* intervening command, including a `[` test. Reordering those two lines re-opens the gate.
+- **The retry is exactly one, not a loop.** It converts a lost AT mutex into a 100ms delay rather than a refusal the user has to understand, while still refusing on a modem that is genuinely not answering. `tower_state_unknown` is documented as retryable for the same reason.
+- **The `rc`, `-z` and `error` tests are all three there, and none is redundant.** `tower_read_lte_lock`'s contract guarantees it prints `error` **and** returns 1 on any failed read, which makes the string and the rc equivalent for every path *inside* the reader. They are not equivalent for the case where the reader never ran at all — the library failed to source, or the fork failed. The variable is then **empty**, which matches neither `error` nor a non-zero rc from the reader, and would fall through as permission. Do not simplify them away on the strength of the equivalence.
 
 ### The gate failed OPEN until 2026-08-23, and that is why the `rc` capture is not optional
 
@@ -189,6 +208,20 @@ Three things about that table are load-bearing.
 **The gate and the copy are separate questions.** Blocking on an unknown state is correct. Printing "a tower lock is active" when nothing was read would be the UI asserting a device fact it does not have, which is the State-Honesty Rule. So `towerLockStateKnown` is a separate derived value, and **only the two surfaces that explain the block read it**: the hero verdict (`freq-lock-hero.tsx`) and the apply bar (`apply-bar.tsx`). The per-leg cards keep a plain boolean gate deliberately, because a card that merely goes read-only does not need to say which of the two reasons applied. The unread branch also swaps the mark from `block` to `visibility_off` while keeping the `blocked` panel tone: the consequence is the same, the fact is not, and two states in one slot may never share a glyph.
 
 **Both layers enforce it, and neither is redundant.** The CGI gate is the real one, because it is the only thing standing between a bad state and the modem, and it runs on its own read rather than trusting anything the client sends. The UI gate exists so the user is told **before** they try, rather than pressing Apply and being refused. Removing either one leaves a real hole: without the CGI gate a stale page can still send the write, and without the UI gate the page invites an action it knows will fail.
+
+#### Why this surface is tri-state and Tower Locking is not
+
+The two surfaces reached read honesty independently and landed on different shapes, and the difference is deliberate rather than an inconsistency to tidy away.
+
+| | This surface | [Tower Locking](tower-locking.md#the-read_ok-contract-absent-means-true) |
+| --- | --- | --- |
+| Shape | `boolean \| null` on the field itself | `boolean` + a sibling `*_read_ok` flag |
+| Question answered | "Is a tower lock active, as far as anyone knows?" | "Is *this particular read* trustworthy?" |
+| Default on unknown | `?? true` — **blocks** | `=== false` — repaints the affected card `unknown` |
+
+A `boolean` + sidecar pair only stays safe if **every** consumer honours the sidecar, which makes it fail **open** by default: the frequency surface's own `?? false` turned an unreadable state into "not active", and two of its four consumers (`apply-bar.tsx`, `freq-lock-hero.tsx`) gate on `*_active` and never read a sidecar at all. On the path whose file header warns about a stacked-lock crash dump, that is the wrong direction to fail. Folding the third value into the field itself puts the fail-safe in the one gate every consumer already reads.
+
+Tower Locking keeps the sidecar shape because its question is genuinely per-read — three independent AT commands feeding three independent cards — and because its consumers are written against it. Its compatibility story is the same one that survives here for free: an un-upgraded CGI emits `false`, never `null`, so absent still means safe.
 
 ## There is no failover watcher
 
@@ -487,7 +520,7 @@ Success: `{"success":true,"type":"lte","action":"lock","count":2}`. Errors carry
 | Code | Meaning |
 | ---- | ------- |
 | `tower_lock_active` | The one-directional gate refused. **QManager's refusal — the modem never saw the command** |
-| `tower_state_unknown` | The gate could not **read** the tower lock state, so it failed closed. Also QManager's refusal, and also before any `qcmd` write. Retryable: it usually means the AT mutex was lost. This is the one code the surface translates, via `errorCode` |
+| `tower_state_unknown` | The gate could not **read** the tower lock state **twice**, 0.1s apart, so it failed closed. Also QManager's refusal, and also before any `qcmd` write. Retryable: it usually means the AT mutex was lost. This is the one code the surface translates, via `errorCode` |
 | `invalid_count` | LTE outside 1–2, or NR outside 1–32 |
 | `invalid_earfcn` / `invalid_arfcn` | Not a positive integer |
 | `invalid_scs` | Not one of 15, 30, 60, 120, 240 |
@@ -551,7 +584,7 @@ Both leg cards render `CARD_SHELL` + `CARD_PAD` in **every** branch, so the shel
 
 ## Related
 
-- [tower-locking.md](tower-locking.md) — the sibling route this page is gated on, its `save_ctrl` persistence (which this feature does **not** have), the unbounded failover watcher, and the same no-`Switch` decision
+- [tower-locking.md](tower-locking.md) — the sibling route this page is gated on, its `save_ctrl` persistence (which this feature does **not** have), the unbounded failover watcher, the same no-`Switch` decision, and its own read-honesty contract: **per-field `*_read_ok` booleans**, deliberately a different shape from the tri-state here (see [Why this surface is tri-state and Tower Locking is not](#why-this-surface-is-tri-state-and-tower-locking-is-not))
 - [band-locking.md](band-locking.md) — the looser sibling, the bounded failover watcher, the error-scoping fix this surface still needs, and the "a number in copy is a claim about the device" lesson
 - [carrier-aggregation.md](carrier-aggregation.md) — `carrier_components[]`, the source of the carriers on air and of the ten per-carrier fields that do **not** include SCS
 - [radio-information.md](radio-information.md) — the poller cadence behind the ~4s clock, the serving-cell-only `nr.scs`, and the compiler-backed `react-hooks` bail-on-first-violation behaviour

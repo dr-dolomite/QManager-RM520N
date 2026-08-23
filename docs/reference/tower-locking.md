@@ -2,7 +2,7 @@
 
 **Tower Locking pins the radio to one specific physical cell — an (EARFCN, PCI) pair on LTE, or a (PCI, ARFCN, SCS, band) tuple on 5G SA — and it is the sharpest instrument in QManager.** Where [Band Locking](band-locking.md) narrows which *frequencies* the modem may use, this page names the *tower*. Get it right and a marginal fixed-wireless install becomes stable; get it wrong and the modem is pinned to a cell it cannot reach, on a device that is serving the very page you are reading. That asymmetry shapes everything below: the confirmation dialog in front of every lock and every unlock, the failover watcher that releases the lock when signal collapses, and the deliberate honesty about *when* the lock state on screen was last read.
 
-The 2026-08 rebuild is **frontend-only**. `hooks/use-tower-locking.ts` gained state and one bug fix but kept its contract; `types/tower-locking.ts` gained two response fields that the backend was already emitting; the five CGI scripts under `scripts/www/cgi-bin/quecmanager/tower/`, `qmanager_tower_failover` and `tower_lock_mgr.sh` were untouched **by that rebuild**. Three of them changed later, on 2026-08-23 in `b4d87ef`, for AT-failure-detection reasons rather than UI ones: `tower/status.sh` (no longer fabricates a lock state on a failed read), `tower_lock_mgr.sh` (`tower_read_persist`'s sentinel), and `qmanager_tower_failover` (see [The failover watcher's release is all-or-nothing](#the-failover-watchers-release-is-all-or-nothing)). What changed is the page shape, the input path (the camped-on carriers are now the picker), the number of ways to apply a lock (**one**), and the copy (0 i18n keys → **155 per locale**, in all five).
+The 2026-08 rebuild is **frontend-only**. `hooks/use-tower-locking.ts` gained state and one bug fix but kept its contract; `types/tower-locking.ts` gained two response fields that the backend was already emitting; the five CGI scripts under `scripts/www/cgi-bin/quecmanager/tower/`, `qmanager_tower_failover` and `tower_lock_mgr.sh` were untouched **by that rebuild**. The backend then changed substantially on **2026-08-23**, for AT-failure-detection reasons rather than UI ones — one change across six files plus a systemd unit, all of it downstream of a single fact: `qcmd` reports failure by **exit status**, never by writing `ERROR` to stdout, so every layer here that pattern-matched printed text was reading a failed command as a successful one. `tower/status.sh` gained the [per-read honesty flags](#the-read_ok-contract-absent-means-true); `tower_lock_mgr.sh` gained the [in-flight marker](#the-in-flight-marker) and lost two fabricated sentinels; `qmanager_tower_failover` stopped [inventing a quality figure out of absent data](#absent-rsrp-is-not-a-measurement-of-zero); `qmanager_tower_schedule` and `tower/lock.sh` picked up real `rc` checks; and `qmanager-tower-failover.service` had its [activation-flag lifecycle](#the-activation-flag-lifecycle) corrected. That change also carried the frontend's honest `unknown` states, and [The Field-Step Rule](#the-field-step-rule-six-invisible-controls). What changed is the page shape, the input path (the camped-on carriers are now the picker), the number of ways to apply a lock (**one**), and the copy (0 i18n keys → **155 per locale**, in all five).
 
 The page shape moved four times, and every move is worth knowing so none of them is undone:
 
@@ -41,7 +41,12 @@ This doc records the things a future contributor will otherwise "clean up": why 
 | Schedule + timer arm | `POST …/tower/schedule.sh` |
 | Failover flags (no modem contact) | `GET …/tower/failover_status.sh` |
 | Failover watcher | `scripts/usr/bin/qmanager_tower_failover` |
-| Shell library (AT + config CRUD) | `scripts/usr/lib/qmanager/tower_lock_mgr.sh` |
+| Failover systemd unit | `scripts/etc/systemd/system/qmanager-tower-failover.service` |
+| Shell library (AT + config CRUD, `tower_write_begin`) | `scripts/usr/lib/qmanager/tower_lock_mgr.sh` |
+| Schedule daemon | `scripts/usr/bin/qmanager_tower_schedule` |
+| Per-read honesty flags | `modem_state.lte_read_ok` / `nr_read_ok` / `persist_read_ok` — **absent means `true`**, test `=== false` |
+| Write-settle marker | `/tmp/qmanager_tower_write_inflight` (`root:root 0666`, seeded in `qmanager_setup`; holds a future UNIX deadline) |
+| Failover activation flag | `/tmp/qmanager_tower_failover` — cleared by the unit's `ExecStartPre`, **not** on stop |
 | Schedule timer arm helper (root) | `scripts/usr/bin/qmanager_tower_schedule_arm` |
 | Config file | `/etc/qmanager/tower_lock.json` |
 | Live carriers (the ACTUAL view) | `hooks/use-modem-status.ts` → `network.carrier_components` |
@@ -150,6 +155,7 @@ This is the State-Honesty Rule applied to **staleness** rather than to content: 
 | `INTERVAL` | 20s | Between checks |
 | `BAD_LIMIT` | 3 | Consecutive sub-threshold readings before failover |
 | `CONFIG_EVERY` | 6 | Cycles between config re-reads — also the **only** exit check |
+| `TOWER_WRITE_SETTLE` | 30s | How long a tower-lock write marks itself in flight, so the watcher skips the reconnect blip. Lives in `tower_lock_mgr.sh`, not the daemon — see [The in-flight marker](#the-in-flight-marker) |
 
 So the fastest path to a failover is `SETTLE + 3 × INTERVAL` ≈ **80 seconds**, and the daemon's main loop is `while true`. It exits in exactly two places: after a failover fires, and when a config re-read (every sixth cycle, ~120s) finds neither `.lte.enabled` nor `.nr_sa.enabled` true.
 
@@ -161,19 +167,33 @@ That asymmetry has two consequences, one visual and one that was a live bug.
 
 Band Locking's `FAILOVER_BADGE` maps a running watcher to `info` + a **spinning** `progress_activity`, which is correct there — a spinner describes a bounded operation that genuinely ends. Copied across, that spinner would run for **the entire life of the lock**: hours, days. It would read as a hung UI, and it breaks the One-Loop Rule (a live *process* is not live *work*).
 
-So the tower map has **four** states, and the running one is a settled `armed`:
+So the tower map has **five** states, and the running one is a settled `armed`:
 
 | Order | Condition | Key | Variant / glyph |
 | ----- | --------- | --- | --------------- |
 | 1 | `!failover.enabled` | `disabled` | `muted` / `do_not_disturb_on` |
 | 2 | `failover.activated` | `fallback` | `warning` / `warning` |
 | 3 | `failover.watcher_running` | `armed` | `success` / `shield` |
-| 4 | `hasActiveLock` (enabled, nothing fired, no watcher yet) | `armed` | `success` / `shield` |
-| 5 | — | `standby` | `info` / `schedule` |
+| 4 | enabled, nothing fired, no watcher, `presence === "present"` | `stalled` | `destructive` / `error` |
+| 5 | … `presence === "unknown"` | `unknown` | `muted` / `help` |
+| 6 | … `presence === "absent"` | `standby` | `info` / `schedule` |
 
-`failoverKey(failover, hasActiveLock)` in `shapes.ts` resolves it, and the order is significant. `activated` outranks `watcher_running` because a watcher that has already fired is reporting a fallback, not protection, even while it keeps looping.
+`failoverKey(failover, presence)` in `shapes.ts` resolves it, and the order is significant. `activated` outranks `watcher_running` because a watcher that has already fired is reporting a fallback, not protection, even while it keeps looping.
+
+**Rows 4–6 used to be one row.** The signature took a `hasActiveLock` **boolean** and returned `armed` when it was true — a claim that a watcher is watching, made in the one case where the config says a lock exists and no watcher is running. That is the reading it must never give, and it is reachable: `qmanager_tower_failover`'s give-up-honestly exit (see [the release is all-or-nothing](#the-failover-watchers-release-is-all-or-nothing)) leaves exactly `enabled && !activated && !watcher_running` with the lock still on.
+
+The boolean was also why `unknown` had nowhere to land. `status.sh` seeds `lte_locked="false"` before it asks the modem anything, so a failed `AT+QNWLOCK` read arrives as `locked:false` — indistinguishable from a genuine "not locked", and the chip promised "nothing to guard" about a modem nobody had managed to ask. The fix is a third value, not a guard:
+
+```ts
+export type TowerLockPresence = "present" | "absent" | "unknown";
+lockPresence(modemState): TowerLockPresence
+```
+
+`lockPresence` resolves it leg by leg: a leg that reports locked **on a successful read** settles it as `present`; failing that, any leg whose read failed makes the whole verdict `unknown`, because an unlocked-and-read leg cannot vouch for its unread sibling; only when both legs were read and neither is locked is the answer honestly `absent`. It tests `=== false`, never `!== true` — see [The `read_ok` contract](#the-read_ok-contract-absent-means-true).
 
 `standby` is the state Band Locking has no equivalent for: **failover is switched on but no lock exists**, so no watcher is running and there is nothing to protect. Calling that "armed" would claim a safety net that is not deployed. It routes to the brand container under the Info-Is-Brand Rule — a standing condition, not a fault.
+
+`stalled` is the only state on this chip that routes to `destructive`, because it is the only one describing something that is not *working*: the net should be out and it is not. Its `error` glyph is unused by the other four, for the reason the paragraph below gives.
 
 Every state carries a **distinct** glyph, which here is mandatory rather than tidy: `success-container` and `warning-container` measure ~1.03:1 apart and are the same surface under deuteranopia, so the glyph is the only channel separating "the safety net is watching" from "the safety net has fired and your lock is not in force". `disabled` is `muted`, never `destructive` — it is deliberately off, not broken.
 
@@ -251,6 +271,116 @@ The UI is honest about this only because `sendLockRequest` calls `fetchStatus()`
 
 Whether the backend behaviour is *right* is a separate question and out of scope for the frontend rebuild. It is recorded in [Known gaps](#known-gaps).
 
+## Read honesty: a failed AT read is not an answer
+
+**Short version: `qcmd` reports failure by exit status and never prints `ERROR` to stdout, so a failed AT command's output is EMPTY — and empty falls through every `case` arm into the success branch.** On this surface that meant six places where a read nobody could complete rendered as a confident answer: a green `Unlocked` chip, a muted `Disabled` persistence chip ("the user turned this off"), a `standby` failover chip, and — worst of the four — a daemon that turned no reading at all into a quality of 0% and cleared both locks over it. All six were fixed together on 2026-08-23.
+
+`$?` is the only signal, and it is fragile: **any** intervening command clobbers it, including a `[` test. Capture it on the very next line.
+
+```sh
+lte_state=$(tower_read_lte_lock)
+lte_rc=$?                          # NOT after the `[ -z ... ]` below
+```
+
+### The `read_ok` contract: absent means true
+
+`GET /tower/status.sh` now emits three booleans inside `modem_state`:
+
+| Field | Vouches for |
+| ----- | ----------- |
+| `lte_read_ok` | `AT+QNWLOCK="common/4g"` → `lte_locked`, `lte_cells` |
+| `nr_read_ok` | `AT+QNWLOCK="common/5g"` → `nr_locked`, `nr_cell` |
+| `persist_read_ok` | `AT+QNWLOCK="save_ctrl"` → `persist_lte`, `persist_nr` |
+
+Three rules, all load-bearing:
+
+1. **`success: true` still means only "the endpoint ran".** The response shape never changes on a failed read — the `*_locked` / `persist_*` fields keep their pre-failure seed value of `false`, so a consumer that reads `lte_locked` without checking `lte_read_ok` sees "unlocked", not an error. The flags exist as separate fields, rather than as a tri-state on the booleans themselves, precisely so the shape is stable.
+2. **ABSENT MEANS `true`. Test `=== false`, NEVER `!== true`.** A statically-exported page bundle can outlive the CGI it talks to, so a cached client will meet an un-upgraded `status.sh` that emits none of these. `!== true` would repaint an entire working page as `unknown` the moment the two halves fall out of step. The fields are optional in `TowerModemState` for exactly this reason, and every consumer (`lockPresence`, `persistPosture`, `matchVerdict`, both leg cards) is written against `=== false`.
+3. **Per-field, not all-or-nothing.** One transient NR read failure must not blind the UI to the two reads that succeeded. `status.sh` deliberately does **not** refuse the whole endpoint on any single failed read; it emits the flags and logs `qlog_error` once with all three return codes.
+
+> ℹ️ NOTE: the flags are emitted with `jq --argjson`, not `--arg`. Via `--arg` they would land as JSON **strings** — and `"false"` is truthy in JavaScript, so every `=== false` test would silently never match and the whole mechanism would be inert while looking correct in the response body.
+
+The jq-failure fallback `printf` at the bottom of `status.sh` emits all three as `false`, which is honest: jq itself failed, so nothing about the modem reads can be vouched for.
+
+Two of the three read helpers also stopped fabricating a sentinel. `tower_read_persist` returned a literal `"0 0"` on failure — a legitimately-parseable "persistence off" — and now returns the string `error` with rc 1, matching its two siblings. And `tower_read_nr_lock` turned a missing `+QNWLOCK:` line into `printf 'unlocked'; return 0`, while its LTE twin returned `error` / rc 1 for the same shape of response.
+
+> ℹ️ NOTE — **settled on live hardware, so nobody re-litigates it.** That NR/LTE asymmetry looked like it might be an empirical accommodation: perhaps `common/5g` legitimately returns nothing on a device with no NR leg. A live probe against an LTE-only device (B28 PCC + B3 SCC, no NR registered at all, SA or NSA) shows `AT+QNWLOCK="common/5g"` returning a full `+QNWLOCK: "common/5g",0` line with rc 0, byte-structurally identical to the `common/4g` reply. **The command answers from the modem's stored lock configuration, not from live NR registration**, so it does not need an NR leg to exist in order to report on one. The fall-through was therefore unreachable on a healthy read, and the asymmetry was sloppiness. The *locked*-NR parse path below it remains unexercised until an NR cell is actually locked on an SA network — a separate, un-gated code path, and not a reason to add speculative handling.
+
+### Absent RSRP is not a measurement of zero
+
+The highest-value fix in the change, because it could destroy a working lock unprompted.
+
+`qmanager_tower_failover` reads `.lte.rsrp` from the poller cache and falls back to `.nr.rsrp`. When **both** were empty it fell through to `quality=0` — and 0 is always below any threshold, so **three consecutive polls with no RSRP (~60s, e.g. a poller hiccup on an otherwise-reachable modem) cleared BOTH locks** and wrote an event reading *"signal quality 0% below 20% threshold"*: a percentage the daemon invented from absent data, presented to the user as a measurement.
+
+It now skips the cycle, the same treatment the modem-unreachable branch above it already had. `calc_signal_quality`'s rc is checked too, on the same principle — it signals invalid input the way `qcmd` signals failure, with rc != 0 plus a printed `0` that must not be mistaken for a measured zero.
+
+> ⚠️ WARNING: **no reading and a bad reading are different facts, and only one of them is evidence.** Any future consumer of the poller cache on a path that can *act* has to make the same distinction. A skipped cycle costs 20 seconds; a fabricated zero costs the user their lock.
+
+### The in-flight marker
+
+**Short version: a lock you just applied could be silently reverted about 20 seconds later by a failover watcher it never coordinated with, and the UI would report success before the revert happened.**
+
+The watcher clears both locks after `BAD_LIMIT` consecutive sub-threshold readings. A lock or unlock write bounces the modem for a few seconds, so a watcher already sitting at `bad=2` — from the *previous* lock — would take the reconnect blip as its third bad reading and clear the brand-new lock. The UI's post-write `fetchStatus()` lands at about +5s, well before that, and reports the lock as applied.
+
+**The first fix attempt was rejected**, and the reason is worth keeping: stopping the watcher before the AT write created four error-exit paths on which the write could fail *after* the stop, leaving a dead watcher with `.failover.enabled` still `true` in config. That trades a 20-second revert for an indefinite, invisible loss of the safety net — strictly worse.
+
+What shipped instead is a marker the *writer* sets and the *watcher* consults:
+
+```sh
+# tower_lock_mgr.sh — called immediately before every tower-lock AT write
+TOWER_WRITE_INFLIGHT="/tmp/qmanager_tower_write_inflight"
+TOWER_WRITE_SETTLE=30
+tower_write_begin() {
+    printf '%s' "$(( $(date +%s) + TOWER_WRITE_SETTLE ))" > "$TOWER_WRITE_INFLIGHT"
+}
+```
+
+Four properties, each deliberate:
+
+**It holds a future deadline, not a boolean.** A `lock.sh` killed mid-write — crash, OOM, lighttpd recycling the CGI — cannot wedge the watcher into skipping forever; the marker simply goes stale. **There is no matching `tower_write_end`, and none should be added**: a `trap … rm -f` cleanup would reintroduce exactly the must-not-leak fragility this shape avoids (and www-data cannot unlink it anyway).
+
+**`TOWER_WRITE_SETTLE=30` is load-bearing for three independent reasons.** Retuning it down means re-deriving all three, and a too-small value fails *silently* and only about half the time:
+
+| Must exceed | Value | Because |
+| ----------- | ----- | ------- |
+| the daemon's `INTERVAL` | 20s | The marker is checked once per cycle. At `SETTLE <= INTERVAL`, whether the daemon ever sees it before it expires is a coin flip on write timing — a write landing in the second half of a cycle expires unseen. This was a real bug at `SETTLE=10` |
+| the attach-cycle link drop | ~4s | The physical event being guarded — the same one the daemon's own `SETTLE=20` estimates |
+| the poller cadence | ~3.7-4.0s | The daemon reads the **cache** (`/tmp/qmanager_status.json`), not live signal, so a bad sample taken during the blip sits in that cache for at least one more poller cycle **after** the blip ends. The guard must outlast blip + cadence. (The cadence is ~4s, not 2s: the poller's `sleep 2` runs *after* the cycle body — see [radio-information.md](radio-information.md)) |
+
+**The daemon resets `bad=0` when it skips**, and this is not leniency. `bad` counts *consecutive readings against one lock target*, and a write **replaces** the target — every sample taken before it was measuring a cell the user has just abandoned. Carrying the count across the write would let a watcher at `bad=2` need only one more bad reading after the marker expires to clear the new lock: the original defect, reproduced one cycle later instead of prevented.
+
+**All four write paths mark themselves**: both lock branches and both unlock branches in `tower/lock.sh`, and both the apply and clear branches of `qmanager_tower_schedule`. The schedule's **clear** branch is the most exposed of them, because it deliberately leaves `.lte.enabled` / `.nr_sa.enabled` `true` in config — so a running watcher keeps sampling against a modem that was just unlocked underneath it, and without the marker the schedule could trigger a failover that permanently disables the very lock it manages.
+
+> ℹ️ NOTE — **the 1970 boot window, deliberately not handled further.** The RM520N has no battery RTC and boots at Jan 1970; `ql_time_daemon` steps the clock ~24s in. If that step lands between `tower_write_begin`'s `date +%s` and the daemon's check, `now` jumps decades past a deadline computed pre-step and the marker stops matching — the skip is lost for that one write. This fails **open** (a normal read, not a wedged-shut watcher), and the `bad=0` reset is what makes it survivable. Switching to `/proc/uptime` for a 30-second window against a once-per-boot event is not worth it. See [scheduled-timers.md](scheduled-timers.md).
+
+The file is seeded `root:root 0666` in `qmanager_setup` because **both UIDs write it** — www-data from `tower/lock.sh` under lighttpd, root from `qmanager_tower_schedule`. It is content-bearing (a parsed timestamp), not an existence-only flag, so the "do not seed a flag" exception does not apply. Without the seed, whichever UID called `tower_write_begin()` first after a boot would own it for the whole uptime and the other's writes would be refused — silently, since the write redirects stderr to `/dev/null`. See [tmp-file-ownership.md](tmp-file-ownership.md#the-tower-lock-in-flight-marker).
+
+### The activation flag lifecycle
+
+`/tmp/qmanager_tower_failover` is the trace that a failover **has fired**. It is what makes the `fallback` chip reachable, and until 2026-08-23 it was unreachable, because two pieces of the system encoded opposite intentions and the wrong one won:
+
+- the daemon writes the flag on activation and then exits 0, and its own `EXIT` trap **deliberately spares** the flag so the trace outlives the process;
+- the systemd unit's `ExecStopPost` deleted it on **every** exit — including that `exit 0`, milliseconds after it was written.
+
+So `activated` was true for a window no poll could ever land in, and `failoverKey`'s `fallback` branch had never once rendered.
+
+The delete moved to `ExecStartPre`. `ExecStopPost` now removes only the PID file. The flag's meaning is therefore precise: **a failover has fired since the watcher last started.**
+
+```ini
+ExecStartPre=-/bin/sh -c 'rm -f /tmp/qmanager_tower_failover'
+ExecStart=/usr/bin/qmanager_tower_failover
+ExecStopPost=/bin/sh -c 'rm -f /tmp/qmanager_tower_failover.pid'
+```
+
+That lifetime is what the chip's copy has to match, and it does: *"Released — weak signal"* is a past-tense report of an event, not a claim about a condition still in progress. It is self-consistent with the state it implies, too — the lock is gone, so there is nothing left to guard and `armed` would be a lie.
+
+Two consequences:
+
+- **`tower/lock.sh` no longer tries to `rm` the flag on its unlock branches.** Those two lines were dead: the CGI runs as `www-data`, the flag is root-owned, and `/tmp` is sticky — so `unlink` returns EPERM, and `rm -f` exits 0 regardless, making the failure invisible. Leaving a fired failover's flag in place until the next watcher start is now deliberate.
+- **The daemon's give-up-honestly exit does not write the flag.** See [the release is all-or-nothing](#the-failover-watchers-release-is-all-or-nothing) — with the flag now surviving the daemon's exit, writing `activated` for an unlock that never confirmed would leave that lie in place indefinitely.
+
+> ℹ️ NOTE: **no installer change was needed.** `install_rm520n.sh:1202` glob-installs every `qmanager*.service` unconditionally on every install and every OTA run, so a unit-file edit ships with the next update on its own.
+
 ## `persist` is one AT write to both radios, and can read back split
 
 "Keep lock after reboot" writes a **single** value to both slots:
@@ -270,27 +400,39 @@ The incumbent UI rendered `config.persist` — the config file's *belief* — an
 | both true | `on` | `success` / `check_circle` |
 | both false | `off` | `muted` / `do_not_disturb_on` |
 | **disagreement** | `split` | `warning` / `warning` |
-| no read yet (`modemState === null`) | `unknown` | `muted` / `schedule` |
+| `persist_read_ok === false`, or no read yet (`modemState === null`) | `unknown` | `muted` / `help` |
 
 `split` is a **real, reportable fault**, not a configuration anyone chose: one write went to both slots, so a split reading means one of them did not take. The tooltip swaps to `persist_split_help` in that state so the chip is explained where it is shown.
 
+> ℹ️ NOTE — corrected 2026-08-23: **the `unknown` row existed but could not be reached.** It was gated on `modemState === null`, which a `success: true` response never produces. `status.sh` seeds both persist flags `false` before it asks the modem anything, so a **failed** read arrived here as `false, false` and rendered the muted `Disabled` chip — "the user turned this off". That was the single most dishonest pixel on the surface, because it describes a deliberate choice nobody made. `persist_read_ok === false` is what makes the branch reachable; see [The `read_ok` contract](#the-read_ok-contract-absent-means-true).
+>
+> The glyph moved from `schedule` to `help` at the same time. A clock says *"waiting, this will arrive"*; the state is *"the modem did not answer and nothing is coming until you retry"*. It also has to stay distinct from `off`'s `do_not_disturb_on` — both are `muted`, so the glyph is the **only** thing separating "switched off" from "never read". The same swap was made on `LEG_BADGE.unknown`, for the same reason.
+
 The persist tile keeps both channels visible on purpose: **the chip reports the modem, the switch drives the config.** They can disagree, and when they do, the `split` chip is the only thing on screen that would tell you.
 
-## Two backend honesty flags are now surfaced
+## Three backend honesty flags are now surfaced
 
-Both were already being emitted by the shell and thrown away by the client. One was not even declared in the response type, so nothing *could* read it.
+The first two were already being emitted by the shell and thrown away by the client; one was not even declared in the response type, so nothing *could* read it. The third was added on 2026-08-23 together with the envelope change that produces it.
 
 | Code | Emitted by | Means |
 | ---- | ---------- | ----- |
 | `service_enable_failed` | `lock.sh` (both lock branches, from `tower_spawn_failover_watcher` rc 2), `settings.sh` | The lock/watcher is **live now** but `svc_enable` failed — it will **not** survive a reboot. Most often a rootfs stuck read-only (see the mount-mode contract in `docs/BACKEND.md` §2.1) |
+| `service_disable_failed` | `lock.sh` (both **unlock** branches, `:223` / `:351`), `settings.sh` | The unlock **landed on the modem**, but `svc_disable` failed — the failover/persistence unit is still armed on boot and will re-arm at the next one |
 | `persist_command_failed` | `settings.sh` | The config was written, but the modem **rejected** the `save_ctrl` AT write — "Keep lock after reboot" did not take |
+
+**`service_disable_failed` arrived with an envelope change, and the two halves are one change.** Those unlock branches used to answer `cgi_error` — i.e. `success: false` — for an operation whose AT write had already **succeeded**, laundering a confirmed unlock into an apparent failure. They now answer `{"success":true, …, "service_disable_failed":true}`, which is the honest envelope. But an honest envelope only reports honestly if something **reads** the field: `success: true` plus a field nobody consumes is strictly *worse* than the misleading error it replaced, because the user is told the unlock worked while the unit re-arms at the next boot in complete silence. Declaring it and consuming it must never be split across two changes.
+
+> ⚠️ WARNING: the hook's warning chain is an `else if` ladder, and `service_disable_failed` was previously folded into the `service_enable_failed` arm. That put *"the lock will not survive a reboot"* on a failure to **disable** — the opposite claim. The two now have their own arms and their own `tower_locking.warning.*` copy.
 
 `tower_spawn_failover_watcher` returns `2` for the "daemon running, boot-persistence lost" case specifically because its *printed* boolean only describes the live daemon; without the distinct return code the lost persistence is invisible to the caller.
 
 The hook exposes them as a `TowerWarningCode`:
 
 ```ts
-export type TowerWarningCode = "service_enable_failed" | "persist_command_failed";
+export type TowerWarningCode =
+  | "service_enable_failed"
+  | "service_disable_failed"
+  | "persist_command_failed";
 ```
 
 It reports **the code, not a sentence** — rendered copy lives in the components, where `useTranslation` is, so a warning can never ship as an English literal from inside a hook that has no namespace. The coordinator maps it to `tower_locking.warning.{code}` and renders a dismissible `role="status"` notice above both sections (`clearWarning()`), and every subsequent write clears it first.
@@ -307,7 +449,9 @@ cgi_error "tower_lock_active" "Cannot use frequency lock while LTE tower lock is
 cgi_error "tower_lock_active" "… This command cannot be used together with AT+QNWLOCK common/5g."
 ```
 
-`frequency/status.sh` also reports `tower_lock_lte_active` / `tower_lock_nr_active` so that page can explain itself.
+`frequency/status.sh` also reports `tower_lock_lte_active` / `tower_lock_nr_active` so that page can explain itself. Those two fields are **tri-state** — `true` / `false` / `null`, where `null` means the tower read failed — and the gate fails **closed** on `null` in both layers, with the machine code `tower_state_unknown`. `frequency/lock.sh` retries the tower read exactly once at 0.1s spacing before refusing, because a single failed AT read is a transient hiccup rather than proof of a lock nobody can see. Until 2026-08-23 that gate failed **open**: the reader's `error` sentinel matched no `case` arm, so an unreadable tower state fell straight through and sent the frequency lock — the stacked-lock path that file's own header warns can crash-dump the modem. See [frequency-locking.md](frequency-locking.md#the-tri-state-tower-lock-contract).
+
+> ℹ️ NOTE: the tri-state is scoped to the **frequency** surface. This page keeps its per-field `*_read_ok` booleans, which answer a different question — *"is this particular read trustworthy?"* rather than *"is a lock active, as far as anyone knows?"*. Both were built independently and merged deliberately; the tri-state won on the frequency side because a `boolean` + sidecar pair fails **open** unless every consumer honours the sidecar, and two of the four there gate on `*_active` alone.
 
 **`tower/lock.sh` has no reciprocal check.** Applying a tower lock while a frequency lock is in force silently clobbers it — the modem takes the `QNWLOCK` write, and the frequency page discovers the change only on its next read. Recorded as a known gap; closing it means a symmetrical guard in `tower/lock.sh` (read `frequency` state, refuse or warn), which is a backend change and was out of scope for a frontend rebuild.
 
@@ -331,6 +475,15 @@ When `qmanager_tower_failover` fires, it clears **both** locks and then declares
 It used to be one shared `ok` flag, set by whichever `case` arm ran last, which is an OR across the two RATs. That meant a failed LTE unlock plus a successful NR unlock reported a complete failover with the LTE lock **still applied**, on the one daemon whose entire purpose is getting the radio out of a lock that killed the connection. The bug was inert only because the surrounding `case "$result" in *ERROR*)` test could never match, so the failure arm never ran and `ok` was forced to 1 regardless. Fixing the detection (`b4d87ef`) would have activated it, which is why the flags were split in the same change.
 
 > ℹ️ NOTE: the generalisable lesson is in the sequencing, not the flag. Repairing a dead check **activates** every branch behind it, so each newly-reachable body has to be read rather than assumed correct. A branch that has never executed has also never been tested.
+
+The retry tail was exactly such a branch, and reading it bore that out. It ran `tower_unlock_lte >/dev/null 2>&1`, discarded the result, then **unconditionally** wrote `.lte.enabled = false | .nr_sa.enabled = false`, wrote the activation flag and logged `FAILOVER COMPLETE (retry)` — whether or not the retry had worked. It now applies the same per-RAT rc check as the first attempt, and when both attempts fail to confirm it takes a **give-up-honestly exit**: it writes neither the activation flag nor the config, appends an `error`-severity event saying the unlock could not be confirmed, and stops.
+
+Two reasons the give-up exit refuses to write:
+
+- **The activation flag now survives the daemon's exit** (see [The activation flag lifecycle](#the-activation-flag-lifecycle)), so an `activated` written for an unlock that never confirmed would tell the UI a failover completed and leave that lie in place indefinitely.
+- **Config is not the source of truth for lock state** — `tower/status.sh`'s live AT reads are, and a failed read there now reports `lte_read_ok` / `nr_read_ok` `false` rather than a confident answer. Forcing `enabled = false` would just layer a second unconfirmed guess on top of the first.
+
+That exit is also what makes `failoverKey`'s new `stalled` state reachable: it leaves exactly `enabled && !activated && !watcher_running` with the lock still on.
 
 ## The standing orders
 
@@ -657,7 +810,11 @@ This reads the **functional contract**, not a value judgement about locking. Pin
 
 **`unknown` is a real state, not a loading placeholder.** A surface that renders a failed read as a confident "Unlocked" is asserting something nobody read back. So the posture is `unknown` whenever `modemState` is null, and the chip says so.
 
-> ℹ️ NOTE: corrected 2026-08-23 (`b4d87ef`). `status.sh` used to reach that same wrong answer at the *backend*: it only ever pattern-matched the printed text of `tower_read_lte_lock` / `tower_read_nr_lock` / `tower_read_persist`, so a failed read fell through the `locked*` arms and was published as `success:true` with a fabricated "unlocked, persistence off" `modem_state`. `modemState` was never null in that case, so the `unknown` posture above could not fire and the chip said "Unlocked". All three helpers had always returned the correct exit status; nothing read it. `status.sh` now captures all three return codes and answers `{"success":false,"error":"read_failed"}` if any of them failed, which is what makes `modemState === null` an honest trigger. The three `error)` arms that logged a warning and continued are gone, since that path can no longer be reached. `tower_read_persist`'s failure sentinel also moved from a fabricated `"0 0"` to the string `"error"`, matching its two siblings, so a future caller that forgets to check `$?` at least cannot mistake a failed read for a legitimately-read "persistence off".
+> ℹ️ NOTE — corrected 2026-08-23, and **the null test alone was never enough**. `modemState` is null only before the first fetch or on an HTTP-level failure; `status.sh` has always answered a literal `success: true` with a populated object, so on a failed AT read the posture above could not fire and the chip said "Unlocked". The backend reached the same wrong answer for the same reason: it only ever pattern-matched the printed text of `tower_read_lte_lock` / `tower_read_nr_lock` / `tower_read_persist`, so a failed read fell through the `locked*` arms and was published with a fabricated "unlocked, persistence off" `modem_state`. All three helpers had always returned the correct exit status; nothing read it.
+>
+> `status.sh` now captures all three return codes and reports them **per field** as `lte_read_ok` / `nr_read_ok` / `persist_read_ok`, which is what makes `unknown` an honest trigger. It deliberately does **not** refuse the whole endpoint on a single failed read — one bad NR read must not blind the UI to the two that succeeded. The three `error)` arms that logged a warning and continued are gone; the return codes carry that now. `tower_read_persist`'s failure sentinel also moved from a fabricated `"0 0"` to the string `"error"`, matching its two siblings, so a future caller that forgets to check `$?` at least cannot mistake a failed read for a legitimately-read "persistence off". Full contract: [The `read_ok` contract](#the-read_ok-contract-absent-means-true).
+>
+> The glyph moved from `schedule` to `help` in the same change — a clock implies "waiting, this will arrive", where the real state is "the modem did not answer". `unknown` and `unlocked` are separated by `muted` vs `success-container`, which measure ~1.03:1 apart and are the same surface under deuteranopia, so the glyph is the only separator every reader is guaranteed to get.
 
 That fabrication was not confined to this page. `frequency/lock.sh` calls the same two helpers for its mutual-exclusion gate, and a read failure there walked a user straight toward the stacked-lock path that file's header warns can crash-dump the modem. See [frequency-locking.md](frequency-locking.md#the-tri-state-tower-lock-contract).
 
@@ -850,13 +1007,13 @@ Everything shape- or tone-bearing lives in `components/cellular/tower-locking/sh
 | `AUTO_GRID`, `AUTO_TILE`, `AUTO_METER` | The standing-orders section's three tiles. `AUTO_GRID` queries **`@container/section`**; columns are stepped because the schedule tile needs the room; `AUTO_METER.ROOT` carries no `overflow-hidden` so the threshold marker can overhang the track |
 | `HERO_EYEBROW` | The strip panel's eyebrow. Kept rather than deleted as a reflex: DESIGN.md's tile anatomy is literally `eyebrow → value → caption`, and the band-locking and custom-profiles heroes ship the identical step |
 | `HERO_REFRESH_BUTTON`, `HERO_HELP_BUTTON` | The two 22px-glyph/44px-target buttons. Both **inherit their ink** (`text-current`) — see [Freshness heads the section](#freshness-heads-the-section). `HERO_HELP_BUTTON` is an **alias by value, restated in intent** — the two are the same size by coincidence of the 44px floor, not by shared meaning |
-| `FIELD_GRID`, `FIELD_LABEL`, `FIELD_CONTROL` | The leg cards' shared form shapes. `FIELD_GRID` is the NR card's 2×2 of value tiles. See the specificity note below |
+| `FIELD_GRID`, `FIELD_LABEL`, `FIELD_SHAPE`, `FIELD_CONTROL`, `FIELD_CONTROL_ON_CONTAINER`, `SWITCH_TARGET` | The leg cards' shared form shapes. `FIELD_GRID` is the NR card's 2×2 of value tiles. `FIELD_SHAPE` is geometry only; the fill is chosen by the **host**, one tonal step below — see [The Field-Step Rule](#the-field-step-rule-six-invisible-controls) and the specificity note below. `SWITCH_TARGET` is the 44px overlay all five switches share |
 | `SLOT_ROW` | One LTE cell slot, as a row: `ROOT` / `EMPTY` / `INDEX` / `FIELDS` / `META`. `EMPTY` is dashed and unfilled; the inputs inside stay live in both variants |
 | `DAY_CHIP`, `dayChipFill` | The weekday toggle. Both hovers are `enabled:`-scoped |
 | `NOTICE`, `NOTICE_TONE` | The card- and page-scoped notice, three roles / three glyphs / no shared marks. `warning` is the partial-success channel |
 | `PILL_ACTION`, `PILL_ACTION_PLAIN`, `PILL_QUIET` | Action sizing. `PILL_ACTION_PLAIN` is the Lock `SaveButton`, `PILL_ACTION` the glyph-bearing Remove Lock; `PILL_QUIET` is deliberately smaller for Clear fields and carries **no fill or ink** — pair with `variant="tonal-neutral"`, never `ghost` |
 | `FAILOVER_BADGE`, `LEG_BADGE`, `PERSIST_BADGE`, `BADGE_GLYPH_SIZE` | Tone + glyph maps, keyed onto the exported `BadgeVariant` type so an unmapped state fails the build |
-| `failoverKey`, `persistPosture` | The two derivations the automation tiles read |
+| `failoverKey`, `lockPresence`, `TowerLockPresence`, `persistPosture` | The derivations the automation tiles read. `failoverKey` takes a `TowerLockPresence` tri-state, **not** a boolean — see [Why the chip is a shield, not a spinner](#why-the-chip-is-a-shield-not-a-spinner) |
 | `SKELETON_SHAPE` | Loaded geometry restated once so skeletons mirror by import, not by estimate — see [Skeleton figures are measured, not estimated](#skeleton-figures-are-measured-not-estimated) |
 | `TOWER_LEGS`, `TowerLeg`, `legTitleKey`, `legDescriptionKey`, `legShortKey` | Leg identity and its i18n key stems |
 
@@ -898,14 +1055,37 @@ A carrier tile can render *taller* than 87px when it shares a grid row with the 
 
 **`SKELETON_SHAPE.SECTION_META` is deliberately wider than its content.** The real slot is a 28px stamp pill (76px at en-GB's `07:31 PM`) plus the 22px refresh button and its 10px gap — about 108px — and the mirror is `w-32` (128px). The stamp's width is set by **the locale's time format**, which the mirror cannot see. Erring wide is free here: the slot is `ml-auto`, so a placeholder a few pixels over only eats empty header space, while one that is too narrow lets the header's right edge jump on handoff.
 
+### The Field-Step Rule: six invisible controls
+
+**A field's resting fill is one tonal step above ITS HOST, never a fixed token.** `surface` / `card` host → `surface-container` field; `surface-container` host → `surface-container-high` field. This is now binding canon — `DESIGN.md` > Components > Inputs / Fields — and this surface is where it was found.
+
+DESIGN.md gives an input no border at rest, so **the fill is the entire affordance**: there is nothing else on screen saying where the box is. A fixed fill token is therefore only *accidentally* correct. `FIELD_CONTROL` shipped as the only answer, painting `bg-surface-container`, and **not one call site on this surface had the host it described** — every field here lives inside `SLOT_ROW` or `AUTO_TILE`, both `bg-surface-container`. All six painted their host's exact colour and rendered at **1.00:1**. The doc comment above the constant described a host that did not exist, which is how it survived review.
+
+`shapes.ts` now splits the geometry from the fill: `FIELD_SHAPE` (unfilled), `FIELD_CONTROL` (for a `surface` / `card` host) and `FIELD_CONTROL_ON_CONTAINER` (`-high`, which on this surface means everywhere).
+
+Two corollaries carried into DESIGN.md:
+
+- **`-high` is the top rung, so the HOST steps down.** A field can never be hosted by a `surface-container-high` block. Never solve it with a border — an outlined field beside three unbordered ones reads as a different *kind* of control.
+- **STEP or SHELL, one per card, never mixed.** STEP is the table above. SHELL is the alternative the NR card's `FIELD_TILE` uses: the control is transparent and the *host* carries both the fill and the focus ring (`focus-within:ring`). The bug is only ever the third state — a control painting its host's own colour.
+
+`SWITCH_TARGET` was extracted in the same pass. The `Switch` primitive paints 18x32px, well under the 44px floor; a pseudo-element overlay reaches the target without adding a layout box that would push the row's label off its baseline. Two byte-identical copies were declared locally in the two leg cards, and the surface's other three switches — persist, failover, schedule-enable — had **none at all**: the same primitive shipping at two target sizes on one page, with the smaller size on the three controls that actually write to the modem.
+
 ### The field-specificity traps
 
-Both produce a result that *looks approximately right*, which is exactly why they would survive review. The shared `FIELD_CONTROL` carries the first; the second lives at the two call sites that actually render a select, since the shared constant for it had no consumers and is gone.
+Both produce a result that *looks approximately right*, which is exactly why they would survive review. The shared field constants carry the first; the second lives at the two call sites that actually render a select, since the shared constant for it had no consumers and is gone.
 
-- **`dark:bg-surface-container` is not redundant.** `components/ui/input.tsx` ships `dark:bg-input/30`, and `@custom-variant dark (&:is(.dark *))` compiles that to a `(0,2,0)` selector against a bare `bg-surface-container`'s `(0,1,0)`. `tailwind-merge` cannot fold them either — they sit in different modifier scopes, and it only collapses conflicts within one scope. Without the explicit restatement, every field on this surface silently renders `input/30` in dark mode.
+- **The `dark:` restatement is not redundant, and it is not sufficient either.** `components/ui/input.tsx` ships `dark:bg-input/30`, and `@custom-variant dark (&:is(.dark *))` compiles that to a `(0,2,0)` selector against a bare `bg-surface-container-high`'s `(0,1,0)` — so a light-only override simply loses in dark mode. `tailwind-merge` cannot fold them either: different modifier scopes, and it only collapses conflicts within one scope. **But once ours is `dark:`-prefixed too, both rules are (0,2,0) and they TIE** — and specificity decides nothing in a tie. The winner is emission order, which for two candidates of the same utility is Tailwind's deterministic candidate sort, i.e. by name: `bg-input…` sorts before `bg-surface-…` only because *i* precedes *s*. That is an **observed** outcome, not a constructed one — rename `--color-input`, mint a token that sorts between them, or change the sort, and every one of these fills flips in dark mode only, with no error anywhere. The shipped constants mark the dark half with Tailwind v4's important modifier (`dark:bg-surface-container-high!`) so the rule wins by construction. Same family as the `twMerge` custom-radius trap, where alphabetical order decides a conflict the tooling cannot see. Use `!` **only** against a primitive's own `dark:` fill — it is not a general escape hatch.
 - **A `SelectTrigger`'s height must be restated at matching specificity.** `components/ui/select.tsx` sets `data-[size=default]:h-9` — again `(0,2,0)` via the attribute selector — so a bare height utility loses and the select renders 36px beside its sibling inputs: visibly combed, and under the project's control-height floor. The LTE card writes `data-[size=default]:h-[2.625rem]` in its local `SELECT_CONTROL`; the NR card writes `data-[size=default]:h-8` in `TILE_SELECT`, plus a `dark:hover:bg-transparent` neutralisation of `select.tsx`'s `dark:hover:bg-input/50`.
 
 Both leg cards hit these independently, and both keep their own answer because their two selects are different sizes.
+
+### The blocked pick button is `aria-disabled`, not `disabled`
+
+`CARRIER_TILE.ACTION`'s blocked rules are written on **`aria-disabled:`**. A natively `disabled` element is not focusable and dispatches no pointer events, so the tooltip carrying the *reason* a carrier cannot be targeted (`tile_blocked_nsa`, `tile_blocked_lte_only`, `tile_blocked_slots_full`) could never open — by mouse or by keyboard. `live-strip.tsx` now blocks the picker with `aria-disabled="true"` plus a no-op click guard, which keeps the element reachable while still announcing as unavailable.
+
+> ⚠️ WARNING: **the two changes are one change.** The instant the native attribute went away, all four `disabled:` rules stopped matching and the blocked tile rendered at full opacity, with a pointer cursor, still lighting up to `primary-container` on hover — this surface's affirmative "this is takeable" signal, painted on a control that cannot be taken. A dead control that highlights like a live one is worse than a grey one with no explanation. The `disabled:` originals are deliberately **not** kept alongside: `live-strip.tsx` is the only consumer in the repo (frequency locking declares its own `CARRIER_TILE`), and a dead second rule set is a second place for "blocked" to be decided.
+
+This is the general shape of disabled-with-a-reason on this surface. Where a control is dead *and the user needs to know why*, `aria-disabled` is the attribute and the tone rules must move with it.
 
 ### A tile on a `bg-surface` host is NOT a hero row
 
@@ -1011,16 +1191,18 @@ The current shape comes from a mockup, and several of its proposals were rejecte
 - **`tower/lock.sh` has no reciprocal frequency-lock check.** Frequency Locking refuses to run under an active tower lock; a tower lock silently clobbers a frequency lock. Backend change, not attempted here.
 - **Unlock disables the failover preference and locking never re-enables it** — see [above](#tower-unlock-silently-disables-the-users-failover-preference). The UI is honest about it only because of the post-unlock `fetchStatus()`. Whether the backend *should* behave this way is unresolved.
 - **Two watchers can fire against one incident** with different clocks and no shared claim — see [above](#two-watchers-one-incident-contradictory-reverts).
-- **Frequency Locking is deliberately left on the legacy look.** It is self-declared experimental, mutually exclusive with tower locking by backend design, and has **zero i18n keys**. Migrating it would mean adopting a surface that a user can only reach by first turning this one off. This is a recorded scope call, not an oversight — but it does mean `/cellular/cell-locking/` now has two migrated routes and one unmigrated one, and the third will look wrong beside them.
+- ~~**Frequency Locking is deliberately left on the legacy look.**~~ **Closed 2026-08-22.** That route was rebuilt on the same system and now carries 134 i18n keys per locale; all three `/cellular/cell-locking/` surfaces are migrated. See [frequency-locking.md](frequency-locking.md).
 - **The carrier identity-tone helpers still exist in two places, and this surface is no longer one of them.** `components/dashboard/carrier-aggregation.tsx` (as `tileTone()` / `meterFillTone()`) and `components/cellular/band-locking/shapes.ts` still carry their own copies; tower locking dropped its three when the lead block lost its identity fill. Extraction into a shared module (e.g. `lib/carrier-tone.ts`) is now a two-copy trade rather than a three-copy one. The rule that must never drift, wherever it lives, is *identity, never quality* plus the `isLead` signature — a lead tile paints `bg-lte`, so a fill that also paints `bg-lte` is invisible at 1.00:1.
 - **`types/tower-locking.ts` is shared.** `components/cellular/frequency-locking/nr-freq-locking.tsx` imports `SCS_OPTIONS` from it. "Tidying" these types while working on Tower Locking breaks another route, and TypeScript will not tell you until the build.
 - **Two exports in `types/tower-locking.ts` are now unreferenced**: `qualityLevel()` and `DAY_LABELS` (the schedule tile resolves day names through `tower_locking.schedule.day_{index}` instead, and `DAY_LABELS` here is a duplicate of the identical constant in `types/system-settings.ts`, which *is* used). Harmless dead constants, documented rather than deleted so the duplication is visible if someone reaches for one.
 - **There is no longer any way to jump from the strip to a leg card.** The retired locked-target panel's rows were clickable and `scrollToLeg()` smooth-scrolled the matching card into view; the two DOM `id`s and the `scroll-mt-20` that served it were removed with it, since they had become ids referenced only by themselves plus an offset correcting for a scroll that no longer happens. Nothing is broken — the cards are one short scroll below the two sections — but if a "jump to this leg" affordance is ever wanted again, both the anchors and the header offset have to come back together, and the offset is the half that gets forgotten.
+- **The `read_ok` flags cover the three AT reads only, and nothing else on the page carries one.** `failover_state` comes from flag files rather than the modem, and `config` is the file's belief; neither can fail the way an AT read fails, so neither needs a flag. But a future field on this endpoint that *does* come from the modem needs its own, and the absent-means-true rule then has to be extended to it deliberately — an un-upgraded CGI omitting a **new** flag will read as `true` whether or not that is honest for it.
+- **`TOWER_WRITE_SETTLE` is derived from three measured numbers that live in three different files.** `INTERVAL` is in `qmanager_tower_failover`, the attach-cycle drop is documented in [wan-profile-management.md](wan-profile-management.md), and the poller cadence in [radio-information.md](radio-information.md). Nothing links them mechanically; if any one of the three moves, the constant is silently wrong and fails on roughly half of writes. The comment above it in `tower_lock_mgr.sh` is the only guard.
 - **The threshold row has no direct evidence the daemon adopted the new value.** `qmanager_tower_failover` re-reads `.failover.threshold` only every sixth cycle (~120s), so a save can be up to two minutes ahead of the running watcher. The UI does not say so, and the `AUTO_METER` marker moves the instant the save lands — so for up to two minutes it draws a line the daemon is not yet enforcing.
 - **The verdict inherits the lock read-back's staleness and can only say so, not fix it.** The stamp in `SECTION_HEAD.META` marks it honestly, but a lock cleared out of band (schedule timer, failover watcher, a second tab) will keep reading `on_target` against a target the modem no longer holds until someone presses refresh. The leg cards' "Modem reports" line and the tiles' `CARRIER_TILE.MATCH` rings inherit exactly the same staleness, from the same fetch. Closing this needs a *poller-side* field, never a second client on the AT mutex — see [The two clocks](#the-two-clocks).
 - **`hasChanges` blocks re-applying an identical lock on either leg.** Correct for avoiding a pointless modem write and a 3–5s link bounce, but it also means the failover watcher cannot be re-armed from a leg card without changing a field. (`lock.sh` spawns the watcher on a lock write, so a re-lock is currently the only UI path to a respawn.)
 - **The NR card carries roughly 196px of slack above its footer in its sparsest state.** With SA available, nothing locked and the fields staged from config, the NR card renders a header, a Simple Mode row and four value tiles against an LTE card holding a header, a Simple Mode row and three slot rows — and the 2-up grid forces equal height. The **footers align**, which is what equal height is for and is the property worth keeping; the slack is what it costs. It closes on its own in the two states where the card has more to say: a gate adds a `NOTICE`, and a live lock adds the `READBACK` block. Filling it in the sparse case would mean inventing content for a card that genuinely has none, which is worse than empty space.
-- **The disabled pick button's tooltip is not reliably hoverable in Chrome.** `CARRIER_TILE.ACTION` uses the HTML `disabled` attribute, and a disabled element does not dispatch pointer events — so the tooltip carrying the *reason* a carrier cannot be targeted (`tile_blocked_nsa`, `tile_blocked_lte_only`, `tile_blocked_slots_full`) may never open. The glyph swap to `do_not_disturb_on` still says *that* it is blocked, so nothing is silently broken, but the *why* can be unreachable by mouse. **Pre-existing and unchanged by this pass** — the retired secondary rows had the identical construction. The fix is `aria-disabled="true"` plus a no-op `onClick` guard instead of `disabled`, which keeps the element focusable and hoverable while still announcing as unavailable.
+- ~~**The disabled pick button's tooltip is not reliably hoverable in Chrome.**~~ **Closed 2026-08-23.** `live-strip.tsx:379` now blocks the picker with `aria-disabled` plus a no-op click guard, and `CARRIER_TILE.ACTION`'s blocked rules moved to `aria-disabled:` in the same change — see [The blocked pick button is `aria-disabled`, not `disabled`](#the-blocked-pick-button-is-aria-disabled-not-disabled).
 
 ## Related
 
@@ -1028,8 +1210,8 @@ The current shape comes from a mockup, and several of its proposals were rejecte
 - [scheduled-timers.md](scheduled-timers.md) — the runtime `OnCalendar` timer model, `qmanager_tower_schedule_arm`, and the 1970 boot-window fire guard every new timer must pass
 - [carrier-aggregation.md](carrier-aggregation.md) — `carrier_components[]`, the source of the camped-on carriers, and the identity-tone convention this surface's lead block no longer needs
 - [radio-information.md](radio-information.md) — the poller cadence behind the ~4s clock, and the compiler-backed `react-hooks` bail-on-first-violation behaviour
-- [at-command-transport.md](at-command-transport.md) — the `/tmp/qmanager_at.lock` mutex that makes polling `status.sh` expensive
-- [tmp-file-ownership.md](tmp-file-ownership.md) — the flag/PID files the watcher and `failover_status.sh` share
+- [at-command-transport.md](at-command-transport.md) — the `/tmp/qmanager_at.lock` mutex that makes polling `status.sh` expensive, and the exit-status-only failure contract every `*_read_ok` flag rests on
+- [tmp-file-ownership.md](tmp-file-ownership.md) — the flag/PID files the watcher and `failover_status.sh` share, and the `root:root 0666` seeding contract behind `/tmp/qmanager_tower_write_inflight`
 - [i18n.md](i18n.md) — the two severity policies over one engine, and why keys are never interpolated on this surface
 - [icon-system.md](icon-system.md) — `/cellular/` is a Material Symbols route; every glyph used here is already in the subset allowlist
-- `DESIGN.md` > Named Rules (Consistent-Layout, Identity-Never-Acts, Identity-Chip, Filled-Chip, Glyph-Disc, Skeleton-Mirror, One-Scale, One-Loop, Solid-Container, Radius-Follows-Size, Machine-Voice)
+- `DESIGN.md` > Named Rules (Consistent-Layout, Identity-Never-Acts, Identity-Chip, Filled-Chip, Glyph-Disc, Skeleton-Mirror, One-Scale, One-Loop, Solid-Container, Radius-Follows-Size, Machine-Voice, **Field-Step**) and > Components > Inputs / Fields
