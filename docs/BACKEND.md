@@ -10,9 +10,10 @@ Two firmware facts are worth knowing up front, because both routinely trip peopl
 - **The OEM build string says `SDX65`, but the part is X62.** `/proc/cpuinfo` reports the SoC codename `SDXLEMUR`, while the firmware is built from the SDX65 SDK — so the OEM build string reads `LE.UM.6.3.6.r1-02600-SDX65.0` even though the RM520N-GL is the X62 part. The `SDX65` is an SDK artifact, not the silicon.
 - **Model-specific behavior keys off `/etc/quectel-project-version`, not hardcoded assumptions.** This sentinel file is present on the RM520N-GL. Its presence (or absence) is what QManager branches on: the poller uses it to select the traffic-stats interface (`rmnet_ipa0`), the data-usage counter uses it to pick the correct byte-orientation map, and the installer uses it for firmware detection. This is defensive runtime detection, not multi-product support.
 
-Probe data in this document was collected on the **RM520N-GL** unless a passage
-says otherwise. Where this doc says "the platform", read it as "the RM520N-GL's
-on-modem Quectel userspace stack" — those claims are **unverified on RG501Q-EU**.
+Probe data in this document was collected on the **RM520N-GL** (distro
+`qti-distro-nogplv3-perf`) unless a passage says otherwise. Where this doc says
+"the platform", read it as "the RM520N-GL's on-modem Quectel userspace stack" —
+those claims are **unverified on RG501Q-EU**.
 This document is a developer reference for the shell-script backend. It covers every library, daemon, unit file, sudoers rule, udev rule, CGI endpoint, and file path that exists in this codebase. It does not cover frontend React code, installer operational flow, or platform internals.
 
 ---
