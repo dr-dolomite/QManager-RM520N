@@ -118,7 +118,8 @@ This table contrasts every major subsystem between the **legacy RM551E-on-OpenWR
 
 ## Platform Tooling Inventory
 
-This section consolidates everything an automation author needs to know about the userspace tooling on Quectel-on-modem platforms (SDXLEMUR X62/X65, SDXPRAIRIE X55). Findings were probed live on RM520N-GL firmware `LE.UM.6.3.6.r1-02600-SDX65.0` on 2026-05-09 and cross-referenced with PRAIRIE deviations called out in CLAUDE.md.
+This section consolidates everything an automation author needs to know about the userspace tooling on Quectel-on-modem platforms (SDXLEMUR X62/X65, SDXPRAIRIE X55). Findings were probed live on RM520N-GL firmware `LE.UM.6.3.6.r1-02600-SDX65.0` on 2026-05-09 and cross-referenced with PRAIRIE deviations recorded in
+[`reference/platform-matrix.md`](./reference/platform-matrix.md).
 
 ### Toolchain Summary
 

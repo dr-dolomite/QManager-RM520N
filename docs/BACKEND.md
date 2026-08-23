@@ -1,13 +1,18 @@
 # QManager Backend Reference
 
-**Target platform:** QManager ships for a single target — the Quectel RM520N-GL, X62 silicon on the SDXLEMUR (5G Modem-RF System) SoC, ARMv7l Cortex-A7. There is no multi-SKU product matrix; where the firmware or SoC stepping varies underneath, QManager detects it at runtime and adapts defensively rather than shipping per-model builds.
+**Target platforms:** QManager supports two modems — the **RM520N-GL** (M.2,
+X62 silicon on the SDXLEMUR SoC, ARMv7l Cortex-A7) as the reference device, and
+the **RG501Q-EU** (LGA, SDXPRAIRIE/SDX55), onboarding as of 2026-08. Per-device
+facts live in [`reference/platform-matrix.md`](./reference/platform-matrix.md).
 
 Two firmware facts are worth knowing up front, because both routinely trip people up:
 
 - **The OEM build string says `SDX65`, but the part is X62.** `/proc/cpuinfo` reports the SoC codename `SDXLEMUR`, while the firmware is built from the SDX65 SDK — so the OEM build string reads `LE.UM.6.3.6.r1-02600-SDX65.0` even though the RM520N-GL is the X62 part. The `SDX65` is an SDK artifact, not the silicon.
 - **Model-specific behavior keys off `/etc/quectel-project-version`, not hardcoded assumptions.** This sentinel file is present on the RM520N-GL. Its presence (or absence) is what QManager branches on: the poller uses it to select the traffic-stats interface (`rmnet_ipa0`), the data-usage counter uses it to pick the correct byte-orientation map, and the installer uses it for firmware detection. This is defensive runtime detection, not multi-product support.
 
-Probe data in this document was collected on the RM520N-GL (X62, SDXLEMUR, ARMv7l Cortex-A7 single-core, kernel `5.4.210-perf`, glibc 2.31, distro `qti-distro-nogplv3-perf` `LE.UM.6.3.6.r1-02600-SDX65.0`, 178 MB RAM, ~91 MB zram swap, `/tmp` 89 MB tmpfs). Where this doc says "the platform", read it as "the RM520N-GL's on-modem Quectel userspace stack" (BusyBox-1.31 toolchain, bash 3.2, systemd 244, Entware armv7sf-k3.2).
+Probe data in this document was collected on the **RM520N-GL** unless a passage
+says otherwise. Where this doc says "the platform", read it as "the RM520N-GL's
+on-modem Quectel userspace stack" — those claims are **unverified on RG501Q-EU**.
 This document is a developer reference for the shell-script backend. It covers every library, daemon, unit file, sudoers rule, udev rule, CGI endpoint, and file path that exists in this codebase. It does not cover frontend React code, installer operational flow, or platform internals.
 
 ---
