@@ -72,24 +72,24 @@ about the device, not observation of it.
 | --- | --- | --- | --- |
 | AT device node | `/dev/smd11` (Qualcomm SMD char device, not a UART) | *unverified* | on-device · `at-command-transport.md` |
 | Default node permissions | `crw------- root:root` | *unverified* | on-device · `qmanager-independence.md` |
-| udev subsystem | `glinkpkt` (sysfs `/sys/class/glinkpkt/smd11`) | *unverified* — **see PRAIRIE note below** | on-device · `qmanager-independence.md:270` |
+| udev subsystem | `glinkpkt` (sysfs `/sys/class/glinkpkt/smd11`) | *unverified* — **see PRAIRIE note below** | on-device · `qmanager-independence.md:273` |
 | `smd11` creation timing | Exists before `qmanager-setup.service` runs | *unverified* — **see PRAIRIE note below** | on-device |
 | termios | Returns `ENOTTY` for `tcgetattr`/`tcsetattr` | *unverified* | on-device · `sms.md` |
 | URC listener | None resident; `smd11` **not** selectable via `AT+QURCCFG="urcport"` (only `usbat`/`usbmodem`/`uart1`/`all`) | *unverified* | live `/proc/*/fd/*` scan · `at-command-transport.md` |
-| `AT+CGAUTH` | **Unsupported** — returns `ERROR`; use `AT+QICSGP` | *unverified* | on-device · `wan-profile-management.md:78` |
-| Per-context MTU write | No reliable write; `+CGCONTRDP` returns no MTU field | *unverified* | on-device · `wan-profile-management.md:397` |
+| `AT+CGAUTH` | **Unsupported** — returns `ERROR`; use `AT+QICSGP` | *unverified* | on-device · `wan-profile-management.md:81` |
+| Per-context MTU write | No reliable write; `+CGCONTRDP` returns no MTU field | *unverified* | on-device · `wan-profile-management.md:400` |
 | `+CGCONTRDP` IPv6 format | 16 dotted-decimal octets; gateway quoting varies between reads | *unverified* | on-device 2026-08-03 |
 
 ### PRAIRIE-family note — a hypothesis, not a measurement
 
 Two existing docs already record deviations on **PRAIRIE-derived** platforms:
 
-- `qmanager-independence.md:270-278` — the udev rule deliberately omits
+- `qmanager-independence.md:273-281` — the udev rule deliberately omits
   `SUBSYSTEM==` because the subsystem name differs off RM520N-GL, and on
   PRAIRIE platforms the modem re-creates `/dev/smd11` **after**
   `qmanager-setup.service` completes, so the one-shot's guard returns false and
   permissions end up wrong.
-- `docs/BACKEND.md:1025` — same udev reasoning.
+- `docs/BACKEND.md:1031` — same udev reasoning.
 
 **Both were established against RG502Q / RM502Q, not RG501Q-EU.** Same SDX55
 family, different model. They are the strongest starting hypotheses we have for
@@ -104,7 +104,7 @@ it is a real bug on the new target, not a cosmetic difference.
 | Ethernet controller | Realtek RTL8125B 2.5GbE as `eth0`, out-of-tree `r8125` driver | *unverified* — **may not exist at all** | on-device · `ethernet.md` |
 | Ethernet during attach cycle | PHY drops ~4s on every `AT+COPS=0` re-attach | *unverified* — **likely inapplicable** | on-device, 2 runs |
 | TTL interface | `rmnet+` | *unverified* | on-device |
-| WAN data interface | Not fixed — the `rmnet_dataN` index migrates across attach cycles | *unverified* | on-device · `wan-profile-management.md:415` |
+| WAN data interface | Not fixed — the `rmnet_dataN` index migrates across attach cycles | *unverified* | on-device · `wan-profile-management.md:418` |
 | Counter orientation (`/proc/net/dev`) | normal (rx=DL, tx=UL) | *unverified* — see the orientation note below | `data-counter-platform-matrix.md` — already per-SoC |
 
 **The Ethernet rows carry the largest form-factor risk in this table.** RTL8125B
@@ -128,7 +128,7 @@ hypothesis to test, never as a known value.
 
 | Fact | RM520N-GL (SDX65) | RG501Q-EU (SDX55) | How established |
 | --- | --- | --- | --- |
-| Core | Single-core ARMv7-A Cortex-A7 @ ~1.2 GHz | *unverified* | on-device · `docs/BACKEND.md:1641` |
+| Core | Single-core ARMv7-A Cortex-A7 @ ~1.2 GHz | *unverified* | on-device · `docs/BACKEND.md:1647` |
 | RAM | 178 MB + ~91 MB zram swap | *unverified* | on-device |
 | Float ABI | `vfp vfpv3 vfpv4 neon` in `/proc/cpuinfo` — armhf hard-float runs natively | *unverified* | on-device `/proc/cpuinfo` |
 | `aarch64` | Will not run | *unverified* | inferred from ARMv7-A |
