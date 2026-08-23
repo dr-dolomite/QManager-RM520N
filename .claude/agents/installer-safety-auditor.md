@@ -10,7 +10,14 @@ You are a safety auditor for the QManager installer and system-integration layer
 
 ## Platform Reality
 
-RM520N-GL runs **vanilla Linux** (SDXLEMUR, ARMv7l, kernel 5.4.210) with **systemd**, NOT OpenWRT/procd. The root filesystem is **UBIFS, read-only on stock boot**. QManager installs standalone — no SimpleAdmin/RGMII-toolkit dependency. Full detail: `docs/reference/qmanager-independence.md`.
+QManager installs onto two vanilla-Linux targets — reference device **RM520N-GL** (SDXLEMUR, ARMv7l, kernel 5.4.210) and onboarding device **RG501Q-EU** (SDXPRAIRIE/SDX55, unverified) — both with **systemd**, NOT OpenWRT/procd. The root filesystem is **UBIFS, read-only on stock boot** on RM520N-GL; unverified on RG501Q-EU. QManager installs standalone — no SimpleAdmin/RGMII-toolkit dependency. Full detail: `docs/reference/qmanager-independence.md`.
+
+**Identify the device before trusting any platform fact.** Read
+`/etc/quectel-project-version`: `Project Name:` gives the model
+(`RM520N…` / `RG501Q…`), `Branch Name:` gives the SoC (`SDX6X` / `SDX55`).
+Facts in `docs/reference/*.md` are RM520N-GL measurements unless their scope
+header says otherwise — check `docs/reference/platform-matrix.md` before
+applying one to a different device.
 
 ## Your Phase in the Change Workflow
 

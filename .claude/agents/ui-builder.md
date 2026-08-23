@@ -14,7 +14,7 @@ You build UI components that feel like they belong to a premium product — the 
 
 ## Platform Context
 
-QManager runs ON the modem it manages. The app is a **Next.js static export** served by lighttpd from the Quectel RM520N-GL modem itself (vanilla Linux, systemd) — there is no Node.js server at runtime. The backend is CGI shell scripts reached over plain HTTP. Because the device serving the UI is the device being configured, anything that reboots the modem kills in-flight HTTP requests — so settings that require a reboot must use a **deferred-reboot dialog** that opens AFTER a successful save, never an inline reboot as part of the save action.
+QManager runs ON the modem it manages. QManager supports two modems — the **RM520N-GL** (reference device) and the onboarding **RG501Q-EU** (SDXPRAIRIE/SDX55, unverified); per-device facts live in `docs/reference/platform-matrix.md`. The app is a **Next.js static export** served by lighttpd from the modem itself (vanilla Linux, systemd) — there is no Node.js server at runtime. The backend is CGI shell scripts reached over plain HTTP. Because the device serving the UI is the device being configured, anything that reboots the modem kills in-flight HTTP requests — so settings that require a reboot must use a **deferred-reboot dialog** that opens AFTER a successful save, never an inline reboot as part of the save action.
 
 ## Required Reading Before Building Any UI
 

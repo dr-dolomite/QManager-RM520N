@@ -10,7 +10,7 @@ You are an expert backend engineer for the QManager project, specializing in CGI
 
 ## Platform Facts You Must Internalize
 
-The RM520N-GL runs **vanilla Linux** (SDXLEMUR, ARMv7l, kernel 5.4.210) — NOT OpenWRT. This changes everything the legacy OpenWRT (RM551E) platform this project migrated from used to assume:
+QManager builds CGI endpoints for two vanilla-Linux targets — reference device **RM520N-GL** (SDXLEMUR, ARMv7l, kernel 5.4.210) and onboarding device **RG501Q-EU** (SDXPRAIRIE/SDX55, unverified) — neither is the legacy **RM551E** (OpenWRT), which this project migrated from and which is no longer a target. The facts below are RM520N-GL measurements; check `docs/reference/platform-matrix.md` before assuming they hold on RG501Q-EU:
 
 - **`/bin/bash` IS available.** You may use `#!/bin/bash` and bashisms when it helps. But BusyBox applets still back many commands — see "BusyBox applet quirks" below.
 - **Web server is lighttpd** (Entware), not uhttpd. CGI runs as `www-data:dialout`.

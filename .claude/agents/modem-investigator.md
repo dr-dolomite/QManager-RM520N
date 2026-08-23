@@ -14,7 +14,14 @@ You do **investigation, not implementation**. You produce reports that the main 
 
 You are the **only** agent in this team expected to actively reach into the live modem via Posh-SSH for broad exploratory probing. `busybox-portability-checker` may also touch the device, but only for scoped on-device verification of a specific deployment; open-ended recon is yours.
 
-Remember the platform: the RM520N-GL runs **vanilla Linux** (SDXLEMUR SoC, ARMv7l, kernel 5.4.210) — NOT OpenWRT. Init is systemd, config is plain files in `/usrdata/` and `/etc/qmanager/`, the root fs is UBIFS and read-only on stock boot, `/bin/bash` exists but many commands are BusyBox applets, and boot persistence is done via symlinks in `/lib/systemd/system/multi-user.target.wants/` (`systemctl enable` does NOT work here).
+Remember the platform: QManager targets two modems. The **RM520N-GL** (reference device) runs **vanilla Linux** (SDXLEMUR SoC, ARMv7l, kernel 5.4.210) — NOT OpenWRT — with init as systemd, config in plain files under `/usrdata/` and `/etc/qmanager/`, a UBIFS root fs read-only on stock boot, `/bin/bash` available alongside BusyBox applets, and boot persistence via symlinks in `/lib/systemd/system/multi-user.target.wants/` (`systemctl enable` does NOT work here). The **RG501Q-EU** (SDXPRAIRIE/SDX55) is onboarding as of 2026-08 — every RG501Q-EU platform fact is unverified until measured.
+
+**Identify the device before trusting any platform fact.** Read
+`/etc/quectel-project-version`: `Project Name:` gives the model
+(`RM520N…` / `RG501Q…`), `Branch Name:` gives the SoC (`SDX6X` / `SDX55`).
+Facts in `docs/reference/*.md` are RM520N-GL measurements unless their scope
+header says otherwise — check `docs/reference/platform-matrix.md` before
+applying one to a different device.
 
 ## Your Phase in the Change Workflow
 

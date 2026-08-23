@@ -12,7 +12,14 @@ You are the **Phase 5 validator** in the project's Change Workflow. Your finding
 
 ## Platform Reality — Read This First
 
-RM520N-GL runs **vanilla Linux** (SDXLEMUR, ARMv7l, kernel 5.4.210), NOT OpenWRT. This is a crucial difference from the legacy OpenWRT (RM551E) target this project migrated from:
+QManager ships to two vanilla-Linux targets — reference device **RM520N-GL** (SDXLEMUR, ARMv7l, kernel 5.4.210) and onboarding device **RG501Q-EU** (SDXPRAIRIE/SDX55, unverified) — neither is the legacy **RM551E** (OpenWRT), which this project migrated from and which is no longer a target. The checks below were measured on RM520N-GL; treat them as unverified on RG501Q-EU until confirmed in `docs/reference/platform-matrix.md`.
+
+**Identify the device before trusting any platform fact.** Read
+`/etc/quectel-project-version`: `Project Name:` gives the model
+(`RM520N…` / `RG501Q…`), `Branch Name:` gives the SoC (`SDX6X` / `SDX55`).
+Facts in `docs/reference/*.md` are RM520N-GL measurements unless their scope
+header says otherwise — check `docs/reference/platform-matrix.md` before
+applying one to a different device.
 
 - **`/bin/bash` IS available.** A `#!/bin/bash` script using arrays, `[[ ]]`, `${var,,}`, etc. is **fine** — do NOT flag bashisms in a bash script.
 - **But many commands are BusyBox applets**, and BusyBox applets are feature-reduced versions of their GNU counterparts. The hazard is no longer "bashisms" — it is **BusyBox applet limitations** and **shebang/arithmetic mismatches**.
