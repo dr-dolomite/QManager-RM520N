@@ -32,16 +32,34 @@ tower_config_init
 # --- Query LTE lock state ----------------------------------------------------
 qlog_debug "Querying LTE lock state"
 lte_state=$(tower_read_lte_lock)
+lte_rc=$?
 sleep 0.1
 
 # --- Query NR-SA lock state --------------------------------------------------
 qlog_debug "Querying NR-SA lock state"
 nr_state=$(tower_read_nr_lock)
+nr_rc=$?
 sleep 0.1
 
 # --- Query persist state -----------------------------------------------------
 qlog_debug "Querying persist state"
 persist_state=$(tower_read_persist)
+persist_rc=$?
+
+# tower_read_lte_lock / tower_read_nr_lock / tower_read_persist all return
+# the correct exit status; the old code below only ever pattern-matched
+# their printed text ("locked*" / "error"), which silently defaulted a
+# failed read to "unlocked, persistence off" and reported success:true with
+# a fabricated modem_state. That's actively dangerous here — a UI showing
+# "not locked" when the modem is actually still locked (or its state is
+# simply unknown) can lead a user straight into frequency/lock.sh's mutual-
+# exclusion gate believing it's clear. Refuse to fabricate: report failure
+# instead, matching the settings.sh GET reference pattern.
+if [ $lte_rc -ne 0 ] || [ $nr_rc -ne 0 ] || [ $persist_rc -ne 0 ]; then
+    qlog_error "Tower lock state query failed (lte_rc=$lte_rc nr_rc=$nr_rc persist_rc=$persist_rc); refusing to report fabricated lock state"
+    cgi_error "read_failed" "Unable to read tower lock state from modem"
+    exit 0
+fi
 
 # --- Parse LTE lock state into JSON ------------------------------------------
 lte_locked="false"
@@ -67,9 +85,6 @@ case "$lte_state" in
         done
         lte_cells_json="${lte_cells_json}]"
         ;;
-    error)
-        qlog_warn "Failed to read LTE lock state"
-        ;;
 esac
 
 # --- Parse NR-SA lock state into JSON ----------------------------------------
@@ -83,9 +98,6 @@ case "$nr_state" in
         set -- $nr_state
         shift  # remove "locked"
         nr_cell_json="{\"pci\":$1,\"arfcn\":$2,\"scs\":$3,\"band\":$4}"
-        ;;
-    error)
-        qlog_warn "Failed to read NR-SA lock state"
         ;;
 esac
 

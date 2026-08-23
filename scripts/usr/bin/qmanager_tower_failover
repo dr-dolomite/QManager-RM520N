@@ -125,16 +125,36 @@ while true; do
         if [ "$bad" -ge "$BAD_LIMIT" ]; then
             qlog_warn "FAILOVER: ${BAD_LIMIT} consecutive bad — clearing locks"
 
-            ok=0
+            # tower_unlock_lte / tower_unlock_nr already return qcmd's real
+            # exit status (see tower_lock_mgr.sh) — the old text match
+            # against stdout could never see "ERROR" there, so a single
+            # shared `ok` flag was unconditionally forced to 1 by whichever
+            # case ran last. That was harmless while the check was dead, but
+            # now that rc detection actually works, an OR'd single flag
+            # would report "FAILOVER COMPLETE" if e.g. only the NR unlock
+            # succeeded while LTE stayed locked. Track each RAT separately
+            # and require BOTH before claiming the modem is actually clear.
+            lte_ok=0
             lte_r=$(tower_unlock_lte 2>/dev/null)
-            case "$lte_r" in *ERROR*) qlog_error "LTE unlock failed" ;; *) ok=1 ;; esac
+            lte_rc=$?
+            if [ $lte_rc -eq 0 ]; then
+                lte_ok=1
+            else
+                qlog_error "LTE unlock failed (rc=$lte_rc): $lte_r"
+            fi
 
             sleep 0.2
 
+            nr_ok=0
             nr_r=$(tower_unlock_nr 2>/dev/null)
-            case "$nr_r" in *ERROR*) qlog_error "NR unlock failed" ;; *) ok=1 ;; esac
+            nr_rc=$?
+            if [ $nr_rc -eq 0 ]; then
+                nr_ok=1
+            else
+                qlog_error "NR unlock failed (rc=$nr_rc): $nr_r"
+            fi
 
-            if [ "$ok" -eq 1 ]; then
+            if [ "$lte_ok" -eq 1 ] && [ "$nr_ok" -eq 1 ]; then
                 tower_config_update '.lte.enabled = false | .nr_sa.enabled = false'
                 echo "activated" > "$FLAG_FILE"
                 qlog_warn "FAILOVER COMPLETE — locks cleared"
@@ -142,13 +162,49 @@ while true; do
             else
                 qlog_error "FAILOVER FAILED — retrying in 5s"
                 sleep 5
-                tower_unlock_lte >/dev/null 2>&1
+
+                # Retry path — this was NEVER reachable before this fix (ok
+                # was always 1 above), so it ran unverified in production.
+                # It unconditionally claimed "FAILOVER COMPLETE (retry)" and
+                # wrote the activated flag even when the retry itself also
+                # failed. Give it the same real per-RAT rc check as the
+                # first attempt (both must succeed) instead of discarding
+                # the result.
+                lte_retry_ok=0
+                lte_retry=$(tower_unlock_lte 2>/dev/null)
+                lte_retry_rc=$?
+                if [ $lte_retry_rc -eq 0 ]; then
+                    lte_retry_ok=1
+                else
+                    qlog_error "LTE unlock retry failed (rc=$lte_retry_rc): $lte_retry"
+                fi
+
                 sleep 0.2
-                tower_unlock_nr >/dev/null 2>&1
-                tower_config_update '.lte.enabled = false | .nr_sa.enabled = false'
-                echo "activated" > "$FLAG_FILE"
-                qlog_warn "FAILOVER COMPLETE (retry)"
-                append_event "tower_failover" "Tower locks cleared after retry — signal quality ${quality}% below ${threshold}% threshold" "warning"
+
+                nr_retry_ok=0
+                nr_retry=$(tower_unlock_nr 2>/dev/null)
+                nr_retry_rc=$?
+                if [ $nr_retry_rc -eq 0 ]; then
+                    nr_retry_ok=1
+                else
+                    qlog_error "NR unlock retry failed (rc=$nr_retry_rc): $nr_retry"
+                fi
+
+                if [ "$lte_retry_ok" -eq 1 ] && [ "$nr_retry_ok" -eq 1 ]; then
+                    tower_config_update '.lte.enabled = false | .nr_sa.enabled = false'
+                    echo "activated" > "$FLAG_FILE"
+                    qlog_warn "FAILOVER COMPLETE (retry)"
+                    append_event "tower_failover" "Tower locks cleared after retry — signal quality ${quality}% below ${threshold}% threshold" "warning"
+                else
+                    # Both attempts failed on both RATs: the modem may still
+                    # be locked. Do NOT write the activated flag or claim
+                    # success — the daemon still exits below (unchanged
+                    # control flow), so nothing will retry this again until
+                    # the next config apply re-arms the watcher. Flagged in
+                    # the sweep report as a residual gap, not fixed here.
+                    qlog_error "FAILOVER RETRY FAILED — tower locks may still be active; daemon exiting without confirming failover"
+                    append_event "tower_failover" "Tower failover retry failed — locks may still be active (signal ${quality}% below ${threshold}% threshold)" "error"
+                fi
             fi
 
             # Re-apply custom MTU after interface bounce

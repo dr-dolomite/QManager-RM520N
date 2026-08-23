@@ -28,8 +28,20 @@ cgi_handle_options
 # Compound AT: fetch both frequency lock states in one call
 # =============================================================================
 qlog_debug "Querying frequency lock states"
+# qcmd signals failure via exit status + stderr, never via stdout — this
+# call never even captured rc, so a failed read silently fell through with
+# raw="" and every parse below produced lte_locked:false / nr_locked:false.
+# That is not "no lock" — it's "we don't know" — and this endpoint's read
+# feeds frequency/lock.sh's own tower-lock mutual-exclusion gate (stacking a
+# frequency lock on an active tower lock can crash-dump the modem per that
+# file's header), so a failed read must report failure, not "unlocked".
 raw=$(qcmd 'AT+QNWCFG="lte_earfcn_lock";+QNWCFG="nr5g_earfcn_lock"' 2>/dev/null)
-[ -z "$raw" ] && qlog_warn "Frequency lock compound query returned empty response"
+rc=$?
+if [ $rc -ne 0 ] || [ -z "$raw" ]; then
+    qlog_error "Frequency lock compound query failed (rc=$rc); refusing to fabricate lock state"
+    cgi_error "read_failed" "Unable to read frequency lock state from modem"
+    exit 0
+fi
 
 # --- LTE frequency lock ---
 lte_freq_locked="false"

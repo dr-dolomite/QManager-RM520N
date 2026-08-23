@@ -449,11 +449,18 @@ execute_tier3() {
         return 0
     fi
 
-    # Verify SIM presence
-    local cpin_result
+    # Verify SIM presence. qcmd never writes the literal string "ERROR" to
+    # stdout (failure = exit status + stderr, empty stdout), so
+    # `grep -q 'ERROR'` against stdout here could never match — a rejected
+    # or absent SIM read always fell through as "SIM present" and the "no
+    # SIM in backup slot" fallback below has never actually run in
+    # production. rc is captured immediately, before anything else touches
+    # $?.
+    local cpin_result cpin_rc
     cpin_result=$(qcmd 'AT+CPIN?' 2>/dev/null)
-    if printf '%s' "$cpin_result" | grep -q 'ERROR'; then
-        qlog_error "TIER 3: No SIM in backup slot $CFG_BACKUP_SIM_SLOT, falling back"
+    cpin_rc=$?
+    if [ $cpin_rc -ne 0 ] || [ -z "$cpin_result" ]; then
+        qlog_error "TIER 3: No SIM in backup slot $CFG_BACKUP_SIM_SLOT (rc=$cpin_rc), falling back"
         sim_failover_fallback
         return 0
     fi
