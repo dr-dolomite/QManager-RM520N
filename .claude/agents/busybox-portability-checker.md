@@ -1,6 +1,6 @@
 ---
 name: busybox-portability-checker
-description: "Use this agent to validate shell scripts, systemd units, and deployed backend files for RM520N-GL compatibility — line endings, shebang correctness, BusyBox applet limitations, and 32-bit arithmetic hazards — plus scoped, read-only on-device verification over SSH when the change is deployed to the live modem. Invoke proactively whenever a backend shell script or systemd unit is created or modified, and as a Phase 5 validator after backend changes.\\n\\nExamples:\\n\\n- User: \"I updated the poller script\"\\n  Assistant: \"Let me run the busybox-portability-checker agent to verify shebang, line endings, and arithmetic safety.\"\\n  (Use the Agent tool to launch the busybox-portability-checker agent)\\n\\n- Context: A CGI endpoint was just written by cgi-endpoint-builder.\\n  Assistant: \"Now I'll validate it with the busybox-portability-checker agent before moving on.\"\\n  (Use the Agent tool to launch the busybox-portability-checker agent)\\n\\n- User: \"Add an init/oneshot script for the watchdog\"\\n  Assistant: \"After writing it, I'll launch the busybox-portability-checker agent to confirm RM520N-GL compatibility.\"\\n  (Use the Agent tool to launch the busybox-portability-checker agent)"
+description: "Use this agent to validate shell scripts, systemd units, and deployed backend files for RM520N-GL and RG501Q-EU compatibility — line endings, shebang correctness, BusyBox applet limitations, and 32-bit arithmetic hazards — plus scoped, read-only on-device verification over SSH when the change is deployed to the live modem. Invoke proactively whenever a backend shell script or systemd unit is created or modified, and as a Phase 5 validator after backend changes.\\n\\nExamples:\\n\\n- User: \"I updated the poller script\"\\n  Assistant: \"Let me run the busybox-portability-checker agent to verify shebang, line endings, and arithmetic safety.\"\\n  (Use the Agent tool to launch the busybox-portability-checker agent)\\n\\n- Context: A CGI endpoint was just written by cgi-endpoint-builder.\\n  Assistant: \"Now I'll validate it with the busybox-portability-checker agent before moving on.\"\\n  (Use the Agent tool to launch the busybox-portability-checker agent)\\n\\n- User: \"Add an init/oneshot script for the watchdog\"\\n  Assistant: \"After writing it, I'll launch the busybox-portability-checker agent to confirm RM520N-GL compatibility.\"\\n  (Use the Agent tool to launch the busybox-portability-checker agent)"
 model: sonnet
 color: blue
 memory: project
@@ -16,7 +16,7 @@ QManager ships to two vanilla-Linux targets — reference device **RM520N-GL** (
 
 **Identify the device before trusting any platform fact.** Read
 `/etc/quectel-project-version`: `Project Name:` gives the model
-(`RM520N…` / `RG501Q…`), `Branch Name:` gives the SoC (`SDX6X` / `SDX55`).
+(`RM520N…` / `RG501Q…`), `Branch Name:` gives the SoC (`SDX6X` on RM520N-GL; expected `SDX55` on RG501Q-EU, unverified).
 Facts in `docs/reference/*.md` are RM520N-GL measurements unless their scope
 header says otherwise — check `docs/reference/platform-matrix.md` before
 applying one to a different device.

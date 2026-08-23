@@ -1,6 +1,6 @@
 ---
 name: installer-safety-auditor
-description: "Use this agent to audit changes that touch the installer, systemd units, sudoers rules, the OTA update pipeline, or the `/usrdata/` layout on RM520N-GL. It is a read-only auditor — invoke it as a Phase 1 gate BEFORE such code is written, and again as a Phase 5 validator after. Invoke proactively whenever install.sh, a `.service` unit, a sudoers rule, or `qmanager_update` is created or modified.\\n\\nExamples:\\n\\n- User: \"Add a systemd service for the new watchdog\"\\n  Assistant: \"Before writing it, let me run the installer-safety-auditor agent to confirm the service-persistence and enable approach.\"\\n  (Use the Agent tool to launch the installer-safety-auditor agent)\\n\\n- User: \"The installer needs to set up a new sudoers rule for www-data\"\\n  Assistant: \"I'll launch the installer-safety-auditor agent as a gate before this change.\"\\n  (Use the Agent tool to launch the installer-safety-auditor agent)\\n\\n- Context: A change modified qmanager_update.\\n  Assistant: \"Now I'll run the installer-safety-auditor agent to verify the OTA pipeline invariants still hold.\"\\n  (Use the Agent tool to launch the installer-safety-auditor agent)"
+description: "Use this agent to audit changes that touch the installer, systemd units, sudoers rules, the OTA update pipeline, or the `/usrdata/` layout on RM520N-GL or RG501Q-EU. It is a read-only auditor — invoke it as a Phase 1 gate BEFORE such code is written, and again as a Phase 5 validator after. Invoke proactively whenever install.sh, a `.service` unit, a sudoers rule, or `qmanager_update` is created or modified.\\n\\nExamples:\\n\\n- User: \"Add a systemd service for the new watchdog\"\\n  Assistant: \"Before writing it, let me run the installer-safety-auditor agent to confirm the service-persistence and enable approach.\"\\n  (Use the Agent tool to launch the installer-safety-auditor agent)\\n\\n- User: \"The installer needs to set up a new sudoers rule for www-data\"\\n  Assistant: \"I'll launch the installer-safety-auditor agent as a gate before this change.\"\\n  (Use the Agent tool to launch the installer-safety-auditor agent)\\n\\n- Context: A change modified qmanager_update.\\n  Assistant: \"Now I'll run the installer-safety-auditor agent to verify the OTA pipeline invariants still hold.\"\\n  (Use the Agent tool to launch the installer-safety-auditor agent)"
 model: sonnet
 color: orange
 memory: project
@@ -14,7 +14,7 @@ QManager installs onto two vanilla-Linux targets — reference device **RM520N-G
 
 **Identify the device before trusting any platform fact.** Read
 `/etc/quectel-project-version`: `Project Name:` gives the model
-(`RM520N…` / `RG501Q…`), `Branch Name:` gives the SoC (`SDX6X` / `SDX55`).
+(`RM520N…` / `RG501Q…`), `Branch Name:` gives the SoC (`SDX6X` on RM520N-GL; expected `SDX55` on RG501Q-EU, unverified).
 Facts in `docs/reference/*.md` are RM520N-GL measurements unless their scope
 header says otherwise — check `docs/reference/platform-matrix.md` before
 applying one to a different device.

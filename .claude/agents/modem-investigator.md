@@ -18,7 +18,7 @@ Remember the platform: QManager targets two modems. The **RM520N-GL** (reference
 
 **Identify the device before trusting any platform fact.** Read
 `/etc/quectel-project-version`: `Project Name:` gives the model
-(`RM520N…` / `RG501Q…`), `Branch Name:` gives the SoC (`SDX6X` / `SDX55`).
+(`RM520N…` / `RG501Q…`), `Branch Name:` gives the SoC (`SDX6X` on RM520N-GL; expected `SDX55` on RG501Q-EU, unverified).
 Facts in `docs/reference/*.md` are RM520N-GL measurements unless their scope
 header says otherwise — check `docs/reference/platform-matrix.md` before
 applying one to a different device.
