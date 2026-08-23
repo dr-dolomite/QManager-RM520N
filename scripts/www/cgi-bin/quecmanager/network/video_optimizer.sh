@@ -22,6 +22,8 @@
 #       → spawn the two-phase speed comparison
 #   POST {"action":"install"}
 #       → spawn the tpws binary installer
+#   POST {"action":"uninstall"}
+#       → spawn the tpws binary removal (idempotent)
 #
 # Status values: running | stopped | restarting | error
 # "kernel_module_loaded" reports whether the REDIRECT rule is applied — the
@@ -126,14 +128,15 @@ if [ "$REQUEST_METHOD" = "GET" ]; then
             ;;
         hostlist)
             # UI-support endpoint (extension beyond the documented contract):
-            # read the hostlist file as a domain array, comments stripped.
+            # read the hostlist file as a domain array — comments stripped,
+            # lines trimmed. sed/grep only: this firmware's Entware jq is
+            # compiled WITHOUT Oniguruma regex support, so gsub()-based
+            # parsing aborts at runtime and the endpoint returns nothing.
             if [ -f "$DPI_HOSTLIST" ]; then
-                jq -R -s '
-                    split("\n") |
-                    map(gsub("\r"; "") | select(length > 0)) |
-                    map(select(startswith("#") | not)) |
-                    {success:true, domains:.}
-                ' "$DPI_HOSTLIST" 2>/dev/null
+                domains=$(sed -e 's/\r$//' -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' "$DPI_HOSTLIST" \
+                          | grep -v '^#' | grep -v '^$' | jq -R . | jq -s .)
+                [ -n "$domains" ] || domains='[]'
+                jq -n --argjson domains "$domains" '{success:true,domains:$domains}'
             else
                 echo '{"success":true,"domains":[]}'
             fi
@@ -142,14 +145,20 @@ if [ "$REQUEST_METHOD" = "GET" ]; then
         *)
             if [ "$SECTION" = "hostlist" ]; then
                 # RM551-contract section: read the hostlist + the default
-                # list (for restore) as domain arrays, comments stripped.
+                # list (for restore) as domain arrays — comments stripped,
+                # lines trimmed (a stray whitespace line would poison the
+                # next save's strict per-domain validation).
                 if [ -f "$DPI_HOSTLIST" ]; then
-                    domains=$(grep -v '^[[:space:]]*#' "$DPI_HOSTLIST" | grep -v '^[[:space:]]*$' | jq -R . | jq -s .)
+                    domains=$(sed -e 's/\r$//' -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' "$DPI_HOSTLIST" \
+                              | grep -v '^#' | grep -v '^$' | jq -R . | jq -s .)
+                    [ -n "$domains" ] || domains='[]'
                 else
                     domains='[]'
                 fi
                 if [ -f "$DPI_HOSTLIST_DEFAULT" ]; then
-                    default_domains=$(grep -v '^[[:space:]]*#' "$DPI_HOSTLIST_DEFAULT" | grep -v '^[[:space:]]*$' | jq -R . | jq -s .)
+                    default_domains=$(sed -e 's/\r$//' -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' "$DPI_HOSTLIST_DEFAULT" \
+                                      | grep -v '^#' | grep -v '^$' | jq -R . | jq -s .)
+                    [ -n "$default_domains" ] || default_domains='[]'
                 else
                     default_domains='[]'
                 fi
@@ -265,6 +274,13 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
             ;;
         install)
             # --- Spawn tpws installer ---
+            # Pre-flight using the EXACT command line the sudoers rule
+            # whitelists (-n = never prompt): a broken sudoers setup fails
+            # here, visibly, instead of as a silent detached-spawn death.
+            if ! $_SUDO -n /usr/bin/qmanager_dpi_install --probe >/dev/null 2>&1; then
+                cgi_error "sudo_unavailable" "cannot escalate via sudo"
+                exit 0
+            fi
             if [ -f "$DPI_INSTALL_PID" ] && pid_alive "$(cat "$DPI_INSTALL_PID" 2>/dev/null)"; then
                 echo '{"success":true,"status":"running"}'
                 exit 0
@@ -274,6 +290,26 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
                 exit 0
             fi
             $_SUDO /usr/bin/qmanager_dpi_install install </dev/null >/dev/null 2>&1 &
+            echo '{"success":true,"status":"started"}'
+            exit 0
+            ;;
+        uninstall)
+            # --- Spawn tpws binary removal ---
+            # Mirror of install: same sudoers pre-flight, same detached spawn,
+            # same marker protocol for install_status polling.
+            if ! $_SUDO -n /usr/bin/qmanager_dpi_install --probe >/dev/null 2>&1; then
+                cgi_error "sudo_unavailable" "cannot escalate via sudo"
+                exit 0
+            fi
+            if [ -f "$DPI_INSTALL_PID" ] && pid_alive "$(cat "$DPI_INSTALL_PID" 2>/dev/null)"; then
+                echo '{"success":true,"status":"running"}'
+                exit 0
+            fi
+            if ! dpi_binary_installed; then
+                echo '{"success":true,"status":"already"}'
+                exit 0
+            fi
+            $_SUDO /usr/bin/qmanager_dpi_install uninstall </dev/null >/dev/null 2>&1 &
             echo '{"success":true,"status":"started"}'
             exit 0
             ;;
@@ -291,18 +327,57 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
                 cgi_error "invalid_hostlist" "domains must be an array of at most 300 entries"
                 exit 0
             }
-            printf '%s' "$DOMAINS" | jq -e '
-                all(.[]; type == "string" and length > 0 and length <= 253
-                     and test("^[A-Za-z0-9._-]+$") and contains("."))' >/dev/null 2>&1 || {
+            # Per-domain validation WITHOUT jq regex functions: this firmware's
+            # Entware jq is compiled without Oniguruma, so test() aborts at
+            # runtime and a jq-only validator rejects EVERY payload. POSIX
+            # shell patterns are immune to the build difference. Every
+            # rejection path logs its reason — silent refusals cost a day.
+            N_DOMAINS=$(printf '%s' "$DOMAINS" | jq 'length')
+            VALID=1
+            _read=0
+            ENTRIES=$(printf '%s' "$DOMAINS" | jq -r '.[]')
+            for _d in $ENTRIES; do
+                _read=$((_read + 1))
+                case "$_d" in
+                    ''|*[!A-Za-z0-9._-]*)
+                        qlog_info "save_hostlist rejected: entry $_read has invalid characters"
+                        VALID=0; break ;;
+                esac
+                case "$_d" in
+                    *.*) ;;
+                    *)  qlog_info "save_hostlist rejected: entry $_read missing dot"
+                        VALID=0; break ;;
+                esac
+                [ "${#_d}" -le 253 ] || {
+                    qlog_info "save_hostlist rejected: entry $_read exceeds 253 chars"
+                    VALID=0
+                    break
+                }
+            done
+            if [ "$VALID" = "1" ] && [ "$_read" != "$N_DOMAINS" ]; then
+                # Entry count changed during extraction — a payload trick or
+                # an embedded newline/space split one domain into several.
+                qlog_info "save_hostlist rejected: extracted $_read entries from $N_DOMAINS declared"
+                VALID=0
+            fi
+            [ "$VALID" = "1" ] || {
                 cgi_error "invalid_hostlist" "each domain must be a valid hostname (letters, digits, dots, dashes)"
                 exit 0
             }
-            {
+            if {
                 printf '# QManager Video Optimizer hostlist\n'
                 printf '%s' "$DOMAINS" | jq -r '.[]'
-            } > "$DPI_HOSTLIST.tmp" && mv "$DPI_HOSTLIST.tmp" "$DPI_HOSTLIST"
-            qlog_info "save_hostlist: $(printf '%s' "$DOMAINS" | jq 'length') domains written"
-            cgi_success
+            } > "$DPI_HOSTLIST.tmp" && mv "$DPI_HOSTLIST.tmp" "$DPI_HOSTLIST"; then
+                qlog_info "save_hostlist: $N_DOMAINS domains written"
+                cgi_success
+            else
+                # A failed write must never masquerade as success — the old
+                # fall-through here reported success:true with the file
+                # unchanged, and the UI happily showed a list that was never
+                # saved.
+                qlog_error "save_hostlist WRITE FAILED: $DPI_HOSTLIST.tmp not movable"
+                cgi_error "write_failed" "could not write the hostlist file"
+            fi
             exit 0
             ;;
         restore_hostlist)

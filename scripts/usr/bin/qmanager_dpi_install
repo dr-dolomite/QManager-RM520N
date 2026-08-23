@@ -92,6 +92,32 @@ _dpi_is_arm32() {
     return 0
 }
 
+# --- Uninstall (runs in the background) ---------------------------------------
+# Reverse of the download path: graceful engine stop, binary removal, config
+# cleanup. Teardown rules are inlined lib-free. End state is identical to a
+# fresh install: no tpws binary, engine disabled, video_domains.txt preserved
+# so a later reinstall keeps the hostlist.
+_dpi_uninstall_run() {
+    # Rule out FIRST so new LAN connections go direct immediately; existing
+    # flows keep their conntrack binding until the engine stops below.
+    iptables -t nat -D PREROUTING -i bridge0 -p tcp -m multiport --dports 80,443 -j REDIRECT --to-ports 989 2>/dev/null
+    for i in 1 2 3; do iptables -t nat -D OUTPUT -p tcp --dport 443 -j REDIRECT --to-ports 989 2>/dev/null && break; done
+    _dpi_marker_running "Draining connections..."
+    sleep 5
+    systemctl stop qmanager-dpi.service qmanager-dpi-ensure.timer qmanager-dpi-ensure.service 2>/dev/null
+    pkill -x tpws 2>/dev/null
+    rm -f "$DPI_BINARY"
+    # An engine without its binary cannot stay enabled: drop the mode configs
+    # so the UI stops advertising enabled-but-uninstallable features.
+    QM_CONF="/etc/qmanager/qmanager.conf"
+    [ -f "$QM_CONF" ] \
+        && jq 'del(.video_optimizer, .traffic_masquerade)' "$QM_CONF" > "${QM_CONF}.tmp" 2>/dev/null \
+        && mv "${QM_CONF}.tmp" "$QM_CONF"
+    qlog_info "tpws uninstalled (binary absent: $(dpi_binary_installed && echo no || echo yes))"
+    _dpi_marker_complete "Engine binary removed successfully" ""
+    rm -f "$DPI_INSTALL_PID"
+}
+
 # The foreground `install` verb returns as soon as the job is spawned.
 _dpi_download() {
     local tag api asset_url asset_name tarball manifest manifest_url
@@ -250,6 +276,25 @@ case "$verb" in
         ;;
     --download)
         _dpi_download
+        ;;
+    uninstall)
+        if [ -f "$DPI_INSTALL_PID" ] && pid_alive "$(cat "$DPI_INSTALL_PID" 2>/dev/null)"; then
+            _dpi_marker_error "Uninstall blocked" "a binary install or removal is already in progress"
+            exit 1
+        fi
+        if ! dpi_binary_installed; then
+            _dpi_marker_complete "Engine binary already removed"
+            rm -f "$DPI_INSTALL_PID"
+            exit 0
+        fi
+        rm -f "$DPI_INSTALL_PID" "$DPI_INSTALL_FILE"
+        _dpi_marker_running "Stopping Traffic Engine..."
+        setsid /usr/bin/qmanager_dpi_install --uninstall-run </dev/null >/dev/null 2>&1 &
+        echo $! > "$DPI_INSTALL_PID"
+        exit 0
+        ;;
+    --uninstall-run)
+        _dpi_uninstall_run
         ;;
     *)
         echo "usage: qmanager_dpi_install install" >&2
