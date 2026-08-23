@@ -1,7 +1,7 @@
 # Multi-Target Modem Support (RG501Q-EU / SDX55)
 
 **Date:** 2026-08-23
-**Status:** Approved design — Phase A specced, Phases B/C outlined
+**Status:** Approved design — Phases A0/A specced, Phases B/C outlined
 **Scope:** Promote QManager from an RM520N-GL-only project to a declared multi-target
 one, with RG501Q-EU (LGA, SDX55/PRAIRIE) as the second officially supported modem.
 
@@ -63,6 +63,7 @@ Each was decided explicitly during design.
 | D7 | **Unknown modems get a best-effort profile inferred from SoC.** | Never blocks. Preserves today's de-facto behavior for RM502Q-AE users, but stops guessing wrong. |
 | D8 | **No new long-lived branches. `development` stays the integration base.** | OTA is tag-gated, not branch-gated — see §3. Each phase gets a throwaway worktree per `docs/reference/change-workflow.md:102`. |
 | D9 | **Every platform fact carries provenance.** | See §5. Without this, RM520N measurements silently contaminate RG501Q work. |
+| D10 | **Docs/context re-optimization is its own phase (A0), done before any code.** | It is pure documentation — zero regression risk — and every later phase inherits its context model. Probing (B) then files results into a structure that already exists rather than into an undifferentiated pool. |
 
 ### Rejected: a long-lived `rg501q` branch
 
@@ -228,7 +229,13 @@ updaters reject the payload as corrupt. Renaming the installer is therefore
 
 ---
 
-## 5. Provenance of platform facts (D9)
+## 5. Context integrity (D9, D10)
+
+Two distinct problems, often conflated. **Provenance** is "can I trust this fact
+for my device?" **Navigation cost** is "how much do I pay to find out?" Both are
+Phase A0 deliverables.
+
+### 5.A Provenance — the contamination problem
 
 **The problem.** Four layers assert RM520N-GL measurements as unqualified truth,
 and three of them are injected into sessions automatically:
@@ -245,7 +252,7 @@ surfaces *"/etc is persistent always-RW UBIFS — reboot-proven 2026-08-10"*. It
 trusted *because it says proven*, a check is skipped, and the real bug is missed.
 The provenance was genuine — for a different device.
 
-### 5.1 The split that matters
+### 5.A.1 The split that matters
 
 Not every fact is at risk. Two categories, and only one needs qualifying:
 
@@ -263,7 +270,7 @@ poller cadence ~3.7–4.0s; attach cycle drops the `eth0` link ~4s.
 Every fact in the second group could be false on an LGA X55 module, and nothing
 in the current setup would say so.
 
-### 5.2 Convention
+### 5.A.2 Convention
 
 1. **Qualify at the source.** Platform assertions in `CLAUDE.md` and
    `docs/reference/**` name the device: "On RM520N-GL, …" — not "The device …".
@@ -277,9 +284,65 @@ in the current setup would say so.
    its memory file are scoped per device; findings from one must not be filed as
    general truth.
 
-This is a **Phase A deliverable**, not a documentation cleanup to do later — it
-has to exist *before* Phase B probing starts, or the probe results get filed into
-the same undifferentiated pool and the problem doubles.
+### 5.B Navigation cost — the filtering problem
+
+**The concern, stated fairly.** A shared tree means every doc read carries the
+question "does this apply to my modem?" A fork would eliminate that question
+permanently: every doc in a `QManager-RG501Q` repo is unambiguously about
+RG501Q. **Context isolation — not code isolation — is the real argument for a
+fork, and it is a genuine one.**
+
+**Measured surface** (`docs/reference/`, 41 files, grep for
+`RM520|SDX|LEMUR|smd11|ubifs|rmnet|busybox|/proc/|kernel|udev|ARMv7`):
+
+| | Files | Bytes |
+| --- | --- | --- |
+| Platform-coupled (>3 hits) | 33 | ~818 KB |
+| Effectively agnostic (≤3 hits) | 8 | ~686 KB |
+
+The grep is deliberately broad — `kernel`, `busybox` and `/proc/` also match
+shell-design discussion that is QManager's own architecture, not device truth —
+so 818 KB is an **upper bound** on coupling. It is nonetheless substantial, and
+larger than first assumed.
+
+**Why this still does not favor a fork:**
+
+1. **A fork duplicates the 686 KB of agnostic docs and lets them drift.**
+   `DESIGN.md`, `color-system.md`, `icon-system.md`, `cellular-settings-family.md`
+   and every feature invariant are modem-independent. Two copies means the design
+   canon forks — a worse failure than filtering, because drift is silent.
+2. **The 818 KB must be rewritten for RG501Q either way** — that is Phase B. A
+   fork does not avoid the work; it only guarantees that every shared fix
+   afterward is edited twice.
+3. **For divergence, one matrix is cheaper to read than two documents.** The proof
+   is already in this repo: `data-counter-platform-matrix.md` is the *most*
+   platform-coupled doc (77 hits) and simultaneously the *easiest* to answer a
+   per-modem question from, because it places SDX55 and SDX65 in adjacent columns.
+   Two forked documents force the reader to open both and diff them mentally.
+4. **Per-session cost is bounded by the existing routing table.** `CLAUDE.md`
+   already forbids reading reference docs preemptively — one or two docs are
+   opened per task, not 41. The real cost is therefore per-*task*, not
+   per-*session*, and is closed by making device relevance visible before the doc
+   is opened.
+
+**Deliverables:**
+
+- **Scope header on every coupled doc** — `Applies to: RM520N-GL (SDX65) |
+  RG501Q-EU (SDX55) | both`, as the first line of the body.
+- **Promote `data-counter-platform-matrix.md` to a general `platform-matrix.md`** —
+  the single canonical home for device deltas. Feature docs point at it instead of
+  restating hardware facts, which is what keeps the 33 coupled docs from each
+  growing their own per-device sections.
+- **Scope column in `CLAUDE.md`'s routing table** — device relevance known
+  *before* opening a doc. This is where the token saving actually lands.
+- **Device scope on memories and `modem-investigator`'s memory file** (§5.A.2).
+
+### 5.C Why this is Phase A0
+
+This work is pure documentation: no shipped behavior changes, so regression risk
+is zero. It must land **before** Phase B, or probe results get filed into the same
+undifferentiated pool and the problem doubles rather than resolving. Every
+subsequent phase inherits its context model.
 
 ---
 
@@ -287,11 +350,12 @@ the same undifferentiated pool and the problem doubles.
 
 | Phase | Content | Needs hardware? | Isolation |
 | --- | --- | --- | --- |
-| **A** | Profile generation + self-heal; tier table; `hw_profile.sh`; consumers migrated off ad-hoc parsing; variant overlay build; OTA variant selection + whitelist widening; **provenance convention (§5)** | No | worktree `wt/multi-target-platform` off `development` |
+| **A0** | Context re-optimization (§5): scope headers, `platform-matrix.md`, `CLAUDE.md` scope column, memory + agent-memory device scoping. **Docs only, no code.** | No | worktree `wt/context-scoping` off `development` |
+| **A** | Profile generation + self-heal; tier table; `hw_profile.sh`; consumers migrated off ad-hoc parsing; variant overlay build; OTA variant selection + whitelist widening | No | worktree `wt/multi-target-platform` off `development` |
 | **B** | Probe RG501Q-EU, fill the delta table | Yes | None — read-only |
 | **C** | Populate `variants/rg501q/`, promote tier to `official` | Yes | Fresh worktree off `development` |
 
-**Phase A is hardware-independent** — everything in it is derivable from the
+**Phases A0 and A are both hardware-independent** — everything in it is derivable from the
 current tree. It ships as a **no-op on RM520N-GL**: identical behavior, now
 explicit. That is the validation gate — *if RM520N behavior changes at all, the
 refactor is wrong.*
@@ -301,7 +365,7 @@ checklist. `modem-investigator` gets a finite table of fields that must differ,
 each with a known RM520N value to diff against, instead of an open-ended
 exploration.
 
-Only Phase A is specced here. B and C depend on measurements that do not yet
+Only Phases A0 and A are specced here. B and C depend on measurements that do not yet
 exist; planning around guessed values is how guesses become load-bearing.
 
 ### 6.1 Known Phase-B obstacles
@@ -311,7 +375,7 @@ Named now so they are not discovered mid-probe:
 1. **`.env` holds one device.** `MODEM_IP` / `MODEM_SSH_USER` / `MODEM_SSH_PASSWORD`
    are singular, and the `modem-investigator` agent's instructions assume *the*
    modem. A second credential set is needed before probing.
-2. **Platform-fact contamination** — see §5. Addressed in Phase A.
+2. **Platform-fact contamination** — see §5. Addressed in Phase A0.
 3. **`qcmd_test` greps for the literal string `RM520`** (`:50`, `:75`) to decide
    whether the AT transport is healthy. On an RG501Q it reports failure on a
    working device. One-line fix; expensive to debug cold.
