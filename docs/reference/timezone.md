@@ -1,5 +1,8 @@
 # Timezone
 
+> **Applies to:** RM520N-GL (SDX65) · verified 2026-08
+> **RG501Q-EU (SDX55):** unverified — see [`platform-matrix.md`](./platform-matrix.md)
+
 > Timezone lets the user set the device's local clock from **System Settings**. Selecting a zone (for example `Asia/Manila`) persists the choice to config, then pushes it to the live system by copying the matching zoneinfo file over `/etc/localtime` through a small root helper. Once applied, `date`, log timestamps, and alert times switch to local time immediately. Time-of-day schedules (scheduled reboot, tower-lock schedule windows) are systemd `OnCalendar` timers evaluated in the system timezone — they adopt the new zone on the next `daemon-reload` or reboot, not instantly.
 
 Before this feature was fixed, selecting a zone saved to config so the UI *showed* it, but the device clock stayed on UTC. The old apply path failed three ways at once, all silently (`2>/dev/null`): it looked for zone data under `/usr/share/zoneinfo` (which ships **empty** on this device), it wrote `/etc/TZ` (which glibc ignores), and it ran as `www-data` (which cannot write root-owned `/etc`). The current implementation resolves zone data from Entware's `/opt/share/zoneinfo`, installs `/etc/localtime` through a `sudo` root helper, and reports the live effective offset back to the UI so a partial failure is visible instead of hidden.

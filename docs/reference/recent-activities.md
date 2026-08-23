@@ -1,5 +1,8 @@
 # Recent Activities (Dashboard Event Feed)
 
+> **Applies to:** RM520N-GL (SDX65) · verified 2026-08
+> **RG501Q-EU (SDX55):** unverified — see [`platform-matrix.md`](./platform-matrix.md)
+
 The Recent Activities card is the dashboard's window onto the poller's network event log: what the radio did, newest first. It does one thing the backend deliberately does not, which is decide whether anything on that list is *still* wrong. The event log is a flat transcript where "Internet Lost" reads exactly like "Internet Restored" two rows above it; the card gives every row a **tone** (what kind of thing happened) and then decides its **weight** (how loudly to draw it) from age, with unresolved conditions exempt from ageing out. This doc covers the data path, the producer-side settle debounce in `events.sh` that decides whether a band or cell change is worth writing down at all, the tone and resolution-pairing model in `lib/event-presentation.ts`, the presentation contract the card renders from, and the invariants that are easy to break.
 
 ## Quick Reference

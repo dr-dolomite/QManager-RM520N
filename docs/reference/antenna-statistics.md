@@ -1,5 +1,8 @@
 # Antenna Statistics (`/cellular/antenna-statistics`)
 
+> **Applies to:** RM520N-GL (SDX65) · verified 2026-08
+> **RG501Q-EU (SDX55):** unverified — see [`platform-matrix.md`](./platform-matrix.md)
+
 **Antenna Statistics** is the screen someone opens to answer one question: *are all four of my receive chains actually working?* The RM520N-GL has four antenna ports, and the modem reports RSRP, RSRQ and SINR separately for each one, per radio. This page lays those twelve-to-twenty-four numbers out so a dead or unplugged chain is obvious at a glance. Like the rest of `/cellular/`, it adds no backend load: every figure comes from the `signal_per_antenna` block of the poller snapshot (`/tmp/qmanager_status.json`) that the dashboard already fetches, and there is no CGI endpoint of its own.
 
 It has a twin. `/cellular/antenna-alignment` reads the **same** field for a different job, and the difference is a transpose: antenna-statistics is **technology-major** (two cards, LTE and NR5G, each holding four ports), antenna-alignment is **port-major** (one card per port, showing both radios). That transpose *is* the distinction between the two pages, and it is deliberate — statistics answers "which chain is broken", alignment answers "which way should I point this thing".

@@ -1,5 +1,8 @@
 # Cross-UID `/tmp` File Ownership
 
+> **Applies to:** RM520N-GL (SDX65) · verified 2026-08
+> **RG501Q-EU (SDX55):** unverified — see [`platform-matrix.md`](./platform-matrix.md)
+
 QManager runs as two different users. Root owns the daemons (`qmanager_poller`, `qmanager_ping`, `qmanager_watchcat`, `qmanager_discord`, `qmanager_tower_failover`); `www-data` owns everything lighttpd spawns, which is every CGI script under `scripts/www/cgi-bin/`. Both write shared state into `/tmp`. `/tmp` on this device is `root:root` mode **1777** and the kernel runs with **`fs.protected_regular=1`**, and those two rules together decide — permanently, at file-creation time — which UIDs may ever write a given file. Get the ownership wrong and the losing UID's writes fail silently: `>`/`>>` redirects are almost always wrapped in `2>/dev/null`, and `rm -f` returns 0 whether or not it removed anything. This doc is the single place those rules are stated correctly, because they are counterintuitive and the codebase has already shipped three separate bugs from applying them backwards.
 
 > ⚠️ WARNING: the direction of `fs.protected_regular` is the part everyone gets wrong. In `/tmp`, it blocks **root** from writing a **www-data-owned** file. It never blocks www-data from a root-owned file. If you find a doc or comment claiming the opposite, it is wrong — see [The rule, stated correctly](#the-rule-stated-correctly).

@@ -1,5 +1,8 @@
 # Auth Rate Limiting — the progressive lockout ladder
 
+> **Applies to:** RM520N-GL (SDX65) · verified 2026-08
+> **RG501Q-EU (SDX55):** unverified — see [`platform-matrix.md`](./platform-matrix.md)
+
 QManager's login endpoint throttles brute-force password guessing with a **progressive lockout ladder**: the first five wrong passwords are free, the sixth locks the form for 30 seconds, and every *single* failure after that escalates one rung — 120s, 300s, 900s — until a correct password or an hour of quiet resets it. This replaced a flat limiter that punished a fat-fingered owner exactly as hard as it punished a script (both got a fixed 5-minute wall). The ladder is short where humans err and long where automation lives.
 
 Short version: the limiter is a small JSON file in `/tmp` guarded by a lock file, read by three shell functions in `cgi_auth.sh`, and surfaced to the UI by two CGI endpoints. The one subtle rule is that **`auth/check.sh` may only ever *read* the limiter state** — it is called on every load of the public splash page, so a mutating read would let a visitor extend their own lockout by pressing F5.

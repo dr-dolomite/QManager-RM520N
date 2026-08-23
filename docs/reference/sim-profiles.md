@@ -1,5 +1,8 @@
 # Custom SIM Profiles
 
+> **Applies to:** RM520N-GL (SDX65) · verified 2026-08
+> **RG501Q-EU (SDX55):** unverified — see [`platform-matrix.md`](./platform-matrix.md)
+
 > A Custom SIM Profile is a saved bundle of modem configuration — APN, TTL/HL,
 > optional IMEI, and (since the binding feature) an optional Connection
 > Scenario **with an optional time-of-day schedule** — that is tied to a SIM

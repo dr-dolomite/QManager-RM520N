@@ -1,5 +1,8 @@
 # SMS Forwarding (RM520N-GL)
 
+> **Applies to:** RM520N-GL (SDX65) · verified 2026-08
+> **RG501Q-EU (SDX55):** unverified — see [`platform-matrix.md`](./platform-matrix.md)
+
 > A systemd daemon that auto-relays every new incoming SMS to a configured phone number as `From <sender>: <body>`. Seeds silently on first run so it never sprays the existing inbox, guards against relaying its own messages, retries failed sends, and stays enabled through delivery failures.
 
 SMS Forwarding lives at `/cellular/sms/forwarding` (a sub-route under SMS Center) and is net-new on RM520N-GL. A background daemon (`qmanager_sms_forward`) polls the modem inbox every 15 seconds, forwards each unseen message to the target number, and records send failures for the UI to surface. It is the **only** server-side inbox reader in the project — every other SMS read-state is client-side (see [`sms.md`](sms.md)).

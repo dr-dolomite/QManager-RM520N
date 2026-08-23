@@ -1,5 +1,8 @@
 # Scheduled Reboot & Tower Lock Schedule (systemd timers)
 
+> **Applies to:** RM520N-GL (SDX65) · verified 2026-08
+> **RG501Q-EU (SDX55):** unverified — see [`platform-matrix.md`](./platform-matrix.md)
+
 > Two features let the user run something at a fixed time of day: **Scheduled
 > Reboot** (reboot the modem on a weekly recurring schedule) and the **Tower
 > Lock Schedule** (apply a cell/tower lock at a start time each day and clear

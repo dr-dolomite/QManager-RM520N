@@ -1,5 +1,8 @@
 # WAN Profile Management
 
+> **Applies to:** RM520N-GL (SDX65) · verified 2026-08
+> **RG501Q-EU (SDX55):** unverified — see [`platform-matrix.md`](./platform-matrix.md)
+
 > WAN Profile Management is the APN editor for the RM520N-GL. It manages the modem's 6 PDP (Packet Data Protocol) contexts — APN, IP-stack type, authentication, and activation state — entirely through AT commands. There is no Casa RDB key-value store and no `wmmd` daemon on this modem, so every profile field is read and written directly via `qcmd`.
 
 Backed by the CGI endpoint `cellular/apn.sh`. The frontend UI lives under

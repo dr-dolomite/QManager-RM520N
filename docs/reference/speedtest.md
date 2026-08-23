@@ -1,5 +1,8 @@
 # Speed Test (Ookla CLI)
 
+> **Applies to:** RM520N-GL (SDX65) · verified 2026-08
+> **RG501Q-EU (SDX55):** unverified — see [`platform-matrix.md`](./platform-matrix.md)
+
 QManager's Speed Test measures download, upload and latency by shelling out to the **Ookla Speedtest CLI** — a proprietary binary the installer downloads onto the modem rather than bundling. Four CGI endpoints wrap it (availability, server list, start, status), one React hook drives the whole lifecycle, and two surfaces consume that hook: the **Speed Test tile** inside the dashboard's Live Latency card, and the **Speed Test dialog** the tile opens. The feature exists because "is my connection actually delivering what the carrier promised?" is the single most common question a modem owner has, and the signal metrics elsewhere on the dashboard cannot answer it.
 
 > ⚠️ WARNING: **A single run costs roughly 400 MB of cellular data** (398 MB measured live on a full run). This is not a bug and it is not tunable — see [Cost & Measurement Reality](#cost--measurement-reality).

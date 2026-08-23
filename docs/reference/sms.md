@@ -1,5 +1,8 @@
 # SMS Center (RM520N-GL)
 
+> **Applies to:** RM520N-GL (SDX65) · verified 2026-08
+> **RG501Q-EU (SDX55):** unverified — see [`platform-matrix.md`](./platform-matrix.md)
+
 > The SMS inbox: read / send / delete over the modem's AT channel via the bundled `sms_tool`. Merges messages across ME (modem) and SM (SIM) storage, tracks read/unread in the browser, and self-heals CPMS routing so incoming SMS are never stranded on the SIM.
 
 The SMS Center exposes a read/send/delete inbox at `/cellular/sms`. All modem access runs through the bundled `sms_tool` binary, serialized against every other AT consumer (`qcmd`, the poller, the watchdog) by the shared `flock` on `/tmp/qmanager_at.lock`. This doc covers the inbox CGI, the `sms_tool` binary/patch, the CPMS ME+SM storage model, the boot-time routing oneshot, and the browser-side read/unread tracking.

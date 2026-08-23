@@ -1,5 +1,8 @@
 # Ethernet Status & Link Speed
 
+> **Applies to:** RM520N-GL (SDX65) · verified 2026-08
+> **RG501Q-EU (SDX55):** unverified — see [`platform-matrix.md`](./platform-matrix.md)
+
 > The `/local-network/ethernet` page: link state, negotiated speed/duplex, and an optional forced speed limit for the on-board 2.5 GbE port.
 
 ## Hardware

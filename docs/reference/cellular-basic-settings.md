@@ -1,5 +1,8 @@
 # Cellular Basic Settings
 
+> **Applies to:** RM520N-GL (SDX65) · verified 2026-08
+> **RG501Q-EU (SDX55):** unverified — see [`platform-matrix.md`](./platform-matrix.md)
+
 > The `/cellular/settings` surface: six writable modem settings behind one CGI endpoint, a read-only poller-backed readout, and the carrier's AMBR (Aggregate Maximum Bit Rate) limits. This is the page where a user changes SIM slot, radio power, network mode, 5G architecture, roaming policy, and SIM hot-swap detection — every one of which can interrupt the connection the user is reading the page over.
 
 ---

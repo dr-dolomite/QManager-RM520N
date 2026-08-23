@@ -1,5 +1,8 @@
 # SIM Detection (Known-SIMs Set + SIM Registry)
 
+> **Applies to:** RM520N-GL (SDX65) · verified 2026-08
+> **RG501Q-EU (SDX55):** unverified — see [`platform-matrix.md`](./platform-matrix.md)
+
 > QManager answers two separate questions about the SIM in the modem, and it
 > uses two separate stores to do it. **"Is this SIM new?"** is answered by the
 > known-SIMs **set** (`/etc/qmanager/known_iccids`). **"Should we still be

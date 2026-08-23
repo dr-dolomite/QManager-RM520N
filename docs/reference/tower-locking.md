@@ -1,5 +1,8 @@
 # Tower Locking (`/cellular/cell-locking/tower-locking`)
 
+> **Applies to:** RM520N-GL (SDX65) · verified 2026-08
+> **RG501Q-EU (SDX55):** unverified — see [`platform-matrix.md`](./platform-matrix.md)
+
 **Tower Locking pins the radio to one specific physical cell — an (EARFCN, PCI) pair on LTE, or a (PCI, ARFCN, SCS, band) tuple on 5G SA — and it is the sharpest instrument in QManager.** Where [Band Locking](band-locking.md) narrows which *frequencies* the modem may use, this page names the *tower*. Get it right and a marginal fixed-wireless install becomes stable; get it wrong and the modem is pinned to a cell it cannot reach, on a device that is serving the very page you are reading. That asymmetry shapes everything below: the confirmation dialog in front of every lock and every unlock, the failover watcher that releases the lock when signal collapses, and the deliberate honesty about *when* the lock state on screen was last read.
 
 The 2026-08 rebuild is **frontend-only**. `hooks/use-tower-locking.ts` gained state and one bug fix but kept its contract; `types/tower-locking.ts` gained two response fields that the backend was already emitting; the five CGI scripts under `scripts/www/cgi-bin/quecmanager/tower/`, `qmanager_tower_failover` and `tower_lock_mgr.sh` are untouched. What changed is the page shape, the input path (the camped-on carriers are now the picker), the number of ways to apply a lock (**one**), and the copy (0 i18n keys → **155 per locale**, in all five).

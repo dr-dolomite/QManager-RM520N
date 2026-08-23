@@ -1,5 +1,8 @@
 # Carrier Aggregation
 
+> **Applies to:** RM520N-GL (SDX65) · verified 2026-08
+> **RG501Q-EU (SDX55):** unverified — see [`platform-matrix.md`](./platform-matrix.md)
+
 Carrier aggregation (CA) is the radio combining several frequency blocks, called *component carriers*, into one wider pipe. QManager reads the modem's aggregation state from a single AT command, `AT+QCAINFO`, turns each reported carrier into a JSON object in `/tmp/qmanager_status.json`, and renders the set as the dashboard's full-width **Carrier Aggregation strip**. This doc covers the three shapes `AT+QCAINFO` can emit, the two different bandwidth encodings hiding behind similar-looking field names, the NSA one-PCC rule and the "NR Anchor" role the frontend derives from it, and the pure view-model helpers in `lib/carrier-aggregation.ts`.
 
 ## Quick Reference

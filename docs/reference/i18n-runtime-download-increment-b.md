@@ -1,5 +1,8 @@
 # i18n Runtime Download — Increment B Plan (handoff)
 
+> **Applies to:** RM520N-GL (SDX65) · verified 2026-08
+> **RG501Q-EU (SDX55):** unverified — see [`platform-matrix.md`](./platform-matrix.md)
+
 **Status: IMPLEMENTED** (v0.1.13-draft). Increment B — the device-side runtime
 downloader that installs published packs onto a live RM520N-GL without a firmware
 update — is built and validated. This document is retained as the **historical

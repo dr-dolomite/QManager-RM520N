@@ -1,5 +1,8 @@
 # Antenna Alignment (`/cellular/antenna-alignment`)
 
+> **Applies to:** RM520N-GL (SDX65) · verified 2026-08
+> **RG501Q-EU (SDX55):** unverified — see [`platform-matrix.md`](./platform-matrix.md)
+
 **Antenna Alignment** is the screen someone opens while standing next to the hardware with a phone in one hand and a mast in the other. It answers one question — *which way should I point this thing?* — and it answers it twice, because aiming is really two jobs. **Sweeping** means rotating slowly and watching for change; **committing** means stopping at three candidate positions, measuring each properly, and comparing them. Sweeping is *continuous* and committing is *episodic*, and the page's layout is built on that difference: the live instrument is pinned and the other two cards scroll past it. Like the rest of `/cellular/`, it adds no backend load: every figure comes from the `signal_per_antenna` block of the poller snapshot the dashboard already fetches, and there is **no CGI endpoint of its own**.
 
 This doc records the invariants that are cheap to break and expensive to notice. Several of them are correctness fixes, and each one was a case of the page presenting a number more confidently than the number deserved: a recommendation that silently re-ranked itself when the radio flapped, a "3-sample average" that was averaging a duplicate reading, a score that punished a position for a chain being idle, an empty state that blamed the radio for the modem being unreachable, and a four-across strip that put one port's 5G reading on the same baseline as three ports' 4G readings.

@@ -1,5 +1,8 @@
 # Data Usage Counter
 
+> **Applies to:** RM520N-GL (SDX65) · verified 2026-08
+> **RG501Q-EU (SDX55):** unverified — see [`platform-matrix.md`](./platform-matrix.md)
+
 > The persistent data-usage counter reads directly from the kernel's `/proc/net/dev` byte counters for the cellular interface. Schema v5 uses a **static SoC-based orientation map** (read once at startup from `/etc/quectel-project-version`) instead of the per-boot Cloudflare probe that v4 ran.
 
 Kernel-sourced design landed in v0.1.11 (schema v3). Schema v4 added a per-boot probe; v5 replaces the probe with a static SoC-keyed table after observed probe misclassifications on RM520N-GL under live traffic. See [`data-counter-platform-matrix.md`](./data-counter-platform-matrix.md) for the cross-SoC evidence behind the static map.

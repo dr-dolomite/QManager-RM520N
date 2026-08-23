@@ -1,5 +1,8 @@
 # Reference Docs
 
+> **Applies to:** RM520N-GL (SDX65) · verified 2026-08
+> **RG501Q-EU (SDX55):** unverified — see [`platform-matrix.md`](./platform-matrix.md)
+
 Detailed operational notes extracted from `CLAUDE.md` to keep the always-loaded project instructions lean. Each file is self-contained — read it only when working on that subsystem.
 
 | Doc | Read when you are working on... |

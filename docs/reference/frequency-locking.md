@@ -1,5 +1,8 @@
 # Frequency Locking (`/cellular/cell-locking/frequency-locking`)
 
+> **Applies to:** RM520N-GL (SDX65) · verified 2026-08
+> **RG501Q-EU (SDX55):** unverified — see [`platform-matrix.md`](./platform-matrix.md)
+
 **Frequency Locking is an allow list of radio channels.** It tells the modem "you may only use these channels" — an EARFCN or two on LTE, up to 32 (ARFCN, SCS) pairs on 5G NR — and then leaves every other decision to the network. It does **not** pin a cell: unlike [Tower Locking](tower-locking.md), which names an exact (EARFCN, PCI) pair, a frequency lock takes no PCI at all, so the modem keeps reselecting freely *inside* the channels you allowed. It sits between its two siblings in sharpness: [Band Locking](band-locking.md) narrows the radio to whole bands, this narrows it to individual channels, tower locking names one physical cell.
 
 > ℹ️ NOTE — jargon, once: **EARFCN** (E-UTRA Absolute Radio Frequency Channel Number) is LTE's channel index; **ARFCN** (sometimes NR-ARFCN) is 5G's. **SCS** is subcarrier spacing, the 5G channel's carrier grid in kHz — 15, 30, 60, 120 or 240. **PCI** is Physical Cell ID, a tower's identity on a channel. **CGI** (Common Gateway Interface) is how lighttpd runs QManager's shell scripts as HTTP endpoints. A **mutex** is a lock that lets only one process talk to the modem at a time.

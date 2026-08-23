@@ -1,5 +1,8 @@
 # Discord Bot
 
+> **Applies to:** RM520N-GL (SDX65) · verified 2026-08
+> **RG501Q-EU (SDX55):** unverified — see [`platform-matrix.md`](./platform-matrix.md)
+
 > User-installed Discord bot that exposes modem status and control via slash commands, deployed as a systemd service on the RM520N-GL.
 
 Source directory: `discord-bot/`, deployed as `/usr/bin/qmanager_discord`.

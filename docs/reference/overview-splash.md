@@ -1,5 +1,8 @@
 # Overview Splash
 
+> **Applies to:** RM520N-GL (SDX65) · verified 2026-08
+> **RG501Q-EU (SDX55):** unverified — see [`platform-matrix.md`](./platform-matrix.md)
+
 > The **Overview** splash is the public, unauthenticated landing page served at `/`. Instead of dropping an anonymous visitor straight onto a login form, QManager greets them with a live status card — device name, carrier, network type, aggregate bandwidth, per-band signal, and an Overall/Internet/Temperature verdict trio — all refreshed every 5 seconds *before* anyone logs in. A **Sign in** button takes them to `/login/`, and a deliberate logout now lands the user back here rather than on the bare login screen.
 
 Short version: `/` used to render the login form directly. It now renders a client-side gate that decides between three outcomes — show the public splash, confirm an existing session and forward to the dashboard, or (on a fresh device) bounce to `/setup/`. The splash reads three brand-new **public CGI endpoints** that expose a deliberately narrow, allowlisted slice of the poller cache. Nothing sensitive (IMEI, ICCID, IMSI, phone number, WAN/LAN IPs) is ever in the anonymous payload.

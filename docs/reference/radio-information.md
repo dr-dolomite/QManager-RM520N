@@ -1,5 +1,8 @@
 # Radio Information (`/cellular/`)
 
+> **Applies to:** RM520N-GL (SDX65) · verified 2026-08
+> **RG501Q-EU (SDX55):** unverified — see [`platform-matrix.md`](./platform-matrix.md)
+
 The **Radio Information** page is the screen a technician opens to answer two questions in order: *which bands am I on right now*, and *how is each one doing*. It reads nothing of its own. Every figure comes from the ordinary poller snapshot (`/tmp/qmanager_status.json`) that the dashboard already fetches, so the page adds zero backend load and no new CGI endpoint. (CGI — Common Gateway Interface — is the shell-script-behind-a-URL mechanism the rest of QManager's backend uses; this page needs none.) What it adds is a view model: `lib/radio-info.ts` turns that snapshot into a page mode, a per-carrier list, an aggregate summary and a clipboard payload, and the components under `components/cellular/radio/` render that decision without making one.
 
 The page is laid out **by cadence, not by symmetry**: a single-column stack of header → summary tiles → **Spectrum in use** (what moves every poll) → **Connection details** (what moves on attach or handover). Every carrier's metrics are on screen at once; nothing is one click deep.

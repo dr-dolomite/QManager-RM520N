@@ -1,5 +1,8 @@
 # Cellular Settings Family
 
+> **Applies to:** RM520N-GL (SDX65) · verified 2026-08
+> **RG501Q-EU (SDX55):** unverified — see [`platform-matrix.md`](./platform-matrix.md)
+
 > The five routes under `/cellular/settings/` share one geometry-and-tone contract (`components/cellular/settings/shapes.ts`) rather than each hand-rolling its own card. This doc covers that shared contract and the four surfaces that adopted it in the 2026-08-13 rebuild — **APN Management**, **Network Priority**, **IMEI Settings**, and **Blocked Networks (FPLMN)**. The fifth route, `/cellular/settings` itself, has its own doc: [cellular-basic-settings.md](cellular-basic-settings.md).
 
 Nothing in that rebuild touched a CGI script, a systemd unit, the installer, or the poller. Every backend contract below is pre-existing and unchanged; what changed is which of it the UI is honest about.
