@@ -129,7 +129,7 @@ all of them.
 
 ---
 
-### Task 1: Create `platform-matrix.md`
+### Task 1: Create `platform-matrix.md` — DONE (013c627)
 
 **Files:**
 - Create: `docs/reference/platform-matrix.md`
@@ -138,11 +138,11 @@ all of them.
 **Interfaces:**
 - Produces: the canonical anchor every scope header in T3 links to (`./platform-matrix.md`), and the fact rows T2/T4/T5 point at instead of restating.
 
-- [ ] **Step 1: Read the pattern source**
+- [x] **Step 1: Read the pattern source**
 
 Read `docs/reference/data-counter-platform-matrix.md` in full. It is the one doc that already does this correctly. Note specifically: one row per fact, one column per platform, and prose phrased conditionally (*"On firmwares where X (like SDX55)…"*) rather than as *"the modem does X."*
 
-- [ ] **Step 2: Create the file with this exact skeleton**
+- [x] **Step 2: Create the file with this exact skeleton**
 
 ```markdown
 # Platform Matrix — per-device facts
@@ -170,7 +170,7 @@ design spec, D7.
 ## CPU & ABI
 ```
 
-- [ ] **Step 3: Populate rows from the census**
+- [x] **Step 3: Populate rows from the census**
 
 Under each heading, add rows in the C2 format. Seed with at minimum these
 device-measured facts, all currently RM520N-GL-only:
@@ -186,16 +186,16 @@ device-measured facts, all currently RM520N-GL-only:
 
 Every `RG501Q-EU` cell is `*unverified*`. **No exceptions** — per Global Constraints, this phase never states an RG501Q value.
 
-- [ ] **Step 4: Carry over the two known PRAIRIE-family caveats, correctly hedged**
+- [x] **Step 4: Carry over the two known PRAIRIE-family caveats, correctly hedged**
 
 `qmanager-independence.md:276-278` and `docs/BACKEND.md:1025` already record that on PRAIRIE-derived platforms the modem re-creates `/dev/smd11` *after* `qmanager-setup.service` runs, and that the udev subsystem name differs. Add these as rows — but the RG501Q cell stays `*unverified*`, with a note: those caveats were established for **RG502Q/RM502Q**, not RG501Q-EU. Same family, different model. Record it as a Phase-B hypothesis, never as a measurement.
 
-- [ ] **Step 5: Verify no invented values**
+- [x] **Step 5: Verify no invented values**
 
 Run: `grep -n "RG501Q" docs/reference/platform-matrix.md | grep -v "unverified" | grep -v "LGA" | grep -v "SDX55" | grep -v "PRAIRIE" | grep -v "Phase B"`
 Expected: no output. Any hit is an invented measurement — remove it.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add docs/reference/platform-matrix.md
