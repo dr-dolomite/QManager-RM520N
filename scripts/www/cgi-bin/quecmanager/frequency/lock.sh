@@ -58,9 +58,27 @@ if [ "$LOCK_TYPE" = "lte" ]; then
     if [ "$ACTION" = "lock" ]; then
         # --- Check tower lock mutual exclusion ---
         lte_tower_state=$(tower_read_lte_lock 2>/dev/null)
+        # A single failed AT read is a transient hiccup, not proof of a
+        # tower lock we can't see — retry exactly once (same 0.1s spacing
+        # tower/status.sh uses between its reads) before failing closed.
+        if [ "$lte_tower_state" = "error" ]; then
+            sleep 0.1
+            lte_tower_state=$(tower_read_lte_lock 2>/dev/null)
+        fi
         case "$lte_tower_state" in
             locked*)
                 cgi_error "tower_lock_active" "Cannot use frequency lock while LTE tower lock is active. Disable tower lock first."
+                exit 0
+                ;;
+            error)
+                # Fail CLOSED, not open. Two failed tower-lock reads in a
+                # row is NOT evidence of "no tower lock" — the modem could
+                # be locked and we simply couldn't confirm it. Quectel
+                # documents a hardware mutual exclusion here (see the NR
+                # branch below), so permitting the frequency lock on an
+                # unconfirmed read risks sending it while a tower lock the
+                # modem still holds is active.
+                cgi_error "tower_lock_unknown" "Could not verify LTE tower lock state — refusing frequency lock. Try again."
                 exit 0
                 ;;
         esac
@@ -152,9 +170,24 @@ elif [ "$LOCK_TYPE" = "nr" ]; then
     if [ "$ACTION" = "lock" ]; then
         # --- Check tower lock mutual exclusion ---
         nr_tower_state=$(tower_read_nr_lock 2>/dev/null)
+        # Retry once before failing closed — see the matching LTE branch
+        # above for why.
+        if [ "$nr_tower_state" = "error" ]; then
+            sleep 0.1
+            nr_tower_state=$(tower_read_nr_lock 2>/dev/null)
+        fi
         case "$nr_tower_state" in
             locked*)
                 cgi_error "tower_lock_active" "Cannot use frequency lock while NR tower lock is active. This command cannot be used together with AT+QNWLOCK common/5g."
+                exit 0
+                ;;
+            error)
+                # Fail CLOSED — see the matching LTE branch above. Quectel
+                # documents this as a real hardware conflict (AT+QNWCFG
+                # frequency locking cannot be used together with
+                # AT+QNWLOCK common/5g), so two unconfirmed reads in a row
+                # must never be treated as permission.
+                cgi_error "tower_lock_unknown" "Could not verify NR tower lock state — refusing frequency lock. Try again."
                 exit 0
                 ;;
         esac

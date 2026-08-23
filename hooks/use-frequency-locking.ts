@@ -87,6 +87,15 @@ export interface UseFrequencyLockingReturn {
   towerLockLteActive: boolean;
   /** Whether NR tower lock is active (blocks NR freq lock) */
   towerLockNrActive: boolean;
+  /**
+   * False when the LTE tower-lock probe FAILED, so `towerLockLteActive` is a
+   * seed rather than a reading. `frequency/lock.sh` refuses the write in this
+   * state (`tower_lock_unknown`), so the UI must block it up front instead of
+   * letting the user reach an AT round-trip to be told no.
+   */
+  towerLockLteReadOk: boolean;
+  /** As above, for NR. See `frequency/status.sh:119`. */
+  towerLockNrReadOk: boolean;
 
   /** Manually refresh state. */
   refresh: () => void;
@@ -283,6 +292,11 @@ export function useFrequencyLocking(): UseFrequencyLockingReturn {
   // ---------------------------------------------------------------------------
   const towerLockLteActive = modemState?.tower_lock_lte_active ?? false;
   const towerLockNrActive = modemState?.tower_lock_nr_active ?? false;
+  // `=== false`, never `!== true` — the fields are optional and absent means
+  // true, so an un-upgraded `status.sh` must not block the page. See
+  // `FreqLockModemState`.
+  const towerLockLteReadOk = modemState?.tower_lock_lte_read_ok !== false;
+  const towerLockNrReadOk = modemState?.tower_lock_nr_read_ok !== false;
 
   // ---------------------------------------------------------------------------
   // Manual refresh
@@ -310,6 +324,8 @@ export function useFrequencyLocking(): UseFrequencyLockingReturn {
     unlockNr,
     towerLockLteActive,
     towerLockNrActive,
+    towerLockLteReadOk,
+    towerLockNrReadOk,
     refresh,
   };
 }

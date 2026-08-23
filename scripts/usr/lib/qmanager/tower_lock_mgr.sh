@@ -39,6 +39,56 @@ TOWER_FAILOVER_FLAG="/tmp/qmanager_tower_failover"
 TOWER_FAILOVER_PID="/tmp/qmanager_tower_failover.pid"
 TOWER_FAILOVER_SCRIPT="/usr/bin/qmanager_tower_failover"
 
+# In-flight marker for a tower-lock AT write. A lock/unlock write causes a
+# brief (documented 3-5s) modem reconnect; a failover watcher that samples
+# signal during exactly that window could misread the blip as a bad reading.
+# Rather than stopping/respawning the watcher around every write (which opens
+# error-exit paths that could leave the device with NO watcher running, an
+# indefinite loss of protection strictly worse than the blip it guards
+# against), a write marks itself in-flight and the watcher's own loop skips
+# any cycle that lands inside the window.
+#
+# Self-expiring by design: the marker's content is a future UNIX deadline
+# (now + TOWER_WRITE_SETTLE), not a boolean, so a lock.sh process that is
+# killed mid-write (crash, OOM, lighttpd recycling the CGI) cannot wedge the
+# watcher into skipping forever — the marker simply goes stale and the next
+# cycle after the deadline reads live signal normally again. No "end"/cleanup
+# call is required, and none should be added — a try/rm-on-exit pattern would
+# reintroduce exactly the "must not leak" fragility this design avoids.
+TOWER_WRITE_INFLIGHT="/tmp/qmanager_tower_write_inflight"
+# TOWER_WRITE_SETTLE must simultaneously satisfy three independent
+# constraints, or the marker protects roughly nothing:
+#   1. > qmanager_tower_failover's INTERVAL (20s, checked once per loop
+#      cycle). If SETTLE <= INTERVAL, whether the daemon ever observes the
+#      marker before it expires is a coin flip on write timing — a write
+#      landing in the second half of a cycle expires before the daemon's
+#      next check. This was the bug: SETTLE=10 < INTERVAL=20 meant roughly
+#      half of all writes got no protection at all.
+#   2. > the daemon's own SETTLE=20 ("seconds before first check (modem
+#      reconnects after lock)") — the daemon's existing estimate, in the
+#      SAME file, of this SAME physical event (attach cycle drops the eth0
+#      link for ~4s).
+#   3. > the poller cadence (~3.7-4.0s, NOT 2s — the poller's `sleep 2`
+#      runs AFTER the cycle body). The daemon reads a CACHE
+#      (/tmp/qmanager_status.json), not live signal, so a bad RSRP sampled
+#      during the blip sits in that cache for at least one more poller
+#      cycle after the blip itself ends. The guard must outlast
+#      blip + poller cadence, not just the blip.
+# 30 clears all three with margin. Do not tune this down without
+# re-deriving all three numbers above — a smaller value silently
+# reintroduces the coin-flip failure mode, and it will not show up in
+# testing unless a write happens to land early in the daemon's cycle.
+TOWER_WRITE_SETTLE=30
+
+# Mark a tower-lock AT write as in-flight. Call immediately before the AT
+# write (tower_lock_lte / tower_lock_nr / tower_unlock_lte / tower_unlock_nr).
+# No matching "end" call — see the self-expiring note above.
+tower_write_begin() {
+    local _tw_deadline
+    _tw_deadline=$(( $(date +%s 2>/dev/null || echo 0) + TOWER_WRITE_SETTLE ))
+    printf '%s' "$_tw_deadline" > "$TOWER_WRITE_INFLIGHT" 2>/dev/null
+}
+
 # Ensure config directory exists
 mkdir -p /etc/qmanager 2>/dev/null
 
@@ -286,10 +336,26 @@ tower_read_nr_lock() {
     local line
     line=$(printf '%s' "$result" | grep '+QNWLOCK:' | head -1 | tr -d '\r')
 
+    # No +QNWLOCK line is ambiguous (could be unlocked or a malformed/partial
+    # read) — mirror the LTE reader above and report it as a failed read
+    # rather than guessing "unlocked". Callers must check for the literal
+    # string "error" and must NOT treat it as "unlocked".
+    #
+    # CONFIRMED on hardware (live probe, LTE-only device — B28 PCC + B3 SCC,
+    # no NR leg registered at all, SA or NSA): AT+QNWLOCK="common/5g" still
+    # returned a full `+QNWLOCK: "common/5g",0` line (rc=0), byte-structurally
+    # identical to the common/4g reply. It answers from the modem's stored
+    # lock configuration, not from live NR registration, so it does not need
+    # an NR leg to exist to report on one. A missing +QNWLOCK line is
+    # therefore unreachable on a healthy read — the only way to hit this
+    # branch is a genuinely malformed/partial response, which is exactly
+    # what "error" is for. The locked-NR parse path below this block remains
+    # unexercised until an NR cell is actually locked on an SA-capable
+    # network; that is a separate, un-gated code path and not a reason to
+    # add speculative handling here.
     if [ -z "$line" ]; then
-        # No +QNWLOCK line could mean unlocked or error
-        printf 'unlocked'
-        return 0
+        printf 'error'
+        return 1
     fi
 
     # Extract params after "common/5g"

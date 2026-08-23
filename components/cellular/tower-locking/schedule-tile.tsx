@@ -18,10 +18,11 @@ import {
   AUTO_TILE,
   BADGE_GLYPH_SIZE,
   DAY_CHIP,
-  FIELD_CONTROL,
+  FIELD_CONTROL_ON_CONTAINER,
   FIELD_LABEL,
   NOTICE,
   NOTICE_TONE,
+  SWITCH_TARGET,
   dayChipFill,
 } from "./shapes";
 
@@ -247,7 +248,10 @@ export function ScheduleTile({ config, onScheduleChange }: ScheduleTileProps) {
           checked={enabled}
           onCheckedChange={handleEnabledChange}
           aria-label={t("tower_locking.schedule.enable_label")}
-          className="ml-auto"
+          {...(noDays
+            ? { "aria-describedby": "tower-schedule-no-days" }
+            : null)}
+          className={`${SWITCH_TARGET} ml-auto`}
         />
       </div>
 
@@ -264,7 +268,7 @@ export function ScheduleTile({ config, onScheduleChange }: ScheduleTileProps) {
               setStartTime(e.target.value);
               commit({ start_time: e.target.value });
             }}
-            className={FIELD_CONTROL}
+            className={FIELD_CONTROL_ON_CONTAINER}
           />
         </div>
         <div className="flex flex-col gap-1.5">
@@ -279,7 +283,7 @@ export function ScheduleTile({ config, onScheduleChange }: ScheduleTileProps) {
               setEndTime(e.target.value);
               commit({ end_time: e.target.value });
             }}
-            className={FIELD_CONTROL}
+            className={FIELD_CONTROL_ON_CONTAINER}
           />
         </div>
       </div>
@@ -292,6 +296,12 @@ export function ScheduleTile({ config, onScheduleChange }: ScheduleTileProps) {
           className={DAY_CHIP.ROW}
           role="group"
           aria-label={t("tower_locking.schedule.days_a11y")}
+          /* The "no days selected" notice below is the REASON this group is
+             the thing to fix, and a screen-reader user lands on the group
+             without ever reaching the sentence sitting under it. */
+          {...(noDays
+            ? { "aria-describedby": "tower-schedule-no-days" }
+            : null)}
         >
           {DAY_INDICES.map((index) => {
             const selected = days.includes(index);
@@ -328,7 +338,10 @@ export function ScheduleTile({ config, onScheduleChange }: ScheduleTileProps) {
           >
             <MaterialSymbol name={NOTICE_TONE.warning.glyph} size={16} />
           </span>
-          <span className="min-w-0 flex-1 leading-relaxed">
+          <span
+            id="tower-schedule-no-days"
+            className="min-w-0 flex-1 leading-relaxed"
+          >
             {t("tower_locking.schedule.no_days")}
           </span>
         </div>

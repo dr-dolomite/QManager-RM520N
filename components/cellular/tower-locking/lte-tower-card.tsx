@@ -51,7 +51,7 @@ import { compositeValue, parseCompositeValue } from "./simple-mode-utils";
 import {
   BADGE_GLYPH_SIZE,
   CARD_PAD,
-  FIELD_CONTROL,
+  FIELD_CONTROL_ON_CONTAINER,
   LEG_BADGE,
   NOTICE,
   NOTICE_TONE,
@@ -157,12 +157,25 @@ const SLOT_CLEAR =
 /**
  * Select trigger geometry.
  *
- * `FIELD_CONTROL`'s `h-[2.625rem]` cannot win against the primitive's
- * `data-[size=default]:h-9` on its own — they are different variant groups, so
- * `tailwind-merge` keeps both and the data-attribute rule applies. The override
- * has to be written in the same variant to replace it.
+ * `FIELD_CONTROL_ON_CONTAINER`'s `h-[2.625rem]` cannot win against the
+ * primitive's `data-[size=default]:h-9` on its own — they are different variant
+ * groups, so `tailwind-merge` keeps both and the data-attribute rule applies.
+ * The override has to be written in the same variant to replace it.
+ *
+ * `dark:hover:bg-surface-container-high!` is the SECOND override the same trap
+ * demands and this line was missing: `select.tsx` ships `dark:hover:bg-input/50`,
+ * so in dark mode the trigger's resting fill was correct and it flipped to
+ * `input/50` the moment a pointer touched it. The `dark:` half of the base pair
+ * only defends the RESTING state.
+ *
+ * The `!` is load-bearing for the same reason it is on the base pair: both
+ * rules compile to (0,3,0) — utility + `.dark` + `:hover` — so they TIE, and a
+ * tie is settled by emission order, which for two candidates of one utility is
+ * Tailwind's name sort (`bg-input…` before `bg-surface-…`). Winning on the
+ * letter `i` preceding `s` is an outcome we observed, not one we built. See
+ * `shapes.ts` > FIELD_CONTROL for the full note.
  */
-const SELECT_CONTROL = `${FIELD_CONTROL} w-full data-[size=default]:h-[2.625rem]`;
+const SELECT_CONTROL = `${FIELD_CONTROL_ON_CONTAINER} w-full data-[size=default]:h-[2.625rem] dark:hover:bg-surface-container-high!`;
 
 /**
  * THE TWO FIELD WIDTHS INSIDE A SLOT ROW.
@@ -398,11 +411,27 @@ export default function LteTowerCard({
   );
   const hasAnyValue = activeSlots.some((slot) => !isSlotBlank(slot));
 
-  const posture: LegPosture = modemState
-    ? modemState.lte_locked
-      ? "locked"
-      : "unlocked"
-    : "unknown";
+  /**
+   * THE THIRD POSTURE IS NOT DECORATIVE.
+   *
+   * `status.sh` seeds `lte_locked="false"` before it asks the modem anything,
+   * so a failed `AT+QNWLOCK="common/4g"` read reaches this card as a plain
+   * `false` and used to paint the confident green `Unlocked` chip — the card
+   * asserting a fact nobody read back, on the one page whose entire job is to
+   * report what the radio was told. `lte_read_ok` is the only thing that can
+   * tell the two apart.
+   *
+   * `=== false`, NEVER `!== true`. The field is optional (see
+   * `TowerModemState`): a statically-exported page bundle can outlive the CGI
+   * it talks to, and `!== true` would repaint every card on an un-upgraded
+   * modem as unknown.
+   */
+  const posture: LegPosture =
+    !modemState || modemState.lte_read_ok === false
+      ? "unknown"
+      : modemState.lte_locked
+        ? "locked"
+        : "unlocked";
   const status = LEG_BADGE[posture];
   const statusLabel =
     posture === "locked"
@@ -422,7 +451,13 @@ export default function LteTowerCard({
    * unconditionally would caption a stale target with "Modem reports".
    */
   const readbackCells = useMemo<LteLockCell[]>(
-    () => (modemState?.lte_locked ? (modemState.lte_cells ?? []) : []),
+    () =>
+      // The `read_ok` half is the same guard as `posture` above, for the same
+      // reason: an unread leg has no read-back to print, and the seeded
+      // `lte_locked=false` would otherwise pass this off as "nothing locked".
+      modemState?.lte_read_ok !== false && modemState?.lte_locked
+        ? (modemState.lte_cells ?? [])
+        : [],
     [modemState],
   );
 
@@ -461,6 +496,30 @@ export default function LteTowerCard({
         .join("|");
     return key(validCells) !== key(readbackCells);
   }, [validCells, readbackCells]);
+
+  /**
+   * WHY `Lock Tower` CANNOT BE PRESSED, IN WORDS.
+   *
+   * It was one boolean OR of three unrelated conditions, so all three collapsed
+   * into one unexplained grey pill. The worst of them by a distance is the last:
+   * the reader sees "Locked", sees their own numbers sitting in the fields, and
+   * finds the button dead — with nothing anywhere on the card saying that those
+   * numbers ARE the current targets and there is nothing left to write.
+   *
+   * A non-null string is both the reason and the gate (see `SaveButton`'s
+   * `blockedReason`), so the two cannot drift apart. `isLocking` is deliberately
+   * NOT in here: the button is already showing a spinner and "Saving…", which is
+   * that reason, said better and in the place the eye is already looking.
+   */
+  const lockBlockedReason = isLocking
+    ? null
+    : validCells.length === 0
+      ? hasAnyValue
+        ? t("tower_locking.blocked.lock_incomplete_lte")
+        : t("tower_locking.blocked.lock_empty_lte")
+      : posture === "locked" && !hasChanges
+        ? t("tower_locking.blocked.lock_unchanged")
+        : null;
 
   // --- Handlers --------------------------------------------------------------
 
@@ -684,12 +743,22 @@ export default function LteTowerCard({
                 checked={simpleActive}
                 onCheckedChange={handleSimpleModeToggle}
                 disabled={!hasOptions || isLocking}
+                /* The sentence under this row is the ONLY thing that says why
+                   the switch is off and stuck. It sat there unlinked, so a
+                   screen-reader user met a forced-off control with no reason
+                   attached — this surface had no `aria-describedby` at all. */
+                {...(!hasOptions
+                  ? { "aria-describedby": "lte-simple-mode-note" }
+                  : null)}
               />
             </div>
             {/* Not decoration: with the switch forced off and disabled, this is
                 the only thing that says WHY. */}
             {!hasOptions ? (
-              <p className="text-on-surface-variant px-4 text-xs">
+              <p
+                id="lte-simple-mode-note"
+                className="text-on-surface-variant px-4 text-xs"
+              >
                 {t("tower_locking.live.camped_empty_title")}
               </p>
             ) : null}
@@ -943,7 +1012,7 @@ export default function LteTowerCard({
                           inputMode="numeric"
                           autoComplete="off"
                           placeholder={t("tower_locking.live.tile_earfcn")}
-                          className={`${FIELD_CONTROL} font-mono tabular-nums`}
+                          className={`${FIELD_CONTROL_ON_CONTAINER} font-mono tabular-nums`}
                           value={slot.earfcn}
                           onChange={(event) =>
                             setSlotField(index, "earfcn", event.target.value)
@@ -966,7 +1035,7 @@ export default function LteTowerCard({
                         inputMode="numeric"
                         autoComplete="off"
                         placeholder={t("tower_locking.live.tile_pci")}
-                        className={`${FIELD_CONTROL} font-mono tabular-nums`}
+                        className={`${FIELD_CONTROL_ON_CONTAINER} font-mono tabular-nums`}
                         value={slot.pci}
                         onChange={(event) =>
                           setSlotField(index, "pci", event.target.value)
@@ -1048,11 +1117,7 @@ export default function LteTowerCard({
               isSaving={isLocking}
               saved={saved}
               label={t("tower_locking.actions.lock")}
-              disabled={
-                isLocking ||
-                validCells.length === 0 ||
-                (posture === "locked" && !hasChanges)
-              }
+              blockedReason={lockBlockedReason}
               className={PILL_ACTION_PLAIN}
             />
             {/* Gated on `posture`, NOT on `config.lte.enabled`: offering to

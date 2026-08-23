@@ -10,6 +10,11 @@ import { CellularPageHeader } from "@/components/cellular/page-header";
 import { MaterialSymbol } from "@/components/ui/material-symbol";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { useModemStatus } from "@/hooks/use-modem-status";
 import { useTowerLocking } from "@/hooks/use-tower-locking";
 import { staggerContainer, staggerItem } from "@/lib/motion";
@@ -332,16 +337,56 @@ const TowerLockingComponent = () => {
               <p className="leading-relaxed">{t("tower_locking.error.body")}</p>
             </div>
           </div>
+          {/* THE RETRY IS THE ONLY WAY OUT OF THIS STATE, AND IT USED TO GO
+              SILENT. It was `disabled={isRefreshing}` and nothing else: no
+              spinner, no label change, no reason, no announcement — so a press
+              on a slow modem looked exactly like a press that did nothing, and
+              the obvious response is to press it again.
+
+              Four channels now say the retry is running: the glyph spins, the
+              label swaps, the reason is on the control (`aria-disabled` +
+              tooltip, so it survives keyboard focus — see
+              `cell-scanner/sibling-link.tsx`), and the `aria-live` below
+              announces it once. */}
           <div>
-            <Button
-              type="button"
-              onClick={() => void tower.refresh()}
-              disabled={tower.isRefreshing}
-              className={PILL_ACTION}
-            >
-              <MaterialSymbol name="refresh" size={18} />
-              {t("tower_locking.error.retry")}
-            </Button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  type="button"
+                  onClick={
+                    tower.isRefreshing ? undefined : () => void tower.refresh()
+                  }
+                  aria-disabled={tower.isRefreshing || undefined}
+                  aria-label={
+                    tower.isRefreshing
+                      ? `${t("tower_locking.error.retry")} — ${t("tower_locking.blocked.refresh_in_flight")}`
+                      : t("tower_locking.error.retry")
+                  }
+                  className={`${PILL_ACTION} aria-disabled:cursor-not-allowed aria-disabled:opacity-55`}
+                >
+                  <MaterialSymbol
+                    name={tower.isRefreshing ? "progress_activity" : "refresh"}
+                    size={18}
+                    className={
+                      tower.isRefreshing
+                        ? "animate-spin motion-reduce:animate-none"
+                        : undefined
+                    }
+                  />
+                  {tower.isRefreshing
+                    ? t("tower_locking.error.retrying")
+                    : t("tower_locking.error.retry")}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent className="max-w-72">
+                {tower.isRefreshing
+                  ? t("tower_locking.blocked.refresh_in_flight")
+                  : t("tower_locking.error.retry_tip")}
+              </TooltipContent>
+            </Tooltip>
+            <span className="sr-only" aria-live="polite" aria-atomic="true">
+              {tower.isRefreshing ? t("tower_locking.a11y.refreshing") : ""}
+            </span>
           </div>
         </div>
       ) : null}
@@ -463,7 +508,13 @@ const TowerLockingComponent = () => {
               modemState={tower.modemState}
               failover={tower.failoverState}
               configPersist={tower.config?.persist ?? false}
-              failoverThreshold={tower.config?.failover?.threshold ?? 20}
+              /* `?? null`, NEVER `?? 20`. The incumbent default rendered in the
+               threshold input as a confident two-digit number that nothing on
+               screen distinguished from a real setting — including while the
+               error notice above said `status.sh` had failed all three retries
+               and NOTHING had been read. State-Honesty Rule: a missing reading
+               is an empty field, not a plausible value. */
+            failoverThreshold={tower.config?.failover?.threshold ?? null}
               activeRsrp={activeRsrp}
               isLoading={tower.isLoading}
               isSavingFailover={tower.isSavingFailover}

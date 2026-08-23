@@ -70,6 +70,8 @@ export const FrequencyLockingComponent = () => {
     unlockNr,
     towerLockLteActive,
     towerLockNrActive,
+    towerLockLteReadOk,
+    towerLockNrReadOk,
     refresh,
   } = useFrequencyLocking();
 
@@ -269,6 +271,7 @@ export const FrequencyLockingComponent = () => {
             isLocking={isLteLocking}
             error={lastAttempted === "lte" ? error : null}
             towerLockActive={towerLockLteActive}
+            towerLockReadOk={towerLockLteReadOk}
             onLock={handleLockLte}
             onUnlock={handleUnlockLte}
           />
@@ -284,6 +287,7 @@ export const FrequencyLockingComponent = () => {
             isLocking={isNrLocking}
             error={lastAttempted === "nr" ? error : null}
             towerLockActive={towerLockNrActive}
+            towerLockReadOk={towerLockNrReadOk}
             onLock={handleLockNr}
             onUnlock={handleUnlockNr}
           />

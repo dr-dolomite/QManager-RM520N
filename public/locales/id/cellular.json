@@ -1584,6 +1584,10 @@
       "no_pci_note": "Kunci frekuensi tidak pernah mengikat sel. Modem terus berpindah sel di dalam kanal yang Anda izinkan.",
       "count": "{{used}} dari {{max}}"
     },
+    "blocked": {
+      "tower_lock_active": "Kunci tower sedang menahan radio ini. Lepaskan dulu sebelum mengunci frekuensi.",
+      "tower_lock_unknown": "Status kunci tower tidak bisa dibaca, jadi penguncian ini ditolak sampai modem menjawab. Muat ulang untuk mencoba lagi."
+    },
     "slots": {
       "slot": "Slot {{index}}",
       "earfcn_placeholder": "EARFCN",
@@ -2373,12 +2377,15 @@
       "failover_state_disabled": "Nonaktif",
       "failover_state_standby": "Tidak ada kunci",
       "failover_state_armed": "Memantau",
+      "failover_state_stalled": "Tidak memantau",
+      "failover_state_unknown": "Belum dilaporkan",
       "failover_state_fallback": "Dilepas — lemah",
       "failover_toast_enabled": "Failover sinyal diaktifkan",
       "failover_toast_disabled": "Failover sinyal dinonaktifkan",
       "failover_toast_error": "Tidak dapat memperbarui failover sinyal",
       "threshold_label": "Lepas di bawah",
       "threshold_invalid": "Masukkan nilai antara 0 dan 100",
+      "threshold_unread": "Belum terbaca dari modem.",
       "threshold_toast_saved": "Ambang failover diperbarui",
       "threshold_toast_error": "Tidak dapat memperbarui ambang",
       "quality_label": "Kualitas sinyal saat ini",
@@ -2495,13 +2502,27 @@
     },
     "warning": {
       "service_enable_failed": "Kunci aktif sekarang, tetapi tidak akan bertahan setelah reboot — modem menolak perintah penyimpanan.",
+      "service_disable_failed": "Kunci sudah dilepas, tetapi tidak bisa dihapus dari proses boot — kunci bisa kembali setelah reboot.",
       "persist_command_failed": "\"Pertahankan kunci setelah reboot\" tidak diterapkan. Modem menolak perintah penyimpanan.",
       "dismiss": "Tutup"
     },
     "error": {
       "title": "Tidak dapat membaca status kunci tower",
       "body": "Modem tidak menjawab setelah tiga kali percobaan. Selama ini belum berhasil, semua yang tampil di bawah tidak mencerminkan status kunci radio yang sebenarnya.",
-      "retry": "Coba lagi"
+      "retry": "Coba lagi",
+      "retrying": "Mencoba lagi…",
+      "retry_tip": "Minta status penguncian dari modem sekali lagi."
+    },
+    "blocked": {
+      "lock_empty_lte": "Masukkan kanal dan PCI, atau pilih sel dari kartu di atas.",
+      "lock_incomplete_lte": "Setiap slot yang sudah diisi memerlukan kanal dan PCI sekaligus.",
+      "lock_empty_nr": "Masukkan kanal, PCI, jarak subcarrier, dan band, atau pilih sel dari kartu di atas.",
+      "lock_incomplete_nr": "Keempat kolom harus terisi sebelum sel ini bisa dikunci.",
+      "lock_unchanged": "Radio sudah terkunci tepat pada target ini, jadi tidak ada yang perlu ditulis.",
+      "lock_gated_nsa": "Modem berada di 5G NSA, sehingga sisi 5G tidak punya sel standalone untuk dikunci.",
+      "lock_gated_lte_only": "Modem tidak memiliki pembawa 5G yang aktif, jadi tidak ada yang bisa dikunci.",
+      "threshold_empty": "Masukkan persentase antara 0 dan 100.",
+      "refresh_in_flight": "Sedang membaca ulang modem. Ini bisa memakan waktu beberapa detik."
     },
     "a11y": {
       "applying": "Menerapkan kunci tower {{leg}}…",

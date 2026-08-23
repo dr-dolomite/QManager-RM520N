@@ -253,14 +253,20 @@ const FIELD_TILE_LABEL = `${FIELD_LABEL} w-full`;
  * a channel reads identically whether the modem reported it or the user typed
  * it.
  *
- * `dark:bg-transparent` is NOT redundant: `input.tsx` ships `dark:bg-input/30`
- * and `select.tsx` adds `dark:hover:bg-input/50`, both compiled at (0,2,0) by
- * the `dark` custom variant, so a bare `bg-transparent` loses to them and the
- * control renders as a visible second box in dark mode only.
+ * `dark:bg-transparent!` is NOT redundant: `input.tsx` ships `dark:bg-input/30`
+ * and `select.tsx` adds `dark:hover:bg-input/50`, both lifted by the `dark`
+ * custom variant, so a bare `bg-transparent` loses to them and the control
+ * renders as a visible second box in dark mode only.
+ *
+ * The `!` is what makes the restatement WIN rather than merely tie. `dark:` on
+ * our side compiles to the same specificity as theirs, and a tie is decided by
+ * emission order — Tailwind's name sort, where `bg-input…` happens to precede
+ * `bg-transparent`. That is luck, not construction; `!important` is the rule.
+ * See `shapes.ts` > FIELD_CONTROL for the full note.
  */
 const FIELD_TILE_CONTROL = [
   "h-8 w-full min-w-0 rounded-none border-0 bg-transparent px-0 py-0 shadow-none",
-  "dark:bg-transparent",
+  "dark:bg-transparent!",
   "font-mono text-sm font-semibold tabular-nums",
   "focus-visible:ring-0",
 ].join(" ");
@@ -271,11 +277,12 @@ const FIELD_TILE_CONTROL = [
  * Two overrides an `Input` does not need, both because `select.tsx` writes them
  * inside a variant scope that a bare utility cannot reach: `data-[size=default]:h-9`
  * (a class plus an attribute, so it outranks a plain `h-8` and tailwind-merge
- * cannot fold the two) and `dark:hover:bg-input/50`.
+ * cannot fold the two) and `dark:hover:bg-input/50` — the latter marked
+ * important for the tie-break reason above.
  */
 const TILE_SELECT = [
   FIELD_TILE_CONTROL,
-  "data-[size=default]:h-8 dark:hover:bg-transparent",
+  "data-[size=default]:h-8 dark:hover:bg-transparent!",
 ].join(" ");
 
 /**
@@ -526,14 +533,25 @@ export default function NrSaTowerCard({
 
   // --- Derived posture -------------------------------------------------------
 
-  /** `unknown` is a real state: `status.sh` cannot tell a failed `AT+QNWLOCK`
-   *  read from "not locked", so a confident "Unlocked" would be an assertion
-   *  nobody made. See `shapes.ts` > LEG_BADGE. */
-  const posture: LegPosture = !modemState
-    ? "unknown"
-    : modemState.nr_locked
-      ? "locked"
-      : "unlocked";
+  /**
+   * `unknown` is a real state, and until now it had no way to happen on a
+   * loaded card. `status.sh` seeds `nr_locked="false"` before it asks the modem
+   * anything, so a failed `AT+QNWLOCK="common/5g"` read arrived here as a plain
+   * `false` and painted the confident green "Unlocked" chip — an assertion
+   * nobody made, on the card whose job is to report what the radio was told.
+   * `nr_read_ok` is the only thing that separates the two. See `shapes.ts` >
+   * LEG_BADGE.
+   *
+   * `=== false`, NEVER `!== true`: the field is optional (see
+   * `TowerModemState`) so that a cached page bundle meeting an un-upgraded
+   * `status.sh` keeps rendering real state instead of going blank.
+   */
+  const posture: LegPosture =
+    !modemState || modemState.nr_read_ok === false
+      ? "unknown"
+      : modemState.nr_locked
+        ? "locked"
+        : "unlocked";
 
   /**
    * THE CELL THE MODEM REPORTS AS LOCKED — which is `nr_cell` AND `nr_locked`,
@@ -545,7 +563,13 @@ export default function NrSaTowerCard({
    * below now does too — see the trap named there.
    */
   const lockedCell = useMemo(
-    () => (modemState?.nr_locked ? modemState.nr_cell : null),
+    () =>
+      // Third guard, same family as the two above: an UNREAD leg has no
+      // read-back to report, and the seeded `nr_locked=false` would otherwise
+      // pass "we could not ask" off as "nothing is locked".
+      modemState?.nr_read_ok !== false && modemState?.nr_locked
+        ? modemState.nr_cell
+        : null,
     [modemState],
   );
 
@@ -761,6 +785,34 @@ export default function NrSaTowerCard({
    * stay reachable from a page served by the modem it is unlocking.
    */
   const formDisabled = isLocking || gate !== null;
+
+  /**
+   * WHY `Lock Tower` CANNOT BE PRESSED, IN WORDS.
+   *
+   * Four unrelated conditions used to OR into one boolean and render as one
+   * unexplained grey pill. Two of them are especially bad without copy: a GATED
+   * card states its condition in a notice at the top of the body, which is off
+   * screen by the time the reader reaches the footer; and `locked && !hasChanges`
+   * shows the user their own numbers in the fields beside a dead button, with
+   * nothing saying that those numbers ARE the current target.
+   *
+   * A non-null string is both the reason and the gate (see `SaveButton`'s
+   * `blockedReason`), so the two can never disagree. `isLocking` is deliberately
+   * absent: the button is already showing a spinner and "Saving…".
+   */
+  const lockBlockedReason = isLocking
+    ? null
+    : gate === "nsa"
+      ? t("tower_locking.blocked.lock_gated_nsa")
+      : gate === "lte_only"
+        ? t("tower_locking.blocked.lock_gated_lte_only")
+        : !parsedCell
+          ? hasAnyInput
+            ? t("tower_locking.blocked.lock_incomplete_nr")
+            : t("tower_locking.blocked.lock_empty_nr")
+          : posture === "locked" && !hasChanges
+            ? t("tower_locking.blocked.lock_unchanged")
+            : null;
 
   const status = LEG_BADGE[posture];
   /** Written out rather than interpolated (`status_${posture}`): `i18n:check`
@@ -1135,6 +1187,19 @@ export default function NrSaTowerCard({
                     </Tooltip>
                   ) : null}
                 </div>
+                {/* WHERE THIS NUMBER CAME FROM, AS A DESCRIPTION OF THE FIELD.
+                    The provenance mark carries it visually, but a tooltip is
+                    not a description: a reader who tabs straight into the
+                    select never touches the mark, and SCS is the one field of
+                    the four that is routinely a GUESS on the last screen
+                    before the modem drops its connection. This surface had no
+                    `aria-describedby` anywhere; this is the field that most
+                    needed one. */}
+                {scsProvenance ? (
+                  <span id={`${fieldId}-scs-provenance`} className="sr-only">
+                    {scsProvenance.tip}
+                  </span>
+                ) : null}
                 <Select
                   value={scs}
                   onValueChange={(v) => {
@@ -1143,7 +1208,13 @@ export default function NrSaTowerCard({
                   }}
                   disabled={formDisabled}
                 >
-                  <SelectTrigger id={`${fieldId}-scs`} className={TILE_SELECT}>
+                  <SelectTrigger
+                    id={`${fieldId}-scs`}
+                    className={TILE_SELECT}
+                    aria-describedby={
+                      scsProvenance ? `${fieldId}-scs-provenance` : undefined
+                    }
+                  >
                     <SelectValue placeholder={t("tower_locking.fields.scs")} />
                   </SelectTrigger>
                   <SelectContent>
@@ -1201,11 +1272,7 @@ export default function NrSaTowerCard({
               isSaving={isLocking}
               saved={saved}
               label={t("tower_locking.actions.lock")}
-              disabled={
-                formDisabled ||
-                !parsedCell ||
-                (posture === "locked" && !hasChanges)
-              }
+              blockedReason={lockBlockedReason}
               className={PILL_ACTION_PLAIN}
             />
             {/* Gated on `posture`, NOT on `config.nr_sa.enabled`: offering to

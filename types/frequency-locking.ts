@@ -39,6 +39,25 @@ export interface FreqLockModemState {
   nr_entries: NrFreqLockEntry[]; // 0-32 entries
   tower_lock_lte_active: boolean; // From AT+QNWLOCK="common/4g"
   tower_lock_nr_active: boolean; // From AT+QNWLOCK="common/5g"
+
+  /**
+   * DID THE TOWER-LOCK PROBE ACTUALLY COME BACK?
+   *
+   * `status.sh:109` seeds `tower_lock_*_read_ok="true"` and flips it to false
+   * when the `AT+QNWLOCK` read errors — at which point `tower_lock_*_active`
+   * keeps its `false` seed and is indistinguishable from a genuine "no tower
+   * lock". That mattered because `frequency/lock.sh:81` REFUSES the write in
+   * exactly this case (`tower_lock_unknown`): the page would leave Lock enabled,
+   * take the user through the form and an AT round-trip, and only then refuse —
+   * the pattern `blockedReason` exists to eliminate.
+   *
+   * OPTIONAL, AND ABSENT MEANS TRUE, matching `TowerModemState`: a statically
+   * exported bundle can outlive the CGI it talks to, so every consumer tests
+   * `=== false` and nothing else. `!== true` would block the whole page the
+   * moment the two halves fall out of step.
+   */
+  tower_lock_lte_read_ok?: boolean;
+  tower_lock_nr_read_ok?: boolean;
 }
 
 // --- API Responses -----------------------------------------------------------

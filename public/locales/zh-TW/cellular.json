@@ -1584,6 +1584,10 @@
       "no_pci_note": "頻點鎖定絕不會固定小區。數據機會在你允許的頻點範圍內持續重選。",
       "count": "{{used}} / {{max}}"
     },
+    "blocked": {
+      "tower_lock_active": "基站鎖定正佔用此射頻。請先解除後再鎖定頻點。",
+      "tower_lock_unknown": "無法讀取基站鎖定狀態，在數據機回應前將拒絕此次鎖定。請重新整理後再試。"
+    },
     "slots": {
       "slot": "插槽 {{index}}",
       "earfcn_placeholder": "EARFCN",
@@ -2373,12 +2377,15 @@
       "failover_state_disabled": "已停用",
       "failover_state_standby": "無鎖定可守護",
       "failover_state_armed": "監控中",
+      "failover_state_stalled": "未在守護",
+      "failover_state_unknown": "尚未回報",
       "failover_state_fallback": "已解除 — 訊號弱",
       "failover_toast_enabled": "已啟用訊號容錯移轉",
       "failover_toast_disabled": "已停用訊號容錯移轉",
       "failover_toast_error": "無法更新訊號容錯移轉",
       "threshold_label": "低於此值時解除",
       "threshold_invalid": "請輸入 0 到 100 之間的數值",
+      "threshold_unread": "尚未從模組讀取到該值。",
       "threshold_toast_saved": "已更新容錯移轉門檻值",
       "threshold_toast_error": "無法更新門檻值",
       "quality_label": "目前訊號品質",
@@ -2495,13 +2502,27 @@
     },
     "warning": {
       "service_enable_failed": "鎖定目前已生效，但重新啟動後不會保留 — 數據機拒絕了儲存指令。",
+      "service_disable_failed": "鎖定已解除，但未能從開機啟動中移除 — 重新啟動後可能會再次生效。",
       "persist_command_failed": "「重新啟動後保持鎖定」未生效。數據機拒絕了儲存指令。",
       "dismiss": "忽略"
     },
     "error": {
       "title": "無法讀取基站鎖定狀態",
       "body": "數據機經三次嘗試仍無回應。在此操作成功之前，下方內容均不反映無線電真實的鎖定狀態。",
-      "retry": "重試"
+      "retry": "重試",
+      "retrying": "正在重試…",
+      "retry_tip": "再次向模組查詢鎖定狀態。"
+    },
+    "blocked": {
+      "lock_empty_lte": "請輸入頻點與 PCI，或從上方的小卡片中選取一個小區。",
+      "lock_incomplete_lte": "已開始填寫的每個插槽都需要同時填入頻點與 PCI。",
+      "lock_empty_nr": "請輸入頻點、PCI、子載波間隔與頻段，或從上方的小卡片中選取一個小區。",
+      "lock_incomplete_nr": "鎖定該小區前，四個欄位都必須填寫。",
+      "lock_unchanged": "射頻已鎖定在完全相同的目標上，沒有需要寫入的內容。",
+      "lock_gated_nsa": "模組目前處於 5G NSA，5G 側沒有可鎖定的獨立組網小區。",
+      "lock_gated_lte_only": "模組目前沒有在用的 5G 載波，因此沒有可鎖定的對象。",
+      "threshold_empty": "請輸入 0 到 100 之間的百分比。",
+      "refresh_in_flight": "正在重新讀取模組狀態，可能需要幾秒鐘。"
     },
     "a11y": {
       "applying": "正在套用 {{leg}} 基站鎖定…",

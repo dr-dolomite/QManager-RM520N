@@ -94,19 +94,33 @@ fi
 # =============================================================================
 # Query tower lock state (for mutual exclusion gating)
 # =============================================================================
+# tower_lock_*_active only ever reflected `locked*)` — both "unlocked" and a
+# failed/ambiguous "error" read landed in the same non-match and reported a
+# confident false, which is what let frequency/lock.sh's mirror of this same
+# gate fail OPEN on a failed read (see lock.sh's own error) branches). This
+# script cannot refuse anything itself (it is read-only), but it must not
+# keep telling the frontend "definitely not locked" when the read failed —
+# so tower_lock_*_active keeps its existing meaning and gains a sibling
+# *_read_ok, same convention as tower/status.sh. A field ABSENT entirely
+# (an un-upgraded CGI) must be treated by the frontend as true (trusted) —
+# only an explicit false means "do not trust tower_lock_*_active".
 qlog_debug "Checking tower lock state for gating"
 tower_lock_lte="false"
+tower_lock_lte_read_ok="true"
 lte_tower_state=$(tower_read_lte_lock 2>/dev/null)
 case "$lte_tower_state" in
     locked*) tower_lock_lte="true" ;;
+    error) tower_lock_lte_read_ok="false" ;;
 esac
 
 sleep 0.1
 
 tower_lock_nr="false"
+tower_lock_nr_read_ok="true"
 nr_tower_state=$(tower_read_nr_lock 2>/dev/null)
 case "$nr_tower_state" in
     locked*) tower_lock_nr="true" ;;
+    error) tower_lock_nr_read_ok="false" ;;
 esac
 
 # =============================================================================
@@ -118,7 +132,9 @@ response_json=$(jq -n \
     --argjson nr_locked "$nr_freq_locked" \
     --argjson nr_entries "$nr_freq_entries_json" \
     --argjson tower_lte "$tower_lock_lte" \
+    --argjson tower_lte_ok "$tower_lock_lte_read_ok" \
     --argjson tower_nr "$tower_lock_nr" \
+    --argjson tower_nr_ok "$tower_lock_nr_read_ok" \
     '{
         success: true,
         modem_state: {
@@ -127,13 +143,18 @@ response_json=$(jq -n \
             nr_locked: $nr_locked,
             nr_entries: $nr_entries,
             tower_lock_lte_active: $tower_lte,
-            tower_lock_nr_active: $tower_nr
+            tower_lock_lte_read_ok: $tower_lte_ok,
+            tower_lock_nr_active: $tower_nr,
+            tower_lock_nr_read_ok: $tower_nr_ok
         }
     }' 2>/dev/null)
 
 if [ -n "$response_json" ]; then
     printf '%s\n' "$response_json"
 else
+    # jq itself failed here — unlike an absent field on an un-upgraded CGI,
+    # this script DID run and DID fail, so read_ok is honestly false rather
+    # than omitted.
     qlog_error "Failed to build status JSON with jq, sending fallback"
-    printf '{"success":true,"modem_state":{"lte_locked":false,"lte_entries":[],"nr_locked":false,"nr_entries":[],"tower_lock_lte_active":false,"tower_lock_nr_active":false}}\n'
+    printf '{"success":true,"modem_state":{"lte_locked":false,"lte_entries":[],"nr_locked":false,"nr_entries":[],"tower_lock_lte_active":false,"tower_lock_lte_read_ok":false,"tower_lock_nr_active":false,"tower_lock_nr_read_ok":false}}\n'
 fi

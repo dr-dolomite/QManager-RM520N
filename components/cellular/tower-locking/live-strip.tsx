@@ -358,22 +358,45 @@ export function TowerLiveStrip({
                       ) : addressable ? (
                         /* Disabled with a REASON rather than absent when the
                            leg cannot take a target — silently dropping the
-                           control leaves the user to infer the rule. */
+                           control leaves the user to infer the rule.
+
+                           `aria-disabled`, NOT the native `disabled`, and the
+                           tooltip is why. A disabled element receives no
+                           pointer events and cannot be focused, so the reason
+                           it was carrying was reachable by neither hover nor
+                           keyboard: this was the one explained control on the
+                           page and its explanation did not actually arrive.
+                           `aria-disabled` announces the same state, keeps the
+                           tile's button in the tab order, and lets the reason
+                           land on hover AND on focus. Dropping the handler
+                           rather than guarding inside it means there is no
+                           second place for "blocked" to be decided — see
+                           `cell-scanner/sibling-link.tsx`. */
                         <Tooltip>
                           <TooltipTrigger asChild>
                             <button
                               type="button"
-                              disabled={!pickable}
-                              onClick={() => onPickCarrier(c)}
+                              aria-disabled={!pickable || undefined}
+                              onClick={
+                                pickable ? () => onPickCarrier(c) : undefined
+                              }
                               className={CARRIER_TILE.ACTION}
-                              aria-label={t(
-                                "tower_locking.live.tile_use_a11y",
-                                {
-                                  band: c.band,
-                                  pci: c.pci,
-                                  leg: t(legShortKey(legForCarrier(c))),
-                                },
-                              )}
+                              /* The reason travels with the NAME too: a screen
+                                 reader that hears "Use B3 / PCI 135 for LTE"
+                                 has been told this control works. */
+                              aria-label={
+                                pickable || !gate.reasonKey
+                                  ? t("tower_locking.live.tile_use_a11y", {
+                                      band: c.band,
+                                      pci: c.pci,
+                                      leg: t(legShortKey(legForCarrier(c))),
+                                    })
+                                  : `${t("tower_locking.live.tile_use_a11y", {
+                                      band: c.band,
+                                      pci: c.pci,
+                                      leg: t(legShortKey(legForCarrier(c))),
+                                    })} — ${t(gate.reasonKey)}`
+                              }
                             >
                               {/* The glyph, not the 45% disabled opacity, is
                                   what separates "pick this" from "you cannot

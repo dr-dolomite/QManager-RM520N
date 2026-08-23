@@ -57,6 +57,7 @@ const FAILOVER_POLL_INTERVAL = 3000; // 3s — watcher sleeps 20s then checks
  */
 export type TowerWarningCode =
   | "service_enable_failed"
+  | "service_disable_failed"
   | "persist_command_failed";
 
 export interface UseTowerLockingReturn {
@@ -357,6 +358,14 @@ export function useTowerLocking(): UseTowerLockingReturn {
         // locked — it just will not come back after a reboot.
         if (data.service_enable_failed) {
           setLastWarning("service_enable_failed");
+        } else if (data.service_disable_failed) {
+          // THE MIRROR CASE, ON THE UNLOCK BRANCHES. `lock.sh` used to answer
+          // `success:false` here for an unlock whose AT write had landed; it now
+          // answers honestly with `success:true` + this flag. Unread, that swap
+          // would have turned a misleading error message into NO message: the
+          // user is told the unlock worked while the persistence/failover unit
+          // stays enabled and re-arms the lock at the next boot.
+          setLastWarning("service_disable_failed");
         }
 
         // Wait for modem to reconnect after lock/unlock command (3-5s typical).
@@ -507,8 +516,13 @@ export function useTowerLocking(): UseTowerLockingReturn {
         // never accepted.
         if (data.persist_command_failed) {
           setLastWarning("persist_command_failed");
-        } else if (data.service_enable_failed || data.service_disable_failed) {
+        } else if (data.service_enable_failed) {
           setLastWarning("service_enable_failed");
+        } else if (data.service_disable_failed) {
+          // Was folded into `service_enable_failed` while that was the only
+          // declared code, which put "the lock will not survive a reboot" on a
+          // failure to DISABLE — the opposite claim.
+          setLastWarning("service_disable_failed");
         }
 
         // Optimistic update of config

@@ -1584,6 +1584,10 @@
       "no_pci_note": "A frequency lock never pins the cell. The modem keeps reselecting inside the channels you allow.",
       "count": "{{used}} of {{max}}"
     },
+    "blocked": {
+      "tower_lock_active": "A tower lock is holding this radio. Release it before locking a frequency.",
+      "tower_lock_unknown": "The tower lock state could not be read, so this lock is refused until the modem answers. Refresh to try again."
+    },
     "slots": {
       "slot": "Slot {{index}}",
       "earfcn_placeholder": "EARFCN",
@@ -2371,12 +2375,15 @@
       "failover_state_disabled": "Disabled",
       "failover_state_standby": "No lock to guard",
       "failover_state_armed": "Watching",
+      "failover_state_stalled": "Not guarding",
+      "failover_state_unknown": "Not reported",
       "failover_state_fallback": "Released — weak signal",
       "failover_toast_enabled": "Signal failover enabled",
       "failover_toast_disabled": "Signal failover disabled",
       "failover_toast_error": "Couldn't update signal failover",
       "threshold_label": "Release below",
       "threshold_invalid": "Enter a value between 0 and 100",
+      "threshold_unread": "Not read from the modem yet.",
       "threshold_toast_saved": "Failover threshold updated",
       "threshold_toast_error": "Couldn't update the threshold",
       "quality_label": "Signal quality now",
@@ -2495,13 +2502,27 @@
     },
     "warning": {
       "service_enable_failed": "The lock is active now, but it will not survive a reboot — the modem rejected the save command.",
+      "service_disable_failed": "The lock is released, but it could not be removed from startup — it may come back after a reboot.",
       "persist_command_failed": "\"Keep lock after reboot\" did not take. The modem rejected the save command.",
       "dismiss": "Dismiss"
     },
     "error": {
       "title": "Couldn't read tower lock state",
       "body": "The modem did not answer after three attempts. Nothing below reflects the radio's real lock state until this succeeds.",
-      "retry": "Try again"
+      "retry": "Try again",
+      "retrying": "Retrying…",
+      "retry_tip": "Ask the modem for its lock state again."
+    },
+    "blocked": {
+      "lock_empty_lte": "Enter a channel and PCI, or pick a cell from the tiles above.",
+      "lock_incomplete_lte": "Every slot you have started needs both a channel and a PCI.",
+      "lock_empty_nr": "Enter a channel, PCI, spacing and band, or pick a cell from the tiles above.",
+      "lock_incomplete_nr": "All four fields are needed before this cell can be locked.",
+      "lock_unchanged": "The radio is already locked to exactly these targets, so there is nothing left to write.",
+      "lock_gated_nsa": "The modem is on 5G NSA, where the 5G leg has no standalone cell to lock.",
+      "lock_gated_lte_only": "The modem has no 5G carrier on air, so there is nothing to lock it to.",
+      "threshold_empty": "Enter a percentage between 0 and 100.",
+      "refresh_in_flight": "Already re-reading the modem. This can take a few seconds."
     },
     "a11y": {
       "applying": "Applying the {{leg}} tower lock…",

@@ -1584,6 +1584,10 @@
       "no_pci_note": "频点锁定绝不会固定小区。调制解调器会在你允许的频点范围内继续重选。",
       "count": "{{used}} / {{max}}"
     },
+    "blocked": {
+      "tower_lock_active": "基站锁定正占用此射频。请先解除后再锁定频点。",
+      "tower_lock_unknown": "无法读取基站锁定状态，在调制解调器响应前将拒绝此次锁定。请刷新后重试。"
+    },
     "slots": {
       "slot": "槽位 {{index}}",
       "earfcn_placeholder": "EARFCN",
@@ -2373,12 +2377,15 @@
       "failover_state_disabled": "已禁用",
       "failover_state_standby": "无锁定可守护",
       "failover_state_armed": "监测中",
+      "failover_state_stalled": "未在守护",
+      "failover_state_unknown": "尚未上报",
       "failover_state_fallback": "已解除 — 信号弱",
       "failover_toast_enabled": "已启用信号故障转移",
       "failover_toast_disabled": "已禁用信号故障转移",
       "failover_toast_error": "无法更新信号故障转移",
       "threshold_label": "低于此值时解除",
       "threshold_invalid": "请输入 0 到 100 之间的数值",
+      "threshold_unread": "尚未从模块读取到该值。",
       "threshold_toast_saved": "已更新故障转移阈值",
       "threshold_toast_error": "无法更新阈值",
       "quality_label": "当前信号质量",
@@ -2495,13 +2502,27 @@
     },
     "warning": {
       "service_enable_failed": "锁定当前已生效，但重启后不会保留 — 调制解调器拒绝了保存命令。",
+      "service_disable_failed": "锁定已解除，但未能从开机启动中移除 — 重启后可能会再次生效。",
       "persist_command_failed": "“重启后保持锁定”未生效。调制解调器拒绝了保存命令。",
       "dismiss": "忽略"
     },
     "error": {
       "title": "无法读取基站锁定状态",
       "body": "调制解调器经三次尝试仍无响应。在此操作成功之前，下方内容均不反映无线电的真实锁定状态。",
-      "retry": "重试"
+      "retry": "重试",
+      "retrying": "正在重试…",
+      "retry_tip": "再次向模块查询锁定状态。"
+    },
+    "blocked": {
+      "lock_empty_lte": "请输入频点和 PCI，或从上方的小卡片中选择一个小区。",
+      "lock_incomplete_lte": "已开始填写的每个插槽都需要同时填入频点和 PCI。",
+      "lock_empty_nr": "请输入频点、PCI、子载波间隔和频段，或从上方的小卡片中选择一个小区。",
+      "lock_incomplete_nr": "锁定该小区前，四个字段都必须填写。",
+      "lock_unchanged": "射频已锁定在完全相同的目标上，没有需要写入的内容。",
+      "lock_gated_nsa": "模块当前处于 5G NSA，5G 侧没有可锁定的独立组网小区。",
+      "lock_gated_lte_only": "模块当前没有在用的 5G 载波，因此没有可锁定的对象。",
+      "threshold_empty": "请输入 0 到 100 之间的百分比。",
+      "refresh_in_flight": "正在重新读取模块状态，可能需要几秒钟。"
     },
     "a11y": {
       "applying": "正在应用 {{leg}} 基站锁定…",

@@ -8,6 +8,11 @@ import { useTranslation } from "react-i18next";
 import { type VariantProps } from "class-variance-authority";
 import { Button, buttonVariants } from "@/components/ui/button";
 import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
   DUR,
   EASE_QUICK,
   SAVE_CHECK_KEYFRAMES,
@@ -87,6 +92,23 @@ export interface SaveButtonProps extends Omit<ButtonProps, "children"> {
   isSaving: boolean;
   saved: boolean;
   label?: string;
+  /**
+   * `null` when the save is takeable. A STRING IS THE STATED REASON IT IS NOT,
+   * and its presence is what blocks the control — the two can never disagree.
+   *
+   * It exists because the alternative every caller reached for was `disabled`,
+   * and a `disabled` button cannot be focused and receives no pointer events
+   * (`button.tsx` also sets `disabled:pointer-events-none`), so it can host
+   * neither a tooltip nor a keyboard reader's attention: the reason would be
+   * unreachable by exactly the users who most need it. Same construction as
+   * `components/cellular/cell-scanner/sibling-link.tsx`, which is this
+   * codebase's canonical disabled-with-a-reason control.
+   *
+   * The reason is appended to the accessible name as well as being tooltipped,
+   * because a name that still reads "Lock Tower" describes a working button.
+   * Wrap the button in a `Tooltip` at the call site to surface it on sight.
+   */
+  blockedReason?: string | null;
 }
 
 /** Opacity-only crossfade between the three layers. Label swaps are `quick`. */
@@ -96,6 +118,7 @@ export function SaveButton({
   isSaving,
   saved,
   label,
+  blockedReason = null,
   className,
   onClick,
   ...props
@@ -103,6 +126,7 @@ export function SaveButton({
   const { t } = useTranslation("common");
   const resolvedLabel = label ?? t("actions.save_settings");
   const isActive = isSaving || saved;
+  const blocked = Boolean(blockedReason);
 
   // Deliberately NOT `disabled`. A disabled element drops focus to <body> in
   // Chrome and Firefox, so a keyboard user who presses Enter on Save loses their
@@ -111,7 +135,7 @@ export function SaveButton({
   // second activation — including native form submission, since most callers
   // render this as a `type="submit"` inside a <form>.
   const handleClick = (event: React.MouseEvent<HTMLButtonElement>) => {
-    if (isActive) {
+    if (isActive || blocked) {
       event.preventDefault();
       event.stopPropagation();
       return;
@@ -119,14 +143,26 @@ export function SaveButton({
     onClick?.(event);
   };
 
-  return (
+  const button = (
     <Button
       {...props}
       onClick={handleClick}
-      aria-disabled={isActive || undefined}
-      aria-label={resolvedLabel}
+      aria-disabled={isActive || blocked || undefined}
+      // The reason travels WITH the name. `aria-disabled` alone announces
+      // "unavailable" and stops there, which is the same dead end the grey pill
+      // was in the first place.
+      aria-label={
+        blockedReason ? `${resolvedLabel} — ${blockedReason}` : resolvedLabel
+      }
       data-state={isSaving ? "saving" : saved ? "saved" : "idle"}
-      className={cn("inline-grid", className)}
+      // `data-blocked`, not `aria-disabled:`, carries the dimming: the saving
+      // and saved states are also `aria-disabled` and must NOT be dimmed. And
+      // never `pointer-events-none` — that is what would eat the tooltip.
+      data-blocked={blocked || undefined}
+      className={cn(
+        "inline-grid data-[blocked]:cursor-not-allowed data-[blocked]:opacity-55",
+        className,
+      )}
     >
       {/* One accessible name on the button itself, stable across all three
           states, so a state change never re-announces the control. The
@@ -167,5 +203,18 @@ export function SaveButton({
         {t("actions.saved")}
       </motion.span>
     </Button>
+  );
+
+  if (!blockedReason) return button;
+
+  // The tooltip lives HERE rather than at each call site, so `blockedReason` is
+  // the whole API: a caller cannot supply a reason and forget to show it, and
+  // cannot show one while leaving the button live. `Tooltip` carries its own
+  // provider (see `tooltip.tsx`), so this needs nothing from the tree above it.
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>{button}</TooltipTrigger>
+      <TooltipContent className="max-w-72">{blockedReason}</TooltipContent>
+    </Tooltip>
   );
 }

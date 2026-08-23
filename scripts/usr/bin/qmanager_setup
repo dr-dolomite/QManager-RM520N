@@ -105,15 +105,27 @@ chmod 666 /tmp/qmanager_at.lock /tmp/qmanager_at.pid
 # only creator is root's `printf >`, which lands 0644 at umask 0022 and so
 # correctly falls into the "cannot claim, proceed unsuppressed" branch. A 0666
 # seed would make the stuck path the DEFAULT one.
+#
+# /tmp/qmanager_tower_write_inflight belongs in this list rather than with the
+# flags above. It is a CONTENT-BEARING file -- it holds a deadline timestamp
+# that the failover watcher parses -- not an existence-only flag, so the
+# "do not seed a flag" exception does not apply to it. Both UIDs write it:
+# www-data from tower/lock.sh under lighttpd, and root from
+# qmanager_tower_schedule. /tmp is tmpfs, so without a seed whichever UID
+# calls tower_write_begin() FIRST after a boot owns the file for the rest of
+# that uptime, and the other one's writes are refused for good -- silently,
+# since tower_write_begin sends stderr to /dev/null. The loser then stops
+# marking its AT writes as in-flight, and the watcher can read the reconnect
+# blip as a genuine bad sample: the exact race the marker exists to prevent.
 touch /tmp/qmanager.log \
       /tmp/qmanager_profile_apply.pid /tmp/qmanager_profile_state.json \
-      /tmp/qmanager_events.json
+      /tmp/qmanager_events.json /tmp/qmanager_tower_write_inflight
 chown root:root /tmp/qmanager.log \
       /tmp/qmanager_profile_apply.pid /tmp/qmanager_profile_state.json \
-      /tmp/qmanager_events.json
+      /tmp/qmanager_events.json /tmp/qmanager_tower_write_inflight
 chmod 666 /tmp/qmanager.log \
       /tmp/qmanager_profile_apply.pid /tmp/qmanager_profile_state.json \
-      /tmp/qmanager_events.json
+      /tmp/qmanager_events.json /tmp/qmanager_tower_write_inflight
 
 # Session directory — www-data needs write access (cleared on reboot since /tmp is tmpfs)
 mkdir -p /tmp/qmanager_sessions

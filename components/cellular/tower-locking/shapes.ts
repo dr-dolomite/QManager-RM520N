@@ -402,6 +402,15 @@ export function matchVerdict(
     lte_cells: { earfcn: number; pci: number }[];
     nr_locked: boolean;
     nr_cell: { arfcn: number; pci: number } | null;
+    /**
+     * A verdict compares the LOCK against what is on air, so it is only as
+     * trustworthy as the lock read. With either leg unread, the honest answer
+     * is `unknown` rather than "nothing to match" — the latter is a POSITIVE
+     * claim that no lock is in force. `=== false`, never `!== true`: absent
+     * means true, so an un-upgraded `status.sh` still gets a real verdict.
+     */
+    lte_read_ok?: boolean;
+    nr_read_ok?: boolean;
   } | null,
   onAir: {
     technology: "LTE" | "NR";
@@ -410,6 +419,9 @@ export function matchVerdict(
   }[],
 ): TowerMatchVerdict {
   if (!modemState) return "unknown";
+  if (modemState.lte_read_ok === false || modemState.nr_read_ok === false) {
+    return "unknown";
+  }
 
   const lteTargets = modemState.lte_locked ? (modemState.lte_cells ?? []) : [];
   const nrTarget = modemState.nr_locked ? modemState.nr_cell : null;
@@ -638,9 +650,26 @@ export const CARRIER_TILE = {
    * overlay — the same construction the retired secondary rows used, kept
    * verbatim because it is the one control geometry on this surface that has
    * already been measured against the coarse-pointer floor.
+   *
+   * THE BLOCKED RULES ARE WRITTEN ON `aria-disabled:`, NOT `disabled:`.
+   * `live-strip.tsx` blocks its picker with `aria-disabled` so the reason stays
+   * reachable by hover AND by keyboard — a natively `disabled` button takes no
+   * pointer events and no focus, so the tooltip explaining the block never
+   * arrived. The instant the native attribute went away, all four `disabled:`
+   * rules below stopped matching and the blocked tile rendered at FULL opacity,
+   * with a pointer cursor, still lighting up to `primary-container` on hover:
+   * this surface's affirmative "this is takeable" signal, painted on a control
+   * that cannot be taken. A dead control that highlights like a live one is
+   * worse than a grey one with no explanation.
+   *
+   * The `disabled:` originals are NOT kept alongside. `live-strip.tsx:383` is
+   * the only consumer in the repo (frequency locking declares its own
+   * `CARRIER_TILE` in its own `shapes.ts`), and it no longer renders a native
+   * `disabled` at all — a dead second rule set is a second place for "blocked"
+   * to be decided.
    */
   ACTION:
-    "relative ml-auto grid size-8 flex-none place-items-center rounded-pill bg-surface-container-high text-on-surface-variant transition-colors duration-[var(--duration-quick)] ease-out before:absolute before:-inset-1.5 before:content-[''] hover:bg-primary-container hover:text-on-primary-container focus-visible:ring-ring/50 focus-visible:ring-[3px] focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:bg-surface-container-high disabled:hover:text-on-surface-variant",
+    "relative ml-auto grid size-8 flex-none place-items-center rounded-pill bg-surface-container-high text-on-surface-variant transition-colors duration-[var(--duration-quick)] ease-out before:absolute before:-inset-1.5 before:content-[''] hover:bg-primary-container hover:text-on-primary-container focus-visible:ring-ring/50 focus-visible:ring-[3px] focus-visible:outline-none aria-disabled:cursor-not-allowed aria-disabled:opacity-45 aria-disabled:hover:bg-surface-container-high aria-disabled:hover:text-on-surface-variant",
   /**
    * Marks the tile whose carrier IS the current lock target.
    *
@@ -763,33 +792,113 @@ export const FIELD_LABEL =
   "flex items-center gap-1.5 text-xs font-medium text-on-surface-variant";
 
 /**
- * Input and select shape: 20px radius, 42px tall, `surface-container` fill, no
- * visible border at rest. Restated here because `components/ui/input.tsx` still
- * defaults to the legacy `rounded-md` + transparent fill (DESIGN.md > Migration
- * Deltas: "Shape lives at the call site, not in the primitives").
+ * FIELD GEOMETRY, WITHOUT A FILL. 20px radius, 42px tall, no visible border at
+ * rest. Restated here because `components/ui/input.tsx` still defaults to the
+ * legacy `rounded-md` (DESIGN.md > Migration Deltas: "Shape lives at the call
+ * site, not in the primitives").
  *
  * The incumbent fields were `h-9` text inputs and a `w-10 h-6` threshold box —
  * 24px against this project's stated 44px floor, on a page used roadside on a
  * tablet.
  *
- * THE `dark:` OVERRIDE IS NOT REDUNDANT. `components/ui/input.tsx` ships
- * `dark:bg-input/30`, and `@custom-variant dark (&:is(.dark *))` compiles that
- * to `.dark * .bg-input\/30` — specificity (0,2,0) against a bare
- * `bg-surface-container`'s (0,1,0). tailwind-merge cannot fold the two either,
- * because they sit in different modifier scopes and it only collapses conflicts
- * within one scope. Without the explicit `dark:` restatement below, every field
- * on this surface silently renders `input/30` in dark mode instead of the
- * container step — the fill looks approximately right, which is exactly why it
- * would have survived review.
- *
  * A `SelectTrigger` needs two MORE overrides than an `Input` does, because
  * `components/ui/select.tsx` sets its height as `data-[size=default]:h-9` and
- * its hover as `dark:hover:bg-input/50`, both at (0,2,0). Those live at the two
- * call sites that actually render a select; a shared constant for them was
- * exported here and never imported once, so it is gone.
+ * its hover as `dark:hover:bg-input/50`. Those live at the one call site that
+ * actually renders a select against this shape.
  */
-export const FIELD_CONTROL =
-  "h-[2.625rem] rounded-field border-0 bg-surface-container dark:bg-surface-container px-3.5 text-sm shadow-none focus-visible:ring-ring/50 focus-visible:ring-[3px]";
+const FIELD_SHAPE =
+  "h-[2.625rem] rounded-field border-0 px-3.5 text-sm shadow-none focus-visible:ring-ring/50 focus-visible:ring-[3px]";
+
+/**
+ * THE FIELD-STEP RULE: A FIELD'S RESTING FILL IS ONE TONAL STEP ABOVE ITS HOST,
+ * NEVER A FIXED TOKEN.
+ *
+ *   host `surface` / `card`   →  field `surface-container`      (FIELD_CONTROL)
+ *   host `surface-container`  →  field `surface-container-high` (…_ON_CONTAINER)
+ *
+ * DESIGN.md gives an input no border at rest, so THE FILL IS THE ENTIRE
+ * AFFORDANCE — there is nothing else on screen saying where the box is. A fixed
+ * fill token is therefore only ACCIDENTALLY correct: it works on the one host
+ * whose own fill happens to sit a step below it, and renders at 1.00:1 — a
+ * field with no edge at all — on every other. This is the Tonal-Elevation Rule
+ * that already governs surfaces, extended to the controls sitting on them.
+ *
+ * `FIELD_CONTROL` shipped as the only answer, and NOT ONE CALL SITE ON THIS
+ * SURFACE HAD THE HOST IT DESCRIBED: every field here lives inside `SLOT_ROW`
+ * or `AUTO_TILE`, both `bg-surface-container`, so all six painted their own
+ * background and disappeared into it. The doc comment above it described a host
+ * that did not exist, which is how it survived.
+ *
+ * `surface-container-high` is the top rung, so a field can never be hosted by a
+ * `surface-container-high` block: when that happens the HOST steps DOWN and the
+ * field takes `-high`. Never a border — an outlined field beside three
+ * unbordered ones reads as a different KIND of control, not as the same control
+ * on a different background.
+ *
+ * The other legal resolution is SHELL rather than STEP: the host carries the
+ * fill AND the focus ring (`focus-within:ring`) while the control inside is
+ * painted transparent, which is what the NR card's `FIELD_TILE` does. One or
+ * the other per card, never both — see `nr-sa-tower-card.tsx` > FIELD_TILE.
+ *
+ * THE `dark:` RESTATEMENT IS NOT REDUNDANT, AND THE `!` IS NOT DECORATION.
+ *
+ * `components/ui/input.tsx` ships `dark:bg-input/30`. Two separate facts, and
+ * the second is the one that bites:
+ *
+ * 1. WHY THE `dark:` LINE EXISTS AT ALL. `@custom-variant dark (&:is(.dark *))`
+ *    compiles the primitive's rule to specificity (0,2,0) — one for the utility
+ *    class, one for `.dark` inside `:is()`. A BARE `bg-surface-container-high`
+ *    is (0,1,0) and simply loses in dark mode: the field is correct in light,
+ *    and approximately-right-looking in dark, which is exactly why it survives
+ *    review. tailwind-merge cannot fold the two either — different modifier
+ *    scopes, and it only collapses conflicts within one scope.
+ *
+ * 2. WHY THE `dark:` LINE ALONE IS NOT ENOUGH. Restating it as `dark:` makes
+ *    OURS (0,2,0) too. The two rules TIE. Nothing about specificity decides a
+ *    tie — the winner is whichever Tailwind emits LAST, and for two candidates
+ *    of the same utility that order is Tailwind's deterministic candidate SORT,
+ *    i.e. by NAME. `bg-input…` sorts before `bg-surface-…` purely because `i`
+ *    precedes `s`, so ours happened to land second and win. That is an OBSERVED
+ *    outcome, not a constructed one: rename `--color-input`, add a token that
+ *    sorts between them, or change the sort, and every one of these fills flips
+ *    in dark mode ONLY, with no error anywhere. It is the same family as the
+ *    recorded twMerge/custom-`rounded-*` trap, where alphabetical order decides
+ *    a conflict the tooling cannot see.
+ *
+ *    The trailing `!` (Tailwind v4's important modifier) is what replaces luck
+ *    with a rule: `!important` beats a same-specificity rule regardless of
+ *    emission order. It is used ONLY where a fill collides with a primitive's
+ *    own `dark:` fill — never as a general escape hatch.
+ *
+ * So an explicit field fill on this surface is ALWAYS written as a light/dark
+ * PAIR with the dark half marked important, or the control is a native element
+ * rather than the shadcn primitive.
+ */
+export const FIELD_CONTROL = `${FIELD_SHAPE} bg-surface-container dark:bg-surface-container!`;
+
+/**
+ * The same field one rung up, for a `surface-container` host — which on this
+ * surface means every `SLOT_ROW` and every `AUTO_TILE`, i.e. all of them.
+ * `FIELD_CONTROL` is kept for a field that lands directly on a card or section.
+ */
+export const FIELD_CONTROL_ON_CONTAINER = `${FIELD_SHAPE} bg-surface-container-high dark:bg-surface-container-high!`;
+
+/**
+ * The 44px coarse-pointer target for a `Switch`.
+ *
+ * The primitive paints at 18x32px, which is well under this project's floor. An
+ * overlay reaches the target without adding a layout box that would push the
+ * row's label off its baseline — the same construction `HERO_REFRESH_BUTTON`
+ * uses, restated because it is a different element with a different paint size.
+ *
+ * IT LIVES HERE BECAUSE FIVE SWITCHES SHARE IT. Two byte-identical copies were
+ * declared locally in the two leg cards, and the surface's other three switches
+ * — persist, failover and schedule-enable — had none at all: the same primitive
+ * shipping at two different target sizes on one page, with the SMALLER size on
+ * the three controls that actually write to the modem.
+ */
+export const SWITCH_TARGET =
+  "relative before:absolute before:-inset-x-3 before:-inset-y-3.5 before:content-['']";
 
 /**
  * ONE LTE CELL SLOT, AS A ROW.
@@ -1072,8 +1181,56 @@ export const PILL_QUIET = "h-9 rounded-pill px-3.5 text-xs font-semibold";
 /** Badge glyph size. Matches the `[&>svg]:size-3` slot `Badge` reserves. */
 export const BADGE_GLYPH_SIZE = 12;
 
-/** Which failover state is in force. See `FAILOVER_BADGE` for why there are four. */
-export type TowerFailoverKey = "disabled" | "standby" | "armed" | "fallback";
+/** Which failover state is in force. See `FAILOVER_BADGE` for why there are five. */
+export type TowerFailoverKey =
+  | "disabled"
+  | "standby"
+  | "armed"
+  | "stalled"
+  | "unknown"
+  | "fallback";
+
+/**
+ * Is there a lock for failover to guard?
+ *
+ * A TRI-STATE, BECAUSE A BOOLEAN CANNOT CARRY THE ANSWER. `status.sh` seeds
+ * `lte_locked="false"` before it asks the modem anything and only ever emits
+ * `lte_read_ok:false` ALONGSIDE that seed — so on a failed read, "no lock" and
+ * "nobody managed to ask" arrive as the identical boolean. A `read_ok` guard
+ * written against a boolean sink therefore changes nothing at all; the third
+ * value is the fix. See `lockPresence`.
+ */
+export type TowerLockPresence = "present" | "absent" | "unknown";
+
+/**
+ * Collapse the two legs into one presence verdict for the failover chip.
+ *
+ * A leg that reports locked on a SUCCESSFUL read settles it: `present`. Failing
+ * that, any leg whose read failed makes the whole verdict `unknown` — an
+ * unlocked-and-read leg cannot vouch for its unread sibling. Only when both
+ * legs were read and neither is locked is the answer honestly `absent`.
+ *
+ * `=== false`, never `!== true`: the flags are optional and absent means true,
+ * because a statically-exported bundle can outlive the CGI that emits them (see
+ * `TowerModemState`). `!== true` would repaint a working page as unknown the
+ * moment the two halves fall out of step.
+ */
+export function lockPresence(
+  modemState: {
+    lte_locked?: boolean;
+    nr_locked?: boolean;
+    lte_read_ok?: boolean;
+    nr_read_ok?: boolean;
+  } | null,
+): TowerLockPresence {
+  if (!modemState) return "unknown";
+  const lteUnread = modemState.lte_read_ok === false;
+  const nrUnread = modemState.nr_read_ok === false;
+  if (!lteUnread && modemState.lte_locked) return "present";
+  if (!nrUnread && modemState.nr_locked) return "present";
+  if (lteUnread || nrUnread) return "unknown";
+  return "absent";
+}
 
 /**
  * Failover state -> Badge variant + glyph.
@@ -1081,7 +1238,7 @@ export type TowerFailoverKey = "disabled" | "standby" | "armed" | "fallback";
  * Keyed onto `BadgeVariant` rather than a class string, so a fifth state
  * without a matching role fails the build instead of shipping untinted.
  *
- * FOUR STATES, AND THE BAND-LOCKING MAP'S THREE DO NOT TRANSFER. Band locking
+ * FIVE STATES, AND THE BAND-LOCKING MAP'S THREE DO NOT TRANSFER. Band locking
  * ships `monitoring` as `info` + a SPINNING `progress_activity`, which is
  * correct there: `qmanager_band_failover` runs MAX_CHECKS=5 at
  * CHECK_INTERVAL=5 and exits after ~30s, so a spinner describes a bounded
@@ -1100,11 +1257,18 @@ export type TowerFailoverKey = "disabled" | "standby" | "armed" | "fallback";
  * deployed. It routes to the brand container under the Info-Is-Brand Rule —
  * a standing condition, not a fault.
  *
+ * `stalled` is the fifth, and it is a FAULT rather than a condition: failover
+ * is switched on, a lock exists to guard, and no watcher is running — the net
+ * should be out and it is not. It is the only state on this chip that routes to
+ * `destructive`, because it is the only one describing something that is not
+ * working. See `failoverKey` for the daemon path that produces it.
+ *
  * Every state carries a DISTINCT glyph. `armed` and `fallback` are the pair
  * that makes this mandatory rather than tidy: `success-container` and
  * `warning-container` measure 1.03:1 apart and are the SAME surface under
  * deuteranopia, so the glyph is the only channel separating "the safety net is
  * watching" from "the safety net has fired and your lock is not in force".
+ * `stalled` takes `error`, unused by the other four for the same reason.
  */
 export const FAILOVER_BADGE: Record<
   TowerFailoverKey,
@@ -1114,6 +1278,11 @@ export const FAILOVER_BADGE: Record<
   disabled: { variant: "muted", glyph: "do_not_disturb_on" },
   standby: { variant: "info", glyph: "schedule" },
   armed: { variant: "success", glyph: "shield" },
+  // Switched on, a lock to guard, and NO watcher. See `failoverKey`.
+  stalled: { variant: "destructive", glyph: "error" },
+  // Switched on, no watcher, and the lock read failed — so which of the two
+  // above is in force cannot be known. `muted` + `help`, matching `LEG_BADGE`.
+  unknown: { variant: "muted", glyph: "help" },
   // Degraded but running: the modem is connected, just not where you told it.
   fallback: { variant: "warning", glyph: "warning" },
 };
@@ -1123,17 +1292,50 @@ export const FAILOVER_BADGE: Record<
  *
  * `activated` outranks `watcher_running`: a watcher that has already fired is
  * reporting a fallback, not protection, even while it keeps looping.
+ *
+ * THE `fallback` BRANCH IS LIVE CODE AS OF THIS CHANGE, AND WAS NOT BEFORE.
+ * `qmanager-tower-failover.service` used to delete the activation flag in
+ * `ExecStopPost`, milliseconds after the daemon wrote it and exited, so
+ * `activated` was true for a window no poll could ever land in and this line
+ * had never once rendered. The delete has moved to `ExecStartPre`, which gives
+ * the flag a real lifetime: A FAILOVER HAS FIRED SINCE THE WATCHER LAST
+ * STARTED.
+ *
+ * That lifetime is what the chip's copy has to match, and it does: "Released —
+ * weak signal" is a past-tense report of an event, not a claim about a
+ * condition still in progress. It is also self-consistent with the state it
+ * implies — the lock is gone, so there is nothing left to guard, and `armed`
+ * would be a lie. The glyph (`warning`) is distinct from all three of its
+ * slot-mates, which is what carries it: `armed` is `success-container` and this
+ * is `warning-container`, 1.03:1 apart and identical under deuteranopia.
  */
 export function failoverKey(
   failover: { enabled: boolean; activated: boolean; watcher_running: boolean },
-  hasActiveLock: boolean,
+  presence: TowerLockPresence,
 ): TowerFailoverKey {
   if (!failover.enabled) return "disabled";
   if (failover.activated) return "fallback";
   if (failover.watcher_running) return "armed";
-  // Enabled, nothing fired, no watcher: either there is no lock to guard, or
-  // the watcher has not spawned yet. Both are honestly "not currently guarding".
-  return hasActiveLock ? "armed" : "standby";
+  // Enabled, nothing fired, NO watcher. All three remaining cases are honestly
+  // "not currently guarding", and they are three different facts:
+  //
+  //   absent   -> `standby`. Nothing to protect; the net is correctly furled.
+  //   present  -> `stalled`. THE NET SHOULD BE OUT AND IT IS NOT.
+  //   unknown  -> `unknown`. Nobody read the modem, so neither claim is ours.
+  //
+  // This line returned `armed` for `present`, which is the one reading it must
+  // never give. `qmanager_tower_failover` now has a give-up-honestly exit
+  // (`:245`): it refuses to write the activation flag it cannot justify, then
+  // exits 0 — leaving exactly `enabled && !activated && !watcher_running` with
+  // the lock still on. The old dishonest flag write at least produced
+  // `fallback`; `armed` claims a daemon that has died in failure is watching.
+  //
+  // And it took a BOOLEAN, which is why `unknown` had nowhere to land: a failed
+  // `AT+QNWLOCK` read arrives as `locked:false`, so the chip promised "no lock
+  // to guard" about a modem nobody had managed to ask.
+  if (presence === "present") return "stalled";
+  if (presence === "unknown") return "unknown";
+  return "standby";
 }
 
 /** One radio leg's lock posture. */
@@ -1148,11 +1350,20 @@ export type LegPosture = "locked" | "unlocked" | "unknown";
  * `warning` means "constrained", not "you did something wrong". The same
  * inversion band locking applies to a narrowed band list, for the same reason.
  *
- * `unknown` is a real state, not a loading placeholder: `status.sh` cannot
- * distinguish a failed `AT+QNWLOCK` read from "not locked" — `tower_lock_mgr.sh`
- * prints `error` and `status.sh` logs it and leaves the flag false. A surface
- * that renders that as a confident "Unlocked" is asserting something nobody
- * read back.
+ * `unknown` is a real state, not a loading placeholder: `status.sh` seeds
+ * `lte_locked="false"` before it asks the modem anything, so a failed
+ * `AT+QNWLOCK` read arrives downstream indistinguishable from "not locked". A
+ * surface that renders that as a confident "Unlocked" is asserting something
+ * nobody read back. `modem_state.lte_read_ok` / `nr_read_ok` are what finally
+ * tell the two apart — see `TowerModemState`.
+ *
+ * The glyph is `help`, NOT the `schedule` clock it used to be. A clock says
+ * "waiting, this will arrive"; the state it actually describes is "the modem
+ * did not answer and nothing is coming until you retry". It is distinct from
+ * both of its slot-mates, which is mandatory rather than tidy — `unlocked`'s
+ * `success-container` and a `warning-container` measure 1.03:1 apart and are
+ * the same surface under deuteranopia, so the glyph is the only separator any
+ * reader is guaranteed to get.
  */
 export const LEG_BADGE: Record<
   LegPosture,
@@ -1160,7 +1371,7 @@ export const LEG_BADGE: Record<
 > = {
   locked: { variant: "warning", glyph: "lock" },
   unlocked: { variant: "success", glyph: "lock_open" },
-  unknown: { variant: "muted", glyph: "schedule" },
+  unknown: { variant: "muted", glyph: "help" },
 };
 
 /**
@@ -1177,7 +1388,12 @@ export const PERSIST_BADGE: Record<
   // writes ONE value to both slots, so a split reading means one of them did
   // not take — a real, reportable fault, not a configuration the user chose.
   split: { variant: "warning", glyph: "warning" },
-  unknown: { variant: "muted", glyph: "schedule" },
+  // `help`, not a clock: this is now reached by `persist_read_ok === false`,
+  // which is "the modem did not answer", not "the answer is on its way". It
+  // must also stay distinct from `off`'s `do_not_disturb_on` — those two are
+  // both `muted`, so the glyph is the ONLY thing separating "switched off" from
+  // "never read".
+  unknown: { variant: "muted", glyph: "help" },
 };
 
 /**
@@ -1189,11 +1405,29 @@ export const PERSIST_BADGE: Record<
  * `status.sh` surfaces them as two fields. The incumbent UI rendered
  * `config.persist` (the file's belief) and never read either, so a modem
  * reporting `1,0` displayed as a confident "Enabled".
+ *
+ * `persist_read_ok` IS WHAT MAKES THE `unknown` BRANCH REACHABLE. It already
+ * returned `unknown`, but only for a null `modemState` — which a `success:true`
+ * response never produces, so that branch never ran. `status.sh` seeds both
+ * persist flags false before it asks the modem, so a FAILED read arrived here
+ * as `false, false` and rendered the muted `Disabled` chip: "the user turned
+ * this off". That was the single most dishonest pixel on the surface, since it
+ * describes a deliberate choice nobody made.
+ *
+ * TESTED `=== false`, NEVER `!== true`. The field is optional on purpose — see
+ * `TowerModemState` — so that a cached page bundle meeting an un-upgraded
+ * `status.sh` reads `undefined` and keeps rendering the fields it was given,
+ * rather than repainting a working page as unknown.
  */
 export function persistPosture(
-  modemState: { persist_lte: boolean; persist_nr: boolean } | null,
+  modemState: {
+    persist_lte: boolean;
+    persist_nr: boolean;
+    persist_read_ok?: boolean;
+  } | null,
 ): "on" | "off" | "split" | "unknown" {
   if (!modemState) return "unknown";
+  if (modemState.persist_read_ok === false) return "unknown";
   if (modemState.persist_lte && modemState.persist_nr) return "on";
   if (!modemState.persist_lte && !modemState.persist_nr) return "off";
   return "split";
