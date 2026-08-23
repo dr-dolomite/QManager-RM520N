@@ -66,9 +66,9 @@ All status indicators are **filled tonal chips**: a `Badge` variant carrying a r
 - **Motion**: `lib/motion.ts` is the JS source of truth and mirrors the `--duration-*` / `--ease-*` properties in `globals.css`. Three durations (360/600/800ms — the Motion Guide's 400/300/180 figures are its 1x *inspection* baseline, not the shipped scale), two stagger steps (120ms cards, 80ms rows), `emphasized` is the ceiling, no springs. Retune both layers in the same change. **A raw `duration-200` / `{ duration: 0.25 }` / bare `transition-all` in a component is a bug** — it silently won't retune. See DESIGN.md > The One-Scale Rule.
 - **Components**: use shadcn/ui primitives before hand-rolling; semantic color tokens only, never raw Tailwind colors.
 
-## RM520N-GL Platform
+## Modem Platforms
 
-QManager targets the Quectel RM520N-GL modem, which runs **vanilla Linux internally** (SDXLEMUR SoC, ARMv7l, kernel 5.4.210) — NOT OpenWRT on an external host. The app (Next.js static export + CGI shell backend) is deployed **onto the modem itself** and is fully standalone. Because the app runs on the device, anything that reboots the modem also kills any in-flight HTTP request — defer reboots via dialog + persistent banner, never `AT+CFUN=1,1` mid-request.
+QManager's reference target is the Quectel RM520N-GL modem, which runs **vanilla Linux internally** (SDXLEMUR SoC, ARMv7l, kernel 5.4.210 — RM520N-GL measurements, not universal) — NOT OpenWRT on an external host. Per-device facts, including RG501Q-EU, live in `docs/reference/platform-matrix.md`; treat unlisted claims below as RM520N-GL-only until confirmed otherwise. The app (Next.js static export + CGI shell backend) is deployed **onto the modem itself** and is fully standalone. Because the app runs on the device, anything that reboots the modem also kills any in-flight HTTP request — defer reboots via dialog + persistent banner, never `AT+CFUN=1,1` mid-request.
 
 **No battery RTC — every boot starts at Jan 1970.** Stock `ql_time_daemon` steps the clock ~24s into boot (requires a registered SIM; no SIM = 1970 forever), and every armed `OnCalendar` timer misfires **twice** around that step (measured on hardware: ~23s at 1970, ~29s just after) regardless of its real schedule. Any new timer payload must pass the fire guard in `schedule_timer.sh` or use monotonic `OnBootSec=` — see `docs/reference/scheduled-timers.md` ("The 1970 boot window").
 
@@ -82,9 +82,9 @@ Typical read-only probes: `systemctl status <unit>` / `journalctl -u <unit> -n 5
 
 ### System Differences
 
-The table below contrasts RM520N-GL against the legacy RM551E (OpenWRT) target — useful when porting or reading older code.
+The table below contrasts RM520N-GL against the legacy RM551E (OpenWRT) target — useful when porting or reading older code. RG501Q-EU values are unverified and live in `platform-matrix.md`, not here.
 
-| Concern | RM551E (OpenWRT) | RM520N-GL (Vanilla Linux) |
+| Concern | RM551E (OpenWRT) | RM520N-GL (SDX65) |
 |---------|-----------------|---------------------------|
 | Init system | procd | systemd (`.service` units in `/lib/systemd/system/`) |
 | Config store | UCI | Files in `/usrdata/` (persistent partition) |
@@ -133,45 +133,45 @@ The following features have been **completely removed** from the `dev-rm520` bra
 
 Each feature below has a reference doc holding its invariants, gotchas, and rationale. **These rows are a routing table, not a summary** — they exist only so you can tell whether your current task touches a subsystem. When it does, read that doc; it carries the non-obvious constraints and load-bearing ordering rules that will otherwise bite you. When it doesn't, read nothing.
 
-| Feature | Touch it when you're working on | Doc |
-| ------- | ------------------------------- | --- |
-| **Cross-UID `/tmp` file ownership** | Any file in `/tmp` written by both root daemons and www-data CGI — seeding, which direction `fs.protected_regular` actually blocks, the never-`mv` rule, the recovery-flag claim protocol | `tmp-file-ownership.md` |
-| **Colour System / tokens** | Any colour token in `globals.css`, a new role, a `Badge` tone, or a surface that reads too loud — hue-slot arithmetic, the direction-vs-radio axis split, the CVD floor, and the two tokens that must never be "levelled" | `color-system.md` |
-| **Icon System / Icon-Boundary Rule** | Any icon, anywhere. The Material-vs-lucide boundary is ROUTE-scoped; Material now covers the sidebar, dashboard, pre-auth routes, and all of `/cellular/` (index + all 17 sub-routes) — the boundary is no longer partial inside `/cellular/` | `icon-system.md` |
-| **Auth Rate Limiting** | `cgi_auth.sh`, login lockout, `auth/check.sh` | `auth-rate-limiting.md` |
-| **Antenna Alignment** | `/cellular/antenna-alignment`, the composite aim score / recorder sampling gate, and the two shared `/cellular/` primitives it extracted: `components/cellular/condition-screen.tsx` and `components/cellular/signal-quality-display.ts` | `antenna-alignment.md` |
-| **Antenna Statistics** | `/cellular/antenna-statistics`, `signal_per_antenna`, and the shared `SIGNAL_SENTINELS` / `normalizeSignalValue` / `isPortReporting` boundary in `types/modem-status.ts` (both antenna pages read through it) | `antenna-statistics.md` |
-| **Band Locking** | `/cellular/cell-locking`, the two-axis band chip (fill=selected, inset ring=live), the neutral on-air carrier tile (identity on the disc, quality on the ramp), `unlockAll` as a write, the hero-level failover row, the Refresh action gated on `failover.watcher_running`, or the profile/scenario gate chain | `band-locking.md` |
-| **Tower Locking** | `/cellular/cell-locking/tower-locking`, `AT+QNWLOCK` (`common/4g` / `common/5g` / `save_ctrl`), the unpolled `status.sh` read-back and its AT-mutex cost, the **unbounded** `qmanager_tower_failover` watcher, or the one-directional frequency-lock gate | `tower-locking.md` |
-| **Frequency Locking** | `/cellular/cell-locking/frequency-locking`, `AT+QNWCFG` (`lte_earfcn_lock` / `nr5g_earfcn_lock` — colon-separated, count field), the **absent** persistence key and failover watcher, or the one-directional tower-lock gate that `tower/lock.sh` does not reciprocate | `frequency-locking.md` |
-| **Cell Scanner family** | Any of the three routes under `/cellular/cell-scanner/` (full sweep, neighbour read, frequency calculator), `AT+QSCAN` / `AT+QENG="neighbourcell"`, the `/tmp/qmanager_long_running` maintenance marker and who writes it, or this surface's deliberately divergent signal thresholds | `cell-scanner.md` |
-| **Carrier Aggregation** | `AT+QCAINFO`, `network.carrier_components[]`, the dashboard CA strip | `carrier-aggregation.md` |
-| **Radio Information** | `/cellular/` index, `lib/radio-info.ts`, `components/cellular/radio/**` | `radio-information.md` |
-| **Cellular Basic Settings** | `/cellular/settings`, `cellular/settings.sh`, the six writable fields (`AT+QUIMSLOT` / `AT+CFUN` / `AT+QNWPREFCFG` / `AT+QSIMDET`), the dirty-state merge rule in `use-cellular-settings.ts`, the read contract (guard `raw`, not the fields — a failed read omits `settings`/`ambr` entirely), the ~35s SIM-slot apply, the poller's new `.sim` block, or `network.type` now being legitimately `""` | `cellular-basic-settings.md` |
-| **Cellular Settings family (shared contract)** | `components/cellular/settings/shapes.ts` — it now governs all five `/cellular/settings/` routes, so any shared export, the dirty-row tone rule, or the `FIELD_SHELL` pair that replaces the `Input` primitive | `cellular-settings-family.md` |
-| **Network Priority** | `/cellular/settings/network-priority`, `cellular/network_priority.sh`, `rat_acq_order`, the reorder list, or `RAT_RANK_TONE` | `cellular-settings-family.md` |
-| **IMEI Settings** | `/cellular/settings/imei-settings`, `cellular/imei.sh`, `use-imei-settings.ts`, Luhn gating, or the `qm_imei_reboot_pending` deferred-reboot contract | `cellular-settings-family.md` |
-| **Blocked Networks (FPLMN)** | `/cellular/settings/fplmn-settings`, `cellular/fplmn.sh`, `AT+CRSM` EF_FPLMN, the five condition states, or the unused `raw_data` payload | `cellular-settings-family.md` |
-| **Recent Activities** | `events.sh`, `/tmp/qmanager_events.json`, the dashboard event feed, event tone/freshness | `recent-activities.md` |
-| **Dashboard chart cards** | Device Metrics, Live Latency, Signal History, `hooks/use-chart-motion.ts`, recharts | `dashboard-chart-cards.md` |
-| **Dashboard state-change motion** | `TickGroup`/`useValueTick`, `SwapLabel`, status-chip morph, live value ticks, and `SaveButton`'s save flow | `dashboard-state-motion.md` |
-| **Custom DNS** | `/local-network/custom-dns`, dnsmasq upstreams | `custom-dns.md` |
-| **Data Usage Counter** | `/proc/net/dev` counters, usage schema, orientation map | `data-usage-counter.md` |
-| **Ethernet Status & Link Speed** | `/local-network/ethernet`, `eth0`, `ethtool`, `qmanager_ethernet_apply` | `ethernet.md` |
-| **Centralized Alerts** | `/monitoring/alerts`, `alert_engine.sh`, SMS/email/Discord routing — **and** alert-channel secret storage: `/etc/qmanager-secrets/`, the `qmanager_secret_set` / `qmanager_email_send` root helpers, the `token_set` / `app_password_set` markers, and why a chmod inside `/etc/qmanager` is never the fix | `alerts.md` |
-| **Discord Bot** | `discord-bot/`, `qmanager_discord` | `discord-bot.md` |
-| **WAN Profile Management** | `cellular/apn.sh`, PDP contexts, the APN Management page (incl. the MBN card and the poller-fed "what the network granted" strip), or the shared `apn_apply.sh` attach-cycle primitive any APN write must go through | `wan-profile-management.md`, `cellular-settings-family.md` |
-| **Custom SIM Profiles & Connection Scenarios** | One merged page at `/cellular/custom-profiles` (the `connection-scenarios` sub-route is retired to a client-side redirect): profile create/apply, scenarios + schedule ribbon, band locks via scenarios, suggested profiles, `current_settings.sh`, or any geometry/tone on the surface (governed by `shapes.ts`) | `sim-profiles.md` |
-| **SIM Detection** | `known_iccids`, `sim_registry.json`, the SIM-swap banner, Tracked SIMs | `sim-detection.md` |
-| **Connection Watchdog** | `/monitoring/watchdog`, `qmanager_watchcat`, the 4-tier recovery ladder | `connection-watchdog.md` |
-| **Connection Quality** | `qmanager_ping`, latency/jitter/loss, probe targets and thresholds | `connection-quality.md` |
-| **Timezone / System Clock** | `/etc/localtime`, `qmanager_timezone_apply`, zoneinfo | `timezone.md` |
-| **Scheduled Reboot & Tower Lock Schedule** | Any scheduled operation. **RM520N has no working `crond`** — everything is a runtime systemd `OnCalendar` timer. Any new timer must account for the 1970 boot window / clock-step fire guard | `scheduled-timers.md` |
-| **Overview Splash + `/login/`** | The two pre-auth routes, public CGI under `public/`, the pre-auth type scale | `overview-splash.md` |
-| **i18n / Language Picker** | Any user-visible string, `public/locales/**`, language packs | `i18n.md`, `docs/CONTRIBUTING-translations.md` |
-| **SMS Center** | `/cellular/sms`, `sms_tool`, CPMS storage routing, the single-flight inbox GET, or anything on the surface (geometry and tone live in `components/cellular/sms/shapes.ts`) | `sms.md` |
-| **SMS Forwarding** | `qmanager_sms_forward`, `/cellular/sms/forwarding`, the dirty-row promotion, or the hook's untranslated error strings | `sms-forwarding.md` |
-| **Speed Test** | Ookla CLI, `at_cmd/speedtest_*.sh`, the dashboard tile and dialog | `speedtest.md` |
+| Feature | Touch it when you're working on | Scope | Doc |
+| ------- | ------------------------------- | ----- | --- |
+| **Cross-UID `/tmp` file ownership** | Any file in `/tmp` written by both root daemons and www-data CGI — seeding, which direction `fs.protected_regular` actually blocks, the never-`mv` rule, the recovery-flag claim protocol | RM520N | `tmp-file-ownership.md` |
+| **Colour System / tokens** | Any colour token in `globals.css`, a new role, a `Badge` tone, or a surface that reads too loud — hue-slot arithmetic, the direction-vs-radio axis split, the CVD floor, and the two tokens that must never be "levelled" | Both | `color-system.md` |
+| **Icon System / Icon-Boundary Rule** | Any icon, anywhere. The Material-vs-lucide boundary is ROUTE-scoped; Material now covers the sidebar, dashboard, pre-auth routes, and all of `/cellular/` (index + all 17 sub-routes) — the boundary is no longer partial inside `/cellular/` | Both | `icon-system.md` |
+| **Auth Rate Limiting** | `cgi_auth.sh`, login lockout, `auth/check.sh` | RM520N | `auth-rate-limiting.md` |
+| **Antenna Alignment** | `/cellular/antenna-alignment`, the composite aim score / recorder sampling gate, and the two shared `/cellular/` primitives it extracted: `components/cellular/condition-screen.tsx` and `components/cellular/signal-quality-display.ts` | RM520N | `antenna-alignment.md` |
+| **Antenna Statistics** | `/cellular/antenna-statistics`, `signal_per_antenna`, and the shared `SIGNAL_SENTINELS` / `normalizeSignalValue` / `isPortReporting` boundary in `types/modem-status.ts` (both antenna pages read through it) | RM520N | `antenna-statistics.md` |
+| **Band Locking** | `/cellular/cell-locking`, the two-axis band chip (fill=selected, inset ring=live), the neutral on-air carrier tile (identity on the disc, quality on the ramp), `unlockAll` as a write, the hero-level failover row, the Refresh action gated on `failover.watcher_running`, or the profile/scenario gate chain | RM520N | `band-locking.md` |
+| **Tower Locking** | `/cellular/cell-locking/tower-locking`, `AT+QNWLOCK` (`common/4g` / `common/5g` / `save_ctrl`), the unpolled `status.sh` read-back and its AT-mutex cost, the **unbounded** `qmanager_tower_failover` watcher, or the one-directional frequency-lock gate | RM520N | `tower-locking.md` |
+| **Frequency Locking** | `/cellular/cell-locking/frequency-locking`, `AT+QNWCFG` (`lte_earfcn_lock` / `nr5g_earfcn_lock` — colon-separated, count field), the **absent** persistence key and failover watcher, or the one-directional tower-lock gate that `tower/lock.sh` does not reciprocate | RM520N | `frequency-locking.md` |
+| **Cell Scanner family** | Any of the three routes under `/cellular/cell-scanner/` (full sweep, neighbour read, frequency calculator), `AT+QSCAN` / `AT+QENG="neighbourcell"`, the `/tmp/qmanager_long_running` maintenance marker and who writes it, or this surface's deliberately divergent signal thresholds | RM520N | `cell-scanner.md` |
+| **Carrier Aggregation** | `AT+QCAINFO`, `network.carrier_components[]`, the dashboard CA strip | RM520N | `carrier-aggregation.md` |
+| **Radio Information** | `/cellular/` index, `lib/radio-info.ts`, `components/cellular/radio/**` | RM520N | `radio-information.md` |
+| **Cellular Basic Settings** | `/cellular/settings`, `cellular/settings.sh`, the six writable fields (`AT+QUIMSLOT` / `AT+CFUN` / `AT+QNWPREFCFG` / `AT+QSIMDET`), the dirty-state merge rule in `use-cellular-settings.ts`, the read contract (guard `raw`, not the fields — a failed read omits `settings`/`ambr` entirely), the ~35s SIM-slot apply, the poller's new `.sim` block, or `network.type` now being legitimately `""` | RM520N | `cellular-basic-settings.md` |
+| **Cellular Settings family (shared contract)** | `components/cellular/settings/shapes.ts` — it now governs all five `/cellular/settings/` routes, so any shared export, the dirty-row tone rule, or the `FIELD_SHELL` pair that replaces the `Input` primitive | RM520N | `cellular-settings-family.md` |
+| **Network Priority** | `/cellular/settings/network-priority`, `cellular/network_priority.sh`, `rat_acq_order`, the reorder list, or `RAT_RANK_TONE` | RM520N | `cellular-settings-family.md` |
+| **IMEI Settings** | `/cellular/settings/imei-settings`, `cellular/imei.sh`, `use-imei-settings.ts`, Luhn gating, or the `qm_imei_reboot_pending` deferred-reboot contract | RM520N | `cellular-settings-family.md` |
+| **Blocked Networks (FPLMN)** | `/cellular/settings/fplmn-settings`, `cellular/fplmn.sh`, `AT+CRSM` EF_FPLMN, the five condition states, or the unused `raw_data` payload | RM520N | `cellular-settings-family.md` |
+| **Recent Activities** | `events.sh`, `/tmp/qmanager_events.json`, the dashboard event feed, event tone/freshness | RM520N | `recent-activities.md` |
+| **Dashboard chart cards** | Device Metrics, Live Latency, Signal History, `hooks/use-chart-motion.ts`, recharts | Both | `dashboard-chart-cards.md` |
+| **Dashboard state-change motion** | `TickGroup`/`useValueTick`, `SwapLabel`, status-chip morph, live value ticks, and `SaveButton`'s save flow | Both | `dashboard-state-motion.md` |
+| **Custom DNS** | `/local-network/custom-dns`, dnsmasq upstreams | RM520N | `custom-dns.md` |
+| **Data Usage Counter** | `/proc/net/dev` counters, usage schema, orientation map | RM520N | `data-usage-counter.md` |
+| **Ethernet Status & Link Speed** | `/local-network/ethernet`, `eth0`, `ethtool`, `qmanager_ethernet_apply` | RM520N | `ethernet.md` |
+| **Centralized Alerts** | `/monitoring/alerts`, `alert_engine.sh`, SMS/email/Discord routing — **and** alert-channel secret storage: `/etc/qmanager-secrets/`, the `qmanager_secret_set` / `qmanager_email_send` root helpers, the `token_set` / `app_password_set` markers, and why a chmod inside `/etc/qmanager` is never the fix | RM520N | `alerts.md` |
+| **Discord Bot** | `discord-bot/`, `qmanager_discord` | RM520N | `discord-bot.md` |
+| **WAN Profile Management** | `cellular/apn.sh`, PDP contexts, the APN Management page (incl. the MBN card and the poller-fed "what the network granted" strip), or the shared `apn_apply.sh` attach-cycle primitive any APN write must go through | RM520N | `wan-profile-management.md`, `cellular-settings-family.md` |
+| **Custom SIM Profiles & Connection Scenarios** | One merged page at `/cellular/custom-profiles` (the `connection-scenarios` sub-route is retired to a client-side redirect): profile create/apply, scenarios + schedule ribbon, band locks via scenarios, suggested profiles, `current_settings.sh`, or any geometry/tone on the surface (governed by `shapes.ts`) | RM520N | `sim-profiles.md` |
+| **SIM Detection** | `known_iccids`, `sim_registry.json`, the SIM-swap banner, Tracked SIMs | RM520N | `sim-detection.md` |
+| **Connection Watchdog** | `/monitoring/watchdog`, `qmanager_watchcat`, the 4-tier recovery ladder | RM520N | `connection-watchdog.md` |
+| **Connection Quality** | `qmanager_ping`, latency/jitter/loss, probe targets and thresholds | RM520N | `connection-quality.md` |
+| **Timezone / System Clock** | `/etc/localtime`, `qmanager_timezone_apply`, zoneinfo | RM520N | `timezone.md` |
+| **Scheduled Reboot & Tower Lock Schedule** | Any scheduled operation. **RM520N has no working `crond`** — everything is a runtime systemd `OnCalendar` timer. Any new timer must account for the 1970 boot window / clock-step fire guard | RM520N | `scheduled-timers.md` |
+| **Overview Splash + `/login/`** | The two pre-auth routes, public CGI under `public/`, the pre-auth type scale | RM520N | `overview-splash.md` |
+| **i18n / Language Picker** | Any user-visible string, `public/locales/**`, language packs | Both | `i18n.md`, `docs/CONTRIBUTING-translations.md` |
+| **SMS Center** | `/cellular/sms`, `sms_tool`, CPMS storage routing, the single-flight inbox GET, or anything on the surface (geometry and tone live in `components/cellular/sms/shapes.ts`) | RM520N | `sms.md` |
+| **SMS Forwarding** | `qmanager_sms_forward`, `/cellular/sms/forwarding`, the dirty-row promotion, or the hook's untranslated error strings | RM520N | `sms-forwarding.md` |
+| **Speed Test** | Ookla CLI, `at_cmd/speedtest_*.sh`, the dashboard tile and dialog | RM520N | `speedtest.md` |
 
 All paths are relative to `docs/reference/` unless stated. If you add a substantial feature with non-obvious invariants, write `docs/reference/<feature>.md` and add **one row** here — do not summarize the doc in this file.
 
