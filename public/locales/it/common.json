@@ -313,6 +313,13 @@
       "masq_scope": "Ambito",
       "masq_all": "Ogni connessione TCP 80/443"
     },
+    "uninstall": {
+      "button": "Disinstalla binario del motore",
+      "title": "Disinstallare il binario del motore?",
+      "description": "Questa azione arresta il Traffic Engine (se in esecuzione) e rimuove il binario del motore. Procedere? Puoi reinstallarlo in seguito se cambi idea.",
+      "confirm": "Disinstalla",
+      "cancel": "Annulla"
+    },
     "enable": {
       "video_optimizer": "Abilita Ottimizzazione video",
       "masquerade": "Abilita Mascheramento del traffico",
@@ -334,7 +341,8 @@
       "limit": "L'elenco può contenere al massimo 300 domini.",
       "add": "Aggiungi dominio",
       "remove": "Rimuovi {{domain}}",
-      "saved": "Elenco domini salvato"
+      "saved": "Elenco domini salvato",
+      "save_failed": "Impossibile salvare la lista dei domini"
     },
     "verify": {
       "title": "Prova il bypass",

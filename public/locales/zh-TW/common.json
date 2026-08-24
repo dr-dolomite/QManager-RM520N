@@ -313,6 +313,13 @@
       "masq_scope": "範圍",
       "masq_all": "所有 TCP 80/443 連線"
     },
+    "uninstall": {
+      "button": "解除安裝引擎二進位",
+      "title": "確定解除安裝引擎二進位？",
+      "description": "此動作會停止流量引擎（若正在執行）並移除引擎二進位檔案。確定要繼續嗎？若您改變主意，稍後可重新安裝。",
+      "confirm": "解除安裝",
+      "cancel": "取消"
+    },
     "enable": {
       "video_optimizer": "啟用影片最佳化",
       "masquerade": "啟用流量偽裝",
@@ -334,7 +341,8 @@
       "limit": "清單最多可容納 300 個網域。",
       "add": "新增網域",
       "remove": "移除 {{domain}}",
-      "saved": "網域清單已儲存"
+      "saved": "網域清單已儲存",
+      "save_failed": "無法儲存網域清單"
     },
     "verify": {
       "title": "測試繞過效果",

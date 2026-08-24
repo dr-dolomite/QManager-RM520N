@@ -7,7 +7,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { RefreshCcwIcon, TriangleAlertIcon } from "lucide-react";
+import { ArrowLeftRight, RefreshCcwIcon, TriangleAlertIcon, Video } from "lucide-react";
 
 import EngineStatusCard from "./engine-status-card";
 import EngineOnboarding from "./engine-onboarding";
@@ -17,7 +17,6 @@ import MasqueradePanel from "./masquerade-panel";
 import { useVideoOptimizer } from "@/hooks/use-video-optimizer";
 import { useTrafficMasquerade } from "@/hooks/use-traffic-masquerade";
 import { useCdnHostlist } from "@/hooks/use-cdn-hostlist";
-import { MaterialSymbol } from "@/components/ui/material-symbol";
 
 // Returns true only once `active` has held for `delayMs`. Suppresses the
 // flash-of-skeleton on fast loads — and this app runs ON the modem, so loads
@@ -104,16 +103,21 @@ const TrafficEngine = () => {
         />
       ) : (
         <div className="grid grid-cols-1 gap-4">
-          <EngineStatusCard data={engineData} loading={false} />
+          <EngineStatusCard
+            data={engineData}
+            loading={false}
+            onUninstall={videoOptimizer.uninstallBinary}
+            isUninstalling={videoOptimizer.isUninstalling}
+          />
 
           <Tabs defaultValue="video_optimizer" className="w-full">
             <TabsList>
               <TabsTrigger value="video_optimizer">
-                <MaterialSymbol name="videocam" size={18} className="me-1.5" />
+                <Video className="me-1.5 size-4" />
                 {t("trafficEngine.tabs.video_optimizer")}
               </TabsTrigger>
               <TabsTrigger value="masquerade">
-                <MaterialSymbol name="swap_horiz" size={18} className="me-1.5" />
+                <ArrowLeftRight className="me-1.5 size-4" />
                 {t("trafficEngine.tabs.masquerade")}
               </TabsTrigger>
             </TabsList>

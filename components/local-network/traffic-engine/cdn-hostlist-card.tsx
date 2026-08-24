@@ -13,7 +13,6 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { SaveButton, useSaveFlash } from "@/components/ui/save-button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import { Loader2Icon, PlusIcon, XIcon } from "lucide-react";
@@ -34,7 +33,6 @@ export interface CdnHostlistCardProps {
 
 const CdnHostlistCard = ({ hostlist }: CdnHostlistCardProps) => {
   const { t } = useTranslation("common");
-  const { saved, markSaved } = useSaveFlash();
 
   const [draft, setDraft] = useState("");
   const [localError, setLocalError] = useState<string | null>(null);
@@ -58,8 +56,11 @@ const CdnHostlistCard = ({ hostlist }: CdnHostlistCardProps) => {
     hostlist.saveDomains([...hostlist.domains, value]).then((ok) => {
       if (ok) {
         setDraft("");
-        markSaved();
         toast.success(t("trafficEngine.hostlist.saved"));
+      } else {
+        // Backend failures must never be silent: the hook records the error
+        // (rendered inline below) and the toast makes the failure immediate.
+        toast.error(t("trafficEngine.hostlist.save_failed"));
       }
     });
   };
@@ -67,8 +68,9 @@ const CdnHostlistCard = ({ hostlist }: CdnHostlistCardProps) => {
   const removeDomain = (domain: string) => {
     hostlist.saveDomains(hostlist.domains.filter((d) => d !== domain)).then((ok) => {
       if (ok) {
-        markSaved();
         toast.success(t("trafficEngine.hostlist.saved"));
+      } else {
+        toast.error(t("trafficEngine.hostlist.save_failed"));
       }
     });
   };
@@ -154,26 +156,19 @@ const CdnHostlistCard = ({ hostlist }: CdnHostlistCardProps) => {
             </p>
           )}
 
-          <div className="flex items-center justify-between gap-2">
-            <Badge variant="muted" className="tabular-nums">
+          {hostlist.error && (
+            <p className="text-sm text-destructive" role="alert">
+              {hostlist.error}
+            </p>
+          )}
+
+          <div className="flex items-center gap-2">
+            <Badge variant="outline" className="bg-muted/50 text-muted-foreground border-muted-foreground/30 tabular-nums">
               {t("trafficEngine.status.domains")}: {hostlist.domains.length}
             </Badge>
             {hostlist.isSaving && (
               <Loader2Icon className="size-4 animate-spin text-muted-foreground" />
             )}
-            <SaveButton
-              isSaving={hostlist.isSaving}
-              saved={saved}
-              label={t("actions.apply")}
-              onClick={() => {
-                hostlist.saveDomains(hostlist.domains).then((ok) => {
-                  if (ok) {
-                    markSaved();
-                    toast.success(t("trafficEngine.hostlist.saved"));
-                  }
-                });
-              }}
-            />
           </div>
         </div>
       </CardContent>

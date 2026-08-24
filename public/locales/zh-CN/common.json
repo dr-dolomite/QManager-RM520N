@@ -313,6 +313,13 @@
       "masq_scope": "范围",
       "masq_all": "所有 TCP 80/443 连接"
     },
+    "uninstall": {
+      "button": "卸载引擎二进制",
+      "title": "确定卸载引擎二进制？",
+      "description": "此操作将停止流量引擎（如正在运行）并移除引擎二进制文件。确定要继续吗？如果您改变主意，可以稍后重新安装。",
+      "confirm": "卸载",
+      "cancel": "取消"
+    },
     "enable": {
       "video_optimizer": "启用视频优化",
       "masquerade": "启用流量伪装",
@@ -334,7 +341,8 @@
       "limit": "列表最多可容纳 300 个域名。",
       "add": "添加域名",
       "remove": "移除 {{domain}}",
-      "saved": "域名列表已保存"
+      "saved": "域名列表已保存",
+      "save_failed": "无法保存域名列表"
     },
     "verify": {
       "title": "测试绕过效果",

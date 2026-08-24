@@ -24,11 +24,13 @@ export interface UseVideoOptimizerReturn {
   isLoading: boolean;
   isSaving: boolean;
   isInstalling: boolean;
+  isUninstalling: boolean;
   installPhase: InstallPhase;
   installMessage: string | null;
   error: string | null;
   saveEnabled: (enabled: boolean) => Promise<boolean>;
   installBinary: () => Promise<boolean>;
+  uninstallBinary: () => Promise<boolean>;
   refresh: () => void;
 }
 
@@ -37,11 +39,16 @@ export function useVideoOptimizer(): UseVideoOptimizerReturn {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isInstalling, setIsInstalling] = useState(false);
+  const [isUninstalling, setIsUninstalling] = useState(false);
   const [installPhase, setInstallPhase] = useState<InstallPhase>("idle");
   const [installMessage, setInstallMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const mountedRef = useRef(true);
+  // Synchronous mutual exclusion across install/uninstall entry points: two
+  // rapid clicks must not spawn racing CGI operations (state updates alone
+  // are too late — both closures would still see stale flags).
+  const opBusyRef = useRef(false);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -129,75 +136,165 @@ export function useVideoOptimizer(): UseVideoOptimizerReturn {
   );
 
   // ---------------------------------------------------------------------------
-  // Install lifecycle — spawn, then poll install_status until terminal
+  // Binary install / uninstall lifecycle — spawn, then poll install_status
+  // until terminal. Both directions share the identical marker protocol, so
+  // one state machine drives both; only the POST action and copy differ.
   // ---------------------------------------------------------------------------
-  const installBinary = useCallback(async (): Promise<boolean> => {
-    setError(null);
-    setIsInstalling(true);
-    setInstallPhase("running");
-    setInstallMessage("Starting zapret download...");
-    try {
-      const resp = await authFetch(CGI_ENDPOINT, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "install" }),
-      });
-      if (!resp.ok) throw new Error(`HTTP ${resp.status}: ${resp.statusText}`);
-      const json = await resp.json();
-      if (!mountedRef.current) return false;
+  const runBinaryOperation = useCallback(
+    async (action: "install" | "uninstall"): Promise<boolean> => {
+      const isInstall = action === "install";
+      const copy = {
+        start: isInstall ? "Starting zapret download..." : "Stopping Traffic Engine...",
+        spawnFailed: isInstall ? "Failed to start install" : "Failed to start removal",
+        already: isInstall ? "tpws already installed" : "Engine binary already removed",
+        failed: isInstall ? "Install failed" : "Removal failed",
+        timeout: isInstall
+          ? "Install timed out — the downloader may still finish in the background; refresh in a few minutes"
+          : "Removal timed out — refresh the page in a few minutes",
+      };
 
-      if (json.success === false) {
-        setError(json.detail || json.error || "Failed to start install");
-        setInstallPhase("error");
-        return false;
-      }
-      if (json.status === "already") {
-        setInstallPhase("complete");
-        setInstallMessage("tpws already installed");
-        setIsInstalling(false);
-        await fetchStatus(true);
-        return true;
-      }
+      if (opBusyRef.current) return false;
+      opBusyRef.current = true;
+      setError(null);
+      setIsInstalling(isInstall);
+      setIsUninstalling(!isInstall);
+      setInstallPhase("running");
+      setInstallMessage(copy.start);
+      try {
+        const resp = await authFetch(CGI_ENDPOINT, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action }),
+        });
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}: ${resp.statusText}`);
+        const json = await resp.json();
+        if (!mountedRef.current) return false;
 
-      // Poll install_status to completion.
-      for (let i = 0; i < 60; i++) {
-        await new Promise((r) => setTimeout(r, 3000));
-        if (!mountedRef.current) return false;
-        const stResp = await authFetch(`${CGI_ENDPOINT}?action=install_status`);
-        if (!stResp.ok) continue;
-        const st = await stResp.json();
-        if (!mountedRef.current) return false;
-        setInstallPhase(st.status);
-        setInstallMessage(st.message || st.detail || null);
-        if (st.status === "complete" || st.status === "error") {
-          if (st.status === "error") setError(st.detail || st.message || "Install failed");
+        if (json.success === false) {
+          const msg = json.detail || json.error || copy.spawnFailed;
+          setError(msg);
+          setInstallMessage(msg);
+          setInstallPhase("error");
+          return false;
+        }
+        if (json.status === "already") {
+          if (isInstall) {
+            setInstallPhase("complete");
+            setInstallMessage(copy.already);
+          }
+          // Uninstall flavor: leave zero residue — if the binary was already
+          // gone the onboarding card must render exactly like a fresh install.
           await fetchStatus(true);
-          return st.status === "complete";
+          return true;
+        }
+
+        // Poll install_status to completion.
+        // Liveness-aware: the CGI reports worker_alive (spawned PID still
+        // running), so a dead worker surfaces immediately instead of idling
+        // to a blind timeout — while a genuinely slow download (curl allows
+        // ~330s) keeps polling well past the old fixed 180s cap.
+        let sawWorker = true; // the spawn itself reported success
+        for (let i = 0; i < 300; i++) {
+          await new Promise((r) => setTimeout(r, 3000));
+          if (!mountedRef.current) return false;
+          const stResp = await authFetch(`${CGI_ENDPOINT}?action=install_status`);
+          if (!stResp.ok) continue;
+          let st: {
+            status?: string;
+            message?: string;
+            detail?: string;
+            worker_alive?: boolean;
+          };
+          try {
+            st = await stResp.json();
+          } catch {
+            // Truncated/half-written marker file — transient. Keep the last
+            // known message on screen rather than blanking it.
+            continue;
+          }
+          if (!mountedRef.current) return false;
+
+          if (!st.status || st.status === "idle") {
+            // No usable marker content. If the worker is gone too, it died
+            // before recording anything — say so instead of idling.
+            if (sawWorker && st.worker_alive === false) {
+              setInstallPhase("error");
+              const msg = isInstall
+                ? "Installer exited unexpectedly (no status recorded)"
+                : "Removal exited unexpectedly (no status recorded)";
+              setError(msg);
+              setInstallMessage(msg);
+              await fetchStatus(true);
+              return false;
+            }
+            continue;
+          }
+
+          sawWorker = true;
+          setInstallPhase(st.status as InstallPhase);
+          setInstallMessage(st.message || st.detail || null);
+          if (st.status === "complete" || st.status === "error") {
+            if (st.status === "error") {
+              const msg = st.detail || st.message || copy.failed;
+              setError(msg);
+              setInstallMessage(msg);
+            }
+            await fetchStatus(true);
+            if (!isInstall && st.status === "complete") {
+              // Removal finished: clear phase/message residue. The onboarding
+              // card reappearing after a successful removal must look exactly
+              // like a fresh install — "complete" would render as the green
+              // "Engine ready" alert with the removal log line beneath it.
+              setInstallPhase("idle");
+              setInstallMessage(null);
+            }
+            return st.status === "complete";
+          }
+        }
+        setInstallPhase("error");
+        setError(copy.timeout);
+        setInstallMessage(copy.timeout);
+        return false;
+      } catch (err) {
+        if (!mountedRef.current) return false;
+        const msg = err instanceof Error ? err.message : copy.spawnFailed;
+        setError(msg);
+        setInstallPhase("error");
+        setInstallMessage(msg);
+        return false;
+      } finally {
+        opBusyRef.current = false;
+        if (mountedRef.current) {
+          setIsInstalling(false);
+          setIsUninstalling(false);
         }
       }
-      setInstallPhase("error");
-      setError("Install timed out");
-      return false;
-    } catch (err) {
-      if (!mountedRef.current) return false;
-      setError(err instanceof Error ? err.message : "Failed to start install");
-      setInstallPhase("error");
-      return false;
-    } finally {
-      if (mountedRef.current) setIsInstalling(false);
-    }
-  }, [fetchStatus]);
+    },
+    [fetchStatus],
+  );
+
+  const installBinary = useCallback(
+    () => runBinaryOperation("install"),
+    [runBinaryOperation],
+  );
+
+  const uninstallBinary = useCallback(
+    () => runBinaryOperation("uninstall"),
+    [runBinaryOperation],
+  );
 
   return {
     data,
     isLoading,
     isSaving,
     isInstalling,
+    isUninstalling,
     installPhase,
     installMessage,
     error,
     saveEnabled,
     installBinary,
+    uninstallBinary,
     refresh: fetchStatus,
   };
 }

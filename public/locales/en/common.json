@@ -313,6 +313,13 @@
       "masq_scope": "Scope",
       "masq_all": "Every TCP 80/443 connection"
     },
+    "uninstall": {
+      "button": "Uninstall engine binary",
+      "title": "Uninstall engine binary?",
+      "description": "This action stops the Traffic Engine (if running) and removes the engine binary. Are you sure you want to proceed? It can be reinstalled at a later time if you change your mind.",
+      "confirm": "Uninstall",
+      "cancel": "Cancel"
+    },
     "enable": {
       "video_optimizer": "Enable Video Optimizer",
       "masquerade": "Enable Traffic Masquerade",
@@ -334,7 +341,8 @@
       "limit": "The list can hold at most 300 domains.",
       "add": "Add domain",
       "remove": "Remove {{domain}}",
-      "saved": "Hostlist saved"
+      "saved": "Hostlist saved",
+      "save_failed": "Couldn't save the hostlist"
     },
     "verify": {
       "title": "Test bypass",

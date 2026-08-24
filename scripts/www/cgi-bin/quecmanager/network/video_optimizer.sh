@@ -116,13 +116,43 @@ if [ "$REQUEST_METHOD" = "GET" ]; then
             exit 0
             ;;
         install_status)
+            # worker_alive lets the UI distinguish a slow download from a
+            # dead installer instead of idling to a blind timeout.
+            dpi_alive=false
+            if [ -f "$DPI_INSTALL_PID" ] && pid_alive "$(cat "$DPI_INSTALL_PID" 2>/dev/null)"; then
+                dpi_alive=true
+            fi
             if [ -f "$DPI_INSTALL_FILE" ] && [ -s "$DPI_INSTALL_FILE" ]; then
-                # Contract shape: running is success:false (in progress),
-                # complete is success:true, error is success:false.
-                jq -n --argjson body "$(cat "$DPI_INSTALL_FILE" 2>/dev/null)" \
-                    '{success:($body.status=="complete"),status:$body.status,message:$body.message,detail:$body.detail}'
+                # The writer truncates the marker in place, so a poll can
+                # catch a half-written line — re-read once before giving up,
+                # and never let an unreadable state blank the UI message.
+                _dpi_read() {
+                    jq -n --argjson body "$(cat "$DPI_INSTALL_FILE" 2>/dev/null)" \
+                        '{success:($body.status=="complete"),status:$body.status,message:($body.message//""),detail:($body.detail//"")}' 2>/dev/null
+                }
+                OUT=$(_dpi_read)
+                [ -n "$OUT" ] || { sleep 1; OUT=$(_dpi_read); }
+                if [ -n "$OUT" ]; then
+                    # A "running" marker whose worker is gone AND which hasn't
+                    # been touched in 30s means the installer died mid-run
+                    # without recording a terminal state. The age guard avoids
+                    # misreading the normal finish race (final marker written,
+                    # process not yet exited).
+                    _st=$(printf '%s' "$OUT" | jq -r .status)
+                    if [ "$_st" = "running" ] && [ "$dpi_alive" != true ]; then
+                        _now=$(date +%s)
+                        _mtime=$(stat -c %Y "$DPI_INSTALL_FILE" 2>/dev/null || echo "$_now")
+                        [ $((_now - _mtime)) -gt 30 ] && \
+                            OUT='{"success":false,"status":"error","message":"Installer exited unexpectedly","detail":"no completion was recorded"}'
+                    fi
+                    printf '%s' "$OUT" | jq -c --argjson wa "$dpi_alive" '. + {worker_alive:$wa}'
+                elif [ "$dpi_alive" = true ]; then
+                    echo '{"success":true,"status":"running","message":"Working…","detail":"","worker_alive":true}'
+                else
+                    echo '{"success":false,"status":"error","message":"Installer exited unexpectedly","detail":"no status was recorded","worker_alive":false}'
+                fi
             else
-                echo '{"success":true,"status":"idle"}'
+                printf '{"success":true,"status":"idle","worker_alive":%s}\n' "$dpi_alive"
             fi
             exit 0
             ;;
