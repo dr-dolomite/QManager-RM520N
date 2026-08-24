@@ -29,7 +29,7 @@
 
 States: `NOT STARTED` · `IN PROGRESS` · `BLOCKED` · `DONE (merged)` · `DONE (branch kept)`
 
-**T0 is a precondition.** It must land before any worktree is created — three of this plan's four input documents are currently uncommitted and one is untracked.
+**T0 was a precondition and is SATISFIED.** It had to land before any worktree was created, because three of this plan's four input documents were uncommitted and one was untracked. That is no longer true — all four are tracked on `development` as of `73cc424`. *This paragraph described the state on 2026-08-24 before T0 ran; it is kept for context, not as a live warning.* Any worktree cut at `fc30a50` or later carries every input document.
 
 **T4 is the cut line.** Everything before it is dead code, a new unread file, or an install-time write nothing consumes. T4 is the first task where a device *acts* on the profile. **If Phase A must stop early, stop before T4, not after.**
 
