@@ -324,8 +324,13 @@ case "$verb" in
     --uninstall-run)
         _dpi_uninstall_run
         ;;
+    --probe)
+        # Escalation pre-flight for the CGI: prove sudoers works without
+        # touching anything.
+        exit 0
+        ;;
     *)
-        echo "usage: qmanager_dpi_install install" >&2
+        echo "usage: qmanager_dpi_install install | uninstall" >&2
         exit 2
         ;;
 esac
