@@ -155,6 +155,22 @@ export interface RunHeroProps {
   idleCollapsed?: boolean;
   /** First paint, before the worker's status is known. */
   isLoading?: boolean;
+  /**
+   * Suppress the hero's own posture rail when a summary is present, because the
+   * route has already folded an equivalent card into `summary` (as `RunSummary`'s
+   * `leading` slot) so the run's own status reads as one more peer tile instead
+   * of a differently-sized card beside the grid.
+   *
+   * ONLY MEANINGFUL WHEN A SUMMARY IS PRESENT. If the route passes `true` here
+   * but `summary` is empty (nothing to fold the rail into), the rail still
+   * renders — otherwise the run's own status would vanish from the idle, scanning
+   * and failed postures, which never carry a folded-in copy of it.
+   *
+   * Added for the neighbour route's completed posture only; the sweep route
+   * never passes this; its rail keeps its own 64px/48px sizing exactly as
+   * `shapes.ts` documents.
+   */
+  hideRail?: boolean;
 }
 
 export function RunHero({
@@ -170,6 +186,7 @@ export function RunHero({
   summary,
   idleCollapsed = false,
   isLoading = false,
+  hideRail = false,
 }: RunHeroProps) {
   const mark = POSTURE_GLYPH[posture];
 
@@ -194,6 +211,11 @@ export function RunHero({
   // show — the neighbour route before its first read — the rail takes the whole
   // width instead of anchoring an empty split.
   const hasSummary = isLoading || (summary !== null && summary !== undefined);
+
+  // The rail is suppressed only when the route has somewhere to fold it — see
+  // `hideRail`'s doc comment. Without a summary there is nothing to fold into,
+  // so the rail stays the only object reporting the run's status.
+  const showOwnRail = !hideRail || !hasSummary;
 
   return (
     <Card className={RUN_HERO}>
@@ -228,45 +250,57 @@ export function RunHero({
             <div
               className={cn(
                 HERO_MORPH.BODY,
-                hasSummary ? HERO_SPLIT : HERO_RAIL_ONLY,
+                // `showOwnRail` false collapses to the single-column wrapper too
+                // — `summary` fills the whole width once it carries the folded
+                // rail as its own leading tile. `HERO_RAIL_ONLY`'s single-column
+                // grid is exactly that shape; see its doc comment.
+                hasSummary
+                  ? showOwnRail
+                    ? HERO_SPLIT
+                    : HERO_RAIL_ONLY
+                  : HERO_RAIL_ONLY,
               )}
             >
               {/* ---- Posture rail ------------------------------------------ */}
-              {isLoading ? (
-                <Skeleton className={SKELETON_SHAPE.RAIL} />
-              ) : (
-                <div className={RAIL.ROOT}>
-                  <span className={cn(RAIL.DISC, POSTURE_DISC[posture])}>
-                    <MaterialSymbol
-                      name={mark.glyph}
-                      size={32}
-                      filled={mark.filled}
-                      className={spin}
-                    />
-                  </span>
-
-                  <div className={RAIL.COPY}>
-                    {metric !== null && metric !== undefined ? (
-                      <p className={RAIL.COUNT}>{metric}</p>
-                    ) : null}
-
-                    <span
-                      className={
-                        postureTitleIsMachine ? RAIL.TITLE_MACHINE : RAIL.TITLE
-                      }
-                    >
-                      {postureTitle}
+              {showOwnRail ? (
+                isLoading ? (
+                  <Skeleton className={SKELETON_SHAPE.RAIL} />
+                ) : (
+                  <div className={RAIL.ROOT}>
+                    <span className={cn(RAIL.DISC, POSTURE_DISC[posture])}>
+                      <MaterialSymbol
+                        name={mark.glyph}
+                        size={32}
+                        filled={mark.filled}
+                        className={spin}
+                      />
                     </span>
 
-                    {/* Absent on the complete posture, where the figure above
-                        already is the count and a sentence restating it was the
-                        same fact twice. */}
-                    {postureBody ? (
-                      <span className={RAIL.BODY}>{postureBody}</span>
-                    ) : null}
+                    <div className={RAIL.COPY}>
+                      {metric !== null && metric !== undefined ? (
+                        <p className={RAIL.COUNT}>{metric}</p>
+                      ) : null}
+
+                      <span
+                        className={
+                          postureTitleIsMachine
+                            ? RAIL.TITLE_MACHINE
+                            : RAIL.TITLE
+                        }
+                      >
+                        {postureTitle}
+                      </span>
+
+                      {/* Absent on the complete posture, where the figure above
+                          already is the count and a sentence restating it was
+                          the same fact twice. */}
+                      {postureBody ? (
+                        <span className={RAIL.BODY}>{postureBody}</span>
+                      ) : null}
+                    </div>
                   </div>
-                </div>
-              )}
+                )
+              ) : null}
 
               {/* ---- Summary ----------------------------------------------- */}
               {summary}

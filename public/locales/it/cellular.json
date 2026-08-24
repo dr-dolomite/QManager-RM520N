@@ -294,7 +294,7 @@
       "description": "Analizza tutte le bande supportate per trovare le celle nel raggio. Risultati migliori senza SIM inserita."
     },
     "run": {
-      "title": "Scansione completa delle bande",
+      "title": "Scansione completa della rete",
       "description": "Un passaggio su ogni banda supportata dal modem.",
       "start": "Analizza tutte le bande",
       "rerun": "Ripeti la scansione",
@@ -416,8 +416,8 @@
         "description": "Legge le torri che la cella di servizio già monitora, senza scansionare alcuna banda."
       },
       "run": {
-        "title": "Lettura celle vicine",
-        "description": "Una domanda alla cella di servizio, con risposta basata su ciò che già misura.",
+        "title": "Scansione celle vicine",
+        "description": "Richiede le celle vicine che la cella di servizio già monitora, senza scansionare bande aggiuntive.",
         "start": "Leggi le celle vicine",
         "rerun": "Leggi di nuovo",
         "scanning_action": "Lettura…",
@@ -440,7 +440,7 @@
         "failed_body": "Il modem potrebbe essere occupato o irraggiungibile. Verifica la connessione e riprova."
       },
       "results": {
-        "title": "Celle vicine rilevate",
+        "title": "Rapporti celle vicine",
         "description": "Ordina per segnale, filtra per canale, blocca qualsiasi riga LTE.",
         "filter_placeholder": "Filtra per canale",
         "empty_title": "Nessuna cella vicina",

@@ -294,7 +294,7 @@
       "description": "扫描本模块支持的所有频段，找出周边的基站。取出 SIM 卡后结果最完整。"
     },
     "run": {
-      "title": "全频段扫描",
+      "title": "全网络扫描",
       "description": "在模块支持的每个频段上各扫描一遍。",
       "start": "扫描全部频段",
       "rerun": "重新扫描",
@@ -416,8 +416,8 @@
         "description": "读取服务小区已在跟踪的基站，无需扫描任何频段。"
       },
       "run": {
-        "title": "邻区读取",
-        "description": "向服务小区提出一个问题，用它已测量的数据作答。",
+        "title": "邻区扫描",
+        "description": "请求服务小区已经跟踪的邻区，无需扫描额外的频段。",
         "start": "读取邻区",
         "rerun": "重新读取",
         "scanning_action": "读取中…",
@@ -440,7 +440,7 @@
         "failed_body": "调制解调器可能繁忙或无法访问。请检查连接后重新读取。"
       },
       "results": {
-        "title": "已报告的邻区",
+        "title": "邻区报告",
         "description": "按信号排序、按信道筛选，可锁定任意 LTE 行。",
         "filter_placeholder": "按信道筛选",
         "empty_title": "暂无邻区",

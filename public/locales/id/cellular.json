@@ -294,7 +294,7 @@
       "description": "Pindai semua band yang didukung untuk menemukan menara di sekitar. Hasil terbaik tanpa SIM terpasang."
     },
     "run": {
-      "title": "Pemindaian seluruh band",
+      "title": "Pemindaian seluruh jaringan",
       "description": "Satu putaran pada setiap band yang didukung modem.",
       "start": "Pindai semua band",
       "rerun": "Pindai lagi",
@@ -416,8 +416,8 @@
         "description": "Membaca menara yang sudah dilacak oleh sel pelayan, tanpa memindai pita mana pun."
       },
       "run": {
-        "title": "Pembacaan sel tetangga",
-        "description": "Satu pertanyaan ke sel pelayan, dijawab dari apa yang sudah diukurnya.",
+        "title": "Pemindaian sel tetangga",
+        "description": "Meminta sel tetangga yang sudah dilacak sel pelayan, tanpa memindai band tambahan.",
         "start": "Baca sel tetangga",
         "rerun": "Baca lagi",
         "scanning_action": "Membaca…",
@@ -440,7 +440,7 @@
         "failed_body": "Modem mungkin sibuk atau tidak terjangkau. Periksa koneksi lalu baca lagi."
       },
       "results": {
-        "title": "Sel tetangga yang dilaporkan",
+        "title": "Laporan sel tetangga",
         "description": "Urutkan per sinyal, saring per kanal, kunci baris LTE mana pun.",
         "filter_placeholder": "Saring per kanal",
         "empty_title": "Belum ada sel tetangga",

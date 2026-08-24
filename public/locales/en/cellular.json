@@ -294,7 +294,7 @@
       "description": "Sweep every supported band for the towers in range. Best results with the SIM removed."
     },
     "run": {
-      "title": "Full band sweep",
+      "title": "Full network sweep",
       "description": "One pass across every band this modem supports.",
       "start": "Sweep all bands",
       "rerun": "Sweep again",
@@ -416,8 +416,8 @@
         "description": "Read the towers the serving cell already tracks, without sweeping any bands."
       },
       "run": {
-        "title": "Neighbour read",
-        "description": "One question to the serving cell, answered from what it already measures.",
+        "title": "Neighbourcell scan",
+        "description": "Requests the neighbour cells the serving tower already tracks, without sweeping additional bands.",
         "start": "Read neighbours",
         "rerun": "Read again",
         "scanning_action": "Reading…",
@@ -440,7 +440,7 @@
         "failed_body": "The modem may be busy or unreachable. Check the connection and read again."
       },
       "results": {
-        "title": "Neighbours reported",
+        "title": "Neighbourcell reports",
         "description": "Sort by signal, filter by channel, lock onto any LTE row.",
         "filter_placeholder": "Filter by channel",
         "empty_title": "No neighbours yet",

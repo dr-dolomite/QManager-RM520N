@@ -1,5 +1,7 @@
 "use client";
 
+import type { ReactNode } from "react";
+
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   MaterialSymbol,
@@ -120,6 +122,16 @@ export interface RunSummaryProps {
    * posture.
    */
   isLoading?: boolean;
+  /**
+   * An extra grid item rendered BEFORE the tiles, inside the same `SUMMARY.GRID`
+   * — already shaped and styled by the caller as a `SUMMARY.TILE`. This is how a
+   * route folds its posture rail into the tile row so the two read as one set of
+   * peer cards instead of a rail beside a grid; see `RunHero`'s `hideRail`.
+   *
+   * This component stays copy-blind and posture-blind either way: it does not
+   * build the node, it only gives it a slot in the grid it already owns.
+   */
+  leading?: ReactNode;
 }
 
 /**
@@ -150,15 +162,17 @@ export function RunSummary({
   verdict,
   emptyText,
   isLoading = false,
+  leading = null,
 }: RunSummaryProps) {
   return (
     <section className="flex min-w-0 flex-col gap-3" aria-live="polite">
       {isLoading ? (
         <SummarySkeleton />
-      ) : tiles.length === 0 ? (
+      ) : tiles.length === 0 && !leading ? (
         <p className={SUMMARY.EMPTY}>{emptyText}</p>
       ) : (
         <div className={SUMMARY.GRID}>
+          {leading}
           {tiles.map((tile) => {
             const disc = SUMMARY_TILE_DISC[tile.tier];
 

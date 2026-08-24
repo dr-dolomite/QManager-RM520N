@@ -294,7 +294,7 @@
       "description": "掃描本模組支援的所有頻段，找出周邊的基地台。取出 SIM 卡後結果最完整。"
     },
     "run": {
-      "title": "全頻段掃描",
+      "title": "全網路掃描",
       "description": "在模組支援的每個頻段上各掃描一遍。",
       "start": "掃描全部頻段",
       "rerun": "重新掃描",
@@ -416,8 +416,8 @@
         "description": "讀取服務細胞已在追蹤的基地台，無需掃描任何頻段。"
       },
       "run": {
-        "title": "鄰區讀取",
-        "description": "向服務細胞提出一個問題，以它已測量的資料作答。",
+        "title": "鄰區掃描",
+        "description": "請求服務細胞已經追蹤的鄰區，無需掃描額外的頻段。",
         "start": "讀取鄰區",
         "rerun": "重新讀取",
         "scanning_action": "讀取中…",
@@ -440,7 +440,7 @@
         "failed_body": "數據機可能忙碌或無法存取。請檢查連線後重新讀取。"
       },
       "results": {
-        "title": "已回報的鄰區",
+        "title": "鄰區回報",
         "description": "依訊號排序、依通道篩選，可鎖定任一 LTE 列。",
         "filter_placeholder": "依通道篩選",
         "empty_title": "尚無鄰區",

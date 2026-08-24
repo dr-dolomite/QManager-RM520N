@@ -364,18 +364,6 @@ export function FullScanner() {
                       ? t("cell_scanner.run.rerun")
                       : t("cell_scanner.run.start")}
                 </Button>
-
-                {hasResults ? (
-                  <Button
-                    type="button"
-                    variant="tonal-neutral"
-                    className={PILL_ACTION}
-                    onClick={handleDownload}
-                  >
-                    <MaterialSymbol name="download" size={18} />
-                    {t("cell_scanner.run.download")}
-                  </Button>
-                ) : null}
               </>
             )
           }
@@ -417,7 +405,25 @@ export function FullScanner() {
               onRetry={startScan}
             />
           ) : results.length > 0 ? (
-            <ScanResultView data={results} onLockCell={handleLockCell} />
+            <>
+              <ScanResultView data={results} onLockCell={handleLockCell} />
+
+              {/* End-justified, below the table's own footer/pager — the
+                  header action row now carries only "Sweep again"; exporting a
+                  finished sweep is a fact about the table, so it lives at the
+                  table's own bottom edge. Mirrors the neighbour route. */}
+              <div className="flex justify-end">
+                <Button
+                  type="button"
+                  variant="tonal-neutral"
+                  className={PILL_ACTION}
+                  onClick={handleDownload}
+                >
+                  <MaterialSymbol name="download" size={18} />
+                  {t("cell_scanner.run.download")}
+                </Button>
+              </div>
+            </>
           ) : (
             /* Reached ONLY after a sweep that completed and listed nothing —
                the card does not render before the first run at all. It carries

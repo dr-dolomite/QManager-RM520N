@@ -110,6 +110,21 @@ Corollaries that follow from the same asymmetry, and should not be "harmonised" 
 - The sweep route has a `beforeunload` guard (`use-cell-scanner.ts:236-245`); the neighbour route deliberately does not. Losing a two-second read costs nothing, so prompting over it would invent a stake the operation does not have.
 - `useCellScanner` still computes and returns `elapsedSeconds`, and **no component consumes it** — see [The running state carries no numbers](#the-running-state-carries-no-numbers). That is not dead code left behind by accident: leaving the transport intact is what keeps the number-free running state a *surface* decision, revisitable without touching a hook that also owns the poll loop, the failure counter and the `sessionStorage` restore.
 
+## What the two runs are called
+
+**Four titles were reworded on 2026-08-24. No key was added or removed** — the family is still 225 paths in `en`, all five packs moved together, and `bun run i18n:check` was clean at `strict` before and after.
+
+| Key | Was | Now |
+| --- | --- | --- |
+| `cell_scanner.run.title` | "Full band sweep" | "Full network sweep" |
+| `cell_scanner.neighbour.run.title` | "Neighbour read" | "Neighbourcell scan" |
+| `cell_scanner.neighbour.run.description` | "One question to the serving cell, answered from what it already measures." | "Requests the neighbour cells the serving tower already tracks, without sweeping additional bands." |
+| `cell_scanner.neighbour.results.title` | "Neighbours reported" | "Neighbourcell reports" |
+
+The sweep's title named the **mechanism** — a pass across every band — where what the reader gets back is every network the modem can hear from where it is standing, bands and connections together. "Full network sweep" names the finding. On the neighbour route the two titles are now a matched pair: a *scan* produces *reports*, so the hero and the results card below it stop using two unrelated nouns for one act, and the description says what is requested and what is explicitly not swept.
+
+> ℹ️ **The button labels were deliberately left alone.** "Sweep all bands" and "Read neighbours" are load-bearing — they are one of the three things still carrying the [cost asymmetry](#the-cost-asymmetry-and-why-the-routes-are-not-merged) since the `COST` slot was retired. A title rename does not touch that argument, and harmonising the buttons with the new titles would.
+
 ## Cross-navigation between the two routes
 
 Until 2026-08-12 there was **no path between the sweep and the neighbour read except the sidebar**, on a surface whose whole argument is that these are two answers to one question at prices that differ by 100x. Each hero header now carries a link to the sibling route (`sibling-link.tsx`), in the slot the retired posture chip used to occupy.
@@ -268,6 +283,8 @@ Three of the eleven reach across to the **calculator** as well: `shapes.ts` (whi
 `lock-cell-dialog.tsx` is the one worth calling out: **it owns the write, not just the confirmation.** A component that only asked the question and handed back a callback would have left both routes holding their own identical `fetch`, payload builder and toast set — which is the duplication that actually cost something. The caller owns exactly one thing: which cell is targeted, cleared when the dialog closes. `kind: "nr_sa" | "lte"` is a discriminator on the *target* rather than a flag on the request, because `AT+QNWLOCK` takes two different shapes and the modem rejects the wrong one outright.
 
 **The CSV builders are NOT shared, and should not be.** Each route keeps its own `buildCsvRows` and header constant (`scanner.tsx:41`/`:59`, `neighbour-scanner.tsx:45`/`:60`) because the two row shapes have different columns; both go through the shared `lib/download-csv.ts` for the actual download. Sharing the *builder* would require the widened type this doc argues against.
+
+> ℹ️ **The download BUTTON moved on 2026-08-24; the builders did not.** Both routes took "Download CSV" out of the hero header's `actions` slot and now render it in an end-justified row (`flex justify-end`) directly under the results table, inside the results card, only when there are rows. The header's `actions` therefore carries exactly one act — "Sweep again" / "Read again", the thing you do to the *run* — while exporting is a fact about a finished table and sits at that table's own bottom edge. It is the same `Button` (`variant="tonal-neutral"`, `PILL_ACTION`), the same `handleDownload`, and still the one shared `cell_scanner.run.download` key on both routes. Nothing about `buildCsvRows`, either header constant or `lib/download-csv.ts` changed. Both routes moved together on purpose: the two are siblings a click apart, and a control that changes rows between them is the defect the [empty panel's button](#the-sweeps-empty-state-no-longer-owns-an-action-and-no-longer-renders-before-a-run) was retired for.
 
 ## The calculator takes the anchor, not the run
 
@@ -461,6 +478,22 @@ Two consequences on that route:
 
 The results card also stays mounted at idle on that route, for the same reason: a two-second act does not need the page rearranged around it.
 
+### …but its completed rail folds into the tile grid
+
+**Short version: on the neighbour route's `complete` posture with rows, the hero stops drawing its own posture rail and the run's status is rendered instead as the first card *inside* the summary tile grid — so "Read finished", "Same frequency", "Other frequency" and "With measurements" are four cards of one size, rather than a fixed-width rail beside three auto-fitted tiles.** User-reported, 2026-08-24.
+
+They are four peer facts about one finished read, and the split said the opposite: the rail's 64 px disc and 48 px count held a fixed `minmax(0,19rem)` column while the tiles' 52 px discs shared what was left, so the object with the least to say was the widest thing on the row and read as a different kind of object.
+
+The mechanism is two optional props and no new component:
+
+- **`RunHero` gained `hideRail`** (default `false`). When it is true **and** a `summary` is present, the hero skips its own rail and wraps the body in the single-column `HERO_RAIL_ONLY` instead of `HERO_SPLIT`, so the summary fills the whole width. `HERO_RAIL_ONLY`'s doc comment now records this as its second use — same shape, two reasons to reach for it.
+- **`RunSummary` gained `leading`**, a `ReactNode` rendered as the first child *inside* `SUMMARY.GRID`. That placement is the whole point: the folded rail is subject to the identical `auto-fit` column sizing as the tiles rather than approximating it, which is what makes the four cards match rather than nearly match. `RunSummary` stays **copy-blind and posture-blind** — it does not build the node, it only owns a slot in the grid it already owns. (`tiles.length === 0` alone no longer means "empty": the empty sentence is shown only when there is also no `leading`.)
+- **`neighbour-scanner.tsx` builds `readFinishedTile`** and is the only caller of either prop. The node restates the tile classes exactly (`SUMMARY.TILE` / `DISC` / `COPY` / `LABEL` / `DETAILS`) and reuses `cell_scanner.results.tally_rows` for its fact line, so it carries its siblings' typographic weight and their "N rows" phrasing. What it keeps of the rail is the run's own `POSTURE_DISC.complete` fill and `check_circle` glyph, **not** a `SignalTier` tone: the card is peer-sized but it is still the *run's* status, and keying it onto a tier would put a signal-coloured disc there for a reason that has nothing to do with signal.
+
+**`hideRail` fails safe.** The route passes `hideRail={hasResults}`, and `RunHero` derives `showOwnRail = !hideRail || !hasSummary` — with no summary there is nothing carrying the folded status, so the rail is drawn regardless of what the caller asked for. Without that fallback a `true` on an `idle`, `scanning` or `failed` posture would delete the only object reporting what the page is doing. Those three postures, and a completed read that listed nothing, are otherwise untouched: they keep the hero's own rail, in `HERO_SPLIT` where a summary sits beside it and `HERO_RAIL_ONLY` at idle.
+
+> ⚠️ **Do not "unify" the sweep route the same way.** It passes neither prop, and its rail keeps the 64 px disc, 48 px numeral and 19 rem column described in [The hero is as tall as it has something to say](#the-hero-is-as-tall-as-it-has-something-to-say) and [The completed rail is two marks, not five](#the-completed-rail-is-two-marks-not-five). That rail spends 30–180 seconds answering *is it still working*, and its size is what makes it readable from across a room while you wait; the neighbour route's two-second read never has that job, so its rail is only ever a completed count. The same cost asymmetry that keeps the height morph off this route keeps the fold off that one.
+
 ## The summary tiles are neutral and the colour is on the disc
 
 **A tile's colour now means the strongest signal in that group.** `SUMMARY_TILE_TONE` / `summaryTileTone(index)` — a three-tone triad (`bg-primary` / `bg-primary-container` / `bg-uplink-container`) rotated by array position — was **deleted** on 2026-08-24. Tile bodies are `bg-surface-container` on every tile, and the hue moved to a 52 px disc (`SUMMARY.DISC`, 26 px glyph) keyed on the group's best measured tier.
@@ -490,7 +523,7 @@ Rules that follow:
 ### What went with the triad
 
 - **The three `opacity-85` ink washes.** `SUMMARY.LABEL`, `DETAIL_IDENT` and `DETAIL_FIGURE` carried them only because a fixed neutral ink sat wrong on a solid `bg-primary` tile. With a neutral body the wash is a contrast reduction with nothing left to compensate for; the JSDoc that argued for it said as much.
-- **The panel wrapper and its heading.** `SUMMARY.ROOT` (a `surface-container` panel) and `SUMMARY.TITLE` are gone, and the two `summary_title` keys — `cell_scanner.run.summary_title` ("What this sweep found") and `cell_scanner.neighbour.run.summary_title` — were deleted from all five locale packs. A `surface-container` panel holding `surface-container` tiles is not a tone step, it is a tile-shaped hole; the only way to keep a step would have been to push the tiles up to `surface-container-high`, which is the undifferentiated grey block the triad existed to fix. The tiles sit on the hero's own `surface` instead, which is a real step. The heading went with the panel because "What this sweep found" over four tiles inside a card titled "Full band sweep" was the third thing on one screen naming the same run.
+- **The panel wrapper and its heading.** `SUMMARY.ROOT` (a `surface-container` panel) and `SUMMARY.TITLE` are gone, and the two `summary_title` keys — `cell_scanner.run.summary_title` ("What this sweep found") and `cell_scanner.neighbour.run.summary_title` — were deleted from all five locale packs. A `surface-container` panel holding `surface-container` tiles is not a tone step, it is a tile-shaped hole; the only way to keep a step would have been to push the tiles up to `surface-container-high`, which is the undifferentiated grey block the triad existed to fix. The tiles sit on the hero's own `surface` instead, which is a real step. The heading went with the panel because "What this sweep found" over four tiles inside a card titled "Full band sweep" (now "Full network sweep" — see [What the two runs are called](#what-the-two-runs-are-called)) was the third thing on one screen naming the same run.
 - **`SummaryTile.value`.** The big numeral moved into the fact line *with* a unit — `t("cell_scanner.results.count", { count })` on the sweep, `tally_rows` / `tally_measured` on the neighbour route, all reusing existing plurals. On a row-shaped tile the disc holds the left edge, and a bare numeral with no unit beside it read as a second figure competing with the rail's count.
 - **`SKELETON_SHAPE.SUMMARY`, the single tall bar.** The skeleton now mirrors **by composition**: the same `SUMMARY.GRID` holding the same `SUMMARY.TILE` boxes with a disc placeholder and two line boxes inside (`SUMMARY_DISC` / `SUMMARY_LABEL` / `SUMMARY_DETAILS`, `SUMMARY_TILES = 4`). A single `h-[13.5rem]` bar is a shape the loaded panel can no longer take.
 

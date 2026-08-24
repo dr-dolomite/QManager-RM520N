@@ -269,6 +269,14 @@ export const HERO_MORPH = {
 export const HERO_SPLIT =
   "grid grid-cols-1 gap-4 @2xl/section:grid-cols-[minmax(0,19rem)_minmax(0,1fr)]";
 
+/**
+ * ALSO the wrapper `RunHero` uses when a route passes `hideRail` — the run's own
+ * status has been folded into `summary` as its `leading` tile there (the
+ * neighbour route's completed posture, so "Read finished" reads as one more peer
+ * card instead of a fixed-width rail beside the grid), so `summary` fills the
+ * whole width the same way it would with no rail at all. Same shape, two
+ * reasons to reach for it.
+ */
 export const HERO_RAIL_ONLY = "grid grid-cols-1 gap-4";
 
 /**

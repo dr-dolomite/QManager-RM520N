@@ -10,6 +10,7 @@ import { MaterialSymbol } from "@/components/ui/material-symbol";
 import { useNeighbourScanner } from "@/hooks/use-neighbour-scanner";
 import { downloadCSV } from "@/lib/download-csv";
 import { staggerItem } from "@/lib/motion";
+import { cn } from "@/lib/utils";
 import type { NeighbourCellResult } from "@/types/cell-scanner";
 
 import LockCellDialog, { type LockCellTarget } from "../lock-cell-dialog";
@@ -23,8 +24,11 @@ import { ScannerSkeleton } from "../scanner-skeleton";
 import SiblingRouteLink from "../sibling-link";
 import {
   PILL_ACTION,
+  POSTURE_DISC,
+  POSTURE_GLYPH,
   RESULTS_CARD,
   SECTION_HEAD,
+  SUMMARY,
   runPosture,
   type SignalTier,
 } from "../shapes";
@@ -172,6 +176,30 @@ export function NeighbourScanner() {
 
   const copy = POSTURE_COPY[posture];
 
+  // The run's own status, folded into the tile grid as a peer card instead of a
+  // differently-sized rail beside it — see `RunHero`'s `hideRail` and
+  // `RunSummary`'s `leading`. Built only when there is a completed count to
+  // show; `RunHero` falls back to its own rail whenever this is absent.
+  const readFinishedTile = hasResults ? (
+    <div className={SUMMARY.TILE}>
+      <span className={cn(SUMMARY.DISC, POSTURE_DISC.complete)}>
+        <MaterialSymbol
+          name={POSTURE_GLYPH.complete.glyph}
+          size={26}
+          filled={POSTURE_GLYPH.complete.filled}
+        />
+      </span>
+      <div className={SUMMARY.COPY}>
+        <span className={SUMMARY.LABEL}>{t(POSTURE_COPY.complete.title)}</span>
+        <span className={SUMMARY.DETAILS}>
+          <span className={SUMMARY.DETAIL_FIGURE}>
+            {t("cell_scanner.results.tally_rows", { count: results.length })}
+          </span>
+        </span>
+      </div>
+    </div>
+  ) : null;
+
   // Pure and total: an empty read, a single row and an all-sentinel read all
   // produce a well-formed summary rather than `NaN` or `-Infinity`.
   const summary = React.useMemo(() => summariseNeighbours(results), [results]);
@@ -302,6 +330,9 @@ export function NeighbourScanner() {
           metric={hasResults ? results.length : null}
           // NO `idleCollapsed` — see this file's header. A two-second read does
           // not earn an 800ms container morph.
+          // `hideRail` only when there is a folded-in `readFinishedTile` to take
+          // its place — `RunHero` falls back to its own rail otherwise.
+          hideRail={hasResults}
           summary={
             isScanning || posture === "complete" ? (
               <RunSummary
@@ -309,45 +340,32 @@ export function NeighbourScanner() {
                 tiles={summaryTiles}
                 verdict={verdict}
                 emptyText={t("cell_scanner.neighbour.run.summary_empty")}
+                leading={readFinishedTile}
               />
             ) : null
           }
           actions={
-            <>
-              <Button
-                type="button"
-                onClick={startScan}
-                disabled={isScanning}
-                className={PILL_ACTION}
-              >
-                <MaterialSymbol
-                  name={isScanning ? "progress_activity" : "cell_tower"}
-                  size={18}
-                  className={
-                    isScanning
-                      ? "animate-spin motion-reduce:animate-none"
-                      : undefined
-                  }
-                />
-                {isScanning
-                  ? t("cell_scanner.neighbour.run.scanning_action")
-                  : hasResults
-                    ? t("cell_scanner.neighbour.run.rerun")
-                    : t("cell_scanner.neighbour.run.start")}
-              </Button>
-
-              {hasResults ? (
-                <Button
-                  type="button"
-                  variant="tonal-neutral"
-                  className={PILL_ACTION}
-                  onClick={handleDownload}
-                >
-                  <MaterialSymbol name="download" size={18} />
-                  {t("cell_scanner.run.download")}
-                </Button>
-              ) : null}
-            </>
+            <Button
+              type="button"
+              onClick={startScan}
+              disabled={isScanning}
+              className={PILL_ACTION}
+            >
+              <MaterialSymbol
+                name={isScanning ? "progress_activity" : "cell_tower"}
+                size={18}
+                className={
+                  isScanning
+                    ? "animate-spin motion-reduce:animate-none"
+                    : undefined
+                }
+              />
+              {isScanning
+                ? t("cell_scanner.neighbour.run.scanning_action")
+                : hasResults
+                  ? t("cell_scanner.neighbour.run.rerun")
+                  : t("cell_scanner.neighbour.run.start")}
+            </Button>
           }
         />
       </motion.div>
@@ -377,10 +395,29 @@ export function NeighbourScanner() {
               onRetry={startScan}
             />
           ) : results.length > 0 ? (
-            <NeighbourScanResultView
-              data={results}
-              onLockCell={handleLockCell}
-            />
+            <>
+              <NeighbourScanResultView
+                data={results}
+                onLockCell={handleLockCell}
+              />
+
+              {/* End-justified, below the table's own footer/pager — the
+                  header action row now carries only the one act you can take on
+                  this whole read ("Read again"); exporting what it found is a
+                  fact about the finished table, so it lives at the table's own
+                  bottom edge. */}
+              <div className="flex justify-end">
+                <Button
+                  type="button"
+                  variant="tonal-neutral"
+                  className={PILL_ACTION}
+                  onClick={handleDownload}
+                >
+                  <MaterialSymbol name="download" size={18} />
+                  {t("cell_scanner.run.download")}
+                </Button>
+              </div>
+            </>
           ) : (
             <ScanEmptyState
               title={t("cell_scanner.neighbour.results.empty_title")}
