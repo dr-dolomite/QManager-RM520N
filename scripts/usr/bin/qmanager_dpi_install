@@ -30,7 +30,7 @@
 # without a manifest entry, or a binary failing either check, is refused —
 # never install an unverified binary.
 #
-# Usage: qmanager_dpi_install install | (internal) --download
+# Usage: qmanager_dpi_install install | uninstall | (internal) --download | --uninstall-run
 # Install location: /usr/bin/qmanager_dpi_install
 # =============================================================================
 
