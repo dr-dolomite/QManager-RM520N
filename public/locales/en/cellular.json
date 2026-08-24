@@ -210,7 +210,6 @@
       "absent_lte_body": "The modem is on 5G standalone. No LTE carrier is in use.",
       "tile_tech_LTE": "LTE",
       "tile_tech_NR": "5G NR",
-      "tile_no_aggregation": "No aggregation",
       "tile_earfcn": "EARFCN",
       "tile_rsrp": "{{value}} dBm",
       "tile_rsrq": "{{value}} dB",

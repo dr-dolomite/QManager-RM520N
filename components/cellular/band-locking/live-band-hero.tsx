@@ -15,7 +15,6 @@ import { MaterialSymbol } from "@/components/ui/material-symbol";
 import { MetricBar } from "@/components/ui/metric-bar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
-import { Tag } from "@/components/ui/tag";
 import {
   Tooltip,
   TooltipContent,
@@ -449,9 +448,25 @@ export function LiveBandHero({
                     key={`${c.technology}-${c.type}-${c.band}-${c.earfcn ?? "x"}`}
                     role="listitem"
                     className={HERO_ONAIR_TILE.ROOT}
+                    // The visible `nr`/`lte` and `PCC`/`SCC` tags this tile used
+                    // to carry are gone — the disc's fill and glyph say which
+                    // radio, and `sortCarriers()`'s ordering says which carrier
+                    // leads (see `HERO_ONAIR_TILE`'s header comment in
+                    // `shapes.ts`) — but that fact still needs to reach a screen
+                    // reader in words, so it moves here.
+                    aria-label={`${t(`band_locking.live.tile_tech_${c.technology}`)} ${c.type}`}
                   >
-                    {/* Identity disc, identity/aggregation tags, bandwidth. */}
-                    <div className={HERO_ONAIR_TILE.HEAD}>
+                    {/* Channel bandwidth, pinned to the tile's top-right
+                        corner — `absolute`, out of `TOP`'s flow entirely. See
+                        `HERO_ONAIR_TILE.BANDWIDTH` for why. */}
+                    <span className={HERO_ONAIR_TILE.BANDWIDTH}>
+                      {t("radio_info.bands.units.mhz", {
+                        value: c.bandwidth_mhz,
+                      })}
+                    </span>
+
+                    {/* Disc centred against the band/EARFCN text pair. */}
+                    <div className={HERO_ONAIR_TILE.TOP}>
                       <span
                         aria-hidden="true"
                         className={`${HERO_ONAIR_TILE.DISC} ${carrierDiscTone(c.technology)}`}
@@ -462,96 +477,111 @@ export function LiveBandHero({
                           filled
                         />
                       </span>
-                      <div className={HERO_ONAIR_TILE.TAGS}>
-                        {/* IDENTITY, not health: `nr`/`lte` say which radio this
-                            tile belongs to and never mean "healthy". An outline
-                            `Tag`, per the Two-Form Rule — a filled `Badge` here
-                            would be byte-identical to `variant="info"`, so the
-                            radio family and "something is informational" would
-                            be literally the same object. */}
-                        <Tag variant={c.technology === "LTE" ? "lte" : "nr"}>
-                          {t(`band_locking.live.tile_tech_${c.technology}`)}
-                        </Tag>
-                        {/* PCC / SCC — a standard 3GPP identifier, printed raw
-                            and untranslated, as it has always been on this
-                            surface. Metadata with no honest hue, so `neutral`. */}
-                        <Tag variant="neutral">{c.type}</Tag>
-                        {/* Only one carrier on air => nothing is being
-                            aggregated with it. Tied to the GRID's carrier
-                            count, not this tile alone, because "aggregation" is
-                            a fact about the whole camp, not one component. */}
-                        {onAir.length === 1 ? (
-                          <Tag variant="neutral">
-                            {t("band_locking.live.tile_no_aggregation")}
-                          </Tag>
+                      <div className={HERO_ONAIR_TILE.TEXT}>
+                        {/* Band designator + centre frequency, one row. */}
+                        <div className={HERO_ONAIR_TILE.BAND_ROW}>
+                          <span className={HERO_ONAIR_TILE.BAND}>{c.band}</span>
+                          {freqMhz === null ? null : (
+                            <span className={HERO_ONAIR_TILE.FREQ}>
+                              {t("radio_info.bands.units.mhz", {
+                                value: freqMhz,
+                              })}
+                            </span>
+                          )}
+                        </div>
+
+                        {/* EARFCN / PCI — omits whatever the modem did not
+                            report for THIS component rather than padding with
+                            a placeholder. Separate flex children with a real
+                            gap, not a joined separator glyph, so the segments
+                            space themselves consistently regardless of font
+                            metrics. */}
+                        {detailSegments.length > 0 ? (
+                          <div className={HERO_ONAIR_TILE.DETAIL}>
+                            {detailSegments.map((segment) => (
+                              <span key={segment}>{segment}</span>
+                            ))}
+                          </div>
                         ) : null}
                       </div>
-                      <span className={HERO_ONAIR_TILE.BANDWIDTH}>
-                        {t("radio_info.bands.units.mhz", {
-                          value: c.bandwidth_mhz,
-                        })}
-                      </span>
                     </div>
 
-                    {/* Band designator + centre frequency. */}
-                    <div className="flex items-baseline gap-2">
-                      <span className={HERO_ONAIR_TILE.BAND}>{c.band}</span>
-                      {freqMhz === null ? null : (
-                        <span className={HERO_ONAIR_TILE.FREQ}>
-                          {t("radio_info.bands.units.mhz", { value: freqMhz })}
-                        </span>
-                      )}
-                    </div>
+                    {/* RSRP tightly paired with its own bar — the bar IS the
+                        RSRP reading, drawn as a length — then RSRQ/SINR beneath
+                        at a reduced gap. Pinned to the tile's floor as one
+                        group, replacing the old lone `mt-auto` meter. */}
+                    <div className={HERO_ONAIR_TILE.METRICS_GROUP}>
+                      <div className={HERO_ONAIR_TILE.READING}>
+                        <div className={HERO_ONAIR_TILE.RSRP_ROW}>
+                          {/* THE FIGURE AND THE BAR BELOW IT ARE ONE OBJECT. The
+                              ramp's numeral ink is only legal beside a bar whose
+                              LENGTH carries the same reading — adjacent ramp stops
+                              sit below the 0.05 CVD separation floor by design, so
+                              a tinted numeral alone would be a colour-only channel
+                              (DESIGN.md > The signal quality ramp). With no
+                              reading, `qualityInkClass("none")` returns neutral
+                              ink, so the em-dash carries no ramp colour at all. */}
+                          <span
+                            className={`${HERO_ONAIR_TILE.RSRP} ${qualityInkClass(quality)}`}
+                          >
+                            {c.rsrp === null
+                              ? t("band_locking.live.tile_no_value")
+                              : t("band_locking.live.tile_rsrp", {
+                                  value: c.rsrp,
+                                })}
+                          </span>
+                          <span className={HERO_ONAIR_TILE.RSRP_UNIT}>
+                            {t("radio_info.bands.metric.rsrp")}
+                          </span>
+                          {/* The non-chromatic channel, and the third leg of the
+                              ink/bar pair. Announced for an absent reading too: an
+                              empty track and a full one differ by pixels no screen
+                              reader can see. Borrowed from `radio_info.bands.*`,
+                              the same convention this tile already uses for
+                              `units.mhz` and `detail.pci` — those six keys already
+                              match the `SignalQuality` union exactly, so a
+                              `band_locking.*` copy would only be a seventh thing
+                              to translate and a seventh thing to drift. */}
+                          <span className="sr-only">
+                            {t(`radio_info.bands.quality.${quality}`)}
+                          </span>
+                        </div>
 
-                    {/* EARFCN / PCI — omits whatever the modem did not report
-                        for THIS component rather than padding with a
-                        placeholder. Separate flex children with a real gap,
-                        not a joined separator glyph, so the segments space
-                        themselves consistently regardless of font metrics. */}
-                    {detailSegments.length > 0 ? (
-                      <div className={HERO_ONAIR_TILE.DETAIL}>
-                        {detailSegments.map((segment) => (
-                          <span key={segment}>{segment}</span>
-                        ))}
-                      </div>
-                    ) : null}
+                        {/* `aria-hidden`: the bar is the ramp ink's required second
+                            visual channel, and its reading is already announced in
+                            words by the `sr-only` quality label above.
 
-                    {/* RSRP (the tile's own headline reading) beside RSRQ/SINR. */}
-                    <div className={HERO_ONAIR_TILE.METRICS}>
-                      <div className="flex items-baseline gap-1.5">
-                        {/* THE FIGURE AND THE BAR BELOW IT ARE ONE OBJECT. The
-                            ramp's numeral ink is only legal beside a bar whose
-                            LENGTH carries the same reading — adjacent ramp stops
-                            sit below the 0.05 CVD separation floor by design, so
-                            a tinted numeral alone would be a colour-only channel
-                            (DESIGN.md > The signal quality ramp). With no
-                            reading, `qualityInkClass("none")` returns neutral
-                            ink, so the em-dash carries no ramp colour at all. */}
-                        <span
-                          className={`${HERO_ONAIR_TILE.RSRP} ${qualityInkClass(quality)}`}
-                        >
-                          {c.rsrp === null
-                            ? t("band_locking.live.tile_no_value")
-                            : t("band_locking.live.tile_rsrp", {
-                                value: c.rsrp,
-                              })}
-                        </span>
-                        <span className={HERO_ONAIR_TILE.RSRP_UNIT}>
-                          {t("radio_info.bands.metric.rsrp")}
-                        </span>
-                        {/* The non-chromatic channel, and the third leg of the
-                            ink/bar pair. Announced for an absent reading too: an
-                            empty track and a full one differ by pixels no screen
-                            reader can see. Borrowed from `radio_info.bands.*`,
-                            the same convention this tile already uses for
-                            `units.mhz` and `detail.pci` — those six keys already
-                            match the `SignalQuality` union exactly, so a
-                            `band_locking.*` copy would only be a seventh thing
-                            to translate and a seventh thing to drift. */}
-                        <span className="sr-only">
-                          {t(`radio_info.bands.quality.${quality}`)}
-                        </span>
+                            THE SCALE SATURATES, DELIBERATELY. `signalToProgress`
+                            maps [floor, excellent] => [0, 100], so the top of this
+                            bar is `RSRP_THRESHOLDS.excellent` (-80 dBm) and EVERY
+                            reading at or above it pins at 100% — a more optimistic
+                            read than the `lib/carrier-aggregation.ts` scale this
+                            replaced. Do not patch that here: the canonical map
+                            already lengths
+                            the bars on `tower-locking` and both antenna surfaces,
+                            so a local remap would be the sixth rival RSRP scale
+                            this change exists to delete. Fix it for the whole
+                            family or not at all. */}
+                        <div aria-hidden="true">
+                          <MetricBar
+                            value={rsrpPercent}
+                            max={100}
+                            // Unreachable, and REQUIRED — `MetricBar` is
+                            // higher-is-worse, so omitting these or leaving them at
+                            // a real threshold would paint a strong signal
+                            // `destructive`. `colorOverride` pins the tone instead.
+                            warnAt={101}
+                            dangerAt={101}
+                            // Null passes straight through, never a fallback colour
+                            // — with no reading there is no fill for it to tint.
+                            colorOverride={rsrpTone}
+                            // The tile is `bg-surface`, so the default `muted` track
+                            // would nearly vanish against it.
+                            track="surface-container-high"
+                          />
+                        </div>
                       </div>
+
                       {secondaryMetrics.length > 0 ? (
                         <div className={HERO_ONAIR_TILE.SECONDARY}>
                           {secondaryMetrics.map((segment) => (
@@ -559,40 +589,6 @@ export function LiveBandHero({
                           ))}
                         </div>
                       ) : null}
-                    </div>
-
-                    {/* `aria-hidden`: the bar is the ramp ink's required second
-                        visual channel, and its reading is already announced in
-                        words by the `sr-only` quality label above.
-
-                        THE SCALE SATURATES, DELIBERATELY. `signalToProgress`
-                        maps [floor, excellent] => [0, 100], so the top of this
-                        bar is `RSRP_THRESHOLDS.excellent` (-80 dBm) and EVERY
-                        reading at or above it pins at 100% — a more optimistic
-                        read than the `lib/carrier-aggregation.ts` scale this
-                        replaced. Do not patch that here: the canonical map
-                        already lengths
-                        the bars on `tower-locking` and both antenna surfaces,
-                        so a local remap would be the sixth rival RSRP scale
-                        this change exists to delete. Fix it for the whole
-                        family or not at all. */}
-                    <div className={HERO_ONAIR_TILE.METER} aria-hidden="true">
-                      <MetricBar
-                        value={rsrpPercent}
-                        max={100}
-                        // Unreachable, and REQUIRED — `MetricBar` is
-                        // higher-is-worse, so omitting these or leaving them at
-                        // a real threshold would paint a strong signal
-                        // `destructive`. `colorOverride` pins the tone instead.
-                        warnAt={101}
-                        dangerAt={101}
-                        // Null passes straight through, never a fallback colour
-                        // — with no reading there is no fill for it to tint.
-                        colorOverride={rsrpTone}
-                        // The tile is `bg-surface`, so the default `muted` track
-                        // would nearly vanish against it.
-                        track="surface-container-high"
-                      />
                     </div>
                   </div>
                 );

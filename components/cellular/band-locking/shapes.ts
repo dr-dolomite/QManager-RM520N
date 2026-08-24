@@ -321,44 +321,74 @@ export const HERO_ONAIR_ABSENT = {
  * The tile's height, shared with `SKELETON_SHAPE.ONAIR_TILE` so the loaded tile
  * and its placeholder cannot drift (Skeleton-Mirror Rule).
  *
- * THE OLD 104px WAS AN 80px LIE, and the neutral-tile pass made it worse. The
- * skeleton hard-coded `h-[6.5rem]` against a tile that carried no height at all,
- * and the tile has since grown a 40px disc row. Measured against the anatomy:
+ * RE-MEASURED 2026-08-24 in a real browser (not by hand) after the tag row
+ * was deleted, the reading was split into a tightly-coupled RSRP+bar group
+ * over a reduced-gap RSRQ/SINR line, and the bandwidth figure went back to an
+ * absolutely-positioned top-right corner (see `HERO_ONAIR_TILE`'s header
+ * comment and `BANDWIDTH`'s own comment). Measured `getBoundingClientRect()`
+ * heights, with CSS Grid's row-stretch temporarily neutralised so each figure
+ * is the tile's OWN content height, not the tallest sibling's:
  *
- *     py-4 x2                                    32
- *     head row (the 40px disc sets it)           40
- *     band designator (text-2xl, leading-none)   24
- *     EARFCN / PCI detail line (text-xs)         16
- *     metric row, RSRQ/SINR wrapped beneath      48
- *     meter (MetricBar size="sm")                 4
- *     four 10px gaps                             40
- *                                               ---
- *                                               204
+ *     A full-detail tile, 1-column (no wrap)         144px
+ *     A full-detail tile, 3-column (EARFCN/PCI wrap)  186px
+ *     A sparse solo tile (no EARFCN/PCI/RSRQ/SINR)    126px
  *
- * The metric row wraps in the 3-column case and not in the 1-column case, and a
- * solo carrier's third tag wraps the head row, so the real range is ~184–210px
- * across the container states this grid actually renders. No single `h-` is
- * right for all of them.
+ * The 3-column figure is the one that matters: at that width `DETAIL`'s
+ * `EARFCN {{n}}` and `PCI {{n}}` segments want ~137px in a ~132px lane and
+ * wrap, which is a pre-existing property of `DETAIL`'s own flex-wrap, not
+ * something this pass introduced or can tidy away — the same width tension
+ * `docs/reference/band-locking.md` already documented for the retired 216px
+ * floor. No single `h-` is right across every width and reading shape, for
+ * the same reason that floor was not.
  *
- * SO THIS IS A FLOOR SET ABOVE THE NATURAL CEILING, which buys a pin's guarantee
- * without a pin's failure mode. At 216px the floor BINDS in every state, so
- * every tile and every skeleton is exactly 216 and the handoff is exact — the
- * property `components/cellular/tile-shape.ts` gets from `h-[6.5rem]`, where its
- * content is bounded and every child truncates. Here nothing truncates and
- * nothing clips, so a hard `h-` would spill a wrapped metric row out of the
- * rounded box instead of jumping; a floor absorbs it. `HERO_ONAIR_TILE.METER`
- * keeps `mt-auto`, so slack lands as breathing room above the bar rather than
- * as a gap mid-tile.
+ * SO THIS IS STILL A FLOOR SET ABOVE THE NATURAL CEILING, not a pin — nothing
+ * here truncates or clips, so a hard `h-` would spill a wrapped row out of the
+ * rounded box instead of the box growing to hold it (confirmed above: the
+ * measured 186px 3-column case already exceeds this floor and simply grows).
+ * `HERO_ONAIR_TILE.METRICS_GROUP` keeps `mt-auto`, so slack — from the floor,
+ * or from `align-items: stretch` matching a taller grid row-sibling — lands as
+ * breathing room above the reading rather than as a gap mid-tile.
  *
  * Verbatim literal, because Tailwind's scanner reads source TEXT: an arbitrary
  * value assembled from parts never reaches the stylesheet at all.
  */
-export const ONAIR_TILE_MIN_H = "min-h-[13.5rem]";
+export const ONAIR_TILE_MIN_H = "min-h-[12rem]";
 
 /**
- * One tile's full anatomy: an identity DISC beside identity/aggregation tags
- * with bandwidth, band + centre frequency, an EARFCN/PCI detail line, RSRP
- * paired with RSRQ/SINR, then the quality bar.
+ * One tile's full anatomy: the channel bandwidth pinned to the top-right
+ * corner, an identity DISC centred against a two-row text column (band +
+ * centre frequency, then EARFCN/PCI), followed by RSRP tightly paired with
+ * its own quality bar, then RSRQ/SINR beneath at a reduced gap.
+ *
+ * THE IDENTITY TAG ROW IS GONE (2026-08-24). The tile used to carry a visible
+ * `nr`/`lte` `Tag` plus a raw `PCC`/`SCC` `Tag` on their own row above the
+ * band designator. Both were redundant with the disc one row down: the disc's
+ * fill (`carrierDiscTone`) already says which radio (violet vs blue), and its
+ * glyph (`CARRIER_DISC_GLYPH`) already gives a second, non-chromatic channel
+ * for the same fact. `PCC`/`SCC` primacy still reads from `sortCarriers()`'s
+ * ordering alone — see PCC PRIMACY IS NOW ORDER, NOT COLOUR in
+ * `live-band-hero.tsx` — so deleting the tag removes a reinforcement, not the
+ * only channel. What the tag row is NOT redundant with is a screen reader: the
+ * tile's `role="listitem"` now carries an explicit `aria-label` naming the
+ * radio family and PCC/SCC role, so that fact is still announced in words even
+ * though nothing on screen prints "LTE" or "PCC" any more.
+ *
+ * THE DISC IS NOW CENTRED AGAINST THE TEXT PAIR, NOT THE TILE'S TOP EDGE. With
+ * the tag row gone, the disc's only neighbours are the band/frequency/
+ * bandwidth line and the EARFCN/PCI line — two rows, not three — so `TOP`
+ * centres the 40px disc against that pair (`items-center`) instead of the old
+ * `items-start` HEAD row, which existed only to keep the disc from dragging a
+ * WRAPPED tag row's baseline down with it. There is no tag row left to wrap.
+ *
+ * THE READING IS NOW TWO GROUPS, NOT ONE ROW PLUS A FLOATING METER. RSRP and
+ * its bar are one visual object — the bar IS the RSRP reading, drawn as a
+ * length — so `READING` keeps them one tight `gap-1` apart. RSRQ/SINR is
+ * supporting detail, so it sits under that pair at `METRICS_GROUP`'s slightly
+ * larger `gap-1.5`, which is still tighter than the tile's general `gap-2.5`
+ * rhythm. This replaces the old single `METRICS` row (RSRP and RSRQ/SINR side
+ * by side, wrapping past each other on a narrow container) with a fixed
+ * top-to-bottom order that reads the same at every width, and it is what lets
+ * `ONAIR_TILE_MIN_H` shrink — see that constant.
  *
  * THE TILE BODY IS NEUTRAL. THE DISC CARRIES THE COLOUR. This tile shipped a
  * Gen-1 composition that `components/cellular/radio/summary-tiles.tsx` has since
@@ -390,10 +420,16 @@ export const ONAIR_TILE_MIN_H = "min-h-[13.5rem]";
  * deliberately: both are cells in one grid.
  */
 export const HERO_ONAIR_TILE = {
-  ROOT: `flex ${ONAIR_TILE_MIN_H} flex-col gap-2.5 rounded-tile bg-surface px-5 py-4`,
-  /** Disc + tag row + bandwidth. `items-start` so the 40px disc does not drag
-   *  a wrapped tag row's baseline down with it. */
-  HEAD: "flex items-start gap-2.5",
+  /**
+   * `relative`: the anchor `BANDWIDTH`'s `absolute` positioning resolves
+   * against. See `BANDWIDTH` for why it is taken out of flow rather than laid
+   * out as a third flex child of `TOP`.
+   */
+  ROOT: `relative flex ${ONAIR_TILE_MIN_H} flex-col gap-2.5 rounded-tile bg-surface px-5 py-4`,
+  /** Disc beside the two-row text column. `items-center` centres the 40px
+   *  disc against the pair as a UNIT. Only two children — `BANDWIDTH` is
+   *  `absolute`, not a third flex item here; see that constant. */
+  TOP: "flex items-center gap-3",
   /**
    * The identity disc — 40px, the only coloured element on the tile.
    *
@@ -402,20 +438,57 @@ export const HERO_ONAIR_TILE = {
    * rather than anchoring a panel.
    */
   DISC: "grid size-10 flex-none place-items-center rounded-pill",
-  /** The wrapping identity/aggregation tag row. */
-  TAGS: "flex min-w-0 flex-wrap items-center gap-1.5",
-  /** Channel width. A machine figure, so it wears the machine's voice. */
-  BANDWIDTH:
-    "ml-auto flex-none font-mono text-xs font-semibold tabular-nums text-on-surface-variant",
+  /** The band/EARFCN text column beside the disc. `min-w-0` so a long detail
+   *  line truncates instead of pushing the tile past its grid cell. */
+  TEXT: "grid min-w-0 flex-1 gap-1",
+  /** Band designator + centre frequency, one row. `pr-11` reserves the corner
+   *  `BANDWIDTH` occupies (see that constant) so a long band/frequency pair
+   *  wraps under it rather than running into it — scoped to THIS row, not the
+   *  whole `TEXT` column, because the badge sits only as tall as this row;
+   *  the EARFCN/PCI line beneath it needs its full width. The standalone
+   *  "No aggregation" tag this row briefly carried in the solo case is gone
+   *  by request — a lone tile beside `AbsentLegCell` already says nothing
+   *  else is aggregated with it. */
+  BAND_ROW: "flex flex-wrap items-baseline gap-2 pr-11",
   /** The band designator — a device identifier (the Machine-Voice Rule). */
   BAND: "font-mono text-2xl leading-none font-semibold tabular-nums text-on-surface",
   /** Centre frequency, beside the designator. */
   FREQ: "text-xs font-medium text-on-surface-variant",
+  /**
+   * Channel width, top-right of the tile — its ORIGINAL corner, restored by
+   * request after a round trip through the band/frequency row.
+   *
+   * `absolute`, NOT a third flex child of `TOP`. In the 3-column grid a tile's
+   * content is only ~184px wide; `DISC` (40px) already shares that row with
+   * the band/EARFCN text column, and reserving a further ~45px for a flex
+   * sibling left the text column just 77px wide — narrow enough that every
+   * token (band, frequency, `EARFCN`, its value, `PCI`, its value) fell onto
+   * its own line, all measured live. Taking `BANDWIDTH` out of flow keeps the
+   * text column at its un-squeezed ~132px, and `BAND_ROW`'s own `pr-11`
+   * reserves this corner — scoped to that one row, not the whole `TEXT`
+   * column, since the badge is only as tall as `BAND_ROW` — so nothing grows
+   * underneath it. Live-measured clearance between the band/frequency text and
+   * this badge is 27–41px across "B3", "B28" and "N78" test data, comfortably
+   * clear without being wastefully wide. A machine figure, so it wears the
+   * machine's voice. */
+  BANDWIDTH:
+    "absolute top-4 right-5 font-mono text-xs font-semibold tabular-nums text-on-surface-variant",
   /** The EARFCN / PCI line: raw machine strings, so mono. */
   DETAIL:
     "flex flex-wrap gap-x-3 gap-y-0.5 font-mono text-xs tabular-nums text-on-surface-variant",
-  /** The metric row holding RSRP and the RSRQ/SINR pair. */
-  METRICS: "flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1",
+  /**
+   * `mt-auto` pins the whole reading — RSRP+bar AND RSRQ/SINR together — to
+   * the tile's floor, the same job the lone meter's `mt-auto` used to do. Grid
+   * items stretch to the tallest cell in their row and content length varies
+   * per carrier (a carrier missing PCI/EARFCN has one fewer detail segment),
+   * so without this the reading floats wherever the text above it stops and a
+   * row of tiles combs instead of reading as one comparable scale.
+   */
+  METRICS_GROUP: "mt-auto flex flex-col gap-1.5",
+  /** RSRP and its bar — ONE visual object, not two, at a tight `gap-1`: the
+   *  bar IS the RSRP reading, drawn as a length. */
+  READING: "flex flex-col gap-1",
+  RSRP_ROW: "flex items-baseline gap-1.5",
   /**
    * The headline RSRP figure. Carries NO colour of its own — the tone is the
    * ramp's numeral ink (`qualityInkClass`), and a ramp colour is only legal
@@ -427,17 +500,11 @@ export const HERO_ONAIR_TILE = {
    */
   RSRP: "text-lg font-semibold tabular-nums",
   RSRP_UNIT: "text-xs font-medium text-on-surface-variant",
+  /** RSRQ/SINR, beneath the RSRP+bar pair at `METRICS_GROUP`'s `gap-1.5` —
+   *  tighter than the tile's general `gap-2.5` rhythm, since this line is
+   *  supporting detail for the reading directly above it. */
   SECONDARY:
     "flex flex-wrap gap-x-3 gap-y-0.5 text-xs tabular-nums text-on-surface-variant",
-  /**
-   * `mt-auto` pins the meter to the tile's floor. Grid items stretch to the
-   * tallest cell in their row, and content length varies per carrier — a
-   * carrier missing PCI or EARFCN has fewer detail-row segments, and one missing
-   * RSRQ/SINR shortens the metric row. Without this the meter floats wherever
-   * the text stops and a row of tiles combs. Bottom-aligned, the meters read as
-   * one comparable scale across the row.
-   */
-  METER: "mt-auto",
 } as const;
 
 /**
@@ -868,10 +935,9 @@ export const SKELETON_SHAPE = {
    * BY IMPORT rather than by a restated number.
    *
    * `ONAIR_TILE` used to read `h-[6.5rem]` — a FIXED 104px asserted about a tile
-   * that carried no height at all, and which now resolves to ~204px. The
-   * skeleton handoff jumped by ~80px, in the direction that makes the jump
-   * worse the more the modem has to report. See `ONAIR_TILE_MIN_H` for why the
-   * shared value is a binding floor rather than a pin.
+   * that carried no height at all. See `ONAIR_TILE_MIN_H` for the current
+   * measured anatomy and why the shared value is a binding floor rather than a
+   * pin.
    */
   HERO_ROW: `${HERO_ROW_MIN_H} w-full rounded-field`,
   ONAIR_TILE: `${ONAIR_TILE_MIN_H} rounded-tile`,

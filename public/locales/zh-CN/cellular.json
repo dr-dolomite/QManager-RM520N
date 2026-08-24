@@ -210,7 +210,6 @@
       "absent_lte_body": "调制解调器处于 5G 独立组网。未使用任何 LTE 载波。",
       "tile_tech_LTE": "LTE",
       "tile_tech_NR": "5G NR",
-      "tile_no_aggregation": "无聚合",
       "tile_earfcn": "EARFCN",
       "tile_rsrp": "{{value}} dBm",
       "tile_rsrq": "{{value}} dB",

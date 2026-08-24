@@ -178,7 +178,20 @@ project owner on 2026-08-24, and the evidence supports the correction:
 - This RG501Q carries `simpleadmin-go` (8.6 MB, dated 2026-03-29) plus a
   generated `server.crt`/`server.key`, so a SimpleAdmin install ran here too.
 
-Treat `bin.entware.net` as reachable unless a future measurement says otherwise.
+**Measured 2026-08-24 — `bin.entware.net` returns HTTP 200 from inside China.**
+Lae ran, over adb on a **T99W175** module on the same network (a third device,
+not this RG501Q and not their RM520N):
+
+```
+curl -sS -m 10 -o /dev/null -w '%{http_code}
+' http://bin.entware.net/armv7sf-k3.2/Packages.gz
+200
+```
+
+That is the exact host, arch path and file `opkg update` fetches, so the Entware
+package index — not just the installer binary — is reachable behind the GFW. The
+inference above is now an observation: **GitHub is the only blocked dependency.**
+Offline-Entware bundling is unnecessary.
 
 ### On-device evidence that Entware was reachable
 
@@ -249,6 +262,9 @@ every reachability question is untestable from here today:
 1. Is a Gitee mirror the supported China path, or does QManager need a generic
    configurable mirror base URL? (Generic costs little more and does not bind the
    project to one Chinese host.)
+
+   *(Entware reachability is no longer among these — it was measured at 200 on
+   2026-08-24; see "The real blocker is GitHub, not Entware" above.)*
 2. Which GitHub-facing paths need to honour that mirror base — installer, OTA
    check, OTA download, language packs — and how does `validate_url()` widen
    minimally to allow it without admitting arbitrary refs?
