@@ -189,13 +189,16 @@
       "title": "即時設定",
       "eyebrow": "鎖定狀態",
       "rail_subtitle_unknown": "尚未回報",
+      "rail_subtitle_unavailable": "無法讀取頻段設定",
       "rail_subtitle_none": "目前無頻段限制",
       "rail_subtitle_all": "三個無線電皆受限",
       "rail_subtitle_partial": "{{total}} 個無線電中有 {{count}} 個受限",
       "rail_ratio": "允許 {{count}} / {{total}} 個頻段",
+      "rail_unavailable": "無法讀取此制式的頻段",
       "rail_status_locked": "已鎖定",
       "rail_status_unrestricted": "無限制",
       "rail_status_unknown": "尚未回報",
+      "rail_status_unavailable": "無法使用",
       "on_air": "目前使用中",
       "on_air_summary_one": "{{count}} 個載波 · {{mhz}} MHz",
       "on_air_summary_other": "{{count}} 個載波 · {{mhz}} MHz",
@@ -249,12 +252,18 @@
       "status_scenario": "由場景控制",
       "status_unrestricted": "全部頻段",
       "status_locked": "{{total}} 個中已鎖定 {{count}} 個",
+      "status_unavailable": "無法讀取",
+      "unavailable_note": "無法讀取目前的頻段鎖定，因此這些控制項已停用。此時套用選取會覆蓋此卡片無法顯示的鎖定。待數據機回應後，請使用上方的重新整理。",
       "pending_one": "{{count}} 項待套用的變更",
       "pending_other": "{{count}} 項待套用的變更",
       "legend_selected": "已選取",
       "legend_live": "目前已鎖定",
       "empty_title": "此處沒有可鎖定的頻段",
       "empty_body": "數據機未回報此類別中支援的頻段。"
+    },
+    "states": {
+      "read_error_title": "無法讀取頻段設定",
+      "read_error_body": "數據機沒有回應，因此本頁無法顯示目前鎖定的頻段。請稍後再試。{{reason}}"
     },
     "actions": {
       "lock_selected": "鎖定所選頻段",
@@ -1539,7 +1548,9 @@
       "camped_empty_body": "數據機未回報服務中的小區。仍可手動輸入頻點。",
       "add_hint": "「新增」會將該頻點加入下方清單。頻點鎖定不涉及 PCI，因此小區仍由數據機選擇。",
       "compare_hint": "基站鎖定會同時固定頻點與小區。頻點鎖定較為寬鬆：相同頻點，任意小區。",
-      "add_blocked": "在解除基站鎖定之前無法新增。"
+      "compare_hint_unknown": "無法讀取基站鎖定狀態。基站鎖定生效期間頻點鎖定會被拒絕，因此在該讀取成功之前，這裡的任何設定都無法套用。",
+      "add_blocked": "在解除基站鎖定之前無法新增。",
+      "add_blocked_unknown": "在能夠讀取基站鎖定狀態之前無法新增。"
     },
     "verdict": {
       "unlocked_title": "允許所有頻點",
@@ -1548,6 +1559,8 @@
       "locked_body": "數據機只能使用下方列出的頻點。小區仍由它自行選擇，因此 PCI 可能會變動。",
       "blocked_title": "基站鎖定正在占用無線電",
       "blocked_body": "基站鎖定生效期間，QManager 不會寫入頻點鎖定。請先解除基站鎖定，再使用此頁面。",
+      "blocked_unknown_title": "基站鎖定狀態未確認",
+      "blocked_unknown_body": "QManager 無法讀取基站鎖定是否生效。在該讀取成功之前，頻點鎖定的變更會維持封鎖，因為在基站鎖定生效時套用頻點鎖定可能導致數據機當機。請重新整理後再試。",
       "unknown_title": "尚未回報鎖定狀態",
       "unknown_body": "數據機未回應上次的狀態讀取。請重新整理後再試。",
       "serving_in_list": "駐留頻點在清單內",
@@ -1583,6 +1596,10 @@
       "scs_warning": "間隔填錯看起來仍是有效項目，但數據機永遠不會使用它。從上方新增載波時，此值會一併複製過來。",
       "no_pci_note": "頻點鎖定絕不會固定小區。數據機會在你允許的頻點範圍內持續重選。",
       "count": "{{used}} / {{max}}"
+    },
+    "blocked": {
+      "tower_lock_active": "基站鎖定正佔用此射頻。請先解除後再鎖定頻點。",
+      "tower_lock_unknown": "無法讀取基站鎖定狀態，在數據機回應前將拒絕此次鎖定。請重新整理後再試。"
     },
     "slots": {
       "slot": "插槽 {{index}}",
@@ -1624,6 +1641,8 @@
       "live_title": "鎖定已在數據機上生效",
       "blocked_title": "基站鎖定生效期間無法套用",
       "blocked_readback": "基站鎖定生效中 · 頻點鎖定無法使用",
+      "blocked_unknown_title": "在能夠讀取基站鎖定狀態之前無法套用",
+      "blocked_unknown_readback": "基站鎖定狀態未知，因此寫入已被封鎖",
       "applying_title": "正在等待數據機恢復",
       "applying_readback": "已傳送 {{seconds}} 秒",
       "clobbered_title": "頻點鎖定已消失",
@@ -1691,6 +1710,9 @@
       "refresh": "重新整理鎖定狀態",
       "remove_entry": "移除此頻點",
       "add_carrier": "將此載波加入清單"
+    },
+    "errors": {
+      "tower_state_unknown": "數據機未回報基站鎖定是否生效，因此未寫入頻點鎖定。請重新整理後再試。"
     }
   },
   "profiles": {
@@ -2373,12 +2395,15 @@
       "failover_state_disabled": "已停用",
       "failover_state_standby": "無鎖定可守護",
       "failover_state_armed": "監控中",
+      "failover_state_stalled": "未在守護",
+      "failover_state_unknown": "尚未回報",
       "failover_state_fallback": "已解除 — 訊號弱",
       "failover_toast_enabled": "已啟用訊號容錯移轉",
       "failover_toast_disabled": "已停用訊號容錯移轉",
       "failover_toast_error": "無法更新訊號容錯移轉",
       "threshold_label": "低於此值時解除",
       "threshold_invalid": "請輸入 0 到 100 之間的數值",
+      "threshold_unread": "尚未從模組讀取到該值。",
       "threshold_toast_saved": "已更新容錯移轉門檻值",
       "threshold_toast_error": "無法更新門檻值",
       "quality_label": "目前訊號品質",
@@ -2495,13 +2520,27 @@
     },
     "warning": {
       "service_enable_failed": "鎖定目前已生效，但重新啟動後不會保留 — 數據機拒絕了儲存指令。",
+      "service_disable_failed": "鎖定已解除，但未能從開機啟動中移除 — 重新啟動後可能會再次生效。",
       "persist_command_failed": "「重新啟動後保持鎖定」未生效。數據機拒絕了儲存指令。",
       "dismiss": "忽略"
     },
     "error": {
       "title": "無法讀取基站鎖定狀態",
       "body": "數據機經三次嘗試仍無回應。在此操作成功之前，下方內容均不反映無線電真實的鎖定狀態。",
-      "retry": "重試"
+      "retry": "重試",
+      "retrying": "正在重試…",
+      "retry_tip": "再次向模組查詢鎖定狀態。"
+    },
+    "blocked": {
+      "lock_empty_lte": "請輸入頻點與 PCI，或從上方的小卡片中選取一個小區。",
+      "lock_incomplete_lte": "已開始填寫的每個插槽都需要同時填入頻點與 PCI。",
+      "lock_empty_nr": "請輸入頻點、PCI、子載波間隔與頻段，或從上方的小卡片中選取一個小區。",
+      "lock_incomplete_nr": "鎖定該小區前，四個欄位都必須填寫。",
+      "lock_unchanged": "射頻已鎖定在完全相同的目標上，沒有需要寫入的內容。",
+      "lock_gated_nsa": "模組目前處於 5G NSA，5G 側沒有可鎖定的獨立組網小區。",
+      "lock_gated_lte_only": "模組目前沒有在用的 5G 載波，因此沒有可鎖定的對象。",
+      "threshold_empty": "請輸入 0 到 100 之間的百分比。",
+      "refresh_in_flight": "正在重新讀取模組狀態，可能需要幾秒鐘。"
     },
     "a11y": {
       "applying": "正在套用 {{leg}} 基站鎖定…",

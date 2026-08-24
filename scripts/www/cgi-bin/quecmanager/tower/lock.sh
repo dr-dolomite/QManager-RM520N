@@ -111,6 +111,17 @@ if [ "$LOCK_TYPE" = "lte" ]; then
 
         qlog_info "LTE tower lock: $num_cells cell(s) — $at_args"
 
+        # Mark this write in-flight BEFORE the AT command, so an existing
+        # failover watcher (already running, possibly mid-cycle with a
+        # nonzero bad-reading counter) skips its next cycle instead of
+        # misreading this write's reconnect blip as a bad sample and
+        # reverting the lock ~20s later. See TOWER_WRITE_INFLIGHT in
+        # tower_lock_mgr.sh for why this is a self-expiring marker rather
+        # than a stop/respawn of the watcher itself — stopping it here would
+        # open error-exit paths that could leave NO watcher running at all,
+        # which is worse than the blip it would guard against.
+        tower_write_begin
+
         # Send AT command
         result=$(tower_lock_lte "$num_cells" $at_args)
         rc=$?
@@ -156,7 +167,17 @@ if [ "$LOCK_TYPE" = "lte" ]; then
         # misdetect "no signal" and clear ALL locks (including NR if active).
         fo_was_enabled=$(tower_config_get ".failover.enabled")
         tower_kill_failover_watcher
-        rm -f "$TOWER_FAILOVER_FLAG"
+        # NOT `rm -f "$TOWER_FAILOVER_FLAG"` here — this CGI runs as
+        # www-data, and the flag is written by the ROOT failover daemon
+        # into sticky /tmp. www-data can never unlink a root-owned file
+        # from a sticky directory (EPERM), and `rm -f` swallows that and
+        # exits 0, so the failure is invisible — this line looked like
+        # cleanup but never actually cleared anything. The flag's real
+        # lifecycle is the unit's ExecStartPre, which clears it on the
+        # next `systemctl start qmanager-tower-failover` (tower_spawn_
+        # failover_watcher below does exactly that when a lock remains).
+        # Leaving a fired failover's flag in place until then is
+        # deliberate — it's the observable trace that a failover happened.
 
         result=$(tower_unlock_lte)
         rc=$?
@@ -185,6 +206,14 @@ if [ "$LOCK_TYPE" = "lte" ]; then
 
         # Check if other lock remains active
         nr_active=$(tower_config_get ".nr_sa.enabled")
+        # The unlock AT command already succeeded above — a failure to disable
+        # the boot-persistence unit below is a partial-success warning, not a
+        # request failure. Ride it on a sibling field (mirrors
+        # service_enable_failed on the lock branches and
+        # TowerSettingsResponse.service_disable_failed from settings.sh) so
+        # `success` keeps meaning "the endpoint did what it says", never
+        # laundering a confirmed unlock into an apparent failure via cgi_error.
+        svc_disable_failed="false"
         if [ "$nr_active" = "true" ] && [ "$fo_was_enabled" = "true" ]; then
             # NR lock still active with failover — respawn watcher for it
             tower_spawn_failover_watcher >/dev/null
@@ -193,14 +222,15 @@ if [ "$LOCK_TYPE" = "lte" ]; then
             # No other lock — disable failover fully
             tower_config_update '.failover.enabled = false'
             if ! svc_disable qmanager_tower_failover; then
-                qlog_warn "svc_disable qmanager_tower_failover failed after LTE unlock"
-                cgi_error "service_disable_failed" "Tower lock cleared, but the failover watcher could not be disabled on boot (rootfs may be read-only)"
-                exit 0
+                svc_disable_failed="true"
+                qlog_warn "svc_disable qmanager_tower_failover failed after LTE unlock (rootfs may be read-only)"
+            else
+                qlog_info "No active locks — failover stopped and disabled"
             fi
-            qlog_info "No active locks — failover stopped and disabled"
         fi
 
-        jq -n '{"success":true,"type":"lte","action":"unlock"}'
+        jq -n --argjson sdf "$svc_disable_failed" \
+            '{"success":true,"type":"lte","action":"unlock","service_disable_failed":$sdf}'
     else
         cgi_error "invalid_action" "action must be lock or unlock"
         exit 0
@@ -233,6 +263,10 @@ elif [ "$LOCK_TYPE" = "nr_sa" ]; then
         esac
 
         qlog_info "NR-SA tower lock: PCI=$nr_pci ARFCN=$nr_arfcn SCS=$nr_scs Band=$nr_band"
+
+        # Mark this write in-flight — see the matching comment in the LTE
+        # lock branch above for why.
+        tower_write_begin
 
         result=$(tower_lock_nr "$nr_pci" "$nr_arfcn" "$nr_scs" "$nr_band")
         rc=$?
@@ -275,7 +309,11 @@ elif [ "$LOCK_TYPE" = "nr_sa" ]; then
         # misdetect "no signal" and clear ALL locks (including LTE if active).
         fo_was_enabled=$(tower_config_get ".failover.enabled")
         tower_kill_failover_watcher
-        rm -f "$TOWER_FAILOVER_FLAG"
+        # NOT `rm -f "$TOWER_FAILOVER_FLAG"` here — see the matching
+        # comment in the LTE unlock branch above. www-data cannot unlink a
+        # root-owned file in sticky /tmp (rm -f exits 0 anyway, hiding the
+        # failure); the flag now clears only via the unit's ExecStartPre
+        # on its next start.
 
         result=$(tower_unlock_nr)
         rc=$?
@@ -304,6 +342,10 @@ elif [ "$LOCK_TYPE" = "nr_sa" ]; then
 
         # Check if other lock remains active
         lte_active=$(tower_config_get ".lte.enabled")
+        # See the matching comment in the LTE unlock branch above — the
+        # unlock AT command already succeeded, so a persistence-disable
+        # failure rides on a sibling field instead of flipping success:false.
+        svc_disable_failed="false"
         if [ "$lte_active" = "true" ] && [ "$fo_was_enabled" = "true" ]; then
             # LTE lock still active with failover — respawn watcher for it
             tower_spawn_failover_watcher >/dev/null
@@ -312,14 +354,15 @@ elif [ "$LOCK_TYPE" = "nr_sa" ]; then
             # No other lock — disable failover fully
             tower_config_update '.failover.enabled = false'
             if ! svc_disable qmanager_tower_failover; then
-                qlog_warn "svc_disable qmanager_tower_failover failed after NR-SA unlock"
-                cgi_error "service_disable_failed" "Tower lock cleared, but the failover watcher could not be disabled on boot (rootfs may be read-only)"
-                exit 0
+                svc_disable_failed="true"
+                qlog_warn "svc_disable qmanager_tower_failover failed after NR-SA unlock (rootfs may be read-only)"
+            else
+                qlog_info "No active locks — failover stopped and disabled"
             fi
-            qlog_info "No active locks — failover stopped and disabled"
         fi
 
-        jq -n '{"success":true,"type":"nr_sa","action":"unlock"}'
+        jq -n --argjson sdf "$svc_disable_failed" \
+            '{"success":true,"type":"nr_sa","action":"unlock","service_disable_failed":$sdf}'
     else
         cgi_error "invalid_action" "action must be lock or unlock"
         exit 0

@@ -104,17 +104,27 @@ if [ "$MODE" = "apply" ]; then
 
         if [ "$num_cells" -gt 0 ]; then
             qlog_info "Applying LTE lock: $num_cells cell(s)"
+            # A failover watcher may already be protecting a different leg
+            # when the schedule fires — mark the write in-flight so it
+            # doesn't misread this write's reconnect blip. See lock.sh /
+            # tower_write_begin in tower_lock_mgr.sh.
+            tower_write_begin
+            # tower_lock_lte already returns qcmd's real exit status (see
+            # tower_lock_mgr.sh) — the old `case "$result" in *ERROR*)` here
+            # matched stdout, which qcmd never populates with the literal
+            # string "ERROR" on failure, so a rejected lock always fell to
+            # the `*)` "applied" arm and lied about the schedule state. Check
+            # $rc (captured immediately, before any other command) AND that
+            # $result is non-empty (a successful qcmd always echoes back).
             result=$(tower_lock_lte "$num_cells" $at_args)
-            case "$result" in
-                *ERROR*)
-                    qlog_error "Schedule: LTE lock failed: $result"
-                    ;;
-                *)
-                    qlog_info "Schedule: LTE lock applied"
-                    tower_config_update '.lte.enabled = true'
-                    applied_any="true"
-                    ;;
-            esac
+            rc=$?
+            if [ "$rc" -eq 0 ] && [ -n "$result" ]; then
+                qlog_info "Schedule: LTE lock applied"
+                tower_config_update '.lte.enabled = true'
+                applied_any="true"
+            else
+                qlog_error "Schedule: LTE lock failed (rc=$rc): $result"
+            fi
             sleep 0.2
         fi
     fi
@@ -135,17 +145,17 @@ if [ "$MODE" = "apply" ]; then
            [ -n "$nr_scs" ] && [ "$nr_scs" != "null" ] && \
            [ -n "$nr_band" ] && [ "$nr_band" != "null" ]; then
             qlog_info "Applying NR-SA lock: PCI=$nr_pci ARFCN=$nr_arfcn SCS=$nr_scs Band=$nr_band"
+            # See the matching comment in the LTE branch above.
+            tower_write_begin
             result=$(tower_lock_nr "$nr_pci" "$nr_arfcn" "$nr_scs" "$nr_band")
-            case "$result" in
-                *ERROR*)
-                    qlog_error "Schedule: NR-SA lock failed: $result"
-                    ;;
-                *)
-                    qlog_info "Schedule: NR-SA lock applied"
-                    tower_config_update '.nr_sa.enabled = true'
-                    applied_any="true"
-                    ;;
-            esac
+            rc=$?
+            if [ "$rc" -eq 0 ] && [ -n "$result" ]; then
+                qlog_info "Schedule: NR-SA lock applied"
+                tower_config_update '.nr_sa.enabled = true'
+                applied_any="true"
+            else
+                qlog_error "Schedule: NR-SA lock failed (rc=$rc): $result"
+            fi
         fi
     fi
 
@@ -169,21 +179,39 @@ if [ "$MODE" = "apply" ]; then
 elif [ "$MODE" = "clear" ]; then
     qlog_info "Schedule CLEAR triggered"
 
-    # Clear LTE lock
+    # Mark each unlock in-flight BEFORE the AT write, same as the apply
+    # branch above. This branch is the MOST exposed of the four write
+    # sites: it deliberately leaves .lte.enabled / .nr_sa.enabled TRUE in
+    # config (see the NOTE below), so an already-running failover watcher
+    # keeps sampling against a modem that just got unlocked underneath it.
+    # Without the marker it could misread the reconnect blip as a bad
+    # reading and, at BAD_LIMIT, fire a failover that permanently disables
+    # a schedule-managed lock — triggered by the schedule itself.
+    tower_write_begin
+
+    # Clear LTE lock — tower_unlock_lte already returns qcmd's real exit
+    # status; the old text match against stdout could never see "ERROR".
     result=$(tower_unlock_lte 2>/dev/null)
-    case "$result" in
-        *ERROR*) qlog_error "Schedule: Failed to clear LTE lock: $result" ;;
-        *) qlog_info "Schedule: LTE lock cleared" ;;
-    esac
+    rc=$?
+    if [ "$rc" -eq 0 ] && [ -n "$result" ]; then
+        qlog_info "Schedule: LTE lock cleared"
+    else
+        qlog_error "Schedule: Failed to clear LTE lock (rc=$rc): $result"
+    fi
 
     sleep 0.2
 
+    # See the comment above the LTE unlock — same reasoning for NR.
+    tower_write_begin
+
     # Clear NR-SA lock
     result=$(tower_unlock_nr 2>/dev/null)
-    case "$result" in
-        *ERROR*) qlog_error "Schedule: Failed to clear NR lock: $result" ;;
-        *) qlog_info "Schedule: NR-SA lock cleared" ;;
-    esac
+    rc=$?
+    if [ "$rc" -eq 0 ] && [ -n "$result" ]; then
+        qlog_info "Schedule: NR-SA lock cleared"
+    else
+        qlog_error "Schedule: Failed to clear NR lock (rc=$rc): $result"
+    fi
 
     # NOTE: We intentionally do NOT set lte.enabled / nr_sa.enabled to false
     # in the config. The schedule clear just unlocks the modem temporarily.

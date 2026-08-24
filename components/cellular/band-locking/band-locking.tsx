@@ -5,6 +5,7 @@ import { motion } from "motion/react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 
+import { ConditionScreen } from "@/components/cellular/condition-screen";
 import { CellularPageHeader } from "@/components/cellular/page-header";
 import { ProfileOverrideAlert } from "@/components/cellular/custom-profiles/profile-override-alert";
 import { Banner } from "@/components/ui/banner";
@@ -103,6 +104,7 @@ const BandLockingComponent = () => {
     isLoading: bandsLoading,
     lockingCategory,
     error,
+    readError,
     isRefreshing,
     lockBands,
     unlockAll,
@@ -203,6 +205,22 @@ const BandLockingComponent = () => {
     [currentBands],
   );
 
+  /**
+   * Whether `lockedBands` above describes the MODEM or describes a failed read.
+   *
+   * The fallback on each branch is `[]`, and an empty locked list is not a state
+   * the modem can be in — so without this flag the surface reported a failed
+   * `current.sh` as "Locked · 0 of 31 bands allowed", complete with the loaded
+   * layout, because `supportedBands` comes from the poller snapshot and stays
+   * populated right through the failure.
+   *
+   * A boolean rather than a nullable `lockedBands`: the chip grids, the
+   * pending-change count and the live-axis set all want a real array, and making
+   * them handle `null` would ripple optionality through the whole card for no
+   * fact they do not already have from this flag.
+   */
+  const hasCurrentReading = currentBands !== null;
+
   const carrierComponents = data?.network.carrier_components ?? [];
   const isPageLoading = statusLoading || bandsLoading || scenariosLoading;
 
@@ -239,6 +257,22 @@ const BandLockingComponent = () => {
   const watcherBlockedReason = t("band_locking.a11y.refresh_blocked_watcher");
 
   /**
+   * The refresh gate, as ONE expression for BOTH refresh affordances.
+   *
+   * Deliberately not restated at either call site. The header button and the
+   * read-error block's retry fire the same `current.sh` read, so they carry the
+   * same hazard and must carry the same gate - and they did not: the retry was
+   * ungated entirely. That mattered more than it sounds, because the two are
+   * causally linked. `lockBands` re-reads immediately after a write, which is
+   * exactly when the failover watcher spawns and starts taking the AT mutex, so
+   * the likeliest way to be looking at the error block at all is the one moment
+   * pressing its retry is hazardous - and at that moment the header button is
+   * greyed out, leaving the unguarded retry as the only live refresh on screen.
+   */
+  const isRefreshBlocked =
+    isBusy || isRefreshing || bandsLoading || isWatcherRunning;
+
+  /**
    * A failed refresh is reported by TOAST, on purpose.
    *
    * The hook's `error` is a single shared string, and this page scopes it to
@@ -251,6 +285,11 @@ const BandLockingComponent = () => {
    *
    * No success toast: a refresh that worked is evident from the page updating,
    * and confirming every press would be noise.
+   *
+   * It survives the page-level `readError` block below rather than being
+   * replaced by it, and the two are not duplicates. The block is a STANDING
+   * condition and looks identical before and after a failed retry; the toast is
+   * the only thing that tells the user their press did anything at all.
    */
   const handleRefresh = async () => {
     const ok = await refresh();
@@ -272,13 +311,14 @@ const BandLockingComponent = () => {
             type="button"
             variant="outline"
             onClick={handleRefresh}
-            // `bandsLoading` appears HERE ONLY, and only as a disable. It does
-            // not reach the spinner or the live region, so it cannot re-create
-            // the blanking bug. It is here because during first load there is
-            // nothing on screen to revalidate, and a press would put a second
-            // `current.sh` on the AT mutex behind the mount fetch — the same
-            // hazard `isBusy` guards against.
-            disabled={isBusy || isRefreshing || bandsLoading || isWatcherRunning}
+            // `bandsLoading` reaches the UI ONLY through `isRefreshBlocked`,
+            // and only as a disable. It does not reach the spinner or the live
+            // region, so it cannot re-create the blanking bug. It is in that
+            // expression because during first load there is nothing on screen
+            // to revalidate, and a press would put a second `current.sh` on the
+            // AT mutex behind the mount fetch — the same hazard `isBusy` guards
+            // against.
+            disabled={isRefreshBlocked}
             title={isWatcherRunning ? watcherBlockedReason : undefined}
             aria-description={
               isWatcherRunning ? watcherBlockedReason : undefined
@@ -301,6 +341,44 @@ const BandLockingComponent = () => {
       <div className="sr-only" aria-live="polite" aria-atomic="true">
         {isRefreshing ? t("band_locking.a11y.refreshing") : ""}
       </div>
+
+      {/* --- The band read failed ------------------------------------------
+          PAGE-LEVEL, and independent of `lastAttempted`.
+
+          `readError` is a separate channel from the write `error` below for a
+          reason this block depends on: the write error is scoped to the card
+          that attempted it, and `lastAttempted` is null until the user writes
+          something — so a first-load read failure had no card to attach to and
+          was displayed to NOBODY, while the rail cheerfully reported "0 of 31
+          bands allowed" underneath it.
+
+          `destructive`, not `warning`: every band figure on this page is now
+          either stale or absent, and the page's entire job is reporting what
+          the modem is really set to. `ariaRole="alert"` follows.
+
+          `visibility_off`, NOT the `error` mark `NOTICE_TONE` already carries.
+          `error` means "your write failed" everywhere else on this surface and
+          the two can be on screen together; this block shares the glyph of the
+          `unavailable` chips it explains instead, so the reader can see that
+          the block and the three "Not readable" chips are one fact.
+
+          Retry is `handleRefresh` — the same `current.sh` read that failed —
+          so the user's fix is one press rather than a browser reload. */}
+      {readError ? (
+        <ConditionScreen
+          tone="destructive"
+          glyph="visibility_off"
+          ariaRole="alert"
+          title={t("band_locking.states.read_error_title")}
+          description={t("band_locking.states.read_error_body", {
+            reason: readError,
+          })}
+          onRetry={handleRefresh}
+          retryLabel={t("band_locking.actions.refresh")}
+          disabled={isRefreshBlocked}
+          disabledReason={isWatcherRunning ? watcherBlockedReason : undefined}
+        />
+      ) : null}
 
       {/* The two gates, one primitive. Profile outranks scenario. */}
       {!isPageLoading && isProfileControlled && profileGate ? (
@@ -339,6 +417,7 @@ const BandLockingComponent = () => {
             carrierComponents={carrierComponents}
             supportedBands={supportedBands}
             lockedBands={lockedBands}
+            hasCurrentReading={hasCurrentReading}
             onToggleFailover={toggleFailover}
             isLoading={isPageLoading}
             isGated={isGated}
@@ -366,6 +445,7 @@ const BandLockingComponent = () => {
                 bandCategory={category}
                 supportedBands={supportedBands[category]}
                 currentLockedBands={lockedBands[category]}
+                hasCurrentReading={hasCurrentReading}
                 onLock={(bands) => {
                   setLastAttempted(category);
                   return lockBands(category, bands);

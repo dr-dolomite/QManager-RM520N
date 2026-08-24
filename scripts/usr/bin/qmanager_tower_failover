@@ -86,6 +86,48 @@ while true; do
         fi
     fi
 
+    # --- Skip this cycle if a tower-lock AT write is in flight ---------------
+    # See TOWER_WRITE_INFLIGHT / tower_write_begin in tower_lock_mgr.sh. The
+    # marker is self-expiring (a stored future deadline, not a boolean), so
+    # a lock.sh process killed mid-write cannot wedge this into skipping
+    # forever — once $_tw_deadline passes, this simply stops matching.
+    #
+    # 1970-boot clock step (deliberately not handled further than this):
+    # the RM520N has no battery RTC and boots at Jan 1970; ql_time_daemon
+    # steps the clock ~24s into boot. If that step lands between
+    # tower_write_begin's `date +%s` and this check, $_tw_now jumps decades
+    # past a deadline computed pre-step and the marker simply stops
+    # matching — the skip is silently lost for that one write. This fails
+    # OPEN (the safe direction: we fall through to a normal read instead of
+    # wedging shut), and the bad=0 reset below is what makes that
+    # survivable even if it happens. Not worth switching to /proc/uptime
+    # for a 10s window against a once-per-boot event.
+    if [ -f "$TOWER_WRITE_INFLIGHT" ]; then
+        _tw_deadline=$(cat "$TOWER_WRITE_INFLIGHT" 2>/dev/null | tr -d ' \n\r')
+        case "$_tw_deadline" in ''|*[!0-9]*) _tw_deadline=0 ;; esac
+        _tw_now=$(date +%s 2>/dev/null || echo 0)
+        if [ "$_tw_now" -lt "$_tw_deadline" ]; then
+            # `bad` counts CONSECUTIVE bad readings against ONE lock
+            # target. A tower-lock write replaces the target, so every
+            # sample taken before it is measuring a cell the user has
+            # just abandoned. Carrying that count across the write means
+            # the new lock inherits a death sentence earned by the old
+            # one — this is not leniency, it is the counter's own
+            # definition being honoured. Without this reset, a watcher
+            # already sitting at bad=2 against the OLD lock would only
+            # need ONE more bad reading after the marker expires to trip
+            # BAD_LIMIT and clear the BRAND NEW lock — the original
+            # defect, reproduced one cycle later instead of prevented.
+            if [ "$bad" -gt 0 ]; then
+                qlog_info "Tower-lock write in flight — discarding ${bad} stale bad reading(s) against the previous lock"
+            fi
+            bad=0
+            qlog_debug "Tower-lock write settling (until ${_tw_deadline}) — skipping this cycle"
+            sleep "$INTERVAL"
+            continue
+        fi
+    fi
+
     # --- Read signal from poller cache ---------------------------------------
     if [ ! -f "$CACHE" ]; then
         qlog_debug "No status cache — skipping"
@@ -110,11 +152,31 @@ while true; do
         *) rsrp="" ;;
     esac
 
+    # Absent RSRP is NOT a measurement of zero quality — it is NO
+    # measurement, and must never be treated as evidence toward a failover.
+    # Previously this fell through to quality=0, and 0 < threshold is always
+    # true, so three consecutive polls with no RSRP data (~60s, e.g. a poller
+    # hiccup on an otherwise-reachable modem) would CLEAR BOTH LOCKS on a
+    # number the daemon invented from absent data. The modem-unreachable case
+    # above is already handled correctly with `continue`; this is the same
+    # treatment for "reachable, but no usable reading yet".
     if [ -z "$rsrp" ]; then
-        quality=0
-        qlog_debug "No RSRP — quality=0%"
-    else
-        quality=$(calc_signal_quality "$rsrp")
+        qlog_debug "No RSRP in cache (modem reachable) — no measurement, skipping cycle"
+        sleep "$INTERVAL"
+        continue
+    fi
+
+    quality=$(calc_signal_quality "$rsrp")
+    qual_rc=$?
+    if [ "$qual_rc" -ne 0 ]; then
+        # calc_signal_quality signals invalid input the same way qcmd
+        # signals failure: rc!=0 with a printed '0' that must not be
+        # confused with a real measured zero. $rsrp already passed the
+        # -[0-9]* case check above, so this should not trigger in practice —
+        # kept as defense in depth against the input contract changing.
+        qlog_debug "calc_signal_quality rejected rsrp=$rsrp (rc=$qual_rc) — no measurement, skipping cycle"
+        sleep "$INTERVAL"
+        continue
     fi
 
     # --- Evaluate ------------------------------------------------------------
@@ -125,16 +187,33 @@ while true; do
         if [ "$bad" -ge "$BAD_LIMIT" ]; then
             qlog_warn "FAILOVER: ${BAD_LIMIT} consecutive bad — clearing locks"
 
-            ok=0
-            lte_r=$(tower_unlock_lte 2>/dev/null)
-            case "$lte_r" in *ERROR*) qlog_error "LTE unlock failed" ;; *) ok=1 ;; esac
+            # qcmd failure is exit-status-first: ERROR never reaches stdout,
+            # so `case "$x" in *ERROR*)` never matches a real failure — a
+            # single shared `ok` flag was previously forced to 1 unconditionally.
+            # Track each RAT separately (rc=0 AND non-empty stdout, since a
+            # successful qcmd always echoes the command back) and require BOTH
+            # before claiming the modem is actually clear — an OR'd single flag
+            # would report "FAILOVER COMPLETE" if e.g. only the NR unlock
+            # succeeded while LTE stayed locked.
+            lte_ok=0
+            lte_r=$(tower_unlock_lte 2>/dev/null); lte_rc=$?
+            if [ "$lte_rc" -eq 0 ] && [ -n "$lte_r" ]; then
+                lte_ok=1
+            else
+                qlog_error "LTE unlock failed (rc=$lte_rc): $lte_r"
+            fi
 
             sleep 0.2
 
-            nr_r=$(tower_unlock_nr 2>/dev/null)
-            case "$nr_r" in *ERROR*) qlog_error "NR unlock failed" ;; *) ok=1 ;; esac
+            nr_ok=0
+            nr_r=$(tower_unlock_nr 2>/dev/null); nr_rc=$?
+            if [ "$nr_rc" -eq 0 ] && [ -n "$nr_r" ]; then
+                nr_ok=1
+            else
+                qlog_error "NR unlock failed (rc=$nr_rc): $nr_r"
+            fi
 
-            if [ "$ok" -eq 1 ]; then
+            if [ "$lte_ok" -eq 1 ] && [ "$nr_ok" -eq 1 ]; then
                 tower_config_update '.lte.enabled = false | .nr_sa.enabled = false'
                 echo "activated" > "$FLAG_FILE"
                 qlog_warn "FAILOVER COMPLETE — locks cleared"
@@ -142,13 +221,56 @@ while true; do
             else
                 qlog_error "FAILOVER FAILED — retrying in 5s"
                 sleep 5
-                tower_unlock_lte >/dev/null 2>&1
+
+                # Retry path — this was NEVER reachable before this fix (ok
+                # was always 1 above), so it ran unverified in production.
+                # It unconditionally claimed "FAILOVER COMPLETE (retry)" and
+                # wrote the activated flag even when the retry itself also
+                # failed. Give it the same real per-RAT rc check as the
+                # first attempt (both must succeed) instead of discarding
+                # the result.
+                lte_retry_ok=0
+                lte_retry=$(tower_unlock_lte 2>/dev/null); lte_retry_rc=$?
+                if [ "$lte_retry_rc" -eq 0 ] && [ -n "$lte_retry" ]; then
+                    lte_retry_ok=1
+                else
+                    qlog_error "LTE unlock retry failed (rc=$lte_retry_rc): $lte_retry"
+                fi
+
                 sleep 0.2
-                tower_unlock_nr >/dev/null 2>&1
-                tower_config_update '.lte.enabled = false | .nr_sa.enabled = false'
-                echo "activated" > "$FLAG_FILE"
-                qlog_warn "FAILOVER COMPLETE (retry)"
-                append_event "tower_failover" "Tower locks cleared after retry — signal quality ${quality}% below ${threshold}% threshold" "warning"
+
+                nr_retry_ok=0
+                nr_retry=$(tower_unlock_nr 2>/dev/null); nr_retry_rc=$?
+                if [ "$nr_retry_rc" -eq 0 ] && [ -n "$nr_retry" ]; then
+                    nr_retry_ok=1
+                else
+                    qlog_error "NR unlock retry failed (rc=$nr_retry_rc): $nr_retry"
+                fi
+
+                if [ "$lte_retry_ok" -eq 1 ] && [ "$nr_retry_ok" -eq 1 ]; then
+                    tower_config_update '.lte.enabled = false | .nr_sa.enabled = false'
+                    echo "activated" > "$FLAG_FILE"
+                    qlog_warn "FAILOVER COMPLETE (retry)"
+                    append_event "tower_failover" "Tower locks cleared after retry — signal quality ${quality}% below ${threshold}% threshold" "warning"
+                else
+                    # Both attempts failed to confirm — do NOT write the
+                    # activation flag or clear the config. The activation
+                    # flag now SURVIVES the daemon's exit (the systemd unit's
+                    # ExecStopPost only removes the PID file; a fresh start's
+                    # ExecStartPre clears the flag), so writing "activated"
+                    # here for an unlock that never confirmed would tell the
+                    # UI a failover completed and leave that lie in place
+                    # indefinitely — worse than the ambiguity it would
+                    # paper over. Leaving config untouched is deliberate too:
+                    # tower/status.sh's live AT reads (not this config) are
+                    # the source of truth for actual lock state, and with D1
+                    # a failed read there now reports lte_read_ok/nr_read_ok
+                    # false instead of a confident answer — forcing
+                    # enabled=false here would just be a second, equally
+                    # unconfirmed guess layered on top.
+                    qlog_error "FAILOVER retry: unlock command(s) still unconfirmed (lte_rc=$lte_retry_rc nr_rc=$nr_retry_rc) — giving up without claiming success"
+                    append_event "tower_failover" "Tower lock failover FAILED — could not confirm unlock after retry (signal quality ${quality}% below ${threshold}% threshold)" "error"
+                fi
             fi
 
             # Re-apply custom MTU after interface bounce

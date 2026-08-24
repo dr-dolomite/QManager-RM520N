@@ -111,15 +111,27 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
 
         qlog_info "Writing IMEI: $NEW_IMEI"
 
-        # Write IMEI to modem NVM
+        # Write IMEI to modem NVM. qcmd never puts the literal "ERROR" on
+        # stdout (failure = exit status + stderr, empty stdout), so matching
+        # stdout for "*ERROR*" could never fire and a rejected write always
+        # reported success. rc is captured immediately; a write additionally
+        # needs to see the modem's own "OK" since qcmd's third exit arm can
+        # return 0 with unconfirmed data for a response containing neither
+        # OK nor ERROR.
         result=$(qcmd "AT+EGMR=1,7,\"${NEW_IMEI}\"" 2>/dev/null)
-        case "$result" in
-            *ERROR*)
-                qlog_error "Failed to write IMEI: $result"
-                cgi_error "egmr_failed" "Failed to write IMEI to modem"
-                exit 0
-                ;;
-        esac
+        rc=$?
+        egmr_ok="false"
+        # Line-exact, not a *OK* substring glob: the response echoes the
+        # issued command back, so an argument containing "OK" would match
+        # itself. A 15-digit IMEI cannot today, but the guard is free.
+        if [ $rc -eq 0 ] && printf '%s' "$result" | tr -d '\r' | grep -qx 'OK'; then
+            egmr_ok="true"
+        fi
+        if [ "$egmr_ok" != "true" ]; then
+            qlog_error "Failed to write IMEI (rc=$rc): $result"
+            cgi_error "egmr_failed" "Failed to write IMEI to modem"
+            exit 0
+        fi
 
         # Set check-pending flag if backup IMEI is enabled
         if [ -f "$BACKUP_CONFIG" ]; then

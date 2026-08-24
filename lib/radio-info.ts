@@ -25,7 +25,7 @@ import {
   worstSignalQuality,
 } from "@/types/modem-status";
 import type { CarrierRole, ResolvedCarrier } from "@/lib/carrier-aggregation";
-import { carrierKey, releasedForMs, rsrpToPercent } from "@/lib/carrier-aggregation";
+import { carrierKey, releasedForMs } from "@/lib/carrier-aggregation";
 import {
   NR_BANDS,
   findAllMatchingNRBands,
@@ -142,7 +142,14 @@ function buildMetrics(carrier: ResolvedCarrier): RadioMetric[] {
       labelKey: "rsrp",
       value: rsrp,
       unit: "dBm",
-      percent: rsrp === null ? null : rsrpToPercent(rsrp),
+      // signalToProgress, NOT rsrpToPercent: the RSRQ and SINR rows below
+      // already length on the shared quality window, and RSRP colouring its
+      // numeral from RSRP_THRESHOLDS while lengthing its bar on the
+      // carrier-aggregation scale (-125..-65) made it the last surviving
+      // rival RSRP scale — -80 dBm drew 100% on band-locking and 75% here.
+      // rsrpToPercent survives only for components/dashboard/carrier-
+      // aggregation.tsx, which plots it under its own documented convention.
+      percent: rsrp === null ? null : signalToProgress(rsrp, RSRP_THRESHOLDS),
       quality: getSignalQuality(rsrp, RSRP_THRESHOLDS),
       barless: false,
     },

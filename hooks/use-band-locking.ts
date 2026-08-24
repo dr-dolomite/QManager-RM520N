@@ -54,8 +54,25 @@ export interface UseBandLockingReturn {
   isRefreshing: boolean;
   /** Which band category is currently being locked/unlocked (null = idle) */
   lockingCategory: BandCategory | null;
-  /** Error message from the last operation */
+  /**
+   * Error message from the last WRITE — lock, unlock, failover toggle.
+   *
+   * Deliberately no longer shared with the read. `lockBands` re-reads via
+   * `fetchCurrent` AFTER a successful write, so a fused error meant a write that
+   * actually landed, followed by a read that lost the AT mutex, raised the green
+   * "Locked" toast AND a red inline notice blaming the write that worked.
+   */
   error: string | null;
+  /**
+   * Error message from the last `current.sh` READ. Null while the last read
+   * succeeded.
+   *
+   * A failed read leaves `currentBands` at its previous value (`null` on first
+   * load), so this is the ONLY signal that the band figures on screen are not
+   * the modem's. Surface it independently of any per-category write scoping —
+   * a first-load failure belongs to no category.
+   */
+  readError: string | null;
   /**
    * Lock specific bands for one category.
    * Sends AT+QNWPREFCFG command for the specified band type.
@@ -99,6 +116,8 @@ export function useBandLocking(): UseBandLockingReturn {
     null,
   );
   const [error, setError] = useState<string | null>(null);
+  /** Read failures only. See `readError` in the return contract. */
+  const [readError, setReadError] = useState<string | null>(null);
 
   const mountedRef = useRef(true);
   const failoverPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -132,9 +151,14 @@ export function useBandLocking(): UseBandLockingReturn {
 
       const data: BandCurrentResponse = await resp.json();
 
-      if (!data.success) {
+      // `current` and `failover` are OMITTED from the error envelope, which is
+      // why they are optional on `BandCurrentResponse` — the type used to
+      // declare them present and got away with it only because of the early
+      // return below. Guarding the payload rather than the `success` flag alone
+      // means a malformed success can never write `undefined` into state.
+      if (!data.success || !data.current || !data.failover) {
         if (mountedRef.current) {
-          setError(
+          setReadError(
             data.detail || data.error || "Failed to fetch band configuration",
           );
         }
@@ -145,11 +169,13 @@ export function useBandLocking(): UseBandLockingReturn {
 
       setCurrentBands(data.current);
       setFailover(data.failover);
-      setError(null);
+      // Only the READ error clears here. Clearing `error` too would erase a
+      // failed lock's notice on the very re-read that follows the next write.
+      setReadError(null);
       return true;
     } catch (err) {
       if (mountedRef.current) {
-        setError(
+        setReadError(
           err instanceof Error
             ? err.message
             : "Failed to fetch band configuration",
@@ -411,6 +437,7 @@ export function useBandLocking(): UseBandLockingReturn {
     isRefreshing,
     lockingCategory,
     error,
+    readError,
     lockBands,
     unlockAll,
     toggleFailover,

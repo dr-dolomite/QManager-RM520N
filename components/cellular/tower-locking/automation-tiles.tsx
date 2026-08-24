@@ -33,11 +33,13 @@ import {
   AUTO_TILE,
   BADGE_GLYPH_SIZE,
   FAILOVER_BADGE,
-  FIELD_CONTROL,
+  FIELD_CONTROL_ON_CONTAINER,
   HERO_HELP_BUTTON,
   PERSIST_BADGE,
   SKELETON_SHAPE,
+  SWITCH_TARGET,
   failoverKey,
+  lockPresence,
   persistPosture,
 } from "./shapes";
 
@@ -117,7 +119,18 @@ export interface TowerAutomationTilesProps {
   failover: TowerFailoverState | null;
   /** Persist as the CONFIG believes it. The chip reports the MODEM instead. */
   configPersist: boolean;
-  failoverThreshold: number;
+  /**
+   * The configured release threshold, or `null` when NOBODY HAS READ ONE.
+   *
+   * It is nullable on purpose. The coordinator used to substitute a hardcoded
+   * `20` for a missing value, which rendered in this input as a confident
+   * two-digit number — including in the error state, where `status.sh` had
+   * failed all three retries and nothing had been read at all. A reader has no
+   * way to tell a fabricated default from a real setting, and this one gates
+   * whether the modem drops a lock. DESIGN.md's State-Honesty Rule: a missing
+   * reading is an EMPTY field, never a plausible-looking value.
+   */
+  failoverThreshold: number | null;
   /** RSRP of the leg the modem is registered on — the figure failover gates. */
   activeRsrp: number | null;
   isLoading: boolean;
@@ -150,13 +163,18 @@ export function TowerAutomationTiles({
   // --- Failover threshold -----------------------------------------------------
   // Local string state so a half-typed value is never sent, synced from props by
   // render-time adjustment rather than an effect.
-  const [thresholdInput, setThresholdInput] = useState(
-    String(failoverThreshold),
-  );
+  /**
+   * An unread threshold is the EMPTY STRING, and stays empty until the user
+   * types — see the prop's contract. The empty case is not "invalid input", it
+   * is "no reading", so it gets its own branch everywhere below rather than
+   * falling into the 0–100 error copy.
+   */
+  const thresholdText = failoverThreshold === null ? "" : String(failoverThreshold);
+  const [thresholdInput, setThresholdInput] = useState(thresholdText);
   const [prevThreshold, setPrevThreshold] = useState(failoverThreshold);
   if (failoverThreshold !== prevThreshold) {
     setPrevThreshold(failoverThreshold);
-    setThresholdInput(String(failoverThreshold));
+    setThresholdInput(thresholdText);
   }
 
   const parsedThreshold = Number.parseInt(thresholdInput, 10);
@@ -164,7 +182,17 @@ export function TowerAutomationTiles({
     !Number.isNaN(parsedThreshold) &&
     parsedThreshold >= 0 &&
     parsedThreshold <= 100;
-  const thresholdDirty = thresholdInput !== String(failoverThreshold);
+  const thresholdDirty = thresholdInput !== thresholdText;
+  /** Blank is UNREAD, not wrong. Only a typed value can be out of range. */
+  const thresholdBlank = thresholdInput.trim() === "";
+  const thresholdErrored = !thresholdBlank && !thresholdValid;
+  /**
+   * Blank AND nothing was ever read. A user who clears a real reading to retype
+   * it is also blank, and telling THEM the modem never answered would be a
+   * second fabrication in the opposite direction — so the note is gated on the
+   * PROP, not on the box.
+   */
+  const thresholdUnread = thresholdBlank && failoverThreshold === null;
 
   const handleThresholdSave = async () => {
     if (!thresholdValid) return;
@@ -203,12 +231,25 @@ export function TowerAutomationTiles({
     }
   };
 
-  const hasActiveLock =
-    (modemState?.lte_locked ?? false) || (modemState?.nr_locked ?? false);
+  /**
+   * Does a lock exist for failover to guard?
+   *
+   * THIS WAS `(lte_locked ?? false) || (nr_locked ?? false)` — the one consumer
+   * of the three lock booleans with no `read_ok` guard, in a file that got the
+   * guard everywhere else. `status.sh` seeds `lte_locked="false"` before it asks
+   * the modem anything, so a failed `AT+QNWLOCK` read reached `failoverKey` as
+   * a confident "not locked" and the chip answered `standby` — "no lock to
+   * guard" — about a modem that may well be locked.
+   *
+   * A boolean could not hold the fix: on a failed read the seed and the truth
+   * are the same value. `lockPresence` is the tri-state, and `unknown` is a
+   * chip state of its own.
+   */
+  const presence = lockPresence(modemState);
 
   const failState = failoverKey(
     failover ?? { enabled: false, activated: false, watcher_running: false },
-    hasActiveLock,
+    presence,
   );
   const failBadge = FAILOVER_BADGE[failState];
 
@@ -249,7 +290,7 @@ export function TowerAutomationTiles({
             checked={configPersist}
             onCheckedChange={handlePersist}
             aria-label={t("tower_locking.live.persist_label")}
-            className="ml-auto"
+            className={`${SWITCH_TARGET} ml-auto`}
           />
         </div>
 
@@ -296,7 +337,7 @@ export function TowerAutomationTiles({
             onCheckedChange={handleFailover}
             disabled={isSavingFailover}
             aria-label={t("tower_locking.live.failover_label")}
-            className="ml-auto"
+            className={`${SWITCH_TARGET} ml-auto`}
           />
         </div>
 
@@ -317,9 +358,20 @@ export function TowerAutomationTiles({
             onKeyDown={(e) => {
               if (e.key === "Enter") void handleThresholdSave();
             }}
-            aria-invalid={!thresholdValid || undefined}
+            /* An empty box is not a mistake the user made — it is the modem
+               failing to answer — so it carries no destructive ring and no
+               error copy, only the unread note wired in below. */
+            aria-invalid={thresholdErrored || undefined}
             aria-label={t("tower_locking.live.threshold_label")}
-            className={`${FIELD_CONTROL} w-[4.5rem] text-center font-mono tabular-nums`}
+            aria-describedby={
+              thresholdErrored
+                ? "tower-failover-threshold-error"
+                : thresholdUnread
+                  ? "tower-failover-threshold-unread"
+                  : undefined
+            }
+            placeholder={t("tower_locking.live.tile_no_value")}
+            className={`${FIELD_CONTROL_ON_CONTAINER} w-[4.5rem] text-center font-mono tabular-nums`}
           />
           {thresholdDirty || saved ? (
             <SaveButton
@@ -327,17 +379,42 @@ export function TowerAutomationTiles({
               isSaving={false}
               saved={saved}
               label={t("common:actions.update")}
-              disabled={!thresholdValid}
+              /* Was a bare `disabled`: an unexplained grey pill that appeared
+                 the moment the box went dirty and gave no reason. The two ways
+                 to be unsaveable are different problems and now say so. */
+              blockedReason={
+                thresholdBlank
+                  ? t("tower_locking.blocked.threshold_empty")
+                  : thresholdValid
+                    ? null
+                    : t("tower_locking.live.threshold_invalid")
+              }
               className="h-[2.625rem] rounded-pill px-4 text-sm font-semibold"
             />
           ) : null}
         </div>
 
-        {thresholdValid ? null : (
-          <p role="alert" className="text-destructive-on-surface text-xs">
+        {thresholdErrored ? (
+          <p
+            id="tower-failover-threshold-error"
+            role="alert"
+            className="text-destructive-on-surface text-xs"
+          >
             {t("tower_locking.live.threshold_invalid")}
           </p>
-        )}
+        ) : null}
+
+        {/* NOT an error, and deliberately not styled as one: the field is empty
+            because the read failed, which is the modem's problem and not the
+            reader's. Saying so is what stops the blank box reading as a bug. */}
+        {thresholdUnread ? (
+          <p
+            id="tower-failover-threshold-unread"
+            className="text-on-surface-variant text-xs"
+          >
+            {t("tower_locking.live.threshold_unread")}
+          </p>
+        ) : null}
 
         {/* The threshold and the reading it gates, on ONE track. A "35%" in a
             box says nothing until you can see the modem is at 93%; the previous

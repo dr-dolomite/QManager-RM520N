@@ -57,10 +57,53 @@ if [ "$LOCK_TYPE" = "lte" ]; then
 
     if [ "$ACTION" = "lock" ]; then
         # --- Check tower lock mutual exclusion ---
+        # Fail CLOSED: if we cannot confirm the tower lock state, refuse the
+        # frequency lock write rather than let it fall through as "clear".
+        # tower_read_lte_lock prints the literal string "error" and returns 1
+        # on a failed read; that never matched "locked*" below, so an
+        # unreadable tower state used to silently pass the gate and send the
+        # frequency lock anyway — exactly the stacked-lock crash-dump
+        # path this file's header warns about.
         lte_tower_state=$(tower_read_lte_lock 2>/dev/null)
+        tower_rc=$?
+        # A single failed AT read is a transient hiccup, not proof of a
+        # tower lock we can't see — retry exactly once (same 0.1s spacing
+        # tower/status.sh uses between its reads) before failing closed.
+        # tower_read_lte_lock's contract (tower_lock_mgr.sh) guarantees it
+        # prints the literal string "error" AND returns rc=1 on any failed
+        # or empty read, and never prints "error" on a successful one — so
+        # That makes the string and the rc equivalent for every path
+        # INSIDE the reader -- but NOT for the case where the reader
+        # never ran at all (library failed to source, fork failed).
+        # Then the variable is EMPTY, which does not match "error" and
+        # would fall through this gate as permission. The rc and -z arms
+        # cover that caller-side residual; do not simplify them away on
+        # the strength of the equivalence above.
+        if [ "$tower_rc" -ne 0 ] || [ -z "$lte_tower_state" ] || [ "$lte_tower_state" = "error" ]; then
+            sleep 0.1
+            lte_tower_state=$(tower_read_lte_lock 2>/dev/null)
+            tower_rc=$?
+        fi
+        # Normalise every failure signal to the one token the case
+        # below refuses on, so no failure can reach the catch-all
+        # and be read as "no tower lock".
+        if [ "$tower_rc" -ne 0 ] || [ -z "$lte_tower_state" ]; then
+            lte_tower_state="error"
+        fi
         case "$lte_tower_state" in
             locked*)
                 cgi_error "tower_lock_active" "Cannot use frequency lock while LTE tower lock is active. Disable tower lock first."
+                exit 0
+                ;;
+            error)
+                # Fail CLOSED, not open. Two failed tower-lock reads in a
+                # row is NOT evidence of "no tower lock" — the modem could
+                # be locked and we simply couldn't confirm it. Quectel
+                # documents a hardware mutual exclusion here (see the NR
+                # branch below), so permitting the frequency lock on an
+                # unconfirmed read risks sending it while a tower lock the
+                # modem still holds is active.
+                cgi_error "tower_lock_unknown" "Could not verify LTE tower lock state — refusing frequency lock. Try again."
                 exit 0
                 ;;
         esac
@@ -151,10 +194,35 @@ elif [ "$LOCK_TYPE" = "nr" ]; then
 
     if [ "$ACTION" = "lock" ]; then
         # --- Check tower lock mutual exclusion ---
+        # Fail CLOSED here too, same reasoning as the LTE branch above: an
+        # unreadable NR tower state must never be treated as "unlocked".
         nr_tower_state=$(tower_read_nr_lock 2>/dev/null)
+        tower_rc=$?
+        # Retry once before failing closed — see the matching LTE branch
+        # above for why.
+        if [ "$tower_rc" -ne 0 ] || [ -z "$nr_tower_state" ] || [ "$nr_tower_state" = "error" ]; then
+            sleep 0.1
+            nr_tower_state=$(tower_read_nr_lock 2>/dev/null)
+            tower_rc=$?
+        fi
+        # Normalise every failure signal to the one token the case
+        # below refuses on, so no failure can reach the catch-all
+        # and be read as "no tower lock".
+        if [ "$tower_rc" -ne 0 ] || [ -z "$nr_tower_state" ]; then
+            nr_tower_state="error"
+        fi
         case "$nr_tower_state" in
             locked*)
                 cgi_error "tower_lock_active" "Cannot use frequency lock while NR tower lock is active. This command cannot be used together with AT+QNWLOCK common/5g."
+                exit 0
+                ;;
+            error)
+                # Fail CLOSED — see the matching LTE branch above. Quectel
+                # documents this as a real hardware conflict (AT+QNWCFG
+                # frequency locking cannot be used together with
+                # AT+QNWLOCK common/5g), so two unconfirmed reads in a row
+                # must never be treated as permission.
+                cgi_error "tower_lock_unknown" "Could not verify NR tower lock state — refusing frequency lock. Try again."
                 exit 0
                 ;;
         esac

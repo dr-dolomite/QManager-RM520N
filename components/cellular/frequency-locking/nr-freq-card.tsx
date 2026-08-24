@@ -153,6 +153,13 @@ export interface NrFreqCardProps {
   isLocking: boolean;
   error: string | null;
   towerLockActive: boolean;
+  /**
+   * False when the tower-lock probe FAILED. Distinct from `towerLockActive`:
+   * that says "a tower lock is holding this leg", this says "nobody could find
+   * out". `frequency/lock.sh` refuses the write in BOTH cases, so both have to
+   * block the Lock action up front. See `FreqLockModemState`.
+   */
+  towerLockReadOk: boolean;
   onLock: (entries: NrFreqLockEntry[]) => Promise<boolean>;
   onUnlock: () => Promise<boolean>;
 }
@@ -166,6 +173,7 @@ export function NrFreqCard({
   isLocking,
   error,
   towerLockActive,
+  towerLockReadOk,
   onLock,
   onUnlock,
 }: NrFreqCardProps): React.JSX.Element {
@@ -270,6 +278,29 @@ export function NrFreqCard({
     draft.some(
       (entry) => entry.arfcn === parsedNewArfcn && entry.scs === parsedNewScs,
     );
+
+  /**
+   * THE REASON THE LOCK ACTION IS NOT TAKEABLE, OR `null`.
+   *
+   * Two backend refusals, keyed off the identifiers `frequency/lock.sh` emits
+   * rather than off its `detail` sentence — that text is hardcoded English in a
+   * shell script and can never be translated:
+   *
+   *   `tower_lock_active`  — a tower lock holds this leg (`lock.sh:70`/`:181`)
+   *   `tower_lock_unknown` — the tower-lock read failed, so the write is
+   *                          refused rather than attempted (`:81`/`:190`)
+   *
+   * THE SECOND USED TO LEAVE THE BUTTON LIVE. The user filled the form, pressed
+   * Lock, waited out an AT round-trip and was refused — the exact anti-pattern
+   * `SaveButton.blockedReason` exists to remove. `blockedReason` blocks with
+   * `aria-disabled` rather than `disabled`, so the reason stays reachable by
+   * hover AND by keyboard and rides along in the accessible name.
+   */
+  const lockBlockedReason = towerLockActive
+    ? t("frequency_locking.blocked.tower_lock_active")
+    : !towerLockReadOk
+      ? t("frequency_locking.blocked.tower_lock_unknown")
+      : null;
 
   const isFull = draft.length >= MAX_ENTRIES;
   const canAdd =
@@ -482,6 +513,21 @@ export function NrFreqCard({
               />
               <span className={NOTICE.TEXT}>
                 {t("frequency_locking.card.blocked_body")}
+              </span>
+            </div>
+          ) : !towerLockReadOk ? (
+            /* Warning, not neutral: this is not a rule the user set, it is a
+               question nobody managed to ask the modem — and the write is
+               refused until it can be. */
+            <div className={`${NOTICE.ROOT} ${NOTICE_TONE.warning.root}`}>
+              <MaterialSymbol
+                name={NOTICE_TONE.warning.glyph}
+                size={16}
+                filled={NOTICE_TONE.warning.filled}
+                className="flex-none"
+              />
+              <span className={NOTICE.TEXT}>
+                {t("frequency_locking.blocked.tower_lock_unknown")}
               </span>
             </div>
           ) : null}
@@ -722,9 +768,9 @@ export function NrFreqCard({
               isSaving={isLocking}
               saved={saved}
               label={t("frequency_locking.actions.apply_nr")}
+              blockedReason={lockBlockedReason}
               disabled={
                 isLocking ||
-                towerLockActive ||
                 draft.length === 0 ||
                 (posture === "locked" && !hasChanges)
               }

@@ -70,6 +70,27 @@ export interface TowerModemState {
   nr_cell: NrSaLockCell | null;
   persist_lte: boolean;
   persist_nr: boolean;
+
+  /**
+   * DID THIS PARTICULAR AT READ COME BACK WITH A TRUSTWORTHY ANSWER?
+   *
+   * `success: true` on the response only means the endpoint RAN. `status.sh`
+   * seeds `lte_locked="false"` before it asks the modem anything, so a failed
+   * `AT+QNWLOCK` read is indistinguishable downstream from a genuine "not
+   * locked" — the surface rendered a confident green `Unlocked` chip for a
+   * question nobody managed to ask. Same for persistence, where a failed read
+   * painted a muted `Disabled`: "the user turned this off".
+   *
+   * OPTIONAL, AND ABSENT MEANS TRUE. A statically-exported page bundle can
+   * outlive the CGI it talks to, so a cached client will meet an un-upgraded
+   * `status.sh` that emits none of these. Making them optional is what lets
+   * every consumer test `=== false` and nothing else: `!== true` would repaint
+   * an entire working page as "unknown" the moment the two halves fall out of
+   * step. Test `=== false`, never `!== true`.
+   */
+  lte_read_ok?: boolean;
+  nr_read_ok?: boolean;
+  persist_read_ok?: boolean;
 }
 
 // --- Failover ----------------------------------------------------------------
@@ -109,6 +130,21 @@ export interface TowerLockResponse {
    * an unqualified success.
    */
   service_enable_failed?: boolean;
+  /**
+   * THE UNLOCK LANDED AND THE FAILOVER/PERSISTENCE UNIT IS STILL ARMED ON BOOT.
+   *
+   * Emitted by `lock.sh:223` / `:351` on the two unlock branches when
+   * `systemctl disable` of the persistence unit fails.
+   *
+   * IT ARRIVED WITH AN ENVELOPE CHANGE THAT IS ITSELF CORRECT — the branch used
+   * to answer `cgi_error`, i.e. `success:false`, for an operation whose AT write
+   * had SUCCEEDED. But an honest envelope only reports honestly if something
+   * reads the field: declaring it and consuming it are one change. `success:true`
+   * plus a field nobody reads is strictly WORSE than the misleading error it
+   * replaced, because the user is told the unlock worked and the unit re-arms at
+   * the next boot in complete silence.
+   */
+  service_disable_failed?: boolean;
   error?: string;
   detail?: string;
 }

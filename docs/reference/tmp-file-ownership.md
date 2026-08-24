@@ -15,7 +15,8 @@ QManager runs as two different users. Root owns the daemons (`qmanager_poller`, 
 | `fs.protected_regular` | `1` (kernel default on this firmware; confirmed live) |
 | Only ownership both UIDs can write | **`root:root` mode `0666`** |
 | Where shared files are seeded | `scripts/usr/bin/qmanager_setup` (systemd oneshot, runs as root before every other unit) |
-| Seeded shared files | `/tmp/qmanager.log`, `/tmp/qmanager_events.json`, `/tmp/qmanager_profile_state.json`, `/tmp/qmanager_profile_apply.pid` |
+| Seeded shared files | `/tmp/qmanager.log`, `/tmp/qmanager_events.json`, `/tmp/qmanager_profile_state.json`, `/tmp/qmanager_profile_apply.pid`, `/tmp/qmanager_tower_write_inflight` |
+| `/tmp/qmanager_tower_write_inflight` | `root:root` `0666`. **Writers:** `tower/lock.sh` (www-data, via `tower_write_begin`) and `qmanager_tower_schedule` (root). **Reader:** `qmanager_tower_failover` (root). Content-bearing — a UNIX deadline, not a flag — so it **is** seeded; see [The tower-lock in-flight marker](#the-tower-lock-in-flight-marker) |
 | Seeded www-data-only files | `/tmp/qmanager_at.lock`, `/tmp/qmanager_at.pid` (root opens these **read-only**, `9<`) |
 | Forbidden on any seeded file | tmp-file + `mv` (`rename(2)` swaps the inode and destroys the seed) |
 | Required instead | write **in place** — `>`, `>>`, `cat tmp > file`, `: >` |
@@ -161,6 +162,24 @@ A non-numeric guard cannot catch the second case: the arithmetic is perfectly va
 
 Keeping the flag in `/tmp` is itself load-bearing. **Do not relocate it to a persistent path** — tmpfs is what bounds a stuck flag to a single uptime.
 
+## The tower-lock in-flight marker
+
+`/tmp/qmanager_tower_write_inflight` is the worked example of the *other* side of the flag rule: it looks like a flag, and it is not one, so it **is** seeded.
+
+**What it does.** A tower-lock AT write drops the modem for a few seconds. `qmanager_tower_failover` samples signal on a 20s loop and clears both locks after three consecutive bad readings, so a watcher that was already at two could read that reconnect blip as the third and revert the lock the user had just applied. Before the AT write, `tower_write_begin()` (in `scripts/usr/lib/qmanager/tower_lock_mgr.sh`) writes a **future UNIX deadline** into this file; the daemon skips any cycle that lands before it. Full rationale, including why `TOWER_WRITE_SETTLE=30` and not less, is in [tower-locking.md](tower-locking.md#the-in-flight-marker).
+
+**Why it is seeded when `/tmp/qmanager_recovery_active` deliberately is not.** The recovery flag's *existence* is the signal, so seeding it would make an empty file mean "someone is recovering" from the first second of every boot. This file's **content** is the signal — an unparsable or past deadline reads as "no write in flight", which is exactly what an empty seeded file gives you. Seeding it costs nothing and buys the thing that matters:
+
+| | Writer | UID |
+| --- | --- | --- |
+| CGI path | `scripts/www/cgi-bin/quecmanager/tower/lock.sh` | `www-data` |
+| Schedule path | `scripts/usr/bin/qmanager_tower_schedule` | `root` |
+| Reader | `scripts/usr/bin/qmanager_tower_failover` | `root` |
+
+Both UIDs write it, so by the checklist above the only workable ownership is `root:root 0666` — and without the seed, whichever UID called `tower_write_begin()` first after a boot would own it for that whole uptime and the other's writes would be refused. Silently: `tower_write_begin` redirects stderr to `/dev/null`, like every other write in this document. The loser would then stop marking its writes in-flight, and the watcher would go back to reading reconnect blips as bad samples — the exact failure the marker exists to prevent.
+
+> ⚠️ WARNING: there is **no** matching "end" call and none should be added. The marker self-expires because it stores a deadline, so a `lock.sh` killed mid-write (crash, OOM, lighttpd recycling the CGI) cannot wedge the watcher into skipping forever. A `trap … rm -f` cleanup would reintroduce both the leak risk and — since www-data cannot unlink a file it did not create, and `rm -f` exits 0 regardless — a silent cross-UID failure.
+
 ## Evidence: three bugs this protocol fixes
 
 These were all confirmed on live hardware, not reasoned about.
@@ -199,7 +218,7 @@ The general lesson: when a seeded file is found violating the never-`rm` rule, *
    - **No, www-data only** → `www-data:www-data 0666`, or don't seed it at all.
    - **No, root only, but www-data reads it** → root-owned is fine; `0644` suffices for a reader.
    - **Yes** → seed it `root:root 0666` in `qmanager_setup`. There is no other option.
-2. Is it a **flag** whose existence is the signal? Then do **not** seed it. Design a claim-and-verify protocol instead, and re-read the [recovery flag](#the-recovery-flag-the-deliberate-exception) section.
+2. Is it a **flag** whose existence is the signal? Then do **not** seed it. Design a claim-and-verify protocol instead, and re-read the [recovery flag](#the-recovery-flag-the-deliberate-exception) section. A file whose **content** is the signal is not a flag and does get seeded — see [the tower-lock in-flight marker](#the-tower-lock-in-flight-marker).
 3. Grep every writer for `mv` and for a fixed `.tmp` name. Replace with in-place writes and `$$`-qualified scratch paths.
 4. Grep every writer for `rm -f` on the file itself. Replace with `: >`.
 5. Make every write **checked**. `2>/dev/null` on a redirect plus an unconditional success log is how all three bugs above stayed invisible.
@@ -215,5 +234,6 @@ The general lesson: when a seeded file is found violating the never-`rm` rule, *
 - [sim-profiles.md](sim-profiles.md) — the 4-step profile apply that owns the state file and the PID lock.
 - [wan-profile-management.md](wan-profile-management.md) — `apn_apply.sh`, the UID-agnostic attach-cycle primitive and its bracket hooks.
 - [connection-watchdog.md](connection-watchdog.md) — the other producer of the recovery flag.
+- [tower-locking.md](tower-locking.md) — `/tmp/qmanager_tower_write_inflight`, the content-bearing marker that is seeded precisely because it is not a flag.
 - [recent-activities.md](recent-activities.md) — `events.sh` and the events ring.
 - [qmanager-independence.md](qmanager-independence.md) — the parallel `/etc/qmanager` ownership rule (different directory, different mechanism, same class of mistake).

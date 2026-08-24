@@ -32,16 +32,65 @@ tower_config_init
 # --- Query LTE lock state ----------------------------------------------------
 qlog_debug "Querying LTE lock state"
 lte_state=$(tower_read_lte_lock)
+lte_rc=$?
 sleep 0.1
 
 # --- Query NR-SA lock state --------------------------------------------------
 qlog_debug "Querying NR-SA lock state"
 nr_state=$(tower_read_nr_lock)
+nr_rc=$?
 sleep 0.1
 
 # --- Query persist state -----------------------------------------------------
 qlog_debug "Querying persist state"
 persist_state=$(tower_read_persist)
+persist_rc=$?
+
+# --- Honesty flags ------------------------------------------------------------
+# `success` (bottom of this script) means only "the endpoint ran and produced
+# a JSON body" — it says nothing about whether any individual AT read actually
+# came back trustworthy. A failed read still emits its *_locked/persist fields
+# (with their pre-failure defaults) so the response shape never changes, but
+# those values are meaningless when the matching *_read_ok is false — the
+# frontend must gate on *_read_ok, not on success, before trusting them.
+#
+# This is deliberately per-field rather than an all-or-nothing refusal: one
+# transient AT read failure (e.g. the NR query) should not blind the UI to
+# the two reads that DID succeed. tower_read_lte_lock / tower_read_nr_lock /
+# tower_read_persist all return qcmd's real exit status — the old code below
+# only ever pattern-matched their printed text ("locked*" / "error"), which
+# silently defaulted a failed read to "unlocked, persistence off" and
+# reported success:true with a fabricated modem_state. That's actively
+# dangerous here — a UI showing "not locked" when the modem is actually
+# still locked (or its state is simply unknown) can lead a user straight
+# into frequency/lock.sh's mutual-exclusion gate believing it's clear.
+# Refuse to fabricate any INDIVIDUAL field's trustworthiness instead.
+#
+# PINNED CONTRACT — do not "tighten" this later: the frontend must treat an
+# ABSENT *_read_ok (an un-upgraded CGI that predates this field) as true —
+# i.e. test `=== false`, never `!== true`. This script always emits all
+# three fields explicitly (both the jq path and the raw-fallback path below
+# set them), so absence only happens when talking to an older deployed
+# build. Testing `!== true` would paint every card "unknown" against that
+# older build instead of trusting it as before.
+#
+# Also note: lte_locked/nr_locked/persist_* keep their pre-failure seed
+# values (false) when the matching read fails, so a caller that reads
+# lte_locked without checking lte_read_ok will see "unlocked", not an
+# error — that is why *_read_ok exists as a separate field rather than a
+# tri-state on the boolean itself.
+lte_read_ok="true"
+[ "$lte_rc" -ne 0 ] && lte_read_ok="false"
+
+nr_read_ok="true"
+[ "$nr_rc" -ne 0 ] && nr_read_ok="false"
+
+persist_read_ok="true"
+[ "$persist_rc" -ne 0 ] && persist_read_ok="false"
+
+if [ "$lte_rc" -ne 0 ] || [ "$nr_rc" -ne 0 ] || [ "$persist_rc" -ne 0 ]; then
+    qlog_error "Tower lock state query failed (lte_rc=$lte_rc nr_rc=$nr_rc persist_rc=$persist_rc) — reporting per-field read_ok=false, not fabricating state"
+fi
 
 # --- Parse LTE lock state into JSON ------------------------------------------
 lte_locked="false"
@@ -67,9 +116,6 @@ case "$lte_state" in
         done
         lte_cells_json="${lte_cells_json}]"
         ;;
-    error)
-        qlog_warn "Failed to read LTE lock state"
-        ;;
 esac
 
 # --- Parse NR-SA lock state into JSON ----------------------------------------
@@ -83,9 +129,6 @@ case "$nr_state" in
         set -- $nr_state
         shift  # remove "locked"
         nr_cell_json="{\"pci\":$1,\"arfcn\":$2,\"scs\":$3,\"band\":$4}"
-        ;;
-    error)
-        qlog_warn "Failed to read NR-SA lock state"
         ;;
 esac
 
@@ -127,17 +170,23 @@ fi
 modem_json=$(jq -n \
     --argjson lte_locked "$lte_locked" \
     --argjson lte_cells "$lte_cells_json" \
+    --argjson lte_read_ok "$lte_read_ok" \
     --argjson nr_locked "$nr_locked" \
     --argjson nr_cell "$nr_cell_json" \
+    --argjson nr_read_ok "$nr_read_ok" \
     --argjson persist_lte "$persist_lte" \
     --argjson persist_nr "$persist_nr" \
+    --argjson persist_read_ok "$persist_read_ok" \
     '{
         lte_locked: $lte_locked,
         lte_cells: $lte_cells,
+        lte_read_ok: $lte_read_ok,
         nr_locked: $nr_locked,
         nr_cell: $nr_cell,
+        nr_read_ok: $nr_read_ok,
         persist_lte: $persist_lte,
-        persist_nr: $persist_nr
+        persist_nr: $persist_nr,
+        persist_read_ok: $persist_read_ok
     }' 2>/dev/null)
 
 # Construct failover_state as a JSON string
@@ -160,7 +209,7 @@ response_json=$(jq -n \
     --argjson failover "${failover_json:-null}" \
     '{
         success: true,
-        modem_state: ($modem // {lte_locked:false,lte_cells:[],nr_locked:false,nr_cell:null,persist_lte:false,persist_nr:false}),
+        modem_state: ($modem // {lte_locked:false,lte_cells:[],lte_read_ok:false,nr_locked:false,nr_cell:null,nr_read_ok:false,persist_lte:false,persist_nr:false,persist_read_ok:false}),
         config: $config,
         failover_state: ($failover // {enabled:false,activated:false,watcher_running:false})
     }' 2>/dev/null)
@@ -168,7 +217,9 @@ response_json=$(jq -n \
 if [ -n "$response_json" ]; then
     printf '%s\n' "$response_json"
 else
-    # Fallback: jq failed entirely, produce a minimal valid response
+    # Fallback: jq failed entirely, produce a minimal valid response.
+    # read_ok is honestly false here too — jq itself failed, so nothing
+    # about the modem reads can be vouched for.
     qlog_error "Failed to build status JSON with jq, sending fallback"
-    printf '{"success":true,"modem_state":{"lte_locked":false,"lte_cells":[],"nr_locked":false,"nr_cell":null,"persist_lte":false,"persist_nr":false},"config":%s,"failover_state":{"enabled":false,"activated":false,"watcher_running":false}}\n' "$TOWER_DEFAULT_CONFIG"
+    printf '{"success":true,"modem_state":{"lte_locked":false,"lte_cells":[],"lte_read_ok":false,"nr_locked":false,"nr_cell":null,"nr_read_ok":false,"persist_lte":false,"persist_nr":false,"persist_read_ok":false},"config":%s,"failover_state":{"enabled":false,"activated":false,"watcher_running":false}}\n' "$TOWER_DEFAULT_CONFIG"
 fi

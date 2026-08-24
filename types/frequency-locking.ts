@@ -37,8 +37,20 @@ export interface FreqLockModemState {
   lte_entries: LteFreqLockEntry[]; // 0-2 entries
   nr_locked: boolean;
   nr_entries: NrFreqLockEntry[]; // 0-32 entries
-  tower_lock_lte_active: boolean; // From AT+QNWLOCK="common/4g"
-  tower_lock_nr_active: boolean; // From AT+QNWLOCK="common/5g"
+  /**
+   * From AT+QNWLOCK="common/4g".
+   *
+   * TRI-STATE. `null` means `status.sh` could not read the tower lock state at
+   * all, which is NOT the same fact as "no tower lock is active". Stacking a
+   * frequency lock on a live tower lock can crash-dump the modem
+   * (`frequency/lock.sh` header), so an unreadable state is treated as
+   * BLOCKING everywhere it gates a write. It must never be rendered as a claim
+   * that a tower lock IS active - the page has to say it does not know.
+   */
+  tower_lock_lte_active: boolean | null;
+  /** From AT+QNWLOCK="common/5g". `null` means the read failed and blocks
+   *  writes, exactly as for the LTE leg above. */
+  tower_lock_nr_active: boolean | null;
 }
 
 // --- API Responses -----------------------------------------------------------
