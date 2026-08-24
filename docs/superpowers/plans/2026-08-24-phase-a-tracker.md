@@ -16,7 +16,7 @@
 | Task | Title | State | Branch / commit | Session |
 | --- | --- | --- | --- | --- |
 | T0 | Commit the Phase-A input documents | **DONE (merged)** — all 5 steps. Every input doc is tracked on `development`. | `3c34c4a`, `73cc424`, `fc30a50` | 2026-08-24 |
-| T1 | `hw_profile.sh` — parser, tier table, generator | **DONE (branch kept)** — all 8 steps. Both validators clean. Merge decision was still with the user when this row was written. | `581123e` on branch `feat/phase-a-t1-hw-profile`, base `c991b64` | 2026-08-24 |
+| T1 | `hw_profile.sh` — parser, tier table, generator | **DONE (merged)** — all 8 steps. Both validators clean. | `581123e`, `3436ea3`, `55d3b60`, `d626517` — fast-forwarded onto `development` 2026-08-24 | 2026-08-24 |
 | T2 | Generate `platform.json` at install; recognize RG501Q | NOT STARTED | — | — |
 | T3 | Self-heal `platform.json` in `qmanager_setup` | NOT STARTED | — | — |
 | **T4** | **Migrate the poller's identity reads — THE CUT LINE** | NOT STARTED | — | — |
@@ -41,7 +41,9 @@ Newest entry first. Every entry records: what was done, the gate evidence, and *
 
 ### 2026-08-24 — T1 DONE. `hw_profile.sh` exists; the dead detector is gone.
 
-**Done.** All 8 steps. Branch `feat/phase-a-t1-hw-profile`, cut from `development` at base SHA `c991b642a161d7245cab3fc9f259f7392de1cc51`. **Diffed against that SHA throughout, never against `development`** — a parallel session was advancing the branch with band-locking / locale work the whole time.
+**Done and MERGED.** All 8 steps. Branch `feat/phase-a-t1-hw-profile`, cut from `development` at base SHA `c991b642a161d7245cab3fc9f259f7392de1cc51`. **Diffed against that SHA throughout, never against `development`** — a parallel session was advancing the branch with band-locking / locale work the whole time.
+
+**Merge:** fast-forwarded onto `development` 2026-08-24 (`c991b64..55d3b60`), plus `d626517` for the agent memory. `development` had not moved from the base, so no merge commit was needed and nothing was rebased. The parallel session's uncommitted band-locking / locale files were disjoint from all five files this task touched and were left untouched in the working tree. **The branch ref `feat/phase-a-t1-hw-profile` was kept; its worktree was removed.**
 
 | File | Change |
 | --- | --- |
