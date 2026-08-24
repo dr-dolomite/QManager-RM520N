@@ -1,6 +1,6 @@
 #!/bin/sh
 # =============================================================================
-# qcmd_test — Smoke test for qcmd on RM520N-GL
+# qcmd_test — Smoke test for qcmd (any Quectel target)
 # =============================================================================
 # Validates the full chain: atcli_smd11 → /dev/smd11 → modem
 #
@@ -21,7 +21,7 @@ pass() { PASS=$((PASS + 1)); echo "  PASS"; }
 fail() { FAIL=$((FAIL + 1)); echo "  FAIL: $1"; }
 warn() { WARN=$((WARN + 1)); echo "  WARN: $1"; }
 
-echo "=== qcmd RM520N-GL Smoke Test ==="
+echo "=== qcmd Smoke Test ==="
 echo ""
 
 # --- Test 1: atcli_smd11 binary exists ---------------------------------------
@@ -47,7 +47,7 @@ fi
 # --- Test 3: Direct atcli_smd11 AT command -----------------------------------
 echo "[3] Direct atcli_smd11: ATI..."
 r=$(/usr/bin/atcli_smd11 "ATI" 2>/dev/null)
-if [ -n "$r" ] && echo "$r" | grep -q "Quectel\|RM520\|OK"; then
+if [ -n "$r" ] && echo "$r" | grep -q "Quectel\|OK"; then
     pass
 elif [ -z "$r" ]; then
     fail "empty response — modem may not be responding"
@@ -72,7 +72,7 @@ echo "[5] Compound: AT+CGMM;+CGSN..."
 r=$(qcmd 'AT+CGMM;+CGSN' 2>/dev/null)
 rc=$?
 if [ $rc -eq 0 ] && [ -n "$r" ]; then
-    if echo "$r" | grep -qE 'RM520|RM5|[0-9]{15}'; then
+    if echo "$r" | grep -qE '^(RM|RG|EG|EC)[0-9A-Za-z-]+|[0-9]{15}'; then
         pass
     else
         warn "response received but could not identify model/IMEI"
@@ -165,7 +165,7 @@ echo "  Warnings: $WARN"
 echo ""
 
 if [ $FAIL -eq 0 ]; then
-    echo "All critical tests passed. qcmd is ready for RM520N-GL."
+    echo "All critical tests passed. qcmd is ready."
     exit 0
 else
     echo "Some tests failed. Review output above before proceeding."
