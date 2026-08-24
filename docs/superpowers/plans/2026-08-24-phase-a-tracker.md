@@ -16,7 +16,7 @@
 | Task | Title | State | Branch / commit | Session |
 | --- | --- | --- | --- | --- |
 | T0 | Commit the Phase-A input documents | **DONE (merged)** — all 5 steps. Every input doc is tracked on `development`. | `3c34c4a`, `73cc424`, `fc30a50` | 2026-08-24 |
-| T1 | `hw_profile.sh` — parser, tier table, generator | **DONE (branch kept)** — all 8 steps. Both validators clean. Merge decision was still with the user when this row was written. | branch `feat/phase-a-t1-hw-profile`, base `c991b64` | 2026-08-24 |
+| T1 | `hw_profile.sh` — parser, tier table, generator | **DONE (branch kept)** — all 8 steps. Both validators clean. Merge decision was still with the user when this row was written. | `581123e` on branch `feat/phase-a-t1-hw-profile`, base `c991b64` | 2026-08-24 |
 | T2 | Generate `platform.json` at install; recognize RG501Q | NOT STARTED | — | — |
 | T3 | Self-heal `platform.json` in `qmanager_setup` | NOT STARTED | — | — |
 | **T4** | **Migrate the poller's identity reads — THE CUT LINE** | NOT STARTED | — | — |
