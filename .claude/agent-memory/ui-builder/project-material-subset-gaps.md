@@ -21,14 +21,22 @@ was wrong): `content_copy`, `layers`, `sim_card`, `badge`, `power_settings_new`,
 and `bun run icons:check` reports the font matching the manifest. Do not quote
 the old substitutions — grep instead; this list churns.
 
-**Why:** adding a glyph is a two-part change (edit the sorted array, then
-`bun run icons:subset && bun run icons:check`, which produces a binary commit).
-A component-scoped builder cannot do the second half, so it substitutes and
-reports.
+**Adding a glyph IS completable in-session — this memory used to say otherwise.**
+Done on 2026-08-24 (`signal_cellular_alt_1_bar`, `signal_cellular_alt_2_bar`,
+list now 109): insert into the array KEEPING IT SORTED, then
+`bun run icons:subset && bun run icons:check`. `icons:subset` reaches
+fonts.googleapis.com from this environment and rewrites
+`app/fonts/MaterialSymbolsRounded-subset.woff2` + its `.json` manifest, so the
+change carries a small binary diff (~40KB file, ~100 bytes per glyph).
+
+`icons:check` then warns `N glyph(s) have no literal call site` until the
+component actually renders the new name — that warning is the round trip closing,
+not a failure, and it exits 0 either way.
 
 **How to apply:** before promising a mock glyph, grep the array. If it is
-missing, either request the subset regeneration as its own step or pick a
-substitute and say so in the handoff — never assume the ligature will render.
+missing, add it and regenerate rather than substituting — the substitution is
+the fallback for when the network is unavailable, not the default. Say in the
+handoff that the change includes a regenerated font binary.
 
 See [[project-icon-boundary-cellular-subset-gap]] for the older, now-corrected
 version of this claim.

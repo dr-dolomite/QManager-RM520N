@@ -45,7 +45,7 @@ The rationale for the individual design moves lives in the commits (`a2394ee`, `
 | Sweep worker | `scripts/usr/bin/qmanager_cell_scanner` |
 | Neighbour worker | `scripts/usr/bin/qmanager_neighbour_scanner` |
 | Lock a scanned cell | `POST …/tower/lock.sh` — see [tower-locking.md](tower-locking.md) |
-| i18n | `cell_scanner.*` in `public/locales/{en,zh-CN,zh-TW,it,id}/cellular.json` (**230 paths in `en`**, covering all three routes — `cell_scanner.neighbour.*` and `cell_scanner.calculator.*` (**69 paths**) are subtrees. The whole family had **zero** i18n before 2026-08-12). All five locales now carry the same 230, and `bun run i18n:check` is clean at `strict` |
+| i18n | `cell_scanner.*` in `public/locales/{en,zh-CN,zh-TW,it,id}/cellular.json` (**225 paths in `en`**, covering all three routes — `cell_scanner.neighbour.*` (**58 paths**) and `cell_scanner.calculator.*` (**68 paths**) are subtrees. The whole family had **zero** i18n before 2026-08-12; the count dropped 227 → 225 on 2026-08-24 when the two `summary_title` keys retired with the summary panel's heading). All five locales now carry the same 225, and `bun run i18n:check` is clean at `strict` |
 
 ### Runtime files
 
@@ -259,7 +259,7 @@ Only `id`, `networkType`, `pci` and `signalStrength` genuinely overlap, and the 
 
 ## What is shared, and what is deliberately not
 
-Eleven modules are shared by the two scanning routes: `lock-cell-dialog.tsx`, `run-hero.tsx`, `run-summary.tsx`, `sibling-link.tsx`, `table-note.tsx`, `summaries.ts`, `scan-states.tsx`, `scan-table.tsx`, `scanner-skeleton.tsx`, `signal-badges.tsx` and `shapes.ts`. (The sweep takes only `ScanErrorState` from `scan-states.tsx` — its empty panel is the shared `Empty` primitive instead; see [The sweep's empty state owns its action](#the-sweeps-empty-state-owns-its-action).)
+Eleven modules are shared by the two scanning routes: `lock-cell-dialog.tsx`, `run-hero.tsx`, `run-summary.tsx`, `sibling-link.tsx`, `table-note.tsx`, `summaries.ts`, `scan-states.tsx`, `scan-table.tsx`, `scanner-skeleton.tsx`, `signal-badges.tsx` and `shapes.ts`. (The sweep takes only `ScanErrorState` from `scan-states.tsx` — its empty panel is the shared `Empty` primitive instead; see [The sweep's empty state owns its action](#the-sweeps-empty-state-no-longer-owns-an-action-and-no-longer-renders-before-a-run).)
 
 The four added in 2026-08-12's refinement follow the same rule as the hero: **shape shared, words not**. `run-summary.tsx`, `sibling-link.tsx` and `table-note.tsx` take every string as a prop; `summaries.ts` returns numbers, tiers and identifiers and never a sentence.
 
@@ -277,7 +277,7 @@ Its form column's `FORM.NOTE` is now a **spec citation only**, rendered once the
 
 **This inverts what this doc and both of those files used to say**, and the old argument is worth keeping because the interesting part of it was the mistake: it held that a `rounded-hero` radius here was "a promise of importance the page cannot keep", on the grounds that the family's heroes are *run* heroes and nothing here runs. Right about runs, wrong about heroes. What an anchor promises is not that something ran — it is that **one object on the page is the thing the reader came for**, and everything else on the page reports on it. That is unambiguous here: you came to turn a channel number into a frequency, and the bands grid and the history are both readings of that one answer. The incumbent's two peer cards claimed the converter and its own history were equally important, which is the single thing this page is certain they are not.
 
-The layout that follows is three cards: the anchor (readout rail + form), the matching bands, the history. **The middle card never disappears** — it carries an empty state before the first calculation, as the sweep's results card does, so the page fills in rather than assembling itself. (The two empties are no longer the *same* object: see [The sweep's empty state owns its action](#the-sweeps-empty-state-owns-its-action).)
+The layout that follows is three cards: the anchor (readout rail + form), the matching bands, the history. **The middle card never disappears** — it carries an empty state before the first calculation, as the sweep's results card does, so the page fills in rather than assembling itself. (The two empties are no longer the *same* object: see [The sweep's empty state owns its action](#the-sweeps-empty-state-no-longer-owns-an-action-and-no-longer-renders-before-a-run).)
 
 `shapes.ts` (`components/cellular/cell-scanner/shapes.ts`, "The frequency calculator" section) carries the long form of the decision, plus module-level `IDENT` and `FIGURE` — the machine-voice pair that was previously nested inside `TABLE` and is now hoisted so the calculator's tiles and history rows can key off the same two strings the scan table does.
 
@@ -398,7 +398,7 @@ Also a user decision, 2026-08-12, and the second half of the same argument. The 
 
 > ( ✓ ) · **8** · "across 3 providers on 7 bands" · "Sweep finished" · "8 cells in range."
 
-Three of those five say the same thing. The body sentence restated the figure directly above it, and the context line re-derived a provider and band breakdown that the summary panel two hundred pixels to its right already gives provider by provider. Both lines are **gone on the complete posture only** — `postureBody` is still rendered for idle, scanning and failed, where it is the only copy explaining what is happening — and the two survivors were sized up to carry the rail alone: `POSTURE.DISC` 52 → **64 px** with a 24 → **32 px** glyph, `POSTURE.CLOCK` 28 → **48 px**. `POSTURE.ROOT`'s `min-h` and its mirror `SKELETON_SHAPE.POSTURE` moved 11rem → **13rem** together; they are written as literals in both places because Tailwind's JIT scans source text and an interpolated `min-h-[${X}]` compiles to nothing.
+Three of those five say the same thing. The body sentence restated the figure directly above it, and the context line re-derived a provider and band breakdown that the summary panel two hundred pixels to its right already gives provider by provider. Both lines are **gone on the complete posture only** — `postureBody` is still rendered for idle, scanning and failed, where it is the only copy explaining what is happening — and the two survivors were sized up to carry the rail alone: the disc 52 → **64 px** with a 24 → **32 px** glyph, the count 28 → **48 px**. Both sizes survive the 2026-08-24 rebuild unchanged; what moved is which constant holds them — the hero's rail is now `RAIL` (a row) and the constants are `RAIL.DISC` and `RAIL.COUNT`, while `POSTURE.DISC` keeps the 64 px disc for the results card's panels. `SKELETON_SHAPE.POSTURE` is gone with the hero's use of `POSTURE.ROOT`; `EMPTY_PANEL` is what restates the 13 rem now. All of them are literals rather than a shared interpolated string because Tailwind's JIT scans source text and an interpolated `min-h-[${X}]` compiles to nothing.
 
 What went with the lines:
 
@@ -406,28 +406,138 @@ What went with the lines:
 - `SweepSummary.providerCount` / `.bandCount` and `NeighbourSummary.channelCount`, deleted — the context caption was their only reader, and an aggregate with no consumer is an untested aggregate.
 - Ten locale keys across all five packs: `cell_scanner.run.context_providers_*`, `context_bands_*`, `complete_body_*` and `cell_scanner.neighbour.run.context_channels_*`, `complete_body_*`.
 
-**The figure now carries no unit**, and that is deliberate rather than an oversight: the summary panel beside it is headed "What this sweep found", and the results card below it is headed "Cells found". A later canon pass should restore neither line, and should not "recover" the unit with a new caption under the figure.
+**The rail's figure carries no unit**, and that is deliberate rather than an oversight: the results card below it is headed "Cells found", and each summary tile beside it now states its own count *with* a unit ("12 cells"). A later canon pass should restore neither retired line, and should not "recover" the unit with a new caption under the figure.
 
-The 32 px glyph propagates to `scan-states.tsx`, which shares `POSTURE.DISC` for the results card's error panel — the same object at a different address, so a 24 px glyph would have floated inside an oversized circle there.
+> ℹ️ The summary panel's own "What this sweep found" heading was **deleted** on 2026-08-24 along with the panel wrapper — see [The summary tiles are neutral and the colour is on the disc](#the-summary-tiles-are-neutral-and-the-colour-is-on-the-disc). The unit argument above therefore now rests on the results card's heading and the tiles' own fact lines, not on that heading.
 
-## The sweep's empty state owns its action
+The 32 px glyph propagates to `scan-states.tsx`, which shares `POSTURE.DISC` for the results card's empty and error panels — the same 64 px disc as the hero's `RAIL.DISC`, so a 24 px glyph would have floated inside an oversized circle there.
 
-Since 2026-08-14 the two routes' "nothing has run yet" panels are **deliberately different objects**, and this is the one place the family's shape-sharing is broken on purpose.
+## The hero is as tall as it has something to say
 
-| Route | Panel | Action |
-| ----- | ----- | ------ |
-| **Full sweep** | the shared `Empty` primitive (`components/ui/empty.tsx`) on `EMPTY_PANEL` — a dashed `rounded-tile` slot with an `EmptyMedia` disc, title, description and an `EmptyContent` button | **yes** — "Sweep all bands" (or "Sweep again" after a run that returned nothing), wired to the same `startScan` the hero's button uses |
-| **Neighbour read** | `ScanEmptyState`, i.e. the `POSTURE` stack | **no** — the hero's button, two hundred pixels up, is the only one |
+**The sweep page asks three questions in sequence, and since 2026-08-24 the hero is only as big as the one it is currently answering.** Before a run the reader wants to know *how do I start this*; during, *is it still working*; after, *what did it find*. The hero used to give all three the same fixed height, sized for the third — a `minmax(0,17rem) 1fr` split holding a 13 rem posture rail beside a summary column that at idle contained nothing but the launch button. Roughly 280 px of card spent saying that nothing had happened yet, which the reader could already see.
 
-The split is about what is *on the page*. Before the first sweep the results card is the whole page — there are no rows for it to own — so a reader looking at an empty table should not have to travel back up to the hero to start one. A neighbour read is two seconds and its hero sits directly above; a second button there would be one act with two triggers.
+The three phases now:
 
-Three things about the sweep's panel that are load-bearing:
+| Posture | The hero | The results card |
+| ------- | -------- | ---------------- |
+| `idle` | a compact **launch bar**: title with the description stacked beneath it, and the primary action in the header's `META` slot. No rail, no summary column | **not rendered at all** |
+| `scanning` | the same container **grows** into the rail-plus-summary body. The rail carries the spinning disc and the copy; the summary arrives as a skeleton | enters on the shared `staggerItem` card cascade, showing `ScannerSkeleton` |
+| `complete` | rail carries the 48 px count; summary carries real tiles | the table, or the empty panel if the run listed nothing |
+| `failed` | rail carries the modem's own error string, in machine voice (`RAIL.TITLE_MACHINE`) — **and the hero withholds its launch button entirely** | `ScanErrorState`, which carries the single recovery action |
 
-- **It reuses `startScan`.** No second handler, no second request path. The hero's button and this one are the same act.
-- **It needs no `disabled` state.** The branch is only reachable when the posture is *not* `scanning` (that branch renders `ScannerSkeleton`) and *not* `failed` (that renders `ScanErrorState`), so `isScanning` is false by construction here.
-- **`EMPTY_PANEL` mirrors `POSTURE.ROOT`'s `min-h-[13rem]`**, so swapping in the skeleton, the error panel or the table does not jump the page. Move one and move the other.
+### The morph
+
+The growth is a real container morph, not a swap: `HERO_MORPH` (`shapes.ts`) is a `grid-template-rows: 0fr → 1fr` wrapper over an `overflow-hidden` clip, so the card genuinely grows to whatever the body measures rather than animating toward a guessed pixel height. It runs on `--duration-emphasized` / `--ease-emphasized` (800 ms), because DESIGN.md files container size and shape changes there and this is the largest single re-proportion on the surface. The idiom already exists in the product at `components/onboarding/steps/step-connection.tsx`; only the clock differs.
+
+Four details that are easy to undo by accident:
+
+- **`RUN_HERO` carries no `gap-5`, and that is load-bearing.** A flex gap is paid whether or not the item it separates has any height, so a gap on the card would leave 20 px of unexplained space under the launch bar — in exactly the state the redesign exists to compact. The separation lives in `HERO_MORPH.BODY`'s own top padding, *inside* the clipped region, where it collapses with everything else.
+- **`HERO_MORPH.CLIP` needs `min-h-0`.** Without it a grid row will not shrink below its content and the collapse silently does nothing.
+- **`motion-reduce:transition-none` is not optional.** A reader who asked for less motion still needs the body; they need it instantly.
+- **The open/closed pair lives in one constant**, driven by `data-[open=true]` rather than a conditional class string at the call site, so the two states cannot drift apart.
+
+`isLoading` forces the body **open**. A first paint that starts collapsed and then grows the moment the worker's status arrives is a morph the reader did not cause.
+
+### The structural consequences
+
+- **The primary action moved into the header** (`SECTION_HEAD.META`, beside the sibling link). There is no action row under the summary any more, because at idle there is no summary for it to sit under — and a button that changes which row it belongs to depending on posture is the incumbent's problem in miniature.
+- **The hero's rail is a row (`RAIL`), not the centred `POSTURE` stack.** Its height *is* the hero's height in every open state, so every pixel has to be carrying something; a centred 13 rem block was mostly air once the complete posture was down to a disc and a figure. `min-h-[6.5rem]` is the row measured (40 px of padding around a 64 px disc), mirrored by `SKELETON_SHAPE.RAIL`. It is `items-center` with **no** `justify-center`: the disc anchors the left edge, so variable-length copy beside it does not move the disc on every posture change.
+- **`POSTURE` is now the results card's empty and error panels, and the calculator's readout rail — nothing else.** `SKELETON_SHAPE.POSTURE` is gone with it: those are terminal states that never stand in for data still loading.
+- **`HERO_SPLIT` went 17 rem → 19 rem** on its fixed column, because a row has to fit a 64 px disc, a gap and a wrapping title where the old centred stack only had to fit the widest of them.
+- **`CALC_HERO` is no longer an alias of `RUN_HERO`.** Both now read from a private `HERO_SHELL`, and the calculator appends `gap-5` — nothing on that page collapses, so its sections still want a real flex gap. A retune of the anchor's radius, padding or shadow still moves both.
+
+> ⚠️ **The failed posture's missing hero button is deliberate.** `RunHero` has no opinion about it — the route passes `actions={null}` when `posture === "failed"` (`scanner.tsx`). The recovery affordance exists exactly once, in `ScanErrorState`. Adding a launch button back to the hero puts two buttons on one screen for one act, which is the same defect that retired the empty panel's trigger.
+
+### The neighbour route deliberately does not morph
+
+`RunHero` exposes the collapse as `idleCollapsed`, and the neighbour route is the reason the prop exists rather than the behaviour being unconditional. That route takes **every other part** of the 2026-08-24 change — the stacked section head, the neutral summary tiles with their tier discs, the header action row, the returned ink — and **not** the height morph.
+
+It is the same cost asymmetry that keeps the two routes unmerged. A sweep holds the AT lock for 30–180 seconds, so the grow lands once, early, and the reader then waits *inside* the shape it grew into; the morph reads as the page committing to a long operation. A neighbour read is done in about two seconds: the container would finish an 800 ms grow, hold the skeleton for barely a second, and swap to the result. **Growth that resolves before the reader has finished registering it is jitter, not progress.**
+
+Two consequences on that route:
+
+- **Its hero is always open**, and its rail is present at idle carrying the `idle` posture — which is also the only place on the route that explains what a neighbour read *is* before you run one.
+- **With no summary beside it, the rail takes the full width** via `HERO_RAIL_ONLY` rather than anchoring a 19 rem column with two thirds of a hero blank next to it. That blank is precisely the void the sweep's redesign removed from its own idle state, and passing an empty right-hand cell would import it here.
+
+The results card also stays mounted at idle on that route, for the same reason: a two-second act does not need the page rearranged around it.
+
+## The summary tiles are neutral and the colour is on the disc
+
+**A tile's colour now means the strongest signal in that group.** `SUMMARY_TILE_TONE` / `summaryTileTone(index)` — a three-tone triad (`bg-primary` / `bg-primary-container` / `bg-uplink-container`) rotated by array position — was **deleted** on 2026-08-24. Tile bodies are `bg-surface-container` on every tile, and the hue moved to a 52 px disc (`SUMMARY.DISC`, 26 px glyph) keyed on the group's best measured tier.
+
+The triad's stated problem was real: every tile on the identical `surface-container-high` made three (or nine) peer findings read as one grey block with numbers in it. But rotating by index solved it with colour that encodes nothing — tile 0 wore the brand's one acting fill because it sorted first, so a reader who learned "the blue one matters" had learned a fact about sort order. The body is neutral now and the differentiation *is* the finding.
+
+`SUMMARY_TILE_DISC` (`shapes.ts`) is keyed onto `SignalTier` and `MaterialSymbolName`, so a tier with no tone or a glyph the subset does not ship fails the build rather than rendering untinted or as the literal ligature text:
+
+| Tier | Disc tone | Glyph |
+| ---- | --------- | ----- |
+| `good` | `bg-success-container text-on-success-container` | `signal_cellular_alt` |
+| `fair` | `bg-warning-container text-on-warning-container` | `signal_cellular_alt_2_bar` |
+| `poor` | `bg-destructive-container text-on-destructive-container` | `signal_cellular_alt_1_bar` |
+| `none` | `bg-surface-container-high text-on-surface-variant` | `signal_cellular_off` |
+
+> ⚠️ **Every tier carries its own glyph, and that is not decoration.** `success-container` and `warning-container` measure **1.03:1** apart — the same surface to the eye, and identical under deuteranopia — so on a disc with no text inside it the glyph is the only thing separating good from fair. `signal_cellular_alt_1_bar` and `_2_bar` were added to the Material subset for this and the font was regenerated; a tier added later needs its own glyph in the subset before it will render at all.
+
+Rules that follow:
+
+- **`none` is not `warning`.** It means "the modem listed this group but measured none of it" — the absence of a verdict rather than a poor one. Same distinction `SIGNAL_BADGE.none` draws, and the incumbent table's bug.
+- **The tier is derived in `summaries.ts`, never at a call site.** `ProviderGroup.tier`, `RelationGroup.tier`, `SweepSummary.overflowTier` and `NeighbourSummary.tier` are all computed there, because a tier is a judgement over a nullable reading and computing it inside a `.map()` in a component is how the same judgement ends up spelled two different ways on two routes. `summaries.ts` still returns no copy — the routes turn the enum into a label.
+- **The overflow tile takes the best tier among the *folded* groups**, not `none`. The folded groups may hold the strongest reading of the run, and a muted disc there would claim nothing in them was measured.
+- **The neighbour route's measurement-split tile takes the best tier across the whole read**, because it is a count rather than a relation and has no tier of its own. When nothing was measured the tier is `none`, which is exactly that tile's subject.
+- **The disc's meaning must survive greyscale and a screen reader.** `MaterialSymbol` is ligature-driven and therefore always `aria-hidden`, so each tile carries an `sr-only` `tierLabel`. Both routes map the tier onto `cell_scanner.signal.{good,fair,poor,none}` through a literal-keyed record (`SIGNAL_LABEL_KEY`), restated per route rather than shared — `i18n:check` cannot see an interpolated stem, and a key it cannot see is a key nothing will ever report as missing.
+- **The tier ladder is a different mark from the table's.** `signal_cellular_alt*` on a tile disc summarises a *group's* best reading; `SIGNAL_BADGE`'s `signal_cellular_N_bar` rates *one* cell. A sweep renders both on the same screen, so the two ladders must stay visually distinct.
+
+### What went with the triad
+
+- **The three `opacity-85` ink washes.** `SUMMARY.LABEL`, `DETAIL_IDENT` and `DETAIL_FIGURE` carried them only because a fixed neutral ink sat wrong on a solid `bg-primary` tile. With a neutral body the wash is a contrast reduction with nothing left to compensate for; the JSDoc that argued for it said as much.
+- **The panel wrapper and its heading.** `SUMMARY.ROOT` (a `surface-container` panel) and `SUMMARY.TITLE` are gone, and the two `summary_title` keys — `cell_scanner.run.summary_title` ("What this sweep found") and `cell_scanner.neighbour.run.summary_title` — were deleted from all five locale packs. A `surface-container` panel holding `surface-container` tiles is not a tone step, it is a tile-shaped hole; the only way to keep a step would have been to push the tiles up to `surface-container-high`, which is the undifferentiated grey block the triad existed to fix. The tiles sit on the hero's own `surface` instead, which is a real step. The heading went with the panel because "What this sweep found" over four tiles inside a card titled "Full band sweep" was the third thing on one screen naming the same run.
+- **`SummaryTile.value`.** The big numeral moved into the fact line *with* a unit — `t("cell_scanner.results.count", { count })` on the sweep, `tally_rows` / `tally_measured` on the neighbour route, all reusing existing plurals. On a row-shaped tile the disc holds the left edge, and a bare numeral with no unit beside it read as a second figure competing with the rail's count.
+- **`SKELETON_SHAPE.SUMMARY`, the single tall bar.** The skeleton now mirrors **by composition**: the same `SUMMARY.GRID` holding the same `SUMMARY.TILE` boxes with a disc placeholder and two line boxes inside (`SUMMARY_DISC` / `SUMMARY_LABEL` / `SUMMARY_DETAILS`, `SUMMARY_TILES = 4`). A single `h-[13.5rem]` bar is a shape the loaded panel can no longer take.
+
+> ℹ️ `SKELETON_SHAPE.SUMMARY_DISC` restates `rounded-pill` and `size-13` rather than importing `SUMMARY.DISC`. That is not laziness: `cn()` is bare `twMerge`, which cannot dedupe this codebase's custom radius names, so `Skeleton`'s own `rounded-md` beats a custom radius alphabetically. `size-13` has no default to lose to.
+
+> ⚠️ **`VERDICT_TONE.muted` moved `bg-surface` → `bg-surface-container-high` in the same pass, and the move is not cosmetic.** The rule is that a muted verdict must not read as one more, wider tile — `muted` is the tone the neighbour route's only verdict uses, so that is its normal appearance rather than an edge case. It used to be `surface` because the tiles were `surface-container-high` inside a `surface-container` panel. With the panel gone and the tiles on `surface-container` sitting directly on the card's `surface`, a `surface` verdict would be **invisible**, and the lift is now `surface-container-high`. If the tiles' step ever moves again, this token moves with it.
+
+## The section head stacks its description
+
+`SECTION_HEAD` puts the description **under** the title (`SECTION_HEAD.TITLES` is the stacking pair), family-wide — both scanning routes' heroes and results cards, and all three of the frequency calculator's section heads. User decision, 2026-08-24.
+
+The retired argument, which this file and `shapes.ts` both used to make: *"a section header is a signpost over content the reader can already see, and stacking it spends two lines of rhythm restating what the content demonstrates."* That premise stopped holding the moment the hero collapsed at idle. In the launch state there **is** no content below the header demonstrating anything — the description is the only thing on the page saying what a sweep costs, and on one row beside a bold title and an `ms-auto` action it read as a caption on the title rather than as the sentence a reader has to weigh before spending three minutes of the modem's AT lock. Stacked, it gets its own measure (`max-w-[56ch]`) and its own line.
+
+Two mechanics worth keeping:
+
+- **The root is `items-start`**, which is what keeps `META` on the *title's* row however many lines the description wraps to.
+- **`META` carries `ms-auto` rather than the root carrying `justify-between`.** The row wraps, and with `justify-between` a wrap leaves the meta slot marooned against the right edge of its own line.
+
+## The sweep's empty state no longer owns an action, and no longer renders before a run
+
+**One act gets one affordance.** Since 2026-08-24 (user decision) the sweep's results card is not rendered at all while the posture is `idle`, and the `Empty` panel inside it carries no button.
+
+The retired shape, kept here so nobody re-derives it: from 2026-08-14 the sweep's pre-run panel was the shared `Empty` primitive (`components/ui/empty.tsx`) with its own "Sweep all bands" / "Sweep again" button in an `EmptyContent` slot, wired to the same `startScan` the hero's button used. The argument was that before a run the results card *is* the whole page, so a reader looking at an empty table should not have to travel back up to the hero to start one. The neighbour route kept the quieter `ScanEmptyState` posture stack with no button, and the two panels were described as **deliberately different objects**.
+
+Why it was overturned:
+
+- **The pair read as awkward.** Two buttons on one screen, forty pixels apart in the vertical, both starting the same three-minute sweep.
+- **Two triggers for one act is the thing this surface spent a whole pass removing.** It is the same duplication that retired the posture chip and the completed rail's third and fourth lines.
+- **The trigger moving between rows is what made the layout lurch.** The empty panel's button existed only at idle, so pressing it swapped the card's dashed box for a taller skeleton at the same instant the hero grew — one click, two panels resizing, and only one of the moves meant anything. See [The hero is as tall as it has something to say](#the-hero-is-as-tall-as-it-has-something-to-say).
+
+What holds now, on both routes:
+
+| Route | Before the first run | After a run that listed nothing |
+| ----- | -------------------- | ------------------------------- |
+| **Full sweep** | the results card is **not mounted** (`scanner.tsx` returns `null` for `posture === "idle"`); it enters on the shared `staggerItem` card cascade the moment a sweep starts, and from then on it stays through complete, failed and a re-run | the `Empty` primitive on `EMPTY_PANEL` — a dashed `rounded-tile` slot with an `EmptyMedia` disc, title and description, **and no button**. The hero directly above is already showing a `0` and a "Sweep again" action in exactly this state |
+| **Neighbour read** | the results card **stays mounted** with `ScanEmptyState`, i.e. the `POSTURE` stack, and no button | the same panel |
+
+> ℹ️ **The two empty panels are still different objects, but the reason changed.** It is no longer "one owns an action and the other does not" — neither does. What differs now is *when they exist*: the sweep's panel is reachable only after a completed run that listed nothing, while the neighbour route's is also its pre-run state, because a two-second read does not earn the page rearranging itself around it. That divergence is the same cost asymmetry recorded in [the hero's morph](#the-hero-is-as-tall-as-it-has-something-to-say), not a second, independent decision.
+
+Two things about the sweep's panel that are still load-bearing:
+
+- **It cannot be reached while a run is in flight.** `scanning` renders `ScannerSkeleton` and `failed` renders `ScanErrorState`, so the branch is structurally a completed-and-empty state. That is also why it never needed a `disabled` button and now needs no button at all.
+- **`EMPTY_PANEL` restates `POSTURE.ROOT`'s `min-h-[13rem]`**, so swapping between the skeleton, the error panel and the table does not jump the card. Move one and move the other; they are literals in both places because Tailwind's JIT scans source text and an interpolated `min-h-[${X}]` compiles to nothing.
 
 The dashed stroke is this codebase's vocabulary for a slot with nothing in it yet (the same idiom as `custom-profiles/empty-profile.tsx`), not a compensation for a weak fill — No-Hairline-On-Fill does not apply.
+
+> ⚠️ **Do not restore the panel's button in a later pass**, and do not restore the card at idle. Both were removed together and each one alone brings back half of the double-resize.
 
 ## The run summary, the verdict and the tally
 

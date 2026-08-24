@@ -111,6 +111,34 @@ import type { TagVariant } from "@/components/ui/tag";
 // not "recover" the unit by putting a caption back under the figure — the
 // summary panel beside it and the "Cells found" card below it both name the
 // unit already.
+//
+// -----------------------------------------------------------------------------
+// AND A FOURTH, 2026-08-24: THE HERO IS AS TALL AS IT HAS SOMETHING TO SAY
+// -----------------------------------------------------------------------------
+// The sweep page answers three questions in sequence — BEFORE ("how do I start
+// this"), DURING ("is it still working") and AFTER ("what did it find") — and
+// the hero used to give all three the same fixed height, sized for the third.
+// At idle that bought a 13rem posture rail saying "no sweep yet" beside an
+// empty summary column with a stranded button in it, while the results card
+// below independently swapped a dashed empty box for a taller skeleton. One
+// click, two panels resizing, and neither move meant anything.
+//
+// The hero is now a compact launch bar at idle — title, description, action —
+// and GROWS into the rail-plus-summary body on the `running` posture. The growth
+// is a real container morph (`HERO_MORPH`, a `0fr -> 1fr` grid row on
+// `--duration-emphasized`), not a swap, so the reader sees one object taking on
+// what it now has to report rather than a page navigating.
+//
+// Consequences recorded elsewhere in this file:
+//   * `RUN_HERO` no longer carries `gap-5`. `HERO_MORPH.BODY` owns its own top
+//     padding, because a flex gap is paid even when the item it separates has
+//     collapsed to zero height — 20px of dead space under the launch bar.
+//   * The hero rail is `RAIL`, a HORIZONTAL row, and no longer `POSTURE`.
+//     `POSTURE` is now the results card's empty/error panel and nothing else.
+//   * The primary action moved into `SECTION_HEAD.META`, beside the sibling
+//     link. There is no action row under the summary any more.
+//   * THE SWEEP ROUTE ONLY. The neighbour read costs ~2 seconds; see
+//     `RunHeroProps.idleCollapsed` for why it does not morph.
 // =============================================================================
 
 // -----------------------------------------------------------------------------
@@ -121,8 +149,9 @@ import type { TagVariant } from "@/components/ui/tag";
 export const PAGE_SHELL = "@container/main mx-auto flex flex-col gap-5 p-2";
 
 /**
- * The run hero, and the page's anchor. `rounded-hero` (40px) — one per surface,
- * claimed by the section that leads the page.
+ * The anchor geometry, shared by the run hero and the frequency calculator.
+ * `rounded-hero` (40px) — one per surface, claimed by the section that leads the
+ * page.
  *
  * It declares `@container/section`, which `HERO_SPLIT` and `SUMMARY` query. The
  * container is named `section` rather than `hero` deliberately: the frequency
@@ -131,9 +160,25 @@ export const PAGE_SHELL = "@container/main mx-auto flex flex-col gap-5 p-2";
  *
  * `shadow-whisper` as a bare utility does NOT resolve; it must go through the
  * custom property, exactly as written.
+ *
+ * NO GAP HERE. The two consumers disagree about it and only one of them can be
+ * right: see `RUN_HERO` and `CALC_HERO` below.
  */
-export const RUN_HERO =
-  "@container/section flex flex-col gap-5 rounded-hero border-0 bg-surface p-7 shadow-[var(--shadow-whisper)]";
+const HERO_SHELL =
+  "@container/section flex flex-col rounded-hero border-0 bg-surface p-7 shadow-[var(--shadow-whisper)]";
+
+/**
+ * The run hero, and the page's anchor.
+ *
+ * IT CARRIES NO `gap-5`, and that is load-bearing rather than an omission. Its
+ * second child is `HERO_MORPH.WRAP`, which collapses to zero height at idle —
+ * and a flex gap is paid whether or not the item it separates has any height, so
+ * a gap here would leave 20px of unexplained space under the launch bar in the
+ * one state the whole redesign exists to compact. The morph's own
+ * `HERO_MORPH.BODY` carries the separation instead, INSIDE the clipped region,
+ * where it collapses with everything else.
+ */
+export const RUN_HERO = HERO_SHELL;
 
 /**
  * The results card. Identical to `RUN_HERO` except its radius — `rounded-card`
@@ -146,40 +191,101 @@ export const RESULTS_CARD =
   "@container/section flex flex-col gap-5 rounded-card border-0 bg-surface p-7 shadow-[var(--shadow-whisper)]";
 
 /**
- * The header row both sections share. The description sits on the title's row
- * rather than under it: a section header is a signpost over content the reader
- * can already see, and stacking it spends two lines of rhythm restating what the
- * content demonstrates.
+ * The header row both sections share.
+ *
+ * THE DESCRIPTION NOW STACKS UNDER THE TITLE. This file used to argue the
+ * opposite, and the argument is kept here rather than deleted because it is the
+ * one worth knowing: "a section header is a signpost over content the reader can
+ * already see, and stacking it spends two lines of rhythm restating what the
+ * content demonstrates."
+ *
+ * USER DECISION, 2026-08-24, OVERTURNING IT. The premise stopped holding the
+ * moment the hero collapsed at idle. In the launch state there IS no content
+ * below the header demonstrating anything — the description is the only thing on
+ * the page saying what a sweep costs, and on one row beside a bold title and an
+ * `ms-auto` action it read as a caption on the title rather than as the sentence
+ * a reader has to weigh before spending three minutes of the modem's AT lock.
+ * Stacked, it gets its own measure (`max-w-[56ch]`) and its own line.
+ *
+ * `TITLES` is the stacking pair, and it is what keeps `META` on the TITLE's row:
+ * the root is `items-start`, so an `ms-auto` meta slot aligns to the top of the
+ * title block however many lines the description wraps to.
  *
  * `META` carries `ms-auto` rather than the root carrying `justify-between`,
- * because the row wraps — with three children and `justify-between`, a wrap
- * leaves the description marooned against the right edge of its own line.
+ * because the row wraps — with `justify-between` a wrap leaves the meta slot
+ * marooned against the right edge of its own line.
  */
 export const SECTION_HEAD = {
-  ROOT: "flex flex-wrap items-center gap-x-3 gap-y-1.5",
+  ROOT: "flex flex-wrap items-start gap-x-6 gap-y-3",
+  TITLES: "flex min-w-0 flex-col gap-1",
   TITLE: "text-base font-semibold",
-  DESC: "text-sm text-on-surface-variant",
+  DESC: "max-w-[56ch] text-sm text-on-surface-variant text-pretty",
   META: "ms-auto flex flex-wrap items-center gap-2",
 } as const;
 
 /**
- * The hero's two-panel split: a fixed posture rail beside the flexing run
- * detail. Collapses to one column below `@2xl/section`, which on the modem's
- * own narrow web view is the common case rather than the exception.
+ * The container morph that makes the hero's height a function of its posture.
+ *
+ * A `grid-template-rows: 0fr -> 1fr` wrapper over an `overflow-hidden` clip, so
+ * the container GENUINELY GROWS to whatever the body measures rather than
+ * animating to a guessed pixel height or swapping one fixed block for another.
+ * The idiom is already in the product (`components/onboarding/steps/
+ * step-connection.tsx`); what differs here is the clock — `emphasized` (800ms),
+ * because DESIGN.md files container size and shape changes there and this is the
+ * largest single re-proportion on the surface.
+ *
+ * `motion-reduce:transition-none` is not optional on a height morph: a reader
+ * who asked for less motion still needs the body, they just need it instantly.
+ *
+ * `data-[open=true]` rather than a conditional class string, so the two states
+ * live in ONE constant and cannot drift apart at a call site.
  */
-export const HERO_SPLIT =
-  "grid grid-cols-1 gap-4 @2xl/section:grid-cols-[minmax(0,17rem)_1fr]";
+export const HERO_MORPH = {
+  WRAP: "grid grid-rows-[0fr] transition-[grid-template-rows] duration-[var(--duration-emphasized)] ease-emphasized motion-reduce:transition-none data-[open=true]:grid-rows-[1fr]",
+  /** `min-h-0` is what lets a grid row actually shrink below its content. */
+  CLIP: "min-h-0 overflow-hidden",
+  /**
+   * The body's own top padding, INSIDE the clip. See `RUN_HERO` for why this is
+   * here rather than a `gap` on the card.
+   */
+  BODY: "pt-6",
+} as const;
 
 /**
- * The posture rail — a centred empty-state stack, one radius step DOWN from its
- * host (`rounded-tile` inside a `rounded-hero`).
+ * The hero's two-panel split: the posture rail beside the run's summary.
+ * Collapses to one column below `@2xl/section`, which on the modem's own narrow
+ * web view is the common case rather than the exception.
  *
- * ALSO THE RESULTS CARD'S EMPTY AND ERROR PANELS (`scan-states.tsx`). Those are
- * the same object at a different address: a disc, a title, a line of body copy,
- * centred in a tile inside a section. Giving them a second, near-identical
- * constant is exactly how the incumbent ended up with three hand-authored
- * centred stacks whose paddings disagreed by 8px. One shape, three call sites,
- * and `SKELETON_SHAPE.POSTURE` mirrors all of them at once.
+ * 19rem, up from 17rem: the rail is a ROW now (`RAIL`), so a 64px disc, a gap
+ * and a wrapping title share the width where the old centred stack only ever had
+ * to fit the widest of them.
+ *
+ * ONE COLUMN WHEN THERE IS NO SUMMARY. The caller drops to `HERO_RAIL_ONLY`
+ * rather than passing an empty right-hand cell — a fixed 19rem rail with two
+ * thirds of a hero blank beside it is exactly the void this redesign removed
+ * from the idle state, and it would come straight back on the neighbour route,
+ * which shows a rail before its first read.
+ */
+export const HERO_SPLIT =
+  "grid grid-cols-1 gap-4 @2xl/section:grid-cols-[minmax(0,19rem)_minmax(0,1fr)]";
+
+export const HERO_RAIL_ONLY = "grid grid-cols-1 gap-4";
+
+/**
+ * The results card's EMPTY AND ERROR PANELS, and the frequency calculator's
+ * readout rail — a centred stack, one radius step DOWN from its host
+ * (`rounded-tile` inside a `rounded-hero` or a `rounded-card`).
+ *
+ * IT IS NO LONGER THE SWEEP HERO'S POSTURE RAIL. That rail became a horizontal
+ * row when the hero's height became a function of its posture (see the file
+ * header) — a centred 13rem block is the right shape for a panel that OWNS a
+ * card body with nothing in it, and the wrong shape for a strip that has to
+ * collapse to nothing at idle. The hero's rail is `RAIL` below.
+ *
+ * The two remaining call sites are still one object: a disc, a title, a line of
+ * body copy, centred in a tile inside a section. Giving them a second,
+ * near-identical constant is exactly how the incumbent ended up with three
+ * hand-authored centred stacks whose paddings disagreed by 8px.
  *
  * Counter-rule, learned on the frequency-locking surface: never put `mt-auto` on
  * the last child of this stack. It eats the free space and silently cancels the
@@ -187,44 +293,72 @@ export const HERO_SPLIT =
  */
 export const POSTURE = {
   /**
-   * `min-h-[13rem]` is the COMPLETE stack measured: 48px of padding, a 64px
-   * disc, a 48px figure, a 20px title and two 12px gaps. It also covers the
-   * idle/scanning/failed stack (disc, title, up to three lines of body) and the
-   * `scan-states.tsx` panels, which are the same object at a different address.
+   * `min-h-[13rem]` is what the panel has to hold: 48px of padding, a 64px
+   * disc, a title, up to three lines of body and a quiet pill action. It also
+   * pins the results card to one height across its empty, error and skeleton
+   * branches, so a failed run does not resize the page under the reader.
    *
-   * `SKELETON_SHAPE.POSTURE` mirrors this number and the two must move
-   * together. They are written as literals rather than composed from a shared
-   * string because Tailwind's JIT scans source text — an interpolated
-   * `min-h-[${X}]` produces no class at all.
+   * `EMPTY_PANEL` restates this number and the two must move together. They are
+   * written as literals rather than composed from a shared string because
+   * Tailwind's JIT scans source text — an interpolated `min-h-[${X}]` produces
+   * no class at all.
    */
   ROOT: "flex min-h-[13rem] flex-col items-center justify-center gap-3 rounded-tile bg-surface-container p-6 text-center",
   /**
-   * 64px, up from 52px. The rail lost its context and body lines on the
-   * complete posture (see the file header), so the disc and the figure are the
-   * only two marks left carrying it and both were sized for a five-element
-   * stack. Glyph goes to 32px at every call site — `MaterialSymbol` sets
+   * 64px. Glyph goes to 32px at every call site — `MaterialSymbol` sets
    * `fontSize` inline, so a utility on the parent cannot reach it.
    */
   DISC: "grid size-16 flex-none place-items-center rounded-pill",
   TITLE: "text-sm font-semibold",
   BODY: "max-w-[22rem] text-xs/relaxed text-on-surface-variant text-pretty",
+  // `CLOCK` moved to `RAIL.COUNT` with the rail it sized. It had exactly one
+  // consumer and leaving a 48px figure on a constant nothing renders is how a
+  // contract grows a slot a future caller "recovers" into the wrong object.
+} as const;
+
+/**
+ * THE HERO'S POSTURE RAIL — a horizontal row, not a centred stack.
+ *
+ * The shape follows from what the rail now has to do. It lives inside
+ * `HERO_MORPH`, which grows the hero from zero, so the rail's height IS the
+ * hero's height in the running and complete states and every pixel of it has to
+ * be carrying something. A centred 13rem block was mostly air: the complete
+ * posture is a disc and a figure, and stacking them centred spent 90px of
+ * vertical space to say two things a row says side by side.
+ *
+ * `min-h-[6.5rem]` is the row measured — 40px of padding around a 64px disc — so
+ * the rail is the same height whether the copy beside it runs to one line or
+ * three, and `SKELETON_SHAPE.RAIL` mirrors it. Literals in both places, because
+ * Tailwind's JIT scans source text.
+ *
+ * `items-center`, and no `justify-center`: the disc anchors the left edge and
+ * the copy reads from it. Centring a row whose second child is variable-length
+ * copy moves the disc every time the copy changes length, which on a surface
+ * whose whole job is changing posture is a disc that never sits still.
+ */
+export const RAIL = {
+  ROOT: "flex min-h-[6.5rem] items-center gap-4 rounded-tile bg-surface-container p-5",
+  /** 64px, matching `POSTURE.DISC`. Glyph is 32px at the call site. */
+  DISC: "grid size-16 flex-none place-items-center rounded-pill",
+  COPY: "flex min-w-0 flex-col gap-1",
+  TITLE: "text-sm font-semibold text-pretty",
   /**
-   * THE RESULT COUNT, and only the result count. Size derives from the slot
-   * rather than a ramp step — per the Numeric rule, a literal `text-[Npx]` is
-   * correct by construction here.
+   * The failed posture's title is the MODEM'S OWN STRING (`+CME ERROR: 4 —
+   * operation not supported`), which is a raw machine string and takes machine
+   * voice by the Machine-Voice Rule. Every other posture title is authored
+   * English and does not. The route says which; the rail does not guess.
+   */
+  TITLE_MACHINE: "font-mono text-[13px] font-semibold text-pretty",
+  BODY: "text-xs/relaxed text-on-surface-variant text-pretty",
+  /**
+   * THE RESULT COUNT, and only the result count. Was `POSTURE.CLOCK`, named for
+   * the elapsed timer it also used to hold; the running state carries no numbers
+   * at all now (see the file header), so the slot has one occupant and finally
+   * has its name.
    *
-   * It was named CLOCK because it used to hold the sweep's elapsed timer as
-   * well. The running state carries no numbers at all now (see the file
-   * header), so the timer is gone and this slot has one occupant. The NAME is
-   * kept because it is the geometry that matters and both scanning routes and
-   * their skeletons key onto it; the ROLE is "the one large figure in the
-   * posture rail".
-   *
-   * 48px, up from 28px, and the reason is the same one the disc grew for: the
-   * count is now one of two marks in the rail rather than one of five, and it
-   * has to read as the rail's subject. Three digits at 48px measure ~90px,
-   * which clears the 272px rail on desktop and the full-width rail on mobile
-   * with room either side.
+   * 48px. Size derives from the slot rather than a ramp step — per the Numeric
+   * rule, a literal `text-[Npx]` is correct by construction here. Three digits
+   * at 48px measure ~90px, which clears the rail beside a 64px disc.
    *
    * `tabular-nums` in the INTERFACE font, not `font-mono`: a count that moves
    * when a run completes is a figure the reader watches change, which is the
@@ -232,19 +366,22 @@ export const POSTURE = {
    * the table below (EARFCN, PCI, Cell ID), which hold steady until something
    * reconfigures them.
    */
-  CLOCK: "text-[48px] font-semibold leading-none tabular-nums tracking-tight",
+  COUNT: "text-[48px] font-semibold leading-none tabular-nums tracking-tight",
 } as const;
 
 /**
- * The full-sweep results card's "nothing has run yet" panel — the shared
+ * The full-sweep results card's "that run listed nothing" panel — the shared
  * `Empty` primitive rather than `scan-states.tsx`'s posture stack.
  *
- * The two are deliberately different objects now. The neighbour route's empty
- * state is still a posture stack, because a neighbour read's primary action sits
- * two hundred pixels above it in the hero and a second copy of it in the card
- * would be one act with two buttons. The sweep's empty state OWNS its action:
- * it is the only thing on the page before a run, so the button belongs in the
- * middle of it where the reader is already looking.
+ * IT NO LONGER CARRIES A BUTTON, AND IT IS NO LONGER REACHED BEFORE A RUN. It
+ * used to own a second copy of the primary action, on the argument that before a
+ * sweep the card is the whole page and a reader looking at an empty table should
+ * not travel back up to the hero. Both halves of that stopped being true on
+ * 2026-08-24: the results card does not render at all at idle (there are no
+ * results, and a dashed box announcing their absence is furniture), so the only
+ * way to see this panel is a sweep that COMPLETED and returned nothing — a state
+ * in which the hero directly above is already showing a 0 and a "Sweep again"
+ * button. One act, one button.
  *
  * The dashed stroke is this codebase's vocabulary for a slot with nothing in it
  * yet (see `custom-profiles/empty-profile.tsx`), not a compensation for a weak
@@ -280,80 +417,131 @@ export const HERO_LINK = {
 // -----------------------------------------------------------------------------
 
 /**
- * "What this sweep found" / "What this read returned" — the panel that turns a
- * result count into a shape before the reader reaches the table.
+ * What the run found, as one tile per group — the panel that turns a result
+ * count into a shape before the reader reaches the table.
  *
- * ONE RADIUS STEP DOWN AT EVERY LEVEL, and one EXPLICIT tone step at every
- * level: `rounded-tile` on `surface-container` inside the `rounded-hero`
- * `surface` card, holding `rounded-field` tiles on `surface-container-high`.
- * Never an alpha wash to fake the step — that is the Explicit-Tone Rule, and the
- * unmigrated pattern this family already removed once from its posture disc.
+ * IT HAS NO WRAPPER FILL AND NO HEADING ANY MORE. Both went when the tiles went
+ * neutral (see `SUMMARY_TILE_DISC`): a `surface-container` panel holding
+ * `surface-container` tiles is not a tone step, it is a tile-shaped hole, and
+ * the only way to keep the step would have been to push the tiles up to
+ * `surface-container-high` — the exact undifferentiated grey block the rotating
+ * triad was introduced to fix. The tiles sit on the hero's own `surface`
+ * instead, which is a real step, and the heading went with the panel because
+ * "What this sweep found" over four tiles inside a card titled "Full band sweep"
+ * was the third thing on one screen naming the same run.
  *
- * The GRID is a container query against `@container/section`, declared by
- * `RUN_HERO`. It has to survive one provider and it has to survive nine, so the
- * caller caps the tile count and the columns cap themselves at three.
+ * The GRID is `auto-fit` rather than a fixed 1/2/3 progression, for the reason
+ * `BAND_TILE.GRID` is: the COUNT is data. A sweep returns one provider group or
+ * six, and under a fixed three-column grid a lone tile sits in the first third
+ * with two empty columns beside it, which reads as two tiles that failed to
+ * load. `auto-fit` collapses the empty tracks with no count-aware branch in the
+ * component.
  */
 export const SUMMARY = {
-  ROOT: "flex min-h-[13.5rem] flex-col gap-3 rounded-tile bg-surface-container p-5",
-  TITLE: "text-sm font-semibold",
-  GRID: "grid grid-cols-1 gap-2 @md/section:grid-cols-2 @3xl/section:grid-cols-3",
+  GRID: "grid grid-cols-[repeat(auto-fit,minmax(11rem,1fr))] content-start gap-3",
   /**
-   * Background and ink are NOT here — they come from `summaryTileTone(index)`
-   * below, one per tile. The tile stays a container-shape constant; the tone is
-   * the one thing that legitimately varies per tile.
+   * A ROW: the tier disc, then the group's name and facts. Same rhythm as
+   * `RAIL`, which is the point — the rail is the run's posture and a tile is one
+   * group's posture, and reading one should teach the other.
+   *
+   * `rounded-tile` (28px), not the old `rounded-field` (20px): these are direct
+   * children of the `rounded-hero` card now that the intermediate panel is gone,
+   * so they take the step below it rather than the step below THAT.
    */
-  TILE: "flex min-w-0 flex-col gap-1.5 rounded-field px-4 py-3",
+  TILE: "flex min-w-0 items-center gap-3.5 rounded-tile bg-surface-container p-4",
   /**
-   * `opacity-85` on the tile's OWN ink rather than a fixed `text-on-surface-variant`
-   * — the tile's tone now varies per index (see `summaryTileTone`), so a hardcoded
-   * neutral would sit wrong on a solid `bg-primary` tile. Same idiom the SMS
-   * summary strip uses for its tile labels.
+   * 52px, one step down from the rail's 64px — a group is a smaller claim than
+   * the run. Glyph is 26px at the call site; `MaterialSymbol` sets `fontSize`
+   * inline, so a utility on the parent cannot reach it. Tone comes from
+   * `SUMMARY_TILE_DISC` below, keyed on the group's best measured tier.
    */
-  LABEL: "truncate text-xs font-semibold opacity-85",
-  /** The count. A changing figure, so interface font — see `TABLE.FIGURE`. */
-  VALUE: "text-xl font-semibold leading-none tabular-nums",
+  DISC: "grid size-13 flex-none place-items-center rounded-pill",
+  COPY: "flex min-w-0 flex-col gap-0.5",
   /**
-   * The facts under the count, as separate inline items with a gap rather than
+   * The group's name — a provider, a relation, "3 more providers".
+   *
+   * `text-on-surface`, no `opacity-85`. The wash existed ONLY because the tile
+   * body used to carry a rotating role fill and a fixed neutral ink sat wrong on
+   * a solid `bg-primary`; the body is neutral now, so the wash is a contrast
+   * reduction with nothing left to compensate for.
+   */
+  LABEL: "truncate text-sm font-semibold text-on-surface",
+  /** A provider the modem named only by its MCC-MNC. An identifier, so mono. */
+  LABEL_IDENT: "truncate font-mono text-[13px] font-semibold tabular-nums text-on-surface",
+  /**
+   * The facts under the name, as separate inline items with a gap rather than
    * one string glued with `·` (the No-Dot-Separator Rule).
    */
-  DETAILS: "flex flex-wrap items-baseline gap-x-2.5 gap-y-1",
+  DETAILS: "flex flex-wrap items-baseline gap-x-2.5 gap-y-0.5 text-on-surface-variant",
   /**
    * Band lists, EARFCNs, channels — identifiers, so machine voice.
    *
-   * `text-xs`, not the mock's 11px: the mock is dark-only and sizes by eye, and
-   * a new type step invented for one caption is exactly what the ramp exists to
-   * prevent. Caption is the smallest documented step and it is the right one.
+   * `text-xs`, not 11px: a new type step invented for one caption is exactly
+   * what the ramp exists to prevent. Caption is the smallest documented step and
+   * it is the right one. No `opacity-85` — see `LABEL`.
    */
-  DETAIL_IDENT: "font-mono text-xs tabular-nums opacity-85",
+  DETAIL_IDENT: "font-mono text-xs tabular-nums",
   /** Readings and counts — interface font with tabular figures. */
-  DETAIL_FIGURE: "text-xs tabular-nums opacity-85",
+  DETAIL_FIGURE: "text-xs tabular-nums",
+  /** A completed run that grouped into nothing. */
+  EMPTY: "rounded-tile bg-surface-container p-4 text-xs/relaxed text-on-surface-variant text-pretty",
 } as const;
 
 /**
- * Tile tone triad, rotating by index — the SMS summary strip's fill/container/
- * uplink pattern (`components/cellular/sms/summary-tiles.tsx`), applied here
- * because this panel had the opposite problem: every tile sat on the identical
- * `surface-container-high`, so three (or nine) peer facts read as one grey
- * block with numbers in it rather than as distinct findings.
+ * THE TILE'S DISC CARRIES THE GROUP'S BEST SIGNAL TIER. This replaces
+ * `summaryTileTone(index)`, a three-tone triad rotated by ARRAY POSITION.
  *
- * Tile 0 is always the FILL pair — the group the reader's eye lands on first.
- * Every tile after it alternates the two CONTAINER pairs, so the panel never
- * runs out of distinct tones however many groups a sweep returns (up to nine,
- * per the file header). `lte-container` is deliberately never used here: it is
- * the 4G identity hue and none of these tiles mean "LTE" (DESIGN.md > The
- * Identity-Chip Rule) — `uplink-container` is the system's spare identity hue
- * for exactly this "counts and supporting readouts" role.
+ * The triad's stated problem was real — every tile on one `surface-container-high`
+ * read as a grey block with numbers in it — but rotating by index solved it with
+ * colour that encodes nothing: tile 0 wore the brand's one acting fill because it
+ * was first, and a reader who learned "the blue one matters" learned a fact about
+ * sort order. Worse, a strong role fill on a tile BODY is the pattern this family
+ * had already retired twice, and it forced the three `opacity-85` ink washes that
+ * are now gone from `SUMMARY` above.
+ *
+ * So the body goes neutral and the colour moves to a 52px disc where it means
+ * something: the strongest reading in that group, on THIS SURFACE'S OWN three-tier
+ * scale (`signalTier`, -85/-100). The panel is still differentiated tile by tile,
+ * and now the differentiation is the finding.
+ *
+ * EVERY TIER GETS ITS OWN GLYPH, and that is not decoration: `success-container`
+ * and `warning-container` measure 1.03:1 apart — the same surface to the eye, and
+ * identical under deuteranopia — so on a disc with no text inside it the glyph is
+ * the ONLY thing separating good from fair. The `signal_cellular_alt` ladder is
+ * deliberately a different mark from `SIGNAL_BADGE`'s `signal_cellular_N_bar`
+ * ladder: a tile disc summarises a GROUP's best reading while a table chip rates
+ * ONE cell, and a sweep renders both on the same screen.
+ *
+ * Keyed onto `SignalTier` and `MaterialSymbolName`, so a tier without a tone or a
+ * glyph we do not ship fails the build rather than rendering untinted or as the
+ * literal ligature text.
  */
-const SUMMARY_TILE_TONE = [
-  "bg-primary text-primary-foreground",
-  "bg-primary-container text-on-primary-container",
-  "bg-uplink-container text-on-uplink-container",
-] as const;
-
-export function summaryTileTone(index: number): string {
-  if (index === 0) return SUMMARY_TILE_TONE[0];
-  return SUMMARY_TILE_TONE[1 + ((index - 1) % 2)];
-}
+export const SUMMARY_TILE_DISC: Record<
+  SignalTier,
+  { tone: string; glyph: MaterialSymbolName }
+> = {
+  good: {
+    tone: "bg-success-container text-on-success-container",
+    glyph: "signal_cellular_alt",
+  },
+  fair: {
+    tone: "bg-warning-container text-on-warning-container",
+    glyph: "signal_cellular_alt_2_bar",
+  },
+  poor: {
+    tone: "bg-destructive-container text-on-destructive-container",
+    glyph: "signal_cellular_alt_1_bar",
+  },
+  /**
+   * NOT `warning`. `none` is "the modem listed this group but measured none of
+   * it", which is the absence of a verdict rather than a poor one — the same
+   * distinction `SIGNAL_BADGE.none` draws, and the incumbent table's bug.
+   */
+  none: {
+    tone: "bg-surface-container-high text-on-surface-variant",
+    glyph: "signal_cellular_off",
+  },
+};
 
 /**
  * The verdict strip under the tiles: one line explaining what the numbers
@@ -374,16 +562,19 @@ export type VerdictTone = "muted" | "success" | "warning" | "destructive";
 
 export const VERDICT_TONE: Record<VerdictTone, string> = {
   /**
-   * `surface`, NOT `surface-container-high`. The tiles above this strip are
-   * `surface-container-high` on the panel's `surface-container`, so a muted
-   * verdict painted the same step read as a fifth, wider tile rather than as a
-   * statement about the four above it — and `muted` is the tone the neighbour
-   * route's only verdict uses, so that was its normal appearance rather than an
-   * edge case. Stepping to the card's own `surface` is a LIFT off the panel in
-   * both themes, which is the same move `TABLE.ROW_HOVER` makes for the same
-   * reason.
+   * ONE STEP OFF THE TILES, WHICHEVER STEP THEY ARE ON. The rule is that a muted
+   * verdict must not read as one more, wider tile — `muted` is the tone the
+   * neighbour route's only verdict uses, so that is its normal appearance rather
+   * than an edge case.
+   *
+   * It used to be `bg-surface`, because the tiles were `surface-container-high`
+   * inside a `surface-container` panel and `surface` was the lift off it. The
+   * panel is gone and the tiles are `surface-container` sitting directly on the
+   * card's `surface` (see `SUMMARY`), so `surface` would now be INVISIBLE and
+   * the lift is `surface-container-high`. Same move `TABLE.ROW_HOVER` makes,
+   * re-based on what is actually underneath it.
    */
-  muted: "bg-surface text-on-surface-variant",
+  muted: "bg-surface-container-high text-on-surface-variant",
   success: "bg-success-container text-on-success-container",
   warning: "bg-warning-container text-on-warning-container",
   destructive: "bg-destructive-container text-on-destructive-container",
@@ -640,8 +831,8 @@ export const SIGNAL_BADGE: Record<
 };
 
 /** The scanner's own boundaries. See the note on `SignalTier`. */
-export const SIGNAL_GOOD_DBM = -85;
-export const SIGNAL_FAIR_DBM = -100;
+const SIGNAL_GOOD_DBM = -85;
+const SIGNAL_FAIR_DBM = -100;
 
 export function signalTier(strength: number | null | undefined): SignalTier {
   // The workers emit 0 rather than null for an unreported reading, and 0 dBm is
@@ -701,17 +892,36 @@ export const SKELETON_SHAPE = {
   TITLE: "h-6 w-40 rounded-inline",
   DESC: "h-5 w-56 rounded-inline",
   CHIP: "h-[1.375rem] w-24 rounded-pill",
-  /** Mirrors `POSTURE.ROOT`'s min-height. Move both or neither. */
-  POSTURE: "h-[13rem] w-full rounded-tile",
   /**
-   * Mirrors `SUMMARY.ROOT`'s min-height.
+   * Mirrors `RAIL.ROOT`'s min-height. Move both or neither.
    *
-   * It has a REAL call site: the summary is drawn from rows a run is currently
-   * replacing, so while a sweep is in flight the panel is a skeleton rather than
-   * last run's numbers wearing this run's posture. Mirroring the taller state is
-   * what stops the cost statement below it jumping when the result lands.
+   * `SKELETON_SHAPE.POSTURE` is gone with the hero's use of `POSTURE.ROOT`: the
+   * results card's empty and error panels are terminal states that never stand
+   * in for loading data, so the 13rem stack had no skeleton left to mirror.
    */
-  SUMMARY: "h-[13.5rem] w-full rounded-tile",
+  RAIL: "h-[6.5rem] w-full rounded-tile",
+  /**
+   * The summary is drawn from rows a run is currently replacing, so while a
+   * sweep is in flight the panel is a skeleton rather than last run's numbers
+   * wearing this run's posture.
+   *
+   * IT MIRRORS BY COMPOSITION, NOT BY HEIGHT. The panel is a grid of tiles now
+   * rather than one filled block, so the skeleton is the same grid holding the
+   * same `SUMMARY.TILE` boxes with their contents replaced — a disc placeholder
+   * at the disc's size and two line boxes at the label's and the details' sizes.
+   * A single `h-[13.5rem]` bar would have been a shape the loaded state can no
+   * longer take.
+   *
+   * `SUMMARY_TILE_DISC` carries the loaded disc's fill, so the placeholder must
+   * restate `rounded-pill` and the size here — `Skeleton`'s own `rounded-md`
+   * beats a custom radius name alphabetically through `cn()`, and `size-13`
+   * has no default to lose to.
+   */
+  SUMMARY_DISC: "size-13 flex-none rounded-pill",
+  SUMMARY_LABEL: "h-5 w-3/5 rounded-inline",
+  SUMMARY_DETAILS: "h-4 w-4/5 rounded-inline",
+  /** How many tile placeholders the running summary draws. */
+  SUMMARY_TILES: 4,
   /** Mirrors `HERO_LINK.ROOT`'s height. */
   LINK: "h-9 w-40 rounded-pill",
   /** Mirrors `TOOLBAR.FILTER`. */
@@ -744,7 +954,17 @@ export const SKELETON_SHAPE = {
 // value rather than restating it is what keeps the two anchors one object when
 // the geometry is retuned — and `HERO_SPLIT` is shared outright.
 
-export const CALC_HERO = RUN_HERO;
+/**
+ * `HERO_SHELL` PLUS THE GAP, rather than `RUN_HERO`, which it used to alias.
+ *
+ * The alias stopped being honest when the run hero dropped its `gap-5` for the
+ * idle collapse (see `RUN_HERO`). Nothing on the calculator collapses — the
+ * readout rail and the form are both always present — so its sections are
+ * separated by a real flex gap, exactly as before. The geometry that genuinely
+ * IS shared is still shared, by both reading from `HERO_SHELL`, so a retune of
+ * the anchor's radius, padding or shadow still moves the two together.
+ */
+export const CALC_HERO = `${HERO_SHELL} gap-5`;
 
 /**
  * The readout rail — the answer, at the size the answer deserves.

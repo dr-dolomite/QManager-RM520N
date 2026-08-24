@@ -8,10 +8,12 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 
 import {
+  HERO_MORPH,
+  HERO_RAIL_ONLY,
   HERO_SPLIT,
-  POSTURE,
   POSTURE_DISC,
   POSTURE_GLYPH,
+  RAIL,
   RUN_HERO,
   SECTION_HEAD,
   SKELETON_SHAPE,
@@ -27,10 +29,35 @@ import {
 // sharing a route, with nothing stable across them.
 //
 // This is that stable object. It is always mounted and it MORPHS through its
-// posture rather than being replaced: same rail, same disc, same count slot,
-// same action row — only the tone, the glyph and the copy move. That is what
-// makes the posture change legible as one thing changing state instead of as a
-// navigation.
+// posture rather than being replaced: same header, same rail, same summary slot
+// — only the height, the tone, the glyph and the copy move.
+//
+// -----------------------------------------------------------------------------
+// ITS HEIGHT IS NOW PART OF WHAT MORPHS (2026-08-24)
+// -----------------------------------------------------------------------------
+// The hero used to be one fixed height in all four postures, sized for the
+// richest of them. At idle that meant a 13rem rail saying "no sweep yet" beside
+// an empty summary column with a stranded button in it — roughly 280px of card
+// spent telling the reader that nothing had happened, which they could see.
+//
+// It is a compact launch bar at idle now (title, description, action) and GROWS
+// into the rail-plus-summary body when a run starts. The growth is a real
+// container morph — `HERO_MORPH`, a `grid-template-rows: 0fr -> 1fr` wrapper on
+// `--duration-emphasized` / `--ease-emphasized` — so the hero genuinely gets
+// taller rather than swapping one fixed block for another. Nothing overshoots
+// and nothing springs; the reader sees ONE object taking on what it now has to
+// report.
+//
+// Two structural consequences:
+//
+//   1. THE ACTIONS LIVE IN THE HEADER, in `SECTION_HEAD.META` beside the sibling
+//      link. There is no action row under the summary any more, because at idle
+//      there is no summary for it to sit under, and a button that changes which
+//      row it belongs to depending on posture is the incumbent's problem in
+//      miniature.
+//   2. THE RAIL IS A ROW (`RAIL`), not the centred `POSTURE` stack. Its height
+//      is the hero's height in every open state, so every pixel of it has to be
+//      carrying something.
 //
 // IT IS DELIBERATELY COPY-BLIND. Every string arrives as a prop, because the two
 // scanning routes disagree about almost all of them — one sweeps every band for
@@ -65,7 +92,7 @@ export interface RunHeroProps {
   posture: RunPosture;
   /** Section title, e.g. "Full band sweep". */
   title: string;
-  /** One line beside the title, on its row rather than under it. */
+  /** One line UNDER the title — see `SECTION_HEAD` for why it stacks. */
   description?: string;
   /**
    * The cross-link to the sibling scanning route, in the header slot the
@@ -73,17 +100,34 @@ export interface RunHeroProps {
    * where it is going and why it may not go there right now.
    */
   link?: React.ReactNode;
+  /**
+   * Route-owned buttons, rendered in the header beside `link`. They style
+   * themselves with `PILL_ACTION` and friends.
+   *
+   * A route may pass NOTHING here, and the failed posture is where that
+   * matters: the results card carries the recovery action in that state, and a
+   * hero that also offered one would put two buttons on one screen for one act.
+   * The hero does not make that call — it has no opinion about which affordance
+   * a route wants to be the single one.
+   */
+  actions?: React.ReactNode;
   postureTitle: string;
+  /**
+   * Machine voice for `postureTitle`. The failed posture's title is the modem's
+   * own string (`+CME ERROR: 4 — operation not supported`), which is a raw
+   * machine string; every other posture's is authored English.
+   */
+  postureTitleIsMachine?: boolean;
   /** Omitted on the complete posture — see `metric`. */
   postureBody?: string | null;
   /**
    * The one large figure in the posture rail: a completed run's result count.
    * Absent while nothing has completed.
    *
-   * It is now the rail's SUBJECT rather than one line of five — the context
-   * caption under it and the body sentence under that were both removed by user
-   * decision (see `shapes.ts`'s file header), so the figure and the disc carry
-   * the complete posture between them.
+   * It is the rail's SUBJECT rather than one line of five — the context caption
+   * under it and the body sentence under that were both removed by user decision
+   * (see `shapes.ts`'s file header), so the figure and the disc carry the
+   * complete posture between them.
    */
   metric?: React.ReactNode;
   /** "What this run found". Route-owned, and drawn from the rows. */
@@ -95,8 +139,20 @@ export interface RunHeroProps {
    * expresses the sweep/read asymmetry in its place — a later pass should not
    * put the slot back.
    */
-  /** Route-owned buttons. They style themselves with `PILL_ACTION` and friends. */
-  actions?: React.ReactNode;
+  /**
+   * Collapse the body to nothing at idle, and grow into it when a run starts.
+   *
+   * THE TWO ROUTES DIVERGE HERE, AND THAT IS THE POINT OF THE PROP. The sweep
+   * passes `true`: it holds the modem's AT lock for 30-180 seconds, so the grow
+   * lands once, early, and then the reader waits — the morph reads as the page
+   * committing to a long operation. The neighbour read passes `false`, because
+   * a read is done in about two seconds: an 800ms grow followed almost
+   * immediately by the content it grew for reads as the panel twitching rather
+   * than as progress, and the same container would be back at rest before the
+   * gesture finished being noticed. See the comment at the neighbour route's
+   * call site.
+   */
+  idleCollapsed?: boolean;
   /** First paint, before the worker's status is known. */
   isLoading?: boolean;
 }
@@ -106,14 +162,22 @@ export function RunHero({
   title,
   description,
   link,
+  actions,
   postureTitle,
+  postureTitleIsMachine = false,
   postureBody,
   metric,
   summary,
-  actions,
+  idleCollapsed = false,
   isLoading = false,
 }: RunHeroProps) {
   const mark = POSTURE_GLYPH[posture];
+
+  // The body is closed only where a route asked for the collapse AND there is
+  // genuinely nothing to report. `isLoading` forces it open: a first paint that
+  // starts collapsed and grows the moment the worker's status arrives is a
+  // morph the reader did not cause.
+  const isOpen = isLoading || !idleCollapsed || posture !== "idle";
 
   // The one ambient motion on this surface, and it is not decorative: a sweep
   // publishes nothing for up to three minutes, so a still page is
@@ -125,59 +189,88 @@ export function RunHero({
       ? "animate-spin motion-reduce:animate-none"
       : undefined;
 
+  // A fixed 19rem rail with two thirds of a hero blank beside it is the void
+  // this redesign removed from the idle state. When a route has no summary to
+  // show — the neighbour route before its first read — the rail takes the whole
+  // width instead of anchoring an empty split.
+  const hasSummary = isLoading || (summary !== null && summary !== undefined);
+
   return (
     <Card className={RUN_HERO}>
       <div className={SECTION_HEAD.ROOT}>
-        <h2 className={SECTION_HEAD.TITLE}>{title}</h2>
-        {description ? (
-          <p className={SECTION_HEAD.DESC}>{description}</p>
-        ) : null}
+        <div className={SECTION_HEAD.TITLES}>
+          <h2 className={SECTION_HEAD.TITLE}>{title}</h2>
+          {description ? (
+            <p className={SECTION_HEAD.DESC}>{description}</p>
+          ) : null}
+        </div>
 
         {isLoading ? (
           <div className={SECTION_HEAD.META}>
             <Skeleton className={SKELETON_SHAPE.LINK} />
+            <Skeleton className={SKELETON_SHAPE.ACTION} />
           </div>
-        ) : link ? (
-          <div className={SECTION_HEAD.META}>{link}</div>
+        ) : link || actions ? (
+          <div className={SECTION_HEAD.META}>
+            {link}
+            {actions}
+          </div>
         ) : null}
       </div>
 
-      <div className={HERO_SPLIT}>
-        {/* ---- Posture rail ------------------------------------------------ */}
-        {isLoading ? (
-          <Skeleton className={SKELETON_SHAPE.POSTURE} />
-        ) : (
-          <div className={POSTURE.ROOT}>
-            <span className={cn(POSTURE.DISC, POSTURE_DISC[posture])}>
-              <MaterialSymbol
-                name={mark.glyph}
-                size={32}
-                filled={mark.filled}
-                className={spin}
-              />
-            </span>
+      {/* The container morph. The wrapper is ALWAYS mounted so the grow has
+          something to animate; what is conditional is the content inside it,
+          which is laid out before the row opens and is therefore already at its
+          final height when the transition starts. */}
+      <div className={HERO_MORPH.WRAP} data-open={isOpen}>
+        <div className={HERO_MORPH.CLIP}>
+          {isOpen ? (
+            <div
+              className={cn(
+                HERO_MORPH.BODY,
+                hasSummary ? HERO_SPLIT : HERO_RAIL_ONLY,
+              )}
+            >
+              {/* ---- Posture rail ------------------------------------------ */}
+              {isLoading ? (
+                <Skeleton className={SKELETON_SHAPE.RAIL} />
+              ) : (
+                <div className={RAIL.ROOT}>
+                  <span className={cn(RAIL.DISC, POSTURE_DISC[posture])}>
+                    <MaterialSymbol
+                      name={mark.glyph}
+                      size={32}
+                      filled={mark.filled}
+                      className={spin}
+                    />
+                  </span>
 
-            {metric !== null && metric !== undefined ? (
-              <p className={POSTURE.CLOCK}>{metric}</p>
-            ) : null}
+                  <div className={RAIL.COPY}>
+                    {metric !== null && metric !== undefined ? (
+                      <p className={RAIL.COUNT}>{metric}</p>
+                    ) : null}
 
-            <span className={POSTURE.TITLE}>{postureTitle}</span>
-            {/* Absent on the complete posture, where the figure above already
-                is the count and a sentence restating it was duplication. */}
-            {postureBody ? (
-              <span className={POSTURE.BODY}>{postureBody}</span>
-            ) : null}
-          </div>
-        )}
+                    <span
+                      className={
+                        postureTitleIsMachine ? RAIL.TITLE_MACHINE : RAIL.TITLE
+                      }
+                    >
+                      {postureTitle}
+                    </span>
 
-        {/* ---- Summary and actions ----------------------------------------- */}
-        <div className="flex flex-col gap-4">
-          {summary}
+                    {/* Absent on the complete posture, where the figure above
+                        already is the count and a sentence restating it was the
+                        same fact twice. */}
+                    {postureBody ? (
+                      <span className={RAIL.BODY}>{postureBody}</span>
+                    ) : null}
+                  </div>
+                </div>
+              )}
 
-          {isLoading ? (
-            <Skeleton className={SKELETON_SHAPE.ACTION} />
-          ) : actions ? (
-            <div className="flex flex-wrap items-center gap-2">{actions}</div>
+              {/* ---- Summary ----------------------------------------------- */}
+              {summary}
+            </div>
           ) : null}
         </div>
       </div>

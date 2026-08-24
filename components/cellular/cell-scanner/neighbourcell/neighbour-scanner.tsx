@@ -10,10 +10,7 @@ import { MaterialSymbol } from "@/components/ui/material-symbol";
 import { useNeighbourScanner } from "@/hooks/use-neighbour-scanner";
 import { downloadCSV } from "@/lib/download-csv";
 import { staggerItem } from "@/lib/motion";
-import type {
-  NeighbourCellResult,
-  NeighbourCellType,
-} from "@/types/cell-scanner";
+import type { NeighbourCellResult } from "@/types/cell-scanner";
 
 import LockCellDialog, { type LockCellTarget } from "../lock-cell-dialog";
 import RunHero from "../run-hero";
@@ -24,9 +21,17 @@ import RunSummary, {
 import { ScanEmptyState, ScanErrorState } from "../scan-states";
 import { ScannerSkeleton } from "../scanner-skeleton";
 import SiblingRouteLink from "../sibling-link";
-import { PILL_ACTION, RESULTS_CARD, SECTION_HEAD, runPosture } from "../shapes";
+import {
+  PILL_ACTION,
+  RESULTS_CARD,
+  SECTION_HEAD,
+  runPosture,
+  type SignalTier,
+} from "../shapes";
 import { MAX_TILE_CHANNELS, summariseNeighbours } from "../summaries";
-import NeighbourScanResultView from "./neighbour-scan-result";
+import NeighbourScanResultView, {
+  CELL_TYPE_KEY,
+} from "./neighbour-scan-result";
 
 // =============================================================================
 // Neighbour cells — the read and its results
@@ -51,6 +56,35 @@ import NeighbourScanResultView from "./neighbour-scan-result";
 // operation is a progress indicator for something that has already finished by
 // the time the reader's eye reaches it; the hero's `metric` slot carries the
 // result count instead.
+//
+// -----------------------------------------------------------------------------
+// AND NO IDLE COLLAPSE, FOR THE SAME REASON (2026-08-24)
+// -----------------------------------------------------------------------------
+// The sweep route's hero collapses to a launch bar at idle and GROWS into its
+// body when a run starts, on the 800ms emphasized clock. This route takes every
+// other part of that change — the stacked section head, the neutral summary
+// tiles with their tier discs, the header action row, the returned ink — and
+// deliberately NOT the height morph. `RunHero` exposes it as `idleCollapsed`,
+// and this file is the reason the prop exists rather than the behaviour being
+// unconditional.
+//
+// The cost asymmetry that separates these two routes everywhere else separates
+// them here too. A sweep holds the AT lock for 30-180 seconds, so its grow lands
+// once, early, and the reader then waits inside the shape it grew into — the
+// morph reads as the page committing to a long operation. A neighbour read is
+// done in about two seconds: the container would finish an 800ms grow, hold the
+// skeleton for barely a second, and swap to the result. Same gesture, and at
+// that cadence it reads as the panel twitching rather than as progress. Growth
+// that resolves before the reader has finished registering it is not
+// choreography, it is jitter.
+//
+// So this hero is always open. Its rail is present at idle carrying the `idle`
+// posture, which is also the only place on this route that explains what a
+// neighbour read IS before you run one — and with no summary beside it yet, the
+// rail takes the full width rather than anchoring an empty split (see
+// `HERO_RAIL_ONLY`). The results card stays mounted at idle with its quiet
+// `ScanEmptyState` for the same reason: a two-second act does not need the page
+// rearranged around it.
 // =============================================================================
 
 function buildCsvRows(results: NeighbourCellResult[]): string[] {
@@ -93,14 +127,16 @@ const POSTURE_COPY = {
 const SWEEP_ROUTE = "/cellular/cell-scanner";
 
 /**
- * Relation -> its tile label key, as LITERALS. Same reasoning as the column
- * map in `neighbour-scan-result.tsx`: `i18n:check` cannot see an interpolated
- * stem, so a key built at runtime is a key nothing will ever report as missing.
+ * A signal tier -> its label key, as LITERALS. Restated from the sweep route
+ * rather than shared, by the same house convention `shapes.ts`'s header states:
+ * four keys are cheaper than a copy module, and neither route should be able to
+ * re-word the other's accessible labels.
  */
-const RELATION_LABEL_KEY: Record<NeighbourCellType, string> = {
-  intra: "cell_scanner.neighbour.cell_type.intra",
-  inter: "cell_scanner.neighbour.cell_type.inter",
-  nr5g: "cell_scanner.neighbour.cell_type.nr5g",
+const SIGNAL_LABEL_KEY: Record<SignalTier, string> = {
+  good: "cell_scanner.signal.good",
+  fair: "cell_scanner.signal.fair",
+  poor: "cell_scanner.signal.poor",
+  none: "cell_scanner.signal.none",
 };
 
 export function NeighbourScanner() {
@@ -146,9 +182,20 @@ export function NeighbourScanner() {
     // silently absent from an intra/inter pair that would then not add up.
     const tiles: SummaryTile[] = summary.groups.map((group) => ({
       id: group.type,
-      label: t(RELATION_LABEL_KEY[group.type]),
-      value: group.count,
+      label: t(CELL_TYPE_KEY[group.type]),
+      // The disc is the relation's best measured tier, graded in
+      // `summaries.ts`. `tierLabel` is that tier in words for a screen reader —
+      // the glyph carrying it is a ligature and is always aria-hidden.
+      tier: group.tier,
+      tierLabel: t(SIGNAL_LABEL_KEY[group.tier]),
       details: [
+        // The count moved into the fact line when the tile became a row. This
+        // route counts ROWS rather than cells: a neighbour report names one
+        // entry per relation, which the footer tally already calls a row.
+        {
+          text: t("cell_scanner.results.tally_rows", { count: group.count }),
+          voice: "figure" as const,
+        },
         ...(group.channels.length > 0
           ? [
               group.channels.length <= MAX_TILE_CHANNELS
@@ -181,8 +228,19 @@ export function NeighbourScanner() {
       tiles.push({
         id: "__measured",
         label: t("cell_scanner.neighbour.run.summary_measured_label"),
-        value: summary.measured,
+        // This tile is a COUNT rather than a relation, so it has no tier of its
+        // own; it takes the best tier across the whole read. That is the honest
+        // reading of "with measurements": when nothing was measured the tier is
+        // `none` and the disc says so, which is exactly this tile's subject.
+        tier: summary.tier,
+        tierLabel: t(SIGNAL_LABEL_KEY[summary.tier]),
         details: [
+          {
+            text: t("cell_scanner.neighbour.results.tally_measured", {
+              count: summary.measured,
+            }),
+            voice: "figure" as const,
+          },
           {
             text: t("cell_scanner.neighbour.run.summary_channel_only", {
               count: summary.channelOnly,
@@ -213,8 +271,11 @@ export function NeighbourScanner() {
     [summary.channelOnly, t],
   );
 
-  // The modem's own message beats a generic failure line when it gave one.
-  const postureTitle = posture === "failed" && error ? error : t(copy.title);
+  // The modem's own message beats a generic failure line when it gave one — and
+  // when it is the modem's own string it is a raw machine string, so it takes
+  // machine voice. Authored English never does.
+  const usesModemMessage = posture === "failed" && Boolean(error);
+  const postureTitle = usesModemMessage && error ? error : t(copy.title);
 
   const postureBody = "body" in copy ? t(copy.body) : null;
 
@@ -236,13 +297,15 @@ export function NeighbourScanner() {
             />
           }
           postureTitle={postureTitle}
+          postureTitleIsMachine={usesModemMessage}
           postureBody={postureBody}
           metric={hasResults ? results.length : null}
+          // NO `idleCollapsed` — see this file's header. A two-second read does
+          // not earn an 800ms container morph.
           summary={
             isScanning || posture === "complete" ? (
               <RunSummary
                 isLoading={isScanning}
-                title={t("cell_scanner.neighbour.run.summary_title")}
                 tiles={summaryTiles}
                 verdict={verdict}
                 emptyText={t("cell_scanner.neighbour.run.summary_empty")}
@@ -292,12 +355,14 @@ export function NeighbourScanner() {
       <motion.div variants={staggerItem}>
         <Card className={RESULTS_CARD}>
           <div className={SECTION_HEAD.ROOT}>
-            <h2 className={SECTION_HEAD.TITLE}>
-              {t("cell_scanner.neighbour.results.title")}
-            </h2>
-            <p className={SECTION_HEAD.DESC}>
-              {t("cell_scanner.neighbour.results.description")}
-            </p>
+            <div className={SECTION_HEAD.TITLES}>
+              <h2 className={SECTION_HEAD.TITLE}>
+                {t("cell_scanner.neighbour.results.title")}
+              </h2>
+              <p className={SECTION_HEAD.DESC}>
+                {t("cell_scanner.neighbour.results.description")}
+              </p>
+            </div>
           </div>
 
           {isScanning ? (

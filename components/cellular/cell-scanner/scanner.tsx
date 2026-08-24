@@ -8,7 +8,6 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import {
   Empty,
-  EmptyContent,
   EmptyDescription,
   EmptyHeader,
   EmptyMedia,
@@ -30,10 +29,10 @@ import SiblingRouteLink from "./sibling-link";
 import {
   EMPTY_PANEL,
   PILL_ACTION,
-  PILL_ACTION_PLAIN,
   RESULTS_CARD,
   SECTION_HEAD,
   runPosture,
+  type SignalTier,
 } from "./shapes";
 import { summariseSweep } from "./summaries";
 
@@ -49,12 +48,18 @@ import { summariseSweep } from "./summaries";
 // layouts, so the action row appeared and disappeared with the state it happened
 // to be rendered beside.
 //
-// THE PRE-SWEEP STATE IS AN `Empty` WITH ITS OWN BUTTON (2026-08-14). This is
-// the one place the card is allowed to act: before a run there are no rows for
-// it to own, so it is the whole page, and a reader looking at an empty table
-// should not have to travel back up to the hero to start one. The neighbour
-// route keeps the quieter `ScanEmptyState` posture stack — a two-second read is
-// not a thing the page needs to invite twice. See `EMPTY_PANEL` in `shapes.ts`.
+// THE RESULTS CARD DOES NOT RENDER AT IDLE (2026-08-24). Before a run there are
+// no results, and a card whose entire content is a dashed box announcing their
+// absence is furniture — it was also the second panel resizing on a single
+// click, since it swapped that box for a taller skeleton at the same moment the
+// hero grew. The card ENTERS on the standard card cascade when a run starts, and
+// from then on it stays.
+//
+// Its `Empty` panel is therefore reachable only after a sweep that COMPLETED and
+// listed nothing, and it no longer carries a button: the hero directly above it
+// is showing a 0 and a "Sweep again" action in exactly that state, and the whole
+// point of moving the primary action into the hero header was that one act gets
+// one affordance. See `EMPTY_PANEL` in `shapes.ts`.
 // =============================================================================
 
 function buildCsvRows(results: CellScanResult[]): string[] {
@@ -133,6 +138,22 @@ const VERDICT_COPY = {
   },
 } as const;
 
+/**
+ * A signal tier -> its label key, spelled out as LITERALS.
+ *
+ * The summary tile's disc is a `MaterialSymbol`, which is ligature-driven and
+ * therefore always `aria-hidden` — so the tier reaches a screen reader only
+ * through this label, rendered `sr-only` inside the disc. Same literal-stem rule
+ * as `POSTURE_COPY`: `i18n:check` cannot see an interpolated key, so a key built
+ * at runtime is a key nothing will ever report as missing.
+ */
+const SIGNAL_LABEL_KEY: Record<SignalTier, string> = {
+  good: "cell_scanner.signal.good",
+  fair: "cell_scanner.signal.fair",
+  poor: "cell_scanner.signal.poor",
+  none: "cell_scanner.signal.none",
+};
+
 export function FullScanner() {
   const { t } = useTranslation("cellular");
   // `elapsedSeconds` is deliberately NOT destructured. The hook still computes
@@ -180,11 +201,22 @@ export function FullScanner() {
   const summaryTiles = React.useMemo<SummaryTile[]>(() => {
     const tiles: SummaryTile[] = summary.groups.map((group) => ({
       // The worker can report a cell with no operator name at all. An empty
-      // label would render as a blank tile with a number under it.
+      // label would render as a blank tile with a disc beside it.
       id: group.provider || "__unnamed",
       label: group.provider || t("cell_scanner.run.summary_provider_unknown"),
-      value: group.cells,
+      // The tile's disc is the group's best measured tier, graded in
+      // `summaries.ts`. The label is the tier in words for a screen reader,
+      // since the glyph carrying it is a ligature and always aria-hidden.
+      tier: group.tier,
+      tierLabel: t(SIGNAL_LABEL_KEY[group.tier]),
       details: [
+        // The count moved into the fact line when the tile became a row: the
+        // disc holds the left edge now, and a bare numeral with no unit beside
+        // it read as a second, competing figure to the rail's count.
+        {
+          text: t("cell_scanner.results.count", { count: group.cells }),
+          voice: "figure" as const,
+        },
         ...(group.bands.length > 0
           ? [{ text: group.bands.join(" "), voice: "ident" as const }]
           : []),
@@ -206,8 +238,19 @@ export function FullScanner() {
         label: t("cell_scanner.run.summary_others", {
           count: summary.overflowProviders,
         }),
-        value: summary.overflowCells,
-        details: [],
+        // The best tier among the FOLDED groups, not `none`: the overflow may
+        // hold the strongest reading of the whole run, and a muted disc there
+        // would claim nothing in it was measured.
+        tier: summary.overflowTier,
+        tierLabel: t(SIGNAL_LABEL_KEY[summary.overflowTier]),
+        details: [
+          {
+            text: t("cell_scanner.results.count", {
+              count: summary.overflowCells,
+            }),
+            voice: "figure" as const,
+          },
+        ],
       });
     }
 
@@ -240,9 +283,12 @@ export function FullScanner() {
   }, [results.length, summary, t]);
 
   // The failed posture's title is the MODEM'S message when it gave one. A
-  // generic "Scan failed" over a specific reason is a downgrade.
+  // generic "Scan failed" over a specific reason is a downgrade — and when it is
+  // the modem's own string it is a raw machine string, so it takes machine
+  // voice. Authored English never does.
+  const usesModemMessage = posture === "failed" && Boolean(error);
   const postureTitle =
-    posture === "failed" && error ? error : t(copy.title);
+    usesModemMessage && error ? error : t(copy.title);
 
   const postureBody = "body" in copy ? t(copy.body) : null;
 
@@ -267,15 +313,19 @@ export function FullScanner() {
             />
           }
           postureTitle={postureTitle}
+          postureTitleIsMachine={usesModemMessage}
           postureBody={postureBody}
           metric={hasResults ? results.length : null}
+          // THE SWEEP COLLAPSES AT IDLE. It holds the modem's AT lock for
+          // 30-180 seconds, so the grow lands once, early, and then the reader
+          // waits — the morph reads as the page committing to a long operation.
+          idleCollapsed
           summary={
             isScanning || posture === "complete" ? (
               <RunSummary
                 // While a sweep runs, the panel would otherwise show the LAST
                 // run's numbers under this run's posture.
                 isLoading={isScanning}
-                title={t("cell_scanner.run.summary_title")}
                 tiles={summaryTiles}
                 verdict={verdict}
                 emptyText={t("cell_scanner.run.summary_empty")}
@@ -283,57 +333,72 @@ export function FullScanner() {
             ) : null
           }
           actions={
-            <>
-              <Button
-                type="button"
-                onClick={startScan}
-                disabled={isScanning}
-                className={PILL_ACTION}
-              >
-                <MaterialSymbol
-                  name={isScanning ? "progress_activity" : "radar"}
-                  size={18}
-                  className={
-                    isScanning
-                      ? "animate-spin motion-reduce:animate-none"
-                      : undefined
-                  }
-                />
-                {/* Three distinct labels for three distinct acts. Both scanning
-                    routes shipped the identical string "Start New Scan" for runs
-                    that differ by ~100x in what they cost the modem. */}
-                {isScanning
-                  ? t("cell_scanner.run.scanning_action")
-                  : hasResults
-                    ? t("cell_scanner.run.rerun")
-                    : t("cell_scanner.run.start")}
-              </Button>
-
-              {hasResults ? (
+            // NOTHING ON THE FAILED POSTURE, deliberately. The results card
+            // below carries the recovery action in that state, so a launch
+            // button here would put two buttons on one screen for one act — the
+            // same duplication that retired the empty panel's own trigger.
+            posture === "failed" ? null : (
+              <>
                 <Button
                   type="button"
-                  variant="tonal-neutral"
+                  onClick={startScan}
+                  disabled={isScanning}
                   className={PILL_ACTION}
-                  onClick={handleDownload}
                 >
-                  <MaterialSymbol name="download" size={18} />
-                  {t("cell_scanner.run.download")}
+                  <MaterialSymbol
+                    name={isScanning ? "progress_activity" : "radar"}
+                    size={18}
+                    className={
+                      isScanning
+                        ? "animate-spin motion-reduce:animate-none"
+                        : undefined
+                    }
+                  />
+                  {/* Three distinct labels for three distinct acts. Both
+                      scanning routes shipped the identical string "Start New
+                      Scan" for runs that differ by ~100x in what they cost the
+                      modem. */}
+                  {isScanning
+                    ? t("cell_scanner.run.scanning_action")
+                    : hasResults
+                      ? t("cell_scanner.run.rerun")
+                      : t("cell_scanner.run.start")}
                 </Button>
-              ) : null}
-            </>
+
+                {hasResults ? (
+                  <Button
+                    type="button"
+                    variant="tonal-neutral"
+                    className={PILL_ACTION}
+                    onClick={handleDownload}
+                  >
+                    <MaterialSymbol name="download" size={18} />
+                    {t("cell_scanner.run.download")}
+                  </Button>
+                ) : null}
+              </>
+            )
           }
         />
       </motion.div>
 
+      {/* NOT RENDERED AT IDLE. There are no results before a run, and a card
+          holding nothing but a dashed box announcing that is furniture. It
+          ENTERS on the standard card cascade the moment a sweep starts — the
+          same `staggerItem` every other card on the page arrives on — and from
+          then on it stays through complete, failed and a re-run. */}
+      {posture === "idle" ? null : (
       <motion.div variants={staggerItem}>
         <Card className={RESULTS_CARD}>
           <div className={SECTION_HEAD.ROOT}>
-            <h2 className={SECTION_HEAD.TITLE}>
-              {t("cell_scanner.results.title")}
-            </h2>
-            <p className={SECTION_HEAD.DESC}>
-              {t("cell_scanner.results.description")}
-            </p>
+            <div className={SECTION_HEAD.TITLES}>
+              <h2 className={SECTION_HEAD.TITLE}>
+                {t("cell_scanner.results.title")}
+              </h2>
+              <p className={SECTION_HEAD.DESC}>
+                {t("cell_scanner.results.description")}
+              </p>
+            </div>
           </div>
 
           {isScanning ? (
@@ -354,11 +419,11 @@ export function FullScanner() {
           ) : results.length > 0 ? (
             <ScanResultView data={results} onLockCell={handleLockCell} />
           ) : (
-            /* Reached before the first sweep AND after a sweep that returned
-               nothing, which is why the button reads "Sweep again" in the
-               second case — the same three-labels-for-three-acts rule the hero
-               applies. `isScanning` cannot be true here (that branch renders
-               the skeleton above), so the button needs no disabled state. */
+            /* Reached ONLY after a sweep that completed and listed nothing —
+               the card does not render before the first run at all. It carries
+               NO button: the hero directly above is showing a 0 and a "Sweep
+               again" action in exactly this state, and one act gets one
+               affordance. */
             <Empty className={EMPTY_PANEL}>
               <EmptyHeader>
                 <EmptyMedia variant="icon">
@@ -369,21 +434,11 @@ export function FullScanner() {
                   {t("cell_scanner.results.empty_body")}
                 </EmptyDescription>
               </EmptyHeader>
-              <EmptyContent>
-                <Button
-                  type="button"
-                  onClick={startScan}
-                  className={PILL_ACTION_PLAIN}
-                >
-                  {posture === "complete"
-                    ? t("cell_scanner.run.rerun")
-                    : t("cell_scanner.run.start")}
-                </Button>
-              </EmptyContent>
             </Empty>
           )}
         </Card>
       </motion.div>
+      )}
 
       <LockCellDialog
         target={lockTarget}
