@@ -370,16 +370,18 @@ Regenerate when: `platform.json` is absent; `schema` is absent or lower than cur
 
 The RG501Q gives a real **missing-file** fixture. The **schema-downgrade** and **fingerprint-drift** arms — the two arms self-heal actually exists for — have no fixture anywhere. Write synthetic ones.
 
-- [ ] **Step 3: Verify on the RG501Q fixture, READ-ONLY**
+- [ ] **Step 3: Do NOT depend on the RG501Q as a live fixture**
 
+The user authorized wiping the RG501Q's failed v0.1.12 install (approval recorded in the tracker, 2026-08-24). **The live missing-profile fixture may therefore be gone by the time this task runs.** Step 2's synthetic fixtures are the real coverage; treat any surviving on-device state as a bonus confirmation, never as the test.
+
+If the device still carries the old install, one read-only confirmation is worth taking:
 ```bash
-adb -s b7e3d6f1 shell 'ls -la /etc/qmanager/ && cat /etc/qmanager/VERSION'
+adb -s b7e3d6f1 shell 'ls -la /etc/qmanager/'
 ```
-Confirm `platform.json` is still absent and the directory is still `drwxrwxrwx www-data:www-data`. **Do not deploy, do not run the script there, do not restart a unit.** This step records the fixture's state; it does not exercise it on hardware.
 
-- [ ] **Step 4: Confirm the RG501Q was not made harder to recover**
+- [ ] **Step 4: Record what was done to the RG501Q, if anything**
 
-Nothing was written to it. State that explicitly in the tracker with the command that proves the directory listing is unchanged.
+A wipe is authorized but **not required by this task** — do not perform one as a side effect of testing. If the device is wiped, record when and by what command in the tracker, because it retires the fixture for every later task.
 
 - [ ] **Step 5: Validators** — `busybox-portability-checker` (shell + unit ordering) + `installer-safety-auditor`, ONE parallel message.
 
@@ -626,16 +628,28 @@ Four statements in the docs are **already false or made false by this phase**, a
 
 Several cells still read `*unverified*` that `rg501q-bringup.md` measured on 2026-08-24 — BusyBox version, glibc, kernel, `fs.protected_regular`, rootfs layout, `eth0` existence. Fill them with `on-device 2026-08` provenance. **Add the C1 label-spacing table.** Anything the probe did not cover **stays `*unverified*`.**
 
-- [ ] **Step 6: Write `docs/reference/platform-profile.md`** — the profile schema, the tier table, the self-heal triggers, the two-axes rule, and the release-asset invariant. Add **one row** to `CLAUDE.md`'s routing table. Do not summarize the doc in `CLAUDE.md`.
+- [ ] **Step 6: Implement the approved per-device transport scheme**
 
-- [ ] **Step 7: Verify no invented measurements**
+Decision, 2026-08-24: **per-device prefixed env vars** — and the RG501Q needs no credential entry at all right now, because SSH has never been installed on it (no `ssh`/`sshd`/`dropbear`/`scp`/`sftp` in its stock image; adb is the only path). So the scheme is: prefix the existing triad for the RM520N-GL, and reach the RG501Q by its adb serial.
+
+Update the four sites that hardcode the single-SSH assumption:
+- `CLAUDE.md` — the Live Device Access section
+- `.claude/agents/modem-investigator.md` — the canonical PowerShell connection snippet
+- `.claude/agents/busybox-portability-checker.md` — the same snippet, restated
+- `.claude/agent-memory/modem-investigator/stale_env_ssh_password.md` — "refresh `MODEM_SSH_PASSWORD`" with no notion of *which* device
+
+**Keep the unprefixed names working** — a hard rename breaks every existing agent brief and the `.env` on disk. Prefer prefixed names with the bare triad as an accepted alias for the RM520N-GL. **Never print a credential value.** `/.claude` is gitignored, so those files need `git add -f`.
+
+- [ ] **Step 7: Write `docs/reference/platform-profile.md`** — the profile schema, the tier table, the self-heal triggers, the two-axes rule, and the release-asset invariant. Add **one row** to `CLAUDE.md`'s routing table. Do not summarize the doc in `CLAUDE.md`.
+
+- [ ] **Step 8: Verify no invented measurements**
 
 ```bash
 grep -rn "RG501Q" docs/ CLAUDE.md | grep -viE "unverified|LGA|SDX55|PRAIRIE|Phase B|Phase C|community|bringup|platform-matrix"
 ```
 Review every hit by hand. A stated value with no probe behind it is a bug.
 
-- [ ] **Step 8: Commit** — `docs-writer` is the closing bracket for this phase.
+- [ ] **Step 9: Commit** — `docs-writer` is the closing bracket for this phase.
 
 ```
 docs(platform): sync the multi-target contracts and back-fill measured RG501Q facts

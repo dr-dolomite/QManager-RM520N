@@ -15,7 +15,7 @@
 
 | Task | Title | State | Branch / commit | Session |
 | --- | --- | --- | --- | --- |
-| T0 | Commit the Phase-A input documents | **NOT STARTED** | — | — |
+| T0 | Commit the Phase-A input documents | **IN PROGRESS** — Steps 3–4 done (`3c34c4a`, plan + tracker committed and `git ls-files`-verified). **Steps 1–2 remain:** the §9 amendment, `platform-matrix.md` and the still-**untracked** `rg501q-bringup.md` | `3c34c4a` | 2026-08-24 |
 | T1 | `hw_profile.sh` — parser, tier table, generator | NOT STARTED | — | — |
 | T2 | Generate `platform.json` at install; recognize RG501Q | NOT STARTED | — | — |
 | T3 | Self-heal `platform.json` in `qmanager_setup` | NOT STARTED | — | — |
@@ -38,6 +38,28 @@ States: `NOT STARTED` · `IN PROGRESS` · `BLOCKED` · `DONE (merged)` · `DONE 
 ## Log
 
 Newest entry first. Every entry records: what was done, the gate evidence, and **what a later task might invalidate**.
+
+### 2026-08-24 — Gate decisions recorded; `qcmd_test` shipped standalone
+
+**Done.** All four gate questions answered (see Open questions). One code change landed **outside Phase A's task list**, per the Q1 decision: `scripts/usr/bin/qcmd_test` model matching widened off the `RM520` literals. Four hunks, LF preserved, validated by `busybox-portability-checker`.
+
+**Gate evidence.** The new patterns were tested against the *actual captured device output*, not a prediction:
+
+| Fixture | `:50` pattern | `:75` pattern |
+| --- | --- | --- |
+| RM520N-GL live `ATI` / `AT+CGMM;+CGSN` | `rc=0` | `rc=0` |
+| RG501Q-shaped response | `rc=0` | `rc=0` |
+| Non-Quectel garbage | `rc=1` → `warn` (unchanged from before) | `rc=1` → `warn` |
+
+`fail` still fires only on empty output and the exit code still gates on `$FAIL`, never `$WARN` — so no response that previously reached `pass` can now reach `fail`.
+
+**Incidental finding for T10.** The two multi-vendor model regexes are now textually divergent: `qcmd_test:75` uses `[0-9A-Za-z-]+`, `qmanager_health_check:354` uses `[0-9A-Za-z\-]+`. POSIX bracket expressions give backslash no special meaning, so the latter class contains a **stray literal backslash** plus the hyphen. Functionally equivalent (no model string contains `\`), but if a future pass converges them, **converge on the backslash-free trailing-hyphen form** — it is the correct one.
+
+**What a later task might invalidate:** nothing. This change is disjoint from every Phase A task — `qcmd_test` matches AT response text, not `/etc/quectel-project-version`, so it is not a profile consumer and T4/T5's migration does not touch it.
+
+**Note for the next session:** the working tree had unrelated in-flight frontend work (band-locking components, five locale files) from a parallel session while this ran. **Diff against the base SHA, not `development`** — the branch moves under you.
+
+---
 
 ### 2026-08-24 — Phase 1–3 (planning only). No code written.
 
@@ -116,15 +138,26 @@ Live `ATI` / `AT+CGMM` output (blocked on the `/dev/smd11` contention above); co
 
 ## Open questions
 
-### Raised at the Phase 3 approval gate — awaiting the user's decision
+### Resolved at the Phase 3 approval gate — 2026-08-24
 
-| # | Question | Status |
+| # | Question | **Decision** |
 | --- | --- | --- |
-| Q1 | Fold the `qcmd_test` `RM520` literals (`:50`, `:75`) into Phase A? **Measured:** both greps **PASS** on the RM520N-GL, and both `fail` branches fire only on *empty* output — `:50` also accepts `OK`, `:75` also accepts a 15-digit IMEI. The spec §6.1 claim that it "reports failure on a working device" is **false**. It is a one-line regex widening (`RM5\|RG5\|EG\|EC`, mirroring `qmanager_health_check:354`), and it matches **AT response text**, not the version file — so it is not a profile consumer and does not belong in any migration task. | **OPEN** |
-| Q2 | How do agents select a transport per device — RM520N-GL over SSH, RG501Q-EU over adb? This supersedes the `.env` credential-scheme question A0 deferred. `platform-matrix.md` names the four files hardcoding the single-SSH assumption. | **OPEN** |
-| Q3 | Does the RG501Q's broken v0.1.12 install stay **frozen** for Phase A, or may it be wiped once its evidence is recorded in `rg501q-bringup.md`? | **OPEN** |
-| Q4 | Sequencing against Phase D (China/GFW delivery). D has not run — no plan doc exists. §9.3: "A and D are independent and may run in either order. If the goal is *Lae can install*, D outranks A." | **OPEN** |
-| Q5 | Authorize a read-only AT probe (`ATI`, `AT+CGMM`) on the RG501Q? Blocked on `simpleadmin-go`'s two persistent fds outside QManager's `flock` — an interleave would corrupt *its* response. | **OPEN** |
+| Q1 | Fold the `qcmd_test` `RM520` literals (`:50`, `:75`) into Phase A? **Measured:** both greps **PASS** on the RM520N-GL, and both `fail` branches fire only on *empty* output — `:50` also accepts `OK`, `:75` also accepts a 15-digit IMEI. The spec §6.1 claim that it "reports failure on a working device" is **false**. | **Ship it now, standalone — DONE.** Landed outside Phase A's task list. `:50` → `Quectel\|OK`; `:75` → `^(RM\|RG\|EG\|EC)[0-9A-Za-z-]+\|[0-9]{15}`, reusing `qmanager_health_check:354`. Banner strings de-branded. **`§6.1 obstacle 3 in the spec is now retired and was wrong as written` — do not re-plan it.** |
+| Q2 | How do agents select a transport per device? | **Per-device prefixed env vars** — and **the RG501Q gets no credential entry at all**, because SSH has never been installed on it (no `ssh`/`sshd`/`dropbear`/`scp`/`sftp` in its stock image; adb is the only path). Prefix the triad for the RM520N-GL, keep the bare names working as an alias, reach the RG501Q by adb serial. Implemented in **T10 Step 6**. |
+| Q3 | Does the RG501Q's failed v0.1.12 install stay frozen? | **WIPEABLE — a write to the RG501Q is APPROVED.** See the authorization block below. |
+| Q4 | Sequencing against Phase D. | **Phase A first** (this plan). D is not abandoned — it remains blocked on §9.4 Q1–Q3, which only the device owner can answer. |
+| Q5 | Authorize a read-only AT probe (`ATI`, `AT+CGMM`) on the RG501Q? | **Not asked / not needed for Phase A.** Superseded in practice by Q3: once the device is wiped and reinstalled, `qcmd` serializes properly. Live `ATI`/`AT+CGMM` output stays `*unverified*` until then. |
+
+### ⚠ Device write authorization — RG501Q-EU only
+
+**Approved by the user, 2026-08-24, at the Phase 3 gate.** The RG501Q-EU's previous owner's failed v0.1.12 install **may be wiped**. Its evidence is already recorded in [`rg501q-bringup.md`](../../reference/rg501q-bringup.md).
+
+**Scope and limits:**
+- This authorizes wiping **the RG501Q-EU only** (adb serial `b7e3d6f1`). **It authorizes nothing on the RM520N-GL**, which remains strictly read-only.
+- **No task in this plan requires a wipe.** Do not perform one as a side effect of testing. If you wipe, record the date and the exact command here — it retires the live missing-profile fixture for every later task.
+- Standing invariant I2 changes meaning accordingly: "do not make it harder to recover" no longer applies to a deliberate, recorded wipe. It still applies to accidental damage.
+
+**Wipe log:** *(none yet — device untouched as of 2026-08-24)*
 
 ### Deferred to a later phase — recorded so they are not rediscovered
 
