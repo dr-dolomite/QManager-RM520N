@@ -13,15 +13,18 @@ column per field-sighting becomes unmaintainable at the fourth device.
 | --- | --- | --- |
 | Form factor | M.2 | LGA |
 | SoC | SDX65 / SDXLEMUR (X62 silicon) | SDX55 / SDXPRAIRIE |
-| `Project Name:` in `/etc/quectel-project-version` | `RM520N…` | *unverified* |
-| `Branch Name:` in `/etc/quectel-project-version` | `SDX6X` | *unverified* |
-| Status | reference device — everything below measured here | onboarding, Phase B |
+| `Project Name:` in `/etc/quectel-project-version` | `RM520N…` | `RG501QEU_VD` |
+| `Branch Name:` in `/etc/quectel-project-version` | `SDX6X` | `SDX55` |
+| Status | reference device — everything below measured here | probed 2026-08-24 — see [`rg501q-bringup.md`](./rg501q-bringup.md) |
 
 ## How to read this document
 
-**Every `RG501Q-EU` cell says `*unverified*`.** That is not an oversight — it is
-the point. Phase A0 records provenance; it never invents a measurement. A cell
-stays `*unverified*` until someone probes the hardware in Phase B and fills it in.
+**A cell stays `*unverified*` until the hardware is probed.** Phase A0 recorded
+provenance and never invented a measurement. The first RG501Q-EU probe ran
+**2026-08-24** over adb — full results, including the GFW/GitHub finding that
+reframed the work, are in [`rg501q-bringup.md`](./rg501q-bringup.md). Cells filled
+from it carry `on-device 2026-08` in `How established`; everything still reading
+`*unverified*` was not covered by that probe.
 
 `How established` distinguishes a live measurement from an inference. Treat
 `inferred` rows with the same suspicion as an unverified one: they are reasoning

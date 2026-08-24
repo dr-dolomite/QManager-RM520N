@@ -408,3 +408,102 @@ To be answered by probing, not by assumption:
 - Is `crond` present and working, or is the systemd-timer requirement identical?
 - Does the device `jq` have ONIGURUMA regex, and does BusyBox `flock` support the
   bare-FD form?
+
+---
+
+## 9. Amendment — 2026-08-24 (adb access + the GFW finding)
+
+The design above was written with **no access to an RG501Q-EU**. One is now
+attached over adb and has been probed. Three of this spec's premises are wrong.
+Nothing in Sections 1-8 has been edited; this section overrides them where they
+conflict.
+
+Evidence: [`docs/reference/rg501q-bringup.md`](../../reference/rg501q-bringup.md).
+
+### 9.1 What changed
+
+**A1. Hardware access exists.** RG501Q-EU reachable over adb (uid=0 root). This
+retires **Phase-B obstacle #1** (the single `.env` credential triad) — the device
+needs no SSH credentials, it needs an adb serial. The open question is now
+transport *selection* per device, not credential storage.
+
+**A2. The device is not virgin — it carries a failed install.** A previous owner
+ran the installer on 2026-06-22. It deployed files, systemd units and config,
+then died at `install_rm520n.sh:803-806` (`opkg update` failure). Only
+`qmanager-ping` — the Rust binary with no Entware dependency — actually works.
+The poller runs but emits nothing, having no `jq`. This is **abandoned wreckage,
+not a deployment**: it is evidence for design, and a dirty baseline to clear
+before a real install. It is not something to preserve.
+
+**A3. The blocker is GitHub, and only GitHub.** This is the reframe. The GFW
+blocks **github.com**; the owner's existing workaround is a **Gitee mirror**.
+
+**Entware is not a blocker.** `simpleadmin-source/installentware.sh` bootstraps
+Entware from `bin.entware.net`, and the owner runs SimpleAdmin on an RM520N
+through Gitee — so that chain completes on their network. This RG501Q also
+carries `simpleadmin-go` and generated TLS keys, so SimpleAdmin ran here too.
+
+The RG501Q's `/opt` holds `opkg` with zero packages and an empty
+`/opt/var/opkg-lists`. The parsimonious reading is **no WAN at install time**:
+the device has no default route or DNS today and `curl` cannot resolve *any*
+host. That is an ordinary offline failure, not a block. Recorded, not gating.
+
+### 9.2 The cost of GitHub dependence
+
+Installer download, OTA check and download (`update.sh:245`,
+`qmanager_update:147`, `qmanager_auto_update:61`), and language packs all fetch
+from GitHub. A China user can therefore neither **install** nor **update**.
+Entware, if reachable, is the smaller half of the problem.
+
+This is a **distribution** concern, orthogonal to multi-target support. It was
+entirely absent from Sections 1-8 and does not belong inside Phase A.
+
+### 9.3 Revised phase model
+
+| Phase | Content | Hardware? | Status |
+| --- | --- | --- | --- |
+| **A0** | Context re-optimization | No | **DONE** — merged `f827b3c` |
+| **B0** | *(new, was part of B)* First RG501Q probe: identity, ABI, filesystem, toolchain, install state | Yes | **DONE 2026-08-24** — `rg501q-bringup.md` |
+| **A** | Profile generation + self-heal; tier table; `hw_profile.sh`; consumers off ad-hoc parsing; variant overlays; OTA variant selection | No | Ready — unchanged in scope |
+| **D** | *(new)* **China / GFW delivery.** Mirror-base configurability (Gitee or generic), OTA source selection, offline install bundle | No — designable from the tree | Ready |
+| **B** | Remaining probe: AT transport, counter orientation, reachability, `eth0` behavior | Yes | Reduced — B0 took the static half |
+| **C** | Populate `variants/rg501q/`, promote tier to `official` | Yes | Unchanged |
+
+**A and D are independent and may run in either order.** A is a refactor that
+ships as a no-op; D is what makes QManager reach a China user at all. If the goal
+is "Lae can install", D outranks A. If the goal is "the tree stops being
+accidentally multi-target", A does.
+
+**B0 already answered three of §8's open questions:** `eth0` **exists** on the
+RG501Q-EU carrier board (currently NO-CARRIER); the rootfs `ro` + `ubi0:rootfs`
+layout **matches** RM520N-GL; `/etc` and `/usrdata` **do** share a volume — and
+so does `/opt`, which unlike RM520N-GL is **not** a dedicated UBIFS volume.
+
+### 9.4 New open questions, in priority order
+
+1. Is a Gitee mirror the supported China path, or does QManager need a generic
+   configurable mirror base URL? (The generic form costs little more and does not
+   bind the project to one Chinese host.)
+2. Which GitHub-facing paths honour that base — installer, OTA check, OTA
+   download, language packs — and how does `validate_url()` widen minimally to
+   permit a mirror without admitting arbitrary refs?
+3. Does the RG501Q attach to cellular with a SIM fitted? Every network-facing
+   claim about it is untested; it has no WAN today.
+
+*Offline-Entware questions are parked.* They matter only if `bin.entware.net`
+proves unreachable, which nothing currently suggests. A generic mirror base
+would cover that case too, since Entware's URL is equally parameterizable.
+
+### 9.5 What B0 already bought for D
+
+Even with Entware reachable, the RG501Q needs less of it than the RM520N does.
+Three things the RM520N pulls **from Entware** are **stock firmware** here: `lighttpd` (`/usr/sbin/lighttpd`), `curl`, and `timeout`/`flock`/
+`setsid`. That removes `lighttpd` + 4 modules + `coreutils-timeout` from the
+required set. What genuinely remains: `entware-opt` (the base — without it no
+Entware package runs), `sudo`, plus `jq` and `dropbear` — and **`jq.ipk` and
+`dropbear_2024.86-1_armv7-3.2.ipk` already ship in `dependencies/`, with working
+offline install paths at `install_rm520n.sh:891` and `:921`.** The offline
+mechanism exists; it just does not cover the base.
+
+`arch armv7-3.2` in the device's own `opkg.conf` matches those bundled `.ipk`
+files exactly.
