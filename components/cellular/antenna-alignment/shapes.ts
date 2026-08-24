@@ -340,7 +340,7 @@ export const PILL_ACTION_PLAIN = "h-[2.625rem] rounded-pill px-5 text-sm font-se
 /** 44px icon-only target. The coarse-pointer floor wins over the 42px pill. */
 export const ICON_TARGET = "size-11 shrink-0 rounded-pill";
 export const SEGMENTED_ITEM =
-  "h-[2.625rem] gap-2 rounded-pill px-4 text-sm font-semibold";
+  "h-[2.125rem] gap-1.5 rounded-pill px-4 text-[0.84375rem] font-medium";
 
 // -----------------------------------------------------------------------------
 // Glyph sizes — three, not five
