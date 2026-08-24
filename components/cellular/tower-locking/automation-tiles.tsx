@@ -6,7 +6,11 @@ import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupInput,
+} from "@/components/ui/input-group";
 import { MaterialSymbol } from "@/components/ui/material-symbol";
 import { SaveButton, useSaveFlash } from "@/components/ui/save-button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -346,52 +350,59 @@ export function TowerAutomationTiles({
           {t(`tower_locking.live.failover_state_${failState}`)}
         </Badge>
 
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-col gap-1.5">
+          <div className="flex flex-wrap items-center gap-2">
+            <InputGroup className={`${FIELD_CONTROL_ON_CONTAINER} w-[6.5rem]`}>
+              <InputGroupInput
+                id="tower-failover-threshold"
+                inputMode="numeric"
+                value={thresholdInput}
+                onChange={(e) => setThresholdInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") void handleThresholdSave();
+                }}
+                /* An empty box is not a mistake the user made — it is the modem
+                   failing to answer — so it carries no destructive ring and no
+                   error copy, only the unread note wired in below. */
+                aria-invalid={thresholdErrored || undefined}
+                aria-label={t("tower_locking.live.threshold_label")}
+                aria-describedby={
+                  thresholdErrored
+                    ? "tower-failover-threshold-error"
+                    : thresholdUnread
+                      ? "tower-failover-threshold-unread"
+                      : undefined
+                }
+                placeholder={t("tower_locking.live.tile_no_value")}
+                className="text-center font-mono tabular-nums"
+              />
+              <InputGroupAddon align="inline-end" className="text-on-surface-variant">
+                <MaterialSymbol name="percent" size={16} />
+              </InputGroupAddon>
+            </InputGroup>
+            {thresholdDirty || saved ? (
+              <SaveButton
+                onClick={handleThresholdSave}
+                isSaving={false}
+                saved={saved}
+                label={t("common:actions.update")}
+                /* Was a bare `disabled`: an unexplained grey pill that appeared
+                   the moment the box went dirty and gave no reason. The two ways
+                   to be unsaveable are different problems and now say so. */
+                blockedReason={
+                  thresholdBlank
+                    ? t("tower_locking.blocked.threshold_empty")
+                    : thresholdValid
+                      ? null
+                      : t("tower_locking.live.threshold_invalid")
+                }
+                className="h-[2.625rem] rounded-pill px-4 text-sm font-semibold"
+              />
+            ) : null}
+          </div>
           <label htmlFor="tower-failover-threshold" className={AUTO_TILE.BODY}>
             {t("tower_locking.live.threshold_label")}
           </label>
-          <Input
-            id="tower-failover-threshold"
-            inputMode="numeric"
-            value={thresholdInput}
-            onChange={(e) => setThresholdInput(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") void handleThresholdSave();
-            }}
-            /* An empty box is not a mistake the user made — it is the modem
-               failing to answer — so it carries no destructive ring and no
-               error copy, only the unread note wired in below. */
-            aria-invalid={thresholdErrored || undefined}
-            aria-label={t("tower_locking.live.threshold_label")}
-            aria-describedby={
-              thresholdErrored
-                ? "tower-failover-threshold-error"
-                : thresholdUnread
-                  ? "tower-failover-threshold-unread"
-                  : undefined
-            }
-            placeholder={t("tower_locking.live.tile_no_value")}
-            className={`${FIELD_CONTROL_ON_CONTAINER} w-[4.5rem] text-center font-mono tabular-nums`}
-          />
-          {thresholdDirty || saved ? (
-            <SaveButton
-              onClick={handleThresholdSave}
-              isSaving={false}
-              saved={saved}
-              label={t("common:actions.update")}
-              /* Was a bare `disabled`: an unexplained grey pill that appeared
-                 the moment the box went dirty and gave no reason. The two ways
-                 to be unsaveable are different problems and now say so. */
-              blockedReason={
-                thresholdBlank
-                  ? t("tower_locking.blocked.threshold_empty")
-                  : thresholdValid
-                    ? null
-                    : t("tower_locking.live.threshold_invalid")
-              }
-              className="h-[2.625rem] rounded-pill px-4 text-sm font-semibold"
-            />
-          ) : null}
         </div>
 
         {thresholdErrored ? (

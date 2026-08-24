@@ -58,6 +58,7 @@
     "my_location",
     "network_ping",
     "open_in_new",
+    "percent",
     "pets",
     "play_arrow",
     "playlist_add",
@@ -111,6 +112,6 @@
     "wifi_tethering_off",
     "work"
   ],
-  "bytes": 40752,
-  "sha256": "a2f2217009a8962cffc10844f98d5e31462ad0e65301a50528f52550eceaa934"
+  "bytes": 40964,
+  "sha256": "0b7a1905c887fa954d9d041045bf3522a1a71094e16abf3ff53d7a04c1ba47f4"
 }

@@ -103,6 +103,7 @@ export const MATERIAL_SYMBOL_NAMES = [
   "my_location",
   "network_ping",
   "open_in_new",
+  "percent",
   "pets",
   "play_arrow",
   "playlist_add",
