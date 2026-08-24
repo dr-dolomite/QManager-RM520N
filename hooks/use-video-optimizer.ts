@@ -31,6 +31,7 @@ export interface UseVideoOptimizerReturn {
   saveEnabled: (enabled: boolean) => Promise<boolean>;
   installBinary: () => Promise<boolean>;
   uninstallBinary: () => Promise<boolean>;
+  dismissBinaryOpError: () => void;
   refresh: () => void;
 }
 
@@ -283,6 +284,16 @@ export function useVideoOptimizer(): UseVideoOptimizerReturn {
     [runBinaryOperation],
   );
 
+  // A failed install/uninstall must stay on screen until the user dismisses
+  // it: the status/onboarding surfaces hide phase state once the binary is
+  // installed, so without an explicit dismissal path errors would either
+  // never show or blink out with the next poll.
+  const dismissBinaryOpError = useCallback(() => {
+    setError(null);
+    setInstallPhase("idle");
+    setInstallMessage(null);
+  }, []);
+
   return {
     data,
     isLoading,
@@ -295,6 +306,7 @@ export function useVideoOptimizer(): UseVideoOptimizerReturn {
     saveEnabled,
     installBinary,
     uninstallBinary,
+    dismissBinaryOpError,
     refresh: fetchStatus,
   };
 }

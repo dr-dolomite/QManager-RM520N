@@ -12,6 +12,7 @@
     "apply": "Apply",
     "close": "Close",
     "retry": "Retry",
+    "dismiss": "Dismiss",
     "reboot": "Reboot",
     "log_out": "Log out",
     "reboot_device": "Reboot Device",
@@ -288,6 +289,7 @@
       "description": "Bypass ISP DPI throttling of video streaming and other traffic with the built-in bypass engine."
     },
     "load_error": "Failed to load the engine status.",
+    "binary_op_failed": "Engine binary operation failed",
     "tabs": {
       "video_optimizer": "Video Optimizer",
       "masquerade": "Traffic Masquerade"

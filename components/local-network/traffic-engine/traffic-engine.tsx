@@ -7,7 +7,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ArrowLeftRight, RefreshCcwIcon, TriangleAlertIcon, Video } from "lucide-react";
+import { ArrowLeftRight, RefreshCcwIcon, TriangleAlertIcon, Video, XIcon } from "lucide-react";
 
 import EngineStatusCard from "./engine-status-card";
 import EngineOnboarding from "./engine-onboarding";
@@ -103,6 +103,26 @@ const TrafficEngine = () => {
         />
       ) : (
         <div className="grid grid-cols-1 gap-4">
+          {videoOptimizer.installPhase === "error" && (
+            <Alert variant="destructive" aria-live="assertive">
+              <TriangleAlertIcon className="size-4" />
+              <AlertDescription className="flex items-center justify-between gap-4">
+                <span>
+                  {videoOptimizer.installMessage ??
+                    videoOptimizer.error ??
+                    t("trafficEngine.binary_op_failed")}
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={videoOptimizer.dismissBinaryOpError}
+                >
+                  <XIcon className="size-3.5" />
+                  {t("actions.dismiss", { ns: "common" })}
+                </Button>
+              </AlertDescription>
+            </Alert>
+          )}
           <EngineStatusCard
             data={engineData}
             loading={false}

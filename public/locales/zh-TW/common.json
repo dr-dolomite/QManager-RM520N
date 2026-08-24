@@ -12,6 +12,7 @@
     "apply": "套用",
     "close": "關閉",
     "retry": "重試",
+    "dismiss": "關閉",
     "reboot": "重啟",
     "log_out": "登出",
     "reboot_device": "重啟裝置",
@@ -288,6 +289,7 @@
       "description": "透過內建的繞過引擎，規避電信商 DPI 對影片串流等流量的限速。"
     },
     "load_error": "無法載入引擎狀態。",
+    "binary_op_failed": "引擎二進位操作失敗",
     "tabs": {
       "video_optimizer": "影片最佳化",
       "masquerade": "流量偽裝"

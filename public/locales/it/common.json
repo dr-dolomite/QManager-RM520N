@@ -12,6 +12,7 @@
     "apply": "Applica",
     "close": "Chiudi",
     "retry": "Riprova",
+    "dismiss": "Ignora",
     "reboot": "Riavvia",
     "log_out": "Esci",
     "reboot_device": "Riavvia il dispositivo",
@@ -288,6 +289,7 @@
       "description": "Aggira la limitazione DPI dell'operatore su streaming video e altro traffico con il motore di bypass integrato."
     },
     "load_error": "Impossibile caricare lo stato del motore.",
+    "binary_op_failed": "Operazione sul binario del motore non riuscita",
     "tabs": {
       "video_optimizer": "Ottimizzazione video",
       "masquerade": "Mascheramento del traffico"
