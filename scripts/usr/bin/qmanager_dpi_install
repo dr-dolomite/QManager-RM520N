@@ -124,12 +124,30 @@ _dpi_download() {
     local extract_dir bin_path bin_sha manifest_sha expected
     local manifest_ok
 
-    _dpi_marker_running "Resolving latest zapret release..."
-
-    api=$($CURL -fsSL --max-time 30 "$RELEASE_URL" 2>/dev/null) || {
-        _dpi_marker_error "Failed to query zapret releases" "GitHub API unreachable"
+    command -v "$CURL" >/dev/null 2>&1 || {
+        _dpi_marker_error "curl not found" "install Entware curl (opkg install curl)"
         return 1
     }
+
+    _dpi_marker_running "Resolving latest zapret release..."
+
+    # No -f: we need the status line to tell a rate-limited response (403,
+    # common on carrier CGNAT IPs shared across many users) from an
+    # unreachable one. Body and code come back in one transfer.
+    api=$($CURL -sSL --max-time 30 -w '\n%{http_code}' "$RELEASE_URL" 2>/dev/null)
+    code=$(printf '%s' "$api" | tail -n1)
+    api=$(printf '%s' "$api" | sed '$d')
+    case "$code" in
+        200) : ;;
+        403)
+            _dpi_marker_error "GitHub API rate-limited" "this network's shared IP hit GitHub's hourly limit - retry in an hour"
+            return 1
+            ;;
+        *)
+            _dpi_marker_error "Failed to query zapret releases" "GitHub API unreachable (HTTP $code)"
+            return 1
+            ;;
+    esac
     tag=$(printf '%s' "$api" | jq -r '.tag_name // empty' 2>/dev/null)
     [ -n "$tag" ] || {
         _dpi_marker_error "Failed to query zapret releases" "Malformed GitHub API response"
@@ -268,8 +286,14 @@ case "$verb" in
         fi
         rm -f "$DPI_INSTALL_PID" "$DPI_INSTALL_FILE"
         # Fully detached: setsid + nohup-style redirects so the job survives
-        # the sudo/CGI parent and lighttpd's lifecycle.
-        setsid /usr/bin/qmanager_dpi_install --download </dev/null >/dev/null 2>&1 &
+        # the sudo/CGI parent and lighttpd's lifecycle. setsid is absent on
+        # some firmware builds — fall back to a plain background job with
+        # the same detach redirects.
+        if command -v setsid >/dev/null 2>&1; then
+            setsid /usr/bin/qmanager_dpi_install --download </dev/null >/dev/null 2>&1 &
+        else
+            /usr/bin/qmanager_dpi_install --download </dev/null >/dev/null 2>&1 &
+        fi
         echo $! > "$DPI_INSTALL_PID"
         _dpi_marker_running "Starting zapret download..."
         exit 0
@@ -289,7 +313,11 @@ case "$verb" in
         fi
         rm -f "$DPI_INSTALL_PID" "$DPI_INSTALL_FILE"
         _dpi_marker_running "Stopping Traffic Engine..."
-        setsid /usr/bin/qmanager_dpi_install --uninstall-run </dev/null >/dev/null 2>&1 &
+        if command -v setsid >/dev/null 2>&1; then
+            setsid /usr/bin/qmanager_dpi_install --uninstall-run </dev/null >/dev/null 2>&1 &
+        else
+            /usr/bin/qmanager_dpi_install --uninstall-run </dev/null >/dev/null 2>&1 &
+        fi
         echo $! > "$DPI_INSTALL_PID"
         exit 0
         ;;

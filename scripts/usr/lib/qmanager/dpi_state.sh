@@ -238,6 +238,7 @@ dpi_uptime_str() {
     esac
     up_now=$(cut -d' ' -f1 /proc/uptime | cut -d. -f1)
     secs=$(( up_now - start_jiffies / 100 ))
+    [ "$secs" -lt 0 ] && secs=0
     if [ "$secs" -lt 60 ]; then
         echo "${secs}s"
         return

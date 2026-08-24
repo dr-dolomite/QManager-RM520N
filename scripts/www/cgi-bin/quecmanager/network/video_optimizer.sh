@@ -350,10 +350,12 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
             # write. www-data owns the file, so no sudo is involved.
             DOMAINS=$(printf '%s' "$POST_DATA" | jq -r '.domains // empty' 2>/dev/null)
             [ -n "$DOMAINS" ] || {
+                qlog_info "save_hostlist rejected: no payload"
                 cgi_error "invalid_hostlist" "domains must be a non-empty array"
                 exit 0
             }
             printf '%s' "$DOMAINS" | jq -e 'type == "array" and length <= 300' >/dev/null 2>&1 || {
+                qlog_info "save_hostlist rejected: invalid array shape"
                 cgi_error "invalid_hostlist" "domains must be an array of at most 300 entries"
                 exit 0
             }
@@ -405,7 +407,8 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
                 # fall-through here reported success:true with the file
                 # unchanged, and the UI happily showed a list that was never
                 # saved.
-                qlog_error "save_hostlist WRITE FAILED: $DPI_HOSTLIST.tmp not movable"
+                rm -f "$DPI_HOSTLIST.tmp"
+                qlog_error "save_hostlist: WRITE FAILED ($N_DOMAINS domains) — check permissions on $(dirname "$DPI_HOSTLIST")"
                 cgi_error "write_failed" "could not write the hostlist file"
             fi
             exit 0
