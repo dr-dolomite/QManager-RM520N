@@ -56,8 +56,9 @@ export const NEIGHBOUR_NARROW_HIDDEN: VisibilityState = {
 
 /** `intra` / `inter` / `nr5g` -> its copy key, spelled out as LITERALS so
  *  `i18n:check` can see every one of them. An interpolated stem is invisible to
- *  it, and a key it cannot see is a key nothing will ever report as missing. */
-const CELL_TYPE_KEY: Record<NeighbourCellType, string> = {
+ *  it, and a key it cannot see is a key nothing will ever report as missing.
+ *  Exported: `neighbour-scanner.tsx`'s summary tiles key off the same map. */
+export const CELL_TYPE_KEY: Record<NeighbourCellType, string> = {
   intra: "cell_scanner.neighbour.cell_type.intra",
   inter: "cell_scanner.neighbour.cell_type.inter",
   nr5g: "cell_scanner.neighbour.cell_type.nr5g",

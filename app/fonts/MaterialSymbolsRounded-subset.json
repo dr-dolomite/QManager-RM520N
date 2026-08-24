@@ -85,6 +85,8 @@
     "signal_cellular_3_bar",
     "signal_cellular_4_bar",
     "signal_cellular_alt",
+    "signal_cellular_alt_1_bar",
+    "signal_cellular_alt_2_bar",
     "signal_cellular_off",
     "signal_disconnected",
     "sim_card",
@@ -109,6 +111,6 @@
     "wifi_tethering_off",
     "work"
   ],
-  "bytes": 40636,
-  "sha256": "29e93b20aa45db499341970fbdf3b9e1a1172e72833af6c61f396cbb886f5a3e"
+  "bytes": 40752,
+  "sha256": "a2f2217009a8962cffc10844f98d5e31462ad0e65301a50528f52550eceaa934"
 }

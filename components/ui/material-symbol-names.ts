@@ -136,6 +136,8 @@ export const MATERIAL_SYMBOL_NAMES = [
   "signal_cellular_3_bar",
   "signal_cellular_4_bar",
   "signal_cellular_alt",
+  "signal_cellular_alt_1_bar",
+  "signal_cellular_alt_2_bar",
   "signal_cellular_off",
   "signal_disconnected",
   "sim_card",

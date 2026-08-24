@@ -23,7 +23,7 @@ import {
   SECTION_HEAD,
 } from "../shapes";
 import { SiblingRouteLink } from "../sibling-link";
-import { BandTiles } from "./band-tiles";
+import { BAND_LABEL_KEY, BandTiles } from "./band-tiles";
 import {
   type CalcError,
   type CalcMode,
@@ -85,11 +85,6 @@ const ERROR_KEY = {
 const CHANNEL_READOUT_KEY = {
   LTE: "cell_scanner.calculator.readout.channel_lte",
   NR: "cell_scanner.calculator.readout.channel_nr",
-} as const;
-
-const BAND_LABEL_KEY = {
-  LTE: "cell_scanner.calculator.result.band_lte",
-  NR: "cell_scanner.calculator.result.band_nr",
 } as const;
 
 const FrequencyCalculator = () => {
@@ -224,12 +219,14 @@ const FrequencyCalculator = () => {
       <motion.div variants={staggerItem}>
         <Card className={CALC_HERO}>
           <div className={SECTION_HEAD.ROOT}>
-            <h2 className={SECTION_HEAD.TITLE}>
-              {t("cell_scanner.calculator.form.title")}
-            </h2>
-            <p className={SECTION_HEAD.DESC}>
-              {t("cell_scanner.calculator.form.description")}
-            </p>
+            <div className={SECTION_HEAD.TITLES}>
+              <h2 className={SECTION_HEAD.TITLE}>
+                {t("cell_scanner.calculator.form.title")}
+              </h2>
+              <p className={SECTION_HEAD.DESC}>
+                {t("cell_scanner.calculator.form.description")}
+              </p>
+            </div>
             <div className={SECTION_HEAD.META}>
               <SiblingRouteLink
                 href="/cellular/cell-scanner"
@@ -333,12 +330,14 @@ const FrequencyCalculator = () => {
       <motion.div variants={staggerItem}>
         <Card className={RESULTS_CARD}>
           <div className={SECTION_HEAD.ROOT}>
-            <h2 className={SECTION_HEAD.TITLE}>
-              {t("cell_scanner.calculator.result.bands_title")}
-            </h2>
-            <p className={SECTION_HEAD.DESC}>
-              {t("cell_scanner.calculator.result.bands_description")}
-            </p>
+            <div className={SECTION_HEAD.TITLES}>
+              <h2 className={SECTION_HEAD.TITLE}>
+                {t("cell_scanner.calculator.result.bands_title")}
+              </h2>
+              <p className={SECTION_HEAD.DESC}>
+                {t("cell_scanner.calculator.result.bands_description")}
+              </p>
+            </div>
           </div>
 
           {result ? (
@@ -371,12 +370,14 @@ const FrequencyCalculator = () => {
            * it belonged to it.
            */}
           <div className={SECTION_HEAD.ROOT}>
-            <h2 className={SECTION_HEAD.TITLE}>
-              {t("cell_scanner.calculator.history.title")}
-            </h2>
-            <p className={SECTION_HEAD.DESC}>
-              {t("cell_scanner.calculator.history.description")}
-            </p>
+            <div className={SECTION_HEAD.TITLES}>
+              <h2 className={SECTION_HEAD.TITLE}>
+                {t("cell_scanner.calculator.history.title")}
+              </h2>
+              <p className={SECTION_HEAD.DESC}>
+                {t("cell_scanner.calculator.history.description")}
+              </p>
+            </div>
             {history.length > 0 ? (
               <div className={SECTION_HEAD.META}>
                 <Button

@@ -45,7 +45,7 @@ import {
 // most needs to see that something happened.
 // =============================================================================
 
-const BAND_LABEL_KEY = {
+export const BAND_LABEL_KEY = {
   LTE: "cell_scanner.calculator.result.band_lte",
   NR: "cell_scanner.calculator.result.band_nr",
 } as const satisfies Record<NetworkType, string>;

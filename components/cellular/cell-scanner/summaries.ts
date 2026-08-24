@@ -92,6 +92,19 @@ export interface ProviderGroup {
   bands: string[];
   /** Strongest RSRP among this provider's measured cells; `null` if none were. */
   best: number | null;
+  /**
+   * `best` graded on this surface's own three-tier scale — what the summary
+   * tile's disc is tinted and glyphed by.
+   *
+   * DERIVED HERE, not at the call site, for the reason every other aggregate in
+   * this file is: a tier is a judgement over a nullable reading, and computing
+   * it inside a `.map()` in a component is how the same judgement ends up
+   * spelled two different ways on two routes. `signalTier(null)` is `none`, so a
+   * group nothing was measured in grades as an absence rather than as "poor".
+   *
+   * Still no copy: this is the tier ENUM. The routes turn it into a label.
+   */
+  tier: SignalTier;
 }
 
 export interface SweepSummary {
@@ -101,6 +114,16 @@ export interface SweepSummary {
   /** Providers and cells folded out of the capped list. Both 0 when nothing was. */
   overflowProviders: number;
   overflowCells: number;
+  /**
+   * The best tier among the FOLDED groups — the overflow tile's disc.
+   *
+   * Without it the tile that stands for "3 more providers" would have to pick a
+   * tier it does not have, and the honest-looking choice (`none`) would paint it
+   * "nothing was measured here" when the folded groups may hold the strongest
+   * reading of the run. `none` when the list folded nothing, which is also when
+   * the tile is not rendered.
+   */
+  overflowTier: SignalTier;
   // `providerCount` and `bandCount` lived here for the posture rail's context
   // caption ("across 3 providers on 6 bands"). That line was removed by user
   // decision (see `shapes.ts`'s header) and nothing else read them, so they are
@@ -143,11 +166,14 @@ export function summariseSweep(results: CellScanResult[]): SweepSummary {
           : a.localeCompare(b),
       );
 
+      const best = bestSignal(cells.map((cell) => cell.signalStrength));
+
       return {
         provider,
         cells: cells.length,
         bands,
-        best: bestSignal(cells.map((cell) => cell.signalStrength)),
+        best,
+        tier: signalTier(best),
       };
     })
     // Most cells first; a tie is broken by the stronger reading, and a group with
@@ -169,6 +195,9 @@ export function summariseSweep(results: CellScanResult[]): SweepSummary {
     groups: shown,
     overflowProviders: folded.length,
     overflowCells: folded.reduce((sum, group) => sum + group.cells, 0),
+    // `?? 0` maps a group with no reading onto the same sentinel the workers
+    // use, so `bestSignal` skips it rather than treating null as a level.
+    overflowTier: signalTier(bestSignal(folded.map((group) => group.best ?? 0))),
     measured: strengths.filter(isMeasured).length,
     tiers,
     uniform: uniformTier(tiers),
@@ -188,6 +217,8 @@ export interface RelationGroup {
   /** Distinct reported channels. The worker's 0 is "not reported" and is dropped. */
   channels: number[];
   best: number | null;
+  /** `best` on the three-tier scale — the tile disc. See `ProviderGroup.tier`. */
+  tier: SignalTier;
 }
 
 export interface NeighbourSummary {
@@ -201,6 +232,12 @@ export interface NeighbourSummary {
    * cannot be locked — the one fact this route's verdict exists to explain.
    */
   channelOnly: number;
+  /**
+   * The best tier across the WHOLE read — the disc on the measurement-split
+   * tile, which is a count rather than a relation and so has no tier of its own.
+   * `none` when nothing was measured, which is exactly what that tile then says.
+   */
+  tier: SignalTier;
   // `channelCount` is gone for the same reason `providerCount` is on the sweep
   // side: it fed only the posture rail's context caption, which was removed.
 }
@@ -212,6 +249,7 @@ export function summariseNeighbours(
 ): NeighbourSummary {
   const groups: RelationGroup[] = RELATION_ORDER.map((type) => {
     const rows = results.filter((row) => row.cellType === type);
+    const best = bestSignal(rows.map((row) => row.signalStrength));
     return {
       type,
       count: rows.length,
@@ -220,7 +258,8 @@ export function summariseNeighbours(
           rows.map((row) => row.frequency).filter((channel) => channel !== 0),
         ),
       ].sort((a, b) => a - b),
-      best: bestSignal(rows.map((row) => row.signalStrength)),
+      best,
+      tier: signalTier(best),
     };
   }).filter((group) => group.count > 0);
 
@@ -231,5 +270,6 @@ export function summariseNeighbours(
     groups,
     measured,
     channelOnly: results.length - measured,
+    tier: signalTier(bestSignal(results.map((row) => row.signalStrength))),
   };
 }
