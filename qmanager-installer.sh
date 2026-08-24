@@ -11,12 +11,14 @@
 #
 # Environment variables:
 #   QMANAGER_VERSION  Pin a specific release version (default: latest including pre-releases)
+#   QMANAGER_REPO     Override the GitHub repo to install from
+#                     (default: dr-dolomite/QManager-RM520N)
 #
 # ==============================================================================
 
 # --- Configuration -----------------------------------------------------------
 
-GITHUB_REPO="dr-dolomite/QManager-RM520N"
+GITHUB_REPO="${QMANAGER_REPO:-dr-dolomite/QManager-RM520N}"
 GITHUB_API="https://api.github.com/repos/${GITHUB_REPO}/releases"
 ARCHIVE_PATH="/tmp/qmanager.tar.gz"
 CHECKSUM_PATH="/tmp/qmanager_sha256sum.txt"
