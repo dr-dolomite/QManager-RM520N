@@ -15,7 +15,7 @@
 
 | Task | Title | State | Branch / commit | Session |
 | --- | --- | --- | --- | --- |
-| T0 | Commit the Phase-A input documents | **IN PROGRESS** — Steps 3–4 done (`3c34c4a`, plan + tracker committed and `git ls-files`-verified). **Steps 1–2 remain:** the §9 amendment, `platform-matrix.md` and the still-**untracked** `rg501q-bringup.md` | `3c34c4a` | 2026-08-24 |
+| T0 | Commit the Phase-A input documents | **DONE (merged)** — all 5 steps. Every input doc is tracked on `development`. | `3c34c4a`, `73cc424`, `fc30a50` | 2026-08-24 |
 | T1 | `hw_profile.sh` — parser, tier table, generator | NOT STARTED | — | — |
 | T2 | Generate `platform.json` at install; recognize RG501Q | NOT STARTED | — | — |
 | T3 | Self-heal `platform.json` in `qmanager_setup` | NOT STARTED | — | — |
@@ -38,6 +38,28 @@ States: `NOT STARTED` · `IN PROGRESS` · `BLOCKED` · `DONE (merged)` · `DONE 
 ## Log
 
 Newest entry first. Every entry records: what was done, the gate evidence, and **what a later task might invalidate**.
+
+### 2026-08-24 — T0 DONE. Every Phase-A input document is now tracked.
+
+**Done.** T0 Steps 1–2 landed, closing the trap that would have broken the next session: `docs/reference/rg501q-bringup.md` was **untracked** and the spec's §9 amendment was uncommitted, so a worktree cut off `development` would have contained none of the RG501Q evidence and a builder would have silently fallen back to spec Sections 1–8.
+
+| Commit | Contents |
+| --- | --- |
+| `73cc424` | `rg501q-bringup.md` (was untracked), `platform-matrix.md`, the §9 amendment |
+| `fc30a50` | `modem-investigator` + `installer-safety-auditor` agent memories |
+
+**Gate evidence.**
+```
+git ls-files --error-unmatch docs/reference/rg501q-bringup.md \
+    docs/superpowers/specs/2026-08-23-multi-target-modem-support-design.md
+=> both paths printed. OK
+```
+
+**Deliberately NOT committed** — unrelated in-flight frontend work from a parallel session, left in the working tree untouched: `components/cellular/band-locking/live-band-hero.tsx`, `components/cellular/band-locking/shapes.ts`, `docs/reference/band-locking.md`, and five `public/locales/*/cellular.json` files.
+
+**What a later task might invalidate:** nothing. **T1 is now unblocked and may cut its worktree immediately** — the precondition is satisfied. A worktree branched off `development` at `fc30a50` or later contains every input document this plan depends on.
+
+---
 
 ### 2026-08-24 — Gate decisions recorded; `qcmd_test` shipped standalone
 
