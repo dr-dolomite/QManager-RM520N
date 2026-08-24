@@ -258,36 +258,6 @@ finalize_version() {
     fi
 }
 
-# --- Modem Firmware Detection ------------------------------------------------
-
-detect_modem_firmware() {
-    local model=""
-
-    # Try version file first (fastest, no AT round-trip)
-    if [ -f /etc/quectel-project-version ]; then
-        model=$(grep -m1 "^Project Name:" /etc/quectel-project-version 2>/dev/null \
-            | sed 's/^Project Name:[[:space:]]*//' | tr -d '[:space:]')
-    fi
-
-    # Fall back to AT stack
-    if [ -z "$model" ] && [ -x "$BIN_DIR/atcli_smd11" ]; then
-        model=$(timeout 5 "$BIN_DIR/atcli_smd11" "ATI" 2>/dev/null \
-            | grep -i "RM520N" | head -1 | tr -d '[:space:]') || true
-        [ -z "$model" ] && model=$(timeout 5 "$BIN_DIR/atcli_smd11" "AT+GMR" 2>/dev/null \
-            | grep -i "RM520N" | head -1 | tr -d '[:space:]') || true
-    fi
-
-    # Fall back to poller cache
-    if [ -z "$model" ]; then
-        for f in /tmp/qmanager_status.json /etc/qmanager/status.json; do
-            [ -f "$f" ] && model=$(grep -o '"RM520N[^"]*"' "$f" 2>/dev/null | head -1 \
-                | tr -d '"[:space:]') && [ -n "$model" ] && break
-        done
-    fi
-
-    printf '%s' "$(printf '%s' "$model" | tr '[:lower:]' '[:upper:]')"
-}
-
 # --- Download Helper ---------------------------------------------------------
 #
 # curl/wget auto-detection — mirrors scripts/usr/lib/qmanager/downloader.sh.

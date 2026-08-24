@@ -16,7 +16,7 @@
 | Task | Title | State | Branch / commit | Session |
 | --- | --- | --- | --- | --- |
 | T0 | Commit the Phase-A input documents | **DONE (merged)** — all 5 steps. Every input doc is tracked on `development`. | `3c34c4a`, `73cc424`, `fc30a50` | 2026-08-24 |
-| T1 | `hw_profile.sh` — parser, tier table, generator | NOT STARTED | — | — |
+| T1 | `hw_profile.sh` — parser, tier table, generator | **DONE (branch kept)** — all 8 steps. Both validators clean. Merge decision was still with the user when this row was written. | branch `feat/phase-a-t1-hw-profile`, base `c991b64` | 2026-08-24 |
 | T2 | Generate `platform.json` at install; recognize RG501Q | NOT STARTED | — | — |
 | T3 | Self-heal `platform.json` in `qmanager_setup` | NOT STARTED | — | — |
 | **T4** | **Migrate the poller's identity reads — THE CUT LINE** | NOT STARTED | — | — |
@@ -38,6 +38,77 @@ States: `NOT STARTED` · `IN PROGRESS` · `BLOCKED` · `DONE (merged)` · `DONE 
 ## Log
 
 Newest entry first. Every entry records: what was done, the gate evidence, and **what a later task might invalidate**.
+
+### 2026-08-24 — T1 DONE. `hw_profile.sh` exists; the dead detector is gone.
+
+**Done.** All 8 steps. Branch `feat/phase-a-t1-hw-profile`, cut from `development` at base SHA `c991b642a161d7245cab3fc9f259f7392de1cc51`. **Diffed against that SHA throughout, never against `development`** — a parallel session was advancing the branch with band-locking / locale work the whole time.
+
+| File | Change |
+| --- | --- |
+| `scripts/usr/lib/qmanager/hw_profile.sh` | **new** — tolerant parser, tier table, `qm_hw_write_profile` generator |
+| `scripts/test/hw-profile.sh` | **new** — 21 assertions, fixtures decoded from real device bytes |
+| `scripts/install_rm520n.sh` | **-30 lines** — `detect_modem_firmware()` + its section header deleted. Nothing added |
+
+**T0 was already done.** The session brief said T0 Steps 1–2 were outstanding and must land before any worktree was cut. They were not: `git ls-files --error-unmatch` printed all three input-document paths. The tracker was right and the brief was stale — **which is the rule working as designed.** No T0 work was performed.
+
+#### Two defects the harness caught, both fixed in the library rather than the test
+
+1. **The repo's standard load-guard idiom dies under `set -u`.** `[ -n "$_HW_PROFILE_LOADED" ]`, copied from `config.sh:6`, aborts any caller running `set -u`. Every existing library carries the same bug and gets away with it only because nothing sources them that way. `qmanager_setup` (T3) will source this one. Now `${_HW_PROFILE_LOADED:-}`. **Worth knowing before T3 sources anything else.**
+
+2. **Memoization was inert AND a latent T3 bug — removed.** The first draft cached parsed values in module-level vars. Accessors print to stdout, so every caller writes `$(qm_hw_model)` — a command-substitution *subshell*. Proven directly: `_QM_HW_MODEL` is empty in the parent immediately after the call. It never cached anything. Worse, had it worked it would have broken T3: self-heal compares the **live** `fw_fingerprint` against the one in `platform.json`, and a cache holding a pre-reflash value is exactly the bug that path exists to catch. The library now re-reads on every call and the harness asserts memoization stays gone.
+
+#### Decisions made inside T1 that later tasks are written against
+
+- **`qm_hw_variant` returns `default`** (not empty) for any unrecognized model, documented as "no overlay applies — use the compatibility-floor asset `qmanager.tar.gz`". T9 must map `default` → the floor. `rm520n` / `rg501q` are the two real slugs, matching T7's `variants/<slug>/` directories.
+- **`form_factor` is `m2` / `lga` / `unknown`**, keyed off the model glob. These are **vendor datasheet values, not device probes** — labelled as such in the source so nobody later mistakes them for measurements.
+- **A model failing the Quectel shape regex reports `unknown`, but `fw_fingerprint` is still returned verbatim.** The fingerprint is a staleness key, not an identity claim; self-heal needs it even on hardware we cannot name.
+- **The schema-1 field order in C3 is emitted exactly.** No `variant` field was added to the JSON even though `qm_hw_variant()` exists — adding one would change the schema the plan specifies. T9 derives it from `model`.
+
+#### Gate evidence — RM520N-GL, captured live, read-only
+
+Nothing was deployed to either device. The last two rows are the proof of that, not decoration.
+
+| Check | 03:17:48 UTC (before) | 03:27:55 UTC (after) |
+| --- | --- | --- |
+| `cat /usrdata/qmanager/data_used.json` | `schema 5`, `rmnet_ipa0`, `orientation: normal` | identical |
+| `accumulated_rx / tx` | `48218 / 1884447` | `50382 / 1976271` — **advancing** |
+| `systemctl list-units 'qmanager*' --all` | 11 loaded, poller running | 11 loaded, poller running |
+| `head -c 400 /tmp/qmanager_status.json` | `modem_reachable: true` | `modem_reachable: true` |
+| `ls /usr/lib/qmanager/hw_profile.sh` | — | **No such file or directory** |
+| `ls /etc/qmanager/platform.json` | No such file or directory | No such file or directory |
+
+The advancing counter is also **the G2 blind-spot check in miniature**: the counter is genuinely moving over ~10 minutes, not frozen at a plausible value. T4 needs this same before/after pair, freshly taken.
+
+Static gates: `bash scripts/test/hw-profile.sh` → **21 passed, 0 failed**. `bash scripts/test/run-all.sh` → **PASS: 163 scripts**. `grep -n "hw_profile\|Project Name\|Branch" scripts/usr/lib/qmanager/platform.sh` → no output. `grep -rn "detect_modem_firmware" scripts/` → no output.
+
+#### Validators — both clean, run in one parallel message
+
+- **`installer-safety-auditor` → CLEAN.** Independently re-verified the zero-callers claim across the whole tree including indirect invocation (no file sources `install_rm520n.sh` as a library; the one `"$fn"`-style dispatch table at `qmanager_health_check:113` is unrelated). All three lockstep findings hold. I4, I6 and the `--force` gate intact — the headless auto-proceed moved `398-408 → 368-378`, a uniform 30-line shift matching the deletion exactly, logic byte-identical.
+- **`busybox-portability-checker` → SAFE TO SHIP.** No jq, no `/opt`, no arithmetic, LF clean, `local` form ash-safe. Verified live under `dash` (closest local proxy to BusyBox ash), and re-confirmed the parser against `od -c` on the live RM520N-GL.
+
+#### Invariant re-assertion
+
+| # | Result |
+| --- | --- |
+| I1 | ✅ Evidence table above — command and output, both captures |
+| I2 | ✅ N/A — nothing written to the RG501Q. Read-only `od -c` / `base64` of the vendor file only. **No wipe performed**; the missing-profile fixture survives |
+| I3–I6 | ✅ N/A for I3 (no build cut) · I4/I5/I6 confirmed by `installer-safety-auditor` |
+| I7 | ✅ `git diff --stat <base> -- scripts/usr/bin/qmanager_poller` **empty**. The `SDX55) echo "reversed"` arm at `:73` is still unreachable — T1 did **not** repair the poller's one-space grep. That is T4's decision to make deliberately |
+| I8 | ✅ `grep -c 'jq' scripts/usr/bin/qmanager_setup` → `0`; the library itself has no jq |
+| I9 | ✅ `git diff --stat <base> -- scripts/usr/lib/qmanager/platform.sh` **empty** |
+| I10 | ✅ Repo-wide grep for `platform.json` / `hw_profile` outside the two new files → no output. Ships as dead code |
+| I11 | ✅ `hw_profile.sh:144` → `RG501Q*) printf '%s\n' "community"`. The harness also asserts the negative: a test fails if the string ever becomes `official` |
+| I12 | ✅ Both device fixtures are base64 round-trips of real bytes, capture command recorded in the harness header. `form_factor` is explicitly labelled datasheet-derived, not probed |
+| I13 | ✅ `git ls-files --error-unmatch` on this file — see the commit |
+
+#### What a later task might invalidate
+
+- **T2's plan line number is stale.** The plan cites the `/usr/lib/qmanager/*` glob install at `install_rm520n.sh:1125`; it is actually at **`:1095`** (`install_dir_flat "$SRC_SCRIPTS/usr/lib/qmanager" "$LIB_DIR" 644`). Uninstaller sites `:341` and `:580` match the plan exactly. **T2 must re-locate before editing, not trust the plan's numbers** — and note T1's own deletion shifted everything below line 261 up by 30.
+- **`qm_hw_write_profile` returns 1 legitimately** (missing parent dir, empty `$dest`). Under the caller's `set -e`, a direct unguarded call **aborts the caller** — confirmed live under `dash`. **T2 and T3 must both guard it** (`qm_hw_write_profile "$dest" || …`). This is the single most likely way to turn a clean T1 into a boot-time regression in T3.
+- **`_qm_hw_json_escape` uses `tr -d '\000-\037'`**, a valid BusyBox idiom that appears nowhere else in this repo (existing code uses `[[:cntrl:]]` or plain `\r` deletes). It was never executed on-device — T1 is read-only and the library has no consumer. **The first task that actually runs the generator on hardware should eyeball the emitted JSON**, not just assume.
+- **Nothing else.** T1 adds no consumer, so the profile's *content* is not yet load-bearing anywhere.
+
+---
 
 ### 2026-08-24 — T0 DONE. Every Phase-A input document is now tracked.
 
@@ -152,6 +223,28 @@ Every row carries its probe command and date. **Unprobed stays `*unverified*`.**
 | `qcmd_test` greps vs live output | `:50` → `rc=0`, `:75` → `rc=0` — **both PASS** | RM520N-GL | live `atcli_smd11 "ATI"` and `qcmd 'AT+CGMM;+CGSN'` |
 | Hostname is **not** derived from model identity | Stock firmware value (`sdxlemur`); the installer never sets it; only the System Settings CGI writes it | RM520N-GL | `grep -rn hostname scripts/install_rm520n.sh` → none |
 
+### 2026-08-24 — measured during T1
+
+| Fact | Value | Device | Probe |
+| --- | --- | --- | --- |
+| `Package Time` | `2026-03-23,12:27` (RM520N-GL) / **`2025-02-21,13:43`** (RG501Q-EU) | both | `od -c /etc/quectel-project-version` |
+| Full vendor file, byte-exact, both devices | RM520N-GL: `UHJvamVjdCBOYW1lOiBSTTUyME5HTF9WQwpQcm9qZWN0IFJldiA6IFJNNTIwTkdMQUFSMDNBMDNNNEdfQTAuMzA0CkJyYW5jaCAgTmFtZTogU0RYNlgKQ3VzdG9tICBOYW1lOiBTVEQKUGFja2FnZSBUaW1lOiAyMDI2LTAzLTIzLDEyOjI3Cg==` · RG501Q-EU: `UHJvamVjdCBOYW1lOiBSRzUwMVFFVV9WRApQcm9qZWN0IFJldiA6IFJHNTAxUUVVQUFSMTJBMTFNNEdfMDQuMjAyCkJyYW5jaCAgTmFtZTogU0RYNTUKQ3VzdG9tICBOYW1lOiBTVEQKUGFja2FnZSBUaW1lOiAyMDI1LTAyLTIxLDEzOjQzCg==` | both | `base64 /etc/quectel-project-version`, cross-checked with `od -c`. **Now the fixture source in `scripts/test/hw-profile.sh` — no later task needs to re-probe this.** |
+| No CR bytes anywhere in the vendor file | LF-only on both | both | `od -c` |
+
+#### ⚠ Tooling: `New-SSHSession` no longer reaches the RM520N-GL
+
+`Posh-SSH 3.2.7`'s `New-SSHSession` fails with **`Key exchange negotiation failed`**, on a device that is up and answering. It is not a credential or reachability problem: `ssh.exe` negotiates `curve25519-sha256` fine, and dropbear's proposal (`curve25519-sha256`, `ecdh-*`, `diffie-hellman-group14-sha256`; MAC `hmac-sha2-256` only) overlaps SSH.NET's supported set completely. The Posh-SSH *cmdlet wrapper* prunes something; the bundled library does not.
+
+**Working path — use the bundled SSH.NET directly:**
+```powershell
+Import-Module Posh-SSH   # only to load Renci.SshNet.dll
+$ci = New-Object Renci.SshNet.PasswordConnectionInfo($env:MODEM_IP, 22, $env:MODEM_SSH_USER, $env:MODEM_SSH_PASSWORD)
+$c  = New-Object Renci.SshNet.SshClient($ci); $c.Connect()
+$c.RunCommand('…').Result
+$c.Disconnect()
+```
+CLAUDE.md still tells agents to use `New-SSHSession`. **Fold this into T10's transport section (Q2).** Note the failure mode leaks `MODEM_IP` into the error text — avoid `-ErrorAction Stop` unguarded if transcripts matter.
+
 ### Still `*unverified*` on RG501Q-EU
 
 Live `ATI` / `AT+CGMM` output (blocked on the `/dev/smd11` contention above); counter orientation on this firmware; udev subsystem for `smd11` and whether the PRAIRIE boot-ordering deviation reproduces; whether `/etc/hostname` exists; the 1970 boot window and journald behavior (observed consistent, **not proven**).
@@ -179,7 +272,16 @@ Live `ATI` / `AT+CGMM` output (blocked on the `/dev/smd11` contention above); co
 - **No task in this plan requires a wipe.** Do not perform one as a side effect of testing. If you wipe, record the date and the exact command here — it retires the live missing-profile fixture for every later task.
 - Standing invariant I2 changes meaning accordingly: "do not make it harder to recover" no longer applies to a deliberate, recorded wipe. It still applies to accidental damage.
 
-**Wipe log:** *(none yet — device untouched as of 2026-08-24)*
+**Wipe log:** *(none yet — device untouched as of 2026-08-24. T1 did not wipe: the only RG501Q access was a read-only `od -c` / `base64` of `/etc/quectel-project-version` over adb. The live missing-`platform.json` fixture is intact.)*
+
+### Raised during T1 — must be honoured by T2/T3
+
+| # | Question / constraint | Owner |
+| --- | --- | --- |
+| Q6 | **`qm_hw_write_profile` must be guarded at every call site.** It returns 1 legitimately; under the caller's `set -e` an unguarded direct call aborts the caller — confirmed live under `dash`. Write `qm_hw_write_profile "$dest" \|\| …`. | **T2 and T3, both** |
+| Q7 | The plan's `install_rm520n.sh:1125` glob-install line is stale — it is **`:1095`**, and T1's deletion shifted everything below line 261 up by 30. Re-locate, do not trust plan line numbers. | T2 |
+| Q8 | `_qm_hw_json_escape`'s `tr -d '\000-\037'` has never executed on-device. The first task that runs the generator on hardware should read the emitted JSON, not assume it. | T2 (first real caller) |
+| Q9 | Every existing `scripts/usr/lib/qmanager/*.sh` uses the `[ -n "$_X_LOADED" ]` load guard, which **dies under `set -u`**. `hw_profile.sh` was fixed; the others were not. Not a Phase A bug — nothing sources them that way today — but T3 puts `qmanager_setup` in the business of sourcing libraries. | unassigned / T10 note |
 
 ### Deferred to a later phase — recorded so they are not rediscovered
 

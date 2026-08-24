@@ -13,9 +13,33 @@ column per field-sighting becomes unmaintainable at the fourth device.
 | --- | --- | --- |
 | Form factor | M.2 | LGA |
 | SoC | SDX65 / SDXLEMUR (X62 silicon) | SDX55 / SDXPRAIRIE |
-| `Project Name:` in `/etc/quectel-project-version` | `RM520N…` | `RG501QEU_VD` |
-| `Branch Name:` in `/etc/quectel-project-version` | `SDX6X` | `SDX55` |
+| `Project Name:` in `/etc/quectel-project-version` | `RM520NGL_VC` | `RG501QEU_VD` |
+| `Project Rev :` in `/etc/quectel-project-version` | `RM520NGLAAR03A03M4G_A0.304` | `RG501QEUAAR12A11M4G_04.202` |
+| `Branch  Name:` in `/etc/quectel-project-version` | `SDX6X` | `SDX55` |
+| `Package Time:` in `/etc/quectel-project-version` | `2026-03-23,12:27` | `2025-02-21,13:43` |
 | Status | reference device — everything below measured here | probed 2026-08-24 — see [`rg501q-bringup.md`](./rg501q-bringup.md) |
+
+**The label spellings in that table are exact, and three of them are traps.** The
+vendor's file is **column-aligned**, not space-delimited: `Project Rev` carries a
+space *before* its colon, and `Branch  Name` / `Custom  Name` carry **two** spaces
+*between the words*. Captured with `od -c` on both devices 2026-08-24; the two
+files are byte-identically formatted.
+
+A parser written against the obvious spelling matches nothing. That is not
+hypothetical — `qmanager_poller`'s `grep -m1 "^Branch Name"` (one space) has
+matched on **no device, ever**, so `detect_orientation_from_soc()` has always
+fallen through to `normal`. Any new reader must tolerate whitespace *between the
+words*, not merely before the colon:
+
+```sh
+grep -m1 '^Branch[[:space:]]*Name[[:space:]]*:' "$f" | sed 's/^[^:]*:[[:space:]]*//'
+```
+
+`scripts/usr/lib/qmanager/hw_profile.sh` is the shared implementation — use it
+rather than writing a fourth ad-hoc `grep`. Its test fixtures in
+`scripts/test/hw-profile.sh` are base64 round-trips of the real bytes from both
+devices, with the capture commands recorded in the header, so the exact file
+contents need not be re-probed.
 
 ## How to read this document
 
