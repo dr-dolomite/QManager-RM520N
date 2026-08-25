@@ -74,6 +74,11 @@ one of:
 - **post-reset state** — an artifact of the wipe; will change once Entware and
   QManager config are reinstalled. Never generalize one of these.
 
+A third class appeared later the same day: cells measured **after a live full
+installer run on 2026-08-25** (the Entware bootstrap fix — see the `wget` section
+under Shell & toolchain). Those describe a *correctly installed* device, and they
+supersede the matching post-reset cell rather than the stock-firmware one.
+
 ## How to read this document
 
 **A cell stays `*unverified*` until the hardware is probed.** Phase A0 recorded
@@ -127,7 +132,7 @@ about the device, not observation of it.
 
 | Fact | RM520N-GL (SDX65) | RG501Q-EU (SDX55) | How established |
 | --- | --- | --- | --- |
-| BusyBox | v1.31.1 | *unverified* | on-device · `auth-rate-limiting.md`; RM520N-GL re-confirmed 2026-08-25 |
+| BusyBox | v1.31.1 | **v1.29.3** (older — factory build 2025-02-21) | RM520N-GL: on-device · `auth-rate-limiting.md`, re-confirmed 2026-08-25. RG501Q-EU: adb 2026-08-24 · `rg501q-bringup.md` — stock firmware |
 | BusyBox `tr -d '\000-\037'` | Works correctly on 1.31.1 | *unverified* | on-device 2026-08-25 |
 | `flock -w` (timeout) | **Absent** — poll `flock -x -n` in a loop instead | *unverified* | on-device · `at-command-transport.md` |
 | `flock` bare-FD form | Supported; a read-only fd suffices for `-x` | *unverified* | on-device via `/proc/<pid>/fdinfo` |
@@ -135,13 +140,72 @@ about the device, not observation of it.
 | `/bin/bash` | Present, 3.2.57 — many modern bashisms missing | **Present** at `/bin/bash`; version *unverified* | RM520N-GL: on-device · `docs/BACKEND.md`. RG501Q-EU: adb 2026-08-25 — stock firmware |
 | `/bin/sh`, `tr`, `lighttpd` | *unverified* as a set (all three are used repo-wide) | **Present** — `/bin/sh`, `/usr/bin/tr`, `/usr/sbin/lighttpd` | RG501Q-EU: adb 2026-08-25 — stock firmware |
 | `curl` | *unverified* | **Stock at `/usr/bin/curl`** — 7.61.0 (`arm-oe-linux-gnueabi`), libcurl/7.61.0 GnuTLS/3.6.4 zlib/1.2.11 libidn2/2.0.5, Release-Date 2018-07-11 | RG501Q-EU: adb 2026-08-25 — stock firmware |
-| `wget` | *unverified* | **Absent** | RG501Q-EU: adb 2026-08-25 — stock firmware |
+| ⚠️ `wget` | **Present** at `/usr/bin/wget` — a BusyBox applet symlink, so it exists because 1.31.1 was built *with* the applet | ⚠️ **Absent entirely** — BusyBox 1.29.3 was built **without** the `wget` applet, and no standalone `wget` binary ships. `curl` is the only downloader. **Post-install**, QManager supplies one: Entware `wget-ssl` (GNU Wget 1.25.0) at `/opt/bin/wget`, symlinked to `/usr/bin/wget` | RM520N-GL: on-device 2026-08-25 (post-fix no-op check). RG501Q-EU: adb 2026-08-24 and 2026-08-25 — stock firmware; the post-install state from a live installer run 2026-08-25 |
+| `lighttpd` | Entware only, `/opt/sbin/lighttpd` — no vendor build | **Two of them.** Vendor `/usr/sbin/lighttpd` ships in the stock image; QManager still installs and uses the Entware build at `/opt/sbin/lighttpd`. The vendor binary is left in place, unused | RG501Q-EU: adb 2026-08-24 · `rg501q-bringup.md` — stock firmware |
+| `/opt/sbin` | Created by the `entware-opt` package | **Does not exist** before Entware is bootstrapped; the installer now creates it up front (`dropbear.service` hardcodes `ExecStart=/opt/sbin/dropbear`) | RG501Q-EU: adb 2026-08-25 with `/opt` empty — **post-reset / pre-bootstrap state** |
 | CA bundle | *unverified* | `/etc/ssl/certs/ca-certificates.crt`, 200061 bytes, dated Feb 21 2025 | RG501Q-EU: adb 2026-08-25 — stock firmware |
 | Shell arithmetic | BusyBox `sh` is 32-bit signed (wraps past 2.15 GB); bash 3.2 is 64-bit | *unverified* | on-device · `data-usage-counter.md` |
-| Entware `jq` | `/opt/bin/jq` 1.7.1, built **without** ONIGURUMA — `gsub`/`test`/`match` abort at runtime | **Missing today** — `/opt` is empty, so this RM520N-GL row does **not** apply to this device. Whether a bootstrapped Entware `jq` would match is *unverified* | RM520N-GL: on-device · `alerts.md`, re-confirmed 2026-08-25. RG501Q-EU: adb 2026-08-25 — **post-reset state**, not stock firmware |
-| `opkg` / Entware tree | `/opt/bin/opkg`, dedicated UBIFS volume | **Missing today** — `/opt` empty after the userdata wipe | RG501Q-EU: adb 2026-08-25 — **post-reset state** |
+| Entware `jq` | `/opt/bin/jq` 1.7.1, built **without** ONIGURUMA — `gsub`/`test`/`match` abort at runtime | **Installed 2026-08-25** by the fixed installer; whether this build carries ONIGURUMA is still *unverified* — do not assume it matches the RM520N-GL row either way | RM520N-GL: on-device · `alerts.md`, re-confirmed 2026-08-25. RG501Q-EU: installed by a live installer run 2026-08-25; regex support not probed |
+| `opkg` / Entware tree | `/opt/bin/opkg`, dedicated UBIFS volume | **Bootstrapped 2026-08-25** — 44 packages, after the installer fix below. Before that fix `/opt` held only a half-written `opkg` and zero packages. Not a dedicated volume here: `/opt` is a bind of `/usrdata/opt` on `ubi2_0`, so a factory reset wipes it | RG501Q-EU: adb 2026-08-25 — **post-reset state**, then a live full installer run the same day |
 | `sftp-server` | Absent — deploy with `scp -O` only | *unverified* | on-device |
 | `stdbuf` | Absent | *unverified* | on-device · `qmanager-independence.md` |
+| Vendor default `PATH` | `/opt/usr/sbin:/opt/usr/bin:/opt/sbin:/opt/bin:/usr/sbin:/usr/bin:/sbin:/bin` — **`/opt/bin` precedes `/usr/bin`** in the shipped login environment, not merely in QManager's own prepends | Assumed identical; *unverified* | RM520N-GL: on-device 2026-08-25 |
+| `PATH` inside systemd units | `/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin` — **no `/opt/bin` at all**, because no shipped unit sets `Environment=PATH=` | Assumed identical; *unverified* | RM520N-GL: on-device 2026-08-25 |
+
+### ⚠️ No `wget` means no Entware — the bootstrap chicken-and-egg
+
+**Short version: Entware's `opkg` downloads packages by shelling out to `wget`, and
+that choice is compiled in — so on a device with no `wget`, `opkg` can fetch
+nothing at all, including a `wget` to fix itself with.**
+
+The mechanism: `opkg` (the Entware package manager, an OpenWrt descendant) does not
+speak HTTP itself. It builds a command line and hands it to an external downloader.
+On the Entware build QManager installs — version `d038e5b6`, dated 2022-02-24 —
+that downloader is hardcoded: there is **no `option downloader` line in
+`/opt/etc/opkg.conf`, and no such string anywhere in the binary**, so `curl` cannot
+be selected by configuration.
+
+Consequences measured on the RG501Q-EU before the 2026-08-25 installer fix:
+
+- Every `opkg` fetch failed, so **every** Entware package was skipped — `lighttpd`,
+  `sudo`, `jq`, `dropbear`.
+- The installer still **exited 0** and warned about connectivity. That was an active
+  misdiagnosis: `curl` pulled the identical URL
+  (`http://bin.entware.net/armv7sf-k3.2/Packages.gz`) seconds later with HTTP 200 and
+  381792 bytes. The network was fine; the downloader was missing.
+- Downstream, no `sudo` meant the sudoers rules were skipped, so CGI privilege
+  escalation could never work.
+
+The installer now writes a **temporary curl-backed `wget` shim** when
+`command -v wget` fails, uses it to bootstrap Entware, then installs the real
+`wget-ssl 1.25.0-4` from Entware as the permanent handoff. The RM520N-GL, which
+ships a real `wget`, never takes that path.
+
+> ⚠️ **The shim is deliberately non-persistent — never move it to `/opt/bin`.** It
+> lives in `/tmp` for the duration of `install_dependencies()` only. Two reasons,
+> both in the two `PATH` rows above and in `uninstall_rm520n.sh:7`: `/opt/bin`
+> precedes `/usr/bin` in the vendor default `PATH`, so an `/opt/bin/wget` would
+> **shadow the real system `wget`** for the CGI backend, the OTA downloader and every
+> root helper; and the uninstaller deliberately never removes anything under `/opt`,
+> so that shadow would outlive QManager itself.
+
+> ℹ️ NOTE: **OTA cannot deliver this fix.** `qmanager_update` always invokes the
+> installer with `--skip-packages` (`scripts/usr/bin/qmanager_update:260,464,576,651`)
+> and `install_dependencies()` is gated behind `DO_PACKAGES`
+> (`scripts/install_rm520n.sh:3426`), so a Software Update never runs the bootstrap at
+> all. A device stranded in the half-bootstrapped state needs a **fresh full installer
+> run**. This was an explicit scoping decision, not an oversight.
+
+### Why the Entware `lighttpd` is installed even though a vendor one exists
+
+The RG501Q-EU ships `/usr/sbin/lighttpd`, so installing Entware's build looks
+redundant. Keeping the Entware build is an **approved decision**, for RM520N-GL
+parity: QManager's `lighttpd.conf`, its TLS certificate paths and the
+`mod-cgi` / `mod-openssl` / `mod-redirect` / `mod-proxy` module set are all built
+against the Entware lighttpd, and lighttpd refuses to load a module whose version
+does not match the server's (`plugin-version doesn't match`). Pointing QManager at
+the vendor binary would mean sourcing a matching module set for it on every device.
+The vendor binary stays on disk, unused.
 
 ## AT transport
 
@@ -235,8 +299,9 @@ above is exactly that situation).
 | Float ABI | `vfp vfpv3 vfpv4 neon` in `/proc/cpuinfo` — armhf hard-float runs natively | *unverified* | on-device `/proc/cpuinfo` |
 | `aarch64` | Will not run | *unverified* | inferred from ARMv7-A |
 | glibc | 2.31 | *unverified* | on-device |
-| Kernel | `5.4.210-perf` | *unverified* | on-device 2026-05-09 |
-| Entware target | `armv7sf-k3.2` | *unverified* | on-device |
+| Kernel | `5.4.210-perf` | **`4.14.206`** PREEMPT | RM520N-GL: on-device 2026-05-09. RG501Q-EU: adb 2026-08-24 · `rg501q-bringup.md` — stock firmware |
+| `uname -m` | `armv7l` | **`armv7l`** | RG501Q-EU: adb 2026-08-24 — stock firmware |
+| Entware target | `armv7sf-k3.2` | **`armv7sf-k3.2`** — same as RM520N-GL; the device's own `/opt/etc/opkg.conf` carries `arch armv7-3.2 160`, matching the bundled `.ipk` suffix | RG501Q-EU: adb 2026-08-24, plus a successful 44-package bootstrap 2026-08-25 |
 
 **Float ABI is the highest-consequence unverified row.** SDX55 is a genuinely
 different SoC, not a revision of SDX65. Bundling a hard-float binary for
@@ -287,8 +352,10 @@ Each becomes a filled cell above once measured:
   wipes the whole Entware tree.
 - Does the CPU expose VFP, so hard-float binaries are safe?
 - Does the device `jq` have ONIGURUMA, and does BusyBox `flock` support the
-  bare-FD form? (Still open — the RG501Q-EU has **no `jq` at all** today; `/opt`
-  was wiped by the 2026-08-25 factory reset.)
+  bare-FD form? (Still open — but `jq` now **exists** on the RG501Q-EU as of the
+  2026-08-25 bootstrap, so both are finally testable.)
 - What resets outbound TCP payloads on the RG501Q-EU? Local `iptables` is ruled
-  out; the cause is upstream and unidentified. It blocks the Entware bootstrap.
+  out; the cause is upstream and unidentified. It no longer blocks the Entware
+  bootstrap — that completed over plain HTTP on 2026-08-25 — but it is still
+  unexplained and still a risk for anything needing outbound **HTTPS**.
 - Is `AT+CGAUTH` supported, and is there a per-context MTU write?

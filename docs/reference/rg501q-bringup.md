@@ -1,6 +1,7 @@
-# RG501Q-EU probe — 2026-08-24
+# RG501Q-EU bring-up — probe 2026-08-24, Entware bootstrap fixed 2026-08-25
 
-> **Applies to:** RG501Q-EU (SDX55) · measured 2026-08-24 over adb
+> **Applies to:** RG501Q-EU (SDX55) · measured 2026-08-24 over adb, with the
+> Entware bootstrap findings and fix added 2026-08-25
 > **RM520N-GL (SDX65):** comparison values quoted from [`platform-matrix.md`](./platform-matrix.md)
 
 Device: adb serial `b7e3d6f1`, uid=0 root shell. All commands read-only.
@@ -57,13 +58,13 @@ Probes: `cat /proc/cmdline`, `cat /proc/mounts`, `df -h`, `cat /proc/mtd`,
 | Tool | RG501Q-EU | Note |
 | --- | --- | --- |
 | `curl` | **/usr/bin/curl** | stock — on RM520N-GL this is Entware |
-| `lighttpd` | **/usr/sbin/lighttpd** | **stock** — on RM520N-GL this is Entware |
+| `lighttpd` | **/usr/sbin/lighttpd** | **stock** — on RM520N-GL this is Entware. **Approved decision: keep installing the Entware build** at `/opt/sbin/lighttpd` for RM520N-GL parity — QManager's config, TLS cert and the `mod-cgi`/`mod-openssl`/`mod-redirect`/`mod-proxy` set are built against it, and lighttpd refuses modules whose version doesn't match the server. The vendor binary is left in place, unused |
 | `openssl` | /usr/bin/openssl | stock |
 | `bash` | /bin/bash **4.4.23** | RM520N-GL: 3.2.57 (this is NEWER) |
 | `busybox` | /bin/busybox **v1.29.3** | RM520N-GL: 1.31.1 (this is OLDER) |
 | `tar` `gzip` `unzip` | present | |
 | `systemd` | **239**, pid 1 | `/lib/systemd/system` present |
-| `wget` | **MISSING** | |
+| `wget` | **MISSING** | BusyBox 1.29.3 has no `wget` applet. **This is the load-bearing fact** — it is what killed the Entware bootstrap; see below |
 | `jq` | **MISSING** | hard dependency of the QManager backend |
 | `ssh`/`sshd`/`dropbear`/`scp`/`sftp` | **MISSING** | why only adb works today |
 | `python3` | MISSING | |
@@ -107,6 +108,77 @@ QManager **v0.1.12** was installed on **2026-06-22** and is partially running.
 This is exactly the failure the installer predicts at `install_rm520n.sh:803-806`:
 `opkg update` fails → `die "opkg update failed — check internet connectivity"`.
 Everything before that step succeeded; nothing after it ran.
+
+> ⚠️ **That message was wrong, and it cost a day.** The cause was **not**
+> connectivity — see "The Entware chicken-and-egg" immediately below. Both
+> "no internet connection?" strings were reworded in the 2026-08-25 fix.
+
+### The Entware chicken-and-egg: `opkg` needs `wget` to download `wget`
+
+**Short version: Entware's `opkg` downloads packages by shelling out to `wget`, and
+that choice is compiled in — so on a device with no `wget`, `opkg` can fetch nothing
+at all, including a `wget` to fix itself with. The bootstrap therefore needs a
+temporary shim to break the cycle.**
+
+`opkg` (the Entware package manager, an OpenWrt descendant) does not speak HTTP
+itself; it builds a command line and hands it to an external downloader. On the
+build this device carries — `opkg version d038e5b6…` (2022-02-24) — the downloader
+is hardcoded. There is **no `option downloader` line in `/opt/etc/opkg.conf`, and no
+such string anywhere in the binary**, so `curl` cannot be selected by configuration.
+
+The RG501Q-EU has only `curl`. Result: every `opkg` fetch failed, so every Entware
+package (`lighttpd`, `sudo`, `jq`, `dropbear`) was skipped, the installer **exited 0**
+blaming the network, and the device ended up with no `sudo` — which meant the sudoers
+rules were skipped and CGI privilege escalation could never work. The network was
+fine the whole time: `curl` pulled the identical URL
+(`http://bin.entware.net/armv7sf-k3.2/Packages.gz`) with HTTP 200 and 381792 bytes.
+
+**How it is broken now** (`scripts/install_rm520n.sh`, fixed 2026-08-25):
+
+1. If `command -v wget` fails, write a minimal curl-backed `wget` shim to
+   `/tmp/qm_wget_shim/wget` and prepend it to `PATH` for the remainder of
+   `install_dependencies()` only.
+2. Bootstrap Entware with it.
+3. Install the real `wget-ssl` (GNU Wget 1.25.0-4) from Entware — the permanent
+   handoff — and symlink `/opt/bin/wget` → `/usr/bin/wget`.
+4. Delete the shim before the function returns.
+
+The RM520N-GL ships a real `wget` (`/usr/bin/wget`, a BusyBox 1.31.1 applet symlink),
+so `command -v wget` succeeds there and none of this runs. Confirmed as a no-op on
+that device.
+
+> ⚠️ **The shim is deliberately non-persistent — never move it to `/opt/bin`.**
+> `/opt/bin` precedes `/usr/bin` in the *vendor* default `PATH`
+> (`/opt/usr/sbin:/opt/usr/bin:/opt/sbin:/opt/bin:/usr/sbin:/usr/bin:/sbin:/bin`), so
+> an `/opt/bin/wget` would **shadow the real system `wget`** for the CGI backend, the
+> OTA downloader and every root helper — and `uninstall_rm520n.sh` deliberately never
+> removes anything under `/opt` (its own comment at `:7`), so that shadow would
+> outlive QManager itself.
+
+### The bootstrap was also a one-shot poison pill
+
+The old guard was `[ ! -x "$OPKG" ]` — but the `opkg` binary is written **part-way
+through** the bootstrap block, and either `opkg` call after it can still `die`. A
+device that died there reported "Entware already installed" on every subsequent run,
+forever, skipping ~120 lines that had never completed. This device was in exactly
+that state: `/opt/bin/opkg` present, `/opt/lib/opkg/info` empty.
+
+The guard is now `qm_entware_complete()` — binary executable **AND**
+`/opt/etc/init.d/rc.unslung` present **AND** `opkg list-installed` non-empty — and
+both `die` paths now remove the half-written binary first.
+
+> ℹ️ NOTE: **OTA cannot deliver this fix.** `qmanager_update` always invokes the
+> installer with `--skip-packages`
+> (`scripts/usr/bin/qmanager_update:260,464,576,651`) and `install_dependencies()` is
+> gated behind `DO_PACKAGES` (`scripts/install_rm520n.sh:3426`), so a Software Update
+> never runs the bootstrap at all. A device stranded in the half-bootstrapped state
+> needs a **fresh full installer run**, not an OTA. This was an explicit scoping
+> decision, not an oversight.
+
+**Outcome on this device, 2026-08-25:** 0 → 44 Entware packages; `jq`, `sudo`,
+`lighttpd` and `dropbear` installed; sudoers laid down; all 12 installer steps exit
+0; CGI returns real JSON through lighttpd as `www-data`. A second run correctly logs
+"already bootstrapped".
 
 ### Unit states — the pattern is diagnostic
 
@@ -208,14 +280,15 @@ succeed.
 `/opt/var/opkg-lists` exists but is empty — the directory `opkg update` writes
 package indexes into, created and never filled.
 
-**Most likely explanation: no WAN at install time, not GFW filtering.** This
-device has no default route and no DNS *today*, with every `rmnet_data*` down,
-and `curl` fails to resolve **any** host — github.com and bin.entware.net alike.
-An installer run in that state fails `opkg update` for want of any connectivity
-at all. That is an ordinary offline failure, not evidence of a block.
+**Answered 2026-08-25: the missing `wget` explains it exactly.** `opkg` fetched its
+own installer binary because `install_rm520n.sh` downloads *that* with the
+repo's own downloader library (which prefers `curl`), then handed every subsequent
+fetch to a `wget` that does not exist on this device. Same host, two different
+downloaders, two different outcomes. See "The Entware chicken-and-egg" above.
 
-Recorded as an observation, not a blocker. It does not need resolving before
-Phase D is designed.
+An earlier draft blamed "no WAN at install time" — plausible at the time (the device
+had no default route and no DNS during the probe) but **not the cause**. Neither was
+GFW filtering. Do not reintroduce either explanation.
 
 ### Correction to the owner's account
 
