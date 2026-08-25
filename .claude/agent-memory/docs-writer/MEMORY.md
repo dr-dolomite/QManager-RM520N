@@ -1,3 +1,4 @@
+- [RG501Q-EU half-dead state + 192.168.225.1 collision](project_rg501q_half_dead_and_ip_collision.md) — both modems share the same IP, and the 2026-08-25 reset left a running v0.1.12 with no config/Entware; tag every cell stock-firmware vs post-reset
 - [SMS visual-verification status](project_sms_tonal_rebuild_visual_check_pending.md) — SMS Center cleared 2026-08-20 on a fixture route; Forwarding still unverified (needs a live backend), and the sibling warnings elsewhere stay open
 - [1970 boot window / timer fire guard](reference_1970_boot_window_timer_guard.md) — any new systemd .timer must be checked against this; full mechanism + non-fixes list in scheduled-timers.md
 - [Rootfs mount-mode evidence trap](reference_rootfs_mount_mode_evidence_trap.md) — `/` boots ro; only /proc/cmdline proves it, /proc/mounts and `assert=read-only` both mislead; contract in BACKEND.md §2.1
