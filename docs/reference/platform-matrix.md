@@ -42,18 +42,56 @@ rather than writing a fourth ad-hoc `grep`. Its test fixtures in
 devices, with the capture commands recorded in the header, so the exact file
 contents need not be re-probed.
 
-## ⚠️ Prove device identity before recording any capture
+## Device access — both devices are reachable over SSH, at distinct addresses
 
-Both devices answer on **`192.168.225.1`**: that is the RM520N-GL's `MODEM_IP`,
-and it is also the RG501Q-EU's `bridge0` address. They cannot both sit on the
-host's Ethernet at once, and an IP alone never tells you which one replied.
+**Updated 2026-08-25.** Two things changed on the RG501Q-EU that between them
+retire every "adb is the only path" and "they collide on one IP" note below:
 
-Prove identity first, every session, and record the proof alongside the capture:
+| | RM520N-GL | RG501Q-EU |
+| --- | --- | --- |
+| Address | `192.168.225.1` (stock default) | **`192.168.120.1`** — changed manually, see [`lan-gateway-ip.md`](./lan-gateway-ip.md) |
+| Transport | SSH | **SSH** — same user and password as the RM520N-GL |
+| `.env` vars | `RM520N_IP` / `RM520N_SSH_USER` / `RM520N_SSH_PASSWORD` | `RG501Q_IP` / `RG501Q_SSH_USER` / `RG501Q_SSH_PASSWORD` |
+| Serial | `61368cd2` | `b7e3d6f1` |
+
+The bare `MODEM_*` triad is kept as an **alias for the RM520N-GL** so existing
+briefs and docs keep working; prefer the prefixed names in anything new.
+
+**Two consequences worth stating plainly:**
+
+1. **The address collision is gone.** Both devices previously answered on
+   `192.168.225.1` — that was the RM520N-GL's `MODEM_IP` *and* the RG501Q-EU's
+   `bridge0` address — so they could not share the host's Ethernet, and an IP
+   alone never told you which one replied. Distinct subnets end that.
+2. **Simultaneous access is now POSSIBLE — but is not yet demonstrated.**
+   Removing the collision is necessary, not sufficient: the host must also hold
+   an address on **both** subnets at once, and that does not happen by itself.
+   Measured 2026-08-25 while the RM520N-GL was offline: the host had
+   `192.168.120.34` and **no `192.168.225.x` address at all**, so only the
+   RG501Q-EU was routable. **Confirm both are up together before relying on it**,
+   and expect to need a second interface or a manually added route.
+
+This matters for `change-workflow.md`'s *device-diff before agents* rule, which
+assumes comparing the two is cheap. Every cross-device defect found so far
+(`wget`, `timeout`, `mountpoint`) came from exactly that comparison and none from
+reading code — so if the two devices cannot be reached in one session, that rule
+degrades to a cable swap and the divergences go back to hiding.
+
+**Still prove identity before recording a capture.** The collision is gone, but a
+wrong-device capture is silent and the cost of the check is two commands:
 
 ```sh
 cat /etc/quectel-project-version   # Project Name: RM520NGL_VC | RG501QEU_VD
 grep -o 'androidboot.serialno=[^ ]*' /proc/cmdline   # 61368cd2 | b7e3d6f1
 ```
+
+> **Historical note.** Entries below dated 2026-08-24/25 were captured over
+> **adb**, which at the time was the RG501Q-EU's only shell — and was itself lost
+> for part of that period when a factory reset reverted the USB composition
+> (PID `0x0801` → `0x0800`, the ADB interface gone). Those measurements remain
+> valid; only the *transport* they name is obsolete. SSH verified working
+> 2026-08-25: `RG501QEU_VD` / `SDX55` / serial `b7e3d6f1` / BusyBox 1.29.3,
+> QManager `v0.1.14-draft` installed.
 
 ## ⚠️ The RG501Q-EU is in a half-dead state (as of 2026-08-25)
 
@@ -178,6 +216,8 @@ The rules that fall out of it:
 | `/opt/bin/timeout` (Entware `coreutils-timeout`) | **Absent** — the package was never installed here either (see the detector note below) | **Present as of 2026-08-25**, installed by the fixed installer. A symlink to `/opt/libexec/timeout-coreutils`; accepts the positional form and returns the GNU 124 on a deadline kill | on-device 2026-08-25 (RM520N-GL check strictly read-only) |
 | `mountpoint` | Present at `/bin/mountpoint` | ⚠️ **Absent entirely** — no BusyBox applet, no standalone binary. Open defect **F6** (see below) | on-device 2026-08-25 |
 | `getent` | **Absent** | **Absent** | on-device 2026-08-25, both devices |
+| `xmlstarlet` (`/opt/bin/xml`) | Not installed by default (see the doc note below) | **Absent** — checked directly, and no Entware `.control`/`.list` for it either | RM520N-GL: `docs/BACKEND.md`. RG501Q-EU: adb 2026-08-25 — post-reset state |
+| `xmllint` (`/usr/bin/xmllint`) | System-bundled | **Absent** — no `/usr/bin/xmllint`, and no BusyBox `xmllint` applet (`applet not found`) | RM520N-GL: `docs/BACKEND.md`. RG501Q-EU: adb 2026-08-25 — post-reset state; unverified whether stock (pre-reset) firmware ships one |
 | `printf %q` | **Fails** | **Fails** | on-device 2026-08-25, both devices — not a divergence, just never available |
 | `lighttpd` | Entware only, `/opt/sbin/lighttpd` — no vendor build | **Two of them.** Vendor `/usr/sbin/lighttpd` ships in the stock image; QManager still installs and uses the Entware build at `/opt/sbin/lighttpd`. The vendor binary is left in place, unused | RG501Q-EU: adb 2026-08-24 · `rg501q-bringup.md` — stock firmware |
 | `/opt/sbin` | Created by the `entware-opt` package | **Does not exist** before Entware is bootstrapped; the installer now creates it up front (`dropbear.service` hardcodes `ExecStart=/opt/sbin/dropbear`) | RG501Q-EU: adb 2026-08-25 with `/opt` empty — **post-reset / pre-bootstrap state** |
@@ -338,6 +378,28 @@ step: it treats a missing command's exit 127 as meaningful data. **Still open**,
 tracked as F6; recorded here so the availability fact and the defect stay
 together.
 
+### F8 (open) — `rc.unslung.service` races QManager's own `lighttpd.service` for port 80, and can win
+
+**Reproduced on the RG501Q-EU, 2026-08-25, immediately after a routine `AT+CFUN=1,1` reboot** (triggered for an unrelated LAN-gateway-IP change — see [`lan-gateway-ip.md`](./lan-gateway-ip.md)). Symptom: the web UI did not load on either HTTP or HTTPS after the device came back up.
+
+`install_rm520n.sh` (~line 1046) writes a generic `rc.unslung.service` whose only job is `ExecStart=/opt/etc/init.d/rc.unslung start` — Entware's own init-script runner, which unconditionally starts **every** `S*` script under `/opt/etc/init.d/`, including `S80lighttpd`. That script launches lighttpd with the **vendor-default** Entware config (`/opt/etc/lighttpd/lighttpd.conf`, empty `/opt/share/www/` docroot, port 80 only, no TLS) — a completely different instance from QManager's own `lighttpd.service` (`ExecStart=/opt/sbin/lighttpd -D -f /usrdata/qmanager/lighttpd.conf`, the real docroot, HTTPS on 443, the `/cgi-bin/` handler).
+
+Both units are `WantedBy=multi-user.target` with no ordering or `Conflicts=` between them, so every boot is a race for the same port 80:
+
+- **Loser:** `lighttpd.service`'s own `ExecStart` fails to bind (port already taken) and exits; **`systemctl status` still misreports the winning imposter as "active (running)"** because the CGroup happens to show the imposter's PID.
+- **Confirmed on-device symptom of the loser state:** `curl http://127.0.0.1/` → `403 Forbidden` (the empty default docroot), `curl https://127.0.0.1/` → `Connection refused` (nothing bound to 443 at all).
+- **Fix applied live, read-write, to unblock verification (not yet ported to the installer):** `/opt/etc/init.d/S80lighttpd stop` to kill the imposter, then `systemctl restart lighttpd.service` to let the real one bind. Confirmed `curl https://127.0.0.1/` then returns the actual QManager `index.html`.
+
+The installer is aware Entware *packaging* can ship a colliding `lighttpd.service` — see its comment at `install_rm520n.sh:1500-1502` ("Entware's default service may point to `/opt/etc/lighttpd/lighttpd.conf`... Ensures correct config path is used") — and overwrites that systemd unit defensively. That fix does not cover this case: `S80lighttpd` is not a systemd unit at all, it is Entware's **init.d** script, started by the installer's own `rc.unslung.service`, and nothing disables, masks, or excludes it.
+
+**Not yet confirmed whether this reproduces on the RM520N-GL** — it has been the stable reference device throughout Phase A/B and has never shown this symptom, but that could mean the race resolves deterministically in QManager's favor there (different boot timing) rather than the installer path being different. Do not assume RM520N-GL immunity without probing a fresh reboot.
+
+**Two candidate root fixes, neither implemented yet:**
+1. Make `lighttpd.service` win unconditionally: `Conflicts=` + `After=` against `rc.unslung.service`, or `Restart=on-failure` with a bind-retry loop that also stops `S80lighttpd` first.
+2. Disable `S80lighttpd` at install time (`chmod -x` or `mv S* K*` per the Entware init-script convention) once QManager's own `lighttpd.service` takes over — mirroring what the installer's own comment already assumes happens but never actually does.
+
+Tracked as F8; scoped out of the LAN-gateway-IP investigation that surfaced it.
+
 ## AT transport
 
 | Fact | RM520N-GL (SDX65) | RG501Q-EU (SDX55) | How established |
@@ -378,6 +440,7 @@ it is a real bug on the new target, not a cosmetic difference.
 | TTL interface | `rmnet+` | *unverified* | on-device |
 | WAN data interface | Not fixed — the `rmnet_dataN` index migrates across attach cycles | Default route `via 10.216.218.18 dev **rmnet_data0**`, mtu 1500, at this boot. Whether the index migrates here is *unverified* (single boot, no attach cycle run) | RM520N-GL: on-device · `wan-profile-management.md:418`. RG501Q-EU: adb 2026-08-25 — device state |
 | LAN / bridge mode | n/a — `eth0` carrier board | **Router mode, not passthrough** — `bridge0` is `192.168.225.1/24` with `MASQUERADE` on `rmnet_data0` | RG501Q-EU: adb 2026-08-25 — device state (see the identity warning at the top) |
+| LAN gateway config (`/etc/data/mobileap_cfg.xml`) | Present; `<APIPAddr>192.168.225.1</APIPAddr>`, `<GatewayURL>` node also present (see `LAN_settings.sh`) | **Present, same schema** — `radio:radio 0755`, 6910 bytes; `<APIPAddr>192.168.225.1</APIPAddr>`, `<GatewayURL>mobileap.qualcomm.com</GatewayURL>` | RG501Q-EU: adb 2026-08-25 (`b7e3d6f1`) — post-reset state |
 | Outbound IP reachability | n/a | DNS resolves (`10.151.151.44`, `10.151.151.48`); **TCP connects but payloads are reset** — `1.1.1.1:443` connects in 88 ms then `gnutls_handshake() failed: Error in the pull function`; `http://example.com/` → `curl (56) Recv failure: Connection reset by peer`. Cause *unverified* | RG501Q-EU: adb 2026-08-25 — device state |
 | Counter orientation (`/proc/net/dev`) | normal (rx=DL, tx=UL) | *unverified* — see the orientation note below | `data-counter-platform-matrix.md` — already per-SoC |
 
