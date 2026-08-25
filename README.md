@@ -124,12 +124,12 @@ The interactive installer fetches the latest release, verifies the SHA-256 check
 >
 > via Windows
 > ```powershell
-> curl -O qmanager-installer.sh `
+> curl -fsSL -o qmanager-installer.sh `
 >   https://github.com/dr-dolomite/QManager-RM520N/raw/refs/heads/main/qmanager-installer.sh; `
 >   adb push .\qmanager-installer.sh /tmp/; `
 >   adb shell bash /tmp/qmanager-installer.sh
 > ```
-> 
+>
 > The QManager installer creates a `/usr/bin/curl` symlink during install, so subsequent commands and OTA updates pick up `curl` from the standard PATH without manual export.
 
 ### Upgrading
