@@ -671,6 +671,24 @@ install_speedtest_cli() {
 
 # --- Install Dependencies ----------------------------------------------------
 
+# qm_entware_complete — replaces a bare "-x $OPKG" check as the bootstrap
+# guard. A binary at $OPKG is not proof the bootstrap finished: it is written
+# partway through, and either of the two `opkg` calls right after it can
+# still fail and `die`. Without this, a device that died there is a poison
+# pill forever — every future run sees the leftover binary, prints "already
+# installed", and skips ~120 lines of setup that never actually completed.
+#   - rc.unslung is written strictly AFTER entware-opt installs successfully,
+#     so its presence proves the run crossed the point that currently kills
+#     it (see the bootstrap block below).
+#   - an empty `opkg list-installed` is the exact signature measured on a
+#     poisoned RG501Q-EU: the binary exists, but no base package landed.
+qm_entware_complete() {
+    [ -x "$OPKG" ] || return 1
+    [ -f /opt/etc/init.d/rc.unslung ] || return 1
+    "$OPKG" list-installed 2>/dev/null | head -n 1 | grep -q . || return 1
+    return 0
+}
+
 install_dependencies() {
     step "Installing dependencies"
 
@@ -731,10 +749,97 @@ install_dependencies() {
     # installed unconditionally by install_bundled_binaries(), called earlier in
     # main() — NOT here — so they refresh on OTA even with --skip-packages.
 
+    # --- Temporary wget shim for opkg -------------------------------------------
+    # Entware's opkg binary shells out to wget to download packages, hardcoded
+    # at build time — there is no "option downloader" in opkg.conf to point it
+    # at curl instead. That's fine on the RM520N-GL (BusyBox v1.31.1 ships
+    # wget), but the RG501Q-EU's BusyBox (v1.29.3) was built without the wget
+    # applet at all — only /usr/bin/curl exists — so every opkg fetch fails,
+    # every Entware package (lighttpd, sudo, jq, dropbear) gets skipped, and
+    # the install never finalizes.
+    #
+    # The fix is a curl-backed wget shim, but it must be gone by the time this
+    # function returns rather than living in /opt/bin: on the RM520N-GL,
+    # /opt/bin precedes /usr/bin in the vendor default PATH, so a persistent
+    # /opt/bin/wget would shadow the real system wget for the CGI backend,
+    # the poller's downloader, and every root helper. It also can't rely on
+    # the uninstaller to clean it up — uninstall_rm520n.sh deliberately never
+    # touches anything under /opt. So it lives under /tmp instead, is put
+    # first on PATH only for the remainder of this function, and is deleted
+    # unconditionally before returning (see the bottom of this function). It
+    # is a stepping stone: step 2 below installs the real wget-ssl package
+    # from Entware once opkg is up, and that becomes the permanent handoff.
+    _QM_NEED_WGET_SHIM=0
+    if ! command -v wget >/dev/null 2>&1; then
+        _QM_NEED_WGET_SHIM=1
+        install -d -m 0755 /tmp/qm_wget_shim
+        cat > /tmp/qm_wget_shim/wget << 'SHIMEOF'
+#!/bin/sh
+# Minimal curl-backed stand-in for wget, used only while bootstrapping
+# Entware's opkg on a device with no wget applet (see install_rm520n.sh).
+# Translates the flags opkg actually passes (confirmed via `strings` on the
+# opkg binary): -O <file>/-O<file>, --no-check-certificate, --timeout[=]N.
+# Anything else starting with '-' is silently dropped; the last non-flag
+# argument is treated as the URL.
+_out=""
+_url=""
+_curl_args=""
+while [ $# -gt 0 ]; do
+    case "$1" in
+        -O)
+            shift
+            _out="$1"
+            ;;
+        -O*)
+            _out="${1#-O}"
+            ;;
+        --no-check-certificate)
+            _curl_args="$_curl_args -k"
+            ;;
+        --timeout=*)
+            _curl_args="$_curl_args --max-time ${1#--timeout=}"
+            ;;
+        --timeout)
+            shift
+            _curl_args="$_curl_args --max-time $1"
+            ;;
+        --version)
+            # Must NOT contain the string "GNU Wget" in any form —
+            # downloader.sh does `wget --version | grep -qi 'GNU Wget'` to
+            # pick a header-dump strategy, and a substring match doesn't
+            # care that a disclaimer was meant. Say nothing about GNU.
+            echo "qm-wget-shim 1 (curl-backed, temporary)"
+            exit 0
+            ;;
+        -*)
+            # unrecognized flag — ignore
+            ;;
+        *)
+            _url="$1"
+            ;;
+    esac
+    shift
+done
+if [ -z "$_url" ]; then
+    echo "qm-wget-shim: no URL given" >&2
+    exit 1
+fi
+if [ -n "$_out" ]; then
+    exec curl -fsSL $_curl_args -o "$_out" "$_url"
+else
+    exec curl -fsSL $_curl_args "$_url"
+fi
+SHIMEOF
+        chmod 755 /tmp/qm_wget_shim/wget
+        PATH="/tmp/qm_wget_shim:/opt/bin:/opt/sbin:$PATH"
+        export PATH
+        info "No wget on this device — using a temporary curl-backed shim for opkg"
+    fi
+
     # --- Entware bootstrap -------------------------------------------------------
     # If opkg is not installed, bootstrap Entware from scratch.
     # This replicates the RGMII toolkit's Entware installation process.
-    if [ ! -x "$OPKG" ]; then
+    if ! qm_entware_complete; then
         info "Entware not found — bootstrapping from bin.entware.net"
 
         # Prevent library conflicts during bootstrap
@@ -751,8 +856,10 @@ install_dependencies() {
             info "Renamed factory opkg to opkg_old"
         fi
 
-        # Create /usrdata/opt and bind-mount to /opt via systemd
-        mkdir -p /usrdata/opt
+        # Create /usrdata/opt and bind-mount to /opt via systemd.
+        # install -d, not mkdir -p: mkdir -p no-ops on an existing directory,
+        # so a bad mode from a prior run would silently persist across OTA.
+        install -d -m 0755 /usrdata/opt
 
         if [ ! -f /lib/systemd/system/opt.mount ]; then
             cat > /lib/systemd/system/opt.mount << 'MOUNTEOF'
@@ -794,8 +901,11 @@ SVCEOF
         systemctl start opt.mount 2>/dev/null || true
         info "Mounted /usrdata/opt → /opt"
 
-        # Create directory structure
-        for folder in bin etc lib/opkg tmp var/lock; do
+        # Create directory structure. sbin is normally created by the
+        # entware-opt package itself, but dropbear.service hardcodes
+        # ExecStart=/opt/sbin/dropbear and /opt/sbin was measured absent on
+        # the RG501Q-EU, so create it up front rather than trust the package.
+        for folder in bin sbin etc lib/opkg tmp var/lock; do
             mkdir -p "/opt/$folder"
         done
         chmod 777 /opt/tmp
@@ -818,11 +928,17 @@ SVCEOF
             || die "Failed to download opkg.conf from $ENTWARE_URL"
         info "Downloaded opkg package manager"
 
-        # Install base Entware
+        # Install base Entware. Both failure paths remove the just-downloaded
+        # opkg binary before dying — same precedent as the ELF sanity check
+        # above — so a failed bootstrap doesn't leave a poison-pill binary
+        # behind for qm_entware_complete() to have to detect. This cleanup is
+        # only safe here because it runs after the opt.mount start above,
+        # where /opt is guaranteed to be the bind-mounted /usrdata/opt and
+        # never the rootfs.
         /opt/bin/opkg update >/dev/null 2>&1 \
-            || die "opkg update failed — check internet connectivity"
+            || { rm -f /opt/bin/opkg; die "Package list download failed — no usable wget for opkg, or check connectivity"; }
         /opt/bin/opkg install entware-opt >/dev/null 2>&1 \
-            || die "Failed to install entware-opt base package"
+            || { rm -f /opt/bin/opkg; die "Failed to install entware-opt base package"; }
         info "Entware base installed"
 
         # Link system user/group files
@@ -858,7 +974,7 @@ RCEOF
         systemctl daemon-reload 2>/dev/null || warn "daemon-reload failed (transient?) — continuing"
         info "Entware bootstrap complete"
     else
-        info "Entware already installed at $OPKG"
+        info "Entware already bootstrapped at $OPKG"
     fi
 
     # --- Entware packages (requires opkg to be available) ---------------------
@@ -867,13 +983,24 @@ RCEOF
         if "$OPKG" update >/dev/null 2>&1; then
             _opkg_ready=1
         else
-            warn "opkg update failed — no internet connection?"
+            warn "Package list download failed — no usable wget for opkg, or check connectivity"
             warn "Skipping Entware package installs (lighttpd, sudo, jq, etc.)"
             warn "Re-run the installer with internet to complete package setup"
         fi
     fi
 
     if [ "$_opkg_ready" = "1" ]; then
+        # wget-ssl: the permanent replacement for the temporary shim above.
+        # Installed first so every opkg call after this one — and anything
+        # else on the device that shells out to wget — gets the real thing.
+        # A failure here is not fatal: the shim already got opkg this far,
+        # and it will simply be needed again on the next run.
+        if [ "$_QM_NEED_WGET_SHIM" = "1" ]; then
+            "$OPKG" install wget-ssl >/dev/null 2>&1 \
+                && info "wget-ssl installed from Entware (replaces temporary shim)" \
+                || warn "wget-ssl install failed — opkg will need the temporary shim again next run"
+        fi
+
         # lighttpd (web server + required modules)
         if [ -x /opt/sbin/lighttpd ]; then
             info "lighttpd is already installed"
@@ -957,6 +1084,36 @@ RCEOF
             fi
         done
     fi
+
+    # Remove the temporary wget shim before anything outside this function
+    # can see it, and before the /opt/bin/wget symlink check right below —
+    # while the shim is still on PATH it IS a "wget", so any PATH-based
+    # probe would find it rather than a real one.
+    if [ "$_QM_NEED_WGET_SHIM" = "1" ]; then
+        rm -rf /tmp/qm_wget_shim
+    fi
+
+    # Same intent as the jq/curl symlinks above: Entware-installed wget lands
+    # in /opt/bin/, which CGI scripts and BusyBox shells do NOT have on PATH
+    # (see downloader.sh, which backs the OTA pipeline and probes for wget
+    # with an unmutated PATH).
+    #
+    # Test the symlink TARGET directly instead of using `! command -v wget`.
+    # The PATH set when the shim was created is still in effect here and
+    # still carries /opt/bin, so a `command -v wget` probe would resolve to
+    # /opt/bin/wget, decide wget is "already reachable", and skip the symlink
+    # on the exact devices that need it — leaving OTA's wget fallback blind
+    # to the wget we just installed. Testing /usr/bin/wget is immune to
+    # whatever PATH happens to be in force.
+    #
+    # The PATH mutation is deliberately NOT restored. setup_ssh_early() runs
+    # after this function and probes `command -v dropbear`; dropbear exists
+    # only at /opt/sbin/dropbear and gets no symlink anywhere, so dropping
+    # /opt/sbin would make that probe report "not installed" on every fresh
+    # install and trigger a redundant reinstall. coreutils-timeout (used by
+    # at_stack_check) has the same shape — Entware-only, no symlink.
+    [ -x /opt/bin/wget ] && [ ! -e /usr/bin/wget ] && \
+        ln -sf /opt/bin/wget /usr/bin/wget 2>/dev/null || true
 }
 
 # --- Stop Running Services ---------------------------------------------------
