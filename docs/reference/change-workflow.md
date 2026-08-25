@@ -9,7 +9,7 @@ Every code-change request in this repo follows a tier-routed, 6-phase flow. The 
 
 ## The 6 Phases
 
-1. **Triage & Recon (orchestrator):** Classify the request into Tier 0–4 by blast radius. For every **bug fix**, every **Tier 3+** change, and **all Tier 4** work, dispatch `modem-investigator` as a read-only Phase 1 gate — it maps the UI→hook→CGI→`qcmd`→modem flow statically and probes live state via Posh-SSH before any code is written. It returns an evidence report (file paths with line numbers, captured CGI/systemd/journal/log output, findings), never code. If the change touches the installer, systemd units, sudoers, `/usrdata/` layout, or the OTA pipeline, also dispatch `installer-safety-auditor` as a hard read-only gate. Synthesize findings.
+1. **Triage & Recon (orchestrator):** Classify the request into Tier 0–4 by blast radius, then fire gates **by competency** (see Gate Routing below) — not by tier alone. Tier decides *ceremony*; competency decides *which gate agent runs*. Synthesize findings.
 2. **Plan (orchestrator synthesizes, builders pre-flight):** For Tier 2+, dispatch builder agents in parallel — `cgi-endpoint-builder` (backend CGI / daemons / libs / AT flows) and/or `ui-builder` (pages / cards / hooks / types). They return scaffolding + design notes, NOT committed code. Synthesize into ONE plan: tier, agent roster, file list, build order, risks, post-flight validator list.
 3. **Approval Gate (user):** Plan changes here are cheap; later changes are not.
 4. **Execute (builders):** Bottom-up for cross-layer work: poller → CGI → hook → component → alerts. Parallel where files are independent; sequential where there's a data dependency.
@@ -23,10 +23,32 @@ Every code-change request in this repo follows a tier-routed, 6-phase flow. The 
 | 0 | Typos, comments, copy edits, version bumps | Direct edit, no agents, no plan |
 | 1 | Single existing file in one layer | Skip Phase 2–3. Implement + the layer's validator + maybe docs |
 | 2 | New feature, single layer | Full flow; pre-flight is the layer's builder only. **Frontend-only work takes the Lite Path below** |
-| 3 | Cross-layer feature (CGI + hook + component, or a poller field consumed across layers) | Full flow; `modem-investigator` runs the Phase 1 recon gate |
-| 4 | Installer / systemd / sudoers / `/usrdata/` layout / OTA pipeline | Full flow; `modem-investigator` recon **plus** `installer-safety-auditor` as a hard Phase 1 gate before code is written |
+| 3 | Cross-layer feature (CGI + hook + component, or a poller field consumed across layers) | Full flow; gates per Gate Routing |
+| 4 | Installer / systemd / sudoers / `/usrdata/` layout / OTA pipeline | Full flow; gates per Gate Routing. **A change that only alters how the installer *decides* something takes the Backend Lite Path** |
 
-Bug fixes match the tier of the *fix*, not the bug — and get a Phase 1 `modem-investigator` recon first **unless they qualify for the Lite Path**, because "understand the live flow before touching it" is cheaper than a wrong fix. Pure refactors with no behavior change drop one tier (validators still run; builders don't pre-flight).
+Bug fixes match the tier of the *fix*, not the bug. Pure refactors with no behavior change drop one tier (validators still run; builders don't pre-flight).
+
+## Gate Routing — fire a gate when its subject is at risk
+
+A gate agent is worth its cost only when the change has surface inside that agent's competency. Tier alone is the wrong trigger: it is keyed on *which file* was edited, and a file can be edited in ways that put nothing the gate knows about at risk.
+
+| Gate | Fires when the change… | Does NOT fire because… |
+| --- | --- | --- |
+| `modem-investigator` | reads or writes modem state, or touches any link in the UI→hook→CGI→`qcmd`→modem chain | …the tier is high. A change with no modem surface gets no evidence from it |
+| `installer-safety-auditor` | adds or removes an installed artifact (binary, unit, config key, sudoers rule), changes install **ordering** or a gate controlling whether a step runs, or touches OTA / uninstall lockstep | …`install_rm520n.sh` was edited. Editing the file is not the trigger; changing what lands on the device is |
+| `busybox-portability-checker` | touches any shell script or systemd unit | — always fires for shell/unit work. This is the gate that consistently earns its cost |
+
+> **Measured 2026-08-25 (T2.6).** `modem-investigator` was dispatched on the `qm_timeout` fix under the old "Tier 4 → always recon" rule. `qcmd:142` documents that the AT transport does not use `timeout` at all, so the modem was provably outside that change's blast radius — the dispatch was guaranteed to return nothing useful *before it was made*. Route by competency and that dispatch never happens.
+
+**Device-diff before agents.** For any multi-target or portability question, the first move is running the candidate command on **both** devices and comparing exit codes and output. That takes minutes and no dispatch. All three cross-device defects found so far (missing `wget` applet, the `timeout` flag form, missing `mountpoint`) came from **running code on a second device — none came from an agent reading code.** Reach for recon when the mechanism is *unknown*, not to re-confirm one already measured.
+
+### 🛡️ The devil's advocate is NOT a gate and is exempt from every trim on this page
+
+Everything above cuts dispatches whose *subject matter* is not at risk. The devil's advocate is not scoped to a subject — its job is to attack the conclusion, and the conclusion is at risk on every investigation by definition. **Nothing in Gate Routing or either Lite Path reduces it, and it stays Opus.**
+
+It is the highest-yield dispatch this project has made. On T2 it found that the plan's prescribed placement for the profile generator wrote **no `platform.json` at all** on any fresh install — the parent directory does not exist at that line — and that the bug was invisible on the RM520N-GL, the only device available to gate against. That is a feature shipping silently non-functional, caught before a line was written. On the 2026-08-23 band-locking run it overturned or re-scoped **four of six** tracked items, including proving one reported defect was correct behaviour.
+
+The economics are not close: an advocate dispatch costs a fraction of one wrong merged conclusion. **When trimming this workflow further, trim gates — never the advocate.**
 
 ## The Frontend-Only Lite Path (Tier 1–2)
 
@@ -40,6 +62,30 @@ Qualifying changes skip two things:
 Everything else still applies: the approval gate, `bun run i18n:check`, the typecheck/build, and the Icon-Boundary and status-chip rules. The Lite Path removes agents that cannot see the change, not the checks that verify it.
 
 **It does NOT qualify — run the full flow — if the change touches** a CGI script, a poller field, a systemd unit, the installer, sudoers, `/usrdata/`, or the OTA path; or if the frontend symptom is *suspected to originate* in the backend. A frontend bug whose cause is an unknown backend value is a Tier 3 investigation wearing a Tier 2 costume, and the recon gate is exactly what tells those apart.
+
+## The Backend Lite Path (shell fixes with a measured mechanism)
+
+The backend sibling of the above. A change qualifies when **all four** hold:
+
+1. **One shell file**, plus its test harness.
+2. **The mechanism is already measured**, not hypothesized — a captured exit code, an observed output difference, a documented version divergence. A *theory* about why something fails does not qualify; a probe transcript does.
+3. **Nothing new lands on the device that the uninstaller or OTA path would need to know about.** This is the sharp form of the lockstep rule and the real test for whether `installer-safety-auditor` has anything to audit.
+4. **No sudoers, systemd unit, `/usrdata/` layout, or install-ordering change.**
+
+Qualifying changes skip **Phase 1 recon**, **Phase 2 builder pre-flight**, and **`docs-writer`** (the orchestrator writes the one row itself).
+
+They keep: the approval gate — lightweight, "here is the fix and the probe that proves it, ok?" rather than a full plan — `busybox-portability-checker`, and a harness assertion pinning the defect.
+
+**Worked examples, from real changes:**
+
+| Change | Qualifies? | Why |
+| --- | --- | --- |
+| T2.5 Entware/`wget` bootstrap | **No** — full Tier 4 | +163 lines, a new shim, a new bootstrap function, 44 packages landing. Criteria 1 and 3 both fail |
+| T2.6 `qm_timeout` wrapper | **Partly** — skip recon, keep the auditor | Mechanism was measured, so no `modem-investigator`. But the `:1056` detector fix makes `coreutils-timeout` install for the first time — criterion 3 fails, so the auditor still fires |
+| F1 curl-guard one-liner | **No** — keep the auditor | The guard controls a `/usr/bin/curl` symlink, which is exactly an uninstaller-lockstep question. Recon still skipped |
+| A `timeout` call site routed through an existing wrapper | **Yes** | One file, mechanism already pinned by an existing harness, nothing new installed |
+
+Note how often the answer is *"skip recon, keep the auditor"* rather than all-or-nothing. **Trimming one gate is the common case; trimming both is rare.**
 
 ## Design Redesigns Have Their Own Phase 1-2
 
@@ -78,6 +124,23 @@ Three corollaries:
 
 > ℹ️ NOTE: measured on the 2026-08-23 band-locking follow-up run, which dispatched **six** Opus agents. Only two earned it: the devil's advocate — which overturned or re-scoped four of the six tracked items, including proving one was correct behaviour reported as a defect — and the design-decision lead. Three were exhaustive censuses paying Opus rates for enumeration, and one was a pinned agent whose override was a no-op.
 
+
+## Recording: the commit message is the archive
+
+A tracker or plan document is read **at the start of every session that touches its phase**. A commit message is read only when someone runs `git show` on that commit. So the split is economic, not stylistic:
+
+| Goes in the **commit body** | Goes in the **tracker** |
+| --- | --- |
+| The mechanism, the root cause, the evidence tables | One status row: task, state, commit SHAs |
+| Probe transcripts and before/after captures | **Open** items — anything still unresolved |
+| Post-mortems, corrections to your own earlier work | **Invalidation warnings** — "a later task might break X" |
+| Which hypotheses were refuted and why | **"Do not re-do this"** notes — closed censuses, discharged questions |
+
+**The test for a tracker line: does a FUTURE task need it?** If it only explains work already merged, it belongs in the commit that merged it. Git already stores it, attached to the diff it describes, at zero cost until someone asks.
+
+> **Measured 2026-08-25.** The Phase A tracker reached **872 lines / ~45K tokens** — too large to read in one call, so orienting on it costs two reads before any work starts. It had also silently drifted (it recorded 14 test harnesses; there were 17). A document that expensive to read is also expensive to keep true, and it stops being trusted exactly when it is longest.
+
+**Lite Path changes get one row and no prose entry.** The harness pins the defect; the commit body carries the why.
 
 ## Hard Rules
 
