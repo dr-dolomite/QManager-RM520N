@@ -268,6 +268,19 @@ else
     info "Tower lock schedule timers torn down (manual fallback)"
 fi
 
+# Traffic Engine (DPI bypass) rule teardown — dpi_state.sh installs an
+# iptables `nat` PREROUTING REDIRECT sending LAN tcp/80,443 to the tpws
+# engine's port. That rule is not owned by any systemd unit — stopping
+# qmanager-dpi-ensure.timer below only stops the periodic re-assertion of
+# it, it never removes it — so a live REDIRECT rule survives uninstall and
+# points at a dead port, breaking every LAN client's HTTP/HTTPS until QCMAP
+# next flushes iptables. Must run here, before Step 3 removes the helper
+# binary and /usr/lib/qmanager/dpi_state.sh it sources.
+if [ -x "$BIN_DIR/qmanager_dpi_run" ]; then
+    "$BIN_DIR/qmanager_dpi_run" --clear >/dev/null 2>&1 || true
+    info "Traffic Engine REDIRECT rule torn down"
+fi
+
 # Auto-update timer teardown — unlike the three runtime-armed timers above,
 # this is a STATIC installer-shipped .timer, so it is caught by neither the
 # qmanager-*.service glob in Step 2 nor an arm-helper teardown verb (the

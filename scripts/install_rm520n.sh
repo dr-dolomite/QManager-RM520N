@@ -1631,7 +1631,14 @@ install_backend() {
     # --- Sudoers (re-detect after install_dependencies may have installed sudo) ---
     detect_sudo
     if [ -f "$SRC_SCRIPTS/etc/sudoers.d/qmanager" ] && [ -n "$SUDOERS_DIR" ]; then
-        mkdir -p "$SUDOERS_DIR"
+        # install -d, not mkdir -p: this is /etc/sudoers.d, the most
+        # security-sensitive directory on the device. mkdir -p honours the
+        # ambient umask and no-ops on an existing dir, so a bad mode reached
+        # once persists across every OTA forever. install -d re-applies
+        # owner/mode on EVERY run. 0750 (not 0755) — the drop-in file itself
+        # is 440 root:root below, but the directory listing shouldn't be
+        # world-readable either.
+        install -d -o root -g root -m 0750 "$SUDOERS_DIR"
         # Ensure sudoers includes the drop-in directory
         if ! grep -q "includedir.*sudoers.d" "$SUDOERS_CONF" 2>/dev/null; then
             echo "#includedir $SUDOERS_DIR" >> "$SUDOERS_CONF"
