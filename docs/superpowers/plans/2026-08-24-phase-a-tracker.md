@@ -19,6 +19,7 @@
 | T1 | `hw_profile.sh` — parser, tier table, generator | **DONE (merged)** — all 8 steps. Both validators clean. | `581123e`, `3436ea3`, `55d3b60`, `d626517` — fast-forwarded onto `development` 2026-08-24 | 2026-08-24 |
 | T2 | Generate `platform.json` at install; recognize RG501Q | **DONE (merged).** Built against the 10 constraints, not the plan's Steps. Both validators clean. **Q8 fully discharged on live hardware.** | `19f2ee9`, `76a0ea8`, `6bd70d4` — fast-forwarded onto `development` 2026-08-25 (`9998107..6bd70d4`) | 2026-08-25 |
 | **T2.5** | **Entware bootstrap fix — unplanned, slotted ahead of T3** | **DONE (merged).** User-reported from a real RG501Q install. Both validators PASS. Verified on both devices; RM520N-GL confirmed no-op. | `219f3e6`, `b4fb265`, `947d925`, `03bd426` — fast-forwarded onto `development` 2026-08-25 (`87b6f79..03bd426`) | 2026-08-25 |
+| **T2.6** | **BusyBox `timeout` portability — unplanned, follows T2.5** | **IN PROGRESS** — `qm_timeout` wrapper, behaviour detector, `:221` laundering fix, dead `getent` branch removed. Runtime half verified live on RG501Q as `www-data`; RM520N-GL probe verified read-only. | branch `worktree-wt-timeout-portability` | 2026-08-25 |
 | T3 | Self-heal `platform.json` in `qmanager_setup` | NOT STARTED | — | — |
 | **T4** | **Migrate the poller's identity reads — THE CUT LINE** | NOT STARTED | — | — |
 | T5 | Migrate `about.sh`'s firmware-revision read | NOT STARTED | — | — |
@@ -39,6 +40,60 @@ States: `NOT STARTED` · `IN PROGRESS` · `BLOCKED` · `DONE (merged)` · `DONE 
 ## Log
 
 Newest entry first. Every entry records: what was done, the gate evidence, and **what a later task might invalidate**.
+
+### 2026-08-25 — T2.6 (UNPLANNED). BusyBox `timeout` is incompatible across the two devices. Third defect of the same family.
+
+**Triggered by the user disproving my own finding.** I had filed F4 claiming the RG501Q's AT stack was dead and "plausibly blocks every Phase A/B task that reads the modem". The user ran `atcli_smd11 ATI` by hand and got a clean `OK`. That one manual test redirected the whole investigation — see the F4 retraction in the follow-ups table.
+
+**The mechanism.** BusyBox changed `timeout`'s CLI in 1.30: `SECS` became positional and `-t` was dropped. The two devices straddle it, so **no single literal invocation works on both**:
+
+| | RG501Q-EU (v1.29.3) | RM520N-GL (v1.31.1) |
+| --- | --- | --- |
+| `timeout 2 echo hi` | `can't execute '2'` → **exit 127, zero output** | works |
+| `timeout -t 2 echo hi` | works | `invalid option -- 't'` → exit 1 |
+
+So `at_stack_check` **never executed its own command** — the modem was never involved. `qcmd:142` documents that `atcli_smd11` handles its own timeouts and therefore does *not* wrap in `timeout`, which is why live modem data was unaffected throughout and why the failure looked like a modem problem while the poller was demonstrably healthy.
+
+**Root cause of the root cause:** `install_rm520n.sh:1056` guarded the `coreutils-timeout` install with `command -v timeout`. BusyBox ships the applet on both devices, so that guard always succeeded and **the package was never installed on either machine** — harmless on RM520N-GL, fatal on RG501Q.
+
+**This is the third instance of one mistake.** T2.5's wget symlink guard, this, and F6's `mountpoint` guard are all the same error: **asking whether a NAME RESOLVES when what matters is whether the THING BEHAVES.** Two of the three additionally read a missing command's exit 127 as a meaningful boolean. On a single-device fleet all three questions happen to give the right answer, which is exactly why none surfaced until a second device existed.
+
+| File | Change |
+| --- | --- |
+| `scripts/usr/lib/qmanager/platform.sh` | canonical `qm_timeout`; **load guard made `set -u` safe** |
+| `scripts/usr/bin/qmanager_health_check` | local `qm_timeout` copy; `:221` laundering fixed; dead `getent` branch removed |
+| `scripts/install_rm520n.sh` | local `qm_timeout` copy; 2 call sites routed; `:1056` detector fixed |
+| `scripts/test/timeout-portability.sh` | **new** — 21 assertions incl. anti-drift and a negative control |
+
+**Gate decisions (user):** `mountpoint` filed as F6 rather than bundled; fix the `:221` laundering; remove the dead `getent` branch.
+
+**Three copies of `qm_timeout` exist on purpose.** The installer runs before libs are deployed (and `--frontend-only` never deploys them while still running the code that calls it); `qmanager_health_check` is redeployed by OTA independently of the lib, so a device mid-upgrade can have a `platform.sh` predating `qm_timeout`, and a source-with-fallback would need the fallback to be a full copy anyway. **Drift is pinned by `scripts/test/timeout-portability.sh`, which compares code with comments stripped** — comments legitimately abbreviate, logic must not.
+
+**Findings that were not the assignment:**
+- **`platform.sh` killed any `set -u` caller on its first line.** `[ -n "$_PLATFORM_LOADED" ]` is an unbound reference; a `. lib || { fallback; }` guard cannot rescue it because the shell is already gone. Now `${_PLATFORM_LOADED:-}`; the rest of the file measured clean. Latent hazard for all 19 sourcers, defused.
+- **`t_net_dns`'s `rc = 124` branch has been dead on both devices forever.** GNU `timeout` returns 124; BusyBox sends `TERM` and the shell reports **143**. The wrapper's 143→124 normalisation makes that branch live for the first time. Nobody had filed this.
+- **`getent` is absent on BOTH devices**, so `:491` was unreachable everywhere. A fix touching only `:491` would have reviewed as correct and changed nothing on hardware.
+- A full applet census found **no further dependency-bearing divergence** — see the census note in the follow-ups table. Do not re-run it.
+
+**Corrections I had to make to my own work:**
+- My Phase 2 spec preferred sourcing `platform.sh` from `qmanager_health_check`. That was unsafe (`set -u`); the builder caught it and used a local copy.
+- I told the user the installer PATH mutation stays "because opkg needs it to find wget". Wrong — the auditor traced it to `setup_ssh_early()`'s `command -v dropbear` probe (dropbear exists only at `/opt/sbin/dropbear`, no symlink). Comment corrected in T2.5.
+- I split the deferred-questions table when inserting the follow-ups table, orphaning D4/D5 as 3-cell rows inside a 4-column table. Markdown renders that as garbage rather than erroring. Repaired.
+
+**Evidence — RG501Q, as `www-data`:** version probe `timeout: can't execute '2'…` reported as `pass` → `rc=0 v=[jq-1.7.1]`; DNS `fail|resolution failed (rc=127)` on healthy DNS → `rc=0` with a real answer; overrun `143` → **`124`**. Form detection resolves `legacy` correctly.
+**Evidence — RM520N-GL (read-only, never deployed to):** `/usr/bin/timeout 1 true` → rc 0, so the probe decides `positional`, correct for 1.31.1. No `/opt/bin/timeout`, no `qm_timeout` in its deployed `platform.sh`.
+
+**Installer call sites — VERIFIED through the full packaged loop.** A mid-session reboot (uptime 11 min) wiped the tmpfs payload, so a hand-pushed re-run died at `Frontend source not found` — correct behaviour on a missing payload, not a regression. Re-verified properly via `bun run package` → `adb push` → extract → install, which is also the first end-to-end exercise of the shipped artifact rather than a hand-pushed script:
+
+```
+installer exit=0
+✓  at_stack_check: AT stack responding
+✓  BusyBox timeout uses the legacy -t form — installing GNU coreutils-timeout
+   as defense-in-depth (qm_timeout wrapper is the actual portability fix)
+✓  coreutils-timeout installed from Entware
+```
+
+That is the original symptom gone, and `coreutils-timeout` landing on a device for the first time — the old `command -v` guard had skipped it on every install ever run. The tarball also stamped `VERSION="v0.1.14-draft"` correctly, confirming the earlier on-device `v0.1.5` was purely a hand-push artifact of `build.sh:88` (which stamps at package time) and never a defect.
 
 ### 2026-08-25 — T2.5 (UNPLANNED). Entware bootstrap fixed. The RG501Q can now actually install QManager.
 
@@ -793,6 +848,8 @@ Not "no internet" as recorded on 2026-08-24. The device has a working bearer and
 | D1 | **Rollback is left on the compatibility floor** (T9). Harmless in Phase A — the overlays are empty, so the floor build and the RG501Q build are identical. **From Phase C onward an RG501Q rolls back onto the RM520N build.** Older tags never published variant assets, so a variant-aware rollback would 404. | **Phase C blocker** |
 | D2 | Activating the `SDX55 → reversed` orientation map. It is a hypothesis established on a *different model*, with a contradicting slow-path test on the same part. | Phase B |
 | D3 | Promoting the RG501Q tier from `community` to `official`. | Phase C |
+| D4 | `qmanager-setup.service` declares **no `After=` at all**; `lighttpd.service` is `After=network.target opt.mount`; `qmanager-auto-update.service` is `After=network-online.target`. Phase A works around this with per-consumer fallbacks. Whether the units should be *ordered* properly is a separate change. | unassigned |
+| D5 | `data_used.json.orientation` is **write-only** — nothing reads it back and no CGI surfaces it, so an orientation regression has no HTTP-observable surface. | T10 fixes the doc; the design gap is unassigned |
 
 ### Tracked follow-ups from T2.5 — all four accepted as real work (user, 2026-08-25)
 
@@ -805,5 +862,10 @@ These were found during the Entware bootstrap fix and deliberately left out of i
 | F3 | **`poller-phase-a.sh` is RED on `development`.** Asserts `qmanager_poller missing prev_traffic_ts init or assignment`; that symbol does not exist anywhere in `qmanager_poller`. | Confirmed pre-existing and unrelated to T2.5 (the poller is untouched by that change). It means **`run-harnesses.sh` does not currently pass on `development`**, so the suite cannot be used as a clean gate until this is resolved — either the harness or the poller is wrong, and which one is the actual question. | `scripts/test/poller-phase-a.sh` |
 | ~~F4~~ | ~~**RG501Q AT stack does not answer.**~~ **WRONG — retracted 2026-08-25, same day it was filed.** The AT stack on the RG501Q is **healthy**. The user ran `atcli_smd11 ATI` by hand and got a clean `Quectel / RG501Q-EU / Revision: … / OK`; `qcmd 'ATI'` exits 0, and the poller publishes live data (`modem_reachable: true`, `5G-NSA`, carrier present, `ca_active: true`). My framing — *"plausibly blocks every Phase A/B task that reads the modem"* — was wrong and would have sent the next session hunting a non-existent transport bug. **The real defect is F5 below**; `at_stack_check` never executed its own command. **Do not re-open this as a modem problem.** | Retracted — superseded by F5 | — |
 | **F5** | **BusyBox `timeout` is mutually incompatible between the two devices, and the guard that should fix it can't see the difference.** BusyBox made `SECS` positional in 1.30 and dropped `-t`, so: RG501Q (v1.29.3) needs `timeout -t 8 CMD` and answers `timeout 2 echo hi` with `can't execute '2'` (**exit 127, zero output**); RM520N-GL (v1.31.1) needs `timeout 8 CMD` and answers `-t` with `invalid option -- 't'`. **No single literal invocation works on both.** Root cause of the root cause: `install_rm520n.sh:1056` guards the `coreutils-timeout` install with `command -v timeout`, which always succeeds because BusyBox ships the applet — so the Entware package is **never installed on either device**. Harmless on RM520N-GL (its BusyBox is already coreutils-compatible), fatal on RG501Q. | **This is the same bug shape as T2.5's wget symlink guard: a presence check that cannot distinguish "a thing named X" from "an X that behaves as required".** That makes three version-divergence defects in one session (missing `wget` applet, this, and the dormant curl twin in F1) — the pattern, not the instance, is the finding. Blast radius is bounded: 5 call sites, **none in `qcmd` or `qmanager_poller`**, which is why live modem data is unaffected. Correct detector is a behaviour probe: `timeout 1 true; echo $?` → 0 on RM520N-GL, 127 on RG501Q. | `install_rm520n.sh:1056,3107,3150`; `qmanager_health_check:221,491,493` — **being fixed now as T2.6** |
-| D4 | `qmanager-setup.service` declares **no `After=` at all**; `lighttpd.service` is `After=network.target opt.mount`; `qmanager-auto-update.service` is `After=network-online.target`. Phase A works around this with per-consumer fallbacks. Whether the units should be *ordered* properly is a separate change. | unassigned |
-| D5 | `data_used.json.orientation` is **write-only** — nothing reads it back and no CGI surfaces it, so an orientation regression has no HTTP-observable surface. | T10 fixes the doc; the design gap is unassigned |
+| **F6** | **`mountpoint` does not exist on the RG501Q at all**, and `install_rm520n.sh:610` uses it as a guard: `if ! mountpoint -q /usrdata 2>/dev/null; then warn …; return 0; fi`. Command-not-found returns **127**, `!` inverts it to true, so the installer concludes "/usrdata is not a mounted filesystem", warns, and returns **success**. The `2>/dev/null` swallows the `not found` message that would have given it away. The guard's premise is factually inverted on that device — `/usrdata` genuinely *is* its own mount (`/dev/ubi2_0 on /usrdata type ubifs`). | **`install_speedtest_cli()` is a guaranteed no-op on every RG501Q.** Worse than the missing binary: the comment at `:615-625` records that the `install -d -m 0755` immediately below the guard is the **remediation for world-writable `0777` directories left by older `mkdir -p` code**, and that its position before the idempotence guard is load-bearing — so an RG501Q can never be remediated out of a bad directory mode either. Third member of the same family as the wget and `timeout` defects: **a missing command's 127 read as a meaningful boolean.** Fix: compare device numbers (`stat -c %d /usrdata` vs `stat -c %d /`), which cannot confuse "command missing" with "false"; both `stat -c` forms are verified working on both devices. **Open first:** `/usrdata/root/bin/speedtest` exists on the test RG501Q (2.2 MB, dated Jul 28 2022, uid 10000) even though the installer path is impossible there — stock image or a manual push? It masks the symptom on this one device; a fresh RG501Q would have no Speedtest CLI. | `install_rm520n.sh:610` — filed 2026-08-25, deliberately excluded from T2.6 |
+
+**Census note (2026-08-25, T2.6 recon).** A full `busybox --list` diff plus a behaviour battery over every applet flag QManager actually passes found **no further dependency-bearing divergence** between BusyBox 1.29.3 (RG501Q) and 1.31.1 (RM520N-GL). Availability differs by exactly four applets: `wget` and `mountpoint` (both defects above) and `i2ctransfer` / `ts`, which have zero call sites. Every flag QManager passes behaves identically on both builds. The speculative candidates are all clear: `printf %q` fails on **both** devices, and `grep -P` / `find -newermt` / `sort -V` / `readlink -f` have **zero** call sites. **Do not re-run this census** — three defects came out of it and the surface is now known.
+
+Two facts worth keeping, discovered in passing and not divergences at all:
+- **`getent` is absent on BOTH devices.** `qmanager_health_check:491` is therefore unreachable dead code everywhere, and `:493` (`nslookup`) is the only live DNS path. The dead branch is removed in T2.6. A fix that had touched only `:491` would have reviewed as correct and changed nothing on hardware.
+- **`qcmd` deliberately does not use `timeout`** — `qcmd:142` records that `atcli_smd11` handles command timeouts natively. The AT transport is not exposed by the `timeout` defect, which is why live modem data on the RG501Q was unaffected throughout.
