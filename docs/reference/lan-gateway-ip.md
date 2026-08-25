@@ -18,11 +18,13 @@
 > `192.168.225.1`. SSH to the RG501Q at its new address is **verified working**.
 > Recorded in [`platform-matrix.md`](./platform-matrix.md) > Device access.
 >
-> ⚠️ **Simultaneous reachability is not yet proven.** Removing the collision is
-> necessary but not sufficient — the host must also hold an address on *both*
-> subnets, and it does not do so automatically. When this was measured the host
-> had only `192.168.120.34` and no `192.168.225.x` address, with the RM520N-GL
-> offline besides. Treat dual access as **expected but unconfirmed**.
+> **Simultaneous reachability is proven as of 2026-08-25** — both devices answered
+> from the same host minutes apart, each identity-proven from `/proc/cmdline`
+> (`61368cd2` and `b7e3d6f1`). The earlier reading (host holding only
+> `192.168.120.34`, RM520N-GL offline) was a transient host-addressing state.
+> ⚠️ Still **check** it rather than assuming it: the host must hold an address on
+> *both* subnets and does not do so automatically, and either device may be
+> powered down.
 >
 > This is worth more than convenience. Every cross-device defect found so far
 > (`wget`, `timeout`, `mountpoint`) was found by running one command on both
@@ -37,9 +39,15 @@
 > have all been exercised on real hardware rather than reasoned about.
 >
 > **F8 is fixed as of 2026-08-25 (`952309e`) — the blocker is lifted for the
-> RG501Q-EU.** Validated on that device across three reboots. **RM520N-GL
-> re-verification is still outstanding** (that device was offline for the fix
-> work), so treat the blocker as lifted on one platform, not both.
+> RG501Q-EU**, validated on that device across three reboots. The **RM520N-GL was
+> measured the same day and is confirmed exposed too** (all four preconditions
+> present; the defect was observed firing on the captured boot and won only by an
+> accidental timing shield). The fix has since been applied to that device and
+> **reboot-validated 2026-08-25** — guard persisted, `rc.unslung`'s selector no
+> longer matches `S80lighttpd`, QManager healthy on 80 and 443. **The blocker is
+> lifted on both platforms.** Note the RM520N-GL was fixed by hand rather than by an
+> installer run, so the installer's own end-to-end path is still unexercised on it
+> (F8 follow-up 3).
 
 ---
 
@@ -54,7 +62,7 @@
 | Editing tool, RM520N-GL | `/usr/bin/xmllint` is system-bundled; `xmlstarlet` is **not** installed by default (see `docs/BACKEND.md`) |
 | Editing tool, RG501Q-EU | **Neither** `xmllint` nor `xmlstarlet` present (checked directly, 2026-08-25) — use `sed -i` on the known-format lines, same as this investigation did |
 | Apply mechanism | Full modem reboot (`AT+CFUN=1,1`) — the live `bridge0`/LAN interface does not pick up the new IP until then; no live-reload path exists |
-| Former blocker (now fixed) | **F8** in [`platform-matrix.md`](./platform-matrix.md) — a reboot could leave QManager's web UI unreachable regardless of the IP change, because Entware's own `lighttpd` sometimes took port 80 first. **Fixed 2026-08-25 in `952309e`; validated on the RG501Q-EU over 3 reboots. RM520N-GL still unverified.** |
+| Former blocker (now fixed) | **F8** in [`platform-matrix.md`](./platform-matrix.md) — a reboot could leave QManager's web UI unreachable regardless of the IP change, because Entware's own `lighttpd` sometimes took port 80 first. **Fixed 2026-08-25 in `952309e`; boot-validated on the RG501Q-EU over 3 reboots and on the RM520N-GL over 1. Lifted on both platforms.** |
 
 ---
 

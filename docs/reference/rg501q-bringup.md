@@ -45,7 +45,7 @@ Probes: `cat /proc/cpuinfo`, `ls -la /lib/ld-linux*`, `/lib/libc.so.6`, `uname -
 | Rootfs size | 87.2 MB, 69.9 MB used, **17.3 MB free (80%)** |
 | Writable volume | `/dev/ubi2_0` — **130.7 MB total, 17.8 MB used, 112.9 MB available** |
 | Shared on ubi2_0 | `/usrdata`, `/etc`, `/data`, `/cache`, `/systemrw`, `/persist`, **`/opt`** |
-| `/opt` | **NOT a dedicated volume** — bind of `/usrdata/opt` on ubi2_0 (RM520N-GL has a dedicated UBIFS volume) |
+| `/opt` | **NOT a dedicated volume** — bind of `/usrdata/opt` on ubi2_0. **Not a divergence:** the RM520N-GL was measured 2026-08-25 with the identical bind topology; the earlier "RM520N-GL has a dedicated UBIFS volume" claim was wrong |
 | `/tmp` | tmpfs, 112.8 MB |
 | `fs.protected_regular` | **0** (RM520N-GL: 1) |
 | MTD | mtd29 `usrdata` (0x09e80000), mtd30 `system` (0x06ec0000) |

@@ -315,6 +315,14 @@ Entware provides the package management layer on the RM520N-GL. It is the equiva
 > This is the root of defect **F8** (Entware's `S80lighttpd` taking port 80 ahead of
 > QManager's own server) — see the Complete Boot Sequence section below and
 > [`docs/reference/platform-matrix.md`](./reference/platform-matrix.md).
+>
+> **The RM520N-GL is confirmed exposed** (measured 2026-08-25, serial `61368cd2`):
+> all four preconditions are present, and on the captured boot `rc.unslung` started
+> at 30.055s while QManager's `lighttpd.service` was inside a 4.4s `ExecStartPre`
+> window (activating 30.692s, main process 35.123s). The transient `lighttpd -tt`
+> config test in that window is what satisfied `pidof lighttpd` and made
+> `S80lighttpd` stand down — an accident of timing, not a mitigation. The installer
+> disables the script outright; that exec-bit clear is the load-bearing part.
 
 **Critical symlinks created during install:**
 ```
@@ -740,6 +748,64 @@ unit cannot start.
 > before QManager's server on one boot out of two. The installer now disables it. Full
 > mechanism, measured timeline and current status: **F8** in
 > [`docs/reference/platform-matrix.md`](./reference/platform-matrix.md).
+
+**Measured RM520N-GL boot ordering (2026-08-25, serial `61368cd2`).** The tables
+above describe what the units *declare*; this is what one real boot on the reference
+device actually did. Times are monotonic — seconds since kernel boot — because these
+devices have no battery RTC and their wall clock is still 1970 here.
+
+| Unit | InactiveExit | ExecMainStart | ActiveEnter |
+| --- | --- | --- | --- |
+| `start-opt-mount.service` | 24.783 s | 24.783 s | 0 (oneshot; never reports active — F9) |
+| `opt.mount` | 29.010 s | — | 29.523 s |
+| `dropbear.service` | 29.165 s | — | 29.165 s |
+| `rc.unslung.service` | 24.321 s | 30.055 s | 32.870 s |
+| `lighttpd.service` | 30.692 s | 35.123 s | 35.123 s |
+
+Two things to read off it. First, `rc.unslung` did reach `S80lighttpd` **before**
+QManager's server had bound anything — F8's window is real on this device, not just
+on the RG501Q-EU. Second, `opt.mount` had **no wants-symlink** here either; it was
+reached only through the `start-opt-mount.service` wrapper. On a device that has not
+yet had the F8 change applied, checking for that symlink is a false negative for
+`opt.mount` specifically — a different trap from F12's `systemctl is-enabled`
+mislabelling.
+
+**Post-fix reboot, same device, 2026-08-25** (exec bit cleared, `opt.mount`
+wants-symlink created):
+
+| Unit | InactiveExit | ExecMainStart | ActiveEnter |
+| --- | --- | --- | --- |
+| `start-opt-mount.service` | 23.972 s | 23.971 s | 0 (F9) |
+| `rc.unslung.service` | 23.345 s | 28.721 s | 31.730 s |
+| `opt.mount` | 27.861 s | — | **28.404 s** |
+| `dropbear.service` | 28.772 s | 28.772 s | 28.772 s |
+| `lighttpd.service` | 28.562 s | 34.195 s | 34.195 s |
+
+> ⚠️ **`rc.unslung.service` beat `opt.mount` to active by only 0.32 s** (28.404 s →
+> 28.721 s). It reads `/opt/etc/init.d/rc.unslung`, a file that does not exist until
+> that mount lands, and it declares no `After=` — only a hardcoded
+> `ExecStartPre=/bin/sleep 5`. 0.32 s is the **worst measured margin** on either
+> device, and `opt.mount` timing is known to be probabilistic (F11: 4.5 s–22.25 s
+> across identical RG501Q-EU boots). Tracked as **F14**; deferred **on measured
+> evidence** — `S51dropbear` and `S80lighttpd` are the only `S*` scripts on either
+> device, so post-F8 a failure here cannot bring back the second web server and
+> cannot cost SSH.
+
+`dropbear.service` came up with `NRestarts=2` on this boot — **F10** reproducing on
+the RM520N-GL, having previously only been seen on the RG501Q-EU.
+
+> ⚠️ Three of the units in these tables — `rc.unslung.service`, `opt.mount` and
+> `start-opt-mount.service` — are **mode `0666` in `/lib/systemd/system/`**, i.e.
+> writable by any local user, on a rootfs the installer leaves mounted `rw`. They
+> run as root at boot. Measured identically on **both** devices, so it is
+> platform-wide; the containing directory is a clean `0755`, which bounds the
+> exposure to rewriting those three files. Tracked as **F13** in
+> [`docs/reference/platform-matrix.md`](./reference/platform-matrix.md).
+
+> ℹ️ NOTE: the earlier RG501Q-derived boot-ordering figures in this section were
+> never wrong about the *declarations*, but do not carry their RG501Q-EU timings over
+> to the RM520N-GL. The two devices interleave `opt.mount` and `rc.unslung`
+> differently, and F8's outcome turns entirely on that interleaving.
 
 ---
 

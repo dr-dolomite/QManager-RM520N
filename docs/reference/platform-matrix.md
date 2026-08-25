@@ -63,13 +63,17 @@ briefs and docs keep working; prefer the prefixed names in anything new.
    `192.168.225.1` — that was the RM520N-GL's `MODEM_IP` *and* the RG501Q-EU's
    `bridge0` address — so they could not share the host's Ethernet, and an IP
    alone never told you which one replied. Distinct subnets end that.
-2. **Simultaneous access is now POSSIBLE — but is not yet demonstrated.**
-   Removing the collision is necessary, not sufficient: the host must also hold
-   an address on **both** subnets at once, and that does not happen by itself.
-   Measured 2026-08-25 while the RM520N-GL was offline: the host had
-   `192.168.120.34` and **no `192.168.225.x` address at all**, so only the
-   RG501Q-EU was routable. **Confirm both are up together before relying on it**,
-   and expect to need a second interface or a manually added route.
+2. **Simultaneous access is DEMONSTRATED as of 2026-08-25.** Both devices were
+   reached from the same host minutes apart on that date, each with its identity
+   proven from `/proc/cmdline` (`61368cd2` and `b7e3d6f1`). The earlier note here
+   — host holding `192.168.120.34` with no `192.168.225.x` address, RM520N-GL
+   offline — described a transient host-addressing state, not a standing limit.
+
+   Removing the collision was necessary but not sufficient: the host must hold an
+   address on **both** subnets at once, and that still does not happen by itself.
+   So **check reachability rather than assuming it** — expect to need a second
+   interface or a manually added route, and remember either device may simply be
+   powered down.
 
 This matters for `change-workflow.md`'s *device-diff before agents* rule, which
 assumes comparing the two is cheap. Every cross-device defect found so far
@@ -193,7 +197,7 @@ The rules that fall out of it:
 | Fact | RM520N-GL (SDX65) | RG501Q-EU (SDX55) | How established |
 | --- | --- | --- | --- |
 | Rootfs | `ubi0:rootfs`, boots **`ro`** — proof is `ro` in `/proc/cmdline`, not `/proc/mounts` | **Same** — `/proc/cmdline` carries `ro`, `root=ubi0:rootfs`, `rootfstype=ubifs`, `ubi.mtd=30 ubi.mtd=25` | RM520N-GL: on-device · `qmanager-independence.md`. RG501Q-EU: adb 2026-08-25 (`b7e3d6f1`) — stock firmware |
-| `/etc` + `/usrdata` | Same UBIFS volume `ubi2_0`, always rw, no remount needed | **Same, plus `/opt`** — `/dev/ubi2_0` backs `/usrdata`, `/etc` **and** `/opt`, all `ubifs rw,relatime,bulk_read` | RM520N-GL: reboot-proven 2026-08-10. RG501Q-EU: adb 2026-08-25 `/proc/mounts` — stock firmware |
+| `/etc` + `/usrdata` + `/opt` | Same UBIFS volume `ubi2_0`, always rw, no remount needed. `/opt` is **not** a volume of its own — it is a bind of `/usrdata/opt` (`opt.mount`: `What=/usrdata/opt`, `Type=none`, `Options=bind`), so `/proc/mounts` shows `/dev/ubi2_0` on both `/usrdata` and `/opt` | **Same** — `/dev/ubi2_0` backs `/usrdata`, `/etc` **and** `/opt`, all `ubifs rw,relatime,bulk_read`, with `/opt` bound from `/usrdata/opt` exactly as on the RM520N-GL. **No `/opt`-shaped divergence between the two devices** | RM520N-GL: reboot-proven 2026-08-10; `/opt` bind measured 2026-08-25 (`/proc/mounts`, the `opt.mount` unit, and byte-identical `ls -la /usrdata/opt/etc/init.d/` vs `/opt/etc/init.d/`). RG501Q-EU: adb 2026-08-25 `/proc/mounts` — stock firmware |
 | `/tmp` | tmpfs, `root:root 1777`, ~89 MB, cleared every boot | `tmpfs rw,nosuid,nodev` and **exec-capable** (a `chmod +x` script in `/tmp` ran); mode and size *unverified* | RM520N-GL: on-device · `tmp-file-ownership.md`. RG501Q-EU: adb 2026-08-25, probe file removed — stock firmware |
 | adb shell UID | n/a (SSH) | `uid=0(root)` | adb 2026-08-25 — stock firmware |
 | `fs.protected_regular` | `=1` — blocks **root** (not www-data) from write-opening another UID's file in a sticky dir | *unverified* | on-device · `tmp-file-ownership.md` |
@@ -225,7 +229,7 @@ The rules that fall out of it:
 | CA bundle | *unverified* | `/etc/ssl/certs/ca-certificates.crt`, 200061 bytes, dated Feb 21 2025 | RG501Q-EU: adb 2026-08-25 — stock firmware |
 | Shell arithmetic | BusyBox `sh` is 32-bit signed (wraps past 2.15 GB); bash 3.2 is 64-bit | *unverified* | on-device · `data-usage-counter.md` |
 | Entware `jq` | `/opt/bin/jq` 1.7.1, built **without** ONIGURUMA — `gsub`/`test`/`match` abort at runtime | **Installed 2026-08-25** by the fixed installer; whether this build carries ONIGURUMA is still *unverified* — do not assume it matches the RM520N-GL row either way | RM520N-GL: on-device · `alerts.md`, re-confirmed 2026-08-25. RG501Q-EU: installed by a live installer run 2026-08-25; regex support not probed |
-| `opkg` / Entware tree | `/opt/bin/opkg`, dedicated UBIFS volume | **Bootstrapped 2026-08-25** — 44 packages, after the installer fix below. Before that fix `/opt` held only a half-written `opkg` and zero packages. Not a dedicated volume here: `/opt` is a bind of `/usrdata/opt` on `ubi2_0`, so a factory reset wipes it | RG501Q-EU: adb 2026-08-25 — **post-reset state**, then a live full installer run the same day |
+| `opkg` / Entware tree | `/opt/bin/opkg`. **Not a dedicated volume** — `/opt` is a bind of `/usrdata/opt` on `ubi2_0` (measured 2026-08-25; an earlier claim of a dedicated UBIFS volume here was wrong), so a factory reset wipes it | **Bootstrapped 2026-08-25** — 44 packages, after the installer fix below. Before that fix `/opt` held only a half-written `opkg` and zero packages. Same bind topology as the RM520N-GL: `/opt` is a bind of `/usrdata/opt` on `ubi2_0`, so a factory reset wipes it | RM520N-GL: on-device 2026-08-25 (`/proc/mounts` + the `opt.mount` unit + content identity). RG501Q-EU: adb 2026-08-25 — **post-reset state**, then a live full installer run the same day |
 | `sftp-server` | Absent — deploy with `scp -O` only | *unverified* | on-device |
 | `stdbuf` | Absent | *unverified* | on-device · `qmanager-independence.md` |
 | Vendor default `PATH` | `/opt/usr/sbin:/opt/usr/bin:/opt/sbin:/opt/bin:/usr/sbin:/usr/bin:/sbin:/bin` — **`/opt/bin` precedes `/usr/bin`** in the shipped login environment, not merely in QManager's own prepends | Assumed identical; *unverified* | RM520N-GL: on-device 2026-08-25 |
@@ -387,7 +391,12 @@ running right now?". On a boot where the answer happens to be no, Entware's serv
 binds port 80 first, serving an empty folder with no HTTPS — so the QManager UI is
 unreachable until someone intervenes over SSH.** The fix clears the executable bit
 on Entware's start script so it can never run. Validated on the RG501Q-EU across
-three reboots; **not yet verified on the RM520N-GL** (see below).
+three reboots; the RM520N-GL is now **measured exposed** as well — all four
+preconditions present, the defect observed firing and being won by accident on the
+boot that was captured — and has had the fix applied by hand and **reboot-validated
+2026-08-25** (see
+[RM520N-GL status](#rm520n-gl-status-confirmed-exposed-latent-now-fixed) below, and
+read the caveat on what that reboot does *not* prove).
 
 > ⚠️ **The original filing of this defect described the wrong mechanism.** It said
 > the two servers "race as peers for port 80" on "every boot", a coin flip. That is
@@ -471,7 +480,9 @@ why `chmod a-x` rather than a bare `chmod -x`) is in the commit message for
 **Post-fix validation: 3 reboot cycles on the RG501Q-EU, all passed.** The
 acceptance test is Entware's error log, which only the imposter ever writes to — it
 stayed at 4 lines throughout. Every boot produced exactly one lighttpd, running
-QManager's config, holding both 80 and 443.
+QManager's config, holding both 80 and 443. A later listing of
+`/opt/etc/init.d/` on that device (2026-08-25) still shows `S80lighttpd` at
+`-rw-r--r--` — the guard has survived every reboot since.
 
 > ⚠️ **Never document `/opt/etc/init.d/S80lighttpd stop` as a repair step.**
 > `rc.func`'s `stop()` is `killall lighttpd` — the same name-only matching, applied
@@ -479,24 +490,217 @@ QManager's config, holding both 80 and 443.
 > 2026-08-25 appeared to work only because a `systemctl restart lighttpd.service`
 > immediately followed it.
 
-#### RM520N-GL status: NOT verified
+#### RM520N-GL status: confirmed exposed, latent, now fixed
 
-That device was offline for this work. **Repo evidence says it is exposed, not
-immune:**
+Measured on-device 2026-08-25, serial `61368cd2` (identity proven from
+`/proc/cmdline`, per the identity-proof rule under **Device access** above).
+Everything below replaces the earlier "inference from the repo" section — the
+device is **exposed**, the imposter had **never actually run** in the whole window it
+could have, and on the boot that was captured the defect **fired and was won by
+luck**.
 
-- The installer path is **not platform-gated in any way**. `install_rm520n.sh`'s
-  `case "$project_name"` (`:436-462`) sets no variable and nothing downstream
-  branches on it — the `RM520N*` and `RG501Q*` arms only print a different `info`
-  line.
-- A 2026-08-25 probe confirmed `rc.unslung` present on the RM520N-GL with 43
-  Entware packages installed.
+**All four preconditions are present.** Nothing about this device escapes the
+mechanism:
 
-**The most plausible reason it has never shown the symptom is a hypothesis, not a
-measurement:** its `/opt` is a dedicated UBIFS volume (UBIFS = the flash filesystem
-these modems use) mounted by the kernel, rather than the `/usrdata/opt` bind mount
-used on the RG501Q-EU, which likely changes when `/opt` becomes available and
-therefore when `rc.unslung` can run at all. That has not been measured. Do not
-record it as a finding.
+| Precondition | Measured on RM520N-GL |
+| --- | --- |
+| `/opt/etc/init.d/S80lighttpd` exists and is executable | Yes — mode was `-rwxr-xr-x`, so `rc.unslung`'s selector matched it |
+| `rc.unslung.service` exists, is pulled into the boot, and runs | Yes — symlinked into `/lib/systemd/system/multi-user.target.wants/`, `ActiveState=active`, `ExecMainStatus=0` |
+| `rc.unslung`'s selector is the exec-bit `find` | Yes — `find /opt/etc/init.d/ -perm '-u+x' -name 'S*'`, verbatim, identical to the RG501Q-EU |
+| `rc.func`'s `start()` short-circuits on `pidof` | Yes — `if [ -n "\`pidof $PROC\`" ]; then … return 0; fi`, verbatim, with `PROCS=lighttpd` in `S80lighttpd` |
+
+Also confirmed: the installer path is **not platform-gated in any way**.
+`install_rm520n.sh`'s `case "$project_name"` (`:436-462`) sets no variable and
+nothing downstream branches on it — the `RM520N*` and `RG501Q*` arms only print a
+different `info` line.
+
+##### The imposter has never executed on this device — not once
+
+This is the strongest single piece of evidence, and it is longitudinal rather than
+point-in-time. Entware's config puts both of lighttpd's own artifacts on the
+**persistent** `ubi2_0` volume, so they survive reboots:
+
+```
+server.errorlog = "/opt/var/log/lighttpd/error.log"
+server.pid-file = "/opt/var/run/lighttpd.pid"
+```
+
+Neither exists. `find /opt /usrdata -name 'error.log*'` returns nothing.
+
+**The decisive part is the directory mtime, not the missing files.** `stat
+/opt/var/log/lighttpd` reports `Modify: 2026-03-16 09:22:24` — the date the Entware
+package was installed, untouched since. lighttpd opens its error log **before** it
+binds a socket, so even an invocation that died instantly on a port collision would
+have created the file and bumped that mtime. An unchanged mtime therefore means the
+Entware lighttpd binary has not executed **a single time** since installation.
+`rc.unslung.service` has existed since Aug 16, so the co-existence window in which
+it could have run is Aug 16 → 2026-08-25.
+
+##### On the measured boot, F8 fired — and was won by accident
+
+Times are **monotonic** (seconds since kernel boot). Wall clock is meaningless on
+these devices, which boot at Jan 1970.
+
+| Unit | InactiveExit | ExecMainStart | ActiveEnter |
+| --- | --- | --- | --- |
+| `start-opt-mount.service` | 24.783 s | 24.783 s | 0 (oneshot, `ExecMainStatus=0` — see F9) |
+| `opt.mount` | 29.010 s | — | 29.523 s |
+| `dropbear.service` | 29.165 s | — | 29.165 s |
+| `rc.unslung.service` | 24.321 s | 30.055 s | 32.870 s |
+| `lighttpd.service` | 30.692 s | 35.123 s | 35.123 s |
+
+The reasoning that pins down which branch `S80lighttpd` took — this is the
+load-bearing part of the finding:
+
+- `rc.unslung`'s whole run took **2.81 s** (30.055 → 32.870).
+- `rc.func`'s spawn-wait loop is `LIMIT=10` with `sleep 1`, so a **failed** spawn
+  would have cost **≥11 s**. It did not.
+- A **successful** spawn would have bound port 80 at ~30 s, and QManager's
+  `ExecStart` at 35.123 s would then have failed to bind. It did not — QManager's
+  `lighttpd.service` is healthy with `NRestarts=0`.
+- The only branch consistent with *all three* of a 2.81 s run, an untouched
+  `/opt/var/log/lighttpd` mtime, and a healthy QManager server is the `pidof`
+  **`return 0` short-circuit**.
+
+**So what satisfied `pidof lighttpd` at 30.055 s?** QManager's `lighttpd.service`
+began activating at 30.692 s but its main process only started at 35.123 s — a
+**4.4-second `ExecStartPre` window** in which the only process on the box named
+`lighttpd` is the transient `lighttpd -tt` config test. `rc.unslung` started at
+30.055 s and still had to `find`+`sort` its scripts and source `S51dropbear` before
+reaching `S80lighttpd`, which landed its `pidof` sample inside that shield.
+
+> ⚠️ **Read this as the defect firing and being won by accident, not as a
+> mitigation.** Nothing here is designed. The shield is a config-test process that
+> exists to validate a file, and the outcome turns on `rc.unslung`'s
+> `ExecStartPre=/bin/sleep 5` and the `/opt` mount ordering interleaving favourably
+> on that particular boot. It would narrow if either `lighttpd.service`'s
+> `ExecStartPre` or that `sleep 5` ever changed — and it is **not even a stable
+> width across boots of the same device**: the shield measured **4.4 s** on this
+> boot and **5.63 s** on the post-fix reboot below (28.562 → 34.195 s). A device
+> still carrying the defect is relying on a quantity that moves by >25% boot to
+> boot. For scale: the RG501Q-EU's
+> equivalent shield was measured at 9.87 s under boot load and still left only
+> **1.18 s** of margin. The RM520N-GL's 4.4 s shield is merely wide *relative to when
+> `rc.unslung` happens to sample*, which is not a property anyone chose.
+
+##### Resolved: `/opt` is the same bind mount on both devices
+
+The earlier revision of this entry speculated that the RM520N-GL's `/opt` was a
+*dedicated* UBIFS volume (UBIFS = the flash filesystem these modems use) mounted by
+the kernel, unlike the RG501Q-EU's `/usrdata/opt` bind, and that this might change
+when `/opt` becomes available. **That speculation is refuted.** Measured:
+
+```
+/dev/ubi2_0 on /usrdata type ubifs (rw,relatime,bulk_read,assert=read-only,ubi=2,vol=0)
+/dev/ubi2_0 on /opt     type ubifs (rw,relatime,bulk_read,assert=read-only,ubi=2,vol=0)
+```
+
+and the unit is a plain bind:
+
+```ini
+[Unit]
+Description=Bind /usrdata/opt to /opt
+[Mount]
+What=/usrdata/opt
+Where=/opt
+Type=none
+Options=bind
+```
+
+Confirmed independently by content identity — `ls -la /usrdata/opt/etc/init.d/` is
+byte-identical to `/opt/etc/init.d/`. **There is no `/opt`-shaped divergence between
+the two devices**, and the fix therefore transfers cleanly *because* the topology is
+identical, not in spite of a difference.
+
+> ℹ️ NOTE: `opt.mount` had **no wants-symlink** on the RM520N-GL either — the mount
+> was reached through the `start-opt-mount.service` wrapper. On a device that has
+> not yet had the F8 change applied, a symlink-presence check is therefore a **false
+> negative** for `opt.mount` specifically. That is a distinct trap from
+> **F12** below, which is about `systemctl is-enabled` mislabelling symlinks that
+> *do* exist.
+
+##### Verification caveat: `rc.func`'s `logger` output goes nowhere here
+
+On success `rc.func` calls `logger "Started $DESC from $CALLER."`. On the RM520N-GL
+that never lands: grepping `/var/log/messages` and `/var/log/messages.0` for
+`lighttpd|unslung|opt.mount` returned **zero lines**, while syslog was demonstrably
+working for other sources at the same time. **Do not build a post-deploy or
+health check on `rc.func`'s logging.** Use the `/opt/var/log/lighttpd` directory
+mtime instead — it is the artifact that actually moves when the imposter runs.
+
+##### Fix applied to the RM520N-GL, 2026-08-25
+
+Applied **by hand** — `chmod a-x /opt/etc/init.d/S80lighttpd` (mode is now
+`-rw-r--r--`) plus creation of the `opt.mount` wants-symlink. These are the same two
+state changes the installer performs, but **the installer itself was not run**, so
+follow-up 3 below stays open for this device too.
+
+The decisive post-apply assertion is run against `rc.unslung`'s **own selector**
+rather than a proxy for it:
+
+```
+/opt/bin/find /opt/etc/init.d/ -perm '-u+x' -name 'S*' | sort
+→ /opt/etc/init.d/S51dropbear
+```
+
+`S80lighttpd` is no longer in the selection. Web health was unaffected by the
+change: `http` → `301` (redirect to https), `https` → `200`, a single lighttpd PID,
+nothing restarted.
+
+##### Reboot validation — passed 2026-08-25, and what it does *not* prove
+
+The device was rebooted after the hand-application (uptime 17490 s → fresh boot;
+serial `61368cd2` re-proven from `/proc/cmdline`). Every acceptance criterion
+passed:
+
+| Criterion | Result |
+| --- | --- |
+| Guard survived the reboot | `/opt/etc/init.d/S80lighttpd` is `-rw-r--r--` |
+| `rc.unslung`'s own selector excludes it | `/opt/bin/find /opt/etc/init.d/ -perm '-u+x' -name 'S*' \| sort` → `/opt/etc/init.d/S51dropbear` only |
+| Imposter still never ran | `stat /opt/var/log/lighttpd` → `Modify: 2026-03-16 09:22:24`, **unchanged across the reboot**; `/opt/var/run/lighttpd.pid` absent; log dir empty |
+| QManager healthy | `lighttpd.service` `ActiveState=active`, `NRestarts=0`, `ExecMainPID=1633`, holding both `0.0.0.0:80` and `0.0.0.0:443`; `http` → `301`, `https` → `200` |
+| `opt.mount` | wants-symlink present, `ActiveState=active` |
+
+> ⚠️ **Be precise about the strength of this result — it is easy to overclaim.**
+>
+> It **does** prove that the guard persists across a boot, that `rc.unslung`'s
+> *actual* selector no longer matches `S80lighttpd`, and that nothing regressed.
+>
+> It does **not** prove "the race is gone on the RM520N-GL," because the race was
+> never observed being *lost* on this device in the first place. The guard's value
+> here is that it **removes a dependency on luck**, not that it repaired an observed
+> failure.
+>
+> The strong evidence is the **mechanical** assertion — the `find` selector, which
+> is timing-independent and therefore cannot be flattered by a lucky boot. The
+> reboot is corroboration on top of it, not the primary proof.
+
+Post-reboot monotonic timeline (post-fix; compare against the pre-fix table above):
+
+| Unit | InactiveExit | ExecMainStart | ActiveEnter |
+| --- | --- | --- | --- |
+| `start-opt-mount.service` | 23.972 s | 23.971 s | 0 (`ExecMainStatus=0` — see F9) |
+| `rc.unslung.service` | 23.345 s | 28.721 s | 31.730 s |
+| `opt.mount` | 27.861 s | — | **28.404 s** |
+| `dropbear.service` | 28.772 s | 28.772 s | 28.772 s |
+| `lighttpd.service` | 28.562 s | 34.195 s | 34.195 s |
+
+Two figures from this boot are the ones to quote elsewhere:
+
+- **The `rc.unslung` vs `opt.mount` margin is 0.32 s** — `opt.mount` reached active
+  at 28.404 s and `rc.unslung`'s `ExecStart` began at 28.721 s. That is *tighter*
+  than the 0.5 s of the first boot, so **0.32 s is the worst measured margin** and
+  is the number to use wherever the docs quote one. It is the subject of
+  **[F14](#f14-open-deferred-on-measured-evidence--rcunslungservice-uses-execstartprebinsleep-5-where-it-needs-afteroptmount)**.
+- **`lighttpd.service`'s `ExecStartPre` shield was 5.63 s here** versus 4.4 s on the
+  first boot — the accidental shield the pre-fix device depended on is not a stable
+  width.
+
+> ℹ️ NOTE: the same `ExecStartPre=/bin/sleep 5` that F14 wants replaced is exactly
+> what positioned `rc.unslung`'s `pidof` sample inside the `-tt` shield on the
+> pre-fix boot above. **Any future F14 fix perturbs the F8 timing narrative** — it
+> cannot reintroduce F8 (the exec bit is the guard, and it is timing-independent),
+> but it does invalidate the measured margins recorded here.
 
 #### Accepted tradeoff in the uninstaller
 
@@ -514,8 +718,8 @@ None of these block the fix; all of them bound how far it can be claimed.
 
 | # | Work | Why it is still open |
 | --- | --- | --- |
-| 1 | **Re-probe the RM520N-GL once reachable.** Does `/opt/etc/init.d/S80lighttpd` exist, and is it executable? Is `/opt` a dedicated volume there? Does `opt.mount` exist as a unit at all? | The whole RM520N-GL section above is inference from the repo plus one package-count probe. |
-| 2 | **Boot-verify the fix on the RM520N-GL.** | Currently validated on the RG501Q-EU only. |
+| ~~1~~ | ~~**Re-probe the RM520N-GL once reachable.**~~ | **DONE 2026-08-25.** All four preconditions confirmed present, the imposter proven never to have run, `/opt` proven to be the same `/usrdata/opt` bind as on the RG501Q-EU, and `opt.mount` present as a unit but unlinked. Answers folded into [RM520N-GL status](#rm520n-gl-status-confirmed-exposed-latent-now-fixed) above. |
+| ~~2~~ | ~~**Boot-verify the fix on the RM520N-GL.**~~ | **DONE 2026-08-25.** Rebooted after the hand-application; guard persisted, selector excludes `S80lighttpd`, imposter log mtime unchanged, QManager healthy on 80+443. See [Reboot validation](#reboot-validation--passed-2026-08-25-and-what-it-does-not-prove) — note what that result does *not* prove. |
 | 3 | **End-to-end installer run on hardware.** The fix was validated by applying, by hand, the two state changes the installer performs — not by running the installer itself on-device. | The plumbing is verified *statically*: 16 assertions in `scripts/test/installer-lighttpd-collision.sh` plus a CLEAR installer-safety audit. Static verification is not an execution. |
 | 4 | **Root-cause the `opt.mount` boot-timing jitter** (22.25s on one boot vs ~4.5s on the next two, identical device, identical config). | Unexplained. See F11 below. |
 
@@ -533,6 +737,10 @@ transaction the wrapper is in.
 **The mount still happens.** Only the wrapper is a zombie — it never reports
 completion.
 
+**Reproduced on the RM520N-GL, 2026-08-25:** same signature —
+`InactiveExit=24.783 s`, `ExecMainStart=24.783 s`, `ExecMainStatus=0`,
+`ActiveEnter=0`. This is a shared platform behaviour, not an RG501Q-EU quirk.
+
 **Deliberately kept** (decision recorded in `952309e`). `dropbear.service` — the SSH
 daemon — runs `/opt/sbin/dropbear`, which lives under `/opt`. If `opt.mount`'s
 enablement ever failed and this fallback had been removed, the device would lose
@@ -547,6 +755,11 @@ the pre-fix boot. The unit declares `After=network.target` and nothing else — 
 particular **no `After=opt.mount`**, despite `ExecStart=/opt/sbin/dropbear` living
 on that mount. It also sets no `RestartSec=` and no `StartLimit*`. It survives
 purely because `Restart=on-failure` retries it until `/opt` is there.
+
+**It reproduces on the RM520N-GL too.** Previously this was an RG501Q-EU-only
+observation; the 2026-08-25 RM520N-GL reboot came up with **`NRestarts=2`**, the
+highest count seen on either device. So it is a shared platform defect, not a
+per-device quirk — consistent with the missing `After=opt.mount` being the cause.
 
 **Not resolved.** Two of three clean boots is not proof of anything, and the failure
 correlates with the `opt.mount` timing jitter in F11 rather than tracking the F8 fix.
@@ -599,6 +812,140 @@ wrong. This applies to **every** QManager unit, not just `opt.mount`.
 
 See also the `systemd version` row and its NOTE under [Boot & time](#boot--time),
 which records the same behaviour as a per-device fact.
+
+### F13 (open, security — BOTH devices) — three Entware systemd units are world-writable (`0666`)
+
+**Short version: three unit files that systemd runs as root at boot can be edited by
+any user on the box, including `www-data`.** Measured on **both** devices,
+2026-08-25 — this is a platform-wide defect, not an RM520N-GL quirk:
+
+| Unit | Mode (RM520N-GL) | Mode (RG501Q-EU) | Owner | Pulled into boot by |
+| --- | --- | --- | --- | --- |
+| `/lib/systemd/system/rc.unslung.service` | `-rw-rw-rw-` | `-rw-rw-rw-` | `root:root` | `WantedBy=multi-user.target` |
+| `/lib/systemd/system/opt.mount` | `-rw-rw-rw-` | `-rw-rw-rw-` | `root:root` | `WantedBy=multi-user.target` |
+| `/lib/systemd/system/start-opt-mount.service` | `-rw-rw-rw-` | `-rw-rw-rw-` | `root:root` | pulled as the `opt.mount` fallback |
+
+**How they got that way.** All three are written by plain heredocs in
+`scripts/install_rm520n.sh` — `cat > file << 'EOF'`, around `:1002`, `:1020` and
+`:1089` — with **no `chmod` afterward anywhere in the file**. Shell `>` redirection
+creates a file at `0666` minus the `umask` (the per-process mask of permission bits
+the kernel strips from newly created files). A measured `0666` therefore means the
+shell that ran the first install had a `umask` of **0**. The mode is inherited
+ambient state, not a decision.
+
+**Two devices landing on the same mode is what makes that explanation solid.** The
+RG501Q-EU's units carry mtimes of **Jun 22** (`opt.mount`,
+`start-opt-mount.service`) and **Aug 25** (`rc.unslung.service`) — bootstrapped
+months apart, on a different SoC, and still `0666` on all three. A one-off `umask`
+accident on a single box would not reproduce like that; an installer whose heredocs
+run under a `umask 0` environment would.
+
+**Why living on the read-only rootfs does not make this moot.** `preflight()`
+remounts `/` read-write (`install_rm520n.sh:492`), and this project's documented
+convention is to **never remount it back to `ro`** (see the comment at `:2902`). So
+on any device that has run the installer, `/lib` is permanently writable *at the
+mount level*, and the file mode is the only barrier left. An unprivileged local
+process — including `www-data`, if a CGI bug ever yields a shell — can rewrite
+`ExecStart=` in a unit that runs as root on the next boot. This is the same bug
+class as the `install -d -m 0755` findings already recorded in this project:
+permissions inherited rather than asserted.
+
+**Why OTA does not already fix it.** The heredocs sit inside `if !
+qm_entware_complete` *and* per-file `if [ ! -f ]` guards, so on an
+already-installed device they never re-execute. The bad modes survive every
+upgrade.
+
+**Recommended fix — audited, NOT yet implemented.** Record this as *recommended*,
+not done. A `harden_entware_unit_permissions()` alongside
+`neutralize_entware_lighttpd()`, called **unconditionally from `main()`** next to
+it: loop the three paths behind a `[ -f ]` guard, apply **numeric** `chmod 644`,
+then `sync`. Numeric mode sets exact bits regardless of `umask`, so unlike the
+`chmod a-x` in the F8 fix it needs no symbolic workaround. **No `daemon-reload` is
+required** — changing a file's mode does not make systemd re-parse the unit, and
+the change is safe on an already-loaded, active unit.
+
+##### Checked and clear: the containing directory is NOT loose
+
+The obvious worse version of this bug — a world-writable
+`/lib/systemd/system/` — **does not exist.** Measured on the RG501Q-EU 2026-08-25:
+
+```
+drwxr-xr-x   24 root     root         23328 Aug 25 04:49 /lib/systemd/system
+```
+
+`0755`, root-owned: the vendor default, exactly as the audit predicted, and
+consistent with no installer code ever creating or `chmod`-ing that directory.
+
+**This bounds the severity ceiling, so do not re-derive it.** The escalation path is
+limited to **overwriting those three existing files**. It does **not** extend to
+creating new units: an unprivileged process cannot add a `.service` of its own to
+`/lib/systemd/system/`, cannot drop in an override directory there, and cannot
+rename or delete the three files — only rewrite their contents in place. Bad enough
+(an `ExecStart=` in a root-run unit), but bounded and enumerable.
+
+### F14 (open, deferred on measured evidence) — `rc.unslung.service` uses `ExecStartPre=/bin/sleep 5` where it needs `After=opt.mount`
+
+**Short version: a unit whose whole job is to run a file on `/opt` waits for that
+mount with a hardcoded 5-second sleep instead of telling systemd about the
+dependency.** `rc.unslung.service` executes `/opt/etc/init.d/rc.unslung`, which does
+not exist until `opt.mount` is active. It declares **no `After=` at all**.
+
+**Worst measured margin: 0.32 s** — the 2026-08-25 RM520N-GL reboot, where
+`opt.mount` reached active at 28.404 s and `rc.unslung`'s `ExecStart` began at
+28.721 s. That is not a stable 0.32 s: **F11** already established that `opt.mount`
+timing is probabilistic on the RG501Q-EU, ranging **4.5 s to 22.25 s across
+identical boots**. A mount slower than the sleep makes `rc.unslung.service` fail
+outright with `ENOENT`.
+
+**Blast radius, post-F8 — this is why it is deferred rather than fixed:**
+
+- It **cannot reintroduce F8.** `S80lighttpd`'s exec bit is cleared, so
+  `rc.unslung`'s own `find` selection skips it whether `rc.unslung.service` runs or
+  not. The F8 guard is timing-independent by construction.
+- **SSH survives.** The only other `S*` script present is `S51dropbear`, which is
+  redundant with the independent systemd `dropbear.service` — and that unit orders
+  only on `network.target` (see F10), not on `rc.unslung`.
+- **The blast radius is now measured, and it is nil.** This was the open question
+  gating closure — whether any of the ~43 installed Entware packages ships another
+  `S*` init script depending on `rc.unslung` succeeding. Full directory listing,
+  RG501Q-EU 2026-08-25:
+
+  ```
+  -rwxr-xr-x    1 root     root           736 Jan  8  2025 S51dropbear
+  -rw-r--r--    1 root     root           215 Mar 16 09:22 S80lighttpd
+  -rw-r--r--    1 root     root          2822 Mar 15 12:03 rc.func
+  -rwxr-xr-x    1 root     root           966 Mar 15 12:03 rc.unslung
+  ```
+
+  `S51dropbear` and `S80lighttpd` are the **only** `S*` scripts that exist — the same
+  two as on the RM520N-GL. So an `ENOENT` failure of `rc.unslung.service` costs
+  exactly one thing: Entware's redundant `S51dropbear`, superseded by the independent
+  systemd `dropbear.service`. Nothing else is downstream of it.
+
+> ℹ️ **Disposition: deferred on measured evidence, not deferred pending
+> investigation.** Nothing is waiting on further probing — the failure mode is known
+> and benign. It stays **open** rather than closed because the hardcoded `sleep 5` is
+> still a latent fragility worth removing, not because anything is unknown.
+
+**Fix pattern if it is ever taken:** `After=opt.mount` **only** — *not* `Requires=`.
+Ordering already enforces the real dependency; `Requires=` would add a hard-fail
+propagation mode for nothing. This does **not** interact with F9's self-deadlock:
+F9 is a *runtime* `systemctl start` call issued from inside a unit's own
+`ExecStart`, whereas `After=` is declarative metadata resolved before the boot
+transaction is even built.
+
+Shipping it is the awkward part. `rc.unslung.service` is a **write-once** unit
+(the `if [ ! -f ]` guard from F13), so delivery needs an idempotent targeted patch
+called from `main()` — guarded on the string already being present — plus a
+`daemon-reload`, and it takes effect only on the *following* boot. That is the same
+risk class as **F10**, and it should inherit F10's disposition rather than jump
+ahead of it.
+
+> ℹ️ NOTE: the `sleep 5` this entry wants replaced is the same quantity that put
+> `rc.unslung`'s `pidof` sample inside `lighttpd.service`'s `ExecStartPre` shield on
+> the pre-fix RM520N-GL boot recorded under **F8**. Fixing F14 does not resurrect
+> F8 — but it does invalidate every timing margin quoted in that entry, so the two
+> must be re-measured together.
 
 ## AT transport
 

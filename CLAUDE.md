@@ -93,7 +93,7 @@ The table below contrasts RM520N-GL against the legacy RM551E (OpenWRT) target â
 | Web server | uhttpd | lighttpd (Entware) |
 | Firewall | nftables / fw4 | iptables direct |
 | TTL interface | `wwan0` | `rmnet+` |
-| Package manager | opkg (system) | Entware opkg at `/opt` (dedicated UBIFS volume) |
+| Package manager | opkg (system) | Entware opkg at `/opt` (bind of `/usrdata/opt` on the `ubi2_0` volume) |
 | LAN config | UCI (`network.*`) | `/etc/data/mobileap_cfg.xml` via xmlstarlet |
 
 ### Reference Docs
