@@ -618,6 +618,47 @@ neutralize_entware_lighttpd() {
     return 0
 }
 
+# --- Harden Entware bootstrap unit modes -------------------------------------
+
+# The three Entware bootstrap units written by `cat > ... << EOF` heredocs in
+# install_dependencies() are created with mode 0666 & ~umask. The install
+# shell's umask is 0000 on both measured devices, so all three land
+# world-writable (0666, measured on RM520N-GL and RG501Q-EU).
+# /lib/systemd/system itself is 0755, so the exposure is bounded to exactly
+# these three files — but each is a unit systemd executes as root at boot, and
+# the installer remounts / rw and never restores ro, so the file mode is the
+# only barrier left. Any local user could append an ExecStart and own the
+# device on the next reboot.
+#
+# Numeric 0644, not `go-w`: a numeric mode is idempotent regardless of whatever
+# mode the file already carries, and is immune to the umask-sensitivity that
+# bites symbolic modes with no "who" prefix.
+#
+# Runs unconditionally from main() — the same precedent as
+# neutralize_entware_lighttpd — so it reaches already-installed devices over
+# OTA (qmanager_update calls this installer with --skip-packages, which skips
+# install_dependencies where the heredocs live), not just fresh installs.
+# Must never die() or return non-zero: a failed chmod leaves today's behavior.
+harden_entware_unit_modes() {
+    local _unit
+
+    for _unit in /lib/systemd/system/opt.mount \
+                 /lib/systemd/system/start-opt-mount.service \
+                 /lib/systemd/system/rc.unslung.service; do
+        [ -f "$_unit" ] || continue
+        chmod 0644 "$_unit" 2>/dev/null \
+            || warn "Could not chmod 0644 $_unit — it may remain world-writable"
+    done
+
+    # / is UBIFS and the installer leaves it mounted rw; flush the metadata the
+    # same way every other rootfs write in this installer does. No
+    # daemon-reload is needed — changing a file's mode does not make systemd
+    # re-parse the unit, and the chmod is safe on an already-loaded active one.
+    sync 2>/dev/null || true
+
+    return 0
+}
+
 # --- Ensure Zoneinfo Packages -------------------------------------------------
 
 # Installs the zoneinfo-all Entware package (full IANA tzdata) into
@@ -3598,6 +3639,11 @@ main() {
     # re-extracts S80lighttpd with its executable bit restored, which would
     # silently undo an earlier disable in the same run.
     neutralize_entware_lighttpd
+
+    # Same unconditional placement, and for the same OTA-reach reason. Runs
+    # after install_dependencies so the units already exist by the time it
+    # chmods them on a fresh install.
+    harden_entware_unit_modes
 
     # SSH bootstrap runs after install_dependencies so Entware + bundled
     # dropbear .ipk are available, and before stop_services so it never has

@@ -794,12 +794,14 @@ wants-symlink created):
 `dropbear.service` came up with `NRestarts=2` on this boot — **F10** reproducing on
 the RM520N-GL, having previously only been seen on the RG501Q-EU.
 
-> ⚠️ Three of the units in these tables — `rc.unslung.service`, `opt.mount` and
-> `start-opt-mount.service` — are **mode `0666` in `/lib/systemd/system/`**, i.e.
-> writable by any local user, on a rootfs the installer leaves mounted `rw`. They
-> run as root at boot. Measured identically on **both** devices, so it is
-> platform-wide; the containing directory is a clean `0755`, which bounds the
-> exposure to rewriting those three files. Tracked as **F13** in
+> ℹ️ Three of the units in these tables — `rc.unslung.service`, `opt.mount` and
+> `start-opt-mount.service` — were **mode `0666` in `/lib/systemd/system/`** on both
+> devices: writable by any local user, on a rootfs the installer leaves mounted
+> `rw`, and run as root at boot. The installer's heredocs wrote them with no
+> `chmod`, so they inherited a `umask 0`. Fixed 2026-08-26 by
+> `harden_entware_unit_modes()`, which chmods all three to a numeric `0644`
+> unconditionally from `main()` so the correction also reaches existing devices
+> over OTA. Full write-up as **F13** in
 > [`docs/reference/platform-matrix.md`](./reference/platform-matrix.md).
 
 > ℹ️ NOTE: the earlier RG501Q-derived boot-ordering figures in this section were

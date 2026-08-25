@@ -813,7 +813,7 @@ wrong. This applies to **every** QManager unit, not just `opt.mount`.
 See also the `systemd version` row and its NOTE under [Boot & time](#boot--time),
 which records the same behaviour as a per-device fact.
 
-### F13 (open, security — BOTH devices) — three Entware systemd units are world-writable (`0666`)
+### F13 (fixed 2026-08-26, security — BOTH devices) — three Entware systemd units were world-writable (`0666`)
 
 **Short version: three unit files that systemd runs as root at boot can be edited by
 any user on the box, including `www-data`.** Measured on **both** devices,
@@ -855,14 +855,29 @@ qm_entware_complete` *and* per-file `if [ ! -f ]` guards, so on an
 already-installed device they never re-execute. The bad modes survive every
 upgrade.
 
-**Recommended fix — audited, NOT yet implemented.** Record this as *recommended*,
-not done. A `harden_entware_unit_permissions()` alongside
-`neutralize_entware_lighttpd()`, called **unconditionally from `main()`** next to
-it: loop the three paths behind a `[ -f ]` guard, apply **numeric** `chmod 644`,
-then `sync`. Numeric mode sets exact bits regardless of `umask`, so unlike the
-`chmod a-x` in the F8 fix it needs no symbolic workaround. **No `daemon-reload` is
-required** — changing a file's mode does not make systemd re-parse the unit, and
-the change is safe on an already-loaded, active unit.
+**Fix — shipped 2026-08-26.** `harden_entware_unit_modes()` in
+`scripts/install_rm520n.sh`, defined alongside `neutralize_entware_lighttpd()` and
+called **unconditionally from `main()`** immediately after it: it loops the three
+paths behind a `[ -f ]` guard, applies a **numeric** `chmod 0644`, and `sync`s.
+
+- **Numeric, not symbolic.** A numeric mode sets exact bits regardless of `umask`
+  and is idempotent whatever mode the file already carries — so unlike the
+  `chmod a-x` in the F8 fix it needs no `a` prefix workaround.
+- **Unconditional in `main()`, not inside `install_dependencies()`.** That is the
+  whole delivery mechanism: OTA invokes the installer with `--skip-packages`, which
+  gates `install_dependencies()` where the heredocs live, so a fix placed there
+  would reach fresh installs only and leave every existing device `0666` forever.
+  Same defect shape as F8, same precedent for the cure.
+- **Warn-only.** A failed `chmod` degrades to the pre-fix state; it must never
+  abort an install.
+- **No `daemon-reload`.** Changing a file's mode does not make systemd re-parse the
+  unit, and the change is safe on an already-loaded, active unit.
+
+Pinned by `scripts/test/installer-unit-modes.sh` (13 assertions, auto-discovered by
+`run-harnesses.sh`), whose paranoid assertion is [3]: the call site must be
+ungated and must not sit inside `install_dependencies()`. Verified to fail against
+`git show HEAD:scripts/install_rm520n.sh` before the fix (8 failures) and pass
+after.
 
 ##### Checked and clear: the containing directory is NOT loose
 
