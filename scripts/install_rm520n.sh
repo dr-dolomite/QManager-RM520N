@@ -1631,13 +1631,16 @@ install_backend() {
     # --- Sudoers (re-detect after install_dependencies may have installed sudo) ---
     detect_sudo
     if [ -f "$SRC_SCRIPTS/etc/sudoers.d/qmanager" ] && [ -n "$SUDOERS_DIR" ]; then
-        # install -d, not mkdir -p: this is /etc/sudoers.d, the most
-        # security-sensitive directory on the device. mkdir -p honours the
-        # ambient umask and no-ops on an existing dir, so a bad mode reached
-        # once persists across every OTA forever. install -d re-applies
-        # owner/mode on EVERY run. 0750 (not 0755) — the drop-in file itself
-        # is 440 root:root below, but the directory listing shouldn't be
-        # world-readable either.
+        # install -d, not mkdir -p: this is the sudoers drop-in directory —
+        # whatever detect_sudo resolved SUDOERS_DIR to. On the RM520N-GL that
+        # is Entware's /opt/etc/sudoers.d, NOT /etc/sudoers.d, which does not
+        # exist on the device; the fix applies uniformly either way.
+        # mkdir -p honours the ambient umask and no-ops on an existing dir, so
+        # a bad mode reached once persists across every OTA forever. install -d
+        # re-applies owner/mode on EVERY run. 0750 (not 0755) — sudo itself is
+        # setuid-root so it reads the dir regardless of mode; 0750 only stops
+        # non-root users (www-data) from listing it, matching the 0700
+        # precedent already shipped for SECRETS_DIR.
         install -d -o root -g root -m 0750 "$SUDOERS_DIR"
         # Ensure sudoers includes the drop-in directory
         if ! grep -q "includedir.*sudoers.d" "$SUDOERS_CONF" 2>/dev/null; then
