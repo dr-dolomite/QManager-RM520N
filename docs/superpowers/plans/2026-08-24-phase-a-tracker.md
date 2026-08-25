@@ -17,7 +17,7 @@
 | --- | --- | --- | --- | --- |
 | T0 | Commit the Phase-A input documents | **DONE (merged)** — all 5 steps. Every input doc is tracked on `development`. | `3c34c4a`, `73cc424`, `fc30a50` | 2026-08-24 |
 | T1 | `hw_profile.sh` — parser, tier table, generator | **DONE (merged)** — all 8 steps. Both validators clean. | `581123e`, `3436ea3`, `55d3b60`, `d626517` — fast-forwarded onto `development` 2026-08-24 | 2026-08-24 |
-| T2 | Generate `platform.json` at install; recognize RG501Q | **IN PROGRESS — Phase 1 recon COMPLETE, build NOT started.** 4 agents reported. Gate = CONDITIONAL, 7 constraints, 0 blockers. **The plan's prescribed placement is WRONG — see the 2026-08-25 entry.** Blocked on the RM520N-GL "before" baseline | — | 2026-08-25 |
+| T2 | Generate `platform.json` at install; recognize RG501Q | **IN PROGRESS — Phase 1 recon COMPLETE, build NOT started.** 4 agents reported. Gate = CONDITIONAL, 7 constraints, 0 blockers. **The plan's prescribed placement is WRONG — see the 2026-08-25 entry.** ✅ **RM520N-GL "before" baseline CAPTURED and clean — nothing blocks the build.** Resume at step 3 | — | 2026-08-25 |
 | T3 | Self-heal `platform.json` in `qmanager_setup` | NOT STARTED | — | — |
 | **T4** | **Migrate the poller's identity reads — THE CUT LINE** | NOT STARTED | — | — |
 | T5 | Migrate `about.sh`'s firmware-revision read | NOT STARTED | — | — |
@@ -166,11 +166,76 @@ They **already disagree** on a non-Quectel string: the installer prompts via `*`
 
 The device has no internet (`rg501q-bringup.md:80-82`: `Could not resolve host`), and the Entware bootstrap dies unconditionally at `install_rm520n.sh:773-774` (`opkg update … || die`). That `die` is in `install_dependencies()`, which runs **after** `preflight` — so with the corrected placement, T2's write would land and survive even on a doomed install (a benefit). **But a reinstall is not a route to a working RG501Q fixture.** Network provisioning for that device is Phase C/D, not something T2 absorbs.
 
+#### ✅ RM520N-GL "BEFORE" BASELINE — CAPTURED AND CLEAN. The build is unblocked.
+
+Device reconnected by the user and re-probed 2026-08-25 08:32–08:36 (+08:00; device reports UTC). **Zero writes.** SSH.NET connected first try — neither the `Key exchange negotiation failed` cmdlet defect nor the earlier timeout recurred.
+
+**Uptime `15h03m` proves the device was never rebooted** — it only lost its network path, corroborating "simply disconnected" exactly. The earlier APIPA/zero-ARP reading was diagnosing a cable, not a fault. (`PingSucceeded=False` alongside a working TCP/22 is ICMP filtering on the path, not a reachability problem.)
+
+| # | Item | Expected | Measured | Verdict |
+| --- | --- | --- | --- | --- |
+| 1 | `qmanager*` units | 11 loaded, poller running | 11 loaded, `qmanager-poller.service active running` | ✅ match |
+| 2 | `data_used.json` header | schema 5 / `rmnet_ipa0` / `normal` | schema 5 / `rmnet_ipa0` / `normal`, `last_reset_ts: 0` | ✅ match |
+| 3 | `/tmp/qmanager_status.json` | `modem_reachable: true` | `true`, `errors: []`, LTE connected on SMART | ✅ match |
+| 4 | `/etc/qmanager/VERSION` | `v0.1.14-draft` | `v0.1.14-draft` (matches `package.json`) | ✅ match |
+| 5 | **`platform.json`** | **ABSENT** | **ABSENT — re-verified twice, 08:32 and 08:36** | ✅ **the gate's load-bearing pre-condition holds** |
+| 6 | `hw_profile.sh` on device | absent | **PRESENT, dormant** — see below | ⚠ **the brief was wrong** |
+| 7 | G2 counter advance | must move | **+832 rx / +35 616 tx over 235 s**, 3 monotonic samples | ✅ **live** |
+| 8 | `jq` | — | `/opt/bin/jq`, **1.7.1** | ✅ present |
+| 9 | `tr` | — | BusyBox **1.31.1**, `\000-\037` range class works | ✅ usable |
+
+**G2 detail — the counter is provably following the kernel, not replaying a cache.** Three samples: `accumulated_rx` 205162 → 205810 → 205994, `accumulated_tx` 8216984 → 8244612 → 8252600, strictly monotonic with no frozen sample. Cross-validated against `/proc/net/dev rmnet_ipa0` at the third read: rx `206518` / tx `8253772` are **byte-identical** to that sample's `prev_ipa_rx` / `prev_ipa_tx`, and the accumulator deltas track the `prev_ipa_*` deltas exactly. *Scope note recorded by the investigator: the span is 3 m 55 s, at the short end of "several minutes" — judged decisive given exact kernel agreement.*
+
+##### ⚠ BASELINE CORRECTION — `hw_profile.sh` IS on the device. T1's gate row is stale.
+
+T1's evidence table records `ls /usr/lib/qmanager/hw_profile.sh` → *No such file or directory*. **That was true at 03:27 UTC on 2026-08-24 and is false now:**
+
+```
+-rw-r--r--  1 root root  10428 Aug 24 09:56 /usr/lib/qmanager/hw_profile.sh
+```
+
+**This is NOT a rogue deploy — verified three ways per the project's deploy-verification rule:**
+
+| Source | md5 |
+| --- | --- |
+| Device `/usr/lib/qmanager/hw_profile.sh` | `b89b7070f0f4224f32fef30316a2bb28` |
+| Working copy | `b89b7070f0f4224f32fef30316a2bb28` |
+| `git show HEAD:` | `b89b7070f0f4224f32fef30316a2bb28` |
+
+All three identical; `git status --porcelain -- scripts/usr/lib/qmanager/` empty. `platform.sh` likewise matches three ways (`f97c4f75994a6f389655e9bd96948b9c`).
+
+**How it got there:** every file in `/usr/lib/qmanager/` shares mtime `Aug 24 09:56` UTC = `17:56 +0800`. T1 was committed at `11:35:30 +0800`; a normal install/OTA six hours later deployed the **whole library tree** and swept up the newly-committed file. **A library needs no caller and no unit to land on the device.**
+
+**It is deployed but fully dormant.** `grep -rl "hw_profile" /usr/lib/qmanager /usr/bin /lib/systemd/system` matches only the file itself. `qm_hw_write_profile` is defined at `hw_profile.sh:205` and invoked nowhere. *That is precisely why `platform.json` does not exist.*
+
+**Action for the builder:** record the BEFORE state for item 6 as **"present, md5 `b89b7070…`, identical to HEAD, deployed Aug 24 17:56 +0800, no caller"** — NOT "absent". Otherwise the post-change diff flags a pre-existing file as a regression and burns a cycle. The invariant that actually matters (`platform.json` absent) is untouched.
+
+**Durable lesson:** "it's in the repo, not on the device" is never a safe assumption for anything under `scripts/usr/lib/qmanager/` — that directory deploys as a whole tree. **Deployed-but-dormant is a normal state and must be checked for explicitly.**
+
+##### Q8 is now MOSTLY DISCHARGED — BusyBox `tr` handles the octal range class
+
+The idiom that had never run on hardware was smoke-tested read-only (pipe only, no files created):
+
+```
+$ printf 'a\001b\037c\n' | tr -d '\000-\037' | od -c
+0000000   a   b   c
+```
+
+**BusyBox 1.31.1 `tr` supports `\000-\037` correctly.** It also strips the trailing newline (`\012` is inside the range) — **not a defect at the real call site**, because `_qm_hw_json_escape` (`hw_profile.sh:191`) feeds it via `printf '%s'`, which emits no trailing newline.
+
+Remaining for the fuller proof, whose inputs are now settled: BusyBox 1.31.1 `tr`, `jq 1.7.1` at `/opt/bin` available on-device for `jq -e .` validation, single call site at `hw_profile.sh:191`. **Still to do: run the generator to a scratch path and validate the emitted JSON. Do NOT run an installer to achieve this.**
+
+##### The health-check observability claim — VERIFIED, and tightened
+
+`qmanager_health_check:563-568` confirmed (`t_cfg_qmanager_dir()` → `ls -la /etc/qmanager >> "$OUTPUT_FILE"`, `echo "pass|exists"`), registered at `:891` as `cfg.qmanager_dir`, streamed by `…/system/health-check/download.sh` (auth-gated, `job_id` regex-validated).
+
+**Tightening finding:** the bundle collector does **not** list `/usr/lib/qmanager` anywhere. So `ls -la /etc/qmanager` is the **sole** user-visible surface for this change — the 24-entry listing captured at 08:32:43 is the complete before-image, and the dormant `hw_profile.sh` is invisible to users. Directory mode measured `drwxr-xr-x www-data:www-data` (**755, not the `0777` in an older memory note**); `active_scenario` is the lone `root:root` file.
+
 #### Invariant re-assertion
 
 | # | Result |
 | --- | --- |
-| I1 | ⚠ **NOT CAPTURED.** The RM520N-GL was unreachable for this session's recon (physically disconnected). The "before" baseline — including the G2 counter-advance check — **is still outstanding and blocks T2's gate.** |
+| I1 | ✅ **CAPTURED AND CLEAN** — see the baseline table above. Command and verbatim output recorded for all nine items; G2 passed on three monotonic samples cross-validated against `/proc/net/dev`. **One correction: `hw_profile.sh` is present-and-dormant, not absent.** |
 | I2 | ⚠ **NOW VACUOUS AS WRITTEN — must be REPLACED, not deleted.** There is no broken install to make harder to recover. The risk has inverted: the RG501Q is now the project's only clean-slate fixture. **Proposed rewording: "the RG501Q remains a stock-fresh, QManager-free device unless a write is recorded here."** Nothing was written to it this session. |
 | I3–I6 | ✅ N/A (no build cut) · I4/I5/I6 re-confirmed intact by `installer-safety-auditor` |
 | I7 | ✅ Untouched — no poller edit. The `SDX55) echo "reversed"` arm at `:73` remains unreachable |
@@ -184,8 +249,8 @@ The device has no internet (`rg501q-bringup.md:80-82`: `Could not resolve host`)
 #### ▶ HOW TO RESUME — do these in order
 
 1. **Confirm ADB is back on the RG501Q.** The user is restoring it via `AT+QCFG="usbcfg",...` themselves. Verify with `adb devices -l`; the serial should be `b7e3d6f1` and the USB PID should return to `0x0801`.
-2. **Capture the RM520N-GL "before" baseline** — `modem-investigator`, read-only. Units table, `data_used.json`, `/tmp/qmanager_status.json`, `VERSION`, `ls -la /etc/qmanager/` (now doubly important, see the health-check finding), absence of `platform.json` and of `/usr/lib/qmanager/hw_profile.sh`, plus **both halves of the G2 counter-advance check**. Also capture `command -v jq` and the `tr` implementation — needed to design the on-device proof for Q8.
-3. **Then, and only then, build T2** against the 10 constraints above — NOT against the plan's Steps as written. `EnterWorktree` from `development` (verify `git merge-base HEAD development == git rev-parse HEAD`), copy `.env` in, skip `bun install` (backend-only change).
+2. ~~Capture the RM520N-GL "before" baseline~~ — ✅ **DONE 2026-08-25 08:32–08:36.** See the baseline section above. G2 passed, `platform.json` absent, `jq`/`tr` censused, Q8 mostly discharged. **This no longer blocks anything.**
+3. **Build T2** against the 10 constraints above — NOT against the plan's Steps as written. `EnterWorktree` from `development` (verify `git merge-base HEAD development == git rev-parse HEAD`), copy `.env` in, skip `bun install` (backend-only change). **Carry the item-6 correction into the gate: `hw_profile.sh` is present-and-dormant on the device, not absent.**
 4. **Do NOT run the installer on the RM520N-GL to prove anything.** It is read-only for this entire phase and is the baseline the gate is measured against. The `tr`/JSON proof (Q8) needs a small scratch probe writing to `/tmp`, not an install.
 
 #### What a later task might invalidate
