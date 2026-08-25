@@ -17,7 +17,7 @@
 | --- | --- | --- | --- | --- |
 | T0 | Commit the Phase-A input documents | **DONE (merged)** — all 5 steps. Every input doc is tracked on `development`. | `3c34c4a`, `73cc424`, `fc30a50` | 2026-08-24 |
 | T1 | `hw_profile.sh` — parser, tier table, generator | **DONE (merged)** — all 8 steps. Both validators clean. | `581123e`, `3436ea3`, `55d3b60`, `d626517` — fast-forwarded onto `development` 2026-08-24 | 2026-08-24 |
-| T2 | Generate `platform.json` at install; recognize RG501Q | NOT STARTED | — | — |
+| T2 | Generate `platform.json` at install; recognize RG501Q | **IN PROGRESS — Phase 1 recon COMPLETE, build NOT started.** 4 agents reported. Gate = CONDITIONAL, 7 constraints, 0 blockers. **The plan's prescribed placement is WRONG — see the 2026-08-25 entry.** Blocked on the RM520N-GL "before" baseline | — | 2026-08-25 |
 | T3 | Self-heal `platform.json` in `qmanager_setup` | NOT STARTED | — | — |
 | **T4** | **Migrate the poller's identity reads — THE CUT LINE** | NOT STARTED | — | — |
 | T5 | Migrate `about.sh`'s firmware-revision read | NOT STARTED | — | — |
@@ -38,6 +38,164 @@ States: `NOT STARTED` · `IN PROGRESS` · `BLOCKED` · `DONE (merged)` · `DONE 
 ## Log
 
 Newest entry first. Every entry records: what was done, the gate evidence, and **what a later task might invalidate**.
+
+### 2026-08-25 — T2 Phase 1 recon COMPLETE. No code written. **CHECKPOINT — session paused for a host restart.**
+
+**Status: T2 is planned but NOT built.** Four read-only agents ran in parallel (`modem-investigator`, `installer-safety-auditor`, `Explore` census, Opus devil's advocate). No worktree was created, no production file was touched, nothing was deployed. **Zero writes to either device.**
+
+#### ⚠ THE DEVICE SITUATION CHANGED — read this before trusting any device row below
+
+**The user factory-reset the RG501Q-EU** (not the RM520N-GL — proven, see below). Reason: it shipped with a pre-installed **`simpleadmin-go`** — a third-party fork of the user's own earlier SimpleAdmin project — which was holding `/dev/smd11` and corrupting our probes. The device is now stock-fresh: no SimpleAdmin Go, no QManager.
+
+**Identity proven by measurement, not inference.** SSH and adb were both unavailable, so the investigator used a **third transport that is in none of our docs**: the Quectel USB AT port the Windows host enumerates as a COM port (`COM24`, matched to USB serial `B7E3D6F1` via a PnP parent lookup). Read-only probe, 2026-08-25 07:41:49:
+
+```
+ATI     -> Quectel / RG501Q-EU / Revision: RG501QEUAAR12A11M4G
+AT+CGMM -> RG501Q-EU
+AT+CGSN -> 863436050940776
+AT+QCFG="usbcfg" -> +QCFG: "usbcfg",0x2C7C,0x0800,1,1,1,1,1,0,0
+```
+
+**Consequence 1 — the RG501Q has NO SHELL TRANSPORT.** The reset reverted the USB composition to stock: PID changed `0x0801` → `0x0800` and the `MI_06 ADB Interface` is gone (measured against the host's stale PnP entries for the same serial). SSH has never existed on that device, so adb was the only shell. **Any doc, brief, or tracker row that lists `adb -s b7e3d6f1 shell` as the access method for the RG501Q is now WRONG.** Restoring it needs an `AT+QCFG="usbcfg",...` **write**. The investigator refused it (correctly — unauthorized), and **the user has taken this on themselves**; as of this checkpoint they were still working through it and hit trouble.
+
+**Consequence 2 — the whole RG501Q fresh-state census is `*unverified*`.** `jq`, `opkg`, `/opt`, `lighttpd`, leftover QManager artifacts, `/proc/cmdline` `ro` status, `/proc/mounts` volume backing, `/tmp` `noexec` — **none of it was measurable and none of it was guessed.**
+
+**Consequence 3 — the RM520N-GL was unreachable this session.** Measured on the host: Ethernet at APIPA `169.254.95.110` (no DHCP lease), **no host interface on the modem's subnet at all**, `arp -a` showing **zero dynamic neighbours**, 22/80/443 all closed. **The user confirmed it was simply physically disconnected and has since reconnected it.** A re-dispatch to capture the baseline was in flight when this checkpoint was written — **its result is NOT recorded here. Assume the baseline is still uncaptured.**
+
+**Note the failure-mode change:** the transport defect recorded on 2026-08-24 was `Key exchange negotiation failed` from Posh-SSH's cmdlet wrapper. This session the SSH.NET path failed with a plain **connection timeout** instead — a dead network path, not the tooling bug. Anyone following the documented workaround will see a different error and may misdiagnose it.
+
+#### An `atcli_smd11` staging plan was authorized, then rendered unnecessary
+
+The user instructed that since nothing is installed on the fresh RG501Q, `atcli_smd11` should be pushed over adb and chmod'd before AT commands could be tested. That was authorized with a deliberate constraint — **stage to `/tmp`, never `/usr/bin`**, because `/usr/bin` is on the rootfs which boots `ro`, and the project contract says a rootfs `remount,rw` must then never be restored, permanently mutating a device we want clean. `/tmp` is tmpfs, so a reboot is a full undo.
+
+**It was never executed** — adb was already gone. And it turned out to be moot: the COM-port transport delivered the same three AT identity commands with **zero writes and no staged binary**. The float-ABI question (does the SDX55 run our hard-float static ARM binary?) never had to be answered and **remains `*unverified*`.** The plan is sound and can be run verbatim if a shell returns; the source md5 is confirmed below.
+
+#### 🛑 THE PLAN'S PRESCRIBED PLACEMENT FOR T2 IS WRONG — it writes NO profile on a fresh install
+
+Found by the devil's advocate, independently corroborated by `installer-safety-auditor`. **This is the single most important finding of the session.**
+
+The plan (`…-multi-target-platform.md:303`) says to place the generator *"after the whole `if [ "$DO_FORCE" = "1" ] … fi` block closes"* — that `fi` is `install_rm520n.sh:386`. But `$CONF_DIR` (`/etc/qmanager`) **does not exist yet at that line.** It is created 16 lines later by `mark_version_pending` at `:402`, which calls `install -d -m 0755 "$CONF_DIR"` (`:249`) and is documented in-source as *"the FIRST thing that creates $CONF_DIR"*.
+
+And T1's generator **deliberately refuses to create its own parent** (`hw_profile.sh:201-204`): *"The destination directory is NOT created here… A missing parent makes this return 1 with no side effect."* T1's own harness asserts it (`scripts/test/hw-profile.sh:180-182`).
+
+**So on every device where QManager was never installed** — every fresh install, and the now-reset RG501Q — the plan's placement yields `return 1`, a `|| warn` buried in `/tmp/qmanager_install.log`, and **no `platform.json`.**
+
+**Why it would have shipped:** on the RM520N-GL, `/etc/qmanager` already exists, so it works there. The only device we can gate against would show nothing wrong.
+
+**CORRECTED PLACEMENT — place the generator after `mark_version_pending` at `:402`, immediately before `info "Pre-flight checks passed"` at `:403`.** This satisfies every constraint the plan actually cares about: outside the `--force` gate (closes `:386`), after the `RM551E` `die` (`:341-343`), after the remount `die` (`:390`), after the source-dir `die`s (`:395-400`) — and it is the only placement where the parent directory exists.
+
+#### Every line number in the plan is stale — corrected table
+
+T1's 30-line deletion shifted `preflight()` up by ~53 lines. **Re-located and verified at HEAD `664a02b` by two independent agents.**
+
+| Site | Plan cited | **Actual** | Quote |
+| --- | --- | --- | --- |
+| `preflight()` body | `:361-432` | **`:308-404`** | `preflight() {` … `}` |
+| `--force` gate opens | `:361-363` | **`:331`** | `if [ "$DO_FORCE" = "1" ]; then` |
+| gate `else` / closing `fi` | — | **`:333` / `:386`** | |
+| Tier `case` | inside 361-432 | **`:340-382`** | `case "$project_name" in` … `esac` |
+| `RM551E*` hard die | — | **`:341-343`** | `die "Incompatible device: …"` |
+| `RM520N*` arm | — | **`:344-346`** | `info "Detected: RM520N-GL ($ver)"` |
+| `""` warn arm / `*` default arm | — | **`:347` / `:350`** | |
+| `/dev/tty` probe | `:393-409` | **`:363`** | `if { true </dev/tty; } 2>/dev/null; then` |
+| Headless auto-proceed | `:393-409` | **`:357-380`** (block `:372-376`) | `if [ -z "$answer" ]; then` … `answer="y"` |
+| **`mark_version_pending` call** | not cited | **`:402`** | the new anchor — see above |
+| `set -e` | not cited | **`:42`** | `set -e`. **No `set -u`, no `pipefail`** |
+| `SRC_SCRIPTS` | not cited | **`:95`** | `SRC_SCRIPTS="$INSTALL_DIR/scripts"` |
+| `CONF_DIR` / `LIB_DIR` | not cited | **`:82` / `:57`** | |
+| `preflight` invoked | not cited | **`:3200`**, plain statement in `main()`, no subshell | |
+| Glob install of `usr/lib/qmanager` | `:1125` | **`:1095`** (T1's `:1095` was right) | `install_dir_flat "$SRC_SCRIPTS/usr/lib/qmanager" "$LIB_DIR" 644` |
+| Uninstaller lib removal | `:341` | **`:341` unchanged** | `rm -rf "$LIB_DIR"` |
+| Uninstaller `--purge` | `:580` | **`:579-581` unchanged** | `rm -rf "$CONF_DIR"` |
+| Tar sentinels #1 / #2 | `qmanager_update:165` / `:456,:568,:643` | **all unchanged** | |
+
+**One plan text correction:** the plan describes `qmanager_update:260,464,576,651` as four sites each running `install_rm520n.sh --force …`. Only **`:260`** is the real invocation (inside `run_install_with_progress()`); the other three are `log` lines that funnel into it. All paths do pass `--force`, so the conclusion holds — but a builder grepping those four numbers will find only one command.
+
+#### Constraints T2's builder MUST obey (7 from the gate + 3 from the devil's advocate)
+
+1. **Placement: after `mark_version_pending` (`:402`), before `:403`.** Not after `:386` as the plan says.
+2. **Source from the staging tree** — `. "$SRC_SCRIPTS/usr/lib/qmanager/hw_profile.sh"`, never the absolute `/usr/lib/qmanager/…`, which at preflight time is the *previous* version's library (OTA) or absent (fresh install).
+3. **Guard the write** — `qm_hw_write_profile "$CONF_DIR/platform.json" || warn "…"`. `set -e` is live at `:42` with no enclosing subshell, so a bare call aborts the whole installer. `warn()` (`:153-156`) ends on a `printf` and returns 0, so the `||` genuinely neutralizes the trip.
+4. **Do NOT add an `install -d` for `$CONF_DIR`** — constraint 1's placement guarantees it exists, mode 0755.
+5. **`RG501Q*` arm** goes in the `case` as a sibling of `RM520N*` (`:344-346` shape): `info` line only, no prompt. It is unrelated to the generator's placement.
+6. **Nothing inside the `--force` block may touch `platform.json`** — that block is skipped on every OTA.
+7. **CRLF:** T2 introduces the installer's **first-ever source of a staging-tree file before the `tr -d '\r'` strip step** (every existing `.` call reads from the already-installed, already-stripped `$LIB_DIR`). Safety rests entirely on `.gitattributes`' `scripts/**/*.sh text eol=lf`, which was verified present and correctly scoped. Acknowledge it in a comment or the commit note.
+8. **Guard the SOURCE too, not just the call (`--frontend-only` aborts the installer otherwise).** `$SRC_SCRIPTS` is only asserted to exist when `DO_BACKEND=1` (`:398-400`); `--frontend-only` sets `DO_BACKEND=0` (`:3170`). An unguarded `.` of a missing file returns non-zero and `set -e` kills preflight. Use `[ -f … ] && . …` and only call the generator when `command -v qm_hw_write_profile` resolves.
+9. **Step 6's headless check must be a SYNTHETIC harness.** The plan says to reproduce it via "the RG501Q reaching the `*` arm under `adb shell` with no tty" — but **Step 4 adds `RG501Q*)` to the `case`, which removes the RG501Q from the `*` arm.** After T2 there is no known device that reaches the headless auto-proceed path, retiring the plan's own justification at `:51`. Build a fake `/etc/quectel-project-version` with a non-Quectel `Project Name`, close stdin and `/dev/tty`.
+10. **Assert the profile exists at the END OF `preflight()`, not at the end of the install** — see the masking risk below.
+
+#### 🔥 The biggest risk in T2, which nobody had named: **T3 masks every one of T2's failure modes**
+
+`start_services()` runs `systemctl restart qmanager-setup` on every install (`install_rm520n.sh:2861`), using `restart` specifically so `ExecStart` always re-runs. Once T3 lands, that regenerates an absent `platform.json` seconds after preflight. **On the standard path — including every OTA — a device ends up with a correct profile whether or not T2 works at all.**
+
+Combine that with T2's three silent failure modes (missing parent → `return 1`; the mandated `|| warn` logging to a file, not the console; the `--frontend-only` source abort) and **T2 can be completely non-functional on fresh installs while every check in its Step 8 passes.**
+
+The team named this masking *shape* for a different cause (plan `:316`, the old-schema source-path bug) and missed it for the directory-existence bug the code actually has.
+
+**Mitigation, now mandatory for T2's gate:** in the local harness, run `preflight` ALONE against a `$CONF_DIR` that does not exist, and assert `platform.json` is present, schema-1 shaped, and `platform.json.tmp` absent. **That same check discharges Q8** — it is the first execution of `_qm_hw_json_escape`'s `tr -d '\000-\037'` outside T1's sandbox.
+
+#### T2 is NOT invisible on the RM520N-GL — it changes a UI-downloadable artifact
+
+The tracker's cut-line claim (line ~34, *"everything before T4 is dead code… or an install-time write nothing consumes"*) is **false as stated.** `qmanager_health_check`'s `t_cfg_qmanager_dir()` (`:563-566`) runs `ls -la /etc/qmanager >> "$OUTPUT_FILE"`; the test is registered (`:891`) and `$OUTPUT_FILE` is bundled and served over HTTP by `scripts/www/cgi-bin/quecmanager/system/health-check/download.sh`.
+
+So after T2 the RM520N-GL's downloadable health-check bundle gains a `platform.json` line. The **verdict string** (`pass|exists`) is unchanged, so this is a diagnostic-body diff, not a functional regression — but I1 says "behavior unchanged" and this is the one place the write is observable over HTTP. **T2's gate must record the pre/post `ls -la /etc/qmanager` and assert the `cfg.qmanager_dir` verdict is byte-identical.**
+
+#### Two tier tables will exist after T2 — the exact drift the plan forbade for the generator
+
+The plan justified putting the generator in the library because *"two implementations would drift"* (`:230`). T2 Step 4 then adds an `RG501Q*` arm to `install_rm520n.sh`'s `case` (`:341-380`) while `hw_profile.sh:138-153` already owns `qm_hw_tier()` — two model→behavior tables keyed off **two different parsers** (installer: `grep -m1 "^Project Name:" | tr -d '[:space:]'`; library: `_qm_hw_field` plus a Quectel shape regex returning `unknown`).
+
+They **already disagree** on a non-Quectel string: the installer prompts via `*`, the library reports `unknown` → `fallback`. Nothing tests that they agree. **Cheapest fix: add an assertion to `scripts/test/hw-profile.sh` that the installer's `case` globs and `qm_hw_tier`'s globs enumerate the same set.**
+
+#### The test gate T1 reported is weaker than it reads
+
+`scripts/test/run-all.sh` **does not execute any harness** — it only `bash -n` syntax-checks and does a warn-only CRLF scan (its own header, `:9`, says so). The functional harnesses run through a **different** runner, `scripts/test/run-harnesses.sh:52`. So T1's recorded `run-all.sh → PASS: 163 scripts` means *163 files parse*, not *163 files behave*. T1's real functional evidence was its separate `hw-profile.sh` run (21 assertions), which did happen. **Correct the gate command in future entries; T10 should fix the docs.**
+
+**Also: the installer has NO test harness.** No file in `scripts/test/` references `install_rm520n.sh` or `preflight`. T2's Step 6 harness is therefore a **build**, not a run — real scope the plan understates.
+
+#### Refuted attacks — recorded so they are not re-raised
+
+- **The reset invalidates T1's fixtures / the C1 parser measurements.** No. `/etc/quectel-project-version` is vendor firmware, restored identically by a factory reset, and the base64 fixtures are embedded in `scripts/test/hw-profile.sh` — no device needed. C1, C2 and the tier table are unaffected.
+- **`preflight()` has an early `return` or a `--skip-*` flag that skips the generator.** No. `preflight()` has no `return`; every exit is a `die`. `main()` calls it unconditionally at `:3200` and none of the seven flags gate it. (Constraint 8 is about the *source*, not the call.)
+- **`platform.json` is carried by a backup/restore or OTA-preserve routine.** No. `BACKUP_DIR` handling is `auth.json`-only (`:978-990`); `qmanager_update` touches only `VERSION`, `VERSION.pending`, `updates/`; the one `etc/qmanager/*` loop (`:1459`) walks the **staging** tree. The health-check listing above is the sole consumer and it does not parse the file.
+- **A partial/corrupt profile could be written and read as valid.** No. Same-directory `${dest}.tmp`, `mv` only on success, cleanup on failure (`hw_profile.sh:208-219`), with no-stranded-tmp assertions in the harness. Only a full `ubi2_0` could truncate, and there the `>` fails and the `mv` never runs.
+- **`qmanager_setup:151`'s `chown -R www-data:www-data /etc/qmanager` breaks the install-time write.** No. Ownership, not content — and `install_backend:1363` already does the same chown mid-install. Consequence is only that the profile is www-data-writable, which `hw_profile.sh:14-17` already declares and I10 already covers.
+- **The load guard `[ -n "${_HW_PROFILE_LOADED:-}" ] && return 0` trips `set -e` when sourced.** No. Non-final command of an AND-OR list, which `set -e` exempts; verified under `dash` during T1.
+- **`qm_hw_write_profile` violates the same-directory-tmp / EXDEV rule.** No — **already satisfied by T1's code.** `tmp="${dest}.tmp"` (`hw_profile.sh:208`), same idiom as `qm_config_set()`. Nothing for T2 to add.
+
+#### ⚠ Out-of-scope hazard: reinstalling QManager on the fresh RG501Q will fail at the same place
+
+The device has no internet (`rg501q-bringup.md:80-82`: `Could not resolve host`), and the Entware bootstrap dies unconditionally at `install_rm520n.sh:773-774` (`opkg update … || die`). That `die` is in `install_dependencies()`, which runs **after** `preflight` — so with the corrected placement, T2's write would land and survive even on a doomed install (a benefit). **But a reinstall is not a route to a working RG501Q fixture.** Network provisioning for that device is Phase C/D, not something T2 absorbs.
+
+#### Invariant re-assertion
+
+| # | Result |
+| --- | --- |
+| I1 | ⚠ **NOT CAPTURED.** The RM520N-GL was unreachable for this session's recon (physically disconnected). The "before" baseline — including the G2 counter-advance check — **is still outstanding and blocks T2's gate.** |
+| I2 | ⚠ **NOW VACUOUS AS WRITTEN — must be REPLACED, not deleted.** There is no broken install to make harder to recover. The risk has inverted: the RG501Q is now the project's only clean-slate fixture. **Proposed rewording: "the RG501Q remains a stock-fresh, QManager-free device unless a write is recorded here."** Nothing was written to it this session. |
+| I3–I6 | ✅ N/A (no build cut) · I4/I5/I6 re-confirmed intact by `installer-safety-auditor` |
+| I7 | ✅ Untouched — no poller edit. The `SDX55) echo "reversed"` arm at `:73` remains unreachable |
+| I8 | ✅ No change to `qmanager_setup` |
+| I9 | ✅ No change to `platform.sh` |
+| I10 | ⚠ **AMENDED — see the health-check finding above.** Still no privilege/auth consumer, but the profile IS now observable in a UI-downloadable diagnostic bundle |
+| I11 | ✅ `hw_profile.sh:144` still emits `community` for `RG501Q*` |
+| I12 | ✅ Every RG501Q fact this session carries its probe command. **Everything unmeasurable was left `*unverified*`, not inferred** |
+| I13 | ✅ This file force-added — see the commit |
+
+#### ▶ HOW TO RESUME — do these in order
+
+1. **Confirm ADB is back on the RG501Q.** The user is restoring it via `AT+QCFG="usbcfg",...` themselves. Verify with `adb devices -l`; the serial should be `b7e3d6f1` and the USB PID should return to `0x0801`.
+2. **Capture the RM520N-GL "before" baseline** — `modem-investigator`, read-only. Units table, `data_used.json`, `/tmp/qmanager_status.json`, `VERSION`, `ls -la /etc/qmanager/` (now doubly important, see the health-check finding), absence of `platform.json` and of `/usr/lib/qmanager/hw_profile.sh`, plus **both halves of the G2 counter-advance check**. Also capture `command -v jq` and the `tr` implementation — needed to design the on-device proof for Q8.
+3. **Then, and only then, build T2** against the 10 constraints above — NOT against the plan's Steps as written. `EnterWorktree` from `development` (verify `git merge-base HEAD development == git rev-parse HEAD`), copy `.env` in, skip `bun install` (backend-only change).
+4. **Do NOT run the installer on the RM520N-GL to prove anything.** It is read-only for this entire phase and is the baseline the gate is measured against. The `tr`/JSON proof (Q8) needs a small scratch probe writing to `/tmp`, not an install.
+
+#### What a later task might invalidate
+
+- **The RM520N-GL baseline is uncaptured.** Every gate claim in T2's eventual commit depends on it. Do not accept a T2 commit whose `Gate:` line was written without it.
+- **The RG501Q census is entirely `*unverified*`.** Any task that needs to know whether `jq`/`opkg`/`/opt` survived the reset must probe, not assume — and the pre-reset rows below are void.
+- **T3 inherits the corrected placement reasoning.** `qmanager_setup` self-heal must not repeat the missing-parent assumption; it runs at boot when `/etc/qmanager` may or may not exist.
+- **If ADB does not come back**, the COM-port AT transport is the only channel to that device, and it cannot read the filesystem — only the modem's own AT surface.
+
+---
 
 ### 2026-08-24 — T1 DONE. `hw_profile.sh` exists; the dead detector is gone.
 
@@ -217,11 +375,11 @@ Every row carries its probe command and date. **Unprobed stays `*unverified*`.**
 | **`detect_orientation_from_soc()` has never matched** | `grep -m1 "^Branch Name"` (1 space) vs the device's 2 spaces → always falls through to `normal` | both | live grep + `data_used.json` |
 | Live orientation state | `"schema": 5, "selected_counter": "rmnet_ipa0", "orientation": "normal"` | RM520N-GL | `cat /usrdata/qmanager/data_used.json` |
 | `/opt` is **not** a dedicated volume | `/dev/ubi2_0` for `/etc`, `/usrdata` **and `/opt`** — on **both** devices | both | `cat /proc/mounts` (`df` is useless — BusyBox `df` resolves all three to an `/etc/machine-id` tmpfs bind) |
-| `/etc/qmanager` mode | `drwxr-xr-x www-data:www-data` (RM520N) vs `drwxrwxrwx www-data:www-data` (RG501Q) | both | `ls -la /etc/qmanager/` |
-| `platform.json` | **absent on both** — the RG501Q is a live missing-file fixture | both | `ls -la /etc/qmanager/platform.json` |
-| RG501Q `/dev/smd11` has a **second, non-cooperating holder** | `simpleadmin-go` pid 759, two persistent fds, outside QManager's `flock` | RG501Q | `/proc/*/fd` scan |
-| RG501Q poller is **not inert** | `atcli_smd11 AT+QENG="servingcell"` caught in flight (pid 2107); it drives the modem, it just cannot serialize output without `jq` | RG501Q | `/proc/*/fd` + `/proc/*/cmdline` |
-| RG501Q `atcli_smd11` + `qcmd` | **present and executable**, dated Jun 22 2026 | RG501Q | `ls -la /usr/bin/atcli_smd11 /usr/bin/qcmd` |
+| `/etc/qmanager` mode | `drwxr-xr-x www-data:www-data` (RM520N) vs `drwxrwxrwx www-data:www-data` (RG501Q) | both | `ls -la /etc/qmanager/` — ⚠ **RG501Q half VOID (2026-08-25 reset): the directory does not exist.** This is exactly the missing-parent case that breaks the plan's T2 placement |
+| `platform.json` | **absent on both** | both | `ls -la /etc/qmanager/platform.json` — ⚠ **the RG501Q is now a missing-DIRECTORY fixture, not a missing-FILE one.** Different code path in `qm_hw_write_profile` (`return 1`, not "writes a fresh profile") |
+| ~~RG501Q `/dev/smd11` has a **second, non-cooperating holder**~~ | ~~`simpleadmin-go` pid 759~~ | RG501Q | ⚠ **VOID — 2026-08-25 factory reset removed SimpleAdmin Go.** The modem answered AT cleanly with no contention. The "do not issue AT commands on that device" constraint is retired; **Q5 is unblocked.** Not proof the binary is gone from the filesystem — that is `*unverified*` |
+| ~~RG501Q poller is **not inert**~~ | ~~caught in flight, pid 2107~~ | RG501Q | ⚠ **VOID — no QManager on the device at all after the reset** |
+| ~~RG501Q `atcli_smd11` + `qcmd` present and executable, Jun 22 2026~~ | — | RG501Q | ⚠ **VOID and unverifiable.** Those were almost certainly artifacts of the previous owner's install, not stock firmware. **Do not carry this forward in either direction** — it already contradicted `rg501q-bringup.md:271` ("`qcmd` does not exist without a working install") |
 | `qcmd_test` greps vs live output | `:50` → `rc=0`, `:75` → `rc=0` — **both PASS** | RM520N-GL | live `atcli_smd11 "ATI"` and `qcmd 'AT+CGMM;+CGSN'` |
 | Hostname is **not** derived from model identity | Stock firmware value (`sdxlemur`); the installer never sets it; only the System Settings CGI writes it | RM520N-GL | `grep -rn hostname scripts/install_rm520n.sh` → none |
 
@@ -247,9 +405,34 @@ $c.Disconnect()
 ```
 CLAUDE.md still tells agents to use `New-SSHSession`. **Fold this into T10's transport section (Q2).** Note the failure mode leaks `MODEM_IP` into the error text — avoid `-ErrorAction Stop` unguarded if transcripts matter.
 
+### 2026-08-25 — measured during T2 recon
+
+| Fact | Value | Device | Probe |
+| --- | --- | --- | --- |
+| **A THIRD TRANSPORT EXISTS and is in none of our docs** | The Quectel USB **AT port enumerated on the Windows host as a COM port** reaches the modem independently of SSH and adb. It is why the RG501Q looked dead when it was in fact answering | both (host-side) | `Get-PnpDevice -Status OK \| Where-Object { $_.FriendlyName -match 'Quectel' }` — **the `-Status OK` filter is mandatory**, stale entries otherwise masquerade as live |
+| Mapping a COM port back to a specific device | PnP parent lookup: `(Get-PnpDeviceProperty -InstanceId '<MI_02 instance>' -KeyName 'DEVPKEY_Device_Parent').Data` → `USB\VID_2C7C&PID_0800\b7e3d6f1` | host | as shown |
+| RG501Q-EU live identity | `ATI` → `Quectel` / `RG501Q-EU` / `Revision: RG501QEUAAR12A11M4G` · `AT+CGMM` → `RG501Q-EU` · `AT+CGSN` → `863436050940776` | RG501Q | `ATI` / `AT+CGMM` / `AT+CGSN` over COM24, read-only |
+| RG501Q USB composition **after** the factory reset | `+QCFG: "usbcfg",0x2C7C,0x0800,1,1,1,1,1,0,0` — **no ADB interface** | RG501Q | `AT+QCFG="usbcfg"` (read form) |
+| The adb-loss signature of an RG501Q factory reset | PID `0x0801` → `0x0800`; the `MI_06 ADB Interface` present before, absent after, same serial | RG501Q | live vs. stale PnP entries for serial `B7E3D6F1` |
+| ⚠ **The COM-port transport does NOT pass through QManager's `flock`** | It is a direct modem channel. Harmless on the RG501Q today (nothing else running), but **it must never be used casually on a device with a live poller** — it is a second, non-cooperating holder, the very thing SimpleAdmin Go was | both | by construction |
+| `qcmd_test:50` and `:75` vs **real RG501Q bytes** | both **`pass`** — `:50` matches `Quectel\|OK`; `:75` matches on `RG501Q-EU` (`^RG` branch) *and* independently on `863436050940776` (15-digit branch) | RG501Q | greps replayed against the verbatim §1c capture |
+| `qcmd_test:50` hardcodes `/usr/bin/atcli_smd11` | So it will **not** exercise a binary staged at `/tmp/atcli_smd11` | — | source read |
+| `dependencies/atcli_smd11` (for any future staging) | size **661616**, md5 **`2987e3d68af0ed0f363ad98d5f1c40b5`**, `ELF 32-bit LSB, ARM EABI5, statically linked, stripped` | repo | `md5sum` + `file` |
+| RM520N-GL reachability, this session | **Unreachable — physically disconnected.** Host at APIPA `169.254.95.110` (no DHCP lease), no host interface on the modem's subnet, `arp -a` showing **zero dynamic neighbours**, 22/80/443 closed. User confirmed and has reconnected it | RM520N | `Test-NetConnection`, `Get-NetIPAddress`, `arp -a` |
+| ⚠ The Posh-SSH failure mode **changed** | 2026-08-24 it was `Key exchange negotiation failed` (a cmdlet-wrapper defect). 2026-08-25 the SSH.NET path failed with a plain **connection timeout** — a dead network path, not the tooling bug. **Anyone following the documented workaround will see a different error and may misdiagnose it** | RM520N | `SshOperationTimeoutException` after 20 000 ms |
+
 ### Still `*unverified*` on RG501Q-EU
 
-Live `ATI` / `AT+CGMM` output (blocked on the `/dev/smd11` contention above); counter orientation on this firmware; udev subsystem for `smd11` and whether the PRAIRIE boot-ordering deviation reproduces; whether `/etc/hostname` exists; the 1970 boot window and journald behavior (observed consistent, **not proven**).
+⚠ **The 2026-08-25 factory reset voided most of what was previously known and the device currently has NO SHELL TRANSPORT, so nothing filesystem-level is measurable.** Every item below needs adb (or another shell) restored first:
+
+- **The entire fresh-state census:** presence of `jq`, `opkg`, `/opt`, `lighttpd`, `bash`, `curl`/`wget`; whether `atcli_smd11` / `qcmd` survived; any leftover QManager artifacts under `/etc/qmanager`, `/usrdata/qmanager`, `/usr/lib/qmanager`, `/lib/systemd/system`.
+- **Platform basics:** `/proc/cmdline` `ro` status, `/proc/mounts` volume backing for `/`, `/etc`, `/usrdata`, `/opt`; whether `/tmp` is `noexec`; whether `/etc/hostname` exists.
+- **Whether the SDX55 runs our hard-float static ARM binary.** The COM-port probe made the `atcli_smd11` staging unnecessary, so the float-ABI question was never answered.
+- Counter orientation on this firmware; the udev subsystem for `smd11`; whether the PRAIRIE boot-ordering deviation reproduces; the 1970 boot window and journald behavior (observed consistent, **not proven**).
+- Whether the reset also wiped `/usrdata` — **unknowable without a shell, and it materially changes any install plan.**
+- Network reachability for the `opkg update` that killed the previous install. Pre-reset the device had **no internet at all** (`rg501q-bringup.md:80-82`).
+
+**Flagged as inference, NOT measurement:** the host showed a `Cellular 4` interface at `10.185.112.166/30` (a carrier-assigned address). That *may* mean the reset RG501Q came up in passthrough/bridge rather than router mode. Plausible from the /30 and the 10.x address — **not verified.**
 
 ---
 
@@ -263,7 +446,7 @@ Live `ATI` / `AT+CGMM` output (blocked on the `/dev/smd11` contention above); co
 | Q2 | How do agents select a transport per device? | **Per-device prefixed env vars** — and **the RG501Q gets no credential entry at all**, because SSH has never been installed on it (no `ssh`/`sshd`/`dropbear`/`scp`/`sftp` in its stock image; adb is the only path). Prefix the triad for the RM520N-GL, keep the bare names working as an alias, reach the RG501Q by adb serial. Implemented in **T10 Step 6**. |
 | Q3 | Does the RG501Q's failed v0.1.12 install stay frozen? | **WIPEABLE — a write to the RG501Q is APPROVED.** See the authorization block below. |
 | Q4 | Sequencing against Phase D. | **Phase A first** (this plan). D is not abandoned — it remains blocked on §9.4 Q1–Q3, which only the device owner can answer. |
-| Q5 | Authorize a read-only AT probe (`ATI`, `AT+CGMM`) on the RG501Q? | **Not asked / not needed for Phase A.** Superseded in practice by Q3: once the device is wiped and reinstalled, `qcmd` serializes properly. Live `ATI`/`AT+CGMM` output stays `*unverified*` until then. |
+| Q5 | Authorize a read-only AT probe (`ATI`, `AT+CGMM`) on the RG501Q? | ~~Not asked / not needed~~ → **RESOLVED 2026-08-25. Authorized, run, and the fact is now MEASURED.** The blocker (SimpleAdmin Go on `/dev/smd11`) is gone with the reset. Captured over the **host COM port**, not adb: `ATI` → `Quectel / RG501Q-EU / Revision: RG501QEUAAR12A11M4G`; `AT+CGMM` → `RG501Q-EU`; `AT+CGSN` → `863436050940776`. **No longer `*unverified*`.** These bytes also validated `qcmd_test:50` and `:75` against real RG501Q output for the first time — both `pass`, redundantly (the model line hits the `^RG` branch, the IMEI independently hits the 15-digit branch). |
 
 ### ⚠ Device write authorization — RG501Q-EU only
 
@@ -274,7 +457,18 @@ Live `ATI` / `AT+CGMM` output (blocked on the `/dev/smd11` contention above); co
 - **No task in this plan requires a wipe.** Do not perform one as a side effect of testing. If you wipe, record the date and the exact command here — it retires the live missing-profile fixture for every later task.
 - Standing invariant I2 changes meaning accordingly: "do not make it harder to recover" no longer applies to a deliberate, recorded wipe. It still applies to accidental damage.
 
-**Wipe log:** *(none yet — device untouched as of 2026-08-24. T1 did not wipe: the only RG501Q access was a read-only `od -c` / `base64` of `/etc/quectel-project-version` over adb. The live missing-`platform.json` fixture is intact.)*
+**Wipe log:**
+
+| Date | What | By whom | Command / method |
+| --- | --- | --- | --- |
+| 2026-08-24 | *(nothing — T1's only RG501Q access was a read-only `od -c` / `base64` of `/etc/quectel-project-version` over adb)* | — | — |
+| **2026-08-25** | **FACTORY RESET of the RG501Q-EU.** Removed the pre-installed `simpleadmin-go` AND the previous owner's failed v0.1.12 QManager install. Device is now stock-fresh | **the user, directly** — not by any agent | Device-level factory reset (exact method not recorded by an agent). **Side effect the user did not intend: the USB composition reverted to stock, PID `0x0801` → `0x0800`, and the `MI_06 ADB Interface` vanished — costing all shell access to the device** |
+
+**Consequences of the 2026-08-25 reset, in one place:**
+- The **live missing-`platform.json` fixture is retired** and replaced by something stricter — a missing `/etc/qmanager` *directory*.
+- The failed-v0.1.12-install evidence now survives **only** in [`rg501q-bringup.md`](../../reference/rg501q-bringup.md). Do not delete that file.
+- **I2 is vacuous as written** — there is no broken install to protect. The risk inverted: this is now the project's only clean-slate device. See the 2026-08-25 log entry's invariant table for the proposed rewording.
+- **No agent wrote anything to either device on 2026-08-25.** The reset was the user's own action, recorded here per this section's rule.
 
 ### Raised during T1 — must be honoured by T2/T3
 
