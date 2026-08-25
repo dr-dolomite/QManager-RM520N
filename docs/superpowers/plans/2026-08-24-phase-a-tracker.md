@@ -18,7 +18,7 @@
 | T0 | Commit the Phase-A input documents | **DONE (merged)** — all 5 steps. Every input doc is tracked on `development`. | `3c34c4a`, `73cc424`, `fc30a50` | 2026-08-24 |
 | T1 | `hw_profile.sh` — parser, tier table, generator | **DONE (merged)** — all 8 steps. Both validators clean. | `581123e`, `3436ea3`, `55d3b60`, `d626517` — fast-forwarded onto `development` 2026-08-24 | 2026-08-24 |
 | T2 | Generate `platform.json` at install; recognize RG501Q | **DONE (merged).** Built against the 10 constraints, not the plan's Steps. Both validators clean. **Q8 fully discharged on live hardware.** | `19f2ee9`, `76a0ea8`, `6bd70d4` — fast-forwarded onto `development` 2026-08-25 (`9998107..6bd70d4`) | 2026-08-25 |
-| **T2.5** | **Entware bootstrap fix — unplanned, slotted ahead of T3** | **DONE (branch kept)** — user-reported from a real RG501Q install. Both validators PASS. Verified on both devices. | `219f3e6` on `worktree-wt-entware-bootstrap-fix` | 2026-08-25 |
+| **T2.5** | **Entware bootstrap fix — unplanned, slotted ahead of T3** | **DONE (merged).** User-reported from a real RG501Q install. Both validators PASS. Verified on both devices; RM520N-GL confirmed no-op. | `219f3e6`, `b4fb265`, `947d925`, `03bd426` — fast-forwarded onto `development` 2026-08-25 (`87b6f79..03bd426`) | 2026-08-25 |
 | T3 | Self-heal `platform.json` in `qmanager_setup` | NOT STARTED | — | — |
 | **T4** | **Migrate the poller's identity reads — THE CUT LINE** | NOT STARTED | — | — |
 | T5 | Migrate `about.sh`'s firmware-revision read | NOT STARTED | — | — |
