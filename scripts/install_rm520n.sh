@@ -344,6 +344,13 @@ preflight() {
                 RM520N*)
                     info "Detected: RM520N-GL ($ver)"
                     ;;
+                RG501Q*)
+                    # Community tier — see qm_hw_tier() in hw_profile.sh. Info
+                    # only, deliberately no prompt: this arm exists so the
+                    # RG501Q stops falling through to the `*` arm's
+                    # "unrecognized device / proceed anyway?" question.
+                    info "Detected: RG501Q-EU ($ver)"
+                    ;;
                 "")
                     warn "Cannot parse device model from firmware version — proceeding anyway"
                     ;;
@@ -400,6 +407,48 @@ preflight() {
     fi
 
     mark_version_pending
+
+    # Write the advisory hardware profile. The PLACEMENT here is load-bearing on
+    # three counts, and two of them fail silently if it moves:
+    #
+    #  1. AFTER mark_version_pending(), which is the first thing that creates
+    #     $CONF_DIR (`install -d -m 0755`, :249). qm_hw_write_profile()
+    #     deliberately refuses to create its own parent, so anywhere earlier it
+    #     returns 1 and writes nothing on every device where QManager was never
+    #     installed — that is, every fresh install. A device that already has
+    #     /etc/qmanager would show nothing wrong, which is exactly how such a
+    #     bug ships.
+    #  2. OUTSIDE the `--force` gate that closes above. Every OTA upgrade passes
+    #     --force, so anything placed inside that block never runs on upgrade.
+    #  3. AFTER the RM551E die and the remount die, so the installer never
+    #     leaves config behind on a device it explicitly refused.
+    #
+    # Sourced from the STAGING tree, never the absolute /usr/lib/qmanager path:
+    # at preflight time the installed copy is the PREVIOUS version's library (on
+    # an OTA) or absent entirely (fresh install). install_backend() does not
+    # glob-install that directory until much later.
+    #
+    # CRLF: this is the installer's first `.` of a staging-tree file ahead of any
+    # line-ending normalization — every other source in this file reads the
+    # already-installed, already-stripped copy. Safety rests entirely on
+    # .gitattributes' `scripts/**/*.sh text eol=lf`.
+    #
+    # Both the source AND the call are guarded, because this file runs under
+    # `set -e` (:42) and preflight is called bare from main(): --frontend-only
+    # sets DO_BACKEND=0 and so never asserts $SRC_SCRIPTS exists, and
+    # qm_hw_write_profile returns 1 legitimately. The profile is advisory —
+    # failing to write one must never abort an install.
+    local hw_lib="$SRC_SCRIPTS/usr/lib/qmanager/hw_profile.sh"
+    if [ -f "$hw_lib" ] && . "$hw_lib" && command -v qm_hw_write_profile >/dev/null 2>&1; then
+        if qm_hw_write_profile "$CONF_DIR/platform.json"; then
+            info "Hardware profile written: $CONF_DIR/platform.json"
+        else
+            warn "Could not write hardware profile — continuing (it is advisory)"
+        fi
+    else
+        warn "Hardware profile library unavailable — skipping (it is advisory)"
+    fi
+
     info "Pre-flight checks passed"
 }
 
