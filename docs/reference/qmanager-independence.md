@@ -227,6 +227,62 @@ dismiss/undismiss CGI via `sim_registry.sh`). Because the blanket `chown -R` run
 `mktemp`'s default `root:root` would silently **downgrade** a live www-data-owned
 file. Always set the owner explicitly on the temp; never rely on the blanket chown.
 
+### ⚠️ Any root helper writing into `/etc/qmanager` with a plain `>` is redirectable
+
+**Short version: because `www-data` owns `/etc/qmanager`, it can plant a symlink
+at the exact path a root helper is about to write, and a plain `>` redirect will
+follow it — so root's write lands wherever the link points.** This is the same
+directory-ownership fact as [Nothing that must be protected FROM
+`www-data`](#-nothing-that-must-be-protected-from-www-data-may-live-in-etcqmanager)
+above, with a sharper consequence: that section is about *files you cannot
+protect*; this one is about *writes whose destination you cannot trust*.
+
+Reproduced live on **both** devices (commit `e079004`): `www-data` planted a
+symlink at `/etc/qmanager/platform.json.tmp`, root ran the generator's exact
+redirect, and root's JSON appeared in the linked file rather than in the temp
+file. A link can point at anything root can write — `/etc/shadow`, a file under
+`/etc/sudoers.d`, a systemd unit.
+
+Three specifics that get this wrong in review:
+
+- **`fs.protected_symlinks=1` does not help here.** That sysctl is `1` on both
+  devices (measured 2026-08-26), and it is irrelevant to this directory: it only
+  engages for world-writable **sticky** directories such as `/tmp`.
+  `/etc/qmanager` is `0755` and **not sticky**, so the protection never applies.
+  "The sysctl is on" reads as protection and is not — the attack succeeded with
+  it enabled.
+- **`[ -f "$path" ]` is not a guard.** It *follows* the symlink and reports true
+  for one. Only **`[ -L "$path" ]`** inspects the link itself.
+- **`[ -L ]` followed by an open is still racy.** A link planted in the gap
+  between the check and the open wins. Use `( set -C; … > "$tmp" )` — the shell's
+  `noclobber` option, which gives the redirect `O_CREAT|O_EXCL` semantics, so the
+  kernel refuses atomically if *anything* — regular file, live symlink, or
+  dangling symlink — occupies the path. Verified identical on BusyBox **1.31.1**
+  (RM520N-GL) and **1.29.3** (RG501Q-EU).
+
+Two more shapes worth guarding, both measured:
+
+- **`mv` onto a symlinked destination replaces the link** rather than following
+  it, so the final rename was already safe. Guard `$dest` with `[ -L ]` anyway as
+  defence in depth.
+- **`mv "$tmp" "$dest"` where `$dest` is a *directory* does not fail** — it moves
+  the temp file *inside* it and exits `0`. A helper without a `[ -d "$dest" ]`
+  refusal reports success having written nothing at the expected path.
+
+Also `chmod` the temp file explicitly before the `mv`. Without it the mode comes
+from whatever umask happened to be ambient: the live RG501Q-EU's `platform.json`
+was found world-writable (`0666`) because the install shell that wrote it ran at
+umask `0`.
+
+> ⚠️ WARNING: **only `platform.json`'s writer has been audited and fixed.** The
+> reference implementation is `qm_hw_write_profile` in
+> `scripts/usr/lib/qmanager/hw_profile.sh` (see
+> [platform-profile.md](platform-profile.md#the-write-path-and-its-symlink-defence)).
+> Every *other* root writer into `/etc/qmanager` — installer helpers, root
+> helpers invoked via `sudo -n`, anything `qmanager_setup` does in that directory
+> — is **unaudited** against this. If you are writing a new one, copy the
+> refuse-then-`set -C` shape; if you are touching an existing one, check it.
+
 ### ⚠️ Migration rule: repair drifted state, don't just gate on existence
 
 A migration guarded only by `[ -f "$target" ] && return 0` cannot fix anything it

@@ -1,11 +1,29 @@
 # Cross-UID `/tmp` File Ownership
 
 > **Applies to:** RM520N-GL (SDX65) · verified 2026-08
-> **RG501Q-EU (SDX55):** unverified — see [`platform-matrix.md`](./platform-matrix.md)
+> **RG501Q-EU (SDX55):** ⚠️ **the contract below does not engage on this device** — see [Device scope](#device-scope) immediately after the warning.
 
 QManager runs as two different users. Root owns the daemons (`qmanager_poller`, `qmanager_ping`, `qmanager_watchcat`, `qmanager_discord`, `qmanager_tower_failover`); `www-data` owns everything lighttpd spawns, which is every CGI script under `scripts/www/cgi-bin/`. Both write shared state into `/tmp`. `/tmp` on this device is `root:root` mode **1777** and the kernel runs with **`fs.protected_regular=1`**, and those two rules together decide — permanently, at file-creation time — which UIDs may ever write a given file. Get the ownership wrong and the losing UID's writes fail silently: `>`/`>>` redirects are almost always wrapped in `2>/dev/null`, and `rm -f` returns 0 whether or not it removed anything. This doc is the single place those rules are stated correctly, because they are counterintuitive and the codebase has already shipped three separate bugs from applying them backwards.
 
 > ⚠️ WARNING: the direction of `fs.protected_regular` is the part everyone gets wrong. In `/tmp`, it blocks **root** from writing a **www-data-owned** file. It never blocks www-data from a root-owned file. If you find a doc or comment claiming the opposite, it is wrong — see [The rule, stated correctly](#the-rule-stated-correctly).
+
+## Device scope
+
+> ⚠️ WARNING: **this contract is RM520N-GL-specific.** `fs.protected_regular` is
+> **`1` on the RM520N-GL** and **`0` on the RG501Q-EU** (measured; see
+> [`platform-matrix.md`](./platform-matrix.md#filesystem--partitions)). With the
+> sysctl at `0` the kernel's `may_create_in_sticky()` check never runs, so on the
+> RG501Q-EU root *can* write a `www-data`-owned file in `/tmp` and the whole
+> "root is the party blocked" rule below simply does not apply.
+>
+> The practical consequence: `qmanager_setup`'s `root:root 0666` seeding is
+> **load-bearing on the RM520N-GL and merely redundant on the RG501Q-EU**. Keep
+> seeding on both — the code is shared — but never take "it works on the
+> RG501Q-EU" as evidence that a new cross-UID `/tmp` file is seeded correctly.
+> The same code fails *silently* on the reference device.
+>
+> The **sticky bit** rule (who may `unlink`) is unaffected by the sysctl and
+> holds on both devices: `/tmp` is `1777` on both.
 
 ## Quick Reference
 

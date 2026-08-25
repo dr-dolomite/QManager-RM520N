@@ -145,7 +145,8 @@ Each feature below has a reference doc holding its invariants, gotchas, and rati
 
 | Feature | Touch it when you're working on | Scope | Doc |
 | ------- | ------------------------------- | ----- | --- |
-| **Cross-UID `/tmp` file ownership** | Any file in `/tmp` written by both root daemons and www-data CGI — seeding, which direction `fs.protected_regular` actually blocks, the never-`mv` rule, the recovery-flag claim protocol | RM520N | `tmp-file-ownership.md` |
+| **Cross-UID `/tmp` file ownership** | Any file in `/tmp` written by both root daemons and www-data CGI — seeding, which direction `fs.protected_regular` actually blocks (and that the sysctl is **off** on RG501Q-EU, so the contract is RM520N-only), the never-`mv` rule, the recovery-flag claim protocol | RM520N | `tmp-file-ownership.md` |
+| **Hardware profile / `platform.json`** | `hw_profile.sh`, the boot-time self-heal in `qmanager_setup`, anything reading or writing `/etc/qmanager/platform.json`, a `QM_HW_SCHEMA` bump — **and any root helper that writes into `/etc/qmanager` at all**, since that directory is www-data-owned and non-sticky, so a plain `>` there is redirectable via a planted symlink | Both | `platform-profile.md` |
 | **Colour System / tokens** | Any colour token in `globals.css`, a new role, a `Badge` tone, or a surface that reads too loud — hue-slot arithmetic, the direction-vs-radio axis split, the CVD floor, and the two tokens that must never be "levelled" | Both | `color-system.md` |
 | **Icon System / Icon-Boundary Rule** | Any icon, anywhere. The Material-vs-lucide boundary is ROUTE-scoped; Material now covers the sidebar, dashboard, pre-auth routes, and all of `/cellular/` (index + all 17 sub-routes) — the boundary is no longer partial inside `/cellular/` | Both | `icon-system.md` |
 | **Auth Rate Limiting** | `cgi_auth.sh`, login lockout, `auth/check.sh` | RM520N | `auth-rate-limiting.md` |

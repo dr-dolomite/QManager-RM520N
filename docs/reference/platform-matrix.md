@@ -200,9 +200,19 @@ The rules that fall out of it:
 | `/etc` + `/usrdata` + `/opt` | Same UBIFS volume `ubi2_0`, always rw, no remount needed. `/opt` is **not** a volume of its own — it is a bind of `/usrdata/opt` (`opt.mount`: `What=/usrdata/opt`, `Type=none`, `Options=bind`), so `/proc/mounts` shows `/dev/ubi2_0` on both `/usrdata` and `/opt` | **Same** — `/dev/ubi2_0` backs `/usrdata`, `/etc` **and** `/opt`, all `ubifs rw,relatime,bulk_read`, with `/opt` bound from `/usrdata/opt` exactly as on the RM520N-GL. **No `/opt`-shaped divergence between the two devices** | RM520N-GL: reboot-proven 2026-08-10; `/opt` bind measured 2026-08-25 (`/proc/mounts`, the `opt.mount` unit, and byte-identical `ls -la /usrdata/opt/etc/init.d/` vs `/opt/etc/init.d/`). RG501Q-EU: adb 2026-08-25 `/proc/mounts` — stock firmware |
 | `/tmp` | tmpfs, `root:root 1777`, ~89 MB, cleared every boot | `tmpfs rw,nosuid,nodev` and **exec-capable** (a `chmod +x` script in `/tmp` ran); mode and size *unverified* | RM520N-GL: on-device · `tmp-file-ownership.md`. RG501Q-EU: adb 2026-08-25, probe file removed — stock firmware |
 | adb shell UID | n/a (SSH) | `uid=0(root)` | adb 2026-08-25 — stock firmware |
-| `fs.protected_regular` | `=1` — blocks **root** (not www-data) from write-opening another UID's file in a sticky dir | *unverified* | on-device · `tmp-file-ownership.md` |
+| ⚠️ `fs.protected_regular` | **`=1`** — blocks **root** (not www-data) from write-opening another UID's file in a sticky dir | ⚠️ **`=0`** — a genuine divergence. The whole cross-UID `/tmp` contract in [`tmp-file-ownership.md`](./tmp-file-ownership.md) **does not engage on this device**: root can write a www-data-owned file in `/tmp` freely. The `root:root 0666` seeding in `qmanager_setup` is therefore *redundant* here rather than load-bearing — do not read a working RG501Q-EU as evidence that a seeding mistake is harmless, because the same code on the RM520N-GL will fail silently | RM520N-GL: on-device · `tmp-file-ownership.md`. RG501Q-EU: adb 2026-08-25 · `rg501q-bringup.md`, re-confirmed over SSH 2026-08-26 (`sysctl fs.protected_regular`, serial `b7e3d6f1`) |
+| `fs.protected_symlinks` | `=1` | `=1` | Both: commit `e079004` (measured on both devices 2026-08-26); RG501Q-EU re-confirmed over SSH the same day |
 | Cross-FS `mv` | `/tmp`→`/etc` gets `EXDEV`; degrades to copy+unlink | *unverified* | inferred from the volume split above |
 | `pid_max` | 32768; PID churn ~100/s ⇒ wraps in ~325s | *unverified* | on-device · `tmp-file-ownership.md` |
+
+> ⚠️ WARNING: **`fs.protected_symlinks=1` is not protection for `/etc/qmanager`.**
+> Both devices have the sysctl enabled, and it is irrelevant there: it engages
+> only for **world-writable sticky** directories such as `/tmp`, and
+> `/etc/qmanager` is `0755` and **not sticky**. A symlink-redirect attack against
+> a root helper writing into that directory was reproduced live on **both**
+> devices *with the sysctl on* (commit `e079004`). "The sysctl is on" reads as
+> protection and is not — see
+> [qmanager-independence.md](qmanager-independence.md#-any-root-helper-writing-into-etcqmanager-with-a-plain--is-redirectable).
 
 ## Shell & toolchain
 
