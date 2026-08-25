@@ -17,7 +17,7 @@
 | --- | --- | --- | --- | --- |
 | T0 | Commit the Phase-A input documents | **DONE (merged)** — all 5 steps. Every input doc is tracked on `development`. | `3c34c4a`, `73cc424`, `fc30a50` | 2026-08-24 |
 | T1 | `hw_profile.sh` — parser, tier table, generator | **DONE (merged)** — all 8 steps. Both validators clean. | `581123e`, `3436ea3`, `55d3b60`, `d626517` — fast-forwarded onto `development` 2026-08-24 | 2026-08-24 |
-| T2 | Generate `platform.json` at install; recognize RG501Q | **DONE (branch kept — NOT yet merged).** Built against the 10 constraints, not the plan's Steps. Both validators clean. **Q8 fully discharged on live hardware.** | `19f2ee9` on `worktree-wt+phase-a-t2-platform-json`, base `9998107` | 2026-08-25 |
+| T2 | Generate `platform.json` at install; recognize RG501Q | **DONE (merged).** Built against the 10 constraints, not the plan's Steps. Both validators clean. **Q8 fully discharged on live hardware.** | `19f2ee9`, `76a0ea8`, `6bd70d4` — fast-forwarded onto `development` 2026-08-25 (`9998107..6bd70d4`) | 2026-08-25 |
 | T3 | Self-heal `platform.json` in `qmanager_setup` | NOT STARTED | — | — |
 | **T4** | **Migrate the poller's identity reads — THE CUT LINE** | NOT STARTED | — | — |
 | T5 | Migrate `about.sh`'s firmware-revision read | NOT STARTED | — | — |
@@ -41,7 +41,9 @@ Newest entry first. Every entry records: what was done, the gate evidence, and *
 
 ### 2026-08-25 — T2 BUILT. `platform.json` is written at preflight. Both validators clean.
 
-**Done, committed `19f2ee9`, branch `worktree-wt+phase-a-t2-platform-json` kept — NOT merged to `development` yet.** Worktree cut from `development` at base `9998107b05fd61d3b0c6a4be374bdb1899e5cf38`; `merge-base HEAD development == HEAD` verified before any file was written. Diffed against that SHA throughout. Two files, +400 lines, nothing else touched.
+**Done and MERGED.** Fast-forwarded onto `development` 2026-08-25 (`9998107..6bd70d4`, three commits: `19f2ee9` installer + harness, `76a0ea8` tracker, `6bd70d4` platform matrix). `development` had not moved from the base, so no merge commit and nothing rebased. **Re-verified ON `development` after the merge: `installer-platform-json.sh` 23/23, `hw-profile.sh` 21/21, `run-all.sh` 164** — a pre-merge pass is not evidence of the merged state. The worktree was removed; the branch ref was deleted. The one uncommitted file in the main checkout (`.claude/agent-memory/modem-investigator/MEMORY.md`, from a parallel session) was disjoint and left untouched.
+
+Worktree cut from `development` at base `9998107b05fd61d3b0c6a4be374bdb1899e5cf38`; `merge-base HEAD development == HEAD` verified before any file was written. Diffed against that SHA throughout. Two files, +400 lines, nothing else touched.
 
 | File | Change |
 | --- | --- |
