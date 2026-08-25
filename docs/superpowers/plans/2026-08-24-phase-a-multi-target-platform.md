@@ -180,7 +180,7 @@ Eleven tasks. **T0 is a precondition and must land before any worktree is create
 git status --short
 git check-ignore -v docs/reference/rg501q-bringup.md || echo "not ignored — plain untracked"
 ```
-`docs/reference/` is **not** gitignored, so a plain `git add` works there. `/docs/superpowers` **is** gitignored (`.gitignore:53`) and needs `git add -f`.
+`docs/reference/` is **not** gitignored, so a plain `git add` works there. ~~`/docs/superpowers` **is** gitignored (`.gitignore:53`) and needs `git add -f`.~~ **Obsolete 2026-08-25 — `/docs/superpowers` is no longer gitignored; a plain `git add` works there too.** The `git add -f` calls in the steps below are now redundant, not wrong.
 
 - [ ] **Step 2: Commit the reference docs and the amendment separately from the frontend work**
 
@@ -630,7 +630,9 @@ Several cells still read `*unverified*` that `rg501q-bringup.md` measured on 202
 
 - [ ] **Step 6: Implement the approved per-device transport scheme**
 
-Decision, 2026-08-24: **per-device prefixed env vars** — and the RG501Q needs no credential entry at all right now, because SSH has never been installed on it (no `ssh`/`sshd`/`dropbear`/`scp`/`sftp` in its stock image; adb is the only path). So the scheme is: prefix the existing triad for the RM520N-GL, and reach the RG501Q by its adb serial.
+> ✅ **DONE 2026-08-25 — and the decision below was overtaken by events.** The prefixed-env-var scheme is implemented, but the RG501Q **does** need a credential entry: SSH now answers on `192.168.120.1` with the same user and password as the RM520N-GL (Entware `dropbear`, installed by QManager's own installer). `.env` now carries `RM520N_*` and `RG501Q_*`, with bare `MODEM_*` kept as the RM520N-GL alias. **Both devices are SSH — there is no per-device transport branching to build**, which is simpler than this step assumed. All four sites listed below are updated.
+
+~~Decision, 2026-08-24: **per-device prefixed env vars** — and the RG501Q needs no credential entry at all right now, because SSH has never been installed on it (no `ssh`/`sshd`/`dropbear`/`scp`/`sftp` in its stock image; adb is the only path). So the scheme is: prefix the existing triad for the RM520N-GL, and reach the RG501Q by its adb serial.~~
 
 Update the four sites that hardcode the single-SSH assumption:
 - `CLAUDE.md` — the Live Device Access section
