@@ -74,7 +74,18 @@ QManager's reference target is the Quectel RM520N-GL modem, which runs **vanilla
 
 ### Live Device Access
 
-A live RM520N-GL is reachable over SSH — **probe it whenever you can verify an architecture claim or assumption directly instead of guessing.** Credentials are in `.env` (`MODEM_IP`, `MODEM_SSH_USER`, `MODEM_SSH_PASSWORD`) — gitignored, local-only. Connect with the POSH-SSH PowerShell module (`New-SSHSession` / `Invoke-SSHCommand`). The device is the source of truth for platform facts; docs drift.
+**Two live devices are reachable over SSH, on distinct subnets** — probe them whenever you can verify an architecture claim directly instead of guessing. Credentials are in `.env` (gitignored, local-only). Connect with the POSH-SSH PowerShell module (`New-SSHSession` / `Invoke-SSHCommand`). The devices are the source of truth for platform facts; docs drift.
+
+| Device | `.env` vars | Serial |
+| --- | --- | --- |
+| **RM520N-GL** (SDX6X, BusyBox 1.31.1) — reference target | `RM520N_IP` / `RM520N_SSH_USER` / `RM520N_SSH_PASSWORD` | `61368cd2` |
+| **RG501Q-EU** (SDX55, BusyBox 1.29.3) — community tier | `RG501Q_IP` / `RG501Q_SSH_USER` / `RG501Q_SSH_PASSWORD` | `b7e3d6f1` |
+
+The bare `MODEM_*` triad still works and is an **alias for the RM520N-GL**. Older docs describing adb as the RG501Q's only shell are obsolete — that was true before 2026-08-25.
+
+**Comparing the two devices is the highest-yield probe there is — so do it first.** Every cross-device defect found so far (`wget`, `timeout`, `mountpoint`) came from running a command on both and diffing the result; none came from reading code. For any portability question that is the first move, before dispatching an agent. **Always prove which device answered** (`cat /etc/quectel-project-version`, `grep -o 'androidboot.serialno=[^ ]*' /proc/cmdline`) — a wrong-device capture fails silently.
+
+⚠️ **Check reachability, don't assume it.** Distinct subnets removed the old address collision, but the host must hold an address on **both** to reach both, which is not automatic — and either device may simply be offline (the RM520N-GL frequently is). Verify before concluding a probe failure means a defect.
 
 Typical read-only probes: `systemctl status <unit>` / `journalctl -u <unit> -n 50`, `/tmp/qmanager_*.json` runtime state, `/etc/qmanager/` + `/usrdata/` config files, `curl -sS http://127.0.0.1/cgi-bin/quecmanager/...` (CGI through lighttpd), `qcmd 'AT+...'` query commands, `pgrep -fa qmanager`, `iptables -t mangle -L -n`, `/proc/net/dev`.
 

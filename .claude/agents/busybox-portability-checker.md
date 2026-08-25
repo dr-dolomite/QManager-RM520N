@@ -52,7 +52,14 @@ When the audited change is already deployed (or deployable) to the live RM520N-G
 
 ### Connecting (canonical POSH-SSH pattern)
 
-Credentials live in `.env` (`MODEM_IP`, `MODEM_SSH_USER`, `MODEM_SSH_PASSWORD`) — load them into the environment, then:
+**TWO devices are reachable over SSH on distinct subnets** (updated 2026-08-25) — and for a portability checker that is the whole job, so use both:
+
+| Device | `.env` vars | Serial | BusyBox |
+| --- | --- | --- | --- |
+| **RM520N-GL** | `RM520N_IP` / `RM520N_SSH_USER` / `RM520N_SSH_PASSWORD` | `61368cd2` | **1.31.1** |
+| **RG501Q-EU** | `RG501Q_IP` / `RG501Q_SSH_USER` / `RG501Q_SSH_PASSWORD` | `b7e3d6f1` | **1.29.3** |
+
+The bare `MODEM_*` triad is an **alias for the RM520N-GL**. Any note saying the RG501Q needs `adb` is obsolete.
 
 ```powershell
 $sec  = ConvertTo-SecureString $env:MODEM_SSH_PASSWORD -AsPlainText -Force
@@ -61,6 +68,10 @@ $s    = New-SSHSession -ComputerName $env:MODEM_IP -Credential $cred -AcceptKey 
 (Invoke-SSHCommand -SessionId $s.SessionId -Command '<command>').Output
 Remove-SSHSession -SessionId $s.SessionId | Out-Null
 ```
+
+**The two BusyBox builds straddle real CLI breaks — run the applet on BOTH and compare, never reason from the version number.** 1.30 made `timeout`'s `SECS` positional and dropped `-t`, so no single literal invocation works on both. Availability also differs: `wget` and `mountpoint` exist only on 1.31.1. Every cross-device defect found so far came from this comparison; none came from reading source.
+
+**Verdict must come from behaviour, not from a name resolving.** `command -v X` answers "is something called X on PATH", which is not the question — three separate shipped defects (`wget`, `timeout`, `mountpoint`) all read a missing or differently-behaving command's exit 127 as a meaningful boolean. Run the thing with the flags the code actually passes.
 
 **Never hardcode or echo secrets** — always read them from environment variables; never print the password or embed it in a command string that gets logged.
 

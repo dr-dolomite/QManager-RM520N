@@ -4,6 +4,27 @@
 > Entware bootstrap findings and fix added 2026-08-25
 > **RM520N-GL (SDX65):** comparison values quoted from [`platform-matrix.md`](./platform-matrix.md)
 
+> ## ✅ ACCESS HAS CHANGED — this document's transport is obsolete (2026-08-25)
+>
+> **The RG501Q-EU is now reachable over SSH at `192.168.120.1`**, with the same
+> user and password as the RM520N-GL (`.env`: `RG501Q_IP` / `RG501Q_SSH_USER` /
+> `RG501Q_SSH_PASSWORD`). Verified live: `RG501QEU_VD` / `SDX55` / serial
+> `b7e3d6f1` / BusyBox 1.29.3, with QManager `v0.1.14-draft` installed.
+>
+> Two of this document's load-bearing statements are therefore **no longer true**:
+>
+> - *"`ssh`/`sshd`/`dropbear`/`scp`/`sftp` MISSING — why only adb works today"*
+>   (Identity/tooling table below). QManager's own installer supplies `dropbear`
+>   from Entware, so a successful install is what created the SSH path.
+> - *"Only `bridge0` 192.168.225.1/24 … are up."* `bridge0` was moved to
+>   **`192.168.120.1/24`** by a manual gateway change — see
+>   [`lan-gateway-ip.md`](./lan-gateway-ip.md). This also **ends the address
+>   collision** with the RM520N-GL, which previously made the two devices
+>   indistinguishable by IP and un-shareable on one Ethernet segment.
+>
+> **Everything else in this file stands** — the measurements were correct when
+> taken; only the transport that carried them and the one IP have changed.
+
 Device: adb serial `b7e3d6f1`, uid=0 root shell. All commands read-only.
 Comparison column is RM520N-GL as documented in `docs/reference/platform-matrix.md`.
 
@@ -69,7 +90,7 @@ Probes: `cat /proc/cmdline`, `cat /proc/mounts`, `df -h`, `cat /proc/mtd`,
 | `systemd` | **239**, pid 1 | `/lib/systemd/system` present |
 | `wget` | **MISSING** | BusyBox 1.29.3 has no `wget` applet. **This is the load-bearing fact** — it is what killed the Entware bootstrap; see below |
 | `jq` | **MISSING** | hard dependency of the QManager backend |
-| `ssh`/`sshd`/`dropbear`/`scp`/`sftp` | **MISSING** | why only adb works today |
+| `ssh`/`sshd`/`dropbear`/`scp`/`sftp` | **MISSING in stock firmware** — ⚠️ **no longer true post-install:** QManager's installer supplies Entware `dropbear`, and SSH is the working transport as of 2026-08-25 | *was* why only adb worked; now stock-firmware-only |
 | `python3` | MISSING | |
 
 Probe: `for t in …; do command -v $t; done`
@@ -77,6 +98,9 @@ Probe: `for t in …; do command -v $t; done`
 ## Network state
 
 - Only `bridge0` 192.168.225.1/24 and `ecm0` 169.254.3.1/24 (USB) are up.
+  ⚠️ **`bridge0` is now `192.168.120.1/24`** (manual gateway change, 2026-08-25 —
+  see [`lan-gateway-ip.md`](./lan-gateway-ip.md)); `eth0` also carries
+  169.254.4.1/24. The `.225` value above is the stock default, not current state.
 - **No default route, no DNS** — `/etc/resolv.conf` → `/etc/resolv-conf.systemd`, empty.
 - All `rmnet_data0-5` **DOWN**; `rmnet_ipa0` UP. No cellular data session.
 - **`eth0` EXISTS** but `NO-CARRIER` — answers a spec Phase-B open question: the

@@ -1,5 +1,13 @@
 # MEMORY.md index
 
+- [RG501Q-EU: 192.168.120.1, and ZERO boot forensics](rg501q_access_and_zero_boot_forensics.md) — not MODEM_IP; journald has no storage AND /var/log is tmpfs with 0 systemd entries, so `systemctl show` monotonic timestamps + NRestarts are the only boot record, current boot only
+- [F8 on RM520N-GL: fully exposed, and /opt is a bind of /usrdata/opt](f8_rm520n_live_state_and_forensics.md) — same topology as RG501Q (CLAUDE.md's "dedicated UBIFS volume" is wrong); opt.mount has no wants-symlink; rc.unslung duration <11s proves the pidof short-circuit, and /opt/var/log/lighttpd mtime proves the imposter never ran on ANY boot
+- [Entware rc.func start() short-circuits on bare `pidof`](rc_func_pidof_shortcircuit.md) — S80lighttpd no-ops whenever ANY process named lighttpd exists, including QManager's transient `-tt` config test; its stop() is `killall` so it kills both; and rc.unslung's `find -perm -u+x -name 'S*'` makes chmod -x AND S→K renames both valid disables
+
+- [AT probe over the host's Quectel COM port](at_probe_over_host_com_port.md) — a third transport that works when SSH AND adb are both dead; includes the PnP parent lookup that maps a COM port to a device serial, and why `-Status OK` filtering is mandatory
+- [/usr/lib/qmanager deploys as a whole tree](lib_tree_deploys_wholesale.md) — a committed lib file lands on the device at the next OTA with zero callers, so "in the repo, not on the device" is never safe; uniform mtimes date the deploy not the file, and deployed-but-dormant is a normal state
+- [RG501Q factory reset disables adb](rg501q_factory_reset_disables_adb.md) — reset reverts usbcfg to PID 0x0800 with no MI_06 ADB interface, so the device looks gone to adb while still enumerated and answering AT; it has no SSH, so that is total shell loss
+
 - [URCs are uncapturable — nothing holds /dev/smd11](urc_capture_impossible_no_smd11_listener.md) — zero `/proc/*/fd` hits for smd11; atcli opens per-command, so `AT+QSIMSTAT=1` URCs are dropped AND risk interleaving into unrelated qcmd responses; always prefer the vendor's `?` read form + an existing poller tier
 
 - [Rootfs ro-remount probe recipe + EROFS exit codes](rootfs_ro_remount_probe_recipe.md) — `mount -o remount,ro /` round-trips cleanly (no EBUSY, nothing notices); `ln -sf` AND `rm -f` both return **1** under EROFS (busybox -f masks only ENOENT); probe symlink must be named `qmanager*` or the sudoers grant fails first

@@ -53,9 +53,16 @@ If the reference doc is missing or wrong, flag it in your report — the `docs-w
 
 ## Probing the Live Modem
 
-The live test modem is reachable on the LAN. **SSH credentials live in `.env`** as `MODEM_IP`, `MODEM_SSH_USER`, `MODEM_SSH_PASSWORD`. Use Posh-SSH (PowerShell) — never hardcode credentials, never echo `.env` values back to the user, never paste secrets into transcripts.
+**TWO live devices are reachable over SSH, on distinct subnets** (updated 2026-08-25). Credentials live in `.env`. Use Posh-SSH (PowerShell) — never hardcode credentials, never echo `.env` values back to the user, never paste secrets into transcripts.
 
-Canonical pattern:
+| Device | `.env` vars | Serial | Notes |
+| --- | --- | --- | --- |
+| **RM520N-GL** | `RM520N_IP` / `RM520N_SSH_USER` / `RM520N_SSH_PASSWORD` | `61368cd2` | SDX6X, BusyBox 1.31.1. Reference target |
+| **RG501Q-EU** | `RG501Q_IP` / `RG501Q_SSH_USER` / `RG501Q_SSH_PASSWORD` | `b7e3d6f1` | SDX55, BusyBox 1.29.3. Community tier |
+
+The bare `MODEM_*` triad still resolves and is an **alias for the RM520N-GL**. **Any instruction telling you to reach the RG501Q over `adb` is obsolete** — that was true only before 2026-08-25, and for part of that period adb was gone entirely after a factory reset reverted the USB composition.
+
+Canonical pattern (`$env:MODEM_*` shown; swap in the prefixed vars to target a specific device):
 
 ```powershell
 $cred = [pscredential]::new($env:MODEM_SSH_USER, (ConvertTo-SecureString $env:MODEM_SSH_PASSWORD -AsPlainText -Force))
@@ -63,6 +70,15 @@ $sess = New-SSHSession -ComputerName $env:MODEM_IP -Credential $cred -AcceptKey 
 (Invoke-SSHCommand -SessionId $sess.SessionId -Command 'systemctl is-active qmanager_poller').Output
 Remove-SSHSession -SessionId $sess.SessionId | Out-Null
 ```
+
+**Prove which device answered before recording any capture.** The two used to share `192.168.225.1`, so this habit exists for a reason even though distinct subnets now make a mix-up less likely — a wrong-device capture is silent:
+
+```sh
+cat /etc/quectel-project-version   # Project Name: RM520NGL_VC | RG501QEU_VD
+grep -o 'androidboot.serialno=[^ ]*' /proc/cmdline   # 61368cd2 | b7e3d6f1
+```
+
+**Device-diff is your cheapest tool.** For any portability or multi-target question, run the command on BOTH and compare before reasoning about code. Every cross-device defect found so far (`wget`, `timeout`, `mountpoint`) came from that comparison; none came from reading source.
 
 ### Things you typically inspect
 
