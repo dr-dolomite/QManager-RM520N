@@ -575,6 +575,49 @@ remove_conflicts() {
     done
 }
 
+# --- Neutralize Entware lighttpd ---------------------------------------------
+
+# Disables Entware's S80lighttpd init script so it can never win the boot-time
+# race for port 80 against QManager's own lighttpd.service. rc.unslung starts
+# S80lighttpd via `pidof lighttpd` — a process-NAME check, not a port check —
+# so on some boots Entware's instance binds port 80 first, in an empty docroot
+# with no TLS, before QManager's unit gets there. Confirmed live on an
+# RG501Q-EU: identical on-disk config won on one boot by 1.18s and lost
+# outright on an earlier boot the same day. rc.unslung selects scripts with
+# `find /opt/etc/init.d/ -perm '-u+x' -name 'S*'` — no allowlist, no
+# .disabled convention — so clearing the executable bit is a valid, sufficient
+# disable.
+#
+# Must never die() or return non-zero: failure here only degrades to today's
+# pre-existing intermittent behavior, it must not abort an install. Must be
+# idempotent — safe on every install and every OTA, including when the file
+# is already non-executable or absent.
+neutralize_entware_lighttpd() {
+    local _s80="/opt/etc/init.d/S80lighttpd"
+
+    if [ ! -f "$_s80" ]; then
+        return 0
+    fi
+
+    if [ ! -x "$_s80" ]; then
+        info "Entware S80lighttpd already disabled"
+        return 0
+    fi
+
+    # `a-x`, not a bare `-x`: with no "who" prefix, POSIX chmod acts as if `a`
+    # were given BUT skips bits set in the umask. This whole fix depends on
+    # clearing the one bit rc.unslung tests (`find -perm '-u+x'`), so a masked
+    # u+x would leave S80lighttpd armed while we log success — the exact silent
+    # no-op F8 exists to eliminate. Spelling out `a` makes umask irrelevant.
+    if chmod a-x "$_s80" 2>/dev/null; then
+        info "Disabled Entware S80lighttpd (QManager's lighttpd.service owns ports 80/443)"
+    else
+        warn "Could not disable $_s80 — the Entware lighttpd may take port 80 on some boots"
+    fi
+
+    return 0
+}
+
 # --- Ensure Zoneinfo Packages -------------------------------------------------
 
 # Installs the zoneinfo-all Entware package (full IANA tzdata) into
@@ -2932,6 +2975,21 @@ enable_services() {
         info "Enabled lighttpd"
     fi
 
+    # Ensure opt.mount is properly enabled. It is written with
+    # WantedBy=multi-user.target but was never symlinked into wants/, so /opt
+    # ended up mounted by start-opt-mount.service's `systemctl start opt.mount`
+    # wrapper instead — a oneshot that self-deadlocks on systemd's job queue
+    # and burns ~3.7s before /opt appears, which is what ate the margin behind
+    # the lighttpd boot race (see neutralize_entware_lighttpd). The [ -f ]
+    # guard is required: opt.mount is only written in the bootstrap branch, so
+    # a device that already had Entware before QManager never gets the file
+    # and the symlink would dangle. start-opt-mount.service is intentionally
+    # left in place as a fallback — do not remove it.
+    if [ -f "$SYSTEMD_DIR/opt.mount" ]; then
+        ln -sf "$SYSTEMD_DIR/opt.mount" "$WANTS_DIR/opt.mount"
+        info "Enabled opt.mount"
+    fi
+
     # Capture pre-install symlink state for gated services so we can restore
     # the same enabled/disabled state rather than force-enabling them.
     local gated_was_enabled=""
@@ -3530,6 +3588,16 @@ main() {
     install_speedtest_cli
 
     [ "$DO_PACKAGES" = "1" ] && install_dependencies
+
+    # neutralize_entware_lighttpd runs unconditionally (even with
+    # --skip-packages, mirroring remove_conflicts/ensure_zoneinfo_packages
+    # above) so the OTA path (qmanager_update calls this installer with
+    # --force --skip-packages --no-reboot) also disables S80lighttpd on
+    # already-installed devices, not just fresh installs. It must also run
+    # AFTER install_dependencies: that step's `opkg upgrade/install lighttpd`
+    # re-extracts S80lighttpd with its executable bit restored, which would
+    # silently undo an earlier disable in the same run.
+    neutralize_entware_lighttpd
 
     # SSH bootstrap runs after install_dependencies so Entware + bundled
     # dropbear .ipk are available, and before stop_services so it never has

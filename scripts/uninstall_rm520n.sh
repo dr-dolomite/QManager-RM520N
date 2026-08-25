@@ -315,6 +315,19 @@ if [ -f "$SYSTEMD_DIR/lighttpd.service" ]; then
     info "Removed QManager lighttpd.service override"
 fi
 
+# The installer disables Entware's S80lighttpd so it can never win the
+# boot-time port-80 race against QManager's lighttpd.service. Now that we've
+# just removed that unit, restore S80lighttpd so the device still has a web
+# server on port 80 after uninstall — leaving it disabled would strand the
+# device with no web server at all. opt.mount's wants symlink is intentionally
+# left alone: Entware is preserved unconditionally and still needs /opt mounted.
+if [ -f /opt/etc/init.d/S80lighttpd ] && [ ! -x /opt/etc/init.d/S80lighttpd ]; then
+    # `a+x`, not a bare `+x`: a bare `+x` skips umask-set bits, so a masked u+x
+    # would silently leave the device with no web server after uninstall.
+    chmod a+x /opt/etc/init.d/S80lighttpd
+    info "Restored Entware S80lighttpd"
+fi
+
 # Clean up old /etc/systemd/system/ location from any previous installs
 rm -f /etc/systemd/system/qmanager*.service /etc/systemd/system/qmanager*.target
 rm -rf /etc/systemd/system/qmanager.target.wants

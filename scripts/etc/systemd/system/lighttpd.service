@@ -6,7 +6,10 @@ After=network.target opt.mount
 
 [Service]
 Type=simple
-PIDFile=/opt/var/run/lighttpd.pid
+# Deliberately no pidfile directive here: systemd ignores it for Type=simple,
+# and our lighttpd.conf sets no server.pid-file so we never write one — the
+# path it used to name was Entware's default pidfile (the rival instance),
+# harmless today but wrong if this unit is ever changed to Type=forking.
 ExecStartPre=/opt/sbin/lighttpd -tt -f /usrdata/qmanager/lighttpd.conf
 ExecStart=/opt/sbin/lighttpd -D -f /usrdata/qmanager/lighttpd.conf
 ExecReload=/bin/kill -USR1 $MAINPID
