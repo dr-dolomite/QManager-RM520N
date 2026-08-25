@@ -226,6 +226,108 @@ else
     printf '  SKIP  JSON validity (no jq on PATH; library itself needs none)\n'
 fi
 
+# Symlink capability probe. Some Windows Git Bash sessions cannot create a
+# real symlink at all (no SeCreateSymbolicLinkPrivilege / Developer Mode
+# off): `ln -s` there either silently HARD-COPIES the target's bytes (which
+# makes an attack-simulation test meaningless -- there is no link to detect)
+# or fails outright for a dangling target. Detected once, here, so the
+# symlink-dependent assertions below can SKIP with an honest message on such
+# a host instead of reporting a false PASS or FAIL for a mechanism that was
+# never actually exercised. This mirrors the file's existing `base64 -d` and
+# `jq` capability probes.
+HAVE_SYMLINKS=0
+mkdir -p "$work/symprobe"
+printf 'probe\n' > "$work/symprobe/target"
+ln -s "$work/symprobe/target" "$work/symprobe/link" 2>/dev/null
+[ -L "$work/symprobe/link" ] && HAVE_SYMLINKS=1
+
+section "Symlink safety (qm_hw_write_profile)"
+# These exercise the actual mechanism -- real symlinks on disk, real
+# subsequent reads to confirm nothing was touched -- not a grep over the
+# source. www-data owns /etc/qmanager (0755, non-sticky, so
+# fs.protected_symlinks=1 does not cover it) and can plant any of these.
+
+if [ "$HAVE_SYMLINKS" -eq 1 ]; then
+    # --- .tmp path is a symlink to an existing scratch file ---
+    mkdir -p "$work/sym1"
+    printf 'scratch-original\n' > "$work/sym1/scratch"
+    ln -s "$work/sym1/scratch" "$work/sym1/platform.json.tmp"
+    gen "$work/rm520n" "$work/sym1/platform.json" 2>/dev/null \
+        && bad "write must refuse when .tmp path is a symlink to an existing file" \
+        || ok "write refuses when .tmp path is a symlink to an existing file"
+    eq "symlink-pointed scratch file untouched by refused write" \
+       "scratch-original" "$(cat "$work/sym1/scratch")"
+    [ -L "$work/sym1/platform.json.tmp" ] \
+        && ok "the .tmp symlink itself is left in place, not deleted (evidence preserved)" \
+        || bad "the .tmp symlink was deleted by the refused write"
+    [ -e "$work/sym1/platform.json" ] \
+        && bad "refused write still created the destination file" \
+        || ok "refused write created no destination file"
+
+    # --- .tmp path is a DANGLING symlink (target does not exist) ---
+    mkdir -p "$work/sym2"
+    ln -s "$work/sym2/nonexistent_target" "$work/sym2/platform.json.tmp"
+    gen "$work/rm520n" "$work/sym2/platform.json" 2>/dev/null \
+        && bad "write must refuse when .tmp path is a dangling symlink" \
+        || ok "write refuses when .tmp path is a dangling symlink"
+    [ -e "$work/sym2/nonexistent_target" ] \
+        && bad "dangling symlink's target was created by the refused write" \
+        || ok "dangling symlink's target was not created"
+
+    # --- destination itself is a symlink ---
+    mkdir -p "$work/sym3"
+    printf 'dest-target-original\n' > "$work/sym3/real_target"
+    ln -s "$work/sym3/real_target" "$work/sym3/platform.json"
+    gen "$work/rm520n" "$work/sym3/platform.json" 2>/dev/null \
+        && bad "write must refuse when the destination itself is a symlink" \
+        || ok "write refuses when the destination itself is a symlink"
+    eq "symlinked destination's real target left untouched" \
+       "dest-target-original" "$(cat "$work/sym3/real_target")"
+else
+    printf '  SKIP  .tmp-path-is-a-symlink (this host cannot create real symlinks)\n'
+    printf '  SKIP  .tmp-path-is-a-dangling-symlink (this host cannot create real symlinks)\n'
+    printf '  SKIP  destination-itself-is-a-symlink (this host cannot create real symlinks)\n'
+fi
+
+# --- destination itself is a directory (no symlink involved) ---
+mkdir -p "$work/sym4/platform.json"
+gen "$work/rm520n" "$work/sym4/platform.json" 2>/dev/null \
+    && bad "write must refuse when the destination is a directory" \
+    || ok "write refuses when the destination is a directory"
+[ "$(ls -A "$work/sym4/platform.json" 2>/dev/null)" ] \
+    && bad "refused directory-destination write left something inside the directory" \
+    || ok "refused directory-destination write created nothing inside it"
+
+# --- stranded REGULAR .tmp file from a "previous crash" ---
+mkdir -p "$work/crash"
+printf 'stale partial write from a crashed run\n' > "$work/crash/platform.json.tmp"
+if gen "$work/rm520n" "$work/crash/platform.json"; then
+    ok "write recovers past a stranded regular .tmp file"
+else
+    bad "write did not recover past a stranded regular .tmp file"
+fi
+[ -e "$work/crash/platform.json.tmp" ] \
+    && bad "stranded-temp recovery left a temp file behind" \
+    || ok "stranded-temp recovery leaves no temp file"
+
+# --- deterministic mode 0644 regardless of the caller's umask ---
+mkdir -p "$work/mode"
+( umask 000; gen "$work/rm520n" "$work/mode/platform.json" ) >/dev/null 2>&1
+if command -v stat >/dev/null 2>&1 && stat -c %a "$work/mode/platform.json" >/dev/null 2>&1; then
+    eq "emitted file is mode 0644 even at umask 0 (via stat)" \
+       "644" "$(stat -c %a "$work/mode/platform.json")"
+else
+    # No GNU-style `stat -c` on this workstation (e.g. some BSD/BusyBox
+    # builds) -- fall back to parsing the permission string out of `ls -l`.
+    # Only the rwx triads are checked; the leading file-type character
+    # ('-') is stripped first.
+    perm_str=$(ls -l "$work/mode/platform.json" | awk '{print $1}' | cut -c2-10)
+    case "$perm_str" in
+        rw-r--r--) ok "emitted file is mode 0644 even at umask 0 (via ls -l, no stat on PATH)" ;;
+        *) bad "emitted file mode is not 0644 (ls -l perms: $perm_str)" ;;
+    esac
+fi
+
 section "No stale state between reads"
 # Accessors must re-read the file every call, with no memoization. This is what
 # lets the self-heal path compare a LIVE firmware fingerprint against the one
@@ -265,5 +367,7 @@ else
     ok "hw_profile.sh has no jq dependency (comments excluded)"
 fi
 
-printf '\n%d passed, %d failed\n' "$pass_count" "$fail_count"
+printf '
+%d passed, %d failed
+' "$pass_count" "$fail_count"
 [ "$fail_count" -eq 0 ]

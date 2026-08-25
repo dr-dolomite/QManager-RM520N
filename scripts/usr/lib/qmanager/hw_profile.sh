@@ -202,11 +202,63 @@ _qm_hw_json_escape() {
 # (with `install -d -m 0755`, never `mkdir -p`, which no-ops on an existing
 # directory and so lets a bad mode persist across every OTA). A missing parent
 # makes this return 1 with no side effect.
+#
+# SYMLINK ATTACK, reproduced live on both devices: /etc/qmanager is owned by
+# www-data, mode 0755, NON-sticky — fs.protected_symlinks=1 only guards a
+# world-writable STICKY directory, so it does not cover this one at all.
+# www-data can therefore plant a symlink at exactly "${dest}.tmp" (or at
+# $dest itself) pointing anywhere root can write — /etc/shadow, a file under
+# /etc/sudoers.d, ... A plain `>` redirect FOLLOWS a symlink, so root's write
+# lands at the symlink's TARGET, not at platform.json. Confirmed live: root's
+# JSON landed in the attacker-chosen file, not in platform.json.tmp.
+#
+# `[ -f "$path" ]` is NOT a sufficient guard here — it also FOLLOWS the
+# symlink and reports true for one. Only `[ -L "$path" ]` looks at the link
+# itself rather than what it points to.
+#
+# Checking `[ -L "$tmp" ]` and THEN opening it is still not enough on its
+# own: a symlink planted in the gap between that check and the open wins the
+# race. The write below instead happens inside a subshell with `set -C`
+# (noclobber), which gives O_CREAT|O_EXCL semantics — the open atomically
+# refuses to proceed if anything, file or symlink (live or dangling), already
+# occupies that path. Verified on both BusyBox 1.31.1 and 1.29.3: `set -C`
+# refuses a redirect onto a live symlink AND a dangling one, and succeeds
+# cleanly onto a path with nothing there — so this closes the race, not just
+# the common case.
 qm_hw_write_profile() {
     local dest="$1" tmp
     [ -n "$dest" ] || return 1
     tmp="${dest}.tmp"
-    {
+
+    # Refuse outright if the destination itself is a symlink. Never write
+    # through it, and never unlink it either — deleting an attacker's link is
+    # a courtesy that also destroys the evidence of the attempt.
+    [ -L "$dest" ] && return 1
+
+    # Refuse if the destination is a directory too. `mv "$tmp" "$dest"` onto
+    # a directory does not fail — it moves the temp file INSIDE it
+    # (".../platform.json/platform.json.tmp") and exits 0, so without this
+    # guard the function would report success having written nothing at the
+    # expected path, with no way for the caller to tell. That silent-success
+    # shape is exactly what this whole function exists to eliminate.
+    [ -d "$dest" ] && return 1
+
+    # Something may already sit at the temp path from a previous run.
+    if [ -L "$tmp" ]; then
+        # A symlink here IS the attack described above. Leave it exactly as
+        # found and refuse — do not delete it, do not follow it.
+        return 1
+    elif [ -e "$tmp" ]; then
+        # A stranded REGULAR file from an earlier run that crashed between
+        # the write and the mv. It is not a symlink, so clearing it cannot
+        # redirect anything; leaving it in place would wedge every future
+        # write behind noclobber below, so it is safe and necessary to clear.
+        rm -f "$tmp" 2>/dev/null
+    fi
+
+    # Race-free create: noclobber makes the redirect fail if ANYTHING now
+    # occupies $tmp, including a symlink planted after the checks above.
+    if ! ( set -C; {
         printf '{\n'
         printf '  "schema": %s,\n'            "$QM_HW_SCHEMA"
         printf '  "model": "%s",\n'           "$(_qm_hw_json_escape "$(qm_hw_model)")"
@@ -216,6 +268,28 @@ qm_hw_write_profile() {
         printf '  "fw_fingerprint": "%s",\n'  "$(_qm_hw_json_escape "$(qm_hw_fw_fingerprint)")"
         printf '  "caps": {}\n'
         printf '}\n'
-    } > "$tmp" 2>/dev/null && mv "$tmp" "$dest" 2>/dev/null || { rm -f "$tmp" 2>/dev/null; return 1; }
+    } > "$tmp" ) 2>/dev/null; then
+        # If $tmp turned into a symlink mid-race, preserve it as evidence
+        # rather than deleting it; otherwise it is safe (and necessary) to
+        # clean up whatever partial state noclobber left behind.
+        [ -L "$tmp" ] || rm -f "$tmp" 2>/dev/null
+        return 1
+    fi
+
+    # Deterministic mode regardless of the caller's umask. Without this the
+    # mode comes from whatever umask happened to be ambient — the live
+    # RG501Q's profile was found world-writable (0666) because the install
+    # shell that wrote it ran at umask 0.
+    chmod 0644 "$tmp" 2>/dev/null
+
+    # `mv` onto an existing path REPLACES it without following a symlink
+    # there (verified on both devices) — but $dest was already confirmed to
+    # be a non-symlink above, so this is defence in depth, not the primary
+    # guard.
+    if ! mv "$tmp" "$dest" 2>/dev/null; then
+        rm -f "$tmp" 2>/dev/null
+        return 1
+    fi
     return 0
 }
+
