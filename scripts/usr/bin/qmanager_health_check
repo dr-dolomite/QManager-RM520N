@@ -14,6 +14,93 @@
 
 set -u
 
+# --- Portable `timeout` (BusyBox 1.29 vs 1.31 CLI straddle) -----------------
+# This is a LOCAL COPY of qm_timeout() from scripts/usr/lib/qmanager/platform.sh
+# — do not let the two drift; see that file for the full BusyBox-version
+# rationale and the 143→124 exit-status normalization rationale.
+#
+# platform.sh is NOT sourced here on purpose. It is written for /bin/sh and
+# guards itself with `[ -n "$_PLATFORM_LOADED" ] && return 0` — harmless
+# under a normal shell, but this script runs with `set -u`, and referencing
+# an unset `$_PLATFORM_LOADED` on that very first line aborts the WHOLE
+# health check immediately with "unbound variable" (confirmed: `bash -c
+# 'set -u; [ -n "$UNSET" ]'` exits 127 before the `[` even evaluates true/
+# false — set -u errors are not caught by the surrounding `if`/`&&`). The
+# same fate would hit every other unset-until-first-use var platform.sh
+# defines. Sourcing it defensively (source-or-stub, the pattern platform.sh
+# itself uses for qlog.sh) doesn't fix this either, since the crash happens
+# INSIDE platform.sh's own first line, before the `||` fallback can run.
+_QM_TIMEOUT_BIN=""
+_QM_TIMEOUT_FORM=""   # "positional" (coreutils/BusyBox >=1.30) or "legacy" (-t, BusyBox <1.30)
+
+# "cmd || rc=$?" rather than a bare "cmd; rc=$?": this script only runs
+# under `set -u` today, not `set -e`, but keeping the same set -e-safe shape
+# as platform.sh's copy (which install_rm520n.sh's local copy DOES need)
+# means the three can never quietly diverge into "looks the same, behaves
+# differently under -e".
+if [ -x /opt/bin/timeout ]; then
+    _qm_probe_rc=0
+    /opt/bin/timeout 1 true >/dev/null 2>&1 || _qm_probe_rc=$?
+    if [ "$_qm_probe_rc" -ne 127 ]; then
+        _QM_TIMEOUT_BIN="/opt/bin/timeout"
+        _QM_TIMEOUT_FORM="positional"
+    fi
+fi
+
+if [ -z "$_QM_TIMEOUT_BIN" ] && [ -x /usr/bin/timeout ]; then
+    _qm_probe_rc=0
+    /usr/bin/timeout 1 true >/dev/null 2>&1 || _qm_probe_rc=$?
+    if [ "$_qm_probe_rc" -eq 127 ]; then
+        _QM_TIMEOUT_BIN="/usr/bin/timeout"
+        _QM_TIMEOUT_FORM="legacy"
+    else
+        _QM_TIMEOUT_BIN="/usr/bin/timeout"
+        _QM_TIMEOUT_FORM="positional"
+    fi
+fi
+unset _qm_probe_rc
+
+# qm_timeout SECS COMMAND [ARGS...] — callers always write the coreutils
+# (positional) form; dispatches to whichever CLI shape was detected above,
+# and remaps a BusyBox SIGTERM-relay (143) to the documented 124 contract
+# (see platform.sh's qm_timeout for why the remap is scoped to this function
+# only, not a global "143 means timeout" rule).
+qm_timeout() {
+    local secs="$1"
+    shift
+    local rc=0
+    local cmd_pid waited killed
+
+    if [ -n "$_QM_TIMEOUT_BIN" ] && [ "$_QM_TIMEOUT_FORM" = "positional" ]; then
+        "$_QM_TIMEOUT_BIN" "$secs" "$@" || rc=$?
+    elif [ -n "$_QM_TIMEOUT_BIN" ] && [ "$_QM_TIMEOUT_FORM" = "legacy" ]; then
+        "$_QM_TIMEOUT_BIN" -t "$secs" "$@" || rc=$?
+    else
+        # Fail open, but never unbounded — see platform.sh's qm_timeout.
+        "$@" &
+        cmd_pid=$!
+        waited=0
+        killed=0
+        while kill -0 "$cmd_pid" 2>/dev/null; do
+            if [ "$waited" -ge "$secs" ]; then
+                kill -TERM "$cmd_pid" 2>/dev/null || true
+                wait "$cmd_pid" 2>/dev/null || true
+                rc=143
+                killed=1
+                break
+            fi
+            sleep 1
+            waited=$((waited + 1))
+        done
+        if [ "$killed" -eq 0 ]; then
+            wait "$cmd_pid" || rc=$?
+        fi
+    fi
+
+    [ "$rc" -eq 143 ] && rc=124
+    return "$rc"
+}
+
 STATUS_FILE="/tmp/qmanager_health_check.json"
 LOCK_FILE="/tmp/qmanager_health_check.lock"
 LOG_FILE="/tmp/qmanager_health_check.log"
@@ -214,14 +301,47 @@ _check_bin() {
     # arbitrary argv as AT commands and hang waiting for a modem reply).
     local name="$1" path="$2" soft="${3:-0}" vflag="${4---version}"
     if [ -x "$path" ]; then
-        local v=""
+        local v="" v_full="" rc=0
         if [ -n "$vflag" ]; then
-            # timeout-bounded: a binary with no --version handler may try to
-            # use the argument as input and block forever.
-            v=$(timeout 2 "$path" "$vflag" </dev/null 2>&1 | head -1 || true)
+            # timeout-bounded via qm_timeout (portable across the BusyBox
+            # 1.29/1.31 `timeout` CLI straddle — see the top of this file):
+            # a binary with no --version handler may try to use the
+            # argument as input and block forever.
+            #
+            # Deliberately NOT `... | head -1` here: piping through head
+            # runs qm_timeout in a subshell whose exit status a plain `$?`
+            # in the parent can't see (and ${PIPESTATUS[0]} doesn't survive
+            # a *separate* command substitution either — it's local to the
+            # pipeline that produced it). Capture full output in one
+            # substitution instead, so `$?` right after is qm_timeout's own
+            # status, then trim to one line with a parameter expansion.
+            v_full=$(qm_timeout 2 "$path" "$vflag" </dev/null 2>&1)
+            rc=$?
+            v="${v_full%%$'\n'*}"
         fi
-        echo "$path: ${v:-(present, no version probe)}" >> "$OUTPUT_FILE"
-        echo "pass|${v:-present}"
+        if [ "$rc" -eq 127 ]; then
+            # 127 means the shell could not execute "$path" at all — not a
+            # "no --version handler" case (the binary passed -x but is
+            # genuinely broken, e.g. a missing shared library). This used to
+            # be indistinguishable from `timeout` itself misfiring on
+            # BusyBox 1.29 (RG501Q) and producing "can't execute '2'"
+            # garbage that still reported pass — qm_timeout resolves the
+            # correct CLI form per device, so a 127 here is real signal now,
+            # not the timeout wrapper's own bug leaking through.
+            echo "$path: exec failed (rc=127): ${v:-<no output>}" >> "$OUTPUT_FILE"
+            echo "fail|not executable (rc=127)"
+        elif [ "$rc" -eq 124 ]; then
+            # Version probe timed out. The binary passed -x and is present —
+            # it just didn't answer $vflag within 2s (e.g. no --version
+            # handler, blocked reading stdin instead, exactly the case this
+            # function's own comment already anticipates). Present-but-
+            # unresponsive is not the same failure class as missing/broken.
+            echo "$path: version probe timed out (2s)" >> "$OUTPUT_FILE"
+            echo "warn|present, version probe timed out"
+        else
+            echo "$path: ${v:-(present, no version probe)}" >> "$OUTPUT_FILE"
+            echo "pass|${v:-present}"
+        fi
     elif command -v "$name" >/dev/null 2>&1; then
         local resolved; resolved=$(command -v "$name")
         echo "resolved via PATH: $resolved" >> "$OUTPUT_FILE"
@@ -485,15 +605,16 @@ t_svc_tailscaled(){ _svc_check tailscaled.service 0; }
 
 t_net_dns() {
     # Bound the test to 5s — nslookup against unreachable DNS can stall 30s+
-    # per nameserver and timeout the CGI response. Prefer getent if available.
+    # per nameserver and timeout the CGI response. nslookup is the only live
+    # path: getent was measured absent on both RM520N-GL and RG501Q-EU, so
+    # that arm was unreachable dead code — do not "restore" it without
+    # re-measuring both devices.
     local out rc
-    if command -v getent >/dev/null 2>&1; then
-        out=$(timeout 5 getent hosts install.speedtest.net 2>&1); rc=$?
-    elif command -v nslookup >/dev/null 2>&1; then
-        out=$(timeout 5 nslookup install.speedtest.net 2>&1); rc=$?
+    if command -v nslookup >/dev/null 2>&1; then
+        out=$(qm_timeout 5 nslookup install.speedtest.net 2>&1); rc=$?
     else
         echo "no resolver tool available" >> "$OUTPUT_FILE"
-        echo "fail|no getent or nslookup"; return
+        echo "fail|no nslookup"; return
     fi
     echo "$out" >> "$OUTPUT_FILE"
     if [ "$rc" = "124" ]; then

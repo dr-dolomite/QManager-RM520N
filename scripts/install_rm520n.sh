@@ -165,6 +165,101 @@ die() {
     exit 1
 }
 
+# --- qm_timeout: portable `timeout` wrapper (BusyBox 1.29 vs 1.31 straddle) --
+# LOCAL COPY of qm_timeout() from scripts/usr/lib/qmanager/platform.sh. This
+# script needs its own copy rather than sourcing the lib: LIB_DIR points at
+# the DEPLOYED path (/usr/lib/qmanager), which doesn't exist yet this early
+# in a fresh install, and `--frontend-only` (DO_BACKEND=0) never deploys libs
+# at all while still running the AT/service verification code below that
+# needs a portable timeout. Keep this block byte-for-byte logically
+# identical to platform.sh's qm_timeout — a change to the BusyBox-version
+# rationale, the 143->124 remap, or the fail-open bound belongs in BOTH
+# places. See platform.sh for the full rationale; only the set -e-specific
+# notes below are unique to this copy.
+#
+# BusyBox changed `timeout`'s CLI in 1.30: SECS went from an option
+# (`-t SECS`) to a positional first argument, and `-t` was dropped.
+# RG501Q-EU (v1.29.3) and RM520N-GL (v1.31.1) straddle that change, so no
+# single literal invocation works on both. `command -v timeout` cannot tell
+# the two apart (BusyBox always provides the applet) — detect by BEHAVIOUR
+# instead: run `timeout 1 true` once and check for exit 127.
+#
+# Every probe/dispatch below uses "cmd || rc=$?" rather than a bare
+# "cmd; rc=$?" — this script runs under `set -e` (see top of file), and a
+# bare statement's non-zero exit outside an if/while/&&/|| test aborts the
+# WHOLE INSTALL, including on the very probe that exists to detect a
+# non-zero exit on purpose.
+_QM_TIMEOUT_BIN=""
+_QM_TIMEOUT_FORM=""   # "positional" (coreutils/BusyBox >=1.30) or "legacy" (-t, BusyBox <1.30)
+
+if [ -x /opt/bin/timeout ]; then
+    _qm_probe_rc=0
+    /opt/bin/timeout 1 true >/dev/null 2>&1 || _qm_probe_rc=$?
+    if [ "$_qm_probe_rc" -ne 127 ]; then
+        _QM_TIMEOUT_BIN="/opt/bin/timeout"
+        _QM_TIMEOUT_FORM="positional"
+    fi
+fi
+
+if [ -z "$_QM_TIMEOUT_BIN" ] && [ -x /usr/bin/timeout ]; then
+    _qm_probe_rc=0
+    /usr/bin/timeout 1 true >/dev/null 2>&1 || _qm_probe_rc=$?
+    if [ "$_qm_probe_rc" -eq 127 ]; then
+        _QM_TIMEOUT_BIN="/usr/bin/timeout"
+        _QM_TIMEOUT_FORM="legacy"
+    else
+        _QM_TIMEOUT_BIN="/usr/bin/timeout"
+        _QM_TIMEOUT_FORM="positional"
+    fi
+fi
+unset _qm_probe_rc
+
+# qm_timeout SECS COMMAND [ARGS...] — callers always write the coreutils
+# (positional) form; dispatches to whichever CLI shape was detected above,
+# and remaps a BusyBox SIGTERM-relay (143) to the documented 124 contract.
+# See platform.sh's qm_timeout for why the remap is scoped to this function
+# only, not a global "143 means timeout" rule.
+qm_timeout() {
+    local secs="$1"
+    shift
+    local rc=0
+    local cmd_pid waited killed
+
+    if [ -n "$_QM_TIMEOUT_BIN" ] && [ "$_QM_TIMEOUT_FORM" = "positional" ]; then
+        "$_QM_TIMEOUT_BIN" "$secs" "$@" || rc=$?
+    elif [ -n "$_QM_TIMEOUT_BIN" ] && [ "$_QM_TIMEOUT_FORM" = "legacy" ]; then
+        "$_QM_TIMEOUT_BIN" -t "$secs" "$@" || rc=$?
+    else
+        # Fail open, but never unbounded: neither probe found a usable
+        # `timeout` (should not happen on either target device). Bound the
+        # command manually rather than exec'ing it with no limit at all —
+        # an unbounded call inside this `set -e` installer would hang the
+        # whole install, which is the exact hazard `timeout` exists to
+        # prevent.
+        "$@" &
+        cmd_pid=$!
+        waited=0
+        killed=0
+        while kill -0 "$cmd_pid" 2>/dev/null; do
+            if [ "$waited" -ge "$secs" ]; then
+                kill -TERM "$cmd_pid" 2>/dev/null || true
+                wait "$cmd_pid" 2>/dev/null || true
+                rc=143
+                killed=1
+                break
+            fi
+            sleep 1
+            waited=$((waited + 1))
+        done
+        if [ "$killed" -eq 0 ]; then
+            wait "$cmd_pid" || rc=$?
+        fi
+    fi
+
+    [ "$rc" -eq 143 ] && rc=124
+    return "$rc"
+}
+
 TOTAL_STEPS=9; CURRENT_STEP=0
 
 # step() writes the step header used by qmanager_update to track progress —
@@ -1052,13 +1147,24 @@ RCEOF
         [ -x /opt/bin/curl ] && ! command -v curl >/dev/null 2>&1 && \
             ln -sf /opt/bin/curl /usr/bin/curl 2>/dev/null || true
 
-        # coreutils-timeout
-        if command -v timeout >/dev/null 2>&1; then
-            info "timeout is already installed"
-        else
+        # coreutils-timeout — installed as defense-in-depth only, NOT
+        # load-bearing. qm_timeout() (defined above) is the actual fix for
+        # BusyBox's `-t SECS` vs positional `SECS` straddle; per that
+        # block's header comment, `timeout` installed via Entware even lands
+        # at /opt/bin, which is missing from the PATH sudo hands root
+        # helpers (measured), so this package can be invisible to exactly
+        # the callers that need it. `command -v timeout` is not a valid
+        # detector here — BusyBox always ships the applet, so that check
+        # always reports "installed" and coreutils-timeout would never get
+        # installed even on the legacy-CLI device. Reuse qm_timeout's own
+        # behaviour probe instead.
+        if [ "$_QM_TIMEOUT_FORM" = "legacy" ]; then
+            info "BusyBox timeout uses the legacy -t form — installing GNU coreutils-timeout as defense-in-depth (qm_timeout wrapper is the actual portability fix)"
             "$OPKG" install coreutils-timeout >/dev/null 2>&1 \
                 && info "coreutils-timeout installed from Entware" \
-                || warn "coreutils-timeout not available — some commands may hang without timeout safety"
+                || warn "coreutils-timeout not available — qm_timeout's fail-open bound still applies"
+        else
+            info "BusyBox timeout is coreutils-compatible (positional SECS) — no separate package needed"
         fi
 
         # dropbear (SSH server)
@@ -3104,7 +3210,7 @@ start_services() {
 
     # Verify AT device access
     if [ -x "$BIN_DIR/atcli_smd11" ] && [ -e /dev/smd11 ]; then
-        if timeout 3 "$BIN_DIR/atcli_smd11" "AT" >/dev/null 2>&1; then
+        if qm_timeout 3 "$BIN_DIR/atcli_smd11" "AT" >/dev/null 2>&1; then
             info "AT device responds (atcli_smd11 → /dev/smd11)"
         else
             warn "AT device not responding — modem may not be ready yet"
@@ -3147,7 +3253,7 @@ at_stack_check() {
     while [ "$i" -le 3 ]; do
         if command -v qcmd >/dev/null 2>&1; then
             local out
-            out=$(timeout 8 qcmd 'ATI' 2>/dev/null) || true
+            out=$(qm_timeout 8 qcmd 'ATI' 2>/dev/null) || true
             if printf '%s' "$out" | grep -q '^OK'; then
                 ok=1
                 break
