@@ -813,7 +813,7 @@ wrong. This applies to **every** QManager unit, not just `opt.mount`.
 See also the `systemd version` row and its NOTE under [Boot & time](#boot--time),
 which records the same behaviour as a per-device fact.
 
-### F13 (fixed 2026-08-26, security — BOTH devices) — three Entware systemd units were world-writable (`0666`)
+### F13 (fixed 2026-08-26, `cbf7561`, security — BOTH devices) — three Entware systemd units were world-writable (`0666`)
 
 **Short version: three unit files that systemd runs as root at boot can be edited by
 any user on the box, including `www-data`.** Measured on **both** devices,
