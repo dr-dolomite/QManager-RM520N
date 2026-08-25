@@ -18,6 +18,7 @@
 | T0 | Commit the Phase-A input documents | **DONE (merged)** — all 5 steps. Every input doc is tracked on `development`. | `3c34c4a`, `73cc424`, `fc30a50` | 2026-08-24 |
 | T1 | `hw_profile.sh` — parser, tier table, generator | **DONE (merged)** — all 8 steps. Both validators clean. | `581123e`, `3436ea3`, `55d3b60`, `d626517` — fast-forwarded onto `development` 2026-08-24 | 2026-08-24 |
 | T2 | Generate `platform.json` at install; recognize RG501Q | **DONE (merged).** Built against the 10 constraints, not the plan's Steps. Both validators clean. **Q8 fully discharged on live hardware.** | `19f2ee9`, `76a0ea8`, `6bd70d4` — fast-forwarded onto `development` 2026-08-25 (`9998107..6bd70d4`) | 2026-08-25 |
+| **T2.5** | **Entware bootstrap fix — unplanned, slotted ahead of T3** | **DONE (branch kept)** — user-reported from a real RG501Q install. Both validators PASS. Verified on both devices. | `219f3e6` on `worktree-wt-entware-bootstrap-fix` | 2026-08-25 |
 | T3 | Self-heal `platform.json` in `qmanager_setup` | NOT STARTED | — | — |
 | **T4** | **Migrate the poller's identity reads — THE CUT LINE** | NOT STARTED | — | — |
 | T5 | Migrate `about.sh`'s firmware-revision read | NOT STARTED | — | — |
@@ -38,6 +39,48 @@ States: `NOT STARTED` · `IN PROGRESS` · `BLOCKED` · `DONE (merged)` · `DONE 
 ## Log
 
 Newest entry first. Every entry records: what was done, the gate evidence, and **what a later task might invalidate**.
+
+### 2026-08-25 — T2.5 (UNPLANNED). Entware bootstrap fixed. The RG501Q can now actually install QManager.
+
+**Not in the plan.** The user ran a real QManager v0.1.13 install on the RG501Q-EU and reported "opkg seems to be not supported at all". Slotted ahead of T3 by explicit decision. Tier 4, full 6-phase flow, both Phase 1 gates run before any code was written.
+
+**The user's conclusion was wrong, and the wrong conclusion was the installer's fault.** opkg works fine and the network was fine. Entware's `opkg` shells out to `wget`, hardcoded — no `option downloader` in `opkg.conf`, no such string in the binary. The RG501Q's **BusyBox v1.29.3 was built without the `wget` applet** (curl only); the RM520N-GL's v1.31.1 ships `/usr/bin/wget`. The installer reported `opkg update failed — no internet connection?` while `curl` fetched the identical URL with **HTTP 200 / 381792 bytes** seconds later. `opkg: not found` at the shell was a third red herring — just a missing `/bin/opkg` symlink created at `:855`, inside the branch that was being skipped.
+
+**Second defect, worse: the bootstrap was a one-shot poison pill.** Guard was `[ ! -x "$OPKG" ]`; the binary is written at `:805` but the block `die`s at `:822`/`:824`. The first failed run left the binary behind, so every run after it printed "Entware already installed" and skipped ~120 lines. Measured signature: binary present, `/opt/lib` containing only `opkg`, `opkg list-installed` **empty**.
+
+The upstream toolkit is **not** the answer here — `simpleadmin-source/installentware.sh:83,85` calls bare `wget` too and fails identically. QManager's port was faithful; the toolkit was simply only ever run on wget-having devices.
+
+| File | Change |
+| --- | --- |
+| `scripts/install_rm520n.sh` | **+163/−10** — `/tmp`-scoped curl-backed wget shim (gated on `command -v wget` failing), `wget-ssl` handoff, `qm_entware_complete()`, cleanup-before-`die`, three approved drive-bys |
+| `scripts/test/installer-entware-bootstrap.sh` | **new** — 22 assertions, anchors matched by text, shim executed against a stub curl |
+
+**Gate decisions (user, at the Phase 3 approval gate):**
+- **OTA reach → document-only.** `qmanager_update` always passes `--skip-packages` (`:260,464,576,651`) and `install_dependencies()` is gated behind `DO_PACKAGES` at `:3269`, so **a stranded device can never self-heal via Software Update — it needs a fresh full install.** Deliberate, not an oversight. The hoist-it-out-of-the-gate option was offered and declined.
+- **lighttpd → keep Entware parity.** RG501Q ships a vendor `/usr/sbin/lighttpd`; `:878` only tests `/opt/sbin/lighttpd`, so the Entware build installs alongside it. No code change.
+- **All three drive-bys approved:** `/opt/sbin` created in the folder loop, `install -d -m 0755` for `/usrdata/opt`, and the two misleading "no internet connection?" strings reworded.
+
+**Why the shim is `/tmp`-scoped and not `/opt/bin/wget`.** `/opt/bin` precedes `/usr/bin` in the RM520N-GL's **vendor** default PATH, not just QManager's prepends — so a persistent shim would shadow the real system wget for CGI, `downloader.sh`, and every root helper. And `uninstall_rm520n.sh:7` states `/opt` is **never** removed, so it would outlive QManager. This is the single most important constraint on this change; do not "simplify" it into `/opt/bin`.
+
+**The PATH mutation is deliberately NOT restored.** `setup_ssh_early()` runs after `install_dependencies()` and probes `command -v dropbear`; dropbear exists only at `/opt/sbin/dropbear` with no symlink anywhere, so dropping `/opt/sbin` would make it report "not installed" on every fresh install. (My first rationale for keeping it — that opkg needs PATH to find wget — was wrong and the auditor corrected it; the code comment now records the real reason.)
+
+**Two bugs were caught mid-flight, both by adversarial checking rather than by reading:**
+1. The first cut guarded the `/usr/bin/wget` symlink with `! command -v wget`. That silently no-ops: the shim's PATH still carries `/opt/bin`, so `command -v` finds the wget just installed, concludes it's "already reachable", and skips the symlink **on the exact devices that need it**. Confirmed on hardware — `/usr/bin/wget` did not exist after the first fixed run. Now tests the target directly: `[ ! -e /usr/bin/wget ]`.
+2. The shim's `--version` disclaimer read `"… — not GNU Wget"`. `downloader.sh:115` does `grep -qi 'GNU Wget'` — a **substring** match that cannot read the word "not", so the shim would have been taken for GNU wget and handed `-S`/`-T`, which it drops. Caught by the new harness before either validator reported it.
+
+**Evidence — RG501Q-EU, before → after:** Entware packages `0 → 44`; `wget` absent → `/usr/bin/wget` → GNU Wget 1.25.0; `jq`/`sudo`/`lighttpd`/`dropbear` missing → all installed; sudoers **skipped** → installed to `/opt/etc/sudoers.d` at 0440, visudo-checked; `VERSION` absent with `VERSION.pending` stranded → finalized; install stopped at Step 7 → **all 12 steps, exit 0**; CGI through lighttpd as `www-data` returns real JSON. A second run logs `Entware already bootstrapped` — poison pill gone, idempotent.
+
+**Evidence — RM520N-GL (read-only throughout, never installed to):** confirmed no-op. `command -v wget` still `/usr/bin/wget`, `/opt/bin/wget` **does not exist**, no `/tmp/qm_wget_shim`, and `qm_entware_complete()` evaluates true (rc.unslung present, 43 packages) so a future install would not re-bootstrap.
+
+**What a later task might invalidate:** nothing in T3–T10 touches `install_dependencies()`. The reverse is not true — if any later task makes OTA re-enter dependency installation, the document-only decision above must be revisited.
+
+**Carried forward, NOT fixed here:**
+- **`jq` is the real blast radius of a half-installed device.** 109 files reference it, essentially unguarded, including `cgi_base.sh:108,118,123,174,176` where `cgi_error`/`cgi_ok` are *themselves* `jq -n`. A jq-less device returns **empty bodies from all 81 CGI endpoints and cannot even report its own error**. Fixing the bootstrap fixes it in practice; the fragility remains.
+- **Latent twin of the bug we just fixed:** the curl symlink at `install_rm520n.sh:1048` still gates on `command -v curl` with the same polluted PATH. Dormant only because both known devices ship a factory `/usr/bin/curl`. A future device missing curl the way the RG501Q is missing wget hits this identically.
+- **`poller-phase-a.sh` is RED on `development`** — asserts a `prev_traffic_ts` symbol that does not exist in `qmanager_poller`. Pre-existing, unrelated, confirmed not caused by this change.
+- **`at_stack_check: no OK from ATI after 3 attempts`** on the RG501Q. The AT transport may differ on SDX55. Phase A multi-target work, not a bootstrap issue.
+- `zoneinfo-all` still fails at preflight because it runs before Entware exists; by design it "catches up on next run" (`:497-498`).
+- `/etc/qmanager/qmanager.conf.tmp`, 0-byte root:root — fingerprint of a failed cross-UID atomic rename.
 
 ### 2026-08-25 — T2 BUILT. `platform.json` is written at preflight. Both validators clean.
 
