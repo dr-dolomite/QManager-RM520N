@@ -50,8 +50,17 @@ RELEASE_NOTE.md
 
 # claude superpowers
 /.superpowers
-/docs/superpowers
 /.claude
+
+# NOTE: /docs/superpowers is deliberately NOT ignored (un-ignored 2026-08-25).
+# Plans, specs and trackers there are project records that outlive a session, and
+# ignoring them meant every update needed `git add -f` — a silent-failure path,
+# since a plain `git status` never warns that the file is untracked. Several
+# documents were being force-added one at a time while their siblings quietly
+# went untracked. Scanned before un-ignoring: no credentials (the only hits were
+# placeholder fixtures — a payload-less JWT header and "app_password": "secret");
+# MODEM_SSH_PASSWORD appears only ever as a variable NAME, never with a value.
+# Keep it that way — this directory is public.
 
 # simpleadmin source
 /simpleadmin-source
