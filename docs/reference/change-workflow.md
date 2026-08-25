@@ -3,18 +3,53 @@
 > **Applies to:** RM520N-GL (SDX65) · verified 2026-08
 > **RG501Q-EU (SDX55):** unverified — see [`platform-matrix.md`](./platform-matrix.md)
 
-Every code-change request in this repo follows a tier-routed, 6-phase flow. The main session orchestrates; the specialist agents do the work. The user holds the approval gate. This flow is the project default for code changes and supersedes the generic brainstorming / writing-plans / verification skills; test-driven development still applies inside Phase 4 wherever tests exist.
+Every code-change request in this repo follows a tier-routed, 6-phase flow. The main session orchestrates; the specialist agents do the work. The user holds the approval gate. This flow is the project default for code changes and supersedes the generic brainstorming / writing-plans / verification skills; tests are written **before** the fix inside Phase 4 — see [Tests Come First](#tests-come-first-phase-4a).
 
 **Signal each phase transition** with a header so the user always knows where we are: `**[Phase 1 — Triage]**`, `**[Phase 2 — Plan]**`, `**[Phase 3 — Approval]**`, `**[Phase 4 — Execute]**`, `**[Phase 5 — Validation]**`, `**[Phase 6 — Docs & Close]**`.
 
 ## The 6 Phases
 
 1. **Triage & Recon (orchestrator):** Classify the request into Tier 0–4 by blast radius, then fire gates **by competency** (see Gate Routing below) — not by tier alone. Tier decides *ceremony*; competency decides *which gate agent runs*. Synthesize findings.
-2. **Plan (orchestrator synthesizes, builders pre-flight):** For Tier 2+, dispatch builder agents in parallel — `cgi-endpoint-builder` (backend CGI / daemons / libs / AT flows) and/or `ui-builder` (pages / cards / hooks / types). They return scaffolding + design notes, NOT committed code. Synthesize into ONE plan: tier, agent roster, file list, build order, risks, post-flight validator list.
+2. **Plan (orchestrator synthesizes, builders pre-flight):** For Tier 2+, dispatch builder agents in parallel — `cgi-endpoint-builder` (backend CGI / daemons / libs / AT flows) and/or `ui-builder` (pages / cards / hooks / types). They return scaffolding + design notes, NOT committed code. Synthesize into ONE plan: tier, agent roster, file list, build order, risks, post-flight validator list, **and a Test Contract** (see below) for any change that will land or touch a harness.
 3. **Approval Gate (user):** Plan changes here are cheap; later changes are not.
-4. **Execute (builders):** Bottom-up for cross-layer work: poller → CGI → hook → component → alerts. Parallel where files are independent; sequential where there's a data dependency.
+4. **Execute (builders), in two steps.** **4a — harness first:** write the test from the Test Contract, run it, and commit it **red** with the failing output pasted into the commit body. **4b — then the fix:** bottom-up for cross-layer work (poller → CGI → hook → component → alerts), parallel where files are independent, sequential where there's a data dependency. The builder doing 4b may not edit the harness.
 5. **Post-Flight Validation (parallel, ONE message):** Fire every applicable validator in a single message: `busybox-portability-checker` (static audit **and** scoped on-device verification of the deployed change), `installer-safety-auditor` (verify mode, for installer/systemd/OTA changes). Loop failures back to Phase 4 — but after **2 failed validation rounds**, stop and surface to the user instead of looping further.
 6. **Docs & Close (`docs-writer`):** Update `docs/reference/`, the routing tables in `CLAUDE.md`, and `RELEASE_NOTES.md` as needed. Report summary + git status.
+
+## Tests Come First (Phase 4a)
+
+**The test is written from the plan, before the fix exists.** Not because red-green is a ritual, but because a test written after the fix can only agree with it. Measured on this repo: of the harnesses in `scripts/test/`, six were committed red first (`bd7ca4d` "fails against current impl", `7c21bec` "(red)", the two poller skeletons, the two fixture harnesses) and ten landed in the same commit as their feature or fix — including **all four installer harnesses**. The same-commit ones are not worthless, but every one of them was shaped around code that already existed.
+
+### The Test Contract (written in Phase 2, approved in Phase 3)
+
+The plan names, precisely enough to write a test against:
+
+- **Exact symbol names** — the function, the config key, the CGI action, the JSON field.
+- **The call site / wiring requirement** — where it is invoked from, and anywhere it must *not* be (a gate that would make the fix invisible on OTA, for instance).
+- **The observable assertions** — what must be true afterward, and the specific defect shape being pinned.
+
+This is what makes a text-anchored test independent. Grepping for a function name is not bias; grepping for a name the *builder invented while writing the fix* is. When the name comes from an approved plan, the test pins the spec, and a builder who renames it, re-gates it, or substitutes a weaker mechanism fails the test — which is the entire point.
+
+### Behavioural where possible, textual where it isn't
+
+Poller / CGI / parser harnesses run real fixtures through real code and are red-first **and** behavioural. Installer harnesses can only assert over source text, for two measured reasons:
+
+- `install_rm520n.sh:3693` is a bare `main "$@"` with no `BASH_SOURCE` guard, so a harness cannot source the file to call one function — it can only read it.
+- The Windows/Git Bash workstation cannot model POSIX modes: `chmod 0666 f` then `stat -c %a f` returns `644`. A "the file ends up `0644`" assertion would pass trivially here whether or not the fix exists — worse than no test.
+
+Where behaviour cannot be executed, ordering is the *only* defense against a self-agreeing test, which makes Phase 4a more important for installer work, not less.
+
+### The floor, for work that skips the plan
+
+Lite Path, skip phrases, and opportunistic fixes still owe the weaker version: **prove the harness fails against the pre-fix tree** — `git show HEAD:<file> > scratch/...` and run it there — and say so in the commit body with the failure count. That rules out a vacuous test even though it cannot rule out a test shaped by the code (`cbf7561`/F13 is the reference example, and stays as written rather than being retrofitted: rewriting it after the fact would hide that history, not repair it).
+
+### A red commit blocks nothing
+
+`bun run package` gates on `run-all.sh` only (syntax + CRLF). The deep harnesses run through `run-harnesses.sh` / `bun run test:harness`, which nothing gates on automatically — so a knowingly-red harness sitting on a feature branch for one commit cannot jam a build.
+
+### Validation is still Phase 5
+
+None of this moves the validators. `busybox-portability-checker` and `installer-safety-auditor` still run **after** the fix, on the finished change, in one parallel message.
 
 ## Tier Routing
 
@@ -147,6 +182,7 @@ A tracker or plan document is read **at the start of every session that touches 
 - **Tier is decided once, up-front.** If tempted to skip the recon or a validator mid-flow, re-triage rather than skip.
 - **`modem-investigator` is read-only and fails loud.** If recon reveals the change needs a write action on live state, or surfaces a broken invariant, it halts and reports — the main thread re-routes through the builders + validators.
 - **The Phase 1 `installer-safety-auditor` gate fails loud.** BLOCKED halts the work before code is written. This is cheap; rework is not.
+- **The harness is committed red before the fix is written.** Phase 4a precedes 4b, the anchors come from the approved Test Contract, and the builder writing the fix does not edit the harness. Work that skipped the plan owes the floor instead: the harness proven failing against `git show HEAD:<file>`, with the failure count in the commit body.
 - **Post-flight validators always go out in a single parallel message.** Never serially.
 - **Validate CGI as `www-data`, never as root.** On-device CGI checks go through lighttpd (`curl http://127.0.0.1/cgi-bin/...`) or `sudo -u www-data` — root-shell testing with `_SKIP_AUTH=1` has masked real permission bugs before.
 - **No in-flight reboot.** The app runs on the modem itself — `reboot` / `AT+CFUN=1,1` mid-request kills the in-flight HTTP response and the device. Reboots are deferred (dialog + persistent banner after the response is written); validators reject inline reboots in a CGI response path.
