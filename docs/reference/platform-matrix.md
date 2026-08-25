@@ -93,6 +93,38 @@ Everything still reading `*unverified*` was not covered by either probe.
 `inferred` rows with the same suspicion as an unverified one: they are reasoning
 about the device, not observation of it.
 
+## ⚠️ The recurring mistake: "does the NAME resolve?" vs "does the THING behave?"
+
+**Read this before adding a third device.** Three separate defects found while
+bringing up the second one share a single mistake — a guard that asks whether a
+command *name resolves* when what actually matters is whether the thing behind
+that name *implements the interface the code assumes*:
+
+| Guard | What it asked | What mattered | Status |
+| --- | --- | --- | --- |
+| `! command -v wget` | is there a `wget`? | does anything on this device download over HTTP? BusyBox 1.29.3 ships **no `wget` applet** | fixed in `219f3e6` |
+| `command -v timeout` | is there a `timeout`? | which of two incompatible CLIs does it accept? BusyBox always provides the applet, so this **always succeeded** and the Entware package was never installed on either device | fixed in `26f5c31` |
+| `mountpoint -q /usrdata` | *(implicitly)* is `/usrdata` a mount? | `mountpoint` is **absent** on the RG501Q-EU, so the shell's exit **127** is read as the boolean "not a mount" | **open — F6** |
+
+`command -v` answers a question about the **filesystem**. Nearly every guard that
+uses it wants an answer about **behaviour**. On a one-device fleet the two happen
+to coincide, which is why none of these surfaced for years: the RM520N-GL has a
+`wget`, has a positional `timeout`, and has `mountpoint`, so "the name resolves"
+and "the thing behaves" gave the same answer every time.
+
+The rules that fall out of it:
+
+- **Probe behaviour, not presence.** Run the tool the way the code will and check
+  the result — `timeout 1 true` and look for 127, not `command -v timeout`.
+  `qm_timeout` in `scripts/usr/lib/qmanager/platform.sh` is the reference
+  implementation.
+- **Never read a missing command's exit 127 as a value.** `127` from the shell
+  means "I could not run this", which is not `false`. Separate the two: check the
+  command exists *and* branch on its real exit status.
+- **A version number is not an interface.** BusyBox 1.29.3 vs 1.31.1 differ in
+  `timeout`'s *argument position*, which no applet list and no flag battery can
+  see. Only running it can.
+
 ---
 
 ## Boot & time
@@ -141,6 +173,11 @@ about the device, not observation of it.
 | `/bin/sh`, `tr`, `lighttpd` | *unverified* as a set (all three are used repo-wide) | **Present** — `/bin/sh`, `/usr/bin/tr`, `/usr/sbin/lighttpd` | RG501Q-EU: adb 2026-08-25 — stock firmware |
 | `curl` | *unverified* | **Stock at `/usr/bin/curl`** — 7.61.0 (`arm-oe-linux-gnueabi`), libcurl/7.61.0 GnuTLS/3.6.4 zlib/1.2.11 libidn2/2.0.5, Release-Date 2018-07-11 | RG501Q-EU: adb 2026-08-25 — stock firmware |
 | ⚠️ `wget` | **Present** at `/usr/bin/wget` — a BusyBox applet symlink, so it exists because 1.31.1 was built *with* the applet | ⚠️ **Absent entirely** — BusyBox 1.29.3 was built **without** the `wget` applet, and no standalone `wget` binary ships. `curl` is the only downloader. **Post-install**, QManager supplies one: Entware `wget-ssl` (GNU Wget 1.25.0) at `/opt/bin/wget`, symlinked to `/usr/bin/wget` | RM520N-GL: on-device 2026-08-25 (post-fix no-op check). RG501Q-EU: adb 2026-08-24 and 2026-08-25 — stock firmware; the post-install state from a live installer run 2026-08-25 |
+| ⚠️ `timeout` CLI form | BusyBox 1.31.1 — **positional only**: `timeout SECS PROG`. `timeout -t 2 echo hi` → `invalid option -- 't'`, exit 1 | ⚠️ BusyBox 1.29.3 — **`-t` only**: `timeout -t SECS PROG`. `timeout 2 echo hi` → `can't execute '2'`, exit **127**, and the command **never runs** | on-device 2026-08-25, both devices, behaviour battery · see the `timeout` section below |
+| `/opt/bin/timeout` (Entware `coreutils-timeout`) | **Absent** — the package was never installed here either (see the detector note below) | **Present as of 2026-08-25**, installed by the fixed installer. A symlink to `/opt/libexec/timeout-coreutils`; accepts the positional form and returns the GNU 124 on a deadline kill | on-device 2026-08-25 (RM520N-GL check strictly read-only) |
+| `mountpoint` | Present at `/bin/mountpoint` | ⚠️ **Absent entirely** — no BusyBox applet, no standalone binary. Open defect **F6** (see below) | on-device 2026-08-25 |
+| `getent` | **Absent** | **Absent** | on-device 2026-08-25, both devices |
+| `printf %q` | **Fails** | **Fails** | on-device 2026-08-25, both devices — not a divergence, just never available |
 | `lighttpd` | Entware only, `/opt/sbin/lighttpd` — no vendor build | **Two of them.** Vendor `/usr/sbin/lighttpd` ships in the stock image; QManager still installs and uses the Entware build at `/opt/sbin/lighttpd`. The vendor binary is left in place, unused | RG501Q-EU: adb 2026-08-24 · `rg501q-bringup.md` — stock firmware |
 | `/opt/sbin` | Created by the `entware-opt` package | **Does not exist** before Entware is bootstrapped; the installer now creates it up front (`dropbear.service` hardcodes `ExecStart=/opt/sbin/dropbear`) | RG501Q-EU: adb 2026-08-25 with `/opt` empty — **post-reset / pre-bootstrap state** |
 | CA bundle | *unverified* | `/etc/ssl/certs/ca-certificates.crt`, 200061 bytes, dated Feb 21 2025 | RG501Q-EU: adb 2026-08-25 — stock firmware |
@@ -151,6 +188,7 @@ about the device, not observation of it.
 | `stdbuf` | Absent | *unverified* | on-device · `qmanager-independence.md` |
 | Vendor default `PATH` | `/opt/usr/sbin:/opt/usr/bin:/opt/sbin:/opt/bin:/usr/sbin:/usr/bin:/sbin:/bin` — **`/opt/bin` precedes `/usr/bin`** in the shipped login environment, not merely in QManager's own prepends | Assumed identical; *unverified* | RM520N-GL: on-device 2026-08-25 |
 | `PATH` inside systemd units | `/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin` — **no `/opt/bin` at all**, because no shipped unit sets `Environment=PATH=` | Assumed identical; *unverified* | RM520N-GL: on-device 2026-08-25 |
+| ⚠️ `PATH` delivered to a `sudo -n` root helper | Assumed identical; *unverified* | **`/bin:/usr/bin`** when a `www-data` CGI invokes a helper as `setsid sudo -n …` — **no `/opt/bin`**. Installing an Entware binary therefore does **not** make it reachable from the privileged path; resolve by absolute path | RG501Q-EU: on-device 2026-08-25 as `www-data` |
 
 ### ⚠️ No `wget` means no Entware — the bootstrap chicken-and-egg
 
@@ -206,6 +244,98 @@ against the Entware lighttpd, and lighttpd refuses to load a module whose versio
 does not match the server's (`plugin-version doesn't match`). Pointing QManager at
 the vendor binary would mean sourcing a matching module set for it on every device.
 The vendor binary stays on disk, unused.
+
+### ⚠️ `timeout` — the second load-bearing applet divergence
+
+**Short version: BusyBox changed `timeout`'s command line in release 1.30, the two
+devices sit either side of that change, and no single literal invocation works on
+both.** Before 1.30 the seconds value was an *option* (`-t SECS`); from 1.30 it is
+the *first positional argument* and `-t` was removed.
+
+| Invocation | RG501Q-EU (BusyBox 1.29.3) | RM520N-GL (BusyBox 1.31.1) |
+| --- | --- | --- |
+| `timeout 2 echo hi` | `can't execute '2'` → exit **127**, no output | works |
+| `timeout -t 2 echo hi` | works | `invalid option -- 't'` → exit 1 |
+
+The 127 case is the dangerous one: BusyBox 1.29.3 tries to *exec the number* as
+the program, so the command being wrapped **never runs at all** and the caller
+sees a failure that looks like the command's own. Two real misdiagnoses came from
+this, both on a device where nothing was actually wrong:
+
+- the installer's `at_stack_check` reported "AT device not responding" on a
+  healthy AT stack;
+- `qmanager_health_check` reported DNS as a hard failure while `nslookup`
+  resolved the same name correctly a second later.
+
+**The root cause of the root cause was the detector, not the syntax.**
+`install_rm520n.sh` guarded its `coreutils-timeout` install with
+`command -v timeout`, which always succeeds — BusyBox ships the applet on both
+devices — so the Entware package was **never installed on either device**. See
+[the recurring mistake](#️-the-recurring-mistake-does-the-name-resolve-vs-does-the-thing-behave)
+above.
+
+The fix is `qm_timeout SECS COMMAND [ARGS...]`. Callers always write the
+coreutils (positional) form and the wrapper dispatches. Its three rules, and why
+each one is not optional:
+
+1. **Probe behaviour, once, at load** — run `timeout 1 true` and check for exit
+   127. 127 means this build could not exec `1` as a program, i.e. it wants the
+   legacy `-t` form. Never `command -v`.
+2. **Resolve by absolute path** (`/opt/bin/timeout`, then `/usr/bin/timeout`),
+   never `$PATH` — a root helper invoked as `setsid sudo -n …` receives
+   `PATH=/bin:/usr/bin` (measured, see the table above), so a `$PATH` lookup
+   would miss an Entware `timeout` for exactly the caller that needs it.
+3. **Normalise a deadline kill to exit 124.** GNU coreutils hardcodes 124 when
+   *it* enforces the deadline; BusyBox just relays the killed child's wait status
+   (SIGTERM → 128+15 = **143**). Because neither device shipped
+   `coreutils-timeout`, `qmanager_health_check`'s `rc = 124` "DNS timed out"
+   branch had been dead on **both** devices for its entire existence. Do not
+   "simplify" the remap away.
+
+`qm_timeout` lives canonically in `scripts/usr/lib/qmanager/platform.sh`, with two
+deliberate local copies (`install_rm520n.sh`, `qmanager_health_check`) pinned
+against drift by `scripts/test/timeout-portability.sh`. The contract and the
+reasons for the copies are in
+[`qmanager-independence.md`](./qmanager-independence.md#the-timeout-contract).
+
+### The applet census — done once, so nobody repeats it
+
+A full `busybox --list` diff between the two builds, plus a behaviour battery over
+**every flag QManager actually passes**, ran 2026-08-25 on both devices. The
+result is narrower than the version gap suggests:
+
+- **Availability differs by exactly four applets**: `wget` and `mountpoint` (both
+  have call sites and both are covered above), plus `i2ctransfer` and `ts` (**zero
+  call sites** — noted only so a future diff does not look unexplained).
+- **Every flag QManager passes behaves identically on both builds.** `timeout` is
+  not on that list because the divergence is in *argument position*, not a flag.
+- `printf %q` fails on both — not a divergence.
+- `grep -P`, `find -newermt`, `sort -V` and `readlink -f` have **zero call sites**,
+  so their portability was not investigated. Adding a first call site means
+  probing them first.
+
+> ℹ️ NOTE: The census covers applet *availability* and *flag* behaviour. It does
+> not cover argument-*position* changes like `timeout`'s, which a flag battery
+> cannot see. A third device needs the behaviour probe, not the applet list.
+
+### F6 (open) — the `mountpoint` guard misreads a missing command
+
+`install_speedtest_cli()` in `scripts/install_rm520n.sh` guards its work with:
+
+```sh
+if ! mountpoint -q /usrdata 2>/dev/null; then
+    warn "/usrdata is not a mounted filesystem — skipping speedtest CLI install"
+    return 0
+fi
+```
+
+On the RG501Q-EU `mountpoint` does not exist, so the shell returns **127** — "no
+such command" — and the guard reads that as the boolean "not a mount", silently
+skipping the Speedtest CLI install on a device where `/usrdata` **is** a mount.
+This is the same family as the `wget` and `timeout` detectors, with one extra
+step: it treats a missing command's exit 127 as meaningful data. **Still open**,
+tracked as F6; recorded here so the availability fact and the defect stay
+together.
 
 ## AT transport
 

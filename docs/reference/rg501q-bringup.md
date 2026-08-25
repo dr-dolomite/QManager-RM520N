@@ -62,6 +62,9 @@ Probes: `cat /proc/cmdline`, `cat /proc/mounts`, `df -h`, `cat /proc/mtd`,
 | `openssl` | /usr/bin/openssl | stock |
 | `bash` | /bin/bash **4.4.23** | RM520N-GL: 3.2.57 (this is NEWER) |
 | `busybox` | /bin/busybox **v1.29.3** | RM520N-GL: 1.31.1 (this is OLDER) |
+| ⚠️ `timeout` | present, but **`-t SECS` form only** | BusyBox 1.29.3 predates the 1.30 CLI change. `timeout 2 echo hi` → `can't execute '2'`, exit **127**, command never runs. RM520N-GL (1.31.1) accepts *only* the positional form. See below |
+| `mountpoint` | **MISSING** | present as `/bin/mountpoint` on RM520N-GL. Open defect **F6** — `install_speedtest_cli()` reads the resulting exit 127 as "not a mount" |
+| `getent` | **MISSING** | also missing on RM520N-GL — not a divergence, but it made `qmanager_health_check`'s getent DNS arm unreachable everywhere |
 | `tar` `gzip` `unzip` | present | |
 | `systemd` | **239**, pid 1 | `/lib/systemd/system` present |
 | `wget` | **MISSING** | BusyBox 1.29.3 has no `wget` applet. **This is the load-bearing fact** — it is what killed the Entware bootstrap; see below |
@@ -315,6 +318,38 @@ Every one of these fetches from GitHub and therefore fails behind the GFW:
 
 So a China user cannot **install** and cannot **update**. Entware, if reachable,
 is the smaller half of the problem.
+
+## `timeout` broke every timeout-bounded call on this device (fixed 2026-08-25)
+
+Because BusyBox 1.29.3 tries to **exec the seconds value as a program**, every
+`timeout N cmd` call in QManager exited 127 with the wrapped command never having
+run. Two failures that looked like device faults but were not:
+
+- the installer's `at_stack_check` reported "AT device not responding" — the AT
+  stack was healthy;
+- `qmanager_health_check` reported DNS as a hard failure while `nslookup`
+  resolved the same name correctly a second later.
+
+Fixed in `26f5c31` by `qm_timeout`, which probes behaviour instead of names.
+Device facts established in the same session:
+
+- **`/opt/bin/timeout`** — Entware `coreutils-timeout` is now installed here (a
+  symlink to `/opt/libexec/timeout-coreutils`). It was never installed on *either*
+  device before, because the installer gated it on `command -v timeout`, which
+  BusyBox always satisfies. The RM520N-GL still has none.
+- **`PATH` in a `sudo -n` root helper is `/bin:/usr/bin`** for `www-data` here —
+  **no `/opt/bin`**. Installing the Entware binary is not enough to make it
+  reachable; `qm_timeout` resolves by absolute path for this reason.
+- Verified on this hardware through **both** probe branches: as `www-data` before
+  the package existed → `FORM=legacy`, DNS `rc=0` with a real answer (was
+  `rc=127`), overrun `rc=124` (was 143); after the package landed →
+  `FORM=positional`, `BIN=/opt/bin/timeout`, still resolved correctly as
+  `www-data`. Full packaged install exited 0 with "at_stack_check: AT stack
+  responding".
+
+Mechanism, the applet census, and the shared "name resolves vs thing behaves"
+lesson: [`platform-matrix.md`](./platform-matrix.md). The wrapper's contract:
+[`qmanager-independence.md`](./qmanager-independence.md#the-timeout-contract).
 
 ## Current runtime state (2026-08-24)
 

@@ -605,6 +605,63 @@ The language-pack store and the older APN sidecars are the same bug class: `apn_
 
 ---
 
+## The `timeout` contract
+
+**Short version: never call `timeout` directly in QManager shell code — call
+`qm_timeout SECS COMMAND [ARGS...]`.** BusyBox moved the seconds value from an
+option (`-t SECS`, ≤1.29) to the first positional argument (≥1.30), and the two
+supported devices straddle that release, so no single literal invocation works on
+both. Per-device behaviour, the two misdiagnoses it caused, and the applet census:
+[`platform-matrix.md`](platform-matrix.md).
+
+- **Canonical implementation**: `scripts/usr/lib/qmanager/platform.sh`. Callers
+  always write the coreutils (positional) form; the wrapper dispatches to whatever
+  the resolved binary accepts.
+- **⚠️ Detect the interface, not the name.** The old guard was
+  `command -v timeout`, which always succeeds because BusyBox ships the applet —
+  so the `coreutils-timeout` package it gated was **never installed on either
+  device**. `qm_timeout` instead probes *behaviour* once at load: run
+  `timeout 1 true` and check for exit **127**, which means this build could not
+  exec `1` as a program and therefore wants the legacy `-t` form. Generalize the
+  rule: **never detect a tool with `command -v` when what matters is which
+  interface it implements.**
+- **⚠️ Resolve Entware binaries by absolute path when the caller may be a root
+  helper.** A helper invoked as `setsid sudo -n …` from a `www-data` CGI receives
+  `PATH=/bin:/usr/bin` — **no `/opt/bin`** (measured 2026-08-25). `qm_timeout`
+  tries `/opt/bin/timeout` then `/usr/bin/timeout` by literal path. Installing an
+  Entware binary is *not* sufficient to make it reachable from the privileged
+  path.
+- **⚠️ The 143→124 remap is load-bearing — do not "simplify" it away.** GNU
+  coreutils `timeout` hardcodes exit **124** when it enforces the deadline;
+  BusyBox relays the killed child's wait status instead (SIGTERM → 128+15 =
+  **143**). Since neither device shipped `coreutils-timeout`,
+  `qmanager_health_check`'s `rc = 124` "DNS timed out" branch was dead on **both**
+  devices for its entire existence. The remap is deliberately scoped *inside*
+  `qm_timeout` only — it is not a codebase-wide "143 means timeout" rule.
+- **Fail open, never unbounded.** If no usable binary is found, `qm_timeout`
+  bounds the command itself with a background PID and a `kill -TERM` loop. An
+  unbounded call inside a `set -e` installer would hang the whole install, which
+  is the exact hazard `timeout` exists to prevent.
+- **Maintenance hazard — three copies, same as `downloader.sh`.** The canonical
+  lib plus local copies in `install_rm520n.sh` (runs *before* the libs are
+  deployed, and `--frontend-only` never deploys them while still running the
+  verification code that calls it) and `qmanager_health_check` (redeployed by OTA
+  independently of the lib, so a device mid-upgrade can have a `platform.sh` that
+  predates `qm_timeout`). **Fixes must be applied to all three.**
+  `scripts/test/timeout-portability.sh` fails the build if they diverge — it
+  compares the code with comments stripped, so comments may abbreviate but logic
+  may not.
+- **`getent` is absent on BOTH devices**, so `qmanager_health_check`'s
+  `command -v getent` DNS arm was unreachable everywhere and has been removed.
+  `nslookup` is the only live DNS path. Worth knowing before "fixing" a branch
+  that has never executed on hardware.
+- **`platform.sh`'s load guard must stay `${_PLATFORM_LOADED:-}`.** With a bare
+  `$_PLATFORM_LOADED` the lib's *first line* aborts any caller running `set -u`
+  (`qmanager_health_check` does), and a `. lib || { fallback; }` guard cannot
+  rescue that — the shell is already gone.
+
+---
+
 ## Supplemental assets
 
 - **Speedtest CLI**: Downloaded from `install.speedtest.net` (package: `ookla-speedtest-1.2.0-linux-armhf.tgz`) during install. Placed at `/usrdata/root/bin/speedtest` with a `/bin/speedtest` symlink. CGI scripts discover it via `command -v speedtest`. Non-fatal if the download fails.
