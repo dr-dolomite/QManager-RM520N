@@ -57,7 +57,10 @@ step "Copying backend scripts..."
 mkdir -p "$STAGING_DIR/scripts"
 for item in "$SCRIPTS_DIR"/*; do
   name="$(basename "$item")"
-  case "$name" in install_rm520n.sh|uninstall_rm520n.sh) continue ;; esac
+  # `test` holds workstation-only harnesses (run via scripts/test/run-harnesses.sh).
+  # Nothing on-device executes them — the only repo reference is a comment in
+  # platform.sh — so shipping them was inert dead weight in the tarball.
+  case "$name" in install_rm520n.sh|uninstall_rm520n.sh|test) continue ;; esac
   cp -r "$item" "$STAGING_DIR/scripts/$name"
 done
 
