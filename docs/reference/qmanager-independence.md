@@ -660,6 +660,34 @@ both. Per-device behaviour, the two misdiagnoses it caused, and the applet censu
   (`qmanager_health_check` does), and a `. lib || { fallback; }` guard cannot
   rescue that — the shell is already gone.
 
+### Known open defect: the health check cannot finish a run on the RG501Q-EU
+
+**Short version: one of the health check's own tests hangs forever, so the
+Health Check page never completes on that device.** Filed 2026-08-25 as **F7**,
+unfixed at the time of writing.
+
+`t_perm_tmp_writable` in `qmanager_health_check` invokes
+`su -s /bin/sh -c … www-data` to prove `/tmp` is writable by the web user. `su`
+here means "switch user" — it normally runs as root and drops down. But the
+health check is *already* running as `www-data` by the time that test executes:
+`system/health-check/run.sh` launches it with `setsid sudo -n`, so the test ends
+up asking `www-data` to `su` to `www-data`, recursively, and that stalls
+indefinitely rather than erroring.
+
+Two consequences worth knowing before you touch this file:
+
+- **Any end-to-end run of the health check on an RG501Q-EU hangs**, so it cannot
+  be used to validate anything else on that device. Exercise individual test
+  functions instead — extract the one you need and run it as `www-data` — which
+  is how the `timeout` fix above was verified.
+- **It is not known whether this is device-specific.** It has not been checked on
+  the RM520N-GL. That check is the cheap first step and decides whether this is a
+  portability defect or a universal one that simply never got noticed, so do it
+  before designing a fix.
+
+Unrelated to the `timeout` contract above — it was found while validating that
+change, not caused by it.
+
 ---
 
 ## Supplemental assets

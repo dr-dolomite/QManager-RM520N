@@ -105,6 +105,7 @@ that name *implements the interface the code assumes*:
 | `! command -v wget` | is there a `wget`? | does anything on this device download over HTTP? BusyBox 1.29.3 ships **no `wget` applet** | fixed in `219f3e6` |
 | `command -v timeout` | is there a `timeout`? | which of two incompatible CLIs does it accept? BusyBox always provides the applet, so this **always succeeded** and the Entware package was never installed on either device | fixed in `26f5c31` |
 | `mountpoint -q /usrdata` | *(implicitly)* is `/usrdata` a mount? | `mountpoint` is **absent** on the RG501Q-EU, so the shell's exit **127** is read as the boolean "not a mount" | **open — F6** |
+| `! command -v curl` | is a `curl` reachable *right now*? | is it reachable from the PATHs the **callers** get? The installer prepends `/opt/bin` to its own PATH, so this finds Entware's curl, concludes "already reachable", and skips the `/usr/bin/curl` symlink — leaving it unreachable to CGI and `sudo -n` helpers, whose PATH has no `/opt/bin` | **open — F1**, dormant: both known devices ship a factory `/usr/bin/curl` |
 
 `command -v` answers a question about the **filesystem**. Nearly every guard that
 uses it wants an answer about **behaviour**. On a one-device fleet the two happen
