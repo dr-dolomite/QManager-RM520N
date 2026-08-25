@@ -296,18 +296,23 @@ above is exactly that situation).
 | --- | --- | --- | --- |
 | Core | Single-core ARMv7-A Cortex-A7 @ ~1.2 GHz | *unverified* | on-device · `docs/BACKEND.md:1647` |
 | RAM | 178 MB + ~91 MB zram swap | *unverified* | on-device |
-| Float ABI | `vfp vfpv3 vfpv4 neon` in `/proc/cpuinfo` — armhf hard-float runs natively | *unverified* | on-device `/proc/cpuinfo` |
+| Float ABI | `vfp vfpv3 vfpv4 neon` in `/proc/cpuinfo` — armhf hard-float runs natively | **Same** — `/proc/cpuinfo` `Features:` line carries `vfp vfpv3 vfpv4 neon`; hard-float binaries are safe | RM520N-GL: on-device `/proc/cpuinfo`. RG501Q-EU: adb 2026-08-25 (`b7e3d6f1`) — confirmed live by running the hard-float `atcli_smd11` (`e_flags 0x5000400`, VFP bit set) via `atcli_smd11 'AT'`, which returned the command echo + `OK`, exit 0, no `SIGILL` |
 | `aarch64` | Will not run | *unverified* | inferred from ARMv7-A |
 | glibc | 2.31 | *unverified* | on-device |
 | Kernel | `5.4.210-perf` | **`4.14.206`** PREEMPT | RM520N-GL: on-device 2026-05-09. RG501Q-EU: adb 2026-08-24 · `rg501q-bringup.md` — stock firmware |
 | `uname -m` | `armv7l` | **`armv7l`** | RG501Q-EU: adb 2026-08-24 — stock firmware |
 | Entware target | `armv7sf-k3.2` | **`armv7sf-k3.2`** — same as RM520N-GL; the device's own `/opt/etc/opkg.conf` carries `arch armv7-3.2 160`, matching the bundled `.ipk` suffix | RG501Q-EU: adb 2026-08-24, plus a successful 44-package bootstrap 2026-08-25 |
 
-**Float ABI is the highest-consequence unverified row.** SDX55 is a genuinely
-different SoC, not a revision of SDX65. Bundling a hard-float binary for
-RG501Q-EU on the assumption that VFP support carries over risks a hard `SIGILL`
-at runtime — a crash, not a degradation. Probe `/proc/cpuinfo` before shipping
-any native binary to the new target.
+**Float ABI was the highest-consequence unverified row — resolved 2026-08-25.**
+SDX55 is a genuinely different SoC, not a revision of SDX65, so VFP support
+could not be assumed to carry over: a hard-float binary on a CPU without VFP
+crashes with `SIGILL` at runtime rather than degrading gracefully. `atcli_smd11`
+(already present at `/usr/bin/atcli_smd11` on this device, byte-identical to
+`dependencies/atcli_smd11` — a leftover from the pre-reset install, since
+`/usr/bin` lives on the rootfs that the factory reset didn't touch) is a
+hard-float build, and it ran cleanly. Still probe `/proc/cpuinfo` before
+shipping any *new* native binary to this target — this result confirms the SoC
+has VFP, not that every future binary's other assumptions hold.
 
 ---
 
@@ -350,7 +355,9 @@ Each becomes a filled cell above once measured:
 - ~~Does the rootfs `ro` / `ubi2_0` volume split match?~~ **Answered 2026-08-25:
   yes** — and `ubi2_0` additionally backs `/opt`, which is why a factory reset
   wipes the whole Entware tree.
-- Does the CPU expose VFP, so hard-float binaries are safe?
+- ~~Does the CPU expose VFP, so hard-float binaries are safe?~~ **Answered
+  2026-08-25: yes** — `/proc/cpuinfo` carries `vfp vfpv3 vfpv4 neon`, confirmed
+  live by running the hard-float `atcli_smd11` binary.
 - Does the device `jq` have ONIGURUMA, and does BusyBox `flock` support the
   bare-FD form? (Still open — but `jq` now **exists** on the RG501Q-EU as of the
   2026-08-25 bootstrap, so both are finally testable.)
