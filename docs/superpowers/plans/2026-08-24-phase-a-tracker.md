@@ -180,11 +180,22 @@ Device reconnected by the user and re-probed 2026-08-25 08:32–08:36 (+08:00; d
 | 4 | `/etc/qmanager/VERSION` | `v0.1.14-draft` | `v0.1.14-draft` (matches `package.json`) | ✅ match |
 | 5 | **`platform.json`** | **ABSENT** | **ABSENT — re-verified twice, 08:32 and 08:36** | ✅ **the gate's load-bearing pre-condition holds** |
 | 6 | `hw_profile.sh` on device | absent | **PRESENT, dormant** — see below | ⚠ **the brief was wrong** |
-| 7 | G2 counter advance | must move | **+832 rx / +35 616 tx over 235 s**, 3 monotonic samples | ✅ **live** |
+| 7 | G2 counter advance | must move | **+1 792 rx / +64 524 tx over 424 s**, 4 monotonic samples | ✅ **live** |
 | 8 | `jq` | — | `/opt/bin/jq`, **1.7.1** | ✅ present |
 | 9 | `tr` | — | BusyBox **1.31.1**, `\000-\037` range class works | ✅ usable |
 
-**G2 detail — the counter is provably following the kernel, not replaying a cache.** Three samples: `accumulated_rx` 205162 → 205810 → 205994, `accumulated_tx` 8216984 → 8244612 → 8252600, strictly monotonic with no frozen sample. Cross-validated against `/proc/net/dev rmnet_ipa0` at the third read: rx `206518` / tx `8253772` are **byte-identical** to that sample's `prev_ipa_rx` / `prev_ipa_tx`, and the accumulator deltas track the `prev_ipa_*` deltas exactly. *Scope note recorded by the investigator: the span is 3 m 55 s, at the short end of "several minutes" — judged decisive given exact kernel agreement.*
+**G2 detail — the counter is provably following the kernel, not replaying a cache.** **Four samples over 424 s (7 m 04 s)** of device-clock time, strictly monotonic with no flat interval:
+
+| # | device UTC | `last_update_ts` | `accumulated_rx` | `accumulated_tx` |
+| --- | --- | --- | --- | --- |
+| 1 | 00:32:24 | 1787617943 | 205162 | 8216984 |
+| 2 | 00:35:27 | 1787618125 | 205810 | 8244612 |
+| 3 | 00:36:19 | 1787618178 | 205994 | 8252600 |
+| 4 | 00:39:28 | 1787618367 | 206954 | 8281508 |
+
+Intervals: 1→2 (182 s) **+648 / +27 628** · 2→3 (53 s) **+184 / +7 988** · 3→4 (189 s) **+960 / +28 896** · **total 1→4 (424 s): +1 792 rx / +64 524 tx.**
+
+Cross-validated against `/proc/net/dev rmnet_ipa0`: at sample 3 the kernel's rx `206518` / tx `8253772` are **byte-identical** to that sample's `prev_ipa_rx` / `prev_ipa_tx`, and `Δprev_ipa` equals `Δaccumulated` exactly in every interval. `last_reset_ts: 0` and `modem_reset_count: 0` held constant throughout; `qmanager-poller` was `active` at every sample. **The frozen-but-plausible failure mode is decisively excluded.** *(An earlier 3-sample / 235 s reading was superseded by this one; the investigator had flagged that window as short and extended it.)*
 
 ##### ⚠ BASELINE CORRECTION — `hw_profile.sh` IS on the device. T1's gate row is stale.
 
@@ -236,7 +247,7 @@ Remaining for the fuller proof, whose inputs are now settled: BusyBox 1.31.1 `tr
 
 `qmanager_health_check:563-568` confirmed (`t_cfg_qmanager_dir()` → `ls -la /etc/qmanager >> "$OUTPUT_FILE"`, `echo "pass|exists"`), registered at `:891` as `cfg.qmanager_dir`, streamed by `…/system/health-check/download.sh` (auth-gated, `job_id` regex-validated).
 
-**Tightening finding:** the bundle collector does **not** list `/usr/lib/qmanager` anywhere. So `ls -la /etc/qmanager` is the **sole** user-visible surface for this change — the 24-entry listing captured at 08:32:43 is the complete before-image, and the dormant `hw_profile.sh` is invisible to users. Directory mode measured `drwxr-xr-x www-data:www-data` (**755, not the `0777` in an older memory note**); `active_scenario` is the lone `root:root` file.
+**Tightening finding:** the bundle collector does **not** list `/usr/lib/qmanager` anywhere. So `ls -la /etc/qmanager` is the **sole** user-visible surface for this change — the full listing captured at 08:32:43 is the complete before-image (**use the verbatim listing, not an entry count** — successive reports counted it as both 23 and 24 depending on whether `.`/`..` were included), and the dormant `hw_profile.sh` is invisible to users. Directory mode measured `drwxr-xr-x www-data:www-data` (**755, not the `0777` in an older memory note**); `active_scenario` is the lone `root:root` file.
 
 #### Invariant re-assertion
 
