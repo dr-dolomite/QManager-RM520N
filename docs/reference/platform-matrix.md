@@ -185,7 +185,8 @@ The rules that fall out of it:
 > write. This minimal systemd build reads only `/etc/systemd/system/` when
 > answering `is-enabled`, so it reports `disabled` for units it then starts on
 > every boot. Confirmed on **both** devices; check the `.wants` symlink, not
-> `is-enabled`.
+> `is-enabled`. Tracked as **F12** below, including why moving the symlinks into
+> `/etc/systemd/system/` is not the fix.
 
 ## Filesystem & partitions
 
@@ -378,27 +379,226 @@ step: it treats a missing command's exit 127 as meaningful data. **Still open**,
 tracked as F6; recorded here so the availability fact and the defect stay
 together.
 
-### F8 (open) — `rc.unslung.service` races QManager's own `lighttpd.service` for port 80, and can win
+### F8 (fixed 2026-08-25, `952309e`) — Entware's `S80lighttpd` can take port 80 before QManager's own server does
 
-**Reproduced on the RG501Q-EU, 2026-08-25, immediately after a routine `AT+CFUN=1,1` reboot** (triggered for an unrelated LAN-gateway-IP change — see [`lan-gateway-ip.md`](./lan-gateway-ip.md)). Symptom: the web UI did not load on either HTTP or HTTPS after the device came back up.
+**Short version: two different lighttpd web servers are installed on the device, and
+Entware's copy decides whether to start by asking "is any process named `lighttpd`
+running right now?". On a boot where the answer happens to be no, Entware's server
+binds port 80 first, serving an empty folder with no HTTPS — so the QManager UI is
+unreachable until someone intervenes over SSH.** The fix clears the executable bit
+on Entware's start script so it can never run. Validated on the RG501Q-EU across
+three reboots; **not yet verified on the RM520N-GL** (see below).
 
-`install_rm520n.sh` (~line 1046) writes a generic `rc.unslung.service` whose only job is `ExecStart=/opt/etc/init.d/rc.unslung start` — Entware's own init-script runner, which unconditionally starts **every** `S*` script under `/opt/etc/init.d/`, including `S80lighttpd`. That script launches lighttpd with the **vendor-default** Entware config (`/opt/etc/lighttpd/lighttpd.conf`, empty `/opt/share/www/` docroot, port 80 only, no TLS) — a completely different instance from QManager's own `lighttpd.service` (`ExecStart=/opt/sbin/lighttpd -D -f /usrdata/qmanager/lighttpd.conf`, the real docroot, HTTPS on 443, the `/cgi-bin/` handler).
+> ⚠️ **The original filing of this defect described the wrong mechanism.** It said
+> the two servers "race as peers for port 80" on "every boot", a coin flip. That is
+> not what happens, and it was `n=1` — a single observed failure, generalised. The
+> corrected mechanism is below; the corrected frequency is **intermittent**, with a
+> measured `n=2` (one loss, one win, byte-identical config on disk).
 
-Both units are `WantedBy=multi-user.target` with no ordering or `Conflicts=` between them, so every boot is a race for the same port 80:
+#### The actual mechanism — a process-name check, not a port collision
 
-- **Loser:** `lighttpd.service`'s own `ExecStart` fails to bind (port already taken) and exits; **`systemctl status` still misreports the winning imposter as "active (running)"** because the CGroup happens to show the imposter's PID.
-- **Confirmed on-device symptom of the loser state:** `curl http://127.0.0.1/` → `403 Forbidden` (the empty default docroot), `curl https://127.0.0.1/` → `Connection refused` (nothing bound to 443 at all).
-- **Fix applied live, read-write, to unblock verification (not yet ported to the installer):** `/opt/etc/init.d/S80lighttpd stop` to kill the imposter, then `systemctl restart lighttpd.service` to let the real one bind. Confirmed `curl https://127.0.0.1/` then returns the actual QManager `index.html`.
+`/opt/etc/init.d/S80lighttpd` is four lines that source `/opt/etc/init.d/rc.func`.
+That shared helper's `start()` — read verbatim on-device — is:
 
-The installer is aware Entware *packaging* can ship a colliding `lighttpd.service` — see its comment at `install_rm520n.sh:1500-1502` ("Entware's default service may point to `/opt/etc/lighttpd/lighttpd.conf`... Ensures correct config path is used") — and overwrites that systemd unit defensively. That fix does not cover this case: `S80lighttpd` is not a systemd unit at all, it is Entware's **init.d** script, started by the installer's own `rc.unslung.service`, and nothing disables, masks, or excludes it.
+```sh
+if [ -n "`pidof $PROC`" ]; then   # PROC=lighttpd
+    echo "already running."
+    return 0
+fi
+```
 
-**Not yet confirmed whether this reproduces on the RM520N-GL** — it has been the stable reference device throughout Phase A/B and has never shown this symptom, but that could mean the race resolves deterministically in QManager's favor there (different boot timing) rather than the installer path being different. Do not assume RM520N-GL immunity without probing a fresh reboot.
+`pidof` matches on the process **name** only. It cannot tell QManager's lighttpd
+from Entware's, and it cannot tell a long-running server from a transient
+config-test child that will exit a second later. So the two servers **never both
+attempt to bind** — there is no port contention at any point. The outcome is
+decided entirely by whether *any* process called `lighttpd` exists at one instant:
+`rc.unslung.service` start, plus exactly 5.000s (its `ExecStartPre=/bin/sleep 5`).
 
-**Two candidate root fixes, neither implemented yet:**
-1. Make `lighttpd.service` win unconditionally: `Conflicts=` + `After=` against `rc.unslung.service`, or `Restart=on-failure` with a bind-retry loop that also stops `S80lighttpd` first.
-2. Disable `S80lighttpd` at install time (`chmod -x` or `mv S* K*` per the Entware init-script convention) once QManager's own `lighttpd.service` takes over — mirroring what the installer's own comment already assumes happens but never actually does.
+The two instances are otherwise unrelated. Entware's runs the vendor-default config
+(`/opt/etc/lighttpd/lighttpd.conf`, the empty `/opt/share/www/` docroot, port 80
+only, no TLS). QManager's `lighttpd.service` runs
+`/opt/sbin/lighttpd -D -f /usrdata/qmanager/lighttpd.conf` — the real docroot,
+HTTPS on 443, the `/cgi-bin/` handler.
 
-Tracked as F8; scoped out of the LAN-gateway-IP investigation that surfaced it.
+**Symptom when Entware wins:** `curl http://127.0.0.1/` → `403 Forbidden` (the empty
+default docroot); `curl https://127.0.0.1/` → `Connection refused` (nothing is bound
+to 443 at all). `systemctl status lighttpd` still misreports "active (running)",
+because the cgroup — the kernel's per-unit process group, which systemd uses to
+decide what a unit "owns" — happens to contain the imposter's PID.
+
+#### Measured boot timeline (RG501Q-EU, 2026-08-25)
+
+Times are **monotonic** — seconds since kernel boot, not wall clock. That matters
+here because the device has no battery RTC and its wall clock is still 1970 at
+these timestamps.
+
+| t (monotonic) | Event |
+| --- | --- |
+| 20.08s | `start-opt-mount.service` begins |
+| 20.33s | `rc.unslung.service` begins its `ExecStartPre=/bin/sleep 5` |
+| 23.80s | `opt.mount` reaches active (3.7s after the wrapper started) |
+| 24.15s | `lighttpd.service` begins `ExecStartPre … -tt` — itself a process named `lighttpd` |
+| 25.33s | `S80lighttpd` runs `pidof`, sees it, stands down |
+| 34.02s | QManager's lighttpd binds 80 **and** 443 |
+
+**Margin: 1.18 seconds.** What shielded QManager on this boot was its own config
+test (`lighttpd -tt`), which took **9.87s under boot load versus 0.22s idle** — a
+process that exists only to validate a file, holding the name that decides the
+outcome.
+
+#### Evidence that it is intermittent, not deterministic (n=2)
+
+Entware's error log lives on `ubi2_0`, so it survives reboots. It shows the
+imposter starting on the **05:14** boot and **not** on the **05:35** boot, with
+byte-identical on-disk config in both cases (the QManager deploy is timestamped
+04:49, before both). One loss, one win. That is the whole measured sample: enough
+to prove the outcome is not fixed, **not** enough to support any claim about how
+often it goes wrong.
+
+#### The fix
+
+`neutralize_entware_lighttpd()` in `scripts/install_rm520n.sh` clears
+`S80lighttpd`'s executable bit. `rc.unslung` selects what to run with
+`find /opt/etc/init.d/ -perm '-u+x' -name 'S*'` — no allowlist, no `.disabled`
+naming convention — so removing that one bit is a valid and sufficient disable.
+The function is idempotent, never dies, and always returns 0; a failure degrades
+to the pre-existing intermittent behaviour rather than aborting an install. The
+full rationale (why it is called from `main()` rather than
+`install_dependencies()`, why it must run *after* `opkg` re-extracts the file, and
+why `chmod a-x` rather than a bare `chmod -x`) is in the commit message for
+`952309e`.
+
+**Post-fix validation: 3 reboot cycles on the RG501Q-EU, all passed.** The
+acceptance test is Entware's error log, which only the imposter ever writes to — it
+stayed at 4 lines throughout. Every boot produced exactly one lighttpd, running
+QManager's config, holding both 80 and 443.
+
+> ⚠️ **Never document `/opt/etc/init.d/S80lighttpd stop` as a repair step.**
+> `rc.func`'s `stop()` is `killall lighttpd` — the same name-only matching, applied
+> destructively. It kills **QManager's** server too. The manual repair performed on
+> 2026-08-25 appeared to work only because a `systemctl restart lighttpd.service`
+> immediately followed it.
+
+#### RM520N-GL status: NOT verified
+
+That device was offline for this work. **Repo evidence says it is exposed, not
+immune:**
+
+- The installer path is **not platform-gated in any way**. `install_rm520n.sh`'s
+  `case "$project_name"` (`:436-462`) sets no variable and nothing downstream
+  branches on it — the `RM520N*` and `RG501Q*` arms only print a different `info`
+  line.
+- A 2026-08-25 probe confirmed `rc.unslung` present on the RM520N-GL with 43
+  Entware packages installed.
+
+**The most plausible reason it has never shown the symptom is a hypothesis, not a
+measurement:** its `/opt` is a dedicated UBIFS volume (UBIFS = the flash filesystem
+these modems use) mounted by the kernel, rather than the `/usrdata/opt` bind mount
+used on the RG501Q-EU, which likely changes when `/opt` becomes available and
+therefore when `rc.unslung` can run at all. That has not been measured. Do not
+record it as a finding.
+
+#### Accepted tradeoff in the uninstaller
+
+`uninstall_rm520n.sh` restores the executable bit (`chmod a+x`) when it removes
+QManager's `lighttpd.service`; without that, uninstalling would strand the device
+with no web server at all. The restore is **unconditional within its guard**, so a
+user who had disabled `S80lighttpd` themselves *before* installing QManager gets it
+re-armed on uninstall. The exec bit is the only state channel `rc.unslung` itself
+consults, so there is nowhere to record the user's prior intent without adding an
+installed artifact. Accepted deliberately.
+
+#### Deferred F8 follow-ups
+
+None of these block the fix; all of them bound how far it can be claimed.
+
+| # | Work | Why it is still open |
+| --- | --- | --- |
+| 1 | **Re-probe the RM520N-GL once reachable.** Does `/opt/etc/init.d/S80lighttpd` exist, and is it executable? Is `/opt` a dedicated volume there? Does `opt.mount` exist as a unit at all? | The whole RM520N-GL section above is inference from the repo plus one package-count probe. |
+| 2 | **Boot-verify the fix on the RM520N-GL.** | Currently validated on the RG501Q-EU only. |
+| 3 | **End-to-end installer run on hardware.** The fix was validated by applying, by hand, the two state changes the installer performs — not by running the installer itself on-device. | The plumbing is verified *statically*: 16 assertions in `scripts/test/installer-lighttpd-collision.sh` plus a CLEAR installer-safety audit. Static verification is not an execution. |
+| 4 | **Root-cause the `opt.mount` boot-timing jitter** (22.25s on one boot vs ~4.5s on the next two, identical device, identical config). | Unexplained. See F11 below. |
+
+### F9 (open, deliberately not fixed) — `start-opt-mount.service` never reaches `active`
+
+Measured on the RG501Q-EU: `ActiveEnterTimestampMonotonic=0` — systemd's record of
+"when did this unit become active" is zero, i.e. never — alongside a real
+`InactiveExitTimestamp`, i.e. it genuinely started. The unit is a `Type=oneshot`
+(a unit systemd considers finished when its command exits) whose command is
+`/bin/systemctl start opt.mount`. Asking systemd to start another unit *from inside
+a unit that is itself part of the current boot transaction* self-deadlocks: the
+wrapper waits for the mount job, and the mount job is queued behind the
+transaction the wrapper is in.
+
+**The mount still happens.** Only the wrapper is a zombie — it never reports
+completion.
+
+**Deliberately kept** (decision recorded in `952309e`). `dropbear.service` — the SSH
+daemon — runs `/opt/sbin/dropbear`, which lives under `/opt`. If `opt.mount`'s
+enablement ever failed and this fallback had been removed, the device would lose
+Entware, lighttpd **and** SSH simultaneously, with no remaining path in. Verified
+harmless: no unit is ordered against it, and systemd coalesces duplicate start jobs,
+so there is one `mount(8)` per activation regardless of how many callers ask.
+
+### F10 (open) — `dropbear.service` fails on boot, intermittently
+
+`NRestarts` measured **1 / 0 / 0** across the three post-fix reboots, and **1** on
+the pre-fix boot. The unit declares `After=network.target` and nothing else — in
+particular **no `After=opt.mount`**, despite `ExecStart=/opt/sbin/dropbear` living
+on that mount. It also sets no `RestartSec=` and no `StartLimit*`. It survives
+purely because `Restart=on-failure` retries it until `/opt` is there.
+
+**Not resolved.** Two of three clean boots is not proof of anything, and the failure
+correlates with the `opt.mount` timing jitter in F11 rather than tracking the F8 fix.
+Fixing it means rewriting the SSH unit on an OTA upgrade — a lockout risk — so it was
+deliberately scoped out; the unit is also written under an `if [ ! -f ]` guard, so it
+cannot reach an existing device via OTA without converting that guard first.
+
+### F11 (open) — `opt.mount` early-start is probabilistic, not guaranteed
+
+Enabling `opt.mount` (symlinking it into `multi-user.target.wants/`) was the
+*secondary* half of the F8 change: before it, the unit was written with
+`WantedBy=multi-user.target` but never enabled, so it was never pulled into the boot
+transaction and `lighttpd.service`'s `After=opt.mount` was inert.
+
+Post-fix, across three reboots, `opt.mount` reached active at **22.25s, 4.64s, and
+4.52s**. On cycle 1 that was *after* `rc.unslung` had already started (19.34s) —
+reproducing the original timing window exactly. Nothing failed, because the exec bit
+was already cleared.
+
+> ⚠️ **Record this conclusion explicitly, because it is the one that matters for any
+> future change here: the exec-bit clear is the load-bearing, deterministic part of
+> the F8 fix. The `opt.mount` enablement is a secondary, probabilistic timing
+> improvement and must never be relied on alone.** A future refactor that "simplifies
+> away" the exec-bit clear on the grounds that the ordering now handles it would
+> reintroduce F8 in full.
+
+The 22.25s-vs-4.5s spread across identical boots is unexplained — see F8 follow-up 4.
+
+### F12 (open, cosmetic but load-bearing for anyone reading it) — `systemctl is-enabled` reads `disabled` for units QManager enables
+
+systemd-239 (and the RM520N-GL's minimal 244 build) only recognises **admin**
+enablement symlinks, which live under `/etc/systemd/system/*.wants/`. QManager
+deliberately places its start symlinks in `/lib/systemd/system/multi-user.target.wants/`
+instead — see the installer's own comment at `scripts/install_rm520n.sh:3420`,
+"`systemctl enable` does not work on RM520N-GL — direct symlink instead". The rootfs
+boots `ro`, and `/etc/systemd/system/` is exactly where `systemctl enable` would want
+to write.
+
+The units are **functionally enabled**: they are pulled into `multi-user.target`,
+they load correctly, and they start every boot. Only the `is-enabled` *label* is
+wrong. This applies to **every** QManager unit, not just `opt.mount`.
+
+> ⚠️ **Nothing may gate logic on `systemctl is-enabled`** — installer, health check,
+> CGI, or agent probe. Check for the `.wants` symlink instead.
+>
+> ⚠️ **Do not "fix" this by moving the symlinks to `/etc/systemd/system/`.** That
+> would change boot-dependency semantics (`/etc` units override `/lib` units by name,
+> and drop-in resolution order changes with them) for a cosmetic label, on a rootfs
+> that boots read-only.
+
+See also the `systemd version` row and its NOTE under [Boot & time](#boot--time),
+which records the same behaviour as a per-device fact.
 
 ## AT transport
 

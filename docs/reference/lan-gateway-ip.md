@@ -35,6 +35,11 @@
 > **It also means this feature now has a validated end-to-end precedent**: the
 > edit, the `AT+CFUN=1,1` apply, and the post-reboot recovery (blocker **F8**)
 > have all been exercised on real hardware rather than reasoned about.
+>
+> **F8 is fixed as of 2026-08-25 (`952309e`) — the blocker is lifted for the
+> RG501Q-EU.** Validated on that device across three reboots. **RM520N-GL
+> re-verification is still outstanding** (that device was offline for the fix
+> work), so treat the blocker as lifted on one platform, not both.
 
 ---
 
@@ -49,7 +54,7 @@
 | Editing tool, RM520N-GL | `/usr/bin/xmllint` is system-bundled; `xmlstarlet` is **not** installed by default (see `docs/BACKEND.md`) |
 | Editing tool, RG501Q-EU | **Neither** `xmllint` nor `xmlstarlet` present (checked directly, 2026-08-25) — use `sed -i` on the known-format lines, same as this investigation did |
 | Apply mechanism | Full modem reboot (`AT+CFUN=1,1`) — the live `bridge0`/LAN interface does not pick up the new IP until then; no live-reload path exists |
-| Known blocker | **F8** in [`platform-matrix.md`](./platform-matrix.md) — a reboot on the RG501Q-EU has a real chance of leaving QManager's web UI unreachable regardless of the IP change, because of an unrelated `lighttpd` boot-race |
+| Former blocker (now fixed) | **F8** in [`platform-matrix.md`](./platform-matrix.md) — a reboot could leave QManager's web UI unreachable regardless of the IP change, because Entware's own `lighttpd` sometimes took port 80 first. **Fixed 2026-08-25 in `952309e`; validated on the RG501Q-EU over 3 reboots. RM520N-GL still unverified.** |
 
 ---
 
@@ -108,23 +113,34 @@ which is exactly how the older SimpleAdmin console menu
 (`simpleadmin-source/simpleadmin/console/menu/LAN_settings.sh`) exposed them
 as two separate options ("Edit Gateway IPV4 Address" vs. "Edit Gateway URL").
 
-## Blocking issue: the reboot itself is unreliable on the RG501Q-EU
+## Former blocker: the reboot itself was unreliable on the RG501Q-EU
 
-This is the more important finding from this session, and it is **independent
-of the gateway-IP change** — it would surface on any reboot of this device.
-See **F8** in `platform-matrix.md` for the full writeup: Entware's own
-`rc.unslung.service` unconditionally starts `S80lighttpd` (the vendor-default,
-empty-docroot Entware lighttpd), which races QManager's own `lighttpd.service`
-for port 80 on every boot with no ordering between the two units. When the
-imposter wins, QManager's web UI is unreachable on **both** HTTP (403, empty
-docroot) and HTTPS (connection refused, nothing bound to 443) until someone
-manually stops it and restarts `lighttpd.service`.
+> ✅ **Status: fixed 2026-08-25 in commit `952309e`, validated on the RG501Q-EU
+> across three reboot cycles. The blocker is lifted for that platform.**
+> **RM520N-GL re-verification is still outstanding** — that device was offline
+> during the fix work, and repo evidence says it is exposed rather than immune.
+> Confirm there before calling this prerequisite closed on both platforms.
 
-**A "Custom Gateway IP" feature cannot ship reliably until F8 is fixed.**
-Any UI-driven gateway-IP change requires a reboot to apply, and a feature that
-sometimes reboots the user out of their own management UI — on the very
-platform this feature is meant to help — is a regression, not a convenience.
-Treat F8 as a hard prerequisite, not a parallel nice-to-have.
+This was the more important finding from the session that produced this doc, and it
+is **independent of the gateway-IP change** — it would surface on any reboot of the
+device. See **F8** in [`platform-matrix.md`](./platform-matrix.md) for the corrected
+writeup. In brief: Entware's `rc.unslung.service` starts `S80lighttpd`, the
+vendor-default empty-docroot Entware lighttpd, which decides whether to run by asking
+`pidof lighttpd` — a process-**name** check. On a boot where no process happens to
+carry that name at the moment it looks, it starts and takes port 80 ahead of
+QManager's own `lighttpd.service`. QManager's UI is then unreachable on **both** HTTP
+(403, empty docroot) and HTTPS (connection refused, nothing bound to 443) until
+someone intervenes over SSH.
+
+> ⚠️ Note the correction: this is **not** a port race between two servers, and it is
+> **not** every boot. Measured `n=2` — one loss, one win, identical config. The
+> original framing in this doc and in F8 was wrong on both counts.
+
+**The reasoning that made this a prerequisite still stands, and should be re-applied
+per platform.** Any UI-driven gateway-IP change requires a reboot to apply, and a
+feature that sometimes reboots the user out of their own management UI — on the very
+platform this feature is meant to help — is a regression, not a convenience. That
+argument is now satisfied on the RG501Q-EU and unsatisfied on the RM520N-GL.
 
 ## Open questions for a real implementation
 

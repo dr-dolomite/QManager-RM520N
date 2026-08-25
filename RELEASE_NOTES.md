@@ -269,6 +269,7 @@ Custom SIM Profiles gets a full redesign and absorbs Connection Scenarios, so on
 - **Clearing a tower lock no longer reports a failure for something that worked.** If the boot-persistence switch couldn't be turned off afterwards, the whole unlock came back as an error even though the modem was already unlocked. It now confirms the unlock and warns separately that it may re-arm at the next reboot.
 - **Six controls on Tower Locking were invisible.** The cell, channel and threshold fields were painted the exact colour of the panel behind them, so there was nothing on screen showing where the box was. Every field now sits one shade above whatever it's on, in both light and dark mode.
 - **Rounded corners render at their intended size again.** Cards, fields and loading placeholders across the app were falling back to a smaller radius than the design calls for, so a placeholder didn't quite match the card that replaced it (about 174 places).
+- **A reboot can no longer leave the web interface unreachable.** On some boots a second, empty web server bundled with Entware started first and took the port, so QManager wouldn't load on either http:// or https:// until you fixed it over SSH. The installer now disables that one for good (it decided whether to start by looking only for a process *named* `lighttpd` — a check QManager's own startup happened to satisfy on some boots and miss on others).
 
 ## 📥 Installation
 

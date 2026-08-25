@@ -306,7 +306,15 @@ Entware provides the package management layer on the RM520N-GL. It is the equiva
 
 **Boot mount units:**
 - `opt.mount` — systemd `.mount` unit that bind-mounts `/usrdata/opt` → `/opt`
-- `rc.unslung.service` — runs `/opt/etc/init.d/rc.unslung start` after mount, initializing any Entware services with init.d scripts
+- `start-opt-mount.service` — a `Type=oneshot` fallback that shells out to `systemctl start opt.mount`. It never reaches `active` (defect **F9**), though the mount itself succeeds
+- `rc.unslung.service` — runs `/opt/etc/init.d/rc.unslung start`, which starts every executable `S*` script under `/opt/etc/init.d/`, initializing Entware services
+
+> ⚠️ **`rc.unslung.service` declares no `After=` at all** — not against `opt.mount`,
+> not against anything. It does not run "after mount"; it runs whenever
+> `multi-user.target` pulls it, delayed only by its own `ExecStartPre=/bin/sleep 5`.
+> This is the root of defect **F8** (Entware's `S80lighttpd` taking port 80 ahead of
+> QManager's own server) — see the Complete Boot Sequence section below and
+> [`docs/reference/platform-matrix.md`](./reference/platform-matrix.md).
 
 **Critical symlinks created during install:**
 ```
@@ -669,10 +677,12 @@ Kernel boot → initrd → basic.target
     │
     ├── ql-netd.service                    (Qualcomm network daemon — modem ready)
     │
-    ├── opt.mount                          (Bind mount /usrdata/opt → /opt)
-    │   └── start-opt-mount.service        (Ensure mount succeeds)
+    ├── opt.mount                          (Bind mount /usrdata/opt → /opt; no After=/Before=)
+    │   └── start-opt-mount.service        (oneshot fallback; never reaches active — F9)
     │
     ├── rc.unslung.service                 (Entware init.d: /opt/etc/init.d/rc.unslung start)
+    │                                      (⚠ NO After= at all — indentation here is
+    │                                       grouping, NOT an ordering guarantee)
     │
     ├── network.target                     (Network interfaces up)
     │
@@ -706,7 +716,30 @@ Kernel boot → initrd → basic.target
 
 **Critical path for AT commands (current QManager):** `ql-netd` → `qmanager-setup` (remount rw + set `/dev/smd11` to `660 root:dialout`) → QManager services, which reach the modem by calling `atcli_smd11` on `/dev/smd11` through `qcmd`. Any failure setting up `/dev/smd11` permissions means AT commands are unavailable. (Historically, under SimpleAdmin the path ran `ql-netd` → `socat-killsmd7bridge` → `socat-smd7` → `socat-smd7-{to,from}-ttyIN2`; that socat chain is no longer used.)
 
-**Critical path for web UI:** `opt.mount` → `rc.unslung` → `lighttpd` (+ `ttyd` for console). If `/opt` fails to mount, lighttpd binary is inaccessible.
+**Web UI startup — what the units actually declare.** An earlier revision of this
+document asserted a critical path of `opt.mount` → `rc.unslung` → `lighttpd` as
+fact. **No unit enforces that order**, and stating it as one is very likely where
+defect F8's original "the two lighttpds race as peers" framing came from. What the
+units really say:
+
+| Unit | Declared ordering |
+| --- | --- |
+| `opt.mount` | none — no `After=`, no `Before=`. Bind-mounts `/usrdata/opt` → `/opt`. Until commit `952309e` it was written with `WantedBy=multi-user.target` but **never enabled**, so it was not in the boot transaction at all |
+| `start-opt-mount.service` | `After=network.target`. A `Type=oneshot` fallback that shells out to `systemctl start opt.mount`; it never reaches `active` (see F9) though the mount itself succeeds |
+| `rc.unslung.service` | **no `After=` whatsoever.** `ExecStartPre=/bin/sleep 5`, then `/opt/etc/init.d/rc.unslung start` |
+| `lighttpd.service` | `After=network.target opt.mount` — real, but inert for as long as `opt.mount` was unenabled |
+| `ttyd.service` | its own 5s startup delay |
+
+So the only ordering guarantee in this group is `lighttpd.service` after
+`opt.mount`, and `rc.unslung.service` floats freely relative to both. If `/opt`
+fails to mount, the lighttpd binary (`/opt/sbin/lighttpd`) is inaccessible and the
+unit cannot start.
+
+> ⚠️ `rc.unslung.service` starts Entware's own `S80lighttpd` init script, a **second**
+> web server with a different config. On the RG501Q-EU it was measured taking port 80
+> before QManager's server on one boot out of two. The installer now disables it. Full
+> mechanism, measured timeline and current status: **F8** in
+> [`docs/reference/platform-matrix.md`](./reference/platform-matrix.md).
 
 ---
 

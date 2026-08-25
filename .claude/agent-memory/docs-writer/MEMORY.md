@@ -1,3 +1,4 @@
+- [A brief's "file.md:NNN" may live only in the shared checkout](reference_worktree_missing_uncommitted_docs.md) — worktrees carry committed state only, so uncommitted/untracked doc work is invisible there; diff against the shared copy before calling the brief wrong
 - [RG501Q-EU half-dead state + 192.168.225.1 collision](project_rg501q_half_dead_and_ip_collision.md) — both modems share the same IP, and the 2026-08-25 reset left a running v0.1.12 with no config/Entware; tag every cell stock-firmware vs post-reset
 - [SMS visual-verification status](project_sms_tonal_rebuild_visual_check_pending.md) — SMS Center cleared 2026-08-20 on a fixture route; Forwarding still unverified (needs a live backend), and the sibling warnings elsewhere stay open
 - [1970 boot window / timer fire guard](reference_1970_boot_window_timer_guard.md) — any new systemd .timer must be checked against this; full mechanism + non-fixes list in scheduled-timers.md
