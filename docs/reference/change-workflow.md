@@ -41,7 +41,7 @@ Where behaviour cannot be executed, ordering is the *only* defense against a sel
 
 ### The floor, for work that skips the plan
 
-Lite Path, skip phrases, and opportunistic fixes still owe the weaker version: **prove the harness fails against the pre-fix tree** — `git show HEAD:<file> > scratch/...` and run it there — and say so in the commit body with the failure count. That rules out a vacuous test even though it cannot rule out a test shaped by the code (`cbf7561`/F13 is the reference example, and stays as written rather than being retrofitted: rewriting it after the fact would hide that history, not repair it).
+Lite Path, skip phrases, and opportunistic fixes still owe the weaker version: **prove the harness fails against the pre-fix tree** — `git show HEAD:<file> > scratch/...` and run it there — and say so in the commit body with the failure count. That rules out a vacuous test even though it cannot rule out a test shaped by the code (`d7f30fb`/F13 is the reference example, and stays as written rather than being retrofitted: rewriting it after the fact would hide that history, not repair it).
 
 ### A red commit blocks nothing
 
