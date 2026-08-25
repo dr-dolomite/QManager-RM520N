@@ -154,6 +154,26 @@ chmod 700 /tmp/qmanager_sessions
 # /etc/qmanager.env) rather than adding an exclusion here. Adding exclusions
 # does not scale — the directory is www-data-owned, so www-data can unlink and
 # replace any file in it regardless of that file's own owner or mode.
+
+# Self-heal the advisory hardware profile at boot, not only at install time.
+# install_rm520n.sh writes it once, at preflight — a device that installed
+# before a QM_HW_SCHEMA bump would otherwise never pick up a new field
+# (config.sh has no key-migration primitive), and a modem reflashed
+# independently of QManager would keep reporting its old fw_fingerprint
+# forever. Placed HERE, immediately before the chown below, so the
+# freshly (re)written file rides the same www-data ownership sweep as
+# everything else in this directory on the very next line — no separate
+# chown needed for it. Safe to source unconditionally: hw_profile.sh guards
+# itself with the ${_HW_PROFILE_LOADED:-} form, which — unlike every other
+# library in this directory except platform.sh — tolerates being sourced
+# under a shell with no `set -u`. Paths below are intentionally hardcoded,
+# not env-overridable: this is the one boot-time call site, not a test
+# fixture.
+if [ -f /usr/lib/qmanager/hw_profile.sh ]; then
+    . /usr/lib/qmanager/hw_profile.sh
+    qm_hw_self_heal /etc/qmanager/platform.json || true
+fi
+
 chown -R www-data:www-data /etc/qmanager
 
 # Make all qmanager binaries executable

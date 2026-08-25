@@ -20,7 +20,10 @@
 # guarantee that /opt is mounted — and the RG501Q-EU has no jq at all. JSON is
 # emitted with printf.
 #
-# Ships as dead code: nothing consumes it yet. Callers arrive in later tasks.
+# Two consumers: install_rm520n.sh's preflight() calls qm_hw_write_profile
+# once, at install/OTA time; qmanager_setup calls qm_hw_self_heal on every
+# boot to keep the profile converged in between installs. Nothing else reads
+# platform.json yet — see the ADVISORY note above for why nothing should.
 
 # ${VAR:-} form: a caller running under `set -u` must be able to source this
 # library without it dying on an unset guard variable.
@@ -29,6 +32,13 @@ _HW_PROFILE_LOADED=1
 
 # Path to the Quectel vendor version file. Overridable for the test harness.
 : "${QUECTEL_VERSION_FILE:=/etc/quectel-project-version}"
+
+# Path to the self-heal decision log. Overridable for the test harness, for
+# the same reason QUECTEL_VERSION_FILE above is: without it, exercising the
+# self-heal log lines would mean writing into a real developer's
+# /tmp/qmanager.log. On-device this is exactly the file qmanager_setup:120
+# seeds root:root 0666 before this library's caller ever runs.
+: "${QM_HW_LOG_FILE:=/tmp/qmanager.log}"
 
 # platform.json schema version. Bumping this is the migration path: consumers
 # regenerate the profile when the on-disk schema is absent or lower. config.sh
@@ -293,3 +303,191 @@ qm_hw_write_profile() {
     return 0
 }
 
+# --- Self-heal -----------------------------------------------------------
+#
+# The installer writes platform.json once, at preflight. Everything below
+# lets qmanager_setup re-check it on every boot so a device converges onto a
+# current profile without a reinstall: a schema bump (config.sh has no
+# key-migration primitive, so a field added to a later schema would
+# otherwise never reach an already-installed device) or a firmware
+# reflash (fw_fingerprint drift) are both caught here.
+#
+# platform.json is a LINE-ORIENTED format — the generator above emits
+# exactly one key per line. The matchers below are LINE matchers anchored on
+# `^[[:space:]]*"key"[[:space:]]*:`, NOT a JSON parser. Compact single-line
+# JSON (`{"schema":1,...}`) will not match at all, which reads as
+# "schema absent" and regenerates. That is expected to happen ONCE — the
+# regenerated file is always written in this library's own line-oriented
+# format, so a second read converges. The converge check in qm_hw_self_heal
+# below is what turns any other future mismatch between "what this boot
+# writes" and "what this boot reads back" (an escaper change, a format
+# change, ...) into one logged line instead of silently rewriting the file,
+# and churning flash, on every single boot forever.
+
+# _qm_hw_read_schema <path> — the numeric schema value on disk, or empty if
+# absent / not a bare integer. Caller must validate numeric-ness before any
+# arithmetic comparison — see the case-glob note below.
+_qm_hw_read_schema() {
+    sed -n 's/^[[:space:]]*"schema"[[:space:]]*:[[:space:]]*\([0-9][0-9]*\).*/\1/p' "$1" 2>/dev/null | head -n 1
+}
+
+# _qm_hw_read_fw_fingerprint <path> — the JSON-ESCAPED fw_fingerprint value
+# on disk, or empty. This is compared against
+# _qm_hw_json_escape "$(qm_hw_fw_fingerprint)" — escaped to escaped, never
+# unescaped — which round-trips correctly even for hostile values containing
+# `\"` and `\\` (verified against the `hostile` fixture on both BusyBox
+# versions).
+_qm_hw_read_fw_fingerprint() {
+    sed -n 's/^[[:space:]]*"fw_fingerprint"[[:space:]]*:[[:space:]]*"\(.*\)"[[:space:]]*,\{0,1\}[[:space:]]*$/\1/p' "$1" 2>/dev/null | head -n 1
+}
+
+# _qm_hw_regen_reason <path> — shared decision logic behind both
+# qm_hw_profile_needs_write (a plain predicate) and qm_hw_self_heal (which
+# also wants the human-readable reason for its success log line). On a
+# "regenerate" decision (exit 0) it prints one short reason string to
+# stdout; on "leave alone" / "refuse" / "deferred" (exit 1) it prints
+# nothing — refuse and deferred already log for themselves via _qm_hw_log.
+_qm_hw_regen_reason() {
+    local path="$1" schema fw live_fw trigger=""
+
+    # A symlink or a directory at the profile path is refused UNCONDITIONALLY
+    # and checked BEFORE the absent/present test below, because `[ -e ]`
+    # follows a symlink and would misreport a dangling one as "absent" —
+    # which would regenerate straight over it.
+    #
+    # The directory arm is load-bearing on its own: if platform.json were a
+    # directory, `sed` on it silently reads as empty (schema absent), so a
+    # naive "not a regular file -> regenerate" here would let
+    # qm_hw_write_profile's `mv` land the temp file INSIDE that directory,
+    # report success, and repeat identically on every subsequent boot —
+    # churning flash while every log line claims success. Refuse instead.
+    if [ -L "$path" ] || [ -d "$path" ]; then
+        _qm_hw_log "qm_hw_self_heal: refusing to touch $path -- it is a symlink or a directory, not a plain file"
+        return 1
+    fi
+
+    if [ ! -e "$path" ]; then
+        printf '%s\n' "profile absent"
+        return 0
+    fi
+
+    if [ ! -r "$path" ]; then
+        printf '%s\n' "profile unreadable"
+        return 0
+    fi
+
+    schema=$(_qm_hw_read_schema "$path")
+    case "$schema" in
+        ''|*[!0-9]*)
+            # Absent, empty, or not a bare non-negative integer. Validated
+            # with a case glob BEFORE any -eq/-lt test: qmanager_setup has no
+            # `set -e`, so comparing a non-numeric string with a numeric test
+            # operator would print a shell error and behave unpredictably
+            # rather than failing loudly.
+            trigger="schema absent or non-numeric"
+            ;;
+        *)
+            # Differs EITHER direction — higher or lower — regenerates. A
+            # higher number is a deliberate policy, not an oversight:
+            # platform.json lives in a www-data-writable directory, so a
+            # planted higher schema must not be able to freeze the profile
+            # permanently by looking "already migrated".
+            [ "$schema" -eq "$QM_HW_SCHEMA" ] || trigger="schema $schema (want $QM_HW_SCHEMA)"
+            ;;
+    esac
+
+    if [ -z "$trigger" ]; then
+        fw=$(_qm_hw_read_fw_fingerprint "$path")
+        live_fw=$(_qm_hw_json_escape "$(qm_hw_fw_fingerprint)")
+        [ "$fw" = "$live_fw" ] || trigger="fw_fingerprint drift"
+    fi
+
+    # Everything matches -- leave alone. This is the every-boot case on a
+    # converged device and stays completely silent.
+    [ -n "$trigger" ] || return 1
+
+    # A regenerate trigger fired. Before acting on it, guard against
+    # clobbering a GOOD existing profile with unknowns: qm_hw_write_profile
+    # re-derives every field from the live vendor file from scratch and has
+    # no merge mode, so regenerating while that vendor file is unreadable
+    # would overwrite a fielded profile with all-"unknown" data. Detected by
+    # asking all three identity accessors at once, the same way a caller
+    # would.
+    #
+    # This must not silently swallow a schema-bump trigger either, so the
+    # deferral is logged with the trigger that caused it: a device that can
+    # never migrate its schema, and never says why, is exactly the failure
+    # this whole mechanism exists to prevent.
+    if [ "$(qm_hw_model)" = "$QM_HW_UNKNOWN" ] && \
+       [ "$(qm_hw_soc)" = "$QM_HW_UNKNOWN" ] && \
+       [ "$(qm_hw_fw_fingerprint)" = "$QM_HW_UNKNOWN" ]; then
+        _qm_hw_log "qm_hw_self_heal: regeneration DEFERRED ($trigger) -- live vendor file unreadable, existing profile at $path left untouched"
+        return 1
+    fi
+
+    printf '%s\n' "$trigger"
+    return 0
+}
+
+# qm_hw_profile_needs_write <path> — 0 = regenerate, 1 = leave alone. Thin
+# predicate wrapper: discards the reason text _qm_hw_regen_reason prints so
+# this stays a clean 0/1 API for a plain `if qm_hw_profile_needs_write ...`.
+qm_hw_profile_needs_write() {
+    _qm_hw_regen_reason "$1" >/dev/null
+}
+
+# _qm_hw_log <message> — best-effort append to QM_HW_LOG_FILE. Logging must
+# never abort a caller, so every failure mode here is swallowed.
+#
+# journald has NO storage on either device (`journalctl` reports "No journal
+# files were found" on both) and qmanager-setup.service sets no
+# StandardOutput=, so anything this script writes to stdout/stderr is simply
+# unobservable after the fact. This file is the only record a self-heal
+# decision leaves behind. qmanager_setup:120-128 seeds it root:root 0666
+# well before this library's caller runs, so no ownership/mode work belongs
+# here.
+_qm_hw_log() {
+    printf '%s %s\n' "$(date '+%Y-%m-%d %H:%M:%S' 2>/dev/null)" "$1" >> "$QM_HW_LOG_FILE" 2>/dev/null
+    return 0
+}
+
+# qm_hw_self_heal <dest> — the complete decide + write + verify cycle, so
+# that qmanager_setup carries exactly one call. Returns 0 if the profile was
+# already current, was successfully regenerated, or was correctly left
+# alone (refused / deferred, both already logged by _qm_hw_regen_reason
+# above); returns 1 only on a write or convergence failure. The caller is
+# expected to ignore the return value (`|| true`) — this function's log
+# lines are the only record of what happened.
+qm_hw_self_heal() {
+    local dest="$1" reason
+
+    # Every-boot no-op path. Silent by design: this is what every converged
+    # device hits on every single boot, and a log line here would mean one
+    # new line in QM_HW_LOG_FILE forever. Refuse/deferred outcomes also come
+    # through here (both return 1 too) and were already logged internally.
+    qm_hw_profile_needs_write "$dest" || return 0
+
+    # Capture the human-readable trigger for the log lines below. Re-running
+    # the same read-only decision logic a second time is cheap — it is a
+    # handful of `sed` calls over a five-to-eight-line file — and keeping
+    # qm_hw_profile_needs_write a plain 0/1 predicate is worth that.
+    reason=$(_qm_hw_regen_reason "$dest")
+
+    if ! qm_hw_write_profile "$dest"; then
+        _qm_hw_log "qm_hw_self_heal: write to $dest FAILED (trigger: $reason)"
+        return 1
+    fi
+
+    # Converge check: confirm the just-written profile now reads back as
+    # current. If it still says "regenerate", this boot's writer and this
+    # boot's reader disagree about the file's format — without this check
+    # that disagreement would silently rewrite $dest, and churn flash, on
+    # every single future boot instead of failing loudly exactly once.
+    if qm_hw_profile_needs_write "$dest"; then
+        _qm_hw_log "qm_hw_self_heal: wrote $dest but it did NOT converge (trigger: $reason) -- read-back still says regenerate, see hw_profile.sh"
+        return 1
+    fi
+
+    _qm_hw_log "qm_hw_self_heal: regenerated $dest (trigger: $reason)"
+    return 0
+}
