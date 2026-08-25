@@ -75,6 +75,24 @@ cat > "$fo_file" <<'JSON'
 }
 JSON
 
+# SIM-swap visibility moved from the /tmp flag to the persistent registry on
+# 2026-07-27 (qmanager_poller:413, SIM_REGISTRY_FILE). read_sim_state now gates
+# `detected` on a registry record for the CURRENT ICCID that has a first_seen
+# and is not dismissed; the /tmp flag survives only to supply the two profile
+# fields, and is read ONLY while detected is already true. A fixture that sets
+# the flag alone therefore exercises the pre-2026-07-27 contract and reports
+# detected=false with empty profile fields.
+reg_file="$work/sim_registry.json"
+boot_iccid_fixture="8901260123456789012"
+cat > "$reg_file" <<JSON
+{
+  "$boot_iccid_fixture": {
+    "first_seen": 1746400000,
+    "dismissed": false
+  }
+}
+JSON
+
 # Counting jq shim — installs a fake `jq` ahead of the real one on PATH.
 shim_dir="$work/bin"
 mkdir -p "$shim_dir"
@@ -96,6 +114,15 @@ SHIM
         export PATH="$shim_dir:$PATH"
         SIM_SWAP_FLAG="$swap_file"
         SIM_FAILOVER_FILE="$fo_file"
+        SIM_REGISTRY_FILE="$reg_file"
+        boot_iccid="$boot_iccid_fixture"
+        # read_sim_state calls sim_db_normalize, which is NOT inside the
+        # function body — so the awk extraction above cannot carry it. On a
+        # device it always resolves (sim_db.sh, or the poller's own fallback
+        # at qmanager_poller:402). Mirror that fallback verbatim; without it
+        # the swap branch dies "command not found" and the first three fields
+        # come back empty while the failover fields still look correct.
+        sim_db_normalize() { printf '%s' "$1" | tr -d ' \r\n'; }
         . "$work/sim_fn.sh"
         read_sim_state
         printf '%s|%s|%s|%s|%s|%s|%s\n' \
@@ -115,10 +142,14 @@ SHIM
             ;;
     esac
 
-    if [ "$jq_calls" -le 2 ]; then
-        ok "read_sim_state used $jq_calls jq invocation(s) (≤2)"
+    # The invariant is ONE jq call per file, not a per-field storm. The bound
+    # was ≤2 when read_sim_state read two files; the registry added a third
+    # (2026-07-27), so the same invariant is now ≤3. Raise this only alongside
+    # a genuinely new file — never to accommodate extra calls on one file.
+    if [ "$jq_calls" -le 3 ]; then
+        ok "read_sim_state used $jq_calls jq invocation(s) (≤3, one per file)"
     else
-        bad "read_sim_state used $jq_calls jq invocations (expected ≤2)"
+        bad "read_sim_state used $jq_calls jq invocations (expected ≤3, one per file)"
     fi
 fi
 

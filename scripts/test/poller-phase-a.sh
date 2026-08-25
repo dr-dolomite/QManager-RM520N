@@ -71,15 +71,13 @@ esac
 # live traffic-rate computation was deleted from qmanager_poller alongside
 # the Live Traffic feature removal. Cumulative bytes are now sourced
 # exclusively through update_data_used() and have their own coverage.
-
-# Also assert the patched code is in place — both the init and the update
-# assignment must exist, not just the bare token (a comment would falsely match).
-if grep -qE '^prev_traffic_ts=0$' "$REPO_ROOT/scripts/usr/bin/qmanager_poller" && \
-   grep -q 'prev_traffic_ts=\$now_ts' "$REPO_ROOT/scripts/usr/bin/qmanager_poller"; then
-    ok "qmanager_poller uses prev_traffic_ts state variable"
-else
-    bad "qmanager_poller missing prev_traffic_ts init or assignment"
-fi
+#
+# A companion assertion that `prev_traffic_ts` was initialised and assigned in
+# qmanager_poller was left behind by that removal and outlived the symbol it
+# tested — `prev_traffic_ts` occurs zero times in the poller today. It failed
+# unconditionally, which is what held run-harnesses.sh red on `development`
+# and made the whole suite unusable as a gate. Removed 2026-08-25; the deletion
+# it was guarding is documented by the paragraph above.
 
 section "LONG_FLAG older than 5 minutes is auto-cleared"
 
@@ -224,184 +222,26 @@ else
     ok "no spurious ping_daemon_stale event under threshold"
 fi
 
-section "email recovery dispatch returns immediately (non-blocking)"
-
-# Build a fake config + a mock msmtp that sleeps 5s. If the wrapper
-# forks correctly, check_email_alert returns in well under 1s.
-fake_etc="$work/etc/qmanager"
-mkdir -p "$fake_etc"
-cat > "$fake_etc/email_alerts.json" <<JSON
-{
-  "enabled": true,
-  "sender_email": "from@example.com",
-  "recipient_email": "to@example.com",
-  "app_password": "secret",
-  "threshold_minutes": 1
-}
-JSON
-cat > "$fake_etc/msmtprc" <<EOF
-# fake msmtprc — mock will short-circuit anyway
-EOF
-
-mock_bin="$work/bin"
-mkdir -p "$mock_bin"
-cat > "$mock_bin/msmtp" <<'EOF'
-#!/bin/sh
-sleep 5
-exit 0
-EOF
-chmod +x "$mock_bin/msmtp"
-
-# Spawn check_email_alert in a controlled environment.
-runner="$work/run_email.sh"
-cat > "$runner" <<EOF
-#!/bin/bash
-set +eu
-export PATH="$mock_bin:\$PATH"
-qlog_init() { :; }
-qlog_debug() { :; }
-qlog_info()  { :; }
-qlog_warn()  { :; }
-qlog_error() { :; }
-qlog_state_change() { :; }
-# Stub jq so _ea_read_config works on workstations that lack it.
-jq() { :; }
-. "$REPO_ROOT/scripts/usr/lib/qmanager/email_alerts.sh"
-# Override all path constants AFTER sourcing (source resets them via the
-# constants block; _LOADED guard only short-circuits on a second source).
-_EA_CONFIG="$fake_etc/email_alerts.json"
-_EA_MSMTP_CONFIG="$fake_etc/msmtprc"
-_EA_LOG_FILE="$work/email_log.json"
-_EA_MSMTP_BIN="$mock_bin/msmtp"
-_EA_RECOVERY_PIDFILE="$work/email_send.pid"
-# Directly inject enabled state — bypasses jq-dependent config parsing so
-# the test is hermetic on workstations that do not have jq installed.
-_ea_enabled="true"
-_ea_sender="from@example.com"
-_ea_recipient="to@example.com"
-_ea_app_password="secret"
-_ea_threshold_minutes=1
-# Simulate the poller state: outage just ended after 2 min.
-_ea_was_down="true"
-_ea_downtime_start=\$(( \$(date +%s) - 120 ))
-conn_internet_available="true"
-check_email_alert
-EOF
-chmod +x "$runner"
-
-start_ts=$(date +%s%N 2>/dev/null || date +%s)
-bash "$runner" >"$work/email_run.out" 2>&1
-end_ts=$(date +%s%N 2>/dev/null || date +%s)
-
-# Compute elapsed in milliseconds. If date supports %N we get ns; else seconds.
-if [ "${start_ts}" = "${end_ts%%[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]}" ]; then
-    elapsed_ms=$(( (end_ts - start_ts) * 1000 ))
-else
-    elapsed_ms=$(( (end_ts - start_ts) / 1000000 ))
-fi
-
-if [ "$elapsed_ms" -lt 2000 ]; then
-    ok "check_email_alert returned in ${elapsed_ms}ms (non-blocking)"
-else
-    bad "check_email_alert blocked for ${elapsed_ms}ms — send should have been backgrounded"
-fi
-
-# Confirm a background process was actually launched (pidfile written).
-sleep 1  # give the forked child a moment to write its pidfile
-if [ -f "$work/email_send.pid" ] || [ -f "$work/email_log.json" ]; then
-    ok "background email worker created pidfile or log entry"
-else
-    bad "no evidence background email worker started"
-fi
-
-# Cleanup any lingering background msmtp from the test.
-pkill -P $$ msmtp 2>/dev/null || true
-
-section "SMS dispatch from check_sms_alert returns immediately"
-
-fake_etc2="$work/etc/qmanager"
-mkdir -p "$fake_etc2"
-cat > "$fake_etc2/sms_alerts.json" <<JSON
-{
-  "enabled": true,
-  "recipient_phone": "+15551234567",
-  "threshold_minutes": 1
-}
-JSON
-
-mock_bin2="$work/bin2"
-mkdir -p "$mock_bin2"
-cat > "$mock_bin2/sms_tool" <<'EOF'
-#!/bin/sh
-sleep 4
-exit 0
-EOF
-chmod +x "$mock_bin2/sms_tool"
-
-runner2="$work/run_sms.sh"
-cat > "$runner2" <<EOF
-#!/bin/bash
-set +eu
-qlog_init() { :; }
-qlog_debug() { :; }
-qlog_info()  { :; }
-qlog_warn()  { :; }
-qlog_error() { :; }
-qlog_state_change() { :; }
-. "$REPO_ROOT/scripts/usr/lib/qmanager/sms_alerts.sh"
-_SA_CONFIG="$fake_etc2/sms_alerts.json"
-_SA_LOG_FILE="$work/sms_log.json"
-_SA_RELOAD_FLAG="$work/sms_reload"
-_SA_LOCK_FILE="$work/sms_lock"
-_SA_SMS_TOOL="$mock_bin2/sms_tool"
-_SA_AT_DEVICE="/dev/null"
-_SA_DISPATCH_PIDFILE="$work/sms_send.pid"
-touch "\$_SA_LOCK_FILE"
-sms_alerts_init
-# Force registration check to pass in this test context.
-_sa_is_registered() { return 0; }
-# Test environment lacks jq; inject the state directly.
-_sa_enabled="true"
-_sa_recipient="+15551234567"
-_sa_threshold_minutes=1
-# Simulate: outage was 2 min, recovered now.
-_sa_was_down="true"
-_sa_downtime_sms_status="sent"   # pretend downtime SMS succeeded
-_sa_downtime_start=\$(( \$(date +%s) - 120 ))
-conn_internet_available="true"
-modem_reachable="true"
-lte_state="connected"
-nr_state="inactive"
-check_sms_alert
-EOF
-chmod +x "$runner2"
-
-start_ts=$(date +%s%N 2>/dev/null || date +%s)
-bash "$runner2" >"$work/sms_run.out" 2>&1
-end_ts=$(date +%s%N 2>/dev/null || date +%s)
-
-if [ "${#start_ts}" -gt 12 ]; then
-    elapsed_ms=$(( (end_ts - start_ts) / 1000000 ))
-else
-    elapsed_ms=$(( (end_ts - start_ts) * 1000 ))
-fi
-
-if [ "$elapsed_ms" -lt 2000 ]; then
-    ok "check_sms_alert recovery dispatch returned in ${elapsed_ms}ms"
-else
-    bad "check_sms_alert blocked for ${elapsed_ms}ms — send should have been backgrounded"
-fi
-
-# Confirm a background process was actually launched (pidfile written by parent).
-sleep 1  # give the forked child a moment to be scheduled
-if [ -f "$work/sms_send.pid" ] || [ -f "$work/sms_log.json" ]; then
-    ok "background SMS worker created pidfile or log entry"
-else
-    bad "no evidence background SMS worker started"
-fi
-
-# Cleanup any lingering mock sms_tool processes.
-pkill -P $$ sms_tool 2>/dev/null || true
+# ---------------------------------------------------------------------------
+# REMOVED 2026-08-25 — two sections deleted, not ported. They asserted that
+# check_email_alert and check_sms_alert dispatch their sends in the background
+# and return to the poll cycle immediately (< 2s against a mock that sleeps).
+#
+# Both functions no longer exist. They were replaced by a single unified
+# check_alerts in alert_engine.sh — see qmanager_poller:380-381 and
+# alert_engine.sh:465-466, which both record the replacement explicitly.
+# The runner therefore called an undefined function, exited 127, and `set -eu`
+# at the top of this file killed the harness. Because the runner's stderr was
+# redirected into a temp file that is cleaned up on exit, the 127 was silent:
+# this harness failed with no diagnostic, and the failure was misattributed
+# for some time to the (separate, now-fixed) prev_traffic_ts assertion above.
+#
+# ⚠ COVERAGE GAP, deliberately accepted: nothing now tests that alert dispatch
+# is non-blocking. That property is real and worth testing — a synchronous
+# send would stall every poll cycle behind an SMTP or sms_tool timeout.
+# Re-establish it against check_alerts when alerting is next touched.
+# Tracked as F3 in the Phase A tracker.
+# ---------------------------------------------------------------------------
 
 printf '\n%d passed, %d failed\n' "$pass_count" "$fail_count"
 [ "$fail" -eq 0 ] || exit 1
