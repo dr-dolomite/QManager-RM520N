@@ -210,7 +210,14 @@ All three identical; `git status --porcelain -- scripts/usr/lib/qmanager/` empty
 
 **Action for the builder:** record the BEFORE state for item 6 as **"present, md5 `b89b7070…`, identical to HEAD, deployed Aug 24 17:56 +0800, no caller"** — NOT "absent". Otherwise the post-change diff flags a pre-existing file as a regression and burns a cycle. The invariant that actually matters (`platform.json` absent) is untouched.
 
-**Durable lesson:** "it's in the repo, not on the device" is never a safe assumption for anything under `scripts/usr/lib/qmanager/` — that directory deploys as a whole tree. **Deployed-but-dormant is a normal state and must be checked for explicitly.**
+**Durable lesson:** "it's in the repo, not on the device" is never a safe assumption for anything under `scripts/usr/lib/qmanager/` — that directory deploys as a whole tree. **Deployed-but-dormant is a normal state and must be checked for explicitly.** Uniform mtimes across a directory date the *deploy*, not the files.
+
+##### Two AFTER-comparison decisions — ANSWERED, do not re-litigate
+
+The investigator raised both and flagged its own assumption. **Orchestrator's rulings:**
+
+1. **Is a dormant `hw_profile.sh` on the device acceptable for the AFTER comparison, or does the gate want a device with T1 *not* deployed? → ACCEPTABLE. Do not attempt to remove it.** T1 is merged to `development`, so a device carrying HEAD's library is *correct* state, not contamination. The gate's observable invariant (`platform.json` absent) holds regardless, and the library has zero callers so it cannot influence behavior. Removing it would require a write to a device that is read-only for this entire phase — strictly worse than accepting it.
+2. **Should the AFTER comparison of `ls -la /etc/qmanager/` be a raw text diff? → NO. Compare name + mode + owner only.** Mtimes drift naturally (`VERSION`, `active_profile`, `last_boot_id`, `ttl_state` and others move on their own schedules), so a raw text diff produces false positives on every run. **The single expected delta is one added line for `platform.json`.** Assert that, plus that the `cfg.qmanager_dir` verdict string stays byte-identical at `pass|exists`.
 
 ##### Q8 is now MOSTLY DISCHARGED — BusyBox `tr` handles the octal range class
 
