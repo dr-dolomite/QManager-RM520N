@@ -138,7 +138,7 @@ Note how the SDX65 device is in **pure LTE** mode and `QGDNRCNT` still mirrors `
 | Distro | `mdm 202305251148` | `QTI Linux reference nogplv3 distro LE.UM.6.3.6.r1-02600-SDX65.0` |
 | Hostname convention | `sdxprairie` | `sdxlemur` |
 | `/etc/quectel-project-version` Branch Name | `SDX55` | `SDX6X` |
-| `rmnet_ipa0` orientation | **Normal** — field 2 = download, field 10 = upload | **Normal** — same |
+| `rmnet_ipa0` orientation | **Normal** — field 2 = download, field 10 = upload. ⚠️ Slow-path (on-modem `curl`) only; **this measurement contradicts the `SDX55 → reversed` static map** — see [Static SoC orientation mapping](#static-soc-orientation-mapping) | **Normal** — same |
 | Sub-interfaces visible | `rmnet_data0..5` | `rmnet_data0..5, 15, 16` |
 | `lsmod` IPA module | `aqc_ipa_offload` | _(no output — modules unavailable to query, but `/sys/kernel/debug/ipa` exists)_ |
 | Live counter cadence | Per-second, no batch flush | Per-second, no batch flush |
@@ -158,7 +158,7 @@ Several plausible-sounding hypotheses turned out to be false:
 |---|---|---|
 | IPA hardware path bypasses `/proc/net/dev` on SDX55 — for **on-modem-originated traffic** | ❌ False | Controlled 50 MiB download grew rx_bytes by 55.6 MB on SDX55, 54.9 MB on SDX65 |
 | IPA hardware path bypasses `/proc/net/dev` — for **forwarded LAN→WAN fast-path traffic** | ⚠️ **True for per-tick reads, false for cumulative** | The original probes only tested on-modem `curl` (slow path). LAN-client traffic that takes the IPA fast path is forwarded in silicon and is invisible to per-second `/proc/net/dev` deltas — but it does accumulate via IPA notifications, so lifetime totals stay accurate. See [Why Live Traffic was removed](#why-live-traffic-was-removed). |
-| Kernel rx/tx labels are reversed on SDX55 firmware | ⚠️ **True on some IPA driver builds** | The slow-path test showed correct labels, but later evidence on production traffic showed some SDX55 IPA builds attribute fast-path bytes to the swapped column. Schema v4 ran a per-boot probe to handle this empirically; Schema v5 replaces the probe with a static SoC-keyed map. See [Static SoC orientation mapping](#static-soc-orientation-mapping). |
+| Kernel rx/tx labels are reversed on SDX55 firmware | ⚠️ **UNRESOLVED — do not read this row as settled** | The slow-path test on SDX55 showed **correct** labels (see the matrix row above). The claim that some SDX55 IPA builds attribute *fast-path* bytes to the swapped column has **no recorded probe** in this file. Schema v4 ran a per-boot probe; Schema v5 replaced it with a static SoC-keyed map whose SDX55 arm is **inert** for exactly this reason. Phase B owns the measurement. See [Static SoC orientation mapping](#static-soc-orientation-mapping). |
 | IPA batches updates and only flushes during sustained flows | ❌ False | 60-second per-second sampling on both devices showed continuous tiny deltas during idle keepalive |
 | `QGDNRCNT` field order matches Quectel docs (`TX,RX`) on all firmware | ❌ False | SDX55 firmware reverses it; SDX65 matches docs. Per-firmware lookup is mandatory. |
 | "Always sum `QGDCNT + QGDNRCNT`" is a portable formula | ❌ False | Works on SDX55 (independent counters). Double-counts on SDX65 (mirrored counters). |
@@ -168,7 +168,7 @@ Several plausible-sounding hypotheses turned out to be false:
 ## What's confirmed
 
 1. **`rmnet_ipa0` is the correct aggregate WAN counter** on Quectel internal-Linux builds across both SoC generations. The `rmnet_dataN` children are per-PDN demuxed views that should not be used for whole-WAN totals.
-2. **Kernel rx/tx labels match user-facing semantics for slow-path traffic on both probed firmwares.** Field 2 = download, field 10 = upload — verified on every on-modem probe. Fast-path orientation is selected by the static SoC map (see [Static SoC orientation mapping](#static-soc-orientation-mapping)) because it varies across IPA driver builds; Schema v4 attempted a per-boot probe for the same reason, but the static map proved more reliable under live traffic.
+2. **Kernel rx/tx labels match user-facing semantics for slow-path traffic on both probed firmwares.** Field 2 = download, field 10 = upload — verified on every on-modem probe. **Fast-path orientation has never been directly measured on either SoC.** The static SoC map exists to carry that decision (see [Static SoC orientation mapping](#static-soc-orientation-mapping)), but its only non-`normal` arm is inert pending a Phase-B measurement, so in practice every shipped device runs `normal` today. Schema v4's per-boot probe was removed because it misclassified real RM520N-GL devices under live traffic, not because the map was better evidenced.
 3. **Per-second live updates work on both SoCs — for on-modem-originated traffic only.** Forwarded LAN→WAN fast-path traffic does not show up in per-tick `/proc/net/dev` deltas on either SoC. See [Why Live Traffic was removed](#why-live-traffic-was-removed).
 4. **The kernel-only cumulative approach is mechanically sound** on the probed devices. The known weakness (counter zeroing on interface re-creation) is unchanged, but is not a per-SoC issue.
 5. **The kernel counter and AT counter agree closely on SDX65** when measured over the same window (~322 KB drift over ~55 MB, attributable to signaling/control bytes that rmnet_ipa0 sees but the PS-data AT counter doesn't).
@@ -199,12 +199,31 @@ The Data Used cumulative counter (sourced from the same fields, sampled at the p
 Schema v5 of the Data Used counter (see [`data-usage-counter.md`](./data-usage-counter.md)) maps the SoC's `Branch Name` from `/etc/quectel-project-version` directly to a `/proc/net/dev` field orientation:
 
 - `SDX6X` → `normal` (field 2 = RX, field 10 = TX) — matches Quectel spec
-- `SDX55` → `reversed` (field 2 = TX, field 10 = RX) — IPA fast-path attributes bytes to the swapped column
+- `SDX55` → `reversed` (field 2 = TX, field 10 = RX) — **NOT ACTIVE. See the warning below.**
 - anything else / missing → `normal` (safe default)
 
-This replaces the per-boot Cloudflare probe shipped in v4. The probe was observed misclassifying real RM520N-GL devices under live traffic — concurrent background flows, asymmetric signaling, and IPA flush timing could push the field-delta ratio outside the 5:1 classification threshold and produce a reversed verdict on a normal device. The static map eliminates that class of error and is correct for every device empirically probed in this matrix.
+This replaces the per-boot Cloudflare probe shipped in v4. The probe was observed misclassifying real RM520N-GL devices under live traffic — concurrent background flows, asymmetric signaling, and IPA flush timing could push the field-delta ratio outside the 5:1 classification threshold and produce a reversed verdict on a normal device. The static map eliminates that class of error.
 
-If a new SoC ships and turns out to disagree with the table, update the map in `scripts/usr/bin/qmanager_poller`'s `detect_orientation_from_soc()` — there is no runtime override.
+> ⚠️ **WARNING — the `SDX55 → reversed` arm is UNRESOLVED and is currently INERT in the shipped poller.**
+>
+> **Short version:** this document contradicts itself about SDX55, and the contradiction has never been settled by a measurement, so the arm is commented out rather than shipped live.
+>
+> The two statements that cannot both be read as settled:
+>
+> | Where | What it says |
+> |---|---|
+> | The [SoC × counter matrix](#soc--counter-matrix-full) row `rmnet_ipa0 orientation` | SDX55 (RM502Q-AE) measured **Normal** — field 2 = download, field 10 = upload. A **probe result**. |
+> | This section, before this warning | SDX55 → **reversed**. |
+>
+> The [What this debunks](#what-this-debunks) table offers a reconciliation — that the measured `Normal` reading came from a **slow-path** test (on-modem `curl`) while the reversal is claimed only for **IPA fast-path** bytes. That reconciliation is plausible and may well be right, but it is **not itself backed by a recorded probe** anywhere in this file or in the plan that introduced the map ([`2026-05-24-static-soc-counter-orientation.md`](../superpowers/plans/2026-05-24-static-soc-counter-orientation.md), which cites *this document* as its evidence). The only SDX55 orientation number ever written down here is the one that reads `Normal`. **This file therefore cannot settle the question, and neither can the plan.**
+>
+> The map is consequently **not merely unmeasured — it is contradicted by a measurement recorded in this same file.** *(A previous version of this section claimed the map "is correct for every device empirically probed in this matrix." That claim was false against the row above it and has been removed.)*
+>
+> **What is shipped today (Phase A, T4, 2026-08-26):** every SoC resolves to `normal`. The `SDX55` arm exists as a commented-out `case` line in `detect_orientation_from_soc()` and is pinned inert by a behavioural assertion in `scripts/test/poller-data-used.sh`. This became urgent because until T4 the poller's SoC parser never matched any real device (it grepped `^Branch Name` with one space; the vendor file column-aligns with two), so the map had *never* been live in the field. Repairing the parser would have activated an unmeasured map for the first time, on fielded RM502Q-AE / RG502Q community devices.
+>
+> **Phase B owns measuring this** — a controlled *forwarded LAN→WAN* transfer on a real SDX55, not another on-modem `curl`. Until that measurement exists, do not activate the arm and do not present the reversal as a fact.
+
+If a new SoC ships and turns out to disagree with the table, update the map in `scripts/usr/bin/qmanager_poller`'s `detect_orientation_from_soc()` — there is no runtime override. Note that function no longer parses `/etc/quectel-project-version` itself: since T4 it delegates the SoC read to **`qm_hw_soc()` in `scripts/usr/lib/qmanager/hw_profile.sh`**, whose matcher tolerates the vendor file's variable whitespace. A parser change belongs there; only the `case` arms belong in the poller.
 
 ---
 

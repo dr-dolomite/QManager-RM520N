@@ -11,7 +11,7 @@ Kernel-sourced design landed in v0.1.11 (schema v3). Schema v4 added a per-boot 
 
 ## Source of truth: /proc/net/dev
 
-The persistent data-usage counter lives in `qmanager_poller` and is stored at `/usrdata/qmanager/data_used.json`. It reads two byte fields from `/proc/net/dev` for `$NETWORK_IFACE` — `rmnet_ipa0` on RM520N-GL, `wwan0` on RM551E.
+The persistent data-usage counter lives in `qmanager_poller` and is stored at `/usrdata/qmanager/data_used.json`. It reads two byte fields from `/proc/net/dev` for `$NETWORK_IFACE`, which `resolve_network_iface()` sets to **`rmnet_ipa0` unconditionally** — the aggregate WAN netdev on both SDX55 and SDX65. (The `wwan0` branch was the RM551E/OpenWRT case; it was removed in Phase A T4, 2026-08-26, because no device this build runs on selects it. Per-device netdev selection, if it is ever needed, belongs in the platform profile's `caps`.)
 
 By convention the kernel layout puts RX bytes at field 2 and TX bytes at field 10. This holds for slow-path traffic on every probed device. **It does not always hold for fast-path (IPA-offloaded) traffic** — some SDX55 driver builds attribute offloaded bytes to the swapped column. Schema v5 picks the correct orientation by SoC, using a static map keyed off `/etc/quectel-project-version`'s `Branch Name`.
 
@@ -46,13 +46,17 @@ Schema v5 keeps the v3 storage model and adds an `orientation` field. **v3/v4 �
 
 The orientation is resolved once at poller startup by `detect_orientation_from_soc()` (in `scripts/usr/bin/qmanager_poller`) and held in memory for the process lifetime. Modem reboots do NOT re-evaluate the map — the SoC does not change at runtime.
 
+The SoC string itself comes from **`qm_hw_soc()` in `scripts/usr/lib/qmanager/hw_profile.sh`**, sourced non-fatally by the poller. `detect_orientation_from_soc()` does *not* parse `/etc/quectel-project-version` itself (it did until Phase A T4, with a `grep "^Branch Name"` that used one space where the vendor file column-aligns with two — so it matched nothing on any real device). If `hw_profile.sh` is missing, the SoC reads empty and the map falls through to `normal`.
+
 | SoC `Branch Name` in `/etc/quectel-project-version` | Orientation | `/proc/net/dev` DL field | UL field |
 |---|---|---|---|
 | `SDX6X` (SDX65 / x62 — RM520N-GL) | `normal` | 2 | 10 |
-| `SDX55` (RM502Q-AE) | `reversed` | 10 | 2 |
+| `SDX55` (RM502Q-AE, RG501Q-EU, RG502Q) | **`normal`** — the `reversed` arm is present but **commented out** | 2 | 10 |
 | anything else / missing / blank | `normal` | 2 | 10 |
 
-To add a new SoC to the table, edit `detect_orientation_from_soc()` in the poller. There is no runtime override.
+> ⚠️ **WARNING: every SoC resolves to `normal` today.** The `SDX55 → reversed` arm is deliberately inert and is pinned inert by a behavioural assertion in `scripts/test/poller-data-used.sh`. The reversal is **contradicted by a measurement** recorded in [`data-counter-platform-matrix.md`](./data-counter-platform-matrix.md) (an SDX55 part probing `Normal` on the slow path) and has never been measured on the IPA fast path. Phase B owns settling it — do not uncomment the arm before then.
+
+To add a new SoC to the table, edit the `case` in `detect_orientation_from_soc()` in the poller. A change to how the SoC *string* is parsed belongs in `hw_profile.sh`, not here. There is no runtime override.
 
 ---
 

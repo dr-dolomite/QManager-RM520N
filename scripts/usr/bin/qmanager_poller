@@ -809,8 +809,10 @@ update_data_used() {
     # field 2 holds one direction's byte total and field 10 the other.
     # main() resolves orientation from the SoC at startup via
     # detect_orientation_from_soc and sets $orientation_dl_field /
-    # $orientation_ul_field. Defaults (2/10) match Quectel spec; SDX55
-    # firmwares flip them because the IPA driver swaps fast-path attribution.
+    # $orientation_ul_field. Defaults (2/10) match Quectel spec and are what
+    # EVERY SoC resolves to today — the SDX55 arm is inert, and the claim that
+    # SDX55 firmwares flip the fields is unsettled, not established. See the
+    # note on detect_orientation_from_soc above.
     # ipa_rx is always the DOWNLOAD bytes; ipa_tx is always the UPLOAD bytes.
     local _dev_line ipa_rx ipa_tx
     _dev_line=$(grep "${NETWORK_IFACE}:" "$DATA_USED_PROC_DEV" 2>/dev/null)
