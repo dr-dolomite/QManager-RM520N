@@ -32,6 +32,7 @@
 #
 # Libraries (sourced at startup):
 #   /usr/lib/qmanager/qlog.sh      — Centralized logging
+#   /usr/lib/qmanager/hw_profile.sh — Hardware identity (model / SoC) parser
 #   /usr/lib/qmanager/parse_at.sh  — AT command response parsers
 #   /usr/lib/qmanager/events.sh    — Network event detection
 #
@@ -50,28 +51,67 @@ POLL_INTERVAL=2        # seconds between Tier 1 cycles
 TIER1_5_EVERY=5        # Tier 1.5 (per-antenna signal) runs every N cycles (10s)
 TIER2_EVERY=15         # Tier 2 runs every N cycles
 CYCLE_TIME_BUDGET=10   # seconds; warn if poll_cycle exceeds this
-# Network interface for traffic stats (platform-specific)
-if [ -f /etc/quectel-project-version ]; then
-    NETWORK_IFACE="rmnet_ipa0"   # RM520N-GL internal modem
-else
-    NETWORK_IFACE="wwan0"        # RM551E on OpenWRT
-fi
+
+# resolve_network_iface — the netdev whose /proc/net/dev byte counters feed the
+# persistent Data Used counter. Returns "rmnet_ipa0" on every device this
+# daemon can run on.
+#
+# This used to branch on `[ -f /etc/quectel-project-version ]`, choosing the
+# legacy OpenWRT netdev when the vendor file was absent. That discriminator is
+# gone, for two reasons. The vendor file is present on both live targets, so
+# the branch already resolved the same way everywhere it could actually run;
+# and rmnet_ipa0 is the aggregate WAN netdev on BOTH SDX55 and SDX65
+# (docs/reference/data-counter-platform-matrix.md:41,62,141), so there was
+# never a second answer to give. The OpenWRT sibling lives in a different repo
+# and its tier is `incompatible` — the installer refuses to run there at all.
+#
+# THE FALLBACK IS NAMED HERE ON PURPOSE (convention C5), because the failure
+# mode is invisible. If this ever resolves to a netdev that is not in
+# /proc/net/dev, the `grep "${NETWORK_IFACE}:"` in update_data_used returns
+# empty, the tick bails before touching any state, and Data Used silently stops
+# accumulating FOREVER while the status JSON keeps emitting a plausible frozen
+# accumulated_rx_bytes. Nothing observable goes red.
+#
+# Per-device netdev selection belongs in the hardware profile's `caps` in
+# Phase C, not in a model glob here. It is a function rather than a bare
+# assignment so the choice can be driven from scripts/test/poller-data-used.sh.
+resolve_network_iface() {
+    printf '%s\n' "rmnet_ipa0"
+}
+NETWORK_IFACE=$(resolve_network_iface)
 # Path to the Quectel firmware version file. Overridable for the test harness.
 : "${QUECTEL_VERSION_FILE:=/etc/quectel-project-version}"
 
-# detect_orientation_from_soc — read Branch Name from $QUECTEL_VERSION_FILE
-# and return the expected /proc/net/dev field orientation for this SoC.
-# SDX55 hardware uses reversed IPA fast-path routing (tx=DL, rx=UL).
-# All other known SoCs (SDX6X) and unknown/missing files default to normal
-# (rx=DL, tx=UL — matches Quectel spec).
-# Output: "reversed" | "normal" (printed to stdout)
+# detect_orientation_from_soc — the /proc/net/dev field orientation for this
+# SoC. Output: "reversed" | "normal" (printed to stdout).
+#
+# The SoC read goes through hw_profile.sh. It used to be a grep hand-rolled
+# here, and that grep was WRONG: it looked for a single space in a label the
+# vendor file column-aligns with two. It matched nothing on any real device, so
+# this function returned "normal" everywhere, always — by accident rather than
+# by decision. One tolerant parser, in one place, is the whole point of the
+# library.
+#
+# EVERY SoC RESOLVES TO "normal", INCLUDING SDX55 — DELIBERATELY.
+#
+# Repairing the parser makes this function work for the first time in its life,
+# which would activate an SDX55 map that no measurement supports. Worse than
+# unsupported: docs/reference/data-counter-platform-matrix.md:141 records an
+# SDX55 part (RM502Q-AE) probing NORMAL, contradicting the map further down the
+# same file. Fielded RM502Q-AE / RG502Q community devices report SDX55 and
+# would flip. Measuring that map is Phase B's job; the arm below is inert on
+# purpose, and pinned inert by scripts/test/poller-data-used.sh. Do not
+# "finish" it without a measurement to point at.
+#
+# If hw_profile.sh is not loaded (partial install, mid-OTA, rollback) qm_hw_soc
+# does not exist and $soc stays empty — which lands on exactly the same answer
+# every device has ever produced.
 detect_orientation_from_soc() {
-    local branch
-    branch=$(grep -m1 "^Branch Name" "${QUECTEL_VERSION_FILE}" 2>/dev/null \
-             | awk -F': *' '{print $2}' | tr -d '[:space:]')
-    case "$branch" in
-        SDX55) echo "reversed" ;;
-        *)     echo "normal"   ;;
+    local soc=""
+    command -v qm_hw_soc >/dev/null 2>&1 && soc=$(qm_hw_soc)
+    case "$soc" in
+        # SDX55) echo "reversed" ;;   # PHASE-B GATED — unmeasured, see above
+        *) echo "normal" ;;
     esac
 }
 
@@ -354,6 +394,32 @@ qlog_init "poller"
 log_info()  { qlog_info  "$1"; }
 log_warn()  { qlog_warn  "$1"; }
 log_error() { qlog_error "$1"; }
+
+# Hardware identity — model / SoC parser, tier table, profile generator.
+#
+# NON-FATAL BY DESIGN, unlike parse_at.sh and events.sh below. Those exit 1 on
+# a failed load; this one must not, and the reason is the unit file rather than
+# the library. qmanager-poller.service is Restart=on-failure with
+# StartLimitBurst=5 over StartLimitIntervalSec=3600, so a die-on-missing-library
+# during a partial install, a mid-OTA window or a rollback would burn five
+# restarts in about 25 seconds and then leave the poller STOPPED FOR AN HOUR —
+# taking /tmp/qmanager_status.json and therefore the whole dashboard with it.
+#
+# Degrading is cheap here precisely because the built-in fallbacks
+# (resolve_network_iface -> rmnet_ipa0, detect_orientation_from_soc -> normal)
+# are byte-identical to the correct answers on every device measured to date.
+# Losing the library costs nothing observable; dying on it costs everything.
+#
+# This must stay BELOW qlog_init and the log_* aliases above. Sourced any
+# higher, the failure branch has no logging to report itself with, and a
+# missing library would be genuinely silent: the unit sets no StandardOutput=
+# and journald has no persistent storage on either target.
+if [ -f /usr/lib/qmanager/hw_profile.sh ]; then
+    . /usr/lib/qmanager/hw_profile.sh 2>/dev/null \
+        || log_error "hw_profile.sh failed to load; identity reads use built-in defaults"
+else
+    log_error "hw_profile.sh not found; identity reads use built-in defaults"
+fi
 
 # AT command parsers
 . /usr/lib/qmanager/parse_at.sh 2>/dev/null || {
