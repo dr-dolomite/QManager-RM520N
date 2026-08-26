@@ -49,6 +49,8 @@
   "action.uninstall.confirm": "要从 {serial} 中移除 QManager 吗？设置将会保留。",
   "option.reboot": "完成后重启",
   "option.reboot.help": "重启是启动服务所必需的。仅当您打算自行重启时才可跳过。",
+  "option.skip_packages": "跳过软件包安装",
+  "option.skip_packages.help": "仅当调制解调器完全无法访问互联网时才使用此选项。它会跳过下载 Entware 软件包的步骤——否则在网络不通的情况下，该步骤会卡住长达 30 分钟才失败，而不是立即报错。仅当设备此前的安装已经配置好 Entware 时才有效。",
   "run.start": "开始",
   "run.cancel": "取消",
   "run.step": "第 {step} 步，共 {total} 步",

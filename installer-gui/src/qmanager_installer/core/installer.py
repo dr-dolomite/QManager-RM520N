@@ -34,6 +34,15 @@ class Progress:
 @dataclass(frozen=True)
 class InstallOptions:
     reboot: bool = True
+    # Opt-in escape hatch for a device with NO working WAN at all (not just
+    # GitHub blocked — the case this whole GUI otherwise exists to route
+    # around). Without it, install_dependencies() shells out to opkg against
+    # bin.entware.net; on a truly offline SIM those calls don't fail fast,
+    # they stall on a half-open TCP connection for up to
+    # DEFAULT_EXEC_STREAM_TIMEOUT (30 min), which reads as a frozen installer.
+    # Only meaningful when Entware/dropbear/etc. are already on the device
+    # from an earlier install attempt — see run()'s script guard below.
+    skip_packages: bool = False
 
 
 @dataclass(frozen=True)
@@ -142,9 +151,16 @@ class InstallRunner:
         self._check_cancelled("extract")
         self._exec_or_raise("extract", f"rm -rf {REMOTE_DIR} && tar xzf {REMOTE_TARBALL} -C /tmp", 180)
 
-        # 4. run — always --no-reboot so the exit code reaches us
+        # 4. run — always --no-reboot so the exit code reaches us.
+        # --skip-packages is only ever added for install_rm520n.sh: it is the
+        # flag OTA re-installs use to skip install_dependencies(), and
+        # uninstall_rm520n.sh has no such option — it would die on "Unknown
+        # option: --skip-packages" if this leaked into UninstallRunner's
+        # shared run().
         self._check_cancelled("install")
         cmd = f"bash {REMOTE_DIR}/{self._script} --force --no-reboot"
+        if options.skip_packages and self._script == "install_rm520n.sh":
+            cmd += " --skip-packages"
         self._emit(f"$ {cmd}")
         try:
             exit_code = self._t.exec_stream(cmd, self._emit, timeout=DEFAULT_EXEC_STREAM_TIMEOUT)

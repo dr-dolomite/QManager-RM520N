@@ -165,7 +165,7 @@ class Bridge:
 
     # --- run --------------------------------------------------------------
 
-    def start(self, action: str, reboot: bool = True) -> dict:
+    def start(self, action: str, reboot: bool = True, skip_packages: bool = False) -> dict:
         if self._transport is None or self._state == "running":
             return {"started": False}
         serial = self._report.device.serial if self._report and self._report.device else "unknown"
@@ -189,7 +189,7 @@ class Bridge:
 
         def work() -> None:
             try:
-                runner.run(InstallOptions(reboot=reboot))
+                runner.run(InstallOptions(reboot=reboot, skip_packages=skip_packages))
                 state, error = "done", None
             except InstallCancelled:
                 # A third outcome, deliberately not ok=False wearing a

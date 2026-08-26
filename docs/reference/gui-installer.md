@@ -36,7 +36,7 @@ doc carries only what a future task needs.
 | Output | `installer-gui/dist/QManagerInstaller/` — ship the **whole folder**, not just the `.exe` |
 | Tests | `pytest` — 143 tests, no device required |
 | Payload lands at | `/tmp/qmanager.tar.gz`, extracted to `/tmp/qmanager_install` |
-| Script invoked | `bash /tmp/qmanager_install/install_rm520n.sh --force --no-reboot` |
+| Script invoked | `bash /tmp/qmanager_install/install_rm520n.sh --force --no-reboot` (+ `--skip-packages` if the user checks "Skip package installation") |
 | Uninstall | same sequence with `uninstall_rm520n.sh`; `--purge` is deliberately never passed |
 | Exit sentinel | `__QM_RC=` (`RC_SENTINEL`); a missing sentinel yields `MISSING_SENTINEL_RC = 255` |
 | Stream deadline | `DEFAULT_EXEC_STREAM_TIMEOUT = 1800` seconds |
@@ -296,6 +296,42 @@ Splitting the reboot out gives two unambiguous rules:
 (`test_installer_is_always_invoked_with_no_reboot`,
 `test_transport_dying_during_reboot_is_success_not_failure`,
 `test_reboot_command_failing_without_raising_is_not_reported_as_rebooted`)
+
+### The "Skip package installation" option
+
+**Short version: this is the GUI's answer to a device with NO working internet
+at all — not the GFW-blocked-GitHub case the whole sub-project otherwise
+exists to route around, but a modem whose SIM has no data plan or is out of
+coverage.** Without it, a fresh install always calls `install_dependencies()`
+on the device, which shells out to `opkg update` / `opkg install <pkg>`
+against `bin.entware.net`. On a device with zero WAN, those calls don't fail
+fast — they stall on a half-open TCP connection for up to
+`DEFAULT_EXEC_STREAM_TIMEOUT` (30 minutes), which reads to the user as a
+frozen installer stuck on one step.
+
+The checkbox lives on the preflight screen (`option.skip_packages` /
+`option.skip_packages.help` — a question-mark tooltip trigger next to the
+"Reboot when finished" switch, `ui/index.html`'s `#skip-packages`), defaults
+**unchecked**, and appends `--skip-packages` to the install command —
+`InstallOptions.skip_packages` → `InstallRunner.run()` (`core/installer.py`).
+It mirrors the flag `qmanager_update` already passes on every OTA re-install,
+which gates `install_dependencies()` in `install_rm520n.sh`.
+
+It only helps if Entware/dropbear/etc. are **already on the device** from an
+earlier install attempt — `install_rm520n.sh --skip-packages` on a device that
+has never had Entware bootstrapped just fails later for a different reason
+(no `opkg`, no `dropbear`). The GUI does not detect this for the user; the
+checkbox is a manual escape hatch, not an automatic decision.
+
+`InstallRunner.run()` only appends the flag when `self._script ==
+"install_rm520n.sh"` — `uninstall_rm520n.sh` has no `--skip-packages` option
+and dies on "Unknown option" if it receives one. `UninstallRunner` reuses
+`InstallRunner.run()` verbatim (see "Install, Upgrade and Repair are the same
+code path" above), so this guard is the only thing stopping a stray
+`skip_packages=True` from reaching an uninstall run and breaking it.
+(`test_uninstall_never_passes_skip_packages`,
+`test_skip_packages_requested_adds_the_flag`,
+`test_skip_packages_not_requested_omits_the_flag`.)
 
 ### There is deliberately NO cancellation gate after the install exits 0
 

@@ -45,6 +45,22 @@ def test_uninstall_runs_the_uninstall_script(tmp_path):
     assert "--no-reboot" in cmd
 
 
+def test_uninstall_never_passes_skip_packages(tmp_path):
+    # uninstall_rm520n.sh has no --skip-packages option and would die on
+    # "Unknown option" — InstallRunner.run() must not leak the flag into
+    # UninstallRunner's shared run() even if the UI happened to send it.
+    tarball = tmp_path / "qmanager.tar.gz"
+    tarball.write_bytes(b"x")
+    t = FakeTransport()
+    UninstallRunner(
+        t,
+        Payload(tarball=tarball, sha256=SHA, version="v0.1.14"),
+        on_line=lambda _: None,
+        on_progress=lambda _: None,
+    ).run(InstallOptions(reboot=False, skip_packages=True))
+    assert not any("--skip-packages" in c for c in t.stream_commands)
+
+
 def test_uninstall_never_passes_purge(tmp_path):
     # --purge destroys user configuration; the GUI does not decide that.
     tarball = tmp_path / "qmanager.tar.gz"

@@ -95,6 +95,22 @@ def test_start_is_non_blocking_and_streams_through_poll(tmp_path):
     assert final["progress"] == {"step": 1, "total": 9}
 
 
+def test_start_forwards_skip_packages_to_the_install_command(tmp_path):
+    seen = []
+
+    class T(FakeTransport):
+        def exec_stream(self, cmd, on_line, timeout=1800):
+            seen.append(cmd)
+            on_line("  [Step 1/9]")
+            return 0
+
+    b = make_bridge(tmp_path, T())
+    b.preflight()
+    b.start("install", reboot=False, skip_packages=True)
+    drain(b)
+    assert any("--skip-packages" in c for c in seen)
+
+
 def test_uninstall_action_routes_to_the_uninstall_runner(tmp_path):
     seen = []
 

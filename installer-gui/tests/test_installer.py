@@ -120,6 +120,23 @@ def test_installer_is_always_invoked_with_no_reboot(tmp_path):
     assert "--no-reboot" in cmd
 
 
+def test_skip_packages_not_requested_omits_the_flag(tmp_path):
+    t = FakeTransport()
+    run(tmp_path, t, reboot=False)
+    cmd = next(c for c in t.stream_commands if "install_rm520n.sh" in c)
+    assert "--skip-packages" not in cmd
+
+
+def test_skip_packages_requested_adds_the_flag(tmp_path):
+    # The escape hatch for a device with no WAN at all — see InstallOptions.
+    t = FakeTransport()
+    run(tmp_path, t, reboot=False, skip_packages=True)
+    cmd = next(c for c in t.stream_commands if "install_rm520n.sh" in c)
+    assert "--skip-packages" in cmd
+    assert "--force" in cmd
+    assert "--no-reboot" in cmd
+
+
 def test_reboot_requested_issues_a_separate_reboot(tmp_path):
     t = FakeTransport()
     outcome, _, _ = run(tmp_path, t, reboot=True)

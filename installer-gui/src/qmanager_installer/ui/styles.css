@@ -218,6 +218,52 @@ body[data-view="result"]    .view[data-for="result"] { display: flex; }
 .switch { display: flex; align-items: center; gap: 10px; font-size: 14px; font-weight: 600; cursor: pointer; }
 .switch input { accent-color: var(--primary); width: 17px; height: 17px; cursor: pointer; }
 
+.switch-row { display: flex; align-items: center; gap: 8px; margin-top: 14px; }
+.switch-row .switch { margin: 0; }
+
+/* ---------- tooltip ----------
+   A "?" trigger, never a hover-only affordance: the bubble also opens on
+   focus, so it is reachable from the keyboard and doesn't depend on a mouse
+   being present (webview has no guaranteed pointer device). */
+
+.tooltip { position: relative; display: inline-flex; }
+
+.tooltip-trigger {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 20px; height: 20px;
+  padding: 0;
+  color: var(--on-surface-variant);
+  background: var(--surface-container);
+  border: none;
+  border-radius: var(--radius-pill);
+  cursor: pointer;
+  transition: background var(--duration-quick) var(--ease-standard),
+              color var(--duration-quick) var(--ease-standard);
+}
+.tooltip-trigger:hover { background: var(--surface-container-high); color: var(--foreground); }
+.tooltip-trigger .glyph { width: 13px; height: 13px; }
+
+.tooltip-bubble {
+  position: absolute; z-index: 1;
+  bottom: calc(100% + 8px); left: 50%;
+  transform: translateX(-50%) translateY(2px);
+  width: max-content; max-width: 260px;
+  padding: 10px 12px;
+  background: var(--foreground);
+  color: var(--background);
+  border-radius: var(--radius-field);
+  font-size: 12px; font-weight: 400; line-height: 1.5;
+  text-align: left;
+  opacity: 0; visibility: hidden; pointer-events: none;
+  transition: opacity var(--duration-quick) var(--ease-standard),
+              transform var(--duration-quick) var(--ease-standard),
+              visibility var(--duration-quick);
+}
+.tooltip-trigger:hover + .tooltip-bubble,
+.tooltip-trigger:focus-visible + .tooltip-bubble {
+  opacity: 1; visibility: visible; transform: translateX(-50%) translateY(0);
+}
+
 .card-actions { display: flex; flex-direction: column; }
 
 /* ---------- status chips ----------

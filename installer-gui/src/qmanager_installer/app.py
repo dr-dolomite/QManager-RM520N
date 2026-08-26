@@ -21,6 +21,20 @@ def ui_dir() -> Path:
     return Path(__file__).resolve().parent / "ui"
 
 
+def app_icon() -> str | None:
+    """Path to the QManager mark .ico, or None if the asset isn't bundled.
+
+    PyInstaller onedir mode reads --add-data through sys._MEIPASS; the icon
+    is added the same way as ui/ (see build_installer.py), so it resolves
+    identically frozen and unfrozen.
+    """
+    if getattr(sys, "frozen", False):
+        icon = Path(sys._MEIPASS) / "qmanager_installer" / "assets" / "app.ico"  # type: ignore[attr-defined]
+    else:
+        icon = Path(__file__).resolve().parent.parent.parent / "assets" / "app.ico"
+    return str(icon) if icon.is_file() else None
+
+
 def run() -> int:
     bridge = Bridge()
     webview.create_window(
@@ -31,5 +45,5 @@ def run() -> int:
         height=680,
         min_size=(760, 560),
     )
-    webview.start()
+    webview.start(icon=app_icon())
     return 0

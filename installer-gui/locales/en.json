@@ -49,6 +49,8 @@
   "action.uninstall.confirm": "Remove QManager from {serial}? Settings are kept.",
   "option.reboot": "Reboot when finished",
   "option.reboot.help": "The reboot is what starts the services. Skip it only if you plan to reboot yourself.",
+  "option.skip_packages": "Skip package installation",
+  "option.skip_packages.help": "Use this only if the modem has no internet access at all. It skips downloading Entware packages, which otherwise stalls for up to 30 minutes on a dead connection instead of failing fast. Only works if Entware was already set up on the device by an earlier install attempt.",
   "run.start": "Start",
   "run.cancel": "Cancel",
   "run.step": "Step {step} of {total}",

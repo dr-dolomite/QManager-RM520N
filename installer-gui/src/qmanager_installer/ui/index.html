@@ -4,6 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>QManager Installer</title>
+    <link rel="icon" type="image/svg+xml" href="favicon.svg" />
     <link rel="stylesheet" href="tokens.css" />
     <link rel="stylesheet" href="styles.css" />
   </head>
@@ -41,6 +42,11 @@
       </symbol>
       <symbol id="i-device" viewBox="0 0 24 24">
         <rect x="4.5" y="2.8" width="15" height="18.4" rx="2.4" /><path d="M10 18.4h4" />
+      </symbol>
+      <symbol id="i-help" viewBox="0 0 24 24">
+        <circle cx="12" cy="12" r="9" />
+        <path d="M9.3 9.5a2.9 2.9 0 1 1 4.6 2.3c-1 .7-1.9 1.3-1.9 2.7" />
+        <path d="M12 17.6v.1" />
       </symbol>
     </svg>
 
@@ -98,7 +104,7 @@
             <div class="fields">
               <label class="field">
                 <span data-i18n="transport.ssh.host"></span>
-                <input id="ssh-host" autocomplete="off" spellcheck="false" inputmode="url" />
+                <input id="ssh-host" value="192.168.225.1" autocomplete="off" spellcheck="false" inputmode="url" />
               </label>
               <label class="field">
                 <span data-i18n="transport.ssh.user"></span>
@@ -135,6 +141,20 @@
             <span data-i18n="option.reboot"></span>
           </label>
           <p class="hint" data-i18n="option.reboot.help"></p>
+
+          <div class="switch-row">
+            <label class="switch">
+              <input type="checkbox" id="skip-packages" />
+              <span data-i18n="option.skip_packages"></span>
+            </label>
+            <span class="tooltip">
+              <button type="button" class="tooltip-trigger" aria-describedby="skip-packages-tip" data-i18n-aria="option.skip_packages.help">
+                <svg class="glyph" aria-hidden="true"><use href="#i-help" /></svg>
+              </button>
+              <span class="tooltip-bubble" role="tooltip" id="skip-packages-tip" data-i18n="option.skip_packages.help"></span>
+            </span>
+          </div>
+
           <div class="actions">
             <button id="start" class="btn btn-primary" data-i18n="run.start"></button>
             <button id="uninstall" class="btn btn-danger" data-i18n="action.uninstall" hidden></button>

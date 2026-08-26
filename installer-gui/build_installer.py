@@ -53,6 +53,8 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 REPO_ROOT = HERE.parent
 UI_DIR = HERE / "src" / "qmanager_installer" / "ui"
+ASSETS_DIR = HERE / "assets"
+APP_ICON = ASSETS_DIR / "app.ico"
 PAYLOAD_DIR = HERE / "payload"
 VENDOR_ADB = HERE / "vendor" / "adb"
 LOCALES_DIR = HERE / "locales"
@@ -271,21 +273,29 @@ def check_vendor_adb(vendor_adb: Path = VENDOR_ADB) -> None:
 def build_pyinstaller_argv(
     here: Path = HERE,
     ui_dir: Path = UI_DIR,
+    assets_dir: Path = ASSETS_DIR,
     dist_dir: Path | None = None,
     build_dir: Path | None = None,
 ) -> list[str]:
     """The PyInstaller invocation. Deliberately has NO --add-binary for adb.
 
     PyInstaller 6 onedir mode puts --add-binary / --add-data payloads under
-    dist/<name>/_internal/. --add-data for ui/ is still correct here: it's
-    read at runtime via sys._MEIPASS, which resolves into _internal
-    correctly. adb is NOT read via sys._MEIPASS (the runtime resolver looks
-    beside the exe, matching locales/ and payload/), so it must never be
-    passed to --add-binary — see stage_runtime_assets().
+    dist/<name>/_internal/. --add-data for ui/ and assets/ is still correct
+    here: both are read at runtime via sys._MEIPASS, which resolves into
+    _internal correctly (see app.app_icon()). adb is NOT read via
+    sys._MEIPASS (the runtime resolver looks beside the exe, matching
+    locales/ and payload/), so it must never be passed to --add-binary —
+    see stage_runtime_assets().
+
+    --icon bakes the QManager mark into the .exe itself (Explorer icon,
+    taskbar pin, Alt-Tab); app.app_icon() separately hands the same file to
+    webview.start(icon=...) for the live window/taskbar icon, since
+    PyInstaller's --icon only affects the executable's file-level icon
+    resource, not what a WebView2-backed window shows at runtime.
     """
     dist_dir = dist_dir if dist_dir is not None else here / "dist"
     build_dir = build_dir if build_dir is not None else here / "build"
-    return [
+    argv = [
         sys.executable, "-m", "PyInstaller",
         "--noconfirm", "--clean", "--windowed",
         "--name", "QManagerInstaller",
@@ -293,8 +303,12 @@ def build_pyinstaller_argv(
         "--workpath", str(build_dir),
         "--specpath", str(build_dir),
         "--add-data", f"{ui_dir};qmanager_installer/ui",
-        str(here / "src" / "qmanager_installer" / "__main__.py"),
+        "--add-data", f"{assets_dir};qmanager_installer/assets",
     ]
+    if APP_ICON.is_file():
+        argv += ["--icon", str(APP_ICON)]
+    argv.append(str(here / "src" / "qmanager_installer" / "__main__.py"))
+    return argv
 
 
 def stage_runtime_assets(

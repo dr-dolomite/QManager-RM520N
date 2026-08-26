@@ -33,6 +33,12 @@ function applyStaticStrings() {
   for (const el of $$("[data-i18n]")) {
     el.textContent = t(el.dataset.i18n);
   }
+  // Attribute-only strings (tooltip triggers etc.) — same locale keys as
+  // their visible bubble text, just projected onto aria-label instead of
+  // textContent since the trigger itself has no visible label.
+  for (const el of $$("[data-i18n-aria]")) {
+    el.setAttribute("aria-label", t(el.dataset.i18nAria));
+  }
 }
 
 /* ---------- theme ----------
@@ -366,7 +372,7 @@ async function start(action) {
   $("#cancel").disabled = false;
   view("run");
 
-  const res = await api().start(action, $("#reboot").checked);
+  const res = await api().start(action, $("#reboot").checked, $("#skip-packages").checked);
   if (!res.started) {
     // Not connected, or a run is already in flight. Go back to where the user
     // can act instead of leaving them on a run view that will never move.
