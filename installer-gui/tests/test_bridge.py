@@ -1,9 +1,10 @@
+import threading
 import time
 from pathlib import Path
 
 from qmanager_installer.bridge import Bridge
 from qmanager_installer.core.payload import Payload
-from qmanager_installer.core.transport.base import Result
+from qmanager_installer.core.transport.base import Result, TransportCancelled
 
 SHA = "a" * 64
 VERSION_FILE = "Project Name: RM520N-GL\n"
@@ -66,7 +67,7 @@ def drain(bridge, timeout=5.0):
         snap = bridge.poll()
         lines.extend(snap["lines"])
         state = snap["state"]
-        if state in ("done", "failed"):
+        if state in ("done", "failed", "cancelled"):
             return lines, snap
         time.sleep(0.02)
     raise AssertionError(f"never reached a terminal state (last: {state})")
@@ -189,3 +190,53 @@ def test_missing_keys_are_exposed_for_diagnosis(tmp_path):
     b = make_bridge(tmp_path, FakeTransport())
     b.strings()
     assert isinstance(b.missing_keys(), list)
+
+
+# --- cancellation -----------------------------------------------------------
+
+
+class HangingTransport(FakeTransport):
+    """A transport whose exec_stream blocks mid-install (like the real
+    opkg-stall scenario) until Bridge.cancel() calls its cancel(), which is
+    the real mechanism that must unblock a worker thread parked in
+    exec_stream — not just a flag InstallRunner happens to check later.
+    """
+
+    def __init__(self):
+        super().__init__()
+        self.cancel_calls = 0
+        self.started = threading.Event()
+        self.released = threading.Event()
+
+    def exec_stream(self, cmd, on_line, timeout=1800):
+        on_line("  [Step 1/9]")
+        self.started.set()
+        self.released.wait(timeout=5)
+        raise TransportCancelled("cancelled")
+
+    def cancel(self):
+        self.cancel_calls += 1
+        self.released.set()
+
+
+def test_cancel_unblocks_a_running_install_and_poll_reports_cancelled(tmp_path):
+    t = HangingTransport()
+    b = make_bridge(tmp_path, t)
+    b.preflight()
+    assert b.start("install", reboot=False)["started"] is True
+    assert t.started.wait(timeout=2), "worker thread never reached exec_stream"
+
+    result = b.cancel()
+    assert result["cancelling"] is True
+    assert t.cancel_calls == 1  # the actual unblocking mechanism, not just a flag
+
+    _, final = drain(b)
+    assert final["state"] == "cancelled"
+    # Distinguishable from a failure: no error payload for a clean cancel.
+    assert final["error"] is None
+
+
+def test_cancel_is_a_safe_noop_when_nothing_is_running(tmp_path):
+    b = make_bridge(tmp_path, FakeTransport())
+    result = b.cancel()
+    assert result["cancelling"] is False

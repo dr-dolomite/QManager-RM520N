@@ -1,8 +1,12 @@
 import pytest
 
 from qmanager_installer.core.transport.base import (
+    DEFAULT_EXEC_STREAM_TIMEOUT,
     MISSING_SENTINEL_RC,
     Result,
+    Transport,
+    TransportCancelled,
+    TransportError,
     parse_rc,
     strip_ansi,
     wrap_command,
@@ -92,3 +96,24 @@ def test_strip_ansi_removes_colour_codes():
 def test_result_ok():
     assert Result(0, "", "").ok
     assert not Result(1, "", "").ok
+
+
+# --- cancellation ---------------------------------------------------------
+
+
+def test_default_exec_stream_timeout_is_a_generous_named_constant():
+    # Not a magic number scattered across both transports' default args —
+    # one named constant, generous enough to cover a ~3-minute install even
+    # when it stalls hard on a half-open TCP connection to bin.entware.net.
+    assert isinstance(DEFAULT_EXEC_STREAM_TIMEOUT, int)
+    assert DEFAULT_EXEC_STREAM_TIMEOUT >= 600
+
+
+def test_transport_cancelled_is_a_transport_error_with_a_reason():
+    exc = TransportCancelled("cancelled")
+    assert isinstance(exc, TransportError)
+    assert exc.reason == "cancelled"
+
+
+def test_transport_abc_declares_cancel():
+    assert "cancel" in Transport.__abstractmethods__

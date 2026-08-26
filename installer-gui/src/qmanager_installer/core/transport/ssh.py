@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
+import threading
 from pathlib import Path
 from typing import Callable
 
 from .base import (
+    DEFAULT_EXEC_STREAM_TIMEOUT,
     Result,
     Transport,
+    TransportCancelled,
     TransportError,
     parse_rc,
     strip_ansi,
@@ -38,6 +41,10 @@ class SshTransport(Transport):
         self._password = password
         self._client_factory = client_factory
         self._client = None
+        self._lock = threading.Lock()
+        self._channel = None
+        self._cancel_requested = False
+        self._deadline_hit = False
 
     def describe(self) -> str:
         return f"SSH {self._host}"
@@ -89,7 +96,7 @@ class SshTransport(Transport):
         body, rc = parse_rc(strip_ansi(out))
         return Result(exit_code=rc, stdout=body.strip(), stderr=strip_ansi(err).strip())
 
-    def exec_stream(self, cmd: str, on_line, timeout: int = 1800) -> int:
+    def exec_stream(self, cmd: str, on_line, timeout: int = DEFAULT_EXEC_STREAM_TIMEOUT) -> int:
         # `2>&1` binds to the single simple command it trails. Appending it
         # after wrap_command's output would redirect only the trailing
         # `echo`, not the user's command — silently dropping every stderr
@@ -99,15 +106,58 @@ class SshTransport(Transport):
         # everything inside it.
         full_cmd = "{ " + wrap_command(cmd) + "; } 2>&1"
         _, stdout, _ = self._connected().exec_command(full_cmd, timeout=timeout, get_pty=False)
+        channel = stdout.channel
+        with self._lock:
+            self._channel = channel
+            self._cancel_requested = False
+            self._deadline_hit = False
+
+        # Same watchdog shape as AdbTransport: without this, a remote
+        # command that never closes its side of the channel blocks
+        # stdout.readline() forever, `timeout` above only bounds paramiko's
+        # own exec_command() call, not this read loop. Closing the channel
+        # from another thread is what makes readline() return "" (EOF) and
+        # unblocks the loop below.
+        watchdog = threading.Timer(timeout, self._on_deadline, args=(channel,))
+        watchdog.daemon = True
+        watchdog.start()
+
         tail = ""
-        for raw in iter(stdout.readline, ""):
-            line = strip_ansi(raw.rstrip("\r\n"))
-            if line.startswith("__QM_RC="):
-                tail = line
-                continue
-            on_line(line)
+        try:
+            for raw in iter(stdout.readline, ""):
+                line = strip_ansi(raw.rstrip("\r\n"))
+                if line.startswith("__QM_RC="):
+                    tail = line
+                    continue
+                on_line(line)
+        finally:
+            watchdog.cancel()
+            with self._lock:
+                cancelled = self._cancel_requested
+                deadline_hit = self._deadline_hit
+                self._channel = None
+
+        if cancelled:
+            raise TransportCancelled("cancelled")
+        if deadline_hit:
+            raise TransportCancelled("deadline")
         _, rc = parse_rc(tail)
         return rc
+
+    def _on_deadline(self, channel) -> None:
+        with self._lock:
+            if self._channel is not channel:
+                return  # exec_stream already finished; nothing to abort
+            self._deadline_hit = True
+        channel.close()
+
+    def cancel(self) -> None:
+        with self._lock:
+            channel = self._channel
+            if channel is None:
+                return
+            self._cancel_requested = True
+        channel.close()
 
     def close(self) -> None:
         if self._client is not None:

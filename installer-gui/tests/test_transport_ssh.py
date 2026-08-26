@@ -1,9 +1,15 @@
 import io
+import threading
+import time
 from pathlib import Path
 
 import pytest
 
-from qmanager_installer.core.transport.base import MISSING_SENTINEL_RC, TransportError
+from qmanager_installer.core.transport.base import (
+    MISSING_SENTINEL_RC,
+    TransportCancelled,
+    TransportError,
+)
 from qmanager_installer.core.transport.ssh import SshTransport
 
 
@@ -136,3 +142,98 @@ def test_push_failure_raises_transport_error():
     client.sftp.fail = True
     with pytest.raises(TransportError, match="permission denied"):
         make(client).push(Path("a.tar.gz"), "/tmp/a.tar.gz")
+
+
+# --- cancellation -----------------------------------------------------------
+
+
+class HangingChannel:
+    """Stands in for a live paramiko Channel whose stdout.readline() never
+    returns until something closes it — the real shape of a stalled remote
+    command over SSH. Blocks on a real Event so a test thread genuinely
+    parks in readline() the way the real blocked-reader thread would.
+    """
+
+    def __init__(self):
+        self.closed = threading.Event()
+        self.close_calls = 0
+
+    def close(self):
+        self.close_calls += 1
+        self.closed.set()
+
+    def readline(self):
+        self.closed.wait()
+        return ""
+
+
+class HangingStdout:
+    def __init__(self, channel):
+        self.channel = channel
+
+    def readline(self):
+        return self.channel.readline()
+
+
+class HangingClient:
+    def __init__(self):
+        self.channel = HangingChannel()
+        self.commands = []
+
+    def set_missing_host_key_policy(self, policy):
+        pass
+
+    def connect(self, **kwargs):
+        pass
+
+    def exec_command(self, cmd, timeout=None, get_pty=False):
+        self.commands.append(cmd)
+        return io.StringIO(""), HangingStdout(self.channel), io.StringIO("")
+
+    def close(self):
+        pass
+
+
+def test_cancel_closes_the_channel_from_a_different_thread():
+    client = HangingClient()
+    t = make(client)
+    outcome = {}
+
+    def worker():
+        try:
+            t.exec_stream("install.sh", lambda line: None, timeout=30)
+        except TransportCancelled as exc:
+            outcome["reason"] = exc.reason
+
+    thread = threading.Thread(target=worker)
+    thread.start()
+    # Let exec_stream register the live channel and block in readline()
+    # before the "UI thread" cancels it — cancel is called from a different
+    # thread than the one stuck reading, on purpose.
+    time.sleep(0.1)
+    t.cancel()
+    thread.join(timeout=2)
+
+    assert not thread.is_alive(), "exec_stream did not unblock after cancel()"
+    assert client.channel.close_calls == 1
+    assert outcome.get("reason") == "cancelled"
+
+
+def test_cancel_is_a_safe_noop_when_nothing_is_running():
+    client = FakeClient()
+    t = make(client)
+    t.cancel()  # must not raise
+
+
+def test_exec_stream_enforces_a_wall_clock_deadline():
+    client = HangingClient()
+    t = make(client)
+
+    start = time.monotonic()
+    with pytest.raises(TransportCancelled) as exc:
+        t.exec_stream("install.sh", lambda line: None, timeout=0.1)
+    elapsed = time.monotonic() - start
+
+    assert exc.value.reason == "deadline"
+    assert client.channel.close_calls == 1
+    assert elapsed < 2.0

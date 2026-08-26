@@ -285,19 +285,29 @@ function renderProgress(p) {
   $("#progress-count").textContent = t("run.step", { step: p.step, total: p.total });
 }
 
+/* Three terminal states, three tones, three distinct glyphs. "cancelled" is
+ * deliberately not "failed": nothing went wrong, the user stopped it. Its
+ * error field is always null, which is the tell. */
+const TERMINAL = {
+  done: { tone: "pass", key: "run.done" },
+  failed: { tone: "block", key: "run.failed" },
+  cancelled: { tone: "warn", key: "run.cancelled" },
+};
+
 function finish(snap) {
-  const badge = $("#result-badge");
-  badge.replaceWith(
-    Object.assign(
-      chip(snap.state === "done" ? "pass" : "block",
-           t(snap.state === "done" ? "run.done" : "run.failed")),
-      { id: "result-badge" }
-    )
+  const term = TERMINAL[snap.state] || TERMINAL.failed;
+
+  $("#result-badge").replaceWith(
+    Object.assign(chip(term.tone, t(term.key)), { id: "result-badge" })
   );
+  $("#result-title").textContent = t(term.key);
 
-  $("#result-title").textContent = t(snap.state === "done" ? "run.done" : "run.failed");
-
-  if (snap.state === "done") {
+  if (snap.state === "cancelled") {
+    // Say plainly that the device may be half-installed. A cancelled run does
+    // not roll back what install_rm520n.sh already wrote.
+    $("#result-detail").textContent = t("run.cancelled.detail");
+    $("#result-facts").hidden = true;
+  } else if (snap.state === "done") {
     // Never invent an address: over ADB the modem's LAN IP is not knowable
     // from the session, so that path gets its own wording.
     $("#result-detail").textContent = HOST
@@ -340,9 +350,10 @@ async function poll() {
   }
   renderProgress(snap.progress);
 
-  if (snap.state === "done" || snap.state === "failed") {
+  if (snap.state === "done" || snap.state === "failed" || snap.state === "cancelled") {
     clearInterval(POLL);
     POLL = null;
+    $("#cancel").disabled = false;
     finish(snap);
   }
 }
@@ -352,6 +363,7 @@ async function start(action) {
   $("#dots").textContent = "";
   $("#progress-count").textContent = "";
   $("#run-title").textContent = t(action === "uninstall" ? "action.uninstall" : "run.installing");
+  $("#cancel").disabled = false;
   view("run");
 
   const res = await api().start(action, $("#reboot").checked);
@@ -402,6 +414,10 @@ async function boot() {
   $("#ssh-connect").addEventListener("click", connectSsh);
   $("#ssh-pass").addEventListener("keydown", (e) => {
     if (e.key === "Enter") connectSsh();
+  });
+  $("#cancel").addEventListener("click", async (e) => {
+    e.target.disabled = true; // one click; poll() reports the outcome
+    await api().cancel();
   });
   $("#start").addEventListener("click", () => start("install"));
   $("#uninstall").addEventListener("click", () => start("uninstall"));

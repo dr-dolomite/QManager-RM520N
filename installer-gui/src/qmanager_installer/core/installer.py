@@ -9,13 +9,14 @@ because the exit code would never come back.
 from __future__ import annotations
 
 import re
+import threading
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable
 
 from .payload import Payload
 from .session_log import SessionLog
-from .transport.base import Transport, TransportError
+from .transport.base import DEFAULT_EXEC_STREAM_TIMEOUT, Transport, TransportCancelled, TransportError
 
 REMOTE_TARBALL = "/tmp/qmanager.tar.gz"
 REMOTE_DIR = "/tmp/qmanager_install"
@@ -52,6 +53,24 @@ class InstallError(RuntimeError):
         self.stderr = stderr
 
 
+class InstallCancelled(RuntimeError):
+    """The run was stopped by request — a cancel_event checked between
+    steps, or a mid-stream Transport.cancel()/deadline abort during the
+    install script itself. Deliberately its OWN exception, not InstallError
+    wearing a synthetic exit code: a cancelled run is neither a success nor
+    a failure, and callers must not be able to mistake one for the other.
+
+    Cancelling does NOT roll anything back. install_rm520n.sh mutates
+    /etc/qmanager, /usr/bin and /lib/systemd/system as it runs; killing it
+    partway through this exception's `step` leaves the device in whatever
+    state it had reached. Re-running the installer is what puts it right.
+    """
+
+    def __init__(self, step: str) -> None:
+        super().__init__(f"cancelled during [{step}]")
+        self.step = step
+
+
 def parse_progress(line: str) -> Progress | None:
     match = _PROGRESS_RE.search(line)
     if not match:
@@ -68,6 +87,7 @@ class InstallRunner:
         on_progress: Callable[[Progress], None],
         log: SessionLog | None = None,
         script: str = "install_rm520n.sh",
+        cancel_event: threading.Event | None = None,
     ) -> None:
         self._t = transport
         self._payload = payload
@@ -75,6 +95,7 @@ class InstallRunner:
         self._on_progress = on_progress
         self._log = log
         self._script = script
+        self._cancel_event = cancel_event
 
     def _emit(self, line: str) -> None:
         if self._log is not None:
@@ -90,8 +111,14 @@ class InstallRunner:
         if not result.ok:
             raise InstallError(step, cmd, result.exit_code, result.stderr or result.stdout)
 
+    def _check_cancelled(self, step: str) -> None:
+        if self._cancel_event is not None and self._cancel_event.is_set():
+            self._emit(f"cancelled before [{step}]")
+            raise InstallCancelled(step)
+
     def run(self, options: InstallOptions) -> InstallOutcome:
         # 1. push
+        self._check_cancelled("push")
         self._emit(f"push {self._payload.tarball.name} -> {REMOTE_TARBALL}")
         try:
             self._t.push(self._payload.tarball, REMOTE_TARBALL)
@@ -99,6 +126,7 @@ class InstallRunner:
             raise InstallError("push", "push", 1, str(exc)) from exc
 
         # 2. verify on device — a truncated push is otherwise invisible
+        self._check_cancelled("verify")
         verify_cmd = f"sha256sum {REMOTE_TARBALL} | awk '{{print $1}}'"
         self._emit(f"$ {verify_cmd}")
         verify = self._t.exec(verify_cmd, timeout=120)
@@ -111,14 +139,33 @@ class InstallRunner:
         self._emit(f"sha256 verified: {remote_sha}")
 
         # 3. extract
+        self._check_cancelled("extract")
         self._exec_or_raise("extract", f"rm -rf {REMOTE_DIR} && tar xzf {REMOTE_TARBALL} -C /tmp", 180)
 
         # 4. run — always --no-reboot so the exit code reaches us
+        self._check_cancelled("install")
         cmd = f"bash {REMOTE_DIR}/{self._script} --force --no-reboot"
         self._emit(f"$ {cmd}")
-        exit_code = self._t.exec_stream(cmd, self._emit, timeout=1800)
+        try:
+            exit_code = self._t.exec_stream(cmd, self._emit, timeout=DEFAULT_EXEC_STREAM_TIMEOUT)
+        except TransportCancelled:
+            # A mid-stream abort — Transport.cancel() from another thread, or
+            # the read-loop deadline. Either way this is the "cancelled"
+            # outcome, never an InstallError: there is no real exit code to
+            # report because the remote script never finished.
+            self._emit("cancelled during [install]")
+            raise InstallCancelled("install") from None
         if exit_code != 0:
             raise InstallError("install", cmd, exit_code, "installer exited non-zero")
+
+        # Deliberately NO cancellation gate here. Past this line the install
+        # has already exited 0 — the device is fully installed, and the only
+        # thing left is the separate reboot. Treating a cancel in that window
+        # as InstallCancelled would tell the user the device "may be left
+        # partially modified" and send them to re-run an installer that
+        # already succeeded. A cancel this late simply skips the reboot, which
+        # is what unchecking "Reboot when finished" does anyway.
+        cancelled_late = self._cancel_event is not None and self._cancel_event.is_set()
 
         # 5. reboot, separately. A dead transport here is the expected outcome
         # (a rebooting device is supposed to stop answering) — but a Result
@@ -126,7 +173,7 @@ class InstallRunner:
         # shell syntax error means `sync` never even ran) and must not be
         # reported as a successful reboot.
         rebooted = False
-        if options.reboot:
+        if options.reboot and not cancelled_late:
             reboot_cmd = "sync; (sleep 1; reboot) >/dev/null 2>&1 &"
             self._emit(f"$ {reboot_cmd}")
             try:

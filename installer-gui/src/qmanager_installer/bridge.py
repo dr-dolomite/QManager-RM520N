@@ -16,7 +16,7 @@ import threading
 from dataclasses import asdict
 from pathlib import Path
 
-from .core.installer import InstallError, InstallOptions, InstallRunner, Progress
+from .core.installer import InstallCancelled, InstallError, InstallOptions, InstallRunner, Progress
 from .core.payload import Payload, load_payload
 from .core.preflight import PreflightReport, run_preflight
 from .core.session_log import open_session_log
@@ -48,6 +48,7 @@ class Bridge:
         self._state = "idle"
         self._error: dict | None = None
         self._log_path: Path | None = None
+        self._cancel_event: threading.Event | None = None
 
     # --- locale -----------------------------------------------------------
 
@@ -170,9 +171,11 @@ class Bridge:
         serial = self._report.device.serial if self._report and self._report.device else "unknown"
         log = open_session_log(serial, self._log_root)
         self._log_path = log.path
+        cancel_event = threading.Event()
         with self._lock:
             self._lines, self._progress, self._error = [], None, None
             self._state = "running"
+            self._cancel_event = cancel_event
 
         runner_cls = UninstallRunner if action == "uninstall" else InstallRunner
         runner = runner_cls(
@@ -181,12 +184,19 @@ class Bridge:
             on_line=self._push_line,
             on_progress=self._push_progress,
             log=log,
+            cancel_event=cancel_event,
         )
 
         def work() -> None:
             try:
                 runner.run(InstallOptions(reboot=reboot))
                 state, error = "done", None
+            except InstallCancelled:
+                # A third outcome, deliberately not ok=False wearing a
+                # failure message — see poll()'s "cancelled" state. The
+                # device may be left partially modified; the run view is
+                # responsible for saying so (run.cancelled.detail).
+                state, error = "cancelled", None
             except InstallError as exc:
                 state = "failed"
                 error = {
@@ -208,6 +218,29 @@ class Bridge:
 
         threading.Thread(target=work, daemon=True).start()
         return {"started": True}
+
+    def cancel(self) -> dict:
+        """Abort an in-flight run. JS-callable from the run view's Cancel
+        button (bound to the existing `run.cancel` string — no new label
+        needed, it already reads "Cancel"/"取消").
+
+        Sets the cancel_event InstallRunner checks between steps AND calls
+        Transport.cancel() so a worker thread currently blocked inside
+        exec_stream unblocks immediately — that second half is what makes
+        this actually useful, since the opkg stall this exists for happens
+        mid-stream during the ~3-minute install, not at a step boundary.
+
+        A no-op — never an error — when nothing is running, and safe to call
+        more than once or after the run has already finished.
+        """
+        with self._lock:
+            event = self._cancel_event
+            running = self._state == "running"
+        if event is not None:
+            event.set()
+        if running and self._transport is not None:
+            self._transport.cancel()
+        return {"cancelling": running}
 
     def _push_line(self, line: str) -> None:
         with self._lock:

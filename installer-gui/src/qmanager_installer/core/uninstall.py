@@ -14,7 +14,7 @@ from .installer import InstallRunner
 
 
 class UninstallRunner(InstallRunner):
-    def __init__(self, transport, payload, on_line, on_progress, log=None) -> None:
+    def __init__(self, transport, payload, on_line, on_progress, log=None, cancel_event=None) -> None:
         super().__init__(
             transport,
             payload,
@@ -22,4 +22,5 @@ class UninstallRunner(InstallRunner):
             on_progress=on_progress,
             log=log,
             script="uninstall_rm520n.sh",
+            cancel_event=cancel_event,
         )

@@ -276,6 +276,7 @@ body[data-view="result"]    .view[data-for="result"] { display: flex; }
 /* ---------- run ---------- */
 
 .progress { display: flex; align-items: center; gap: 14px; }
+.progress .btn-quiet { margin-left: auto; padding: 8px 16px; font-size: 13px; }
 .dots { display: flex; gap: 6px; flex-wrap: wrap; }
 
 .dot {

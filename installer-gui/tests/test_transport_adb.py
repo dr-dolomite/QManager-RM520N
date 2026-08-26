@@ -1,10 +1,16 @@
 import subprocess
+import threading
+import time
 from pathlib import Path
 
 import pytest
 
 from qmanager_installer.core.transport.adb import AdbTransport, list_devices
-from qmanager_installer.core.transport.base import MISSING_SENTINEL_RC, TransportError
+from qmanager_installer.core.transport.base import (
+    MISSING_SENTINEL_RC,
+    TransportCancelled,
+    TransportError,
+)
 
 ADB = Path("adb.exe")
 
@@ -84,3 +90,84 @@ def test_push_raises_on_adb_failure():
 def test_push_succeeds_quietly():
     run = fake_runner({"push": (0, "1 file pushed\n", "")})
     AdbTransport(ADB, "s", runner=run).push(Path("x.tar.gz"), "/tmp/x.tar.gz")
+
+
+# --- cancellation -----------------------------------------------------------
+
+
+class HangingPopen:
+    """Stands in for a live `adb shell` process whose stdout never produces
+    another line until something kills it — the real shape of opkg stalled
+    on a half-open TCP connection to bin.entware.net. `stdout` iteration
+    blocks on a real Event and only ends once terminate() is called, exactly
+    like an OS closing the pipe out from under a blocked read.
+    """
+
+    def __init__(self):
+        self.terminated = threading.Event()
+        self.terminate_calls = 0
+        self.wait_calls = 0
+        self.stdout = self
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        self.terminated.wait()
+        raise StopIteration
+
+    def terminate(self):
+        self.terminate_calls += 1
+        self.terminated.set()
+
+    def wait(self, timeout=None):
+        self.wait_calls += 1
+        return 0
+
+
+def test_cancel_terminates_the_live_process_from_a_different_thread():
+    proc = HangingPopen()
+    t = AdbTransport(ADB, "s", runner=fake_runner({}), popen=lambda *a, **k: proc)
+    outcome = {}
+
+    def worker():
+        try:
+            t.exec_stream("install.sh", lambda line: None, timeout=30)
+        except TransportCancelled as exc:
+            outcome["reason"] = exc.reason
+
+    thread = threading.Thread(target=worker)
+    thread.start()
+    # Let exec_stream register the live process and block in the read loop
+    # before the "UI thread" cancels it — this is the whole scenario: cancel
+    # is called from a different thread than the one stuck reading.
+    time.sleep(0.1)
+    t.cancel()
+    thread.join(timeout=2)
+
+    assert not thread.is_alive(), "exec_stream did not unblock after cancel()"
+    assert proc.terminate_calls == 1
+    assert outcome.get("reason") == "cancelled"
+
+
+def test_cancel_is_a_safe_noop_when_nothing_is_running():
+    t = AdbTransport(ADB, "s", runner=fake_runner({}))
+    t.cancel()  # must not raise
+
+
+def test_exec_stream_enforces_a_wall_clock_deadline():
+    # No cancel() call at all here — a command that never closes stdout must
+    # still be bounded by exec_stream's own timeout, not block forever.
+    proc = HangingPopen()
+    t = AdbTransport(ADB, "s", runner=fake_runner({}), popen=lambda *a, **k: proc)
+
+    start = time.monotonic()
+    with pytest.raises(TransportCancelled) as exc:
+        t.exec_stream("install.sh", lambda line: None, timeout=0.1)
+    elapsed = time.monotonic() - start
+
+    assert exc.value.reason == "deadline"
+    assert proc.terminate_calls == 1
+    # Proves the read loop actually exited on its own — not merely that some
+    # flag got set after the fact.
+    assert elapsed < 2.0

@@ -1,15 +1,17 @@
+import threading
 from pathlib import Path
 
 import pytest
 
 from qmanager_installer.core.installer import (
+    InstallCancelled,
     InstallError,
     InstallOptions,
     InstallRunner,
     parse_progress,
 )
 from qmanager_installer.core.payload import Payload
-from qmanager_installer.core.transport.base import Result, TransportError
+from qmanager_installer.core.transport.base import Result, TransportCancelled, TransportError
 
 SHA = "a" * 64
 
@@ -31,6 +33,9 @@ class FakeTransport:
         self.push_error = None
         self.reboot_raises = False
         self.reboot_rc = 0
+        # Fires once the install stream completes, so a test can act in
+        # the window between the script exiting and the reboot going out.
+        self.on_stream_done = None
 
     def push(self, local, remote):
         if self.push_error:
@@ -53,19 +58,22 @@ class FakeTransport:
         self.stream_commands.append(cmd)
         for line in self.stream_lines:
             on_line(line)
+        if self.on_stream_done:
+            self.on_stream_done()
         return self.stream_rc
 
     def describe(self):
         return "FAKE"
 
 
-def run(tmp_path, transport, **opts):
+def run(tmp_path, transport, cancel_event=None, **opts):
     lines, progress = [], []
     runner = InstallRunner(
         transport,
         make_payload(tmp_path),
         on_line=lines.append,
         on_progress=progress.append,
+        cancel_event=cancel_event,
     )
     outcome = runner.run(InstallOptions(**opts))
     return outcome, lines, progress
@@ -182,3 +190,83 @@ def test_missing_sentinel_exit_code_is_a_failure(tmp_path):
     t = FakeTransport(stream_rc=255)
     with pytest.raises(InstallError):
         run(tmp_path, t, reboot=False)
+
+
+# --- cancellation ---------------------------------------------------------
+
+
+def test_cancel_event_set_before_start_raises_install_cancelled_at_the_first_step(tmp_path):
+    t = FakeTransport()
+    event = threading.Event()
+    event.set()
+    with pytest.raises(InstallCancelled) as exc:
+        run(tmp_path, t, cancel_event=event, reboot=False)
+    assert exc.value.step == "push"
+    assert not t.pushed  # never even started
+
+
+def test_cancel_requested_mid_run_stops_before_the_next_step(tmp_path):
+    event = threading.Event()
+
+    class T(FakeTransport):
+        def push(self, local, remote):
+            super().push(local, remote)
+            # Simulate the user clicking Cancel while push was in flight.
+            event.set()
+
+    t = T()
+    with pytest.raises(InstallCancelled) as exc:
+        run(tmp_path, t, cancel_event=event, reboot=False)
+    assert exc.value.step == "verify"
+    # The verify step's exec() must never have run.
+    assert not any("sha256sum" in c for c in t.commands)
+
+
+def test_transport_cancelled_mid_stream_becomes_install_cancelled_not_install_error(tmp_path):
+    # This is the scenario the whole feature exists for: exec_stream aborts
+    # partway through the ~3-minute install script. It must surface as a
+    # distinct outcome, never disguised as an InstallError failure.
+    class T(FakeTransport):
+        def exec_stream(self, cmd, on_line, timeout=1800):
+            self.stream_commands.append(cmd)
+            raise TransportCancelled("cancelled")
+
+    t = T()
+    with pytest.raises(InstallCancelled) as exc:
+        run(tmp_path, t, reboot=False)
+    assert exc.value.step == "install"
+
+
+def test_cancelled_during_install_never_reaches_the_reboot_step(tmp_path):
+    class T(FakeTransport):
+        def exec_stream(self, cmd, on_line, timeout=1800):
+            raise TransportCancelled("deadline")
+
+    t = T()
+    with pytest.raises(InstallCancelled):
+        run(tmp_path, t, reboot=True)
+    assert not any("reboot" in c for c in t.commands)
+
+
+def test_cancel_after_the_script_succeeded_is_not_reported_as_cancelled(tmp_path):
+    """A cancel that lands after the installer exited 0 must not claim the
+    device is half-installed.
+
+    The install is DONE at that point; only the separate reboot is still
+    pending, and skipping it is exactly what unchecking "Reboot when finished"
+    does. Reporting "Cancelled - the device may be left partially modified"
+    here would be a lie in the one direction that matters: it would send a
+    user to re-run an installer that already succeeded.
+    """
+    import threading
+
+    ev = threading.Event()
+    t = FakeTransport()
+    # Fire the cancel only once the install stream has completed, which is the
+    # ~10ms window between the script exiting 0 and the reboot being issued.
+    t.on_stream_done = ev.set
+
+    outcome, _, _ = run(tmp_path, t, cancel_event=ev, reboot=True)
+
+    assert outcome.ok, "the install succeeded; the outcome must say so"
+    assert not outcome.rebooted, "the reboot was cancelled, so it did not happen"

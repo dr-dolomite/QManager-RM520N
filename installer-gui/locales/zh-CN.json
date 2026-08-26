@@ -64,6 +64,8 @@
   "run.done.detail.unknown_ip": "QManager 已安装。待调制解调器重启完成后，在浏览器中打开其网页控制台。",
   "run.failed": "安装失败",
   "run.failed.detail": "步骤“{step}”以代码 {code} 退出。",
+  "run.cancelled": "已取消",
+  "run.cancelled.detail": "安装已在中途停止。设备可能处于部分修改的状态 — 请重新运行安装程序以彻底完成配置。",
   "run.log": "完整日志已保存到 {path}",
   "error.blocked": "无法继续",
   "error.not_connected": "尚未连接设备。",

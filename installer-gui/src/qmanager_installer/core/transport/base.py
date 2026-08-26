@@ -18,6 +18,15 @@ from typing import Callable
 RC_SENTINEL = "__QM_RC="
 MISSING_SENTINEL_RC = 255
 
+# Wall-clock bound for exec_stream's read loop. install_rm520n.sh normally
+# finishes in ~3 minutes, but opkg fetching from bin.entware.net over a
+# mainland-China ISP link can stall on a half-open TCP connection with the
+# remote shell never closing stdout — so the loop needs its own real
+# deadline, not just a number handed to a post-hoc proc.wait(). 30 minutes
+# is generous relative to the normal run without being an effectively
+# infinite hang.
+DEFAULT_EXEC_STREAM_TIMEOUT = 1800
+
 _ANSI_RE = re.compile(r"\x1b\[[0-9;?]*[ -/]*[@-~]")
 
 
@@ -27,6 +36,21 @@ class TransportError(RuntimeError):
 
 class DeviceGoneError(TransportError):
     """The device disappeared mid-operation — unplugged, or rebooting."""
+
+
+class TransportCancelled(TransportError):
+    """exec_stream was aborted before the remote command finished — either
+    Transport.cancel() was called (from any thread) or
+    DEFAULT_EXEC_STREAM_TIMEOUT elapsed with no sentinel line seen.
+
+    Deliberately NOT the same thing as a failed command: the remote side may
+    still be mid-write when this fires, so there is no real exit code to
+    report, only the reason the wait ended early.
+    """
+
+    def __init__(self, reason: str) -> None:
+        super().__init__(reason)
+        self.reason = reason  # "cancelled" | "deadline"
 
 
 @dataclass(frozen=True)
@@ -97,8 +121,27 @@ class Transport(ABC):
         """Run a shell command, returning its REAL exit code."""
 
     @abstractmethod
-    def exec_stream(self, cmd: str, on_line: Callable[[str], None], timeout: int = 1800) -> int:
-        """Run a command, delivering ANSI-stripped lines live. Returns exit code."""
+    def exec_stream(
+        self,
+        cmd: str,
+        on_line: Callable[[str], None],
+        timeout: int = DEFAULT_EXEC_STREAM_TIMEOUT,
+    ) -> int:
+        """Run a command, delivering ANSI-stripped lines live. Returns exit code.
+
+        Raises TransportCancelled if cancel() is called before the command
+        finishes, or if `timeout` elapses first.
+        """
+
+    @abstractmethod
+    def cancel(self) -> None:
+        """Abort whatever exec_stream call is currently in flight, if any.
+
+        Safe to call when nothing is running (a no-op), and safe to call
+        from a different thread than the one blocked inside exec_stream —
+        that is the entire point: the install runs on a worker thread while
+        the UI thread handles the Cancel click.
+        """
 
     @abstractmethod
     def close(self) -> None: ...

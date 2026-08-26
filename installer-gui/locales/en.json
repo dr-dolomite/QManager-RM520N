@@ -64,6 +64,8 @@
   "run.done.detail.unknown_ip": "QManager is installed. Open the modem's web panel in a browser once it finishes rebooting.",
   "run.failed": "Install failed",
   "run.failed.detail": "Step \"{step}\" exited with code {code}.",
+  "run.cancelled": "Cancelled",
+  "run.cancelled.detail": "The install was stopped partway through. The device may be left partially modified — run the installer again to finish the job cleanly.",
   "run.log": "A full log was saved to {path}",
   "error.blocked": "Cannot continue",
   "error.not_connected": "Not connected to a device yet.",
