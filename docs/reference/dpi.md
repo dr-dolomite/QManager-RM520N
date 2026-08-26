@@ -44,6 +44,18 @@ The two modes are **mutually exclusive** (CGI-enforced; enabling one disables th
 3. **Two-layer verification**: the release's own `sha256sum.txt` manifest must contain `zapret-<tag>/binaries/linux-arm/tpws` with a sha256 matching the downloaded binary, **and** the binary must match the embedded pin `DPI_PINNED_SHA256` (hash of the official v72.13 linux-arm build). The pin is the identity anchor; the manifest is the freshness check.
 4. Installs to `/usrdata/qmanager/bin/tpws` (root-owned), `chmod 755`.
 
+## Teardown (uninstall)
+
+**Nothing owns the REDIRECT rule but `dpi_state.sh`.** `qmanager-dpi.service` owns the tpws *process*; `qmanager-dpi-ensure.timer` only *re-asserts* the rule every 60s. Neither removes it — stopping or disabling the units leaves the rule installed. The rule outlives the engine by design (QCMAP flushes iptables on every re-dial, which is exactly why the timer keeps re-inserting it), so removal has to be an explicit act.
+
+**`qmanager_dpi_run --clear` is the authoritative teardown** — it drains the rule (`dpi_remove_rule`, up to 16 `-D` passes) and then stops `qmanager-dpi`. It is the only supported way to remove the rule; do not hand-write an `iptables -D` in a caller.
+
+`scripts/uninstall_rm520n.sh` calls it in **Step 1**, beside the three arm-helper `teardown` calls. The ordering is load-bearing: it must run **before Step 3** removes `/usr/bin/qmanager_dpi_run` and the `/usr/lib/qmanager/dpi_state.sh` it sources, and **before Step 5** removes `$QMANAGER_ROOT/bin` (the tpws binary). The call is guarded on `[ -x "$BIN_DIR/qmanager_dpi_run" ]` and `|| true`, so an install that never had the Traffic Engine is a clean no-op.
+
+> ⚠️ WARNING: skipping this teardown is a **LAN outage, not a leak**. Uninstalling with Traffic Engine enabled leaves a `nat` PREROUTING REDIRECT sending every LAN client's tcp/80 and tcp/443 to port 989 with nothing listening on it — all LAN web traffic breaks until QCMAP next flushes iptables on a re-dial or reboot. `scripts/test/installer-teardown-lockstep.sh` pins this: it discovers every `scripts/usr/bin/qmanager_*` helper exposing a teardown-style verb (`teardown` / `--clear` / `disarm`) and asserts the uninstaller invokes each one, so a future helper that grows a teardown arm and forgets the uninstaller trips the same harness.
+
+> ℹ️ NOTE: `DPI_RULE_SIG` is the literal string `"--to-ports 989"`, **not** interpolated from `$DPI_PORT`. If a future change moves the port or reshapes the rule, `dpi_rule_present()` stops recognising a rule already installed under the old signature — `dpi_apply_rule`'s idempotence check misses, its `-D` drain loop (which matches the *new* spec) removes nothing, and the insert **stacks a second REDIRECT** instead of replacing the first. Change the signature and the port together, and add a one-shot drain for the old spec.
+
 ## Verify ("Test bypass")
 
 `qmanager_dpi_verify` runs a two-phase comparison against a **fast.com CDN target**: (1) direct curl download from a freshly fetched Netflix-CDN URL (fast.com's own API) → without-bypass rate; (2) the same URL through a throwaway socks-mode tpws instance → with-bypass rate. **Deliberate deviation from RM551**: the 551 uses the Ookla CLI, but ISPs throttle by host (streaming CDNs capped while Ookla's servers pass), so a speedtest.net comparison reads "not throttled" on the very links the engine fixes — fast.com measures the class of traffic the engine exists for. The with-bypass socks leg uses the engine recipe minus `--oob=tls` (oob breaks the socks path, measured on hardware; split+disorder alone deliver the full effect). The real engine is never touched — no state, no rules, no restore trap beyond killing the socks instance. Result (with/without + improvement factor) is written to `/tmp/qmanager_dpi_verify.json` and polled by the UI. The UI gate is only `binary_installed` — the engine does not need to be running.
@@ -65,6 +77,8 @@ The two modes are **mutually exclusive** (CGI-enforced; enabling one disables th
 - `scripts/usr/bin/qmanager_dpi_run` — engine supervisor (`--ensure` / `--start` / `--stop`)
 - `scripts/usr/bin/qmanager_dpi_install` — binary provisioning (pin + manifest verification)
 - `scripts/usr/bin/qmanager_dpi_verify` — two-phase speed comparison helper
+- `scripts/uninstall_rm520n.sh` — Step 1 calls `qmanager_dpi_run --clear` (see Teardown)
+- `scripts/test/installer-teardown-lockstep.sh` — harness pinning that call
 - `scripts/www/cgi-bin/quecmanager/network/video_optimizer.sh` — CGI (status / save / save_masquerade / verify / install / save_hostlist)
 - `app/local-network/traffic-engine/` + `components/local-network/traffic-engine/` — frontend
 - `hooks/use-video-optimizer.ts`, `hooks/use-traffic-masquerade.ts`, `hooks/use-cdn-hostlist.ts`
