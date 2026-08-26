@@ -5,7 +5,7 @@
 # about.sh -- CGI Endpoint: About Device (GET-only)
 # =============================================================================
 # Gathers device identity, network addresses, 3GPP release info, public IPs,
-# and OpenWRT system info into a single JSON response.
+# and host system info into a single JSON response.
 #
 # Data sources:
 #   /tmp/qmanager_status.json       -> Poller cache (firmware, IMEI, WAN IPs,
@@ -13,7 +13,8 @@
 #   AT+QNWCFG="3gpp_rel"           -> 3GPP release versions (LTE, NR5G)
 #   https://api.ipify.org           -> Public IPv4 (3s timeout, non-blocking)
 #   https://api6.ipify.org          -> Public IPv6 (3s timeout, non-blocking)
-#   /etc/openwrt_release            -> OpenWRT version
+#   /etc/quectel-project-version    -> Modem firmware revision, read through
+#                                       hw_profile.sh (never parsed here)
 #   uname -r                       -> Linux kernel version
 #
 # Endpoint: GET /cgi-bin/quecmanager/device/about.sh
@@ -23,6 +24,24 @@
 qlog_init "cgi_about"
 cgi_headers
 cgi_handle_options
+
+# Hardware identity library — the single tolerant parser for the Quectel vendor
+# version file. Sourced AFTER cgi_headers on purpose: hw_profile.sh emits
+# nothing at source time today (its top level is only `:` defaults, two
+# constants and function definitions), but a library that ever did would
+# corrupt the HTTP headers, and the ordering costs nothing.
+#
+# Guarded, and it logs on both arms — mirroring qmanager_poller:417-423. A
+# missing library is a partial install / mid-OTA / rollback window, not an
+# error worth failing the whole endpoint over: resolve_firmware_revision()
+# below degrades to an empty firmware string and every other field still
+# serves.
+if [ -f /usr/lib/qmanager/hw_profile.sh ]; then
+    . /usr/lib/qmanager/hw_profile.sh 2>/dev/null \
+        || qlog_error "hw_profile.sh failed to load; firmware revision reports empty"
+else
+    qlog_error "hw_profile.sh not found; firmware revision reports empty"
+fi
 
 CACHE_FILE="/tmp/qmanager_status.json"
 CMD_GAP=0.2
@@ -102,16 +121,49 @@ if [ -n "$line" ]; then
 fi
 
 # =============================================================================
-# 4. OpenWRT system info
+# 4. Host system info
 # =============================================================================
+
+# resolve_firmware_revision -- the modem firmware build string, for the About
+# page's system.openwrt_version field. Display-only: nothing computes on it.
+#
+# Reads through hw_profile.sh's qm_hw_fw_fingerprint instead of hand-rolling a
+# second parser for the same five-line vendor file. This was the LAST such
+# parser in the tree; one straggler is the worst resting state, because the
+# next person to touch identity reads finds two idioms and picks the wrong one.
+#
+# TWO NORMALIZATIONS keep the wire format matching the pre-migration output:
+#
+#   1. The library returns its "unknown" sentinel where the old expression
+#      returned "" — deliberately, per hw_profile.sh:49-51, so that a caller
+#      cannot mistake "unreadable" for a value. That is right for the library
+#      and wrong for this field: `unknown` would render verbatim on the About
+#      page. Map it back.
+#   2. A missing library returns "" rather than aborting.
+#
+# RETURN, NEVER EXIT. cgi_headers has already run by this point, so an `exit`
+# here would leave lighttpd emitting headers and a zero-length body — killing
+# every field in the response, not just this one. scripts/test/
+# about-firmware-revision.sh section D pins that with a reachability sentinel,
+# because the obvious assertion cannot see the difference.
+#
+# NOT byte-identical to the old expression in every case, and better where it
+# differs: the library takes only the first match, anchors on ^Project,
+# requires a colon, strips to the first colon rather than the last, preserves
+# internal spaces, and drops a trailing tab. No vendor file produces an input
+# that tells them apart; the harness header enumerates all six.
+resolve_firmware_revision() {
+    local fw
+    command -v qm_hw_fw_fingerprint >/dev/null 2>&1 || { printf ''; return 0; }
+    fw=$(qm_hw_fw_fingerprint)
+    [ "$fw" = "${QM_HW_UNKNOWN:-unknown}" ] && fw=""
+    printf '%s' "$fw"
+    return 0
+}
+
 sys_hostname=$(cat /proc/sys/kernel/hostname 2>/dev/null || echo "")
 sys_kernel=$(uname -r 2>/dev/null || echo "")
-sys_openwrt=""
-if [ -f /etc/openwrt_release ]; then
-    sys_openwrt=$(. /etc/openwrt_release && echo "$DISTRIB_RELEASE")
-elif [ -f /etc/quectel-project-version ]; then
-    sys_openwrt=$(grep 'Project Rev' /etc/quectel-project-version 2>/dev/null | sed 's/.*: *//' | tr -d ' \r')
-fi
+sys_openwrt=$(resolve_firmware_revision)
 
 # =============================================================================
 # 5. Collect public IP results (wait for background jobs, bounded by timeout)
