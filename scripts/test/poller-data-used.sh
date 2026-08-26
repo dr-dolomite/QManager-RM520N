@@ -175,66 +175,232 @@ run_tick "$proc" "$state"
 arx=$(jq -r '.accumulated_rx_bytes' "$state")
 [ "$arx" = "4242" ] && ok "accumulator untouched when interface absent" || bad "accumulator changed ($arx)"
 
-# --- Test 7: SoC detection — SDX6X returns normal ---------------------
-section "detect_orientation_from_soc maps SDX6X to normal"
-qv="$work/quectel_sdx6x"
-cat > "$qv" <<'EOF'
-Project Rev      : RM520NGLAAR03A03M4G_A0.303
-Branch Name      : SDX6X
-EOF
+# =====================================================================
+# Identity reads (Task 4) — the poller's SoC/model reads must resolve
+# through /usr/lib/qmanager/hw_profile.sh, not through a second parser
+# hand-written in the poller.
+#
+# THE FIXTURES BELOW ARE REAL DEVICE BYTES. Captured 2026-08-26 with:
+#
+#   ssh <device> 'od -c /etc/quectel-project-version'
+#
+# on RM520N-GL (androidboot.serialno=61368cd2) and RG501Q-EU
+# (androidboot.serialno=b7e3d6f1). Note the alignment: `Project Rev :`
+# has a SPACE BEFORE THE COLON, and `Branch  Name:` / `Custom  Name:`
+# have TWO SPACES BETWEEN THE WORDS. Every byte here came off hardware.
+#
+# NEVER HAND-TYPE A FIXTURE FOR THIS FILE. The fixtures these replaced
+# wrote `Branch Name      : SDX6X` — one space between the words, padding
+# before the colon. That alignment exists on no hardware, and it is why
+# tests 7-10 passed green for months against a parser that matched
+# nothing on any real device.
+# =====================================================================
+
+HW_LIB="$REPO_ROOT/scripts/usr/lib/qmanager/hw_profile.sh"
+[ -f "$HW_LIB" ] || { echo "FAIL: hw_profile.sh not found at $HW_LIB" >&2; exit 1; }
+
+# Extract the migrated interface picker. Post-Task-4 the poller exposes
+# the choice as a function so it can be driven here; before Task 4 this
+# extraction yields an empty file and every iface test below fails, which
+# is the point.
+awk '/^resolve_network_iface\(\)/,/^\}/' "$POLLER" > "$work/fn_iface.sh"
+
+# make_version_file <path> <project_name> <project_rev> <branch_name>
+# Reproduces the device byte layout exactly: colon flush after a
+# single-spaced `Project Name`, a space before the colon on
+# `Project Rev`, two spaces inside `Branch  Name` and `Custom  Name`.
+make_version_file() {
+    printf 'Project Name: %s\nProject Rev : %s\nBranch  Name: %s\nCustom  Name: STD\nPackage Time: 2026-03-23,12:27\n' \
+        "$2" "$3" "$4" > "$1"
+}
+
+qv_rm520n="$work/quectel_rm520n"
+qv_rg501q="$work/quectel_rg501q"
+make_version_file "$qv_rm520n" "RM520NGL_VC" "RM520NGLAAR03A03M4G_A0.304" "SDX6X"
+make_version_file "$qv_rg501q" "RG501QEU_VD" "RG501QEUAAR12A11M4G_04.202" "SDX55"
+
+# --- Test 7: the library parses real RM520N-GL device bytes -----------
+section "qm_hw_soc parses the two-space 'Branch  Name:' on device bytes"
 result=$(
     (
         set +eu
+        QUECTEL_VERSION_FILE="$qv_rm520n"
+        . "$HW_LIB"
+        qm_hw_soc
+    )
+)
+[ "$result" = "SDX6X" ] && ok "RM520N-GL bytes -> SDX6X" || bad "RM520N-GL bytes gave '$result'"
+
+# --- Test 8: the library parses real RG501Q-EU device bytes -----------
+section "qm_hw_soc parses real RG501Q-EU device bytes"
+result=$(
+    (
+        set +eu
+        QUECTEL_VERSION_FILE="$qv_rg501q"
+        . "$HW_LIB"
+        qm_hw_soc
+    )
+)
+[ "$result" = "SDX55" ] && ok "RG501Q-EU bytes -> SDX55" || bad "RG501Q-EU bytes gave '$result'"
+
+# --- Test 9: the poller consults the library, not its own parser ------
+section "detect_orientation_from_soc routes through qm_hw_soc"
+grep -q 'qm_hw_soc' "$work/fn_det.sh" \
+    && ok "detect_orientation_from_soc references qm_hw_soc" \
+    || bad "detect_orientation_from_soc still parses the version file itself"
+
+# --- Test 10: SDX6X resolves to normal --------------------------------
+section "SDX6X -> normal"
+result=$(
+    (
+        set +eu
+        QUECTEL_VERSION_FILE="$qv_rm520n"
+        . "$HW_LIB"
         . "$work/fn_det.sh"
-        QUECTEL_VERSION_FILE="$qv" detect_orientation_from_soc
+        detect_orientation_from_soc
     )
 )
 [ "$result" = "normal" ] && ok "SDX6X -> normal" || bad "SDX6X gave '$result'"
 
-# --- Test 8: SoC detection — SDX55 returns reversed -------------------
-section "detect_orientation_from_soc maps SDX55 to reversed"
-qv="$work/quectel_sdx55"
-cat > "$qv" <<'EOF'
-Project Rev      : RM502QAEAAR13A04M4G_01.200
-Branch Name      : SDX55
-EOF
+# --- Test 11: SDX55 STAYS normal — the map is inert (G1) --------------
+# This assertion is INVERTED from the one it replaces, deliberately.
+# Repairing the parser makes detect_orientation_from_soc work for the
+# first time ever, which would activate an `SDX55 -> reversed` map that
+# has never been measured on any device — it is a hypothesis established
+# on a different model, with a contradicting slow-path test on the same
+# part. Fielded RM502Q-AE / RG502Q community devices report SDX55 and
+# would flip. Measuring that map is Phase B's job; Phase A must not ship
+# it. If this test ever goes red, someone activated the map.
+section "SDX55 -> normal (Phase-B-gated map stays inert)"
 result=$(
     (
         set +eu
+        QUECTEL_VERSION_FILE="$qv_rg501q"
+        . "$HW_LIB"
         . "$work/fn_det.sh"
-        QUECTEL_VERSION_FILE="$qv" detect_orientation_from_soc
+        detect_orientation_from_soc
     )
 )
-[ "$result" = "reversed" ] && ok "SDX55 -> reversed" || bad "SDX55 gave '$result'"
+[ "$result" = "normal" ] && ok "SDX55 -> normal (map inert)" || bad "SDX55 gave '$result' — the Phase-B map was activated"
 
-# --- Test 9: SoC detection — unknown branch falls back to normal ------
-section "detect_orientation_from_soc unknown branch -> normal"
+# --- Test 12: unknown SoC -> normal -----------------------------------
+section "unknown SoC -> normal"
 qv="$work/quectel_unknown"
-cat > "$qv" <<'EOF'
-Project Rev      : XXX
-Branch Name      : SDX99
-EOF
+make_version_file "$qv" "XX000ZZ_VA" "XX000ZZAAR01A01M4G_00.001" "SDX99"
 result=$(
     (
         set +eu
+        QUECTEL_VERSION_FILE="$qv"
+        . "$HW_LIB"
         . "$work/fn_det.sh"
-        QUECTEL_VERSION_FILE="$qv" detect_orientation_from_soc
+        detect_orientation_from_soc
     )
 )
 [ "$result" = "normal" ] && ok "unknown SoC -> normal" || bad "unknown gave '$result'"
 
-# --- Test 10: SoC detection — missing file -> normal ------------------
-section "detect_orientation_from_soc missing file -> normal"
+# --- Test 13: missing version file -> normal --------------------------
+section "missing version file -> normal"
 result=$(
     (
         set +eu
+        QUECTEL_VERSION_FILE="/nonexistent/path/version"
+        . "$HW_LIB"
         . "$work/fn_det.sh"
-        QUECTEL_VERSION_FILE="/nonexistent/path/version" detect_orientation_from_soc
+        detect_orientation_from_soc
     )
 )
 [ "$result" = "normal" ] && ok "missing file -> normal" || bad "missing gave '$result'"
 
-# --- Test 11: v3 -> v5 upgrade resets accumulators --------------------
+# --- Test 14: legacy one-space alignment still parses -----------------
+# The fixtures this file used to carry. No hardware writes this layout,
+# but the library's matcher is documented as tolerating whitespace
+# between the words as well as before the colon, so it must keep doing so.
+section "legacy 'Branch Name      :' alignment still parses"
+qv="$work/quectel_legacy"
+printf 'Project Rev      : RM520NGLAAR03A03M4G_A0.303\nBranch Name      : SDX6X\n' > "$qv"
+result=$(
+    (
+        set +eu
+        QUECTEL_VERSION_FILE="$qv"
+        . "$HW_LIB"
+        qm_hw_soc
+    )
+)
+[ "$result" = "SDX6X" ] && ok "legacy alignment -> SDX6X" || bad "legacy alignment gave '$result'"
+
+# --- Test 15: interface pick resolves to rmnet_ipa0 -------------------
+# G2, the worst blind spot in the phase. If a migrated reader ever falls
+# through to wwan0 on either target, `grep "wwan0:" /proc/net/dev`
+# returns empty, update_data_used bails on every tick, and Data Used
+# silently stops accumulating FOREVER while the status JSON keeps
+# emitting a plausible frozen accumulated_rx_bytes. No shape-diff can
+# see that. Per C5 the fallback is rmnet_ipa0 at every branch.
+section "resolve_network_iface -> rmnet_ipa0 on a known model"
+result=$(
+    (
+        set +eu
+        QUECTEL_VERSION_FILE="$qv_rm520n"
+        . "$HW_LIB"
+        . "$work/fn_iface.sh"
+        resolve_network_iface
+    ) 2>/dev/null
+) || result="<not defined>"
+[ "$result" = "rmnet_ipa0" ] && ok "RM520N-GL -> rmnet_ipa0" || bad "RM520N-GL gave '$result'"
+
+# --- Test 16: unknown model still yields rmnet_ipa0 (C5 fallback) -----
+section "resolve_network_iface -> rmnet_ipa0 on an unknown model"
+result=$(
+    (
+        set +eu
+        QUECTEL_VERSION_FILE="/nonexistent/path/version"
+        . "$HW_LIB"
+        . "$work/fn_iface.sh"
+        resolve_network_iface
+    ) 2>/dev/null
+) || result="<not defined>"
+[ "$result" = "rmnet_ipa0" ] && ok "unknown model -> rmnet_ipa0" || bad "unknown model gave '$result'"
+
+# --- Test 17: iface pick survives hw_profile.sh being ABSENT ----------
+# Partial install, a device mid-OTA, a rollback: the library may not be
+# on disk. The poller must still choose an interface that exists rather
+# than inheriting an empty string or dying, because the failure mode is
+# a permanently frozen counter, not a crash anyone would notice.
+section "resolve_network_iface survives a missing hw_profile.sh"
+result=$(
+    (
+        set +eu
+        . "$work/fn_iface.sh"
+        resolve_network_iface
+    ) 2>/dev/null
+) || result="<not defined>"
+[ "$result" = "rmnet_ipa0" ] && ok "library absent -> rmnet_ipa0" || bad "library absent gave '$result'"
+
+# --- Test 18: no second identity parser survives in the poller --------
+# Task 1's entire justification is one tolerant parser in one place. A
+# migration that leaves the poller's own `grep "^Branch Name"` behind
+# leaves the tree with two, one of which is broken.
+section "the poller carries no hand-written Branch Name parser"
+if grep -n 'Branch[^"]*Name' "$POLLER" | grep -qv '^[0-9]*:#'; then
+    bad "poller still parses Branch Name itself: $(grep -n 'Branch[^"]*Name' "$POLLER" | grep -v '^[0-9]*:#' | head -1)"
+else
+    ok "no non-comment Branch Name parse left in the poller"
+fi
+
+# --- Test 19: wwan0 is gone from the poller (G2) ----------------------
+section "wwan0 no longer appears in the poller"
+if grep -n 'wwan0' "$POLLER" >/dev/null 2>&1; then
+    bad "wwan0 still present: $(grep -n 'wwan0' "$POLLER" | head -1)"
+else
+    ok "no wwan0 anywhere in the poller"
+fi
+
+# --- Test 20: the poller sources hw_profile.sh ------------------------
+section "the poller sources hw_profile.sh"
+grep -q 'hw_profile\.sh' "$POLLER" \
+    && ok "hw_profile.sh sourced" \
+    || bad "poller does not source hw_profile.sh"
+
+# --- Test 21: v3 -> v5 upgrade resets accumulators --------------------
 section "v3 fixture triggers reset on first load"
 proc="$work/proc11"; state="$work/state11.json"
 jq -n '{schema:3, accumulated_rx_bytes:123456789, accumulated_tx_bytes:987654321,
@@ -251,7 +417,7 @@ lrt=$(jq -r '.last_reset_ts' "$state")
 [ "$sch" = "5" ] && ok "rewritten at v5"   || bad "schema wrong ($sch)"
 [ "$lrt" != "0" ] && ok "last_reset_ts stamped on v3 upgrade" || bad "last_reset_ts not set"
 
-# --- Test 12: v4 -> v5 upgrade resets accumulators --------------------
+# --- Test 22: v4 -> v5 upgrade resets accumulators --------------------
 section "v4 fixture (with orientation_state/history fields) triggers reset"
 proc="$work/proc12"; state="$work/state12.json"
 jq -n '{schema:4, accumulated_rx_bytes:55555555, accumulated_tx_bytes:11111111,
@@ -273,7 +439,7 @@ ori=$(jq -r '.orientation' "$state")
 [ "$ost" = "absent" ]  && ok "orientation_state dropped"           || bad "v4 field survived ($ost)"
 [ "$ori" = "normal" ]  && ok "v5 orientation set to normal"        || bad "orientation wrong ($ori)"
 
-# --- Test 13: v5 fixture loads directly without reset -----------------
+# --- Test 23: v5 fixture loads directly without reset -----------------
 section "v5 fixture loads and accumulates without reset"
 proc="$work/proc13"; state="$work/state13.json"
 jq -n '{schema:5, accumulated_rx_bytes:7777, accumulated_tx_bytes:3333,
