@@ -1,0 +1,345 @@
+/* QManager Installer — surface styles.
+   Every colour, radius, duration and easing here resolves through tokens.css,
+   which build_installer.py regenerates from app/globals.css. There are no
+   literal colours in this file by design: a token change in the app
+   propagates on the next installer build, so this surface cannot drift from
+   the product canon. Do not introduce a hex value or a raw millisecond. */
+
+@font-face {
+  font-family: "Rethink Sans";
+  src: url("fonts/RethinkSans-Variable.woff2") format("woff2-variations");
+  font-weight: 400 800;
+  font-display: swap;
+}
+
+*,
+*::before,
+*::after { box-sizing: border-box; }
+
+html { color-scheme: light dark; }
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: var(--background);
+  color: var(--foreground);
+  font-family: "Rethink Sans", system-ui, sans-serif;
+  font-size: 15px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Browser surfaces belong to the design system too. */
+::selection { background: var(--primary-container); color: var(--on-primary-container); }
+:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; border-radius: var(--radius-inline); }
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: var(--surface-container-high);
+  border-radius: var(--radius-pill);
+  border: 2px solid var(--background);
+}
+::-webkit-scrollbar-thumb:hover { background: var(--muted-foreground); }
+
+.sprite { position: absolute; width: 0; height: 0; overflow: hidden; }
+.sprite symbol { fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+
+.sr-only {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+}
+
+/* ---------- topbar ---------- */
+
+.topbar {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 16px; padding: 18px 28px;
+  border-bottom: 1px solid var(--border);
+}
+
+.brand { display: flex; align-items: center; gap: 10px; }
+.brand h1 { margin: 0; font-size: 16px; font-weight: 700; letter-spacing: -0.01em; }
+
+/* The mark: a ring plus a 45-degree tail anchored at dead centre. The tail
+   starts at the centre because the signal originates at the device. */
+.brand-mark { width: 22px; height: 22px; fill: none; stroke-linecap: round; }
+.mark-ring { stroke: var(--primary); stroke-width: 2.2; opacity: 0.45; }
+.mark-tail { stroke: var(--primary); stroke-width: 2.6; }
+
+.topbar-end { display: flex; align-items: center; gap: 14px; }
+
+.version {
+  font-size: 13px; color: var(--on-surface-variant);
+  font-variant-numeric: tabular-nums;
+}
+
+.locale-field select {
+  appearance: none;
+  font: inherit; font-size: 13px;
+  color: var(--foreground);
+  background: var(--surface-container);
+  border: none;
+  border-radius: var(--radius-pill);
+  padding: 7px 14px;
+  cursor: pointer;
+  transition: background var(--duration-quick) var(--ease-standard);
+}
+.locale-field select:hover { background: var(--surface-container-high); }
+
+/* ---------- layout ---------- */
+
+main { max-width: 720px; margin: 0 auto; padding: 28px 24px 64px; }
+
+.view { display: none; flex-direction: column; gap: 16px; }
+body[data-view="connect"]   .view[data-for="connect"],
+body[data-view="preflight"] .view[data-for="preflight"],
+body[data-view="run"]       .view[data-for="run"],
+body[data-view="result"]    .view[data-for="result"] { display: flex; }
+
+/* ---------- cards ---------- */
+
+.card {
+  background: var(--card);
+  color: var(--card-foreground);
+  border-radius: var(--radius-card);
+  padding: 24px 26px;
+}
+/* The anchor card on a surface takes the hero radius. */
+.card-hero { border-radius: var(--radius-hero); }
+
+.card h2 { margin: 0 0 6px; font-size: 21px; font-weight: 700; letter-spacing: -0.015em; text-wrap: balance; }
+.card h3 { margin: 0 0 14px; font-size: 13px; font-weight: 600; color: var(--on-surface-variant); letter-spacing: 0.02em; text-transform: uppercase; }
+
+.lede { margin: 0 0 18px; color: var(--on-surface-variant); max-width: 60ch; }
+.hint { margin: 8px 0 0; font-size: 13px; color: var(--on-surface-variant); }
+
+/* ---------- tabs ---------- */
+
+.tabs { display: flex; gap: 6px; margin-bottom: 20px; }
+
+.tab {
+  display: inline-flex; align-items: center; gap: 8px;
+  font: inherit; font-size: 14px; font-weight: 600;
+  color: var(--on-surface-variant);
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-pill);
+  padding: 9px 16px;
+  cursor: pointer;
+  transition: background var(--duration-quick) var(--ease-standard),
+              color var(--duration-quick) var(--ease-standard);
+}
+.tab:hover { background: var(--surface-container); }
+.tab.is-active { background: var(--primary-container); color: var(--on-primary-container); }
+
+.pane { display: flex; flex-direction: column; gap: 14px; }
+
+/* ---------- device list ---------- */
+
+.device-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.device-list:empty { display: none; }
+
+.device {
+  display: flex; align-items: center; gap: 12px; width: 100%;
+  font: inherit; text-align: left;
+  background: var(--surface-container);
+  border: none;
+  border-radius: var(--radius-field);
+  padding: 14px 18px;
+  cursor: pointer;
+  color: var(--foreground);
+  transition: background var(--duration-quick) var(--ease-standard);
+}
+.device:hover:not(:disabled) { background: var(--surface-container-high); }
+.device:disabled { cursor: not-allowed; opacity: 0.7; }
+
+.device-serial {
+  font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
+  font-size: 13px; font-weight: 600;
+}
+.device-meta { font-size: 13px; color: var(--on-surface-variant); }
+.device .chip { margin-left: auto; }
+
+.empty {
+  display: flex; align-items: center; gap: 12px;
+  margin: 0; padding: 20px 18px;
+  background: var(--surface-container);
+  border-radius: var(--radius-field);
+  color: var(--on-surface-variant);
+  font-size: 14px;
+}
+.empty-glyph { width: 22px; height: 22px; flex: none; opacity: 0.8; }
+
+/* ---------- fields ---------- */
+
+.fields { display: flex; flex-direction: column; gap: 12px; }
+
+.field { display: flex; flex-direction: column; gap: 6px; }
+.field > span { font-size: 13px; font-weight: 600; color: var(--on-surface-variant); }
+
+.field input {
+  font: inherit; font-size: 14px;
+  color: var(--foreground);
+  caret-color: var(--primary);
+  background: var(--surface-container);
+  border: none;
+  border-radius: var(--radius-field);
+  padding: 12px 16px;
+  transition: background var(--duration-quick) var(--ease-standard);
+}
+.field input:hover { background: var(--surface-container-high); }
+.field input::placeholder { color: var(--muted-foreground); }
+
+/* ---------- buttons ---------- */
+
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  font: inherit; font-size: 14px; font-weight: 600;
+  color: var(--foreground);
+  background: var(--surface-container);
+  border: none;
+  border-radius: var(--radius-pill);
+  padding: 11px 22px;
+  cursor: pointer;
+  align-self: flex-start;
+  transition: background var(--duration-quick) var(--ease-standard),
+              opacity var(--duration-quick) var(--ease-standard);
+}
+.btn:hover:not(:disabled) { background: var(--surface-container-high); }
+.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.btn-primary { background: var(--primary); color: var(--primary-foreground); }
+.btn-primary:hover:not(:disabled) { background: var(--primary); opacity: 0.9; }
+
+.btn-danger { background: var(--destructive-container); color: var(--on-destructive-container); }
+
+.actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 18px; }
+
+.switch { display: flex; align-items: center; gap: 10px; font-size: 14px; font-weight: 600; cursor: pointer; }
+.switch input { accent-color: var(--primary); width: 17px; height: 17px; cursor: pointer; }
+
+.card-actions { display: flex; flex-direction: column; }
+
+/* ---------- status chips ----------
+   Filled tonal container, that container own ink, no border, pill radius,
+   and ALWAYS a glyph. Two states in one slot never share a glyph. */
+
+.chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  border-radius: var(--radius-pill);
+  padding: 4px 11px;
+  font-size: 12px; font-weight: 600;
+  white-space: nowrap;
+  border: none;
+}
+.chip .glyph { width: 13px; height: 13px; flex: none; }
+
+.chip[data-tone="pass"]  { background: var(--success-container);     color: var(--on-success-container); }
+.chip[data-tone="warn"]  { background: var(--warning-container);     color: var(--on-warning-container); }
+.chip[data-tone="block"] { background: var(--destructive-container); color: var(--on-destructive-container); }
+.chip[data-tone="info"]  { background: var(--primary-container);     color: var(--on-primary-container); }
+.chip[data-tone="idle"]  { background: var(--surface-container-high); color: var(--on-surface-variant); }
+
+.glyph { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+
+/* ---------- checks ---------- */
+
+.checks { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+
+.check {
+  display: flex; align-items: center; gap: 14px;
+  padding: 11px 16px;
+  border-radius: var(--radius-pill);
+  transition: background var(--duration-quick) var(--ease-standard);
+}
+.check:hover { background: var(--surface-container); }
+
+.check-label { font-size: 14px; font-weight: 600; }
+.check-detail {
+  margin-left: auto; text-align: right;
+  font-size: 13px; color: var(--on-surface-variant);
+  font-variant-numeric: tabular-nums;
+}
+.check .chip { flex: none; }
+
+/* ---------- identity ---------- */
+
+.identity { display: grid; grid-template-columns: auto 1fr; gap: 8px 18px; margin: 0 0 18px; }
+.identity dt { font-size: 13px; color: var(--on-surface-variant); }
+.identity dd {
+  margin: 0; font-size: 13px;
+  /* Machine truth that holds steady until something reconfigures it. */
+  font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
+  word-break: break-all;
+}
+
+/* ---------- run ---------- */
+
+.progress { display: flex; align-items: center; gap: 14px; }
+.dots { display: flex; gap: 6px; flex-wrap: wrap; }
+
+.dot {
+  width: 9px; height: 9px; border-radius: var(--radius-pill);
+  background: var(--surface-container-high);
+  transition: background var(--duration-standard) var(--ease-standard);
+}
+.dot[data-done="true"] { background: var(--primary); }
+
+.progress-count {
+  font-size: 13px; font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--on-surface-variant);
+}
+
+.card-log { padding-bottom: 18px; }
+
+.log {
+  margin: 0;
+  max-height: 320px; overflow: auto;
+  padding: 16px 18px;
+  background: var(--surface-container);
+  border-radius: var(--radius-field);
+  /* Raw machine output. */
+  font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
+  font-size: 12px; line-height: 1.6;
+  color: var(--on-surface-variant);
+  white-space: pre-wrap; word-break: break-word;
+}
+
+/* ---------- errors ---------- */
+
+.inline-error {
+  margin: 16px 0 0; padding: 12px 16px;
+  background: var(--destructive-container);
+  color: var(--on-destructive-container);
+  border-radius: var(--radius-field);
+  font-size: 13px;
+}
+.inline-error[hidden] { display: none; }
+
+/* ---------- motion ----------
+   One authored entrance, on the scale. No springs, no exits. */
+
+.view > * { animation: rise var(--duration-standard) var(--ease-emphasized) both; }
+.view > *:nth-child(2) { animation-delay: 120ms; }
+.view > *:nth-child(3) { animation-delay: 240ms; }
+
+@keyframes rise {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 1ms !important;
+    animation-delay: 0ms !important;
+    transition-duration: 1ms !important;
+  }
+}
+
+@media (max-width: 560px) {
+  main { padding: 20px 16px 48px; }
+  .card { padding: 20px 18px; }
+  .check { flex-wrap: wrap; gap: 8px; }
+  .check-detail { margin-left: 0; width: 100%; text-align: left; }
+}

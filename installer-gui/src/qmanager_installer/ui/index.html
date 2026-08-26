@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>QManager Installer</title>
+    <link rel="stylesheet" href="tokens.css" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body data-view="connect">
+    <!-- Icon set. Drawn paths at one stroke weight, never glyphs or emoji.
+         Every status state below owns a DISTINCT shape: success-container and
+         warning-container measure 1.03:1 apart and are identical under
+         deuteranopia, so the shape is what separates healthy from degraded. -->
+    <svg class="sprite" aria-hidden="true" focusable="false">
+      <symbol id="i-pass" viewBox="0 0 24 24">
+        <circle cx="12" cy="12" r="9" /><path d="m8.5 12.2 2.4 2.4 4.6-5" />
+      </symbol>
+      <symbol id="i-warn" viewBox="0 0 24 24">
+        <path d="M12 4.2 2.8 20h18.4Z" /><path d="M12 10v4" /><path d="M12 17.2v.1" />
+      </symbol>
+      <symbol id="i-block" viewBox="0 0 24 24">
+        <circle cx="12" cy="12" r="9" /><path d="m9.2 9.2 5.6 5.6" /><path d="m14.8 9.2-5.6 5.6" />
+      </symbol>
+      <symbol id="i-info" viewBox="0 0 24 24">
+        <circle cx="12" cy="12" r="9" /><path d="M12 11v5.5" /><path d="M12 7.6v.1" />
+      </symbol>
+      <symbol id="i-idle" viewBox="0 0 24 24">
+        <circle cx="12" cy="12" r="9" /><path d="M8.2 12h7.6" />
+      </symbol>
+      <symbol id="i-usb" viewBox="0 0 24 24">
+        <path d="M12 20V7" /><circle cx="12" cy="4.6" r="1.6" />
+        <path d="M12 15.5 8 12V9.4" /><path d="M12 12.5 16 9V6.6" />
+      </symbol>
+      <symbol id="i-net" viewBox="0 0 24 24">
+        <rect x="3.2" y="14.5" width="17.6" height="6" rx="1.6" />
+        <path d="M7.2 17.5h.1" /><path d="M12 14.5v-4" /><path d="M6.5 8.4a7.5 7.5 0 0 1 11 0" />
+      </symbol>
+      <symbol id="i-refresh" viewBox="0 0 24 24">
+        <path d="M20 12a8 8 0 1 1-2.6-5.9" /><path d="M20 4.4V10h-5.6" />
+      </symbol>
+      <symbol id="i-device" viewBox="0 0 24 24">
+        <rect x="4.5" y="2.8" width="15" height="18.4" rx="2.4" /><path d="M10 18.4h4" />
+      </symbol>
+    </svg>
+
+    <header class="topbar">
+      <div class="brand">
+        <svg class="brand-mark" viewBox="0 0 24 24" aria-hidden="true">
+          <circle cx="12" cy="12" r="7.4" class="mark-ring" />
+          <path d="M12 12l6.2 6.2" class="mark-tail" />
+        </svg>
+        <h1 data-i18n="app.title"></h1>
+      </div>
+      <div class="topbar-end">
+        <span class="version" id="payload-version"></span>
+        <label class="locale-field">
+          <span class="sr-only" data-i18n="language"></span>
+          <select id="locale">
+            <option value="en">English</option>
+            <option value="zh-CN">中文</option>
+          </select>
+        </label>
+      </div>
+    </header>
+
+    <main>
+      <!-- 1. CONNECT -->
+      <section class="view" data-for="connect" aria-labelledby="connect-h">
+        <div class="card card-hero">
+          <h2 id="connect-h" data-i18n="connect.title"></h2>
+          <p class="lede" data-i18n="connect.lede"></p>
+
+          <div class="tabs" role="tablist">
+            <button class="tab is-active" role="tab" data-transport="adb" aria-selected="true">
+              <svg class="glyph" aria-hidden="true"><use href="#i-usb" /></svg>
+              <span data-i18n="transport.adb"></span>
+            </button>
+            <button class="tab" role="tab" data-transport="ssh" aria-selected="false">
+              <svg class="glyph" aria-hidden="true"><use href="#i-net" /></svg>
+              <span data-i18n="transport.ssh"></span>
+            </button>
+          </div>
+
+          <div id="adb-pane" class="pane">
+            <ul id="devices" class="device-list"></ul>
+            <p id="no-device" class="empty">
+              <svg class="glyph empty-glyph" aria-hidden="true"><use href="#i-device" /></svg>
+              <span data-i18n="device.none.help"></span>
+            </p>
+            <button id="rescan" class="btn">
+              <svg class="glyph" aria-hidden="true"><use href="#i-refresh" /></svg>
+              <span data-i18n="device.rescan"></span>
+            </button>
+          </div>
+
+          <div id="ssh-pane" class="pane" hidden>
+            <div class="fields">
+              <label class="field">
+                <span data-i18n="transport.ssh.host"></span>
+                <input id="ssh-host" autocomplete="off" spellcheck="false" inputmode="url" />
+              </label>
+              <label class="field">
+                <span data-i18n="transport.ssh.user"></span>
+                <input id="ssh-user" value="root" autocomplete="off" spellcheck="false" />
+              </label>
+              <label class="field">
+                <span data-i18n="transport.ssh.password"></span>
+                <input id="ssh-pass" type="password" autocomplete="off" />
+              </label>
+            </div>
+            <button id="ssh-connect" class="btn btn-primary" data-i18n="transport.connect"></button>
+          </div>
+
+          <p id="connect-error" class="inline-error" hidden></p>
+        </div>
+      </section>
+
+      <!-- 2. PREFLIGHT -->
+      <section class="view" data-for="preflight" aria-labelledby="action-title">
+        <div class="card card-hero">
+          <h2 id="action-title"></h2>
+          <p id="action-detail" class="lede"></p>
+          <dl class="identity" id="identity"></dl>
+        </div>
+
+        <div class="card">
+          <h3 data-i18n="preflight.title"></h3>
+          <ul id="checks" class="checks"></ul>
+        </div>
+
+        <div class="card card-actions">
+          <label class="switch">
+            <input type="checkbox" id="reboot" checked />
+            <span data-i18n="option.reboot"></span>
+          </label>
+          <p class="hint" data-i18n="option.reboot.help"></p>
+          <div class="actions">
+            <button id="start" class="btn btn-primary" data-i18n="run.start"></button>
+            <button id="uninstall" class="btn btn-danger" data-i18n="action.uninstall" hidden></button>
+          </div>
+          <p id="blocked-note" class="inline-error" hidden data-i18n="error.blocked"></p>
+        </div>
+      </section>
+
+      <!-- 3. RUN -->
+      <section class="view" data-for="run" aria-labelledby="run-title">
+        <div class="card card-hero">
+          <h2 id="run-title" data-i18n="run.installing"></h2>
+          <p class="lede" data-i18n="run.wait"></p>
+          <div class="progress">
+            <div class="dots" id="dots" role="img"></div>
+            <span class="progress-count" id="progress-count"></span>
+          </div>
+        </div>
+        <div class="card card-log">
+          <pre id="log" class="log" aria-live="polite" tabindex="0"></pre>
+        </div>
+      </section>
+
+      <!-- 4. RESULT -->
+      <section class="view" data-for="result" aria-labelledby="result-title">
+        <div class="card card-hero">
+          <span id="result-badge" class="chip"></span>
+          <h2 id="result-title"></h2>
+          <p id="result-detail" class="lede"></p>
+          <dl class="identity" id="result-facts" hidden></dl>
+          <p id="result-log" class="hint"></p>
+          <button id="restart" class="btn" data-i18n="result.again"></button>
+        </div>
+      </section>
+    </main>
+
+    <script src="app.js"></script>
+  </body>
+</html>

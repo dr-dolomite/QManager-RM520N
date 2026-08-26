@@ -11,3 +11,16 @@ scripts/usr/bin/* text eol=lf
 scripts/usr/bin/bridge_traffic_monitor_rm551 binary
 qmanager-installer.sh text eol=lf
 build.sh text eol=lf
+
+# The GUI installer sub-project is authored LF throughout — see the Global
+# Constraints in docs/superpowers/plans/2026-08-26-gui-installer.md. Without
+# these, core.autocrlf=true hands a fresh clone CRLF sources.
+installer-gui/**/*.py text eol=lf
+installer-gui/**/*.json text eol=lf
+installer-gui/**/*.css text eol=lf
+installer-gui/**/*.js text eol=lf
+installer-gui/**/*.html text eol=lf
+installer-gui/**/*.toml text eol=lf
+installer-gui/**/*.md text eol=lf
+installer-gui/.gitignore text eol=lf
+installer-gui/**/*.woff2 binary

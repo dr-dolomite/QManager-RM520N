@@ -1,0 +1,418 @@
+/* QManager Installer — UI controller.
+ *
+ * Every user-visible string comes from the locale files through t(); there are
+ * no English literals below. Every decision the installer makes was already
+ * made in core/ and reaches us as data — this file renders it and never
+ * re-derives it.
+ */
+
+"use strict";
+
+let STRINGS = {};
+let POLL = null;
+let HOST = null; // the SSH host the user typed, or null over ADB
+
+const api = () => window.pywebview.api;
+const $ = (sel) => document.querySelector(sel);
+const $$ = (sel) => Array.from(document.querySelectorAll(sel));
+
+/* ---------- i18n ---------- */
+
+function t(key, params) {
+  let s = STRINGS[key];
+  if (s === undefined || s === "") return key;
+  if (params) {
+    for (const [k, v] of Object.entries(params)) {
+      s = s.split("{" + k + "}").join(String(v));
+    }
+  }
+  return s;
+}
+
+function applyStaticStrings() {
+  for (const el of $$("[data-i18n]")) {
+    el.textContent = t(el.dataset.i18n);
+  }
+}
+
+/* ---------- theme ----------
+ * tokens.css authors light on :root and dark on .dark, exactly as the app
+ * does, so the class is the only switch we need.
+ */
+
+function applyTheme(isDark) {
+  document.documentElement.classList.toggle("dark", isDark);
+}
+
+/* ---------- chips ----------
+ * Filled tonal chip + a DISTINCT glyph per state. success-container and
+ * warning-container measure 1.03:1 apart and are identical under
+ * deuteranopia, so the glyph is what actually separates them.
+ */
+
+const GLYPH = {
+  pass: "#i-pass",
+  warn: "#i-warn",
+  block: "#i-block",
+  info: "#i-info",
+  idle: "#i-idle",
+};
+
+function chip(tone, label) {
+  const el = document.createElement("span");
+  el.className = "chip";
+  el.dataset.tone = tone;
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.setAttribute("class", "glyph");
+  svg.setAttribute("aria-hidden", "true");
+  const use = document.createElementNS("http://www.w3.org/2000/svg", "use");
+  use.setAttribute("href", GLYPH[tone] || GLYPH.idle);
+  svg.appendChild(use);
+  el.appendChild(svg);
+  el.appendChild(document.createTextNode(label));
+  return el;
+}
+
+/* ---------- view switching ---------- */
+
+function view(name) {
+  document.body.dataset.view = name;
+  window.scrollTo({ top: 0 });
+}
+
+function showError(el, message) {
+  el.textContent = message;
+  el.hidden = !message;
+}
+
+/* ---------- connect ---------- */
+
+function transportTab(which) {
+  for (const tab of $$(".tab")) {
+    const on = tab.dataset.transport === which;
+    tab.classList.toggle("is-active", on);
+    tab.setAttribute("aria-selected", String(on));
+  }
+  $("#adb-pane").hidden = which !== "adb";
+  $("#ssh-pane").hidden = which !== "ssh";
+}
+
+async function refreshDevices() {
+  const list = $("#devices");
+  list.textContent = "";
+  const devices = await api().list_devices();
+
+  for (const d of devices) {
+    const li = document.createElement("li");
+    const btn = document.createElement("button");
+    btn.className = "device";
+    btn.disabled = d.state !== "device";
+
+    const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    svg.setAttribute("class", "glyph");
+    svg.setAttribute("aria-hidden", "true");
+    const use = document.createElementNS("http://www.w3.org/2000/svg", "use");
+    use.setAttribute("href", "#i-device");
+    svg.appendChild(use);
+    btn.appendChild(svg);
+
+    const text = document.createElement("span");
+    const serial = document.createElement("span");
+    serial.className = "device-serial";
+    serial.textContent = d.serial;
+    text.appendChild(serial);
+    if (d.model) {
+      const meta = document.createElement("span");
+      meta.className = "device-meta";
+      meta.textContent = " " + d.model;
+      text.appendChild(meta);
+    }
+    btn.appendChild(text);
+
+    if (d.state === "unauthorized") {
+      btn.appendChild(chip("warn", t("device.unauthorized")));
+      btn.title = t("device.unauthorized.help");
+    } else if (d.state !== "device") {
+      btn.appendChild(chip("idle", d.state));
+    }
+
+    btn.addEventListener("click", () => connectAdb(d.serial));
+    li.appendChild(btn);
+    list.appendChild(li);
+  }
+
+  $("#no-device").hidden = devices.length > 0;
+}
+
+async function connectAdb(serial) {
+  showError($("#connect-error"), "");
+  const res = await api().connect_adb(serial);
+  if (!res.connected) {
+    showError($("#connect-error"), res.error.message);
+    return;
+  }
+  HOST = res.host;
+  await runPreflight();
+}
+
+async function connectSsh() {
+  showError($("#connect-error"), "");
+  const btn = $("#ssh-connect");
+  btn.disabled = true;
+  try {
+    const res = await api().connect_ssh(
+      $("#ssh-host").value.trim(),
+      $("#ssh-user").value.trim(),
+      $("#ssh-pass").value
+    );
+    if (!res.connected) {
+      showError($("#connect-error"), res.error.message);
+      return;
+    }
+    HOST = res.host;
+    await runPreflight();
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+/* ---------- preflight ---------- */
+
+const TONE = { pass: "pass", warn: "warn", block: "block", info: "info" };
+
+/* Prefer a translated message over the backend's English detail. The backend
+ * detail is a fallback, not the primary voice. */
+function checkDetail(c, device) {
+  const d = c.data || {};
+  switch (c.id) {
+    case "model":
+      if (device && device.identity_read_ok === false) {
+        return t("check.model.identity_unreadable");
+      }
+      return t("check.model." + (device ? device.tier : "unknown"));
+    case "root":
+      return c.state === "pass" ? t("check.root.ok") : t("check.root.blocked");
+    case "simpleadmin":
+      return d.markers && d.markers.length
+        ? t("check.simpleadmin.found", { markers: d.markers.join(", ") })
+        : t("check.simpleadmin.clean");
+    case "disk":
+      return t("check.disk.detail", { free: d.free_kb, required: d.required_kb });
+    case "entware":
+      if (d.raw === "REACHABLE") return t("check.entware.reachable");
+      if (d.raw === "UNREACHABLE_HAVE_OPKG") return t("check.entware.have_opkg");
+      if (d.raw === "NO_DOWNLOADER") return t("check.entware.none");
+      return t("check.entware.unreachable");
+    default:
+      return c.detail;
+  }
+}
+
+function renderIdentity(target, device, installed) {
+  target.textContent = "";
+  if (!device) return;
+  const rows = [
+    [t("check.identity"), device.serial],
+    [t("check.model"), device.project_name || device.firmware_raw],
+  ];
+  if (installed) rows.push([t("check.existing"), installed]);
+  for (const [k, v] of rows) {
+    if (!v) continue;
+    const dt = document.createElement("dt");
+    dt.textContent = k;
+    const dd = document.createElement("dd");
+    dd.textContent = v;
+    target.appendChild(dt);
+    target.appendChild(dd);
+  }
+}
+
+async function runPreflight() {
+  const report = await api().preflight();
+  if (report.error) {
+    showError($("#connect-error"), report.error.message);
+    view("connect");
+    return;
+  }
+
+  $("#payload-version").textContent = report.payload_version;
+  $("#action-title").textContent = t("action." + report.action);
+  $("#action-detail").textContent = t("action." + report.action + ".detail", {
+    version: report.payload_version,
+    installed: report.installed_version || "",
+  });
+  renderIdentity($("#identity"), report.device, report.installed_version);
+
+  const list = $("#checks");
+  list.textContent = "";
+  for (const c of report.checks) {
+    const li = document.createElement("li");
+    li.className = "check";
+    li.appendChild(chip(TONE[c.state] || "idle", t("check." + c.id)));
+    const detail = document.createElement("span");
+    detail.className = "check-detail";
+    detail.textContent = checkDetail(c, report.device);
+    li.appendChild(detail);
+    list.appendChild(li);
+  }
+
+  $("#start").disabled = report.blocked;
+  $("#blocked-note").hidden = !report.blocked;
+  $("#uninstall").hidden = !report.installed_version;
+  view("preflight");
+}
+
+/* ---------- run ---------- */
+
+function renderProgress(p) {
+  const dots = $("#dots");
+  if (!p) {
+    $("#progress-count").textContent = "";
+    return;
+  }
+  if (dots.children.length !== p.total) {
+    dots.textContent = "";
+    for (let i = 0; i < p.total; i++) {
+      const d = document.createElement("span");
+      d.className = "dot";
+      dots.appendChild(d);
+    }
+  }
+  Array.from(dots.children).forEach((d, i) => {
+    d.dataset.done = String(i < p.step);
+  });
+  dots.setAttribute("aria-label", t("run.step", { step: p.step, total: p.total }));
+  $("#progress-count").textContent = t("run.step", { step: p.step, total: p.total });
+}
+
+function finish(snap) {
+  const badge = $("#result-badge");
+  badge.replaceWith(
+    Object.assign(
+      chip(snap.state === "done" ? "pass" : "block",
+           t(snap.state === "done" ? "run.done" : "run.failed")),
+      { id: "result-badge" }
+    )
+  );
+
+  $("#result-title").textContent = t(snap.state === "done" ? "run.done" : "run.failed");
+
+  if (snap.state === "done") {
+    // Never invent an address: over ADB the modem's LAN IP is not knowable
+    // from the session, so that path gets its own wording.
+    $("#result-detail").textContent = HOST
+      ? t("run.done.detail", { ip: HOST })
+      : t("run.done.detail.unknown_ip");
+    $("#result-facts").hidden = true;
+  } else {
+    const e = snap.error;
+    $("#result-detail").textContent = e
+      ? t("run.failed.detail", { step: e.step, code: e.exit_code })
+      : t("run.failed");
+    // The failure surfaces as structured fields, never as a traceback.
+    const facts = $("#result-facts");
+    facts.textContent = "";
+    if (e) {
+      for (const [k, v] of [["$", e.command], ["stderr", e.stderr]]) {
+        if (!v) continue;
+        const dt = document.createElement("dt");
+        dt.textContent = k;
+        const dd = document.createElement("dd");
+        dd.textContent = v;
+        facts.appendChild(dt);
+        facts.appendChild(dd);
+      }
+    }
+    facts.hidden = !facts.children.length;
+  }
+
+  $("#result-log").textContent = snap.log_path ? t("run.log", { path: snap.log_path }) : "";
+  view("result");
+}
+
+async function poll() {
+  const snap = await api().poll();
+
+  if (snap.lines && snap.lines.length) {
+    const log = $("#log");
+    log.textContent += snap.lines.join("\n") + "\n";
+    log.scrollTop = log.scrollHeight;
+  }
+  renderProgress(snap.progress);
+
+  if (snap.state === "done" || snap.state === "failed") {
+    clearInterval(POLL);
+    POLL = null;
+    finish(snap);
+  }
+}
+
+async function start(action) {
+  $("#log").textContent = "";
+  $("#dots").textContent = "";
+  $("#progress-count").textContent = "";
+  $("#run-title").textContent = t(action === "uninstall" ? "action.uninstall" : "run.installing");
+  view("run");
+
+  const res = await api().start(action, $("#reboot").checked);
+  if (!res.started) {
+    // Not connected, or a run is already in flight. Go back to where the user
+    // can act instead of leaving them on a run view that will never move.
+    view("preflight");
+    showError($("#blocked-note"), t("error.not_connected"));
+    return;
+  }
+  POLL = setInterval(poll, 500);
+}
+
+/* ---------- boot ---------- */
+
+async function loadLocale(locale) {
+  if (locale) await api().set_locale(locale);
+  STRINGS = await api().strings();
+  applyStaticStrings();
+}
+
+async function boot() {
+  const dark = window.matchMedia("(prefers-color-scheme: dark)");
+  applyTheme(dark.matches);
+  dark.addEventListener("change", (e) => applyTheme(e.matches));
+
+  await loadLocale(null);
+
+  const tool = await api().toolchain();
+
+  // A partial translation still ships; the gaps are one diff away. Surface
+  // them in the console rather than letting them be silent.
+  const missing = await api().missing_keys();
+  if (missing && missing.length) {
+    console.warn("i18n: falling back to English for", missing.length, "key(s):", missing);
+  }
+
+  $("#locale").addEventListener("change", async (e) => {
+    await loadLocale(e.target.value);
+    // Re-render whatever is on screen so dynamic strings follow the switch.
+    if (document.body.dataset.view === "preflight") await runPreflight();
+  });
+
+  for (const tab of $$(".tab")) {
+    tab.addEventListener("click", () => transportTab(tab.dataset.transport));
+  }
+  $("#rescan").addEventListener("click", refreshDevices);
+  $("#ssh-connect").addEventListener("click", connectSsh);
+  $("#ssh-pass").addEventListener("keydown", (e) => {
+    if (e.key === "Enter") connectSsh();
+  });
+  $("#start").addEventListener("click", () => start("install"));
+  $("#uninstall").addEventListener("click", () => start("uninstall"));
+  $("#restart").addEventListener("click", () => {
+    HOST = null;
+    view("connect");
+    refreshDevices();
+  });
+
+  if (tool.ok) await refreshDevices();
+  else $("#no-device").hidden = false;
+}
+
+window.addEventListener("pywebviewready", boot);
