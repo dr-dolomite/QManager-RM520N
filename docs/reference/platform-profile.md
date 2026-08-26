@@ -352,16 +352,51 @@ deliverable.
 
 ## Consumers
 
-As of commit `581a861` there are **two writers and no readers**: the installer's
-`preflight()` and `qmanager_setup`'s boot call. Nothing in the CGI backend or the
-frontend reads `platform.json` yet.
+**Two kinds of consumer, and the distinction is the whole point.** Keep them
+apart when reading the list below:
 
-If you add a reader, remember two things: the file is `www-data`-writable (so
-treat every field as untrusted input for anything beyond cosmetics), and there is
-a live window on every install where the CGI serves requests before the profile
-exists — `install_rm520n.sh` restarts lighttpd before it restarts
-`qmanager-setup`. Fall back to reading `/etc/quectel-project-version` directly
-rather than assuming the profile is there.
+- A **profile consumer** reads `/etc/qmanager/platform.json` — the generated
+  file.
+- A **parser consumer** sources `hw_profile.sh` and calls an accessor
+  (`qm_hw_model` / `qm_hw_soc` / `qm_hw_fw_fingerprint`), which reads
+  `/etc/quectel-project-version` directly. It never touches the profile.
+
+| Caller | Kind | What it calls |
+| --- | --- | --- |
+| `install_rm520n.sh` → `preflight()` | writer | `qm_hw_write_profile` |
+| `qmanager_setup` (every boot) | writer | `qm_hw_self_heal` |
+| `qmanager_poller` | parser | `qm_hw_soc` (Phase A / T4) |
+| `about.sh` → `resolve_firmware_revision()` | parser | `qm_hw_fw_fingerprint` (Phase A / T5) |
+
+So `platform.json` still has **two writers and zero readers**, deliberately. The
+profile is `www-data`-owned whatever its mode — `qmanager_setup` chowns
+`/etc/qmanager` unconditionally on every boot — so a root daemon taking a
+netdev, an orientation or a tier from it would let any CGI-level compromise
+change root behaviour by planting one line. Phase A's standing rule is the
+strong form: **the profile is not an input to any root daemon.** Anything that
+wants to be its first reader has to argue past that, not merely past "no auth
+decision reads it".
+
+**Prefer a parser accessor over the profile.** It has no profile dependency, so
+it sidesteps the install-time window entirely: `install_rm520n.sh` restarts
+lighttpd *before* it restarts `qmanager-setup`, and `qmanager-setup.service`
+declares no `After=` at all, so on every install and every boot there is a
+stretch where the CGI is serving requests and the profile may not exist yet. A
+parser consumer never notices. `about.sh:resolve_firmware_revision()` is the
+worked example.
+
+**If you write a parser consumer, two rules.** Source the library *guarded* and
+log on both arms — `qmanager_poller:417-423` is the reference shape — because
+a partial install, a mid-OTA moment or a rollback can leave the caller present
+without the library. And normalize the `unknown` sentinel if the value reaches a
+user-visible surface: the accessors return `"unknown"` rather than `""` on
+purpose (a caller must not be able to mistake *unreadable* for a value), which
+is right for a decision and wrong for a display field, where the literal string
+would render verbatim.
+
+**If you write a profile consumer anyway,** treat every field as untrusted input
+for anything beyond cosmetics, and fall back to a parser accessor rather than
+assuming the file is there.
 
 ## Related docs
 
