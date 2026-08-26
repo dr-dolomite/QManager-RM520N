@@ -223,6 +223,37 @@ if [ -f "$ARCHIVE" ] && [ -f "$BUILD_DIR/sha256sum.txt" ]; then
   rm -rf "$STAGING_DIR"
 fi
 
+# Keep the Windows GUI installer's embedded payload in lockstep with every
+# build — see docs/reference/gui-installer.md "Payload staleness": a stale
+# tarball at an unchanged VERSION= previously passed build_installer.py's
+# check silently. Copying here means installer-gui/payload/ can never drift
+# behind qmanager-build/ between two `bun run package` runs.
+#
+# Also sync straight into the already-built dist/ folder, if one exists.
+# payload/ is read from plain disk beside the exe at runtime
+# (Path(sys.executable).parent / "payload" — see core/payload.py), never
+# baked into PyInstaller's _internal/, so overwriting it here does NOT
+# require re-running build_installer.py. A PyInstaller rebuild is only
+# needed when Python/UI source changes, not for a tarball-only update.
+sync_installer_payload() {
+  local dest="$1"
+  mkdir -p "$dest"
+  cp "$ARCHIVE" "$dest/qmanager.tar.gz"
+  cp "$BUILD_DIR/sha256sum.txt" "$dest/sha256sum.txt"
+  printf '%s\n' "$PKG_VERSION" > "$dest/VERSION"
+}
+
+if [ -d "$ROOT_DIR/installer-gui" ]; then
+  sync_installer_payload "$ROOT_DIR/installer-gui/payload"
+  step "Synced payload to installer-gui/payload/ ($PKG_VERSION)"
+
+  DIST_EXE_DIR="$ROOT_DIR/installer-gui/dist/QManagerInstaller"
+  if [ -f "$DIST_EXE_DIR/QManagerInstaller.exe" ]; then
+    sync_installer_payload "$DIST_EXE_DIR/payload"
+    step "Synced payload to installer-gui/dist/QManagerInstaller/payload/ ($PKG_VERSION) — no PyInstaller rebuild needed"
+  fi
+fi
+
 ARCHIVE_SIZE=$(du -h "$ARCHIVE" | cut -f1)
 FILE_COUNT=$(tar tzf "$ARCHIVE" | wc -l)
 SHA_VALUE=$(awk '{print $1}' "$BUILD_DIR/sha256sum.txt")

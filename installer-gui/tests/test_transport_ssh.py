@@ -27,10 +27,19 @@ class FakeStdout(io.StringIO):
         self.channel = FakeChannel(rc)
 
 
-class FakeSftp:
-    def __init__(self):
+class FakeScpClient:
+    """Stands in for `scp.SCPClient` — the legacy SCP wire protocol, not
+    SFTP. The RM520N-GL's dropbear has no `sftp-server` binary, so
+    `open_sftp()` fails with 'EOF during negotiation' on real hardware;
+    only `scp -t <remote>`-style transfer works there. Do not swap this
+    back for an SFTP fake — see reference_deploying_web_assets_to_device.
+    """
+
+    def __init__(self, transport):
+        self.transport = transport
         self.puts = []
         self.fail = False
+        self.closed = False
 
     def put(self, local, remote):
         if self.fail:
@@ -38,7 +47,7 @@ class FakeSftp:
         self.puts.append((local, remote))
 
     def close(self):
-        pass
+        self.closed = True
 
 
 class FakeClient:
@@ -47,7 +56,7 @@ class FakeClient:
         self.channel_rc = channel_rc
         self.connected = None
         self.commands = []
-        self.sftp = FakeSftp()
+        self.transport = object()
 
     def set_missing_host_key_policy(self, policy):
         pass
@@ -59,15 +68,18 @@ class FakeClient:
         self.commands.append(cmd)
         return io.StringIO(""), FakeStdout(self.stdout_text, self.channel_rc), io.StringIO("")
 
-    def open_sftp(self):
-        return self.sftp
+    def get_transport(self):
+        return self.transport
 
     def close(self):
         pass
 
 
-def make(client):
-    return SshTransport("10.0.0.1", "root", "pw", client_factory=lambda: client)
+def make(client, scp_client_factory=None):
+    kwargs = {}
+    if scp_client_factory is not None:
+        kwargs["scp_client_factory"] = scp_client_factory
+    return SshTransport("10.0.0.1", "root", "pw", client_factory=lambda: client, **kwargs)
 
 
 def test_connect_uses_password_auth_only():
@@ -131,17 +143,23 @@ def test_exec_stream_redirects_stderr_for_the_whole_wrapped_command():
     assert "ERRLINE" in lines
 
 
-def test_push_uses_sftp():
+def test_push_uses_scp_not_sftp():
     client = FakeClient()
-    make(client).push(Path("a.tar.gz"), "/tmp/a.tar.gz")
-    assert client.sftp.puts == [("a.tar.gz", "/tmp/a.tar.gz")]
+    fake_scp = FakeScpClient(client.get_transport())
+    made = make(client, scp_client_factory=lambda transport: fake_scp)
+    made.push(Path("a.tar.gz"), "/tmp/a.tar.gz")
+    assert fake_scp.puts == [("a.tar.gz", "/tmp/a.tar.gz")]
+    assert fake_scp.transport is client.transport
+    assert fake_scp.closed
 
 
 def test_push_failure_raises_transport_error():
     client = FakeClient()
-    client.sftp.fail = True
+    fake_scp = FakeScpClient(client.get_transport())
+    fake_scp.fail = True
+    made = make(client, scp_client_factory=lambda transport: fake_scp)
     with pytest.raises(TransportError, match="permission denied"):
-        make(client).push(Path("a.tar.gz"), "/tmp/a.tar.gz")
+        made.push(Path("a.tar.gz"), "/tmp/a.tar.gz")
 
 
 # --- cancellation -----------------------------------------------------------

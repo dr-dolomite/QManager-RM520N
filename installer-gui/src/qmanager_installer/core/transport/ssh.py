@@ -26,6 +26,12 @@ def _default_client_factory():
     return client
 
 
+def _default_scp_client_factory(transport):
+    from scp import SCPClient
+
+    return SCPClient(transport)
+
+
 class SshTransport(Transport):
     def __init__(
         self,
@@ -34,12 +40,14 @@ class SshTransport(Transport):
         password: str,
         port: int = 22,
         client_factory: Callable = _default_client_factory,
+        scp_client_factory: Callable = _default_scp_client_factory,
     ) -> None:
         self._host = host
         self._port = port
         self._username = username
         self._password = password
         self._client_factory = client_factory
+        self._scp_client_factory = scp_client_factory
         self._client = None
         self._lock = threading.Lock()
         self._channel = None
@@ -68,13 +76,19 @@ class SshTransport(Transport):
         return self._client
 
     def push(self, local: Path, remote: str) -> None:
-        sftp = self._connected().open_sftp()
+        # NOT open_sftp(): the RM520N-GL's dropbear has no `sftp-server`
+        # binary, so an SFTP channel dies with "EOF during negotiation"
+        # before any bytes move. The legacy SCP wire protocol (a plain
+        # `scp -t <remote>` exec) is the only transfer method dropbear
+        # actually serves — confirmed live, see
+        # reference_deploying_web_assets_to_device.
+        scp_client = self._scp_client_factory(self._connected().get_transport())
         try:
-            sftp.put(str(local), remote)
+            scp_client.put(str(local), remote)
         except Exception as exc:
-            raise TransportError(f"SFTP put failed: {exc}") from exc
+            raise TransportError(f"SCP put failed: {exc}") from exc
         finally:
-            sftp.close()
+            scp_client.close()
 
     def exec(self, cmd: str, timeout: int = 60) -> Result:
         # NOTE: we deliberately do NOT consult stdout.channel.recv_exit_status()
