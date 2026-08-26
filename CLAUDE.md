@@ -184,6 +184,7 @@ Each feature below has a reference doc holding its invariants, gotchas, and rati
 | **SMS Center** | `/cellular/sms`, `sms_tool`, CPMS storage routing, the single-flight inbox GET, or anything on the surface (geometry and tone live in `components/cellular/sms/shapes.ts`) | RM520N | `sms.md` |
 | **SMS Forwarding** | `qmanager_sms_forward`, `/cellular/sms/forwarding`, the dirty-row promotion, or the hook's untranslated error strings | RM520N | `sms-forwarding.md` |
 | **Speed Test** | Ookla CLI, `at_cmd/speedtest_*.sh`, the dashboard tile and dialog | RM520N | `speedtest.md` |
+| **Windows GUI Installer** | `installer-gui/` — the offline (China/GFW) installer: the `__QM_RC=` exit-code sentinel and `wrap_command`'s conditional separator, why SSH ignores the channel exit status, the always-`--no-reboot` split, the fail-closed model and Entware gates (`--force` disables the installer's own RM551E block), `tokens.css` extraction from `globals.css`, and the two defects that exist only in the frozen PyInstaller build | Both | `gui-installer.md` |
 
 All paths are relative to `docs/reference/` unless stated. If you add a substantial feature with non-obvious invariants, write `docs/reference/<feature>.md` and add **one row** here — do not summarize the doc in this file.
 
