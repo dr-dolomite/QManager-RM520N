@@ -306,10 +306,13 @@ installer-gui/
 
 ## 10. Open questions
 
-None blocking. Two to settle during implementation:
+One, non-blocking:
 
 - Exact progress-line format emitted by `install_rm520n.sh`, to be read from the
   script rather than assumed. The indeterminate fallback means getting this wrong
   degrades presentation only.
-- Whether `SshTransport` should offer key-based auth in v1 or password only.
-  Password only is sufficient for the devices in hand.
+
+**Settled 2026-08-26:** `SshTransport` is **password authentication only** in v1.
+The devices in hand use password auth, and key handling would add a key-discovery
+and passphrase-prompt surface to a GUI whose audience is explicitly not
+shell-fluent.
