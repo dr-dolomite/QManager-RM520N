@@ -9,8 +9,9 @@ import {
   TriangleAlertIcon,
   XCircleIcon,
   TrendingUpIcon,
+  WifiIcon,
 } from "lucide-react";
-import type { VerifyResult } from "@/types/traffic-engine";
+import type { VerifyReference, VerifyResult } from "@/types/traffic-engine";
 
 // =============================================================================
 // result-alert — renders a completed verify comparison: without/with bypass
@@ -55,6 +56,28 @@ const ResultAlert = ({ result }: ResultAlertProps) => {
     </div>
   );
 
+  // Third "opinion": the raw connection speed (speedtest.net / Cloudflare),
+  // NOT the streaming CDN class fast.com samples. Lets the throttled badges
+  // above stay honest — a slow result on both is a slow connection, not DPI.
+  const referenceSample = (ref: VerifyReference) => (
+    <div className="flex items-center justify-between gap-2 rounded-tile bg-surface-container p-3">
+      <span className="text-sm text-muted-foreground">
+        {t("trafficEngine.verify.reference")}
+      </span>
+      <div className="flex items-center gap-2">
+        <span className="font-semibold tabular-nums">{ref.speed_mbps} Mbps</span>
+        <Badge variant="secondary">
+          <WifiIcon />
+          {t(
+            ref.source === "speedtest"
+              ? "trafficEngine.verify.source_speedtest"
+              : "trafficEngine.verify.source_cloudflare",
+          )}
+        </Badge>
+      </div>
+    </div>
+  );
+
   return (
     <Alert>
       <TrendingUpIcon className="size-4" />
@@ -65,6 +88,7 @@ const ResultAlert = ({ result }: ResultAlertProps) => {
         <div className="mt-2 grid gap-2">
           {sample(t("trafficEngine.verify.without"), result.without_bypass)}
           {sample(t("trafficEngine.verify.with"), result.with_bypass)}
+          {result.reference && referenceSample(result.reference)}
         </div>
       </AlertDescription>
     </Alert>

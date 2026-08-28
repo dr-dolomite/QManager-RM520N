@@ -85,6 +85,8 @@ export function useVideoOptimizer(): UseVideoOptimizerReturn {
         domains_loaded: json.domains_loaded ?? 0,
         binary_installed: json.binary_installed,
         kernel_module_loaded: json.kernel_module_loaded,
+        force_tcp: json.force_tcp,
+        force_tcp_active: json.force_tcp_active,
       });
     } catch (err) {
       if (!mountedRef.current) return;

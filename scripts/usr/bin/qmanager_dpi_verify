@@ -20,23 +20,40 @@
 # whole run. Both phases are measured from the modem itself, which never
 # passes through the engine's transparent rule, so the comparison is clean.
 #
+# The reference phase flips that trade on purpose: it tests the raw
+# connection (speedtest.net's Ookla pool, Cloudflare fallback) — the class
+# of traffic ISPs usually DON'T throttle — as the baseline that separates
+# "the CDN is throttled" (fast.com low, reference high) from "this line is
+# just slow" (both low). The throttled verdicts below read the reference so
+# a slow-but-real connection no longer reports a nonsensical throttle.
+#
 # The with-bypass leg is a THROWAWAY socks-mode tpws instance (same binary,
 # same tampering recipe minus --oob=tls, which breaks the socks path) — the
 # real engine is never touched, so the runner needs no engine state, no rule
 # toggling, and no restore trap beyond killing the socks instance.
 #
-# "throttled" is a heuristic. The without-bypass phase: a result under
-# DPI_VERIFY_THROTTLE_MBPS (20) counts as throttled — absolute speed only.
-# The with-bypass phase is improvement-aware: still throttled when under the
-# bar, UNLESS the bypass lifted it by at least DPI_VERIFY_IMPROVEMENT_MIN (2x)
-# over the without phase — the lift is the engine's whole point, so a 6.7x
-# gain from 2.5 Mbps should never read "throttled" even if it lands at 16.8.
-# The improvement factor is with/without, one decimal.
+# "throttled" is a reference-aware heuristic. A reference phase measures the
+# raw connection over speedtest.net (Ookla), falling back to Cloudflare's
+# speed endpoint when Ookla is unreachable — an independent "3rd opinion"
+# that separates a genuinely slow line from CDN throttling. Bars:
+# DPI_VERIFY_THROTTLE_MBPS (20). The without-bypass phase counts as throttled
+# when under the bar UNLESS the reference says the connection itself is slow
+# (reference under 2x the without result — a 5 Mbps line reading 6 Mbps on
+# fast.com is a slow connection, not throttling). The with-bypass phase is
+# improvement-aware: unthrottled when at/above the bar, when the bypass
+# lifted it >= DPI_VERIFY_IMPROVEMENT_MIN (2x) over without, or when the
+# reference shows the connection itself is under the bar. If no reference is
+# available (both sources down) the heuristic degrades to the old absolute
+# rule, so a broken reference never falsifies a verdict. The improvement
+# factor is with/without, one decimal.
 #
 # Marker JSON (polled by ?action=verify_status):
 #   running:  {"status":"running"}
 #   complete: {"status":"complete","timestamp":"...","without_bypass":{...},
-#              "with_bypass":{...},"improvement":"19.7x"}
+#              "with_bypass":{...},"reference":{"speed_mbps":...,"source":"..."},
+#              "improvement":"19.7x"}
+#     reference.source: "speedtest" | "cloudflare"; reference is null only
+#                       when BOTH reference sources are unreachable
 #   error:    {"status":"error","message":"...","detail":"..."}
 #
 # Usage: qmanager_dpi_verify start | (internal) --run
@@ -61,6 +78,14 @@ DPI_SOCKS_PID="/tmp/qmanager_tpws_socks.pid"
 # out-of-band injection fails on the socks path (connection dies), while
 # split + disorder deliver the full bypass effect (measured on hardware).
 DPI_SOCKS_ARGS="--filter-l7=tls,http --split-pos=1,midsld,sniext+1 --disorder=tls"
+# Reference (3rd-opinion) sources — raw connection speed, NOT the streaming
+# CDN class fast.com measures. speedtest.net/Ookla first (the name users
+# know; its JS server API yields a burst download URL), Cloudflare's
+# documented speed endpoint as fallback: ISPs that throttle streaming CDNs
+# typically leave both alone, so a low fast.com beside a healthy reference is
+# a genuine throttling signal.
+DPI_REF_OOKLA_API="https://www.speedtest.net/api/js/servers?engine=js&limit=1"
+DPI_REF_CLOUDFLARE_URL="https://speed.cloudflare.com/__down?bytes=25000000"
 
 _dpi_verify_write() {
     # In-place write, never tmp+mv (pre-seeded root:root 0666 marker).
@@ -83,6 +108,65 @@ _dpi_fast_url() {
         https://*) printf '%s' "$url" ;;
         *) return 1 ;;
     esac
+}
+
+_dpi_reference_url() {
+    # Reference download target + source label, "<url> <source>". Prefers
+    # the Ookla JS server list (the pool speedtest.net users know): download
+    # = the top server's random2000x2000.jpg, Ookla's classic burst pattern.
+    # Falls back to Cloudflare's documented speed endpoint when Ookla is
+    # unreachable, blocked, or the shape changed. Fails only when neither
+    # source produces a usable URL.
+    local api url base
+    api=$(curl -ksS -m 15 "$DPI_REF_OOKLA_API" 2>/dev/null)
+    url=$(printf '%s' "$api" | jq -r 'if type == "array" then .[0].url else empty end' 2>/dev/null)
+    case "$url" in
+        http://*|https://*) ;;
+        *) url="" ;;
+    esac
+    case "$url" in
+        */upload.php)
+            base=${url%/upload.php}
+            printf '%s %s' "${base}/random2000x2000.jpg" "speedtest"
+            return 0
+            ;;
+    esac
+    printf '%s %s' "$DPI_REF_CLOUDFLARE_URL" "cloudflare"
+}
+
+_dpi_reference_bw() {
+    # One reference URL sampled until the 15s budget burns. A single burst
+    # (random2000x2000.jpg is ~2 MB) ends far too early to be meaningful on
+    # a fast link, so subsequent bursts accumulate bytes/time. Returns
+    # bytes/s, or nothing on failure. guarded to at least 3 bursts of at
+    # least 100 KB each.
+    local url t0 out bw size tt total_size total_time it now
+    url="$1"
+    t0=$(date +%s)
+    total_size=0
+    total_time=0
+    it=0
+    while [ "$it" -lt 12 ]; do
+        now=$(date +%s)
+        if [ $((now - t0)) -ge "$DPI_VERIFY_SAMPLE_SECS" ] && [ "$it" -gt 0 ]; then
+            break
+        fi
+        out=$(curl -ksS -m 30 \
+            -o /dev/null -w '%{speed_download} %{size_download} %{time_total}' "$url" 2>/dev/null) || true
+        bw=$(printf '%s' "$out" | awk '{print $1}')
+        size=$(printf '%s' "$out" | awk '{print $2}')
+        tt=$(printf '%s' "$out" | awk '{print $3}')
+        case "$bw" in
+            ''|0|0.*|*[!0-9.]*) return 1 ;;
+        esac
+        [ "${size:-0}" -gt 100000 ] || return 1
+        total_size=$(awk -v a="$total_size" -v s="$size" 'BEGIN { printf "%d", a + s }')
+        total_time=$(awk -v a="$total_time" -v t="$tt" 'BEGIN { printf "%.3f", a + t }')
+        it=$((it + 1))
+        [ "$it" -ge 3 ] && break
+    done
+    total_time=$(awk -v t="$total_time" 'BEGIN { print (t > 0) ? t : 0.001 }')
+    awk -v s="$total_size" -v t="$total_time" 'BEGIN { printf "%.0f", s / t }'
 }
 
 _dpi_curl_bw() {
@@ -120,10 +204,34 @@ _dpi_socks_stop() {
 }
 
 _dpi_verify_run() {
-    local url without_mbps with_mbps ts bw
+    local url without_mbps with_mbps reference_mbps reference_source
+    local ref_url ref_json ref_out ts bw
 
     _dpi_verify_write "$(jq -n '{status:"running"}')"
     trap _dpi_socks_stop EXIT
+
+    # --- Phase 0: reference (3rd opinion — the connection, not the CDN) -------
+    # Reference failure never aborts the run: the verdicts just fall back to
+    # the old absolute heuristic, so a blocked/blinking speedtest.net API
+    # can't take the comparison down.
+    qlog_info "verify: phase 0 (reference speed)"
+    reference_mbps=""
+    reference_source=""
+    ref_out=$(_dpi_reference_url) || ref_out=""
+    if [ -n "$ref_out" ]; then
+        set -- $ref_out
+        ref_url=$1
+        reference_source=$2
+        bw=$(_dpi_reference_bw "$ref_url") || bw=$(_dpi_reference_bw "$ref_url")
+        if [ -n "$bw" ]; then
+            reference_mbps=$(awk -v b="$bw" 'BEGIN { printf "%.1f", b * 8 / 1000000 }')
+            qlog_info "verify: reference=${reference_mbps}Mbps source=$reference_source"
+        else
+            qlog_warn "verify: reference download failed (source=$reference_source)"
+        fi
+    else
+        qlog_warn "verify: no reference URL — speedtest.net and Cloudflare both unreachable"
+    fi
 
     # --- Fetch a fresh CDN target ---------------------------------------------
     qlog_info "verify: fetching fast.com CDN target"
@@ -149,19 +257,28 @@ _dpi_verify_run() {
 
     # --- Result ----------------------------------------------------------------
     ts=$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date -u +%Y-%m-%dT%H:%M:%S)
+    if [ -n "$reference_mbps" ]; then
+        ref_json=$(jq -n --argjson s "$reference_mbps" --arg src "$reference_source" \
+            '{speed_mbps:$s,source:$src}')
+    else
+        ref_json="null"
+    fi
     _dpi_verify_write "$(jq -n \
         --arg ts "$ts" \
         --argjson wb "$without_mbps" \
-        --argjson wbt "$(awk -v s="$without_mbps" -v t="$DPI_VERIFY_THROTTLE_MBPS" 'BEGIN { print (s < t) ? "true" : "false" }')" \
+        --argjson wbt "$(awk -v s="$without_mbps" -v t="$DPI_VERIFY_THROTTLE_MBPS" -v r="$reference_mbps" \
+            'BEGIN { print ((s >= t) || (r != "" && r < 2 * s)) ? "false" : "true" }')" \
         --argjson w "$with_mbps" \
-        --argjson wt "$(awk -v w="$with_mbps" -v b="$without_mbps" -v t="$DPI_VERIFY_THROTTLE_MBPS" -v m="$DPI_VERIFY_IMPROVEMENT_MIN" 'BEGIN {
+        --argjson wt "$(awk -v w="$with_mbps" -v b="$without_mbps" -v t="$DPI_VERIFY_THROTTLE_MBPS" -v m="$DPI_VERIFY_IMPROVEMENT_MIN" -v r="$reference_mbps" 'BEGIN {
             if (w >= t) { print "false"; exit }
+            if (r != "" && r < t) { print "false"; exit }
             print (b > 0 && w / b >= m) ? "false" : "true"
         }')" \
+        --argjson refj "$ref_json" \
         --arg imp "$(awk -v w="$with_mbps" -v b="$without_mbps" 'BEGIN { printf "%.1fx", (b > 0) ? w / b : 0 }')" \
-        '{status:"complete",timestamp:$ts,without_bypass:{speed_mbps:$wb,throttled:$wbt},with_bypass:{speed_mbps:$w,throttled:$wt},improvement:$imp}')"
+        '{status:"complete",timestamp:$ts,without_bypass:{speed_mbps:$wb,throttled:$wbt},with_bypass:{speed_mbps:$w,throttled:$wt},reference:$refj,improvement:$imp}')"
 
-    qlog_info "verify: complete without=${without_mbps}Mbps with=${with_mbps}Mbps"
+    qlog_info "verify: complete without=${without_mbps}Mbps with=${with_mbps}Mbps reference=${reference_mbps:-n/a}Mbps"
     rm -f "$DPI_VERIFY_PID"
     trap - EXIT
     exit 0

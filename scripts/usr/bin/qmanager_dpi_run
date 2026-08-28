@@ -39,6 +39,14 @@ cmd="${1:-run}"
 
 case "$cmd" in
     --ensure)
+        # QUIC handling is independent of the engine: reconcile the
+        # Force-TCP rule against config and purge any legacy DSCP-marking
+        # rule (upgrade migration) on EVERY pass, engine on or off — the
+        # timer is unconditionally armed and QCMAP flushes iptables on every
+        # re-dial, so the force-TCP rule must self-heal even when no engine
+        # mode is enabled.
+        dpi_reconcile_force_tcp
+        dpi_purge_legacy_dscp_rule
         if dpi_is_enabled; then
             if dpi_apply_rule; then
                 qlog_info "ensure: REDIRECT rule re-asserted (mode=$(dpi_active_mode))"
