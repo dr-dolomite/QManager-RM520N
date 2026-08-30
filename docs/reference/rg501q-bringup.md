@@ -222,18 +222,29 @@ both `die` paths now remove the half-written binary first.
 **The only component that works is the one with no Entware dependency.** Everything
 that needs `jq` runs but emits nothing.
 
-> **Partly mitigated since 2026-08-30 (`3a7c537`, tracker F2).** The CGI layer's
-> share of this was self-concealing: `cgi_error` — the single error reporter behind
-> 53 CGI scripts — was itself a `jq -n` call, so every endpoint answered with a 200,
-> the correct `Content-Type`, and a **completely empty body**. The error reporter
-> depended on the exact thing that was missing, which is why this device presented
-> as a mute web UI rather than a traceable failure. `cgi_error` now falls back to a
-> hand-built envelope when jq produces no output.
+> **Mitigated since 2026-08-30 (`3a7c537` + `71c9d59`, tracker F2 and F17).** The CGI
+> layer's share of this was self-concealing: `cgi_error` — the single error reporter
+> behind 53 CGI scripts — was itself a `jq -n` call, so every endpoint answered with a
+> 200, the correct `Content-Type`, and a **completely empty body**. The error reporter
+> depended on the exact thing that was missing, which is why this device presented as
+> a mute web UI rather than a traceable failure.
 >
-> ⚠️ **Do not read this as "the UI will now explain itself."** The fallback is inside
-> `cgi_error` only. `require_auth` (`cgi_auth.sh:498-512`) still emits its own inline
-> `jq -n`, and it is the *first* thing a browser hits — so a bootstrap-broken device
-> is still mute pre-auth. Tracked as F17.
+> `cgi_error` falls back to a hand-built envelope when jq produces no output, and F17
+> extended that to every other JSON emitter on the pre-auth path: `cgi_success`,
+> `cgi_method_not_allowed`, and `require_auth`'s two 401 envelopes. F2 alone was not
+> enough — `require_auth` is the *first* thing a browser hits, so its own inline
+> `jq -n` kept the device mute before `cgi_error`'s fallback could ever engage.
+> `require_auth` can reach `cgi_error` only because `cgi_base.sh` was reordered to
+> define it above the load-time `require_auth` call; that ordering is load-bearing and
+> is asserted by `scripts/test/cgi-error-jq-fallback.sh` section [6].
+>
+> ⚠️ **Only the CGI layer is covered.** Everything else that needs `jq` — the poller,
+> the alert engine, the health check — still emits nothing on a device with no
+> `/opt/bin/jq`. The fix makes the failure *traceable from a browser*, not survivable.
+>
+> ⚠️ **Neither test device is running this code.** Both were measured on 2026-08-30
+> with `cgi_base.sh` frozen at `3a7c537^`, i.e. pre-F2 — see F20 in the Phase A
+> tracker.
 
 
 
