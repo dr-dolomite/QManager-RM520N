@@ -314,11 +314,20 @@ export function MBNCard({
           />
         </div>
 
-        {bundles.length === 0 ? (
-          // Honest empty state: some firmware simply returns no bundle list, in
-          // which case automatic selection is not a preference, it is the only
-          // thing available. Geometry imported from the family's empty-state
-          // constant rather than restated.
+        {/* THE EMPTY STATE IS GATED ON A REAL READ. `bundles = profiles ?? []`
+            collapses `null` (never fetched, or the fetch failed) and `[]` (the
+            firmware genuinely reported none) into one `.length === 0` branch —
+            so on a failed fetch the user saw the destructive banner above
+            ("Failed to load carrier profiles") and, directly underneath it, a
+            paragraph asserting the firmware had reported none. A contradiction
+            on one screen, not a silence. When `profiles === null` the banner is
+            the whole story and this block does not render.
+
+            The copy below is only true of a SUCCESSFUL read that returned
+            nothing: some firmware really does ship no bundle list, and there
+            automatic selection is not a preference, it is the only option.
+            Geometry imported from the family's empty-state constant. */}
+        {profiles !== null && bundles.length === 0 ? (
           <div className={EMPTY_BLOCK.ROOT}>
             <MaterialSymbol
               name="sim_card"
@@ -328,7 +337,7 @@ export function MBNCard({
             <span className={EMPTY_BLOCK.TITLE}>{t(`${K}.empty.title`)}</span>
             <span className={EMPTY_BLOCK.BODY}>{t(`${K}.empty.body`)}</span>
           </div>
-        ) : (
+        ) : bundles.length === 0 ? null : (
           <div className="flex flex-col gap-2">
             <span className={SETTING_ROW.CONSEQUENCE}>
               {t(`${K}.list_label`)}

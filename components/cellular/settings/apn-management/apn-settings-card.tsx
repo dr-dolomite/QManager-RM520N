@@ -46,6 +46,7 @@ import SegmentedField, { type SegmentedOption } from "../segmented-field";
 import SettingRow from "../setting-row";
 import {
   BADGE_GLYPH_SIZE,
+  CARD_NOTICE,
   CARD_PAD,
   CARD_SHELL,
   FIELD_SHELL,
@@ -198,9 +199,48 @@ export function ApnSettingsCard({
     }),
   );
 
+  // --- Never read ------------------------------------------------------------
+  // A failed FIRST read is a third state, not a longer loading state. The hook
+  // clears `isLoading` and leaves `apn` at `null`, and the component used to
+  // fall straight past its loading branch into the form body — where the APN
+  // field honestly showed a placeholder but the IP-protocol control rendered
+  // IPv4v6 SELECTED and the CID Select rendered CID 1, as confirmed-looking
+  // choices on a card that had read nothing. Those are the `useState` seeds
+  // ("ipv4v6" / "1"), never a value from the modem.
+  //
+  // `overrideUndetermined` did not guard this: it only holds the card in
+  // loading while the PROFILE verdict resolves, and is false once settled
+  // regardless of whether the APN fetch succeeded.
+  //
+  // The card states why it has nothing to show, quietly — the route shell's
+  // banner already carries the alarm and the retry action, and repeating it
+  // here would say it twice. Rendering no control at all also closes the last
+  // route into the reserved-context fallback on a page that knows nothing.
+  //
+  // Only the NEVER-READ case lands here: a failed re-read leaves the previous
+  // snapshot in place, so the card keeps rendering real values.
+
+  if (!isLoading && !apn) {
+    return (
+      <Card className={cn(CARD_SHELL)}>
+        <CardHeader className={CARD_PAD}>
+          <CardTitle>{t(`${K}.card.title`)}</CardTitle>
+          <CardDescription>{t(`${K}.card.description`)}</CardDescription>
+        </CardHeader>
+        <CardContent className={cn(CARD_PAD, "flex flex-col gap-4")}>
+          <div className={ROW_GROUP.ROOT}>
+            <p className={CARD_NOTICE}>{t(`${K}.cards.unread`)}</p>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
   // --- Loading ---------------------------------------------------------------
   // Geometry is MIRRORED from the shape constants. The header text is real in
-  // both states, so the card never swaps its own title on load.
+  // ALL THREE states, so the card never swaps its own title on load — the
+  // family records a skeleton titled differently from its loaded card as a
+  // visible title swap on every load.
 
   if (isLoading) {
     return (

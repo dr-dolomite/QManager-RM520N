@@ -251,10 +251,27 @@ function ReadoutRow({
 function NetworkGrantedCard({
   status,
   isLoading,
+  isStale,
   error,
 }: {
   status: ModemStatus | null;
   isLoading: boolean;
+  /**
+   * The poller has not reported inside its 10 s threshold.
+   *
+   * THIS BAND WAS THE ONLY POLLER-FED SURFACE IN THE FAMILY THAT COULD NOT SAY
+   * IT HAD STALLED. `useModemStatus` has always exported `isStale`; this card
+   * took `{ status, isLoading, error }` and never received it, so a frozen
+   * poller rendered identically to a live one. The family's own poller band
+   * (`live-state-strip.tsx`) names why that matters: "Staleness means the
+   * figures below are FROZEN while still looking current, which is the one
+   * moment this band can mislead."
+   *
+   * Only the WARNING half. There is no "live" chip and no elapsed-seconds
+   * counter — the counter was refuted, and a pill saying "live" over values
+   * that are simply correct reports nothing.
+   */
+  isStale: boolean;
   error: string | null;
 }) {
   const { t } = useTranslation("cellular");
@@ -323,6 +340,21 @@ function NetworkGrantedCard({
             title={t(`${R}.error_title`)}
           >
             {t(`${R}.error_body`)}
+          </TonalBanner>
+        ) : null}
+
+        {/* Frozen, not absent. A failed read has no values at all and takes the
+            banner above; this is the harder case — every figure below is still
+            drawn, still looks current, and may no longer be true. The `warning`
+            role and the `schedule` glyph match the family's poller band so a
+            user meets one signal, not two. */}
+        {isStale && status ? (
+          <TonalBanner
+            tone="warning"
+            icon="schedule"
+            title={t(`${R}.stale`)}
+          >
+            {t(`${R}.stale_body`)}
           </TonalBanner>
         ) : null}
 
@@ -553,11 +585,7 @@ const APNSettingsComponent = () => {
         </div>
       </fieldset>
 
-      <NetworkGrantedCard
-        status={status}
-        isLoading={statusLoading}
-        error={statusError}
-      />
+      <NetworkGrantedCard status={status} isStale={statusStale} isLoading={statusLoading} error={statusError} />
     </div>
   );
 };
