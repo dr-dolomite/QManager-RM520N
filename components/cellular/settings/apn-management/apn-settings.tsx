@@ -26,7 +26,6 @@ import { useSimProfiles } from "@/hooks/use-sim-profiles";
 import { compressIPv6 } from "@/lib/ipv6";
 import { cn } from "@/lib/utils";
 import type { ModemStatus } from "@/types/modem-status";
-import type { CidContext } from "@/types/apn-settings";
 
 import ApnSettingsCard from "./apn-settings-card";
 import MBNCard from "./mbn-card";
@@ -78,29 +77,56 @@ const EM_DASH = "—";
 // -----------------------------------------------------------------------------
 // The page-header status chip
 // -----------------------------------------------------------------------------
-// Three states, three glyphs. `success-container` and `warning-container`
-// measure 1.03:1 apart and are the same surface under deuteranopia, so the
-// glyph is what actually separates "live" from "not live" — they may never
-// share one.
+// IT USED TO COMPARE CONFIGURATION AGAINST CONFIGURATION. The incumbent read
+// `cids[].apn` and called it the live value:
+//
+//     const liveCtx = cids.find((c) => c.cid === activeCid);
+//     const matches = storedApn === (liveCtx?.apn ?? "");
+//
+// `cids[]` is not a reading. `apn.sh:407` derives it from the `AT+CGDCONT?`
+// loop with no extra AT calls, and `AT+CGDCONT?` is the CONFIGURED view — it
+// echoes back what was last requested, "so it matches even when the bearer is
+// stale" (wan-profile-management.md > "Verification reads AT+CGCONTRDP, never
+// AT+CGDCONT?"). Comparing against it is self-concealing: it was already the
+// root cause of the profile worker's silent-failure bug on the backend, and the
+// one chip on this page claiming to report "is it live" was running it again —
+// while rendering a green `success` "Active" over the top.
+//
+// It now reads `status.network.apn`, the poller's `+CGCONTRDP`-derived
+// NEGOTIATED value: what the network actually granted, from a source that
+// cannot echo the request back. No backend change was needed; this page already
+// fetched it for the granted band.
+//
+// FOUR STATES, FOUR GLYPHS. `success-container` and `warning-container` measure
+// 1.03:1 apart and are the same surface under deuteranopia, so the glyph is
+// what actually separates the verdicts — they may never share one.
 //
 // The comp also drew a "Read from modem 6 s ago" freshness chip here. It is
 // gone by product decision: this page's writable half is not polled, so the
 // number would have been counting since a fetch the user cannot see, and a
 // freshness claim nobody can act on is noise wearing precision's clothes.
+// STALENESS IS A DIFFERENT THING and it is here: a boolean the poller already
+// publishes, which says the readings below are FROZEN. It outranks the
+// live/drift verdict because a green "Live on the network" drawn from frozen
+// readings is exactly the lie this chip was rewritten to stop telling.
 
 type StatusChip = { variant: BadgeVariant; glyph: MaterialSymbolName; label: string };
 
 function useApnStatusChip(
   active: number | null,
-  activeCid: number | null,
-  cids: CidContext[] | null,
+  status: ModemStatus | null,
   storedApn: string,
   isSaving: boolean,
+  isReconciling: boolean,
+  isStale: boolean,
 ): StatusChip | null {
   const { t } = useTranslation("cellular");
 
-  if (active === null || cids === null) return null;
+  if (active === null) return null;
 
+  // Carrier default is a SETTINGS fact, not a poller one, so it is stated
+  // before staleness can suppress anything — a frozen poller says nothing
+  // about whether a custom APN is configured.
   if (active === 0) {
     return {
       variant: "muted",
@@ -109,38 +135,54 @@ function useApnStatusChip(
     };
   }
 
-  const liveCtx =
-    activeCid !== null ? cids.find((c) => c.cid === activeCid) : null;
-  // An empty live APN is the backend's "couldn't read it" sentinel, not a
-  // confirmed value — the compound AT read fails transiently, notably during
-  // the COPS settle window right after a save. `||` (not `??`) collapses "" to
-  // null so an unreadable APN falls through to "Active" rather than asserting a
-  // mismatch the modem never reported.
-  const liveApn = liveCtx?.apn || null;
-  const matches =
-    liveApn !== null &&
-    storedApn.trim().toLowerCase() === liveApn.trim().toLowerCase();
-
-  if (!isSaving && liveApn !== null && !matches) {
+  if (isStale) {
     return {
       variant: "warning",
-      glyph: "warning",
-      label: t(`${K}.status.not_live`),
+      glyph: "schedule",
+      label: t(`${K}.readout.stale`),
     };
   }
 
-  // `check_circle` is success's glyph in DESIGN.md's functional-four table, and
-  // every other success chip in this family already uses it. The Functional-Color
-  // Promise is about a user learning one meaning once, so the glyph is not a
-  // per-surface choice — an APN-flavoured `public` here would have been the only
-  // success chip in the change speaking a different word for the same state.
-  // The other two states in this slot keep their own distinct glyphs
-  // (`do_not_disturb_on` / `warning`), which is the separation that actually
-  // carries meaning: `success-container` and `warning-container` are 1.03:1 apart.
+  // The negotiated APN. An empty string from the poller is "we do not know",
+  // never "none" — `||` (not `??`) collapses it so an unread value reports
+  // itself as unread instead of asserting a mismatch nobody measured.
+  const grantedApn = status?.network?.apn?.trim() || null;
+
+  if (grantedApn === null) {
+    return {
+      variant: "muted",
+      glyph: "help",
+      label: t(`${K}.status.not_reported`),
+    };
+  }
+
+  // Case-folded, matching the backend's own comparison: APNs are DNS-style
+  // labels and case-insensitive per 3GPP, and a live device negotiated
+  // `INTERNET.GLOBE.COM.PH` for a stored `internet`.
+  if (storedApn.trim().toLowerCase() === grantedApn.toLowerCase()) {
+    return {
+      variant: "success",
+      glyph: "check_circle",
+      label: t(`${K}.status.live`),
+    };
+  }
+
+  // A write in flight disagrees legitimately: the attach cycle detaches, and
+  // the poller keeps reporting the OLD granted APN until it completes. Saying
+  // "not in use" there would be true of a state the user is mid-way through
+  // leaving, so the chip stands down to "we cannot say" rather than accusing.
+  if (isSaving || isReconciling) {
+    return {
+      variant: "muted",
+      glyph: "help",
+      label: t(`${K}.status.not_reported`),
+    };
+  }
+
   return {
-    variant: "success",
-    glyph: "check_circle",
-    label: t(`${K}.status.active`),
+    variant: "warning",
+    glyph: "warning",
+    label: t(`${K}.status.not_granted`),
   };
 }
 
@@ -348,6 +390,7 @@ const APNSettingsComponent = () => {
     activeCid,
     isLoading,
     isSaving,
+    isReconciling,
     error,
     save,
     deactivate,
@@ -367,6 +410,7 @@ const APNSettingsComponent = () => {
   const {
     data: status,
     isLoading: statusLoading,
+    isStale: statusStale,
     error: statusError,
   } = useModemStatus();
 
@@ -419,10 +463,11 @@ const APNSettingsComponent = () => {
 
   const statusChip = useApnStatusChip(
     active,
-    activeCid,
-    cids,
+    status,
     apn?.apn ?? "",
     isSaving,
+    isReconciling,
+    statusStale,
   );
 
   return (

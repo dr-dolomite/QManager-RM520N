@@ -109,6 +109,26 @@ export interface ApnSettingsCardProps {
 const FALLBACK_CIDS = [1, 2, 3, 4, 5, 6] as const;
 
 /**
+ * The two contexts to treat as possibly-reserved when the modem has told us
+ * nothing about any of them.
+ *
+ * CID 2 and CID 3 are the conventional IMS and emergency contexts on this
+ * hardware. The page does not KNOW that on a device whose `cids[]` came back
+ * empty — it knows it is usually true, which is why the dialog these route to
+ * says so in those words rather than borrowing the IMS/SOS copy, which asserts
+ * a type nothing reported.
+ */
+const FALLBACK_RESERVED_CIDS: readonly number[] = [2, 3];
+
+/**
+ * Which reserved-context dialog is open, and why.
+ *
+ * "ims" / "emergency" are the modem's own classification of a context it
+ * reported. "unverified" is the empty-list case: same guard, weaker claim.
+ */
+type PendingReserved = { cid: number; kind: "ims" | "emergency" | "unverified" };
+
+/**
  * The APN input: the family's shared field shells plus the comp's 260px
  * minimum, which is what stops a long `internet.talkntext.ph` truncating on a
  * half-width card. Nothing else is added.
@@ -166,7 +186,9 @@ export function ApnSettingsCard({
   }
 
   const [apnError, setApnError] = React.useState("");
-  const [pendingCid, setPendingCid] = React.useState<CidContext | null>(null);
+  const [pendingCid, setPendingCid] = React.useState<PendingReserved | null>(
+    null,
+  );
   const [confirmDeactivate, setConfirmDeactivate] = React.useState(false);
 
   const pdpOptions: SegmentedOption<string>[] = PDP_TYPE_OPTIONS.map(
@@ -227,11 +249,30 @@ export function ApnSettingsCard({
   const cidDelta = cidDirty ? `${apn?.cid} → ${cid}` : null;
 
   // --- CID selection — intercept reserved contexts for confirmation ----------
+  //
+  // THE GUARD USED TO SWITCH ITSELF OFF EXACTLY WHEN IT MATTERED MOST. It was
+  // `contexts.find(...)` and nothing else, but the Select still offers
+  // `FALLBACK_CIDS` (1-6) when the modem has reported no contexts at all — so
+  // on an empty `cids[]` the lookup missed on every single option, `pendingCid`
+  // was never set, and a data APN could land on the IMS or emergency context
+  // with no confirmation. The one moment the page knows least about which CIDs
+  // are reserved was the one moment it stopped asking.
+  //
+  // Two gates now. The modem's own classification when it reported one, and a
+  // conventional fallback when it reported nothing — worded as the guess it is.
 
   const handleCidChange = (value: string) => {
     const ctx = contexts.find((context) => String(context.cid) === value);
-    if (ctx && (ctx.apn_type === "ims" || ctx.apn_type === "emergency")) {
-      setPendingCid(ctx);
+    if (ctx) {
+      if (ctx.apn_type === "ims" || ctx.apn_type === "emergency") {
+        setPendingCid({ cid: ctx.cid, kind: ctx.apn_type });
+        return;
+      }
+      setCid(value);
+      return;
+    }
+    if (contexts.length === 0 && FALLBACK_RESERVED_CIDS.includes(Number(value))) {
+      setPendingCid({ cid: Number(value), kind: "unverified" });
       return;
     }
     setCid(value);
@@ -439,7 +480,16 @@ export function ApnSettingsCard({
                 disabled={changeCount === 0}
                 className={PILL_ACTION}
               />
-              {active !== 0 ? (
+              {/* GATED ON A POSITIVE STATE, not on "not zero". `active` is
+                  `null` before the first read resolves and stays `null` when
+                  that read fails, and `null !== 0` is true — so this button
+                  rendered, enabled, on a card that had read nothing, and one
+                  press POSTed a real COPS=2 / COPS=0 attach cycle with a blank
+                  APN. Meanwhile `changeCount === 0` correctly disabled Save:
+                  the card was disabling the reversible action and arming the
+                  irreversible one. "We do not know" is not permission to
+                  detach the bearer. */}
+              {active === 1 ? (
                 <Button
                   type="button"
                   variant="secondary"
@@ -469,13 +519,21 @@ export function ApnSettingsCard({
               {t(`${K}.edit.cid_confirm.title`)}
             </AlertDialogTitle>
             <AlertDialogDescription>
-              {pendingCid?.apn_type === "ims"
-                ? t(`${K}.edit.cid_confirm.description_ims`, {
-                    cid: pendingCid?.cid,
+              {/* The unverified branch does NOT reuse the IMS or SOS copy.
+                  Those name a context type the modem reported; here nothing
+                  was reported, and stating a type we guessed at would be the
+                  page inventing a fact to justify its own dialog. */}
+              {pendingCid?.kind === "unverified"
+                ? t(`${K}.edit.reserved_dialog.unverified_body`, {
+                    cid: pendingCid.cid,
                   })
-                : t(`${K}.edit.cid_confirm.description_sos`, {
-                    cid: pendingCid?.cid,
-                  })}
+                : pendingCid?.kind === "ims"
+                  ? t(`${K}.edit.cid_confirm.description_ims`, {
+                      cid: pendingCid?.cid,
+                    })
+                  : t(`${K}.edit.cid_confirm.description_sos`, {
+                      cid: pendingCid?.cid,
+                    })}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
