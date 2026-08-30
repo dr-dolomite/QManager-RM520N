@@ -32,7 +32,7 @@ import {
   runPosture,
   type SignalTier,
 } from "../shapes";
-import { MAX_TILE_CHANNELS, summariseNeighbours } from "../summaries";
+import { summariseNeighbours } from "../summaries";
 import NeighbourScanResultView, {
   CELL_TYPE_KEY,
 } from "./neighbour-scan-result";
@@ -193,7 +193,9 @@ export function NeighbourScanner() {
         <span className={SUMMARY.LABEL}>{t(POSTURE_COPY.complete.title)}</span>
         <span className={SUMMARY.DETAILS}>
           <span className={SUMMARY.DETAIL_FIGURE}>
-            {t("cell_scanner.results.tally_rows", { count: results.length })}
+            {t("cell_scanner.neighbour.run.available_bands", {
+              count: results.length,
+            })}
           </span>
         </span>
       </div>
@@ -217,36 +219,13 @@ export function NeighbourScanner() {
       tier: group.tier,
       tierLabel: t(SIGNAL_LABEL_KEY[group.tier]),
       details: [
-        // The count moved into the fact line when the tile became a row. This
-        // route counts ROWS rather than cells: a neighbour report names one
-        // entry per relation, which the footer tally already calls a row.
+        // Just the band count — the channel list and best-signal figure that
+        // used to sit alongside it were dropped by user decision; the table
+        // rows carry that detail already.
         {
-          text: t("cell_scanner.results.tally_rows", { count: group.count }),
-          voice: "figure" as const,
-        },
-        ...(group.channels.length > 0
-          ? [
-              group.channels.length <= MAX_TILE_CHANNELS
-                ? // Few enough to name: channel numbers are identifiers, so
-                  // machine voice, separated by space rather than glued.
-                  {
-                    text: group.channels.join(" "),
-                    voice: "ident" as const,
-                  }
-                : // Too many to name: a count is a figure, not an identifier.
-                  {
-                    text: t("cell_scanner.neighbour.run.summary_channels", {
-                      count: group.channels.length,
-                    }),
-                    voice: "figure" as const,
-                  },
-            ]
-          : []),
-        {
-          text:
-            group.best === null
-              ? t("cell_scanner.run.summary_no_reading")
-              : t("cell_scanner.run.summary_best", { value: group.best }),
+          text: t("cell_scanner.neighbour.results.tally_bands", {
+            count: group.count,
+          }),
           voice: "figure" as const,
         },
       ],
@@ -266,12 +245,6 @@ export function NeighbourScanner() {
           {
             text: t("cell_scanner.neighbour.results.tally_measured", {
               count: summary.measured,
-            }),
-            voice: "figure" as const,
-          },
-          {
-            text: t("cell_scanner.neighbour.run.summary_channel_only", {
-              count: summary.channelOnly,
             }),
             voice: "figure" as const,
           },

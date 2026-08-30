@@ -425,10 +425,8 @@
         "link_blocked": "Available once this read finishes.",
         "summary_empty": "The read finished without naming a single neighbour, so there is nothing to break down.",
         "summary_measured_label": "With measurements",
-        "summary_channels_one": "1 channel",
-        "summary_channels_other": "{{count}} channels",
-        "summary_channel_only_one": "1 channel only",
-        "summary_channel_only_other": "{{count}} channel only",
+        "available_bands_one": "1 available band",
+        "available_bands_other": "{{count}} available bands",
         "verdict_channel_only_one": "1 neighbour came back as a channel only: the serving cell knows it is there but has no current measurement for it, so it carries no quality and cannot be locked.",
         "verdict_channel_only_other": "{{count}} neighbours came back as a channel only: the serving cell knows they are there but has no current measurements for them, so they carry no quality and cannot be locked.",
         "idle_title": "No read yet",
@@ -451,7 +449,9 @@
         "tally_measured_one": "1 measured",
         "tally_measured_other": "{{count}} measured",
         "tally_channel_only_one": "1 channel only",
-        "tally_channel_only_other": "{{count}} channel only"
+        "tally_channel_only_other": "{{count}} channel only",
+        "tally_bands_one": "1 band",
+        "tally_bands_other": "{{count}} bands"
       },
       "columns": {
         "cell_type": "Relation",

@@ -425,10 +425,8 @@
         "link_blocked": "本次讀取結束後可用。",
         "summary_empty": "本次讀取結束時未列出任何鄰區，因此沒有可分析的內容。",
         "summary_measured_label": "有測量值",
-        "summary_channels_one": "1 個通道",
-        "summary_channels_other": "{{count}} 個通道",
-        "summary_channel_only_one": "1 個僅通道",
-        "summary_channel_only_other": "{{count}} 個僅通道",
+        "available_bands_one": "1 個可用頻段",
+        "available_bands_other": "{{count}} 個可用頻段",
         "verdict_channel_only_one": "1 個鄰區僅回傳了通道：服務細胞知道它存在，但沒有對它的目前測量值，因此它不帶品質資訊，也無法鎖定。",
         "verdict_channel_only_other": "{{count}} 個鄰區僅回傳了通道：服務細胞知道它們存在，但沒有對它們的目前測量值，因此它們不帶品質資訊，也無法鎖定。",
         "idle_title": "尚未讀取",
@@ -451,7 +449,9 @@
         "tally_measured_one": "1 個有測量值",
         "tally_measured_other": "{{count}} 個有測量值",
         "tally_channel_only_one": "1 個僅通道",
-        "tally_channel_only_other": "{{count}} 個僅通道"
+        "tally_channel_only_other": "{{count}} 個僅通道",
+        "tally_bands_one": "1 個頻段",
+        "tally_bands_other": "{{count}} 個頻段"
       },
       "columns": {
         "cell_type": "關係",

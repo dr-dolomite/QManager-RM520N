@@ -208,9 +208,6 @@ export function summariseSweep(results: CellScanResult[]): SweepSummary {
 // The neighbour read
 // -----------------------------------------------------------------------------
 
-/** How many channel numbers a relation tile prints before it counts them instead. */
-export const MAX_TILE_CHANNELS = 3;
-
 export interface RelationGroup {
   type: NeighbourCellType;
   count: number;

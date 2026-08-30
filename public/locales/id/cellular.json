@@ -425,10 +425,8 @@
         "link_blocked": "Tersedia setelah pembacaan ini selesai.",
         "summary_empty": "Pembacaan selesai tanpa menyebut satu sel tetangga pun, jadi tidak ada yang bisa diuraikan.",
         "summary_measured_label": "Dengan pengukuran",
-        "summary_channels_one": "1 kanal",
-        "summary_channels_other": "{{count}} kanal",
-        "summary_channel_only_one": "1 hanya kanal",
-        "summary_channel_only_other": "{{count}} hanya kanal",
+        "available_bands_one": "1 band tersedia",
+        "available_bands_other": "{{count}} band tersedia",
         "verdict_channel_only_one": "1 sel tetangga dikembalikan hanya sebagai kanal: sel pelayan tahu sel itu ada tetapi tidak punya pengukuran terkini untuknya, jadi ia tidak membawa kualitas dan tidak bisa dikunci.",
         "verdict_channel_only_other": "{{count}} sel tetangga dikembalikan hanya sebagai kanal: sel pelayan tahu sel-sel itu ada tetapi tidak punya pengukuran terkini untuknya, jadi mereka tidak membawa kualitas dan tidak bisa dikunci.",
         "idle_title": "Belum ada pembacaan",
@@ -451,7 +449,9 @@
         "tally_measured_one": "1 terukur",
         "tally_measured_other": "{{count}} terukur",
         "tally_channel_only_one": "1 hanya kanal",
-        "tally_channel_only_other": "{{count}} hanya kanal"
+        "tally_channel_only_other": "{{count}} hanya kanal",
+        "tally_bands_one": "1 band",
+        "tally_bands_other": "{{count}} band"
       },
       "columns": {
         "cell_type": "Relasi",

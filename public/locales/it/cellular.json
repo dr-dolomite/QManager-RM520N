@@ -425,10 +425,8 @@
         "link_blocked": "Disponibile al termine di questa lettura.",
         "summary_empty": "La lettura è terminata senza indicare nemmeno una cella vicina, quindi non c'è nulla da analizzare.",
         "summary_measured_label": "Con misurazioni",
-        "summary_channels_one": "1 canale",
-        "summary_channels_other": "{{count}} canali",
-        "summary_channel_only_one": "1 con solo canale",
-        "summary_channel_only_other": "{{count}} con solo canale",
+        "available_bands_one": "1 banda disponibile",
+        "available_bands_other": "{{count}} bande disponibili",
         "verdict_channel_only_one": "1 cella vicina è stata restituita con il solo canale: la cella di servizio sa che è lì ma non ne ha una misurazione attuale, quindi non porta alcuna qualità e non può essere bloccata.",
         "verdict_channel_only_other": "{{count}} celle vicine sono state restituite con il solo canale: la cella di servizio sa che sono lì ma non ne ha misurazioni attuali, quindi non portano alcuna qualità e non possono essere bloccate.",
         "idle_title": "Nessuna lettura",
@@ -451,7 +449,9 @@
         "tally_measured_one": "1 misurata",
         "tally_measured_other": "{{count}} misurate",
         "tally_channel_only_one": "1 con solo canale",
-        "tally_channel_only_other": "{{count}} con solo canale"
+        "tally_channel_only_other": "{{count}} con solo canale",
+        "tally_bands_one": "1 banda",
+        "tally_bands_other": "{{count}} bande"
       },
       "columns": {
         "cell_type": "Relazione",
