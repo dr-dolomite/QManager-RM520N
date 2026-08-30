@@ -289,7 +289,19 @@ const ScheduledOperationsCard = ({
                   aria-label={day}
                   key={day}
                   size="sm"
-                  className="data-[state=on]:bg-transparent data-[state=on]:*:[svg]:fill-blue-500 data-[state=on]:*:[svg]:stroke-blue-500"
+                  // The active day's glyph paints with the `primary` role, not a
+                  // raw palette step. `fill-blue-500` / `stroke-blue-500` shipped
+                  // here and are a CLAUDE.md violation outright ("semantic color
+                  // tokens only, never raw Tailwind colors").
+                  //
+                  // Measured, so the reason is the real one: `--primary` is the
+                  // SAME value in light and dark here, so this is not a
+                  // dark-mode repair and nothing about the rendered colour
+                  // changes today. What it buys is that the marker is now tied
+                  // to the brand role every other "selected" ink in the product
+                  // reads from — a retune of `--primary` moves it, where a
+                  // hardcoded palette step would silently stay behind.
+                  className="data-[state=on]:bg-transparent data-[state=on]:*:[svg]:fill-primary data-[state=on]:*:[svg]:stroke-primary"
                   variant="outline"
                   pressed={rebootDays.includes(index)}
                   onPressedChange={() => handleRebootDayToggle(index)}
