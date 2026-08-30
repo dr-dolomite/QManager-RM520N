@@ -96,7 +96,9 @@
     "sim_card_alert",
     "sms",
     "sos",
+    "speed",
     "sports_esports",
+    "stacked_line_chart",
     "support",
     "swap_horiz",
     "terminal",
@@ -115,6 +117,6 @@
     "wifi_tethering_off",
     "work"
   ],
-  "bytes": 41788,
-  "sha256": "f82185ae07701afdde1553c9ac332626304071e6b60b324e1d543b61601f1b89"
+  "bytes": 42992,
+  "sha256": "7d8b860ea383c47a244296875d6787a380ab2ff0c3252e83ee1b4bc0a1172f39"
 }

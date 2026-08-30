@@ -34,14 +34,33 @@ import {
 // active, sharing a `layoutId`, makes Motion tween the BOX between positions —
 // which also means nothing here animates `width` (DESIGN.md > Transform-Only).
 //
-// THE layoutId MUST BE INSTANCE-SCOPED. This surface renders three of these at
-// once. A module-constant id makes all three thumbs share one layout group and
-// fling across the card on first paint. `useId` scopes it per instance.
+// THE layoutId MUST BE INSTANCE-SCOPED. This surface renders six of these at
+// once — three rows in each of two write cards. A module-constant id makes every
+// thumb share one layout group and fling across the card on first paint. `useId`
+// scopes it per instance.
 //
-// THE FIRST-PAINT GUARD. Without it the thumb slides in from nowhere on mount.
-// One frame at zero duration and it is simply already under the active segment
-// (the same trick as `signal-history.tsx:169-173` and the sidebar's
-// `data-settling`).
+// EVERY SEGMENT RESERVES THE CHECK GLYPH, AND THAT IS THE FIX. The thumb is
+// `absolute inset-0`, so its box IS the segment's box. The glyph plus `gap-1.5`
+// is worth 21.7px and used to render only on the ACTIVE segment, which meant a
+// click changed BOTH ends of the animation Framer was computing, mid-flight:
+// measured first frame `translate3d(-266.99px, 0, 0) scale(1.13606, 1)`, so the
+// pill stretched 14% while it travelled and its caps read as ellipses. The label
+// you clicked slid 21.8px out from under your cursor, un-animated, and the rest
+// of the track reshuffled as a hard cut while the one animated thing glided for
+// 600ms. The glyph now renders on every segment and hides with
+// `SEGMENTED.GLYPH_RESERVED` (opacity + scale, never `display` or a conditional
+// render — both of those give the box back).
+//
+// THERE IS NO FIRST-PAINT GUARD ANY MORE, and its removal is the point rather
+// than an omission. It ran one rAF frame at zero duration on mount to stop the
+// thumb sliding in from nowhere. That fling was caused by the layoutId being a
+// MODULE CONSTANT; `useId` fixed it, and the guard has been dead weight ever
+// since — rendered settled from first paint the thumb carries only
+// `style="opacity: 1;"` at mount, because a `layoutId` node with no predecessor
+// in its stack has no snapshot to animate from. It was a live violation of
+// DESIGN.md > The Non-Load-Bearing Rule. `initial={false}` is NOT its
+// replacement: that governs enter animations of animated VALUES, not layout
+// projection, and adding it would substitute a prop for a mechanism.
 //
 // THE SELECT IS NOT A DEGRADED FALLBACK. Four segments do not fit one row on a
 // phone, and shrinking them under a 44px touch target is not an option on a
@@ -92,12 +111,6 @@ export function SegmentedField<T extends string>({
   const instanceId = React.useId();
   const bp = segmentedBreakpoint(breakpoint);
 
-  const [settled, setSettled] = React.useState(false);
-  React.useEffect(() => {
-    const frame = requestAnimationFrame(() => setSettled(true));
-    return () => cancelAnimationFrame(frame);
-  }, []);
-
   const activeLabel =
     options.find((option) => option.value === value)?.label ?? "";
 
@@ -132,21 +145,25 @@ export function SegmentedField<T extends string>({
                 <motion.span
                   layoutId={`${instanceId}-segmented-thumb`}
                   className={SEGMENTED.THUMB}
-                  transition={settled ? transitionStandard : { duration: 0 }}
+                  transition={transitionStandard}
                   aria-hidden="true"
                 />
               ) : null}
-              {/* The check reinforces the active segment non-chromatically, so
-                  the selection survives grayscale and sunlight washout — the
-                  fill alone is not allowed to be the only carrier. */}
-              {isActive ? (
-                <MaterialSymbol
-                  name="check"
-                  filled
-                  size={SEGMENTED.GLYPH}
-                  className={SEGMENTED.LABEL}
-                />
-              ) : null}
+              {/* RENDERED ON EVERY SEGMENT, hidden on the inactive ones. The
+                  check reinforces the active segment non-chromatically, so the
+                  selection survives grayscale and sunlight washout — the fill
+                  alone is not allowed to be the only carrier — and reserving its
+                  box is what keeps the segment widths stable while the thumb
+                  travels. See the header comment for the measurements. */}
+              <MaterialSymbol
+                name="check"
+                filled
+                size={SEGMENTED.GLYPH}
+                aria-hidden="true"
+                className={
+                  isActive ? SEGMENTED.GLYPH_ACTIVE : SEGMENTED.GLYPH_RESERVED
+                }
+              />
               <span className={SEGMENTED.LABEL}>{option.label}</span>
             </ToggleGroupItem>
           );

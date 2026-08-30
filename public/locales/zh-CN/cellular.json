@@ -798,27 +798,35 @@
         "reread": "从调制解调器重新读取",
         "in_sync": "已保存的设置与调制解调器一致。"
       },
-      "hero": {
-        "title": "当前连接",
-        "description": "调制解调器当前接入的网络，以及该网络为它设定的速率上限。",
-        "params_heading": "当前参数",
-        "rates_note": "速率上限是网络授予的上限值，不是实测速度。它们在页面打开时读取，每次保存后再读取一次。",
-        "sr_rate_block": "{{radio}}：{{state}}",
+      "strip": {
+        "label": "实时状态",
         "live": "实时",
         "stale": "已过时",
+        "network": "网络",
+        "sim": "SIM 卡",
+        "aggregation": "载波聚合",
+        "data_path": "数据通道",
         "carrier_none": "未报告运营商",
+        "bandwidth_none": "未报告聚合带宽",
+        "ip_dual": "已分配 IPv4 和 IPv6",
+        "ip_v4": "仅 IPv4",
+        "ip_v6": "仅 IPv6",
+        "ip_none": "未分配地址",
         "unavailable_title": "无法读取调制解调器",
-        "unavailable_retrying": "上次读取失败。QManager 仍在重试。",
-        "unavailable_static": "上次读取失败。请使用下方的“从调制解调器重新读取”再试一次。"
+        "unavailable_retrying": "上次读取失败。QManager 仍在重试。"
+      },
+      "rate_ceiling": {
+        "eyebrow": "网络授予的速率上限",
+        "in_force": "{{radio}} AMBR 生效中",
+        "no_ceiling": "未读到上限",
+        "sr_rate_block": "{{radio}}：{{state}}",
+        "provenance": "速率上限是网络授予的上限值，不是实测速度。它们在页面打开时读取，每次保存后再读取一次。",
+        "unavailable": "上次读取失败。请使用下方的“从调制解调器重新读取”再试一次。"
       },
       "readout": {
-        "active_slot": "活动插槽",
         "slot_n": "SIM {{slot}}",
         "unknown": "未知",
-        "radio_power_label": "射频状态",
-        "apn_label": "当前 APN",
         "no_apn": "未报告",
-        "carrier_aggregation": "载波聚合",
         "ca_none": "未启用",
         "ca_breakdown": "LTE {{lte}} + NR {{nr}}",
         "ca_lte_only": "LTE {{lte}}",
@@ -833,7 +841,6 @@
         "unknown": "未知"
       },
       "sim_slots": {
-        "label": "SIM 卡槽",
         "empty": "空",
         "sr_active": "SIM {{slot}}，使用中，卡号尾号 {{last4}}",
         "sr_standby": "SIM {{slot}}，备用，卡号尾号 {{last4}}",
@@ -845,13 +852,13 @@
         "governing": "生效中",
         "not_governing": "未生效",
         "nsa_note": "5G 非独立组网走 LTE 数据会话，因此以这条上限为准。",
-        "lte_empty_title": "未报告 LTE 速率",
         "lte_empty_reason": "调制解调器仅在 LTE 数据会话建立期间才发布 LTE 上限。",
-        "nr_empty_title": "未报告 5G 速率",
         "nr_empty_reason": "调制解调器仅在 5G 数据会话建立期间才发布 5G 上限。",
         "download": "下载",
         "upload": "上传",
-        "governing_unread": "您的连接正在使用该射频。打开本页时未读到它的上限。"
+        "governing_unread": "您的连接正在使用该射频。打开本页时未读到它的上限。",
+        "lte_short": "LTE",
+        "nr_short": "5G NR"
       }
     },
     "fplmn": {

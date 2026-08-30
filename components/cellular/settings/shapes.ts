@@ -107,218 +107,211 @@ export const CARD_PAD = "px-7";
 export const CARD_TITLE = "min-w-0 text-lg leading-tight";
 
 // -----------------------------------------------------------------------------
-// The read-only hero (modem reports + AMBR), basic settings page
+// Band A — the live-state strip
 // -----------------------------------------------------------------------------
 
 /**
- * The page's anchor card. `rounded-hero` (40px) — one per surface, under the
- * Consistent-Layout Rule's "a genuine glance surface may earn a hero card"
- * exception (same ruling as `band-locking/shapes.ts`). The merged reports +
- * rate-limits readout is exactly that glance surface: it answers "what is the
- * modem doing right now and what will the network let it do" before the user
- * touches a setting.
+ * The four glance tiles that replaced the 826-line "Current Connection" hero.
  *
- * `py-7` (28px) rather than the peer card's `py-6` — the hero carries more
- * content and the extra vertical padding is what lets it read as the anchor.
+ * WHY A STRIP AND NOT A CARD. The hero asked the wrong question. A settings
+ * surface is opened to answer "what is this modem set to, and what happens if I
+ * touch this?" — the hero instead led with AMBR, the network-granted rate
+ * ceiling, across two of its three columns. AMBR is the most specialist number
+ * on the page, is not settable anywhere on it, and none of the six writable
+ * fields can move it. Eighteen distinct facts rendered in one card.
+ *
+ * THE RAIL RAN A GENERATION THE FAMILY DELETED TWICE. `HERO_RAIL_TONE.NR` was
+ * `bg-primary text-primary-foreground` painted across a full-width block.
+ * `radio/summary-tiles.tsx` documents five generations of exactly that shape:
+ * Gen 2 measured it live at 623x212 = 132,033px^2 carrying 9,526px^2 of ink
+ * (7.2%) and called it "a large empty purple slab"; GEN 5 REMOVED BODY TINT
+ * ENTIRELY — "Every tile body is now NEUTRAL_TILE and the disc is the only
+ * coloured element on the strip." The hero's own JSDoc cited that file as its
+ * precedent while running the composition it had abandoned. So the geometry
+ * comes from `components/cellular/tile-shape.ts` (the 104px pin, the 52px disc)
+ * and the tone rule comes with it: `BODY` is the only body fill on this strip,
+ * and every hue lives on a `DISC_*` key.
+ *
+ * ONE CLOCK. Every fact in a tile is read from the poller snapshot, which ticks
+ * continuously, so the freshness chip in `HEAD` is honest about the whole band —
+ * which is what the retired `HERO_FOOTNOTE` existed to apologise for. The rate
+ * ceiling, which runs on the settings GET and does not tick, is a separate band
+ * with its own provenance line (`RATE_CEILING` below). No surface here holds two
+ * clocks.
+ *
+ * THE SIM TILE DELIBERATELY OVERLAPS THE `sim_slot` CONTROL BELOW IT, and that
+ * is the point rather than a duplication: the tile reports the slot the modem is
+ * ON (poller), the control holds the slot the user has ASKED FOR (settings).
+ * During the ~35s slot apply they legitimately disagree, and a technician needs
+ * to see both. The two facts the hero really did render twice — radio power and
+ * the active slot as read-only `ParamRow`s over the same `saved` object the
+ * control below was bound to — are gone.
+ *
+ * THE EMPTY STATE IS PER TILE, not a branch of the strip. A modem with no
+ * carrier name, no APN and no aggregation is a fully successful read of a real
+ * device state; each tile states its own absence as a fact ("No carrier
+ * reported") rather than the band collapsing into one empty screen. The strip's
+ * own third state is a FAILED read, which takes `NOTICE_*`.
  */
-export const HERO_SHELL =
-  "@container/hero flex flex-col gap-5 rounded-hero border-0 bg-surface py-7 shadow-[var(--shadow-whisper)]";
-
-/** Hero card padding: 28px horizontal, matching CARD_PAD. */
-export const HERO_PAD = "px-7";
-
-// -----------------------------------------------------------------------------
-// The hero — Band 1: the identity rail
-// -----------------------------------------------------------------------------
-
-/**
- * The hero's anchor statement: a HORIZONTAL rail, not a centred big-figure
- * stack. Glyph disc → serving technology → carrier → freshness chip, on one
- * baseline.
- *
- * WHY A RAIL AND NOT A HERO METRIC. The obvious shape here is the hero-metric
- * template — one large figure over a small label with supporting stats beneath.
- * It is refused on two grounds. First, the value is a CATEGORY ("5G NSA"), not
- * a magnitude, and setting a four-character category at display size buys
- * emphasis it cannot spend. Second, the template's small-label-above-big-value
- * arrangement is an eyebrow, and an eyebrow over a heading is banned outright
- * on this product. The rail states the technology at the Headline+1 step with
- * the carrier as its own supporting line and no label above either.
- *
- * THE FILL IS IDENTITY, NEVER HEALTH (The Identity-Chip Rule). NR takes the
- * brand blue, LTE the identity violet, and an UNIDENTIFIED technology takes the
- * NEUTRAL pair — an unknown radio must never claim the 5G blue. The freshness
- * chip riding at the rail's end is a status Badge with its own container pair,
- * so quality is reported chromatically only inside that chip and never by the
- * rail's own fill.
- *
- * HEIGHT IS THE TILE FLOOR, NOT A DERIVATION. DESIGN.md defines a tile as "a
- * 28px-radius block, 92px minimum height, holding a 52px full-round glyph disc
- * beside a text column" — which is exactly this rail, down to the disc size and
- * the inverted pairing. An earlier draft derived 84px from `52 + py-4 x2` and
- * shipped the product's most prominent instance of the pattern as the one that
- * is short. 92 -> 5.75rem, which gives the 52px disc 20px of air either side
- * (`py-4` still applies; the floor is what wins). The text column measures
- * tech 29 + gap 4 + carrier 18 = 51 and clears it either way.
- *
- * HEIGHT carries the RADIUS as well as the height. A skeleton that mirrors the
- * height from the contract and then hand-writes `rounded-tile` beside it has
- * kept half the contract (The Skeleton-Mirror Rule).
- */
-export const HERO_RAIL = {
-  ROOT: "flex min-h-[5.75rem] items-center gap-4 rounded-tile px-5 py-4",
-  /** Mirrors ROOT's resolved height AND radius, for the skeleton. */
-  HEIGHT: "h-[5.75rem] rounded-tile",
-  /** The 52px glyph disc. Tone INVERTS the rail's pairing at the call site. */
-  DISC: "grid size-[3.25rem] flex-none place-items-center rounded-pill",
-  /** The glyph inside the disc. Exported so retuning DISC cannot desync it. */
+export const STRIP = {
+  /** The band header. Label left, freshness chip pushed right by `mr-auto`. */
+  HEAD: "flex items-center gap-3 px-1 pb-0.5",
+  /** "Live state" — the thing the freshness chip is a property OF. */
+  HEAD_LABEL: "text-on-surface-variant mr-auto text-xs font-semibold",
+  /** The tile's text column, inside `TILE_SHAPE.ROOT`. */
+  TEXT: "flex min-w-0 flex-1 flex-col gap-[3px]",
+  EYEBROW:
+    "text-on-surface-variant truncate text-[0.6875rem] font-semibold tracking-[0.02em]",
+  /**
+   * The figure. `tabular-nums` and NOT `font-mono`: a slot number and a carrier
+   * count are changing figures, not identifiers (The Machine-Voice Rule).
+   * `min-w-0` rather than `truncate` — this is a flex container, so the
+   * truncation has to happen on the text child (`VALUE_TEXT`).
+   */
+  VALUE:
+    "flex min-w-0 items-center gap-2 text-[1.375rem] font-bold leading-[1.1] tracking-[-0.015em] tabular-nums",
+  /**
+   * The same figure when it is an IDENTIFIER the device emits verbatim — the
+   * APN, and nothing else on this strip. Mono is wider per glyph, so it drops a
+   * step to keep a 21-character APN inside the 104px tile.
+   */
+  VALUE_MONO:
+    "flex min-w-0 items-center gap-2 font-mono text-[1.125rem] font-bold leading-[1.1] tracking-[-0.01em]",
+  /** The truncating text child of either VALUE box. */
+  VALUE_TEXT: "truncate",
+  CAPTION: "text-on-surface-variant truncate text-xs",
+  /**
+   * Every tile body on this strip, with no exception and no `tone` prop to make
+   * one — see the Gen 5 note above. Making the wrong thing unreachable is
+   * cheaper than a comment asking nobody to do it.
+   */
+  BODY: "bg-surface-container text-on-surface",
+  /** The glyph inside `TILE_SHAPE.DISC`. */
   GLYPH: 28,
-  TEXT: "flex min-w-0 flex-1 flex-col gap-1",
   /**
-   * The serving technology. One step above the tile Headline (`text-xl`)
-   * because this is the page's single dominant statement and the tiles it
-   * replaces no longer exist to compete with it. `truncate` is mandatory:
-   * "5G NSA" is short in English and is not short in every locale.
-   */
-  TECH: "truncate text-2xl font-semibold leading-[1.05] tracking-[-0.01em]",
-  /**
-   * The carrier. Human-authored, so `font-sans` (The Machine-Voice Rule) — an
-   * operator name is not a machine string even though the modem reports it.
-   * `opacity-90`, not 85: this line carries a FACT, not decoration, and 90 is
-   * the step the family already uses for on-fill body text
-   * (`SETTING_ROW_DIRTY.CONSEQUENCE_ON_FILL`, `CHOICE_ROW.CAPTION`).
-   */
-  CARRIER: "truncate text-[0.8125rem] font-medium opacity-90",
-  /**
-   * The rail's statement when the read FAILED — a sentence, not a category,
-   * so it takes the Title step instead of `TECH`'s 24px (a sentence at 24px
-   * truncates on its first word in a rail that also holds a 52px disc).
+   * Disc fills, and the ONLY colour on the strip. Each is a FILL pair
+   * (`bg-X` + `text-X-foreground`), never a container pair — the disc is the one
+   * element small enough to want a strong fill, and the pair is never crossed.
    *
-   * The rail keeps its geometry in this state rather than collapsing to a
-   * skeleton: a skeleton is a promise that data is on its way, and holding one
-   * indefinitely over a dead poller is the same class of misstatement as the
-   * whole-card "Live" chip this hero was rebuilt to remove.
+   * An UNIDENTIFIED radio (`network.type === ""`) takes the neutral disc. It
+   * must never claim the 5G blue (The Identity-Chip Rule).
    */
-  NOTICE: "truncate text-lg font-semibold",
-  META: "flex flex-none items-center gap-2",
-} as const;
-
-/**
- * Rail tone pairs. A rail is a FILL pair and its disc is the matching
- * CONTAINER pair — the inversion `radio/summary-tiles.tsx` makes, so the glyph
- * pops off its own surface and survives grayscale.
- */
-export const HERO_RAIL_TONE = {
-  NR: "bg-primary text-primary-foreground",
-  NR_DISC: "bg-primary-container text-on-primary-container",
-  LTE: "bg-lte text-lte-foreground",
-  LTE_DISC: "bg-lte-container text-on-lte-container",
-  NEUTRAL: "bg-surface-container text-on-surface",
-  NEUTRAL_DISC: "bg-surface-container-high text-on-surface-variant",
+  DISC_NR: "bg-primary text-primary-foreground",
+  DISC_LTE: "bg-lte text-lte-foreground",
+  DISC_SPATIAL: "bg-spatial text-spatial-foreground",
+  DISC_NEUTRAL: "bg-surface-container-high text-on-surface-variant",
+  /**
+   * A FAILED read. The band keeps the family box and goes neutral rather than
+   * shimmering: a skeleton is a promise that data is on its way, and holding one
+   * indefinitely over a dead poller is the misstatement this whole re-authoring
+   * was done to remove. No freshness chip renders beside it — there is no
+   * reading for one to be a property of.
+   */
+  NOTICE_SPAN: "@xl/main:col-span-2 @5xl/main:col-span-4",
+  NOTICE_TITLE: "truncate text-lg font-semibold",
 } as const;
 
 // -----------------------------------------------------------------------------
-// The hero — Band 2: the three-column body
+// Band A2 — the rate-ceiling disclosure
 // -----------------------------------------------------------------------------
 
 /**
- * Rates, rates, parameters — the column order the surface was designed to.
+ * AMBR, demoted from headline to a summary line with the per-bearer detail
+ * behind a disclosure.
  *
- * The third column is WIDER (1.15fr) because it holds identifiers: an APN can
- * run 21 characters and a carrier-aggregation breakdown is two facts on one
- * line, while a rate column holds a heading and two 8-character chips. Equal
- * thirds would truncate the only column whose contents a technician opened the
- * page to read (the `READOUT_ROW.GRID` argument, one level up).
+ * The governing pair is always visible, because "what will the network let this
+ * connection do" is a legitimate glance question. The per-bearer table for both
+ * radios is not: it is two blocks of two figures plus a DNN, for a fact no
+ * control on this page can change. It opens on click.
  *
- * KEYED OFF `@container/hero`, NEVER `/main`. The hero's own width decides
- * whether three columns fit; the sidebar expanding must not restack the page.
- * Every step is written out literally — a template-interpolated step compiles
- * to no rule at all (see `SEGMENTED_BREAKPOINTS`).
+ * THIS BAND OWNS ITS OWN CLOCK AND SAYS SO. The figures come from the settings
+ * GET, read on mount and re-read only around a save — they do not tick. The
+ * retired `HERO_FOOTNOTE` carried that admission for a card whose freshness chip
+ * described a different data source entirely; here the provenance line sits
+ * under the numbers it is about, and no chip on this band claims liveness.
  *
- * THE THREE-COLUMN STEP IS `@5xl` (64rem), NOT `@4xl`. It was measured, not
- * chosen: at a 56rem hero the first rate column resolves to 258px and its
- * content box to 222px, which is narrower than a 20px heading plus the
- * governing chip beside it (~235px) — so the heading wrapped under the chip at
- * every width in the 896-1024px band. At 64rem the column is 298px / 262px
- * inner and the header sits on one line. Below the step the two-column layout
- * gives each block ~301px, which also clears it.
+ * THE PANEL ANIMATES `grid-template-rows`, WHICH IS NEITHER TRANSFORM NOR
+ * OPACITY. `<MotionConfig reducedMotion="user">` collapses transform movement
+ * for motion/react components and cannot see a CSS grid transition, so the
+ * consumer must call `useReducedMotion()` and drop `PANEL_MOTION` itself. Same
+ * mechanism and same reason as the frequency-locking skeleton (4b4d688).
  */
-export const HERO_BODY =
-  "grid grid-cols-1 gap-3.5 @2xl/hero:grid-cols-2 @5xl/hero:grid-cols-[1fr_1fr_1.15fr]";
-
-/**
- * The parameters cell. At the two-column step it spans the full width UNDER
- * the rate pair, which is the only arrangement that keeps the two rate blocks
- * as visual peers — putting one rate block beside the parameters would imply a
- * pairing between them that does not exist.
- */
-export const HERO_BODY_PARAMS_CELL = "@2xl/hero:col-span-2 @5xl/hero:col-span-1";
-
-/**
- * One cell of `HERO_BODY`. Carries the row's stretch down to the block inside.
- *
- * THIS IS `CARD_CELL`'S LESSON ONE LEVEL DOWN, and it shipped broken: a grid
- * item stretches to the row height by default, but a BLOCK CHILD of that item
- * does not inherit the height unless told to (DESIGN.md > Layout > "Equal
- * heights are explicit"). Each cell here is a `motion.div` wrapper, so the
- * wrapper was full height while the `<section>` inside it stayed content-sized.
- *
- * Caught on screen, not in review, and only at the THREE-column step: the
- * parameters column runs four rows plus a heading (~180px) while a rate block
- * with one bearer is ~118px, so the two rate blocks floated with ~70px of dead
- * space beneath them and the row ended on three different bottom edges. At the
- * two-column step the parameters column sits on its own full-width row and the
- * two rate blocks are natural peers, which is why every narrower width looked
- * correct and the defect was invisible below 64rem.
- *
- * `*:h-full` rather than a class on each block: the cell has exactly one child
- * in every branch (block, empty block, unavailable block, or skeleton), and
- * naming it here means a new branch cannot forget it.
- */
-export const HERO_BODY_CELL = "h-full *:h-full";
-
-/**
- * The provenance line under all three columns.
- *
- * It exists because the hero has TWO CLOCKS and one of them does not tick. The
- * freshness chip on the rail is honest about the poller and says nothing about
- * the rate columns, which are fetched on mount and re-fetched only around a
- * save. A single "Live" chip over a card whose visual majority can be
- * arbitrarily old is a straightforward misstatement, and this line is the fix.
- * It also names what an AMBR figure IS — a ceiling the network grants, not a
- * speed the modem is achieving — which nothing else on this page does.
- */
-export const HERO_FOOTNOTE =
-  "text-on-surface-variant text-[0.75rem] leading-relaxed text-pretty";
-
-/**
- * Column 3: the active parameters block.
- *
- * A NEUTRAL block beside two identity-filled ones, deliberately. These facts
- * belong to no radio, and giving them a hue would invent a fourth identity.
- *
- * ROW STEPS UP ONE TONE. `READOUT_ROW.ROOT` is `bg-surface-container`, which
- * is this block's own fill — nesting them would make the rows invisible. The
- * rows take `surface-container-high`, one step up, which is what Tonal
- * Elevation means by depth. The row geometry is otherwise identical to
- * `READOUT_ROW.ROOT`, so `READOUT_ROW.HEIGHT` remains its skeleton mirror.
- *
- * `min-h-[9rem]` matches `AMBR_BLOCK.COL_MIN` so the three columns share a
- * floor and an empty rate column never reads as a layout bug.
- *
- * HEADING IS THE TITLE STEP (18px), NOT `text-sm`. It shipped at 14px, which is
- * the same size as the `CardDescription` two nodes above it and one pixel off
- * the 13px rows below it — the hero's whole type ladder collapsed into 24 -> 16
- * -> 14 -> 14 -> 13 with the 18 and 20 steps unused. It is a peer of the two
- * rate-block headings and carries the same class, so retuning one retunes all
- * three (see `AMBR_BLOCK.TITLE`).
- */
-export const HERO_PARAMS = {
-  ROOT: "flex min-h-[9rem] flex-col gap-1.5 rounded-tile bg-surface-container p-3",
-  HEADING: "px-1 pb-0.5 text-lg font-semibold",
-  ROW: "flex items-center gap-3 rounded-pill bg-surface-container-high px-4 py-2.5",
+export const RATE_CEILING = {
+  ROOT: "overflow-hidden rounded-tile bg-surface-container",
+  /**
+   * The always-visible summary. A real `<button>`, so it is keyboard-reachable
+   * and announces its own expanded state.
+   */
+  SUMMARY: "flex w-full items-center gap-3.5 bg-transparent px-5 py-4 text-left",
+  /**
+   * A 40px disc — one step below the strip's 52px, because this is a summary
+   * line and not a tile, and the size difference is what says so.
+   *
+   * DOWNLINK ROSE, not an identity hue. A rate ceiling belongs to no radio: the
+   * summary shows whichever radio governs, and painting the disc after that
+   * radio would make the same band change colour on a handover. `bg-downlink`
+   * is the direction axis (`RATE_CHIP` documents why it exists), and the
+   * download figure is the one this line leads with.
+   */
+  DISC: "grid size-10 flex-none place-items-center rounded-pill",
+  DISC_RATE: "bg-downlink text-downlink-foreground",
+  /** The same disc on a FAILED read — neutral, never a hue over absent data. */
+  DISC_NEUTRAL: "bg-surface-container-high text-on-surface-variant",
+  GLYPH: 22,
+  TEXT: "flex min-w-0 flex-1 flex-col gap-[3px]",
+  EYEBROW:
+    "text-on-surface-variant truncate text-[0.6875rem] font-semibold tracking-[0.02em]",
+  /** The governing pair, and the tag naming which radio it belongs to. */
+  VALUE:
+    "flex min-w-0 flex-wrap items-center gap-2 text-[1.125rem] font-bold leading-[1.1] tracking-[-0.01em] tabular-nums",
+  CHEVRON:
+    "text-on-surface-variant ml-auto flex-none transition-transform duration-[--duration-standard] ease-[--ease-standard]",
+  CHEVRON_OPEN: "rotate-180",
+  /**
+   * The 0fr -> 1fr row. The row VALUE is set at the call site (it is state, not
+   * geometry); this carries the clock, and is dropped entirely under reduced
+   * motion.
+   */
+  PANEL: "grid",
+  PANEL_MOTION:
+    "transition-[grid-template-rows] duration-[--duration-emphasized] ease-[--ease-emphasized]",
+  /** `min-h-0` is what lets the 0fr row actually collapse. */
+  PANEL_CLIP: "min-h-0 overflow-hidden",
+  INNER: "grid grid-cols-1 gap-3.5 px-5 pb-5 @2xl/main:grid-cols-2",
+  /**
+   * One radio's block. `bg-surface` INSIDE `bg-surface-container` — the panel is
+   * the container and the block steps back DOWN to the page ground, which is
+   * what keeps two nested neutrals legible without a hairline.
+   *
+   * `rounded-field` (20px) is a step tighter than the panel's `rounded-tile`
+   * (28px), per Radius-Follows-Size: the inner block is rounder per pixel and
+   * smaller in absolute radius. It is deliberately NOT an identity container
+   * fill — inside a disclosure that is already about one governing radio, two
+   * tinted blocks re-introduce exactly the "large empty slab" the strip above
+   * was rebuilt to delete. Identity is an outline `Tag` in the block header
+   * instead (The Two-Form Rule), which is also the channel that survives
+   * grayscale.
+   */
+  BLOCK: "flex flex-col gap-2.5 rounded-field bg-surface p-4",
+  /**
+   * The block heading, a step BELOW `RATE_CEILING.EYEBROW`'s parent value. 14px
+   * bold, not the hero's 18px: inside a panel that is already introduced by the
+   * summary line above it, an 18px heading competes with the figure it is
+   * subordinate to.
+   */
+  BLOCK_TITLE: "min-w-0 truncate text-sm font-bold",
+  /** The in-force marker, pushed to the block header's end. */
+  BLOCK_MARK: "ml-auto flex-none",
+  /** The band's provenance sentence, and each block's own. */
+  PROVENANCE: "text-on-surface-variant text-xs leading-[1.6] text-pretty",
+  /**
+   * Mirrors the summary row's resolved height for the skeleton: `py-4` either
+   * side (32) over a 40px disc, which is taller than the eyebrow + value column
+   * (16 + 3 + 20 = 39). 72px -> 4.5rem, and the radius travels with it (The
+   * Skeleton-Mirror Rule).
+   */
+  HEIGHT: "h-[4.5rem] rounded-tile",
 } as const;
-
 // -----------------------------------------------------------------------------
 // The governing-block marker
 // -----------------------------------------------------------------------------
@@ -333,20 +326,19 @@ export const HERO_PARAMS = {
  * radio would grant — but it drops the fact that only one of them is in force,
  * and that fact has to come back somewhere.
  *
- * IT MUST NOT COME BACK AS A HUE. `AMBR_BLOCK`'s own comment names the
- * constraint it is now cashing: the violet fill is doing identity work alone
- * and is safe there ONLY because the block reports no quality — "if a health
- * state is ever added to this block it needs a non-chromatic channel." This is
- * that state and this is that channel: a GLYPH plus a WORD, in two shapes
- * (filled chip vs plain inline text). Both survive grayscale and deuteranopia,
- * and the fill of each block stays exactly what it was.
+ * IT MUST NOT COME BACK AS A HUE ALONE, and it must not come back as a STATUS
+ * ROLE at all. `success` would claim health, and governance is not health — an
+ * idle radio's rate ceiling is not "degraded", it is simply not the one in
+ * force (The Functional-Color Promise). So the marker is a GLYPH plus a WORD in
+ * two shapes: a filled chip against plain inline text. Both survive grayscale
+ * and deuteranopia, which is what lets the chip also carry the block's radio
+ * hue without that hue being load-bearing.
  *
- * THE CHIP WEARS ITS OWN BLOCK'S FILL PAIR, not a status role. `info` renders
- * `primary-container`, which is invisible on the 5G block; `success` would
- * claim health, and governance is not health. The block's container inverted
- * to its own fill is the pairing the tile discipline already uses, it declares
- * both halves so consumers set no ink, and it reads as "this block, emphasised"
- * rather than as a verdict.
+ * THE CHIP WEARS ITS BLOCK'S RADIO FILL PAIR, which is now the only place a
+ * radio hue is filled anywhere in the disclosure — the blocks themselves went
+ * neutral, and their identity is an outline `Tag`. A `bg-lte` chip on a
+ * `bg-surface` block is a fill on a ground, the pairing the tile discipline
+ * already uses; it declares both halves, so consumers set no ink.
  *
  * ABSENCE IS NOT THE SIGNAL. The non-governing block states its state in
  * words too. A marker that only ever appears once would leave the other block
@@ -372,8 +364,20 @@ export const GOVERNING_GLYPH = {
 // -----------------------------------------------------------------------------
 
 /**
- * One physical SIM slot in the hero's parameters column: which slot, and the
- * tail of the card sitting in it.
+ * One physical SIM slot in the live-state strip's SIM tile caption: which slot,
+ * and the tail of the card sitting in it.
+ *
+ * IT RENDERS THE SLOT THE TILE IS NOT ABOUT. The tile's own value states the
+ * slot the modem is switched to, as read from the POLLER; this chip states what
+ * is in the other one, as read from the SETTINGS GET. The two sources are
+ * allowed to disagree for the ~35s a slot apply takes, which is why the ACTIVE
+ * leg below is not dead code: during that window `dual_slot` reports the new
+ * slot active while the poller still reports the old one, and a chip that could
+ * only render the standby form would flatten a real, temporary, visible fact.
+ *
+ * `bg-primary` on ACTIVE is correct against `STRIP.BODY`
+ * (`surface-container`) — a fill on a container, never a container on a
+ * container.
  *
  * THIS IS `GOVERNING_MARK` ONE ROW DOWN, and it is deliberately built to the
  * same rule rather than to a status role. "The modem is switched to this slot"
@@ -384,14 +388,13 @@ export const GOVERNING_GLYPH = {
  * against PLAIN INLINE TEXT with a different glyph. Shape, glyph and fill all
  * move together, so the pair survives grayscale and deuteranopia.
  *
- * `bg-primary`, not a container: this chip sits on `HERO_PARAMS.ROW`
- * (`surface-container-high`), and a container fill on a container row is the
- * step-collision `HERO_PARAMS`'s own comment documents. The fill pair also
- * declares its ink, so consumers set none.
+ * The fill pair declares its own ink, so consumers set none.
  *
- * ABSENCE IS NOT THE SIGNAL — both slots always render. A readout that showed
- * only the active slot would leave the other ambiguous between "empty" and "not
- * read", which is the whole reason this row exists.
+ * ABSENCE IS NOT THE SIGNAL — the peer slot always renders, empty or not. A
+ * readout that showed only the slot in use would leave the other ambiguous
+ * between "empty" and "not read", which is the whole reason this chip exists.
+ * The one case where nothing renders is `dual_slot` being ABSENT from the GET,
+ * which is the honest "the modem cannot answer this at all".
  */
 export const SLOT_CHIP = {
   /** The slot the modem is switched to. */
@@ -424,12 +427,6 @@ export const SLOT_GLYPH = {
   empty: "sim_card_alert",
 } as const satisfies Record<string, MaterialSymbolName>;
 
-/** The Display triple every migrated page `h1` carries. */
-export const PAGE_TITLE = "text-3xl font-bold tracking-[-0.02em]";
-
-/** The page description directly under it. */
-export const PAGE_DESCRIPTION = "text-on-surface-variant";
-
 /** The page-header action pill. Restated, not imported — see custom-profiles. */
 export const PILL_ACTION =
   "h-[2.625rem] gap-2 rounded-pill px-5 text-sm font-semibold";
@@ -460,13 +457,32 @@ export const ROW_GROUP = {
  * HEIGHT is the skeleton's mirror. It is a `min-h` floor on ROOT rather than a
  * fixed height because the consequence line wraps to two lines on narrow
  * containers — a fixed height would clip it. The floor is derived, not guessed:
- * label 20 + gap 3 + consequence 18 = 41, plus `py-4` x2 = 73 -> 4.5625rem,
- * rounded to the 4.75rem the control's own 42px pill height dominates anyway.
+ * label 20 + gap 3 + DELTA CHIP 22 + gap 3 + consequence 18 = 66, plus `py-4`
+ * x2 = 98 -> 6.125rem.
+ *
+ * THE CHIP'S LINE IS PART OF THE DERIVATION NOW, AND IT WAS NOT BEFORE. The old
+ * floor was 4.75rem (76px) and this comment claimed it "already accounts for
+ * the chip's line". It did not, and could not: the chip was rendered only while
+ * dirty, so at 760px and 1500px body width the promotion wrapped it onto its own
+ * line and the row grew EXACTLY 30px, measured. The row is
+ * `@2xl/card:items-center`, so the control dropped half of that — 15px — and
+ * Framer does not animate it (at rest the thumb sat at y 679.8; the first frame
+ * of the move reported y 694.8 with a transform y component of 0px). The thumb
+ * teleported vertically and then glided horizontally. Reversed — re-select the
+ * saved value, the row goes clean and shrinks 30px — the first frame appears
+ * 15px BELOW target: a highlight arriving from lower-left, which is the reported
+ * symptom verbatim.
+ *
+ * The floor alone was never going to fix it: the CLEAN row already measured
+ * 98.1px at the affected widths, so a 76px floor was inert. The chip now
+ * occupies its own line UNCONDITIONALLY (`invisible` when clean, which keeps the
+ * box), so the row's height does not depend on the dirty state at any width.
+ * Reserve, don't animate — the same trade as `SaveButton`'s width lock.
  */
 export const SETTING_ROW = {
-  ROOT: "flex min-h-[4.75rem] flex-col gap-3 rounded-field px-4 py-4 @2xl/card:flex-row @2xl/card:items-center @2xl/card:gap-4 @2xl/card:pl-[1.125rem]",
+  ROOT: "flex min-h-[6.125rem] flex-col gap-3 rounded-field px-4 py-4 @2xl/card:flex-row @2xl/card:items-center @2xl/card:gap-4 @2xl/card:pl-[1.125rem]",
   /** Mirrors ROOT's resolved floor, for the skeleton. */
-  HEIGHT: "h-[4.75rem]",
+  HEIGHT: "h-[6.125rem]",
   /**
    * The label + consequence column.
    *
@@ -499,7 +515,7 @@ export const SETTING_ROW = {
  * both write cards held their skeleton FOREVER, shimmering with no explanation —
  * a skeleton is a promise that data is on its way, and this is where that promise
  * is broken. Same defect the hero fixed with its `unavailable` branches
- * (`HERO_RAIL.NOTICE`), arriving one card over.
+ * (now `STRIP.NOTICE_TITLE`), arriving one card over.
  *
  * IT IS DELIBERATELY QUIET, NOT A SECOND ALARM. The route shell already renders a
  * `destructive` `TonalBanner` with the retry action when `error` is set; the page
@@ -534,9 +550,16 @@ export const SETTING_ROW_DIRTY = {
   /**
    * The "before -> after" chip. Machine-voice: these are literal setting values,
    * so `font-mono` is correct here and nowhere else in the row.
+   *
+   * IT GETS ITS OWN LINE, ALWAYS, and it is rendered on a clean row too (with
+   * `invisible`, which keeps the box). Beside the label it wrapped or did not
+   * wrap depending on the container width and the locale, which made the row's
+   * height a function of the dirty state — see the derivation in `SETTING_ROW`
+   * above for what that cost. `w-fit` because a flex-column parent stretches its
+   * children by default and a full-width pill is not a chip.
    */
   DELTA_CHIP:
-    "inline-flex h-[1.375rem] flex-none items-center rounded-pill bg-primary px-2.5 font-mono text-[0.6875rem] font-semibold text-primary-foreground",
+    "inline-flex h-[1.375rem] w-fit flex-none items-center rounded-pill bg-primary px-2.5 font-mono text-[0.6875rem] font-semibold text-primary-foreground",
 } as const;
 
 // -----------------------------------------------------------------------------
@@ -551,9 +574,14 @@ export const SETTING_ROW_DIRTY = {
  * `layoutId` (see `signal-history.tsx:302-315`). Two rules ride on that:
  *   1. Nothing animates `width` — motion tweens the box between positions.
  *      Segments have unequal label widths, so a cross-fade would visibly jump.
- *   2. The `layoutId` MUST be scoped per instance. This surface renders THREE
- *      segmented controls at once; sharing an id makes their thumbs fly across
- *      each other on first paint.
+ *   2. The `layoutId` MUST be scoped per instance. This surface renders SIX
+ *      segmented controls at once — three rows in each of two write cards, not
+ *      three in one card as this comment used to say; sharing an id makes their
+ *      thumbs fly across each other on first paint.
+ *   3. EVERY SEGMENT RESERVES THE CHECK GLYPH. See `GLYPH_RESERVED`. The thumb
+ *      is `absolute inset-0`, so its box IS the segment's box: a glyph that
+ *      renders only on the active segment changes both ends of the animation
+ *      Framer is computing, mid-flight.
  *
  * SEGMENT neutralises the ToggleGroupItem's own `data-[state=on]` fill so the
  * travelling span is the only thing that paints.
@@ -591,8 +619,47 @@ export const SEGMENTED = {
   THUMB: "absolute inset-0 rounded-pill bg-primary",
   /** Label sits above the thumb. */
   LABEL: "relative",
-  /** Glyph size inside an active segment. */
+  /** Glyph size inside a segment. */
   GLYPH: 16,
+  /**
+   * The check glyph on the ACTIVE segment.
+   *
+   * The check reinforces selection non-chromatically, so the choice survives
+   * grayscale and sunlight washout — the fill alone is never allowed to be the
+   * only carrier.
+   */
+  GLYPH_ACTIVE:
+    "relative opacity-100 scale-100 transition-[opacity,transform] duration-[--duration-quick] ease-[--ease-quick]",
+  /**
+   * The same glyph on an INACTIVE segment: still in the box, invisible to the
+   * eye. THIS IS THE PRIMARY FIX for the segmented control's travelling fill,
+   * and it is a layout fix, not a decoration.
+   *
+   * MEASURED. The glyph plus `gap-1.5` is worth 21.7px (15.7px advance + 6px
+   * gap) and used to render only on the active segment. The thumb is
+   * `absolute inset-0`, so its box IS the segment's box — changing a segment's
+   * width therefore changes BOTH ends of the animation Framer is computing.
+   * "Preferred Network Type" at 1914px, before -> after one click:
+   *
+   *   before (Automatic active)  118.3 | 86 | 79.6 | 82.3
+   *   after  (5G only active)     96.6 | 86 | 101.4 | 82.3
+   *
+   * Consequences, all visible: the fill STRETCHED while it travelled (first
+   * frame `translate3d(-266.99px, 0, 0) scale(1.13606, 1)`, and on `rounded-pill`
+   * a 1.14 scaleX makes the caps read as ellipses in flight); the label you
+   * clicked slid 21.8px out from under your cursor, un-animated; and the whole
+   * track reshuffled as a hard cut while the one animated thing glided for
+   * 600ms. Reserved, the widths go to 118.3 | 108 | 122.6 | 104.3 ->
+   * 118.6 | 108 | 122.6 | 104.2.
+   *
+   * `opacity` + `scale` ONLY — never `display`, `hidden` or a conditional
+   * render, all three of which give the box back. The residual 0.3px is
+   * `data-[state=on]:font-semibold` and is left alone: widths are stable to the
+   * eye, not to the pixel, and chasing `scaleX === 1` would cost the weight
+   * change that makes the active label read as active.
+   */
+  GLYPH_RESERVED:
+    "relative opacity-0 scale-[0.6] transition-[opacity,transform] duration-[--duration-quick] ease-[--ease-quick]",
 } as const;
 
 /**
@@ -675,8 +742,13 @@ export const SELECT_TRIGGER =
  * deliberately drops back to the interface voice — a placeholder is
  * human-authored instruction, not machine output, and mono'd prompt text reads
  * as though the field were already filled.
+ *
+ * MODULE-PRIVATE ON PURPOSE. Nothing outside this file ever imported it — the
+ * real API is the two `FIELD_SHELL` composites below, which is what
+ * `imei-settings-card.tsx` reaches for. An exported half-a-field invites a
+ * fourth local variant of exactly the drift documented above.
  */
-export const FIELD_INPUT = [
+const FIELD_INPUT = [
   "font-mono tracking-[0.06em] tabular-nums",
   "placeholder:font-sans placeholder:tracking-normal placeholder:text-on-surface-variant",
   "focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none",
@@ -1006,30 +1078,20 @@ export const CHOICE_ROW = {
 // -----------------------------------------------------------------------------
 
 /**
- * The LTE rates block.
+ * The INSIDE of one radio's rate block — the bearer list and nothing else. The
+ * block's own container is `RATE_CEILING.BLOCK`.
  *
- * VIOLET IS THE LANGUAGE. The comp put an `lte_mobiledata_badge` glyph and an
- * "LTE" label chip on this block; both are gone by product decision, because the
- * card title already says LTE and the container fill already IS the LTE
- * identity. Keeping all three would be saying the same thing three times.
- *
- * The cost of that decision is real and is paid below: with the chip gone, the
- * violet fill is doing identity work alone, and `lte-container` must never be
- * read as "healthy" (The Identity-Chip Rule). It is safe here ONLY because this
- * block reports no quality — it reports two numbers and an APN. If a health
- * state is ever added to this block it needs a non-chromatic channel.
+ * THE IDENTITY CONTAINER FILLS ARE GONE, and with them `LTE` / `NR` / `TITLE` /
+ * `HEIGHT` / `COL_MIN` / `COL_HEIGHT`. They belonged to the hero's three-column
+ * body, where each rate column was a full-height tinted block and the fill was
+ * the only thing saying which radio it was about. Inside a disclosure the block
+ * is neutral (`bg-surface` on the panel's `surface-container`) and identity is
+ * carried by an outline `Tag` in the block header — the Two-Form Rule's answer,
+ * and a better one: the previous arrangement had `lte-container` doing identity
+ * work with no second channel, which was safe only for as long as the block
+ * reported no quality at all.
  */
 export const AMBR_BLOCK = {
-  LTE: "flex flex-col gap-3 rounded-tile bg-lte-container px-4.5 py-4 text-on-lte-container",
-  NR: "flex flex-col gap-3 rounded-tile bg-primary-container px-4.5 py-4 text-on-primary-container",
-  /**
-   * The block heading, at the Title step (18px).
-   *
-   * It shipped at `text-sm` — 14px, identical to the `CardDescription` above it
-   * — so the three column headings had no more weight than the card's own
-   * subtitle. `HERO_PARAMS.HEADING` is its peer and carries the same class.
-   */
-  TITLE: "text-lg font-semibold",
   /** The bearer/DNN name. Machine string. */
   APN: "font-mono text-[0.84375rem] font-medium truncate",
   /**
@@ -1050,27 +1112,19 @@ export const AMBR_BLOCK = {
    */
   ROW: "flex flex-col gap-2",
   RATES: "flex flex-wrap gap-2",
-  HEIGHT: "h-[6.5rem]",
   /**
    * Heading + governing marker on one baseline. `items-start` so a wrapped
    * heading does not drag the chip down with it.
    */
-  HEADER: "flex items-start justify-between gap-2",
-  /** The NSA gloss, and any other one-line explanation on the fill. */
+  HEADER: "flex items-center gap-2",
+  /**
+   * The NSA gloss, and any other one-line explanation inside a block. It sets no
+   * ink of its own and dims whatever the block already carries, which is what
+   * keeps it correct on a neutral block and on a filled one alike.
+   */
   NOTE: "text-[0.71875rem] leading-relaxed text-pretty opacity-90",
   /** The entry list. `gap-2.5` because a multi-PDN device shows two rows. */
   LIST: "flex flex-col gap-2.5",
-  /**
-   * The three-column floor. Derived: heading 26 + gap 12 + one stacked entry
-   * (name 20 + gap 8 + chips 30 = 58) + py-4 either side 32 = 128 -> 8rem;
-   * rounded up to 9rem so a two-entry block and a one-entry block sit closer
-   * in height and an EMPTY_BLOCK column is not visibly shorter than its
-   * populated neighbour. `HEIGHT` (6.5rem) stays the SKELETON mirror for the
-   * stacked case; this is the floor for the gridded case.
-   */
-  COL_MIN: "min-h-[9rem]",
-  /** Mirrors COL_MIN's height AND the block's radius, for the skeleton. */
-  COL_HEIGHT: "h-[9rem] rounded-tile",
 } as const;
 
 /**
@@ -1081,9 +1135,9 @@ export const AMBR_BLOCK = {
  * `bg-primary` inside the 5G block) — which is why an LTE download chip and
  * an LTE upload chip were the same purple, distinguished only by their arrow
  * glyph. A figure's DIRECTION now reads the same colour regardless of which
- * radio block it sits in — the radio identity still lives in the block's own
- * container fill (`AMBR_BLOCK.LTE` / `AMBR_BLOCK.NR`), one layer out from the
- * chip — and the two hues carrying that direction belong to neither radio.
+ * radio block it sits in — the radio identity still lives one layer out from the
+ * chip, on the block's own identity `Tag` — and the two hues carrying that
+ * direction belong to neither radio.
  *
  * WHY ROSE AND CYAN, AND NOT BLUE AND VIOLET. An earlier pass used `primary`
  * (download) and `lte` (upload), reasoning that cyan read as a discordant third

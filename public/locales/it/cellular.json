@@ -798,27 +798,35 @@
         "reread": "Rileggi dal modem",
         "in_sync": "Le impostazioni salvate corrispondono al modem."
       },
-      "hero": {
-        "title": "Connessione attuale",
-        "description": "Su cosa sta funzionando il modem in questo momento e i limiti di velocità che la rete gli concede.",
-        "params_heading": "Parametri attivi",
-        "rates_note": "I limiti di velocità sono tetti concessi dalla rete, non velocità misurate. Vengono letti all'apertura della pagina e di nuovo dopo ogni salvataggio.",
-        "sr_rate_block": "{{radio}}: {{state}}",
+      "strip": {
+        "label": "Stato in tempo reale",
         "live": "In tempo reale",
         "stale": "Obsoleto",
+        "network": "Rete",
+        "sim": "SIM",
+        "aggregation": "Aggregazione",
+        "data_path": "Percorso dati",
         "carrier_none": "Nessun operatore riportato",
+        "bandwidth_none": "Nessuna banda aggregata riportata",
+        "ip_dual": "IPv4 e IPv6 assegnati",
+        "ip_v4": "Solo IPv4",
+        "ip_v6": "Solo IPv6",
+        "ip_none": "Nessun indirizzo assegnato",
         "unavailable_title": "Impossibile leggere il modem",
-        "unavailable_retrying": "L'ultima lettura non è riuscita. QManager sta ancora provando.",
-        "unavailable_static": "L'ultima lettura non è riuscita. Usa «Rileggi dal modem» qui sotto per riprovare."
+        "unavailable_retrying": "L'ultima lettura non è riuscita. QManager sta ancora provando."
+      },
+      "rate_ceiling": {
+        "eyebrow": "Tetto di velocità concesso dalla rete",
+        "in_force": "AMBR {{radio}} in vigore",
+        "no_ceiling": "Nessun tetto letto",
+        "sr_rate_block": "{{radio}}: {{state}}",
+        "provenance": "I limiti di velocità sono tetti concessi dalla rete, non velocità misurate. Vengono letti all'apertura della pagina e di nuovo dopo ogni salvataggio.",
+        "unavailable": "L'ultima lettura non è riuscita. Usa «Rileggi dal modem» qui sotto per riprovare."
       },
       "readout": {
-        "active_slot": "Slot attivo",
         "slot_n": "SIM {{slot}}",
         "unknown": "Sconosciuto",
-        "radio_power_label": "Stato radio",
-        "apn_label": "APN attivo",
         "no_apn": "Non segnalato",
-        "carrier_aggregation": "Aggregazione portanti",
         "ca_none": "Non attiva",
         "ca_breakdown": "LTE {{lte}} + NR {{nr}}",
         "ca_lte_only": "LTE {{lte}}",
@@ -833,7 +841,6 @@
         "unknown": "Sconosciuto"
       },
       "sim_slots": {
-        "label": "Slot SIM",
         "empty": "Vuoto",
         "sr_active": "SIM {{slot}}, attiva, scheda che termina con {{last4}}",
         "sr_standby": "SIM {{slot}}, in standby, scheda che termina con {{last4}}",
@@ -845,13 +852,13 @@
         "governing": "In uso",
         "not_governing": "Non in uso",
         "nsa_note": "Il 5G non-standalone viaggia sulla sessione dati LTE, quindi vale questo limite.",
-        "lte_empty_title": "Nessuna velocità LTE riportata",
         "lte_empty_reason": "Il modem pubblica un limite LTE solo mentre è attiva una sessione dati LTE.",
-        "nr_empty_title": "Nessuna velocità 5G riportata",
         "nr_empty_reason": "Il modem pubblica un limite 5G solo mentre è attiva una sessione dati 5G.",
         "download": "Download",
         "upload": "Upload",
-        "governing_unread": "La tua connessione usa questa radio. Nessun limite è stato letto per essa all’apertura della pagina."
+        "governing_unread": "La tua connessione usa questa radio. Nessun limite è stato letto per essa all’apertura della pagina.",
+        "lte_short": "LTE",
+        "nr_short": "5G NR"
       }
     },
     "fplmn": {

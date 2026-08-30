@@ -798,27 +798,35 @@
         "reread": "Baca ulang dari modem",
         "in_sync": "Pengaturan tersimpan cocok dengan modem."
       },
-      "hero": {
-        "title": "Koneksi Saat Ini",
-        "description": "Jaringan yang sedang dipakai modem sekarang, dan batas kecepatan yang diberikan jaringan itu.",
-        "params_heading": "Parameter aktif",
-        "rates_note": "Batas kecepatan adalah plafon yang diberikan jaringan, bukan kecepatan terukur. Nilainya dibaca saat halaman dibuka dan sekali lagi setiap kali selesai menyimpan.",
-        "sr_rate_block": "{{radio}}: {{state}}",
+      "strip": {
+        "label": "Status langsung",
         "live": "Langsung",
         "stale": "Usang",
+        "network": "Jaringan",
+        "sim": "SIM",
+        "aggregation": "Agregasi",
+        "data_path": "Jalur data",
         "carrier_none": "Tidak ada operator yang dilaporkan",
+        "bandwidth_none": "Tidak ada lebar pita agregat yang dilaporkan",
+        "ip_dual": "IPv4 dan IPv6 diberikan",
+        "ip_v4": "Hanya IPv4",
+        "ip_v6": "Hanya IPv6",
+        "ip_none": "Tidak ada alamat yang diberikan",
         "unavailable_title": "Gagal membaca modem",
-        "unavailable_retrying": "Pembacaan terakhir gagal. QManager masih mencoba.",
-        "unavailable_static": "Pembacaan terakhir gagal. Gunakan \"Baca ulang dari modem\" di bawah untuk mencoba lagi."
+        "unavailable_retrying": "Pembacaan terakhir gagal. QManager masih mencoba."
+      },
+      "rate_ceiling": {
+        "eyebrow": "Plafon kecepatan yang diberikan jaringan",
+        "in_force": "AMBR {{radio}} berlaku",
+        "no_ceiling": "Plafon tidak terbaca",
+        "sr_rate_block": "{{radio}}: {{state}}",
+        "provenance": "Batas kecepatan adalah plafon yang diberikan jaringan, bukan kecepatan terukur. Nilainya dibaca saat halaman dibuka dan sekali lagi setiap kali selesai menyimpan.",
+        "unavailable": "Pembacaan terakhir gagal. Gunakan \"Baca ulang dari modem\" di bawah untuk mencoba lagi."
       },
       "readout": {
-        "active_slot": "Slot aktif",
         "slot_n": "SIM {{slot}}",
         "unknown": "Tidak diketahui",
-        "radio_power_label": "Daya radio",
-        "apn_label": "APN aktif",
         "no_apn": "Tidak dilaporkan",
-        "carrier_aggregation": "Agregasi carrier",
         "ca_none": "Tidak aktif",
         "ca_breakdown": "LTE {{lte}} + NR {{nr}}",
         "ca_lte_only": "LTE {{lte}}",
@@ -833,7 +841,6 @@
         "unknown": "Tidak diketahui"
       },
       "sim_slots": {
-        "label": "Slot SIM",
         "empty": "Kosong",
         "sr_active": "SIM {{slot}}, aktif, kartu berakhiran {{last4}}",
         "sr_standby": "SIM {{slot}}, siaga, kartu berakhiran {{last4}}",
@@ -845,13 +852,13 @@
         "governing": "Berlaku",
         "not_governing": "Tidak berlaku",
         "nsa_note": "5G non-standalone berjalan di atas sesi data LTE, jadi batas inilah yang berlaku.",
-        "lte_empty_title": "Tidak ada kecepatan LTE dilaporkan",
         "lte_empty_reason": "Modem hanya menerbitkan batas LTE selama sesi data LTE aktif.",
-        "nr_empty_title": "Tidak ada kecepatan 5G dilaporkan",
         "nr_empty_reason": "Modem hanya menerbitkan batas 5G selama sesi data 5G aktif.",
         "download": "Unduh",
         "upload": "Unggah",
-        "governing_unread": "Koneksi Anda memakai radio ini. Tidak ada batas yang terbaca untuknya saat halaman dibuka."
+        "governing_unread": "Koneksi Anda memakai radio ini. Tidak ada batas yang terbaca untuknya saat halaman dibuka.",
+        "lte_short": "LTE",
+        "nr_short": "5G NR"
       }
     },
     "fplmn": {

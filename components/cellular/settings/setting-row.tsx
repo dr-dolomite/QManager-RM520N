@@ -36,12 +36,27 @@ import { SETTING_ROW, SETTING_ROW_DIRTY } from "./shapes";
 // -----------------------------------------------------------------------------
 // WHY THE HEIGHT IS RESERVED RATHER THAN ANIMATED
 // -----------------------------------------------------------------------------
-// The delta chip ("SIM 2 -> SIM 1") appears INSIDE the row when it goes dirty,
-// which changes the row's intrinsic height. Animating that is a container-size
-// change — `emphasized` at best, and impossible to express without an implicit
-// `transition-all`. So the row carries a `min-h` floor that already accounts
-// for the chip's line, and the chip fades in against reserved space. Same
-// reasoning as `SaveButton`'s width lock: reserve, don't animate.
+// The delta chip ("SIM 2 -> SIM 1") appears INSIDE the row when it goes dirty.
+// Animating a height change is a container-size change — `emphasized` at best,
+// and impossible to express without an implicit `transition-all`. So the chip is
+// rendered UNCONDITIONALLY, on its own line, and merely goes `invisible` when
+// the row is clean: `visibility: hidden` keeps the box, so the row's height does
+// not depend on the dirty state at any width. Same reasoning as `SaveButton`'s
+// width lock: reserve, don't animate.
+//
+// THE PREVIOUS VERSION OF THIS COMMENT WAS FALSE, AND THE FALSEHOOD WAS THE BUG.
+// It said the `min-h` floor already reserved the chip's line. It did not:
+// the floor was 76px and the CLEAN row already measured 98.1px at the widths
+// where the chip wrapped, so the floor was inert. Measured on the real page, the
+// dirty promotion grew the row EXACTLY 30px at 760px and 1500px body width and
+// 0px everywhere else. The row is `@2xl/card:items-center`, so the control
+// dropped half of that — 15px — and Framer does not animate a layout change it
+// was not asked to project: at rest the thumb sat at y 679.8, and the first
+// frame of the move reported y 694.8 with a transform y component of 0px. The
+// thumb teleported vertically and then glided horizontally. Reverse the
+// direction — re-select the saved value, the row goes clean and shrinks 30px —
+// and the first frame appears 15px BELOW target, which is the "highlight
+// arriving from lower-left" that was reported.
 //
 // The fill itself IS animated — a `standard` colour transition, which is legal
 // and is what makes the promotion feel like a state change rather than a
@@ -75,6 +90,11 @@ export function SettingRow({
   labelId,
   className,
 }: SettingRowProps) {
+  // Hoisted rather than inlined, because the chip node itself must stay
+  // unconditional — the whole point of the reservation is that the ELEMENT never
+  // comes and goes, only its visibility does.
+  const deltaText = dirty ? delta : null;
+
   return (
     <div
       className={cn(
@@ -89,14 +109,22 @@ export function SettingRow({
       data-dirty={dirty ? "true" : undefined}
     >
       <div className={SETTING_ROW.TEXT}>
-        <div className="flex flex-wrap items-center gap-2">
-          <span id={labelId} className={SETTING_ROW.LABEL}>
-            {label}
-          </span>
-          {dirty && delta ? (
-            <span className={SETTING_ROW_DIRTY.DELTA_CHIP}>{delta}</span>
-          ) : null}
-        </div>
+        <span id={labelId} className={SETTING_ROW.LABEL}>
+          {label}
+        </span>
+        {/* Always in the DOM and always on its own line, so the row's height is
+            a constant. `invisible` (visibility: hidden) keeps the box where
+            `hidden` or a conditional render would give it back — see the header
+            comment for the 30px this costs when it is not reserved. It is also
+            hidden from assistive tech while empty: an announced blank chip is
+            noise, and the row's real state is already carried by `data-dirty`
+            and by the control's own value. */}
+        <span
+          className={cn(SETTING_ROW_DIRTY.DELTA_CHIP, !deltaText && "invisible")}
+          aria-hidden={deltaText ? undefined : true}
+        >
+          {deltaText}
+        </span>
         <span
           className={
             dirty

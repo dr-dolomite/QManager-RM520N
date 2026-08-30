@@ -13,27 +13,41 @@ import { useCellularSettings } from "@/hooks/use-cellular-settings";
 import { useModemStatus } from "@/hooks/use-modem-status";
 
 import CellularSettingsCard from "./cellular-settings-card";
-import ModemHeroCard from "./modem-hero-card";
+import LiveStateStrip from "./live-state-strip";
 import PendingSaveBar from "./pending-save-bar";
+import RateCeilingDisclosure from "./rate-ceiling-disclosure";
 import { CARD_CELL, PAGE_ROOT, PILL_ACTION, SAVE_BAR } from "./shapes";
 
 // =============================================================================
 // Cellular Basic Settings — the route shell
 // =============================================================================
-// Page header, one read-only hero, then a grid of write cards. The page
-// arranges cards; it never becomes the canvas itself.
+// Page header, two read-only bands, then a grid of write cards. The page
+// arranges bands; it never becomes the canvas itself.
 //
-// PAGE ANATOMY (the band-locking shape, not the old two-column mix): the hero
-// reports what the modem is doing RIGHT NOW (poller readout + carrier rate
-// limits), and the two cards below change what it MAY do (SIM & Radio Power,
-// Network Mode & Roaming). Read-only facts and writable settings are different
-// kinds of object and no longer share a grid.
+// PAGE ANATOMY. Band A is the LIVE STATE STRIP — four `TILE_SHAPE` tiles under
+// the header, the family shape `/cellular/` and Radio Information already use.
+// Band A2 is the RATE CEILING, a summary line with the per-bearer detail behind
+// a disclosure. Then the two write cards change what the modem MAY do (SIM &
+// Radio Power, Network Mode & Roaming). Read-only facts and writable settings
+// are different kinds of object and do not share a grid.
 //
-// TWO DATA SOURCES, DELIBERATELY SEPARATE. `useCellularSettings` owns the
-// writable CGI surface (and the dirty/merge contract behind the save bar);
-// `useModemStatus` owns the read-only poller snapshot. They refresh on
-// different clocks and must not be collapsed into one — the settings hook
-// re-reads only around a save, while the poller ticks continuously.
+// THERE IS NO HERO CARD ON THIS SURFACE, and the band split is the reason. The
+// 826-line `ModemHeroCard` this replaces led with AMBR — the network-granted
+// rate ceiling, the most specialist number on the page, not settable anywhere on
+// it — across two of its three columns, and rendered eighteen distinct facts in
+// one box.
+//
+// TWO DATA SOURCES, DELIBERATELY SEPARATE, AND NOW ONE PER BAND.
+// `useCellularSettings` owns the writable CGI surface (and the dirty/merge
+// contract behind the save bar); `useModemStatus` owns the read-only poller
+// snapshot. They refresh on different clocks and must not be collapsed into one
+// — the settings hook re-reads only around a save, while the poller ticks
+// continuously. The hero mixed them and needed two readiness flags, two failure
+// branches, a freshness chip scoped to one of its three bands, and a footnote
+// whose JSDoc admitted the card had "TWO CLOCKS and one of them does not tick".
+// Band A is poller-only and its freshness chip is therefore honest about all of
+// it; band A2 is settings-only and carries its own provenance sentence. No
+// surface on this page holds two clocks, and that footnote is deleted.
 //
 // ONE SAVE BAR FOR BOTH CARDS. The two settings cards share a single form
 // state; the backend POST accepts any subset of fields in one request, so the
@@ -128,34 +142,37 @@ const CellularSettingsComponent = () => {
         animate="visible"
         variants={staggerContainer}
       >
+        {/* Band A: the live state, on the POLLER clock only. */}
         <motion.div variants={staggerItem}>
-          <ModemHeroCard
+          <LiveStateStrip
             status={status}
             statusLoading={statusLoading}
             // Both hooks clear `isLoading` on failure and leave `data` at
-            // `null`. Without the error threaded through, the hero's readiness
-            // flags are false forever after a dead poller or a 500 and the card
-            // shimmers indefinitely — including over the freshness chip, which
-            // is the one thing on the page that would have said so.
+            // `null`. Without the error threaded through, the readiness flag is
+            // false forever after a dead poller and the strip shimmers
+            // indefinitely — including over the freshness chip, which is the one
+            // thing on the page that would have said so.
             statusError={statusError}
+            isStale={statusStale}
+            // From the SETTINGS GET, and the only fact in the strip that is not
+            // poller-fed. Which card sits in the other slot is a hardware fact,
+            // not a reading that goes stale between polls. `null` on firmware
+            // that cannot report the slots at all — the tile omits the caption
+            // rather than inventing a placeholder for it.
+            dualSlot={form.dualSlot}
+          />
+        </motion.div>
+
+        {/* Band A2: the rate ceiling, on the SETTINGS clock only, with its own
+            provenance line. Two bands rather than one card because the hero
+            these replace held both clocks and needed a footnote to apologise
+            for it. */}
+        <motion.div variants={staggerItem}>
+          <RateCeilingDisclosure
             ambr={form.ambr}
             ambrLoading={form.isLoading}
             ambrError={form.error}
             networkType={status?.network.type ?? ""}
-            isStale={statusStale}
-            // The SAVED snapshot, never `draft` (The State-Honesty Rule). It is
-            // also the better of the two sources for `cfun` / `sim_slot`: the
-            // poller seeds both to `1` for its first ~60s and self-corrects,
-            // while the settings GET at least re-reads on every request. Note
-            // that `settings.sh` defaults the same two fields when its AT query
-            // comes back empty and still returns `success:true`, so neither
-            // source can currently express "not read" — see the hero's header
-            // comment.
-            saved={form.settings}
-            // Same GET as `saved`, so both slot readouts run on one clock.
-            // `null` on firmware that cannot report the slots at all — the hero
-            // omits the row rather than inventing a placeholder for it.
-            dualSlot={form.dualSlot}
           />
         </motion.div>
 

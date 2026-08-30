@@ -798,27 +798,35 @@
         "reread": "Re-read from modem",
         "in_sync": "Saved settings match the modem."
       },
-      "hero": {
-        "title": "Current Connection",
-        "description": "What the modem is running on right now, and the rate limits the network grants it.",
-        "params_heading": "Active parameters",
-        "rates_note": "Rate limits are ceilings the network grants, not measured speed. They are read when the page opens and again after each save.",
-        "sr_rate_block": "{{radio}}: {{state}}",
+      "strip": {
+        "label": "Live state",
         "live": "Live",
         "stale": "Stale",
+        "network": "Network",
+        "sim": "SIM",
+        "aggregation": "Aggregation",
+        "data_path": "Data path",
         "carrier_none": "No carrier reported",
+        "bandwidth_none": "No aggregated bandwidth reported",
+        "ip_dual": "IPv4 and IPv6 assigned",
+        "ip_v4": "IPv4 only",
+        "ip_v6": "IPv6 only",
+        "ip_none": "No address assigned",
         "unavailable_title": "Couldn't read the modem",
-        "unavailable_retrying": "The last read failed. QManager is still trying.",
-        "unavailable_static": "The last read failed. Use \"Re-read from modem\" below to try again."
+        "unavailable_retrying": "The last read failed. QManager is still trying."
+      },
+      "rate_ceiling": {
+        "eyebrow": "Rate ceiling granted by the network",
+        "in_force": "{{radio}} AMBR in force",
+        "no_ceiling": "No ceiling read",
+        "sr_rate_block": "{{radio}}: {{state}}",
+        "provenance": "Rate limits are ceilings the network grants, not measured speed. They are read when the page opens and again after each save.",
+        "unavailable": "The last read failed. Use \"Re-read from modem\" below to try again."
       },
       "readout": {
-        "active_slot": "Active slot",
         "slot_n": "SIM {{slot}}",
         "unknown": "Unknown",
-        "radio_power_label": "Radio power",
-        "apn_label": "Active APN",
         "no_apn": "None reported",
-        "carrier_aggregation": "Carrier aggregation",
         "ca_none": "Not active",
         "ca_breakdown": "LTE {{lte}} + NR {{nr}}",
         "ca_lte_only": "LTE {{lte}}",
@@ -833,7 +841,6 @@
         "unknown": "Unknown"
       },
       "sim_slots": {
-        "label": "SIM slots",
         "empty": "Empty",
         "sr_active": "SIM {{slot}}, active, card ending {{last4}}",
         "sr_standby": "SIM {{slot}}, standby, card ending {{last4}}",
@@ -845,13 +852,13 @@
         "governing": "In use",
         "not_governing": "Not in use",
         "nsa_note": "5G non-standalone runs over the LTE data session, so this limit applies.",
-        "lte_empty_title": "No LTE rates reported",
         "lte_empty_reason": "The modem publishes an LTE limit only while an LTE data session is up.",
-        "nr_empty_title": "No 5G rates reported",
         "nr_empty_reason": "The modem publishes a 5G limit only while a 5G data session is up.",
         "download": "Download",
         "upload": "Upload",
-        "governing_unread": "Your connection uses this radio. No limit was read for it when the page opened."
+        "governing_unread": "Your connection uses this radio. No limit was read for it when the page opened.",
+        "lte_short": "LTE",
+        "nr_short": "5G NR"
       }
     },
     "fplmn": {
