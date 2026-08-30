@@ -689,6 +689,50 @@ export const SEGMENTED = {
  * The ROW keeps its own `@2xl/card` step: between the two breakpoints a row is
  * stacked (text above control) and the pill group renders full-width under it,
  * which is the same arrangement a phone already shows.
+ *
+ * -----------------------------------------------------------------------------
+ * WHY `5xl` EXISTS, AND WHY IT IS ONE ROW'S STEP RATHER THAN THE FAMILY'S
+ * -----------------------------------------------------------------------------
+ * A step ABOVE the row's own flip is not a contradiction — it is the only place
+ * a fallback can live. `SETTING_ROW.ROOT` flips stacked -> side-by-side at
+ * `@2xl/card` (672px), and it is exactly THERE that the text column collapses
+ * against a wide track. Below 672 the control is full-width under the text and
+ * nothing competes; above 672 the two share one line and the widest control on
+ * the surface takes the text column's share.
+ *
+ * Reserving the check glyph on every segment (see `GLYPH_RESERVED`) widened the
+ * four-segment track from ~386px to 452px, which turned a pre-existing squeeze
+ * into a visible one. Measured on the real component (`SettingRow` +
+ * `SegmentedField`, English, card container width swept directly), the
+ * `mode_pref` row — the only four-way row, and the only one that can render
+ * FIVE segments when the modem reports a value we do not offer:
+ *
+ *   card px  |  4 segments (`lg`)      |  5 segments (`lg`)
+ *   ---------|-------------------------|-----------------------
+ *   672      |  102px text, 3 lines    |    0px text, 6 lines, 249px row
+ *   700      |  130px text, 2 lines    |    0px text, 6 lines, 249px row
+ *   740      |  170px text, 2 lines    |    0px text, 6 lines, 249px row
+ *   800      |  230px text, 2 lines    |   57px text, 5 lines, 229px row
+ *   860      |  290px text, 1 line     |  117px text, 3 lines, 166px row
+ *   896      |  326px text, 1 line     |  153px text, 2 lines, 146px row
+ *   1024     |  454px text, 1 line     |  281px text, 1 line,  103px row
+ *
+ * That is `SETTING_ROW.TEXT`'s own documented failure arriving for real: a
+ * 249px row of one-word lines, at widths a desktop review actually looks at.
+ *
+ * WHY 64rem AND NOT 56rem. `@4xl` (896px) was measured too and does clear the
+ * four-segment case, but the five-segment case only crosses into two lines at
+ * 870px — 26px of margin — and returns the pill group into a 146px row, 43px
+ * above the row's own 102.8px floor. At `@5xl` (1024px) BOTH the four- and
+ * five-segment cases render one consequence line in a 102.8px row at every card
+ * width from 672 up: the control change and the row settling coincide, which is
+ * what makes the switch read as a layout decision rather than a symptom.
+ *
+ * THE OTHER FIVE ROWS KEEP `lg`. Two- and three-segment tracks are 309px at
+ * most and are not the offender — `nr5g_mode` measured identically (244.7px
+ * text / 3 lines / 143.4px row at 672) before and after this change. Demoting
+ * them to a Select at desktop widths would spend the pill group to fix a row
+ * that does not have the problem.
  */
 const SEGMENTED_BREAKPOINTS = {
   lg: {
@@ -707,11 +751,17 @@ const SEGMENTED_BREAKPOINTS = {
     SELECT: "flex w-full @2xl/card:hidden",
     WRAP: "flex w-full @2xl/card:w-auto",
   },
+  "5xl": {
+    GROUP: "hidden @5xl/card:flex",
+    SELECT: "flex w-full @5xl/card:hidden",
+    WRAP: "flex w-full @5xl/card:w-auto",
+  },
 } as const;
 
 /** Literal strings only — see the header comment. Never interpolate. */
-export const segmentedBreakpoint = (step: "lg" | "xl" | "2xl" = "2xl") =>
-  SEGMENTED_BREAKPOINTS[step];
+export const segmentedBreakpoint = (
+  step: "lg" | "xl" | "2xl" | "5xl" = "2xl",
+) => SEGMENTED_BREAKPOINTS[step];
 
 /** The dropdown trigger for rows that stay a Select at every width. */
 export const SELECT_TRIGGER =

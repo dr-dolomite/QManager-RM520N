@@ -91,10 +91,16 @@ export interface SegmentedFieldProps<T extends string> {
    * The card container step the pill-group / Select switch keys off
    * (default `"2xl"`). A surface whose cards are narrower than the family
    * default — the basic settings page's two half-width cards — passes `"lg"`
-   * so the pill group survives where it already fits. See
-   * `segmentedBreakpoint()` in shapes.ts.
+   * so the pill group survives where it already fits.
+   *
+   * It runs the other way too: a row with FOUR options (or five, once the
+   * modem's own unoffered value is prepended) passes `"5xl"`, because a 452px
+   * track beside the row's text column starves the consequence line at every
+   * width between the row's own 672px flip and ~1024px. The step is a property
+   * of the ROW, not of the surface. See `segmentedBreakpoint()` in shapes.ts
+   * for the measurements.
    */
-  breakpoint?: "lg" | "xl" | "2xl";
+  breakpoint?: "lg" | "xl" | "2xl" | "5xl";
   className?: string;
 }
 

@@ -25,7 +25,10 @@ import type {
 } from "@/types/cellular-settings";
 import type { UseCellularSettingsReturn } from "@/hooks/use-cellular-settings";
 
-import SegmentedField, { type SegmentedOption } from "./segmented-field";
+import SegmentedField, {
+  type SegmentedFieldProps,
+  type SegmentedOption,
+} from "./segmented-field";
 import SettingRow from "./setting-row";
 import {
   CARD_NOTICE,
@@ -69,12 +72,21 @@ import {
 // The incumbent label ("Radio Off") was already correct and is kept. It also
 // avoids colliding with the removed Low Power Mode feature by name.
 //
-// ON THE SEGMENTED BREAKPOINT. These two cards are roughly half the width of
-// the single card they replace, so `SegmentedField` is told to keep its pill
-// group down to the card's `lg` step instead of the family default `2xl` —
-// otherwise the primary control would silently become a Select on desktop
-// widths where the old layout showed the pill group. See
-// `segmentedBreakpoint()` in shapes.ts.
+// ON THE SEGMENTED BREAKPOINT, WHICH IS A PROPERTY OF THE ROW. These two cards
+// are roughly half the width of the single card they replace, so most rows keep
+// their pill group down to the card's `lg` step instead of the family default
+// `2xl` — otherwise the primary control would silently become a Select on
+// desktop widths where the old layout showed the pill group.
+//
+// `mode_pref` runs the opposite way and takes `5xl`. It is the only four-way
+// row, it renders FIVE segments when the modem sits on a value we do not offer,
+// and its 452px track (625px at five) starves the row's text column at every
+// width between the row's own 672px stacked/side-by-side flip and ~1024px —
+// measured at 0px of text and a 249px row. Reserving the check glyph on every
+// segment is what widened the track from ~386px and turned that from a latent
+// problem into a visible one. The step therefore travels on the RowDef rather
+// than being special-cased at the JSX site. See `segmentedBreakpoint()` in
+// shapes.ts for the sweep.
 // =============================================================================
 
 export interface CellularSettingsCardProps {
@@ -91,7 +103,32 @@ interface RowDef {
   options: SegmentedOption<string>[];
   value: string;
   onValueChange: (next: string) => void;
+  /**
+   * The card step this row's pill group survives down to. Omitted means
+   * `ROW_BREAKPOINT`, which is every row but `mode_pref` — the widest control
+   * carries its own step rather than the JSX site special-casing one key.
+   */
+  breakpoint?: SegmentedFieldProps<string>["breakpoint"];
 }
+
+/**
+ * The step every row keeps unless it says otherwise. These two cards are half
+ * the width of the single card they replaced, so the family default `2xl`
+ * would demote a two- or three-segment pill group to a Select at desktop
+ * widths where it fits comfortably.
+ */
+const ROW_BREAKPOINT = "lg" as const;
+
+/**
+ * The step for `mode_pref` alone — the only four-way row, and the only one
+ * that renders FIVE segments when the modem reports a value we do not offer.
+ * Its track is 452px (625px at five), which starves the row's text column at
+ * every width between the row's own 672px stacked/side-by-side flip and
+ * ~1024px. Below `@5xl/card` it falls back to its Select, which is bound to
+ * the same state. See `segmentedBreakpoint()` in shapes.ts for the measured
+ * sweep and for why 64rem rather than 56rem.
+ */
+const WIDE_ROW_BREAKPOINT = "5xl" as const;
 
 export function CellularSettingsCard({
   form,
@@ -302,6 +339,7 @@ export function CellularSettingsCard({
       options: modePrefOptions,
       value: draft.mode_pref,
       onValueChange: (next) => setField("mode_pref", next as ModePref),
+      breakpoint: WIDE_ROW_BREAKPOINT,
     },
     {
       key: "nr5g_mode",
@@ -359,11 +397,13 @@ export function CellularSettingsCard({
                       ariaLabel={row.label}
                       disabled={isSaving}
                       onFill={rowDirty(row.key)}
-                      // These two cards are half the width of the single card
-                      // they replaced — keep the pill group down to the card's
-                      // `lg` step instead of the family default. See the
-                      // header comment and `segmentedBreakpoint()`.
-                      breakpoint="lg"
+                      // Per ROW, not per card: `ROW_BREAKPOINT` keeps the two-
+                      // and three-segment groups down to the card's `lg` step
+                      // (these cards are half the width of the one they
+                      // replaced), while `mode_pref` declares its own wider
+                      // step because its track is the one that starves the
+                      // text column. See both constants above.
+                      breakpoint={row.breakpoint ?? ROW_BREAKPOINT}
                     />
                   }
                 />
