@@ -21,17 +21,14 @@ import { SETTING_ROW, SETTING_ROW_DIRTY } from "./shapes";
 // preference looked identical. A row with no consequence has not been finished.
 //
 // -----------------------------------------------------------------------------
-// PROMOTION, AND THE INK THAT COMES WITH IT
+// DIRTY STATE IS THE CHIP'S JOB, NOT THE ROW'S
 // -----------------------------------------------------------------------------
-// A row holding an unsaved edit promotes to `primary-container`. Promotion is
-// the brand ACTING — a pending edit is an action awaiting commit — and never a
-// functional role, because a dirty row is not "good" or "degraded".
-//
-// The whole row's ink flips to `on-primary-container`, so the consequence line
-// must drop `text-on-surface-variant`. Leaving it would put one role's ink on
-// another role's container, which is the most common way this pattern fails and
-// is invisible in light mode while unreadable in dark. `CONSEQUENCE_ON_FILL`
-// exists for exactly that swap.
+// A row holding an unsaved edit used to promote its whole body to
+// `primary-container`. Retired 2026-08-30 (docs/reference/
+// cellular-settings-family.md): the delta chip below is already `bg-primary`,
+// so a full-row fill restated the same "this is a pending edit" fact a second
+// time on one row. The row now stays neutral in both states and `dirty` exists
+// only to gate the chip's text and the `data-dirty` attribute.
 //
 // -----------------------------------------------------------------------------
 // THE DELTA CHIP IS RESERVED HORIZONTALLY, NOT VERTICALLY
@@ -63,10 +60,6 @@ import { SETTING_ROW, SETTING_ROW_DIRTY } from "./shapes";
 // teleported vertically and then glided horizontally. That is what the line
 // reservation fixed, and moving to a horizontal reservation keeps the fix — see
 // `SETTING_ROW` in shapes.ts for the one narrow case that survives it.
-//
-// The fill itself IS animated — a `standard` colour transition, which is legal
-// and is what makes the promotion feel like a state change rather than a
-// repaint.
 // =============================================================================
 
 export interface SettingRowProps {
@@ -103,15 +96,7 @@ export function SettingRow({
 
   return (
     <div
-      className={cn(
-        SETTING_ROW.ROOT,
-        // Two clocks, both named: the fill is the promotion itself, the ink
-        // follows it. Never `transition-all` — that would silently pick up the
-        // layout properties this row deliberately does not animate.
-        "transition-[background-color,color] duration-[--duration-standard] ease-[--ease-standard]",
-        dirty && SETTING_ROW_DIRTY.ROOT,
-        className,
-      )}
+      className={cn(SETTING_ROW.ROOT, className)}
       data-dirty={dirty ? "true" : undefined}
     >
       <div className={SETTING_ROW.TEXT}>
@@ -136,15 +121,7 @@ export function SettingRow({
             {deltaText}
           </span>
         </div>
-        <span
-          className={
-            dirty
-              ? SETTING_ROW_DIRTY.CONSEQUENCE_ON_FILL
-              : SETTING_ROW.CONSEQUENCE
-          }
-        >
-          {consequence}
-        </span>
+        <span className={SETTING_ROW.CONSEQUENCE}>{consequence}</span>
       </div>
 
       <div className={SETTING_ROW.CONTROL}>{control}</div>

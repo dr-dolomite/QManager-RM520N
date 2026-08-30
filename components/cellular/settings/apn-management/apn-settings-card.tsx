@@ -48,12 +48,10 @@ import {
   CARD_PAD,
   CARD_SHELL,
   FIELD_SHELL,
-  FIELD_SHELL_ON_FILL,
   PILL_ACTION,
   ROW_GROUP,
   SAVE_BAR,
   SELECT_TRIGGER,
-  SELECT_TRIGGER_ON_FILL,
   SETTING_ROW,
 } from "../shapes";
 
@@ -128,8 +126,6 @@ const FALLBACK_CIDS = [1, 2, 3, 4, 5, 6] as const;
  * field were already filled.
  */
 const APN_INPUT = cn(FIELD_SHELL, "@2xl/card:w-[16.25rem]");
-
-const APN_INPUT_ON_FILL = cn(FIELD_SHELL_ON_FILL, "@2xl/card:w-[16.25rem]");
 
 export function ApnSettingsCard({
   apn,
@@ -315,7 +311,7 @@ export function ApnSettingsCard({
                       if (apnError) setApnError("");
                     }}
                     disabled={isSaving}
-                    className={apnDirty ? APN_INPUT_ON_FILL : APN_INPUT}
+                    className={APN_INPUT}
                   />
                   {apnError ? (
                     <span
@@ -347,7 +343,6 @@ export function ApnSettingsCard({
                   options={pdpOptions}
                   ariaLabel={t(`${K}.rows.pdp_type.label`)}
                   disabled={isSaving}
-                  onFill={pdpDirty}
                 />
               }
             />
@@ -370,9 +365,7 @@ export function ApnSettingsCard({
                     <SelectTrigger
                       id="apn-cid"
                       aria-labelledby="apn-cid-label"
-                      className={
-                        cidDirty ? SELECT_TRIGGER_ON_FILL : SELECT_TRIGGER
-                      }
+                      className={SELECT_TRIGGER}
                     >
                       <SelectValue
                         placeholder={t(

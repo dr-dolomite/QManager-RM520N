@@ -36,7 +36,6 @@ import {
   CARD_PAD,
   CARD_SHELL,
   FIELD_SHELL,
-  FIELD_SHELL_ON_FILL,
   INLINE_ERROR,
   PILL_ACTION,
   READOUT_ROW,
@@ -72,12 +71,6 @@ import {
 // scoped classes survive tailwind-merge against unprefixed ones, so the field
 // silently reverts in dark mode and above 768px.
 //
-// The field is composed from the shared PAIR (`FIELD_SHELL` /
-// `FIELD_SHELL_ON_FILL`) rather than from the neutral shell alone. Typing in
-// this field is exactly what promotes its row to `primary-container`, so a
-// field that kept the neutral `surface-container-high` fill would render as a
-// dead grey hole punched in the brand fill for the entire time the user is
-// entering an IMEI. The counter beside it moves for the same reason.
 // =============================================================================
 
 export interface IMEISettingsCardProps {
@@ -275,26 +268,14 @@ const IMEISettingsCard = ({
                           ? "imei-write-luhn-error"
                           : "imei-write-status"
                     }
-                    className={cn(
-                      writeDirty ? FIELD_SHELL_ON_FILL : FIELD_SHELL,
-                      "@2xl/card:w-[14.5rem]",
-                    )}
+                    className={cn(FIELD_SHELL, "@2xl/card:w-[14.5rem]")}
                   />
                   {/* A count that changes while the user watches is the
                       interface speaking, not the machine — sans + tabular-nums,
-                      never mono (The Machine-Voice Rule).
-
-                      The ink moves with the row, mirroring
-                      `SETTING_ROW_DIRTY.CONSEQUENCE_ON_FILL` one element away:
-                      `on-surface-variant` on a `primary-container` row is the
-                      cross-pair the shapes file names as this surface's most
-                      common failure. */}
+                      never mono (The Machine-Voice Rule). */}
                   <span
                     aria-hidden="true"
-                    className={cn(
-                      "flex-none text-[0.78125rem] tabular-nums",
-                      writeDirty ? "opacity-90" : "text-on-surface-variant",
-                    )}
+                    className="flex-none text-[0.78125rem] tabular-nums text-on-surface-variant"
                   >
                     {imei.length}/15
                   </span>

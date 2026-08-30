@@ -15,12 +15,7 @@ import { MaterialSymbol } from "@/components/ui/material-symbol";
 import { transitionStandard } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 
-import {
-  SEGMENTED,
-  segmentedBreakpoint,
-  SELECT_TRIGGER,
-  SELECT_TRIGGER_ON_FILL,
-} from "./shapes";
+import { SEGMENTED, segmentedBreakpoint, SELECT_TRIGGER } from "./shapes";
 
 // =============================================================================
 // SegmentedField — a pill group above the card breakpoint, a Select below it
@@ -82,12 +77,6 @@ export interface SegmentedFieldProps<T extends string> {
   ariaLabel: string;
   disabled?: boolean;
   /**
-   * True when the row is promoted (holds an unsaved edit). Drops the track's
-   * own fill — the row is already the tonal container, so a second fill behind
-   * the segments is redundant. See `SEGMENTED.TRACK_ON_FILL`.
-   */
-  onFill?: boolean;
-  /**
    * The card container step the pill-group / Select switch keys off
    * (default `"2xl"`). A surface whose cards are narrower than the family
    * default — the basic settings page's two half-width cards — passes `"lg"`
@@ -110,7 +99,6 @@ export function SegmentedField<T extends string>({
   options,
   ariaLabel,
   disabled = false,
-  onFill = false,
   breakpoint = "2xl",
   className,
 }: SegmentedFieldProps<T>) {
@@ -132,10 +120,7 @@ export function SegmentedField<T extends string>({
         spacing={1}
         disabled={disabled}
         aria-label={ariaLabel}
-        className={cn(
-          onFill ? SEGMENTED.TRACK_ON_FILL : SEGMENTED.TRACK,
-          bp.GROUP,
-        )}
+        className={cn(SEGMENTED.TRACK, bp.GROUP)}
       >
         {options.map((option) => {
           const isActive = option.value === value;
@@ -143,9 +128,7 @@ export function SegmentedField<T extends string>({
             <ToggleGroupItem
               key={option.value}
               value={option.value}
-              className={
-                onFill ? SEGMENTED.SEGMENT_ON_FILL : SEGMENTED.SEGMENT
-              }
+              className={SEGMENTED.SEGMENT}
             >
               {isActive ? (
                 <motion.span
@@ -183,10 +166,7 @@ export function SegmentedField<T extends string>({
       >
         <SelectTrigger
           aria-label={ariaLabel}
-          className={cn(
-            onFill ? SELECT_TRIGGER_ON_FILL : SELECT_TRIGGER,
-            bp.SELECT,
-          )}
+          className={cn(SELECT_TRIGGER, bp.SELECT)}
         >
           <SelectValue>{activeLabel}</SelectValue>
         </SelectTrigger>

@@ -36,7 +36,6 @@ import {
   CARD_PAD,
   CARD_SHELL,
   FIELD_SHELL,
-  FIELD_SHELL_ON_FILL,
   INLINE_ERROR,
   PILL_ACTION,
   ROW_GROUP,
@@ -58,11 +57,8 @@ import {
 // and reports inline, exactly like the device field, because the two fields do
 // the same job and a user who learns one should not have to learn the other.
 //
-// The field shape comes from the shared `FIELD_SHELL` / `FIELD_SHELL_ON_FILL`
-// pair in `../shapes`, which is also where the note about not using
-// `components/ui/input.tsx` lives. The pair is not optional here: typing in this
-// field is what promotes its row, so the neutral shell alone would paint a dead
-// grey hole in the brand fill for the whole edit.
+// The field shape comes from the shared `FIELD_SHELL` in `../shapes`, which is
+// also where the note about not using `components/ui/input.tsx` lives.
 // =============================================================================
 
 export interface BackupIMEICardProps {
@@ -225,21 +221,13 @@ const BackupIMEICard = ({
                               ? "backup-imei-luhn-error"
                               : undefined
                         }
-                        className={cn(
-                          valueDirty ? FIELD_SHELL_ON_FILL : FIELD_SHELL,
-                          "@2xl/card:w-[14.5rem]",
-                        )}
+                        className={cn(FIELD_SHELL, "@2xl/card:w-[14.5rem]")}
                       />
                       {/* Sans + tabular-nums, never mono: a count that changes
-                          while the user watches is the interface speaking. The
-                          ink moves with the row for the same reason the
-                          consequence line does. */}
+                          while the user watches is the interface speaking. */}
                       <span
                         aria-hidden="true"
-                        className={cn(
-                          "flex-none text-[0.78125rem] tabular-nums",
-                          valueDirty ? "opacity-90" : "text-on-surface-variant",
-                        )}
+                        className="flex-none text-[0.78125rem] tabular-nums text-on-surface-variant"
                       >
                         {imei.length}/15
                       </span>

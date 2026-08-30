@@ -343,8 +343,8 @@ for sym in PAGE_TITLE PAGE_DESCRIPTION; do
         ok "$sym is retired"
     fi
 done
-# FIELD_INPUT may SURVIVE as a module-private const -- FIELD_SHELL and
-# FIELD_SHELL_ON_FILL compose it, and those two are the real exported API.
+# FIELD_INPUT may SURVIVE as a module-private const -- FIELD_SHELL composes it,
+# and that is the real exported API.
 if grep -qE "^export const FIELD_INPUT\b" "$SHAPES"; then
     bad "shapes.ts still EXPORTS FIELD_INPUT -- it has no importer; make it module-private"
 else
@@ -358,14 +358,22 @@ else
     grep -n 'FIELD_INPUT' "$SHAPES" | show
     bad "FIELD_INPUT is referenced but neither exported nor declared module-private"
 fi
-# The two composites it feeds must survive -- imei-settings-card.tsx imports one.
-for sym in FIELD_SHELL FIELD_SHELL_ON_FILL; do
-    if grep -qE "^export const $sym\b" "$SHAPES"; then
-        ok "$sym is KEPT (it is the exported API, and has live importers)"
-    else
-        bad "$sym was deleted -- that is a live import site, a regression"
-    fi
-done
+# FIELD_SHELL must survive -- imei-settings-card.tsx imports it.
+if grep -qE "^export const FIELD_SHELL\b" "$SHAPES"; then
+    ok "FIELD_SHELL is KEPT (it is the exported API, and has live importers)"
+else
+    bad "FIELD_SHELL was deleted -- that is a live import site, a regression"
+fi
+# FIELD_SHELL_ON_FILL was retired 2026-08-30 in the SAME PASS as
+# SETTING_ROW_DIRTY.ROOT (see cellular-settings-family.md): rows no longer
+# promote to primary-container, so no control ever needs an on-fill twin.
+# Its absence is the fix, not a regression -- assert the opposite of [9]'s
+# original intent.
+if grep -qE "^export const FIELD_SHELL_ON_FILL\b" "$SHAPES"; then
+    bad "FIELD_SHELL_ON_FILL still exported -- rows no longer promote, so this dead twin should be gone"
+else
+    ok "FIELD_SHELL_ON_FILL is retired (rows no longer promote to primary-container)"
+fi
 
 # -----------------------------------------------------------------------------
 printf '\n[10] The route shell mounts the two new bands and nothing of the hero\n'

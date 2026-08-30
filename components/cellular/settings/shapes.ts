@@ -43,14 +43,20 @@ import type { MaterialSymbolName } from "@/components/ui/material-symbol";
 // -----------------------------------------------------------------------------
 // THE TONE RULE ON THIS SURFACE
 // -----------------------------------------------------------------------------
-// Rows are neutral at rest and PROMOTE to `primary-container` when dirty. That
-// promotion is the brand acting — a pending edit is an action awaiting commit,
-// which is precisely what `primary` means here. It is NOT a status; a dirty row
-// is not "good" or "warning". No functional role may be used for pendingness.
+// Rows stay NEUTRAL at rest and while dirty. The DELTA_CHIP ("SIM 1 -> SIM 2")
+// is the row's one indicator of an unsaved edit — a `bg-primary` pill is
+// already the brand acting, and repeating that signal as a full-row
+// `primary-container` fill restated the same fact twice on one row.
+//
+// This was a promote-on-dirty container fill until 2026-08-30: see
+// docs/reference/cellular-settings-family.md's "Rows are neutral..." section
+// for the retired rule and why it existed. Removing it also retired every
+// `_ON_FILL` control twin it required (`SEGMENTED.SEGMENT_ON_FILL` /
+// `.TRACK_ON_FILL`, `SELECT_TRIGGER_ON_FILL`, `FIELD_SHELL_ON_FILL`) — a
+// control never needs an ink pair for a container it can no longer sit on.
 //
 // No row carries a border. Separation between rows is a hairline DIVIDER inside
-// the group (`bg-surface-container-high`), and a promoted row drops the divider
-// by covering it — never by drawing an outline (The No-Hairline-On-Fill Rule).
+// the group (`bg-surface-container-high`).
 // =============================================================================
 
 // -----------------------------------------------------------------------------
@@ -561,16 +567,17 @@ export const SETTING_ROW = {
 export const CARD_NOTICE = `${SETTING_ROW.ROOT} ${SETTING_ROW.CONSEQUENCE}`;
 
 /**
- * A row promoted because it holds an unsaved edit.
+ * Tone for a row holding an unsaved edit. The row itself no longer promotes —
+ * `DELTA_CHIP` is the sole indicator now, so this is a single-key object
+ * rather than a retired name; see the shapes.ts header's Tone Rule note.
  *
- * The ink flips to `on-primary-container` for the whole row, so the consequence
- * line must NOT keep `text-on-surface-variant` — that is a cross-pair, one
- * role's ink on another role's container, and it is the most common way this
- * pattern goes wrong. Consumers apply CONSEQUENCE_ON_FILL instead.
+ * `CONSEQUENCE_ON_FILL` also survives as a general ink-on-`primary-container`
+ * utility for a PERMANENT accent block unrelated to row dirtiness — see
+ * `imei-tools-card.tsx`'s check-digit cell. Do not read its name as implying a
+ * dirty row; it predates that block and the block kept it.
  */
 export const SETTING_ROW_DIRTY = {
-  ROOT: "bg-primary-container text-on-primary-container",
-  /** The consequence line when the row is promoted. */
+  /** Ink for text sitting on a permanent `bg-primary-container` block. */
   CONSEQUENCE_ON_FILL: "text-[0.78125rem] leading-relaxed text-pretty opacity-90",
   /**
    * The "before -> after" chip. Machine-voice: these are literal setting values,
@@ -612,33 +619,8 @@ export const SETTING_ROW_DIRTY = {
  */
 export const SEGMENTED = {
   TRACK: "flex rounded-pill bg-surface-container-high p-1",
-  /**
-   * The same track on a PROMOTED row, which drops its fill entirely.
-   *
-   * An earlier draft wrote `bg-primary/25` here. That is an alpha wash — the
-   * exact thing this file's Tone Rule forbids — and it was reached for because
-   * the brand ramp has no `--tone-primary-*` steps to step up into. The absence
-   * is the canon telling you the answer is different, not that you should
-   * invent one with opacity: on a promoted row the ROW is already the tonal
-   * container, so a second fill behind the segments is redundant. Only the
-   * travelling thumb paints, and it reads correctly against the container.
-   */
-  TRACK_ON_FILL: "flex rounded-pill p-1",
   SEGMENT:
     "relative h-[2.125rem] gap-1.5 rounded-pill px-4 text-[0.84375rem] font-medium text-on-surface-variant hover:bg-transparent hover:text-on-surface data-[state=on]:bg-transparent data-[state=on]:font-semibold data-[state=on]:text-primary-foreground",
-  /**
-   * The same segment on a PROMOTED row.
-   *
-   * The inactive ink MUST change with the container. `SEGMENT` carries
-   * `text-on-surface-variant`, which is the ink for a NEUTRAL surface; leaving
-   * it on a `primary-container` row puts one role's ink on another role's
-   * container — the exact cross-pair this file's Tone Rule names, and one this
-   * file shipped anyway until it was seen on screen. Inactive segments take
-   * `on-primary-container`; the active one keeps `primary-foreground`, since
-   * its own `bg-primary` thumb is what it sits on.
-   */
-  SEGMENT_ON_FILL:
-    "relative h-[2.125rem] gap-1.5 rounded-pill px-4 text-[0.84375rem] font-medium text-on-primary-container hover:bg-transparent hover:text-on-primary-container data-[state=on]:bg-transparent data-[state=on]:font-semibold data-[state=on]:text-primary-foreground",
   /** The travelling fill. */
   THUMB: "absolute inset-0 rounded-pill bg-primary",
   /** Label sits above the thumb. */
@@ -830,40 +812,8 @@ const FIELD_INPUT = [
   "disabled:cursor-not-allowed disabled:opacity-50",
 ].join(" ");
 
-/**
- * The same trigger on a PROMOTED row.
- *
- * Same cross-pair trap as `SEGMENTED.SEGMENT_ON_FILL`, one level down and
- * easier to miss: it only appears BELOW the segmented breakpoint, so on a
- * desktop review the Select is never on screen at the moment a row is dirty.
- * A neutral `surface-container-high` fill on a `primary-container` row reads as
- * a dead grey hole punched in the brand fill. `bg-primary` with its own
- * `primary-foreground` ink is the pair that belongs there.
- */
-export const SELECT_TRIGGER_ON_FILL =
-  "h-[2.625rem] w-full rounded-pill border-0 bg-primary px-4 text-[0.84375rem] font-medium text-primary-foreground @2xl/card:w-auto";
-
-/**
- * A complete text field, at rest and promoted. Compose with a width and nothing
- * else.
- *
- * THESE EXIST AS A PAIR BECAUSE THE FIELD IS WHAT MAKES THE ROW DIRTY. Every
- * other control on this surface got an `_ON_FILL` variant the moment it could
- * land on a promoted row, and a free-text field is the one control where that
- * is guaranteed rather than possible: the user typing in it is precisely what
- * flips the row to `primary-container`. A field that keeps the neutral
- * `surface-container-high` fill there is a dead grey hole punched in the brand
- * fill — the same failure `SELECT_TRIGGER_ON_FILL` above documents, except that
- * one only surfaces below the segmented breakpoint while this one is visible at
- * every width, on the primary interaction of the card.
- *
- * The placeholder ink has to move too, and it must be appended LAST: it lands
- * in the same tailwind-merge group as `FIELD_INPUT`'s own placeholder colour,
- * so order decides the winner.
- */
+/** A complete text field. Compose with a width and nothing else. */
 export const FIELD_SHELL = `${SELECT_TRIGGER} ${FIELD_INPUT}`;
-
-export const FIELD_SHELL_ON_FILL = `${SELECT_TRIGGER_ON_FILL} ${FIELD_INPUT} placeholder:text-primary-foreground/70`;
 
 /**
  * Inline validation copy on a plain card.
@@ -1238,13 +1188,12 @@ export const AMBR_BLOCK = {
  * so on a dark block the arrow is the information and the hue is reinforcement.
  *
  * ON THE FILL CHOICE. An earlier draft wrote `bg-lte/25` and `bg-primary/25`.
- * Both are alpha washes and both are wrong for the same reason as
- * `SEGMENTED.TRACK_ON_FILL` above. The correct move for a chip that must lift
- * off a CONTAINER is the role's own FILL pair — `bg-downlink` carries
- * `text-downlink-foreground`, `bg-uplink` carries `text-uplink-foreground`. That is
- * a real pair in both themes, where an alpha is a different perceived
- * lightness in each. Note the pairs are declared here, so consumers must NOT
- * also set an ink class on the chip.
+ * Both are alpha washes, and this file's Tone Rule forbids them: an alpha is a
+ * different perceived lightness in each theme. The correct move for a chip
+ * that must lift off a CONTAINER is the role's own FILL pair — `bg-downlink`
+ * carries `text-downlink-foreground`, `bg-uplink` carries
+ * `text-uplink-foreground`, a real pair in both themes. Note the pairs are
+ * declared here, so consumers must NOT also set an ink class on the chip.
  */
 export const RATE_CHIP = {
   ROOT: "inline-flex h-[1.875rem] items-center gap-1.5 rounded-pill px-3 font-mono text-[0.8125rem] font-semibold tabular-nums",

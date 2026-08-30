@@ -396,7 +396,6 @@ export function CellularSettingsCard({
                       options={row.options}
                       ariaLabel={row.label}
                       disabled={isSaving}
-                      onFill={rowDirty(row.key)}
                       // Per ROW, not per card: `ROW_BREAKPOINT` keeps the two-
                       // and three-segment groups down to the card's `lg` step
                       // (these cards are half the width of the one they

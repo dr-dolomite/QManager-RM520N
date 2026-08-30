@@ -73,18 +73,15 @@ A comment correction rode along: `shapes.ts` claimed the basic-settings page hel
 
 ## The shared contract
 
-### Rows are neutral at rest and promote to `primary-container` when dirty
+### Rows stay neutral, dirty or not — the delta chip is the sole indicator
 
-A setting row with an unsaved edit gets `bg-primary-container text-on-primary-container`. That promotion is **the brand acting** — a pending edit is an action awaiting commit, which is exactly what `primary` means in this system.
+> ⚠️ WARNING: **Retired 2026-08-30.** Until then, a setting row with an unsaved edit got `bg-primary-container text-on-primary-container` — "promotion", reasoned as *the brand acting*. That reasoning was sound on its own, but it duplicated a signal the row already carried: `SETTING_ROW_DIRTY.DELTA_CHIP` ("SIM 1 → SIM 2") is itself `bg-primary`, so a dirty row said "this is pending" twice — once on the chip, once again on its own body. User-flagged on `/cellular/settings`'s SIM Slot row and closed product-wide (all five routes share `SETTING_ROW`), per Product Principle 4 rather than as a one-page exception. See [DESIGN.md](../../DESIGN.md)'s Migration Deltas for the landed entry.
+>
+> Rows now render identically in both states. `dirty` still exists on `SettingRow` — it gates the chip's text and a `data-dirty` attribute — but no longer touches the row's own classes.
 
-**It is not a status.** A dirty row is neither "good" nor "warning", so no functional role (`success` / `warning` / `destructive`) may ever be spent on pendingness. This is the same Functional-Color Promise DESIGN.md states: a user learns one meaning for red once, and a surface that reuses it for something else breaks that lesson everywhere.
+Every control's `_ON_FILL` twin the promotion required is **deleted along with it**: `SEGMENTED.SEGMENT_ON_FILL` / `.TRACK_ON_FILL`, `SELECT_TRIGGER_ON_FILL`, `FIELD_SHELL_ON_FILL`, and `SegmentedField`'s `onFill` prop. None of them had a reason to exist once no row can promote — a control never needs an ink pair for a container it can no longer sit on. `SETTING_ROW_DIRTY.CONSEQUENCE_ON_FILL` is the one survivor, because it turned out to also be backing an unrelated *permanent* `primary-container` accent cell (`imei-tools-card.tsx`'s IMEI check-digit breakdown) that was never conditional on dirtiness in the first place.
 
-Two consequences that are easy to get wrong:
-
-- **Every control that can land on a promoted row needs an `_ON_FILL` twin.** `SEGMENTED.SEGMENT_ON_FILL`, `SELECT_TRIGGER_ON_FILL`, `FIELD_SHELL_ON_FILL` all exist because leaving the neutral variant in place puts one role's ink (or fill) on another role's container — a *cross-pair*, and the single most common way this pattern goes wrong.
-- **No row carries a border.** Rows are separated by a hairline divider *inside* the group (`ROW_GROUP.DIVIDER`); a promoted row drops the divider by covering it, never by drawing an outline.
-
-Compute the dirty flag **once** and pass it to both the row and its control. Computing it twice is how the IMEI field ended up neutral on a promoted row.
+**No row carries a border**, still. Rows are separated by a hairline divider *inside* the group (`ROW_GROUP.DIVIDER`).
 
 ### `RATE_CHIP`: direction is not a radio
 
