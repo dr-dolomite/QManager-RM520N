@@ -50,10 +50,15 @@ The two modes are **mutually exclusive** (CGI-enforced; enabling one disables th
 
 **`qmanager_dpi_run --clear` is the authoritative teardown** — it drains the rule (`dpi_remove_rule`, up to 16 `-D` passes) and then stops `qmanager-dpi`. It is the only supported way to remove the rule; do not hand-write an `iptables -D` in a caller.
 
-> **The one carved-out exception: `_dpi_uninstall_run` in `qmanager_dpi_install`.** The UI-driven `uninstall` verb hand-writes its own two `-D` calls rather than calling `dpi_remove_rule`, and that is deliberate — it also drains a `nat OUTPUT` rule (`-p tcp --dport 443 -j REDIRECT`) that `dpi_state.sh` does not manage at all. `dpi_remove_rule` only touches `PREROUTING`, so "just call the library" would silently drop that second drain. Two consequences worth knowing:
+**There is no exception, as of 2026-08-30.** `_dpi_uninstall_run` in `qmanager_dpi_install` — the UI-driven `uninstall` verb — calls `dpi_remove_rule` like everyone else, so both uninstall paths run the *same code* rather than two copies kept in sync.
+
+> **How it got here (F19), and the rule to keep.** `_dpi_uninstall_run` used to hand-write its own two `-D` calls, because it also drained a `nat OUTPUT` rule (`-p tcp --dport 443 -j REDIRECT`) that `dpi_state.sh` does not manage. `dpi_remove_rule` only touches `PREROUTING`, so the two uninstall paths drained different chains: `uninstall_rm520n.sh` → `qmanager_dpi_run --clear` never cleared OUTPUT at all.
 >
-> - **The port must still be read from `$DPI_PORT`, never restated.** `qmanager_dpi_install` sources `dpi_state.sh`, so the constant is in scope (the same function already uses `$DPI_BINARY` and `dpi_binary_installed`). Both drains hardcoded `--to-ports 989` until 2026-08-30 — the same defect as F16 below, and worse here, because a teardown that matches nothing leaves every LAN client redirected to a dead port. Pinned behaviourally by `scripts/test/dpi-rule-signature-port.sh` section [3].
-> - **The two uninstall paths are asymmetric.** `uninstall_rm520n.sh` goes through `qmanager_dpi_run --clear`, so the full-device uninstall never drains that OUTPUT rule. This is currently inert: nothing in the tree ever *inserts* it — the `-D` at `qmanager_dpi_install:104` is its only repo-wide reference, a defensive drain left over from an earlier design. It becomes real the moment anything starts creating that rule again.
+> The OUTPUT drain was **deleted** rather than promoted into the lib. The decisive fact is that nothing in the tree, and nothing in git history, has ever *inserted* that rule: the `-D` arrived already orphaned in `71db6b9`, the same commit that first wrote `_dpi_uninstall_run`. It was speculative from birth, not a migration for previously-shipped device state — so no real device can be carrying the rule it drained. Promoting it would have put a drain in the shared lib for a rule `dpi_apply_rule` never inserts.
+>
+> - ⚠️ **If a modem-originated OUTPUT redirect is ever needed again, add it to `dpi_apply_rule` AND `dpi_remove_rule` in the lib — never re-inline it in the installer.** `scripts/test/dpi-uninstall-path-symmetry.sh` pins both halves: section [1] goes red the moment anything inserts a `nat OUTPUT` rule (which is what makes the delete legitimate), section [2] compares the table/chain set the two uninstall paths actually drain, under a stubbed `iptables`.
+> - **The port is read from `$DPI_PORT`, never restated.** `qmanager_dpi_install` sources `platform.sh` and `dpi_state.sh`, so `run_iptables` and the constant are both in scope. The old inlined drains hardcoded `--to-ports 989` until 2026-08-30 — the same defect as F16 below, and worse here, because a teardown that matches nothing leaves every LAN client redirected to a dead port. Pinned behaviourally by `scripts/test/dpi-rule-signature-port.sh` section [3], which now runs the teardown through a `DPI_PORT`-patched copy of the lib end-to-end.
+> - **The drain also got stronger.** The old inlined `-D` fired once; `dpi_remove_rule` loops up to 16 passes, so stacked duplicate rules (what a drifted `DPI_PORT` produces) now clear on the UI path too.
 
 `scripts/uninstall_rm520n.sh` calls it in **Step 1**, beside the three arm-helper `teardown` calls. The ordering is load-bearing: it must run **before Step 3** removes `/usr/bin/qmanager_dpi_run` and the `/usr/lib/qmanager/dpi_state.sh` it sources, and **before Step 5** removes `$QMANAGER_ROOT/bin` (the tpws binary). The call is guarded on `[ -x "$BIN_DIR/qmanager_dpi_run" ]` and `|| true`, so an install that never had the Traffic Engine is a clean no-op.
 
@@ -98,7 +103,8 @@ The engine is **TCP-only**: `tpws` desyncs TLS/HTTP handshakes, and the transpar
 - `scripts/usr/bin/qmanager_dpi_verify` — speed comparison helper (fast.com + speedtest.net/Cloudflare reference)
 - `scripts/uninstall_rm520n.sh` — Step 1 calls `qmanager_dpi_run --clear` (see Teardown)
 - `scripts/test/installer-teardown-lockstep.sh` — harness pinning that call
-- `scripts/test/dpi-rule-signature-port.sh` — harness pinning `DPI_RULE_SIG` and both `_dpi_uninstall_run` drains to `$DPI_PORT`
+- `scripts/test/dpi-rule-signature-port.sh` — harness pinning `DPI_RULE_SIG` and the `_dpi_uninstall_run` teardown to `$DPI_PORT`
+- `scripts/test/dpi-uninstall-path-symmetry.sh` — harness pinning that the UI and full-device uninstall paths drain the same chains (F19)
 - `scripts/www/cgi-bin/quecmanager/network/video_optimizer.sh` — CGI (status / save / save_masquerade / save_force_tcp / verify / install / save_hostlist)
 - `app/local-network/traffic-engine/` + `components/local-network/traffic-engine/` — frontend
 - `hooks/use-video-optimizer.ts`, `hooks/use-traffic-masquerade.ts`, `hooks/use-force-tcp.ts`, `hooks/use-cdn-hostlist.ts`
