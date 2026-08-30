@@ -38,12 +38,36 @@ Nothing in that rebuild touched a CGI script, a systemd unit, the installer, or 
 | `REORDER_ROW` | Network Priority's draggable rank rows |
 | `RANK_PILL`, `RAT_RANK_TONE` | Network Priority's rank numeral |
 | `CHOICE_ROW` | APN Management's MBN bundle list |
-| `FIELD_INPUT` | Any free-text field on the family |
+| ~~`FIELD_INPUT`~~ | **No longer exported** as of 2026-08-30 — it is module-private, and the two `FIELD_SHELL` composites below are the API |
 | `FIELD_SHELL`, `FIELD_SHELL_ON_FILL` | IMEI Settings (both cards), APN Management |
 | `INLINE_ERROR` | Inline validation copy on a plain card |
 | `SECTION_DIVIDER` | A rule *between sections inside* a card |
 | `READOUT_ROW.GRID` | APN Management's "What the network granted" strip |
 | `EMPTY_BLOCK` | **Renamed** from `AMBR_EMPTY` — it is no longer AMBR-specific |
+
+### `shapes.ts` changes from the 2026-08-30 basic-settings re-authoring
+
+That change was frontend-only and scoped to `/cellular/settings`, but it edits the file all five routes import, so the export list moved.
+
+| Export | Change | Why it matters here |
+| ------ | ------ | ------------------- |
+| `STRIP` | **Added** | Band A's tile geometry and disc fills. Identity colour is confined to the `DISC_*` keys, and there is no `tone` prop that could tint a tile body |
+| `RATE_CEILING` | **Added** | Band A2's summary line and disclosure panel |
+| `SEGMENTED.GLYPH_ACTIVE` / `.GLYPH_RESERVED` | **Added** | The reserved-glyph rule below — a layout contract, not a decoration |
+| `SEGMENTED_BREAKPOINTS["5xl"]` | **Added** | A fourth step at 64 rem / 1024 px, reachable through `segmentedBreakpoint("5xl")` |
+| `FIELD_INPUT` | **`export` removed** | Module-private now. Nothing outside `shapes.ts` imported it — the two `FIELD_SHELL` composites are what call sites use, and they kept their importers |
+| `HERO_SHELL`, `HERO_PAD`, `HERO_RAIL`, `HERO_RAIL_TONE`, `HERO_BODY`, `HERO_BODY_CELL`, `HERO_BODY_PARAMS_CELL`, `HERO_FOOTNOTE`, `HERO_PARAMS` | **Deleted** | Their only consumer, `ModemHeroCard`, is deleted. See [cellular-basic-settings.md](cellular-basic-settings.md) |
+| `PAGE_TITLE`, `PAGE_DESCRIPTION` | **Deleted** | Consumerless — `CellularPageHeader` owns the page type scale |
+
+> ⚠️ WARNING: **`READOUT_ROW` was deliberately KEPT and must not be swept as dead code.** It looks unused from `/cellular/settings` — that route stopped rendering readout rows when the hero went — but it has **three live consumers in sibling routes** that were out of scope for that change:
+>
+> - `components/cellular/settings/apn-management/apn-settings.tsx`
+> - `components/cellular/settings/imei-settings/imei-settings-card.tsx`
+> - `components/cellular/settings/imei-settings/imei-tools-card.tsx`
+>
+> This is the standing hazard of a shared shape module: "no consumer on the page I am looking at" is not "no consumer". Grep the whole `components/cellular/settings/` tree before deleting any export here.
+
+A comment correction rode along: `shapes.ts` claimed the basic-settings page held **three** segmented controls. It holds **six** — three rows in each of two section cards — and that number is load-bearing, because it is why the thumb's `layoutId` must be instance-scoped (`React.useId()`) rather than a module constant.
 
 ---
 
@@ -92,7 +116,7 @@ The primitive smuggles three more things past the same boundary:
 | `shadow-xs` | A cast shadow on an input, which DESIGN.md > Inputs forbids |
 | `placeholder:text-muted-foreground` | A legacy token surviving in the rest state |
 
-Overriding all of these at the call site means restating `SELECT_TRIGGER`'s own numbers as `dark:` and `md:` variants — which is the drift `shapes.ts` exists to prevent. Two independent builders hit this on two different pages in the same change and each wrote a local constant; `FIELD_INPUT` is that constant, promoted once so a third page cannot write a fourth version.
+Overriding all of these at the call site means restating `SELECT_TRIGGER`'s own numbers as `dark:` and `md:` variants — which is the drift `shapes.ts` exists to prevent. Two independent builders hit this on two different pages in the same change and each wrote a local constant; `FIELD_INPUT` is that constant, promoted once so a third page cannot write a fourth version. It is **module-private** — call sites compose it through `FIELD_SHELL` / `FIELD_SHELL_ON_FILL`, which are the API.
 
 > ⚠️ WARNING: `FIELD_SHELL_ON_FILL` appends its placeholder ink **last** on purpose. It lands in the same tailwind-merge group as `FIELD_INPUT`'s placeholder colour, so order decides the winner. Reordering the template literal breaks it silently.
 
@@ -103,6 +127,47 @@ Overriding all of these at the call site means restating `SELECT_TRIGGER`'s own 
 Every consumer, **including the loading branch**, takes its numbers from `shapes.ts` (`SETTING_ROW.HEIGHT`, `REORDER_ROW.HEIGHT`, `CHOICE_ROW.HEIGHT`, `READOUT_ROW.HEIGHT`). A skeleton that hand-writes `h-12 w-48` has left the contract. Both Network Priority and Blocked Networks shipped with skeletons whose numbers matched nothing that rendered, and Network Priority's skeleton title and its loaded title were two different string literals — a visible title swap on every load.
 
 Blocked Networks solves this differently and correctly: its loaded body is one text block, so its "skeleton" is the **same `ConditionScreen` component** driven transient. It cannot drift, because it is the same code.
+
+### `SegmentedField`: the reserved glyph, and the per-row breakpoint
+
+`SegmentedField` renders a pill group above a container-query step and a `Select` below it. Both bind to the same state; the Select is not a degraded fallback, because four segments do not fit one row on a phone and shrinking them below a 44 px touch target is not an option on a surface field techs use on a tablet.
+
+#### Every segment reserves the check glyph
+
+**Short version: the check mark on the selected segment is rendered on *all* segments and hidden with opacity, because the selected segment is otherwise physically wider than its neighbours — and the travelling highlight animates the segment's own box.**
+
+The thumb is a `motion.span` with `absolute inset-0`, so its box *is* the segment's box. When the glyph rendered only on the active segment, clicking one changed **both ends** of the animation while it was in flight: the glyph plus its `gap-1.5` is worth **21.7 px**, so the destination segment grew and the source shrank as the tween ran. The measured first frame was `translate3d(-266.99px, 0, 0) scale(1.13606, 1)` — the pill stretched 14 % while travelling (on `rounded-pill` that makes the caps read as ellipses) and the label you clicked slid 21.8 px out from under your cursor, un-animated.
+
+`SEGMENTED.GLYPH_ACTIVE` and `SEGMENTED.GLYPH_RESERVED` are the pair. The reserved variant hides the glyph with **opacity and scale only**.
+
+> ⚠️ WARNING: never `display`, `hidden`, or a conditional render. All three give the box back and reintroduce the bug. Widths after the fix run `[118.3, 108, 101.6, 104.3] → [118.6, 108, 101.4, 104.3]`; the 0.3 px residual is `data-[state=on]:font-semibold` and is deliberate, so nothing here asserts `scaleX === 1`.
+
+The same principle governs the row underneath it: `SETTING_ROW.ROOT` now reserves the delta chip's line unconditionally (`invisible` when clean) and its `min-h` floor moved **4.75rem → 6.125rem** to pay for it honestly. Reserve, don't animate.
+
+#### The breakpoint travels on the row descriptor
+
+`segmentedBreakpoint(step)` takes `"lg" | "xl" | "2xl" | "5xl"`, defaulting to `2xl` — the family default. A page overrides it per row rather than per card: `cellular-settings-card.tsx` sets `ROW_BREAKPOINT = "lg"` for the basic-settings page (its two half-width section cards would otherwise fall to a Select at desktop widths where the old single wide card showed pills), and a `RowDef` may carry `breakpoint?` to override that.
+
+Exactly one row does. `mode_pref` — the only four-way row on the family, and the only one that renders **five** segments, because the card prepends the modem's own value when it is not in the offered list — declares `breakpoint="5xl"` (64 rem / 1024 px).
+
+**Why a step *above* the row's own flip is the right place for a fallback.** `SETTING_ROW.ROOT` flips stacked → side-by-side at `@2xl/card` (672 px). Below that flip the control is full-width under the text and nothing competes; *above* it the two share one line, and the widest control on the surface takes the text column's share. So the squeeze band starts exactly at the flip.
+
+Measured on the real components (card container width swept in a throwaway fixture route; text-column width / consequence lines / row height):
+
+| Card px | `mode_pref`, 4 segments, `lg` | `mode_pref`, 5 segments, `lg` | Either, `5xl` |
+| ------- | ----------------------------- | ----------------------------- | ------------- |
+| 672 | 101.8 px / 3 lines / 165.9 px | **0.0 px / 6 lines / 249.4 px** | 433.4 px / 1 line / 102.8 px |
+| 740 | 169.8 px / 2 lines / 123.1 px | **0.0 px / 6 lines / 249.4 px** | 501.4 px / 1 line / 102.8 px |
+| 896 | 325.8 px / 1 line / 102.8 px | 152.8 px / 2 lines / 145.6 px | 657.4 px / 1 line / 102.8 px |
+| 1024 | 453.8 px / 1 line / 102.8 px | 280.8 px / 1 line / 102.8 px | pills return |
+
+A text column of literally **0 px wrapping to six lines in a 249 px row**, at widths a desktop review actually looks at, is the failure `SETTING_ROW.TEXT`'s own JSDoc warns about. It pre-existed at smaller magnitude (the four-segment track was ~386 px) and reserving the glyph widened it to 452 px, which is what made it visible.
+
+**`@4xl` (896 px) was built, measured and rejected.** It clears the four-segment case, but the five-segment case only crosses into two lines at 870 px — 26 px of margin — and returns the pill group into a 145.6 px row, 43 px above the row's own 102.8 px floor. At `@5xl` both cases render one consequence line in a 102.8 px row at every width from the flip upward, so the control change and the row settling coincide; that is what makes the switch read as a layout decision rather than a symptom.
+
+**The other five rows keep `lg`.** Two- and three-segment tracks are 309 px at most and are not the offender — `nr5g_mode` measured identically before and after. Demoting them would spend the pill group to fix a row that does not have the problem.
+
+> ⚠️ WARNING: **`SEGMENTED_BREAKPOINTS`'s class strings must be spelled out verbatim.** Tailwind's scanner only compiles class names it finds literally in source, so an interpolated `` @${step}/card:flex `` produces **no rule at all**. That shipped exactly once, and every `SegmentedField` in the family silently rendered only its Select at every width. Adding a step means writing out its `GROUP` / `SELECT` / `WRAP` strings in full — and verifying them in the **built** CSS (`out/_next/static/chunks/*.css`), not by reading the source.
 
 ### Motion: `SORTABLE_TRANSITION`
 

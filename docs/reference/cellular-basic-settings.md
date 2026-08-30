@@ -3,7 +3,7 @@
 > **Applies to:** RM520N-GL (SDX65) · verified 2026-08
 > **RG501Q-EU (SDX55):** unverified — see [`platform-matrix.md`](./platform-matrix.md)
 
-> The `/cellular/settings` surface: six writable modem settings behind one CGI endpoint, a read-only poller-backed readout, and the carrier's AMBR (Aggregate Maximum Bit Rate) limits. This is the page where a user changes SIM slot, radio power, network mode, 5G architecture, roaming policy, and SIM hot-swap detection — every one of which can interrupt the connection the user is reading the page over.
+> The `/cellular/settings` surface: six writable modem settings behind one CGI endpoint, a read-only poller-backed live-state strip, and the carrier's AMBR (Aggregate Maximum Bit Rate) limits, each on its own band with its own data clock. This is the page where a user changes SIM slot, radio power, network mode, 5G architecture, roaming policy, and SIM hot-swap detection — every one of which can interrupt the connection the user is reading the page over.
 
 ---
 
@@ -318,7 +318,7 @@ Verifying requires a write plus a reboot on hardware. Until someone does that, d
 
 ## Dual-SIM slot status (`AT+QSIMCFG="dual_slot_status"`)
 
-**Short version: a read-only row in `ModemHeroCard` that says what is in each of the two physical SIM slots — which one the modem is switched to, and the last four digits of the card sitting in it.** It answers a question the rest of the page cannot: `sim_slot` tells you which slot the modem is *using*, but nothing else on the surface tells you whether the *other* slot even has a card in it.
+**Short version: a read-only caption inside the live-state strip's SIM tile that says what is in the *other* physical SIM slot — whether it holds a card, and the last four digits of that card.** It answers a question the rest of the page cannot: `sim_slot` tells you which slot the modem is *using*, but nothing else on the surface tells you whether the other slot even has a card in it.
 
 Nothing here is writable. The slot the modem uses is still changed through `sim_slot` / `AT+QUIMSLOT` like every other field on the page.
 
@@ -398,29 +398,31 @@ An OTA-upgraded device on older firmware therefore gets a **fully working settin
 
 There is no `detected` / `present` flag. **Occupancy is derived as "non-empty `iccid`"**, because inventing a boolean would mean reading one of the unconfirmed fields.
 
-### The UI row
+### Where it renders: the SIM tile's caption
 
-The readout renders as a `ParamRow` labelled **SIM slots** in `ModemHeroCard`'s existing parameters column, behind the same `readoutReady` gate as Active SIM Slot and Radio Power — `dualSlot` arrives on the settings-GET clock, identical to `saved`, so the two slot readouts can never disagree because one was read later.
+`dualSlot` is drawn by `SlotChip` in `components/cellular/settings/live-state-strip.tsx`, as the **caption of the SIM tile** in Band A. `SlotChip` and the local `maskIccid()` helper moved there intact when `ModemHeroCard` was deleted; the parsing, absence and type contracts above are unchanged.
 
-**The row is omitted entirely when `dualSlot` is `null` or empty** — no placeholder, no "Unknown". The hero's existing `readout.unknown` branch is for a field the modem is *always asked for* and may fail to answer once; "this firmware does not implement the query" is a different statement, and rendering it as an unknown *value* would imply a fact was missing when no fact was ever available.
+**The caption renders the PEER slot — the slot the tile's own value is *not* about.** The tile's headline already states the active slot from the poller, so repeating it in the caption underneath would spend the one caption line on a fact stated 20px above it. The peer is selected as `dualSlot.find(entry => entry.slot !== slot)`, and when the poller has no slot at all (`slot === null`) it falls back to the first entry so the caption still says something true.
 
-Both slots always render when the row renders. Showing only the active one would leave the other ambiguous between "empty" and "not read", which is the entire reason the row exists.
+That selection is also what makes the ~35 second slot apply legible. During the apply the settings GET may already report the new slot as `active: true` while the poller still reports the old one — so the tile reads "SIM 1" and the caption reads "SIM 2" wearing the active chip. **That disagreement is the information, not a bug**; see [Band A](#band-a--live-state-poller-clock-only) for why this surface deliberately lets two sources disagree in exactly one place.
+
+**The caption is omitted entirely when `dualSlot` is `null` or empty** — no placeholder, no "Unknown". The `readout.unknown` branch elsewhere on the page is for a field the modem is *always asked for* and may fail to answer once; "this firmware does not implement the query" is a different statement, and rendering it as an unknown *value* would imply a fact was missing when no fact was ever available.
 
 #### Tone: `SLOT_CHIP` and `SLOT_GLYPH`
 
-Two new exports in `components/cellular/settings/shapes.ts`. The active slot is a **filled `bg-primary` chip** with a `check_circle` glyph; every other slot is **plain inline text** with `sim_card` (card present, standby) or `sim_card_alert` (no card). All three glyphs are already in the font subset.
+Two exports in `components/cellular/settings/shapes.ts`. An active slot is a **filled `bg-primary` chip** with a `check_circle` glyph; a standby or empty slot is **plain inline text** with `sim_card` (card present) or `sim_card_alert` (no card). All three glyphs are already in the font subset.
 
-> ⚠️ WARNING: This is **not** a status Badge and must never become one. "The modem is switched to this slot" is not a health claim — a standby SIM is not degraded and an empty second slot is a configuration, not a fault — so `success` and `muted` are both wrong roles here. The correct sibling pattern is `GOVERNING_MARK` one row up: shape, glyph and fill move **together**, so the operative peer survives grayscale and deuteranopia without borrowing a functional colour.
+> ⚠️ WARNING: This is **not** a status Badge and must never become one. "The modem is switched to this slot" is not a health claim — a standby SIM is not degraded and an empty second slot is a configuration, not a fault — so `success` and `muted` are both wrong roles here. The correct sibling pattern is `GOVERNING_MARK` one band down: shape, glyph and fill move **together**, so the operative peer survives grayscale and deuteranopia without borrowing a functional colour.
 
-`bg-primary` rather than a container fill because the chip sits on `HERO_PARAMS.ROW` (`surface-container-high`), and a container on a container is the step collision `HERO_PARAMS` already documents. The fill pair declares its own ink, so consumers set none.
+`bg-primary` rather than a container fill because the chip sits on a tile body that is already `bg-surface-container` (`STRIP.BODY`), and a container on a container is a step collision. The fill pair declares its own ink, so consumers set none.
 
 #### ICCID masking is a product decision
 
 ICCIDs render as `•••1069` — the last four digits only. **The full number was considered and rejected.** Four digits is enough to tell two cards apart, which is the only question a glance readout answers.
 
-The masking lives in a local `maskIccid()` helper **in the component, not the CGI**: the backend reports the fact it read, and how much of it a given surface shows is a display decision. Tracked SIMs shows more. The tail is `font-mono tabular-nums` — a raw device-emitted identifier is machine voice (DESIGN.md's Machine-Voice Rule), and the tabular figures keep two slots' tails aligned.
+The masking lives in a local `maskIccid()` helper **in the component, not the CGI**: the backend reports the fact it read, and how much of it a given surface shows is a display decision. Tracked SIMs shows more. The tail is `font-mono tabular-nums` — a raw device-emitted identifier is machine voice (DESIGN.md's Machine-Voice Rule), and the tabular figures keep the tail aligned under the tile's own value.
 
-Visible text stays terse (`SIM 1 •••1069`), so each chip carries an `aria-label` that restates the whole fact as a sentence: *"SIM 1, active, card ending 1069"* rather than a stream of bullets.
+Visible text stays terse (`SIM 2 •••1069`), so the chip carries an `aria-label` that restates the whole fact as a sentence: *"SIM 2, standby, card ending 1069"* rather than a stream of bullets.
 
 ### Relationship to SIM detection
 
@@ -431,7 +433,7 @@ This readout and [sim-detection.md](sim-detection.md) both handle ICCIDs, and th
 | Source | `AT+QSIMCFG="dual_slot_status"`, read per settings GET | ICCID captured on a *verified* slot switch, plus the poller |
 | Storage | None — never persisted | `/etc/qmanager/sim_registry.json` (`known_iccids`) |
 | Question | "What is in each slot **right now**?" | "Have we **seen this card before**, and did it change?" |
-| Surfaces | One hero row on `/cellular/settings` | The SIM-swap banner, Tracked SIMs |
+| Surfaces | The SIM tile's caption on `/cellular/settings` | The SIM-swap banner, Tracked SIMs |
 
 Neither feeds the other. If you are changing how a known SIM is recognised or how the swap banner fires, that is `sim-detection.md`; this row is a live readout with no memory.
 
@@ -459,7 +461,7 @@ AT+QTEMP;+COPS?;+QUIMSLOT?;+CNUM;+QSIMSTAT?;+CPIN?
 
 `status` is the `AT+CPIN?` classification from `parse_sim_status()` — one of `ready`, `pin_required`, `puk_required`, `not_inserted`, `error`, `unknown`. These are the exact strings the poller emits; the `SimStatus` union in `types/modem-status.ts` must not acquire synonyms.
 
-`ModemStatus.sim` is **optional**. A device OTA-upgraded from an older poller will not emit the block at all, so every consumer must tolerate `undefined` rather than assuming a card is present. `ModemHeroCard` falls back to the `unknown` tone — never to "Ready".
+`ModemStatus.sim` is **optional**. A device OTA-upgraded from an older poller will not emit the block at all, so every consumer must tolerate `undefined` rather than assuming a card is present. `LiveStateStrip` falls back to the `unknown` tone — never to "Ready".
 
 The tone map (`SIM_STATUS_BADGE` in `shapes.ts`) gives every state its own glyph, because `success-container` and `warning-container` measure 1.03:1 apart and are identical under deuteranopia. `not_inserted` is `muted`, not `destructive` — an empty slot is a configuration, not a fault.
 
@@ -496,40 +498,104 @@ See also [tmp-file-ownership.md](tmp-file-ownership.md) for the cross-UID rules 
 ```
 app/cellular/settings/            route
 └─ components/cellular/settings/
-   ├─ cellular-settings.tsx       route shell — header, error banner, the card
+   ├─ cellular-settings.tsx       route shell — header, error banner, the band
    │                              cascade, and the SHARED save bar + footer
-   ├─ modem-hero-card.tsx         the read-only hero above the write cards:
-   │                              four stat tiles (Radio Information's
-   │                              summary-tile anatomy) over a connection rail
-   │                              (active APN + rate limits). Also owns the
-   │                              SIM-slots row: `SlotChip` + `maskIccid()`,
-   │                              both local to this file
-   │                              (props: `status`, `networkType`, `isStale`,
-   │                              `saved`, `dualSlot`)
-   ├─ cellular-settings-card.tsx  the write surface, split into two section
-   │                              cards ("SIM & Radio Power", "Network Mode &
-   │                              Roaming") — three SettingRows each
+   ├─ live-state-strip.tsx        BAND A — four poller-fed tiles (Network, SIM,
+   │                              Aggregation, Data path) under a "Live state"
+   │                              header carrying the freshness Badge. Also owns
+   │                              `SlotChip` + `maskIccid()`, both local
+   │                              (props: `status`, `statusLoading`,
+   │                              `statusError`, `isStale`, `dualSlot`)
+   ├─ rate-ceiling-disclosure.tsx BAND A2 — AMBR as a governing summary line
+   │                              plus a per-radio disclosure panel, with its
+   │                              own provenance line
+   │                              (props: `ambr`, `ambrLoading`, `ambrError`,
+   │                              `networkType`)
+   ├─ cellular-settings-card.tsx  BAND B — the write surface, split into two
+   │                              section cards ("SIM & Radio Power", "Network
+   │                              Mode & Roaming") — three SettingRows each
    ├─ setting-row.tsx             label + consequence + control, promotes when dirty
-   ├─ segmented-field.tsx         ToggleGroup above the card breakpoint, Select below
+   ├─ segmented-field.tsx         ToggleGroup above the row's breakpoint, Select below
    ├─ pending-save-bar.tsx        "N changes pending" → three-step apply ledger
    └─ shapes.ts                   geometry + tone contract (all of the above import it)
-                                  — incl. SLOT_CHIP / SLOT_GLYPH for the
-                                  SIM-slots row
+                                  — incl. STRIP, RATE_CEILING, SLOT_CHIP / SLOT_GLYPH
 ```
 
-`ModemHeroCard`'s props, and where each comes from:
+### The band order, and the one-clock-per-band rule
 
-| Prop | Source | Absence means |
-| ---- | ------ | ------------- |
-| `status` | `useModemStatus` (poller) | Poller snapshot not yet read |
-| `networkType` | `useModemStatus` | `""` is "not determined" — never LTE |
-| `isStale` | `useModemStatus` | — |
-| `saved` | `useCellularSettings.settings` | Settings GET has not succeeded yet |
-| `dualSlot` | `useCellularSettings.dualSlot` | `null` — the modem **cannot** report the slots. Row omitted; card otherwise complete |
+**Short version: the page is read top-to-bottom as four bands, and each band is fed by exactly one data source, so the band header can tell the truth about the whole band.**
+
+| Order | Band | Component | Clock |
+| ----- | ---- | --------- | ----- |
+| 1 | Page header | `CellularPageHeader` | — |
+| 2 | Error banner (conditional) | `TonalBanner`, `tone="destructive"` | settings GET |
+| 3 | **Band A — live state** | `LiveStateStrip` | **poller only** (~4 s) |
+| 4 | **Band A2 — rate ceiling** | `RateCeilingDisclosure` | **settings GET only** (does not tick) |
+| 5 | **Band B — the write cards** | two `CellularSettingsCard`s | settings GET |
+| 6 | Save bar / resting footer | `PendingSaveBar` | — |
+
+Bands 3–5 arrive as a Motion cascade 120 ms apart; the save bar and footer sit **outside** the cascade, because a pending-changes action should never wait its turn.
+
+#### Why one clock per band
+
+The three bands replace one 826-line card, `ModemHeroCard`, which is **deleted**. That card mixed two clocks: its rail and parameters came from the poller (~4 s), while two of its three columns came from the settings GET, which is read on mount and re-read only around a save — it never ticks. Mixing them cost the card two readiness flags, two failure branches, a freshness chip that was honest about only one of its bands, and a footnote, `HERO_FOOTNOTE`, whose own JSDoc admitted it existed "because the hero has TWO CLOCKS and one of them does not tick".
+
+> ℹ️ NOTE: **`HERO_FOOTNOTE` is deleted, not reworded.** A footnote apologising for a data source is a symptom of a band that owns two of them. Splitting the bands removed the condition the footnote described, so there is nothing left to say — the rate figures now carry their own provenance line, sitting directly under the numbers it is about instead of three inches below a freshness chip describing a different source. `HERO_SHELL`, `HERO_PAD`, `HERO_RAIL`, `HERO_RAIL_TONE`, `HERO_BODY`, `HERO_BODY_CELL`, `HERO_BODY_PARAMS_CELL` and `HERO_PARAMS` went with it.
+
+Two facts the hero genuinely rendered twice — **Radio power** and **Active slot** as read-only `ParamRow`s over the same `saved` object the controls ~400 px below were bound to — are gone from the read-only bands entirely. A readout that can never disagree with the control beneath it says nothing the control does not.
+
+### Band A — live state (poller clock only)
+
+Four tiles, all built from `TILE_SHAPE` in `components/cellular/tile-shape.ts` — the same primitive `radio/summary-tiles.tsx` and three other surfaces already read, so the strip cannot drift from its siblings.
+
+| Tile | Value | Caption | Poller fields |
+| ---- | ----- | ------- | ------------- |
+| Network | `networkTypeLabel(network.type)` | carrier, or "No carrier reported" | `.network.type`, `.network.carrier` |
+| SIM | active slot (`SIM 1` / `SIM 2`) + a `.sim.status` Badge | the **peer** slot's `SlotChip` | `.network.sim_slot`, `.sim` |
+| Aggregation | the LTE/NR SCC **breakdown**, never a sum and never a zero leg | `bandwidth_details` | `.network.ca_*`, `.network.nr_ca_*` |
+| Data path | the APN (mono — it is an identifier) | the address **families** carried, not the addresses | `.network.apn`, `.wan_ipv4`, `.wan_ipv6` |
+
+The band header carries the freshness `Badge` (`success` **Live** with a pulsing dot, or `warning` **Data is stale** with a `schedule` glyph). It is scoped to this band because this band is the only thing on the page it is true of, and **it does not render at all on a failed read** — there is no reading for staleness to be a property of.
+
+Three states, as every data surface must have: four `TILE_SHAPE.HEIGHT` skeletons while loading, one grid-spanning neutral notice on a failed read, and the tiles when ready. The failure notice spans the grid rather than repeating one "couldn't read" message four times.
+
+> ⚠️ WARNING: `statusError` **must** be threaded into the strip. `useModemStatus` clears `isLoading` on failure while leaving `data` at `null`, so a readiness flag built as `!loading && data !== null` is `false` forever after a dead poller — and the strip would then shimmer indefinitely, including over the freshness chip, the one element that would otherwise have said so.
+
+#### Identity lives on the disc, never on a tile body
+
+Every tile body is `STRIP.BODY` (`bg-surface-container`); the 52 px disc is the only coloured element, and `Tile` has **no `tone` prop** to make an exception possible. `radio/summary-tiles.tsx` reached this conclusion across five generations: its Gen 2 note measured the full-width tonal slab at 623×212 = 132,033 px² carrying 9,526 px² of ink (7.2 %) and called it "a large empty purple slab"; Gen 5 removed body tint outright. The hero's `bg-primary` rail was that retired slab, and the hero's own JSDoc cited that file as its precedent.
+
+> ⚠️ WARNING: **An unidentified radio takes the neutral disc.** `network.type === ""` means the serving-cell parse produced no identifiable RAT — it is not a synonym for LTE, and it must never claim the 5G blue. `STRIP.DISC_NEUTRAL` is the answer; the Identity-Chip Rule in `DESIGN.md` is why.
+
+#### The SIM tile deliberately overlaps the `sim_slot` control
+
+This is the one place on the page where a read-only element and a control show the same field, and it is **kept on purpose**. Do not "deduplicate" it.
+
+| | The SIM tile | The `sim_slot` control |
+| --- | --- | --- |
+| Source | the poller (`.network.sim_slot`) | the settings GET / the user's draft |
+| Question | which slot the modem **is on** | which slot the user has **asked for** |
+
+A SIM-slot apply takes ~35 seconds, and for that whole window the two legitimately disagree — which is precisely the moment a technician needs to see both. That is a *state/control pairing*, not the duplication the hero had: the hero's readouts were sourced from the same `saved` object as their controls, so they could never disagree at all.
+
+The cost is stated rather than hidden: the poller **seeds** `network.sim_slot` to `1` for roughly its first 60 seconds, so a freshly started poller can show "SIM 1" before the modem was ever asked. That is the same class of defect the settings GET has (`settings.sh` seeds `sim_slot=1` / `cfun=1` and still returns `success: true`) — neither source can currently express "not read", and the poller is chosen here because the question this tile asks is a live one.
+
+### Band A2 — the rate ceiling (settings clock only)
+
+AMBR is demoted from headline to a **governing summary line** plus a disclosure panel that opens on click. "What will the network let this connection do" is a legitimate glance question, so the governing figure stays visible; the per-bearer table — two blocks of two figures plus a DNN, for a fact no control on this page can change — is not, so it folds away.
+
+- **Both radio blocks render; one of them governs.** LTE AMBR governs the bearer in both `LTE` and `5G-NSA` (NSA's NR leg is a secondary carrier on the LTE-anchored PDN session and has no AMBR of its own); NR5G AMBR governs `5G-SA` only. `resolveGoverning()` derives this from the serving technology **alone** — array population is evidence a session exists, not evidence it is the governing one.
+- **Absence is not the signal.** The idle block says in words that it is idle, because a marker that only ever appeared once would leave the other block ambiguous between "not in use" and "we did not check".
+- **`GOVERNING_MARK` uses a glyph plus a word, never a hue.** Which radio is in force is not a health claim.
+- **Rate chips are coloured by DIRECTION, not by the block they sit in** — download rose, upload cyan, each carrying its arrow glyph as a second channel. See `RATE_CHIP` and [cellular-settings-family.md](cellular-settings-family.md).
+
+> ⚠️ WARNING: The disclosure panel animates `grid-template-rows`. `<MotionConfig reducedMotion="user">` collapses transform movement for motion/react components, and a CSS grid-track transition is neither a transform nor a motion/react component — so the global switch cannot reach it. This component calls `useReducedMotion()` itself and drops the transition class. Same mechanism and same reason as the frequency-locking skeleton (`4b4d688`).
 
 ### Two data sources, deliberately separate
 
-`useCellularSettings` owns the writable CGI surface; `useModemStatus` owns the read-only poller snapshot. They run on different clocks — the settings hook re-reads only around a save, the poller ticks continuously — and must not be collapsed into one. The settings page had never consumed the poller snapshot before this change; `ModemHeroCard` is a genuinely new data dependency, not just a new layout. The hero's two halves load independently: the readout half keys off the poller clock, the rate-limits half off the settings GET, and each shows its own skeleton rather than making the other wait.
+`useCellularSettings` owns the writable CGI surface; `useModemStatus` owns the read-only poller snapshot. They run on different clocks and must not be collapsed into one. The band split above is the layout expression of that separation: each band loads, fails and reports freshness independently, rather than one card making the fresher half wait for the staler one.
+
+The one crossing is `dualSlot` — a settings-GET fact rendered inside the poller-fed band. It is not a second clock in the sense that mattered: which physical card sits in the other slot is a hardware fact that changes when someone opens the device, not a reading that goes stale between polls.
 
 ### The three read states of the write card
 
@@ -573,18 +639,62 @@ A row promotes to `bg-primary-container` when it holds an unsaved edit. That pro
 
 ### `SegmentedField`
 
-A pill group above the card's container breakpoint, a `Select` below it. The Select is **not a degraded fallback** — four segments do not fit one row on a phone, and shrinking them below a 44 px touch target is not an option on a surface field techs use on a tablet. Both controls bind to the same state.
+A pill group above the row's container breakpoint, a `Select` below it. The Select is **not a degraded fallback** — four segments do not fit one row on a phone, and shrinking them below a 44 px touch target is not an option on a surface field techs use on a tablet. Both controls bind to the same state.
 
-The breakpoint is a parameter now (`segmentedBreakpoint()` in `shapes.ts`): the family default is `2xl`, while the basic settings page's two half-width section cards pass `breakpoint="lg"` so the pill group survives where it already fits — at the family default a ~600 px card would silently fall back to a `Select` on desktop widths where the old single card showed the group.
+The breakpoint is a per-row parameter. `cellular-settings-card.tsx` declares `ROW_BREAKPOINT = "lg"` as this page's default (the family default is `2xl`, which would push a half-width section card onto the Select at desktop widths where the old single wide card showed the pill group), and a `RowDef` may override it with `breakpoint`. Exactly one row does: `mode_pref` carries `WIDE_ROW_BREAKPOINT = "5xl"`. See [cellular-settings-family.md](cellular-settings-family.md) for the measurements and for why the step travels on the row descriptor rather than being special-cased at the JSX site.
 
-**The breakpoint classes must stay LITERAL strings.** Tailwind's scanner only compiles class names it finds verbatim in source; a template string like `` @${step}/card:flex `` produces no rule. That shipped once and every SegmentedField in the family silently rendered only its Select at every width — if a step is added to the map in `shapes.ts`, spell its four classes out, never interpolate.
+**The breakpoint classes must stay LITERAL strings.** Tailwind's scanner only compiles class names it finds verbatim in source; a template string like `` @${step}/card:flex `` produces no rule. That shipped once and every `SegmentedField` in the family silently rendered only its Select at every width — if a step is added to `SEGMENTED_BREAKPOINTS` in `shapes.ts`, spell its classes out, never interpolate.
 
-The active fill is a travelling `motion.span` carrying a `layoutId`, so Motion tweens the *box* between positions rather than cross-fading two stacked fills (segments have unequal label widths, so a cross-fade visibly jumps). Two rules ride on that:
+The active fill is a travelling `motion.span` carrying a `layoutId`, so Motion tweens the *box* between positions rather than cross-fading two stacked fills (segments have unequal label widths, so a cross-fade visibly jumps). Three rules ride on that:
 
 - Nothing animates `width`.
 - **The `layoutId` must be instance-scoped** (`React.useId()`). This surface renders six segmented controls at once (three per section card); a module-constant id puts all thumbs in one layout group and flings them across the card on first paint.
+- **Every segment reserves the check glyph** — see below.
 
 Radix `ToggleGroup` emits `""` when the active item is clicked again. A settings row has no empty state, so the deselect is swallowed (`onValueChange={(next) => next && …}`) rather than allowed to write an invalid value.
+
+### The travelling-thumb bug was a LAYOUT bug, in two halves
+
+**Short version: the highlight appeared to fly in from the lower-left because the track underneath it changed shape at the same instant the thumb started moving — once horizontally, once vertically. Framer's shared-layout projection (the mechanism that measures an element's box before and after a re-render and tweens between them) was never at fault; it recovered the correct origin box every time.**
+
+Both halves were measured on the running page, not reasoned about.
+
+#### Horizontal: the active segment was wider than an inactive one
+
+The check glyph plus its `gap-1.5` is worth **21.7 px**, and it rendered only on the active segment. The thumb is `absolute inset-0`, so its box *is* the segment's box — clicking a segment therefore changed **both ends** of the animation while it was in flight. The first frame measured `translate3d(-266.99px, 0, 0) scale(1.13606, 1)`: the pill stretched 14 % while travelling (on `rounded-pill`, a 1.14 scaleX makes the caps read as ellipses), and the label you clicked slid 21.8 px out from under your cursor, un-animated.
+
+The fix is `SEGMENTED.GLYPH_RESERVED`: the glyph renders on **every** segment and is hidden on inactive ones with **opacity + scale only**.
+
+> ⚠️ WARNING: never `display`, `hidden`, or a conditional render. All three give the box back and reintroduce the bug.
+
+Segment widths after the fix, four-segment row, clean → dirty: `[118.3, 108, 101.6, 104.3] → [118.6, 108, 101.4, 104.3]`. The 0.3 px residual is `data-[state=on]:font-semibold` and is left alone — widths are stable to the eye, not to the pixel, and chasing `scaleX === 1` would cost the weight change that makes the active label read as active.
+
+#### Vertical: the delta chip's line was not reserved
+
+`SETTING_ROW.ROOT`'s own comment claimed its `min-h` floor "already accounts for the chip's line". **It did not, and could not.** The floor was `4.75rem` (76 px) while the *clean* row already measured 98.1 px at the widths where the chip wrapped — so the floor was inert. Promoting a row to dirty grew it **exactly 30 px**; the row is `@2xl/card:items-center`, so the control dropped half of that (15 px), and Framer does not project a layout change it was not asked about:
+
+```
+at rest    : thumb y 679.8
+first frame: thumb y 694.8, transform y component 0px
+```
+
+The thumb teleported vertically and then glided horizontally. Reversed — re-select the saved value, the row goes clean and shrinks 30 px — the first frame appears 15 px *below* target: a highlight arriving from lower-left, the reported symptom verbatim.
+
+The fix is to render the chip **unconditionally**, `invisible` when clean (which keeps the box), and re-derive the floor honestly: `min-h` **4.75rem → 6.125rem** (label 20 + gap 3 + chip 22 + gap 3 + consequence 18 = 66, plus `py-4` ×2). `SETTING_ROW.HEIGHT` mirrors it for the skeleton. Re-measured clean → dirty at 700/760/860/1060/1300/1500 px: **thumb ΔY = 0 at every width**. Reserve, don't animate — the same trade as `SaveButton`'s width lock.
+
+#### What was refuted, and the guard that was deleted
+
+Worth recording so nobody rebuilds them:
+
+| Hypothesis | Verdict |
+| ---------- | ------- |
+| `initial={false}` on the thumb | **Refuted.** It governs enter animations of animated *values*, not layout projection — it would substitute a prop for a mechanism |
+| A `LayoutGroup` wrapper | Tested; changed nothing |
+| A missing previous box | Not the case — projection recovered the origin box across four ancestries |
+| A `display: none` measurement | Not present |
+| An untracked ancestor transform | Not present |
+
+The **rAF first-paint guard was deleted** as dead weight. Rendered settled from first paint, the thumb carries only `style="opacity: 1;"` at mount — a `layoutId` node with no predecessor in its stack has no snapshot to animate *from*. The fling its comment described came from the `layoutId` once being a **module constant**, which `useId()` already fixed; the guard has been redundant ever since, and was a live violation of DESIGN.md's Non-Load-Bearing Rule. `transition={transitionStandard}` is now unconditional.
 
 ---
 
@@ -602,7 +712,7 @@ The SIM-slots row added five of them, under `core_settings.basic.sim_slots.*`:
 | `sr_standby` | `aria-label` — card present, not selected |
 | `sr_empty` | `aria-label` — `"SIM {{slot}}, no card detected"` |
 
-The slot number itself reuses the existing `core_settings.basic.readout.slot_n` (`"SIM {{slot}}"`) rather than adding a sixth key — the hero already renders that phrase for Active SIM Slot, and two independently translated spellings of "SIM 1" on one card is exactly the drift the shared key prevents.
+The slot number itself reuses the existing `core_settings.basic.readout.slot_n` (`"SIM {{slot}}"`) rather than adding a sixth key — the SIM tile already renders that phrase as its own value, and two independently translated spellings of "SIM 1" inside one tile is exactly the drift the shared key prevents.
 
 Option labels are built inside the component because they are translated, and the option `value`s remain the modem's own strings, cast back on write. The keys are named after the **field name**, not a friendlier alias — `rows.cfun.*`, not `rows.radio_power.*`. The row's label, consequence, and failed-field lookup all key on the field name, so one alias is enough to make an option set silently resolve to nothing.
 
@@ -613,7 +723,7 @@ See [i18n.md](i18n.md) for the `bun run i18n:check` gate, which exits non-zero o
 ## Related docs
 
 - [at-command-transport.md](at-command-transport.md) — how `qcmd` issues these commands, and **why QManager cannot consume AT URCs** (directly relevant: `AT+QSIMSTAT=1` event mode is unavailable and unsafe here)
-- [sim-detection.md](sim-detection.md) — the known-SIMs set and SIM-swap banner that a verified slot switch feeds. **Not the same feature as the hero's dual-slot readout** — see [Relationship to SIM detection](#relationship-to-sim-detection) for why ICCIDs appear in both places
+- [sim-detection.md](sim-detection.md) — the known-SIMs set and SIM-swap banner that a verified slot switch feeds. **Not the same feature as the SIM tile's dual-slot caption** — see [Relationship to SIM detection](#relationship-to-sim-detection) for why ICCIDs appear in both places
 - [wan-profile-management.md](wan-profile-management.md) — the APN/profile auto-apply a slot switch triggers
 - [tmp-file-ownership.md](tmp-file-ownership.md) — `/tmp` rules for CGI scratch files
 - [radio-information.md](radio-information.md) — the `/cellular/` index page, the other consumer of `network.type`
