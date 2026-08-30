@@ -5,6 +5,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 
 import { BAND_ROW_SHAPE, ROW_GAP, ROW_STACK_GAP } from "./band-rows";
+import { TILE_HEIGHT } from "./tone";
 
 // =============================================================================
 // Reading chip
@@ -45,10 +46,13 @@ export function SkeletonBody({ loadingLabel }: { loadingLabel?: string } = {}) {
     <>
       {loadingLabel && <span className="sr-only">{loadingLabel}</span>}
 
-      {/* Info trio — 64px tiles. */}
-      <div className="grid grid-cols-3 gap-2">
-        {[0, 1, 2].map((i) => (
-          <Skeleton key={i} className="h-16 rounded-field" />
+      {/* Status PAIR — Internet + Temperature, and first, mirroring the loaded
+          card's status → evidence → identity reading order. There is no third
+          tile: the Overall verdict was retired, and a skeleton that still
+          reserved three slots would shift the layout at handoff. */}
+      <div className="grid grid-cols-1 gap-2 @[22rem]/overview:grid-cols-2">
+        {[0, 1].map((i) => (
+          <Skeleton key={i} className={cn(TILE_HEIGHT, "rounded-tile")} />
         ))}
       </div>
 
@@ -84,10 +88,13 @@ export function SkeletonBody({ loadingLabel }: { loadingLabel?: string } = {}) {
         </div>
       </div>
 
-      {/* Status trio — 66px tiles. */}
-      <div className="grid grid-cols-1 gap-2 @[18rem]/overview:grid-cols-3">
+      {/* Identity trio — Carrier · Network · Bandwidth, last. Same TILE_HEIGHT
+          as the status pair above: one height for both families is what lets the
+          two grids read as one, and importing it is what keeps the skeleton
+          honest when it changes (Skeleton-Mirror Rule). */}
+      <div className="grid grid-cols-1 gap-2 @[22rem]/overview:grid-cols-3">
         {[0, 1, 2].map((i) => (
-          <Skeleton key={i} className="h-[4.125rem] rounded-field" />
+          <Skeleton key={i} className={cn(TILE_HEIGHT, "rounded-tile")} />
         ))}
       </div>
     </>

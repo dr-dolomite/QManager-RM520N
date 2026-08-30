@@ -8,7 +8,13 @@ import { motion, useReducedMotion } from "motion/react";
 import { MaterialSymbol } from "@/components/ui/material-symbol";
 import { TonalBanner } from "@/components/ui/tonal-banner";
 import { cn } from "@/lib/utils";
-import { DUR, EASE_STANDARD } from "@/lib/motion";
+import {
+  DUR,
+  EASE_STANDARD,
+  staggerContainer,
+  staggerItem,
+} from "@/lib/motion";
+import { CARD_TITLE } from "@/components/pre-auth-type";
 
 import { ModeToggle } from "@/components/public/mode-toggle";
 import {
@@ -24,11 +30,9 @@ import {
 } from "@/components/public/overview/states";
 import { StatusTile, TonalTile } from "@/components/public/overview/tiles";
 import {
-  BAND_METRIC_THRESHOLDS,
   CONNECTION_TILE,
   EYEBROW_CLASS,
   formatAge,
-  OVERALL_TILE,
   TEMPERATURE_TILE,
   temperatureBand,
   type BandMetric,
@@ -38,14 +42,7 @@ import {
 import { usePublicOverview } from "@/hooks/use-public-overview";
 import { usePublicUnitPreferences } from "@/hooks/use-public-unit-preferences";
 import { deriveConnectionLabel } from "@/lib/public-overview/format";
-import {
-  formatTemperature,
-  getSignalQuality,
-  RSRP_THRESHOLDS,
-  RSRQ_THRESHOLDS,
-  SINR_THRESHOLDS,
-  worstSignalQuality,
-} from "@/types/modem-status";
+import { formatTemperature } from "@/types/modem-status";
 import { LoginDeviceName } from "../auth/login-device-name";
 
 // =============================================================================
@@ -180,13 +177,12 @@ export default function OverviewCard() {
     const connectionLabel: ConnectionLabel = reachable
       ? deriveConnectionLabel(data.network.lte_state, data.network.nr_state)
       : "modem_unreachable";
-    const quality = worstSignalQuality(
-      getSignalQuality(data.signal.rsrp, RSRP_THRESHOLDS),
-      getSignalQuality(data.signal.rsrq, RSRQ_THRESHOLDS),
-      getSignalQuality(data.signal.sinr, SINR_THRESHOLDS),
-    );
     const tempBand = temperatureBand(data.temperature);
-    const verdict = `${quality}|${connectionLabel}|${tempBand}`;
+    // Two axes, not three. The retired Overall tile was the quality axis's only
+    // home on this card, and the per-carrier rows that replaced it announce
+    // their own ramp stop in an sr-only word beside each figure — so keeping it
+    // here would announce the same verdict twice, once summed and once per row.
+    const verdict = `${connectionLabel}|${tempBand}`;
 
     // First reading: seed the ref but don't announce.
     if (prevVerdictRef.current === "") {
@@ -195,13 +191,8 @@ export default function OverviewCard() {
     }
     if (prevVerdictRef.current === verdict) return;
 
-    const [prevQ, prevC, prevT] = prevVerdictRef.current.split("|");
+    const [prevC, prevT] = prevVerdictRef.current.split("|");
     const parts: string[] = [];
-    if (prevQ !== quality) {
-      parts.push(
-        `${t("overview.status.overall")}: ${t(`overview.quality.${quality}`)}`,
-      );
-    }
     if (prevC !== connectionLabel) {
       parts.push(
         `${t("overview.status.connectivity")}: ${t(`overview.connection.${connectionLabel}`)}`,
@@ -242,7 +233,7 @@ export default function OverviewCard() {
           ? { duration: 0 }
           : { duration: DUR.standard, ease: EASE_STANDARD }
       }
-      className="@container/overview bg-card text-foreground mx-auto flex w-full max-w-[34rem] flex-col gap-6 rounded-hero px-8 py-7.5 shadow-sm dark:shadow-none"
+      className="@container/overview bg-card text-foreground mx-auto flex w-full max-w-[34rem] flex-col gap-6 rounded-hero px-8 py-7.5 shadow-[var(--shadow-whisper)] dark:shadow-none"
     >
       {/* (a) Header ------------------------------------------------------- */}
       <div className="flex items-center gap-3.5">
@@ -258,7 +249,7 @@ export default function OverviewCard() {
           />
         </div>
         <div className="flex min-w-0 flex-col gap-0.5">
-          <h1 className="text-[1.1875rem] leading-[1.15] font-semibold tracking-[-0.01em] truncate">
+          <h1 className={cn(CARD_TITLE, "truncate")}>
             {t("overview.title")}
           </h1>
           {/* Self-skeletoning, and silent when the device has no hostname. */}
@@ -304,9 +295,12 @@ export default function OverviewCard() {
         >
           {t("overview.actions.login")}
         </Link>
-        <p className="text-on-surface-variant text-center text-xs">
-          {t("overview.copyright", { year: new Date().getFullYear() })}
-          {footerSuffix ? ` · ${footerSuffix}` : null}
+        {/* Two facts, given room rather than punctuated between (DESIGN.md >
+            The No-Dot-Separator Rule). The suffix only appears in an empty
+            state, so on a healthy card this is a single line either way. */}
+        <p className="text-on-surface-variant flex flex-wrap justify-center gap-x-2 text-center text-xs">
+          <span>{t("overview.copyright", { year: new Date().getFullYear() })}</span>
+          {footerSuffix ? <span>{footerSuffix}</span> : null}
         </p>
       </div>
     </motion.section>
@@ -415,14 +409,6 @@ function renderBody({
       ? t("overview.bands.bandwidth", { bandwidth: totalBandwidth })
       : t("overview.field.empty");
 
-  // Overall = worst of RSRP/RSRQ/SINR. RSRP alone would mask a strong-signal /
-  // poor-SINR scene (an interference-bound link).
-  const quality = worstSignalQuality(
-    getSignalQuality(data.signal.rsrp, RSRP_THRESHOLDS),
-    getSignalQuality(data.signal.rsrq, RSRQ_THRESHOLDS),
-    getSignalQuality(data.signal.sinr, SINR_THRESHOLDS),
-  );
-  const overall = reachable ? OVERALL_TILE[quality] : OVERALL_TILE.none;
   const connection = CONNECTION_TILE[connectionLabel];
   const temperature = TEMPERATURE_TILE[temperatureBand(data.temperature)];
 
@@ -470,101 +456,151 @@ function renderBody({
         </TonalBanner>
       )}
 
-      {/* (b) Info trio ---------------------------------------------------- */}
-      <div
-        className={cn("grid grid-cols-3 gap-2", dimmed, isStale && "opacity-80")}
-      >
-        <TonalTile
-          eyebrow={t("overview.header.carrier")}
-          value={carrier}
-          title={data.network.carrier}
-          truncate
-        />
-        <TonalTile eyebrow={t("overview.header.network")} value={networkType} />
-        {/* Legacy key id `header.bands` now reads "Bandwidth" — kept (not
-            renamed to .bandwidth) so installed language packs that mirror this
-            id don't lose their translation. */}
-        <TonalTile
-          eyebrow={t("overview.header.bands")}
-          value={bandwidthValue}
-          title={bandList || undefined}
-          mono
-        />
-      </div>
+      {/* The zone cascade — 120ms, the CARD step, because these three zones are
+          cards' worth of content stacked in a 24px gutter rather than rows
+          sharing one border. `display: contents` so the container choreographs
+          without becoming a box: the section's own flex gap still spaces the
+          zones, and the container carries no visual props of its own.
 
-      {/* (c) Signal section ----------------------------------------------- */}
-      <div className={cn("flex flex-col gap-3", dimmed, isStale && "opacity-70")}>
-        <div className="flex items-center justify-between gap-3">
-          <span
-            className={cn(
-              EYEBROW_CLASS,
-              "text-on-surface-variant min-w-0 truncate",
-            )}
-          >
-            {t("overview.bands.section_count", { count: bands.length })}
-          </span>
-          <SegmentedMetricToggle
-            value={bandMetric}
-            onChange={onBandMetricChange}
-            t={t}
+          The banners sit OUTSIDE it deliberately. A banner is an arrival, not a
+          member of the sequence — waiting its turn behind two zones is exactly
+          the wrong behaviour for the element saying the modem is unreachable. */}
+      <motion.div
+        className="contents"
+        variants={staggerContainer}
+        initial="hidden"
+        animate="visible"
+      >
+        {/* (b) Status pair -------------------------------------------------- */}
+        {/* FIRST, and that is the whole point of the reordering: status →
+            evidence → identity. A visitor arriving at this card is asking "is it
+            working", and the answer used to be the third thing on the page,
+            underneath the carrier's name and a list of band numbers.
+
+            No aria-live here — per-poll numeric ticks would flood screen
+            readers. Verdict transitions go through the dedicated sr-only region
+            above.
+
+            THE 22rem CLIFF IS MEASURED. The plan proposed 18rem (288px) from
+            arithmetic, which a 390px phone clears by 6px — so the pair would go
+            2-up there. Measured in the browser, a 143px column minus the shape's
+            30px of padding, the 40px disc and its 12px gap leaves 61px of
+            eyebrow, and English "Temperature" needs 88px. The disc is new on
+            this tile, so this clipping is new too: the tinted tile it replaced
+            had the full column for its label. 22rem (352px) is the first step
+            where every eyebrow fits in every locale — a 172px column, 90px of
+            eyebrow, against Italian's 89px "Temperatura". Below it the pair
+            stacks and each tile gets the whole width. */}
+        <motion.div
+          variants={staggerItem}
+          className={cn(
+            "grid grid-cols-1 gap-2 @[22rem]/overview:grid-cols-2",
+            dimmed,
+            isStale && "opacity-80",
+          )}
+        >
+          <StatusTile
+            eyebrow={t("overview.status.connectivity")}
+            value={t(`overview.connection.${connectionLabel}`)}
+            tone={connection.tone}
+            icon={connection.icon}
           />
-        </div>
-        {bands.length > 0 ? (
-          <div className={cn("flex flex-col", ROW_STACK_GAP)}>
-            {bands.map((b, i) => (
-              <BandRow
-                key={`${b.band}-${b.pci ?? "x"}-${i}`}
-                band={b}
-                reachable={reachable}
-                metric={bandMetric}
-                t={t}
-                entranceIndex={entrance(i)}
-              />
-            ))}
+          <StatusTile
+            eyebrow={t("overview.status.temperature")}
+            value={formatTemperature(data.temperature, unitPrefs?.tempUnit)}
+            tone={temperature.tone}
+            icon={temperature.icon}
+            mono
+          />
+        </motion.div>
+
+        {/* (c) Carriers ----------------------------------------------------- */}
+        {/* The evidence. These rows are what the retired Overall tile was
+            summarising, and they say it per carrier, on the ramp, with a toggle
+            to switch metric — strictly more than one word in a tile could. */}
+        <motion.div
+          variants={staggerItem}
+          className={cn("flex flex-col gap-3", dimmed, isStale && "opacity-70")}
+        >
+          <div className="flex items-center justify-between gap-3">
+            <span
+              className={cn(
+                EYEBROW_CLASS,
+                "text-on-surface-variant min-w-0 truncate",
+              )}
+            >
+              {t("overview.bands.section_count", { count: bands.length })}
+            </span>
+            <SegmentedMetricToggle
+              value={bandMetric}
+              onChange={onBandMetricChange}
+              t={t}
+            />
           </div>
-        ) : (
-          <AggregateBandRow
-            label={t(`overview.metrics.${bandMetric}`)}
-            value={bandMetric === "rsrp" ? data.signal.rsrp : data.signal.sinr}
-            unit={bandMetric === "rsrp" ? "dBm" : "dB"}
-            thresholds={BAND_METRIC_THRESHOLDS[bandMetric]}
-            reachable={reachable}
-            entranceIndex={entrance(0)}
-            t={t}
-          />
-        )}
-      </div>
+          {bands.length > 0 ? (
+            <div className={cn("flex flex-col", ROW_STACK_GAP)}>
+              {bands.map((b, i) => (
+                <BandRow
+                  key={`${b.band}-${b.pci ?? "x"}-${i}`}
+                  band={b}
+                  reachable={reachable}
+                  metric={bandMetric}
+                  t={t}
+                  entranceIndex={entrance(i)}
+                />
+              ))}
+            </div>
+          ) : (
+            <AggregateBandRow
+              metric={bandMetric}
+              value={bandMetric === "rsrp" ? data.signal.rsrp : data.signal.sinr}
+              reachable={reachable}
+              entranceIndex={entrance(0)}
+              t={t}
+            />
+          )}
+        </motion.div>
 
-      {/* (d) Status trio -------------------------------------------------- */}
-      {/* No aria-live here — per-poll numeric ticks would flood screen readers.
-          Verdict transitions go through the dedicated sr-only region above. */}
-      <div
-        className={cn(
-          "grid grid-cols-1 gap-2 @[18rem]/overview:grid-cols-3",
-          dimmed,
-          isStale && "opacity-80",
-        )}
-      >
-        <StatusTile
-          eyebrow={t("overview.status.overall")}
-          value={t(`overview.quality.${quality}`)}
-          tone={overall.tone}
-          icon={overall.icon}
-        />
-        <StatusTile
-          eyebrow={t("overview.status.connectivity")}
-          value={t(`overview.connection.${connectionLabel}`)}
-          tone={connection.tone}
-          icon={connection.icon}
-        />
-        <StatusTile
-          eyebrow={t("overview.status.temperature")}
-          value={formatTemperature(data.temperature, unitPrefs?.tempUnit)}
-          tone={temperature.tone}
-          icon={temperature.icon}
-          mono
-        />
-      </div>
+        {/* (d) Identity trio ------------------------------------------------ */}
+        {/* Last. Who you are attached to and how wide the pipe is are facts you
+            look up once and then stop reading; they do not move between polls
+            the way the two zones above do.
+
+            The 22rem cliff is MEASURED, not chosen (see the status pair above).
+            At 352px of content box a column is 112px, leaving 82px of eyebrow —
+            enough for "Bandwidth" at 75px. Italian's "Larghezza di banda" wants
+            136px and fits in NO 3-up at any card width: the card caps at 544px,
+            which is a 144px column and 114px of eyebrow. That one truncates on
+            purpose, with the full string on the tile's `title`. */}
+        <motion.div
+          variants={staggerItem}
+          className={cn(
+            "grid grid-cols-1 gap-2 @[22rem]/overview:grid-cols-3",
+            dimmed,
+            isStale && "opacity-80",
+          )}
+        >
+          <TonalTile
+            eyebrow={t("overview.header.carrier")}
+            value={carrier}
+            title={data.network.carrier}
+            truncate
+          />
+          <TonalTile
+            eyebrow={t("overview.header.network")}
+            value={networkType}
+          />
+          {/* Legacy key id `header.bands` now reads "Bandwidth" — kept (not
+              renamed to .bandwidth) so installed language packs that mirror this
+              id don't lose their translation. */}
+          <TonalTile
+            eyebrow={t("overview.header.bands")}
+            value={bandwidthValue}
+            title={bandList || undefined}
+            mono
+          />
+        </motion.div>
+      </motion.div>
     </>
   );
 }

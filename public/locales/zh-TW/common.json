@@ -198,8 +198,8 @@
       "count_other": "{{count}} 個活躍",
       "bandwidth": "{{bandwidth}} MHz",
       "rsrp_unit": "{{rsrp}} dBm",
-      "section_count_one": "載波 · {{count}} 個聚合",
-      "section_count_other": "載波 · {{count}} 個聚合"
+      "section_count_one": "載波",
+      "section_count_other": "載波"
     },
     "metrics": {
       "rsrp": "RSRP",

@@ -3,7 +3,7 @@
 > **Applies to:** RM520N-GL (SDX65) · verified 2026-08
 > **RG501Q-EU (SDX55):** unverified — see [`platform-matrix.md`](./platform-matrix.md)
 
-> The **Overview** splash is the public, unauthenticated landing page served at `/`. Instead of dropping an anonymous visitor straight onto a login form, QManager greets them with a live status card — device name, carrier, network type, aggregate bandwidth, per-band signal, and an Overall/Internet/Temperature verdict trio — all refreshed every 5 seconds *before* anyone logs in. A **Sign in** button takes them to `/login/`, and a deliberate logout now lands the user back here rather than on the bare login screen.
+> The **Overview** splash is the public, unauthenticated landing page served at `/`. Instead of dropping an anonymous visitor straight onto a login form, QManager greets them with a live status card — an Internet/Temperature verdict pair, per-carrier signal, then device name, carrier, network type and aggregate bandwidth — all refreshed every 5 seconds *before* anyone logs in. A **Sign in** button takes them to `/login/`, and a deliberate logout now lands the user back here rather than on the bare login screen.
 
 Short version: `/` used to render the login form directly. It now renders a client-side gate that decides between three outcomes — show the public splash, confirm an existing session and forward to the dashboard, or (on a fresh device) bounce to `/setup/`. The splash reads three brand-new **public CGI endpoints** that expose a deliberately narrow, allowlisted slice of the poller cache. Nothing sensitive (IMEI, ICCID, IMSI, phone number, WAN/LAN IPs) is ever in the anonymous payload.
 
@@ -140,12 +140,40 @@ The reason it had to move out of the render function is that the **footer captio
 
 **Body — three stacked zones (`renderBody`):**
 
-1. **Header trio** — Carrier · Network · Bandwidth. The third cell shows *aggregate* channel bandwidth summed across carrier components (e.g. "95 MHz"); the joined band list ("B1, N41") survives as that cell's hover tooltip. (The i18n key is still `overview.header.bands` — kept, not renamed to `.bandwidth`, so installed language packs that mirror the id keep their translation.)
-2. **Signal section** — one dense row per aggregated carrier: band label · fill bar · signal value. A small **RSRP ↔ SINR** segmented toggle (`MetricToggle`) in the section header flips every band row (and its threshold tinting) between the two metrics. RSRQ is intentionally *not* a per-band view — it still feeds the Overall verdict but keeps the toggle binary. When no carrier components are reported (e.g. attach in progress), the section falls back to a single aggregate `SignalBar` for the selected metric rather than dropping it.
-3. **Status trio** — Overall · Internet · Temperature.
-   - **Overall** = the *worst* of RSRP/RSRQ/SINR (`worstSignalQuality`). RSRP alone would mask a strong-signal / poor-SINR scene (an interference-bound link).
+The reading order is **status → evidence → identity**, and it inverted in the 2026-08-30 design-language adoption pass. It used to run identity first: a visitor arriving at this card is asking *"is it working"*, and the answer was the third thing on the page, underneath the carrier's name and a list of band numbers.
+
+1. **Status pair** — Internet · Temperature. A **pair**, not a trio (see *The retired Overall tile* below).
    - **Internet** = a single connection label reduced from the LTE and NR states by `deriveConnectionLabel` (priority: connected > searching > limited > inactive > error > disconnected > unknown). When the modem is unreachable it reads `modem_unreachable`.
-   - **Temperature** = the SoC temperature, formatted in the visitor's preferred unit, with a tinted `TriangleAlertIcon` at ≥60 °C (warn) / ≥75 °C (danger). The digits stay neutral; the icon carries the state, so the meaning survives for colour-blind users (WCAG 1.4.1).
+   - **Temperature** = the SoC temperature, formatted in the visitor's preferred unit. Four bands, four tones, four glyphs, none shared: `unknown` neutral `help`, `normal` success `thermostat`, `warn` (≥60 °C) warning `warning`, `danger` (≥75 °C) destructive `priority_high`.
+     - **`normal` reports the good news.** Temperature previously only spoke when something was wrong, so `unknown` and `normal` were *both* `{ tone: "neutral" }` with no icon at all — a modem at a healthy 47 °C and a modem reporting nothing rendered identically.
+     - **`unknown` stays neutral, and that is not negotiable.** A null temperature is *no reading*; painting it green is the same class of defect as an antenna rendering green with nothing measured.
+   - The tile **body is neutral and the disc carries the colour**, so the digits keep their own ink. The doc used to claim "the digits stay neutral; the icon carries the state" — true as written, but the shipped code stopped doing it on 2026-07-29, when the tone moved to the tile root and the digits started inheriting `on-warning-container`. The neutral body makes the sentence true again. It also named a `TriangleAlertIcon`; these have been `MaterialSymbol` glyphs since the retarget.
+2. **Carriers** — one dense row per aggregated carrier: band tag, fill bar, signal value. A small **RSRP ↔ SINR** segmented toggle in the section header flips every band row (and its ramp tinting) between the two metrics. When no carrier components are reported (e.g. attach in progress), the section falls back to a single aggregate row for the selected metric rather than dropping it.
+3. **Identity trio** — Carrier · Network · Bandwidth. The third cell shows *aggregate* channel bandwidth summed across carrier components (e.g. "95 MHz"); the joined band list ("B1, N41") survives as that cell's hover tooltip. (The i18n key is still `overview.header.bands` — kept, not renamed to `.bandwidth`, so installed language packs that mirror the id keep their translation.)
+
+### The retired Overall tile
+
+The status trio's third member was **Overall** = the worst of RSRP/RSRQ/SINR (`worstSignalQuality`). It was **deleted, not restyled**, on 2026-08-30:
+
+- The Carriers rows already answer "how is the signal", on the ramp, *per carrier*, with a toggle to switch axis — strictly more than one word in a tile could say. The tile was a caption for the list beneath it, and it cost a full row on a card that must hold five carriers.
+- It shipped `signal_cellular_alt` on **both** `excellent` and `good`. Two states in one slot sharing a glyph is the one thing the status vocabulary forbids, because `success-container` and `warning-container` measure ~1.03:1 apart and are identical under deuteranopia.
+
+**Accepted cost, on the record:** with Overall gone, `signal.rsrq` is polled every 5 s and rendered *nowhere*, which widens the "polled but never rendered" finding rather than fixing it. That is accepted because the scene it guarded — strong RSRP, poor SINR, an interference-bound link — is still reachable through the metric toggle, per carrier, where it is more actionable than a summed verdict. **If the trade later looks wrong, the fix is to surface RSRQ in the rows, not to bring the tile back.**
+
+The i18n keys `overview.status.overall` and the `overview.quality.*` subtree were **kept**: `quality.*` still feeds the band rows' sr-only ramp words, and `status.overall` is left in place per this repo's practice of not breaking installed language packs.
+
+### The measured container cliff
+
+Both grids go multi-column at **`@[22rem]`** (352px of content box), and that number is measured rather than derived. The content box is roughly *viewport − 96px* (the page's 16px gutter plus the card's 32px padding, each side), so:
+
+| Viewport | Content box | At `@[18rem]` (288px) |
+| --- | --- | --- |
+| 375px | 279px | stacks |
+| 390px | 294px | goes 2-up — clears the cliff by 6px |
+
+At 2-up on a 390px phone the status column is 143px, and after 30px of tile padding, the 40px disc and its 12px gap that leaves **61px of eyebrow — where English "Temperature" needs 88px.** The clipping is new because the disc is new: the tinted tile it replaced gave its label the whole column. `22rem` is the first step where every eyebrow fits in every shipped locale (172px column, 90px of eyebrow, against Italian's 89px "Temperatura").
+
+One label fits in no 3-up at any width: Italian's "Larghezza di banda" wants 136px, and the card caps at 544px — a 144px column, 114px of eyebrow. It truncates on purpose, with the full string on the tile's `title`.
 
 **States the body can render:** loading skeleton (`SkeletonBody`, mirrors the final layout so there's no layout shift on data arrival — the title, CTA and footer caption are real text and are never skeletonised, because the card's identity is known before its reading is), `setup_required` (spinner while redirecting to `/setup/`), `unavailable` / repeated-fetch-failure (`UnreachableState`), and the live `ok` layout above.
 
@@ -222,8 +250,8 @@ Motion is enter-only (`.animate-banner-in`, 400 ms emphasized, 6 px rise + fade,
 | Recipe | Where |
 |--------|-------|
 | 01 — card entrance | `standard` easing, `y: 10`. Replaced `y: 12, ease: "easeOut"`, a token mixture the system does not produce |
-| 02 — content cascade | 60 ms stagger, composed onto the same element as recipe 01 |
-| 07 — meter growth | `scaleX`, **first paint only**: a `metersPainted` flag flips one frame after the first live render, so rows added mid-poll settle in without re-growing and the 5 s poll never replays the entrance |
+| 02 — zone cascade | **120 ms** (`STAGGER_STEP`), on a `display: contents` container wrapping the three body zones. This row previously read "60 ms stagger" — a step that **was never built and is not a legal value**: the canon permits exactly two entrance steps, 120 ms for cards and 80 ms for rows. It was rebuilt at 120 ms on 2026-08-30. The banners sit outside the cascade deliberately: a banner is an arrival, not a member of the sequence, and the element announcing an unreachable modem must not wait two zones for its turn |
+| 07 — meter growth | `scaleX`, **first paint only**: a `metersPainted` flag flips one frame after the first live render, so rows added mid-poll settle in without re-growing and the 5 s poll never replays the entrance. Its stagger is `rowCascadeDelay()` (80 ms, `STAGGER_STEP_ROWS`); it was a local `0.04` literal, i.e. a third stagger step, until 2026-08-30 |
 | 15 — submit button | No width change across idle / submitting / locked states |
 
 > ⚠️ WARNING — **there is deliberately no shake on a wrong password.** The Motion Guide prohibits rubber-band motion. The error is carried by ring colour, glyph, and copy. Do not add one back.

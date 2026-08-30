@@ -198,8 +198,8 @@
       "count_other": "{{count}} active",
       "bandwidth": "{{bandwidth}} MHz",
       "rsrp_unit": "{{rsrp}} dBm",
-      "section_count_one": "Carrier · {{count}} aggregated",
-      "section_count_other": "Carriers · {{count}} aggregated"
+      "section_count_one": "Carrier",
+      "section_count_other": "Carriers"
     },
     "metrics": {
       "rsrp": "RSRP",

@@ -99,6 +99,7 @@
     "support",
     "swap_horiz",
     "terminal",
+    "thermostat",
     "timeline",
     "translate",
     "trophy",
@@ -113,6 +114,6 @@
     "wifi_tethering_off",
     "work"
   ],
-  "bytes": 41280,
-  "sha256": "69ee62891d4aeae8dea09a1194c7a484ff14ae23b9b27ca34e21eebaeadedbbc"
+  "bytes": 40792,
+  "sha256": "528b574767b8ba7eac616c73cfd3e002592c84f4615cc0df72d468c30f49e55d"
 }

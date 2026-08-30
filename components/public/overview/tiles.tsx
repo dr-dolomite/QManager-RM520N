@@ -1,23 +1,51 @@
 "use client";
 
+import { EMPHASIS } from "@/components/pre-auth-type";
 import {
   MaterialSymbol,
   type MaterialSymbolName,
 } from "@/components/ui/material-symbol";
 import { cn } from "@/lib/utils";
 
-import { EYEBROW_CLASS, TILE_CLASSES, TILE_SHAPE, type TileTone } from "./tone";
+import {
+  EYEBROW_CLASS,
+  TILE_DISC,
+  TILE_DISC_SHAPE,
+  TILE_HEIGHT,
+  TILE_SHAPE,
+} from "./tone";
 
 // =============================================================================
-// The two trios
+// The two tile families
 // =============================================================================
-// Both used to be bare eyebrow-plus-value cells, on the reasoning that the card
-// already provides the container. Under a tonal system that reasoning inverts:
-// six values floating in one large surface is exactly the "bright text
-// sprinkled on white" the system exists to replace.
+// Both bodies are NEUTRAL. That is the whole of the adoption pass: the identity
+// tiles were already neutral and stay that way, and the status tiles hand their
+// colour to a 40px disc instead of wearing it across 66px of surface.
+//
+// There is deliberately no tone/body export. A caller cannot tint a body back,
+// which is cheaper than a comment asking nobody to.
 // =============================================================================
 
-/** Info trio cell — Carrier · Network · Bandwidth. Identity, always neutral. */
+/** The shared body: neutral fill, one shape, one height. */
+const TILE_BODY = cn(
+  "bg-surface-container text-on-surface flex min-w-0 items-center",
+  TILE_SHAPE,
+  TILE_HEIGHT,
+);
+
+/**
+ * The eyebrow. `min-w-0` and `truncate` are BOTH required and neither works
+ * alone: `truncate` cannot shrink a flex child that has not been allowed to go
+ * below its content width, and `min-w-0` on its own just lets the text spill.
+ * Without the pair, Italian's "Larghezza di banda" pushes the identity trio
+ * wider than its column at the 288px cliff.
+ */
+const TILE_EYEBROW = cn(EYEBROW_CLASS, "text-on-surface-variant min-w-0 truncate");
+
+/**
+ * Identity tile — Carrier · Network · Bandwidth. Metadata, always neutral: a
+ * carrier's name is not a verdict, so it gets no hue and no disc.
+ */
 export function TonalTile({
   eyebrow,
   value,
@@ -33,35 +61,34 @@ export function TonalTile({
   truncate?: boolean;
 }) {
   return (
-    <div
-      className={cn(
-        "bg-surface-container flex min-w-0 flex-col gap-1",
-        TILE_SHAPE,
-      )}
-    >
-      <span className={cn(EYEBROW_CLASS, "text-on-surface-variant")}>
-        {eyebrow}
-      </span>
-      <span
-        className={cn(
-          "text-sm font-semibold tracking-[-0.005em] whitespace-nowrap",
-          mono && "tabular-nums",
-          truncate && "overflow-hidden text-ellipsis",
-        )}
-        title={title ?? value}
-      >
-        {value}
-      </span>
+    <div className={TILE_BODY}>
+      <div className="flex min-w-0 flex-col gap-1">
+        <span className={TILE_EYEBROW}>{eyebrow}</span>
+        <span
+          className={cn(
+            "text-sm font-semibold tracking-[-0.005em] whitespace-nowrap",
+            mono && "tabular-nums",
+            truncate && "overflow-hidden text-ellipsis",
+          )}
+          title={title ?? value}
+        >
+          {value}
+        </span>
+      </div>
     </div>
   );
 }
 
 /**
- * Status trio cell — Overall · Internet · Temperature. The verdict lives in the
- * FILL, so health is legible before a single word is read; the glyph is what
- * keeps it legible without colour. A tinted tile drops its eyebrow to 80%
- * opacity of the container's own ink rather than switching to the variant
- * token, which would not be a pair for the fill.
+ * Status tile — Internet · Temperature.
+ *
+ * The verdict lives in the DISC, so health is legible before a single word is
+ * read while the body stays neutral and the digits keep their own ink. The
+ * glyph is what keeps the verdict legible without colour at all.
+ *
+ * The disc morphs on `background-color` AND `color` together at the standard
+ * step: animating only the fill leaves the glyph's ink snapping a frame ahead of
+ * the disc it sits on, which reads as a flicker rather than as a state change.
  */
 export function StatusTile({
   eyebrow,
@@ -72,36 +99,27 @@ export function StatusTile({
 }: {
   eyebrow: string;
   value: string;
-  tone: TileTone;
-  icon?: MaterialSymbolName;
+  tone: keyof typeof TILE_DISC;
+  icon: MaterialSymbolName;
   mono?: boolean;
 }) {
-  const tinted = tone !== "neutral";
   return (
-    <div
-      className={cn(
-        "flex min-w-0 flex-col gap-[0.3125rem]",
-        TILE_SHAPE,
-        TILE_CLASSES[tone],
-      )}
-    >
+    <div className={cn(TILE_BODY, "gap-3")}>
       <span
         className={cn(
-          EYEBROW_CLASS,
-          tinted ? "opacity-80" : "text-on-surface-variant",
+          TILE_DISC_SHAPE,
+          "transition-[background-color,color] duration-[var(--duration-standard)] ease-[var(--ease-standard)]",
+          TILE_DISC[tone],
         )}
       >
-        {eyebrow}
+        <MaterialSymbol name={icon} filled size={21} />
       </span>
-      <span
-        className={cn(
-          "flex items-center gap-1.5 text-[0.9375rem] leading-none font-semibold tracking-[-0.01em]",
-          mono && "tabular-nums",
-        )}
-      >
-        {icon && <MaterialSymbol name={icon} filled size={17} />}
-        <span className="truncate">{value}</span>
-      </span>
+      <div className="flex min-w-0 flex-col gap-[0.3125rem]">
+        <span className={TILE_EYEBROW}>{eyebrow}</span>
+        <span className={cn(EMPHASIS, "truncate", mono && "tabular-nums")}>
+          {value}
+        </span>
+      </div>
     </div>
   );
 }

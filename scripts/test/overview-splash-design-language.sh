@@ -195,10 +195,28 @@ else
     bad "$grid3_bad unqueried grid-cols-3 in overview-card.tsx"
 fi
 # The status grid is 2-up now that Overall is gone, and it keeps its query.
-if grep -q '@\[18rem\]/overview:grid-cols-2' "$CARD"; then
-    ok "the status grid is 2-up behind its container query"
+#
+# AMENDED IN PHASE 5, and the amendment is recorded rather than quietly applied.
+# This assertion originally pinned the literal `@[18rem]/overview:grid-cols-2`.
+# 18rem was the PLAN'S ARITHMETIC, and the plan explicitly deferred it: "measure
+# the real container width at 375px and 390px before confirming or moving the
+# breakpoint". Measured in a browser against the real shell:
+#
+#   viewport 375 -> content box 279   (below 18rem: the pair stacks)
+#   viewport 390 -> content box 294   (clears 18rem by 6px: the pair goes 2-up)
+#
+# and at 2-up a 143px column minus 30px of tile padding, the NEW 40px disc and
+# its 12px gap leaves 61px of eyebrow, where English "Temperature" needs 88px.
+# So 18rem clips an English label on an ordinary phone. 22rem (352px) is the
+# first step where every eyebrow fits in every shipped locale.
+#
+# The pin therefore moves from the NUMBER, which the plan left open, to the
+# MECHANISM, which it did not: 2-up, behind a container query, whatever the
+# cliff turns out to measure at.
+if grep -qE '@\[[0-9]+(\.[0-9]+)?rem\]/overview:grid-cols-2' "$CARD"; then
+    ok "the status grid is 2-up behind a container query"
 else
-    bad "no '@[18rem]/overview:grid-cols-2' in overview-card.tsx -- Internet + Temperature is a PAIR, not a trio"
+    bad "no container-queried grid-cols-2 in overview-card.tsx -- Internet + Temperature is a PAIR, not a trio"
 fi
 
 printf '\n[6] The eyebrow can shrink\n'

@@ -150,6 +150,13 @@ export const MATERIAL_SYMBOL_NAMES = [
   "support",
   "swap_horiz",
   "terminal",
+  // The Overview splash's `normal` temperature band. Temperature previously
+  // only spoke when something was wrong — `warning` and `priority_high` and
+  // otherwise no glyph at all — which made a silent tile ambiguous between
+  // "fine" and "not measured". A healthy reading needs its own mark, and this
+  // is the only glyph in the family that names the quantity rather than a
+  // verdict about it.
+  "thermostat",
   "timeline",
   "translate",
   "trophy",

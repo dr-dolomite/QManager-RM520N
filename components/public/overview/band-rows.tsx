@@ -5,13 +5,16 @@ import { motion, useReducedMotion } from "motion/react";
 
 import { Tag } from "@/components/ui/tag";
 import { cn } from "@/lib/utils";
-import { transitionMeterFill, transitionStandard } from "@/lib/motion";
+import {
+  rowCascadeDelay,
+  transitionMeterFill,
+  transitionStandard,
+} from "@/lib/motion";
 import {
   getSignalQuality,
   normalizeMetricValue,
   signalToProgress,
   type SignalQuality,
-  type SignalThresholds,
 } from "@/types/modem-status";
 import type { PublicOverviewBand } from "@/types/public-overview";
 
@@ -104,11 +107,17 @@ export function SegmentedMetricToggle({
 // =============================================================================
 // Meter
 // =============================================================================
-// Recipe 07: scaleX from 0 on FIRST PAINT ONLY, 40ms apart. A poll-driven
-// retarget settles on the everyday curve — never a re-grow from zero, and never
-// an animated `width`.
-
-const STAGGER_SECONDS = 0.04;
+// Recipe 07: scaleX from 0 on FIRST PAINT ONLY. A poll-driven retarget settles
+// on the everyday curve — never a re-grow from zero, and never an animated
+// `width`.
+//
+// The step is `rowCascadeDelay()`, i.e. STAGGER_STEP_ROWS. It used to be a local
+// 40ms constant declared in this file, which made it a THIRD entrance stagger
+// step in a system that permits exactly two — 120ms for cards, 80ms for rows
+// sharing one card's border. These meters are the second kind, so they take the
+// row step and they take it BY REFERENCE, which also buys them the shared
+// ROW_CASCADE_MAX_INDEX cap: an unbounded index × step would make the eleventh
+// carrier in a list wait for its bar.
 
 function QualityMeter({
   percent,
@@ -153,7 +162,7 @@ function QualityMeter({
               : firstPaint
                 ? {
                     ...transitionMeterFill,
-                    delay: entranceIndex * STAGGER_SECONDS,
+                    delay: rowCascadeDelay(entranceIndex),
                   }
                 : transitionStandard
           }
@@ -256,22 +265,27 @@ export function BandRow({
  * is no single radio to name here, so the slot must not claim one.
  */
 export function AggregateBandRow({
-  label,
+  metric,
   value,
-  unit,
-  thresholds,
   reachable,
   entranceIndex,
   t,
 }: {
-  label: string;
+  metric: BandMetric;
   value: number | null;
-  unit: string;
-  thresholds: SignalThresholds;
   reachable: boolean;
   entranceIndex: number | null;
   t: TranslateFn;
 }) {
+  // Everything the row needs follows from the metric, so the caller passes the
+  // metric and nothing else. It previously passed the label, the thresholds and
+  // the measurement suffix as three separate props, and that suffix arrived as
+  // a bare English string chosen in the card — an untranslated literal in the
+  // one row on this surface that had one. `BandRow` eleven lines up already
+  // routes both it and the empty state through `t()`, so this was the same file
+  // disagreeing with itself rather than a missing convention.
+  const label = t(`overview.metrics.${metric}`);
+  const thresholds = BAND_METRIC_THRESHOLDS[metric];
   const quality: SignalQuality = reachable
     ? getSignalQuality(value, thresholds)
     : "none";
@@ -307,7 +321,11 @@ export function AggregateBandRow({
           textClass,
         )}
       >
-        {value != null ? `${minusSign(value)} ${unit}` : "—"}
+        {value != null
+          ? t(`overview.metrics.${metric}_value`, {
+              [metric]: minusSign(value),
+            })
+          : t("overview.field.empty")}
         {barClass != null && (
           <span className="sr-only"> {t(`overview.quality.${quality}`)}</span>
         )}

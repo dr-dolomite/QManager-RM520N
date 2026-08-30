@@ -5,6 +5,7 @@ import { motion, type Variants } from "motion/react";
 import { useTranslation } from "react-i18next";
 
 import { useLogin } from "@/hooks/use-auth";
+import { BODY, CARD_TITLE } from "@/components/pre-auth-type";
 import { SLOT, withSlot } from "@/components/auth/interpolation-slot";
 import { LoginDeviceName } from "@/components/auth/login-device-name";
 import { Button } from "@/components/ui/button";
@@ -272,9 +273,13 @@ export default function LoginComponent() {
           />
         </div>
         <div className="flex min-w-0 max-w-full flex-col gap-[5px]">
-          <h1 className="text-2xl leading-[1.15] font-semibold tracking-[-0.015em]">
-            {t("login.welcome")}
-          </h1>
+          {/* The shared pre-auth card title. This heading shipped at 24px while
+              the Overview splash shipped 19px — two cards that are the same
+              object seen twice, disagreeing about their own loudest step. 19px
+              is the one that survived: these cards hold three text elements on
+              a ~400px surface, where 24px reads as a marketing headline rather
+              than as the heading of a tool. */}
+          <h1 className={CARD_TITLE}>{t("login.welcome")}</h1>
           {/* Silent-omission contract: with no hostname this renders nothing and
               the block closes up. Do not substitute a placeholder — a fake
               device name on a login screen is a lie about which modem you are
@@ -294,18 +299,16 @@ export default function LoginComponent() {
             isLocked && "pointer-events-none opacity-50",
           )}
         >
-          {/* The pre-auth card's 13px body step, not the 12px Label step: this
+          {/* The pre-auth card's 13px BODY step, not the 12px Label step: this
               label sits above a 48px field on a screen with three text elements
-              total, and 12px under a 24px headline reads as fine print.
-              13px here is NOT the dense-metric-row step (which is 13px only
-              with a mandatory /5 line box) — it is the pre-auth card scale, a
-              surface-scoped exception documented in DESIGN.md > Typography >
-              Hierarchy and shared with the Overview splash. Changing it changes
-              both screens. */}
-          <label
-            htmlFor="password"
-            className="text-[0.8125rem] font-semibold"
-          >
+              total, and 12px there reads as fine print. (The old wording said
+              "under a 24px headline" — the headline is the 19px CARD_TITLE now,
+              and the argument holds without leaning on that number at all.)
+              13px here is NOT the dense-metric-row step, which is 13px only with
+              a mandatory tight line box. It is the pre-auth card scale, now a
+              shared module rather than a convention — changing BODY changes both
+              screens, which is the point. */}
+          <label htmlFor="password" className={cn(BODY, "font-semibold")}>
             {t("login.password_label")}
           </label>
 

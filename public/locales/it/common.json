@@ -198,8 +198,8 @@
       "count_other": "{{count}} attive",
       "bandwidth": "{{bandwidth}} MHz",
       "rsrp_unit": "{{rsrp}} dBm",
-      "section_count_one": "Portante · {{count}} aggregata",
-      "section_count_other": "Portanti · {{count}} aggregate"
+      "section_count_one": "Portante",
+      "section_count_other": "Portanti"
     },
     "metrics": {
       "rsrp": "RSRP",

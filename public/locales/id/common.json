@@ -198,8 +198,8 @@
       "count_other": "{{count}} aktif",
       "bandwidth": "{{bandwidth}} MHz",
       "rsrp_unit": "{{rsrp}} dBm",
-      "section_count_one": "Pembawa · {{count}} teragregasi",
-      "section_count_other": "Pembawa · {{count}} teragregasi"
+      "section_count_one": "Pembawa",
+      "section_count_other": "Pembawa"
     },
     "metrics": {
       "rsrp": "RSRP",

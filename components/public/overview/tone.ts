@@ -2,6 +2,7 @@ import {
   qualityInkClass,
   qualityMeterTone,
 } from "@/components/cellular/signal-quality-display";
+import { EYEBROW } from "@/components/pre-auth-type";
 import type { MaterialSymbolName } from "@/components/ui/material-symbol";
 import type { MetricBarTone } from "@/components/ui/metric-bar";
 import {
@@ -41,7 +42,7 @@ import {
 export const TEMP_WARN = 60; // °C
 export const TEMP_DANGER = 75; // °C
 
-export type TempBand = "unknown" | "normal" | "warn" | "danger";
+type TempBand = "unknown" | "normal" | "warn" | "danger";
 
 export function temperatureBand(temp: number | null): TempBand {
   if (temp == null) return "unknown";
@@ -130,48 +131,58 @@ export function qualityBarClass(
   return RAMP_BAR_CLASS[tone];
 }
 
-// ---------- Container tone (the status trio's filled tiles) ----------------
+// ---------- Status tone (the tile DISC, never the tile body) ----------------
+//
+// THE TILE BODY IS NEUTRAL. THE DISC CARRIES THE COLOUR.
+//
+// This surface previously ran a filled tonal tile: the whole 66px body took the
+// role's pale container and its `on-` ink. That is the composition PRODUCT.md
+// replaced on 2026-08-16, and the one `radio/summary-tiles.tsx`, the SMS strip
+// and the Cell Scanner triad have each already removed. Two things were wrong
+// with it, both stated rather than felt:
+//
+//   · A 66px body is not "compact emphasis", so a role container was the wrong
+//     LAYER for it. Three pale bodies at near-identical container lightness
+//     encode CATEGORY without encoding IMPORTANCE, so the strip flattens to
+//     equal weight and the eye has nowhere to land.
+//   · The digits inherited the container's ink, so a warm modem printed its
+//     temperature in amber. The feature doc claims "the digits stay neutral;
+//     the icon carries the state" — which the shipped code stopped doing on
+//     2026-07-29 and which a neutral body makes true again for free.
+//
+// A neutral body with a saturated disc gives each tile a focal point at ~1/8th
+// the tinted area, and gives the pair a reading order again.
 
-export type TileTone =
-  | "neutral"
-  | "primary"
-  | "success"
-  | "warning"
-  | "destructive";
+type StatusTone = "neutral" | "success" | "warning" | "destructive";
 
-export const TILE_CLASSES: Record<TileTone, string> = {
-  neutral: "bg-surface-container text-foreground",
-  primary: "bg-primary-container text-on-primary-container",
-  success: "bg-success-container text-on-success-container",
-  warning: "bg-warning-container text-on-warning-container",
-  destructive: "bg-destructive-container text-on-destructive-container",
-};
-
-export interface TileVerdict {
-  tone: TileTone;
-  icon?: MaterialSymbolName;
+interface TileVerdict {
+  tone: StatusTone;
+  /**
+   * Required, not optional. Every status tile carries a glyph, because
+   * `success-container` and `warning-container` measure ~1.03:1 apart — the
+   * same surface to the eye, and identical under deuteranopia — so the glyph is
+   * the only thing that reliably separates two states in one slot. Making it
+   * required is what turns that rule into a build error instead of a review
+   * note: `TEMPERATURE_TILE` shipped TWO of its four bands with no icon at all.
+   */
+  icon: MaterialSymbolName;
 }
 
 /**
- * Overall = worst of RSRP/RSRQ/SINR. Because `success-container` and
- * `warning-container` measure ~1.03:1 apart — the same surface to the eye, and
- * identical under deuteranopia — no two states in one slot share a glyph.
+ * The disc fill for each status tone. Always a FILL pair (`bg-X` +
+ * `text-X-foreground`), never a container — The Glyph-Disc Rule: in light mode
+ * the pale role containers collapse under CVD simulation and the strong fills
+ * do not, so the disc is the only place a role colour is reliably legible.
  *
- * This is the CONTAINER axis, not the ramp: filled tonal tiles run on the
- * functional roles, which have no fifth failure step. `bad` therefore shares
- * `destructive` with `poor` — and consequently the glyph is the ONLY thing
- * separating the two here, which is exactly the rule above doing its job.
- * `signal_cellular_0_bar` is `bad`'s ramp glyph in the canonical
- * `QUALITY_GLYPH` map, so the tile and the band rows name the same state the
- * same way; `priority_high` stays `poor`'s alone.
+ * `neutral` is the one non-role member, and it takes the same neutral surface
+ * step the SMS strip's neutral disc takes (`sms/shapes.ts` > TILE_DISC_NEUTRAL).
+ * A state with no honest hue gets no hue — it does not get borrowed one.
  */
-export const OVERALL_TILE: Record<SignalQuality, TileVerdict> = {
-  excellent: { tone: "success", icon: "signal_cellular_alt" },
-  good: { tone: "success", icon: "signal_cellular_alt" },
-  fair: { tone: "warning", icon: "warning" },
-  poor: { tone: "destructive", icon: "priority_high" },
-  bad: { tone: "destructive", icon: "signal_cellular_0_bar" },
-  none: { tone: "neutral", icon: "signal_cellular_off" },
+export const TILE_DISC: Record<StatusTone, string> = {
+  neutral: "bg-surface-container-high text-on-surface-variant",
+  success: "bg-success text-success-foreground",
+  warning: "bg-warning text-warning-foreground",
+  destructive: "bg-destructive text-destructive-foreground",
 };
 
 export type ConnectionLabel = ConnectionState | "modem_unreachable";
@@ -187,9 +198,24 @@ export const CONNECTION_TILE: Record<ConnectionLabel, TileVerdict> = {
   modem_unreachable: { tone: "destructive", icon: "signal_cellular_off" },
 };
 
+/**
+ * Four bands, four tones, four glyphs — and none of them shared.
+ *
+ * This map used to give `unknown` and `normal` BOTH `{ tone: "neutral" }` with
+ * no icon at all, so a modem sitting at a healthy 47 °C and a modem reporting
+ * nothing at all rendered identically. Two separate corrections:
+ *
+ *   · `normal` now reports the GOOD NEWS. Temperature previously only spoke
+ *     when something was wrong, which makes a silent tile ambiguous between
+ *     "fine" and "not measured".
+ *   · `unknown` STAYS NEUTRAL, and this is not negotiable. A null temperature
+ *     is NO READING, and painting it green is the same class of defect as the
+ *     antenna that rendered green with nothing measured — the bug that made
+ *     `qualityMeterTone()` return `null` rather than a colour.
+ */
 export const TEMPERATURE_TILE: Record<TempBand, TileVerdict> = {
-  unknown: { tone: "neutral" },
-  normal: { tone: "neutral" },
+  unknown: { tone: "neutral", icon: "help" },
+  normal: { tone: "success", icon: "thermostat" },
   warn: { tone: "warning", icon: "warning" },
   danger: { tone: "destructive", icon: "priority_high" },
 };
@@ -197,19 +223,40 @@ export const TEMPERATURE_TILE: Record<TempBand, TileVerdict> = {
 // ---------- Type styles ----------------------------------------------------
 
 /**
- * 11px / 600 / .11em — the label above every tile and section.
+ * The eyebrow above every tile and section.
  *
- * The comp draws this at 10px. It ships at 11px: that is the floor already set
- * by the sidebar's surface-scoped exception and by the eyebrow this very card
- * shipped before the retarget, and going below it would make uppercase text at
- * 0.11em tracking the smallest type in the product. Fidelity to the comp is not
- * worth a new product-wide minimum on the least legible thing on the page.
+ * Re-exported, not restated. This step belongs to the PRE-AUTH TYPE SCALE and
+ * is shared with the sign-in card, so it lives in `components/pre-auth-type.ts`
+ * and this alias exists only so the surface's own modules can keep reading it
+ * from the surface's own tone module.
  */
-export const EYEBROW_CLASS =
-  "text-[0.6875rem] font-semibold uppercase leading-none tracking-[0.11em]";
+export const EYEBROW_CLASS = EYEBROW;
 
-/** The tile geometry the skeleton must mirror exactly. */
-export const TILE_SHAPE = "rounded-field px-[0.9375rem] py-[0.8125rem]";
+// ---------- Tile geometry --------------------------------------------------
+//
+// Both exports are read by the loaded tiles AND by the skeleton, which is the
+// Skeleton-Mirror Rule in its literal form: a skeleton mirrors the loaded
+// geometry by importing the same constant, never by restating a number. The
+// skeleton previously hardcoded `h-16` for the info tiles and `h-[4.125rem]`
+// for the status tiles, which is exactly the drift the rule exists to stop —
+// the two numbers were already different from each other for no reason.
+
+/** The tile body's radius and padding. */
+export const TILE_SHAPE = "rounded-tile px-[0.9375rem] py-[0.8125rem]";
+
+/**
+ * One height for BOTH tile families, so the status pair and the identity trio
+ * line up as one grid rather than as two strips that nearly match.
+ *
+ * 66px is what the status tile needs and no more: a 40px disc plus the shape's
+ * own 13px of vertical padding on each side. The identity tile's eyebrow-plus-
+ * value column is shorter than that and simply centres inside it.
+ */
+export const TILE_HEIGHT = "h-[4.125rem]";
+
+/** The 40px glyph disc. Fill comes from `TILE_DISC`, never from a caller. */
+export const TILE_DISC_SHAPE =
+  "grid size-10 flex-none place-items-center rounded-pill";
 
 // ---------- Machine voice --------------------------------------------------
 
