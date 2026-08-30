@@ -140,7 +140,40 @@ reads it for every active CID. The shared parser lives in
 > (Tier 2 `t2_apn` / `t2_primary_dns` / `t2_secondary_dns`). It selects the
 > first non-IMS record and never classifies by address family at all, so none
 > of the defects below apply to it. Do not "harmonise" the two parsers; they
-> answer different questions.
+> answer different questions. The **one** rule that does bind both is the
+> quote-agnostic parsing rule immediately below — that one is a property of the
+> wire format, so it applies to every reader of this response.
+
+### ⚠️ The wire format is not stable across firmwares — parse quote-agnostically
+
+**Short version: `AT+CGCONTRDP` is still the right command to ask, but how it
+formats its answer is a firmware property, not a standard.** SDX65 (RM520N-GL)
+wraps every string field in double quotes; SDX55 (RG501Q-EU) returns the
+identical reply completely bare. Measured on both devices, same SIM, minutes
+apart:
+
+```
+RM520N-GL:  +CGCONTRDP: 1,5,"SMARTLTE","10.148.167.210",,"10.151.151.44","10.151.151.48"
+RG501Q-EU:  +CGCONTRDP: 1,5,SMARTLTE,10.167.105.28,,10.151.151.44,10.151.151.48
+```
+
+So **any** parser for this response must split on the **comma** and strip quotes
+per field. Splitting on `"` is the trap: against the bare form an `awk -F'"'`
+parser sees `NF == 1` and yields an all-empty tuple — silently, because to a
+poll loop an empty parse is indistinguishable from "the network has not granted
+anything yet". That is exactly how a landed APN got reported as rc=5
+`timeout_verify` (see the [return-code contract](#return-code-contract) below).
+
+All three parsers now do this: `parse_cgcontrdp` and `parse_cgcontrdp_apn` in
+`cgi_at.sh`, and the poller's `parse_cgcontrdp` in `parse_at.sh` — whose IMS
+filter was `grep -iv '"ims"'` and is now quote-agnostic too. Pinned by
+`scripts/test/apn-cgcontrdp-unquoted.sh` (13 assertions, auto-discovered by
+`scripts/test/run-harnesses.sh`); the device captures and the full symptom list
+are in [platform-matrix.md](platform-matrix.md).
+
+> ℹ️ NOTE: **Only the parsing changed — the strategy did not.**
+> `AT+CGCONTRDP=<cid>` remains the only command that reports what the network
+> actually granted, and it remains what verification must read.
 
 ### Family is decided by octet count, not by punctuation
 
@@ -174,12 +207,15 @@ The same CID was observed both ways minutes apart on this firmware:
 +CGCONTRDP: 1,5,"apn","addr","gw","dns1","dns2"    <- quoted gateway
 ```
 
-The parser splits on `"` (`awk -F'"'`), so a quoted gateway shifts every later
-field by **two**. The old fixed `$6` / `$8` therefore returned the *gateway* as
-`dns1` and dropped `dns2` entirely on any quoted-gateway context. The parser
-now counts the quoted tokens instead — they sit on even fields, so `int(NF/2)`
-— and picks the offsets from that: five tokens means `apn/addr/gw/dns1/dns2`,
-four means the gateway was bare and lives in the separator run at `$5`.
+The parser used to split on `"` (`awk -F'"'`), so a quoted gateway shifted every
+later field by **two**: the fixed `$6` / `$8` offsets returned the *gateway* as
+`dns1` and dropped `dns2` entirely on any quoted-gateway context. An interim fix
+counted the quoted tokens (`int(NF/2)`) to pick the offsets dynamically.
+
+**That quote-counting hack is gone — do not reintroduce it.** Comma-splitting
+subsumes it: comma positions never shift, so the gateway is simply `f[5]`
+whether it arrived quoted, bare, or empty. The same change is what makes the
+parser work at all on firmwares that quote nothing (see above).
 
 ### DNS is family-neutral, the gateway is not
 
@@ -257,6 +293,17 @@ headroom over the worst case.
 > the configured view is self-concealing and was the root cause of the profile
 > worker's silent-failure bug (see
 > [sim-profiles.md](sim-profiles.md#the-apn-step-runs-a-full-attach-cycle)).
+
+> ⚠️ WARNING: **Why the obvious fix for a failing verify is the wrong one.**
+> When `parse_cgcontrdp_apn` started returning empty on SDX55 and the poll timed
+> out, the first proposal was to verify against `AT+CGDCONT?` filtered to the
+> active internet CID — it parses cleanly on both firmwares, so the symptom does
+> go away. It also reads back the value `apn_apply_write` wrote *eight seconds
+> earlier in the same function*, so it can only ever match. That makes rc=4
+> `mismatch` and rc=5 `timeout_verify` structurally unreachable, and a carrier
+> that rejects the APN at attach would be reported as "applied successfully" on
+> a device with no bearer. A parse failure is a parser bug: fix the parser, keep
+> the question.
 
 APN comparisons **case-fold** (`tr 'A-Z' 'a-z'`) before comparing — APNs are
 DNS-style labels and case-insensitive per 3GPP, and a live device negotiated

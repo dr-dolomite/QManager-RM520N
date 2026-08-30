@@ -985,6 +985,72 @@ ahead of it.
 | `AT+CGAUTH` | **Unsupported** — returns `ERROR`; use `AT+QICSGP` | *unverified* | on-device · `wan-profile-management.md:81` |
 | Per-context MTU write | No reliable write; `+CGCONTRDP` returns no MTU field | *unverified* | on-device · `wan-profile-management.md:400` |
 | `+CGCONTRDP` IPv6 format | 16 dotted-decimal octets; gateway quoting varies between reads | *unverified* | on-device 2026-08-03 |
+| ⚠️ `+CGCONTRDP` field quoting | **Quoted** — `1,5,"SMARTLTE","10.148.167.210",,"10.151.151.44","10.151.151.48"` | ⚠️ **Bare — no quotes on any field**: `1,5,SMARTLTE,10.167.105.28,,10.151.151.44,10.151.151.48`. `+CGCONTRDP` **only**; `+CGDCONT?`, `+CGPADDR` and `+QMAP` are still quoted on this device | on-device 2026-08-30, both devices, same SIM, minutes apart — see the section below |
+
+### ⚠️ `+CGCONTRDP` is quoted on SDX65 and bare on SDX55 — and only `+CGCONTRDP`
+
+**Short version: the same AT command, on the same SIM, wraps its fields in double
+quotes on the RM520N-GL and leaves them completely bare on the RG501Q-EU. A
+parser that splits the line on the `"` character sees a single field on the
+SDX55 and hands back an all-empty result from a perfectly good reply.**
+
+Measured 2026-08-30 on both devices, same SIM, minutes apart:
+
+```
+RM520N-GL  (SDX65, RM520NGLAAR03A03M4G_A0.304)
++CGCONTRDP: 1,5,"SMARTLTE","10.148.167.210",,"10.151.151.44","10.151.151.48"
+
+RG501Q-EU  (SDX55, RG501QEUAAR12A11M4G_04.202)
++CGCONTRDP: 1,5,SMARTLTE,10.167.105.28,,10.151.151.44,10.151.151.48
+```
+
+**The divergence is specific to `+CGCONTRDP`.** On that same RG501Q-EU,
+`+CGDCONT?`, `+CGPADDR` and `+QMAP` all still return quoted strings. Two
+consequences worth stating plainly:
+
+- **Do not generalise this into "the SDX55 does not quote things."** That rule
+  would be wrong and actively harmful — it would send someone rewriting parsers
+  that are correct.
+- **Inspecting a neighbouring command would not have revealed it.** Only
+  `+CGCONTRDP` itself shows the difference, which is why a single-device fleet
+  hid it for years.
+
+The portable rule: **split `+CGCONTRDP` on the comma and strip quotes per field;
+never split on the quote character.** Comma positions are identical on both
+firmwares, and no field of this response can contain a comma — APNs are
+DNS-style labels, and the addresses are dotted-decimal or colon-hex (see the
+IPv6 row above).
+
+What the quote-splitting parsers actually broke, all fixed together on
+2026-08-30 in `scripts/usr/lib/qmanager/cgi_at.sh` (`parse_cgcontrdp`,
+`parse_cgcontrdp_apn`) and `scripts/usr/lib/qmanager/parse_at.sh`
+(`parse_cgcontrdp` and its IMS filter):
+
+- **A false "did not apply" on an APN that had applied.** `parse_cgcontrdp_apn`
+  returned empty, and `apn_apply.sh`'s verify poll only breaks on a *non-empty*
+  parse — so it burned its full 15s ceiling and returned rc=5 `timeout_verify`.
+  The UI reported "Partly applied — ... Re-attached but AT+CGCONTRDP returned no
+  data after 15s" while `+CGACT: 1,1`, `+CGPADDR: 1,"10.167.105.28"` and a 0%
+  loss ping all agreed the bearer was up.
+- **A blank "what the network granted" strip** on the APN Management page — IPv4
+  address, gateway, DNS1 and DNS2 all empty, and `connect_progress` never
+  leaving `connecting`.
+- **A latent poller mis-publish.** `parse_at.sh`'s IMS-record filter was
+  `grep -iv '"ims"'`, which cannot match an unquoted `2,6,ims,...` record. It
+  survived only because cid 1 sorts first and `head -1` took it; had the modem
+  ever emitted cid 2 first, the poller would have published `ims` as the WAN
+  APN.
+- **Every profile apply ran a pointless attach cycle.**
+  `qmanager_profile_apply`'s pre-apply skip-check reads through the same parser,
+  so on the RG501Q-EU it never short-circuited — boot, SIM-slot switch, watchdog
+  failover and manual re-activate each ran a full `AT+COPS=2` / `AT+COPS=0`
+  bracket and dropped the WAN for ~4s to change nothing.
+
+Pinned by `scripts/test/apn-cgcontrdp-unquoted.sh` (13 assertions,
+auto-discovered by `scripts/test/run-harnesses.sh`), which feeds both wire
+formats through all three parsers. Consumer-side rules live in
+[`wan-profile-management.md`](./wan-profile-management.md) and
+[`sim-profiles.md`](./sim-profiles.md).
 
 ### PRAIRIE-family note — a hypothesis, not a measurement
 

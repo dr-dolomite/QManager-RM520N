@@ -243,6 +243,17 @@ stale. Only `AT+CGCONTRDP=<cid>` — the *negotiated* view, what the network
 actually granted — can verify that an APN apply took. Any future change to this
 step must keep verifying against `CGCONTRDP`, never `CGDCONT?`.
 
+That rule fixes **which command to ask**, and it is unconditional. It does not,
+however, license trusting the reply's *shape*: `+CGCONTRDP` field quoting
+differs by firmware — SDX65 quotes every string field, SDX55 emits them all bare
+— so any parser for it must split on the **comma** and strip quotes per field
+rather than splitting on `"`. A quote-splitting parser returns an empty tuple
+from a perfectly healthy reply, which the verify poll cannot tell apart from
+"not attached yet". Details in
+[wan-profile-management.md](wan-profile-management.md) and
+[platform-matrix.md](platform-matrix.md); pinned by
+`scripts/test/apn-cgcontrdp-unquoted.sh`.
+
 #### What runs now
 
 Step 1 calls `apn_apply_write` from the shared primitive
@@ -292,6 +303,14 @@ do.
 | 5 | Re-attached, but `AT+CGCONTRDP` returned nothing before the ceiling | `failed` |
 | 6 | Empty APN, no opt-in — no AT commands issued | (pre-empted by the empty-APN skip above) |
 | 7 | Another APN bracket is in progress — no AT commands issued, retryable | `failed` |
+
+> ℹ️ NOTE: **A false rc=5 has historically come from the parser, not the
+> modem.** Until 2026-08-30, `parse_cgcontrdp_apn` split the response on `"` and
+> so returned empty for every RG501Q-EU reply — the poll ran its full 15s
+> ceiling and reported `timeout_verify` for APNs that had actually landed
+> (`+CGACT: 1,1`, a valid `+CGPADDR`, ping at 0% loss). Before reading rc=5 as a
+> modem or carrier problem, check that the raw `AT+CGCONTRDP=<cid>` reply really
+> is empty.
 
 The 4-step ledger has no distinct "critical" or "retry" status, so the severity of
 rc=3 and the retryable nature of rc=7 ride entirely in the step's `detail`
