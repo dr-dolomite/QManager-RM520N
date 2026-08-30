@@ -34,14 +34,15 @@ doc carries only what a future task needs.
 | Stack | `pywebview` over Edge WebView2, packaged by PyInstaller in **onedir** mode |
 | Build | `bun run package` in the repo root, then `python build_installer.py` |
 | Output | `installer-gui/dist/QManagerInstaller/` — ship the **whole folder**, not just the `.exe` |
-| Tests | `pytest` — 143 tests, no device required |
+| Tests | `pytest` — 176 tests, no device required |
 | Payload lands at | `/tmp/qmanager.tar.gz`, extracted to `/tmp/qmanager_install` |
 | Script invoked | `bash /tmp/qmanager_install/install_rm520n.sh --force --no-reboot` (+ `--skip-packages` if the user checks "Skip package installation") |
 | Uninstall | same sequence with `uninstall_rm520n.sh`; `--purge` is deliberately never passed |
 | Exit sentinel | `__QM_RC=` (`RC_SENTINEL`); a missing sentinel yields `MISSING_SENTINEL_RC = 255` |
 | Stream deadline | `DEFAULT_EXEC_STREAM_TIMEOUT = 1800` seconds |
 | Free-space floor | `MIN_FREE_KB = 32768` in `/tmp` |
-| Locales | `installer-gui/locales/{en,zh-CN}.json` — 73 keys, exact parity, LF, real CJK |
+| Locales | `installer-gui/locales/{en,zh-CN}.json` — 78 keys, exact parity, LF, real CJK |
+| Saved settings | `%LOCALAPPDATA%\QManagerInstaller\settings.json` — host, user, last transport, locale, DPAPI blob |
 | Session log | `qmanager-install-<serial>-<timestamp>.log` beside the exe |
 
 ## What a fresh clone does *not* contain
@@ -459,6 +460,89 @@ Two guards keep this honest:
 > listing before `ui/styles.css` existed. Now that it exists, prefer scanning it
 > for `var(--…)` references over maintaining the list by hand.
 
+## The saved connection
+
+Ticking **Remember password** on the SSH pane writes
+`%LOCALAPPDATA%\QManagerInstaller\settings.json`, and the next launch
+prefills host, username, the transport tab and the UI language from it. This
+is the only thing the sub-project persists; before it, even the locale picker
+reset to English on every launch.
+
+### The password never leaves Python
+
+`Bridge.saved_connection()` returns `has_password: true` — a bool, never the
+secret. The field shows a *"Using saved password"* placeholder instead of
+fake dots, and an empty field at connect time is the signal to use the saved
+one: `connect_ssh` decrypts it in Python and hands it straight to paramiko.
+So a root password never enters the WebView's DOM, never sits in the JS heap,
+and cannot surface in a WebView2 crash dump.
+
+The one thing this costs: **a genuinely empty SSH password is unexpressible
+once a blob is saved.** Not a real case for `root` on these modems, but it is
+the reason the rule is "empty means saved" rather than a separate flag.
+
+### DPAPI, and why the blob is safe to ship around
+
+`core/dpapi.py` calls `CryptProtectData` / `CryptUnprotectData` through
+`ctypes` — no new dependency, nothing for PyInstaller to miss, and the key
+never leaves the OS. DPAPI ("Data Protection API") encrypts a secret to the
+**logged-in Windows account on this machine**, so the blob is inert
+everywhere else. That is the entire security argument for saving a root
+password at all: `settings.json` can be copied to a USB stick, emailed, or
+committed by accident and it still leaks nothing.
+
+Both calls pass a fixed app entropy (`QManagerInstaller/ssh/v1`), a second
+secret DPAPI requires again at decrypt time. Without it, any process running
+as the same user could open the blob just by handing the file to
+`CryptUnprotectData`.
+
+> ℹ️ NOTE: this is also why the file lives under `%LOCALAPPDATA%` rather than
+> beside the exe, where the locales and session logs sit. The session log is
+> the sub-project's whole support story — the user zips that folder and sends
+> it — and a support bundle that also carries a root password is a hazard.
+> The portability a same-folder file would seem to buy is illusory: a DPAPI
+> blob does not survive the trip to another PC anyway.
+
+### Every failure degrades to "not remembered"
+
+Nothing in `prefs.py` or `dpapi.py` raises. `unprotect` returns `None` — not
+an exception — for a blob from another Windows account, garbage base64, a
+truncated file, or a non-Windows host; `load_prefs` returns the shipped
+defaults for a corrupt file; `save_prefs` returns `False` on a read-only or
+roaming profile; unknown keys from a future version are dropped rather than
+passed to the constructor. Each of those reads back as exactly what a fresh
+install looks like.
+
+That is not defensive habit, it is the bridge contract: an exception crossing
+pywebview's `js_api` boundary becomes a rejected JS promise carrying no
+message the UI ever sees, so the user gets a frozen connect screen with no
+explanation. Silence-with-defaults is the only safe failure mode here.
+
+### Two rules that are easy to "simplify" away
+
+- **Credentials are persisted only after they have worked.** A failed
+  `connect_ssh` writes nothing at all — not even the host. A remembered wrong
+  password would be retried on every launch against an account that may lock
+  out.
+- **Un-ticking the box calls `forget()` immediately**, not at the next
+  connect. A control that says "forget this" and then keeps it until later is
+  a lie. It drops the secret and keeps the address.
+
+### Testing it
+
+`tests/test_dpapi.py` is the only file that calls real `crypt32`, and skips
+off Windows; everything else drives an injected `FakeCipher` through the
+`cipher=` seam, and `prefs_root=` keeps the suite out of the developer's own
+`%LOCALAPPDATA%`. Both seams exist on `Bridge.__init__` for that reason.
+
+> ⚠️ WARNING: a fake cipher that leaves the plaintext readable silently
+> defeats the whole harness. The first `FakeCipher` returned
+> `"enc:" + plaintext`, and
+> `test_the_plaintext_password_never_reaches_the_disk` caught it on the first
+> run — the assertion was right, the fake was wrong, and the fake was
+> hardened rather than the assertion weakened. Keep any replacement actually
+> obscuring.
+
 ## Payload staleness — what `stage_payload` does and does not catch
 
 Nothing in this sub-project re-rolls the tarball: the artifact `build.sh`
@@ -524,9 +608,11 @@ install — the user gated that.
 - `src/qmanager_installer/core/installer.py` — push → verify → extract → run → reboot
 - `src/qmanager_installer/core/uninstall.py` — same sequence, `uninstall_rm520n.sh`, no `--purge`
 - `src/qmanager_installer/core/{payload,session_log}.py` — embedded artifact, per-run log
+- `src/qmanager_installer/core/prefs.py` — the saved connection; never raises
+- `src/qmanager_installer/core/dpapi.py` — `CryptProtectData` via `ctypes`; fails closed
 - `src/qmanager_installer/ui/{index.html,styles.css,app.js}` — the static UI
-- `installer-gui/locales/{en,zh-CN}.json` — 73 keys, exact parity
-- `installer-gui/tests/` — 143 tests
+- `installer-gui/locales/{en,zh-CN}.json` — 78 keys, exact parity
+- `installer-gui/tests/` — 176 tests
 - `scripts/install_rm520n.sh` — the script actually executed on the device
 - `.gitattributes` (repo root, lines 18–26) — LF pins for the sub-project
 
