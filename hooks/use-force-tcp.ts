@@ -2,37 +2,44 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { authFetch } from "@/lib/auth-fetch";
-import type { MasqueradeStatus } from "@/types/traffic-engine";
 
 // =============================================================================
-// useTrafficMasquerade — Traffic Engine Masquerade status & control hook
+// useForceTcp — QUIC Force-TCP status & control hook (standalone)
 // =============================================================================
-// Fetches the masquerade section status (?section=masquerade) on mount and
-// re-polls on the same 2s cadence as useVideoOptimizer (the two share one
-// engine; both cards show live state). Provides save (enabled + sni_domain).
+// Self-contained fetch of the same engine CGI GET (reads force_tcp +
+// force_tcp_active) and the save_force_tcp POST. Deliberately does NOT read
+// the engine hooks' data or states: the Force-TCP tile is fully independent
+// of the engine — binary install/uninstall and engine enable/disable never
+// touch this rule, so nothing engine-shaped should leak into this hook
+// (and nothing in here should break the engine sections if it fails).
 //
 // Backend endpoint:
-//   GET/POST /cgi-bin/quecmanager/network/video_optimizer.sh?section=masquerade
+//   GET/POST /cgi-bin/quecmanager/network/video_optimizer.sh
 // =============================================================================
 
 const CGI_ENDPOINT = "/cgi-bin/quecmanager/network/video_optimizer.sh";
-const POLL_MS = 2000;
 
-export interface UseTrafficMasqueradeReturn {
-  data: MasqueradeStatus | null;
+export interface ForceTcpStatus {
+  /** Config intent from quic.force_tcp. */
+  force_tcp: boolean;
+  /** Live rule presence on bridge0 FORWARD. */
+  force_tcp_active: boolean;
+}
+
+export interface UseForceTcpReturn {
+  data: ForceTcpStatus | null;
   isLoading: boolean;
   isSaving: boolean;
   error: string | null;
-  save: (enabled: boolean, sniDomain: string) => Promise<boolean>;
+  save: (enabled: boolean) => Promise<boolean>;
   refresh: () => void;
 }
 
-export function useTrafficMasquerade(): UseTrafficMasqueradeReturn {
-  const [data, setData] = useState<MasqueradeStatus | null>(null);
+export function useForceTcp(): UseForceTcpReturn {
+  const [data, setData] = useState<ForceTcpStatus | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
   const mountedRef = useRef(true);
 
   useEffect(() => {
@@ -42,36 +49,29 @@ export function useTrafficMasquerade(): UseTrafficMasqueradeReturn {
     };
   }, []);
 
+  // ---------------------------------------------------------------------------
+  // Fetch status
+  // ---------------------------------------------------------------------------
   const fetchStatus = useCallback(async (silent = false) => {
     if (!silent) setIsLoading(true);
-    setError(null);
     try {
-      const resp = await authFetch(`${CGI_ENDPOINT}?section=masquerade`);
+      const resp = await authFetch(CGI_ENDPOINT);
       if (!resp.ok) throw new Error(`HTTP ${resp.status}: ${resp.statusText}`);
       const json = await resp.json();
       if (!mountedRef.current) return;
 
       if (!json.success) {
-        setError(json.error || "Failed to fetch masquerade status");
+        setError(json.error || "Failed to fetch QUIC status");
         return;
       }
-
       setData({
-        success: true,
-        enabled: json.enabled,
-        status: json.status,
-        uptime: json.uptime,
-        packets_processed: json.packets_processed ?? 0,
-        domains_loaded: json.domains_loaded ?? 0,
-        binary_installed: json.binary_installed,
-        kernel_module_loaded: json.kernel_module_loaded,
-        sni_domain: json.sni_domain ?? "speedtest.net",
-        force_tcp: json.force_tcp,
-        force_tcp_active: json.force_tcp_active,
+        force_tcp: json.force_tcp ?? false,
+        force_tcp_active: json.force_tcp_active ?? false,
       });
+      setError(null);
     } catch (err) {
       if (!mountedRef.current) return;
-      setError(err instanceof Error ? err.message : "Failed to fetch masquerade status");
+      setError(err instanceof Error ? err.message : "Failed to fetch QUIC status");
     } finally {
       if (mountedRef.current && !silent) setIsLoading(false);
     }
@@ -79,33 +79,34 @@ export function useTrafficMasquerade(): UseTrafficMasqueradeReturn {
 
   useEffect(() => {
     fetchStatus();
-    const id = setInterval(() => fetchStatus(true), POLL_MS);
-    return () => clearInterval(id);
   }, [fetchStatus]);
 
+  // ---------------------------------------------------------------------------
+  // Save enable/disable (auto-applies the iptables rule on the CGI side)
+  // ---------------------------------------------------------------------------
   const save = useCallback(
-    async (enabled: boolean, sniDomain: string): Promise<boolean> => {
+    async (enabled: boolean): Promise<boolean> => {
       setError(null);
       setIsSaving(true);
       try {
         const resp = await authFetch(CGI_ENDPOINT, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ action: "save_masquerade", enabled, sni_domain: sniDomain }),
+          body: JSON.stringify({ action: "save_force_tcp", enabled }),
         });
         if (!resp.ok) throw new Error(`HTTP ${resp.status}: ${resp.statusText}`);
         const json = await resp.json();
         if (!mountedRef.current) return false;
 
         if (!json.success) {
-          setError(json.detail || json.error || "Failed to save masquerade settings");
+          setError(json.detail || json.error || "Failed to save QUIC Force-TCP");
           return false;
         }
         await fetchStatus(true);
         return true;
       } catch (err) {
         if (!mountedRef.current) return false;
-        setError(err instanceof Error ? err.message : "Failed to save masquerade settings");
+        setError(err instanceof Error ? err.message : "Failed to save QUIC Force-TCP");
         return false;
       } finally {
         if (mountedRef.current) setIsSaving(false);
@@ -114,5 +115,12 @@ export function useTrafficMasquerade(): UseTrafficMasqueradeReturn {
     [fetchStatus],
   );
 
-  return { data, isLoading, isSaving, error, save, refresh: fetchStatus };
+  return {
+    data,
+    isLoading,
+    isSaving,
+    error,
+    save,
+    refresh: fetchStatus,
+  };
 }

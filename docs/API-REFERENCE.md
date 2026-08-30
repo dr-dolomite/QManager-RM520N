@@ -1309,7 +1309,7 @@ The frontend hook (`hooks/use-modem-subsys.ts`) treats `null` fields the same as
 
 ## DPI Settings
 
-The DPI Settings page manages two features through a single CGI endpoint: **Video Optimizer** (SNI splitting for video throttle bypass) and **Traffic Masquerade** (fake TLS ClientHello with spoofed SNI). Both share the nfqws binary and kernel module but run as separate nfqws instances on different NFQUEUE numbers.
+The **Traffic Engine** page manages two modes through a single CGI endpoint: **Video Optimizer** (SNI splitting for video throttle bypass) and **Traffic Masquerade** (the same recipe applied to every 80/443 connection). This is the zepret add-on: the engine is one userspace `tpws` instance behind an iptables REDIRECT — not the legacy nfqws/NFQUEUE model, and masquerade is not a fake ClientHello. The endpoint also exposes the standalone **QUIC Force-TCP** toggle and the test-bypass comparison. See `docs/reference/dpi.md` for the architecture and recipe.
 
 ### GET `/network/video_optimizer.sh`
 
@@ -1325,11 +1325,13 @@ Read video optimizer settings and service status.
   "packets_processed": 48291,
   "domains_loaded": 22,
   "binary_installed": true,
-  "kernel_module_loaded": true
+  "kernel_module_loaded": true,
+  "force_tcp": false,
+  "force_tcp_active": false
 }
 ```
 
-Status values: `running`, `stopped`, `restarting`, `error`
+Status values: `running`, `stopped`, `restarting`, `error`. `force_tcp` is the config intent (`quic.force_tcp`); `force_tcp_active` is whether the FORWARD rule rejecting QUIC (UDP 443) is currently applied — independent of the engine.
 
 ### GET `/network/video_optimizer.sh?section=masquerade`
 
@@ -1345,7 +1347,9 @@ Read traffic masquerade settings and service status.
   "packets_processed": 15320,
   "sni_domain": "speedtest.net",
   "binary_installed": true,
-  "kernel_module_loaded": true
+  "kernel_module_loaded": true,
+  "force_tcp": false,
+  "force_tcp_active": false
 }
 ```
 
@@ -1368,9 +1372,12 @@ Poll verification test progress/results.
   "timestamp": "2026-03-24T14:30:00Z",
   "without_bypass": {"speed_mbps": 2.4, "throttled": true},
   "with_bypass": {"speed_mbps": 47.2, "throttled": false},
+  "reference": {"speed_mbps": 48.1, "source": "speedtest"},
   "improvement": "19.7x"
 }
 ```
+
+`reference` is the "3rd opinion" — the raw line sampled through speedtest.net with a Cloudflare fallback (`source` is `speedtest` or `cloudflare`, and `null` when both are down). The `throttled` verdicts consult it: a slow fast.com beside a healthy reference reads throttled, while a slow result on both reads not throttled; a broken reference falls back to the absolute-speed rule.
 
 ### GET `/network/video_optimizer.sh?action=install_status`
 
@@ -1412,6 +1419,13 @@ Poll nfqws installation progress/results.
 - `sni_domain` (string, optional): Domain to spoof in fake TLS ClientHello. Must contain at least one dot, max 253 characters. Defaults to `speedtest.net` if not provided.
 
 Saving masquerade settings restarts the entire `qmanager_dpi` service (both instances) to apply changes.
+
+**Force QUIC over TCP (standalone):**
+```json
+{"action": "save_force_tcp", "enabled": true}
+```
+
+- `enabled` (boolean, required): Install/remove the FORWARD rule rejecting QUIC (UDP 443) on the LAN bridge, so QUIC-first apps fall back to HTTPS over TCP. Applies immediately; fully independent of the engine — no binary check, no mode mutex, no service restart. Config key: `quic.force_tcp`.
 
 **Start verification:**
 ```json

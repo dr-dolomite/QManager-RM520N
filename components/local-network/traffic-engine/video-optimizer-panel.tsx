@@ -80,7 +80,6 @@ const VideoOptimizerPanel = ({
             enabled={data?.enabled ?? false}
             otherEnabled={masqueradeEnabled}
             isSaving={videoOptimizer.isSaving}
-            otherModeLabel={t("trafficEngine.tabs.masquerade")}
             title={t("trafficEngine.enable.video_optimizer")}
             description={t("trafficEngine.enable.description_vo")}
             toastEnabled={t("trafficEngine.enable.toast_enabled_vo")}

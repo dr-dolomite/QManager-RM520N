@@ -13,6 +13,7 @@ import EngineStatusCard from "./engine-status-card";
 import EngineOnboarding from "./engine-onboarding";
 import VideoOptimizerPanel from "./video-optimizer-panel";
 import MasqueradePanel from "./masquerade-panel";
+import ForceTcpTile from "./force-tcp-tile";
 
 import { useVideoOptimizer } from "@/hooks/use-video-optimizer";
 import { useTrafficMasquerade } from "@/hooks/use-traffic-masquerade";
@@ -80,27 +81,36 @@ const TrafficEngine = () => {
 
       {isLoading ? (
         showSkeleton ? (
-          <StackSkeleton />
+          <div className="grid grid-cols-1 gap-4">
+            <StackSkeleton />
+            <ForceTcpTile compact />
+          </div>
         ) : null
       ) : loadError ? (
-        <Alert variant="destructive" aria-live="polite">
-          <TriangleAlertIcon className="size-4" />
-          <AlertDescription className="flex items-center justify-between gap-4">
-            <span>{t("trafficEngine.load_error")}</span>
-            <Button variant="outline" size="sm" onClick={retry}>
-              <RefreshCcwIcon className="size-3.5" />
-              {t("actions.retry", { ns: "common" })}
-            </Button>
-          </AlertDescription>
-        </Alert>
+        <div className="grid grid-cols-1 gap-4">
+          <Alert variant="destructive" aria-live="polite">
+            <TriangleAlertIcon className="size-4" />
+            <AlertDescription className="flex items-center justify-between gap-4">
+              <span>{t("trafficEngine.load_error")}</span>
+              <Button variant="outline" size="sm" onClick={retry}>
+                <RefreshCcwIcon className="size-3.5" />
+                {t("actions.retry", { ns: "common" })}
+              </Button>
+            </AlertDescription>
+          </Alert>
+          <ForceTcpTile />
+        </div>
       ) : !installed ? (
-        <EngineOnboarding
-          binaryInstalled={installed}
-          isInstalling={videoOptimizer.isInstalling}
-          installPhase={videoOptimizer.installPhase}
-          installMessage={videoOptimizer.installMessage}
-          onInstall={videoOptimizer.installBinary}
-        />
+        <div className="grid grid-cols-1 gap-4">
+          <EngineOnboarding
+            binaryInstalled={installed}
+            isInstalling={videoOptimizer.isInstalling}
+            installPhase={videoOptimizer.installPhase}
+            installMessage={videoOptimizer.installMessage}
+            onInstall={videoOptimizer.installBinary}
+          />
+          <ForceTcpTile />
+        </div>
       ) : (
         <div className="grid grid-cols-1 gap-4">
           {videoOptimizer.installPhase === "error" && (
@@ -157,6 +167,8 @@ const TrafficEngine = () => {
               />
             </TabsContent>
           </Tabs>
+
+          <ForceTcpTile />
         </div>
       )}
     </div>

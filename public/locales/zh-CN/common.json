@@ -348,7 +348,7 @@
     },
     "verify": {
       "title": "测试绕过效果",
-      "description": "运行两阶段测速 — 先关闭引擎，再开启引擎 — 以衡量绕过的提升幅度。",
+      "description": "运行两阶段测速 — 先关闭引擎，再开启引擎 — 并附 speedtest.net 参考值，用于区分 CDN 限速与网络本身较慢。",
       "run": "运行测试",
       "running": "测试中…",
       "timeout": "测试未在限定时间内完成。",
@@ -357,8 +357,23 @@
       "improvement": "提升幅度",
       "without": "未绕过",
       "with": "已绕过",
+      "reference": "连接参考",
+      "source_speedtest": "speedtest.net",
+      "source_cloudflare": "Cloudflare",
       "throttled": "受限速",
       "unthrottled": "未受限速"
+    },
+    "forceTcp": {
+      "title": "QUIC → 强制 TCP",
+      "description": "阻断 QUIC (UDP 443)，让 YouTube、Discord 等应用回落到基于 TCP 的 HTTPS，从而应用引擎的绕过。",
+      "independent": "独立于流量引擎",
+      "label": "将 QUIC 强制走 TCP",
+      "switch_hint": "切换后立即生效。",
+      "switch_aria": "切换 QUIC 强制走 TCP",
+      "compatible": "与 Video Optimizer 和 Traffic Masquerade 均兼容 — 属于全局局域网设置，不属于任一引擎模式。",
+      "caveat": "可能更慢：如果网络已经以全速传输 QUIC，强制走 TCP 会增加延迟（以及绕过的额外一跳）。当 QUIC 视频受限速或不可靠时再开启。",
+      "toast_enabled": "已启用 QUIC 强制 TCP",
+      "toast_disabled": "已禁用 QUIC 强制 TCP"
     },
     "takeover": {
       "title": "切换到{{mode}}？",

@@ -26,6 +26,10 @@ export interface VideoOptimizerStatus {
   binary_installed: boolean;
   /** REDIRECT rule currently applied (tpws needs no kernel module). */
   kernel_module_loaded: boolean;
+  /** QUIC Force-TCP config intent — standalone, independent of the engine. */
+  force_tcp: boolean;
+  /** QUIC Force-TCP rule currently applied on bridge0 FORWARD. */
+  force_tcp_active: boolean;
 }
 
 /** ?section=masquerade adds the spoofed SNI domain. */
@@ -48,6 +52,12 @@ export interface SpeedSample {
   throttled: boolean;
 }
 
+/** "3rd opinion" reference sample: the raw connection, not the CDN. */
+export interface VerifyReference {
+  speed_mbps: number;
+  source: "speedtest" | "cloudflare";
+}
+
 export type VerifyPhase = "idle" | "running" | "complete" | "error";
 
 /** GET ?action=verify_status response. */
@@ -57,6 +67,7 @@ export interface VerifyResult {
   timestamp?: string;
   without_bypass?: SpeedSample;
   with_bypass?: SpeedSample;
+  reference?: VerifyReference | null;
   improvement?: string;
   message?: string;
   detail?: string;
