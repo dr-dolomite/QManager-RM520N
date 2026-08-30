@@ -535,6 +535,8 @@ export const SKELETON_SHAPE = {
   CARRIER: "h-[5.375rem] w-full rounded-field",
   /** The verdict panel. */
   VERDICT: "h-[13rem] w-full rounded-tile",
+  /** `CAMPED.LABEL`'s text-sm/600 line box ("Camped on now"). */
+  CAMPED_LABEL: "h-5 w-32 rounded-inline",
   /** An action pill at `PILL_ACTION`'s 42px height. */
   ACTION: "h-[2.625rem] w-32 rounded-pill",
 } as const;

@@ -372,92 +372,111 @@ export function FreqLockHero({
           )}
 
           {/* ---- Carriers on air ---------------------------------------- */}
-          <div className={CAMPED.ROOT}>
-            <div className={CAMPED.HEAD}>
-              <LiveDot />
-              <span className={CAMPED.LABEL}>
-                {t("frequency_locking.live.camped_title")}
-              </span>
-              {carriers.length > 0 ? (
-                <span className={CAMPED.META}>
-                  {t("frequency_locking.live.camped_meta", {
-                    count: carriers.length,
-                    bandwidth: carriers.reduce(
-                      (sum, c) => sum + (c.bandwidth_mhz || 0),
-                      0,
-                    ),
-                  })}
+          {/* Gated on the SAME `isLoading` as the verdict rail opposite, even
+              though `carriers` comes from the fast, free poller snapshot and
+              is usually ready well before `modemState` (the slow AT-backed
+              leg — see THE TWO CLOCKS above). Rendering it the instant it
+              arrives made the strip load in two visible steps: real carrier
+              tiles beside a still-skeleton verdict. One strip, one load. */}
+          {isLoading ? (
+            <div className={CAMPED.ROOT}>
+              <div className={CAMPED.HEAD}>
+                <Skeleton className={SKELETON_SHAPE.CAMPED_LABEL} />
+              </div>
+              <div className={CAMPED.GRID}>
+                {Array.from({ length: 3 }).map((_, index) => (
+                  <Skeleton key={index} className={SKELETON_SHAPE.CARRIER} />
+                ))}
+              </div>
+            </div>
+          ) : (
+            <div className={CAMPED.ROOT}>
+              <div className={CAMPED.HEAD}>
+                <LiveDot />
+                <span className={CAMPED.LABEL}>
+                  {t("frequency_locking.live.camped_title")}
+                </span>
+                {carriers.length > 0 ? (
+                  <span className={CAMPED.META}>
+                    {t("frequency_locking.live.camped_meta", {
+                      count: carriers.length,
+                      bandwidth: carriers.reduce(
+                        (sum, c) => sum + (c.bandwidth_mhz || 0),
+                        0,
+                      ),
+                    })}
+                  </span>
+                ) : null}
+              </div>
+
+              {carriers.length === 0 ? (
+                <div className={CARRIER_NOTE_TILE}>
+                  <MaterialSymbol name="signal_disconnected" size={18} />
+                  <span className="text-sm font-semibold">
+                    {t("frequency_locking.live.camped_empty_title")}
+                  </span>
+                  <span className="text-xs text-pretty">
+                    {t("frequency_locking.live.camped_empty_body")}
+                  </span>
+                </div>
+              ) : (
+                <div className={CAMPED.GRID}>
+                  {carriers.map((carrier, index) => (
+                    <CarrierTile
+                      key={`${carrier.technology}-${carrier.type}-${carrier.earfcn}-${index}`}
+                      carrier={carrier}
+                      allowed={isChannelAllowed(
+                        carrier.earfcn,
+                        carrier.technology === "NR" ? allowedNr : allowedLte,
+                      )}
+                      canAdd={!towerLockActive}
+                      onAdd={() => {
+                        if (carrier.earfcn === null) return;
+                        onAddChannel(
+                          carrier.technology,
+                          carrier.earfcn,
+                          carrierScs(carrier, modemData),
+                        );
+                      }}
+                    />
+                  ))}
+
+                  {/* The spare cell explains the page's one genuinely
+                      counter-intuitive rule, in the place where the user is
+                      about to act on it. */}
+                  {carriers.length < 3 ? (
+                    <div className={CARRIER_NOTE_TILE}>
+                      <MaterialSymbol
+                        name={
+                          blockedByUnknown
+                            ? "visibility_off"
+                            : towerLockActive
+                              ? "swap_horiz"
+                              : "graphic_eq"
+                        }
+                        size={18}
+                      />
+                      <span className="text-xs/relaxed text-pretty">
+                        {blockedByUnknown
+                          ? t("frequency_locking.live.compare_hint_unknown")
+                          : towerLockActive
+                            ? t("frequency_locking.live.compare_hint")
+                            : t("frequency_locking.live.add_hint")}
+                      </span>
+                    </div>
+                  ) : null}
+                </div>
+              )}
+
+              {towerLockActive ? (
+                <span className={CAMPED.NOTE}>
+                  {blockedByUnknown
+                    ? t("frequency_locking.live.add_blocked_unknown")
+                    : t("frequency_locking.live.add_blocked")}
                 </span>
               ) : null}
             </div>
-
-            {carriers.length === 0 ? (
-              <div className={CARRIER_NOTE_TILE}>
-                <MaterialSymbol name="signal_disconnected" size={18} />
-                <span className="text-sm font-semibold">
-                  {t("frequency_locking.live.camped_empty_title")}
-                </span>
-                <span className="text-xs text-pretty">
-                  {t("frequency_locking.live.camped_empty_body")}
-                </span>
-              </div>
-            ) : (
-              <div className={CAMPED.GRID}>
-                {carriers.map((carrier, index) => (
-                  <CarrierTile
-                    key={`${carrier.technology}-${carrier.type}-${carrier.earfcn}-${index}`}
-                    carrier={carrier}
-                    allowed={isChannelAllowed(
-                      carrier.earfcn,
-                      carrier.technology === "NR" ? allowedNr : allowedLte,
-                    )}
-                    canAdd={!towerLockActive}
-                    onAdd={() => {
-                      if (carrier.earfcn === null) return;
-                      onAddChannel(
-                        carrier.technology,
-                        carrier.earfcn,
-                        carrierScs(carrier, modemData),
-                      );
-                    }}
-                  />
-                ))}
-
-                {/* The spare cell explains the page's one genuinely
-                    counter-intuitive rule, in the place where the user is
-                    about to act on it. */}
-                {carriers.length < 3 ? (
-                  <div className={CARRIER_NOTE_TILE}>
-                    <MaterialSymbol
-                      name={
-                        blockedByUnknown
-                          ? "visibility_off"
-                          : towerLockActive
-                            ? "swap_horiz"
-                            : "graphic_eq"
-                      }
-                      size={18}
-                    />
-                    <span className="text-xs/relaxed text-pretty">
-                      {blockedByUnknown
-                        ? t("frequency_locking.live.compare_hint_unknown")
-                        : towerLockActive
-                          ? t("frequency_locking.live.compare_hint")
-                          : t("frequency_locking.live.add_hint")}
-                    </span>
-                  </div>
-                ) : null}
-              </div>
-            )}
-
-            {towerLockActive ? (
-              <span className={CAMPED.NOTE}>
-                {blockedByUnknown
-                  ? t("frequency_locking.live.add_blocked_unknown")
-                  : t("frequency_locking.live.add_blocked")}
-              </span>
-            ) : null}
-          </div>
+          )}
         </div>
       </div>
     </Card>
