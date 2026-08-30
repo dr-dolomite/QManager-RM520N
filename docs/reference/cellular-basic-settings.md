@@ -643,7 +643,7 @@ Every consumer, **including the skeletons**, imports its numbers from `shapes.ts
 
 Read `shapes.ts` itself before touching any geometry or tone on this surface; it carries the radius-role map, the promoted-row tone rule, and several documented cross-pair traps (a role's ink on another role's container) that this surface shipped and then fixed.
 
-> ℹ️ NOTE: **`shapes.ts` is no longer scoped to this page.** It now governs all five routes under `/cellular/settings/` — this one plus APN Management, Network Priority, IMEI Settings and Blocked Networks. A change to any shared export lands on four other surfaces. See [cellular-settings-family.md](cellular-settings-family.md) for the family contract, including the field-shell pair, `RAT_RANK_TONE`, and the `AMBR_EMPTY` → `EMPTY_BLOCK` rename.
+> ℹ️ NOTE: **`shapes.ts` is no longer scoped to this page.** It now governs all five routes under `/cellular/settings/` — this one plus APN Management, Network Priority, IMEI Settings and Blocked Networks. A change to any shared export lands on four other surfaces. See [cellular-settings-family.md](cellular-settings-family.md) for the family contract, including `FIELD_SHELL`, `RAT_RANK_TONE`, and the `AMBR_EMPTY` → `EMPTY_BLOCK` rename.
 
 ### The tone rule: dirty is `primary`, and `primary` is not a status
 

@@ -39,7 +39,7 @@ Nothing in that rebuild touched a CGI script, a systemd unit, the installer, or 
 | `RANK_PILL`, `RAT_RANK_TONE` | Network Priority's rank numeral |
 | `CHOICE_ROW` | APN Management's MBN bundle list |
 | ~~`FIELD_INPUT`~~ | **No longer exported** as of 2026-08-30 — it is module-private, and the two `FIELD_SHELL` composites below are the API |
-| `FIELD_SHELL`, `FIELD_SHELL_ON_FILL` | IMEI Settings (both cards), APN Management |
+| `FIELD_SHELL` | IMEI Settings (both cards), APN Management. Its `FIELD_SHELL_ON_FILL` twin was **deleted** with the row promotion on 2026-08-30 — the identically-named export still in `components/cellular/sms/shapes.ts` belongs to the SMS family and is unrelated |
 | `INLINE_ERROR` | Inline validation copy on a plain card |
 | `SECTION_DIVIDER` | A rule *between sections inside* a card |
 | `READOUT_ROW.GRID` | APN Management's "What the network granted" strip |
@@ -77,7 +77,7 @@ A comment correction rode along: `shapes.ts` claimed the basic-settings page hel
 
 > ⚠️ WARNING: **Retired 2026-08-30.** Until then, a setting row with an unsaved edit got `bg-primary-container text-on-primary-container` — "promotion", reasoned as *the brand acting*. That reasoning was sound on its own, but it duplicated a signal the row already carried: `SETTING_ROW_DIRTY.DELTA_CHIP` ("SIM 1 → SIM 2") is itself `bg-primary`, so a dirty row said "this is pending" twice — once on the chip, once again on its own body. User-flagged on `/cellular/settings`'s SIM Slot row and closed product-wide (all five routes share `SETTING_ROW`), per Product Principle 4 rather than as a one-page exception. See [DESIGN.md](../../DESIGN.md)'s Migration Deltas for the landed entry.
 >
-> Rows now render identically in both states. `dirty` still exists on `SettingRow` — it gates the chip's text and a `data-dirty` attribute — but no longer touches the row's own classes.
+> Rows now render identically in both states. `dirty` still exists on `SettingRow` — it gates the chip's text and a `data-dirty` attribute — but no longer touches the row's own classes. **Re-verified 2026-08-31:** no `SETTING_ROW_DIRTY.ROOT` or `_ON_FILL` symbol survives anywhere in `components/cellular/settings/`. The last in-tree *justification* referencing the promotion — `apn-settings-card.tsx`'s comment explaining why its validation error is a filled chip — was corrected in the same pass: the chip stays, but because it is a message the user must act on to proceed and a filled `destructive-container` declares its own ink pair, not because a row underneath it might promote.
 
 Every control's `_ON_FILL` twin the promotion required is **deleted along with it**: `SEGMENTED.SEGMENT_ON_FILL` / `.TRACK_ON_FILL`, `SELECT_TRIGGER_ON_FILL`, `FIELD_SHELL_ON_FILL`, and `SegmentedField`'s `onFill` prop. None of them had a reason to exist once no row can promote — a control never needs an ink pair for a container it can no longer sit on. `SETTING_ROW_DIRTY.CONSEQUENCE_ON_FILL` is the one survivor, because it turned out to also be backing an unrelated *permanent* `primary-container` accent cell (`imei-tools-card.tsx`'s IMEI check-digit breakdown) that was never conditional on dirtiness in the first place.
 
@@ -96,9 +96,11 @@ Two invariants the chip carries regardless of hue:
 - **The arrow glyph is the direction's second channel**, never optional. At container lightness in dark mode this system's tonal pairs collapse under red-green colour-vision simulation, so on a dark block the arrow is the information and the hue is reinforcement.
 - **Fill pairs, never an alpha wash.** An earlier draft wrote `bg-lte/25`; an alpha is a different perceived lightness in each theme, where `bg-downlink` + `text-downlink-foreground` is a real pair in both. The pairs are declared in `shapes.ts`, so a consumer must **not** also set an ink class on the chip.
 
-### The field-shell pair, and why `components/ui/input.tsx` is unusable here
+### `FIELD_SHELL`, and why `components/ui/input.tsx` is unusable here
 
-Free-text fields on this family are a **raw `<input>`** carrying `FIELD_SHELL` (or `FIELD_SHELL_ON_FILL` when its row is promoted) — not the shadcn `Input` primitive.
+Free-text fields on this family are a **raw `<input>`** carrying `FIELD_SHELL` — not the shadcn `Input` primitive.
+
+> ℹ️ NOTE: this used to be a **pair**. `FIELD_SHELL_ON_FILL` was the twin for a promoted (dirty) row, and it went with the promotion on 2026-08-30 — no row can sit on a `primary-container` fill any more, so a second ink spelling has nothing to be correct against. One export now. An identically-named `FIELD_SHELL_ON_FILL` still exists in `components/cellular/sms/shapes.ts`; that is the SMS family's own module and is unrelated to this one.
 
 **Short version:** `tailwind-merge` de-duplicates classes *per modifier*, so an unprefixed override cannot displace a `dark:`- or `md:`-scoped class. Both survive, and the scoped one wins wherever it applies.
 
@@ -113,9 +115,9 @@ The primitive smuggles three more things past the same boundary:
 | `shadow-xs` | A cast shadow on an input, which DESIGN.md > Inputs forbids |
 | `placeholder:text-muted-foreground` | A legacy token surviving in the rest state |
 
-Overriding all of these at the call site means restating `SELECT_TRIGGER`'s own numbers as `dark:` and `md:` variants — which is the drift `shapes.ts` exists to prevent. Two independent builders hit this on two different pages in the same change and each wrote a local constant; `FIELD_INPUT` is that constant, promoted once so a third page cannot write a fourth version. It is **module-private** — call sites compose it through `FIELD_SHELL` / `FIELD_SHELL_ON_FILL`, which are the API.
+Overriding all of these at the call site means restating `SELECT_TRIGGER`'s own numbers as `dark:` and `md:` variants — which is the drift `shapes.ts` exists to prevent. Two independent builders hit this on two different pages in the same change and each wrote a local constant; `FIELD_INPUT` is that constant, promoted once so a third page cannot write a fourth version. It is **module-private** (`shapes.ts:807`) — call sites compose it through `FIELD_SHELL` (`:816`), which is the API.
 
-> ⚠️ WARNING: `FIELD_SHELL_ON_FILL` appends its placeholder ink **last** on purpose. It lands in the same tailwind-merge group as `FIELD_INPUT`'s placeholder colour, so order decides the winner. Reordering the template literal breaks it silently.
+> ⚠️ WARNING: **order inside the template literal is load-bearing.** `FIELD_SHELL` is `` `${SELECT_TRIGGER} ${FIELD_INPUT}` ``, and the two halves contribute classes to the same tailwind-merge groups, so the later one wins. The retired `FIELD_SHELL_ON_FILL` depended on exactly this to append its placeholder ink last; if a promoted-row variant is ever reintroduced anywhere, it inherits the same trap. Reordering the literal breaks it silently — there is no build error and no visual difference in the state a reviewer usually looks at.
 
 `font-mono` on these fields is not a costume — every consumer holds an identifier the device emits verbatim (an IMEI, a TAC, an APN), and the letter-spacing is what makes fifteen undifferentiated digits scannable. The **placeholder** deliberately drops back to `font-sans`: a placeholder is human-authored instruction, not machine output, and mono'd prompt text reads as though the field were already filled.
 
@@ -178,26 +180,117 @@ It is the only place in the product where a library authors a duration on our be
 
 Route shell: `components/cellular/settings/apn-management/apn-settings.tsx`. The backend contract (`apn.sh`, the `apn_apply.sh` attach-cycle primitive, the `/etc/qmanager/apn_setting.json` sidecar) is unchanged — see [wan-profile-management.md](wan-profile-management.md).
 
+> ℹ️ NOTE: **Re-authored 2026-08-31, frontend-only.** No CGI script, poller field, AT command or backend type changed. The headline fix — the page-header status chip — needed **no** new data: it swapped one already-fetched source for another. What follows describes the page as it ships now.
+
 ### Three data sources, deliberately separate
 
 | Hook | Clock | Answers |
 | ---- | ----- | ------- |
 | `useApnSettings` | one read on mount, re-read around a save | what is **configured** |
 | `useMbnSettings` | its own | which carrier bundle is loaded |
-| `useModemStatus` | the poller, ~2 s | what the network actually **granted** |
+| `useModemStatus` | the poller (client polls ~2 s; device-side cadence is ~3.7–4 s) | what the network actually **granted** |
 
-`useModemStatus` is a new dependency for this route. Keeping it separate is the point: collapsing "configured" and "granted" into one source would let a stored value masquerade as a negotiated one, which is the exact class of bug the `AT+CGCONTRDP`-not-`AT+CGDCONT?` rule exists to prevent on the backend.
+Keeping them separate is the point: collapsing "configured" and "granted" into one source would let a stored value masquerade as a negotiated one, which is the exact class of bug the `AT+CGCONTRDP`-not-`AT+CGDCONT?` rule exists to prevent on the backend. The page's own status chip did it anyway until 2026-08-31 — see below.
 
-### "What the network granted" — the read-only strip
+### The band order is the family's grammar
 
-A full-width card below the write surfaces, reading `network.apn`, `network.wan_ipv4` and `network.wan_ipv6` from the poller snapshot. IPv6 goes through `compressIPv6()` from `lib/ipv6.ts`, because the modem reports IPv6 in `+CGCONTRDP` as sixteen dotted **decimal** octets, not colon-hex.
+Three full-width bands under the page header. **Live state → what you can change → the commit**, which is the order `/cellular/settings` ships and is the reference implementation for.
 
-Rules it holds to:
+| Band | Card | Clock | Inside the override `<fieldset>`? |
+| ---- | ---- | ----- | --------------------------------- |
+| A | What the network granted | poller | No |
+| B | APN configuration | settings GET | **Yes** |
+| C | Carrier bundle (MBN) | its own GET | No |
 
-- **Rows, not tiles.** Two of the five values are a full APN and a full IPv6 (39 chars even after RFC 5952 compression). At `1fr` of a card column each, the two values a technician opened the page to read are the two that truncate to noise. `READOUT_ROW.GRID` is a two-up label-left/value-right grid; the IPv6 row spans both columns.
+- **Band A leads.** It is the only thing on the surface that can answer "is my connection actually dialling the APN I think it is". It used to render **last**, behind the heaviest card on the page.
+- **Band C left the fieldset** (bug fix). The override gate fires on `profile.settings.apn.name` being non-empty, so a SIM profile owning the APN was disabling the carrier-bundle picker — a control no profile manages and the profile system has nothing to say about. `overrideUndetermined` was dropped from MBN's loading gate at the same time: MBN has no reason to wait on a profile verdict.
+- **Band A was always outside it,** on purpose. A profile owning the APN does not make the network's answer less true, and dimming live truth to 60 % opacity would be the page hiding the one thing still worth reading.
+- **There is no two-column grid.** `PAGE_GRID`'s `1.35fr / 1fr` was inherited from `/cellular/settings`, and its JSDoc justifies the ratio by a right column ("AMBR + modem reports") that no longer exists anywhere. These cards have unrelated clocks, unrelated weights and different gating — [DESIGN.md](../../DESIGN.md) > Layout: *split a page by cadence, not by symmetry*. `PAGE_GRID` stays exported: `imei-settings.tsx` consumes it.
+
+A resting **"Re-read from modem"** footer (`readout.reread`) calls `refresh()` + `refreshMbn()`. Before this change `refresh` was wired but reachable **only** from inside the error banner — the affordance existed exactly when the page had already failed. It is hidden while `isLoading || isSaving || isReconciling`, so it cannot contradict the card's own save bar.
+
+> ℹ️ NOTE: **No "read N seconds ago" stamp, deliberately.** The approved mock drew one beside that footer. This page's writable half is not polled, so the number would count from a fetch the user cannot see. Staleness *is* reported — but as the poller's own `isStale` boolean, not as an elapsed-seconds clock. Do not add the counter back.
+
+### The page-header status chip verifies against `+CGCONTRDP`
+
+> ⚠️ WARNING: **Until 2026-08-31 this chip compared configuration against configuration.** `useApnStatusChip` derived its live/not-live verdict from `cids.find((c) => c.cid === activeCid)?.apn`. `cids[]` is not a reading — `apn.sh:407-408` derives it from the `AT+CGDCONT?` loop with no extra AT calls, and `AT+CGDCONT?` merely echoes back what was last requested, **so it matches even when the bearer is stale** ([wan-profile-management.md](wan-profile-management.md) > *Verification reads `AT+CGCONTRDP`, never `AT+CGDCONT?`*). That comparison is self-concealing, it was already the root cause of the profile worker's silent-failure bug on the backend, and the one chip on this page claiming to report "is it live" was running it again — while rendering a green `success` **Active** over the top.
+
+It now reads `status.network.apn`, the poller's `+CGCONTRDP`-derived **negotiated** value, from a source that cannot echo the request back. The frontend and the backend now hold the same verification rule.
+
+**The branches are ordered, and the order is load-bearing:**
+
+| # | Condition | Variant | Glyph | Key |
+| - | --------- | ------- | ----- | --- |
+| 0 | `active === null` | *no chip rendered* | — | — |
+| 1 | `active === 0` | `muted` | `do_not_disturb_on` | `status.carrier_default` |
+| 2 | `isStale` | `warning` | `schedule` | `readout.stale` |
+| 3 | granted APN empty or absent | `muted` | `help` | `status.not_reported` |
+| 4 | stored `===` granted (case-folded) | `success` | `check_circle` | `status.live` |
+| 5 | `isSaving \|\| isReconciling` | `muted` | `help` | `status.not_reported` |
+| 6 | otherwise | `warning` | `warning` | `status.not_granted` |
+
+- **Staleness outranks the verdict** (2 before 4/6): a green "Live on the network" drawn from frozen readings is the exact lie this rewrite exists to stop.
+- **It does not outrank `carrier_default`** (1 before 2): that is a settings-GET fact, and a frozen poller says nothing about whether a custom APN is configured.
+- **The disagree verdict is suppressed mid-write** (5 before 6). An attach cycle legitimately reports the old granted APN while it runs, so the chip stands down to "we cannot say" rather than accusing. The incumbent fell through to `success` here, which is a claim, not a suspension.
+- **Comparison is case-folded**, matching the backend's own `tr 'A-Z' 'a-z'`: a live device negotiated `INTERNET.GLOBE.COM.PH` for a stored `internet`.
+- **Every branch carries its own glyph.** `success-container` and `warning-container` measure 1.03:1 apart and are identical under deuteranopia, so the glyph is the separator, not the fill.
+- An empty string from the poller is collapsed with `||`, not `??` — "we do not know", never "none".
+
+### Band A — "What the network granted"
+
+Reads `network.apn`, `network.wan_ipv4` and `network.wan_ipv6` from the poller snapshot. IPv6 goes through `compressIPv6()` from `lib/ipv6.ts`, because the modem reports IPv6 in `+CGCONTRDP` as sixteen dotted **decimal** octets, not colon-hex.
+
+**The comparison pair.** Two blocks side by side at `@2xl/card` — *You configured* (`apn_setting.json`) and *The network granted* (`+CGCONTRDP`) — each with its own provenance line. The APN is no longer *also* a readout row below; it is one fact stated once, and `readout.serving_apn` was deleted from all five packs.
+
+- **The tint is on the granted side only.** "What you asked for" cannot be right or wrong, so tinting it would spend a functional role on a fact with no verdict attached. Neutral `surface-container` on the left; the right block is `success-container` on agreement and `destructive-container` on disagreement.
+- **A verdict needs both halves.** With either missing the granted block stays neutral and shows no mark — "we could not compare" is a third answer, not a failure.
+- **A glyph and a word, never the fill alone** (`check_circle` + "Matches" / `warning` + "Does not match").
+- **Eyebrow, provenance and mark set no ink.** They sit on three different fills and dim whatever the block already carries. Setting a role ink would produce the cross-pair (one role's ink on another role's container) that this family names as its most common contrast failure — same mechanism as `CHOICE_ROW.CAPTION`.
+
+> ℹ️ NOTE: the chip and the block disagree about tone on purpose. The page-header chip's disagreement is `warning`; the granted block's is `destructive-container`. The chip is a glance-level "check this"; the block is where the user is already reading the two values against each other.
+
+**The remaining rows** (`READOUT_ROW.GRID`, a two-up label-left/value-right grid) are Granted IP, Bearer state, IPv4, and IPv6 spanning both columns.
+
+- **Rows, not tiles.** A `repeat(5, 1fr)` stat-tile grid was built for this data and rejected: two of the five values are a full APN and a full IPv6 (39 chars even after RFC 5952 compression), so at `1fr` of a card column the two values a technician opened the page to read are the two that truncate to noise.
 - **Every unknown value degrades to an em-dash**, never to a plausible default. An empty string from the poller means "we do not know", not "none".
 - **Bearer state is derived**, never asserted: "Attached" appears only when an address was actually granted.
-- **The strip sits outside the profile-override `<fieldset>`.** When a Custom SIM Profile owns the APN the write surfaces go read-only, but a profile owning the APN does not make the network's answer less true — dimming live truth to 60 % opacity would be the page hiding the one thing still worth reading.
+
+**Frozen is not absent.** The card consumes `isStale` from `useModemStatus` (a 10 s threshold the hook has always exported and this card never received) and renders the **warning half only** — a `warning` `TonalBanner` on the `schedule` glyph, matching `live-state-strip.tsx`. There is no "live" chip: over values that are simply correct it reports nothing. It renders only when there are values to freeze (`isStale && status`); a failed read has none and takes the `destructive` banner instead. Those are different states and must not share a signal.
+
+### `COMPARE` is module-local on purpose — do not hoist it into `shapes.ts`
+
+The comparison pair's geometry lives in a **non-exported** `const COMPARE` inside `apn-settings.tsx`, beside the block it describes and the skeleton that mirrors it. It is single-consumer geometry with a single-consumer rationale; `shapes.ts` is the *family* contract, and moving a one-page shape there would add to a five-route import surface something no other route can use. The rule that actually matters — skeletons import the geometry rather than restating it — is satisfied without exporting anything: `COMPARE.HEIGHT` mirrors `COMPARE.BLOCK`'s resting height in the same object.
+
+> ⚠️ WARNING: `COMPARE.HEIGHT` is `h-[6.125rem] rounded-field!` and **the `!` is load-bearing**. `cn()` is bare `tailwind-merge`, which does not know this repo's custom radius names and cannot dedupe `rounded-field` against `Skeleton`'s own `rounded-md`. Both survive into the class list and the cascade decides alphabetically — `field` sorts before `md`, so the primitive's 6 px silently wins and the skeleton stops mirroring the 20 px block. The Tailwind v4 important modifier takes the radius back. Product-wide hazard at roughly 20 call sites; this one is spelled correctly rather than adding a twenty-first.
+
+### A save whose response the attach cycle killed is not a failure
+
+Every write on this endpoint runs a full attach cycle — the backend brackets `AT+CGDCONT` in `AT+COPS=2` / `AT+COPS=0`. On the RM520N-GL that cycle **drops the `eth0` link for about four seconds**, so a CGI running it inline finishes its work and then has no route left to answer over. `fetch` rejects with a `TypeError` for a write that **landed**.
+
+`save()` could not tell that apart from a refusal, so the card fired `toast.error("Failed to save APN settings")` over a successful save — and, worse, skipped `scheduleReconcile()`, leaving the page asserting the old APN indefinitely. `deactivate()` carried the identical defect: it runs `apn_apply_write <cid> <pdp> "" 1`, the same cycle.
+
+| What came back | Meaning | `ApnSaveOutcome` |
+| -------------- | ------- | ---------------- |
+| a response with `success: false` | the modem refused | `"failed"` |
+| a response with a non-2xx status | a real transport error | `"failed"` |
+| no response at all | the expected link drop | `"reconciling"` |
+
+`HttpStatusError` (module-private in `hooks/use-apn-settings.ts`) is what makes the third case distinguishable: a non-2xx means the server was reachable and said no; a rejection means nobody said anything. Anything that is *not* an `HttpStatusError` is treated as the link drop.
+
+- `save` and `deactivate` return `ApnSaveOutcome` (`types/apn-settings.ts`), not `boolean` — a boolean cannot carry the third case.
+- The reconciling branch **patches optimistically exactly as the success path does** and runs the existing `scheduleReconcile()` (a 1500 ms delayed silent re-read), letting the re-read decide.
+- `UseApnSettingsReturn` gained **`isReconciling`**, true for the window between the optimistic patch and the re-read landing. The page consumes it in the status chip (branch 5 above) and to hide the re-read footer.
+- The card toasts `toast.reconciling` ("Verifying the connection came back…") — not a success it has not earned, and not a failure that did not happen.
+
+The save notice (`save_connection_notice`) now names the wired session, because QManager is served **by** the modem it is configuring: *"Saving detaches and re-attaches the modem. Cellular data drops for about four seconds — and if you are connected over the modem's Ethernet port, this page will drop with it and reconnect on its own."* Four seconds is the measured figure. The old copy warned only about "the cellular connection", so a technician on the modem's Ethernet port watched their own page die with no reason to believe the save had landed.
+
+### Three states the card used to assert without having read them
+
+1. **The never-read branch.** On `isLoading === false && apn === null` — a failed *first* read — the card fell straight past its loading branch into the form body. The APN field honestly showed a placeholder, but the IP-protocol control rendered **IPv4v6 selected** and the CID `Select` rendered **CID 1**, as confirmed-looking choices on a card that had read nothing. Those are the `useState` seeds, never a value from the modem. (`overrideUndetermined` did not guard this: it only holds the card in loading while the *profile* verdict resolves, and is false once settled regardless of the APN fetch.) The card now renders the family's `CARD_NOTICE` primitive (`shapes.ts:567` — `SETTING_ROW.ROOT`'s box composed with `SETTING_ROW.CONSEQUENCE`'s ink) carrying `cards.unread`, stated quietly, because the route shell's banner already owns the alarm and the retry. The header text is real in **all three** branches, so the card never swaps its own title on load. Only the never-read case lands here; a failed *re-read* leaves the previous snapshot in place. Rendering no control at all also closes the last route into the reserved-context fallback below.
+
+2. **The armed deactivate button.** The gate was `active !== 0`, which is **true for `null`** — what `active` holds before the first read resolves and what it keeps when that read fails. So the button rendered, and `disabled={isSaving}` left it enabled; one press POSTed a real `COPS=2` / `COPS=0` attach cycle with a blank APN. Meanwhile `changeCount === 0` correctly disabled Save, so the card was disabling the reversible action and arming the irreversible one. It is now gated on `active === 1`: *we do not know* is not permission to detach the bearer.
+
+3. **The reserved-context guard bypassed itself.** `handleCidChange` gated the IMS/SOS confirmation on `contexts.find(...)`, but the `Select` still offers `FALLBACK_CIDS` (1–6) when the modem has reported no contexts — so on an empty `cids[]` the lookup missed on every option and a data APN could land on the IMS or emergency context with no dialog. The guard switched itself off exactly when the page knew least about which CIDs are reserved. Two gates now: the modem's own classification when it reported one, and `FALLBACK_RESERVED_CIDS` (**CID 2 and CID 3**, the conventional IMS and emergency contexts on this hardware) when `contexts.length === 0`. The fallback path uses a **separate** key, `edit.reserved_dialog.unverified_body`, and does not reuse the IMS/SOS copy — that copy names a context type the modem reported, and here nothing was reported, so the dialog is worded as the guess it is. `pendingCid` is now `{ cid, kind: "ims" | "emergency" | "unverified" }` rather than a `CidContext`.
 
 ### The `detect_active_cid()` honesty gap — a known backend limitation
 
@@ -209,17 +302,21 @@ The frontend cannot tell a measured CID from a fallback, so the UI is worded for
 - Its label is **"in use for Internet"**, never "confirmed" or "verified".
 - When no active CID is reported at all, the chip degrades to a muted "not reported" rather than defaulting to CID 1 in the UI as well.
 
-**The fix is a backend one and was scoped out of this frontend-only change:** add a confidence field to the GET envelope (e.g. `active_cid_source: "qmap" | "cgpaddr" | "default"`), so the UI can say "in use" when it is read and "assumed" when it is not. Until that lands, do not strengthen the chip's wording.
+**The fix is a backend one and has been scoped out of every frontend change so far:** add a confidence field to the GET envelope (e.g. `active_cid_source: "qmap" | "cgpaddr" | "default"`), so the UI can say "in use" when it is read and "assumed" when it is not. Until that lands, do not strengthen the chip's wording — `cid_in_use` and `cid_unknown` are deliberately frozen byte-for-byte.
 
 ### The MBN card
 
-`AT+QMBNCFG` bundle selection. Rebuilt from two Selects to a **Switch** (automatic selection on/off) plus a promoted-row bundle list (`CHOICE_ROW`).
+`AT+QMBNCFG` bundle selection, on its own GET's clock and **outside** the override fieldset (see the band table above). Rebuilt from two Selects to a **Switch** (automatic selection on/off) plus a promoted-row bundle list (`CHOICE_ROW`).
 
 - **Selection is a promotion, not a radio circle.** The comp drew Material's `radio_button_checked` / `radio_button_unchecked`; neither glyph is in the font subset, and adding them means a Google Fonts round-trip plus a committed binary for an affordance this system already expresses better. The chosen row *is* a `primary-container` block — readable across the card, and it survives grayscale.
 - **The list is a real `role="radiogroup"`** with roving tabindex: exactly one row is tabbable, arrow keys move focus *and* selection with wrapping, Home/End jump to the ends. Some carrier firmware ships twenty-plus bundles, and the previous list made every one of them its own tab stop while the arrow keys did nothing — a screen reader announced a radio group whose members behaved like a button list. `CHOICE_ROW.SCROLL_CAP` bounds the list in `rem` so it scales with the user's text size instead of clipping at 200 % zoom.
-- **The save is now sequential, in dependency order** (bug fix): `auto_sel` is written first, and `apply_profile` only if that write landed. Auto-select must be OFF before a pinned bundle means anything. The previous card applied whichever single change it noticed first, so turning auto off *and* picking a bundle in the same pass **silently dropped the bundle**.
+- **The save is sequential, in dependency order** (bug fix): `auto_sel` is written first, and `apply_profile` only if that write landed. Auto-select must be OFF before a pinned bundle means anything. The previous card applied whichever single change it noticed first, so turning auto off *and* picking a bundle in the same pass **silently dropped the bundle**.
 - **The reboot is offered, never taken.** QManager is served *by* the modem, so a reboot kills its own HTTP response. The write completes first; the reboot is a separate confirmed action that hands off to `/reboot/`.
+- **The empty state is gated on a real read.** `bundles = profiles ?? []` collapsed `profiles === null` (never fetched, or the fetch failed) and `profiles === []` (the firmware genuinely reported none) into one `.length === 0` branch — so on a failed fetch the user read the destructive banner *"Failed to load carrier profiles"* and, directly underneath it, a paragraph asserting the firmware had reported none. A contradiction on one screen, not a silence. The block is now gated on `profiles !== null`; when the read failed, the banner is the whole story.
+- **The standing reboot warning is deleted.** The card rendered `<TonalBanner tone="warning">` unconditionally — at rest, nothing pending, nothing selected — saying what `pending_note` says in the save bar and what `reboot.description` says in the confirm dialog; two of the three were on screen at once. A warning with no off state is wallpaper, and it spends the Functional-Color Promise on a static caption. The fact survives in the two places that carry it when it is actionable, and `mbn.reboot_notice` was deleted from all five packs.
 - The card was **100 % untranslated** and is now fully keyed under `core_settings.apn.mbn.*`.
+
+> ℹ️ NOTE: MBN's save bar borrows `core_settings.basic.save_bar.count` / `.discard` **cross-namespace**, so rewording the basic-settings bar silently rewords this page. Recorded as drift rather than fixed — and it is why `readout.reread` is a new key rather than a borrow of the identically-worded `core_settings.basic.footer.reread`. A second cross-namespace instance to save five words is not a trade worth making.
 
 ### Deleted files
 
@@ -394,6 +491,10 @@ This is the single highest-value improvement available on this page. It needs no
 171 new keys in the `cellular` namespace across all five locales (en, zh-CN, zh-TW, it, id), at 100 % parity (2229/2229) with `bun run i18n:check` reporting 0 errors. Three retired APN keys were deleted from every pack.
 
 Three of the four surfaces were **entirely untranslated** before this change (Network Priority, IMEI Settings, Blocked Networks), as was APN Management's MBN card.
+
+The 2026-08-31 APN re-authoring added **15 keys** under `core_settings.apn.*` and rewrote `save_connection_notice`, at 100 % parity (2444/2444) across all five packs. Four keys were deleted from every pack together rather than left as five copies of dead string: `status.active` and `status.not_live` (replaced by the rewritten chip's verdicts), `mbn.reboot_notice` (the standing banner), and `readout.serving_apn` (absorbed by the comparison pair).
+
+> ⚠️ WARNING: the five locale packs are **CRLF**, and no `.gitattributes` rule covers `public/locales/`. A naive `JSON.stringify(obj, null, 2) + "\n"` round-trip differs by one character per line and rewrites ~3000 of them. `core.autocrlf=true` also makes `git diff` blind to a silent LF conversion, and `cat -A` / `awk` / `sed` all strip CR here — only `od -c` or a byte-level read asserting zero lone LFs is evidence.
 
 Key roots:
 

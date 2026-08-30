@@ -293,6 +293,9 @@ headroom over the worst case.
 > the configured view is self-concealing and was the root cause of the profile
 > worker's silent-failure bug (see
 > [sim-profiles.md](sim-profiles.md#the-apn-step-runs-a-full-attach-cycle)).
+> **The rule binds the frontend too**, and was being broken there until
+> 2026-08-31 — see
+> [The frontend now holds the same verification rule](#the-frontend-now-holds-the-same-verification-rule).
 
 > ⚠️ WARNING: **Why the obvious fix for a failing verify is the wrong one.**
 > When `parse_cgcontrdp_apn` started returning empty on SDX55 and the poll timed
@@ -639,8 +642,10 @@ controls that have no AT equivalent: **Default Route**, **IP Passthrough**, and
 |------|------|
 | `types/wan-profiles.ts` | `WanProfilesResponse` (carries `data_source`), `WanProfile` (carries `has_password`) |
 | `hooks/use-wan-profiles.ts` | Exposes `dataSource`; on the AT path, skips the optimistic-reconcile background fetch because the CGI write is synchronous |
-| `components/cellular/settings/apn-management/apn-settings.tsx` | Page container; also owns the read-only "What the network granted" strip fed by `useModemStatus` |
-| `components/cellular/settings/apn-management/apn-settings-card.tsx` | The single-APN write surface (WS6 contract) |
+| `types/apn-settings.ts` | `ApnSaveOutcome` (`"saved" \| "reconciling" \| "failed"`) — what a write to `apn.sh` actually resolved to. A boolean cannot carry the third case; see [the lost-response contract](#a-lost-response-is-not-a-refusal--the-frontend-contract) below |
+| `hooks/use-apn-settings.ts` | The single-APN read/write hook. Returns `ApnSaveOutcome` from `save` / `deactivate`, and publishes `isReconciling` for the window between an optimistic patch and the delayed re-read |
+| `components/cellular/settings/apn-management/apn-settings.tsx` | Page container; owns the **page-header status chip** (verifies against `+CGCONTRDP` — see below) and the "What the network granted" band, both fed by `useModemStatus` |
+| `components/cellular/settings/apn-management/apn-settings-card.tsx` | The single-APN write surface (WS6 contract). Its deactivate button is gated on `active === 1`, and its reserved-context (IMS/SOS) confirmation has a fallback gate on CID 2 / CID 3 for when the modem reports no contexts at all |
 | `components/cellular/settings/apn-management/mbn-card.tsx` | MBN sub-feature (`AT+QMBNCFG`) — AT-native backend unchanged; the card was rebuilt (Switch + choice list, sequential `auto_sel` → `apply_profile` save) |
 
 > ℹ️ NOTE: `wan-profile-list.tsx` and `wan-profile-edit.tsx` **no longer exist** — they were deleted once they had zero importers. `types/wan-profiles.ts` and `hooks/use-wan-profiles.ts` remain, and the 6-slot AT machinery in `apn.sh` is untouched, so the legacy contract is still reachable if a future page wants it.
@@ -650,6 +655,32 @@ The page's geometry, tone and field shells now come from the shared
 [cellular-settings-family.md](cellular-settings-family.md), which also records
 the `detect_active_cid()` confidence gap that constrains how the CID chip is
 worded.
+
+### The frontend now holds the same verification rule
+
+> ℹ️ NOTE: **The page-header status chip on `/cellular/settings/apn-management` verifies against `+CGCONTRDP`, not `AT+CGDCONT?`** — as of 2026-08-31. This is the frontend half of the rule stated above under [Why save requires a full attach cycle](#why-save-requires-a-full-attach-cycle), and until that date the frontend was breaking it.
+
+`useApnStatusChip` used to derive its live/not-live verdict from `cids.find((c) => c.cid === activeCid)?.apn`. That looks like a reading and is not one: `apn.sh:407-408` builds `cids[]` from the `AT+CGDCONT?` loop with **no extra AT calls**, so it is the *configured* view — the one that "matches even when the bearer is stale". The one element on the page claiming to report "is it live" was therefore running the same self-concealing comparison that this document already names as the root cause of the profile worker's silent-failure bug, and rendering a green `success` **Active** over the result.
+
+The chip now reads `status.network.apn` — the poller's `+CGCONTRDP`-derived negotiated value, from a source that cannot echo the request back. **No backend change was required**: the page already fetched the poller snapshot for its "What the network granted" band. The comparison **case-folds**, matching `apn_apply.sh`'s own `tr 'A-Z' 'a-z'`, and an empty string from the poller resolves to "not reported" rather than to a mismatch.
+
+The chip's verdict is suspended (not fallen through to `success`) while a write is in flight, because an attach cycle legitimately reports the old granted APN while it runs; and a stale poller outranks the verdict entirely. The full ordered branch table is in [cellular-settings-family.md](cellular-settings-family.md).
+
+### A lost response is not a refusal — the frontend contract
+
+The attach cycle documented above has a consequence the frontend has to absorb: **QManager is served by the modem it is reconfiguring.** `AT+COPS=2` / `AT+COPS=0` drops the `eth0` link for about four seconds, so a CGI that runs the cycle inline completes its work and then has no route left to answer over. The browser's `fetch` rejects with a `TypeError` for a write that **landed**.
+
+`useApnSettings` distinguishes three outcomes rather than two, keyed on whether a response arrived at all:
+
+| What came back | Meaning | `ApnSaveOutcome` |
+| -------------- | ------- | ---------------- |
+| a response with `success: false` | the modem refused | `"failed"` |
+| a response with a non-2xx status | a real transport error | `"failed"` |
+| no response at all | the expected link drop | `"reconciling"` |
+
+A module-private `HttpStatusError` is what makes the third case detectable: a non-2xx status means the server was reachable and said no, whereas a rejection means nobody said anything. The `"reconciling"` branch patches optimistically exactly as the success path does and runs the existing delayed silent re-read, letting that re-read decide — so the page neither claims a success it has not earned nor reports a failure that did not happen. `deactivate()` runs `apn_apply_write <cid> <pdp> "" 1`, the identical cycle, and carries the identical contract.
+
+> ⚠️ WARNING: this is a **frontend** reconciliation, not a backend guarantee. `apn_apply.sh` still owns the authoritative verify (`AT+CGCONTRDP` polling, the rc contract above); the hook's re-read simply asks the GET endpoint again once the link is back. If a future change moves the attach cycle to a backgrounded worker with a status file, this three-outcome shape becomes unnecessary — but until then, treating a dead socket as a refusal reports a successful save as a failure.
 
 ---
 
