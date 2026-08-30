@@ -18,12 +18,16 @@
 #
 #   [3]    qmanager_dpi_install's own uninstall teardown (F16 follow-up,
 #          surfaced by the busybox-portability-checker validator on the
-#          e0374dc run). _dpi_uninstall_run inlines its two `iptables -D`
-#          calls rather than going through dpi_remove_rule, and hardcoded
-#          "--to-ports 989" in both. Same dormant bug, worse blast radius:
-#          a teardown that deletes nothing leaves a REDIRECT to a dead port
-#          on every LAN client — a LAN OUTAGE, not a leak
-#          (see docs/reference/dpi.md > Teardown).
+#          e0374dc run). _dpi_uninstall_run used to inline its two
+#          `iptables -D` calls rather than going through dpi_remove_rule,
+#          and hardcoded "--to-ports 989" in both. Same dormant bug, worse
+#          blast radius: a teardown that deletes nothing leaves a REDIRECT
+#          to a dead port on every LAN client — a LAN OUTAGE, not a leak
+#          (see docs/reference/dpi.md > Teardown). It now calls
+#          dpi_remove_rule, so this section exercises the lib through the
+#          teardown and also asserts the orphan OUTPUT drain stays deleted
+#          (F19 — chain symmetry itself lives in
+#          scripts/test/dpi-uninstall-path-symmetry.sh).
 #
 # Sections [1] and [3] are executed BEHAVIOURALLY, not grepped:
 #   - dpi_state.sh has a double-source guard and no `main "$@"` at the
@@ -110,16 +114,24 @@ else
         IPT_LOG="$TMPD/iptables.log"
         : > "$IPT_LOG"
 
-        # Stubs: capture iptables argv, neutralise everything with a side
-        # effect. iptables returns 1 so the `for i in 1 2 3 ... && break`
-        # loop runs every pass and we see all attempts.
+        # Stubs: capture the drain argv, neutralise everything with a side
+        # effect. The teardown no longer inlines its `iptables -D` calls —
+        # it goes through the lib's dpi_remove_rule (F19) — so the PATCHED
+        # dpi_state.sh from [1] is sourced here and run_iptables is what gets
+        # captured. That makes this section end-to-end: DPI_PORT="7777" comes
+        # from the lib copy, exactly as it would on a device, instead of
+        # being asserted into the environment by the harness. `iptables` is
+        # still stubbed so a re-inlined call could never escape to the host.
+        # Both stubs return 1 so bounded drain loops run every pass.
         IPT_LOG="$IPT_LOG" TMPD="$TMPD" bash -c '
             set +e
-            DPI_PORT="7777"
+            DPI_HOSTLIST_DEFAULT=/dev/null
+            . "$TMPD/dpi_state_patched.sh"
             DPI_BINARY="$TMPD/tpws"
             DPI_INSTALL_FILE="$TMPD/install.json"
             DPI_INSTALL_PID="$TMPD/install.pid"
             iptables()            { printf "%s\n" "$*" >> "$IPT_LOG"; return 1; }
+            run_iptables()        { printf "%s\n" "$*" >> "$IPT_LOG"; return 1; }
             systemctl()           { return 0; }
             pkill()               { return 0; }
             sleep()               { return 0; }
@@ -136,9 +148,11 @@ else
         if [ ! -s "$IPT_LOG" ]; then
             bad "_dpi_uninstall_run issued no iptables calls at all — the teardown did not run (harness setup, or the drain was removed)"
         else
-            # The PREROUTING drain is the LAN-outage one; the OUTPUT drain
-            # clears the modem-originated 443 redirect. Both must follow the
-            # live port.
+            # The PREROUTING drain is the LAN-outage one and must follow the
+            # live port. The OUTPUT drain that used to sit beside it was an
+            # orphan — nothing ever inserted that rule — and was deleted for
+            # F19; its absence is asserted below, and the two uninstall paths
+            # are kept symmetric by dpi-uninstall-path-symmetry.sh.
             PRE=$(grep -e '-D PREROUTING' "$IPT_LOG" || true)
             OUT=$(grep -e '-D OUTPUT' "$IPT_LOG" || true)
 
@@ -153,16 +167,11 @@ else
                     bad "unexpected PREROUTING drain argv: $PRE" ;;
             esac
 
-            case "$OUT" in
-                *"--to-ports 7777"*)
-                    ok "OUTPUT drain uses the current DPI_PORT (--to-ports 7777)" ;;
-                *"--to-ports 989"*)
-                    bad "OUTPUT drain is still the hardcoded literal '--to-ports 989' after DPI_PORT changed to 7777" ;;
-                "")
-                    bad "no OUTPUT drain was issued by _dpi_uninstall_run" ;;
-                *)
-                    bad "unexpected OUTPUT drain argv: $OUT" ;;
-            esac
+            if [ -z "$OUT" ]; then
+                ok "no orphan OUTPUT drain in the teardown (deleted for F19)"
+            else
+                bad "an OUTPUT drain is back in _dpi_uninstall_run: '$OUT'. If a modem-originated OUTPUT redirect is genuinely needed, it belongs in the lib (dpi_apply_rule + dpi_remove_rule) so BOTH uninstall paths clear it — never re-inlined here"
+            fi
 
             if grep -q -e '--to-ports 989' "$IPT_LOG"; then
                 bad "at least one teardown rule still carries the bare literal 989 with DPI_PORT=7777"

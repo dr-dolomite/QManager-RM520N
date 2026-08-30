@@ -94,23 +94,41 @@ _dpi_is_arm32() {
 
 # --- Uninstall (runs in the background) ---------------------------------------
 # Reverse of the download path: graceful engine stop, binary removal, config
-# cleanup. The teardown rules are written out inline rather than calling
-# dpi_remove_rule, because they also drain the modem-originated OUTPUT
-# redirect that dpi_state.sh does not manage. They are NOT lib-free: this
-# script sources dpi_state.sh at the top, so $DPI_PORT (like $DPI_BINARY and
-# dpi_binary_installed below) is in scope, and the port must be read from it
-# rather than restated. A restated literal drains the wrong rule the moment
-# DPI_PORT moves, which is a LAN outage and not a leak — every client's
-# tcp/80+443 stays redirected to a port with nothing listening on it. Same
-# defect as F16 in dpi_state.sh's DPI_RULE_SIG; pinned by
-# scripts/test/dpi-rule-signature-port.sh section [3].
-# End state is identical to a fresh install: no tpws binary, engine disabled,
-# video_domains.txt preserved so a later reinstall keeps the hostlist.
+# cleanup. End state is identical to a fresh install: no tpws binary, engine
+# disabled, video_domains.txt preserved so a later reinstall keeps the
+# hostlist.
+#
+# The teardown goes through dpi_state.sh's dpi_remove_rule — the SAME code
+# the full-device uninstall runs (uninstall_rm520n.sh → qmanager_dpi_run
+# --clear → dpi_remove_rule), so the two uninstall paths cannot drift apart.
+# This script sources dpi_state.sh (and platform.sh, for run_iptables) at the
+# top, so the lib is in scope here.
+#
+# It used to inline the two `iptables -D` calls instead, to also drain a
+# modem-originated `nat OUTPUT` redirect that dpi_state.sh does not manage —
+# so a full-device uninstall never cleared that rule (F19). Resolved
+# 2026-08-30 by DELETING the OUTPUT drain: nothing in the tree, and nothing
+# in git history, has ever INSERTED that rule. The `-D` arrived already
+# orphaned in 71db6b9, the same commit that first wrote this function, so it
+# was speculative from birth rather than a migration for previously-shipped
+# state. Draining a rule nobody creates bought nothing; keeping it here while
+# the device path lacked it bought a false sense that the OUTPUT case was
+# handled.
+#
+# ⚠ If a modem-originated OUTPUT redirect is ever added back, add it to
+# dpi_apply_rule AND dpi_remove_rule in the lib — never re-inline it here.
+# scripts/test/dpi-uninstall-path-symmetry.sh section [1] fails the moment
+# anything inserts one, and section [2] fails if the two paths drain
+# different chains.
 _dpi_uninstall_run() {
     # Rule out FIRST so new LAN connections go direct immediately; existing
     # flows keep their conntrack binding until the engine stops below.
-    iptables -t nat -D PREROUTING -i bridge0 -p tcp -m multiport --dports 80,443 -j REDIRECT --to-ports "$DPI_PORT" 2>/dev/null
-    for i in 1 2 3; do iptables -t nat -D OUTPUT -p tcp --dport 443 -j REDIRECT --to-ports "$DPI_PORT" 2>/dev/null && break; done
+    # dpi_remove_rule reads $DPI_PORT from the lib (never a restated
+    # literal — a drifted literal drains the wrong rule and leaves every
+    # client's tcp/80+443 redirected to a dead port: a LAN outage, not a
+    # leak — F16) and loops its -D up to 16 times, so stacked duplicates
+    # clear too, which the single inlined -D here never did.
+    dpi_remove_rule
     _dpi_marker_running "Draining connections..."
     sleep 5
     systemctl stop qmanager-dpi.service qmanager-dpi-ensure.timer qmanager-dpi-ensure.service 2>/dev/null
