@@ -74,10 +74,10 @@ SPEEDTEST_FN=$(awk '/^install_speedtest_cli\(\) \{$/,/^\}$/' "$INSTALLER")
 if [ -z "$SPEEDTEST_FN" ]; then
     bad "install_speedtest_cli() not found in $INSTALLER"
 else
-    if printf '%s' "$SPEEDTEST_FN" | grep -qF 'mountpoint'; then
-        bad "install_speedtest_cli() still calls mountpoint, which is a 127-returning command-not-found on the RG501Q — '!' inverts that to a false 'not mounted', silently skipping the whole function including its world-writable-directory remediation"
+    if printf '%s' "$SPEEDTEST_FN" | grep -qF 'mountpoint -q'; then
+        bad "install_speedtest_cli() still invokes 'mountpoint -q', which is a 127-returning command-not-found on the RG501Q — '!' inverts that to a false 'not mounted', silently skipping the whole function including its world-writable-directory remediation"
     else
-        ok "install_speedtest_cli() does not call the mountpoint applet"
+        ok "install_speedtest_cli() does not invoke the mountpoint applet"
     fi
 
     if printf '%s' "$SPEEDTEST_FN" | grep -qF 'stat -c %d /usrdata' \

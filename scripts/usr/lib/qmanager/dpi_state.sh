@@ -68,7 +68,7 @@ DPI_HOSTLIST_DEFAULT="/etc/qmanager/video_domains_default.txt"
 # `comment'"), so the engine rule cannot carry -m comment. The rule is
 # identified by its unique target instead: nothing else on the modem
 # redirects to port 989. Match on the -S (unwrapped, single-line) form.
-DPI_RULE_SIG="--to-ports 989"
+DPI_RULE_SIG="--to-ports $DPI_PORT"
 DPI_VERIFY_FILE="/tmp/qmanager_dpi_verify.json"
 DPI_INSTALL_FILE="/tmp/qmanager_dpi_install.json"
 DPI_INSTALL_PID="/tmp/qmanager_dpi_install.pid"

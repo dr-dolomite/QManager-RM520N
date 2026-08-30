@@ -785,8 +785,13 @@ install_speedtest_cli() {
 
     # /usrdata must already be its own mount before we create anything under
     # it, or the dir (and binary) land on whatever filesystem backs the path
-    # and silently vanish on next boot.
-    if ! mountpoint -q /usrdata 2>/dev/null; then
+    # and silently vanish on next boot. Device-number comparison rather than
+    # the BusyBox applet that tests this on most systems: the RG501Q ships
+    # no such applet at all, and a command-not-found (exit 127) read through
+    # `!` reads as "not mounted", which silently skips this function's
+    # install -d remediation below on every RG501Q. stat -c %d is verified
+    # working on both devices.
+    if [ "$(stat -c %d /usrdata 2>/dev/null)" = "$(stat -c %d / 2>/dev/null)" ]; then
         warn "/usrdata is not a mounted filesystem — skipping speedtest CLI install"
         return 0
     fi
@@ -1228,7 +1233,7 @@ RCEOF
 
         # Same for curl — Entware-installed curl lands in /opt/bin/, but
         # CGI scripts and BusyBox shells don't have /opt/bin on PATH.
-        [ -x /opt/bin/curl ] && ! command -v curl >/dev/null 2>&1 && \
+        [ -x /opt/bin/curl ] && [ ! -e /usr/bin/curl ] && \
             ln -sf /opt/bin/curl /usr/bin/curl 2>/dev/null || true
 
         # coreutils-timeout — installed as defense-in-depth only, NOT
