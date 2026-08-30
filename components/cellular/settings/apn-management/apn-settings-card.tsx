@@ -86,11 +86,19 @@ import {
 // -----------------------------------------------------------------------------
 // WHY THE VALIDATION ERROR IS A FILLED CHIP
 // -----------------------------------------------------------------------------
-// A dirty row promotes to `primary-container`, so a bare `text-destructive`
-// error line under the input would be one role's ink on another role's
-// container — the cross-pair this surface's shapes file names as its most
-// common failure. A solid `destructive-container` chip carries its own pair and
-// therefore reads correctly on the neutral row AND on the promoted one.
+// This used to be justified by the row's promotion: a dirty row filled with
+// `primary-container`, so a bare `text-destructive` line under the input would
+// have been one role's ink on another role's container — the cross-pair this
+// family names as its most common contrast failure.
+//
+// NO ROW PROMOTES ANY MORE (retired 2026-08-30, commit 24b5fc9; the
+// `SETTING_ROW_DIRTY.DELTA_CHIP` is now the sole dirty indicator, because a
+// `bg-primary` pill plus a `primary-container` row said "pending" twice on one
+// row). The chip stays, and the reason is now the simpler one: this is the
+// message a user must ACT ON to proceed, so it belongs inline where the field
+// is rather than in a toast that is gone in four seconds — and a filled
+// `destructive-container` chip declares its own ink pair, so it cannot be
+// broken by whatever the row underneath it does next.
 // =============================================================================
 
 export interface ApnSettingsCardProps {

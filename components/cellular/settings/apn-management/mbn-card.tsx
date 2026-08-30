@@ -402,9 +402,17 @@ export function MBNCard({
           </div>
         )}
 
-        <TonalBanner tone="warning" icon="warning">
-          {t(`${K}.reboot_notice`)}
-        </TonalBanner>
+        {/* THE STANDING REBOOT WARNING IS GONE. A `warning` TonalBanner
+            rendered here unconditionally — at rest, nothing pending, nothing
+            selected — and said what two other elements on this card already
+            say: `pending_note` in the save bar below, and `reboot.description`
+            in the confirm dialog. Two of the three were on screen at once.
+
+            A warning that has no off state is not a warning, it is wallpaper,
+            and it spends the Functional-Color Promise on a static caption. The
+            fact survives in the two places that carry it when it is actually
+            actionable: the moment a change is pending, and the moment of
+            committing it. */}
 
         {/* The bar exists only while something is pending. Enter-only motion —
             `SaveButton` keeps all three of its layers mounted to hold its width

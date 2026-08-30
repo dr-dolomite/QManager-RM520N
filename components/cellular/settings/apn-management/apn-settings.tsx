@@ -31,19 +31,39 @@ import ApnSettingsCard from "./apn-settings-card";
 import MBNCard from "./mbn-card";
 import {
   BADGE_GLYPH_SIZE,
-  CARD_CELL,
   CARD_PAD,
   CARD_SHELL,
-  PAGE_GRID,
   PAGE_ROOT,
+  PILL_ACTION,
   READOUT_ROW,
 } from "../shapes";
 
 // =============================================================================
 // APN Management — the route shell
 // =============================================================================
-// Page header, a two-column grid of write surfaces, and one full-width read-only
-// strip beneath them. The page arranges cards; it never becomes the canvas.
+// Three full-width bands under the page header. The page arranges bands; it
+// never becomes the canvas.
+//
+// THE ORDER IS THE FAMILY'S GRAMMAR: live state -> what you can change -> the
+// commit. It used to run backwards — header, then the write card and MBN side
+// by side, then "What the network granted" LAST, so the negotiated truth (the
+// only thing here that can answer "is my connection actually dialling the APN I
+// think it is") was filed at the bottom behind the heaviest card on the
+// surface. `/cellular/settings` ships the correct order and is the reference.
+//
+//   Band A  What the network granted   poller clock, isStale, the comparison
+//   Band B  APN configuration          settings GET, inside the override gate
+//   Band C  Carrier bundle (MBN)       its own GET, outside the gate
+//
+// THE TWO-COLUMN GRID IS GONE, and not for taste. `PAGE_GRID`'s 1.35fr/1fr was
+// inherited from `/cellular/settings` — `git log -S "1.35fr"` returns one
+// commit and it is that page's — and its JSDoc justifies the ratio by a right
+// column ("AMBR + modem reports") that no longer exists anywhere. DESIGN.md >
+// Layout already rules on it: SPLIT A PAGE BY CADENCE, NOT BY SYMMETRY. These
+// two cards have unrelated clocks (a mount-only settings GET vs MBN's own GET),
+// unrelated weights, and different gating; forcing them onto one row is exactly
+// the split that rule forbids, and it strands dead space in whichever card has
+// less to say. `PAGE_GRID` stays exported — `imei-settings.tsx` consumes it.
 //
 // THREE DATA SOURCES, DELIBERATELY SEPARATE:
 //   useApnSettings   the writable APN CGI surface (one read on mount, re-read
@@ -57,16 +77,21 @@ import {
 // the network actually GRANTED, and collapsing them would let a stored value
 // masquerade as a negotiated one.
 //
-// THE OVERRIDE GATE STAYS. When a Custom SIM Profile owns the APN, every
-// control on this page is read-only — the profile is the source of truth. The
-// gate is a disabled <fieldset> rather than a `disabled` prop threaded through
-// every child, and `overrideUndetermined` holds the cards in their loading
-// state until the verdict resolves, closing the window where every button is
-// live before the lock engages.
+// THE OVERRIDE GATE STAYS, AND NOW COVERS ONLY WHAT IT GOVERNS. When a Custom
+// SIM Profile owns the APN, the APN write surface is read-only — the profile is
+// the source of truth. The gate is a disabled <fieldset> rather than a
+// `disabled` prop threaded through every child, and `overrideUndetermined`
+// holds that card in its loading state until the verdict resolves, closing the
+// window where every button is live before the lock engages.
 //
-// The read-only strip sits OUTSIDE that fieldset on purpose. A profile owning
-// the APN does not make the network's answer less true, and dimming live truth
-// to 60% opacity would be the page hiding the one thing still worth reading.
+// It used to wrap MBN as well. The gate fires on `profile.settings.apn.name`
+// being non-empty, so a profile owning the APN disabled the carrier-bundle
+// picker — a control no profile manages and which the profile system has
+// nothing to say about. MBN is now outside it.
+//
+// Band A sits outside it too, and always did, on purpose. A profile owning the
+// APN does not make the network's answer less true, and dimming live truth to
+// 60% opacity would be the page hiding the one thing still worth reading.
 // =============================================================================
 
 const K = "core_settings.apn";
@@ -210,6 +235,69 @@ function useApnStatusChip(
 //   "attached · LTE B3"   the band is Radio Information's job, and the dot is a
 //                         glue character the No-Dot-Separator Rule forbids.
 
+/**
+ * The configured-vs-granted pair — the one comparison this page exists to draw,
+ * finally drawn where both halves are visible at once.
+ *
+ * TWO BLOCKS, NOT FIVE TILES, for the same reason `READOUT_ROW.GRID` is not a
+ * tile grid: the values are IDENTIFIERS. A block gives an APN the whole width
+ * of its half rather than a fifth of a card, and wraps rather than truncating
+ * when it still does not fit.
+ *
+ * THE TINT IS ON THE GRANTED SIDE ONLY. "What you asked for" cannot be right or
+ * wrong — it is simply what is stored — so tinting it would spend a functional
+ * role on a fact with no verdict attached. The granted block carries the
+ * verdict because the granted block IS the verdict.
+ *
+ * EYEBROW, PROVENANCE AND MARK SET NO INK. They sit on three different fills
+ * (`surface-container` neutral, `success-container` on agreement,
+ * `destructive-container` on disagreement) and dim whatever the block already
+ * carries, which is the only spelling that stays correct on all three — the
+ * cross-pair (one role's ink on another role's container) is what this family
+ * names as its most common contrast failure. Same mechanism as
+ * `CHOICE_ROW.CAPTION`.
+ *
+ * The mark is a GLYPH plus a WORD, never the fill alone: `success-container`
+ * and `destructive-container` are distinguishable, but the fill is not allowed
+ * to be the only channel.
+ */
+const COMPARE = {
+  GRID: "grid grid-cols-1 gap-2.5 @2xl/card:grid-cols-2",
+  BLOCK: "flex min-w-0 flex-col gap-1.5 rounded-field p-4",
+  NEUTRAL: "bg-surface-container text-on-surface",
+  MATCH: "bg-success-container text-on-success-container",
+  DRIFT: "bg-destructive-container text-on-destructive-container",
+  EYEBROW:
+    "truncate text-[0.6875rem] font-semibold tracking-[0.02em] opacity-90",
+  /**
+   * An APN is a machine string the device emits verbatim, so `font-mono` (The
+   * Machine-Voice Rule). `break-all` rather than `truncate`: a browser will not
+   * break at the dots in `internet.talkntext.ph`, and a block with vertical
+   * room to spare should spend a second line before it loses characters.
+   */
+  VALUE: "font-mono text-[0.9375rem] font-semibold leading-[1.25] break-all",
+  /** No reading. The em-dash is punctuation, so it is dimmed, not coloured. */
+  VALUE_UNKNOWN: "opacity-70",
+  PROVENANCE: "text-[0.71875rem] leading-relaxed text-pretty opacity-90",
+  MARK: "inline-flex items-center gap-1.5 text-[0.6875rem] font-semibold",
+  MARK_GLYPH: 13,
+  /**
+   * Mirrors BLOCK's resting height for the skeleton: `p-4` either side (32) +
+   * eyebrow 16 + value 19 + provenance 19 + two `gap-1.5` (12) = 98px. The mark
+   * is absent while loading, so the unmarked height is the one to mirror.
+   *
+   * THE `!` IS LOAD-BEARING. `cn()` is bare `tailwind-merge`, which does not
+   * know this repo's custom radius names and therefore cannot dedupe
+   * `rounded-field` against `Skeleton`'s own `rounded-md` — both survive into
+   * the class list and the CASCADE decides, alphabetically: `field` sorts
+   * before `md`, so the primitive's 6px silently wins and the skeleton stops
+   * mirroring the 20px block it stands in for. The important modifier is what
+   * takes the radius back. (Product-wide hazard, ~20 call sites; this one is
+   * spelled correctly rather than adding a twenty-first.)
+   */
+  HEIGHT: "h-[6.125rem] rounded-field!",
+} as const;
+
 interface ReadoutRowProps {
   label: string;
   value: string;
@@ -250,11 +338,18 @@ function ReadoutRow({
 
 function NetworkGrantedCard({
   status,
+  configuredApn,
   isLoading,
   isStale,
   error,
 }: {
   status: ModemStatus | null;
+  /**
+   * The stored APN, from `apn_setting.json` via the settings GET — the left
+   * half of the comparison. `null` before the first read, which renders an
+   * em-dash and suppresses the verdict rather than comparing against "".
+   */
+  configuredApn: string | null;
   isLoading: boolean;
   /**
    * The poller has not reported inside its 10 s threshold.
@@ -284,15 +379,22 @@ function NetworkGrantedCard({
           <CardTitle>{t(`${R}.title`)}</CardTitle>
           <CardDescription>{t(`${R}.description`)}</CardDescription>
         </CardHeader>
-        <CardContent className={CARD_PAD}>
+        <CardContent className={cn(CARD_PAD, "flex flex-col gap-4")}>
+          {/* Geometry MIRRORED from the shape constants, comparison pair
+              included — the skeleton and the loaded band read the same
+              numbers, never two copies of them. */}
+          <div className={COMPARE.GRID}>
+            {Array.from({ length: 2 }).map((_, index) => (
+              <Skeleton key={index} className={COMPARE.HEIGHT} />
+            ))}
+          </div>
           <div className={READOUT_ROW.GRID}>
-            {Array.from({ length: 5 }).map((_, index) => (
+            {Array.from({ length: 4 }).map((_, index) => (
               <Skeleton
                 key={index}
                 className={cn(
                   READOUT_ROW.HEIGHT,
-                  "rounded-pill",
-                  index === 4 && "@2xl/card:col-span-2",
+                  index === 3 && "@2xl/card:col-span-2",
                 )}
               />
             ))}
@@ -314,6 +416,18 @@ function NetworkGrantedCard({
   const v6 = v6Raw ? compressIPv6(v6Raw) : null;
 
   const attached = !!v4 || !!v6;
+
+  // The comparison. Case-folded, matching the backend's own `tr 'A-Z' 'a-z'`:
+  // APNs are DNS-style labels and case-insensitive per 3GPP, and a live device
+  // negotiated `INTERNET.GLOBE.COM.PH` for a stored `internet`.
+  //
+  // A verdict needs BOTH halves. With either side missing the granted block
+  // stays neutral and shows no mark — "we could not compare" is a third answer,
+  // not a quiet failure of the comparison.
+  const configured = configuredApn?.trim() || null;
+  const comparable = configured !== null && servingApn !== null;
+  const grantedMatches =
+    comparable && configured.toLowerCase() === servingApn.toLowerCase();
 
   const grantedIp = !status
     ? null
@@ -358,14 +472,55 @@ function NetworkGrantedCard({
           </TonalBanner>
         ) : null}
 
+        {/* The comparison pair. The APN no longer appears as a readout row
+            below — it is one fact, and stating it twice on one band is what
+            this re-authoring set out to stop. */}
+        <div className={COMPARE.GRID}>
+          <div className={cn(COMPARE.BLOCK, COMPARE.NEUTRAL)}>
+            <span className={COMPARE.EYEBROW}>
+              {t(`${R}.configured_label`)}
+            </span>
+            <span
+              className={cn(COMPARE.VALUE, !configured && COMPARE.VALUE_UNKNOWN)}
+            >
+              {configured ?? EM_DASH}
+            </span>
+            <span className={COMPARE.PROVENANCE}>{t(`${R}.source_stored`)}</span>
+          </div>
+
+          <div
+            className={cn(
+              COMPARE.BLOCK,
+              !comparable
+                ? COMPARE.NEUTRAL
+                : grantedMatches
+                  ? COMPARE.MATCH
+                  : COMPARE.DRIFT,
+            )}
+          >
+            <span className={COMPARE.EYEBROW}>{t(`${R}.granted_label`)}</span>
+            <span
+              className={cn(COMPARE.VALUE, !servingApn && COMPARE.VALUE_UNKNOWN)}
+            >
+              {servingApn ?? EM_DASH}
+            </span>
+            {comparable ? (
+              <span className={COMPARE.MARK}>
+                <MaterialSymbol
+                  name={grantedMatches ? "check_circle" : "warning"}
+                  filled
+                  size={COMPARE.MARK_GLYPH}
+                />
+                {t(grantedMatches ? `${R}.matches` : `${R}.does_not_match`)}
+              </span>
+            ) : null}
+            <span className={COMPARE.PROVENANCE}>
+              {t(`${R}.source_negotiated`)}
+            </span>
+          </div>
+        </div>
+
         <div className={READOUT_ROW.GRID}>
-          <ReadoutRow
-            label={t(`${R}.serving_apn`)}
-            value={servingApn ?? EM_DASH}
-            title={servingApn ?? undefined}
-            known={!!servingApn}
-            mono
-          />
           <ReadoutRow
             label={t(`${R}.granted_ip`)}
             value={grantedIp ?? EM_DASH}
@@ -549,43 +704,74 @@ const APNSettingsComponent = () => {
         />
       ) : null}
 
-      {/* The write surfaces. `pointer-events-none opacity-60` makes the locked
+      {/* Band A — what the network GRANTED, on the poller's clock. It leads the
+          page because it is the only thing on the surface that can answer "is
+          my connection actually dialling the APN I think it is", and it used to
+          be filed last, behind the heaviest card here. It also sits outside the
+          fieldset below: a profile owning the APN does not make the network's
+          answer less true, and dimming live truth to 60% would be the page
+          hiding the one thing still worth reading. */}
+      <NetworkGrantedCard status={status} isStale={statusStale} isLoading={statusLoading} error={statusError} configuredApn={apn?.apn ?? null} />
+
+      {/* Band B — what you can CHANGE, on the settings GET's clock. The only
+          thing a SIM profile can own, and therefore the only thing inside the
+          override fieldset. `pointer-events-none opacity-60` makes the locked
           state obvious while leaving the values readable. */}
       <fieldset
         disabled={isProfileControlled || overrideUndetermined}
         className={cn(
-          PAGE_GRID,
           "m-0 border-0 p-0",
           isProfileControlled && "pointer-events-none opacity-60",
         )}
       >
-        <div className={CARD_CELL}>
-          <ApnSettingsCard
-            apn={apn}
-            cids={cids}
-            active={active}
-            activeCid={activeCid}
-            isLoading={isLoading || overrideUndetermined}
-            isSaving={isSaving}
-            onSave={save}
-            onDeactivate={deactivate}
-          />
-        </div>
-
-        <div className={CARD_CELL}>
-          <MBNCard
-            profiles={mbnProfiles}
-            autoSel={autoSel}
-            isLoading={mbnLoading || overrideUndetermined}
-            isSaving={mbnSaving}
-            error={mbnError}
-            onSave={saveMbn}
-            onRetry={refreshMbn}
-          />
-        </div>
+        <ApnSettingsCard
+          apn={apn}
+          cids={cids}
+          active={active}
+          activeCid={activeCid}
+          isLoading={isLoading || overrideUndetermined}
+          isSaving={isSaving}
+          onSave={save}
+          onDeactivate={deactivate}
+        />
       </fieldset>
 
-      <NetworkGrantedCard status={status} isStale={statusStale} isLoading={statusLoading} error={statusError} />
+      {/* Band C — the carrier bundle, on its own GET's clock and behind a
+          reboot. OUTSIDE the fieldset: the gate fires on
+          `profile.settings.apn.name`, and no SIM profile manages MBN bundle
+          selection, so a profile owning the APN was locking a control it has
+          nothing to say about. */}
+      <MBNCard
+        profiles={mbnProfiles}
+        autoSel={autoSel}
+        isLoading={mbnLoading}
+        isSaving={mbnSaving}
+        error={mbnError}
+        onSave={saveMbn}
+        onRetry={refreshMbn}
+      />
+
+      {/* The resting re-read. `refresh` was wired but reachable ONLY from
+          inside the error banner, so the affordance existed exactly when the
+          page had already failed. Hidden while a write is in flight — the
+          card's own save bar owns that moment, and two status lines would
+          contradict each other. The poller feeding Band A re-reads itself. */}
+      {!isLoading && !isSaving && !isReconciling ? (
+        <div className="flex flex-wrap items-center gap-3">
+          <Button
+            type="button"
+            variant="ghost"
+            onClick={() => {
+              refresh();
+              refreshMbn();
+            }}
+            className={PILL_ACTION}
+          >
+            <MaterialSymbol name="refresh" size={17} />
+            {t(`${K}.readout.reread`)}
+          </Button>
+        </div>
+      ) : null}
     </div>
   );
 };
