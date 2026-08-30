@@ -587,12 +587,16 @@
         "title": "APN Configuration",
         "description": "The Access Point Name the modem uses to establish a data connection."
       },
+      "cards": {
+        "unread": "Nothing has been read from the modem yet, so this card has no values to show."
+      },
       "status": {
-        "active": "Active",
-        "not_live": "Not live",
+        "live": "Live on the network",
+        "not_granted": "Saved APN is not the one in use",
+        "not_reported": "Not reported",
         "carrier_default": "Carrier default"
       },
-      "save_connection_notice": "Saving briefly drops the cellular connection while the modem reconnects.",
+      "save_connection_notice": "Saving detaches and re-attaches the modem. Cellular data drops for about four seconds — and if you are connected over the modem's Ethernet port, this page will drop with it and reconnect on its own.",
       "carrier_default": {
         "button": "Use carrier default",
         "dialog": {
@@ -606,7 +610,8 @@
         "saved": "APN settings saved",
         "save_error": "Failed to save APN settings",
         "deactivated": "Reverted to carrier default APN",
-        "deactivate_error": "Failed to revert to carrier default"
+        "deactivate_error": "Failed to revert to carrier default",
+        "reconciling": "Verifying the connection came back…"
       },
       "controls_label": "APN configuration",
       "managed_by_profile_fallback": "active Custom SIM Profile",
@@ -643,6 +648,9 @@
           "description_sos": "CID {{cid}} is reserved for emergency (SOS) calling. Writing a data APN here can disrupt emergency calls. Continue anyway?",
           "confirm": "Use anyway",
           "cancel": "Cancel"
+        },
+        "reserved_dialog": {
+          "unverified_body": "This context is usually reserved for VoLTE or emergency calls, but the modem has not reported its type. Writing a data APN here can break those services."
         }
       },
       "rows": {
@@ -665,7 +673,6 @@
       "readout": {
         "title": "What the network granted",
         "description": "Read live from the modem, not from what was saved.",
-        "serving_apn": "Serving APN",
         "granted_ip": "Granted IP",
         "bearer_state": "Bearer state",
         "ipv4": "IPv4 address",
@@ -677,7 +684,16 @@
         "ip_both": "IPv4 and IPv6",
         "ip_none": "Not assigned",
         "error_title": "Live status unavailable",
-        "error_body": "The modem status feed did not respond. Values below may be missing."
+        "error_body": "The modem status feed did not respond. Values below may be missing.",
+        "configured_label": "You configured",
+        "granted_label": "The network granted",
+        "source_stored": "From saved settings",
+        "source_negotiated": "Negotiated with the network",
+        "matches": "Matches",
+        "does_not_match": "Does not match",
+        "stale": "Readings frozen",
+        "stale_body": "The modem status feed has not reported recently. The values above may no longer be true.",
+        "reread": "Re-read from modem"
       },
       "mbn": {
         "title": "Carrier Profile (MBN)",
@@ -688,7 +704,6 @@
         },
         "list_label": "Available bundles",
         "selected_caption": "Selected, running since last boot",
-        "reboot_notice": "Applying a bundle takes effect after a reboot. QManager will offer the reboot, never take it.",
         "pending_note": "Changes take effect after a reboot.",
         "save": "Apply profile",
         "empty": {

@@ -587,12 +587,16 @@
         "title": "Configurazione APN",
         "description": "Il nome del punto di accesso usato dal modem per stabilire una connessione dati."
       },
+      "cards": {
+        "unread": "Non è stato letto nulla dal modem, quindi questa scheda non ha valori da mostrare."
+      },
       "status": {
-        "active": "Attivo",
-        "not_live": "Non attivo",
+        "live": "Attivo sulla rete",
+        "not_granted": "L'APN salvato non è quello in uso",
+        "not_reported": "Non riportato",
         "carrier_default": "Predefinito operatore"
       },
-      "save_connection_notice": "Il salvataggio interrompe brevemente la connessione cellulare durante la riconnessione del modem.",
+      "save_connection_notice": "Il salvataggio scollega e ricollega il modem. I dati cellulari si interrompono per circa quattro secondi — e se sei collegato tramite la porta Ethernet del modem, anche questa pagina cadrà e si riconnetterà da sola.",
       "carrier_default": {
         "button": "Usa predefinito operatore",
         "dialog": {
@@ -606,7 +610,8 @@
         "saved": "Impostazioni APN salvate",
         "save_error": "Impossibile salvare le impostazioni APN",
         "deactivated": "Ripristinato all'APN predefinito dell'operatore",
-        "deactivate_error": "Impossibile ripristinare il predefinito dell'operatore"
+        "deactivate_error": "Impossibile ripristinare il predefinito dell'operatore",
+        "reconciling": "Verifica del ritorno della connessione…"
       },
       "controls_label": "Configurazione APN",
       "managed_by_profile_fallback": "profilo SIM personalizzato attivo",
@@ -643,6 +648,9 @@
           "description_sos": "Il CID {{cid}} è riservato alle chiamate di emergenza (SOS). Scrivere qui un APN dati può compromettere le chiamate di emergenza. Continuare comunque?",
           "confirm": "Usa comunque",
           "cancel": "Annulla"
+        },
+        "reserved_dialog": {
+          "unverified_body": "Questo contesto è di solito riservato al VoLTE o alle chiamate di emergenza, ma il modem non ne ha riportato il tipo. Scrivere qui un APN dati può compromettere quei servizi."
         }
       },
       "rows": {
@@ -665,7 +673,6 @@
       "readout": {
         "title": "Cosa ha concesso la rete",
         "description": "Letto dal modem in tempo reale, non dai valori salvati.",
-        "serving_apn": "APN in uso",
         "granted_ip": "IP concesso",
         "bearer_state": "Stato del bearer",
         "ipv4": "Indirizzo IPv4",
@@ -677,7 +684,16 @@
         "ip_both": "IPv4 e IPv6",
         "ip_none": "Non assegnato",
         "error_title": "Stato in tempo reale non disponibile",
-        "error_body": "Il feed di stato del modem non ha risposto. I valori sotto potrebbero mancare."
+        "error_body": "Il feed di stato del modem non ha risposto. I valori sotto potrebbero mancare.",
+        "configured_label": "Hai configurato",
+        "granted_label": "La rete ha concesso",
+        "source_stored": "Dalle impostazioni salvate",
+        "source_negotiated": "Negoziato con la rete",
+        "matches": "Corrisponde",
+        "does_not_match": "Non corrisponde",
+        "stale": "Letture ferme",
+        "stale_body": "Il feed di stato del modem non riporta da un po'. I valori sopra potrebbero non essere più veri.",
+        "reread": "Rileggi dal modem"
       },
       "mbn": {
         "title": "Profilo operatore (MBN)",
@@ -688,7 +704,6 @@
         },
         "list_label": "Pacchetti disponibili",
         "selected_caption": "Selezionato, attivo dall'ultimo avvio",
-        "reboot_notice": "Un pacchetto ha effetto dopo un riavvio. QManager lo propone, non lo esegue mai da solo.",
         "pending_note": "Le modifiche hanno effetto dopo un riavvio.",
         "save": "Applica profilo",
         "empty": {

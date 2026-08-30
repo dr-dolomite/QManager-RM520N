@@ -587,12 +587,16 @@
         "title": "APN 配置",
         "description": "调制解调器用于建立数据连接的接入点名称。"
       },
+      "cards": {
+        "unread": "尚未从调制解调器读取到任何数据，因此此卡片没有可显示的值。"
+      },
       "status": {
-        "active": "已激活",
-        "not_live": "未生效",
+        "live": "已在网络上生效",
+        "not_granted": "已保存的 APN 不是当前使用的",
+        "not_reported": "未报告",
         "carrier_default": "运营商默认"
       },
-      "save_connection_notice": "保存时调制解调器重连期间蜂窝连接会短暂中断。",
+      "save_connection_notice": "保存会让调制解调器断开并重新附着网络。蜂窝数据会中断约四秒——如果你是通过调制解调器的以太网口连接的，此页面也会随之断开，并会自动重新连接。",
       "carrier_default": {
         "button": "使用运营商默认",
         "dialog": {
@@ -606,7 +610,8 @@
         "saved": "APN 设置已保存",
         "save_error": "保存 APN 设置失败",
         "deactivated": "已恢复到运营商默认 APN",
-        "deactivate_error": "恢复到运营商默认失败"
+        "deactivate_error": "恢复到运营商默认失败",
+        "reconciling": "正在确认连接是否已恢复…"
       },
       "controls_label": "APN 配置",
       "managed_by_profile_fallback": "活动的自定义 SIM 配置",
@@ -643,6 +648,9 @@
           "description_sos": "CID {{cid}} 被保留用于紧急（SOS）呼叫。在此写入数据 APN 可能会中断紧急呼叫。仍要继续吗？",
           "confirm": "仍然使用",
           "cancel": "取消"
+        },
+        "reserved_dialog": {
+          "unverified_body": "该上下文通常保留用于 VoLTE 或紧急呼叫，但调制解调器未报告它的类型。在此写入数据 APN 可能会中断这些服务。"
         }
       },
       "rows": {
@@ -665,7 +673,6 @@
       "readout": {
         "title": "网络授予的内容",
         "description": "实时读取自调制解调器，而非已保存的设置。",
-        "serving_apn": "生效的 APN",
         "granted_ip": "已授予的 IP",
         "bearer_state": "承载状态",
         "ipv4": "IPv4 地址",
@@ -677,7 +684,16 @@
         "ip_both": "IPv4 和 IPv6",
         "ip_none": "未分配",
         "error_title": "无法获取实时状态",
-        "error_body": "调制解调器状态源未响应。下方的值可能缺失。"
+        "error_body": "调制解调器状态源未响应。下方的值可能缺失。",
+        "configured_label": "你配置的",
+        "granted_label": "网络授予的",
+        "source_stored": "来自已保存的设置",
+        "source_negotiated": "与网络协商的结果",
+        "matches": "一致",
+        "does_not_match": "不一致",
+        "stale": "读数已停止更新",
+        "stale_body": "调制解调器状态源近期没有更新。上方的值可能已经不再准确。",
+        "reread": "从调制解调器重新读取"
       },
       "mbn": {
         "title": "运营商配置文件 (MBN)",
@@ -688,7 +704,6 @@
         },
         "list_label": "可用配置包",
         "selected_caption": "已选择，自上次启动起生效",
-        "reboot_notice": "配置包需重启后才会生效。QManager 只会提示重启，绝不擅自重启。",
         "pending_note": "更改将在重启后生效。",
         "save": "应用配置文件",
         "empty": {

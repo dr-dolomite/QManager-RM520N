@@ -587,12 +587,16 @@
         "title": "APN 設定",
         "description": "數據機用於建立資料連線的存取點名稱。"
       },
+      "cards": {
+        "unread": "尚未從數據機讀取到任何資料，因此此卡片沒有可顯示的值。"
+      },
       "status": {
-        "active": "已啟用",
-        "not_live": "未生效",
+        "live": "已在網路上生效",
+        "not_granted": "已儲存的 APN 不是目前使用的",
+        "not_reported": "未回報",
         "carrier_default": "電信商預設"
       },
-      "save_connection_notice": "儲存時數據機重新連線期間蜂窩連線會短暫中斷。",
+      "save_connection_notice": "儲存會讓數據機中斷並重新附著網路。行動數據會中斷約四秒——如果你是透過數據機的乙太網路埠連線的，此頁面也會隨之中斷，並會自動重新連線。",
       "carrier_default": {
         "button": "使用電信商預設",
         "dialog": {
@@ -606,7 +610,8 @@
         "saved": "APN 設定已儲存",
         "save_error": "儲存 APN 設定失敗",
         "deactivated": "已還原至電信商預設 APN",
-        "deactivate_error": "還原至電信商預設失敗"
+        "deactivate_error": "還原至電信商預設失敗",
+        "reconciling": "正在確認連線是否已恢復…"
       },
       "controls_label": "APN 配置",
       "managed_by_profile_fallback": "活動的自訂 SIM 設定",
@@ -643,6 +648,9 @@
           "description_sos": "CID {{cid}} 被保留用於緊急（SOS）呼叫。在此寫入資料 APN 可能會中斷緊急呼叫。仍要繼續嗎？",
           "confirm": "仍然使用",
           "cancel": "取消"
+        },
+        "reserved_dialog": {
+          "unverified_body": "該上下文通常保留用於 VoLTE 或緊急呼叫，但數據機未回報它的類型。在此寫入資料 APN 可能會中斷這些服務。"
         }
       },
       "rows": {
@@ -665,7 +673,6 @@
       "readout": {
         "title": "網路授予的內容",
         "description": "即時讀取自數據機，而非已儲存的設定。",
-        "serving_apn": "生效的 APN",
         "granted_ip": "已授予的 IP",
         "bearer_state": "承載狀態",
         "ipv4": "IPv4 位址",
@@ -677,7 +684,16 @@
         "ip_both": "IPv4 與 IPv6",
         "ip_none": "未指派",
         "error_title": "無法取得即時狀態",
-        "error_body": "數據機狀態來源未回應。下方的值可能缺失。"
+        "error_body": "數據機狀態來源未回應。下方的值可能缺失。",
+        "configured_label": "你設定的",
+        "granted_label": "網路授予的",
+        "source_stored": "來自已儲存的設定",
+        "source_negotiated": "與網路協商的結果",
+        "matches": "一致",
+        "does_not_match": "不一致",
+        "stale": "讀數已停止更新",
+        "stale_body": "數據機狀態來源近期沒有更新。上方的值可能已經不再準確。",
+        "reread": "從數據機重新讀取"
       },
       "mbn": {
         "title": "電信業者設定檔 (MBN)",
@@ -688,7 +704,6 @@
         },
         "list_label": "可用套件",
         "selected_caption": "已選擇，自上次開機起生效",
-        "reboot_notice": "套件需重新開機後才會生效。QManager 只會提示重新開機，絕不擅自執行。",
         "pending_note": "變更將在重新開機後生效。",
         "save": "套用設定檔",
         "empty": {

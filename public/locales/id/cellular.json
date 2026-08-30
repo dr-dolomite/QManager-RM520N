@@ -587,12 +587,16 @@
         "title": "Konfigurasi APN",
         "description": "Nama Titik Akses yang digunakan modem untuk membangun koneksi data."
       },
+      "cards": {
+        "unread": "Belum ada data yang terbaca dari modem, jadi kartu ini belum punya nilai untuk ditampilkan."
+      },
       "status": {
-        "active": "Aktif",
-        "not_live": "Tidak live",
+        "live": "Aktif di jaringan",
+        "not_granted": "APN tersimpan bukan yang sedang dipakai",
+        "not_reported": "Tidak dilaporkan",
         "carrier_default": "Default operator"
       },
-      "save_connection_notice": "Menyimpan akan memutus koneksi seluler sebentar saat modem menyambung ulang.",
+      "save_connection_notice": "Menyimpan akan melepas dan menyambungkan ulang modem. Data seluler terputus sekitar empat detik — dan jika Anda terhubung lewat port Ethernet modem, halaman ini juga akan terputus lalu menyambung sendiri.",
       "carrier_default": {
         "button": "Gunakan default operator",
         "dialog": {
@@ -606,7 +610,8 @@
         "saved": "Pengaturan APN disimpan",
         "save_error": "Gagal menyimpan pengaturan APN",
         "deactivated": "Dikembalikan ke APN default operator",
-        "deactivate_error": "Gagal kembali ke default operator"
+        "deactivate_error": "Gagal kembali ke default operator",
+        "reconciling": "Memastikan koneksi sudah kembali…"
       },
       "controls_label": "Konfigurasi APN",
       "managed_by_profile_fallback": "Profil SIM Kustom aktif",
@@ -643,6 +648,9 @@
           "description_sos": "CID {{cid}} dicadangkan untuk panggilan darurat (SOS). Menulis APN data di sini dapat mengganggu panggilan darurat. Tetap lanjutkan?",
           "confirm": "Tetap gunakan",
           "cancel": "Batal"
+        },
+        "reserved_dialog": {
+          "unverified_body": "Konteks ini biasanya dicadangkan untuk VoLTE atau panggilan darurat, tetapi modem belum melaporkan tipenya. Menulis APN data di sini dapat mengganggu layanan tersebut."
         }
       },
       "rows": {
@@ -665,7 +673,6 @@
       "readout": {
         "title": "Yang diberikan jaringan",
         "description": "Dibaca langsung dari modem, bukan dari nilai yang disimpan.",
-        "serving_apn": "APN aktif",
         "granted_ip": "IP yang diberikan",
         "bearer_state": "Status bearer",
         "ipv4": "Alamat IPv4",
@@ -677,7 +684,16 @@
         "ip_both": "IPv4 dan IPv6",
         "ip_none": "Belum ditetapkan",
         "error_title": "Status langsung tidak tersedia",
-        "error_body": "Umpan status modem tidak merespons. Nilai di bawah mungkin tidak lengkap."
+        "error_body": "Umpan status modem tidak merespons. Nilai di bawah mungkin tidak lengkap.",
+        "configured_label": "Yang Anda atur",
+        "granted_label": "Yang jaringan berikan",
+        "source_stored": "Dari pengaturan tersimpan",
+        "source_negotiated": "Hasil negosiasi dengan jaringan",
+        "matches": "Cocok",
+        "does_not_match": "Tidak cocok",
+        "stale": "Pembacaan berhenti",
+        "stale_body": "Umpan status modem belum melapor akhir-akhir ini. Nilai di atas mungkin sudah tidak benar.",
+        "reread": "Baca ulang dari modem"
       },
       "mbn": {
         "title": "Profil Operator (MBN)",
@@ -688,7 +704,6 @@
         },
         "list_label": "Paket tersedia",
         "selected_caption": "Terpilih, aktif sejak boot terakhir",
-        "reboot_notice": "Paket berlaku setelah reboot. QManager hanya menawarkan reboot, tidak pernah melakukannya sendiri.",
         "pending_note": "Perubahan berlaku setelah reboot.",
         "save": "Terapkan profil",
         "empty": {

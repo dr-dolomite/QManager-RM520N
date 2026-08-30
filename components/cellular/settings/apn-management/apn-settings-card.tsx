@@ -572,9 +572,7 @@ export function ApnSettingsCard({
                   was reported, and stating a type we guessed at would be the
                   page inventing a fact to justify its own dialog. */}
               {pendingCid?.kind === "unverified"
-                ? t(`${K}.edit.reserved_dialog.unverified_body`, {
-                    cid: pendingCid.cid,
-                  })
+                ? t(`${K}.edit.reserved_dialog.unverified_body`)
                 : pendingCid?.kind === "ims"
                   ? t(`${K}.edit.cid_confirm.description_ims`, {
                       cid: pendingCid?.cid,
