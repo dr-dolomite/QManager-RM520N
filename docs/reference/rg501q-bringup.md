@@ -222,6 +222,21 @@ both `die` paths now remove the half-written binary first.
 **The only component that works is the one with no Entware dependency.** Everything
 that needs `jq` runs but emits nothing.
 
+> **Partly mitigated since 2026-08-30 (`3a7c537`, tracker F2).** The CGI layer's
+> share of this was self-concealing: `cgi_error` — the single error reporter behind
+> 53 CGI scripts — was itself a `jq -n` call, so every endpoint answered with a 200,
+> the correct `Content-Type`, and a **completely empty body**. The error reporter
+> depended on the exact thing that was missing, which is why this device presented
+> as a mute web UI rather than a traceable failure. `cgi_error` now falls back to a
+> hand-built envelope when jq produces no output.
+>
+> ⚠️ **Do not read this as "the UI will now explain itself."** The fallback is inside
+> `cgi_error` only. `require_auth` (`cgi_auth.sh:498-512`) still emits its own inline
+> `jq -n`, and it is the *first* thing a browser hits — so a bootstrap-broken device
+> is still mute pre-auth. Tracked as F17.
+
+
+
 ### Clock
 
 Unit timestamps read `Thu 1970-01-01 00:00:25 UTC`, `/tmp` files stamped
