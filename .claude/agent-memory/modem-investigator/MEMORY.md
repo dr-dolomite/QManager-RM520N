@@ -54,3 +54,5 @@
 - [Authenticated CGI probing + the qcmd stub trick](authenticated_cgi_probe_and_qcmd_stub.md) — port 80 301-redirects to https so plain http probes look broken; reuse a live token from /tmp/qmanager_sessions/ (validation is side-effect-free) instead of _SKIP_AUTH; and shadow `qcmd` with a shell function to exercise AT-failure branches with zero device footprint
 
 - [Quectel version-file labels are column-aligned, not single-space](quectel_project_version_double_space_labels.md) — BOTH devices write `Branch  Name:` (two spaces) and `Project Rev :`; the poller's `grep "^Branch Name"` matches on neither, so `detect_orientation_from_soc` always returns "normal" while its unit-test fixture (one space) passes
+
+- [RG501Q returns +CGCONTRDP UNQUOTED; RM520N quotes it](rg501q_cgcontrdp_unquoted_response.md) — every `awk -F'"'` parser silently yields empty (not an error) so pollers spin their full timeout; CGDCONT?/CGPADDR/QMAP stay quoted on both, so a neighbouring spot-check hides it; the command itself is fully supported
