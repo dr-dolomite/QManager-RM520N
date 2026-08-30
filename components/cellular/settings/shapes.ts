@@ -454,35 +454,48 @@ export const ROW_GROUP = {
 /**
  * One setting row.
  *
- * HEIGHT is the skeleton's mirror. It is a `min-h` floor on ROOT rather than a
- * fixed height because the consequence line wraps to two lines on narrow
- * containers — a fixed height would clip it. The floor is derived, not guessed:
- * label 20 + gap 3 + DELTA CHIP 22 + gap 3 + consequence 18 = 66, plus `py-4`
- * x2 = 98 -> 6.125rem.
+ * -----------------------------------------------------------------------------
+ * THE DELTA CHIP RIDES THE LABEL'S LINE. IT USED TO OWN ONE.
+ * -----------------------------------------------------------------------------
+ * The chip ("SIM 2 -> SIM 1") was previously rendered UNCONDITIONALLY on its own
+ * line between the label and the consequence, merely going `invisible` when the
+ * row was clean. That bought a dirty-state-independent height, and it cost 28px
+ * of permanent blank between a title and the sentence explaining it — which read
+ * as two unrelated blocks rather than one decision, and is what a reviewer saw
+ * on the shipped page.
  *
- * THE CHIP'S LINE IS PART OF THE DERIVATION NOW, AND IT WAS NOT BEFORE. The old
- * floor was 4.75rem (76px) and this comment claimed it "already accounts for
- * the chip's line". It did not, and could not: the chip was rendered only while
- * dirty, so at 760px and 1500px body width the promotion wrapped it onto its own
- * line and the row grew EXACTLY 30px, measured. The row is
- * `@2xl/card:items-center`, so the control dropped half of that — 15px — and
- * Framer does not animate it (at rest the thumb sat at y 679.8; the first frame
- * of the move reported y 694.8 with a transform y component of 0px). The thumb
- * teleported vertically and then glided horizontally. Reversed — re-select the
- * saved value, the row goes clean and shrinks 30px — the first frame appears
- * 15px BELOW target: a highlight arriving from lower-left, which is the reported
- * symptom verbatim.
+ * The chip now sits INSIDE `LABEL_ROW`, beside the label, on a row that is
+ * `items-center` and `min-h`-floored to the chip's own 1.375rem. An invisible
+ * chip is zero-width and shorter than the label's line box, so on every row this
+ * surface actually renders it adds NOTHING to the height in either state — the
+ * reservation is still there, it is just horizontal now.
  *
- * The floor alone was never going to fix it: the CLEAN row already measured
- * 98.1px at the affected widths, so a 76px floor was inert. The chip now
- * occupies its own line UNCONDITIONALLY (`invisible` when clean, which keeps the
- * box), so the row's height does not depend on the dirty state at any width.
- * Reserve, don't animate — the same trade as `SaveButton`'s width lock.
+ * The residual, stated rather than hidden: the label is allowed to WRAP
+ * (`min-w-0`, never truncated — clipping a setting's name is worse than a
+ * reflow), so a text column narrow enough that `label + chip` will not fit on
+ * one line can still gain a line on promotion. That needs the longest shipped
+ * label (Italian, "Rilevamento sostituzione SIM a caldo", ~270px) beside the
+ * ~120px chip inside a text column under ~400px, which happens only on a phone.
+ * The old failure was a guaranteed 30px jump at 760px AND 1500px body width;
+ * this one is a possible 22px jump in one locale at one size, and the control
+ * is stacked BELOW the text there rather than `items-center` beside it, so it
+ * does not half-shift the segmented thumb the way the old one did.
+ *
+ * -----------------------------------------------------------------------------
+ * HEIGHT
+ * -----------------------------------------------------------------------------
+ * A `min-h` FLOOR on ROOT, not a fixed height — the consequence line wraps to
+ * two lines on narrow containers and a fixed height would clip it. Derived, not
+ * guessed: label row 22 + gap 4 + consequence 20 = 46, plus `py-4` x2 = 78 ->
+ * 5rem. The old floor was 6.125rem and included the chip's retired line; keeping
+ * it would have left the 28px the chip vacated sitting under every row instead
+ * of between the title and its sentence, which is the same blank moved rather
+ * than removed.
  */
 export const SETTING_ROW = {
-  ROOT: "flex min-h-[6.125rem] flex-col gap-3 rounded-field px-4 py-4 @2xl/card:flex-row @2xl/card:items-center @2xl/card:gap-4 @2xl/card:pl-[1.125rem]",
+  ROOT: "flex min-h-[5rem] flex-col gap-3 rounded-field px-4 py-4 @2xl/card:flex-row @2xl/card:items-center @2xl/card:gap-4 @2xl/card:pl-[1.125rem]",
   /** Mirrors ROOT's resolved floor, for the skeleton. */
-  HEIGHT: "h-[6.125rem]",
+  HEIGHT: "h-[5rem]",
   /**
    * The label + consequence column.
    *
@@ -493,8 +506,20 @@ export const SETTING_ROW = {
    * (an untranslated label, a long locale, four segments), so the layout looks
    * fine right up until it doesn't. `flex-1` makes the text claim its share
    * first; `min-w-0` still lets it wrap rather than overflow.
+   *
+   * `gap-1` (4px) is the whole vertical distance between a title and the
+   * sentence that explains it. They are one unit; the group's own hairlines are
+   * what separate one decision from the next.
    */
-  TEXT: "flex min-w-0 flex-1 flex-col gap-0.75",
+  TEXT: "flex min-w-0 flex-1 flex-col gap-1",
+  /**
+   * The label's own line, carrying the delta chip beside it.
+   *
+   * `min-h` matches `SETTING_ROW_DIRTY.DELTA_CHIP`'s height so the row cannot
+   * breathe when the chip appears, and `items-center` is what puts a 22px pill
+   * on the optical centre of a 22.5px line box rather than on its baseline.
+   */
+  LABEL_ROW: "flex min-h-[1.375rem] min-w-0 items-center gap-2",
   LABEL: "text-[0.9375rem] font-semibold",
   /**
    * The one-line consequence. This is the sentence that makes a settings row a
@@ -529,7 +554,7 @@ export const SETTING_ROW = {
  * nothing to draw.
  *
  * GEOMETRY IS COMPOSED, NEVER RESTATED. It wears `SETTING_ROW.ROOT`'s own box
- * (radius, padding, the 4.75rem floor) and `SETTING_ROW.CONSEQUENCE`'s ink and
+ * (radius, padding, the 5rem floor) and `SETTING_ROW.CONSEQUENCE`'s ink and
  * size, so the card holds its height and the notice cannot drift from the rows
  * it replaces.
  */
@@ -551,12 +576,11 @@ export const SETTING_ROW_DIRTY = {
    * The "before -> after" chip. Machine-voice: these are literal setting values,
    * so `font-mono` is correct here and nowhere else in the row.
    *
-   * IT GETS ITS OWN LINE, ALWAYS, and it is rendered on a clean row too (with
-   * `invisible`, which keeps the box). Beside the label it wrapped or did not
-   * wrap depending on the container width and the locale, which made the row's
-   * height a function of the dirty state — see the derivation in `SETTING_ROW`
-   * above for what that cost. `w-fit` because a flex-column parent stretches its
-   * children by default and a full-width pill is not a chip.
+   * IT RIDES THE LABEL'S LINE inside `SETTING_ROW.LABEL_ROW`, and is rendered on
+   * a clean row too (with `invisible`, which keeps the element and drops its
+   * width to zero). `flex-none` so it is never the thing that shrinks — a
+   * half-width "SIM 2 -> S…" states the wrong pending value. See `SETTING_ROW`
+   * for why the line it used to own is gone and what the residual is.
    */
   DELTA_CHIP:
     "inline-flex h-[1.375rem] w-fit flex-none items-center rounded-pill bg-primary px-2.5 font-mono text-[0.6875rem] font-semibold text-primary-foreground",

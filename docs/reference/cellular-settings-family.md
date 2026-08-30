@@ -142,7 +142,7 @@ The thumb is a `motion.span` with `absolute inset-0`, so its box *is* the segmen
 
 > ⚠️ WARNING: never `display`, `hidden`, or a conditional render. All three give the box back and reintroduce the bug. Widths after the fix run `[118.3, 108, 101.6, 104.3] → [118.6, 108, 101.4, 104.3]`; the 0.3 px residual is `data-[state=on]:font-semibold` and is deliberate, so nothing here asserts `scaleX === 1`.
 
-The same principle governs the row underneath it: `SETTING_ROW.ROOT` now reserves the delta chip's line unconditionally (`invisible` when clean) and its `min-h` floor moved **4.75rem → 6.125rem** to pay for it honestly. Reserve, don't animate.
+The same principle governs the row underneath it: `SETTING_ROW` reserves the delta chip unconditionally (`invisible` when clean), **horizontally** — the chip rides the label's line inside `LABEL_ROW`, not a line of its own — so the row's height is dirty-independent without spending 28 px of blank between a title and its consequence line. The `min-h` floor is **5rem**. Reserve, don't animate.
 
 #### The breakpoint travels on the row descriptor
 

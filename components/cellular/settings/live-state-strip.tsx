@@ -7,12 +7,11 @@ import { Badge } from "@/components/ui/badge";
 import { MaterialSymbol } from "@/components/ui/material-symbol";
 import type { MaterialSymbolName } from "@/components/ui/material-symbol";
 import { Skeleton } from "@/components/ui/skeleton";
-import { SwapLabel } from "@/components/ui/swap-label";
 import { TILE_SHAPE } from "@/components/cellular/tile-shape";
 import { cn } from "@/lib/utils";
 import type { DualSlotEntry } from "@/types/cellular-settings";
 import { networkTypeLabel } from "@/types/modem-status";
-import type { ModemStatus } from "@/types/modem-status";
+import type { CarrierComponent, ModemStatus } from "@/types/modem-status";
 
 import {
   BADGE_GLYPH_SIZE,
@@ -35,8 +34,9 @@ import {
 // ONE CLOCK, AND THAT IS THE WHOLE POINT OF THE SPLIT
 // -----------------------------------------------------------------------------
 // Every figure in every tile is read from the poller snapshot
-// (`/tmp/qmanager_status.json`, ~4s), so the freshness chip in the band header
-// is honest about the entire band. The hero could not say that: its rail ran on
+// (`/tmp/qmanager_status.json`, ~4s), so the STALE chip in the band header is
+// honest about the entire band (there is no "live" chip any more — see the
+// header block for why the healthy half was retired and the warning kept). The hero could not say that: its rail ran on
 // the poller while two of its three columns ran on the settings GET, which does
 // not tick at all — which is why it needed two readiness flags, two failure
 // branches, a freshness chip deliberately scoped to one band, and a footnote
@@ -117,21 +117,31 @@ const SIM_STATUS_GROUP = "core_settings.basic.sim_status";
 const SIM_SLOTS_GROUP = "core_settings.basic.sim_slots";
 
 /**
- * The live mark on the freshness chip. Two stacked spans so the ping expands
- * while the dot itself stays put — scaling the dot would make the chip's own
- * metrics breathe. Lifted unchanged from the retired hero, which took it from
- * `frequency-locking/freq-lock-hero.tsx`.
+ * The bands carrying the aggregate, as the Aggregation tile's caption —
+ * "B3 + B1 + B40 + B40".
  *
- * It runs ONLY on the live branch. A pulse over frozen numbers is a worse lie
- * than no indicator at all, so the stale branch swaps to a static glyph.
+ * WHY NOT `bandwidth_details`. That field is the same list with a per-carrier
+ * MHz figure welded to each entry ("B3: 15 MHz + B1: 20 MHz + ..."), which runs
+ * past 50 characters on a three-carrier aggregate and truncates inside a 104px
+ * tile — so on the exact devices that aggregate most, the caption dropped the
+ * carriers at the END of the string, which are the ones the user did not
+ * already know about. The band list is what the caption is for; the widths
+ * belong on `/cellular/`, where there is room to print them per carrier.
+ *
+ * DUPLICATES ARE KEPT. Two carriers on B40 is a real configuration, and the
+ * tile's own value states a COUNT ("LTE 3") that the caption has to be able to
+ * account for. De-duplicating to "B3 + B1 + B40" would leave a caption naming
+ * three bands under a figure counting four carriers.
+ *
+ * Order is the modem's own (PCC first, then SCCs as `AT+QCAINFO` reported
+ * them), never sorted — the first entry is the primary carrier.
  */
-function LiveDot() {
-  return (
-    <span className="relative inline-flex size-2 shrink-0 items-center justify-center">
-      <span className="bg-success animate-live-ping absolute inline-flex size-2 rounded-pill" />
-      <span className="bg-success relative inline-flex size-2 rounded-pill" />
-    </span>
-  );
+function bandList(components: CarrierComponent[] | undefined): string | null {
+  if (!components?.length) return null;
+  const bands = components
+    .map((component) => component.band?.trim())
+    .filter((band): band is string => Boolean(band));
+  return bands.length > 0 ? bands.join(" + ") : null;
 }
 
 /**
@@ -188,8 +198,15 @@ function Tile({
  */
 function maskIccid(iccid: string): string | null {
   const digits = iccid.trim();
-  if (!digits) return null;
-  return digits.length > 4 ? `•••${digits.slice(-4)}` : digits;
+  // `AT+QSIMCFG="dual_slot_status"` does not omit an empty slot's ICCID field
+  // and does not blank it either — it reports a LITERAL `0`, which arrived here
+  // as a four-or-fewer-digit "ICCID" and rendered as the caption "SIM 2 0".
+  // That read as a card whose number is zero rather than as an empty slot, and
+  // it took the `present` glyph with it. A real ICCID is 19-20 digits, so
+  // anything shorter than the ITU minimum — or all zeros at any length — is a
+  // sentinel, not a card, and the caller renders "Empty" for it.
+  if (!digits || /^0+$/.test(digits) || digits.length < 10) return null;
+  return `•••${digits.slice(-4)}`;
 }
 
 /**
@@ -330,22 +347,29 @@ export function LiveStateStrip({
     <section aria-label={t(`${K}.strip.label`)} className="flex flex-col gap-2">
       <div className={STRIP.HEAD}>
         <span className={STRIP.HEAD_LABEL}>{t(`${K}.strip.label`)}</span>
-        {/* Staleness is a property of the READING, not of the radio, so it lives
-            in this chip and never dims a disc's identity fill — that would be a
+        {/* THE "LIVE" HALF OF THIS CHIP IS GONE, BY REQUEST — and the same
+            request already retired the identical chip on `/cellular/`
+            (radio-information.md). A pulsing green pill over a band whose
+            values are simply correct reports nothing: every figure here is a
+            poller read, so "live" is this band's resting state, not news. Its
+            only real job was to distinguish itself from "stale".
+
+            THE WARNING HALF STAYS, and is not the same thing wearing a
+            different tone. Staleness means the figures below are FROZEN while
+            still looking current, which is the one moment this band can
+            mislead. Removing it would leave a stalled poller indistinguishable
+            from a healthy one (Interfaces that never lie).
+
+            Staleness is a property of the READING, not of the radio, so it
+            lives here and never dims a disc's identity fill — that would be a
             chromatic health claim about a radio. It is scoped to this band
             because this band is the only thing on the page it is true of. On a
-            failed read there is no chip at all: there is no reading for it to be
-            a property of. */}
-        {ready ? (
-          <Badge variant={isStale ? "warning" : "success"}>
-            <SwapLabel swapKey={isStale ? "stale" : "live"} className="gap-1.5">
-              {isStale ? (
-                <MaterialSymbol name="schedule" filled size={BADGE_GLYPH_SIZE} />
-              ) : (
-                <LiveDot />
-              )}
-              {t(isStale ? `${K}.strip.stale` : `${K}.strip.live`)}
-            </SwapLabel>
+            failed read there is no chip at all: there is no reading for it to
+            be a property of. */}
+        {ready && isStale ? (
+          <Badge variant="warning">
+            <MaterialSymbol name="schedule" filled size={BADGE_GLYPH_SIZE} />
+            {t(`${K}.strip.stale`)}
           </Badge>
         ) : null}
       </div>
@@ -389,8 +413,8 @@ export function LiveStateStrip({
               eyebrow={t(`${K}.strip.aggregation`)}
               value={caValue}
               caption={
-                network?.bandwidth_details?.trim() ||
-                t(`${K}.strip.bandwidth_none`)
+                bandList(network?.carrier_components) ??
+                t(`${K}.strip.bands_none`)
               }
             />
 

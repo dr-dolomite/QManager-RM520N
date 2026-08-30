@@ -34,29 +34,35 @@ import { SETTING_ROW, SETTING_ROW_DIRTY } from "./shapes";
 // exists for exactly that swap.
 //
 // -----------------------------------------------------------------------------
-// WHY THE HEIGHT IS RESERVED RATHER THAN ANIMATED
+// THE DELTA CHIP IS RESERVED HORIZONTALLY, NOT VERTICALLY
 // -----------------------------------------------------------------------------
-// The delta chip ("SIM 2 -> SIM 1") appears INSIDE the row when it goes dirty.
-// Animating a height change is a container-size change — `emphasized` at best,
-// and impossible to express without an implicit `transition-all`. So the chip is
-// rendered UNCONDITIONALLY, on its own line, and merely goes `invisible` when
-// the row is clean: `visibility: hidden` keeps the box, so the row's height does
-// not depend on the dirty state at any width. Same reasoning as `SaveButton`'s
-// width lock: reserve, don't animate.
+// The delta chip ("SIM 2 -> SIM 1") appears when the row goes dirty. Animating
+// the height it would otherwise add is a container-size change — `emphasized` at
+// best, and impossible to express without an implicit `transition-all` — so the
+// chip is rendered UNCONDITIONALLY and merely goes `invisible` when the row is
+// clean: `visibility: hidden` keeps the box. Reserve, don't animate; the same
+// trade as `SaveButton`'s width lock.
 //
-// THE PREVIOUS VERSION OF THIS COMMENT WAS FALSE, AND THE FALSEHOOD WAS THE BUG.
-// It said the `min-h` floor already reserved the chip's line. It did not:
-// the floor was 76px and the CLEAN row already measured 98.1px at the widths
-// where the chip wrapped, so the floor was inert. Measured on the real page, the
-// dirty promotion grew the row EXACTLY 30px at 760px and 1500px body width and
-// 0px everywhere else. The row is `@2xl/card:items-center`, so the control
-// dropped half of that — 15px — and Framer does not animate a layout change it
-// was not asked to project: at rest the thumb sat at y 679.8, and the first
-// frame of the move reported y 694.8 with a transform y component of 0px. The
-// thumb teleported vertically and then glided horizontally. Reverse the
-// direction — re-select the saved value, the row goes clean and shrinks 30px —
-// and the first frame appears 15px BELOW target, which is the "highlight
-// arriving from lower-left" that was reported.
+// WHAT CHANGED IS WHICH AXIS IT RESERVES. The chip used to hold its own LINE
+// between the label and the consequence, which bought a dirty-independent height
+// at the price of 28px of permanent blank inside the one place on this row where
+// two things belong together — a title and the sentence explaining what it does
+// to your connection. It now sits beside the label on `LABEL_ROW`, which is
+// `items-center` and floored to the chip's own height, so the reservation costs
+// horizontal room instead of vertical.
+//
+// THE COMMENT BEFORE THE ONE BEFORE THIS WAS FALSE, AND THE FALSEHOOD WAS A BUG.
+// It claimed a `min-h` floor already reserved the chip's line. It did not: the
+// floor was 76px and the CLEAN row already measured 98.1px at the widths where
+// the chip wrapped, so the floor was inert. Measured on the real page, the dirty
+// promotion grew the row EXACTLY 30px at 760px and 1500px body width and 0px
+// everywhere else. The row is `@2xl/card:items-center`, so the control dropped
+// half of that — 15px — and Framer does not animate a layout change it was not
+// asked to project: at rest the thumb sat at y 679.8, and the first frame of the
+// move reported y 694.8 with a transform y component of 0px. The thumb
+// teleported vertically and then glided horizontally. That is what the line
+// reservation fixed, and moving to a horizontal reservation keeps the fix — see
+// `SETTING_ROW` in shapes.ts for the one narrow case that survives it.
 //
 // The fill itself IS animated — a `standard` colour transition, which is legal
 // and is what makes the promotion feel like a state change rather than a
@@ -109,22 +115,27 @@ export function SettingRow({
       data-dirty={dirty ? "true" : undefined}
     >
       <div className={SETTING_ROW.TEXT}>
-        <span id={labelId} className={SETTING_ROW.LABEL}>
-          {label}
-        </span>
-        {/* Always in the DOM and always on its own line, so the row's height is
-            a constant. `invisible` (visibility: hidden) keeps the box where
-            `hidden` or a conditional render would give it back — see the header
-            comment for the 30px this costs when it is not reserved. It is also
-            hidden from assistive tech while empty: an announced blank chip is
-            noise, and the row's real state is already carried by `data-dirty`
-            and by the control's own value. */}
-        <span
-          className={cn(SETTING_ROW_DIRTY.DELTA_CHIP, !deltaText && "invisible")}
-          aria-hidden={deltaText ? undefined : true}
-        >
-          {deltaText}
-        </span>
+        <div className={SETTING_ROW.LABEL_ROW}>
+          <span id={labelId} className={cn(SETTING_ROW.LABEL, "min-w-0")}>
+            {label}
+          </span>
+          {/* Always in the DOM, so the row's geometry does not depend on the
+              dirty state. `invisible` (visibility: hidden) keeps the box where
+              `hidden` or a conditional render would give it back — see the
+              header comment for the 30px that cost when it was not reserved. It
+              is also hidden from assistive tech while empty: an announced blank
+              chip is noise, and the row's real state is already carried by
+              `data-dirty` and by the control's own value. */}
+          <span
+            className={cn(
+              SETTING_ROW_DIRTY.DELTA_CHIP,
+              !deltaText && "invisible",
+            )}
+            aria-hidden={deltaText ? undefined : true}
+          >
+            {deltaText}
+          </span>
+        </div>
         <span
           className={
             dirty

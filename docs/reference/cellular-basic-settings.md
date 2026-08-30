@@ -335,12 +335,20 @@ Two positional **6-field groups**, slot 1 first, slot 2 second.
 
 > ⚠️ WARNING: **There is no slot-index token in the data.** Slot number is derived purely from position — fields 1–6 are slot 1, fields 7–12 are slot 2. Any parser that looks for a slot number to key on will find one of the unconfirmed fields instead and silently mislabel the pair.
 
+> ⚠️ WARNING: **an empty slot reports `0`, not an empty field.** Live capture from an RM520N-GL with one card fitted:
+>
+> ```
+> +QSIMCFG: "dual_slot_status",2,1,1,3b9e…150092,0,89630325296021758636,1,0,1,0,0,0
+> ```
+>
+> Slot 2's ICCID (field 12) is `0`. The backend passes it through as the string it read — correctly, because the CGI reports the fact and the display decides what to make of it — so `maskIccid()` in `live-state-strip.tsx` is what has to reject it. It shipped once without that rejection and the SIM tile's caption read **"SIM 2 0"**, which reads as a card whose number is zero rather than as an empty slot, and took the `present` glyph with it instead of `sim_card_alert`. A real ICCID is 19–20 digits, so the guard is: empty, **all zeros at any length**, or shorter than 10 digits → `null` → the caption renders "Empty".
+
 Two fields per group are surfaced, and only those two are confirmed:
 
 | Group index | Meaning | How it was confirmed |
 | ----------- | ------- | -------------------- |
 | 2 | `active_status` — `1` = the slot the modem is switched to, `0` = standby | Cross-checked live against `AT+QUIMSLOT?` |
-| 6 | ICCID (Integrated Circuit Card Identifier — the card's serial number), or empty | Cross-checked live against `AT+QCCID` and the poller's `.device.iccid` |
+| 6 | ICCID (Integrated Circuit Card Identifier — the card's serial number), or the literal `0` when the slot is empty | Cross-checked live against `AT+QCCID` and the poller's `.device.iccid` |
 | 4 | ATR (Answer To Reset — the card's power-on identification string). Recognisable, but not read, not parsed, not surfaced. | — |
 
 ### No authoritative field spec exists
@@ -502,7 +510,7 @@ app/cellular/settings/            route
    │                              cascade, and the SHARED save bar + footer
    ├─ live-state-strip.tsx        BAND A — four poller-fed tiles (Network, SIM,
    │                              Aggregation, Data path) under a "Live state"
-   │                              header carrying the freshness Badge. Also owns
+   │                              header carrying the STALE-only Badge. Also owns
    │                              `SlotChip` + `maskIccid()`, both local
    │                              (props: `status`, `statusLoading`,
    │                              `statusError`, `isStale`, `dualSlot`)
@@ -552,10 +560,14 @@ Four tiles, all built from `TILE_SHAPE` in `components/cellular/tile-shape.ts` �
 | ---- | ----- | ------- | ------------- |
 | Network | `networkTypeLabel(network.type)` | carrier, or "No carrier reported" | `.network.type`, `.network.carrier` |
 | SIM | active slot (`SIM 1` / `SIM 2`) + a `.sim.status` Badge | the **peer** slot's `SlotChip` | `.network.sim_slot`, `.sim` |
-| Aggregation | the LTE/NR SCC **breakdown**, never a sum and never a zero leg | `bandwidth_details` | `.network.ca_*`, `.network.nr_ca_*` |
+| Aggregation | the LTE/NR SCC **breakdown**, never a sum and never a zero leg | the **band list**, `"B3 + B1 + B40 + B40"` | `.network.ca_*`, `.network.nr_ca_*`, `.network.carrier_components[].band` |
 | Data path | the APN (mono — it is an identifier) | the address **families** carried, not the addresses | `.network.apn`, `.wan_ipv4`, `.wan_ipv6` |
 
-The band header carries the freshness `Badge` (`success` **Live** with a pulsing dot, or `warning` **Data is stale** with a `schedule` glyph). It is scoped to this band because this band is the only thing on the page it is true of, and **it does not render at all on a failed read** — there is no reading for staleness to be a property of.
+> ℹ️ NOTE: **the Aggregation caption is the band list, not `bandwidth_details`.** That poller field is the same list with a per-carrier MHz figure welded to each entry (`"B3: 15 MHz + B1: 20 MHz + B40: 20 MHz + B40: 20 MHz"`), which runs past 50 characters on a three-carrier aggregate and truncates inside a 104 px tile — so on exactly the devices that aggregate most, the caption dropped the carriers at the *end* of the string, the ones the user did not already know about. `bandList()` maps `carrier_components[].band` in the modem's own order (PCC first) and **keeps duplicates**: two carriers on B40 is a real configuration, and the tile's value states a count (`LTE 3`) that the caption has to be able to account for. The MHz figures still live on `/cellular/`, where there is room to print them per carrier.
+
+The band header carries a `warning` **Stale** `Badge` with a `schedule` glyph. It is scoped to this band because this band is the only thing on the page it is true of, and **it does not render at all on a failed read** — there is no reading for staleness to be a property of.
+
+> ℹ️ NOTE: **there is no "Live" chip, by request** — and the same request already retired the identical chip on `/cellular/` (see `radio-information.md`). A pulsing green pill over a band whose values are simply correct reports nothing: every figure here is a poller read, so "live" is this band's *resting state*, not news. Its only real job was to distinguish itself from "stale". The warning half is not the same element in a different tone and stays: staleness means the figures below are frozen while still looking current, which is the one moment this band can mislead. `LiveDot` and the `strip.live` key are deleted; `animate-live-ping` is untouched and still in use on five other surfaces.
 
 Three states, as every data surface must have: four `TILE_SHAPE.HEIGHT` skeletons while loading, one grid-spanning neutral notice on a failed read, and the tiles when ready. The failure notice spans the grid rather than repeating one "couldn't read" message four times.
 
@@ -680,7 +692,24 @@ first frame: thumb y 694.8, transform y component 0px
 
 The thumb teleported vertically and then glided horizontally. Reversed — re-select the saved value, the row goes clean and shrinks 30 px — the first frame appears 15 px *below* target: a highlight arriving from lower-left, the reported symptom verbatim.
 
-The fix is to render the chip **unconditionally**, `invisible` when clean (which keeps the box), and re-derive the floor honestly: `min-h` **4.75rem → 6.125rem** (label 20 + gap 3 + chip 22 + gap 3 + consequence 18 = 66, plus `py-4` ×2). `SETTING_ROW.HEIGHT` mirrors it for the skeleton. Re-measured clean → dirty at 700/760/860/1060/1300/1500 px: **thumb ΔY = 0 at every width**. Reserve, don't animate — the same trade as `SaveButton`'s width lock.
+The fix is to render the chip **unconditionally**, `invisible` when clean (which keeps the box). Reserve, don't animate — the same trade as `SaveButton`'s width lock. Re-measured clean → dirty at 700/760/860/1060/1300/1500 px: **thumb ΔY = 0 at every width**.
+
+#### The reservation later moved from the vertical axis to the horizontal one
+
+The first version of that fix gave the chip **its own line** between the label and the consequence, and re-derived the floor to pay for it (`min-h` 4.75rem → 6.125rem). It held the row's height, and it cost **28 px of permanent blank** in the one place on this row where two things belong together — a title and the sentence saying what changing it does to your connection. They read as two unrelated blocks.
+
+The chip now sits **beside the label** inside `SETTING_ROW.LABEL_ROW` (`flex min-h-[1.375rem] min-w-0 items-center gap-2`). An `invisible` chip is zero-width and shorter than the label's own line box, so the reservation is still unconditional — it is just horizontal now. `TEXT` tightens to `gap-1`, and the floor comes back down to **5rem** (label row 22 + gap 4 + consequence 20 = 46, plus `py-4` ×2 = 78). `SETTING_ROW.HEIGHT` mirrors it.
+
+Measured clean → dirty, longest shipped label (Italian, *"Rilevamento sostituzione SIM a caldo"*) against the English "SIM Slot", row height Δ:
+
+| Text-column width | Δ (long label) | Δ (short label) |
+| ----------------- | -------------- | --------------- |
+| 340 px | **+22.5 px** | 0 |
+| 480 px | 0 | 0 |
+| 760 px | 0 | 0 |
+| 1500 px | 0 | 0 |
+
+> ⚠️ WARNING: the 340 px cell is a **known, accepted residual**, not an oversight. The label is allowed to wrap (`min-w-0`, never truncated — clipping a setting's name is worse than a reflow), so a text column too narrow for `label + chip` on one line gains a line on promotion. It needs the longest locale at phone width. The failure it replaced was a *guaranteed* 30 px jump at 760 px **and** 1500 px — and below the row's `@2xl/card` flip the control is stacked *below* the text rather than `items-center` beside it, so this one does not half-shift the segmented thumb the way the old one did.
 
 #### What was refuted, and the guard that was deleted
 
