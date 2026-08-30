@@ -18,11 +18,14 @@
 # thing named jq" from "a jq that works", which is the exact defect class
 # behind F1 / F5 / F6 / F16 in this same tracker.
 #
-# SCOPE PIN: the fallback is inside cgi_error ONLY. cgi_success,
-# cgi_method_not_allowed, and cgi_auth.sh's require_auth stay jq-dependent
-# by decision (tracker F2: "minimum viable fix: a jq-free fallback inside
-# cgi_error only"). Section [5] pins that scope so a later change that
-# quietly widens or narrows it is visible.
+# SCOPE (widened by F17, 2026-08-30): every JSON emitter on the pre-auth
+# path now has a jq-free fallback — cgi_error, cgi_success,
+# cgi_method_not_allowed, and cgi_auth.sh's require_auth. F2 deliberately
+# covered cgi_error only, and section [5] used to ASSERT that narrowness.
+# F17 retired that assertion because require_auth is the FIRST thing a
+# browser hits: on a bootstrap-broken device the UI was still mute before
+# F2's fallback could ever be reached. Sections [5] and [6] now pin the
+# WIDER scope.
 #
 # Behavioural throughout: cgi_base.sh's library sources all have `|| { ...
 # no-op fallbacks ... }` guards, so it can be sourced off-device, and
@@ -163,11 +166,133 @@ else
     bad "cgi_error no longer calls jq — the fallback was meant to be a fallback, not a replacement"
 fi
 
+# F17 inverts what this used to assert. The old check demanded that
+# cgi_success stay jq-dependent, pinning F2's deliberately narrow scope.
+# That scope is now retired: a jq-less device that answers 200-with-nothing
+# is mute whether the empty body came from cgi_error or cgi_success.
+SUCCESS_WANT=$(printf '{
+  "success": true
+}
+')
 SUCCESS_OUT=$(run_cgi "$NOJQ_STUB" 'cgi_success' | strip_cr)
 if [ -z "$SUCCESS_OUT" ]; then
-    ok "cgi_success is still jq-dependent (tracker F2 scoped the fix to cgi_error; widening it is a decision, not a drive-by)"
+    bad "cgi_success returned an EMPTY BODY with jq unavailable — the F17 defect"
+elif [ "$SUCCESS_OUT" = "$SUCCESS_WANT" ]; then
+    ok "cgi_success falls back to a byte-identical envelope"
 else
-    bad "cgi_success grew a jq-free path — out of F2's approved scope; re-scope deliberately or revert"
+    bad "cgi_success fallback does not match jq's envelope; got: $(printf '%s' "$SUCCESS_OUT" | tr '
+' '~')"
+fi
+
+MNA_WANT=$(printf '{
+  "success": false,
+  "error": "method_not_allowed",
+  "detail": "Use GET or POST"
+}
+')
+MNA_OUT=$(run_cgi "$NOJQ_STUB" 'cgi_method_not_allowed' | strip_cr)
+if [ -z "$MNA_OUT" ]; then
+    bad "cgi_method_not_allowed returned an EMPTY BODY with jq unavailable — the F17 defect"
+elif [ "$MNA_OUT" = "$MNA_WANT" ]; then
+    ok "cgi_method_not_allowed falls back to a byte-identical envelope"
+else
+    bad "cgi_method_not_allowed fallback does not match jq's envelope; got: $(printf '%s' "$MNA_OUT" | tr '
+' '~')"
+fi
+
+# The jq path must stay primary in both, for the same reason it does in
+# cgi_error: jq is the escaping authority, the fallback is the safety net.
+for _fn in cgi_success cgi_method_not_allowed; do
+    _body=$(awk "/^${_fn}\(\) \{$/,/^\}$/" "$CGI_BASE")
+    if printf '%s' "$_body" | grep -q 'jq -n'; then
+        ok "$_fn still calls jq first"
+    else
+        bad "$_fn no longer calls jq — the fallback was meant to be a fallback, not a replacement"
+    fi
+done
+
+printf '
+[6] require_auth — the PRE-AUTH path, first thing a browser hits (F17)
+'
+
+AUTH_LIB="$REPO_ROOT/scripts/usr/lib/qmanager/cgi_auth.sh"
+
+# require_auth lives in cgi_auth.sh, which cgi_base.sh sources by ABSOLUTE
+# path (/usr/lib/qmanager/...). Off-device that source fails and cgi_base.sh
+# installs a no-op stub, so the repo copy must be sourced explicitly on top
+# of it. Its own `_CGI_AUTH_LOADED` re-entry guard is unset (the real load
+# never happened), so this load takes effect.
+#
+# require_auth ends in `exit 0`, hence the subshell. Its output is
+# "Status: 401", then cgi_headers, then the body — so drop everything up to
+# and including the blank line that terminates the headers.
+run_require_auth() {
+    CGI_BASE="$CGI_BASE" AUTH_LIB="$AUTH_LIB" _SKIP_AUTH=1 bash -c '
+        set +e
+        . "$CGI_BASE"
+        . "$AUTH_LIB"
+        '"$1"'
+        ( require_auth )
+    ' 2>/dev/null | strip_cr | sed -n '/^{/,$p'
+}
+
+SETUP_WANT=$(printf '{
+  "success": false,
+  "error": "setup_required",
+  "detail": "No password configured"
+}
+')
+UNAUTH_WANT=$(printf '{
+  "success": false,
+  "error": "unauthorized",
+  "detail": "Invalid or expired session"
+}
+')
+
+SETUP_STUB="$NOJQ_STUB
+is_setup_required() { return 0; }"
+SETUP_OUT=$(run_require_auth "$SETUP_STUB")
+if [ -z "$SETUP_OUT" ]; then
+    bad "require_auth emitted NO BODY for setup_required with jq unavailable — the browser's first request answers 401 with nothing in it, so the UI is mute before cgi_error's fallback can ever be reached (F17)"
+elif [ "$SETUP_OUT" = "$SETUP_WANT" ]; then
+    ok "setup_required envelope survives a jq-less device"
+else
+    bad "setup_required envelope changed; got: $(printf '%s' "$SETUP_OUT" | tr '
+' '~')"
+fi
+
+UNAUTH_STUB="$NOJQ_STUB
+is_setup_required() { return 1; }
+qm_get_cookie() { printf '%s' stale-token; }
+qm_validate_session() { return 1; }"
+UNAUTH_OUT=$(run_require_auth "$UNAUTH_STUB")
+if [ -z "$UNAUTH_OUT" ]; then
+    bad "require_auth emitted NO BODY for unauthorized with jq unavailable (F17)"
+elif [ "$UNAUTH_OUT" = "$UNAUTH_WANT" ]; then
+    ok "unauthorized envelope survives a jq-less device"
+else
+    bad "unauthorized envelope changed; got: $(printf '%s' "$UNAUTH_OUT" | tr '
+' '~')"
+fi
+
+# The jq path stays primary here too — but via cgi_error, not a second
+# inline `jq -n`. A bare `jq -n` left inside require_auth is the defect.
+RA_FN=$(awk '/^require_auth\(\) \{$/,/^\}$/' "$AUTH_LIB")
+if printf '%s' "$RA_FN" | grep -q 'jq -n'; then
+    bad "require_auth still emits an inline 'jq -n' envelope — that is the F17 defect, not a fallback"
+else
+    ok "require_auth no longer emits inline 'jq -n' envelopes"
+fi
+
+# The reorder is what makes the above possible, and it is silent if it
+# regresses: cgi_base.sh calls require_auth at LOAD TIME, so cgi_error must
+# be defined ABOVE that call or require_auth reaches an undefined function.
+ERR_LINE=$(grep -n '^cgi_error() {' "$CGI_BASE" | head -1 | cut -d: -f1)
+CALL_LINE=$(grep -n '^    require_auth$' "$CGI_BASE" | head -1 | cut -d: -f1)
+if [ -n "$ERR_LINE" ] && [ -n "$CALL_LINE" ] && [ "$ERR_LINE" -lt "$CALL_LINE" ]; then
+    ok "cgi_error is defined above cgi_base.sh's load-time require_auth call (line $ERR_LINE < $CALL_LINE)"
+else
+    bad "cgi_error (line ${ERR_LINE:-?}) is NOT above the load-time require_auth call (line ${CALL_LINE:-?}) — require_auth would call an undefined function on a real request"
 fi
 
 printf '\n[cgi-error-jq-fallback] %d passed, %d failed\n' "$pass_count" "$fail_count"
