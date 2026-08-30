@@ -25,6 +25,9 @@
 #   traffic_masquerade.sni_domain  reserved: accepted+stored by the CGI for
 #                               API-REFERENCE contract parity, inert in the
 #                               tpws engine (tpws has no fake-SNI mode)
+#   quic.force_tcp              0/1  — standalone QUIC handle, REJECTs bridge0
+#                               UDP 443 so clients fall back to TCP. Fully
+#                               independent of the engine (see below).
 #
 # Runtime files:
 #   /tmp/qmanager_dpi_install.{json,pid}  — tpws installer progress markers
@@ -51,6 +54,11 @@
 #   dpi_service_status         — print running|stopped|restarting|error
 #   dpi_uptime_str             — print human uptime ("2h 34m") of the unit
 #   dpi_build_args             — print tpws argv (word-splittable) for mode
+#   dpi_force_tcp_rule_present — 0 if the QUIC force-TCP rule is installed
+#   dpi_apply_force_tcp_rule   — idempotent force-TCP rule insert
+#   dpi_remove_force_tcp_rule  — force-TCP rule drain
+#   dpi_purge_legacy_dscp_rule — drain leftover DSCP-marking rules (upgrade)
+#   dpi_reconcile_force_tcp    — assert force-TCP rule to config intent
 # =============================================================================
 
 [ -n "$_DPI_STATE_LOADED" ] && return 0
@@ -184,6 +192,92 @@ dpi_remove_rule() {
             -j REDIRECT --to-ports "$DPI_PORT" 2>/dev/null || break
         i=$((i + 1))
     done
+}
+
+# =============================================================================
+# QUIC Force-TCP (independent of the engine)
+#
+# Quic (outbound UDP 443) is deliberately untouched by the engine: tpws only
+# desyncs TCP streams, so QUIC always passes through unmanaged. The Force-TCP
+# toggle REJECTs bridge0 LAN clients' UDP 443, which makes QUIC-first apps
+# (YouTube, Discord, Instagram) fall back to HTTPS over TCP where the engine
+# can apply its bypass.
+#
+# Fully standalone: engine install/uninstall and enable/disable never touch
+# these rules. The qmanager-dpi-ensure.timer reconciles them against config
+# every 60s even when the engine is off, so they survive QCMAP iptables
+# flushes on re-dial. A LAN-side REJECT (icmp-port-unreachable) lets clients
+# fail back immediately; DROP would make them wait out QUIC retransmit/PTO
+# timers before falling back, which reads as a dead connection per host.
+#
+# Persisted config:
+#   quic.force_tcp   0/1  (independent of video_optimizer/traffic_masquerade)
+# =============================================================================
+
+# Identified by its unique target string — the RM520N kernel has no xt_comment
+# module, and nothing else on the modem REJECTs with icmp-port-unreachable.
+DPI_FORCE_TCP_RULE_SIG="--reject-with icmp-port-unreachable"
+# Legacy DSCP-marking rule ("--set-dscp 0x2e") shipped by builds that bundled
+# QUIC handling with the engine. Kept as its own signature so upgrade paths
+# can purge any leftover rule.
+DPI_LEGACY_DSCP_RULE_SIG="--set-dscp 0x2e"
+
+# dpi_force_tcp_rule_present — is the QUIC force-TCP rule currently installed?
+dpi_force_tcp_rule_present() {
+    run_iptables -w 5 -t filter -S FORWARD 2>/dev/null \
+        | grep -q -- "$DPI_FORCE_TCP_RULE_SIG"
+}
+
+# dpi_apply_force_tcp_rule — idempotent insert (leaves an existing rule alone)
+dpi_apply_force_tcp_rule() {
+    if dpi_force_tcp_rule_present; then
+        return 0
+    fi
+    local i=0
+    while [ "$i" -lt 16 ]; do
+        run_iptables -w 5 -t filter -D FORWARD \
+            -i bridge0 -p udp --dport 443 \
+            -j REJECT --reject-with icmp-port-unreachable 2>/dev/null || break
+        i=$((i + 1))
+    done
+    run_iptables -w 5 -t filter -I FORWARD \
+        -i bridge0 -p udp --dport 443 \
+        -j REJECT --reject-with icmp-port-unreachable
+}
+
+# dpi_remove_force_tcp_rule — drain the force-TCP rule
+dpi_remove_force_tcp_rule() {
+    local i=0
+    while [ "$i" -lt 16 ]; do
+        run_iptables -w 5 -t filter -D FORWARD \
+            -i bridge0 -p udp --dport 443 \
+            -j REJECT --reject-with icmp-port-unreachable 2>/dev/null || break
+        i=$((i + 1))
+    done
+}
+
+# dpi_purge_legacy_dscp_rule — drain leftover DSCP-marking rules from builds
+# that bundled QUIC handling with the engine (upgrade migration).
+dpi_purge_legacy_dscp_rule() {
+    local i=0
+    while [ "$i" -lt 16 ]; do
+        run_iptables -w 5 -t mangle -D POSTROUTING \
+            -p udp --dport 443 \
+            -j DSCP --set-dscp 0x2e 2>/dev/null || break
+        i=$((i + 1))
+    done
+}
+
+# dpi_reconcile_force_tcp — assert the force-TCP rule to match config intent.
+# Called unconditionally from qmanager_dpi_run --ensure (never gated on the
+# engine's enabled state) so the rule self-heals across QCMAP iptables
+# flushes even when the engine is off or uninstalled.
+dpi_reconcile_force_tcp() {
+    if [ "$(qm_config_get quic force_tcp 0)" = "1" ]; then
+        dpi_apply_force_tcp_rule
+    else
+        dpi_remove_force_tcp_rule
+    fi
 }
 
 # =============================================================================

@@ -18,6 +18,9 @@
 #       → Video Optimizer enable/disable (mutex: disables masquerade)
 #   POST {"action":"save_masquerade","enabled":bool,"sni_domain":str}
 #       → Traffic Masquerade enable/disable (mutex: disables video optimizer)
+#   POST {"action":"save_force_tcp","enabled":bool}
+#       → QUIC Force-TCP toggle (standalone iptables rule, independent of the
+#         engine: no binary check, no mutex, untouched by install/uninstall)
 #   POST {"action":"verify"}
 #       → spawn the two-phase speed comparison
 #   POST {"action":"install"}
@@ -82,7 +85,9 @@ emit_status() {
         --argjson domains "$(dpi_domains_loaded)" \
         --argjson bin "$(dpi_binary_installed && echo true || echo false)" \
         --argjson kmod "$(dpi_rule_present && echo true || echo false)" \
-        '{success:true,enabled:$enabled,status:$status,uptime:$uptime,packets_processed:$pkts,domains_loaded:$domains,binary_installed:$bin,kernel_module_loaded:$kmod}')
+        --argjson ftcp "$([ "$(qm_config_get quic force_tcp 0)" = "1" ] && echo true || echo false)" \
+        --argjson ftcpact "$(dpi_force_tcp_rule_present && echo true || echo false)" \
+        '{success:true,enabled:$enabled,status:$status,uptime:$uptime,packets_processed:$pkts,domains_loaded:$domains,binary_installed:$bin,kernel_module_loaded:$kmod,force_tcp:$ftcp,force_tcp_active:$ftcpact}')
     if [ "$1" = "masquerade" ]; then
         printf '%s' "$json" | jq --arg sni_domain "$sni" '. + {sni_domain: $sni_domain}'
     else
@@ -109,7 +114,7 @@ if [ "$REQUEST_METHOD" = "GET" ]; then
         verify_status)
             if [ -f "$DPI_VERIFY_FILE" ] && [ -s "$DPI_VERIFY_FILE" ]; then
                 jq -n --argjson body "$(cat "$DPI_VERIFY_FILE" 2>/dev/null)" \
-                    '{success:true,status:$body.status,timestamp:$body.timestamp,without_bypass:$body.without_bypass,with_bypass:$body.with_bypass,improvement:$body.improvement,message:$body.message,detail:$body.detail}'
+                    '{success:true,status:$body.status,timestamp:$body.timestamp,without_bypass:$body.without_bypass,with_bypass:$body.with_bypass,reference:$body.reference,improvement:$body.improvement,message:$body.message,detail:$body.detail}'
             else
                 echo '{"success":true,"status":"idle"}'
             fi
@@ -284,6 +289,28 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
             else
                 dpi_remove_rule
                 svc_stop qmanager-dpi
+            fi
+            cgi_success
+            exit 0
+            ;;
+        save_force_tcp)
+            # --- QUIC Force-TCP save ---
+            # Standalone QUIC handle — deliberately NO binary check, no
+            # mutex, no svc_start/stop: install/uninstall and engine
+            # enable/disable have nothing to do with this rule. The rule is
+            # applied/removed here and re-asserted every 60s by the ensure
+            # timer (independent of engine state).
+            EN=$(printf '%s' "$POST_DATA" | jq -r 'if has("enabled") then .enabled else empty end' 2>/dev/null)
+            EN_INT=$(bool_of "$EN") || {
+                cgi_error "invalid_enabled" "enabled must be true or false"
+                exit 0
+            }
+            qm_config_set quic force_tcp "$EN_INT"
+            qlog_info "save_force_tcp: enabled=$EN_INT"
+            if [ "$EN_INT" = "1" ]; then
+                dpi_apply_force_tcp_rule
+            else
+                dpi_remove_force_tcp_rule
             fi
             cgi_success
             exit 0

@@ -348,7 +348,7 @@
     },
     "verify": {
       "title": "Test bypass",
-      "description": "Run a two-phase speed test — without the engine, then with it — to measure the bypass improvement.",
+      "description": "Run a two-phase speed test — without the engine, then with it — plus a speedtest.net reference, to separate CDN throttling from a slow connection.",
       "run": "Run test",
       "running": "Testing…",
       "timeout": "The test did not finish in time.",
@@ -357,8 +357,23 @@
       "improvement": "Improvement",
       "without": "Without bypass",
       "with": "With bypass",
+      "reference": "Connection reference",
+      "source_speedtest": "speedtest.net",
+      "source_cloudflare": "Cloudflare",
       "throttled": "throttled",
       "unthrottled": "not throttled"
+    },
+    "forceTcp": {
+      "title": "QUIC → Force TCP",
+      "description": "Blocks QUIC (UDP 443) so apps like YouTube and Discord fall back to HTTPS over TCP, where the engine's bypass can apply.",
+      "independent": "Independent of the Traffic Engine",
+      "label": "Force QUIC over TCP",
+      "switch_hint": "Toggles apply immediately.",
+      "switch_aria": "Toggle QUIC Force-TCP",
+      "compatible": "Works with both Video Optimizer and Traffic Masquerade — a global LAN setting, not part of either engine mode.",
+      "caveat": "Can stream slower: if your network already delivers QUIC at full speed, forcing it to TCP adds latency (plus the bypass hop). Enable when QUIC video is throttled or unreliable.",
+      "toast_enabled": "QUIC Force-TCP enabled",
+      "toast_disabled": "QUIC Force-TCP disabled"
     },
     "takeover": {
       "title": "Switch to {{mode}}?",

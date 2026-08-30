@@ -27,7 +27,6 @@ export interface EngineEnableRowProps {
   enabled: boolean;
   otherEnabled: boolean;
   isSaving: boolean;
-  otherModeLabel: string;
   title: string;
   description: string;
   toastEnabled: string;
@@ -39,7 +38,6 @@ const EngineEnableRow = ({
   enabled,
   otherEnabled,
   isSaving,
-  otherModeLabel,
   title,
   description,
   toastEnabled,
@@ -86,7 +84,7 @@ const EngineEnableRow = ({
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>
-              {t("trafficEngine.takeover.title", { mode: otherModeLabel })}
+              {t("trafficEngine.takeover.title", { mode: title })}
             </AlertDialogTitle>
             <AlertDialogDescription>
               {t("trafficEngine.takeover.description")}

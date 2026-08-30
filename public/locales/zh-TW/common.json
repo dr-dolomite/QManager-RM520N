@@ -348,7 +348,7 @@
     },
     "verify": {
       "title": "測試繞過效果",
-      "description": "執行兩階段測速 — 先關閉引擎，再開啟引擎 — 以衡量繞過的提升幅度。",
+      "description": "執行兩階段測速 — 先關閉引擎，再開啟引擎 — 並附 speedtest.net 參考值，用於區分 CDN 限速與網路本身較慢。",
       "run": "執行測試",
       "running": "測試中…",
       "timeout": "測試未在限定時間內完成。",
@@ -357,8 +357,23 @@
       "improvement": "提升幅度",
       "without": "未繞過",
       "with": "已繞過",
+      "reference": "連線參考",
+      "source_speedtest": "speedtest.net",
+      "source_cloudflare": "Cloudflare",
       "throttled": "受限速",
       "unthrottled": "未受限速"
+    },
+    "forceTcp": {
+      "title": "QUIC → 強制 TCP",
+      "description": "阻斷 QUIC (UDP 443)，讓 YouTube、Discord 等應用回落到基於 TCP 的 HTTPS，從而套用引擎的繞過。",
+      "independent": "獨立於流量引擎",
+      "label": "將 QUIC 強制走 TCP",
+      "switch_hint": "切換後立即生效。",
+      "switch_aria": "切換 QUIC 強制走 TCP",
+      "compatible": "與 Video Optimizer 和 Traffic Masquerade 均相容 — 屬於全域區域網路設定，不屬於任一種引擎模式。",
+      "caveat": "可能更慢：如果網路已以全速傳輸 QUIC，強制走 TCP 會增加延遲（以及繞過的額外一跳）。當 QUIC 影片受限速或不可靠時再開啟。",
+      "toast_enabled": "已啟用 QUIC 強制 TCP",
+      "toast_disabled": "已停用 QUIC 強制 TCP"
     },
     "takeover": {
       "title": "切換到{{mode}}？",

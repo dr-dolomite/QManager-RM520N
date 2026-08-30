@@ -348,7 +348,7 @@
     },
     "verify": {
       "title": "Uji bypass",
-      "description": "Jalankan tes kecepatan dua fase — tanpa mesin, lalu dengan mesin — untuk mengukur peningkatan bypass.",
+      "description": "Jalankan tes kecepatan dua fase — tanpa mesin, lalu dengan mesin — plus referensi speedtest.net, untuk membedakan pembatasan CDN dari koneksi lambat.",
       "run": "Jalankan tes",
       "running": "Menguji…",
       "timeout": "Tes tidak selesai tepat waktu.",
@@ -357,8 +357,23 @@
       "improvement": "Peningkatan",
       "without": "Tanpa bypass",
       "with": "Dengan bypass",
+      "reference": "Referensi koneksi",
+      "source_speedtest": "speedtest.net",
+      "source_cloudflare": "Cloudflare",
       "throttled": "dibatasi",
       "unthrottled": "tidak dibatasi"
+    },
+    "forceTcp": {
+      "title": "KUAK → Paksa TCP",
+      "description": "Memblokir KUAK (UDP 443) sehingga aplikasi seperti YouTube dan Discord beralih kembali ke HTTPS melalui TCP, tempat bypass mesin dapat bekerja.",
+      "independent": "Tidak Bergantung pada Mesin Lalu Lintas",
+      "label": "Paksa KUAK lewat TCP",
+      "switch_hint": "Perubahan berlaku langsung.",
+      "switch_aria": "Alihkan KUAK Paksa-TCP",
+      "compatible": "Berfungsi dengan Video Optimizer maupun Traffic Masquerade — pengaturan LAN global, bukan bagian dari mode mesin mana pun.",
+      "caveat": "Bisa lebih lambat: jika jaringan Anda sudah mengalirkan KUAK dengan kecepatan penuh, memaksanya lewat TCP menambah latensi (ditambah hop bypass). Aktifkan saat video KUAK dibatasi atau tidak stabil.",
+      "toast_enabled": "KUAK Paksa-TCP diaktifkan",
+      "toast_disabled": "KUAK Paksa-TCP dinonaktifkan"
     },
     "takeover": {
       "title": "Beralih ke {{mode}}?",
