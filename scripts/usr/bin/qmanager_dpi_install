@@ -94,14 +94,23 @@ _dpi_is_arm32() {
 
 # --- Uninstall (runs in the background) ---------------------------------------
 # Reverse of the download path: graceful engine stop, binary removal, config
-# cleanup. Teardown rules are inlined lib-free. End state is identical to a
-# fresh install: no tpws binary, engine disabled, video_domains.txt preserved
-# so a later reinstall keeps the hostlist.
+# cleanup. The teardown rules are written out inline rather than calling
+# dpi_remove_rule, because they also drain the modem-originated OUTPUT
+# redirect that dpi_state.sh does not manage. They are NOT lib-free: this
+# script sources dpi_state.sh at the top, so $DPI_PORT (like $DPI_BINARY and
+# dpi_binary_installed below) is in scope, and the port must be read from it
+# rather than restated. A restated literal drains the wrong rule the moment
+# DPI_PORT moves, which is a LAN outage and not a leak — every client's
+# tcp/80+443 stays redirected to a port with nothing listening on it. Same
+# defect as F16 in dpi_state.sh's DPI_RULE_SIG; pinned by
+# scripts/test/dpi-rule-signature-port.sh section [3].
+# End state is identical to a fresh install: no tpws binary, engine disabled,
+# video_domains.txt preserved so a later reinstall keeps the hostlist.
 _dpi_uninstall_run() {
     # Rule out FIRST so new LAN connections go direct immediately; existing
     # flows keep their conntrack binding until the engine stops below.
-    iptables -t nat -D PREROUTING -i bridge0 -p tcp -m multiport --dports 80,443 -j REDIRECT --to-ports 989 2>/dev/null
-    for i in 1 2 3; do iptables -t nat -D OUTPUT -p tcp --dport 443 -j REDIRECT --to-ports 989 2>/dev/null && break; done
+    iptables -t nat -D PREROUTING -i bridge0 -p tcp -m multiport --dports 80,443 -j REDIRECT --to-ports "$DPI_PORT" 2>/dev/null
+    for i in 1 2 3; do iptables -t nat -D OUTPUT -p tcp --dport 443 -j REDIRECT --to-ports "$DPI_PORT" 2>/dev/null && break; done
     _dpi_marker_running "Draining connections..."
     sleep 5
     systemctl stop qmanager-dpi.service qmanager-dpi-ensure.timer qmanager-dpi-ensure.service 2>/dev/null

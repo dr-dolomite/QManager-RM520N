@@ -114,8 +114,14 @@ if [ -z "$JQ_BIN" ]; then
 else
     # Quote, backslash, tab and an embedded newline: each one produces
     # invalid JSON if pasted into a string body unescaped.
-    HOSTILE_DETAIL='he said "hi" \ then C:\path'
-    ESC_OUT=$(run_cgi "$NOJQ_STUB" 'cgi_error "bad\"code" "'"$HOSTILE_DETAIL"'"' | strip_cr)
+    #
+    # Passed through the ENVIRONMENT, not spliced into the snippet text.
+    # run_cgi builds an inner script by string concatenation, so an
+    # interpolated `"` would close the inner shell string and the hostile
+    # value would be de-fanged before cgi_error ever received it — the test
+    # would then be measuring the harness's quoting, not the escaper's.
+    export HOSTILE_DETAIL='he said "hi" \ then C:\path'
+    ESC_OUT=$(run_cgi "$NOJQ_STUB" 'cgi_error "bad\"code" "$HOSTILE_DETAIL"' | strip_cr)
 
     if [ -z "$ESC_OUT" ]; then
         bad "fallback produced nothing for input containing quotes/backslashes"
