@@ -23,10 +23,14 @@
 #      null or empty), the Select still offers `FALLBACK_CIDS` (1-6), `find`
 #      always misses, and a data APN can land silently on the IMS or emergency
 #      context with no confirmation dialog.                    -> [4]
-#   4. THE CARD NEVER DRAWS ITS OWN "NO CHANGES YET" LINE. `CARD_NOTICE` is the
-#      family's shared no-op-state text (`SETTING_ROW.ROOT` + `.CONSEQUENCE`
-#      composed once, see shapes.ts:567) and every sibling write card uses it;
-#      apn-settings-card.tsx imports it from nowhere.           -> [5]
+#   4. THE CARD FABRICATES SELECTIONS IT NEVER READ. On a failed first read the
+#      component falls straight past its loading branch into the form body:
+#      the APN field honestly shows a placeholder, but the IP-protocol control
+#      renders IPv4v6 SELECTED and the CID Select renders CID 1, as
+#      confirmed-looking choices on a card that has read nothing. `CARD_NOTICE`
+#      (`SETTING_ROW.ROOT` + `.CONSEQUENCE` composed once, shapes.ts:567) is
+#      the family's primitive for exactly this never-read state, and
+#      apn-settings-card.tsx does not import it.                -> [5]
 #   5. THE MBN EMPTY STATE CANNOT TELL "NOT READ YET" FROM "READ, AND EMPTY".
 #      `bundles = profiles ?? []` collapses both to the same `.length === 0`
 #      branch, so the empty-state copy ("this firmware has no bundles") can
@@ -53,10 +57,13 @@
 #      — a technician on a USB-Ethernet uplink reads a warning about "the
 #      cellular connection" while their actual management session is the one
 #      about to be interrupted if they are ALSO the WAN.          -> [13]
-#  10. `NetworkGrantedCard` has no staleness signal at all: it reads
-#      `useModemStatus()`'s `isStale` boolean is available but never
-#      destructured, so a frozen poller renders identically to a live one.
-#                                                                   -> [7] [8]
+#  10. `NetworkGrantedCard` has no staleness signal at all. `useModemStatus()`
+#      exports an `isStale` boolean at a 10s threshold, but the card takes only
+#      `{ status, isLoading, error }` and never receives it -- so a frozen
+#      poller renders identically to a live one. [8] guards the fix from
+#      overcorrecting into a "read N seconds ago" counter, which was refuted:
+#      this page's writable half is not polled, so such a number would count
+#      from a fetch the user cannot see.                        -> [7] [8]
 #
 # The assertions are text-anchored to the anchors verified directly against
 # this tree by the approved plan (docs/reference/_handoff-apn-management-
