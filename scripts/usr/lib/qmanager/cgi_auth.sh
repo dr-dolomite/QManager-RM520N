@@ -491,12 +491,25 @@ qm_set_ssh_password() {
 # ---------------------------------------------------------------------------
 
 # Main auth gate — rejects unauthenticated requests
+#
+# Both envelopes go through cgi_base.sh's cgi_error, which keeps jq as the
+# primary path and falls back to a hand-built envelope when jq produces
+# nothing. These used to be inline `jq -n` calls, and that made this the
+# MUTE half of the F2 fix: require_auth is the first thing a browser hits,
+# so on a device whose Entware bootstrap failed (no /opt/bin/jq) every
+# request answered 401 with a completely empty body — the UI died before
+# cgi_error's fallback could ever be reached (tracker F17).
+#
+# cgi_error and cgi_headers both come from cgi_base.sh, which calls this
+# function at LOAD TIME. Both are defined above that call on purpose; see
+# the ordering note on cgi_error. Pinned by
+# scripts/test/cgi-error-jq-fallback.sh section [6].
 require_auth() {
     # Setup mode
     if is_setup_required; then
         echo "Status: 401 Unauthorized"
         cgi_headers
-        jq -n '{"success":false,"error":"setup_required","detail":"No password configured"}'
+        cgi_error "setup_required" "No password configured"
         exit 0
     fi
 
@@ -508,7 +521,7 @@ require_auth() {
     if [ -z "$_token" ] || ! qm_validate_session "$_token"; then
         echo "Status: 401 Unauthorized"
         cgi_headers
-        jq -n '{"success":false,"error":"unauthorized","detail":"Invalid or expired session"}'
+        cgi_error "unauthorized" "Invalid or expired session"
         exit 0
     fi
 }

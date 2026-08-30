@@ -96,15 +96,24 @@ printf '\n[2] a genuine CRLF file is still caught, in each of the three sub-loop
 # `bash -n` stage of run-all.sh still passes and we reach the CRLF stage.
 plant() { printf '#!/bin/sh\r\n: crlf fixture\r\n' > "$1"; }
 
+# All three planted in ONE pass. Each sub-loop contributes its own file
+# independently, so a single run gives the same per-loop verdict as three —
+# and run-all.sh re-runs `bash -n` over ~180 scripts every time, so this is
+# the difference between a 30s harness and a 60s one.
+plant "$FIX_SH"
+plant "$FIX_BIN"
+plant "$FIX_SUDO"
+
+PLANTED_SECTION=$(crlf_section)
+
 check_caught() {
     local label="$1" path="$2"
-    cleanup
-    plant "$path"
     if [ "$(tr -cd '\r' < "$path" | wc -c | tr -d ' ')" -eq 0 ]; then
         bad "$label — fixture did not actually get CR bytes; harness bug"
         return
     fi
-    if crlf_section | grep -q -- "$path"; then
+    if printf '%s
+' "$PLANTED_SECTION" | grep -q -- "$path"; then
         ok "$label — real CRLF file is reported"
     else
         bad "$label — a genuinely CRLF file at $path was NOT reported; the detector cannot see the thing it exists to catch"

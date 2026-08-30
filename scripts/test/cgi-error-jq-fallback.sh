@@ -157,7 +157,7 @@ else
     fi
 fi
 
-printf '\n[5] scope pin — the fallback is inside cgi_error only\n'
+printf '\n[5] scope pin — every JSON emitter has a fallback, jq stays primary\n'
 
 ERR_FN=$(awk '/^cgi_error\(\) \{$/,/^\}$/' "$CGI_BASE")
 if printf '%s' "$ERR_FN" | grep -q 'jq -n'; then

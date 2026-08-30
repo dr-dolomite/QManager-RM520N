@@ -54,9 +54,26 @@ printf '\n== CRLF check (warn-only) ==\n'
 
 # -U: read in binary mode so MSYS/Windows grep doesn't strip \r before matching.
 # -I: skip binary files. Both flags are no-ops on Linux.
+
+# CR is built at RUNTIME and passed through a variable, never written as
+# $'\r' inline. Bash re-parses the body of a command substitution, and a
+# raw CR in that body is consumed as line whitespace during the re-parse -
+# so $'\r' inside the $( ... ) below expands to the EMPTY STRING, and an
+# empty grep pattern matches every line of every file. That is exactly what
+# this detector did: it reported CRLF on ~211 files holding zero CR bytes,
+# which made a genuinely CRLF file indistinguishable from the noise. A CR
+# carried in by variable expansion survives, because expansion happens after
+# parsing. .claude/check-crlf.sh counts CR bytes rather than matching a
+# pattern, which is why it gave the correct answer on the same tree.
+# Pinned by scripts/test/crlf-detector-accuracy.sh (tracker F18).
+#
+#   printf '[%s]' $'\r'             -> [ \r ]   a real CR
+#   echo "$( printf '[%s]' $'\r' )" -> [    ]   empty
+CR=$(printf '\r')
+
 crlf_files=$(
     {
-        grep -rUIl $'\r' scripts \
+        grep -rUIl "$CR" scripts \
             --include='*.sh' --include='*.service' --include='*.rules' \
             2>/dev/null || true
         # If/then form rather than `&&` chain — under `set -e`, a chain whose
@@ -64,12 +81,12 @@ crlf_files=$(
         # propagate a non-zero exit out of this command substitution and kill
         # the whole script silently. See feedback_set_e_traps.md.
         for f in scripts/usr/bin/*; do
-            if [ -f "$f" ] && grep -qUI $'\r' "$f" 2>/dev/null; then
+            if [ -f "$f" ] && grep -qUI "$CR" "$f" 2>/dev/null; then
                 printf '%s\n' "$f"
             fi
         done
         find scripts -path '*/sudoers.d/*' -type f 2>/dev/null | while IFS= read -r f; do
-            if [ -f "$f" ] && grep -qUI $'\r' "$f" 2>/dev/null; then
+            if [ -f "$f" ] && grep -qUI "$CR" "$f" 2>/dev/null; then
                 printf '%s\n' "$f"
             fi
         done
