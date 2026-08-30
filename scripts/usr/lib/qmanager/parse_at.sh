@@ -844,9 +844,24 @@ parse_cgcontrdp() {
     local normalized
     normalized=$(printf '%s' "$raw" | tr '\r' '\n' | sed '/^$/d')
 
-    # First non-IMS +CGCONTRDP record
+    # First non-IMS +CGCONTRDP record. The APN must be compared AFTER
+    # stripping quotes, not with grep -iv '"ims"': SDX55 firmware
+    # (RG501Q-EU) emits this response with no quotes at all, so the quoted
+    # pattern silently fails to match its 2,6,ims,... record. That was
+    # survivable only because cid 1 happens to sort first and head -1 took
+    # it; had the modem ever emitted cid 2 first, the poller would have
+    # published "ims" as the WAN APN.
     local data_line
-    data_line=$(printf '%s\n' "$normalized" | grep '^+CGCONTRDP:' | grep -iv '"ims"' | head -1)
+    data_line=$(printf '%s\n' "$normalized" | grep '^+CGCONTRDP:' | awk '
+        {
+            line = $0
+            sub(/^\+CGCONTRDP:[ \t]*/, "", line)
+            n = split(line, f, ",")
+            apn = f[3]
+            gsub(/"/, "", apn)
+            gsub(/^[ \t]+|[ \t]+$/, "", apn)
+            if (tolower(apn) != "ims") { print; exit }
+        }')
 
     if [ -z "$data_line" ]; then
         qlog_debug "parse_cgcontrdp: no non-IMS CGCONTRDP line found"
