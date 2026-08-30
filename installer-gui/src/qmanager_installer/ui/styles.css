@@ -218,6 +218,7 @@ body[data-view="result"]    .view[data-for="result"] { display: flex; }
 .switch { display: flex; align-items: center; gap: 10px; font-size: 14px; font-weight: 600; cursor: pointer; }
 .switch input { accent-color: var(--primary); width: 17px; height: 17px; cursor: pointer; }
 
+.ssh-remember { margin-top: 14px; }
 .switch-row { display: flex; align-items: center; gap: 8px; margin-top: 14px; }
 .switch-row .switch { margin: 0; }
 

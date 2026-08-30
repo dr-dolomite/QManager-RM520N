@@ -166,20 +166,50 @@ async function connectSsh() {
   const btn = $("#ssh-connect");
   btn.disabled = true;
   try {
+    // An empty field means "use the saved password" — the backend decrypts
+    // it in Python, so the secret never exists in this JS context.
     const res = await api().connect_ssh(
       $("#ssh-host").value.trim(),
       $("#ssh-user").value.trim(),
-      $("#ssh-pass").value
+      $("#ssh-pass").value,
+      $("#ssh-remember").checked
     );
     if (!res.connected) {
       showError($("#connect-error"), res.error.message);
       return;
     }
     HOST = res.host;
+    // It is saved now (or deliberately not); either way it should not sit in
+    // an input for the rest of the session.
+    $("#ssh-pass").value = "";
+    applySavedPasswordPlaceholder($("#ssh-remember").checked);
     await runPreflight();
   } finally {
     btn.disabled = false;
   }
+}
+
+/* ---------- saved connection ----------
+ * The password itself never crosses the bridge: saved_connection() reports
+ * has_password as a bool and the field shows a placeholder rather than fake
+ * dots, so there is nothing here to leak.
+ */
+
+function applySavedPasswordPlaceholder(has) {
+  $("#ssh-pass").placeholder = has ? t("transport.ssh.password.saved") : "";
+}
+
+async function restoreSavedConnection() {
+  const saved = await api().saved_connection();
+  if (!saved || !saved.ssh) return;
+
+  $("#ssh-host").value = saved.ssh.host;
+  $("#ssh-user").value = saved.ssh.user;
+  $("#ssh-remember").checked = Boolean(saved.ssh.remember);
+  applySavedPasswordPlaceholder(Boolean(saved.ssh.has_password));
+
+  if (saved.transport === "ssh") transportTab("ssh");
+  return saved;
 }
 
 /* ---------- preflight ---------- */
@@ -396,7 +426,12 @@ async function boot() {
   applyTheme(dark.matches);
   dark.addEventListener("change", (e) => applyTheme(e.matches));
 
+  // The bridge already loaded the remembered locale, so passing null here
+  // renders in it — the <select> just has to catch up below.
   await loadLocale(null);
+
+  const saved = await restoreSavedConnection();
+  if (saved && saved.locale) $("#locale").value = saved.locale;
 
   const tool = await api().toolchain();
 
@@ -410,6 +445,9 @@ async function boot() {
   $("#locale").addEventListener("change", async (e) => {
     await loadLocale(e.target.value);
     // Re-render whatever is on screen so dynamic strings follow the switch.
+    // The password placeholder is set from JS, not from a data-i18n
+    // attribute, so applyStaticStrings() does not reach it.
+    applySavedPasswordPlaceholder(Boolean($("#ssh-pass").placeholder));
     if (document.body.dataset.view === "preflight") await runPreflight();
   });
 
@@ -420,6 +458,13 @@ async function boot() {
   $("#ssh-connect").addEventListener("click", connectSsh);
   $("#ssh-pass").addEventListener("keydown", (e) => {
     if (e.key === "Enter") connectSsh();
+  });
+  $("#ssh-remember").addEventListener("change", async (e) => {
+    // Un-ticking deletes the stored blob now, not at the next connect. A box
+    // that says "forget it" and then keeps it until later is a lie.
+    if (e.target.checked) return;
+    await api().forget();
+    applySavedPasswordPlaceholder(false);
   });
   $("#cancel").addEventListener("click", async (e) => {
     e.target.disabled = true; // one click; poll() reports the outcome

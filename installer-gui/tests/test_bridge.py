@@ -1,3 +1,4 @@
+import base64
 import threading
 import time
 from pathlib import Path
@@ -54,10 +55,12 @@ class FakeCipher:
     store — see tests/test_prefs.py."""
 
     def protect(self, plaintext: str) -> str:
-        return "enc:" + plaintext
+        return "enc:" + base64.b64encode(plaintext.encode()).decode()
 
     def unprotect(self, blob: str) -> str | None:
-        return blob[4:] if blob.startswith("enc:") else None
+        if not blob.startswith("enc:"):
+            return None
+        return base64.b64decode(blob[4:]).decode()
 
 
 def make_bridge(tmp_path, transport):
@@ -414,7 +417,7 @@ def test_an_undecryptable_blob_reports_no_saved_password(tmp_path):
 
     class DeadCipher:
         def protect(self, plaintext):
-            return "enc:" + plaintext
+            return "enc:" + base64.b64encode(plaintext.encode()).decode()
 
         def unprotect(self, blob):
             return None

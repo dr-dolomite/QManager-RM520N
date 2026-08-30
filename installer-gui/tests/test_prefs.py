@@ -6,6 +6,7 @@ so nothing here touches %LOCALAPPDATA% or real DPAPI. test_dpapi.py covers
 the real cipher.
 """
 
+import base64
 import json
 
 import pytest
@@ -23,13 +24,20 @@ from qmanager_installer.core.prefs import (
 class FakeCipher:
     """Reversible stand-in for DPAPI. `unprotect` returns None for anything
     it did not produce, which is exactly how the real one reports a blob
-    written by another Windows account."""
+    written by another Windows account.
+
+    It base64s rather than prefixing the plaintext, because a fake that
+    leaves the secret readable would silently defeat
+    test_the_plaintext_password_never_reaches_the_disk — which is how that
+    test caught this fake's first version."""
 
     def protect(self, plaintext: str) -> str:
-        return "enc:" + plaintext
+        return "enc:" + base64.b64encode(plaintext.encode()).decode()
 
     def unprotect(self, blob: str) -> str | None:
-        return blob[4:] if blob.startswith("enc:") else None
+        if not blob.startswith("enc:"):
+            return None
+        return base64.b64decode(blob[4:]).decode()
 
 
 class DeadCipher:
@@ -37,7 +45,7 @@ class DeadCipher:
     settings file case. Must degrade, never raise."""
 
     def protect(self, plaintext: str) -> str:
-        return "enc:" + plaintext
+        return "enc:" + base64.b64encode(plaintext.encode()).decode()
 
     def unprotect(self, blob: str) -> str | None:
         return None

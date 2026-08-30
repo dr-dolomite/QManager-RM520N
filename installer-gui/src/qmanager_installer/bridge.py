@@ -19,6 +19,8 @@ from pathlib import Path
 from .core.installer import InstallCancelled, InstallError, InstallOptions, InstallRunner, Progress
 from .core.payload import Payload, load_payload
 from .core.preflight import PreflightReport, run_preflight
+from .core.prefs import Cipher, Prefs, load_prefs, save_prefs
+from .core import dpapi
 from .core.session_log import open_session_log
 from .core.transport.adb import AdbTransport, list_devices
 from .core.transport.base import Transport
@@ -33,14 +35,25 @@ def adb_path() -> Path:
 
 
 class Bridge:
-    def __init__(self, payload: Payload | None = None, log_root: Path | None = None) -> None:
+    def __init__(
+        self,
+        payload: Payload | None = None,
+        log_root: Path | None = None,
+        prefs_root: Path | None = None,
+        cipher: Cipher | None = None,
+    ) -> None:
         self._payload = payload or load_payload()
         self._log_root = log_root
+        # Both seams exist so the test suite never reads or writes the real
+        # %LOCALAPPDATA% file and never needs DPAPI to be reachable.
+        self._prefs_root = prefs_root
+        self._cipher: Cipher = cipher or dpapi
+        self._prefs: Prefs = load_prefs(root=prefs_root)
         self._transport: Transport | None = None
         self._transport_kind: str | None = None  # "adb" | "ssh" — never a hardcoded default
         self._host: str | None = None  # only set for SSH; there is no device-side IP for ADB
         self._report: PreflightReport | None = None
-        self._translator = load_translator(DEFAULT_LOCALE)
+        self._translator = load_translator(self._prefs.locale or DEFAULT_LOCALE)
 
         self._lock = threading.Lock()
         self._lines: list[str] = []
@@ -54,6 +67,10 @@ class Bridge:
 
     def set_locale(self, locale: str) -> dict:
         self._translator = load_translator(locale)
+        # Remembered so the Chinese audience this tool exists for does not
+        # re-pick their language on every launch.
+        self._prefs.locale = self._translator.locale
+        self._save_prefs()
         return {"locale": self._translator.locale}
 
     def strings(self) -> dict:
@@ -69,6 +86,63 @@ class Bridge:
         English fallback.
         """
         return list(self._translator.missing_keys)
+
+    # --- saved connection -------------------------------------------------
+
+    def saved_connection(self) -> dict:
+        """What the connect screen should prefill.
+
+        `has_password` is a bool and the password itself is deliberately
+        absent: it is decrypted in Python at connect time, so it never
+        enters the WebView's DOM or JS heap. A blob this Windows account
+        cannot open reports has_password=False — the copied-settings-file
+        case, which must look exactly like a fresh install rather than an
+        error.
+        """
+        try:
+            prefs = self._prefs
+            return {
+                "transport": prefs.transport,
+                "locale": prefs.locale,
+                "ssh": {
+                    "host": prefs.ssh_host,
+                    "user": prefs.ssh_user,
+                    "remember": bool(prefs.remember_password),
+                    "has_password": self._saved_password() is not None,
+                },
+            }
+        except Exception:
+            fresh = Prefs()
+            return {
+                "transport": fresh.transport,
+                "locale": fresh.locale,
+                "ssh": {
+                    "host": fresh.ssh_host,
+                    "user": fresh.ssh_user,
+                    "remember": False,
+                    "has_password": False,
+                },
+            }
+
+    def forget(self) -> dict:
+        """Drop the saved password immediately, keeping host and username.
+
+        Bound to un-ticking the checkbox, so the secret leaves the disk at
+        that moment rather than at the next successful connect. A no-op —
+        never an error — when nothing was saved.
+        """
+        self._prefs.clear_password()
+        self._save_prefs()
+        return {"forgotten": True}
+
+    def _saved_password(self) -> str | None:
+        return self._prefs.get_password(cipher=self._cipher)
+
+    def _save_prefs(self) -> bool:
+        try:
+            return save_prefs(self._prefs, root=self._prefs_root)
+        except Exception:
+            return False
 
     # --- connection ---------------------------------------------------------
 
@@ -93,19 +167,41 @@ class Bridge:
             self._transport = AdbTransport(adb_path(), serial)
             self._transport_kind = "adb"
             self._host = None
+            self._prefs.transport = "adb"
+            self._save_prefs()
             return {"connected": True, "describe": self._transport.describe(), "host": None}
         except Exception as exc:
             return self._connect_error(exc)
 
-    def connect_ssh(self, host: str, user: str, password: str) -> dict:
+    def connect_ssh(self, host: str, user: str, password: str, remember: bool = False) -> dict:
+        """An empty password field means "use the saved one".
+
+        That is what lets the UI show a placeholder instead of fake dots and
+        keep the secret out of the DOM entirely. Consequence: a genuinely
+        empty SSH password is unexpressible once a blob is saved — not a
+        real case for root on these modems.
+        """
+        effective = password or self._saved_password() or ""
         try:
-            self._transport = SshTransport(host, user, password)
+            self._transport = SshTransport(host, user, effective)
             self._transport_kind = "ssh"
             # The SSH host is the only honest source for the "open the modem
             # at http://..." message on the result screen — it is never
             # hardcoded here. ADB connections have no equivalent; self._host
             # stays None and the UI must handle that case itself.
             self._host = host
+            # Persist only after the credentials have actually worked. A
+            # remembered wrong password would be retried on every launch,
+            # against an account that may lock out.
+            self._prefs.transport = "ssh"
+            self._prefs.ssh_host = host
+            self._prefs.ssh_user = user
+            self._prefs.remember_password = bool(remember)
+            if remember:
+                self._prefs.set_password(effective, cipher=self._cipher)
+            else:
+                self._prefs.clear_password()
+            self._save_prefs()
             return {"connected": True, "describe": self._transport.describe(), "host": host}
         except Exception as exc:
             return self._connect_error(exc)
