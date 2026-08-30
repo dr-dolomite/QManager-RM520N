@@ -41,14 +41,31 @@
 #      `box-shadow` is the `focus-visible:ring-[3px]` focus ring. Badge documents
 #      why one clock cannot serve both: a ring at the longer duration "lags
 #      visibly while tabbing through a settings form."
-#  C3  The handoff's prescribed "house form" `duration-[--duration-*]` is the
-#      MINORITY spelling. Census over components/: `duration-[var(--duration-*)]`
-#      97 uses, `duration-(--duration-*)` 31, `duration-[--duration-*]` only 9.
+#  C3  The handoff's prescribed "house form" is the MINORITY spelling. Census
+#      over components/, summed across the three token names:
+#
+#          duration-[var(--duration-standard)]   bracket-var form   97 uses
+#          duration-(--duration-standard)        paren form         31 uses
+#          duration-[--duration-standard]        bracket form        9 uses  <- the
+#                                                                    handoff's
 #      Easing inverts — the bare theme utilities `ease-standard`/`ease-quick`
-#      dominate at 81, because `--ease-*` IS in the `@theme` namespace while the
-#      durations deliberately are not (globals.css:224). [1] and [2] therefore
+#      dominate at 81, because the ease scale IS in the `@theme` namespace while
+#      the durations deliberately are not (globals.css:224). [1] and [2] therefore
 #      accept ALL THREE duration spellings and both ease forms. Pinning one would
 #      pin a house style that is not the house style.
+#
+#      THE THREE FORMS ABOVE NAME A REAL TOKEN ON PURPOSE, and this is a trap
+#      worth knowing about rather than a formatting whim. An earlier draft of
+#      this comment wrote them with a `*` wildcard where `standard` now sits.
+#      `globals.css:1` is a bare `@import "tailwindcss"` with no `@source`
+#      narrowing, so Tailwind v4 auto-scans the project — including scripts/ —
+#      and happily read that prose as a class name, emitting
+#      `--tw-duration: var(--duration-<asterisk>)`. That is not a legal custom
+#      property, so Turbopack's dev CSS parser rejected globals.css and EVERY
+#      PAGE 500'd. `next build` passed the whole time: its minifier silently
+#      drops the invalid declaration. A harness that quotes a Tailwind
+#      arbitrary-value class must therefore quote a VALID one — these three all
+#      already exist in components/, so generating them costs nothing.
 #
 # THE THREE APPROVED DECISIONS (recorded 2026-08-30, user, at the Phase 3 gate)
 # -----------------------------------------------------------------------------
