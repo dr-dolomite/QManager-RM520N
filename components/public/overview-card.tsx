@@ -237,7 +237,18 @@ export default function OverviewCard() {
     >
       {/* (a) Header ------------------------------------------------------- */}
       <div className="flex items-center gap-3.5">
-        <div className="bg-primary-container grid size-13 flex-none place-items-center rounded-pill p-[0.6875rem]">
+        {/* The mark ships BARE -- the `primary-container` fill is gone. It
+            sat in that disc here and in an identical one on /login/, and
+            measured against the fill the mark's own tail renders 1.54:1 in dark
+            mode: the brand's logo was the least legible element on both
+            pre-auth screens. DESIGN.md requires the pre-auth pair to move
+            together, so both discs went in one commit rather than leaving the
+            two surfaces re-forked the week after pre-auth-type.ts joined them.
+
+            The BOX is deliberately unchanged -- same 52px, same inset, so the
+            mark keeps its drawn size and the header rhythm beside the h1 does
+            not shift. Only the tint was ever the problem. */}
+        <div className="grid size-13 flex-none place-items-center p-[0.6875rem]">
           {/* Decorative: the adjacent heading already names the product. */}
           <img
             src="/qmanager-mark.svg"

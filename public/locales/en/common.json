@@ -135,15 +135,17 @@
     "submit": "Log in",
     "signing_in": "Signing in…",
     "locked": "Locked ({{seconds}})",
+    "lockout_seconds": "{{seconds}}s",
     "show_password": "Show password",
     "hide_password": "Hide password",
     "session_expired": "The device was unreachable for too long. Log in again to continue.",
     "signing_in_to": "Signing in to {{hostname}}",
+    "sign_in_to_label": "Sign in to",
     "signing_in_as": "Sign in as {{hostname}}",
     "recovery": {
       "toggle": "Can't sign in?",
       "intro": "If you've lost the admin password, you have two recovery paths:",
-      "option_reset": "Open an SSH session to the device and run <code>qmanager_reset_password</code> to set a new admin password. (Requires SSH access to be enabled.)",
+      "option_reset": "Open an SSH session to the device and run {{command}} to set a new admin password. (Requires SSH access to be enabled.)",
       "option_backup": "If you saved a .qmbackup file, re-flash the device firmware and restore from it."
     },
     "session_expired_title": "Session ended",

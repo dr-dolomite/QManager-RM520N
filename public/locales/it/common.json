@@ -135,15 +135,17 @@
     "submit": "Accedi",
     "signing_in": "Accesso in corso…",
     "locked": "Bloccato ({{seconds}})",
+    "lockout_seconds": "{{seconds}} s",
     "show_password": "Mostra password",
     "hide_password": "Nascondi password",
     "session_expired": "Il dispositivo è stato irraggiungibile troppo a lungo. Accedi di nuovo per continuare.",
     "signing_in_to": "Accesso a {{hostname}}",
+    "sign_in_to_label": "Accedi a",
     "signing_in_as": "Accedi come {{hostname}}",
     "recovery": {
       "toggle": "Non riesci ad accedere?",
       "intro": "Se hai perso la password di amministratore, hai due opzioni di ripristino:",
-      "option_reset": "Apri una sessione SSH sul dispositivo ed esegui <code>qmanager_reset_password</code> per impostare una nuova password di amministratore. (Richiede l'accesso SSH già abilitato.)",
+      "option_reset": "Apri una sessione SSH sul dispositivo ed esegui {{command}} per impostare una nuova password di amministratore. (Richiede l'accesso SSH già abilitato.)",
       "option_backup": "Se hai salvato un file .qmbackup, riprogramma il firmware del dispositivo e ripristina da quel file."
     },
     "session_expired_title": "Sessione terminata",

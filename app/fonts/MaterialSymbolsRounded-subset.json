@@ -78,6 +78,7 @@
     "search",
     "send",
     "settings",
+    "settings_backup_restore",
     "settings_ethernet",
     "settings_input_antenna",
     "shield",
@@ -114,6 +115,6 @@
     "wifi_tethering_off",
     "work"
   ],
-  "bytes": 40792,
-  "sha256": "528b574767b8ba7eac616c73cfd3e002592c84f4615cc0df72d468c30f49e55d"
+  "bytes": 41788,
+  "sha256": "f82185ae07701afdde1553c9ac332626304071e6b60b324e1d543b61601f1b89"
 }

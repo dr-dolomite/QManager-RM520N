@@ -123,6 +123,7 @@ export const MATERIAL_SYMBOL_NAMES = [
   "search",
   "send",
   "settings",
+  "settings_backup_restore",
   "settings_ethernet",
   "settings_input_antenna",
   "shield",

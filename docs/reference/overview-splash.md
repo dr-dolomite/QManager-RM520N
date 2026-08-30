@@ -193,7 +193,23 @@ While the first read is in flight a `ReadingChip` replaces the theme toggle at t
 
 ### `LoginDeviceName` — "which modem am I signing into?"
 
-`components/auth/login-device-name.tsx` renders a quiet muted-text line answering which device the visitor is about to log into. It owns its own hostname fetch (`useDeviceHostname`) and all three states (loading skeleton → resolved name → nothing). Its contract is **silent omission**: older firmware without the CGI, or an unnamed device, resolves to `null` and the line simply doesn't render — the title block closes up around it. Per DESIGN.md's Machine-Voice Rule the hostname renders in the UI sans typeface, not the mono machine voice (mono is scoped to the AT terminal). It is used by both the splash and the login screen.
+`components/auth/login-device-name.tsx` answers which device the visitor is about to log into. It owns its own hostname fetch (`useDeviceHostname`) and all three states (loading skeleton → resolved name → nothing). Its contract is **silent omission**: older firmware without the CGI, or an unnamed device, resolves to `null` and no placeholder is ever invented — a fake device name on a login screen is a lie about which modem you are about to configure. Per DESIGN.md's Machine-Voice Rule the hostname renders in the UI sans typeface, not the mono machine voice (mono is scoped to the AT terminal).
+
+**Two variants, one per pre-auth surface** (2026-08-30):
+
+| Variant | Mounted by | Renders | With no hostname |
+|---------|-----------|---------|------------------|
+| `signin` (default) | the splash at `/` | the standalone line, "Sign in as sdxlemur" | renders nothing; the title block closes up |
+| `title` | `/login/` | the card's `h1` **is** the hostname, under a `login.sign_in_to_label` eyebrow | **no eyebrow**, and the `h1` falls back to `login.welcome` |
+
+A third variant, `sentence` ("Enter your password to manage sdxlemur."), was **deleted** when `title` landed — once the hostname is the `h1`, folding it into the password instruction states the same fact twice on a card holding three text elements. Its keys `login.password_to_manage` and `password_to_manage_bare` are **kept** in all five locales; this repo does not remove keys that installed language packs may still carry.
+
+Two accessibility details in the `title` variant are load-bearing and easy to undo:
+
+- **The `h1` stays in the a11y tree.** It is the login page's only heading, so it is not `aria-hidden`. The full sentence lives inside it as `sr-only` text and the visible hostname is the `aria-hidden` layer — one heading, announced once, as "Signing in to sdxlemur".
+- **The eyebrow is `aria-hidden`.** It is half a sentence whose other half is the `h1`; announced alone it arrives as a fragment before the name it introduces.
+
+The eyebrow is also what retires the long-standing `signing_in_as` / `signing_in_to` disagreement **structurally** rather than by picking a winner: the visible copy now reads "Sign in to / sdxlemur" and the screen-reader line reads "Signing in to sdxlemur". They finally agree.
 
 ---
 
@@ -212,7 +228,48 @@ The login form renders two `TonalBanner`s:
 
 > ℹ️ NOTE — **the rate-limit banner is amber, not red, on purpose.** Being rate-limited is degraded-but-recoverable: the device is working, it is deliberately pausing you, and the pause ends by itself. Red would read as a fault. The copy names the *reason* ("Locked for 4:32 to protect the device.") rather than only the consequence, which is what turns a punishment into an explanation.
 
-The countdown is formatted by `formatLockout()` — `28 s` under a minute, `4:32` above it — which is why the i18n template lost its baked-in unit. See `docs/reference/auth-rate-limiting.md` for the ladder, the response shapes, and the `attempts_remaining: 0` gotcha the form has to render around.
+The countdown is formatted by `formatLockout(totalSeconds, t)` — `28s` under a minute, `4:32` above it — which is why the i18n template lost its baked-in unit. **The sub-minute unit is itself translated** (`login.lockout_seconds`, added 2026-08-30): it used to be a literal `s` welded into the template string, sitting directly beside the mm:ss branch, which was already locale-neutral — so the formatter disagreed with itself about whether it was translatable. The colon form needs no key; mm:ss is a numeric convention, not a word. See `docs/reference/auth-rate-limiting.md` for the ladder, the response shapes, and the `attempts_remaining: 0` gotcha the form has to render around.
+
+### The four zones (2026-08-30)
+
+`/login/` took its design-language adoption pass on 2026-08-30, the second half of the pre-auth pair. Beyond the migration it carried one composition decision:
+
+> **The card used to greet, then ask. It now identifies, then asks.** It spent its loudest step and its only colour on the constant string "Welcome to QManager", and 14 px muted, folded mid-sentence, on the hostname — the one fact on the screen that varies, and the thing `LoginDeviceName` exists to report. The device is the title; the action is its eyebrow.
+
+```
+div  bg-background grid min-h-svh place-items-center  p-4 sm:p-7
+  ├─ corner chrome  LoginLanguagePicker + ModeToggle
+  └─ div  @container/login  w-full max-w-[404px]        ← owns the width cap
+       motion.div  bg-card rounded-hero py-9  px-6 @[25rem]/login:px-[34px]
+                   gap-6 | gap-5 when a notice shows
+       ├─ TonalBanner ×2 (unstaggered direct children)
+       ├─ ZONE 1  IDENTITY   bare 48px mark + <LoginDeviceName variant="title"/>
+       ├─ ZONE 2  FIELD      label / Input / eye / inline error
+       ├─ ZONE 3  SUBMIT     48px pill, three labels in one grid cell
+       └─ ZONE 4  RECOVERY   "Can't sign in?" disclosure
+```
+
+**Four stagger children, not three** — the cascade is the 120 ms card step, so the last zone lands at 360 + 600 = 960 ms.
+
+**The mark ships bare.** It sat in a 76 px `primary-container` disc, defended as "the one place where pure brand expression costs nothing operationally". Measured, it cost **1.53:1** between the mark's ring and that fill in dark mode — the brand's own logo was the least legible element on the screen. Deleting the plate raises it to 2.79:1 (ring) and 5.07:1 (tail); light mode improves too, 4.92 → 6.83. The splash's identical disc went in the **same commit**, because DESIGN.md requires the pre-auth pair to move together.
+
+**Zone 4 replaces a brand footer** that restated the product name three inches under the mark, glued with a `·` the No-Dot-Separator Rule forbids, and answered nothing a visitor could be stuck on. `login.recovery.*` had been fully translated in all five locales **with no call site** — the answer to the only question this screen can strand someone with was already written and never rendered. `login.brand_label` keeps its key and loses its caller.
+
+The disclosure's `option_reset` embeds a copyable command. It reaches the component through `interpolation-slot.tsx` (`SLOT` / `withSlot`, see below) as a `{{command}}` placeholder, **not** as markup — the string used to carry a literal `<code>` tag, and this repo does not render markup from locale files. That chip is the **one legal `font-mono`** on the surface (Machine-Voice Rule: a string the reader retypes into a shell); it takes `surface-container-high` because its host is `surface-container`, the Field-Step Rule applied to a code chip. The glyph beside it is `restart_alt`, not `settings_backup_restore` — QManager does not carry the latter, and `material-symbol-names.ts` is the single source of truth for the woff2 subset, so adding one name means regenerating a binary font every route loads.
+
+**The measured container cliff.** `@[25rem]/login` is 400 px, and the `@container/login` element is `w-full max-w-[404px]` inside the page gutter. Measured on the dev server rather than derived:
+
+| Viewport | Container | Step |
+|---------:|----------:|------|
+| 375 px | 343 px | `px-6` |
+| 390 px | 358 px | `px-6` |
+| 430 px | 398 px | `px-6` |
+| **432 px** | **400 px** | **`px-[34px]`** ← the cliff |
+| 436 px + | 404 px (capped) | `px-[34px]` |
+
+**Two motion repairs.** The submit's locked/unlocked role morph and the field-group dim were the surface's only untokenized state changes — both snapped instantly while the banner announcing the *same condition* eased in over 800 ms, so the card reported one event at two speeds. Both now carry `transition-* duration-[var(--duration-standard)] ease-[var(--ease-standard)]`.
+
+**The recovery disclosure needs its own reduced-motion guard.** It animates `grid-template-rows` 0fr → 1fr, which is neither transform nor opacity, so the global `MotionConfig` switch does not cover it; it reads `useReducedMotion()` directly. The 0fr → 1fr collapse is height-agnostic on purpose — no measured pixel height, so a locale whose copy wraps to four lines animates correctly with no JS and no `ResizeObserver`.
 
 ### `TonalBanner` — the card-scoped notice
 

@@ -135,15 +135,17 @@
     "submit": "登入",
     "signing_in": "登入中…",
     "locked": "已鎖定 ({{seconds}})",
+    "lockout_seconds": "{{seconds}} 秒",
     "show_password": "顯示密碼",
     "hide_password": "隱藏密碼",
     "session_expired": "裝置長時間無法連線。請重新登入以繼續。",
     "signing_in_to": "正在登入到 {{hostname}}",
+    "sign_in_to_label": "登入到",
     "signing_in_as": "以 {{hostname}} 登入",
     "recovery": {
       "toggle": "無法登入?",
       "intro": "如果您忘記了管理員密碼,有兩種恢復方式:",
-      "option_reset": "通過 SSH 連線到裝置並執行 <code>qmanager_reset_password</code> 以設定新的管理員密碼。(需要先啟用 SSH 訪問。)",
+      "option_reset": "通過 SSH 連線到裝置並執行 {{command}} 以設定新的管理員密碼。(需要先啟用 SSH 訪問。)",
       "option_backup": "如果您儲存了 .qmbackup 檔案,請重新刷寫裝置韌體,然後從該檔案中恢復。"
     },
     "session_expired_title": "工作階段已結束",

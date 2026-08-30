@@ -135,15 +135,17 @@
     "submit": "Masuk",
     "signing_in": "Sedang masuk…",
     "locked": "Terkunci ({{seconds}})",
+    "lockout_seconds": "{{seconds}} dtk",
     "show_password": "Tampilkan kata sandi",
     "hide_password": "Sembunyikan kata sandi",
     "session_expired": "Perangkat tidak dapat dijangkau terlalu lama. Masuk lagi untuk melanjutkan.",
     "signing_in_to": "Masuk ke {{hostname}}",
+    "sign_in_to_label": "Masuk ke",
     "signing_in_as": "Masuk sebagai {{hostname}}",
     "recovery": {
       "toggle": "Tidak bisa masuk?",
       "intro": "Jika Anda kehilangan kata sandi admin, ada dua jalur pemulihan:",
-      "option_reset": "Buka sesi SSH ke perangkat dan jalankan <code>qmanager_reset_password</code> untuk menetapkan kata sandi admin baru. (Memerlukan akses SSH yang sudah diaktifkan.)",
+      "option_reset": "Buka sesi SSH ke perangkat dan jalankan {{command}} untuk menetapkan kata sandi admin baru. (Memerlukan akses SSH yang sudah diaktifkan.)",
       "option_backup": "Jika Anda menyimpan file .qmbackup, flash ulang firmware perangkat lalu pulihkan dari file tersebut."
     },
     "session_expired_title": "Sesi berakhir",

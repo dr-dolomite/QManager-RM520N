@@ -21,7 +21,7 @@ import { ModeToggle } from "@/components/public/mode-toggle";
 
 const LoginPage = () => {
   return (
-    <div className="bg-background relative grid min-h-svh place-items-center p-7">
+    <div className="bg-background relative grid min-h-svh place-items-center p-4 sm:p-7">
       <div className="absolute top-4 right-4 z-10 flex items-center gap-1.5">
         <LoginLanguagePicker />
         {/* Here the trigger floats on the page background rather than sitting
@@ -34,7 +34,20 @@ const LoginPage = () => {
           className="bg-surface shadow-[var(--shadow-whisper)] hover:bg-surface-container"
         />
       </div>
-      <LoginComponent />
+      {/* The card's container-query context, and the element that owns its
+          width cap. The card queries THIS box rather than the viewport, so its
+          gutter step is a fact about how much room the card actually got --
+          which is the whole point of a container query and the reason the cap
+          lives out here instead of on the card itself.
+
+          The arithmetic, because it is easy to get wrong: at a 375px viewport
+          the page gutter is 2 x 16px, so this box resolves to 343px, below the
+          25rem/400px cliff, and the card takes its 24px step. The box only
+          reaches its 404px cap at a >=436px viewport, where the 34px step
+          takes over. */}
+      <div className="@container/login w-full max-w-[404px]">
+        <LoginComponent />
+      </div>
     </div>
   );
 };
