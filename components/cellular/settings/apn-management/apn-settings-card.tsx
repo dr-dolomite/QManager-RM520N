@@ -35,6 +35,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import type {
+  ApnSaveOutcome,
   ApnSaveRequest,
   ApnSetting,
   CidContext,
@@ -100,8 +101,8 @@ export interface ApnSettingsCardProps {
   activeCid: number | null;
   isLoading: boolean;
   isSaving: boolean;
-  onSave: (request: ApnSaveRequest) => Promise<boolean>;
-  onDeactivate: () => Promise<boolean>;
+  onSave: (request: ApnSaveRequest) => Promise<ApnSaveOutcome>;
+  onDeactivate: () => Promise<ApnSaveOutcome>;
 }
 
 /** CIDs offered when the modem's context list has not arrived. */
@@ -252,28 +253,41 @@ export function ApnSettingsCard({
     }
     setApnError("");
 
-    const success = await onSave({
+    const outcome = await onSave({
       apn: apnValue.trim(),
       pdp_type: pdpType,
       cid: parseInt(cid, 10),
     });
 
-    if (success) {
-      markSaved();
-      toast.success(t(`${K}.toast.saved`));
-    } else {
+    // THREE OUTCOMES, NOT TWO. "reconciling" means the attach cycle killed the
+    // link before the response could return — the write almost certainly
+    // landed, so announcing a failure would be a lie, and announcing success
+    // would be a different one. The toast says what is actually happening, and
+    // the page-header chip carries the verdict once the re-read lands.
+    if (outcome === "failed") {
       toast.error(t(`${K}.toast.save_error`));
+      return;
     }
+    markSaved();
+    toast.success(
+      t(outcome === "reconciling" ? `${K}.toast.reconciling` : `${K}.toast.saved`),
+    );
   };
 
   const handleDeactivate = async () => {
     setConfirmDeactivate(false);
-    const success = await onDeactivate();
-    if (success) {
-      toast.success(t(`${K}.toast.deactivated`));
-    } else {
+    const outcome = await onDeactivate();
+    if (outcome === "failed") {
       toast.error(t(`${K}.toast.deactivate_error`));
+      return;
     }
+    toast.success(
+      t(
+        outcome === "reconciling"
+          ? `${K}.toast.reconciling`
+          : `${K}.toast.deactivated`,
+      ),
+    );
   };
 
   return (

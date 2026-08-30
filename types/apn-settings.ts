@@ -65,6 +65,26 @@ export interface ApnSaveResponse {
   error?: string;
 }
 
+/**
+ * What a write to this endpoint actually resolved to.
+ *
+ * A BOOLEAN CANNOT CARRY THE THIRD CASE, which is why this type exists. Every
+ * write here runs a full attach cycle (`AT+COPS=2` … `AT+COPS=0`), and on this
+ * hardware that drops the `eth0` link for about four seconds — so a CGI that
+ * brackets the cycle inline finishes its work and then loses its HTTP response
+ * on the way back. The fetch rejects at the transport layer for a write that
+ * LANDED. Reporting that as `false` made the card toast "Failed to save APN
+ * settings" over a successful save, which is the one thing this surface must
+ * never do.
+ *
+ *   "saved"        the modem answered, and it answered yes
+ *   "reconciling"  no answer came back. The write probably landed; the delayed
+ *                  re-read is what will say. Not an error, and not a success
+ *                  to announce either
+ *   "failed"       the modem answered, and it answered no (or HTTP said no)
+ */
+export type ApnSaveOutcome = "saved" | "reconciling" | "failed";
+
 // --- API Request Types -------------------------------------------------------
 
 /** Request body for saving the APN configuration. */
