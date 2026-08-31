@@ -234,6 +234,8 @@ cat /etc/qmanager/VERSION
 ├── imei_backup.json
 └── last_iccid
 
+/etc/qmanager-backups/     # Root-only auth.json snapshots, newest 5 (0700 root:root)
+
 /etc/qmanager-secrets/     # Root-only alert credentials (0700 root:root)
 ├── discord_bot_token      # Raw Discord bot token (0600)
 ├── email_app_password     # Raw Gmail app password (0600)

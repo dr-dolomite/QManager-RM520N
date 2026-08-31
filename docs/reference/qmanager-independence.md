@@ -149,6 +149,8 @@ The daemon `EnvironmentFile` is the file that taught us this, the expensive way.
 | File | Location | Owner | Why |
 |------|----------|-------|-----|
 | `/etc/qmanager.env` | **Outside** `$CONF_DIR` | `root:root` `0644` | It is the systemd `EnvironmentFile=` for four **root-run** daemons (`qmanager-poller`, `qmanager-ping`, `qmanager-watchcat`, `qmanager-discord`) and **no CGI reads or writes it**. `/etc` is `root:root 0755` and unwritable by `www-data` (verified live), so the file is genuinely out of reach. |
+| `/etc/qmanager-secrets/` | **Outside** `$CONF_DIR` | `root:root` `0700` | The alert-channel credentials (Discord bot token, Gmail app password, `msmtprc`). No CGI reads them; `www-data` writes them only through the `qmanager_secret_set` root helper. Relocated in v0.1.14 by `migrate_alert_secrets()` — full rationale, helper contracts and support-bundle rules in [alerts.md](alerts.md#secret-storage-etcqmanager-secrets). |
+| `/etc/qmanager-backups/` | **Outside** `$CONF_DIR` | `root:root` `0700` | Timestamped `auth.json` snapshots — the QManager login password, one per install/OTA run, newest 5 kept. Only the installer reads or writes it, and a password *history* is precisely what a `www-data` compromise must not be able to read or replace. Relocated in v0.1.14 by [`migrate_backup_location()`](#migration-migrate_backup_location) below. |
 | `/etc/qmanager/ping_profile.json` | Inside `$CONF_DIR` | `www-data:www-data` | The CGI genuinely writes it (`settings/ping_profile.sh`, `monitoring/watchdog.sh`) — correct place, correct owner. |
 | `/etc/qmanager/sim_registry.json` | Inside `$CONF_DIR` | `www-data:www-data` | Same: a real `www-data` writer (the dismiss/undismiss CGI via `sim_registry.sh`). |
 
@@ -219,6 +221,101 @@ later reader — or a downgraded unit file — can pick up the abandoned copy.
 > successful relocation the old path stays empty forever and both become
 > permanent no-ops. That is expected, not a bug — do not "tidy up" by
 > retargeting them.
+
+#### Migration: `migrate_backup_location()`
+
+The auth-backup store is the **third and last** thing to leave `/etc/qmanager`,
+and reading it as a member of that family is more useful than reading it on its
+own. All three left for the identical reason — the parent-directory rule plus
+`qmanager_setup:177`'s unconditional boot-time `chown -R www-data:www-data
+/etc/qmanager` — and all three left the same way, by relocating rather than by
+pinning:
+
+| Moved | From | To | Function |
+| ----- | ---- | -- | -------- |
+| systemd `EnvironmentFile` | `/etc/qmanager/environment` | `/etc/qmanager.env` (`0644 root:root`) | `migrate_environment_location()` |
+| Alert-channel credentials | `/etc/qmanager/{discord_bot,email_alerts}.json`, `/etc/qmanager/msmtprc` | `/etc/qmanager-secrets/` (`0700 root:root`) | `migrate_alert_secrets()` |
+| Auth-backup store | `/etc/qmanager/backups` | `/etc/qmanager-backups` (`0700 root:root`) | `migrate_backup_location()` |
+
+F15 had already raised the old directory from a bare `mkdir -p` (measured `0777`
+on both shipped devices) to `install -d -o root -g root -m 0700`. That removed
+every *other* local uid, but it could not make the directory root-only while it
+sat inside the swept tree. **The relocation is what makes F15's mode pin mean
+what it says.** A chown exclusion list is explicitly not the alternative —
+`qmanager_setup:144-156` forbids that pattern in its own comment, because an
+exclusion addresses the boot-time sweep and leaves the parent-directory rule
+untouched, and the parent-directory rule alone is sufficient for the
+escalation.
+
+> ⚠️ WARNING: **Ordering is load-bearing, in two independent ways.**
+> `migrate_backup_location()` is called bare from `main()`, immediately after
+> `stop_services` — not from `install_backend()`'s migration block where the two
+> sibling relocations live and where this one would naturally be filed. Both
+> constraints are real:
+>
+> 1. It must run **before** `backup_originals()`. That function creates the
+>    store, copies in the fresh snapshot **and** prunes to the newest 5, all in
+>    one call. Migrating afterwards delivers the legacy snapshots after the
+>    prune has already happened, leaving up to 10 files with no further prune
+>    pass until the *next* OTA. Running first lets the existing prune operate
+>    over the merged set once, correctly.
+> 2. It must sit **outside** the `if [ "$DO_FRONTEND" = "1" ]` block, because
+>    `backup_originals()` is gated on that flag. A `--backend-only` run would
+>    otherwise never migrate — leaving the password snapshots in the swept
+>    directory on exactly the devices an operator was repairing. The function
+>    therefore creates the destination itself (`install -d -o root -g root -m
+>    0700`) rather than depending on `backup_originals` having done so.
+
+> ℹ️ NOTE: **Accepted consequence of that same asymmetry.** On a
+> `--backend-only` run the migration executes but `backup_originals` — and so
+> the prune-to-5 — does not, so a device whose legacy store held more than 5
+> snapshots can sit above the retention cap until the next ordinary run. Those
+> files were already unpruned in the old location; they are merely unpruned in a
+> safer one now. Deliberately not worth gating the security fix on.
+
+**It is not a copy of the two functions above it, because it moves a DIRECTORY
+OF N FILES rather than one file.** Two codings that are correct for a single
+file are actively wrong here:
+
+- **No directory-level `mv "$src" "$dst"`.** BusyBox `mv dir dir` does not fail
+  when the destination exists — it **nests** the source inside it. The
+  destination is created by `backup_originals()` on every run, so a bare `mv`
+  would bury every snapshot at `$BACKUP_DIR/backups/`, one level below the prune
+  loop's `ls -1 "$BACKUP_DIR"/auth.json.*` glob, orphaned on flash forever.
+  Hence a per-file copy loop.
+- **The "already migrated" gate keys on the OLD path (`[ -d
+  "/etc/qmanager/backups" ] || return 0`), never on the destination.** The
+  destination's existence carries no information about whether this migration
+  has run; the old path's presence is the only signal that means "there is still
+  work to do". Substituting a destination-existence check is the specific defect
+  the regression harness pins, which is why the literal path is spelled out
+  again at the gate rather than reusing `$src`.
+
+Within the loop it is copy → verify → unlink, one file at a time, with `cp -p`
+so mtimes survive; a partial failure leaves the remaining snapshots where they
+were rather than losing them. A same-name collision keeps the destination copy
+and discards the source — once this fix ships nothing writes to the old path
+again, so the only reachable collision is an earlier run whose trailing `rm -f`
+did not take effect, where the two files are byte-identical. `${f##*/}` rather
+than `$(basename "$f")`: a command substitution is the one construct in that
+loop whose non-zero exit is unguarded, so under `set -e` a `basename` failure
+would abort the installer mid-loop instead of warning and returning 0 like every
+other path there.
+
+Verified by a real migration run on the live RM520N-GL (serial `61368cd2`): five
+genuine snapshots at `/etc/qmanager/backups` (`700 www-data:www-data`) arrived at
+`/etc/qmanager-backups` (`700 root:root`) with identical md5 per file and mtimes
+preserved, the old directory was removed, and `/etc/qmanager` itself was
+untouched (still `755 www-data:www-data`). A second run was a clean idempotent
+no-op.
+
+**Uninstall.** `uninstall_rm520n.sh` removes `/etc/qmanager-backups` with its own
+explicit `rm -rf` inside the `--purge` branch, beside the two sibling paths —
+each needs its own line, because all three are outside `$CONF_DIR` and the
+`rm -rf "$CONF_DIR"` cannot reach them. Without it a purge leaves a history of
+the user's login password on a device they believe is clean. The non-purge run
+names the new path in its "config preserved" warning and says plainly that it
+still holds up to 5 password snapshots.
 
 `migrate_sim_registry()` is the other writer under `$CONF_DIR` and `chown www-data:www-data`s
 its temp — `sim_registry.json` **does** have a `www-data` writer (the

@@ -147,8 +147,8 @@ This is the load-bearing rationale. Do not "simplify" this back to a permission 
 
 - **Directory write permission governs unlink and rename, not the file's mode.** `www-data` *owns* `/etc/qmanager`, so it can delete a `root:root 0600` file there and drop in its own — or simply `chmod` a file it owns back to `0644`. A per-file pin inside that directory is decorative.
 - **A root-owned *subdirectory* does not help either.** The parent's owner can rename the subdirectory out of the way and put its own in its place. Nor does the sticky bit: the sticky-bit exemption covers the directory's owner, which *is* `www-data`.
-- **`qmanager_setup:139` runs a bare `chown -R www-data:www-data /etc/qmanager` on every boot**, with no exclusion list. Any ownership pin applied at install time therefore survives exactly one boot cycle.
-- **This was already learned the hard way.** The systemd `EnvironmentFile` used to live in that directory with a `root:root` carve-out; fielded devices were found with the pin flipped, and it was relocated to `/etc/qmanager.env`. `install_rm520n.sh:1333-1344` carries a standing instruction not to reintroduce carve-outs. Live evidence that relocation works: `/etc/qmanager.env` is still `root:root` today, after many boots.
+- **`qmanager_setup:177` runs a bare `chown -R www-data:www-data /etc/qmanager` on every boot**, with no exclusion list. Any ownership pin applied at install time therefore survives exactly one boot cycle.
+- **This was already learned the hard way, and the answer has been the same three times.** The systemd `EnvironmentFile` used to live in that directory with a `root:root` carve-out; fielded devices were found with the pin flipped, and it was relocated to `/etc/qmanager.env`. This secrets store was the second. The third is the **auth-backup store** — `/etc/qmanager/backups` → `/etc/qmanager-backups` (`0700 root:root`), holding the timestamped `auth.json` snapshots of the QManager login password — moved by `migrate_backup_location()` for exactly the reasons in this section, not for any new one. `install_rm520n.sh:1333-1344` carries a standing instruction not to reintroduce carve-outs. Live evidence that relocation works: `/etc/qmanager.env` is still `root:root` today, after many boots, and a real migration run on the RM520N-GL carried five existing snapshots across byte-for-byte. All three siblings are tabulated together in [qmanager-independence.md](qmanager-independence.md#-nothing-that-must-be-protected-from-www-data-may-live-in-etcqmanager).
 
 ### The layout
 
@@ -161,7 +161,7 @@ This is the load-bearing rationale. Do not "simplify" this back to a permission 
 /usr/bin/qmanager_email_send    0755 root:root   root helper (sudoers-gated)
 ```
 
-> ⚠️ WARNING: **The sibling relationship is the whole fix.** `qmanager_setup:139` chowns the literal path `/etc/qmanager`, so `-R` cannot descend into `/etc/qmanager-secrets`. That is a *structural* property — it holds for files that do not exist yet. A carve-out list inside the chown would fail open the moment someone adds a new secret and forgets to list it. Never move this directory under `/etc/qmanager`.
+> ⚠️ WARNING: **The sibling relationship is the whole fix.** `qmanager_setup:177` chowns the literal path `/etc/qmanager`, so `-R` cannot descend into `/etc/qmanager-secrets`. That is a *structural* property — it holds for files that do not exist yet. A carve-out list inside the chown would fail open the moment someone adds a new secret and forgets to list it. Never move this directory under `/etc/qmanager`.
 
 The installer creates the directory with `install -d -m 0700` (never `mkdir -p`, which no-ops on an existing directory and would let a drifted mode persist across every future OTA), then re-asserts `chown root:root` + `chmod 0700`. Every step is non-fatal — an abort inside `install_backend()` would kill an in-flight OTA with services already stopped.
 

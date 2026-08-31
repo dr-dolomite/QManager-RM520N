@@ -1318,10 +1318,11 @@ Cleared on every reboot (tmpfs). Files pre-created by `qmanager_setup` are marke
 | `/etc/qmanager/qmanager_sim_failover` | Watchcat Tier-3 SIM-failover record (persistent so it survives a Tier-4 reboot) |
 | `/etc/qmanager/last_iccid` | Last-landed SIM ICCID; written after a swap/revert so the poller's boot swap-detector doesn't false-fire |
 | `/etc/qmanager.env` | Optional environment overrides for the root-run systemd daemons (e.g., `QLOG_LEVEL=DEBUG`). **Outside `/etc/qmanager` on purpose** — `root:root 0644`, never `www-data`-writable. Relocated from `/etc/qmanager/environment` in v0.1.14; see [qmanager-independence.md](reference/qmanager-independence.md) |
+| `/etc/qmanager-backups/` | Installer-kept snapshots of `auth.json` (the login password), one per install/OTA run, newest 5 kept. **Outside `/etc/qmanager` on purpose** — `0700 root:root`, same relocation class as `/etc/qmanager.env` and the alert secrets store below. Moved from `/etc/qmanager/backups` in v0.1.14 by `migrate_backup_location()`; removed by `uninstall_rm520n.sh --purge`. See [qmanager-independence.md](reference/qmanager-independence.md#migration-migrate_backup_location) |
 
 ### Alert Secrets Store (`/etc/qmanager-secrets/`)
 
-**Outside `/etc/qmanager` on purpose, and a SIBLING rather than a child.** `www-data` owns `/etc/qmanager`, and directory write permission — not the file's mode — governs unlink and rename, so no mode or ownership pin *inside* that directory protects anything; `qmanager_setup:139`'s boot-time `chown -R www-data:www-data /etc/qmanager` then flattens whatever survived. Because that chown targets the literal path, `-R` cannot descend into a sibling. Same class of relocation as `/etc/qmanager.env` above. Full rationale, helper contracts, and migration behavior: [alerts.md](reference/alerts.md#secret-storage-etcqmanager-secrets).
+**Outside `/etc/qmanager` on purpose, and a SIBLING rather than a child.** `www-data` owns `/etc/qmanager`, and directory write permission — not the file's mode — governs unlink and rename, so no mode or ownership pin *inside* that directory protects anything; `qmanager_setup:177`'s boot-time `chown -R www-data:www-data /etc/qmanager` then flattens whatever survived. Because that chown targets the literal path, `-R` cannot descend into a sibling. Same class of relocation as `/etc/qmanager.env` above. Full rationale, helper contracts, and migration behavior: [alerts.md](reference/alerts.md#secret-storage-etcqmanager-secrets).
 
 | Path | Mode | Description |
 |------|------|-------------|
