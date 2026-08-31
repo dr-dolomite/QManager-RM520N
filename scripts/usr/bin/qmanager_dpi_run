@@ -18,7 +18,12 @@
 #                Runs every 60s from qmanager-dpi-ensure.timer. Always exits
 #                0 when the feature is disabled — the timer is unconditionally
 #                armed and its payload self-gates.
-#   --clear    — remove the REDIRECT rule and stop the engine.
+#   --clear    — whole-product teardown (uninstall_rm520n.sh only):
+#                remove EVERY rule the lib owns — the engine REDIRECT,
+#                the standalone QUIC force-TCP REJECT, and any legacy
+#                DSCP rule — then stop the engine. Ungated: unlike the
+#                engine's own UI uninstall, this runs when QManager
+#                itself is going away, so nothing may be left behind.
 #
 # Exit codes: 0 = clean (incl. gated), 1 = retryable failure.
 #
@@ -60,8 +65,30 @@ case "$cmd" in
         exit 0
         ;;
     --clear)
+        # Unconditional whole-product teardown. Invoked from exactly one
+        # site in the tree -- uninstall_rm520n.sh -- so it needs no config
+        # gate: by the time it runs, the intent is "QManager is going away".
+        #
+        # It must drain EVERY rule dpi_state.sh owns, not just the engine's
+        # REDIRECT. The two QUIC rules are deliberately ungated on the
+        # engine's enabled state and re-asserted every 60s by --ensure so
+        # they survive QCMAP's iptables flush on re-dial; that is correct
+        # while QManager is installed, and it is exactly what makes them
+        # fatal to leave behind. Without the force-TCP drain, uninstalling
+        # with the toggle on leaves every bridge0 LAN client's QUIC
+        # (UDP/443) REJECTed indefinitely with nothing left to remove it.
+        #
+        # This does NOT break the QUIC rules' "standalone from the engine"
+        # contract: the Traffic Engine's own UI uninstall calls
+        # dpi_remove_rule directly via _dpi_uninstall_run and never reaches
+        # this verb, so an engine-only uninstall still leaves the user's
+        # Force-TCP toggle alone. Do not route _dpi_uninstall_run through
+        # --clear to deduplicate -- that seam is load-bearing, and
+        # dpi-uninstall-path-symmetry.sh section [5] fails if it closes.
         dpi_remove_rule
-        qlog_info "clear: REDIRECT rule removed"
+        dpi_remove_force_tcp_rule
+        dpi_purge_legacy_dscp_rule
+        qlog_info "clear: REDIRECT, force-TCP and legacy DSCP rules removed"
         svc_stop qmanager-dpi
         exit 0
         ;;
