@@ -159,6 +159,16 @@ fi
 #     /etc/qmanager/backups and /usrdata/qmanager/locales-packs were all
 #     777 on the RM520N-GL (61368cd2) AND the RG501Q-EU (b7e3d6f1).
 #
+#     ⚠ $BACKUP_DIR HAS SINCE MOVED. F22 relocated it from
+#     /etc/qmanager/backups to /etc/qmanager-backups — the measurement above
+#     is a historical record of the OLD path and is left as written rather
+#     than rewritten, because it is what motivated both fixes. The
+#     assertions below match on the "$BACKUP_DIR" VARIABLE rather than any
+#     literal path, so they follow the relocation unchanged and still pin
+#     exactly what F15 pinned. The relocation itself is covered by
+#     installer-backup-store-relocation.sh, which also asserts that this
+#     harness's `install -d -o root -g root -m 0700` requirement survives.
+#
 #     Mechanism: install_rm520n.sh:624 records that the install shell runs
 #     at umask 0000, so a bare `mkdir -p` yields 0777 — and because
 #     `mkdir -p` no-ops on an existing directory, that mode then survives
@@ -179,7 +189,14 @@ fi
 #       /etc/profile.d                   0755  ordinary system directory
 #       $BACKUP_DIR                      0700  auth.json snapshots; the
 #                                              installer is its only reader
-#                                              and only writer
+#                                              and only writer. Since F22
+#                                              this is /etc/qmanager-backups,
+#                                              outside the tree qmanager_setup
+#                                              chowns to www-data every boot —
+#                                              so the -o root -g root half of
+#                                              the pin is now durable too,
+#                                              which it was not when F15
+#                                              landed
 #       /usrdata/qmanager/locales-packs  0755  root-writable ONLY, but it
 #                                              MUST stay world-READABLE —
 #                                              language-packs/list.sh is a

@@ -641,6 +641,17 @@ if [ "$PURGE" = "1" ]; then
     rm -rf /etc/qmanager-secrets
     info "Purged alert secrets store (/etc/qmanager-secrets)"
 
+    # Auth-backup store — the timestamped auth.json snapshots, i.e. the
+    # operator's QManager login password, up to 5 generations of it. Third
+    # member of the same orphan class as the two above: it deliberately lives
+    # OUTSIDE $CONF_DIR because /etc/qmanager is www-data-owned and nothing
+    # inside it can be protected from www-data (see migrate_backup_location()
+    # in install_rm520n.sh), so the `rm -rf "$CONF_DIR"` above does not reach
+    # it. Without this line a purge uninstall leaves the password history on
+    # disk after the user believes QManager is gone.
+    rm -rf /etc/qmanager-backups
+    info "Purged auth backup store (/etc/qmanager-backups)"
+
     # Sidecar state files that live directly under $QMANAGER_ROOT (siblings
     # of www/, not inside it — install_frontend's www-wipe-and-recopy never
     # touches these, so they must be cleaned up here explicitly).
@@ -663,8 +674,9 @@ if [ "$PURGE" = "1" ]; then
     rm -rf "$QMANAGER_ROOT/locales-packs" "$QMANAGER_ROOT/locales-staging"
     info "Purged language-pack store (locales-packs, locales-staging)"
 elif [ -d "$CONF_DIR" ]; then
-    warn "Config preserved at $CONF_DIR, /etc/qmanager.env and /etc/qmanager-secrets (use --purge to remove)"
+    warn "Config preserved at $CONF_DIR, /etc/qmanager.env, /etc/qmanager-secrets and /etc/qmanager-backups (use --purge to remove)"
     warn "/etc/qmanager-secrets still holds the Discord token / email app password (root-only, 0700)"
+    warn "/etc/qmanager-backups still holds up to 5 auth.json password snapshots (root-only, 0700)"
 fi
 
 # Custom DNS staging dir (/etc/data/qmanager) — installer-created scratch space

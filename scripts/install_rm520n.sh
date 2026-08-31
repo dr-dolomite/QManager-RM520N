@@ -87,7 +87,15 @@ CONF_DIR="/etc/qmanager"
 SECRETS_DIR="/etc/qmanager-secrets"
 CERT_DIR="/usrdata/qmanager/certs"
 SESSION_DIR="/tmp/qmanager_sessions"
-BACKUP_DIR="/etc/qmanager/backups"
+# Timestamped auth.json snapshots (the QManager login password), one per
+# install/OTA run, newest 5 kept. Deliberately a SIBLING of $CONF_DIR for the
+# same reason as $SECRETS_DIR above and /etc/qmanager.env: www-data owns
+# $CONF_DIR, and unlink/rename permission comes from the PARENT directory, so
+# nothing inside it can be protected from www-data no matter its own owner or
+# mode — and qmanager_setup:177 chowns the whole tree to www-data on every
+# boot anyway. This lived at /etc/qmanager/backups until F22. See
+# migrate_backup_location().
+BACKUP_DIR="/etc/qmanager-backups"
 LIGHTTPD_CONF="/usrdata/qmanager/lighttpd.conf"
 
 # Source directories (relative to INSTALL_DIR)
@@ -1379,15 +1387,20 @@ backup_originals() {
     # individually 0600, but a world-writable, non-sticky parent lets any uid
     # unlink and replace them regardless of the files' own mode.
     #
-    # 0700 is the durable part; -o root -g root is NOT. qmanager_setup:177
-    # runs `chown -R www-data:www-data /etc/qmanager` unconditionally on every
-    # boot, so from the first boot after any install or OTA this directory is
-    # owned by www-data. chown does not touch the mode, so 0700 survives and
-    # simply means "www-data only" rather than "root only" — root bypasses DAC
-    # either way, and the installer (the only thing in the tree that reads or
-    # writes here) runs as root. The security property being bought is
-    # therefore "no OTHER local uid", not a root-owned boundary; nothing
-    # root-pinned can persist in /etc/qmanager at all.
+    # BOTH halves are durable now, which was NOT true before F22. This store
+    # used to sit at /etc/qmanager/backups, where `-o root -g root` was
+    # decorative: qmanager_setup:177 runs `chown -R www-data:www-data
+    # /etc/qmanager` unconditionally on every boot, so the pin survived
+    # exactly one boot cycle and 0700 then meant "www-data only" rather than
+    # "root only". F22 moved $BACKUP_DIR out to a sibling under root-owned
+    # /etc (see migrate_backup_location()), which the boot-time sweep does not
+    # reach — so root ownership now persists and 0700 means what it says.
+    #
+    # This is a real boundary and not just tidiness: the installer is the only
+    # reader and the only writer here (the cp below and the prune loop under
+    # it), and it runs as root. Nothing else in the tree — no CGI, no root
+    # helper, no restore path — touches the store, so there is no consumer
+    # that a root-only mode could break.
     install -d -o root -g root -m 0700 "$BACKUP_DIR"
 
     # Backup existing QManager auth (preserves password across upgrades)
@@ -2633,6 +2646,163 @@ migrate_environment_location() {
     fi
 }
 
+# --- Relocate the auth-backup store out of /etc/qmanager ---------------------
+
+# SECURITY (F22). Moves /etc/qmanager/backups/* -> /etc/qmanager-backups/.
+#
+# That store holds timestamped auth.json snapshots — the QManager login
+# password, one per install/OTA run, newest 5 kept. It is the third and last
+# thing to leave /etc/qmanager for the reasons migrate_environment_location()
+# spells out in full above and migrate_alert_secrets() repeats below: www-data
+# OWNS /etc/qmanager, unlink/rename permission comes from the parent directory
+# rather than the entry, and qmanager_setup:177 chowns the whole tree to
+# www-data on every boot with no exclusion list. So no per-file owner or mode
+# inside that directory means anything, and an exclusion list is not the fix —
+# qmanager_setup:144-156 forbids that pattern in its own comment, because it
+# addresses the boot-time sweep while leaving the parent-directory rule
+# untouched, and the parent-directory rule alone is sufficient.
+#
+# F15 had already raised this directory from a bare `mkdir -p` (measured 0777
+# on both shipped devices) to `install -d -o root -g root -m 0700`. That was a
+# real improvement — it removed every OTHER local uid — but it could not make
+# the directory root-only while it lived inside the swept tree. Relocation is
+# what makes F15's mode pin mean what it says.
+#
+# WHY THIS IS NOT A COPY OF THE TWO FUNCTIONS AROUND IT
+# -----------------------------------------------------
+# Both of those move a single FILE. This moves a DIRECTORY OF N FILES into a
+# destination that ALREADY EXISTS on essentially every run, and two codings
+# that are correct for one file are actively wrong here:
+#
+#   - No directory-level `mv "$src" "$dst"`. BusyBox `mv dir dir` does not
+#     fail when the destination exists — it NESTS the source inside it. The
+#     destination is created by backup_originals() on every run, so a bare mv
+#     would bury every snapshot at $BACKUP_DIR/backups/, one level below the
+#     prune loop's `ls -1 "$BACKUP_DIR"/auth.json.*` glob, orphaned on flash
+#     forever. Hence the per-file copy loop below.
+#   - No `[ -e "$dst" ] && return` completion check, for the same reason: the
+#     destination's existence carries no information about whether this
+#     migration has run. The gate keys on the OLD path instead, which is the
+#     only signal that actually means "there is still work to do".
+#
+# ORDERING — this must run BEFORE backup_originals(), and OUTSIDE the
+# `if [ "$DO_FRONTEND" = "1" ]` block that guards it in main(). Two separate
+# reasons, both load-bearing:
+#
+#   1. backup_originals() creates the store, copies in the fresh snapshot AND
+#      prunes to the newest 5, all in one call. Running this migration after
+#      that — e.g. from install_backend()'s migration block, where the two
+#      sibling relocations live and where this one would naturally be filed —
+#      delivers the legacy snapshots after the prune has already happened,
+#      leaving up to 10 files with no further prune pass until the NEXT OTA.
+#      Running first lets the existing prune operate over the merged set once,
+#      correctly.
+#   2. backup_originals() is gated on DO_FRONTEND. A `--backend-only` run
+#      would therefore never migrate — leaving the password snapshots sitting
+#      in the swept directory on exactly the devices an operator was
+#      repairing. So the call site is unconditional, and this function creates
+#      the destination itself rather than depending on backup_originals having
+#      already done so.
+#
+# Idempotent, and never aborts the installer: this file runs under `set -e`,
+# the call site is bare in main() with services already stopped, so every
+# failure path warns and returns 0. Each original is unlinked only after its
+# own copy has succeeded — a partial failure leaves the remaining snapshots
+# where they were rather than losing them.
+migrate_backup_location() {
+    local src="/etc/qmanager/backups"
+    local dst="$BACKUP_DIR"
+    local migrated=0
+    local skipped=0
+    local failed=0
+    local f base
+
+    # Gate on the OLD path only — never on the destination, which exists on
+    # essentially every run. Once the old path is gone this is a permanent
+    # no-op, which is expected rather than a bug.
+    #
+    # The literal is spelled out again rather than reusing $src so the
+    # regression harness can anchor this gate by text: substituting a
+    # destination-existence check here is the specific defect it pins.
+    [ -d "/etc/qmanager/backups" ] || return 0
+
+    # Refuse to migrate onto ourselves. Nothing sets $BACKUP_DIR back to the
+    # old path, but a bad edit that did would otherwise make the loop below
+    # copy each file onto itself and then unlink it — deleting the store.
+    if [ "$src" = "$dst" ]; then
+        echo "  WARNING: \$BACKUP_DIR is still $src — skipping relocation" >&2
+        return 0
+    fi
+
+    echo "  Relocating $src -> $dst (security: out of the www-data-owned dir) ..."
+
+    # Create the destination ourselves; see ORDERING note 2 above. Same flags
+    # as backup_originals() so a --backend-only run gets the same mode.
+    if [ ! -d "$dst" ]; then
+        install -d -o root -g root -m 0700 "$dst" 2>/dev/null || {
+            echo "  WARNING: could not create $dst — leaving $src in place" >&2
+            return 0
+        }
+    fi
+
+    for f in "$src"/*; do
+        # Literal glob when the directory is empty — nothing matched.
+        [ -e "$f" ] || continue
+        [ -f "$f" ] || continue
+        base=$(basename "$f")
+
+        # Collision: keep what is already at the destination. Timestamps are
+        # second-resolution so this is near-impossible in practice, but the
+        # safe direction is unambiguous — this function runs BEFORE
+        # backup_originals takes today's snapshot, so anything already at the
+        # destination is at least as current as what we are carrying over.
+        if [ -e "$dst/$base" ]; then
+            echo "  WARNING: $dst/$base already exists — keeping it, discarding the copy at $src" >&2
+            rm -f "$f" 2>/dev/null || true
+            skipped=$((skipped + 1))
+            continue
+        fi
+
+        # Copy-then-verify-then-unlink, one file at a time. `cp -p` preserves
+        # the 0600 the snapshots already carry; the chown is belt-and-braces
+        # for the case where the source file had drifted to www-data (which is
+        # the normal state on every fielded device — that is the whole bug).
+        if cp -p "$f" "$dst/$base" 2>/dev/null; then
+            chown root:root "$dst/$base" 2>/dev/null || true
+            rm -f "$f" 2>/dev/null || true
+            migrated=$((migrated + 1))
+        else
+            rm -f "$dst/$base" 2>/dev/null || true
+            failed=$((failed + 1))
+        fi
+    done
+
+    if [ "$failed" -gt 0 ]; then
+        echo "  WARNING: $failed snapshot(s) could not be copied — left in $src" >&2
+    fi
+
+    # Best-effort. Fails harmlessly and by design if anything is left behind,
+    # which is exactly the case where we want the old directory kept.
+    rmdir "$src" 2>/dev/null || true
+
+    if [ -d "$src" ]; then
+        echo "  Relocated $migrated snapshot(s) to $dst; $src kept (not empty)"
+    else
+        echo "  Relocated $migrated snapshot(s) to $dst (root:root 0700), removed $src"
+    fi
+    # A full `if` rather than `[ cond ] && echo`. Under `set -e` the AND-list
+    # form evaluates to 1 when the condition is false, and errexit DOES apply
+    # to the list as a whole — so the common `[ x ] && echo` idiom placed
+    # mid-function aborts the installer on the ordinary path where nothing was
+    # skipped. Exactly the failure this function's header promises never to
+    # cause.
+    if [ "$skipped" -gt 0 ]; then
+        echo "  Discarded $skipped stale duplicate(s)"
+    fi
+
+    return 0
+}
+
 # --- Relocate alert secrets out of the www-data-owned config dir -------------
 
 # WHY THIS EXISTS — the same story as migrate_environment_location() above, one
@@ -3742,6 +3912,18 @@ main() {
     setup_ssh_early
 
     stop_services
+
+    # F22 — relocate the auth-backup store out of the www-data-owned
+    # /etc/qmanager. Placement here is load-bearing in two ways, both of which
+    # a natural filing alongside the other migrations in install_backend()
+    # would get wrong; see the function's ORDERING note:
+    #   - BEFORE backup_originals, which creates the store, takes the fresh
+    #     snapshot AND prunes to the newest 5 in one call. Migrating after
+    #     that leaves up to 10 files with no prune pass until the next OTA.
+    #   - OUTSIDE the DO_FRONTEND gate below, so a --backend-only run migrates
+    #     too. Otherwise the password snapshots stay in the swept directory on
+    #     exactly the devices someone is repairing.
+    migrate_backup_location
 
     if [ "$DO_FRONTEND" = "1" ]; then
         backup_originals
