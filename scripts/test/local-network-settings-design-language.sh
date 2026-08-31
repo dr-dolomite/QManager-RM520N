@@ -806,6 +806,46 @@ else
         ok "ttlMtu / customDns / ipPassthrough at parity across all five locales"
     fi
 
+    # PARITY ALONE IS GAMEABLE, and the Done bar would not catch it.
+    # `i18n:check` treats an untranslated passthrough (value identical to
+    # English) as a WARNING, never an error, and exits 0. So an agent mirroring
+    # ~180 keys into four locales can paste the English verbatim and satisfy
+    # every other gate while warnings silently climb from 12 into the hundreds.
+    #
+    # Checked on zh-CN and zh-TW only. Those are the two locales where an
+    # English string is unambiguously untranslated; `it` and `id` legitimately
+    # keep some values identical ("IP Passthrough", "MTU", "DNS"), which is why
+    # the shipped passthrough allowlist exists at all.
+    engpaste=$("$node_bin" -e '
+        const fs = require("fs");
+        const root = process.argv[1];
+        const flat = (o, p = "") => Object.entries(o || {}).flatMap(([k, v]) =>
+            v && typeof v === "object" ? flat(v, p + k + ".") : [[p + k, v]]);
+        const en = JSON.parse(fs.readFileSync(root + "/en/common.json", "utf8"));
+        const out = [];
+        for (const blk of ["ttlMtu", "customDns", "ipPassthrough"]) {
+            const enPairs = flat(en[blk]);
+            if (!enPairs.length) continue;
+            for (const loc of ["zh-CN", "zh-TW"]) {
+                const o = JSON.parse(fs.readFileSync(root + "/" + loc + "/common.json", "utf8"))[blk];
+                const have = new Map(flat(o));
+                // A value is "pasted" when it is identical to English AND
+                // contains a Latin letter -- a bare number or a token like
+                // "1.1.1.1" is correctly identical in every locale.
+                const same = enPairs.filter(([k, v]) =>
+                    typeof v === "string" && /[A-Za-z]{3}/.test(v) && have.get(k) === v);
+                if (same.length) out.push(loc + "/" + blk + ": " + same.length + " English value(s) e.g. " + same.slice(0, 3).map(([k]) => k).join(", "));
+            }
+        }
+        process.stdout.write(out.join(" | "));
+    ' "$LOCALES" 2>/dev/null)
+    if [ -n "$engpaste" ]; then
+        show "$engpaste"
+        bad "English values were pasted into a CJK locale -- parity is met but nothing was translated"
+    else
+        ok "no English values pasted into zh-CN / zh-TW"
+    fi
+
     # The locale packs are 100% CRLF and core.autocrlf=true, so `git diff` is
     # BLIND to an accidental LF conversion introduced by a naive
     # JSON.parse -> JSON.stringify round-trip. Only a byte read tells.
@@ -835,55 +875,160 @@ printf '\n[14] Honesty: the capabilities the backend reports are RENDERED\n'
 
 # Finding 2: custom_dns.sh:250 emits blockCorrupt; types/custom-dns.ts:38
 # declares it and its JSDoc says "Frontend offers a recovery action".
-# The hook never surfaces it and no component reads it -- so a malformed
-# dnsmasq block renders IDENTICALLY to a healthy one.
-if grep -qE '\bblockCorrupt\b' "$TMPD/dnshook.code"; then
-    ok "use-custom-dns surfaces blockCorrupt"
-else
-    bad "use-custom-dns does not surface blockCorrupt -- a damaged config renders as healthy"
-fi
+# No component reads it -- so a malformed dnsmasq block renders IDENTICALLY to
+# a healthy one.
+#
+# NO HOOK ASSERTION. `blockCorrupt?: boolean` is already on
+# CustomDnsSettingsResponse (types/custom-dns.ts:38) and use-custom-dns.ts:213
+# already returns `settings` verbatim, so the field is reachable TODAY without
+# any hook edit. An assertion that the hook mentions it would mandate a
+# redundant duplicate field and be satisfied by a dead local. What matters is
+# that a COMPONENT renders it.
 if grep -qE '\bblockCorrupt\b' "$TMPD/dnscard.code" || grep -qE '\bblockCorrupt\b' "$TMPD/dnsshell.code"; then
     ok "a component reads blockCorrupt"
 else
-    bad "no component reads blockCorrupt"
+    bad "no component reads blockCorrupt -- a damaged config renders as healthy"
+fi
+# It is rendered as a NON-BLOCKING notice (see the clearSettings ban below), so
+# the lucide Banner must be present to carry it.
+if grep -qE 'from "@/components/ui/banner"' "$TMPD/dnscard.code" || grep -qE 'from "@/components/ui/banner"' "$TMPD/dnsshell.code"; then
+    ok "custom-dns imports the lucide Banner for the corruption notice"
+else
+    bad "custom-dns has no Banner -- blockCorrupt has nothing to render into"
 fi
 
-# Finding 3: the recovery verb clearSettings is implemented at
-# use-custom-dns.ts:173 and a tree-wide grep returns the hook and nothing else.
+# Finding 3, INVERTED by measurement. The proposal wired clearSettings to a
+# "Rebuild the block" button. The verb is DESTRUCTIVE in exactly the state that
+# button would be offered:
+#
+#   custom_dns.sh:280-284  action=clear -> save with enabled=false
+#   custom_dns.sh:139-151  strip_sentinel_block sets in_block=1 on BEGIN and
+#                          clears it only on END
+#
+# blockCorrupt is DEFINED as one sentinel without the other (custom_dns.sh:
+# 132-133). With BEGIN-without-END, in_block never returns to 0 and every
+# subsequent line is dropped -- listen-address, dhcp-authoritative, conf-dir.
+# `dnsmasq --test` (:405) does NOT catch it: the truncated file is syntactically
+# valid, merely missing directives. Then sudo /bin/mv (:417) installs it and
+# killall -HUP (:427) makes it live, on a device reached over that LAN.
+#
+# The proposed copy -- "Nothing outside the markers is touched" -- is the exact
+# inverse of the behaviour.
+#
+# Compounding it, blockCorrupt has a FALSE-POSITIVE path: parse_sentinel_block
+# (:116-134) uses `while IFS= read -r line`, whose body never runs for a final
+# line with no trailing newline. A healthy file ending at the END marker
+# returns 2. custom_dns.sh:423 deliberately chowns the file back to radio:radio
+# so QCMAP can keep rewriting it.
+#
+# USER DECISION 2026-08-31: warn only, no button. So this assertion is a BAN.
 callsite=$(grep -rnE '\bclearSettings\b' --include='*.tsx' "$DNS_DIR" 2>/dev/null || true)
 if [ -n "$callsite" ]; then
-    ok "clearSettings has a call site outside the hook"
+    show "$callsite"
+    bad "clearSettings is wired -- it destroys config outside the markers (custom_dns.sh:139-151)"
 else
-    bad "clearSettings still has no call site -- the recovery action finding 2 promises does not exist"
+    ok "clearSettings stays unwired -- the destructive verb is not offered"
 fi
 
 # Finding 4: fieldError is destructured at custom-dns-card.tsx:89 and never
-# rendered. The user gets a generic band where the backend supplied the
-# specific row and reason. Two references = destructured AND used.
-fe=$(grep -cE '\bfieldError\b' "$TMPD/dnscard.code" || true)
-if [ "${fe:-0}" -ge 2 ]; then
-    ok "fieldError is rendered, not just destructured ($fe references)"
+# rendered. The user gets a generic band where the backend supplied the reason.
+#
+# SCOPED BY MEASUREMENT: `field` is only ever "enabled", "ignore_carrier" or
+# "servers" (custom_dns.sh:301,310,332,353,361,372) -- NEVER a row index. Six
+# other failure paths carry no `field` at all. Per-row targeting would require
+# string-parsing the prose message, so what is required is that the MESSAGE is
+# rendered, keyed to the resolver group when field === "servers".
+#
+# A count >= 2 would be satisfied by `disabled={!!fieldError}` rendering
+# nothing, so the assertion requires the token inside a JSX expression.
+fe=$(grep -nE '\{[^}]*fieldError|fieldError\?\.message|fieldError\.message' "$TMPD/dnscard.code" || true)
+if [ -n "$fe" ]; then
+    ok "fieldError.message is rendered, not merely destructured"
 else
-    bad "fieldError appears ${fe:-0} time(s) -- destructured but never rendered"
+    bad "fieldError is not rendered in a JSX expression -- destructured but unused"
 fi
 
-# Finding 5: use-ttl-settings.ts:27 types autostart. No component reads it.
-if grep -qE '\bautostart\b' "$TMPD/ttlcard.code" || grep -qE '\bautostart\b' "$TMPD/ttlshell.code"; then
-    ok "a component reads autostart"
+# Finding 5, INVERTED by measurement. The proposal rendered `autostart` as an
+# "ON REBOOT -> Reapplied / Nothing set" tile.
+#
+#   ttl.sh:48-51          autostart = svc_is_enabled "$TTL_INIT"
+#   platform.sh:130-133   svc_is_enabled() { [ -L "$_WANTS_DIR/$unit" ]; }
+#
+# That is purely "does the boot symlink exist". install_rm520n.sh:3106-3161
+# globs every qmanager-*.service and qmanager-ttl is in neither the skip list
+# nor UCI_GATED_SERVICES (:118), so EVERY install and EVERY OTA re-creates it.
+# The field is true on every device, forever.
+#
+# It is also not sufficient for reapplication: the unit carries
+# ConditionPathExists=/etc/qmanager/ttl_state, and ttl_state_write_persisted
+# (ttl_state.sh:119-122) DELETES that file when ttl and hl are both 0. A fresh
+# device is autostart:true with nothing to reapply -- the tile would read
+# "Reapplied" while nothing is set.
+#
+# USER DECISION 2026-08-31: drop the tile. Three-tile band. So this is a BAN --
+# rendering a constant as if it were a reading is worse than not showing it.
+auto=$(grep -nE '\bautostart\b' "$TMPD/ttlcard.code" "$TMPD/mtucard.code" "$TMPD/ttlshell.code" || true)
+if [ -n "$auto" ]; then
+    show "$auto"
+    bad "autostart is rendered -- it is a compile-time constant true, so the tile would be a confident lie"
 else
-    bad "autostart is still fetched, typed, and never shown"
+    ok "autostart stays unrendered -- the band is three honest tiles"
+fi
+
+# Same class of defect: get_passthrough_bypass (custom_dns.sh:70-75) is a stub
+# that returns the literal "false" with a TODO. Rendering it draws a constant.
+pb=$(grep -nE '\bpassthroughBypass\b' "$TMPD/dnscard.code" "$TMPD/dnsshell.code" || true)
+if [ -n "$pb" ]; then
+    show "$pb"
+    bad "passthroughBypass is rendered -- custom_dns.sh:70-75 hardcodes it to false"
+else
+    ok "passthroughBypass stays unrendered -- it is a stub, not a reading"
 fi
 
 # Finding 6: both hooks export refresh; neither card destructures it, so a
 # failed GET leaves a permanent skeleton with no way out.
-for pair in "ttlcard:ttl-settings-card" "mtucard:mtu-settings-card"; do
-    name="${pair%%:*}"; label="${pair#*:}"
-    if grep -qE '\brefresh\b' "$TMPD/$name.code"; then
-        ok "$label destructures refresh -- a failed read can be retried"
-    else
-        bad "$label does not destructure refresh -- a failed GET is a permanent skeleton"
-    fi
-done
+#
+# CARD **OR** SHELL. The reference puts the fetch and the Refresh pill in the
+# SHELL (ethernet-status.tsx:90 owns fetchStatus, :290 wires the pill;
+# speed-limit-card.tsx owns no hook at all), and the TTL band needs BOTH hooks,
+# which forces them up into ttl-settings.tsx. Requiring `refresh` in the cards
+# specifically would FAIL a build that correctly follows the reference -- an
+# assertion that fails against correct code, which is as bad as one that passes
+# against broken code. Caught by the devil's advocate before any builder ran.
+if grep -qE '\brefresh\b' "$TMPD/ttlshell.code"; then
+    ok "the TTL shell owns refresh -- a failed read can be retried"
+elif grep -qE '\brefresh\b' "$TMPD/ttlcard.code" && grep -qE '\brefresh\b' "$TMPD/mtucard.code"; then
+    ok "both TTL cards destructure refresh"
+else
+    bad "neither the TTL shell nor both cards expose refresh -- a failed GET is a permanent skeleton"
+fi
+
+# refresh takes an argument: use-ttl-settings.ts:220 returns `refresh: fetchTtl`
+# and fetchTtl is `useCallback(async (silent = false) => ...)`. `onClick={refresh}`
+# passes a MouseEvent as `silent`, suppressing the loading state. The reference
+# gets this right: onClick={() => fetchStatus()} (ethernet-status.tsx:290).
+badwire=$(grep -nE 'onClick=\{refresh\}|onClick=\{fetch[A-Za-z]*\}' "$TMPD/family.code" || true)
+if [ -n "$badwire" ]; then
+    show "$badwire"
+    bad "onClick={refresh} passes a MouseEvent as the silent flag -- wrap it: onClick={() => refresh()}"
+else
+    ok "no bare onClick={refresh} -- the silent flag is not clobbered"
+fi
+
+# The cross-page claim the design proposed is FALSE and must not ship.
+# A tree-wide grep finds exactly ONE file mentioning mobileap_cfg
+# (custom_dns.sh) and it only READS <DNSMode> (:58 xmlstarlet sel, :60 grep).
+# docs/reference/custom-dns.md:223 documents the field as a read-time
+# availability gate. Nothing in QManager can change it, so a button sending the
+# user to IP Passthrough to "switch DNS mode" leads to a page with no such
+# control.
+xlink=$(grep -nE '/local-network/ip-passthrough' "$TMPD/dnscard.code" "$TMPD/dnsshell.code" || true)
+if [ -n "$xlink" ]; then
+    show "$xlink"
+    bad "custom-dns links to ip-passthrough to change DNS mode -- no such control exists"
+else
+    ok "no false cross-page DNS-mode link"
+fi
 
 # -----------------------------------------------------------------------------
 printf '\n[15] Consequence before decision, and no silent no-op\n'
@@ -920,16 +1065,38 @@ else
     bad "the reboot confirm dialog was removed -- veto A kept it deliberately"
 fi
 
+# THE REBOOT HANDOFF IS LOAD-BEARING AND THE DIALOG CHECK DOES NOT COVER IT.
+# ip-passthrough-card.tsx:180-182 does three things in order, and cgi_base.sh:
+# 216-235 returns {"success":true} immediately and then polls in a backgrounded
+# subshell for /tmp/qmanager_reboot_ack before actually rebooting -- the
+# /reboot/ page writes that marker on mount.
+#
+# The existing path is ALREADY the correct deferred-reboot contract (CLAUDE.md:
+# no in-flight reboot). A re-author that keeps the dialog but drops any one of
+# these three lines ships GREEN with a broken reboot: a dead page, a stale login
+# cookie, or a reboot delayed to QM_REBOOT_ACK_TIMEOUT.
+for tok in 'qm_rebooting' 'qm_logged_in=' '"/reboot/"'; do
+    if grep -qF "$tok" "$TMPD/iptcard.code"; then
+        ok "the reboot handoff keeps $tok"
+    else
+        bad "the reboot handoff lost $tok -- the deferred-reboot contract breaks silently"
+    fi
+done
+
 # Finding 17: the silent no-op. ttl-settings-card.tsx:175 --
 # `if (isEnabled && ttl === 0 && hl === 0) return;` -- the form is dirty so the
 # button is live, the click does nothing, and the only feedback is a field error
 # already on screen before the press.
-noop=$(grep -nE 'ttl === 0 && hl === 0' "$TMPD/ttlcard.code" || true)
+#
+# Banned in every spelling that preserves the behaviour. Anchoring to one
+# literal spelling would let `!ttl && !hl` or a whitespace change pass while the
+# defect survives.
+noop=$(grep -nE 'ttl\s*===?\s*0\s*&&\s*hl\s*===?\s*0|hl\s*===?\s*0\s*&&\s*ttl\s*===?\s*0|!\s*ttl\s*&&\s*!\s*hl|!\s*hl\s*&&\s*!\s*ttl' "$TMPD/ttlcard.code" "$TMPD/ttlshell.code" || true)
 if [ -n "$noop" ]; then
     show "$noop"
     bad "the silent no-op survives -- a live button whose click does nothing"
 else
-    ok "the silent no-op is gone"
+    ok "the silent no-op is gone, in every spelling"
 fi
 
 # -----------------------------------------------------------------------------
