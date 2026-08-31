@@ -6,27 +6,53 @@ import { authFetch } from "@/lib/auth-fetch";
 // =============================================================================
 // useCdnHostlist — Traffic Engine Video Optimizer hostlist hook
 // =============================================================================
-// Reads the hostlist (?action=hostlist) and saves it (?action=save_hostlist).
+// Reads the hostlist (?section=hostlist) and saves it (?action=save_hostlist).
 // The hostlist lives at /etc/qmanager/video_domains.txt; tpws hot-reloads it
 // (--hostlist-auto-reload), so a save takes effect without engine restart.
 //
 // Backend endpoint:
 //   GET/POST /cgi-bin/quecmanager/network/video_optimizer.sh
+//
+// -----------------------------------------------------------------------------
+// TWO FIELDS THAT WERE ALREADY ON THE WIRE AND WERE BEING THROWN AWAY
+// -----------------------------------------------------------------------------
+// `?section=hostlist` has always answered `{domains, default_domains, count}`
+// and `action=restore_hostlist` has always shipped in the CGI. This hook read
+// `json.domains` and discarded the rest, so the Restore defaults control could
+// not exist and nothing in the frontend could name the factory list. Both are
+// surfaced now — `defaultDomains` for the count the confirm dialog needs, and
+// `restoreDefaults` for the write itself.
+//
+// `count` is deliberately NOT surfaced. It is `domains | length` computed by
+// the same jq expression that emitted the array, so a second copy of a number
+// the caller can already derive is a second thing to keep in sync for no gain.
 // =============================================================================
 
 const CGI_ENDPOINT = "/cgi-bin/quecmanager/network/video_optimizer.sh";
 
 export interface UseCdnHostlistReturn {
   domains: string[];
+  /**
+   * The factory list the device shipped with, read from the same GET.
+   *
+   * Its only consumer is the Restore defaults confirm, which names how many
+   * domains are about to replace the saved list. It is a READ of the default
+   * file, not a preview of what `restoreDefaults` will write — the CGI copies
+   * the file itself rather than echoing this array back — so the two can only
+   * disagree if the file changes between the read and the write.
+   */
+  defaultDomains: string[];
   isLoading: boolean;
   isSaving: boolean;
   error: string | null;
   saveDomains: (domains: string[]) => Promise<boolean>;
+  restoreDefaults: () => Promise<boolean>;
   refresh: () => void;
 }
 
 export function useCdnHostlist(): UseCdnHostlistReturn {
   const [domains, setDomains] = useState<string[]>([]);
+  const [defaultDomains, setDefaultDomains] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -54,6 +80,10 @@ export function useCdnHostlist(): UseCdnHostlistReturn {
         return;
       }
       setDomains(Array.isArray(json.domains) ? json.domains : []);
+      // An older device whose CGI predates the field answers without it; an
+      // empty array is the honest reading of "no factory list here", and it is
+      // also what the CGI itself emits when the default file is missing.
+      setDefaultDomains(Array.isArray(json.default_domains) ? json.default_domains : []);
     } catch (err) {
       if (!mountedRef.current) return;
       setError(err instanceof Error ? err.message : "Failed to fetch hostlist");
@@ -97,5 +127,51 @@ export function useCdnHostlist(): UseCdnHostlistReturn {
     [fetchHostlist],
   );
 
-  return { domains, isLoading, isSaving, error, saveDomains, refresh: fetchHostlist };
+  /**
+   * `action=restore_hostlist`: the CGI copies the factory file over the live
+   * one. Same shape as `saveDomains` on purpose — same `isSaving` flag (it is
+   * still a write to the same file, and the card disables the same controls
+   * for it), same `detail || error` message order, same silent re-fetch so the
+   * list reconciles from the DEVICE rather than from a local guess at what the
+   * default contained, and the same boolean so the caller toasts on the real
+   * outcome instead of on having sent the request.
+   */
+  const restoreDefaults = useCallback(async (): Promise<boolean> => {
+    setError(null);
+    setIsSaving(true);
+    try {
+      const resp = await authFetch(CGI_ENDPOINT, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "restore_hostlist" }),
+      });
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}: ${resp.statusText}`);
+      const json = await resp.json();
+      if (!mountedRef.current) return false;
+
+      if (!json.success) {
+        setError(json.detail || json.error || "Failed to restore hostlist");
+        return false;
+      }
+      await fetchHostlist(true);
+      return true;
+    } catch (err) {
+      if (!mountedRef.current) return false;
+      setError(err instanceof Error ? err.message : "Failed to restore hostlist");
+      return false;
+    } finally {
+      if (mountedRef.current) setIsSaving(false);
+    }
+  }, [fetchHostlist]);
+
+  return {
+    domains,
+    defaultDomains,
+    isLoading,
+    isSaving,
+    error,
+    saveDomains,
+    restoreDefaults,
+    refresh: fetchHostlist,
+  };
 }
