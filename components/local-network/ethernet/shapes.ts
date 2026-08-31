@@ -210,8 +210,8 @@ export const NOTICE_TITLE = "truncate text-lg font-semibold";
  *
  * THE WHISPER IS IMPORTANT-MARKED, AND IT HAS TO BE. `card.tsx:10` ships
  * `shadow-sm`, and `cn()` does NOT dedupe it against this one: `tailwind-merge`
- * cannot tell whether `shadow-[<arbitrary>]` is a box-shadow or a shadow COLOUR,
- * so an unresolvable `var()` lands in the colour group and both classes survive
+ * cannot tell whether an arbitrary `shadow-` value is a box-shadow or a shadow
+ * COLOUR, so an unresolvable `var()` lands in the colour group and both classes survive
  * the merge. Tailwind then compiles both to `--tw-shadow` and the winner is
  * emission order, which is its deterministic name sort — `shadow-[` sorts
  * before `shadow-s`, so the primitive's default is emitted LAST and wins.
@@ -223,7 +223,7 @@ export const NOTICE_TITLE = "truncate text-lg font-semibold";
  * the `dark:` fill collision below: a tie the tooling cannot see, decided by
  * spelling. The marker makes it win by construction.
  *
- * The product-wide fix is teaching `cn()` that an arbitrary `shadow-[…]` is a
+ * The product-wide fix is teaching `cn()` that an arbitrary shadow value is a
  * box-shadow — which would also flip every `/cellular/settings` card, currently
  * on `shadow-sm` for this exact reason. That is a sweep, deliberately not done
  * here.

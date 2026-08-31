@@ -189,7 +189,8 @@ export type DiscTone = keyof typeof DISC_TONE;
  * Scoped to two properties, never `transition-all` — a bare `transition-all`
  * silently inherits Tailwind's 150ms, which is off the scale and will not
  * retune with it. Every arbitrary custom property takes `var()`: Tailwind v4
- * dropped the bare-var bracket shorthand, and `duration-[--duration-standard]`
+ * dropped the bare-var bracket shorthand — the custom property written
+ * directly in the brackets with no `var()` wrapper — and that spelling
  * now compiles to a declaration whose value is the property NAME rather than
  * its value — invalid CSS, which the browser discards, so it ships as NO
  * transition rather than an off-scale one. The class is still generated, so
@@ -260,7 +261,7 @@ export const CARD_TITLE = "min-w-0 text-lg leading-tight";
  *
  * THE WHISPER IS IMPORTANT-MARKED, AND IT HAS TO BE. `card.tsx` ships
  * `shadow-sm`, and `cn()` does NOT dedupe it against this one: `tailwind-merge`
- * cannot tell whether `shadow-[<arbitrary>]` is a box-shadow or a shadow
+ * cannot tell whether an arbitrary `shadow-` value is a box-shadow or a shadow
  * COLOUR, so an unresolvable `var()` lands in the colour group and both classes
  * survive the merge. Tailwind then compiles both to `--tw-shadow` and the
  * winner is emission order, which is its deterministic name sort — `shadow-[`

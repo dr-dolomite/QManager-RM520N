@@ -46,7 +46,7 @@
 #
 #          duration-[var(--duration-standard)]   bracket-var form   97 uses
 #          duration-(--duration-standard)        paren form         31 uses
-#          duration-[--duration-standard]        bracket form        9 uses  <- the
+#          bare-var duration arbitrary (bracket form, no var())      9 uses  <- the
 #                                                                    handoff's
 #      Easing inverts — the bare theme utilities `ease-standard`/`ease-quick`
 #      dominate at 81, because the ease scale IS in the `@theme` namespace while
@@ -189,13 +189,14 @@ strip_comments "$RECORDER"        > "$TMPD/recorder.code"
 strip_comments "$ALIGN_SHAPES"    > "$TMPD/align-shapes.code"
 strip_comments "$SCHEDULED"       > "$TMPD/scheduled.code"
 
-# A Tailwind transition declaration: `transition-[...]`, `transition-colors`,
-# `transition-all`, a bare `transition-`, or badge.tsx's arbitrary-property
-# longhand `[transition:...]`.
+# A Tailwind transition declaration: an arbitrary `transition-` value,
+# `transition-colors`, `transition-all`, a bare `transition-`, or badge.tsx's
+# arbitrary-property longhand for the `transition` CSS property.
 TRANSITION_RE='(^|[^A-Za-z0-9_$])transition[-:]'
 
 # All three spellings Tailwind v4 accepts for a custom property, per C3, plus
-# the bare `var(--duration-*)` that badge.tsx's `[transition:...]` longhand uses.
+# the bare `var(--duration-*)` that badge.tsx's arbitrary-property `transition`
+# longhand uses.
 DURATION_TOKEN_RE='duration-(\[--duration-|\(--duration-|\[var\(--duration-)|var\(--duration-'
 # Either an arbitrary-value token or the bare `@theme` ease utility.
 EASE_TOKEN_RE='ease-(\[--ease-|\(--ease-|\[var\(--ease-)|var\(--ease-|(^|[^A-Za-z0-9_$-])ease-(standard|quick|emphasized|ambient)([^A-Za-z0-9_-]|$)'

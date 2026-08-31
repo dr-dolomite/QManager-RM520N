@@ -90,7 +90,7 @@ Both were found by **measuring the rendered node**, not by reading the class str
 | Collision | Measured | Why the call site loses |
 | --------- | -------- | ----------------------- |
 | `FIELD` height | rendered **36 px** against a call site asking for 42 | `select.tsx:40` ships `data-[size=default]:h-9`, specificity (0,2,0) vs a bare `h-[2.625rem]`'s (0,1,0) |
-| `CARD_SHELL` shadow | rendered Tailwind's `shadow-sm`, not the whisper | `cn()` cannot dedupe them — `tailwind-merge` reads an arbitrary `shadow-[…]` as a shadow *colour*, so both survive, and the winner is Tailwind's name sort (`shadow-[` emits before `shadow-s`) |
+| `CARD_SHELL` shadow | rendered Tailwind's `shadow-sm`, not the whisper | `cn()` cannot dedupe them — `tailwind-merge` reads an arbitrary shadow value as a shadow *colour*, so both survive, and the winner is Tailwind's name sort (`shadow-[` emits before `shadow-s`) |
 
 Both are fixed with the important modifier at this one call site. The same mechanism covers the **dark** field fill: `select.tsx`'s own `dark:bg-input/30` is (0,2,0), so a light-only override loses outright, and once both are `dark:`-prefixed they *tie* and are decided by alphabet. `FIELD` writes `dark:bg-surface-container-high!`. Verified in the browser: the trigger paints exactly `--surface-container-high` in dark, one step above its `--surface-container` host (The Field-Step Rule — and note the host is the row group, not the card).
 

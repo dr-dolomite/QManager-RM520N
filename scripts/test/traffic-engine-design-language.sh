@@ -402,8 +402,9 @@ if [ -n "$raw" ]; then
 else
     ok "no raw duration"
 fi
-# Tailwind v4 dropped the bare-var arbitrary: `duration-[--x]` compiles to an
-# invalid declaration the browser drops. The class IS generated, so grepping the
+# Tailwind v4 dropped the bare-var arbitrary -- a custom property written
+# directly in the brackets with no var() wrapper compiles to an invalid
+# declaration the browser drops. The class IS generated, so grepping the
 # class name finds it and tsc/eslint/build all pass. Only the value tells.
 barevar=$(grep -nE 'duration-\[--|ease-\[--' "$TMPD/family.code" || true)
 if [ -n "$barevar" ]; then

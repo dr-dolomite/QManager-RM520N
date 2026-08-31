@@ -520,10 +520,12 @@ export const ICON_ACTION_GLYPH = 18;
  * readout row inside the touch floor.
  *
  * The hover tint is on the `quick` clock via `var()`, which is load-bearing:
- * Tailwind v4 compiles a bare `duration-[--duration-quick]` to the literal
- * `transition-duration: --duration-quick`, an invalid value the browser drops —
- * so the un-wrapped spelling ships as NO transition at all rather than as an
- * off-scale one. Every arbitrary custom property on this surface takes `var()`.
+ * Tailwind v4 compiles a bare-var duration arbitrary — the custom property
+ * written directly in the brackets with no `var()` wrapper — to a literal
+ * `transition-duration` declaration naming the property, an invalid value the
+ * browser drops — so the un-wrapped spelling ships as NO transition at all
+ * rather than as an off-scale one. Every arbitrary custom property on this
+ * surface takes `var()`.
  */
 export const READOUT_ICON_ACTION = [
   "relative grid size-6 flex-none place-items-center rounded-pill",

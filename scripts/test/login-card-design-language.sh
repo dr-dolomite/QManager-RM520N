@@ -329,7 +329,7 @@ if grep -qE 'duration-\[[0-9]' "$TMPD/login.code"; then
     grep -nE 'duration-\[[0-9]' "$TMPD/login.code" | sed 's/^/         /'
     bad "login-component.tsx carries a literal Tailwind duration -- it will not retune"
 else
-    ok "no literal duration-[<n>] utility"
+    ok "no literal numeric duration arbitrary utility"
 fi
 unguarded=$(grep -nE '\{ duration: 0\.' "$TMPD/login.code" | grep -viE 'reduce' || true)
 if [ -n "$unguarded" ]; then

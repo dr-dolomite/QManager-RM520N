@@ -19,8 +19,8 @@
 # THE TEN FINDINGS, and which assertion pins each
 # ------------------------------------------------
 #   01 the only animation on the page never runs
-#      (`duration-[--duration-standard]` -- Tailwind v4 dropped the bare-var
-#      arbitrary, so it compiles to an invalid declaration the browser drops;
+#      (a bare-var duration arbitrary -- Tailwind v4 dropped that bracket
+#      shorthand, so it compiles to an invalid declaration the browser drops;
 #      these are the LAST TWO such sites in the tree)          -> [1] [8]
 #   02 three of four tile bodies are large tinted containers    -> [2]
 #   03 the speed tile's comment cites a rule DESIGN.md deleted
@@ -67,7 +67,7 @@
 #  [2] [3] [4] [7] [8] [10] [12] are checked against COMMENT-STRIPPED source.
 #      shapes.ts carries the reasoning for every value in its JSDoc, and that
 #      reasoning necessarily quotes the classes being retired ("this was
-#      `downlink-container`", "a bare `duration-[--duration-standard]`").
+#      `downlink-container`", "a bare-var duration arbitrary").
 #      Failing on a comment would push the author to delete the rationale, which
 #      is the most valuable half of a shapes module.
 #  [2] asserts no ROLE container (`success-container`, `downlink-container`, ...).
@@ -170,8 +170,9 @@ cat "$TMPD/shapes.code" "$TMPD/strip.code" "$TMPD/card.code" "$TMPD/shell.code" 
 # -----------------------------------------------------------------------------
 printf '\n[1] The bare-var arbitrary is extinct under components/local-network/\n'
 # Finding 1. Tailwind v4 dropped the bare-var arbitrary shorthand, so
-# `duration-[--duration-standard]` compiles to the literal
-# `transition-duration: --duration-standard` -- an invalid value the browser
+# the custom property written directly in the duration brackets with no
+# `var()` wrapper compiles to a literal `transition-duration` declaration
+# naming the property -- an invalid value the browser
 # discards. The class IS generated, so grepping for the class name finds it and
 # tsc / eslint / next build all pass. Only the emitted VALUE tells.
 #

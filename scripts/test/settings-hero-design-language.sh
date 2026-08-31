@@ -93,8 +93,9 @@
 #      `scale(1.13606, 1)`. Widths are not asserted to be EXACTLY stable: a
 #      residual 0.3px from `data-[state=on]:font-semibold` survives by design.
 #  [16] `duration-[<digit>` is the Tailwind utility form and deliberately does
-#      not match the arbitrary CSS property form. `duration-[--duration-standard]`
-#      and `duration-[var(--duration-standard)]` are the sanctioned tokens.
+#      not match the arbitrary CSS property form. The bare-var spelling and its
+#      var()-wrapped, valid counterpart `duration-[var(--duration-standard)]`
+#      are the two tokens this script's assertions distinguish.
 #
 # Run: bash scripts/test/settings-hero-design-language.sh
 

@@ -215,7 +215,8 @@ export type DiscTone = keyof typeof DISC_TONE;
  *
  * Every arbitrary custom property takes `var()`, and that is load-bearing rather
  * than stylistic. Tailwind v4 dropped the BARE-VAR bracket shorthand, so
- * `duration-[--duration-standard]` now compiles to a declaration whose value is
+ * writing the custom property directly in the brackets with no `var()` wrapper
+ * now compiles to a declaration whose value is
  * the property NAME rather than its value — invalid CSS, which the browser
  * discards, so it ships as no transition at all rather than as an off-scale one.
  * The class is still generated, so grepping the class name finds it and tsc /
@@ -281,8 +282,8 @@ export const CHIP_GLYPH = "size-3";
  *
  * THE WHISPER IS IMPORTANT-MARKED, AND IT HAS TO BE. `card.tsx:10` ships
  * `shadow-sm`, and `cn()` does NOT dedupe it against this one: `tailwind-merge`
- * cannot tell whether `shadow-[<arbitrary>]` is a box-shadow or a shadow COLOUR,
- * so an unresolvable `var()` lands in the colour group and BOTH classes survive
+ * cannot tell whether an arbitrary `shadow-` value is a box-shadow or a shadow
+ * COLOUR, so an unresolvable `var()` lands in the colour group and BOTH classes survive
  * the merge. Tailwind then compiles both to `--tw-shadow` and the winner is
  * emission order, which is its deterministic name sort — `shadow-[` sorts before
  * `shadow-s`, so the primitive's default is emitted LAST and wins. Measured on

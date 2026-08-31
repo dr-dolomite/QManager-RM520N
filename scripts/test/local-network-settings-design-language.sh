@@ -417,7 +417,7 @@ printf '\n[5] Cards are peers: rounded-card, border-0, whisper -- with the bang\
 # outside the vocabulary, on a system whose card role is 36px / border-0 /
 # --shadow-whisper.
 #
-# THE MEASURED COLLISION: cn() reads an arbitrary `shadow-[...]` as a shadow
+# THE MEASURED COLLISION: cn() reads an arbitrary shadow value as a shadow
 # COLOUR, so card.tsx's own `shadow-sm` SURVIVES the merge and wins on name
 # sort. The whisper needs the important-mark or the card ships shadow-sm while
 # the source says otherwise.
@@ -564,7 +564,7 @@ else
 fi
 
 # THE TAILWIND V4 TRAP: there is no --duration-* theme namespace, so
-# `duration-[--duration-standard]` is INVALID CSS. The declaration is dropped
+# a bare-var duration arbitrary is INVALID CSS. The declaration is dropped
 # and the transition never runs -- but the class IS generated, so grepping the
 # class name finds it and tsc/eslint/build/detector all pass. Only the emitted
 # VALUE tells. `duration-[var(--duration-standard)]` is the correct spelling.
