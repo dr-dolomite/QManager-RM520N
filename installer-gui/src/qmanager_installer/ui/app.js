@@ -79,6 +79,50 @@ function chip(tone, label) {
   return el;
 }
 
+/* ---------- result sound ----------
+ * A brief synthesized chime on a terminal outcome, requested directly rather
+ * than added on spec — two tones only, no audio file to bundle or license.
+ * "cancelled" stays silent: the user stopped the run on purpose, which
+ * TERMINAL already treats as distinct from a failure, not an event worth a
+ * sound. Web Audio needs a page that has already seen user interaction
+ * (this one has — Start was clicked to get here); if it's unavailable or the
+ * browser blocks it, the result screen is already fully correct without it.
+ */
+
+let audioCtx = null;
+
+function playTone(ctx, freq, start, duration, gain, type) {
+  const osc = ctx.createOscillator();
+  const amp = ctx.createGain();
+  osc.type = type;
+  osc.frequency.value = freq;
+  amp.gain.setValueAtTime(0, start);
+  amp.gain.linearRampToValueAtTime(gain, start + 0.02);
+  amp.gain.exponentialRampToValueAtTime(0.0001, start + duration);
+  osc.connect(amp).connect(ctx.destination);
+  osc.start(start);
+  osc.stop(start + duration + 0.05);
+}
+
+function playResultSound(resultTone) {
+  if (resultTone !== "pass" && resultTone !== "block") return;
+  try {
+    audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx.state === "suspended") audioCtx.resume();
+    const now = audioCtx.currentTime;
+    if (resultTone === "pass") {
+      playTone(audioCtx, 659.25, now, 0.16, 0.14, "sine"); // E5
+      playTone(audioCtx, 987.77, now + 0.1, 0.28, 0.12, "sine"); // B5, rising
+    } else {
+      playTone(audioCtx, 220, now, 0.2, 0.13, "triangle"); // A3
+      playTone(audioCtx, 174.61, now + 0.14, 0.32, 0.11, "triangle"); // F3, falling
+    }
+  } catch (_e) {
+    /* Audio is a nicety layered on an already-complete screen, never a
+       requirement for it. */
+  }
+}
+
 /* ---------- view switching ---------- */
 
 function view(name) {
@@ -332,6 +376,10 @@ const TERMINAL = {
 
 function finish(snap) {
   const term = TERMINAL[snap.state] || TERMINAL.failed;
+
+  $("#result-hero").dataset.tone = term.tone;
+  $("#result-icon-use").setAttribute("href", GLYPH[term.tone] || GLYPH.idle);
+  playResultSound(term.tone);
 
   $("#result-badge").replaceWith(
     Object.assign(chip(term.tone, t(term.key)), { id: "result-badge" })

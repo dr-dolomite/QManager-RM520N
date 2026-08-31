@@ -15,13 +15,13 @@
          deuteranopia, so the shape is what separates healthy from degraded. -->
     <svg class="sprite" aria-hidden="true" focusable="false">
       <symbol id="i-pass" viewBox="0 0 24 24">
-        <circle cx="12" cy="12" r="9" /><path d="m8.5 12.2 2.4 2.4 4.6-5" />
+        <circle cx="12" cy="12" r="9" pathLength="100" /><path d="m8.5 12.2 2.4 2.4 4.6-5" pathLength="100" />
       </symbol>
       <symbol id="i-warn" viewBox="0 0 24 24">
-        <path d="M12 4.2 2.8 20h18.4Z" /><path d="M12 10v4" /><path d="M12 17.2v.1" />
+        <path d="M12 4.2 2.8 20h18.4Z" pathLength="100" /><path d="M12 10v4" pathLength="100" /><path d="M12 17.2v.1" pathLength="100" />
       </symbol>
       <symbol id="i-block" viewBox="0 0 24 24">
-        <circle cx="12" cy="12" r="9" /><path d="m9.2 9.2 5.6 5.6" /><path d="m14.8 9.2-5.6 5.6" />
+        <circle cx="12" cy="12" r="9" pathLength="100" /><path d="m9.2 9.2 5.6 5.6" pathLength="100" /><path d="m14.8 9.2-5.6 5.6" pathLength="100" />
       </symbol>
       <symbol id="i-info" viewBox="0 0 24 24">
         <circle cx="12" cy="12" r="9" /><path d="M12 11v5.5" /><path d="M12 7.6v.1" />
@@ -186,13 +186,23 @@
 
       <!-- 4. RESULT -->
       <section class="view" data-for="result" aria-labelledby="result-title">
-        <div class="card card-hero">
+        <div class="card card-hero result-hero" id="result-hero">
+          <div class="result-icon-wrap">
+            <svg class="result-icon" aria-hidden="true" viewBox="0 0 24 24">
+              <use id="result-icon-use" href="#i-pass" />
+            </svg>
+          </div>
           <span id="result-badge" class="chip"></span>
           <h2 id="result-title"></h2>
           <p id="result-detail" class="lede"></p>
+        </div>
+
+        <div class="card result-next">
           <dl class="identity" id="result-facts" hidden></dl>
-          <p id="result-log" class="hint"></p>
-          <button id="restart" class="btn" data-i18n="result.again"></button>
+          <p id="result-log" class="result-log"></p>
+          <div class="actions">
+            <button id="restart" class="btn btn-primary" data-i18n="result.again"></button>
+          </div>
         </div>
       </section>
     </main>
