@@ -46,7 +46,10 @@ harness_count=0
 for h in scripts/test/*.sh; do
     [ -f "$h" ] || continue
     name=$(basename "$h")
-    case "$name" in run-all.sh|run-harnesses.sh) continue ;; esac
+    # build-css-gate.sh is excluded on purpose: it runs a full production
+    # build, so it belongs to `bun run package` (where the build happens
+    # anyway) rather than to this suite, which is meant to stay text-only.
+    case "$name" in run-all.sh|run-harnesses.sh|build-css-gate.sh) continue ;; esac
     harness_count=$((harness_count + 1))
     printf '\n-- %s --\n' "$name"
     "$BASH" "$h" || fail "harness $name failed"
