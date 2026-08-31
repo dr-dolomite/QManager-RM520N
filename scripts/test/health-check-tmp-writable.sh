@@ -126,7 +126,12 @@ STUBS
         echo 't_perm_tmp_writable'
     } > "$dir/case.sh"
 
-    QM_CASE_OUT=$(bash "$dir/case.sh" 2>"$dir/stderr.log" || true)
+    # Run with cwd inside the case dir. Against the PRE-fix body the last
+    # argument is the username, not the probe path, so a stub that writes
+    # "$_a" would drop a file called `www-data` into whatever directory the
+    # harness was launched from — the repo root, in practice. A harness must
+    # not litter the tree it is testing, least of all when it is red.
+    QM_CASE_OUT=$(cd "$dir" && bash "$dir/case.sh" 2>"$dir/stderr.log" || true)
     QM_CASE_MARKER="$dir/transition-was-called"
 }
 
