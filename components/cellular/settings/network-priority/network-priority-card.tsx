@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { motion } from "motion/react";
+import { AnimatePresence, motion } from "motion/react";
 import {
   closestCenter,
   DndContext,
@@ -48,9 +48,11 @@ import {
   BADGE_GLYPH_SIZE,
   CARD_PAD,
   CARD_SHELL,
+  CARD_TITLE,
   RANK_PILL,
   RAT_RANK_TONE,
   REORDER_ROW,
+  REORDER_ROW_SKELETON,
   ROW_GROUP,
 } from "../shapes";
 
@@ -93,6 +95,20 @@ import {
 // 4. THE DRAG SHADOW WORKS. The old one was `hsl(var(--foreground) / 0.12)` —
 //    an `hsl()` wrapper around an OKLCH token, which resolves to nothing at all.
 //    `REORDER_ROW.DRAGGING` is the real treatment.
+//
+// 5. THE CARD IS ONE CARD IN EVERY STATE. Loading, the two conditions and the
+//    loaded list each used to `return` their OWN `<Card>`, so React tore the
+//    whole card down and built a new one on every transition — the header
+//    included, even though the header is identical in all four. Pressing Retry
+//    therefore blinked the title. There is now a single stable shell and only
+//    the BODY swaps, keyed on the state name, so the header holds still and the
+//    body crossfades on the standard clock.
+//
+//    `AnimatePresence initial={false}` is what keeps that swap from doubling up
+//    with the route's own card cascade: on first mount the body inherits the
+//    card's entrance and adds nothing of its own, and the crossfade only starts
+//    paying for itself once the user actually changes the state. Enter-only, per
+//    The Enter-Only Rule — a condition clearing should feel immediate.
 //
 // KEYBOARD REORDER IS A FIRST-CLASS PATH. The `KeyboardSensor` now carries
 // `sortableKeyboardCoordinates` (without it the sensor is wired but cannot
@@ -400,78 +416,76 @@ const NetworkPriorityCard = () => {
   };
 
   // --- Render ----------------------------------------------------------------
-  // The header is real in every state. The card this replaces titled its
-  // skeleton and its loaded body from two different string literals, and the
-  // title visibly swapped on every load.
-
-  const header = (
-    <CardHeader className={CARD_PAD}>
-      <CardTitle>{t(`${K}.card.title`)}</CardTitle>
-      <CardDescription>{t(`${K}.card.description`)}</CardDescription>
-    </CardHeader>
-  );
-
-  if (isLoading) {
-    return (
-      <Card className={cn(CARD_SHELL)}>
-        {header}
-        <CardContent className={cn(CARD_PAD, "flex flex-col gap-4")}>
-          <div className={ROW_GROUP.ROOT}>
-            {Array.from({ length: 3 }).map((_, index) => (
-              <Skeleton
-                key={index}
-                className={cn(REORDER_ROW.HEIGHT, "rounded-field")}
-              />
-            ))}
-          </div>
-        </CardContent>
-      </Card>
-    );
-  }
-
-  // A condition REPLACES the body. Rendering the group empty beside a live Save
-  // button is the bug this page shipped with.
-  if (hasError || networks.length === 0) {
-    return (
-      <Card className={cn(CARD_SHELL)}>
-        {header}
-        <CardContent className={CARD_PAD}>
-          {hasError ? (
-            <ConditionScreen
-              tone="destructive"
-              glyph="error"
-              ariaRole="alert"
-              title={t(`${K}.states.error.title`)}
-              description={t(`${K}.states.error.description`)}
-              onRetry={() => fetchOrder()}
-              retryLabel={tCommon("actions.retry")}
-            />
-          ) : (
-            // Neutral, not warning: an empty acquisition order is "we do not
-            // know what this modem will try", and asserting a fault we cannot
-            // see would be the actual bug.
-            <ConditionScreen
-              tone="neutral"
-              glyph="signal_disconnected"
-              ariaRole="status"
-              title={t(`${K}.states.empty.title`)}
-              description={t(`${K}.states.empty.description`)}
-              onRetry={() => fetchOrder()}
-              retryLabel={tCommon("actions.retry")}
-            />
-          )}
-        </CardContent>
-      </Card>
-    );
-  }
+  // The header is real in every state, and now it is also the SAME NODE in every
+  // state — see point 5 above. The card this replaces titled its skeleton and
+  // its loaded body from two different string literals, and the title visibly
+  // swapped on every load.
 
   const serving = servingIds(status?.network.type ?? "");
 
-  return (
-    <Card className={cn(CARD_SHELL)}>
-      {header}
+  const state: "loading" | "error" | "empty" | "loaded" = isLoading
+    ? "loading"
+    : hasError
+      ? "error"
+      : networks.length === 0
+        ? "empty"
+        : "loaded";
 
-      <CardContent className={cn(CARD_PAD, "flex flex-col gap-4")}>
+  // A condition REPLACES the body. Rendering the group empty beside a live Save
+  // button is the bug this page shipped with.
+  const body =
+    state === "loading" ? (
+      <div className={ROW_GROUP.ROOT}>
+        {Array.from({ length: 3 }).map((_, index) => (
+          // Every class here comes from `REORDER_ROW` itself, so the skeleton
+          // resolves to the real row's height rather than asserting one.
+          <div key={index} className={REORDER_ROW.ROOT}>
+            <span className={REORDER_ROW.HANDLE_BOX}>
+              <Skeleton className={REORDER_ROW_SKELETON.HANDLE} />
+            </span>
+            <Skeleton className={REORDER_ROW_SKELETON.RANK} />
+            <div className={REORDER_ROW.TEXT}>
+              <Skeleton
+                className={cn(
+                  REORDER_ROW.LABEL_LINE,
+                  REORDER_ROW_SKELETON.LABEL,
+                )}
+              />
+              <Skeleton
+                className={cn(
+                  REORDER_ROW.CONSEQUENCE_LINE,
+                  REORDER_ROW_SKELETON.CONSEQUENCE,
+                )}
+              />
+            </div>
+          </div>
+        ))}
+      </div>
+    ) : state === "error" ? (
+      <ConditionScreen
+        tone="destructive"
+        glyph="error"
+        ariaRole="alert"
+        title={t(`${K}.states.error.title`)}
+        description={t(`${K}.states.error.description`)}
+        onRetry={() => fetchOrder()}
+        retryLabel={tCommon("actions.retry")}
+      />
+    ) : state === "empty" ? (
+      // Neutral, not warning: an empty acquisition order is "we do not
+      // know what this modem will try", and asserting a fault we cannot
+      // see would be the actual bug.
+      <ConditionScreen
+        tone="neutral"
+        glyph="signal_disconnected"
+        ariaRole="status"
+        title={t(`${K}.states.empty.title`)}
+        description={t(`${K}.states.empty.description`)}
+        onRetry={() => fetchOrder()}
+        retryLabel={tCommon("actions.retry")}
+      />
+    ) : (
+      <>
         <DndContext
           sensors={sensors}
           collisionDetection={closestCenter}
@@ -531,6 +545,28 @@ const NetworkPriorityCard = () => {
             },
           }}
         />
+      </>
+    );
+
+  return (
+    <Card className={CARD_SHELL}>
+      <CardHeader className={CARD_PAD}>
+        <CardTitle className={CARD_TITLE}>{t(`${K}.card.title`)}</CardTitle>
+        <CardDescription>{t(`${K}.card.description`)}</CardDescription>
+      </CardHeader>
+
+      <CardContent className={CARD_PAD}>
+        <AnimatePresence initial={false}>
+          <motion.div
+            key={state}
+            variants={staggerRowItem}
+            initial="hidden"
+            animate="visible"
+            className="flex flex-col gap-4"
+          >
+            {body}
+          </motion.div>
+        </AnimatePresence>
       </CardContent>
     </Card>
   );

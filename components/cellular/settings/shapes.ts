@@ -437,6 +437,65 @@ export const SLOT_GLYPH = {
 export const PILL_ACTION =
   "h-[2.625rem] gap-2 rounded-pill px-5 text-sm font-semibold";
 
+/**
+ * The glyph inside a `PILL_ACTION`.
+ *
+ * Named rather than typed at each call site. Blocked Networks carried `17` in
+ * three places and `14` in a fourth for what are two roles, not four sizes —
+ * the kind of drift a per-family shapes module exists to make impossible.
+ */
+export const PILL_ACTION_GLYPH = 17;
+
+/**
+ * The action row that sits BELOW a `ConditionScreen`, inside the same card.
+ *
+ * Centred rather than trailing, because a condition screen is centred and a
+ * right-aligned action under a centred block reads as belonging to something
+ * else. Stacked below the card's own `@lg/card` step so a phone gets full-width
+ * targets — this is the one place on the surface where the primary action is
+ * destructive and irreversible.
+ */
+export const CONDITION_ACTIONS =
+  "flex flex-col gap-2.5 @lg/card:flex-row @lg/card:justify-center";
+
+/**
+ * An inline text link inside a `CardDescription`.
+ *
+ * `--primary` is the only hue in this system that acts (DESIGN.md > Identity),
+ * so a link is brand-inked by construction. The pill focus ring is what keeps
+ * it consistent with every other focusable thing on the surface; a default
+ * browser outline on a rounded surface is the "browser default that belongs to
+ * no design system" this pass exists to remove.
+ */
+export const INLINE_LINK =
+  "text-primary inline-flex items-center gap-1 rounded-pill font-medium underline underline-offset-4 focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none";
+
+/** The glyph inside an `INLINE_LINK` — sized to the 14px body it rides on. */
+export const INLINE_LINK_GLYPH = 14;
+
+/**
+ * A standing footnote beneath a card — a fact about how the feature works that
+ * is always true, rather than a condition that arose.
+ *
+ * DELIBERATELY NOT A `TonalBanner`. A banner IS its state ("the tint is the
+ * message"), and this note has no off state: a permanently-tinted block is
+ * wallpaper, and wallpaper in a functional role spends a container the system
+ * reserves for states. So it sits on the neutral container step and borrows
+ * `ConditionScreen`'s own neutral disc pair, which keeps the two neutral blocks
+ * on one surface reading as the same voice.
+ *
+ * `text-sm`, not the 12.5px consequence step. This is a standalone paragraph,
+ * not a line riding under a row label — and DESIGN.md's Don'ts name 13px prose
+ * outside a dense metric row explicitly. `on-surface-variant` is what demotes
+ * it, not a smaller size.
+ */
+export const CARD_FOOTNOTE = {
+  ROOT: "flex items-start gap-3 rounded-tile bg-surface-container px-4 py-3.5",
+  DISC: "bg-surface-container-high text-on-surface-variant grid size-8 flex-none place-items-center rounded-pill",
+  GLYPH: 18,
+  BODY: "text-on-surface-variant min-w-0 text-sm leading-relaxed text-pretty",
+} as const;
+
 // -----------------------------------------------------------------------------
 // The settings row group (the Pixel Settings pattern)
 // -----------------------------------------------------------------------------
@@ -969,26 +1028,38 @@ export const READOUT_ROW = {
  */
 export const REORDER_ROW = {
   ROOT: "flex items-center gap-3.5 rounded-field px-3 py-3.5",
-  /** Mirrors ROOT's resolved height for the skeleton. */
-  HEIGHT: "h-[4.25rem]",
   /**
-   * The grab handle.
+   * The grab handle's BOX, split out from its interaction so the skeleton can
+   * share it rather than restate it.
    *
    * `size-8` is the visual size; the coarse-pointer bump to 44px is NOT
    * optional and lives here rather than at the call site. This is the one
    * control on the surface whose whole job is being dragged, and 32px is under
    * the touch floor — on the tablet where someone is actually reordering RATs
-   * in a van, a 32px target next to a scrolling list is a miss. `touch-none` is
-   * set by the consumer alongside dnd-kit's activator ref, not here, because it
-   * is a gesture-routing concern rather than a shape one.
+   * in a van, a 32px target next to a scrolling list is a miss.
+   */
+  HANDLE_BOX:
+    "flex size-8 flex-none items-center justify-center rounded-pill [@media(pointer:coarse)]:size-11",
+  /**
+   * The handle itself: the box above plus everything that makes it a control.
+   * `touch-none` is set by the consumer alongside dnd-kit's activator ref, not
+   * here, because it is a gesture-routing concern rather than a shape one.
    */
   HANDLE:
     "flex size-8 flex-none cursor-grab items-center justify-center rounded-pill text-on-surface-variant hover:bg-surface-container-high active:cursor-grabbing focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none [@media(pointer:coarse)]:size-11",
   HANDLE_GLYPH: 20,
   TEXT: "flex min-w-0 flex-1 flex-col gap-0.75",
   LABEL: "text-[0.9375rem] font-semibold",
+  /**
+   * The label's resolved LINE BOX — 15px at the inherited 1.5 leading. Sizes
+   * for a skeleton are the line box, never the font size, or the sliver reflows
+   * the moment real text lands.
+   */
+  LABEL_LINE: "h-[1.40625rem]",
   CONSEQUENCE:
     "text-on-surface-variant text-[0.78125rem] leading-relaxed text-pretty",
+  /** The consequence's resolved line box — 12.5px x `leading-relaxed` (1.625). */
+  CONSEQUENCE_LINE: "h-[1.26953rem]",
   /** The trailing chip cluster ("Serving now"). */
   META: "flex flex-none items-center gap-2",
   /**
@@ -1010,6 +1081,46 @@ export const REORDER_ROW = {
    */
   DRAGGING:
     "relative z-10 bg-surface opacity-80 shadow-[0_12px_28px_-8px_oklch(0.19_0.032_258/0.35)]",
+} as const;
+
+/**
+ * The skeleton for one `REORDER_ROW`. It has NO geometry of its own: the
+ * wrapper is `REORDER_ROW.ROOT`, the handle box is `REORDER_ROW.HANDLE_BOX`,
+ * the text column is `REORDER_ROW.TEXT`, and the two slivers take the label's
+ * and consequence's own line boxes. Height therefore RESOLVES to the real row's
+ * (73.81px measured, at both) instead of being asserted.
+ *
+ * It replaces one full-width bar under a pinned `h-[4.25rem]`, which broke the
+ * mirror three ways.
+ *
+ * 1. THE PIN WAS SIMPLY WRONG. `4.25rem` is 68px; the row measures **73.81px**
+ *    with a one-line consequence and **94.13px** with two. So the constant that
+ *    existed to guarantee the mirror was itself the mismatch — and because it
+ *    was a number rather than a derivation, nothing could catch it. It had
+ *    exactly one consumer, the skeleton it was lying to, so it is deleted
+ *    rather than corrected: a second magic number is a second thing to get
+ *    wrong. (A skeleton still cannot know how far the copy wraps; matching the
+ *    one-line row is the honest floor, and it is now exact.)
+ *
+ * 2. THE RADIUS DID NOT RESOLVE. The call site passed `rounded-field` to a
+ *    `Skeleton` whose own base string ends `rounded-md`. `cn()` is bare
+ *    tailwind-merge and it cannot dedupe THIS REPO'S CUSTOM radius names, so
+ *    both utilities survived into the class list and the winner was CSS
+ *    declaration order — alphabetical, so `rounded-md` (10.4px) beat
+ *    `rounded-field` (20px) on every render. The skeleton drew corners half the
+ *    size of the row it stood in for, and nothing errored. `rounded-pill` wins
+ *    that same coin-flip, which is why the slivers below need no escape hatch
+ *    and the bar did.
+ *
+ * 3. A BAR IS NOT A ROW. The loaded row is a handle, a rank disc and a two-line
+ *    text column; one solid block resolving into that is a pop, not a
+ *    handoff.
+ */
+export const REORDER_ROW_SKELETON = {
+  HANDLE: "size-5 rounded-pill",
+  RANK: "size-[1.875rem] flex-none rounded-pill",
+  LABEL: "w-[7.5rem] max-w-full rounded-pill",
+  CONSEQUENCE: "w-[13rem] max-w-full rounded-pill",
 } as const;
 
 /**

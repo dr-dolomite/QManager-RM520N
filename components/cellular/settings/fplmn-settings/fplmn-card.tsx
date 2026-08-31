@@ -29,10 +29,18 @@ import {
 import { MaterialSymbol } from "@/components/ui/material-symbol";
 import type { MaterialSymbolName } from "@/components/ui/material-symbol";
 import { authFetch } from "@/lib/auth-fetch";
-import { DUR, EASE_STANDARD } from "@/lib/motion";
-import { cn } from "@/lib/utils";
+import { staggerRowItem } from "@/lib/motion";
 
-import { CARD_PAD, CARD_SHELL, PILL_ACTION } from "../shapes";
+import {
+  CARD_PAD,
+  CARD_SHELL,
+  CARD_TITLE,
+  CONDITION_ACTIONS,
+  INLINE_LINK,
+  INLINE_LINK_GLYPH,
+  PILL_ACTION,
+  PILL_ACTION_GLYPH,
+} from "../shapes";
 
 // =============================================================================
 // Blocked Networks (FPLMN) — the whole surface, as one condition
@@ -56,15 +64,17 @@ import { CARD_PAD, CARD_SHELL, PILL_ACTION } from "../shapes";
 // is what DESIGN.md's State-Honesty Rule forbids. `null` now gets its own
 // neutral screen that says we could not determine it, plus a retry.
 //
-// WHY THE CLEAN STATE IS `primary` AND NOT `neutral`. `ConditionScreen`'s tone
-// vocabulary has no `success` member, deliberately: a full-body success screen
-// is a celebration, and "nothing is wrong" does not need one. Of the four tones
-// it does carry, `neutral` is already spoken for by the unknown state — and
-// clean vs unknown are exactly the two states a user must never confuse, so
-// they cannot share a container fill and lean on the glyph alone.
-// `primary-container` is this system's informational container (the
-// Info-Is-Brand rule that `tonal-banner.tsx` states outright); it reads as a
-// settled, informational report rather than as a fault.
+// WHY THE CLEAN STATE IS `success` AND NOT `neutral`. This paragraph used to
+// argue for `primary` on the grounds that `ConditionScreen` had no `success`
+// tone. It has one now — the member was added FOR this surface — and the code
+// moved while the comment did not, which in a file this comment-dense is its own
+// defect: the next reader trusts the prose. Corrected here. The live reasoning
+// is unchanged in substance: `neutral` is already spoken for by the unknown
+// state, and clean vs unknown are exactly the two states a user must never
+// confuse, so they cannot share a container fill and lean on the glyph alone.
+// `success` is now available and is the honest tone for "we read the SIM and
+// there is nothing blocked" — a verified good state, not merely an
+// informational one.
 //
 // WHY THE LOADING STATE IS A `ConditionScreen` AND NOT A SKELETON. The
 // Skeleton-Mirror Rule says a skeleton must mirror the loaded geometry by
@@ -243,20 +253,20 @@ export function FPLMNCard() {
       : undefined;
 
   return (
-    <Card className={cn(CARD_SHELL)}>
+    <Card className={CARD_SHELL}>
       {/* No icon in a CardHeader, ever. */}
       <CardHeader className={CARD_PAD}>
-        <CardTitle>{t(`${K}.card.title`)}</CardTitle>
+        <CardTitle className={CARD_TITLE}>{t(`${K}.card.title`)}</CardTitle>
         <CardDescription>
           {t(`${K}.card.description`)}{" "}
           <a
             href={LEARN_MORE_URL}
             target="_blank"
             rel="noreferrer"
-            className="text-primary inline-flex items-center gap-1 rounded-pill font-medium underline underline-offset-4 focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
+            className={INLINE_LINK}
           >
             {t(`${K}.card.learn_more`)}
-            <MaterialSymbol name="open_in_new" size={14} />
+            <MaterialSymbol name="open_in_new" size={INLINE_LINK_GLYPH} />
           </a>
         </CardDescription>
       </CardHeader>
@@ -267,13 +277,21 @@ export function FPLMNCard() {
             the incoming state could not mount until the outgoing one finished
             leaving, so pressing Retry bought ~600ms of empty card before the
             answer appeared. `key={state}` still remounts on a state change, so
-            each new condition still arrives. */}
+            each new condition still arrives.
+
+            The rise is `staggerRowItem`, not the hand-written `y: 4` that was
+            here. Four pixels was a third travel distance against a system that
+            authors exactly two — 10px for cards, 5px for rows inside one card —
+            and it carried its own duration and curve literals besides, so a
+            retune of the scale would have left this one block behind. Sharing
+            the variant also makes it identical to the swap next door on Network
+            Priority, which is the point of both surfaces having one. */}
         <AnimatePresence initial={false}>
           <motion.div
             key={state}
-            initial={{ opacity: 0, y: 4 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: DUR.standard, ease: EASE_STANDARD }}
+            variants={staggerRowItem}
+            initial="hidden"
+            animate="visible"
             className="flex flex-col gap-4"
           >
             <ConditionScreen
@@ -292,7 +310,7 @@ export function FPLMNCard() {
             />
 
             {state === "entries" ? (
-              <div className="flex flex-col gap-2.5 @lg/card:flex-row @lg/card:justify-center">
+              <div className={CONDITION_ACTIONS}>
                 <Button
                   type="button"
                   variant="destructive"
@@ -302,16 +320,25 @@ export function FPLMNCard() {
                 >
                   {isClearing ? (
                     <>
+                      {/* `motion-safe:`, matching `ConditionScreen`'s own
+                          spinner. Both variants are redefined in globals.css so
+                          the Animations preference can outrank the OS setting
+                          in EITHER direction, and two spellings for one gesture
+                          inside one feature is how a future retune misses
+                          half of it. */}
                       <MaterialSymbol
                         name="progress_activity"
-                        size={17}
-                        className="animate-spin motion-reduce:animate-none"
+                        size={PILL_ACTION_GLYPH}
+                        className="motion-safe:animate-spin"
                       />
                       {t(`${K}.actions.clearing`)}
                     </>
                   ) : (
                     <>
-                      <MaterialSymbol name="delete_sweep" size={17} />
+                      <MaterialSymbol
+                        name="delete_sweep"
+                        size={PILL_ACTION_GLYPH}
+                      />
                       {t(`${K}.actions.clear`)}
                     </>
                   )}
@@ -323,7 +350,7 @@ export function FPLMNCard() {
                   onClick={() => void fetchStatus()}
                   disabled={isClearing}
                 >
-                  <MaterialSymbol name="refresh" size={17} />
+                  <MaterialSymbol name="refresh" size={PILL_ACTION_GLYPH} />
                   {t(`${K}.actions.refresh`)}
                 </Button>
               </div>
