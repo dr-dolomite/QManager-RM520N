@@ -51,7 +51,14 @@
     "header": {
       "refresh": "Aggiorna"
     },
-    "loading_sr": "Caricamento stato Ethernet",
+    "strip": {
+      "label": "Stato collegamento",
+      "unresponsive": "Non risponde",
+      "unavailable_title": "Impossibile leggere la porta ethernet",
+      "unavailable_body": "Nuovo tentativo ogni 10 secondi. Nulla è stato modificato.",
+      "absent_title": "Nessun controller ethernet",
+      "absent_body": "Questo dispositivo non ha una porta eth0, quindi non c'è nulla da segnalare o configurare."
+    },
     "tiles": {
       "link": {
         "label": "Stato collegamento",
@@ -63,30 +70,28 @@
         "caption_unknown": "In attesa dello stato del collegamento"
       },
       "speed": {
-        "label": "Velocità attiva",
-        "value_na": "N/D",
+        "label": "Velocità negoziata",
         "caption": "Negoziata con il peer",
+        "caption_ceiling": "Su {{ceiling}} supportati dalla porta",
         "caption_down": "Richiede un collegamento attivo"
       },
       "duplex": {
         "label": "Duplex",
-        "value_na": "N/D",
-        "caption": "Modalità trasmissione e ricezione",
+        "caption": "Trasmette e riceve contemporaneamente",
         "caption_down": "Richiede un collegamento attivo"
       },
       "negotiation": {
         "label": "Negoziazione",
         "value_auto": "Automatica",
-        "value_manual": "Manuale",
-        "value_na": "N/D",
-        "caption_auto": "Velocità decisa con il peer",
-        "caption_manual": "Imposta dal limite di velocità",
-        "caption_na": "Nessun dato sulla velocità"
+        "value_forced": "Forzata",
+        "value_unknown": "Sconosciuta",
+        "caption_auto": "Nessun limite di velocità impostato",
+        "caption_limited": "Limitata a {{speed}}"
       }
     },
     "settings": {
       "title": "Limite velocità collegamento",
-      "description": "Imposta la porta host a una velocità fissa. Il collegamento si interrompe brevemente durante la ri-negoziazione.",
+      "description": "Imposta la porta host a una velocità fissa invece di lasciarla negoziare.",
       "row_label": "Limite velocità",
       "placeholder": "Seleziona velocità",
       "applying": "Applicazione…",
@@ -97,13 +102,15 @@
       "option_100": "100 Mbps",
       "option_1000": "1 Gbps",
       "option_2500": "2.5 Gbps",
+      "consequence": "L'applicazione interrompe il collegamento per circa 8 secondi mentre il PHY rinegozia. Tu sei su quel collegamento.",
+      "consequence_applying": "Il collegamento è interrotto mentre il PHY rinegozia. Questa pagina confermerà da sola la nuova velocità.",
+      "consequence_unresponsive": "Il modem ha smesso di rispondere, quindi questo controllo resta bloccato fino alla prossima lettura riuscita.",
+      "consequence_unread": "Il modem non ha ancora risposto, quindi non c'è nulla da modificare finché non arriva la prima lettura.",
+      "consequence_absent": "Su questo dispositivo non c'è alcuna porta ethernet da configurare.",
+      "provenance": "Salvato sul modem. Riletto da:",
       "toast_success": "Velocità collegamento aggiornata",
       "toast_error": "Impossibile impostare la velocità del collegamento",
       "toast_confirm_error": "Impossibile confermare la nuova velocità. Controlla il collegamento."
-    },
-    "error": {
-      "title": "Impossibile raggiungere il modem",
-      "body": "Impossibile caricare lo stato Ethernet. Prova ad aggiornare."
     }
   },
   "profile_override": {

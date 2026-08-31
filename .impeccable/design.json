@@ -1019,7 +1019,7 @@
       {
         "name": "ease-quick",
         "value": "ease-out",
-        "purpose": "Moves too brief to need shaping: label swaps, value ticks, hover tints, focus rings. At the short end of the scale a bespoke cubic is indistinguishable from the built-in. These two curves plus `ease-out` are the WHOLE vocabulary — an `ease-[cubic-bezier(...)]` arbitrary value is a violation, not a variant."
+        "purpose": "Moves too brief to need shaping: label swaps, value ticks, hover tints, focus rings. At the short end of the scale a bespoke cubic is indistinguishable from the built-in. These two curves plus `ease-out` are the WHOLE vocabulary — an arbitrary `cubic-bezier()` in an `ease-` utility is a violation, not a variant."
       },
       {
         "name": "ease-ambient",

@@ -51,7 +51,14 @@
     "header": {
       "refresh": "Segarkan"
     },
-    "loading_sr": "Memuat status Ethernet",
+    "strip": {
+      "label": "Status tautan",
+      "unresponsive": "Tidak merespons",
+      "unavailable_title": "Tidak dapat membaca port ethernet",
+      "unavailable_body": "Mencoba lagi setiap 10 detik. Tidak ada yang diubah.",
+      "absent_title": "Tidak ada pengontrol ethernet",
+      "absent_body": "Perangkat ini tidak memiliki port eth0, jadi tidak ada yang dapat dilaporkan atau dikonfigurasi."
+    },
     "tiles": {
       "link": {
         "label": "Status tautan",
@@ -63,30 +70,28 @@
         "caption_unknown": "Menunggu status tautan"
       },
       "speed": {
-        "label": "Kecepatan aktif",
-        "value_na": "N/A",
+        "label": "Kecepatan negosiasi",
         "caption": "Dinogosiasikan dengan perangkat lawan",
+        "caption_ceiling": "Dari {{ceiling}} yang didukung port",
         "caption_down": "Memerlukan tautan aktif"
       },
       "duplex": {
         "label": "Dupleks",
-        "value_na": "N/A",
-        "caption": "Mode kirim dan terima",
+        "caption": "Mengirim dan menerima sekaligus",
         "caption_down": "Memerlukan tautan aktif"
       },
       "negotiation": {
         "label": "Negosiasi",
         "value_auto": "Otomatis",
-        "value_manual": "Manual",
-        "value_na": "N/A",
-        "caption_auto": "Kecepatan ditentukan dengan perangkat lawan",
-        "caption_manual": "Dipaksa oleh batas kecepatan",
-        "caption_na": "Belum ada data kecepatan"
+        "value_forced": "Dipaksa",
+        "value_unknown": "Tidak diketahui",
+        "caption_auto": "Tidak ada batas kecepatan",
+        "caption_limited": "Dibatasi ke {{speed}}"
       }
     },
     "settings": {
       "title": "Batas kecepatan tautan",
-      "description": "Paksa port host ke kecepatan tetap. Tautan akan terputus sebentar saat negosiasi ulang.",
+      "description": "Paksa port host ke kecepatan tetap alih-alih membiarkannya bernegosiasi.",
       "row_label": "Batas kecepatan",
       "placeholder": "Pilih kecepatan",
       "applying": "Menerapkan…",
@@ -97,13 +102,15 @@
       "option_100": "100 Mbps",
       "option_1000": "1 Gbps",
       "option_2500": "2.5 Gbps",
+      "consequence": "Menerapkan akan memutus tautan sekitar 8 detik saat PHY bernegosiasi ulang. Anda sedang menggunakan tautan itu.",
+      "consequence_applying": "Tautan terputus saat PHY bernegosiasi ulang. Halaman ini akan mengonfirmasi kecepatan baru dengan sendirinya.",
+      "consequence_unresponsive": "Modem berhenti merespons, jadi kontrol ini ditahan sampai pembacaan berhasil berikutnya.",
+      "consequence_unread": "Modem belum merespons, jadi tidak ada yang dapat diubah sampai pembacaan pertama masuk.",
+      "consequence_absent": "Tidak ada port ethernet yang dapat dikonfigurasi di perangkat ini.",
+      "provenance": "Disimpan ke modem. Dibaca kembali dari:",
       "toast_success": "Kecepatan tautan diperbarui",
       "toast_error": "Gagal mengatur kecepatan tautan",
       "toast_confirm_error": "Tidak dapat mengonfirmasi kecepatan baru. Periksa tautan."
-    },
-    "error": {
-      "title": "Tidak dapat menjangkau modem",
-      "body": "Tidak dapat memuat status Ethernet. Coba segarkan."
     }
   },
   "profile_override": {

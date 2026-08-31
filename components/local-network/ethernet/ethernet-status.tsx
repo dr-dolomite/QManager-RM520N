@@ -4,49 +4,78 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { motion } from "motion/react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
+import { RefreshCcwIcon } from "lucide-react";
 
 import { authFetch } from "@/lib/auth-fetch";
 import { Button } from "@/components/ui/button";
 import { useSaveFlash } from "@/components/ui/save-button";
 import { staggerContainer, staggerItem } from "@/lib/motion";
-import { RefreshCcwIcon } from "lucide-react";
 
-import {
-  EthernetErrorState,
-  EthernetSettingsCard,
-  EthernetTiles,
-  EthernetTilesSkeleton,
-  type EthernetStatus,
-} from "./ethernet-card";
+import { LinkStateStrip } from "./link-state-strip";
+import { SpeedLimitCard } from "./speed-limit-card";
+import { PAGE_ROOT, PILL_ACTION } from "./shapes";
+import type { EthernetStatus } from "./types";
 
 // =============================================================================
 // Ethernet Status — page shell
 // =============================================================================
 // The shell owns ALL the data (fetch, 10s poll, speed-limit apply with its
 // confirm-poll) and renders the page: a header with a Refresh pill, then a
-// `staggerContainer` cascade over the presentational body from
-// `ethernet-card.tsx`. Same anatomy as `components/cellular/cellular-information.tsx`:
-// the stateful component owns the data and the stateless children draw it.
+// `staggerContainer` cascade over one live band and one write card.
 //
-// The backend contract is unchanged: the CGI accepts one write (`speed_limit`)
-// and returns `disconnect_window_seconds` so the UI can wait out the PHY
-// bounce before confirming the new speed.
+// -----------------------------------------------------------------------------
+// A FAILED REFRESH IS NOW REPORTED. IT USED TO BE SWALLOWED.
+// -----------------------------------------------------------------------------
+// The retired shell gated its error state on `!hasDataRef.current` — "only
+// surface errors when we have no data to show". After ONE successful load that
+// condition can never be true again, so a dead 10s poll and a healthy one
+// rendered identically, forever: four confident figures, frozen, with nothing on
+// screen saying so.
+//
+// The flag is now `pollFailed`, set on every failure and cleared on every
+// success, and the two states it distinguishes are different things:
+//
+//   pollFailed && status !== null   the figures are STALE. They are held (they
+//                                   are still the last thing the modem
+//                                   confirmed), the band shows its warning chip,
+//                                   and the write control is held with a
+//                                   sentence saying why.
+//   pollFailed && status === null   nothing was ever read. The band renders one
+//                                   spanning notice instead of four tiles.
+//
+// -----------------------------------------------------------------------------
+// THE POLL STANDS DOWN DURING AN APPLY
+// -----------------------------------------------------------------------------
+// Applying a speed limit deliberately drops the link for ~8s, so the background
+// poll would fail during a window we CAUSED and raise "Not responding" over a
+// working device. The interval skips while a write is in flight; the apply's own
+// confirm-poll is what watches the link come back, and the consequence line
+// under the control already says what is happening.
+//
+// The backend contract is otherwise unchanged: the CGI accepts one write
+// (`speed_limit`) and returns `disconnect_window_seconds` so the UI can wait out
+// the PHY bounce before confirming the new speed. It gained one READ-ONLY field
+// on 2026-08-31 — `interface_present` — so the UI can tell "no cable" from "no
+// controller"; a missing value means true.
 // =============================================================================
 
 const CGI_ENDPOINT = "/cgi-bin/quecmanager/network/ethernet.sh";
+const K = "ethernet";
 
 const EthernetStatusComponent = () => {
   const { t } = useTranslation("common");
-  const K = "ethernet";
 
   const [status, setStatus] = useState<EthernetStatus | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
-  const [hasError, setHasError] = useState(false);
+  const [pollFailed, setPollFailed] = useState(false);
   const { saved, markSaved } = useSaveFlash();
 
   const mountedRef = useRef(true);
-  const hasDataRef = useRef(false);
+  // Read by the interval, which closes over its first render. A state value
+  // would be stale there; the ref is what makes the stand-down actually stand
+  // down.
+  const savingRef = useRef(false);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -59,6 +88,8 @@ const EthernetStatusComponent = () => {
   // Fetch ethernet status
   // ---------------------------------------------------------------------------
   const fetchStatus = useCallback(async (silent = false) => {
+    // A background poll during an apply would fail on a link WE dropped.
+    if (silent && savingRef.current) return;
     if (!silent) setIsLoading(true);
 
     try {
@@ -68,22 +99,24 @@ const EthernetStatusComponent = () => {
       const data = await resp.json();
       if (!mountedRef.current) return;
 
-      if (data.success) {
-        hasDataRef.current = true;
-        setHasError(false);
-        setStatus({
-          link_status: data.link_status,
-          speed: data.speed,
-          duplex: data.duplex,
-          auto_negotiation: data.auto_negotiation,
-          speed_limit: data.speed_limit,
-          supports_2500: data.supports_2500,
-        });
-      }
+      // `success: false` is a read that did not happen, not a read that found
+      // nothing. Falling through to the finally block would have cleared the
+      // loading flag and left the page on a permanent skeleton.
+      if (!data.success) throw new Error("unsuccessful response");
+
+      setPollFailed(false);
+      setStatus({
+        link_status: data.link_status,
+        speed: data.speed,
+        duplex: data.duplex,
+        auto_negotiation: data.auto_negotiation,
+        speed_limit: data.speed_limit,
+        supports_2500: data.supports_2500,
+        interface_present: data.interface_present,
+      });
     } catch {
-      // Only surface errors when we have no data to show.
-      if (mountedRef.current && !hasDataRef.current) {
-        setHasError(true);
+      if (mountedRef.current) {
+        setPollFailed(true);
       }
     } finally {
       if (mountedRef.current && !silent) {
@@ -107,6 +140,7 @@ const EthernetStatusComponent = () => {
   // ---------------------------------------------------------------------------
   const handleSpeedChange = async (value: string) => {
     setIsSaving(true);
+    savingRef.current = true;
     // Optimistic update so the dropdown shows the requested value during PHY bounce.
     setStatus((prev) => (prev ? { ...prev, speed_limit: value } : prev));
 
@@ -115,7 +149,10 @@ const EthernetStatusComponent = () => {
 
     // Polls until the link comes back up at the requested speed, or gives up.
     // Returns true if confirmed, false if exhausted.
-    const confirmSpeedChange = async (requestedValue: string, windowSec: number): Promise<boolean> => {
+    const confirmSpeedChange = async (
+      requestedValue: string,
+      windowSec: number,
+    ): Promise<boolean> => {
       await new Promise((resolve) => setTimeout(resolve, windowSec * 1000));
 
       for (let i = 0; i < MAX_POLLS; i++) {
@@ -139,9 +176,9 @@ const EthernetStatusComponent = () => {
                 auto_negotiation: pollData.auto_negotiation,
                 speed_limit: pollData.speed_limit,
                 supports_2500: pollData.supports_2500,
+                interface_present: pollData.interface_present,
               });
-              setHasError(false);
-              hasDataRef.current = true;
+              setPollFailed(false);
               return true;
             }
           }
@@ -153,8 +190,9 @@ const EthernetStatusComponent = () => {
         }
       }
 
-      // Exhausted — re-sync to whatever the modem currently reports.
-      if (mountedRef.current) await fetchStatus(true);
+      // Exhausted — re-sync to whatever the modem currently reports. This runs
+      // BEFORE savingRef is cleared, so it goes through the non-silent path.
+      if (mountedRef.current) await fetchStatus();
       return false;
     };
 
@@ -212,6 +250,7 @@ const EthernetStatusComponent = () => {
         }
       }
     } finally {
+      savingRef.current = false;
       if (mountedRef.current) {
         setIsSaving(false);
       }
@@ -221,9 +260,12 @@ const EthernetStatusComponent = () => {
   // ---------------------------------------------------------------------------
   // Render
   // ---------------------------------------------------------------------------
+  // The cascade root declares `initial`/`animate` once. The band and the card
+  // are `staggerItem` children and must NOT declare their own, or they detach
+  // from the parent's clock.
   return (
     <motion.div
-      className="@container/main mx-auto flex flex-col gap-5 p-2"
+      className={PAGE_ROOT}
       aria-live="polite"
       aria-atomic="false"
       variants={staggerContainer}
@@ -247,7 +289,7 @@ const EthernetStatusComponent = () => {
               variant="outline"
               onClick={() => fetchStatus()}
               disabled={isSaving}
-              className="h-[2.625rem] gap-2 rounded-pill px-5 text-sm font-semibold"
+              className={PILL_ACTION}
             >
               <RefreshCcwIcon className="size-4" />
               {t(`${K}.header.refresh`)}
@@ -256,35 +298,29 @@ const EthernetStatusComponent = () => {
         </div>
       </motion.div>
 
-      {isLoading ? (
-        <motion.div variants={staggerItem}>
-          <EthernetTilesSkeleton label={t(`${K}.loading_sr`)} />
-        </motion.div>
-      ) : hasError && !status ? (
-        <motion.div variants={staggerItem}>
-          <EthernetErrorState
-            title={t(`${K}.error.title`)}
-            body={t(`${K}.error.body`)}
-            retryLabel={t("actions.retry")}
-            onRetry={() => fetchStatus()}
-          />
-        </motion.div>
-      ) : status ? (
-        <>
-          <motion.div variants={staggerItem}>
-            <EthernetTiles status={status} />
-          </motion.div>
-          <motion.div variants={staggerItem}>
-            <EthernetSettingsCard
-              speedLimit={status.speed_limit}
-              supports2500={status.supports_2500 ?? false}
-              isSaving={isSaving}
-              saved={saved}
-              onSpeedChange={handleSpeedChange}
-            />
-          </motion.div>
-        </>
-      ) : null}
+      <motion.div variants={staggerItem}>
+        <LinkStateStrip
+          status={status}
+          isLoading={isLoading}
+          pollFailed={pollFailed}
+        />
+      </motion.div>
+
+      <motion.div variants={staggerItem}>
+        <SpeedLimitCard
+          // NOT `?? "auto"`. A defaulted value here would render the modem's
+          // most common setting as a confirmed selection on a page that has
+          // never read the modem.
+          speedLimit={status?.speed_limit ?? ""}
+          supports2500={status?.supports_2500 ?? false}
+          isSaving={isSaving}
+          saved={saved}
+          hasStatus={status !== null}
+          pollFailed={pollFailed}
+          interfacePresent={status?.interface_present !== false}
+          onSpeedChange={handleSpeedChange}
+        />
+      </motion.div>
     </motion.div>
   );
 };

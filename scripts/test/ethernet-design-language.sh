@@ -419,7 +419,12 @@ varforms=$(grep -cE 'duration-\[var\(--duration-(quick|standard|emphasized)\)\]'
 if [ "${varforms:-0}" -ge 1 ]; then
     ok "$varforms tokenized duration(s) in the var() form"
 else
-    bad "no duration-[var(--duration-*)] anywhere -- the link tone transition is missing"
+    # The message names the tokens rather than writing a wildcard inside the
+    # brackets: Tailwind v4 scans scripts/ as source, and `--duration-*` is not a
+    # parsable custom-property name, so that spelling would mint a candidate that
+    # fails the whole stylesheet -- 500 on every page in `next dev`, silently
+    # dropped by `next build`. See cellular-settings-family.md's warning.
+    bad "no tokenized duration utility in the var() form (quick/standard/emphasized) -- the link tone transition is missing"
 fi
 if grep -q 'transition-\[background-color,color\]' "$TMPD/all.code"; then
     ok "the link disc's tone change is a scoped property transition"

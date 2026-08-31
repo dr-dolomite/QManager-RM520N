@@ -51,7 +51,14 @@
     "header": {
       "refresh": "刷新"
     },
-    "loading_sr": "正在加载以太网状态",
+    "strip": {
+      "label": "链路状态",
+      "unresponsive": "无响应",
+      "unavailable_title": "无法读取以太网端口",
+      "unavailable_body": "每 10 秒重试一次。未做任何更改。",
+      "absent_title": "无以太网控制器",
+      "absent_body": "此设备没有 eth0 端口，因此没有可报告或配置的内容。"
+    },
     "tiles": {
       "link": {
         "label": "链路状态",
@@ -63,30 +70,28 @@
         "caption_unknown": "等待链路状态"
       },
       "speed": {
-        "label": "当前速度",
-        "value_na": "N/A",
+        "label": "协商速率",
         "caption": "与对端协商确定",
+        "caption_ceiling": "端口最高支持 {{ceiling}}",
         "caption_down": "需要活动链路"
       },
       "duplex": {
         "label": "双工模式",
-        "value_na": "N/A",
-        "caption": "收发模式",
+        "caption": "同时收发",
         "caption_down": "需要活动链路"
       },
       "negotiation": {
         "label": "协商模式",
         "value_auto": "自动",
-        "value_manual": "手动",
-        "value_na": "N/A",
-        "caption_auto": "速度由对端协商决定",
-        "caption_manual": "由速度限制强制",
-        "caption_na": "暂无速度数据"
+        "value_forced": "强制",
+        "value_unknown": "未知",
+        "caption_auto": "未设置速度限制",
+        "caption_limited": "限制为 {{speed}}"
       }
     },
     "settings": {
       "title": "链路速度限制",
-      "description": "将主机端口强制为固定速度。重新协商期间链路会短暂断开。",
+      "description": "将主机端口强制为固定速度，而不是让它自行协商。",
       "row_label": "速度限制",
       "placeholder": "选择速度",
       "applying": "正在应用…",
@@ -97,13 +102,15 @@
       "option_100": "100 Mbps",
       "option_1000": "1 Gbps",
       "option_2500": "2.5 Gbps",
+      "consequence": "应用后链路会中断约 8 秒，等待 PHY 重新协商。你正在使用该链路。",
+      "consequence_applying": "PHY 重新协商期间链路已中断。本页面会自行确认新速率。",
+      "consequence_unresponsive": "调制解调器已停止响应，因此在下一次成功读取前锁定此控件。",
+      "consequence_unread": "调制解调器尚未响应，在首次读取完成前没有可更改的内容。",
+      "consequence_absent": "此设备上没有可配置的以太网端口。",
+      "provenance": "已保存到调制解调器。读取自：",
       "toast_success": "链路速度已更新",
       "toast_error": "设置链路速度失败",
       "toast_confirm_error": "无法确认新速度。请检查链路。"
-    },
-    "error": {
-      "title": "无法连接调制解调器",
-      "body": "无法加载以太网状态。请尝试刷新。"
     }
   },
   "profile_override": {

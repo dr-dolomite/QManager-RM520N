@@ -87,6 +87,28 @@ if [ "$REQUEST_METHOD" = "GET" ]; then
         *)          auto_negotiation="Unknown" ;;
     esac
 
+    # --- Is there a controller at all? ---
+    # `link_status` cannot answer this. An unplugged cable and an absent eth0
+    # both read "down", so the UI has no way to tell "the cable is out" from
+    # "this device has no ethernet port" — and the second is a DESIGNED outcome,
+    # not a fault. It is exactly why qmanager-ethernet.service puts its
+    # ConditionPathExists in [Unit] (the unit reports `inactive`, not `failed`)
+    # and why docs/reference/ethernet.md warns against "fixing" that.
+    #
+    # sysfs, not ethtool: the directory either exists or it does not, it costs
+    # no fork, and it is readable by www-data. Measured present on both
+    # reference devices (RM520N-GL 61368cd2, RG501Q-EU b7e3d6f1), so the false
+    # branch is unreachable there — stated rather than implied.
+    #
+    # Emitted below with --argjson, NOT --arg: a quoted "false" is a non-empty
+    # string, and every non-empty string is truthy in JavaScript, so a stringly
+    # typed field would report every device as having a port.
+    if [ -d "/sys/class/net/$ETH_INTERFACE" ]; then
+        interface_present=true
+    else
+        interface_present=false
+    fi
+
     # --- Persisted speed limit ---
     speed_limit="auto"
     if [ -f "$ETHERNET_SPEED_FILE" ]; then
@@ -99,7 +121,7 @@ if [ "$REQUEST_METHOD" = "GET" ]; then
     # --- 2.5G support ---
     sup2500=$(supports_2500)
 
-    qlog_info "link=$link_status speed=$speed duplex=$duplex autoneg=$auto_negotiation limit=$speed_limit 2500=$sup2500"
+    qlog_info "link=$link_status speed=$speed duplex=$duplex autoneg=$auto_negotiation limit=$speed_limit 2500=$sup2500 present=$interface_present"
 
     jq -n \
         --arg link_status "$link_status" \
@@ -108,6 +130,7 @@ if [ "$REQUEST_METHOD" = "GET" ]; then
         --arg auto_negotiation "$auto_negotiation" \
         --arg speed_limit "$speed_limit" \
         --argjson supports_2500 "$sup2500" \
+        --argjson interface_present "$interface_present" \
         '{
             success: true,
             link_status: $link_status,
@@ -115,7 +138,8 @@ if [ "$REQUEST_METHOD" = "GET" ]; then
             duplex: $duplex,
             auto_negotiation: $auto_negotiation,
             speed_limit: $speed_limit,
-            supports_2500: $supports_2500
+            supports_2500: $supports_2500,
+            interface_present: $interface_present
         }'
     exit 0
 fi
