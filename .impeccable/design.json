@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-08-17",
+  "generatedAt": "2026-08-31",
   "title": "Design System: QManager (RM520N-GL)",
   "extensions": {
     "colorMeta": {
@@ -1240,9 +1240,9 @@
       "name": "Quality Bar",
       "kind": "custom",
       "refersTo": "quality-bar",
-      "description": "The row-level data graphic and the non-chromatic half of the quality ramp. A full-round `surface-container` track 4px tall, spanning the row where the row is the bar's own line and shrinking to a 56px lane where it sits inline beside its figure. The fill is `--quality-N-bar` and its LENGTH is proportional to the value within the metric's physical range — length is the primary encoding and colour only reinforces it, which is what makes adjacent ramp stops safe below the separation floor. A missing reading renders an EMPTY TRACK with no fill element at all (`MetricBar value={null}`), never a zero-length red fill. The entrance is a compositor-only `scaleX` on mount; the value retarget is layout `width`, because a transform scales the border-radius too and squashed the pill cap into an ellipse at low percentages.",
+      "description": "The row-level data graphic and the non-chromatic half of the quality ramp. A full-round track 4px tall, spanning the row where the row is the bar's own line and shrinking to a 56px lane where it sits inline beside its figure. A TRACK IS INVISIBLE CHROME ONLY WHILE IT IS DARKER THAN ITS GROUND: `track=\"surface-container-high\"` is what every call site passes and is right on `surface` and `surface-container`; on a lighter ground (Antenna Alignment's winning `primary-container` row, its `surface-container-high` pinned readout) it renders lighter than what it sits on and reads as a second, paler segment continuing past the fill, so those call sites pass `track=\"muted\"` instead. The fill is `--quality-N-bar` and its LENGTH is proportional to the value within the metric's QUALITY WINDOW — `signalToProgress()` maps `[floor, excellent]` → `[0, 100]`, which saturates at the top cut on purpose. Length carries magnitude within the scale; the glyph carries which stop. A missing reading renders an EMPTY TRACK with no fill element at all (`MetricBar value={null}`), never a zero-length red fill, and a ramp reading at a legitimate 0% floors at a one-track-height stub so the two never look alike. The entrance is a compositor-only `scaleX` on mount; the value retarget is layout `width`, because a transform scales the border-radius too and squashed the pill cap into an ellipse at low percentages.",
       "html": "<div class=\"ds-qbar\"><div class=\"ds-qbar__fill\" style=\"width:72%\"></div></div>",
-      "css": ".ds-qbar{width:100%;height:.25rem;overflow:hidden;border-radius:9999px;background:var(--surface-container)}.ds-qbar__fill{height:100%;border-radius:9999px;background:var(--quality-4-bar);transition:width var(--duration-standard,600ms) var(--ease-standard,cubic-bezier(0.2,0,0,1)),background-color var(--duration-standard,600ms) var(--ease-standard,cubic-bezier(0.2,0,0,1))}@media (prefers-reduced-motion:reduce){.ds-qbar__fill{transition:none}}"
+      "css": ".ds-qbar{width:100%;height:.25rem;overflow:hidden;border-radius:9999px;background:var(--surface-container-high)}.ds-qbar--on-tint{background:var(--muted)}.ds-qbar__fill{height:100%;border-radius:9999px;background:var(--quality-4-bar);transition:width var(--duration-standard,600ms) var(--ease-standard,cubic-bezier(0.2,0,0,1)),background-color var(--duration-standard,600ms) var(--ease-standard,cubic-bezier(0.2,0,0,1))}@media (prefers-reduced-motion:reduce){.ds-qbar__fill{transition:none}}"
     },
     {
       "name": "Hero Card",
@@ -1280,9 +1280,9 @@
       "name": "Input Field",
       "kind": "input",
       "refersTo": "input",
-      "description": "20px radius, 42px tall, a `surface-container` fill and no visible border at rest. Focus adds a 3px `--ring` ring at 50%; the fill does not change. Invalid draws a destructive ring plus border, driven by `aria-invalid`.",
+      "description": "20px radius, 42px tall, no visible border at rest. THE FILL IS THE ENTIRE AFFORDANCE, so it is one tonal step above the field's HOST rather than a fixed token (The Field-Step Rule): `surface-container` on a `surface` or `card` host, `surface-container-high` on a `surface-container` host. A fixed token is only accidentally correct and renders at 1.00:1 — a field with no edge at all — on every other host; six controls on Tower Locking painted their host's exact colour that way. `-high` is the top rung, so a would-be `-high` host steps DOWN instead of the field growing a border. An explicit fill is always written as a light/dark pair, with the dark half marked important (`dark:bg-surface-container-high!`), because the primitives ship their own `dark:bg-input/30` and two `dark:`-prefixed rules tie on specificity — the winner is Tailwind's by-name candidate sort, which is an observed outcome rather than a guarantee. Focus adds a 3px `--ring` ring at 50%; the fill does not change. Invalid draws a destructive ring plus border, driven by `aria-invalid`. The 44px coarse-pointer floor applies to a `Switch` too: the primitive paints 18x32px and reaches the floor with a pseudo-element overlay, never a layout box.",
       "html": "<input class=\"ds-input\" type=\"text\" placeholder=\"internet.carrier.com\" />",
-      "css": ".ds-input{width:100%;height:2.625rem;padding:0 .875rem;border:1px solid transparent;border-radius:1.25rem;background:var(--surface-container);color:var(--on-surface);font-family:var(--font-sans,'Rethink Sans',system-ui,sans-serif);font-size:.875rem;outline:none;transition:box-shadow var(--duration-quick,360ms) ease-out,border-color var(--duration-quick,360ms) ease-out}.ds-input::placeholder{color:var(--on-surface-variant)}.ds-input:focus-visible{border-color:var(--ring);box-shadow:0 0 0 3px color-mix(in oklab,var(--ring) 50%,transparent)}.ds-input[aria-invalid=true]{border-color:var(--destructive);box-shadow:0 0 0 3px color-mix(in oklab,var(--destructive) 20%,transparent)}"
+      "css": ".ds-input{width:100%;height:2.625rem;padding:0 .875rem;border:1px solid transparent;border-radius:1.25rem;background:var(--surface-container);color:var(--on-surface);font-family:var(--font-sans,'Rethink Sans',system-ui,sans-serif);font-size:.875rem;outline:none;transition:box-shadow var(--duration-quick,360ms) ease-out,border-color var(--duration-quick,360ms) ease-out}.ds-input--on-container{background:var(--surface-container-high)}.ds-input::placeholder{color:var(--on-surface-variant)}.ds-input:focus-visible{border-color:var(--ring);box-shadow:0 0 0 3px color-mix(in oklab,var(--ring) 50%,transparent)}.ds-input[aria-invalid=true]{border-color:var(--destructive);box-shadow:0 0 0 3px color-mix(in oklab,var(--destructive) 20%,transparent)}"
     },
     {
       "name": "Tonal Banner",
@@ -1295,7 +1295,7 @@
   ],
   "narrative": {
     "northStar": "An instrument console — colour on the data, not on the furniture.",
-    "overview": "QManager reports what a cellular modem is doing, on the modem itself, to someone who understands modems. Three facts about that job set the whole language.\n\n**Colour belongs to the data, not to the furniture.** A card is a neutral surface. What is coloured is the reading: the numeral, the chart stroke, the quality bar, the glyph in its disc. This is the largest change from the previous system, which spent its colour on large tonal container fills and left the live diagnostic values grey — on the very surface built to showcase the palette, four tinted tiles carried restated facts while RSRP and SINR sat in neutral text below them.\n\nIt is also the accessible answer, which is not a coincidence. Across this palette, ink colours separate in 0 of 28 pairs under deuteranopia and protanopia simulation, and so do fills, while pale identity containers collapse in 8 of 10. Colour on ink works; colour on large pale surfaces does not, and an optimiser proved the light-mode pale band too narrow to hold five identity hues plus `surface-container-high` — infeasible, not merely hard. So the system commits to the layer that survives: identity gets ink, an outline, and a strong-fill disc, and never a large tinted block.\n\n**Density is the product, and hierarchy is how it stays readable.** A modem console shows a lot at once. The answer is never to show less; it is to rank what is shown. Neutral surfaces, one coloured thing per row, and a consistent card grid are what let forty routes feel like one product.\n\n**Every hue owns exactly one meaning.** A colour learned on the dashboard means the same thing on the cell scanner. Where a figure has no honest hue — a count, a capacity — it stays neutral rather than being given a decorative one.\n\nReference language: WiFiman (Ubiquiti) and Firewalla — near-black canvas, saturated data strokes, coloured numerals, thin quality bars, outline metadata tags. Structural reference: the grouped-card, consistent-shape page from macOS System Settings and the Apple pro-app inspectors. Not a consumer router app, not a generic SaaS dashboard, not a terminal utility. Both themes are first-class and each is authored; neither is a desaturated copy of the other.",
+    "overview": "QManager is an **instrument console**. It reports what a cellular modem is doing, on the modem itself, to someone who understands modems. The design language follows from three facts about that job.\n\n**Colour belongs to the data, not to the furniture.** A card is a neutral surface. What is coloured is the reading: the numeral, the chart stroke, the quality bar, the glyph in its disc. This is the single largest change from the previous system, which spent its colour on large tonal container fills and left the live diagnostic values grey. That inversion was measured and it was backwards — on the surface built to showcase the colour system, four tinted tiles carried restated facts while RSRP and SINR sat in neutral text below them.\n\nIt is also the accessible answer, which is not a coincidence. Across this palette, **ink colours separate in 0 of 28 pairs under deuteranopia and protanopia simulation. So do fills. Pale identity containers separate in 2 of 10.** Colour on ink works; colour on large pale surfaces does not. The design direction and the measurement agree, so the system commits to the layer that survives.\n\n**Density is the product, and hierarchy is how it stays readable.** A modem console shows a lot at once. The answer is never to show less; it is to rank what is shown. Neutral surfaces, one coloured thing per row, and a consistent card grid are what let forty routes feel like one product.\n\n**Every hue owns exactly one meaning.** A colour a user learns on the dashboard means the same thing on the cell scanner. Where a figure has no honest hue, it stays neutral rather than being given a decorative one.\n\n**Reference language:** WiFiman (Ubiquiti) and Firewalla — near-black canvas, saturated data strokes, coloured numerals, thin quality bars, outline metadata tags. **Structural reference:** the grouped-card, consistent-shape page from macOS System Settings and the Apple pro-app inspectors. **Not** a consumer router app, not a generic SaaS dashboard, not a terminal utility.\n\nBoth themes are first-class and each is authored. Dark is a near-black instrument panel; light is a white-card console. Neither is a desaturated copy of the other, and every value in both was measured rather than derived by inversion.",
     "keyCharacteristics": [
       "OKLCH only, and every token is inside sRGB by construction — chroma floored to 98.5% of the in-gamut maximum for its lightness and hue, so declared equals shipped.",
       "Colour lives on INK first, FILL second, and CONTAINER only for the functional roles. Choosing the wrong layer is the standard failure.",
@@ -1307,49 +1307,50 @@
       "Depth is tonal. Shadows exist, are optional, and are never load-bearing — in near-black dark mode a shadow has nothing to cast against.",
       "Motion is expressive in curve and duration, capped at `emphasized` (800ms), and never overshoots. One number, 1.03, is the sole sanctioned exception.",
       "Responsive behavior is driven by container queries, not viewport breakpoints.",
+      "Geometry lives in a per-family `shapes.ts` module, not in the components that draw it — eight of them under `components/cellular/**`, imported by the loaded views AND their skeletons, so a strip and its mirror cannot drift.",
       "No runtime asset fetches. Fonts and the icon font are self-hosted and subset at build time — the modem may have no internet.",
       "Build on shadcn/ui first, restyled with these tokens at the call site. Build custom only where shadcn has no answer."
     ],
     "rules": [
       {
         "name": "The Data-Ink Rule",
-        "section": "colors",
-        "body": "Colour belongs to the reading, not to the container holding it. A card is neutral; the numeral, stroke, bar and glyph disc on it are coloured. Before tinting a surface, ask what fact the tint encodes — if the answer is 'it looked plain', the surface stays neutral. Large tinted blocks are reserved for the functional roles, where the tint IS the state."
+        "body": "Colour belongs to the reading, not to the container holding it. A card is neutral; the numeral, stroke, bar, and glyph disc on it are coloured. Before tinting a surface, ask what fact the tint encodes — if the answer is \"it looked plain\", the surface stays neutral. Large tinted blocks are reserved for the functional roles, where the tint *is* the state.",
+        "section": "colors"
       },
       {
         "name": "The Three-Layer Rule",
-        "section": "colors",
-        "body": "Ink (`--X-on-surface`) for values and strokes on neutral ground; fill (`--X` + `--X-foreground`) for compact emphasis; container (`--X-container` + `--on-X-container`) for functional-role blocks only. Identity and direction have no container job. Never cross a pair — a fill takes its own `-foreground`, a container takes its own `on-` ink, and a neutral-ramp ink on a tinted surface is always a bug."
+        "body": "Ink for values and strokes on neutral ground; fill for compact emphasis; container for functional-role blocks only. Identity and direction have no container job. Never cross a pair: a fill takes its own `-foreground`, a container takes its own `on-` ink, and a neutral-ramp ink (`on-surface-variant`) on a tinted surface is always a bug.",
+        "section": "colors"
       },
       {
         "name": "The In-Gamut Rule",
-        "section": "colors",
-        "body": "Every token is inside sRGB by construction. This is correctness, not polish: Lightning CSS gamut-maps out-of-range `oklch()` at build time and its mapping is not naive clipping, so an out-of-gamut token ships a colour nobody authored and any separation measured from the source value is fiction. The previous palette had 87 such tokens; this one has zero. Check a new value for gamut before checking it for anything else."
+        "body": "Every token is inside sRGB by construction. This is correctness, not polish: Lightning CSS gamut-maps out-of-range `oklch()` at build time and its mapping is not naive clipping, so an out-of-gamut token ships a colour nobody authored and measured separation computed from the source value is fiction. The previous palette had 87 such tokens; this one has zero, which is what makes \"declared equals shipped\" true. Any new value is checked for gamut before it is checked for anything else.",
+        "section": "colors"
       },
       {
         "name": "The Measured-Separation Rule",
-        "section": "colors",
-        "body": "Colour decisions are measured, never reasoned from hue arithmetic. This replaces the old 40-Degree Rule, which was a proxy for a measurement and behaved like one — it permitted pairs that collapsed and forbade pairs that were fine. Simulate deuteranopia and protanopia, compute OKLab dE, and hold the 0.05 floor on the layer the colour will actually ship on. Degrees of hue separation are not evidence."
+        "body": "Colour decisions are measured, never reasoned from hue arithmetic. This replaces the old 40-Degree Rule, which was a proxy for a measurement and behaved like one: it permitted pairs that collapsed and forbade pairs that were fine, and it needed an exception every time it met real data. Simulate deuteranopia and protanopia, compute OKLab ΔE, and hold the **0.05 floor** — on the layer the colour will actually ship on. Degrees of hue separation are not evidence.",
+        "section": "colors"
       },
       {
         "name": "The Identity-Never-Acts Rule",
-        "section": "colors",
-        "body": "`nr` and `lte` say which radio. They never mean healthy, never tint a control, and never appear in a quality scale. Where a surface carries identity AND reports quality, the quality is encoded non-chromatically — the signal cards use the Material glyph's bar count."
+        "body": "`nr` and `lte` say which radio. They never mean healthy, never tint a control, and never appear in a quality scale. Where a surface carries identity *and* reports quality, the quality is encoded non-chromatically — the signal cards use the Material glyph's bar count.",
+        "section": "colors"
       },
       {
         "name": "The Info-Is-Brand Rule",
-        "section": "colors",
-        "body": "An informational state resolves to the brand ramp; it does not get its own hue. An info chip and a primary button differ by shape and glyph, not by owning two different blues. `--info` is byte-identical to `--primary` in both themes."
+        "body": "An informational state resolves to the brand ramp. It does not get its own hue. An info chip and a primary button differ by shape and glyph, not by owning two different blues.",
+        "section": "colors"
       },
       {
         "name": "The Direction-Is-Not-A-Radio Rule",
-        "section": "colors",
-        "body": "Rose and cyan say which way the bytes are going, on either radio. A download figure on the LTE leg is rose-on-violet and neither hue is guessing about the other. Neither carries a second meaning: counts and capacities are neutral. The previous system's cyan meant 'upload and counts', so a carrier-count tile wore upload cyan while reporting nothing about upload."
+        "body": "Rose and cyan say which way the bytes are going, on either radio. A download figure on the LTE leg is rose-on-violet and neither hue is guessing about the other. Neither carries a second meaning: counts and capacities are neutral.",
+        "section": "colors"
       },
       {
         "name": "The Glyph-Carries-The-State Rule",
-        "section": "colors",
-        "body": "Colour is never the sole carrier. Every status chip has a glyph, no two states in one slot share a glyph, every directional readout pairs its hue with an arrow, and the quality ramp always pairs its colour with bar length. Load-bearing rather than decorative: adjacent ramp stops are intentionally below the separation floor, and the bar is what makes that safe."
+        "body": "Colour is never the sole carrier. Every status chip has a glyph, no two states in one slot share a glyph, every directional readout pairs its hue with an arrow, and the quality ramp always pairs its colour with bar length. This is load-bearing rather than decorative: adjacent ramp stops are intentionally below the separation floor, so colour is never the only channel there. The bar carries magnitude within the scale, and `QUALITY_GLYPH` carries the stop itself.",
+        "section": "colors"
       },
       {
         "name": "The Explicit-Tone Rule",
@@ -1358,48 +1359,58 @@
       },
       {
         "name": "The Neutral-Default Rule",
-        "section": "colors",
-        "body": "A figure with no honest hue stays neutral. Adding a colour because a block looked plain is the failure mode this whole system exists to prevent, and it is the one that recurs."
+        "body": "A figure with no honest hue stays neutral. Adding a colour because a block looked plain is the failure mode this whole system exists to prevent, and it is the one that recurs.",
+        "section": "colors"
       },
       {
         "name": "The Two-Voice Rule",
-        "section": "typography",
-        "body": "Rethink Sans is the interface, JetBrains Mono is the machine. There is no third typeface. Pairing Rethink Sans with another UI sans (Inter, Geist Sans, IBM Plex, Roboto, Manrope) is forbidden. An icon font is not a voice and does not count."
+        "body": "Rethink Sans is the interface, JetBrains Mono is the machine. There is no third typeface. Pairing Rethink Sans with another UI sans (Inter, Geist Sans, IBM Plex, Roboto, Manrope) is forbidden.",
+        "section": "typography"
       },
       {
         "name": "The Machine-Voice Rule",
-        "section": "typography",
-        "body": "`font-mono` is scoped to machine truth that is not itself a changing figure: identifiers (band, EARFCN, PCI, ICCID, IMEI, MAC/IP), static facts read back from config, raw AT responses, log lines, copyable commands. A human-authored label never wears it. The tell: does the value change while the user watches without them acting? Then `font-sans` with `tabular-nums`. Does it hold steady until something reconfigures it? Then `font-mono`."
+        "body": "`font-mono` is scoped to machine truth that is not itself a changing figure: identifiers (band, EARFCN, PCI, ICCID, IMEI, MAC/IP), static facts read back from config, raw AT responses, log lines, copyable commands. A human-authored label never wears it. A live measurement — RSRP, throughput, a countdown — is the interface *reporting* a number, so it takes `--font-sans` and `tabular-nums`. The tell: does the value change while the user watches without them acting? Then `font-sans`. Does it hold steady until something reconfigures it? Then `font-mono`.",
+        "section": "typography"
       },
       {
         "name": "The Weight-Discipline Rule",
-        "section": "typography",
-        "body": "400 body, 500 labels and medium emphasis, 600 headings and numerics, 700 page titles only."
+        "body": "400 body, 500 labels and medium emphasis, 600 headings and numerics, 700 page titles only.",
+        "section": "typography"
       },
       {
         "name": "The Tabular-Number Rule",
-        "section": "typography",
-        "body": "Any figure that can change while on screen is `tabular-nums`, in whichever voice it is already in. The class controls digit-width jitter; it does not decide which voice owns the value. A latency readout whose digits shift width reads as the layout twitching, not as the value moving."
+        "body": "Any figure that can change while on screen is `tabular-nums`, in whichever voice it is already in. The class controls digit-width jitter; it does not decide which voice owns the value. A latency readout whose digits shift width reads as the layout twitching, not as the value moving.",
+        "section": "typography"
       },
       {
         "name": "The Truncation-Pair Rule",
-        "section": "typography",
-        "body": "Where two cards sit side by side as a pair, every text node in their headers carries `min-w-0` and `truncate`. One card wrapping to two lines while its sibling stays at one breaks the paired baseline. Italian is the locale that trips it."
+        "body": "Where two cards sit side by side as a pair, every text node in their headers carries `min-w-0` and `truncate`. One card wrapping to two lines while its sibling stays at one breaks the paired baseline. Italian is the locale that trips it.",
+        "section": "typography"
       },
       {
         "name": "The Consistent-Layout Rule",
-        "section": "layout",
-        "body": "Page header (display title plus a muted one-line description, optional pill actions right-aligned) plus a uniform grid of self-contained cards, on every feature page. A bespoke hero-driven layout invented for a single screen is a consistency failure even when it looks good in isolation. A genuine glance surface may earn a hero card; it is a rare exception, never the default."
+        "body": "Page header plus a uniform card grid, on every feature page. A bespoke hero-driven layout invented for a single screen is a consistency failure even when it looks good in isolation. A genuine glance surface may earn a hero card; it is a rare exception, never the default.",
+        "section": "layout"
       },
       {
         "name": "The Card-Wrapped Surface Rule",
-        "section": "layout",
-        "body": "The unit of composition is the card that wraps a settings group, not the page. The card owns its whole content; the page only arranges cards. A feature that scatters loose fragments across the viewport has skipped the card."
+        "body": "The unit of composition is the **card that wraps a settings group**, not the page. The card owns its whole content; the page only arranges cards. A feature that scatters loose fragments across the viewport has skipped the card.",
+        "section": "layout"
       },
       {
         "name": "The Container-Query Rule",
-        "section": "layout",
-        "body": "New responsive behavior is a container query against `@container/main` or a card-local `@container/card`. Reach for a viewport breakpoint only for the page gutter (`px-4 lg:px-6`) or the shell itself. Mixing viewport `sm:` with container `@sm/card:` inside one card breaks on tablets and expanded sidebars."
+        "body": "New responsive behavior is a container query against `@container/main` or a card-local `@container/card`. Reach for a viewport breakpoint only for the page gutter or the shell itself.",
+        "section": "layout"
+      },
+      {
+        "name": "The Sticky-Slack Rule",
+        "body": "A sticky pane's travel is its parent's height minus its own, so the column holding it stretches. When a \"pinned\" element never moves, check the column's alignment before the offsets.",
+        "section": "layout"
+      },
+      {
+        "name": "The Grid-Step-Costing Rule",
+        "body": "Cost a responsive grid step against the narrowest cell it produces **in the column it actually lives in**, never against the page width. A 4-up step that is safe full-width at `@3xl` collapses the bar lane to nothing inside a 7-of-12 column at the same breakpoint — which is the named bug of ramp ink on a numeral with no bar beside it.",
+        "section": "layout"
       },
       {
         "name": "The Cadence-Not-Symmetry Rule",
@@ -1408,199 +1419,201 @@
       },
       {
         "name": "The Tonal-Elevation Rule",
-        "section": "elevation-depth",
-        "body": "Two surfaces at different conceptual elevations differ by at least one container step. If two surfaces are only distinguishable by their shadow, one of them is on the wrong step of the ramp. This system has no colour to spare for chrome, and in near-black dark mode a shadow is invisible against the ground — a shadow-separated layout has no dark theme at all."
+        "body": "Two surfaces at different conceptual elevations differ by at least one container step. If two surfaces are only distinguishable by their shadow, one of them is on the wrong step of the ramp.",
+        "section": "elevation-depth"
       },
       {
         "name": "The No-Hairline-On-Fill Rule",
-        "section": "elevation-depth",
-        "body": "A tonal container never also carries a border. Cards ship `border-0` explicitly, because a hairline over a fill reads as chrome around the colour rather than as the edge of a block. The outline tag is the one deliberate exception in the system: there the border IS the component, because there is no fill for it to sit on top of. `--outline` / `--border` are otherwise for input strokes and genuine table rules only."
+        "body": "A tonal container never also carries a border. Cards ship `border-0` explicitly, because a hairline over a fill reads as chrome around the colour rather than as the edge of a block. **The outline tag is the one deliberate exception in the system** — there the border *is* the component, because there is no fill for it to sit on top of. `--border` is otherwise for input strokes and genuine table rules only.",
+        "section": "elevation-depth"
       },
       {
         "name": "The Highlight-by-Container Rule",
-        "section": "elevation-depth",
-        "body": "Emphasis promotes a surface one container step and changes its ink, rather than adding a translucent wash over a neutral card. A recommended alignment slot becomes a `primary-container` block; a running pipeline step becomes a `primary-container` row."
+        "body": "Emphasis promotes a surface one container step and changes its ink, rather than adding a translucent wash over a neutral card. A recommended alignment slot becomes a `primary-container` block; a running pipeline step becomes a `primary-container` row.",
+        "section": "elevation-depth"
       },
       {
         "name": "The Radius-Follows-Size Rule",
-        "section": "shapes",
-        "body": "A surface's radius is a function of its size and role, not of taste. A 28px tile never sits inside a 20px field, and a banner never out-rounds the card it sits on."
+        "body": "A surface's radius is a function of its size and role, not of taste. A 28px tile never sits inside a 20px field, and a banner never out-rounds the card it sits on.",
+        "section": "shapes"
       },
       {
         "name": "The Fill-Over-Stroke Rule",
-        "section": "shapes",
-        "body": "When a shape needs to be distinguished from its neighbour, change its fill, not its border. The outline tag is the sanctioned exception, and it is a COMPONENT, not a technique to generalise."
+        "body": "When a shape needs to be distinguished from its neighbour, change its fill, not its border. The outline tag is the sanctioned exception, and it is a *component*, not a technique to generalise.",
+        "section": "shapes"
       },
       {
         "name": "The Role-Radius Rule",
-        "section": "shapes",
-        "body": "New work uses the role scale (`rounded-inline/field/tile/card/hero/pill`). The legacy `rounded-{sm,md,lg,xl}` chain off `--radius: 0.65rem` still resolves for unconverted call sites — and inside the shadcn primitives themselves — but it is never the correct choice in a new component."
+        "body": "New work uses the role scale above. The legacy `rounded-{sm,md,lg,xl}` chain off `--radius: 0.65rem` still resolves for unconverted call sites and keeps its old values, but it is never the correct choice in a new component.",
+        "section": "shapes"
       },
       {
         "name": "The Motion-Ceiling Rule",
-        "section": "motion",
-        "body": "Nothing exceeds `emphasized` (800ms), and `emphasized` is the ceiling, not a starting point. State the rule as the token, never as the number — the number moved once already and every place it had been written out longhand had to be hunted down."
+        "body": "Nothing exceeds `emphasized` (800ms), and `emphasized` is the ceiling, not a starting point. State the rule as *the token*, never as the number.",
+        "section": "motion"
       },
       {
         "name": "The One-Scale Rule",
-        "section": "motion",
-        "body": "A duration in a component is a bug. Every transition reads `duration-[var(--duration-standard)]` (or `-quick` / `-emphasized`) in a className, or `DUR.standard` in a `motion/react` transition; a bare `duration-200`, an inline `{ duration: 0.25 }`, or a `transition-all` with no duration (silently inheriting Tailwind's 150ms) is off the scale and will not retune with it. The exceptions are narrow and each carries a comment: continuous loops with their own tempo, and linear data-driven progress bars. `{ duration: 0 }` as a reduced-motion escape is always fine."
+        "body": "A duration in a component is a bug. Every transition reads `duration-[var(--duration-standard)]` (or `-quick` / `-emphasized`) in a className, or `DUR.standard` in a `motion/react` transition; a bare `duration-200`, an inline `{ duration: 0.25 }`, or a `transition-all` with no duration (silently inheriting Tailwind's 150ms) is off the scale and will not retune with it. The exceptions are narrow and each carries a comment: continuous loops with their own tempo, and linear data-driven progress bars. `{ duration: 0 }` as a reduced-motion escape is always fine.",
+        "section": "motion"
       },
       {
         "name": "The Non-Load-Bearing Rule",
-        "section": "motion",
-        "body": "If a transition never runs — reduced motion, a backgrounded tab, a paint that beat the animation — the UI must already be correct. Every entrance keyframe in `globals.css` is written open-ended (`from` with no `to`): the resting value is the truth and the keyframe only describes the journey. A `requestAnimationFrame`-armed state flip breaks this rule, because rAF does not fire in a background tab."
+        "body": "If a transition never runs — reduced motion, a backgrounded tab, a paint that beat the animation — the UI must already be correct. Every entrance keyframe is written open-ended (`from` with no `to`): the resting value is the truth and the keyframe only describes the journey. A `requestAnimationFrame`-armed state flip breaks this rule, because rAF does not fire in a background tab.",
+        "section": "motion"
       },
       {
         "name": "The Transform-Only Rule",
-        "section": "motion",
-        "body": "Animate `transform` and `opacity`. The single sanctioned `width` animation is the carrier-aggregation segment, where the width IS the data and a `scaleX` would distort the band labels riding inside it. The quality meter is the narrow, documented second case: its ENTRANCE is `scaleX`, but its value retarget is layout `width`, because a transform scales the border-radius too and squashed the fill's pill cap into a near-flat ellipse at low percentages — and width changes only on a poll retarget, not per frame."
+        "body": "Animate `transform` and `opacity`. The single sanctioned `width` animation is the carrier-aggregation segment, where the width *is* the data and a `scaleX` would distort the band labels riding inside it. Meters animate `scaleX`, never `width` — on a CPU also carrying the user's traffic, a per-poll layout pass per meter is not free.",
+        "section": "motion"
       },
       {
         "name": "The One-Loop Rule",
-        "section": "motion",
-        "body": "At most one ambient loop per surface, and only where something is genuinely live. Two exist product-wide: the service-ring pulse and the live-ping dot."
+        "body": "At most one ambient loop per surface, and only where something is genuinely live. Two exist product-wide: the service-ring pulse and the live-ping dot.",
+        "section": "motion"
       },
       {
         "name": "The No-Overshoot Rule",
-        "section": "motion",
-        "body": "Never springy, never elastic, never rubber-banding. The one sanctioned overshoot is the save-confirmation check at 1.03 scale — and it is a NUMBER, not a sentence: `SAVE_CHECK_OVERSHOOT` / `SAVE_CHECK_KEYFRAMES` / `transitionSaveCheck` in `lib/motion.ts`. A ceiling enforced only by prose is not a ceiling: this rule once cited the save check as the sanctioned exception while the button underneath ran an underdamped spring whose peak was bounded by nothing."
+        "body": "Never springy, never elastic, never rubber-banding. The one sanctioned overshoot is the save-confirmation check at 1.03 scale — and it is a **number**, not a sentence: `SAVE_CHECK_OVERSHOOT` / `SAVE_CHECK_KEYFRAMES` / `transitionSaveCheck` in `lib/motion.ts`. Anything that wants the pop imports the constant. A ceiling enforced only by prose is not a ceiling — this rule once cited the save check as the sanctioned exception while the button underneath ran an underdamped spring whose peak was bounded by nothing.",
+        "section": "motion"
       },
       {
         "name": "The Enter-Only Rule",
-        "section": "motion",
-        "body": "Conditions and navigation have no exit animation. A banner leaving means the condition cleared and that should feel immediate; an outgoing route is already gone, and animating it out only delays the incoming one."
+        "body": "Conditions and navigation have no exit animation. A banner leaving means the condition cleared and that should feel immediate; an outgoing route is already gone, and animating it out only delays the incoming one.",
+        "section": "motion"
       },
       {
         "name": "The Modal-Exit Rule",
-        "section": "motion",
-        "body": "A modal's exit duration is an INPUT-LATENCY BUDGET, not a taste call, and every modal surface writes its two directions separately: `data-[state=open]:` on `emphasized`, `data-[state=closed]:` on `quick`. Never one unqualified `duration-*` for both. Radix pins `pointer-events: none` on `<body>` for as long as a modal layer is mounted and `<Presence>` holds it mounted until `animationend`, so the entire page is click-dead for exactly the length of the exit animation. The scrim shares the content's clock in both directions, and `quick` is the ceiling for a modal exit — distance does not buy budget: a sheet travels a full viewport edge and still exits on `quick`."
+        "body": "A modal's exit duration is an **input-latency budget**, not a taste call, and every modal surface writes its two directions separately: `data-[state=open]:` on `emphasized`, `data-[state=closed]:` on `quick`. Never one unqualified `duration-*` for both.",
+        "section": "motion"
       },
       {
         "name": "The Animations-Preference Rule",
         "section": "motion",
-        "body": "The reduced-motion switch has THREE states, not two: System (no attribute, `MotionConfig reducedMotion=\"user\"`), Full (`data-motion=\"full\"`, `\"never\"`), Reduced (`data-motion=\"reduced\"`, `\"always\"`). The absence of the attribute is load-bearing — 'System' removes it rather than writing `data-motion=\"system\"`, and that absence is what lets the bare media query decide. Tailwind's stock `motion-reduce:` compiles to a bare media query with no selector hook, so BOTH `motion-reduce` and `motion-safe` are redefined as `@custom-variant`s in `globals.css`. Redefine both or neither: without the `motion-safe` half, a user on OS-reduce who explicitly picks Full gets every spinner frozen."
+        "body": "The reduced-motion switch has THREE states, not two: System (no attribute, `MotionConfig reducedMotion=\"user\"`), Full (`data-motion=\"full\"`, `\"never\"`), Reduced (`data-motion=\"reduced\"`, `\"always\"`). The absence of the attribute is load-bearing — 'System' removes it rather than writing `data-motion=\"system\"`, and that absence is what lets the bare media query decide. The key, the type and the pre-paint boot script live together in `lib/motion-preference.ts`, and `app/layout.tsx` injects the boot script render-blocking: an attribute landing in a mount effect arrives AFTER first paint, so a user on Reduced would see one frame of every entrance animation, precisely the frame they asked not to see. Tailwind's stock `motion-reduce:` compiles to a bare media query with no selector hook, so BOTH `motion-reduce` and `motion-safe` are redefined as `@custom-variant`s in `globals.css`, each emitting `@slot` twice. Redefine both or neither: without the `motion-safe` half, a user on OS-reduce who explicitly picks Full gets every spinner frozen."
+      },
+      {
+        "name": "The Field-Step Rule",
+        "body": "A field's resting fill is one tonal step above **its host**, never a fixed token — the fill is the whole affordance, so a fixed token renders at 1.00:1 on the wrong host. `-high` is the top rung, so a `-high` host steps down rather than the field growing a border. An explicit fill is always a light/dark pair, with the dark half marked important. See Components > Inputs / Fields.",
+        "section": "components"
       },
       {
         "name": "The Two-Form Rule",
-        "section": "components",
-        "body": "Status is a filled chip with a glyph. Identity and metadata are an outline tag. Neither form ever does the other's job, and a component that needs both renders both. This is now compiler-enforced: `nr` / `lte` / `spatial` / `downlink` / `uplink` were deleted from `badge.tsx`, so `BadgeVariant` contains no identity member and `variant=\"nr\"` on a Badge fails the build. The deletion fixed two concrete defects — `nr` was a byte-identical class string to `info`, and in light mode 8 of 10 identity-container pairs collapse under simulation."
+        "body": "Status is a filled chip with a glyph. Identity and metadata are an outline tag. Neither form ever does the other's job, and a component that needs both renders both.",
+        "section": "components"
       },
       {
         "name": "The Every-Chip-Has-A-Glyph Rule",
-        "section": "components",
-        "body": "Status containers are close by construction — the functional roles share a narrow tint band, and `success-container` against `warning-container` has measured as low as 1.03:1, the same surface to the eye and identical under deuteranopia. The glyph is what separates healthy from degraded. Two states in the same slot must never share a glyph either: `poor` and `bad` both key onto `destructive` and are separated by `signal_cellular_1_bar` vs `signal_cellular_0_bar`."
+        "body": "Status containers are close by construction — the functional roles share a narrow tint band, and `success-container` against `warning-container` has measured as low as **1.03:1**. The glyph is what separates healthy from degraded. Two states in the same slot must never share a glyph either.",
+        "section": "components"
       },
       {
         "name": "The Identity-Chip Rule",
-        "section": "components",
-        "body": "Where a surface carries identity AND reports quality, the quality is encoded non-chromatically. On the signal cards that channel is the Material glyph's bar count (the `signal_cellular_{0..4}_bar` family, never the `alt` family, whose 1-bar mark is a 2x4px speck and which has no 0-bar member at all); on a metric row it is the quality bar's length."
+        "body": "Where a surface carries identity *and* reports quality, the quality is encoded non-chromatically. On the signal cards that channel is the Material glyph's bar count; on a metric row it is the quality bar's length.",
+        "section": "components"
       },
       {
         "name": "The Glyph-Disc Rule",
-        "section": "components",
-        "body": "A state or category icon sits in a filled circle on the role's STRONG fill, never on the pale container. In light mode the identity containers collapse under simulation and the fills do not, so the disc is the only place identity colour is reliably legible — and the disc is what survives when a container fill washes out in sunlight."
+        "body": "A state or category icon sits in a filled circle on the role's **strong** fill, never on the pale container. In light mode the identity containers collapse under simulation and the fills do not, so the disc is the only place identity colour is reliably legible.",
+        "section": "components"
       },
       {
         "name": "The One-Quality-Map Rule",
         "section": "components",
-        "body": "There is exactly one quality->display map and re-forking it is the failure mode. `components/cellular/signal-quality-display.ts` owns `QUALITY_GLYPH`, `qualityBadgeVariant()`, `qualityMeterTone()` and `qualityInkClass()`. Four rival copies used to exist and were deleted, not merely aligned; one had already drifted, sending `none` through a `default:` arm to `success` so an antenna with NO READING painted green. That is why `qualityMeterTone()` returns `null` rather than a colour for `none` — the absence is a value the caller must handle, not a case it can fall through. `cell-scanner/**` keeps a deliberately separate 3-tier scale (a scan row compares candidate cells to each other; a serving-cell readout compares one cell to physics) and must NOT be unified with it."
+        "body": "There is exactly one quality->display map and re-forking it is the failure mode. `components/cellular/signal-quality-display.ts` owns `QUALITY_GLYPH`, `qualityBadgeVariant()`, `qualityMeterTone()` and `qualityInkClass()`. Four rival copies used to exist and were deleted, not merely aligned; one had already drifted, sending `none` through a `default:` arm to `success` so an antenna with NO READING painted green. That is why `qualityMeterTone()` returns `null` rather than a colour for `none` — the absence is a value the caller must handle, not a case it can fall through. The same shape governs container tones: `CONDITION_TONE` in `components/cellular/condition-screen.tsx` is exported for exactly this reason, after one card alone carried seven verbatim copies of its strings keyed onto class strings rather than onto `ConditionTone`. `cell-scanner/**` keeps a deliberately separate 3-tier scale (a scan row compares candidate cells to each other; a serving-cell readout compares one cell to physics) and must NOT be unified with it."
       },
       {
         "name": "The Ramp-Needs-A-Bar Rule",
         "section": "components",
-        "body": "Ramp ink on a numeral with no bar beside it is a bug, and so is a ramp tone on a fill whose length does not encode the value. Length is the primary encoding and colour is the reinforcement, which is the whole reason adjacent stops are allowed below the separation floor. A missing reading is an empty track (`MetricBar value={null}`, which omits the fill element entirely), never a zero-length fill: an unused antenna drawn as an empty red bar labelled '-140 dBm' reads as a signal problem the user should go and fix."
+        "body": "Ramp ink on a numeral with no bar beside it is a bug, and so is a ramp tone on a fill whose length does not encode the value. Length is the primary encoding and colour is the reinforcement — but be precise about what each channel carries. Length carries MAGNITUDE WITHIN THE SCALE; what separates one STOP from the next is the glyph, `QUALITY_GLYPH`'s monotonic wedge ladder, which survives greyscale and every CVD type. Do not claim length separates adjacent stops: at any cut a continuous map draws both sides nearly the same (−80 dBm is 100%, −81 dBm is 98.3%), and that is correct, because two readings 1 dB apart ARE nearly the same signal. `signalToProgress()` maps the metric's quality window `[floor, excellent]` → `[0, 100]`, not its physical range, and it SATURATES AT THE TOP CUT on purpose — every `excellent` reading draws a full bar, because past that cut the honest answer is \"as good as this scale measures\" and finer discrimination is the score scale's job (`components/cellular/antenna-alignment/utils.ts` keeps a separate full-range map for exactly that). A missing reading is an empty track (`MetricBar value={null}`, which omits the fill element entirely), never a zero-length fill: an unused antenna drawn as an empty red bar labelled '−140 dBm' reads as a signal problem the user should go and fix. A ramp reading that lands at a legitimate 0% floors at a one-track-height stub instead, so \"as bad as this metric goes\" and \"nothing was reported\" never render identically."
       },
       {
         "name": "The Skeleton-Mirror Rule",
-        "section": "components",
-        "body": "A skeleton mirrors the loaded geometry by importing the same shape constant (`TILE_SHAPE`), never by restating numbers, and sizes to the loaded element's LINE BOX rather than its font size. A `min-h-` is not a mirror: measured live, tiles resolved to 118 / 98 / 95px against a 92px floor-based skeleton. The handoff is a pure crossfade on `quick` with the outgoing skeleton overlaid on top of real content, so the card is sized by its content from the first frame and the crossfade contributes zero layout shift."
+        "body": "A skeleton mirrors the loaded geometry by importing the same shape constant, never by restating numbers. A `min-h-` is not a mirror.",
+        "section": "components"
       },
       {
         "name": "The Loader-and-Dots Rule",
-        "section": "components",
-        "body": "Step or sample progress is a `Loader2Icon` spinner plus dot indicators. Fill and progress bars are reserved for data visualization — signal strength, quality meters, bandwidth share."
+        "body": "Step or sample progress is a `Loader2Icon` spinner plus dot indicators. Fill and progress bars are reserved for data visualization — signal strength, quality meters, bandwidth share.",
+        "section": "components"
       },
       {
         "name": "The Age-Gated Tone Rule",
-        "section": "components",
-        "body": "On a surface listing history, two independent axes decide how a row is drawn. TONE is what kind of thing happened; it is a fact about the event, never expires, and is carried by a filled icon disc in the solid role colour for as long as the row exists. WEIGHT is how much the row still deserves attention, and it does expire: a row keeps its tonal container while it is fresh (one hour) or unresolved, then settles onto `surface-container` with its disc at full strength. The disc never consults the age gate. Note that `severity: \"info\"` here means routine, not good."
+        "body": "On a surface listing *history*, two independent axes decide how a row is drawn. **Tone** is what kind of thing happened; it is a fact about the event, never expires, and is carried by a filled icon disc in the solid role colour for as long as the row exists. **Weight** is how much the row still deserves attention, and it does expire: a row keeps its tonal container while it is fresh (one hour) **or** unresolved, then settles onto `surface-container` with its disc at full strength. The disc never consults the age gate. Note that `severity: \"info\"` here means *routine*, not *good*.",
+        "section": "components"
       },
       {
         "name": "The Dismiss-Only-Notices Rule",
-        "section": "components",
-        "body": "A banner gets an X only when it is a notification. A standing condition has no dismiss, because dismissing it would hide a fact that is still true."
+        "body": "A banner gets an X only when it is a *notification*. A standing condition has no dismiss, because dismissing it would hide a fact that is still true.",
+        "section": "components"
       },
       {
         "name": "The State-Honesty Rule",
-        "section": "components",
-        "body": "A status surface reports what is actually running — saved settings, live service state — never the half-edited form. A control that cannot currently work explains why instead of sitting there dead. A test only runs against saved config. An ambient animation only loops where something is genuinely live: only `searching` spins, because a spinner on a standing condition advertises work that is not happening."
+        "body": "A status surface reports what is actually running — saved settings, live service state — never the half-edited form. A control that cannot currently work explains why instead of sitting there dead. A test only runs against saved config. An ambient animation only loops where something is genuinely live.",
+        "section": "components"
       },
       {
         "name": "The Released-Thing Rule",
         "section": "components",
-        "body": "Do not distinguish two states by tone alone when one of them is a released, disabled or absent thing. Measured, `lte-container` and `surface-container-high` were IDENTICAL under deuteranopia — 0.0000 separation — so a dropped carrier and a live LTE carrier were one swatch. The distinction is carried by a glyph or a strikethrough, with tone as reinforcement, and a released carrier stays visible and explicitly marked rather than silently disappearing."
+        "body": "Do not distinguish two states by tone alone when one of them is a released, disabled or absent thing. Measured, `lte-container` and `surface-container-high` were IDENTICAL under deuteranopia — 0.0000 separation — so a dropped carrier and a live LTE carrier were one swatch. The distinction is carried by a glyph or a strikethrough, with tone as reinforcement, and a released carrier stays visible and explicitly marked rather than silently disappearing. The same applies to a gated control: it keeps its shape, takes the house disabled treatment, and STATES ITS REASON — `SaveButton`'s `blockedReason` and `ConditionScreen`'s `disabledReason` both append the reason to the accessible name, because `aria-disabled` alone announces 'unavailable' and stops there, which is the dead end a grey pill already was."
       },
       {
         "name": "The No-Dot-Separator Rule",
-        "section": "components",
-        "body": "A meta line joining two or more short facts (`PCI 135`, `EARFCN 9485`) uses plain spacing, never a middle-dot glue character — dots read as sloppy filler, not structure. Give the facts room instead of punctuating between them."
+        "body": "A meta line joining two or more short facts (`PCI 135`, `EARFCN 9485`) uses plain spacing, never a `·` glue character. Give the facts room instead of punctuating between them.",
+        "section": "components"
       },
       {
         "name": "The Three-State Rule",
         "section": "components",
-        "body": "Every data surface ships loading, empty and error — never a blank panel. Non-registered modes REPLACE the body rather than render it empty: a 40px-radius container in the condition's tone, a 56px filled disc, a headline, a description, and an optional retry pill drawn from the container's own ink at 10-15% (never a white wash, which is invisible on a light container). Tone is chosen per condition: no-SIM is `warning`, no-service is `destructive`, searching is `info`, unknown is neutral."
+        "body": "Every data surface ships loading, empty and error — never a blank panel. Non-registered modes REPLACE the body rather than render it empty: a 40px-radius container in the condition's tone, a 56px filled disc, a headline, a description, and an optional retry pill drawn from the container's own ink at 10-15% (never a white wash, which is invisible on a light container). Tone is chosen per condition: no-SIM is `warning`, no-service is `destructive`, searching is `info`, unknown is neutral, and the table is `CONDITION_TONE` in `components/cellular/condition-screen.tsx` — exported, keyed onto `ConditionTone`, so a tone without a matching role is a build failure. The retry re-runs the read that failed, so where that read is only safe in some windows the button gates on the surface's own write guard and carries the reason rather than routing around it."
       }
     ],
     "dos": [
-      "Do put the colour on the reading — the numeral, the stroke, the bar, the disc — and leave the card neutral.",
-      "Do pick a LAYER before a colour: ink for values on neutral ground, fill for compact emphasis, container for a functional-role block.",
-      "Do pick a PAIR — a fill with its own `-foreground`, or a container with its own `on-` ink.",
-      "Do give every status chip a glyph, and give two states in the same slot two different glyphs.",
-      "Do use an outline tag for identity and metadata, and a filled chip for state.",
-      "Do pair the quality ramp with bar length, always, and add an `sr-only` quality word beside a tinted figure.",
-      "Do measure a new colour — gamut first, then contrast, then deuteranopia and protanopia against the layer it will ship on.",
-      "Do route every quality->display decision through `components/cellular/signal-quality-display.ts`.",
-      "Do reach for the role radii (`rounded-tile` / `card` / `hero` / `pill`) in new work.",
-      "Do ship `border-0` on a card and let the tone step carry the separation.",
-      "Do write responsive behavior as a container query against `@container/main`.",
-      "Do wrap a settings group in a card and let the page arrange cards.",
-      "Do put `min-w-0 truncate` on every text node in a paired card's header.",
-      "Do mark every changing figure `tabular-nums` in `font-sans`, and reserve `font-mono` for identifiers and raw machine strings.",
-      "Do mirror a skeleton's geometry from the same exported shape constant the loaded view uses, and pin heights rather than flooring them.",
-      "Do build the loading, empty and error state in the same change as the loaded one.",
-      "Do pass `size` explicitly at every `MaterialSymbol` call site.",
-      "Do keep interactive targets at 44px on coarse pointers, and let toolbars wrap.",
-      "Do make a status surface report SAVED state, and make an incapable control explain itself.",
-      "Do defer anything that reboots the modem behind a dialog plus a persistent banner.",
-      "Do key every new user-visible string across all five locales; `bun run i18n:check` gates it."
+      "**Do** put the colour on the reading — the numeral, the stroke, the bar, the disc — and leave the card neutral.",
+      "**Do** pick a **layer** before a colour: ink for values on neutral ground, fill for compact emphasis, container for a functional-role block.",
+      "**Do** pick a **pair** — a fill with its own `-foreground`, or a container with its own `on-` ink.",
+      "**Do** give every status chip a glyph, and give two states in the same slot two different glyphs.",
+      "**Do** use an outline tag for identity and metadata, and a filled chip for state.",
+      "**Do** pair the quality ramp with bar length, always.",
+      "**Do** measure a new colour — gamut first, then contrast, then deuteranopia and protanopia against the layer it will ship on.",
+      "**Do** reach for the role radii (`rounded-tile` / `card` / `hero` / `pill`) in new work.",
+      "**Do** ship `border-0` on a card and let the tone step carry the separation.",
+      "**Do** write responsive behavior as a container query against `@container/main`.",
+      "**Do** wrap a settings group in a card and let the page arrange cards.",
+      "**Do** put `min-w-0 truncate` on every text node in a paired card's header.",
+      "**Do** mark every changing figure `tabular-nums` in `font-sans`, and reserve `font-mono` for identifiers.",
+      "**Do** mirror a skeleton's geometry from the same exported shape constant the loaded view uses.",
+      "**Do** build the loading, empty, and error state in the same change as the loaded one.",
+      "**Do** pass `size` explicitly at every `MaterialSymbol` call site.",
+      "**Do** keep interactive targets at 44px on coarse pointers, and let toolbars wrap.",
+      "**Do** make a status surface report *saved* state, and make an incapable control explain itself.",
+      "**Do** defer anything that reboots the modem behind a dialog plus a persistent banner.",
+      "**Do** key every new user-visible string across all five locales; `bun run i18n:check` gates it."
     ],
     "donts": [
-      "Don't tint a large surface because it looked plain — that is the failure this system exists to prevent.",
-      "Don't give identity or direction a large container block; they are ink, outline and disc only.",
-      "Don't put ink from one role on another role's surface, or a neutral-ramp ink on a tinted one.",
-      "Don't hardcode `text-white` on a destructive fill — in dark mode that fill is LIGHT.",
-      "Don't compensate for a mismatched pair with an alpha (`bg-destructive/60`); fix the pair.",
-      "Don't use an outline tag as a status indicator, or a filled chip as an identity label.",
-      "Don't use `nr` or `lte` to mean 'healthy', or put an identity hue anywhere in a quality scale.",
-      "Don't 'level' the quality ramp to satisfy a contrast rule — adjacent stops are below the CVD floor by design and bar length is what carries them.",
-      "Don't ship an out-of-gamut `oklch()` — the build will map it and you will not have authored what ships.",
-      "Don't argue a colour decision from degrees of hue separation; measure it.",
-      "Don't use the numbered `--chart-1..6`; they do not theme.",
-      "Don't stack alpha to build concentric shapes — use the explicit `--tone-{role}-{1,2,3}` steps.",
-      "Don't put a border on a tonal container, or use `--border` as a card edge.",
-      "Don't distinguish two states by tone alone when one of them is a released, disabled or absent thing.",
-      "Don't animate `width` (the aggregation segment is the sole exception; the meter's documented retarget is the one narrow second case) or exceed `emphasized`.",
-      "Don't write a raw duration (`duration-200`, `{ duration: 0.25 }`) or a `transition-all` with no duration.",
-      "Don't add a third entrance stagger step, a fifth duration, or a spring.",
-      "Don't add an exit animation to a banner or a route transition.",
-      "Don't give a modal one unqualified `duration-*` for both directions, or leave its scrim without one.",
-      "Don't loop an animation where nothing is genuinely live.",
-      "Don't put an icon in a `CardHeader`.",
-      "Don't invent a bespoke hero-driven layout for one screen.",
-      "Don't mix Material Symbols and lucide inside a single route.",
-      "Don't introduce a third typeface, or set a human-authored label in mono.",
-      "Don't reach for 13px outside a dense metric row, or for the pre-auth scale outside `/` and `/login/`."
+      "**Don't** tint a large surface because it looked plain — that is the failure this system exists to prevent.",
+      "**Don't** give identity or direction a large container block; they are ink, outline, and disc only.",
+      "**Don't** put ink from one role on another role's surface, or a neutral-ramp ink on a tinted one.",
+      "**Don't** hardcode `text-white` on a destructive fill — in dark mode that fill is *light*.",
+      "**Don't** compensate for a mismatched pair with an alpha (`bg-destructive/60`); fix the pair.",
+      "**Don't** use an outline tag as a status indicator, or a filled chip as an identity label.",
+      "**Don't** use `nr` or `lte` to mean \"healthy\", or put an identity hue anywhere in a quality scale.",
+      "**Don't** ship an out-of-gamut `oklch()` — the build will map it and you will not have authored what ships.",
+      "**Don't** argue a colour decision from degrees of hue separation; measure it.",
+      "**Don't** use the numbered `--chart-1..6`; they do not theme.",
+      "**Don't** put a border on a tonal container, or use `--border` as a card edge.",
+      "**Don't** distinguish two states by tone alone when one of them is a released, disabled, or absent thing.",
+      "**Don't** animate `width` (the aggregation segment is the sole exception) or exceed `emphasized`.",
+      "**Don't** write a raw duration (`duration-200`, `{ duration: 0.25 }`) or a `transition-all` with no duration.",
+      "**Don't** add a third stagger step, a fifth duration, or a spring.",
+      "**Don't** add an exit animation to a banner or a route transition.",
+      "**Don't** give a modal one unqualified `duration-*` for both directions, or leave its scrim without one.",
+      "**Don't** loop an animation where nothing is genuinely live.",
+      "**Don't** put an icon in a `CardHeader`.",
+      "**Don't** invent a bespoke hero-driven layout for one screen.",
+      "**Don't** mix Material Symbols and lucide inside a single route.",
+      "**Don't** introduce a third typeface, or set a human-authored label in mono.",
+      "**Don't** reach for 13px outside a dense metric row, or for the pre-auth scale outside `/` and `/login/`."
     ]
   }
 }
