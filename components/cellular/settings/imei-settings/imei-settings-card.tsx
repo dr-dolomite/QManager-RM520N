@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { AnimatePresence, motion } from "motion/react";
 import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
 
@@ -28,6 +29,7 @@ import { MaterialSymbol } from "@/components/ui/material-symbol";
 import { SaveButton, useSaveFlash } from "@/components/ui/save-button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { validateImei } from "@/lib/imei-utils";
+import { staggerRowItem } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 
 import SettingRow from "../setting-row";
@@ -35,9 +37,16 @@ import {
   BADGE_GLYPH_SIZE,
   CARD_PAD,
   CARD_SHELL,
+  CARD_TITLE,
+  FIELD_CLUSTER,
+  FIELD_COUNTER,
   FIELD_SHELL,
+  ICON_ACTION,
+  ICON_ACTION_GLYPH,
   INLINE_ERROR,
   PILL_ACTION,
+  READOUT_ICON_ACTION,
+  READOUT_ICON_GLYPH,
   READOUT_ROW,
   ROW_GROUP,
   SETTING_ROW,
@@ -173,169 +182,179 @@ const IMEISettingsCard = ({
   // restated, and the header text is the real one in both states — the incumbent
   // skeleton carried a third, differently worded legal sentence that visibly
   // swapped out when the data landed.
+  //
+  // THE CARD NO LONGER REBUILDS ITSELF. Each state used to `return` its own
+  // `<Card>`, so the header — an identical title and description in both
+  // branches — was torn down and remounted the instant the read landed, and
+  // blinked. One shell renders unconditionally now and only the BODY swaps,
+  // keyed by state, inside an enter-only `AnimatePresence`. Same pattern as
+  // Network Priority and Blocked Networks; `initial={false}` is what keeps this
+  // crossfade from firing on top of the page's own card cascade on first paint.
 
-  if (isLoading) {
-    return (
-      <Card id={anchorId} className={cn(CARD_SHELL)}>
-        <CardHeader className={CARD_PAD}>
-          <CardTitle>{t(`${K}.title`)}</CardTitle>
-          <CardDescription>{t(`${K}.description`)}</CardDescription>
-        </CardHeader>
-        <CardContent className={cn(CARD_PAD, "flex flex-col gap-4")}>
-          <div className={ROW_GROUP.ROOT}>
-            <Skeleton className={cn(SETTING_ROW.HEIGHT, "rounded-field")} />
-            <div className={ROW_GROUP.DIVIDER} />
-            <Skeleton className={cn(SETTING_ROW.HEIGHT, "rounded-field")} />
-          </div>
-        </CardContent>
-      </Card>
-    );
-  }
+  const skeleton = (
+    <div className={ROW_GROUP.ROOT}>
+      <Skeleton className={cn(SETTING_ROW.HEIGHT, "rounded-field")} />
+      <div className={ROW_GROUP.DIVIDER} />
+      <Skeleton className={cn(SETTING_ROW.HEIGHT, "rounded-field")} />
+    </div>
+  );
+
+  const form = (
+    <form className="flex flex-col gap-4" onSubmit={handleSubmit}>
+      <div className={ROW_GROUP.ROOT}>
+        <SettingRow
+          label={t(`${K}.rows.current.label`)}
+          consequence={t(`${K}.rows.current.consequence`)}
+          control={
+            hasReading ? (
+              <span
+                className={cn(
+                  READOUT_ROW.ROOT,
+                  // One tone step up: this pill sits INSIDE the group's own
+                  // `surface-container` fill, so it needs the next step to
+                  // read as a distinct object rather than as flat text.
+                  "gap-2 bg-surface-container-high",
+                )}
+              >
+                <span className={READOUT_ROW.VALUE_MONO}>{reported}</span>
+                <button
+                  type="button"
+                  onClick={handleCopy}
+                  aria-label={t(`${K}.actions.copy`)}
+                  className={READOUT_ICON_ACTION}
+                >
+                  <MaterialSymbol
+                    name="content_copy"
+                    size={READOUT_ICON_GLYPH}
+                  />
+                </button>
+              </span>
+            ) : (
+              // Honest empty state. `muted`, not `destructive`: the poller
+              // simply has not published an IMEI yet, which is a wait, not a
+              // fault.
+              <Badge variant="muted">
+                <MaterialSymbol name="help" size={BADGE_GLYPH_SIZE} />
+                {t(`${K}.rows.current.unavailable`)}
+              </Badge>
+            )
+          }
+        />
+
+        <div className={ROW_GROUP.DIVIDER} />
+
+        <SettingRow
+          label={t(`${K}.rows.write.label`)}
+          consequence={t(`${K}.rows.write.consequence`)}
+          dirty={writeDirty}
+          labelId="imei-write-label"
+          control={
+            <div className={FIELD_CLUSTER}>
+              <input
+                id="imei-write-input"
+                type="text"
+                inputMode="numeric"
+                autoComplete="off"
+                maxLength={15}
+                value={imei}
+                onChange={handleChange}
+                disabled={isSaving}
+                placeholder={t(`${K}.rows.write.placeholder`)}
+                aria-labelledby="imei-write-label"
+                aria-invalid={shapeError || luhnError}
+                aria-describedby={
+                  shapeError
+                    ? "imei-write-shape-error"
+                    : luhnError
+                      ? "imei-write-luhn-error"
+                      : "imei-write-status"
+                }
+                className={cn(FIELD_SHELL, "@2xl/card:w-[14.5rem]")}
+              />
+              {/* A count that changes while the user watches is the
+                      interface speaking, not the machine — sans + tabular-nums,
+                      never mono (The Machine-Voice Rule). See `FIELD_COUNTER`. */}
+              <span aria-hidden="true" className={FIELD_COUNTER}>
+                {imei.length}/15
+              </span>
+            </div>
+          }
+        />
+      </div>
+
+      {shapeError ? (
+        <FieldError id="imei-write-shape-error" className={INLINE_ERROR}>
+          {t(`${K}.errors.length`, { entered: imei.length })}
+        </FieldError>
+      ) : luhnError ? (
+        <FieldError id="imei-write-luhn-error" className={INLINE_ERROR}>
+          {t(`${K}.errors.luhn`)}
+        </FieldError>
+      ) : null}
+
+      <div className="flex flex-wrap items-center gap-3">
+        <SaveButton
+          type="submit"
+          isSaving={isSaving}
+          saved={saved}
+          label={t(`${K}.actions.write`)}
+          disabled={!canWrite}
+          className={PILL_ACTION}
+        />
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          onClick={handleReset}
+          disabled={isSaving || !hasChanged}
+          aria-label={t(`${K}.actions.reset`)}
+          className={ICON_ACTION}
+        >
+          <MaterialSymbol name="restart_alt" size={ICON_ACTION_GLYPH} />
+        </Button>
+
+        {/* One status line, and only when there is no error occupying the
+                same slot — two contradicting sentences under one field is how
+                the incumbent form read. */}
+        {!shapeError && !luhnError ? (
+          <span
+            id="imei-write-status"
+            aria-live="polite"
+            className={SETTING_ROW.CONSEQUENCE}
+          >
+            {isEmpty
+              ? t(`${K}.status.empty`)
+              : !hasChanged
+                ? t(`${K}.status.unchanged`)
+                : t(`${K}.status.ready`)}
+          </span>
+        ) : null}
+      </div>
+    </form>
+  );
 
   return (
     <Card id={anchorId} className={cn(CARD_SHELL)}>
       <CardHeader className={CARD_PAD}>
-        <CardTitle>{t(`${K}.title`)}</CardTitle>
+        <CardTitle className={CARD_TITLE}>{t(`${K}.title`)}</CardTitle>
         <CardDescription>{t(`${K}.description`)}</CardDescription>
       </CardHeader>
 
-      <CardContent className={cn(CARD_PAD, "flex flex-col gap-4")}>
-        <form className="flex flex-col gap-4" onSubmit={handleSubmit}>
-          <div className={ROW_GROUP.ROOT}>
-            <SettingRow
-              label={t(`${K}.rows.current.label`)}
-              consequence={t(`${K}.rows.current.consequence`)}
-              control={
-                hasReading ? (
-                  <span
-                    className={cn(
-                      READOUT_ROW.ROOT,
-                      // One tone step up: this pill sits INSIDE the group's own
-                      // `surface-container` fill, so it needs the next step to
-                      // read as a distinct object rather than as flat text.
-                      "gap-2 bg-surface-container-high",
-                    )}
-                  >
-                    <span className={READOUT_ROW.VALUE_MONO}>{reported}</span>
-                    <button
-                      type="button"
-                      onClick={handleCopy}
-                      aria-label={t(`${K}.actions.copy`)}
-                      // 44px hit target via an inset overlay, so the visual pill
-                      // stays dense without failing a coarse pointer.
-                      className="relative grid size-6 flex-none place-items-center rounded-pill text-on-surface-variant transition-colors duration-[--duration-quick] ease-[--ease-standard] before:absolute before:-inset-2.5 before:content-[''] hover:text-on-surface focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
-                    >
-                      <MaterialSymbol name="content_copy" size={16} />
-                    </button>
-                  </span>
-                ) : (
-                  // Honest empty state. `muted`, not `destructive`: the poller
-                  // simply has not published an IMEI yet, which is a wait, not a
-                  // fault.
-                  <Badge variant="muted">
-                    <MaterialSymbol name="help" size={BADGE_GLYPH_SIZE} />
-                    {t(`${K}.rows.current.unavailable`)}
-                  </Badge>
-                )
-              }
-            />
-
-            <div className={ROW_GROUP.DIVIDER} />
-
-            <SettingRow
-              label={t(`${K}.rows.write.label`)}
-              consequence={t(`${K}.rows.write.consequence`)}
-              dirty={writeDirty}
-              labelId="imei-write-label"
-              control={
-                <div className="flex w-full items-center gap-2.5 @2xl/card:w-auto">
-                  <input
-                    id="imei-write-input"
-                    type="text"
-                    inputMode="numeric"
-                    autoComplete="off"
-                    maxLength={15}
-                    value={imei}
-                    onChange={handleChange}
-                    disabled={isSaving}
-                    placeholder={t(`${K}.rows.write.placeholder`)}
-                    aria-labelledby="imei-write-label"
-                    aria-invalid={shapeError || luhnError}
-                    aria-describedby={
-                      shapeError
-                        ? "imei-write-shape-error"
-                        : luhnError
-                          ? "imei-write-luhn-error"
-                          : "imei-write-status"
-                    }
-                    className={cn(FIELD_SHELL, "@2xl/card:w-[14.5rem]")}
-                  />
-                  {/* A count that changes while the user watches is the
-                      interface speaking, not the machine — sans + tabular-nums,
-                      never mono (The Machine-Voice Rule). */}
-                  <span
-                    aria-hidden="true"
-                    className="flex-none text-[0.78125rem] tabular-nums text-on-surface-variant"
-                  >
-                    {imei.length}/15
-                  </span>
-                </div>
-              }
-            />
-          </div>
-
-          {shapeError ? (
-            <FieldError id="imei-write-shape-error" className={INLINE_ERROR}>
-              {t(`${K}.errors.length`, { entered: imei.length })}
-            </FieldError>
-          ) : luhnError ? (
-            <FieldError id="imei-write-luhn-error" className={INLINE_ERROR}>
-              {t(`${K}.errors.luhn`)}
-            </FieldError>
-          ) : null}
-
-          <div className="flex flex-wrap items-center gap-3">
-            <SaveButton
-              type="submit"
-              isSaving={isSaving}
-              saved={saved}
-              label={t(`${K}.actions.write`)}
-              disabled={!canWrite}
-              className={PILL_ACTION}
-            />
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              onClick={handleReset}
-              disabled={isSaving || !hasChanged}
-              aria-label={t(`${K}.actions.reset`)}
-              // `size="icon"` is 36px, under the 44px coarse-pointer floor.
-              // Bumped at the media query rather than always, so the dense
-              // desktop cluster keeps its proportions.
-              className="rounded-pill [@media(pointer:coarse)]:size-11"
-            >
-              <MaterialSymbol name="restart_alt" size={18} />
-            </Button>
-
-            {/* One status line, and only when there is no error occupying the
-                same slot — two contradicting sentences under one field is how
-                the incumbent form read. */}
-            {!shapeError && !luhnError ? (
-              <span
-                id="imei-write-status"
-                aria-live="polite"
-                className="text-on-surface-variant text-[0.78125rem] leading-relaxed text-pretty"
-              >
-                {isEmpty
-                  ? t(`${K}.status.empty`)
-                  : !hasChanged
-                    ? t(`${K}.status.unchanged`)
-                    : t(`${K}.status.ready`)}
-              </span>
-            ) : null}
-          </div>
-        </form>
+      <CardContent className={CARD_PAD}>
+        <AnimatePresence initial={false}>
+          <motion.div
+            // The key IS the swap. `initial`/`animate` are declared here even
+            // though the variant carries both states: an `AnimatePresence`
+            // child remounts on every key change, so there is no parent clock
+            // left to inherit and a variants-only child would render blank.
+            key={isLoading ? "loading" : "loaded"}
+            variants={staggerRowItem}
+            initial="hidden"
+            animate="visible"
+          >
+            {isLoading ? skeleton : form}
+          </motion.div>
+        </AnimatePresence>
       </CardContent>
 
       {/* Deferred-reboot dialog. "Later" is a real answer that is RECORDED —

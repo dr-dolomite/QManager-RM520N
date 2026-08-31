@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { motion } from "motion/react";
+import { AnimatePresence, motion } from "motion/react";
 import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
 
@@ -34,20 +34,26 @@ import {
   parseImeiBreakdown,
   validateImei,
 } from "@/lib/imei-utils";
-import { DUR, EASE_STANDARD } from "@/lib/motion";
+import { staggerRowItem } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 
 import SettingRow from "../setting-row";
 import {
   BADGE_GLYPH_SIZE,
+  BREAKDOWN,
   CARD_PAD,
   CARD_SHELL,
+  CARD_TITLE,
   FIELD_SHELL,
+  ICON_ACTION,
+  ICON_ACTION_GLYPH,
   INLINE_ERROR,
   PILL_ACTION,
+  PILL_ACTION_GLYPH,
   READOUT_ROW,
   ROW_GROUP,
   SECTION_DIVIDER,
+  SECTION_LABEL,
   SELECT_TRIGGER,
   SETTING_ROW,
   SETTING_ROW_DIRTY,
@@ -78,9 +84,13 @@ import {
 // only, with no `_ON_FILL` sibling — nothing on this card writes to the modem,
 // so no row here carries a `dirty` prop and none can promote to
 // `primary-container`. The check field is not even inside a `SettingRow`.
-
-/** One breakdown cell. The `accent` one is the check digit — the derived part. */
-const BREAKDOWN_CELL = "flex flex-col gap-0.75 rounded-field px-4 py-3";
+//
+// THE BREAKDOWN'S GEOMETRY MOVED TO `../shapes`. It was a module-local constant
+// here, which is the shape of drift this family's shapes module exists to
+// prevent — and it was hiding a real bug in the same line: its 3-up step was
+// `@2xl/card` (672px), while this card lives in the NARROW half of the split and
+// never gets there, so the three cells shipped stacked at every real width. See
+// `BREAKDOWN` and DESIGN.md > The Grid-Step-Costing Rule.
 
 const IMEIToolsCard = () => {
   const { t } = useTranslation("cellular");
@@ -119,7 +129,7 @@ const IMEIToolsCard = () => {
   return (
     <Card className={cn(CARD_SHELL)}>
       <CardHeader className={CARD_PAD}>
-        <CardTitle>{t(`${K}.title`)}</CardTitle>
+        <CardTitle className={CARD_TITLE}>{t(`${K}.title`)}</CardTitle>
         <CardDescription>{t(`${K}.description`)}</CardDescription>
       </CardHeader>
 
@@ -198,7 +208,9 @@ const IMEIToolsCard = () => {
 
           {prefixError ? (
             <FieldError id="imei-prefix-error" className={INLINE_ERROR}>
-              {t(`${K}.generate.prefix_error`, { entered: customPrefix.length })}
+              {t(`${K}.generate.prefix_error`, {
+                entered: customPrefix.length,
+              })}
             </FieldError>
           ) : null}
 
@@ -219,16 +231,14 @@ const IMEIToolsCard = () => {
         {/* --- Check --------------------------------------------------------- */}
         <div className="flex flex-col gap-3">
           <div className="flex flex-wrap items-center gap-2.5">
-            <span className={SETTING_ROW.LABEL}>{t(`${K}.check.label`)}</span>
+            <span className={SECTION_LABEL}>{t(`${K}.check.label`)}</span>
             {isComplete ? (
               <Badge variant={isLuhnValid ? "success" : "destructive"}>
                 <MaterialSymbol
                   name={isLuhnValid ? "check_circle" : "cancel"}
                   size={BADGE_GLYPH_SIZE}
                 />
-                {isLuhnValid
-                  ? t(`${K}.check.valid`)
-                  : t(`${K}.check.invalid`)}
+                {isLuhnValid ? t(`${K}.check.valid`) : t(`${K}.check.invalid`)}
               </Badge>
             ) : null}
           </div>
@@ -257,71 +267,96 @@ const IMEIToolsCard = () => {
                 onClick={handleCopy}
                 disabled={!candidate}
                 aria-label={t(`${K}.actions.copy`)}
-                className="rounded-pill"
+                className={ICON_ACTION}
               >
-                <MaterialSymbol name="content_copy" size={18} />
+                <MaterialSymbol name="content_copy" size={ICON_ACTION_GLYPH} />
               </Button>
-              <Button
-                type="button"
-                variant="ghost"
-                disabled={!isComplete}
-                onClick={() =>
-                  window.open(
-                    `https://www.imei.info/?imei=${candidate}`,
-                    "_blank",
-                    "noopener,noreferrer",
-                  )
-                }
-                className={PILL_ACTION}
-              >
-                <MaterialSymbol name="open_in_new" size={17} />
-                {t(`${K}.check.lookup`)}
-              </Button>
+              {/* A REAL ANCHOR, not a Button running `window.open`. This
+                  navigates to somebody else's website, and a button cannot be
+                  opened in a new tab, middle-clicked, copied as a link, or read
+                  as a link by assistive tech. `asChild` keeps the ghost pill's
+                  own geometry. While there is nothing to look up the anchor
+                  would have no destination, so the disabled state renders as a
+                  real disabled `button` rather than as a dead `href`. */}
+              {isComplete ? (
+                <Button asChild variant="ghost" className={PILL_ACTION}>
+                  <a
+                    href={`https://www.imei.info/?imei=${candidate}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    <MaterialSymbol
+                      name="open_in_new"
+                      size={PILL_ACTION_GLYPH}
+                    />
+                    {t(`${K}.check.lookup`)}
+                  </a>
+                </Button>
+              ) : (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  disabled
+                  className={PILL_ACTION}
+                >
+                  <MaterialSymbol name="open_in_new" size={PILL_ACTION_GLYPH} />
+                  {t(`${K}.check.lookup`)}
+                </Button>
+              )}
             </div>
           </div>
 
-          {breakdown ? (
+          {/* The breakdown and the line that stands in for it are ONE slot, so
+              they swap through one `AnimatePresence` rather than each appearing
+              on its own terms. Enter-only and `initial={false}`: the empty line
+              is what the card rests at, and it must not animate itself in on
+              first paint behind the page's card cascade. `initial`/`animate` are
+              on the keyed child because that node remounts on every swap and has
+              no parent clock left to inherit — a variants-only child there
+              renders blank. */}
+          <AnimatePresence initial={false}>
             <motion.div
-              // Declared initial AND animate on the cascade root: a
-              // variants-only child that mounts on a state swap renders blank.
-              initial={{ opacity: 0, y: 5 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: DUR.standard, ease: EASE_STANDARD }}
-              className="grid grid-cols-1 gap-1.5 @2xl/card:grid-cols-3"
+              key={breakdown ? "breakdown" : "empty"}
+              variants={staggerRowItem}
+              initial="hidden"
+              animate="visible"
             >
-              <div className={cn(BREAKDOWN_CELL, "bg-surface-container")}>
-                <span className={SETTING_ROW.CONSEQUENCE}>
-                  {t(`${K}.breakdown.tac`)}
-                </span>
-                <span className={READOUT_ROW.VALUE_MONO}>{breakdown.tac}</span>
-              </div>
-              <div className={cn(BREAKDOWN_CELL, "bg-surface-container")}>
-                <span className={SETTING_ROW.CONSEQUENCE}>
-                  {t(`${K}.breakdown.serial`)}
-                </span>
-                <span className={READOUT_ROW.VALUE_MONO}>{breakdown.snr}</span>
-              </div>
-              {/* The accent cell: the check digit is the only part of an IMEI
-                  the machine derives rather than the manufacturer assigns, and
-                  it is what the chip above is judging. `primary-container` is
-                  emphasis here, never a health signal. */}
-              <div
-                className={cn(
-                  BREAKDOWN_CELL,
-                  "bg-primary-container text-on-primary-container",
-                )}
-              >
-                <span className={SETTING_ROW_DIRTY.CONSEQUENCE_ON_FILL}>
-                  {t(`${K}.breakdown.check`)}
-                </span>
-                <span className={READOUT_ROW.VALUE_MONO}>
-                  {breakdown.checkDigit}
-                </span>
-              </div>
+              {breakdown ? (
+                <div className={BREAKDOWN.GRID}>
+                  <div className={cn(BREAKDOWN.CELL, BREAKDOWN.CELL_NEUTRAL)}>
+                    <span className={SETTING_ROW.CONSEQUENCE}>
+                      {t(`${K}.breakdown.tac`)}
+                    </span>
+                    <span className={READOUT_ROW.VALUE_MONO}>
+                      {breakdown.tac}
+                    </span>
+                  </div>
+                  <div className={cn(BREAKDOWN.CELL, BREAKDOWN.CELL_NEUTRAL)}>
+                    <span className={SETTING_ROW.CONSEQUENCE}>
+                      {t(`${K}.breakdown.serial`)}
+                    </span>
+                    <span className={READOUT_ROW.VALUE_MONO}>
+                      {breakdown.snr}
+                    </span>
+                  </div>
+                  {/* The accent cell — see `BREAKDOWN.CELL_ACCENT` for why the
+                      check digit is the one that gets promoted. */}
+                  <div className={cn(BREAKDOWN.CELL, BREAKDOWN.CELL_ACCENT)}>
+                    <span className={SETTING_ROW_DIRTY.CONSEQUENCE_ON_FILL}>
+                      {t(`${K}.breakdown.check`)}
+                    </span>
+                    <span className={READOUT_ROW.VALUE_MONO}>
+                      {breakdown.checkDigit}
+                    </span>
+                  </div>
+                </div>
+              ) : (
+                <p className={SETTING_ROW.CONSEQUENCE}>
+                  {t(`${K}.check.empty`)}
+                </p>
+              )}
             </motion.div>
-          ) : (
-            <p className={SETTING_ROW.CONSEQUENCE}>{t(`${K}.check.empty`)}</p>
-          )}
+          </AnimatePresence>
         </div>
 
         <p className={SETTING_ROW.CONSEQUENCE}>{t(`${K}.footnote`)}</p>

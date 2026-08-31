@@ -67,18 +67,25 @@ import type { MaterialSymbolName } from "@/components/ui/material-symbol";
 export const PAGE_ROOT = "@container/main mx-auto flex flex-col gap-6 p-2";
 
 /**
- * The two-column body. The comp runs 1.35fr / 1fr; expressed here as a
- * container query so it responds to the content column rather than the window
- * (the sidebar expanding must not restack the page).
+ * A write column beside the read-only workbench that feeds it.
  *
- * NO `items-start`. CSS grid's default `align-items: stretch` is what we want
- * here (DESIGN.md's Equal Heights rule) — the right column (AMBR + modem
- * reports) should rise to match the settings card's height rather than
- * leaving it visibly taller. `CARD_CELL` below is what actually carries that
- * stretch down into each `Card`.
+ * WHY THIS IS NOT `CARD_CELL` AND NOT THE RETIRED `PAGE_GRID`. The old
+ * `PAGE_GRID` was a 1.35fr / 1fr grid inherited from `/cellular/settings`,
+ * justified in its own JSDoc by a right column ("AMBR + modem reports") that no
+ * longer exists anywhere, and it left `align-items: stretch` on so the right
+ * card rose to match the left. That is a split by SYMMETRY, and DESIGN.md >
+ * Layout names it directly: a height lock between cards with unrelated content
+ * lengths strands dead space in whichever has less to say, and which one that is
+ * flips with the data. Here the left column holds TWO stacked cards and the
+ * right holds one, so the lock was pinning one card to the sum of two others.
+ *
+ * The two columns are still side by side, and that part is functional rather
+ * than decorative: the workbench generates an identifier the user then types
+ * into the write field, so both have to be on screen at once. `items-start` is
+ * what makes them peers in position without being peers in height.
  */
-export const PAGE_GRID =
-  "grid grid-cols-1 gap-4 @4xl/main:grid-cols-[1.35fr_1fr]";
+export const WORKBENCH_SPLIT =
+  "grid grid-cols-1 items-start gap-4 @4xl/main:grid-cols-[1.35fr_1fr]";
 
 /**
  * Wraps a grid cell so the stretched row height reaches the `Card` inside it.
@@ -248,7 +255,8 @@ export const RATE_CEILING = {
    * The always-visible summary. A real `<button>`, so it is keyboard-reachable
    * and announces its own expanded state.
    */
-  SUMMARY: "flex w-full items-center gap-3.5 bg-transparent px-5 py-4 text-left",
+  SUMMARY:
+    "flex w-full items-center gap-3.5 bg-transparent px-5 py-4 text-left",
   /**
    * A 40px disc — one step below the strip's 52px, because this is a summary
    * line and not a tile, and the size difference is what says so.
@@ -271,7 +279,7 @@ export const RATE_CEILING = {
   VALUE:
     "flex min-w-0 flex-wrap items-center gap-2 text-[1.125rem] font-bold leading-[1.1] tracking-[-0.01em] tabular-nums",
   CHEVRON:
-    "text-on-surface-variant ml-auto flex-none transition-transform duration-[--duration-standard] ease-[--ease-standard]",
+    "text-on-surface-variant ml-auto flex-none transition-transform duration-[var(--duration-standard)] ease-[var(--ease-standard)]",
   CHEVRON_OPEN: "rotate-180",
   /**
    * The 0fr -> 1fr row. The row VALUE is set at the call site (it is state, not
@@ -280,7 +288,7 @@ export const RATE_CEILING = {
    */
   PANEL: "grid",
   PANEL_MOTION:
-    "transition-[grid-template-rows] duration-[--duration-emphasized] ease-[--ease-emphasized]",
+    "transition-[grid-template-rows] duration-[var(--duration-emphasized)] ease-[var(--ease-emphasized)]",
   /** `min-h-0` is what lets the 0fr row actually collapse. */
   PANEL_CLIP: "min-h-0 overflow-hidden",
   INNER: "grid grid-cols-1 gap-3.5 px-5 pb-5 @2xl/main:grid-cols-2",
@@ -447,6 +455,45 @@ export const PILL_ACTION =
 export const PILL_ACTION_GLYPH = 17;
 
 /**
+ * An icon-only action that sits BESIDE a `PILL_ACTION` in the same cluster —
+ * Reset, and anything else that is a verb with no sentence.
+ *
+ * `size="icon"` resolves to 36px, under the 44px coarse-pointer floor DESIGN.md
+ * sets. The bump is at the pointer media query rather than always, so a dense
+ * desktop cluster keeps its proportions and a tablet still gets a real target.
+ * Both IMEI write cards typed this string; they are one control in two places.
+ */
+export const ICON_ACTION = "rounded-pill [@media(pointer:coarse)]:size-11";
+
+/** The glyph inside an `ICON_ACTION` — one step under `PILL_ACTION_GLYPH`. */
+export const ICON_ACTION_GLYPH = 18;
+
+/**
+ * A 24px icon button riding INSIDE a readout pill (the copy-this-value affordance).
+ *
+ * It cannot take `ICON_ACTION`: at 44px it would be taller than the 41px pill it
+ * lives in. The target is bought with an inset `::before` overlay instead — the
+ * visual control stays 24px and dense, while the hit area is 44px square and
+ * overhangs the pill invisibly. This is the sanctioned way to keep a dense
+ * readout row inside the touch floor.
+ *
+ * The hover tint is on the `quick` clock via `var()`, which is load-bearing:
+ * Tailwind v4 compiles a bare `duration-[--duration-quick]` to the literal
+ * `transition-duration: --duration-quick`, an invalid value the browser drops —
+ * so the un-wrapped spelling ships as NO transition at all rather than as an
+ * off-scale one. Every arbitrary custom property on this surface takes `var()`.
+ */
+export const READOUT_ICON_ACTION = [
+  "relative grid size-6 flex-none place-items-center rounded-pill",
+  "text-on-surface-variant transition-colors duration-[var(--duration-quick)] ease-[var(--ease-standard)]",
+  "before:absolute before:-inset-2.5 before:content-['']",
+  "hover:text-on-surface focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50",
+].join(" ");
+
+/** The glyph inside a `READOUT_ICON_ACTION`, sized to the 13px value beside it. */
+export const READOUT_ICON_GLYPH = 16;
+
+/**
  * The compact action that rides INSIDE a `TonalBanner`'s copy.
  *
  * A banner's CTA cannot be a `PILL_ACTION`: at 42px it out-weighs the sentence
@@ -461,8 +508,7 @@ export const PILL_ACTION_GLYPH = 17;
  * this change: it is on another route, and a near-identical string is a
  * judgement call rather than a mechanical one.
  */
-export const BANNER_ACTION =
-  "h-8 rounded-pill px-3 text-xs font-semibold";
+export const BANNER_ACTION = "h-8 rounded-pill px-3 text-xs font-semibold";
 
 /**
  * The action row that sits BELOW a `ConditionScreen`, inside the same card.
@@ -655,7 +701,8 @@ export const CARD_NOTICE = `${SETTING_ROW.ROOT} ${SETTING_ROW.CONSEQUENCE}`;
  */
 export const SETTING_ROW_DIRTY = {
   /** Ink for text sitting on a permanent `bg-primary-container` block. */
-  CONSEQUENCE_ON_FILL: "text-[0.78125rem] leading-relaxed text-pretty opacity-90",
+  CONSEQUENCE_ON_FILL:
+    "text-[0.78125rem] leading-relaxed text-pretty opacity-90",
   /**
    * The "before -> after" chip. Machine-voice: these are literal setting values,
    * so `font-mono` is correct here and nowhere else in the row.
@@ -712,7 +759,7 @@ export const SEGMENTED = {
    * only carrier.
    */
   GLYPH_ACTIVE:
-    "relative opacity-100 scale-100 transition-[opacity,transform] duration-[--duration-quick] ease-[--ease-quick]",
+    "relative opacity-100 scale-100 transition-[opacity,transform] duration-[var(--duration-quick)] ease-[var(--ease-quick)]",
   /**
    * The same glyph on an INACTIVE segment: still in the box, invisible to the
    * eye. THIS IS THE PRIMARY FIX for the segmented control's travelling fill,
@@ -742,7 +789,7 @@ export const SEGMENTED = {
    * change that makes the active label read as active.
    */
   GLYPH_RESERVED:
-    "relative opacity-0 scale-[0.6] transition-[opacity,transform] duration-[--duration-quick] ease-[--ease-quick]",
+    "relative opacity-0 scale-[0.6] transition-[opacity,transform] duration-[var(--duration-quick)] ease-[var(--ease-quick)]",
 } as const;
 
 /**
@@ -893,6 +940,32 @@ const FIELD_INPUT = [
 export const FIELD_SHELL = `${SELECT_TRIGGER} ${FIELD_INPUT}`;
 
 /**
+ * The field's own cluster: the input, and whatever rides beside it.
+ *
+ * Full width while the row is stacked, natural width once the row goes side by
+ * side — the same `@2xl/card` step `SETTING_ROW` itself turns on, so the field
+ * and the row it sits in change shape together rather than at two widths.
+ */
+export const FIELD_CLUSTER =
+  "flex w-full items-center gap-2.5 @2xl/card:w-auto";
+
+/**
+ * The "12/15" digit counter beside a fixed-length identifier field.
+ *
+ * SANS AND `tabular-nums`, NEVER `font-mono` — and the field beside it IS mono,
+ * which is exactly why this is worth a named export rather than a class string
+ * typed next to each input. The value in the field is a machine string the
+ * device will emit verbatim; the count is the interface speaking about it while
+ * the user types, and DESIGN.md's Machine-Voice Rule splits those two voices.
+ * `tabular-nums` is what stops the counter reflowing as it climbs past 9.
+ *
+ * It was typed byte-identically beside both IMEI fields, which is the count
+ * that makes a shape a shape.
+ */
+export const FIELD_COUNTER =
+  "text-on-surface-variant flex-none text-[0.78125rem] tabular-nums";
+
+/**
  * Inline validation copy on a plain card.
  *
  * `--destructive` is the STRONG FILL and belongs only under
@@ -910,6 +983,79 @@ export const INLINE_ERROR = "text-destructive-on-surface";
 
 /** A hairline rule between sections INSIDE a card, not between rows. */
 export const SECTION_DIVIDER = "h-px bg-surface-container-high";
+
+/**
+ * The heading of a section INSIDE a card, below the `CardTitle` and above the
+ * controls it names.
+ *
+ * It reads at `SETTING_ROW.LABEL`'s size on purpose — a section and a row label
+ * are the same rank of thing to the eye — but it is deliberately its own export
+ * rather than a reuse of that constant. A section heading is not a row label,
+ * and borrowing the name is how one of them ends up retuned by a change aimed at
+ * the other.
+ */
+export const SECTION_LABEL = "text-[0.9375rem] font-semibold";
+
+/**
+ * Progressive disclosure: the 0fr -> 1fr grid row.
+ *
+ * A control that reveals the row it creates should show that row ARRIVING, not
+ * blink it into existence — and a height cannot be animated with the
+ * transform-and-opacity vocabulary DESIGN.md restricts motion to. The grid-row
+ * collapse is the sanctioned way out, already used by `RATE_CEILING.PANEL`: the
+ * parent animates `grid-template-rows` between `0fr` and `1fr` and the child
+ * clips, so nothing per-frame touches layout inside the revealed content.
+ *
+ * `emphasized` is correct here rather than `standard` — this is a container
+ * changing size, which is the step's own definition.
+ *
+ * REDUCED MOTION IS CARRIED BY THE SHAPE, NOT BY THE CALL SITE. A CSS grid
+ * transition is neither transform nor opacity, so `<MotionConfig
+ * reducedMotion="user">` cannot see it — the same hole `RATE_CEILING` above
+ * documents, which it plugs by making every consumer call `useReducedMotion()`
+ * and drop `PANEL_MOTION` itself. That works and is one `cn()` away from being
+ * forgotten. The project's own `motion-safe` is a `@custom-variant` redefined in
+ * globals.css so it honours the sidebar's Animations preference in BOTH
+ * directions, not just the bare media query, which makes it the stronger guard
+ * AND the one a consumer cannot omit. Anything new here takes this form.
+ *
+ * The row VALUE belongs at the call site: it is state, not geometry.
+ */
+export const REVEAL = {
+  ROOT: "grid motion-safe:transition-[grid-template-rows] motion-safe:duration-[var(--duration-emphasized)] motion-safe:ease-[var(--ease-emphasized)]",
+  OPEN: "grid-rows-[1fr]",
+  CLOSED: "grid-rows-[0fr]",
+  /** `min-h-0` is what lets the 0fr row actually collapse. */
+  CLIP: "min-h-0 overflow-hidden",
+} as const;
+
+/**
+ * The three cells an IMEI decomposes into: type allocation code, serial, check
+ * digit.
+ *
+ * THE BREAKPOINT IS COSTED AGAINST THE COLUMN, NOT THE PAGE. This grid lives in
+ * the workbench card, which is the narrow half of `WORKBENCH_SPLIT` — roughly
+ * 40% of the content column. At `@2xl/card` (672px) the 3-up step therefore
+ * never fired at any realistic window width, and the breakdown shipped as three
+ * stacked full-width cells that looked deliberate and were not. `@md/card`
+ * (448px) is the step the column can actually reach; the widest cell holds an
+ * 8-digit TAC in 13px mono, which clears it with room. See DESIGN.md >
+ * The Grid-Step-Costing Rule.
+ */
+export const BREAKDOWN = {
+  GRID: "grid grid-cols-1 gap-1.5 @md/card:grid-cols-3",
+  CELL: "flex flex-col gap-0.75 rounded-field px-4 py-3",
+  /** The two derived-from-nobody cells: neutral ground. */
+  CELL_NEUTRAL: "bg-surface-container",
+  /**
+   * The check digit — the only part of an IMEI the machine derives rather than
+   * the manufacturer assigns, and the part the validity chip above is judging.
+   * `primary-container` is emphasis by container step (DESIGN.md >
+   * The Highlight-by-Container Rule), never a health signal: validity is the
+   * chip's job and the chip carries a glyph.
+   */
+  CELL_ACCENT: "bg-primary-container text-on-primary-container",
+} as const;
 
 // -----------------------------------------------------------------------------
 // The pending-changes save bar
@@ -998,8 +1144,7 @@ export const READOUT_ROW = {
   /** Multiple facts in one value cell, spaced rather than punctuated. */
   VALUE_GROUP: "ml-auto flex min-w-0 items-center gap-2.5",
   /** Machine strings: identifiers, MCCMNC, slot names. */
-  VALUE_MONO:
-    "font-mono text-[0.8125rem] font-semibold tabular-nums truncate",
+  VALUE_MONO: "font-mono text-[0.8125rem] font-semibold tabular-nums truncate",
   /**
    * Human-authored labels never take mono (The Machine-Voice Rule) — but this
    * slot also carries CHANGING FIGURES that are not identifiers: a slot number
@@ -1201,7 +1346,7 @@ export const RAT_RANK_TONE: Record<string, string> = {
  */
 export const CHOICE_ROW = {
   SCROLL_CAP: "max-h-[17rem] overflow-y-auto",
-  ROOT: "flex w-full items-center gap-3 rounded-field px-4 py-3 text-left transition-[background-color,color] duration-[--duration-standard] ease-[--ease-standard] focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none",
+  ROOT: "flex w-full items-center gap-3 rounded-field px-4 py-3 text-left transition-[background-color,color] duration-[var(--duration-standard)] ease-[var(--ease-standard)] focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none",
   REST: "hover:bg-surface-container-high",
   SELECTED: "bg-primary-container text-on-primary-container",
   /** Mirrors ROOT's resolved height for the skeleton. */

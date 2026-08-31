@@ -205,7 +205,9 @@ Three full-width bands under the page header. **Live state → what you can chan
 - **Band A leads.** It is the only thing on the surface that can answer "is my connection actually dialling the APN I think it is". It used to render **last**, behind the heaviest card on the page.
 - **Band C left the fieldset** (bug fix). The override gate fires on `profile.settings.apn.name` being non-empty, so a SIM profile owning the APN was disabling the carrier-bundle picker — a control no profile manages and the profile system has nothing to say about. `overrideUndetermined` was dropped from MBN's loading gate at the same time: MBN has no reason to wait on a profile verdict.
 - **Band A was always outside it,** on purpose. A profile owning the APN does not make the network's answer less true, and dimming live truth to 60 % opacity would be the page hiding the one thing still worth reading.
-- **There is no two-column grid.** `PAGE_GRID`'s `1.35fr / 1fr` was inherited from `/cellular/settings`, and its JSDoc justifies the ratio by a right column ("AMBR + modem reports") that no longer exists anywhere. These cards have unrelated clocks, unrelated weights and different gating — [DESIGN.md](../../DESIGN.md) > Layout: *split a page by cadence, not by symmetry*. `PAGE_GRID` stays exported: `imei-settings.tsx` consumes it.
+- **There is no two-column grid.** `PAGE_GRID`'s `1.35fr / 1fr` was inherited from `/cellular/settings`, and its JSDoc justifies the ratio by a right column ("AMBR + modem reports") that no longer exists anywhere. These cards have unrelated clocks, unrelated weights and different gating — [DESIGN.md](../../DESIGN.md) > Layout: *split a page by cadence, not by symmetry*.
+
+> ℹ️ NOTE: **`PAGE_GRID` is gone as of 2026-08-31.** It survived this change only because `imei-settings.tsx` was still consuming it; the IMEI design-language adoption replaced that call site with `WORKBENCH_SPLIT`, which carries `items-start` and a justification that names the columns it actually has. With its last consumer gone, `PAGE_GRID` was deleted rather than left exported — same disposal as `PAGE_TITLE` / `PAGE_DESCRIPTION` above. `CARD_CELL` stays: it still has real consumers on `/cellular/settings` itself, where the two cards genuinely are peers.
 
 A resting **"Re-read from modem"** footer (`readout.reread`) calls `refresh()` + `refreshMbn()`. Before this change `refresh` was wired but reachable **only** from inside the error banner — the affordance existed exactly when the page had already failed. It is hidden while `isLoading || isSaving || isReconciling`, so it cannot contradict the card's own save bar.
 
@@ -381,6 +383,25 @@ A `rat_acq_order` write takes effect on the next registration, so the radio drop
 
 Route shell: `imei-settings.tsx`. Three cards: the device IMEI write surface, the backup-IMEI config, and a read-only tools/workbench card that touches nothing.
 
+### The 2026-08-31 design-language adoption
+
+The route was the last in the family still outside the finalized language. What landed, and the three defects that came out with it:
+
+| Change | Why |
+| ------ | --- |
+| `staggerContainer` / `staggerItem` on the card grid | The page had **no motion at all**. `initial`/`animate` are declared on the container only; the three children carry `variants` alone so they share one clock |
+| One stable `<Card>` per card, body swapped under `AnimatePresence initial={false}` | Both write cards `return`ed a separate `<Card>` per state, remounting an identical header the moment the read landed. Same fix, same pattern as Network Priority and Blocked Networks |
+| `CARD_TITLE` on all three titles | All three were unsized `CardTitle`, inheriting 16 px — the anti-pattern flagged but left out of scope by `96f32aa`. This closes it for `imei-settings/` |
+| `REVEAL` on the backup-identifier row | The row the toggle *creates* used to blink in. It now animates `grid-template-rows` 0fr→1fr, and is `inert` + `aria-hidden` while closed — it was neither, so a keyboard user could tab into an invisible field |
+| `WORKBENCH_SPLIT` replaces `PAGE_GRID` + `CARD_CELL` | The height lock pinned the workbench card to the **combined** height of the two write cards beside it. Split by symmetry; see the note under *There is no two-column grid* above |
+| `FIELD_CLUSTER`, `FIELD_COUNTER`, `ICON_ACTION`, `READOUT_ICON_ACTION`, `SECTION_LABEL`, `BREAKDOWN` promoted to `shapes.ts` | Seven call-site strings, several written out twice across the two write cards. `BREAKDOWN` had also been a module-local constant in `imei-tools-card.tsx` |
+
+> ⚠️ WARNING: **`duration-[--duration-quick]` is invalid CSS, not an off-scale duration.** Tailwind v4 compiles the bare `[--custom-property]` arbitrary value to the *literal* `transition-duration: --duration-quick`; the browser drops the declaration, so the transition ships as **no transition at all**. Six sites in this family carried it (`shapes.ts` ×5, `imei-settings-card.tsx` ×1) and all are now `duration-[var(--duration-*)]`. Verified by compiling the class with `bunx @tailwindcss/cli` and by grepping `out/_next/static/chunks/*.css` before and after. **Two sites survive in `components/local-network/ethernet-card.tsx:155,163`** — a different route family, deliberately not swept.
+
+> ⚠️ WARNING: **`BREAKDOWN.GRID` steps at `@md/card`, not `@2xl/card`, and that is load-bearing.** The workbench card lives in the *narrow* half of `WORKBENCH_SPLIT` — roughly 40 % of the content column — so a 672 px step never fired at any realistic window width and the three cells shipped stacked while looking deliberate. Costed against the column it actually lives in, per [DESIGN.md](../../DESIGN.md) > The Grid-Step-Costing Rule.
+
+> ℹ️ NOTE: **`REVEAL` carries its own reduced-motion guard, and new work here should copy that, not `RATE_CEILING`.** A CSS grid transition is neither transform nor opacity, so `<MotionConfig reducedMotion="user">` cannot see it. `RATE_CEILING.PANEL_MOTION` plugs the hole by making every consumer call `useReducedMotion()` and drop the class — which works and is one `cn()` away from being forgotten. `REVEAL.ROOT` instead prefixes its transition with `motion-safe:`, the `@custom-variant` globals.css redefines to honour the sidebar's Animations preference in **both** directions. The consumer cannot omit it.
+
 ### Luhn validation now gates both write paths
 
 > ⚠️ WARNING: The incumbent guard was a bare shape regex, `/^\d{15}$/`. A Luhn-invalid IMEI — a number the network will reject — could reach modem NVM, and the device needed a reboot to find out.
@@ -389,9 +410,13 @@ Route shell: `imei-settings.tsx`. Three cards: the device IMEI write surface, th
 
 The two checks are staged deliberately: **shape first, then checksum.** Naming "not 15 digits" while the user is still typing would be noise, so the length message waits for a full field and only then does the checksum message appear. Both fail **inline** (`INLINE_ERROR`, or a filled `destructive-container` chip where the row may be promoted) rather than as a toast — a toast is gone in four seconds, and this is the one message a user must act on to proceed.
 
-### The legal warning is a banner, not a tooltip
+### The legal warning is a banner, not a tooltip — and a note, not an alarm
 
-It used to be a 16 px `warning` glyph in an input addon whose tooltip had to be hovered — duplicated in two cards, with a **third, differently worded** copy in the loading skeleton, so the sentence visibly changed as the skeleton resolved. A notice a user must discover is not a notice. There is now one persistent page-level `Banner role="degraded"`, one wording, above everything it governs.
+It used to be a 16 px `warning` glyph in an input addon whose tooltip had to be hovered — duplicated in two cards, with a **third, differently worded** copy in the loading skeleton, so the sentence visibly changed as the skeleton resolved. A notice a user must discover is not a notice. There is now one persistent page-level banner, one wording, above everything it governs.
+
+> ⚠️ WARNING: **It shipped as `role="degraded"` and that was wrong twice over.** `degraded` is the warning container plus `ariaRole: "alert"`, and this banner is *permanent* — so the page fired a screen-reader alert about a condition that had not arisen, on every load, forever, and painted a state container as wallpaper. `CARD_FOOTNOTE` in `shapes.ts` already states the principle: a banner **is** its state, and a block with no off state is not a state.
+>
+> The compounding cost was tonal. `deferred-reboot` — the one banner on this page a user must ACT on — is warning-toned too, so it arrived as the second amber block under a permanent first one and read as more of the same. Corrected to `role="override"` on 2026-08-31: the set's neutral page-scoped note (`ariaRole: "note"`, `surface-container`, the one unfilled disc). **Amber on this route now means exactly one thing and means it only when it is true.** Do not put it back on a state role.
 
 ### The deferred reboot is real now — the sessionStorage contract
 

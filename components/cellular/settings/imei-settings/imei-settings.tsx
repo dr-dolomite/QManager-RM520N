@@ -1,13 +1,15 @@
 "use client";
 
 import * as React from "react";
+import { motion } from "motion/react";
 import { useTranslation } from "react-i18next";
 
 import CellularPageHeader from "@/components/cellular/page-header";
 import { Banner, bannerActionVariants } from "@/components/ui/banner";
 import { useImeiSettings } from "@/hooks/use-imei-settings";
+import { staggerContainer, staggerItem } from "@/lib/motion";
 
-import { CARD_CELL, PAGE_GRID, PAGE_ROOT } from "../shapes";
+import { PAGE_ROOT, WORKBENCH_SPLIT } from "../shapes";
 import BackupIMEICard from "./backup-imei-card";
 import IMEISettingsCard from "./imei-settings-card";
 import IMEIToolsCard from "./imei-tools-card";
@@ -19,13 +21,29 @@ import IMEIToolsCard from "./imei-tools-card";
 // grid. The page arranges; it never becomes the canvas itself.
 //
 // -----------------------------------------------------------------------------
-// THE LEGAL WARNING IS A BANNER, NOT A TOOLTIP
+// THE LEGAL WARNING IS A BANNER, NOT A TOOLTIP — BUT IT IS A NOTE, NOT AN ALARM
 // -----------------------------------------------------------------------------
 // It used to be a 16px `warning` glyph in an input addon, whose tooltip has to
 // be hovered to be read — duplicated in two cards, with a THIRD, differently
 // worded copy in the loading skeleton, so the sentence visibly changed as the
 // skeleton resolved. A notice that a user must discover is not a notice. One
-// banner, one wording, always visible, above everything it governs.
+// banner, one wording, always visible, above everything it governs. That part
+// stands.
+//
+// WHAT CHANGED IS ITS ROLE. It shipped as `degraded` — the warning container,
+// the triangle glyph, and `role="alert"` — and it is permanent, so this page
+// fired a screen-reader alert about a condition that had not arisen on every
+// single load, and painted the warning container as wallpaper. `CARD_FOOTNOTE`
+// in `../shapes` already states the principle: a banner IS its state, and a
+// block with no off state is not a state.
+//
+// The cost was not only semantic. The one banner on this page a user must ACT
+// on — `deferred-reboot`, "you wrote an IMEI and the modem has not restarted" —
+// is also warning-toned, so it arrived as the second amber block under a
+// permanent first one and read as more of the same. `override` is the set's
+// neutral page-scoped note (`ariaRole: "note"`, `surface-container`, the one
+// unfilled disc), which is precisely what this is. Amber on this page now means
+// exactly one thing, and it means it only when it is true.
 //
 // -----------------------------------------------------------------------------
 // THE DEFERRED REBOOT
@@ -101,7 +119,9 @@ const IMEISettings = () => {
   const handleReview = React.useCallback(() => {
     const card = document.getElementById(DEVICE_CARD_ID);
     if (!card) return;
-    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const reduced = window.matchMedia(
+      "(prefers-reduced-motion: reduce)",
+    ).matches;
     card.scrollIntoView({
       behavior: reduced ? "auto" : "smooth",
       block: "start",
@@ -142,7 +162,7 @@ const IMEISettings = () => {
       ) : null}
 
       <Banner
-        role="degraded"
+        role="override"
         title={t(`${K}.legal.title`)}
         description={t(`${K}.legal.body`)}
       />
@@ -164,9 +184,21 @@ const IMEISettings = () => {
         />
       ) : null}
 
-      <div className={PAGE_GRID}>
-        {/* Left column: the two write surfaces, stacked. */}
-        <div className="flex h-full flex-col gap-4">
+      {/* The card cascade. `initial`/`animate` are declared HERE, on the
+          container, and the three children carry `variants` alone so they
+          inherit this one clock — a child that redeclares them detaches and
+          runs its own. The banners above are deliberately outside it: they
+          own `.animate-banner-in` in globals.css, and a condition arriving
+          should not wait its turn behind the page's furniture. */}
+      <motion.div
+        className={WORKBENCH_SPLIT}
+        variants={staggerContainer}
+        initial="hidden"
+        animate="visible"
+      >
+        {/* Left column: the two write surfaces, stacked. They cascade as two
+            cards rather than as one column, because that is what they are. */}
+        <motion.div variants={staggerItem}>
           <IMEISettingsCard
             anchorId={DEVICE_CARD_ID}
             currentImei={currentImei}
@@ -176,6 +208,9 @@ const IMEISettings = () => {
             onRebootNow={handleReboot}
             onRebootDeferred={markRebootPending}
           />
+        </motion.div>
+
+        <motion.div variants={staggerItem} className="@4xl/main:row-start-2">
           <BackupIMEICard
             backupEnabled={backupEnabled}
             backupImei={backupImei}
@@ -183,13 +218,18 @@ const IMEISettings = () => {
             isSaving={isSaving}
             onSave={saveBackup}
           />
-        </div>
+        </motion.div>
 
-        {/* Right column: the read-only workbench. Nothing here touches NVM. */}
-        <div className={CARD_CELL}>
+        {/* Right column: the read-only workbench. Nothing here touches NVM, and
+            it spans both write rows rather than being locked to their combined
+            height — it stops where its content stops. */}
+        <motion.div
+          variants={staggerItem}
+          className="@4xl/main:col-start-2 @4xl/main:row-span-2 @4xl/main:row-start-1"
+        >
           <IMEIToolsCard />
-        </div>
-      </div>
+        </motion.div>
+      </motion.div>
     </div>
   );
 };
