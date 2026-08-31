@@ -105,6 +105,28 @@ The engine is **TCP-only**: `tpws` desyncs TLS/HTTP handshakes, and the transpar
 - tpws hot-reloads the hostlist per-connection; no restart needed on hostlist save.
 - **Status reads are privilege-free by design.** Unprivileged `systemctl show` is a per-model lottery: allowed on RM520N, denied outright on sibling builds such as RM502Q-GL, and www-data never has a sudoers rule for systemctl. `dpi_service_status` therefore probes tpws liveness with an anchored pgrep on the binary path (hardcoded fallback, since some builds ship `$DPI_BINARY` empty) and consults systemd only to label degraded states. Uptime derives from `/proc/<pid>/stat` starttime jiffies vs `/proc/uptime`. Validated live on RM520N v0.1.14 + RM502Q-GL fleet.
 
+## The UI (re-authored 2026-08-31)
+
+The surface was rebuilt onto the finalized design language. **No backend contract changed** — same endpoint, same actions, same response fields, same 2s cadence, same CGI-enforced mutex — so everything above this section is unaffected. What changed is the shape, and two of the changes are correctness rather than style.
+
+**The page is ordered by cadence, not by config key.** Page header → live tile strip → Bypass mode → Optimizer targets → Test bypass → QUIC Force-TCP. Force-TCP stays last for the reason given under [QUIC handling](#quic-handling-force-tcp-standalone): its independence is deliberate and the position states it.
+
+**One derived `mode`, and nothing below infers its own.** `traffic-engine.tsx` computes `mode: DpiMode` once from the two sections' `enabled` flags and passes it down. This replaced `videoOptimizer.data ?? masquerade.data` followed by a `"sni_domain" in data` shape sniff in the status card — and that combination was a live bug: both hooks fetch, so the Video Optimizer payload essentially always won, and with **masquerade** enabled the card rendered the Video Optimizer layout and reported "Domains loaded" for a mode that has no domain list.
+
+The four LIVE fields are read differently and deliberately so: `status`, `uptime`, `packets_processed` and `kernel_module_loaded` are **engine-global** — one tpws process, one REDIRECT rule, both sections reporting the same ones — so the shell takes whichever section read succeeded. That fallback was never the bug; using it to decide the *mode* was.
+
+**The two modes are one three-way selector**, not tabs. They are mutually exclusive by construction (see [Modes](#modes)) and tabs say "two independent panes you may browse", so the mutex only ever surfaced as a surprise dialog at toggle time. The takeover confirm survives with a different job — it guards "this restarts the engine" — and fires **only on a mode→mode switch**, which is the only transition that actually restarts anything.
+
+**The target list stays mounted while masquerade owns the engine**, and says why. It used to unmount with its tab, so the interface's only statement about a list that is still stored and still applies on switching back was its absence. The count chip switches from "N of 300" to "N saved" with it. The editor is not disabled either: the list is stored independently of the mode and tpws re-reads it per connection, so editing it is legitimate — what would be dishonest is implying the edits take effect right now.
+
+**The verify result is a comparison, not a list.** Three rows on one shared 0–100 scale whose ceiling is the fastest of the three samples, so "did the bypass help" is read by bar length. The winner is promoted to `primary-container` and its numeral drops ramp ink for `on-primary-container`. **The line-speed row shares the scale but can never be the winner** — it is the reference (see [Verify](#verify-test-bypass)), not a contestant.
+
+**Geometry lives in `components/local-network/traffic-engine/shapes.ts`** — the family's only shapes module, and the second under `/local-network/` after `ethernet/shapes.ts`. Restate geometry there; never import it from `components/cellular/`. Two values in it are load-bearing and are documented in place: the tile height is **pinned** (`h-[6.5rem]`) because a skeleton mirrors it and a floor cannot be a mirror, and there is deliberately **no `min-h-` anywhere in the file** — every other box sizes to its content, because a mode hint and the idle explanation both wrap on a narrow container.
+
+Two departures from the approved comp, both documented at their call sites: the Processed and Scope discs are **neutral** rather than `downlink`/`spatial` (a packet count and a hostlist size are counts, and giving a direction hue a second meaning is the failure `globals.css` records having already removed once), and the winning bar keeps its ramp fill rather than the comp's `on-primary-container` mix, because expressing that would mean minting a tone on the shared `MetricBar` for one call site.
+
+Pinned by `scripts/test/traffic-engine-design-language.sh` (19 sections, committed red in `3338d48` before the fix landed in `0fdfc65`).
+
 ## Files
 
 - `scripts/usr/lib/qmanager/dpi_state.sh` — helpers (args build, rule ensure/remove, status probes, mode detection)
@@ -116,5 +138,6 @@ The engine is **TCP-only**: `tpws` desyncs TLS/HTTP handshakes, and the transpar
 - `scripts/test/dpi-rule-signature-port.sh` — harness pinning `DPI_RULE_SIG` and the `_dpi_uninstall_run` teardown to `$DPI_PORT`
 - `scripts/test/dpi-uninstall-path-symmetry.sh` — harness pinning the uninstall paths: sections [1]–[3] that the UI and full-device paths drain the same chains (F19), section [4] that `--clear` drains **all three** rules the lib owns (F21, behavioural — the branch is awk-extracted and run against a stubbed `run_iptables`, asserting rule *signatures* not chain names), section [5] that the UI path does **not** route through `--clear`
 - `scripts/www/cgi-bin/quecmanager/network/video_optimizer.sh` — CGI (status / save / save_masquerade / save_force_tcp / verify / install / save_hostlist)
-- `app/local-network/traffic-engine/` + `components/local-network/traffic-engine/` — frontend
+- `app/local-network/traffic-engine/` + `components/local-network/traffic-engine/` — frontend (`shapes.ts` is the family's geometry contract; see [The UI](#the-ui-re-authored-2026-08-31))
+- `scripts/test/traffic-engine-design-language.sh` — harness pinning the re-authored surface
 - `hooks/use-video-optimizer.ts`, `hooks/use-traffic-masquerade.ts`, `hooks/use-force-tcp.ts`, `hooks/use-cdn-hostlist.ts`
