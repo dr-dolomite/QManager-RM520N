@@ -82,11 +82,21 @@ CB='\]'
 # class whose only member is "]", which ERE accepts in first position.
 NOTC='[^]]'
 
-# The set Tailwind actually scans: tracked, non-gitignored text files.
+# The set Tailwind actually scans: every non-gitignored text file.
+#
+# --cached AND --others --exclude-standard, deliberately. Tailwind's scanner
+# does not care whether a file is tracked; it reads what is on disk and
+# respects .gitignore. A plain `git ls-files` lists only TRACKED files, which
+# means a brand-new doc is invisible to this harness until it is staged --
+# and a new file is exactly where a fatal spelling is most likely, because
+# the person writing fresh prose about arbitrary values is the person most
+# likely to spell one. This harness was written with that hole in it and
+# went green against a new, untracked, unexamined document.
+#
 # `.claude/` is force-added (see project memory) but IS gitignored, so
-# Tailwind's scanner never reads it -- excluding it here keeps this harness
-# aligned with what actually compiles. Lockfiles are machine-generated.
-mapfile -t SCANNED < <(git ls-files \
+# Tailwind never reads it -- excluding it keeps this aligned with what
+# actually compiles. Lockfiles are machine-generated.
+mapfile -t SCANNED < <(git ls-files --cached --others --exclude-standard \
     -- '*.ts' '*.tsx' '*.js' '*.mjs' '*.md' '*.sh' '*.css' '*.rs' '*.py' '*.json' \
     | grep -vE '^(node_modules|out|\.claude)/' \
     | grep -vE '(package-lock\.json|bun\.lock)' || true)
